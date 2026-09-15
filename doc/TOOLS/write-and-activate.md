@@ -19,6 +19,7 @@ reaching SAP.
 | `source` | string | no (required unless `mode=delete`) | — | Complete new source. |
 | `edit` | object `{old_string, new_string, replace_all?}` | no | — | Apply a string replacement to the current source instead of sending a full replacement. |
 | `method` | string | no | — | Write one method's source instead of the whole class. |
+| `include` | enum `main` \| `definitions` \| `implementations` \| `macros` \| `testclasses` | no | `main` | `CLAS/OC` only — which class sub-include to write. `testclasses` is the ABAP Unit test include (CCAU). A write REPLACES the whole named include; there is no partial/patch write to an include (`edit`/`method` still target `main` only). |
 | `ddic` | object | no | — | Structured create for `DOMA/DD`/`DTEL/DE`/`TTYP/DA` only — alternative to `source` (never both). See `abapsmith-create-ddic-objects` for which fields apply to which type. |
 | `package` | string | no | `$TMP` | Package for a **new** object. Must be allowlisted. For a new `DEVC/K` this is the SUPERpackage, not a sibling — omitting it would create a ROOT package, which the safety gate refuses. |
 | `description` | string | no (required for `TRAN/T`, and for any `ddic` create) | — | Short description for a **new** object. |
@@ -31,12 +32,65 @@ reaching SAP.
 | `software_component` | string | no | — | `DEVC/K` (package) only: `LOCAL`, or a transportable component (e.g. `HOME`) — the latter needs `corr_nr` unless the package is `$TMP`-local. |
 | `package_type` | string | no | `development` | `DEVC/K` only. |
 | `transport_layer` | string | no | — | `DEVC/K` only. |
-| `base_table` | string | no | — | `VIEW/DV` create only — the single base DDIC table. |
+| `base_table` | string | no | — | `VIEW/DV` create only — the single base DDIC table. Also accepted for `TABL/DI` create/delete — see "`TABL/DI` addressing" below; there it names the index's base table rather than a view's. |
 | `view_fields` | array\<string\> | no | — | `VIEW/DV` create only — the fields to project, in order. |
 | `program` | string | no (required for `TRAN/T`) | — | `TRAN/T` only — program the transaction starts. |
 | `affects` | object `{name, packageName, masterSystem?, spotName?}` | no (required for `ENHO/XHH`) | — | The object this write's target enhancement binds to. |
 | `objects` | array of `{object, type?, affects?}`, 1–10 entries | no | — | Batch form: delete several objects in one call, one at a time, in the order given. `mode=delete` only. Mutually exclusive with `object` — exactly one of the two, never both and never neither. |
 | `dry_run` | boolean | no | — | Resolve, read, apply the edit locally and run the safety gate, but return a diff preview instead of writing. Works with `source`, `edit`, `method`, `ddic` and `mode=delete`. Refused with `BAD_INPUT` for `objects`, for the bridge-only creates (`VIEW/DV`, `TRAN/T`), and for `DEVC/K`. |
+
+**`TABL/DI` addressing**: `abap_read` names a table secondary index as
+`<TABLE>/<INDEX>` (see `doc/TOOLS/read-and-search.md`'s "Catalog reads"
+section, e.g. `abap_read {"object":"ZTAB/Z01","type":"TABL/DI"}`) because
+`TABL/DI` has no ADT resource of its own to resolve a bare name against.
+`abap_write` now accepts both of the following for `object`, for both
+create and `mode=delete`:
+
+- The same parented form, alone: `{"object":"ZTAB/Z01","type":"TABL/DI"}`.
+  It is split into base table `ZTAB` and index `Z01`; `base_table` may be
+  omitted.
+- The bare index name plus `base_table`, unchanged from before:
+  `{"object":"Z01","type":"TABL/DI","base_table":"ZTAB"}`.
+
+`base_table` may be given alongside the parented form too, as long as it
+agrees with the table named in `object` — abapsmith never silently
+prefers one over the other. If the two disagree, or if `object` is a bare
+index name with no `base_table` at all, the call is refused `BAD_INPUT`
+naming both values (or both accepted forms) rather than guessing.
+**Class sub-includes (`include`)**: a `CLAS/OC` has five includes ADT
+exposes — `main`, `definitions` (CCDEF), `implementations` (CCIMP),
+`macros` (CCMAC) and `testclasses` (CCAU). `include` picks which one this
+write targets; omitting it writes `main`. Writing `testclasses` — creating
+it when the class has none, or replacing it when it already does — then
+`abap_activate`-ing the class, then running `abap_test` against it, then
+reading it back with `abap_read include="testclasses"`, was verified live
+end to end against SAP A4H, 2026-09-12: create-when-absent, update-when-
+present, activation, test execution and read-back all confirmed with real
+bytes on the wire (see `test/fixtures/live-captured/` for the class used,
+`ZCL_I75_PROBE`, and the `abapsmith-write-abap-unit-tests` skill for the
+authoring shape). This is the only supported way to write ABAP Unit tests
+through this tool — there is no dedicated "create a test class" mode.
+
+A write always replaces the **entire** named include; there is no way to
+append to or patch part of an include, and no way to delete a single
+include on its own — ADT exposes no such verb, only delete-the-whole-
+class. Asking for `mode=delete` together with `include` is refused with
+`BAD_INPUT` before anything is touched, for exactly this reason: deleting
+`ZCL_FOO` because you asked to delete its `testclasses` would destroy the
+class's main source and its other includes too, and that could not be
+undone. To empty an include instead of deleting it, write it with new,
+possibly empty (or single-comment-line) content; to delete the whole
+class, drop `include` from the call.
+
+Because an include activates together with its class, a syntax error in
+`testclasses` (or any other include) blocks activation of the whole
+class, not just that include — the class's main logic stops compiling
+along with its tests. Read an include before rewriting it: since the
+write replaces the whole thing, an `abap_write` with `include` and no
+prior `abap_read` of the same include silently discards whatever was
+there before. `abap_journal mode=undo` can revert a sub-include write —
+see [journal.md](journal.md) for the current, still test-covered-only,
+state of that undo path.
 
 **`mode=delete` and transport requests**: SAP records a deletion on the
 request that already holds the lock entry for the object — the request
@@ -255,20 +309,27 @@ Example:
 
 `mode=check`: syntax check of saved or unsaved source, no lock.
 `mode=activate`: check then activate. Inactive objects do not run.
+`mode=format`: run the server's own pretty printer over source, either
+standalone text or a saved object — see
+["mode=format: the pretty printer"](#modeformat-the-pretty-printer) below.
 
 **Availability**: case 2 — always registered. `mode=check` is unconditional
 (no lock, works under `ABAP_MODE=read`); `mode=activate` needs `canWrite`
 and is refused at call time otherwise, despite the tool being listed.
+`mode=format` splits by form: the text form (`source`, no `object`) is
+unconditional like `mode=check`; the object form (`object`, no `source`)
+needs `canWrite` like `mode=activate`. See
+[availability-and-capabilities.md](availability-and-capabilities.md).
 
 | Parameter | Type | Required | Default | Meaning |
 |---|---|---|---|---|
-| `object` | string | yes, unless `objects` is used | — | Object reference. |
+| `object` | string | yes, unless `objects` is used or `mode=format` with `source` | — | Object reference. |
 | `type` | string | no | — | ADT type hint. |
-| `mode` | enum `check` \| `activate` | no | `activate` | Check only, or check then activate. |
-| `source` | string | no | — | Draft to check. Omitted for `mode=check`, the saved server version is fetched and checked instead — refused with `BAD_INPUT` only when there's genuinely nothing saved to check (object doesn't exist yet, or its type has no `/source/main`). Omitted for `mode=activate`, the saved server version is activated with no pre-flight check. |
-| `corr_nr` | string | no | — | Transport request to activate into. |
-| `affects` | object | no (required to activate an existing `ENHO/XH`/`ENHS/XS`) | — | The object the enhancement binds to. |
-| `objects` | array of `{object, type?, affects?}`, 1–50 entries | no | — | Batch form: activate several objects through ADT's multi-object activation endpoint instead of one call each. Mutually exclusive with `object`/`type`/`affects`/`corr_nr`/`source`, and `mode=activate` only (no batch syntax check). |
+| `mode` | enum `check` \| `activate` \| `format` | no | `activate` | Check only, check then activate, or pretty-print. |
+| `source` | string | no | — | For `mode=check`/`mode=activate`: draft to check. Omitted for `mode=check`, the saved server version is fetched and checked instead — refused with `BAD_INPUT` only when there's genuinely nothing saved to check (object doesn't exist yet, or its type has no `/source/main`). Omitted for `mode=activate`, the saved server version is activated with no pre-flight check. For `mode=format`: text to format directly (mutually exclusive with `object` — exactly one of the two, never both, never neither). |
+| `corr_nr` | string | no | — | Transport request to activate into (`mode=activate`) or to write into if the reformatted object changed (`mode=format`, object form only — refused with `BAD_INPUT` on the text form, which writes nothing). |
+| `affects` | object | no (required to activate an existing `ENHO/XH`/`ENHS/XS`) | — | The object the enhancement binds to. Refused with `BAD_INPUT` for `mode=format`. |
+| `objects` | array of `{object, type?, affects?}`, 1–50 entries | no | — | Batch form: activate several objects through ADT's multi-object activation endpoint instead of one call each. Mutually exclusive with `object`/`type`/`affects`/`corr_nr`/`source`, and `mode=activate` only (no batch syntax check, and refused with `BAD_INPUT` for `mode=format`). |
 
 **Batch activation (`objects`)**: sends the object list to ADT's own
 multi-object activation endpoint, rather than one `abap_activate` call per
@@ -308,4 +369,87 @@ uses. Re-read the object to see its state, then settle the entry by hand with
 `abap_journal mode=reconcile` once its outcome is established. An
 object in a chunk that was never sent at all, because an earlier chunk
 failed first, settles `failed`, with an error saying so.
+
+### mode=format: the pretty printer
+
+`abap_activate mode="format"` runs `POST /sap/bc/adt/abapsource/prettyprinter`
+— the server's own pretty printer. It formats layout and keyword case
+according to the server's own pretty-printer setting (readable, not writable
+here, at `GET /sap/bc/adt/abapsource/prettyprinter/settings`); abapsmith
+reads that setting implicitly (the server applies it when asked to format)
+and never changes it — `setPrettyPrinterSetting` is never called, and no
+parameter in this tool reaches it. Observed live on A4H:
+`indentation=true style=keywordUpper keepIdentifier=true` (fixture 962) —
+this is one system's configuration, not a guarantee about any other; a
+differently configured system will format differently.
+
+Two mutually exclusive forms, selected by which of `object`/`source` is
+given:
+
+- **Text form** — `{mode:"format", source}`, no `object`. Stateless: the
+  given text is posted to the pretty printer and the formatted text comes
+  back. No object is resolved, nothing is locked, nothing is written,
+  nothing is activated, and no journal entry is made. Gated as read and
+  works even when the server is read-only (`ABAP_MODE=read`). Refuses
+  `corr_nr` with `BAD_INPUT`, since there is nothing to write into.
+- **Object form** — `{mode:"format", object, type?}`, no `source`. Reads
+  the object's saved source, runs it through the same endpoint, and
+  compares the result byte-for-byte against what was read. If the
+  formatted text is identical, the response reports `changed: false` and
+  stops there — no lock, no PUT, no activation, no journal entry, a pure
+  read. If the bytes differ, abapsmith computes an etag from the source as
+  read and writes the formatted text back through the ordinary
+  `abap_write` path with `expect_etag` set to that etag and
+  `activate: true` — the same lock, PUT, activate, journal sequence any
+  other write goes through. Setting `expect_etag` from the source as read
+  closes the read-format-write race: if the object changed on the server
+  between the read and the write, the write is rejected with
+  `ETAG_CONFLICT` instead of silently overwriting someone else's edit. A
+  successful object-form format is journalled and undoable through
+  `abap_journal mode=undo`, exactly like any other write.
+
+CRLF line endings in the pretty printer's own response are normalised to LF
+before the changed-bytes comparison (fixtures 963 and 964 were both
+captured with a CRLF response body) — this is an artefact of the wire
+format, not a claim about the object's own line endings.
+
+**Refusals** (`abapActivateFormat`, `src/tools/activate.ts`):
+
+| Input | Result |
+|---|---|
+| Both `object` and `source` given | `BAD_INPUT` — exactly one, never both. |
+| Neither `object` nor `source` given | `BAD_INPUT` — exactly one, never neither. |
+| `affects` given | `BAD_INPUT` — not applicable to formatting. |
+| `objects` (batch) given | `BAD_INPUT` — no batch form for `mode=format`. |
+| `corr_nr` given with the text form | `BAD_INPUT` — the text form writes nothing. |
+| `object` does not exist | `NOT_FOUND`. |
+| `object` resolves to a properties-shape DDIC type with no ABAP source | `UNSUPPORTED` — there is no source to pretty-print. |
+
+**Evidence.** `live` (A4H, 2026-09-12): the wire protocol itself — the
+format request/response shape, keyword-case and layout rewriting, and the
+idempotent `changed: false` case (fixtures 963, 964), plus the
+system-wide setting read (fixture 962). Still not verified live: the object
+form's full write-back path (lock, PUT, activate, journal entry) and the
+entire refusal matrix above — both are covered only by
+`test/activate-format.test.ts` against an in-process fake ADT server, never
+exercised end-to-end against a live system.
+
+Example (text form):
+
+```json
+{
+  "mode": "format",
+  "source": "CLASS zcl_demo DEFINITION PUBLIC FINAL CREATE PUBLIC.\n  PUBLIC SECTION.\n    METHODS run.\nENDCLASS.\nCLASS zcl_demo IMPLEMENTATION.\n  METHOD run.\n  data lv_x type i. lv_x = 1.\n  ENDMETHOD.\nENDCLASS."
+}
+```
+
+Example (object form):
+
+```json
+{
+  "mode": "format",
+  "object": "ZCL_DEMO_ORDER",
+  "type": "CLAS/OC"
+}
+```
 

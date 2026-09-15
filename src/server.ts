@@ -49,6 +49,7 @@ import { registerDumpTools } from "./tools/dumps.js";
 import { registerAtcTools } from "./tools/atc.js";
 import { registerQuickFixTools } from "./tools/quickfix.js";
 import { registerServiceTools } from "./tools/service.js";
+import { registerTraceTools } from "./tools/trace.js";
 import { builtinFluidToolSet, registerFluidTool } from "./tools/fluid.js";
 // The six v2 consolidated tools, opt-in via `cfg.toolSurface` (see REGISTRATION below).
 import { registerV2Tools } from "./tools/v2/register.js";
@@ -427,6 +428,7 @@ export function createServer(cfg: Config, opts: ServerOptions): AbapsmithServer 
     allowTransportRelease: cfg.allowTransportRelease,
     allowTransportDelete: cfg.allowTransportDelete,
     allowCascadeDelete: cfg.allowCascadeDelete,
+    allowServicePublish: cfg.allowServicePublish,
     allowEnhancements: cfg.allowEnhancements,
     enhanceTargets: cfg.enhanceTargets,
     enhanceTargetPackages: cfg.enhanceTargetPackages,
@@ -689,10 +691,13 @@ export function createServer(cfg: Config, opts: ServerOptions): AbapsmithServer 
       registerRunTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
       registerTestTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
       // `abap_atc`: inside `canWrite`, not beside `abap_dumps` — a run
-      // creates a persistent ATC worklist row (no delete in ADT's client
-      // surface) and `execute` carries the Z/Y-prefix + package-allowlist
-      // rules, so gating it any weaker risks unbounded server-side checks
-      // against SAP-standard packages. See src/adt/atc.ts.
+      // creates a persistent ATC worklist row, and this server observably
+      // REFUSES to remove it (DELETE answers 405 `ExceptionMethodNotSupported`,
+      // capture `891-i78-worklist-delete-405.xml`; the advertised
+      // `?action=deleteFindings` action is a zero-byte 200 no-op, capture 858)
+      // — and `execute` carries the Z/Y-prefix + package-allowlist rules, so
+      // gating it any weaker risks unbounded server-side checks against
+      // SAP-standard packages. See src/adt/atc.ts.
       registerAtcTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
       // Same reasoning: mode="list" POSTs the object's whole source for evaluation.
       registerQuickFixTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal, transport });
@@ -728,10 +733,24 @@ export function createServer(cfg: Config, opts: ServerOptions): AbapsmithServer 
       errorResult,
       registerVariables: toolCapabilities.canReadDumpVariables,
     });
-    // `abap_service` (OData $metadata): unconditional, not inside `canWrite`
-    // like `abap_atc` — three GETs, nothing created server-side. No
-    // `safety` — `read` is outside `MUTATING_OPS` and always allowed.
-    registerServiceTools(mcp, { pool, cfg, ensureConnected, errorResult });
+    // `abap_service` (OData $metadata): registered unconditionally, not
+    // inside `canWrite` like `abap_atc` — `op="read"` (the default) is three
+    // GETs, nothing created server-side, always allowed. `op="publish"`/
+    // `"unpublish"` DO mutate (they call an ADT publish job), but the
+    // connected ceilings that would gate them — `allowServicePublish`,
+    // `readOnly`, a productive-system lockout, a failed namespace/package
+    // check against the binding's package — are unknowable at registration
+    // time, exactly like `abap_fluid` below: every call re-checks via
+    // `safety` at call time instead of the tool being registered or not.
+    registerServiceTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal, warn });
+    // `abap_trace` (ABAP runtime tracing, SAT): unconditional like `abap_dumps`
+    // and `abap_service` above — `list`/`read` are genuine ungated reads, and
+    // `start`/`run`/`delete` each self-gate per op inside the handler (a
+    // target-less capability probe, plus the same object-specific preflight
+    // assert `abap_run` uses for `start`/`run`). Not added to `./locked.ts`
+    // for the same reason: it is registered everywhere and refuses at call
+    // time, never omitted from the schema.
+    registerTraceTools(mcp, { pool, safety, ensureConnected, errorResult, cfg, journal });
     // `abap_fluid` installs generated ABAP into $ABAPSMITH_FLUID_API — there is
     // no read-only subset of it, so when ABAP_FLUID_API is off or the system is
     // read-only the tool is not registered at all and costs no schema bytes,

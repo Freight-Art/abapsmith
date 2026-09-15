@@ -261,6 +261,30 @@ function scanForHandRolledTruncation(): Offense[] {
 
 const ALLOWED_LINES: { file: string; contains: string; reason: string }[] = [
   {
+    file: "src/adt/atc.ts",
+    contains: "names.slice(0, ATC_NAME_DISPLAY_MAX)",
+    reason:
+      "namesLabel (issue #78): the cut list is always suffixed with `… [truncated, <shown> of <total> shown]`, so the omission and the exact count are disclosed in the same string.",
+  },
+  {
+    file: "src/tools/atc.ts",
+    contains: "labels.slice(0, ATC_OBJECTS_LABEL_MAX)",
+    reason:
+      "atcObjectsLabel (issue #78): the header keeps the exact object count and marks the cut with `… [truncated, <shown> of <total> shown]`; the full list is rendered per object below the header.",
+  },
+  {
+    file: "src/tools/test.ts",
+    contains: "matches.slice(0, COVERAGE_FOCUS_CAP)",
+    reason:
+      "Coverage focus cap (issue #75). The complement `matches.slice(COVERAGE_FOCUS_CAP)` is computed on the next line and every skipped object is NAMED in a note (`Not queried: …`), so the cap is disclosed to the caller and the dropped items are listed, not hidden.",
+  },
+  {
+    file: "src/tools/test.ts",
+    contains: "others.slice(0, ALSO_TOUCHED_SHOWN)",
+    reason:
+      "ALSO TOUCHED list on the coverage report (issue #75). When the roster exceeds the cap the list ends with `… and N more (truncated)`, so the omission is marked in the output; the objects are still reachable one at a time via coverage_for.",
+  },
+  {
     file: "src/adt/icf-classify.ts",
     contains: "body.slice(0, AUTH_MARKER_SCAN_BYTES)",
     reason:
@@ -337,6 +361,24 @@ const ALLOWED_LINES: { file: string; contains: string; reason: string }[] = [
     contains: "reachableTexts.slice(0, kept).reduce",
     reason:
       "Pure arithmetic inside `blockLen` — it prices a candidate `kept` for the fit search and renders nothing. The output built from the same `kept` is `buildBlock`, whose omitted tail is disclosed by collapseLine()/elide() a few lines above.",
+  },
+  {
+    file: "src/tools/trace.ts",
+    contains: "entries.slice(0, top)",
+    reason:
+      "renderHitList caps the abap_trace hit-list rows to 'top'. 'top' is caller-supplied — it defaults to 20 and is capped at 100 by resolveTop in src/adt/traces-query.ts — so the caller controls the size of the cut, and the cut is disclosed anyway: renderHitList returns a note reading `showing top <shown> of <total> hit-list entries` whenever entries.length exceeds top, and that note reaches the caller through renderRead's `notes` argument to buildResponse.",
+  },
+  {
+    file: "src/tools/trace.ts",
+    contains: "db.accesses.slice(0, top)",
+    reason:
+      "renderDbAccesses caps the abap_trace DB-access rows to 'top'. 'top' is caller-supplied — it defaults to 20 and is capped at 100 by resolveTop in src/adt/traces-query.ts — so the caller controls the size of the cut, and the cut is disclosed anyway: renderDbAccesses returns a note reading `showing top <shown> of <total> DB-access entries` whenever db.accesses.length exceeds top, and that note reaches the caller through renderRead's `notes` argument to buildResponse.",
+  },
+  {
+    file: "src/tools/trace.ts",
+    contains: "flattened.slice(0, top)",
+    reason:
+      "renderRead's tree branch caps the abap_trace call-tree rows to 'top'. 'top' is caller-supplied — it defaults to 20 and is capped at 100 by resolveTop in src/adt/traces-query.ts — so the caller controls the size of this cut, and it is disclosed anyway: when flattened.length exceeds top, renderRead pushes a note reading `showing top <shown> of <total> call-tree entries at depth <= <depth> (...)` into buildResponse's notes. The SECOND cut in this same branch — filtering statements to callLevel <= depth before the slice — is a separate concern and is disclosed by its own separate note (added alongside this entry) whenever stmt.statements.length exceeds flattened.length, naming the depth and both counts. Neither cut is silent.",
   },
 ];
 

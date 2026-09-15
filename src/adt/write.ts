@@ -426,6 +426,33 @@ export interface BeforeImage {
    * ordinary write path would PUT XML at a URI with no source document.
    */
   sourceKind?: "package-metadata";
+  /**
+   * Set only for a sub-include write (`include` above) whose `source` is
+   * `undefined`: the include document itself returned a 404, which is
+   * positive evidence it did not exist, not merely a read that failed to
+   * produce bytes. Without this flag `existed`/`source` alone cannot tell
+   * "confirmed absent" apart from "unreadable" — the two demand different
+   * undo behaviour (delete-on-undo is safe only for the former).
+   */
+  absenceConfirmed?: boolean;
+  /**
+   * For a CLAS/OC delete: the four local includes as they stood under the
+   * lock. Recorded so an undo of the delete brings the class back with its
+   * local helpers and its unit tests, not just its main body.
+   */
+  includes?: readonly BeforeImageInclude[];
+}
+
+/** One class sub-include's before-image, captured alongside the main source on a CLAS/OC delete. */
+export interface BeforeImageInclude {
+  include: ClassInclude; // definitions | implementations | macros | testclasses
+  sourceUri: string;
+  /** The include document exists. */
+  existed: boolean;
+  /** Its bytes. Absent when it does not exist, or when the read failed. */
+  source?: string;
+  /** Same vocabulary as the journal's BeforeImageCapture, for THIS include. */
+  capture: "captured" | "confirmed-absent" | "failed";
 }
 
 /**
@@ -633,6 +660,11 @@ export function contentUri(t: ResolvedTarget): string {
 function subInclude(t: { include?: ClassInclude }): ClassInclude | undefined {
   return t.include !== undefined && t.include !== "main" ? t.include : undefined;
 }
+
+/** The four local includes a CLAS/OC delete must also capture. Mirrors undo.ts's own filter. */
+const CLASS_SUB_INCLUDES: readonly ClassInclude[] = CLASS_INCLUDES.filter(
+  (i): i is ClassInclude => i !== "main",
+);
 
 /**
  * How to NAME the thing this mutation acts on, in a sentence a human reads.
@@ -2839,18 +2871,26 @@ export async function writeObject(
   // If the hook throws, an unrecordable write is refused rather than
   // performed unrecorded; on the update path `withStatefulSession`'s finally
   // still releases the enqueue. `existed` comes from `t.exists` (the real
-  // GET), not `!created`, so it stays correct if that equivalence ever
-  // breaks. `sourceReadable` is unconditionally true — readCurrentSource
-  // throws on a failed read at both call sites.
+  // GET) for the object's OWN source — but `t.exists` answers "does the
+  // CLASS exist", not "does THIS include's document exist": a class can go
+  // years without ever having a `testclasses` include. For a sub-include,
+  // `readCurrentSource` returns `undefined` on a confirmed 404 (never on a
+  // failed read — it throws instead, and `sourceReadable` below stays
+  // unconditionally true), so `source === undefined` here IS positive
+  // absence evidence for that document, distinct from a read that didn't
+  // resolve. `absenceConfirmed` carries that distinction to the journal.
+  // Non-sub-include writes are unchanged.
   const emitBeforeImage = async (source: string | undefined): Promise<void> => {
     if (!opts.onBeforeImage) return;
+    const sub = subInclude(t);
     await opts.onBeforeImage({
       source,
-      existed: t.exists,
+      existed: sub ? source !== undefined : t.exists,
       sourceReadable: true,
       target: t,
       // See BeforeImage.include — an entry missing which document `source` came from replays into /source/main.
-      ...(subInclude(t) ? { include: t.include } : {}),
+      ...(sub ? { include: t.include } : {}),
+      ...(sub && source === undefined ? { absenceConfirmed: true } : {}),
       ...(preflight?.kind === "transport" ? { corrNr: preflight.corrNr } : {}),
     });
   };
@@ -4287,6 +4327,27 @@ export async function deleteObject(
     // type-checked against it (test/ is excluded from tsconfig.json).
     // `NO_JOURNAL` is a no-op, so calling it is harmless.
     if (opts.onBeforeImage) {
+      // A CLAS/OC delete destroys the main source AND all four local
+      // includes — a DELETE against `t.uri` takes the whole object, there is
+      // no per-include verb. Without this, undo of the delete could only ever
+      // bring back the main body (FIX E4). Four extra GETs, still under the
+      // same enqueue as the main re-read above, buys a recoverable delete —
+      // read while the lock is held so nothing can change these documents
+      // between "recorded" and "destroyed". Skipped entirely when journalling
+      // is off (`NO_JOURNAL`): those four requests would buy nothing then.
+      const includes: BeforeImageInclude[] | undefined =
+        t.type === "CLAS/OC" && opts.onBeforeImage !== NO_JOURNAL
+          ? await Promise.all(
+              CLASS_SUB_INCLUDES.map(async (include): Promise<BeforeImageInclude> => {
+                const sourceUri = classIncludeUri(t.uri, include);
+                const r = await readCurrentSourceResult(conn, { ...t, include, sourceUri });
+                if (!r.ok) return { include, sourceUri, existed: false, capture: "failed" };
+                return r.source === undefined
+                  ? { include, sourceUri, existed: false, capture: "confirmed-absent" }
+                  : { include, sourceUri, existed: true, source: r.source, capture: "captured" };
+              }),
+            )
+          : undefined;
       // A source-less object still gets an entry: `existed` records what the
       // GET actually saw. If the hook throws, we're still holding the lock;
       // `withStatefulSession`'s finally releases it and the DELETE never runs.
@@ -4295,6 +4356,7 @@ export async function deleteObject(
         existed: t.exists,
         sourceReadable: true,
         target: t,
+        ...(includes ? { includes } : {}),
         ...(preflight?.kind === "transport" ? { corrNr: preflight.corrNr } : {}),
       });
     }

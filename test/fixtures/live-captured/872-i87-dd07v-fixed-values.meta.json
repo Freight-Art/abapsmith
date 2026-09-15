@@ -1,0 +1,32 @@
+{
+  "n": 872,
+  "label": "i87-dd07v-fixed-values",
+  "expect": null,
+  "note": "Domain fixed values with texts (DD07V).",
+  "requestMethod": "POST",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/datapreview/freestyle?rowNumber=8&sap-client=001",
+  "requestHeaders": {
+    "X-CSRF-Token": "<redacted>",
+    "Accept": "application/vnd.sap.adt.datapreview.table.v1+xml",
+    "Content-Type": "text/plain",
+    "Authorization": "<redacted>"
+  },
+  "requestBody": "SELECT * FROM dd07v WHERE domname = 'ACTIV_AUTH' AND ddlanguage = 'E'",
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-type": "application/vnd.sap.adt.datapreview.table.v1+xml; charset=utf-8",
+    "content-length": "2869",
+    "sap-authenticated": "true",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "555590.000000"
+  },
+  "byteLength": 2869,
+  "zeroByteBody": false,
+  "sha256": "afad3fc8927284c3fdf81a4a1cef5b535ffdd055a00263d95fcaa1ace95108ef",
+  "utcTimestamp": "2026-09-12T13:25:30.145Z",
+  "durationMs": 658,
+  "sessionName": "A"
+}

@@ -171,6 +171,9 @@ an example of a plugin the loader refuses. `fluid-plugins/nr/` is a
 full-size, production-shaped plugin (SAP number ranges, six actions,
 read/mutate/execute categories, declared `targets`) that can be enabled
 as-is by pointing `ABAP_FLUID_PLUGINS` at `<repo>/fluid-plugins`.
+`fluid-plugins/jobs/` is a second full-size shipped plugin (background
+jobs, five actions, read and mutate categories, one declared `target`)
+enabled the same way.
 
 ## A `mutate` action
 

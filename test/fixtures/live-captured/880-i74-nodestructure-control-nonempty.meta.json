@@ -1,0 +1,32 @@
+{
+  "n": 880,
+  "label": "i74-nodestructure-control-nonempty",
+  "expect": null,
+  "note": null,
+  "requestMethod": "POST",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/repository/nodestructure?parent_type=DEVC%2FK&parent_name=SABP_UNIT_ADT&withShortDescriptions=true&sap-client=001",
+  "requestHeaders": {
+    "X-CSRF-Token": "<redacted>",
+    "Accept": "application/vnd.sap.as+xml; dataname=com.sap.adt.RepositoryObjectTreeContent",
+    "Content-Type": "application/x-www-form-urlencoded",
+    "Authorization": "<redacted>"
+  },
+  "requestBody": "",
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-type": "application/vnd.sap.as+xml; charset=utf-8; dataname=com.sap.adt.RepositoryObjectTreeContent",
+    "content-length": "10245",
+    "sap-authenticated": "true",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "163423.000000"
+  },
+  "byteLength": 10245,
+  "zeroByteBody": false,
+  "sha256": "2be869c9003e158dabf3df985067ac7d1b57c913eb03e775e4d58b7aad927041",
+  "utcTimestamp": "2026-09-12T13:22:35.321Z",
+  "durationMs": 343,
+  "sessionName": "A"
+}

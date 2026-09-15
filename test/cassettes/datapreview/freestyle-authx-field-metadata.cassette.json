@@ -1,0 +1,41 @@
+{
+  "id": "freestyle-authx-field-metadata",
+  "recordedAt": "2026-09-12T13:24:54.492Z",
+  "recordedDurationMs": 551,
+  "appliance": {
+    "sid": "A4H",
+    "client": "001",
+    "kernelRelease": "777",
+    "kernelPatchLevel": "500",
+    "server": "a4hsandbox_A4H_00"
+  },
+  "source": {
+    "type": "live-capture-raw",
+    "citation": "test/fixtures/live-captured/868-i87-authx-s-tabu-nam-fields.meta.json + test/fixtures/live-captured/868-i87-authx-s-tabu-nam-fields.xml",
+    "notes": "The Authorization header was redacted at capture time; the X-CSRF-Token header was redacted by the transcriber before this cassette was written. SELECT * FROM authx WHERE fieldname = 'ACTVT' OR fieldname = 'TABLE' OR fieldname = 'OBJTYPE' OR fieldname = 'DEVCLASS' \u2014 the four fields of S_TABU_NAM. AUTHX's real columns are FIELDNAME ROLLNAME CHECKTABLE EXIT_FB ACTVT_FLAG; a field's data element and check table come from AUTHX, not from TOBJ. A prior attempt on this same table using a column named FIEL1 (mirroring TOBJ's naming) failed with HTTP 400 Unknown column name \"FIEL1\" \u2014 that failed attempt (capture 865) is not wired as its own cassette, only referenced here as the reason this query's column names look the way they do."
+  },
+  "request": {
+    "method": "POST",
+    "path": "/sap/bc/adt/datapreview/freestyle?rowNumber=50&sap-client=001",
+    "headers": {
+      "X-CSRF-Token": "<redacted>",
+      "Accept": "application/vnd.sap.adt.datapreview.table.v1+xml",
+      "Content-Type": "text/plain",
+      "Authorization": "<redacted>"
+    },
+    "body": "SELECT * FROM authx WHERE fieldname = 'ACTVT' OR fieldname = 'TABLE' OR fieldname = 'OBJTYPE' OR fieldname = 'DEVCLASS'"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/vnd.sap.adt.datapreview.table.v1+xml; charset=utf-8",
+      "content-length": "2643",
+      "sap-authenticated": "true",
+      "sap-cache-control": "+0",
+      "sap-isc-uagent": "0",
+      "sap-server": "true",
+      "sap-perf-fesrec": "448474.000000"
+    },
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><dataPreview:tableData xmlns:dataPreview=\"http://www.sap.com/adt/dataPreview\"><dataPreview:totalRows>4</dataPreview:totalRows><dataPreview:isHanaAnalyticalView>false</dataPreview:isHanaAnalyticalView><dataPreview:executedQueryString>SELECT * FROM AUTHX WHERE FIELDNAME = 'ACTVT' OR FIELDNAME = 'TABLE' OR FIELDNAME = 'OBJTYPE' OR FIELDNAME = 'DEVCLASS'   INTO     TABLE @DATA(LT_RESULT)   UP TO 50  ROWS   .</dataPreview:executedQueryString><dataPreview:queryExecutionTime>23.8140000</dataPreview:queryExecutionTime><dataPreview:columns><dataPreview:metadata dataPreview:name=\"FIELDNAME\" dataPreview:type=\"C\" dataPreview:description=\"FIELDNAME\" dataPreview:keyAttribute=\"false\" dataPreview:colType=\"\" dataPreview:isKeyFigure=\"false\"/><dataPreview:dataSet><dataPreview:data>OBJTYPE</dataPreview:data><dataPreview:data>TABLE</dataPreview:data><dataPreview:data>DEVCLASS</dataPreview:data><dataPreview:data>ACTVT</dataPreview:data></dataPreview:dataSet></dataPreview:columns><dataPreview:columns><dataPreview:metadata dataPreview:name=\"ROLLNAME\" dataPreview:type=\"C\" dataPreview:description=\"ROLLNAME\" dataPreview:keyAttribute=\"false\" dataPreview:colType=\"\" dataPreview:isKeyFigure=\"false\"/><dataPreview:dataSet><dataPreview:data>SEU_OBJID</dataPreview:data><dataPreview:data>TABNAME_AUTH</dataPreview:data><dataPreview:data>DEVCLASS</dataPreview:data><dataPreview:data>ACTIV_AUTH</dataPreview:data></dataPreview:dataSet></dataPreview:columns><dataPreview:columns><dataPreview:metadata dataPreview:name=\"CHECKTABLE\" dataPreview:type=\"C\" dataPreview:description=\"CHECKTABLE\" dataPreview:keyAttribute=\"false\" dataPreview:colType=\"\" dataPreview:isKeyFigure=\"false\"/><dataPreview:dataSet><dataPreview:data/><dataPreview:data/><dataPreview:data>TDEVC</dataPreview:data><dataPreview:data>TACT</dataPreview:data></dataPreview:dataSet></dataPreview:columns><dataPreview:columns><dataPreview:metadata dataPreview:name=\"EXIT_FB\" dataPreview:type=\"C\" dataPreview:description=\"EXIT_FB\" dataPreview:keyAttribute=\"false\" dataPreview:colType=\"\" dataPreview:isKeyFigure=\"false\"/><dataPreview:dataSet><dataPreview:data/><dataPreview:data/><dataPreview:data/><dataPreview:data/></dataPreview:dataSet></dataPreview:columns><dataPreview:columns><dataPreview:metadata dataPreview:name=\"ACTVT_FLAG\" dataPreview:type=\"C\" dataPreview:description=\"ACTVT_FLAG\" dataPreview:keyAttribute=\"false\" dataPreview:colType=\"\" dataPreview:isKeyFigure=\"false\"/><dataPreview:dataSet><dataPreview:data/><dataPreview:data/><dataPreview:data/><dataPreview:data>X</dataPreview:data></dataPreview:dataSet></dataPreview:columns></dataPreview:tableData>"
+  }
+}

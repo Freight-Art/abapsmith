@@ -78,8 +78,14 @@ export function classifySourceFailure(e: unknown, ctx: ErrorContext): AbapError 
   return err;
 }
 
-/** Transport-level timeout: axios/undici shapes, plus an explicit abort. */
-function isTimeoutError(e: unknown): boolean {
+/**
+ * Transport-level timeout: axios/undici shapes, plus an explicit abort.
+ * Exported for `adt/atc.ts`'s `classifyAtcFailure`, which needs the same
+ * signal to give a package-scoped ATC run's HTTP timeout a dedicated,
+ * `ABAP_TIMEOUT_MS`-naming message instead of the generic unclassified
+ * `ADT_ERROR` fallback — see issue #78.
+ */
+export function isTimeoutError(e: unknown): boolean {
   if (!e || typeof e !== "object") return false;
   const any = e as { code?: unknown; name?: unknown; message?: unknown };
   const code = typeof any.code === "string" ? any.code.toUpperCase() : "";

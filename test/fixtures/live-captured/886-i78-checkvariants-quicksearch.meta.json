@@ -1,0 +1,32 @@
+{
+  "n": 886,
+  "label": "i78-checkvariants-quicksearch",
+  "note": "Repository quickSearch with objectType=CHKV lists all 19 ATC check variants on the system as adtcore:objectReference rows (upper-case name, lower-case-name checkvariants URI, packageName, description). A plain GET on /sap/bc/adt/atc/checkvariants answers 400 uriMappingError on this release, so quickSearch is how a client actually lists variants.",
+  "requestMethod": "GET",
+  "requestUrl": "/sap/bc/adt/repository/informationsystem/search?operation=quickSearch&query=*&maxResults=200&objectType=CHKV",
+  "requestHeaders": {
+    "Accept": "application/xml"
+  },
+  "requestBody": null,
+  "requestBodyBytes": 0,
+  "responseStatus": 200,
+  "responseHeaders": {
+    "content-type": "application/xml; charset=utf-8",
+    "content-length": "4884",
+    "sap-authenticated": "true",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "136636.000000",
+    "connection": "close"
+  },
+  "byteLength": 4884,
+  "zeroByteBody": false,
+  "sha256": "041f29d22904752d107e57aa340c638d55d5444ac6695469dca249cd25968dd6",
+  "utcTimestamp": "2026-09-12T15:47:22.353738Z",
+  "durationMs": 338,
+  "sessionName": "I78",
+  "capturedBy": "Standalone python ADT probe (urllib + cookiejar) driven against the A4H sandbox appliance for issue #78's ATC completeness work. REAL wire recording, not synthetic.",
+  "requestHeadersNote": "Only caller-supplied headers are listed. Authorization, Cookie, X-CSRF-Token and X-sap-adt-sessiontype were added by the probe's own session-management code and are deliberately not recorded.",
+  "requestUrlNote": "Path and query only; the appliance host is deliberately not recorded, and neither is the sap-client parameter (001) the probe sent."
+}

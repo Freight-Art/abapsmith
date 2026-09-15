@@ -78,6 +78,7 @@ describe("capabilitiesForMode('read') — the structural invariant", () => {
     allowTransports: null,
     allowTransportRelease: false,
     allowTransportDelete: false,
+    allowServicePublish: false,
     allowEnhancements: false,
     enhanceTargets: "none",
     enhanceTargetPackages: [],
@@ -142,6 +143,7 @@ describe("capabilitiesForMode('read') — the non-goal: maximally permissive ove
   const maximalBoolOverrides: Record<keyof AbapModeBooleanOverrides, true> = {
     allowTransportRelease: true,
     allowTransportDelete: true,
+    allowServicePublish: true,
     allowCascadeDelete: true,
     allowRawAdtWrites: true,
     allowEnhancements: true,
@@ -178,6 +180,7 @@ describe("capabilitiesForMode('edit') — defaults", () => {
       allowTransports: ["*"],
       allowTransportRelease: false,
       allowTransportDelete: false,
+      allowServicePublish: false,
       allowEnhancements: true,
       enhanceTargets: "customer",
       enhanceTargetPackages: [],
@@ -208,6 +211,7 @@ describe("capabilitiesForMode('admin') — defaults", () => {
       allowTransports: ["*"],
       allowTransportRelease: true,
       allowTransportDelete: true,
+      allowServicePublish: true,
       allowEnhancements: true,
       enhanceTargets: "sap",
       enhanceTargetPackages: [],
@@ -265,6 +269,7 @@ describe("capabilitiesForMode — AbapModeBooleanOverrides (two-way overrides)",
       allowTransports: null,
       allowTransportRelease: false,
       allowTransportDelete: false,
+      allowServicePublish: false,
       allowEnhancements: false,
       enhanceTargets: "none",
       enhanceTargetPackages: [],
@@ -303,10 +308,11 @@ describe("capabilitiesForMode — AbapModeBooleanOverrides (two-way overrides)",
     expect(caps.allowEnhancementDelete).toBe(true);
   });
 
-  it("admin: an explicit false narrows every one of the seven boolean fields, not just allowEnhancementDelete", () => {
+  it("admin: an explicit false narrows every one of the eight boolean fields, not just allowEnhancementDelete", () => {
     const narrowAll: AbapModeBooleanOverrides = {
       allowTransportRelease: false,
       allowTransportDelete: false,
+      allowServicePublish: false,
       allowCascadeDelete: false,
       allowRawAdtWrites: false,
       allowEnhancements: false,
@@ -316,12 +322,13 @@ describe("capabilitiesForMode — AbapModeBooleanOverrides (two-way overrides)",
     const caps = capabilitiesForMode("admin", {}, {}, narrowAll);
     expect(caps.allowTransportRelease).toBe(false);
     expect(caps.allowTransportDelete).toBe(false);
+    expect(caps.allowServicePublish).toBe(false);
     expect(caps.allowCascadeDelete).toBe(false);
     expect(caps.allowRawAdtWrites).toBe(false);
     expect(caps.allowEnhancements).toBe(false);
     expect(caps.allowSourcePlugins).toBe(false);
     expect(caps.allowEnhancementDelete).toBe(false);
-    // Nothing outside the seven booleans moved.
+    // Nothing outside the eight booleans moved.
     expect(caps.allowWrite).toBe(true);
     expect(caps.allowPackages).toEqual(["*"]);
   });
@@ -441,6 +448,7 @@ describe("capabilitiesForMode — overrides narrow correctly for edit/admin", ()
     const untypedOverride = {
       allowTransportRelease: true,
       allowSourcePlugins: false,
+      allowServicePublish: true,
       allowCascadeDelete: true,
       allowRawAdtWrites: true,
       allowWrite: false,
@@ -448,6 +456,7 @@ describe("capabilitiesForMode — overrides narrow correctly for edit/admin", ()
     const caps = capabilitiesForMode("edit", untypedOverride);
     expect(caps.allowTransportRelease).toBe(false);
     expect(caps.allowSourcePlugins).toBe(true); // edit's own ceiling, untouched
+    expect(caps.allowServicePublish).toBe(false);
     expect(caps.allowCascadeDelete).toBe(false);
     expect(caps.allowRawAdtWrites).toBe(false);
     expect(caps.allowWrite).toBe(true); // edit's own ceiling, untouched

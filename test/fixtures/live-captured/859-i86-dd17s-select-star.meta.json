@@ -1,0 +1,32 @@
+{
+  "n": 859,
+  "label": "i86-dd17s-select-star",
+  "expect": null,
+  "note": "DD17S index field rows.",
+  "requestMethod": "POST",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/datapreview/freestyle?rowNumber=50&sap-client=001",
+  "requestHeaders": {
+    "X-CSRF-Token": "<redacted>",
+    "Accept": "application/vnd.sap.adt.datapreview.table.v1+xml",
+    "Content-Type": "text/plain",
+    "Authorization": "<redacted>"
+  },
+  "requestBody": "SELECT * FROM dd17s WHERE sqltab = 'BDSLORE10'",
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-type": "application/vnd.sap.adt.datapreview.table.v1+xml; charset=utf-8",
+    "content-length": "3007",
+    "sap-authenticated": "true",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "1062598.000000"
+  },
+  "byteLength": 3007,
+  "zeroByteBody": false,
+  "sha256": "2486752bcc44780528d0c45d7fcb8c1a8612645a7c5f18f22836591d53cc1177",
+  "utcTimestamp": "2026-09-12T13:24:06.955Z",
+  "durationMs": 1189,
+  "sessionName": "A"
+}

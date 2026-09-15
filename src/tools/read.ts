@@ -6,10 +6,17 @@
  *    ddic (TABL·TABL/DS·DTEL·DOMA·TTYP → pseudo-DDL, never raw XML).
  *  - `enhancements=true`: decode ENHO/XH, ENHO/XHH, ENHS via
  *    `../adt/enhancement.ts` instead of the source/ddic paths.
- *  - `view`: asks about the object's HISTORY, not its current definition.
- *    "history" lists the ADT version feed; "diff" returns unified-diff hunks
- *    between two versions, never two full sources. See `../adt/revisions.ts`
- *    and `../diff.ts`.
+ *  - `view`: asks about something OTHER than the object's current
+ *    definition, at three unrelated axes. "history" lists the ADT version
+ *    feed; "diff" returns unified-diff hunks between two versions, never two
+ *    full sources — see `../adt/revisions.ts` and `../diff.ts`. "definition"
+ *    is position-driven, not version-driven: given `line`/`column` in the
+ *    CURRENT source, it answers "what is this identifier", "where is it
+ *    declared" and, for an interface method, "who implements it" — see
+ *    `../adt/element-info.ts` and {@link readDefinition}. Because the three
+ *    sit on different axes, most cross-combinations are refused outright
+ *    (see {@link assertViewCompatible}) rather than answering a different
+ *    question than the one asked.
  *  - `include`: class-only. ADT stores each of a class's five sections
  *    (main/definitions/implementations/macros/testclasses) as its own
  *    document; applies to the source read and `view` alike — see
@@ -22,9 +29,11 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { AbapConnection } from "../adt/connection.js";
-import { fetchDdicXml, readDdic } from "../adt/ddic.js";
+import { fetchDdicXml, readDdic, type DdicRender } from "../adt/ddic.js";
 import { capabilitiesFor, NON_READABLE_TYPES, PROPERTIES_SHAPE_TYPES } from "../adt/capabilities.js";
 import { AbapError } from "../adt/errors.js";
+import { readAuthorizationObject, renderAuthorizationObject, SUSO_WHERE_USED_NOTE } from "../adt/suso-read.js";
+import { readSecondaryIndex, renderSecondaryIndex } from "../adt/index-read.js";
 import {
   readBadiImplementation,
   readEnhancementSpot,
@@ -46,6 +55,15 @@ import {
   resolveDiffPair,
   revisionSource,
 } from "../adt/revisions.js";
+import {
+  fetchElementInfo,
+  findDefinitionTarget,
+  findImplementations,
+  identifierAt,
+  isUnresolved,
+  type ElementInfoEntry,
+  type SourcePosition,
+} from "../adt/element-info.js";
 import { CLASS_INCLUDES, assertClassInclude, type ClassInclude } from "../adt/types.js";
 import { DEFAULT_CONTEXT_LINES, diffSources, renderHunks } from "../diff.js";
 import { classMembers, readMethod, readSource, renderOutline } from "../adt/source.js";
@@ -68,7 +86,12 @@ export const readInputSchema = {
   type: z
     .string()
     .optional()
-    .describe(`ADT type to disambiguate. Not readable: ${NON_READABLE_TYPES.join(" ")}.`),
+    .describe(
+      "ADT type to disambiguate. DEVC/K: package listing (types/depth filter it). SUSO/B: renders the " +
+        "object's DEFINITION (fields, permitted activities) from the catalog — NOT who holds it, no " +
+        "AGR_*/UST* table is read. TABL/DI: <TABLE>/<INDEX> catalog render. " +
+        `Not readable: ${NON_READABLE_TYPES.join(" ")}.`,
+    ),
   method: z.string().optional().describe("Only this method/component."),
   outline: z.boolean().optional().describe("Component list with line ranges."),
   offset: z
@@ -103,12 +126,30 @@ export const readInputSchema = {
   // than silently falling through to an ordinary source read. Named `view`,
   // not `mode` — `mode` is already a response header key and `ResolvedObject.mode`.
   view: z
-    .enum(["history", "diff"])
+    .enum(["history", "diff", "definition"])
     .optional()
-    .describe("history: versions. diff: hunks. Omit for normal read."),
+    .describe('history: versions. diff: hunks. definition: element at line/column. Omit for normal read.'),
   from: z.string().optional().describe('diff: older side — version, transport, or "active".'),
   to: z.string().optional().describe("diff: newer side, same forms as `from`."),
   context: z.number().int().min(0).max(20).optional().describe("diff: context lines per hunk. Default 3."),
+  // Same names/bounds/semantics as abap_quick_fix's line/column (quickfix.ts)
+  // — deliberately, so a caller who has already learned one learns both.
+  // No `.default(0)` on column: unlike quick-fix (which always needs a
+  // position), a default here would make "column was omitted" and "column=0
+  // was passed with no view" indistinguishable, and the refusal below needs
+  // that distinction.
+  line: z
+    .number()
+    .int()
+    .min(1)
+    .optional()
+    .describe('1-based source line. Required with view="definition"; refused otherwise.'),
+  column: z
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .describe('0-based column. Default 0. Only meaningful with view="definition"; refused otherwise.'),
   // C-6: ADT versions each class include (main/definitions/
   // implementations/macros/testclasses) as its own document, so silently
   // defaulting to `main` hides changes made in e.g. testclasses. Selectable
@@ -117,6 +158,17 @@ export const readInputSchema = {
     .enum(CLASS_INCLUDES)
     .optional()
     .describe('Class include. "testclasses"=Unit tests. Default "main".'),
+  types: z
+    .array(z.string())
+    .optional()
+    .describe('DEVC/K only: filter package contents to these kind codes, e.g. ["CLAS","DDLS"].'),
+  depth: z
+    .number()
+    .int()
+    .min(1)
+    .max(3)
+    .optional()
+    .describe("DEVC/K only: subpackage nesting depth to list. Default 1."),
 };
 
 export const ReadInput = z.object(readInputSchema);
@@ -349,6 +401,43 @@ function renderEnhancementSpot(data: EnhancementSpotRead): { body: string; notes
  */
 function resourceEtag(canonicalBytes: string): string {
   return canonicalEtag(canonicalBytes);
+}
+
+/**
+ * Shared response assembly for every `DdicRender`-shaped read: the DDIC
+ * pseudo-DDL branch below, and the two catalog-table renders (SUSO/B,
+ * TABL/DI in `abapRead`'s dispatch, before `resolveObject` ever runs) —
+ * all three produce the same {ddl, sections, meta, notes, hashInput,
+ * bodyLabel?} shape, so they share this instead of three copies of the same
+ * etag/windowing/response-building sequence.
+ *
+ * `header` is everything the caller wants ABOVE `rendered.meta`/`etag`/
+ * `totalLines` — those three are always appended last, in that order, so
+ * every DdicRender-shaped response has the same tail regardless of caller.
+ */
+function buildDdicLikeResponse(
+  rendered: DdicRender,
+  header: Record<string, string | number | undefined>,
+  offset: number | undefined,
+  limit: number | undefined,
+  hints: string[],
+  maxChars: number,
+): BuiltResponse & { etag: string } {
+  const etag = resourceEtag(rendered.hashInput);
+  const window = sliceLines(rendered.ddl, offset ?? 1, limit);
+  const built = buildReadResponse({
+    header: { ...header, ...rendered.meta, etag, totalLines: window.total },
+    sections: rendered.sections,
+    body: window.text,
+    bodyLabel: rendered.bodyLabel ?? "PSEUDO-DDL",
+    bodyOffset: window.offset,
+    bodyTotalLines: window.total,
+    notes: rendered.notes,
+    hints,
+    pagingParam: "offset",
+    maxChars,
+  });
+  return { ...built, etag };
 }
 
 /**
@@ -648,49 +737,83 @@ function assertViewCompatible(input: ReadInput, obj: ResolvedObject): void {
       hint,
     );
   };
+  // "definition" sits on a different axis from "history"/"diff" (position in
+  // the CURRENT source vs. a version feed), so most of the clashes below
+  // need one message for the version-feed views and a different, honest one
+  // for definition — never the same wording stretched to cover both.
+  const isDefinition = input.view === "definition";
 
   if (input.format) {
     clash(
       'format="raw"',
-      "raw returns the current XML descriptor, which has no version feed behind it.",
-      "Drop one of the two: view for history/diff, format for the current wire document.",
+      isDefinition
+        ? "raw returns the XML descriptor of a properties-shape type; there is no source text to " +
+          "resolve a line/column position in."
+        : "raw returns the current XML descriptor, which has no version feed behind it.",
+      isDefinition
+        ? "Drop format — a definition lookup only makes sense against source text."
+        : "Drop one of the two: view for history/diff, format for the current wire document.",
     );
   }
   if (input.enhancements) {
     clash(
       "enhancements=true",
-      "the enhancement decoders read the current definition only.",
+      isDefinition
+        ? "the enhancement decoders read a structured ENHO/ENHS document, not the source text a " +
+          "position lookup resolves against."
+        : "the enhancement decoders read the current definition only.",
       "Drop enhancements, or drop view.",
     );
   }
-  if (input.version) {
+  // For definition, `version="active"` is a no-op worth allowing (it names
+  // the source abap_read would post anyway); only "inactive" is refused,
+  // since the elementinfo/navigation POSTs always carry whatever source
+  // abap_read read — asking about "inactive" while posting the active
+  // source would silently answer a question about the wrong version.
+  if (input.version && (!isDefinition || input.version === "inactive")) {
     clash(
       `version="${input.version}"`,
-      'the active/inactive pair is a different axis from the version FEED; "inactive" is not a ' +
-        "feed entry and has no history row.",
-      'Use from/to to name feed versions (list them with view="history").',
+      isDefinition
+        ? "the elementinfo and navigation-target POSTs always carry the source abap_read itself " +
+          "read; asking about the inactive version while posting the active source would answer a " +
+          "question about a version that was never sent."
+        : 'the active/inactive pair is a different axis from the version FEED; "inactive" is not a ' +
+          "feed entry and has no history row.",
+      isDefinition
+        ? "Activate the object first and read the active source, or drop version."
+        : 'Use from/to to name feed versions (list them with view="history").',
     );
   }
   if (input.outline) {
     clash(
       "outline=true",
-      "the outline lists the CURRENT component structure; ADT serves no per-version outline.",
+      isDefinition
+        ? "outline lists the whole component structure, not source text — there is no line/column " +
+          "position in a component list to resolve."
+        : "the outline lists the CURRENT component structure; ADT serves no per-version outline.",
       'Read the outline separately, without view.',
     );
   }
   if (input.method) {
     clash(
       `method="${input.method}"`,
-      "ADT versions whole objects (or whole class includes), not individual methods, so there is " +
-        "no per-method feed to read or diff.",
-      "Drop method — the diff hunks already carry line numbers you can map back to a method.",
+      isDefinition
+        ? "method slices the source down to one component's block and renumbers its lines from 1; " +
+          "a line/column that identifies a position in the FULL source would silently land on " +
+          "whatever happens to sit at that line number inside the renumbered excerpt instead of the " +
+          "position you meant."
+        : "ADT versions whole objects (or whole class includes), not individual methods, so there is " +
+          "no per-method feed to read or diff.",
+      isDefinition
+        ? "Drop method and read the definition against the full source (optionally with include)."
+        : "Drop method — the diff hunks already carry line numbers you can map back to a method.",
     );
   }
   if (input.include && obj.kind !== "CLAS") {
     clash(
       `include="${input.include}"`,
       `only a class has includes, and ${obj.type} ${obj.name} is not one.`,
-      "Drop include — this object has a single version feed.",
+      "Drop include.",
     );
   }
   if (input.include && obj.include && input.include !== obj.include) {
@@ -716,6 +839,61 @@ function assertViewCompatible(input: ReadInput, obj: ResolvedObject): void {
         );
       }
     }
+  }
+  if (isDefinition) {
+    for (const [param, value] of [
+      ["from", input.from],
+      ["to", input.to],
+      ["context", input.context],
+    ] as const) {
+      if (value !== undefined) {
+        clash(
+          param,
+          "they parameterise a diff between two versions; definition resolves a position in the " +
+            "current source, not a comparison between versions.",
+          `Drop ${param}, or use view="diff" to compare versions instead.`,
+        );
+      }
+    }
+  }
+  if (input.view === "history" || input.view === "diff") {
+    for (const [param, value] of [
+      ["line", input.line],
+      ["column", input.column],
+    ] as const) {
+      if (value !== undefined) {
+        clash(
+          param,
+          "it selects a position in the CURRENT source; history and diff are about versions, not " +
+            "positions.",
+          'Use view="definition" for a position lookup, or drop it.',
+        );
+      }
+    }
+  }
+  if (isDefinition && input.line === undefined) {
+    throw new AbapError(
+      "BAD_INPUT",
+      'view="definition" requires line: a definition lookup is position-driven; without a line ' +
+        "there is no element to resolve.",
+      { type: obj.type, name: obj.name },
+      "Add line (1-based); column (0-based) defaults to 0 if omitted.",
+    );
+  }
+  // ELEMENT INFO/NAVIGATION POST the source abap_read reads for the object —
+  // a non-source object (mode "ddic": TABL/DTEL/DOMA/TTYP/MSAG/ENQU/SRVB/…,
+  // including every PROPERTIES_SHAPE_TYPES entry — see types.ts, every one
+  // of which is `mode: "ddic"` with `supportsSource: false`) has no ABAP
+  // source for a position to be IN.
+  if (isDefinition && (obj.mode === "ddic" || !obj.sourceUri)) {
+    throw new AbapError(
+      "UNSUPPORTED",
+      `view="definition" is not supported for ${obj.type} ${obj.name}: element info is a ` +
+        "source-position lookup, and this object has no ABAP source to resolve a position in.",
+      { type: obj.type, name: obj.name, mode: obj.mode },
+      "Omit view, or point this at a source-based object (CLAS, INTF, PROG, FUGR, DDLS, DDLX, " +
+        "BDEF, SRVD, XSLT).",
+    );
   }
 }
 
@@ -1000,6 +1178,403 @@ async function readDiff(
   return { ...built, etag: NO_ETAG };
 }
 
+// ---------------------------------------------------------------- definition --
+
+/** Display cap for `IMPLEMENTED BY` — mirrors `whereUsed`'s `max` role in `search.ts`, but fixed rather than caller-tunable: this section is a side note on a definition lookup, not the point of the call. */
+const IMPLEMENTATIONS_DISPLAY_MAX = 50;
+
+/**
+ * Heuristic cost signal for disclosing the `findImplementations` fetch,
+ * mirroring `search.ts`'s `SLOW_FETCH_MS`/`HIGH_FAN_IN_REFERENCES` (kept as
+ * a separate, private constant here rather than importing search.ts's,
+ * which are not exported) — fixture 961's own capture took ~9.9s for a
+ * two-implementer toy example, so this path is expected to be slow even at
+ * small scale.
+ */
+const SLOW_IMPLEMENTATIONS_FETCH_MS = 5000;
+
+/**
+ * `<p>Creates <b>x</b>.</p>` → `Creates x.` — behaviourally identical to
+ * `quickfix.ts`'s private `stripHtml` (not exported, and this task's remit
+ * is `read.ts` only, so it cannot be imported without touching that file).
+ * Tags become a space, not empty, so adjacent block elements don't run
+ * together; the space is then dropped again before punctuation. Entities in
+ * `abapDoc` are already decoded once by `element-info.ts`'s own XML parser
+ * (see that field's doc comment) — this only strips tags.
+ */
+function stripAbapDocHtml(s: string): string {
+  return s
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .replace(/\s+([.,;:!?])/g, "$1")
+    .trim();
+}
+
+/**
+ * Best-effort `{name, type}` off a navigation/implementation target URI —
+ * grounded only in what fixtures 958 (interface) and 961 (class) actually
+ * show; every other object kind is left with `type: undefined` rather than
+ * guessed, per the instruction not to fabricate a type this module cannot
+ * derive.
+ */
+const OBJECT_URI_KIND: ReadonlyArray<{ re: RegExp; type: string }> = [
+  { re: /\/oo\/classes\/([^/]+)(?:\/|$)/i, type: "CLAS/OC" },
+  { re: /\/oo\/interfaces\/([^/]+)(?:\/|$)/i, type: "INTF/OI" },
+];
+
+function objectRefFromUri(uri: string): { name?: string; type?: string } {
+  for (const { re, type } of OBJECT_URI_KIND) {
+    const m = re.exec(uri);
+    if (m?.[1]) return { name: m[1].toUpperCase(), type };
+  }
+  return {};
+}
+
+/** A literal, copy-pasteable `abap_read` call for the DEFINITION section — the issue's own acceptance criterion. */
+function renderAbapReadCall(name: string | undefined, type: string | undefined): string {
+  if (!name) return "(no navigation target — nothing to open)";
+  return type ? `abap_read {"object":"${name}","type":"${type}"}` : `abap_read {"object":"${name}"}`;
+}
+
+/** Renders `info.children` (method/FM parameters, or structure components) as a table whose columns are driven by what is actually present — never a fixed column set, since a structure component (954) carries none of a parameter's properties. */
+function renderChildrenTable(children: readonly ElementInfoEntry[], candidates: readonly string[]): string {
+  if (children.length === 0) return "";
+  const field = (c: ElementInfoEntry, key: string): string | undefined =>
+    key === "name" ? c.name : key === "shortText" ? c.shortText : c.properties[key];
+  const present = candidates.filter((key) => children.some((c) => field(c, key) !== undefined));
+  if (present.length === 0) return "";
+  const rows = children.map((c) => {
+    const row: Record<string, string> = {};
+    for (const key of present) row[key] = field(c, key) ?? "";
+    return row;
+  });
+  return textTable(rows, [...present]);
+}
+
+const SIGNATURE_COLUMNS = ["name", "paramType", "abapType", "optional", "byValue", "paramDefaultValue", "shortText"];
+const COMPONENT_COLUMNS = ["name", "abapType"];
+
+/**
+ * Element types whose answer is a callable, so "no parameters" is a real
+ * answer worth printing rather than a missing section. `FUGR/FF` is here
+ * for a different reason than the other two — ADT returns no signature at
+ * all for a function module (see the note below) — but the rendering is the
+ * same, and the note below depends on the section existing.
+ */
+const CALLABLE_ELEMENT_TYPES = new Set(["INTF/IO", "CLAS/OM", "FUGR/FF"]);
+
+/**
+ * `view="definition"` — ADT's element-info/navigation-target/usage-references
+ * endpoints, read-only element lookup at a source position. Returns
+ * `{...built, etag: NO_ETAG}` like {@link readHistory}/{@link readDiff}: this
+ * is a lookup, not the resource, and must not mint a token that looks like a
+ * write credential for `abap_write`.
+ *
+ * `assertViewCompatible` has already refused every combination this handler
+ * cannot honour (raw/enhancements/inactive-version/outline/method, a
+ * non-source object, a missing `line`) — this function only has to handle
+ * the shapes that remain.
+ */
+async function readDefinition(
+  conn: AbapConnection,
+  obj: ResolvedObject,
+  baseHeader: Record<string, string | number | undefined>,
+  input: ReadInput,
+  maxChars: number,
+): Promise<BuiltResponse & { etag: string }> {
+  const include = viewInclude(input, obj);
+  // version is either undefined or "active" here (assertViewCompatible
+  // refused "inactive") — passed through unchanged so the header/notes below
+  // describe exactly what was posted, the same as the plain source-read path.
+  const { source, sourceUri } = await readSource(conn, obj, include, input.version);
+  const line = input.line!; // assertViewCompatible guarantees this is set.
+  const column = input.column ?? 0;
+
+  const totalLines = countLines(source);
+  if (line > totalLines) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `line=${line} is past the end of ${obj.type} ${obj.name}'s source (${include ? `include "${include}", ` : ""}${totalLines} line(s)).`,
+      { type: obj.type, name: obj.name, line, totalLines, include },
+      `Pick a line between 1 and ${totalLines}, or re-read without offset/limit to see the source first.`,
+    );
+  }
+
+  const pos: SourcePosition = { line, column };
+  const token = identifierAt(source, pos);
+  const info = await fetchElementInfo(conn, sourceUri, pos, source);
+
+  const lineText = source.replace(/\r\n/g, "\n").split("\n")[line - 1] ?? "";
+
+  const header: Record<string, string | number | undefined> = {
+    ...baseHeader,
+    mode: "definition",
+    ...(include ? { include } : {}),
+    ...(include && include !== "main" ? { uri: sourceUri } : {}),
+    line,
+    column,
+  };
+  const notes: string[] = [...includeNote(include)];
+
+  if (isUnresolved(info)) {
+    const built = buildReadResponse({
+      header,
+      sections: [
+        {
+          title: "DEFINITION",
+          content:
+            `No resolvable element at line ${line}, column ${column} of ${obj.type} ${obj.name}.\n` +
+            `${line}: ${lineText}`,
+        },
+      ],
+      notes: [
+        "ADT answered HTTP 200 with an element-info document that names no element at this " +
+          "position — this is a fact about the position, not a lookup failure.",
+        ...notes,
+      ],
+      hints: ["Pick a position on an identifier — a variable, method call, or type name."],
+      maxChars,
+    });
+    return { ...built, etag: NO_ETAG };
+  }
+
+  const props = info.properties;
+  header.element = `${info.type ?? "?"} ${info.name ?? "?"}`;
+  header.kind = props.kind;
+  header.visibility = props.visibility;
+  header.level = props.level;
+  header.abapType = props.abapType;
+
+  const lookup = token
+    ? await findDefinitionTarget(conn, sourceUri, { line, startColumn: token.startColumn, endColumn: token.endColumn }, source)
+    : undefined;
+  const target = lookup?.target;
+  const targetRef = target ? objectRefFromUri(target.uri) : undefined;
+
+  const defLines: string[] = [`${line}: ${lineText}`];
+  if (target === undefined) {
+    defLines.push(
+      token === undefined
+        ? "This position is not on an identifier — ADT still resolved an element here (below), but " +
+          "there is no source range to ask the navigation-target endpoint for a declaration site."
+        : lookup?.noTargetReason === "declaration-itself"
+          ? "This position is the declaration itself — ADT reports the definition location is here " +
+            "(SAP message ED263)."
+          : lookup?.noTargetReason === "undecidable"
+            ? "ADT named no navigation target: more than one implementation exists, so the declaration " +
+              "site is undecidable from this position."
+            : "ADT named no navigation target for this identifier.",
+    );
+  } else {
+    defLines.push(
+      `declared at: ${target.uri}` +
+        (target.line !== undefined ? ` (line ${target.line}, column ${target.column})` : ""),
+    );
+    defLines.push(`open with: ${renderAbapReadCall(targetRef?.name, targetRef?.type)}`);
+  }
+
+  const sections: Array<{ title: string; content: string }> = [{ title: "DEFINITION", content: defLines.join("\n") }];
+
+  const signature = renderChildrenTable(info.children, SIGNATURE_COLUMNS);
+  const components = signature ? "" : renderChildrenTable(info.children, COMPONENT_COLUMNS);
+  if (signature) {
+    sections.push({ title: "SIGNATURE", content: signature });
+  } else if (components) {
+    sections.push({ title: "COMPONENTS", content: components });
+  } else if (info.type !== undefined && CALLABLE_ELEMENT_TYPES.has(info.type)) {
+    sections.push({ title: "SIGNATURE", content: "(none)" });
+  }
+
+  const docLines: string[] = [];
+  if (info.shortText) docLines.push(`short text: ${info.shortText}`);
+  if (info.abapDoc) {
+    const stripped = stripAbapDocHtml(info.abapDoc);
+    if (stripped) docLines.push(`ABAP Doc: ${stripped}`);
+  }
+  if (docLines.length > 0) sections.push({ title: "DOC", content: docLines.join("\n") });
+
+  if (info.type === "FUGR/FF") {
+    notes.push(
+      "Function modules resolve to name and type only — ADT's element info returns no visibility, " +
+        "no signature and no documentation for FUGR/FF (verified live against RFC_PING). The empty " +
+        "SIGNATURE section above is that fact, not a rendering gap.",
+    );
+  }
+
+  // Where-used-based implementer listing — interface methods only. The
+  // interface's own declaration site is reached one of two ways: (a) a use
+  // site elsewhere (e.g. `zif_x~run` in an implementing class, or a call
+  // through an interface reference) whose navigation target resolves into
+  // the interface, or (b) the object being read IS the interface, in which
+  // case there is no navigation target to resolve — ADT names none there
+  // either (see ED263 above) — and the declaration site is just the
+  // position asked about. Either way this is still the most expensive call
+  // on this path (fixture 961: ~9.9s for two implementers), so it must not
+  // run for anything but an interface method.
+  let implInterfaceUri: string | undefined;
+  let implInterfaceName: string | undefined;
+  let implPos: SourcePosition | undefined;
+  if (info.type === "INTF/IO" && info.name) {
+    if (target !== undefined && /\/oo\/interfaces\//i.test(target.uri) && targetRef?.name) {
+      implInterfaceUri = target.uri;
+      implInterfaceName = targetRef.name;
+      implPos =
+        target.line !== undefined && target.column !== undefined
+          ? { line: target.line, column: target.column }
+          : undefined;
+    } else if (obj.type === "INTF/OI") {
+      implInterfaceUri = sourceUri;
+      implInterfaceName = obj.name;
+      implPos = pos;
+    }
+  }
+  if (implInterfaceUri && implInterfaceName && info.name) {
+    const { implementations, fetchMs, totalReferences } = await findImplementations(
+      conn,
+      implInterfaceUri,
+      implPos,
+      implInterfaceName,
+      info.name,
+    );
+    const kept = implementations.slice(0, IMPLEMENTATIONS_DISPLAY_MAX);
+    const omitted = implementations.length - kept.length;
+    const rows = kept.map((i) => ({ class: i.className, method: i.methodName, package: i.packageName ?? "" }));
+    const capLine =
+      omitted > 0
+        ? `\n--- TRUNCATED --- ${omitted} of ${implementations.length} implementer(s) not shown ` +
+          `(display cap ${IMPLEMENTATIONS_DISPLAY_MAX}).`
+        : "";
+    sections.push({
+      title: "IMPLEMENTED BY",
+      content:
+        (implementations.length ? textTable(rows, ["class", "method", "package"]) : "(no implementing classes found)") +
+        capLine,
+    });
+    if (fetchMs >= SLOW_IMPLEMENTATIONS_FETCH_MS || totalReferences >= 500) {
+      notes.push(
+        `FETCH COST: listing implementers took ${(fetchMs / 1000).toFixed(1)}s over ` +
+          `${totalReferences} where-used reference(s) — ADT's usageReferences endpoint has no ` +
+          "server-side limit, so the whole set was fetched and filtered to implementers " +
+          "client-side.",
+      );
+    }
+    notes.push(
+      "Where-used is static. Dynamic calls (CALL FUNCTION lv_name, PERFORM (lv_form), " +
+        "SUBMIT (lv_prog)) do not appear here — these are static-analysis blind spots.",
+    );
+  }
+
+  const built = buildReadResponse({
+    header,
+    sections,
+    notes,
+    maxChars,
+  });
+  return { ...built, etag: NO_ETAG };
+}
+
+/**
+ * Every parameter that means nothing for a `catalogRead` type: there is no
+ * ADT resource, so no source/outline/history/raw-XML axis exists to apply
+ * them to. Refused the same way from/to/context are refused against a
+ * non-diff read — naming the parameter, not silently discarding it.
+ */
+const CATALOG_READ_IRRELEVANT_PARAMS = [
+  "method",
+  "outline",
+  "enhancements",
+  "version",
+  "view",
+  "from",
+  "to",
+  "context",
+  "include",
+  "types",
+  "depth",
+  "format",
+] as const;
+
+/**
+ * Renders SUSO/B (authorization object) and TABL/DI (table secondary index)
+ * from catalog tables — the two `catalogRead` types, dispatched by `abapRead`
+ * on the explicit `type` hint before `resolveObject` ever runs, since
+ * neither has a URI to resolve. Shares `buildDdicLikeResponse` with the DDIC
+ * branch so both produce the same response shape.
+ */
+async function readCatalogObject(
+  conn: AbapConnection,
+  input: ReadInput,
+  catalogRead: { readonly from: string; readonly nameForm: string },
+  label: string,
+  maxChars: number,
+): Promise<BuiltResponse & { etag: string }> {
+  const code = input.type!.trim().toUpperCase();
+  for (const param of CATALOG_READ_IRRELEVANT_PARAMS) {
+    if (input[param] !== undefined) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${param} is not supported for ${label} (${code}): this type has no ADT resource, so ` +
+          `abap_read renders it directly from the catalog (${catalogRead.from}) with no source, ` +
+          "outline, history or raw-XML axis to apply it to.",
+        { type: code, param },
+        `Drop ${param}.`,
+      );
+    }
+  }
+
+  const header: Record<string, string | number | undefined> = {
+    system: conn.cfg.sid,
+    mode: "catalog",
+  };
+
+  if (code === "SUSO/B") {
+    const obj = await readAuthorizationObject(conn, input.object);
+    const rendered = renderAuthorizationObject(obj);
+    return buildDdicLikeResponse(
+      rendered,
+      { ...header, object: `${code} ${obj.name}` },
+      input.offset,
+      input.limit,
+      [SUSO_WHERE_USED_NOTE],
+      maxChars,
+    );
+  }
+
+  // TABL/DI: <TABLE>/<INDEX>, the same parented form the create takes.
+  const parts = input.object.split("/");
+  if (parts.length !== 2 || parts[0]!.trim() === "" || parts[1]!.trim() === "") {
+    throw new AbapError(
+      "BAD_INPUT",
+      `"${input.object}" is not a valid ${code} name: expected ${catalogRead.nameForm}.`,
+      { object: input.object, type: code },
+      'Name it as <TABLE>/<INDEX>, e.g. "ZTAB/Z01". Not sure of the index id? ' +
+        'abap_read {"object":"<TABLE>","type":"TABL/DT"} shows the table\'s own structure.',
+    );
+  }
+  const [table, indexId] = parts as [string, string];
+  const hint = `abap_read {"object":"${table.trim().toUpperCase()}","type":"TABL/DT"} to see the table's own structure.`;
+  const { index, notes } = await readSecondaryIndex(conn, table, indexId);
+  if (index === undefined) {
+    throw new AbapError(
+      "NOT_FOUND",
+      `Table ${table.trim().toUpperCase()} has no secondary index ${indexId.trim().toUpperCase()} in DD12V ` +
+        "on this system — this is a definitive empty result (HTTP 200, 0 rows), not a refused read.",
+      { table: table.trim().toUpperCase(), index: indexId.trim().toUpperCase() },
+      hint,
+    );
+  }
+  const rendered = renderSecondaryIndex(index);
+  rendered.notes.push(...notes);
+  return buildDdicLikeResponse(
+    rendered,
+    { ...header, object: `${code} ${index.table}/${index.id}` },
+    input.offset,
+    input.limit,
+    [hint],
+    maxChars,
+  );
+}
+
 export async function abapRead(
   conn: AbapConnection,
   input: ReadInput,
@@ -1011,6 +1586,14 @@ export async function abapRead(
   // v2) and v2 forbids closed enums. `ccau` is SE24's name for `testclasses`
   // — a mistake a caller will actually make.
   if (input.include !== undefined) assertClassInclude(input.include, input.object);
+
+  // SUSO/B and TABL/DI have no ADT resource, so resolveObject cannot reach
+  // them (see capabilities.ts's `catalogRead`). Dispatch on the explicit type
+  // hint first: the catalog render needs the name, not a URI.
+  const catalogCap = input.type ? capabilitiesFor(input.type) : undefined;
+  if (catalogCap?.catalogRead) {
+    return readCatalogObject(conn, input, catalogCap.catalogRead, catalogCap.label, maxChars);
+  }
 
   const obj = await resolveObject(conn, input.object, input.type ? { type: input.type } : {});
 
@@ -1027,9 +1610,9 @@ export async function abapRead(
   // rendering, so it must not fall through into a branch below.
   if (input.view !== undefined) {
     assertViewCompatible(input, obj);
-    return input.view === "history"
-      ? await readHistory(conn, obj, baseHeader, input, maxChars)
-      : await readDiff(conn, obj, baseHeader, input, maxChars);
+    if (input.view === "history") return await readHistory(conn, obj, baseHeader, input, maxChars);
+    if (input.view === "diff") return await readDiff(conn, obj, baseHeader, input, maxChars);
+    return await readDefinition(conn, obj, baseHeader, input, maxChars);
   }
   // from/to/context only parameterise `view`; silently ignoring them would
   // answer a diff request with an ordinary read (the G-08 failure). `include`
@@ -1050,6 +1633,42 @@ export async function abapRead(
       );
     }
   }
+  // line/column only parameterise `view="definition"` — same shape as the
+  // from/to/context loop above, kept separate because the message names a
+  // different view and a caller who passed line/column almost certainly
+  // meant to ask for a definition lookup, not a diff.
+  for (const [param, value] of [
+    ["line", input.line],
+    ["column", input.column],
+  ] as const) {
+    if (value !== undefined) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${param} is only meaningful with view="definition"; no view was requested, so this ` +
+          "would have been an ordinary source read with your parameter discarded.",
+        { type: obj.type, name: obj.name, param },
+        `Add view="definition", or drop ${param}.`,
+      );
+    }
+  }
+  // types/depth only parameterise a DEVC/K package listing; silently
+  // discarding them against any other type would be the same G-08 failure
+  // from/to/context are refused for above.
+  for (const [param, value] of [
+    ["types", input.types],
+    ["depth", input.depth],
+  ] as const) {
+    if (value !== undefined && obj.type !== "DEVC/K") {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${param} is only meaningful for a DEVC/K package read; ${obj.type} ${obj.name} is not a ` +
+          "package, so this would have been an ordinary read with your parameter discarded.",
+        { type: obj.type, name: obj.name, param },
+        `Drop ${param}, or read a package instead.`,
+      );
+    }
+  }
+
   const include = assertIncludeCompatible(input, obj);
 
   // ------------------------------------------------------------------ raw ---
@@ -1163,7 +1782,7 @@ export async function abapRead(
     }
     let rendered: Awaited<ReturnType<typeof readDdic>>;
     try {
-      rendered = await readDdic(conn, obj);
+      rendered = await readDdic(conn, obj, { types: input.types, depth: input.depth });
     } catch (e) {
       // readDdic's UNSUPPORTED message only lists what IS renderable, not
       // format:"raw" (a capabilities.ts concept, kept out of ddic.ts to avoid
@@ -1194,22 +1813,14 @@ export async function abapRead(
     // without a second HTTP round-trip: readDdic's XML-only readers
     // (ddic.ts) now set `hashInput` to the same raw bytes they already
     // fetched once via `fetchDdicXml`, for every DDIC mode.
-    const etag = resourceEtag(rendered.hashInput);
-    // offset/limit window the rendered DDL, so the paging hint stays truthful.
-    const window = sliceLines(rendered.ddl, input.offset ?? 1, input.limit);
-    const built = buildReadResponse({
-      header: { ...baseHeader, ...rendered.meta, mode: "ddic", etag, totalLines: window.total },
-      sections: rendered.sections,
-      body: window.text,
-      bodyLabel: "PSEUDO-DDL",
-      bodyOffset: window.offset,
-      bodyTotalLines: window.total,
-      notes: rendered.notes,
-      hints: ["Use abap_search with mode=where_used to find consumers of this object."],
-      pagingParam: "offset",
+    return buildDdicLikeResponse(
+      rendered,
+      { ...baseHeader, mode: "ddic" },
+      input.offset,
+      input.limit,
+      ["Use abap_search with mode=where_used to find consumers of this object."],
       maxChars,
-    });
-    return { ...built, etag };
+    );
   }
 
   // -------------------------------------------------------------- source ---
@@ -1414,6 +2025,20 @@ const okRead = (res: BuiltResponse & { etag: string }): CallToolResult => ({
  * (CLAS/INTF/PROG/FUGR/DDLS/DDLX/BDEF/SRVD) or a rendered pseudo-DDL
  * definition (TABL/STRU/DTEL/DOMA/TTYP), via `pool.withRead` — no write gate
  * needed since this tool never touches the wire for anything but a read.
+ *
+ * `view="definition"` ({@link readDefinition}) stays on this same
+ * `pool.withRead`/`safety.assert("read")` path even though its
+ * elementinfo/navigation-target/usageReferences calls are HTTP POSTs that
+ * carry the object's full source in the request body — unlike
+ * `abap_quick_fix`, which POSTs source to the SAME kind of ADT endpoint
+ * (`evaluateQuickFixes`) but is gated as a WRITE, because a quick-fix's
+ * whole purpose is to hand back an edit `abap_write` can apply. Definition
+ * lookup can't: every one of its endpoints is ADT's own read-only
+ * "what/where is this" surface, and none of it is capable of returning
+ * anything `abap_write` would act on. A POST body here is an artefact of
+ * the wire protocol, not evidence of a side effect — so the tool's own
+ * read/write classification tracks what the call CAN do to the system, not
+ * which HTTP verb happens to carry the request.
  */
 export function registerReadTools(mcp: McpServer, deps: ReadToolDeps): void {
   mcp.registerTool(
@@ -1421,7 +2046,8 @@ export function registerReadTools(mcp: McpServer, deps: ReadToolDeps): void {
     {
       title: "Read ABAP object",
       description:
-        "Read an ABAP object: source or pseudo-DDL. Returns an etag. Capped ~15k tokens — " +
+        "Read an ABAP object: source, pseudo-DDL, a DEVC/K package listing (types/depth filter it), " +
+        "or (SUSO/B, TABL/DI) a read-only catalog render. Returns an etag. Capped ~15k tokens — " +
         "use outline/method/offset for large objects. Example: {\"object\":\"ZCL_FOO\",\"type\":\"CLAS/OC\"}.",
       inputSchema: readInputSchema,
       annotations: { readOnlyHint: true, openWorldHint: true },

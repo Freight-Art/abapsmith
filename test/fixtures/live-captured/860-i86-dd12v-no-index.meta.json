@@ -1,0 +1,32 @@
+{
+  "n": 860,
+  "label": "i86-dd12v-no-index",
+  "expect": null,
+  "note": "Table with no secondary index: 200 with zero rows.",
+  "requestMethod": "POST",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/datapreview/freestyle?rowNumber=50&sap-client=001",
+  "requestHeaders": {
+    "X-CSRF-Token": "<redacted>",
+    "Accept": "application/vnd.sap.adt.datapreview.table.v1+xml",
+    "Content-Type": "text/plain",
+    "Authorization": "<redacted>"
+  },
+  "requestBody": "SELECT * FROM dd12v WHERE sqltab = 'TADIR'",
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-type": "application/vnd.sap.adt.datapreview.table.v1+xml; charset=utf-8",
+    "content-length": "9503",
+    "sap-authenticated": "true",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "767114.000000"
+  },
+  "byteLength": 9503,
+  "zeroByteBody": false,
+  "sha256": "d2fbe492ce44d3d2dd0237115034861377377f3a404165fe01a044ad24a2aba5",
+  "utcTimestamp": "2026-09-12T13:24:22.579Z",
+  "durationMs": 974,
+  "sessionName": "A"
+}

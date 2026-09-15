@@ -17,6 +17,7 @@ import type { AbapConnection } from "../adt/connection.js";
 import { AbapError } from "../adt/errors.js";
 import { renderMessages } from "../adt/activate.js";
 import {
+  classIncludeActionBlocker,
   deleteEvidenceBlocker,
   enhancementUndoBlocked,
   packageRecreateBlocker,
@@ -24,6 +25,7 @@ import {
   planUndo,
   plannedAction,
 } from "../adt/undo.js";
+import { specFromUri } from "../adt/types.js";
 import type { SessionPool } from "../adt/pool.js";
 import type { Config } from "../config.js";
 import { buildResponse, sliceLines, type BuiltResponse } from "../compact.js";
@@ -107,17 +109,38 @@ const LIST_COLUMNS = ["id", "when", "op", "object", "existed", "capture", "outco
 /** `actor` spliced in before `flags` — only shown when the page has one to show. */
 const LIST_COLUMNS_WITH_ACTOR = LIST_COLUMNS.flatMap((c) => (c === "flags" ? ["actor", "flags"] : c));
 
+/**
+ * Which class sub-include a `sourceUri` names, or `undefined` for a main
+ * source / non-class document. Structural (via `specFromUri`), matching
+ * `entryClassInclude`/`classIncludeFromSourceUri` in adt/undo.ts — this file
+ * must not grow its own regex for the same fact.
+ */
+function includeFromSourceUri(uri: string | undefined): string | undefined {
+  if (uri === undefined) return undefined;
+  const inc = specFromUri(uri)?.include;
+  return inc !== undefined && inc !== "main" ? inc : undefined;
+}
+
+/** Which class sub-include THIS entry's own `sourceUri` names, if any. */
+function entrySubInclude(e: JournalEntry): string | undefined {
+  return includeFromSourceUri(e.object.sourceUri);
+}
+
 /** One `entry.parts[]` element as a table row. Provenance is per-part, not inherited from the primary object. */
 function partRow(p: JournalImagePart): Record<string, string> {
   return {
     object: `${p.object.type} ${p.object.name}`,
     package: p.object.package,
+    // A class-delete's four parts are all the same object/type/package — without
+    // naming the include, the ALSO TOUCHED rows are indistinguishable from each other.
+    include: includeFromSourceUri(p.object.sourceUri) ?? "-",
     existed: p.existedBefore ? "yes" : "no",
     capture: p.beforeCapture,
+    bytes: p.before?.bytes !== undefined ? String(p.before.bytes) : "-",
   };
 }
 
-const PART_COLUMNS = ["object", "existed", "capture"];
+const PART_COLUMNS = ["object", "include", "existed", "capture", "bytes"];
 /** `package` spliced in after `object` — only shown when at least one part carries one. */
 const PART_COLUMNS_WITH_PACKAGE = PART_COLUMNS.flatMap((c) => (c === "object" ? ["object", "package"] : c));
 
@@ -129,6 +152,12 @@ const PART_COLUMNS_WITH_PACKAGE = PART_COLUMNS.flatMap((c) => (c === "object" ? 
 function undoHint(e: JournalEntry): string {
   if (e.operation === "transport-release") {
     return "RELEASED TRANSPORT — refused: a released transport cannot be recalled; create a corrective transport instead";
+  }
+  if (e.operation === "service-publish") {
+    return 'PUBLISHED SERVICE — refused: publishing changed the runtime surface, not the object source; call abap_service op="unpublish" confirm=<binding> instead';
+  }
+  if (e.operation === "service-unpublish") {
+    return 'UNPUBLISHED SERVICE — refused: unpublishing changed the runtime surface, not the object source; call abap_service op="publish" confirm=<binding> instead';
   }
   if (e.operation.startsWith("transport-")) {
     return "refused: transport requests are not undone automatically; use abap_transport to reverse this manually";
@@ -143,12 +172,20 @@ function undoHint(e: JournalEntry): string {
   }
   const action = plannedAction(e);
   if (action === "delete") {
+    // Checked first: an include-scoped delete/recreate refusal
+    // (classIncludeActionBlocker, adt/undo.ts) is unconditional and not
+    // forceable, unlike deleteEvidenceBlocker below — promising a plain
+    // DELETE here for an entry undo will actually refuse would be a lie.
+    const includeRefusal = classIncludeActionBlocker(e, action);
+    if (includeRefusal) return `undo would DELETE this object, and WILL BE REFUSED: ${includeRefusal}`;
     const refusal = deleteEvidenceBlocker(e);
     return refusal
       ? `undo would DELETE this object, and WILL BE REFUSED: ${refusal}`
       : "undo would DELETE this object (abapsmith created it, and confirmed it was absent first)";
   }
   if (action === "recreate") {
+    const includeRefusal = classIncludeActionBlocker(e, action);
+    if (includeRefusal) return `undo would RE-CREATE this object, and WILL BE REFUSED: ${includeRefusal}`;
     const refusal = packageRecreateBlocker(e);
     return refusal
       ? `undo would RE-CREATE this object, and WILL BE REFUSED: ${refusal}`
@@ -157,9 +194,46 @@ function undoHint(e: JournalEntry): string {
   return "undo would restore the previous source";
 }
 
-/** Class entries are only ever half-covered — see FIX E4 in adt/undo.ts. */
+/**
+ * Class entries come in three shapes, and each needs a different warning:
+ * an entry ABOUT one sub-include (this entry covers only that document, not
+ * the class), a class-delete entry that recorded its sub-includes
+ * (`entry.parts` — see `deleteObject`'s four extra GETs, adt/write.ts, and
+ * FIX E4 in adt/undo.ts), and a class entry with none recorded (a class
+ * UPDATE, or an old delete from before this fix landed).
+ */
 function classWarning(e: JournalEntry): string | undefined {
+  const include = entrySubInclude(e);
+  if (include) {
+    return (
+      `This entry is about class ${e.object.name}'s ${include} include ONLY, not the whole ` +
+      "class: its main body and its other local includes are each tracked (when abapsmith " +
+      "wrote them) by their own separate journal entries, and undoing THIS entry touches only " +
+      "this one document."
+    );
+  }
   if (!/^CLAS/i.test(e.object.type)) return undefined;
+  if (e.parts?.length) {
+    const recorded = e.parts
+      .filter((p) => p.beforeCapture === "captured" || p.beforeCapture === "confirmed-absent")
+      .map((p) => includeFromSourceUri(p.object.sourceUri))
+      .filter((i): i is string => i !== undefined);
+    const unrecorded = e.parts
+      .filter((p) => p.beforeCapture !== "captured" && p.beforeCapture !== "confirmed-absent")
+      .map((p) => includeFromSourceUri(p.object.sourceUri))
+      .filter((i): i is string => i !== undefined);
+    return (
+      `${e.object.name} is a CLASS. abapsmith recorded its main include` +
+      (recorded.length ? ` plus its ${recorded.join(", ")} include(s)` : "") +
+      " when it was deleted. Undoing that delete recreates every include recorded here, not " +
+      "just the main body." +
+      (unrecorded.length
+        ? ` Its ${unrecorded.join(", ")} include(s) could NOT be recorded (the read at delete ` +
+          "time failed) and will NOT come back — recreating anyway is refused unless you pass " +
+          "force=true, and the result is reported PARTIAL."
+        : "")
+    );
+  }
   return (
     `${e.object.name} is a CLASS and abapsmith records only its MAIN include. Its local ` +
     "definitions (CCDEF), local implementations (CCIMP), macros (CCMAC) and local test " +
@@ -532,6 +606,11 @@ export async function abapJournal(
         when: entry.ts,
         operation: entry.operation,
         object: `${entry.object.type} ${entry.object.name}`,
+        // Present only for an entry ABOUT one class sub-include (not the
+        // main body) — see `entrySubInclude`. Absent for every other entry,
+        // including a class-delete entry whose `parts` recorded includes
+        // alongside the main body (those are listed in ALSO TOUCHED below).
+        include: entrySubInclude(entry),
         uri: entry.object.uri,
         package: entry.object.package,
         existedBefore: entry.existedBefore,
@@ -647,11 +726,28 @@ export async function abapJournal(
       `PARTIAL — this object was NOT fully ${res.plan.action === "recreate" ? "recreated" : "restored"}. ` +
         `${res.partial.reason} Unrestored includes: ${res.partial.unrestored.join(", ")}. ` +
         (res.plan.action === "recreate"
-          ? `${entry.object.name} is NOT the object that was deleted: what came back is its ` +
-            "main include and nothing else. Restore the local and test includes from SAP's " +
-            "own version management (SE24 → Utilities → Versions) before trusting it, and do " +
-            "not run its unit tests expecting them to exist."
+          ? `${entry.object.name} is NOT the object that was deleted: what came back is its main ` +
+            `include${res.restoredIncludes?.length ? ` plus its ${res.restoredIncludes.join(", ")} include(s)` : ""}, ` +
+            `not the ${res.partial.unrestored.join(", ")} include(s) — those were never recorded ` +
+            "and are not restored. Restore them from SAP's own version management (SE24 → " +
+            "Utilities → Versions) before trusting it, and do not run its unit tests expecting " +
+            "them to exist unless testclasses is among what came back."
           : "Drift in those includes was neither detected nor reverted."),
+    );
+  }
+  // Independent of `res.partial`: a FULLY recorded class recreate (every
+  // sub-include captured or confirmed-absent) never sets `plan.partial`, but
+  // still has includes to report — say what came back so this doesn't read
+  // as a plain main-source-only restore (the old, pre-fix behaviour).
+  if (res.performed && res.restoredIncludes?.length) {
+    notes.push(
+      `Also restored: its ${res.restoredIncludes.join(", ")} include(s) — recorded alongside ` +
+        "the main body when the class was deleted, written back and activated together with it.",
+    );
+  }
+  if (res.performed && res.skippedIncludes?.length) {
+    notes.push(
+      `NOT restored: ${res.skippedIncludes.map((s) => `its ${s.include} include (${s.reason})`).join("; ")}.`,
     );
   }
   if (res.undoEntryId) {
@@ -680,6 +776,8 @@ export async function abapJournal(
       action: res.plan.action,
       performed: res.performed,
       partial: res.partial ? `yes — ${res.partial.unrestored.join(", ")} NOT restored` : undefined,
+      restoredIncludes: res.restoredIncludes?.length ? res.restoredIncludes.join(", ") : undefined,
+      skippedIncludes: res.skippedIncludes?.length ? res.skippedIncludes.map((s) => s.include).join(", ") : undefined,
       forced: res.forced || undefined,
       driftDetected: res.plan.drift.drifted || undefined,
       newEntry: res.undoEntryId ?? (res.performed ? "NOT JOURNALLED" : undefined),

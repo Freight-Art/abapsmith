@@ -320,6 +320,17 @@ export type AbapErrorCode =
    * hint-free dead end.
    */
   | "SERVICE_METADATA_UNPARSEABLE"
+  /**
+   * The ADT publish job for a service binding's OData service reached the
+   * server and the server refused it (or answered with `severity=error`).
+   * Not `SERVICE_NOT_PUBLISHED`: that code names a state nobody has acted
+   * on yet — this code names a publish attempt that reached the server and
+   * failed there. Not `READ_ONLY`/`SAFETY_DENIED`: both of those refuse
+   * before any request goes out; this one only fires after the request was
+   * sent. Usually an inactive binding or an inactive service definition —
+   * see the retry classification below.
+   */
+  | "SERVICE_PUBLISH_FAILED"
   // ---- Fluid API ----
   /**
    * The fluid API is off (`ABAP_FLUID_API` unset/false) or the connected
@@ -420,6 +431,7 @@ export const RETRYABILITY: Record<AbapErrorCode, Retryability> = {
   SERVICE_METADATA_DENIED: "terminal", // an authorization gap, not a bad argument
   SERVICE_METADATA_NOT_FOUND: "conditional",
   SERVICE_METADATA_UNPARSEABLE: "conditional",
+  SERVICE_PUBLISH_FAILED: "conditional", // usually an inactive binding or definition; the same call succeeds once that's fixed
   FLUID_API_DISABLED: "terminal", // the flag is off or the system refuses writes; no argument changes either
   FLUID_PLUGINS_DISABLED: "terminal", // the flag is off; no argument enables it
   FLUID_PLUGIN_MUTATE_DISABLED: "terminal", // the flag is off; no argument enables it

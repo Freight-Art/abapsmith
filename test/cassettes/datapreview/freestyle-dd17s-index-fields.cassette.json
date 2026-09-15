@@ -1,0 +1,41 @@
+{
+  "id": "freestyle-dd17s-index-fields",
+  "recordedAt": "2026-09-12T13:24:06.955Z",
+  "recordedDurationMs": 1189,
+  "appliance": {
+    "sid": "A4H",
+    "client": "001",
+    "kernelRelease": "777",
+    "kernelPatchLevel": "500",
+    "server": "a4hsandbox_A4H_00"
+  },
+  "source": {
+    "type": "live-capture-raw",
+    "citation": "test/fixtures/live-captured/859-i86-dd17s-select-star.meta.json + test/fixtures/live-captured/859-i86-dd17s-select-star.xml",
+    "notes": "The Authorization header was redacted at capture time; the X-CSRF-Token header was redacted by the transcriber before this cassette was written. SELECT * FROM dd17s WHERE sqltab = 'BDSLORE10' returns totalRows 2. DD17S is NOT language-dependent; POSITION gives the field order within the index and rows are not guaranteed to already be sorted by it."
+  },
+  "request": {
+    "method": "POST",
+    "path": "/sap/bc/adt/datapreview/freestyle?rowNumber=50&sap-client=001",
+    "headers": {
+      "X-CSRF-Token": "<redacted>",
+      "Accept": "application/vnd.sap.adt.datapreview.table.v1+xml",
+      "Content-Type": "text/plain",
+      "Authorization": "<redacted>"
+    },
+    "body": "SELECT * FROM dd17s WHERE sqltab = 'BDSLORE10'"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/vnd.sap.adt.datapreview.table.v1+xml; charset=utf-8",
+      "content-length": "3007",
+      "sap-authenticated": "true",
+      "sap-cache-control": "+0",
+      "sap-isc-uagent": "0",
+      "sap-server": "true",
+      "sap-perf-fesrec": "1062598.000000"
+    },
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><dataPreview:tableData xmlns:dataPreview=\"http://www.sap.com/adt/dataPreview\"><dataPreview:totalRows>2</dataPreview:totalRows><dataPreview:isHanaAnalyticalView>false</dataPreview:isHanaAnalyticalView><dataPreview:executedQueryString>SELECT * FROM DD17S WHERE SQLTAB = 'BDSLORE10'   INTO     TABLE @DATA(LT_RESULT)   UP TO 50  ROWS   .</dataPreview:executedQueryString><dataPreview:queryExecutionTime>55.6920000</dataPreview:queryExecutionTime><dataPreview:columns><dataPreview:metadata dataPreview:name=\"SQLTAB\" dataPreview:type=\"C\" dataPreview:description=\"SQLTAB\" dataPreview:keyAttribute=\"false\" dataPreview:colType=\"\" dataPreview:isKeyFigure=\"false\"/><dataPreview:dataSet><dataPreview:data>BDSLORE10</dataPreview:data><dataPreview:data>BDSLORE10</dataPreview:data></dataPreview:dataSet></dataPreview:columns><dataPreview:columns><dataPreview:metadata dataPreview:name=\"INDEXNAME\" dataPreview:type=\"C\" dataPreview:description=\"INDEXNAME\" dataPreview:keyAttribute=\"false\" dataPreview:colType=\"\" dataPreview:isKeyFigure=\"false\"/><dataPreview:dataSet><dataPreview:data>REL</dataPreview:data><dataPreview:data>P2</dataPreview:data></dataPreview:dataSet></dataPreview:columns><dataPreview:columns><dataPreview:metadata dataPreview:name=\"POSITION\" dataPreview:type=\"N\" dataPreview:description=\"POSITION\" dataPreview:keyAttribute=\"false\" dataPreview:colType=\"\" dataPreview:isKeyFigure=\"false\"/><dataPreview:dataSet><dataPreview:data>0001</dataPreview:data><dataPreview:data>0001</dataPreview:data></dataPreview:dataSet></dataPreview:columns><dataPreview:columns><dataPreview:metadata dataPreview:name=\"AS4LOCAL\" dataPreview:type=\"C\" dataPreview:description=\"AS4LOCAL\" dataPreview:keyAttribute=\"false\" dataPreview:colType=\"\" dataPreview:isKeyFigure=\"false\"/><dataPreview:dataSet><dataPreview:data>A</dataPreview:data><dataPreview:data>A</dataPreview:data></dataPreview:dataSet></dataPreview:columns><dataPreview:columns><dataPreview:metadata dataPreview:name=\"AS4VERS\" dataPreview:type=\"N\" dataPreview:description=\"AS4VERS\" dataPreview:keyAttribute=\"false\" dataPreview:colType=\"\" dataPreview:isKeyFigure=\"false\"/><dataPreview:dataSet><dataPreview:data>0000</dataPreview:data><dataPreview:data>0000</dataPreview:data></dataPreview:dataSet></dataPreview:columns><dataPreview:columns><dataPreview:metadata dataPreview:name=\"FIELDNAME\" dataPreview:type=\"C\" dataPreview:description=\"FIELDNAME\" dataPreview:keyAttribute=\"false\" dataPreview:colType=\"\" dataPreview:isKeyFigure=\"false\"/><dataPreview:dataSet><dataPreview:data>REIO_ID</dataPreview:data><dataPreview:data>REP2_ID</dataPreview:data></dataPreview:dataSet></dataPreview:columns><dataPreview:columns><dataPreview:metadata dataPreview:name=\"DESCFLAG\" dataPreview:type=\"C\" dataPreview:description=\"DESCFLAG\" dataPreview:keyAttribute=\"false\" dataPreview:colType=\"\" dataPreview:isKeyFigure=\"false\"/><dataPreview:dataSet><dataPreview:data/><dataPreview:data/></dataPreview:dataSet></dataPreview:columns></dataPreview:tableData>"
+  }
+}

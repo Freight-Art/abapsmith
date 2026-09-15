@@ -1,0 +1,41 @@
+{
+  "id": "freestyle-dd04l-data-elements",
+  "recordedAt": "2026-09-12T13:24:54.952Z",
+  "recordedDurationMs": 458,
+  "appliance": {
+    "sid": "A4H",
+    "client": "001",
+    "kernelRelease": "777",
+    "kernelPatchLevel": "500",
+    "server": "a4hsandbox_A4H_00"
+  },
+  "source": {
+    "type": "live-capture-raw",
+    "citation": "test/fixtures/live-captured/869-i87-dd04l-rollname-domain.meta.json + test/fixtures/live-captured/869-i87-dd04l-rollname-domain.xml",
+    "notes": "The Authorization header was redacted at capture time; the X-CSRF-Token header was redacted by the transcriber before this cassette was written. SELECT rollname, domname, datatype, leng FROM dd04l WHERE rollname = 'ACTIV_AUTH' OR rollname = 'TABNAME' OR rollname = 'SUSR_OBJ' OR rollname = 'DEVCLASS' returns only 3 rows for 4 requested data elements \u2014 a name found in AUTHX's ROLLNAME column is not guaranteed to exist in DD04L. A reader must tolerate a missing row rather than assume a 1:1 join always succeeds."
+  },
+  "request": {
+    "method": "POST",
+    "path": "/sap/bc/adt/datapreview/freestyle?rowNumber=50&sap-client=001",
+    "headers": {
+      "X-CSRF-Token": "<redacted>",
+      "Accept": "application/vnd.sap.adt.datapreview.table.v1+xml",
+      "Content-Type": "text/plain",
+      "Authorization": "<redacted>"
+    },
+    "body": "SELECT rollname, domname, datatype, leng FROM dd04l WHERE rollname = 'ACTIV_AUTH' OR rollname = 'TABNAME' OR rollname = 'SUSR_OBJ' OR rollname = 'DEVCLASS'"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/vnd.sap.adt.datapreview.table.v1+xml; charset=utf-8",
+      "content-length": "2251",
+      "sap-authenticated": "true",
+      "sap-cache-control": "+0",
+      "sap-isc-uagent": "0",
+      "sap-server": "true",
+      "sap-perf-fesrec": "344903.000000"
+    },
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><dataPreview:tableData xmlns:dataPreview=\"http://www.sap.com/adt/dataPreview\"><dataPreview:totalRows>3</dataPreview:totalRows><dataPreview:isHanaAnalyticalView>false</dataPreview:isHanaAnalyticalView><dataPreview:executedQueryString>SELECT ROLLNAME, DOMNAME, DATATYPE, LENG FROM DD04L WHERE ROLLNAME = 'ACTIV_AUTH' OR ROLLNAME = 'TABNAME' OR ROLLNAME = 'SUSR_OBJ' OR ROLLNAME = 'DEVCLASS'   INTO     TABLE @DATA(LT_RESULT)   UP TO 50  ROWS   .</dataPreview:executedQueryString><dataPreview:queryExecutionTime>24.2280000</dataPreview:queryExecutionTime><dataPreview:columns><dataPreview:metadata dataPreview:name=\"ROLLNAME\" dataPreview:type=\"C\" dataPreview:description=\"ROLLNAME\" dataPreview:keyAttribute=\"false\" dataPreview:colType=\"\" dataPreview:isKeyFigure=\"false\"/><dataPreview:dataSet><dataPreview:data>ACTIV_AUTH</dataPreview:data><dataPreview:data>DEVCLASS</dataPreview:data><dataPreview:data>TABNAME</dataPreview:data></dataPreview:dataSet></dataPreview:columns><dataPreview:columns><dataPreview:metadata dataPreview:name=\"DOMNAME\" dataPreview:type=\"C\" dataPreview:description=\"DOMNAME\" dataPreview:keyAttribute=\"false\" dataPreview:colType=\"\" dataPreview:isKeyFigure=\"false\"/><dataPreview:dataSet><dataPreview:data>ACTIV_AUTH</dataPreview:data><dataPreview:data>DEVCLASS</dataPreview:data><dataPreview:data>AS4TAB</dataPreview:data></dataPreview:dataSet></dataPreview:columns><dataPreview:columns><dataPreview:metadata dataPreview:name=\"DATATYPE\" dataPreview:type=\"C\" dataPreview:description=\"DATATYPE\" dataPreview:keyAttribute=\"false\" dataPreview:colType=\"\" dataPreview:isKeyFigure=\"false\"/><dataPreview:dataSet><dataPreview:data>CHAR</dataPreview:data><dataPreview:data>CHAR</dataPreview:data><dataPreview:data>CHAR</dataPreview:data></dataPreview:dataSet></dataPreview:columns><dataPreview:columns><dataPreview:metadata dataPreview:name=\"LENG\" dataPreview:type=\"N\" dataPreview:description=\"LENG\" dataPreview:keyAttribute=\"false\" dataPreview:colType=\"\" dataPreview:isKeyFigure=\"false\"/><dataPreview:dataSet><dataPreview:data>000002</dataPreview:data><dataPreview:data>000030</dataPreview:data><dataPreview:data>000030</dataPreview:data></dataPreview:dataSet></dataPreview:columns></dataPreview:tableData>"
+  }
+}

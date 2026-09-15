@@ -68,14 +68,18 @@ prompt-injected into. The advertisement is not the permission — the handler
 checks on every request that asks for that chapter by either route, so a
 hand-crafted call against a schema the client never read is still refused.
 
-Seven capabilities are two-way overrides rather than a strict ladder:
+Eight capabilities are two-way overrides rather than a strict ladder:
 `ABAP_ALLOW_TRANSPORT_RELEASE`, `ABAP_ALLOW_TRANSPORT_DELETE`,
-`ABAP_ALLOW_CASCADE_DELETE`, `ABAP_ALLOW_ENHANCEMENTS`,
-`ABAP_ALLOW_SOURCE_PLUGINS`, `ABAP_ALLOW_ENHANCEMENT_DELETE` and
-`ABAP_ALLOW_RAW_ADT_WRITES` (the last has no `abap_*` tool yet). Left unset,
-each falls back to its mode's default from the table above; set explicitly, it
-wins in either direction — an operator can grant `ABAP_ALLOW_ENHANCEMENT_DELETE`
-under `edit` or withhold `ABAP_ALLOW_TRANSPORT_RELEASE` under `admin`. See
+`ABAP_ALLOW_CASCADE_DELETE`, `ABAP_ALLOW_SERVICE_PUBLISH`,
+`ABAP_ALLOW_ENHANCEMENTS`, `ABAP_ALLOW_SOURCE_PLUGINS`,
+`ABAP_ALLOW_ENHANCEMENT_DELETE` and `ABAP_ALLOW_RAW_ADT_WRITES` (the last has
+no `abap_*` tool yet). Left unset, each falls back to its mode's default from
+the table above; set explicitly, it wins in either direction — an operator
+can grant `ABAP_ALLOW_ENHANCEMENT_DELETE` under `edit` or withhold
+`ABAP_ALLOW_TRANSPORT_RELEASE` under `admin`. `ABAP_ALLOW_SERVICE_PUBLISH`
+gates `abap_service` `op="publish"`/`op="unpublish"` — the same tier as
+`ABAP_ALLOW_TRANSPORT_RELEASE`, and each call additionally needs a matching
+per-call `confirm` echo of the binding name. See
 [CONFIGURATION/permissions-and-allowlists.md](../CONFIGURATION/permissions-and-allowlists.md) for the per-variable defaults.
 
 ## Out-of-band flags
