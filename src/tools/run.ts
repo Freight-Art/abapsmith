@@ -40,6 +40,10 @@ import { buildResponse, type BuiltResponse } from "../compact.js";
 import type { SafetyGate } from "../safety.js";
 import { preflight } from "./preflight.js";
 import { LOG_TOOL_ID, LOG_ACTION } from "../adt/fluid/builtin/log.js";
+import { previewDdicEntity } from "../adt/datapreview.js";
+import { isEmptyFilter } from "../adt/datapreview-filter.js";
+import { systemKey } from "../journal.js";
+import { diffSnapshot, renderDataChangesSection, auditDiff, type SnapshotRunDeps } from "../snapshot-run.js";
 
 const runRangeSchema = z.object({
   sign: z.enum(["I", "E"]).optional(),
@@ -67,6 +71,12 @@ export const runInputSchema = {
       "Switch on the SAP authorization trace for the connected user, run, then read back and " +
         "switch it back off. Refused on a read-only server. Default false.",
     ),
+  snapshot_ids: z.array(z.string()).optional().describe(
+    "Snapshot ids from prior abap_data_preview mode=\"snapshot\" calls. After this call finishes, " +
+      "each one is re-read and diffed, and the result is appended as a DATA CHANGES section. " +
+      "The diff obeys the same data-preview policy as the snapshot did — if it is refused, this " +
+      "call's own result still returns and the section says why.",
+  ),
 };
 
 export const RunInput = z.object(runInputSchema);
@@ -395,16 +405,92 @@ export interface RunToolDeps {
   readonly safety: SafetyGate;
   readonly ensureConnected: () => Promise<void>;
   readonly errorResult: (e: unknown) => CallToolResult;
-  readonly cfg: Pick<Config, "maxResponseChars">;
+  readonly cfg: Pick<Config, "maxResponseChars" | "dataPreviewMaxRows" | "dataSnapshotTtlHours" | "sid" | "url" | "client">;
 }
 
 const ok = (text: string): CallToolResult => ({ content: [{ type: "text", text }] });
+
+// ---------------------------------------------------------------------------
+// snapshot_ids (issue #117, second half) — shared by abap_run/abap_test/
+// abap_bopf_test/abap_ui (mode: "press"). Put here, the smallest of the four
+// files, and imported by the other three rather than duplicated: all four
+// need the exact same clamp/gate/re-read sequence `diffSnapshot`
+// (`src/snapshot-run.ts`) already enforces for `abap_data_preview`'s own
+// `mode: "diff"`, and a second hand-rolled copy of it would be one more place
+// for the two to drift.
+// ---------------------------------------------------------------------------
+
+/** The slice of a tool's deps this helper needs to build its own `SnapshotRunDeps`. */
+export interface SnapshotDiffCapableDeps {
+  readonly pool: SessionPool;
+  readonly safety: SafetyGate;
+  readonly cfg: Pick<Config, "dataPreviewMaxRows" | "dataSnapshotTtlHours" | "sid" | "url" | "client">;
+}
+
+/**
+ * Diffs every id in `ids`, in order, against the live system, and renders the
+ * `DATA CHANGES` section body — or `undefined` when `ids` is absent/empty,
+ * so a call that never asked for a diff renders exactly as it did before
+ * this option existed.
+ *
+ * Never throws. The tool's own result has already been produced by the time
+ * this runs (see each tool's call site); a diff that cannot be produced —
+ * expired snapshot, now-denied table, a dead connection — is reported as a
+ * `refused` line in the section, not as an exception that would erase a
+ * completed run.
+ *
+ * One id at a time, plain `for`/`await`, never `Promise.all`: each diff takes
+ * its own read lease from `deps.pool`, and running them concurrently would
+ * just mean N leases fighting over the same small pool instead of one lease
+ * used N times in sequence.
+ */
+export async function runSnapshotDiffs(
+  deps: SnapshotDiffCapableDeps,
+  ids: readonly string[] | undefined,
+  audit: (message: string) => void,
+): Promise<string | undefined> {
+  if (ids === undefined || ids.length === 0) return undefined;
+
+  let runDeps: SnapshotRunDeps;
+  try {
+    runDeps = {
+      read: (table, maxRows, filter) =>
+        deps.pool.withRead("abap_data_preview", (conn) =>
+          previewDdicEntity(conn, { table, maxRows, ...(filter && !isEmptyFilter(filter) ? { filter } : {}) }),
+        ),
+      assertDataPreview: (t) => deps.safety.assertDataPreview(t),
+      systemKey: systemKey(deps.cfg),
+      maxRows: deps.cfg.dataPreviewMaxRows,
+      ttlCeilingHours: deps.cfg.dataSnapshotTtlHours,
+    };
+  } catch (e) {
+    // Assembling deps (systemKey, etc.) failed before any id was even tried —
+    // still no throw: report it as the whole section's content instead.
+    return `snapshot diff setup failed: ${isAbapError(e) ? `${e.code}: ${e.message}` : String(e)}`;
+  }
+
+  const results: { id: string; outcome: Awaited<ReturnType<typeof diffSnapshot>> | { refused: string } }[] = [];
+  for (const id of ids) {
+    try {
+      const out = await diffSnapshot(runDeps, id);
+      auditDiff(out, audit);
+      results.push({ id, outcome: out });
+    } catch (e) {
+      results.push({
+        id,
+        outcome: { refused: isAbapError(e) ? `${e.code}: ${e.message}` : String(e) },
+      });
+    }
+  }
+  return renderDataChangesSection(results);
+}
 
 /**
  * Registers `abap_run`. Preflight-gated as `execute`, then runs in a WRITE
  * slot so a dead-slot replay is gated — see the handler body for why.
  */
 export function registerRunTools(mcp: McpServer, deps: RunToolDeps): void {
+  const audit = (m: string): void => void process.stderr.write(m + "\n");
   mcp.registerTool(
     "abap_run",
     {
@@ -428,7 +514,15 @@ export function registerRunTools(mcp: McpServer, deps: RunToolDeps): void {
         const res = await deps.pool.withWrite("abap_run", undefined, (conn) =>
           abapRun(conn, args as RunInput, deps.cfg.maxResponseChars, deps.safety),
         );
-        return ok(res.text);
+        // Diffed AFTER the run — success or failure of the run itself never
+        // affects whether this section is attempted. On a THROW above (a
+        // dump, refusal, or connection failure) control never reaches here:
+        // the error propagates unchanged, with no DATA CHANGES section — it
+        // is a structured, machine-readable refusal, and appending diff
+        // prose to it would change its shape for every existing consumer.
+        const a = args as RunInput;
+        const changes = await runSnapshotDiffs(deps, a.snapshot_ids, audit);
+        return ok(changes ? `${res.text}\n\nDATA CHANGES\n${changes}` : res.text);
       } catch (e) {
         return deps.errorResult(e);
       }

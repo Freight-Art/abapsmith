@@ -51,6 +51,32 @@ const MAX_MESSAGE_CHARS = 500;
 const SUBTYPE_KEY = "com.sap.adt.communicationFramework.subType";
 const PROMOTED_KEYS = new Set([SUBTYPE_KEY, "ideUser", "conflictText", "URI"]);
 
+/**
+ * One enqueue-table row as `formatLockHolders` (src/adt/enqueue-read.ts)
+ * shapes it. Restated here rather than imported so this file does not need
+ * an `enqueue-read.ts` dependency just for a type — `lock_holders` arrives
+ * through `details` as `unknown`, same as every other promoted key below.
+ */
+interface LockHolderCell {
+  readonly user: string;
+  readonly tcode?: string;
+  readonly age?: string;
+  readonly gname: string;
+  readonly garg: string;
+}
+
+function isLockHolderCell(v: unknown): v is LockHolderCell {
+  if (typeof v !== "object" || v === null) return false;
+  const r = v as Record<string, unknown>;
+  return (
+    typeof r["user"] === "string" &&
+    typeof r["gname"] === "string" &&
+    typeof r["garg"] === "string" &&
+    (r["tcode"] === undefined || typeof r["tcode"] === "string") &&
+    (r["age"] === undefined || typeof r["age"] === "string")
+  );
+}
+
 interface AdtEnvelope {
   /** HTTP status. Absent for a client-side precondition failure (`err === 0`). */
   status?: number;
@@ -73,7 +99,26 @@ interface AdtEnvelope {
   /** Which ADT operation the framework was running, e.g. `getStack`. */
   subType?: string;
   /** Enqueue-conflict detail, when the server named the holder. */
-  lock?: { ideUser?: string; conflictText?: string; blockingUser?: string };
+  lock?: {
+    ideUser?: string;
+    conflictText?: string;
+    blockingUser?: string;
+    /**
+     * Enqueue-table rows found by the best-effort `core.locks` lookup
+     * (`src/adt/locked-holders.ts`), attached only when ADT itself did not
+     * name a `blockingUser` — see that file's header for why this is a
+     * separate, weaker claim than `blockingUser` (a lock argument match,
+     * not a statement about the ADT session lock itself).
+     */
+    holders?: readonly LockHolderCell[];
+    /**
+     * Present only when the enqueue read matched more rows than
+     * `holders` carries (`LOCK_HOLDER_LIMIT` in locked-holders.ts) — the
+     * true count of matching enqueue entries, so the cap is stated rather
+     * than implied.
+     */
+    holdersTotal?: number;
+  };
   transport?: string;
   uri?: string;
   /** Everything not promoted above, bounded. */
@@ -299,6 +344,18 @@ function adtEnvelopeFromDetails(details: Record<string, unknown>): {
       case "blockingUser":
         if (str(v)) { env.lock = { ...env.lock, blockingUser: str(v) }; sawAny = true; } else rest[k] = v;
         break;
+      case "lock_holders":
+        if (Array.isArray(v) && v.length > 0 && v.every(isLockHolderCell)) {
+          env.lock = { ...env.lock, holders: v };
+          sawAny = true;
+        } else rest[k] = v;
+        break;
+      case "lock_holders_total":
+        if (typeof v === "number") {
+          env.lock = { ...env.lock, holdersTotal: v };
+          sawAny = true;
+        } else rest[k] = v;
+        break;
       case "transport":
         if (str(v)) { env.transport = str(v); sawAny = true; } else rest[k] = v;
         break;
@@ -307,6 +364,31 @@ function adtEnvelopeFromDetails(details: Record<string, unknown>): {
     }
   }
   return { adt: sawAny ? env : undefined, rest };
+}
+
+/**
+ * Renders the `lock_holders` enqueue rows as one clause, e.g.
+ * `Enqueue table shows DEVELOPER (SE24, 12m), SMITH (SE80).` A holder with
+ * neither `tcode` nor `age` renders as the bare user name — a column the
+ * row did not carry is simply absent, never a placeholder. `holdersTotal`,
+ * when it exceeds the number of rows actually rendered, is stated as its
+ * own trailing clause rather than left implicit.
+ */
+function renderLockHolders(
+  holders: readonly LockHolderCell[] | undefined,
+  holdersTotal: number | undefined,
+): string | undefined {
+  if (!holders || holders.length === 0) return undefined;
+  const cells: string[] = [];
+  for (const h of holders) {
+    const bits = [h.tcode, h.age].filter((b): b is string => b !== undefined);
+    cells.push(bits.length ? `${h.user} (${bits.join(", ")})` : h.user);
+  }
+  let sentence = `Enqueue table shows ${cells.join(", ")}.`;
+  if (holdersTotal !== undefined && holdersTotal > holders.length) {
+    sentence += ` (${holdersTotal} holders in total; ${holders.length} shown.)`;
+  }
+  return sentence;
 }
 
 /**
@@ -322,6 +404,15 @@ function summarise(code: string, adt: AdtEnvelope | undefined): string | undefin
     parts.push(holder ? `Held by user ${holder}.` : "Another ADT session holds the lock.");
   }
   if (adt.lock?.conflictText) parts.push(adt.lock.conflictText);
+  // An enqueue holder is a DIFFERENT claim from `blockingUser`/`ideUser`
+  // above: those name who ADT itself says holds the session lock; this
+  // names whoever the enqueue table shows holding an SAP lock whose
+  // argument matched the object's name — evidence about the conflict, not
+  // a restatement that this user holds the ADT session lock. Rendered only
+  // when the best-effort lookup in src/adt/locked-holders.ts found rows;
+  // never a placeholder guess for a column a row did not carry.
+  const holderSentence = renderLockHolders(adt.lock?.holders, adt.lock?.holdersTotal);
+  if (holderSentence) parts.push(holderSentence);
   if (adt.status !== undefined) parts.push(`ADT returned HTTP ${adt.status}.`);
   if (adt.exceptionType) parts.push(`Exception ${adt.exceptionType}.`);
   if (adt.t100?.id && adt.t100.no) parts.push(`SAP message ${adt.t100.id}${adt.t100.no}.`);

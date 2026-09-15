@@ -71,6 +71,15 @@ an already-activated class and a changed one pays the cold cost again.
 compact mode does not rescue an unnarrowed query — narrow with
 `config_id`/`component`/`package` instead.
 
+`mode: "locks"` is scoped to one FPM config's own enqueue object and always
+requires `config_id`; it was not widened into a generic lock lookup. For
+enqueue locks on anything else — a table, a repository object, a user —
+`core.locks` (`abap_fluid`) is the generic view: it takes `object`/`table`/
+`user` filters (at least one is required) instead of a `config_id`, and its
+renderer is not FPM-specific. This is a deliberate split, not an oversight:
+`mode: "locks"` stays FPM-specific and keeps `config_id`, and the generic
+enqueue read lives only in `core.locks` — see `doc/TOOLS/abap-fluid.md`.
+
 `mode: "events"` traces FPM/FBI toolbar buttons to the code that handles
 them, from saved configuration only — nothing is executed. It prints a
 VIEWS section between the header and WIRES, one row per UIBB named in the

@@ -444,11 +444,14 @@ reaching SAP.
 | `scenario.cleanup` | boolean | no | `false` | Delete the created rows and save again, right after create+retrieve. |
 | `generate_only` | boolean | no | — | Write and activate the generated test-bridge class without running it; use to set a debugger breakpoint first, then trigger via `abap_debug`. |
 | `auth_trace` | boolean | no | `false` | Switch on the SAP authorization trace for the executing user around this run and read back failed authority checks afterward. See [execute-and-test.md](execute-and-test.md#authorization-trace-auth_trace) for the full contract (kernel trace vs. SU53 fallback, the `auth_trace` header field, `FAILED AUTH CHECKS` rendering). Never runs in read mode. |
+| `snapshot_ids` | array\<string\> | no | — | Ids from prior `abap_data_preview mode="snapshot"` calls. Diffed against the live system after this call finishes, and a `DATA CHANGES` section is appended — same shared mechanism, same refused-vs-thrown behaviour, as `abap_run`/`abap_test`; see [execute-and-test.md](execute-and-test.md#diffing-what-a-call-changed-snapshot_ids) for the full contract. |
 
 Notes: **writes real rows by default** — save is not optional, because
 determinations and validations only fire on save. There is no ADT runtime
 surface for BOPF, so this generates and executes a bridge class — named
 after the business object, installed once into `$ABAPSMITH_FLUID_API`, and
 reused across calls for that BO rather than thrown away — that performs the
-same `MODIFY`+`SAVE` the GUI would.
+same `MODIFY`+`SAVE` the GUI would. Since this tool writes real rows by
+default, `snapshot_ids` is a natural pairing: snapshot the affected table(s)
+first, then pass the snapshot ids here to see exactly what the run inserted.
 

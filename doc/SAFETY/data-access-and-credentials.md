@@ -52,7 +52,16 @@ Recorded so nobody "fixes" them later:
 - **`CDHDR` / `CDPOS` are not blocked.** Change documents do carry old and new
   field values, but "who changed this and when" is one of the most common
   legitimate debugging questions on the platform. This is a known gap, not a
-  silent omission.
+  silent omission. `core.change_docs` (`abap_fluid`) closes half of it at the
+  position level: it judges `CDHDR`/`CDPOS` themselves before reading, then
+  judges every table a returned `CDPOS` row actually names — a change
+  document naming a denied table still appears, but that position is
+  dropped and counted, never shown (`applyPositionPolicy`,
+  `src/adt/change-docs.ts`). That per-referenced-table pass exists only in
+  `core.change_docs`. A plain `abap_data_preview` read of `CDPOS` itself is
+  unaffected by it and remains an unfiltered read of `CDPOS`'s own columns
+  (including its old/new value fields) — `CDHDR`/`CDPOS` are still not on
+  the deny-list, and reading them directly still is not blocked.
 - **`USR` as a prefix was rejected** in favour of exact `USR*` entries: an exact
   list is auditable, a prefix's blast radius is not.
 

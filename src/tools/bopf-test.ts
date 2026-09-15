@@ -56,6 +56,7 @@ import {
 } from "../adt/bopf.js";
 import { FLUID_PACKAGE } from "../adt/fluid/package.js";
 import { LOG_TOOL_ID, LOG_ACTION } from "../adt/fluid/builtin/log.js";
+import { runSnapshotDiffs } from "./run.js";
 
 // ---------------------------------------------------------------------------
 // Schema
@@ -94,6 +95,12 @@ export const bopfTestInputSchema = {
       "Switch on the SAP authorization trace for the connected user, run the scenario, then read " +
         "back and switch it back off. Refused on a read-only server. Default false.",
     ),
+  snapshot_ids: z.array(z.string()).optional().describe(
+    "Snapshot ids from prior abap_data_preview mode=\"snapshot\" calls. After this call finishes, " +
+      "each one is re-read and diffed, and the result is appended as a DATA CHANGES section. " +
+      "The diff obeys the same data-preview policy as the snapshot did — if it is refused, this " +
+      "call's own result still returns and the section says why.",
+  ),
 };
 
 export const BopfTestInput = z.object(bopfTestInputSchema);
@@ -113,7 +120,10 @@ export interface BopfTestDeps {
   readonly safety: SafetyGate;
   readonly ensureConnected: () => Promise<void>;
   readonly errorResult: (e: unknown) => CallToolResult;
-  readonly cfg: Pick<Config, "maxResponseChars">;
+  readonly cfg: Pick<
+    Config,
+    "maxResponseChars" | "dataPreviewMaxRows" | "dataSnapshotTtlHours" | "sid" | "url" | "client"
+  >;
   /**
    * Maps the raw BOPF model read onto the minimal `BoModel` shape this tool
    * needs. Injectable so the tool is testable without a live connection.
@@ -509,16 +519,27 @@ export async function runBopfTest(deps: BopfTestDeps, args: unknown): Promise<Ca
     },
   );
 
-  return ok(
-    buildTestResponse(
-      result,
-      refs,
-      deps.cfg.maxResponseChars,
-      input.bo,
-      authTraceOutcome,
-      authTraceSwitchOffError,
-    ),
+  const text = buildTestResponse(
+    result,
+    refs,
+    deps.cfg.maxResponseChars,
+    input.bo,
+    authTraceOutcome,
+    authTraceSwitchOffError,
   );
+  // Diffed AFTER the scenario ran — a REJECTED save is still a normal
+  // returned result (see the module header on that hazard), so the section
+  // belongs here regardless of `result.rejected`. A THROW above (inactive
+  // BO, a dump, a connection failure) skips this and returns the error
+  // unchanged, with no section: it is a structured, machine-readable
+  // refusal, and appending diff prose to it would change its shape for
+  // every existing consumer.
+  const changes = await runSnapshotDiffs(
+    deps,
+    input.snapshot_ids,
+    (m) => void process.stderr.write(m + "\n"),
+  );
+  return ok(changes ? `${text}\n\nDATA CHANGES\n${changes}` : text);
 }
 
 /** Registers `abap_bopf_test` on the MCP server. */

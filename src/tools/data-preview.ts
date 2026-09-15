@@ -13,6 +13,16 @@
  * (`where`/`columns`/`order_by`/`distinct`) IS compiled into a SELECT
  * beneath this file, by `src/adt/datapreview-filter.ts`; that module, not
  * this one, is what has to keep the compiled SQL server-side-safe.
+ *
+ * `mode` (issue #117) adds two siblings to the plain read above:
+ * `"snapshot"` stores the exact rows a read returned, `"diff"` re-reads a
+ * stored snapshot's own recorded selection and reports what changed. Both go
+ * through the SAME THREE GATES, IN THE SAME ORDER, as the plain read above —
+ * `src/snapshot-run.ts` is the shared engine that enforces that, and its own
+ * header comment says so. Snapshot files live under `ABAP_STATE_DIR`, in
+ * their own `snapshots/` subtree (`src/snapshot-store.ts`), never in the
+ * journal directory — a stored snapshot's rows cannot surface through
+ * `abap_journal` or any journal export.
  */
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -25,6 +35,16 @@ import { truncateForDisplay } from "../truncate.js";
 import type { SessionPool } from "../adt/pool.js";
 import type { Config } from "../config.js";
 import type { SafetyGate } from "../safety.js";
+import { systemKey } from "../journal.js";
+import {
+  takeSnapshot,
+  diffSnapshot,
+  renderSnapshot,
+  renderDiff,
+  auditSnapshot,
+  auditDiff,
+  type SnapshotRunDeps,
+} from "../snapshot-run.js";
 
 /** Per-cell display width; `truncateForDisplay` marks cuts with `…` (`src/truncate.ts`). */
 const CELL_DISPLAY_WIDTH = 60;
@@ -112,6 +132,29 @@ export const dataPreviewInputSchema = {
       "Suppress duplicate rows. Requires every order_by field to also appear in columns — " +
         "otherwise the sort key would not be part of what distinctness is computed over.",
     ),
+  mode: z
+    .enum(["preview", "snapshot", "diff"])
+    .optional()
+    .describe(
+      'Defaults to "preview": read and show rows. "snapshot" reads the same selection and stores ' +
+        'the rows locally for a later comparison. "diff" re-reads a stored snapshot\'s own selection ' +
+        "and reports what changed since it was taken.",
+    ),
+  snapshot_id: z
+    .string()
+    .optional()
+    .describe(
+      'The id returned by a prior mode: "snapshot" call. Required for mode: "diff"; refused in the ' +
+        "other two modes.",
+    ),
+  ttl_hours: z
+    .number()
+    .int()
+    .optional()
+    .describe(
+      'mode: "snapshot" only. How long the snapshot survives before it is pruned, clamped DOWN to ' +
+        "the operator ceiling ABAP_DATA_SNAPSHOT_TTL_HOURS (the clamp, if any, is reported in the response).",
+    ),
 };
 
 export const DataPreviewInput = z.object(dataPreviewInputSchema);
@@ -122,7 +165,7 @@ export interface DataPreviewToolDeps {
   readonly safety: SafetyGate;
   readonly ensureConnected: () => Promise<void>;
   readonly errorResult: (e: unknown) => CallToolResult;
-  readonly cfg: Pick<Config, "maxResponseChars" | "dataPreviewMaxRows">;
+  readonly cfg: Pick<Config, "maxResponseChars" | "dataPreviewMaxRows" | "dataSnapshotTtlHours" | "sid" | "url" | "client">;
   /** Audit sink. Defaults to stderr, matching `deps.warn` in `tools/transport.ts`. */
   readonly log?: (message: string) => void;
 }
@@ -257,6 +300,76 @@ export function renderPreview(
   });
 }
 
+// --------------------------------------------------------- shared helpers ---
+//
+// Extracted so `mode: "snapshot"` can reuse them without duplicating the
+// logic — every one of these reproduces EXACTLY the check/assembly the
+// `preview` path always ran, same messages, same order of evaluation. The
+// `preview` branch below still calls them in the same place its own inline
+// code used to sit, so `mode` omitted (or `mode: "preview"`) executes the
+// identical sequence of statements it always did.
+// ---------------------------------------------------------------------------
+
+/** `table` wins when both are given; refused when neither is set. */
+function resolveTable(a: DataPreviewInput): string {
+  const table = (a.table ?? a.object ?? "").trim();
+  if (table === "") {
+    throw new AbapError(
+      "BAD_INPUT",
+      "table (or object) is required.",
+      {},
+      'Pass the DDIC entity name, e.g. { "table": "T000" } or { "object": "T000" }.',
+    );
+  }
+  return table;
+}
+
+/**
+ * P-32: never `??`/`||` a default onto max_rows — 0 means UNLIMITED on this
+ * endpoint (not "use the default"), so it must be refused explicitly rather
+ * than silently re-defaulted or forwarded. See the git history.
+ */
+function resolveMaxRowsRequested(a: DataPreviewInput, table: string, ceiling: number): number {
+  const requested = a.max_rows === undefined ? ceiling : a.max_rows;
+  if (!Number.isInteger(requested) || requested < 1) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `max_rows must be a whole number of at least 1, got ${String(a.max_rows)}.`,
+      { table, max_rows: a.max_rows },
+      `Ask for 1..${ceiling} rows, or omit max_rows for ${ceiling}. 0 is not "no rows" on ` +
+        "this endpoint — it means unlimited, so it is refused rather than sent.",
+    );
+  }
+  return requested;
+}
+
+/** Assembles the structured filter from the tool's flat where/columns/order_by/distinct arguments. */
+function buildFilter(a: DataPreviewInput): PreviewFilter {
+  return {
+    ...(a.where === undefined ? {} : { where: a.where }),
+    ...(a.columns === undefined ? {} : { columns: a.columns }),
+    ...(a.order_by === undefined ? {} : { orderBy: a.order_by }),
+    ...(a.distinct === undefined ? {} : { distinct: a.distinct }),
+  };
+}
+
+/** `SnapshotRunDeps` built from this tool's own deps — shared by `mode: "snapshot"` and `mode: "diff"`. */
+function buildSnapshotRunDeps(deps: DataPreviewToolDeps, ceiling: number): SnapshotRunDeps {
+  return {
+    read: (table, maxRows, filter) =>
+      deps.pool.withRead("abap_data_preview", (conn) =>
+        previewDdicEntity(conn, { table, maxRows, ...(filter && !isEmptyFilter(filter) ? { filter } : {}) }),
+      ),
+    assertDataPreview: (t) => deps.safety.assertDataPreview(t),
+    systemKey: systemKey(deps.cfg),
+    maxRows: ceiling,
+    ttlCeilingHours: deps.cfg.dataSnapshotTtlHours,
+  };
+}
+
+/** Keys that name a selection — refused alongside `mode: "diff"`, which replays the snapshot's own recorded selection instead. */
+const DIFF_FORBIDDEN_KEYS = ["table", "object", "where", "columns", "order_by", "distinct", "max_rows"] as const;
+
 // -------------------------------------------------------------- registration ---
 
 /** Registers `abap_data_preview`. The caller decides whether this runs at all — see module header. */
@@ -273,7 +386,10 @@ export function registerDataPreviewTools(mcp: McpServer, deps: DataPreviewToolDe
         "CDS view — not every DDIC entity kind qualifies. A name plus an optional structured " +
         "filter (where/columns/order_by/distinct) — still no JOIN, no aggregate, and no SQL " +
         `text. Rows clamped to the ceiling (currently ${ceiling}). Deny-listed tables ` +
-        "and non-provably-nonproductive systems are refused.",
+        "and non-provably-nonproductive systems are refused. Three modes: \"preview\" (default) " +
+        "reads and shows rows; \"snapshot\" reads the same selection and stores the rows locally " +
+        "under a returned snapshot_id; \"diff\" re-reads a stored snapshot's own recorded " +
+        "selection and reports what changed since it was taken.",
       inputSchema: dataPreviewInputSchema,
       annotations: {
         readOnlyHint: true,
@@ -285,21 +401,109 @@ export function registerDataPreviewTools(mcp: McpServer, deps: DataPreviewToolDe
     async (args) => {
       try {
         const a = args as DataPreviewInput;
-        // `table` wins when both are given.
-        const table = (a.table ?? a.object ?? "").trim();
-        if (table === "") {
+        const mode = a.mode ?? "preview";
+
+        // ---- Argument cross-checks: all BAD_INPUT, all thrown before any
+        // connection is opened, since none of them need one. ----
+        if (a.snapshot_id !== undefined && mode !== "diff") {
           throw new AbapError(
             "BAD_INPUT",
-            "table (or object) is required.",
-            {},
-            'Pass the DDIC entity name, e.g. { "table": "T000" } or { "object": "T000" }.',
+            `snapshot_id is only used with mode: "diff" (got mode: "${mode}").`,
+            { mode, snapshot_id: a.snapshot_id },
+            'Pass mode: "diff" to replay a stored snapshot, or drop snapshot_id for this mode.',
           );
         }
+        if (a.ttl_hours !== undefined && mode !== "snapshot") {
+          throw new AbapError(
+            "BAD_INPUT",
+            `ttl_hours is only used with mode: "snapshot" (got mode: "${mode}").`,
+            { mode, ttl_hours: a.ttl_hours },
+            'Pass mode: "snapshot" to take a snapshot with a custom ttl_hours, or drop ttl_hours ' +
+              "for this mode.",
+          );
+        }
+        if (a.ttl_hours !== undefined && (!Number.isInteger(a.ttl_hours) || a.ttl_hours < 1)) {
+          throw new AbapError(
+            "BAD_INPUT",
+            `ttl_hours must be a whole number of at least 1, got ${String(a.ttl_hours)}.`,
+            { ttl_hours: a.ttl_hours },
+            "Ask for a whole number of hours, or omit ttl_hours to use the operator ceiling " +
+              `(${deps.cfg.dataSnapshotTtlHours}).`,
+          );
+        }
+        if (mode === "diff" && a.snapshot_id === undefined) {
+          throw new AbapError(
+            "BAD_INPUT",
+            'mode: "diff" requires snapshot_id.',
+            { mode },
+            'Pass the id returned by a prior mode: "snapshot" call.',
+          );
+        }
+        if (mode === "diff") {
+          const given = DIFF_FORBIDDEN_KEYS.filter((k) => a[k] !== undefined);
+          if (given.length > 0) {
+            throw new AbapError(
+              "BAD_INPUT",
+              `mode: "diff" replays the snapshot's own recorded selection and cannot also be given ` +
+                `${given.join(", ")}.`,
+              { mode, given },
+              "A diff re-reads exactly the selection the snapshot itself recorded — passing a " +
+                "different selection would compare two different questions and report the " +
+                "difference as data change. Take a fresh snapshot with the new selection instead.",
+            );
+          }
+        }
+
+        if (mode === "diff") {
+          // 1. Connect first: the T000 role-probe verdict is only on the
+          //    safety gate after `ensureConnected` runs (`safety.ts`,
+          //    `server.ts`) — same reason the preview path connects first.
+          await deps.ensureConnected();
+
+          const runDeps = buildSnapshotRunDeps(deps, ceiling);
+          const out = await diffSnapshot(runDeps, a.snapshot_id as string);
+          const res = renderDiff(out, deps.cfg.maxResponseChars);
+          auditDiff(out, audit);
+          return ok(res.text);
+        }
+
+        // `table` wins when both are given.
+        const table = resolveTable(a);
 
         // 1. Connect first: the T000 role-probe verdict is only on the safety
         //    gate after `ensureConnected` runs (`safety.ts`, `server.ts`).
         await deps.ensureConnected();
 
+        if (mode === "snapshot") {
+          // 3. P-32: never `??`/`||` a default onto max_rows — 0 means
+          //    UNLIMITED on this endpoint (not "use the default"), so it
+          //    must be refused explicitly rather than silently re-defaulted
+          //    or forwarded. See the git history.
+          const requested = resolveMaxRowsRequested(a, table, ceiling);
+          const filter: PreviewFilter = buildFilter(a);
+
+          const runDeps = buildSnapshotRunDeps(deps, ceiling);
+          const { snapshot, result, ttlClamped } = await takeSnapshot(runDeps, {
+            table,
+            maxRowsRequested: requested,
+            ...(isEmptyFilter(filter) ? {} : { filter }),
+            ...(a.ttl_hours === undefined ? {} : { ttlHours: a.ttl_hours }),
+          });
+
+          const res = renderSnapshot(snapshot, result, {
+            maxRowsRequested: requested,
+            ttlClamped,
+            ttlRequested: a.ttl_hours ?? deps.cfg.dataSnapshotTtlHours,
+            ttlCeiling: deps.cfg.dataSnapshotTtlHours,
+            maxChars: deps.cfg.maxResponseChars,
+          });
+
+          auditSnapshot(snapshot, audit);
+
+          return ok(res.text);
+        }
+
+        // mode === "preview" — UNCHANGED from before `mode` existed.
         // 2. Gate BEFORE the read — a denied table costs zero READ requests.
         deps.safety.assertDataPreview(table);
 
@@ -307,24 +511,10 @@ export function registerDataPreviewTools(mcp: McpServer, deps: DataPreviewToolDe
         //    on this endpoint (not "use the default"), so it must be refused
         //    explicitly rather than silently re-defaulted or forwarded. See
         //    the git history.
-        const requested = a.max_rows === undefined ? ceiling : a.max_rows;
-        if (!Number.isInteger(requested) || requested < 1) {
-          throw new AbapError(
-            "BAD_INPUT",
-            `max_rows must be a whole number of at least 1, got ${String(a.max_rows)}.`,
-            { table, max_rows: a.max_rows },
-            `Ask for 1..${ceiling} rows, or omit max_rows for ${ceiling}. 0 is not "no rows" on ` +
-              "this endpoint — it means unlimited, so it is refused rather than sent.",
-          );
-        }
+        const requested = resolveMaxRowsRequested(a, table, ceiling);
         const effective = Math.min(requested, ceiling);
 
-        const filter: PreviewFilter = {
-          ...(a.where === undefined ? {} : { where: a.where }),
-          ...(a.columns === undefined ? {} : { columns: a.columns }),
-          ...(a.order_by === undefined ? {} : { orderBy: a.order_by }),
-          ...(a.distinct === undefined ? {} : { distinct: a.distinct }),
-        };
+        const filter: PreviewFilter = buildFilter(a);
 
         // Pass `filter` only when it is non-empty: with no filter parameters
         // at all, this call must stay byte-identical to the pre-#73 shape

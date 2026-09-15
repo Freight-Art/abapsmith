@@ -45,11 +45,19 @@ under `read`).
 |---|---|---|---|---|
 | `table` | string | one of table/object required | — | DDIC entity name, e.g. `"T000"` or `"/ACME/TAB"`. Must be a bare identifier, not a query. |
 | `object` | string | alias for `table` | — | Same as `table`; `table` wins if both are given. |
+| `mode` | enum `preview` \| `snapshot` \| `diff` | no | `"preview"` | `preview`: the read documented below, unchanged. `snapshot`: the same read, saved to disk under an id for a later `diff`. `diff`: re-reads the snapshot's own selection and reports what changed since it was taken. See "Snapshot and diff" below. |
+| `snapshot_id` | string | required for `mode: "diff"`, refused otherwise | — | The id returned by a prior `mode: "snapshot"` call. |
+| `ttl_hours` | number (int, positive) | no | operator ceiling | Only valid with `mode: "snapshot"` — refused otherwise. How long the snapshot may be diffed against before it expires and is pruned. Clamped down (never up) to `ABAP_DATA_SNAPSHOT_TTL_HOURS`. |
 | `max_rows` | number (int) | no | server ceiling | Rows to return. Clamped to the server's configured ceiling; the clamp is reported in the response. `0` is refused, never read as "unlimited." |
 | `where` | array of `{field, op, value}` | no | none — unfiltered read | Conditions are ANDed. `op` is one of `eq, ne, lt, le, gt, ge, like, in, is_null`. `value` is required for every op except `is_null` (which must omit it), and is an array only for `in`. |
 | `columns` | array of string | no | every column | Restrict the projection to these fields. |
 | `order_by` | array of `{field, direction}` | no | none | `direction` is `asc` (default) or `desc`. |
 | `distinct` | boolean | no | `false` | Adds `SELECT DISTINCT`. |
+
+`mode: "diff"` forbids `table`/`object`/`where`/`columns`/`order_by`/
+`distinct`/`max_rows` — a diff always re-reads the snapshot's own recorded
+selection, never a caller-supplied one, so setting any of those alongside
+`snapshot_id` is refused as `BAD_INPUT`.
 
 This tool still takes no SQL text from a caller. `where`/`columns`/`order_by`
 are a structured filter, built from field names and typed values, not a
@@ -181,6 +189,61 @@ kind qualifies for a preview at all: help views, structures, append
 structures, CDS table functions, abstract entities, and parameterised CDS
 views (any CDS view that declares parameters) are refused, with the refusal
 message naming the actual kind at call time.
+
+### Snapshot and diff
+
+`mode: "snapshot"` runs the same read documented above — same policy, same
+gates, same refusals — and, instead of only rendering it, also saves the
+result to disk under a generated `snapshot_id` (`snap_` plus 32 hex
+characters). `mode: "diff"` takes a `snapshot_id`, re-reads the table using
+that snapshot's own recorded selection (table, filter, projection, row
+cap — never anything the `diff` caller passes), and reports what changed.
+
+The data-preview deny-list is checked at **both** ends, not just at
+snapshot time: `diff` re-runs the same `ABAP_ALLOW_DATA_PREVIEW`/deny-list
+check the original snapshot passed, because the deny-list can grow between
+the two calls (an operator can add an entry at any time) and a snapshot
+taken when a table was allowed must not become a back door to it later. If
+the table has since been denied, `diff` refuses just as a fresh preview of
+that table would.
+
+The row ceiling (`max_rows`, clamped to `ABAP_DATA_PREVIEW_MAX_ROWS`)
+applies independently on both sides of a diff: the snapshot side reports
+`more_rows_exist` if the original read was clamped, and the diff's own
+re-read reports it again for the post-change state. A diff computed while
+either side was clamped is a diff of what was visible, not necessarily of
+the whole table, and the response says so rather than implying completeness.
+
+**Row matching.** Rows are matched between the two reads on the table's
+DDIC primary key whenever the snapshot's own selection has one. If the
+snapshot used a `columns` projection, key completeness cannot be
+established from the projected column list alone, and the response is
+explicit that the match key is incomplete rather than guessing: `diff`
+falls back to matching on every column that was actually selected. A row
+edited only in a column outside that fallback key then does not read as
+"changed" — it surfaces as a delete on the old values plus an insert of the
+new ones, because there is no complete key left to recognize it as the same
+row. This is a structural limit of matching on full-row identity when the
+key is not known, not a bug in the diff.
+
+**Expiry.** A snapshot's `ttl_hours` (if given) is clamped down — never up —
+to the operator ceiling `ABAP_DATA_SNAPSHOT_TTL_HOURS` (default 24 hours);
+there is no "keep forever" spelling for a store that holds business data. An
+expired snapshot is pruned, and `diff`-ing it is refused with
+`SNAPSHOT_EXPIRED` naming when it was taken and when it expired — this is a
+terminal refusal: a deleted snapshot cannot be recovered, and the only next
+step is taking a fresh one.
+
+**Storage.** Snapshot files live under `ABAP_STATE_DIR`, in
+`snapshots/<system>/` (keyed by system: sid, URL and client), written with
+file mode `0600`. This is a separate store from the journal: a snapshot is
+never written into the journal directory, and it does not surface through
+`abap_journal` or a journal export — the two features share no files and no
+listing.
+
+`abap_run`, `abap_test`, `abap_bopf_test`, and `abap_ui mode="press"` can
+also take a `snapshot_ids` argument to diff automatically against snapshots
+taken before the call — see `doc/TOOLS/execute-and-test.md`.
 
 ## abap_fluid log.read
 

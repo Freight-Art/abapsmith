@@ -53,6 +53,9 @@ import { registerTraceTools } from "./tools/trace.js";
 import { builtinFluidToolSet, registerFluidTool } from "./tools/fluid.js";
 import { BUILTIN_FLUID_TOOLS } from "./adt/fluid/builtin/index.js";
 import type { FluidToolSet } from "./adt/fluid/plugin-loader.js";
+import { dispatch } from "./adt/fluid/dispatch.js";
+import { LOCKS_ACTION, LOCKS_TOOL_ID, mapLockRows } from "./adt/enqueue-read.js";
+import type { LockHolderLookup } from "./adt/locked-holders.js";
 import { SERVER_VERSION } from "./version.js";
 
 export const SERVER_NAME = "abapsmith";
@@ -610,6 +613,37 @@ export function createServer(cfg: Config, opts: ServerOptions): AbapsmithServer 
   // (src/adt/img-read.ts) — it generates no ABAP and deploys nothing, so it needs no write
   // capability and registers unconditionally, same as the other read tools above.
   registerImgTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
+  // Hoisted out of the `canUseFluidApi` block below so both `lockHolders`
+  // here and the `registerFluidTool` call site further down share the same
+  // loaded tool set, rather than loading (and logging plugin
+  // warnings/refusals for) it twice.
+  const fluidToolSet: FluidToolSet = opts.fluidToolSet ?? builtinFluidToolSet(BUILTIN_FLUID_TOOLS);
+  // The one place that knows both the fluid tool registry and the
+  // write/activate tools (issue #116): a `LOCKED` refusal that ADT itself
+  // left unattributed gets one extra, read-only enqueue-table lookup via
+  // the `core.locks` fluid action, so the refusal can name a holder ADT
+  // didn't. Deliberately gated on `canUseFluidApi`, the same switch
+  // `abap_fluid`'s own registration below is gated on: a server without
+  // the fluid API (off, or a read-only connection) passes `undefined`
+  // here, and `enrichLockedError` (src/adt/locked-holders.ts) treats a
+  // missing lookup as "not available" — every `LOCKED` refusal stays
+  // exactly as it is today.
+  const lockHolders: LockHolderLookup | undefined = toolCapabilities.canUseFluidApi
+    ? async (argPattern, callerTool) => {
+        const result = await pool.withRead(`${callerTool}:lock_holders`, (conn) =>
+          dispatch(
+            { conn, cfg, gate: safety, tools: fluidToolSet.tools, journal, warn },
+            {
+              tool: LOCKS_TOOL_ID,
+              action: LOCKS_ACTION,
+              args: { table: argPattern },
+              caller: { tool: callerTool, action: "lock_holders" },
+            },
+          ),
+        );
+        return mapLockRows(Array.isArray(result.result) ? result.result : []);
+      }
+    : undefined;
   // `abap_write`/`abap_fpm_read`/`abap_run`/`abap_test`/`abap_bopf_test`
   // have no ungated submode, so registration itself is skipped when
   // `!toolCapabilities.canWrite`. `abap_activate` (mode=check is a genuine
@@ -625,7 +659,7 @@ export function createServer(cfg: Config, opts: ServerOptions): AbapsmithServer 
     // repository objects.
     registerUiTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal });
     // `journal` for the before-image, `transport` for the CTS assignment.
-    registerWriteTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal, transport });
+    registerWriteTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal, transport, lockHolders, warn });
     // `abap_img_edit` writes IMG customizing rows by dispatching against the reused
     // $ABAPSMITH_FLUID_API body class ZCL_ZMCP_FLUID_IMG (src/adt/fluid/builtin/img.ts) —
     // an irreversible business-data write, gated here like every other mutating tool.
@@ -651,7 +685,7 @@ export function createServer(cfg: Config, opts: ServerOptions): AbapsmithServer 
   // code with nothing recorded to disk. Unconditional (outside `canWrite`)
   // since `mode=check` is a genuine ungated read; journal only writes on
   // `mode=activate`.
-  registerActivateTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, transport, journal });
+  registerActivateTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, transport, journal, lockHolders, warn });
   registerJournalTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal });
   registerDebugTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, debugDeps });
   // `abap_data_preview`: skipped outright (not registered-and-refusing) so
@@ -712,7 +746,7 @@ export function createServer(cfg: Config, opts: ServerOptions): AbapsmithServer 
       errorResult,
       journal,
       warn,
-      toolSet: opts.fluidToolSet ?? builtinFluidToolSet(BUILTIN_FLUID_TOOLS),
+      toolSet: fluidToolSet,
     });
   }
   // Refusal-only stubs closing the "Tool abap_write not found" gap from

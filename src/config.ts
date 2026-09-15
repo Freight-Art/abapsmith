@@ -492,6 +492,17 @@ export const ConfigSchema = z.object({
    */
   dataPreviewMaxRows: z.coerce.number().int().positive().max(1000).default(100),
   /**
+   * Ceiling on how long a stored data-preview snapshot (`src/snapshot-store.ts`)
+   * may live before it is treated as expired and deleted. Default **24**
+   * hours, hard max **8760** (365 days — a sanity bound, not an endorsement of
+   * keeping business-row snapshots that long). An operator CEILING only: a
+   * caller's own `ttl_hours` on a given snapshot is clamped DOWN to this value
+   * when it exceeds it, never raised up to it — the same "narrow only" shape
+   * as `dataPreviewMaxRows` for row counts. `.positive()` rejects `0`; there
+   * is no "keep forever" spelling for a store that holds business data.
+   */
+  dataSnapshotTtlHours: z.coerce.number().int().positive().max(8760).default(24),
+  /**
    * OPERATOR ADDITIONS to the data-preview table deny-list — never
    * replacements. `[]` by default, upper-cased on the way in. The frozen
    * defaults (`src/safety.ts`'s `DEFAULT_PREVIEW_DENY_TABLES`) are unioned
@@ -1399,6 +1410,7 @@ export function loadConfig(opts: LoadConfigOptions = {}): Config {
     // single source of truth, so out-of-range/invalid input reaches the
     // startup error list rather than being papered over here.
     dataPreviewMaxRows: env.ABAP_DATA_PREVIEW_MAX_ROWS,
+    dataSnapshotTtlHours: env.ABAP_DATA_SNAPSHOT_TTL_HOURS,
     // Not mode-derived — verification posture is orthogonal to the ABAP_MODE
     // permission ceiling.
     verifyWrites: env.ABAP_VERIFY_WRITES,
@@ -2009,6 +2021,7 @@ export function redactConfigSecrets(cfg: Config): Record<string, unknown> {
     allowEnhancementDelete: cfg.allowEnhancementDelete,
     allowDataPreview: cfg.allowDataPreview,
     dataPreviewMaxRows: cfg.dataPreviewMaxRows,
+    dataSnapshotTtlHours: cfg.dataSnapshotTtlHours,
     dataPreviewDenyTables: cfg.dataPreviewDenyTables,
     allowDumpVariables: cfg.allowDumpVariables,
     allowUiPress: cfg.allowUiPress,

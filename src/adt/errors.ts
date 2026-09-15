@@ -364,7 +364,19 @@ export type AbapErrorCode =
   /** The ABAP-side action reported failure for its own reasons. */
   | "FLUID_ACTION_FAILED"
   /** The deployed ABAP side sent a response shape this client doesn't understand. */
-  | "FLUID_PROTOCOL_ERROR";
+  | "FLUID_PROTOCOL_ERROR"
+  // ---- Data snapshots (src/snapshot-store.ts, abap_data_preview diff) ----
+  /**
+   * A stored data snapshot outlived its TTL (`dataSnapshotTtlHours` /
+   * `ABAP_DATA_SNAPSHOT_TTL_HOURS`) and has been deleted, so the diff it was
+   * asked for cannot be computed. Not `NOT_FOUND`: the id was real and did
+   * name a snapshot that existed — the refusal is about time, not about a
+   * wrong or unknown identifier, and a caller retrying the same id with a
+   * different spelling gains nothing. Deliberately never collapsed into a
+   * silently empty diff: an expired snapshot must be reported as gone, not
+   * quietly treated as "before == after".
+   */
+  | "SNAPSHOT_EXPIRED";
 
 /**
  * `terminal` — no input the caller can supply satisfies this code.
@@ -439,6 +451,7 @@ export const RETRYABILITY: Record<AbapErrorCode, Retryability> = {
   FLUID_MANIFEST_INVALID: "terminal", // the manifest on disk is wrong; the call's arguments cannot fix it
   FLUID_ACTION_FAILED: "terminal", // the ABAP action itself reported the failure; abapsmith cannot judge a retry's safety
   FLUID_PROTOCOL_ERROR: "terminal", // the deployed ABAP is not speaking the contract; a redeploy, not a retry
+  SNAPSHOT_EXPIRED: "terminal", // no argument the caller can supply brings a deleted snapshot back; a new snapshot has a new id
 };
 
 /** `undefined` for `conditional` — no claim either way. */

@@ -64,6 +64,7 @@ import { buildResponse, textTable } from "../compact.js";
 import { safetyTarget, type SafetyGate } from "../safety.js";
 import { withJournalledMutation, systemKey, type Journal } from "../journal.js";
 import { FLUID_PACKAGE } from "../adt/fluid/package.js";
+import { runSnapshotDiffs } from "./run.js";
 
 // ---------------------------------------------------------------------------
 // Input schema
@@ -125,6 +126,13 @@ export const uiInputSchema = {
       "press only, REQUIRED (must be exactly true) — acknowledges the commit. Omitted or " +
         "false is refused before any network call.",
     ),
+  snapshot_ids: z.array(z.string()).optional().describe(
+    "mode: \"press\" only — press is the mode that can change data. Snapshot ids from prior " +
+      "abap_data_preview mode=\"snapshot\" calls. After the press script finishes, each one is " +
+      "re-read and diffed, and the result is appended as a DATA CHANGES section. The diff obeys " +
+      "the same data-preview policy as the snapshot did — if it is refused, this call's own " +
+      "result still returns and the section says why.",
+  ),
 };
 
 export const UiInput = z.object(uiInputSchema);
@@ -150,7 +158,17 @@ export interface UiToolDeps {
    * mode-orthogonal opt-in like `allowDumpVariables`, so `press` needs both
    * `ABAP_MODE=admin` and this flag before it will submit anything.
    */
-  readonly cfg: Pick<Config, "maxResponseChars" | "abapMode" | "sid" | "url" | "client" | "allowUiPress">;
+  readonly cfg: Pick<
+    Config,
+    | "maxResponseChars"
+    | "abapMode"
+    | "sid"
+    | "url"
+    | "client"
+    | "allowUiPress"
+    | "dataPreviewMaxRows"
+    | "dataSnapshotTtlHours"
+  >;
 }
 
 const ok = (text: string): CallToolResult => ({ content: [{ type: "text", text }] });
@@ -744,7 +762,20 @@ async function runPressTool(deps: UiToolDeps, input: UiInput): Promise<CallToolR
     outcome: press && press.subrc === 0 ? "succeeded" : "failed",
   });
 
-  return ok(buildPressResponse(query, result, deps.cfg.maxResponseChars));
+  const text = buildPressResponse(query, result, deps.cfg.maxResponseChars);
+  // Diffed AFTER the press script ran — a stalled/failed press still
+  // returns a normal result (see press's own subrc/stalled reporting
+  // above), so the section belongs here regardless of outcome. A THROW
+  // above (confirm missing, denylisted tcode, press disabled, a CINFO
+  // mismatch, a dump) skips this and returns the error unchanged, with no
+  // section: it is a structured, machine-readable refusal, and appending
+  // diff prose to it would change its shape for every existing consumer.
+  const changes = await runSnapshotDiffs(
+    deps,
+    input.snapshot_ids,
+    (m) => void process.stderr.write(m + "\n"),
+  );
+  return ok(changes ? `${text}\n\nDATA CHANGES\n${changes}` : text);
 }
 
 const UI_TOOL_DESCRIPTION =
@@ -755,6 +786,18 @@ const UI_TOOL_DESCRIPTION =
 
 export async function runUiTool(deps: UiToolDeps, args: unknown): Promise<CallToolResult> {
   const input = args as UiInput;
+  // snapshot_ids only makes sense on press: screen/fcode never change data,
+  // so there is nothing for a diff to report — refused before any network
+  // call, same discipline as every other zero-network refusal in this file.
+  if (input.snapshot_ids !== undefined && input.mode !== "press") {
+    throw new AbapError(
+      "BAD_INPUT",
+      `snapshot_ids was given with mode="${input.mode}". snapshot_ids applies to mode: "press", ` +
+        "the only mode that can change data.",
+      { mode: input.mode, snapshot_ids: input.snapshot_ids },
+      'Drop snapshot_ids, or set mode: "press" to run a script and diff what it changed.',
+    );
+  }
   if (input.mode === "press") return runPressTool(deps, input);
   if (input.mode === "fcode") return runFcodeTool(deps, input);
   return runScreenTool(deps, input);
