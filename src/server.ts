@@ -51,8 +51,6 @@ import { registerQuickFixTools } from "./tools/quickfix.js";
 import { registerServiceTools } from "./tools/service.js";
 import { registerTraceTools } from "./tools/trace.js";
 import { builtinFluidToolSet, registerFluidTool } from "./tools/fluid.js";
-// The six v2 consolidated tools, opt-in via `cfg.toolSurface` (see REGISTRATION below).
-import { registerV2Tools } from "./tools/v2/register.js";
 import { BUILTIN_FLUID_TOOLS } from "./adt/fluid/builtin/index.js";
 import type { FluidToolSet } from "./adt/fluid/plugin-loader.js";
 import { SERVER_VERSION } from "./version.js";
@@ -230,30 +228,11 @@ function stripSchemaKeyOnConnect(mcp: McpServer): void {
 }
 
 /**
- * The release in which `ABAP_TOOL_SURFACE=v2` is removed outright (issue
- * #76). Named here rather than spelled into two message strings, so the
- * startup warning and the server `instructions` can never disagree about
- * the date an operator is planning against.
- */
-export const V2_REMOVAL_RELEASE = "0.6.0";
-
-/**
- * The one deprecation sentence, shared by the stderr startup warning and by
- * `instructionsFor`'s v2 branch — the operator reads the first, the model
- * reads the second, and both must name the same removal release.
- */
-export const V2_DEPRECATION_SENTENCE =
-  `ABAP_TOOL_SURFACE=v2 is DEPRECATED and will be REMOVED in ${V2_REMOVAL_RELEASE}. ` +
-  "The surface is frozen: no new tool routes and no defect fixes land on it. " +
-  "Move to v1 by unsetting ABAP_TOOL_SURFACE.";
-
-/**
- * The write-scope sentence `instructionsFor` embeds in both branches — the
- * whole point: rendered from the resolved config, not asserted as a
- * constant. `readOnly` is checked FIRST: in `read` mode
- * `READ_CAPABILITIES.allowPackages` (src/mode.ts) is `[]`, and a naive
- * length check would then claim the ALLOWLIST refuses every write when it is
- * the MODE doing the refusing.
+ * The write-scope sentence `instructionsFor` embeds. The point is that it is
+ * rendered from the resolved config, not asserted as a constant. `readOnly`
+ * is checked FIRST: in `read` mode `READ_CAPABILITIES.allowPackages`
+ * (src/mode.ts) is `[]`, and a naive length check would then claim the
+ * ALLOWLIST refuses every write when it is the MODE doing the refusing.
  */
 function packageScopeSentence(readOnly: boolean, allowPackages: readonly string[]): string {
   if (readOnly) {
@@ -274,60 +253,30 @@ function packageScopeSentence(readOnly: boolean, allowPackages: readonly string[
 /**
  * `McpServer`'s `instructions` field is free-form prose a client may show
  * up front, before any `tools/list` call — it is NOT derived from the live
- * tool registry, so it must be kept in sync with `ABAP_TOOL_SURFACE` by
- * hand. (Previously a single hardcoded v1-only paragraph, wrong under v2 —
- * same "skills vs. shipped surface" defect class as
- * `test/skills-tool-surface.test.ts` guards against.) `toolSurface` has no
- * third `both` value, so the two-way branch is exhaustive. The write-scope
- * clause, though, is no longer hand-synced: it is rendered from the resolved
- * `readOnly`/`allowPackages` config by {@link packageScopeSentence},
- * so it cannot drift from `EDIT_PACKAGE_DEFAULT` the way the old hardcoded
- * "default $TMP" claim did. Exported so
- * `test/server-instructions-write-scope.test.ts` can exercise both branches
- * directly.
+ * tool registry, so it is hand-synced with the tools this server actually
+ * registers below. There is only one tool surface now, so there is no
+ * branch to keep in sync. The write-scope clause, though, is not
+ * hand-synced: it is rendered from the resolved `readOnly`/`allowPackages`
+ * config by {@link packageScopeSentence}, so it cannot drift from
+ * `EDIT_PACKAGE_DEFAULT` the way an old hardcoded "default $TMP" claim
+ * once did. Exported so `test/server-instructions-write-scope.test.ts` can
+ * exercise it directly.
  */
 export function instructionsFor(
-  toolSurface: Config["toolSurface"],
   abapMode: AbapMode | undefined,
   readOnly: boolean,
   allowPackages: readonly string[],
   // Optional, defaulted, so `test/server-instructions-write-scope.test.ts`'s
-  // existing 4-arg calls keep compiling. Only the v1 branch reads it — v2
-  // never registers `abap_fluid`.
+  // existing shorter-arity calls keep compiling.
   fluidAvailable = false,
   // Same reasoning as `fluidAvailable` above: optional and defaulted so
-  // existing shorter-arity calls keep compiling. Only the v1 branch reads
-  // it — v2 answers mode refusals structurally via `abap_do`'s `minMode`,
-  // so it never has locked stubs to mention.
+  // existing shorter-arity calls keep compiling.
   lockedToolCount = 0,
 ): string {
   // Under ABAP_MODE, ABAP_ALLOW_WRITE is never read; say what actually governs.
   const writeGate =
     abapMode !== undefined ? `unless ABAP_MODE is edit or admin (it is ${abapMode})` : "unless the operator set ABAP_ALLOW_WRITE";
   const packageScope = packageScopeSentence(readOnly, allowPackages);
-  if (toolSurface === "v2") {
-    // `instructions` is read once per session, not resent per `tools/list`
-    // like each tool's `description` — so the deprecation warning belongs
-    // here, outside the schema-byte budget test/tools-v2-budget.test.ts measures.
-    return (
-      "Access to an SAP ABAP system over ADT, via 6 tools. " +
-      V2_DEPRECATION_SENTENCE + " " +
-      "Use abap_find to locate " +
-      "objects, abap_read to read source or DDIC definitions (outline=true first for " +
-      "large classes, then method=), abap_write to create/change/delete (edit= splices a " +
-      "unique match, method= replaces one method, source= is a full rewrite, " +
-      "mode=\"delete\" removes), abap_do for everything else — activation/check, " +
-      "run/test, the local write journal and undo, transports, BOPF, and BAdI/enhancement " +
-      "actions (call abap_do({}) with no action for the live catalogue of what's unlocked " +
-      "at the current ABAP_MODE), and abap_debug to set breakpoints and step through " +
-      "execution with full variable inspection (action=start/step/stack/vars/value/" +
-      `keepalive/stop/status). Writes are OFF ${writeGate}, and need a customer-namespace ` +
-      `object name plus a package the allowlist permits: ${packageScope} Every write is ` +
-      "journalled with its previous source locally first, so " +
-      "abap_do({action:\"undo\"}) can put it back — but only for objects this server " +
-      "wrote. Responses are capped and truncation is always marked."
-    );
-  }
   return (
     "Access to an SAP ABAP system over ADT. Use abap_search to locate objects, " +
     "abap_read to read source or DDIC definitions (outline=true first for large " +
@@ -488,7 +437,6 @@ export function createServer(cfg: Config, opts: ServerOptions): AbapsmithServer 
     { name: SERVER_NAME, version: SERVER_VERSION },
     {
       instructions: instructionsFor(
-        cfg.toolSurface,
         cfg.abapMode,
         cfg.readOnly,
         cfg.allowPackages,
@@ -595,19 +543,168 @@ export function createServer(cfg: Config, opts: ServerOptions): AbapsmithServer 
     await connectPromise;
   };
 
-  // REGISTRATION — gated by `cfg.toolSurface` (ABAP_TOOL_SURFACE, default
-  // "v1"). Exactly one branch runs — v2's `abap_read`/`abap_write`/
-  // `abap_debug` reuse v1 tool names verbatim, so registering both would
-  // throw "Tool abap_read is already registered" (no `"both"` value; see
-  // `toolSurface`'s doc comment in src/config.ts).
-  if (cfg.toolSurface === "v1") {
-    // `journal` is required on `TransportToolDeps` — it was once optional
-    // and silently omitted, disabling every transport journal entry (see
-    // the git history); now a compile error instead of a
-    // silent no-op, pinned by test/session-transport-journal.test.ts.
-    registerTransportTools(mcp, {
-      // The pool, not the connection: transport ops have no single ABAP
-      // object to gate on (a TRKORR isn't a repository object).
+  // Every tool registrar this server has; there is one tool surface and it
+  // is always registered.
+  // `journal` is required on `TransportToolDeps` — it was once optional
+  // and silently omitted, disabling every transport journal entry (see
+  // the git history); now a compile error instead of a
+  // silent no-op, pinned by test/session-transport-journal.test.ts.
+  registerTransportTools(mcp, {
+    // The pool, not the connection: transport ops have no single ABAP
+    // object to gate on (a TRKORR isn't a repository object).
+    pool,
+    cfg,
+    safety,
+    ensureConnected,
+    errorResult,
+    journal,
+    warn,
+    // Same manager that adopts requests knows which of them this session
+    // created — `abap_transport show` and the release gate read the
+    // record `transport`'s resolver writes.
+    ownership: transport,
+    // `abap_transport`'s list/show/check/users submodes are ungated and
+    // always registered; only `abap_transport_release` is gated.
+    registerRelease: toolCapabilities.canReleaseTransport,
+  });
+
+  // BOPF tools gate on the BO name via `bopfGateKey` (tools/bopf.ts).
+  // `abap_bopf` is a pure read, always registered; only
+  // `abap_bopf_edit`/`abap_bopf_delete` are gated. `journal` required —
+  // same reason as `TransportToolDeps` above (BOPF journalling was added
+  // under the same fix).
+  registerBopfTools(mcp, {
+    pool,
+    cfg,
+    safety,
+    ensureConnected,
+    errorResult,
+    transport,
+    journal,
+    registerWrite: toolCapabilities.canWrite,
+  });
+  // abap_enh registers unconditionally: `discover_hook_anchors` makes no
+  // `SafetyGate` call at all (a genuinely ungated read), so gating the
+  // whole tool would hide that read on a read-only server. Every other
+  // submode is gated via `assertIntent` at point of use. `journal`
+  // required — enhancement description writes are journalled
+  // (irreversible: history, never undo).
+  registerEnhancementTools(mcp, {
+    pool,
+    cfg,
+    safety,
+    ensureConnected,
+    errorResult,
+    transport,
+    journal,
+  });
+
+  // Core repository tools: one module per feature, one `registerXTools`
+  // call, nothing about schema/handler visible here. Every group takes
+  // `pool, cfg, safety, ensureConnected, errorResult` plus only the extra
+  // collaborators it uses.
+  registerReadTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
+  registerSearchTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
+  registerOpenUrlTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
+  // `abap_img` reads catalog tables straight through the freestyle data-preview endpoint
+  // (src/adt/img-read.ts) — it generates no ABAP and deploys nothing, so it needs no write
+  // capability and registers unconditionally, same as the other read tools above.
+  registerImgTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
+  // `abap_write`/`abap_fpm_read`/`abap_run`/`abap_test`/`abap_bopf_test`
+  // have no ungated submode, so registration itself is skipped when
+  // `!toolCapabilities.canWrite`. `abap_activate` (mode=check is a genuine
+  // ungated read) stays unconditional, below.
+  if (toolCapabilities.canWrite) {
+    registerBopfTestTool(mcp, { ...createBopfTestDeps(), pool, cfg, safety, ensureConnected, errorResult });
+    registerFpmTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
+    // `abap_ui`'s `screen` mode deploys reused $ABAPSMITH_FLUID_API fluid classes, so
+    // it needs write capability just to register. `press` (committing) is
+    // gated far more tightly at call time — `assertPressEnabled` in
+    // src/tools/ui.ts requires ABAP_MODE=admin AND ABAP_ALLOW_UI_PRESS.
+    // `journal` required: `press`'s blast radius is business data, not
+    // repository objects.
+    registerUiTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal });
+    // `journal` for the before-image, `transport` for the CTS assignment.
+    registerWriteTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal, transport });
+    // `abap_img_edit` writes IMG customizing rows by dispatching against the reused
+    // $ABAPSMITH_FLUID_API body class ZCL_ZMCP_FLUID_IMG (src/adt/fluid/builtin/img.ts) —
+    // an irreversible business-data write, gated here like every other mutating tool.
+    // `journal` records the before-image; the wider `cfg` slice (`sid`/`url`/`client`) is
+    // for `systemKey()` on those journal entries.
+    registerImgEditTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal });
+    registerRunTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
+    registerTestTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal });
+    // `abap_atc`: inside `canWrite`, not beside `abap_dumps` — a run
+    // creates a persistent ATC worklist row, and this server observably
+    // REFUSES to remove it (DELETE answers 405 `ExceptionMethodNotSupported`,
+    // capture `891-i78-worklist-delete-405.xml`; the advertised
+    // `?action=deleteFindings` action is a zero-byte 200 no-op, capture 858)
+    // — and `execute` carries the Z/Y-prefix + package-allowlist rules, so
+    // gating it any weaker risks unbounded server-side checks against
+    // SAP-standard packages. See src/adt/atc.ts.
+    registerAtcTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
+    // Same reasoning: mode="list" POSTs the object's whole source for evaluation.
+    registerQuickFixTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal, transport });
+  }
+  // `journal` required on `ActivateToolDeps` — it was previously missing,
+  // and `abap_activate` (up to 50 objects/call) changed executing
+  // code with nothing recorded to disk. Unconditional (outside `canWrite`)
+  // since `mode=check` is a genuine ungated read; journal only writes on
+  // `mode=activate`.
+  registerActivateTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, transport, journal });
+  registerJournalTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal });
+  registerDebugTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, debugDeps });
+  // `abap_data_preview`: skipped outright (not registered-and-refusing) so
+  // it costs no schema bytes when ABAP_ALLOW_DATA_PREVIEW is off. Not
+  // inside `canWrite` — a preview is a read.
+  if (toolCapabilities.canPreviewData) {
+    registerDataPreviewTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
+  }
+  // `abap_dumps`: registered unconditionally — tier 1 (list, one dump's
+  // header/source/system-fields/call-stack) is a genuine ungated read.
+  // `registerVariables` controls only whether the `variables` field (tier
+  // 2, live field values) is ADVERTISED in the schema; the handler still
+  // calls `safety.assertDumpVariables()` on every request regardless of
+  // route. Deliberately not derived from `canWrite` (see
+  // `resolveStaticCapabilities`) — keying production-data access off
+  // write capability would give read-only production the widest access.
+  registerDumpTools(mcp, {
+    pool,
+    cfg,
+    safety,
+    ensureConnected,
+    errorResult,
+    registerVariables: toolCapabilities.canReadDumpVariables,
+  });
+  // `abap_service` (OData $metadata): registered unconditionally, not
+  // inside `canWrite` like `abap_atc` — `op="read"` (the default) is three
+  // GETs, nothing created server-side, always allowed. `op="publish"`/
+  // `"unpublish"` DO mutate (they call an ADT publish job), but the
+  // connected ceilings that would gate them — `allowServicePublish`,
+  // `readOnly`, a productive-system lockout, a failed namespace/package
+  // check against the binding's package — are unknowable at registration
+  // time, exactly like `abap_fluid` below: every call re-checks via
+  // `safety` at call time instead of the tool being registered or not.
+  registerServiceTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal, warn });
+  // `abap_trace` (ABAP runtime tracing, SAT): unconditional like `abap_dumps`
+  // and `abap_service` above — `list`/`read` are genuine ungated reads, and
+  // `start`/`run`/`delete` each self-gate per op inside the handler (a
+  // target-less capability probe, plus the same object-specific preflight
+  // assert `abap_run` uses for `start`/`run`). Not added to `./locked.ts`
+  // for the same reason: it is registered everywhere and refuses at call
+  // time, never omitted from the schema.
+  registerTraceTools(mcp, { pool, safety, ensureConnected, errorResult, cfg, journal });
+  // `abap_fluid` installs generated ABAP into $ABAPSMITH_FLUID_API — there is
+  // no read-only subset of it, so when ABAP_FLUID_API is off or the system is
+  // read-only the tool is not registered at all and costs no schema bytes,
+  // exactly like `abap_data_preview` above. `canUseFluidApi` is strictly
+  // narrower than `canWrite` (see its doc comment in config.ts), so this is
+  // outside/adjacent to the `canWrite` block rather than nested in it. The
+  // connected ceilings (a productive system, a write lockout, a failed role
+  // probe) are unknowable here, so every op re-checks
+  // `fluidDisabledReason(cfg, safety)` at call time (`src/tools/fluid.ts`).
+  if (toolCapabilities.canUseFluidApi) {
+    registerFluidTool(mcp, {
       pool,
       cfg,
       safety,
@@ -615,201 +712,18 @@ export function createServer(cfg: Config, opts: ServerOptions): AbapsmithServer 
       errorResult,
       journal,
       warn,
-      // Same manager that adopts requests knows which of them this session
-      // created — `abap_transport show` and the release gate read the
-      // record `transport`'s resolver writes.
-      ownership: transport,
-      // `abap_transport`'s list/show/check/users submodes are ungated and
-      // always registered; only `abap_transport_release` is gated.
-      registerRelease: toolCapabilities.canReleaseTransport,
-    });
-
-    // BOPF tools gate on the BO name via `bopfGateKey` (tools/bopf.ts).
-    // `abap_bopf` is a pure read, always registered; only
-    // `abap_bopf_edit`/`abap_bopf_delete` are gated. `journal` required —
-    // same reason as `TransportToolDeps` above (BOPF journalling was added
-    // under the same fix).
-    registerBopfTools(mcp, {
-      pool,
-      cfg,
-      safety,
-      ensureConnected,
-      errorResult,
-      transport,
-      journal,
-      registerWrite: toolCapabilities.canWrite,
-    });
-    // abap_enh registers unconditionally: `discover_hook_anchors` makes no
-    // `SafetyGate` call at all (a genuinely ungated read), so gating the
-    // whole tool would hide that read on a read-only server. Every other
-    // submode is gated via `assertIntent` at point of use. `journal`
-    // required — enhancement description writes are journalled
-    // (irreversible: history, never undo).
-    registerEnhancementTools(mcp, {
-      pool,
-      cfg,
-      safety,
-      ensureConnected,
-      errorResult,
-      transport,
-      journal,
-    });
-
-    // Core repository tools: one module per feature, one `registerXTools`
-    // call, nothing about schema/handler visible here. Every group takes
-    // `pool, cfg, safety, ensureConnected, errorResult` plus only the extra
-    // collaborators it uses.
-    registerReadTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
-    registerSearchTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
-    registerOpenUrlTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
-    // `abap_img` reads catalog tables straight through the freestyle data-preview endpoint
-    // (src/adt/img-read.ts) — it generates no ABAP and deploys nothing, so it needs no write
-    // capability and registers unconditionally, same as the other read tools above.
-    registerImgTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
-    // `abap_write`/`abap_fpm_read`/`abap_run`/`abap_test`/`abap_bopf_test`
-    // have no ungated submode, so registration itself is skipped when
-    // `!toolCapabilities.canWrite`. `abap_activate` (mode=check is a genuine
-    // ungated read) stays unconditional, below.
-    if (toolCapabilities.canWrite) {
-      registerBopfTestTool(mcp, { ...createBopfTestDeps(), pool, cfg, safety, ensureConnected, errorResult });
-      registerFpmTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
-      // `abap_ui`'s `screen` mode deploys reused $ABAPSMITH_FLUID_API fluid classes, so
-      // it needs write capability just to register. `press` (committing) is
-      // gated far more tightly at call time — `assertPressEnabled` in
-      // src/tools/ui.ts requires ABAP_MODE=admin AND ABAP_ALLOW_UI_PRESS.
-      // `journal` required: `press`'s blast radius is business data, not
-      // repository objects.
-      registerUiTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal });
-      // `journal` for the before-image, `transport` for the CTS assignment.
-      registerWriteTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal, transport });
-      // `abap_img_edit` writes IMG customizing rows by dispatching against the reused
-      // $ABAPSMITH_FLUID_API body class ZCL_ZMCP_FLUID_IMG (src/adt/fluid/builtin/img.ts) —
-      // an irreversible business-data write, gated here like every other mutating tool.
-      // `journal` records the before-image; the wider `cfg` slice (`sid`/`url`/`client`) is
-      // for `systemKey()` on those journal entries.
-      registerImgEditTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal });
-      registerRunTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
-      registerTestTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal });
-      // `abap_atc`: inside `canWrite`, not beside `abap_dumps` — a run
-      // creates a persistent ATC worklist row, and this server observably
-      // REFUSES to remove it (DELETE answers 405 `ExceptionMethodNotSupported`,
-      // capture `891-i78-worklist-delete-405.xml`; the advertised
-      // `?action=deleteFindings` action is a zero-byte 200 no-op, capture 858)
-      // — and `execute` carries the Z/Y-prefix + package-allowlist rules, so
-      // gating it any weaker risks unbounded server-side checks against
-      // SAP-standard packages. See src/adt/atc.ts.
-      registerAtcTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
-      // Same reasoning: mode="list" POSTs the object's whole source for evaluation.
-      registerQuickFixTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal, transport });
-    }
-    // `journal` required on `ActivateToolDeps` — it was previously missing,
-    // and `abap_activate` (up to 50 objects/call) changed executing
-    // code with nothing recorded to disk. Unconditional (outside `canWrite`)
-    // since `mode=check` is a genuine ungated read; journal only writes on
-    // `mode=activate`.
-    registerActivateTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, transport, journal });
-    registerJournalTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal });
-    registerDebugTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, debugDeps });
-    // `abap_data_preview`: skipped outright (not registered-and-refusing) so
-    // it costs no schema bytes when ABAP_ALLOW_DATA_PREVIEW is off. Not
-    // inside `canWrite` — a preview is a read. v1 only; v2 gates by
-    // `minMode` alone with no capability filter.
-    if (toolCapabilities.canPreviewData) {
-      registerDataPreviewTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
-    }
-    // `abap_dumps`: registered unconditionally — tier 1 (list, one dump's
-    // header/source/system-fields/call-stack) is a genuine ungated read.
-    // `registerVariables` controls only whether the `variables` field (tier
-    // 2, live field values) is ADVERTISED in the schema; the handler still
-    // calls `safety.assertDumpVariables()` on every request regardless of
-    // route. Deliberately not derived from `canWrite` (see
-    // `resolveStaticCapabilities`) — keying production-data access off
-    // write capability would give read-only production the widest access.
-    registerDumpTools(mcp, {
-      pool,
-      cfg,
-      safety,
-      ensureConnected,
-      errorResult,
-      registerVariables: toolCapabilities.canReadDumpVariables,
-    });
-    // `abap_service` (OData $metadata): registered unconditionally, not
-    // inside `canWrite` like `abap_atc` — `op="read"` (the default) is three
-    // GETs, nothing created server-side, always allowed. `op="publish"`/
-    // `"unpublish"` DO mutate (they call an ADT publish job), but the
-    // connected ceilings that would gate them — `allowServicePublish`,
-    // `readOnly`, a productive-system lockout, a failed namespace/package
-    // check against the binding's package — are unknowable at registration
-    // time, exactly like `abap_fluid` below: every call re-checks via
-    // `safety` at call time instead of the tool being registered or not.
-    registerServiceTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal, warn });
-    // `abap_trace` (ABAP runtime tracing, SAT): unconditional like `abap_dumps`
-    // and `abap_service` above — `list`/`read` are genuine ungated reads, and
-    // `start`/`run`/`delete` each self-gate per op inside the handler (a
-    // target-less capability probe, plus the same object-specific preflight
-    // assert `abap_run` uses for `start`/`run`). Not added to `./locked.ts`
-    // for the same reason: it is registered everywhere and refuses at call
-    // time, never omitted from the schema.
-    registerTraceTools(mcp, { pool, safety, ensureConnected, errorResult, cfg, journal });
-    // `abap_fluid` installs generated ABAP into $ABAPSMITH_FLUID_API — there is
-    // no read-only subset of it, so when ABAP_FLUID_API is off or the system is
-    // read-only the tool is not registered at all and costs no schema bytes,
-    // exactly like `abap_data_preview` above. `canUseFluidApi` is strictly
-    // narrower than `canWrite` (see its doc comment in config.ts), so this is
-    // outside/adjacent to the `canWrite` block rather than nested in it. The
-    // connected ceilings (a productive system, a write lockout, a failed role
-    // probe) are unknowable here, so every op re-checks
-    // `fluidDisabledReason(cfg, safety)` at call time (`src/tools/fluid.ts`).
-    if (toolCapabilities.canUseFluidApi) {
-      registerFluidTool(mcp, {
-        pool,
-        cfg,
-        safety,
-        ensureConnected,
-        errorResult,
-        journal,
-        warn,
-        toolSet: opts.fluidToolSet ?? builtinFluidToolSet(BUILTIN_FLUID_TOOLS),
-      });
-    }
-    // Refusal-only stubs closing the "Tool abap_write not found" gap from
-    // issue #63: on a read-only v1 server, `abap_write` and friends were
-    // never registered at all, so a caller got an MCP "tool not found"
-    // error indistinguishable from a typo, with no hint that raising
-    // ABAP_MODE is the fix. These stubs take no pool/cfg-write/safety
-    // dependency — only `cfg.abapMode` and `errorResult` — so they cannot
-    // reach SAP no matter what a caller passes; `[]` on any non-read-only
-    // or v2 server, so this is a no-op there.
-    registerLockedTools(mcp, { cfg, errorResult, tools: lockedTools });
-  } else {
-    // The six v2 consolidated tools. `abapMode` falls back, fail-closed, to
-    // `"read"` for a missing/unrecognized ABAP_MODE, when on legacy per-flag config
-    // (`cfg.abapMode` unset) — only shapes which action names/descriptions
-    // are listed, per `loadConfig`'s NOTE in src/config.ts.
-    const v2Mode: AbapMode = cfg.abapMode ?? "read";
-    // Same objects the v1 branch builds, reused not reconstructed.
-    // `V2ToolDeps` (src/tools/v2/runtime.ts) is the union of every v1
-    // registrar's dep bag, grown once for future v2 work.
-    registerV2Tools(mcp, {
-      pool,
-      safety,
-      ensureConnected,
-      errorResult,
-      journal,
-      transport,
-      debugDeps,
-      warn,
-      cfg: {
-        abapMode: v2Mode,
-        maxResponseChars: cfg.maxResponseChars,
-        allowEnhancements: cfg.allowEnhancements,
-        allowSourcePlugins: cfg.allowSourcePlugins,
-        allowEnhancementDelete: cfg.allowEnhancementDelete,
-        user: cfg.user,
-        verifyWrites: cfg.verifyWrites,
-      },
+      toolSet: opts.fluidToolSet ?? builtinFluidToolSet(BUILTIN_FLUID_TOOLS),
     });
   }
+  // Refusal-only stubs closing the "Tool abap_write not found" gap from
+  // issue #63: on a read-only server, `abap_write` and friends were
+  // never registered at all, so a caller got an MCP "tool not found"
+  // error indistinguishable from a typo, with no hint that raising
+  // ABAP_MODE is the fix. These stubs take no pool/cfg-write/safety
+  // dependency — only `cfg.abapMode` and `errorResult` — so they cannot
+  // reach SAP no matter what a caller passes; `[]` on any non-read-only
+  // server, so this is a no-op there.
+  registerLockedTools(mcp, { cfg, errorResult, tools: lockedTools });
 
   // Objects referenceable without a tool call, and the discovery probe
   // exposed without spending tool-schema budget.
@@ -919,17 +833,6 @@ export function createServer(cfg: Config, opts: ServerOptions): AbapsmithServer 
         `[abapsmith] ready on stdio — ${cfg.sid} @ ${stripUrlCredentials(cfg.url)} as ${cfg.user} ` +
           `(${mode})${notConnectedSuffix}`,
       );
-      // Runtime half of the v2 deprecation (issue #76, doc/TOOL-SURFACE-V2/README.md):
-      // a doc-only banner is easy to miss, so an operator who set
-      // ABAP_TOOL_SURFACE=v2 gets the removal release on the channel they are
-      // already reading. Same sentence the model sees in `instructions`.
-      if (cfg.toolSurface === "v2") {
-        warn(
-          `[abapsmith] ${V2_DEPRECATION_SENTENCE} Four v1 tools (abap_data_preview, ` +
-            "abap_open_url, abap_dumps, abap_ui) never had a v2 route, and every tool added " +
-            "since widened the gap — see doc/TOOL-SURFACE-V2/README.md and the CHANGELOG.",
-        );
-      }
       warn(
         journal.enabled
           ? `[abapsmith] write journal: ${journal.dir} ` +

@@ -6,7 +6,8 @@ description: Checks what abapsmith can actually build on this SAP system before 
 # Orient before writing
 
 abapsmith writes a **fixed enum of object types**. Most ABAP types are not in it.
-Check here before planning any create.
+Check here before planning any create. "Where is X used?" or "what does this
+button do?" is not a write question at all — that is `abapsmith-research-code`.
 
 ## The writable set
 
@@ -169,7 +170,7 @@ checked in addition to, not instead of, every ceiling above.
 
 ## The tool set
 
-Two surfaces ship. **`v1` is the default** — one tool per job:
+One tool per job:
 
 | Job | Tool |
 |---|---|
@@ -194,18 +195,8 @@ Two surfaces ship. **`v1` is the default** — one tool per job:
 | Table rows | `abap_data_preview` |
 | Open in GUI / browser | `abap_ui`, `abap_open_url` |
 
-**`v2`** (`ABAP_TOOL_SURFACE=v2`) is deprecated and will be removed in
-release 0.6.0 (issue #76) — do not start new work against it. A model
-already talking to a v2 server still needs this mapping, though: it
-collapses the same capability into six:
-`abap_find`, `abap_read`, `abap_write`, `abap_debug`, `abap_adt`, and `abap_do` —
-which absorbs activation, execution, journal, transports, BOPF and enhancements as
-*actions*. Call `abap_do({})` for the catalogue. `abap_adt` is a GET-only raw ADT
-escape hatch; reach for it last.
-
-**Check `tools/list` rather than assuming.** A name from the wrong surface returns
-unknown-tool; `abap_data_preview` and `abap_transport_release` are also gated off by
-config even on v1.
+**Check `tools/list` rather than assuming a tool is present.** `abap_data_preview`
+and `abap_transport_release` are also gated off by config on some servers.
 
 ## When a task names a package, orient from it first
 
@@ -242,6 +233,7 @@ Default to `$TMP` unless the task says otherwise.
 | Get a transport request, or release one | `abapsmith-put-work-on-a-transport` |
 | Undo a wrong write, or read undo's refusals | `abapsmith-recover-a-bad-write` |
 | Survey an unfamiliar package or object | `abapsmith-explore-a-package` |
+| Where is X used, or what does this button do | `abapsmith-research-code` |
 | Run ABAP Unit, and fix what fails | `abapsmith-run-tests-and-fix` |
 | ATC findings and quick fixes | `abapsmith-check-code-quality` |
 | A run short-dumped or gave a wrong value | `abapsmith-debug-a-failing-run` |

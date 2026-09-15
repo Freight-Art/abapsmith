@@ -113,7 +113,3 @@ probe missed", not as "the IMG has nothing there."
 access and is present in `tools/list` under `ABAP_MODE=read` as well as
 `edit`/`admin`. `abap_img_edit` (see `abapsmith-maintain-img-customizing`)
 is a real write and is absent under `read`, same as any other write tool.
-
-`abap_img`, `abap_img_edit`, and `abap_data_preview` are v1-only — as of
-this build none has a v2 (`abap_do`) action. Check `tools/list` rather than
-assuming any is there under `ABAP_TOOL_SURFACE=v2`.

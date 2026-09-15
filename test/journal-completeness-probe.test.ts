@@ -157,9 +157,14 @@ describe("CHARACTERISATION: which connection-write modules are journal-linked to
     // THIS LIST UNDERSTATES THE GAP, and knowing by how much is part of the
     // finding. As of `master @ 61f9a06` (see `dfba310`), one module that journals
     // NOTHING is absent from it because the one-hop importer clause launders it:
-    //   - `tools/test.ts` — the ABAP Unit POST. Passes only because
-    //     `src/tools/v2/handlers/do/activation.ts` imports it alongside
-    //     `src/tools/journal.ts`.
+    //   - `tools/test.ts` — the ABAP Unit POST. Passes only because its sole
+    //     remaining importer, `src/server.ts` (which imports every tool module
+    //     to register it), separately declares a `journal:`-typed field
+    //     elsewhere in the same file. (Issue #76 removed a second, now-defunct
+    //     laundering path: a v2 `abap_do action=activate` handler used to
+    //     import `tools/test.ts` alongside `src/tools/journal.ts` too; its
+    //     removal changed the REASON this module launders, not the fact of it —
+    //     re-run the heuristic before assuming otherwise.)
     // The heuristic cannot tell "this importer journals THIS call" from "this
     // importer journals something else". A real tripwire would have to be
     // stricter than this one, and this one is already red.

@@ -68,11 +68,10 @@ A per-call `verify` field on `abap_write` can raise a single call to
 
 | Variable | Default | Effect |
 |---|---|---|
-| `ABAP_TOOL_SURFACE` | `v1` | `v1` (the full individual-tool registrar set) is the only supported value. `v2` (six consolidated tools, far fewer schema tokens) is deprecated and will be removed in 0.6.0 (issue #76) — see `doc/TOOL-SURFACE-V2/README.md`. Orthogonal to `ABAP_MODE`: this decides which tools are advertised, the mode decides what they may do. |
+| `ABAP_TOOL_SURFACE` | unset | OBSOLETE. The consolidated six-tool surface it used to select was removed (issue #76, see the Removed entry in `CHANGELOG.md`); there is now exactly one tool surface, and it is always registered. The variable is no longer read for anything. |
 
-**`v2` is deprecated and will be removed in 0.6.0 (issue #76).** It still
-works in this release, but the surface is frozen — no new tool routes, no
-defect fixes — see `doc/TOOL-SURFACE-V2/README.md` for details. `v1` is the
-only supported surface and the recommended default. There is no `both`
-value: `v2`'s consolidated tools reuse `v1` tool names verbatim, so
-registering both surfaces in one process throws at startup.
+`ABAP_TOOL_SURFACE=v2` is a startup error naming `CHANGELOG.md` and
+`doc/DESIGN-NOTES/tool-surface-v2.md` — as is any other unrecognised value.
+`ABAP_TOOL_SURFACE=v1` is still accepted, with a one-line deprecation
+warning on stderr, since `v1` is the current (and only) surface under its
+old name. Leaving the variable unset is the expectation and is silent.

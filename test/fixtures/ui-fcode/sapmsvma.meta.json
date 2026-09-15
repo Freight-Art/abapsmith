@@ -1,0 +1,20 @@
+{
+  "program": "SAPMSVMA",
+  "package": "SVIM",
+  "system": "A4H",
+  "capturedOn": "2026-09-15",
+  "totalLines": 867,
+  "serverEtag": "202602250933460011",
+  "files": [
+    { "path": "sapmsvma-lines-110-329.abap", "firstProgramLine": 110 },
+    { "path": "sapmsvma-lines-440-519.abap", "firstProgramLine": 440 }
+  ],
+  "modules": [
+    { "name": "ACTION", "line": 117 },
+    { "name": "D0101_PAI", "line": 338 },
+    { "name": "EXIT_COMMAND", "line": 453 },
+    { "name": "CHECK_VIEWNAME", "line": 465 },
+    { "name": "CHECK_VARIANT", "line": 488 },
+    { "name": "VARIANT_VALUES", "line": 505 }
+  ]
+}

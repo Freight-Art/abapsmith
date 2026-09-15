@@ -70,7 +70,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AbapConnection, RawRequestOptions, RawResponse } from "../src/adt/connection.js";
 import type { ResolvedObject } from "../src/adt/resolve.js";
 import { ELEMENT_INFO_URL, NAVIGATION_TARGET_URL, USAGE_REFERENCES_URL } from "../src/adt/element-info.js";
-import { abapReadInputSchema } from "../src/tools/v2/schemas.js";
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), "fixtures", "live-captured");
 const fixture = (f: string): string => readFileSync(join(FIXTURES, f), "utf8");
@@ -826,22 +825,5 @@ describe('view="definition" rendering, driven by live-captured A4H fixtures thro
     expect(r.etag).toBe("");
     expect(r.text).not.toContain("--- SIGNATURE ---");
     expect(r.text).not.toContain("--- COMPONENTS ---");
-  });
-});
-
-// ============================================================== Section C ==
-
-describe("v2 abap_read schema surface is frozen: no line, no column, view is not a closed enum", () => {
-  it("abapReadInputSchema exposes no line/column fields at all", () => {
-    expect(Object.keys(abapReadInputSchema)).not.toContain("line");
-    expect(Object.keys(abapReadInputSchema)).not.toContain("column");
-  });
-
-  it('abapReadInputSchema.view is an open z.string(), not a closed enum — "definition" (or any other arbitrary value) must not be rejected', () => {
-    expect(abapReadInputSchema.view.safeParse("definition").success).toBe(true);
-    expect(abapReadInputSchema.view.safeParse("some-arbitrary-view-xyz").success).toBe(true);
-    // The v1 (`readInputSchema`) enum equivalent explicitly rejects a
-    // non-member string — v2's field must not share that behaviour.
-    expect(abapReadInputSchema.view.description).not.toContain("definition");
   });
 });

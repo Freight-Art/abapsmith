@@ -5,6 +5,12 @@
  *   screen  discovery: given a tcode or program+dynpro, return the screen's
  *           fields, flow logic, and GUI status. Read-only in effect (writes
  *           only a throwaway bridge class into FLUID_PACKAGE, like abap_fpm_read).
+ *   fcode   static trace of one classic-dynpro function code: resolves the
+ *           screen like screen does, then reads the flow logic and PAI
+ *           module source to show which module(s) fire and what they call.
+ *           Runs nothing — no CALL TRANSACTION, no BDCDATA — same read-only
+ *           effect and gating as screen (no ABAP_MODE=admin, no
+ *           ABAP_ALLOW_UI_PRESS needed). See src/adt/ui-fcode.ts.
  *   press   execute a batch-input script against a transaction. COMMITS —
  *           CALL TRANSACTION ... MODE 'N' UPDATE 'S' has no dry run and
  *           ROLLBACK WORK cannot reach back across the boundary. Gated by
@@ -43,11 +49,13 @@ import {
   type UiBdcField,
   type UiBdcScreen,
   type UiBridgeResult,
+  type UiFcodeQuery,
   type UiMessage,
   type UiPressQuery,
   type UiScreenQuery,
   type UiScreenTarget,
 } from "../adt/ui-runtime.js";
+import type { UiFcodeModuleHit, UiFcodeResult, UiFcodeRow } from "../adt/ui-fcode.js";
 import { uiManifest } from "../adt/fluid/builtin/ui.js";
 import { LOG_TOOL_ID, LOG_ACTION } from "../adt/fluid/builtin/log.js";
 import type { SessionPool } from "../adt/pool.js";
@@ -82,18 +90,26 @@ const uiPressScreenSchema = z.object({
 
 export const uiInputSchema = {
   mode: z
-    .enum(["screen", "press"])
+    .enum(["screen", "fcode", "press"])
     .describe(
-      "screen: read one dynpro (discovery, read-only in effect). press: run a batch-input " +
-        "script — commits, cannot be rolled back. Requires ABAP_MODE=admin, " +
+      "screen: read one dynpro (discovery, read-only in effect). fcode: static trace of one " +
+        "function code's handling — reads source, runs nothing, same read-only effect as screen. " +
+        "press: run a batch-input script — commits, cannot be rolled back. Requires ABAP_MODE=admin, " +
         "ABAP_ALLOW_UI_PRESS=true, and confirm:true.",
     ),
   tcode: z
     .string()
     .optional()
-    .describe("Transaction code. screen: alternative to program+dynpro. press: required."),
-  program: z.string().optional().describe("screen only, with dynpro: program name instead of tcode."),
-  dynpro: z.string().optional().describe('screen only, with program: screen number, e.g. "100".'),
+    .describe("Transaction code. screen/fcode: alternative to program+dynpro. press: required."),
+  program: z.string().optional().describe("screen/fcode only, with dynpro: program name instead of tcode."),
+  dynpro: z.string().optional().describe('screen/fcode only, with program: screen number, e.g. "100".'),
+  fcode: z
+    .string()
+    .optional()
+    .describe(
+      "fcode only: one function code to trace. Omitted = every function code of every GUI status " +
+        "of the program.",
+    ),
   screens: z
     .array(uiPressScreenSchema)
     .optional()
@@ -194,7 +210,7 @@ function normalizeTcode(raw: string): string {
 // Query builders — pure, zero-network, throw BAD_INPUT.
 // ---------------------------------------------------------------------------
 
-function buildScreenTarget(input: UiInput): UiScreenTarget {
+function buildScreenTarget(input: UiInput, mode: "screen" | "fcode" = "screen"): UiScreenTarget {
   const tcode = input.tcode?.trim();
   const program = input.program?.trim();
   const dynpro = input.dynpro?.trim();
@@ -206,13 +222,22 @@ function buildScreenTarget(input: UiInput): UiScreenTarget {
   }
   throw new AbapError(
     "BAD_INPUT",
-    'mode:"screen" needs either tcode, or both program and dynpro.',
-    { mode: "screen", tcode: input.tcode, program: input.program, dynpro: input.dynpro },
+    `mode:"${mode}" needs either tcode, or both program and dynpro.`,
+    { mode, tcode: input.tcode, program: input.program, dynpro: input.dynpro },
   );
 }
 
 function buildScreenQuery(input: UiInput): UiScreenQuery {
   return { mode: "screen", target: buildScreenTarget(input) };
+}
+
+function buildFcodeQuery(input: UiInput): UiFcodeQuery {
+  const fcode = input.fcode?.trim();
+  return {
+    mode: "fcode",
+    target: buildScreenTarget(input, "fcode"),
+    ...(fcode ? { fcode } : {}),
+  };
 }
 
 function buildPressQuery(input: UiInput): UiPressQuery {
@@ -409,6 +434,141 @@ function buildScreenResponse(query: UiScreenQuery, result: UiBridgeResult, maxCh
   }).text;
 }
 
+/**
+ * Disclosed on every fcode response — this is what "static trace" leaves out.
+ * Distinct from FIDELITY_NOTES (which is about BDC/dynpro reach in general):
+ * these are about the trace logic itself, so they stay separate rather than
+ * being folded into that shared list.
+ */
+const FCODE_NOTES: readonly string[] = [
+  "Static source analysis only — nothing was executed, no dynpro was driven, no CALL " +
+    "TRANSACTION or BDCDATA was involved at any point.",
+  "CASE resolution: a PAI module's dispatch is only resolved when the module's outermost CASE " +
+    "switches on ok_code/sy-ucomm directly, or on a local variable whose LAST assignment before " +
+    "the CASE reads straight from one of those two. Anything else (a field-symbol, a CASE nested " +
+    "inside another CASE/IF that changes the effective value, a variable reassigned from a literal " +
+    "right before the CASE) is reported as unresolved rather than guessed at.",
+  "Dynamic call targets are never followed: PERFORM ... IN PROGRAM (v), CALL FUNCTION (v), CALL " +
+    "METHOD (v)->..., a dynamic CALL TRANSACTION, and SUBMIT (v) are all listed with dynamic:true " +
+    "and their literal source text, not resolved to a concrete target.",
+  "Enhancements (user-exits, BAdIs, implicit/explicit enhancement points inside a module body) are " +
+    "not separated out from the module's own code — a call made only from inside an enhancement " +
+    "looks identical to one in the module's original source.",
+  "Only PAI modules of the resolved dynpro are traced. PBO modules, modules on other dynpros in " +
+    "the same program, and any chained/subsequent screen the function code might lead to are out " +
+    "of scope for a single fcode call.",
+];
+
+function renderCall(c: UiFcodeModuleHit["branches"][number]["calls"][number]): string {
+  return `    - line ${c.line}: ${c.kind} ${c.target}${c.dynamic ? " (dynamic)" : ""}`;
+}
+
+function renderModuleHit(hit: UiFcodeModuleHit): string {
+  const lines: string[] = [];
+  lines.push(
+    `  MODULE ${hit.module} [${hit.include}] lines ${hit.lineFrom}-${hit.lineTo}` +
+      `${hit.atExit ? " AT EXIT-COMMAND" : ""}${hit.condition ? ` (${hit.condition})` : ""}`,
+  );
+  const d = hit.dispatch;
+  if (d.kind === "none") {
+    lines.push("    dispatch: none (no CASE found in this module)");
+  } else if (d.kind === "unresolved") {
+    lines.push(`    dispatch: unresolved — ${d.reason}${d.expression ? ` (CASE ${d.expression})` : ""}`);
+  } else {
+    lines.push(
+      `    dispatch: ${d.kind} on ${d.expression}` +
+        (d.kind === "alias" && d.aliasAssignedFrom ? ` (assigned from ${d.aliasAssignedFrom} at line ${d.aliasLine})` : ""),
+    );
+  }
+  if (hit.branches.length === 0) {
+    lines.push("    (no matching WHEN branch)");
+  }
+  for (const b of hit.branches) {
+    lines.push(
+      `    WHEN ${b.literals.join(" OR ")} — lines ${b.lineFrom}-${b.lineTo}` +
+        (b.viaRemap ? ` — via remap ${b.viaRemap}` : ""),
+    );
+    if (b.calls.length === 0) {
+      lines.push("      (no PERFORM/CALL FUNCTION/CALL METHOD/CALL TRANSACTION/LEAVE TO TRANSACTION/SUBMIT found)");
+    }
+    for (const c of b.calls) lines.push(renderCall(c));
+    lines.push(`      read: ${b.read}`);
+  }
+  lines.push(`    read: ${hit.read}`);
+  return lines.join("\n");
+}
+
+function renderFcodeRow(row: UiFcodeRow): string {
+  const lines: string[] = [];
+  lines.push(`FCODE ${row.fcode}${row.text ? ` — ${row.text}` : ""} (statuses: ${row.statuses.join(", ") || "-"})`);
+  if (row.modules.length === 0) {
+    lines.push("  (no PAI module dispatches on this function code)");
+  }
+  for (const hit of row.modules) lines.push(renderModuleHit(hit));
+  for (const u of row.unresolved) {
+    lines.push(`  UNRESOLVED: module ${u.module} [${u.include}] — ${u.reason}`);
+  }
+  return lines.join("\n");
+}
+
+function buildFcodeResponse(query: UiFcodeQuery, result: UiBridgeResult, maxChars: number): string {
+  const f = result.fcode;
+  if (!f) {
+    // Defensive: a successful bridge run should always yield a fcode result for a fcode query.
+    throw new AbapError(
+      "ADT_ERROR",
+      "ui-runtime returned no fcode result for a fcode query.",
+      {},
+    );
+  }
+  const unresolvedCount = f.fcodes.reduce((n, row) => n + row.unresolved.length, 0);
+  const notes = [...FCODE_NOTES, ...f.notes];
+  if (f.truncated) {
+    notes.push(`Output truncated (${f.truncated}) — results below are incomplete.`);
+  }
+
+  const paiRows = f.paiModules.map((m) => ({
+    name: m.name,
+    include: m.include ?? "",
+    atExit: String(m.atExit),
+    found: String(m.found),
+  }));
+  const includeRows = f.includes.map((i) => ({
+    name: i.name,
+    lines: String(i.lines),
+    readError: i.readError ?? "",
+  }));
+  const unresolvedRows = f.fcodes.flatMap((row) =>
+    row.unresolved.map((u) => ({ fcode: row.fcode, module: u.module, include: u.include, reason: u.reason })),
+  );
+
+  return buildResponse({
+    header: {
+      mode: "fcode",
+      tcode: f.tcode?.tcode,
+      program: f.program,
+      dynpro: f.dynpro,
+      fcodesCount: f.fcodes.length,
+      paiModuleCount: f.paiModules.length,
+      includesScanned: f.includes.length,
+      unresolvedCount,
+      bridgeClass: result.bridgeClass,
+      bridgeRefreshed: result.bridgeRefreshed,
+    },
+    sections: [
+      { title: "PAI MODULES (flow-logic order)", content: textTable(paiRows, ["name", "include", "atExit", "found"]) },
+      { title: "INCLUDES SCANNED", content: textTable(includeRows, ["name", "lines", "readError"]) },
+      ...(unresolvedRows.length
+        ? [{ title: "UNRESOLVED", content: textTable(unresolvedRows, ["fcode", "module", "include", "reason"]) }]
+        : []),
+    ],
+    body: f.fcodes.map(renderFcodeRow).join("\n\n"),
+    bodyLabel: "FUNCTION CODES",
+    notes,
+    maxChars,
+  }).text;
+}
+
 function buildPressResponse(query: UiPressQuery, result: UiBridgeResult, maxChars: number): string {
   const t = result.transcript;
   const notes = [...FIDELITY_NOTES];
@@ -492,6 +652,32 @@ async function runScreenTool(deps: UiToolDeps, input: UiInput): Promise<CallTool
   return ok(buildScreenResponse(query, result, deps.cfg.maxResponseChars));
 }
 
+/**
+ * Same gating as runScreenTool (read + a write preflight on the fixed fluid
+ * body class) — fcode dispatches against `ZCL_ZMCP_FLUID_UI` exactly like
+ * screen does, not a generated per-query class, and is just as read-only in
+ * effect. Deliberately NO confirm, NO denylist, NO assertPressEnabled/
+ * assertBdcApplies — those exist only because press submits BDCDATA through
+ * CALL TRANSACTION; fcode never does, so none of that gating applies here.
+ */
+async function runFcodeTool(deps: UiToolDeps, input: UiInput): Promise<CallToolResult> {
+  const query = buildFcodeQuery(input);
+
+  deps.safety.assert("read");
+  deps.safety.assert(
+    "write",
+    { name: uiManifest.entry, packageName: FLUID_PACKAGE, type: "CLAS/OC" },
+    { phase: "preflight" },
+  );
+
+  await deps.ensureConnected();
+
+  const result = await deps.pool.withWrite("abap_ui", uiManifest.entry, (conn) =>
+    runUiBridge(conn, query, deps.safety),
+  );
+  return ok(buildFcodeResponse(query, result, deps.cfg.maxResponseChars));
+}
+
 async function runPressTool(deps: UiToolDeps, input: UiInput): Promise<CallToolResult> {
   // Order: cheapest / most tool-specific refusals first — same discipline as abap_enh's delete gate.
   assertPressConfirmed(input);
@@ -563,12 +749,15 @@ async function runPressTool(deps: UiToolDeps, input: UiInput): Promise<CallToolR
 
 const UI_TOOL_DESCRIPTION =
   "Drive classic SAP dynpro screens via batch input (BDC): screen reads one dynpro's " +
-  "fields/flow/status; press runs a scripted transaction (commits, no rollback). Reaches " +
+  "fields/flow/status; fcode statically traces a function code to the ABAP that handles it " +
+  "(read-only, runs nothing); press runs a scripted transaction (commits, no rollback). Reaches " +
   "classic dialog dynpros ONLY — never Web Dynpro/FPM/Fiori.";
 
 export async function runUiTool(deps: UiToolDeps, args: unknown): Promise<CallToolResult> {
   const input = args as UiInput;
-  return input.mode === "press" ? runPressTool(deps, input) : runScreenTool(deps, input);
+  if (input.mode === "press") return runPressTool(deps, input);
+  if (input.mode === "fcode") return runFcodeTool(deps, input);
+  return runScreenTool(deps, input);
 }
 
 export function registerUiTools(mcp: McpServer, deps: UiToolDeps): void {

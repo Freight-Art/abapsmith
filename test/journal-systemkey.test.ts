@@ -30,12 +30,14 @@
  * `systemKey` at none of them — the field was never scoped beyond `write.ts`
  * because the original tripwire was never scoped beyond `write.ts` either.
  * It then happened a third time, and for the third distinct reason: the BOPF
- * tools (src/tools/bopf.ts, 3 sites) and the v2 `abap_do` enhancement handler
- * (src/tools/v2/handlers/do/enhancements.ts, 1 site) are journalling surfaces
- * that never went through `abap_write` OR `abap_enh` at all, so neither
- * earlier repair reached them and neither earlier version of this list named
- * them. The lesson each time is the same one: the enumeration, not the
- * per-site test, is what generalises.
+ * tools (src/tools/bopf.ts, 3 sites) — and, at the time, the v2 `abap_do`
+ * enhancement handler (1 site) — were journalling surfaces that never went
+ * through `abap_write` OR `abap_enh` at all, so neither earlier repair
+ * reached them and neither earlier version of this list named them. Issue
+ * #76 later removed the v2 tool surface entirely, taking that fourth site
+ * with it, so only the BOPF half of this instance still applies. The lesson
+ * each time is the same one: the enumeration, not the per-site test, is what
+ * generalises.
  *
  * This file now enumerates the sites in every file named by
  * `JOURNAL_LINKED_FILES` below, so it asserts a property of the SOURCE, in the
@@ -55,12 +57,11 @@
  * field to something empty would satisfy this file and still persist nothing.
  * That is exactly why the behavioural tests above exist alongside it: they
  * assert the PERSISTED entry's key equals `systemKey(conn.cfg)` byte for byte
- * — and, for the two newest surfaces, do it by reading the raw `index.jsonl`
+ * — and, for the newest surface, do it by reading the raw `index.jsonl`
  * line off disk rather than trusting `Journal.list()` or `abap_journal
- * mode=show` to have rendered the field back faithfully (see
- * `test/v2-enh-write-systemkey.test.ts` and the raw-bytes case in
- * `test/bopf-journal.test.ts`). That distinction is not pedantry: the truthy
- * check in `src/journal.ts` means an empty-string `systemKey` is dropped
+ * mode=show` to have rendered the field back faithfully (see the raw-bytes
+ * case in `test/bopf-journal.test.ts`). That distinction is not pedantry:
+ * the truthy check in `src/journal.ts` means an empty-string `systemKey` is dropped
  * SILENTLY at write time, so a test asserting on a formatted view — or merely
  * on the absence of a crash — passes against a completely broken field.
  * The two kinds of check cover different failure modes and neither replaces
@@ -80,12 +81,14 @@ import { describe, expect, it } from "vitest";
 
 /**
  * The journal-linked files this tripwire covers. Deliberately a list and not a
- * hard-coded path: the previous revision named `src/tools/bopf.ts` and
- * `src/tools/v2/handlers/do/enhancements.ts` as known-uncovered, pending the
- * `fix/bopf-v2-systemkey` branch, and asked that whichever branch touched this
- * line second resolve to the UNION of both lists rather than either side's.
- * That branch has now landed and both files are appended here, so the list is
- * that union.
+ * hard-coded path: an earlier revision named `src/tools/bopf.ts` and the v2
+ * `abap_do` enhancement handler as known-uncovered, pending the
+ * `fix/bopf-v2-systemkey` branch, and asked that whichever branch touched
+ * this line second resolve to the UNION of both lists rather than either
+ * side's. That branch landed and both files were appended here. Issue #76
+ * then removed the v2 tool surface entirely, so the v2 enhancement handler's
+ * entry came out of this list along with the file it named — the BOPF half
+ * of that union is what remains below.
  *
  * A later fix closed the fourth instance: `src/tools/ui.ts`'s single
  * `withJournalledMutation` site (`abap_ui press`, a BDC screen sequence) set
@@ -105,7 +108,6 @@ const JOURNAL_LINKED_FILES = [
   "src/tools/write.ts",
   "src/tools/enh.ts",
   "src/tools/bopf.ts",
-  "src/tools/v2/handlers/do/enhancements.ts",
   "src/tools/ui.ts",
 ] as const;
 
@@ -369,9 +371,10 @@ describe("every journal entry construction sets systemKey", () => {
     // legitimate new journalled mutation was added. It exists so that a broken
     // regex — which would find zero sites and vacuously pass every assertion
     // below — is itself a failure. At the time of writing there are 4 sites in
-    // write.ts, 9 in enh.ts, 3 in bopf.ts, 1 in the v2 enhancement handler and
-    // 1 in ui.ts (18 total); 16 is comfortably below that and comfortably
-    // above zero.
+    // write.ts, 9 in enh.ts, 3 in bopf.ts and 1 in ui.ts (17 total); 16 is
+    // comfortably below that and comfortably above zero. (Issue #76 removed
+    // the v2 tool surface's own enhancement-handler site, which used to bring
+    // the total to 18.)
     expect(sites.length).toBeGreaterThanOrEqual(16);
 
     // A whole-file total can stay above the bound even if ONE file's regex

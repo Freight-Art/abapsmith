@@ -870,7 +870,19 @@ describe("system-role probe — every connection-building suite declares its int
     // header it produces and the OAuth 401 refresh-and-retry, is asserted in
     // `test/http-guard-auth-modes.test.ts` and `test/oauth-token-provider.test.ts`,
     // neither of which is exempt.
-    expect(exempt.length).toBeLessThanOrEqual(10);
+    //
+    // 10 → 11 when `test/tool-surface-removal.test.ts` landed. It covers the
+    // obsolete `ABAP_TOOL_SURFACE` variable after issue #76 removed the v2
+    // tool surface: that `v2` and any unrecognised value are refused at
+    // startup by `loadConfig`, that `v1` is accepted with a warning, that
+    // unset is silent, and that the resolved config carries no tool-surface
+    // field at all — and it earns the exemption the honest way, importing
+    // only vitest, node:* and `../src/config.js`. Note the same price as its
+    // siblings, but paid differently — the other half of that suite is a
+    // structural sweep of the tree for leftover references to the removed
+    // directories, which needs no connection either, so unlike its siblings
+    // there is no connecting counterpart suite.
+    expect(exempt.length).toBeLessThanOrEqual(11);
   });
 
   it("the allow-list has not rotted: every entry still names a real, still-offending suite", () => {
