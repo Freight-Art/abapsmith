@@ -12,6 +12,12 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-09-15
+
+### Removed
+
+- The experimental `v2` tool surface (`ABAP_TOOL_SURFACE=v2`: the six consolidated tools `abap_find`, `abap_read`, `abap_write`, `abap_do`, `abap_debug`, `abap_adt`) is gone, as announced in 0.5.10 (issue #76). `src/tools/v2/` and its fourteen test files were deleted; the single remaining surface is always registered and `toolSurface` is no longer a config field. Startup now classifies `ABAP_TOOL_SURFACE`: `v2` and any unrecognised value fail with "Invalid abapsmith configuration" (naming `CHANGELOG.md` and the design note), `v1` starts with one deprecation warning, unset is silent. The one v2-path file with a live caller, `src/tools/v2/edit.ts`, moved to `src/tools/edit.ts`. The reasoning (what the A/B measured, why it never reached v1 reliability, what a future consolidation must prove first) is in the new `doc/DESIGN-NOTES/tool-surface-v2.md`; every doc, skill and test sentence that qualified behaviour by surface was rewritten. All four startup outcomes and the 28-tool `tools/list` were proven on the built server.
+
 ## [0.5.20] - 2026-09-15
 
 ### Added
