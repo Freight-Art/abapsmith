@@ -3683,7 +3683,7 @@ var require_lib = __commonJS({
           var changed = false;
           for (var i = 0; i < len; i++) {
             var k = keys[i];
-            var ok23 = u[k];
+            var ok24 = u[k];
             var domainResult = domain2.validate(k, appendContext(c, k, domain2, k));
             if ((0, Either_1.isLeft)(domainResult)) {
               changed = true;
@@ -3691,12 +3691,12 @@ var require_lib = __commonJS({
               var vk = domainResult.right;
               changed = changed || vk !== k;
               k = vk;
-              var codomainResult = codomain.validate(ok23, appendContext(c, k, codomain, ok23));
+              var codomainResult = codomain.validate(ok24, appendContext(c, k, codomain, ok24));
               if ((0, Either_1.isLeft)(codomainResult)) {
                 pushAll(errors, codomainResult.left);
               } else {
                 var vok = codomainResult.right;
-                changed = changed || vok !== ok23;
+                changed = changed || vok !== ok24;
                 a[k] = vok;
               }
             }
@@ -5278,10 +5278,10 @@ var require_utilities = __commonJS({
       }
       return [];
     }
-    var ok23 = Object.keys;
-    var xmlRoot = (o) => o[ok23(o).filter((k) => k !== "?xml")[0]];
+    var ok24 = Object.keys;
+    var xmlRoot = (o) => o[ok24(o).filter((k) => k !== "?xml")[0]];
     exports2.xmlRoot = xmlRoot;
-    var stripNs = (x) => x && ok23(x).reduce((obj, key) => {
+    var stripNs = (x) => x && ok24(x).reduce((obj, key) => {
       const nk = key.split(":").slice(1).join(":") || key;
       if (nk in obj)
         obj[key] = key;
@@ -5291,12 +5291,12 @@ var require_utilities = __commonJS({
     }, {});
     exports2.stripNs = stripNs;
     var stripAttrPrefix = (x) => x.replace(/^@_/, "");
-    var xmlNodeAttr2 = (n) => n && ok23(n).filter((k) => k.match(/^(?!@_xmlns)@_/)).reduce((part, cur) => {
+    var xmlNodeAttr2 = (n) => n && ok24(n).filter((k) => k.match(/^(?!@_xmlns)@_/)).reduce((part, cur) => {
       part[cur.replace(/^@_/, "")] = n[cur];
       return part;
     }, {});
     exports2.xmlNodeAttr = xmlNodeAttr2;
-    var typedNodeAttr = (n) => n && ok23(n).filter((k) => k.match(/^(?!@_xmlns)@_/)).reduce((part, cur) => {
+    var typedNodeAttr = (n) => n && ok24(n).filter((k) => k.match(/^(?!@_xmlns)@_/)).reduce((part, cur) => {
       part[cur.replace(/^@_/, "")] = n[cur];
       return part;
     }, {});
@@ -31302,12 +31302,12 @@ var require_cds = __commonJS({
       const raw = (0, utilities_1.fullParse)(response.body);
       const records = raw["adtcore:objectReferences"] ? (0, utilities_1.xmlArray)(raw, "adtcore:objectReferences", "adtcore:objectReference") : (0, utilities_1.xmlArray)(raw, "ddl:ddlObjectReferences", "ddl:ddlObjectReference");
       return records.map((r) => {
-        const attr10 = (0, utilities_1.xmlNodeAttr)(r);
+        const attr11 = (0, utilities_1.xmlNodeAttr)(r);
         return {
-          uri: attr10["adtcore:uri"] || "",
-          type: attr10["adtcore:type"] || "",
-          name: attr10["adtcore:name"] || "",
-          path: attr10["ddl:path"] || ""
+          uri: attr11["adtcore:uri"] || "",
+          type: attr11["adtcore:type"] || "",
+          name: attr11["adtcore:name"] || "",
+          path: attr11["ddl:path"] || ""
         };
       });
     }
@@ -32443,20 +32443,20 @@ var require_objectstructure = __commonJS({
       return void 0;
     }
     function parseStructureElement(el) {
-      const attr10 = (0, utilities_1.xmlNodeAttr)(el);
+      const attr11 = (0, utilities_1.xmlNodeAttr)(el);
       const links = (0, utilities_1.xmlArray)(el, "atom:link").map(utilities_1.xmlNodeAttr);
       const children = (0, utilities_1.xmlArray)(el, "abapsource:objectStructureElement").map(parseStructureElement);
       return {
-        name: attr10["adtcore:name"] || "",
-        type: attr10["adtcore:type"] || "",
-        description: attr10["adtcore:description"],
-        visibility: attr10.visibility,
-        level: attr10.level,
-        constant: parseBool(attr10.constant),
-        constructor: parseBool(attr10.constructor),
-        testmethod: parseBool(attr10.testmethod),
-        redefinition: parseBool(attr10.redefinition),
-        final: parseBool(attr10.final),
+        name: attr11["adtcore:name"] || "",
+        type: attr11["adtcore:type"] || "",
+        description: attr11["adtcore:description"],
+        visibility: attr11.visibility,
+        level: attr11.level,
+        constant: parseBool(attr11.constant),
+        constructor: parseBool(attr11.constructor),
+        testmethod: parseBool(attr11.testmethod),
+        redefinition: parseBool(attr11.redefinition),
+        final: parseBool(attr11.final),
         links,
         children
       };
@@ -32488,11 +32488,11 @@ var require_objectstructure = __commonJS({
       const response = await h.request(objectUrl, { qs });
       const res = (0, utilities_1.fullParse)(response.body);
       const root = (0, utilities_1.xmlRoot)(res);
-      const attr10 = (0, utilities_1.xmlNodeAttr)(root);
-      attr10["adtcore:changedAt"] = Date.parse(attr10["adtcore:changedAt"]) || 0;
-      attr10["adtcore:createdAt"] = Date.parse(attr10["adtcore:createdAt"]) || 0;
+      const attr11 = (0, utilities_1.xmlNodeAttr)(root);
+      attr11["adtcore:changedAt"] = Date.parse(attr11["adtcore:changedAt"]) || 0;
+      attr11["adtcore:createdAt"] = Date.parse(attr11["adtcore:createdAt"]) || 0;
       const links = (0, utilities_1.xmlArray)(root, "atom:link").map(utilities_1.xmlNodeAttr);
-      const metaData = attr10;
+      const metaData = attr11;
       let result;
       if (isClassMetaData(metaData)) {
         const includes = (0, utilities_1.xmlArray)(root, "class:include").map(convertIncludes);
@@ -32761,15 +32761,15 @@ var require_objectcontents = __commonJS({
       const response = await h.request(domainUrl, { qs });
       const res = (0, utilities_1.fullParse)(response.body);
       const root = (0, utilities_1.xmlRoot)(res);
-      const attr10 = (0, utilities_1.xmlNodeAttr)(root) || {};
+      const attr11 = (0, utilities_1.xmlNodeAttr)(root) || {};
       const packageAttr = (0, utilities_1.xmlNodeAttr)((0, utilities_1.xmlNode)(root, "adtcore:packageRef")) || {};
       const metaData = {
-        name: attr10["adtcore:name"],
-        description: attr10["adtcore:description"] || "",
-        language: attr10["adtcore:language"],
-        masterLanguage: attr10["adtcore:masterLanguage"] || "",
-        masterSystem: attr10["adtcore:masterSystem"] || "",
-        responsible: attr10["adtcore:responsible"],
+        name: attr11["adtcore:name"],
+        description: attr11["adtcore:description"] || "",
+        language: attr11["adtcore:language"],
+        masterLanguage: attr11["adtcore:masterLanguage"] || "",
+        masterSystem: attr11["adtcore:masterSystem"] || "",
+        responsible: attr11["adtcore:responsible"],
         packageName: packageAttr["adtcore:name"] || "",
         packageDescription: packageAttr["adtcore:description"],
         packageUri: packageAttr["adtcore:uri"]
@@ -32891,15 +32891,15 @@ var require_objectcontents = __commonJS({
       const response = await h.request(dataElementUrl, { qs });
       const res = (0, utilities_1.fullParse)(response.body);
       const root = (0, utilities_1.xmlRoot)(res);
-      const attr10 = (0, utilities_1.xmlNodeAttr)(root);
+      const attr11 = (0, utilities_1.xmlNodeAttr)(root);
       const packageAttr = (0, utilities_1.xmlNodeAttr)((0, utilities_1.xmlNode)(root, "adtcore:packageRef")) || {};
       const metaData = {
-        name: attr10["adtcore:name"],
-        description: attr10["adtcore:description"] || "",
-        language: attr10["adtcore:language"],
-        masterLanguage: attr10["adtcore:masterLanguage"] || "",
-        masterSystem: attr10["adtcore:masterSystem"] || "",
-        responsible: attr10["adtcore:responsible"],
+        name: attr11["adtcore:name"],
+        description: attr11["adtcore:description"] || "",
+        language: attr11["adtcore:language"],
+        masterLanguage: attr11["adtcore:masterLanguage"] || "",
+        masterSystem: attr11["adtcore:masterSystem"] || "",
+        responsible: attr11["adtcore:responsible"],
         packageName: packageAttr["adtcore:name"] || "",
         packageDescription: packageAttr["adtcore:description"],
         packageUri: packageAttr["adtcore:uri"]
@@ -33061,14 +33061,14 @@ var require_refactor = __commonJS({
       });
       const raw = (0, utilities_1.fullParse)(response.body);
       const parseDelta = (d) => {
-        const attr10 = (0, utilities_1.xmlNodeAttr)((0, utilities_1.xmlNode)(d, "adtcore:objectReference"));
+        const attr11 = (0, utilities_1.xmlNodeAttr)((0, utilities_1.xmlNode)(d, "adtcore:objectReference"));
         const content = d.content;
-        const { uri, range } = (0, urlparser_1.parseUri)(attr10["adtcore:uri"]);
+        const { uri, range } = (0, urlparser_1.parseUri)(attr11["adtcore:uri"]);
         return {
           uri,
           range,
-          name: attr10["adtcore:name"],
-          type: attr10["adtcore:type"],
+          name: attr11["adtcore:name"],
+          type: attr11["adtcore:type"],
           content
         };
       };
@@ -35068,7 +35068,7 @@ var require_tracetypes = __commonJS({
       return { author: author2, contributor, title, updated, runs };
     };
     exports2.parseTraceResults = parseTraceResults;
-    var parseTraceHitList = (xml3) => {
+    var parseTraceHitList2 = (xml3) => {
       const raw = (0, AdtException_1.validateParseResult)(HitListResponse.decode((0, utilities_1.fullParse)(xml3, { removeNSPrefix: true }))).hitlist;
       const parentLink = raw.link["@_href"];
       const entries = (0, utilities_1.extractXmlArray)(raw.entry).map((e) => {
@@ -35089,7 +35089,7 @@ var require_tracetypes = __commonJS({
       });
       return { parentLink, entries };
     };
-    exports2.parseTraceHitList = parseTraceHitList;
+    exports2.parseTraceHitList = parseTraceHitList2;
     var parseTraceDbAccess = (xml3) => {
       const toParse = (0, utilities_1.fullParse)(xml3, { removeNSPrefix: true });
       const parsed = traceDBAccesResponse.decode(toParse);
@@ -35112,7 +35112,7 @@ var require_tracetypes = __commonJS({
         return base * 10 ** exp;
       return base;
     };
-    var parseTraceStatements = (xml3) => {
+    var parseTraceStatements2 = (xml3) => {
       const raw = (0, AdtException_1.validateParseResult)(traceStatementResponse.decode((0, utilities_1.fullParse)(xml3, { removeNSPrefix: true }))).statements;
       const parentLink = raw.link["@_href"];
       const statements = (0, utilities_1.extractXmlArray)(raw.statement).map((s) => {
@@ -35131,7 +35131,7 @@ var require_tracetypes = __commonJS({
       const count = parseCount2(raw["@_count"]);
       return { ...(0, utilities_1.typedNodeAttr)(raw), count, parentLink, statements };
     };
-    exports2.parseTraceStatements = parseTraceStatements;
+    exports2.parseTraceStatements = parseTraceStatements2;
     var parseTraceRequestList = (xml3) => {
       const raw = tracesListRequest.decode((0, utilities_1.fullParse)(xml3, { removeNSPrefix: true }));
       const parsed = (0, AdtException_1.validateParseResult)(raw).feed;
@@ -35477,15 +35477,15 @@ var require_rapgenerator = __commonJS({
       let m;
       while ((m = re.exec(body)) !== null) {
         const attrs = m[1];
-        const attr10 = (n) => {
+        const attr11 = (n) => {
           const match = attrs.match(new RegExp(`(?:\\w+:)?${n}\\s*=\\s*"([^"]*)"`));
           return (match === null || match === void 0 ? void 0 : match[1]) || "";
         };
         out.push({
-          uri: attr10("uri"),
-          type: attr10("type"),
-          name: attr10("name"),
-          description: attr10("description")
+          uri: attr11("uri"),
+          type: attr11("type"),
+          name: attr11("name"),
+          description: attr11("description")
         });
       }
       return out;
@@ -60931,9 +60931,9 @@ async function escalateIfAtoSaysProductive(probes, detection) {
   if (detection.role === "productive") return detection;
   try {
     const { body } = await probes.getAtoSettings(ATO_SETTINGS, { headers: { Accept: "application/*" } });
-    const attr10 = (name) => new RegExp(`${name}="([^"]*)"`, "i").exec(body)?.[1];
-    const isProduction = attr10("isProductionSystem") ?? attr10("productionSystem");
-    const operationsType = attr10("operationsType")?.trim().toUpperCase();
+    const attr11 = (name) => new RegExp(`${name}="([^"]*)"`, "i").exec(body)?.[1];
+    const isProduction = attr11("isProductionSystem") ?? attr11("productionSystem");
+    const operationsType = attr11("operationsType")?.trim().toUpperCase();
     const tenantKind = operationsType === "C" ? "cloud" : operationsType === "H" ? "on-premise" : "unknown";
     if (isAbapTrue(isProduction)) {
       return {
@@ -64033,9 +64033,9 @@ async function fetchDdicXml(conn, target, operation, accept = "application/*") {
     throw classifyDdicFailure(e, { operation, uri: target.uri, name: target.name, type: target.type });
   }
 }
-function xmlAttr(node2, attr10) {
+function xmlAttr(node2, attr11) {
   if (node2 && typeof node2 === "object" && !Array.isArray(node2)) {
-    const v = node2[`@_${attr10}`];
+    const v = node2[`@_${attr11}`];
     return typeof v === "string" && v !== "" ? v : void 0;
   }
   return void 0;
@@ -66718,8 +66718,8 @@ var init_safety = __esm({
           const normalized = allowTransports.map((t) => t.trim().toUpperCase());
           if (!normalized.includes("*") && corr.kind === "transport") {
             const requested = corr.corrNr.trim().toUpperCase();
-            const ok23 = normalized.includes(requested) || corr.source === "auto" && normalized.includes("AUTO");
-            if (!ok23) {
+            const ok24 = normalized.includes(requested) || corr.source === "auto" && normalized.includes("AUTO");
+            if (!ok24) {
               return {
                 allowed: false,
                 reason: `Transport ${corr.corrNr} is not permitted by ABAP_ALLOW_TRANSPORTS [${allowTransports.join(", ")}].`,
@@ -100763,8 +100763,8 @@ function parsePackageRef(xml3) {
   const seen = /* @__PURE__ */ new Set();
   PACKAGE_REF_TAG_RE.lastIndex = 0;
   for (let tag = PACKAGE_REF_TAG_RE.exec(doc); tag; tag = PACKAGE_REF_TAG_RE.exec(doc)) {
-    const attr10 = PACKAGE_REF_NAME_RE.exec(tag[1] ?? "");
-    const value = (attr10?.[1] ?? attr10?.[2] ?? "").trim();
+    const attr11 = PACKAGE_REF_NAME_RE.exec(tag[1] ?? "");
+    const value = (attr11?.[1] ?? attr11?.[2] ?? "").trim();
     if (!value) continue;
     seen.add(value.toUpperCase());
     first ??= value;
@@ -100810,7 +100810,7 @@ function vitStubShowsRegistration(body) {
 }
 function vitStubShowsExistence(body) {
   if (vitStubShowsRegistration(body)) return true;
-  return VIT_EXISTENCE_ATTRS.some((attr10) => new RegExp(`adtcore:${attr10}\\s*=`, "i").test(body));
+  return VIT_EXISTENCE_ATTRS.some((attr11) => new RegExp(`adtcore:${attr11}\\s*=`, "i").test(body));
 }
 function echoesTarget(body, expectType, expectName) {
   const typeRe = new RegExp(`adtcore:type\\s*=\\s*"${escapeForRegex(expectType)}"`, "i");
@@ -126847,7 +126847,7 @@ function buildTreeRootProbeQuery(language) {
   const where2 = [`${lang} = ${sqlLiteral(assertImgLanguage(language))}`, `${text3} LIKE '${literal2}' ESCAPE '${escapeChar}'`];
   return buildSelect(`${treeId}, ${nodeId}, ${lang}, ${text3}`, tbl3("imgTreeNodeText"), where2);
 }
-function buildTreeChildrenQuery(treeId, parentId, language, after) {
+function buildTreeChildrenQuery(treeId, parentId2, language, after) {
   const node2 = tbl3("imgTreeNode");
   const nodeText = tbl3("imgTreeNodeText");
   const treeIdF = fld3("imgTreeNode", "treeId");
@@ -126875,7 +126875,7 @@ LEFT OUTER JOIN ${nodeText} AS t ON t~${textTreeIdF} = n~${treeIdF}
   AND t~${textNodeIdF} = n~${nodeIdF} AND t~${textLangF} = ${sqlLiteral(assertImgLanguage(language))}`;
   const where2 = [
     `n~${treeIdF} = ${sqlLiteral(assertTreeKeyValue(treeId, "treeId"))}`,
-    `n~${parentIdF} = ${sqlLiteral(assertTreeKeyValue(parentId, "parentId"))}`
+    `n~${parentIdF} = ${sqlLiteral(assertTreeKeyValue(parentId2, "parentId"))}`
   ];
   const afterPred = afterPredicate(`n~${nodeIdF}`, after, assertTreeKeyValue);
   if (afterPred !== void 0) where2.push(afterPred);
@@ -127137,12 +127137,12 @@ async function walkImgPath(conn, ctx, notes, activity, activityTitle, language) 
   const treeId = requireColumn(leafRec, fld4("imgTreeNode", "treeId"));
   const chain = [{ activity, position: 0, node: leafNodeId, title: activityTitle }];
   const visited = /* @__PURE__ */ new Set([leafNodeId]);
-  let parentId = requireColumn(leafRec, fld4("imgTreeNode", "parentId"));
+  let parentId2 = requireColumn(leafRec, fld4("imgTreeNode", "parentId"));
   let steps = 0;
-  while (parentId.trim() !== "") {
-    if (visited.has(parentId)) {
+  while (parentId2.trim() !== "") {
+    if (visited.has(parentId2)) {
       notes.push(
-        `Ancestor walk for activity "${activity}" revisited node "${parentId}" \u2014 TNODEIMG.PARENT_ID cycles here; the returned path stops at the point of the revisit, not the true root.`
+        `Ancestor walk for activity "${activity}" revisited node "${parentId2}" \u2014 TNODEIMG.PARENT_ID cycles here; the returned path stops at the point of the revisit, not the true root.`
       );
       break;
     }
@@ -127152,11 +127152,11 @@ async function walkImgPath(conn, ctx, notes, activity, activityTitle, language) 
       );
       break;
     }
-    const nodeResult = await issue2(conn, ctx, buildTreeNodeQuery(treeId, parentId, language), 1, [tbl4("imgTreeNode"), tbl4("imgTreeNodeText")]);
+    const nodeResult = await issue2(conn, ctx, buildTreeNodeQuery(treeId, parentId2, language), 1, [tbl4("imgTreeNode"), tbl4("imgTreeNodeText")]);
     notes.push(...serverNotes3(nodeResult.rs));
     if (nodeResult.rs.records.length === 0) {
       notes.push(
-        `Ancestor node "${parentId}" of activity "${activity}"'s mount has no ${tbl4("imgTreeNode")} row in tree "${treeId}" \u2014 the returned path stops here, not at the true root.`
+        `Ancestor node "${parentId2}" of activity "${activity}"'s mount has no ${tbl4("imgTreeNode")} row in tree "${treeId}" \u2014 the returned path stops here, not at the true root.`
       );
       break;
     }
@@ -127165,7 +127165,7 @@ async function walkImgPath(conn, ctx, notes, activity, activityTitle, language) 
     chain.push({ activity, position: chain.length, node: nodeId, title: requireColumn(rec, fld4("imgTreeNodeText", "text")) });
     visited.add(nodeId);
     steps++;
-    parentId = requireColumn(rec, fld4("imgTreeNode", "parentId"));
+    parentId2 = requireColumn(rec, fld4("imgTreeNode", "parentId"));
   }
   const rootFirst = chain.slice().reverse().map((row2, i) => ({ ...row2, position: i }));
   return { path: rootFirst, mountedNodes: nodeIds.length };
@@ -127395,7 +127395,7 @@ async function readImgTree(conn, q) {
   const ctx = newCtx();
   const notes = [];
   let treeId = q.treeId;
-  let parentId = q.node;
+  let parentId2 = q.node;
   if (treeId === void 0) {
     const probeResult = await issue2(conn, ctx, buildTreeRootProbeQuery(q.language), 5, tbl4("imgTreeNodeText"));
     notes.push(...serverNotes3(probeResult.rs));
@@ -127407,21 +127407,21 @@ async function readImgTree(conn, q) {
     }
     const rec = probeResult.rs.records[0];
     treeId = requireColumn(rec, fld4("imgTreeNodeText", "treeId"));
-    if (parentId === void 0) parentId = requireColumn(rec, fld4("imgTreeNodeText", "nodeId"));
+    if (parentId2 === void 0) parentId2 = requireColumn(rec, fld4("imgTreeNodeText", "nodeId"));
   }
-  if (parentId === void 0) {
+  if (parentId2 === void 0) {
     const dirResult = await issue2(conn, ctx, buildTreeDirectoryQuery([treeId]), 1, tbl4("treeDirectory"));
     notes.push(...serverNotes3(dirResult.rs));
     if (dirResult.rs.records.length === 0) {
       throw new AbapError("NOT_FOUND", `No ${tbl4("treeDirectory")} entry for tree "${treeId}".`, { treeId });
     }
-    parentId = requireColumn(dirResult.rs.records[0], fld4("treeDirectory", "rootNodeId"));
+    parentId2 = requireColumn(dirResult.rs.records[0], fld4("treeDirectory", "rootNodeId"));
   } else if (q.node !== void 0) {
-    const resolved = await resolveRefMount(conn, ctx, notes, { treeId, parentId }, q.language);
+    const resolved = await resolveRefMount(conn, ctx, notes, { treeId, parentId: parentId2 }, q.language);
     treeId = resolved.treeId;
-    parentId = resolved.parentId;
+    parentId2 = resolved.parentId;
   }
-  const childrenResult = await issue2(conn, ctx, buildTreeChildrenQuery(treeId, parentId, q.language), TREE_CHILDREN_FETCH_CAP, [
+  const childrenResult = await issue2(conn, ctx, buildTreeChildrenQuery(treeId, parentId2, q.language), TREE_CHILDREN_FETCH_CAP, [
     tbl4("imgTreeNode"),
     tbl4("imgTreeNodeText")
   ]);
@@ -127429,7 +127429,7 @@ async function readImgTree(conn, q) {
   const rawSiblings = childrenResult.rs.records.map(toTreeSibling);
   if (childrenResult.totalRows !== void 0 && childrenResult.totalRows > rawSiblings.length) {
     notes.push(
-      `Parent "${parentId}" reports ${childrenResult.totalRows} total children but only ${rawSiblings.length} were fetched (internal fetch cap ${TREE_CHILDREN_FETCH_CAP}) \u2014 BROTHER_ID ordering past the fetched set cannot be trusted.`
+      `Parent "${parentId2}" reports ${childrenResult.totalRows} total children but only ${rawSiblings.length} were fetched (internal fetch cap ${TREE_CHILDREN_FETCH_CAP}) \u2014 BROTHER_ID ordering past the fetched set cannot be trusted.`
     );
   }
   const ordered = orderImgTreeSiblings(rawSiblings);
@@ -127437,9 +127437,9 @@ async function readImgTree(conn, q) {
   if (q.after !== void 0) {
     const idx = ordered.findIndex((s) => s.nodeId === q.after);
     if (idx === -1) {
-      throw new AbapError("BAD_INPUT", `after cursor "${q.after}" is not one of parent "${parentId}"'s children.`, {
+      throw new AbapError("BAD_INPUT", `after cursor "${q.after}" is not one of parent "${parentId2}"'s children.`, {
         after: q.after,
-        parentId
+        parentId: parentId2
       });
     }
     startIdx = idx + 1;
@@ -137536,6 +137536,1504 @@ function registerServiceTools(mcp, deps) {
   );
 }
 
+// src/tools/trace.ts
+init_zod();
+init_errors();
+init_compact();
+
+// src/adt/traces-query.ts
+init_errors();
+var ABAPTRACES_BASE = "/sap/bc/adt/runtime/traces/abaptraces";
+var ABAPTRACES_REQUESTS_BASE = `${ABAPTRACES_BASE}/requests`;
+var ABAPTRACES_PARAMETERS_BASE = `${ABAPTRACES_BASE}/parameters`;
+var TRACE_OPS = ["start", "run", "list", "read", "delete"];
+var TRACE_VIEWS = ["hitlist", "db", "tree"];
+var TRACE_LIST_KINDS = ["runs", "requests"];
+var TRACE_DEFAULT_TOP = 20;
+var TRACE_MAX_TOP = 100;
+var TRACE_DEFAULT_TREE_DEPTH = 4;
+var TRACE_MAX_TREE_DEPTH = 12;
+var TRACE_DEFAULT_MAX_SIZE_KB = 30720;
+var TRACE_MAX_SIZE_KB = 102400;
+var TRACE_DEFAULT_MAX_SECONDS = 600;
+var TRACE_MAX_SECONDS = 1800;
+var TRACE_DEFAULT_EXECUTIONS = 1;
+var TRACE_MAX_EXECUTIONS = 5;
+var TRACE_REQUEST_TTL_MS = 60 * 60 * 1e3;
+var TRACE_DEFAULT_OPTIONS = Object.freeze({
+  description: "abapsmith trace",
+  aggregate: true,
+  sqlTrace: true,
+  allDbEvents: true,
+  allProceduralUnits: true,
+  allInternalTableEvents: false,
+  allMiscAbapStatements: false,
+  allDynproEvents: false,
+  allSystemKernelEvents: false,
+  withRfcTracing: false,
+  explicitOnOff: false,
+  maxSizeForTraceFile: TRACE_DEFAULT_MAX_SIZE_KB,
+  maxTimeForTracing: TRACE_DEFAULT_MAX_SECONDS
+});
+var DESCRIPTION_MAX_LEN = 60;
+function escapeAttr(value) {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+}
+function hasControlChars(value) {
+  return /[\x00-\x1F\x7F]/.test(value);
+}
+function assertDescription(description) {
+  if (typeof description !== "string" || description.trim() === "") {
+    throw new AbapError(
+      "BAD_INPUT",
+      "A trace needs a description.",
+      { description },
+      "Pass a short, human-readable label \u2014 it is shown back in worklist listings."
+    );
+  }
+  if (hasControlChars(description)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "The trace description contains control characters, which are not legal in an XML attribute.",
+      { description },
+      "Use plain printable text."
+    );
+  }
+  if (description.length > DESCRIPTION_MAX_LEN) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `The trace description is ${description.length} characters; SAP's field holds at most ${DESCRIPTION_MAX_LEN}.`,
+      { description, length: description.length, max: DESCRIPTION_MAX_LEN },
+      `Shorten the description to ${DESCRIPTION_MAX_LEN} characters or fewer.`
+    );
+  }
+  return description;
+}
+var boolAttr3 = (name, value) => `    <trc:${name} value="${value ? "true" : "false"}"></trc:${name}>
+`;
+function buildTraceParametersXml(options) {
+  const description = assertDescription(options.description);
+  const body = boolAttr3("allMiscAbapStatements", options.allMiscAbapStatements) + boolAttr3("allProceduralUnits", options.allProceduralUnits) + boolAttr3("allInternalTableEvents", options.allInternalTableEvents) + boolAttr3("allDynproEvents", options.allDynproEvents) + `    <trc:description value="${escapeAttr(description)}"></trc:description>
+` + boolAttr3("aggregate", options.aggregate) + boolAttr3("explicitOnOff", options.explicitOnOff) + boolAttr3("withRfcTracing", options.withRfcTracing) + boolAttr3("allSystemKernelEvents", options.allSystemKernelEvents) + boolAttr3("sqlTrace", options.sqlTrace) + boolAttr3("allDbEvents", options.allDbEvents) + `    <trc:maxSizeForTraceFile value="${options.maxSizeForTraceFile}"></trc:maxSizeForTraceFile>
+    <trc:maxTimeForTracing value="${options.maxTimeForTracing}"></trc:maxTimeForTracing>
+`;
+  return '<?xml version="1.0" encoding="UTF-8"?>\n<trc:parameters xmlns:trc="http://www.sap.com/adt/runtime/traces/abaptraces">\n' + body + "</trc:parameters>";
+}
+function classrunScopeUri(className) {
+  const canon = assertPlainName(className, "Class name").toUpperCase();
+  return `${CLASSRUN_PATH}${canon}`;
+}
+var TRACE_RUN_ID_RE = /^[0-9A-Fa-f]{32}$/;
+function normaliseTraceRunId(raw) {
+  const value = typeof raw === "string" ? raw.trim() : "";
+  if (TRACE_RUN_ID_RE.test(value)) return `${ABAPTRACES_BASE}/${value}`;
+  const prefix = `${ABAPTRACES_BASE}/`;
+  if (value.startsWith(prefix) && TRACE_RUN_ID_RE.test(value.slice(prefix.length))) {
+    return value;
+  }
+  throw new AbapError(
+    "BAD_INPUT",
+    `"${raw}" is not a usable ABAP-trace run id.`,
+    { traceId: raw },
+    `Pass either the bare 32-hex id or the full path returned by a previous list/read, e.g. ${ABAPTRACES_BASE}/<32-hex-id>.`
+  );
+}
+var TRACE_REQUEST_ID_RE = /^\d+(?:%2c|%2C|,)\d{14}$/;
+function normaliseTraceRequestId(raw) {
+  const value = typeof raw === "string" ? raw.trim() : "";
+  if (TRACE_REQUEST_ID_RE.test(value)) return `${ABAPTRACES_REQUESTS_BASE}/${value}`;
+  const prefix = `${ABAPTRACES_REQUESTS_BASE}/`;
+  if (value.startsWith(prefix) && TRACE_REQUEST_ID_RE.test(value.slice(prefix.length))) {
+    return value;
+  }
+  throw new AbapError(
+    "BAD_INPUT",
+    `"${raw}" is not a usable ABAP-trace request id.`,
+    { requestId: raw },
+    `Pass either the bare id (e.g. 4%2c20260915023824) or the full path returned by a previous create/list, e.g. ${ABAPTRACES_REQUESTS_BASE}/<id>.`
+  );
+}
+function buildCreateRequestQuery(input) {
+  return {
+    server: "*",
+    description: input.description,
+    traceUser: input.traceUser.toUpperCase(),
+    traceClient: input.traceClient,
+    processType: `${ABAPTRACES_BASE}/processtypes/http`,
+    objectType: `${ABAPTRACES_BASE}/objecttypes/url`,
+    objectName: input.objectName,
+    expires: input.expires.toISOString(),
+    maximalExecutions: String(input.maximalExecutions),
+    parametersId: input.parametersId
+  };
+}
+function resolveTop(raw) {
+  if (raw === void 0) return TRACE_DEFAULT_TOP;
+  if (typeof raw !== "number" || !Number.isFinite(raw) || !Number.isInteger(raw) || raw < 1) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `'top' must be a positive integer, got ${JSON.stringify(raw)}.`,
+      { top: raw },
+      `Omit 'top' to use the default of ${TRACE_DEFAULT_TOP}, or pass an integer from 1 to ${TRACE_MAX_TOP}.`
+    );
+  }
+  if (raw > TRACE_MAX_TOP) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `'top' of ${raw} exceeds the cap of ${TRACE_MAX_TOP} this client enforces.`,
+      { top: raw, max: TRACE_MAX_TOP },
+      `Pass 'top' no greater than ${TRACE_MAX_TOP}.`
+    );
+  }
+  return raw;
+}
+function resolveTreeDepth(raw) {
+  if (raw === void 0) return TRACE_DEFAULT_TREE_DEPTH;
+  if (typeof raw !== "number" || !Number.isFinite(raw) || !Number.isInteger(raw) || raw < 1) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `'depth' must be a positive integer, got ${JSON.stringify(raw)}.`,
+      { depth: raw },
+      `Omit 'depth' to use the default of ${TRACE_DEFAULT_TREE_DEPTH}, or pass an integer from 1 to ${TRACE_MAX_TREE_DEPTH}.`
+    );
+  }
+  if (raw > TRACE_MAX_TREE_DEPTH) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `'depth' of ${raw} exceeds the cap of ${TRACE_MAX_TREE_DEPTH} this client enforces.`,
+      { depth: raw, max: TRACE_MAX_TREE_DEPTH },
+      `Pass 'depth' no greater than ${TRACE_MAX_TREE_DEPTH}.`
+    );
+  }
+  return raw;
+}
+function assertBoolOption(raw, snakeName) {
+  if (raw === void 0) return void 0;
+  if (typeof raw !== "boolean") {
+    throw new AbapError(
+      "BAD_INPUT",
+      `'${snakeName}' must be a boolean, got ${JSON.stringify(raw)}.`,
+      { [snakeName]: raw },
+      `Pass true or false for '${snakeName}'.`
+    );
+  }
+  return raw;
+}
+function resolveTraceOptions(args, defaultDescription) {
+  const description = typeof args.description === "string" && args.description.trim() !== "" ? args.description : defaultDescription;
+  const aggregate = assertBoolOption(args.aggregate, "aggregate") ?? true;
+  const sqlTrace = assertBoolOption(args.sql_trace, "sql_trace") ?? true;
+  const allDbEvents = assertBoolOption(args.db_events, "db_events") ?? true;
+  const allProceduralUnits = assertBoolOption(args.procedural_units, "procedural_units") ?? true;
+  const allInternalTableEvents = assertBoolOption(args.internal_tables, "internal_tables") ?? false;
+  let maxSizeForTraceFile = TRACE_DEFAULT_MAX_SIZE_KB;
+  if (args.max_size_kb !== void 0) {
+    const raw = args.max_size_kb;
+    if (typeof raw !== "number" || !Number.isFinite(raw) || !Number.isInteger(raw) || raw < 1 || raw > TRACE_MAX_SIZE_KB) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `'max_size_kb' must be an integer from 1 to ${TRACE_MAX_SIZE_KB}, got ${JSON.stringify(raw)}.`,
+        { max_size_kb: raw, max: TRACE_MAX_SIZE_KB },
+        `Pass 'max_size_kb' between 1 and ${TRACE_MAX_SIZE_KB}, or omit it for the default of ${TRACE_DEFAULT_MAX_SIZE_KB}.`
+      );
+    }
+    maxSizeForTraceFile = raw;
+  }
+  let maxTimeForTracing = TRACE_DEFAULT_MAX_SECONDS;
+  if (args.max_seconds !== void 0) {
+    const raw = args.max_seconds;
+    if (typeof raw !== "number" || !Number.isFinite(raw) || !Number.isInteger(raw) || raw < 1 || raw > TRACE_MAX_SECONDS) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `'max_seconds' must be an integer from 1 to ${TRACE_MAX_SECONDS}, got ${JSON.stringify(raw)}.`,
+        { max_seconds: raw, max: TRACE_MAX_SECONDS },
+        `Pass 'max_seconds' between 1 and ${TRACE_MAX_SECONDS}, or omit it for the default of ${TRACE_DEFAULT_MAX_SECONDS}.`
+      );
+    }
+    maxTimeForTracing = raw;
+  }
+  return {
+    description,
+    aggregate,
+    sqlTrace,
+    allDbEvents,
+    allProceduralUnits,
+    allInternalTableEvents,
+    // Always false — not caller-settable; see the doc comment above.
+    allMiscAbapStatements: false,
+    allDynproEvents: false,
+    allSystemKernelEvents: false,
+    withRfcTracing: false,
+    explicitOnOff: false,
+    maxSizeForTraceFile,
+    maxTimeForTracing
+  };
+}
+function assertTreeViewAllowed(isAggregated, traceId) {
+  if (!isAggregated) return;
+  throw new AbapError(
+    "BAD_INPUT",
+    `Trace ${traceId} was recorded with 'aggregate' on, so it has no call tree to read.`,
+    { traceId, aggregate: true, view: "tree" },
+    "Start a new trace with aggregate=false to get a call tree; an aggregated trace only supports the hitlist and db views."
+  );
+}
+
+// src/adt/traces.ts
+init_errors();
+init_session();
+
+// src/adt/traces-xml.ts
+init_fxp();
+init_errors();
+init_truncate();
+var tracesXml = new XMLParser({
+  ignoreAttributes: false,
+  attributeNamePrefix: "@_",
+  removeNSPrefix: false,
+  parseAttributeValue: false,
+  parseTagValue: false,
+  trimValues: true,
+  // `typeof` guard: `jpath` is `string | MatcherView` in fast-xml-parser v5,
+  // a string only while default `jPath: true` holds. `isAttribute` matters
+  // because attributes share the element jpath space.
+  isArray: (_name, jpath, _isLeaf, isAttribute) => !isAttribute && typeof jpath === "string" && REPEATABLE_JPATHS3.has(jpath)
+});
+var REPEATABLE_JPATHS3 = /* @__PURE__ */ new Set([
+  // run list / request list feeds — both `atom:feed.atom:entry`
+  "atom:feed.atom:entry",
+  // a trace request carries two `atom:author`s (`trc:role="admin"` and
+  // `trc:role="trace"`) — see `requests-feed-one.xml`
+  "atom:feed.atom:entry.atom:author",
+  // hit list rows
+  "trc:hitlist.trc:entry",
+  // DB access rows and the table dictionary that backs them
+  "trc:dbAccesses.trc:dbAccess",
+  "trc:dbAccesses.trc:tables.trc:table",
+  // call-tree rows
+  "trc:statements.trc:statement"
+]);
+function asRecord5(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value) ? value : void 0;
+}
+function asArray6(value) {
+  if (Array.isArray(value)) return value;
+  return value === void 0 || value === null ? [] : [value];
+}
+function attr10(node2, name) {
+  const value = node2?.[`@_${name}`];
+  return typeof value === "string" ? value : void 0;
+}
+function attrOrEmpty4(node2, name) {
+  return attr10(node2, name) ?? "";
+}
+function elementText5(value) {
+  if (typeof value === "string") return value;
+  const rec = asRecord5(value);
+  const text3 = rec?.["#text"];
+  return typeof text3 === "string" ? text3 : void 0;
+}
+function isXmlTrue3(value) {
+  return value === "true";
+}
+function toNumber2(raw) {
+  if (raw === void 0 || raw === "") return 0;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : 0;
+}
+function numAttr2(node2, name) {
+  return toNumber2(attr10(node2, name));
+}
+function numElement(value) {
+  return toNumber2(elementText5(value));
+}
+function lastPathSegment2(value) {
+  if (value === void 0 || value === "") return "";
+  const parts = value.split("/");
+  return parts[parts.length - 1] ?? "";
+}
+function parseDocument2(body, what) {
+  let parsed;
+  try {
+    parsed = tracesXml.parse(body);
+  } catch (e) {
+    throw new AbapError(
+      "ADT_ERROR",
+      `The trace ${what} response could not be parsed as XML.`,
+      { what, detail: e instanceof Error ? e.message : String(e) },
+      "The server answered with something other than the expected trace document."
+    );
+  }
+  const rec = asRecord5(parsed);
+  if (rec === void 0) {
+    throw new AbapError(
+      "ADT_ERROR",
+      `The trace ${what} response was empty or not a document.`,
+      { what, length: body.length },
+      "The server answered with something other than the expected trace document."
+    );
+  }
+  return rec;
+}
+function missingRoot3(what, root, body) {
+  return new AbapError(
+    "ADT_ERROR",
+    `The trace ${what} response has no <${root}> element.`,
+    // truncateText discloses how much was cut, unlike a silent `.slice()`.
+    { what, root, preview: truncateText(body, PARSE_EXCERPT_MAX) },
+    "This ADT release may describe ABAP traces differently from what this client expects; see abap://system for the collections it does publish."
+  );
+}
+function linkHref2(links, rel) {
+  for (const raw of asArray6(links)) {
+    const link = asRecord5(raw);
+    if (attr10(link, "rel") === rel) return attr10(link, "href");
+  }
+  return void 0;
+}
+function parentId(root) {
+  return linkHref2(root["atom:link"], "parent") ?? "";
+}
+function parseProgramRef(node2) {
+  if (node2 === void 0) return void 0;
+  const context = attr10(node2, "adtcore:context");
+  if (context === void 0) return void 0;
+  const name = attr10(node2, "adtcore:name");
+  const type = attr10(node2, "adtcore:type");
+  const uri = attr10(node2, "adtcore:uri");
+  return {
+    context,
+    byteCodeOffset: numAttr2(node2, "byteCodeOffset"),
+    ...name === void 0 || name === "" ? {} : { name },
+    ...type === void 0 || type === "" ? {} : { type },
+    ...uri === void 0 || uri === "" ? {} : { uri }
+  };
+}
+function programRefNode(parent, tag) {
+  return asRecord5(parent[tag]);
+}
+function timeValue(node2) {
+  const rec = asRecord5(node2);
+  return { time: numAttr2(rec, "time"), percentage: numAttr2(rec, "percentage") };
+}
+function parseRunEntry(entry) {
+  const ext = asRecord5(entry["trc:extendedData"]) ?? {};
+  const state = asRecord5(ext["trc:state"]);
+  const aggregationKind = elementText5(ext["trc:aggregationKind"]);
+  const expiration = elementText5(ext["trc:expiration"]);
+  const host = elementText5(ext["trc:host"]);
+  const system = elementText5(ext["trc:system"]);
+  const client = elementText5(ext["trc:client"]);
+  return {
+    id: elementText5(entry["atom:id"]) ?? "",
+    title: elementText5(entry["atom:title"]) ?? "",
+    published: elementText5(entry["atom:published"]) ?? "",
+    user: elementText5(ext["trc:user"]) ?? "",
+    objectName: elementText5(ext["trc:objectName"]) ?? "",
+    size: numElement(ext["trc:size"]),
+    runtime: numElement(ext["trc:runtime"]),
+    runtimeAbap: numElement(ext["trc:runtimeABAP"]),
+    runtimeSystem: numElement(ext["trc:runtimeSystem"]),
+    runtimeDatabase: numElement(ext["trc:runtimeDatabase"]),
+    isAggregated: isXmlTrue3(elementText5(ext["trc:isAggregated"])),
+    ...aggregationKind === void 0 || aggregationKind === "" ? {} : { aggregationKind },
+    state: attrOrEmpty4(state, "value"),
+    stateText: attrOrEmpty4(state, "text"),
+    ...expiration === void 0 || expiration === "" ? {} : { expiration },
+    ...host === void 0 || host === "" ? {} : { host },
+    ...system === void 0 || system === "" ? {} : { system },
+    ...client === void 0 || client === "" ? {} : { client }
+  };
+}
+function parseTraceRuns(xml3) {
+  const doc = parseDocument2(xml3, "run list");
+  if ("atom:entry" in doc) {
+    const entry = asRecord5(doc["atom:entry"]);
+    return entry === void 0 ? [] : [parseRunEntry(entry)];
+  }
+  if (!("atom:feed" in doc)) {
+    throw missingRoot3("run list", "atom:feed", xml3);
+  }
+  const feed = asRecord5(doc["atom:feed"]) ?? {};
+  const runs = [];
+  for (const raw of asArray6(feed["atom:entry"])) {
+    const entry = asRecord5(raw);
+    if (entry === void 0) continue;
+    runs.push(parseRunEntry(entry));
+  }
+  return runs;
+}
+function authorByRole(authors, role) {
+  for (const raw of asArray6(authors)) {
+    const author = asRecord5(raw);
+    if (attr10(author, "trc:role") !== role) continue;
+    return elementText5(author?.["atom:name"]) ?? "";
+  }
+  return "";
+}
+function parseRequestEntry(entry) {
+  const ext = asRecord5(entry["trc:extendedData"]) ?? {};
+  const object3 = asRecord5(ext["trc:object"]);
+  const processType = asRecord5(ext["trc:processType"]);
+  const executions = asRecord5(ext["trc:executions"]);
+  const expires = elementText5(ext["trc:expires"]);
+  return {
+    id: elementText5(entry["atom:id"]) ?? "",
+    title: elementText5(entry["atom:title"]) ?? "",
+    description: elementText5(ext["trc:description"]) ?? "",
+    published: elementText5(entry["atom:published"]) ?? "",
+    traceUser: authorByRole(entry["atom:author"], "trace"),
+    objectName: elementText5(ext["trc:object"]) ?? "",
+    objectType: lastPathSegment2(attr10(object3, "trc:objectTypeId")),
+    processType: lastPathSegment2(attr10(processType, "trc:processTypeId")),
+    isAggregated: isXmlTrue3(elementText5(ext["trc:isAggregated"])),
+    ...expires === void 0 || expires === "" ? {} : { expires },
+    maximalExecutions: numAttr2(executions, "trc:maximal"),
+    completedExecutions: numAttr2(executions, "trc:completed")
+  };
+}
+function parseTraceRequests(xml3) {
+  const doc = parseDocument2(xml3, "request list");
+  if (!("atom:feed" in doc)) {
+    throw missingRoot3("request list", "atom:feed", xml3);
+  }
+  const feed = asRecord5(doc["atom:feed"]) ?? {};
+  const requests = [];
+  for (const raw of asArray6(feed["atom:entry"])) {
+    const entry = asRecord5(raw);
+    if (entry === void 0) continue;
+    requests.push(parseRequestEntry(entry));
+  }
+  return requests;
+}
+function parseHitEntry(node2) {
+  const callingProgram = parseProgramRef(programRefNode(node2, "trc:callingProgram"));
+  const dbAccessAnchor = attr10(node2, "dbAccessAnchor");
+  return {
+    rank: numAttr2(node2, "topDownIndex"),
+    index: numAttr2(node2, "index"),
+    hitCount: numAttr2(node2, "hitCount"),
+    description: attrOrEmpty4(node2, "description"),
+    calledProgram: attrOrEmpty4(programRefNode(node2, "trc:calledProgram"), "adtcore:context"),
+    ...callingProgram === void 0 ? {} : { callingProgram },
+    grossTime: timeValue(node2["trc:grossTime"]),
+    netTime: timeValue(node2["trc:traceEventNetTime"]),
+    ...dbAccessAnchor === void 0 || dbAccessAnchor === "" ? {} : { dbAccessAnchor: toNumber2(dbAccessAnchor) }
+  };
+}
+function parseTraceHitList(xml3) {
+  const doc = parseDocument2(xml3, "hit list");
+  const root = asRecord5(doc["trc:hitlist"]);
+  if (root === void 0) throw missingRoot3("hit list", "trc:hitlist", xml3);
+  const entries = [];
+  for (const raw of asArray6(root["trc:entry"])) {
+    const node2 = asRecord5(raw);
+    if (node2 === void 0) continue;
+    entries.push(parseHitEntry(node2));
+  }
+  return { parentId: parentId(root), entries };
+}
+function parseDbAccess(node2) {
+  const accessTime = asRecord5(node2["trc:accessTime"]);
+  const callingProgram = parseProgramRef(programRefNode(node2, "trc:callingProgram"));
+  return {
+    index: numAttr2(node2, "index"),
+    tableName: attrOrEmpty4(node2, "tableName"),
+    statement: attrOrEmpty4(node2, "statement"),
+    type: attrOrEmpty4(node2, "type"),
+    totalCount: numAttr2(node2, "totalCount"),
+    bufferedCount: numAttr2(node2, "bufferedCount"),
+    totalTime: numAttr2(accessTime, "total"),
+    applicationServerTime: numAttr2(accessTime, "applicationServer"),
+    databaseTime: numAttr2(accessTime, "database"),
+    ratioOfTraceTotal: numAttr2(accessTime, "ratioOfTraceTotal"),
+    ...callingProgram === void 0 ? {} : { callingProgram }
+  };
+}
+function parseTableInfo(node2) {
+  return {
+    name: attrOrEmpty4(node2, "name"),
+    // NOT `adtcore:type` — see this module's `removeNSPrefix` comment.
+    tableClass: attrOrEmpty4(node2, "type"),
+    description: attrOrEmpty4(node2, "description"),
+    bufferMode: attrOrEmpty4(node2, "bufferMode"),
+    package: attrOrEmpty4(node2, "adtcore:package")
+  };
+}
+function parseTraceDbAccesses(xml3) {
+  const doc = parseDocument2(xml3, "DB accesses");
+  const root = asRecord5(doc["trc:dbAccesses"]);
+  if (root === void 0) throw missingRoot3("DB accesses", "trc:dbAccesses", xml3);
+  const accesses = [];
+  for (const raw of asArray6(root["trc:dbAccess"])) {
+    const node2 = asRecord5(raw);
+    if (node2 === void 0) continue;
+    accesses.push(parseDbAccess(node2));
+  }
+  const tables = [];
+  for (const raw of asArray6(asRecord5(root["trc:tables"])?.["trc:table"])) {
+    const node2 = asRecord5(raw);
+    if (node2 === void 0) continue;
+    tables.push(parseTableInfo(node2));
+  }
+  return {
+    parentId: parentId(root),
+    totalDbTime: numAttr2(root, "totalDbTime"),
+    accesses,
+    tables
+  };
+}
+function parseStatement(node2) {
+  const callingProgram = parseProgramRef(programRefNode(node2, "trc:callingProgram"));
+  return {
+    index: numAttr2(node2, "index"),
+    id: numAttr2(node2, "id"),
+    callerId: numAttr2(node2, "callerId"),
+    callLevel: numAttr2(node2, "callLevel"),
+    description: attrOrEmpty4(node2, "description"),
+    hitCount: numAttr2(node2, "hitCount"),
+    subnodeCount: numAttr2(node2, "subnodeCount"),
+    ...callingProgram === void 0 ? {} : { callingProgram },
+    grossTime: timeValue(node2["trc:grossTime"]),
+    netTime: timeValue(node2["trc:traceEventNetTime"])
+  };
+}
+function parseTraceStatements(xml3) {
+  const doc = parseDocument2(xml3, "call tree");
+  const root = asRecord5(doc["trc:statements"]);
+  if (root === void 0) throw missingRoot3("call tree", "trc:statements", xml3);
+  const statements = [];
+  for (const raw of asArray6(root["trc:statement"])) {
+    const node2 = asRecord5(raw);
+    if (node2 === void 0) continue;
+    statements.push(parseStatement(node2));
+  }
+  return {
+    parentId: parentId(root),
+    // `Math.round` here, and only here: `m:count`'s scientific-notation
+    // literal (`"6.6E+2"`) survives `Number(...)` as `660` already, but
+    // rounding guards against a literal landing on a non-integer boundary
+    // (e.g. `"6.601E+2"`) — a row count must be a whole number.
+    count: Math.round(numAttr2(root, "m:count")),
+    statements
+  };
+}
+
+// src/adt/traces.ts
+function classifyTraceFailure(e, ctx) {
+  const err = translateAdtError(e, ctx);
+  if (err.code !== "ADT_ERROR" && err.code !== "NOT_FOUND") return err;
+  const info = adtExceptionInfo(e);
+  const status = info?.status ?? (typeof err.details.status === "number" ? err.details.status : void 0);
+  const message = info?.message ?? "";
+  const props = info?.properties ?? {};
+  const extra = { ...err.details, ...status === void 0 ? {} : { status } };
+  if (ctx.traceId !== void 0 && status === 404 && (props["T100KEY-ID"] === "ATRAPI" || /trace file.*does not exist/i.test(message))) {
+    return new AbapError(
+      "NOT_FOUND",
+      `Trace ${ctx.traceId} does not exist on this system.`,
+      { ...extra, traceId: ctx.traceId },
+      'Run abap_trace with op="list" to see the trace ids that still exist. Traces expire and are deleted by the system on its own schedule, so an id from an earlier answer can already be gone.'
+    );
+  }
+  if (ctx.requestId !== void 0 && status === 404 && (props["T100KEY-ID"] === "SADT_RESOURCE" || /resource\s*does not exist/i.test(message))) {
+    return new AbapError(
+      "NOT_FOUND",
+      `Trace request ${ctx.requestId} does not exist on this system.`,
+      { ...extra, requestId: ctx.requestId },
+      'Run abap_trace with op="list" and kind="requests" to see the request ids that still exist.'
+    );
+  }
+  if (status === 400 && /invalidRequestForAggregatedTraces/i.test(message)) {
+    return new AbapError(
+      "BAD_INPUT",
+      `Trace ${ctx.traceId ?? "this trace"} was recorded with 'aggregate' on, so it has no call tree to read.`,
+      { ...extra, ...ctx.traceId === void 0 ? {} : { traceId: ctx.traceId }, aggregate: true },
+      "Start a new trace with aggregate=false to get a call tree; an aggregated trace only supports the hitlist and db views."
+    );
+  }
+  if (status === 403) {
+    return new AbapError(
+      "ADT_ERROR",
+      "The server refused the ABAP trace request (HTTP 403).",
+      extra,
+      "ABAP runtime tracing has its own authorisation objects (S_ADMI_FCD / S_DEVELOP trace authority), granted separately from the developer authority that lets you display or run the traced object. Being able to run a program does not imply being allowed to record or read a trace over it."
+    );
+  }
+  if (status === 404 && ctx.traceId === void 0 && ctx.requestId === void 0) {
+    return new AbapError(
+      "UNSUPPORTED",
+      `This system does not serve ${ctx.uri ?? "ABAP runtime traces"} (HTTP 404).`,
+      extra,
+      "This release does not expose ABAP trace (SAT) over ADT. There is no fallback and no other path to it from here."
+    );
+  }
+  return err;
+}
+function responseHeader(headers, name) {
+  const key = Object.keys(headers).find((k) => k.toLowerCase() === name);
+  if (key === void 0) return void 0;
+  const value = headers[key];
+  if (typeof value === "string") return value;
+  if (Array.isArray(value) && typeof value[0] === "string") return value[0];
+  return void 0;
+}
+var STATEMENTS_ACCEPT = "application/vnd.sap.adt.runtime.traces.abaptraces.aggcalltree+xml, application/xml";
+async function listTraceRuns(conn, user) {
+  conn.discovery.assertSupported("traces.abaptraces", "ABAP runtime tracing");
+  const ctx = {
+    operation: "traces.listRuns",
+    uri: ABAPTRACES_BASE,
+    traceUser: user
+  };
+  let body;
+  try {
+    ({ body } = await conn.get(ABAPTRACES_BASE, { qs: { user: user.toUpperCase() } }));
+  } catch (e) {
+    throw classifyTraceFailure(e, ctx);
+  }
+  return parseTraceRuns(body);
+}
+async function listTraceRequests(conn, user) {
+  conn.discovery.assertSupported("traces.abaptraces", "ABAP runtime tracing");
+  const ctx = {
+    operation: "traces.listRequests",
+    uri: ABAPTRACES_REQUESTS_BASE,
+    traceUser: user
+  };
+  let body;
+  try {
+    ({ body } = await conn.get(ABAPTRACES_REQUESTS_BASE, { qs: { user: user.toUpperCase() } }));
+  } catch (e) {
+    throw classifyTraceFailure(e, ctx);
+  }
+  return parseTraceRequests(body);
+}
+async function readTraceRun(conn, traceId) {
+  conn.discovery.assertSupported("traces.abaptraces", "ABAP runtime tracing");
+  const url2 = normaliseTraceRunId(traceId);
+  const ctx = { operation: "traces.readRun", uri: url2, traceId };
+  let body;
+  try {
+    ({ body } = await conn.get(url2));
+  } catch (e) {
+    throw classifyTraceFailure(e, ctx);
+  }
+  const runs = parseTraceRuns(body);
+  const run2 = runs[0];
+  if (run2 === void 0) {
+    throw new AbapError(
+      "NOT_FOUND",
+      `Trace ${traceId} does not exist on this system.`,
+      { traceId, uri: url2 },
+      'Run abap_trace with op="list" to see the trace ids that still exist. Traces expire and are deleted by the system on its own schedule.'
+    );
+  }
+  return run2;
+}
+async function fetchTraceHitList(conn, traceId, withSystemEvents) {
+  conn.discovery.assertSupported("traces.abaptraces", "ABAP runtime tracing");
+  const url2 = `${normaliseTraceRunId(traceId)}/hitlist`;
+  const ctx = { operation: "traces.hitlist", uri: url2, traceId };
+  let body;
+  try {
+    ({ body } = await conn.get(url2, {
+      qs: { withSystemEvents: String(withSystemEvents ?? false) }
+    }));
+  } catch (e) {
+    throw classifyTraceFailure(e, ctx);
+  }
+  return parseTraceHitList(body);
+}
+async function fetchTraceDbAccesses(conn, traceId, withSystemEvents) {
+  conn.discovery.assertSupported("traces.abaptraces", "ABAP runtime tracing");
+  const url2 = `${normaliseTraceRunId(traceId)}/dbAccesses`;
+  const ctx = { operation: "traces.dbAccesses", uri: url2, traceId };
+  let body;
+  try {
+    ({ body } = await conn.get(url2, {
+      qs: { withSystemEvents: String(withSystemEvents ?? false) }
+    }));
+  } catch (e) {
+    throw classifyTraceFailure(e, ctx);
+  }
+  return parseTraceDbAccesses(body);
+}
+async function fetchTraceStatements(conn, traceId) {
+  conn.discovery.assertSupported("traces.abaptraces", "ABAP runtime tracing");
+  const url2 = `${normaliseTraceRunId(traceId)}/statements`;
+  const ctx = { operation: "traces.statements", uri: url2, traceId };
+  let body;
+  try {
+    ({ body } = await conn.get(url2, { headers: { Accept: STATEMENTS_ACCEPT } }));
+  } catch (e) {
+    throw classifyTraceFailure(e, ctx);
+  }
+  return parseTraceStatements(body);
+}
+async function createTraceParameters(conn, options) {
+  conn.discovery.assertSupported("traces.abaptraces", "ABAP runtime tracing");
+  const url2 = ABAPTRACES_PARAMETERS_BASE;
+  const ctx = { operation: "traces.createParameters", uri: url2 };
+  const body = buildTraceParametersXml(options);
+  let headers;
+  try {
+    ({ headers } = await conn.post(url2, {
+      headers: { "Content-Type": "application/xml" },
+      body
+    }));
+  } catch (e) {
+    throw classifyTraceFailure(e, ctx);
+  }
+  const location = responseHeader(headers, "location");
+  if (location === void 0 || location === "") {
+    throw new AbapError(
+      "ADT_ERROR",
+      "Creating ABAP trace parameters did not return a 'location' header naming the parameters id.",
+      { uri: url2 },
+      "This endpoint answers 200 with an empty body and puts the parameters id in the response's 'location' header. Without it there is nothing to pass as parametersId to the trace-request POST \u2014 retry once; if it repeats, the parameters document itself may have been rejected silently."
+    );
+  }
+  return location;
+}
+async function createTraceRequest(conn, input) {
+  conn.discovery.assertSupported("traces.abaptraces", "ABAP runtime tracing");
+  const url2 = ABAPTRACES_REQUESTS_BASE;
+  const ctx = {
+    operation: "traces.createRequest",
+    uri: url2,
+    traceUser: input.traceUser
+  };
+  let body;
+  try {
+    ({ body } = await conn.post(url2, { qs: buildCreateRequestQuery(input) }));
+  } catch (e) {
+    throw classifyTraceFailure(e, ctx);
+  }
+  const requests = parseTraceRequests(body);
+  const created = requests[0];
+  if (created === void 0) {
+    throw new AbapError(
+      "ADT_ERROR",
+      "Creating the ABAP trace request returned no request entry.",
+      { uri: url2 },
+      "This endpoint answers with a feed containing the just-created request; an empty feed means the server accepted the call but echoed nothing back to reference, so the request cannot be tracked or deleted later."
+    );
+  }
+  return created;
+}
+async function deleteTraceRequest(conn, requestId) {
+  conn.discovery.assertSupported("traces.abaptraces", "ABAP runtime tracing");
+  const url2 = normaliseTraceRequestId(requestId);
+  const ctx = { operation: "traces.deleteRequest", uri: url2, requestId };
+  try {
+    await conn.del(url2);
+  } catch (e) {
+    throw classifyTraceFailure(e, ctx);
+  }
+}
+async function deleteTraceRun(conn, traceId) {
+  conn.discovery.assertSupported("traces.abaptraces", "ABAP runtime tracing");
+  const url2 = normaliseTraceRunId(traceId);
+  const ctx = { operation: "traces.deleteRun", uri: url2, traceId };
+  try {
+    await conn.del(url2);
+  } catch (e) {
+    throw classifyTraceFailure(e, ctx);
+  }
+}
+var AWAIT_TRACE_DEFAULT_ATTEMPTS = 5;
+var AWAIT_TRACE_DEFAULT_DELAY_MS = 400;
+function sleep2(ms) {
+  return new Promise((resolve5) => {
+    const t = setTimeout(resolve5, ms);
+    t?.unref?.();
+  });
+}
+async function awaitNewTraceRun(conn, user, knownIds, opts = {}) {
+  const attempts = opts.attempts ?? AWAIT_TRACE_DEFAULT_ATTEMPTS;
+  const delayMs = opts.delayMs ?? AWAIT_TRACE_DEFAULT_DELAY_MS;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const runs = await listTraceRuns(conn, user);
+    const fresh = runs.filter((r) => !knownIds.has(r.id));
+    if (fresh.length > 0) {
+      fresh.sort((a, b) => a.published < b.published ? 1 : a.published > b.published ? -1 : 0);
+      return fresh[0];
+    }
+    if (attempt < attempts - 1) {
+      await sleep2(delayMs);
+    }
+  }
+  return void 0;
+}
+
+// src/tools/trace.ts
+var traceInputSchema = {
+  op: external_exports.enum(TRACE_OPS).optional().describe(`Operation. Default "run". One of: ${TRACE_OPS.join(", ")}.`),
+  object: external_exports.string().optional().describe("Class or report to trace. Required for op=start and op=run."),
+  type: external_exports.string().optional().describe("ADT type, e.g. CLAS/OC, when ambiguous. op=start/run only."),
+  id: external_exports.string().optional().describe(
+    "A trace run id (op=read) or a trace run/request id (op=delete). Accepts either the bare id or the full path a previous list/create answered with."
+  ),
+  kind: external_exports.enum(TRACE_LIST_KINDS).optional().describe(`What to list. Default "runs". One of: ${TRACE_LIST_KINDS.join(", ")}. op=list only.`),
+  view: external_exports.enum(TRACE_VIEWS).optional().describe(`What to read. Default "hitlist". One of: ${TRACE_VIEWS.join(", ")}. op=read only.`),
+  top: external_exports.number().int().optional().describe("Cap on rows shown. Default 20, max 100. op=read (hitlist/tree) and op=run only."),
+  depth: external_exports.number().int().optional().describe(
+    "Max call-tree depth, relative to the traced object's own entry node (that node is depth 0), not the ADT dispatch root. Default 4, max 12. op=read view=tree only."
+  ),
+  root: external_exports.string().optional().describe(
+    "Anchor the tree view at the first call-tree node whose description or calling-program name matches this text (case-insensitive substring; matched uppercased). Overrides the automatic anchor, which is the traced object's own entry node. op=read view=tree only."
+  ),
+  description: external_exports.string().optional().describe("Short label for the trace request (max 60 chars). op=start/run only."),
+  aggregate: external_exports.boolean().optional().describe(
+    "Aggregate repeated calls (no call tree afterwards). Default true. op=start/run only."
+  ),
+  sql_trace: external_exports.boolean().optional().describe("Record SQL statements. Default true. op=start/run only."),
+  db_events: external_exports.boolean().optional().describe("Record database events. Default true. op=start/run only."),
+  procedural_units: external_exports.boolean().optional().describe("Record procedural units (FORM/FUNCTION/METHOD calls). Default true. op=start/run only."),
+  internal_tables: external_exports.boolean().optional().describe("Record internal-table operations. Default false. op=start/run only."),
+  max_size_kb: external_exports.number().int().optional().describe(`Trace file size cap in KB. Default 30720, max ${TRACE_MAX_SIZE_KB}. op=start/run only.`),
+  max_seconds: external_exports.number().int().optional().describe(`Trace duration cap in seconds. Default 600, max ${TRACE_MAX_SECONDS}. op=start/run only.`),
+  executions: external_exports.number().int().optional().describe(
+    `How many executions the request stays armed for. Default ${TRACE_DEFAULT_EXECUTIONS}, max ${TRACE_MAX_EXECUTIONS}. op=start only \u2014 op=run always creates a single-execution request.`
+  )
+};
+var TraceInput = external_exports.object(traceInputSchema);
+var KNOWN_KEYS5 = new Set(Object.keys(TraceInput.shape));
+function rejectUnknownArgs5(args) {
+  const unknown2 = Object.keys(args).filter((k) => !KNOWN_KEYS5.has(k));
+  if (unknown2.length === 0) return;
+  throw new AbapError(
+    "BAD_INPUT",
+    `abap_trace does not take ${unknown2.map((k) => `\`${k}\``).join(", ")}.`,
+    { unknown: unknown2, known: [...KNOWN_KEYS5] },
+    `Parameters are: ${[...KNOWN_KEYS5].join(", ")}.`
+  );
+}
+var TRACE_OPTION_KEYS = [
+  "description",
+  "aggregate",
+  "sql_trace",
+  "db_events",
+  "procedural_units",
+  "internal_tables",
+  "max_size_kb",
+  "max_seconds"
+];
+var OP_ALLOWED_KEYS2 = {
+  start: /* @__PURE__ */ new Set(["object", "type", "executions", ...TRACE_OPTION_KEYS]),
+  run: /* @__PURE__ */ new Set(["object", "type", "top", ...TRACE_OPTION_KEYS]),
+  list: /* @__PURE__ */ new Set(["kind"]),
+  read: /* @__PURE__ */ new Set(["id", "view", "top", "depth", "root"]),
+  delete: /* @__PURE__ */ new Set(["id"])
+};
+var TREE_ONLY_KEYS = ["depth", "root"];
+function resolveOp2(args) {
+  const raw = args.op;
+  if (raw === void 0) return "run";
+  if (typeof raw === "string" && TRACE_OPS.includes(raw)) {
+    return raw;
+  }
+  throw new AbapError(
+    "BAD_INPUT",
+    `abap_trace op must be one of ${TRACE_OPS.join(", ")}; got ${JSON.stringify(raw)}.`,
+    { op: raw },
+    `Pass op as one of: ${TRACE_OPS.join(", ")}.`
+  );
+}
+function validateOpArgs2(args, op) {
+  const allowed = OP_ALLOWED_KEYS2[op];
+  const irrelevant = Object.keys(args).filter(
+    (k) => k !== "op" && args[k] !== void 0 && !allowed.has(k)
+  );
+  if (irrelevant.length > 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `abap_trace op="${op}" does not take ${irrelevant.map((k) => `\`${k}\``).join(", ")}.`,
+      { op, irrelevant },
+      `Drop ${irrelevant.length === 1 ? "that parameter" : "those parameters"}, or pick the op that takes ${irrelevant.length === 1 ? "it" : "them"}.`
+    );
+  }
+  if ((op === "start" || op === "run") && typeof args.object !== "string") {
+    throw new AbapError(
+      "BAD_INPUT",
+      `abap_trace op="${op}" needs \`object\`.`,
+      { op },
+      "Pass the class or report name to trace as `object`."
+    );
+  }
+  if (op === "read") {
+    const view = args.view ?? "hitlist";
+    const treeOnly = TREE_ONLY_KEYS.filter((k) => args[k] !== void 0);
+    if (view !== "tree" && treeOnly.length > 0) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `abap_trace op="read" view="${String(view)}" does not take ${treeOnly.map((k) => `\`${k}\``).join(", ")}; ${treeOnly.length === 1 ? "it applies" : "they apply"} to view="tree" only.`,
+        { op, view, irrelevant: treeOnly },
+        `Drop ${treeOnly.length === 1 ? "that parameter" : "those parameters"}, or pass view="tree".`
+      );
+    }
+  }
+  if ((op === "read" || op === "delete") && typeof args.id !== "string") {
+    throw new AbapError(
+      "BAD_INPUT",
+      `abap_trace op="${op}" needs \`id\`.`,
+      { op },
+      op === "read" ? 'Pass a trace run id as `id` \u2014 see op="list" for ids that still exist.' : 'Pass a trace run or request id as `id` \u2014 see op="list" for ids that still exist.'
+    );
+  }
+}
+function resolveExecutions(raw) {
+  if (raw === void 0) return TRACE_DEFAULT_EXECUTIONS;
+  if (typeof raw !== "number" || !Number.isFinite(raw) || !Number.isInteger(raw) || raw < 1) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `'executions' must be a positive integer, got ${JSON.stringify(raw)}.`,
+      { executions: raw },
+      `Omit 'executions' to use the default of ${TRACE_DEFAULT_EXECUTIONS}, or pass 1 to ${TRACE_MAX_EXECUTIONS}.`
+    );
+  }
+  if (raw > TRACE_MAX_EXECUTIONS) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `'executions' of ${raw} exceeds the cap of ${TRACE_MAX_EXECUTIONS}.`,
+      { executions: raw, max: TRACE_MAX_EXECUTIONS },
+      `Pass 'executions' no greater than ${TRACE_MAX_EXECUTIONS}.`
+    );
+  }
+  return raw;
+}
+function shortId2(fullId) {
+  const idx = fullId.lastIndexOf("/");
+  return idx === -1 ? fullId : fullId.slice(idx + 1);
+}
+var msFromUs = (us) => String(Math.round(us / 1e3));
+var pct = (p) => `${p.toFixed(1)}%`;
+function renderRunsTable(runs) {
+  const rows = runs.map((r) => ({
+    id: shortId2(r.id),
+    object: r.objectName,
+    published: r.published,
+    size: String(r.size),
+    runtime_ms: msFromUs(r.runtime),
+    state: r.stateText || r.state,
+    aggregated: r.isAggregated ? "yes" : "no"
+  }));
+  return textTable(rows, ["id", "object", "published", "size", "runtime_ms", "state", "aggregated"]);
+}
+function renderRequestsTable(requests) {
+  const rows = requests.map((r) => ({
+    id: shortId2(r.id),
+    description: r.description,
+    object: r.objectName,
+    expires: r.expires ?? "",
+    executions: `${r.completedExecutions}/${r.maximalExecutions}`
+  }));
+  return textTable(rows, ["id", "description", "object", "expires", "executions"]);
+}
+async function renderList(conn, kind, maxChars) {
+  const user = conn.cfg.user;
+  if (kind === "requests") {
+    const requests = await listTraceRequests(conn, user);
+    if (requests.length === 0) {
+      return buildResponse({
+        body: `No trace requests found for user ${user.toUpperCase()}.`,
+        hints: ['Use op="run" to trace an object as part of executing it, or op="start" to arm a request to run later.'],
+        maxChars
+      });
+    }
+    return buildResponse({ body: renderRequestsTable(requests), bodyLabel: "TRACE REQUESTS", maxChars });
+  }
+  const runs = await listTraceRuns(conn, user);
+  if (runs.length === 0) {
+    return buildResponse({
+      body: `No trace runs found for user ${user.toUpperCase()}.`,
+      hints: ['Use op="run" to trace an object as part of executing it.'],
+      maxChars
+    });
+  }
+  return buildResponse({ body: renderRunsTable(runs), bodyLabel: "TRACE RUNS", maxChars });
+}
+function renderHitList(entries, top) {
+  const cut = entries.slice(0, top);
+  const rows = cut.map((e) => ({
+    rank: String(e.rank),
+    hits: String(e.hitCount),
+    net_ms: msFromUs(e.netTime.time),
+    net_pct: pct(e.netTime.percentage),
+    gross_ms: msFromUs(e.grossTime.time),
+    gross_pct: pct(e.grossTime.percentage),
+    program: e.callingProgram?.name ?? e.calledProgram ?? "",
+    description: e.description
+  }));
+  const table = textTable(rows, [
+    "rank",
+    "hits",
+    "net_ms",
+    "net_pct",
+    "gross_ms",
+    "gross_pct",
+    "program",
+    "description"
+  ]);
+  return {
+    table,
+    note: entries.length > top ? `showing top ${top} of ${entries.length} hit-list entries` : void 0
+  };
+}
+function renderDbAccesses(db, top) {
+  const cut = db.accesses.slice(0, top);
+  const rows = cut.map((a) => ({
+    table: a.tableName,
+    statement: a.statement,
+    type: a.type,
+    total_count: String(a.totalCount),
+    buffered: String(a.bufferedCount),
+    total_ms: msFromUs(a.totalTime),
+    db_ms: msFromUs(a.databaseTime),
+    pct_of_trace: pct(a.ratioOfTraceTotal)
+  }));
+  const table = textTable(rows, [
+    "table",
+    "statement",
+    "type",
+    "total_count",
+    "buffered",
+    "total_ms",
+    "db_ms",
+    "pct_of_trace"
+  ]);
+  const tableRows = db.tables.map((t) => ({
+    name: t.name,
+    table_class: t.tableClass,
+    buffer_mode: t.bufferMode,
+    package: t.package
+  }));
+  const tables = textTable(tableRows, ["name", "table_class", "buffer_mode", "package"]);
+  return {
+    table,
+    tables,
+    note: db.accesses.length > top ? `showing top ${top} of ${db.accesses.length} DB-access entries` : void 0,
+    totalMs: msFromUs(db.totalDbTime)
+  };
+}
+function anchorHintFromObjectUrl(objectUrl) {
+  const last = objectUrl.split("/").filter((s) => s.length > 0).pop();
+  return last === void 0 || last.length === 0 ? void 0 : last;
+}
+function findTreeAnchorIndex(statements, hint) {
+  const needle = hint.trim().toUpperCase();
+  if (needle.length === 0) return -1;
+  return statements.findIndex((s) => {
+    if (s.description.toUpperCase().includes(needle)) return true;
+    const name = s.callingProgram?.name;
+    return name !== void 0 && name.toUpperCase().includes(needle);
+  });
+}
+async function renderRead(conn, args, maxChars) {
+  const rawId = args.id;
+  const run2 = await readTraceRun(conn, rawId);
+  const id = shortId2(run2.id);
+  const view = args.view ?? "hitlist";
+  const top = resolveTop(args.top);
+  const header = {
+    trace_run_id: id,
+    object: run2.objectName,
+    aggregated: run2.isAggregated ? "yes" : "no",
+    size: run2.size,
+    runtime_ms: msFromUs(run2.runtime)
+  };
+  if (view === "hitlist") {
+    const hit = await fetchTraceHitList(conn, run2.id);
+    const { table: table2, note } = renderHitList(hit.entries, top);
+    return buildResponse({
+      header,
+      body: table2,
+      bodyLabel: "HIT LIST",
+      notes: note ? [note] : void 0,
+      maxChars
+    });
+  }
+  if (view === "db") {
+    const db = await fetchTraceDbAccesses(conn, run2.id);
+    const { table: table2, tables, note, totalMs } = renderDbAccesses(db, top);
+    return buildResponse({
+      header,
+      sections: [
+        { title: "DB ACCESSES", content: table2 },
+        { title: "TABLES", content: tables }
+      ],
+      body: `Total DB time: ${totalMs} ms.`,
+      notes: note ? [note] : void 0,
+      maxChars
+    });
+  }
+  assertTreeViewAllowed(run2.isAggregated, id);
+  const depth = resolveTreeDepth(args.depth);
+  const stmt = await fetchTraceStatements(conn, run2.id);
+  const rootHint = args.root ?? anchorHintFromObjectUrl(run2.objectName);
+  const anchorIndex = rootHint === void 0 ? -1 : findTreeAnchorIndex(stmt.statements, rootHint);
+  const notes = [];
+  let subtree;
+  let relativeLevel;
+  if (anchorIndex === -1) {
+    subtree = stmt.statements;
+    relativeLevel = (s) => s.callLevel;
+    notes.push(
+      rootHint === void 0 ? "could not determine the traced object's name to anchor the call tree on; showing the tree from the ADT dispatch root instead \u2014 pass 'root' to anchor it explicitly" : `no call-tree node matched root ${JSON.stringify(rootHint)}; showing the tree from the ADT dispatch root instead \u2014 check the spelling, or omit 'root' to let the traced object be found automatically`
+    );
+  } else {
+    const anchor = stmt.statements[anchorIndex];
+    const anchorLevel = anchor.callLevel;
+    subtree = [anchor];
+    for (let i = anchorIndex + 1; i < stmt.statements.length; i++) {
+      const s = stmt.statements[i];
+      if (s.callLevel <= anchorLevel) break;
+      subtree.push(s);
+    }
+    relativeLevel = (s) => s.callLevel - anchorLevel;
+    notes.push(
+      `call tree rooted at ${JSON.stringify(anchor.description.trim())} (absolute level ${anchorLevel}); levels below are relative to this node`
+    );
+  }
+  const flattened = subtree.filter((s) => relativeLevel(s) <= depth);
+  const cut = flattened.slice(0, top);
+  const rows = cut.map((s) => {
+    const level = relativeLevel(s);
+    return {
+      level: String(level),
+      hits: String(s.hitCount),
+      net_ms: msFromUs(s.netTime.time),
+      gross_ms: msFromUs(s.grossTime.time),
+      description: `${"  ".repeat(Math.max(level, 0))}${s.description}`
+    };
+  });
+  const table = textTable(rows, ["level", "hits", "net_ms", "gross_ms", "description"]);
+  if (flattened.length > top) {
+    notes.push(
+      `showing top ${top} of ${flattened.length} call-tree entries at depth <= ${depth} (${stmt.count} statements total in the untruncated tree)`
+    );
+  }
+  if (subtree.length > flattened.length) {
+    notes.push(
+      `depth <= ${depth} kept ${flattened.length} of ${subtree.length} call-tree nodes; deeper nodes were dropped \u2014 raise 'depth' (max ${TRACE_MAX_TREE_DEPTH}) to see them`
+    );
+  }
+  return buildResponse({ header, body: table, bodyLabel: "CALL TREE", notes, maxChars });
+}
+function tracedObjectUrl(resolved) {
+  if (resolved.kind === "CLAS") return classrunScopeUri(resolved.name);
+  if (resolved.kind === "PROG") return classrunScopeUri(bridgeClassName(resolved.name));
+  throw new AbapError(
+    "UNSUPPORTED",
+    `${resolved.type} ${resolved.name} cannot be traced: only classes implementing IF_OO_ADT_CLASSRUN and reports (PROG) are dispatched through a single classrun URL a trace request can scope to.`,
+    { object: resolved.name, type: resolved.type, kind: resolved.kind },
+    "Trace a class or report."
+  );
+}
+function traceRequestRef(id, description) {
+  return { name: id, type: "TRACE/REQ", uri: `${ABAPTRACES_REQUESTS_BASE}/${id}`, package: "", description };
+}
+function traceRunRef(id, description) {
+  return { name: id, type: "TRACE/RUN", uri: `${ABAPTRACES_BASE}/${id}`, package: "", description };
+}
+function traceSystemKey(conn) {
+  return systemKey({ sid: conn.cfg.sid, url: conn.cfg.url, client: conn.cfg.client });
+}
+async function journalledCreateTraceRequest(conn, journal, input) {
+  const { result, settle } = await withJournalledMutation(
+    journal,
+    {
+      begin: (created) => ({
+        operation: "create",
+        object: traceRequestRef(shortId2(created.id), created.description),
+        existedBefore: false,
+        beforeCapture: "confirmed-absent",
+        irreversible: true,
+        systemKey: traceSystemKey(conn),
+        tool: "abap_trace"
+      })
+    },
+    async (onBeforeImage) => {
+      const created = await createTraceRequest(conn, input);
+      await onBeforeImage(created);
+      return created;
+    }
+  );
+  await settle({ outcome: "succeeded" });
+  return result;
+}
+async function journalledDeleteRequest(conn, journal, id, description, beforeCapture) {
+  const { settle } = await withJournalledMutation(
+    journal,
+    {
+      begin: () => ({
+        operation: "delete",
+        object: traceRequestRef(id, description),
+        existedBefore: true,
+        beforeCapture,
+        irreversible: true,
+        systemKey: traceSystemKey(conn),
+        tool: "abap_trace"
+      })
+    },
+    async (onBeforeImage) => {
+      await onBeforeImage();
+      await deleteTraceRequest(conn, id);
+    }
+  );
+  await settle({ outcome: "succeeded" });
+}
+async function journalledDeleteRun(conn, journal, id, description) {
+  const { settle } = await withJournalledMutation(
+    journal,
+    {
+      begin: () => ({
+        operation: "delete",
+        object: traceRunRef(id, description),
+        existedBefore: true,
+        beforeCapture: "unknown",
+        irreversible: true,
+        systemKey: traceSystemKey(conn),
+        tool: "abap_trace"
+      })
+    },
+    async (onBeforeImage) => {
+      await onBeforeImage();
+      await deleteTraceRun(conn, id);
+    }
+  );
+  await settle({ outcome: "succeeded" });
+}
+async function abapTraceStart(conn, journal, args, maxChars) {
+  const object3 = args.object;
+  const options = resolveTraceOptions(args, `abapsmith trace of ${object3}`);
+  const executions = resolveExecutions(args.executions);
+  const resolved = await resolveObject(conn, object3, { type: args.type });
+  const scopeUrl = tracedObjectUrl(resolved);
+  const usedDefaultDescription = typeof args.description !== "string" || args.description.trim() === "";
+  if (usedDefaultDescription) {
+    options.description = `abapsmith trace of ${resolved.name}`;
+  }
+  const parametersId = await createTraceParameters(conn, options);
+  const request = await journalledCreateTraceRequest(conn, journal, {
+    description: options.description,
+    traceUser: conn.cfg.user,
+    traceClient: conn.cfg.client,
+    objectName: scopeUrl,
+    parametersId,
+    maximalExecutions: executions,
+    expires: new Date(Date.now() + TRACE_REQUEST_TTL_MS)
+  });
+  const requestId = shortId2(request.id);
+  return buildResponse({
+    header: {
+      request_id: requestId,
+      traced_object: scopeUrl,
+      expires: request.expires,
+      maximal_executions: request.maximalExecutions
+    },
+    body: `Trace request ${requestId} created, scoped to ${scopeUrl}.`,
+    hints: [
+      `Execute ${resolved.name} through its normal entry point (it must dispatch through ${scopeUrl}), then run abap_trace op="list" kind="runs" to find the new trace run id, and op="read" with that id to read it.`,
+      `Delete this request with op="delete" id="${requestId}" once you are done with it \u2014 a fully consumed trace request is not retired by the server on its own.`
+    ],
+    maxChars
+  });
+}
+async function abapTraceRun(conn, journal, safety, args, maxChars) {
+  const object3 = args.object;
+  const options = resolveTraceOptions(args, `abapsmith trace of ${object3}`);
+  const top = resolveTop(args.top);
+  const resolved = await resolveObject(conn, object3, { type: args.type });
+  const scopeUrl = tracedObjectUrl(resolved);
+  const usedDefaultDescription = typeof args.description !== "string" || args.description.trim() === "";
+  if (usedDefaultDescription) {
+    options.description = `abapsmith trace of ${resolved.name}`;
+  }
+  const parametersId = await createTraceParameters(conn, options);
+  const request = await journalledCreateTraceRequest(conn, journal, {
+    description: options.description,
+    traceUser: conn.cfg.user,
+    traceClient: conn.cfg.client,
+    objectName: scopeUrl,
+    parametersId,
+    maximalExecutions: 1,
+    expires: new Date(Date.now() + TRACE_REQUEST_TTL_MS)
+  });
+  const requestId = shortId2(request.id);
+  const notes = [];
+  let runOutputText = "";
+  let runSummary;
+  let runError;
+  try {
+    const before = await listTraceRuns(conn, conn.cfg.user);
+    const knownIds = new Set(before.map((r) => r.id));
+    const runMode = resolved.kind === "PROG" ? "report" : "class";
+    const runRes = await abapRun(conn, { object: resolved.name, mode: runMode }, maxChars, safety);
+    runOutputText = runRes.text;
+    runSummary = await awaitNewTraceRun(conn, conn.cfg.user, knownIds);
+  } catch (e) {
+    runError = e;
+  } finally {
+    try {
+      await journalledDeleteRequest(conn, journal, requestId, request.description, "captured");
+    } catch (e) {
+      notes.push(
+        `Could not delete trace request ${requestId} after the run: ${e.message}. Delete it by hand with op="delete" id="${requestId}".`
+      );
+    }
+  }
+  if (runError) throw runError;
+  if (runSummary === void 0) {
+    notes.push(
+      `No new trace run appeared for ${resolved.name} within the poll budget. This usually means the execution did not dispatch through the traced URL (${scopeUrl}) \u2014 e.g. it ran in a session that bypassed the classrun bridge, or the object never actually executed.`
+    );
+    return buildResponse({
+      header: { system: conn.cfg.sid, object: `${resolved.type} ${resolved.name}` },
+      sections: [{ title: "RUN OUTPUT", content: runOutputText }],
+      notes,
+      maxChars
+    });
+  }
+  const runId = shortId2(runSummary.id);
+  const hit = await fetchTraceHitList(conn, runSummary.id);
+  const { table: hitTable, note: hitNote } = renderHitList(hit.entries, top);
+  if (hitNote) notes.push(hitNote);
+  const db = await fetchTraceDbAccesses(conn, runSummary.id);
+  const { table: dbTable, note: dbNote, totalMs } = renderDbAccesses(db, top);
+  if (dbNote) notes.push(dbNote);
+  return buildResponse({
+    header: {
+      system: conn.cfg.sid,
+      object: `${resolved.type} ${resolved.name}`,
+      trace_run_id: runId,
+      aggregated: runSummary.isAggregated ? "yes" : "no",
+      total_db_ms: totalMs
+    },
+    sections: [
+      { title: "RUN OUTPUT", content: runOutputText },
+      { title: "HIT LIST", content: hitTable },
+      { title: "DB ACCESSES", content: dbTable }
+    ],
+    notes,
+    hints: [`Run abap_trace op="read" id="${runId}" view="tree" for a call tree (non-aggregated traces only).`],
+    maxChars
+  });
+}
+async function abapTraceDelete(conn, journal, args, maxChars) {
+  const raw = args.id;
+  let kind;
+  let full;
+  try {
+    full = normaliseTraceRequestId(raw);
+    kind = "request";
+  } catch {
+    full = normaliseTraceRunId(raw);
+    kind = "run";
+  }
+  const id = shortId2(full);
+  if (kind === "request") {
+    await journalledDeleteRequest(conn, journal, id, `trace request ${id}`, "unknown");
+  } else {
+    await journalledDeleteRun(conn, journal, id, `trace run ${id}`);
+  }
+  return buildResponse({
+    header: { deleted: kind, id },
+    body: `Deleted trace ${kind} ${id}.`,
+    maxChars
+  });
+}
+var ok22 = (text3) => ({ content: [{ type: "text", text: text3 }] });
+function assertCanTrace(gate, opLabel) {
+  const d = gate.evaluate("execute", void 0, {});
+  if (d.allowed || d.code === "SAFETY_DENIED") return;
+  throw new AbapError(
+    d.code ?? "READ_ONLY",
+    d.reason,
+    { operation: `trace.${opLabel}`, rule: d.rule },
+    d.hint ?? "ABAP runtime tracing needs write capability (ABAP_MODE=edit/admin)."
+  );
+}
+function registerTraceTools(mcp, deps) {
+  mcp.registerTool(
+    "abap_trace",
+    {
+      description: `ABAP runtime tracing (SAT): records everything a traced request's dispatch touches \u2014 time per call and every database access. op="run" (default) traces one execution of a class/report and reads the result back; op="start" arms a request to trace a later run yourself; op="list" shows existing runs/requests; op="read" reads a run's hit list, DB accesses, or call tree; op="delete" removes a run or request.`,
+      // Registering the raw `traceInputSchema` shape directly here would have
+      // the MCP SDK wrap it in a stripping `z.object`, which silently deletes
+      // unknown keys before they ever reach the handler — `rejectUnknownArgs`
+      // below would then be dead code, refusing nothing, because there would
+      // be nothing left to refuse. `z.looseObject(...)` keeps unknown keys on
+      // the parsed object (and reports `additionalProperties: {}` in the
+      // advertised JSON schema, verified live) so the handler-side check can
+      // actually see and name them. See `./dumps.ts`'s `dumpsInputSchema` for
+      // the precedent this mirrors.
+      inputSchema: external_exports.looseObject(traceInputSchema),
+      annotations: { readOnlyHint: false, destructiveHint: true }
+    },
+    async (args) => {
+      try {
+        const a = args ?? {};
+        rejectUnknownArgs5(a);
+        const op = resolveOp2(a);
+        validateOpArgs2(a, op);
+        const input = a;
+        if (op === "list") {
+          await deps.ensureConnected();
+          const res2 = await deps.pool.withRead(
+            "abap_trace",
+            (conn) => renderList(conn, input.kind ?? "runs", deps.cfg.maxResponseChars)
+          );
+          return ok22(res2.text);
+        }
+        if (op === "read") {
+          await deps.ensureConnected();
+          const res2 = await deps.pool.withRead(
+            "abap_trace",
+            (conn) => renderRead(conn, input, deps.cfg.maxResponseChars)
+          );
+          return ok22(res2.text);
+        }
+        if (op === "delete") {
+          assertCanTrace(deps.safety, "delete");
+          await deps.ensureConnected();
+          const res2 = await deps.pool.withRead(
+            "abap_trace",
+            (conn) => abapTraceDelete(conn, deps.journal, input, deps.cfg.maxResponseChars)
+          );
+          return ok22(res2.text);
+        }
+        if (op === "start") {
+          assertCanTrace(deps.safety, "start");
+          deps.safety.assert("execute", preflight({ object: input.object, type: input.type }), {
+            phase: "preflight"
+          });
+          await deps.ensureConnected();
+          const res2 = await deps.pool.withRead(
+            "abap_trace",
+            (conn) => abapTraceStart(conn, deps.journal, input, deps.cfg.maxResponseChars)
+          );
+          return ok22(res2.text);
+        }
+        assertCanTrace(deps.safety, "run");
+        deps.safety.assert("execute", preflight({ object: input.object, type: input.type }), {
+          phase: "preflight"
+        });
+        await deps.ensureConnected();
+        const res = await deps.pool.withWrite(
+          "abap_trace",
+          void 0,
+          (conn) => abapTraceRun(conn, deps.journal, deps.safety, input, deps.cfg.maxResponseChars)
+        );
+        return ok22(res.text);
+      } catch (e) {
+        return deps.errorResult(e);
+      }
+    }
+  );
+}
+
 // src/tools/fluid.ts
 init_zod();
 init_errors();
@@ -137956,7 +139454,7 @@ var FluidInputSchema = external_exports.object(fluidInputSchema);
 function isBareFluidCall(a) {
   return a.op === void 0 && a.tool === void 0 && a.action === void 0;
 }
-var ok22 = (text3) => ({ content: [{ type: "text", text: text3 }] });
+var ok23 = (text3) => ({ content: [{ type: "text", text: text3 }] });
 function badInput(message, field, extra = {}) {
   return new AbapError("BAD_INPUT", message, { field, ...extra });
 }
@@ -138050,7 +139548,7 @@ function renderInfoBlock(deps) {
     maxChars: deps.cfg.maxResponseChars
   }).text;
 }
-function renderList(deps) {
+function renderList2(deps) {
   const rows = toolListRows(deps.toolSet, { categories: true });
   return buildResponse({
     header: {
@@ -138511,30 +140009,30 @@ function registerFluidTool(mcp, deps) {
         const a = rawArgs;
         if (isBareFluidCall(a)) {
           requireFluidEnabled(deps, { op: "catalogue" });
-          return ok22(renderInfoBlock(deps));
+          return ok23(renderInfoBlock(deps));
         }
         const op = a.op ?? "run";
         switch (op) {
           case "list":
             requireFluidEnabled(deps, { op });
-            return ok22(renderList(deps));
+            return ok23(renderList2(deps));
           case "describe": {
             requireFluidEnabled(deps, { op, tool: a.tool });
             const toolId = a.tool ? a.tool : void 0;
             if (toolId !== void 0) mustGetTool(deps.toolSet, toolId);
-            return ok22(renderDescribe(deps, buildFluidDescribe(deps.toolSet, toolId), toolId));
+            return ok23(renderDescribe(deps, buildFluidDescribe(deps.toolSet, toolId), toolId));
           }
           case "status":
             requireFluidEnabled(deps, { op });
-            return ok22(await renderStatus(deps));
+            return ok23(await renderStatus(deps));
           case "verify":
-            return ok22(await runVerify(deps, a));
+            return ok23(await runVerify(deps, a));
           case "run":
-            return ok22(await runRun(deps, a));
+            return ok23(await runRun(deps, a));
           case "repair":
-            return ok22(await runRepair(deps, a));
+            return ok23(await runRepair(deps, a));
           case "remove":
-            return ok22(await runRemove(deps, a));
+            return ok23(await runRemove(deps, a));
         }
       } catch (e) {
         return deps.errorResult(e);
@@ -138930,14 +140428,14 @@ async function handleAbapDebug(args, deps) {
     }
     const runner = runnerFor(deps);
     const result = await runner.run(args);
-    const ok23 = {
+    const ok24 = {
       ok: true,
       tool: "abap_debug",
       data: result.text,
       ...result.notes.length > 0 ? { notes: result.notes } : {},
       next: buildNextCalls(result)
     };
-    return v2Result(ok23);
+    return v2Result(ok24);
   } catch (e) {
     return v2Result(
       v2Error("abap_debug", e, [{ tool: "abap_debug", args: {}, why: "Retry with the bare call for guidance." }])
@@ -140628,8 +142126,8 @@ async function handleAbapWrite(args, deps) {
         }
       ] : []
     );
-    const ok23 = { ok: true, tool: "abap_write", data: result.text, next };
-    return v2Result(ok23);
+    const ok24 = { ok: true, tool: "abap_write", data: result.text, next };
+    return v2Result(ok24);
   } catch (e) {
     const failedObject = objectNameFromArgs(args);
     return v2Result(
@@ -141377,6 +142875,7 @@ function createServer(cfg, opts) {
       registerVariables: toolCapabilities.canReadDumpVariables
     });
     registerServiceTools(mcp, { pool, cfg, ensureConnected, errorResult });
+    registerTraceTools(mcp, { pool, safety, ensureConnected, errorResult, cfg, journal });
     if (toolCapabilities.canUseFluidApi) {
       registerFluidTool(mcp, {
         pool,

@@ -20,6 +20,7 @@ const FOO_BAR_DIR = join(FIXTURES, "foo_bar");
 // The shipped, operator-installable plugins live outside the fixtures tree.
 const SHIPPED_PLUGINS = join(dirname(fileURLToPath(import.meta.url)), "..", "fluid-plugins");
 const NR_DIR = join(SHIPPED_PLUGINS, "nr");
+const JOBS_DIR = join(SHIPPED_PLUGINS, "jobs");
 
 let dir: string;
 
@@ -620,5 +621,97 @@ describe("shipped plugin fluid-plugins/nr", () => {
       "delete",
       "set_interval",
     ]);
+  });
+});
+
+describe("shipped plugin fluid-plugins/jobs", () => {
+  it("loads with every action once mutate and CALL FUNCTION are allowed", async () => {
+    const result = await loadFluidTools(cfg([await isolatedRoot("jobs", JOBS_DIR)], true, true, true));
+    expect(result.refused).toEqual([]);
+    const tool = result.tools.get("jobs");
+    if (!tool) throw new Error("unreachable");
+    expect(tool.origin).toBe("plugin");
+    expect(tool.manifest.actions.map((a) => a.name).sort()).toEqual([
+      "cancel",
+      "list",
+      "schedule",
+      "show",
+      "spool",
+    ]);
+    expect(tool.sources.has("ZCL_ZMCP_X_JOBS")).toBe(true);
+  });
+
+  it("is refused while ABAP_ALLOW_FLUID_CALL_FM is off, because it schedules and cancels through the JOB_* and BP_JOB_* function modules", async () => {
+    const result = await loadFluidTools(cfg([await isolatedRoot("jobs", JOBS_DIR)], true, true, false));
+    expect(result.tools.size).toBe(0);
+    expect(result.refused).toHaveLength(1);
+    const refusal = result.refused[0];
+    if (!refusal) throw new Error("unreachable");
+    expect(refusal.code).toBe("SAFETY_DENIED");
+    expect(refusal.rule).toBe("ABAP_ALLOW_FLUID_CALL_FM");
+    expect(refusal.id).toBe("jobs");
+  });
+
+  it("still loads with ABAP_ALLOW_FLUID_PLUGIN_MUTATE off: it mutates through function modules, not Open SQL, so the mutate gate applies per action at dispatch", async () => {
+    const result = await loadFluidTools(cfg([await isolatedRoot("jobs", JOBS_DIR)], true, false, true));
+    expect(result.refused).toEqual([]);
+    const tool = result.tools.get("jobs");
+    if (!tool) throw new Error("unreachable");
+    expect(tool.manifest.actions.filter((a) => a.category === "mutate").map((a) => a.name).sort()).toEqual([
+      "cancel",
+      "schedule",
+    ]);
+  });
+
+  it("gates schedule on the report it will run, and declares no target for cancel, which is not a repository object", async () => {
+    const result = await loadFluidTools(cfg([await isolatedRoot("jobs", JOBS_DIR)], true, true, true));
+    expect(result.refused).toEqual([]);
+    const tool = result.tools.get("jobs");
+    if (!tool) throw new Error("unreachable");
+    const schedule = tool.manifest.actions.find((a) => a.name === "schedule");
+    if (!schedule) throw new Error("unreachable");
+    expect(schedule.targets).toEqual({ object: "/program" });
+    const cancel = tool.manifest.actions.find((a) => a.name === "cancel");
+    if (!cancel) throw new Error("unreachable");
+    // A background job is not a repository object: it has no package and no
+    // ABAP object name for the safety gate to judge. cancel is instead
+    // controlled by the mutate flag, the confirm echo, and the plugin's own
+    // owner check (any_owner / scheduled-by-caller).
+    expect(cancel.targets).toBeUndefined();
+  });
+
+  it("takes only flat arguments, because the ABAP argument reader parses one level", async () => {
+    const result = await loadFluidTools(cfg([await isolatedRoot("jobs", JOBS_DIR)], true, true, true));
+    expect(result.refused).toEqual([]);
+    const tool = result.tools.get("jobs");
+    if (!tool) throw new Error("unreachable");
+    const flatTypes = ["string", "boolean", "integer", "number"];
+    for (const action of tool.manifest.actions) {
+      const properties = action.input.properties ?? {};
+      for (const [propName, propSchema] of Object.entries(properties)) {
+        expect(
+          propSchema.type,
+          `action "${action.name}" property "${propName}" has type ${String(propSchema.type)}, expected one of ${flatTypes.join(", ")}`,
+        ).toBeDefined();
+        expect(
+          flatTypes,
+          `action "${action.name}" property "${propName}" has type ${String(propSchema.type)}, expected one of ${flatTypes.join(", ")}`,
+        ).toContain(propSchema.type);
+      }
+    }
+  });
+
+  it("exposes no way to schedule an OS command or an external program", async () => {
+    const result = await loadFluidTools(cfg([await isolatedRoot("jobs", JOBS_DIR)], true, true, true));
+    expect(result.refused).toEqual([]);
+    const tool = result.tools.get("jobs");
+    if (!tool) throw new Error("unreachable");
+    const schedule = tool.manifest.actions.find((a) => a.name === "schedule");
+    if (!schedule) throw new Error("unreachable");
+    const properties = schedule.input.properties ?? {};
+    for (const propName of Object.keys(properties)) {
+      expect(propName).not.toMatch(/extpgm|command|opsys|external/i);
+    }
+    expect(schedule.description.toLowerCase()).toContain("os command");
   });
 });
