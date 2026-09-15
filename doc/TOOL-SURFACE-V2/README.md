@@ -58,9 +58,9 @@ six:
 | `abap_bopf_delete` | `abap_do` (`bopf_delete`) |
 | `abap_bopf_test` | `abap_do` (`bopf_test`) |
 | `abap_fpm_read` | `abap_find` (`kind: "fpm"`) / `abap_read` (`view: "fpm"`) |
-| `abap_read` | `abap_read` (`view: source \| method \| outline \| contract \| metadata`) |
+| `abap_read` | `abap_read` (`view: source \| method \| outline \| contract \| metadata`) — v1-only `view: "definition"` (element info / go-to-definition, with `line`/`column`) has **no v2 route**; the surface is frozen |
 | `abap_write` | `abap_write` (`edit` splice, `method` replace, `source` rewrite, `mode: "delete"`, `dry_run` preview) |
-| `abap_activate` | `abap_do` (`activate`, `check`) |
+| `abap_activate` | `abap_do` (`activate`, `check`) — v1-only `mode: "format"` (pretty printer) has **no v2 route**; the surface is frozen |
 | `abap_run` | `abap_do` (`run`) |
 | `abap_test` | `abap_do` (`test`) |
 | `abap_journal` | `abap_do` (`journal_list`, `journal_show`, `undo`, `journal_reconcile`) |

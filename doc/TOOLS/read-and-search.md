@@ -20,10 +20,12 @@ Read the source, metadata or outline of an ABAP object.
 | `enhancements` | boolean | no | — | Also report enhancement anchors/implementations on this object. |
 | `version` | enum `active` \| `inactive` | no | `active` | Which version to read. |
 | `format` | enum `raw` | no | — | Return unprocessed source instead of the rendered/annotated form. |
-| `view` | enum `history` \| `diff` | no | — | `history`: list the object's version feed (author, date, transport) instead of source/DDIC. `diff`: return unified-diff hunks between two versions — never two full sources. Omit for a normal source/DDIC read. |
+| `view` | enum `history` \| `diff` \| `definition` | no | — | `history`: list the object's version feed (author, date, transport) instead of source/DDIC. `diff`: return unified-diff hunks between two versions — never two full sources. `definition`: element info / go-to-definition for the identifier at `line`/`column` — see ["view=\"definition\": element info and go-to-definition"](#viewdefinition-element-info-and-go-to-definition) below. Omit for a normal source/DDIC read. |
 | `from` | string | `view="diff"` only | released version before `to` | Older side of the diff — a version number (e.g. `"66"`), a transport name, or the literal `"active"` for current source. |
 | `to` | string | `view="diff"` only | newest released version | Newer side of the diff, same forms as `from`. |
 | `context` | number (int, 0–20) | no | `3` | `view="diff"` only — unchanged context lines per hunk. |
+| `line` | number (int, ≥1) | required with `view="definition"`; refused otherwise | — | 1-based source line — same convention as `abap_quick_fix`. Refused with `BAD_INPUT` together with `view="history"`/`"diff"`, and refused with `BAD_INPUT` if given with no `view` at all (it would silently be discarded by an ordinary read). |
+| `column` | number (int, ≥0) | no | `0` | 0-based column — same convention as `abap_quick_fix`. Only meaningful with `view="definition"`; refused otherwise on the same terms as `line`. |
 | `include` | enum `CLASS_INCLUDES` | no | `"main"` | Classes only — which class include to read; applies to the source read and to `view` alike. `"testclasses"` holds ABAP Unit tests; `"main"` never does. Always an explicit, disclosed choice — silently defaulting to `main` would hide changes made in another include. |
 | `types` | string[] | no | — | `DEVC/K` only — filter the package listing to these kind codes, e.g. `["CLAS","DDLS"]`. Refused with `BAD_INPUT` against any other type. |
 | `depth` | number (int, 1–3) | no | `1` | `DEVC/K` only — how many sub-package levels to list. `1` lists only the package itself. Refused with `BAD_INPUT` against any other type. |
@@ -41,6 +43,172 @@ module by that name, or asking for the group by hand if the search finds
 nothing at all, which happens for generated function modules (e.g.
 `ENQUEUE_E_TABLE`) that the repository search does not index: say
 `"ENQUEUE_E_TABLE in ETABLE"` or `"ETABLE/ENQUEUE_E_TABLE"`.
+
+### view="definition": element info and go-to-definition
+
+Given `line` (1-based) and `column` (0-based, default 0), `view="definition"`
+answers what the identifier at that position is and where it comes from,
+using three ADT endpoints (`src/adt/element-info.ts`):
+`codecompletion/elementinfo` for the identifier itself,
+`navigation/target?filter=definition` for its declaration site, and — for
+an interface method only — `usageReferences` (where-used) for the classes
+that implement it.
+
+The response can carry up to five parts:
+
+- Header fields: `element` (name), `kind`, `visibility`, `level`,
+  `abapType`.
+- **DEFINITION**: the declaring location as a URI plus line/column, and a
+  literal, copy-pasteable `abap_read {"object":"...","type":"..."}` call
+  for it. Only class and interface targets get the object/type filled in;
+  other target kinds still report the location, without a guessed call.
+- **SIGNATURE** (methods, function modules) or **COMPONENTS** (structured
+  types): a table of parameters or fields. A callable with no parameters —
+  an interface method, a class method, or a function module (every one,
+  see the FUGR/FF bullet below) — renders SIGNATURE as `(none)` rather than
+  omitting the section.
+- **DOC**: short text and ABAP Doc for the identifier, if any.
+- **IMPLEMENTED BY** (interface methods only): the implementing classes,
+  from a where-used lookup — see below. Reached either from a use site
+  whose navigation target resolves into the interface, or directly from
+  the interface's own method declaration — see below.
+
+**Position convention.** `line` is 1-based and `column` is 0-based — the
+same convention `abap_quick_fix` uses. This differs from `offset`/`limit`
+elsewhere in this table, which page whole lines of a normal read.
+
+**Refusals** (`assertViewCompatible`, `src/tools/read.ts`):
+
+| Input | Result |
+|---|---|
+| `view="definition"` combined with `format="raw"` | `UNSUPPORTED` |
+| `view="definition"` combined with `enhancements=true` | `UNSUPPORTED` |
+| `view="definition"` combined with `version="inactive"` | `UNSUPPORTED` (`version="active"` is allowed — a no-op) |
+| `view="definition"` combined with `outline=true` | `UNSUPPORTED` |
+| `view="definition"` combined with `method=...` | `UNSUPPORTED` |
+| `view="definition"` combined with `from`/`to`/`context` | `UNSUPPORTED` |
+| `view="definition"` with no `line` | `BAD_INPUT` — a definition lookup is position-driven; without a line there is no element to resolve. |
+| `line`/`column` given with `view="history"` or `view="diff"` | `UNSUPPORTED` |
+| `line`/`column` given with no `view` at all | `BAD_INPUT` — an ordinary read would otherwise silently discard them. |
+| `view="definition"` against a non-source object (nothing to resolve a position in) | `UNSUPPORTED` |
+| `line` past the end of the object's source | `BAD_INPUT` |
+
+**Gated as read, not write**, even though `codecompletion/elementinfo`
+takes a POST carrying the whole object source. Every one of the three
+endpoints is ADT's own read-only "what/where is this" surface, and none of
+it returns anything `abap_write` could act on — unlike `abap_quick_fix`,
+whose purpose is to produce an edit `abap_write` applies, and which is
+gated write for exactly that reason. The POST body here is an artefact of
+the wire protocol, not evidence of a side effect.
+
+**ADT limitations, documented rather than hidden:**
+
+- **Function modules resolve to name and type only.** For a `FUGR/FF`
+  target, ADT's element info returns no visibility, no signature and no
+  documentation — verified live against `RFC_PING` (fixture 957). An empty
+  SIGNATURE section for a function module is this limitation, not "no
+  parameters."
+- **A position with nothing resolvable is a successful answer, not an
+  error.** ADT answers HTTP 200 either way, in one of two wire shapes:
+  fixture 960's well-formed element-info document that names no element at
+  all, or a zero-byte 200 body at a genuinely blank line (live-observed
+  A4H, 2026-09-15). There is no fixture file for the zero-byte case —
+  there are no bytes to pin, the same reason capture 898 is omitted from
+  the repository. Either shape, abapsmith reports "no resolvable element
+  at line L, column C" — a fact about the position, not a lookup failure.
+- **A declaration site can go unreported for three different reasons, and
+  the rest of the response still resolves.** The DEFINITION section can
+  come back with no "declared at" line because: the position asked about
+  IS the declaration itself, which ADT reports as HTTP 400,
+  `NavigationFailure`, T100 key `ED`/`263`, "Definition location found;
+  where-used list may be possible" (live-captured against
+  `CL_ABAP_TYPEDESCR`'s `data ABSOLUTE_NAME …` line, A4H 2026-09-15);
+  more than one implementation exists, so the declaration site is
+  undecidable from this position (HTTP 422,
+  `ExceptionMultipleNavigationTargets`, T100 key `SEDI_ADT`/`2`,
+  "Navigation target undecidable: More than one implementation exists" —
+  live-captured at an interface's own `METHODS` line with two implementing
+  classes, A4H 2026-09-15); or ADT returned a target document that
+  names no URI. All three are reported as prose in the DEFINITION section,
+  not as an error — the header fields, SIGNATURE/COMPONENTS, DOC and
+  IMPLEMENTED BY sections are all still answered from the element-info
+  call, which is unaffected; only the "declared at" line is missing.
+- **IMPLEMENTED BY runs from either of two starting points.** (a) A use
+  site whose navigation target resolves into the interface — e.g. reading
+  a class that calls `zif_x~run` through an interface reference, where the
+  element info at `run` resolves to `INTF/IO` and the navigation target
+  names the interface. (b) The object being read IS the interface
+  (`INTF/OI`) — at the interface's own `METHODS run` declaration line, ADT
+  names no navigation target (the position already is the declaration, see
+  the ED263 case above), so there is nothing to navigate to; the
+  where-used lookup runs anyway, using the position asked about as the
+  declaration site. (b) is the natural "who implements this?" question
+  asked from the one place navigation cannot answer it.
+- **The implementer list is where-used-based, so it is static-analysis
+  only.** `CALL FUNCTION lv_name`, `PERFORM (lv_form)`, `SUBMIT (lv_prog)`
+  and other dynamic dispatch do not appear — the same blind spot
+  `abap_search mode=where_used` has.
+- **The implementer list is capped for display**
+  (`IMPLEMENTATIONS_DISPLAY_MAX = 50` in `src/tools/read.ts`); truncation is
+  marked in the response, never silent. ADT's `usageReferences` endpoint
+  itself ignores every limit parameter, so the complete result set is
+  always fetched before the cap is applied — fixture 961's capture, a
+  two-implementer toy example, still took close to ten seconds; a
+  cost-disclosure note is attached when the fetch is slow or the reference
+  count is large.
+
+**Not on the v2 tool surface.** `abap_read`'s v2 schema
+(`abapReadInputSchema`, `src/tools/v2/schemas.ts`) does not expose
+`view="definition"`, `line`, `column`, or `type` — its `view` values are
+`source | contract | method | diff | metadata | outline | bopf | fpm`. v2's
+own `diff` view is a separate, unimplemented concept, not the same thing as
+v1's `view="diff"`.
+
+**Evidence.** `live` (A4H, 2026-09-12): the three wire endpoints
+themselves — `elementinfo` for an interface method call, an attribute, a
+type, a local variable, a class's own method, and a function-module name
+literal (fixtures 952-957); `navigation/target?filter=definition`
+(fixture 958); the no-resolvable-element answer (fixture 960); and
+`usageReferences` for an interface method's implementers (fixture 961).
+`live` (A4H, 2026-09-15), a second pass: `usageReferences` returns no
+implementers when read through `abap-adt-api`'s own vendor
+`usageReferences()` parser — the namespace-prefix defect (capitalised
+`usageReferences:` expected, lowercase `usagereferences:` actually sent)
+that motivated parsing where-used locally instead; the zero-byte 200 body
+at a blank line; and the `NavigationFailure` / ED263 answer at a position
+that is itself a declaration, captured against `CL_ABAP_TYPEDESCR`'s `data
+ABSOLUTE_NAME …` line. Still not verified live: the full refusal matrix
+above, and the rendering of the three paths fixed on 2026-09-15 — the
+declaration-itself wording, `SIGNATURE (none)`, and `IMPLEMENTED BY`
+reached from an interface's own declaration — which are `tests`-only,
+covered by `test/read-definition.test.ts` and `test/element-info-wire.test.ts`
+against a fake connection, and have not themselves been re-run end to end
+against a live server.
+
+Example — resolving what `lo_probe->process( )` is and where it comes from:
+
+```json
+{
+  "object": "ZCL_I91_PROBE",
+  "type": "CLAS/OC",
+  "view": "definition",
+  "line": 35,
+  "column": 25
+}
+```
+
+Example — asking IMPLEMENTED BY directly at the interface's own method
+declaration (entry point (b) above), rather than from a use site:
+
+```json
+{
+  "object": "ZIF_MY_PROBE",
+  "type": "INTF/OI",
+  "view": "definition",
+  "line": 3,
+  "column": 11
+}
+```
 
 ### Package reads (`DEVC/K`)
 
