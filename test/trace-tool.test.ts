@@ -69,6 +69,7 @@ import { errorResult, createServer, type AbapsmithServer } from "../src/server.j
 import { Journal } from "../src/journal.js";
 import { ConfigSchema, type Config } from "../src/config.js";
 import { AuthCircuitBreaker } from "../src/adt/circuit-breaker.js";
+import { routeSystemRoleProbe } from "./helpers/system-role-fake.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FIXTURES = join(__dirname, "fixtures", "traces");
@@ -370,7 +371,14 @@ interface SdkHarness {
 
 async function sdkHarness(config: Config): Promise<SdkHarness> {
   const srv: AbapsmithServer = createServer(config, {
-    httpClient: new ForbiddenClient() as unknown as HttpClient,
+    // The unknown-key refusal fires before any request is built, so the
+    // ForbiddenClient is never reached — but the system-role probe still has
+    // to be ANSWERED (see test/system-role-probe-guard.test.ts), otherwise the
+    // fail-closed `inconclusive` verdict, not the schema, would be what the
+    // assertions below are really exercising.
+    httpClient: routeSystemRoleProbe(new ForbiddenClient() as unknown as HttpClient, {
+      answer: "nonproductive",
+    }),
     log: () => {},
     breaker: new AuthCircuitBreaker(),
   });
