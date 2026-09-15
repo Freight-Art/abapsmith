@@ -36635,6 +36635,8 @@ var init_errors = __esm({
       ENHANCEMENT_NOT_DISPATCHING: "conditional",
       OBJECT_LOCKED_CROSS_PROCESS: "conditional",
       DEBUG_SESSION_LOCKED_CROSS_PROCESS: "conditional",
+      DEBUG_ALL_LEASES_BUSY: "conditional",
+      // resolves once a lane frees up; not fixable by a different argument, but not permanent either
       DEBUG_JUMP_DISABLED: "terminal",
       // the flag is off; no argument enables it
       DUMP_VARIABLES_DISABLED: "terminal",
@@ -58809,444 +58811,6 @@ var init_transports = __esm({
   }
 });
 
-// src/auth/client-cert.ts
-function readNamedFile(envVar, path8, readFile2) {
-  try {
-    return { ok: true, buf: readFile2(path8) };
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return { ok: false, issue: `${envVar} (${path8}) could not be read: ${msg}.` };
-  }
-}
-function isPfxPath(path8) {
-  const lower = path8.toLowerCase();
-  return lower.endsWith(".pfx") || lower.endsWith(".p12");
-}
-function loadClientCertMaterial(spec, readFile2) {
-  const { certPath, keyPath, passphrase } = spec;
-  if (isPfxPath(certPath)) {
-    if (keyPath !== void 0) {
-      return {
-        issue: `ABAP_CLIENT_KEY is set but ABAP_CLIENT_CERT points at a PKCS#12 file (${certPath}) \u2014 a PFX already contains the private key. Unset ABAP_CLIENT_KEY.`
-      };
-    }
-    const pfxRead = readNamedFile("ABAP_CLIENT_CERT", certPath, readFile2);
-    if (!pfxRead.ok) return { issue: pfxRead.issue };
-    return {
-      material: {
-        pfx: pfxRead.buf,
-        ...passphrase !== void 0 ? { passphrase } : {},
-        kind: "pfx",
-        certPath
-      }
-    };
-  }
-  const certRead = readNamedFile("ABAP_CLIENT_CERT", certPath, readFile2);
-  if (!certRead.ok) return { issue: certRead.issue };
-  const certText = certRead.buf.toString("utf8");
-  if (!certText.includes("-----BEGIN")) {
-    return {
-      issue: `ABAP_CLIENT_CERT (${certPath}) does not look like a PEM file (no "-----BEGIN" line). Point it at a PEM certificate, or at a .pfx/.p12 for PKCS#12.`
-    };
-  }
-  if (keyPath !== void 0) {
-    const keyRead = readNamedFile("ABAP_CLIENT_KEY", keyPath, readFile2);
-    if (!keyRead.ok) return { issue: keyRead.issue };
-    return {
-      material: {
-        cert: certRead.buf,
-        key: keyRead.buf,
-        ...passphrase !== void 0 ? { passphrase } : {},
-        kind: "pem",
-        certPath,
-        keyPath
-      }
-    };
-  }
-  if (!certText.includes("PRIVATE KEY-----")) {
-    return {
-      issue: `ABAP_CLIENT_CERT (${certPath}) is a PEM certificate with no private key in it and ABAP_CLIENT_KEY is not set \u2014 set ABAP_CLIENT_KEY to the PEM private-key file, or point ABAP_CLIENT_CERT at a PKCS#12 (.pfx/.p12) file that contains both.`
-    };
-  }
-  return {
-    material: {
-      cert: certRead.buf,
-      key: certRead.buf,
-      ...passphrase !== void 0 ? { passphrase } : {},
-      kind: "pem",
-      certPath
-    }
-  };
-}
-function loadCaBundle(path8, readFile2) {
-  const read = readNamedFile("ABAP_CA_CERT", path8, readFile2);
-  if (!read.ok) return { issue: read.issue };
-  if (!read.buf.toString("utf8").includes("-----BEGIN")) {
-    return {
-      issue: `ABAP_CA_CERT (${path8}) does not look like a PEM file (no "-----BEGIN" line). Point it at a PEM CA certificate or bundle.`
-    };
-  }
-  return { bundle: { pem: read.buf, path: path8 } };
-}
-var init_client_cert = __esm({
-  "src/auth/client-cert.ts"() {
-    "use strict";
-  }
-});
-
-// src/auth/service-key.ts
-function joinFieldNames(names) {
-  if (names.length <= 1) return names.join("");
-  if (names.length === 2) return `${names[0]} and ${names[1]}`;
-  return `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
-}
-function parseServiceKey(path8, raw) {
-  let parsed;
-  try {
-    parsed = JSON.parse(raw);
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return { issue: `ABAP_SERVICE_KEY (${path8}) is not valid JSON: ${msg}.` };
-  }
-  const uaa = parsed?.uaa;
-  const clientId = typeof uaa?.clientid === "string" ? uaa.clientid : void 0;
-  const clientSecret = typeof uaa?.clientsecret === "string" ? uaa.clientsecret : void 0;
-  const uaaUrl = typeof uaa?.url === "string" ? uaa.url : void 0;
-  const missing = [
-    ...clientId === void 0 ? ["uaa.clientid"] : [],
-    ...clientSecret === void 0 ? ["uaa.clientsecret"] : [],
-    ...uaaUrl === void 0 ? ["uaa.url"] : []
-  ];
-  if (missing.length > 0) {
-    return {
-      issue: `ABAP_SERVICE_KEY (${path8}) is missing ${joinFieldNames(missing)} \u2014 this does not look like an SAP BTP ABAP-environment service key.`
-    };
-  }
-  if (clientId === void 0 || clientSecret === void 0 || uaaUrl === void 0) {
-    return { issue: `ABAP_SERVICE_KEY (${path8}) is missing required uaa fields.` };
-  }
-  const tokenUrl = uaaUrl.endsWith("/oauth/token") ? uaaUrl : `${uaaUrl.replace(/\/+$/, "")}/oauth/token`;
-  const scope = typeof uaa?.scope === "string" && uaa.scope.length > 0 ? uaa.scope : void 0;
-  return {
-    settings: {
-      tokenUrl,
-      clientId,
-      clientSecret,
-      ...scope !== void 0 ? { scope } : {},
-      source: "service-key",
-      serviceKeyPath: path8
-    }
-  };
-}
-var init_service_key = __esm({
-  "src/auth/service-key.ts"() {
-    "use strict";
-  }
-});
-
-// src/mode.ts
-function parseAbapMode(raw) {
-  if (raw === void 0) {
-    throw new Error(
-      'ABAP_MODE is not set. Valid values are "read", "edit", or "admin" (case-insensitive). This function does not apply a default for an unset value \u2014 the caller decides what an unset ABAP_MODE means (e.g. falling back to legacy per-flag config).'
-    );
-  }
-  const trimmed = raw.trim();
-  if (trimmed === "") {
-    throw new Error(
-      'ABAP_MODE is set but empty (or whitespace-only). Valid values are "read", "edit", or "admin" (case-insensitive).'
-    );
-  }
-  const lower = trimmed.toLowerCase();
-  if (lower === "read" || lower === "edit" || lower === "admin") {
-    return lower;
-  }
-  throw new Error(
-    `ABAP_MODE=${JSON.stringify(raw)} is not a recognised mode. Valid values are "read", "edit", or "admin" (case-insensitive).`
-  );
-}
-function resolvePackages(override) {
-  return override === void 0 ? [...EDIT_PACKAGE_DEFAULT] : [...override];
-}
-function resolveNamePrefixes(override) {
-  return override === void 0 || override.length === 0 ? [...EDIT_NAME_PREFIX_DEFAULT] : [...override];
-}
-function resolveTransports(override) {
-  if (override === void 0) return [...EDIT_TRANSPORT_DEFAULT];
-  if (override === null) return null;
-  return [...override];
-}
-function resolveEnhanceTargets(override, isAdmin) {
-  return override ?? (isAdmin ? "sap" : "customer");
-}
-function resolveEnhanceTargetPackages(override) {
-  return override === void 0 ? [] : [...override];
-}
-function resolveOriginSystems(override) {
-  return override === void 0 ? [] : [...override];
-}
-function freezeCapabilities(caps) {
-  Object.freeze(caps.allowPackages);
-  Object.freeze(caps.allowNamePrefixes);
-  Object.freeze(caps.allowTransports);
-  Object.freeze(caps.enhanceTargetPackages);
-  Object.freeze(caps.originSystems);
-  return Object.freeze(caps);
-}
-function capabilitiesForMode(mode, overrides = {}, grants = {}, boolOverrides = {}) {
-  if (mode === "read") {
-    return grants.allowDataPreview === true ? READ_CAPABILITIES_WITH_PREVIEW : READ_CAPABILITIES;
-  }
-  const isAdmin = mode === "admin";
-  const allowPackages = resolvePackages(overrides.allowPackages);
-  const allowNamePrefixes = resolveNamePrefixes(overrides.allowNamePrefixes);
-  const allowTransports = resolveTransports(overrides.allowTransports);
-  const enhanceTargetPackages = resolveEnhanceTargetPackages(overrides.enhanceTargetPackages);
-  const originSystems = resolveOriginSystems(overrides.originSystems);
-  return freezeCapabilities({
-    mode,
-    allowWrite: true,
-    allowActivate: true,
-    allowPackages,
-    allowNamePrefixes,
-    allowTransports,
-    allowTransportRelease: boolOverrides.allowTransportRelease ?? isAdmin,
-    allowTransportDelete: boolOverrides.allowTransportDelete ?? isAdmin,
-    allowServicePublish: boolOverrides.allowServicePublish ?? isAdmin,
-    allowEnhancements: boolOverrides.allowEnhancements ?? true,
-    enhanceTargets: resolveEnhanceTargets(overrides.enhanceTargets, isAdmin),
-    enhanceTargetPackages,
-    allowSourcePlugins: boolOverrides.allowSourcePlugins ?? true,
-    allowEnhancementDelete: boolOverrides.allowEnhancementDelete ?? isAdmin,
-    allowCascadeDelete: boolOverrides.allowCascadeDelete ?? isAdmin,
-    allowRawAdtWrites: boolOverrides.allowRawAdtWrites ?? isAdmin,
-    originSystems,
-    // Operator's grant, identically in every mode — see AbapModeGrants.
-    allowDataPreview: grants.allowDataPreview === true
-  });
-}
-function capabilityGranted(caps, cap) {
-  if (cap === "enhanceTargets") return caps.enhanceTargets !== "none";
-  return caps[cap];
-}
-function lowestModeSatisfying(predicate) {
-  return MODE_LADDER.find((m) => predicate(capabilitiesForMode(m)));
-}
-function legacyOverriddenClause(envVar) {
-  return `Setting ${envVar} will NOT work: ABAP_MODE overrides it.`;
-}
-function enhanceTargetsGrantingValue(mode, satisfiedBy) {
-  return ENHANCE_TARGETS_OVERRIDE_VALUES.find(
-    (value) => satisfiedBy(capabilitiesForMode(mode, { enhanceTargets: value }, {}, {}))
-  );
-}
-function overrideWouldGrant(cap, mode, satisfiedBy) {
-  if (!MODE_OVERRIDABLE_CAPABILITIES.has(cap)) return false;
-  if (cap === "enhanceTargets") return enhanceTargetsGrantingValue(mode, satisfiedBy) !== void 0;
-  return satisfiedBy(
-    capabilitiesForMode(mode, {}, {}, { [cap]: true })
-  );
-}
-function legacyUnlockClause(envVar, mode, label, value = "true") {
-  const setClause = value === "true" ? "this flag" : "that";
-  return `Setting ${envVar}=${value} also works, without raising the mode: ABAP_MODE=${mode} permits ${label} once ${setClause} is set.`;
-}
-function legacyClauseFor(cap, envVar, mode, label, satisfiedBy) {
-  if (cap === "enhanceTargets") {
-    const grantingValue = enhanceTargetsGrantingValue(mode, satisfiedBy);
-    return grantingValue !== void 0 ? legacyUnlockClause(envVar, mode, label, grantingValue) : legacyOverriddenClause(envVar);
-  }
-  return overrideWouldGrant(cap, mode, satisfiedBy) ? legacyUnlockClause(envVar, mode, label) : legacyOverriddenClause(envVar);
-}
-function explainDeniedCapability(req, abapMode) {
-  const request = typeof req === "string" ? { capability: req } : req;
-  const cap = request.capability;
-  const info = MODE_GOVERNED_CAPABILITIES[cap];
-  const label = request.label ?? info.label;
-  const legacyRemediation = request.legacyRemediation ?? info.legacyRemediation;
-  const satisfiedBy = request.satisfiedBy ?? ((caps) => capabilityGranted(caps, cap));
-  const grantingMode = lowestModeSatisfying(satisfiedBy);
-  if (abapMode === void 0) {
-    const cause2 = info.legacyEnvVar !== null ? `${info.legacyEnvVar} does not enable ${label}, and ABAP_MODE is not set, so that variable is what decides it.` : `${label} has no legacy environment variable \u2014 it exists only under ABAP_MODE, and ABAP_MODE is not set, so it is off.`;
-    const remediation2 = legacyRemediation ?? (grantingMode !== void 0 ? `Switch this server to ABAP_MODE=${grantingMode}; there is no legacy environment variable that enables ${label}.` : `Nothing enables ${label} on this build.`);
-    return {
-      capability: cap,
-      decidedBy: "legacy",
-      grantingMode,
-      legacyEnvVar: info.legacyEnvVar,
-      label,
-      cause: cause2,
-      remediation: remediation2
-    };
-  }
-  const cause = `ABAP_MODE=${abapMode} does not grant ${label}.`;
-  let remediation;
-  if (grantingMode === void 0) {
-    remediation = `No ABAP_MODE value grants ${label}.`;
-  } else if (grantingMode === abapMode) {
-    remediation = `ABAP_MODE=${abapMode} already grants ${label} at the mode layer, so this refusal came from a narrower rule \u2014 changing ABAP_MODE will not lift it.`;
-  } else {
-    remediation = `Set ABAP_MODE=${grantingMode}.`;
-  }
-  if (info.legacyEnvVar !== null) {
-    remediation += ` ${legacyClauseFor(cap, info.legacyEnvVar, abapMode, label, satisfiedBy)}`;
-  }
-  return {
-    capability: cap,
-    decidedBy: "mode",
-    abapMode,
-    grantingMode,
-    legacyEnvVar: info.legacyEnvVar,
-    label,
-    cause,
-    remediation
-  };
-}
-function joinAnd(parts) {
-  if (parts.length <= 1) return parts[0] ?? "";
-  return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
-}
-function explainDeniedCapabilities(reqs, abapMode) {
-  const parts = reqs.map((r) => explainDeniedCapability(r, abapMode));
-  if (abapMode === void 0) {
-    return {
-      cause: parts.map((p) => p.cause).join(" "),
-      remediation: parts.map((p) => p.remediation).join(" ")
-    };
-  }
-  const cause = `ABAP_MODE=${abapMode} does not grant ${joinAnd(parts.map((p) => p.label))}.`;
-  const modes = parts.map((p) => p.grantingMode);
-  const highest = modes.includes(void 0) ? void 0 : MODE_LADDER.reduce(
-    (acc, m) => modes.includes(m) ? m : acc,
-    void 0
-  );
-  const step = highest === void 0 ? `No single ABAP_MODE value grants ${joinAnd(parts.map((p) => p.label))}.` : highest === abapMode ? `ABAP_MODE=${abapMode} already grants ${joinAnd(parts.map((p) => p.label))} at the mode layer, so this refusal came from a narrower rule \u2014 changing ABAP_MODE will not lift it.` : `Set ABAP_MODE=${highest} \u2014 one value covers all of them.`;
-  const clauses = parts.filter((p) => p.legacyEnvVar !== null).map(
-    (p) => legacyClauseFor(
-      p.capability,
-      p.legacyEnvVar,
-      abapMode,
-      p.label,
-      (caps) => capabilityGranted(caps, p.capability)
-    )
-  );
-  return { cause, remediation: [step, ...clauses].join(" ") };
-}
-var ENHANCE_TARGETS_VALUES, EDIT_TRANSPORT_DEFAULT, EDIT_PACKAGE_DEFAULT, EDIT_NAME_PREFIX_DEFAULT, READ_CAPABILITIES, READ_CAPABILITIES_WITH_PREVIEW, MODE_GOVERNED_CAPABILITIES, MODE_GOVERNED_LEGACY_ENV_VARS, MODE_OVERRIDE_ENV_VARS, MODE_LADDER, MODE_OVERRIDABLE_CAPABILITIES, ENHANCE_TARGETS_OVERRIDE_VALUES;
-var init_mode = __esm({
-  "src/mode.ts"() {
-    "use strict";
-    ENHANCE_TARGETS_VALUES = ["none", "customer", "sap"];
-    EDIT_TRANSPORT_DEFAULT = ["*"];
-    EDIT_PACKAGE_DEFAULT = ["*"];
-    EDIT_NAME_PREFIX_DEFAULT = ["*"];
-    READ_CAPABILITIES = freezeCapabilities({
-      mode: "read",
-      allowWrite: false,
-      allowActivate: false,
-      allowPackages: [],
-      allowNamePrefixes: [],
-      allowTransports: null,
-      allowTransportRelease: false,
-      allowTransportDelete: false,
-      allowServicePublish: false,
-      allowEnhancements: false,
-      enhanceTargets: "none",
-      enhanceTargetPackages: [],
-      allowSourcePlugins: false,
-      allowEnhancementDelete: false,
-      allowCascadeDelete: false,
-      allowRawAdtWrites: false,
-      originSystems: [],
-      allowDataPreview: false
-    });
-    READ_CAPABILITIES_WITH_PREVIEW = freezeCapabilities({
-      ...READ_CAPABILITIES,
-      allowDataPreview: true
-    });
-    MODE_GOVERNED_CAPABILITIES = Object.freeze({
-      allowWrite: {
-        legacyEnvVar: "ABAP_ALLOW_WRITE",
-        label: "writes",
-        legacyRemediation: "Set ABAP_ALLOW_WRITE=true (ABAP_ALLOW_PACKAGES is optional \u2014 it narrows the default, which is every package).",
-        modeOverridable: false
-      },
-      allowTransportRelease: {
-        legacyEnvVar: "ABAP_ALLOW_TRANSPORT_RELEASE",
-        label: "releasing a transport request",
-        legacyRemediation: "Set ABAP_ALLOW_TRANSPORT_RELEASE=true.",
-        modeOverridable: true
-      },
-      allowEnhancements: {
-        legacyEnvVar: "ABAP_ALLOW_ENHANCEMENTS",
-        label: "enhancement authoring",
-        legacyRemediation: "Set ABAP_ALLOW_ENHANCEMENTS=true.",
-        modeOverridable: true
-      },
-      enhanceTargets: {
-        legacyEnvVar: "ABAP_ENHANCE_TARGETS",
-        label: "enhancing any object",
-        legacyRemediation: "Set ABAP_ENHANCE_TARGETS=customer for your own objects, or =sap plus a matching ABAP_ENHANCE_TARGET_PACKAGES entry for SAP standard objects.",
-        modeOverridable: true
-      },
-      allowSourcePlugins: {
-        legacyEnvVar: "ABAP_ALLOW_SOURCE_PLUGINS",
-        label: "creating source-code plug-in (enhoxhh) hooks",
-        legacyRemediation: "Set ABAP_ALLOW_SOURCE_PLUGINS=true.",
-        modeOverridable: true
-      },
-      allowEnhancementDelete: {
-        legacyEnvVar: "ABAP_ALLOW_ENHANCEMENT_DELETE",
-        label: "deleting an existing enhancement object",
-        legacyRemediation: "Set ABAP_ALLOW_ENHANCEMENT_DELETE=true.",
-        modeOverridable: true
-      },
-      allowTransportDelete: {
-        legacyEnvVar: "ABAP_ALLOW_TRANSPORT_DELETE",
-        label: "deleting a transport request",
-        legacyRemediation: "Set ABAP_ALLOW_TRANSPORT_DELETE=true.",
-        modeOverridable: true
-      },
-      allowServicePublish: {
-        legacyEnvVar: "ABAP_ALLOW_SERVICE_PUBLISH",
-        label: "publishing or unpublishing a service binding",
-        legacyRemediation: "Set ABAP_ALLOW_SERVICE_PUBLISH=true.",
-        modeOverridable: true
-      },
-      allowCascadeDelete: {
-        legacyEnvVar: "ABAP_ALLOW_CASCADE_DELETE",
-        label: "the BOPF cascading DDIC delete",
-        legacyRemediation: "Set ABAP_ALLOW_CASCADE_DELETE=true.",
-        modeOverridable: true
-      },
-      allowRawAdtWrites: {
-        legacyEnvVar: "ABAP_ALLOW_RAW_ADT_WRITES",
-        label: "non-GET abap_adt passthrough",
-        legacyRemediation: "Set ABAP_ALLOW_RAW_ADT_WRITES=true.",
-        modeOverridable: true
-      }
-    });
-    MODE_GOVERNED_LEGACY_ENV_VARS = Object.freeze(
-      Object.values(MODE_GOVERNED_CAPABILITIES).filter((info) => info.legacyEnvVar !== null && !info.modeOverridable).map((info) => info.legacyEnvVar)
-    );
-    MODE_OVERRIDE_ENV_VARS = Object.freeze([
-      "ABAP_ALLOW_PACKAGES",
-      "ABAP_ALLOW_NAME_PREFIXES",
-      "ABAP_ALLOW_TRANSPORTS",
-      "ABAP_ENHANCE_TARGET_PACKAGES",
-      "ABAP_ORIGIN_SYSTEMS",
-      ...Object.values(MODE_GOVERNED_CAPABILITIES).filter((i) => i.modeOverridable && i.legacyEnvVar !== null).map((i) => i.legacyEnvVar)
-    ]);
-    MODE_LADDER = ["read", "edit", "admin"];
-    MODE_OVERRIDABLE_CAPABILITIES = new Set(
-      Object.keys(MODE_GOVERNED_CAPABILITIES).filter(
-        (c) => MODE_GOVERNED_CAPABILITIES[c].modeOverridable
-      )
-    );
-    ENHANCE_TARGETS_OVERRIDE_VALUES = ["customer", "sap"];
-  }
-});
-
 // src/adt/http-guard.ts
 import https from "node:https";
 function parseCookieHeaderPairs(header) {
@@ -62585,6 +62149,1305 @@ var init_connection = __esm({
         this.connected = false;
       }
     };
+  }
+});
+
+// src/adt/object-gate.ts
+import { createHash as createHash3 } from "node:crypto";
+import * as path4 from "node:path";
+function resolveObjectLockWaitMs(env = process.env) {
+  const DEFAULT_MS = 1500;
+  const MIN_MS = 200;
+  const MAX_MS = 3e4;
+  const raw = env.ABAP_OBJECT_LOCK_WAIT_MS;
+  if (raw === void 0 || raw.trim() === "") return DEFAULT_MS;
+  const n = Number(raw.trim());
+  if (!Number.isFinite(n) || n < 0) return DEFAULT_MS;
+  const ms = Math.floor(n);
+  if (ms < MIN_MS || ms > MAX_MS) return DEFAULT_MS;
+  return ms;
+}
+function resolveCrossProcessObjectLock(env = process.env) {
+  const raw = env.ABAP_CROSS_PROCESS_OBJECT_LOCK;
+  if (raw === void 0) return true;
+  const v = raw.trim().toLowerCase();
+  if (v === "") return true;
+  return !["false", "0", "no", "off"].includes(v);
+}
+function objectGateLockPath(stateDir, objectUri) {
+  const key = objectUriOf(objectUri);
+  const hash2 = createHash3("sha256").update(key).digest("hex").slice(0, LOCK_HASH_HEX_LEN);
+  return path4.join(stateDir, "locks", "objects", `${hash2}.lock`);
+}
+function toObjectLockBusyError(e, objectUri, lockPath) {
+  const holder = fileLockHolderOf(e);
+  const held = holder ? `held by pid ${holder.pid} on ${holder.hostname} since ${holder.startedAt || "an unknown time"}` : "the holder is unknown \u2014 the lock file could not be read, or was written by another version";
+  return new AbapError(
+    "OBJECT_LOCKED_CROSS_PROCESS",
+    `Cannot lock ${objectUri} for editing: another abapsmith process (or external session) is holding this object's cross-process lock (${held}). This object was left in a possibly-inconsistent state if that session did not finish; wait for it to complete or confirm it is stale before retrying.`,
+    { objectUri, lockPath, holder, cause: describeUnknownError(e) },
+    `If no other abapsmith process (and no SAP GUI/Eclipse session sharing this gate) is actually running, this is a stale leftover and you can delete ${lockPath} by hand. Raise ABAP_OBJECT_LOCK_WAIT_MS (currently the process default) if the other session is real but merely slow.`
+  );
+}
+var InProcessObjectGate, NoopObjectGate, LOCK_HASH_HEX_LEN, OBJECT_LOCK_HARD_STALE_MS, FileLockObjectGate;
+var init_object_gate = __esm({
+  "src/adt/object-gate.ts"() {
+    "use strict";
+    init_state_dir();
+    init_errors();
+    init_session();
+    InProcessObjectGate = class {
+      /** key -> tail of the chain. Entries are deleted once they ARE the tail. */
+      chains = /* @__PURE__ */ new Map();
+      /** Live keys, for tests and diagnostics. Must return to 0 when idle. */
+      get pending() {
+        return this.chains.size;
+      }
+      run(objectUri, fn) {
+        const key = objectUriOf(objectUri);
+        const prev = this.chains.get(key) ?? Promise.resolve();
+        const result = prev.then(fn, fn);
+        const settled = result.then(
+          () => void 0,
+          () => void 0
+        );
+        this.chains.set(key, settled);
+        void settled.then(() => {
+          if (this.chains.get(key) === settled) this.chains.delete(key);
+        });
+        return result;
+      }
+    };
+    NoopObjectGate = class {
+      run(_objectUri, fn) {
+        return fn();
+      }
+    };
+    LOCK_HASH_HEX_LEN = 20;
+    OBJECT_LOCK_HARD_STALE_MS = 6e5;
+    FileLockObjectGate = class {
+      inner = new InProcessObjectGate();
+      stateDir;
+      waitMs;
+      constructor(opts) {
+        this.stateDir = opts.stateDir;
+        this.waitMs = opts.waitMs ?? resolveObjectLockWaitMs();
+      }
+      run(objectUri, fn) {
+        return this.inner.run(objectUri, async () => {
+          const lockPath = objectGateLockPath(this.stateDir, objectUri);
+          try {
+            return await withFileLock(lockPath, fn, {
+              waitMs: this.waitMs,
+              hardStaleMs: OBJECT_LOCK_HARD_STALE_MS
+            });
+          } catch (e) {
+            if (isFileLockAcquisitionFailure(e, lockPath)) {
+              throw toObjectLockBusyError(e, objectUriOf(objectUri), lockPath);
+            }
+            throw e;
+          }
+        });
+      }
+    };
+  }
+});
+
+// src/adt/pool.ts
+function resolveDebugSessionLimit(cfg) {
+  const requestedSessions = Number.isInteger(cfg.debugSessions) && cfg.debugSessions > 0 ? cfg.debugSessions : DEBUG_CONCURRENCY;
+  const budgetCeiling = Math.floor(cfg.debugDiaBudget / DIA_COST_PER_DEBUG_SESSION);
+  return Math.max(1, Math.min(requestedSessions, budgetCeiling));
+}
+function poolClosedError(what) {
+  return new AbapError(
+    "NOT_CONNECTED",
+    `The ABAP session pool has been shut down; ${what} cannot be served.`,
+    { operation: what, reason: "pool-closed" },
+    "This is a lifecycle error, not a SAP one \u2014 the process is shutting down."
+  );
+}
+function isSessionDeadError(e) {
+  if (!isAbapError(e)) return false;
+  if (e.code === "SESSION_DEAD") return true;
+  return e.code === "ADT_ERROR" && e.details.reason === "csrf-stale-in-stateful-session";
+}
+function isCondemnedConnectionError(e) {
+  return isAbapError(e) && e.code === "SESSION_DEAD" && e.details.condemned === true;
+}
+function isAuthClassError(e) {
+  return isAbapError(e) && (e.code === "AUTH_FAILED" || e.code === "AUTH_CIRCUIT_OPEN" || e.code === "CIRCUIT_OPEN_TRANSIENT");
+}
+function isConnectFailureClassError(e) {
+  return isAbapError(e) && (e.code === "SYSTEM_UNAVAILABLE" || e.code === "CONNECT_FAILED") && typeof e.details.reason === "string" && CONNECT_FAILURE_REASONS.has(e.details.reason);
+}
+function timingDebugEnabled2() {
+  const v = process.env.ABAP_TIMING_DEBUG;
+  return v === "1" || v === "true" || v === "yes" || v === "on";
+}
+var DEFAULT_POOL_MAX_QUEUE, DEBUG_CONCURRENCY, DIA_COST_PER_DEBUG_SESSION, DEAD_ON_ARRIVAL_MS, EXECUTES_ABAP_OPS, MAX_PREPARE_ATTEMPTS, AdtSessionPool;
+var init_pool = __esm({
+  "src/adt/pool.ts"() {
+    "use strict";
+    init_state_dir();
+    init_connection();
+    init_errors();
+    init_connect_failure();
+    init_session();
+    init_session_lock();
+    init_object_gate();
+    DEFAULT_POOL_MAX_QUEUE = 8;
+    DEBUG_CONCURRENCY = 1;
+    DIA_COST_PER_DEBUG_SESSION = 2;
+    DEAD_ON_ARRIVAL_MS = 500;
+    EXECUTES_ABAP_OPS = /* @__PURE__ */ new Set(["abap_run", "abap_test", "abap_bopf_test"]);
+    MAX_PREPARE_ATTEMPTS = 4;
+    AdtSessionPool = class {
+      cfg;
+      factory;
+      prepareFn;
+      gate;
+      maxQueue;
+      now;
+      setTimer;
+      clearTimer;
+      log;
+      /**
+       * Whether `log` was supplied. Only then is it forwarded to constructed
+       * connections: passing the pool's own no-op default through would SILENCE
+       * `AbapConnection`'s stderr diagnostics — including the breaker-tripped line
+       * — which nobody asked for.
+       */
+      forwardLog;
+      slots = [];
+      waiters = [];
+      nextId = 0;
+      closed = false;
+      /**
+       * L3. Supplied by the caller ({@link SessionPoolOptions.breaker}) and passed to every
+       * construction, slot 0 included — a prior version adopted the breaker from slot 0's own
+       * connection instead, which made the pinned slot the one L3 could structurally never refuse.
+       *
+       * Last line of defence against locking the SAP user out: `login/fails_to_user_lock` counts
+       * failed logons per user (not per session) and locks the account at the fifth, so a
+       * per-connection breaker would let each slot burn its own first failure and lock the account
+       * faster. `mintConnection` enforces this by refusing any connection carrying a different
+       * breaker instance — do not weaken that refusal or bypass `mintConnection`.
+       */
+      sharedBreaker;
+      /**
+       * The pinned slot's connection. Held separately so `primary()` survives `dispose()` (which
+       * empties `slots` but retires nothing). Re-pointed by {@link AdtSessionPool.seatPrimary}.
+       */
+      primaryConn;
+      constructor(opts) {
+        this.cfg = opts.cfg;
+        this.sharedBreaker = opts.breaker;
+        this.factory = opts.createConnection ?? ((cfg, o) => new AbapConnection(cfg, o));
+        this.prepareFn = opts.prepareConnection;
+        this.gate = opts.gate ?? (opts.cfg.serialiseSameObjectWrites === false ? new NoopObjectGate() : (opts.cfg.crossProcessObjectLock ?? resolveCrossProcessObjectLock()) === false ? new InProcessObjectGate() : new FileLockObjectGate({
+          stateDir: resolveStateDir(process.env),
+          waitMs: opts.cfg.objectLockWaitMs
+        }));
+        this.maxQueue = Math.max(0, opts.maxQueue ?? DEFAULT_POOL_MAX_QUEUE);
+        this.now = opts.now ?? (() => Date.now());
+        this.setTimer = opts.setTimer ?? ((fn, ms) => {
+          const h = setTimeout(fn, ms);
+          h.unref?.();
+          return h;
+        });
+        this.clearTimer = opts.clearTimer ?? ((h) => clearTimeout(h));
+        this.log = opts.log ?? (() => void 0);
+        this.forwardLog = opts.log !== void 0;
+        const primary = this.createSlot(true);
+        this.slots.push(primary);
+        this.primaryConn = primary.conn;
+      }
+      // ------------------------------------------------------------- creation ---
+      /**
+       * The shared-breaker contract, shared by `createSlot` and `createUnpooledConnection` so the
+       * two paths cannot drift. `operation` only labels the L3 refusal.
+       */
+      mintConnection(operation) {
+        const connOpts = { breaker: this.sharedBreaker };
+        if (this.forwardLog) connOpts.log = this.log;
+        const conn = this.factory(this.cfg, connOpts);
+        if (conn.breaker !== this.sharedBreaker) {
+          throw new AbapError(
+            "NOT_CONNECTED",
+            "Session pool refused a connection that does not share the process-wide auth circuit breaker.",
+            { operation, reason: "breaker-not-shared" },
+            "The connection factory must pass ConnectionOptions.breaker through to AbapConnection unchanged. One SAP user means one fails_to_user_lock counter, so the pool must have exactly one breaker."
+          );
+        }
+        return conn;
+      }
+      /** The only place a pooled connection is constructed; delegates the L3 check to {@link mintConnection}. */
+      createSlot(pinned) {
+        const conn = this.mintConnection("pool.createSlot");
+        const at = this.now();
+        const slot = {
+          id: this.nextId++,
+          conn,
+          pinned,
+          prepared: void 0,
+          preparing: false,
+          busy: false,
+          dead: false,
+          unsubscribeDead: void 0,
+          activeRelease: void 0,
+          role: "read",
+          op: "(idle)",
+          leasedAt: at,
+          lastReleasedAt: at
+        };
+        if (typeof conn.onDead === "function") {
+          slot.unsubscribeDead = conn.onDead(() => this.onSlotConnectionDied(slot));
+        }
+        return slot;
+      }
+      /**
+       * A connection that shares the pool's breaker but is NOT a pool slot: no id, no slot record,
+       * no `onDead` subscription, no DIA accounting, no lease. Caller owns its whole lifecycle.
+       *
+       * Exists for one caller — the debugger's trigger connection (`src/tools/debug.ts`), which
+       * deliberately carries a SEPARATE ADT session from the leased slot the listener long-polls
+       * on and is already counted as the second DIA in `DIA_COST_PER_DEBUG_SESSION`; pooling it
+       * would double-count and could consume the only debug lease. Routing it through
+       * `mintConnection` (rather than the caller constructing its own `AbapConnection`) is what
+       * makes breaker-sharing structural instead of a property someone has to remember to pass.
+       */
+      createUnpooledConnection(purpose) {
+        return this.mintConnection(`pool.createUnpooledConnection(${purpose})`);
+      }
+      /**
+       * `conn.onDead` fired. Runs synchronously inside `markDead()`, inside the response handling
+       * of whatever request killed the session — must stay allocation-cheap and never throw back.
+       */
+      onSlotConnectionDied(slot) {
+        if (slot.dead) return;
+        slot.dead = true;
+        if (!slot.busy) {
+          this.dropSlot(slot, "connection reported dead while idle");
+          this.handoff();
+          return;
+        }
+        if (slot.role === "debug") {
+          const release2 = slot.activeRelease;
+          slot.activeRelease = void 0;
+          if (release2) release2();
+          else this.releaseSlot(slot);
+          return;
+        }
+      }
+      // --------------------------------------------------------------- public ---
+      primary() {
+        this.seatPrimary();
+        return this.primaryConn;
+      }
+      /**
+       * Re-seat the primary if the slot behind it has been retired. Fixes a prior bug where a
+       * retired primary stayed installed and was still revivable: its logon-endpoint ceiling is a
+       * lifetime count that never resets, so revival eventually bricks permanently, and the
+       * retired object was invisible to `liveCount()` while `tryTake` grew a replacement, exceeding
+       * `maxSessions`.
+       *
+       * Lazy (nothing minted until someone asks for the primary — minting inside `acquire`'s retry
+       * loop would be a logon amplifier) and prefers adoption over minting (minting at the cap
+       * would recreate the same violation from the other side). The pin moves with the seat.
+       *
+       * Three-tier seating order, since `primary()` is consumed OUTSIDE any lease (`ensureConnected`,
+       * `abap_journal`'s undo path, the debugger) so an idle seat is the difference between a shared
+       * session and one somebody is mid-write on:
+       *  1. Warmest live IDLE slot.
+       *  2. Else mint, while `liveCount() < maxSessions`.
+       *  3. Else, last resort: warmest live BUSY slot (excluding `preparing` ones) — a knowingly
+       *     shared session. Not new behaviour: at `maxSessions = 1` this has always been the case.
+       *     Returning the retired corpse instead would revive the object this method exists to
+       *     retire; throwing isn't available since `primary()` is total.
+       *
+       * When even tier 3 finds nothing, the old reference is deliberately left in place — bounded
+       * by the in-flight leases that created that state; the next `release()`/`primary()` recovers.
+       * Never throws.
+       */
+      seatPrimary() {
+        if (this.closed) return;
+        for (const s of this.slots) {
+          if (s.conn !== this.primaryConn) continue;
+          if (!this.isSlotDead(s)) return;
+          break;
+        }
+        this.dropDeadIdle();
+        this.evictStaleIdle();
+        let seat;
+        for (const s of this.slots) {
+          if (s.busy || this.isSlotDead(s)) continue;
+          if (!seat || s.lastReleasedAt > seat.lastReleasedAt) seat = s;
+        }
+        if (!seat && this.liveCount() < this.cfg.maxSessions) {
+          try {
+            seat = this.createSlot(true);
+            this.slots.push(seat);
+          } catch (e) {
+            this.log(`[abapsmith] pool could not re-seat the primary: ${describeUnknownError(e)}`);
+            return;
+          }
+        }
+        if (!seat) {
+          for (const s of this.slots) {
+            if (this.isSlotDead(s) || s.preparing) continue;
+            if (!seat || s.lastReleasedAt > seat.lastReleasedAt) seat = s;
+          }
+        }
+        if (!seat) return;
+        for (const s of this.slots) if (s !== seat) s.pinned = false;
+        seat.pinned = true;
+        this.primaryConn = seat.conn;
+        this.log(
+          `[abapsmith] pool re-seated the primary onto slot ${seat.id}` + (timingDebugEnabled2() ? ` (connected=${seat.conn.isConnected} prepared=${seat.prepared !== void 0}).` : ".")
+        );
+      }
+      /**
+       * The one deadness question in this file (L6). The connection is the authority; `slot.dead`
+       * latches it so a slot stays retired even if `conn.connect()` later revives the object.
+       * Reading `isDead` is not a probe (L2 forbids asking the server, not listening).
+       */
+      isSlotDead(s) {
+        if (s.dead) return true;
+        if (s.conn.isDead === true) {
+          s.dead = true;
+          return true;
+        }
+        return false;
+      }
+      /**
+       * Busy dominates dead everywhere a slot is COUNTED (L6): death makes a slot unfit to be
+       * handed out, but it does not end an outstanding lease. Skipping a dead-but-leased slot
+       * would undercount `inFlight()` and let the pool admit a second concurrent request — the
+       * exact failure this module exists to prevent. So `busy` counts leases regardless of
+       * deadness, `idle` counts free-and-fit slots, and `dead` (every known corpse, leased or not)
+       * overlaps `busy`.
+       */
+      stats() {
+        let busy = 0;
+        let idle = 0;
+        let dead = 0;
+        for (const s of this.slots) {
+          const isDead = this.isSlotDead(s);
+          if (isDead) dead++;
+          if (s.busy) busy++;
+          else if (!isDead) idle++;
+        }
+        return { total: this.slots.length, busy, idle, waiting: this.waiters.length, dead };
+      }
+      async withRead(op, fn) {
+        if (EXECUTES_ABAP_OPS.has(op)) {
+          throw new AbapError(
+            "UNSUPPORTED",
+            `${op} executes ABAP and must be dispatched with withWrite \u2014 the read lane replays a dead-slot failure unconditionally.`,
+            { op }
+          );
+        }
+        return this.runOn("read", op, fn);
+      }
+      async withWrite(op, objectUri, fn) {
+        if (objectUri === void 0) return this.runOn("write", op, fn);
+        const key = objectUriOf(objectUri);
+        return this.gate.run(key, () => this.runOn("write", op, fn));
+      }
+      async reserveDebug(op) {
+        if (this.cfg.debugDiaBudget < DIA_COST_PER_DEBUG_SESSION) {
+          throw new AbapError(
+            "UNSUPPORTED",
+            `Debugging is disabled: ABAP_DEBUG_DIA_BUDGET is ${this.cfg.debugDiaBudget}, below the ${DIA_COST_PER_DEBUG_SESSION} dialog work processes one debug session pins.`,
+            {
+              operation: op,
+              reason: "dia-budget",
+              budget: this.cfg.debugDiaBudget,
+              cost: DIA_COST_PER_DEBUG_SESSION
+            },
+            "Raise ABAP_DEBUG_DIA_BUDGET only if the target system's rdisp/wp_no_dia has headroom. Raising it does not enable a second concurrent debug session."
+          );
+        }
+        const slot = await this.acquire("debug", op);
+        return this.lease(slot, "debug");
+      }
+      async shutdown(reason) {
+        this.closed = true;
+        this.drainWaiters(poolClosedError(`shutdown(${reason})`));
+        for (const s of [...this.slots]) {
+          try {
+            await s.conn.shutdown(reason);
+          } catch (e) {
+            this.log(`[abapsmith] pool slot ${s.id} shutdown failed: ${describeUnknownError(e)}`);
+          }
+        }
+      }
+      dispose() {
+        this.closed = true;
+        this.drainWaiters(poolClosedError("dispose()"));
+        for (const s of [...this.slots]) {
+          this.unsubscribeSlot(s);
+          try {
+            s.conn.dispose();
+          } catch (e) {
+            this.log(`[abapsmith] pool slot ${s.id} dispose failed: ${describeUnknownError(e)}`);
+          }
+        }
+        this.slots.splice(0);
+      }
+      // ------------------------------------------------------------ acquisition ---
+      roleLimit(role) {
+        if (role === "debug") return resolveDebugSessionLimit(this.cfg);
+        return role === "write" ? this.cfg.writeConcurrency : this.cfg.readConcurrency;
+      }
+      /** Outstanding leases in `role`. Deadness is NOT consulted — see {@link stats}. */
+      inFlight(role) {
+        let n = 0;
+        for (const s of this.slots) if (s.busy && s.role === role) n++;
+        return n;
+      }
+      /** Slots that still count against `maxSessions`: everything live, plus every corpse still leased. */
+      liveCount() {
+        let n = 0;
+        for (const s of this.slots) if (s.busy || !this.isSlotDead(s)) n++;
+        return n;
+      }
+      /**
+       * Decide-and-take in one synchronous run-to-completion block — no `await` between "a slot is
+       * free" and "the slot is mine" (the TOCTOU invariant `session-lock.ts` calls I1). This is why
+       * `createConnection` must be synchronous.
+       */
+      tryTake(role, op) {
+        if (this.closed) return void 0;
+        if (this.inFlight(role) >= this.roleLimit(role)) return void 0;
+        this.dropDeadIdle();
+        this.evictStaleIdle();
+        let best;
+        for (const s of this.slots) {
+          if (s.busy || this.isSlotDead(s)) continue;
+          if (!best || s.lastReleasedAt > best.lastReleasedAt) best = s;
+        }
+        if (!best && this.liveCount() < this.cfg.maxSessions) {
+          best = this.createSlot(false);
+          this.slots.push(best);
+        }
+        if (!best) return void 0;
+        best.busy = true;
+        best.role = role;
+        best.op = op;
+        best.leasedAt = this.now();
+        return best;
+      }
+      /** The slot whose lease is blocking us, for the `SessionBusyError` message. */
+      blockingSlot() {
+        let oldest;
+        for (const s of this.slots) {
+          if (!s.busy) continue;
+          if (!oldest || s.leasedAt < oldest.leasedAt) oldest = s;
+        }
+        return oldest;
+      }
+      busyError(reason, op, note) {
+        const holder = this.blockingSlot();
+        return new SessionBusyError({
+          reason,
+          op,
+          holder: holder ? holder.op : "(none)",
+          holderKind: holder?.role === "debug" ? "lease" : "exclusive",
+          heldForMs: holder ? Math.max(0, this.now() - holder.leasedAt) : 0,
+          ...note ? { note } : {}
+        });
+      }
+      /** True when the pool is full and everything holding it is a debug lease. */
+      blockedOnlyByDebugLease() {
+        if (this.liveCount() < this.cfg.maxSessions) return false;
+        let anyBusy = false;
+        for (const s of this.slots) {
+          if (!s.busy) {
+            if (this.isSlotDead(s)) continue;
+            return false;
+          }
+          anyBusy = true;
+          if (s.role !== "debug") return false;
+        }
+        return anyBusy;
+      }
+      /**
+       * Acquire a live, prepared slot, or reject.
+       *
+       * The wait budget is an absolute deadline computed once; a corpse found during preparation
+       * is dropped and retried against the SAME deadline, never a fresh `sessionWaitMs`.
+       *
+       * Three exits, not one — preparation is `conn.connect()` (a logon against the one shared
+       * `login/fails_to_user_lock` counter, L3), so retrying on every failure would be a logon
+       * amplifier:
+       *  - AUTH-CLASS failure ({@link isAuthClassError} / {@link isConnectFailureClassError}
+       *    for system-down/unreachable) — not a property of this session: release without
+       *    retiring, clear the memoised preparation, hand off, rethrow unwrapped. No second logon.
+       *  - Any other failure — dead on arrival: retire and retry against the same deadline, bounded
+       *    by {@link MAX_PREPARE_ATTEMPTS}.
+       *  - Budget or attempts exhausted — hand freed capacity to whoever is parked, then fail.
+       */
+      async acquire(role, op) {
+        const deadline2 = this.now() + this.cfg.sessionWaitMs;
+        const acquireStart = this.now();
+        let attempts = 0;
+        for (; ; ) {
+          if (this.closed) throw poolClosedError(op);
+          const mayTake = role === "debug" || !this.hasParkedWaiter();
+          const slot = (mayTake ? this.tryTake(role, op) : void 0) ?? await this.park(role, op, deadline2);
+          attempts++;
+          try {
+            slot.preparing = true;
+            const warm = slot.prepared !== void 0;
+            await this.prepare(slot, role);
+            if (timingDebugEnabled2()) {
+              this.log(
+                `[abapsmith] timing acquire op=${op} role=${role} slot=${slot.id} warm=${warm} attempts=${attempts} ms=${this.now() - acquireStart}`
+              );
+            }
+            return slot;
+          } catch (e) {
+            if (isAuthClassError(e) || isConnectFailureClassError(e)) {
+              slot.prepared = void 0;
+              this.releaseSlot(slot);
+              throw e;
+            }
+            this.retire(slot, "preparation failed", e);
+            if (this.now() >= deadline2) {
+              this.handoff();
+              throw this.busyError(
+                "wait-timeout",
+                op,
+                "Every session offered was dead on arrival; the last failure was: " + describeUnknownError(e)
+              );
+            }
+            if (attempts >= MAX_PREPARE_ATTEMPTS) {
+              this.handoff();
+              throw e;
+            }
+          } finally {
+            slot.preparing = false;
+          }
+        }
+      }
+      /** Park in the FIFO queue, or fail fast when parking is the wrong answer. */
+      park(role, op, deadline2) {
+        if (role === "debug") {
+          return Promise.reject(
+            this.busyError(
+              "lease-held",
+              op,
+              "A debug reservation never queues \u2014 stop the running debug session first."
+            )
+          );
+        }
+        if (this.blockedOnlyByDebugLease()) {
+          return Promise.reject(
+            this.busyError(
+              "lease-held",
+              op,
+              "The only session is held by a debugger long poll; queueing behind it would block for the rest of that poll."
+            )
+          );
+        }
+        if (this.waiters.length >= this.maxQueue) {
+          return Promise.reject(this.busyError("queue-full", op));
+        }
+        return new Promise((resolve5, reject) => {
+          const w = {
+            role,
+            op,
+            settled: false,
+            timer: void 0,
+            resolve: () => void 0,
+            reject: () => void 0
+          };
+          w.resolve = (slot) => {
+            if (w.settled) return;
+            w.settled = true;
+            this.clearTimer(w.timer);
+            resolve5(slot);
+          };
+          w.reject = (err) => {
+            if (w.settled) return;
+            w.settled = true;
+            this.clearTimer(w.timer);
+            reject(err);
+          };
+          w.timer = this.setTimer(() => {
+            this.unpark(w);
+            w.reject(this.busyError("wait-timeout", op));
+            this.handoff();
+          }, Math.max(0, deadline2 - this.now()));
+          this.waiters.push(w);
+        });
+      }
+      unpark(w) {
+        const i = this.waiters.indexOf(w);
+        if (i >= 0) this.waiters.splice(i, 1);
+      }
+      /**
+       * Is anyone actually waiting? Checks `settled` rather than trusting `waiters.length`, same
+       * reason `handoff` discards settled heads: a settled-but-still-queued waiter must never make
+       * a live caller defer to a ghost. Defensive — every queue exit should already remove itself.
+       */
+      hasParkedWaiter() {
+        for (const w of this.waiters) if (!w.settled) return true;
+        return false;
+      }
+      /**
+       * Hand freed capacity to parked callers, strict FIFO — if the head can't be served, nobody
+       * behind it is served either, or a write could starve behind a stream of reads. FIFO is a
+       * property of the pool, not just this loop: `acquire` refuses `tryTake` while anyone is
+       * parked ({@link AdtSessionPool.hasParkedWaiter}).
+       */
+      handoff() {
+        while (this.waiters.length > 0) {
+          const w = this.waiters[0];
+          if (w.settled) {
+            this.waiters.shift();
+            continue;
+          }
+          let slot;
+          try {
+            slot = this.tryTake(w.role, w.op);
+          } catch (e) {
+            this.waiters.shift();
+            w.reject(e);
+            continue;
+          }
+          if (!slot) return;
+          this.waiters.shift();
+          w.resolve(slot);
+        }
+      }
+      /**
+       * Reject every parked caller and empty the queue. `splice(0)` matters: rejecting in place
+       * would leave settled waiters queued for `stats().waiting` and `handoff` to trip over.
+       */
+      drainWaiters(err) {
+        for (const w of this.waiters.splice(0)) w.reject(err);
+      }
+      prepare(slot, role) {
+        if (!this.prepareFn) return Promise.resolve();
+        if (slot.prepared) return slot.prepared;
+        const started = this.now();
+        const p = this.prepareFn(slot.conn, role, slot.pinned);
+        slot.prepared = timingDebugEnabled2() ? p.then(
+          (v) => {
+            this.log(
+              `[abapsmith] timing prepare slot=${slot.id} role=${slot.role} pinned=${slot.pinned} op=${slot.op} ms=${this.now() - started}`
+            );
+            return v;
+          },
+          (e) => {
+            this.log(
+              `[abapsmith] timing prepare FAILED slot=${slot.id} ms=${this.now() - started}`
+            );
+            throw e;
+          }
+        ) : p;
+        return slot.prepared;
+      }
+      // ------------------------------------------------------------- leasing ---
+      lease(slot, role) {
+        let released = false;
+        const pool = this;
+        slot.activeRelease = () => {
+          if (released) return;
+          released = true;
+          pool.releaseSlot(slot);
+        };
+        return {
+          conn: slot.conn,
+          role,
+          id: slot.id,
+          /** L1: void, idempotent. Frees a pool slot only — locks are released by `StatefulSession`. */
+          release() {
+            if (released) return;
+            released = true;
+            pool.releaseSlot(slot);
+          }
+        };
+      }
+      releaseSlot(slot) {
+        slot.busy = false;
+        slot.op = "(idle)";
+        slot.activeRelease = void 0;
+        slot.lastReleasedAt = this.now();
+        if (this.isSlotDead(slot)) this.dropSlot(slot, "dead on release");
+        this.evictStaleIdle();
+        this.handoff();
+      }
+      /**
+       * Bounded (one attempt) recovery for a caller that inherited a corpse. A slot
+       * can die from a prior caller's own successful request, or an unrelated blip, and the pool
+       * has no way to learn until the next request fails on it (L2). This replays that caller's own
+       * request once on a freshly acquired slot, instead of surfacing `SESSION_DEAD` for free.
+       * Also covers `isSessionDeadError`'s CSRF-refusal shape (see its own comment).
+       *
+       * Idempotency: reads are unconditionally safe to replay (no side effect to duplicate).
+       * Writes replay only when the failure arrived implausibly fast (`DEAD_ON_ARRIVAL_MS`) — a
+       * slow `SESSION_DEAD` means the server had time to apply the write, so blind replay risks a
+       * duplicate mutation. Conservative first cut, not a proof — "session destroyed" vs.
+       * "CSRF token invalidated" isn't fully discriminated by any capture
+       * so far; see archive. Bounded to exactly one replay (`allowReplay=false` recursively), same
+       * reasoning as `MAX_PREPARE_ATTEMPTS`.
+       *
+       * A third case layers on top that skips the timing gate entirely: `isCondemnedConnectionError`
+       * recognises `connectionDeadError`, provably raised only when the connection died DURING
+       * this call's own `fn` (see that predicate's comment) — so `eligibleForDeadSlotReplay`
+       * refuses to replay a write carrying that marker regardless of `elapsedMs`, since the
+       * manufactured failure can arrive well under `DEAD_ON_ARRIVAL_MS`. Reads still unaffected.
+       */
+      async runOn(role, op, fn) {
+        return this.runOnAttempt(role, op, fn, true);
+      }
+      async runOnAttempt(role, op, fn, allowReplay) {
+        const slot = await this.acquire(role, op);
+        const lease = this.lease(slot, role);
+        const startedAt = this.now();
+        try {
+          return await fn(slot.conn);
+        } catch (e) {
+          if (isSessionDeadError(e)) {
+            slot.dead = true;
+            if (allowReplay && this.eligibleForDeadSlotReplay(role, this.now() - startedAt, e)) {
+              lease.release();
+              this.log(
+                `[abapsmith] pool replaying ${op} (role=${role}) on a fresh slot: inherited slot ${slot.id} was already dead (ms=${this.now() - startedAt}).`
+              );
+              return this.runOnAttempt(role, op, fn, false);
+            }
+          }
+          throw e;
+        } finally {
+          lease.release();
+        }
+      }
+      /**
+       * See `runOnAttempt`'s doc for the reasoning; this implements the threshold(s). Two
+       * independent gates for a write, checked in order: (1) `isCondemnedConnectionError(e)` — a
+       * structural refusal, checked first because a condemned error can arrive well
+       * under `DEAD_ON_ARRIVAL_MS` (nothing about the throw itself touches the wire), so the timing
+       * gate alone can't catch it; (2) the `DEAD_ON_ARRIVAL_MS` timing heuristic. Gate 1 has
+       * no lost-recovery cost: it can only suppress replays where `fn` had already started (proven
+       * in `isCondemnedConnectionError`'s comment), which this module's own conservative policy says
+       * shouldn't be replayed either. Reads bypass both gates unconditionally.
+       */
+      eligibleForDeadSlotReplay(role, elapsedMs, e) {
+        if (role === "read") return true;
+        if (isCondemnedConnectionError(e)) return false;
+        return elapsedMs <= DEAD_ON_ARRIVAL_MS;
+      }
+      // ------------------------------------------------------------- retirement ---
+      /** Detach this slot's `onDead` subscription. Idempotent; never throws. */
+      unsubscribeSlot(slot) {
+        const off = slot.unsubscribeDead;
+        slot.unsubscribeDead = void 0;
+        if (!off) return;
+        try {
+          off();
+        } catch (e) {
+          this.log(`[abapsmith] pool slot ${slot.id} onDead unsubscribe failed: ${describeUnknownError(e)}`);
+        }
+      }
+      dropDeadIdle() {
+        for (const s of [...this.slots]) {
+          if (this.isSlotDead(s) && !s.busy) this.dropSlot(s, "dead");
+        }
+      }
+      /**
+       * Presume-stale sweep. Runs at release time and again at checkout (`tryTake`), never on a
+       * timer — release-only would never fire on a quiet pool, precisely when slots go stale.
+       * Pinned slot 0 is exempt: recycling it costs a fresh logon + discovery + system-role probe.
+       *
+       * This exemption means a lock leaked on the pinned primary is never caught here
+       * — not a gap in practice, since `withStatefulSession()`'s own `finally` already drops a
+       * session the moment it records a leak, before this sweep would ever run.
+       */
+      evictStaleIdle() {
+        const cutoff = this.now() - this.cfg.sessionIdleMs;
+        for (const s of [...this.slots]) {
+          if (s.pinned || s.busy || this.isSlotDead(s)) continue;
+          if (s.lastReleasedAt <= cutoff) this.dropSlot(s, "idle past sessionIdleMs");
+        }
+      }
+      /**
+       * Kill a slot and give the capacity it was holding to whoever is parked.
+       *
+       * The `handoff()` is not optional: `retire` runs from `acquire`'s preparation-failure path
+       * and frees a slot against `maxSessions`; without a drain, `acquire`'s anti-barging rule
+       * would just send the retiring caller back to `park`, leaving free headroom nobody notices
+       * until an unrelated `release()`. It is not a logon amplifier — it only lets the head's own
+       * `tryTake` mint the one session it was already entitled to, bounded by its own
+       * `sessionWaitMs`/`MAX_PREPARE_ATTEMPTS`. Cannot recurse: `handoff` resolves a promise, so
+       * the served caller resumes in a later microtask.
+       */
+      retire(slot, why, cause) {
+        slot.dead = true;
+        slot.busy = false;
+        this.dropSlot(slot, cause ? `${why}: ${describeUnknownError(cause)}` : why);
+        this.handoff();
+      }
+      dropSlot(slot, why) {
+        const i = this.slots.indexOf(slot);
+        if (i < 0) return;
+        this.slots.splice(i, 1);
+        this.unsubscribeSlot(slot);
+        this.log(`[abapsmith] pool retiring slot ${slot.id} (${why}).`);
+        try {
+          if (!this.isSlotDead(slot)) {
+            void slot.conn.shutdown("pool-evict").catch((e) => {
+              this.log(`[abapsmith] pool slot ${slot.id} evict-shutdown failed: ${describeUnknownError(e)}`);
+            });
+          }
+          slot.conn.dispose();
+        } catch (e) {
+          this.log(`[abapsmith] pool slot ${slot.id} teardown failed: ${describeUnknownError(e)}`);
+        }
+      }
+    };
+  }
+});
+
+// src/auth/client-cert.ts
+function readNamedFile(envVar, path8, readFile2) {
+  try {
+    return { ok: true, buf: readFile2(path8) };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, issue: `${envVar} (${path8}) could not be read: ${msg}.` };
+  }
+}
+function isPfxPath(path8) {
+  const lower = path8.toLowerCase();
+  return lower.endsWith(".pfx") || lower.endsWith(".p12");
+}
+function loadClientCertMaterial(spec, readFile2) {
+  const { certPath, keyPath, passphrase } = spec;
+  if (isPfxPath(certPath)) {
+    if (keyPath !== void 0) {
+      return {
+        issue: `ABAP_CLIENT_KEY is set but ABAP_CLIENT_CERT points at a PKCS#12 file (${certPath}) \u2014 a PFX already contains the private key. Unset ABAP_CLIENT_KEY.`
+      };
+    }
+    const pfxRead = readNamedFile("ABAP_CLIENT_CERT", certPath, readFile2);
+    if (!pfxRead.ok) return { issue: pfxRead.issue };
+    return {
+      material: {
+        pfx: pfxRead.buf,
+        ...passphrase !== void 0 ? { passphrase } : {},
+        kind: "pfx",
+        certPath
+      }
+    };
+  }
+  const certRead = readNamedFile("ABAP_CLIENT_CERT", certPath, readFile2);
+  if (!certRead.ok) return { issue: certRead.issue };
+  const certText = certRead.buf.toString("utf8");
+  if (!certText.includes("-----BEGIN")) {
+    return {
+      issue: `ABAP_CLIENT_CERT (${certPath}) does not look like a PEM file (no "-----BEGIN" line). Point it at a PEM certificate, or at a .pfx/.p12 for PKCS#12.`
+    };
+  }
+  if (keyPath !== void 0) {
+    const keyRead = readNamedFile("ABAP_CLIENT_KEY", keyPath, readFile2);
+    if (!keyRead.ok) return { issue: keyRead.issue };
+    return {
+      material: {
+        cert: certRead.buf,
+        key: keyRead.buf,
+        ...passphrase !== void 0 ? { passphrase } : {},
+        kind: "pem",
+        certPath,
+        keyPath
+      }
+    };
+  }
+  if (!certText.includes("PRIVATE KEY-----")) {
+    return {
+      issue: `ABAP_CLIENT_CERT (${certPath}) is a PEM certificate with no private key in it and ABAP_CLIENT_KEY is not set \u2014 set ABAP_CLIENT_KEY to the PEM private-key file, or point ABAP_CLIENT_CERT at a PKCS#12 (.pfx/.p12) file that contains both.`
+    };
+  }
+  return {
+    material: {
+      cert: certRead.buf,
+      key: certRead.buf,
+      ...passphrase !== void 0 ? { passphrase } : {},
+      kind: "pem",
+      certPath
+    }
+  };
+}
+function loadCaBundle(path8, readFile2) {
+  const read = readNamedFile("ABAP_CA_CERT", path8, readFile2);
+  if (!read.ok) return { issue: read.issue };
+  if (!read.buf.toString("utf8").includes("-----BEGIN")) {
+    return {
+      issue: `ABAP_CA_CERT (${path8}) does not look like a PEM file (no "-----BEGIN" line). Point it at a PEM CA certificate or bundle.`
+    };
+  }
+  return { bundle: { pem: read.buf, path: path8 } };
+}
+var init_client_cert = __esm({
+  "src/auth/client-cert.ts"() {
+    "use strict";
+  }
+});
+
+// src/auth/service-key.ts
+function joinFieldNames(names) {
+  if (names.length <= 1) return names.join("");
+  if (names.length === 2) return `${names[0]} and ${names[1]}`;
+  return `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
+}
+function parseServiceKey(path8, raw) {
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { issue: `ABAP_SERVICE_KEY (${path8}) is not valid JSON: ${msg}.` };
+  }
+  const uaa = parsed?.uaa;
+  const clientId = typeof uaa?.clientid === "string" ? uaa.clientid : void 0;
+  const clientSecret = typeof uaa?.clientsecret === "string" ? uaa.clientsecret : void 0;
+  const uaaUrl = typeof uaa?.url === "string" ? uaa.url : void 0;
+  const missing = [
+    ...clientId === void 0 ? ["uaa.clientid"] : [],
+    ...clientSecret === void 0 ? ["uaa.clientsecret"] : [],
+    ...uaaUrl === void 0 ? ["uaa.url"] : []
+  ];
+  if (missing.length > 0) {
+    return {
+      issue: `ABAP_SERVICE_KEY (${path8}) is missing ${joinFieldNames(missing)} \u2014 this does not look like an SAP BTP ABAP-environment service key.`
+    };
+  }
+  if (clientId === void 0 || clientSecret === void 0 || uaaUrl === void 0) {
+    return { issue: `ABAP_SERVICE_KEY (${path8}) is missing required uaa fields.` };
+  }
+  const tokenUrl = uaaUrl.endsWith("/oauth/token") ? uaaUrl : `${uaaUrl.replace(/\/+$/, "")}/oauth/token`;
+  const scope = typeof uaa?.scope === "string" && uaa.scope.length > 0 ? uaa.scope : void 0;
+  return {
+    settings: {
+      tokenUrl,
+      clientId,
+      clientSecret,
+      ...scope !== void 0 ? { scope } : {},
+      source: "service-key",
+      serviceKeyPath: path8
+    }
+  };
+}
+var init_service_key = __esm({
+  "src/auth/service-key.ts"() {
+    "use strict";
+  }
+});
+
+// src/mode.ts
+function parseAbapMode(raw) {
+  if (raw === void 0) {
+    throw new Error(
+      'ABAP_MODE is not set. Valid values are "read", "edit", or "admin" (case-insensitive). This function does not apply a default for an unset value \u2014 the caller decides what an unset ABAP_MODE means (e.g. falling back to legacy per-flag config).'
+    );
+  }
+  const trimmed = raw.trim();
+  if (trimmed === "") {
+    throw new Error(
+      'ABAP_MODE is set but empty (or whitespace-only). Valid values are "read", "edit", or "admin" (case-insensitive).'
+    );
+  }
+  const lower = trimmed.toLowerCase();
+  if (lower === "read" || lower === "edit" || lower === "admin") {
+    return lower;
+  }
+  throw new Error(
+    `ABAP_MODE=${JSON.stringify(raw)} is not a recognised mode. Valid values are "read", "edit", or "admin" (case-insensitive).`
+  );
+}
+function resolvePackages(override) {
+  return override === void 0 ? [...EDIT_PACKAGE_DEFAULT] : [...override];
+}
+function resolveNamePrefixes(override) {
+  return override === void 0 || override.length === 0 ? [...EDIT_NAME_PREFIX_DEFAULT] : [...override];
+}
+function resolveTransports(override) {
+  if (override === void 0) return [...EDIT_TRANSPORT_DEFAULT];
+  if (override === null) return null;
+  return [...override];
+}
+function resolveEnhanceTargets(override, isAdmin) {
+  return override ?? (isAdmin ? "sap" : "customer");
+}
+function resolveEnhanceTargetPackages(override) {
+  return override === void 0 ? [] : [...override];
+}
+function resolveOriginSystems(override) {
+  return override === void 0 ? [] : [...override];
+}
+function freezeCapabilities(caps) {
+  Object.freeze(caps.allowPackages);
+  Object.freeze(caps.allowNamePrefixes);
+  Object.freeze(caps.allowTransports);
+  Object.freeze(caps.enhanceTargetPackages);
+  Object.freeze(caps.originSystems);
+  return Object.freeze(caps);
+}
+function capabilitiesForMode(mode, overrides = {}, grants = {}, boolOverrides = {}) {
+  if (mode === "read") {
+    return grants.allowDataPreview === true ? READ_CAPABILITIES_WITH_PREVIEW : READ_CAPABILITIES;
+  }
+  const isAdmin = mode === "admin";
+  const allowPackages = resolvePackages(overrides.allowPackages);
+  const allowNamePrefixes = resolveNamePrefixes(overrides.allowNamePrefixes);
+  const allowTransports = resolveTransports(overrides.allowTransports);
+  const enhanceTargetPackages = resolveEnhanceTargetPackages(overrides.enhanceTargetPackages);
+  const originSystems = resolveOriginSystems(overrides.originSystems);
+  return freezeCapabilities({
+    mode,
+    allowWrite: true,
+    allowActivate: true,
+    allowPackages,
+    allowNamePrefixes,
+    allowTransports,
+    allowTransportRelease: boolOverrides.allowTransportRelease ?? isAdmin,
+    allowTransportDelete: boolOverrides.allowTransportDelete ?? isAdmin,
+    allowServicePublish: boolOverrides.allowServicePublish ?? isAdmin,
+    allowEnhancements: boolOverrides.allowEnhancements ?? true,
+    enhanceTargets: resolveEnhanceTargets(overrides.enhanceTargets, isAdmin),
+    enhanceTargetPackages,
+    allowSourcePlugins: boolOverrides.allowSourcePlugins ?? true,
+    allowEnhancementDelete: boolOverrides.allowEnhancementDelete ?? isAdmin,
+    allowCascadeDelete: boolOverrides.allowCascadeDelete ?? isAdmin,
+    allowRawAdtWrites: boolOverrides.allowRawAdtWrites ?? isAdmin,
+    originSystems,
+    // Operator's grant, identically in every mode — see AbapModeGrants.
+    allowDataPreview: grants.allowDataPreview === true
+  });
+}
+function capabilityGranted(caps, cap) {
+  if (cap === "enhanceTargets") return caps.enhanceTargets !== "none";
+  return caps[cap];
+}
+function lowestModeSatisfying(predicate) {
+  return MODE_LADDER.find((m) => predicate(capabilitiesForMode(m)));
+}
+function legacyOverriddenClause(envVar) {
+  return `Setting ${envVar} will NOT work: ABAP_MODE overrides it.`;
+}
+function enhanceTargetsGrantingValue(mode, satisfiedBy) {
+  return ENHANCE_TARGETS_OVERRIDE_VALUES.find(
+    (value) => satisfiedBy(capabilitiesForMode(mode, { enhanceTargets: value }, {}, {}))
+  );
+}
+function overrideWouldGrant(cap, mode, satisfiedBy) {
+  if (!MODE_OVERRIDABLE_CAPABILITIES.has(cap)) return false;
+  if (cap === "enhanceTargets") return enhanceTargetsGrantingValue(mode, satisfiedBy) !== void 0;
+  return satisfiedBy(
+    capabilitiesForMode(mode, {}, {}, { [cap]: true })
+  );
+}
+function legacyUnlockClause(envVar, mode, label, value = "true") {
+  const setClause = value === "true" ? "this flag" : "that";
+  return `Setting ${envVar}=${value} also works, without raising the mode: ABAP_MODE=${mode} permits ${label} once ${setClause} is set.`;
+}
+function legacyClauseFor(cap, envVar, mode, label, satisfiedBy) {
+  if (cap === "enhanceTargets") {
+    const grantingValue = enhanceTargetsGrantingValue(mode, satisfiedBy);
+    return grantingValue !== void 0 ? legacyUnlockClause(envVar, mode, label, grantingValue) : legacyOverriddenClause(envVar);
+  }
+  return overrideWouldGrant(cap, mode, satisfiedBy) ? legacyUnlockClause(envVar, mode, label) : legacyOverriddenClause(envVar);
+}
+function explainDeniedCapability(req, abapMode) {
+  const request = typeof req === "string" ? { capability: req } : req;
+  const cap = request.capability;
+  const info = MODE_GOVERNED_CAPABILITIES[cap];
+  const label = request.label ?? info.label;
+  const legacyRemediation = request.legacyRemediation ?? info.legacyRemediation;
+  const satisfiedBy = request.satisfiedBy ?? ((caps) => capabilityGranted(caps, cap));
+  const grantingMode = lowestModeSatisfying(satisfiedBy);
+  if (abapMode === void 0) {
+    const cause2 = info.legacyEnvVar !== null ? `${info.legacyEnvVar} does not enable ${label}, and ABAP_MODE is not set, so that variable is what decides it.` : `${label} has no legacy environment variable \u2014 it exists only under ABAP_MODE, and ABAP_MODE is not set, so it is off.`;
+    const remediation2 = legacyRemediation ?? (grantingMode !== void 0 ? `Switch this server to ABAP_MODE=${grantingMode}; there is no legacy environment variable that enables ${label}.` : `Nothing enables ${label} on this build.`);
+    return {
+      capability: cap,
+      decidedBy: "legacy",
+      grantingMode,
+      legacyEnvVar: info.legacyEnvVar,
+      label,
+      cause: cause2,
+      remediation: remediation2
+    };
+  }
+  const cause = `ABAP_MODE=${abapMode} does not grant ${label}.`;
+  let remediation;
+  if (grantingMode === void 0) {
+    remediation = `No ABAP_MODE value grants ${label}.`;
+  } else if (grantingMode === abapMode) {
+    remediation = `ABAP_MODE=${abapMode} already grants ${label} at the mode layer, so this refusal came from a narrower rule \u2014 changing ABAP_MODE will not lift it.`;
+  } else {
+    remediation = `Set ABAP_MODE=${grantingMode}.`;
+  }
+  if (info.legacyEnvVar !== null) {
+    remediation += ` ${legacyClauseFor(cap, info.legacyEnvVar, abapMode, label, satisfiedBy)}`;
+  }
+  return {
+    capability: cap,
+    decidedBy: "mode",
+    abapMode,
+    grantingMode,
+    legacyEnvVar: info.legacyEnvVar,
+    label,
+    cause,
+    remediation
+  };
+}
+function joinAnd(parts) {
+  if (parts.length <= 1) return parts[0] ?? "";
+  return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
+}
+function explainDeniedCapabilities(reqs, abapMode) {
+  const parts = reqs.map((r) => explainDeniedCapability(r, abapMode));
+  if (abapMode === void 0) {
+    return {
+      cause: parts.map((p) => p.cause).join(" "),
+      remediation: parts.map((p) => p.remediation).join(" ")
+    };
+  }
+  const cause = `ABAP_MODE=${abapMode} does not grant ${joinAnd(parts.map((p) => p.label))}.`;
+  const modes = parts.map((p) => p.grantingMode);
+  const highest = modes.includes(void 0) ? void 0 : MODE_LADDER.reduce(
+    (acc, m) => modes.includes(m) ? m : acc,
+    void 0
+  );
+  const step = highest === void 0 ? `No single ABAP_MODE value grants ${joinAnd(parts.map((p) => p.label))}.` : highest === abapMode ? `ABAP_MODE=${abapMode} already grants ${joinAnd(parts.map((p) => p.label))} at the mode layer, so this refusal came from a narrower rule \u2014 changing ABAP_MODE will not lift it.` : `Set ABAP_MODE=${highest} \u2014 one value covers all of them.`;
+  const clauses = parts.filter((p) => p.legacyEnvVar !== null).map(
+    (p) => legacyClauseFor(
+      p.capability,
+      p.legacyEnvVar,
+      abapMode,
+      p.label,
+      (caps) => capabilityGranted(caps, p.capability)
+    )
+  );
+  return { cause, remediation: [step, ...clauses].join(" ") };
+}
+var ENHANCE_TARGETS_VALUES, EDIT_TRANSPORT_DEFAULT, EDIT_PACKAGE_DEFAULT, EDIT_NAME_PREFIX_DEFAULT, READ_CAPABILITIES, READ_CAPABILITIES_WITH_PREVIEW, MODE_GOVERNED_CAPABILITIES, MODE_GOVERNED_LEGACY_ENV_VARS, MODE_OVERRIDE_ENV_VARS, MODE_LADDER, MODE_OVERRIDABLE_CAPABILITIES, ENHANCE_TARGETS_OVERRIDE_VALUES;
+var init_mode = __esm({
+  "src/mode.ts"() {
+    "use strict";
+    ENHANCE_TARGETS_VALUES = ["none", "customer", "sap"];
+    EDIT_TRANSPORT_DEFAULT = ["*"];
+    EDIT_PACKAGE_DEFAULT = ["*"];
+    EDIT_NAME_PREFIX_DEFAULT = ["*"];
+    READ_CAPABILITIES = freezeCapabilities({
+      mode: "read",
+      allowWrite: false,
+      allowActivate: false,
+      allowPackages: [],
+      allowNamePrefixes: [],
+      allowTransports: null,
+      allowTransportRelease: false,
+      allowTransportDelete: false,
+      allowServicePublish: false,
+      allowEnhancements: false,
+      enhanceTargets: "none",
+      enhanceTargetPackages: [],
+      allowSourcePlugins: false,
+      allowEnhancementDelete: false,
+      allowCascadeDelete: false,
+      allowRawAdtWrites: false,
+      originSystems: [],
+      allowDataPreview: false
+    });
+    READ_CAPABILITIES_WITH_PREVIEW = freezeCapabilities({
+      ...READ_CAPABILITIES,
+      allowDataPreview: true
+    });
+    MODE_GOVERNED_CAPABILITIES = Object.freeze({
+      allowWrite: {
+        legacyEnvVar: "ABAP_ALLOW_WRITE",
+        label: "writes",
+        legacyRemediation: "Set ABAP_ALLOW_WRITE=true (ABAP_ALLOW_PACKAGES is optional \u2014 it narrows the default, which is every package).",
+        modeOverridable: false
+      },
+      allowTransportRelease: {
+        legacyEnvVar: "ABAP_ALLOW_TRANSPORT_RELEASE",
+        label: "releasing a transport request",
+        legacyRemediation: "Set ABAP_ALLOW_TRANSPORT_RELEASE=true.",
+        modeOverridable: true
+      },
+      allowEnhancements: {
+        legacyEnvVar: "ABAP_ALLOW_ENHANCEMENTS",
+        label: "enhancement authoring",
+        legacyRemediation: "Set ABAP_ALLOW_ENHANCEMENTS=true.",
+        modeOverridable: true
+      },
+      enhanceTargets: {
+        legacyEnvVar: "ABAP_ENHANCE_TARGETS",
+        label: "enhancing any object",
+        legacyRemediation: "Set ABAP_ENHANCE_TARGETS=customer for your own objects, or =sap plus a matching ABAP_ENHANCE_TARGET_PACKAGES entry for SAP standard objects.",
+        modeOverridable: true
+      },
+      allowSourcePlugins: {
+        legacyEnvVar: "ABAP_ALLOW_SOURCE_PLUGINS",
+        label: "creating source-code plug-in (enhoxhh) hooks",
+        legacyRemediation: "Set ABAP_ALLOW_SOURCE_PLUGINS=true.",
+        modeOverridable: true
+      },
+      allowEnhancementDelete: {
+        legacyEnvVar: "ABAP_ALLOW_ENHANCEMENT_DELETE",
+        label: "deleting an existing enhancement object",
+        legacyRemediation: "Set ABAP_ALLOW_ENHANCEMENT_DELETE=true.",
+        modeOverridable: true
+      },
+      allowTransportDelete: {
+        legacyEnvVar: "ABAP_ALLOW_TRANSPORT_DELETE",
+        label: "deleting a transport request",
+        legacyRemediation: "Set ABAP_ALLOW_TRANSPORT_DELETE=true.",
+        modeOverridable: true
+      },
+      allowServicePublish: {
+        legacyEnvVar: "ABAP_ALLOW_SERVICE_PUBLISH",
+        label: "publishing or unpublishing a service binding",
+        legacyRemediation: "Set ABAP_ALLOW_SERVICE_PUBLISH=true.",
+        modeOverridable: true
+      },
+      allowCascadeDelete: {
+        legacyEnvVar: "ABAP_ALLOW_CASCADE_DELETE",
+        label: "the BOPF cascading DDIC delete",
+        legacyRemediation: "Set ABAP_ALLOW_CASCADE_DELETE=true.",
+        modeOverridable: true
+      },
+      allowRawAdtWrites: {
+        legacyEnvVar: "ABAP_ALLOW_RAW_ADT_WRITES",
+        label: "non-GET abap_adt passthrough",
+        legacyRemediation: "Set ABAP_ALLOW_RAW_ADT_WRITES=true.",
+        modeOverridable: true
+      }
+    });
+    MODE_GOVERNED_LEGACY_ENV_VARS = Object.freeze(
+      Object.values(MODE_GOVERNED_CAPABILITIES).filter((info) => info.legacyEnvVar !== null && !info.modeOverridable).map((info) => info.legacyEnvVar)
+    );
+    MODE_OVERRIDE_ENV_VARS = Object.freeze([
+      "ABAP_ALLOW_PACKAGES",
+      "ABAP_ALLOW_NAME_PREFIXES",
+      "ABAP_ALLOW_TRANSPORTS",
+      "ABAP_ENHANCE_TARGET_PACKAGES",
+      "ABAP_ORIGIN_SYSTEMS",
+      ...Object.values(MODE_GOVERNED_CAPABILITIES).filter((i) => i.modeOverridable && i.legacyEnvVar !== null).map((i) => i.legacyEnvVar)
+    ]);
+    MODE_LADDER = ["read", "edit", "admin"];
+    MODE_OVERRIDABLE_CAPABILITIES = new Set(
+      Object.keys(MODE_GOVERNED_CAPABILITIES).filter(
+        (c) => MODE_GOVERNED_CAPABILITIES[c].modeOverridable
+      )
+    );
+    ENHANCE_TARGETS_OVERRIDE_VALUES = ["customer", "sap"];
   }
 });
 
@@ -66037,7 +66900,7 @@ function isInvocationTarget(type) {
   if (!type) return false;
   return INVOCATION_TARGET_TYPES.has(type.trim().toUpperCase());
 }
-function join5(base, extra) {
+function join6(base, extra) {
   return extra ? `${base} ${extra}` : base;
 }
 function packagePattern(pattern) {
@@ -66751,7 +67614,7 @@ var init_safety = __esm({
           if (corr.kind === "local") {
             return {
               allowed: true,
-              reason: join5(
+              reason: join6(
                 `${obj.name} resolved to a local (non-transportable) write; the transport allowlist does not apply.`,
                 enhancementReason
               )
@@ -66773,7 +67636,7 @@ var init_safety = __esm({
         }
         return {
           allowed: true,
-          reason: join5(
+          reason: join6(
             packageKnown ? isPackageCreate ? `Superpackage ${container} is allowlisted.` : `Package ${container} is allowlisted.` : "Package check deferred.",
             enhancementReason
           )
@@ -67619,6 +68482,7 @@ function loadConfig(opts = {}) {
     sessionIdleMs: env.ABAP_SESSION_IDLE_MS ?? 3e5,
     sessionWaitMs: env.ABAP_SESSION_WAIT_MS ?? 1e4,
     debugDiaBudget: env.ABAP_DEBUG_DIA_BUDGET,
+    debugSessions: env.ABAP_DEBUG_SESSIONS,
     crossProcessDebugLock: env.ABAP_CROSS_PROCESS_DEBUG_LOCK,
     debugLockWaitMs: env.ABAP_DEBUG_LOCK_WAIT_MS,
     // Must stay byte-for-byte identical to
@@ -67799,9 +68663,10 @@ ${[...zodIssues, ...modeIssues, ...enhanceTargetsIssues, ...credentialIssues].jo
       `[abapsmith] WARNING: ABAP_IDE_ID is set to the same value as ABAP_TERMINAL_ID. SAP treats this pair as a debug session's identity, so setting them identical makes two processes indistinguishable to SAP and to the debugger's own bookkeeping \u2014 exactly the collision ABAP_TERMINAL_ID/ABAP_IDE_ID exist to prevent. Separately: distinct ids do not buy SAFE concurrent debugging either way \u2014 a second global-scope listener for the same SAP user with a DIFFERENT (terminalId, ideId) pair is rejected server-side (409 AdiFailed, subType=conflictDetected, "Another session already exists with global debugging scope for user \u2026"); reusing the SAME pair is accepted instead of rejected, but was observed wedging both listeners for minutes in testing. There is no confirmed way to run two independent, healthy global-scope listeners for one SAP user at once.`
     );
   }
-  if (cfg.readConcurrency + cfg.writeConcurrency + 1 > cfg.maxSessions) {
+  const debugLaneCount = resolveDebugSessionLimit(cfg);
+  if (cfg.readConcurrency + cfg.writeConcurrency + debugLaneCount > cfg.maxSessions) {
     warn(
-      `[abapsmith] WARNING: readConcurrency (${cfg.readConcurrency}) + writeConcurrency (${cfg.writeConcurrency}) + 1 reserved debug lease slot exceeds maxSessions (${cfg.maxSessions}). The lane limits are not clamped to the pool size, so the lanes simply contend for the smaller number of actual slots \u2014 the excess lane capacity configured above is unreachable. Accepted as written; the server starts normally.`
+      `[abapsmith] WARNING: readConcurrency (${cfg.readConcurrency}) + writeConcurrency (${cfg.writeConcurrency}) + ${debugLaneCount} reserved debug lease slot${debugLaneCount === 1 ? "" : "s"} exceeds maxSessions (${cfg.maxSessions}). The lane limits are not clamped to the pool size, so the lanes simply contend for the smaller number of actual slots \u2014 the excess lane capacity configured above is unreachable. Accepted as written; the server starts normally.`
     );
   }
   if (cfg.serialiseSameObjectWrites === false) {
@@ -67899,6 +68764,7 @@ function redactConfigSecrets(cfg) {
     sessionIdleMs: cfg.sessionIdleMs,
     sessionWaitMs: cfg.sessionWaitMs,
     debugDiaBudget: cfg.debugDiaBudget,
+    debugSessions: cfg.debugSessions,
     crossProcessDebugLock: cfg.crossProcessDebugLock,
     debugLockWaitMs: cfg.debugLockWaitMs,
     // Neither a secret; reported unmasked so an operator can see at a glance
@@ -67920,6 +68786,7 @@ var init_config = __esm({
     import_dotenv = __toESM(require_main(), 1);
     init_zod();
     init_transports();
+    init_pool();
     init_client_cert();
     init_service_key();
     init_compact();
@@ -68392,12 +69259,44 @@ var init_config = __esm({
        * read; exhaustion at the ceiling was never induced/measured).
        *
        * `0`/`1` disables debugging outright (the kill switch — hence
-       * `.nonnegative()` not `.positive()`). A FLOOR CHECK, not a multiplier:
-       * raising it does NOT enable a second concurrent debug session (see
-       * `DEBUG_CONCURRENCY` in `src/adt/pool.ts` — parallel debugging is
-       * closed). Deliberately no `.max()`: `7` is A4H-specific.
+       * `.nonnegative()` not `.positive()`). Raising this ALONE does not enable
+       * a second concurrent debug session: the actual concurrency cap is
+       * `resolveDebugSessionLimit(cfg)` in `src/adt/pool.ts`, which takes the
+       * smaller of `debugSessions` (below) and `floor(debugDiaBudget /
+       * DIA_COST_PER_DEBUG_SESSION)` — this field only ever raises the ceiling
+       * that `debugSessions` is capped against, it never raises the cap by
+       * itself. Deliberately no `.max()`: `7` is A4H-specific.
        */
       debugDiaBudget: external_exports.coerce.number().int().nonnegative().default(2),
+      /**
+       * How many concurrent debug leases to grant, before the `debugDiaBudget`
+       * ceiling above is applied — see `resolveDebugSessionLimit` in
+       * `src/adt/pool.ts` for the exact formula. Default `1`, matching every
+       * abapsmith release before this setting existed (`DEBUG_CONCURRENCY` in
+       * `src/adt/pool.ts`), so leaving `ABAP_DEBUG_SESSIONS` unset reproduces
+       * today's behaviour bit-for-bit.
+       *
+       * Raising this past `1` only raises the CLIENT-side cap. It does not, by
+       * itself, make a second concurrent debug session possible: measured wire
+       * evidence (`test/cassettes/debugger/listener-conflict-409.cassette.json`)
+       * shows SAP refusing a second `POST .../debugger/listeners` for the same
+       * SAP user with `409`/`conflictDetected` (T100 `SY 530`, "Another session
+       * already exists with global debugging scope for user X") even when the
+       * refused request carried a different `terminalId` from the holder's —
+       * SAP's exclusivity at this scope is per SAP USER, not per identity. A
+       * second lane only has a chance of working when it authenticates as a
+       * DIFFERENT SAP user (a second abapsmith process with a different
+       * `ABAP_USER`), or once a terminal-scoped debugging mode
+       * (`debuggingMode: "terminal"`) is proven functional — it is modelled in
+       * this repo but has never been demonstrated to work.
+       *
+       * Hard-fails (does not clamp) outside `1..4`, mirroring `debugDiaBudget`'s
+       * validation style: a value this consequential should be loud when wrong,
+       * not silently coerced into something the operator didn't ask for.
+       * `.max(4)` is an arbitrary sanity ceiling — nothing enforces that more
+       * than a handful of debug lanes could ever be useful on one process.
+       */
+      debugSessions: external_exports.coerce.number().int().min(1).max(4).default(1),
       /**
        * Whether the live debug deps install the cross-process debug arm lock
        * (`FileLockDebugArmLock`, `src/debug/arm-lock.ts`) or its no-op stand-in.
@@ -83530,14 +84429,15 @@ init_config();
 init_errors();
 init_http_guard();
 init_tls_credentials();
-import { createHash as createHash4 } from "node:crypto";
+import { createHash as createHash5 } from "node:crypto";
 
 // src/debug/client.ts
 init_errors();
 init_truncate();
-import { createHash as createHash3, randomUUID } from "node:crypto";
+import { createHash as createHash4, randomUUID } from "node:crypto";
 
 // src/debug/endpoints.ts
+init_errors();
 var DEBUGGING_MODE = {
   /** `c_dbgmode_user`. Requires `requestUser`. */
   USER: "user",
@@ -83623,7 +84523,11 @@ function buildUrl(path8, params) {
   return params ? `${normalised}${buildQuery(params)}` : normalised;
 }
 function breakpointsPostUrl(query = {}) {
-  return buildUrl(DEBUGGER_BREAKPOINTS_PATH, { checkConflict: query.checkConflict });
+  const ids = (query.debuggeeSessionIds ?? []).filter((id) => id.trim().length > 0);
+  return buildUrl(DEBUGGER_BREAKPOINTS_PATH, {
+    checkConflict: query.checkConflict,
+    debuggeeSessionIds: ids.length > 0 ? ids.join(",") : void 0
+  });
 }
 function deleteBreakpointUrl(params) {
   const { id, terminalId, ideId, debuggingMode, requestUser, ...rest } = params;
@@ -83652,6 +84556,44 @@ function deleteBreakpointUrl(params) {
 }
 var BREAKPOINTS_CONTENT_TYPE = "application/xml";
 var BREAKPOINTS_ACCEPT = "application/xml";
+var DEBUGGER_WATCHPOINTS_PATH = `${DEBUGGER_BASE_PATH}/watchpoints`;
+function watchpointsUrl() {
+  return buildUrl(DEBUGGER_WATCHPOINTS_PATH);
+}
+function createWatchpointUrl(params) {
+  const variableName = params.variableName.trim();
+  if (!variableName) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `createWatchpointUrl requires a non-empty variableName \u2014 got ${JSON.stringify(params.variableName)}.`,
+      { variableName: params.variableName }
+    );
+  }
+  return buildUrl(DEBUGGER_WATCHPOINTS_PATH, { variableName, condition: params.condition });
+}
+function watchpointUrl(id) {
+  const trimmed = id.trim();
+  if (!trimmed) {
+    throw new AbapError("BAD_INPUT", `watchpointUrl requires a non-empty id \u2014 got ${JSON.stringify(id)}.`, {
+      id
+    });
+  }
+  return buildUrl(`${DEBUGGER_WATCHPOINTS_PATH}/${encodeURIComponent(trimmed)}`);
+}
+function modifyWatchpointUrl(params) {
+  const id = params.id.trim();
+  if (!id) {
+    throw new AbapError("BAD_INPUT", `modifyWatchpointUrl requires a non-empty id \u2014 got ${JSON.stringify(params.id)}.`, {
+      id: params.id
+    });
+  }
+  return buildUrl(`${DEBUGGER_WATCHPOINTS_PATH}/${encodeURIComponent(id)}`, {
+    condition: params.condition,
+    active: params.active
+  });
+}
+var WATCHPOINTS_CONTENT_TYPE = "application/xml";
+var WATCHPOINTS_ACCEPT = "application/xml";
 function listenerLaunchUrl(params) {
   assertValidTerminalId(params.terminalId);
   if (params.ideId !== void 0) assertValidIdeId(params.ideId);
@@ -83744,10 +84686,11 @@ var DEBUGGER_ENDPOINTS = [
     name: "breakpoints.post",
     method: "POST",
     path: DEBUGGER_BREAKPOINTS_PATH,
-    queryParams: ["checkConflict"],
+    queryParams: ["checkConflict", "debuggeeSessionIds"],
     contentType: BREAKPOINTS_CONTENT_TYPE,
     accept: BREAKPOINTS_ACCEPT,
-    citation: "live-verified against A4H"
+    citation: "live-verified against A4H; debuggeeSessionIds chain read live off A4H's CL_TPDA_ADT_RES_BREAKPOINTS/CL_TPDAPI_BP_SERVICES/cl_abdbg_debugger_wakeup",
+    notes: "debuggeeSessionIds only takes effect for scope=external (ref_static_bp_service is only bound then) \u2014 see BreakpointsPostQuery.debuggeeSessionIds's doc comment for the full chain down to DEBUGGEE_STOP kind='R'."
   },
   {
     name: "breakpoints.delete",
@@ -83793,6 +84736,50 @@ var DEBUGGER_ENDPOINTS = [
     queryParams: [],
     citation: "live-verified against A4H",
     notes: "200/0 B with no parameters on A4H. Further parameterisation UNKNOWN."
+  },
+  {
+    name: "watchpoints.create",
+    method: "POST",
+    path: DEBUGGER_WATCHPOINTS_PATH,
+    queryParams: ["variableName", "condition"],
+    contentType: WATCHPOINTS_CONTENT_TYPE,
+    accept: WATCHPOINTS_ACCEPT,
+    citation: "CL_TPDA_ADT_RES_APP router registration + CL_TPDA_ADT_RES_WATCHPOINTS + XSLT TPDA_ADT_DEBUGGER_WP, read live off A4H, 2026-09-12; response shape and error bodies confirmed by test/fixtures/live-captured/{910,911,936,937,942}-*.xml",
+    notes: 'Both params in the query string only, request body empty. Missing variableName -> 400 `<exc:exception>`, type "ExceptionParameterNotFound", T100 SADT_RESOURCE/017 (910). Creation failure -> 404. Requires a debug session already attached to a suspended debuggee. Response is a <dbg:watchpoints> list root carrying ONLY the row just created, never any other already-armed watchpoint (937 created id 2 while id 1 was already armed; the response carried only id 2, confirmed against the immediately-following GET in 938). Creating a second watchpoint on a variable that already has one is ACCEPTED, not refused (942, 200) \u2014 nothing upstream may assume one watchpoint per variable.'
+  },
+  {
+    name: "watchpoints.list",
+    method: "GET",
+    path: DEBUGGER_WATCHPOINTS_PATH,
+    queryParams: [],
+    citation: "CL_TPDA_ADT_RES_APP router registration + CL_TPDA_ADT_RES_WATCHPOINTS + XSLT TPDA_ADT_DEBUGGER_WP, read live off A4H, 2026-09-12",
+    notes: "Every watchpoint of the attached session; each row carries oldValue/currentValue."
+  },
+  {
+    name: "watchpoints.get",
+    method: "GET",
+    path: `${DEBUGGER_WATCHPOINTS_PATH}/{watchpointId}`,
+    queryParams: [],
+    citation: "CL_TPDA_ADT_RES_APP router registration + CL_TPDA_ADT_RES_WATCHPOINTS + XSLT TPDA_ADT_DEBUGGER_WP, read live off A4H, 2026-09-12; 404 shape confirmed by test/fixtures/live-captured/943-watchpoint-get-unknown-id.xml",
+    notes: 'Unknown/absent id -> 404, observed as `<exc:exception>` type "AdtFailed" (not "ExceptionResourceNotFound"), message "Cannot retrieve watchpoint data: Watchpoint not found", T100 TPDA_ADT/013 (943).'
+  },
+  {
+    name: "watchpoints.modify",
+    method: "PUT",
+    path: `${DEBUGGER_WATCHPOINTS_PATH}/{watchpointId}`,
+    queryParams: ["condition", "active"],
+    contentType: WATCHPOINTS_CONTENT_TYPE,
+    accept: WATCHPOINTS_ACCEPT,
+    citation: "CL_TPDA_ADT_RES_APP router registration + CL_TPDA_ADT_RES_WATCHPOINTS + XSLT TPDA_ADT_DEBUGGER_WP, read live off A4H, 2026-09-12; renumbering behaviour confirmed by test/fixtures/live-captured/{940,941,942}-*.xml",
+    notes: "Params in the query string only, request body empty. Bad id or rejected condition -> 404. Response is a <dbg:watchpoints> list root carrying one row (same per-call-echo shape as create). THE RETURNED ROW'S id CAN DIFFER FROM THE id ADDRESSED: PUT .../watchpoints/1 answered with id 3, the old id 1 no longer listed, and a later create reused the freed id 1 (940, 941, 942) \u2014 callers must read the id off the response, not assume the request id still applies."
+  },
+  {
+    name: "watchpoints.delete",
+    method: "DELETE",
+    path: `${DEBUGGER_WATCHPOINTS_PATH}/{watchpointId}`,
+    queryParams: [],
+    citation: "CL_TPDA_ADT_RES_APP router registration + CL_TPDA_ADT_RES_WATCHPOINTS + XSLT TPDA_ADT_DEBUGGER_WP, read live off A4H, 2026-09-12",
+    notes: "Unknown/absent id -> 404."
   },
   {
     name: "listeners.launch",
@@ -84250,6 +85237,19 @@ function parseReachedBreakpoints(root) {
   if (typeof node2 !== "object" || node2 === null) return [];
   return toArray(node2.breakpoint).map(parseReachedBreakpoint);
 }
+function parseReachedWatchpoint(row2) {
+  return {
+    id: str(row2.id),
+    variableName: str(row2.variableName),
+    expired: dbgBool(row2.expired),
+    currentValue: str(row2.currentValue)
+  };
+}
+function parseReachedWatchpoints(root) {
+  const node2 = root.reachedWatchpoints;
+  if (typeof node2 !== "object" || node2 === null) return [];
+  return toArray(node2.watchpoint).map(parseReachedWatchpoint);
+}
 function parseActions(root) {
   const node2 = root.actions;
   return toArray(node2?.action).map(parseDebugAction);
@@ -84283,7 +85283,8 @@ function parseAttachResponse(xmlText2) {
   return {
     ...parseSessionStateAttrs(root),
     actions: parseActions(root),
-    reachedBreakpoints: parseReachedBreakpoints(root)
+    reachedBreakpoints: parseReachedBreakpoints(root),
+    reachedWatchpoints: parseReachedWatchpoints(root)
   };
 }
 function parseSettingsAttrs(node2) {
@@ -84319,6 +85320,7 @@ function parseStepResponse(xmlText2) {
     ...parseSessionStateAttrs(root),
     actions: parseActions(root),
     reachedBreakpoints: parseReachedBreakpoints(root),
+    reachedWatchpoints: parseReachedWatchpoints(root),
     isDebuggeeChanged: dbgBool(root.isDebuggeeChanged),
     settings
   };
@@ -84398,6 +85400,47 @@ function parseBreakpointsResponse(xmlText2) {
         return { ...common, kind: "line", uri: str(row2.uri) };
     }
   });
+}
+function parseWatchpointRow(row2, xmlText2) {
+  const id = row2.id?.trim();
+  if (!id) {
+    throw new DebugXmlParseError(
+      "parseWatchpointsResponse: <watchpoint> row is missing its mandatory id attribute",
+      xmlText2
+    );
+  }
+  return {
+    id,
+    variableName: str(row2.variableName),
+    kind: row2.kind,
+    active: row2.active === void 0 ? void 0 : dbgBool(row2.active),
+    expired: row2.expired === void 0 ? void 0 : dbgBool(row2.expired),
+    procedure: row2.procedure,
+    condition: row2.condition,
+    oldVariable: row2.oldVariable,
+    currentVariable: row2.currentVariable,
+    oldValue: row2.oldValue,
+    currentValue: row2.currentValue
+  };
+}
+function parseWatchpointsResponse(xmlText2) {
+  if (isEmptyBody(xmlText2)) return [];
+  const parsed = parser.parse(xmlText2);
+  const rootNode = parsed.watchpoints;
+  if (typeof rootNode === "string" && rootNode.trim() === "") return [];
+  if (rootNode && typeof rootNode === "object") {
+    const rows = toArray(rootNode.watchpoint);
+    return rows.map((row2) => parseWatchpointRow(row2, xmlText2));
+  }
+  const bareNode = parsed.watchpoint;
+  if (typeof bareNode === "string" && bareNode.trim() === "") return [];
+  if (bareNode && typeof bareNode === "object") {
+    return [parseWatchpointRow(bareNode, xmlText2)];
+  }
+  throw new DebugXmlParseError(
+    "parseWatchpointsResponse: expected root <dbg:watchpoints> or a bare <watchpoint> element",
+    xmlText2
+  );
 }
 function parseVariableRow(row2) {
   return {
@@ -84688,7 +85731,7 @@ function resolveTerminalId(opts) {
     assertValidTerminalId(explicit, "resolveTerminalId's explicit override");
     return explicit;
   }
-  const hex3 = createHash3("sha256").update(opts.seed, "utf8").digest("hex").slice(0, TERMINAL_ID_LENGTH).toUpperCase();
+  const hex3 = createHash4("sha256").update(opts.seed, "utf8").digest("hex").slice(0, TERMINAL_ID_LENGTH).toUpperCase();
   assertValidTerminalId(hex3, "resolveTerminalId's derived id");
   return hex3;
 }
@@ -84755,10 +85798,18 @@ var DebugClient = class {
     return this.longPoll.clientAbortTimeoutMs;
   }
   // --- Breakpoints -----------------------------------------------------
+  /**
+   * `opts.debuggeeSessionIds`, when non-empty, is what makes a breakpoint change land
+   * on the SUSPENDED debuggee's very next step instead of one stop-cycle late — see
+   * `BreakpointsPostQuery.debuggeeSessionIds`'s doc comment in `endpoints.ts` for the
+   * full `notify_dbg_sess_ids` / `debuggee_reload_bps` / `DEBUGGEE_STOP kind='R'`
+   * chain. Pure pass-through: this method does not decide when to populate it — see
+   * `DebugSession.armBreakpointsTwoPass()`/`removeBreakpoint()`.
+   */
   async setBreakpoints(request, opts = {}) {
     const raw = await this.transport.request({
       method: "POST",
-      path: breakpointsPostUrl({ checkConflict: opts.checkConflict }),
+      path: breakpointsPostUrl({ checkConflict: opts.checkConflict, debuggeeSessionIds: opts.debuggeeSessionIds }),
       headers: { "Content-Type": BREAKPOINTS_CONTENT_TYPE, Accept: BREAKPOINTS_ACCEPT },
       body: buildBreakpointsRequestXml(request)
     });
@@ -84766,6 +85817,75 @@ var DebugClient = class {
   }
   async deleteBreakpoint(params) {
     await this.transport.request({ method: "DELETE", path: deleteBreakpointUrl(params) });
+  }
+  // --- Watchpoints -------------------------------------------------------
+  /**
+   * `POST .../watchpoints?variableName=..&condition=..` — query string only, no XML body (unlike
+   * `setBreakpoints`, which does send one). Requires a debug session already attached to a
+   * suspended debuggee; see `createWatchpointUrl`'s doc comment in endpoints.ts for the 400/404
+   * rules. Live-confirmed the response is a PER-CALL echo — just the row created, never any other
+   * already-armed watchpoint (`test/fixtures/live-captured/937-watchpoint-create-second.xml`
+   * against `938-watchpoint-list-two.xml`) — so this returning a 1-element array is the normal
+   * case, not a truncated list.
+   */
+  async createWatchpoint(params) {
+    const raw = await this.transport.request({
+      method: "POST",
+      path: createWatchpointUrl(params),
+      headers: { Accept: WATCHPOINTS_ACCEPT }
+    });
+    return parseWatchpointsResponse(raw.body);
+  }
+  async listWatchpoints() {
+    const raw = await this.transport.request({ method: "GET", path: watchpointsUrl(), headers: { Accept: WATCHPOINTS_ACCEPT } });
+    return parseWatchpointsResponse(raw.body);
+  }
+  /**
+   * Single watchpoint by id. Mirrors `getListener`'s 404 discrimination: a genuine ADT 404
+   * (`NOT_FOUND` with `details.abapType` set) means "no such watchpoint", not a transport fault —
+   * reported as `undefined` rather than thrown. Live-confirmed the unknown-id 404 body: type
+   * `"AdtFailed"` (not `"ExceptionResourceNotFound"` like the breakpoints/listener 404s), T100
+   * `TPDA_ADT`/`013`, message "Cannot retrieve watchpoint data: Watchpoint not found"
+   * (`test/fixtures/live-captured/943-watchpoint-get-unknown-id.xml`). The discrimination below
+   * keys on `abapType` being present at all, not on its specific value, so this still resolves to
+   * `undefined` rather than rejecting.
+   */
+  async getWatchpoint(id) {
+    let raw;
+    try {
+      raw = await this.transport.request({ method: "GET", path: watchpointUrl(id), headers: { Accept: WATCHPOINTS_ACCEPT } });
+    } catch (e) {
+      if (isAbapError(e) && e.code === "NOT_FOUND" && e.details?.["abapType"] !== void 0) {
+        return void 0;
+      }
+      throw e;
+    }
+    return parseWatchpointsResponse(raw.body)[0];
+  }
+  /**
+   * `PUT .../watchpoints/{id}?condition=..&active=true|false` — same empty-body shape as create.
+   * Returns the parsed row(s) RATHER THAN `void` on purpose: a successful modify can retire the id
+   * it was addressed by and hand back a different one — `PUT .../watchpoints/1` was observed to
+   * answer with `id="3"`, with id `1` gone from the next `GET .../watchpoints` and later reused by
+   * an unrelated create (`test/fixtures/live-captured/940-watchpoint-modify-condition.xml`,
+   * `941-watchpoint-list-after-modify.xml`, `942-watchpoint-create-duplicate.xml`). The caller has
+   * no way to learn the new id except by reading this return value.
+   */
+  async modifyWatchpoint(params) {
+    const raw = await this.transport.request({
+      method: "PUT",
+      path: modifyWatchpointUrl(params),
+      headers: { Accept: WATCHPOINTS_ACCEPT }
+    });
+    return parseWatchpointsResponse(raw.body);
+  }
+  /**
+   * `DELETE .../watchpoints/{id}` answers 200 with a ZERO-BYTE body, not 204
+   * (`test/fixtures/live-captured/919-watchpoint-delete.meta.json`: `zeroByteBody: true`). This
+   * never reads `raw.body`, so either shape resolves the same way.
+   */
+  async deleteWatchpoint(id) {
+    await this.transport.request({ method: "DELETE", path: watchpointUrl(id) });
   }
   // --- Listeners -------------------------------------------------------
   /**
@@ -85467,6 +86587,8 @@ function adtErrorFromException(e, path8) {
 var withSubtype = (err) => err.subtype ? { subtype: err.subtype } : {};
 var RESOURCE_NO_ACCESS_TYPE = "ExceptionResourceNoAccess";
 var isResourceNoAccess = (err) => err.abapType === RESOURCE_NO_ACCESS_TYPE;
+var ADT_REST_DATA_INVALID_TEXT = "Data is invalid and could not be converted";
+var isAdtRestDataInvalidText = (message) => (message ?? "").trim().toLowerCase() === ADT_REST_DATA_INVALID_TEXT.toLowerCase();
 var EU510_LOCK_TEXT = /\bis currently editing\b/i;
 function resourceNoAccessError(err) {
   const lockTextSeen = EU510_LOCK_TEXT.test(err.message ?? "");
@@ -85569,7 +86691,11 @@ function translateDebugError(err) {
       // shape. Present because its ABSENCE here once got read as "the extractor never ran" —
       // it had run; this hand-built object was simply dropping the field.
       ...err.exceptionClassNames?.length ? { exceptionClassNames: err.exceptionClassNames } : {}
-    }
+    },
+    // The server's own message is kept as `message` above, unaltered — this hint only ADDS
+    // context for `cx_adt_rest_data_invalid`'s bare default text, never replaces evidence with
+    // interpretation. See `ADT_REST_DATA_INVALID_TEXT`'s doc comment for what this is and isn't.
+    isAdtRestDataInvalidText(err.message) ? "This is cx_adt_rest_data_invalid's default text, raised by SAP's ADT REST layer when it cannot convert the payload of the debugger request in flight \u2014 it is not a complaint about a value you passed, and the server gives no further detail. Reported by a live verification run on 2026-09-15 on a step/continue issued right after breakpoints were changed under a suspended debuggee, at a point where that change reached the debuggee one stop-cycle late and the debuggee was already gone; breakpoint changes now notify the attached debuggee immediately, so this shape should no longer occur that way. In practice: the debug session is no longer there to step \u2014 start a new one." : void 0
   );
 }
 var UNRESOLVED_DEBUG_TARGET = { name: "ZDEBUG_TRANSPORT_UNRESOLVED_TARGET" };
@@ -85925,7 +87051,7 @@ function isStaleCsrfChallenge(resp) {
 
 // src/debug/session.ts
 function computeStateId(input) {
-  return createHash4("sha256").update(
+  return createHash5("sha256").update(
     `${input.debugSessionId}\0${input.stackPosition}\0${input.program}\0${input.line}\0${input.stepCounter}`,
     "utf8"
   ).digest("hex");
@@ -85938,7 +87064,9 @@ function terminationEvidenceFrom(e) {
   return { exceptionClassNames, bodyExcerpt };
 }
 var TERMINATE_STEP_DEADLINE_MS = 1500;
-var TERMINATE_TOTAL_DEADLINE_MS = 4e3;
+var BREAKPOINT_DELETE_DEADLINE_MS = 6e3;
+var TERMINATE_BASE_DEADLINE_MS = 4e3;
+var TERMINATE_MAX_DEADLINE_MS = 6e4;
 function settleWithin(p, ms) {
   return new Promise((resolve5) => {
     let settled = false;
@@ -85965,7 +87093,12 @@ function settleWithin(p, ms) {
   });
 }
 function isDoubleAttachError(e) {
-  return isAbapError(e) && e.details?.["subtype"] === "invalidDebuggee";
+  if (!isAbapError(e)) return false;
+  if (e.details?.["subtype"] === "invalidDebuggee") return true;
+  const ALREADY_ATTACHED_TEXT = /Debuggee already attached/i;
+  const bodyExcerpt = e.details?.["bodyExcerpt"];
+  if (typeof bodyExcerpt === "string" && ALREADY_ATTACHED_TEXT.test(bodyExcerpt)) return true;
+  return ALREADY_ATTACHED_TEXT.test(e.message);
 }
 var DebugSession = class {
   client;
@@ -86019,6 +87152,29 @@ var DebugSession = class {
    * `BreakpointsRequest.syncScope`, both of which repeat this warning.
    */
   ownedBreakpoints = [];
+  /**
+   * Every watchpoint id THIS session created, via `createWatchpoint()`. Exists so
+   * shutdown deletes exactly what this session created via targeted
+   * `DELETE /debugger/watchpoints/{id}` and nothing else — same reasoning as
+   * `ownedBreakpoints` immediately above: never assume a full-list sync/replace is
+   * safe. Cleared entry-by-entry as each delete is attempted, same drain-first
+   * discipline as `ownedBreakpoints` (see `deleteOwnedWatchpoints()`).
+   *
+   * These ids are NOT stable under every operation: `PUT /debugger/watchpoints/{id}`
+   * (modify condition/active) RETIRES the id it addresses and returns a
+   * DIFFERENT one for the same watchpoint. Observed against A4H on 2026-09-12 —
+   * `PUT .../watchpoints/1?condition=...` answered 200 with id 3, not 1; the
+   * following list showed ids 2 and 3 (1 gone), and a later create re-used the
+   * freed id 1. See `test/fixtures/live-captured/940-watchpoint-modify-condition.
+   * {meta.json,xml}`, `941-watchpoint-list-after-modify.{meta.json,xml}`, and
+   * `942-watchpoint-create-duplicate.{meta.json,xml}`. This session never
+   * modifies a watchpoint (no `modifyWatchpoint()` call exists in this file), so
+   * the ids it holds here stay valid for this session's whole lifetime — but the
+   * next person who adds a modify path MUST swap the old id for the response's
+   * new id in this array at the same time, exactly like `armBreakpointsTwoPass()`
+   * records ids from a response rather than assuming one it already sent back.
+   */
+  ownedWatchpoints = [];
   terminatePromise;
   constructor(opts) {
     this.client = opts.client;
@@ -86044,8 +87200,41 @@ var DebugSession = class {
       deathDetail: this.deathDetail,
       terminationResult: this.terminationResult,
       sessionBlockedBy: this.sessionBlockedBy,
-      abandonedCleanupSteps: this.abandonedCleanupSteps.length > 0 ? [...this.abandonedCleanupSteps] : void 0
+      abandonedCleanupSteps: this.abandonedCleanupSteps.length > 0 ? [...this.abandonedCleanupSteps] : void 0,
+      ownedBreakpointCount: this.ownedBreakpoints.length,
+      ownedWatchpointCount: this.ownedWatchpoints.length
     };
+  }
+  /**
+   * How long `terminate()` is willing to let its best-effort network cleanup
+   * (`terminationSteps()`) run before giving up and finalising the session anyway.
+   *
+   * `TERMINATE_BASE_DEADLINE_MS` (the FAST steps' old fixed total) plus
+   * `BREAKPOINT_DELETE_DEADLINE_MS` for every breakpoint AND watchpoint this
+   * session currently owns — each one needs its own DELETE, and each of those
+   * can independently take up to that long (see `BREAKPOINT_DELETE_DEADLINE_MS`'s
+   * doc comment for the live measurements behind that number). Capped at
+   * `TERMINATE_MAX_DEADLINE_MS` so an unusually large number of armed
+   * breakpoints/watchpoints cannot turn `terminate()` into an effectively
+   * unbounded wait.
+   *
+   * PUBLIC and read by the tool layer (`src/tools/debug.ts`) so its own
+   * `STOP_WAIT_MS`/`START_FAILURE_CLEANUP_WAIT_MS` waits can scale to match
+   * instead of independently guessing a bound long enough for this session's
+   * actual cleanup — see those constants' doc comments.
+   *
+   * MUST be read before `terminationSteps()` runs its course: that method's
+   * steps drain `ownedBreakpoints`/`ownedWatchpoints` via `.splice()` as they
+   * issue their deletes, so this getter would read back down to 0 owned (and
+   * therefore just `TERMINATE_BASE_DEADLINE_MS`) if read afterwards. See
+   * `doTerminate()`, which reads this into a local before calling
+   * `terminationSteps()` for exactly this reason.
+   */
+  get terminateDeadlineMs() {
+    return Math.min(
+      TERMINATE_MAX_DEADLINE_MS,
+      TERMINATE_BASE_DEADLINE_MS + (this.ownedBreakpoints.length + this.ownedWatchpoints.length) * BREAKPOINT_DELETE_DEADLINE_MS
+    );
   }
   /**
    * Called immediately before any client call that goes out on this session's
@@ -86102,12 +87291,35 @@ var DebugSession = class {
   }
   // --- Breakpoints ----------------------------------------------------------
   /**
-   * Validates every breakpoint (`validationOnly="true"`) before arming any for real.
-   * If validation refuses even one, nothing is armed and the thrown `BAD_INPUT` names
-   * every refusal. The real pass is checked the same way defensively, in case SAP
-   * refuses something for real that it accepted during validation.
+   * Shared two-pass validate-then-arm machinery behind both `prepareBreakpoints()`
+   * (called pre-attach, before `armListener()`) and `addBreakpoints()` (called
+   * while stopped, additively — see its own doc comment). `opName` feeds only
+   * error messages and `noteStatefulRequest()` labels; the wire shape sent is
+   * identical either way: `scope: "external"`, this session's own
+   * `debuggingMode`/`requestUser`/`terminalId`/`ideId`, and `syncScope` always
+   * omitted so the POST can never wipe anything — see `ownedBreakpoints`'s doc
+   * comment for why that matters.
+   *
+   * Validates every breakpoint (`validationOnly="true"`) before arming any for
+   * real. If validation refuses even one, nothing is armed and the thrown
+   * `BAD_INPUT` names every refusal. The real pass is checked the same way
+   * defensively, in case SAP refuses something for real that it accepted during
+   * validation.
+   *
+   * Neither pass notifies a suspended debuggee directly — sending
+   * `debuggeeSessionIds` on either would let a delta-shaped body reach the
+   * debuggee's reload. The validation pass's body is `validationOnly` rows that
+   * register nothing, and the arming pass's body is only the breakpoints THIS
+   * call is adding, which is exactly the delta shape `notifyDebuggeeOfOwnedBreakpoints()`'s
+   * doc comment documents as unsafe. Once the arming pass has succeeded and
+   * `ownedBreakpoints` reflects the newly created rows, this method calls
+   * `notifyDebuggeeOfOwnedBreakpoints()` with this session's now-complete owned
+   * set — see that method's doc comment for the full mechanism and the live
+   * evidence behind why the notify body must never be a delta. Pre-attach,
+   * `prepareBreakpoints()` naturally makes that call a no-op (status isn't
+   * `"suspended"` yet).
    */
-  async prepareBreakpoints(breakpoints) {
+  async armBreakpointsTwoPass(opName, breakpoints) {
     const buildRequest = (bps) => ({
       debuggingMode: this.context.debuggingMode,
       requestUser: this.context.requestUser,
@@ -86118,7 +87330,7 @@ var DebugSession = class {
     });
     const isRefusal = (r) => "errorMessage" in r;
     const describeRefusals = (refusals) => refusals.map((r) => `[${r.kind}${r.clientId ? ` clientId=${r.clientId}` : ""}] ${r.errorMessage}`).join("; ");
-    this.noteStatefulRequest("prepareBreakpoints (validation pass)");
+    this.noteStatefulRequest(`${opName} (validation pass)`);
     const validation = await this.client.setBreakpoints(
       buildRequest(breakpoints.map((bp) => ({ ...bp, validationOnly: true })))
     );
@@ -86126,17 +87338,17 @@ var DebugSession = class {
     if (validationRefusals.length > 0) {
       throw new AbapError(
         "BAD_INPUT",
-        `prepareBreakpoints: ${validationRefusals.length} breakpoint(s) refused during validation: ` + describeRefusals(validationRefusals),
+        `${opName}: ${validationRefusals.length} breakpoint(s) refused during validation: ` + describeRefusals(validationRefusals),
         { refusals: validationRefusals }
       );
     }
-    this.noteStatefulRequest("prepareBreakpoints (arming pass)");
+    this.noteStatefulRequest(`${opName} (arming pass)`);
     const real = await this.client.setBreakpoints(buildRequest(breakpoints));
     const realRefusals = real.filter(isRefusal);
     if (realRefusals.length > 0) {
       throw new AbapError(
         "BAD_INPUT",
-        `prepareBreakpoints: ${realRefusals.length} breakpoint(s) refused when arming for real, despite passing validation: ${describeRefusals(realRefusals)}`,
+        `${opName}: ${realRefusals.length} breakpoint(s) refused when arming for real, despite passing validation: ${describeRefusals(realRefusals)}`,
         { refusals: realRefusals }
       );
     }
@@ -86144,40 +87356,375 @@ var DebugSession = class {
     for (const bp of created) {
       if (typeof bp.id !== "string" || bp.id.length === 0) {
         this.log(
-          `[debug-session] prepareBreakpoints: the server accepted a ${bp.kind} breakpoint but echoed no id \u2014 it cannot be deleted individually at shutdown and will be left registered.`
+          `[debug-session] ${opName}: the server accepted a ${bp.kind} breakpoint but echoed no id \u2014 it cannot be deleted individually at shutdown and will be left registered.`
         );
         continue;
       }
       if (!this.ownedBreakpoints.some((b) => b.id === bp.id)) this.ownedBreakpoints.push(bp);
     }
+    await this.notifyDebuggeeOfOwnedBreakpoints(opName);
     return created;
   }
   /**
-   * Deletes ONLY the breakpoints this session created — one targeted DELETE per
-   * breakpoint (no batch delete exists).
+   * Best-effort wake-up nudge telling a suspended debuggee to reload the
+   * external breakpoint set: `setBreakpoints()`'s `debuggeeSessionIds` opt
+   * triggers `notify_dbg_sess_ids` -> `debuggee_reload_bps` -> RFC
+   * `DEBUGGEE_STOP kind='R'` server-side (full chain on
+   * `BreakpointsPostQuery.debuggeeSessionIds` in `endpoints.ts`). No-op
+   * (issues nothing) unless this session is currently attached to a suspended
+   * debuggee (`attachedDebuggeeSessionIds()` returns `[]` otherwise).
    *
-   * Never re-introduce the unscoped `syncScope {mode:"full"}, breakpoints: []` POST
-   * this replaced — see `ownedBreakpoints`'s doc comment for why that wipes other
-   * breakpoints, not just this session's. A session that never armed a breakpoint
-   * issues nothing here.
+   * The body sent is ALWAYS this session's complete owned set —
+   * `ownedBreakpoints`, each row stripped of its server-assigned `id` and any
+   * `validationOnly` flag — never a delta of just what changed. Live-verified
+   * today, 2026-09-15, against class ZCL_I89_PROBE3 in $TMP, whose `work`
+   * method's `DO 4 TIMES.` loop puts source line 26 inside the loop body (hit
+   * once per iteration, 4 times total per run): with no breakpoint changes at
+   * all, a line breakpoint on line 26 fired on every one of the 4 continues, as
+   * it must. But starting suspended at line 26 and then `op:"add"`ing a line
+   * breakpoint on line 39 with a POST whose body carried ONLY that newly added
+   * breakpoint (the delta) — the shape both call sites used to send here — the
+   * next continue stopped at line 39 as expected, and line 26 NEVER fired again
+   * for the remaining loop iterations. The reload does not merge with what the
+   * debuggee already had and does not re-read the full server-side external
+   * set: it replaces the suspended debuggee's entire runtime breakpoint set
+   * with EXACTLY the POSTed body. A delta-shaped body therefore silently drops
+   * every breakpoint this session owns that isn't repeated in it — which is why
+   * every caller of this method must pass the full owned set, never a delta.
+   *
+   * NEVER add `syncScope` here. That would instead make this POST's body the
+   * new authoritative breakpoint set for its *scope* server-side, wiping every
+   * OTHER external breakpoint (including ones armed by other sessions) —
+   * exactly the bug `ownedBreakpoints`'s doc comment and
+   * `deleteOwnedBreakpoints()` exist to avoid for DELETE. Omitting it is what
+   * keeps this call a pure re-assertion of what this session already owns,
+   * rather than a replacement of the scope's whole breakpoint set.
+   *
+   * BEST-EFFORT: wrapped so a rejection is only logged, never thrown — by the
+   * time this runs, the caller's own operation (arming or removing a
+   * breakpoint) has already succeeded server-side, and must not be turned into
+   * an error by a notification that is purely an optimization; the debuggee
+   * will still pick up the change on its next unrelated reload.
    */
-  async deleteOwnedBreakpoints() {
-    if (this.ownedBreakpoints.length === 0) return;
-    const owned = this.ownedBreakpoints.splice(0, this.ownedBreakpoints.length);
-    this.noteStatefulRequest("shutdown deleting this session's own breakpoints");
-    for (const bp of owned) {
-      await this.terminateStep(
-        `deleting this session's breakpoint ${bp.id}`,
-        () => this.client.deleteBreakpoint({
-          id: bp.id,
+  async notifyDebuggeeOfOwnedBreakpoints(label) {
+    const debuggeeSessionIds = this.attachedDebuggeeSessionIds();
+    if (debuggeeSessionIds.length === 0) return;
+    this.noteStatefulRequest(`${label} (re-assert+notify)`);
+    try {
+      const reassert = this.ownedBreakpoints.map(({ id: _id, validationOnly: _v, ...bp }) => bp);
+      await this.client.setBreakpoints(
+        {
+          debuggingMode: this.context.debuggingMode,
+          requestUser: this.context.requestUser,
+          terminalId: this.context.terminalId,
+          ideId: this.context.ideId,
+          scope: "external",
+          breakpoints: reassert
+        },
+        { debuggeeSessionIds }
+      );
+    } catch (e) {
+      this.log(
+        `[debug-session] ${label}: notifying the suspended debuggee to reload immediately failed (it will still pick up the change on its next unrelated reload): ${e instanceof Error ? e.message : String(e)}`
+      );
+    }
+  }
+  /**
+   * Validates every breakpoint (`validationOnly="true"`) before arming any for real.
+   * If validation refuses even one, nothing is armed and the thrown `BAD_INPUT` names
+   * every refusal. The real pass is checked the same way defensively, in case SAP
+   * refuses something for real that it accepted during validation.
+   *
+   * Load-bearing ordering: production always calls this before armListener() — do
+   * not move breakpoint preparation after arming.
+   */
+  async prepareBreakpoints(breakpoints) {
+    return this.armBreakpointsTwoPass("prepareBreakpoints", breakpoints);
+  }
+  /**
+   * Arms one or more additional breakpoints while the session is already stopped —
+   * e.g. after inspecting the stack, without restarting the whole debug session.
+   * Same `stateId`/status validation as the other stopped-state methods (`getStack()`,
+   * `step()`, ...) via `runStateful()`; the actual arming reuses
+   * `armBreakpointsTwoPass()`, the exact same validate-then-arm discipline
+   * `prepareBreakpoints()` uses, so the two never drift apart. Newly armed
+   * breakpoints are appended to `ownedBreakpoints`, same as `prepareBreakpoints()` —
+   * the existing shutdown path (`deleteOwnedBreakpoints()`) deletes them without
+   * caring which method armed them.
+   */
+  async addBreakpoints(stateId, breakpoints) {
+    if (breakpoints.length === 0) {
+      throw new AbapError(
+        "BAD_INPUT",
+        "addBreakpoints: at least one breakpoint is required.",
+        { breakpoints }
+      );
+    }
+    return this.runStateful(stateId, () => this.armBreakpointsTwoPass("addBreakpoints", breakpoints));
+  }
+  /**
+   * A fresh copy of every breakpoint this session currently owns (armed by
+   * `prepareBreakpoints()` or `addBreakpoints()` and not yet removed).
+   * Synchronous, issues nothing — and that is the only option available, not
+   * merely a design choice: `GET /sap/bc/adt/debugger/breakpoints` answers 200
+   * with a zero-byte body, both while breakpoints are armed and after they are
+   * cleaned up (there is no server-side read of the armed external breakpoint
+   * set at all). See `test/fixtures/live-captured/917-bp-list-while-stopped.
+   * meta.json` and `925-bp-list-after-cleanup.meta.json`. Do not "improve" this
+   * into a server round-trip — there is nothing on the wire for it to read.
+   */
+  listOwnedBreakpoints() {
+    return [...this.ownedBreakpoints];
+  }
+  /**
+   * Removes one breakpoint THIS session owns via a targeted
+   * `DELETE /debugger/breakpoints/{id}` — the same call `deleteOwnedBreakpoints()`
+   * uses at shutdown — and drops it from `ownedBreakpoints`. Refuses an id this
+   * session does not own (`BAD_INPUT`, naming the ids it does own) rather than
+   * silently issuing a DELETE this session has no record of arming; that refusal
+   * never touches the network. A server `NOT_FOUND` means the breakpoint is
+   * already gone (e.g. deleted through another path) — resolved, not thrown.
+   *
+   * DELETE has no `debuggeeSessionIds` equivalent (see `deleteBreakpointUrl`'s doc
+   * comment in `endpoints.ts`), so a suspended debuggee would otherwise not learn a
+   * breakpoint was removed until its next unrelated reload. To close that gap, once
+   * the DELETE has succeeded (or was tolerated as already-`NOT_FOUND`) and this
+   * session's local bookkeeping is updated, `notifyDebuggeeOfOwnedBreakpoints()` is
+   * called to re-assert every breakpoint this session STILL owns after the
+   * removal — see that method's doc comment for the full mechanism, the live
+   * 2026-09-15 evidence for why the notify body must always be the complete owned
+   * set rather than an empty `breakpoints: []` or a delta, and why it is
+   * best-effort. When nothing is left owned the body is naturally `[]` again —
+   * that is correct, there is nothing left to preserve.
+   */
+  async removeBreakpoint(stateId, id) {
+    return this.runStateful(stateId, async () => {
+      const idx = this.ownedBreakpoints.findIndex((bp) => bp.id === id);
+      if (idx === -1) {
+        throw new AbapError(
+          "BAD_INPUT",
+          `removeBreakpoint: this session does not own a breakpoint with id "${id}". Ids owned by this session: ${this.ownedBreakpoints.length > 0 ? this.ownedBreakpoints.map((bp) => bp.id).join(", ") : "(none)"}.`,
+          { id, ownedIds: this.ownedBreakpoints.map((bp) => bp.id) }
+        );
+      }
+      this.noteStatefulRequest(`removeBreakpoint ${id}`);
+      try {
+        await this.client.deleteBreakpoint({
+          id,
           scope: "external",
           debuggingMode: this.context.debuggingMode,
           requestUser: this.context.requestUser,
           terminalId: this.context.terminalId,
           ideId: this.context.ideId
-        }),
-        // Already gone (debuggee finished, or a previous partial cleanup got it).
-        (e) => isAbapError(e) && e.code === "NOT_FOUND"
+        });
+      } catch (e) {
+        if (!(isAbapError(e) && e.code === "NOT_FOUND")) throw e;
+      }
+      this.ownedBreakpoints.splice(idx, 1);
+      await this.notifyDebuggeeOfOwnedBreakpoints(`removeBreakpoint ${id}`);
+    });
+  }
+  /**
+   * Deletes ONLY the breakpoints this session created — one targeted DELETE per
+   * breakpoint (no batch delete exists), each individually deadlined at
+   * `BREAKPOINT_DELETE_DEADLINE_MS` (NOT `TERMINATE_STEP_DEADLINE_MS` — see that
+   * constant's doc comment for the live 2.1-2.9s measurement behind the choice).
+   *
+   * Never re-introduce the unscoped `syncScope {mode:"full"}, breakpoints: []` POST
+   * this replaced — see `ownedBreakpoints`'s doc comment for why that wipes other
+   * breakpoints, not just this session's. A session that never armed a breakpoint
+   * issues nothing here.
+   *
+   * Retry policy, deliberately asymmetric between the two ways a DELETE can fail:
+   *   - REJECTS with anything other than the tolerated `NOT_FOUND`: retried
+   *     ONCE before giving up. Safe specifically because a rejection means the
+   *     first attempt is over (not still running) — and the call is idempotent
+   *     (HTTP 200 with a zero-byte body even for an id that no longer exists,
+   *     live-verified against A4H today, 2026-09-15), so a second attempt for
+   *     the same id cannot double-delete or otherwise misbehave.
+   *   - TIMES OUT (never settles within the deadline): NEVER retried. A
+   *     timed-out DELETE is still running on the shared stateful debug
+   *     connection — `settleWithin()` only abandons the WAIT, it does not
+   *     abort the request (see its own doc comment) — so issuing a second one
+   *     now would create a SECOND in-flight request on that same connection.
+   *     That overlap is exactly what produced today's live defect: an
+   *     abandoned breakpoint DELETE left running, then overlapped by the next
+   *     session's `attach`, which came back HTTP 500 "Debuggee already
+   *     attached". Retrying after a timeout would just create a second
+   *     opportunity for the same collision instead of fixing it.
+   */
+  async deleteOwnedBreakpoints() {
+    if (this.ownedBreakpoints.length === 0) return;
+    const owned = this.ownedBreakpoints.splice(0, this.ownedBreakpoints.length);
+    this.noteStatefulRequest("shutdown deleting this session's own breakpoints");
+    const isNotFound = (e) => isAbapError(e) && e.code === "NOT_FOUND";
+    for (const bp of owned) {
+      const op = `deleting this session's breakpoint ${bp.id}`;
+      const issue3 = () => this.client.deleteBreakpoint({
+        id: bp.id,
+        scope: "external",
+        debuggingMode: this.context.debuggingMode,
+        requestUser: this.context.requestUser,
+        terminalId: this.context.terminalId,
+        ideId: this.context.ideId
+      });
+      const attempt = async () => {
+        let started;
+        try {
+          started = issue3();
+        } catch (e) {
+          started = Promise.reject(e);
+        }
+        return settleWithin(started, BREAKPOINT_DELETE_DEADLINE_MS);
+      };
+      let settled = await attempt();
+      if (settled.ok) continue;
+      if (settled.reason === "timeout") {
+        this.log(
+          `[debug-session] terminate: ${op} did not return within ${BREAKPOINT_DELETE_DEADLINE_MS}ms during cleanup \u2014 abandoning it and continuing (NOT retried: it may still be running on the connection).`
+        );
+        this.abandonedCleanupSteps.push(op);
+        continue;
+      }
+      if (isNotFound(settled.error)) continue;
+      this.log(
+        `[debug-session] terminate: ${op} failed during cleanup: ${describeUnknownError(settled.error)} \u2014 retrying once (the DELETE is idempotent even for an absent id).`
+      );
+      settled = await attempt();
+      if (settled.ok) continue;
+      if (settled.reason === "timeout") {
+        this.log(
+          `[debug-session] terminate: ${op} retry did not return within ${BREAKPOINT_DELETE_DEADLINE_MS}ms during cleanup \u2014 abandoning it and continuing.`
+        );
+        this.abandonedCleanupSteps.push(op);
+        continue;
+      }
+      if (isNotFound(settled.error)) continue;
+      this.log(`[debug-session] terminate: ${op} failed during cleanup after retry: ${describeUnknownError(settled.error)}`);
+    }
+  }
+  // --- Watchpoints -------------------------------------------------------------
+  /**
+   * Creates one watchpoint while the session is stopped (the wire requires the
+   * session to be attached to a suspended debuggee — see `createWatchpoint`'s
+   * doc comment on `DebugClient`). Refuses a blank `variableName` before
+   * touching the network. `stateId`/status validated the same way as every
+   * other stopped-state method, via `runStateful()`.
+   *
+   * Every row `createWatchpoint()` echoes back is recorded as newly created by
+   * THIS call — a create response is a per-call echo of only the new
+   * watchpoint(s), never the session's full list. Observed against a live A4H
+   * system on 2026-09-12: with watchpoint 1 already armed on `LV_TOTAL`, a
+   * second `POST .../watchpoints?variableName=LV_ZERO` answered with exactly
+   * one row (id 2), while the immediately following `GET /debugger/watchpoints`
+   * answered with both rows. See
+   * `test/fixtures/live-captured/936-watchpoint-create-first.{meta.json,xml}`,
+   * `937-watchpoint-create-second.{meta.json,xml}`, and
+   * `938-watchpoint-list-two.{meta.json,xml}`. This confirms
+   * `createWatchpoint()` can never hand back a pre-existing watchpoint (another
+   * session's or Eclipse's) for this method to wrongly claim ownership of.
+   */
+  async addWatchpoint(stateId, params) {
+    if (!params.variableName || params.variableName.trim().length === 0) {
+      throw new AbapError("BAD_INPUT", "addWatchpoint: variableName must not be blank.", { params });
+    }
+    return this.runStateful(stateId, async () => {
+      this.noteStatefulRequest("addWatchpoint");
+      const result = await this.client.createWatchpoint(params);
+      for (const wp of result) {
+        if (typeof wp.id === "string" && wp.id.length > 0 && !this.ownedWatchpoints.includes(wp.id)) {
+          this.ownedWatchpoints.push(wp.id);
+        }
+      }
+      return result;
+    });
+  }
+  /** Lists every watchpoint visible on this session (not filtered to this session's own — see `readWatchpoints()` for that). Same `stateId`/status validation as the other stopped-state methods. */
+  async listWatchpoints(stateId) {
+    return this.runStateful(stateId, () => {
+      this.noteStatefulRequest("listWatchpoints");
+      return this.client.listWatchpoints();
+    });
+  }
+  /**
+   * Removes one watchpoint THIS session owns via a targeted
+   * `DELETE /debugger/watchpoints/{id}` and drops it from `ownedWatchpoints`.
+   * Refuses an id this session does not own (`BAD_INPUT`, naming the ids it
+   * does own), the same way `removeBreakpoint()` does. A server `NOT_FOUND`
+   * means it is already gone (the debuggee it belonged to may have finished) —
+   * resolved, not thrown.
+   */
+  async removeWatchpoint(stateId, id) {
+    return this.runStateful(stateId, async () => {
+      const idx = this.ownedWatchpoints.indexOf(id);
+      if (idx === -1) {
+        throw new AbapError(
+          "BAD_INPUT",
+          `removeWatchpoint: this session does not own a watchpoint with id "${id}". Ids owned by this session: ${this.ownedWatchpoints.length > 0 ? this.ownedWatchpoints.join(", ") : "(none)"}.`,
+          { id, ownedIds: [...this.ownedWatchpoints] }
+        );
+      }
+      this.noteStatefulRequest(`removeWatchpoint ${id}`);
+      try {
+        await this.client.deleteWatchpoint(id);
+      } catch (e) {
+        if (!(isAbapError(e) && e.code === "NOT_FOUND")) throw e;
+      }
+      this.ownedWatchpoints.splice(idx, 1);
+    });
+  }
+  /**
+   * Plain read of this session's own watchpoints, with NO `stateId` — meant for
+   * the tool layer to call right after a stop, to read `oldValue`/`currentValue`
+   * off a watchpoint that may just have fired. How a watchpoint hit is (or
+   * isn't) reported inside an attach/step response's `reachedBreakpoints` is
+   * unverified against the wire — that gap is exactly why the tool layer is
+   * expected to read the watchpoint list separately after a stop instead of
+   * relying on a reached-breakpoint row naming it.
+   *
+   * Issues nothing and returns `[]` when this session owns no watchpoints, so
+   * calling this costs nothing when the feature is unused. Otherwise reads the
+   * full session-visible list (`GET /debugger/watchpoints`) and filters to the
+   * ids this session created — same ownership scoping as everywhere else in
+   * this file, so a caller here never sees another session's or Eclipse's rows.
+   */
+  async readWatchpoints() {
+    if (this.ownedWatchpoints.length === 0) return [];
+    this.noteStatefulRequest("readWatchpoints");
+    const all = await this.client.listWatchpoints();
+    return all.filter((wp) => this.ownedWatchpoints.includes(wp.id));
+  }
+  /**
+   * Deletes ONLY the watchpoints this session created — same drain-first,
+   * NOT_FOUND-tolerant, `terminateStep()`-wrapped discipline as
+   * `deleteOwnedBreakpoints()`, and for the same reason: this must never guess
+   * at or touch a watchpoint this session did not create. A watchpoint belongs
+   * to the debuggee, not the ADT session, so it may already be gone once the
+   * debuggee finished on its own — `NOT_FOUND` there is expected, not a
+   * failure, and must never make cleanup throw.
+   *
+   * NOT_FOUND-tolerance here is load-bearing for a second, more concrete reason
+   * than "already gone": watchpoint ids are small reused integers, not opaque
+   * tokens (`1`, `2`, `3`, ...), and both a delete and a modify free the id they
+   * addressed for reuse by the next create — see `ownedWatchpoints`'s doc
+   * comment and `940`-`942` in `test/fixtures/live-captured/`. A stale id held
+   * past that point does not merely 404; it can in principle address a
+   * DIFFERENT, newer watchpoint that reused the same small integer. This is a
+   * real hazard, bounded only by this session holding the debuggee exclusively
+   * for the entire lifetime of the ids it records — nothing else (Eclipse, a
+   * concurrent session) may create or modify a watchpoint on the same debuggee
+   * while this session still holds an id for it.
+   */
+  async deleteOwnedWatchpoints() {
+    if (this.ownedWatchpoints.length === 0) return;
+    const owned = this.ownedWatchpoints.splice(0, this.ownedWatchpoints.length);
+    this.noteStatefulRequest("shutdown deleting this session's own watchpoints");
+    for (const id of owned) {
+      await this.terminateStep(
+        `deleting this session's watchpoint ${id}`,
+        () => this.client.deleteWatchpoint(id),
+        (e) => isAbapError(e) && e.code === "NOT_FOUND",
+        BREAKPOINT_DELETE_DEADLINE_MS
       );
     }
   }
@@ -86406,7 +87953,10 @@ var DebugSession = class {
       isSteppingPossible: true,
       isTerminationPossible: true,
       actions: [],
-      reachedBreakpoints: []
+      reachedBreakpoints: [],
+      // Placeholder, not evidence of nothing reached — this recovery path has no
+      // wire data to say either way (see the log line above).
+      reachedWatchpoints: []
     };
   }
   finishAttach(debuggeeId, attachResult, stack) {
@@ -86425,6 +87975,26 @@ var DebugSession = class {
     this.status = "suspended";
     this.startIdleTimer();
     return { attach: attachResult, stack, stateId: this.currentStateId };
+  }
+  /**
+   * Ids to pass as `setBreakpoints()`'s `debuggeeSessionIds` opt so a breakpoint
+   * change reaches an ALREADY-SUSPENDED debuggee before its very next step instead
+   * of one stop-cycle late — see `BreakpointsPostQuery.debuggeeSessionIds`'s doc
+   * comment in `endpoints.ts` for the full `notify_dbg_sess_ids`/
+   * `debuggee_reload_bps`/`DEBUGGEE_STOP kind='R'` chain this feeds.
+   *
+   * Empty (nothing to notify) unless BOTH:
+   *   - `this.status === "suspended"`, i.e. there is a live debuggee parked on a
+   *     stopped state right now — pre-attach (`prepareBreakpoints()`) and
+   *     post-terminate there is nothing to wake up; and
+   *   - `this.lastAttachResult?.debuggeeSessionId` is a real, non-empty value.
+   *     `syntheticAttachResult()` deliberately sets this to `""` for its
+   *     no-real-wire-data recovery path — that empty string must never be sent.
+   */
+  attachedDebuggeeSessionIds() {
+    if (this.status !== "suspended") return [];
+    const id = this.lastAttachResult?.debuggeeSessionId;
+    return typeof id === "string" && id.length > 0 ? [id] : [];
   }
   // --- stateId validation ------------------------------------------------------
   validateStateId(stateId) {
@@ -86709,11 +88279,12 @@ var DebugSession = class {
   }
   async doTerminate(reason, detail, evidence) {
     this.abortListener(`terminate (${reason})`);
+    const deadline2 = this.terminateDeadlineMs;
     try {
-      const whole = await settleWithin(this.terminationSteps(), TERMINATE_TOTAL_DEADLINE_MS);
+      const whole = await settleWithin(this.terminationSteps(), deadline2);
       if (!whole.ok && whole.reason === "timeout") {
         this.log(
-          `[debug-session] terminate: cleanup did not finish within ${TERMINATE_TOTAL_DEADLINE_MS}ms \u2014 finalising the session anyway; any still-running SAP call is abandoned.`
+          `[debug-session] terminate: cleanup did not finish within ${deadline2}ms \u2014 finalising the session anyway; any still-running SAP call is abandoned.`
         );
       } else if (!whole.ok) {
         this.log(`[debug-session] terminate: cleanup threw: ${describeUnknownError(whole.error)}`);
@@ -86755,6 +88326,8 @@ var DebugSession = class {
           isDoubleAttachError
         );
       }
+      await this.deleteOwnedWatchpoints();
+      await this.deleteOwnedBreakpoints();
       this.noteStatefulRequest("shutdown terminateDebuggee");
       await this.terminateStep(
         "terminateDebuggee",
@@ -86766,19 +88339,27 @@ var DebugSession = class {
     await this.terminateStep("stopListener", () => this.client.stopListener(this.listenerParams()));
     await this.deleteOwnedBreakpoints();
   }
-  /** One deadlined, best-effort cleanup call. Never throws: a step that fails or hangs past `TERMINATE_STEP_DEADLINE_MS` is logged and the sequence moves on. */
-  async terminateStep(op, run2, isExpectedFailure) {
+  /**
+   * One deadlined, best-effort cleanup call. Never throws: a step that fails or hangs
+   * past `deadlineMs` is logged and the sequence moves on.
+   *
+   * `deadlineMs` defaults to `TERMINATE_STEP_DEADLINE_MS`, which is now sized for the
+   * FAST steps only (attach-before-terminate, terminateDebuggee, stopListener — all
+   * measured 89-317ms live). Callers issuing a breakpoint or watchpoint DELETE must
+   * pass `BREAKPOINT_DELETE_DEADLINE_MS` explicitly — see that constant's doc comment.
+   */
+  async terminateStep(op, run2, isExpectedFailure, deadlineMs = TERMINATE_STEP_DEADLINE_MS) {
     let started;
     try {
       started = run2();
     } catch (e) {
       started = Promise.reject(e);
     }
-    const settled = await settleWithin(started, TERMINATE_STEP_DEADLINE_MS);
+    const settled = await settleWithin(started, deadlineMs);
     if (settled.ok) return;
     if (settled.reason === "timeout") {
       this.log(
-        `[debug-session] terminate: ${op} did not return within ${TERMINATE_STEP_DEADLINE_MS}ms during cleanup \u2014 abandoning it and continuing.`
+        `[debug-session] terminate: ${op} did not return within ${deadlineMs}ms during cleanup \u2014 abandoning it and continuing.`
       );
       this.abandonedCleanupSteps.push(op);
       return;
@@ -96449,851 +98030,7 @@ var StdioServerTransport = class {
 // src/server.ts
 init_connection();
 init_errors();
-
-// src/adt/pool.ts
-init_state_dir();
-init_connection();
-init_errors();
-init_connect_failure();
-init_session();
-init_session_lock();
-
-// src/adt/object-gate.ts
-init_state_dir();
-init_errors();
-init_session();
-import { createHash as createHash5 } from "node:crypto";
-import * as path4 from "node:path";
-var InProcessObjectGate = class {
-  /** key -> tail of the chain. Entries are deleted once they ARE the tail. */
-  chains = /* @__PURE__ */ new Map();
-  /** Live keys, for tests and diagnostics. Must return to 0 when idle. */
-  get pending() {
-    return this.chains.size;
-  }
-  run(objectUri, fn) {
-    const key = objectUriOf(objectUri);
-    const prev = this.chains.get(key) ?? Promise.resolve();
-    const result = prev.then(fn, fn);
-    const settled = result.then(
-      () => void 0,
-      () => void 0
-    );
-    this.chains.set(key, settled);
-    void settled.then(() => {
-      if (this.chains.get(key) === settled) this.chains.delete(key);
-    });
-    return result;
-  }
-};
-var NoopObjectGate = class {
-  run(_objectUri, fn) {
-    return fn();
-  }
-};
-function resolveObjectLockWaitMs(env = process.env) {
-  const DEFAULT_MS = 1500;
-  const MIN_MS = 200;
-  const MAX_MS = 3e4;
-  const raw = env.ABAP_OBJECT_LOCK_WAIT_MS;
-  if (raw === void 0 || raw.trim() === "") return DEFAULT_MS;
-  const n = Number(raw.trim());
-  if (!Number.isFinite(n) || n < 0) return DEFAULT_MS;
-  const ms = Math.floor(n);
-  if (ms < MIN_MS || ms > MAX_MS) return DEFAULT_MS;
-  return ms;
-}
-function resolveCrossProcessObjectLock(env = process.env) {
-  const raw = env.ABAP_CROSS_PROCESS_OBJECT_LOCK;
-  if (raw === void 0) return true;
-  const v = raw.trim().toLowerCase();
-  if (v === "") return true;
-  return !["false", "0", "no", "off"].includes(v);
-}
-var LOCK_HASH_HEX_LEN = 20;
-function objectGateLockPath(stateDir, objectUri) {
-  const key = objectUriOf(objectUri);
-  const hash2 = createHash5("sha256").update(key).digest("hex").slice(0, LOCK_HASH_HEX_LEN);
-  return path4.join(stateDir, "locks", "objects", `${hash2}.lock`);
-}
-function toObjectLockBusyError(e, objectUri, lockPath) {
-  const holder = fileLockHolderOf(e);
-  const held = holder ? `held by pid ${holder.pid} on ${holder.hostname} since ${holder.startedAt || "an unknown time"}` : "the holder is unknown \u2014 the lock file could not be read, or was written by another version";
-  return new AbapError(
-    "OBJECT_LOCKED_CROSS_PROCESS",
-    `Cannot lock ${objectUri} for editing: another abapsmith process (or external session) is holding this object's cross-process lock (${held}). This object was left in a possibly-inconsistent state if that session did not finish; wait for it to complete or confirm it is stale before retrying.`,
-    { objectUri, lockPath, holder, cause: describeUnknownError(e) },
-    `If no other abapsmith process (and no SAP GUI/Eclipse session sharing this gate) is actually running, this is a stale leftover and you can delete ${lockPath} by hand. Raise ABAP_OBJECT_LOCK_WAIT_MS (currently the process default) if the other session is real but merely slow.`
-  );
-}
-var OBJECT_LOCK_HARD_STALE_MS = 6e5;
-var FileLockObjectGate = class {
-  inner = new InProcessObjectGate();
-  stateDir;
-  waitMs;
-  constructor(opts) {
-    this.stateDir = opts.stateDir;
-    this.waitMs = opts.waitMs ?? resolveObjectLockWaitMs();
-  }
-  run(objectUri, fn) {
-    return this.inner.run(objectUri, async () => {
-      const lockPath = objectGateLockPath(this.stateDir, objectUri);
-      try {
-        return await withFileLock(lockPath, fn, {
-          waitMs: this.waitMs,
-          hardStaleMs: OBJECT_LOCK_HARD_STALE_MS
-        });
-      } catch (e) {
-        if (isFileLockAcquisitionFailure(e, lockPath)) {
-          throw toObjectLockBusyError(e, objectUriOf(objectUri), lockPath);
-        }
-        throw e;
-      }
-    });
-  }
-};
-
-// src/adt/pool.ts
-var DEFAULT_POOL_MAX_QUEUE = 8;
-var DEBUG_CONCURRENCY = 1;
-var DIA_COST_PER_DEBUG_SESSION = 2;
-function poolClosedError(what) {
-  return new AbapError(
-    "NOT_CONNECTED",
-    `The ABAP session pool has been shut down; ${what} cannot be served.`,
-    { operation: what, reason: "pool-closed" },
-    "This is a lifecycle error, not a SAP one \u2014 the process is shutting down."
-  );
-}
-function isSessionDeadError(e) {
-  if (!isAbapError(e)) return false;
-  if (e.code === "SESSION_DEAD") return true;
-  return e.code === "ADT_ERROR" && e.details.reason === "csrf-stale-in-stateful-session";
-}
-function isCondemnedConnectionError(e) {
-  return isAbapError(e) && e.code === "SESSION_DEAD" && e.details.condemned === true;
-}
-var DEAD_ON_ARRIVAL_MS = 500;
-var EXECUTES_ABAP_OPS = /* @__PURE__ */ new Set(["abap_run", "abap_test", "abap_bopf_test"]);
-function isAuthClassError(e) {
-  return isAbapError(e) && (e.code === "AUTH_FAILED" || e.code === "AUTH_CIRCUIT_OPEN" || e.code === "CIRCUIT_OPEN_TRANSIENT");
-}
-function isConnectFailureClassError(e) {
-  return isAbapError(e) && (e.code === "SYSTEM_UNAVAILABLE" || e.code === "CONNECT_FAILED") && typeof e.details.reason === "string" && CONNECT_FAILURE_REASONS.has(e.details.reason);
-}
-function timingDebugEnabled2() {
-  const v = process.env.ABAP_TIMING_DEBUG;
-  return v === "1" || v === "true" || v === "yes" || v === "on";
-}
-var MAX_PREPARE_ATTEMPTS = 4;
-var AdtSessionPool = class {
-  cfg;
-  factory;
-  prepareFn;
-  gate;
-  maxQueue;
-  now;
-  setTimer;
-  clearTimer;
-  log;
-  /**
-   * Whether `log` was supplied. Only then is it forwarded to constructed
-   * connections: passing the pool's own no-op default through would SILENCE
-   * `AbapConnection`'s stderr diagnostics — including the breaker-tripped line
-   * — which nobody asked for.
-   */
-  forwardLog;
-  slots = [];
-  waiters = [];
-  nextId = 0;
-  closed = false;
-  /**
-   * L3. Supplied by the caller ({@link SessionPoolOptions.breaker}) and passed to every
-   * construction, slot 0 included — a prior version adopted the breaker from slot 0's own
-   * connection instead, which made the pinned slot the one L3 could structurally never refuse.
-   *
-   * Last line of defence against locking the SAP user out: `login/fails_to_user_lock` counts
-   * failed logons per user (not per session) and locks the account at the fifth, so a
-   * per-connection breaker would let each slot burn its own first failure and lock the account
-   * faster. `mintConnection` enforces this by refusing any connection carrying a different
-   * breaker instance — do not weaken that refusal or bypass `mintConnection`.
-   */
-  sharedBreaker;
-  /**
-   * The pinned slot's connection. Held separately so `primary()` survives `dispose()` (which
-   * empties `slots` but retires nothing). Re-pointed by {@link AdtSessionPool.seatPrimary}.
-   */
-  primaryConn;
-  constructor(opts) {
-    this.cfg = opts.cfg;
-    this.sharedBreaker = opts.breaker;
-    this.factory = opts.createConnection ?? ((cfg, o) => new AbapConnection(cfg, o));
-    this.prepareFn = opts.prepareConnection;
-    this.gate = opts.gate ?? (opts.cfg.serialiseSameObjectWrites === false ? new NoopObjectGate() : (opts.cfg.crossProcessObjectLock ?? resolveCrossProcessObjectLock()) === false ? new InProcessObjectGate() : new FileLockObjectGate({
-      stateDir: resolveStateDir(process.env),
-      waitMs: opts.cfg.objectLockWaitMs
-    }));
-    this.maxQueue = Math.max(0, opts.maxQueue ?? DEFAULT_POOL_MAX_QUEUE);
-    this.now = opts.now ?? (() => Date.now());
-    this.setTimer = opts.setTimer ?? ((fn, ms) => {
-      const h = setTimeout(fn, ms);
-      h.unref?.();
-      return h;
-    });
-    this.clearTimer = opts.clearTimer ?? ((h) => clearTimeout(h));
-    this.log = opts.log ?? (() => void 0);
-    this.forwardLog = opts.log !== void 0;
-    const primary = this.createSlot(true);
-    this.slots.push(primary);
-    this.primaryConn = primary.conn;
-  }
-  // ------------------------------------------------------------- creation ---
-  /**
-   * The shared-breaker contract, shared by `createSlot` and `createUnpooledConnection` so the
-   * two paths cannot drift. `operation` only labels the L3 refusal.
-   */
-  mintConnection(operation) {
-    const connOpts = { breaker: this.sharedBreaker };
-    if (this.forwardLog) connOpts.log = this.log;
-    const conn = this.factory(this.cfg, connOpts);
-    if (conn.breaker !== this.sharedBreaker) {
-      throw new AbapError(
-        "NOT_CONNECTED",
-        "Session pool refused a connection that does not share the process-wide auth circuit breaker.",
-        { operation, reason: "breaker-not-shared" },
-        "The connection factory must pass ConnectionOptions.breaker through to AbapConnection unchanged. One SAP user means one fails_to_user_lock counter, so the pool must have exactly one breaker."
-      );
-    }
-    return conn;
-  }
-  /** The only place a pooled connection is constructed; delegates the L3 check to {@link mintConnection}. */
-  createSlot(pinned) {
-    const conn = this.mintConnection("pool.createSlot");
-    const at = this.now();
-    const slot = {
-      id: this.nextId++,
-      conn,
-      pinned,
-      prepared: void 0,
-      preparing: false,
-      busy: false,
-      dead: false,
-      unsubscribeDead: void 0,
-      activeRelease: void 0,
-      role: "read",
-      op: "(idle)",
-      leasedAt: at,
-      lastReleasedAt: at
-    };
-    if (typeof conn.onDead === "function") {
-      slot.unsubscribeDead = conn.onDead(() => this.onSlotConnectionDied(slot));
-    }
-    return slot;
-  }
-  /**
-   * A connection that shares the pool's breaker but is NOT a pool slot: no id, no slot record,
-   * no `onDead` subscription, no DIA accounting, no lease. Caller owns its whole lifecycle.
-   *
-   * Exists for one caller — the debugger's trigger connection (`src/tools/debug.ts`), which
-   * deliberately carries a SEPARATE ADT session from the leased slot the listener long-polls
-   * on and is already counted as the second DIA in `DIA_COST_PER_DEBUG_SESSION`; pooling it
-   * would double-count and could consume the only debug lease. Routing it through
-   * `mintConnection` (rather than the caller constructing its own `AbapConnection`) is what
-   * makes breaker-sharing structural instead of a property someone has to remember to pass.
-   */
-  createUnpooledConnection(purpose) {
-    return this.mintConnection(`pool.createUnpooledConnection(${purpose})`);
-  }
-  /**
-   * `conn.onDead` fired. Runs synchronously inside `markDead()`, inside the response handling
-   * of whatever request killed the session — must stay allocation-cheap and never throw back.
-   */
-  onSlotConnectionDied(slot) {
-    if (slot.dead) return;
-    slot.dead = true;
-    if (!slot.busy) {
-      this.dropSlot(slot, "connection reported dead while idle");
-      this.handoff();
-      return;
-    }
-    if (slot.role === "debug") {
-      const release2 = slot.activeRelease;
-      slot.activeRelease = void 0;
-      if (release2) release2();
-      else this.releaseSlot(slot);
-      return;
-    }
-  }
-  // --------------------------------------------------------------- public ---
-  primary() {
-    this.seatPrimary();
-    return this.primaryConn;
-  }
-  /**
-   * Re-seat the primary if the slot behind it has been retired. Fixes a prior bug where a
-   * retired primary stayed installed and was still revivable: its logon-endpoint ceiling is a
-   * lifetime count that never resets, so revival eventually bricks permanently, and the
-   * retired object was invisible to `liveCount()` while `tryTake` grew a replacement, exceeding
-   * `maxSessions`.
-   *
-   * Lazy (nothing minted until someone asks for the primary — minting inside `acquire`'s retry
-   * loop would be a logon amplifier) and prefers adoption over minting (minting at the cap
-   * would recreate the same violation from the other side). The pin moves with the seat.
-   *
-   * Three-tier seating order, since `primary()` is consumed OUTSIDE any lease (`ensureConnected`,
-   * `abap_journal`'s undo path, the debugger) so an idle seat is the difference between a shared
-   * session and one somebody is mid-write on:
-   *  1. Warmest live IDLE slot.
-   *  2. Else mint, while `liveCount() < maxSessions`.
-   *  3. Else, last resort: warmest live BUSY slot (excluding `preparing` ones) — a knowingly
-   *     shared session. Not new behaviour: at `maxSessions = 1` this has always been the case.
-   *     Returning the retired corpse instead would revive the object this method exists to
-   *     retire; throwing isn't available since `primary()` is total.
-   *
-   * When even tier 3 finds nothing, the old reference is deliberately left in place — bounded
-   * by the in-flight leases that created that state; the next `release()`/`primary()` recovers.
-   * Never throws.
-   */
-  seatPrimary() {
-    if (this.closed) return;
-    for (const s of this.slots) {
-      if (s.conn !== this.primaryConn) continue;
-      if (!this.isSlotDead(s)) return;
-      break;
-    }
-    this.dropDeadIdle();
-    this.evictStaleIdle();
-    let seat;
-    for (const s of this.slots) {
-      if (s.busy || this.isSlotDead(s)) continue;
-      if (!seat || s.lastReleasedAt > seat.lastReleasedAt) seat = s;
-    }
-    if (!seat && this.liveCount() < this.cfg.maxSessions) {
-      try {
-        seat = this.createSlot(true);
-        this.slots.push(seat);
-      } catch (e) {
-        this.log(`[abapsmith] pool could not re-seat the primary: ${describeUnknownError(e)}`);
-        return;
-      }
-    }
-    if (!seat) {
-      for (const s of this.slots) {
-        if (this.isSlotDead(s) || s.preparing) continue;
-        if (!seat || s.lastReleasedAt > seat.lastReleasedAt) seat = s;
-      }
-    }
-    if (!seat) return;
-    for (const s of this.slots) if (s !== seat) s.pinned = false;
-    seat.pinned = true;
-    this.primaryConn = seat.conn;
-    this.log(
-      `[abapsmith] pool re-seated the primary onto slot ${seat.id}` + (timingDebugEnabled2() ? ` (connected=${seat.conn.isConnected} prepared=${seat.prepared !== void 0}).` : ".")
-    );
-  }
-  /**
-   * The one deadness question in this file (L6). The connection is the authority; `slot.dead`
-   * latches it so a slot stays retired even if `conn.connect()` later revives the object.
-   * Reading `isDead` is not a probe (L2 forbids asking the server, not listening).
-   */
-  isSlotDead(s) {
-    if (s.dead) return true;
-    if (s.conn.isDead === true) {
-      s.dead = true;
-      return true;
-    }
-    return false;
-  }
-  /**
-   * Busy dominates dead everywhere a slot is COUNTED (L6): death makes a slot unfit to be
-   * handed out, but it does not end an outstanding lease. Skipping a dead-but-leased slot
-   * would undercount `inFlight()` and let the pool admit a second concurrent request — the
-   * exact failure this module exists to prevent. So `busy` counts leases regardless of
-   * deadness, `idle` counts free-and-fit slots, and `dead` (every known corpse, leased or not)
-   * overlaps `busy`.
-   */
-  stats() {
-    let busy = 0;
-    let idle = 0;
-    let dead = 0;
-    for (const s of this.slots) {
-      const isDead = this.isSlotDead(s);
-      if (isDead) dead++;
-      if (s.busy) busy++;
-      else if (!isDead) idle++;
-    }
-    return { total: this.slots.length, busy, idle, waiting: this.waiters.length, dead };
-  }
-  async withRead(op, fn) {
-    if (EXECUTES_ABAP_OPS.has(op)) {
-      throw new AbapError(
-        "UNSUPPORTED",
-        `${op} executes ABAP and must be dispatched with withWrite \u2014 the read lane replays a dead-slot failure unconditionally.`,
-        { op }
-      );
-    }
-    return this.runOn("read", op, fn);
-  }
-  async withWrite(op, objectUri, fn) {
-    if (objectUri === void 0) return this.runOn("write", op, fn);
-    const key = objectUriOf(objectUri);
-    return this.gate.run(key, () => this.runOn("write", op, fn));
-  }
-  async reserveDebug(op) {
-    if (this.cfg.debugDiaBudget < DIA_COST_PER_DEBUG_SESSION) {
-      throw new AbapError(
-        "UNSUPPORTED",
-        `Debugging is disabled: ABAP_DEBUG_DIA_BUDGET is ${this.cfg.debugDiaBudget}, below the ${DIA_COST_PER_DEBUG_SESSION} dialog work processes one debug session pins.`,
-        {
-          operation: op,
-          reason: "dia-budget",
-          budget: this.cfg.debugDiaBudget,
-          cost: DIA_COST_PER_DEBUG_SESSION
-        },
-        "Raise ABAP_DEBUG_DIA_BUDGET only if the target system's rdisp/wp_no_dia has headroom. Raising it does not enable a second concurrent debug session."
-      );
-    }
-    const slot = await this.acquire("debug", op);
-    return this.lease(slot, "debug");
-  }
-  async shutdown(reason) {
-    this.closed = true;
-    this.drainWaiters(poolClosedError(`shutdown(${reason})`));
-    for (const s of [...this.slots]) {
-      try {
-        await s.conn.shutdown(reason);
-      } catch (e) {
-        this.log(`[abapsmith] pool slot ${s.id} shutdown failed: ${describeUnknownError(e)}`);
-      }
-    }
-  }
-  dispose() {
-    this.closed = true;
-    this.drainWaiters(poolClosedError("dispose()"));
-    for (const s of [...this.slots]) {
-      this.unsubscribeSlot(s);
-      try {
-        s.conn.dispose();
-      } catch (e) {
-        this.log(`[abapsmith] pool slot ${s.id} dispose failed: ${describeUnknownError(e)}`);
-      }
-    }
-    this.slots.splice(0);
-  }
-  // ------------------------------------------------------------ acquisition ---
-  roleLimit(role) {
-    if (role === "debug") return DEBUG_CONCURRENCY;
-    return role === "write" ? this.cfg.writeConcurrency : this.cfg.readConcurrency;
-  }
-  /** Outstanding leases in `role`. Deadness is NOT consulted — see {@link stats}. */
-  inFlight(role) {
-    let n = 0;
-    for (const s of this.slots) if (s.busy && s.role === role) n++;
-    return n;
-  }
-  /** Slots that still count against `maxSessions`: everything live, plus every corpse still leased. */
-  liveCount() {
-    let n = 0;
-    for (const s of this.slots) if (s.busy || !this.isSlotDead(s)) n++;
-    return n;
-  }
-  /**
-   * Decide-and-take in one synchronous run-to-completion block — no `await` between "a slot is
-   * free" and "the slot is mine" (the TOCTOU invariant `session-lock.ts` calls I1). This is why
-   * `createConnection` must be synchronous.
-   */
-  tryTake(role, op) {
-    if (this.closed) return void 0;
-    if (this.inFlight(role) >= this.roleLimit(role)) return void 0;
-    this.dropDeadIdle();
-    this.evictStaleIdle();
-    let best;
-    for (const s of this.slots) {
-      if (s.busy || this.isSlotDead(s)) continue;
-      if (!best || s.lastReleasedAt > best.lastReleasedAt) best = s;
-    }
-    if (!best && this.liveCount() < this.cfg.maxSessions) {
-      best = this.createSlot(false);
-      this.slots.push(best);
-    }
-    if (!best) return void 0;
-    best.busy = true;
-    best.role = role;
-    best.op = op;
-    best.leasedAt = this.now();
-    return best;
-  }
-  /** The slot whose lease is blocking us, for the `SessionBusyError` message. */
-  blockingSlot() {
-    let oldest;
-    for (const s of this.slots) {
-      if (!s.busy) continue;
-      if (!oldest || s.leasedAt < oldest.leasedAt) oldest = s;
-    }
-    return oldest;
-  }
-  busyError(reason, op, note) {
-    const holder = this.blockingSlot();
-    return new SessionBusyError({
-      reason,
-      op,
-      holder: holder ? holder.op : "(none)",
-      holderKind: holder?.role === "debug" ? "lease" : "exclusive",
-      heldForMs: holder ? Math.max(0, this.now() - holder.leasedAt) : 0,
-      ...note ? { note } : {}
-    });
-  }
-  /** True when the pool is full and everything holding it is a debug lease. */
-  blockedOnlyByDebugLease() {
-    if (this.liveCount() < this.cfg.maxSessions) return false;
-    let anyBusy = false;
-    for (const s of this.slots) {
-      if (!s.busy) {
-        if (this.isSlotDead(s)) continue;
-        return false;
-      }
-      anyBusy = true;
-      if (s.role !== "debug") return false;
-    }
-    return anyBusy;
-  }
-  /**
-   * Acquire a live, prepared slot, or reject.
-   *
-   * The wait budget is an absolute deadline computed once; a corpse found during preparation
-   * is dropped and retried against the SAME deadline, never a fresh `sessionWaitMs`.
-   *
-   * Three exits, not one — preparation is `conn.connect()` (a logon against the one shared
-   * `login/fails_to_user_lock` counter, L3), so retrying on every failure would be a logon
-   * amplifier:
-   *  - AUTH-CLASS failure ({@link isAuthClassError} / {@link isConnectFailureClassError}
-   *    for system-down/unreachable) — not a property of this session: release without
-   *    retiring, clear the memoised preparation, hand off, rethrow unwrapped. No second logon.
-   *  - Any other failure — dead on arrival: retire and retry against the same deadline, bounded
-   *    by {@link MAX_PREPARE_ATTEMPTS}.
-   *  - Budget or attempts exhausted — hand freed capacity to whoever is parked, then fail.
-   */
-  async acquire(role, op) {
-    const deadline2 = this.now() + this.cfg.sessionWaitMs;
-    const acquireStart = this.now();
-    let attempts = 0;
-    for (; ; ) {
-      if (this.closed) throw poolClosedError(op);
-      const mayTake = role === "debug" || !this.hasParkedWaiter();
-      const slot = (mayTake ? this.tryTake(role, op) : void 0) ?? await this.park(role, op, deadline2);
-      attempts++;
-      try {
-        slot.preparing = true;
-        const warm = slot.prepared !== void 0;
-        await this.prepare(slot, role);
-        if (timingDebugEnabled2()) {
-          this.log(
-            `[abapsmith] timing acquire op=${op} role=${role} slot=${slot.id} warm=${warm} attempts=${attempts} ms=${this.now() - acquireStart}`
-          );
-        }
-        return slot;
-      } catch (e) {
-        if (isAuthClassError(e) || isConnectFailureClassError(e)) {
-          slot.prepared = void 0;
-          this.releaseSlot(slot);
-          throw e;
-        }
-        this.retire(slot, "preparation failed", e);
-        if (this.now() >= deadline2) {
-          this.handoff();
-          throw this.busyError(
-            "wait-timeout",
-            op,
-            "Every session offered was dead on arrival; the last failure was: " + describeUnknownError(e)
-          );
-        }
-        if (attempts >= MAX_PREPARE_ATTEMPTS) {
-          this.handoff();
-          throw e;
-        }
-      } finally {
-        slot.preparing = false;
-      }
-    }
-  }
-  /** Park in the FIFO queue, or fail fast when parking is the wrong answer. */
-  park(role, op, deadline2) {
-    if (role === "debug") {
-      return Promise.reject(
-        this.busyError(
-          "lease-held",
-          op,
-          "A debug reservation never queues \u2014 stop the running debug session first."
-        )
-      );
-    }
-    if (this.blockedOnlyByDebugLease()) {
-      return Promise.reject(
-        this.busyError(
-          "lease-held",
-          op,
-          "The only session is held by a debugger long poll; queueing behind it would block for the rest of that poll."
-        )
-      );
-    }
-    if (this.waiters.length >= this.maxQueue) {
-      return Promise.reject(this.busyError("queue-full", op));
-    }
-    return new Promise((resolve5, reject) => {
-      const w = {
-        role,
-        op,
-        settled: false,
-        timer: void 0,
-        resolve: () => void 0,
-        reject: () => void 0
-      };
-      w.resolve = (slot) => {
-        if (w.settled) return;
-        w.settled = true;
-        this.clearTimer(w.timer);
-        resolve5(slot);
-      };
-      w.reject = (err) => {
-        if (w.settled) return;
-        w.settled = true;
-        this.clearTimer(w.timer);
-        reject(err);
-      };
-      w.timer = this.setTimer(() => {
-        this.unpark(w);
-        w.reject(this.busyError("wait-timeout", op));
-        this.handoff();
-      }, Math.max(0, deadline2 - this.now()));
-      this.waiters.push(w);
-    });
-  }
-  unpark(w) {
-    const i = this.waiters.indexOf(w);
-    if (i >= 0) this.waiters.splice(i, 1);
-  }
-  /**
-   * Is anyone actually waiting? Checks `settled` rather than trusting `waiters.length`, same
-   * reason `handoff` discards settled heads: a settled-but-still-queued waiter must never make
-   * a live caller defer to a ghost. Defensive — every queue exit should already remove itself.
-   */
-  hasParkedWaiter() {
-    for (const w of this.waiters) if (!w.settled) return true;
-    return false;
-  }
-  /**
-   * Hand freed capacity to parked callers, strict FIFO — if the head can't be served, nobody
-   * behind it is served either, or a write could starve behind a stream of reads. FIFO is a
-   * property of the pool, not just this loop: `acquire` refuses `tryTake` while anyone is
-   * parked ({@link AdtSessionPool.hasParkedWaiter}).
-   */
-  handoff() {
-    while (this.waiters.length > 0) {
-      const w = this.waiters[0];
-      if (w.settled) {
-        this.waiters.shift();
-        continue;
-      }
-      let slot;
-      try {
-        slot = this.tryTake(w.role, w.op);
-      } catch (e) {
-        this.waiters.shift();
-        w.reject(e);
-        continue;
-      }
-      if (!slot) return;
-      this.waiters.shift();
-      w.resolve(slot);
-    }
-  }
-  /**
-   * Reject every parked caller and empty the queue. `splice(0)` matters: rejecting in place
-   * would leave settled waiters queued for `stats().waiting` and `handoff` to trip over.
-   */
-  drainWaiters(err) {
-    for (const w of this.waiters.splice(0)) w.reject(err);
-  }
-  prepare(slot, role) {
-    if (!this.prepareFn) return Promise.resolve();
-    if (slot.prepared) return slot.prepared;
-    const started = this.now();
-    const p = this.prepareFn(slot.conn, role, slot.pinned);
-    slot.prepared = timingDebugEnabled2() ? p.then(
-      (v) => {
-        this.log(
-          `[abapsmith] timing prepare slot=${slot.id} role=${slot.role} pinned=${slot.pinned} op=${slot.op} ms=${this.now() - started}`
-        );
-        return v;
-      },
-      (e) => {
-        this.log(
-          `[abapsmith] timing prepare FAILED slot=${slot.id} ms=${this.now() - started}`
-        );
-        throw e;
-      }
-    ) : p;
-    return slot.prepared;
-  }
-  // ------------------------------------------------------------- leasing ---
-  lease(slot, role) {
-    let released = false;
-    const pool = this;
-    slot.activeRelease = () => {
-      if (released) return;
-      released = true;
-      pool.releaseSlot(slot);
-    };
-    return {
-      conn: slot.conn,
-      role,
-      id: slot.id,
-      /** L1: void, idempotent. Frees a pool slot only — locks are released by `StatefulSession`. */
-      release() {
-        if (released) return;
-        released = true;
-        pool.releaseSlot(slot);
-      }
-    };
-  }
-  releaseSlot(slot) {
-    slot.busy = false;
-    slot.op = "(idle)";
-    slot.activeRelease = void 0;
-    slot.lastReleasedAt = this.now();
-    if (this.isSlotDead(slot)) this.dropSlot(slot, "dead on release");
-    this.evictStaleIdle();
-    this.handoff();
-  }
-  /**
-   * Bounded (one attempt) recovery for a caller that inherited a corpse. A slot
-   * can die from a prior caller's own successful request, or an unrelated blip, and the pool
-   * has no way to learn until the next request fails on it (L2). This replays that caller's own
-   * request once on a freshly acquired slot, instead of surfacing `SESSION_DEAD` for free.
-   * Also covers `isSessionDeadError`'s CSRF-refusal shape (see its own comment).
-   *
-   * Idempotency: reads are unconditionally safe to replay (no side effect to duplicate).
-   * Writes replay only when the failure arrived implausibly fast (`DEAD_ON_ARRIVAL_MS`) — a
-   * slow `SESSION_DEAD` means the server had time to apply the write, so blind replay risks a
-   * duplicate mutation. Conservative first cut, not a proof — "session destroyed" vs.
-   * "CSRF token invalidated" isn't fully discriminated by any capture
-   * so far; see archive. Bounded to exactly one replay (`allowReplay=false` recursively), same
-   * reasoning as `MAX_PREPARE_ATTEMPTS`.
-   *
-   * A third case layers on top that skips the timing gate entirely: `isCondemnedConnectionError`
-   * recognises `connectionDeadError`, provably raised only when the connection died DURING
-   * this call's own `fn` (see that predicate's comment) — so `eligibleForDeadSlotReplay`
-   * refuses to replay a write carrying that marker regardless of `elapsedMs`, since the
-   * manufactured failure can arrive well under `DEAD_ON_ARRIVAL_MS`. Reads still unaffected.
-   */
-  async runOn(role, op, fn) {
-    return this.runOnAttempt(role, op, fn, true);
-  }
-  async runOnAttempt(role, op, fn, allowReplay) {
-    const slot = await this.acquire(role, op);
-    const lease = this.lease(slot, role);
-    const startedAt = this.now();
-    try {
-      return await fn(slot.conn);
-    } catch (e) {
-      if (isSessionDeadError(e)) {
-        slot.dead = true;
-        if (allowReplay && this.eligibleForDeadSlotReplay(role, this.now() - startedAt, e)) {
-          lease.release();
-          this.log(
-            `[abapsmith] pool replaying ${op} (role=${role}) on a fresh slot: inherited slot ${slot.id} was already dead (ms=${this.now() - startedAt}).`
-          );
-          return this.runOnAttempt(role, op, fn, false);
-        }
-      }
-      throw e;
-    } finally {
-      lease.release();
-    }
-  }
-  /**
-   * See `runOnAttempt`'s doc for the reasoning; this implements the threshold(s). Two
-   * independent gates for a write, checked in order: (1) `isCondemnedConnectionError(e)` — a
-   * structural refusal, checked first because a condemned error can arrive well
-   * under `DEAD_ON_ARRIVAL_MS` (nothing about the throw itself touches the wire), so the timing
-   * gate alone can't catch it; (2) the `DEAD_ON_ARRIVAL_MS` timing heuristic. Gate 1 has
-   * no lost-recovery cost: it can only suppress replays where `fn` had already started (proven
-   * in `isCondemnedConnectionError`'s comment), which this module's own conservative policy says
-   * shouldn't be replayed either. Reads bypass both gates unconditionally.
-   */
-  eligibleForDeadSlotReplay(role, elapsedMs, e) {
-    if (role === "read") return true;
-    if (isCondemnedConnectionError(e)) return false;
-    return elapsedMs <= DEAD_ON_ARRIVAL_MS;
-  }
-  // ------------------------------------------------------------- retirement ---
-  /** Detach this slot's `onDead` subscription. Idempotent; never throws. */
-  unsubscribeSlot(slot) {
-    const off = slot.unsubscribeDead;
-    slot.unsubscribeDead = void 0;
-    if (!off) return;
-    try {
-      off();
-    } catch (e) {
-      this.log(`[abapsmith] pool slot ${slot.id} onDead unsubscribe failed: ${describeUnknownError(e)}`);
-    }
-  }
-  dropDeadIdle() {
-    for (const s of [...this.slots]) {
-      if (this.isSlotDead(s) && !s.busy) this.dropSlot(s, "dead");
-    }
-  }
-  /**
-   * Presume-stale sweep. Runs at release time and again at checkout (`tryTake`), never on a
-   * timer — release-only would never fire on a quiet pool, precisely when slots go stale.
-   * Pinned slot 0 is exempt: recycling it costs a fresh logon + discovery + system-role probe.
-   *
-   * This exemption means a lock leaked on the pinned primary is never caught here
-   * — not a gap in practice, since `withStatefulSession()`'s own `finally` already drops a
-   * session the moment it records a leak, before this sweep would ever run.
-   */
-  evictStaleIdle() {
-    const cutoff = this.now() - this.cfg.sessionIdleMs;
-    for (const s of [...this.slots]) {
-      if (s.pinned || s.busy || this.isSlotDead(s)) continue;
-      if (s.lastReleasedAt <= cutoff) this.dropSlot(s, "idle past sessionIdleMs");
-    }
-  }
-  /**
-   * Kill a slot and give the capacity it was holding to whoever is parked.
-   *
-   * The `handoff()` is not optional: `retire` runs from `acquire`'s preparation-failure path
-   * and frees a slot against `maxSessions`; without a drain, `acquire`'s anti-barging rule
-   * would just send the retiring caller back to `park`, leaving free headroom nobody notices
-   * until an unrelated `release()`. It is not a logon amplifier — it only lets the head's own
-   * `tryTake` mint the one session it was already entitled to, bounded by its own
-   * `sessionWaitMs`/`MAX_PREPARE_ATTEMPTS`. Cannot recurse: `handoff` resolves a promise, so
-   * the served caller resumes in a later microtask.
-   */
-  retire(slot, why, cause) {
-    slot.dead = true;
-    slot.busy = false;
-    this.dropSlot(slot, cause ? `${why}: ${describeUnknownError(cause)}` : why);
-    this.handoff();
-  }
-  dropSlot(slot, why) {
-    const i = this.slots.indexOf(slot);
-    if (i < 0) return;
-    this.slots.splice(i, 1);
-    this.unsubscribeSlot(slot);
-    this.log(`[abapsmith] pool retiring slot ${slot.id} (${why}).`);
-    try {
-      if (!this.isSlotDead(slot)) {
-        void slot.conn.shutdown("pool-evict").catch((e) => {
-          this.log(`[abapsmith] pool slot ${slot.id} evict-shutdown failed: ${describeUnknownError(e)}`);
-        });
-      }
-      slot.conn.dispose();
-    } catch (e) {
-      this.log(`[abapsmith] pool slot ${slot.id} teardown failed: ${describeUnknownError(e)}`);
-    }
-  }
-};
+init_pool();
 
 // src/adt/session-transport.ts
 init_errors();
@@ -110570,32 +111307,42 @@ init_errors();
 init_compact();
 
 // src/debug/identity.ts
-function resolveDebugIdentity(cfg) {
-  const terminalId = resolveTerminalId({
-    explicit: cfg.terminalId,
-    seed: `${cfg.sid}:${cfg.user}:terminalId`
-  });
-  const ideId = resolveTerminalId({
-    explicit: cfg.ideId,
-    seed: `${cfg.sid}:${cfg.user}:ideId`
-  });
+function resolveDebugIdentity(cfg, lane = 0) {
+  const terminal = resolveLanePart(cfg.terminalId, `${cfg.sid}:${cfg.user}:terminalId`, lane);
+  const ide = resolveLanePart(cfg.ideId, `${cfg.sid}:${cfg.user}:ideId`, lane);
   return {
-    terminalId,
-    ideId,
-    terminalIdSource: cfg.terminalId?.trim() ? "config" : "derived",
-    ideIdSource: cfg.ideId?.trim() ? "config" : "derived"
+    terminalId: terminal.value,
+    ideId: ide.value,
+    terminalIdSource: terminal.source,
+    ideIdSource: ide.source,
+    lane
+  };
+}
+function resolveLanePart(explicit, baseSeed, lane) {
+  if (lane === 0) {
+    return {
+      value: resolveTerminalId({ explicit, seed: baseSeed }),
+      source: explicit?.trim() ? "config" : "derived"
+    };
+  }
+  const trimmedExplicit = explicit?.trim();
+  const seed = trimmedExplicit ? `${trimmedExplicit}:lane${lane}` : `${baseSeed}:lane${lane}`;
+  return {
+    value: resolveTerminalId({ seed }),
+    source: "lane-derived"
   };
 }
 var warned = false;
 function warnIfDerivedIdentity(id, warn) {
   if (warned) return false;
   const derivedParts = [];
-  if (id.terminalIdSource === "derived") derivedParts.push("terminalId");
-  if (id.ideIdSource === "derived") derivedParts.push("ideId");
+  if (id.terminalIdSource !== "config") derivedParts.push("terminalId");
+  if (id.ideIdSource !== "config") derivedParts.push("ideId");
   if (derivedParts.length === 0) return false;
   warned = true;
+  const laneNote = id.lane > 0 ? ` (lane ${id.lane})` : "";
   warn(
-    `[abapsmith] WARNING: debug identity's ${derivedParts.join(" and ")} ${derivedParts.length > 1 ? "were" : "was"} derived from SID+user (not explicitly configured). A second MCP server process for the same SAP user derives the IDENTICAL pair and SAP cannot tell the two apart. Only explicitly-configured ABAP_TERMINAL_ID / ABAP_IDE_ID are provably multi-process-safe \u2014 set them to distinct 32-uppercase-hex values per terminal.`
+    `[abapsmith] WARNING: debug identity's ${derivedParts.join(" and ")} ${derivedParts.length > 1 ? "were" : "was"} derived from SID+user${laneNote} (not explicitly configured). A second MCP server process for the same SAP user derives the IDENTICAL pair and SAP cannot tell the two apart. Only explicitly-configured ABAP_TERMINAL_ID / ABAP_IDE_ID are provably multi-process-safe \u2014 set them to distinct 32-uppercase-hex values per terminal.`
   );
   return true;
 }
@@ -110635,8 +111382,9 @@ var LOCK_HASH_HEX_LEN2 = 20;
 function debugArmLockKey(cfg) {
   return `${cfg.url.trim()}|${(cfg.client ?? "").trim()}|${cfg.user.trim().toUpperCase()}`;
 }
-function debugArmLockPath(stateDir, cfg) {
-  const hash2 = createHash7("sha256").update(debugArmLockKey(cfg)).digest("hex").slice(0, LOCK_HASH_HEX_LEN2);
+function debugArmLockPath(stateDir, cfg, lane = 0) {
+  const hashInput = lane === 0 ? debugArmLockKey(cfg) : `${debugArmLockKey(cfg)}|lane${lane}`;
+  const hash2 = createHash7("sha256").update(hashInput).digest("hex").slice(0, LOCK_HASH_HEX_LEN2);
   return path7.join(stateDir, "locks", "debug", `${hash2}.lock`);
 }
 function toDebugLockBusyError(e, key, lockPath) {
@@ -110669,7 +111417,7 @@ var FileLockDebugArmLock = class {
   /** In flight while an acquisition is racing, so concurrent callers await it. */
   acquiring;
   constructor(opts) {
-    this.lockPath = debugArmLockPath(opts.stateDir, opts.cfg);
+    this.lockPath = debugArmLockPath(opts.stateDir, opts.cfg, opts.lane ?? 0);
     this.key = debugArmLockKey(opts.cfg);
     this.waitMs = opts.waitMs ?? resolveDebugLockWaitMs();
   }
@@ -110745,7 +111493,15 @@ var FileLockDebugArmLock = class {
 function createDebugArmLock(opts) {
   const enabled = opts.enabled ?? resolveCrossProcessDebugLock(opts.env ?? process.env);
   if (!enabled) return new NoopDebugArmLock();
-  return new FileLockDebugArmLock({ stateDir: opts.stateDir, cfg: opts.cfg, waitMs: opts.waitMs });
+  return new FileLockDebugArmLock({ stateDir: opts.stateDir, cfg: opts.cfg, waitMs: opts.waitMs, lane: opts.lane });
+}
+function createDebugArmLocks(opts) {
+  const lanes = Number.isInteger(opts.lanes) && opts.lanes > 0 ? opts.lanes : 1;
+  const locks = [];
+  for (let lane = 0; lane < lanes; lane++) {
+    locks.push(createDebugArmLock({ ...opts, lane }));
+  }
+  return locks;
 }
 
 // src/tools/debug.ts
@@ -111339,20 +112095,25 @@ function registerRunTools(mcp, deps) {
 }
 
 // src/tools/debug.ts
+init_pool();
 function createLiveDebugToolDeps(params) {
-  const armLock = createDebugArmLock({
+  const laneCount = resolveDebugSessionLimit(params.cfg);
+  const armLocks = createDebugArmLocks({
+    lanes: laneCount,
     stateDir: resolveStateDir(process.env),
     cfg: params.cfg,
     enabled: params.cfg.crossProcessDebugLock,
     waitMs: params.cfg.debugLockWaitMs
   });
   return {
+    debugLaneCount: laneCount,
     createSession(conn, safety, opts) {
       const client = createDebugClientForConnection(conn, {
         safety,
         target: opts?.target
       });
-      const identity = resolveDebugIdentity(params.cfg);
+      const lane = opts?.lane ?? 0;
+      const identity = resolveDebugIdentity(params.cfg, lane);
       warnIfDerivedIdentity(identity, opts?.log ?? params.log);
       const sessionOpts = {
         client,
@@ -111364,12 +112125,18 @@ function createLiveDebugToolDeps(params) {
         },
         log: opts?.log ?? params.log,
         sessionLease: opts?.sessionLease,
-        armLock
+        armLock: armLocks[lane]
       };
       return new DebugSession(sessionOpts);
     },
     async createTriggerConnection() {
       const c = params.pool.createUnpooledConnection("debug-trigger");
+      await c.connect();
+      c.dispose();
+      return c;
+    },
+    async createDebugSessionConnection() {
+      const c = params.pool.createUnpooledConnection("debug-session");
       await c.connect();
       c.dispose();
       return c;
@@ -111417,12 +112184,16 @@ function createLiveDebugToolDeps(params) {
         // The probe arms a REAL listener at this identity, so it contends for
         // the same debugger slot and must take the same lock — a no-op if
         // THIS process already holds it, a refusal if another one does.
-        armLock
+        armLock: armLocks[0]
       });
       try {
         await probe3.armListener();
         const caught = await probe3.waitForDebuggee();
         if (caught.kind !== "debuggee") {
+          try {
+            await probe3.terminate("terminated_by_caller", "cleanup after releaseOrphanDebuggee found nothing (absent)");
+          } catch {
+          }
           return { kind: "absent" };
         }
         await probe3.attach(caught.debuggee.id);
@@ -111441,7 +112212,25 @@ function createLiveDebugToolDeps(params) {
     }
   };
 }
-var currentRun;
+var debugLanes = [];
+function activeLaneRuns() {
+  return debugLanes.filter((r) => r !== void 0);
+}
+function resolveLaneRun(stateId) {
+  const active = activeLaneRuns();
+  if (active.length <= 1) return active[0];
+  if (stateId !== void 0) {
+    const exact = active.find((r) => r.session.snapshot.stateId === stateId);
+    if (exact) return exact;
+  }
+  return active[0];
+}
+function firstFreeLane(limit) {
+  for (let i = 0; i < limit; i++) {
+    if (debugLanes[i] === void 0) return i;
+  }
+  return void 0;
+}
 function assertDebugWrite(gate, target, phase = "final") {
   return gate.authorize("execute", target, { phase });
 }
@@ -111449,9 +112238,12 @@ function assertSessionWrite(gate, run2) {
   return assertDebugWrite(gate, run2.gateTarget.target, run2.gateTarget.phase);
 }
 function shutdownDebugTools() {
-  const run2 = currentRun;
-  currentRun = void 0;
-  run2?.closeTriggerConn();
+  const runs = debugLanes;
+  debugLanes = [];
+  for (const run2 of runs) {
+    run2?.closeTriggerConn();
+    void run2?.closeSessionConn();
+  }
 }
 var TIMED_OUT = /* @__PURE__ */ Symbol("debug.timed-out");
 function raceDeadline(p, ms) {
@@ -111468,6 +112260,29 @@ var START_FAILURE_TRIGGER_WAIT_MS = 2e3;
 var START_FAILURE_CLEANUP_WAIT_MS = 5e3;
 var STOP_WAIT_MS = 5e3;
 var FORCE_CLEAR_WAIT_MS = 15e3;
+var DROP_DEBUG_SESSION_WAIT_MS = 3e3;
+async function dropDebugSessionOnConnection(conn, log2, why) {
+  log2?.(`abap_debug: dropSession() after ${why} \u2014 starting.`);
+  const heldLocks = conn.heldLockUris();
+  if (heldLocks.length > 0) {
+    log2?.(
+      `abap_debug: skipped dropSession() after ${why} \u2014 connection holds ${heldLocks.length} object lock(s), and dropSession() would silently release them.`
+    );
+    return;
+  }
+  try {
+    const outcome = await raceDeadline(conn.dropSession(), DROP_DEBUG_SESSION_WAIT_MS);
+    if (outcome === TIMED_OUT) {
+      log2?.(
+        `abap_debug: dropSession() after ${why} had not returned after ${DROP_DEBUG_SESSION_WAIT_MS} ms \u2014 it continues in the background.`
+      );
+    } else {
+      log2?.(`abap_debug: dropSession() after ${why} \u2014 completed.`);
+    }
+  } catch (e) {
+    log2?.(`abap_debug: dropSession() after ${why} failed (ignored): ${describeUnknownError(e)}`);
+  }
+}
 function makeTriggerConnCloser(triggerConn, log2) {
   let closed = false;
   return () => {
@@ -111481,6 +112296,27 @@ function makeTriggerConnCloser(triggerConn, log2) {
       log2?.(`abap_debug: trigger connection shutdown threw: ${describeUnknownError(e)}`);
       triggerConn.dispose();
     }
+  };
+}
+function makeSessionConnCloser(conn, log2, owned, why) {
+  let closed = false;
+  return async () => {
+    if (closed) return;
+    closed = true;
+    if (!owned) {
+      await dropDebugSessionOnConnection(conn, log2, why);
+      return;
+    }
+    try {
+      await conn.shutdown("debug-session-done").catch((e) => {
+        log2?.(`abap_debug: dedicated debug session connection shutdown failed: ${describeUnknownError(e)}`);
+      });
+    } catch (e) {
+      log2?.(`abap_debug: dedicated debug session connection shutdown threw: ${describeUnknownError(e)}`);
+    } finally {
+      conn.dispose();
+    }
+    log2?.(`abap_debug: dedicated debug session connection discarded after ${why}.`);
   };
 }
 function renderTriggerOutcome(settled, waitedMs) {
@@ -111514,12 +112350,32 @@ var exceptionBreakpointSchema = external_exports.object({
   kind: external_exports.literal("exception"),
   exceptionClass: external_exports.string().describe("Exception class to break on, e.g. CX_SY_ZERODIVIDE.")
 });
+var statementBreakpointSchema = external_exports.object({
+  ...breakpointConditionFields,
+  kind: external_exports.literal("statement"),
+  statement: external_exports.string().describe("ABAP statement keyword to break on, e.g. RAISE. SAP validates it.")
+});
+var messageBreakpointSchema = external_exports.object({
+  ...breakpointConditionFields,
+  kind: external_exports.literal("message"),
+  msgId: external_exports.string().describe("Message class, e.g. 00."),
+  // String, not number: leading zeros (e.g. "001") are significant and must survive.
+  msgNo: external_exports.string().describe("Message number, e.g. 001."),
+  msgTy: external_exports.string().describe("Message type letter, e.g. E.")
+});
 var debugInputSchema = {
-  action: external_exports.enum(["start", "step", "stack", "frame", "keepalive", "stop", "status"]).describe(
-    "start needs breakpoints+run. step needs stateId+step. stack needs stateId. frame needs stateId+frame. keepalive/stop/status need nothing."
+  action: external_exports.enum(["start", "step", "stack", "frame", "breakpoints", "watch", "keepalive", "stop", "status"]).describe(
+    "start needs breakpoints+run. step needs stateId+step. stack needs stateId. frame needs stateId+frame. breakpoints needs stateId (op add/remove) or nothing (op list, default). watch needs stateId+variable (op add, default when variable given) or stateId+id (op remove) or stateId (op list). keepalive/stop/status need nothing."
   ),
-  breakpoints: external_exports.array(external_exports.discriminatedUnion("kind", [lineBreakpointSchema, exceptionBreakpointSchema])).optional().describe(
-    '\u22651 entry, required for action="start"; kinds may mix and are validated against SAP before arming. Both kinds take optional condition (ABAP expression, suspend only when true) and skipCount (sent to SAP, NOT enforced \u2014 use step:"continue").'
+  breakpoints: external_exports.array(
+    external_exports.discriminatedUnion("kind", [
+      lineBreakpointSchema,
+      exceptionBreakpointSchema,
+      statementBreakpointSchema,
+      messageBreakpointSchema
+    ])
+  ).optional().describe(
+    '\u22651 entry, required for action="start" and for action="breakpoints" op="add"; kinds (line/exception/statement/message) may mix and are validated against SAP before arming. All kinds take optional condition (ABAP expression, suspend only when true) and skipCount (sent to SAP, NOT enforced \u2014 use step:"continue").'
   ),
   run: external_exports.object({
     object: external_exports.string().describe("Class or report to execute \u2014 same resolution rules as abap_run."),
@@ -111539,6 +112395,16 @@ var debugInputSchema = {
   frame: external_exports.number().int().min(1).describe(
     "1-based stackPosition from the last STACK section. Read-only."
   ).optional(),
+  // Shared between action="breakpoints" and action="watch" — meaning depends
+  // on which. breakpoints: defaults to "list". watch: defaults to "add" when
+  // "variable" is given, else "list".
+  op: external_exports.enum(["list", "add", "remove"]).optional().describe(
+    'action="breakpoints"/"watch" only. breakpoints defaults to "list"; watch defaults to "add" when "variable" is set, else "list".'
+  ),
+  id: external_exports.string().optional().describe('action="breakpoints"/"watch" op="remove" only \u2014 the id to remove.'),
+  variable: external_exports.string().optional().describe(
+    'action="watch" only \u2014 variable path to watch, same syntax abap_debug_value accepts. Presence selects op="add".'
+  ),
   confirm: external_exports.string().optional().describe(
     'Required for step="jumpToLine": echo "jumpToLine". Ignored otherwise.'
   ),
@@ -111549,6 +112415,14 @@ var debugInputSchema = {
   // doc/TOOLS/debugger.md.
   force: external_exports.boolean().optional().describe(
     `stop only \u2014 force-terminates a debuggee left attached by an unclean exit (the "Debuggee already attached" error's escape hatch).`
+  ),
+  // Top-level and named identically to the per-breakpoint `condition` field
+  // above, but distinct: that one nests inside a `breakpoints[]` entry and
+  // conditions a LINE/EXCEPTION/STATEMENT/MESSAGE breakpoint; this one is a
+  // sibling of `variable` and conditions a WATCHPOINT (action="watch" only)
+  // — different key paths, so the two never collide on the wire.
+  condition: external_exports.string().trim().min(1).max(255).optional().describe(
+    'action="watch" op="add" only \u2014 ABAP expression; the watchpoint only suspends when it evaluates true.'
   )
 };
 var DebugInput = external_exports.object(debugInputSchema);
@@ -111636,17 +112510,23 @@ function renderTerminationEvidence(tr) {
       ];
   }
 }
-async function composeDeathOutput(run2, action, maxChars, cause) {
+function explainOpaqueDeathDetail(detail) {
+  if (detail.trim().toLowerCase() !== ADT_REST_DATA_INVALID_TEXT.toLowerCase()) return detail;
+  return `${detail} \u2014 this is cx_adt_rest_data_invalid's default text, raised by SAP's ADT REST layer when it cannot convert the payload of the debugger request in flight; it is not a complaint about a value passed to this tool, and the server gives no further detail. Reported by a live verification run on 2026-09-15 right after breakpoints were changed under a suspended debuggee, at a point where that change reached the debuggee one stop-cycle late and the debuggee was already gone; breakpoint changes now notify the attached debuggee immediately, so this shape should no longer occur that way. In practice: the debug session is no longer there to step \u2014 start a new one.`;
+}
+async function composeDeathOutput(run2, action, maxChars, cause, extraNotes = []) {
   const settled = await raceDeadline(run2.triggerSettled, STOP_WAIT_MS);
   const outputSection = {
     title: "PROGRAM OUTPUT",
     content: renderTriggerOutcome(settled, STOP_WAIT_MS)
   };
   run2.closeTriggerConn();
+  await run2.closeSessionConn();
   const snapshot = run2.session.snapshot;
   const showDeathDetail = !isGenericFallbackEvidence(snapshot.terminationResult);
   const notes = [
-    showDeathDetail ? snapshot.deathDetail : void 0,
+    ...extraNotes,
+    showDeathDetail && snapshot.deathDetail !== void 0 ? explainOpaqueDeathDetail(snapshot.deathDetail) : void 0,
     snapshot.deathDetail === void 0 && cause instanceof Error ? cause.message : void 0,
     ...renderTerminationEvidence(snapshot.terminationResult)
   ].filter((n) => Boolean(n));
@@ -111670,6 +112550,17 @@ async function composeDeathOutput(run2, action, maxChars, cause) {
     sections: [outputSection],
     notes,
     maxChars: clampMaxChars(maxChars)
+  });
+}
+var MAX_FRAMEWORK_AUTO_CONTINUES = 10;
+function stackTouchesObject(stack, objectName) {
+  const normalize = (n) => n.toUpperCase().replace(/=+/g, "");
+  const uriNeedle = `/${objectName.toLowerCase()}/`;
+  return stack.frames.some((frame) => {
+    if (normalize(frame.programName).startsWith(objectName)) return true;
+    if (normalize(frame.includeName).startsWith(objectName)) return true;
+    if (frame.uri && frame.uri.toLowerCase().includes(uriNeedle)) return true;
+    return false;
   });
 }
 var ENHANCEMENT_DEBUG_TYPES = /* @__PURE__ */ new Set(["ENHO/XH", "ENHO/XHH", "ENHS/XS"]);
@@ -111717,18 +112608,58 @@ async function refuseEnhancementDebugTarget(conn, bpObject, resolved) {
   );
 }
 async function handleStart(conn, input, maxChars, deps, gate) {
-  const live = listActiveDebugSessions();
-  if (live.length > 0) {
-    const status = live[0].snapshot.status;
-    const tracked = currentRun !== void 0 && live.includes(currentRun.session);
-    throw new AbapError(
-      "UNSUPPORTED",
-      tracked ? `A debug session is already "${status}" (one session per process) \u2014 stop it first: abap_debug({action:"stop"}).` : `A debug session from an earlier, unsuccessful start attempt is still registered (status "${status}") even though it never became this process's active session (one session per process) \u2014 clear it first: abap_debug({action:"stop"}); if that reports the cleanup is still running, retry, or use abap_debug({action:"stop", force:true}) to force it out of tracking.`,
-      { status, tracked },
-      void 0,
-      { retryable: true }
-      // transient occupancy, not an unimplemented capability — a stop clears it
-    );
+  const laneLimit = deps.debugLaneCount ?? 1;
+  let targetLane;
+  if (laneLimit === 1) {
+    const live = listActiveDebugSessions();
+    if (live.length > 0) {
+      const status = live[0].snapshot.status;
+      const tracked = debugLanes[0] !== void 0 && live.includes(debugLanes[0].session);
+      if (tracked) {
+        throw new AbapError(
+          "DEBUG_ALL_LEASES_BUSY",
+          `This process is configured for a single debug session (laneLimit 1) and it is already "${status}" \u2014 stop it first: abap_debug({action:"stop"}). Raise ABAP_DEBUG_SESSIONS to run more than one at a time \u2014 itself capped at floor(ABAP_DEBUG_DIA_BUDGET / 2), since each concurrent debug session pins 2 dialog work processes on the SAP appliance (see debugDiaBudget/debugSessions in src/config.ts).`,
+          { laneLimit, status },
+          void 0,
+          { retryable: true }
+          // transient occupancy, not an unimplemented capability — a stop clears it
+        );
+      }
+      throw new AbapError(
+        "UNSUPPORTED",
+        `A debug session from an earlier, unsuccessful start attempt is still registered (status "${status}") even though it never became this process's active session (one session per process) \u2014 clear it first: abap_debug({action:"stop"}); if that reports the cleanup is still running, retry, or use abap_debug({action:"stop", force:true}) to force it out of tracking.`,
+        { status, tracked },
+        void 0,
+        { retryable: true }
+        // transient occupancy, not an unimplemented capability — a stop clears it
+      );
+    }
+    targetLane = 0;
+  } else {
+    const tracked = new Set(activeLaneRuns().map((r) => r.session));
+    const leaked = listActiveDebugSessions().find((s) => !tracked.has(s));
+    if (leaked) {
+      const status = leaked.snapshot.status;
+      throw new AbapError(
+        "UNSUPPORTED",
+        `A debug session from an earlier, unsuccessful start attempt is still registered (status "${status}") even though it is not one of this process's tracked debug lanes \u2014 clear it first: abap_debug({action:"stop"}); if that reports the cleanup is still running, retry, or use abap_debug({action:"stop", force:true}) to force it out of tracking.`,
+        { status, tracked: false },
+        void 0,
+        { retryable: true }
+      );
+    }
+    const free = firstFreeLane(laneLimit);
+    if (free === void 0) {
+      const status = activeLaneRuns()[0].session.snapshot.status;
+      throw new AbapError(
+        "DEBUG_ALL_LEASES_BUSY",
+        `All ${laneLimit} configured debug lanes are already busy in this process (e.g. status "${status}"). Raise ABAP_DEBUG_SESSIONS to configure more \u2014 itself capped at floor(ABAP_DEBUG_DIA_BUDGET / 2), since each concurrent debug session pins 2 dialog work processes on the SAP appliance (see debugDiaBudget/debugSessions in src/config.ts).`,
+        { laneLimit, status },
+        'Stop an existing session first: abap_debug({action:"stop"}).',
+        { retryable: true }
+      );
+    }
+    targetLane = free;
   }
   if (!input.breakpoints || input.breakpoints.length === 0) {
     throw new AbapError(
@@ -111749,14 +112680,32 @@ async function handleStart(conn, input, maxChars, deps, gate) {
   const sessionTarget = { ...runTarget };
   let gateTarget = { target: sessionTarget, phase: "preflight" };
   const slot = await deps.reserveDebugSession?.("debugger/listeners");
+  let dedicatedConn;
+  if (deps.createDebugSessionConnection) {
+    try {
+      dedicatedConn = await deps.createDebugSessionConnection();
+    } catch (e) {
+      slot?.release();
+      throw e;
+    }
+  }
+  const sessionConn = dedicatedConn ?? slot?.conn ?? conn;
+  const closeSessionConn = makeSessionConnCloser(
+    sessionConn,
+    deps.log,
+    dedicatedConn !== void 0,
+    "session end"
+  );
   let session;
   try {
-    session = deps.createSession(slot?.conn ?? conn, gate, {
+    session = deps.createSession(sessionConn, gate, {
       target: sessionTarget,
-      sessionLease: slot
+      sessionLease: slot,
+      lane: targetLane
     });
   } catch (e) {
     slot?.release();
+    void closeSessionConn();
     throw e;
   }
   let attachedStack;
@@ -111771,7 +112720,7 @@ async function handleStart(conn, input, maxChars, deps, gate) {
     const breakpoints = [];
     for (const bp of input.breakpoints) {
       if (bp.skipCount !== void 0 && bp.skipCount > 0) {
-        const where2 = bp.kind === "line" ? `${bp.object}:${bp.line}` : bp.exceptionClass;
+        const where2 = bp.kind === "line" ? `${bp.object}:${bp.line}` : bp.kind === "exception" ? bp.exceptionClass : bp.kind === "statement" ? bp.statement : `${bp.msgId} ${bp.msgTy}${bp.msgNo}`;
         skipCountWarnings.push(
           `skipCount:${bp.skipCount} on ${where2} was sent to SAP but is NOT enforced by this ADT debugger backend (live-verified on A4H) \u2014 expect a suspend on EVERY hit, not just the Nth. Use abap_debug({action:"step", step:"continue"}) to advance past hits you want to skip.`
         );
@@ -111823,10 +112772,26 @@ async function handleStart(conn, input, maxChars, deps, gate) {
           ...bp.condition !== void 0 ? { condition: bp.condition } : {},
           ...bp.skipCount !== void 0 ? { skipCount: bp.skipCount } : {}
         });
-      } else {
+      } else if (bp.kind === "exception") {
         breakpoints.push({
           kind: "exception",
           exceptionClass: bp.exceptionClass,
+          ...bp.condition !== void 0 ? { condition: bp.condition } : {},
+          ...bp.skipCount !== void 0 ? { skipCount: bp.skipCount } : {}
+        });
+      } else if (bp.kind === "statement") {
+        breakpoints.push({
+          kind: "statement",
+          statement: bp.statement,
+          ...bp.condition !== void 0 ? { condition: bp.condition } : {},
+          ...bp.skipCount !== void 0 ? { skipCount: bp.skipCount } : {}
+        });
+      } else {
+        breakpoints.push({
+          kind: "message",
+          msgId: bp.msgId,
+          msgNo: bp.msgNo,
+          msgTy: bp.msgTy,
           ...bp.condition !== void 0 ? { condition: bp.condition } : {},
           ...bp.skipCount !== void 0 ? { skipCount: bp.skipCount } : {}
         });
@@ -111864,10 +112829,12 @@ async function handleStart(conn, input, maxChars, deps, gate) {
     attachedStack = attached.stack;
     attachedStateId = attached.stateId;
   } catch (e) {
+    const cleanupWaitMs = Math.max(START_FAILURE_CLEANUP_WAIT_MS, session.terminateDeadlineMs + 1e3);
     await raceDeadline(
       session.cleanup().catch(() => void 0),
-      START_FAILURE_CLEANUP_WAIT_MS
+      cleanupWaitMs
     );
+    await closeSessionConn();
     let triggerNote;
     if (triggerSettled) {
       const settled = await raceDeadline(triggerSettled, START_FAILURE_TRIGGER_WAIT_MS);
@@ -111895,18 +112862,70 @@ ${triggerNote}`, {});
     }
     throw e;
   }
-  currentRun = {
+  const run2 = {
     session,
+    sessionConn,
+    closeSessionConn,
     triggerConn,
     triggerSettled,
     closeTriggerConn,
     gateTarget,
-    lastStack: attachedStack
+    lastStack: attachedStack,
+    lane: targetLane
   };
-  return await composeStopOutput(currentRun, "start", attachedStack, attachedStateId, maxChars, skipCountWarnings);
+  debugLanes[targetLane] = run2;
+  const runObjectName = parseObjectRef(input.run.object).name.toUpperCase();
+  const skippedFrameworkStops = [];
+  const describeTopFrame = (stack) => {
+    const frame = stack.frames[0];
+    if (!frame) return "<no frame reported>";
+    const eventBits = [frame.eventType, frame.eventName].filter((s) => s).join(" ");
+    return `${frame.programName}/${frame.includeName}:${frame.line}${eventBits ? ` (${eventBits})` : ""}`;
+  };
+  while (skippedFrameworkStops.length < MAX_FRAMEWORK_AUTO_CONTINUES && !stackTouchesObject(attachedStack, runObjectName)) {
+    skippedFrameworkStops.push(describeTopFrame(attachedStack));
+    let result;
+    try {
+      result = await run2.session.step(attachedStateId, "stepContinue");
+    } catch (e) {
+      if (run2.session.snapshot.status === "dead") {
+        skipCountWarnings.push(
+          `Auto-continued past ${skippedFrameworkStops.length} stop(s) outside ${runObjectName} before the debuggee died: ${skippedFrameworkStops.join("; ")}. A statement/exception/message breakpoint has no program/include restriction on the wire in ADT, so it fires in the first code that hits it anywhere in the work process (see MAX_FRAMEWORK_AUTO_CONTINUES's doc comment, src/tools/debug.ts).`
+        );
+        const out = await composeDeathOutput(run2, "start", maxChars, e, skipCountWarnings);
+        debugLanes[run2.lane] = void 0;
+        return out;
+      }
+      throw e;
+    }
+    if (run2.session.snapshot.status === "dead") {
+      skipCountWarnings.push(
+        `Auto-continued past ${skippedFrameworkStops.length} stop(s) outside ${runObjectName} before the debuggee died: ${skippedFrameworkStops.join("; ")}. A statement/exception/message breakpoint has no program/include restriction on the wire in ADT, so it fires in the first code that hits it anywhere in the work process (see MAX_FRAMEWORK_AUTO_CONTINUES's doc comment, src/tools/debug.ts).`
+      );
+      const out = await composeDeathOutput(run2, "start", maxChars, void 0, skipCountWarnings);
+      debugLanes[run2.lane] = void 0;
+      return out;
+    }
+    attachedStack = result.stack;
+    attachedStateId = result.stateId;
+    run2.lastStack = result.stack;
+  }
+  if (skippedFrameworkStops.length > 0) {
+    if (stackTouchesObject(attachedStack, runObjectName)) {
+      skipCountWarnings.push(
+        `Auto-continued past ${skippedFrameworkStops.length} stop(s) whose stack did not mention ${runObjectName} before reaching this one: ${skippedFrameworkStops.join("; ")}. A statement/exception/message breakpoint has no program/include restriction on the wire in ADT \u2014 it fires in the first code that hits it anywhere in the work process, which is very often SAP's own gateway/framework code running long before the caller's own object gets a chance to run (see MAX_FRAMEWORK_AUTO_CONTINUES's doc comment, src/tools/debug.ts).`
+      );
+    } else {
+      skipCountWarnings.push(
+        `Auto-continue stopped after reaching MAX_FRAMEWORK_AUTO_CONTINUES (${MAX_FRAMEWORK_AUTO_CONTINUES}) without a stack mentioning ${runObjectName}: ${skippedFrameworkStops.join("; ")}. The session is suspended in code outside ${runObjectName} \u2014 keep issuing abap_debug({action:"step", step:"continue"}) to move past it, or inspect the current stop as-is.`
+      );
+    }
+  }
+  return await composeStopOutput(run2, "start", attachedStack, attachedStateId, maxChars, skipCountWarnings);
 }
 async function handleStep(input, maxChars, gate, deps) {
-  if (!currentRun) {
+  const run2 = resolveLaneRun(input.stateId);
+  if (!run2) {
     throw new AbapError(
       "BAD_INPUT",
       'No active debug session. Start one with abap_debug({action:"start", ...}).'
@@ -111918,7 +112937,6 @@ async function handleStep(input, maxChars, gate, deps) {
   if (!input.step) {
     throw new AbapError("BAD_INPUT", 'abap_debug({action:"step"}) requires "step".');
   }
-  const run2 = currentRun;
   assertSessionWrite(gate, run2);
   const kind = stepKindOf(input.step);
   if (kind === "stepJumpToLine") {
@@ -111954,24 +112972,44 @@ async function handleStep(input, maxChars, gate, deps) {
   } catch (e) {
     if (run2.session.snapshot.status === "dead") {
       const out = await composeDeathOutput(run2, "step", maxChars, e);
-      currentRun = void 0;
+      debugLanes[run2.lane] = void 0;
       return out;
     }
     throw e;
   }
   if (run2.session.snapshot.status === "dead") {
     const out = await composeDeathOutput(run2, "step", maxChars);
-    currentRun = void 0;
+    debugLanes[run2.lane] = void 0;
     return out;
   }
   run2.lastStack = result.stack;
   const revisitNotes = result.positionVisitCount > 1 ? [
     `Position revisited: this exact program/line/stack-level has now been reached ${result.positionVisitCount} times by stepping in this session. If you are stepping through a loop body, "step over"/"step into" can under-report how many iterations actually ran between visits \u2014 this only proves you returned to this line, not how many times the loop body executed in between. For a reliable per-iteration count, set a breakpoint at the loop body's start (abap_debug action:"start" or a line breakpoint) and use step:"continue" repeatedly instead of stepping through \u2014 each hit is a real, separately counted stop.`
   ] : [];
-  return composeStopOutput(run2, "step", result.stack, result.stateId, maxChars, revisitNotes);
+  const watchpointNotes = [];
+  if (result.step.reachedWatchpoints.length > 0) {
+    let byId;
+    try {
+      const owned = await run2.session.readWatchpoints();
+      byId = new Map(owned.map((wp) => [wp.id, wp]));
+    } catch {
+      byId = void 0;
+    }
+    for (const hit of result.step.reachedWatchpoints) {
+      const old = byId?.get(hit.id)?.oldValue;
+      watchpointNotes.push(
+        `Stopped on watchpoint ${hit.id} (${hit.variableName}): now ${renderWatchValue(hit.currentValue)}` + (old !== void 0 ? `, was ${renderWatchValue(old)} (read back from the watchpoint resource after the stop)` : `. Old value not available from this step's own data \u2014 call abap_debug({action:"watch", op:"list"}) to check.`)
+      );
+    }
+  }
+  return composeStopOutput(run2, "step", result.stack, result.stateId, maxChars, [
+    ...revisitNotes,
+    ...watchpointNotes
+  ]);
 }
 async function handleStack(input, maxChars) {
-  if (!currentRun) {
+  const run2 = resolveLaneRun(input.stateId);
+  if (!run2) {
     throw new AbapError(
       "BAD_INPUT",
       'No active debug session. Start one with abap_debug({action:"start", ...}).'
@@ -111980,15 +113018,15 @@ async function handleStack(input, maxChars) {
   if (!input.stateId) {
     throw new AbapError("BAD_INPUT", 'abap_debug({action:"stack"}) requires "stateId".');
   }
-  const stack = await currentRun.session.getStack(input.stateId);
-  currentRun.lastStack = stack;
+  const stack = await run2.session.getStack(input.stateId);
+  run2.lastStack = stack;
   const stackText = renderStackSection(stack, input.stateId);
   const visibleFrames = stack.frames.filter((f) => !f.systemProgram);
   const top = visibleFrames[0] ?? stack.frames[0];
   return buildResponse({
     header: {
       action: "stack",
-      status: currentRun.session.snapshot.status,
+      status: run2.session.snapshot.status,
       program: top?.programName,
       include: top?.includeName,
       line: top?.line,
@@ -111999,7 +113037,8 @@ async function handleStack(input, maxChars) {
   });
 }
 async function handleFrame(input, maxChars) {
-  if (!currentRun) {
+  const run2 = resolveLaneRun(input.stateId);
+  if (!run2) {
     throw new AbapError(
       "BAD_INPUT",
       'No active debug session. Start one with abap_debug({action:"start", ...}).'
@@ -112014,7 +113053,6 @@ async function handleFrame(input, maxChars) {
       'abap_debug({action:"frame"}) requires "frame" \u2014 the 1-based stackPosition of the frame to move the read cursor to.'
     );
   }
-  const run2 = currentRun;
   const lastStack = run2.lastStack;
   const target = lastStack?.frames.find((f) => f.stackPosition === input.frame);
   if (!lastStack || !target) {
@@ -112050,15 +113088,16 @@ async function handleFrame(input, maxChars) {
   });
 }
 async function handleKeepalive(maxChars, gate) {
-  if (!currentRun) {
+  const run2 = resolveLaneRun(void 0);
+  if (!run2) {
     throw new AbapError(
       "BAD_INPUT",
       'No active debug session. Start one with abap_debug({action:"start", ...}).'
     );
   }
-  assertSessionWrite(gate, currentRun);
-  currentRun.session.keepalive();
-  const snapshot = currentRun.session.snapshot;
+  assertSessionWrite(gate, run2);
+  run2.session.keepalive();
+  const snapshot = run2.session.snapshot;
   return buildResponse({
     header: {
       action: "keepalive",
@@ -112069,8 +113108,253 @@ async function handleKeepalive(maxChars, gate) {
     maxChars: clampMaxChars(maxChars)
   });
 }
-async function clearLeakedSessions(force) {
-  const leaked = listActiveDebugSessions().filter((s) => s !== currentRun?.session);
+function describeBreakpoint(bp) {
+  switch (bp.kind) {
+    case "line":
+      return bp.uri;
+    case "exception":
+      return `exception ${bp.exceptionClass}`;
+    case "statement":
+      return `statement ${bp.statement}`;
+    case "message":
+      return `message ${bp.msgId} ${bp.msgTy}${bp.msgNo}`;
+  }
+}
+async function mapInputBreakpointForAdd(bp, conn, deps, resolvedCache) {
+  if (bp.kind === "line") {
+    const key = bp.object.toUpperCase();
+    let resolved = resolvedCache.get(key);
+    if (!resolved) {
+      resolved = await deps.resolveObject(conn, bp.object);
+      resolvedCache.set(key, resolved);
+    }
+    const baseUri = resolved.sourceUri ?? resolved.uri;
+    if (!baseUri) {
+      throw new AbapError(
+        "UNSUPPORTED",
+        `${bp.object} has no source URI to attach a line breakpoint to.`,
+        { object: bp.object }
+      );
+    }
+    return {
+      kind: "line",
+      uri: `${baseUri}#start=${bp.line}`,
+      ...bp.condition !== void 0 ? { condition: bp.condition } : {},
+      ...bp.skipCount !== void 0 ? { skipCount: bp.skipCount } : {}
+    };
+  }
+  if (bp.kind === "exception") {
+    return {
+      kind: "exception",
+      exceptionClass: bp.exceptionClass,
+      ...bp.condition !== void 0 ? { condition: bp.condition } : {},
+      ...bp.skipCount !== void 0 ? { skipCount: bp.skipCount } : {}
+    };
+  }
+  if (bp.kind === "statement") {
+    return {
+      kind: "statement",
+      statement: bp.statement,
+      ...bp.condition !== void 0 ? { condition: bp.condition } : {},
+      ...bp.skipCount !== void 0 ? { skipCount: bp.skipCount } : {}
+    };
+  }
+  return {
+    kind: "message",
+    msgId: bp.msgId,
+    msgNo: bp.msgNo,
+    msgTy: bp.msgTy,
+    ...bp.condition !== void 0 ? { condition: bp.condition } : {},
+    ...bp.skipCount !== void 0 ? { skipCount: bp.skipCount } : {}
+  };
+}
+async function handleBreakpoints(conn, input, maxChars, deps, gate) {
+  const run2 = resolveLaneRun(input.stateId);
+  if (!run2) {
+    throw new AbapError(
+      "BAD_INPUT",
+      'No active debug session. Start one with abap_debug({action:"start", ...}).'
+    );
+  }
+  const op = input.op ?? "list";
+  if (!input.stateId) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `abap_debug({action:"breakpoints", op:"${op}"}) requires "stateId" \u2014 same as stack/frame, to confirm which stop this call addresses.`
+    );
+  }
+  if (op === "list") {
+    const owned = run2.session.listOwnedBreakpoints();
+    return buildResponse({
+      header: {
+        action: "breakpoints",
+        op: "list",
+        status: run2.session.snapshot.status,
+        stateId: input.stateId,
+        count: owned.length
+      },
+      sections: [
+        {
+          title: "BREAKPOINTS",
+          content: owned.length ? owned.map((bp) => `${bp.id}	${describeBreakpoint(bp)}`).join("\n") : "(none owned by this session)"
+        }
+      ],
+      notes: [
+        "This lists only breakpoints THIS session armed (in-memory) \u2014 ADT has no server-side read of what is actually armed while stopped (live-verified \u2014 see the two captures cited in this handler's doc comment). If SAP silently dropped or renumbered one, this will not show it."
+      ],
+      maxChars: clampMaxChars(maxChars)
+    });
+  }
+  if (op === "add") {
+    if (!input.breakpoints || input.breakpoints.length === 0) {
+      throw new AbapError(
+        "BAD_INPUT",
+        'abap_debug({action:"breakpoints", op:"add"}) requires a non-empty "breakpoints" array.'
+      );
+    }
+    assertSessionWrite(gate, run2);
+    const resolvedCache = /* @__PURE__ */ new Map();
+    const toArm = [];
+    for (const bp of input.breakpoints) {
+      toArm.push(await mapInputBreakpointForAdd(bp, conn, deps, resolvedCache));
+    }
+    const created = await run2.session.addBreakpoints(input.stateId, toArm);
+    return buildResponse({
+      header: {
+        action: "breakpoints",
+        op: "add",
+        status: run2.session.snapshot.status,
+        stateId: input.stateId,
+        count: created.length
+      },
+      sections: [
+        { title: "BREAKPOINTS", content: created.map((bp) => `${bp.id}	${describeBreakpoint(bp)}`).join("\n") }
+      ],
+      notes: [
+        'Ids are server-assigned and unpredictable \u2014 do not guess one from a prior session or a pattern (live example: a breakpoint set at "#start=11" came back tagged "INCLUDE=...CM001.LINE_NR=5"). Use the id printed above for a later op:"remove".'
+      ],
+      maxChars: clampMaxChars(maxChars)
+    });
+  }
+  if (!input.id) {
+    throw new AbapError("BAD_INPUT", 'abap_debug({action:"breakpoints", op:"remove"}) requires "id".');
+  }
+  assertSessionWrite(gate, run2);
+  await run2.session.removeBreakpoint(input.stateId, input.id);
+  return buildResponse({
+    header: {
+      action: "breakpoints",
+      op: "remove",
+      status: run2.session.snapshot.status,
+      stateId: input.stateId,
+      id: input.id
+    },
+    maxChars: clampMaxChars(maxChars)
+  });
+}
+function renderWatchValue(raw) {
+  return renderScalar({
+    id: "",
+    name: "",
+    declaredTypeName: "",
+    actualTypeName: "",
+    kind: "",
+    instantiationKind: "",
+    accessKind: "",
+    metaType: "unknown",
+    parameterKind: "",
+    value: raw,
+    hexValue: "",
+    readOnly: true,
+    technicalType: "",
+    length: raw.length,
+    tableBody: "",
+    isValueIncomplete: false,
+    isException: false,
+    inheritanceLevel: 0,
+    inheritanceClass: ""
+  });
+}
+async function handleWatch(input, maxChars, gate) {
+  const run2 = resolveLaneRun(input.stateId);
+  if (!run2) {
+    throw new AbapError(
+      "BAD_INPUT",
+      'No active debug session. Start one with abap_debug({action:"start", ...}).'
+    );
+  }
+  const op = input.op ?? (input.variable !== void 0 ? "add" : "list");
+  if (!input.stateId) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `abap_debug({action:"watch", op:"${op}"}) requires "stateId" \u2014 same as stack/frame, to confirm which stop this call addresses.`
+    );
+  }
+  if (op === "add") {
+    if (!input.variable) {
+      throw new AbapError("BAD_INPUT", 'abap_debug({action:"watch", op:"add"}) requires "variable".');
+    }
+    assertSessionWrite(gate, run2);
+    const created = await run2.session.addWatchpoint(input.stateId, {
+      variableName: input.variable,
+      ...input.condition !== void 0 ? { condition: input.condition } : {}
+    });
+    const lines = created.map(
+      (wp) => `${wp.id}	${wp.variableName}` + (wp.condition ? ` (condition: ${wp.condition})` : "") + (wp.currentValue !== void 0 ? ` = ${renderWatchValue(wp.currentValue)}` : "")
+    );
+    return buildResponse({
+      header: {
+        action: "watch",
+        op: "add",
+        status: run2.session.snapshot.status,
+        stateId: input.stateId,
+        count: created.length
+      },
+      sections: [{ title: "WATCHPOINTS", content: lines.join("\n") }],
+      notes: [
+        `Watchpoint ids are not stable handles in general \u2014 a PUT that modifies a watchpoint's condition can retire the old id and hand back a new one (live-verified: see test/fixtures/live-captured/940-watchpoint-modify-condition.meta.json, 941-watchpoint-list-after-modify.meta.json, and 942-watchpoint-create-duplicate.meta.json). This tool never modifies a watchpoint (only creates/lists/removes), so within this session's life the id returned here stays valid until you remove it with op:"remove".`
+      ],
+      maxChars: clampMaxChars(maxChars)
+    });
+  }
+  if (op === "list") {
+    const owned = await run2.session.readWatchpoints();
+    const lines = owned.map(
+      (wp) => `${wp.id}	${wp.variableName}` + (wp.condition ? ` (condition: ${wp.condition})` : "") + (wp.currentValue !== void 0 ? ` = ${renderWatchValue(wp.currentValue)}` : "") + (wp.oldValue !== void 0 ? ` (was ${renderWatchValue(wp.oldValue)})` : "")
+    );
+    return buildResponse({
+      header: {
+        action: "watch",
+        op: "list",
+        status: run2.session.snapshot.status,
+        stateId: input.stateId,
+        count: owned.length
+      },
+      sections: [
+        { title: "WATCHPOINTS", content: owned.length ? lines.join("\n") : "(none owned by this session)" }
+      ],
+      maxChars: clampMaxChars(maxChars)
+    });
+  }
+  if (!input.id) {
+    throw new AbapError("BAD_INPUT", 'abap_debug({action:"watch", op:"remove"}) requires "id".');
+  }
+  assertSessionWrite(gate, run2);
+  await run2.session.removeWatchpoint(input.stateId, input.id);
+  return buildResponse({
+    header: {
+      action: "watch",
+      op: "remove",
+      status: run2.session.snapshot.status,
+      stateId: input.stateId,
+      id: input.id
+    },
+    maxChars: clampMaxChars(maxChars)
+  });
+}
+async function clearLeakedSessions(force, conn, log2) {
+  const tracked = new Set(activeLaneRuns().map((r) => r.session));
+  const leaked = listActiveDebugSessions().filter((s) => !tracked.has(s));
   if (leaked.length === 0) return { found: 0, notes: [] };
   const notes = [];
   await Promise.all(
@@ -112100,14 +113384,16 @@ async function clearLeakedSessions(force) {
       );
     })
   );
+  await dropDebugSessionOnConnection(conn, log2, "clearing leaked debug session(s)");
   return { found: leaked.length, notes };
 }
 function formatAbandonedCleanupNote(steps) {
   return `Cleanup timed out on: ${steps.join(", ")} \u2014 may still be armed on the server (e.g. a breakpoint); a later session could hit it.`;
 }
 async function handleStop(conn, maxChars, deps, gate, force = false) {
-  if (!currentRun) {
-    const leaked = await clearLeakedSessions(force);
+  const run2 = resolveLaneRun(void 0);
+  if (!run2) {
+    const leaked = await clearLeakedSessions(force, conn, deps.log);
     let orphanNote;
     if (deps.releaseOrphanListener) {
       try {
@@ -112149,19 +113435,21 @@ async function handleStop(conn, maxChars, deps, gate, force = false) {
       maxChars: clampMaxChars(maxChars)
     });
   }
-  const run2 = currentRun;
   assertSessionWrite(gate, run2);
   const notes = [];
   try {
+    const terminateWaitMs = Math.max(STOP_WAIT_MS, run2.session.terminateDeadlineMs + 1e3);
+    let terminateTimedOut = false;
     const terminated = await raceDeadline(
       run2.session.terminate("terminated_by_caller").catch((e) => {
         notes.push(`Session terminate reported an error: ${describeUnknownError(e)}`);
       }),
-      STOP_WAIT_MS
+      terminateWaitMs
     );
     if (terminated === TIMED_OUT) {
+      terminateTimedOut = true;
       notes.push(
-        `Session terminate had not returned after ${STOP_WAIT_MS} ms \u2014 it continues in the background; the session was dropped here anyway.`
+        `Session terminate had not returned after ${terminateWaitMs} ms \u2014 it continues in the background; the session was dropped here anyway.`
       );
     }
     const settled = await raceDeadline(run2.triggerSettled, STOP_WAIT_MS);
@@ -112171,8 +113459,27 @@ async function handleStop(conn, maxChars, deps, gate, force = false) {
       );
     }
     const finalSnapshot = run2.session.snapshot;
-    if (finalSnapshot.abandonedCleanupSteps?.length) {
+    const cleanupAbandonedSteps = finalSnapshot.abandonedCleanupSteps?.length;
+    if (cleanupAbandonedSteps) {
       notes.push(formatAbandonedCleanupNote(finalSnapshot.abandonedCleanupSteps));
+    }
+    if ((terminateTimedOut || cleanupAbandonedSteps) && force && deps.releaseOrphanDebuggee) {
+      try {
+        const result = await raceDeadline(deps.releaseOrphanDebuggee(conn), FORCE_CLEAR_WAIT_MS);
+        if (result === TIMED_OUT) {
+          notes.push(
+            "Force-clear of a possibly-still-attached debuggee was requested, but the check had not returned in time \u2014 nothing more to report."
+          );
+        } else if (result.kind === "released") {
+          notes.push(
+            "Force-terminated a debuggee still attached at this server's identity after cleanup did not confirm it was gone."
+          );
+        } else if (result.kind === "unknown") {
+          notes.push(`Force-clear of a possibly-still-attached debuggee did not confirm success: ${result.detail}`);
+        }
+      } catch (e) {
+        notes.push(`Force-clear of a possibly-still-attached debuggee failed: ${describeUnknownError(e)}`);
+      }
     }
     return buildResponse({
       header: { action: "stop", status: finalSnapshot.status, deathReason: finalSnapshot.deathReason },
@@ -112182,11 +113489,13 @@ async function handleStop(conn, maxChars, deps, gate, force = false) {
     });
   } finally {
     run2.closeTriggerConn();
-    currentRun = void 0;
+    await run2.closeSessionConn();
+    debugLanes[run2.lane] = void 0;
   }
 }
 async function handleStatus(maxChars) {
-  if (!currentRun) {
+  const run2 = resolveLaneRun(void 0);
+  if (!run2) {
     const leaked = listActiveDebugSessions()[0];
     if (!leaked) {
       return buildResponse({
@@ -112211,7 +113520,7 @@ async function handleStatus(maxChars) {
       maxChars: clampMaxChars(maxChars)
     });
   }
-  const snapshot = currentRun.session.snapshot;
+  const snapshot = run2.session.snapshot;
   const notes = [];
   if (snapshot.status === "dead") {
     notes.push("Session is dead \u2014 check PROGRAM OUTPUT via a step/stop response for the captured trigger output.");
@@ -112240,6 +113549,10 @@ async function abapDebug(conn, input, maxChars, deps, gate) {
       return handleStack(input, maxChars);
     case "frame":
       return handleFrame(input, maxChars);
+    case "breakpoints":
+      return handleBreakpoints(conn, input, maxChars, deps, gate);
+    case "watch":
+      return handleWatch(input, maxChars, gate);
     case "keepalive":
       return handleKeepalive(maxChars, gate);
     case "stop":
@@ -112260,13 +113573,14 @@ var SCOPE_ID_BY_NAME = {
   globals: "@GLOBALS"
 };
 async function abapDebugVars(input, maxChars) {
-  if (!currentRun) {
+  const run2 = resolveLaneRun(input.stateId);
+  if (!run2) {
     throw new AbapError("BAD_INPUT", "No active debug session.");
   }
   if (!input.stateId) {
     throw new AbapError("BAD_INPUT", 'abap_debug_vars requires "stateId".');
   }
-  const root = await currentRun.session.getRootVariables(input.stateId);
+  const root = await run2.session.getRootVariables(input.stateId);
   const scopeOf = /* @__PURE__ */ new Map();
   for (const h of root.variables.hierarchies) {
     scopeOf.set(h.childId, h.parentId);
@@ -112331,13 +113645,13 @@ var debugValueInputSchema = {
 };
 var DebugValueInput = external_exports.object(debugValueInputSchema);
 async function abapDebugValue(input, maxChars) {
-  if (!currentRun) {
+  const run2 = resolveLaneRun(input.stateId);
+  if (!run2) {
     throw new AbapError("BAD_INPUT", "No active debug session.");
   }
   if (!input.stateId) {
     throw new AbapError("BAD_INPUT", 'abap_debug_value requires "stateId".');
   }
-  const run2 = currentRun;
   const validation = validatePath(input.path);
   if (!validation.ok) {
     throw new AbapError(
@@ -112602,7 +113916,15 @@ function parseBreakpoints(specs) {
 }
 
 // src/tools/debug-register.ts
-var DEBUG_UNGATED_ACTIONS = /* @__PURE__ */ new Set(["stack", "frame", "status", "keepalive", "stop"]);
+var DEBUG_UNGATED_ACTIONS = /* @__PURE__ */ new Set([
+  "stack",
+  "frame",
+  "status",
+  "keepalive",
+  "stop",
+  "breakpoints",
+  "watch"
+]);
 function stateIdOfResponse(text4) {
   return /^stateId: (.+)$/m.exec(text4)?.[1]?.trim();
 }
