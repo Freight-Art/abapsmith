@@ -17,12 +17,17 @@
  * code; do not tree-shake this module against its call sites. See
  * the git history for why this note exists.
  *
- * Pure functions/constants only — no HTTP, state, or I/O; only import is
- * `import type` from `./types.js`. Follows the `src/adt/discovery.ts` /
+ * Pure functions/constants only — no HTTP, state, or I/O. The only value
+ * import (as opposed to `import type`) is `AbapError`, so the watchpoint URL
+ * builders can refuse bad input with the same `BAD_INPUT` code callers
+ * already handle elsewhere, instead of a plain `Error` with no machine-
+ * readable discriminant; `../adt/errors.js` itself has no imports, so this
+ * does not create a cycle. Follows the `src/adt/discovery.ts` /
  * `src/adt/resolve.ts` house style: small named exports plus one audit table
  * (`DEBUGGER_ENDPOINTS`).
  */
-import type { DebugContext, DebugStepKind, DebuggerScope, DebuggingMode } from "./types.js";
+import type { DebugContext, DebugStepKind, DebuggerScope, DebuggingMode, CreateWatchpointRequest, ModifyWatchpointRequest } from "./types.js";
+import { AbapError } from "../adt/errors.js";
 
 // ============================================================================
 // 1. Debugging-mode / scope / sync-scope enumerations
@@ -214,11 +219,57 @@ export function buildUrl(path: string, params?: QueryParams): string {
 export interface BreakpointsPostQuery {
   /** Server reads this as a case-insensitive substring test for `t`/`T`, not a real boolean comparison — pass `true`/`"true"` for clarity, don't rely on the looseness. */
   checkConflict?: boolean;
+  /**
+   * Notifies one or more ALREADY-SUSPENDED debuggees that this POST's breakpoint
+   * set changed, so they reload it before their very next step instead of one
+   * stop-cycle late. Chain, read live off A4H's `CL_TPDA_ADT_RES_BREAKPOINTS`
+   * (package `STPDA_ADT`):
+   *
+   *   1. `READ_DEBUGGEE_SESSION_IDS` reads this exact query parameter
+   *      (`c_uri_param_dbg_sess_ids = 'debuggeeSessionIds'`, not mandatory), runs it
+   *      through `cl_http_utility=>unescape_url`, and `SPLIT`s it `AT ','` — hence
+   *      "spaces MUST be URL-encoded, ids joined with a literal comma" below.
+   *   2. `GET_BP_TRANSFER_FROM_REQUEST` calls it, but ONLY on POST (never on DELETE
+   *      — see `deleteBreakpointUrl`'s doc comment for what that means for removal).
+   *   3. `CALL_BP_API` ends with: if `bp_transfer_in-tab_debuggee_session_ids` is
+   *      non-initial AND `ref_static_bp_service` is bound, it calls
+   *      `CL_TPDAPI_BP_SERVICES->notify_dbg_sess_ids( tab_debuggee_session_ids )`.
+   *      `ref_static_bp_service` is set ONLY by `init_static()` for `scope=external`
+   *      — this parameter is therefore a no-op unless the request's `scope` is
+   *      `"external"` (which is what this client already always sends).
+   *   4. `notify_dbg_sess_ids` calls
+   *      `cl_abdbg_debugger_wakeup=>debuggee_reload_bps( iv_debuggee_session_id = … )`,
+   *      which splits the id back into its two fixed-width fields and calls RFC
+   *      function `DEBUGGEE_STOP` with `kind = 'R'` (RELOAD BREAKPOINTS) against the
+   *      debuggee's own RFC destination.
+   *
+   * Each id is `<16-char session id><32-char RFC destination>`, taken VERBATIM off
+   * the attach response's `DebugAttachResult.debuggeeSessionId` (`xml-response.ts`) —
+   * never reconstructed or reformatted here. It legitimately contains embedded
+   * spaces (padding of the 16-char field), e.g.
+   * `"170000007A2F00  a4hsandbox_A4H_00"` — this is exactly why it must go through
+   * URL encoding rather than being pasted into the query string raw.
+   */
+  debuggeeSessionIds?: readonly string[];
 }
 
-/** `POST /sap/bc/adt/debugger/breakpoints{?checkConflict}`. Body is built by M2 — this only builds the URL. */
+/**
+ * `POST /sap/bc/adt/debugger/breakpoints{?checkConflict,debuggeeSessionIds}`. Body
+ * is built by M2 — this only builds the URL. `debuggeeSessionIds` (see that field's
+ * doc comment on `BreakpointsPostQuery`) is joined with `,` — the separator
+ * `READ_DEBUGGEE_SESSION_IDS` splits on — and the WHOLE joined string is
+ * percent-encoded by `buildQuery`'s `encodeURIComponent`, so an embedded space
+ * becomes `%20` and the join separator itself becomes `%2C` (harmless: the server
+ * URL-decodes before splitting, so it sees a literal `,` again). Blank/empty
+ * entries are dropped before joining, and the parameter is omitted ENTIRELY when
+ * nothing is left — never emits a bare `debuggeeSessionIds=` or a trailing comma.
+ */
 export function breakpointsPostUrl(query: BreakpointsPostQuery = {}): string {
-  return buildUrl(DEBUGGER_BREAKPOINTS_PATH, { checkConflict: query.checkConflict });
+  const ids = (query.debuggeeSessionIds ?? []).filter((id) => id.trim().length > 0);
+  return buildUrl(DEBUGGER_BREAKPOINTS_PATH, {
+    checkConflict: query.checkConflict,
+    debuggeeSessionIds: ids.length > 0 ? ids.join(",") : undefined,
+  });
 }
 
 export interface DeleteBreakpointParams {
@@ -236,6 +287,18 @@ export interface DeleteBreakpointParams {
  * — one breakpoint per call. Mode-dependent mandatory params mirror
  * `CL_TPDA_ADT_RES_BREAKPOINTS->init_static`: terminal mode requires BOTH
  * `terminalId` and `ideId`; user mode requires `requestUser`.
+ *
+ * **No `debuggeeSessionIds` equivalent exists on DELETE.** Every one of this
+ * resource's DELETE parameters (`debuggingMode`/`requestUser`/`terminalId`/`ideId`/
+ * `scope`) is `mandatory='X'` in `CL_TPDA_ADT_RES_BREAKPOINTS`, and there is no
+ * session-id parameter at all — `READ_DEBUGGEE_SESSION_IDS` is only ever called from
+ * `GET_BP_TRANSFER_FROM_REQUEST`, which itself only runs for POST. So a DELETE can
+ * never itself trigger `notify_dbg_sess_ids`/`debuggee_reload_bps` (see
+ * `BreakpointsPostQuery.debuggeeSessionIds`'s doc comment for that chain) — a
+ * suspended debuggee does not learn a breakpoint was removed until its next
+ * unrelated reload. The caller-side fix is a separate, notify-only
+ * `breakpointsPostUrl({ debuggeeSessionIds })` POST with an empty breakpoint list
+ * issued right after the DELETE — see `DebugSession.removeBreakpoint()`.
  *
  * **KNOWN DEFECT, live-verified 2026-08-01**: this exact param set (user mode,
  * `terminalId`/`ideId` omitted) was rejected by A4H with 400
@@ -278,6 +341,76 @@ export function deleteBreakpointUrl(params: DeleteBreakpointParams): string {
 /** Content-Type / Accept on the breakpoints POST — plain XML, not `asx:abap`. */
 export const BREAKPOINTS_CONTENT_TYPE = "application/xml";
 export const BREAKPOINTS_ACCEPT = "application/xml";
+
+// ============================================================================
+// 4b. Watchpoints — POST / GET / PUT / DELETE, all params in the query
+//     string, request body always empty
+// ============================================================================
+
+/**
+ * Router registration for `/debugger/watchpoints` (`CL_TPDA_ADT_RES_APP`,
+ * read live off A4H, 2026-09-12) mints this exact path — a sibling of
+ * `DEBUGGER_BREAKPOINTS_PATH`, not nested under it.
+ */
+export const DEBUGGER_WATCHPOINTS_PATH = `${DEBUGGER_BASE_PATH}/watchpoints`;
+
+/** `GET .../watchpoints` — every watchpoint of the attached session. No query parameters. */
+export function watchpointsUrl(): string {
+  return buildUrl(DEBUGGER_WATCHPOINTS_PATH);
+}
+
+/**
+ * `POST /sap/bc/adt/debugger/watchpoints?variableName=..&condition=..`.
+ * `CL_TPDA_ADT_RES_WATCHPOINTS` (read live off A4H, 2026-09-12) takes both
+ * parameters from the query string only — the request body is empty, unlike
+ * the breakpoints POST which carries an XML body. The server itself answers
+ * 400 for a missing/empty `variableName`, but building a malformed URL is
+ * refused here first, before a request is ever sent.
+ */
+export function createWatchpointUrl(params: CreateWatchpointRequest): string {
+  const variableName = params.variableName.trim();
+  if (!variableName) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `createWatchpointUrl requires a non-empty variableName — got ${JSON.stringify(params.variableName)}.`,
+      { variableName: params.variableName },
+    );
+  }
+  return buildUrl(DEBUGGER_WATCHPOINTS_PATH, { variableName, condition: params.condition });
+}
+
+/** `GET|DELETE .../watchpoints/{urlencoded-id}` — one watchpoint per call, no query parameters on either verb. */
+export function watchpointUrl(id: string): string {
+  const trimmed = id.trim();
+  if (!trimmed) {
+    throw new AbapError("BAD_INPUT", `watchpointUrl requires a non-empty id — got ${JSON.stringify(id)}.`, {
+      id,
+    });
+  }
+  return buildUrl(`${DEBUGGER_WATCHPOINTS_PATH}/${encodeURIComponent(trimmed)}`);
+}
+
+/**
+ * `PUT .../watchpoints/{urlencoded-id}?condition=..&active=true|false` — same
+ * empty-body shape as the POST. Failures (bad id, condition SAP rejects) → 404
+ * per `CL_TPDA_ADT_RES_WATCHPOINTS`, read live off A4H, 2026-09-12.
+ */
+export function modifyWatchpointUrl(params: ModifyWatchpointRequest): string {
+  const id = params.id.trim();
+  if (!id) {
+    throw new AbapError("BAD_INPUT", `modifyWatchpointUrl requires a non-empty id — got ${JSON.stringify(params.id)}.`, {
+      id: params.id,
+    });
+  }
+  return buildUrl(`${DEBUGGER_WATCHPOINTS_PATH}/${encodeURIComponent(id)}`, {
+    condition: params.condition,
+    active: params.active,
+  });
+}
+
+/** Content-Type / Accept for watchpoint requests — plain XML, same `dbg:` family as breakpoints, but the POST/PUT body itself is always empty. */
+export const WATCHPOINTS_CONTENT_TYPE = "application/xml";
+export const WATCHPOINTS_ACCEPT = "application/xml";
 
 // ============================================================================
 // 5. Listeners — launch / stop / get, three DIFFERENT legal param sets on the
@@ -727,10 +860,13 @@ export const DEBUGGER_ENDPOINTS: readonly EndpointEntry[] = [
     name: "breakpoints.post",
     method: "POST",
     path: DEBUGGER_BREAKPOINTS_PATH,
-    queryParams: ["checkConflict"],
+    queryParams: ["checkConflict", "debuggeeSessionIds"],
     contentType: BREAKPOINTS_CONTENT_TYPE,
     accept: BREAKPOINTS_ACCEPT,
-    citation: "live-verified against A4H",
+    citation: "live-verified against A4H; debuggeeSessionIds chain read live off A4H's CL_TPDA_ADT_RES_BREAKPOINTS/CL_TPDAPI_BP_SERVICES/cl_abdbg_debugger_wakeup",
+    notes:
+      "debuggeeSessionIds only takes effect for scope=external (ref_static_bp_service is only bound then) — " +
+      "see BreakpointsPostQuery.debuggeeSessionIds's doc comment for the full chain down to DEBUGGEE_STOP kind='R'.",
   },
   {
     name: "breakpoints.delete",
@@ -776,6 +912,70 @@ export const DEBUGGER_ENDPOINTS: readonly EndpointEntry[] = [
     queryParams: [],
     citation: "live-verified against A4H",
     notes: "200/0 B with no parameters on A4H. Further parameterisation UNKNOWN.",
+  },
+  {
+    name: "watchpoints.create",
+    method: "POST",
+    path: DEBUGGER_WATCHPOINTS_PATH,
+    queryParams: ["variableName", "condition"],
+    contentType: WATCHPOINTS_CONTENT_TYPE,
+    accept: WATCHPOINTS_ACCEPT,
+    citation:
+      "CL_TPDA_ADT_RES_APP router registration + CL_TPDA_ADT_RES_WATCHPOINTS + XSLT TPDA_ADT_DEBUGGER_WP, read live off A4H, 2026-09-12; response shape and error bodies confirmed by test/fixtures/live-captured/{910,911,936,937,942}-*.xml",
+    notes:
+      "Both params in the query string only, request body empty. Missing variableName -> 400 " +
+      '`<exc:exception>`, type "ExceptionParameterNotFound", T100 SADT_RESOURCE/017 (910). ' +
+      "Creation failure -> 404. Requires a debug session already attached to a suspended debuggee. " +
+      "Response is a <dbg:watchpoints> list root carrying ONLY the row just created, never any " +
+      "other already-armed watchpoint (937 created id 2 while id 1 was already armed; the response " +
+      "carried only id 2, confirmed against the immediately-following GET in 938). Creating a " +
+      "second watchpoint on a variable that already has one is ACCEPTED, not refused (942, 200) — " +
+      "nothing upstream may assume one watchpoint per variable.",
+  },
+  {
+    name: "watchpoints.list",
+    method: "GET",
+    path: DEBUGGER_WATCHPOINTS_PATH,
+    queryParams: [],
+    citation: "CL_TPDA_ADT_RES_APP router registration + CL_TPDA_ADT_RES_WATCHPOINTS + XSLT TPDA_ADT_DEBUGGER_WP, read live off A4H, 2026-09-12",
+    notes: "Every watchpoint of the attached session; each row carries oldValue/currentValue.",
+  },
+  {
+    name: "watchpoints.get",
+    method: "GET",
+    path: `${DEBUGGER_WATCHPOINTS_PATH}/{watchpointId}`,
+    queryParams: [],
+    citation:
+      "CL_TPDA_ADT_RES_APP router registration + CL_TPDA_ADT_RES_WATCHPOINTS + XSLT TPDA_ADT_DEBUGGER_WP, read live off A4H, 2026-09-12; 404 shape confirmed by test/fixtures/live-captured/943-watchpoint-get-unknown-id.xml",
+    notes:
+      'Unknown/absent id -> 404, observed as `<exc:exception>` type "AdtFailed" (not ' +
+      '"ExceptionResourceNotFound"), message "Cannot retrieve watchpoint data: Watchpoint not ' +
+      'found", T100 TPDA_ADT/013 (943).',
+  },
+  {
+    name: "watchpoints.modify",
+    method: "PUT",
+    path: `${DEBUGGER_WATCHPOINTS_PATH}/{watchpointId}`,
+    queryParams: ["condition", "active"],
+    contentType: WATCHPOINTS_CONTENT_TYPE,
+    accept: WATCHPOINTS_ACCEPT,
+    citation:
+      "CL_TPDA_ADT_RES_APP router registration + CL_TPDA_ADT_RES_WATCHPOINTS + XSLT TPDA_ADT_DEBUGGER_WP, read live off A4H, 2026-09-12; renumbering behaviour confirmed by test/fixtures/live-captured/{940,941,942}-*.xml",
+    notes:
+      "Params in the query string only, request body empty. Bad id or rejected condition -> 404. " +
+      "Response is a <dbg:watchpoints> list root carrying one row (same per-call-echo shape as " +
+      "create). THE RETURNED ROW'S id CAN DIFFER FROM THE id ADDRESSED: PUT .../watchpoints/1 " +
+      "answered with id 3, the old id 1 no longer listed, and a later create reused the freed id 1 " +
+      "(940, 941, 942) — callers must read the id off the response, not assume the request id " +
+      "still applies.",
+  },
+  {
+    name: "watchpoints.delete",
+    method: "DELETE",
+    path: `${DEBUGGER_WATCHPOINTS_PATH}/{watchpointId}`,
+    queryParams: [],
+    citation: "CL_TPDA_ADT_RES_APP router registration + CL_TPDA_ADT_RES_WATCHPOINTS + XSLT TPDA_ADT_DEBUGGER_WP, read live off A4H, 2026-09-12",
+    notes: "Unknown/absent id -> 404.",
   },
   {
     name: "listeners.launch",

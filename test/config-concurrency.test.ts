@@ -611,6 +611,131 @@ describe("config: ABAP_DEBUG_DIA_BUDGET — z.coerce.number().int().nonnegative(
   });
 });
 
+describe("config: ABAP_DEBUG_SESSIONS — z.coerce.number().int().min(1).max(4).default(1)", () => {
+  // Same "must stay .default()-ed" reasoning as debugDiaBudget above: fixture
+  // sites across the suite build a Config without ever mentioning
+  // debugSessions, and must keep getting 1 — today's sole-lane behaviour —
+  // if the default is ever dropped by accident.
+  it("ConfigSchema.parse with no debugSessions key still yields 1 (the .default() survives)", () => {
+    const parsed = ConfigSchema.parse({
+      url: "http://sap.invalid:50000",
+      user: "U",
+      password: "p",
+    });
+    expect(parsed.debugSessions).toBe(1);
+  });
+
+  it("loadConfig with nothing set yields debugSessions=1", () => {
+    const c = loadConfig({ env: env(), warn: () => {}, skipDotenv: true });
+    expect(c.debugSessions).toBe(1);
+  });
+
+  it("an explicit numeric string coerces to the number 2, not the string", () => {
+    const c = loadConfig({
+      env: env({ ABAP_DEBUG_SESSIONS: "2" }),
+      warn: () => {},
+      skipDotenv: true,
+    });
+    expect(c.debugSessions).toBe(2);
+    expect(typeof c.debugSessions).toBe("number");
+  });
+
+  it("ABAP_DEBUG_SESSIONS=4 (the accepted upper edge) parses successfully", () => {
+    const c = loadConfig({
+      env: env({ ABAP_DEBUG_SESSIONS: "4" }),
+      warn: () => {},
+      skipDotenv: true,
+    });
+    expect(c.debugSessions).toBe(4);
+  });
+
+  // Unlike debugDiaBudget, 0 is NOT a legal value here: there is no "kill
+  // switch" meaning for debugSessions (debugDiaBudget already owns that), so
+  // .min(1) makes 0 fatal rather than a legal degrade.
+  it("ABAP_DEBUG_SESSIONS=0 is fatal", () => {
+    expect(() =>
+      loadConfig({ env: env({ ABAP_DEBUG_SESSIONS: "0" }), warn: () => {}, skipDotenv: true }),
+    ).toThrow();
+  });
+
+  it("ABAP_DEBUG_SESSIONS=5 (past the .max(4) ceiling) is fatal", () => {
+    expect(() =>
+      loadConfig({ env: env({ ABAP_DEBUG_SESSIONS: "5" }), warn: () => {}, skipDotenv: true }),
+    ).toThrow();
+  });
+
+  it("a negative value is fatal", () => {
+    expect(() =>
+      loadConfig({ env: env({ ABAP_DEBUG_SESSIONS: "-1" }), warn: () => {}, skipDotenv: true }),
+    ).toThrow();
+  });
+
+  it("a non-integer value is fatal", () => {
+    expect(() =>
+      loadConfig({ env: env({ ABAP_DEBUG_SESSIONS: "2.7" }), warn: () => {}, skipDotenv: true }),
+    ).toThrow();
+  });
+
+  it("a non-numeric value is fatal", () => {
+    expect(() =>
+      loadConfig({ env: env({ ABAP_DEBUG_SESSIONS: "abc" }), warn: () => {}, skipDotenv: true }),
+    ).toThrow();
+  });
+
+  it("an empty-string value is fatal", () => {
+    expect(() =>
+      loadConfig({ env: env({ ABAP_DEBUG_SESSIONS: "" }), warn: () => {}, skipDotenv: true }),
+    ).toThrow();
+  });
+
+  it("setting ABAP_DEBUG_SESSIONS does not perturb the other pool defaults, including debugDiaBudget", () => {
+    const c = loadConfig({
+      env: env({ ABAP_DEBUG_SESSIONS: "3" }),
+      warn: () => {},
+      skipDotenv: true,
+    });
+    expect(c.maxSessions).toBe(5);
+    expect(c.readConcurrency).toBe(2);
+    expect(c.writeConcurrency).toBe(2);
+    expect(c.sessionIdleMs).toBe(300_000);
+    expect(c.sessionWaitMs).toBe(10_000);
+    expect(c.debugDiaBudget).toBe(2);
+  });
+
+  it("setting the other pool vars, including debugDiaBudget, does not perturb debugSessions's default", () => {
+    const c = loadConfig({
+      env: env({
+        ABAP_MAX_SESSIONS: "4",
+        ABAP_READ_CONCURRENCY: "3",
+        ABAP_WRITE_CONCURRENCY: "2",
+        ABAP_SESSION_IDLE_MS: "120000",
+        ABAP_SESSION_WAIT_MS: "5000",
+        ABAP_DEBUG_DIA_BUDGET: "4",
+      }),
+      warn: () => {},
+      skipDotenv: true,
+    });
+    expect(c.debugSessions).toBe(1);
+  });
+
+  // redactConfigSecrets is an explicit allowlist — omitting the line for
+  // debugSessions would make the field silently invisible in diagnostics
+  // even though loadConfig resolves it correctly.
+  it("redactConfigSecrets carries debugSessions for both the default and an override", () => {
+    const defaults = redactConfigSecrets(loadConfig({ env: env(), warn: () => {}, skipDotenv: true }));
+    expect(defaults.debugSessions).toBe(1);
+
+    const overridden = redactConfigSecrets(
+      loadConfig({
+        env: env({ ABAP_DEBUG_SESSIONS: "3" }),
+        warn: () => {},
+        skipDotenv: true,
+      }),
+    );
+    expect(overridden.debugSessions).toBe(3);
+  });
+});
+
 // G-36: maxResponseChars's default must be compact.ts's DEFAULT_MAX_CHARS,
 // not a second independent literal, and the ceiling must reject values high
 // enough to defeat the truncation rule the README promises.

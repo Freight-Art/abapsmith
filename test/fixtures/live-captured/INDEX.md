@@ -915,3 +915,70 @@ session was not authorized to change its runtime surface — so the publish/unpu
 request and response bytes remain unverified; whatever handles that path is built from the ADT
 discovery document and the catalogue's own `publishjobs`/`unpublishjobs` links (both visible in
 `969`), not from a live publish response.
+## 2026-09-12 — debugger watchpoints, statement/message breakpoints, live breakpoint edit (900-951)
+
+Same A4H appliance, client `001`, user `DEVELOPER`, issue #89. Two capture runs (900-925, then
+930-951 — there is no `946`, the DELETE loop that produced `947`-`949` started at `947`) driving the
+full ADT debugger choreography for watchpoints and for statement/message/exception breakpoints,
+plus arming and removing a breakpoint while a debuggee is already suspended. The debug target was
+`$TMP` class `ZCL_I89_PROBE` (`CLAS/OC`), driven via `POST /sap/bc/adt/oo/classrun/ZCL_I89_PROBE`;
+it has since been deleted from the appliance.
+
+Breakpoint ids encode the kind numerically: line `KIND=0`, statement `KIND=1`, exception `KIND=5`,
+message `KIND=12`. A line breakpoint posted as `…/oo/classes/zcl_i89_probe/source/main#start=11`
+(and, in the `bp-add-while-stopped` capture, `#start=21`) came back resolved to
+`INCLUDE=ZCL_I89_PROBE=================CM001.LINE_NR=5` (or `LINE_NR=15`) — the server rewrites a
+class-main line into the method include's own numbering, so the id cannot be predicted
+client-side from the requested line.
+
+Arming a breakpoint with no `<syncScope>` element works while a debuggee is suspended (`916`) and
+does not disturb the already-armed set. `GET /sap/bc/adt/debugger/breakpoints` answers `200` with a
+**zero-byte** body (`917`, and again at `925` after cleanup): there is no server-side read of the
+armed external breakpoint set, so any "list breakpoints" feature has to track its own client-side
+record of what it armed. `DELETE /sap/bc/adt/debugger/breakpoints/{id}` answers `200` with a
+zero-byte body, and works both while suspended (`918`) and after the debuggee is gone (`921`-`924`,
+`951`).
+
+`POST /sap/bc/adt/debugger/watchpoints?variableName=…` takes its parameters in the query string
+with an empty body and answers with the `<dbg:watchpoints>` **list** root containing the one new
+`<watchpoint>`; its `id` is a small integer, and the response's own `adtcomp:templateLink` for
+`Modify` is `/sap/bc/adt/debugger/watchpoints/{id}{?condition,active}`. The watchpoint row carries
+`kind="local"`, `procedure="IF_OO_ADT_CLASSRUN~MAIN"`, and internal handles in
+`<oldVariable>`/`<currentVariable>` (`{A:nn*\KERNEL_WATCHPOINT_CLONE}`,
+`{A:nn*\KERNEL_WATCHPOINT_WPREF}`). `oldValue`/`currentValue` keep the ABAP `I`-type trailing sign
+column (`"0 "`, `"1 "`).
+
+A watchpoint hit is reported **inside the step response** as `<reachedWatchpoints>`, in a reduced
+row shape (`id`, `expired`, `variableName`, `<currentValue>` only — no `oldValue`); the old value
+has to be read back from `GET /debugger/watchpoints` afterwards. `POST /debugger/watchpoints` with
+no `variableName` answers `400` `ExceptionParameterNotFound` with T100 key `SADT_RESOURCE 017`.
+
+`POST /sap/bc/adt/debugger?method=terminateDebuggee` answered `500` `AdiFailed` from
+`CL_TPDAPI_SESSION` in both runs (`920`, `950`) because the debuggee had already ended when the
+trigger request dumped — i.e. that `500` is the "already gone" case, not a protocol error. The
+listener response's `<TERMINAL_ID>` and `<IDE_ID>` came back **empty** even though the listener
+registration passed both (`906`) — worth noting as a caveat for anyone trying to correlate a
+debuggee back to the listener identity that caught it.
+
+The second run (`930`-`951`) adds finer detail on watchpoint lifecycle. A create response echoes
+only the newly created watchpoint, never the session's full list: `937` (`variableName=LV_ZERO`,
+watchpoint 1 already armed on `LV_TOTAL`) comes back with exactly one row, `id="2"`, while `938`
+(`GET /debugger/watchpoints` at the same moment) shows both rows. `PUT
+/debugger/watchpoints/{id}?condition=…&active=…` answers `200` with the `<dbg:watchpoints>` list
+root carrying one row — and that row's `id` is **not** the id addressed in the PUT path: a `PUT` on
+id `1` (`940`, `condition=LV_TOTAL > 3`) returned id `3`, the following list (`941`) held ids `2`
+and `3`, and a later create (`942`) re-used the now-freed id `1`. Watchpoint ids are therefore small
+reused integers whose validity ends at the next modify of that watchpoint, not stable handles. A
+condition is stored verbatim and comes back XML-escaped in the row (`<condition>LV_TOTAL &gt;
+3</condition>`). Creating a second watchpoint on a variable that already has one is accepted, not
+refused (`942`, a second `LV_TOTAL` watchpoint). `GET /debugger/watchpoints/{unknown id}` answers
+`404` with `type id="AdtFailed"` (not a more specific not-found type) and T100 key `TPDA_ADT 013`
+(`943`, id `99`).
+
+In run 2 the conditional watchpoint did not decide the stop: `stepContinue` (`944`) halted on the
+unconditional watchpoint on `LV_TOTAL` (reported as `<reachedWatchpoints>` with id `1`,
+`<currentValue>1 </currentValue>`), while the conditional one (`LV_TOTAL > 3`) was still unhit,
+reading `oldValue`/`currentValue` of `1 `/`1 ` in the list afterwards (`945`). The condition was
+accepted and stored, but a condition-gated hit was never isolated in these captures — this run does
+not establish that a `condition` actually gates a watchpoint stop, only that the server accepts and
+persists one.

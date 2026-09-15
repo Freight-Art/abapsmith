@@ -99,8 +99,14 @@ const slugToFile = new Map(walkCassetteFiles(THIS_DIR).map((file) => [slugFromFi
  */
 const COVERED_CASSETTE_IDS = [
   "attach-session-bootstrap",
+  "bp-add-while-stopped",
+  "bp-list-server-returns-empty",
   "bp-reject-inband",
+  "bp-remove-while-stopped",
   "bp-set-accepted",
+  "bp-set-exception-accepted",
+  "bp-set-message-accepted",
+  "bp-set-statement-accepted",
   "class-lock-post",
   "csrf-required-403",
   "csrf-required-403-followup-verify",
@@ -133,6 +139,15 @@ const COVERED_CASSETTE_IDS = [
   "nodestructure-package-with-subpackages",
   "package-header-customer",
   "package-header-sap-standard",
+  "watchpoint-create-lv-total",
+  "watchpoint-create-missing-variable-400",
+  "watchpoint-create-second",
+  "watchpoint-delete",
+  "watchpoint-get-single",
+  "watchpoint-get-unknown-id-404",
+  "watchpoint-hit-step-continue",
+  "watchpoint-list-after-hit",
+  "watchpoint-modify-condition",
 ] as const;
 
 // Generated ONCE for the whole suite, from every cassette on disk — mirrors

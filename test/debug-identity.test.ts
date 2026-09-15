@@ -130,6 +130,109 @@ describe("resolveDebugIdentity", () => {
     expect(id!.terminalId).toMatch(/^[0-9A-F]{32}$/);
     expect(id!.ideId).toMatch(/^[0-9A-F]{32}$/);
   });
+
+  describe("lane", () => {
+    // Lane 0 must be byte-identical to calling resolveDebugIdentity with no
+    // lane argument at all — old callers (and every test above, which never
+    // passes a third argument) must see no change.
+    it("lane 0 (explicit) matches the no-lane-argument call exactly", () => {
+      const implicit = resolveDebugIdentity(baseCfg());
+      const explicitLaneZero = resolveDebugIdentity(baseCfg(), 0);
+      expect(explicitLaneZero.terminalId).toBe(implicit.terminalId);
+      expect(explicitLaneZero.ideId).toBe(implicit.ideId);
+      expect(explicitLaneZero.terminalIdSource).toBe(implicit.terminalIdSource);
+      expect(explicitLaneZero.ideIdSource).toBe(implicit.ideIdSource);
+    });
+
+    it("resolveDebugIdentity reports lane on the returned identity", () => {
+      expect(resolveDebugIdentity(baseCfg()).lane).toBe(0);
+      expect(resolveDebugIdentity(baseCfg(), 0).lane).toBe(0);
+      expect(resolveDebugIdentity(baseCfg(), 1).lane).toBe(1);
+      expect(resolveDebugIdentity(baseCfg(), 2).lane).toBe(2);
+    });
+
+    it("lane 1 derives terminalId/ideId that differ from lane 0's, with no config set", () => {
+      const lane0 = resolveDebugIdentity(baseCfg());
+      const lane1 = resolveDebugIdentity(baseCfg(), 1);
+      expect(lane1.terminalId).not.toBe(lane0.terminalId);
+      expect(lane1.ideId).not.toBe(lane0.ideId);
+    });
+
+    it("lane derivation is deterministic for the same sid+user+lane", () => {
+      const first = resolveDebugIdentity(baseCfg(), 2);
+      const second = resolveDebugIdentity(baseCfg(), 2);
+      expect(second.terminalId).toBe(first.terminalId);
+      expect(second.ideId).toBe(first.ideId);
+    });
+
+    it("different lanes (1 vs 2) derive different ids from each other", () => {
+      const lane1 = resolveDebugIdentity(baseCfg(), 1);
+      const lane2 = resolveDebugIdentity(baseCfg(), 2);
+      expect(lane2.terminalId).not.toBe(lane1.terminalId);
+      expect(lane2.ideId).not.toBe(lane1.ideId);
+    });
+
+    // The core lane-vs-explicit-config rule: lane > 0 must NEVER reuse an
+    // explicitly-configured id verbatim — doing so would recreate the exact
+    // identity collision explicit configuration exists to avoid, the moment
+    // more than one lane is in play.
+    it("lane 1 does not reuse an explicit terminalId/ideId verbatim", () => {
+      const explicitTerminalId = "A".repeat(32);
+      const explicitIdeId = "C".repeat(32);
+      const lane1 = resolveDebugIdentity(
+        baseCfg({ terminalId: explicitTerminalId, ideId: explicitIdeId }),
+        1,
+      );
+      expect(lane1.terminalId).not.toBe(explicitTerminalId);
+      expect(lane1.ideId).not.toBe(explicitIdeId);
+    });
+
+    // ... but lane 0 with that same explicit config still returns it verbatim.
+    it("lane 0 still returns explicit config verbatim even when other lanes exist", () => {
+      const explicitTerminalId = "A".repeat(32);
+      const explicitIdeId = "C".repeat(32);
+      const lane0 = resolveDebugIdentity(
+        baseCfg({ terminalId: explicitTerminalId, ideId: explicitIdeId }),
+        0,
+      );
+      expect(lane0.terminalId).toBe(explicitTerminalId);
+      expect(lane0.ideId).toBe(explicitIdeId);
+    });
+
+    // Two different lanes derived off the SAME explicit config must still
+    // differ from each other (not just from the explicit value).
+    it("lane 1 and lane 2 derived off the same explicit config differ from each other", () => {
+      const explicitTerminalId = "A".repeat(32);
+      const lane1 = resolveDebugIdentity(baseCfg({ terminalId: explicitTerminalId }), 1);
+      const lane2 = resolveDebugIdentity(baseCfg({ terminalId: explicitTerminalId }), 2);
+      expect(lane1.terminalId).not.toBe(lane2.terminalId);
+    });
+
+    it("lane > 0 always reports source lane-derived, whether or not config was set", () => {
+      const noConfig = resolveDebugIdentity(baseCfg(), 1);
+      expect(noConfig.terminalIdSource).toBe("lane-derived");
+      expect(noConfig.ideIdSource).toBe("lane-derived");
+
+      const withConfig = resolveDebugIdentity(
+        baseCfg({ terminalId: "A".repeat(32), ideId: "C".repeat(32) }),
+        1,
+      );
+      expect(withConfig.terminalIdSource).toBe("lane-derived");
+      expect(withConfig.ideIdSource).toBe("lane-derived");
+    });
+
+    it("lane-derived ids are strict 32-uppercase-hex, same format as lane 0", () => {
+      const lane1 = resolveDebugIdentity(baseCfg(), 1);
+      expect(lane1.terminalId).toMatch(/^[0-9A-F]{32}$/);
+      expect(lane1.ideId).toMatch(/^[0-9A-F]{32}$/);
+    });
+
+    it("policy: lane > 0 never throws, even with explicit config set", () => {
+      expect(() =>
+        resolveDebugIdentity(baseCfg({ terminalId: "A".repeat(32), ideId: "C".repeat(32) }), 3),
+      ).not.toThrow();
+    });
+  });
 });
 
 describe("warnIfDerivedIdentity", () => {
@@ -194,5 +297,38 @@ describe("warnIfDerivedIdentity", () => {
     // more than one process for the same SAP user.
     expect(text).toContain("provably multi-process-safe");
     expect(text).toContain("IDENTICAL pair");
+  });
+
+  // A lane-derived identity carries the same collision risk as a plain
+  // derived one (two processes independently deriving the same lane land on
+  // an identical pair), so it must warn too — not just "config" vs "derived".
+  it("a lane-derived identity (lane > 0) warns exactly like a derived one", async () => {
+    vi.resetModules();
+    const mod = await import("../src/debug/identity.js");
+    const id = mod.resolveDebugIdentity(baseCfg(), 1);
+    const messages: string[] = [];
+    const result = mod.warnIfDerivedIdentity(id, (m) => messages.push(m));
+    expect(result).toBe(true);
+    expect(messages).toHaveLength(1);
+  });
+
+  // The lane-0 warning text must stay byte-identical to before lanes
+  // existed — only lane > 0 gets the extra note.
+  it("the lane-0 warning text is unchanged (no lane note)", async () => {
+    vi.resetModules();
+    const mod = await import("../src/debug/identity.js");
+    const id = mod.resolveDebugIdentity(baseCfg());
+    const messages: string[] = [];
+    mod.warnIfDerivedIdentity(id, (m) => messages.push(m));
+    expect(messages[0]).not.toContain("lane");
+  });
+
+  it("a lane > 0 warning names the lane number", async () => {
+    vi.resetModules();
+    const mod = await import("../src/debug/identity.js");
+    const id = mod.resolveDebugIdentity(baseCfg(), 2);
+    const messages: string[] = [];
+    mod.warnIfDerivedIdentity(id, (m) => messages.push(m));
+    expect(messages[0]).toContain("lane 2");
   });
 });

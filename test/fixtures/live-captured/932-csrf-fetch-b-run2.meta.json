@@ -1,0 +1,36 @@
+{
+  "n": 932,
+  "label": "csrf-fetch-b-run2",
+  "expect": null,
+  "note": null,
+  "requestMethod": "GET",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/debugger/breakpoints/messagetypes?sap-client=001",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "X-CSRF-Token": "Fetch",
+    "Accept": "application/xml"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-encoding": "gzip",
+    "content-length": "233",
+    "content-type": "application/xml; charset=utf-8",
+    "sap-authenticated": "true",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "191932.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>",
+    "x-csrf-token": "Toj8L3WrE6Gf0Rl6AKnjGQ=="
+  },
+  "byteLength": 1084,
+  "zeroByteBody": false,
+  "sha256": "49eb0fc268c8ff7331f0f80697b1c797651c04c32d24d81f928d62cbc91b7566",
+  "utcTimestamp": "2026-09-12T17:56:14.946Z",
+  "durationMs": 423,
+  "sessionName": "B",
+  "transportError": null,
+  "redactions": "appliance host -> 203.0.113.10:50000 (RFC 5737); the application-server hostname was replaced with a4hsandbox (same placeholder as the 011-051 captures); Authorization/Cookie/set-cookie stripped. sha256/byteLength are over the redacted body as stored here."
+}

@@ -12,6 +12,19 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.5.19] - 2026-09-15
+
+### Added
+
+- `abap_debug action="breakpoints"` (`op="list"|"add"|"remove"`) and `action="watch"` (`op="add"|"list"|"remove"`, optional ABAP-expression `condition`) edit breakpoints and watchpoints while a debuggee is suspended, without ending the session (issue #89). Breakpoint kinds `exception`, `statement` and `message` join `line`, mixable in one `start` call; a `start` that lands in SAP framework code on a statement breakpoint auto-continues up to 10 times and lists the skipped frames in a note. Live captures 900–951.
+
+### Fixed
+
+- Each debug session now holds its own unpooled ADT connection, released on `stop`, on a force-clear and on a failed `start`, so a clean stop no longer leaves a stale attachment that makes the next `start` fail with "Debuggee already attached" (issue #89). Six consecutive start/stop cycles in one process were verified live on A4H.
+- Breakpoints added or removed while suspended took effect one stop-cycle late: SAP's notify chain replaces the debuggee's runtime breakpoint set with exactly the POSTed body, so the delta POST silently wiped already-armed breakpoints. `add`/`remove` now POST the full owned set (issue #89).
+- A second `start` while a session holds the only lane is refused with `DEBUG_ALL_LEASES_BUSY` (naming `ABAP_DEBUG_SESSIONS`) at every lane count, not `UNSUPPORTED` (issue #89).
+- `doc/TOOLS/debugger.md` gains a "Connection hygiene" section, statement-breakpoint scope notes (`RAISE` vs `RAISE EXCEPTION TYPE`) and moves conditional watchpoints out of "Not verified" (issue #89).
+
 ## [0.5.18] - 2026-09-15
 
 ### Added

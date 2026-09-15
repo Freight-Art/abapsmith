@@ -2,8 +2,9 @@
 
 | Entity | Create | Read | Update | Delete | Activate | Evidence | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Debugger | n/a | yes | no | n/a | n/a | live | Breakpoints are set and cleared as part of a session; variables can be read but never written, and the frame cursor moves the read position only. |
-| Breakpoints | yes | yes | no | yes | n/a | live | Armed only as part of starting a session, deleted only when it ends, and only ones this session created. No standalone list or remove. `skipCount` is accepted by the server and not enforced, so expect a stop on every hit. |
+| Debugger | n/a | yes | no | n/a | n/a | live | Breakpoints and watchpoints are set and cleared as part of a session, including while a debuggee is already suspended; variables can be read but never written, and the frame cursor moves the read position only. Session concurrency is client-configurable (`ABAP_DEBUG_SESSIONS`), but SAP still allows only one active debug listener per SAP user on a system. |
+| Breakpoints | yes | yes | no | yes | n/a | live | Line, exception, statement and message kinds, mixable in one call; armed at `start` or added later while stopped (`action="breakpoints"` `op="add"`, additive — never touches a breakpoint this session did not create). `op="list"` is a client-side record of what this session armed, not a server read — `GET .../debugger/breakpoints` answers `200` with a zero-byte body regardless of what is actually armed. `op="remove"` is by id, restricted to ids this session created. `skipCount` is accepted by the server and not enforced, so expect a stop on every hit. |
+| Watchpoints | yes | yes | no | yes | n/a | mixed | Variable-path watch with an optional ABAP-expression condition; add/list/remove while stopped (`action="watch"`). A create response echoes only the newly created watchpoint, never the session's full list. A hit surfaces inside a step response as `reachedWatchpoints`, carrying only the new value — the old value needs a follow-up `op="list"`. This tool never modifies a watchpoint (a modify retires the addressed id and issues a new one), so ids it holds stay valid for the session's whole lifetime. `live`: create/list/get/modify/delete, the 400 on a missing variable name, the 404 on an unknown id, and a hit reported on `stepContinue`. `unverified`: a condition actually gating a stop (accepted and stored, but never isolated as the cause of a hit) and `reachedWatchpoints` on an *attach* response (every captured attach stopped on a line breakpoint instead). |
 | ABAP Unit | yes | yes | yes | n/a | yes | live | Runs existing tests: PASSED/FAILED/NO TESTS RAN/UNKNOWN, never collapsing "nothing ran" into a pass — see the outcome breakdown below. Test classes are created and updated through `abap_write` (`include="testclasses"`), not through `abap_test` itself; verified live end to end — write, activate, run, read-back — against SAP A4H, 2026-09-12. A single class include cannot be deleted on its own (ADT has no such verb), only emptied by writing new content over it. There is no activate verb for the include itself: `abap_activate` on the owning class activates `testclasses` along with it, confirmed live, SAP A4H, 2026-09-12. |
 | ABAP Unit coverage | n/a | yes | n/a | n/a | n/a | mixed | Opt-in (`coverage: true` on `abap_test`), scoped with `coverage_for`. The wire protocol — coverage negotiation on the run, the covered-objects roster, the coverage query, an untouched object's zero-summary response with no per-node breakdown — is `live` (SAP A4H, 2026-09-12; `test/fixtures/live-captured/852`–`856-i75-*`). abapsmith's own report rendering is now `live` too, end to end: `abap_test { object: "ZCL_I75_UNDO", type: "CLAS/OC", coverage: true }` against SAP A4H, 2026-09-12, returned outcome PASSED, tests 1, passed 1, the header `coverage: statement 2/2 (100%), branch 1/1 (100%), procedure 1/1 (100%)` line, a `COVERAGE` section with a class row and a per-method row for `DOUBLE`, and an `ALSO TOUCHED` list of 15 framework objects plus a `… and 19 more (truncated)` line — so the focus set, the header ratio line, the per-class/per-method table, and `ALSO TOUCHED` with its cap are confirmed as rendered MCP tool output, not just wire protocol. Still `tests`-only, exercised only against the live-captured fixtures, not yet observed live as rendered output: the `UNCOVERED METHODS` section, the `not measured by this run` / `not touched by this run` / `not queried` wordings, and `coverage_for` naming an object other than the one under test. See [execute-and-test.md](../TOOLS/execute-and-test.md). |
 | ATC | partial | yes | no | partial | n/a | mixed | A run creates a server-side worklist as a side effect; there is no variant create, and exemption management is deliberately absent. Worklist delete IS attempted (both directly and via `auto_cleanup`) but this release's server refuses every attempt with HTTP 405, so the worklist persists — a caching strategy limits the litter. |
@@ -93,10 +94,25 @@
   identity no-op (803).
 - **Debugger.** The most thoroughly live-covered area: real cassettes exist
   for token fetch, stack read, listener hit, attach bootstrap, listener
-  conflict, and both breakpoint accept and reject. Two exceptions: the
-  run-to-line and jump-to-line step kinds have no live capture, and
-  jump-to-line is disabled by default behind both an environment flag and a
-  per-call confirmation echo. The debugger is read-only with respect to
+  conflict, and both breakpoint accept and reject. Statement and message
+  breakpoint kinds, watchpoint create/list/get/modify/delete, arming or
+  removing a breakpoint while a debuggee is already suspended, and a
+  watchpoint hit reported as `reachedWatchpoints` on a `stepContinue`
+  response are all live-verified against A4H (2026-09-12). Two exceptions
+  among steps: the run-to-line and jump-to-line step kinds have no live
+  capture, and jump-to-line is disabled by default behind both an
+  environment flag and a per-call confirmation echo. Also unverified: a
+  *conditional* watchpoint actually gating a stop (the condition is accepted
+  and stored, but a hit was never isolated as caused by it, as opposed to an
+  unconditional watchpoint on the same variable hitting first);
+  `reachedWatchpoints` on an *attach* response (every captured attach
+  stopped on a line breakpoint instead, so this shape is inferred from the
+  parser's tolerance, not observed); and two concurrent debug sessions
+  actually working — SAP refuses a second listener for the same SAP user
+  with `409`/`conflictDetected` even when the refused request carries a
+  different `terminalId` (`test/cassettes/debugger/listener-conflict-409.cassette.json`),
+  so `ABAP_DEBUG_SESSIONS` above 1 only raises this client's own cap, never
+  SAP's per-user exclusivity. The debugger is read-only with respect to
   variables by deliberate design; the underlying set-value verb is left
   unexposed.
 - **Activation.** Batched activation resolves and authorises every object

@@ -1,0 +1,31 @@
+{
+  "n": 907,
+  "label": "trigger-classrun-i89",
+  "expect": null,
+  "note": "fire-and-forget trigger; blocks while the debuggee is suspended",
+  "requestMethod": "POST",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/oo/classrun/ZCL_I89_PROBE?sap-client=001",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted: 3 cookies>",
+    "X-CSRF-Token": "ORCgkgaUswrTnIDziCu5qg==",
+    "Accept": "text/plain"
+  },
+  "requestBody": null,
+  "responseStatus": 500,
+  "responseStatusText": "Internal Server Error",
+  "responseHeaders": {
+    "connection": "close",
+    "content-length": "9664",
+    "content-security-policy": "default-src 'self'; img-src 'self' data:; style-src 'unsafe-inline'; script-src 'none';",
+    "content-type": "text/html; charset=utf-8"
+  },
+  "byteLength": 9664,
+  "zeroByteBody": false,
+  "sha256": "e8df93aef4a93e82ec2b8fc719d6a3c94720e47155a150e6a77f08941f4f9961",
+  "utcTimestamp": "2026-09-12T17:49:35.125Z",
+  "durationMs": 6018,
+  "sessionName": "B",
+  "transportError": null,
+  "redactions": "appliance host -> 203.0.113.10:50000 (RFC 5737); the application-server hostname was replaced with a4hsandbox (same placeholder as the 011-051 captures); Authorization/Cookie/set-cookie stripped. sha256/byteLength are over the redacted body as stored here."
+}

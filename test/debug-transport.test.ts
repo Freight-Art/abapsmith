@@ -25,6 +25,7 @@ import { SafetyGate } from "../src/safety.js";
 import type { AdtError, RawResponse } from "../src/debug/types.js";
 import {
   ACQUIRE_NO_SESSION_LEASE,
+  ADT_REST_DATA_INVALID_TEXT,
   DEBUG_ATTACH_WAIT_TIME_MS,
   DEBUG_LAZY_TIME_MS,
   LISTENER_SERVER_TIMEOUT_MS,
@@ -892,6 +893,33 @@ describe("translateDebugError — structural discrimination only", () => {
     const e = translateDebugError(err({ status: 500, message: "Some other ADT failure." }));
     expect(e.code).toBe("ADT_ERROR");
     expect(e.details.status).toBe(500);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Issue #89 — `cx_adt_rest_data_invalid`'s bare default text once reached a
+  // caller unexplained (see `ADT_REST_DATA_INVALID_TEXT`'s doc comment). The
+  // fallback ADT_ERROR branch now attaches a hint when the server message IS
+  // that exact text (case-insensitive, trimmed) — the message itself, which is
+  // the evidence, is left untouched.
+  // ---------------------------------------------------------------------------
+
+  it("attaches an explanatory hint when the ADT_ERROR fallback's message is cx_adt_rest_data_invalid's bare default text", () => {
+    const e = translateDebugError(
+      err({ status: 500, message: `  ${ADT_REST_DATA_INVALID_TEXT.toUpperCase()}  ` }),
+    );
+    expect(e.code).toBe("ADT_ERROR");
+    // The server's own message is preserved verbatim, not replaced.
+    expect(e.message).toBe(`  ${ADT_REST_DATA_INVALID_TEXT.toUpperCase()}  `);
+    expect(e.hint).toBeDefined();
+    expect(e.hint).toContain("cx_adt_rest_data_invalid");
+    expect(e.hint).toContain("ADT REST layer");
+    expect(e.hint).toContain("live verification run on 2026-09-15");
+  });
+
+  it("does NOT attach the cx_adt_rest_data_invalid hint for an unrelated ADT_ERROR fallback message", () => {
+    const e = translateDebugError(err({ status: 500, message: "Some other ADT failure." }));
+    expect(e.code).toBe("ADT_ERROR");
+    expect(e.hint).toBeUndefined();
   });
 
   // -------------------------------------------------------------------------

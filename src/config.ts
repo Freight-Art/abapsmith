@@ -10,6 +10,15 @@ import { config as loadDotenv } from "dotenv";
 import { z } from "zod";
 
 import { isTrkorr } from "./adt/transports.js";
+// Value import, not just a type — used below to size the startup warning's
+// debug-lease reservation to the actual configured lane count. Safe despite
+// `src/adt/pool.ts` importing `Config` back from here (via `type Config` at
+// its top, and transitively via `./connection.js`'s `stripUrlCredentials`
+// import): `resolveDebugSessionLimit` is only called inside `loadConfig()`'s
+// body, never at either module's top level, so by the time it runs the
+// whole module graph has already finished evaluating — a standard, safe ESM
+// circular-import shape. Verified with a built `dist/config.js` import.
+import { resolveDebugSessionLimit } from "./adt/pool.js";
 import {
   loadCaBundle,
   loadClientCertMaterial,
@@ -706,12 +715,44 @@ export const ConfigSchema = z.object({
    * read; exhaustion at the ceiling was never induced/measured).
    *
    * `0`/`1` disables debugging outright (the kill switch — hence
-   * `.nonnegative()` not `.positive()`). A FLOOR CHECK, not a multiplier:
-   * raising it does NOT enable a second concurrent debug session (see
-   * `DEBUG_CONCURRENCY` in `src/adt/pool.ts` — parallel debugging is
-   * closed). Deliberately no `.max()`: `7` is A4H-specific.
+   * `.nonnegative()` not `.positive()`). Raising this ALONE does not enable
+   * a second concurrent debug session: the actual concurrency cap is
+   * `resolveDebugSessionLimit(cfg)` in `src/adt/pool.ts`, which takes the
+   * smaller of `debugSessions` (below) and `floor(debugDiaBudget /
+   * DIA_COST_PER_DEBUG_SESSION)` — this field only ever raises the ceiling
+   * that `debugSessions` is capped against, it never raises the cap by
+   * itself. Deliberately no `.max()`: `7` is A4H-specific.
    */
   debugDiaBudget: z.coerce.number().int().nonnegative().default(2),
+  /**
+   * How many concurrent debug leases to grant, before the `debugDiaBudget`
+   * ceiling above is applied — see `resolveDebugSessionLimit` in
+   * `src/adt/pool.ts` for the exact formula. Default `1`, matching every
+   * abapsmith release before this setting existed (`DEBUG_CONCURRENCY` in
+   * `src/adt/pool.ts`), so leaving `ABAP_DEBUG_SESSIONS` unset reproduces
+   * today's behaviour bit-for-bit.
+   *
+   * Raising this past `1` only raises the CLIENT-side cap. It does not, by
+   * itself, make a second concurrent debug session possible: measured wire
+   * evidence (`test/cassettes/debugger/listener-conflict-409.cassette.json`)
+   * shows SAP refusing a second `POST .../debugger/listeners` for the same
+   * SAP user with `409`/`conflictDetected` (T100 `SY 530`, "Another session
+   * already exists with global debugging scope for user X") even when the
+   * refused request carried a different `terminalId` from the holder's —
+   * SAP's exclusivity at this scope is per SAP USER, not per identity. A
+   * second lane only has a chance of working when it authenticates as a
+   * DIFFERENT SAP user (a second abapsmith process with a different
+   * `ABAP_USER`), or once a terminal-scoped debugging mode
+   * (`debuggingMode: "terminal"`) is proven functional — it is modelled in
+   * this repo but has never been demonstrated to work.
+   *
+   * Hard-fails (does not clamp) outside `1..4`, mirroring `debugDiaBudget`'s
+   * validation style: a value this consequential should be loud when wrong,
+   * not silently coerced into something the operator didn't ask for.
+   * `.max(4)` is an arbitrary sanity ceiling — nothing enforces that more
+   * than a handful of debug lanes could ever be useful on one process.
+   */
+  debugSessions: z.coerce.number().int().min(1).max(4).default(1),
   /**
    * Whether the live debug deps install the cross-process debug arm lock
    * (`FileLockDebugArmLock`, `src/debug/arm-lock.ts`) or its no-op stand-in.
@@ -1377,6 +1418,7 @@ export function loadConfig(opts: LoadConfigOptions = {}): Config {
     sessionIdleMs: env.ABAP_SESSION_IDLE_MS ?? 300_000,
     sessionWaitMs: env.ABAP_SESSION_WAIT_MS ?? 10_000,
     debugDiaBudget: env.ABAP_DEBUG_DIA_BUDGET,
+    debugSessions: env.ABAP_DEBUG_SESSIONS,
     crossProcessDebugLock: env.ABAP_CROSS_PROCESS_DEBUG_LOCK,
     debugLockWaitMs: env.ABAP_DEBUG_LOCK_WAIT_MS,
     // Must stay byte-for-byte identical to
@@ -1755,18 +1797,28 @@ export function loadConfig(opts: LoadConfigOptions = {}): Config {
         "listeners for one SAP user at once.",
     );
   }
-  // Not a hard failure: lane limits aren't clamped to pool size, so
+  // The debug-lease reservation below must be the number of concurrent debug
+  // LEASES this pool's "debug" role can actually hand out —
+  // `resolveDebugSessionLimit(cfg)`, the same lane count `src/tools/debug.ts`
+  // sizes its lane array from — not `DIA_COST_PER_DEBUG_SESSION`
+  // (`src/adt/pool.ts`). Those are different resources: `DIA_COST_PER_DEBUG_SESSION`
+  // counts dialog work processes pinned on the SAP appliance per session,
+  // while `maxSessions`/`readConcurrency`/`writeConcurrency` here all count
+  // THIS client's own ADT session pool slots — a debug lane consumes one of
+  // those slots, not a DIA process, so the lane count is the right unit to
+  // add. Not a hard failure: lane limits aren't clamped to pool size, so
   // over-subscription just degrades to queuing for the smaller number of
   // slots — a startup refine() would turn a survivable misconfiguration into
   // an outage over something that still runs correctly, just slower.
-  if (cfg.readConcurrency + cfg.writeConcurrency + 1 > cfg.maxSessions) {
+  const debugLaneCount = resolveDebugSessionLimit(cfg);
+  if (cfg.readConcurrency + cfg.writeConcurrency + debugLaneCount > cfg.maxSessions) {
     warn(
       `[abapsmith] WARNING: readConcurrency (${cfg.readConcurrency}) + writeConcurrency ` +
-        `(${cfg.writeConcurrency}) + 1 reserved debug lease slot exceeds maxSessions ` +
-        `(${cfg.maxSessions}). The lane limits are not clamped to the pool size, so the ` +
-        "lanes simply contend for the smaller number of actual slots — the excess lane " +
-        "capacity configured above is unreachable. Accepted as written; the server starts " +
-        "normally.",
+        `(${cfg.writeConcurrency}) + ${debugLaneCount} reserved debug lease slot` +
+        `${debugLaneCount === 1 ? "" : "s"} exceeds maxSessions (${cfg.maxSessions}). ` +
+        "The lane limits are not clamped to the pool size, so the lanes simply contend for " +
+        "the smaller number of actual slots — the excess lane capacity configured above is " +
+        "unreachable. Accepted as written; the server starts normally.",
     );
   }
   if (cfg.serialiseSameObjectWrites === false) {
@@ -1972,6 +2024,7 @@ export function redactConfigSecrets(cfg: Config): Record<string, unknown> {
     sessionIdleMs: cfg.sessionIdleMs,
     sessionWaitMs: cfg.sessionWaitMs,
     debugDiaBudget: cfg.debugDiaBudget,
+    debugSessions: cfg.debugSessions,
     crossProcessDebugLock: cfg.crossProcessDebugLock,
     debugLockWaitMs: cfg.debugLockWaitMs,
     // Neither a secret; reported unmasked so an operator can see at a glance

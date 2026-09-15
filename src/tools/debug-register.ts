@@ -29,14 +29,35 @@ import { preflight } from "./preflight.js";
 import { parseBreakpoints } from "./v2/breakpoints.js";
 
 /**
- * `abap_debug` actions needing no `execute` gate at this layer: reads
- * (`stack`/`status`/`frame`), `keepalive` (idle timer only), and `stop`
- * (risk-reducing). `frame` only moves the debugger's read cursor
- * (live-verified against A4H); `keepalive`/`stop` are instead gated one
- * layer down in `debug.ts`, against the object the session actually started
- * against. Exempt list, not gated list: new actions default to GATED.
+ * `abap_debug` actions needing no `execute` gate at THIS layer, for two
+ * different reasons:
+ *  - pure reads: `stack`/`status`/`frame` (the last only moves the
+ *    debugger's read cursor, live-verified against A4H), plus `breakpoints`
+ *    and `watch` when `op:"list"` — they report this session's own
+ *    bookkeeping, never write anything.
+ *  - `keepalive`/`stop`, and `breakpoints`/`watch` for `op:"add"`/`"remove"`:
+ *    genuine writes, but ones `debug.ts` itself gates one layer down, via
+ *    `assertSessionWrite`, against the object the session actually started
+ *    against — re-evaluating the shared SafetyGate there still refuses
+ *    add/remove with READ_ONLY on a read-only server.
+ * `breakpoints`/`watch` carry no `object` (or `run`) of their own at all —
+ * unlike `start`/`step` they take only a `stateId` — so gating them HERE
+ * resolved `object` to `undefined` on every call and `deps.safety.assert`
+ * denied all four ops outright with "No object supplied for a mutating
+ * operation", regardless of op or gate state. Found by live verification
+ * against A4H, 2026-09-15: `breakpoints`/`watch` were completely
+ * non-functional through the MCP entry point. Exempt list, not gated list:
+ * new actions default to GATED.
  */
-const DEBUG_UNGATED_ACTIONS: ReadonlySet<string> = new Set(["stack", "frame", "status", "keepalive", "stop"]);
+const DEBUG_UNGATED_ACTIONS: ReadonlySet<string> = new Set([
+  "stack",
+  "frame",
+  "status",
+  "keepalive",
+  "stop",
+  "breakpoints",
+  "watch",
+]);
 
 /** Extracts `stateId: <id>` from a rendered debug response header, if present (absent when the session just died). */
 function stateIdOfResponse(text: string): string | undefined {

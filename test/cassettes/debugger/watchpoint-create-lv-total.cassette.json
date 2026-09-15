@@ -1,0 +1,42 @@
+{
+  "id": "watchpoint-create-lv-total",
+  "recordedAt": "2026-09-12T17:49:37.706Z",
+  "recordedDurationMs": 1445,
+  "appliance": {
+    "sid": "A4H",
+    "client": "001",
+    "server": "a4hsandbox_A4H_00"
+  },
+  "source": {
+    "type": "live-capture-raw",
+    "citation": "test/fixtures/live-captured/911-watchpoint-create-lv-total.meta.json + test/fixtures/live-captured/911-watchpoint-create-lv-total.xml",
+    "notes": "POST /sap/bc/adt/debugger/watchpoints?variableName=LV_TOTAL, empty request body — the variable name is passed entirely in the query string. Answers 200 with the <dbg:watchpoints> LIST root (not a single <watchpoint> root) containing one new row: id=\"1\", kind=\"local\", procedure=\"IF_OO_ADT_CLASSRUN~MAIN\", oldValue and currentValue both \"0 \" (note the ABAP I-type trailing sign column) since the watchpoint was armed before LV_TOTAL had been assigned on this pass. Captured against the $TMP probe class ZCL_I89_PROBE, suspended in IF_OO_ADT_CLASSRUN~MAIN, before it reached the DO 5 TIMES loop that increments LV_TOTAL. The response's own adtcomp:templateLink for \"Modify\" is /sap/bc/adt/debugger/watchpoints/1{?condition,active} — a PUT to that template was never exercised by this capture run, so its shape is not verified here. Redactions performed by the capture harness before this file was written: appliance host -> 203.0.113.10:50000 (RFC 5737), application-server hostname -> a4hsandbox, Authorization/Cookie/set-cookie header values stripped. sha256/byteLength in the source .meta.json are computed over the redacted body as stored."
+  },
+  "request": {
+    "method": "POST",
+    "path": "/sap/bc/adt/debugger/watchpoints?variableName=LV_TOTAL&sap-client=001",
+    "headers": {
+      "Authorization": "<redacted>",
+      "Cookie": "<redacted: 4 cookies>",
+      "X-sap-adt-sessiontype": "stateful",
+      "X-CSRF-Token": "Ls6asF_TTkrN_WJbzm64EA==",
+      "Accept": "application/xml"
+    },
+    "body": null
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-encoding": "gzip",
+      "content-length": "478",
+      "content-type": "application/xml; charset=utf-8",
+      "sap-authenticated": "true",
+      "sap-cache-control": "+0",
+      "sap-isc-uagent": "0",
+      "sap-perf-fesrec": "1236621.000000",
+      "sap-server": "true",
+      "set-cookie": "<redacted>"
+    },
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><dbg:watchpoints xmlns:dbg=\"http://www.sap.com/adt/debugger\"><watchpoint id=\"1\" variableName=\"LV_TOTAL\" kind=\"local\" active=\"true\" expired=\"false\" procedure=\"IF_OO_ADT_CLASSRUN~MAIN\"><condition/><oldVariable>{A:24*\\KERNEL_WATCHPOINT_CLONE}</oldVariable><currentVariable>{A:13*\\KERNEL_WATCHPOINT_WPREF}</currentVariable><oldValue>0 </oldValue><currentValue>0 </currentValue><atom:link href=\"/sap/bc/adt/debugger/watchpoints/1\" rel=\"self\" type=\"application/xml\" title=\"Watchpoint for LV_TOTAL\" xmlns:atom=\"http://www.w3.org/2005/Atom\"/><adtcomp:templateLinks xmlns:adtcomp=\"http://www.sap.com/adt/compatibility\"><adtcomp:templateLink title=\"Self\" rel=\"self\" template=\"/sap/bc/adt/debugger/watchpoints/1\"/><adtcomp:templateLink title=\"Modify\" rel=\"http://www.sap.com/adt/debugger/relations/modify\" template=\"/sap/bc/adt/debugger/watchpoints/1{?condition,active}\"/><adtcomp:templateLink title=\"Delete\" rel=\"http://www.sap.com/adt/debugger/relations/delete\" template=\"/sap/bc/adt/debugger/watchpoints/1\"/></adtcomp:templateLinks></watchpoint></dbg:watchpoints>"
+  }
+}
