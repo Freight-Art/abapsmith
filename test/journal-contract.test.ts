@@ -423,6 +423,19 @@ const JOURNALLED_BY: ReadonlyMap<string, string> = new Map([
   // above still lands before the first POST, hence before the second too, so
   // the ordering guarantee is unaffected.
   ["adt/bopf.ts", "tools/bopf.ts"],
+  // The trace-request create (`createTraceRequest`) and the two delete verbs
+  // (`deleteTraceRequest`, `deleteTraceRun`) are journalled by
+  // `src/tools/trace.ts` via `withJournalledMutation`, as `operation:
+  // "create"` / `operation: "delete"` entries, `irreversible: true`
+  // throughout. There is no new `JournalOperation` value for any of the
+  // three: the union is closed, and `undoBlocker()`'s `irreversible`
+  // catch-all (`adt/undo.ts` — the same branch the `abap_ui` press and the
+  // BOPF writes above already hit) already refuses undo, so nothing needs a
+  // trace-specific case. `createTraceParameters`'s POST is a precondition of
+  // `createTraceRequest` (the parameters set it returns is required input to
+  // the request create) and is covered by that same journal entry, not a
+  // separate one.
+  ["adt/traces.ts", "tools/trace.ts"],
 ]);
 
 /**
@@ -560,6 +573,17 @@ const PINNED_MUTATION_CENSUS: ReadonlyMap<string, { calls: number; note: string 
         "which of these are deliberately NOT given their own entry.",
     },
   ],
+  [
+    "adt/traces.ts",
+    {
+      calls: 4,
+      note:
+        "createTraceParameters (conn.post, the parameters set), createTraceRequest (conn.post, " +
+        "the trace request itself), deleteTraceRequest (conn.del) and deleteTraceRun (conn.del). " +
+        "All four journalled via src/tools/trace.ts's withJournalledMutation — see the " +
+        "JOURNALLED_BY entry above for which of these share a single journal entry.",
+    },
+  ],
 ]);
 
 interface KnownGap {
@@ -688,6 +712,8 @@ describe("journal contract (heuristic, see file header)", () => {
     // surface is subject to BOTH contracts. If you are updating this list,
     // update that one too, and say which of the two lists below the new module
     // belongs in — or journal it, which is the outcome this file is asking for.
+    // `adt/traces.ts` must stay identical to the entry of the same name in
+    // that other file's pinned list.
     expect(mutationSites.map(rel).sort()).toEqual(
       [
         "adt/activate.ts",
@@ -698,6 +724,7 @@ describe("journal contract (heuristic, see file header)", () => {
         "adt/enhancement-hook.ts",
         "adt/enhancement-write.ts",
         "adt/quickfix.ts",
+        "adt/traces.ts",
         "adt/transports.ts",
         "adt/write.ts",
         "debug/transport.ts",

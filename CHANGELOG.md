@@ -12,6 +12,12 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.5.17] - 2026-09-15
+
+### Added
+
+- `abap_trace`, a runtime tracing/profiling tool over the ADT trace APIs (issue #77): `op="start"` creates a trace request for a program, class method or transaction and executes it, `op="list"` shows the trace runs of the current user, `op="read"` returns a run as `view="hitlist"` (aggregated statement hit list), `view="tree"` (call tree, with `depth` and a `root` anchor that re-roots the tree at the first matching statement, reporting the absolute level in a note) or `view="dbaccess"`, and `op="delete"` removes a run. Tracing is gated as `execute` because a trace request is persistent server-side state. Unknown argument keys are refused with `BAD_INPUT`, and `depth`/`root` under any view other than `tree` are refused instead of being silently ignored. Verified live on A4H against a report and a class method.
+
 ## [0.5.16] - 2026-09-15
 
 ### Added

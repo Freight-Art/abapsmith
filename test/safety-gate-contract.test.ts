@@ -206,6 +206,14 @@ describe("safety-gate contract (heuristic, see file header)", () => {
     // BOTH `mode="list"` and `mode="apply"` as a write, because even listing
     // POSTs the whole object source — which is what the one-hop importer
     // clause in the second test matches.
+    // `adt/traces.ts` added 2026-09 — it POSTs twice (trace parameters, trace
+    // request) and DELETEs twice (trace request, trace run). It is NOT routed
+    // around the read-only ceiling the way `dataPreviewDdic` is: a trace
+    // request is persistent server-side state, so leaving one behind is
+    // exactly what a read-only deployment has said it will not do. Its only
+    // importer, `src/tools/trace.ts`, calls `gate.evaluate("execute", ...)`/
+    // `safety.assert("execute", ...)` before any of the four, which is what
+    // the heuristic below matches.
     // `adt/element-info.ts` added 2026-09 — its three `conn.post(...)`s are
     // the elementinfo and navigation-target lookups (`fetchElementInfo`,
     // `findDefinitionTarget`) behind `abap_read view="definition"`, plus a
@@ -231,6 +239,7 @@ describe("safety-gate contract (heuristic, see file header)", () => {
         "adt/enhancement-hook.ts",
         "adt/enhancement-write.ts",
         "adt/quickfix.ts",
+        "adt/traces.ts",
         "adt/transports.ts",
         "adt/write.ts",
         "debug/transport.ts",

@@ -49,6 +49,7 @@ import { registerDumpTools } from "./tools/dumps.js";
 import { registerAtcTools } from "./tools/atc.js";
 import { registerQuickFixTools } from "./tools/quickfix.js";
 import { registerServiceTools } from "./tools/service.js";
+import { registerTraceTools } from "./tools/trace.js";
 import { builtinFluidToolSet, registerFluidTool } from "./tools/fluid.js";
 // The six v2 consolidated tools, opt-in via `cfg.toolSurface` (see REGISTRATION below).
 import { registerV2Tools } from "./tools/v2/register.js";
@@ -735,6 +736,14 @@ export function createServer(cfg: Config, opts: ServerOptions): AbapsmithServer 
     // like `abap_atc` — three GETs, nothing created server-side. No
     // `safety` — `read` is outside `MUTATING_OPS` and always allowed.
     registerServiceTools(mcp, { pool, cfg, ensureConnected, errorResult });
+    // `abap_trace` (ABAP runtime tracing, SAT): unconditional like `abap_dumps`
+    // and `abap_service` above — `list`/`read` are genuine ungated reads, and
+    // `start`/`run`/`delete` each self-gate per op inside the handler (a
+    // target-less capability probe, plus the same object-specific preflight
+    // assert `abap_run` uses for `start`/`run`). Not added to `./locked.ts`
+    // for the same reason: it is registered everywhere and refuses at call
+    // time, never omitted from the schema.
+    registerTraceTools(mcp, { pool, safety, ensureConnected, errorResult, cfg, journal });
     // `abap_fluid` installs generated ABAP into $ABAPSMITH_FLUID_API — there is
     // no read-only subset of it, so when ABAP_FLUID_API is off or the system is
     // read-only the tool is not registered at all and costs no schema bytes,
