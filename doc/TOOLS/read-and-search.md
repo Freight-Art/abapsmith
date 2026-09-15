@@ -66,8 +66,9 @@ layout:
   DDL-only sections not returned as separate structured sections —
   `USED BY DATA ELEMENTS` from `DD04L` and `INCLUDED BY` from `DD31S`
   (which other collective help includes this one). `DD33S-VALUEDIREC` is
-  rendered as its raw stored code (`I`/`E`/…); abapsmith has not decoded
-  its value set, so treat that column as opaque. DDIC writes a `DD31S` row
+  decoded from the fixed values of domain `VALUEDIREC`, read live from
+  `DD07V` on A4H (`I` import, `C` copy, `E` export), with a provenance note;
+  a code outside that set prints as-is and adds a note flagging it. DDIC writes a `DD31S` row
   pointing an elementary search help at its own interface (`SUBSHLP` =
   `SHLPNAME`, `SHPOSITION` `0001`) even when the caller defined no includes
   at all — measured live on A4H 2026-09-15 on a freshly created elementary
