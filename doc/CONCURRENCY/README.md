@@ -9,6 +9,7 @@ variables that tune the values discussed here.
 | Part | Covers |
 |---|---|
 | [session-pool-and-cost.md](session-pool-and-cost.md) | The read/write/debug slot pool, exhaustion behavior, what establishing a session costs, and measured numbers from a live sandbox |
+| [mcp-sessions-and-the-pool.md](mcp-sessions-and-the-pool.md) | What several MCP sessions in one process share, and what they do not |
 | [object-gate-and-debug-lock.md](object-gate-and-debug-lock.md) | The two sibling cross-process locks: same-object write serialisation and the debug-listener arm lock |
 | [etag-race-and-auth-breaker.md](etag-race-and-auth-breaker.md) | The pre-activation etag re-read that narrows the lock-release-to-activate race, and the 401 circuit breaker that protects against account lockout |
 | [several-agents-one-sandbox.md](several-agents-one-sandbox.md) | The cross-process hazard when more than one abapsmith process shares an appliance, an incident writeup, and how to check your own footprint |

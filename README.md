@@ -109,6 +109,15 @@ cascade delete, and SAP-original enhancement targets. Three capabilities sit out
 and stay off in every mode, `admin` included, until named explicitly:
 `ABAP_ALLOW_DATA_PREVIEW`, `ABAP_ALLOW_DUMP_VARIABLES`, `ABAP_ALLOW_UI_PRESS`.
 
+The server speaks stdio by default — that's what the plugin install above and the `mcpServers`
+block below both use. `ABAP_MCP_TRANSPORT=http` runs the same binary as a Streamable HTTP service
+instead (`ABAP_MCP_HTTP_HOST`/`_PORT`/`_PATH`), so it can run next to the SAP system and serve
+several MCP sessions over the network rather than one process per local conversation. A
+non-loopback bind with no `ABAP_MCP_HTTP_TOKEN` set is refused at startup. See
+[doc/CONFIGURATION/transport.md](doc/CONFIGURATION/transport.md) for the variables and
+[doc/SAFETY/remote-transport.md](doc/SAFETY/remote-transport.md) for what the bearer token does
+and does not guarantee once this is reachable over a network.
+
 Every other variable — allowlists, pool sizing, journal retention, timeouts, debugger identity —
 is in **[doc/CONFIGURATION/README.md](doc/CONFIGURATION/README.md)**.
 

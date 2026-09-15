@@ -2,11 +2,13 @@
 
 Every abapsmith setting comes from the environment, validated once at
 startup. This folder documents each variable, its default, and what it
-governs — from the ADT connection itself through the permission ladder,
-resource allowlists, concurrency tuning, and the journal.
+governs — from the transport the server is reached on, through the ADT
+connection itself, the permission ladder, resource allowlists, concurrency
+tuning, and the journal.
 
 | Part | Covers |
 |---|---|
+| [transport.md](transport.md) | The MCP transport switch (stdio or Streamable HTTP), the HTTP bind address, path and bearer token |
 | [connection.md](connection.md) | Loading `.env`, the required connection variables, and startup validation failure modes |
 | [permissions-and-allowlists.md](permissions-and-allowlists.md) | `ABAP_MODE`, the capability override booleans, and the package/name/transport allowlists |
 | [concurrency-and-activation.md](concurrency-and-activation.md) | Session pool sizing, lane concurrency, and batch-activation chunk limits |
