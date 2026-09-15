@@ -25126,13 +25126,13 @@ var require_axios = __commonJS({
       return false;
     };
     var getSafeProp = (obj, prop) => obj != null && hasOwnInPrototypeChain(obj, prop) ? obj[prop] : void 0;
-    var kindOf2 = /* @__PURE__ */ ((cache) => (thing) => {
+    var kindOf3 = /* @__PURE__ */ ((cache) => (thing) => {
       const str5 = toString.call(thing);
       return cache[str5] || (cache[str5] = str5.slice(8, -1).toLowerCase());
     })(/* @__PURE__ */ Object.create(null));
     var kindOfTest = (type) => {
       type = type.toLowerCase();
-      return (thing) => kindOf2(thing) === type;
+      return (thing) => kindOf3(thing) === type;
     };
     var typeOfTest = (type) => (thing) => typeof thing === type;
     var {
@@ -25202,7 +25202,7 @@ var require_axios = __commonJS({
       const proto = getPrototypeOf(thing);
       if (!proto || proto === Object.prototype) return false;
       if (!isFunction$1(thing.append)) return false;
-      const kind = kindOf2(thing);
+      const kind = kindOf3(thing);
       return kind === "formdata" || // detect form-data instance
       kind === "object" && isFunction$1(thing.toString) && thing.toString() === "[object FormData]";
     };
@@ -25564,7 +25564,7 @@ var require_axios = __commonJS({
       stripBOM,
       inherits,
       toFlatObject,
-      kindOf: kindOf2,
+      kindOf: kindOf3,
       kindOfTest,
       endsWith,
       toArray: toArray2,
@@ -76595,6 +76595,573 @@ var fluidRuntimeTool = {
   version: manifestVersion(fluidRuntimeManifest, fluidRuntimeSources)
 };
 
+// src/adt/fluid/builtin/authtrace.ts
+var AUTHTRACE_TOOL_ID = "authtrace";
+var AUTHTRACE_ENTRY_CLASS = "ZCL_ZMCP_FLUID_AUTHTRACE";
+var AUTHTRACE_ACTION_STATUS = "status";
+var AUTHTRACE_ACTION_ON = "on";
+var AUTHTRACE_ACTION_OFF = "off";
+var AUTHTRACE_ACTION_READ = "read";
+var AUTHTRACE_ACTION_SU53 = "su53";
+var RUNTIME_SOURCE = fluidRuntimeSources.get(FLUID_RUNTIME_CLASS);
+if (RUNTIME_SOURCE === void 0) {
+  throw new Error(`fluidRuntimeSources has no entry for ${FLUID_RUNTIME_CLASS}`);
+}
+var RUNTIME_OBJECT = fluidRuntimeManifest.objects.find((o) => o.name === FLUID_RUNTIME_CLASS);
+if (RUNTIME_OBJECT === void 0) {
+  throw new Error(`fluidRuntimeManifest has no entry for ${FLUID_RUNTIME_CLASS}`);
+}
+var AUTHTRACE_SOURCE = `CLASS zcl_zmcp_fluid_authtrace DEFINITION
+  PUBLIC
+  FINAL
+  CREATE PUBLIC.
+
+  PUBLIC SECTION.
+    CLASS-METHODS run
+      IMPORTING
+        iv_action TYPE string
+        iv_json   TYPE string.
+
+  PRIVATE SECTION.
+    CLASS-METHODS status.
+    CLASS-METHODS on.
+    CLASS-METHODS off.
+    CLASS-METHODS read.
+    CLASS-METHODS su53.
+
+    CLASS-METHODS pack_fields
+      IMPORTING
+        is_row          TYPE any
+        it_field_comp   TYPE string_table
+        it_val_comp     TYPE string_table
+      RETURNING
+        VALUE(rv_text)  TYPE string.
+
+    CLASS-METHODS trace_field_comps
+      RETURNING VALUE(rt_comp) TYPE string_table.
+    CLASS-METHODS trace_val_comps
+      RETURNING VALUE(rt_comp) TYPE string_table.
+    CLASS-METHODS su53_field_comps
+      RETURNING VALUE(rt_comp) TYPE string_table.
+    CLASS-METHODS su53_val_comps
+      RETURNING VALUE(rt_comp) TYPE string_table.
+
+ENDCLASS.
+
+
+CLASS zcl_zmcp_fluid_authtrace IMPLEMENTATION.
+
+  METHOD run.
+    zcl_zmcp_fluid_rt=>begin( iv_id = 'authtrace' iv_action = iv_action ).
+
+    TRY.
+        zcl_zmcp_fluid_rt=>scan( iv_json ).
+        CASE iv_action.
+          WHEN 'status'.
+            status( ).
+          WHEN 'on'.
+            on( ).
+          WHEN 'off'.
+            off( ).
+          WHEN 'read'.
+            read( ).
+          WHEN 'su53'.
+            su53( ).
+          WHEN OTHERS.
+            zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'dispatch'
+              iv_text = |unknown action "{ iv_action }"| ).
+        ENDCASE.
+      CATCH cx_root INTO DATA(lx_err).
+        zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = iv_action iv_text = lx_err->get_text( ) ).
+    ENDTRY.
+
+    IF zcl_zmcp_fluid_rt=>failed( ) = abap_true.
+      zcl_zmcp_fluid_rt=>end( iv_rc = 1 ).
+    ELSE.
+      zcl_zmcp_fluid_rt=>end( iv_rc = 0 ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD status.
+    DATA lv_active      TYPE char01.
+    DATA lv_any         TYPE char01.
+    DATA lv_for_user    TYPE xubname.
+    DATA lv_errors_only TYPE char01.
+    DATA lv_moduser     TYPE xubname.
+    DATA lv_ts          TYPE timestamp.
+    DATA ls_return      TYPE bapiret2.
+
+    CALL FUNCTION 'SUAUTH_SYSTEM_TRACE_FOR_AUTH'
+      EXPORTING
+        iv_function         = 0
+      IMPORTING
+        ev_auth_active      = lv_active
+        ev_any_active       = lv_any
+        ev_auth_for_user    = lv_for_user
+        ev_auth_errors_only = lv_errors_only
+        ev_moduser          = lv_moduser
+        ev_timestamp        = lv_ts
+        es_return           = ls_return.
+
+    zcl_zmcp_fluid_rt=>out(
+      |\\{"active":{ COND string( WHEN lv_active = 'X' THEN 'true' ELSE 'false' ) },| &&
+      |"any_active":{ COND string( WHEN lv_any = 'X' THEN 'true' ELSE 'false' ) },| &&
+      |"for_user":"{ zcl_zmcp_fluid_rt=>esc( CONV string( lv_for_user ) ) }",| &&
+      |"errors_only":{ COND string( WHEN lv_errors_only = 'X' THEN 'true' ELSE 'false' ) }\\}| ).
+  ENDMETHOD.
+
+  METHOD on.
+    DATA(lv_user) = zcl_zmcp_fluid_rt=>s( 'user' ).
+    IF lv_user IS INITIAL.
+      zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args' iv_text = 'user is required' ).
+      RETURN.
+    ENDIF.
+
+    " CALL FUNCTION type-checks actual-vs-formal parameters at RUNTIME, not
+    " at syntax-check/activation time, so a mismatch compiles clean and only
+    " blows up when executed (CX_SY_DYN_CALL_ILLEGAL_TYPE, observed live on
+    " A4H). zcl_zmcp_fluid_rt=>s( ) returns TYPE string; SUAUTH_SYSTEM_
+    " TRACE_FOR_AUTH's IV_AUTH_FOR_USER is TYPE xubname (CHAR12), so the
+    " string must be moved into a properly typed local first. Do not
+    " simplify this back to passing lv_user directly.
+    DATA lv_user_n TYPE xubname.
+    lv_user_n = lv_user.
+
+    " errors_only defaults to true when the key is absent from the request
+    " JSON; scan()/s() cannot distinguish "omitted" from "false" by itself,
+    " so an empty raw value is treated as "not supplied" here.
+    DATA(lv_eo_raw) = zcl_zmcp_fluid_rt=>s( 'errors_only' ).
+    " IV_AUTH_ERRORS_ONLY is TYPE char01, not abap_bool; use a local typed to
+    " match the formal parameter rather than relying on char01/abap_bool
+    " flat-type compatibility.
+    DATA lv_errors_only TYPE char01.
+    lv_errors_only = COND abap_bool( WHEN lv_eo_raw IS INITIAL THEN abap_true ELSE boolc( lv_eo_raw = 'true' ) ).
+
+    DATA lv_active      TYPE char01.
+    DATA lv_for_user    TYPE xubname.
+    DATA lv_eo_out      TYPE char01.
+    DATA lv_ts          TYPE timestamp.
+    DATA ls_return      TYPE bapiret2.
+
+    CALL FUNCTION 'SUAUTH_SYSTEM_TRACE_FOR_AUTH'
+      EXPORTING
+        iv_function         = 1
+        iv_auth_for_user    = lv_user_n
+        iv_auth_errors_only = lv_errors_only
+      IMPORTING
+        ev_auth_active      = lv_active
+        ev_auth_for_user    = lv_for_user
+        ev_auth_errors_only = lv_eo_out
+        ev_timestamp        = lv_ts
+        es_return           = ls_return.
+
+    " ev_timestamp is the SAP application server's own clock (observed live
+    " on A4H), not the MCP host's \u2014 callers should prefer it over a
+    " host-clock timestamp for the read-back window to avoid silently
+    " narrowing/zeroing that window on host/SAP clock skew.
+    "
+    " lv_ts is TYPE timestamp \u2014 a packed/numeric type, not a fixed-length
+    " CHARACTER field \u2014 so CONV string( ) on it does NOT drop a trailing
+    " blank the way it does for a CHAR field; the sign position renders as a
+    " literal trailing blank (observed live: "20260915100737 ", 15 chars,
+    " not 14). CONDENSE strips it so this stays the clean 14-digit value the
+    " read/su53 actions require (both reject a "from" whose strlen <> 14).
+    DATA(lv_ts_s) = CONV string( lv_ts ).
+    CONDENSE lv_ts_s.
+
+    zcl_zmcp_fluid_rt=>out(
+      |\\{"active":{ COND string( WHEN lv_active = 'X' THEN 'true' ELSE 'false' ) },| &&
+      |"for_user":"{ zcl_zmcp_fluid_rt=>esc( CONV string( lv_for_user ) ) }",| &&
+      |"errors_only":{ COND string( WHEN lv_eo_out = 'X' THEN 'true' ELSE 'false' ) },| &&
+      |"timestamp":"{ zcl_zmcp_fluid_rt=>esc( lv_ts_s ) }"\\}| ).
+  ENDMETHOD.
+
+  METHOD off.
+    DATA lv_active TYPE char01.
+    DATA ls_return TYPE bapiret2.
+
+    CALL FUNCTION 'SUAUTH_SYSTEM_TRACE_FOR_AUTH'
+      EXPORTING
+        iv_function    = 2
+      IMPORTING
+        ev_auth_active = lv_active
+        es_return      = ls_return.
+
+    zcl_zmcp_fluid_rt=>out(
+      |\\{"active":{ COND string( WHEN lv_active = 'X' THEN 'true' ELSE 'false' ) }\\}| ).
+  ENDMETHOD.
+
+  METHOD read.
+    DATA(lv_user) = zcl_zmcp_fluid_rt=>s( 'user' ).
+    DATA(lv_from) = zcl_zmcp_fluid_rt=>s( 'from' ).
+    DATA(lv_to)   = zcl_zmcp_fluid_rt=>s( 'to' ).
+
+    IF lv_user IS INITIAL.
+      zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args' iv_text = 'user is required' ).
+      RETURN.
+    ENDIF.
+    IF lv_from IS INITIAL OR strlen( lv_from ) <> 14.
+      zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args'
+        iv_text = 'from is required and must be 14 digits (YYYYMMDDHHMMSS)' ).
+      RETURN.
+    ENDIF.
+
+    DATA lv_tst_from TYPE timestamp.
+    DATA lv_tst_to   TYPE timestamp.
+
+    TRY.
+        lv_tst_from = lv_from.
+      CATCH cx_root.
+        zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args'
+          iv_text = |from "{ lv_from }" is not a valid YYYYMMDDHHMMSS timestamp| ).
+        RETURN.
+    ENDTRY.
+
+    IF lv_to IS INITIAL OR lv_to = 'now'.
+      GET TIME STAMP FIELD lv_tst_to.
+    ELSE.
+      IF strlen( lv_to ) <> 14.
+        zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args'
+          iv_text = 'to must be 14 digits (YYYYMMDDHHMMSS) or "now"' ).
+        RETURN.
+      ENDIF.
+      TRY.
+          lv_tst_to = lv_to.
+        CATCH cx_root.
+          zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args'
+            iv_text = |to "{ lv_to }" is not a valid YYYYMMDDHHMMSS timestamp| ).
+          RETURN.
+      ENDTRY.
+    ENDIF.
+
+    DATA lt_data  TYPE suauthtrace_data_t.
+    DATA lt_error TYPE bapirettab.
+    DATA lv_utc   TYPE char01.
+    DATA lv_sysid TYPE sysysid.
+    DATA lv_mandt TYPE symandt.
+    DATA lv_host  TYPE syhost.
+
+    " Same runtime type-check hazard as METHOD on (CX_SY_DYN_CALL_ILLEGAL_
+    " TYPE): SUAUTH_READ_TRACE_VALUES's IV_ST01_USER is TYPE xubname, not
+    " string. lv_tst_from/lv_tst_to are already TYPE timestamp locals above,
+    " matching IV_ST01_TST_FROM/IV_ST01_TST_TO, so only the user needs this.
+    DATA lv_user_n TYPE xubname.
+    lv_user_n = lv_user.
+
+    CALL FUNCTION 'SUAUTH_READ_TRACE_VALUES'
+      EXPORTING
+        iv_function         = 'USTC'
+        iv_st01_user        = lv_user_n
+        iv_st01_tst_from    = lv_tst_from
+        iv_st01_tst_to      = lv_tst_to
+      IMPORTING
+        et_st01_data        = lt_data
+        ev_st01_data_in_utc = lv_utc
+        et_error            = lt_error
+        ev_sysid            = lv_sysid
+        ev_mandt            = lv_mandt
+        ev_host             = lv_host.
+
+    LOOP AT lt_data INTO DATA(ls_row).
+      DATA(lv_fields) = pack_fields(
+        is_row        = ls_row
+        it_field_comp = trace_field_comps( )
+        it_val_comp   = trace_val_comps( ) ).
+      " rc/abappos/timestamp are numeric/packed fields, not fixed-length
+      " CHARACTER fields, so converting them to string does NOT drop a
+      " trailing sign blank the way a CHAR-to-string assignment does (see
+      " METHOD on for the live-observed example). CONDENSE strips it so
+      " "timestamp" stays a clean 14-digit value \u2014 su53/read both reject a
+      " "from" whose strlen <> 14, and a stray blank here would poison any
+      " later read-back seeded from this row's timestamp.
+      DATA(lv_rc_s) = |{ ls_row-rc }|.
+      CONDENSE lv_rc_s.
+      DATA(lv_line_s) = |{ ls_row-abappos }|.
+      CONDENSE lv_line_s.
+      DATA(lv_ts_s) = CONV string( ls_row-timestamp ).
+      CONDENSE lv_ts_s.
+      zcl_zmcp_fluid_rt=>out(
+        |\\{"origin":"trace",| &&
+        |"object":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_row-object ) ) }",| &&
+        |"rc":"{ zcl_zmcp_fluid_rt=>esc( lv_rc_s ) }",| &&
+        |"reason":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_row-reason ) ) }",| &&
+        |"fields":"{ zcl_zmcp_fluid_rt=>esc( lv_fields ) }",| &&
+        |"program":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_row-abapprog ) ) }",| &&
+        |"line":"{ zcl_zmcp_fluid_rt=>esc( lv_line_s ) }",| &&
+        |"tcode":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_row-tcode ) ) }",| &&
+        |"timestamp":"{ zcl_zmcp_fluid_rt=>esc( lv_ts_s ) }"\\}| ).
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD su53.
+    DATA(lv_user) = zcl_zmcp_fluid_rt=>s( 'user' ).
+    DATA(lv_from) = zcl_zmcp_fluid_rt=>s( 'from' ).
+
+    IF lv_user IS INITIAL.
+      zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args' iv_text = 'user is required' ).
+      RETURN.
+    ENDIF.
+    IF lv_from IS INITIAL OR strlen( lv_from ) <> 14.
+      zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args'
+        iv_text = 'from is required and must be 14 digits (YYYYMMDDHHMMSS)' ).
+      RETURN.
+    ENDIF.
+
+    DATA lv_from_tsl TYPE timestampl.
+
+    TRY.
+        lv_from_tsl = lv_from.
+      CATCH cx_root.
+        zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args'
+          iv_text = |from "{ lv_from }" is not a valid YYYYMMDDHHMMSS timestamp| ).
+        RETURN.
+    ENDTRY.
+
+    DATA lt_ext       TYPE usr07_ext_tt.
+    DATA ls_return    TYPE bapiret2.
+    DATA lt_rfc_error TYPE bapirettab.
+
+    " Same runtime type-check hazard as METHOD on (CX_SY_DYN_CALL_ILLEGAL_
+    " TYPE): SUSR_USER_SU53_READ's IV_BNAME is TYPE xubname, not string.
+    " lv_from_tsl is already a TYPE timestampl local above, matching
+    " IV_FROM, so only the user needs this.
+    DATA lv_user_n TYPE xubname.
+    lv_user_n = lv_user.
+
+    CALL FUNCTION 'SUSR_USER_SU53_READ'
+      EXPORTING
+        iv_bname     = lv_user_n
+        iv_from      = lv_from_tsl
+      IMPORTING
+        et_usr07_ext = lt_ext
+        es_return    = ls_return
+        et_rfc_error = lt_rfc_error.
+
+    LOOP AT lt_ext INTO DATA(ls_row).
+      DATA(lv_fields) = pack_fields(
+        is_row        = ls_row
+        it_field_comp = su53_field_comps( )
+        it_val_comp   = su53_val_comps( ) ).
+      " Same numeric/packed CONDENSE need as METHOD read: rc/abapline/
+      " timestamp are not fixed-length CHARACTER fields, so a stray sign
+      " blank from converting them to string is not automatically stripped
+      " the way it is for object/reason/program/tcode below.
+      DATA(lv_rc_s) = |{ ls_row-rc }|.
+      CONDENSE lv_rc_s.
+      DATA(lv_line_s) = |{ ls_row-abapline }|.
+      CONDENSE lv_line_s.
+      DATA(lv_ts_s) = CONV string( ls_row-timestamp ).
+      CONDENSE lv_ts_s.
+      zcl_zmcp_fluid_rt=>out(
+        |\\{"origin":"su53",| &&
+        |"object":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_row-objct ) ) }",| &&
+        |"rc":"{ zcl_zmcp_fluid_rt=>esc( lv_rc_s ) }",| &&
+        |"reason":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_row-reason ) ) }",| &&
+        |"fields":"{ zcl_zmcp_fluid_rt=>esc( lv_fields ) }",| &&
+        |"program":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_row-abapprog ) ) }",| &&
+        |"line":"{ zcl_zmcp_fluid_rt=>esc( lv_line_s ) }",| &&
+        |"tcode":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_row-p_tcode ) ) }",| &&
+        |"timestamp":"{ zcl_zmcp_fluid_rt=>esc( lv_ts_s ) }"\\}| ).
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD pack_fields.
+    " Packs the non-empty FIELDn/VALn (or FIELn/VALnn) pairs of one trace/SU53
+    " row into "NAME=VALUE" pairs joined by ", ". Component names are resolved
+    " dynamically so the same helper serves both structures, whose field-name
+    " schemes differ (FIELD1..FIELD10/VAL1..VAL10 vs FIEL1..FIEL9,FIEL0/
+    " VAL01..VAL10). Assigning a fixed-length character component to a string
+    " target already strips its trailing blanks, so no separate rtrim is
+    " needed here.
+    DATA lv_idx TYPE i.
+    CLEAR rv_text.
+    lv_idx = 0.
+    LOOP AT it_field_comp INTO DATA(lv_fcomp).
+      lv_idx = lv_idx + 1.
+      READ TABLE it_val_comp INDEX lv_idx INTO DATA(lv_vcomp).
+      IF sy-subrc <> 0.
+        CONTINUE.
+      ENDIF.
+
+      ASSIGN COMPONENT lv_fcomp OF STRUCTURE is_row TO FIELD-SYMBOL(<lv_fval>).
+      IF sy-subrc <> 0.
+        CONTINUE.
+      ENDIF.
+      DATA(lv_fname) = CONV string( <lv_fval> ).
+      IF lv_fname IS INITIAL.
+        CONTINUE.
+      ENDIF.
+
+      ASSIGN COMPONENT lv_vcomp OF STRUCTURE is_row TO FIELD-SYMBOL(<lv_vval>).
+      IF sy-subrc <> 0.
+        CONTINUE.
+      ENDIF.
+      DATA(lv_fvalue) = CONV string( <lv_vval> ).
+
+      IF rv_text IS NOT INITIAL.
+        rv_text = rv_text && ', '.
+      ENDIF.
+      rv_text = rv_text && lv_fname && '=' && lv_fvalue.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD trace_field_comps.
+    rt_comp = VALUE #(
+      ( \`FIELD1\` ) ( \`FIELD2\` ) ( \`FIELD3\` ) ( \`FIELD4\` ) ( \`FIELD5\` )
+      ( \`FIELD6\` ) ( \`FIELD7\` ) ( \`FIELD8\` ) ( \`FIELD9\` ) ( \`FIELD10\` ) ).
+  ENDMETHOD.
+
+  METHOD trace_val_comps.
+    rt_comp = VALUE #(
+      ( \`VAL1\` ) ( \`VAL2\` ) ( \`VAL3\` ) ( \`VAL4\` ) ( \`VAL5\` )
+      ( \`VAL6\` ) ( \`VAL7\` ) ( \`VAL8\` ) ( \`VAL9\` ) ( \`VAL10\` ) ).
+  ENDMETHOD.
+
+  METHOD su53_field_comps.
+    rt_comp = VALUE #(
+      ( \`FIEL1\` ) ( \`FIEL2\` ) ( \`FIEL3\` ) ( \`FIEL4\` ) ( \`FIEL5\` )
+      ( \`FIEL6\` ) ( \`FIEL7\` ) ( \`FIEL8\` ) ( \`FIEL9\` ) ( \`FIEL0\` ) ).
+  ENDMETHOD.
+
+  METHOD su53_val_comps.
+    rt_comp = VALUE #(
+      ( \`VAL01\` ) ( \`VAL02\` ) ( \`VAL03\` ) ( \`VAL04\` ) ( \`VAL05\` )
+      ( \`VAL06\` ) ( \`VAL07\` ) ( \`VAL08\` ) ( \`VAL09\` ) ( \`VAL10\` ) ).
+  ENDMETHOD.
+
+ENDCLASS.
+`;
+var STATUS_ROW_SCHEMA = {
+  type: "object",
+  required: ["active", "any_active", "for_user", "errors_only"],
+  properties: {
+    active: { type: "boolean", description: "Whether the auth trace is currently active." },
+    any_active: { type: "boolean", description: "Whether any auth trace (for any user) is active." },
+    for_user: { type: "string", description: "The user the active trace is scoped to, if any." },
+    errors_only: { type: "boolean", description: "Whether the active trace records only failed checks." }
+  }
+};
+var ON_ROW_SCHEMA = {
+  type: "object",
+  required: ["active", "for_user", "errors_only"],
+  properties: {
+    active: { type: "boolean" },
+    for_user: { type: "string" },
+    errors_only: { type: "boolean" },
+    timestamp: {
+      type: "string",
+      description: "Server timestamp (YYYYMMDDHHMMSS, UTC) from SUAUTH_SYSTEM_TRACE_FOR_AUTH's EV_TIMESTAMP; prefer this over a host-clock timestamp to avoid clock skew."
+    }
+  }
+};
+var OFF_ROW_SCHEMA = {
+  type: "object",
+  required: ["active"],
+  properties: {
+    active: { type: "boolean" }
+  }
+};
+var CHECK_ROW_SCHEMA = {
+  type: "object",
+  required: ["origin", "object", "rc", "reason", "fields", "program", "line", "tcode", "timestamp"],
+  properties: {
+    origin: { type: "string", enum: ["trace", "su53"], description: '"trace" (kernel trace) or "su53" (SU53 buffer fallback).' },
+    object: { type: "string", description: "Authorization object checked (SU53's OBJCT is CHAR10 and truncates long names)." },
+    rc: { type: "string", description: "Result code (domain values on the trace path: 0/4/12/40)." },
+    reason: { type: "string" },
+    fields: { type: "string", description: 'Non-empty field/value pairs as "NAME=VALUE", joined by ", ".' },
+    program: { type: "string" },
+    line: { type: "string" },
+    tcode: { type: "string", description: "Empty for ADT/classrun execution (no transaction code)." },
+    timestamp: { type: "string" }
+  }
+};
+var authtraceManifest = {
+  contract: FLUID_CONTRACT,
+  id: AUTHTRACE_TOOL_ID,
+  title: "Authorization trace",
+  description: "Switches the SU53/kernel authorization trace on or off, and reads back failed authority checks.",
+  objects: [
+    {
+      name: FLUID_RUNTIME_CLASS,
+      type: "CLAS/OC",
+      // same live object as the rt tool's; derived so the two descriptions can't drift apart
+      description: RUNTIME_OBJECT.description,
+      source: { text: RUNTIME_SOURCE }
+    },
+    {
+      name: AUTHTRACE_ENTRY_CLASS,
+      type: "CLAS/OC",
+      description: "fluid: SU53/kernel authorization trace bridge",
+      source: { text: AUTHTRACE_SOURCE }
+    }
+  ],
+  entry: AUTHTRACE_ENTRY_CLASS,
+  actions: [
+    {
+      name: AUTHTRACE_ACTION_STATUS,
+      category: "read",
+      description: "Reads the current authorization trace status.",
+      input: { type: "object" },
+      output: { type: "array", items: STATUS_ROW_SCHEMA, description: "Exactly one row." }
+    },
+    {
+      name: AUTHTRACE_ACTION_ON,
+      category: "execute",
+      description: "Switches the authorization trace on for one user.",
+      input: {
+        type: "object",
+        required: ["user"],
+        properties: {
+          user: { type: "string", maxLength: 12, description: "XUBNAME to trace (the trace is user-scoped on this release)." },
+          errors_only: { type: "boolean", description: "Record only failed checks. Defaults to true when omitted." }
+        }
+      },
+      output: { type: "array", items: ON_ROW_SCHEMA, description: "Exactly one row." }
+    },
+    {
+      name: AUTHTRACE_ACTION_OFF,
+      category: "execute",
+      description: "Switches the authorization trace off.",
+      input: { type: "object" },
+      output: { type: "array", items: OFF_ROW_SCHEMA, description: "Exactly one row." }
+    },
+    {
+      name: AUTHTRACE_ACTION_READ,
+      category: "read",
+      description: "Reads back failed authority checks from the kernel authorization trace (SUAUTH_READ_TRACE_VALUES, IV_FUNCTION='USTC'). Observed to return zero rows on at least one system even while the trace is active; callers should fall back to the su53 action when this returns nothing.",
+      input: {
+        type: "object",
+        required: ["user", "from"],
+        properties: {
+          user: { type: "string", maxLength: 12 },
+          from: { type: "string", maxLength: 14, description: "YYYYMMDDHHMMSS, exactly 14 digits." },
+          to: { type: "string", maxLength: 14, description: 'YYYYMMDDHHMMSS, exactly 14 digits, or "now" (default).' }
+        }
+      },
+      output: { type: "array", items: CHECK_ROW_SCHEMA }
+    },
+    {
+      name: AUTHTRACE_ACTION_SU53,
+      category: "read",
+      description: "Reads back failed authority checks from the SU53 buffer (SUSR_USER_SU53_READ). This is the whole buffer for the window requested, not just the single most-recent failed check; the system may cap or overwrite older entries, so treat this as a fallback, not a full audit trail.",
+      input: {
+        type: "object",
+        required: ["user", "from"],
+        properties: {
+          user: { type: "string", maxLength: 12 },
+          from: { type: "string", maxLength: 14, description: "YYYYMMDDHHMMSS, exactly 14 digits; converted to TIMESTAMPL." }
+        }
+      },
+      output: { type: "array", items: CHECK_ROW_SCHEMA }
+    }
+  ]
+};
+var authtraceSources = /* @__PURE__ */ new Map([
+  [FLUID_RUNTIME_CLASS, RUNTIME_SOURCE],
+  [AUTHTRACE_ENTRY_CLASS, AUTHTRACE_SOURCE]
+]);
+
 // src/adt/fluid/builtin/classic/abap-core.ts
 init_errors();
 
@@ -78736,12 +79303,12 @@ var existsPart = {
 // src/adt/fluid/builtin/classic.ts
 var CLASSIC_TOOL_ID = "classic";
 var CLASSIC_BODY_CLASS = "ZCL_ZMCP_FLUID_CLASSIC";
-var RUNTIME_SOURCE = fluidRuntimeSources.get(FLUID_RUNTIME_CLASS);
-if (RUNTIME_SOURCE === void 0) {
+var RUNTIME_SOURCE2 = fluidRuntimeSources.get(FLUID_RUNTIME_CLASS);
+if (RUNTIME_SOURCE2 === void 0) {
   throw new Error(`fluidRuntimeSources has no entry for ${FLUID_RUNTIME_CLASS}`);
 }
-var RUNTIME_OBJECT = fluidRuntimeManifest.objects.find((o) => o.name === FLUID_RUNTIME_CLASS);
-if (RUNTIME_OBJECT === void 0) {
+var RUNTIME_OBJECT2 = fluidRuntimeManifest.objects.find((o) => o.name === FLUID_RUNTIME_CLASS);
+if (RUNTIME_OBJECT2 === void 0) {
   throw new Error(`fluidRuntimeManifest has no entry for ${FLUID_RUNTIME_CLASS}`);
 }
 var CLASSIC_SOURCE = classicBodySource([
@@ -78770,8 +79337,8 @@ var classicManifest = {
       name: FLUID_RUNTIME_CLASS,
       type: "CLAS/OC",
       // same live object as the rt tool's; derived so the two descriptions can't drift apart
-      description: RUNTIME_OBJECT.description,
-      source: { text: RUNTIME_SOURCE }
+      description: RUNTIME_OBJECT2.description,
+      source: { text: RUNTIME_SOURCE2 }
     },
     {
       name: CLASSIC_BODY_CLASS,
@@ -79263,7 +79830,7 @@ var classicManifest = {
   ]
 };
 var classicSources = /* @__PURE__ */ new Map([
-  [FLUID_RUNTIME_CLASS, RUNTIME_SOURCE],
+  [FLUID_RUNTIME_CLASS, RUNTIME_SOURCE2],
   [CLASSIC_BODY_CLASS, CLASSIC_SOURCE]
 ]);
 var classicTool = {
@@ -80104,12 +80671,12 @@ var fmPart = {
 // src/adt/fluid/builtin/core.ts
 var CORE_TOOL_ID = "core";
 var CORE_BODY_CLASS = "ZCL_ZMCP_FLUID_CORE";
-var RUNTIME_SOURCE2 = fluidRuntimeSources.get(FLUID_RUNTIME_CLASS);
-if (RUNTIME_SOURCE2 === void 0) {
+var RUNTIME_SOURCE3 = fluidRuntimeSources.get(FLUID_RUNTIME_CLASS);
+if (RUNTIME_SOURCE3 === void 0) {
   throw new Error(`fluidRuntimeSources has no entry for ${FLUID_RUNTIME_CLASS}`);
 }
-var RUNTIME_OBJECT2 = fluidRuntimeManifest.objects.find((o) => o.name === FLUID_RUNTIME_CLASS);
-if (RUNTIME_OBJECT2 === void 0) {
+var RUNTIME_OBJECT3 = fluidRuntimeManifest.objects.find((o) => o.name === FLUID_RUNTIME_CLASS);
+if (RUNTIME_OBJECT3 === void 0) {
   throw new Error(`fluidRuntimeManifest has no entry for ${FLUID_RUNTIME_CLASS}`);
 }
 var CORE_SOURCE = coreBodySource([selectPart, fmPart]);
@@ -80123,8 +80690,8 @@ var coreManifest = {
       name: FLUID_RUNTIME_CLASS,
       type: "CLAS/OC",
       // same live object as the rt tool's; derived so the two descriptions can't drift apart
-      description: RUNTIME_OBJECT2.description,
-      source: { text: RUNTIME_SOURCE2 }
+      description: RUNTIME_OBJECT3.description,
+      source: { text: RUNTIME_SOURCE3 }
     },
     {
       name: CORE_BODY_CLASS,
@@ -80218,7 +80785,7 @@ var coreManifest = {
   ]
 };
 var coreSources = /* @__PURE__ */ new Map([
-  [FLUID_RUNTIME_CLASS, RUNTIME_SOURCE2],
+  [FLUID_RUNTIME_CLASS, RUNTIME_SOURCE3],
   [CORE_BODY_CLASS, CORE_SOURCE]
 ]);
 var coreTool = {
@@ -80271,12 +80838,12 @@ async function guardCoreAction(deps, req) {
 }
 
 // src/adt/fluid/builtin/enh.ts
-var RUNTIME_SOURCE3 = fluidRuntimeSources.get(FLUID_RUNTIME_CLASS);
-if (RUNTIME_SOURCE3 === void 0) {
+var RUNTIME_SOURCE4 = fluidRuntimeSources.get(FLUID_RUNTIME_CLASS);
+if (RUNTIME_SOURCE4 === void 0) {
   throw new Error(`fluidRuntimeSources has no entry for ${FLUID_RUNTIME_CLASS}`);
 }
-var RUNTIME_OBJECT3 = fluidRuntimeManifest.objects.find((o) => o.name === FLUID_RUNTIME_CLASS);
-if (RUNTIME_OBJECT3 === void 0) {
+var RUNTIME_OBJECT4 = fluidRuntimeManifest.objects.find((o) => o.name === FLUID_RUNTIME_CLASS);
+if (RUNTIME_OBJECT4 === void 0) {
   throw new Error(`fluidRuntimeManifest has no entry for ${FLUID_RUNTIME_CLASS}`);
 }
 var ENH_SOURCE = `CLASS zcl_zmcp_fluid_enh DEFINITION
@@ -80598,8 +81165,8 @@ var enhManifest = {
       name: FLUID_RUNTIME_CLASS,
       type: "CLAS/OC",
       // same live object as the rt tool's; derived so the two descriptions can't drift apart
-      description: RUNTIME_OBJECT3.description,
-      source: { text: RUNTIME_SOURCE3 }
+      description: RUNTIME_OBJECT4.description,
+      source: { text: RUNTIME_SOURCE4 }
     },
     {
       name: "ZCL_ZMCP_FLUID_ENH",
@@ -80776,18 +81343,18 @@ var enhManifest = {
   ]
 };
 var enhSources = /* @__PURE__ */ new Map([
-  [FLUID_RUNTIME_CLASS, RUNTIME_SOURCE3],
+  [FLUID_RUNTIME_CLASS, RUNTIME_SOURCE4],
   ["ZCL_ZMCP_FLUID_ENH", ENH_SOURCE]
 ]);
 
 // src/adt/fluid/builtin/fpm.ts
 var CONFIG_ID_LEN = 32;
-var RUNTIME_SOURCE4 = fluidRuntimeSources.get(FLUID_RUNTIME_CLASS);
-if (RUNTIME_SOURCE4 === void 0) {
+var RUNTIME_SOURCE5 = fluidRuntimeSources.get(FLUID_RUNTIME_CLASS);
+if (RUNTIME_SOURCE5 === void 0) {
   throw new Error(`fluidRuntimeSources has no entry for ${FLUID_RUNTIME_CLASS}`);
 }
-var RUNTIME_OBJECT4 = fluidRuntimeManifest.objects.find((o) => o.name === FLUID_RUNTIME_CLASS);
-if (RUNTIME_OBJECT4 === void 0) {
+var RUNTIME_OBJECT5 = fluidRuntimeManifest.objects.find((o) => o.name === FLUID_RUNTIME_CLASS);
+if (RUNTIME_OBJECT5 === void 0) {
   throw new Error(`fluidRuntimeManifest has no entry for ${FLUID_RUNTIME_CLASS}`);
 }
 var FPM_SOURCE = `CLASS zcl_zmcp_fluid_fpm DEFINITION
@@ -81147,8 +81714,8 @@ var fpmManifest = {
     {
       name: FLUID_RUNTIME_CLASS,
       type: "CLAS/OC",
-      description: RUNTIME_OBJECT4.description,
-      source: { text: RUNTIME_SOURCE4 }
+      description: RUNTIME_OBJECT5.description,
+      source: { text: RUNTIME_SOURCE5 }
     },
     {
       name: "ZCL_ZMCP_FLUID_FPM",
@@ -81320,17 +81887,17 @@ var fpmManifest = {
   ]
 };
 var fpmSources = /* @__PURE__ */ new Map([
-  [FLUID_RUNTIME_CLASS, RUNTIME_SOURCE4],
+  [FLUID_RUNTIME_CLASS, RUNTIME_SOURCE5],
   ["ZCL_ZMCP_FLUID_FPM", FPM_SOURCE]
 ]);
 
 // src/adt/fluid/builtin/img.ts
-var RUNTIME_SOURCE5 = fluidRuntimeSources.get(FLUID_RUNTIME_CLASS);
-if (RUNTIME_SOURCE5 === void 0) {
+var RUNTIME_SOURCE6 = fluidRuntimeSources.get(FLUID_RUNTIME_CLASS);
+if (RUNTIME_SOURCE6 === void 0) {
   throw new Error(`fluidRuntimeSources has no entry for ${FLUID_RUNTIME_CLASS}`);
 }
-var RUNTIME_OBJECT5 = fluidRuntimeManifest.objects.find((o) => o.name === FLUID_RUNTIME_CLASS);
-if (RUNTIME_OBJECT5 === void 0) {
+var RUNTIME_OBJECT6 = fluidRuntimeManifest.objects.find((o) => o.name === FLUID_RUNTIME_CLASS);
+if (RUNTIME_OBJECT6 === void 0) {
   throw new Error(`fluidRuntimeManifest has no entry for ${FLUID_RUNTIME_CLASS}`);
 }
 var IMG_SOURCE = `CLASS zcl_zmcp_fluid_img DEFINITION
@@ -82464,8 +83031,8 @@ var imgManifest = {
       name: FLUID_RUNTIME_CLASS,
       type: "CLAS/OC",
       // same live object as the rt tool's; derived so the two descriptions can't drift apart
-      description: RUNTIME_OBJECT5.description,
-      source: { text: RUNTIME_SOURCE5 }
+      description: RUNTIME_OBJECT6.description,
+      source: { text: RUNTIME_SOURCE6 }
     },
     {
       name: "ZCL_ZMCP_FLUID_IMG",
@@ -82622,17 +83189,17 @@ var imgManifest = {
   ]
 };
 var imgSources = /* @__PURE__ */ new Map([
-  [FLUID_RUNTIME_CLASS, RUNTIME_SOURCE5],
+  [FLUID_RUNTIME_CLASS, RUNTIME_SOURCE6],
   ["ZCL_ZMCP_FLUID_IMG", IMG_SOURCE]
 ]);
 
 // src/adt/fluid/builtin/run.ts
-var RUNTIME_SOURCE6 = fluidRuntimeSources.get(FLUID_RUNTIME_CLASS);
-if (RUNTIME_SOURCE6 === void 0) {
+var RUNTIME_SOURCE7 = fluidRuntimeSources.get(FLUID_RUNTIME_CLASS);
+if (RUNTIME_SOURCE7 === void 0) {
   throw new Error(`fluidRuntimeSources has no entry for ${FLUID_RUNTIME_CLASS}`);
 }
-var RUNTIME_OBJECT6 = fluidRuntimeManifest.objects.find((o) => o.name === FLUID_RUNTIME_CLASS);
-if (RUNTIME_OBJECT6 === void 0) {
+var RUNTIME_OBJECT7 = fluidRuntimeManifest.objects.find((o) => o.name === FLUID_RUNTIME_CLASS);
+if (RUNTIME_OBJECT7 === void 0) {
   throw new Error(`fluidRuntimeManifest has no entry for ${FLUID_RUNTIME_CLASS}`);
 }
 var RUN_SOURCE = `CLASS zcl_zmcp_fluid_run DEFINITION
@@ -82748,8 +83315,8 @@ var runManifest = {
       name: FLUID_RUNTIME_CLASS,
       type: "CLAS/OC",
       // same live object as the rt tool's; derived so the two descriptions can't drift apart
-      description: RUNTIME_OBJECT6.description,
-      source: { text: RUNTIME_SOURCE6 }
+      description: RUNTIME_OBJECT7.description,
+      source: { text: RUNTIME_SOURCE7 }
     },
     {
       name: "ZCL_ZMCP_FLUID_RUN",
@@ -82781,7 +83348,7 @@ var runManifest = {
   ]
 };
 var runSources = /* @__PURE__ */ new Map([
-  [FLUID_RUNTIME_CLASS, RUNTIME_SOURCE6],
+  [FLUID_RUNTIME_CLASS, RUNTIME_SOURCE7],
   ["ZCL_ZMCP_FLUID_RUN", RUN_SOURCE]
 ]);
 
@@ -82789,12 +83356,12 @@ var runSources = /* @__PURE__ */ new Map([
 var SCAN_TOOL_ID = "scan";
 var SCAN_ACTION = "source";
 var SCAN_ENTRY_CLASS = "ZCL_ZMCP_FLUID_SCAN";
-var RUNTIME_SOURCE7 = fluidRuntimeSources.get(FLUID_RUNTIME_CLASS);
-if (RUNTIME_SOURCE7 === void 0) {
+var RUNTIME_SOURCE8 = fluidRuntimeSources.get(FLUID_RUNTIME_CLASS);
+if (RUNTIME_SOURCE8 === void 0) {
   throw new Error(`fluidRuntimeSources has no entry for ${FLUID_RUNTIME_CLASS}`);
 }
-var RUNTIME_OBJECT7 = fluidRuntimeManifest.objects.find((o) => o.name === FLUID_RUNTIME_CLASS);
-if (RUNTIME_OBJECT7 === void 0) {
+var RUNTIME_OBJECT8 = fluidRuntimeManifest.objects.find((o) => o.name === FLUID_RUNTIME_CLASS);
+if (RUNTIME_OBJECT8 === void 0) {
   throw new Error(`fluidRuntimeManifest has no entry for ${FLUID_RUNTIME_CLASS}`);
 }
 var SCAN_SOURCE = `CLASS zcl_zmcp_fluid_scan DEFINITION
@@ -83348,8 +83915,8 @@ var scanManifest = {
     {
       name: FLUID_RUNTIME_CLASS,
       type: "CLAS/OC",
-      description: RUNTIME_OBJECT7.description,
-      source: { text: RUNTIME_SOURCE7 }
+      description: RUNTIME_OBJECT8.description,
+      source: { text: RUNTIME_SOURCE8 }
     },
     {
       name: SCAN_ENTRY_CLASS,
@@ -83433,17 +84000,17 @@ var scanManifest = {
   ]
 };
 var scanSources = /* @__PURE__ */ new Map([
-  [FLUID_RUNTIME_CLASS, RUNTIME_SOURCE7],
+  [FLUID_RUNTIME_CLASS, RUNTIME_SOURCE8],
   [SCAN_ENTRY_CLASS, SCAN_SOURCE]
 ]);
 
 // src/adt/fluid/builtin/ui.ts
-var RUNTIME_SOURCE8 = fluidRuntimeSources.get(FLUID_RUNTIME_CLASS);
-if (RUNTIME_SOURCE8 === void 0) {
+var RUNTIME_SOURCE9 = fluidRuntimeSources.get(FLUID_RUNTIME_CLASS);
+if (RUNTIME_SOURCE9 === void 0) {
   throw new Error(`fluidRuntimeSources has no entry for ${FLUID_RUNTIME_CLASS}`);
 }
-var RUNTIME_OBJECT8 = fluidRuntimeManifest.objects.find((o) => o.name === FLUID_RUNTIME_CLASS);
-if (RUNTIME_OBJECT8 === void 0) {
+var RUNTIME_OBJECT9 = fluidRuntimeManifest.objects.find((o) => o.name === FLUID_RUNTIME_CLASS);
+if (RUNTIME_OBJECT9 === void 0) {
   throw new Error(`fluidRuntimeManifest has no entry for ${FLUID_RUNTIME_CLASS}`);
 }
 var UI_SOURCE = `CLASS zcl_zmcp_fluid_ui DEFINITION
@@ -83826,8 +84393,8 @@ var uiManifest = {
       name: FLUID_RUNTIME_CLASS,
       type: "CLAS/OC",
       // same live object as the rt tool's; derived so the two descriptions can't drift apart
-      description: RUNTIME_OBJECT8.description,
-      source: { text: RUNTIME_SOURCE8 }
+      description: RUNTIME_OBJECT9.description,
+      source: { text: RUNTIME_SOURCE9 }
     },
     {
       name: "ZCL_ZMCP_FLUID_UI",
@@ -83958,12 +84525,13 @@ var uiManifest = {
   ]
 };
 var uiSources = /* @__PURE__ */ new Map([
-  [FLUID_RUNTIME_CLASS, RUNTIME_SOURCE8],
+  [FLUID_RUNTIME_CLASS, RUNTIME_SOURCE9],
   ["ZCL_ZMCP_FLUID_UI", UI_SOURCE]
 ]);
 
 // src/adt/fluid/builtin/index.ts
 var BUILTIN_FLUID_TOOLS = [
+  { manifest: authtraceManifest, sources: authtraceSources },
   { manifest: classicManifest, sources: classicSources },
   { manifest: coreManifest, sources: coreSources },
   { manifest: enhManifest, sources: enhSources },
@@ -98870,15 +99438,51 @@ var Journal = class _Journal {
    * Newest first. `object` filters on object name (case-insensitive, exact).
    * `sessionId` filters on `JournalEntry.sessionId` (exact — it's an opaque
    * id, not a human-typed name, so no case-folding).
+   *
+   * `since` keeps entries with `ts >= since` (both parsed with `Date.parse`).
+   * An entry whose own `ts` fails to parse is dropped — it cannot be placed
+   * in time, so keeping it would be a guess. `since` itself failing to parse
+   * is the caller's mistake, not something to swallow: it throws
+   * `AbapError("BAD_INPUT", …)` naming the value, since silently treating an
+   * unparseable `since` as "no filter" would return entries the caller
+   * explicitly tried to exclude.
+   *
+   * `systemKey` keeps only entries whose `JournalEntry.systemKey` exactly
+   * equals the given value. An entry with NO `systemKey` recorded is dropped
+   * by this filter, not kept — an entry that never states which system it
+   * belongs to must never be assumed to belong to the one currently
+   * connected.
    */
   async list(opts = {}) {
     if (!this.enabled) return [];
     const wanted = opts.object?.trim().toUpperCase();
     const wantedSession = opts.sessionId?.trim();
+    let sinceMs;
+    if (opts.since !== void 0) {
+      sinceMs = Date.parse(opts.since);
+      if (Number.isNaN(sinceMs)) {
+        throw new AbapError(
+          "BAD_INPUT",
+          `\`since\` "${opts.since}" is not a timestamp \`Date.parse\` can read.`,
+          { since: opts.since },
+          "Pass an ISO-8601 timestamp, e.g. the `ts` field a journal entry already carries."
+        );
+      }
+    }
     let entries = [...(await this.readAll()).values()];
     if (wanted) entries = entries.filter((e) => (e.object?.name ?? "").toUpperCase() === wanted);
     if (opts.operation) entries = entries.filter((e) => e.operation === opts.operation);
     if (wantedSession) entries = entries.filter((e) => e.sessionId === wantedSession);
+    if (sinceMs !== void 0) {
+      const floor = sinceMs;
+      entries = entries.filter((e) => {
+        const t = Date.parse(e.ts);
+        return !Number.isNaN(t) && t >= floor;
+      });
+    }
+    if (opts.systemKey !== void 0) {
+      entries = entries.filter((e) => e.systemKey !== void 0 && e.systemKey === opts.systemKey);
+    }
     entries = _Journal.sortNewestFirst(entries);
     return opts.limit !== void 0 && opts.limit >= 0 ? entries.slice(0, opts.limit) : entries;
   }
@@ -102442,19 +103046,19 @@ function parseFqlQuery(text4) {
   let i = 0;
   const peek = () => tokens[i];
   let failure;
-  const fail4 = (message, token) => {
+  const fail5 = (message, token) => {
     failure ??= token ? `${message} at offset ${token.pos}` : message;
     return void 0;
   };
   const parseNode = (depth) => {
-    if (depth > 64) return fail4("the query nests too deeply to parse");
+    if (depth > 64) return fail5("the query nests too deeply to parse");
     const head = peek();
-    if (!head) return fail4("unexpected end of query; expected an operator or `and`/`or`");
-    if (head.kind !== "word") return fail4(`unexpected '${head.kind}'`, head);
+    if (!head) return fail5("unexpected end of query; expected an operator or `and`/`or`");
+    if (head.kind !== "word") return fail5(`unexpected '${head.kind}'`, head);
     i += 1;
     const open = peek();
     if (!open || open.kind !== "(") {
-      return fail4(`expected '(' after '${head.text}'`, open ?? head);
+      return fail5(`expected '(' after '${head.text}'`, open ?? head);
     }
     i += 1;
     const lower = head.text.toLowerCase();
@@ -102470,7 +103074,7 @@ function parseFqlQuery(text4) {
         if (!child4) return void 0;
         children.push(child4);
         const next = peek();
-        if (!next) return fail4(`unclosed '${head.text} (' \u2014 expected ')'`);
+        if (!next) return fail5(`unclosed '${head.text} (' \u2014 expected ')'`);
         if (next.kind === ",") {
           i += 1;
           continue;
@@ -102479,23 +103083,23 @@ function parseFqlQuery(text4) {
           i += 1;
           return { kind: "junction", junction: lower, children };
         }
-        return fail4(`expected ',' or ')'`, next);
+        return fail5(`expected ',' or ')'`, next);
       }
     }
     const attrToken = peek();
     if (!attrToken || attrToken.kind !== "word") {
-      return fail4(`expected an attribute name after '${head.text} ('`, attrToken);
+      return fail5(`expected an attribute name after '${head.text} ('`, attrToken);
     }
     i += 1;
     const operands = [];
     for (; ; ) {
       const next = peek();
-      if (!next) return fail4(`unclosed '${head.text} (' \u2014 expected ')'`);
+      if (!next) return fail5(`unclosed '${head.text} (' \u2014 expected ')'`);
       if (next.kind === ")") {
         i += 1;
         break;
       }
-      if (next.kind !== ",") return fail4(`expected ',' or ')'`, next);
+      if (next.kind !== ",") return fail5(`expected ',' or ')'`, next);
       i += 1;
       const parts = [];
       for (; ; ) {
@@ -115055,6 +115659,262 @@ async function readEnhancementSpot(conn, name) {
 // src/tools/run.ts
 init_zod();
 init_errors();
+
+// src/adt/authtrace.ts
+init_errors();
+var AUTHTRACE_TOOLS = /* @__PURE__ */ new Map([
+  [
+    AUTHTRACE_TOOL_ID,
+    {
+      manifest: authtraceManifest,
+      origin: "builtin",
+      sources: authtraceSources,
+      version: manifestVersion(authtraceManifest, authtraceSources)
+    }
+  ]
+]);
+async function runAuthtrace(deps, action, args) {
+  const res = await dispatch2(
+    { conn: deps.conn, cfg: deps.conn.cfg, gate: deps.gate, tools: AUTHTRACE_TOOLS },
+    {
+      tool: AUTHTRACE_TOOL_ID,
+      action,
+      args,
+      caller: { tool: "authtrace", action }
+    }
+  );
+  return res.result;
+}
+function fail2(action, reason, result) {
+  throw new AbapError(
+    "FLUID_PROTOCOL_ERROR",
+    `authtrace.${action} ${reason}`,
+    { tool: AUTHTRACE_TOOL_ID, action, result }
+  );
+}
+function singleRow(action, result) {
+  if (!Array.isArray(result)) {
+    fail2(action, "returned a result that is not an array", result);
+  }
+  if (result.length !== 1) {
+    fail2(action, `returned ${result.length} rows, expected exactly 1`, result);
+  }
+  const row2 = result[0];
+  if (typeof row2 !== "object" || row2 === null || Array.isArray(row2)) {
+    fail2(action, "row 0 is not an object", result);
+  }
+  return row2;
+}
+function reqBool(action, row2, key, result) {
+  const v = row2[key];
+  if (typeof v !== "boolean") {
+    fail2(action, `row 0.${key} is missing or not a boolean`, result);
+  }
+  return v;
+}
+function reqString(action, row2, key, result) {
+  const v = row2[key];
+  if (typeof v !== "string") {
+    fail2(action, `row 0.${key} is missing or not a string`, result);
+  }
+  return v;
+}
+function optString(row2, key) {
+  const v = row2[key];
+  return typeof v === "string" ? v.trim() : "";
+}
+function mapOnRow(result) {
+  const row2 = singleRow(AUTHTRACE_ACTION_ON, result);
+  return {
+    active: reqBool(AUTHTRACE_ACTION_ON, row2, "active", result),
+    forUser: reqString(AUTHTRACE_ACTION_ON, row2, "for_user", result),
+    errorsOnly: reqBool(AUTHTRACE_ACTION_ON, row2, "errors_only", result),
+    timestamp: optString(row2, "timestamp")
+  };
+}
+function mapOffRow(result) {
+  const row2 = singleRow(AUTHTRACE_ACTION_OFF, result);
+  return {
+    active: reqBool(AUTHTRACE_ACTION_OFF, row2, "active", result)
+  };
+}
+function mapCheckRows(action, result, expectedOrigin) {
+  if (!Array.isArray(result)) {
+    fail2(action, "returned a result that is not an array", result);
+  }
+  return result.map((row2, i) => {
+    if (typeof row2 !== "object" || row2 === null || Array.isArray(row2)) {
+      fail2(action, `row ${i} is not an object`, result);
+    }
+    const r = row2;
+    const origin = r["origin"];
+    if (origin !== "trace" && origin !== "su53") {
+      fail2(action, `row ${i}.origin is "${String(origin)}", expected "trace" or "su53"`, result);
+    }
+    if (origin !== expectedOrigin) {
+      fail2(action, `row ${i}.origin is "${origin}", expected "${expectedOrigin}" for action "${action}"`, result);
+    }
+    const check2 = {
+      origin,
+      object: reqString(action, r, "object", result),
+      rc: reqString(action, r, "rc", result),
+      reason: reqString(action, r, "reason", result),
+      fields: reqString(action, r, "fields", result),
+      program: reqString(action, r, "program", result),
+      line: reqString(action, r, "line", result),
+      tcode: reqString(action, r, "tcode", result),
+      timestamp: reqString(action, r, "timestamp", result)
+    };
+    return check2;
+  });
+}
+async function authTraceOn(deps, user, opts = {}) {
+  const errorsOnly = opts.errorsOnly ?? true;
+  const result = await runAuthtrace(deps, AUTHTRACE_ACTION_ON, { user, errors_only: errorsOnly });
+  return mapOnRow(result);
+}
+async function authTraceOff(deps) {
+  const result = await runAuthtrace(deps, AUTHTRACE_ACTION_OFF, {});
+  return mapOffRow(result);
+}
+async function readFailedAuthChecks(deps, query) {
+  const readArgs = { user: query.user, from: query.from };
+  if (query.to !== void 0) {
+    readArgs["to"] = query.to;
+  }
+  const traceResult = await runAuthtrace(deps, AUTHTRACE_ACTION_READ, readArgs);
+  const traceChecks = mapCheckRows(AUTHTRACE_ACTION_READ, traceResult, "trace");
+  if (traceChecks.length > 0) {
+    return { checks: traceChecks, usedFallback: false };
+  }
+  const su53Result = await runAuthtrace(deps, AUTHTRACE_ACTION_SU53, { user: query.user, from: query.from });
+  const su53Checks = mapCheckRows(AUTHTRACE_ACTION_SU53, su53Result, "su53");
+  return { checks: su53Checks, usedFallback: true };
+}
+function renderFailedAuthChecks(checks) {
+  if (checks.length === 0) {
+    return "";
+  }
+  const lines = ["FAILED AUTH CHECKS"];
+  for (const c of checks) {
+    const provenance = c.origin === "trace" ? "[trace]" : "[SU53 fallback]";
+    const parts = [];
+    if (c.object !== "") parts.push(c.object);
+    if (c.fields !== "") parts.push(c.fields);
+    if (c.rc !== "") parts.push(`rc=${c.rc}`);
+    let at = "";
+    if (c.program !== "" && c.line !== "") {
+      at = `at ${c.program} line ${c.line}`;
+    } else if (c.program !== "") {
+      at = `at ${c.program}`;
+    } else if (c.line !== "") {
+      at = `at line ${c.line}`;
+    }
+    if (at !== "") parts.push(at);
+    parts.push(provenance);
+    lines.push(parts.join(" "));
+  }
+  return lines.join("\n");
+}
+function abapTimestamp(d) {
+  const pad2 = (n, w = 2) => String(n).padStart(w, "0");
+  return `${d.getUTCFullYear()}${pad2(d.getUTCMonth() + 1)}${pad2(d.getUTCDate())}${pad2(d.getUTCHours())}${pad2(d.getUTCMinutes())}${pad2(d.getUTCSeconds())}`;
+}
+function describeFailure3(e) {
+  if (isAbapError(e)) {
+    return `${e.code}: ${e.message}`;
+  }
+  if (e instanceof Error) {
+    return e.message;
+  }
+  try {
+    return String(e);
+  } catch {
+    return "unknown error";
+  }
+}
+var SWITCH_OFF_ERROR_KEY = "__authTraceSwitchOffError__";
+var AUTH_TRACE_KEY = "__authTraceOutcome__";
+async function withAuthTrace(deps, user, fn) {
+  let switchedOn = false;
+  let onFailureReason;
+  let from = abapTimestamp(/* @__PURE__ */ new Date());
+  try {
+    const onResult = await authTraceOn(deps, user);
+    switchedOn = true;
+    if (onResult.timestamp !== "") {
+      from = onResult.timestamp;
+    }
+  } catch (e) {
+    onFailureReason = describeFailure3(e);
+  }
+  let result;
+  let fnError;
+  let fnThrew = false;
+  try {
+    result = await fn();
+  } catch (e) {
+    fnThrew = true;
+    fnError = e;
+  }
+  let authTrace;
+  if (!switchedOn) {
+    authTrace = { ok: false, reason: `unavailable: ${onFailureReason ?? "unknown reason"}` };
+  } else {
+    try {
+      const to = abapTimestamp(/* @__PURE__ */ new Date());
+      const { checks, usedFallback } = await readFailedAuthChecks(deps, { user, from, to });
+      authTrace = { ok: true, checks, usedFallback };
+    } catch (e) {
+      authTrace = { ok: false, reason: `unavailable: ${describeFailure3(e)}` };
+    }
+  }
+  let switchOffError;
+  if (switchedOn) {
+    try {
+      await authTraceOff(deps);
+    } catch (e) {
+      switchOffError = describeFailure3(e);
+    }
+  }
+  if (fnThrew) {
+    if (typeof fnError === "object" && fnError !== null) {
+      try {
+        Object.defineProperty(fnError, AUTH_TRACE_KEY, {
+          value: authTrace,
+          enumerable: false,
+          configurable: true
+        });
+        if (switchOffError !== void 0) {
+          Object.defineProperty(fnError, SWITCH_OFF_ERROR_KEY, {
+            value: switchOffError,
+            enumerable: false,
+            configurable: true
+          });
+        }
+      } catch {
+      }
+    }
+    throw fnError;
+  }
+  return {
+    value: result,
+    authTrace,
+    ...switchOffError !== void 0 ? { switchOffError } : {}
+  };
+}
+function switchOffErrorOf(e) {
+  if (typeof e !== "object" || e === null) return void 0;
+  const v = e[SWITCH_OFF_ERROR_KEY];
+  return typeof v === "string" ? v : void 0;
+}
+function authTraceOf(e) {
+  if (typeof e !== "object" || e === null) return void 0;
+  const v = e[AUTH_TRACE_KEY];
+  return v === void 0 ? void 0 : v;
+}
+
+// src/tools/run.ts
 init_compact();
 var runRangeSchema = external_exports.object({
   sign: external_exports.enum(["I", "E"]).optional(),
@@ -115072,10 +115932,41 @@ var runInputSchema = {
   object: external_exports.string().describe("Class or report to execute."),
   mode: external_exports.enum(["class", "report", "auto"]).optional().describe("Default auto."),
   // Report mode only: fills PARAMETERS/SELECT-OPTIONS — see ../adt/run-parameters.ts.
-  parameters: external_exports.array(runParameterSchema).optional()
+  parameters: external_exports.array(runParameterSchema).optional(),
+  auth_trace: external_exports.boolean().optional().describe(
+    "Switch on the SAP authorization trace for the connected user, run, then read back and switch it back off. Refused on a read-only server. Default false."
+  )
 };
 var RunInput = external_exports.object(runInputSchema);
+function authTraceHeaderValue(outcome) {
+  if (!outcome.ok) return outcome.reason;
+  return outcome.checks.length > 0 ? `${outcome.checks.length} failed check(s)` : "no failed checks";
+}
+function authTraceSection(outcome) {
+  if (!outcome.ok || outcome.checks.length === 0) return void 0;
+  const rendered = renderFailedAuthChecks(outcome.checks);
+  const [, ...rest] = rendered.split("\n");
+  return { title: "FAILED AUTH CHECKS", content: rest.join("\n") };
+}
+function attachAuthTraceToError(e) {
+  const outcome = authTraceOf(e);
+  if (outcome === void 0 || !isAbapError(e)) return;
+  e.details["failedAuthChecks"] = outcome.ok ? outcome.checks.length > 0 ? renderFailedAuthChecks(outcome.checks) : "no failed checks" : outcome.reason;
+  const switchOffError = switchOffErrorOf(e);
+  if (switchOffError !== void 0) {
+    e.details["authTraceSwitchOffError"] = switchOffError;
+  }
+}
 async function abapRun(conn, input, maxChars, gate) {
+  const authTraceRequested = input.auth_trace === true;
+  if (authTraceRequested && gate.config.readOnly === true) {
+    throw new AbapError(
+      "SAFETY_DENIED",
+      "auth_trace switches the SAP authorization trace on for the connected user, a system-level action, so it is refused on a read-only server.",
+      { auth_trace: true },
+      "Ask the operator to enable writes (ABAP_ALLOW_WRITE), or omit auth_trace to run without it."
+    );
+  }
   const requested = input.mode ?? "auto";
   const obj = await resolveObject(conn, input.object);
   let mode;
@@ -115122,16 +116013,32 @@ async function abapRun(conn, input, maxChars, gate) {
     packageName: obj.packageName,
     type: obj.type
   });
-  let res;
-  if (mode === "class") {
-    res = await runClass(conn, executeAuthorization.target.name);
-  } else {
+  const executeRun = async () => {
+    if (mode === "class") {
+      return runClass(conn, executeAuthorization.target.name);
+    }
     gate.assert("write", {
       name: bridgeClassName(obj.name),
       packageName: FLUID_PACKAGE,
       type: "CLAS/OC"
     });
-    res = await runReport(conn, obj.name, gate, parameters);
+    return runReport(conn, obj.name, gate, parameters);
+  };
+  let res;
+  let authTraceOutcome;
+  let authTraceSwitchOffError;
+  if (authTraceRequested) {
+    try {
+      const wrapped = await withAuthTrace({ conn, gate }, conn.cfg.user, executeRun);
+      res = wrapped.value;
+      authTraceOutcome = wrapped.authTrace;
+      authTraceSwitchOffError = wrapped.switchOffError;
+    } catch (e) {
+      attachAuthTraceToError(e);
+      throw e;
+    }
+  } else {
+    res = await executeRun();
   }
   const notes = [];
   if (res.mode === "report") {
@@ -115162,6 +116069,21 @@ async function abapRun(conn, input, maxChars, gate) {
   notes.push(
     activation === "active-is-current" ? "Executed in a fresh session, so the code that ran is the code currently active \u2014 not a cached copy." : activation === "newer-inactive-exists" ? "Executed in a fresh session, but a NEWER INACTIVE version exists on the server: what ran is the older ACTIVE code, not your latest edit." : "Executed in a fresh session (no cached copy). Whether the active version is the newest was NOT checked."
   );
+  if (authTraceRequested) {
+    notes.push(
+      "auth_trace reads the SAP authorization trace (falling back to the SU53 buffer) for this run only; it changes no authorisation, role or profile."
+    );
+    if (authTraceOutcome?.ok && authTraceOutcome.usedFallback) {
+      notes.push(
+        "The kernel authorization trace returned nothing, so this came from the SU53 buffer, which shows only what that buffer retained \u2014 it is not a complete record of this run."
+      );
+    }
+    if (authTraceSwitchOffError !== void 0) {
+      notes.push(
+        `The authorization trace may have been left switched ON: switching it back off failed (${authTraceSwitchOffError}).`
+      );
+    }
+  }
   if (res.mode === "report" && res.bridgeActivationVerified !== true) {
     notes.push(
       "Additionally, activation of the generated bridge class itself was NOT positively verified before it ran \u2014 a separate concern from the target object's activation state noted above."
@@ -115186,6 +116108,10 @@ async function abapRun(conn, input, maxChars, gate) {
   }
   const genuinelyEmpty = res.lines === 0 && droppedLines === 0 && !hasDiagnostics;
   const body = res.output.trim() ? res.output : genuinelyEmpty ? "(no output)" : "(nothing shown here \u2014 but this run is NOT confirmed empty: see the NOTE(s) above about diagnostics, dropped lines, and/or incomplete output. Do not read this as a clean, silent, successful run.)";
+  const authTraceSectionValue = authTraceOutcome ? authTraceSection(authTraceOutcome) : void 0;
+  const sections = [];
+  if (hasDiagnostics) sections.push({ title: "DIAGNOSTICS", content: res.diagnostics.join("\n") });
+  if (authTraceSectionValue) sections.push(authTraceSectionValue);
   return buildResponse({
     header: {
       system: conn.cfg.sid,
@@ -115196,9 +116122,10 @@ async function abapRun(conn, input, maxChars, gate) {
       bridgeClass: res.bridgeClass,
       bridgeRefreshed: res.bridgeRefreshed,
       droppedLines: droppedLines > 0 ? droppedLines : void 0,
-      outputComplete: res.outputComplete === false ? false : void 0
+      outputComplete: res.outputComplete === false ? false : void 0,
+      auth_trace: authTraceOutcome ? authTraceHeaderValue(authTraceOutcome) : void 0
     },
-    sections: hasDiagnostics ? [{ title: "DIAGNOSTICS", content: res.diagnostics.join("\n") }] : void 0,
+    sections: sections.length > 0 ? sections : void 0,
     body,
     bodyLabel: "OUTPUT",
     notes,
@@ -121856,14 +122783,113 @@ function findCoverageNode(result, name) {
 
 // src/tools/test.ts
 init_errors();
+
+// src/adt/impacted.ts
+var IMPACTED_CONSUMER_KINDS = ["CLAS", "PROG", "FUGR"];
+var PER_OBJECT_CONSUMER_CAP = 20;
+var SELECTED_CARRIER_CAP = 10;
+function kindOf2(type) {
+  const idx = type.indexOf("/");
+  return (idx >= 0 ? type.slice(0, idx) : type).trim().toUpperCase();
+}
+async function selectImpacted(changed, deps) {
+  const changedNamesUpper = new Set(changed.map((c) => c.name.toUpperCase()));
+  const selectedOrder = [];
+  const selectedByName = /* @__PURE__ */ new Map();
+  function select(name, type, reason, probe3) {
+    const key = name.toUpperCase();
+    const existing = selectedByName.get(key);
+    if (existing) {
+      selectedByName.set(key, { ...existing, reason: `${existing.reason}, ${reason}` });
+      return;
+    }
+    selectedByName.set(key, { name, type, reason, probe: probe3 });
+    selectedOrder.push(key);
+  }
+  for (const c of changed) {
+    const probe3 = await deps.probeCarrier({ name: c.name, type: c.type ?? "" });
+    if (probe3 === "no-tests") continue;
+    select(c.name, c.type ?? "", "changed directly", probe3);
+  }
+  let consumersExamined = 0;
+  const capByObject = /* @__PURE__ */ new Map();
+  const addCap = (objectName, names) => {
+    if (names.length === 0) return;
+    const existing = capByObject.get(objectName);
+    if (existing) existing.push(...names);
+    else capByObject.set(objectName, [...names]);
+  };
+  let carrierCapHit = selectedByName.size >= SELECTED_CARRIER_CAP;
+  let i = 0;
+  for (; i < changed.length; i++) {
+    if (carrierCapHit) break;
+    const c = changed[i];
+    const rows = await deps.whereUsed(c);
+    const seenThisObject = /* @__PURE__ */ new Set();
+    const kept = [];
+    for (const r of rows) {
+      if (!IMPACTED_CONSUMER_KINDS.includes(kindOf2(r.type))) continue;
+      const upper = r.name.toUpperCase();
+      if (changedNamesUpper.has(upper)) continue;
+      if (seenThisObject.has(upper)) continue;
+      seenThisObject.add(upper);
+      kept.push(r);
+    }
+    const toProbe = kept.slice(0, PER_OBJECT_CONSUMER_CAP);
+    const overPerObjectCap = kept.slice(toProbe.length);
+    if (overPerObjectCap.length > 0) {
+      addCap(c.name, overPerObjectCap.map((r) => r.name));
+    }
+    for (let j = 0; j < toProbe.length; j++) {
+      const consumer = toProbe[j];
+      const probe3 = await deps.probeCarrier(consumer);
+      consumersExamined++;
+      if (probe3 !== "no-tests") {
+        select(consumer.name, consumer.type, `uses ${c.name}`, probe3);
+      }
+      if (selectedByName.size >= SELECTED_CARRIER_CAP) {
+        carrierCapHit = true;
+        const remaining = toProbe.slice(j + 1);
+        if (remaining.length > 0) {
+          addCap(c.name, remaining.map((r) => r.name));
+        }
+        break;
+      }
+    }
+  }
+  const neverExamined = changed.slice(i).map((c) => c.name);
+  const perObjectCapped = changed.map((c) => ({ object: c.name, notExamined: capByObject.get(c.name) ?? [] })).filter((e) => e.notExamined.length > 0);
+  return {
+    changed,
+    selected: selectedOrder.map((k) => selectedByName.get(k)),
+    consumersExamined,
+    perObjectCapped,
+    neverExamined,
+    carrierCapHit
+  };
+}
+
+// src/tools/test.ts
 init_compact();
 var testInputSchema = {
-  object: external_exports.string().describe("Class, program or package to test."),
+  object: external_exports.string().optional().describe('Class, program or package to test. Required unless scope is "impacted".'),
   type: external_exports.string().optional().describe("ADT type, e.g. CLAS/OC."),
+  scope: external_exports.enum(["object", "impacted"]).optional().describe(
+    `"object" (default) runs one named object's tests. "impacted" selects the test classes the changed objects put at risk (where-used) and runs those.`
+  ),
+  changed: external_exports.array(external_exports.string()).optional().describe(
+    'Explicit changed-object names for scope="impacted" \u2014 skips the journal. Ignored for scope="object".'
+  ),
+  since: external_exports.string().optional().describe(
+    'ISO timestamp: for scope="impacted", use journal writes since this time instead of the current session. Ignored for scope="object".'
+  ),
   risk_level: external_exports.enum(["harmless", "dangerous", "critical"]).optional().describe("Highest risk to run, cumulative from harmless. Default harmless."),
   coverage: external_exports.boolean().optional().describe("Also measure statement/branch/procedure coverage and report it per class and per method."),
   coverage_for: external_exports.array(external_exports.string()).optional().describe(
     "Objects to report coverage for. Default: the objects under test. Use this to report an object the tests exercise indirectly. Ignored unless coverage is true."
+  ),
+  auth_trace: external_exports.boolean().optional().describe(
+    'Switch on the SAP authorization trace for the connected user, run the test, then read back and switch it back off. scope="object" only. Refused on a read-only server. Default false.'
   )
 };
 var TestInput = external_exports.object(testInputSchema);
@@ -122084,7 +123110,35 @@ async function buildCoverageSection(conn, res, obj, input, notes, hints) {
   ].join(", ") : void 0;
   return { body: lines.join("\n"), ...header !== void 0 ? { header } : {} };
 }
-async function abapTest(conn, input, maxChars, gate) {
+function authTraceHeaderValue2(outcome) {
+  if (!outcome.ok) return outcome.reason;
+  return outcome.checks.length > 0 ? `${outcome.checks.length} failed check(s)` : "no failed checks";
+}
+function authTraceSection2(outcome) {
+  if (!outcome.ok || outcome.checks.length === 0) return void 0;
+  const rendered = renderFailedAuthChecks(outcome.checks);
+  const [, ...rest] = rendered.split("\n");
+  return { title: "FAILED AUTH CHECKS", content: rest.join("\n") };
+}
+function attachAuthTraceToError2(e) {
+  const outcome = authTraceOf(e);
+  if (outcome === void 0 || !isAbapError(e)) return;
+  e.details["failedAuthChecks"] = outcome.ok ? outcome.checks.length > 0 ? renderFailedAuthChecks(outcome.checks) : "no failed checks" : outcome.reason;
+  const switchOffError = switchOffErrorOf(e);
+  if (switchOffError !== void 0) {
+    e.details["authTraceSwitchOffError"] = switchOffError;
+  }
+}
+async function abapTestObject(conn, input, maxChars, gate) {
+  const authTraceRequested = input.auth_trace === true;
+  if (authTraceRequested && gate.config.readOnly === true) {
+    throw new AbapError(
+      "SAFETY_DENIED",
+      "auth_trace switches the SAP authorization trace on for the connected user, a system-level action, so it is refused on a read-only server.",
+      { auth_trace: true },
+      "Ask the operator to enable writes (ABAP_ALLOW_WRITE), or omit auth_trace to run without it."
+    );
+  }
   if (input.coverage_for !== void 0 && !input.coverage) {
     throw new AbapError(
       "BAD_INPUT",
@@ -122101,19 +123155,37 @@ async function abapTest(conn, input, maxChars, gate) {
     risk,
     input.coverage ? { coverage: true } : {}
   );
-  const resp = await conn.post(AUNIT_TESTRUNS_URL, {
-    headers: { "Content-Type": "application/*", Accept: "application/*" },
-    body: requestBody
-  });
-  if (resp.status !== 200) {
-    throw new AbapError(
-      "ADT_ERROR",
-      `ABAP Unit test run for ${obj.name} answered HTTP ${resp.status}.`,
-      { object: obj.name, status: resp.status, url: AUNIT_TESTRUNS_URL },
-      "The run did not complete. This is not a test failure and not a pass."
-    );
+  const executeTestRun = async () => {
+    const resp = await conn.post(AUNIT_TESTRUNS_URL, {
+      headers: { "Content-Type": "application/*", Accept: "application/*" },
+      body: requestBody
+    });
+    if (resp.status !== 200) {
+      throw new AbapError(
+        "ADT_ERROR",
+        `ABAP Unit test run for ${obj.name} answered HTTP ${resp.status}.`,
+        { object: obj.name, status: resp.status, url: AUNIT_TESTRUNS_URL },
+        "The run did not complete. This is not a test failure and not a pass."
+      );
+    }
+    return parseRunResult(resp.body);
+  };
+  let res;
+  let authTraceOutcome;
+  let authTraceSwitchOffError;
+  if (authTraceRequested) {
+    try {
+      const wrapped = await withAuthTrace({ conn, gate }, conn.cfg.user, executeTestRun);
+      res = wrapped.value;
+      authTraceOutcome = wrapped.authTrace;
+      authTraceSwitchOffError = wrapped.switchOffError;
+    } catch (e) {
+      attachAuthTraceToError2(e);
+      throw e;
+    }
+  } else {
+    res = await executeTestRun();
   }
-  const res = parseRunResult(resp.body);
   const notes = [];
   if (res.outcome === "no-tests") {
     notes.push(
@@ -122160,10 +123232,28 @@ async function abapTest(conn, input, maxChars, gate) {
       );
     }
   }
+  if (authTraceRequested) {
+    notes.push(
+      "auth_trace reads the SAP authorization trace (falling back to the SU53 buffer) for this run only; it changes no authorisation, role or profile."
+    );
+    if (authTraceOutcome?.ok && authTraceOutcome.usedFallback) {
+      notes.push(
+        "The kernel authorization trace returned nothing, so this came from the SU53 buffer, which shows only what that buffer retained \u2014 it is not a complete record of this run."
+      );
+    }
+    if (authTraceSwitchOffError !== void 0) {
+      notes.push(
+        `The authorization trace may have been left switched ON: switching it back off failed (${authTraceSwitchOffError}).`
+      );
+    }
+  }
   const body = coverageBody !== void 0 ? `${renderBody(res)}
 
 COVERAGE
 ${coverageBody}` : renderBody(res);
+  const authTraceSectionValue = authTraceOutcome ? authTraceSection2(authTraceOutcome) : void 0;
+  const sections = [];
+  if (authTraceSectionValue) sections.push(authTraceSectionValue);
   return buildResponse({
     header: {
       system: conn.cfg.sid,
@@ -122175,8 +123265,10 @@ ${coverageBody}` : renderBody(res);
       failed: res.failed,
       // Surfaced only when non-zero — an ungraded method must never be missed.
       unknown: res.unknown > 0 ? res.unknown : void 0,
-      coverage: coverageHeader
+      coverage: coverageHeader,
+      auth_trace: authTraceOutcome ? authTraceHeaderValue2(authTraceOutcome) : void 0
     },
+    sections: sections.length > 0 ? sections : void 0,
     body,
     bodyLabel: "RESULTS",
     notes,
@@ -122184,25 +123276,345 @@ ${coverageBody}` : renderBody(res);
     maxChars
   });
 }
+var TRUNCATION_NAME_CAP = 10;
+function formatTruncatedNames(names) {
+  if (names.length <= TRUNCATION_NAME_CAP) return names.join(", ");
+  const shown = names.slice(0, TRUNCATION_NAME_CAP);
+  return `${shown.join(", ")}, \u2026 and ${names.length - TRUNCATION_NAME_CAP} more`;
+}
+function buildImpactedDeps(conn) {
+  return {
+    async whereUsed(obj) {
+      const resolved = await resolveObject(conn, obj.name, obj.type ? { type: obj.type } : {});
+      const refs = await conn.adt.usageReferences(resolved.uri);
+      const out = [];
+      for (const r of refs) {
+        const name = r["adtcore:name"];
+        if (typeof name !== "string" || !name) continue;
+        const type = r["adtcore:type"];
+        out.push({ name, type: typeof type === "string" ? type : "" });
+      }
+      return out;
+    },
+    async probeCarrier(obj) {
+      const resolved = await resolveObject(conn, obj.name, obj.type ? { type: obj.type } : {});
+      if (resolved.kind === "CLAS") {
+        try {
+          await readSource(conn, resolved, "testclasses");
+          return "has-tests";
+        } catch (e) {
+          if (isAbapError(e) && e.code === "NOT_FOUND" && e.details.requested === "testclasses") {
+            return "no-tests";
+          }
+          throw e;
+        }
+      }
+      if (resolved.kind === "PROG" || resolved.kind === "FUGR") return "unknown";
+      return "no-tests";
+    }
+  };
+}
+async function buildChangedSet(conn, input, journal) {
+  if (input.changed !== void 0) {
+    const seen = /* @__PURE__ */ new Set();
+    const changed2 = [];
+    for (const raw of input.changed) {
+      const name = raw.trim().toUpperCase();
+      if (!name || seen.has(name)) continue;
+      seen.add(name);
+      changed2.push({ name });
+    }
+    return {
+      changed: changed2,
+      provenanceNote: `Changed set: explicit \`changed\` list (${changed2.length} object(s)), the journal was not consulted.`,
+      droppedDeleted: 0
+    };
+  }
+  const key = systemKey(conn.cfg);
+  let entries;
+  let provenanceNote;
+  if (input.since !== void 0) {
+    entries = await journal.list({ systemKey: key, since: input.since });
+    provenanceNote = `Changed set: journal writes to this system since ${input.since}.`;
+  } else {
+    if (!journal.sessionId) {
+      throw new AbapError(
+        "BAD_INPUT",
+        'scope="impacted" with no `changed` and no `since` reads this server process\'s current session from the journal, but this process has no session id yet.',
+        {},
+        "This can only happen before the MCP initialize handshake has completed. Retry once the client is connected, or pass `changed` or `since` explicitly."
+      );
+    }
+    entries = await journal.list({ systemKey: key, sessionId: journal.sessionId });
+    provenanceNote = `Changed set: journal writes to this system in the current session (${journal.sessionId}).`;
+  }
+  const successful = entries.filter((e) => e.outcome !== "failed");
+  const newestByName = /* @__PURE__ */ new Map();
+  for (const e of successful) {
+    const name = e.object?.name;
+    if (!name) continue;
+    const upper = name.toUpperCase();
+    if (!newestByName.has(upper)) newestByName.set(upper, e);
+  }
+  let droppedDeleted = 0;
+  const changed = [];
+  for (const e of newestByName.values()) {
+    if (e.operation === "delete" && e.outcome === "succeeded") {
+      droppedDeleted++;
+      continue;
+    }
+    changed.push({ name: e.object.name, type: e.object.type });
+  }
+  return { changed, provenanceNote, droppedDeleted };
+}
+function formatCaps(bit) {
+  const base = `per-object ${PER_OBJECT_CONSUMER_CAP}, carriers ${SELECTED_CARRIER_CAP}`;
+  return bit ? `${base} \u2014 TRUNCATED: an unexamined consumer may carry a test that did not run` : base;
+}
+function carrierOutcomeLabel(res) {
+  return res.outcome === "passed" ? "PASSED" : res.outcome === "failed" ? "FAILED" : res.outcome === "no-tests" ? "NO TESTS RAN (not a pass)" : "UNKNOWN (not a pass)";
+}
+async function runCarrier(conn, carrier, risk, gate) {
+  try {
+    const obj = await resolveObject(conn, carrier.name, carrier.type ? { type: carrier.type } : {});
+    gate.authorize("execute", { name: obj.name, packageName: obj.packageName, type: obj.type });
+    const resp = await conn.post(AUNIT_TESTRUNS_URL, {
+      headers: { "Content-Type": "application/*", Accept: "application/*" },
+      body: buildRunConfiguration(obj.uri, risk)
+    });
+    if (resp.status !== 200) {
+      return { carrier, error: `ABAP Unit test run answered HTTP ${resp.status}.` };
+    }
+    return { carrier, result: parseRunResult(resp.body) };
+  } catch (e) {
+    return { carrier, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+async function abapTestImpacted(conn, input, maxChars, gate, journal) {
+  const risk = input.risk_level ?? "harmless";
+  const { changed, provenanceNote, droppedDeleted } = await buildChangedSet(conn, input, journal);
+  const notes = [provenanceNote];
+  if (droppedDeleted > 0) {
+    notes.push(
+      `${droppedDeleted} object(s) were created and then deleted again within the same window and were dropped from the changed set \u2014 there is nothing left on the system to test.`
+    );
+  }
+  if (changed.length === 0) {
+    const body = input.changed !== void 0 ? "No changed objects were given \u2014 nothing was run." : `The journal held no writes for this system ${input.since !== void 0 ? `since ${input.since}` : "in this session"} \u2014 nothing was run.`;
+    notes.push("NO CHANGED OBJECTS is not a pass: nothing was tested.");
+    return buildResponse({
+      header: {
+        system: conn.cfg.sid,
+        scope: "impacted",
+        changed: 0,
+        consumersExamined: 0,
+        selected: 0,
+        outcome: "NO CHANGED OBJECTS (not a pass)",
+        riskLevel: risk
+      },
+      body,
+      bodyLabel: "RESULTS",
+      notes,
+      maxChars
+    });
+  }
+  notes.push(
+    "Where-used is static. Dynamic calls (CALL FUNCTION lv_name, PERFORM (lv_form), SUBMIT (lv_prog)) do not appear here, so a test class reached only through a dynamic call is not part of this selection."
+  );
+  if (risk !== "critical") {
+    notes.push(
+      `Only tests up to risk level "${risk}" ran. Higher-risk tests, if any exist, were not executed and their absence is not a pass.`
+    );
+  }
+  const selection = await selectImpacted(changed, buildImpactedDeps(conn));
+  const totalNotExamined = selection.perObjectCapped.reduce((sum, c) => sum + c.notExamined.length, 0);
+  const capsBit = selection.carrierCapHit || totalNotExamined > 0;
+  const truncationLines = () => {
+    const lines = [
+      `--- TRUNCATED --- ${totalNotExamined} consumer(s) not examined (capped by the per-object limit of ${PER_OBJECT_CONSUMER_CAP} and/or the carrier limit of ${SELECTED_CARRIER_CAP}${selection.carrierCapHit ? ", carrier limit reached" : ""}). An unexamined consumer may carry a test this run did not run.`
+    ];
+    for (const c of selection.perObjectCapped) {
+      lines.push(
+        `  ${c.object}: ${c.notExamined.length} consumer(s) not examined \u2014 ${formatTruncatedNames(c.notExamined)}`
+      );
+    }
+    for (const name of selection.neverExamined) {
+      lines.push(`  ${name}: consumers not examined at all (carrier limit reached first)`);
+    }
+    return lines;
+  };
+  if (selection.selected.length === 0) {
+    notes.push("Nothing was run; this is not a pass.");
+    const bodyLines = [
+      `NO IMPACTED TESTS FOUND \u2014 ${selection.changed.length} changed object(s), ${selection.consumersExamined} consumer(s) examined, none carries a test class`
+    ];
+    if (capsBit) bodyLines.push(...truncationLines());
+    return buildResponse({
+      header: {
+        system: conn.cfg.sid,
+        scope: "impacted",
+        changed: selection.changed.length,
+        consumersExamined: selection.consumersExamined,
+        selected: 0,
+        caps: formatCaps(capsBit),
+        outcome: "NO IMPACTED TESTS FOUND (not a pass)",
+        riskLevel: risk
+      },
+      body: bodyLines.join("\n"),
+      bodyLabel: "RESULTS",
+      notes,
+      maxChars
+    });
+  }
+  const selectionLines = selection.selected.map((c) => `${c.name} (${c.type || "?"}) \u2014 ${c.reason}`);
+  if (capsBit) selectionLines.push(...truncationLines());
+  const runs = [];
+  for (const carrier of selection.selected) {
+    runs.push(await runCarrier(conn, carrier, risk, gate));
+  }
+  let totalTests = 0;
+  let totalPassed = 0;
+  let totalFailed = 0;
+  let totalUnknown = 0;
+  let anyFailed = false;
+  let anyUnknown = false;
+  let anyPassed = false;
+  let successfulRuns = 0;
+  const bodyParts = [];
+  for (const run of runs) {
+    if (run.result) {
+      successfulRuns++;
+      const res = run.result;
+      totalTests += res.total;
+      totalPassed += res.passed;
+      totalFailed += res.failed;
+      totalUnknown += res.unknown;
+      if (res.outcome === "failed") anyFailed = true;
+      else if (res.outcome === "unknown") anyUnknown = true;
+      else if (res.outcome === "passed") anyPassed = true;
+      bodyParts.push(`=== ${run.carrier.name} (${run.carrier.type || "?"}): ${carrierOutcomeLabel(res)} ===
+${renderBody(res)}`);
+    } else {
+      notes.push(`Carrier ${run.carrier.name}: run failed \u2014 ${run.error}. The other carriers' verdicts are unaffected.`);
+      bodyParts.push(`=== ${run.carrier.name} (${run.carrier.type || "?"}): ERROR (not a pass) ===
+ERROR: ${run.error}`);
+    }
+  }
+  const outcomeLabel = successfulRuns === 0 ? "UNKNOWN (not a pass)" : anyFailed ? "FAILED" : anyUnknown ? "UNKNOWN (not a pass)" : anyPassed ? "PASSED" : "NO TESTS RAN (not a pass)";
+  return buildResponse({
+    header: {
+      system: conn.cfg.sid,
+      scope: "impacted",
+      changed: selection.changed.length,
+      consumersExamined: selection.consumersExamined,
+      selected: selection.selected.length,
+      caps: formatCaps(capsBit),
+      outcome: outcomeLabel,
+      riskLevel: risk,
+      tests: totalTests,
+      passed: totalPassed,
+      failed: totalFailed,
+      unknown: totalUnknown > 0 ? totalUnknown : void 0
+    },
+    sections: [{ title: "SELECTION", content: selectionLines.join("\n") }],
+    body: bodyParts.join("\n\n"),
+    bodyLabel: "RESULTS",
+    notes,
+    maxChars
+  });
+}
+async function abapTest(conn, input, maxChars, gate, journal) {
+  const scope = input.scope ?? "object";
+  if (scope === "object") {
+    if (input.changed !== void 0 || input.since !== void 0) {
+      throw new AbapError(
+        "BAD_INPUT",
+        '`changed`/`since` only apply to scope="impacted". scope is "object" (the default) here, so they would be silently ignored.',
+        { scope, changed: input.changed, since: input.since },
+        'Set scope: "impacted" to use `changed`/`since`, or drop them to run scope="object".'
+      );
+    }
+    if (input.object === void 0) {
+      throw new AbapError(
+        "BAD_INPUT",
+        'scope="object" (the default) needs `object`.',
+        { scope },
+        'Pass `object`, or set scope: "impacted" to select test carriers from changed objects instead.'
+      );
+    }
+    return abapTestObject(conn, input, maxChars, gate);
+  }
+  if (input.object !== void 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      '`object` was given with scope="impacted". Impacted selection runs the test carriers a changed set puts at risk, not one named object.',
+      { scope, object: input.object },
+      'Drop `object`, or use scope="object" to test one named object directly.'
+    );
+  }
+  if (input.changed !== void 0 && input.since !== void 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "`changed` and `since` were both given. `since` selects the changed set from the journal and would be silently ignored once `changed` is given explicitly.",
+      { changed: input.changed, since: input.since },
+      "Pass only one: `changed` for an explicit list, or `since` to read the journal."
+    );
+  }
+  if (input.coverage !== void 0 || input.coverage_for !== void 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      'Coverage is not supported for scope="impacted": `coverage`/`coverage_for` would be silently ignored across multiple carriers.',
+      { scope, coverage: input.coverage, coverage_for: input.coverage_for },
+      'Run scope="object" per carrier with coverage: true instead.'
+    );
+  }
+  if (input.auth_trace === true) {
+    throw new AbapError(
+      "BAD_INPUT",
+      'auth_trace is not supported for scope="impacted": it would switch the trace on and off once per carrier and would be silently ignored otherwise.',
+      { scope, auth_trace: input.auth_trace },
+      'Run scope="object" per carrier with auth_trace: true instead.'
+    );
+  }
+  if (input.since !== void 0 && Number.isNaN(Date.parse(input.since))) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `\`since\` "${input.since}" is not a timestamp \`Date.parse\` can read.`,
+      { since: input.since },
+      "Pass an ISO-8601 timestamp."
+    );
+  }
+  if (!journal) {
+    throw new AbapError(
+      "BAD_INPUT",
+      'scope="impacted" needs the write journal, which this call site did not provide.',
+      { scope }
+    );
+  }
+  return abapTestImpacted(conn, input, maxChars, gate, journal);
+}
 var ok7 = (text4) => ({ content: [{ type: "text", text: text4 }] });
 function registerTestTools(mcp, deps) {
   mcp.registerTool(
     "abap_test",
     {
-      description: "Run ABAP Unit tests; reports each method's verdict. PASSED/FAILED/NO TESTS RAN/UNKNOWN \u2014 only PASSED is a pass. Needs write access, allowlisted package. Defaults to harmless-risk tests. Opt-in coverage: coverage=true, optionally scoped with coverage_for.",
+      description: 'Run ABAP Unit tests; reports each method\'s verdict. PASSED/FAILED/NO TESTS RAN/UNKNOWN \u2014 only PASSED is a pass. Needs write access, allowlisted package. Defaults to harmless-risk tests. Opt-in coverage: coverage=true, optionally scoped with coverage_for. scope="impacted" selects and runs the test carriers a changed set (explicit `changed` or the journal) puts at risk, instead of one named object.',
       inputSchema: testInputSchema,
       annotations: { readOnlyHint: false, destructiveHint: true }
     },
     async (args) => {
       try {
-        deps.safety.assert("execute", preflight(args), {
-          phase: "preflight"
-        });
+        const input = args;
+        if ((input.scope ?? "object") === "object" && input.object !== void 0) {
+          deps.safety.assert("execute", preflight(args), {
+            phase: "preflight"
+          });
+        }
         await deps.ensureConnected();
         const res = await deps.pool.withWrite(
           "abap_test",
           void 0,
-          (conn) => abapTest(conn, args, deps.cfg.maxResponseChars, deps.safety)
+          (conn) => abapTest(conn, input, deps.cfg.maxResponseChars, deps.safety, deps.journal)
         );
         return ok7(res.text);
       } catch (e) {
@@ -122248,7 +123660,7 @@ function scanDispatchArgs(q) {
     max_objects: q.maxObjects
   };
 }
-function fail2(reason, result) {
+function fail3(reason, result) {
   throw new AbapError(
     "FLUID_PROTOCOL_ERROR",
     `scan.source ${reason}`,
@@ -122263,25 +123675,25 @@ function isSummaryRow(r) {
 }
 function mapScanRows(rows) {
   if (!Array.isArray(rows)) {
-    fail2("returned a result that is not an array", rows);
+    fail3("returned a result that is not an array", rows);
   }
   const hits = [];
   let summary;
   for (let i = 0; i < rows.length; i++) {
     const row2 = rows[i];
     if (typeof row2 !== "object" || row2 === null || Array.isArray(row2)) {
-      fail2(`row ${i} is not an object`, rows);
+      fail3(`row ${i} is not an object`, rows);
     }
     const r = row2;
     if (r["kind"] !== "hit" && r["kind"] !== "summary") {
-      fail2(`row ${i} has kind "${String(r["kind"])}", expected "hit" or "summary"`, rows);
+      fail3(`row ${i} has kind "${String(r["kind"])}", expected "hit" or "summary"`, rows);
     }
     if (r["kind"] === "hit") {
       if (!isHitRow(r)) {
-        fail2(`row ${i} is a hit row missing or mistyping one of obj_type/obj_name/include/line/text`, rows);
+        fail3(`row ${i} is a hit row missing or mistyping one of obj_type/obj_name/include/line/text`, rows);
       }
       if (summary !== void 0) {
-        fail2(`row ${i} is a hit row after the summary row`, rows);
+        fail3(`row ${i} is a hit row after the summary row`, rows);
       }
       hits.push({
         objType: r.obj_type,
@@ -122293,13 +123705,13 @@ function mapScanRows(rows) {
       continue;
     }
     if (summary !== void 0) {
-      fail2("returned more than one summary row", rows);
+      fail3("returned more than one summary row", rows);
     }
     if (!isSummaryRow(r)) {
-      fail2(`row ${i} is a summary row missing or mistyping one of its required fields`, rows);
+      fail3(`row ${i} is a summary row missing or mistyping one of its required fields`, rows);
     }
     if (i !== rows.length - 1) {
-      fail2("returned a summary row that is not the last element", rows);
+      fail3("returned a summary row that is not the last element", rows);
     }
     summary = {
       objectsTotal: r.objects_total,
@@ -122311,7 +123723,7 @@ function mapScanRows(rows) {
     };
   }
   if (summary === void 0) {
-    fail2("did not return a summary row", rows);
+    fail3("did not return a summary row", rows);
   }
   return { hits, summary };
 }
@@ -124572,7 +125984,7 @@ var QUERY_CHILD_ORDER = ["dataTypeRef", "implementationClassRef", "resultTypeRef
 var ALTERNATIVE_KEY_CHILD_ORDER = ["dataTypeRef", "dataTableTypeRef", "keyElements"];
 
 // src/adt/bopf-xml.ts
-function fail3(message, details = {}) {
+function fail4(message, details = {}) {
   throw new AbapError(
     "BAD_INPUT",
     `BOPF XML: ${message}`,
@@ -124603,15 +126015,15 @@ function decodeEntityAt(xml3, ampIndex) {
   for (const [entity, char] of PREDEFINED_ENTITIES) {
     if (xml3.startsWith(entity, ampIndex)) return { char, next: ampIndex + entity.length };
   }
-  fail3(
+  fail4(
     "unsupported entity reference \u2014 only the five predefined XML entities (&amp; &lt; &gt; &apos; &quot;) are accepted",
     { at: ampIndex }
   );
 }
 function scanModel(xmlText2) {
-  if (!xmlText2.startsWith("<?xml")) fail3("document does not start with an XML declaration (`<?xml ... ?>`)");
+  if (!xmlText2.startsWith("<?xml")) fail4("document does not start with an XML declaration (`<?xml ... ?>`)");
   const declEnd = xmlText2.indexOf("?>", 5);
-  if (declEnd === -1) fail3("unterminated XML declaration");
+  if (declEnd === -1) fail4("unterminated XML declaration");
   const n = xmlText2.length;
   const tokens = [];
   const stack = [];
@@ -124620,7 +126032,7 @@ function scanModel(xmlText2) {
     const c = xmlText2.charAt(i);
     if (c !== "<") {
       if (!WS.test(c)) {
-        fail3(
+        fail4(
           stack.length === 0 ? "unexpected content outside the root element" : "text content is not supported inside BOPF elements (every element here is attribute-only or container-only)",
           { at: i }
         );
@@ -124628,21 +126040,21 @@ function scanModel(xmlText2) {
       i++;
       continue;
     }
-    if (xmlText2.startsWith("<!--", i)) fail3("XML comments are not supported", { at: i });
-    if (xmlText2.startsWith("<![CDATA[", i)) fail3("CDATA sections are not supported", { at: i });
-    if (xmlText2.startsWith("<!DOCTYPE", i)) fail3("a DOCTYPE declaration is not supported", { at: i });
-    if (xmlText2.startsWith("<!", i)) fail3("unrecognized '<!' construct", { at: i });
-    if (xmlText2.startsWith("<?", i)) fail3("a processing instruction after the XML declaration is not supported", { at: i });
+    if (xmlText2.startsWith("<!--", i)) fail4("XML comments are not supported", { at: i });
+    if (xmlText2.startsWith("<![CDATA[", i)) fail4("CDATA sections are not supported", { at: i });
+    if (xmlText2.startsWith("<!DOCTYPE", i)) fail4("a DOCTYPE declaration is not supported", { at: i });
+    if (xmlText2.startsWith("<!", i)) fail4("unrecognized '<!' construct", { at: i });
+    if (xmlText2.startsWith("<?", i)) fail4("a processing instruction after the XML declaration is not supported", { at: i });
     if (xmlText2.startsWith("</", i)) {
       const name2 = matchNameAt(xmlText2, i + 2);
-      if (name2 === void 0) fail3("malformed closing tag", { at: i });
+      if (name2 === void 0) fail4("malformed closing tag", { at: i });
       let j2 = skipWs(xmlText2, i + 2 + name2.length);
-      if (xmlText2.charAt(j2) !== ">") fail3("malformed closing tag: expected '>'", { at: j2 });
+      if (xmlText2.charAt(j2) !== ">") fail4("malformed closing tag: expected '>'", { at: j2 });
       const closeEnd = j2 + 1;
       const top = stack.pop();
-      if (!top) fail3("unexpected closing tag with no matching open element", { at: i, name: name2 });
+      if (!top) fail4("unexpected closing tag with no matching open element", { at: i, name: name2 });
       if (top.name !== name2) {
-        fail3(`mismatched closing tag: expected </${top.name}>, found </${name2}>`, { at: i });
+        fail4(`mismatched closing tag: expected </${top.name}>, found </${name2}>`, { at: i });
       }
       tokens.push({
         kind: "container",
@@ -124658,7 +126070,7 @@ function scanModel(xmlText2) {
       continue;
     }
     const name = matchNameAt(xmlText2, i + 1);
-    if (name === void 0) fail3("malformed tag: expected an element name", { at: i });
+    if (name === void 0) fail4("malformed tag: expected an element name", { at: i });
     let j = i + 1 + name.length;
     const attrStart = j;
     const attrs = /* @__PURE__ */ new Map();
@@ -124675,23 +126087,23 @@ function scanModel(xmlText2) {
         break;
       }
       const attrName = matchNameAt(xmlText2, j);
-      if (attrName === void 0) fail3(`unexpected character inside <${name}>`, { at: j });
+      if (attrName === void 0) fail4(`unexpected character inside <${name}>`, { at: j });
       j += attrName.length;
       j = skipWs(xmlText2, j);
-      if (xmlText2.charAt(j) !== "=") fail3(`expected '=' after attribute "${attrName}"`, { at: j });
+      if (xmlText2.charAt(j) !== "=") fail4(`expected '=' after attribute "${attrName}"`, { at: j });
       j = skipWs(xmlText2, j + 1);
       const quote = xmlText2.charAt(j);
-      if (quote !== '"' && quote !== "'") fail3(`expected a quote to start the value of "${attrName}"`, { at: j });
+      if (quote !== '"' && quote !== "'") fail4(`expected a quote to start the value of "${attrName}"`, { at: j });
       j++;
       let value = "";
       for (; ; ) {
-        if (j >= n) fail3(`unterminated attribute value for "${attrName}"`, { at: j });
+        if (j >= n) fail4(`unterminated attribute value for "${attrName}"`, { at: j });
         const vc = xmlText2.charAt(j);
         if (vc === quote) {
           j++;
           break;
         }
-        if (vc === "<") fail3(`raw '<' is not allowed inside the value of "${attrName}"`, { at: j });
+        if (vc === "<") fail4(`raw '<' is not allowed inside the value of "${attrName}"`, { at: j });
         if (vc === "&") {
           const decoded = decodeEntityAt(xmlText2, j);
           value += decoded.char;
@@ -124701,7 +126113,7 @@ function scanModel(xmlText2) {
         value += vc;
         j++;
       }
-      if (attrs.has(attrName)) fail3(`duplicate attribute "${attrName}"`, { at: j });
+      if (attrs.has(attrName)) fail4(`duplicate attribute "${attrName}"`, { at: j });
       attrs.set(attrName, value);
     }
     if (selfClosing) {
@@ -124720,9 +126132,9 @@ function scanModel(xmlText2) {
     }
     i = j;
   }
-  if (stack.length > 0) fail3(`unclosed element(s): ${stack.map((s) => s.name).join(", ")}`);
+  if (stack.length > 0) fail4(`unclosed element(s): ${stack.map((s) => s.name).join(", ")}`);
   const roots = tokens.filter((t) => t.depth === 0);
-  if (roots.length !== 1) fail3(`document must have exactly one root element (found ${roots.length})`);
+  if (roots.length !== 1) fail4(`document must have exactly one root element (found ${roots.length})`);
   tokens.sort((a, b) => a.openStart - b.openStart);
   return tokens;
 }
@@ -124780,7 +126192,7 @@ var PLURAL_BARE = {
 };
 function insertionPoint(tokens, nodeTok, kind) {
   if (nodeTok.kind !== "container") {
-    fail3("cannot compute an insertion point inside a self-closing element \u2014 open it first", { node: nodeTok.name });
+    fail4("cannot compute an insertion point inside a self-closing element \u2014 open it first", { node: nodeTok.name });
   }
   const targetBare = PLURAL_BARE[kind];
   const targetIdx = NODE_CHILD_ORDER.indexOf(targetBare);
@@ -124796,19 +126208,19 @@ function insertionPoint(tokens, nodeTok, kind) {
   return insertAt;
 }
 function splice(xml3, at, text4) {
-  if (at < 0 || at > xml3.length) fail3("splice offset out of range", { at, length: xml3.length });
+  if (at < 0 || at > xml3.length) fail4("splice offset out of range", { at, length: xml3.length });
   return xml3.slice(0, at) + text4 + xml3.slice(at);
 }
 function spliceOut(xml3, range) {
   if (range.start < 0 || range.end > xml3.length || range.start > range.end) {
-    fail3("splice-out range out of bounds", { range, length: xml3.length });
+    fail4("splice-out range out of bounds", { range, length: xml3.length });
   }
   return xml3.slice(0, range.start) + xml3.slice(range.end);
 }
 function promoteToContainer(xml3, token) {
   if (token.kind === "container") return xml3;
   const tagText = xml3.slice(token.openStart, token.openEnd);
-  if (!tagText.endsWith("/>")) fail3("expected a self-closing tag ending in '/>'", { at: token.openStart });
+  if (!tagText.endsWith("/>")) fail4("expected a self-closing tag ending in '/>'", { at: token.openStart });
   const opened = tagText.slice(0, -2) + ">";
   return xml3.slice(0, token.openStart) + opened + `</${token.name}>` + xml3.slice(token.openEnd);
 }
@@ -124833,7 +126245,7 @@ function patchOpenTagAttrs(xml3, token, attrs) {
 }
 function spliceInsertChild(xml3, tokens, nodeName, kind, fragment, opts) {
   const nodeTok = findNodeToken(tokens, nodeName, opts?.nodeId);
-  if (!nodeTok) fail3(`node "${nodeName}" not found`, { node: nodeName });
+  if (!nodeTok) fail4(`node "${nodeName}" not found`, { node: nodeName });
   if (nodeTok.kind === "empty") {
     const opened = promoteToContainer(xml3, nodeTok);
     const insertAt = nodeTok.openEnd - 1;
@@ -124882,7 +126294,7 @@ function spliceSetElementRef(xml3, tokens, ownerToken, refTag, ref2, childOrder)
 }
 function spliceSetNodeRef(xml3, tokens, nodeName, refKind, ref2, opts) {
   const nodeTok = findNodeToken(tokens, nodeName, opts?.nodeId);
-  if (!nodeTok) fail3(`node "${nodeName}" not found`, { node: nodeName });
+  if (!nodeTok) fail4(`node "${nodeName}" not found`, { node: nodeName });
   return spliceSetElementRef(xml3, tokens, nodeTok, `bo:${refKind}`, ref2, NODE_CHILD_ORDER);
 }
 function escapeAttrValue(v, context) {
@@ -125272,10 +126684,10 @@ function parseModel(xmlText2) {
   try {
     parsed = xmlParser2.parse(xmlText2) ?? {};
   } catch (e) {
-    fail3(`could not parse BOPF model XML: ${e instanceof Error ? e.message : String(e)}`);
+    fail4(`could not parse BOPF model XML: ${e instanceof Error ? e.message : String(e)}`);
   }
   const root = xnode2(parsed.businessObject);
-  if (!root) fail3("not a BOPF business object document (no <bo:businessObject> root element)");
+  if (!root) fail4("not a BOPF business object document (no <bo:businessObject> root element)");
   return {
     name: xattr2(root, "name") ?? "",
     type: xattr2(root, "type") ?? "",
@@ -129554,7 +130966,10 @@ var bopfTestInputSchema = {
     ).min(1),
     cleanup: external_exports.boolean().optional().describe("Delete-and-save the created rows again. Default false.")
   }).passthrough().describe("Rows to create. nodes[0] is the root node (no parentNode); others need parentNode set."),
-  generate_only: external_exports.boolean().optional().describe("Writes/activates the test bridge without running it; writes no data.")
+  generate_only: external_exports.boolean().optional().describe("Writes/activates the test bridge without running it; writes no data."),
+  auth_trace: external_exports.boolean().optional().describe(
+    "Switch on the SAP authorization trace for the connected user, run the scenario, then read back and switch it back off. Refused on a read-only server. Default false."
+  )
 };
 var BopfTestInput = external_exports.object(bopfTestInputSchema);
 var BOPF_TEST_TOOL_DESCRIPTION = "Runs a BOPF business object end to end: creates rows, saves, reports results. Writes real rows by default. cleanup: true deletes-and-saves in the same run. generate_only: true writes/activates the bridge without running it.";
@@ -129616,7 +131031,26 @@ function buildBody(result, notes) {
   const body = lineCount > 0 ? t.transcript.join("\n") : genuinelyEmpty ? "(no output)" : "(nothing shown here \u2014 but this run is NOT confirmed empty: see the NOTE(s) above about diagnostics, dropped lines, and/or incomplete output. Do not read this as a clean, silent, successful run.)";
   return { body, bodyLabel: "TRANSCRIPT" };
 }
-function buildTestResponse(result, refs, maxChars, requestedBo) {
+function authTraceHeaderValue3(outcome) {
+  if (!outcome.ok) return outcome.reason;
+  return outcome.checks.length > 0 ? `${outcome.checks.length} failed check(s)` : "no failed checks";
+}
+function authTraceSection3(outcome) {
+  if (!outcome.ok || outcome.checks.length === 0) return void 0;
+  const rendered = renderFailedAuthChecks(outcome.checks);
+  const [, ...rest] = rendered.split("\n");
+  return { title: "FAILED AUTH CHECKS", content: rest.join("\n") };
+}
+function attachAuthTraceToError3(e) {
+  const outcome = authTraceOf(e);
+  if (outcome === void 0 || !isAbapError(e)) return;
+  e.details["failedAuthChecks"] = outcome.ok ? outcome.checks.length > 0 ? renderFailedAuthChecks(outcome.checks) : "no failed checks" : outcome.reason;
+  const switchOffError = switchOffErrorOf(e);
+  if (switchOffError !== void 0) {
+    e.details["authTraceSwitchOffError"] = switchOffError;
+  }
+}
+function buildTestResponse(result, refs, maxChars, requestedBo, authTraceOutcome, authTraceSwitchOffError) {
   const refsChecked = refs !== void 0;
   const notes = [];
   if (!result.generateOnly && result.rejected === true) {
@@ -129641,6 +131075,21 @@ function buildTestResponse(result, refs, maxChars, requestedBo) {
   if (refsChecked && refs.skipped) {
     notes.push(formatSkippedRefsNote(refs.findings.length, refs.skipped));
   }
+  if (authTraceOutcome !== void 0) {
+    notes.push(
+      "auth_trace reads the SAP authorization trace (falling back to the SU53 buffer) for this run only; it changes no authorisation, role or profile."
+    );
+    if (authTraceOutcome.ok && authTraceOutcome.usedFallback) {
+      notes.push(
+        "The kernel authorization trace returned nothing, so this came from the SU53 buffer, which shows only what that buffer retained \u2014 it is not a complete record of this run."
+      );
+    }
+    if (authTraceSwitchOffError !== void 0) {
+      notes.push(
+        `The authorization trace may have been left switched ON: switching it back off failed (${authTraceSwitchOffError}).`
+      );
+    }
+  }
   const { body, bodyLabel } = buildBody(result, notes);
   const t = result.transcript;
   const sections = [];
@@ -129650,6 +131099,8 @@ function buildTestResponse(result, refs, maxChars, requestedBo) {
     if (t.keys.length) sections.push({ title: "KEYS", content: formatKeys(t.keys) });
     if (t.diagnostics.length) sections.push({ title: "DIAGNOSTICS", content: t.diagnostics.join("\n") });
   }
+  const authTraceSectionValue = authTraceOutcome ? authTraceSection3(authTraceOutcome) : void 0;
+  if (authTraceSectionValue) sections.push(authTraceSectionValue);
   return buildResponse({
     header: {
       bo: result.bo || requestedBo,
@@ -129663,7 +131114,8 @@ function buildTestResponse(result, refs, maxChars, requestedBo) {
       errors: result.generateOnly ? void 0 : result.errors,
       warnings: result.generateOnly ? void 0 : result.warnings,
       rowsWritten: result.generateOnly ? void 0 : result.rowsWritten,
-      refsChecked
+      refsChecked,
+      auth_trace: authTraceOutcome ? authTraceHeaderValue3(authTraceOutcome) : void 0
     },
     sections,
     body,
@@ -129692,6 +131144,15 @@ function validateBopfTestScenario(scenario) {
 async function runBopfTest2(deps, args) {
   const input = args;
   validateBopfTestScenario(input.scenario);
+  const authTraceRequested = input.auth_trace === true;
+  if (authTraceRequested && deps.safety.config.readOnly === true) {
+    throw new AbapError(
+      "SAFETY_DENIED",
+      "auth_trace switches the SAP authorization trace on for the connected user, a system-level action, so it is refused on a read-only server.",
+      { auth_trace: true },
+      "Ask the operator to enable writes (ABAP_ALLOW_WRITE), or omit auth_trace to run without it."
+    );
+  }
   const bridgeClass = bopfBridgeClassName(input.bo);
   deps.safety.assert(
     "write",
@@ -129702,7 +131163,7 @@ async function runBopfTest2(deps, args) {
     deps.safety.assert("execute", { name: input.bo, type: BOPF_TYPE }, { phase: "preflight" });
   }
   await deps.ensureConnected();
-  const { result, refs } = await deps.pool.withWrite(
+  const { result, refs, authTraceOutcome, authTraceSwitchOffError } = await deps.pool.withWrite(
     "abap_bopf_test",
     bridgeClass,
     async (conn) => {
@@ -129719,13 +131180,37 @@ async function runBopfTest2(deps, args) {
         nodes: input.scenario.nodes,
         cleanup: input.scenario.cleanup
       };
-      const result2 = await runBopfTest(conn, model, scenario, deps.safety, {
+      const executeBopfRun = async () => runBopfTest(conn, model, scenario, deps.safety, {
         generateOnly: input.generate_only
       });
-      return { result: result2, refs: refs2 };
+      if (authTraceRequested) {
+        try {
+          const wrapped = await withAuthTrace({ conn, gate: deps.safety }, conn.cfg.user, executeBopfRun);
+          return {
+            result: wrapped.value,
+            refs: refs2,
+            authTraceOutcome: wrapped.authTrace,
+            authTraceSwitchOffError: wrapped.switchOffError
+          };
+        } catch (e) {
+          attachAuthTraceToError3(e);
+          throw e;
+        }
+      }
+      const result2 = await executeBopfRun();
+      return { result: result2, refs: refs2, authTraceOutcome: void 0, authTraceSwitchOffError: void 0 };
     }
   );
-  return ok11(buildTestResponse(result, refs, deps.cfg.maxResponseChars, input.bo));
+  return ok11(
+    buildTestResponse(
+      result,
+      refs,
+      deps.cfg.maxResponseChars,
+      input.bo,
+      authTraceOutcome,
+      authTraceSwitchOffError
+    )
+  );
 }
 function registerBopfTestTool(mcp, deps) {
   mcp.registerTool(
@@ -145307,7 +146792,7 @@ function createServer(cfg, opts) {
     registerWriteTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal, transport });
     registerImgEditTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal });
     registerRunTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
-    registerTestTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
+    registerTestTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal });
     registerAtcTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
     registerQuickFixTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal, transport });
   }
