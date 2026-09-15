@@ -355,7 +355,7 @@ describe("probe 6 — is the denial on every outbound path?", () => {
     ).toThrow();
   });
 
-  it("CANARY: across ALL of src/, exactly three modules can open a socket", () => {
+  it("CANARY: across ALL of src/, exactly four modules can open a socket", () => {
     // Detects the CAPABILITY to open a socket, not a call shape: a module that
     // imports `node:http`/`node:https`/`node:net`/`node:tls`, constructs an
     // `AxiosHttpClient`, or reaches for `axios`/`fetch`. An earlier version of
@@ -380,6 +380,16 @@ describe("probe 6 — is the denial on every outbound path?", () => {
     // `planProxyRequest` afterwards (see that file, ~line 230 vs ~253), so a
     // URL the guard would deny never reaches this module at all. It cannot be
     // used to open a socket the denial didn't already clear.
+    //
+    // `mcp-http.ts` became the FOURTH (issue #81, MCP over Streamable HTTP),
+    // decided consciously: it imports `node:http` for `createServer` — a
+    // LISTENER that accepts inbound MCP clients — and `node:net` type-only
+    // (`type Socket`, for the idle-socket bookkeeping on shutdown). It never
+    // dials out: grep it, there is no `.request(`, `.get(` on http, `fetch(`
+    // or `createConnection(`; its one `.connect(` is `mcp.connect(transport)`,
+    // the SDK attaching a server-side session, not a socket. Every ADT call
+    // an HTTP-served session makes still goes through the one pool behind
+    // `adt/http-guard.ts`, so the denial applies to it exactly as to stdio.
     const root = fileURLToPath(new URL("../src/", import.meta.url));
     const files: string[] = [];
     const walk = (dir: string): void => {
@@ -406,7 +416,12 @@ describe("probe 6 — is the denial on every outbound path?", () => {
         .filter((l) => !/^\s*(\*|\/\/|\/\*)/.test(l));
       return SINK.some((re) => lines.some((l) => re.test(l)));
     });
-    expect(sinks.sort()).toEqual(["adt/http-guard.ts", "debug/proxy.ts", "debug/transport.ts"]);
+    expect(sinks.sort()).toEqual([
+      "adt/http-guard.ts",
+      "debug/proxy.ts",
+      "debug/transport.ts",
+      "mcp-http.ts",
+    ]);
   });
 
   it("CANARY: the debugger's raw-socket egress IS behind the denial", () => {
