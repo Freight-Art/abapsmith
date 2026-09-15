@@ -225,8 +225,21 @@ export const writeInputSchema = {
   // update — nothing carried over here from what already exists.
   shlp: z
     .object({
-      selectionMethod: z.string().describe("DD30V-SELMETHOD: table or view the search help selects from."),
-      selectionMethodType: z.enum(["T", "V", "M"]).describe("DD30V-SELMTYPE."),
+      selectionMethod: z
+        .string()
+        .optional()
+        .describe(
+          "DD30V-SELMETHOD: table or view the search help selects from. Omit for a collective search " +
+            "help, or an elementary one driven by a search-help exit instead of a table/view — both " +
+            "are normal and have no selection method at all.",
+        ),
+      selectionMethodType: z
+        .enum(["T", "V", "M"])
+        .optional()
+        .describe(
+          "DD30V-SELMTYPE. Only meaningful alongside selectionMethod; omit when selectionMethod is " +
+            "omitted too.",
+        ),
       dialogType: z.string().optional().describe("DD30V-DIALOGTYPE. Defaults to \"D\" when omitted."),
       textTable: z.string().optional().describe("DD30V-TEXTTAB."),
       hotKey: z.string().optional().describe("DD30V-HOTKEY, one character."),
@@ -1465,6 +1478,23 @@ export async function abapWrite(
   if (isBridgeOnlyCreateType(input.type)) {
     if (input.dry_run) throw dryRunNotSupported("bridge", input.type);
     return await abapBridgeCrud(conn, target, input, maxChars, gate, journal, transport);
+  }
+
+  // Zero-network refusal for `mode="update"` on any type that isn't one of the three
+  // bridge update routes (VIEW/DV, TRAN/T, SHLP/DH — see `isBridgeUpdateType` /
+  // `BRIDGE_UPDATE_TYPES` near `abapUpdateViaBridge`). Every type with a real update
+  // route is `isBridgeOnlyCreateType` and already returned above, dispatched into
+  // `abapBridgeCrud` → `abapUpdateViaBridge`, whose OWN type check re-derives the same
+  // answer from the same list — so this and that can never disagree. Without this gate,
+  // a type like CLAS/OC falls through to the generic write path below, which has no idea
+  // `mode="update"` was ever requested and misreports the failure as a missing `source`
+  // (issue #83) — so this must fire before `authorizeMutation` or any other network use
+  // below, not just before the misleading message.
+  if ((input.mode ?? "write") === "update") {
+    const requestedType = (input.type ?? "").trim().toUpperCase();
+    if (!isBridgeUpdateType(requestedType)) {
+      throw bridgeUpdateNotSupported(requestedType, target.name);
+    }
   }
 
   /** Transport plumbing, spread into both mutation calls so write/delete can't drift apart on it. */
@@ -4617,6 +4647,36 @@ async function abapDeleteSearchHelpViaBridge(
  * branch, for all three types uniformly (VIEW/DV and TRAN/T included, even though
  * `vitTypeFor` does support them — an update has nothing to undo TO either way).
  */
+
+/**
+ * Single source of truth for "which types have a real `mode=\"update\"` route" —
+ * consulted both by `abapUpdateViaBridge` below (reached only for a type
+ * `isBridgeOnlyCreateType` already routed here) and by `abapWrite`'s own zero-network
+ * gate (reached for every OTHER type, which never gets near `isBridgeOnlyCreateType`'s
+ * dispatch at all). One list, so the two refusals can never drift apart.
+ */
+const BRIDGE_UPDATE_TYPES: readonly string[] = ["VIEW/DV", "TRAN/T", "SHLP/DH"];
+
+function isBridgeUpdateType(type: string): boolean {
+  return BRIDGE_UPDATE_TYPES.includes(type);
+}
+
+/**
+ * The one "no update route" refusal both call sites above throw for a type outside
+ * {@link BRIDGE_UPDATE_TYPES} — built in one place so a caller sees a single wording,
+ * never two variants depending on which of the two gates happened to catch it.
+ */
+function bridgeUpdateNotSupported(type: string, objectName: string): AbapError {
+  return new AbapError(
+    "BAD_INPUT",
+    `${type || "This type"} has no update route: mode="update" is only wired for VIEW/DV, TRAN/T ` +
+      "and SHLP/DH.",
+    { object: objectName, type, mode: "update" },
+    'Use mode="write" to create, or (for most other types) an ordinary abap_write with `source`/' +
+      '`edit` to change an existing object\'s definition in place.',
+  );
+}
+
 async function abapUpdateViaBridge(
   conn: AbapConnection,
   target: WriteTarget,
@@ -4632,13 +4692,8 @@ async function abapUpdateViaBridge(
     throw new AbapError("BAD_INPUT", message, { object: target.name, type, mode: "update" }, hint);
   };
 
-  if (type !== "VIEW/DV" && type !== "TRAN/T" && type !== "SHLP/DH") {
-    bad(
-      `${type || "This type"} has no update route: mode="update" is only wired for VIEW/DV, TRAN/T ` +
-        "and SHLP/DH.",
-      'Use mode="write" to create, or (for most other types) an ordinary abap_write with `source`/' +
-        '`edit` to change an existing object\'s definition in place.',
-    );
+  if (!isBridgeUpdateType(type)) {
+    throw bridgeUpdateNotSupported(type, target.name);
   }
   if (input.source !== undefined || input.edit !== undefined || input.method !== undefined) {
     bad(`A ${label} (${type}) has no source: omit \`source\`, \`edit\` and \`method\`.`);

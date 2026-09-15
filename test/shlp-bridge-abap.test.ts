@@ -244,6 +244,71 @@ describe("delete_search_help: where-used guard runs before any deletion, and is 
   });
 });
 
+describe("delete_search_help: the DD31S in-use COUNT excludes the search help's own self-row (issue #83)", () => {
+  it("adds shlpname <> @lv_shlp alongside subshlp = @lv_shlp, so an elementary help's own DD31S row never counts as in-use", () => {
+    // SAP itself writes a DD31S row with SUBSHLP = SHLPNAME (SHPOSITION 0001)
+    // for an elementary search help's own interface — measured live on A4H
+    // 2026-09-15 across five standard SAP elementary helps (/UI2/GROUPS_SH,
+    // /AIF/MESSAGE_CLID_SHLP, /UI5/PURPOSE, /BA1/F4_FX_RATETYPE,
+    // /AIF/FILEDIALOG), each returning exactly one DD31S row with
+    // SUBSHLP = SHLPNAME. Without excluding that self-row, every elementary
+    // help this bridge creates would be reported "in use" — and hence
+    // undeletable without confirm_in_use — forever.
+    const countIdx = deleteBody.indexOf("SELECT COUNT( * ) FROM dd31s");
+    expect(countIdx).toBeGreaterThanOrEqual(0);
+    const line = deleteBody.slice(countIdx, deleteBody.indexOf("\n", countIdx));
+    expect(line).toContain("subshlp = @lv_shlp");
+    expect(line).toContain("shlpname <> @lv_shlp");
+  });
+});
+
+describe("create/update: a blank selection method skips BOTH the method-existence and the field-existence checks (issue #83)", () => {
+  it("IF lv_selmethod IS INITIAL exists, and the ELSE branch — not the IF branch — contains the DD02L/DD25L and DD03L/DD27S checks", () => {
+    for (const body of [createBody, updateBody]) {
+      const ifIdx = body.indexOf("IF lv_selmethod IS INITIAL.");
+      expect(ifIdx).toBeGreaterThanOrEqual(0);
+      const elseIdx = body.indexOf("ELSE.", ifIdx);
+      expect(elseIdx).toBeGreaterThan(ifIdx);
+
+      const selMethodCheckIdx = body.indexOf("does not exist as a", ifIdx);
+      const fieldCheckIdx = body.indexOf("is not a field of selection method", ifIdx);
+      expect(selMethodCheckIdx).toBeGreaterThan(elseIdx);
+      expect(fieldCheckIdx).toBeGreaterThan(elseIdx);
+
+      // Nothing between the IF and its ELSE names dd02l/dd25l/dd03l/dd27s —
+      // the whole-branch skip is real, not just the fail() text moved down.
+      const ifBranch = body.slice(ifIdx, elseIdx);
+      expect(ifBranch).not.toMatch(/\bdd02l\b|\bdd25l\b|\bdd03l\b|\bdd27s\b/i);
+    }
+  });
+
+  it("emits a ZMCP-DDIC-NOTE explaining a blank selection method inside the IF branch (collective help or search-help exit)", () => {
+    for (const body of [createBody, updateBody]) {
+      const ifIdx = body.indexOf("IF lv_selmethod IS INITIAL.");
+      const elseIdx = body.indexOf("ELSE.", ifIdx);
+      const noteIdx = body.indexOf("ZMCP-DDIC-NOTE> no selection method was given", ifIdx);
+      expect(noteIdx).toBeGreaterThan(ifIdx);
+      expect(noteIdx).toBeLessThan(elseIdx);
+    }
+  });
+
+  it("still assigns ls_dd30v-selmethod unconditionally (from lv_selmethod, blank or not) after the whole IF/ELSE structure", () => {
+    // Anchored on the "--- fill DD30V ---" marker rather than counting
+    // ENDIF.s: the ELSE branch nests several of its own (the method-existence
+    // check, the field-loop's IF, the DO...ENDDO), so naively taking "the
+    // Nth ENDIF." after the IF would land inside the ELSE branch, not past
+    // it.
+    for (const body of [createBody, updateBody]) {
+      const ifIdx = body.indexOf("IF lv_selmethod IS INITIAL.");
+      const fillMarkerIdx = body.indexOf("--- fill DD30V");
+      const assignIdx = body.indexOf("ls_dd30v-selmethod", fillMarkerIdx);
+      expect(fillMarkerIdx).toBeGreaterThan(ifIdx);
+      expect(assignIdx).toBeGreaterThan(fillMarkerIdx);
+      expect(body.slice(assignIdx, assignIdx + 40)).toContain("= lv_selmethod.");
+    }
+  });
+});
+
 describe("scope — this bridge only ever targets SHLP objects", () => {
   it("RS_CORR_INSERT is always called with object_class = 'DICT' and an object token prefixed SHLP", () => {
     expect(createBody).toContain("object_class = 'DICT'");

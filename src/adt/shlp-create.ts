@@ -99,10 +99,21 @@ export interface SearchHelpParams {
   corrNr?: string;
   /** Whether `corrNr` was named by a human or picked by the server — see `SafetyCorr` (`../safety.js`). */
   corrSource?: "named" | "auto";
-  /** Table or view the search help selects from (DD30V-SELMETHOD). */
-  selectionMethod: string;
-  /** Selection method type (DD30V-SELMTYPE): `"T"` (table), `"V"` (view) or `"M"` — the only three this module accepts before dispatch. */
-  selectionMethodType: string;
+  /**
+   * Table or view the search help selects from (DD30V-SELMETHOD). Omit or
+   * pass `""` for a collective search help (DD30V-ISSIMPLE = space), or for
+   * an elementary one driven by a search-help exit instead of a table/view —
+   * both are normal: five standard SAP elementary helps measured live on
+   * A4H 2026-09-15 (e.g. `/UI2/GROUPS_SH`) carry a blank DD30V-SELMETHOD.
+   */
+  selectionMethod?: string;
+  /**
+   * Selection method type (DD30V-SELMTYPE): `"T"` (table), `"V"` (view) or
+   * `"M"` — the only three this module accepts before dispatch. Only
+   * meaningful alongside a non-blank `selectionMethod`; omit or pass `""`
+   * when `selectionMethod` is blank too.
+   */
+  selectionMethodType?: string;
   /** DD30V-DIALOGTYPE. `abap-shlp.ts` defaults this to `"D"` when omitted/empty. */
   dialogType?: string;
   /** Optional text table (DD30V-TEXTTAB). */
@@ -195,8 +206,16 @@ interface ValidatedSearchHelp {
   assignments: readonly SearchHelpAssignment[];
 }
 
-/** Every caller string validated once, so the fluid action can never see a raw one. */
-function validate(packageNameStr: string, p: SearchHelpParams): ValidatedSearchHelp {
+/**
+ * Every caller string validated once, so the fluid action can never see a
+ * raw one. Exported alongside {@link buildArgs} only so
+ * `test/classic-bridge-wire-format.test.ts` can drive the exact
+ * `validate()` -> `buildArgs()` sequence `createSearchHelp`/
+ * `updateSearchHelp` run before dispatch, and capture the real `args`
+ * object, without standing up a fake ABAP connection all the way through
+ * `dispatch()`.
+ */
+export function validate(packageNameStr: string, p: SearchHelpParams): ValidatedSearchHelp {
   const shlpName = assertEnhIdentifier(p.shlpName, "shlpName", { maxLength: SHLP_NAME_MAX });
   const description = assertAbapText(p.description, "description", SHLP_TEXT_MAX);
   const packageName = assertSearchHelpTarget(packageNameStr, p.corrNr);
@@ -214,17 +233,40 @@ function validate(packageNameStr: string, p: SearchHelpParams): ValidatedSearchH
   }
   const corrNr = local ? undefined : p.corrNr;
 
-  const selectionMethod = assertEnhIdentifier(p.selectionMethod, "selectionMethod", { maxLength: SHLP_NAME_MAX });
-  if (typeof p.selectionMethodType !== "string" || !SELECTION_METHOD_TYPES.has(p.selectionMethodType)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `selectionMethodType ${JSON.stringify(p.selectionMethodType)} must be one of ` +
-        `${[...SELECTION_METHOD_TYPES].join(", ")} — abap-shlp.ts only special-cases "T" (table) and "V" ` +
-        '(view) existence checks, and does not check anything else against the server.',
-      { what: "selectionMethodType", value: p.selectionMethodType },
-    );
+  // Blank means "none": a collective search help has no selection method at all
+  // (DD30V-SELMETHOD empty), and plenty of standard SAP elementary helps have a
+  // blank one too, driven by a search-help exit instead — see the module doc on
+  // `SearchHelpParams.selectionMethod`. `undefined` and `""` are both "none";
+  // anything else is validated as a real ABAP object name, same as before.
+  const selectionMethodGiven = p.selectionMethod !== undefined && p.selectionMethod !== "";
+  const selectionMethod = selectionMethodGiven
+    ? assertEnhIdentifier(p.selectionMethod as string, "selectionMethod", { maxLength: SHLP_NAME_MAX })
+    : "";
+
+  let selectionMethodType: string;
+  if (!selectionMethodGiven) {
+    if (p.selectionMethodType !== undefined && p.selectionMethodType !== "") {
+      throw new AbapError(
+        "BAD_INPUT",
+        `selectionMethodType ${JSON.stringify(p.selectionMethodType)} was given but selectionMethod ` +
+          "was not — DD30V-SELMTYPE only means something alongside a selection method; leave both " +
+          "blank for a collective search help, or an elementary one driven by a search-help exit.",
+        { what: "selectionMethodType", value: p.selectionMethodType },
+      );
+    }
+    selectionMethodType = "";
+  } else {
+    if (typeof p.selectionMethodType !== "string" || !SELECTION_METHOD_TYPES.has(p.selectionMethodType)) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `selectionMethodType ${JSON.stringify(p.selectionMethodType)} must be one of ` +
+          `${[...SELECTION_METHOD_TYPES].join(", ")} — abap-shlp.ts only special-cases "T" (table) and "V" ` +
+          '(view) existence checks, and does not check anything else against the server.',
+        { what: "selectionMethodType", value: p.selectionMethodType },
+      );
+    }
+    selectionMethodType = p.selectionMethodType;
   }
-  const selectionMethodType = p.selectionMethodType;
 
   const dialogType =
     p.dialogType === undefined ? undefined : assertAbapText(p.dialogType, "dialogType", 1);
@@ -276,6 +318,15 @@ function validate(packageNameStr: string, p: SearchHelpParams): ValidatedSearchH
     name: assertEnhIdentifier(inc.name, `includes[${i}].name`, { maxLength: SHLP_NAME_MAX }),
   }));
 
+  if (!p.elementary && includes.length === 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "includes must be a non-empty array when elementary: false — a collective search help with " +
+        "no included helps has nothing to collect.",
+      { what: "includes", elementary: false },
+    );
+  }
+
   const assignments = (p.assignments ?? []).map((a, i) => {
     const field = assertEnhIdentifier(a.field, `assignments[${i}].field`, { maxLength: SHLP_NAME_MAX });
     const includedHelp = assertEnhIdentifier(a.includedHelp, `assignments[${i}].includedHelp`, { maxLength: SHLP_NAME_MAX });
@@ -309,8 +360,20 @@ function validate(packageNameStr: string, p: SearchHelpParams): ValidatedSearchH
   };
 }
 
-/** Builds the fluid action's `args` object from validated params, omitting undefined keys — `runClassicAction`'s contract. */
-function buildArgs(v: ValidatedSearchHelp): Record<string, unknown> {
+/**
+ * Builds the fluid action's `args` object from validated params, omitting
+ * undefined keys — `runClassicAction`'s contract. `fields`, `includes` and
+ * `assignments` are handed over here as the honest, caller-facing NESTED
+ * arrays of objects the `classic` manifest declares (and validates
+ * against) — the flat `key/{i}/{prop}` wire shape `abap-shlp.ts` actually
+ * reads is produced downstream, in the dispatcher, by `flattenScanArgs`
+ * (`src/adt/fluid/flat-args.ts`), because the `classic` manifest sets
+ * `flatArgs: true`. This function must not pre-flatten: the dispatcher
+ * validates `args` against the declared (nested) schema before flattening,
+ * so a flattened object here would fail validation with e.g.
+ * "args.fields: must be an array".
+ */
+export function buildArgs(v: ValidatedSearchHelp): Record<string, unknown> {
   return {
     shlp_name: v.shlpName,
     description: v.description,

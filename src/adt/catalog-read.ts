@@ -51,7 +51,7 @@ import {
   buildViewTextDetailQuery,
   parseTransactionParameters,
 } from "./catalog-query.js";
-import { IMG_DEFAULT_LANGUAGE, fld, toRecordSet, type PreviewRecordSet } from "./img-query.js";
+import { IMG_DEFAULT_LANGUAGE, fld, toRecordSet, type PreviewRecord, type PreviewRecordSet } from "./img-query.js";
 
 /** What `readSearchHelp`/`readClassicView`/`readTransaction` need from a live connection — exactly `ImgReadConnection`'s shape, kept as its own name so this module doesn't import `img-read.ts` for a one-line interface. */
 export interface CatalogReadConnection {
@@ -232,11 +232,49 @@ async function readSearchHelpImpl(
   for (const rs of [text.rs, includes.rs, params.rs, assigns.rs, usedBy.rs, parents.rs]) {
     notes.push(...serverNotes(rs));
   }
+
+  // DD31S carries a row pointing an elementary search help at its own interface
+  // (SUBSHLP = SHLPNAME, SHPOSITION 0001) even when the caller wrote no includes at
+  // all — measured live on A4H 2026-09-15 on a freshly created ELEMENTARY search
+  // help ZSH_I83_EL (two interface fields, no includes, no assignments), and
+  // confirmed as DDIC's general representation, not a write-path defect, by an
+  // abap_data_preview of DD31S for five standard SAP elementary search helps
+  // (/UI2/GROUPS_SH, /AIF/MESSAGE_CLID_SHLP, /UI5/PURPOSE, /BA1/F4_FX_RATETYPE,
+  // /AIF/FILEDIALOG), each with exactly one row, SUBSHLP = SHLPNAME, at
+  // SHPOSITION 0001. That row is not an include relationship, so it is filtered
+  // out of INCLUDES, INCLUDED BY and includeCount below — the DD33S ASSIGNMENTS
+  // rows are left untouched, since this evidence says nothing about what a
+  // self-referencing DD33S row would mean.
+  // Both the includes query (WHERE SHLPNAME = name) and the parents query
+  // (WHERE SUBSHLP = name) select the same DD31S columns, so a self-row is
+  // identified the same way in either result set: SHLPNAME and SUBSHLP both
+  // equal this search help's own name, not just the one column each query's
+  // WHERE clause already pins.
+  const normalizedName = name.trim().toUpperCase();
+  const norm = (v: string | undefined): string => (v ?? "").trim().toUpperCase();
+  const isSelfShlpRow = (r: PreviewRecord): boolean =>
+    norm(r[fld("searchHelpInclude", "searchHelp")]) === normalizedName &&
+    norm(r[fld("searchHelpInclude", "includedHelp")]) === normalizedName;
+  const includeSelfFound = includes.rs.records.some(isSelfShlpRow);
+  const parentSelfFound = parents.rs.records.some(isSelfShlpRow);
+  const includesRs = { ...includes.rs, records: includes.rs.records.filter((r) => !isSelfShlpRow(r)) };
+  const parentsRs = { ...parents.rs, records: parents.rs.records.filter((r) => !isSelfShlpRow(r)) };
+
   notes.push(...truncationNote("PARAMETERS", CAP_LIST, params.rs));
-  notes.push(...truncationNote("INCLUDES", CAP_LIST, includes.rs));
+  notes.push(...truncationNote("INCLUDES", CAP_LIST, includesRs));
   notes.push(...truncationNote("ASSIGNMENTS", CAP_LIST, assigns.rs));
   notes.push(...truncationNote("USED BY DATA ELEMENTS", CAP_LIST, usedBy.rs));
-  notes.push(...truncationNote("INCLUDED BY", CAP_LIST, parents.rs));
+  notes.push(...truncationNote("INCLUDED BY", CAP_LIST, parentsRs));
+  if (includeSelfFound || parentSelfFound) {
+    notes.push(
+      "A DD31S row with SUBSHLP = SHLPNAME (this search help pointing at its own interface) was " +
+        "found and left out of INCLUDES, INCLUDED BY and includeCount — DDIC records an elementary " +
+        "search help's own interface that way, it is not an include relationship. Measured live on " +
+        "A4H 2026-09-15 (ZSH_I83_EL) and confirmed as DDIC's general pattern via DD31S for five " +
+        "standard SAP elementary search helps (/UI2/GROUPS_SH, /AIF/MESSAGE_CLID_SHLP, /UI5/PURPOSE, " +
+        "/BA1/F4_FX_RATETYPE, /AIF/FILEDIALOG).",
+    );
+  }
   if (assigns.rs.records.length > 0) {
     notes.push(
       "DD33S-VALUEDIREC is not decoded here — the column exists (measured 2026-09-12) but its " +
@@ -256,7 +294,7 @@ async function readSearchHelpImpl(
       `(${dir}) POS ${r[fld("searchHelpParam", "position")] ?? ""}`
     );
   });
-  const includeLines = includes.rs.records.map((r) => {
+  const includeLines = includesRs.records.map((r) => {
     const hidden = flag(r[fld("searchHelpInclude", "hidden")]) ? " HIDDEN" : "";
     return `${r[fld("searchHelpInclude", "includedHelp")] ?? ""} POS ${r[fld("searchHelpInclude", "position")] ?? ""}${hidden}`;
   });
@@ -270,7 +308,7 @@ async function readSearchHelpImpl(
   const usedByLines = usedBy.rs.records.map((r) => {
     return `${r[fld("dataElementHeader", "dataElement")] ?? ""} FIELD ${r[fld("dataElementHeader", "searchHelpField")] ?? ""}`;
   });
-  const parentLines = parents.rs.records.map((r) => {
+  const parentLines = parentsRs.records.map((r) => {
     return `${r[fld("searchHelpInclude", "searchHelp")] ?? ""}`;
   });
 
@@ -311,7 +349,7 @@ async function readSearchHelpImpl(
       selectionMethod: nonEmpty(headerRow[fld("searchHelpHeader", "selectionMethod")]),
       textTable: nonEmpty(headerRow[fld("searchHelpHeader", "textTable")]),
       parameterCount: params.rs.records.length,
-      includeCount: includes.rs.records.length,
+      includeCount: includesRs.records.length,
     },
     notes,
     hashInput: ddl,

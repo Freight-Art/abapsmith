@@ -173,6 +173,94 @@ describe("readSearchHelp", () => {
     expect(render.hashInput).toBe(render.ddl);
   });
 
+  it("DD31S self-row (SUBSHLP = SHLPNAME = own name) is suppressed from INCLUDES/INCLUDED BY and includeCount, with a NOTE explaining why", async () => {
+    // Evidence: a live read of a freshly created ELEMENTARY search help
+    // ZSH_I83_EL — two interface fields, NO includes, NO assignments —
+    // measured 2026-09-15 on A4H came back with exactly one DD31S row,
+    // SUBSHLP = SHLPNAME = ZSH_I83_EL, reported as both an include and an
+    // "included by" of itself. This is DDIC's own representation, not a
+    // write-path bug (see catalog-read.ts's comment above the filter).
+    const conn = new FakeCatalogConn({
+      DD30L: {
+        columns: ["SHLPNAME", "AS4LOCAL", "ISSIMPLE", "SELMETHOD", "SELMTYPE"],
+        rows: [["ZSHLP", "A", "X", "ZSHLPTAB", "T"]],
+      },
+      DD31S: {
+        columns: ["SHLPNAME", "SUBSHLP", "SHPOSITION", "VIASHLP", "HIDEFLAG"],
+        rows: [["ZSHLP", "ZSHLP", "1", "", ""]],
+      },
+    });
+    const render = await readSearchHelp(conn, "ZSHLP", "E");
+
+    expect(render.meta.includeCount).toBe(0);
+    expect(render.ddl).not.toContain("INCLUDES");
+    expect(render.ddl).not.toContain("INCLUDED BY");
+    expect(render.notes.some((n) => n.includes("SUBSHLP = SHLPNAME"))).toBe(true);
+  });
+
+  it("a genuine include survives self-row suppression: the real include is listed, the self-row is not, includeCount counts only the real one", async () => {
+    const conn = new FakeCatalogConn({
+      DD30L: {
+        columns: ["SHLPNAME", "AS4LOCAL", "ISSIMPLE", "SELMETHOD", "SELMTYPE"],
+        rows: [["ZSHLP", "A", "", "ZSHLPTAB", "T"]],
+      },
+      DD31S: {
+        columns: ["SHLPNAME", "SUBSHLP", "SHPOSITION", "VIASHLP", "HIDEFLAG"],
+        // Position 1 is the self-row DDIC also writes for a collective help;
+        // position 2 is a genuine include of another search help.
+        rows: [
+          ["ZSHLP", "ZSHLP", "1", "", ""],
+          ["ZSHLP", "ZREALSUB", "2", "", ""],
+        ],
+      },
+    });
+    const render = await readSearchHelp(conn, "ZSHLP", "E");
+
+    expect(render.meta.includeCount).toBe(1);
+    expect(render.ddl).toContain("ZREALSUB POS 2");
+    const includeSection = render.sections.find((s) => s.title === "INCLUDES");
+    expect(includeSection?.content).not.toContain("ZSHLP POS 1");
+    expect(render.notes.some((n) => n.includes("SUBSHLP = SHLPNAME"))).toBe(true);
+  });
+
+  it("no DD31S self-row present — the suppression NOTE is absent and includeCount reflects the raw row count", async () => {
+    // Reuses the same fixture shape as the very first test in this suite
+    // (SUBSHLP = ZSUBHLP, not the search help's own name).
+    const conn = new FakeCatalogConn({
+      DD30L: {
+        columns: ["SHLPNAME", "AS4LOCAL", "ISSIMPLE", "SELMETHOD", "SELMTYPE"],
+        rows: [["ZSHLP", "A", "X", "ZSHLPTAB", "T"]],
+      },
+      DD31S: {
+        columns: ["SHLPNAME", "SUBSHLP", "SHPOSITION", "VIASHLP", "HIDEFLAG"],
+        rows: [["ZSHLP", "ZSUBHLP", "1", "", ""]],
+      },
+    });
+    const render = await readSearchHelp(conn, "ZSHLP", "E");
+
+    expect(render.meta.includeCount).toBe(1);
+    expect(render.ddl).toContain("ZSUBHLP POS 1");
+    expect(render.notes.some((n) => n.includes("SUBSHLP = SHLPNAME"))).toBe(false);
+  });
+
+  it("DD31S self-row suppression is case/whitespace-insensitive", async () => {
+    const conn = new FakeCatalogConn({
+      DD30L: {
+        columns: ["SHLPNAME", "AS4LOCAL", "ISSIMPLE", "SELMETHOD", "SELMTYPE"],
+        rows: [["ZSHLP", "A", "X", "ZSHLPTAB", "T"]],
+      },
+      DD31S: {
+        columns: ["SHLPNAME", "SUBSHLP", "SHPOSITION", "VIASHLP", "HIDEFLAG"],
+        rows: [[" zshlp ", " zshlp ", "1", "", ""]],
+      },
+    });
+    const render = await readSearchHelp(conn, "ZSHLP", "E");
+
+    expect(render.meta.includeCount).toBe(0);
+    expect(render.ddl).not.toContain("INCLUDES");
+    expect(render.notes.some((n) => n.includes("SUBSHLP = SHLPNAME"))).toBe(true);
+  });
+
   it("NOT_FOUND (DD30L returned no row) — the exact contract catalogProbe() in src/tools/write.ts keys off", async () => {
     // src/tools/write.ts's catalogProbe() treats ONLY an AbapError with code
     // === "NOT_FOUND" as "confirmed absent" and rethrows every other code —

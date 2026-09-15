@@ -9,6 +9,19 @@
  * exception lists below are transcribed from that run - do not "simplify"
  * them.
  *
+ * Two defects found in a later live run on A4H, 2026-09-15, both fixed here:
+ * (1) the DD31S where-used COUNT in delete_search_help counted a search
+ * help's own DD31S self-row (SAP writes SUBSHLP = SHLPNAME at SHPOSITION
+ * 0001 for an elementary help's own interface - not a real "included by" a
+ * collective help) as "in use", so every elementary help this bridge ever
+ * created was permanently undeletable without confirm_in_use; (2) a blank
+ * selection method (DD30V-SELMETHOD empty - the normal shape for a
+ * collective search help, and for plenty of standard elementary ones driven
+ * by a search-help exit) was refused by the DD02L/DD25L existence check
+ * before either FM ever ran, so a collective search help could not be
+ * created at all. See the comments at each fix site below for the measured
+ * evidence.
+ *
  * IMPORTANT, learned the hard way live: the global table types DD31VTAB,
  * DD32PTAB and DD33VTAB do NOT exist on this release - declaring a
  * `TABLES` parameter or a local typed from them fails the syntax check.
@@ -27,6 +40,20 @@
  * strings rather than factored into one shared generator - this file is a
  * static template string, not a place to build indirection; abap-view.ts
  * duplicates create_view/delete_view the same way.
+ *
+ * Every argument path read below via `n()`/`s()`/`b()` — `n( 'fields' )`,
+ * `n( 'includes' )`, `n( 'assignments' )`, and the per-element paths
+ * `fields/{i}/name`, `fields/{i}/data_element`, `fields/{i}/import`,
+ * `fields/{i}/export`, `fields/{i}/default_value`, `includes/{i}/name`,
+ * `assignments/{i}/field`, `assignments/{i}/included_help`,
+ * `assignments/{i}/included_field`, `assignments/{i}/direction` — exists
+ * because the dispatcher flattens the manifest-declared nested arrays of
+ * objects `fields`/`includes`/`assignments` via `flattenScanArgs`
+ * (`src/adt/fluid/flat-args.ts`, driven by the `classic` manifest's
+ * `flatArgs`), not because `scan()` (`abap-core.ts`) recurses into them
+ * itself — `scan()` only understands a scalar or an array of strings; this
+ * file's job is simply to read the flat paths `flattenScanArgs` produces,
+ * in the shapes it produces them.
  */
 import type { ClassicAbapPart } from "./abap-core.js";
 
@@ -83,37 +110,48 @@ const PUT_LOCALS = `    DATA lv_shlp TYPE dd30l-shlpname.
       ENDIF.
     ENDIF.
 
-    CASE lv_selmtype.
-      WHEN 'T'.
-        SELECT COUNT( * ) FROM dd02l INTO @lv_selmethod_count WHERE tabname = @lv_selmethod AND as4local = 'A'.
-      WHEN 'V'.
-        SELECT COUNT( * ) FROM dd25l INTO @lv_selmethod_count WHERE viewname = @lv_selmethod AND as4local = 'A'.
-      WHEN OTHERS.
-        line( |ZMCP-DDIC-NOTE> selection method type { lv_selmtype } is not checked| ).
-        lv_selmethod_count = 1.
-    ENDCASE.
-    IF lv_selmethod_count = 0.
-      fail( |selection method { lv_selmethod } does not exist as a { lv_selmtype }| ).
-      RETURN.
-    ENDIF.
+    " A collective search help has no selection method (DD30V-SELMETHOD blank) - and, per the
+    " five standard SAP elementary helps measured live on A4H 2026-09-15 (e.g. /UI2/GROUPS_SH,
+    " /UI5/PURPOSE), plenty of elementary helps have a blank one too, driven by a search-help
+    " exit instead. Neither the method's own existence nor its interface fields mean anything
+    " to check against the catalogue in that case, so both checks below are skipped entirely.
+    IF lv_selmethod IS INITIAL.
+      line( |ZMCP-DDIC-NOTE> no selection method was given (a collective search help, or an | &&
+        |elementary one driven by a search-help exit) - neither the method nor the interface | &&
+        |fields are checked against the catalogue| ).
+    ELSE.
+      CASE lv_selmtype.
+        WHEN 'T'.
+          SELECT COUNT( * ) FROM dd02l INTO @lv_selmethod_count WHERE tabname = @lv_selmethod AND as4local = 'A'.
+        WHEN 'V'.
+          SELECT COUNT( * ) FROM dd25l INTO @lv_selmethod_count WHERE viewname = @lv_selmethod AND as4local = 'A'.
+        WHEN OTHERS.
+          line( |ZMCP-DDIC-NOTE> selection method type { lv_selmtype } is not checked| ).
+          lv_selmethod_count = 1.
+      ENDCASE.
+      IF lv_selmethod_count = 0.
+        fail( |selection method { lv_selmethod } does not exist as a { lv_selmtype }| ).
+        RETURN.
+      ENDIF.
 
-    IF lv_selmtype = 'T' OR lv_selmtype = 'V'.
-      DO lv_field_count TIMES.
-        lv_i = sy-index.
-        lv_field = s( |fields/{ lv_i - 1 }/name| ).
-        CASE lv_selmtype.
-          WHEN 'T'.
-            SELECT COUNT( * ) FROM dd03l INTO @lv_fld_count
-              WHERE tabname = @lv_selmethod AND fieldname = @lv_field AND as4local = 'A'.
-          WHEN 'V'.
-            SELECT COUNT( * ) FROM dd27s INTO @lv_fld_count
-              WHERE viewname = @lv_selmethod AND viewfield = @lv_field AND as4local = 'A'.
-        ENDCASE.
-        IF lv_fld_count = 0.
-          fail( |field { lv_field } is not a field of selection method { lv_selmethod }| ).
-          RETURN.
-        ENDIF.
-      ENDDO.
+      IF lv_selmtype = 'T' OR lv_selmtype = 'V'.
+        DO lv_field_count TIMES.
+          lv_i = sy-index.
+          lv_field = s( |fields/{ lv_i - 1 }/name| ).
+          CASE lv_selmtype.
+            WHEN 'T'.
+              SELECT COUNT( * ) FROM dd03l INTO @lv_fld_count
+                WHERE tabname = @lv_selmethod AND fieldname = @lv_field AND as4local = 'A'.
+            WHEN 'V'.
+              SELECT COUNT( * ) FROM dd27s INTO @lv_fld_count
+                WHERE viewname = @lv_selmethod AND viewfield = @lv_field AND as4local = 'A'.
+          ENDCASE.
+          IF lv_fld_count = 0.
+            fail( |field { lv_field } is not a field of selection method { lv_selmethod }| ).
+            RETURN.
+          ENDIF.
+        ENDDO.
+      ENDIF.
     ENDIF.
 
     " --- fill DD30V/DD31V/DD32P/DD33V ---
@@ -311,7 +349,14 @@ const DELETE_SEARCH_HELP = `  METHOD delete_search_help.
     " A4H 2026-09-12 as the right place to look.
     SELECT COUNT( * ) FROM dd04l INTO @lv_dtel_count WHERE shlpname = @lv_shlp AND as4local = 'A'.
     SELECT COUNT( * ) FROM dd35l INTO @lv_att_count WHERE shlpname = @lv_shlp AND as4local = 'A'.
-    SELECT COUNT( * ) FROM dd31s INTO @lv_inc_count WHERE subshlp = @lv_shlp AND as4local = 'A'.
+    " SAP itself writes a DD31S "self-row" for an elementary search help - SUBSHLP = SHLPNAME
+    " at SHPOSITION 0001 - representing the help's own interface, not a real "included by"
+    " relationship. Measured live on A4H 2026-09-15: five standard SAP elementary helps
+    " (/UI2/GROUPS_SH, /AIF/MESSAGE_CLID_SHLP, /UI5/PURPOSE, /BA1/F4_FX_RATETYPE,
+    " /AIF/FILEDIALOG) each returned exactly one DD31S row, SUBSHLP = SHLPNAME. Without the
+    " SHLPNAME <> exclusion below, every elementary help this bridge creates would count its
+    " own self-row here and be reported "in use" - hence undeletable - forever.
+    SELECT COUNT( * ) FROM dd31s INTO @lv_inc_count WHERE subshlp = @lv_shlp AND shlpname <> @lv_shlp AND as4local = 'A'.
     IF lv_dtel_count + lv_att_count + lv_inc_count <> 0.
       IF b( 'confirm_in_use' ) = abap_false.
         fail( |search help { lv_shlp } is in use: { lv_dtel_count } data element(s), | &&

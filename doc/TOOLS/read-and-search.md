@@ -63,7 +63,20 @@ layout:
   `USED BY DATA ELEMENTS` from `DD04L` and `INCLUDED BY` from `DD31S`
   (which other collective help includes this one). `DD33S-VALUEDIREC` is
   rendered as its raw stored code (`I`/`E`/…); abapsmith has not decoded
-  its value set, so treat that column as opaque.
+  its value set, so treat that column as opaque. DDIC writes a `DD31S` row
+  pointing an elementary search help at its own interface (`SUBSHLP` =
+  `SHLPNAME`, `SHPOSITION` `0001`) even when the caller defined no includes
+  at all — measured live on A4H 2026-09-15 on a freshly created elementary
+  search help with two interface fields and no includes/assignments, and
+  confirmed as DDIC's general representation (not a write-path artifact) by
+  reading `DD31S` for five standard SAP elementary search helps
+  (`/UI2/GROUPS_SH`, `/AIF/MESSAGE_CLID_SHLP`, `/UI5/PURPOSE`,
+  `/BA1/F4_FX_RATETYPE`, `/AIF/FILEDIALOG`), each with exactly that one
+  self-row. `abap_read` filters that row out of `INCLUDES`, `INCLUDED BY`
+  and the `includeCount` summary field — it is not an include relationship
+  — and adds a note when it does so; `ASSIGNMENTS` rows are left alone,
+  since there is no equivalent evidence for what a self-referencing `DD33S`
+  row would mean.
 - **`VIEW/DV` (classic view)** — header from `DD25L`/`DD25T` (root table,
   aggregate type, view class, read-only flag, view grant, application
   class, master language) plus `TVDIR` (package and screen, when a

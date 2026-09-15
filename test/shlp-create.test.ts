@@ -26,6 +26,8 @@ import {
   createSearchHelp,
   updateSearchHelp,
   assertSearchHelpTarget,
+  validate,
+  buildArgs,
   type SearchHelpParams,
   type SearchHelpField,
 } from "../src/adt/shlp-create.js";
@@ -162,6 +164,67 @@ describe.each([
     expect(err.code).toBe("BAD_INPUT");
   });
 
+  // --- issue #83: blank selectionMethod ("none") ---------------------------
+  // A collective search help has no selection method at all (DD30V-SELMETHOD
+  // empty), and plenty of standard SAP elementary helps have a blank one too,
+  // driven by a search-help exit instead of a table/view — see the module
+  // doc on `SearchHelpParams.selectionMethod`. `undefined` and `""` must
+  // both mean "none" and must not be refused by `assertEnhIdentifier`.
+
+  it.each([undefined, ""])(`${name}: accepts selectionMethod %j (omitted or blank) together with an omitted selectionMethodType`, async (sm) => {
+    await expect(
+      fn(
+        conn,
+        gate,
+        baseParams({
+          selectionMethod: sm,
+          selectionMethodType: undefined,
+          elementary: false,
+          fields: [],
+          includes: [{ name: "ZTM_SH_SUB" }],
+          assignments: [],
+        }),
+      ),
+    ).rejects.not.toSatisfy((e: unknown) => isAbapError(e));
+  });
+
+  it(`${name}: refuses a selectionMethodType given without a selectionMethod, naming selectionMethodType (issue #83)`, async () => {
+    const err = await catchErr(
+      fn(
+        conn,
+        gate,
+        baseParams({
+          selectionMethod: "",
+          selectionMethodType: "T",
+          elementary: false,
+          fields: [],
+          includes: [{ name: "ZTM_SH_SUB" }],
+          assignments: [],
+        }),
+      ),
+    );
+    expect(err.code).toBe("BAD_INPUT");
+    expect(err.details).toMatchObject({ what: "selectionMethodType" });
+    expect(err.message).toContain("selectionMethod");
+  });
+
+  it(`${name}: a collective search help (elementary: false, no selectionMethod) round-trips through validate()/buildArgs() with selection_method: ""`, () => {
+    // Directly exercises validate() -> buildArgs(), the same pure pair
+    // test/classic-bridge-wire-format.test.ts drives end to end, to pin the
+    // literal emitted arg values rather than only "did not throw".
+    const params = baseParams({
+      selectionMethod: undefined,
+      selectionMethodType: undefined,
+      elementary: false,
+      fields: [],
+      includes: [{ name: "ZTM_SH_SUB" }],
+      assignments: [],
+    });
+    const args = buildArgs(validate(params.packageName.name, params));
+    expect(args.selection_method).toBe("");
+    expect(args.selection_method_type).toBe("");
+  });
+
   it(`${name}: refuses defaultValue over the module's DEFAULT_VALUE_MAX (132) — a conservative ceiling the source itself says was never measured live`, async () => {
     const err = await catchErr(
       fn(
@@ -230,7 +293,11 @@ describe.each([
       fn(
         conn,
         gate,
-        baseParams({ elementary: false, fields: [{ name: "CARRID", dataElement: "ZTM_CARRID" }] }),
+        baseParams({
+          elementary: false,
+          fields: [{ name: "CARRID", dataElement: "ZTM_CARRID" }],
+          includes: [{ name: "ZTM_SH_SUB" }],
+        }),
       ),
     ).rejects.not.toSatisfy((e: unknown) => isAbapError(e));
   });
@@ -238,10 +305,25 @@ describe.each([
   it(`${name}: elementary=false still refuses an empty fields array's field-name/dataElement grammar issues, but not the import/export rule`, async () => {
     // elementary: false with an EMPTY fields array is not itself refused by
     // the import/export rule (that only applies when elementary is true) —
-    // pin that this genuinely reaches the untouched conn/gate.
-    await expect(fn(conn, gate, baseParams({ elementary: false, fields: [] }))).rejects.not.toSatisfy(
-      (e: unknown) => isAbapError(e),
-    );
+    // pin that this genuinely reaches the untouched conn/gate. `includes`
+    // must still be non-empty here (issue #83): a collective help with
+    // nothing included has nothing to collect.
+    await expect(
+      fn(conn, gate, baseParams({ elementary: false, fields: [], includes: [{ name: "ZTM_SH_SUB" }] })),
+    ).rejects.not.toSatisfy((e: unknown) => isAbapError(e));
+  });
+
+  it(`${name}: elementary=false with an empty includes array is refused, naming includes and elementary: false (issue #83)`, async () => {
+    const err = await catchErr(fn(conn, gate, baseParams({ elementary: false, includes: [] })));
+    expect(err.code).toBe("BAD_INPUT");
+    expect(err.details).toMatchObject({ what: "includes", elementary: false });
+    expect(err.message).toContain("includes");
+  });
+
+  it(`${name}: elementary=false with includes omitted entirely is refused the same way as an empty array`, async () => {
+    const err = await catchErr(fn(conn, gate, baseParams({ elementary: false, includes: undefined })));
+    expect(err.code).toBe("BAD_INPUT");
+    expect(err.details).toMatchObject({ what: "includes", elementary: false });
   });
 
   it(`${name}: refuses a field name over CHAR30`, async () => {

@@ -53,6 +53,13 @@ export const classicManifest: FluidManifest = {
   id: CLASSIC_TOOL_ID,
   title: "Classic DDIC/CTS bridge",
   description: "Classic-UI DDIC and CTS mutations (view, transaction, search help, index, package, transport entry).",
+  // This tool's ABAP reads args with the flat, single-pass `scan()`
+  // (`./classic/abap-core.ts`) — see `FluidManifest.flatArgs` — so the
+  // dispatcher flattens nested arrays-of-objects/objects (e.g. `shlp`'s
+  // `fields`/`includes`/`assignments`) before serialising. The declared
+  // schemas below stay the honest, caller-facing nested shape; validation
+  // still runs against them before flattening.
+  flatArgs: true,
   objects: [
     {
       name: FLUID_RUNTIME_CLASS,
@@ -326,8 +333,6 @@ export const classicManifest: FluidManifest = {
           "description",
           "package_name",
           "corr_nr",
-          "selection_method",
-          "selection_method_type",
           "fields",
           "elementary",
         ],
@@ -343,12 +348,18 @@ export const classicManifest: FluidManifest = {
           selection_method: {
             type: "string",
             maxLength: 30,
-            description: "Table or view the search help selects from (DD30V-SELMETHOD).",
+            description:
+              "Table or view the search help selects from (DD30V-SELMETHOD). Empty string (the " +
+              "default) means none: a collective search help, or an elementary one driven by a " +
+              "search-help exit instead of a table/view.",
           },
           selection_method_type: {
             type: "string",
             maxLength: 1,
-            description: "Selection method type: \"T\" (table) or \"V\" (view); others are not checked here.",
+            description:
+              "Selection method type: \"T\" (table) or \"V\" (view); others are not checked here. " +
+              "Only meaningful alongside a non-empty selection_method; leave empty (the default) when " +
+              "selection_method is empty too.",
           },
           dialog_type: {
             type: "string",
@@ -421,8 +432,6 @@ export const classicManifest: FluidManifest = {
           "description",
           "package_name",
           "corr_nr",
-          "selection_method",
-          "selection_method_type",
           "fields",
           "elementary",
         ],
@@ -438,12 +447,18 @@ export const classicManifest: FluidManifest = {
           selection_method: {
             type: "string",
             maxLength: 30,
-            description: "Table or view the search help selects from (DD30V-SELMETHOD).",
+            description:
+              "Table or view the search help selects from (DD30V-SELMETHOD). Empty string (the " +
+              "default) means none: a collective search help, or an elementary one driven by a " +
+              "search-help exit instead of a table/view.",
           },
           selection_method_type: {
             type: "string",
             maxLength: 1,
-            description: "Selection method type: \"T\" (table) or \"V\" (view); others are not checked here.",
+            description:
+              "Selection method type: \"T\" (table) or \"V\" (view); others are not checked here. " +
+              "Only meaningful alongside a non-empty selection_method; leave empty (the default) when " +
+              "selection_method is empty too.",
           },
           dialog_type: {
             type: "string",

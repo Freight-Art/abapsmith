@@ -14,6 +14,32 @@
  * `key/0`, `key/1`, ... rows. `read_string` decodes one JSON string literal
  * (including `\uXXXX`) and is shared by key, scalar-string and
  * array-element decoding.
+ *
+ * That string-array handling is the ONLY array shape `scan()` understands —
+ * it never recurses into an object, so a genuine array of objects is not
+ * parsed at all (every per-element property silently reads back empty).
+ * `classic`'s manifest (`../classic.ts`) sets `FluidManifest.flatArgs`, so
+ * data that is naturally an array of objects — e.g. `shlp-create.ts`'s
+ * `buildArgs`, for `fields`/`includes`/`assignments` — is pre-flattened by
+ * the dispatcher, via `flattenScanArgs` (`src/adt/fluid/flat-args.ts`),
+ * before the args JSON is ever built: the array becomes a bare `key` (the
+ * element count, read with `n()`) plus one `key/{i}/{prop}` scalar entry
+ * per element property (read with `s()`/`b()`). No individual caller does
+ * this flattening itself, and `scan()` itself is not taught to recurse, on
+ * purpose — that would touch this shared runtime that every other
+ * classic-bridge action depends on, for the sake of one caller's shape.
+ *
+ * `n()` therefore has to count two different shapes correctly. A plain
+ * string array (`abap-view.ts`'s and `abap-index.ts`'s `fields`) produces
+ * one `key/{i}` row per element and nothing at the bare `key` — for
+ * that shape `n()` counts the `key/*` rows. A `flattenScanArgs`-flattened
+ * array of objects produces several `key/{i}/{prop}` rows per element, so
+ * counting `key/*` rows would overcount by the property count; instead
+ * `flattenScanArgs` states its own length as a plain number at the bare
+ * `key`, and `n()` reads that
+ * directly when present. `n()` picks the branch by checking whether a
+ * digits-only value sits at the bare path, falling back to the row count
+ * otherwise.
  */
 import { AbapError } from "../../../errors.js";
 import { ABAP_SOURCE_LINE_MAX } from "../../../ddic-transcript.js";
@@ -201,7 +227,22 @@ const CORE_METHODS = `  METHOD run.
 
   METHOD n.
     DATA lv_pattern TYPE string.
+    DATA lv_exact   TYPE string.
     CLEAR rv_count.
+    " A plain string array (abap-view.ts's / abap-index.ts's fields)
+    " produces one path/{i} row per element and nothing at the bare path,
+    " so it is counted by the wildcard loop below. A pre-flattened array of
+    " objects produces several path/{i}/{prop} rows per element, which the
+    " wildcard loop would overcount by the property count, so that shape
+    " states its own element count as a plain number at the bare path
+    " instead. Prefer that exact count when it looks like a genuine
+    " digits-only number, so a stray non-numeric value at the bare path can
+    " never reach an integer assignment and dump.
+    lv_exact = s( iv_path ).
+    IF lv_exact IS NOT INITIAL AND lv_exact CO '0123456789'.
+      rv_count = lv_exact.
+      RETURN.
+    ENDIF.
     lv_pattern = |{ iv_path }/*|.
     LOOP AT gt_arg TRANSPORTING NO FIELDS WHERE path CP lv_pattern.
       rv_count = rv_count + 1.

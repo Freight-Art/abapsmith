@@ -6042,6 +6042,41 @@ describe("abap_write → bridge creation (VIEW/DV, TRAN/T): routing and zero-net
 });
 
 /**
+ * Issue #83: `mode: "update"` on a type with no bridge update route used to fall through
+ * PAST the dispatch entirely — `isBridgeOnlyCreateType` is false for an ordinary REST type
+ * like CLAS/OC, so `abapUpdateViaBridge`'s own type check (only reached for VIEW/DV, TRAN/T,
+ * SHLP/DH) never ran, and the call landed in the generic write path's "`source` is required
+ * for mode=write" refusal instead — silently implying `mode:"update"` had been accepted and
+ * downgraded to a create. `abapWrite` now gates `mode:"update"` zero-network, offline, for
+ * every type outside `BRIDGE_UPDATE_TYPES`, using the exact wording `abapUpdateViaBridge`
+ * itself throws for the same situation (see `bridgeUpdateNotSupported`/`isBridgeUpdateType`
+ * in src/tools/write.ts) — one message, not two variants depending on which gate caught it.
+ */
+describe("abap_write: mode='update' on a non-bridge type is refused BAD_INPUT, offline, before the generic write path can misread it (issue #83)", () => {
+  const offline = null as unknown as AbapConnection;
+  const gate = new SafetyGate({ readOnly: false, allowPackages: ["*"] });
+  const MAX = 20_000;
+
+  it.each([
+    ["CLAS/OC", "ZCL_FOO"],
+    ["DTEL/DE", "ZPROPW_DTEL"],
+  ])("refuses %s mode='update' with BAD_INPUT naming VIEW/DV, TRAN/T and SHLP/DH — not the misleading 'source is required'", async (type, object) => {
+    const e = await catchErr(abapWrite(offline, { object, type, mode: "update" }, MAX, gate));
+    expect(e.code).toBe("BAD_INPUT");
+    expect(String(e.message)).toMatch(/VIEW\/DV/);
+    expect(String(e.message)).toMatch(/TRAN\/T/);
+    expect(String(e.message)).toMatch(/SHLP\/DH/);
+    // The exact regression this closes: mode="update" must never be treated as an
+    // accepted-but-incomplete create.
+    expect(String(e.message)).not.toMatch(/`source` is required/);
+    // `offline` is `null` cast to `AbapConnection` (same mechanism as every other
+    // zero-network BAD_INPUT test in this file) — any attempt to reach the network
+    // would dereference a property of `null` and throw a plain TypeError, not an
+    // `AbapError`, before ever reaching `catchErr`'s `isAbapError` assertion above.
+  });
+});
+
+/**
  * DEFECT 1 (VIEW/DV) / DEFECT 2 (TRAN/T): the two describe blocks below close
  * the gap the invariant-and-routing blocks above do not reach. Those prove a
  * MALFORMED VIEW/DV or TRAN/T request is refused before any network call —
@@ -6678,6 +6713,47 @@ function batchDeleteRoute(
     return undefined;
   };
 }
+
+describe("abapWrite's registered schema: `shlp.selectionMethod`/`selectionMethodType` are optional (issue #83)", () => {
+  it("accepts a `shlp` payload with no selectionMethod/selectionMethodType — the collective-search-help shape", () => {
+    // A collective search help has no selection method at all (DD30V-SELMETHOD
+    // blank), and plenty of standard SAP elementary helps have a blank one too
+    // — see shlp-create.test.ts and shlp-bridge-abap.test.ts for the runtime
+    // and generated-ABAP sides of this same fact. This is the schema-level
+    // guarantee those depend on: the registered tool schema itself must not
+    // refuse the omission before either module ever runs.
+    const schema = z.object(writeInputSchema);
+    const result = schema.safeParse({
+      object: "ZTM_SH_CARRIER",
+      type: "SHLP/DH",
+      package: "$TMP",
+      mode: "write",
+      shlp: {
+        elementary: false,
+        fields: [],
+        includes: [{ name: "ZTM_SH_SUB" }],
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("still refuses a selectionMethodType outside T/V/M when one is given", () => {
+    const schema = z.object(writeInputSchema);
+    const result = schema.safeParse({
+      object: "ZTM_SH_CARRIER",
+      type: "SHLP/DH",
+      package: "$TMP",
+      mode: "write",
+      shlp: {
+        selectionMethod: "ZTM_CARRIERS",
+        selectionMethodType: "X",
+        elementary: true,
+        fields: [],
+      },
+    });
+    expect(result.success).toBe(false);
+  });
+});
 
 describe("abapWrite — `objects` (batch delete), schema/dispatch level", () => {
   it("`object` AND `objects` together — BAD_INPUT, no request", async () => {

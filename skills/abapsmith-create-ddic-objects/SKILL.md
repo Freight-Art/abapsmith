@@ -194,16 +194,25 @@ the classic fluid bridge (`RS_CORR_INSERT` → `DDIF_SHLP_PUT` →
 `DDIF_SHLP_ACTIVATE`) from a structured `shlp` field, never `source` and
 never `ddic`:
 
-- `selectionMethod` — the table or view the help selects from.
-- `selectionMethodType` — enum `T` (table) | `V` (view) | `M` (structure/other).
+- `selectionMethod` — the table or view the help selects from. Optional:
+  omit it (or pass `""`) for a collective search help, or for an elementary
+  one driven by a search-help exit instead of a table/view — both are
+  normal; several standard SAP elementary helps (e.g. `/UI2/GROUPS_SH`)
+  carry a blank DD30V-SELMETHOD this way.
+- `selectionMethodType` — enum `T` (table) | `V` (view) | `M`
+  (structure/other). Only meaningful alongside a non-empty
+  `selectionMethod`; omit it too when `selectionMethod` is omitted.
 - `dialogType`, `textTable`, `hotKey`.
 - `elementary` — boolean. If `true`, `fields` must carry at least one
   `import` field AND at least one `export` field — checked zero-network,
   before the bridge is dispatched at all, no server round trip spent on it.
+  If `false`, `includes` must carry at least one entry — a collective
+  search help with nothing included has nothing to collect.
 - `fields` — array of `{ name, dataElement, import?, export?, defaultValue? }`.
 - `includes` — array of `{ name }`, other search helps this one includes
   (a collective search help — `elementary: false` with one or more
   `includes` entries — assembles several elementary helps under one hood).
+  Required (non-empty) when `elementary: false`.
 - `assignments` — array of `{ field, includedHelp, includedField, direction }`,
   `direction` enum `I` (import) | `E` (export); required when `includes` is
   non-empty, to wire an included help's fields back to the outer interface.
