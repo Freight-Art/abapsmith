@@ -1,8 +1,12 @@
 #!/usr/bin/env node
 /**
- * abapsmith entry point — stdio MCP server.
+ * abapsmith entry point.
  *
- * stdout belongs to the MCP transport. Everything diagnostic goes to stderr.
+ * Under the default `ABAP_MCP_TRANSPORT=stdio`, stdout belongs to the MCP
+ * transport and everything diagnostic goes to stderr. Under
+ * `ABAP_MCP_TRANSPORT=http` (`src/mcp-http.ts`) stdout carries nothing at
+ * all — MCP travels over the HTTP listener instead — but every diagnostic
+ * still goes to stderr, unconditionally, for both transports.
  */
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -119,7 +123,12 @@ async function main(): Promise<void> {
     // await above it could reject and skip this. Never throws.
     shutdownDebugTools();
     await shutdownAllDebugSessions((m) => process.stderr.write(`${m}\n`));
-    await server.mcp.close();
+    // `closeClients()`, not `server.mcp.close()`: under `ABAP_MCP_TRANSPORT=http`
+    // there are N per-session `McpServer`s plus the HTTP listener besides the
+    // one default server this file can see as `server.mcp` — closing only
+    // that one would leave the port bound and every other session's
+    // transport open past process shutdown.
+    await server.closeClients();
   });
 
   await server.start();

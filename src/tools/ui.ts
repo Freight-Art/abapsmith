@@ -55,7 +55,11 @@ import {
   type UiScreenQuery,
   type UiScreenTarget,
 } from "../adt/ui-runtime.js";
-import type { UiFcodeModuleHit, UiFcodeResult, UiFcodeRow } from "../adt/ui-fcode.js";
+import type {
+  UiFcodeModuleHit,
+  UiFcodeResult,
+  UiFcodeRow,
+} from "../adt/ui-fcode.js";
 import { uiManifest } from "../adt/fluid/builtin/ui.js";
 import { LOG_TOOL_ID, LOG_ACTION } from "../adt/fluid/builtin/log.js";
 import type { SessionPool } from "../adt/pool.js";
@@ -64,6 +68,7 @@ import { buildResponse, textTable } from "../compact.js";
 import { safetyTarget, type SafetyGate } from "../safety.js";
 import { withJournalledMutation, systemKey, type Journal } from "../journal.js";
 import { FLUID_PACKAGE } from "../adt/fluid/package.js";
+import { runSnapshotDiffs } from "./run.js";
 import { renderScreenLayout, LAYOUT_FIDELITY_NOTE } from "./ui-layout.js";
 
 // ---------------------------------------------------------------------------
@@ -76,8 +81,14 @@ const uiPressFieldSchema = z.object({
 });
 
 const uiPressScreenSchema = z.object({
-  program: z.string().describe("Program owning this dynpro (from a prior screen call's resolved program)."),
-  dynpro: z.string().describe('Screen number, e.g. "100" — padded to 4 digits automatically.'),
+  program: z
+    .string()
+    .describe(
+      "Program owning this dynpro (from a prior screen call's resolved program).",
+    ),
+  dynpro: z
+    .string()
+    .describe('Screen number, e.g. "100" — padded to 4 digits automatically.'),
   okcode: z
     .string()
     .optional()
@@ -85,8 +96,13 @@ const uiPressScreenSchema = z.object({
   cursorField: z
     .string()
     .optional()
-    .describe("Field name to position the cursor on before the okcode fires. Sets BDC_CURSOR."),
-  fields: z.array(uiPressFieldSchema).optional().describe("Field values to set on this screen before the okcode fires."),
+    .describe(
+      "Field name to position the cursor on before the okcode fires. Sets BDC_CURSOR.",
+    ),
+  fields: z
+    .array(uiPressFieldSchema)
+    .optional()
+    .describe("Field values to set on this screen before the okcode fires."),
 });
 
 export const uiInputSchema = {
@@ -101,9 +117,17 @@ export const uiInputSchema = {
   tcode: z
     .string()
     .optional()
-    .describe("Transaction code. screen/fcode: alternative to program+dynpro. press: required."),
-  program: z.string().optional().describe("screen/fcode only, with dynpro: program name instead of tcode."),
-  dynpro: z.string().optional().describe('screen/fcode only, with program: screen number, e.g. "100".'),
+    .describe(
+      "Transaction code. screen/fcode: alternative to program+dynpro. press: required.",
+    ),
+  program: z
+    .string()
+    .optional()
+    .describe("screen/fcode only, with dynpro: program name instead of tcode."),
+  dynpro: z
+    .string()
+    .optional()
+    .describe('screen/fcode only, with program: screen number, e.g. "100".'),
   fcode: z
     .string()
     .optional()
@@ -134,6 +158,16 @@ export const uiInputSchema = {
       "press only, REQUIRED (must be exactly true) — acknowledges the commit. Omitted or " +
         "false is refused before any network call.",
     ),
+  snapshot_ids: z
+    .array(z.string())
+    .optional()
+    .describe(
+      'mode: "press" only — press is the mode that can change data. Snapshot ids from prior ' +
+        'abap_data_preview mode="snapshot" calls. After the press script finishes, each one is ' +
+        "re-read and diffed, and the result is appended as a DATA CHANGES section. The diff obeys " +
+        "the same data-preview policy as the snapshot did — if it is refused, this call's own " +
+        "result still returns and the section says why.",
+    ),
 };
 
 export const UiInput = z.object(uiInputSchema);
@@ -159,10 +193,22 @@ export interface UiToolDeps {
    * mode-orthogonal opt-in like `allowDumpVariables`, so `press` needs both
    * `ABAP_MODE=admin` and this flag before it will submit anything.
    */
-  readonly cfg: Pick<Config, "maxResponseChars" | "abapMode" | "sid" | "url" | "client" | "allowUiPress">;
+  readonly cfg: Pick<
+    Config,
+    | "maxResponseChars"
+    | "abapMode"
+    | "sid"
+    | "url"
+    | "client"
+    | "allowUiPress"
+    | "dataPreviewMaxRows"
+    | "dataSnapshotTtlHours"
+  >;
 }
 
-const ok = (text: string): CallToolResult => ({ content: [{ type: "text", text }] });
+const ok = (text: string): CallToolResult => ({
+  content: [{ type: "text", text }],
+});
 
 // ---------------------------------------------------------------------------
 // Fidelity notes — disclosed on every response, both modes.
@@ -219,7 +265,10 @@ function normalizeTcode(raw: string): string {
 // Query builders — pure, zero-network, throw BAD_INPUT.
 // ---------------------------------------------------------------------------
 
-function buildScreenTarget(input: UiInput, mode: "screen" | "fcode" = "screen"): UiScreenTarget {
+function buildScreenTarget(
+  input: UiInput,
+  mode: "screen" | "fcode" = "screen",
+): UiScreenTarget {
   const tcode = input.tcode?.trim();
   const program = input.program?.trim();
   const dynpro = input.dynpro?.trim();
@@ -252,7 +301,9 @@ function buildFcodeQuery(input: UiInput): UiFcodeQuery {
 function buildPressQuery(input: UiInput): UiPressQuery {
   const tcode = input.tcode?.trim();
   if (!tcode) {
-    throw new AbapError("BAD_INPUT", 'mode:"press" requires tcode.', { mode: "press" });
+    throw new AbapError("BAD_INPUT", 'mode:"press" requires tcode.', {
+      mode: "press",
+    });
   }
   if (!input.screens || input.screens.length === 0) {
     throw new AbapError(
@@ -267,7 +318,10 @@ function buildPressQuery(input: UiInput): UiPressQuery {
     dynpro: s.dynpro.trim(),
     okCode: s.okcode?.trim(),
     cursorField: s.cursorField?.trim(),
-    fields: (s.fields ?? []).map((f): UiBdcField => ({ fieldName: f.name.trim(), value: f.value })),
+    fields: (s.fields ?? []).map((f): UiBdcField => ({
+      fieldName: f.name.trim(),
+      value: f.value,
+    })),
   }));
   return { mode: "press", tcode: normalizeTcode(tcode), screens };
 }
@@ -316,14 +370,22 @@ function assertPressEnabled(cfg: UiToolDeps["cfg"]): void {
   const isAdmin = cfg.abapMode === "admin";
   const flagOn = cfg.allowUiPress === true;
   if (isAdmin && flagOn) return;
-  const modeState = cfg.abapMode === undefined ? "unset (legacy per-flag config)" : cfg.abapMode;
+  const modeState =
+    cfg.abapMode === undefined
+      ? "unset (legacy per-flag config)"
+      : cfg.abapMode;
   throw new AbapError(
     "SAFETY_DENIED",
     "abap_ui press is disabled. It requires BOTH ABAP_MODE=admin AND ABAP_ALLOW_UI_PRESS=true — " +
       "admin mode alone does not enable it, and the flag alone does not either. Batch input " +
       "executes arbitrary transactions under the connected user's full SAP authority with no dry " +
       `run. Current: ABAP_MODE=${modeState}, ABAP_ALLOW_UI_PRESS=${flagOn}.`,
-    { operation: "execute", phase: "preflight", abapMode: cfg.abapMode, allowUiPress: flagOn },
+    {
+      operation: "execute",
+      phase: "preflight",
+      abapMode: cfg.abapMode,
+      allowUiPress: flagOn,
+    },
     "Set both ABAP_MODE=admin and ABAP_ALLOW_UI_PRESS=true if this call is genuinely intended.",
   );
 }
@@ -336,15 +398,23 @@ function assertPressEnabled(cfg: UiToolDeps["cfg"]): void {
  * before every press. An unrecognised CINFO value is refused too,
  * conservatively.
  */
-async function assertBdcApplies(deps: UiToolDeps, tcode: string): Promise<void> {
-  const precheckQuery: UiScreenQuery = { mode: "screen", target: { by: "tcode", tcode } };
+async function assertBdcApplies(
+  deps: UiToolDeps,
+  tcode: string,
+): Promise<void> {
+  const precheckQuery: UiScreenQuery = {
+    mode: "screen",
+    target: { by: "tcode", tcode },
+  };
   deps.safety.assert(
     "write",
     { name: uiManifest.entry, packageName: FLUID_PACKAGE, type: "CLAS/OC" },
     { phase: "preflight" },
   );
-  const precheck = await deps.pool.withWrite("abap_ui", uiManifest.entry, (conn) =>
-    runUiBridge(conn, precheckQuery, deps.safety),
+  const precheck = await deps.pool.withWrite(
+    "abap_ui",
+    uiManifest.entry,
+    (conn) => runUiBridge(conn, precheckQuery, deps.safety),
   );
   const kind = precheck.transcript.tcode;
   if (!kind) {
@@ -413,10 +483,14 @@ function buildScreenResponse(
     }
   }
   if (t.droppedLines > 0) {
-    notes.push(`${t.droppedLines} unprefixed line(s) from the bridge output were dropped (framing noise).`);
+    notes.push(
+      `${t.droppedLines} unprefixed line(s) from the bridge output were dropped (framing noise).`,
+    );
   }
   if (t.noCua) {
-    notes.push(`No GUI status defined for program ${t.noCua.program} — this is normal, not an error.`);
+    notes.push(
+      `No GUI status defined for program ${t.noCua.program} — this is normal, not an error.`,
+    );
   }
   // layout:true costs nothing extra on the wire — it re-lays-out fields/fkeys this call already fetched.
   if (layout) {
@@ -439,14 +513,34 @@ function buildScreenResponse(
     },
     sections: [
       ...(layout
-        ? [{ title: "LAYOUT (design-time)", content: renderScreenLayout({ header: t.header, fields: t.fields, fkeys: t.fkeys }) }]
+        ? [
+            {
+              title: "LAYOUT (design-time)",
+              content: renderScreenLayout({
+                header: t.header,
+                fields: t.fields,
+                fkeys: t.fkeys,
+              }),
+            },
+          ]
         : []),
-      { title: "HEADER (RPY_DYNPRO_READ)", content: t.header ? renderRecordRows([t.header]) : "(not read)" },
+      {
+        title: "HEADER (RPY_DYNPRO_READ)",
+        content: t.header ? renderRecordRows([t.header]) : "(not read)",
+      },
       { title: "FLOW LOGIC", content: renderRecordRows(t.flow) },
-      { title: "GUI STATUSES (names)", content: renderRecordRows(t.statusList) },
-      { title: "FUNCTION CODES (program-wide)", content: renderRecordRows(t.functions) },
+      {
+        title: "GUI STATUSES (names)",
+        content: renderRecordRows(t.statusList),
+      },
+      {
+        title: "FUNCTION CODES (program-wide)",
+        content: renderRecordRows(t.functions),
+      },
       { title: "FUNCTION KEYS", content: renderRecordRows(t.fkeys) },
-      ...(t.diagnostics.length ? [{ title: "DIAGNOSTICS", content: t.diagnostics.join("\n") }] : []),
+      ...(t.diagnostics.length
+        ? [{ title: "DIAGNOSTICS", content: t.diagnostics.join("\n") }]
+        : []),
     ],
     body: renderRecordRows(t.fields),
     bodyLabel: "FIELDS",
@@ -480,7 +574,9 @@ const FCODE_NOTES: readonly string[] = [
     "of scope for a single fcode call.",
 ];
 
-function renderCall(c: UiFcodeModuleHit["branches"][number]["calls"][number]): string {
+function renderCall(
+  c: UiFcodeModuleHit["branches"][number]["calls"][number],
+): string {
   return `    - line ${c.line}: ${c.kind} ${c.target}${c.dynamic ? " (dynamic)" : ""}`;
 }
 
@@ -494,11 +590,15 @@ function renderModuleHit(hit: UiFcodeModuleHit): string {
   if (d.kind === "none") {
     lines.push("    dispatch: none (no CASE found in this module)");
   } else if (d.kind === "unresolved") {
-    lines.push(`    dispatch: unresolved — ${d.reason}${d.expression ? ` (CASE ${d.expression})` : ""}`);
+    lines.push(
+      `    dispatch: unresolved — ${d.reason}${d.expression ? ` (CASE ${d.expression})` : ""}`,
+    );
   } else {
     lines.push(
       `    dispatch: ${d.kind} on ${d.expression}` +
-        (d.kind === "alias" && d.aliasAssignedFrom ? ` (assigned from ${d.aliasAssignedFrom} at line ${d.aliasLine})` : ""),
+        (d.kind === "alias" && d.aliasAssignedFrom
+          ? ` (assigned from ${d.aliasAssignedFrom} at line ${d.aliasLine})`
+          : ""),
     );
   }
   if (hit.branches.length === 0) {
@@ -510,7 +610,9 @@ function renderModuleHit(hit: UiFcodeModuleHit): string {
         (b.viaRemap ? ` — via remap ${b.viaRemap}` : ""),
     );
     if (b.calls.length === 0) {
-      lines.push("      (no PERFORM/CALL FUNCTION/CALL METHOD/CALL TRANSACTION/LEAVE TO TRANSACTION/SUBMIT found)");
+      lines.push(
+        "      (no PERFORM/CALL FUNCTION/CALL METHOD/CALL TRANSACTION/LEAVE TO TRANSACTION/SUBMIT found)",
+      );
     }
     for (const c of b.calls) lines.push(renderCall(c));
     lines.push(`      read: ${b.read}`);
@@ -521,7 +623,9 @@ function renderModuleHit(hit: UiFcodeModuleHit): string {
 
 function renderFcodeRow(row: UiFcodeRow): string {
   const lines: string[] = [];
-  lines.push(`FCODE ${row.fcode}${row.text ? ` — ${row.text}` : ""} (statuses: ${row.statuses.join(", ") || "-"})`);
+  lines.push(
+    `FCODE ${row.fcode}${row.text ? ` — ${row.text}` : ""} (statuses: ${row.statuses.join(", ") || "-"})`,
+  );
   if (row.modules.length === 0) {
     lines.push("  (no PAI module dispatches on this function code)");
   }
@@ -532,7 +636,11 @@ function renderFcodeRow(row: UiFcodeRow): string {
   return lines.join("\n");
 }
 
-function buildFcodeResponse(query: UiFcodeQuery, result: UiBridgeResult, maxChars: number): string {
+function buildFcodeResponse(
+  query: UiFcodeQuery,
+  result: UiBridgeResult,
+  maxChars: number,
+): string {
   const f = result.fcode;
   if (!f) {
     // Defensive: a successful bridge run should always yield a fcode result for a fcode query.
@@ -542,10 +650,15 @@ function buildFcodeResponse(query: UiFcodeQuery, result: UiBridgeResult, maxChar
       {},
     );
   }
-  const unresolvedCount = f.fcodes.reduce((n, row) => n + row.unresolved.length, 0);
+  const unresolvedCount = f.fcodes.reduce(
+    (n, row) => n + row.unresolved.length,
+    0,
+  );
   const notes = [...FCODE_NOTES, ...f.notes];
   if (f.truncated) {
-    notes.push(`Output truncated (${f.truncated}) — results below are incomplete.`);
+    notes.push(
+      `Output truncated (${f.truncated}) — results below are incomplete.`,
+    );
   }
 
   const paiRows = f.paiModules.map((m) => ({
@@ -560,7 +673,12 @@ function buildFcodeResponse(query: UiFcodeQuery, result: UiBridgeResult, maxChar
     readError: i.readError ?? "",
   }));
   const unresolvedRows = f.fcodes.flatMap((row) =>
-    row.unresolved.map((u) => ({ fcode: row.fcode, module: u.module, include: u.include, reason: u.reason })),
+    row.unresolved.map((u) => ({
+      fcode: row.fcode,
+      module: u.module,
+      include: u.include,
+      reason: u.reason,
+    })),
   );
 
   return buildResponse({
@@ -577,10 +695,26 @@ function buildFcodeResponse(query: UiFcodeQuery, result: UiBridgeResult, maxChar
       bridgeRefreshed: result.bridgeRefreshed,
     },
     sections: [
-      { title: "PAI MODULES (flow-logic order)", content: textTable(paiRows, ["name", "include", "atExit", "found"]) },
-      { title: "INCLUDES SCANNED", content: textTable(includeRows, ["name", "lines", "readError"]) },
+      {
+        title: "PAI MODULES (flow-logic order)",
+        content: textTable(paiRows, ["name", "include", "atExit", "found"]),
+      },
+      {
+        title: "INCLUDES SCANNED",
+        content: textTable(includeRows, ["name", "lines", "readError"]),
+      },
       ...(unresolvedRows.length
-        ? [{ title: "UNRESOLVED", content: textTable(unresolvedRows, ["fcode", "module", "include", "reason"]) }]
+        ? [
+            {
+              title: "UNRESOLVED",
+              content: textTable(unresolvedRows, [
+                "fcode",
+                "module",
+                "include",
+                "reason",
+              ]),
+            },
+          ]
         : []),
     ],
     body: f.fcodes.map(renderFcodeRow).join("\n\n"),
@@ -590,7 +724,11 @@ function buildFcodeResponse(query: UiFcodeQuery, result: UiBridgeResult, maxChar
   }).text;
 }
 
-function buildPressResponse(query: UiPressQuery, result: UiBridgeResult, maxChars: number): string {
+function buildPressResponse(
+  query: UiPressQuery,
+  result: UiBridgeResult,
+  maxChars: number,
+): string {
   const t = result.transcript;
   const notes = [...FIDELITY_NOTES];
   notes.push(
@@ -642,8 +780,12 @@ function buildPressResponse(query: UiPressQuery, result: UiBridgeResult, maxChar
       bridgeClass: result.bridgeClass,
       bridgeRefreshed: result.bridgeRefreshed,
     },
-    sections: t.diagnostics.length ? [{ title: "DIAGNOSTICS", content: t.diagnostics.join("\n") }] : undefined,
-    body: messageRows.length ? textTable(messageRows, ["type", "id", "nr", "text"]) : "(no messages)",
+    sections: t.diagnostics.length
+      ? [{ title: "DIAGNOSTICS", content: t.diagnostics.join("\n") }]
+      : undefined,
+    body: messageRows.length
+      ? textTable(messageRows, ["type", "id", "nr", "text"])
+      : "(no messages)",
     bodyLabel: "MESSAGES",
     notes,
     maxChars,
@@ -654,7 +796,10 @@ function buildPressResponse(query: UiPressQuery, result: UiBridgeResult, maxChar
 // Tool logic
 // ---------------------------------------------------------------------------
 
-async function runScreenTool(deps: UiToolDeps, input: UiInput): Promise<CallToolResult> {
+async function runScreenTool(
+  deps: UiToolDeps,
+  input: UiInput,
+): Promise<CallToolResult> {
   const query = buildScreenQuery(input);
 
   // Cheap, zero-network preflight — screen dispatches against the fixed fluid body class, not a per-query generated one.
@@ -667,10 +812,19 @@ async function runScreenTool(deps: UiToolDeps, input: UiInput): Promise<CallTool
 
   await deps.ensureConnected();
 
-  const result = await deps.pool.withWrite("abap_ui", uiManifest.entry, (conn) =>
-    runUiBridge(conn, query, deps.safety),
+  const result = await deps.pool.withWrite(
+    "abap_ui",
+    uiManifest.entry,
+    (conn) => runUiBridge(conn, query, deps.safety),
   );
-  return ok(buildScreenResponse(query, result, deps.cfg.maxResponseChars, input.layout === true));
+  return ok(
+    buildScreenResponse(
+      query,
+      result,
+      deps.cfg.maxResponseChars,
+      input.layout === true,
+    ),
+  );
 }
 
 /**
@@ -681,7 +835,10 @@ async function runScreenTool(deps: UiToolDeps, input: UiInput): Promise<CallTool
  * assertBdcApplies — those exist only because press submits BDCDATA through
  * CALL TRANSACTION; fcode never does, so none of that gating applies here.
  */
-async function runFcodeTool(deps: UiToolDeps, input: UiInput): Promise<CallToolResult> {
+async function runFcodeTool(
+  deps: UiToolDeps,
+  input: UiInput,
+): Promise<CallToolResult> {
   const query = buildFcodeQuery(input);
 
   deps.safety.assert("read");
@@ -693,13 +850,18 @@ async function runFcodeTool(deps: UiToolDeps, input: UiInput): Promise<CallToolR
 
   await deps.ensureConnected();
 
-  const result = await deps.pool.withWrite("abap_ui", uiManifest.entry, (conn) =>
-    runUiBridge(conn, query, deps.safety),
+  const result = await deps.pool.withWrite(
+    "abap_ui",
+    uiManifest.entry,
+    (conn) => runUiBridge(conn, query, deps.safety),
   );
   return ok(buildFcodeResponse(query, result, deps.cfg.maxResponseChars));
 }
 
-async function runPressTool(deps: UiToolDeps, input: UiInput): Promise<CallToolResult> {
+async function runPressTool(
+  deps: UiToolDeps,
+  input: UiInput,
+): Promise<CallToolResult> {
   // Order: cheapest / most tool-specific refusals first — same discipline as abap_enh's delete gate.
   // input.layout is screen-only (see uiInputSchema) and intentionally ignored here — press has no
   // field grid to render, only CALL TRANSACTION messages (see buildPressResponse).
@@ -714,7 +876,11 @@ async function runPressTool(deps: UiToolDeps, input: UiInput): Promise<CallToolR
   // refuses every standard transaction (the live SE16 failure this shape
   // fixes; see the git history). Layered under, not
   // instead of, assertPressEnabled/assertNotDenylisted above.
-  deps.safety.assert("execute", safetyTarget({ name: query.tcode, type: "TCODE" }), { phase: "preflight" });
+  deps.safety.assert(
+    "execute",
+    safetyTarget({ name: query.tcode, type: "TCODE" }),
+    { phase: "preflight" },
+  );
 
   await deps.ensureConnected();
 
@@ -722,7 +888,11 @@ async function runPressTool(deps: UiToolDeps, input: UiInput): Promise<CallToolR
   await assertBdcApplies(deps, query.tcode);
 
   const bridgeClass = uiBridgeClassName(query);
-  deps.safety.assert("write", { name: bridgeClass, packageName: FLUID_PACKAGE, type: "CLAS/OC" }, { phase: "preflight" });
+  deps.safety.assert(
+    "write",
+    { name: bridgeClass, packageName: FLUID_PACKAGE, type: "CLAS/OC" },
+    { phase: "preflight" },
+  );
 
   // Journal every press with the BDCDATA script (deliberately not skipped,
   // unlike other bridge-based writes elsewhere — a known gap). JournalOperation
@@ -752,12 +922,18 @@ async function runPressTool(deps: UiToolDeps, input: UiInput): Promise<CallToolR
         // spelling `src/tools/transport.ts` uses (not the `systemKey(conn.cfg)`
         // spelling used elsewhere, which needs a live connection this closure
         // doesn't have).
-        systemKey: systemKey({ sid: deps.cfg.sid, url: deps.cfg.url, client: deps.cfg.client }),
+        systemKey: systemKey({
+          sid: deps.cfg.sid,
+          url: deps.cfg.url,
+          client: deps.cfg.client,
+        }),
       }),
     },
     async (onBeforeImage) => {
       await onBeforeImage(query);
-      return deps.pool.withWrite("abap_ui", bridgeClass, (conn) => runUiBridge(conn, query, deps.safety));
+      return deps.pool.withWrite("abap_ui", bridgeClass, (conn) =>
+        runUiBridge(conn, query, deps.safety),
+      );
     },
   );
 
@@ -767,7 +943,20 @@ async function runPressTool(deps: UiToolDeps, input: UiInput): Promise<CallToolR
     outcome: press && press.subrc === 0 ? "succeeded" : "failed",
   });
 
-  return ok(buildPressResponse(query, result, deps.cfg.maxResponseChars));
+  const text = buildPressResponse(query, result, deps.cfg.maxResponseChars);
+  // Diffed AFTER the press script ran — a stalled/failed press still
+  // returns a normal result (see press's own subrc/stalled reporting
+  // above), so the section belongs here regardless of outcome. A THROW
+  // above (confirm missing, denylisted tcode, press disabled, a CINFO
+  // mismatch, a dump) skips this and returns the error unchanged, with no
+  // section: it is a structured, machine-readable refusal, and appending
+  // diff prose to it would change its shape for every existing consumer.
+  const changes = await runSnapshotDiffs(
+    deps,
+    input.snapshot_ids,
+    (m) => void process.stderr.write(m + "\n"),
+  );
+  return ok(changes ? `${text}\n\nDATA CHANGES\n${changes}` : text);
 }
 
 const UI_TOOL_DESCRIPTION =
@@ -776,8 +965,23 @@ const UI_TOOL_DESCRIPTION =
   "(read-only, runs nothing); press runs a scripted transaction (commits, no rollback). Reaches " +
   "classic dialog dynpros ONLY — never Web Dynpro/FPM/Fiori.";
 
-export async function runUiTool(deps: UiToolDeps, args: unknown): Promise<CallToolResult> {
+export async function runUiTool(
+  deps: UiToolDeps,
+  args: unknown,
+): Promise<CallToolResult> {
   const input = args as UiInput;
+  // snapshot_ids only makes sense on press: screen/fcode never change data,
+  // so there is nothing for a diff to report — refused before any network
+  // call, same discipline as every other zero-network refusal in this file.
+  if (input.snapshot_ids !== undefined && input.mode !== "press") {
+    throw new AbapError(
+      "BAD_INPUT",
+      `snapshot_ids was given with mode="${input.mode}". snapshot_ids applies to mode: "press", ` +
+        "the only mode that can change data.",
+      { mode: input.mode, snapshot_ids: input.snapshot_ids },
+      'Drop snapshot_ids, or set mode: "press" to run a script and diff what it changed.',
+    );
+  }
   if (input.mode === "press") return runPressTool(deps, input);
   if (input.mode === "fcode") return runFcodeTool(deps, input);
   return runScreenTool(deps, input);
@@ -790,7 +994,11 @@ export function registerUiTools(mcp: McpServer, deps: UiToolDeps): void {
       title: "Drive classic dynpro screens (batch input)",
       description: UI_TOOL_DESCRIPTION,
       inputSchema: uiInputSchema,
-      annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        openWorldHint: true,
+      },
     },
     async (args) => {
       try {

@@ -1,0 +1,40 @@
+REPORT z_i107_footprint.
+
+DATA: gs_soh   TYPE zdemo_soh,
+      gt_soh   TYPE STANDARD TABLE OF zdemo_soh,
+      gv_tab   TYPE tabname,
+      gv_subrc TYPE sy-subrc.
+
+START-OF-SELECTION.
+
+* plain Open SQL writes
+  INSERT zdemo_soh FROM gs_soh.
+  UPDATE zdemo_soh SET changedby = sy-uname WHERE salesorder = '1'.
+  MODIFY zdemo_soh FROM TABLE gt_soh.
+  DELETE FROM zdemo_soh WHERE salesorder = '2'.
+
+* dynamic table name - the statically unresolvable case
+  gv_tab = 'ZDEMO_SOH'.
+  INSERT (gv_tab) FROM gs_soh.
+
+* update task / background task
+  CALL FUNCTION 'RFC_SYSTEM_INFO' IN UPDATE TASK.
+  CALL FUNCTION 'RFC_SYSTEM_INFO' IN BACKGROUND TASK
+    DESTINATION 'NONE'.
+
+* transaction control
+  COMMIT WORK AND WAIT.
+  ROLLBACK WORK.
+  CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+    EXPORTING
+      wait = 'X'.
+  CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
+
+* non Open SQL write paths
+  EXPORT gs_soh TO DATABASE indx(zz) ID 'I107'.
+  CALL TRANSACTION 'SE16' AND SKIP FIRST SCREEN.
+  SUBMIT rsusr002 AND RETURN.
+
+* a commented-out write must not be reported
+* INSERT zdemo_soh_d FROM gs_soh.
+  gv_subrc = sy-subrc. " INSERT zdemo_soh FROM gs_soh.

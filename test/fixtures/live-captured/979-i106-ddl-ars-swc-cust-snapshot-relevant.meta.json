@@ -1,0 +1,25 @@
+{
+  "n": 979,
+  "label": "i106-ddl-ars-swc-cust-snapshot-relevant",
+  "expect": "left outer join between two tables with a multi-line ON condition and a WHERE clause that mentions the joined table - the join case",
+  "note": "GET DDL source of ARS_SWC_CUST_SNAPSHOT_RELEVANT (issue 106 lineage, left outer join)",
+  "requestMethod": "GET",
+  "requestUrl": "/sap/bc/adt/ddic/ddl/sources/ars_swc_cust_snapshot_relevant/source/main?sap-client=001",
+  "requestHeaders": {
+    "Accept": "text/plain"
+  },
+  "responseStatus": 200,
+  "responseHeaders": {
+    "content-type": "text/plain; charset=utf-8",
+    "content-length": "1489",
+    "sap-authenticated": "true",
+    "etag": "202304280810450011",
+    "sap-server": "true"
+  },
+  "byteLength": 1489,
+  "zeroByteBody": false,
+  "sha256": "ea33d0fdcb90d12db38797a2808d2d4652c2eb4f0161eece2b0bfd6078334818",
+  "utcTimestamp": "2026-09-15T12:01:08.371Z",
+  "durationMs": 252,
+  "sessionName": "LIVE-I105-I106-I107"
+}

@@ -34,6 +34,7 @@ import { promises as fs } from "node:fs";
 import * as path from "node:path";
 import { AbapError } from "./adt/errors.js";
 import { canonicalSource, contentHash } from "./compact.js";
+import { currentMcpSession, mcpSessionActor } from "./mcp-session.js";
 import { withFileLock } from "./state-dir.js";
 
 export type JournalOperation =
@@ -280,7 +281,12 @@ export interface JournalEntry {
    * Provenance of `sessionId`, so a reader can tell "this server run" from
    * "this client session" without knowing the deployment — see the doc
    * comment on `Journal.setClientSession()`. Absent iff `sessionId` is.
-   *  - `"transport"`: the MCP transport supplied a session identity.
+   *  - `"transport"`: the MCP transport supplied a session identity. Under
+   *    stdio this was previously unreachable in practice
+   *    (`StdioServerTransport` never assigns `Transport.sessionId`); the
+   *    Streamable HTTP transport (`src/mcp-http.ts`) DOES supply a real
+   *    per-session id (`Mcp-Session-Id`), so this value is now actually
+   *    reachable, not just a documented-but-dead branch.
    *  - `"process"`: no transport session identity was available, so a value
    *    generated once for this server process was used instead.
    */
@@ -774,21 +780,44 @@ export class Journal {
     this.inFlightDir = path.join(this.dir, INFLIGHT_DIR);
   }
 
-  /** Must be lazy, unlike `config.actor`: the client identity is unknown until the transport's initialize handshake completes, which is after this `Journal` is constructed (src/server.ts). */
+  /**
+   * The stdio/process-wide fallback. Must be lazy, unlike `config.actor`:
+   * the client identity is unknown until the transport's initialize
+   * handshake completes, which is after this `Journal` is constructed
+   * (src/server.ts). Under `ABAP_MCP_TRANSPORT=http` this is set once from
+   * the DEFAULT `McpServer` only (`createServer`'s `createMcpServer(undefined)`
+   * call in src/server.ts) — every per-session `McpServer` instead sets
+   * `McpSessionContext.client` (src/mcp-session.ts), which
+   * `resolveActor()` below consults first via the ambient session.
+   */
   setClientActor(name: string | undefined): void {
     this.clientActor = name?.trim() || undefined;
   }
 
-  /** `ABAP_ACTOR` (`config.actor`) wins over the MCP client identity. */
+  /**
+   * `ABAP_ACTOR` (`config.actor`) still wins over everything — it is an
+   * operator override. Below that, the ambient per-MCP-session identity
+   * (`currentMcpSession()`, src/mcp-session.ts) wins over this process-wide
+   * `clientActor`: under `ABAP_MCP_TRANSPORT=http` `clientActor` is shared by
+   * every session this process serves and therefore cannot answer "who" —
+   * only the ambient context, set per request by `src/mcp-http.ts`, can.
+   */
   private resolveActor(): string | undefined {
-    return this.config.actor ?? this.clientActor;
+    const ambient = (() => {
+      const c = currentMcpSession();
+      return c ? mcpSessionActor(c) : undefined;
+    })();
+    return this.config.actor ?? ambient ?? this.clientActor;
   }
 
   /**
    * Set the id this server run/session writes onto every entry from here on
    * — see `JournalEntry.sessionId`/`sessionIdSource`. Same lazy-timing
    * reason as `setClientActor()`: called once, from `oninitialized`
-   * (src/server.ts), after this `Journal` is constructed.
+   * (src/server.ts), after this `Journal` is constructed. This is the
+   * stdio/process-wide fallback, same as `setClientActor()` — an ambient
+   * `McpSessionContext.sessionId` (set per request by `src/mcp-http.ts`)
+   * overrides it; see `begin()` and the `sessionId` getter below.
    */
   setClientSession(id: string | undefined, source: "transport" | "process"): void {
     this.clientSessionId = id?.trim() || undefined;
@@ -796,13 +825,17 @@ export class Journal {
   }
 
   /**
-   * The session id that would be spliced onto the NEXT entry, or `undefined`
-   * if none has been set yet. Exposed for `abap_journal mode=list
-   * session=current` (src/tools/journal.ts) to resolve "this conversation"
-   * without duplicating `setClientSession()`'s storage.
+   * The session id that would be spliced onto the NEXT entry for THIS
+   * (stdio, process-wide) fallback, or `undefined` if none has been set
+   * yet — UNLESS an ambient `McpSessionContext` (src/mcp-session.ts) is
+   * current, in which case its `sessionId` wins: `abap_journal mode=list
+   * session=current` (src/tools/journal.ts) must resolve the CALLING
+   * session under `ABAP_MCP_TRANSPORT=http`, not the process. Exposed so
+   * that tool can resolve "this conversation" without duplicating
+   * `setClientSession()`'s storage.
    */
   get sessionId(): string | undefined {
-    return this.clientSessionId;
+    return currentMcpSession()?.sessionId ?? this.clientSessionId;
   }
 
   // -- reading ------------------------------------------------------------
@@ -1124,8 +1157,13 @@ export class Journal {
       input.beforeCapture ??
       (input.existedBefore ? (input.beforeSource !== undefined ? "captured" : "failed") : "unknown");
     const actor = this.resolveActor();
-    const sessionId = this.clientSessionId;
-    const sessionIdSource = this.clientSessionSource;
+    // Prefer the ambient (per-MCP-session) id over the process-wide
+    // fallback, same precedence as `resolveActor()` above and for the same
+    // reason: under `ABAP_MCP_TRANSPORT=http` the process-wide id is shared
+    // by every session this process serves.
+    const ambient = currentMcpSession();
+    const sessionId = ambient?.sessionId ?? this.clientSessionId;
+    const sessionIdSource = ambient?.sessionId !== undefined ? "transport" : this.clientSessionSource;
 
     const entry: JournalEntry = {
       id,

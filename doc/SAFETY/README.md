@@ -11,3 +11,4 @@ and this gate's own non-guarantees.
 | [safety-gate.md](safety-gate.md) | The pre-connection check order and productive-system detection |
 | [permission-model.md](permission-model.md) | `ABAP_MODE`, per-capability overrides, and how authorization is enforced in the type system |
 | [data-access-and-credentials.md](data-access-and-credentials.md) | The data-preview deny-list, why the `SUSO/B`/`TABL/DI` catalog reads deliberately bypass it, the `SUSO/B` read boundary (definition only, never who holds it), credential handling, and what this gate is not |
+| [remote-transport.md](remote-transport.md) | What the HTTP bearer token authenticates, and what it does not |

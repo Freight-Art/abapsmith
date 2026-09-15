@@ -44,7 +44,7 @@ apply to them.
 | Tool | Actions | What it covers |
 |---|---|---|
 | `classic` | `create_view`, `delete_view`, `create_transaction`, `delete_transaction`, `create_index`, `delete_index`, `create_package`, `delete_package`, `remove_transport_entry`, `exists` | Repository objects with no usable ADT write endpoint. |
-| `core` | `select`, `describe_fm`, `call_fm`, `eval` | Generic DDIC reads, dynamic function-module calls, and one-shot ABAP snippet evaluation. |
+| `core` | `select`, `describe_fm`, `docu`, `call_fm`, `eval`, `change_docs`, `locks` | Generic DDIC reads, SAP documentation reads, dynamic function-module calls, one-shot ABAP snippet evaluation, change-document reads and enqueue-lock reads. |
 | `enh` | `create_spot`, `add_badi_def`, `add_filter_def`, `create_impl`, `set_filter_values` | Enhancement spots, BAdI definitions and implementations. |
 | `fpm` | `find`, `outline`, `app` | Floorplan Manager configuration reads. |
 | `img` | `preview`, `create_request`, `apply` | IMG customizing: row preview, customizing request creation, and the write itself. |
@@ -62,7 +62,7 @@ every action here is also reachable directly via `abap_fluid`, so each
 one is gated on its own declared targets and cannot rely on its calling
 tool having checked first.
 
-`core`'s four actions carry policy worth stating explicitly:
+`core`'s six actions carry policy worth stating explicitly:
 
 - `core.select` (read) — a read-only row preview of one DDIC table.
   Judged by the **existing** data-preview policy
@@ -81,6 +81,27 @@ tool having checked first.
   action, since it reads documentation text out of `DOKTL`, not
   application table data. Backs `abap_read view="docu"` — see
   `doc/TOOLS/read-and-search.md`.
+- `core.change_docs` (read) — reads change documents (`CDHDR`/`CDPOS`,
+  via direct Open SQL) for one object class. Judged by the **existing**
+  data-preview policy twice over: `guardCoreAction` checks `CDHDR` and
+  `CDPOS` themselves before the ABAP runs, and a second pass
+  (`applyPositionPolicy`, `src/adt/change-docs.ts`) checks every table a
+  returned `CDPOS` row actually names, after the read, since those
+  tables are not known beforehand. A position naming a denied table is
+  dropped and counted, never shown; the change document it belongs to
+  still appears. Rows are then clamped to the same
+  `ABAP_DATA_PREVIEW_MAX_ROWS` ceiling as `core.select`. Requires
+  `ABAP_ALLOW_DATA_PREVIEW`, same as `core.select`. See
+  `doc/TOOLS/abap-fluid.md`.
+- `core.locks` (read) — reads enqueue locks via `ENQUEUE_READ`. Requires
+  at least one of `object`, `table` or `user`; an empty call is refused
+  as `BAD_INPUT` before any network call, so there is no way to dump the
+  whole enqueue table through this action. Filters are matched
+  client-side with a `CP` (contains-pattern) wildcard, since
+  `ENQUEUE_READ`'s own filter parameters are exact-match only. Read-only:
+  there is no release/`DEQUEUE` path here. Not judged by the data-preview
+  policy at all — enqueue state is runtime lock information, not table
+  data. See `doc/TOOLS/abap-fluid.md`.
 - `core.eval` (execute) — runs a short caller-supplied ABAP snippet as the
   body of one generated method and serialises named local variables back
   as JSON. Off by default; requires `ABAP_ALLOW_FLUID_EVAL`, which no

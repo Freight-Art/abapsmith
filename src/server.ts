@@ -6,6 +6,19 @@
  * The safety gate is asserted before `ensureConnected()` (a network call)
  * runs, using only args decidable pre-flight; each tool re-asserts once
  * the object's real package is known.
+ *
+ * Two axes cross in here, and they are independent:
+ *
+ *   - One `McpServer` per MCP SESSION (`createMcpServer` below). Under stdio
+ *     that runs once; under `ABAP_MCP_TRANSPORT=http` (`src/mcp-http.ts`)
+ *     once per `Mcp-Session-Id`.
+ *   - One `SystemContext` per configured SAP SYSTEM (`src/systems/context.ts`)
+ *     — pool, journal, safety gate, transport, debug deps, connect memo. A
+ *     single-system server is a registry of exactly one.
+ *
+ * Every registrar is called once per MCP session with the same `routed`
+ * object of getters, which resolves the CURRENT system per request. So
+ * sessions multiply the tool registrations; systems do not.
  */
 import { randomUUID } from "node:crypto";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -18,14 +31,17 @@ import type { SessionPool } from "./adt/pool.js";
 import { stripUrlCredentials, type Config } from "./config.js";
 import { shutdownAllDebugSessions } from "./debug/session.js";
 import type { Journal } from "./journal.js";
+import { startMcpHttpServer, type McpHttpServer } from "./mcp-http.js";
+import type { McpSessionContext } from "./mcp-session.js";
 import type { SafetyGate } from "./safety.js";
+import { registerShutdownHandler } from "./shutdown-hook.js";
 import type { AbapMode } from "./mode.js";
 import { createSystemContext, type SystemContext } from "./systems/context.js";
 import { SystemRegistry } from "./systems/registry.js";
 import { installSystemRouting } from "./systems/route.js";
 import type { SystemSpec } from "./systems/spec.js";
 // One import per tool-feature module; each is a `registerXTools(mcp, deps)`
-// registrar (see REGISTRATION in `createServer`). `shutdownDebugTools` is
+// registrar (see REGISTRATION in `createMcpServer`). `shutdownDebugTools` is
 // lifecycle, not registration — each system's debugger deps are built by
 // `createSystemContext` and torn down in `stop()`.
 import { registerActivateTools } from "./tools/activate.js";
@@ -56,6 +72,9 @@ import { registerTraceTools } from "./tools/trace.js";
 import { builtinFluidToolSet, registerFluidTool } from "./tools/fluid.js";
 import { BUILTIN_FLUID_TOOLS } from "./adt/fluid/builtin/index.js";
 import type { FluidToolSet } from "./adt/fluid/plugin-loader.js";
+import { dispatch } from "./adt/fluid/dispatch.js";
+import { LOCKS_ACTION, LOCKS_TOOL_ID, mapLockRows } from "./adt/enqueue-read.js";
+import type { LockHolderLookup } from "./adt/locked-holders.js";
 import { SERVER_VERSION } from "./version.js";
 
 export const SERVER_NAME = "abapsmith";
@@ -93,6 +112,10 @@ export interface AbapsmithServer {
    * necessarily this one. Kept for backward compatibility with code written
    * before #93 that reads `server.pool` directly; on a single-system server
    * this and the routed pool are the same object.
+   *
+   * Starts with one connection (`connection` below, built eagerly), grows
+   * lazily up to `maxSessions` (5 by default) as concurrent leases are
+   * taken — see `src/adt/pool.ts`.
    */
   pool: SessionPool;
   /**
@@ -109,8 +132,33 @@ export interface AbapsmithServer {
   journal: Journal;
   /** Every configured system. A single-system server still has one — of exactly one system. */
   readonly systems: SystemRegistry;
+  /**
+   * The bound host/port of the Streamable HTTP listener, or `undefined`
+   * under stdio (`cfg.mcpTransport !== "http"`) or before `start()` has
+   * resolved it. `port` is the OS-assigned port when `ABAP_MCP_HTTP_PORT=0`
+   * was configured, not the requested `0`.
+   */
+  readonly httpAddress: { host: string; port: number } | undefined;
+  /**
+   * Live MCP sessions right now, per the HTTP transport's session map —
+   * always 0 under stdio, deliberately: there is no session map for it, one
+   * process IS one conversation there, so nothing increments this. Only
+   * `ABAP_MCP_TRANSPORT=http` sessions are counted (0..N).
+   */
+  readonly mcpSessionCount: number;
   start(): Promise<void>;
   stop(): Promise<void>;
+  /**
+   * Closes every live `McpServer` (the default one, plus every HTTP
+   * session's) and the HTTP listener, WITHOUT touching any system's pool,
+   * journal, or debug leases — those are process-wide and `stop()` is what
+   * tears them down. Exists because `src/index.ts`'s shutdown-signal handler
+   * must close MCP-facing state before the process-wide `stop()` teardown
+   * runs (see its own comment for why the ordering matters), and under
+   * `ABAP_MCP_TRANSPORT=http` that means more than the one `mcp` this
+   * interface exposes.
+   */
+  closeClients(): Promise<void>;
 }
 
 // ADT-error → MCP-payload translation lives in `src/tool-errors.ts`;
@@ -289,7 +337,7 @@ export function describeStartupProbeFailure(e: unknown): {
  * which is exactly wrong for `routed` below: the whole point of its
  * `pool`/`cfg`/`safety`/`journal`/`transport`/`debugDeps` getters is that
  * each one re-resolves the CURRENT routed system on every access, not once
- * at registration time (registration runs once per process, outside any
+ * at registration time (registration runs once per MCP session, outside any
  * routed request). `Object.create` makes `base` the new object's
  * prototype instead of copying it, so a lookup `extra` doesn't shadow still
  * runs `base`'s getter fresh, on every access, for the life of the process.
@@ -335,13 +383,12 @@ export function createServer(cfg: Config, opts: ServerOptions): AbapsmithServer 
   const registry = new SystemRegistry(contexts);
   const def = registry.default;
 
-  // Step 2 (union of step 3 from the brief, folded in here): registration-time
-  // tool filtering unions ACROSS every configured system — a tool is
-  // registered (spends schema bytes) if ANY configured system could use it;
-  // the SAFETY GATE that actually judges a call always evaluates the
-  // call's OWN routed system (via `routed` below), never this union. This
-  // is what keeps "read-only on DEV does not widen because QAS is admin"
-  // true even though `abap_write` is registered process-wide.
+  // Step 2: registration-time tool filtering unions ACROSS every configured
+  // system — a tool is registered (spends schema bytes) if ANY configured
+  // system could use it; the SAFETY GATE that actually judges a call always
+  // evaluates the call's OWN routed system (via `routed` below), never this
+  // union. This is what keeps "read-only on DEV does not widen because QAS
+  // is admin" true even though `abap_write` is registered process-wide.
   const toolCapabilities = {
     canWrite: contexts.some((c) => c.capabilities.canWrite),
     canReleaseTransport: contexts.some((c) => c.capabilities.canReleaseTransport),
@@ -356,62 +403,56 @@ export function createServer(cfg: Config, opts: ServerOptions): AbapsmithServer 
   // write, the real tools register (via the union above) and a call routed
   // to a read-only system is refused by THAT system's `SafetyGate` instead,
   // with the same fail-closed outcome but the correct per-system reason.
+  // Computed before `new McpServer(...)` below: `instructionsFor` needs the
+  // count for its locked-tools sentence, and the registration below reuses
+  // this same array to register the stubs themselves.
   const lockedTools = specs.every((s) => s.cfg.readOnly) ? lockedToolsFor(def.cfg) : [];
 
   /** The `mode` word `instructionsFor`'s multi-system sentence uses for one system. */
   const systemModeLabel = (c: Config): string => c.abapMode ?? (c.readOnly ? "read-only" : "write");
-
-  const mcp = new McpServer(
-    { name: SERVER_NAME, version: SERVER_VERSION },
-    {
-      instructions: instructionsFor(
-        def.cfg.abapMode,
-        def.cfg.readOnly,
-        def.cfg.allowPackages,
-        toolCapabilities.canUseFluidApi,
-        lockedTools.length,
-        registry.size > 1
-          ? contexts.map((c) => ({ alias: c.alias, sid: c.cfg.sid, mode: systemModeLabel(c.cfg) }))
-          : undefined,
-      ),
-    },
+  const systemsForInstructions =
+    registry.size > 1
+      ? contexts.map((c) => ({ alias: c.alias, sid: c.cfg.sid, mode: systemModeLabel(c.cfg) }))
+      : undefined;
+  const instructions = instructionsFor(
+    def.cfg.abapMode,
+    def.cfg.readOnly,
+    def.cfg.allowPackages,
+    toolCapabilities.canUseFluidApi,
+    lockedTools.length,
+    systemsForInstructions,
   );
 
-  // Must run before any `registerXTools(mcp, ...)` call below — it rebinds
-  // `mcp.registerTool` in place, so only tools registered AFTER this point
-  // gain the `system` parameter and routing. No-op when there is only one
-  // configured system (see its own doc comment), which is what keeps a
-  // single-system server's tool schemas byte-identical to before #93.
-  installSystemRouting(mcp, registry);
+  // A SID collision is a property of the CONFIGURATION, not of any one MCP
+  // session — resolved once here, so the warning prints once per process
+  // rather than once per HTTP session, and every session registers the same
+  // system at the same URI.
+  const resourceUriByAlias = new Map<string, string>();
+  {
+    const seen = new Set<string>();
+    for (const ctx of registry.all()) {
+      const uri = `abap://${ctx.cfg.sid}/system`;
+      let resourceUri = uri;
+      if (seen.has(uri)) {
+        // Two systems sharing a SID (e.g. distinguished only by client) would
+        // otherwise collide on the same URI — disambiguate with the alias
+        // rather than silently dropping the second system's resource.
+        resourceUri = `abap://${ctx.cfg.sid}/system-${ctx.alias.toLowerCase()}`;
+        warn(
+          `[abapsmith] WARNING: system "${ctx.alias}" shares SID "${ctx.cfg.sid}" with an earlier ` +
+            `configured system — its resource is registered at ${resourceUri} instead of ${uri}.`,
+        );
+      }
+      seen.add(uri);
+      resourceUriByAlias.set(ctx.alias, resourceUri);
+    }
+  }
 
   // Fallback session id — minted once here, not inside `oninitialized`,
   // so a second `initialize` on the same process (there is no such thing over
   // stdio, but nothing here depends on that) would still reuse it rather than
   // mint a new one. See the `oninitialized` comment below for when it's used.
   const processSessionId = randomUUID();
-  // Every system's `Journal` is built above, before `mcp.connect()` runs, so
-  // `getClientVersion()` is unset at that point — the initialize handshake
-  // hasn't happened yet. `oninitialized` fires once it has, handing EVERY
-  // configured system's journal the same client identity — an entry
-  // recorded against any of them from here on shares one "who"/"which
-  // conversation" (see `Journal.resolveActor()`), not just the default's.
-  mcp.server.oninitialized = () => {
-    const clientName = mcp.server.getClientVersion()?.name;
-    // "Which conversation", distinct from "who" above. `Transport`
-    // declares `sessionId?: string` (SDK shared/transport.d.ts) but
-    // `StdioServerTransport` — the only transport `start()` below ever
-    // constructs — never assigns it, so this is a defensive read of a
-    // documented field, not something observed to fire. Fall back to a
-    // value generated once for this process: for stdio, one process IS one
-    // client connection, so it genuinely identifies "this conversation".
-    const transportSessionId = mcp.server.transport?.sessionId;
-    const sessionId = transportSessionId ?? processSessionId;
-    const sessionSource = transportSessionId ? "transport" : "process";
-    for (const ctx of contexts) {
-      ctx.journal.setClientActor(clientName);
-      ctx.journal.setClientSession(sessionId, sessionSource);
-    }
-  };
 
   // Every registrar below reads its per-request dependencies off `routed`
   // (or `withDeps(routed, extra)` when it needs a field `routed` doesn't
@@ -419,9 +460,11 @@ export function createServer(cfg: Config, opts: ServerOptions): AbapsmithServer 
   // getters call `registry.current()` on every access — the in-flight
   // routed system if `installSystemRouting` wrapped this call (see
   // `src/systems/route.ts`/`current.ts`), else the default — so ONE set of
-  // ~25 registrar calls, made ONCE at startup, still dispatches every
+  // ~25 registrar calls, made ONCE per MCP session, still dispatches every
   // request to its own target system's pool/safety/journal/transport, with
-  // zero change to any `registerXTools` module itself.
+  // zero change to any `registerXTools` module itself. Built once for the
+  // whole process, not per session: it holds no session state, only the
+  // registry lookup.
   const routed = {
     get pool(): SessionPool {
       return registry.current().pool;
@@ -446,254 +489,367 @@ export function createServer(cfg: Config, opts: ServerOptions): AbapsmithServer 
     warn,
   };
 
-  // Every tool registrar this server has; there is one tool surface and it
-  // is always registered.
-  // `journal` is required on `TransportToolDeps` — it was once optional
-  // and silently omitted, disabling every transport journal entry (see
-  // the git history); now a compile error instead of a
-  // silent no-op, pinned by test/session-transport-journal.test.ts.
-  registerTransportTools(
-    mcp,
-    withDeps(routed, {
-      // The pool, not the connection: transport ops have no single ABAP
-      // object to gate on (a TRKORR isn't a repository object).
-      // Same manager that adopts requests knows which of them this session
-      // created — `abap_transport show` and the release gate read the
-      // record `transport`'s resolver writes. A getter, like the rest of
-      // `routed`: the manager that "this session" means depends on which
-      // system the call was routed to.
-      get ownership() {
-        return registry.current().transport;
-      },
-      // `abap_transport`'s list/show/check/users submodes are ungated and
-      // always registered; only `abap_transport_release` is gated.
-      registerRelease: toolCapabilities.canReleaseTransport,
-    }),
-  );
+  /**
+   * One ADT session pool, one journal, one safety gate, one debug lease per
+   * SYSTEM (`registry`, closed over above); one `McpServer` per MCP SESSION —
+   * this function. Under stdio it runs once, with `ctx === undefined`, and
+   * that instance is also what `AbapsmithServer.mcp` exposes; under
+   * `ABAP_MCP_TRANSPORT=http` (`src/mcp-http.ts`) it runs once per
+   * `Mcp-Session-Id`, each with its own `McpSessionContext`.
+   */
+  const createMcpServer = (ctx?: McpSessionContext): McpServer => {
+    const mcp = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION }, { instructions });
 
-  // BOPF tools gate on the BO name via `bopfGateKey` (tools/bopf.ts).
-  // `abap_bopf` is a pure read, always registered; only
-  // `abap_bopf_edit`/`abap_bopf_delete` are gated. `journal` required —
-  // same reason as `TransportToolDeps` above (BOPF journalling was added
-  // under the same fix).
-  registerBopfTools(mcp, withDeps(routed, { registerWrite: toolCapabilities.canWrite }));
-  // abap_enh registers unconditionally: `discover_hook_anchors` makes no
-  // `SafetyGate` call at all (a genuinely ungated read), so gating the
-  // whole tool would hide that read on a read-only server. Every other
-  // submode is gated via `assertIntent` at point of use. `journal`
-  // required — enhancement description writes are journalled
-  // (irreversible: history, never undo).
-  registerEnhancementTools(mcp, routed);
+    // Must run before any `registerXTools(mcp, ...)` call below — it rebinds
+    // `mcp.registerTool` in place, so only tools registered AFTER this point
+    // gain the `system` parameter and routing. No-op when there is only one
+    // configured system (see its own doc comment), which is what keeps a
+    // single-system server's tool schemas byte-identical to before #93.
+    installSystemRouting(mcp, registry);
 
-  // Core repository tools: one module per feature, one `registerXTools`
-  // call, nothing about schema/handler visible here. Every group takes
-  // `pool, cfg, safety, ensureConnected, errorResult` plus only the extra
-  // collaborators it uses.
-  // `systems`/`multiSystem` (issue #93) enable cross-system
-  // `view="diff"` (`from_system`/`to_system`) — `multiSystem` is what
-  // gates whether those two fields are spliced into the registered schema
-  // at all, so a single-system server's `abap_read` schema stays exactly
-  // what it always was.
-  registerReadTools(
-    mcp,
-    withDeps(routed, {
-      systems: {
-        aliases: registry.aliases,
-        resolve: (alias?: string) => registry.resolve(alias),
-      },
-      multiSystem: registry.size > 1,
-    }),
-  );
-  registerSearchTools(mcp, routed);
-  registerOpenUrlTools(mcp, routed);
-  // `abap_img` reads catalog tables straight through the freestyle data-preview endpoint
-  // (src/adt/img-read.ts) — it generates no ABAP and deploys nothing, so it needs no write
-  // capability and registers unconditionally, same as the other read tools above.
-  registerImgTools(mcp, routed);
-  // `abap_write`/`abap_fpm_read`/`abap_run`/`abap_test`/`abap_bopf_test`
-  // have no ungated submode, so registration itself is skipped when
-  // `!toolCapabilities.canWrite`. `abap_activate` (mode=check is a genuine
-  // ungated read) stays unconditional, below.
-  if (toolCapabilities.canWrite) {
-    registerBopfTestTool(mcp, withDeps(routed, createBopfTestDeps()));
-    registerFpmTools(mcp, routed);
-    // `abap_ui`'s `screen` mode deploys reused $ABAPSMITH_FLUID_API fluid classes, so
-    // it needs write capability just to register. `press` (committing) is
-    // gated far more tightly at call time — `assertPressEnabled` in
-    // src/tools/ui.ts requires ABAP_MODE=admin AND ABAP_ALLOW_UI_PRESS.
-    // `journal` required: `press`'s blast radius is business data, not
-    // repository objects.
-    registerUiTools(mcp, routed);
-    // `journal` for the before-image, `transport` for the CTS assignment.
-    registerWriteTools(mcp, routed);
-    // `abap_img_edit` writes IMG customizing rows by dispatching against the reused
-    // $ABAPSMITH_FLUID_API body class ZCL_ZMCP_FLUID_IMG (src/adt/fluid/builtin/img.ts) —
-    // an irreversible business-data write, gated here like every other mutating tool.
-    // `journal` records the before-image; the wider `cfg` slice (`sid`/`url`/`client`) is
-    // for `systemKey()` on those journal entries.
-    registerImgEditTools(mcp, routed);
-    registerRunTools(mcp, routed);
-    registerTestTools(mcp, routed);
-    // `abap_atc`: inside `canWrite`, not beside `abap_dumps` — a run
-    // creates a persistent ATC worklist row, and this server observably
-    // REFUSES to remove it (DELETE answers 405 `ExceptionMethodNotSupported`,
-    // capture `891-i78-worklist-delete-405.xml`; the advertised
-    // `?action=deleteFindings` action is a zero-byte 200 no-op, capture 858)
-    // — and `execute` carries the Z/Y-prefix + package-allowlist rules, so
-    // gating it any weaker risks unbounded server-side checks against
-    // SAP-standard packages. See src/adt/atc.ts.
-    registerAtcTools(mcp, routed);
-    // Same reasoning: mode="list" POSTs the object's whole source for evaluation.
-    registerQuickFixTools(mcp, routed);
-  }
-  // `journal` required on `ActivateToolDeps` — it was previously missing,
-  // and `abap_activate` (up to 50 objects/call) changed executing
-  // code with nothing recorded to disk. Unconditional (outside `canWrite`)
-  // since `mode=check` is a genuine ungated read; journal only writes on
-  // `mode=activate`.
-  registerActivateTools(mcp, routed);
-  registerJournalTools(mcp, routed);
-  registerDebugTools(mcp, routed);
-  // `abap_data_preview`: skipped outright (not registered-and-refusing) so
-  // it costs no schema bytes when ABAP_ALLOW_DATA_PREVIEW is off. Not
-  // inside `canWrite` — a preview is a read.
-  if (toolCapabilities.canPreviewData) {
-    registerDataPreviewTools(mcp, routed);
-  }
-  // `abap_dumps`: registered unconditionally — tier 1 (list, one dump's
-  // header/source/system-fields/call-stack) is a genuine ungated read.
-  // `registerVariables` controls only whether the `variables` field (tier
-  // 2, live field values) is ADVERTISED in the schema; the handler still
-  // calls `safety.assertDumpVariables()` on every request regardless of
-  // route. Deliberately not derived from `canWrite` (see
-  // `resolveStaticCapabilities`) — keying production-data access off
-  // write capability would give read-only production the widest access.
-  registerDumpTools(mcp, withDeps(routed, { registerVariables: toolCapabilities.canReadDumpVariables }));
-  // `abap_service` (OData $metadata): registered unconditionally, not
-  // inside `canWrite` like `abap_atc` — `op="read"` (the default) is three
-  // GETs, nothing created server-side, always allowed. `op="publish"`/
-  // `"unpublish"` DO mutate (they call an ADT publish job), but the
-  // connected ceilings that would gate them — `allowServicePublish`,
-  // `readOnly`, a productive-system lockout, a failed namespace/package
-  // check against the binding's package — are unknowable at registration
-  // time, exactly like `abap_fluid` below: every call re-checks via
-  // `safety` at call time instead of the tool being registered or not.
-  registerServiceTools(mcp, routed);
-  // `abap_trace` (ABAP runtime tracing, SAT): unconditional like `abap_dumps`
-  // and `abap_service` above — `list`/`read` are genuine ungated reads, and
-  // `start`/`run`/`delete` each self-gate per op inside the handler (a
-  // target-less capability probe, plus the same object-specific preflight
-  // assert `abap_run` uses for `start`/`run`). Not added to `./locked.ts`
-  // for the same reason: it is registered everywhere and refuses at call
-  // time, never omitted from the schema.
-  registerTraceTools(mcp, routed);
-  // `abap_fluid` installs generated ABAP into $ABAPSMITH_FLUID_API — there is
-  // no read-only subset of it, so when ABAP_FLUID_API is off or the system is
-  // read-only the tool is not registered at all and costs no schema bytes,
-  // exactly like `abap_data_preview` above. `canUseFluidApi` is strictly
-  // narrower than `canWrite` (see its doc comment in config.ts), so this is
-  // outside/adjacent to the `canWrite` block rather than nested in it. The
-  // connected ceilings (a productive system, a write lockout, a failed role
-  // probe) are unknowable here, so every op re-checks
-  // `fluidDisabledReason(cfg, safety)` at call time (`src/tools/fluid.ts`).
-  if (toolCapabilities.canUseFluidApi) {
-    registerFluidTool(
+    // Every system's `Journal` is built before `mcp.connect()` runs, so
+    // `getClientVersion()` is unset at that point — the initialize handshake
+    // hasn't happened yet. `oninitialized` fires once it has.
+    mcp.server.oninitialized = () => {
+      if (ctx === undefined) {
+        // stdio, and the default server `AbapsmithServer.mcp` exposes:
+        // exactly today's behaviour — the process-wide journal fields are
+        // correct here because one process IS one conversation, and every
+        // entry `begin()` writes reads them back (see `Journal.resolveActor()`).
+        // Every CONFIGURED SYSTEM's journal is handed the same client
+        // identity: an entry recorded against any of them from here on
+        // shares one "who"/"which conversation", not just the default's.
+        const clientName = mcp.server.getClientVersion()?.name;
+        // "Which conversation", distinct from "who" above. `Transport`
+        // declares `sessionId?: string` (SDK shared/transport.d.ts) but
+        // `StdioServerTransport` — the only transport `start()` below ever
+        // constructs for this path — never assigns it, so this is a
+        // defensive read of a documented field, not something observed to
+        // fire. Fall back to a value generated once for this process: for
+        // stdio, one process IS one client connection, so it genuinely
+        // identifies "this conversation".
+        const transportSessionId = mcp.server.transport?.sessionId;
+        const sessionId = transportSessionId ?? processSessionId;
+        const sessionSource = transportSessionId ? "transport" : "process";
+        for (const systemCtx of contexts) {
+          systemCtx.journal.setClientActor(clientName);
+          systemCtx.journal.setClientSession(sessionId, sessionSource);
+        }
+      } else {
+        // One HTTP session among possibly several live ones. Writing
+        // process-wide journal state here would misattribute every OTHER
+        // live session's entries to whichever session's `initialize`
+        // handler happened to run last — so identity goes on `ctx` instead;
+        // `Journal.resolveActor()`/`sessionId` (src/journal.ts) read it back
+        // via `currentMcpSession()` (src/mcp-session.ts) for every entry
+        // written while `src/mcp-http.ts` has this session's `ctx` bound as
+        // the ambient `McpSessionContext` — for every system's journal
+        // alike, since the ambient context is read per entry, not captured
+        // per journal.
+        ctx.client = mcp.server.getClientVersion()?.name;
+        // `??=`, not `=`: `src/mcp-http.ts`'s `onsessioninitialized`
+        // callback normally sets `ctx.sessionId` before this handler runs
+        // (both derive it from the same transport), so this only matters if
+        // the SDK ever invokes the two callbacks in the other order — either
+        // order yields the same value.
+        ctx.sessionId ??= mcp.server.transport?.sessionId;
+      }
+    };
+
+    // Every tool registrar this server has; there is one tool surface and it
+    // is always registered.
+    // `journal` is required on `TransportToolDeps` — it was once optional
+    // and silently omitted, disabling every transport journal entry (see
+    // the git history); now a compile error instead of a
+    // silent no-op, pinned by test/session-transport-journal.test.ts.
+    registerTransportTools(
       mcp,
       withDeps(routed, {
-        toolSet: opts.fluidToolSet ?? builtinFluidToolSet(BUILTIN_FLUID_TOOLS),
+        // The pool, not the connection: transport ops have no single ABAP
+        // object to gate on (a TRKORR isn't a repository object).
+        // Same manager that adopts requests knows which of them this session
+        // created — `abap_transport show` and the release gate read the
+        // record `transport`'s resolver writes. A getter, like the rest of
+        // `routed`: the manager that "this session" means depends on which
+        // system the call was routed to.
+        get ownership() {
+          return registry.current().transport;
+        },
+        // `abap_transport`'s list/show/check/users submodes are ungated and
+        // always registered; only `abap_transport_release` is gated.
+        registerRelease: toolCapabilities.canReleaseTransport,
       }),
     );
-  }
-  // Refusal-only stubs closing the "Tool abap_write not found" gap from
-  // issue #63: on a read-only server, `abap_write` and friends were
-  // never registered at all, so a caller got an MCP "tool not found"
-  // error indistinguishable from a typo, with no hint that raising
-  // ABAP_MODE is the fix. These stubs take no pool/cfg-write/safety
-  // dependency — only `cfg.abapMode` and `errorResult` — so they cannot
-  // reach SAP no matter what a caller passes; `[]` on any non-read-only
-  // server, so this is a no-op there. `cfg: def.cfg`, not `routed.cfg`:
-  // this only registers at all when EVERY system is read-only (see
-  // `lockedTools` above), so the default's `abapMode` speaks for all of
-  // them for the purpose of this stub's explanatory text.
-  registerLockedTools(mcp, { cfg: def.cfg, errorResult, tools: lockedTools });
 
-  // Objects referenceable without a tool call, and the discovery probe
-  // exposed without spending tool-schema budget — one resource per
-  // configured system.
-  const seenResourceUris = new Set<string>();
-  for (const ctx of registry.all()) {
-    const uri = `abap://${ctx.cfg.sid}/system`;
-    let resourceUri = uri;
-    if (seenResourceUris.has(uri)) {
-      // Two systems sharing a SID (e.g. distinguished only by client) would
-      // otherwise collide on the same URI — disambiguate with the alias
-      // rather than silently dropping the second system's resource.
-      resourceUri = `abap://${ctx.cfg.sid}/system-${ctx.alias.toLowerCase()}`;
-      warn(
-        `[abapsmith] WARNING: system "${ctx.alias}" shares SID "${ctx.cfg.sid}" with an earlier ` +
-          `configured system — its resource is registered at ${resourceUri} instead of ${uri}.`,
-      );
+    // BOPF tools gate on the BO name via `bopfGateKey` (tools/bopf.ts).
+    // `abap_bopf` is a pure read, always registered; only
+    // `abap_bopf_edit`/`abap_bopf_delete` are gated. `journal` required —
+    // same reason as `TransportToolDeps` above (BOPF journalling was added
+    // under the same fix).
+    registerBopfTools(mcp, withDeps(routed, { registerWrite: toolCapabilities.canWrite }));
+    // abap_enh registers unconditionally: `discover_hook_anchors` makes no
+    // `SafetyGate` call at all (a genuinely ungated read), so gating the
+    // whole tool would hide that read on a read-only server. Every other
+    // submode is gated via `assertIntent` at point of use. `journal`
+    // required — enhancement description writes are journalled
+    // (irreversible: history, never undo).
+    registerEnhancementTools(mcp, routed);
+
+    // Core repository tools: one module per feature, one `registerXTools`
+    // call, nothing about schema/handler visible here. Every group takes
+    // `pool, cfg, safety, ensureConnected, errorResult` plus only the extra
+    // collaborators it uses.
+    // `systems`/`multiSystem` (issue #93) enable cross-system
+    // `view="diff"` (`from_system`/`to_system`) — `multiSystem` is what
+    // gates whether those two fields are spliced into the registered schema
+    // at all, so a single-system server's `abap_read` schema stays exactly
+    // what it always was.
+    registerReadTools(
+      mcp,
+      withDeps(routed, {
+        systems: {
+          aliases: registry.aliases,
+          resolve: (alias?: string) => registry.resolve(alias),
+        },
+        multiSystem: registry.size > 1,
+      }),
+    );
+    registerSearchTools(mcp, routed);
+    registerOpenUrlTools(mcp, routed);
+    // `abap_img` reads catalog tables straight through the freestyle data-preview endpoint
+    // (src/adt/img-read.ts) — it generates no ABAP and deploys nothing, so it needs no write
+    // capability and registers unconditionally, same as the other read tools above.
+    registerImgTools(mcp, routed);
+    // Hoisted out of the `canUseFluidApi` block below so both `lockHolders`
+    // here and the `registerFluidTool` call site further down share the same
+    // loaded tool set, rather than loading (and logging plugin
+    // warnings/refusals for) it twice.
+    const fluidToolSet: FluidToolSet = opts.fluidToolSet ?? builtinFluidToolSet(BUILTIN_FLUID_TOOLS);
+    // The one place that knows both the fluid tool registry and the
+    // write/activate tools (issue #116): a `LOCKED` refusal that ADT itself
+    // left unattributed gets one extra, read-only enqueue-table lookup via
+    // the `core.locks` fluid action, so the refusal can name a holder ADT
+    // didn't. Deliberately gated on `canUseFluidApi`, the same switch
+    // `abap_fluid`'s own registration below is gated on: a server without
+    // the fluid API (off, or a read-only connection) passes `undefined`
+    // here, and `enrichLockedError` (src/adt/locked-holders.ts) treats a
+    // missing lookup as "not available" — every `LOCKED` refusal stays
+    // exactly as it is today. Every field it needs is read off
+    // `registry.current()` at CALL time, not captured here: the lookup runs
+    // inside the same routed handler that hit the `LOCKED` refusal, so it
+    // queries the enqueue table of the system that actually refused.
+    const lockHolders: LockHolderLookup | undefined = toolCapabilities.canUseFluidApi
+      ? async (argPattern, callerTool) => {
+          const system = registry.current();
+          const result = await system.pool.withRead(`${callerTool}:lock_holders`, (conn) =>
+            dispatch(
+              {
+                conn,
+                cfg: system.cfg,
+                gate: system.safety,
+                tools: fluidToolSet.tools,
+                journal: system.journal,
+                warn,
+              },
+              {
+                tool: LOCKS_TOOL_ID,
+                action: LOCKS_ACTION,
+                args: { table: argPattern },
+                caller: { tool: callerTool, action: "lock_holders" },
+              },
+            ),
+          );
+          return mapLockRows(Array.isArray(result.result) ? result.result : []);
+        }
+      : undefined;
+    // `abap_write`/`abap_fpm_read`/`abap_run`/`abap_test`/`abap_bopf_test`
+    // have no ungated submode, so registration itself is skipped when
+    // `!toolCapabilities.canWrite`. `abap_activate` (mode=check is a genuine
+    // ungated read) stays unconditional, below.
+    if (toolCapabilities.canWrite) {
+      registerBopfTestTool(mcp, withDeps(routed, createBopfTestDeps()));
+      registerFpmTools(mcp, routed);
+      // `abap_ui`'s `screen` mode deploys reused $ABAPSMITH_FLUID_API fluid classes, so
+      // it needs write capability just to register. `press` (committing) is
+      // gated far more tightly at call time — `assertPressEnabled` in
+      // src/tools/ui.ts requires ABAP_MODE=admin AND ABAP_ALLOW_UI_PRESS.
+      // `journal` required: `press`'s blast radius is business data, not
+      // repository objects.
+      registerUiTools(mcp, routed);
+      // `journal` for the before-image, `transport` for the CTS assignment.
+      registerWriteTools(mcp, withDeps(routed, { lockHolders }));
+      // `abap_img_edit` writes IMG customizing rows by dispatching against the reused
+      // $ABAPSMITH_FLUID_API body class ZCL_ZMCP_FLUID_IMG (src/adt/fluid/builtin/img.ts) —
+      // an irreversible business-data write, gated here like every other mutating tool.
+      // `journal` records the before-image; the wider `cfg` slice (`sid`/`url`/`client`) is
+      // for `systemKey()` on those journal entries.
+      registerImgEditTools(mcp, routed);
+      registerRunTools(mcp, routed);
+      registerTestTools(mcp, routed);
+      // `abap_atc`: inside `canWrite`, not beside `abap_dumps` — a run
+      // creates a persistent ATC worklist row, and this server observably
+      // REFUSES to remove it (DELETE answers 405 `ExceptionMethodNotSupported`,
+      // capture `891-i78-worklist-delete-405.xml`; the advertised
+      // `?action=deleteFindings` action is a zero-byte 200 no-op, capture 858)
+      // — and `execute` carries the Z/Y-prefix + package-allowlist rules, so
+      // gating it any weaker risks unbounded server-side checks against
+      // SAP-standard packages. See src/adt/atc.ts.
+      registerAtcTools(mcp, routed);
+      // Same reasoning: mode="list" POSTs the object's whole source for evaluation.
+      registerQuickFixTools(mcp, routed);
     }
-    seenResourceUris.add(uri);
-    const resourceName = registry.size > 1 ? `system-${ctx.alias.toLowerCase()}` : "system";
-    mcp.registerResource(
-      resourceName,
-      resourceUri,
-      {
-        title: registry.size > 1 ? `ABAP system ${ctx.cfg.sid} (${ctx.alias})` : `ABAP system ${ctx.cfg.sid}`,
-        description: "Connection state, system role, and the ADT feature inventory from /discovery.",
-        mimeType: "application/json",
-      },
-      async (resUri) => {
-        await ctx.ensureConnected();
-        return {
-          contents: [
-            {
-              uri: resUri.href,
-              mimeType: "application/json",
-              text: JSON.stringify(
-                {
-                  connection: ctx.pool.primary().info(),
-                  discovery: ctx.pool.primary().discovery.summary(),
-                  // Live occupancy at the instant of the read — `stats()` is
-                  // synchronous, no pool lease, safe to read mid-incident even while
-                  // saturated. `limits` are the denominators busy/idle are out of;
-                  // without them `busy: 5` alone doesn't say whether that's fine.
-                  sessions: {
-                    ...ctx.pool.stats(),
-                    limits: {
-                      maxSessions: ctx.cfg.maxSessions,
-                      readConcurrency: ctx.cfg.readConcurrency,
-                      writeConcurrency: ctx.cfg.writeConcurrency,
+    // `journal` required on `ActivateToolDeps` — it was previously missing,
+    // and `abap_activate` (up to 50 objects/call) changed executing
+    // code with nothing recorded to disk. Unconditional (outside `canWrite`)
+    // since `mode=check` is a genuine ungated read; journal only writes on
+    // `mode=activate`.
+    registerActivateTools(mcp, withDeps(routed, { lockHolders }));
+    registerJournalTools(mcp, routed);
+    registerDebugTools(mcp, routed);
+    // `abap_data_preview`: skipped outright (not registered-and-refusing) so
+    // it costs no schema bytes when ABAP_ALLOW_DATA_PREVIEW is off. Not
+    // inside `canWrite` — a preview is a read.
+    if (toolCapabilities.canPreviewData) {
+      registerDataPreviewTools(mcp, routed);
+    }
+    // `abap_dumps`: registered unconditionally — tier 1 (list, one dump's
+    // header/source/system-fields/call-stack) is a genuine ungated read.
+    // `registerVariables` controls only whether the `variables` field (tier
+    // 2, live field values) is ADVERTISED in the schema; the handler still
+    // calls `safety.assertDumpVariables()` on every request regardless of
+    // route. Deliberately not derived from `canWrite` (see
+    // `resolveStaticCapabilities`) — keying production-data access off
+    // write capability would give read-only production the widest access.
+    registerDumpTools(mcp, withDeps(routed, { registerVariables: toolCapabilities.canReadDumpVariables }));
+    // `abap_service` (OData $metadata): registered unconditionally, not
+    // inside `canWrite` like `abap_atc` — `op="read"` (the default) is three
+    // GETs, nothing created server-side, always allowed. `op="publish"`/
+    // `"unpublish"` DO mutate (they call an ADT publish job), but the
+    // connected ceilings that would gate them — `allowServicePublish`,
+    // `readOnly`, a productive-system lockout, a failed namespace/package
+    // check against the binding's package — are unknowable at registration
+    // time, exactly like `abap_fluid` below: every call re-checks via
+    // `safety` at call time instead of the tool being registered or not.
+    registerServiceTools(mcp, routed);
+    // `abap_trace` (ABAP runtime tracing, SAT): unconditional like `abap_dumps`
+    // and `abap_service` above — `list`/`read` are genuine ungated reads, and
+    // `start`/`run`/`delete` each self-gate per op inside the handler (a
+    // target-less capability probe, plus the same object-specific preflight
+    // assert `abap_run` uses for `start`/`run`). Not added to `./locked.ts`
+    // for the same reason: it is registered everywhere and refuses at call
+    // time, never omitted from the schema.
+    registerTraceTools(mcp, routed);
+    // `abap_fluid` installs generated ABAP into $ABAPSMITH_FLUID_API — there is
+    // no read-only subset of it, so when ABAP_FLUID_API is off or the system is
+    // read-only the tool is not registered at all and costs no schema bytes,
+    // exactly like `abap_data_preview` above. `canUseFluidApi` is strictly
+    // narrower than `canWrite` (see its doc comment in config.ts), so this is
+    // outside/adjacent to the `canWrite` block rather than nested in it. The
+    // connected ceilings (a productive system, a write lockout, a failed role
+    // probe) are unknowable here, so every op re-checks
+    // `fluidDisabledReason(cfg, safety)` at call time (`src/tools/fluid.ts`).
+    if (toolCapabilities.canUseFluidApi) {
+      registerFluidTool(mcp, withDeps(routed, { toolSet: fluidToolSet }));
+    }
+    // Refusal-only stubs closing the "Tool abap_write not found" gap from
+    // issue #63: on a read-only server, `abap_write` and friends were
+    // never registered at all, so a caller got an MCP "tool not found"
+    // error indistinguishable from a typo, with no hint that raising
+    // ABAP_MODE is the fix. These stubs take no pool/cfg-write/safety
+    // dependency — only `cfg.abapMode` and `errorResult` — so they cannot
+    // reach SAP no matter what a caller passes; `[]` on any non-read-only
+    // server, so this is a no-op there. `cfg: def.cfg`, not `routed.cfg`:
+    // this only registers at all when EVERY system is read-only (see
+    // `lockedTools` above), so the default's `abapMode` speaks for all of
+    // them for the purpose of this stub's explanatory text.
+    registerLockedTools(mcp, { cfg: def.cfg, errorResult, tools: lockedTools });
+
+    // Objects referenceable without a tool call, and the discovery probe
+    // exposed without spending tool-schema budget — one resource per
+    // configured system.
+    for (const systemCtx of registry.all()) {
+      const resourceUri =
+        resourceUriByAlias.get(systemCtx.alias) ?? `abap://${systemCtx.cfg.sid}/system`;
+      const resourceName = registry.size > 1 ? `system-${systemCtx.alias.toLowerCase()}` : "system";
+      mcp.registerResource(
+        resourceName,
+        resourceUri,
+        {
+          title:
+            registry.size > 1
+              ? `ABAP system ${systemCtx.cfg.sid} (${systemCtx.alias})`
+              : `ABAP system ${systemCtx.cfg.sid}`,
+          description: "Connection state, system role, and the ADT feature inventory from /discovery.",
+          mimeType: "application/json",
+        },
+        async (uri) => {
+          await systemCtx.ensureConnected();
+          return {
+            contents: [
+              {
+                uri: uri.href,
+                mimeType: "application/json",
+                text: JSON.stringify(
+                  {
+                    connection: systemCtx.pool.primary().info(),
+                    discovery: systemCtx.pool.primary().discovery.summary(),
+                    // Live occupancy at the instant of the read — `stats()` is
+                    // synchronous, no pool lease, safe to read mid-incident even while
+                    // saturated. `limits` are the denominators busy/idle are out of;
+                    // without them `busy: 5` alone doesn't say whether that's fine.
+                    sessions: {
+                      ...systemCtx.pool.stats(),
+                      limits: {
+                        maxSessions: systemCtx.cfg.maxSessions,
+                        readConcurrency: systemCtx.cfg.readConcurrency,
+                        writeConcurrency: systemCtx.cfg.writeConcurrency,
+                      },
+                    },
+                    safety: {
+                      ...systemCtx.safety.config,
+                      writesEnabled: !systemCtx.safety.config.readOnly,
+                      allowPackages: systemCtx.safety.config.allowPackages,
+                      allowNamePrefixes: systemCtx.safety.namePrefixes,
+                      allowTransports: systemCtx.safety.transportAllowlist,
+                    },
+                    journal: {
+                      enabled: systemCtx.journal.enabled,
+                      dir: systemCtx.journal.enabled ? systemCtx.journal.dir : null,
+                      retention: `${systemCtx.journal.config.maxEntries} entries / ${systemCtx.journal.config.maxAgeDays} days`,
                     },
                   },
-                  safety: {
-                    ...ctx.safety.config,
-                    writesEnabled: !ctx.safety.config.readOnly,
-                    allowPackages: ctx.safety.config.allowPackages,
-                    allowNamePrefixes: ctx.safety.namePrefixes,
-                    allowTransports: ctx.safety.transportAllowlist,
-                  },
-                  journal: {
-                    enabled: ctx.journal.enabled,
-                    dir: ctx.journal.enabled ? ctx.journal.dir : null,
-                    retention: `${ctx.journal.config.maxEntries} entries / ${ctx.journal.config.maxAgeDays} days`,
-                  },
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
-      },
-    );
-  }
+                  null,
+                  2,
+                ),
+              },
+            ],
+          };
+        },
+      );
+    }
 
-  // Every tool above is registered by this point, so the SDK's `tools/list`
-  // handler already exists — wrap its transport now (see the comment on
-  // `stripSchemaKeyOnConnect` above `createServer`).
-  stripSchemaKeyOnConnect(mcp);
+    // Every tool above is registered by this point, so the SDK's `tools/list`
+    // handler already exists — wrap its transport now (see the comment on
+    // `stripSchemaKeyOnConnect` above `createServer`).
+    stripSchemaKeyOnConnect(mcp);
+    return mcp;
+  };
+
+  // The default server: what stdio connects, and what `AbapsmithServer.mcp`
+  // exposes either way. Under `ABAP_MCP_TRANSPORT=http` it is built but never
+  // connected to anything — `start()` below hands `createMcpServer` itself to
+  // `startMcpHttpServer`, which calls it once per incoming MCP session.
+  const mcp = createMcpServer();
+
+  // Bound only under `ABAP_MCP_TRANSPORT=http`; `httpAddress`/`mcpSessionCount`
+  // below are live getters over it, and `closeClients()`/`stop()` tear it down.
+  let http: McpHttpServer | undefined;
+  // Set alongside `http`, in the same assignment, purely so the banner below
+  // can read the bound address without re-deriving "is `http` set" via a
+  // non-null assertion — `http` itself stays the one field the rest of the
+  // interface (`httpAddress`, `mcpSessionCount`, `closeClients`) reads.
+  let httpAddr: { host: string; port: number } | undefined;
+  let unregisterHttpShutdown: (() => void) | undefined;
 
   return {
     mcp,
@@ -708,18 +864,50 @@ export function createServer(cfg: Config, opts: ServerOptions): AbapsmithServer 
     safety: def.safety,
     journal: def.journal,
     systems: registry,
+    get httpAddress() {
+      return http?.address;
+    },
+    get mcpSessionCount() {
+      return http?.sessionCount ?? 0;
+    },
     async start() {
-      const transport = new StdioServerTransport();
-      await mcp.connect(transport);
+      // The MCP transport is a PROCESS-wide setting, read off the default
+      // system's config: it says how clients reach abapsmith, not which SAP
+      // system a call lands on. A non-default entry's `mcpTransport` is
+      // never consulted.
+      if (cfg.mcpTransport === "stdio") {
+        // Connect BEFORE the startup probe below — test/server-startup-probe.test.ts
+        // pins the request count and banner ordering on this sequence.
+        await mcp.connect(new StdioServerTransport());
+      } else {
+        // `startMcpHttpServer` rejecting (e.g. EADDRINUSE) propagates out of
+        // `start()` — unlike the startup probe below, a listener that never
+        // bound is fatal: there is no lazy retry path for it the way
+        // `ensureConnected()` gives every tool call.
+        http = await startMcpHttpServer({
+          host: cfg.mcpHttpHost,
+          port: cfg.mcpHttpPort,
+          path: cfg.mcpHttpPath,
+          tokens: cfg.mcpHttpTokens,
+          createMcpServer,
+          log: warn,
+        });
+        httpAddr = http.address;
+        const httpRef = http;
+        unregisterHttpShutdown = registerShutdownHandler("abapsmith/mcp-http", async () => {
+          await httpRef.close();
+        });
+      }
+
       // Sequential, not `Promise.all` — each system's probe prints its own
       // banner, and interleaved banners from concurrent probes would be
       // unreadable. A slow/unreachable system delays the ones after it in
       // the list, same trade-off the pre-#93 single-probe startup always had.
-      for (const ctx of registry.all()) {
-        const label = registry.size > 1 ? `${ctx.alias}: ` : "";
-        const mode = ctx.cfg.readOnly
+      for (const systemCtx of registry.all()) {
+        const label = registry.size > 1 ? `${systemCtx.alias}: ` : "";
+        const mode = systemCtx.cfg.readOnly
           ? "read-only"
-          : `WRITES ENABLED → packages [${ctx.cfg.allowPackages.join(", ")}]`;
+          : `WRITES ENABLED → packages [${systemCtx.cfg.allowPackages.join(", ")}]`;
         // Startup probe — previously `ready on stdio` printed
         // unconditionally, so a bad ABAP_URL/VPN/client only surfaced inside
         // an agent's transcript on the first tool call, misread as agent
@@ -728,12 +916,13 @@ export function createServer(cfg: Config, opts: ServerOptions): AbapsmithServer 
         // throws — a probe failure must not block startup, since the next
         // tool call retries via the same lazy path. Suppressible via
         // ABAP_STARTUP_PROBE=false — see doc/CONFIGURATION/connection.md.
+        // Identical for both transports: nothing about it is transport-specific.
         let notConnectedSuffix = "";
-        if (ctx.cfg.startupProbe) {
+        if (systemCtx.cfg.startupProbe) {
           try {
-            await ctx.ensureConnected();
+            await systemCtx.ensureConnected();
             // `info()` already redacts `.url`; no double-redaction needed.
-            const info = ctx.pool.primary().info();
+            const info = systemCtx.pool.primary().info();
             warn(
               `[abapsmith] ${label}connected — authenticated to ${info.sid} @ ${info.url} ` +
                 `as ${info.user} (client ${info.client})`,
@@ -747,19 +936,68 @@ export function createServer(cfg: Config, opts: ServerOptions): AbapsmithServer 
             notConnectedSuffix = " — NOT CONNECTED, see probe failure above";
           }
         }
+
         // stripUrlCredentials: ABAP_URL is allowed to carry `user:password@host` userinfo,
         // and this banner is the most-copied line the server prints.
+        if (cfg.mcpTransport === "stdio") {
+          warn(
+            `[abapsmith] ${label}ready on stdio — ${systemCtx.cfg.sid} @ ` +
+              `${stripUrlCredentials(systemCtx.cfg.url)} as ${systemCtx.cfg.user} (${mode})${notConnectedSuffix}`,
+          );
+        } else if (httpAddr) {
+          // Bracket form for an IPv6 host in a URL (`[::1]:3000`, not `::1:3000`
+          // — the latter is ambiguous with a port-less address).
+          const hostForUrl = httpAddr.host.includes(":") ? `[${httpAddr.host}]` : httpAddr.host;
+          warn(
+            `[abapsmith] ${label}ready on http://${hostForUrl}:${httpAddr.port}${cfg.mcpHttpPath} — ` +
+              `${systemCtx.cfg.sid} @ ${stripUrlCredentials(systemCtx.cfg.url)} as ` +
+              `${systemCtx.cfg.user} (${mode})${notConnectedSuffix}`,
+          );
+        }
+
         warn(
-          `[abapsmith] ${label}ready on stdio — ${ctx.cfg.sid} @ ${stripUrlCredentials(ctx.cfg.url)} as ` +
-            `${ctx.cfg.user} (${mode})${notConnectedSuffix}`,
-        );
-        warn(
-          ctx.journal.enabled
-            ? `[abapsmith] ${label}write journal: ${ctx.journal.dir} ` +
-                `(keeps ${ctx.journal.config.maxEntries} entries / ${ctx.journal.config.maxAgeDays} days; ` +
+          systemCtx.journal.enabled
+            ? `[abapsmith] ${label}write journal: ${systemCtx.journal.dir} ` +
+                `(keeps ${systemCtx.journal.config.maxEntries} entries / ${systemCtx.journal.config.maxAgeDays} days; ` +
                 "before-images contain source — do not commit it)"
             : `[abapsmith] ${label}WARNING: write journal DISABLED (ABAP_JOURNAL=off) — writes cannot be undone.`,
         );
+      }
+
+      // Once per PROCESS, after the per-system loop: HTTP auth guards the MCP
+      // listener, which is one listener regardless of how many SAP systems
+      // sit behind it — repeating this line per system would imply otherwise.
+      if (cfg.mcpTransport !== "stdio" && httpAddr) {
+        if (cfg.mcpHttpTokens.length > 0) {
+          const names = cfg.mcpHttpTokens.map((t) => t.name ?? "(unnamed)").join(", ");
+          warn(
+            `[abapsmith] HTTP auth: bearer token required (${cfg.mcpHttpTokens.length} configured: ` +
+              `${names}) — TLS is NOT terminated here; put a reverse proxy in front for anything ` +
+              "but a loopback bind.",
+          );
+        } else {
+          warn(
+            "[abapsmith] HTTP auth: NONE — bound to a loopback address only; a non-loopback bind " +
+              "without ABAP_MCP_HTTP_TOKEN is refused at startup (src/config.ts).",
+          );
+        }
+      }
+    },
+    async closeClients() {
+      // Guarded independently: one failing close must not skip the other —
+      // same rule `pool.shutdown()` follows for its slots.
+      try {
+        await mcp.close();
+      } catch (e) {
+        warn(`[abapsmith] WARNING: closing the default MCP server failed: ${(e as Error).message}`);
+      }
+      if (http) {
+        try {
+          await http.close();
+        } catch (e) {
+          warn(`[abapsmith] WARNING: closing the HTTP MCP listener failed: ${(e as Error).message}`);
+        }
+        http = undefined;
       }
     },
     async stop() {
@@ -769,12 +1007,26 @@ export function createServer(cfg: Config, opts: ServerOptions): AbapsmithServer 
       // tears down every system's debug lane, not just the default's.
       shutdownDebugTools();
       await shutdownAllDebugSessions((msg) => warn(msg));
+      // HTTP teardown next: debugger leases and cross-process locks live on
+      // the per-SYSTEM pools below, not on any one MCP session, so the loop
+      // after this covers every session regardless of transport — what's
+      // left to do per-session is closing transports, here.
+      unregisterHttpShutdown?.();
+      unregisterHttpShutdown = undefined;
+      if (http) {
+        try {
+          await http.close();
+        } catch (e) {
+          warn(`[abapsmith] WARNING: closing the HTTP MCP listener failed: ${(e as Error).message}`);
+        }
+        http = undefined;
+      }
       // Each system's pool may hold 1..maxSessions live slots by now;
       // `ctx.shutdown()` reaches all of them, sequentially, never throwing —
       // one stuck session on one system must not block another system's
       // shutdown, nor `mcp.close()` below.
-      for (const ctx of registry.all()) {
-        await ctx.shutdown("mcp-stop");
+      for (const systemCtx of registry.all()) {
+        await systemCtx.shutdown("mcp-stop");
       }
       await mcp.close();
     },

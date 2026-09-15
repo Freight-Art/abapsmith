@@ -882,7 +882,18 @@ describe("system-role probe — every connection-building suite declares its int
     // structural sweep of the tree for leftover references to the removed
     // directories, which needs no connection either, so unlike its siblings
     // there is no connecting counterpart suite.
-    expect(exempt.length).toBeLessThanOrEqual(11);
+    //
+    // 11 → 12 when `test/config-mcp-transport.test.ts` landed (issue #81). It
+    // covers the `ABAP_MCP_TRANSPORT` / `ABAP_MCP_HTTP_HOST` / `_PORT` /
+    // `_PATH` / `_TOKEN` parse, the startup refusal of a non-loopback bind
+    // without a token, the stdio-ignores-token warning and the
+    // `redactConfigSecrets` projection of the tokens, and it earns the
+    // exemption the honest way: importing only vitest, node:* and
+    // `../src/config.js`. Note the same price as its siblings — the wire
+    // behaviour of the resolved transport (the listener, the bearer check,
+    // the session lifecycle) is asserted in `test/mcp-http-transport.test.ts`
+    // and `test/mcp-http-auth.test.ts`, neither of which is exempt.
+    expect(exempt.length).toBeLessThanOrEqual(12);
   });
 
   it("the allow-list has not rotted: every entry still names a real, still-offending suite", () => {

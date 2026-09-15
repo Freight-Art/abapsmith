@@ -163,6 +163,7 @@ named list; there is no way to use it to *loosen* access.
 | `ABAP_ENHANCE_TARGET_PACKAGES` | `[]` (deny-all) | Package allowlist for the *affected* (enhanced) object, consulted whenever `enhanceTargets` resolves to `sap` — whether that came from `admin`'s own default or from an explicit `ABAP_ENHANCE_TARGETS=sap` widening a non-admin mode. Required in addition: `targets=sap` alone enhances nothing until packages are named here too. |
 | `ABAP_ORIGIN_SYSTEMS` | `[]` | SIDs whose content counts as locally originated for enhancement-target judging, e.g. `A4H`. Empty means nothing is local, so every enhance target is judged as SAP/partner content. |
 | `ABAP_DATA_PREVIEW_MAX_ROWS` | `100` | Row ceiling for one `abap_data_preview` call. Hard maximum `1000` — an out-of-range value fails startup. |
+| `ABAP_DATA_SNAPSHOT_TTL_HOURS` | `24` | Ceiling on how long a `abap_data_preview mode="snapshot"` may be diffed against before it expires and is pruned. A caller's own `ttl_hours` is clamped DOWN to this value when it exceeds it, never raised up to it — there is no "keep forever" spelling for a store that holds business data. Hard maximum `8760` (one year) — an out-of-range value fails startup. |
 | `ABAP_DATA_PREVIEW_DENY_TABLES` | `[]` | Additions to the built-in table deny-list. Additive only — nothing here or anywhere removes a built-in entry. |
 
 **`ABAP_ALLOW_TRANSPORTS=` (set but empty) denies every transportable

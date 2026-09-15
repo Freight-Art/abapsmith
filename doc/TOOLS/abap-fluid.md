@@ -244,6 +244,66 @@ refused as `BAD_INPUT` before any network call (`bal-log.ts`'s
 `assertLogReadArgsNoWindowConflict`, called from `runRun` before it
 connects), with the same check kept on the ABAP side as a backstop.
 
+**`core.change_docs`** also gets a dedicated render instead of the generic
+JSON dump: `runRun` recognizes `tool: "core", action: "change_docs"` and
+renders it as one section per change document via `renderChangeDocs` in
+`src/adt/change-docs.ts`. It writes a stderr audit line naming only the
+object class and counts, never field values:
+
+```
+[abapsmith] audit: abap_fluid core.change_docs objectclass=EQUIPMENT objectid=* changes=4 positions=11 denied_tables=0
+```
+
+Arguments: `objectclass` (required, max 15 chars), `objectid` (`*` wildcard
+accepted, max 90 chars), `user`, `since`/`until` (`YYYYMMDDHHMMSS`; the
+default window is the last 24 hours, both ends taken from one server-time
+snapshot so they cannot disagree about "now"), `tcode`, and `max` (a cap on
+change **documents**, not positions — 0 or omitted means 20; every position
+of each returned document is read in full, then the whole set is clamped
+against the `ABAP_DATA_PREVIEW_MAX_ROWS` ceiling in TypeScript).
+
+```json
+{ "tool": "core", "action": "change_docs", "args": { "objectclass": "EQUIPMENT", "objectid": "*", "since": "20240101000000" } }
+```
+
+`core.change_docs` reads real field-level history from `CDHDR`/`CDPOS` and
+is gated exactly like `abap_data_preview`/`core.select`: it requires
+`ABAP_ALLOW_DATA_PREVIEW`, refused as `SAFETY_DENIED` before any network
+call otherwise (`guardCoreAction` in `src/adt/fluid/builtin/core.ts`). That
+pre-read check only covers `CDHDR`/`CDPOS` themselves; every table a
+returned `CDPOS` row names is checked again, after the read, by
+`applyPositionPolicy` — see `doc/SAFETY/data-access-and-credentials.md`.
+`objectclass`/`since`/`until` are validated before any network call
+(`assertChangeDocsArgs`, called from `runRun` before it connects): a
+missing `objectclass`, a malformed `since`/`until`, or `since` after `until`
+is refused as `BAD_INPUT` with no round trip spent.
+
+**`core.locks`** gets the same dedicated-render-plus-audit treatment,
+via `renderLocks`/`auditLocks` in `src/adt/enqueue-read.ts`:
+
+```
+[abapsmith] audit: abap_fluid core.locks object=* table=ZFOO_T user=* read=42 matched=3 kept=3
+```
+
+Arguments: `object` (matched against the lock's `GNAME`/`GOBJ`), `table`
+(matched against `GARG`, the lock argument), `user` (matched against
+`GUNAME`), and `max` (row cap; 0 or omitted means 50). All matching is done
+client-side with a `CP` ("contains pattern") wildcard, because
+`ENQUEUE_READ`'s own filter parameters are exact-match only. At least one of
+`object`, `table` or `user` is required — an empty call is refused as
+`BAD_INPUT` before any network call (`assertLocksArgs`, called from `runRun`
+before it connects, mirroring `log.read`'s pre-connect check above), so
+there is no way to use this action to dump the whole enqueue table.
+`core.locks` is read-only: there is no release/`DEQUEUE` action, and it is
+not gated by the data-preview policy — enqueue state is runtime lock
+information, not table data. Diagnostic fields such as `GTCODE`, `GTHOST`,
+`GTDATE` and `GTTIME` are probed at runtime and reported absent when a
+system's `SEQG3` does not carry them, never faked.
+
+```json
+{ "tool": "core", "action": "locks", "args": { "table": "ZFOO_T" } }
+```
+
 ### repair — writes
 
 Forgets the local registry entry so every object is re-classified fresh

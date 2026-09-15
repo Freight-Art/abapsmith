@@ -388,7 +388,19 @@ export type AbapErrorCode =
    * `UNKNOWN_SYSTEM` (the named system is real; it just isn't the one
    * holding the state this call would touch).
    */
-  | "SYSTEM_MISMATCH";
+  | "SYSTEM_MISMATCH"
+  // ---- Data snapshots (src/snapshot-store.ts, abap_data_preview diff) ----
+  /**
+   * A stored data snapshot outlived its TTL (`dataSnapshotTtlHours` /
+   * `ABAP_DATA_SNAPSHOT_TTL_HOURS`) and has been deleted, so the diff it was
+   * asked for cannot be computed. Not `NOT_FOUND`: the id was real and did
+   * name a snapshot that existed — the refusal is about time, not about a
+   * wrong or unknown identifier, and a caller retrying the same id with a
+   * different spelling gains nothing. Deliberately never collapsed into a
+   * silently empty diff: an expired snapshot must be reported as gone, not
+   * quietly treated as "before == after".
+   */
+  | "SNAPSHOT_EXPIRED";
 
 /**
  * `terminal` — no input the caller can supply satisfies this code.
@@ -466,6 +478,7 @@ export const RETRYABILITY: Record<AbapErrorCode, Retryability> = {
   FLUID_PROTOCOL_ERROR: "terminal", // the deployed ABAP is not speaking the contract; a redeploy, not a retry
   UNKNOWN_SYSTEM: "retryable", // a correct alias (see the message's list) resolves this
   SYSTEM_MISMATCH: "retryable", // re-issuing with the session's own system, or stopping it first, resolves this
+  SNAPSHOT_EXPIRED: "terminal", // no argument the caller can supply brings a deleted snapshot back; a new snapshot has a new id
 };
 
 /** `undefined` for `conditional` — no claim either way. */

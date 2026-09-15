@@ -1,7 +1,8 @@
 /**
  * Built-in "core" fluid tool: table select, function-module interface
- * description, function-module call, and SAP documentation reads, all
- * dispatched through one static `ZCL_ZMCP_FLUID_CORE` body class.
+ * description, function-module call, SAP documentation reads, change-document
+ * (CDHDR/CDPOS) reads, and enqueue-lock (SM12) reads, all dispatched through
+ * one static `ZCL_ZMCP_FLUID_CORE` body class.
  * `ZCL_ZMCP_FLUID_RT` is deployed alongside it (first in `objects`, so it exists before
  * `ZCL_ZMCP_FLUID_CORE` is activated) — its source is the exact one the `rt`
  * tool deploys, not a copy. Same pattern as `classic.ts`.
@@ -21,6 +22,8 @@ import { coreBodySource } from "./core/abap-core.js";
 import { selectPart } from "./core/abap-select.js";
 import { fmPart } from "./core/abap-fm.js";
 import { docuPart } from "./core/abap-docu.js";
+import { changeDocsPart } from "./core/abap-change-docs.js";
+import { locksPart } from "./core/abap-locks.js";
 
 export const CORE_TOOL_ID = "core";
 export const CORE_BODY_CLASS = "ZCL_ZMCP_FLUID_CORE";
@@ -42,14 +45,15 @@ if (RUNTIME_OBJECT === undefined) {
   throw new Error(`fluidRuntimeManifest has no entry for ${FLUID_RUNTIME_CLASS}`);
 }
 
-const CORE_SOURCE = coreBodySource([selectPart, fmPart, docuPart]);
+const CORE_SOURCE = coreBodySource([selectPart, fmPart, docuPart, changeDocsPart, locksPart]);
 
 export const coreManifest: FluidManifest = {
   contract: FLUID_CONTRACT,
   id: CORE_TOOL_ID,
   title: "Core read/execute bridge",
   description:
-    "Table select, function-module interface description and call, and SAP documentation reads.",
+    "Table select, function-module interface description and call, SAP documentation reads, " +
+    "change-document (CDHDR/CDPOS) reads, and enqueue-lock (SM12) reads.",
   objects: [
     {
       name: FLUID_RUNTIME_CLASS,
@@ -158,6 +162,118 @@ export const coreManifest: FluidManifest = {
       // `describe_fm`'s function module name are.
     },
     {
+      name: "change_docs",
+      category: "read",
+      description:
+        "Reads SAP change documents (CDHDR/CDPOS) for one object class — who changed a business " +
+        "object, when, and which field values changed. Judged by the data-preview policy.",
+      input: {
+        type: "object",
+        required: ["objectclass"],
+        properties: {
+          objectclass: {
+            type: "string",
+            maxLength: 15,
+            description: "The CDHDR object class to read, e.g. MATERIAL, KNA1.",
+          },
+          objectid: {
+            type: "string",
+            maxLength: 90,
+            description:
+              "CDHDR-OBJECTID. `*` is a wildcard; omitted matches every object id.",
+          },
+          user: {
+            type: "string",
+            maxLength: 12,
+            description: "CDHDR-USERNAME. `*` is a wildcard; omitted is unrestricted.",
+          },
+          since: {
+            type: "string",
+            maxLength: 14,
+            description:
+              "Window start, YYYYMMDDHHMMSS in server time. Default window is the last 24 hours.",
+          },
+          until: {
+            type: "string",
+            maxLength: 14,
+            description:
+              "Window end, YYYYMMDDHHMMSS in server time. Default window is the last 24 hours.",
+          },
+          tcode: {
+            type: "string",
+            maxLength: 20,
+            description: "CDHDR-TCODE. `*` is a wildcard.",
+          },
+          max: {
+            type: "integer",
+            minimum: 0,
+            description:
+              "Cap on change DOCUMENTS, not positions; 0 or omitted means 20. Positions of each " +
+              "returned document are read in full, then clamped as a whole against the " +
+              "data-preview row ceiling in TypeScript.",
+          },
+        },
+      },
+      output: {
+        type: "array",
+        items: { type: "object" },
+        description:
+          "One header row per change document, that document's position rows, then one trailing " +
+          "summary row.",
+      },
+      // No `targets`: an object class is not a repository object the write gate can name the way
+      // `select`'s table or `describe_fm`'s function module name are. The tables actually read —
+      // CDHDR, CDPOS, and whatever tables the returned positions name — are judged by the
+      // data-preview policy instead, partly in `guardCoreAction` below (CDHDR/CDPOS themselves,
+      // before the ABAP runs) and partly in `applyPositionPolicy` after the rows come back (every
+      // table a returned position names, which cannot be known until then).
+    },
+    {
+      name: "locks",
+      category: "read",
+      description:
+        "Reads enqueue locks (the SM12 view) filtered by lock object, lock argument or user. " +
+        "Read-only; there is no release path. At least one of object/table/user is required — " +
+        "without one this would dump the whole enqueue table.",
+      input: {
+        type: "object",
+        properties: {
+          object: {
+            type: "string",
+            maxLength: 30,
+            description:
+              "Lock object / table name pattern, matched against SEQG3-GNAME or SEQG3-GOBJ. `*` " +
+              "is a wildcard. At least one of object/table/user is required.",
+          },
+          table: {
+            type: "string",
+            maxLength: 90,
+            description:
+              "Lock ARGUMENT pattern, matched against SEQG3-GARG. `*` is a wildcard. At least one " +
+              "of object/table/user is required.",
+          },
+          user: {
+            type: "string",
+            maxLength: 12,
+            description:
+              "SEQG3-GUNAME pattern. `*` is a wildcard. At least one of object/table/user is required.",
+          },
+          max: {
+            type: "integer",
+            minimum: 0,
+            description: "Row cap; 0 or omitted means 50.",
+          },
+        },
+      },
+      output: {
+        type: "array",
+        items: { type: "object" },
+        description: "One meta row, one row per lock, then one trailing summary row.",
+      },
+      // No `targets`: an enqueue lock is runtime state, not a repository object the write gate
+      // can name.
+    },
+    {
       name: "call_fm",
       category: "execute",
       description: "Calls a function module in the caller's own system, under the caller's own authorizations.",
@@ -254,9 +370,13 @@ function isNonEmptyString(v: unknown): v is string {
  * not something `evaluateDataPreview`/`assertDataPreview` itself reads, so
  * `core.select` has to apply it itself here); `call_fm` by
  * `ABAP_ALLOW_FLUID_CALL_FM` plus a per-call confirm echo when it commits;
- * `docu` is judged by neither policy (see the comment on its fallthrough
- * below) and `describe_fm` needs no guard here at all — reading a function
- * module's interface carries no data-preview or execution risk.
+ * `change_docs` by the same data-preview policy as `select`, applied to the
+ * two tables it always reads (CDHDR/CDPOS), with every table a returned
+ * position names judged separately, afterwards, by `applyPositionPolicy` in
+ * `src/adt/change-docs.ts`; `locks` is judged by neither policy (see its own
+ * branch below); `docu` is judged by neither policy (see the comment on its
+ * fallthrough below) and `describe_fm` needs no guard here at all — reading
+ * a function module's interface carries no data-preview or execution risk.
  * `SAFETY_DENIED` is the code for both capability refusals: no
  * `FLUID_CALL_FM_DISABLED` (or similarly named) code exists, and
  * `src/adt/errors.ts` is off-limits for this slice — both refusals are
@@ -280,6 +400,36 @@ export async function guardCoreAction(deps: FluidDeps, req: FluidRunRequest): Pr
         { tool: req.tool, action: req.action, rule: "ABAP_ALLOW_DATA_PREVIEW" },
       );
     }
+    return;
+  }
+
+  if (req.action === "change_docs") {
+    // Same capability flag as `select`, plus the two tables this action
+    // ALWAYS reads. This guard runs BEFORE the ABAP executes, and therefore
+    // before any CDPOS row has named a table, so it can only judge CDHDR and
+    // CDPOS themselves — every table a returned position names is judged
+    // afterwards by `applyPositionPolicy` in `src/adt/change-docs.ts`, which
+    // drops denied positions and reports the count. Without that second
+    // pass, a change document on PA0008 would be a payroll read through a
+    // gate that only ever looked at CDHDR.
+    deps.gate.assertDataPreview("CDHDR");
+    deps.gate.assertDataPreview("CDPOS");
+    if (!deps.cfg.allowDataPreview) {
+      throw new AbapError(
+        "SAFETY_DENIED",
+        `core.change_docs reads table data, which is off by default. Set ABAP_ALLOW_DATA_PREVIEW=true to allow it.`,
+        { tool: req.tool, action: req.action, rule: "ABAP_ALLOW_DATA_PREVIEW" },
+      );
+    }
+    return;
+  }
+
+  if (req.action === "locks") {
+    // `core.locks` reads runtime enqueue state (who holds which lock), not
+    // application table data, so neither `assertDataPreview` nor
+    // `ABAP_ALLOW_DATA_PREVIEW` applies. It matches what `abap_fpm_read
+    // mode=locks` already exposes ungated. It is read-only: no `DEQUEUE`
+    // path exists anywhere in abapsmith.
     return;
   }
 
