@@ -261,6 +261,12 @@ function scanForHandRolledTruncation(): Offense[] {
 
 const ALLOWED_LINES: { file: string; contains: string; reason: string }[] = [
   {
+    file: "src/adt/impacted.ts",
+    contains: "kept.slice(0, PER_OBJECT_CONSUMER_CAP)",
+    reason:
+      "Per-object consumer cap for scope=\"impacted\" (issue #111). The complement `kept.slice(toProbe.length)` is computed on the next line and every consumer it drops is passed to addCap, which names them on the response's `--- TRUNCATED ---` line, so the cap and the dropped objects are disclosed to the caller.",
+  },
+  {
     file: "src/adt/atc.ts",
     contains: "names.slice(0, ATC_NAME_DISPLAY_MAX)",
     reason:
