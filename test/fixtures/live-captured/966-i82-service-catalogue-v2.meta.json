@@ -1,0 +1,28 @@
+{
+  "n": 966,
+  "label": "i82-service-catalogue-v2",
+  "expect": "odatav2:serviceUrl is relative (\"/sap/opu/odata/DMO/UI_TRAVEL_U_V2\"), and the catalogue reports published=\"true\" allowedAction=\"UNPUBLISH\" while the binding document (965) reports srvb:allowedAction=\"PUBLISH\" for the same service \u2014 the two disagree, so allowedAction is evidence, not a verdict",
+  "note": "GET the ADT OData V2 catalogue lookup for /DMO/UI_TRAVEL_U_V2, srvdname=/DMO/TRAVEL_U",
+  "requestMethod": "GET",
+  "requestUrl": "/sap/bc/adt/businessservices/odatav2/%2FDMO%2FUI_TRAVEL_U_V2?servicename=%2FDMO%2FUI_TRAVEL_U_V2&serviceversion=0001&srvdname=%2FDMO%2FTRAVEL_U",
+  "requestHeaders": {
+    "Accept": "application/*"
+  },
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-type": "application/vnd.sap.adt.businessservices.odatav2.v3+xml; charset=utf-8",
+    "content-length": "3476",
+    "sap-authenticated": "true",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "273733.000000"
+  },
+  "byteLength": 3476,
+  "zeroByteBody": false,
+  "sha256": "d98c74d26633d113c55ffe11296778b690f67fd364460f29f5ced13d9de65fa8",
+  "utcTimestamp": "2026-09-15T03:53:31.294Z",
+  "durationMs": 413,
+  "sessionName": "LIVE-I82"
+}

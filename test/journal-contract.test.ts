@@ -423,6 +423,16 @@ const JOURNALLED_BY: ReadonlyMap<string, string> = new Map([
   // above still lands before the first POST, hence before the second too, so
   // the ordering guarantee is unaffected.
   ["adt/bopf.ts", "tools/bopf.ts"],
+  // `runPublishJob`'s single `conn.post` to the ADT business-services
+  // publish/unpublish job. Journalled by `abapServicePublish` (`tools/service.ts`)
+  // — same layering as `adt/activate.ts` -> `tools/activate.ts` above: the wire
+  // call sits in `adt/`, the journal entry is written one layer up, before the
+  // POST fires and NOT wrapped in try/catch (see that function's algorithm
+  // comment, step 7), one `operation: "service-publish"`/`"service-unpublish"`
+  // entry per call, `irreversible: true` — `src/adt/undo.ts` refuses to undo
+  // either regardless, so an unrecorded irreversible mutation is the one
+  // outcome worse than refusing the call.
+  ["adt/odata.ts", "tools/service.ts"],
 ]);
 
 /**
@@ -558,6 +568,17 @@ const PINNED_MUTATION_CENSUS: ReadonlyMap<string, { calls: number; note: string 
         "pin, not here, which is a blind spot of a per-module textual census. Journalled via " +
         "runBopfEdit / runBopfDelete (tools/bopf.ts) — see the JOURNALLED_BY entry above for " +
         "which of these are deliberately NOT given their own entry.",
+    },
+  ],
+  [
+    "adt/odata.ts",
+    {
+      calls: 1,
+      note:
+        "runPublishJob's single conn.post to the ADT business-services publish/unpublish job " +
+        "(the path and query string differ by op and OData version, but it is one call site). " +
+        "Journalled via abapServicePublish's journal.begin (tools/service.ts), before the POST, " +
+        "one operation:\"service-publish\"|\"service-unpublish\" entry per call.",
     },
   ],
 ]);
@@ -697,6 +718,7 @@ describe("journal contract (heuristic, see file header)", () => {
         "adt/enhancement-bridge.ts",
         "adt/enhancement-hook.ts",
         "adt/enhancement-write.ts",
+        "adt/odata.ts",
         "adt/quickfix.ts",
         "adt/transports.ts",
         "adt/write.ts",
@@ -869,6 +891,8 @@ const JOURNAL_OPERATIONS = [
   "transport-delete",
   "transport-remove-object",
   "transport-release",
+  "service-publish",
+  "service-unpublish",
 ] as const;
 
 describe("JournalOperation coverage", () => {

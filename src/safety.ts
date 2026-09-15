@@ -155,6 +155,16 @@ export interface SafetyConfig {
    * cascade ran under `edit` mode with no extra ceiling).
    */
   allowCascadeDelete?: boolean;
+  /**
+   * Ceiling for publishing or unpublishing a service binding's OData
+   * service. Publishing registers an ICF node under `/sap/opu/odata*`, and
+   * unpublishing removes it — a change to what the system exposes OUTSIDE
+   * the developer session, not just to an object's source. Its own ceiling
+   * for that reason: not implied by ordinary write access (`ABAP_MODE=edit`
+   * / `ABAP_ALLOW_WRITE`). Under `ABAP_MODE` this is
+   * `AbapCapabilities.allowServicePublish`, admin-mode-only.
+   */
+  allowServicePublish?: boolean;
   /** Set when the system reports itself productive — no override. */
   productive?: boolean;
   /**
@@ -255,8 +265,9 @@ export interface SafetyConfig {
    * When `ABAP_MODE` is set, `capabilitiesForMode()` (`src/mode.ts`) is the
    * SOLE source of truth for `readOnly`, `allowTransportRelease/Delete`,
    * `allowEnhancements`, `enhanceTargets`, `allowSourcePlugins`,
-   * `allowEnhancementDelete`, `allowCascadeDelete`, `allowRawAdtWrites`; the
-   * matching legacy env vars are never consulted — except `allowEnhancementDelete`'s
+   * `allowEnhancementDelete`, `allowCascadeDelete`, `allowServicePublish`,
+   * `allowRawAdtWrites`; the matching legacy env vars are never consulted —
+   * except `allowEnhancementDelete`'s
    * (`ABAP_ALLOW_ENHANCEMENT_DELETE`), which IS re-consulted below `admin` as
    * a live opt-in (see `AbapModeUnlocks` in `src/mode.ts`).
    *
@@ -465,6 +476,13 @@ export interface EvaluateOptions {
    * separate ceiling; neither flag implies the other.
    */
   deleteTransport?: boolean;
+  /**
+   * `op === "write"` only: true when this call means publishing or
+   * unpublishing a service binding's OData service, not an ordinary source
+   * write. Gated by `SafetyConfig.allowServicePublish`, which
+   * `ABAP_ALLOW_WRITE` does not imply.
+   */
+  publish?: boolean;
   /**
    * The enhancement this mutation is part of. REQUIRED whenever the
    * target's `type` is an enhancement type — see {@link isEnhancementType} and
@@ -1380,6 +1398,19 @@ export class SafetyGate {
         code: "READ_ONLY",
       };
     }
+    // Publish counterpart of the two branches above — same reasoning: a bare
+    // read-only refusal would hide the second ceiling a publish also needs.
+    if (opts.publish && this.cfg.readOnly) {
+      const why = this.whyAll(["allowWrite", "allowServicePublish"]);
+      return {
+        allowed: false,
+        reason:
+          "Server is running read-only, so publishing a service binding is refused. " +
+          `Publishing needs both of them. ${why.cause} ${why.remediation}`,
+        rule: "read-only default (publishing also needs the service-publish ceiling)",
+        code: "READ_ONLY",
+      };
+    }
     if (this.cfg.readOnly) {
       // Reachable only as the plain default — the unproven-system case is
       // already refused above by `writesLockedOut`, not here.
@@ -1416,6 +1447,22 @@ export class SafetyGate {
           "Writes are enabled but deleting a transport request is a separate ceiling. " +
           `${why.cause} ${why.remediation}`,
         rule: "transport delete ceiling",
+        code: "READ_ONLY",
+      };
+    }
+    // Publish-ceiling counterpart of the transport delete ceiling above —
+    // same shape, but this fires for `op === "write"`, not `transport`:
+    // publishing/unpublishing a service binding's OData service is gated as
+    // an ordinary write, not a transport action. Fails closed on undefined
+    // `allowServicePublish` (`!undefined` is `true`).
+    if (opts.publish && !this.cfg.allowServicePublish) {
+      const why = this.why("allowServicePublish");
+      return {
+        allowed: false,
+        reason:
+          "Writes are enabled but publishing a service binding is a separate ceiling. " +
+          `${why.cause} ${why.remediation}`,
+        rule: "service publish ceiling",
         code: "READ_ONLY",
       };
     }

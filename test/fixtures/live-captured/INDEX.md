@@ -868,3 +868,50 @@ the pretty printer's settings GET plus two format POSTs, one changing the source
 `963` — `POST /sap/bc/adt/abapsource/prettyprinter` → 200: POST unformatted source to the pretty printer; response is the formatted text only. the pretty printer rewrites layout and keyword case from the server setting and returns text/plain only — response body uses CRLF line endings; prettyPrintSource normalises them to LF before comparing
 
 `964` — `POST /sap/bc/adt/abapsource/prettyprinter` → 200: POST already-formatted source; the response is byte-identical to the request (changed:false). pretty-printing already-formatted source returns it byte-identical, which is what changed:false is derived from — response body uses CRLF line endings; prettyPrintSource normalises them to LF before comparing
+
+## 2026-09-15 — OData service-contract chain, V2 and V4 (965-970)
+
+Same A4H appliance, client `001`, user `DEVELOPER`, issue #82: the `$metadata` fixtures under
+`test/fixtures/odata/` were all hand-written, and `test/fixtures/odata/README.md` claimed the
+appliance was down and unreachable for OData work, and that A4H "has no OData V4 binding type at
+all." Neither claim held by the time of this run — the appliance answered every request below, and
+a real V4 binding answered too. This run drives the full binding → catalogue → `$metadata` chain for
+one V2 service (`/DMO/UI_TRAVEL_U_V2`) and one V4 service (`/DMO/UI_TRAVEL_O4_CD`), six captures.
+
+`965` — `GET /sap/bc/adt/businessservices/bindings/%2fdmo%2fui_travel_u_v2` → 200: the ADT service
+binding document for the V2 service, fetched with the corrected two-part
+`servicebinding.v2+xml, servicebinding.v1+xml` Accept header. A v1-only Accept on this same resource
+answers 406 `ExceptionResourceNotAcceptable` — the v2 media type is not optional, it is the only one
+this release actually serves.
+
+`966` — `GET /sap/bc/adt/businessservices/odatav2/%2FDMO%2FUI_TRAVEL_U_V2?servicename=…` → 200: the
+ADT OData V2 catalogue lookup. `odatav2:serviceUrl` is relative, not absolute, and the catalogue
+reports `published="true" allowedAction="UNPUBLISH"` — disagreeing with `965`'s own
+`srvb:allowedAction="PUBLISH"` for the same service. The two endpoints disagree with each other, so
+`allowedAction` is evidence from one endpoint, not a verdict that holds across both.
+
+`967` — `GET /sap/opu/odata/DMO/UI_TRAVEL_U_V2/$metadata` → 200: the real V2 EDMX, 124245 bytes —
+fetchable end to end, not merely theorized from the vendor's own shape.
+
+`968` — `GET /sap/bc/adt/businessservices/bindings/%2fdmo%2fui_travel_o4_cd` → 200: the ADT service
+binding document for a V4 service, same corrected Accept header as `965`. `srvb:binding
+srvb:version="V4"` exists and is readable on this A4H release. This, with `969` and `970`, directly
+contradicts the older claim in `test/fixtures/odata/README.md` that A4H has no OData V4 binding type
+at all: this appliance has at least three V4 bindings — `/DMO/API_TRAVEL_U_V4`,
+`/DMO/UI_TRAVEL_D_D_O4`, `/DMO/UI_TRAVEL_O4_CD` — of which the last is the one captured here.
+
+`969` — `GET /sap/bc/adt/businessservices/odatav4/%2FDMO%2FUI_TRAVEL_O4_CD?servicename=…` → 200: the
+ADT OData V4 catalogue lookup. The root element is `odatav4:serviceGroup`, carrying
+`published="true"` directly as a root attribute — not a `serviceList` with per-service `published`
+attributes, which is the shape a parser built only from the V2 catalogue's layout would miss.
+
+`970` — `GET /sap/opu/odata4/dmo/ui_travel_o4_cd/srvd/dmo/ui_travel_o4_cd/0001/$metadata` → 200: the
+real V4 EDMX, 52788 bytes of genuine CSDL (`edmx:Edmx Version="4.0"`, inline and external
+`Annotations` blocks, `NavigationProperty Type="Collection(…)"`, bound and unbound actions) —
+fetchable end to end, not an inference from the OASIS OData 4.0 CSDL specification.
+
+**Not covered by this run:** no publish or unpublish POST was executed against the appliance — the
+session was not authorized to change its runtime surface — so the publish/unpublish job's own
+request and response bytes remain unverified; whatever handles that path is built from the ADT
+discovery document and the catalogue's own `publishjobs`/`unpublishjobs` links (both visible in
+`969`), not from a live publish response.

@@ -154,6 +154,16 @@ exist and may work, but have not been exercised against a real system.
   target-system errors — is untested.
 - **`abap_transport` `addUser` and `setOwner`** have unit tests but no captured
   wire behaviour from a live system.
+- **`abap_service` `op="publish"` and `op="unpublish"`** are implemented and
+  unit-tested against fakes, but the publish and unpublish POSTs have never
+  been executed against a live system — the request and response bytes on
+  the wire are unverified. (The OData metadata read itself is no longer in
+  this category: both V2 and V4 are live-verified, see
+  [doc/TOOLS/abap-service.md](../TOOLS/abap-service.md).) The compensating
+  action recorded for a publish is an explicit `abap_service op="unpublish"`
+  call, not an undo: `abap_journal mode=undo` refuses a
+  `service-publish`/`service-unpublish` entry outright (`irreversible:
+  true`) and names that call instead of attempting to reverse it.
 - **`abap_atc` is now proven well beyond the single-object case, not just
   "partially proven."** The original live run against A4H (`$TMP` PROG
   `ZMCP_ATC_PROBE2`, captured 2026-08-01, kept as

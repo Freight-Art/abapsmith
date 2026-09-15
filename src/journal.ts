@@ -46,7 +46,9 @@ export type JournalOperation =
   | "transport-set-owner"
   | "transport-delete"
   | "transport-remove-object"
-  | "transport-release";
+  | "transport-release"
+  | "service-publish"
+  | "service-unpublish";
 export type JournalOutcome = "pending" | "succeeded" | "failed";
 
 /**
@@ -324,7 +326,7 @@ export interface JournalEntry {
   trSource?: JournalTrSource;
   /**
    * Marks an entry that can never be undone by ANY mechanism. Absent (not
-   * `false`) for everything else. Five producers, each recording something
+   * `false`) for everything else. Seven producers, each recording something
    * abapsmith positively refuses to reverse:
    *
    *  - `transport-release` (src/tools/transport.ts): ADT has no "un-release".
@@ -341,6 +343,12 @@ export interface JournalEntry {
    *    delete/undo path, so its create no longer sets this flag.
    *  - `abap_ui` press entries (src/tools/ui.ts): BDCDATA script runs have
    *    no undo path; falls through to the same generic catch-all as BOPF.
+   *  - `service-publish`/`service-unpublish` (src/tools/service.ts):
+   *    `undoBlocker()` (src/adt/undo.ts) refuses both unconditionally —
+   *    publishing changes the system's runtime surface, not an object's
+   *    source, so there is no before-image to write back; the compensating
+   *    action (`unpublish` for `publish`, and vice versa) is a deliberate,
+   *    separately confirmed call, not an automatic undo.
    *
    * The entry is still written — the before-image is worth having even when
    * undo is refused. Full rationale (including the phantom-object and

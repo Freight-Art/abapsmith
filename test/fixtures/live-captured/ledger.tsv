@@ -214,3 +214,9 @@ n	label	method	path	status	byteLength	durationMs
 962	i91-prettyprinter-settings	GET	/sap/bc/adt/abapsource/prettyprinter/settings	200	247	748
 963	i91-prettyprinter-format	POST	/sap/bc/adt/abapsource/prettyprinter	200	327	777
 964	i91-prettyprinter-idempotent	POST	/sap/bc/adt/abapsource/prettyprinter	200	327	84
+965	i82-service-binding-v2	GET	/sap/bc/adt/businessservices/bindings/%2fdmo%2fui_travel_u_v2	200	3435	294
+966	i82-service-catalogue-v2	GET	/sap/bc/adt/businessservices/odatav2/%2FDMO%2FUI_TRAVEL_U_V2?servicename=%2FDMO%2FUI_TRAVEL_U_V2&serviceversion=0001&srvdname=%2FDMO%2FTRAVEL_U	200	3476	413
+967	i82-metadata-v2	GET	/sap/opu/odata/DMO/UI_TRAVEL_U_V2/$metadata	200	124245	794
+968	i82-service-binding-v4	GET	/sap/bc/adt/businessservices/bindings/%2fdmo%2fui_travel_o4_cd	200	3458	370
+969	i82-service-catalogue-v4	GET	/sap/bc/adt/businessservices/odatav4/%2FDMO%2FUI_TRAVEL_O4_CD?servicename=%2FDMO%2FUI_TRAVEL_O4_CD&serviceversion=0001&srvdname=%2FDMO%2FUI_TRAVEL_O4_CD	200	2127	228
+970	i82-metadata-v4	GET	/sap/opu/odata4/dmo/ui_travel_o4_cd/srvd/dmo/ui_travel_o4_cd/0001/$metadata	200	52788	481

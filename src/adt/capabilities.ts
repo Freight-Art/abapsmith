@@ -222,11 +222,15 @@ export interface TypeCapabilities {
    * `write.shape: "properties"` type uses for its root-object GET/PUT/POST.
    * Absent ⇒ `application/*`.
    *
-   * Needed by `SRVB/SVB` only: a root GET with a generic `Accept:
-   * application/xml` 406s; only the fully-qualified vendor type
-   * (`application/vnd.sap.adt.businessservices.servicebinding.v1+xml`) gets
-   * `200` (live-corroborated — see that entry's own comment for scope). Read
-   * by `src/adt/write.ts` (`contentAccept`/`contentType`, `createByXml`,
+   * Needed by `SRVB/SVB` only: a root GET with `Accept: application/xml`
+   * 406s (`application/*` does answer `200`, but the vendor-specific type is
+   * more precise and is what this field pins); the version matters too —
+   * `servicebinding.v2+xml` answers `200`, `servicebinding.v1+xml` answers
+   * `406 ExceptionResourceNotAcceptable`. Verified 2026-09-15 against A4H,
+   * both by direct curl against the ADT binding endpoint and by reproducing
+   * the `v1` failure end-to-end through `abap_read` on the released server
+   * (see that entry's own comment for scope). Read by `src/adt/write.ts`
+   * (`contentAccept`/`contentType`, `createByXml`,
    * `resolveWriteTarget`'s existence GET) and `src/tools/read.ts`
    * (`fetchRawDescriptor`, threaded through to `fetchDdicXml` as an explicit
    * param rather than importing this registry into `ddic.ts`, which this
@@ -964,9 +968,23 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
   // create-body fixture.
   //
   // `mediaType` is the one field no other properties-shape type sets (see
-  // its doc comment above) — only OData V2 exists on this release
-  // (/businessservices/bindings/bindingtypes returns exactly two ODATA/V2
-  // entries); there is no V4 to offer.
+  // its doc comment above) — `/businessservices/bindings/bindingtypes`
+  // returned exactly two ODATA/V2 entries when checked (2026-08-18), so
+  // binding CREATION through this registry has only ever been exercised
+  // for V2. That is a statement about what this registry can create, not
+  // about what the system hosts: the appliance does host V4 bindings —
+  // see `test/fixtures/live-captured/970-i82-metadata-v4.xml` — the
+  // bindingtypes endpoint itself was not re-probed on 2026-09-15.
+  //
+  // Pinned to `v2` (not `v1`): A4H's ADT discovery document advertises only
+  // `servicebinding.v2+xml` for the binding resource, and a `v1`-only
+  // Accept 406s on this release — verified 2026-09-15, both by direct curl
+  // and by reproducing the failure through `abap_read` on the released
+  // server (see the doc comment on `mediaType` above for the full detail).
+  // This value also serves as the write-path `Content-Type` (`write.ts`'s
+  // `contentType`) for create/update of a service binding; only the READ
+  // side was re-verified at `v2` in this pass — a binding create/update
+  // with the `v2` Content-Type was not re-tested this session.
   //
   // `namePrefixes` NOT overridden: no ENQU-style foreign-namespace rule, and
   // vendor CreatableTypes already gives it maxLen 26. NOT re-tested by the
@@ -982,7 +1000,7 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
     create: { vendor: false, verified: true },
     delete: true,
     activate: true,
-    mediaType: "application/vnd.sap.adt.businessservices.servicebinding.v1+xml",
+    mediaType: "application/vnd.sap.adt.businessservices.servicebinding.v2+xml",
   },
   // Not in types.ts — see the module doc.
   "SHLP/DH": {

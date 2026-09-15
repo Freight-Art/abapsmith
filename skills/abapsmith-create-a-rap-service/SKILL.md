@@ -18,7 +18,7 @@ SRVD/SRV  service definition    source
   ↓
 SRVB/SVB  service binding       properties (XML)
   ↓
-PUBLISH — a human does this, not abapsmith
+PUBLISH   abap_service op="publish"   admin-gated, confirm required
 ```
 
 `DDLX/EX` (metadata extension) is optional and hangs off the CDS view.
@@ -70,20 +70,44 @@ Three things the descriptor must carry:
   `package` write argument is not enough for this type.
 - Name limit 26 characters.
 
-**OData V2 only** on this release; there is no V4 binding type to offer.
+**SRVB creation has only been exercised for V2** — the XML shape above is a
+V2 descriptor. This does not mean the system lacks V4: A4H does have V4
+service bindings (e.g. `/DMO/UI_TRAVEL_O4_CD`), and `abap_service` reads V4
+metadata live (`doc/TOOLS/abap-service.md`). Creating a V4 `SRVB/SVB` from
+scratch through `abap_write` has not been tried here — copy an existing V4
+binding's XML the same way as above if you need one.
 
 ## Publishing
 
-abapsmith **never publishes**. Activating a binding does not create an OData
-service. Asking for `$metadata` on an unpublished binding returns
-`SERVICE_NOT_PUBLISHED` — the binding name is correct, the publish step is missing.
+Activating a binding does not create an OData service — publishing is a
+separate step. Asking for `$metadata` on an unpublished binding returns
+`SERVICE_NOT_PUBLISHED` — the binding name is correct, only the publish step
+is missing.
 
-Tell the user to publish in ADT. Do not report the service as available until they have.
+Publish with `abap_service op="publish" binding="<name>" confirm="<name>"`.
+This needs `ABAP_MODE=admin` (the `allowServicePublish` ceiling — ordinary
+write access does not grant it), and `confirm` must echo the binding name
+exactly. Call it once without `confirm` first: that runs as a dry run,
+changes nothing, and reports what publishing would do — check this before
+committing.
+
+On success it returns the same contract `abap_service` always returns
+(entity sets, keys, navigation, CRUD/search/page permissions) plus the URL
+that became reachable — the service's runtime path and its `$metadata`
+path. Report that URL; do not just say "published".
+
+The publish path is unit-tested but has never been run against a live
+appliance, so the first live publish may surface something the fakes did
+not.
+
+To take it back, call `abap_service op="unpublish"` the same way — same
+gate, same `confirm` echo. There is no undo for either direction:
+`abap_journal mode=undo` refuses a publish or unpublish entry outright and
+points at the opposite call instead of attempting to reverse it.
 
 Before writing a client, a Fiori app, or a test against the service, call
-`abap_service` first — it reads the live OData contract (entity sets, keys,
-navigation, CRUD/search/page permissions) and doubles as the publish check
-above, without guessing field names from the CDS view.
+`abap_service` (`op="read"`, the default) first — it reads the live OData
+contract without guessing field names from the CDS view.
 
 ## Teardown order
 
@@ -91,7 +115,7 @@ Deleting a `SRVD/SRV` fails with `SDDIC_ADT_SRVD207` (*"Service Definition &1 is
 still used"*) while any binding references it. Correct order:
 
 ```
-unpublish binding (human) → delete SRVB → delete SRVD → delete BDEF → delete DDLS
+unpublish binding (abap_service op="unpublish") → delete SRVB → delete SRVD → delete BDEF → delete DDLS
 ```
 
 Every artifact in the chain is deletable.

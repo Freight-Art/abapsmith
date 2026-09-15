@@ -16,11 +16,15 @@
  * `Capabilities.*` vocabulary annotations, inline or in an external
  * `<Annotations Target=…>` block. Both normalise onto {@link EdmxContract}.
  *
- * Provenance: V2 parsing is LIVE-VERIFIED against an SAP_BASIS 754 appliance
- * (see `test/fixtures/live-captured/`). V4 is INFERENCE from the OASIS CSDL
- * spec, exercised only by SYNTHETIC fixtures — that appliance offers no V4
- * service to verify against. Nothing here should be read as "V4 was tried
- * and works"; see the archive for detail.
+ * Provenance: V2 and V4 parsing are both exercised against documents
+ * captured live from a real SAP_BASIS 754 appliance (A4H, 2026-09-15) — see
+ * `test/fixtures/live-captured/967-i82-metadata-v2.xml` and
+ * `970-i82-metadata-v4.xml`. The SYNTHETIC fixtures under
+ * `test/fixtures/odata/` are kept alongside them: they cover edge cases the
+ * live services don't exhibit — a dangling navigation `Relationship`, an
+ * external `Annotations Target=…` block resolved through a schema alias,
+ * and an absolute `serviceUrl` — so they remain hand-written and labelled
+ * `SYNTHETIC`, not a substitute for the captures above.
  */
 
 import { XMLParser } from "fast-xml-parser";
