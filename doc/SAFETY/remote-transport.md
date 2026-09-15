@@ -12,11 +12,15 @@ server that already holds those credentials.
 What the token does not do:
 
 - **It is not a per-user identity.** Two holders of the same unnamed token
-  are indistinguishable from each other except by MCP session id. A
+  are indistinguishable from each other except by MCP session id and by
+  whatever `clientInfo.name` their MCP client declared about itself, which
+  is what the journal `actor` field falls back to for an unnamed token (see
+  [doc/JOURNAL/journal-format.md](../JOURNAL/journal-format.md)). A
   **named** token (`name=token` in `ABAP_MCP_HTTP_TOKEN`) is the only thing
-  that puts a caller name in the journal `actor` field — and that name is a
-  label the operator chose when configuring the token, not an authenticated
-  identity SAP or abapsmith verified.
+  that puts an operator-controlled caller name in `actor` — and that name
+  is a label the operator chose when configuring the token, not an
+  authenticated identity SAP or abapsmith verified; the client-declared
+  fallback is even weaker, since the caller picks it.
 - **It does not scope permissions.** There is no per-token `ABAP_MODE`,
   allowlist, or package scope. Every token — named or not — gets the whole
   surface this process was configured with. A token meant for a read-only
