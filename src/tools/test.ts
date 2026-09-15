@@ -43,6 +43,8 @@ import type { Config } from "../config.js";
 import { buildResponse, type BuiltResponse } from "../compact.js";
 import type { SafetyGate } from "../safety.js";
 import { preflight } from "./preflight.js";
+import { DEFAULT_LOG_WINDOW_SECONDS } from "../adt/bal-log.js";
+import { LOG_TOOL_ID, LOG_ACTION } from "../adt/fluid/builtin/log.js";
 
 export const testInputSchema = {
   object: z.string().describe("Class, program or package to test."),
@@ -497,6 +499,16 @@ export async function abapTest(
             "class main source. Read that include with abap_read.",
         ]
       : [];
+
+  // No duration is measured for an ABAP Unit run here (unlike run.ts/bopf-test.ts/ui.ts,
+  // there is nothing in `res` to round up), so this hint must not pretend to a measured
+  // window — it names the fluid log tool's own default instead and says so plainly.
+  hints.push(
+    `Application log (BAL) entries this run may have written: abap_fluid ` +
+      `{"tool":"${LOG_TOOL_ID}","action":"${LOG_ACTION}","args":{"last_seconds":${DEFAULT_LOG_WINDOW_SECONDS},"detail":"messages"}} ` +
+      `— a default one-hour window; this tool does not measure its own run time, so narrow it ` +
+      "yourself if the system is busy.",
+  );
 
   // Coverage is strictly additive: this run's PASSED/FAILED/NO TESTS/UNKNOWN
   // outcome and every count above are decided already, from `res` alone.

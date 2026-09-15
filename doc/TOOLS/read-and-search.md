@@ -13,20 +13,20 @@ Read the source, metadata or outline of an ABAP object.
 |---|---|---|---|---|
 | `object` | string | yes | — | Object reference: bare name, `"class ZCL_FOO"`, or a raw ADT URI. |
 | `type` | string | no | — | ADT type hint, e.g. `CLAS/OC`, to disambiguate a bare name. |
-| `method` | string | no | — | Read one method's source instead of the whole class. |
+| `method` | string | no | — | Read one method's source instead of the whole class. With `view="docu"` against a `CLAS` object, selects that method's ABAP Doc comment instead of the class's own SAP documentation — refused against every other `view`. |
 | `outline` | boolean | no | — | Return the structural outline (members/methods) instead of full source. |
 | `offset` | number (int, 1–999999) | no | — | 1-based first line to return. |
 | `limit` | number (int, 1–999999) | no | — | Number of lines to return. |
 | `enhancements` | boolean | no | — | Also report enhancement anchors/implementations on this object. |
 | `version` | enum `active` \| `inactive` | no | `active` | Which version to read. |
 | `format` | enum `raw` | no | — | Return unprocessed source instead of the rendered/annotated form. |
-| `view` | enum `history` \| `diff` \| `definition` | no | — | `history`: list the object's version feed (author, date, transport) instead of source/DDIC. `diff`: return unified-diff hunks between two versions — never two full sources. `definition`: element info / go-to-definition for the identifier at `line`/`column` — see ["view=\"definition\": element info and go-to-definition"](#viewdefinition-element-info-and-go-to-definition) below. Omit for a normal source/DDIC read. |
+| `view` | enum `history` \| `diff` \| `definition` \| `docu` \| `digest` | no | — | `history`: list the object's version feed (author, date, transport) instead of source/DDIC. `diff`: return unified-diff hunks between two versions — never two full sources. `definition`: element info / go-to-definition for the identifier at `line`/`column` — see ["view=\"definition\": element info and go-to-definition"](#viewdefinition-element-info-and-go-to-definition) below. `docu`: SAP's own documentation for the object (or, with `method=`, one method's ABAP Doc) — see ["view=\"docu\": SAP documentation"](#viewdocu-sap-documentation) below. `digest`: a fixed six-section overview — see ["view=\"digest\": one-page object overview"](#viewdigest-one-page-object-overview) below. Omit for a normal source/DDIC read. |
 | `from` | string | `view="diff"` only | released version before `to` | Older side of the diff — a version number (e.g. `"66"`), a transport name, or the literal `"active"` for current source. |
 | `to` | string | `view="diff"` only | newest released version | Newer side of the diff, same forms as `from`. |
 | `context` | number (int, 0–20) | no | `3` | `view="diff"` only — unchanged context lines per hunk. |
-| `line` | number (int, ≥1) | required with `view="definition"`; refused otherwise | — | 1-based source line — same convention as `abap_quick_fix`. Refused with `BAD_INPUT` together with `view="history"`/`"diff"`, and refused with `BAD_INPUT` if given with no `view` at all (it would silently be discarded by an ordinary read). |
+| `line` | number (int, ≥1) | required with `view="definition"`; refused otherwise | — | 1-based source line — same convention as `abap_quick_fix`. Refused with `UNSUPPORTED` together with `view="history"`/`"diff"`/`"docu"`/`"digest"`, and refused with `BAD_INPUT` if given with no `view` at all (it would silently be discarded by an ordinary read). |
 | `column` | number (int, ≥0) | no | `0` | 0-based column — same convention as `abap_quick_fix`. Only meaningful with `view="definition"`; refused otherwise on the same terms as `line`. |
-| `include` | enum `CLASS_INCLUDES` | no | `"main"` | Classes only — which class include to read; applies to the source read and to `view` alike. `"testclasses"` holds ABAP Unit tests; `"main"` never does. Always an explicit, disclosed choice — silently defaulting to `main` would hide changes made in another include. |
+| `include` | enum `CLASS_INCLUDES` | no | `"main"` | Classes only — which class include to read; applies to the source read and to `view` alike. `"testclasses"` holds ABAP Unit tests; `"main"` never does. Always an explicit, disclosed choice — silently defaulting to `main` would hide changes made in another include. Refused with `UNSUPPORTED` together with `view="docu"` or `view="digest"` — `docu` resolves its own documentation target from the object's type and name and has no class-include axis; a digest always reads the class's own main source plus its testclasses include, never a caller-picked one. |
 | `types` | string[] | no | — | `DEVC/K` only — filter the package listing to these kind codes, e.g. `["CLAS","DDLS"]`. Refused with `BAD_INPUT` against any other type. |
 | `depth` | number (int, 1–3) | no | `1` | `DEVC/K` only — how many sub-package levels to list. `1` lists only the package itself. Refused with `BAD_INPUT` against any other type. |
 
@@ -208,6 +208,326 @@ declaration (entry point (b) above), rather than from a use site:
   "line": 3,
   "column": 11
 }
+```
+
+### view="docu": SAP documentation
+
+`view="docu"` reads SAP's own documentation store — `DOKHL` (header),
+`DOKIL` (per-language availability index), `DOKTL` (text lines) — for the
+object `abap_read` resolved, flattened to plain text. There is no ADT REST
+endpoint for this store, so it is read through the built-in `core` fluid
+tool's `docu` action (`abap_fluid`'s `core.docu`) rather than through an
+ordinary ADT GET — see
+[doc/FLUID-API/README.md](../FLUID-API/README.md) and
+[abap-fluid.md](abap-fluid.md) for what that action does on the ABAP side
+(`DOCU_GET`, then `CONVERT_ITF_TO_ASCII`).
+
+Two independent read paths share this `view`, selected by whether `method`
+is given:
+
+- **Without `method`** (the object's own documentation): the object's ADT
+  type and name are mapped to a `(id, object)` pair in `DOKHL` by
+  `resolveDocuTarget` (`src/adt/docu.ts`):
+
+  | ADT type prefix | doc id | kind |
+  |---|---|---|
+  | `DTEL` | `DE` | data element |
+  | `DOMA` | `DO` | domain |
+  | `TABL` | `TB` | table |
+  | `CLAS` | `CL` | class |
+  | `INTF` | `IF` | interface |
+  | `FUNC` | `FU` | function module |
+  | `FUGR` | `FU` | function group |
+  | `PROG` | `RE` | program |
+  | `MSAG` | `NA` | message (see below) |
+
+  A type with no row in this table is refused with `BAD_INPUT`, naming the
+  supported list. **Messages are special-cased**: a message class's stored
+  documentation object is never just the object name — `parseMessageObject`
+  turns a message id/number reference into `DOKHL-OBJECT`'s stored form
+  (id concatenated with the number zero-padded to 3 digits, no separator).
+  `"ZSD 042"`, `"ZSD042"` and `"ZSD 42"` all resolve to `"ZSD042"`; a
+  reference that fits neither the spaced nor the already-merged shape is
+  refused with `BAD_INPUT`. This works because `view="docu"`
+  short-circuits ordinary ADT object resolution for `MSAG`: a message's
+  identity is class + number (`"ZSD 042"`), and the number exists nowhere
+  but the caller's own input — ADT's object identity for a message class
+  carries only the class, never the number — so `abapRead` builds the
+  documentation target straight from the caller's raw `object` string
+  instead of resolving it against ADT first. Both the spaced form
+  (`abap_read {"type":"MSAG","object":"ZSD 042","view":"docu"}`) and the
+  merged spelling (`abap_read {"type":"MSAG","object":"ZSD042","view":"docu"}`)
+  work the same way. Live-verified equivalent (`id NA`, object `BM019`, a
+  real message long text found in `DOKIL`): 6 lines of Diagnosis/System
+  Response/Procedure text returned, `found:true`.
+
+  **IMG activities are addressable.** `src/adt/docu.ts` also exports
+  `imgDocuTarget`, which resolves an IMG activity to `id: "HY", object:
+  "SIMG" + <activity>` — an IMG activity has no ADT object type of its own
+  for `abap_read` to resolve through the ordinary path, so `abapRead`
+  special-cases a `type: "SIMG"` input the same way it special-cases
+  `MSAG`: it bypasses `resolveObject` entirely and builds the
+  documentation target by hand from the caller's raw `object`. Usage:
+  `abap_read {"type":"SIMG","object":"<activity id from abap_img
+  mode=show>","view":"docu"}`. `type: "SIMG"` combined with any `view`
+  other than `"docu"` is refused with `UNSUPPORTED` — there is no ADT
+  object of type `SIMG` to read any other way. Live-verified (`id HY`,
+  object `SIMGCRM_PRI_GRUKONKONTR`, a real IMG activity found in `DOKIL`):
+  39 lines of customizing documentation returned, `found:true` — the live
+  confirmation of the `HY`/`SIMG`+name IMG-activity naming rule.
+
+- **With `method`** (CLAS objects only): reads ABAP Doc instead — the
+  contiguous `"!`-prefixed comment block immediately above the method's
+  `METHODS`/`CLASS-METHODS` declaration in source, the only documentation a
+  method itself carries. This never falls back to the class's own DOKHL
+  text — a method's ABAP Doc and its class's SAP documentation answer
+  different questions. `method` against a non-`CLAS` object is refused with
+  `UNSUPPORTED`. This path reads source directly and never calls
+  `core.docu`.
+
+**Language.** There is no `language` input on `abap_read`: the ABAP side
+tries the logon language, then `EN`, on its own, and the response reports
+which language actually came back and whether that was a fallback, so a
+caller never has to guess or ask twice. The response also lists what `DOKIL`
+itself has available (`langu:typ:dokstate` per entry) — informational only,
+never what `core.docu` used to choose a language, since `DOKIL` can be
+stale (see `src/adt/fluid/builtin/core/abap-docu.ts`'s header comment: every
+candidate language is tried directly against `DOCU_GET` and the first one
+that returns lines wins, regardless of what `DOKIL` claims). Found nothing
+in either language tried: the body reads `(no documentation in DE or EN)` or
+the equivalent for whichever languages were actually tried.
+
+**Not verbatim.** Documentation is SAP ITF text flattened to plain lines by
+`CONVERT_ITF_TO_ASCII` (symbols resolved, formatting tags removed, `/:
+INCLUDE` directives expanded) — it is not the verbatim ITF source. This note
+is always attached to a non-`method` `docu` response.
+
+**Refusals** (`assertViewCompatible`, `src/tools/read.ts`; wording is
+specific to `docu` and never reuses `definition`'s or `digest`'s sentences):
+
+| Input | Result |
+|---|---|
+| `view="docu"` combined with `format="raw"` | `UNSUPPORTED` — there is no XML descriptor of a documentation object to return. |
+| `view="docu"` combined with `enhancements=true` | `UNSUPPORTED` — the enhancement decoders read an ENHO/ENHS document; `docu` reads `DOKHL`/`DOKTL` instead. |
+| `view="docu"` combined with `version=` (any value) | `UNSUPPORTED` — `DOKHL`/`DOKTL` is not version-controlled the way ABAP source is; there is no active/inactive pair to select. |
+| `view="docu"` combined with `outline=true` | `UNSUPPORTED` — `docu` reads a documentation object, which has no component structure. |
+| `view="docu"` combined with `include=` | `UNSUPPORTED` — `docu` resolves its own target from type and name; there is no class-include axis on a documentation read. |
+| `view="docu"` combined with `from`/`to`/`context` | `UNSUPPORTED` — a documentation object has no version feed to diff. |
+| `view="docu"` combined with `line`/`column` | `UNSUPPORTED` — flattened documentation text has no line/column axis of its own. |
+| `method=` against a non-`CLAS` object | `UNSUPPORTED`. |
+
+**Gated as a write, not a read — the one exception.** Every other `view`
+(including `docu` WITH `method=`) stays on `abap_read`'s ordinary
+`pool.withRead` path. `docu` WITHOUT `method=` is routed differently,
+mirroring `abap_search mode="source"` exactly: `core.docu` has no ADT REST
+endpoint, so reaching it means deploying/calling a small generated ABAP
+class through the fluid API, the same mechanism `abap_search`'s
+`mode="source"` uses to deploy `ZCL_ZMCP_FLUID_SCAN`. Concretely
+(`registerReadTools`, `src/tools/read.ts`): a fluid-disabled check first (a
+more specific refusal than a generic write-denied would give on a read-only
+connection), then a preflight write-target assert against the fluid body
+class, then `pool.withWrite`. This needs the fluid API on and `ABAP_MODE`
+not `read` — on a read-only server this path fails with `FLUID_API_DISABLED`
+rather than the tool disappearing from the list. `core.docu` itself is also
+deliberately **not** judged by `guardCoreAction`'s data-preview policy
+(`src/adt/fluid/builtin/core.ts`): neither `assertDataPreview` nor
+`ABAP_ALLOW_DATA_PREVIEW` applies to it, since it reads SAP's own
+documentation text out of `DOKTL`, not application table data.
+
+**Not on the v2 tool surface.** Same as `view="definition"` above: v2's
+`abapReadInputSchema` (`src/tools/v2/schemas.ts`) does not expose
+`view="docu"`, `view="digest"`, or `method` on this axis — its `view`
+values are `source | contract | method | diff | metadata | outline | bopf |
+fpm`, a disjoint vocabulary from v1's.
+
+**Evidence.** `live` (A4H, probe class `ZCL_I109_PROBE`, 2026-09-15): every
+`DOCU_GET` and `CONVERT_ITF_TO_ASCII` parameter `core.docu`'s ABAP relies on
+— `DOKHL-ID`/`DOKHL-OBJECT` CHAR2/CHAR40 truncation handled by moving the
+caller's input through DDIC-typed locals first; `DOCU_GET`'s `sy-subrc = 4`
+(`ret_code`) as the "no documentation in this language" signal, with no
+automatic fallback of its own; `typ = 'E'` accepted even when `DOKIL` lists
+the object as type `T`; and `CONVERT_ITF_TO_ASCII` expanding a 6-line ITF
+`BAL_DB_SEARCH` documentation to 36 ASCII lines, resolving `&FUNCTIONALITY&`/
+`&USE&` symbols and stripping formatting tags. `imgDocuTarget`'s mapping was
+also verified live against `TDCLD`/`DOCU_GET_LANGU_FOR_DISPLAY`.
+
+Beyond that FM-level probe, `core.docu`'s own generated ABAP body was
+itself run live on A4H (client 001, user DEVELOPER, 2026-09-15): deployed
+to `$TMP` as `ZCL_I109_FLUID_CORE` and activated with zero syntax errors,
+after fixing one runtime defect the probe surfaced — `lv_title` was
+declared `TYPE string`, which a dynamic `DOCU_GET` call rejects for
+`DOKTITLE` (`CX_SY_DYN_CALL_ILLEGAL_TYPE`); `DOCU_GET` declares
+`VALUE(doktitle) LIKE dsyst-doktitle`, i.e. `DOKU_TITLE` → domain
+`TEXT60` → `CHAR(60)`. Once fixed, four live calls through
+`IF_OO_ADT_CLASSRUN` against `ZCL_ZMCP_FLUID_RT` all came back clean, no
+`ERR` frame: `{"id":"DE","object":"MANDT"}` → `found:true`, 2 lines (the
+empty `title` that came back is genuine upstream data — `DSYST` has no row
+for `DOKNAME = 'MANDT'` — not a defect); `{"id":"NA","object":"BM019"}` →
+6 lines; `{"id":"HY","object":"SIMGCRM_PRI_GRUKONKONTR"}` → 39 lines; and
+`{"id":"DE","object":"ZZ_DOES_NOT_EXIST_I109"}` → `found:false`,
+`lines_returned:0`, a clean summary and no dump. The probe object was
+deleted afterwards.
+
+Not observed by that run: the method-ABAP-Doc branch of `view="docu"` — it
+reads class source directly in TypeScript and never touches `core.docu`
+(see above), so this probe exercised nothing on that path either way.
+Still not observed: the end-to-end `abap_fluid`/`abap_read view="docu"`
+MCP call path itself — deploying `ZCL_ZMCP_FLUID_CORE`'s `docu` action
+through the released server, dispatching through `dispatch()`, and
+rendering the result through `readDocu`/`mapDocuRows` — since the live MCP
+server available for this verification runs the previously released
+bundle, not this branch; that path is covered by unit tests against fakes
+only.
+
+Example — a data element's documentation:
+
+```json
+{ "object": "ZDE_FOO", "type": "DTEL/DE", "view": "docu" }
+```
+
+Example — one method's ABAP Doc:
+
+```json
+{ "object": "ZCL_FOO", "type": "CLAS/OC", "view": "docu", "method": "PROCESS" }
+```
+
+### view="digest": one-page object overview
+
+`view="digest"` renders a bounded, one-page overview of a `CLAS/OC`,
+`INTF/OI`, `PROG/P`, `FUGR/F`, `FUGR/FF` or `DDLS/DF` object — six fixed
+sections, always in this order: **HEADER**, **PUBLIC API**, **DIRECT
+DEPENDENCIES**, **TESTS AND CHECKS**, **RECENT HISTORY**, **WHERE TO GO
+NEXT**. Any other type is refused with `UNSUPPORTED`, naming the six
+supported types. The type check (`isDigestType`, `src/adt/digest.ts`) is
+case-insensitive and accepts a bare kind (`"CLAS"`, `"INTF"`, `"PROG"`,
+`"DDLS"`) standing in for its one matching type — except `"FUGR"` alone,
+which is refused, since it is ambiguous between `FUGR/F` and `FUGR/FF`.
+
+All of the logic deciding what each section says — the dependency scan, the
+program-interface scan, the test-class count, the public-API summary — is
+pure, I/O-free code in `src/adt/digest.ts` (`scanDependencies`,
+`scanProgramInterface`, `countTestClasses`, `summarisePublicApi`,
+`buildDigestSections`); `src/tools/read.ts`'s `readDigest` only fetches the
+ADT facts those functions need (source, history feed, outline for
+CLAS/INTF) and hands them over. Every section is capped at 25 rows
+(`DIGEST_MAX_ROWS_PER_SECTION`); a section that overflows is cut with a
+`--- TRUNCATED --- <SECTION> cut after 25 of N rows; <full-read-call>` line
+naming the call that returns the rest — the same `--- TRUNCATED ---`
+convention `abap_search mode=source` and ordinary truncated reads use.
+
+- **HEADER** — type, name, package, description, last-changed fact (with
+  its source: `released` history or, absent any released version, the
+  active state — the same distinction `view="history"` already draws for
+  `$TMP`-style packages with no transport), and activation state.
+- **PUBLIC API** — for `CLAS`/`INTF` objects, the outline's public members
+  (`summarisePublicApi`): private/protected members are counted, not
+  listed, by design — "a digest is a bounded page… must not spend rows on"
+  member-level detail a caller can get from `outline=true` directly. For
+  `PROG/P`, a line-by-line scan of `PARAMETERS`, `SELECT-OPTIONS` and
+  `FORM` declarations, plus a note when `START-OF-SELECTION` is present.
+  For `FUGR/FF`, `scanFunctionInterface` parses the function module's
+  signature statically out of ADT-generated source: SAP's own
+  `*"*"Local Interface:` comment block, walked section by section
+  (`IMPORTING`/`EXPORTING`/`CHANGING`/`TABLES`/`EXCEPTIONS`), giving one row
+  per parameter with its name, section keyword, typing, and an
+  `(optional)` marker for a `DEFAULT`/`OPTIONAL` line. If the source
+  carries no such block (a hand-edited or malformed source), the section
+  renders empty with an explicit note saying so. For `DDLS/DF`,
+  `scanCdsFields` parses the projected field list out of the `select from
+  { ... }` block when it can do so with confidence — resolving `as
+  <alias>` and stripping `key`/`@Annotation` prefixes — and falls back to
+  an **empty section with an explicit note**, rather than a partial list,
+  the moment it meets a cast, a function call, a sub-select, or a bare
+  (non-navigated) association in the select list: a wrong field list is
+  worse than an empty one, so it gives up on the whole view rather than
+  guess. **Only `FUGR/F` (the function group itself) still always renders
+  an empty PUBLIC API**, with an explicit note: listing a function group's
+  modules needs a search call — there is no `/objectstructure`-style
+  listing for a group — and this view deliberately never makes one; use
+  `abap_search` to list a group's modules, or point `digest` at one of
+  them directly (`FUGR/FF`).
+- **DIRECT DEPENDENCIES** — a static regex/token scan of the object's
+  source (`scanDependencies`), recognizing `INHERITING FROM`, `INTERFACES`,
+  `TYPE REF TO`, a single-token `TYPE <name>` (stops at the first space, so
+  `TYPE STANDARD TABLE OF zcl_foo` never gets past `STANDARD`), `CALL
+  FUNCTION '...'`, `CALL TRANSACTION '...'`, `SUBMIT`, static `<NAME>=>`
+  access, `SELECT ... FROM <table>` (including `SELECT SINGLE`, `FROM <t>
+  AS <alias>`, and a joined select's `JOIN <table>`), and `INCLUDE
+  <program>.` — never instance `->` access, which cannot be resolved
+  statically. `FROM @<itab>` (Open SQL's host-variable escape, reading an
+  internal table rather than a database table) is not reported as a
+  dependency. The `SELECT`/`JOIN` scan is skipped entirely for `DDLS/DF`
+  (CDS) source, where `select from <entity>` is DDL projection syntax, not
+  an Open SQL statement. ABAP built-in types and common local-variable name
+  prefixes (`lt_`, `ls_`, `lv_`, `lo_`, `lr_`, `gt_`, `gs_`, `gv_`, `go_`,
+  `ty_`, `t_`) are filtered out. Each row names a `via` (how the dependency
+  was found) and a ready-to-run `abap_read` call for it — a function module
+  dependency is offered as `{"object":"<name>","type":"FUGR/FF"}`, a
+  transaction as `abap_search {"query":"<name>"}` (there is no registered
+  ADT type for a transaction), a `SELECT`/`JOIN` table as
+  `{"object":"<name>","type":"TABL/DT"}`, an `INCLUDE` as
+  `{"object":"<name>","type":"PROG/I"}`, everything else as a plain
+  `{"object":"<name>"}`.
+- **TESTS AND CHECKS** — for `CLAS` objects, whether a `testclasses` include
+  exists and how many `FOR TESTING` classes it declares
+  (statement-joined regex over the include's source, so a `FOR TESTING`
+  clause split across lines is still found); for every type, ready-to-run
+  `abap_test`/`abap_atc` calls. Tests are never actually run for a digest.
+- **RECENT HISTORY** — the 3 most recent version-feed entries, after
+  de-duplicating consecutive same-version rows the same way
+  `view="history"`'s own rendering does.
+- **WHERE TO GO NEXT** — concrete follow-up `abap_read` calls: the full
+  source, the full outline (CLAS/INTF only), and the full version history.
+
+**Where-used is deliberately never fetched.** `abap_search
+mode="where_used"` walks ADT's `usageReferences` endpoint, which is
+unbounded — no limit, no paging, 20+ seconds on a wide fan-in (see
+[mode=source's evidence section](#modesource-line-wise-source-text-scan)
+above and `abap_search`'s own where-used documentation). A digest names
+that call in a note instead of running it: `Where-used is not fetched:
+ADT's usageReferences endpoint is unbounded and can take 20+ seconds on
+wide fan-in. Run it explicitly with abap_search
+{"query":"<name>","mode":"where_used"}.` The issue that requested this
+feature also named `abap_read view="footprint"` and `abap_search
+mode="call_graph"` — neither exists in this codebase, and this digest never
+names either.
+
+**Refusals** (`assertViewCompatible`, `src/tools/read.ts`):
+
+| Input | Result |
+|---|---|
+| `view="digest"` against a type outside the six supported | `UNSUPPORTED`, naming `CLAS/OC, INTF/OI, PROG/P, FUGR/F, FUGR/FF, DDLS/DF`. |
+| `view="digest"` combined with `format="raw"` | `UNSUPPORTED` — a digest is a rendered overview built from several reads, not the object's own current XML descriptor. |
+| `view="digest"` combined with `enhancements=true` | `UNSUPPORTED` — the enhancement decoders read an ENHO/ENHS document; a digest summarises the object instead. |
+| `view="digest"` combined with `version=` (any value) | `UNSUPPORTED` — a digest always summarises the current active state (falling back to the newest inactive version the way an ordinary read would); active/inactive is not a per-section selector. |
+| `view="digest"` combined with `outline=true` | `UNSUPPORTED` — the PUBLIC API section is already built the same way `outline=true` is; asking for both would run that pass twice. |
+| `view="digest"` combined with `method=` | `UNSUPPORTED` — a digest is a fixed overview of the object as a whole; the PUBLIC API section already lists every public method. |
+| `view="digest"` combined with `include=` | `UNSUPPORTED` — a digest always reads the class's own main source plus its testclasses include, never a caller-picked one. |
+| `view="digest"` combined with `from`/`to`/`context` | `UNSUPPORTED` — a digest summarises the current state only, not a comparison between versions. |
+| `view="digest"` combined with `line`/`column` | `UNSUPPORTED` — a digest is a fixed overview, not a position lookup. |
+
+**Gated as read, not write.** Unlike `docu`, `digest` stays on the ordinary
+`pool.withRead` path throughout — it only reads source, outline and history
+through machinery `abap_read` already uses for a plain read, so it needs
+nothing beyond what that path already provides, and it remains available
+under `ABAP_MODE=read`.
+
+**Not on the v2 tool surface** — see the note under `view="docu"` above;
+the same applies here.
+
+**Evidence.** The section-building logic (`buildDigestSections` and the pure
+scan/summary functions it calls) is `tests`-only: covered by unit tests
+against constructed `DigestInput` fixtures, not by a live capture. **Not yet
+verified live**: an end-to-end `abap_read view="digest"` call against a real
+object on a live server — the ADT calls it composes (`listRevisions`,
+`readSource`, `classMembers`) are each independently exercised elsewhere in
+this document's evidence sections, but the digest assembly itself has not
+been run against a live server on this branch.
+
+Example:
+
+```json
+{ "object": "ZCL_FOO", "type": "CLAS/OC", "view": "digest" }
 ```
 
 ### Package reads (`DEVC/K`)

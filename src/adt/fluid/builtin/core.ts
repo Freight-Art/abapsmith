@@ -1,8 +1,8 @@
 /**
  * Built-in "core" fluid tool: table select, function-module interface
- * description, and function-module call, all dispatched through one static
- * `ZCL_ZMCP_FLUID_CORE` body class. `ZCL_ZMCP_FLUID_RT` is deployed
- * alongside it (first in `objects`, so it exists before
+ * description, function-module call, and SAP documentation reads, all
+ * dispatched through one static `ZCL_ZMCP_FLUID_CORE` body class.
+ * `ZCL_ZMCP_FLUID_RT` is deployed alongside it (first in `objects`, so it exists before
  * `ZCL_ZMCP_FLUID_CORE` is activated) — its source is the exact one the `rt`
  * tool deploys, not a copy. Same pattern as `classic.ts`.
  *
@@ -19,6 +19,7 @@ import { AbapError } from "../../errors.js";
 import { coreBodySource } from "./core/abap-core.js";
 import { selectPart } from "./core/abap-select.js";
 import { fmPart } from "./core/abap-fm.js";
+import { docuPart } from "./core/abap-docu.js";
 
 export const CORE_TOOL_ID = "core";
 export const CORE_BODY_CLASS = "ZCL_ZMCP_FLUID_CORE";
@@ -33,13 +34,14 @@ if (RUNTIME_OBJECT === undefined) {
   throw new Error(`fluidRuntimeManifest has no entry for ${FLUID_RUNTIME_CLASS}`);
 }
 
-const CORE_SOURCE = coreBodySource([selectPart, fmPart]);
+const CORE_SOURCE = coreBodySource([selectPart, fmPart, docuPart]);
 
 export const coreManifest: FluidManifest = {
   contract: FLUID_CONTRACT,
   id: CORE_TOOL_ID,
   title: "Core read/execute bridge",
-  description: "Table select, function-module interface description, and function-module call.",
+  description:
+    "Table select, function-module interface description and call, and SAP documentation reads.",
   objects: [
     {
       name: FLUID_RUNTIME_CLASS,
@@ -51,7 +53,7 @@ export const coreManifest: FluidManifest = {
     {
       name: CORE_BODY_CLASS,
       type: "CLAS/OC",
-      description: "fluid: table select, FM describe and FM call",
+      description: "fluid: table select, FM describe/call, documentation",
       source: { text: CORE_SOURCE },
     },
   ],
@@ -113,6 +115,41 @@ export const coreManifest: FluidManifest = {
       targets: { object: "/name" },
     },
     {
+      name: "docu",
+      category: "read",
+      description:
+        "Reads SAP documentation (DOKHL/DOKTL) for one documentation object and returns it flattened to plain text.",
+      input: {
+        type: "object",
+        required: ["id", "object"],
+        properties: {
+          id: {
+            type: "string",
+            maxLength: 2,
+            description: "Documentation id, e.g. DE, DO, TB, CL, IF, FU, RE, NA, HY.",
+          },
+          object: {
+            type: "string",
+            maxLength: 60,
+            description: "Documentation object name, already in its stored form.",
+          },
+          language: {
+            type: "string",
+            maxLength: 2,
+            description: "Language to try first. Falls back to the logon language, then EN.",
+          },
+        },
+      },
+      output: {
+        type: "array",
+        items: { type: "object" },
+        description: "One head row, one row per flattened text line, one trailing summary row.",
+      },
+      // No `targets`: this reads documentation, not an object the write gate can name — there
+      // is nothing here for `deps.gate` to judge as a write target the way `select`'s table or
+      // `describe_fm`'s function module name are.
+    },
+    {
       name: "call_fm",
       category: "execute",
       description: "Calls a function module in the caller's own system, under the caller's own authorizations.",
@@ -165,7 +202,10 @@ function isNonEmptyString(v: unknown): v is string {
  * registration-level gate for `abap_data_preview` in `src/server.ts:676`,
  * not something `evaluateDataPreview`/`assertDataPreview` itself reads, so
  * `core.select` has to apply it itself here); `call_fm` by
- * `ABAP_ALLOW_FLUID_CALL_FM` plus a per-call confirm echo when it commits.
+ * `ABAP_ALLOW_FLUID_CALL_FM` plus a per-call confirm echo when it commits;
+ * `docu` is judged by neither policy (see the comment on its fallthrough
+ * below) and `describe_fm` needs no guard here at all — reading a function
+ * module's interface carries no data-preview or execution risk.
  * `SAFETY_DENIED` is the code for both capability refusals: no
  * `FLUID_CALL_FM_DISABLED` (or similarly named) code exists, and
  * `src/adt/errors.ts` is off-limits for this slice — both refusals are
@@ -218,4 +258,10 @@ export async function guardCoreAction(deps: FluidDeps, req: FluidRunRequest): Pr
     }
     return;
   }
+
+  // `docu` reads SAP's own documentation text out of DOKTL, not application
+  // table data, so it is deliberately not judged here: neither
+  // `assertDataPreview` nor `ABAP_ALLOW_DATA_PREVIEW` applies to it. It
+  // (and every other action this function does not name) falls through to
+  // the implicit `return` below untouched.
 }
