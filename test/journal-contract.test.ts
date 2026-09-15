@@ -674,9 +674,9 @@ const NOT_REPOSITORY_MUTATIONS: ReadonlyMap<string, string> = new Map([
     "tools/test.ts",
     "The ABAP Unit POST to /sap/bc/adt/abapunit/testruns runs existing tests. It creates, " +
       "changes and deletes no repository object, so no `JournalOperation` describes it — the " +
-      "same reason `abap_run` does not journal, which the v2 handler states in as many words " +
-      "(\"abap_run does not journal, but a preceding activate/write does\"). A test run whose " +
-      "ABAP code writes to the database is the tested code's doing, not a repository change. " +
+      "same reason `abap_run` does not journal: it runs existing code rather than mutating the " +
+      "repository, though a preceding activate/write does journal. A test run whose ABAP code " +
+      "writes to the database is the tested code's doing, not a repository change. " +
       "NOTE this file passed the audit's draft only by laundering (src/server.ts imports it " +
       "and journals); it is here on its merits instead.",
   ],
@@ -979,7 +979,7 @@ describe("JournalOperation coverage", () => {
  * THE BETTER FIX, where it is available, is to declare the field REQUIRED
  * (`readonly journal: Journal`) — then tsc catches the omission and this test is
  * belt-and-braces. `ActivateToolDeps` (required once the activate gap was
- * fixed) and `V2ToolDeps` are required for
+ * fixed) and `WriteToolDeps` are required for
  * exactly that reason. Optional stays legitimate for deps types shared with call
  * sites that genuinely have no journal, which is why this check exists at all.
  *

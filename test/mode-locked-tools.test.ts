@@ -1,13 +1,18 @@
 /**
  * Mode-locked refusal stubs (`src/tools/locked.ts`) — the fix for issue #63.
  *
- * Before this landed, a read-only v1 server (`ABAP_MODE=read`, or legacy
+ * Before this landed, a read-only server (`ABAP_MODE=read`, or legacy
  * read-only config) simply never registered the mutating tools, so a call to
  * `abap_write` came back as `MCP error -32602: Tool abap_write not found` —
  * indistinguishable from a typo'd tool name. `registerLockedTools` now
  * advertises those tools under their real names with a refusal-only handler
  * that holds no pool/safety/connection dependency, so it is structurally
- * incapable of reaching SAP.
+ * incapable of reaching SAP. `lockedToolsFor` (`src/tools/locked.ts`) gates
+ * purely on `cfg.readOnly` — issue #76 removed the second tool surface this
+ * suite used to also check (`lockedToolsFor` returning `[]` for it, since
+ * that surface answered a locked call a different way); see
+ * `test/tool-surface-removal.test.ts` for the removal's own regression
+ * coverage.
  *
  * Harness copied from `test/tools-schema-shape.test.ts` (real MCP `Client` +
  * `InMemoryTransport` + `createServer()`, plus a `ForbiddenClient` that
@@ -16,11 +21,7 @@
  * (like `test/data-preview-gates.test.ts`) rather than hand-assembled via
  * `ConfigSchema.parse()` + manual field overrides, so `readOnly`/
  * `allowPackages`/`allowTransportRelease`/etc. are threaded through
- * `capabilitiesForMode()` exactly the way production does — the same
- * concern `test/tools-v2-budget.test.ts`'s `cfg()` helper flags but doesn't
- * fully solve for a writable v1 config (its `abapMode` is spread on AFTER
- * `ConfigSchema.parse()`, so `readOnly` stays at the schema default unless
- * also set by hand).
+ * `capabilitiesForMode()` exactly the way production does.
  */
 import { describe, expect, it } from "vitest";
 import type { HttpClient, HttpClientOptions, HttpClientResponse } from "abap-adt-api/build/AdtHTTP.js";
@@ -51,18 +52,10 @@ const BASE_ENV: Record<string, string> = {
   ABAP_CLIENT: "001",
 };
 
-/** A real, internally-consistent v1 `Config` for `mode`, built via `loadConfig()` off a fake env. */
-function v1Config(mode: AbapMode, over: Record<string, string> = {}): Config {
+/** A real, internally-consistent `Config` for `mode`, built via `loadConfig()` off a fake env. */
+function config(mode: AbapMode, over: Record<string, string> = {}): Config {
   return loadConfig({
-    env: { ...BASE_ENV, ABAP_TOOL_SURFACE: "v1", ABAP_MODE: mode, ...over },
-    warn: () => {},
-    skipDotenv: true,
-  });
-}
-
-function v2Config(mode: AbapMode, over: Record<string, string> = {}): Config {
-  return loadConfig({
-    env: { ...BASE_ENV, ABAP_TOOL_SURFACE: "v2", ABAP_MODE: mode, ...over },
+    env: { ...BASE_ENV, ABAP_MODE: mode, ...over },
     warn: () => {},
     skipDotenv: true,
   });
@@ -108,7 +101,7 @@ const textOf = (res: CallToolReturn): string => {
 const jsonOf = (res: CallToolReturn): Record<string, unknown> => JSON.parse(textOf(res)) as Record<string, unknown>;
 
 /**
- * The 12 base stub names — every mutating v1 tool whose registration used to
+ * The 12 base stub names — every mutating tool whose registration used to
  * be skipped outright on a read-only server. `abap_fluid` is separate
  * (13th) because it carries the extra `cfg.fluidApi` precondition.
  */
@@ -131,12 +124,12 @@ const BASE_LOCKED_NAMES = [
 // 1. read mode lists every locked tool
 // ============================================================================
 
-describe("mode-locked tools — registration on a read-only v1 server", () => {
+describe("mode-locked tools — registration on a read-only server", () => {
   it("lists all 12 base locked names, plus abap_fluid (13th) since fluidApi defaults on", async () => {
     // `fluidApi` (ABAP_FLUID_API) defaults to `true` (src/config.ts), so the
     // plain read-mode config here already satisfies abap_fluid's
     // `availableWhen`.
-    const names = await toolNames(v1Config("read"));
+    const names = await toolNames(config("read"));
     for (const name of BASE_LOCKED_NAMES) {
       expect(names.has(name), `read-mode tools/list is missing locked stub ${name}`).toBe(true);
     }
@@ -144,7 +137,7 @@ describe("mode-locked tools — registration on a read-only v1 server", () => {
   });
 
   it("drops abap_fluid from the locked set when ABAP_FLUID_API is explicitly off", async () => {
-    const names = await toolNames(v1Config("read", { ABAP_FLUID_API: "false" }));
+    const names = await toolNames(config("read", { ABAP_FLUID_API: "false" }));
     for (const name of BASE_LOCKED_NAMES) {
       expect(names.has(name), `read-mode tools/list is missing locked stub ${name}`).toBe(true);
     }
@@ -158,7 +151,7 @@ describe("mode-locked tools — registration on a read-only v1 server", () => {
 
 describe("mode-locked tools — calling one refuses, it does not 404", () => {
   it("abap_write resolves isError:true with a READ_ONLY refusal, not an MCP -32602", async () => {
-    const { client } = await harness(v1Config("read"));
+    const { client } = await harness(config("read"));
     const res = await client.callTool({
       name: "abap_write",
       arguments: { object: "ZCL_X", source: "CLASS zcl_x DEFINITION. ENDCLASS." },
@@ -185,7 +178,7 @@ describe("mode-locked tools — calling one refuses, it does not 404", () => {
 
 describe("mode-locked tools — unrelated typo'd tool names are unaffected", () => {
   it("a genuinely unknown tool name still comes back as an MCP 'not found' error, not a refusal", async () => {
-    const { client } = await harness(v1Config("read"));
+    const { client } = await harness(config("read"));
     const res = await client.callTool({ name: "abap_not_a_tool", arguments: {} });
 
     expect(isErr(res)).toBe(true);
@@ -205,7 +198,7 @@ describe("mode-locked tools — unrelated typo'd tool names are unaffected", () 
 
 describe("mode-locked tools — abap_transport_release needs admin, not just edit", () => {
   it("its refusal remediation points at ABAP_MODE=admin and details name both capabilities", async () => {
-    const { client } = await harness(v1Config("read"));
+    const { client } = await harness(config("read"));
     const res = await client.callTool({ name: "abap_transport_release", arguments: { transport: "TST0001234" } });
 
     expect(isErr(res)).toBe(true);
@@ -225,7 +218,7 @@ describe("mode-locked tools — abap_transport_release needs admin, not just edi
 
 describe("mode-locked tools — no input schema, so any arguments are accepted then refused", () => {
   it("a nonsense argument object still comes back as a READ_ONLY refusal, not a validation error", async () => {
-    const { client } = await harness(v1Config("read"));
+    const { client } = await harness(config("read"));
     const res = await client.callTool({
       name: "abap_bopf_edit",
       arguments: { totally: "unexpected", nested: { shape: [1, 2, 3] }, op: 42 },
@@ -244,7 +237,7 @@ describe("mode-locked tools — no input schema, so any arguments are accepted t
 
 describe("mode-locked tools — absent again once the server is actually writable", () => {
   it("lockedToolsFor(cfg) is empty and abap_write is the real tool, with a real schema", async () => {
-    const cfg = v1Config("admin");
+    const cfg = config("admin");
     expect(lockedToolsFor(cfg)).toEqual([]);
 
     const { client } = await harness(cfg);
@@ -260,33 +253,11 @@ describe("mode-locked tools — absent again once the server is actually writabl
 });
 
 // ============================================================================
-// 7. no stubs on the v2 surface
-// ============================================================================
-
-describe("mode-locked tools — v2 answers this through abap_do's minMode instead", () => {
-  it("lockedToolsFor is [] for v2, and abap_write stays absent from a read-mode v2 tools/list", async () => {
-    const cfg = v2Config("read");
-    expect(lockedToolsFor(cfg)).toEqual([]);
-
-    const { client } = await harness(cfg);
-    const { tools } = await client.listTools();
-    expect(tools.map((t) => t.name)).not.toContain("abap_write");
-
-    // Same "not found, not a refusal" shape test/tools-v2-budget.test.ts
-    // already pins for v2 — reasserted here so this file alone proves v2 is
-    // untouched by src/tools/locked.ts.
-    const res = await client.callTool({ name: "abap_write", arguments: {} });
-    expect(isErr(res)).toBe(true);
-    expect(textOf(res)).toMatch(/not found/i);
-  });
-});
-
-// ============================================================================
-// 8. DRIFT GUARD — the important one
+// 7. DRIFT GUARD — the important one
 // ============================================================================
 
 describe("mode-locked tools — DRIFT GUARD: read and admin advertise the identical tool-name set", () => {
-  it("two v1 configs differing ONLY in abapMode (read vs admin) list exactly the same tool names", async () => {
+  it("two configs differing ONLY in abapMode (read vs admin) list exactly the same tool names", async () => {
     // Identical out-of-band flags on both sides: allowDataPreview and
     // allowDumpVariables are NOT mode-governed (src/mode.ts's doc comment on
     // AbapCapabilities.allowDataPreview), and fluidApi is the same literal
@@ -298,13 +269,13 @@ describe("mode-locked tools — DRIFT GUARD: read and admin advertise the identi
       ABAP_ALLOW_DUMP_VARIABLES: "true",
       ABAP_FLUID_API: "true",
     };
-    const readNames = await toolNames(v1Config("read", sharedOverrides));
-    const adminNames = await toolNames(v1Config("admin", sharedOverrides));
+    const readNames = await toolNames(config("read", sharedOverrides));
+    const adminNames = await toolNames(config("admin", sharedOverrides));
 
     expect(
       [...readNames].sort(),
       "read-mode and admin-mode tools/list no longer advertise the same NAMES. " +
-        "If you just added a new write-gated v1 tool (a registration gated on " +
+        "If you just added a new write-gated tool (a registration gated on " +
         "toolCapabilities.canWrite or similar), it must ALSO be added as an entry in " +
         "MODE_LOCKED_TOOLS (src/tools/locked.ts) — otherwise it silently stops being " +
         "advertised at all on a read-only server, which is exactly issue #63 " +
@@ -315,12 +286,12 @@ describe("mode-locked tools — DRIFT GUARD: read and admin advertise the identi
 });
 
 // ============================================================================
-// 9. locked descriptions are self-explaining
+// 8. locked descriptions are self-explaining
 // ============================================================================
 
 describe("mode-locked tools — descriptions explain themselves without a call", () => {
   it("every locked tool's description mentions LOCKED and names the mode that unlocks it", async () => {
-    const { client } = await harness(v1Config("read"));
+    const { client } = await harness(config("read"));
     const { tools } = await client.listTools();
     const byName = new Map(tools.map((t) => [t.name, t]));
 
@@ -343,13 +314,13 @@ describe("mode-locked tools — descriptions explain themselves without a call",
 });
 
 // ============================================================================
-// 10. byte hygiene
+// 9. byte hygiene
 // ============================================================================
 
 describe("mode-locked tools — stubs are far cheaper than real schemas", () => {
   it("the read-mode tools/list JSON is strictly smaller than the admin-mode one", async () => {
-    const readTools = (await (await harness(v1Config("read"))).client.listTools()).tools;
-    const adminTools = (await (await harness(v1Config("admin"))).client.listTools()).tools;
+    const readTools = (await (await harness(config("read"))).client.listTools()).tools;
+    const adminTools = (await (await harness(config("admin"))).client.listTools()).tools;
 
     expect(JSON.stringify(readTools).length).toBeLessThan(JSON.stringify(adminTools).length);
   });

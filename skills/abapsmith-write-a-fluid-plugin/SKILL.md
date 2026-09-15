@@ -89,7 +89,6 @@ MCP server's env and restart it:
 | `ABAP_ALLOW_FLUID_PLUGIN_MUTATE` | `true` if step 5 found a DB write or commit, or any action is `mutate` (the gate checks it per call) |
 | `ABAP_ALLOW_FLUID_CALL_FM` | `true` only if step 5 found `CALL FUNCTION` |
 
-`abap_fluid` exists on the default v1 surface only; v2 (`abap_do`) has no fluid entry point.
 Read-only mode or a productive system disables the fluid API entirely, plugins included.
 
 ## 7. Verify after the restart

@@ -5,7 +5,7 @@
 | Debugger | n/a | yes | no | n/a | n/a | live | Breakpoints and watchpoints are set and cleared as part of a session, including while a debuggee is already suspended; variables can be read but never written, and the frame cursor moves the read position only. Session concurrency is client-configurable (`ABAP_DEBUG_SESSIONS`), but SAP still allows only one active debug listener per SAP user on a system. |
 | Breakpoints | yes | yes | no | yes | n/a | live | Line, exception, statement and message kinds, mixable in one call; armed at `start` or added later while stopped (`action="breakpoints"` `op="add"`, additive — never touches a breakpoint this session did not create). `op="list"` is a client-side record of what this session armed, not a server read — `GET .../debugger/breakpoints` answers `200` with a zero-byte body regardless of what is actually armed. `op="remove"` is by id, restricted to ids this session created. `skipCount` is accepted by the server and not enforced, so expect a stop on every hit. |
 | Watchpoints | yes | yes | no | yes | n/a | mixed | Variable-path watch with an optional ABAP-expression condition; add/list/remove while stopped (`action="watch"`). A create response echoes only the newly created watchpoint, never the session's full list. A hit surfaces inside a step response as `reachedWatchpoints`, carrying only the new value — the old value needs a follow-up `op="list"`. This tool never modifies a watchpoint (a modify retires the addressed id and issues a new one), so ids it holds stay valid for the session's whole lifetime. `live`: create/list/get/modify/delete, the 400 on a missing variable name, the 404 on an unknown id, and a hit reported on `stepContinue`. `unverified`: a condition actually gating a stop (accepted and stored, but never isolated as the cause of a hit) and `reachedWatchpoints` on an *attach* response (every captured attach stopped on a line breakpoint instead). |
-| ABAP Unit | yes | yes | yes | n/a | yes | live | Runs existing tests: PASSED/FAILED/NO TESTS RAN/UNKNOWN, never collapsing "nothing ran" into a pass — see the outcome breakdown below. Test classes are created and updated through `abap_write` (`include="testclasses"`), not through `abap_test` itself; verified live end to end — write, activate, run, read-back — against SAP A4H, 2026-09-12. A single class include cannot be deleted on its own (ADT has no such verb), only emptied by writing new content over it. There is no activate verb for the include itself: `abap_activate` on the owning class activates `testclasses` along with it, confirmed live, SAP A4H, 2026-09-12. |
+| ABAP Unit | yes | yes | yes | n/a | yes | mixed | Runs existing tests: PASSED/FAILED/NO TESTS RAN/UNKNOWN, never collapsing "nothing ran" into a pass — see the outcome breakdown below. Test classes are created and updated through `abap_write` (`include="testclasses"`), not through `abap_test` itself; verified live end to end — write, activate, run, read-back — against SAP A4H, 2026-09-12. A single class include cannot be deleted on its own (ADT has no such verb), only emptied by writing new content over it. There is no activate verb for the include itself: `abap_activate` on the owning class activates `testclasses` along with it, confirmed live, SAP A4H, 2026-09-12. Also selects and runs the test carriers a changed set puts at risk (`scope: "impacted"`) via where-used, instead of one named object — graded `mixed` because of this: see the impacted-scope breakdown below. |
 | ABAP Unit coverage | n/a | yes | n/a | n/a | n/a | mixed | Opt-in (`coverage: true` on `abap_test`), scoped with `coverage_for`. The wire protocol — coverage negotiation on the run, the covered-objects roster, the coverage query, an untouched object's zero-summary response with no per-node breakdown — is `live` (SAP A4H, 2026-09-12; `test/fixtures/live-captured/852`–`856-i75-*`). abapsmith's own report rendering is now `live` too, end to end: `abap_test { object: "ZCL_I75_UNDO", type: "CLAS/OC", coverage: true }` against SAP A4H, 2026-09-12, returned outcome PASSED, tests 1, passed 1, the header `coverage: statement 2/2 (100%), branch 1/1 (100%), procedure 1/1 (100%)` line, a `COVERAGE` section with a class row and a per-method row for `DOUBLE`, and an `ALSO TOUCHED` list of 15 framework objects plus a `… and 19 more (truncated)` line — so the focus set, the header ratio line, the per-class/per-method table, and `ALSO TOUCHED` with its cap are confirmed as rendered MCP tool output, not just wire protocol. Still `tests`-only, exercised only against the live-captured fixtures, not yet observed live as rendered output: the `UNCOVERED METHODS` section, the `not measured by this run` / `not touched by this run` / `not queried` wordings, and `coverage_for` naming an object other than the one under test. See [execute-and-test.md](../TOOLS/execute-and-test.md). |
 | ATC | partial | yes | no | partial | n/a | mixed | A run creates a server-side worklist as a side effect; there is no variant create, and exemption management is deliberately absent. Worklist delete IS attempted (both directly and via `auto_cleanup`) but this release's server refuses every attempt with HTTP 405, so the worklist persists — a caching strategy limits the litter. |
 | Quick fixes | no | yes | yes | no | yes | mixed | Position-driven only, not finding-driven — the ATC route was tried and rejected. Deterministic proposals only; a parameterized one is refused `BAD_INPUT`. Listing is gated as a write because it posts the whole object source. |
@@ -13,7 +13,7 @@
 | Runtime trace (SAT) | yes | yes | n/a | yes | n/a | mixed | Scoped to one connected user and one object; `op=run` creates a trace request, executes the object, waits for and reads the trace, then deletes the request, while `op=start` leaves that cleanup to the caller — a fully consumed request is not cleaned up by the server on its own. `view="tree"` is refused up front against an aggregated trace rather than sent to fail server-side. Read views are `hitlist`, `db` (statement kind, table, counts and time — not full SQL text), and `tree`. The standalone SQL-trace collection (`/sap/bc/adt/runtime/traces/sqltraces`) does not exist as a resource on the reference release and is `unverified`; SQL access on that release is read only through the `db` view of the same trace. Refused outright on a cloud tenant, where ADT discovery does not offer `traces.abaptraces`. |
 | Object activation | n/a | n/a | n/a | n/a | yes | live | Check-only and activate modes, single and batched. There is no deactivate in ADT, which is why activation can never be undone. |
 | Pretty printer | n/a | yes | yes | n/a | yes | mixed | `abap_activate mode="format"`. Text form (`source`, no `object`) is a stateless reformat — no lock, no write, no journal entry, gated as read, works even in read-only mode. Object form (`object`, no `source`) reads the saved source, reformats it, and writes it back with `activate: true` through the ordinary journalled write path only if the bytes actually changed; an unchanged reformat reports `changed: false` and takes no lock, no PUT and no activation. Reads the server's own pretty-printer setting and never changes it — `setPrettyPrinterSetting` is never called. See the note below. |
-| Element info / definition lookup | n/a | yes | n/a | n/a | n/a | mixed | `abap_read view="definition"`. Given a 1-based line and 0-based column, answers what/where for the identifier there: kind, name, visibility, level, ABAP type, declaring location (with a copy-pasteable `abap_read` call), signature or components, short text and ABAP Doc; for an interface method, the implementing classes via where-used, from either a use site or the interface's own declaration. Gated as read even though every endpoint is a POST, because none of it returns anything `abap_write` could act on. Not exposed on the v2 tool surface. See the note below. |
+| Element info / definition lookup | n/a | yes | n/a | n/a | n/a | mixed | `abap_read view="definition"`. Given a 1-based line and 0-based column, answers what/where for the identifier there: kind, name, visibility, level, ABAP type, declaring location (with a copy-pasteable `abap_read` call), signature or components, short text and ABAP Doc; for an interface method, the implementing classes via where-used, from either a use site or the interface's own declaration. Gated as read even though every endpoint is a POST, because none of it returns anything `abap_write` could act on. See the note below. |
 | Transport requests | yes | yes | partial | yes | n/a | live | Create, add a user, and set an owner. Delete is admin-gated and requires echoing the request identifier. Objects cannot be added or removed directly, and a locked entry cannot be unlocked. |
 | Transport release | n/a | yes | n/a | n/a | yes | live | Dry run by default, armed only by echoing the request identifier, and gated separately from ordinary write access. Reports four distinct outcomes and never overstates one. |
 | Write journal | yes | yes | no | no | n/a | tests | Entries are written by the tools themselves; the journal is read-only to the user and has no delete. |
@@ -31,6 +31,9 @@
 | Object read | n/a | yes | n/a | n/a | n/a | live | Source, outline, method slice, raw properties, enhancements, version history, and diff. |
 | Call graph (`abap_search mode=call_graph`) | n/a | yes | n/a | n/a | n/a | mixed | Walks callers (via `usageReferences`, same wire path and cost profile as `mode=where_used`) or callees (a static source-text parse, `src/adt/call-sites.ts`) to `depth` levels, default 2, max 4 — a `depth` above the max is refused (`BAD_INPUT`), never silently clamped. The parser/renderer chain (`parseCallSites`, callee grouping, callers-tree assembly) is `tests`: exercised offline against captures 974/975 (real `ZCL_I105_A`/`ZCL_I105_B` source) and 971-973 (real `usageReferences` wire bytes for a caller cycle and a leaf). The assembled `abap_search mode=call_graph` MCP call itself is `unverified` end to end — the reference MCP server runs a previously released bundle that predates this feature, so there is no live round trip through the actual tool dispatch, and none is anticipated until a new bundle ships. See [doc/LIMITATIONS/search.md](../LIMITATIONS/search.md) for cost and blind-spot detail (dynamic dispatch is never resolvable from source text). |
 | Database write footprint (`abap_read view=footprint`) | n/a | yes | n/a | n/a | n/a | mixed | `PROG/P`, `CLAS/OC`, `FUGR/F`, `FUGR/FF` only — scans every include by source-text pattern matching for Open SQL writes, update/background-task RFC calls, commit/rollback, BOPF modify, `EXEC SQL`/ADBC, `EXPORT…TO DATABASE`, `CALL TRANSACTION`, `SUBMIT`. The scanner/renderer chain (`scanFootprint`, `renderFootprint`) is `tests`: exercised offline against capture 983, a real report source built to exercise every recognised form. BOPF modify and `EXEC SQL`/ADBC detection have **no live ground truth at all** — capture 983 contains none of the three, so those patterns are written from documented API shapes, not from an observed occurrence; this is disclosed in the tool's own rendered notes for BOPF and in [doc/LIMITATIONS/footprint.md](../LIMITATIONS/footprint.md) for all three. The assembled `abap_read view=footprint` MCP call itself is `unverified` end to end, same reasoning as the call-graph row above — the reference server predates this feature and no live run is anticipated until it ships. |
+| Application log (BAL) reads | n/a | yes | n/a | n/a | n/a | mixed | `abap_fluid {"tool":"log","action":"read"}`. Header search plus, on request, message detail, via `BAL_GLB_MEMORY_REFRESH`/`BAL_DB_SEARCH`/`BAL_DB_LOAD`/`BAL_LOG_MSG_READ` — not the nonexistent `BAL_LOG_READ` the requesting issue named. `detail="messages"` can itself write to the database (`BAL_DB_LOAD` converts an old-format log in place via `BAL_DB_SAVE_OLD_VERSIONS`), so it is not provably side-effect-free even though this is a "read" action; message text is application data and may carry business data, so it is disclosed as such, never assumed safe to log. See the note below. |
+| SAP documentation reads | n/a | yes | n/a | n/a | n/a | mixed | `abap_read view="docu"` (or, with `method=`, a method's own ABAP Doc). Reads `DOKHL`/`DOKIL`/`DOKTL` through the built-in `core` fluid tool's `docu` action — there is no ADT REST endpoint for this store. Flattened to plain text (`CONVERT_ITF_TO_ASCII`), not the verbatim ITF source. Deliberately excluded from `core`'s data-preview policy: it reads SAP's own documentation text, not application table data. See the note below. |
+| Object digest (one-page overview) | n/a | partial | n/a | n/a | n/a | mixed | `abap_read view="digest"`, for `CLAS/OC`, `INTF/OI`, `PROG/P`, `FUGR/F`, `FUGR/FF`, `DDLS/DF` only. Six fixed sections built from existing read/outline/history calls, capped at 25 rows per section. `partial`: PUBLIC API renders a real function-module signature for `FUGR/FF` and, when the select list is parseable with confidence, a CDS field list for `DDLS/DF`; only `FUGR/F` (the group itself) still renders an empty PUBLIC API, since listing a group's modules needs a search call this view deliberately does not make. Where-used is deliberately never fetched (unbounded ADT endpoint); the digest names the `abap_search mode="where_used"` call instead of running it. See the note below. |
 
 - **ABAP Unit outcome grading — this is the whole point of the evidence
   column, so it is not smoothed over here.** The run reports one of four
@@ -52,6 +55,71 @@
   "test methods came back carrying XML the parser cannot grade" path
   (`unknown > 0`) has still never been observed live and remains built
   entirely from hand-written hypothetical documents.
+- **Impacted scope (`scope: "impacted"` on `abap_test`).** Selecting a
+  changed object as its own carrier (`changed directly`) and the two
+  distinct empty outcomes — `NO CHANGED OBJECTS` (nothing to select
+  against) and `NO IMPACTED TESTS FOUND` (consumers examined, none carries
+  a test class) — are `live` (SAP A4H, client 001, user DEVELOPER,
+  2026-09-15), on `ZCL_I111_USER` (has a `testclasses` include with
+  `ltcl_user`) and `ZCL_I111_LIB` (no test class), both in `$TMP`:
+  `changed: ["ZCL_I111_USER"]` selected and ran that class for real
+  (`outcome: PASSED`, `tests: 1`, `passed: 1`); `changed: ["ZCL_I111_LIB"]`
+  returned `NO IMPACTED TESTS FOUND (not a pass)`; both names given together
+  deduplicated to the single carrier; and the `caps: per-object 20,
+  carriers 10` header disclosure appeared on both outcomes.
+  `NO CHANGED OBJECTS` is backed by its own live evidence, not inferred
+  from the other outcome: `changed: []` returned `NO CHANGED OBJECTS (not
+  a pass)` with body `No changed objects were given — nothing was run.`,
+  and, separately, `since: "<an ISO timestamp>"` against an empty journal
+  returned the same outcome with body `The journal held no writes for
+  this system since <timestamp> — nothing was run.` — so the
+  journal-derived changed-set path (the `since` filter, the system
+  filter, and its distinct provenance note) is confirmed live as reaching
+  the journal and reporting its provenance. Not yet observed live: that
+  same journal path actually selecting a non-empty changed set — every
+  live `since` run so far has hit an empty journal. The where-used
+  consumer half of the feature is `tests`-only: this appliance's where-used
+  index has never been built — report `SAPRSEUB` has never run, so
+  `WBCROSSGT`/`CROSS` are empty and the ADT `usageReferences` endpoint
+  answers zero rows for every object tried, including SAP-standard ones
+  (`CL_ABAP_UNIT_ASSERT`) — so `consumersExamined` was 0 in every live run
+  above. Finding consumers, the per-object consumer cap (20), the total
+  carrier cap (10), and the `--- TRUNCATED ---` naming of unexamined
+  consumers therefore have unit-test coverage over fakes only; on a system
+  with a built where-used index the consumer half behaves as those tests
+  specify, but that has not been observed live. Also refused, as a
+  deliberate limitation rather than an oversight: `auth_trace: true`
+  combined with `scope: "impacted"` — client-side `BAD_INPUT`, verified
+  live, message `auth_trace is not supported for scope="impacted": it
+  would switch the trace on and off once per carrier and would be
+  silently ignored otherwise.` See
+  [execute-and-test.md](../TOOLS/execute-and-test.md#impacted-scope-scope-changed-since).
+- **Authorization trace (`auth_trace` on `abap_run`/`abap_test`/
+  `abap_bopf_test`).** The whole feature is now verified live end to end,
+  through the real `abap_run` and `abap_test` tool code paths (SAP A4H,
+  client 001, user DEVELOPER, 2026-09-15): `abap_run { object:
+  "ZCL_I111_USER", auth_trace: true }` returned a normal successful run
+  with header `auth_trace: no failed checks`; `abap_test` on the same
+  object with `auth_trace: true` returned `outcome: PASSED`, `tests: 1`,
+  `passed: 1` and `auth_trace: no failed checks`, confirming the trace
+  doesn't disturb the run's own verdict; a deliberately failing check, from
+  a `$TMP` probe class (`ZCL_I112_FAILCHK`) doing an `AUTHORITY-CHECK`
+  against an authorization object that does not exist, produced a real
+  `FAILED AUTH CHECKS` section with the object/field=value/rc/program/line
+  line format and the `[SU53 fallback]` provenance tag, all confirmed as
+  rendered tool output (the reported object name came back truncated to
+  `Z_I112_NOP`, a CHAR10 SU53-buffer artifact of the source data, not a
+  bug); and the switch-off was confirmed by a follow-up status read
+  returning `active: false`. Not verified live: `SUAUTH_READ_TRACE_VALUES`,
+  the kernel-trace read itself — it returned zero rows on this appliance
+  even with the trace active and a check failing inside the window, so
+  every failed check actually observed, including the one above, came from
+  the SU53 fallback; no `[trace]`-tagged line has ever been seen. The
+  kernel-trace read path has unit-test coverage over fakes only. It reads
+  the trace and changes no authorization, role or profile. Also refused,
+  deliberately: `auth_trace: true` together with `scope: "impacted"` on
+  `abap_test` — `BAD_INPUT`, verified live. See
+  [execute-and-test.md](../TOOLS/execute-and-test.md#authorization-trace-auth_trace).
 - **ATC.** Ten live captures back this tool; nine are replayed in tests, not
   just narrated in docs, and the tenth records a no-op this client has no
   code path to exercise. The first pair (2026-08-01, one object) established the
@@ -364,3 +432,141 @@
   called by this tool. On that release, SQL access is read through the
   `sql_trace`-fed `db` view of the ABAP trace itself, which reports
   statement kind, table, counts and time, never full SQL statement text.
+- **Application log (BAL) reads.** BAL has no single "read everything"
+  function module — the issue that requested this tool named
+  `BAL_LOG_READ`, which does not exist under that name on a current system.
+  `log.read` instead drives the documented search/load/read pipeline:
+  `BAL_GLB_MEMORY_REFRESH` clears session BAL memory first (a log read
+  earlier in the same session could otherwise come back with zero
+  messages), `BAL_DB_SEARCH` finds headers matching the filter,
+  `BAL_DB_LOAD` (`detail="messages"` only, `i_lock_handling = 0`, no
+  enqueue — "a read action has no business taking a lock") loads a found
+  log's messages, and `BAL_LOG_MSG_READ` renders each message's text. With
+  neither an absolute nor a relative time window given, the window defaults
+  to the last hour (`DEFAULT_LOG_WINDOW_SECONDS = 3600`) rather than
+  scanning a table that can span years. `abap_run`, `abap_test`,
+  `abap_bopf_test` and `abap_ui mode="press"` each append a note (not a
+  hint — a hint would only render inside a truncated/windowed response,
+  and this line must reach the caller every time) pointing back at the
+  `log.read` call most likely to explain what the executed code did —
+  `abap_run`/`abap_bopf_test`/`abap_ui` round their own measured duration
+  up (plus 5s slack); `abap_test` measures no duration of its own, so its
+  note names the fluid tool's one-hour default instead and says so
+  plainly. Every call writes one stderr audit line naming only what was
+  looked at and how much came back — object, subobject, log count, message
+  count — mirroring `abap_data_preview`'s own audit line shape, never
+  message text. `detail="messages"` returns message text and its
+  `msgv1`..`msgv4` variables verbatim: application data written by the
+  logging program, not abapsmith's own output, and disclosed as possibly
+  carrying business data. `live` (A4H, probe class `ZCL_I108_PROBE`,
+  2026-09-15): every IMPORTING/EXPORTING/TABLES/EXCEPTIONS parameter these
+  four function modules rely on — `BAL_DB_SEARCH` returned 5 headers for a
+  90-day window, `BAL_DB_LOAD` with `i_lock_handling = 0` against one of
+  those headers returned 440 message handles, `BAL_LOG_MSG_READ` given one
+  of those handles returned `e_s_msg` plus the rendered `e_txt_msg`.
+  Beyond that FM-level probe, the `log` fluid tool's own generated ABAP body
+  was itself run live on A4H (client 001, user DEVELOPER, 2026-09-15):
+  deployed to `$TMP` as `ZCL_I108_FLUID_LOG`, activated with zero syntax
+  errors, and driven through `IF_OO_ADT_CLASSRUN` against the real
+  `ZCL_ZMCP_FLUID_RT` — a `detail="headers"` call honoured both
+  `last_seconds` and `max`, returning five log rows and a summary row with
+  no `ERR` frame. A later pass on the same day closed the remaining gaps:
+  `detail="messages"` and the end-to-end `abap_fluid
+  {"tool":"log","action":"read"}` MCP call path itself — dispatching
+  through `dispatch()` and rendering the result through
+  `renderLogRead`/`auditLogRead` — were both run live on A4H through an MCP
+  server started from this worktree's `dist/` (this branch's build, not
+  the released bundle); see [diagnostics.md](../TOOLS/diagnostics.md) for
+  the verbatim output. The correlation line itself was also confirmed live
+  that day: `abap_run` on a `$TMP` class renders `NOTE: Application log
+  (BAL) entries this execution may have written: ... "last_seconds":6 ...`
+  on a normal, non-truncated response, and `abap_test` renders its own
+  one-hour-default variant the same way.
+- **SAP documentation reads.** There is no ADT REST endpoint for `DOKHL`/
+  `DOKIL`/`DOKTL`, so `view="docu"` (without `method=`) is read through the
+  built-in `core` fluid tool's `docu` action, deploying/calling a generated
+  ABAP class the same way `abap_search mode="source"` deploys its own
+  fluid tool — needing the fluid API and a write-capable pool slot even
+  though the caller is only asking to read. `method=` against a `CLAS`
+  object is the one exception: it reads a method's ABAP Doc straight from
+  source (the contiguous `"!`-prefixed comment block above its
+  `METHODS`/`CLASS-METHODS` declaration) and never touches the fluid path
+  or the class's own DOKHL text — a method's own doc and its class's doc
+  answer different questions. `core.docu` is deliberately excluded from
+  `guardCoreAction`'s data-preview policy (`src/adt/fluid/builtin/core.ts`):
+  neither `assertDataPreview` nor `ABAP_ALLOW_DATA_PREVIEW` applies, since
+  it reads SAP's own documentation text out of `DOKTL`, not application
+  table data. The object type/kind is mapped to a `(id, object)` DOKHL key
+  (data element, domain, table, class, interface, function module/group,
+  program, message class); a message reference is parsed into DOKHL's
+  merged `<id><number>` form (`"ZSD 042"`, `"ZSD042"` and `"ZSD 42"` all
+  resolve the same way); there is no `language` input — the ABAP side tries
+  the logon language, then EN, on its own, and reports which language and
+  whether it fell back. An IMG activity is addressed the same way: since it
+  has no ADT object type of its own to resolve through the ordinary path,
+  `type: "SIMG"` bypasses object resolution and builds the documentation
+  target by hand via `imgDocuTarget` (`src/adt/docu.ts`, mapping to `id:
+  "HY", object: "SIMG" + <activity>`, verified live against
+  `TDCLD`/`DOCU_GET_LANGU_FOR_DISPLAY`) — `abap_read
+  {"type":"SIMG","object":"<activity id>","view":"docu"}`; `type: "SIMG"`
+  with any other view is refused. The text returned is SAP ITF
+  documentation flattened to plain lines
+  by `CONVERT_ITF_TO_ASCII`, not the verbatim ITF source. `live` (A4H,
+  probe class `ZCL_I109_PROBE`, 2026-09-15): every `DOCU_GET`/
+  `CONVERT_ITF_TO_ASCII` parameter relied on, including the CHAR2/CHAR40
+  truncation handling on `DOKHL-ID`/`DOKHL-OBJECT`, `DOCU_GET`'s
+  `sy-subrc = 4` no-fallback-of-its-own behaviour, `typ = 'E'` accepted
+  even when `DOKIL` lists the object as type `T`, and a 6-line ITF
+  `BAL_DB_SEARCH` documentation expanding to 36 ASCII lines. Beyond that
+  FM-level probe, `core.docu`'s own generated ABAP body was itself run
+  live on A4H (client 001, user DEVELOPER, 2026-09-15): deployed to `$TMP`
+  as `ZCL_I109_FLUID_CORE` and activated with zero syntax errors after
+  fixing one runtime defect (`lv_title` needed `DOKTITLE`'s DDIC type, not
+  `string`, for the dynamic `DOCU_GET` call). Four live calls through
+  `IF_OO_ADT_CLASSRUN` against `ZCL_ZMCP_FLUID_RT` all returned clean, no
+  `ERR` frame, including the live confirmation of the `HY`/`SIMG`+name
+  IMG-activity naming rule (39 lines for `SIMGCRM_PRI_GRUKONKONTR`) and a
+  clean not-found result for a nonexistent object. `unverified` live: the
+  end-to-end `abap_fluid`/`abap_read view="docu"` MCP call path itself —
+  through the released server, not this branch — has not been exercised;
+  it is covered only by unit tests against fakes.
+- **Object digest.** All section-building logic (`scanDependencies`,
+  `scanProgramInterface`, `countTestClasses`, `summarisePublicApi`,
+  `buildDigestSections` in `src/adt/digest.ts`) is pure and I/O-free;
+  `readDigest` (`src/tools/read.ts`) only fetches the ADT facts those
+  functions need — version history, source, and (CLAS/INTF only) the
+  outline — through the same machinery an ordinary read already uses, so
+  it stays on `pool.withRead` under `ABAP_MODE=read`, unlike `view="docu"`.
+  Where-used is deliberately never fetched: `abap_search mode="where_used"`
+  walks ADT's unbounded `usageReferences` endpoint (no limit, no paging,
+  20+ seconds on a wide fan-in), so the digest names that call in a note
+  instead of running it. The issue that requested this feature also named
+  `abap_read view="footprint"` and `abap_search mode="call_graph"`; neither
+  exists in this codebase and neither is ever named in a digest's output.
+  PUBLIC API renders a real signature for `FUGR/FF`: parsed first from the
+  NATIVE `FUNCTION <name> IMPORTING ... .` signature statement — a live
+  system (A4H) was found to serve every function module this way,
+  keywords upper- or lowercase — with the older ADT-generated
+  `*"*"Local Interface:` comment block parsed as a fallback for sources
+  that carry only that form. Either way it yields parameter name, section
+  keyword, typing, and an `(optional)` marker. A function module whose
+  native `FUNCTION` statement was found and walked but genuinely declares
+  no parameters at all (e.g. `RFC_PING`) also renders an empty section, but
+  with its own note stating this is the module's real, parameterless
+  signature, not a failed scan; the section renders empty with a note
+  naming both forms tried only when neither shape is present at all. It
+  also renders PUBLIC API, when the select list can be parsed with confidence,
+  for `DDLS/DF` (the projected field list) — falling back to an empty
+  section with an explicit note when it can't (a cast, function call,
+  sub-select, or bare association in the select list makes it give up on
+  the whole view rather than return a partial list).
+  Only `FUGR/F` (the function group itself) still always renders an empty
+  PUBLIC API, with an explicit note: listing a group's modules needs a
+  search call this view deliberately does not make.
+  `tests`-only: the section-building logic is covered by unit tests against
+  constructed fixtures, not live captures. `mixed` overall because the
+  individual ADT calls `readDigest` composes (`listRevisions`, `readSource`,
+  `classMembers`) are each independently live-verified elsewhere in this
+  document (see the Object read and Element info rows); what has not been
+  exercised live is the digest assembly and rendering itself, or the
+  end-to-end `abap_read view="digest"` call path.

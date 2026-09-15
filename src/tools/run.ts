@@ -26,12 +26,20 @@ import { AbapError, isAbapError } from "../adt/errors.js";
 import { checkActivation, resolveObject, type ActivationState } from "../adt/resolve.js";
 import { readSource } from "../adt/source.js";
 import { BRIDGE_PACKAGE, bridgeClassName, runClass, runReport, type RunResult } from "../adt/run.js";
+import {
+  authTraceOf,
+  renderFailedAuthChecks,
+  switchOffErrorOf,
+  withAuthTrace,
+  type AuthTraceOutcome,
+} from "../adt/authtrace.js";
 import { parseSelectionScreen, selectionScreenNotes, type RunParameterInput } from "../adt/run-parameters.js";
 import type { SessionPool } from "../adt/pool.js";
 import type { Config } from "../config.js";
 import { buildResponse, type BuiltResponse } from "../compact.js";
 import type { SafetyGate } from "../safety.js";
 import { preflight } from "./preflight.js";
+import { LOG_TOOL_ID, LOG_ACTION } from "../adt/fluid/builtin/log.js";
 
 const runRangeSchema = z.object({
   sign: z.enum(["I", "E"]).optional(),
@@ -52,10 +60,57 @@ export const runInputSchema = {
   mode: z.enum(["class", "report", "auto"]).optional().describe("Default auto."),
   // Report mode only: fills PARAMETERS/SELECT-OPTIONS — see ../adt/run-parameters.ts.
   parameters: z.array(runParameterSchema).optional(),
+  auth_trace: z
+    .boolean()
+    .optional()
+    .describe(
+      "Switch on the SAP authorization trace for the connected user, run, then read back and " +
+        "switch it back off. Refused on a read-only server. Default false.",
+    ),
 };
 
 export const RunInput = z.object(runInputSchema);
 export type RunInput = z.infer<typeof RunInput>;
+
+/**
+ * Header value for `auth_trace`, shared shape with `abap_test`/`abap_bopf_test`
+ * (issue #112 wiring): "no failed checks" / "N failed check(s)" on a run the
+ * trace could complete, or the outcome's own `unavailable: <reason>" string
+ * (never re-prefixed) when it could not.
+ */
+function authTraceHeaderValue(outcome: AuthTraceOutcome): string {
+  if (!outcome.ok) return outcome.reason;
+  return outcome.checks.length > 0 ? `${outcome.checks.length} failed check(s)` : "no failed checks";
+}
+
+/**
+ * `renderFailedAuthChecks` already puts its own "FAILED AUTH CHECKS" line at
+ * the top of its output; `buildResponse`'s `sections` also renders the title
+ * from `{ title }` (`--- FAILED AUTH CHECKS ---`), so that first line is
+ * dropped here to avoid printing the title twice. Returns undefined when
+ * there is nothing to show.
+ */
+function authTraceSection(outcome: AuthTraceOutcome): { title: string; content: string } | undefined {
+  if (!outcome.ok || outcome.checks.length === 0) return undefined;
+  const rendered = renderFailedAuthChecks(outcome.checks);
+  const [, ...rest] = rendered.split("\n");
+  return { title: "FAILED AUTH CHECKS", content: rest.join("\n") };
+}
+
+/** Attaches what `withAuthTrace` learned to a propagating error's `details`, without ever converting the throw into a normal response. Only mutates `e` when `authTraceOf(e)` actually found something to attach. */
+function attachAuthTraceToError(e: unknown): void {
+  const outcome = authTraceOf(e);
+  if (outcome === undefined || !isAbapError(e)) return;
+  e.details["failedAuthChecks"] = outcome.ok
+    ? outcome.checks.length > 0
+      ? renderFailedAuthChecks(outcome.checks)
+      : "no failed checks"
+    : outcome.reason;
+  const switchOffError = switchOffErrorOf(e);
+  if (switchOffError !== undefined) {
+    e.details["authTraceSwitchOffError"] = switchOffError;
+  }
+}
 
 export async function abapRun(
   conn: AbapConnection,
@@ -63,6 +118,20 @@ export async function abapRun(
   maxChars: number,
   gate: SafetyGate,
 ): Promise<BuiltResponse> {
+  const authTraceRequested = input.auth_trace === true;
+  // System-level action (switches on the SAP authorization trace for the
+  // connected user) — refused on a read-only server before any request is
+  // made, same convention as every other zero-network refusal in this file.
+  if (authTraceRequested && gate.config.readOnly === true) {
+    throw new AbapError(
+      "SAFETY_DENIED",
+      "auth_trace switches the SAP authorization trace on for the connected user, a system-level " +
+        "action, so it is refused on a read-only server.",
+      { auth_trace: true },
+      "Ask the operator to enable writes (ABAP_ALLOW_WRITE), or omit auth_trace to run without it.",
+    );
+  }
+
   const requested = input.mode ?? "auto";
 
   // Always resolve: settles `auto` and gives the gate the object's real package.
@@ -128,16 +197,33 @@ export async function abapRun(
     type: obj.type,
   });
 
-  let res: RunResult;
-  if (mode === "class") {
-    res = await runClass(conn, executeAuthorization.target.name);
-  } else {
+  const executeRun = async (): Promise<RunResult> => {
+    if (mode === "class") {
+      return runClass(conn, executeAuthorization.target.name);
+    }
     gate.assert("write", {
       name: bridgeClassName(obj.name),
       packageName: BRIDGE_PACKAGE,
       type: "CLAS/OC",
     });
-    res = await runReport(conn, obj.name, gate, parameters);
+    return runReport(conn, obj.name, gate, parameters);
+  };
+
+  let res: RunResult;
+  let authTraceOutcome: AuthTraceOutcome | undefined;
+  let authTraceSwitchOffError: string | undefined;
+  if (authTraceRequested) {
+    try {
+      const wrapped = await withAuthTrace({ conn, gate }, conn.cfg.user, executeRun);
+      res = wrapped.value;
+      authTraceOutcome = wrapped.authTrace;
+      authTraceSwitchOffError = wrapped.switchOffError;
+    } catch (e) {
+      attachAuthTraceToError(e);
+      throw e;
+    }
+  } else {
+    res = await executeRun();
   }
 
   const notes: string[] = [];
@@ -196,6 +282,25 @@ export async function abapRun(
         : "Executed in a fresh session (no cached copy). Whether the active version is the newest was NOT checked.",
   );
 
+  if (authTraceRequested) {
+    notes.push(
+      "auth_trace reads the SAP authorization trace (falling back to the SU53 buffer) for this " +
+        "run only; it changes no authorisation, role or profile.",
+    );
+    if (authTraceOutcome?.ok && authTraceOutcome.usedFallback) {
+      notes.push(
+        "The kernel authorization trace returned nothing, so this came from the SU53 buffer, " +
+          "which shows only what that buffer retained — it is not a complete record of this run.",
+      );
+    }
+    if (authTraceSwitchOffError !== undefined) {
+      notes.push(
+        `The authorization trace may have been left switched ON: switching it back off failed ` +
+          `(${authTraceSwitchOffError}).`,
+      );
+    }
+  }
+
   // Separate from the target-object check above: this is about the BRIDGE
   // class report mode just generated and activated.
   if (res.mode === "report" && res.bridgeActivationVerified !== true) {
@@ -242,6 +347,27 @@ export async function abapRun(
         "about diagnostics, dropped lines, and/or incomplete output. Do not read this as a " +
         "clean, silent, successful run.)";
 
+  // last_seconds is measured on the SERVER clock (see log.ts's doc comment
+  // on why `since`/`until` must never be computed from the client clock).
+  // Round the run's own duration up to the next whole second, then add a
+  // few seconds of slack for the round trip between this call finishing and
+  // the log query running — a log write that lands after res.durationMs but
+  // before the BAL query executes must still fall inside the window.
+  const logLastSeconds = Math.ceil(res.durationMs / 1000) + 5;
+  // `notes`, not `hints`: hints only render inside a TRUNCATED/WINDOW notice
+  // (see compact.ts), so a hint here would be silently dropped on the normal
+  // fast path — this line must reach the caller on every response.
+  const logHint =
+    `Application log (BAL) entries this execution may have written: abap_fluid ` +
+    `{"tool":"${LOG_TOOL_ID}","action":"${LOG_ACTION}","args":{"last_seconds":${logLastSeconds},"detail":"messages"}} ` +
+    `— last_seconds is measured on the server clock, so it covers this run.`;
+  notes.push(logHint);
+
+  const authTraceSectionValue = authTraceOutcome ? authTraceSection(authTraceOutcome) : undefined;
+  const sections: Array<{ title: string; content: string }> = [];
+  if (hasDiagnostics) sections.push({ title: "DIAGNOSTICS", content: res.diagnostics!.join("\n") });
+  if (authTraceSectionValue) sections.push(authTraceSectionValue);
+
   return buildResponse({
     header: {
       system: conn.cfg.sid,
@@ -253,10 +379,9 @@ export async function abapRun(
       bridgeRefreshed: res.bridgeRefreshed,
       droppedLines: droppedLines > 0 ? droppedLines : undefined,
       outputComplete: res.outputComplete === false ? false : undefined,
+      auth_trace: authTraceOutcome ? authTraceHeaderValue(authTraceOutcome) : undefined,
     },
-    sections: hasDiagnostics
-      ? [{ title: "DIAGNOSTICS", content: res.diagnostics!.join("\n") }]
-      : undefined,
+    sections: sections.length > 0 ? sections : undefined,
     body,
     bodyLabel: "OUTPUT",
     notes,

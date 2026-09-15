@@ -1,6 +1,6 @@
 /**
  * Pure, offline, dependency-free column-aware ranged-edit applier for ABAP
- * source. Mirrors `applyEdit` (`src/tools/v2/edit.ts`)'s discriminated-union
+ * source. Mirrors `applyEdit` (`src/tools/edit.ts`)'s discriminated-union
  * `ApplyResult` style, but never throws.
  *
  * Built to apply ADT quickfix deltas (`fixEdits`, `abap-adt-api`'s

@@ -79,7 +79,7 @@ subset named above.
 | `abap_write` (create/update/delete) | FPM tools |
 | `abap_transport` (create / add-user / set-owner / release) | `abap_bopf_edit operation:"activate"` (no mutation of the BO's own model — see below) |
 | `abap_enh`: 9 of its 11 operations (see below) | `abap_enh`'s `discover_hook_anchors` (read-only) and `exercise` (mutates no ADT object of its own) |
-| `abap_activate` and `abap_do action=activate` — single and batch | — |
+| `abap_activate` — single and batch | — |
 | BOPF writes (`abap_bopf_edit` create/update, `abap_bopf_delete`) | — |
 
 The accidental gaps are not listed here: `KNOWN_GAPS` in
@@ -90,7 +90,7 @@ this prose and that list disagree.
 `abap_write`'s inline activation (the default, unless called with
 `activate:false`) is folded into that same create/update entry — it is not a
 separate `operation: "activate"` record. Standalone activation, via
-`abap_activate` or `abap_do action=activate`, is the table's own last row above.
+`abap_activate`, is the table's own last row above.
 
 BOPF tools mutate through ordinary ADT REST verbs: `createBusinessObject`/
 `putModel`/`deleteBusinessObject` (`src/adt/bopf.ts`) POST/PUT/DELETE against

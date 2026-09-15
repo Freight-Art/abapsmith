@@ -3,9 +3,9 @@
  * prove a write landed (`src/config.ts`, `verifyWrites` schema field).
  * `"speculative"` (default) treats a create/activate that returned without
  * error as sufficient; `"verified"` reads the object back and confirms it
- * after a successful write. Orthogonal to `ABAP_MODE`, same shape as
- * `toolSurface` — see `test/config-abap-mode.test.ts` for the sibling knob
- * this mirrors.
+ * after a successful write. Orthogonal to `ABAP_MODE` — see
+ * `test/config-abap-mode.test.ts` for the sibling knob it shares the same
+ * enum-string-config shape with.
  */
 import { describe, expect, it } from "vitest";
 import { loadConfig, redactConfigSecrets } from "../src/config.js";

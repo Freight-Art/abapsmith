@@ -177,8 +177,10 @@ export function buildDumpCorrelation(
 /**
  * The `RUNTIME_DUMP` hint. Constraints, all load-bearing:
  *  - "Any output written before the dump is lost." must appear verbatim.
- *  - `/sap/bc/adt/runtime/dumps` appears exactly once — it's the only true
- *    instruction when `abap_dumps` isn't registered (ABAP_TOOL_SURFACE=v2).
+ *  - `/sap/bc/adt/runtime/dumps` appears exactly once — `abap_dumps` is
+ *    registered unconditionally (see `registerDumpTools`'s doc comment), so
+ *    this fallback text never actually fires, but stays as the honest
+ *    answer if a future deployment ever omits the tool.
  *  - Candidates, never "your dump" — see {@link DumpCorrelation.confidence}.
  *  - Arguments come from `JSON.stringify(correlation.call.arguments)` so the
  *    copy-pasteable text can't drift from the machine-readable `details`.
@@ -680,8 +682,8 @@ function translateRunFailure(conn: AbapConnection, className: string, e: unknown
         class: className,
         ...info,
         status: resp!.status,
-        // Machine-readable so a v2 surface/orchestrator can act without
-        // regex-scraping the hint prose.
+        // Machine-readable so a calling script or orchestrator can act
+        // without regex-scraping the hint prose.
         ...(correlation ? { dumpCorrelation: correlation } : {}),
       },
       dumpHint(correlation),

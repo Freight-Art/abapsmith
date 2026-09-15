@@ -705,8 +705,7 @@ describe('"failed" — an unread before-image authorises nothing', () => {
  * ENHO/XHH, ENHS/XS objects) does not touch the journal at all — it exposes a
  * raw `onBeforeImage` hook but calls neither `journal.begin()` nor anything
  * that would produce a `BeforeImageCapture` string. That is the tool layer's
- * job, and it is now done: `src/tools/enh.ts` and
- * `src/tools/v2/handlers/do/enhancements.ts` both pass a hook built by
+ * job, and it is now done: `src/tools/enh.ts` passes a hook built by
  * `withJournalledMutation()` (src/journal.ts), which begins the entry with a
  * hard-coded `beforeCapture: "captured"` and `existedBefore: true` — see the
  * "by CONSTRUCTION" paragraph below for why those two are the only values this

@@ -52,9 +52,10 @@ describe("the committed plugin bundle matches the source it was built from", () 
     const server = readFileSync(join(repoRoot, "bundle/index.js"), "utf8");
     expect(
       server.includes("abaplint"),
-      "@abaplint/core reached the server bundle. src/tools/v2/handlers/read.ts spawns the contract " +
-        "reducer as a child process specifically to keep it out of the server's import graph; " +
-        "something now imports it directly.",
+      "@abaplint/core reached the server bundle. src/bin/contract.ts is a separate entry point " +
+        "specifically so its @abaplint/core dependency (~4MB unpacked) stays out of the server's " +
+        "import graph — issue #76 removed abap_read view:\"contract\", contract.ts's only caller, " +
+        "so nothing in the server should import it, directly or otherwise, any more.",
     ).toBe(false);
   });
   it("module path comments stay inside the repository", () => {

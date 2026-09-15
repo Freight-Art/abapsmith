@@ -21,7 +21,7 @@
  * on, and zod strips undeclared keys — so `{object, method, source}` reached
  * `resolveWriteSource` as `{object, source}` and took the whole-object-rewrite
  * branch. The line arithmetic that everyone suspected was correct all along;
- * it was simply unreachable on the shipped default surface (`toolSurface:"v1"`).
+ * it was simply unreachable through the shipped tool's schema.
  *
  * These tests pin both halves: the schema must carry `method` through, and the
  * splice must be right for the reasons it is right rather than by luck.

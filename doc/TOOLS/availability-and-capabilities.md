@@ -1,14 +1,8 @@
 # Availability & capabilities — read this once
 
 Two independent things gate a tool: whether it appears in `tools/list` at
-all, and whether a given call is refused at runtime. This page is about the
-**v1** tool surface (`ABAP_TOOL_SURFACE=v1`, the default) — v1 tool names
-throughout. See
-[TOOL-SURFACE-V2/README.md](../TOOL-SURFACE-V2/README.md) for how v2
-answers the same questions (v2 is deprecated and will be removed in 0.6.0,
-issue #76); it is structurally different, not just a renaming, so its
-rules are not repeated here. A v1 tool falls into exactly
-one of four cases:
+all, and whether a given call is refused at runtime. There is exactly one
+tool surface, and every tool falls into exactly one of four cases:
 
 1. **Registration-gated — absent from `tools/list` entirely.** The
    registrar for these tools is only called when a capability is on; when it
@@ -44,7 +38,7 @@ one of four cases:
    a hand-crafted request for `variables` against an unadvertised schema is
    still refused, not silently honoured.
 4. **Registered as a locked stub — listed, self-describing, refuses on
-   call, reaches nothing.** (`src/tools/locked.ts`, issue #63.) On a v1
+   call, reaches nothing.** (`src/tools/locked.ts`, issue #63.) On a
    server that is read-only end to end (`cfg.readOnly === true`), the tools
    whose only ungated mode would otherwise put them in case 1 —
    `abap_write`, `abap_run`, `abap_test`, `abap_atc`, `abap_quick_fix`,
@@ -63,7 +57,7 @@ one of four cases:
    handler holds no pool, connection or `SafetyGate` reference at all — it
    is structurally as incapable of reaching SAP as an absent tool would be;
    only what a read-only server can *say* about these tools changed, not
-   what it can *do*. `test/mode-locked-tools.test.ts` pins that the v1
+   what it can *do*. `test/mode-locked-tools.test.ts` pins that the
    tool-*name* set is now identical between `read` and `admin` mode (given
    the same out-of-band flags), specifically so a newly added write-gated
    tool cannot silently repeat the old "tool not found" gap; the same suite
@@ -72,10 +66,7 @@ one of four cases:
    Before this, a caller asking for one of these on a read-only server got
    `MCP error -32602: Tool <name> not found` — indistinguishable from a
    typo, with no hint that raising `ABAP_MODE` was the fix; that gap is
-   what this case closes. v2 has no equivalent of this case: `abap_do`
-   already answers "what would unlock this" structurally through each
-   action's `minMode`, and `abap_write` stays genuinely absent from v2's
-   `tools/list` under `read` mode (v2's own case 1).
+   what this case closes.
 
 Capabilities come from `ABAP_MODE` (`read` \| `edit` \| `admin`, resolved by
 `capabilitiesForMode()` in `src/mode.ts`) plus independent opt-in flags that
@@ -113,9 +104,9 @@ exact fields and their order. The per-op ceilings `ABAP_ALLOW_FLUID_PLUGINS`,
 `ABAP_ALLOW_FLUID_PLUGIN_MUTATE` and `ABAP_ALLOW_FLUID_CALL_FM` are
 documented in
 [CONFIGURATION/permissions-and-allowlists.md](../CONFIGURATION/permissions-and-allowlists.md).
-`abap_fluid` is additive: no existing tool's availability changed, no tool
-was hidden, renamed or unregistered, and `ABAP_TOOL_SURFACE` is unchanged.
-(This predates case 4 above and describes `abap_fluid`'s own introduction,
-not the locked-stub mechanism — that one genuinely does put a new
-registration under an existing tool's name on a read-only v1 server.)
+`abap_fluid` is additive: no existing tool's availability changed, and no
+tool was hidden, renamed or unregistered. (This predates case 4 above and
+describes `abap_fluid`'s own introduction, not the locked-stub mechanism —
+that one genuinely does put a new registration under an existing tool's
+name on a read-only server.)
 

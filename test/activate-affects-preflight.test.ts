@@ -32,10 +32,11 @@
  * `preflight()` output via `enhancementPreflightIntent` (moved to
  * src/tools/preflight.ts so every registrar that imports `preflight()` for
  * its gate call sees this helper sitting right next to it) and pass it
- * alongside. The identical bug, and the identical fix, is also pinned here
- * for `abap_do action=activate` (src/tools/v2/handlers/do/activation.ts),
- * a second, independently-maintained call site wrapping the same
- * `abapActivate` core and the same `ActivateInput` schema.
+ * alongside. Issue #76 removed the v2 tool surface, which carried a second,
+ * independently-maintained call site (`abap_do action=activate`) wrapping
+ * the same `abapActivate` core and the same `ActivateInput` schema and
+ * suffering the identical bug; this file used to pin that instance too, but
+ * it no longer exists, so only the v1 registrar remains in scope here.
  *
  * Everything in this file is a code-level claim about what the gate/registrar
  * do with given inputs — none of it has been re-verified against a live A4H
@@ -53,9 +54,8 @@ import { Journal } from "../src/journal.js";
 import { enhancementPreflightIntent } from "../src/tools/preflight.js";
 import { errorResult } from "../src/server.js";
 import { SafetyGate } from "../src/safety.js";
-import { fakeDoDeps, openDoGate } from "./helpers/do-deps-fake.js";
 
-// --------------------------------------------------------- v1 registrar ---
+// ------------------------------------------------------------ registrar ---
 
 /**
  * `deps.pool.withWrite` never calls the `fn` it is handed — it only counts
@@ -259,72 +259,3 @@ describe("SafetyGate §10.5: 'no intent' and 'intent names a different artefact'
   });
 });
 
-// ------------------------------------------------- v2 `abap_do action=activate` ---
-
-/**
- * The second confirmed instance of the identical bug: `abap_do
- * action=activate` (src/tools/v2/handlers/do/activation.ts) wraps the same
- * v1 `abapActivate` core and the same v1 `ActivateInput` zod schema (which
- * DOES carry `affects`) but had its own, separately-maintained preflight
- * `assert()` call that never built an intent either. `abapActivate` itself
- * is mocked here (as tools-v2-do-activation.test.ts already does for this
- * module) purely so an ALLOWED case doesn't attempt a real network call —
- * the thing under test is whether the handler's preflight gate call reaches
- * (or refuses before reaching) that mocked core.
- */
-vi.mock("../src/tools/activate.js", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../src/tools/activate.js")>()),
-  abapActivate: vi.fn(async () => ({ text: "activated: true", truncated: false, estimatedTokens: 1 })),
-}));
-
-describe("abap_do action=activate: the handler's own preflight needs affects too", () => {
-  it("refuses an ENHS/XS activate with no affects, and never calls abapActivate", async () => {
-    const { abapActivate } = await import("../src/tools/activate.js");
-    vi.mocked(abapActivate).mockClear();
-    const { ACTIVATION_HANDLERS } = await import("../src/tools/v2/handlers/do/activation.js");
-    const deps = fakeDoDeps({ safety: openDoGate() });
-
-    await expect(
-      ACTIVATION_HANDLERS.get("activate")!(
-        { action: "activate", object: "ZTM_ES_HW011B_EP", args: { type: "ENHS/XS" } },
-        deps,
-      ),
-    ).rejects.toMatchObject({ code: "SAFETY_DENIED" });
-    expect(abapActivate).not.toHaveBeenCalled();
-  });
-
-  it("passes preflight and calls abapActivate once affects is supplied and the gate allows it", async () => {
-    const { abapActivate } = await import("../src/tools/activate.js");
-    vi.mocked(abapActivate).mockClear();
-    const { ACTIVATION_HANDLERS } = await import("../src/tools/v2/handlers/do/activation.js");
-    const deps = fakeDoDeps({ safety: openDoGate() });
-
-    const result = await ACTIVATION_HANDLERS.get("activate")!(
-      { action: "activate", object: "ZTM_ES_HW011B_EP", args: { type: "ENHS/XS", affects: AFFECTS } },
-      deps,
-    );
-
-    expect(abapActivate).toHaveBeenCalledTimes(1);
-    expect(result.ok).toBe(true);
-  });
-
-  it("regression: same object/type/gate, only affects differs, and that alone flips the outcome", async () => {
-    const { abapActivate } = await import("../src/tools/activate.js");
-    vi.mocked(abapActivate).mockClear();
-    const { ACTIVATION_HANDLERS } = await import("../src/tools/v2/handlers/do/activation.js");
-
-    await expect(
-      ACTIVATION_HANDLERS.get("activate")!(
-        { action: "activate", object: "ZTM_HW011_BADI_IMPL", args: { type: "ENHO/XH" } },
-        fakeDoDeps({ safety: openDoGate() }),
-      ),
-    ).rejects.toMatchObject({ code: "SAFETY_DENIED" });
-
-    await expect(
-      ACTIVATION_HANDLERS.get("activate")!(
-        { action: "activate", object: "ZTM_HW011_BADI_IMPL", args: { type: "ENHO/XH", affects: AFFECTS } },
-        fakeDoDeps({ safety: openDoGate() }),
-      ),
-    ).resolves.toMatchObject({ ok: true });
-  });
-});
