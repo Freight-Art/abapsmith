@@ -376,13 +376,32 @@ left alone, never touched.
 Responses are capped by `ABAP_MAX_RESPONSE_CHARS`; truncation is always
 marked in the result rather than silently dropped.
 
+## `core.eval`
+
+A built-in `core` action that runs a caller-supplied ABAP snippet as the
+body of one generated method and serialises named local variables back as
+JSON. Off by default; requires `ABAP_ALLOW_FLUID_EVAL` (no `ABAP_MODE`
+turns it on) and a per-call `confirm: "core.eval"` echo:
+
+```json
+{"tool":"core","action":"eval","args":{"lines":["DATA(lv_x) = 1 + 1.","lv_x = lv_x * 3."],"out":["lv_x"]},"confirm":"core.eval"}
+```
+
+`lines` are the method body, each line at most 255 characters with no CR
+or LF; `out` names local variables to serialise back, each matching
+`^[A-Za-z_][A-Za-z0-9_]{0,29}$`. Every call still runs the static review
+and capability scan — this is a lint-not-sandbox control, not a
+confinement of the code; the real boundary is the SAP user's
+authorisations. See `doc/FLUID-API/README.md`'s `core` section and
+`doc/FLUID-API/safety.md` for the full detail and ordering.
+
 ## Errors
 
 Fluid-specific error codes (`FLUID_API_DISABLED`, `FLUID_PLUGINS_DISABLED`,
-`FLUID_PLUGIN_MUTATE_DISABLED`, `FLUID_OBJECT_CONFLICT`,
-`FLUID_MANIFEST_INVALID`, `FLUID_ACTION_FAILED`, `FLUID_PROTOCOL_ERROR`)
-are documented in full, with the condition that raises each one, in
-`doc/FLUID-API/safety.md`'s "Error codes" table.
+`FLUID_PLUGIN_MUTATE_DISABLED`, `FLUID_EVAL_DISABLED`,
+`FLUID_OBJECT_CONFLICT`, `FLUID_MANIFEST_INVALID`, `FLUID_ACTION_FAILED`,
+`FLUID_PROTOCOL_ERROR`) are documented in full, with the condition that
+raises each one, in `doc/FLUID-API/safety.md`'s "Error codes" table.
 
 ## See also
 

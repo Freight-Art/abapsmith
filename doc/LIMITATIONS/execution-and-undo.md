@@ -15,6 +15,18 @@
 - **Cold bridge execution is slow.** The first run of a freshly activated
   classrun bridge is markedly slower than the second, consistent with ABAP's
   load-and-generate cycle. Observed once, not systematically measured.
+- **`core.eval` running a caller-supplied ABAP snippet is not a sandbox.**
+  It used to be true that abapsmith had no way to run ad hoc,
+  caller-authored ABAP at all — every execution path ran a fixed,
+  abapsmith-authored class. That limitation is gone as of `core.eval`,
+  behind `ABAP_ALLOW_FLUID_EVAL` (off by default, not implied by any
+  `ABAP_MODE`). What replaces it is not a sandbox: the static review and
+  capability scan reject a handful of named statements — they do not
+  confine the code, do not stop a `SELECT` against any table the
+  connected user may read, do not stop a write when
+  `ABAP_ALLOW_FLUID_PLUGIN_MUTATE` is also on, and do not limit runtime or
+  memory. The real boundary is the SAP user's own authorisations. See
+  [doc/FLUID-API/safety.md](../FLUID-API/safety.md).
 
 ## Undo
 

@@ -25,9 +25,14 @@ describe("coreManifest — schema", () => {
 });
 
 describe("coreManifest — action ids", () => {
-  it("has exactly call_fm, describe_fm, select, sorted", () => {
+  it("has exactly call_fm, describe_fm, eval, select, sorted", () => {
     const names = coreManifest.actions.map((a) => a.name).sort();
-    expect(names).toEqual(["call_fm", "describe_fm", "select"]);
+    // `eval` is unconditionally present here: manifestVersion hashes only the
+    // contract and the objects, never the actions, so keeping `eval` permanently
+    // in the manifest forces no redeploy when it is turned on/off. Its actual
+    // gating lives in `guardCoreAction` and the catalogue, not in this manifest —
+    // do not "fix" this by making the manifest conditional.
+    expect(names).toEqual(["call_fm", "describe_fm", "eval", "select"]);
   });
 
   // `submit` was deliberately cut from this slice: `core` reads and calls

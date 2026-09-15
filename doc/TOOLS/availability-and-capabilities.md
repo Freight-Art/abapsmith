@@ -94,6 +94,7 @@ layer on top:
 | `abap_ui` `mode=press` | `ABAP_MODE=admin` **and** `ABAP_ALLOW_UI_PRESS=true`, checked at call time, not at registration |
 | `step="jumpToLine"` on `abap_debug` | `ABAP_ALLOW_DEBUG_JUMP_TO_LINE=true` **and** a per-call `confirm:"jumpToLine"` |
 | `abap_fluid` registered as the real tool (vs. a locked stub, case 4 above) | `ABAP_FLUID_API=true` (default) **and** `cfg.readOnly === false` **and** `ABAP_MODE !== "read"` — all three checked at registration, and re-checked at call time by `fluidDisabledReason` (`src/adt/fluid/enabled.ts:18-39`) |
+| `core.eval` fluid action listed in the catalogue and callable | `ABAP_ALLOW_FLUID_EVAL=true` — independent of mode (no `ABAP_MODE`, including `admin`, implies it) and of `ABAP_ALLOW_FLUID_PLUGINS`/`ABAP_ALLOW_FLUID_PLUGIN_MUTATE`; while off, `core.eval` is absent from the fluid catalogue and a direct call refuses `FLUID_EVAL_DISABLED` |
 
 Every mutating call is additionally checked against `ABAP_ALLOW_PACKAGES`
 and `ABAP_ALLOW_NAME_PREFIXES` (which packages/object names a write may

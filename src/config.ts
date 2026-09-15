@@ -835,6 +835,14 @@ export const ConfigSchema = z.object({
   allowFluidPluginMutate: z.boolean().default(false),
   /** Ceiling for a fluid plugin calling a remote-enabled function module. Off by default. */
   allowFluidCallFm: z.boolean().default(false),
+  /**
+   * Ceiling for `core.eval` — running caller-supplied ABAP statements verbatim inside a
+   * generated method body. Off by default, and NOT force-enabled by any `ABAP_MODE`
+   * (see `modeOverrides` below): every other fluid flag widens per mode because it still
+   * only reaches ABAP the manifest/static-review already shaped, but eval's ABAP is
+   * whatever the caller wrote, so the only honest gate is an explicit, separate opt-in.
+   */
+  allowFluidEval: z.boolean().default(false),
 });
 
 export type Config = z.infer<typeof ConfigSchema> & {
@@ -931,6 +939,7 @@ export const RECOGNISED_ABAP_ALLOW_ENV_VARS: readonly string[] = Object.freeze([
   "ABAP_ALLOW_ENHANCEMENTS",
   "ABAP_ALLOW_ENHANCEMENT_DELETE",
   "ABAP_ALLOW_FLUID_CALL_FM",
+  "ABAP_ALLOW_FLUID_EVAL",
   "ABAP_ALLOW_FLUID_PLUGINS",
   "ABAP_ALLOW_FLUID_PLUGIN_MUTATE",
   "ABAP_ALLOW_NAME_PREFIXES",
@@ -1259,6 +1268,7 @@ export function loadConfig(opts: LoadConfigOptions = {}): Config {
   const allowFluidPlugins = boolFromEnv(env.ABAP_ALLOW_FLUID_PLUGINS);
   const allowFluidPluginMutate = boolFromEnv(env.ABAP_ALLOW_FLUID_PLUGIN_MUTATE);
   const allowFluidCallFm = boolFromEnv(env.ABAP_ALLOW_FLUID_CALL_FM);
+  const allowFluidEval = boolFromEnv(env.ABAP_ALLOW_FLUID_EVAL);
 
   // When ABAP_MODE is set it decides WHETHER a category of operation is
   // possible; these six list-/enum-shaped legacy vars, if also explicitly
@@ -1396,6 +1406,9 @@ export function loadConfig(opts: LoadConfigOptions = {}): Config {
     allowFluidPlugins,
     allowFluidPluginMutate,
     allowFluidCallFm,
+    // Deliberately not part of `modeOverrides`/`modeGrants`/`modeBoolOverrides` above — see the
+    // doc comment on `allowFluidEval` in `ConfigSchema`: `ABAP_MODE=admin` must not turn this on.
+    allowFluidEval,
     dataPreviewDenyTables,
     // Bare fields below: each has a zod `.default()`/`.max()` that is the
     // single source of truth, so out-of-range/invalid input reaches the
@@ -2013,6 +2026,7 @@ export function redactConfigSecrets(cfg: Config): Record<string, unknown> {
     allowFluidPlugins: cfg.allowFluidPlugins,
     allowFluidPluginMutate: cfg.allowFluidPluginMutate,
     allowFluidCallFm: cfg.allowFluidCallFm,
+    allowFluidEval: cfg.allowFluidEval,
     originSystems: cfg.originSystems,
     maxResponseChars: cfg.maxResponseChars,
     stateDir: cfg.stateDir,

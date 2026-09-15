@@ -16,12 +16,20 @@ import { FLUID_CONTRACT, manifestVersion } from "../manifest.js";
 import { FLUID_RUNTIME_CLASS, fluidRuntimeManifest, fluidRuntimeSources } from "../abap/runtime.js";
 import type { FluidDeps, FluidRunRequest } from "../dispatch.js";
 import { AbapError } from "../../errors.js";
+import { FLUID_ABAP_LINE_MAX, reviewFluidAbap, scanFluidCapabilities } from "../static-review.js";
 import { coreBodySource } from "./core/abap-core.js";
 import { selectPart } from "./core/abap-select.js";
 import { fmPart } from "./core/abap-fm.js";
 
 export const CORE_TOOL_ID = "core";
 export const CORE_BODY_CLASS = "ZCL_ZMCP_FLUID_CORE";
+
+/** `core.eval`'s own action name — a plain constant so `dispatch.ts`/`invoke.ts` can compare against it without a string literal. */
+export const CORE_EVAL_ACTION = "eval";
+/** The literal `confirm` value `core.eval` requires on every call (no once-per-session memory). */
+export const CORE_EVAL_CONFIRM = "core.eval";
+/** Shape a `core.eval` `out` name must match — a plain ABAP identifier, safe to splice into generated source without further escaping. */
+export const EVAL_OUT_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]{0,29}$/;
 
 const RUNTIME_SOURCE = fluidRuntimeSources.get(FLUID_RUNTIME_CLASS);
 if (RUNTIME_SOURCE === undefined) {
@@ -138,6 +146,49 @@ export const coreManifest: FluidManifest = {
         description: "One returned parameter per element: name, kind, value.",
       },
     },
+    {
+      name: CORE_EVAL_ACTION,
+      // Not "mutate": `invokerSource` appends a COMMIT WORK footer for `category: "mutate"` (see
+      // its doc comment) and a mutate action is journalled through `journalFluidMutate`, whose
+      // `JOURNAL_ARGS_MAX`-truncated description is exactly the "cannot see what actually ran"
+      // failure eval exists to avoid — eval gets its own untruncated journal path
+      // (`journalFluidEval`, dispatch.ts) instead.
+      category: "execute",
+      description:
+        "Run the supplied ABAP statements as the body of one method and return the named locals as " +
+        "JSON. Off unless ABAP_ALLOW_FLUID_EVAL is set. This is a lint-not-sandbox control: the " +
+        "static review and the capability scan reject a handful of named statements, they do not " +
+        "confine the code. The real boundary is the SAP user's authorisations, and " +
+        "ABAP_ALLOW_FLUID_EVAL is consent to run model-authored code inside that boundary, nothing " +
+        "narrower.",
+      input: {
+        type: "object",
+        required: ["lines"],
+        properties: {
+          lines: {
+            type: "array",
+            items: { type: "string", maxLength: FLUID_ABAP_LINE_MAX },
+            description:
+              "ABAP statements, one per array element, run verbatim inside one TRY block. Each " +
+              `element is one source line: no CR/LF, at most ${FLUID_ABAP_LINE_MAX} characters.`,
+          },
+          out: {
+            type: "array",
+            items: { type: "string", maxLength: 30 },
+            description:
+              `Names of local data objects declared in "lines" to serialise back as JSON, in order. ` +
+              `Each must match ${EVAL_OUT_NAME_RE}.`,
+          },
+        },
+      },
+      output: {
+        type: "array",
+        items: { type: "object" },
+        description: 'One element per "out" name, in order: {name, value} when serialisation succeeded, {name, error} otherwise.',
+      },
+      // No `targets`: unlike `select`/`describe_fm`, there is no single object this action
+      // touches — the caller's own `lines` decide that, not a declared object/package/transport.
+    },
   ],
 };
 
@@ -218,4 +269,143 @@ export async function guardCoreAction(deps: FluidDeps, req: FluidRunRequest): Pr
     }
     return;
   }
+
+  if (req.action === CORE_EVAL_ACTION) {
+    // 1. The ceiling. Checked first, before anything about `req.args` is even looked at — an
+    // eval call arriving with the flag off should never wait on input validation to find that out.
+    if (!deps.cfg.allowFluidEval) {
+      throw new AbapError(
+        "FLUID_EVAL_DISABLED",
+        "core.eval is off; set ABAP_ALLOW_FLUID_EVAL=1 to enable it",
+        { tool: req.tool, action: req.action, rule: "ABAP_ALLOW_FLUID_EVAL" },
+      );
+    }
+
+    // 2. Every call, not once per session — unlike `call_fm`'s confirm (only required when
+    // `commit: true`), core.eval always mutates the shape of what runs, so it always asks.
+    if (req.confirm !== CORE_EVAL_CONFIRM) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `core.eval requires confirm: ${JSON.stringify(CORE_EVAL_CONFIRM)} ` +
+          `(got ${req.confirm === undefined ? "nothing" : JSON.stringify(req.confirm)}).`,
+        { field: "confirm", expected: CORE_EVAL_CONFIRM, got: req.confirm },
+      );
+    }
+
+    const rawArgs = evalArgsRecord(req.args);
+    const rawLines = rawArgs["lines"];
+
+    // 3. `lines`: non-empty, every element a string, one ABAP source line each.
+    if (!Array.isArray(rawLines) || rawLines.length === 0 || !rawLines.every((l) => typeof l === "string")) {
+      throw new AbapError(
+        "BAD_INPUT",
+        'core.eval requires "lines": a non-empty array of ABAP statement strings.',
+        { field: "lines" },
+      );
+    }
+    const lines = rawLines as string[];
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]!;
+      const lineNo = i + 1;
+      if (/[\r\n]/.test(line)) {
+        throw new AbapError(
+          "BAD_INPUT",
+          `core.eval "lines"[${i}] (line ${lineNo}) must not contain a CR or LF — one array element is one ABAP source line.`,
+          { field: "lines", line: lineNo },
+        );
+      }
+      if (line.length > FLUID_ABAP_LINE_MAX) {
+        throw new AbapError(
+          "BAD_INPUT",
+          `core.eval "lines"[${i}] (line ${lineNo}) is ${line.length} characters long; ABAP source lines are capped at ${FLUID_ABAP_LINE_MAX}.`,
+          { field: "lines", line: lineNo, length: line.length },
+        );
+      }
+    }
+
+    // 4. `out`, when given: every element a valid ABAP identifier. Deduped preserving order so a
+    // caller-supplied repeat doesn't serialise the same name twice.
+    const rawOut = rawArgs["out"];
+    let out: string[] = [];
+    if (rawOut !== undefined) {
+      if (!Array.isArray(rawOut) || !rawOut.every((o) => typeof o === "string")) {
+        throw new AbapError("BAD_INPUT", 'core.eval "out", when given, must be an array of strings.', {
+          field: "out",
+        });
+      }
+      for (const name of rawOut as string[]) {
+        if (!EVAL_OUT_NAME_RE.test(name)) {
+          throw new AbapError(
+            "BAD_INPUT",
+            `core.eval "out" name ${JSON.stringify(name)} must match ${EVAL_OUT_NAME_RE}.`,
+            { field: "out", value: name },
+          );
+        }
+      }
+      const seen = new Set<string>();
+      out = (rawOut as string[]).filter((name) => {
+        if (seen.has(name)) return false;
+        seen.add(name);
+        return true;
+      });
+    }
+
+    // 5. Static review — a lint, not a sandbox (see static-review.ts's own doc comment): the same
+    // shipped-rule pass a plugin's ABAP source goes through. `lines.join("\n")` keeps
+    // `finding.line` a direct 1-based index into the caller's own `lines` array.
+    const findings = reviewFluidAbap(CORE_EVAL_CONFIRM, lines.join("\n"));
+    const firstFinding = findings[0];
+    if (firstFinding !== undefined) {
+      throw new AbapError(
+        "FLUID_MANIFEST_INVALID",
+        `static review refused core.eval at line ${firstFinding.line}, rule "${firstFinding.rule}": ${firstFinding.text}`,
+        { tool: req.tool, action: req.action, line: firstFinding.line, rule: firstFinding.rule },
+      );
+    }
+
+    // 6. Capability scan — separate from static review: these constructs are allowed, but only
+    // behind their own ceiling flag. Same two flags and codes plugin-loader.ts uses for the exact
+    // same scan over plugin ABAP source.
+    const caps = scanFluidCapabilities(CORE_EVAL_CONFIRM, lines.join("\n"));
+    const mutateHit = caps.find((c) => c.capability === "db-write" || c.capability === "commit-rollback");
+    if (mutateHit !== undefined && !deps.cfg.allowFluidPluginMutate) {
+      throw new AbapError(
+        "FLUID_PLUGIN_MUTATE_DISABLED",
+        `core.eval line ${mutateHit.line} (${JSON.stringify(mutateHit.text)}) contains a database write or ` +
+          `COMMIT WORK/ROLLBACK WORK statement; ABAP_ALLOW_FLUID_PLUGIN_MUTATE is off`,
+        { tool: req.tool, action: req.action, line: mutateHit.line, rule: "ABAP_ALLOW_FLUID_PLUGIN_MUTATE" },
+      );
+    }
+    const callFmHit = caps.find((c) => c.capability === "call-function");
+    if (callFmHit !== undefined && !deps.cfg.allowFluidCallFm) {
+      throw new AbapError(
+        "SAFETY_DENIED",
+        `core.eval line ${callFmHit.line} (${JSON.stringify(callFmHit.text)}) contains CALL FUNCTION; ` +
+          `ABAP_ALLOW_FLUID_CALL_FM is off`,
+        { tool: req.tool, action: req.action, line: callFmHit.line, rule: "ABAP_ALLOW_FLUID_CALL_FM" },
+      );
+    }
+    return;
+  }
+}
+
+function evalArgsRecord(args: unknown): Record<string, unknown> {
+  return typeof args === "object" && args !== null && !Array.isArray(args) ? (args as Record<string, unknown>) : {};
+}
+
+/**
+ * Normalised eval args, after `guardCoreAction` has validated them: `lines` verbatim, `out`
+ * deduped preserving order. Callers downstream of the guard (`dispatch.ts`'s invoker-source and
+ * journal wiring) use this instead of re-deriving the same shape by hand.
+ */
+export function parseEvalArgs(args: Readonly<Record<string, unknown>>): { lines: string[]; out: string[] } {
+  const lines = Array.isArray(args["lines"]) ? (args["lines"] as unknown[]).filter((l): l is string => typeof l === "string") : [];
+  const rawOut = Array.isArray(args["out"]) ? (args["out"] as unknown[]).filter((o): o is string => typeof o === "string") : [];
+  const seen = new Set<string>();
+  const out = rawOut.filter((name) => {
+    if (seen.has(name)) return false;
+    seen.add(name);
+    return true;
+  });
+  return { lines, out };
 }
