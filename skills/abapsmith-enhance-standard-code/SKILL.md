@@ -7,9 +7,8 @@ description: Creates BAdI spots, definitions, implementations, filters, and sour
 
 Two unrelated sequences. Pick one; do not mix them.
 
-Each step is an `operation` of **`abap_enh`** on the default v1 surface; on v2 they
-are actions of **`abap_do`**. A plug-in's own source body goes through `abap_write`
-on either surface, never through the enhancement tool.
+Each step is an `operation` of **`abap_enh`**. A plug-in's own source body goes
+through `abap_write`, never through the enhancement tool.
 
 **Classic BAdI**
 

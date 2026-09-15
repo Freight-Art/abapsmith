@@ -10,7 +10,7 @@
  * transport unless it also listed `"auto"` (or was `"*"`).
  *
  * These tests drive `assertBridgeMutation` directly, not through
- * `abap_write`/`abap_do`: on this branch's base, `src/adt/view-create.ts`
+ * `abap_write`: on this branch's base, `src/adt/view-create.ts`
  * still calls `assertBridgeMutation` with no `corr` at all (the caller-side
  * pin lands separately, in a change not merged here), so the end-to-end
  * `VIEW/DV` reproduction from the issue is not reachable offline on this

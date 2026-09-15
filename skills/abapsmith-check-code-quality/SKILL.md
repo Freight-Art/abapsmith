@@ -86,14 +86,12 @@ code-quality one. Pass `variant` explicitly for a different question.
   creating a worklist is a server-side side effect. `abap_quick_fix` is
   gated as `write` in **both** modes, because `mode="list"` POSTs the whole
   object source for evaluation — it only looks read-only. On a read-only
-  **v1** server both still appear in `tools/list`, but as locked stubs
+  server both still appear in `tools/list`, but as locked stubs
   (`MODE_LOCKED_TOOLS`, `src/tools/locked.ts`) that refuse every call
   `READ_ONLY` with a message naming what unlocks them, without reaching SAP
-  — that beats a bare "tool not found" that looks like a typo. On v2 there
-  are no stubs; the same refusal comes out of `abap_do`'s per-action
-  `minMode`. Both tools also require the object's package to pass the
-  allowlist.
-- **Parameterized proposals are refused.** `abap_quick_fix` v1 applies
+  — that beats a bare "tool not found" that looks like a typo. Both tools
+  also require the object's package to pass the allowlist.
+- **Parameterized proposals are refused.** `abap_quick_fix` applies
   deterministic proposals only. One the IDE would open a dialog for is
   refused `BAD_INPUT`, naming the required input, rather than guessed at.
 - **`include` must be `main`.** Any other value is refused `BAD_INPUT`
@@ -118,14 +116,6 @@ with the same `variant` — not just the absence of an error from `apply`.
 `abap_quick_fix { "mode": "apply", ..., "dry_run": true }` previews the
 resulting source with no PUT, no lock, no activation, and no journal entry —
 use it to see the delta before committing to it.
-
-## Surface note
-
-`abap_atc` and `abap_quick_fix` are v1-only names. On
-`ABAP_TOOL_SURFACE=v2` the same capability is reached as an action of
-`abap_do` (call `abap_do({})` for its catalogue). `ABAP_TOOL_SURFACE=v2` is
-deprecated and is removed in release 0.6.0 — check `tools/list` rather than
-assume which surface is live.
 
 ## Not this skill
 

@@ -170,8 +170,7 @@ ordering.
 
 One MCP tool, `abap_fluid`. A new fluid tool — built-in or plugin — needs
 **no** MCP registration: it becomes reachable the moment its manifest
-loads. `ABAP_TOOL_SURFACE` is unaffected by this feature; no existing MCP
-tool is hidden, renamed or unregistered.
+loads. No existing MCP tool is hidden, renamed or unregistered.
 
 | `op` | Arguments | Network |
 |---|---|---|

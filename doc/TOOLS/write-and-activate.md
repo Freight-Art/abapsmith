@@ -426,8 +426,7 @@ different chunk. The response messages the server does return are attributed
 back to the object they name (by `href`, falling back to `objDescr`) across
 every chunk, not just the one it came from; anything that cannot be tied to
 one specific object is reported separately as `(unattributed)` and still
-fails the batch. `abap_do`'s `activate` action does not expose this form — it
-is v1-`abap_activate` (and the v1 tool surface generally) only.
+fails the batch.
 
 **Batch activation and the journal**: a batch writes one journal entry per
 object before any chunk's POST goes out, and because the chunks are POSTed

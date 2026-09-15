@@ -22116,9 +22116,9 @@ var require_iterate = __commonJS({
     var async = require_async();
     var abort = require_abort();
     module.exports = iterate;
-    function iterate(list5, iterator, state, callback) {
+    function iterate(list3, iterator, state, callback) {
       var key = state["keyedList"] ? state["keyedList"][state.index] : state.index;
-      state.jobs[key] = runJob(iterator, key, list5[key], function(error51, output) {
+      state.jobs[key] = runJob(iterator, key, list3[key], function(error51, output) {
         if (!(key in state.jobs)) {
           return;
         }
@@ -22147,17 +22147,17 @@ var require_iterate = __commonJS({
 var require_state = __commonJS({
   "node_modules/asynckit/lib/state.js"(exports2, module) {
     module.exports = state;
-    function state(list5, sortMethod) {
-      var isNamedList = !Array.isArray(list5), initState = {
+    function state(list3, sortMethod) {
+      var isNamedList = !Array.isArray(list3), initState = {
         index: 0,
-        keyedList: isNamedList || sortMethod ? Object.keys(list5) : null,
+        keyedList: isNamedList || sortMethod ? Object.keys(list3) : null,
         jobs: {},
         results: isNamedList ? {} : [],
-        size: isNamedList ? Object.keys(list5).length : list5.length
+        size: isNamedList ? Object.keys(list3).length : list3.length
       };
       if (sortMethod) {
         initState.keyedList.sort(isNamedList ? sortMethod : function(a, b) {
-          return sortMethod(list5[a], list5[b]);
+          return sortMethod(list3[a], list3[b]);
         });
       }
       return initState;
@@ -22189,10 +22189,10 @@ var require_parallel = __commonJS({
     var initState = require_state();
     var terminator = require_terminator();
     module.exports = parallel;
-    function parallel(list5, iterator, callback) {
-      var state = initState(list5);
-      while (state.index < (state["keyedList"] || list5).length) {
-        iterate(list5, iterator, state, function(error51, result) {
+    function parallel(list3, iterator, callback) {
+      var state = initState(list3);
+      while (state.index < (state["keyedList"] || list3).length) {
+        iterate(list3, iterator, state, function(error51, result) {
           if (error51) {
             callback(error51, result);
             return;
@@ -22218,16 +22218,16 @@ var require_serialOrdered = __commonJS({
     module.exports = serialOrdered;
     module.exports.ascending = ascending;
     module.exports.descending = descending;
-    function serialOrdered(list5, iterator, sortMethod, callback) {
-      var state = initState(list5, sortMethod);
-      iterate(list5, iterator, state, function iteratorHandler(error51, result) {
+    function serialOrdered(list3, iterator, sortMethod, callback) {
+      var state = initState(list3, sortMethod);
+      iterate(list3, iterator, state, function iteratorHandler(error51, result) {
         if (error51) {
           callback(error51, result);
           return;
         }
         state.index++;
-        if (state.index < (state["keyedList"] || list5).length) {
-          iterate(list5, iterator, state, iteratorHandler);
+        if (state.index < (state["keyedList"] || list3).length) {
+          iterate(list3, iterator, state, iteratorHandler);
           return;
         }
         callback(null, state.results);
@@ -22248,8 +22248,8 @@ var require_serial = __commonJS({
   "node_modules/asynckit/serial.js"(exports2, module) {
     var serialOrdered = require_serialOrdered();
     module.exports = serial;
-    function serial(list5, iterator, callback) {
-      return serialOrdered(list5, iterator, null, callback);
+    function serial(list3, iterator, callback) {
+      return serialOrdered(list3, iterator, null, callback);
     }
   }
 });
@@ -28935,7 +28935,7 @@ var require_axios = __commonJS({
         return value;
       }
     };
-    var test3 = (fn, ...args) => {
+    var test = (fn, ...args) => {
       try {
         return !!fn(...args);
       } catch (e) {
@@ -28975,7 +28975,7 @@ var require_axios = __commonJS({
       }
       const isReadableStreamSupported = isFetchSupported && isFunction(ReadableStream2);
       const encodeText = isFetchSupported && (typeof TextEncoder2 === "function" ? /* @__PURE__ */ ((encoder) => (str5) => encoder.encode(str5))(new TextEncoder2()) : async (str5) => new Uint8Array(await new Request(str5).arrayBuffer()));
-      const supportsRequestStream = isRequestSupported && isReadableStreamSupported && test3(() => {
+      const supportsRequestStream = isRequestSupported && isReadableStreamSupported && test(() => {
         let duplexAccessed = false;
         const request = new Request(platform.origin, {
           body: new ReadableStream2(),
@@ -28991,7 +28991,7 @@ var require_axios = __commonJS({
         }
         return duplexAccessed && !hasContentType;
       });
-      const supportsResponseStream = isResponseSupported && isReadableStreamSupported && test3(() => utils$1.isReadableStream(new Response("").body));
+      const supportsResponseStream = isResponseSupported && isReadableStreamSupported && test(() => utils$1.isReadableStream(new Response("").body));
       const resolvers = {
         stream: supportsResponseStream && ((res) => res.body)
       };
@@ -29829,7 +29829,7 @@ var require_axios = __commonJS({
       utils$1.extend(instance, context, null, {
         allOwnKeys: true
       });
-      instance.create = function create2(instanceConfig) {
+      instance.create = function create(instanceConfig) {
         return createInstance(mergeConfig(defaultConfig, instanceConfig));
       };
       return instance;
@@ -30695,8 +30695,8 @@ var require_atc = __commonJS({
         parseTagValue: false,
         parseAttributeValue: false
       });
-      const users2 = (0, utilities_1.xmlArray)(raw, "feed", "entry");
-      return (0, __1.validateParseResult)(t.array(atcUser).decode(users2));
+      const users = (0, utilities_1.xmlArray)(raw, "feed", "entry");
+      return (0, __1.validateParseResult)(t.array(atcUser).decode(users));
     }
     async function atcExemptProposal(h, markerId) {
       const headers = {
@@ -32509,7 +32509,7 @@ var require_activate = __commonJS({
   "node_modules/abap-adt-api/build/api/activate.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
-    exports2.activate = activate2;
+    exports2.activate = activate;
     exports2.mainPrograms = mainPrograms;
     exports2.inactiveObjectsInResults = inactiveObjectsInResults;
     exports2.inactiveObjects = inactiveObjects;
@@ -32532,7 +32532,7 @@ var require_activate = __commonJS({
         };
       });
     }
-    async function activate2(h, objectNameOrObjects, objectUrlOrPreauditReq = true, mainInclude, preauditRequested = true) {
+    async function activate(h, objectNameOrObjects, objectUrlOrPreauditReq = true, mainInclude, preauditRequested = true) {
       let objects = [];
       let incl = "";
       if ((0, utilities_1.isString)(objectNameOrObjects)) {
@@ -33978,13 +33978,13 @@ var require_abapgit = __commonJS({
         branches: (0, utilities_1.xmlArray)(branches, "branch")
       };
     }
-    async function switchRepoBranch(h, repo, branch, create2 = false, user = "", password = "") {
+    async function switchRepoBranch(h, repo, branch, create = false, user = "", password = "") {
       const headers = {};
       if (user)
         headers.Username = user;
       if (password)
         headers.Password = (0, utilities_1.btoa)(password);
-      await h.request(`/sap/bc/adt/abapgit/repos/${repo.key}/branches/${encodeURIComponent(branch)}?create=${create2}`, {
+      await h.request(`/sap/bc/adt/abapgit/repos/${repo.key}/branches/${encodeURIComponent(branch)}?create=${create}`, {
         headers,
         method: "POST"
       });
@@ -34471,7 +34471,7 @@ var require_debugger = __commonJS({
       const actions = (0, utilities_1.xmlArray)(raw, "attach", "actions", "action").map(utilities_1.xmlNodeAttr);
       return { ...attrs, actions, reachedBreakpoints };
     };
-    var parseBreakpoints2 = (body) => {
+    var parseBreakpoints = (body) => {
       const raw = (0, utilities_1.fullParse)(body, { removeNSPrefix: true });
       return (0, utilities_1.xmlArray)(raw, "breakpoints", "breakpoint").map(utilities_1.xmlNodeAttr).map((x) => {
         if (x.uri)
@@ -34586,7 +34586,7 @@ var require_debugger = __commonJS({
         headers,
         body
       });
-      return parseBreakpoints2(response.body);
+      return parseBreakpoints(response.body);
     }
     async function debuggerDeleteBreakpoints(h, breakpoint, debuggingMode, terminalId, ideId, requestUser, scope = "external") {
       const headers = { Accept: "application/xml" };
@@ -36151,8 +36151,8 @@ var require_AdtClient = __commonJS({
       remoteRepoInfo(repo, user = "", password = "") {
         return (0, api_1.remoteRepoInfo)(this.h, repo, user, password);
       }
-      switchRepoBranch(repo, branch, create2 = false, user = "", password = "") {
-        return (0, api_1.switchRepoBranch)(this.h, repo, branch, create2, user, password);
+      switchRepoBranch(repo, branch, create = false, user = "", password = "") {
+        return (0, api_1.switchRepoBranch)(this.h, repo, branch, create, user, password);
       }
       annotationDefinitions() {
         return (0, api_1.annotationDefinitions)(this.h);
@@ -37459,10 +37459,10 @@ var init_session = __esm({
         if (pending) return pending;
         const info = this.locks.get(objectUri);
         if (!info) return;
-        const run2 = this.releaseLock(info);
-        this.inFlight.set(objectUri, run2);
+        const run = this.releaseLock(info);
+        this.inFlight.set(objectUri, run);
         try {
-          await run2;
+          await run;
         } finally {
           this.inFlight.delete(objectUri);
         }
@@ -49380,13 +49380,13 @@ function _promise(Class2, innerType) {
 }
 // @__NO_SIDE_EFFECTS__
 function _custom(Class2, fn, _params) {
-  const norm3 = normalizeParams(_params);
-  norm3.abort ?? (norm3.abort = true);
+  const norm = normalizeParams(_params);
+  norm.abort ?? (norm.abort = true);
   const schema = new Class2({
     type: "custom",
     check: "custom",
     fn,
-    ...norm3
+    ...norm
   });
   return schema;
 }
@@ -51742,8 +51742,8 @@ var init_schemas2 = __esm({
           reg.add(this, meta3);
           return this;
         },
-        refine(check4, params) {
-          return this.check(refine(check4, params));
+        refine(check2, params) {
+          return this.check(refine(check2, params));
         },
         superRefine(refinement, params) {
           return this.check(superRefine(refinement, params));
@@ -57153,8 +57153,8 @@ function assertContext(context) {
       throw new TypeError("is-unsafe: context must not be an empty array");
     }
     if (Array.isArray(context[0])) {
-      for (const list5 of context) {
-        if (!Array.isArray(list5) || list5.length === 0) {
+      for (const list3 of context) {
+        if (!Array.isArray(list3) || list3.length === 0) {
           throw new TypeError(
             "is-unsafe: each context in the array must be a non-empty pattern array (PatternList)"
           );
@@ -57172,9 +57172,9 @@ function normalise(context) {
   if (Array.isArray(context[0])) return { lists: context, regex: null };
   return { lists: [context], regex: null };
 }
-function matchList(value, list5) {
-  const label = list5.label ?? "CUSTOM";
-  for (const rule of list5) {
+function matchList(value, list3) {
+  const label = list3.label ?? "CUSTOM";
+  for (const rule of list3) {
     if (rule.pattern.test(value)) {
       return { context: label, id: rule.id, description: rule.description, pattern: rule.pattern };
     }
@@ -57186,8 +57186,8 @@ function isUnsafe(value, context) {
   assertContext(context);
   const { lists, regex } = normalise(context);
   if (regex) return regex.test(value);
-  for (const list5 of lists) {
-    if (matchList(value, list5) !== null) return true;
+  for (const list3 of lists) {
+    if (matchList(value, list3) !== null) return true;
   }
   return false;
 }
@@ -58694,8 +58694,8 @@ async function trDelete(conn, trkorr, proof) {
   };
 }
 function releaseMessages(report) {
-  const list5 = node(child(report, "checkMessageList"));
-  return many(child(list5, "checkMessage")).map((m) => {
+  const list3 = node(child(report, "checkMessageList"));
+  return many(child(list3, "checkMessage")).map((m) => {
     const link = many(child(m, "link")).find((l) => /longtext/i.test(attr(l, "rel")));
     const href = link ? attr(link, "href") : "";
     const parsed = LONGTEXT_RE.exec(href);
@@ -59131,9 +59131,9 @@ var init_http_guard = __esm({
           }
           isProbe = wasHalfOpen;
         }
-        let release2;
+        let release;
         try {
-          release2 = this.opts.acquire ? await this.opts.acquire(options.url) : NOOP_RELEASE;
+          release = this.opts.acquire ? await this.opts.acquire(options.url) : NOOP_RELEASE;
         } catch (e) {
           if (authProbe) {
             this.breaker.recordTransientFailure({
@@ -59159,7 +59159,7 @@ var init_http_guard = __esm({
           }
           throw e;
         } finally {
-          release2();
+          release();
         }
       }
       /** Everything downstream of the breaker + the session mutex. */
@@ -62433,9 +62433,9 @@ var init_pool = __esm({
           return;
         }
         if (slot.role === "debug") {
-          const release2 = slot.activeRelease;
+          const release = slot.activeRelease;
           slot.activeRelease = void 0;
-          if (release2) release2();
+          if (release) release();
           else this.releaseSlot(slot);
           return;
         }
@@ -66253,6 +66253,16 @@ function loadConfig(opts = {}) {
       abapModeIssue = e instanceof Error ? e.message : String(e);
     }
   }
+  const rawToolSurface = env.ABAP_TOOL_SURFACE;
+  const toolSurfaceTrimmed = rawToolSurface !== void 0 ? rawToolSurface.trim() : void 0;
+  let toolSurfaceIssue;
+  if (toolSurfaceTrimmed !== void 0 && toolSurfaceTrimmed !== "") {
+    if (toolSurfaceTrimmed === "v2") {
+      toolSurfaceIssue = "ABAP_TOOL_SURFACE=v2 was removed \u2014 the six consolidated v2 tools no longer exist. Unset ABAP_TOOL_SURFACE: the former v1 surface is the only one and is always registered. See the Removed entry in CHANGELOG.md and doc/DESIGN-NOTES/tool-surface-v2.md.";
+    } else if (toolSurfaceTrimmed !== "v1") {
+      toolSurfaceIssue = `ABAP_TOOL_SURFACE=${toolSurfaceTrimmed} is not a value this server ever accepted. ABAP_TOOL_SURFACE is obsolete \u2014 unset it. See doc/DESIGN-NOTES/tool-surface-v2.md.`;
+    }
+  }
   const allowWrite = boolFromEnv(env.ABAP_ALLOW_WRITE);
   const configuredPackages = splitList(env.ABAP_ALLOW_PACKAGES);
   const namePrefixes = splitList(env.ABAP_ALLOW_NAME_PREFIXES);
@@ -66500,11 +66510,8 @@ function loadConfig(opts = {}) {
     // single source of truth, so out-of-range/invalid input reaches the
     // startup error list rather than being papered over here.
     dataPreviewMaxRows: env.ABAP_DATA_PREVIEW_MAX_ROWS,
-    // Not mode-derived — tool surface is orthogonal to the ABAP_MODE
-    // permission ceiling.
-    toolSurface: env.ABAP_TOOL_SURFACE,
     // Not mode-derived — verification posture is orthogonal to the ABAP_MODE
-    // permission ceiling, exactly like toolSurface above.
+    // permission ceiling.
     verifyWrites: env.ABAP_VERIFY_WRITES,
     maxSessions: env.ABAP_MAX_SESSIONS,
     readConcurrency: env.ABAP_READ_CONCURRENCY,
@@ -66528,14 +66535,15 @@ function loadConfig(opts = {}) {
     startupProbe: env.ABAP_STARTUP_PROBE,
     fluidApi: env.ABAP_FLUID_API
   });
-  if (!parsed.success || abapModeIssue !== void 0 || enhanceTargetsIssue !== void 0 || credentialIssue !== void 0) {
+  if (!parsed.success || abapModeIssue !== void 0 || enhanceTargetsIssue !== void 0 || credentialIssue !== void 0 || toolSurfaceIssue !== void 0) {
     const zodIssues = parsed.success ? [] : parsed.error.issues.map((i) => `  - ${i.path.join(".") || "(root)"}: ${i.message}`);
     const modeIssues = abapModeIssue !== void 0 ? [`  - abapMode: ${abapModeIssue}`] : [];
     const enhanceTargetsIssues = enhanceTargetsIssue !== void 0 ? [`  - enhanceTargets: ${enhanceTargetsIssue}`] : [];
     const credentialIssues = credentialIssue !== void 0 ? [`  - credential: ${credentialIssue}`] : [];
+    const toolSurfaceIssues = toolSurfaceIssue !== void 0 ? [`  - toolSurface: ${toolSurfaceIssue}`] : [];
     throw new Error(
       `Invalid abapsmith configuration:
-${[...zodIssues, ...modeIssues, ...enhanceTargetsIssues, ...credentialIssues].join("\n")}`
+${[...zodIssues, ...modeIssues, ...enhanceTargetsIssues, ...credentialIssues, ...toolSurfaceIssues].join("\n")}`
     );
   }
   const cfg = { ...parsed.data, abapMode, capabilities: modeCapabilities };
@@ -66557,6 +66565,11 @@ ${[...zodIssues, ...modeIssues, ...enhanceTargetsIssues, ...credentialIssues].jo
   } else {
     warn(
       "[abapsmith] NOTE: Configured via legacy per-flag env vars. Consider migrating to a single ABAP_MODE=read|edit|admin \u2014 see README."
+    );
+  }
+  if (toolSurfaceTrimmed === "v1") {
+    warn(
+      "[abapsmith] WARNING: ABAP_TOOL_SURFACE is obsolete and ignored \u2014 there is only one tool surface now and it is always registered. Unset it. See doc/DESIGN-NOTES/tool-surface-v2.md."
     );
   }
   const enabledBy = (envVar, modeOverridable = false) => abapMode !== void 0 && !(modeOverridable && env[envVar] !== void 0) ? `ABAP_MODE=${abapMode}` : `${envVar}=true`;
@@ -66765,7 +66778,6 @@ function redactConfigSecrets(cfg) {
     // (ABAP_MODE unset), not a redaction.
     abapMode: cfg.abapMode ?? "(unset \u2014 legacy per-flag config)",
     capabilities: cfg.capabilities,
-    toolSurface: cfg.toolSurface,
     verifyWrites: cfg.verifyWrites,
     readOnly: cfg.readOnly,
     allowPackages: cfg.allowPackages,
@@ -67134,32 +67146,6 @@ var init_config = __esm({
        * `enhanceTargetPackages`.
        */
       originSystems: external_exports.array(external_exports.string()).default([]),
-      /**
-       * Which MCP tool surface this server registers (`ABAP_TOOL_SURFACE`).
-       * `"v1"` (default) is today's 13 registrar modules, unchanged. `"v2"`
-       * registers only six consolidated tools (`src/tools/v2/register.ts`) and
-       * skips every v1 registrar. Opt-in only.
-       *
-       * Do not default this to v2 or drop v1 — a live paired A/B measured v2 at
-       * +6.6% more expensive and +142% more tool errors than v1 for
-       * statistically identical successful work, despite a genuine −87.6%
-       * schema-size cut. Full measurement, reasoning, and the bar for
-       * revisiting this default: see the git history.
-       *
-       * As of this release, `"v2"` is DEPRECATED and scheduled for removal in
-       * 0.6.0 (issue #76; keep in sync with `V2_REMOVAL_RELEASE` in
-       * src/server.ts). The surface is frozen: no new tool routes and no defect
-       * fixes land on it. Setting `ABAP_TOOL_SURFACE=v2` logs a deprecation
-       * warning at startup and puts the same sentence in the server
-       * `instructions` (both driven by `V2_DEPRECATION_SENTENCE` in
-       * src/server.ts, so the operator-facing and model-facing wording cannot
-       * drift apart).
-       *
-       * Deliberately no `"both"` value: v2 reuses v1's tool names verbatim, so
-       * registering both surfaces throws "Tool abap_read is already registered"
-       * at startup.
-       */
-      toolSurface: external_exports.enum(["v1", "v2"]).default("v1"),
       /**
        * How hard abapsmith works to prove a write landed (`ABAP_VERIFY_WRITES`).
        * `"speculative"` (default): a create/activate that returned without error
@@ -74275,8 +74261,8 @@ var require_dist2 = __commonJS({
         return ajv;
       }
       const [formats, exportName] = opts.mode === "fast" ? [formats_1.fastFormats, fastName] : [formats_1.fullFormats, fullName];
-      const list5 = opts.formats || formats_1.formatNames;
-      addFormats(ajv, list5, formats, exportName);
+      const list3 = opts.formats || formats_1.formatNames;
+      addFormats(ajv, list3, formats, exportName);
       if (opts.keywords)
         (0, limit_1.default)(ajv);
       return ajv;
@@ -74288,11 +74274,11 @@ var require_dist2 = __commonJS({
         throw new Error(`Unknown format "${name}"`);
       return f;
     };
-    function addFormats(ajv, list5, fs4, exportName) {
+    function addFormats(ajv, list3, fs4, exportName) {
       var _a3;
       var _b;
       (_a3 = (_b = ajv.opts.code).formats) !== null && _a3 !== void 0 ? _a3 : _b.formats = (0, codegen_1._)`require("ajv-formats/dist/formats").${exportName}`;
-      for (const f of list5)
+      for (const f of list3)
         ajv.addFormat(f, fs4[f]);
     }
     module.exports = exports2 = formatsPlugin;
@@ -75189,7 +75175,7 @@ var init_catalog_select = __esm({
 
 // src/index.ts
 import { realpathSync } from "node:fs";
-import { fileURLToPath as fileURLToPath2 } from "node:url";
+import { fileURLToPath } from "node:url";
 
 // src/adt/circuit-breaker.ts
 init_session();
@@ -88918,10 +88904,10 @@ var DebugSession = class {
    * measured 89-317ms live). Callers issuing a breakpoint or watchpoint DELETE must
    * pass `BREAKPOINT_DELETE_DEADLINE_MS` explicitly — see that constant's doc comment.
    */
-  async terminateStep(op, run2, isExpectedFailure, deadlineMs = TERMINATE_STEP_DEADLINE_MS) {
+  async terminateStep(op, run, isExpectedFailure, deadlineMs = TERMINATE_STEP_DEADLINE_MS) {
     let started;
     try {
-      started = run2();
+      started = run();
     } catch (e) {
       started = Promise.reject(e);
     }
@@ -89670,7 +89656,7 @@ var ZodType2 = class {
     const result = await (isAsync(maybeAsyncResult) ? maybeAsyncResult : Promise.resolve(maybeAsyncResult));
     return handleResult(ctx, result);
   }
-  refine(check4, message) {
+  refine(check2, message) {
     const getIssueProperties = (val) => {
       if (typeof message === "string" || typeof message === "undefined") {
         return { message };
@@ -89681,7 +89667,7 @@ var ZodType2 = class {
       }
     };
     return this._refinement((val, ctx) => {
-      const result = check4(val);
+      const result = check2(val);
       const setError = () => ctx.addIssue({
         code: ZodIssueCode2.custom,
         ...getIssueProperties(val)
@@ -89704,9 +89690,9 @@ var ZodType2 = class {
       }
     });
   }
-  refinement(check4, refinementData) {
+  refinement(check2, refinementData) {
     return this._refinement((val, ctx) => {
-      if (!check4(val)) {
+      if (!check2(val)) {
         ctx.addIssue(typeof refinementData === "function" ? refinementData(val, ctx) : refinementData);
         return false;
       } else {
@@ -89928,70 +89914,70 @@ var ZodString2 = class _ZodString2 extends ZodType2 {
     }
     const status = new ParseStatus();
     let ctx = void 0;
-    for (const check4 of this._def.checks) {
-      if (check4.kind === "min") {
-        if (input.data.length < check4.value) {
+    for (const check2 of this._def.checks) {
+      if (check2.kind === "min") {
+        if (input.data.length < check2.value) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode2.too_small,
-            minimum: check4.value,
+            minimum: check2.value,
             type: "string",
             inclusive: true,
             exact: false,
-            message: check4.message
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check4.kind === "max") {
-        if (input.data.length > check4.value) {
+      } else if (check2.kind === "max") {
+        if (input.data.length > check2.value) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode2.too_big,
-            maximum: check4.value,
+            maximum: check2.value,
             type: "string",
             inclusive: true,
             exact: false,
-            message: check4.message
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check4.kind === "length") {
-        const tooBig = input.data.length > check4.value;
-        const tooSmall = input.data.length < check4.value;
+      } else if (check2.kind === "length") {
+        const tooBig = input.data.length > check2.value;
+        const tooSmall = input.data.length < check2.value;
         if (tooBig || tooSmall) {
           ctx = this._getOrReturnCtx(input, ctx);
           if (tooBig) {
             addIssueToContext(ctx, {
               code: ZodIssueCode2.too_big,
-              maximum: check4.value,
+              maximum: check2.value,
               type: "string",
               inclusive: true,
               exact: true,
-              message: check4.message
+              message: check2.message
             });
           } else if (tooSmall) {
             addIssueToContext(ctx, {
               code: ZodIssueCode2.too_small,
-              minimum: check4.value,
+              minimum: check2.value,
               type: "string",
               inclusive: true,
               exact: true,
-              message: check4.message
+              message: check2.message
             });
           }
           status.dirty();
         }
-      } else if (check4.kind === "email") {
+      } else if (check2.kind === "email") {
         if (!emailRegex.test(input.data)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             validation: "email",
             code: ZodIssueCode2.invalid_string,
-            message: check4.message
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check4.kind === "emoji") {
+      } else if (check2.kind === "emoji") {
         if (!emojiRegex) {
           emojiRegex = new RegExp(_emojiRegex, "u");
         }
@@ -90000,61 +89986,61 @@ var ZodString2 = class _ZodString2 extends ZodType2 {
           addIssueToContext(ctx, {
             validation: "emoji",
             code: ZodIssueCode2.invalid_string,
-            message: check4.message
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check4.kind === "uuid") {
+      } else if (check2.kind === "uuid") {
         if (!uuidRegex.test(input.data)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             validation: "uuid",
             code: ZodIssueCode2.invalid_string,
-            message: check4.message
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check4.kind === "nanoid") {
+      } else if (check2.kind === "nanoid") {
         if (!nanoidRegex.test(input.data)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             validation: "nanoid",
             code: ZodIssueCode2.invalid_string,
-            message: check4.message
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check4.kind === "cuid") {
+      } else if (check2.kind === "cuid") {
         if (!cuidRegex.test(input.data)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             validation: "cuid",
             code: ZodIssueCode2.invalid_string,
-            message: check4.message
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check4.kind === "cuid2") {
+      } else if (check2.kind === "cuid2") {
         if (!cuid2Regex.test(input.data)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             validation: "cuid2",
             code: ZodIssueCode2.invalid_string,
-            message: check4.message
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check4.kind === "ulid") {
+      } else if (check2.kind === "ulid") {
         if (!ulidRegex.test(input.data)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             validation: "ulid",
             code: ZodIssueCode2.invalid_string,
-            message: check4.message
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check4.kind === "url") {
+      } else if (check2.kind === "url") {
         try {
           new URL(input.data);
         } catch {
@@ -90062,153 +90048,153 @@ var ZodString2 = class _ZodString2 extends ZodType2 {
           addIssueToContext(ctx, {
             validation: "url",
             code: ZodIssueCode2.invalid_string,
-            message: check4.message
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check4.kind === "regex") {
-        check4.regex.lastIndex = 0;
-        const testResult = check4.regex.test(input.data);
+      } else if (check2.kind === "regex") {
+        check2.regex.lastIndex = 0;
+        const testResult = check2.regex.test(input.data);
         if (!testResult) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             validation: "regex",
             code: ZodIssueCode2.invalid_string,
-            message: check4.message
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check4.kind === "trim") {
+      } else if (check2.kind === "trim") {
         input.data = input.data.trim();
-      } else if (check4.kind === "includes") {
-        if (!input.data.includes(check4.value, check4.position)) {
+      } else if (check2.kind === "includes") {
+        if (!input.data.includes(check2.value, check2.position)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode2.invalid_string,
-            validation: { includes: check4.value, position: check4.position },
-            message: check4.message
+            validation: { includes: check2.value, position: check2.position },
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check4.kind === "toLowerCase") {
+      } else if (check2.kind === "toLowerCase") {
         input.data = input.data.toLowerCase();
-      } else if (check4.kind === "toUpperCase") {
+      } else if (check2.kind === "toUpperCase") {
         input.data = input.data.toUpperCase();
-      } else if (check4.kind === "startsWith") {
-        if (!input.data.startsWith(check4.value)) {
+      } else if (check2.kind === "startsWith") {
+        if (!input.data.startsWith(check2.value)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode2.invalid_string,
-            validation: { startsWith: check4.value },
-            message: check4.message
+            validation: { startsWith: check2.value },
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check4.kind === "endsWith") {
-        if (!input.data.endsWith(check4.value)) {
+      } else if (check2.kind === "endsWith") {
+        if (!input.data.endsWith(check2.value)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode2.invalid_string,
-            validation: { endsWith: check4.value },
-            message: check4.message
+            validation: { endsWith: check2.value },
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check4.kind === "datetime") {
-        const regex = datetimeRegex(check4);
+      } else if (check2.kind === "datetime") {
+        const regex = datetimeRegex(check2);
         if (!regex.test(input.data)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode2.invalid_string,
             validation: "datetime",
-            message: check4.message
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check4.kind === "date") {
+      } else if (check2.kind === "date") {
         const regex = dateRegex;
         if (!regex.test(input.data)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode2.invalid_string,
             validation: "date",
-            message: check4.message
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check4.kind === "time") {
-        const regex = timeRegex(check4);
+      } else if (check2.kind === "time") {
+        const regex = timeRegex(check2);
         if (!regex.test(input.data)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode2.invalid_string,
             validation: "time",
-            message: check4.message
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check4.kind === "duration") {
+      } else if (check2.kind === "duration") {
         if (!durationRegex.test(input.data)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             validation: "duration",
             code: ZodIssueCode2.invalid_string,
-            message: check4.message
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check4.kind === "ip") {
-        if (!isValidIP(input.data, check4.version)) {
+      } else if (check2.kind === "ip") {
+        if (!isValidIP(input.data, check2.version)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             validation: "ip",
             code: ZodIssueCode2.invalid_string,
-            message: check4.message
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check4.kind === "jwt") {
-        if (!isValidJWT2(input.data, check4.alg)) {
+      } else if (check2.kind === "jwt") {
+        if (!isValidJWT2(input.data, check2.alg)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             validation: "jwt",
             code: ZodIssueCode2.invalid_string,
-            message: check4.message
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check4.kind === "cidr") {
-        if (!isValidCidr(input.data, check4.version)) {
+      } else if (check2.kind === "cidr") {
+        if (!isValidCidr(input.data, check2.version)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             validation: "cidr",
             code: ZodIssueCode2.invalid_string,
-            message: check4.message
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check4.kind === "base64") {
+      } else if (check2.kind === "base64") {
         if (!base64Regex.test(input.data)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             validation: "base64",
             code: ZodIssueCode2.invalid_string,
-            message: check4.message
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check4.kind === "base64url") {
+      } else if (check2.kind === "base64url") {
         if (!base64urlRegex.test(input.data)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             validation: "base64url",
             code: ZodIssueCode2.invalid_string,
-            message: check4.message
+            message: check2.message
           });
           status.dirty();
         }
       } else {
-        util.assertNever(check4);
+        util.assertNever(check2);
       }
     }
     return { status: status.value, value: input.data };
@@ -90220,10 +90206,10 @@ var ZodString2 = class _ZodString2 extends ZodType2 {
       ...errorUtil.errToObj(message)
     });
   }
-  _addCheck(check4) {
+  _addCheck(check2) {
     return new _ZodString2({
       ...this._def,
-      checks: [...this._def.checks, check4]
+      checks: [...this._def.checks, check2]
     });
   }
   email(message) {
@@ -90488,67 +90474,67 @@ var ZodNumber2 = class _ZodNumber extends ZodType2 {
     }
     let ctx = void 0;
     const status = new ParseStatus();
-    for (const check4 of this._def.checks) {
-      if (check4.kind === "int") {
+    for (const check2 of this._def.checks) {
+      if (check2.kind === "int") {
         if (!util.isInteger(input.data)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode2.invalid_type,
             expected: "integer",
             received: "float",
-            message: check4.message
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check4.kind === "min") {
-        const tooSmall = check4.inclusive ? input.data < check4.value : input.data <= check4.value;
+      } else if (check2.kind === "min") {
+        const tooSmall = check2.inclusive ? input.data < check2.value : input.data <= check2.value;
         if (tooSmall) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode2.too_small,
-            minimum: check4.value,
+            minimum: check2.value,
             type: "number",
-            inclusive: check4.inclusive,
+            inclusive: check2.inclusive,
             exact: false,
-            message: check4.message
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check4.kind === "max") {
-        const tooBig = check4.inclusive ? input.data > check4.value : input.data >= check4.value;
+      } else if (check2.kind === "max") {
+        const tooBig = check2.inclusive ? input.data > check2.value : input.data >= check2.value;
         if (tooBig) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode2.too_big,
-            maximum: check4.value,
+            maximum: check2.value,
             type: "number",
-            inclusive: check4.inclusive,
+            inclusive: check2.inclusive,
             exact: false,
-            message: check4.message
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check4.kind === "multipleOf") {
-        if (floatSafeRemainder2(input.data, check4.value) !== 0) {
+      } else if (check2.kind === "multipleOf") {
+        if (floatSafeRemainder2(input.data, check2.value) !== 0) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode2.not_multiple_of,
-            multipleOf: check4.value,
-            message: check4.message
+            multipleOf: check2.value,
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check4.kind === "finite") {
+      } else if (check2.kind === "finite") {
         if (!Number.isFinite(input.data)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode2.not_finite,
-            message: check4.message
+            message: check2.message
           });
           status.dirty();
         }
       } else {
-        util.assertNever(check4);
+        util.assertNever(check2);
       }
     }
     return { status: status.value, value: input.data };
@@ -90579,10 +90565,10 @@ var ZodNumber2 = class _ZodNumber extends ZodType2 {
       ]
     });
   }
-  _addCheck(check4) {
+  _addCheck(check2) {
     return new _ZodNumber({
       ...this._def,
-      checks: [...this._def.checks, check4]
+      checks: [...this._def.checks, check2]
     });
   }
   int(message) {
@@ -90717,45 +90703,45 @@ var ZodBigInt2 = class _ZodBigInt extends ZodType2 {
     }
     let ctx = void 0;
     const status = new ParseStatus();
-    for (const check4 of this._def.checks) {
-      if (check4.kind === "min") {
-        const tooSmall = check4.inclusive ? input.data < check4.value : input.data <= check4.value;
+    for (const check2 of this._def.checks) {
+      if (check2.kind === "min") {
+        const tooSmall = check2.inclusive ? input.data < check2.value : input.data <= check2.value;
         if (tooSmall) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode2.too_small,
             type: "bigint",
-            minimum: check4.value,
-            inclusive: check4.inclusive,
-            message: check4.message
+            minimum: check2.value,
+            inclusive: check2.inclusive,
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check4.kind === "max") {
-        const tooBig = check4.inclusive ? input.data > check4.value : input.data >= check4.value;
+      } else if (check2.kind === "max") {
+        const tooBig = check2.inclusive ? input.data > check2.value : input.data >= check2.value;
         if (tooBig) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode2.too_big,
             type: "bigint",
-            maximum: check4.value,
-            inclusive: check4.inclusive,
-            message: check4.message
+            maximum: check2.value,
+            inclusive: check2.inclusive,
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check4.kind === "multipleOf") {
-        if (input.data % check4.value !== BigInt(0)) {
+      } else if (check2.kind === "multipleOf") {
+        if (input.data % check2.value !== BigInt(0)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode2.not_multiple_of,
-            multipleOf: check4.value,
-            message: check4.message
+            multipleOf: check2.value,
+            message: check2.message
           });
           status.dirty();
         }
       } else {
-        util.assertNever(check4);
+        util.assertNever(check2);
       }
     }
     return { status: status.value, value: input.data };
@@ -90795,10 +90781,10 @@ var ZodBigInt2 = class _ZodBigInt extends ZodType2 {
       ]
     });
   }
-  _addCheck(check4) {
+  _addCheck(check2) {
     return new _ZodBigInt({
       ...this._def,
-      checks: [...this._def.checks, check4]
+      checks: [...this._def.checks, check2]
     });
   }
   positive(message) {
@@ -90918,35 +90904,35 @@ var ZodDate2 = class _ZodDate extends ZodType2 {
     }
     const status = new ParseStatus();
     let ctx = void 0;
-    for (const check4 of this._def.checks) {
-      if (check4.kind === "min") {
-        if (input.data.getTime() < check4.value) {
+    for (const check2 of this._def.checks) {
+      if (check2.kind === "min") {
+        if (input.data.getTime() < check2.value) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode2.too_small,
-            message: check4.message,
+            message: check2.message,
             inclusive: true,
             exact: false,
-            minimum: check4.value,
+            minimum: check2.value,
             type: "date"
           });
           status.dirty();
         }
-      } else if (check4.kind === "max") {
-        if (input.data.getTime() > check4.value) {
+      } else if (check2.kind === "max") {
+        if (input.data.getTime() > check2.value) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode2.too_big,
-            message: check4.message,
+            message: check2.message,
             inclusive: true,
             exact: false,
-            maximum: check4.value,
+            maximum: check2.value,
             type: "date"
           });
           status.dirty();
         }
       } else {
-        util.assertNever(check4);
+        util.assertNever(check2);
       }
     }
     return {
@@ -90954,10 +90940,10 @@ var ZodDate2 = class _ZodDate extends ZodType2 {
       value: new Date(input.data.getTime())
     };
   }
-  _addCheck(check4) {
+  _addCheck(check2) {
     return new _ZodDate({
       ...this._def,
-      checks: [...this._def.checks, check4]
+      checks: [...this._def.checks, check2]
     });
   }
   min(minDate, message) {
@@ -94772,38 +94758,38 @@ function parseBigintDef(def, refs) {
   };
   if (!def.checks)
     return res;
-  for (const check4 of def.checks) {
-    switch (check4.kind) {
+  for (const check2 of def.checks) {
+    switch (check2.kind) {
       case "min":
         if (refs.target === "jsonSchema7") {
-          if (check4.inclusive) {
-            setResponseValueAndErrors(res, "minimum", check4.value, check4.message, refs);
+          if (check2.inclusive) {
+            setResponseValueAndErrors(res, "minimum", check2.value, check2.message, refs);
           } else {
-            setResponseValueAndErrors(res, "exclusiveMinimum", check4.value, check4.message, refs);
+            setResponseValueAndErrors(res, "exclusiveMinimum", check2.value, check2.message, refs);
           }
         } else {
-          if (!check4.inclusive) {
+          if (!check2.inclusive) {
             res.exclusiveMinimum = true;
           }
-          setResponseValueAndErrors(res, "minimum", check4.value, check4.message, refs);
+          setResponseValueAndErrors(res, "minimum", check2.value, check2.message, refs);
         }
         break;
       case "max":
         if (refs.target === "jsonSchema7") {
-          if (check4.inclusive) {
-            setResponseValueAndErrors(res, "maximum", check4.value, check4.message, refs);
+          if (check2.inclusive) {
+            setResponseValueAndErrors(res, "maximum", check2.value, check2.message, refs);
           } else {
-            setResponseValueAndErrors(res, "exclusiveMaximum", check4.value, check4.message, refs);
+            setResponseValueAndErrors(res, "exclusiveMaximum", check2.value, check2.message, refs);
           }
         } else {
-          if (!check4.inclusive) {
+          if (!check2.inclusive) {
             res.exclusiveMaximum = true;
           }
-          setResponseValueAndErrors(res, "maximum", check4.value, check4.message, refs);
+          setResponseValueAndErrors(res, "maximum", check2.value, check2.message, refs);
         }
         break;
       case "multipleOf":
-        setResponseValueAndErrors(res, "multipleOf", check4.value, check4.message, refs);
+        setResponseValueAndErrors(res, "multipleOf", check2.value, check2.message, refs);
         break;
     }
   }
@@ -94859,15 +94845,15 @@ var integerDateParser = (def, refs) => {
   if (refs.target === "openApi3") {
     return res;
   }
-  for (const check4 of def.checks) {
-    switch (check4.kind) {
+  for (const check2 of def.checks) {
+    switch (check2.kind) {
       case "min":
         setResponseValueAndErrors(
           res,
           "minimum",
-          check4.value,
+          check2.value,
           // This is in milliseconds
-          check4.message,
+          check2.message,
           refs
         );
         break;
@@ -94875,9 +94861,9 @@ var integerDateParser = (def, refs) => {
         setResponseValueAndErrors(
           res,
           "maximum",
-          check4.value,
+          check2.value,
           // This is in milliseconds
-          check4.message,
+          check2.message,
           refs
         );
         break;
@@ -95023,118 +95009,118 @@ function parseStringDef(def, refs) {
     type: "string"
   };
   if (def.checks) {
-    for (const check4 of def.checks) {
-      switch (check4.kind) {
+    for (const check2 of def.checks) {
+      switch (check2.kind) {
         case "min":
-          setResponseValueAndErrors(res, "minLength", typeof res.minLength === "number" ? Math.max(res.minLength, check4.value) : check4.value, check4.message, refs);
+          setResponseValueAndErrors(res, "minLength", typeof res.minLength === "number" ? Math.max(res.minLength, check2.value) : check2.value, check2.message, refs);
           break;
         case "max":
-          setResponseValueAndErrors(res, "maxLength", typeof res.maxLength === "number" ? Math.min(res.maxLength, check4.value) : check4.value, check4.message, refs);
+          setResponseValueAndErrors(res, "maxLength", typeof res.maxLength === "number" ? Math.min(res.maxLength, check2.value) : check2.value, check2.message, refs);
           break;
         case "email":
           switch (refs.emailStrategy) {
             case "format:email":
-              addFormat(res, "email", check4.message, refs);
+              addFormat(res, "email", check2.message, refs);
               break;
             case "format:idn-email":
-              addFormat(res, "idn-email", check4.message, refs);
+              addFormat(res, "idn-email", check2.message, refs);
               break;
             case "pattern:zod":
-              addPattern(res, zodPatterns.email, check4.message, refs);
+              addPattern(res, zodPatterns.email, check2.message, refs);
               break;
           }
           break;
         case "url":
-          addFormat(res, "uri", check4.message, refs);
+          addFormat(res, "uri", check2.message, refs);
           break;
         case "uuid":
-          addFormat(res, "uuid", check4.message, refs);
+          addFormat(res, "uuid", check2.message, refs);
           break;
         case "regex":
-          addPattern(res, check4.regex, check4.message, refs);
+          addPattern(res, check2.regex, check2.message, refs);
           break;
         case "cuid":
-          addPattern(res, zodPatterns.cuid, check4.message, refs);
+          addPattern(res, zodPatterns.cuid, check2.message, refs);
           break;
         case "cuid2":
-          addPattern(res, zodPatterns.cuid2, check4.message, refs);
+          addPattern(res, zodPatterns.cuid2, check2.message, refs);
           break;
         case "startsWith":
-          addPattern(res, RegExp(`^${escapeLiteralCheckValue(check4.value, refs)}`), check4.message, refs);
+          addPattern(res, RegExp(`^${escapeLiteralCheckValue(check2.value, refs)}`), check2.message, refs);
           break;
         case "endsWith":
-          addPattern(res, RegExp(`${escapeLiteralCheckValue(check4.value, refs)}$`), check4.message, refs);
+          addPattern(res, RegExp(`${escapeLiteralCheckValue(check2.value, refs)}$`), check2.message, refs);
           break;
         case "datetime":
-          addFormat(res, "date-time", check4.message, refs);
+          addFormat(res, "date-time", check2.message, refs);
           break;
         case "date":
-          addFormat(res, "date", check4.message, refs);
+          addFormat(res, "date", check2.message, refs);
           break;
         case "time":
-          addFormat(res, "time", check4.message, refs);
+          addFormat(res, "time", check2.message, refs);
           break;
         case "duration":
-          addFormat(res, "duration", check4.message, refs);
+          addFormat(res, "duration", check2.message, refs);
           break;
         case "length":
-          setResponseValueAndErrors(res, "minLength", typeof res.minLength === "number" ? Math.max(res.minLength, check4.value) : check4.value, check4.message, refs);
-          setResponseValueAndErrors(res, "maxLength", typeof res.maxLength === "number" ? Math.min(res.maxLength, check4.value) : check4.value, check4.message, refs);
+          setResponseValueAndErrors(res, "minLength", typeof res.minLength === "number" ? Math.max(res.minLength, check2.value) : check2.value, check2.message, refs);
+          setResponseValueAndErrors(res, "maxLength", typeof res.maxLength === "number" ? Math.min(res.maxLength, check2.value) : check2.value, check2.message, refs);
           break;
         case "includes": {
-          addPattern(res, RegExp(escapeLiteralCheckValue(check4.value, refs)), check4.message, refs);
+          addPattern(res, RegExp(escapeLiteralCheckValue(check2.value, refs)), check2.message, refs);
           break;
         }
         case "ip": {
-          if (check4.version !== "v6") {
-            addFormat(res, "ipv4", check4.message, refs);
+          if (check2.version !== "v6") {
+            addFormat(res, "ipv4", check2.message, refs);
           }
-          if (check4.version !== "v4") {
-            addFormat(res, "ipv6", check4.message, refs);
+          if (check2.version !== "v4") {
+            addFormat(res, "ipv6", check2.message, refs);
           }
           break;
         }
         case "base64url":
-          addPattern(res, zodPatterns.base64url, check4.message, refs);
+          addPattern(res, zodPatterns.base64url, check2.message, refs);
           break;
         case "jwt":
-          addPattern(res, zodPatterns.jwt, check4.message, refs);
+          addPattern(res, zodPatterns.jwt, check2.message, refs);
           break;
         case "cidr": {
-          if (check4.version !== "v6") {
-            addPattern(res, zodPatterns.ipv4Cidr, check4.message, refs);
+          if (check2.version !== "v6") {
+            addPattern(res, zodPatterns.ipv4Cidr, check2.message, refs);
           }
-          if (check4.version !== "v4") {
-            addPattern(res, zodPatterns.ipv6Cidr, check4.message, refs);
+          if (check2.version !== "v4") {
+            addPattern(res, zodPatterns.ipv6Cidr, check2.message, refs);
           }
           break;
         }
         case "emoji":
-          addPattern(res, zodPatterns.emoji(), check4.message, refs);
+          addPattern(res, zodPatterns.emoji(), check2.message, refs);
           break;
         case "ulid": {
-          addPattern(res, zodPatterns.ulid, check4.message, refs);
+          addPattern(res, zodPatterns.ulid, check2.message, refs);
           break;
         }
         case "base64": {
           switch (refs.base64Strategy) {
             case "format:binary": {
-              addFormat(res, "binary", check4.message, refs);
+              addFormat(res, "binary", check2.message, refs);
               break;
             }
             case "contentEncoding:base64": {
-              setResponseValueAndErrors(res, "contentEncoding", "base64", check4.message, refs);
+              setResponseValueAndErrors(res, "contentEncoding", "base64", check2.message, refs);
               break;
             }
             case "pattern:zod": {
-              addPattern(res, zodPatterns.base64, check4.message, refs);
+              addPattern(res, zodPatterns.base64, check2.message, refs);
               break;
             }
           }
           break;
         }
         case "nanoid": {
-          addPattern(res, zodPatterns.nanoid, check4.message, refs);
+          addPattern(res, zodPatterns.nanoid, check2.message, refs);
         }
         case "toLowerCase":
         case "toUpperCase":
@@ -95142,7 +95128,7 @@ function parseStringDef(def, refs) {
           break;
         default:
           /* @__PURE__ */ ((_) => {
-          })(check4);
+          })(check2);
       }
     }
   }
@@ -95512,42 +95498,42 @@ function parseNumberDef(def, refs) {
   };
   if (!def.checks)
     return res;
-  for (const check4 of def.checks) {
-    switch (check4.kind) {
+  for (const check2 of def.checks) {
+    switch (check2.kind) {
       case "int":
         res.type = "integer";
-        addErrorMessage(res, "type", check4.message, refs);
+        addErrorMessage(res, "type", check2.message, refs);
         break;
       case "min":
         if (refs.target === "jsonSchema7") {
-          if (check4.inclusive) {
-            setResponseValueAndErrors(res, "minimum", check4.value, check4.message, refs);
+          if (check2.inclusive) {
+            setResponseValueAndErrors(res, "minimum", check2.value, check2.message, refs);
           } else {
-            setResponseValueAndErrors(res, "exclusiveMinimum", check4.value, check4.message, refs);
+            setResponseValueAndErrors(res, "exclusiveMinimum", check2.value, check2.message, refs);
           }
         } else {
-          if (!check4.inclusive) {
+          if (!check2.inclusive) {
             res.exclusiveMinimum = true;
           }
-          setResponseValueAndErrors(res, "minimum", check4.value, check4.message, refs);
+          setResponseValueAndErrors(res, "minimum", check2.value, check2.message, refs);
         }
         break;
       case "max":
         if (refs.target === "jsonSchema7") {
-          if (check4.inclusive) {
-            setResponseValueAndErrors(res, "maximum", check4.value, check4.message, refs);
+          if (check2.inclusive) {
+            setResponseValueAndErrors(res, "maximum", check2.value, check2.message, refs);
           } else {
-            setResponseValueAndErrors(res, "exclusiveMaximum", check4.value, check4.message, refs);
+            setResponseValueAndErrors(res, "exclusiveMaximum", check2.value, check2.message, refs);
           }
         } else {
-          if (!check4.inclusive) {
+          if (!check2.inclusive) {
             res.exclusiveMaximum = true;
           }
-          setResponseValueAndErrors(res, "maximum", check4.value, check4.message, refs);
+          setResponseValueAndErrors(res, "maximum", check2.value, check2.message, refs);
         }
         break;
       case "multipleOf":
-        setResponseValueAndErrors(res, "multipleOf", check4.value, check4.message, refs);
+        setResponseValueAndErrors(res, "multipleOf", check2.value, check2.message, refs);
         break;
     }
   }
@@ -99547,12 +99533,12 @@ var Journal = class _Journal {
    * section must not poison the queue, so the tail swallows.
    */
   runExclusive(fn) {
-    const run2 = this.tail.then(fn);
-    this.tail = run2.then(
+    const run = this.tail.then(fn);
+    this.tail = run.then(
       () => void 0,
       () => void 0
     );
-    return run2;
+    return run;
   }
   /**
    * `runExclusive()`'s cross-process other half — orders writers against the
@@ -100102,7 +100088,7 @@ var Journal = class _Journal {
     return true;
   }
 };
-async function withJournalledMutation(journal, spec, run2) {
+async function withJournalledMutation(journal, spec, run) {
   let entryId;
   const onBeforeImage = async (image) => {
     if (!journal) return;
@@ -100115,7 +100101,7 @@ async function withJournalledMutation(journal, spec, run2) {
   };
   let result;
   try {
-    result = await run2(onBeforeImage);
+    result = await run(onBeforeImage);
   } catch (e) {
     if ((spec.onError ?? "record-failed") === "record-failed") {
       await settle({ outcome: "failed", error: String(e) });
@@ -102777,20 +102763,20 @@ function classifyEnhancementRefusal(e) {
   }
   return e;
 }
-function missingEnhancementWrapperError(target, source, serverMessage, check4) {
+function missingEnhancementWrapperError(target, source, serverMessage, check2) {
   if (target.type !== "ENHO/XHH") return void 0;
   const hasWrapper = source.split(/\r?\n/).some((line2) => /\bENDENHANCEMENT\b/i.test(abapCodeOf(line2)));
   if (hasWrapper) return void 0;
   return new AbapError(
     "CHECK_FAILED",
-    `The ABAP system rejected the source of ${target.type} ${target.name}: ${serverMessage ?? "the save was rejected"} \u2014 this source has no ENHANCEMENT ... ENDENHANCEMENT wrapper. An ENHO/XHH /source/main body is not a program, it is one or more \`ENHANCEMENT <n>. ... ENDENHANCEMENT.\` blocks \u2014 the server's number and nothing else, no name after it \u2014 so a bare statement body is parsed as a program with no header.` + (check4 ? ` The syntax check describes that mis-parse rather than the missing wrapper: ${check4.summary}.` : ""),
+    `The ABAP system rejected the source of ${target.type} ${target.name}: ${serverMessage ?? "the save was rejected"} \u2014 this source has no ENHANCEMENT ... ENDENHANCEMENT wrapper. An ENHO/XHH /source/main body is not a program, it is one or more \`ENHANCEMENT <n>. ... ENDENHANCEMENT.\` blocks \u2014 the server's number and nothing else, no name after it \u2014 so a bare statement body is parsed as a program with no header.` + (check2 ? ` The syntax check describes that mis-parse rather than the missing wrapper: ${check2.summary}.` : ""),
     {
       name: target.name,
       type: target.type,
       uri: target.uri,
       missing: "ENHANCEMENT/ENDENHANCEMENT",
       originalMessage: serverMessage,
-      ...check4 ? { summary: check4.summary, messages: check4.messages, raw: check4.raw } : {}
+      ...check2 ? { summary: check2.summary, messages: check2.messages, raw: check2.raw } : {}
     },
     `Read the object first \u2014 abap_read(object:"${target.name}", type:"ENHO/XHH") in plain source mode, NOT enhancements:true \u2014 and write back exactly the header line it returns with your statements inside its ENHANCEMENT ... ENDENHANCEMENT block. The number in that header is the server's: do not invent one, and do not add an enhancement name after it \u2014 this resource rejects the named form. The object was NOT changed and the lock was released.`
   );
@@ -103841,21 +103827,21 @@ function stripListHeader(lines) {
   return out;
 }
 function splitBridgeOutput(raw) {
-  const list5 = [];
+  const list3 = [];
   const diagnostics = [];
   let droppedLines = 0;
   for (const line2 of raw.replace(/\r\n/g, "\n").split("\n")) {
     if (line2.startsWith(LIST_LINE_PREFIX)) {
-      list5.push(line2.slice(LIST_LINE_PREFIX.length));
+      list3.push(line2.slice(LIST_LINE_PREFIX.length));
     } else if (line2.replace(/\s+$/, "") === LIST_LINE_PREFIX.trimEnd()) {
-      list5.push("");
+      list3.push("");
     } else if (line2.startsWith(ERR_LINE_PREFIX)) {
       diagnostics.push(line2.trim());
     } else {
       droppedLines++;
     }
   }
-  return { list: list5, diagnostics, droppedLines };
+  return { list: list3, diagnostics, droppedLines };
 }
 function parseBracketFields(text4) {
   const out = {};
@@ -103917,8 +103903,8 @@ function translateRunFailure(conn, className, e) {
         class: className,
         ...info,
         status: resp.status,
-        // Machine-readable so a v2 surface/orchestrator can act without
-        // regex-scraping the hint prose.
+        // Machine-readable so a calling script or orchestrator can act
+        // without regex-scraping the hint prose.
         ...correlation ? { dumpCorrelation: correlation } : {}
       },
       dumpHint(correlation)
@@ -104064,8 +104050,8 @@ async function authorizeBridgeTarget(conn, gate, opts, packageName) {
       type: "CLAS/OC",
       name: opts.className
     });
-    const del3 = await deleteObject(conn, authorizedDelete, { onBeforeImage: NO_JOURNAL });
-    if (del3.deleted === false) {
+    const del = await deleteObject(conn, authorizedDelete, { onBeforeImage: NO_JOURNAL });
+    if (del.deleted === false) {
       throw new AbapError(
         "FLUID_OBJECT_CONFLICT",
         `CLAS/OC ${opts.className} could not be relocated out of ${strandedIn}: the delete was sent, but a read-back confirmed the object is still there.`,
@@ -104173,10 +104159,10 @@ async function runReport(conn, reportName, gate, parameters = []) {
     verify: (activation) => verifyBridgeActivation(activation, className, "run bridge", { report })
   });
   const { bridgeRefreshed, activationVerified: bridgeActivationVerified } = deployed;
-  const run2 = await executeBridge(conn, gate, deployed);
-  const { list: list5, diagnostics, droppedLines: bridgeDroppedLines } = splitBridgeOutput(run2.output);
-  const beforeHeaderStrip = list5.length;
-  const stripped = stripListHeader(list5);
+  const run = await executeBridge(conn, gate, deployed);
+  const { list: list3, diagnostics, droppedLines: bridgeDroppedLines } = splitBridgeOutput(run.output);
+  const beforeHeaderStrip = list3.length;
+  const stripped = stripListHeader(list3);
   const headerDroppedLines = beforeHeaderStrip - stripped.length;
   const output = stripped.join("\n");
   const outputComplete = !diagnostics.some((d) => d.includes(WIDTH_TRUNCATION_MARKER));
@@ -104188,7 +104174,7 @@ async function runReport(conn, reportName, gate, parameters = []) {
     // F4: the full write → activate → run round trip, not just the classrun leg.
     durationMs: Date.now() - started,
     droppedLines: bridgeDroppedLines + headerDroppedLines,
-    bodyBytes: run2.bodyBytes,
+    bodyBytes: run.bodyBytes,
     outputComplete,
     bridgeClass: className,
     bridgeRefreshed,
@@ -104355,8 +104341,8 @@ async function classifyOne(conn, obj, expectedSource) {
   if (resolved.activation !== "active-is-current") {
     return { resolved, state: "inactive" };
   }
-  const check4 = await checkSource(conn, resolved, withDeployedVersionMarker(expectedSource));
-  return { resolved, state: check4.ok ? "present" : "broken" };
+  const check2 = await checkSource(conn, resolved, withDeployedVersionMarker(expectedSource));
+  return { resolved, state: check2.ok ? "present" : "broken" };
 }
 function objectStatus(obj, c) {
   return {
@@ -104532,8 +104518,8 @@ async function actOnClassification(conn, gate, ledgerKey, tool, obj, expectedSou
         type: obj.type,
         name: obj.name
       });
-      const del3 = await deleteObject(conn, authorizedDelete, { onBeforeImage: NO_JOURNAL });
-      if (del3.deleted === false) {
+      const del = await deleteObject(conn, authorizedDelete, { onBeforeImage: NO_JOURNAL });
+      if (del.deleted === false) {
         throw new AbapError(
           "FLUID_OBJECT_CONFLICT",
           `${obj.type} ${obj.name} could not be relocated out of ${c.foundIn ?? "its legacy package"}: the delete was sent, but a read-back confirmed the object is still there.`,
@@ -104562,8 +104548,8 @@ async function actOnClassification(conn, gate, ledgerKey, tool, obj, expectedSou
         type: obj.type,
         name: obj.name
       });
-      const del3 = await deleteObject(conn, authorizedDelete, { onBeforeImage: NO_JOURNAL });
-      if (del3.deleted === false) {
+      const del = await deleteObject(conn, authorizedDelete, { onBeforeImage: NO_JOURNAL });
+      if (del.deleted === false) {
         throw new AbapError(
           "FLUID_OBJECT_CONFLICT",
           `${obj.type} ${obj.name} could not be repaired: the delete was sent, but a read-back confirmed the object is still there.`,
@@ -105329,8 +105315,8 @@ async function dispatch2(deps, req) {
       what: `Activation of the generated fluid invoker ${name}`,
       verify: (activation) => verifyBridgeActivation(activation, name, "fluid invoker")
     });
-    const run3 = await executeBridge(deps.conn, deps.gate, deployedBridge2);
-    return { ensureResult: ensureResult2, deployedBridge: deployedBridge2, run: run3 };
+    const run2 = await executeBridge(deps.conn, deps.gate, deployedBridge2);
+    return { ensureResult: ensureResult2, deployedBridge: deployedBridge2, run: run2 };
   };
   const redeployAndRetryOnce = async () => {
     await recoverMissingFluidObject(deps.conn, deps.gate, deps.cfg, tool, {
@@ -105343,23 +105329,23 @@ async function dispatch2(deps, req) {
   };
   let ensureResult;
   let deployedBridge;
-  let run2;
+  let run;
   try {
-    ({ ensureResult, deployedBridge, run: run2 } = await runDeployAndExecute());
+    ({ ensureResult, deployedBridge, run } = await runDeployAndExecute());
   } catch (e) {
     if (!isAbapError(e)) throw e;
     if (e.code !== "NOT_FOUND" && e.code !== "RUNTIME_DUMP" && e.code !== "CHECK_FAILED") throw e;
     await deps.conn.connect();
     const missing = await anyFluidObjectMissing(deps.conn, tool);
     if (!missing) throw e;
-    ({ ensureResult, deployedBridge, run: run2 } = await redeployAndRetryOnce());
+    ({ ensureResult, deployedBridge, run } = await redeployAndRetryOnce());
   }
-  let transcript = parseFluidConsole(run2.output);
+  let transcript = parseFluidConsole(run.output);
   let identity = assertTranscriptIdentity(transcript, req);
   if (identity.begin && identity.begin.ver !== tool.version) {
     const expectedVersion = tool.version;
-    ({ ensureResult, deployedBridge, run: run2 } = await redeployAndRetryOnce());
-    transcript = parseFluidConsole(run2.output);
+    ({ ensureResult, deployedBridge, run } = await redeployAndRetryOnce());
+    transcript = parseFluidConsole(run.output);
     identity = assertTranscriptIdentity(transcript, req);
     if (identity.begin && identity.begin.ver !== expectedVersion) {
       throw new AbapError(
@@ -105438,7 +105424,7 @@ async function runClassicAction(conn, gate, opts) {
     completed: opts.completed,
     partialHint: opts.partialHint
   });
-  const run2 = {
+  const run = {
     mode: "class",
     object: CLASSIC_BODY_CLASS,
     output: raw,
@@ -105448,7 +105434,7 @@ async function runClassicAction(conn, gate, opts) {
     bodyBytes: raw.length,
     outputComplete: !fr.truncated
   };
-  return { run: run2, transcript };
+  return { run, transcript };
 }
 
 // src/adt/package-delete.ts
@@ -105523,7 +105509,7 @@ async function deletePackageViaBridge(conn, gate, params) {
       );
     }
   };
-  const { run: run2, transcript } = await runClassicAction(conn, gate, {
+  const { run, transcript } = await runClassicAction(conn, gate, {
     action: "delete_package",
     args: { package_name: packageName, corr_nr: corrNr },
     what: `Deleting package ${packageName}`,
@@ -105531,7 +105517,7 @@ async function deletePackageViaBridge(conn, gate, params) {
     beforeAssert
   });
   const { contents } = parsePackageContents(transcript.raw);
-  return { run: run2, transcript, contents };
+  return { run, transcript, contents };
 }
 
 // src/adt/write.ts
@@ -107501,12 +107487,12 @@ async function readTableIndexes(conn, table, opts) {
     if (id === "") continue;
     const position = Number(row2[fld("indexField", "position")] ?? "0");
     const field = row2[fld("indexField", "field")] ?? "";
-    const list5 = fieldsByIndex.get(id);
+    const list3 = fieldsByIndex.get(id);
     const entry = { position: Number.isNaN(position) ? 0 : position, field };
-    if (list5) list5.push(entry);
+    if (list3) list3.push(entry);
     else fieldsByIndex.set(id, [entry]);
   }
-  for (const list5 of fieldsByIndex.values()) list5.sort((a, b) => a.position - b.position);
+  for (const list3 of fieldsByIndex.values()) list3.sort((a, b) => a.position - b.position);
   const indexes = [...byIndex.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([id, row2]) => {
     const activation = row2[fld("indexHeader", "activation")] ?? "";
     return {
@@ -108016,12 +108002,12 @@ function leafTexts(xml3) {
   const push = (name, text4) => {
     const trimmed = text4.trim();
     if (!trimmed) return;
-    let list5 = out.get(name);
-    if (!list5) {
-      list5 = [];
-      out.set(name, list5);
+    let list3 = out.get(name);
+    if (!list3) {
+      list3 = [];
+      out.set(name, list3);
     }
-    list5.push(trimmed);
+    list3.push(trimmed);
   };
   START_TAG.lastIndex = 0;
   let m;
@@ -108169,7 +108155,7 @@ async function createPackageViaBridge(conn, gate, params) {
     { activate: false, corr }
   );
   const expectTags = superPackage !== void 0 ? ["PKG-CREATED", "PKG-PARENT-SET", "PKG-CONFIRMED"] : ["PKG-CREATED", "PKG-CONFIRMED"];
-  const { run: run2, transcript } = await runClassicAction(conn, gate, {
+  const { run, transcript } = await runClassicAction(conn, gate, {
     action: "create_package",
     args: {
       package_name: packageName,
@@ -108190,7 +108176,7 @@ async function createPackageViaBridge(conn, gate, params) {
     partialHint: "SAP may also have created a transport request and a task to hold the new package's lock. abapsmith did not create them and cannot see them from this response \u2014 abap_transport operation=list shows the requests owned by this user."
   });
   const tdevc = parseTdevcLine(transcript.raw);
-  return { run: run2, transcript, tdevc };
+  return { run, transcript, tdevc };
 }
 
 // src/tools/write.ts
@@ -110207,8 +110193,8 @@ async function readSearchHelpImpl(conn, name, language, opts) {
     notes.push(...serverNotes2(rs));
   }
   const normalizedName = name.trim().toUpperCase();
-  const norm3 = (v) => (v ?? "").trim().toUpperCase();
-  const isSelfShlpRow = (r) => norm3(r[fld2("searchHelpInclude", "searchHelp")]) === normalizedName && norm3(r[fld2("searchHelpInclude", "includedHelp")]) === normalizedName;
+  const norm = (v) => (v ?? "").trim().toUpperCase();
+  const isSelfShlpRow = (r) => norm(r[fld2("searchHelpInclude", "searchHelp")]) === normalizedName && norm(r[fld2("searchHelpInclude", "includedHelp")]) === normalizedName;
   const includeSelfFound = includes.rs.records.some(isSelfShlpRow);
   const parentSelfFound = parents.rs.records.some(isSelfShlpRow);
   const includesRs = { ...includes.rs, records: includes.rs.records.filter((r) => !isSelfShlpRow(r)) };
@@ -110600,19 +110586,6 @@ function assertDdicDescriptorShape(type, name, xml3) {
 }
 var ADTCORE_NS2 = "http://www.sap.com/adt/core";
 var XML_DECL = '<?xml version="1.0" encoding="UTF-8"?>';
-var DDIC_TYPE_KINDS = ["domain", "predefinedAbapType", "dictionaryType"];
-function isDdicTypeKind(s) {
-  return DDIC_TYPE_KINDS.includes(s);
-}
-function assertDdicTypeKind(requested) {
-  if (isDdicTypeKind(requested)) return requested;
-  throw new AbapError(
-    "BAD_INPUT",
-    `ddic.typeKind "${requested}" is not one of the accepted values.`,
-    { requested, allowed: [...DDIC_TYPE_KINDS] },
-    `Use one of: ${DDIC_TYPE_KINDS.join(", ")}.`
-  );
-}
 var DOMA_FIELDS = /* @__PURE__ */ new Set(["dataType", "length", "decimals", "outputLength", "lowercase", "signExists"]);
 var DTEL_FIELDS = /* @__PURE__ */ new Set([
   "typeKind",
@@ -110763,7 +110736,7 @@ init_types();
 init_compact();
 init_safety();
 
-// src/tools/v2/edit.ts
+// src/tools/edit.ts
 var EditInputError = class extends Error {
 };
 var toLf = (s) => s.replace(/\r\n/g, "\n");
@@ -111080,7 +111053,7 @@ function transportPreviewNote(target, input) {
   return `${target.packageName} is transportable, so a real write would ask CTS for a request (possibly creating one) and judge the resolved number against the safety gate's transport allowlist; this dry run made no CTS call, so that second gate check did not run \u2014 a preview that looks clean can still be refused there.`;
 }
 function buildWriteDryRunResponse(args) {
-  const { conn, target, input, source, current, expectEtag, formatted, journalled: journalled2, maxChars } = args;
+  const { conn, target, input, source, current, expectEtag, formatted, journalled, maxChars } = args;
   const diff = diffSources(current ?? "", source, {
     context: DEFAULT_CONTEXT_LINES,
     maxHunks: WRITE_DRY_RUN_MAX_HUNKS
@@ -111121,7 +111094,7 @@ function buildWriteDryRunResponse(args) {
   if (input.activate === false) {
     notes.push("`activate: false` on this call means a real write would skip activation.");
   }
-  if (!journalled2) {
+  if (!journalled) {
     notes.push("The write journal is off, so a real write would not be undoable through abap_journal.");
   }
   return buildResponse({
@@ -111149,12 +111122,12 @@ function buildWriteDryRunResponse(args) {
   });
 }
 function buildDeleteDryRunResponse(args) {
-  const { conn, target, input, journalled: journalled2, maxChars } = args;
+  const { conn, target, input, journalled, maxChars } = args;
   const notes = [
     "Dry run: nothing was deleted and nothing was journalled \u2014 no lock, DELETE or CTS call was made. Every request this preview made was a read.",
     "The safety gate ran on this preview at the same point and with the same inputs as a real delete (authorizeMutation, with the transport still unresolved) \u2014 a refusal would have been returned instead of this response.",
     transportPreviewNote(target, input),
-    journalled2 ? "A real delete would attempt to capture a before-image first and, if that capture succeeds, would be undoable through abap_journal mode=undo." : "The write journal is off, so a real delete would be irreversible."
+    journalled ? "A real delete would attempt to capture a before-image first and, if that capture succeeds, would be undoable through abap_journal mode=undo." : "The write journal is off, so a real delete would be irreversible."
   ];
   return buildResponse({
     header: {
@@ -111481,8 +111454,8 @@ function tableDeleteIndexNote(tableName, indexes, readFailure) {
   if (indexes.length === 0) {
     return `${tableName} had no secondary index (DD12V read before the delete returned zero rows).`;
   }
-  const list5 = indexes.map((i) => `${i.id} (${i.fields.length ? i.fields.join(", ") : "no fields on record"})`).join("; ");
-  return `${tableName} had ${indexes.length} secondary index${indexes.length === 1 ? "" : "es"}, defined over its fields, and ${indexes.length === 1 ? "it goes" : "they go"} with the table: ${list5}.`;
+  const list3 = indexes.map((i) => `${i.id} (${i.fields.length ? i.fields.join(", ") : "no fields on record"})`).join("; ");
+  return `${tableName} had ${indexes.length} secondary index${indexes.length === 1 ? "" : "es"}, defined over its fields, and ${indexes.length === 1 ? "it goes" : "they go"} with the table: ${list3}.`;
 }
 function describeVerification(v) {
   const parts = [`uri ${v.uri}`];
@@ -111990,11 +111963,11 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
       })
     );
     await settle2({ outcome: "succeeded", activation: { attempted: false } });
-    const journalled3 = entryId2 !== void 0;
+    const journalled2 = entryId2 !== void 0;
     if (res.deleted === false) {
       throw new AbapError(
         "CHECK_FAILED",
-        `abap_write mode=delete: ${deleteNotConfirmedSentence(res.target.type, res.target.name, res.verification)}.` + (journalled3 ? ` The delete was journalled as ${entryId2}, so abap_journal mode=undo entry=${entryId2} can restore it.` : " Nothing was journalled, so there is no undo entry for it."),
+        `abap_write mode=delete: ${deleteNotConfirmedSentence(res.target.type, res.target.name, res.verification)}.` + (journalled2 ? ` The delete was journalled as ${entryId2}, so abap_journal mode=undo entry=${entryId2} can restore it.` : " Nothing was journalled, so there is no undo entry for it."),
         {
           reason: "DELETE_NOT_CONFIRMED",
           object: res.target.name,
@@ -112002,7 +111975,7 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
           uri: res.target.uri,
           deleted: false,
           verification: res.verification,
-          ...journalled3 ? { journalEntry: entryId2 } : {}
+          ...journalled2 ? { journalEntry: entryId2 } : {}
         },
         "Re-read the object with abap_read to see its current state before retrying the delete."
       );
@@ -112020,7 +111993,7 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
         markers: res.markers?.join(" "),
         transport: transportHeaderText(res.transport),
         ...res.corrNrHonoured === false ? { corr_nr_honoured: false } : {},
-        journal: journalled3 ? entryId2 : "off (nothing recorded)"
+        journal: journalled2 ? entryId2 : "off (nothing recorded)"
       },
       notes: [
         entryId2 !== void 0 ? (
@@ -112154,12 +112127,12 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
   const propertiesShape = caps?.write?.shape === "properties";
   const wantActivate = (input.activate ?? true) && caps?.activate !== false;
   const activationSuppressed = (input.activate ?? true) && !wantActivate;
-  let check4;
+  let check2;
   let activation;
   let attempted = false;
   try {
-    check4 = propertiesShape ? { ok: true, messages: [], errors: 0, warnings: 0 } : await checkSource(conn, written.target, source);
-    if (wantActivate && check4.ok) {
+    check2 = propertiesShape ? { ok: true, messages: [], errors: 0, warnings: 0 } : await checkSource(conn, written.target, source);
+    if (wantActivate && check2.ok) {
       const observed = await readCurrentSource(conn, { ...written.target, exists: true });
       const observedEtag = observed === void 0 ? null : canonicalEtag(observed);
       if (observedEtag !== written.etag) {
@@ -112212,25 +112185,25 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
       try {
         assertNoErrors(activation, { what: "Activation", name: objectName, source });
       } catch (ae) {
-        if (isAbapError(ae) && check4.messages.length > 0) {
+        if (isAbapError(ae) && check2.messages.length > 0) {
           throw new AbapError(
             ae.code,
             ae.message,
             {
               ...ae.details,
-              preflightMessages: renderMessages(check4.messages, source),
-              preflightRaw: check4.messages
+              preflightMessages: renderMessages(check2.messages, source),
+              preflightRaw: check2.messages
             },
             ae.hint
           );
         }
         throw ae;
       }
-    } else if (wantActivate && !check4.ok) {
+    } else if (wantActivate && !check2.ok) {
       throw new AbapError(
         "CHECK_FAILED",
-        `syntax check reported ${check4.errors} error(s), ${check4.warnings} warning(s)`,
-        { messages: check4.messages }
+        `syntax check reported ${check2.errors} error(s), ${check2.warnings} warning(s)`,
+        { messages: check2.messages }
       );
     }
   } catch (e) {
@@ -112253,7 +112226,7 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
         throw new AbapError(e.code, e.message, { ...e.details, journalError }, e.hint);
       }
     }
-    const journalled3 = entryId !== void 0;
+    const journalled2 = entryId !== void 0;
     const cause = isAbapError(e) ? e.message : String(e);
     throw new AbapError(
       "CHECK_FAILED",
@@ -112266,7 +112239,7 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
         package: written.target.packageName,
         created: written.created,
         etag: written.etag,
-        ...journalled3 ? { journal: entryId } : {},
+        ...journalled2 ? { journal: entryId } : {},
         ...journalError ? { journalError } : {},
         failure: isAbapError(e) ? {
           code: e.code,
@@ -112275,7 +112248,7 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
           ...e.hint ? { hint: e.hint } : {}
         } : cause
       },
-      "The write itself succeeded and is NOT rolled back: the new source is on the server and the object is INACTIVE, so it will not execute and callers still see the last active version. Fix the reported lines and write again to activate it" + (journalled3 ? `, or restore the previous source with abap_journal mode=undo entry=${entryId}.` : ". The write journal is off, so abapsmith cannot undo this for you \u2014 write the previous source back by hand if you need the old version.") + (journalError ? ` NOTE: the journal entry could not be settled (${journalError}), so ${entryId} may still read as pending and undo may decline it \u2014 check abap_journal first.` : "")
+      "The write itself succeeded and is NOT rolled back: the new source is on the server and the object is INACTIVE, so it will not execute and callers still see the last active version. Fix the reported lines and write again to activate it" + (journalled2 ? `, or restore the previous source with abap_journal mode=undo entry=${entryId}.` : ". The write journal is off, so abapsmith cannot undo this for you \u2014 write the previous source back by hand if you need the old version.") + (journalError ? ` NOTE: the journal entry could not be settled (${journalError}), so ${entryId} may still read as pending and undo may decline it \u2014 check abap_journal first.` : "")
     );
   }
   await settle({
@@ -112330,9 +112303,9 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
       expectType: written.target.type
     });
   }
-  const journalled2 = entryId !== void 0;
+  const journalled = entryId !== void 0;
   const blocks = [];
-  const checkText = renderMessages(check4.messages, source);
+  const checkText = renderMessages(check2.messages, source);
   if (checkText.trim()) blocks.push(`# SYNTAX CHECK
 ${checkText}`);
   if (activation) {
@@ -112401,7 +112374,7 @@ ${renderInactive(activation.inactive)}`);
     notes.push(
       `SIZE: this write REMOVED ${shrink.removedLines} of ${shrink.beforeLines} line(s) (${shrink.percent}% of the object). If you did not intend to delete that much \u2014 the usual cause is editing and writing back the text from a TRUNCATED read \u2014 ` + // Must be true of THIS call — naming undo when the journal is off would
       // contradict the "journal is OFF" note a few lines below.
-      (journalled2 ? "undo it with abap_journal mode=undo before anything else touches the object." : "restore it NOW: the write journal is off, so there is no before-image to undo from and the removed lines exist only in whatever copy you still hold.")
+      (journalled ? "undo it with abap_journal mode=undo before anything else touches the object." : "restore it NOW: the write journal is off, so there is no before-image to undo from and the removed lines exist only in whatever copy you still hold.")
     );
   }
   if (written.normalisedSource) {
@@ -112414,7 +112387,7 @@ ${renderInactive(activation.inactive)}`);
       "format:true \u2014 the source was pretty-printed before saving; the bytes on the server are not the bytes you sent. Re-read before editing again."
     );
   }
-  if (journalled2) {
+  if (journalled) {
     notes.push(
       written.created ? `Journalled as ${entryId}. This object did not exist before, so undo DELETES it.` : `Journalled as ${entryId}, with the previous source kept as the before-image.`
     );
@@ -112423,7 +112396,7 @@ ${renderInactive(activation.inactive)}`);
   } else if (!written.changed) {
     notes.push("Source was already identical \u2014 nothing was written, so nothing was journalled.");
   }
-  const conclusive = wantActivate && (activation?.activated === true || activationSuppressed) && (propertiesShape || check4.ok) && !dropWarned && (written.created === true || finalEtag !== written.previousEtag) && postActivationReadError === void 0 && (!(propertiesShape && activation?.activated === true) || readBackActive);
+  const conclusive = wantActivate && (activation?.activated === true || activationSuppressed) && (propertiesShape || check2.ok) && !dropWarned && (written.created === true || finalEtag !== written.previousEtag) && postActivationReadError === void 0 && (!(propertiesShape && activation?.activated === true) || readBackActive);
   if (conclusive) {
     const etagAdvanced = !written.created && written.previousEtag !== void 0 && finalEtag !== written.previousEtag;
     const landedClause = readBackActive ? `abapsmith read it back from the server after activation and the server returned it as the active version` : "the server accepted the write, a read-back taken before activation confirmed the stored source matches the etag reported above" + (etagAdvanced ? ", that etag differs from the pre-write one" : "") + ", and activation reported success";
@@ -112470,7 +112443,7 @@ ${renderInactive(activation.inactive)}`);
       previousEtag: written.previousEtag,
       transport: transportHeaderText(written.transport),
       ...written.corrNrOverrode !== void 0 ? { corr_nr_honoured: false } : {},
-      check: propertiesShape ? "n/a (XML descriptor \u2014 validated by the server on write)" : check4.ok ? "clean" : `${check4.errors} error(s), ${check4.warnings} warning(s)`,
+      check: propertiesShape ? "n/a (XML descriptor \u2014 validated by the server on write)" : check2.ok ? "clean" : `${check2.errors} error(s), ${check2.warnings} warning(s)`,
       activated: activation ? activation.activated : activationSuppressed ? "n/a (always active)" : "skipped",
       verify: verifyMode === "speculative" ? readBackActive ? "confirmed \u2014 read back after activation" : readBackPresent ? "read back after activation \u2014 NOT reported active" : (
         // "not read back" beside the CONCLUSIVE note is the strongest available
@@ -112479,7 +112452,7 @@ ${renderInactive(activation.inactive)}`);
         conclusive ? "speculative \u2014 matched a read-back taken before activation, not after" : "speculative (not read back)"
       ) : verifyOutcome?.status === "confirmed" ? `verified \u2014 confirmed present via ${verifyOutcome.via}` : "verified \u2014 NOT confirmed (see NOTE)",
       formatted: !input.format ? "no" : formatted?.changed ? `${formatted.linesChanged} line(s)` : "no change",
-      journal: journalled2 ? entryId : "off (nothing recorded)"
+      journal: journalled ? entryId : "off (nothing recorded)"
     },
     body: blocks.join("\n\n"),
     bodyLabel: "MESSAGES",
@@ -112487,7 +112460,7 @@ ${renderInactive(activation.inactive)}`);
     hints: [
       "Pass expect_etag from the last abap_read to make the next write compare-before-write.",
       "Use abap_activate mode=check to syntax-check a draft without saving it.",
-      ...journalled2 ? [`Revert this change with abap_journal mode=undo entry=${entryId}.`] : []
+      ...journalled ? [`Revert this change with abap_journal mode=undo entry=${entryId}.`] : []
     ],
     maxChars
   });
@@ -112643,7 +112616,7 @@ async function abapWriteBatchDelete(conn, entries, maxChars, gate, journal, tran
   const confirmed = succeeded.filter((o) => o.deleted === true);
   const unverified = succeeded.filter((o) => o.deleted === "unverified");
   const absent = outcomes.filter((o) => o.deleted === "already-absent");
-  const journalled2 = outcomes.filter((o) => o.journalEntry !== void 0);
+  const journalled = outcomes.filter((o) => o.journalEntry !== void 0);
   const body = outcomes.map((o) => {
     if (!o.ok) {
       return `${o.type} ${o.name}: FAILED \u2014 [${o.error.code}] ${o.error.message}` + (o.journalEntry ? ` (journalled as ${o.journalEntry}, still recoverable)` : "");
@@ -112700,8 +112673,8 @@ async function abapWriteBatchDelete(conn, entries, maxChars, gate, journal, tran
     // own plain statement (no object existed) rather than a "0 confirmed deleted" reading.
     notes: [
       absent.length === outcomes.length ? `None of the ${outcomes.length} object(s) in this batch existed on ${conn.cfg.sid} \u2014 nothing was deleted.` : unverified.length > 0 || absent.length > 0 ? `${confirmed.length} of ${outcomes.length} object(s) confirmed deleted` + (unverified.length > 0 ? `; ${unverified.length} unverified` : "") + (absent.length > 0 ? `; ${absent.length} already absent` : "") + (unverified.length > 0 ? " \u2014 see the UNVERIFIED marker(s) above." : ".") : `All ${outcomes.length} object(s) were deleted.`,
-      ...journalled2.length > 0 ? [
-        `${journalled2.length} deletion(s) were journalled individually \u2014 abap_journal mode=undo entry=<id> re-creates any ONE of them from its own before-image; there is no single id for the whole batch.`
+      ...journalled.length > 0 ? [
+        `${journalled.length} deletion(s) were journalled individually \u2014 abap_journal mode=undo entry=<id> re-creates any ONE of them from its own before-image; there is no single id for the whole batch.`
       ] : [],
       // Every outcome here is a success (a failure of any kind throws above), so
       // `succeeded` and `outcomes` coincide. An already-absent entry is also `ok: true`
@@ -112776,7 +112749,7 @@ async function abapCreatePackage(conn, target, input, maxChars, gate, trOpts, jo
       })
     );
     await settle2({ outcome: "succeeded", activation: { attempted: false } });
-    const journalled3 = entryId2 !== void 0;
+    const journalled2 = entryId2 !== void 0;
     return buildResponse({
       header: {
         system: conn.cfg.sid,
@@ -112791,11 +112764,11 @@ async function abapCreatePackage(conn, target, input, maxChars, gate, trOpts, jo
         package_type: res.packageType,
         transport_layer: res.transportLayer,
         transport: transportHeaderText(res.transport),
-        journal: journalled3 ? entryId2 : "off (nothing recorded)"
+        journal: journalled2 ? entryId2 : "off (nothing recorded)"
       },
       notes: [
         transportNote(res.transport, gate.config?.abapMode),
-        journalled3 ? `Journalled as ${entryId2}. abap_journal mode=undo deletes it while it stays empty (abapsmith can also delete it directly, abap_write mode=delete). SE80/SE21 otherwise.` : "The write journal is OFF. abapsmith can still delete this package directly (abap_write mode=delete) while it stays empty, or remove it in SE80/SE21.",
+        journalled2 ? `Journalled as ${entryId2}. abap_journal mode=undo deletes it while it stays empty (abapsmith can also delete it directly, abap_write mode=delete). SE80/SE21 otherwise.` : "The write journal is OFF. abapsmith can still delete this package directly (abap_write mode=delete) while it stays empty, or remove it in SE80/SE21.",
         ...res.superPackage === void 0 ? [
           "ROOT package: no parent, no allowlisted container \u2014 permitted only because ABAP_ALLOW_PACKAGES has the explicit `*` entry. Attach it to a parent, or delete it directly (it's still deletable while empty)."
         ] : []
@@ -112871,7 +112844,7 @@ async function abapCreatePackage(conn, target, input, maxChars, gate, trOpts, jo
     }
   );
   await settle({ outcome: "succeeded", activation: { attempted: false } });
-  const journalled2 = entryId !== void 0;
+  const journalled = entryId !== void 0;
   const verifyOutcome = await verifyViaRepositorySearch(conn, target.name, "DEVC/K");
   let verified;
   let verifyNote;
@@ -112907,7 +112880,7 @@ async function abapCreatePackage(conn, target, input, maxChars, gate, trOpts, jo
       bridge_class: CLASSIC_BODY_CLASS,
       markers: bridgeRes.transcript.tags.join(" "),
       tdevc: bridgeRes.tdevc ? `DEVCLASS=${bridgeRes.tdevc.devclass} PARENTCL=${bridgeRes.tdevc.parentcl} DLVUNIT=${bridgeRes.tdevc.dlvunit} KORRFLAG=${bridgeRes.tdevc.korrflag}` : void 0,
-      journal: journalled2 ? entryId : "off (nothing recorded)"
+      journal: journalled ? entryId : "off (nothing recorded)"
     },
     notes: [
       transportNote(transportInfo, gate.config?.abapMode),
@@ -112917,7 +112890,7 @@ async function abapCreatePackage(conn, target, input, maxChars, gate, trOpts, jo
         softwareComponent,
         ...superPackage !== void 0 ? { superPackage } : {}
       }),
-      journalled2 ? `Journalled as ${entryId}. abap_journal mode=undo deletes it while it stays empty (abapsmith can also delete it directly, abap_write mode=delete). SE80/SE21 otherwise.` : "The write journal is OFF. abapsmith can still delete this package directly (abap_write mode=delete) while it stays empty, or remove it in SE80/SE21.",
+      journalled ? `Journalled as ${entryId}. abap_journal mode=undo deletes it while it stays empty (abapsmith can also delete it directly, abap_write mode=delete). SE80/SE21 otherwise.` : "The write journal is OFF. abapsmith can still delete this package directly (abap_write mode=delete) while it stays empty, or remove it in SE80/SE21.",
       ...superPackage === void 0 ? [
         "This is a ROOT package: it sits under no parent, in no container that any allowlist names. It was permitted only because ABAP_ALLOW_PACKAGES contains the explicit `*` wildcard entry. Attach it to a parent, or delete it directly (it's still deletable while empty)."
       ] : [],
@@ -114261,7 +114234,7 @@ function registerWriteTools(mcp, deps) {
             });
           }
           await deps.ensureConnected();
-          const run2 = (conn) => abapWrite(
+          const run = (conn) => abapWrite(
             conn,
             args,
             deps.cfg.maxResponseChars,
@@ -114270,7 +114243,7 @@ function registerWriteTools(mcp, deps) {
             deps.transport,
             deps.cfg.verifyWrites
           );
-          const res2 = await deps.pool.withWrite("abap_write", void 0, run2);
+          const res2 = await deps.pool.withWrite("abap_write", void 0, run);
           return ok(res2.text);
         }
         if (a.object === void 0) {
@@ -114344,7 +114317,7 @@ var activateInputSchema = {
   ).min(1).max(MAX_ACTIVATION_BATCH).optional().describe("Batch activate, 2+ objects; omit `object`. mode=activate only.")
 };
 var ActivateInput = external_exports.object(activateInputSchema);
-async function journalActivations(journal, conn, items, run2, onThrow) {
+async function journalActivations(journal, conn, items, run, onThrow) {
   const ids = [];
   const settleAll = async (patchFor) => {
     if (!journal) return;
@@ -114386,7 +114359,7 @@ async function journalActivations(journal, conn, items, run2, onThrow) {
   }
   let result;
   try {
-    result = await run2();
+    result = await run();
   } catch (e) {
     await settleAll((i) => onThrow ? onThrow(e, i) : { outcome: "failed", error: String(e) });
     throw e;
@@ -114522,10 +114495,10 @@ async function abapActivate(conn, input, maxChars, gate, transport, journal, ver
     }
     checkedSavedSource = true;
   }
-  const check4 = source !== void 0 ? await checkSource(conn, target, source) : void 0;
+  const check2 = source !== void 0 ? await checkSource(conn, target, source) : void 0;
   let activation;
   let corrNr;
-  if (mode === "activate" && (check4 === void 0 || check4.ok)) {
+  if (mode === "activate" && (check2 === void 0 || check2.ok)) {
     if (transport) {
       const res = await transport.resolve(
         conn,
@@ -114557,7 +114530,7 @@ async function abapActivate(conn, input, maxChars, gate, transport, journal, ver
         }
       );
     }
-    const journalled2 = await journalActivations(
+    const journalled = await journalActivations(
       journal,
       conn,
       [
@@ -114579,20 +114552,20 @@ async function abapActivate(conn, input, maxChars, gate, transport, journal, ver
         return outcome;
       }
     );
-    activation = journalled2.result;
-    const settledMessages = journalMessages(journalled2.result.messages);
-    await journalled2.settle(() => ({
+    activation = journalled.result;
+    const settledMessages = journalMessages(journalled.result.messages);
+    await journalled.settle(() => ({
       outcome: "succeeded",
       activation: {
         attempted: true,
-        activated: journalled2.result.activated,
+        activated: journalled.result.activated,
         ...settledMessages !== void 0 ? { messages: settledMessages } : {}
       }
     }));
   }
   const blocks = [];
-  if (check4) {
-    const checkText = renderMessages(check4.messages, source);
+  if (check2) {
+    const checkText = renderMessages(check2.messages, source);
     blocks.push(`# SYNTAX CHECK
 ${checkText.trim() || "(no messages)"}`);
   }
@@ -114618,7 +114591,7 @@ ${renderInactive(activation.inactive)}`);
       (gate.config?.abapMode !== void 0 ? "ABAP_MODE=admin (ABAP_ALLOW_TRANSPORT_RELEASE is not read while ABAP_MODE is set)." : "ABAP_ALLOW_TRANSPORT_RELEASE is set.")
     );
   }
-  if (mode === "activate" && check4 !== void 0 && !check4.ok) {
+  if (mode === "activate" && check2 !== void 0 && !check2.ok) {
     notes.push("Activation was SKIPPED: the syntax check reported errors. Nothing changed.");
   }
   if (input.source) {
@@ -114644,7 +114617,7 @@ ${renderInactive(activation.inactive)}`);
       // "requested" = object doesn't exist yet, nothing to confirm.
       package_source: target.packageSource,
       mode,
-      result: check4 ? check4.ok ? "clean" : `${check4.errors} error(s), ${check4.warnings} warning(s)` : activation ? activation.ok ? "clean (no pre-flight check ran)" : `${activation.errors} error(s), ${activation.warnings} warning(s)` : "not checked",
+      result: check2 ? check2.ok ? "clean" : `${check2.errors} error(s), ${check2.warnings} warning(s)` : activation ? activation.ok ? "clean (no pre-flight check ran)" : `${activation.errors} error(s), ${activation.warnings} warning(s)` : "not checked",
       activated: activation ? activation.activated : mode === "activate" ? false : "n/a",
       ...corrNr === void 0 ? {} : { transport: corrNr }
     },
@@ -114718,7 +114691,7 @@ async function abapActivateBatch(conn, entries, maxChars, gate, transport, journ
     });
   }
   let dispositions = targets.map(() => "not-sent");
-  const journalled2 = await journalActivations(
+  const journalled = await journalActivations(
     journal,
     conn,
     journalItems,
@@ -114733,8 +114706,8 @@ async function abapActivateBatch(conn, entries, maxChars, gate, transport, journ
     },
     (e, i) => activationThrowPatch(dispositions[i] ?? "unknown", targets[i]?.name ?? `object ${i + 1}`, e)
   );
-  const outcome = journalled2.result;
-  await journalled2.settle((i) => {
+  const outcome = journalled.result;
+  await journalled.settle((i) => {
     const per = outcome.perObject[i];
     const messages = per ? journalMessages(per.messages) : void 0;
     return {
@@ -114978,8 +114951,8 @@ function registerActivateTools(mcp, deps) {
             });
           }
           await deps.ensureConnected();
-          const run3 = (conn) => abapActivate(conn, args, deps.cfg.maxResponseChars, deps.safety, deps.transport, deps.journal);
-          const res2 = await deps.pool.withWrite("abap_activate", void 0, run3);
+          const run2 = (conn) => abapActivate(conn, args, deps.cfg.maxResponseChars, deps.safety, deps.transport, deps.journal);
+          const res2 = await deps.pool.withWrite("abap_activate", void 0, run2);
           return ok2(res2.text);
         }
         if (mode === "format") {
@@ -115010,7 +114983,7 @@ function registerActivateTools(mcp, deps) {
           if (a.object === void 0) {
             await deps.ensureConnected();
             deps.safety.assert("read");
-            const run4 = (conn) => abapActivate(
+            const run3 = (conn) => abapActivate(
               conn,
               args,
               deps.cfg.maxResponseChars,
@@ -115019,7 +114992,7 @@ function registerActivateTools(mcp, deps) {
               deps.journal,
               deps.cfg.verifyWrites
             );
-            const res3 = await deps.pool.withRead("abap_activate", run4);
+            const res3 = await deps.pool.withRead("abap_activate", run3);
             return ok2(res3.text);
           }
           const object4 = a.object;
@@ -115028,7 +115001,7 @@ function registerActivateTools(mcp, deps) {
             corr: { kind: "unresolved" }
           });
           await deps.ensureConnected();
-          const run3 = (conn) => abapActivate(
+          const run2 = (conn) => abapActivate(
             conn,
             args,
             deps.cfg.maxResponseChars,
@@ -115037,7 +115010,7 @@ function registerActivateTools(mcp, deps) {
             deps.journal,
             deps.cfg.verifyWrites
           );
-          const res2 = await deps.pool.withWrite("abap_activate", writeGateKey(object4, a.type), run3);
+          const res2 = await deps.pool.withWrite("abap_activate", writeGateKey(object4, a.type), run2);
           return ok2(res2.text);
         }
         if (a.object === void 0) {
@@ -115060,8 +115033,8 @@ function registerActivateTools(mcp, deps) {
           deps.safety.assert("analyze", preflight({ object: object3, type: a.type }), { phase: "preflight" });
         }
         await deps.ensureConnected();
-        const run2 = (conn) => abapActivate(conn, args, deps.cfg.maxResponseChars, deps.safety, deps.transport, deps.journal);
-        const res = mode === "activate" ? await deps.pool.withWrite("abap_activate", writeGateKey(object3, a.type), run2) : await deps.pool.withRead("abap_activate", run2);
+        const run = (conn) => abapActivate(conn, args, deps.cfg.maxResponseChars, deps.safety, deps.transport, deps.journal);
+        const res = mode === "activate" ? await deps.pool.withWrite("abap_activate", writeGateKey(object3, a.type), run) : await deps.pool.withRead("abap_activate", run);
         return ok2(res.text);
       } catch (e) {
         return deps.errorResult(e);
@@ -115781,7 +115754,7 @@ function mapCheckRows(action, result, expectedOrigin) {
     if (origin !== expectedOrigin) {
       fail2(action, `row ${i}.origin is "${origin}", expected "${expectedOrigin}" for action "${action}"`, result);
     }
-    const check4 = {
+    const check2 = {
       origin,
       object: reqString(action, r, "object", result),
       rc: reqString(action, r, "rc", result),
@@ -115792,7 +115765,7 @@ function mapCheckRows(action, result, expectedOrigin) {
       tcode: reqString(action, r, "tcode", result),
       timestamp: reqString(action, r, "timestamp", result)
     };
-    return check4;
+    return check2;
   });
 }
 async function authTraceOn(deps, user, opts = {}) {
@@ -116326,15 +116299,15 @@ function firstFreeLane(limit) {
 function assertDebugWrite(gate, target, phase = "final") {
   return gate.authorize("execute", target, { phase });
 }
-function assertSessionWrite(gate, run2) {
-  return assertDebugWrite(gate, run2.gateTarget.target, run2.gateTarget.phase);
+function assertSessionWrite(gate, run) {
+  return assertDebugWrite(gate, run.gateTarget.target, run.gateTarget.phase);
 }
 function shutdownDebugTools() {
   const runs = debugLanes;
   debugLanes = [];
-  for (const run2 of runs) {
-    run2?.closeTriggerConn();
-    void run2?.closeSessionConn();
+  for (const run of runs) {
+    run?.closeTriggerConn();
+    void run?.closeSessionConn();
   }
 }
 var TIMED_OUT = /* @__PURE__ */ Symbol("debug.timed-out");
@@ -116549,8 +116522,8 @@ function lineStepUri(stack, toLine) {
   }
   return withStartFragment(frame.uri.split("#")[0], toLine);
 }
-async function composeStopOutput(run2, action, stack, stateId, maxChars, extraNotes = []) {
-  const root = await run2.session.getRootVariables(stateId);
+async function composeStopOutput(run, action, stack, stateId, maxChars, extraNotes = []) {
+  const root = await run.session.getRootVariables(stateId);
   const entries = root.variables.variables.map((variable) => ({ variable }));
   const survey = renderSurvey(entries, { maxChars: DEBUG_MAX_CHARS, stateId });
   const stackText = renderStackSection(stack, stateId);
@@ -116559,7 +116532,7 @@ async function composeStopOutput(run2, action, stack, stateId, maxChars, extraNo
   return buildResponse({
     header: {
       action,
-      status: run2.session.snapshot.status,
+      status: run.session.snapshot.status,
       program: top?.programName,
       include: top?.includeName,
       line: top?.line,
@@ -116606,15 +116579,15 @@ function explainOpaqueDeathDetail(detail) {
   if (detail.trim().toLowerCase() !== ADT_REST_DATA_INVALID_TEXT.toLowerCase()) return detail;
   return `${detail} \u2014 this is cx_adt_rest_data_invalid's default text, raised by SAP's ADT REST layer when it cannot convert the payload of the debugger request in flight; it is not a complaint about a value passed to this tool, and the server gives no further detail. Reported by a live verification run on 2026-09-15 right after breakpoints were changed under a suspended debuggee, at a point where that change reached the debuggee one stop-cycle late and the debuggee was already gone; breakpoint changes now notify the attached debuggee immediately, so this shape should no longer occur that way. In practice: the debug session is no longer there to step \u2014 start a new one.`;
 }
-async function composeDeathOutput(run2, action, maxChars, cause, extraNotes = []) {
-  const settled = await raceDeadline(run2.triggerSettled, STOP_WAIT_MS);
+async function composeDeathOutput(run, action, maxChars, cause, extraNotes = []) {
+  const settled = await raceDeadline(run.triggerSettled, STOP_WAIT_MS);
   const outputSection = {
     title: "PROGRAM OUTPUT",
     content: renderTriggerOutcome(settled, STOP_WAIT_MS)
   };
-  run2.closeTriggerConn();
-  await run2.closeSessionConn();
-  const snapshot = run2.session.snapshot;
+  run.closeTriggerConn();
+  await run.closeSessionConn();
+  const snapshot = run.session.snapshot;
   const showDeathDetail = !isGenericFallbackEvidence(snapshot.terminationResult);
   const notes = [
     ...extraNotes,
@@ -116956,7 +116929,7 @@ ${triggerNote}`, {});
     }
     throw e;
   }
-  const run2 = {
+  const run = {
     session,
     sessionConn,
     closeSessionConn,
@@ -116967,7 +116940,7 @@ ${triggerNote}`, {});
     lastStack: attachedStack,
     lane: targetLane
   };
-  debugLanes[targetLane] = run2;
+  debugLanes[targetLane] = run;
   const runObjectName = parseObjectRef(input.run.object).name.toUpperCase();
   const skippedFrameworkStops = [];
   const describeTopFrame = (stack) => {
@@ -116980,29 +116953,29 @@ ${triggerNote}`, {});
     skippedFrameworkStops.push(describeTopFrame(attachedStack));
     let result;
     try {
-      result = await run2.session.step(attachedStateId, "stepContinue");
+      result = await run.session.step(attachedStateId, "stepContinue");
     } catch (e) {
-      if (run2.session.snapshot.status === "dead") {
+      if (run.session.snapshot.status === "dead") {
         skipCountWarnings.push(
           `Auto-continued past ${skippedFrameworkStops.length} stop(s) outside ${runObjectName} before the debuggee died: ${skippedFrameworkStops.join("; ")}. A statement/exception/message breakpoint has no program/include restriction on the wire in ADT, so it fires in the first code that hits it anywhere in the work process (see MAX_FRAMEWORK_AUTO_CONTINUES's doc comment, src/tools/debug.ts).`
         );
-        const out = await composeDeathOutput(run2, "start", maxChars, e, skipCountWarnings);
-        debugLanes[run2.lane] = void 0;
+        const out = await composeDeathOutput(run, "start", maxChars, e, skipCountWarnings);
+        debugLanes[run.lane] = void 0;
         return out;
       }
       throw e;
     }
-    if (run2.session.snapshot.status === "dead") {
+    if (run.session.snapshot.status === "dead") {
       skipCountWarnings.push(
         `Auto-continued past ${skippedFrameworkStops.length} stop(s) outside ${runObjectName} before the debuggee died: ${skippedFrameworkStops.join("; ")}. A statement/exception/message breakpoint has no program/include restriction on the wire in ADT, so it fires in the first code that hits it anywhere in the work process (see MAX_FRAMEWORK_AUTO_CONTINUES's doc comment, src/tools/debug.ts).`
       );
-      const out = await composeDeathOutput(run2, "start", maxChars, void 0, skipCountWarnings);
-      debugLanes[run2.lane] = void 0;
+      const out = await composeDeathOutput(run, "start", maxChars, void 0, skipCountWarnings);
+      debugLanes[run.lane] = void 0;
       return out;
     }
     attachedStack = result.stack;
     attachedStateId = result.stateId;
-    run2.lastStack = result.stack;
+    run.lastStack = result.stack;
   }
   if (skippedFrameworkStops.length > 0) {
     if (stackTouchesObject(attachedStack, runObjectName)) {
@@ -117015,11 +116988,11 @@ ${triggerNote}`, {});
       );
     }
   }
-  return await composeStopOutput(run2, "start", attachedStack, attachedStateId, maxChars, skipCountWarnings);
+  return await composeStopOutput(run, "start", attachedStack, attachedStateId, maxChars, skipCountWarnings);
 }
 async function handleStep(input, maxChars, gate, deps) {
-  const run2 = resolveLaneRun(input.stateId);
-  if (!run2) {
+  const run = resolveLaneRun(input.stateId);
+  if (!run) {
     throw new AbapError(
       "BAD_INPUT",
       'No active debug session. Start one with abap_debug({action:"start", ...}).'
@@ -117031,7 +117004,7 @@ async function handleStep(input, maxChars, gate, deps) {
   if (!input.step) {
     throw new AbapError("BAD_INPUT", 'abap_debug({action:"step"}) requires "step".');
   }
-  assertSessionWrite(gate, run2);
+  assertSessionWrite(gate, run);
   const kind = stepKindOf(input.step);
   if (kind === "stepJumpToLine") {
     if (deps.allowJumpToLine !== true) {
@@ -117058,25 +117031,25 @@ async function handleStep(input, maxChars, gate, deps) {
         { step: input.step }
       );
     }
-    uri = lineStepUri(run2.lastStack, input.toLine);
+    uri = lineStepUri(run.lastStack, input.toLine);
   }
   let result;
   try {
-    result = await run2.session.step(input.stateId, kind, uri);
+    result = await run.session.step(input.stateId, kind, uri);
   } catch (e) {
-    if (run2.session.snapshot.status === "dead") {
-      const out = await composeDeathOutput(run2, "step", maxChars, e);
-      debugLanes[run2.lane] = void 0;
+    if (run.session.snapshot.status === "dead") {
+      const out = await composeDeathOutput(run, "step", maxChars, e);
+      debugLanes[run.lane] = void 0;
       return out;
     }
     throw e;
   }
-  if (run2.session.snapshot.status === "dead") {
-    const out = await composeDeathOutput(run2, "step", maxChars);
-    debugLanes[run2.lane] = void 0;
+  if (run.session.snapshot.status === "dead") {
+    const out = await composeDeathOutput(run, "step", maxChars);
+    debugLanes[run.lane] = void 0;
     return out;
   }
-  run2.lastStack = result.stack;
+  run.lastStack = result.stack;
   const revisitNotes = result.positionVisitCount > 1 ? [
     `Position revisited: this exact program/line/stack-level has now been reached ${result.positionVisitCount} times by stepping in this session. If you are stepping through a loop body, "step over"/"step into" can under-report how many iterations actually ran between visits \u2014 this only proves you returned to this line, not how many times the loop body executed in between. For a reliable per-iteration count, set a breakpoint at the loop body's start (abap_debug action:"start" or a line breakpoint) and use step:"continue" repeatedly instead of stepping through \u2014 each hit is a real, separately counted stop.`
   ] : [];
@@ -117084,7 +117057,7 @@ async function handleStep(input, maxChars, gate, deps) {
   if (result.step.reachedWatchpoints.length > 0) {
     let byId;
     try {
-      const owned = await run2.session.readWatchpoints();
+      const owned = await run.session.readWatchpoints();
       byId = new Map(owned.map((wp) => [wp.id, wp]));
     } catch {
       byId = void 0;
@@ -117096,14 +117069,14 @@ async function handleStep(input, maxChars, gate, deps) {
       );
     }
   }
-  return composeStopOutput(run2, "step", result.stack, result.stateId, maxChars, [
+  return composeStopOutput(run, "step", result.stack, result.stateId, maxChars, [
     ...revisitNotes,
     ...watchpointNotes
   ]);
 }
 async function handleStack(input, maxChars) {
-  const run2 = resolveLaneRun(input.stateId);
-  if (!run2) {
+  const run = resolveLaneRun(input.stateId);
+  if (!run) {
     throw new AbapError(
       "BAD_INPUT",
       'No active debug session. Start one with abap_debug({action:"start", ...}).'
@@ -117112,15 +117085,15 @@ async function handleStack(input, maxChars) {
   if (!input.stateId) {
     throw new AbapError("BAD_INPUT", 'abap_debug({action:"stack"}) requires "stateId".');
   }
-  const stack = await run2.session.getStack(input.stateId);
-  run2.lastStack = stack;
+  const stack = await run.session.getStack(input.stateId);
+  run.lastStack = stack;
   const stackText = renderStackSection(stack, input.stateId);
   const visibleFrames = stack.frames.filter((f) => !f.systemProgram);
   const top = visibleFrames[0] ?? stack.frames[0];
   return buildResponse({
     header: {
       action: "stack",
-      status: run2.session.snapshot.status,
+      status: run.session.snapshot.status,
       program: top?.programName,
       include: top?.includeName,
       line: top?.line,
@@ -117131,8 +117104,8 @@ async function handleStack(input, maxChars) {
   });
 }
 async function handleFrame(input, maxChars) {
-  const run2 = resolveLaneRun(input.stateId);
-  if (!run2) {
+  const run = resolveLaneRun(input.stateId);
+  if (!run) {
     throw new AbapError(
       "BAD_INPUT",
       'No active debug session. Start one with abap_debug({action:"start", ...}).'
@@ -117147,7 +117120,7 @@ async function handleFrame(input, maxChars) {
       'abap_debug({action:"frame"}) requires "frame" \u2014 the 1-based stackPosition of the frame to move the read cursor to.'
     );
   }
-  const lastStack = run2.lastStack;
+  const lastStack = run.lastStack;
   const target = lastStack?.frames.find((f) => f.stackPosition === input.frame);
   if (!lastStack || !target) {
     throw new AbapError(
@@ -117156,15 +117129,15 @@ async function handleFrame(input, maxChars) {
       { frame: input.frame }
     );
   }
-  await run2.session.setStackPosition(input.stateId, { stackPosition: input.frame, stackType: "ABAP" });
-  const root = await run2.session.getRootVariables(input.stateId);
+  await run.session.setStackPosition(input.stateId, { stackPosition: input.frame, stackType: "ABAP" });
+  const root = await run.session.getRootVariables(input.stateId);
   const entries = root.variables.variables.map((variable) => ({ variable }));
   const survey = renderSurvey(entries, { maxChars: DEBUG_MAX_CHARS, stateId: input.stateId });
   const stackText = renderStackSection(lastStack, input.stateId);
   return buildResponse({
     header: {
       action: "frame",
-      status: run2.session.snapshot.status,
+      status: run.session.snapshot.status,
       program: target.programName,
       include: target.includeName,
       line: target.line,
@@ -117182,16 +117155,16 @@ async function handleFrame(input, maxChars) {
   });
 }
 async function handleKeepalive(maxChars, gate) {
-  const run2 = resolveLaneRun(void 0);
-  if (!run2) {
+  const run = resolveLaneRun(void 0);
+  if (!run) {
     throw new AbapError(
       "BAD_INPUT",
       'No active debug session. Start one with abap_debug({action:"start", ...}).'
     );
   }
-  assertSessionWrite(gate, run2);
-  run2.session.keepalive();
-  const snapshot = run2.session.snapshot;
+  assertSessionWrite(gate, run);
+  run.session.keepalive();
+  const snapshot = run.session.snapshot;
   return buildResponse({
     header: {
       action: "keepalive",
@@ -117263,8 +117236,8 @@ async function mapInputBreakpointForAdd(bp, conn, deps, resolvedCache) {
   };
 }
 async function handleBreakpoints(conn, input, maxChars, deps, gate) {
-  const run2 = resolveLaneRun(input.stateId);
-  if (!run2) {
+  const run = resolveLaneRun(input.stateId);
+  if (!run) {
     throw new AbapError(
       "BAD_INPUT",
       'No active debug session. Start one with abap_debug({action:"start", ...}).'
@@ -117278,12 +117251,12 @@ async function handleBreakpoints(conn, input, maxChars, deps, gate) {
     );
   }
   if (op === "list") {
-    const owned = run2.session.listOwnedBreakpoints();
+    const owned = run.session.listOwnedBreakpoints();
     return buildResponse({
       header: {
         action: "breakpoints",
         op: "list",
-        status: run2.session.snapshot.status,
+        status: run.session.snapshot.status,
         stateId: input.stateId,
         count: owned.length
       },
@@ -117306,18 +117279,18 @@ async function handleBreakpoints(conn, input, maxChars, deps, gate) {
         'abap_debug({action:"breakpoints", op:"add"}) requires a non-empty "breakpoints" array.'
       );
     }
-    assertSessionWrite(gate, run2);
+    assertSessionWrite(gate, run);
     const resolvedCache = /* @__PURE__ */ new Map();
     const toArm = [];
     for (const bp of input.breakpoints) {
       toArm.push(await mapInputBreakpointForAdd(bp, conn, deps, resolvedCache));
     }
-    const created = await run2.session.addBreakpoints(input.stateId, toArm);
+    const created = await run.session.addBreakpoints(input.stateId, toArm);
     return buildResponse({
       header: {
         action: "breakpoints",
         op: "add",
-        status: run2.session.snapshot.status,
+        status: run.session.snapshot.status,
         stateId: input.stateId,
         count: created.length
       },
@@ -117333,13 +117306,13 @@ async function handleBreakpoints(conn, input, maxChars, deps, gate) {
   if (!input.id) {
     throw new AbapError("BAD_INPUT", 'abap_debug({action:"breakpoints", op:"remove"}) requires "id".');
   }
-  assertSessionWrite(gate, run2);
-  await run2.session.removeBreakpoint(input.stateId, input.id);
+  assertSessionWrite(gate, run);
+  await run.session.removeBreakpoint(input.stateId, input.id);
   return buildResponse({
     header: {
       action: "breakpoints",
       op: "remove",
-      status: run2.session.snapshot.status,
+      status: run.session.snapshot.status,
       stateId: input.stateId,
       id: input.id
     },
@@ -117370,8 +117343,8 @@ function renderWatchValue(raw) {
   });
 }
 async function handleWatch(input, maxChars, gate) {
-  const run2 = resolveLaneRun(input.stateId);
-  if (!run2) {
+  const run = resolveLaneRun(input.stateId);
+  if (!run) {
     throw new AbapError(
       "BAD_INPUT",
       'No active debug session. Start one with abap_debug({action:"start", ...}).'
@@ -117388,8 +117361,8 @@ async function handleWatch(input, maxChars, gate) {
     if (!input.variable) {
       throw new AbapError("BAD_INPUT", 'abap_debug({action:"watch", op:"add"}) requires "variable".');
     }
-    assertSessionWrite(gate, run2);
-    const created = await run2.session.addWatchpoint(input.stateId, {
+    assertSessionWrite(gate, run);
+    const created = await run.session.addWatchpoint(input.stateId, {
       variableName: input.variable,
       ...input.condition !== void 0 ? { condition: input.condition } : {}
     });
@@ -117400,7 +117373,7 @@ async function handleWatch(input, maxChars, gate) {
       header: {
         action: "watch",
         op: "add",
-        status: run2.session.snapshot.status,
+        status: run.session.snapshot.status,
         stateId: input.stateId,
         count: created.length
       },
@@ -117412,7 +117385,7 @@ async function handleWatch(input, maxChars, gate) {
     });
   }
   if (op === "list") {
-    const owned = await run2.session.readWatchpoints();
+    const owned = await run.session.readWatchpoints();
     const lines = owned.map(
       (wp) => `${wp.id}	${wp.variableName}` + (wp.condition ? ` (condition: ${wp.condition})` : "") + (wp.currentValue !== void 0 ? ` = ${renderWatchValue(wp.currentValue)}` : "") + (wp.oldValue !== void 0 ? ` (was ${renderWatchValue(wp.oldValue)})` : "")
     );
@@ -117420,7 +117393,7 @@ async function handleWatch(input, maxChars, gate) {
       header: {
         action: "watch",
         op: "list",
-        status: run2.session.snapshot.status,
+        status: run.session.snapshot.status,
         stateId: input.stateId,
         count: owned.length
       },
@@ -117433,13 +117406,13 @@ async function handleWatch(input, maxChars, gate) {
   if (!input.id) {
     throw new AbapError("BAD_INPUT", 'abap_debug({action:"watch", op:"remove"}) requires "id".');
   }
-  assertSessionWrite(gate, run2);
-  await run2.session.removeWatchpoint(input.stateId, input.id);
+  assertSessionWrite(gate, run);
+  await run.session.removeWatchpoint(input.stateId, input.id);
   return buildResponse({
     header: {
       action: "watch",
       op: "remove",
-      status: run2.session.snapshot.status,
+      status: run.session.snapshot.status,
       stateId: input.stateId,
       id: input.id
     },
@@ -117485,8 +117458,8 @@ function formatAbandonedCleanupNote(steps) {
   return `Cleanup timed out on: ${steps.join(", ")} \u2014 may still be armed on the server (e.g. a breakpoint); a later session could hit it.`;
 }
 async function handleStop(conn, maxChars, deps, gate, force = false) {
-  const run2 = resolveLaneRun(void 0);
-  if (!run2) {
+  const run = resolveLaneRun(void 0);
+  if (!run) {
     const leaked = await clearLeakedSessions(force, conn, deps.log);
     let orphanNote;
     if (deps.releaseOrphanListener) {
@@ -117529,13 +117502,13 @@ async function handleStop(conn, maxChars, deps, gate, force = false) {
       maxChars: clampMaxChars(maxChars)
     });
   }
-  assertSessionWrite(gate, run2);
+  assertSessionWrite(gate, run);
   const notes = [];
   try {
-    const terminateWaitMs = Math.max(STOP_WAIT_MS, run2.session.terminateDeadlineMs + 1e3);
+    const terminateWaitMs = Math.max(STOP_WAIT_MS, run.session.terminateDeadlineMs + 1e3);
     let terminateTimedOut = false;
     const terminated = await raceDeadline(
-      run2.session.terminate("terminated_by_caller").catch((e) => {
+      run.session.terminate("terminated_by_caller").catch((e) => {
         notes.push(`Session terminate reported an error: ${describeUnknownError(e)}`);
       }),
       terminateWaitMs
@@ -117546,13 +117519,13 @@ async function handleStop(conn, maxChars, deps, gate, force = false) {
         `Session terminate had not returned after ${terminateWaitMs} ms \u2014 it continues in the background; the session was dropped here anyway.`
       );
     }
-    const settled = await raceDeadline(run2.triggerSettled, STOP_WAIT_MS);
+    const settled = await raceDeadline(run.triggerSettled, STOP_WAIT_MS);
     if (settled === TIMED_OUT) {
       notes.push(
         "Program output is incomplete: the trigger run had not returned when stop gave up waiting."
       );
     }
-    const finalSnapshot = run2.session.snapshot;
+    const finalSnapshot = run.session.snapshot;
     const cleanupAbandonedSteps = finalSnapshot.abandonedCleanupSteps?.length;
     if (cleanupAbandonedSteps) {
       notes.push(formatAbandonedCleanupNote(finalSnapshot.abandonedCleanupSteps));
@@ -117582,14 +117555,14 @@ async function handleStop(conn, maxChars, deps, gate, force = false) {
       maxChars: clampMaxChars(maxChars)
     });
   } finally {
-    run2.closeTriggerConn();
-    await run2.closeSessionConn();
-    debugLanes[run2.lane] = void 0;
+    run.closeTriggerConn();
+    await run.closeSessionConn();
+    debugLanes[run.lane] = void 0;
   }
 }
 async function handleStatus(maxChars) {
-  const run2 = resolveLaneRun(void 0);
-  if (!run2) {
+  const run = resolveLaneRun(void 0);
+  if (!run) {
     const leaked = listActiveDebugSessions()[0];
     if (!leaked) {
       return buildResponse({
@@ -117614,7 +117587,7 @@ async function handleStatus(maxChars) {
       maxChars: clampMaxChars(maxChars)
     });
   }
-  const snapshot = run2.session.snapshot;
+  const snapshot = run.session.snapshot;
   const notes = [];
   if (snapshot.status === "dead") {
     notes.push("Session is dead \u2014 check PROGRAM OUTPUT via a step/stop response for the captured trigger output.");
@@ -117667,14 +117640,14 @@ var SCOPE_ID_BY_NAME = {
   globals: "@GLOBALS"
 };
 async function abapDebugVars(input, maxChars) {
-  const run2 = resolveLaneRun(input.stateId);
-  if (!run2) {
+  const run = resolveLaneRun(input.stateId);
+  if (!run) {
     throw new AbapError("BAD_INPUT", "No active debug session.");
   }
   if (!input.stateId) {
     throw new AbapError("BAD_INPUT", 'abap_debug_vars requires "stateId".');
   }
-  const root = await run2.session.getRootVariables(input.stateId);
+  const root = await run.session.getRootVariables(input.stateId);
   const scopeOf = /* @__PURE__ */ new Map();
   for (const h of root.variables.hierarchies) {
     scopeOf.set(h.childId, h.parentId);
@@ -117739,8 +117712,8 @@ var debugValueInputSchema = {
 };
 var DebugValueInput = external_exports.object(debugValueInputSchema);
 async function abapDebugValue(input, maxChars) {
-  const run2 = resolveLaneRun(input.stateId);
-  if (!run2) {
+  const run = resolveLaneRun(input.stateId);
+  if (!run) {
     throw new AbapError("BAD_INPUT", "No active debug session.");
   }
   if (!input.stateId) {
@@ -117758,7 +117731,7 @@ async function abapDebugValue(input, maxChars) {
   const clampedMaxChars = clampMaxChars(maxChars);
   let rootVars;
   try {
-    rootVars = await run2.session.getVariables(input.stateId, [canonicalPath]);
+    rootVars = await run.session.getVariables(input.stateId, [canonicalPath]);
   } catch (e) {
     if (e instanceof DebugXmlParseError) {
       return buildResponse({
@@ -117840,7 +117813,7 @@ async function abapDebugValue(input, maxChars) {
       const ids = Array.from({ length: clampedTo - clampedFrom + 1 }, (_, i) => `${canonicalPath}[${clampedFrom + i}]`);
       let rowCount = 0;
       try {
-        const rowVars = await run2.session.getVariables(input.stateId, ids);
+        const rowVars = await run.session.getVariables(input.stateId, ids);
         rowCount = rowVars.length;
         const rowAlign = alignRequestedVariables(ids, rowVars);
         rowNodes = rowAlign.resolved.map((variable) => ({ variable }));
@@ -117885,7 +117858,7 @@ async function abapDebugValue(input, maxChars) {
   }
   let childResult;
   try {
-    childResult = await run2.session.getChildVariables(input.stateId, [canonicalPath]);
+    childResult = await run.session.getChildVariables(input.stateId, [canonicalPath]);
   } catch (e) {
     if (e instanceof DebugXmlParseError) {
       childResult = { hierarchies: [], variables: [] };
@@ -117909,104 +117882,6 @@ async function abapDebugValue(input, maxChars) {
     notes: rootNotes,
     maxChars: clampedMaxChars
   });
-}
-
-// src/tools/debug-register.ts
-init_errors();
-
-// src/tools/v2/breakpoints.ts
-init_errors();
-var TRAILING_SKIPCOUNT_LOOKALIKE = /#\d+$/;
-var SKIPCOUNT_SUFFIX = /#(\d+)$/;
-var MAX_SKIPCOUNT = 1e6;
-var MAX_CONDITION_LENGTH = 255;
-var MAX_LINE = 999999;
-function badEntry(index, raw, reason) {
-  throw new AbapError(
-    "BAD_INPUT",
-    `Malformed breakpoint at breakpoints[${index}] ("${raw}"): ${reason}`,
-    { index, raw, reason },
-    'Grammar: target(#skipCount)?(?condition)?, target = "exception:CLASSNAME" or "OBJECT:LINE".'
-  );
-}
-function parseBreakpoints(specs) {
-  const breakpoints = [];
-  const notes = [];
-  for (let index = 0; index < specs.length; index++) {
-    const raw = specs[index];
-    if (raw.trim().length === 0) {
-      badEntry(index, raw, "empty entry.");
-    }
-    const qIdx = raw.indexOf("?");
-    const prefix = qIdx === -1 ? raw : raw.slice(0, qIdx);
-    let condition;
-    if (qIdx !== -1) {
-      const rawCondition = raw.slice(qIdx + 1).trim();
-      if (rawCondition.length === 0) {
-        badEntry(index, raw, "empty condition after '?'.");
-      }
-      if (rawCondition.length > MAX_CONDITION_LENGTH) {
-        badEntry(index, raw, `condition exceeds ${MAX_CONDITION_LENGTH} characters.`);
-      }
-      condition = rawCondition;
-      if (TRAILING_SKIPCOUNT_LOOKALIKE.test(rawCondition)) {
-        notes.push(
-          `breakpoints[${index}]: condition "${rawCondition}" ends with what looks like a misplaced #skipCount \u2014 skipCount must appear BEFORE '?condition', not after. The entire text after '?' was treated as the condition, verbatim.`
-        );
-      }
-    }
-    let targetText = prefix;
-    let skipCount;
-    const skipMatch = SKIPCOUNT_SUFFIX.exec(prefix);
-    if (skipMatch) {
-      const hashIdx = skipMatch.index;
-      targetText = prefix.slice(0, hashIdx);
-      skipCount = Number(skipMatch[1]);
-      if (!Number.isSafeInteger(skipCount) || skipCount < 0 || skipCount > MAX_SKIPCOUNT) {
-        badEntry(index, raw, `skipCount out of range (0..${MAX_SKIPCOUNT}).`);
-      }
-    }
-    if (targetText.trim().length === 0) {
-      badEntry(index, raw, "missing target before the skipCount/condition suffix.");
-    }
-    if (/^exception:/i.test(targetText)) {
-      const exceptionClass = targetText.slice("exception:".length).trim();
-      if (exceptionClass.length === 0) {
-        badEntry(index, raw, "empty exception class after 'exception:'.");
-      }
-      breakpoints.push({
-        kind: "exception",
-        exceptionClass,
-        ...condition !== void 0 ? { condition } : {},
-        ...skipCount !== void 0 ? { skipCount } : {}
-      });
-      continue;
-    }
-    const lastColonIdx = targetText.lastIndexOf(":");
-    if (lastColonIdx === -1) {
-      badEntry(index, raw, 'expected "OBJECT:LINE" or "exception:CLASSNAME".');
-    }
-    const object3 = targetText.slice(0, lastColonIdx).trim();
-    const lineText = targetText.slice(lastColonIdx + 1).trim();
-    if (object3.length === 0) {
-      badEntry(index, raw, "empty object before the last ':'.");
-    }
-    if (!/^\d+$/.test(lineText)) {
-      badEntry(index, raw, `expected an integer line number after the last ':', got "${lineText}".`);
-    }
-    const line2 = Number(lineText);
-    if (line2 < 1 || line2 > MAX_LINE) {
-      badEntry(index, raw, `line out of range (1..${MAX_LINE}).`);
-    }
-    breakpoints.push({
-      kind: "line",
-      object: object3,
-      line: line2,
-      ...condition !== void 0 ? { condition } : {},
-      ...skipCount !== void 0 ? { skipCount } : {}
-    });
-  }
-  return { breakpoints, notes };
 }
 
 // src/tools/debug-register.ts
@@ -118093,115 +117968,6 @@ function registerDebugTools(mcp, deps) {
       }
     }
   );
-}
-var CORE_ACTIONS = ["start", "step", "stack", "frame", "keepalive", "stop", "status"];
-function isCoreAction(v) {
-  return CORE_ACTIONS.includes(v);
-}
-var STEP_KINDS = ["into", "over", "return", "continue", "runToLine", "jumpToLine"];
-function isStepKind(v) {
-  return STEP_KINDS.includes(v);
-}
-var SCOPE_KINDS = ["all", "locals", "parameters", "globals"];
-function isScopeKind(v) {
-  return SCOPE_KINDS.includes(v);
-}
-function createDebugRunner(deps) {
-  const debugSessionObjects = /* @__PURE__ */ new Map();
-  async function run2(rawArgs) {
-    const a = rawArgs ?? {};
-    const action = a.action ?? "";
-    if (action === "vars" || action === "value") {
-      deps.safety.assert("read");
-      if (action === "vars") {
-        if (a.stateId === void 0) {
-          throw new AbapError("BAD_INPUT", 'action="vars" requires stateId.');
-        }
-        let scopeKind;
-        if (a.scope !== void 0) {
-          if (!isScopeKind(a.scope)) {
-            throw new AbapError(
-              "BAD_INPUT",
-              `Unknown scope "${a.scope}" \u2014 expected all, locals, parameters, or globals.`
-            );
-          }
-          scopeKind = a.scope;
-        }
-        const res3 = await abapDebugVars(
-          {
-            stateId: a.stateId,
-            ...scopeKind !== void 0 ? { scope: scopeKind } : {},
-            ...a.filter !== void 0 ? { filter: a.filter } : {}
-          },
-          deps.cfg.maxResponseChars
-        );
-        return { text: res3.text, notes: [], stateId: a.stateId, dead: false };
-      }
-      if (a.stateId === void 0 || a.path === void 0) {
-        throw new AbapError("BAD_INPUT", 'action="value" requires stateId and path.');
-      }
-      const res2 = await abapDebugValue(
-        {
-          stateId: a.stateId,
-          path: a.path,
-          ...a.from !== void 0 ? { from: a.from } : {},
-          ...a.count !== void 0 ? { count: a.count } : {},
-          ...a.depth !== void 0 ? { depth: a.depth } : {}
-        },
-        deps.cfg.maxResponseChars
-      );
-      return { text: res2.text, notes: [], stateId: a.stateId, dead: false };
-    }
-    if (!isCoreAction(action)) {
-      throw new AbapError("BAD_INPUT", `Unknown abap_debug action "${action}".`);
-    }
-    let stepKind;
-    if (action === "step" && a.step !== void 0) {
-      if (!isStepKind(a.step)) {
-        throw new AbapError(
-          "BAD_INPUT",
-          `Unknown step "${a.step}" \u2014 expected into, over, return, continue, runToLine, or jumpToLine.`
-        );
-      }
-      stepKind = a.step;
-    }
-    let notes = [];
-    let breakpoints;
-    if (action === "start" && a.breakpoints !== void 0) {
-      const parsed = parseBreakpoints(a.breakpoints);
-      breakpoints = parsed.breakpoints;
-      notes = parsed.notes;
-    }
-    if (!DEBUG_UNGATED_ACTIONS.has(action)) {
-      const object3 = action === "step" ? a.stateId ? debugSessionObjects.get(a.stateId) : void 0 : a.run;
-      deps.safety.assert("execute", object3 ? preflight({ object: object3 }) : void 0, { phase: "preflight" });
-    }
-    await deps.ensureConnected();
-    const primary = deps.pool.primary();
-    const input = {
-      action,
-      ...a.stateId !== void 0 ? { stateId: a.stateId } : {},
-      ...breakpoints !== void 0 ? { breakpoints } : {},
-      ...action === "start" && a.run !== void 0 ? { run: { object: a.run } } : {},
-      ...stepKind !== void 0 ? { step: stepKind } : {},
-      ...a.toLine !== void 0 ? { toLine: a.toLine } : {},
-      ...action === "frame" && a.frame !== void 0 ? { frame: a.frame } : {},
-      ...a.confirm !== void 0 ? { confirm: a.confirm } : {}
-    };
-    const res = await abapDebug(primary, input, deps.cfg.maxResponseChars, deps.debugDeps, deps.safety);
-    const nextStateId = stateIdOfResponse(res.text);
-    if (action === "start" && a.run !== void 0 && nextStateId) {
-      debugSessionObjects.set(nextStateId, a.run);
-    } else if (action === "step" && a.stateId) {
-      const carried = debugSessionObjects.get(a.stateId);
-      debugSessionObjects.delete(a.stateId);
-      if (carried && nextStateId) debugSessionObjects.set(nextStateId, carried);
-    }
-    const dead = action === "stop" || /^status: dead$/m.test(res.text);
-    if (dead) debugSessionObjects.clear();
-    return { text: res.text, notes, ...nextStateId !== void 0 ? { stateId: nextStateId } : {}, dead };
-  }
-  return { run: run2 };
 }
 
 // src/tools/journal.ts
@@ -118794,7 +118560,7 @@ async function performUndo(conn, journal, entry, opts) {
   const objectRef = journalRef(plan.target);
   let undoEntryId;
   let activation;
-  let check4;
+  let check2;
   let checkUnavailable;
   let deleteUnverified;
   const restoredIncludes = [];
@@ -118870,7 +118636,7 @@ async function performUndo(conn, journal, entry, opts) {
       throw new AbapError("BAD_INPUT", "No before-image to restore.", { entry: entry.id });
     }
     if (opts.check ?? true) {
-      check4 = await checkSource(conn, plan.target, source).catch((e) => {
+      check2 = await checkSource(conn, plan.target, source).catch((e) => {
         checkUnavailable = `the syntax check could not be run (${e instanceof Error ? e.message : String(e)}), so the before-image was restored WITHOUT being checked`;
         return void 0;
       });
@@ -119021,7 +118787,7 @@ async function performUndo(conn, journal, entry, opts) {
     // unrestored either, and warning about includes there would be noise.
     ...plan.partial ? { partial: plan.partial } : {},
     performed: true,
-    ...check4 ? { check: check4 } : {},
+    ...check2 ? { check: check2 } : {},
     ...checkUnavailable ? { checkUnavailable } : {},
     ...deleteUnverified ? { deleteUnverified } : {},
     ...activation ? { activation } : {},
@@ -119538,8 +119304,8 @@ async function undoPreflightTarget(journal, input) {
   let entry;
   if (input.entry) entry = await journal.get(input.entry);
   else if (input.object) {
-    const list5 = await journal.list({ object: input.object, limit: 50 });
-    entry = list5.find((e) => e.operation !== "activate" && !e.undoneBy);
+    const list3 = await journal.list({ object: input.object, limit: 50 });
+    entry = list3.find((e) => e.operation !== "activate" && !e.undoneBy);
   }
   if (!entry) return void 0;
   return {
@@ -119580,8 +119346,8 @@ function registerJournalTools(mcp, deps) {
           });
         }
         if (isUndo) await deps.ensureConnected();
-        const run2 = (conn) => abapJournal(conn, args, deps.cfg.maxResponseChars, deps.journal, deps.safety);
-        const res = isUndo ? await deps.pool.withWrite("abap_journal", undoGateKey, run2) : await run2(deps.pool.primary());
+        const run = (conn) => abapJournal(conn, args, deps.cfg.maxResponseChars, deps.journal, deps.safety);
+        const res = isUndo ? await deps.pool.withWrite("abap_journal", undoGateKey, run) : await run(deps.pool.primary());
         return ok5(res.text);
       } catch (e) {
         return deps.errorResult(e);
@@ -119668,7 +119434,7 @@ var MODE_LOCKED_TOOLS = [
   }
 ];
 function lockedToolsFor(cfg) {
-  if (cfg.toolSurface !== "v1" || cfg.readOnly !== true) return [];
+  if (cfg.readOnly !== true) return [];
   return MODE_LOCKED_TOOLS.filter((tool) => tool.availableWhen === void 0 || tool.availableWhen(cfg));
 }
 function lockedToolRequiresMode(tool) {
@@ -120392,8 +120158,8 @@ async function fetchPackageDescriptionsForOne(conn, packageName, query, maxResul
     const doc = xml2.parse(body);
     const root = doc.objectReferences ?? {};
     const raw = root.objectReference;
-    const list5 = Array.isArray(raw) ? raw : raw ? [raw] : [];
-    const entries = list5.map((n) => ({
+    const list3 = Array.isArray(raw) ? raw : raw ? [raw] : [];
+    const entries = list3.map((n) => ({
       type: xmlAttr(n, "type") ?? "",
       name: xmlAttr(n, "name") ?? "",
       description: xmlAttr(n, "description") ?? ""
@@ -120559,14 +120325,14 @@ async function readPackage(conn, obj, opts) {
   for (const r of sortedRows) byType.set(r.type, (byType.get(r.type) ?? 0) + 1);
   const namesByPackage = /* @__PURE__ */ new Map();
   for (const r of sortedRows) {
-    const list5 = namesByPackage.get(r.packageName);
-    if (list5) list5.push(r.name);
+    const list3 = namesByPackage.get(r.packageName);
+    if (list3) list3.push(r.name);
     else namesByPackage.set(r.packageName, [r.name]);
   }
   if (directSubPackages.length) {
-    const list5 = namesByPackage.get(obj.name) ?? [];
-    for (const s of directSubPackages) if (!list5.includes(s.name)) list5.push(s.name);
-    namesByPackage.set(obj.name, list5);
+    const list3 = namesByPackage.get(obj.name) ?? [];
+    for (const s of directSubPackages) if (!list3.includes(s.name)) list3.push(s.name);
+    namesByPackage.set(obj.name, list3);
   }
   const { header, failure: headerFailure } = await fetchPackageHeader(conn, ctx);
   const {
@@ -120988,14 +120754,14 @@ async function readAuthorizationObject(conn, name, opts) {
         const text4 = row2[fld3("domainValue", "text")] ?? "";
         const valpos = Number.parseInt(row2[fld3("domainValue", "valpos")] ?? "", 10);
         const value = valueHigh.trim() === "" ? valueLow : `${valueLow}..${valueHigh}`;
-        const list5 = fixedValuesByDomain.get(domname);
+        const list3 = fixedValuesByDomain.get(domname);
         const entry = { value, text: text4, valpos: Number.isNaN(valpos) ? 0 : valpos };
-        if (list5) list5.push(entry);
+        if (list3) list3.push(entry);
         else fixedValuesByDomain.set(domname, [entry]);
       }
     }
-    for (const [, list5] of fixedValuesByDomain) {
-      list5.sort((a, b) => a.valpos - b.valpos);
+    for (const [, list3] of fixedValuesByDomain) {
+      list3.sort((a, b) => a.valpos - b.valpos);
     }
   }
   const tactzSql = buildCatalogSelect("*", tbl3("activity"), [`${fld3("activity", "object")} = ${catalogLiteral(objectName)}`]);
@@ -123715,10 +123481,10 @@ async function abapTestImpacted(conn, input, maxChars, gate, journal) {
   let anyPassed = false;
   let successfulRuns = 0;
   const bodyParts = [];
-  for (const run2 of runs) {
-    if (run2.result) {
+  for (const run of runs) {
+    if (run.result) {
       successfulRuns++;
-      const res = run2.result;
+      const res = run.result;
       totalTests += res.total;
       totalPassed += res.passed;
       totalFailed += res.failed;
@@ -123726,12 +123492,12 @@ async function abapTestImpacted(conn, input, maxChars, gate, journal) {
       if (res.outcome === "failed") anyFailed = true;
       else if (res.outcome === "unknown") anyUnknown = true;
       else if (res.outcome === "passed") anyPassed = true;
-      bodyParts.push(`=== ${run2.carrier.name} (${run2.carrier.type || "?"}): ${carrierOutcomeLabel(res)} ===
+      bodyParts.push(`=== ${run.carrier.name} (${run.carrier.type || "?"}): ${carrierOutcomeLabel(res)} ===
 ${renderBody(res)}`);
     } else {
-      notes.push(`Carrier ${run2.carrier.name}: run failed \u2014 ${run2.error}. The other carriers' verdicts are unaffected.`);
-      bodyParts.push(`=== ${run2.carrier.name} (${run2.carrier.type || "?"}): ERROR (not a pass) ===
-ERROR: ${run2.error}`);
+      notes.push(`Carrier ${run.carrier.name}: run failed \u2014 ${run.error}. The other carriers' verdicts are unaffected.`);
+      bodyParts.push(`=== ${run.carrier.name} (${run.carrier.type || "?"}): ERROR (not a pass) ===
+ERROR: ${run.error}`);
     }
   }
   const outcomeLabel = successfulRuns === 0 ? "UNKNOWN (not a pass)" : anyFailed ? "FAILED" : anyUnknown ? "UNKNOWN (not a pass)" : anyPassed ? "PASSED" : "NO TESTS RAN (not a pass)";
@@ -124462,7 +124228,7 @@ async function removeTransportEntryViaBridge(conn, gate, params, proof) {
       );
     }
   };
-  const { run: run2, transcript } = await runClassicAction(conn, gate, {
+  const { run, transcript } = await runClassicAction(conn, gate, {
     action: "remove_transport_entry",
     args: { trkorr, object_name: objectName },
     what: `Removing ${objectName} from ${trkorr}`,
@@ -124481,7 +124247,7 @@ async function removeTransportEntryViaBridge(conn, gate, params, proof) {
     const rowMatch = trimmed.match(TREN_ROW_RE);
     if (rowMatch) removed.push({ pgmid: rowMatch[1], object: rowMatch[2], name: rowMatch[3] });
   }
-  return { run: run2, transcript, holder, removed };
+  return { run, transcript, holder, removed };
 }
 function removalTouchedNothing(e) {
   if (!(e instanceof AbapError)) return false;
@@ -124945,14 +124711,14 @@ async function opShow(conn, input, maxChars, journal, ownership) {
   });
 }
 async function opUsers(conn, maxChars) {
-  const users2 = await trUsers(conn);
+  const users = await trUsers(conn);
   return buildResponse({
-    header: { operation: "users", count: users2.length },
+    header: { operation: "users", count: users.length },
     sections: [
       {
         title: "USERS",
         content: textTable(
-          users2.map((u) => ({ user: u.id, name: u.title })),
+          users.map((u) => ({ user: u.id, name: u.title })),
           ["user", "name"]
         )
       }
@@ -125109,11 +124875,11 @@ async function opCreate(conn, input, maxChars, gate, journal, ownership) {
     const cause = e instanceof Error ? e.message : String(e);
     const sid = conn.cfg.sid;
     const n = candidates.length;
-    const list5 = candidates.join(", ");
+    const list3 = candidates.join(", ");
     const first = candidates[0];
     throw new AbapError(
       code,
-      `Creating a transport request for ${devClass} failed, but ${n === 1 ? "a modifiable request that matches this create already exists" : `${n} modifiable requests that match this create already exist`} on ${sid}: ${list5}. abapsmith cannot prove ${n === 1 ? "it came" : "they came"} from this call \u2014 but a create that fails AFTER the server has already acted looks exactly like this, so do NOT treat this as "nothing happened". The original failure was: ${cause}`,
+      `Creating a transport request for ${devClass} failed, but ${n === 1 ? "a modifiable request that matches this create already exists" : `${n} modifiable requests that match this create already exist`} on ${sid}: ${list3}. abapsmith cannot prove ${n === 1 ? "it came" : "they came"} from this call \u2014 but a create that fails AFTER the server has already acted looks exactly like this, so do NOT treat this as "nothing happened". The original failure was: ${cause}`,
       { ...originalDetails, possiblyCreated: candidates, operation: "create", package: devClass, description },
       `Check before creating another request: abap_transport operation="show" transport="${first}" tells you what ${first} actually is, and abap_transport operation="list" shows every request owned by this user. If one of them is the request this call meant to create, pass it as the transport on subsequent writes instead of creating a second one.`
     );
@@ -127470,28 +127236,28 @@ function describeDdicRefOccurrence(o) {
 function resolvePersistentCascadeRequest(bo, model, names) {
   const wanted = /* @__PURE__ */ new Set();
   for (const n of names) {
-    const norm3 = n.trim().toUpperCase();
-    if (norm3) wanted.add(norm3);
+    const norm = n.trim().toUpperCase();
+    if (norm) wanted.add(norm);
   }
   const { referenced } = collectDdicCascadeCandidates(model);
   const byName = new Map(referenced.map((c) => [c.name.toUpperCase(), c]));
   const resolved = [];
-  for (const norm3 of wanted) {
-    const cand = byName.get(norm3);
+  for (const norm of wanted) {
+    const cand = byName.get(norm);
     if (!cand) {
       const available = referenced.length ? `objects currently referenced: ${referenced.map((c) => c.name).join(", ")}` : "this business object's model carries no persistentTableRef/persistentStructureRef at all";
       throw new AbapError(
         "BAD_INPUT",
-        `Cannot cascade_persistent delete "${norm3}" on BOPF business object ${bo}: it is not one of the persistentTableRef/persistentStructureRef objects this BO's model references \u2014 ${available}.`,
-        { bo, name: norm3 }
+        `Cannot cascade_persistent delete "${norm}" on BOPF business object ${bo}: it is not one of the persistentTableRef/persistentStructureRef objects this BO's model references \u2014 ${available}.`,
+        { bo, name: norm }
       );
     }
-    const sites = ddicRefOccurrencesForName(model, norm3);
+    const sites = ddicRefOccurrencesForName(model, norm);
     if (sites.length > 1) {
       throw new AbapError(
         "BAD_INPUT",
-        `Cannot cascade_persistent delete "${norm3}" on BOPF business object ${bo}: it is referenced from more than one site in this BO's model (${sites.map(describeDdicRefOccurrence).join(", ")}) \u2014 deleting it would break the other reference.`,
-        { bo, name: norm3, sites }
+        `Cannot cascade_persistent delete "${norm}" on BOPF business object ${bo}: it is referenced from more than one site in this BO's model (${sites.map(describeDdicRefOccurrence).join(", ")}) \u2014 deleting it would break the other reference.`,
+        { bo, name: norm, sites }
       );
     }
     resolved.push(cand);
@@ -129755,21 +129521,21 @@ function createBoActivatabilityNotes(model) {
   }
   return notes;
 }
-function createBoRootNodeNotes(boName, check4) {
-  if (check4.actual !== void 0 && check4.actual !== "" && !check4.matches) {
+function createBoRootNodeNotes(boName, check2) {
+  if (check2.actual !== void 0 && check2.actual !== "" && !check2.matches) {
     return [
-      `create_bo for "${boName}" requested root node "${check4.requested}", but the root node actually created is named "${check4.actual}" instead.`
+      `create_bo for "${boName}" requested root node "${check2.requested}", but the root node actually created is named "${check2.actual}" instead.`
     ];
   }
   return [];
 }
-function unusableRootNodeError(boName, check4, entryId, activationSkipped) {
-  const lead = check4.actual === void 0 ? `create_bo for "${boName}" requested root node "${check4.requested}", but the model read back after create carries no root node at all. BOPF bakes the root node name into the generated constants interface AT CREATE TIME` : `create_bo for "${boName}" requested root node "${check4.requested}", but the root node BOPF actually created came back UNNAMED (bo:name="") instead. BOPF bakes that empty name into the generated constants interface AT CREATE TIME (an invalid "BEGIN OF ," ABAP structure)`;
+function unusableRootNodeError(boName, check2, entryId, activationSkipped) {
+  const lead = check2.actual === void 0 ? `create_bo for "${boName}" requested root node "${check2.requested}", but the model read back after create carries no root node at all. BOPF bakes the root node name into the generated constants interface AT CREATE TIME` : `create_bo for "${boName}" requested root node "${check2.requested}", but the root node BOPF actually created came back UNNAMED (bo:name="") instead. BOPF bakes that empty name into the generated constants interface AT CREATE TIME (an invalid "BEGIN OF ," ABAP structure)`;
   const tail = ` and never regenerates that interface, so this business object can never be activated. Renaming the root node afterward does NOT repair the interface \u2014 live-observed in this repo (two activation retries, source etag unchanged). The only remedy: abap_bopf_delete "${boName}", then create it again. This BO already exists on the system right now and is residue that must be cleaned up` + (entryId !== void 0 ? ` (journal entry ${entryId})` : "") + "." + (activationSkipped ? " No activation was attempted \u2014 an object whose constants interface is already invalid can only fail to activate." : "");
   return new AbapError(
     "BOPF_CREATE_UNUSABLE",
     lead + tail,
-    { bo: boName, requested: check4.requested, actual: check4.actual, journalEntryId: entryId },
+    { bo: boName, requested: check2.requested, actual: check2.actual, journalEntryId: entryId },
     `abap_bopf_delete "${boName}", then create_bo again.`
   );
 }
@@ -131164,8 +130930,8 @@ async function runBopfTest(conn, model, scenario, gate, opts) {
       generateOnly: true
     };
   }
-  const run2 = await executeBridge(conn, gate, deployed);
-  const transcript = parseBopfTranscript(run2.output);
+  const run = await executeBridge(conn, gate, deployed);
+  const transcript = parseBopfTranscript(run.output);
   const errors = transcript.messages.filter((m) => m.severity === "E" || m.severity === "A").length;
   const warnings = transcript.messages.filter((m) => m.severity === "W").length;
   return {
@@ -131181,8 +130947,8 @@ async function runBopfTest(conn, model, scenario, gate, opts) {
     warnings,
     rowsWritten: transcript.keys.length,
     transcript,
-    outputComplete: run2.outputComplete,
-    bodyBytes: run2.bodyBytes
+    outputComplete: run.outputComplete,
+    bodyBytes: run.bodyBytes
   };
 }
 
@@ -132602,20 +132368,20 @@ function parseLockTranscript(raw) {
     }
     return { phase, rows, ...reported === void 0 ? {} : { reportedRows: reported } };
   });
-  let release2;
+  let release;
   if (releaseStatus === "released") {
-    release2 = { status: "released" };
+    release = { status: "released" };
   } else if (releaseStatus === "still-held") {
     const after = byPhase.get("after-release") ?? [];
     const mine = after.filter((r) => r.ownership === "MINE");
-    release2 = { status: "still-held", rows: mine.length > 0 ? mine : after };
+    release = { status: "still-held", rows: mine.length > 0 ? mine : after };
   }
   return {
     ...selfOwnerId === void 0 ? {} : { selfOwnerId },
     ...acquire === void 0 ? {} : { acquire },
     ...preSaveVerify === void 0 ? {} : { preSaveVerify },
     saveReached,
-    ...release2 === void 0 ? {} : { release: release2 },
+    ...release === void 0 ? {} : { release },
     phases,
     wildcardDetected,
     aborts,
@@ -132637,16 +132403,16 @@ async function runFpmLockInspect(conn, query, gate) {
     verify: (activation) => verifyBridgeActivation(activation, className, "FPM lock bridge", { mode: "locks" })
   });
   const { bridgeRefreshed } = deployed;
-  const run2 = await executeBridge(conn, gate, deployed);
-  const transcript = parseLockTranscript(run2.output);
+  const run = await executeBridge(conn, gate, deployed);
+  const transcript = parseLockTranscript(run.output);
   return {
     query,
     bridgeClass: className,
     bridgeRefreshed,
     durationMs: Date.now() - started,
     transcript,
-    outputComplete: run2.outputComplete,
-    bodyBytes: run2.bodyBytes
+    outputComplete: run.outputComplete,
+    bodyBytes: run.bodyBytes
   };
 }
 
@@ -133379,8 +133145,8 @@ async function readImgShow(conn, q) {
 function orderImgTreeSiblings(siblings) {
   const byPreviousSibling = /* @__PURE__ */ new Map();
   for (const s of siblings) {
-    const list5 = byPreviousSibling.get(s.brotherId);
-    if (list5) list5.push(s);
+    const list3 = byPreviousSibling.get(s.brotherId);
+    if (list3) list3.push(s);
     else byPreviousSibling.set(s.brotherId, [s]);
   }
   const visited = /* @__PURE__ */ new Set();
@@ -135173,8 +134939,8 @@ async function readImgChecks(conn, q) {
       const valueLow = r[fld5("domainValue", "valueLow")];
       const valueHigh = r[fld5("domainValue", "valueHigh")];
       if (domain2 === void 0 || valueLow === void 0 || valueHigh === void 0) return void 0;
-      const list5 = domainRowsMap.get(domain2);
-      if (list5) list5.push({ valueLow, valueHigh });
+      const list3 = domainRowsMap.get(domain2);
+      if (list3) list3.push({ valueLow, valueHigh });
       else domainRowsMap.set(domain2, [{ valueLow, valueHigh }]);
       return true;
     });
@@ -136809,16 +136575,16 @@ async function runUiPressBridge(conn, query, gate) {
     verify: (activation) => verifyBridgeActivation(activation, className, "UI bridge", { mode: query.mode })
   });
   const { bridgeRefreshed } = deployed;
-  const run2 = await executeBridge(conn, gate, deployed);
-  const transcript = parseUiTranscript(run2.output);
+  const run = await executeBridge(conn, gate, deployed);
+  const transcript = parseUiTranscript(run.output);
   return {
     query,
     bridgeClass: className,
     bridgeRefreshed,
     durationMs: Date.now() - started,
     transcript,
-    outputComplete: run2.outputComplete,
-    bodyBytes: run2.bodyBytes
+    outputComplete: run.outputComplete,
+    bodyBytes: run.bodyBytes
   };
 }
 
@@ -137104,7 +136870,7 @@ async function runPressTool(deps, input) {
   await assertBdcApplies(deps, query.tcode);
   const bridgeClass = uiBridgeClassName(query);
   deps.safety.assert("write", { name: bridgeClass, packageName: FLUID_PACKAGE, type: "CLAS/OC" }, { phase: "preflight" });
-  const journalled2 = await withJournalledMutation(
+  const journalled = await withJournalledMutation(
     deps.journal,
     {
       begin: (image) => ({
@@ -137135,9 +136901,9 @@ async function runPressTool(deps, input) {
       return deps.pool.withWrite("abap_ui", bridgeClass, (conn) => runUiBridge(conn, query, deps.safety));
     }
   );
-  const result = journalled2.result;
+  const result = journalled.result;
   const press = result.transcript.press;
-  await journalled2.settle({
+  await journalled.settle({
     outcome: press && press.subrc === 0 ? "succeeded" : "failed"
   });
   return ok15(buildPressResponse(query, result, deps.cfg.maxResponseChars));
@@ -137981,7 +137747,7 @@ async function runEnhAction(conn, gate, action, args) {
   }
   const result = fr.result;
   const raw = JSON.stringify(result);
-  const run2 = {
+  const run = {
     mode: "class",
     object: enhManifest.entry,
     output: raw,
@@ -137991,7 +137757,7 @@ async function runEnhAction(conn, gate, action, args) {
     bodyBytes: raw.length,
     outputComplete: !fr.truncated
   };
-  return { result, run: run2 };
+  return { result, run };
 }
 async function ensureMarkerInterface(conn, gate, interfaceName) {
   const name = assertEnhIdentifier(interfaceName, "interfaceName");
@@ -138072,7 +137838,7 @@ async function createEnhancementSpot(conn, gate, params) {
   );
   gate.assertIntent(intent, { op: "write" });
   gate.assertIntent(intent, { op: "activate" });
-  const { result, run: run2 } = await runEnhAction(conn, gate, "create_spot", {
+  const { result, run } = await runEnhAction(conn, gate, "create_spot", {
     spot_name: spotName,
     description: params.description,
     package_name: ENH_CREATE_PACKAGE,
@@ -138084,7 +137850,7 @@ async function createEnhancementSpot(conn, gate, params) {
   };
   assertEnhTranscript(transcript, ["SPOT-OBJECT-CREATED"], `Creating enhancement spot ${spotName}`);
   const activation = await activateObject(conn, { name: spotName, uri: spotUri(spotName) });
-  return { run: run2, transcript, activation };
+  return { run, transcript, activation };
 }
 async function addBadiDefinition(conn, gate, params) {
   const spotName = assertEnhIdentifier(params.spotName, "spotName");
@@ -138097,7 +137863,7 @@ async function addBadiDefinition(conn, gate, params) {
   gate.assertIntent(intent, { op: "write" });
   gate.assertIntent(intent, { op: "activate" });
   await ensureMarkerInterface(conn, gate, interfaceName);
-  const { result, run: run2 } = await runEnhAction(conn, gate, "add_badi_def", {
+  const { result, run } = await runEnhAction(conn, gate, "add_badi_def", {
     spot_name: spotName,
     badi_name: badiName,
     interface_name: interfaceName,
@@ -138112,7 +137878,7 @@ async function addBadiDefinition(conn, gate, params) {
   };
   assertEnhTranscript(transcript, ["BADI-DEF-ADDED"], `Adding BAdI definition ${badiName} to spot ${spotName}`);
   const activation = await activateObject(conn, { name: spotName, uri: spotUri(spotName) });
-  return { run: run2, transcript, activation };
+  return { run, transcript, activation };
 }
 async function addFilterDefinition(conn, gate, params) {
   const spotName = assertEnhIdentifier(params.spotName, "spotName");
@@ -138132,14 +137898,14 @@ async function addFilterDefinition(conn, gate, params) {
     corr_nr: ""
   };
   if (params.filterText !== void 0) args.filter_text = params.filterText;
-  const { result, run: run2 } = await runEnhAction(conn, gate, "add_filter_def", args);
+  const { result, run } = await runEnhAction(conn, gate, "add_filter_def", args);
   const transcript = {
     tags: result.added === true ? ["FILTER-DEF-ADDED"] : [],
     raw: JSON.stringify(result)
   };
   assertEnhTranscript(transcript, ["FILTER-DEF-ADDED"], `Adding filter definition ${params.filterName} to ${badiName}`);
   const activation = await activateObject(conn, { name: spotName, uri: spotUri(spotName) });
-  return { run: run2, transcript, activation };
+  return { run, transcript, activation };
 }
 async function implementingClassExists(conn, className) {
   try {
@@ -138161,7 +137927,7 @@ async function createBadiImplementation(conn, gate, params) {
   );
   gate.assertIntent(intent, { op: "write" });
   gate.assertIntent(intent, { op: "activate" });
-  const { result, run: run2 } = await runEnhAction(conn, gate, "create_impl", {
+  const { result, run } = await runEnhAction(conn, gate, "create_impl", {
     enh_name: enhName,
     spot_name: spotName,
     badi_name: badiName,
@@ -138182,7 +137948,7 @@ async function createBadiImplementation(conn, gate, params) {
   assertEnhTranscript(transcript, ["ENHO-OBJECT-CREATED", "IMPL-ADDED"], `Creating BAdI implementation ${enhName}`);
   const activation = await activateObject(conn, { name: enhName, uri: implUri(enhName) });
   const exists = await implementingClassExists(conn, implClass);
-  return { run: run2, transcript, activation, implClass: { name: implClass, exists } };
+  return { run, transcript, activation, implClass: { name: implClass, exists } };
 }
 async function setFilterValues(conn, gate, params) {
   const enhName = assertEnhIdentifier(params.enhName, "enhName");
@@ -138193,7 +137959,7 @@ async function setFilterValues(conn, gate, params) {
   );
   gate.assertIntent(intent, { op: "write" });
   gate.assertIntent(intent, { op: "activate" });
-  const { result, run: run2 } = await runEnhAction(conn, gate, "set_filter_values", {
+  const { result, run } = await runEnhAction(conn, gate, "set_filter_values", {
     enh_name: enhName,
     impl_name: params.implName,
     filter_name: params.filterName,
@@ -138226,7 +137992,7 @@ async function setFilterValues(conn, gate, params) {
     what: `H23 joint activation of spot ${spotName} + implementation ${enhName} after a filter change`,
     name: enhName
   });
-  return { run: run2, transcript, jointActivation };
+  return { run, transcript, jointActivation };
 }
 async function exerciseBadi(conn, gate, params) {
   const badiName = assertEnhIdentifier(params.badiName, "badiName");
@@ -138237,7 +138003,7 @@ async function exerciseBadi(conn, gate, params) {
   gate.assertIntent(intent, { op: "execute" });
   const body = exerciseFragment(params);
   const source = bridgeSource(BRIDGE_CLASS.exercise, [], body);
-  const run2 = await writeActivateRunBridge(
+  const run = await writeActivateRunBridge(
     conn,
     gate,
     BRIDGE_CLASS.exercise,
@@ -138245,7 +138011,7 @@ async function exerciseBadi(conn, gate, params) {
     `abapsmith T15 exercise-badi bridge (${badiName})`,
     "exercise"
   );
-  const transcript = parseEnhancementTranscript(run2.output);
+  const transcript = parseEnhancementTranscript(run.output);
   if (transcript.tags.includes("NOT-BOUND")) {
     throw new AbapError(
       "ENHANCEMENT_NOT_DISPATCHING",
@@ -138254,7 +138020,7 @@ async function exerciseBadi(conn, gate, params) {
     );
   }
   assertEnhTranscript(transcript, ["EXERCISED"], `Exercising BAdI ${badiName}`);
-  return { run: run2, transcript };
+  return { run, transcript };
 }
 
 // src/adt/enhancement-hook.ts
@@ -138525,16 +138291,16 @@ function buildEnhResponse(write, activation, maxChars) {
     maxChars
   }).text;
 }
-function buildEnhDeleteResponse(del3, maxChars) {
+function buildEnhDeleteResponse(del, maxChars) {
   return buildResponse({
     header: {
-      type: del3.target.type,
-      name: del3.target.name,
-      deleted: del3.deleted,
-      previousEtag: del3.previousEtag,
-      transport: del3.transport.status,
-      corrNr: del3.transport.status === "transport" ? del3.transport.corrNr : void 0,
-      affects: `${del3.affects.name} (${del3.affects.packageName})`
+      type: del.target.type,
+      name: del.target.name,
+      deleted: del.deleted,
+      previousEtag: del.previousEtag,
+      transport: del.transport.status,
+      corrNr: del.transport.status === "transport" ? del.transport.corrNr : void 0,
+      affects: `${del.affects.name} (${del.affects.packageName})`
     },
     notes: [
       "Irreversible: abapsmith has no undo for an enhancement delete (see undoBlocker in src/adt/undo.ts). The journal entry for this delete is recorded but marked irreversible."
@@ -138719,7 +138485,7 @@ function parseExerciseParams(spec) {
     };
   });
 }
-function buildEnhCreateResponse(operation, objectName, run2, transcript, postActivation2, maxChars, extraNotes, activationTarget) {
+function buildEnhCreateResponse(operation, objectName, run, transcript, postActivation2, maxChars, extraNotes, activationTarget) {
   const notes = [
     `Landed in ${ENH_CREATE_PACKAGE} \u2014 the only package this codebase's non-atomic multi-step enhancement create has been proven safe in.`
   ];
@@ -138742,13 +138508,13 @@ function buildEnhCreateResponse(operation, objectName, run2, transcript, postAct
       operation,
       object: objectName,
       tags: transcript.tags.join(", "),
-      durationMs: run2.durationMs,
-      outputComplete: run2.outputComplete,
+      durationMs: run.durationMs,
+      outputComplete: run.outputComplete,
       activated: postActivation2?.activated,
       activationMessages: postActivation2 && postActivation2.messages.length ? JSON.stringify(postActivation2.messages) : void 0
     },
-    body: run2.output || void 0,
-    bodyLabel: run2.output ? "BRIDGE OUTPUT" : void 0,
+    body: run.output || void 0,
+    bodyLabel: run.output ? "BRIDGE OUTPUT" : void 0,
     notes,
     ...sections ? { sections } : {},
     maxChars
@@ -138768,7 +138534,7 @@ async function runEnhCreateOperation(deps, operation, input) {
       deps.safety.assertIntent(intent, { op: "write", phase: "preflight" });
       deps.safety.assertIntent(intent, { op: "activate", phase: "preflight" });
       await deps.ensureConnected();
-      const { run: run2, transcript, activation } = await deps.pool.withWrite("abap_enh", gateKey, async (conn) => {
+      const { run, transcript, activation } = await deps.pool.withWrite("abap_enh", gateKey, async (conn) => {
         const { result, settle } = await withJournalledMutation(
           deps.journal,
           {
@@ -138801,7 +138567,7 @@ async function runEnhCreateOperation(deps, operation, input) {
         });
         return result;
       });
-      return buildEnhCreateResponse(operation, spotName, run2, transcript, activation, maxChars, void 0, {
+      return buildEnhCreateResponse(operation, spotName, run, transcript, activation, maxChars, void 0, {
         name: spotName,
         type: "ENHS/XS"
       });
@@ -138819,7 +138585,7 @@ async function runEnhCreateOperation(deps, operation, input) {
       deps.safety.assertIntent(intent, { op: "write", phase: "preflight" });
       deps.safety.assertIntent(intent, { op: "activate", phase: "preflight" });
       await deps.ensureConnected();
-      const { run: run2, transcript, activation } = await deps.pool.withWrite("abap_enh", gateKey, async (conn) => {
+      const { run, transcript, activation } = await deps.pool.withWrite("abap_enh", gateKey, async (conn) => {
         const { result, settle } = await withJournalledMutation(
           deps.journal,
           {
@@ -138847,7 +138613,7 @@ async function runEnhCreateOperation(deps, operation, input) {
       return buildEnhCreateResponse(
         operation,
         badiName,
-        run2,
+        run,
         transcript,
         activation,
         maxChars,
@@ -138872,7 +138638,7 @@ async function runEnhCreateOperation(deps, operation, input) {
       deps.safety.assertIntent(intent, { op: "write", phase: "preflight" });
       deps.safety.assertIntent(intent, { op: "activate", phase: "preflight" });
       await deps.ensureConnected();
-      const { run: run2, transcript, activation } = await deps.pool.withWrite("abap_enh", gateKey, async (conn) => {
+      const { run, transcript, activation } = await deps.pool.withWrite("abap_enh", gateKey, async (conn) => {
         const { result, settle } = await withJournalledMutation(
           deps.journal,
           {
@@ -138897,7 +138663,7 @@ async function runEnhCreateOperation(deps, operation, input) {
         });
         return result;
       });
-      return buildEnhCreateResponse(operation, filterName, run2, transcript, activation, maxChars, void 0, {
+      return buildEnhCreateResponse(operation, filterName, run, transcript, activation, maxChars, void 0, {
         name: spotName,
         type: "ENHS/XS"
       });
@@ -138917,7 +138683,7 @@ async function runEnhCreateOperation(deps, operation, input) {
       deps.safety.assertIntent(intent, { op: "write", phase: "preflight" });
       deps.safety.assertIntent(intent, { op: "activate", phase: "preflight" });
       await deps.ensureConnected();
-      const { run: run2, transcript, activation, implClass: implClassCheck } = await deps.pool.withWrite("abap_enh", gateKey, async (conn) => {
+      const { run, transcript, activation, implClass: implClassCheck } = await deps.pool.withWrite("abap_enh", gateKey, async (conn) => {
         const { result, settle } = await withJournalledMutation(
           deps.journal,
           {
@@ -138965,7 +138731,7 @@ async function runEnhCreateOperation(deps, operation, input) {
           `Could not check whether implementing class ${implClass} exists (the check did not complete). create_impl never creates it \u2014 unlike SE19 \u2014 so confirm it with abap_read(object:"${implClass}", type:"CLAS/OC") and create it if it is missing.`
         );
       }
-      return buildEnhCreateResponse(operation, enhName, run2, transcript, activation, maxChars, createImplNotes);
+      return buildEnhCreateResponse(operation, enhName, run, transcript, activation, maxChars, createImplNotes);
     }
     case "set_filter_values": {
       const enhName = name;
@@ -138982,7 +138748,7 @@ async function runEnhCreateOperation(deps, operation, input) {
       deps.safety.assertIntent(intent, { op: "write", phase: "preflight" });
       deps.safety.assertIntent(intent, { op: "activate", phase: "preflight" });
       await deps.ensureConnected();
-      const { run: run2, transcript, jointActivation } = await deps.pool.withWrite("abap_enh", gateKey, async (conn) => {
+      const { run, transcript, jointActivation } = await deps.pool.withWrite("abap_enh", gateKey, async (conn) => {
         let jointSettle;
         const { result, settle } = await withJournalledMutation(
           deps.journal,
@@ -139041,7 +138807,7 @@ async function runEnhCreateOperation(deps, operation, input) {
         });
         return result;
       });
-      return buildEnhCreateResponse(operation, enhName, run2, transcript, jointActivation, maxChars);
+      return buildEnhCreateResponse(operation, enhName, run, transcript, jointActivation, maxChars);
     }
     case "exercise": {
       const badiName = name;
@@ -139059,12 +138825,12 @@ async function runEnhCreateOperation(deps, operation, input) {
       const intent = enhancementIntentFor({ name: badiName, type: "ENHO/XH", packageName: ENH_CREATE_PACKAGE }, affects);
       deps.safety.assertIntent(intent, { op: "execute", phase: "preflight" });
       await deps.ensureConnected();
-      const { run: run2, transcript } = await deps.pool.withWrite(
+      const { run, transcript } = await deps.pool.withWrite(
         "abap_enh",
         gateKey,
         (conn) => exerciseBadi(conn, deps.safety, { badiName, methodName, filterName, filterValue, params, affects })
       );
-      return buildEnhCreateResponse(operation, badiName, run2, transcript, void 0, maxChars);
+      return buildEnhCreateResponse(operation, badiName, run, transcript, void 0, maxChars);
     }
   }
 }
@@ -139124,7 +138890,7 @@ async function runEnhHookOperation(deps, operation, input) {
   const anchorFullName = parseAnchorFullName(requireSpecStr(spec, "anchorFullName", operation));
   const anchorFullDescription = requireSpecStr(spec, "anchorFullDescription", operation);
   const responsible = specStr(spec, "responsible") ?? deps.cfg.user.toUpperCase();
-  const activate2 = specBool(spec, "activate") ?? false;
+  const activate = specBool(spec, "activate") ?? false;
   const name = input.name;
   const description = input.description;
   if (description === void 0) {
@@ -139154,7 +138920,7 @@ async function runEnhHookOperation(deps, operation, input) {
   }
   const intent = enhancementIntentFor({ name, type: "ENHO/XHH", packageName: ENH_CREATE_PACKAGE }, affects);
   deps.safety.assertIntent(intent, { op: "write", phase: "preflight" });
-  if (activate2) {
+  if (activate) {
     deps.safety.assertIntent(intent, { op: "activate", phase: "preflight" });
   }
   await deps.ensureConnected();
@@ -139186,7 +138952,7 @@ async function runEnhHookOperation(deps, operation, input) {
           anchor: { fullName: anchorFullName, fullDescription: anchorFullDescription },
           responsible,
           affects,
-          activate: activate2,
+          activate,
           allowEnhancements: deps.cfg.allowEnhancements,
           allowSourcePlugins: deps.cfg.allowSourcePlugins,
           // Not a capability — carries which mechanism decided the two booleans above, so the
@@ -139243,8 +139009,8 @@ async function runEnhDeleteOperation(deps, input) {
   deps.safety.assertIntent(preflightIntent, { op: "delete", phase: "preflight" });
   await deps.ensureConnected();
   const gateKey = enhGateKey(input.name);
-  const del3 = await deps.pool.withWrite("abap_enh", gateKey, async (conn) => {
-    const { result: del4, settle } = await withJournalledMutation(
+  const del = await deps.pool.withWrite("abap_enh", gateKey, async (conn) => {
+    const { result: del2, settle } = await withJournalledMutation(
       deps.journal,
       {
         begin: (img) => ({
@@ -139281,11 +139047,11 @@ async function runEnhDeleteOperation(deps, input) {
     );
     await settle({
       outcome: "succeeded",
-      ...del4.transport.status === "transport" ? { corrNr: del4.transport.corrNr } : {}
+      ...del2.transport.status === "transport" ? { corrNr: del2.transport.corrNr } : {}
     });
-    return del4;
+    return del2;
   });
-  return buildEnhDeleteResponse(del3, deps.cfg.maxResponseChars);
+  return buildEnhDeleteResponse(del, deps.cfg.maxResponseChars);
 }
 var ENH_TOOL_DESCRIPTION = "Default op writes the root adtcore:description of an existing ENHO/XH, ENHO/XHH or ENHS/XS, optionally activating it. ENHO/XHH plug-in source body: use abap_write, not this tool. See operation for the other ops.";
 function registerEnhancementTools(mcp, deps) {
@@ -142528,7 +142294,7 @@ function registerQuickFixTools(mcp, deps) {
         await deps.ensureConnected();
         const object3 = a.object;
         const type = a.type;
-        const run2 = (conn) => abapQuickFix(
+        const run = (conn) => abapQuickFix(
           conn,
           a,
           deps.cfg.maxResponseChars,
@@ -142538,11 +142304,11 @@ function registerQuickFixTools(mcp, deps) {
           deps.cfg.verifyWrites
         );
         const res = await explainReadOnlyRefusal(
-          () => a.mode === "apply" ? deps.pool.withWrite("abap_quick_fix", writeGateKey(object3, type), run2) : (
+          () => a.mode === "apply" ? deps.pool.withWrite("abap_quick_fix", writeGateKey(object3, type), run) : (
             // A READ slot: evaluation is a POST but takes no ABAP enqueue (pool.ts,
             // ROLE SEMANTICS) — holding the single write slot for an enumeration
             // would be wrong. It is still gated as `write` above and again inside.
-            deps.pool.withRead("abap_quick_fix", run2)
+            deps.pool.withRead("abap_quick_fix", run)
           )
         );
         return ok20(res.text);
@@ -144659,8 +144425,8 @@ async function readTraceRun(conn, traceId) {
     throw classifyTraceFailure(e, ctx);
   }
   const runs = parseTraceRuns(body);
-  const run2 = runs[0];
-  if (run2 === void 0) {
+  const run = runs[0];
+  if (run === void 0) {
     throw new AbapError(
       "NOT_FOUND",
       `Trace ${traceId} does not exist on this system.`,
@@ -144668,7 +144434,7 @@ async function readTraceRun(conn, traceId) {
       'Run abap_trace with op="list" to see the trace ids that still exist. Traces expire and are deleted by the system on its own schedule.'
     );
   }
-  return run2;
+  return run;
 }
 async function fetchTraceHitList(conn, traceId, withSystemEvents) {
   conn.discovery.assertSupported("traces.abaptraces", "ABAP runtime tracing");
@@ -145071,19 +144837,19 @@ function findTreeAnchorIndex(statements, hint) {
 }
 async function renderRead(conn, args, maxChars) {
   const rawId = args.id;
-  const run2 = await readTraceRun(conn, rawId);
-  const id = shortId2(run2.id);
+  const run = await readTraceRun(conn, rawId);
+  const id = shortId2(run.id);
   const view = args.view ?? "hitlist";
   const top = resolveTop(args.top);
   const header = {
     trace_run_id: id,
-    object: run2.objectName,
-    aggregated: run2.isAggregated ? "yes" : "no",
-    size: run2.size,
-    runtime_ms: msFromUs(run2.runtime)
+    object: run.objectName,
+    aggregated: run.isAggregated ? "yes" : "no",
+    size: run.size,
+    runtime_ms: msFromUs(run.runtime)
   };
   if (view === "hitlist") {
-    const hit = await fetchTraceHitList(conn, run2.id);
+    const hit = await fetchTraceHitList(conn, run.id);
     const { table: table2, note } = renderHitList(hit.entries, top);
     return buildResponse({
       header,
@@ -145094,7 +144860,7 @@ async function renderRead(conn, args, maxChars) {
     });
   }
   if (view === "db") {
-    const db = await fetchTraceDbAccesses(conn, run2.id);
+    const db = await fetchTraceDbAccesses(conn, run.id);
     const { table: table2, tables, note, totalMs } = renderDbAccesses(db, top);
     return buildResponse({
       header,
@@ -145107,10 +144873,10 @@ async function renderRead(conn, args, maxChars) {
       maxChars
     });
   }
-  assertTreeViewAllowed(run2.isAggregated, id);
+  assertTreeViewAllowed(run.isAggregated, id);
   const depth = resolveTreeDepth(args.depth);
-  const stmt = await fetchTraceStatements(conn, run2.id);
-  const rootHint = args.root ?? anchorHintFromObjectUrl(run2.objectName);
+  const stmt = await fetchTraceStatements(conn, run.id);
+  const rootHint = args.root ?? anchorHintFromObjectUrl(run.objectName);
   const anchorIndex = rootHint === void 0 ? -1 : findTreeAnchorIndex(stmt.statements, rootHint);
   const notes = [];
   let subtree;
@@ -145564,11 +145330,11 @@ async function reapRetiredBridges(gate, lease) {
       continue;
     }
     try {
-      const del3 = await lease(
+      const del = await lease(
         "abap_fluid.repair.delete",
         (conn) => deleteOneFluidObject(conn, gate, { type: "CLAS/OC", name: probe3.name }, false)
       );
-      results.push({ name: probe3.name, outcome: del3.deleted === false ? "failed" : "deleted" });
+      results.push({ name: probe3.name, outcome: del.deleted === false ? "failed" : "deleted" });
     } catch (e) {
       if (isAbapError(e) && e.code === "NOT_FOUND") {
         results.push({ name: probe3.name, outcome: "already-absent" });
@@ -145639,11 +145405,11 @@ async function pruneInvokers(gate, lease, probes) {
   const results = [];
   for (const probe3 of probes) {
     try {
-      const del3 = await lease(
+      const del = await lease(
         "abap_fluid.repair.prune-invoker",
         (conn) => deleteOneFluidObject(conn, gate, { type: "CLAS/OC", name: probe3.name }, false)
       );
-      results.push({ name: probe3.name, outcome: del3.deleted === false ? "failed" : "deleted" });
+      results.push({ name: probe3.name, outcome: del.deleted === false ? "failed" : "deleted" });
     } catch (e) {
       if (isAbapError(e) && e.code === "NOT_FOUND") {
         results.push({ name: probe3.name, outcome: "already-absent" });
@@ -146378,12 +146144,12 @@ async function runRemove(deps, a) {
   const outcomes = [];
   for (const target of targets) {
     try {
-      const del3 = await deps.pool.withWrite(
+      const del = await deps.pool.withWrite(
         "abap_fluid.remove",
         void 0,
         (conn) => deleteOneFluidObject(conn, deps.safety, target, false)
       );
-      outcomes.push({ ...target, outcome: del3.deleted === false ? "failed" : "deleted" });
+      outcomes.push({ ...target, outcome: del.deleted === false ? "failed" : "deleted" });
     } catch (e) {
       if (isAbapError(e) && e.code === "NOT_FOUND") {
         outcomes.push({ ...target, outcome: "already-absent" });
@@ -146477,2299 +146243,6 @@ function registerFluidTool(mcp, deps) {
         return deps.errorResult(e);
       }
     }
-  );
-}
-
-// src/tools/v2/handlers/adt.ts
-init_compact();
-
-// src/tools/v2/adt-validation.ts
-var ADT_PATH_PREFIX = "/sap/bc/adt/";
-var DENIED_ADT_HEADERS = [
-  "authorization",
-  "cookie",
-  "set-cookie",
-  "x-csrf-token",
-  "host",
-  "content-length",
-  "connection"
-];
-function normalizeAdtMethod(method) {
-  return (method ?? "GET").toUpperCase();
-}
-function validateAdtPath(path8) {
-  if (path8 === void 0 || path8 === "") {
-    return { ok: false, message: "abap_adt requires a non-empty path." };
-  }
-  if (path8.includes("://")) {
-    return {
-      ok: false,
-      message: `abap_adt path must be relative to the connected system, not an absolute URL: "${path8}".`
-    };
-  }
-  if (path8.startsWith("//")) {
-    return {
-      ok: false,
-      message: `abap_adt path must not start with "//" (protocol-relative URL): "${path8}".`
-    };
-  }
-  const pathOnly = (path8.split("#")[0] ?? path8).split("?")[0] ?? path8;
-  if (pathOnly.split("/").includes("..")) {
-    return { ok: false, message: `abap_adt path must not contain ".." segments: "${path8}".` };
-  }
-  if (!pathOnly.startsWith(ADT_PATH_PREFIX)) {
-    return {
-      ok: false,
-      message: `abap_adt path must start with "${ADT_PATH_PREFIX}": "${path8}".`
-    };
-  }
-  return { ok: true, path: path8 };
-}
-function findDeniedAdtHeader(headers) {
-  if (headers === void 0) return void 0;
-  for (const key of Object.keys(headers)) {
-    if (DENIED_ADT_HEADERS.includes(key.toLowerCase())) return key;
-  }
-  return void 0;
-}
-
-// src/tools/v2/envelope.ts
-function isBareCall(args) {
-  if (args === void 0 || args === null) return true;
-  if (typeof args !== "object") return false;
-  const values = Object.values(args);
-  return values.every((v) => v === void 0 || v === null || v === "");
-}
-function unknownAction(tool, given, closest, catalogue, skill) {
-  const closestPart = closest.length > 0 ? ` Closest match(es): ${closest.join(", ")}.` : "";
-  return {
-    ok: false,
-    tool,
-    error: "UNKNOWN_ACTION",
-    message: `"${given}" is not a known action for ${tool}.${closestPart}`,
-    hint: `Call ${tool}({}) with no args to list every action available in this mode.`,
-    retryable: true,
-    // a different action string would work
-    given,
-    closest,
-    catalogue,
-    skill,
-    next: [
-      {
-        tool,
-        args: {},
-        why: "List the full action catalogue for this mode."
-      }
-    ]
-  };
-}
-function bareOk(tool, data, next) {
-  return { ok: true, tool, data, next };
-}
-function firstN(entries, n) {
-  const out = [];
-  for (const entry of entries) {
-    if (out.length >= n) break;
-    out.push(entry);
-  }
-  return out;
-}
-function notImplemented(tool, what, next) {
-  return {
-    ok: false,
-    tool,
-    error: "NOT_IMPLEMENTED",
-    message: `${what} is recognised by ${tool} but deliberately not implemented; no retry of this call will ever succeed \u2014 see NEXT for the supported route.`,
-    retryable: false,
-    // deliberate design decision, not a placeholder
-    next
-  };
-}
-function renderNextCall(n) {
-  return `${n.tool}(${JSON.stringify(n.args)})  \u2014 ${n.why}`;
-}
-function renderV2(res) {
-  const lines = [];
-  lines.push(`tool: ${res.tool}`);
-  lines.push(
-    res.ok && res.truncated ? "ok: true (INCOMPLETE \u2014 the DATA below is NOT the whole of what was requested; see NOTES)" : `ok: ${String(res.ok)}`
-  );
-  if (res.ok) {
-    lines.push("DATA:");
-    lines.push(typeof res.data === "string" ? res.data : JSON.stringify(res.data, null, 2));
-    if (res.notes !== void 0 && res.notes.length > 0) {
-      lines.push("NOTES:");
-      for (const note of res.notes) lines.push(`- ${note}`);
-    }
-  } else {
-    lines.push(`error: ${res.error}`);
-    lines.push(`message: ${res.message}`);
-    if (res.hint !== void 0) lines.push(`hint: ${res.hint}`);
-    if (res.retryable !== void 0) lines.push(`retryable: ${String(res.retryable)}`);
-    if (res.given !== void 0) lines.push(`given: ${res.given}`);
-    if (res.closest !== void 0) lines.push(`closest: ${res.closest.join(", ")}`);
-    if (res.catalogue !== void 0) lines.push(`catalogue: ${res.catalogue}`);
-    if (res.skill !== void 0) lines.push(`skill: ${res.skill}`);
-  }
-  lines.push("NEXT:");
-  if (res.next.length === 0) {
-    lines.push("(none)");
-  } else {
-    for (const call of res.next) lines.push(renderNextCall(call));
-  }
-  return lines.join("\n");
-}
-function v2Result(res) {
-  const text4 = renderV2(res);
-  if (!res.ok) {
-    return { content: [{ type: "text", text: text4 }], isError: true };
-  }
-  return { content: [{ type: "text", text: text4 }] };
-}
-function levenshtein2(a, b) {
-  const m = a.length;
-  const n = b.length;
-  let prev = new Array(n + 1);
-  let curr = new Array(n + 1);
-  for (let j = 0; j <= n; j++) prev[j] = j;
-  for (let i = 1; i <= m; i++) {
-    curr[0] = i;
-    for (let j = 1; j <= n; j++) {
-      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      const deletion = (prev[j] ?? 0) + 1;
-      const insertion = (curr[j - 1] ?? 0) + 1;
-      const substitution = (prev[j - 1] ?? 0) + cost;
-      curr[j] = Math.min(deletion, insertion, substitution);
-    }
-    const swap = prev;
-    prev = curr;
-    curr = swap;
-  }
-  return prev[n] ?? 0;
-}
-function nearest(given, candidates, max = 3) {
-  const g = given.toLowerCase();
-  const scored = candidates.map((c) => ({ c, d: levenshtein2(g, c.toLowerCase()) })).filter((x) => x.d <= 5).sort((x, y) => x.d !== y.d ? x.d - y.d : x.c.localeCompare(y.c));
-  const out = [];
-  for (const { c } of scored) {
-    if (out.length >= max) break;
-    out.push(c);
-  }
-  return out;
-}
-
-// src/tools/v2/runtime.ts
-init_errors();
-function v2Error(tool, e, next) {
-  if (isAbapError(e)) {
-    return {
-      ok: false,
-      tool,
-      error: e.code,
-      message: e.message,
-      ...e.hint !== void 0 ? { hint: e.hint } : {},
-      retryable: e.retryable,
-      next
-    };
-  }
-  const described = describeUnknownError(e);
-  return {
-    ok: false,
-    tool,
-    error: "ADT_ERROR",
-    message: typeof described === "string" && described ? described : `Unknown failure (${typeof e})`,
-    retryable: void 0,
-    // cause not classified, no claim
-    next
-  };
-}
-
-// src/tools/v2/handlers/adt.ts
-var EXAMPLE_PATH = "/sap/bc/adt/repository/nodestructure";
-var bareNext = [
-  { tool: "abap_adt", args: { path: EXAMPLE_PATH }, why: "Example GET against a real ADT endpoint." }
-];
-function retryBareNext() {
-  return [{ tool: "abap_adt", args: {}, why: "Retry with the bare call for guidance." }];
-}
-function badInput2(message) {
-  return {
-    ok: false,
-    tool: "abap_adt",
-    error: "BAD_INPUT",
-    message,
-    retryable: true,
-    // a different argument would work
-    next: bareNext
-  };
-}
-async function handleAbapAdt(args, deps) {
-  const mode = deps.cfg.abapMode;
-  try {
-    if (isBareCall(args)) {
-      return v2Result(
-        bareOk(
-          "abap_adt",
-          "abap_adt is a raw ADT REST escape hatch. method: GET (default) | POST | PUT | DELETE. path is a full path under /sap/bc/adt/. GET-only in every mode, including admin \u2014 non-GET verbs are refused regardless of mode (see the tool description for why).",
-          [...bareNext]
-        )
-      );
-    }
-    const a = args;
-    const method = normalizeAdtMethod(a.method);
-    if (method !== "GET") {
-      if (mode !== "admin") {
-        return v2Result({
-          ok: false,
-          tool: "abap_adt",
-          error: "READ_ONLY",
-          message: `abap_adt method="${a.method}" requires admin mode; this server is running in ${mode} mode.`,
-          retryable: true,
-          // GET works in this mode; a different method/mode would too
-          next: [
-            {
-              tool: "abap_adt",
-              args: { method: "GET", path: a.path ?? EXAMPLE_PATH },
-              why: "GET is available in this mode."
-            }
-          ]
-        });
-      }
-      return v2Result(
-        notImplemented("abap_adt", `abap_adt method="${method}"`, [
-          {
-            tool: "abap_adt",
-            args: { method: "GET", path: a.path ?? EXAMPLE_PATH },
-            why: "GET is fully implemented; mutating verbs need further structural work first."
-          }
-        ])
-      );
-    }
-    const pathCheck = validateAdtPath(a.path);
-    if (!pathCheck.ok) return v2Result(badInput2(pathCheck.message));
-    const deniedHeader = findDeniedAdtHeader(a.headers);
-    if (deniedHeader !== void 0) {
-      return v2Result(
-        badInput2(
-          `abap_adt refuses to override the "${deniedHeader}" header: it is session-owned (cookies/CSRF/connection framing are managed by the connection itself). Remove it from headers and retry.`
-        )
-      );
-    }
-    await deps.ensureConnected();
-    deps.safety.assert("read");
-    const path8 = pathCheck.path;
-    const resp = await deps.pool.withRead(
-      "abap_adt",
-      (conn) => conn.get(path8, a.headers !== void 0 ? { headers: a.headers } : {})
-    );
-    const contentType2 = typeof resp.headers["content-type"] === "string" ? resp.headers["content-type"] : void 0;
-    const built = buildResponse({
-      header: {
-        method: "GET",
-        path: path8,
-        status: resp.status,
-        contentType: contentType2
-      },
-      body: resp.body,
-      bodyLabel: "RESPONSE",
-      maxChars: deps.cfg.maxResponseChars
-    });
-    return v2Result({
-      ok: true,
-      tool: "abap_adt",
-      data: built.text,
-      next: [
-        { tool: "abap_adt", args: { path: path8 }, why: "Repeat this GET." },
-        {
-          tool: "abap_adt",
-          args: {},
-          why: "Call abap_adt({}) for the bare self-description of this raw escape hatch."
-        }
-      ]
-    });
-  } catch (e) {
-    return v2Result(v2Error("abap_adt", e, retryBareNext()));
-  }
-}
-
-// src/tools/v2/handlers/debug.ts
-var ABAP_DEBUG_ACTIONS = [
-  "start",
-  "step",
-  "stack",
-  "frame",
-  "vars",
-  "value",
-  "keepalive",
-  "stop",
-  "status"
-];
-var runners = /* @__PURE__ */ new WeakMap();
-function runnerFor(deps) {
-  let runner = runners.get(deps);
-  if (!runner) {
-    runner = createDebugRunner(deps);
-    runners.set(deps, runner);
-  }
-  return runner;
-}
-function buildNextCalls(result) {
-  if (result.stateId !== void 0 && !result.dead) {
-    return [
-      {
-        tool: "abap_debug",
-        args: { action: "step", stateId: result.stateId, step: "over" },
-        why: "Advance to the next statement."
-      },
-      {
-        tool: "abap_debug",
-        args: { action: "vars", stateId: result.stateId },
-        why: "Survey variables at the current stop."
-      }
-    ];
-  }
-  return [
-    {
-      tool: "abap_debug",
-      args: { action: "start", run: "ZCL_FOO", breakpoints: ["ZCL_FOO:10"] },
-      why: "Start a new debug session."
-    }
-  ];
-}
-async function handleAbapDebug(args, deps) {
-  try {
-    if (isBareCall(args)) {
-      return v2Result(
-        bareOk(
-          "abap_debug",
-          "abap_debug drives a live ABAP debug session.\naction: start | step | stack | frame | vars | value | keepalive | stop | status\nEvery call after start takes the stateId the start response returned.",
-          [
-            {
-              tool: "abap_debug",
-              args: { action: "start", run: "ZCL_FOO", breakpoints: ["ZCL_FOO:10"] },
-              why: "Arm breakpoints and start a session."
-            }
-          ]
-        )
-      );
-    }
-    const action = args.action;
-    if (typeof action === "string" && !ABAP_DEBUG_ACTIONS.includes(action)) {
-      return v2Result(
-        unknownAction(
-          "abap_debug",
-          action,
-          nearest(action, ABAP_DEBUG_ACTIONS),
-          "abap_debug({}) \u2014 bare call lists every action.",
-          "abap:debugging"
-        )
-      );
-    }
-    const runner = runnerFor(deps);
-    const result = await runner.run(args);
-    const ok24 = {
-      ok: true,
-      tool: "abap_debug",
-      data: result.text,
-      ...result.notes.length > 0 ? { notes: result.notes } : {},
-      next: buildNextCalls(result)
-    };
-    return v2Result(ok24);
-  } catch (e) {
-    return v2Result(
-      v2Error("abap_debug", e, [{ tool: "abap_debug", args: {}, why: "Retry with the bare call for guidance." }])
-    );
-  }
-}
-
-// src/tools/v2/catalogue.ts
-var ABAP_DO_GROUPS = ["activation", "execution", "journal", "transports", "bopf", "enhancements"];
-var MODE_RANK = { read: 0, edit: 1, admin: 2 };
-var ABAP_DO_ACTIONS = [
-  // activation
-  {
-    action: "activate",
-    group: "activation",
-    minMode: "edit",
-    v1: 'abap_activate({mode:"activate"})',
-    summary: "Activate an object; returns syntax errors on failure.",
-    args: "type, source, corr_nr"
-  },
-  {
-    action: "check",
-    group: "activation",
-    minMode: "read",
-    v1: 'abap_activate({mode:"check"})',
-    summary: "Syntax-check without activating.",
-    // Optional: omitted, checks the version already saved on
-    // the server instead of refusing — see src/tools/activate.ts.
-    args: "type, source"
-  },
-  // execution
-  {
-    action: "run",
-    group: "execution",
-    minMode: "edit",
-    v1: "abap_run()",
-    summary: "Execute a class (if_oo_adt_classrun) or a report. Executed ABAP runs with the connected user's full SAP authorisations and is not constrained by this server's package, name or transport allowlists.",
-    args: "mode (class|report|auto)"
-  },
-  {
-    action: "test",
-    group: "execution",
-    minMode: "edit",
-    v1: "abap_test()",
-    summary: "Run ABAP Unit for an object.",
-    args: "type, risk_level (harmless|dangerous|critical)"
-  },
-  // journal
-  {
-    action: "journal_list",
-    group: "journal",
-    minMode: "read",
-    v1: 'abap_journal({mode:"list"})',
-    summary: "List local write-journal entries.",
-    args: "limit"
-  },
-  {
-    action: "journal_show",
-    group: "journal",
-    minMode: "read",
-    v1: 'abap_journal({mode:"show"})',
-    summary: "Show one journal entry with its before-image.",
-    args: "(none \u2014 object is the entry id)"
-  },
-  {
-    action: "journal_reconcile",
-    group: "journal",
-    minMode: "edit",
-    v1: 'abap_journal({mode:"reconcile"})',
-    summary: "Close a stranded `pending` journal entry with a stated outcome and reason.",
-    args: "outcome (succeeded|failed), reason \u2014 object is the entry id"
-  },
-  {
-    action: "undo",
-    group: "journal",
-    minMode: "edit",
-    v1: 'abap_journal({mode:"undo"})',
-    summary: "Restore an object from its journal before-image.",
-    args: "entry, force, activate"
-  },
-  // transports
-  {
-    action: "transport_list",
-    group: "transports",
-    minMode: "read",
-    v1: 'abap_transport({operation:"list"})',
-    summary: "List transport requests.",
-    args: "(none \u2014 object is the user filter)"
-  },
-  {
-    action: "transport_show",
-    group: "transports",
-    minMode: "read",
-    v1: 'abap_transport({operation:"show"})',
-    summary: "Show one request with its objects.",
-    args: "(none \u2014 object is the transport number)"
-  },
-  {
-    action: "transport_check",
-    group: "transports",
-    minMode: "read",
-    v1: 'abap_transport({operation:"check"})',
-    summary: "Pre-release consistency check.",
-    args: "(none \u2014 object is the ABAP object name)"
-  },
-  {
-    action: "transport_users",
-    group: "transports",
-    minMode: "read",
-    v1: 'abap_transport({operation:"users"})',
-    summary: "List users on a request.",
-    args: "(none \u2014 takes no object either)"
-  },
-  {
-    action: "transport_create",
-    group: "transports",
-    minMode: "edit",
-    v1: 'abap_transport({operation:"create"})',
-    summary: "Create a request.",
-    args: "package, description (object = optional anchor object)"
-  },
-  {
-    action: "transport_add_user",
-    group: "transports",
-    minMode: "edit",
-    v1: 'abap_transport({operation:"addUser"})',
-    summary: "Add a user to a request.",
-    args: "user (object = transport number)"
-  },
-  {
-    action: "transport_set_owner",
-    group: "transports",
-    minMode: "edit",
-    v1: 'abap_transport({operation:"setOwner"})',
-    summary: "Change request owner.",
-    args: "user (object = transport number)"
-  },
-  {
-    action: "transport_delete",
-    group: "transports",
-    minMode: "admin",
-    v1: 'abap_transport({operation:"delete"})',
-    summary: "Delete a request. Destructive.",
-    args: "(none \u2014 object = transport number; top-level confirm required)"
-  },
-  {
-    action: "transport_release",
-    group: "transports",
-    minMode: "admin",
-    v1: "abap_transport_release()",
-    summary: "Release a request. Irreversible.",
-    args: "(none \u2014 object = transport number; top-level confirm required, else dry run; confirm_unowned overrides an unowned refusal)"
-  },
-  // bopf
-  {
-    action: "bopf_check_refs",
-    group: "bopf",
-    minMode: "read",
-    v1: 'abap_bopf({mode:"check_refs"})',
-    summary: "Report dangling references in a BO.",
-    args: "(none \u2014 object = bo)"
-  },
-  {
-    action: "bopf_create",
-    group: "bopf",
-    minMode: "edit",
-    v1: 'abap_bopf_edit({operation:"create_bo"})',
-    summary: "Create a business object. Non-atomic \u2014 see skill.",
-    args: "package (required), description, rootNodeName, activate"
-  },
-  {
-    action: "bopf_add_node",
-    group: "bopf",
-    minMode: "edit",
-    v1: 'abap_bopf_edit({operation:"add_node"})',
-    summary: "Add a node.",
-    args: "name (new node name), spec, activate, allow_dangling_ref"
-  },
-  {
-    action: "bopf_remove_node",
-    group: "bopf",
-    minMode: "edit",
-    v1: 'abap_bopf_edit({operation:"remove_node"})',
-    summary: "Remove a node.",
-    args: "node, nodeId, activate"
-  },
-  {
-    action: "bopf_add_association",
-    group: "bopf",
-    minMode: "edit",
-    v1: 'abap_bopf_edit({operation:"add_association"})',
-    summary: "Add an association.",
-    args: "node, name (new association name), spec, activate, allow_dangling_ref"
-  },
-  {
-    action: "bopf_remove_association",
-    group: "bopf",
-    minMode: "edit",
-    v1: 'abap_bopf_edit({operation:"remove_association"})',
-    summary: "Remove an association.",
-    args: "node, name, activate"
-  },
-  {
-    action: "bopf_set_association_fields",
-    group: "bopf",
-    minMode: "edit",
-    v1: 'abap_bopf_edit({operation:"set_association_fields"})',
-    summary: "Patch an association's fields in place.",
-    args: "node, name, spec, activate"
-  },
-  {
-    action: "bopf_add_action",
-    group: "bopf",
-    minMode: "edit",
-    v1: 'abap_bopf_edit({operation:"add_action"})',
-    summary: "Add an action.",
-    args: "node, name, spec, activate, allow_dangling_ref"
-  },
-  {
-    action: "bopf_remove_action",
-    group: "bopf",
-    minMode: "edit",
-    v1: 'abap_bopf_edit({operation:"remove_action"})',
-    summary: "Remove an action.",
-    args: "node, name, activate"
-  },
-  {
-    action: "bopf_set_action_fields",
-    group: "bopf",
-    minMode: "edit",
-    v1: 'abap_bopf_edit({operation:"set_action_fields"})',
-    summary: "Patch an action's fields in place.",
-    args: "node, name, spec, activate"
-  },
-  {
-    action: "bopf_add_determination",
-    group: "bopf",
-    minMode: "edit",
-    v1: 'abap_bopf_edit({operation:"add_determination"})',
-    summary: "Add a determination.",
-    args: "node, name, spec, activate, allow_dangling_ref"
-  },
-  {
-    action: "bopf_remove_determination",
-    group: "bopf",
-    minMode: "edit",
-    v1: 'abap_bopf_edit({operation:"remove_determination"})',
-    summary: "Remove a determination.",
-    args: "node, name, activate"
-  },
-  {
-    action: "bopf_set_determination_fields",
-    group: "bopf",
-    minMode: "edit",
-    v1: 'abap_bopf_edit({operation:"set_determination_fields"})',
-    summary: "Patch a determination's fields in place.",
-    args: "node, name, spec, activate"
-  },
-  {
-    action: "bopf_add_validation",
-    group: "bopf",
-    minMode: "edit",
-    v1: 'abap_bopf_edit({operation:"add_validation"})',
-    summary: "Add a validation.",
-    args: "node, name, spec, activate, allow_dangling_ref"
-  },
-  {
-    action: "bopf_remove_validation",
-    group: "bopf",
-    minMode: "edit",
-    v1: 'abap_bopf_edit({operation:"remove_validation"})',
-    summary: "Remove a validation.",
-    args: "node, name, activate"
-  },
-  {
-    action: "bopf_set_validation_fields",
-    group: "bopf",
-    minMode: "edit",
-    v1: 'abap_bopf_edit({operation:"set_validation_fields"})',
-    summary: "Patch a validation's fields in place.",
-    args: "node, name, spec, activate"
-  },
-  {
-    action: "bopf_add_query",
-    group: "bopf",
-    minMode: "edit",
-    v1: 'abap_bopf_edit({operation:"add_query"})',
-    summary: "Add a query.",
-    args: "node, name, spec, activate"
-  },
-  {
-    action: "bopf_remove_query",
-    group: "bopf",
-    minMode: "edit",
-    v1: 'abap_bopf_edit({operation:"remove_query"})',
-    summary: "Remove a query.",
-    args: "node, name, activate"
-  },
-  {
-    action: "bopf_set_query_fields",
-    group: "bopf",
-    minMode: "edit",
-    v1: 'abap_bopf_edit({operation:"set_query_fields"})',
-    summary: "Patch a query's fields in place.",
-    args: "node, name, spec, activate"
-  },
-  {
-    action: "bopf_add_alternative_key",
-    group: "bopf",
-    minMode: "edit",
-    v1: 'abap_bopf_edit({operation:"add_alternative_key"})',
-    summary: "Add an alternative key.",
-    args: "node, name, spec, i_know_this_may_not_activate (required true), activate"
-  },
-  {
-    action: "bopf_remove_alternative_key",
-    group: "bopf",
-    minMode: "edit",
-    v1: 'abap_bopf_edit({operation:"remove_alternative_key"})',
-    summary: "Remove an alternative key.",
-    args: "node, name, activate"
-  },
-  {
-    action: "bopf_set_alternative_key_fields",
-    group: "bopf",
-    minMode: "edit",
-    v1: 'abap_bopf_edit({operation:"set_alternative_key_fields"})',
-    summary: "Patch an alternative key's fields in place.",
-    args: "node, name, spec, i_know_this_may_not_activate (required true), activate"
-  },
-  {
-    action: "bopf_set_node_flags",
-    group: "bopf",
-    minMode: "edit",
-    v1: 'abap_bopf_edit({operation:"set_node_flags"})',
-    summary: "Set node flags.",
-    args: "node, nodeId, spec, activate"
-  },
-  {
-    action: "bopf_remove_dependent_object",
-    group: "bopf",
-    minMode: "edit",
-    v1: 'abap_bopf_edit({operation:"remove_dependent_object"})',
-    summary: 'Remove an existing dependent-object embedding (its association and "<name>.ROOT" node).',
-    args: "node (parent), name, activate"
-  },
-  {
-    action: "bopf_activate",
-    group: "bopf",
-    minMode: "edit",
-    v1: 'abap_bopf_edit({operation:"activate"})',
-    summary: "Activate a BO's design-time model.",
-    args: "(none \u2014 object = bo)"
-  },
-  {
-    action: "bopf_test",
-    group: "bopf",
-    minMode: "edit",
-    v1: "abap_bopf_test()",
-    summary: "Exercise a BO at runtime with a scenario.",
-    args: "scenario (required: nodes[], cleanup)"
-  },
-  {
-    action: "bopf_delete",
-    group: "bopf",
-    minMode: "admin",
-    v1: "abap_bopf_delete()",
-    summary: "Delete a BO; cascade DDIC is admin-only.",
-    args: "cascade_ddic, cascade_persistent, confirm_cascade (top-level confirm/dry_run also apply; dry_run defaults true)"
-  },
-  // enhancements
-  {
-    action: "enh_write_description",
-    group: "enhancements",
-    minMode: "edit",
-    v1: 'abap_enh({operation:"write_description"})',
-    summary: "Write an enhancement object's description.",
-    args: "type (required), description (required), affects (required), corr_nr, expect_etag, activate"
-  },
-  {
-    action: "enh_create_spot",
-    group: "enhancements",
-    minMode: "edit",
-    v1: 'abap_enh({operation:"create_spot"})',
-    summary: "Create an enhancement spot.",
-    args: "spec (package required)"
-  },
-  {
-    action: "enh_add_badi_def",
-    group: "enhancements",
-    minMode: "edit",
-    v1: 'abap_enh({operation:"add_badi_def"})',
-    summary: "Add a BAdI definition to a spot.",
-    args: "spec (badiName, interfaceName, singleUse, shortText \u2014 all required)"
-  },
-  {
-    action: "enh_add_filter_def",
-    group: "enhancements",
-    minMode: "edit",
-    v1: 'abap_enh({operation:"add_filter_def"})',
-    summary: "Add a filter definition.",
-    args: "spec (badiName, filterName, filterType required; filterText optional)"
-  },
-  {
-    action: "enh_create_impl",
-    group: "enhancements",
-    minMode: "edit",
-    v1: 'abap_enh({operation:"create_impl"})',
-    summary: "Create a BAdI implementation.",
-    args: "spec (spotName, badiName, implName, implClass, active \u2014 all required)"
-  },
-  {
-    action: "enh_set_filter_values",
-    group: "enhancements",
-    minMode: "edit",
-    v1: 'abap_enh({operation:"set_filter_values"})',
-    summary: "Set filter values on an implementation.",
-    args: "spec (spotName, implName, filterName, filterType, compare, value \u2014 all required)"
-  },
-  {
-    action: "enh_exercise",
-    group: "enhancements",
-    minMode: "edit",
-    v1: 'abap_enh({operation:"exercise"})',
-    summary: "Exercise a BAdI at runtime.",
-    args: "spec (methodName required; filterValue, params optional)"
-  },
-  {
-    action: "enh_discover_hook_anchors",
-    group: "enhancements",
-    minMode: "read",
-    v1: 'abap_enh({operation:"discover_hook_anchors"})',
-    summary: "List hook anchors in a target object.",
-    args: "spec (hostType, hostName, hostUri \u2014 all required)"
-  },
-  {
-    action: "enh_create_hook",
-    group: "enhancements",
-    minMode: "edit",
-    v1: 'abap_enh({operation:"create_hook"})',
-    summary: "Create an enhancement hook implementation.",
-    args: "spec (hostType/Name/Uri, anchorFullName, anchorFullDescription required; responsible, activate optional), affects (required), description (required)"
-  }
-];
-function actionsForMode(mode) {
-  const rank = MODE_RANK[mode];
-  return ABAP_DO_ACTIONS.filter((entry) => MODE_RANK[entry.minMode] <= rank);
-}
-function groupsForMode(mode) {
-  const present = new Set(actionsForMode(mode).map((entry) => entry.group));
-  return ABAP_DO_GROUPS.filter((group) => present.has(group));
-}
-function findAction(name) {
-  return ABAP_DO_ACTIONS.find((entry) => entry.action === name);
-}
-function renderCatalogue(mode) {
-  const groups = groupsForMode(mode);
-  const actions = actionsForMode(mode);
-  const lines = [];
-  for (const group of groups) {
-    lines.push(`${group}:`);
-    for (const entry of actions) {
-      if (entry.group !== group) continue;
-      const args = entry.args ? ` [args: ${entry.args}]` : "";
-      lines.push(`  ${entry.action} \u2014 ${entry.summary}${args}`);
-    }
-  }
-  return lines.join("\n");
-}
-var ABAP_DO_SKILL = "abap:actions";
-
-// src/tools/v2/handlers/do/activation.ts
-init_errors();
-
-// src/tools/v2/handlers/do/shared.ts
-init_errors();
-function withObject(args, key, object3) {
-  if (object3 === void 0) return { ...args };
-  const existing = args[key];
-  if (existing !== void 0 && String(existing).trim() !== object3.trim()) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `object ("${object3}") and args.${key} ("${String(existing)}") disagree \u2014 pass the target once, not both.`,
-      { object: object3, [key]: existing }
-    );
-  }
-  return { ...args, [key]: object3 };
-}
-function withField(args, key, value) {
-  const existing = args[key];
-  if (existing !== void 0 && existing !== value) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `args.${key} ("${String(existing)}") conflicts with the value action "${String(value)}" implies \u2014 omit args.${key}.`,
-      { given: existing, implied: value }
-    );
-  }
-  return { ...args, [key]: value };
-}
-function withValue(args, key, value) {
-  if (value === void 0) return { ...args };
-  const existing = args[key];
-  if (existing !== void 0 && existing !== value) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `${key} ("${String(value)}") and args.${key} ("${String(existing)}") disagree \u2014 pass it once, not both.`,
-      { [key]: value, arg: existing }
-    );
-  }
-  return { ...args, [key]: value };
-}
-function acceptedKeysOf(schema) {
-  const shape = schema.shape;
-  if (shape === null || typeof shape !== "object") return void 0;
-  return Object.keys(shape);
-}
-function parseV1(schema, input) {
-  const accepted = acceptedKeysOf(schema);
-  if (accepted !== void 0) {
-    const unknownKeys = Object.keys(input).filter((k) => !accepted.includes(k));
-    if (unknownKeys.length > 0) {
-      const detail = unknownKeys.map((k) => {
-        const near = nearest(k, accepted, 2);
-        return near.length > 0 ? `"${k}" (did you mean ${near.map((n) => `"${n}"`).join(" or ")}?)` : `"${k}"`;
-      }).join(", ");
-      throw new AbapError(
-        "BAD_INPUT",
-        `Unknown args ${unknownKeys.length === 1 ? "key" : "keys"}: ${detail}. Accepted for this action: ${accepted.join(", ")}.`,
-        { unknown: unknownKeys, accepted }
-      );
-    }
-  }
-  const parsed = schema.safeParse(input);
-  if (!parsed.success) {
-    const detail = parsed.error.issues.map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`).join("; ");
-    throw new AbapError("BAD_INPUT", `Invalid arguments: ${detail}`, { issues: parsed.error.issues });
-  }
-  return parsed.data;
-}
-function textOf2(result) {
-  const first = result.content[0];
-  if (first === void 0 || first.type !== "text") {
-    throw new AbapError("ADT_ERROR", "v1 handler returned no text content.", {});
-  }
-  return first.text;
-}
-function doOk(text4, next = []) {
-  return { ok: true, tool: "abap_do", data: text4, next };
-}
-function journalNext(why = "See this change recorded in the journal.") {
-  return [{ tool: "abap_do", args: { action: "journal_list" }, why }];
-}
-
-// src/tools/v2/handlers/do/activation.ts
-var activate = async (ctx, deps) => {
-  const args = withField(withObject(ctx.args, "object", ctx.object), "mode", "activate");
-  const input = parseV1(ActivateInput, args);
-  const pf = preflight({ object: input.object, type: input.type });
-  deps.safety.assert("activate", pf, {
-    phase: "preflight",
-    corr: { kind: "unresolved" },
-    intent: enhancementPreflightIntent({ name: pf.name, type: pf.type, affects: input.affects })
-  });
-  await deps.ensureConnected();
-  const run2 = (conn) => abapActivate(conn, input, deps.cfg.maxResponseChars, deps.safety, deps.transport, deps.journal);
-  const res = await deps.pool.withWrite("abap_activate", writeGateKey(input.object, input.type), run2);
-  return doOk(res.text, [
-    { tool: "abap_do", args: { action: "run", object: input.object }, why: "Execute the object now that it is active." }
-  ]);
-};
-var run = async (ctx, deps) => {
-  const args = withObject(ctx.args, "object", ctx.object);
-  const input = parseV1(RunInput, args);
-  deps.safety.assert("execute", preflight({ object: input.object }), { phase: "preflight" });
-  await deps.ensureConnected();
-  const res = await deps.pool.withWrite("abap_run", void 0, (conn) => abapRun(conn, input, deps.cfg.maxResponseChars, deps.safety));
-  return doOk(res.text, journalNext("abap_run does not journal, but a preceding activate/write does."));
-};
-var test = async (ctx, deps) => {
-  const args = withObject(ctx.args, "object", ctx.object);
-  const input = parseV1(TestInput, args);
-  if ((input.scope ?? "object") === "object" && input.object !== void 0) {
-    deps.safety.assert("execute", preflight({ object: input.object, type: input.type }), { phase: "preflight" });
-  }
-  await deps.ensureConnected();
-  const res = await deps.pool.withWrite(
-    "abap_test",
-    void 0,
-    (conn) => abapTest(conn, input, deps.cfg.maxResponseChars, deps.safety, deps.journal)
-  );
-  return doOk(res.text, []);
-};
-var undo = async (ctx, deps) => {
-  const args = withField(withObject(ctx.args, "object", ctx.object), "mode", "undo");
-  const input = parseV1(JournalInput, args);
-  const t = await undoPreflightTarget(deps.journal, { mode: "undo", entry: input.entry, object: input.object });
-  const undoGateKey = t?.name ? t.name.trim().toUpperCase() : void 0;
-  const blocked = t ? enhancementUndoBlocked(t.type ?? "", t.op, t.name) : void 0;
-  if (blocked) {
-    throw new AbapError(
-      "UNSUPPORTED",
-      blocked,
-      { entry: input.entry, object: t?.name ?? input.object },
-      "There is no override for this refusal. Reverse the change deliberately through the ABAP enhancement UI instead."
-    );
-  }
-  deps.safety.assert(
-    t?.op ?? "write",
-    t ? { name: t.name, packageName: t.packageName, type: t.type } : { name: input.object ?? "" },
-    { phase: t ? "final" : "preflight" }
-  );
-  await deps.ensureConnected();
-  const runFn = (conn) => abapJournal(conn, input, deps.cfg.maxResponseChars, deps.journal, deps.safety);
-  const res = await deps.pool.withWrite("abap_journal", undoGateKey, runFn);
-  return doOk(res.text, journalNext("Confirm the undo landed."));
-};
-var ACTIVATION_HANDLERS = /* @__PURE__ */ new Map([
-  ["activate", activate],
-  ["run", run],
-  ["test", test],
-  ["undo", undo]
-]);
-
-// src/tools/v2/handlers/do/execution.ts
-var check2 = async (ctx, deps) => {
-  const args = withField(withObject(ctx.args, "object", ctx.object), "mode", "check");
-  const input = parseV1(ActivateInput, args);
-  deps.safety.assert("analyze", preflight({ object: input.object, type: input.type }), {
-    phase: "preflight"
-  });
-  await deps.ensureConnected();
-  const run2 = (conn) => abapActivate(conn, input, deps.cfg.maxResponseChars, deps.safety, deps.transport);
-  const res = await deps.pool.withRead("abap_activate", run2);
-  return doOk(res.text, [
-    { tool: "abap_do", args: { action: "activate", object: input.object }, why: "Activate once the check is clean." }
-  ]);
-};
-var EXECUTION_HANDLERS = /* @__PURE__ */ new Map([["check", check2]]);
-
-// src/tools/v2/handlers/do/journal.ts
-var list3 = async (ctx, deps) => {
-  const args = withField(withObject(ctx.args, "object", ctx.object), "mode", "list");
-  const input = parseV1(JournalInput, args);
-  const res = await abapJournal(deps.pool.primary(), input, deps.cfg.maxResponseChars, deps.journal, deps.safety);
-  return doOk(res.text, [
-    { tool: "abap_do", args: { action: "journal_show" }, why: "Show one entry's before-image in full." }
-  ]);
-};
-var show = async (ctx, deps) => {
-  const args = withField(withObject(ctx.args, "entry", ctx.object), "mode", "show");
-  const input = parseV1(JournalInput, args);
-  const res = await abapJournal(deps.pool.primary(), input, deps.cfg.maxResponseChars, deps.journal, deps.safety);
-  return doOk(res.text, [
-    { tool: "abap_do", args: { action: "undo", object: input.entry }, why: "Undo this entry, restoring the before-image." }
-  ]);
-};
-var reconcile = async (ctx, deps) => {
-  const args = withField(withObject(ctx.args, "entry", ctx.object), "mode", "reconcile");
-  const input = parseV1(JournalInput, args);
-  const res = await abapJournal(deps.pool.primary(), input, deps.cfg.maxResponseChars, deps.journal, deps.safety);
-  return doOk(res.text, [
-    { tool: "abap_do", args: { action: "journal_list" }, why: "Confirm the entry no longer reads as stranded." }
-  ]);
-};
-var JOURNAL_HANDLERS = /* @__PURE__ */ new Map([
-  ["journal_list", list3],
-  ["journal_show", show],
-  ["journal_reconcile", reconcile]
-]);
-
-// src/tools/v2/handlers/do/transports.ts
-init_zod();
-init_errors();
-var TransportInputZ = external_exports.object(transportInputSchema);
-var TransportReleaseInputZ = external_exports.object(transportReleaseInputSchema);
-function journalDepsOf(deps, conn) {
-  return { journal: deps.journal, cfg: conn.cfg, warn: deps.warn };
-}
-function transportOp(operation, mapObject, next) {
-  return async (ctx, deps) => {
-    const withConfirm = withValue(ctx.args, "confirm", ctx.confirm);
-    const withOp = withField(mapObject(withConfirm, ctx.object), "operation", operation);
-    const input = parseV1(TransportInputZ, withOp);
-    await deps.ensureConnected();
-    const res = await deps.pool.withWrite(
-      "abap_transport",
-      void 0,
-      (conn) => abapTransport(conn, input, deps.cfg.maxResponseChars, deps.safety, journalDepsOf(deps, conn), deps.transport)
-    );
-    return doOk(res.text, next(input));
-  };
-}
-var list4 = transportOp(
-  "list",
-  (args, object3) => withObject(args, "user", object3),
-  () => [{ tool: "abap_do", args: { action: "transport_show" }, why: "Show one request's tasks and objects." }]
-);
-var show2 = transportOp(
-  "show",
-  (args, object3) => withObject(args, "transport", object3),
-  () => [{ tool: "abap_do", args: { action: "transport_check" }, why: "Check whether an object needs this transport before adding to it." }]
-);
-var check3 = transportOp(
-  "check",
-  (args, object3) => withObject(args, "object", object3),
-  () => [{ tool: "abap_do", args: { action: "transport_create" }, why: "Create a request if none of the candidates fit." }]
-);
-var users = transportOp(
-  "users",
-  (args, object3) => {
-    if (object3 !== void 0) {
-      throw new AbapError("BAD_INPUT", "transport_users takes no object \u2014 it lists every user CTS knows, unfiltered.", { object: object3 });
-    }
-    return args;
-  },
-  () => [{ tool: "abap_do", args: { action: "transport_add_user" }, why: "Add one of these users to a request." }]
-);
-var create = transportOp(
-  "create",
-  (args, object3) => withObject(args, "object", object3),
-  () => [{ tool: "abap_do", args: { action: "activate" }, why: "The request number is ready to pass on subsequent writes." }]
-);
-var addUser = transportOp(
-  "addUser",
-  (args, object3) => withObject(args, "transport", object3),
-  (input) => [{ tool: "abap_do", args: { action: "transport_show", object: input.transport }, why: "Confirm the user landed on the request." }]
-);
-var setOwner = transportOp(
-  "setOwner",
-  (args, object3) => withObject(args, "transport", object3),
-  (input) => [{ tool: "abap_do", args: { action: "transport_show", object: input.transport }, why: "Confirm the new owner landed." }]
-);
-var del = transportOp(
-  "delete",
-  (args, object3) => withObject(args, "transport", object3),
-  () => [{ tool: "abap_do", args: { action: "transport_list" }, why: "Confirm the request is gone." }]
-);
-var release = async (ctx, deps) => {
-  const withConfirm = withValue(ctx.args, "confirm", ctx.confirm);
-  const args = withObject(withConfirm, "transport", ctx.object);
-  const input = parseV1(TransportReleaseInputZ, args);
-  await deps.ensureConnected();
-  const res = await deps.pool.withWrite(
-    "abap_transport_release",
-    void 0,
-    (conn) => abapTransportRelease(conn, input, deps.cfg.maxResponseChars, deps.safety, journalDepsOf(deps, conn), deps.transport)
-  );
-  return doOk(res.text, [
-    { tool: "abap_do", args: { action: "transport_show", object: input.transport }, why: "Confirm the release landed." }
-  ]);
-};
-var TRANSPORT_HANDLERS = /* @__PURE__ */ new Map([
-  ["transport_list", list4],
-  ["transport_show", show2],
-  ["transport_check", check3],
-  ["transport_users", users],
-  ["transport_create", create],
-  ["transport_add_user", addUser],
-  ["transport_set_owner", setOwner],
-  ["transport_delete", del],
-  ["transport_release", release]
-]);
-
-// src/tools/v2/handlers/do/bopf.ts
-init_zod();
-var BopfInputZ = external_exports.object(bopfInputSchema);
-var BopfEditInputZ = external_exports.object(bopfEditInputSchema);
-var BopfDeleteInputZ = external_exports.object(bopfDeleteInputSchema);
-var BopfTestInputZ = external_exports.object(bopfTestInputSchema);
-var checkRefs = async (ctx, deps) => {
-  const args = withField(withObject(ctx.args, "bo", ctx.object), "mode", "check_refs");
-  const input = parseV1(BopfInputZ, args);
-  const res = await runBopfRead(deps, input);
-  return doOk(textOf2(res), [
-    { tool: "abap_do", args: { action: "bopf_add_node", object: input.bo }, why: "Fix a dangling reference by editing the model." }
-  ]);
-};
-function journalled(res) {
-  return typeof res.journalEntryId === "string";
-}
-function editOp(operation) {
-  return async (ctx, deps) => {
-    const withOp = withField(withObject(ctx.args, "bo", ctx.object), "operation", operation);
-    const input = parseV1(BopfEditInputZ, withOp);
-    const res = await runBopfEdit(deps, input);
-    return doOk(textOf2(res), journalled(res) ? journalNext() : []);
-  };
-}
-var test2 = async (ctx, deps) => {
-  const args = withObject(ctx.args, "bo", ctx.object);
-  const input = parseV1(BopfTestInputZ, args);
-  const testDeps = { ...deps, ...createBopfTestDeps() };
-  const res = await runBopfTest2(testDeps, input);
-  return doOk(textOf2(res), []);
-};
-var del2 = async (ctx, deps) => {
-  const withConfirm = withValue(withValue(ctx.args, "confirm", ctx.confirm), "dry_run", ctx.dry_run);
-  const args = withObject(withConfirm, "bo", ctx.object);
-  const input = parseV1(BopfDeleteInputZ, args);
-  const res = await runBopfDelete(deps, input);
-  return doOk(textOf2(res), journalled(res) ? journalNext() : []);
-};
-var BOPF_HANDLERS = /* @__PURE__ */ new Map([
-  ["bopf_check_refs", checkRefs],
-  ["bopf_create", editOp("create_bo")],
-  ["bopf_add_node", editOp("add_node")],
-  ["bopf_remove_node", editOp("remove_node")],
-  ["bopf_add_association", editOp("add_association")],
-  ["bopf_remove_association", editOp("remove_association")],
-  ["bopf_set_association_fields", editOp("set_association_fields")],
-  ["bopf_add_action", editOp("add_action")],
-  ["bopf_remove_action", editOp("remove_action")],
-  ["bopf_set_action_fields", editOp("set_action_fields")],
-  ["bopf_add_determination", editOp("add_determination")],
-  ["bopf_remove_determination", editOp("remove_determination")],
-  ["bopf_set_determination_fields", editOp("set_determination_fields")],
-  ["bopf_add_validation", editOp("add_validation")],
-  ["bopf_remove_validation", editOp("remove_validation")],
-  ["bopf_set_validation_fields", editOp("set_validation_fields")],
-  ["bopf_add_query", editOp("add_query")],
-  ["bopf_remove_query", editOp("remove_query")],
-  ["bopf_set_query_fields", editOp("set_query_fields")],
-  ["bopf_add_alternative_key", editOp("add_alternative_key")],
-  ["bopf_remove_alternative_key", editOp("remove_alternative_key")],
-  ["bopf_set_alternative_key_fields", editOp("set_alternative_key_fields")],
-  ["bopf_set_node_flags", editOp("set_node_flags")],
-  ["bopf_remove_dependent_object", editOp("remove_dependent_object")],
-  ["bopf_activate", editOp("activate")],
-  ["bopf_test", test2],
-  ["bopf_delete", del2]
-]);
-
-// src/tools/v2/handlers/do/enhancements.ts
-init_safety();
-init_compact();
-init_errors();
-function enhGateKeyLocal(name) {
-  const trimmed = name.trim().toUpperCase();
-  return trimmed === "" ? void 0 : trimmed;
-}
-function requireAffectsLocal(input, operation) {
-  const a = input.affects;
-  if (!a) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `operation:"${operation}" requires affects (the object this enhancement changes the behaviour of).`,
-      { operation }
-    );
-  }
-  return { name: a.name, packageName: a.packageName, masterSystem: a.masterSystem, spotName: a.spotName };
-}
-function buildEnhResponseLocal(write, activation, maxChars) {
-  const notes = [];
-  if (!write.changed) {
-    notes.push("No-op: the description already matched. Nothing was locked, written or activated.");
-  }
-  if (write.putVerified === false) {
-    notes.push(
-      `${write.target.type} PUT success is UNVERIFIED on this codebase \u2014 a live 200 against this collection has been observed once, independently confirmed by read-back, but not the repeated, citable evidence ENHO/XHH has. This write is presented as a success because the server answered 200, but that response shape is not yet corroborated to the same degree ENHO/XHH's has. Re-read the object to confirm the description actually changed if this matters.`
-    );
-  }
-  if (activation) {
-    notes.push(
-      activation.activated ? "Activated successfully." : "Activation did NOT succeed (a 200 status with a non-empty message checklist is a failure, not a success \u2014 see activationMessages below)."
-    );
-  }
-  return buildResponse({
-    header: {
-      type: write.target.type,
-      name: write.target.name,
-      changed: write.changed,
-      etag: write.etag,
-      previousEtag: write.previousEtag,
-      transport: write.transport.status,
-      corrNr: write.transport.status === "transport" ? write.transport.corrNr : void 0,
-      putVerified: write.putVerified,
-      affects: `${write.affects.name} (${write.affects.packageName})`,
-      activated: activation?.activated,
-      activationMessages: activation && activation.messages.length ? JSON.stringify(activation.messages) : void 0
-    },
-    notes,
-    maxChars
-  }).text;
-}
-var writeDescription = async (ctx, deps) => {
-  const args = withField(withObject(ctx.args, "name", ctx.object), "operation", "write_description");
-  const input = parseV1(EnhInput, args);
-  try {
-    const type = input.type;
-    if (!isEnhancementWriteType(type)) {
-      throw new AbapError(
-        "UNSUPPORTED",
-        `${type} is not a type abap_enh writes. Supported: ${ENHANCEMENT_WRITE_TYPES.join(", ")}.`,
-        { type }
-      );
-    }
-    const description = input.description;
-    if (description === void 0) {
-      throw new AbapError(
-        "BAD_INPUT",
-        'operation:"write_description" requires description (the new adtcore:description value).',
-        {}
-      );
-    }
-    const affects = requireAffectsLocal(input, "write_description");
-    const wantsActivate = input.activate === true;
-    const preflightIntent = enhancementIntentFor({ name: input.name, type, packageName: "" }, affects);
-    deps.safety.assertIntent(preflightIntent, { op: "write", phase: "preflight" });
-    if (wantsActivate) {
-      deps.safety.assertIntent(preflightIntent, { op: "activate", phase: "preflight" });
-    }
-    await deps.ensureConnected();
-    const gateKey = enhGateKeyLocal(input.name);
-    const { write, activation } = await deps.pool.withWrite("abap_enh", gateKey, async (conn) => {
-      const { result: write2, settle } = await withJournalledMutation(
-        deps.journal,
-        {
-          begin: (img) => ({
-            operation: "update",
-            object: { ...journalRef(img.target), affects: img.affects },
-            existedBefore: true,
-            beforeCapture: "captured",
-            beforeSource: img.xml,
-            ...img.corrNr !== void 0 ? { corrNr: img.corrNr } : {},
-            irreversible: true,
-            // Needed so systemMismatchBlocker (adt/undo.ts) can do a strong
-            // SID+origin+client compare instead of falling back to SID-only,
-            // which conflates two boxes sharing a SID.
-            systemKey: systemKey(conn.cfg),
-            tool: "abap_do enh_write_description"
-          })
-        },
-        (onBeforeImage) => writeEnhancementDescription(
-          conn,
-          deps.safety,
-          { type, name: input.name, description },
-          {
-            transport: deps.transport,
-            gate: deps.safety,
-            // Blank-normalised, matching the v1 abap_enh path.
-            corrNr: normalizeCorrNr(input.corr_nr),
-            affects,
-            expectEtag: input.expect_etag,
-            onBeforeImage
-          }
-        )
-      );
-      await settle({
-        outcome: "succeeded",
-        ...write2.xml ? { afterSource: write2.xml } : {},
-        ...write2.transport.corrNr ? { corrNr: write2.transport.corrNr } : {},
-        activation: { attempted: false }
-      });
-      let activation2;
-      if (wantsActivate && write2.changed) {
-        const finalIntent = enhancementIntentFor(
-          { name: input.name, type, packageName: write2.target.packageName, masterSystem: write2.target.masterSystem },
-          affects
-        );
-        deps.safety.assertIntent(finalIntent, { op: "activate" });
-        activation2 = await activateObject(conn, { name: write2.target.name, uri: write2.target.uri });
-        await settle({
-          outcome: "succeeded",
-          activation: { attempted: true, activated: activation2.activated }
-        });
-      }
-      return { write: write2, activation: activation2 };
-    });
-    return doOk(buildEnhResponseLocal(write, activation, deps.cfg.maxResponseChars), journalNext());
-  } catch (e) {
-    throw classifyEnhancementRefusal(e);
-  }
-};
-function createOp(operation) {
-  return async (ctx, deps) => {
-    const args = withField(withObject(ctx.args, "name", ctx.object), "operation", operation);
-    const input = parseV1(EnhInput, args);
-    try {
-      const text4 = await runEnhCreateOperation(deps, operation, input);
-      return doOk(text4, []);
-    } catch (e) {
-      throw classifyEnhancementRefusal(e);
-    }
-  };
-}
-function hookOp(operation) {
-  return async (ctx, deps) => {
-    const args = withField(withObject(ctx.args, "name", ctx.object), "operation", operation);
-    const input = parseV1(EnhInput, args);
-    try {
-      const text4 = await runEnhHookOperation(deps, operation, input);
-      const next = operation === "discover_hook_anchors" ? [{ tool: "abap_do", args: { action: "enh_create_hook" }, why: "Create a hook bound to one of these anchors." }] : [];
-      return doOk(text4, next);
-    } catch (e) {
-      throw classifyEnhancementRefusal(e);
-    }
-  };
-}
-var ENHANCEMENT_HANDLERS = new Map([
-  ["enh_write_description", writeDescription],
-  ...ENH_CREATE_OPERATIONS.map((op) => [`enh_${op}`, createOp(op)]),
-  ...ENH_HOOK_OPERATIONS.map((op) => [`enh_${op}`, hookOp(op)])
-]);
-
-// src/tools/v2/handlers/do/index.ts
-var DO_HANDLERS = new Map([
-  ...ACTIVATION_HANDLERS,
-  ...EXECUTION_HANDLERS,
-  ...JOURNAL_HANDLERS,
-  ...TRANSPORT_HANDLERS,
-  ...BOPF_HANDLERS,
-  ...ENHANCEMENT_HANDLERS
-]);
-
-// src/tools/v2/handlers/do.ts
-function representativeDoCalls(deps) {
-  return firstN(actionsForMode(deps.cfg.abapMode), 3).map((entry) => ({
-    tool: "abap_do",
-    args: { action: entry.action },
-    why: entry.summary
-  }));
-}
-async function handleAbapDo(args, deps) {
-  const mode = deps.cfg.abapMode;
-  try {
-    if (isBareCall(args)) {
-      return v2Result({
-        ok: true,
-        tool: "abap_do",
-        data: renderCatalogue(mode),
-        next: representativeDoCalls(deps)
-      });
-    }
-    const a = args;
-    const given = a.action ?? "";
-    const eligible = actionsForMode(mode);
-    const entry = eligible.find((e) => e.action === given);
-    if (entry === void 0) {
-      const names = eligible.map((e) => e.action);
-      const base = unknownAction(
-        "abap_do",
-        given,
-        nearest(given, names, 3),
-        `abap_do({}) lists all ${eligible.length} actions in this mode`,
-        ABAP_DO_SKILL
-      );
-      const globalEntry = findAction(given);
-      if (globalEntry !== void 0) {
-        return v2Result({
-          ...base,
-          message: `"${given}" needs ${globalEntry.minMode} mode or higher; this server is running in ${mode} mode.`
-        });
-      }
-      return v2Result(base);
-    }
-    const handler = DO_HANDLERS.get(entry.action);
-    if (handler === void 0) {
-      const names = eligible.map((e) => e.action);
-      return v2Result(
-        unknownAction(
-          "abap_do",
-          entry.action,
-          nearest(entry.action, names, 3),
-          `abap_do({}) lists all ${eligible.length} actions in this mode`,
-          ABAP_DO_SKILL
-        )
-      );
-    }
-    const ctx = {
-      action: entry.action,
-      object: a.object,
-      args: a.args ?? {},
-      confirm: a.confirm,
-      dry_run: a.dry_run
-    };
-    const result = await handler(ctx, deps);
-    return v2Result(result);
-  } catch (e) {
-    return v2Result(
-      v2Error("abap_do", e, [{ tool: "abap_do", args: {}, why: "Retry with the bare call to list the catalogue." }])
-    );
-  }
-}
-
-// src/tools/v2/handlers/find.ts
-init_errors();
-init_types();
-
-// src/tools/v2/unknown.ts
-function unknownValue(tool, field, given, legalValues) {
-  const closest = nearest(given, legalValues, 3);
-  const closestPart = closest.length > 0 ? ` Closest match(es): ${closest.join(", ")}.` : "";
-  return {
-    ok: false,
-    tool,
-    error: "UNKNOWN_" + field.toUpperCase(),
-    message: `"${given}" is not a recognised ${field} for ${tool}.${closestPart} Legal values: ${legalValues.join(", ")}.`,
-    hint: `Call ${tool}({}) with no args for a bare-call description of every legal ${field}.`,
-    retryable: true,
-    // a legal value would work
-    given,
-    closest,
-    catalogue: `${tool}({}) \u2014 bare call \u2014 lists every legal ${field} in its description.`,
-    next: [
-      {
-        tool,
-        args: {},
-        why: `List ${tool}'s bare-call description, including every legal ${field}.`
-      }
-    ]
-  };
-}
-function liftV1Result(tool, res, next) {
-  const first = res.content.find((c) => c.type === "text");
-  const text4 = first?.text ?? "";
-  if (res.isError) {
-    return {
-      ok: false,
-      tool,
-      error: "ADT_ERROR",
-      message: text4 || "The underlying v1 tool reported a failure with no text content.",
-      retryable: void 0,
-      // lifted from a v1 tool; cause unknown, no claim
-      next
-    };
-  }
-  return { ok: true, tool, data: text4, next };
-}
-
-// src/tools/v2/handlers/find.ts
-var ROUTED_KINDS = /* @__PURE__ */ new Set(["bo", "fpm", "badi", "transport"]);
-var ADVERTISED_KINDS = ["class", "program", "table", "bo", "fpm", "badi", "transport"];
-function norm(v) {
-  if (v === void 0 || v === null) return void 0;
-  const t = v.trim();
-  return t === "" ? void 0 : t.toLowerCase();
-}
-async function handleAbapFind(args, deps) {
-  try {
-    if (isBareCall(args)) {
-      return v2Result(
-        bareOk(
-          "abap_find",
-          "abap_find locates objects, usages, business objects, FPM configs and transports.\nkind: class | program | table | bo | fpm | badi | transport (omit to search every kind)\nwhere: repository (default) | usages",
-          [
-            { tool: "abap_find", args: { query: "ZCL_*" }, why: "Search the repository by name pattern." },
-            {
-              tool: "abap_find",
-              args: { query: "ZCL_FOO", where: "usages" },
-              why: "List what uses an object (where-used)."
-            },
-            { tool: "abap_find", args: { kind: "bo", query: "ZBOPF_*" }, why: "Search BOPF business objects." },
-            { tool: "abap_find", args: { kind: "fpm", query: "*" }, why: "Search FPM/FBI screen configurations." },
-            { tool: "abap_find", args: { kind: "transport" }, why: "List CTS transport requests." }
-          ]
-        )
-      );
-    }
-    const a = args;
-    const kind = norm(a.kind);
-    const where2 = norm(a.where);
-    if (kind === "badi") {
-      return v2Result(
-        v2Error(
-          "abap_find",
-          new AbapError(
-            "UNSUPPORTED",
-            'kind="badi" has no v1 route \u2014 BAdI/enhancement objects are not searchable via abap_find yet.',
-            { kind },
-            "Use abap_do to inspect enhancement actions, or abap_read on an object name you already know."
-          ),
-          [
-            {
-              tool: "abap_do",
-              args: {},
-              why: `List abap_do's action catalogue \u2014 enhancement actions live in the "enhancements" group.`
-            },
-            { tool: "abap_find", args: {}, why: "Bare call for abap_find's other kinds." }
-          ]
-        )
-      );
-    }
-    if (kind === "bo") {
-      const boArgs = {
-        mode: "search",
-        query: a.query,
-        object_type: a.type ?? BOPF_TYPE,
-        max_results: a.max
-      };
-      const res2 = await runBopfRead(deps, boArgs);
-      return v2Result(
-        liftV1Result("abap_find", res2, [
-          {
-            tool: "abap_read",
-            args: { object: "<BO_NAME>", view: "bopf" },
-            why: "Read one business object's design-time model."
-          },
-          { tool: "abap_find", args: { kind: "bo", query: a.query ?? "*" }, why: "Repeat/refine this BOPF search." }
-        ])
-      );
-    }
-    if (kind === "fpm") {
-      const fpmArgs = {
-        mode: "find",
-        query: a.query,
-        config_type: a.type
-      };
-      const res2 = await runFpmReadTool(deps, fpmArgs);
-      return v2Result(
-        liftV1Result("abap_find", res2, [
-          {
-            tool: "abap_read",
-            args: { object: "<CONFIG_ID>", view: "fpm" },
-            why: "Read one configuration's outline (raw XML plus metadata)."
-          },
-          { tool: "abap_find", args: { kind: "fpm", query: a.query ?? "*" }, why: "Repeat/refine this FPM search." }
-        ])
-      );
-    }
-    if (kind === "transport") {
-      await deps.ensureConnected();
-      deps.safety.assert("read");
-      const input = { operation: "list", user: a.query };
-      const res2 = await deps.pool.withWrite(
-        "abap_find",
-        void 0,
-        (conn) => abapTransport(conn, input, deps.cfg.maxResponseChars, deps.safety, void 0)
-      );
-      return v2Result({
-        ok: true,
-        tool: "abap_find",
-        data: res2.text,
-        next: [
-          {
-            tool: "abap_do",
-            args: { action: "transport_show", object: "<TRKORR>" },
-            why: "Show one request's header/tasks/objects."
-          },
-          { tool: "abap_find", args: { kind: "transport" }, why: "Repeat this transport list." }
-        ]
-      });
-    }
-    if (where2 === "package") {
-      return v2Result(
-        v2Error(
-          "abap_find",
-          new AbapError(
-            "UNSUPPORTED",
-            `where="package" is not implemented: no v1 route filters repository search by package (searchInputSchema has no package field). This was advertised by an earlier stub's bare-call text but never wired up.`,
-            { where: where2 },
-            'Omit where (defaults to "repository"), or use "usages".'
-          ),
-          [
-            {
-              tool: "abap_find",
-              args: { query: a.query ?? "ZCL_*" },
-              why: "Search the repository by name pattern instead (not package-scoped)."
-            }
-          ]
-        )
-      );
-    }
-    if (where2 !== void 0 && where2 !== "repository" && where2 !== "usages") {
-      return v2Result(unknownValue("abap_find", "where", where2, ["repository", "usages"]));
-    }
-    let typeOverride = a.type;
-    if (kind !== void 0 && !ROUTED_KINDS.has(kind)) {
-      const spec = specForKeyword(kind);
-      if (spec === void 0) {
-        return v2Result(unknownValue("abap_find", "kind", kind, ADVERTISED_KINDS));
-      }
-      if (typeOverride === void 0) typeOverride = spec.type;
-    }
-    const query = a.query;
-    if (!query || !query.trim()) {
-      throw new AbapError(
-        "BAD_INPUT",
-        "abap_find requires query for a repository/usages search (kind was not bo/fpm/badi/transport).",
-        { kind, where: where2 }
-      );
-    }
-    const searchInput = {
-      query,
-      mode: where2 === "usages" ? "where_used" : "objects",
-      type: typeOverride,
-      max: a.max
-    };
-    await deps.ensureConnected();
-    deps.safety.assert("read");
-    const res = await deps.pool.withRead(
-      "abap_find",
-      (conn) => abapSearch(conn, searchInput, deps.cfg.maxResponseChars)
-    );
-    return v2Result({
-      ok: true,
-      tool: "abap_find",
-      data: res.text,
-      next: [
-        { tool: "abap_read", args: { object: "<NAME>" }, why: "Read one of the results." },
-        { tool: "abap_find", args: { query, where: "usages" }, why: "See what uses a specific result." }
-      ]
-    });
-  } catch (e) {
-    return v2Result(
-      v2Error("abap_find", e, [{ tool: "abap_find", args: {}, why: "Retry with the bare call for guidance." }])
-    );
-  }
-}
-
-// src/tools/v2/handlers/read.ts
-init_errors();
-import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
-import { dirname as dirname3, join as join10 } from "node:path";
-import { fileURLToPath } from "node:url";
-init_compact();
-var KNOWN_VIEWS = ["source", "contract", "method", "diff", "metadata", "outline", "bopf", "fpm"];
-var UNSUPPORTED_VIEWS = /* @__PURE__ */ new Set(["diff"]);
-function compiledContractEntryPoint() {
-  const here = dirname3(fileURLToPath(import.meta.url));
-  const distLayout = join10(here, "..", "..", "..", "bin", "contract.js");
-  if (existsSync(distLayout)) return distLayout;
-  const bundleLayout = join10(here, "bin", "contract.js");
-  if (existsSync(bundleLayout)) return bundleLayout;
-  return distLayout;
-}
-function runContractSubprocess(entryPoint, kind, name, source) {
-  return new Promise((resolve5, reject) => {
-    const child4 = spawn(process.execPath, [entryPoint, kind, name], {
-      stdio: ["pipe", "pipe", "pipe"]
-    });
-    const stdout = [];
-    const stderr = [];
-    child4.stdout.on("data", (d) => stdout.push(d));
-    child4.stderr.on("data", (d) => stderr.push(d));
-    child4.on("error", reject);
-    child4.on("close", (code) => {
-      resolve5({ stdout: Buffer.concat(stdout).toString("utf8"), stderr: Buffer.concat(stderr).toString("utf8"), code });
-    });
-    child4.stdin.write(source, "utf8");
-    child4.stdin.end();
-  });
-}
-async function readContractView(conn, object3, offset, limit, maxChars) {
-  const obj = await resolveObject(conn, object3, {});
-  if (!OUTLINE_KINDS.has(obj.kind)) {
-    throw new AbapError(
-      "UNSUPPORTED",
-      `view="contract" is only meaningful for a class or interface (public-section signatures) \u2014 ${obj.type} ${obj.name} resolved to kind ${obj.kind}.`,
-      { type: obj.type, name: obj.name, kind: obj.kind },
-      'Use view="source" (default) to read this object.'
-    );
-  }
-  const { source } = await readSource(conn, obj, void 0, void 0);
-  const entryPoint = compiledContractEntryPoint();
-  let spawned;
-  try {
-    spawned = await runContractSubprocess(entryPoint, obj.kind, obj.name, source);
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    throw new AbapError(
-      "UNSUPPORTED",
-      `view="contract" could not run its extraction subprocess (${entryPoint}): ${msg}. Was "npm run build" run for this checkout?`,
-      { object: object3, entryPoint },
-      'Use view="source" (default) to read this object while this is investigated.'
-    );
-  }
-  const notes = spawned.stderr.split("\n").map((l) => l.trim()).filter((l) => l.length > 0);
-  if (spawned.code !== 0) {
-    throw new AbapError(
-      "UNSUPPORTED",
-      `view="contract" extraction failed for ${obj.type} ${obj.name} (subprocess exit code ${spawned.code ?? "null"}): ${notes.join(" ") || "(no stderr output)"}`,
-      { object: object3, code: spawned.code },
-      'Use view="source" (default) to read this object.'
-    );
-  }
-  const extracted = spawned.stdout;
-  const etag = contentHash(extracted);
-  const header = {
-    system: obj.system,
-    object: `${obj.type} ${obj.name}`,
-    uri: obj.uri,
-    package: obj.packageName,
-    description: obj.description,
-    mode: "contract",
-    etag
-  };
-  const window2 = sliceLines(extracted, offset ?? 1, limit);
-  const built = buildResponse({
-    header: { ...header, totalLines: window2.total },
-    body: window2.text,
-    bodyLabel: "CONTRACT",
-    bodyOffset: window2.offset,
-    bodyTotalLines: window2.total,
-    notes: notes.length > 0 ? notes : ["Definition-only view: PUBLIC/PROTECTED signatures kept, method bodies and PRIVATE SECTION stripped."],
-    hints: [
-      'Use view="source" (default) to read the whole object, including method bodies.',
-      `Use view="method" with method=<NAME> to read one method's full implementation.`
-    ],
-    pagingParam: "offset",
-    maxChars
-  });
-  return { text: built.text, etag };
-}
-function norm2(v) {
-  if (v === void 0 || v === null) return void 0;
-  const t = v.trim();
-  return t === "" ? void 0 : t.toLowerCase();
-}
-function resolveVersion2(raw) {
-  const v = norm2(raw);
-  if (v === void 0) return void 0;
-  if (v === "active" || v === "inactive") return v;
-  throw new AbapError("BAD_INPUT", `version must be "active" or "inactive"; got "${raw}".`, { version: raw });
-}
-async function handleAbapRead(args, deps) {
-  try {
-    if (isBareCall(args)) {
-      return v2Result(
-        bareOk(
-          "abap_read",
-          "abap_read reads an object's source, its definition-only contract, one method, an outline, a BOPF model, or an FPM configuration.\nview: source (default) | contract | method | outline | metadata | bopf | fpm (diff: not implemented yet, see abap_find/abap_do)",
-          [
-            { tool: "abap_read", args: { object: "ZCL_FOO" }, why: "Read an object's source (default view)." },
-            {
-              tool: "abap_read",
-              args: { object: "ZCL_FOO", view: "contract" },
-              why: "Read only public/protected signatures (classes/interfaces only) \u2014 no method bodies."
-            },
-            {
-              tool: "abap_read",
-              args: { object: "ZCL_FOO", view: "outline" },
-              why: "Read the component list (classes/interfaces only)."
-            },
-            {
-              tool: "abap_read",
-              args: { object: "ZCL_FOO", view: "method", method: "GET_DATA" },
-              why: "Read one method's declaration+implementation."
-            },
-            {
-              tool: "abap_read",
-              args: { object: "ZBOPF_ORDER", view: "bopf" },
-              why: "Read a BOPF business object's design-time model."
-            },
-            {
-              tool: "abap_read",
-              args: { object: "Z_MY_CONFIG", view: "fpm" },
-              why: "Read an FPM/FBI screen configuration's outline."
-            }
-          ]
-        )
-      );
-    }
-    const a = args;
-    const rawView = a.view;
-    const view = norm2(rawView) ?? "source";
-    if (!KNOWN_VIEWS.includes(view)) {
-      return v2Result(unknownValue("abap_read", "view", rawView ?? view, KNOWN_VIEWS));
-    }
-    if (UNSUPPORTED_VIEWS.has(view)) {
-      return v2Result(
-        v2Error(
-          "abap_read",
-          new AbapError(
-            "UNSUPPORTED",
-            `view="${view}" is not implemented yet.`,
-            { view },
-            'Use view="outline" for the component list, or view="source" (default) for the whole object.'
-          ),
-          [
-            {
-              tool: "abap_read",
-              args: { object: a.object ?? "<OBJECT>", view: "outline" },
-              why: "Read the component list instead."
-            }
-          ]
-        )
-      );
-    }
-    const object3 = a.object;
-    if (!object3 || !object3.trim()) {
-      throw new AbapError("BAD_INPUT", "abap_read requires object.", { view });
-    }
-    if (view === "contract") {
-      await deps.ensureConnected();
-      deps.safety.assert("read");
-      const built = await deps.pool.withRead(
-        "abap_read",
-        (conn) => readContractView(conn, object3, a.offset, a.limit, deps.cfg.maxResponseChars)
-      );
-      return v2Result({
-        ok: true,
-        tool: "abap_read",
-        data: built.text,
-        next: [
-          { tool: "abap_read", args: { object: object3 }, why: "Read the whole object's source (with method bodies)." },
-          {
-            tool: "abap_read",
-            args: { object: object3, view: "method", method: "<NAME>" },
-            why: "Read one method's full implementation."
-          }
-        ]
-      });
-    }
-    if (view === "bopf") {
-      const boArgs = { mode: "show", bo: object3 };
-      const res2 = await runBopfRead(deps, boArgs);
-      const lifted = liftV1Result("abap_read", res2, [
-        { tool: "abap_read", args: { object: object3, view: "bopf" }, why: "Re-read this business object's model." },
-        { tool: "abap_find", args: { kind: "bo", query: object3 }, why: "Search related business objects." }
-      ]);
-      if (lifted.ok) {
-        return v2Result({
-          ...lifted,
-          notes: [
-            'view="bopf" always reads mode="show" (compact digest) \u2014 abap_read has no field yet to select mode="raw" (verbatim XML) or mode="check_refs" (dangling-reference report).'
-          ]
-        });
-      }
-      return v2Result(lifted);
-    }
-    if (view === "fpm") {
-      const fpmArgs = { mode: "outline", config_id: object3, config_type: "00", config_var: "" };
-      const res2 = await runFpmReadTool(deps, fpmArgs);
-      const lifted = liftV1Result("abap_read", res2, [
-        { tool: "abap_read", args: { object: object3, view: "fpm" }, why: "Re-read this configuration's outline." },
-        { tool: "abap_find", args: { kind: "fpm", query: object3 }, why: "Search related FPM configurations." }
-      ]);
-      if (lifted.ok) {
-        return v2Result({
-          ...lifted,
-          notes: [
-            'view="fpm" always reads mode="outline" with config_type="00" (component-scope) \u2014 abap_read has no fields yet for config_type/config_var/resolve or mode="app" (full UIBB hierarchy). Use abap_find kind="fpm" to search for the right config_id first.'
-          ]
-        });
-      }
-      return v2Result(lifted);
-    }
-    const version2 = resolveVersion2(a.version);
-    const outline = view === "outline";
-    let method;
-    if (view === "method") {
-      if (!a.method || !a.method.trim()) {
-        throw new AbapError("BAD_INPUT", 'view="method" requires method.', { view, object: object3 });
-      }
-      method = a.method;
-    }
-    const readInput = {
-      object: object3,
-      method,
-      outline,
-      offset: a.offset,
-      limit: a.limit,
-      version: version2
-    };
-    await deps.ensureConnected();
-    deps.safety.assert("read");
-    const res = await deps.pool.withRead("abap_read", (conn) => abapRead(conn, readInput, deps.cfg.maxResponseChars));
-    const nextOffset = res.returnedLines !== void 0 ? (a.offset ?? 1) + res.returnedLines : void 0;
-    const truncationNotes = res.truncated ? [
-      `INCOMPLETE READ: ${res.returnedLines ?? 0} of ${res.totalLines ?? "?"} line(s) returned (~${res.estimatedTokens} tokens, capped by the response budget).` + (res.sectionsTruncated ? " Prologue sections were cut as well." : "") + " The DATA above is NOT the whole object. Its etag is marked `partial:` and abap_write will REFUSE a full-source rewrite that presents it \u2014 use abap_write {edit:{old_string,new_string}} to change part of an object without holding all of it, or page the rest with offset/limit first."
-    ] : [];
-    const metadataNotes = view === "metadata" ? [
-      'view="metadata" has no distinct rendering yet \u2014 this is the same output as view="source". Use view="outline" for the component list, or view="contract" for signatures only.'
-    ] : [];
-    const notes = [...truncationNotes, ...metadataNotes];
-    const pagingNext = res.truncated && res.hasMore && nextOffset !== void 0 ? [
-      {
-        tool: "abap_read",
-        args: { object: object3, ...method ? { view: "method", method } : {}, offset: nextOffset },
-        why: "Fetch the lines this response did not return."
-      }
-    ] : [];
-    return v2Result({
-      ok: true,
-      tool: "abap_read",
-      data: res.text,
-      ...res.truncated ? { truncated: true } : {},
-      ...notes.length > 0 ? { notes } : {},
-      next: [
-        ...pagingNext,
-        ...view === "outline" ? [{ tool: "abap_read", args: { object: object3, view: "method", method: "<NAME>" }, why: "Read one component." }] : view === "method" ? [{ tool: "abap_read", args: { object: object3 }, why: "Read the whole object's source." }] : [
-          { tool: "abap_read", args: { object: object3, view: "outline" }, why: "Read the component list first." },
-          {
-            tool: "abap_read",
-            args: { object: object3, view: "method", method: "<NAME>" },
-            why: "Read a single method."
-          }
-        ]
-      ]
-    });
-  } catch (e) {
-    return v2Result(
-      v2Error("abap_read", e, [{ tool: "abap_read", args: {}, why: "Retry with the bare call for guidance." }])
-    );
-  }
-}
-
-// src/tools/v2/handlers/write.ts
-init_errors();
-init_types();
-function objectNameFromArgs(args) {
-  if (!args || typeof args !== "object") return void 0;
-  const v = args.object;
-  return typeof v === "string" && v.trim() ? v : void 0;
-}
-async function handleAbapWrite(args, deps) {
-  try {
-    if (isBareCall(args)) {
-      return v2Result(
-        bareOk(
-          "abap_write",
-          "abap_write changes source. Forms:\n  {object, edit:{old_string,new_string}} \u2014 unique-match splice (prefer this)\n  {object, method, source} \u2014 whole-method replace\n  {object, source} \u2014 full rewrite\n  {object, mode:'delete'} \u2014 delete the object",
-          [
-            {
-              tool: "abap_write",
-              args: { object: "ZCL_FOO", edit: { old_string: "...", new_string: "..." } },
-              why: "Cheapest, safest form: replace one unique match."
-            }
-          ]
-        )
-      );
-    }
-    const a = args;
-    if (a.edit !== void 0 && a.source !== void 0) {
-      throw new AbapError(
-        "BAD_INPUT",
-        "Pass either `edit` or `source`, not both \u2014 they are two different ways of saying what the new source is.",
-        { object: a.object },
-        "Drop `source` to splice with `edit`, or drop `edit` and pass the complete new source."
-      );
-    }
-    if (a.edit !== void 0 && a.method !== void 0) {
-      throw new AbapError(
-        "BAD_INPUT",
-        "Pass either `edit` or `method`, not both \u2014 `edit` splices inside the CURRENT source; `method` (with `source`) replaces one method's whole implementation.",
-        { object: a.object },
-        "Use {method, source} for a whole-method replace, or {edit:{old_string,new_string}} to splice."
-      );
-    }
-    if (!a.object) {
-      throw new AbapError(
-        "BAD_INPUT",
-        "`object` is required.",
-        {},
-        'Pass {object: "ZCL_FOO", ...}. Call abap_write({}) for the full form list.'
-      );
-    }
-    const objectName = a.object;
-    let writeMode;
-    if (a.mode === void 0 || a.mode === "write") {
-      writeMode = "write";
-    } else if (a.mode === "delete") {
-      writeMode = "delete";
-    } else if (a.mode === "update") {
-      throw new AbapError(
-        "BAD_INPUT",
-        'mode:"update" is a v1-only route on this surface today \u2014 its redefine payload fields (`shlp`, `view_fields`, `program`) are not carried by v2\'s schema.',
-        { object: a.object },
-        'This is the v2 surface. The v1 `abap_write` tool (the default \u2014 reached by unsetting ABAP_TOOL_SURFACE) carries mode:"update".'
-      );
-    } else {
-      throw new AbapError(
-        "BAD_INPUT",
-        `Unrecognised mode "${a.mode}".`,
-        { object: a.object },
-        'Pass mode:"write" (default) or mode:"delete".'
-      );
-    }
-    const include = a.include === void 0 ? void 0 : assertClassInclude(a.include);
-    const ddic = a.ddic === void 0 ? void 0 : { ...a.ddic, typeKind: a.ddic.typeKind === void 0 ? void 0 : assertDdicTypeKind(a.ddic.typeKind) };
-    deps.safety.assert(writeMode, preflight({ object: objectName, type: a.type, package: a.package }), {
-      phase: "preflight",
-      corr: { kind: "unresolved" }
-    });
-    await deps.ensureConnected();
-    const input = { ...a, object: objectName, mode: writeMode, include, ddic };
-    const result = await deps.pool.withWrite(
-      "abap_write",
-      writeGateKey(objectName, a.type),
-      (conn) => abapWrite(
-        conn,
-        input,
-        deps.cfg.maxResponseChars,
-        deps.safety,
-        deps.journal,
-        deps.transport,
-        deps.cfg.verifyWrites
-      )
-    );
-    const next = a.dry_run ? [
-      {
-        tool: "abap_write",
-        args: { object: objectName },
-        why: "This was a preview \u2014 nothing was written. Repeat the same call without `dry_run`: for `edit`/`method` writes pass `expect_etag` as the preview reported it; for a plain `{object, source}` write, pass the preview's `current_etag` instead."
-      }
-    ] : (
-      // Read-back is mode-gated: `verified` wants proof, `speculative` (default)
-      // treats a clean write as sufficient and does not spend a read on it.
-      // `version:"active"` is required — an unactivated object would otherwise
-      // read back as its newer INACTIVE version, defeating the check.
-      deps.cfg.verifyWrites === "verified" ? [
-        {
-          tool: "abap_read",
-          args: { object: objectName, version: "active" },
-          why: "verify: already confirmed presence and activation \u2014 read back to confirm the CONTENT matches what you intended."
-        }
-      ] : writeMode !== "delete" && a.activate === false ? [
-        {
-          tool: "abap_do",
-          args: { action: "activate", object: objectName },
-          why: "activate:false skipped activation on this write \u2014 activate it separately when ready."
-        }
-      ] : []
-    );
-    const ok24 = { ok: true, tool: "abap_write", data: result.text, next };
-    return v2Result(ok24);
-  } catch (e) {
-    const failedObject = objectNameFromArgs(args);
-    return v2Result(
-      v2Error("abap_write", e, [
-        {
-          tool: "abap_read",
-          args: failedObject ? { object: failedObject } : {},
-          why: "The write reported failure, but a create is not atomic \u2014 check whether the object exists anyway before retrying; a reported failure runs no cleanup."
-        },
-        { tool: "abap_write", args: {}, why: "Retry with the bare call for guidance." }
-      ])
-    );
-  }
-}
-
-// src/tools/v2/schemas.ts
-init_zod();
-var ABAP_FIND_DESCRIPTION = "Locate anything in the SAP system: objects, usages, business objects, FPM configs, transports. Returns URIs + kinds. Bare call lists the searchable kinds.";
-var abapFindInputSchema = {
-  query: external_exports.string().optional().describe("Name, pattern (ZCL_*), or free text."),
-  kind: external_exports.string().optional().describe("Narrow by kind: class, program, table, bo, fpm, badi, transport."),
-  where: external_exports.string().optional().describe("Scope: repository (default), usages, package."),
-  type: external_exports.string().optional().describe("ADT type code, e.g. CLAS/OC."),
-  max: external_exports.number().int().min(1).max(200).optional()
-};
-var ABAP_READ_DESCRIPTION = "Read anything: source, contract, one method, a diff, or metadata. Omit view to get source plus a footer listing the other views.";
-var abapReadInputSchema = {
-  object: external_exports.string().optional().describe("Object name or ADT URI."),
-  view: external_exports.string().optional().describe("source (default) | contract | method | diff | metadata | outline | bopf | fpm."),
-  method: external_exports.string().optional().describe("Method name when view=method."),
-  offset: external_exports.number().int().min(1).optional().describe("1-based first line."),
-  limit: external_exports.number().int().min(1).optional(),
-  version: external_exports.string().optional().describe("active (default) | inactive.")
-};
-var ABAP_WRITE_DESCRIPTION = "Change source. Prefer the edit splice \u2014 it is the cheapest and safest form. Forms: {object,edit:{old_string,new_string}} unique-match splice; {object,method,source} whole-method replace; {object,source} full rewrite; {object,mode:'delete'}. dry_run previews without writing.";
-var abapWriteInputSchema = {
-  object: external_exports.string().optional().describe("Object name or ADT URI."),
-  edit: external_exports.object({
-    old_string: external_exports.string().describe("Exact text to replace; must occur exactly once."),
-    new_string: external_exports.string().describe("Replacement text."),
-    replace_all: external_exports.boolean().optional().describe("Replace every occurrence instead of requiring one.")
-  }).optional().describe("Unique-match splice."),
-  method: external_exports.string().optional().describe("Replace this method's implementation with source."),
-  // z.string(), not z.enum, per Rule 1; handler narrows via
-  // assertClassInclude. Full rationale: the git history
-  include: external_exports.string().optional().describe("CLAS/OC only: main | definitions | implementations | macros | testclasses. testclasses = ABAP Unit tests. Default main."),
-  source: external_exports.string().optional().describe("New source for the method or the whole object."),
-  mode: external_exports.string().optional().describe("write (default) | delete."),
-  type: external_exports.string().optional().describe("ADT type code; required when creating."),
-  package: external_exports.string().optional(),
-  description: external_exports.string().optional(),
-  expect_etag: external_exports.string().optional().describe("Optimistic-concurrency guard from abap_read."),
-  corr_nr: external_exports.string().optional().describe("Transport request."),
-  activate: external_exports.boolean().optional(),
-  format: external_exports.boolean().optional(),
-  dry_run: external_exports.boolean().optional().describe("Preview: return the diff and the expect_etag a real write would assert, without writing."),
-  // Mirrors v1's `ddic` (src/tools/write.ts) field-for-field.
-  ddic: external_exports.object({
-    dataType: external_exports.string().optional(),
-    length: external_exports.number().optional(),
-    decimals: external_exports.number().optional(),
-    outputLength: external_exports.number().optional(),
-    lowercase: external_exports.boolean().optional(),
-    signExists: external_exports.boolean().optional(),
-    // z.string(), not z.enum, per Rule 1; handler narrows via assertDdicTypeKind.
-    typeKind: external_exports.string().optional().describe("domain | predefinedAbapType | dictionaryType."),
-    typeName: external_exports.string().optional(),
-    shortLabel: external_exports.string().optional(),
-    shortLength: external_exports.number().optional(),
-    mediumLabel: external_exports.string().optional(),
-    mediumLength: external_exports.number().optional(),
-    longLabel: external_exports.string().optional(),
-    longLength: external_exports.number().optional(),
-    headingLabel: external_exports.string().optional(),
-    headingLength: external_exports.number().optional(),
-    searchHelp: external_exports.string().optional().describe("DTEL/DE only: search help attached (DD04L-SHLPNAME)."),
-    searchHelpParameter: external_exports.string().optional().describe("DTEL/DE only: the search help's own interface parameter this data element binds to (DD04L-SHLPFIELD). Refused without `searchHelp`.")
-  }).strict().optional().describe(
-    "Structured create for DOMA/DD, DTEL/DE, TTYP/DA only \u2014 alternative to `source`, never both. Unverified: this path has never itself been sent to a live system."
-  ),
-  confirm_in_use: external_exports.boolean().optional().describe("SHLP/DH delete only: required true when the search help is still attached elsewhere. Refused zero-network otherwise."),
-  confirm_maintenance_dialog: external_exports.boolean().optional().describe("VIEW/DV delete only: overrides refusal when the view still has a generated maintenance dialog (TVDIR)."),
-  confirm_in_role_menu: external_exports.boolean().optional().describe("TRAN/T delete or update (retarget) only: overrides refusal when the tcode is assigned to a role menu (AGR_TCODES).")
-};
-var abapDoInputSchema = {
-  action: external_exports.string().optional().describe("Action name. Unknown values return UNKNOWN_ACTION with nearest matches."),
-  object: external_exports.string().optional().describe("Primary target of the action."),
-  args: external_exports.record(external_exports.string(), external_exports.unknown()).optional().describe("Action-specific arguments; the catalogue names the keys per action."),
-  confirm: external_exports.string().optional().describe("Literal confirmation token required by destructive actions."),
-  dry_run: external_exports.boolean().optional()
-};
-var ABAP_DEBUG_DESCRIPTION = "Live ABAP debug session: breakpoints, run, step, stack, variables. Stateful \u2014 every call after start takes the returned stateId. Bare call lists the actions.";
-var abapDebugInputSchema = {
-  action: external_exports.string().optional().describe("start | step | stack | frame | vars | value | keepalive | stop | status."),
-  stateId: external_exports.string().optional().describe("From the start response; required by every later call."),
-  run: external_exports.string().optional().describe("Object to execute under the debugger (action=start)."),
-  breakpoints: external_exports.array(external_exports.string()).optional().describe("OBJECT:LINE or exception:CLASS; suffix ?CONDITION or #SKIPCOUNT."),
-  step: external_exports.string().optional().describe("into | over | return | continue | runToLine | jumpToLine."),
-  toLine: external_exports.number().int().min(1).optional(),
-  frame: external_exports.number().int().min(1).optional().describe("1-based stack position to move the read cursor to (action=frame)."),
-  path: external_exports.string().optional().describe("Variable path (action=value)."),
-  scope: external_exports.string().optional().describe("all | locals | parameters | globals (action=vars)."),
-  filter: external_exports.string().optional(),
-  from: external_exports.number().int().min(1).optional(),
-  count: external_exports.number().int().min(1).optional(),
-  depth: external_exports.number().int().min(1).optional()
-};
-var ABAP_ADT_DESCRIPTION = "Raw ADT REST escape hatch for endpoints no other v2 tool covers. Prefer abap_find/abap_read/abap_write/abap_do first \u2014 this is the fallback. GET-only in every mode, including admin.";
-var abapAdtInputSchema = {
-  method: external_exports.string().optional().describe("GET (default) | POST | PUT | DELETE."),
-  path: external_exports.string().optional().describe("Path under /sap/bc/adt/."),
-  body: external_exports.string().optional(),
-  headers: external_exports.record(external_exports.string(), external_exports.string()).optional()
-};
-function buildAbapDoDescription(mode) {
-  const groups = groupsForMode(mode).join(", ");
-  const n = actionsForMode(mode).length;
-  return `Single entry point for ABAP mutations and executions, organised by action (groups in this mode: ${groups}). Bare call lists every action; an unrecognised action returns UNKNOWN_ACTION with the nearest legal names. Call abap_do({}) for the catalogue of the ${n} actions available in this mode.`;
-}
-
-// src/tools/v2/register.ts
-function registerV2Tools(mcp, deps) {
-  const mode = deps.cfg.abapMode;
-  mcp.registerTool(
-    "abap_find",
-    {
-      description: ABAP_FIND_DESCRIPTION,
-      inputSchema: abapFindInputSchema,
-      annotations: { readOnlyHint: true, destructiveHint: false }
-    },
-    (args) => handleAbapFind(args, deps)
-  );
-  mcp.registerTool(
-    "abap_read",
-    {
-      description: ABAP_READ_DESCRIPTION,
-      inputSchema: abapReadInputSchema,
-      annotations: { readOnlyHint: true, destructiveHint: false }
-    },
-    (args) => handleAbapRead(args, deps)
-  );
-  if (mode !== "read") {
-    mcp.registerTool(
-      "abap_write",
-      {
-        description: ABAP_WRITE_DESCRIPTION,
-        inputSchema: abapWriteInputSchema,
-        annotations: { readOnlyHint: false, destructiveHint: true }
-      },
-      (args) => handleAbapWrite(args, deps)
-    );
-  }
-  mcp.registerTool(
-    "abap_do",
-    {
-      description: buildAbapDoDescription(mode),
-      inputSchema: abapDoInputSchema,
-      annotations: { readOnlyHint: false, destructiveHint: true }
-    },
-    (args) => handleAbapDo(args, deps)
-  );
-  mcp.registerTool(
-    "abap_debug",
-    {
-      description: ABAP_DEBUG_DESCRIPTION,
-      inputSchema: abapDebugInputSchema,
-      annotations: { readOnlyHint: false, destructiveHint: false }
-    },
-    (args) => handleAbapDebug(args, deps)
-  );
-  mcp.registerTool(
-    "abap_adt",
-    {
-      description: ABAP_ADT_DESCRIPTION,
-      inputSchema: abapAdtInputSchema,
-      annotations: { readOnlyHint: false, destructiveHint: true }
-    },
-    (args) => handleAbapAdt(args, deps)
   );
 }
 
@@ -149116,8 +146589,6 @@ function stripSchemaKeyOnConnect(mcp) {
     return rawConnect(transport);
   });
 }
-var V2_REMOVAL_RELEASE = "0.6.0";
-var V2_DEPRECATION_SENTENCE = `ABAP_TOOL_SURFACE=v2 is DEPRECATED and will be REMOVED in ${V2_REMOVAL_RELEASE}. The surface is frozen: no new tool routes and no defect fixes land on it. Move to v1 by unsetting ABAP_TOOL_SURFACE.`;
 function packageScopeSentence(readOnly, allowPackages) {
   if (readOnly) {
     return "ABAP_ALLOW_PACKAGES unset allows every customer package, a list allows only those, and an empty value refuses every write.";
@@ -149130,12 +146601,9 @@ function packageScopeSentence(readOnly, allowPackages) {
   }
   return `ABAP_ALLOW_PACKAGES is [${allowPackages.join(", ")}] here, so only those packages are writable; unset allows every customer package, and an empty value refuses every write.`;
 }
-function instructionsFor(toolSurface, abapMode, readOnly, allowPackages, fluidAvailable = false, lockedToolCount = 0) {
+function instructionsFor(abapMode, readOnly, allowPackages, fluidAvailable = false, lockedToolCount = 0) {
   const writeGate = abapMode !== void 0 ? `unless ABAP_MODE is edit or admin (it is ${abapMode})` : "unless the operator set ABAP_ALLOW_WRITE";
   const packageScope = packageScopeSentence(readOnly, allowPackages);
-  if (toolSurface === "v2") {
-    return "Access to an SAP ABAP system over ADT, via 6 tools. " + V2_DEPRECATION_SENTENCE + ` Use abap_find to locate objects, abap_read to read source or DDIC definitions (outline=true first for large classes, then method=), abap_write to create/change/delete (edit= splices a unique match, method= replaces one method, source= is a full rewrite, mode="delete" removes), abap_do for everything else \u2014 activation/check, run/test, the local write journal and undo, transports, BOPF, and BAdI/enhancement actions (call abap_do({}) with no action for the live catalogue of what's unlocked at the current ABAP_MODE), and abap_debug to set breakpoints and step through execution with full variable inspection (action=start/step/stack/vars/value/keepalive/stop/status). Writes are OFF ${writeGate}, and need a customer-namespace object name plus a package the allowlist permits: ${packageScope} Every write is journalled with its previous source locally first, so abap_do({action:"undo"}) can put it back \u2014 but only for objects this server wrote. Responses are capped and truncation is always marked.`;
-  }
   return `Access to an SAP ABAP system over ADT. Use abap_search to locate objects, abap_read to read source or DDIC definitions (outline=true first for large classes, then method=), abap_write to create/change/delete, abap_activate to syntax-check or activate, abap_run to execute a class or report and capture its output, abap_test to run ABAP Unit tests (it reports NO TESTS RAN separately from PASSED \u2014 they are not the same answer), abap_debug/abap_debug_vars/abap_debug_value to set breakpoints and step through execution with full variable inspection, abap_journal to see what you changed and undo it. Writes are OFF ${writeGate}, and need a customer-namespace object name plus a package the allowlist permits: ${packageScope} Every write records the previous source locally first, so abap_journal mode=undo can put it back \u2014 but only for objects this server wrote. Responses are capped and truncation is always marked.` + (fluidAvailable ? " abap_fluid deploys and runs small generated ABAP tools inside $ABAPSMITH_FLUID_API (call it with no arguments for the catalogue)." : "") + (lockedToolCount > 0 ? ` ${lockedToolCount} further tools are listed but LOCKED at this permission level (abap_write among them) \u2014 each one's description says what unlocks it, and calling one returns a refusal without touching the SAP system.` : "");
 }
 function describeStartupProbeFailure(e) {
@@ -149218,7 +146686,6 @@ function createServer(cfg, opts) {
     { name: SERVER_NAME, version: SERVER_VERSION },
     {
       instructions: instructionsFor(
-        cfg.toolSurface,
         cfg.abapMode,
         cfg.readOnly,
         cfg.allowPackages,
@@ -149277,10 +146744,76 @@ function createServer(cfg, opts) {
     );
     await connectPromise;
   };
-  if (cfg.toolSurface === "v1") {
-    registerTransportTools(mcp, {
-      // The pool, not the connection: transport ops have no single ABAP
-      // object to gate on (a TRKORR isn't a repository object).
+  registerTransportTools(mcp, {
+    // The pool, not the connection: transport ops have no single ABAP
+    // object to gate on (a TRKORR isn't a repository object).
+    pool,
+    cfg,
+    safety,
+    ensureConnected,
+    errorResult,
+    journal,
+    warn,
+    // Same manager that adopts requests knows which of them this session
+    // created — `abap_transport show` and the release gate read the
+    // record `transport`'s resolver writes.
+    ownership: transport,
+    // `abap_transport`'s list/show/check/users submodes are ungated and
+    // always registered; only `abap_transport_release` is gated.
+    registerRelease: toolCapabilities.canReleaseTransport
+  });
+  registerBopfTools(mcp, {
+    pool,
+    cfg,
+    safety,
+    ensureConnected,
+    errorResult,
+    transport,
+    journal,
+    registerWrite: toolCapabilities.canWrite
+  });
+  registerEnhancementTools(mcp, {
+    pool,
+    cfg,
+    safety,
+    ensureConnected,
+    errorResult,
+    transport,
+    journal
+  });
+  registerReadTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
+  registerSearchTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
+  registerOpenUrlTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
+  registerImgTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
+  if (toolCapabilities.canWrite) {
+    registerBopfTestTool(mcp, { ...createBopfTestDeps(), pool, cfg, safety, ensureConnected, errorResult });
+    registerFpmTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
+    registerUiTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal });
+    registerWriteTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal, transport });
+    registerImgEditTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal });
+    registerRunTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
+    registerTestTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal });
+    registerAtcTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
+    registerQuickFixTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal, transport });
+  }
+  registerActivateTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, transport, journal });
+  registerJournalTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal });
+  registerDebugTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, debugDeps });
+  if (toolCapabilities.canPreviewData) {
+    registerDataPreviewTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
+  }
+  registerDumpTools(mcp, {
+    pool,
+    cfg,
+    safety,
+    ensureConnected,
+    errorResult,
+    registerVariables: toolCapabilities.canReadDumpVariables
+  });
+  registerServiceTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal, warn });
+  registerTraceTools(mcp, { pool, safety, ensureConnected, errorResult, cfg, journal });
+  if (toolCapabilities.canUseFluidApi) {
+    registerFluidTool(mcp, {
       pool,
       cfg,
       safety,
@@ -149288,99 +146821,10 @@ function createServer(cfg, opts) {
       errorResult,
       journal,
       warn,
-      // Same manager that adopts requests knows which of them this session
-      // created — `abap_transport show` and the release gate read the
-      // record `transport`'s resolver writes.
-      ownership: transport,
-      // `abap_transport`'s list/show/check/users submodes are ungated and
-      // always registered; only `abap_transport_release` is gated.
-      registerRelease: toolCapabilities.canReleaseTransport
-    });
-    registerBopfTools(mcp, {
-      pool,
-      cfg,
-      safety,
-      ensureConnected,
-      errorResult,
-      transport,
-      journal,
-      registerWrite: toolCapabilities.canWrite
-    });
-    registerEnhancementTools(mcp, {
-      pool,
-      cfg,
-      safety,
-      ensureConnected,
-      errorResult,
-      transport,
-      journal
-    });
-    registerReadTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
-    registerSearchTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
-    registerOpenUrlTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
-    registerImgTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
-    if (toolCapabilities.canWrite) {
-      registerBopfTestTool(mcp, { ...createBopfTestDeps(), pool, cfg, safety, ensureConnected, errorResult });
-      registerFpmTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
-      registerUiTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal });
-      registerWriteTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal, transport });
-      registerImgEditTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal });
-      registerRunTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
-      registerTestTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal });
-      registerAtcTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
-      registerQuickFixTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal, transport });
-    }
-    registerActivateTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, transport, journal });
-    registerJournalTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal });
-    registerDebugTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, debugDeps });
-    if (toolCapabilities.canPreviewData) {
-      registerDataPreviewTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
-    }
-    registerDumpTools(mcp, {
-      pool,
-      cfg,
-      safety,
-      ensureConnected,
-      errorResult,
-      registerVariables: toolCapabilities.canReadDumpVariables
-    });
-    registerServiceTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal, warn });
-    registerTraceTools(mcp, { pool, safety, ensureConnected, errorResult, cfg, journal });
-    if (toolCapabilities.canUseFluidApi) {
-      registerFluidTool(mcp, {
-        pool,
-        cfg,
-        safety,
-        ensureConnected,
-        errorResult,
-        journal,
-        warn,
-        toolSet: opts.fluidToolSet ?? builtinFluidToolSet(BUILTIN_FLUID_TOOLS)
-      });
-    }
-    registerLockedTools(mcp, { cfg, errorResult, tools: lockedTools });
-  } else {
-    const v2Mode = cfg.abapMode ?? "read";
-    registerV2Tools(mcp, {
-      pool,
-      safety,
-      ensureConnected,
-      errorResult,
-      journal,
-      transport,
-      debugDeps,
-      warn,
-      cfg: {
-        abapMode: v2Mode,
-        maxResponseChars: cfg.maxResponseChars,
-        allowEnhancements: cfg.allowEnhancements,
-        allowSourcePlugins: cfg.allowSourcePlugins,
-        allowEnhancementDelete: cfg.allowEnhancementDelete,
-        user: cfg.user,
-        verifyWrites: cfg.verifyWrites
-      }
+      toolSet: opts.fluidToolSet ?? builtinFluidToolSet(BUILTIN_FLUID_TOOLS)
     });
   }
+  registerLockedTools(mcp, { cfg, errorResult, tools: lockedTools });
   mcp.registerResource(
     "system",
     `abap://${cfg.sid}/system`,
@@ -149466,11 +146910,6 @@ function createServer(cfg, opts) {
       warn(
         `[abapsmith] ready on stdio \u2014 ${cfg.sid} @ ${stripUrlCredentials(cfg.url)} as ${cfg.user} (${mode})${notConnectedSuffix}`
       );
-      if (cfg.toolSurface === "v2") {
-        warn(
-          `[abapsmith] ${V2_DEPRECATION_SENTENCE} Four v1 tools (abap_data_preview, abap_open_url, abap_dumps, abap_ui) never had a v2 route, and every tool added since widened the gap \u2014 see doc/TOOL-SURFACE-V2/README.md and the CHANGELOG.`
-        );
-      }
       warn(
         journal.enabled ? `[abapsmith] write journal: ${journal.dir} (keeps ${journal.config.maxEntries} entries / ${journal.config.maxAgeDays} days; before-images contain source \u2014 do not commit it)` : "[abapsmith] WARNING: write journal DISABLED (ABAP_JOURNAL=off) \u2014 writes cannot be undone."
       );
@@ -149535,7 +146974,7 @@ function invokedAsProgram() {
   const argv1 = process.argv[1];
   if (argv1 === void 0) return false;
   try {
-    return realpathSync(argv1) === realpathSync(fileURLToPath2(import.meta.url));
+    return realpathSync(argv1) === realpathSync(fileURLToPath(import.meta.url));
   } catch {
     return false;
   }

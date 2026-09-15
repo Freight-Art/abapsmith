@@ -30,8 +30,8 @@
  * `bopf_activate` call or a dry-run delete, which journal nothing, looked
  * fine; the very next edit that journalled went dark the same way `abap_read`
  * always did. Both are fixed in this worktree (`src/tools/read.ts`,
- * `src/tools/bopf.ts`, `src/tools/v2/handlers/do/bopf.ts`) — the id now rides
- * an INTERNAL, non-wire field (`BopfCallResult.journalEntryId`) that each
+ * `src/tools/bopf.ts`) — the id now rides an INTERNAL, non-wire field
+ * (`BopfCallResult.journalEntryId`) that each
  * `mcp.registerTool` callback strips before the result crosses the MCP
  * boundary, and `abap_read`'s counters now live inside `content[0].text`
  * itself, as one header line for a complete response
@@ -278,7 +278,7 @@ describe("structuredContent contract (heuristic, see file header)", () => {
         `pattern (counters folded into one header line inside the existing budgeted render), or the ` +
         `internal, non-wire \`BopfCallResult.journalEntryId\` field plus \`toMcpResult\` in ` +
         `\`src/tools/bopf.ts\` for the pattern where a value needs to reach an in-process caller ` +
-        `(a v2 handler) without ever reaching the MCP boundary.`,
+        `without ever reaching the MCP boundary.`,
     ).toEqual([]);
   });
 
