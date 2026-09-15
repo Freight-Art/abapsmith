@@ -245,6 +245,32 @@ exist and may work, but have not been exercised against a real system.
   (`TR_INSERT_REQUEST_WITH_TASKS`, `IV_TYPE='T'`) and deletion are
   live-proven. See the Not Implemented note above on why triggering an
   import itself remains out of scope.
+- **The Streamable HTTP transport (`ABAP_MCP_TRANSPORT=http`)** has been
+  exercised only over a loopback socket in the offline suite
+  (`test/mcp-http-transport.test.ts`), against a fake ADT server. It has
+  **not** been run as a shared service next to a real SAP system, nor with
+  more than two concurrent MCP sessions, nor with a real MCP client other
+  than the SDK's own. See
+  [doc/CONFIGURATION/transport.md](../CONFIGURATION/transport.md#not-verified).
+- **TLS termination by a reverse proxy** in front of the HTTP transport is
+  documented but not exercised — abapsmith never speaks TLS on the server
+  side, and no proxy configuration is tested or shipped.
+- **No resumability.** The HTTP transport is constructed without an
+  `EventStore`, so a dropped SSE stream cannot be resumed with
+  `Last-Event-ID`; a client that loses its connection must re-`initialize`.
+- **Sessions are in-memory only.** A restart drops every `Mcp-Session-Id`,
+  and two `abapsmith` processes behind one load balancer do not share
+  sessions — there is no sticky-routing support.
+- **DNS-rebinding protection** is available in the underlying SDK transport
+  but is not wired to any environment variable here — see
+  [doc/SAFETY/remote-transport.md](../SAFETY/remote-transport.md).
+- **Bearer tokens (`ABAP_MCP_HTTP_TOKEN`) are static.** No rotation,
+  expiry, or revocation short of a restart, and no per-token permission
+  scoping.
+- **Journal attribution under HTTP records the token NAME**, an
+  operator-chosen label — it is not an authenticated identity, and an
+  unnamed token records only the MCP client's own name. See
+  [doc/JOURNAL/journal-format.md](../JOURNAL/journal-format.md).
 - **`abap_service` `op="publish"` and `op="unpublish"`** are no longer in
   this category: both were executed against A4H (client 001,
   `ABAP_MODE=admin`, 2026-09-15) for a V2 binding and a V4 binding, each

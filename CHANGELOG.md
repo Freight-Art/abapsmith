@@ -12,6 +12,12 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.6] - 2026-09-15
+
+### Added
+
+- MCP over Streamable HTTP in addition to stdio (#81): `ABAP_MCP_TRANSPORT=http` serves the same tool surface on `ABAP_MCP_HTTP_HOST` (default `127.0.0.1`) / `ABAP_MCP_HTTP_PORT` (default 3000; `0` lets the OS pick and the ready banner prints the bound port) / `ABAP_MCP_HTTP_PATH` (default `/mcp`), one MCP session per client over a single shared ADT pool (`src/mcp-http.ts`, `src/mcp-session.ts`). `ABAP_MCP_HTTP_TOKEN` takes a comma-separated list of `name=token` (or bare) bearer tokens, compared in constant time; a missing or unknown token is `401` with `www-authenticate: Bearer`, a request to another path `404`, `GET`/`DELETE` without a known `mcp-session-id` `404`, other methods `405` with `allow`, bodies over 4 MiB `413`. A non-loopback bind without a token is refused at startup with a message naming the host and the variable. Writes made over HTTP are journaled with `actor` = the token's name (falling back to the client's `clientInfo.name`) and `sessionIdSource: "transport"`, so two callers of one server are distinguishable in `abap_journal`. TLS is not terminated; `doc/CONFIGURATION/transport.md` and `doc/SAFETY/remote-transport.md` state what the token does and does not authenticate. stdio stays the default and is unchanged; a token set under stdio only logs a warning.
+
 ## [0.6.5] - 2026-09-15
 
 ### Added
