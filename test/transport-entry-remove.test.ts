@@ -214,8 +214,16 @@ function transportInput(
 // (transportPart.source), not against the TS bridge's own comments.
 // ---------------------------------------------------------------------------
 
+// transportPart now carries several methods (read_transport_log, read_import_queue,
+// create_transport_of_copies, ...), so an open-ended slice from the start of
+// remove_transport_entry to the end of the source would silently widen every guard
+// below to cover unrelated ABAP and stop being a guard on remove_transport_entry at
+// all. Pin the end bound to this method's own ENDMETHOD. to keep the slice — and the
+// guards below — scoped to just this method's body.
+const TRANSPORT_METHOD_START = transportPart.source.indexOf("METHOD remove_transport_entry.");
 const TRANSPORT_METHOD = transportPart.source.slice(
-  transportPart.source.indexOf("METHOD remove_transport_entry."),
+  TRANSPORT_METHOD_START,
+  transportPart.source.indexOf("\n  ENDMETHOD.", TRANSPORT_METHOD_START),
 );
 
 const norm = (s: string): string => s.replace(/\s+/g, " ").trim();
