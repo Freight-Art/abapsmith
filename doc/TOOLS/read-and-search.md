@@ -672,9 +672,6 @@ through machinery `abap_read` already uses for a plain read, so it needs
 nothing beyond what that path already provides, and it remains available
 under `ABAP_MODE=read`.
 
-**Not on the v2 tool surface** — see the note under `view="docu"` above;
-the same applies here.
-
 **Evidence.** The section-building logic (`buildDigestSections` and the pure
 scan/summary functions it calls) is covered by unit tests against
 constructed `DigestInput` fixtures. It was also confirmed live on A4H,
