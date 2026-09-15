@@ -21,6 +21,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { readDdic, renderDataElement, renderDomain, renderTableType } from "../src/adt/ddic.js";
+import { buildStructuredDdicDescriptor } from "../src/adt/ddic-payload.js";
 import type { AbapConnection } from "../src/adt/connection.js";
 import type { ResolvedObject } from "../src/adt/resolve.js";
 
@@ -409,5 +410,58 @@ describe("the character-literal note", () => {
       ],
     });
     expect(r.notes.join(" ")).not.toMatch(/character literals, not numbers/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 7. Search help attachment (DTEL/DE). `buildStructuredDdicDescriptor`
+// (src/adt/ddic-payload.ts) normalizes `ddic.searchHelp`/
+// `ddic.searchHelpParameter` to trimmed upper case exactly once, at write
+// time (see test/ddic-structured-input.test.ts for that normalization
+// pinned in isolation). What this section pins is the OTHER half: the
+// value the write side actually bakes into the wire XML is exactly what a
+// subsequent read renders back — "the exact characters DDIC stored must
+// reach the model unchanged" holds for this pair of elements too, whether
+// or not the caller's original input was already clean.
+//
+// `readDdic` is fed the write side's own OUTPUT as the stand-in server
+// response — a structural stand-in, not live-captured data (see
+// ddic-payload.ts's own doc comment: this write path has never itself been
+// sent to a live system).
+// ---------------------------------------------------------------------------
+
+describe("through a data element: search help attachment survives the write -> read round trip", () => {
+  function dtelXmlWith(fields: { searchHelp?: string; searchHelpParameter?: string }): string {
+    return buildStructuredDdicDescriptor("DTEL/DE", "ZMC_TMODE", "Transport mode", "$TMP", fields);
+  }
+
+  it("a valid attachment (already clean input) round-trips identically: same searchHelp/searchHelpParameter come back out", async () => {
+    const dtelXml = dtelXmlWith({ searchHelp: "ZSHLP_STANDIN", searchHelpParameter: "STANDIN_FLD" });
+    const conn = stubConn({ dataElement: async () => ({ body: dtelXml }) });
+    const r = await readDdic(conn, obj("DTEL", "ZMC_TMODE", "/sap/bc/adt/ddic/dataelements/zmc_tmode"));
+    expect(r.ddl).toContain("search help: ZSHLP_STANDIN (STANDIN_FLD);");
+  });
+
+  it("leading/trailing whitespace and lower case normalize to trimmed upper case, once, at write time — the read side then sees only the normalized form", async () => {
+    const dtelXml = dtelXmlWith({ searchHelp: "  zshlp_standin  ", searchHelpParameter: "  standin_fld  " });
+    // The normalization already happened inside buildStructuredDdicDescriptor:
+    // the whitespace/lower-case input never reaches the wire at all.
+    expect(dtelXml).toContain("<dtel:searchHelp>ZSHLP_STANDIN</dtel:searchHelp>");
+    expect(dtelXml).toContain("<dtel:searchHelpParameter>STANDIN_FLD</dtel:searchHelpParameter>");
+    expect(dtelXml).not.toContain("zshlp_standin");
+    expect(dtelXml).not.toContain("  ZSHLP_STANDIN");
+
+    const conn = stubConn({ dataElement: async () => ({ body: dtelXml }) });
+    const r = await readDdic(conn, obj("DTEL", "ZMC_TMODE", "/sap/bc/adt/ddic/dataelements/zmc_tmode"));
+    expect(r.ddl).toContain("search help: ZSHLP_STANDIN (STANDIN_FLD);");
+  });
+
+  it("an unattached data element (neither field given) renders with no search help line at all, matching the always-present-but-empty wire elements", async () => {
+    const dtelXml = dtelXmlWith({});
+    expect(dtelXml).toContain("<dtel:searchHelp/>");
+    expect(dtelXml).toContain("<dtel:searchHelpParameter/>");
+    const conn = stubConn({ dataElement: async () => ({ body: dtelXml }) });
+    const r = await readDdic(conn, obj("DTEL", "ZMC_TMODE", "/sap/bc/adt/ddic/dataelements/zmc_tmode"));
+    expect(r.ddl).not.toContain("search help:");
   });
 });

@@ -34,6 +34,8 @@ import {
 } from "../src/adt/capabilities.js";
 import { resolveObject } from "../src/adt/resolve.js";
 import { resolveWriteTarget } from "../src/adt/write.js";
+import { specForType } from "../src/adt/types.js";
+import { ddicStrategy } from "../src/adt/ddic-strategy.js";
 import type { AbapConnection } from "../src/adt/connection.js";
 import { assertClassicViewCreateTarget, createClassicView, type ClassicViewParams } from "../src/adt/view-create.js";
 import { SafetyGate } from "../src/safety.js";
@@ -255,7 +257,19 @@ describe("terminality is derived from the capability registry", () => {
     const fakeConn = makeDeadConn();
     for (const code of Object.keys(REGISTRY) as TypeCode[]) {
       const cap = REGISTRY[code];
-      const expectTerminal = cap.unsupported !== undefined || isBridgeOnlyCreateType(code);
+      // A bridge-only-create type (SHLP/DH, VIEW/DV, TRAN/T) no longer
+      // refuses a read outright: resolveObject's own bridge-only-create
+      // branch (src/adt/resolve.ts) only throws when the type is NOT
+      // `readable` — `spec?.mode === "ddic" && ddicStrategy(spec.kind) !==
+      // "unsupported"`. All three now carry a `mode: "ddic"` TypeSpec backed
+      // by a working ("catalog") ddicStrategy, so they fall through to the
+      // ordinary resolution path instead of throwing, and this predicate has
+      // to mirror that same `readable` check or it claims a terminal refusal
+      // for a type that no longer produces one. TABL/DI has no `types.ts`
+      // entry at all, so it stays terminal.
+      const spec = specForType(code);
+      const readable = spec?.mode === "ddic" && ddicStrategy(spec.kind) !== "unsupported";
+      const expectTerminal = !readable && (cap.unsupported !== undefined || isBridgeOnlyCreateType(code));
       let caught: unknown;
       try {
         await resolveObject(fakeConn, "ZTERM_PROBE", { type: code });
@@ -440,16 +454,24 @@ describe("terminality overrides are deliberate and explained", () => {
   // from the code. The reroute deleted the bridge deploy and with it that
   // re-wrap, so every remaining site is a genuine per-site override — which is
   // why the "and 1 is a re-wrap" clause is gone rather than merely renumbered.
+  // It went to 22 with the SHLP/DH bridge-update package resolution path
+  // (`packageForBridgeUpdate` in tools/write.ts): an `indeterminate`
+  // existence/package check there throws `SAFETY_DENIED` with a `{
+  // retryable: true }` override, on the same reasoning as the sibling site
+  // already in this file — existence could not be confirmed, not denied, so
+  // a healthy connection resolves it on retry — bringing tools/write.ts from
+  // 1 site to 2.
   // 21 became 24 with issue #89: tools/debug.ts now refuses a busy or
   // leaked debug lane at four sites (limit-1 tracked/untracked, multi-lane
   // leaked/all-busy), each terminal-by-code (UNSUPPORTED or
   // DEBUG_ALL_LEASES_BUSY) but honestly retryable once a stop frees a lane.
-  it("exactly 24 call sites pass a 5th argument to `new AbapError(...)` — 2 in adt/resolve.ts, 8 in adt/write.ts, 2 in adt/datapreview.ts (re-wraps that carry the classified retryability through unchanged), 1 in adt/resolved-package.ts, 1 in adt/index-create.ts, 3 in adt/undo.ts, 1 in tools/write.ts, 4 in tools/debug.ts, 1 in tools/ui.ts and 1 in debug/session.ts: all 24 are per-site overrides of RETRYABILITY's default (terminal-by-code UNSUPPORTED/SAFETY_DENIED sites whose own prose promises a working retry, plus BAD_INPUT sites whose own prose forbids a retry); most terminal codes still get retryable:false automatically from RETRYABILITY with no 5th argument at all", () => {
+  // Both additions land in the same merge, so the total is 25.
+  it("exactly 25 call sites pass a 5th argument to `new AbapError(...)` — 2 in adt/resolve.ts, 8 in adt/write.ts, 2 in adt/datapreview.ts (re-wraps that carry the classified retryability through unchanged), 1 in adt/resolved-package.ts, 1 in adt/index-create.ts, 3 in adt/undo.ts, 2 in tools/write.ts, 4 in tools/debug.ts, 1 in tools/ui.ts and 1 in debug/session.ts: all 25 are per-site overrides of RETRYABILITY's default (terminal-by-code UNSUPPORTED/SAFETY_DENIED sites whose own prose promises a working retry, plus BAD_INPUT sites whose own prose forbids a retry); most terminal codes still get retryable:false automatically from RETRYABILITY with no 5th argument at all", () => {
     const { calls } = scanSrc();
     expect(
       calls.length,
       `found: ${calls.map((c) => `${c.file}:${c.line}`).join(", ")}`,
-    ).toBe(24);
+    ).toBe(25);
   });
 });
 

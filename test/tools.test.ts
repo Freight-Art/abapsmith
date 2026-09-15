@@ -2064,9 +2064,17 @@ describe("tool surface", () => {
       | undefined;
     const desc = schema?.properties?.type?.description ?? "";
     for (const code of NON_READABLE_TYPES) expect(desc).toContain(code);
-    expect(desc).toContain("VIEW/DV");
-    expect(desc).toContain("TRAN/T");
     expect(desc).toContain("PROG/PT");
+    // SHLP/DH, VIEW/DV and TRAN/T are bridge-only-create too but ARE
+    // readable — through a plain-text catalog SELECT
+    // (src/adt/catalog-read.ts), not the ADT REST collection this list is
+    // about — so NON_READABLE_TYPES excludes them and this description must
+    // not name them as refused. Regression guard for the bug where
+    // NON_READABLE_TYPES still listed all three after the catalog-based read
+    // route was added.
+    expect(desc).not.toContain("SHLP/DH");
+    expect(desc).not.toContain("VIEW/DV");
+    expect(desc).not.toContain("TRAN/T");
   });
 
   it("gives abap_read's tool description a copy-pasteable example call", async () => {

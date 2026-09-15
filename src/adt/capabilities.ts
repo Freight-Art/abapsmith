@@ -92,7 +92,7 @@
  * `FUGR/FF`, `/includes` for `FUGR/I`) comes from the vendor's own per-type
  * `creationPath`, not from anything hard-coded in `createNewObject`.
  */
-import { ddicStrategy } from "./ddic.js";
+import { ddicStrategy } from "./ddic-strategy.js";
 import { TYPES, specForType, type TypeSpec } from "./types.js";
 
 /** How a type's content is written: a plain-text source PUT, or a structured XML property PUT. */
@@ -287,6 +287,21 @@ export interface TypeCapabilities {
      * itself is enforced in the type's own create module, not from here.
      */
     createRefused?: string;
+    /**
+     * Present and `true` ⇒ this bridge create route was RUN against a real
+     * system and observed to work end-to-end, not merely present in the
+     * codebase — the bridge twin of {@link CreateCapability.verified} being
+     * `true`, for a type that has no `create` object to carry that flag at
+     * all (it is REST-`create`-less by construction; see the field doc
+     * above). Absent means no live run has been recorded, exactly like
+     * `create.verified` being absent — it does NOT mean the route is
+     * untrustworthy, just unattested here. Evidence-only: nothing in
+     * `resolveWriteTarget`, `write.ts`, or anywhere else guards behaviour on
+     * this flag — the bridge runs (or is refused via `createRefused`)
+     * regardless of its value. Read only by `test/capability-matrix-doc.test.ts`
+     * to render the Evidence column in `doc/CAPABILITIES/object-types.md`.
+     */
+    verified?: boolean;
   };
   /**
    * Present ⇒ an EXISTING object of this type is deleted by the same
@@ -299,6 +314,19 @@ export interface TypeCapabilities {
     adtRest: string;
     via: string;
     limits: string;
+    /**
+     * Present and `true` ⇒ this bridge delete route was RUN against a real
+     * system and observed to work end-to-end — the bridge twin of
+     * {@link TypeCapabilities.delete} being `true`, for a type that has no
+     * `delete` boolean to carry that flag (bridge-deleted types use this
+     * object instead; see the field doc above). Absent means no live run
+     * has been recorded, exactly like `create.verified` being absent, not
+     * that the route is known unreliable. Evidence-only: nothing gates
+     * behaviour on this flag. Read only by
+     * `test/capability-matrix-doc.test.ts` to render the Evidence column in
+     * `doc/CAPABILITIES/object-types.md`.
+     */
+    verified?: boolean;
   };
   /**
    * This is a real ADT concept abapsmith deliberately does NOT support
@@ -1005,14 +1033,108 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
   // Not in types.ts — see the module doc.
   "SHLP/DH": {
     label: "Search help",
-    unsupported: {
-      reason:
-        "Search helps are not reachable over ADT on this release — every read and write " +
-        "attempt against /sap/bc/adt/ddic/searchhelps/... 404s, verified by recon.",
-      alternative:
-        "There is no ADT-reachable substitute for a classic search help. If the goal is " +
-        "value-help logic, consider a CDS view (DDLS/DF, writable here) with a value-help " +
-        "annotation instead.",
+    bridgeCreate: {
+      adtRest:
+        "Search helps are not reachable over ADT's mutating REST surface on this release — " +
+        "every write attempt against /sap/bc/adt/ddic/searchhelps/... 404s, verified by recon. " +
+        "That is why abapsmith goes around ADT for this type with a generated classrun bridge, " +
+        "not a reason it cannot write one: SE11's own search-help editor does not use REST " +
+        "either. A GET of the same collection also 404s, but that no longer means abapsmith " +
+        "cannot read a search help at all — see src/adt/catalog-read.ts, which reads DD30L/" +
+        "DD30T/DD31S/DD32S/DD33S through plain-text catalog SELECTs instead of the REST collection.",
+      via:
+        "DDIF_SHLP_PUT then DDIF_SHLP_ACTIVATE (function group SDIC — the same primitives SE11's " +
+        "search-help editor drives), preceded by RS_CORR_INSERT for transport/TADIR " +
+        "registration, called from a generated IF_OO_ADT_CLASSRUN bridge. See " +
+        "src/adt/shlp-create.ts and src/adt/ddic-bridge.ts.",
+      limits:
+        "The bridge builds either an elementary search help (one interface, DD31V/DD32P/DD33V) " +
+        "or a collective one (DD31S includes of other search helps) — both directions are now " +
+        "proven live, not just elementary. Validated zero-network before dispatch: an " +
+        "elementary help needs at least one import AND one export interface field, a selection " +
+        "method of type T/V is checked against DD02L/DD25L (and its field against DD03L/" +
+        "DD27S), and any other selection-method type gets a `ZMCP-DDIC-NOTE>` instead of a hard " +
+        "check. `elementary: false` with an empty `includes` used to be refused zero-network " +
+        "(\"has nothing to collect\") — removed: it activates fine on a real system. " +
+        "`update_search_help` REPLACES the whole definition the same way `DDIF_VIEW_PUT` does " +
+        "for a view: any field, include, or assignment not passed in the update call is " +
+        "removed. Root cause of DH109 found and closed: `DDIF_SHLP_PUT` succeeds and " +
+        "`DDIF_SHLP_ACTIVATE` then returns rc = 8 / message DH109 (\"search help & was not " +
+        "activated\") whenever the definition contains a dangling reference, leaving the " +
+        "search help as an INACTIVE-ONLY object (a DD30L row with AS4LOCAL = 'N', no active " +
+        "row, plus a TADIR entry) — reproduced live for three shapes: a DD31V include naming a " +
+        "search help that does not exist, a DD33V assignment whose SUBFIELD is not an " +
+        "interface parameter of the included help, and a DD33V assignment whose FIELDNAME is " +
+        "not an interface parameter of the help being built. Four refusals now prevent that " +
+        "stranding: two zero-network, in src/adt/shlp-create.ts (every `assignments[i].field` " +
+        "must be one of this call's own `fields[].name`; every `assignments[i].includedHelp` " +
+        "must be one of this call's own `includes[].name`, both case-insensitive), and two " +
+        "server-side, generated into the ABAP itself (src/adt/fluid/builtin/classic/" +
+        "abap-shlp.ts) and run BEFORE RS_CORR_INSERT so nothing is registered when they fire: " +
+        "every DD31V-SUBSHLP must exist as an active DD30L row, and every DD33V-SUBFIELD must " +
+        "exist as an active DD32S row of its SUBSHLP (a self-referencing assignment, SUBSHLP = " +
+        "SHLPNAME, skips this lookup — the definition is not in DD32S yet). The server-side " +
+        "pair surfaces as CHECK_FAILED. rc = 4 / DH108 (\"activated with warnings\") is a " +
+        "SUCCESS, not a refusal — a collective help with a selection method, one with no " +
+        "includes, and one with no fields/assignments each activate that way — and now emits a " +
+        "`ZMCP-DDIC-NOTE>` line instead of passing silently. Proven live on A4H (NetWeaver " +
+        "7.54, client 001), 2026-09-12 and 2026-09-15, in $TMP only: an elementary help and a " +
+        "collective help including it both created, read back, updated and deleted through " +
+        "abapsmith's own tool surface (markers SHLP-REGISTERED / SHLP-PUT / SHLP-ACTIVATED); " +
+        "each of the three DH109 shapes was reproduced (a temporary $TMP probe class, outside " +
+        "abapsmith's own bridge) and left the DD30L/TADIR footprint described above; each of " +
+        "the four refusals fired correctly against a payload built to trip it, before any " +
+        "object was registered. The transportable (non-$TMP) path runs the identical FM " +
+        "sequence with a real korrnum but has NOT itself been run against a live system. A " +
+        "LOCAL ($-prefixed) package refuses a corr_nr (BAD_INPUT) and registers with korrnum = " +
+        "space; a transportable package requires one (TRANSPORT_ERROR without one) — same " +
+        "pairing rule as VIEW/DV and TRAN/T. NOT proven: search-help exits (SELMEXIT), text " +
+        "tables, hot keys, AUTOSUGGEST/FUZZY_SEARCH fields — the bridge does not set them. See " +
+        "src/adt/shlp-create.ts.",
+      // Both elementary and collective create, full cycle, proven live on
+      // A4H 2026-09-12/2026-09-15 — see `limits` above for the run detail.
+      verified: true,
+    },
+    bridgeDelete: {
+      adtRest:
+        "Same finding as bridgeCreate: the search-help REST collection 404s on every mutating " +
+        "verb — there is no REST delete route either.",
+      via:
+        "DD_OBJ_DEL (object_type='SHLP', del_state='A' then 'N') clears DD30L, then " +
+        "TR_TADIR_INTERFACE (wi_delete_tadir_entry='X', wi_test_modus=space) clears the TADIR " +
+        "row — both called from a generated IF_OO_ADT_CLASSRUN bridge. See " +
+        "src/adt/shlp-delete.ts and src/adt/ddic-bridge.ts.",
+      limits:
+        "Guarded by a where-used check the other two bridge deletes do not have: a search help " +
+        "attached to a data element (DD04L), to an individual table/view field (DD35L), or " +
+        "included by a collective search help (DD31S) refuses the delete unless the caller " +
+        "passes confirm_in_use — all three checked live on A4H 2026-09-12. Same open-transport-" +
+        "request-lock caveat as VIEW/DV's bridgeDelete: TR_TADIR_INTERFACE's TADIR delete fails " +
+        "under a lock this path does not attempt to clear, and no corr_nr is accepted " +
+        "(src/tools/write.ts refuses one outright). Now also reaches an INACTIVE-ONLY leftover " +
+        "(the DH109 stranding bridgeCreate.limits describes above): the catalogue queries in " +
+        "src/adt/catalog-query.ts take a state argument ('A'/'N') instead of hard-pinning " +
+        "AS4LOCAL = 'A', and readSearchHelp (src/adt/catalog-read.ts) gained an " +
+        "`{ includeInactive }` option that falls back to the 'N' version and reports " +
+        "`meta.versionState`; the delete path in src/tools/write.ts probes with that option, so " +
+        "a failed create's leftover can be deleted instead of being refused NOT_FOUND. The " +
+        "create/update \"already exists\" probe deliberately stays active-only, and so does " +
+        "`abap_read` — an inactive-only search help still reads as NOT_FOUND; only the delete " +
+        "path looks at both states. Proven live on A4H 2026-09-12, in $TMP only: DD_OBJ_DEL " +
+        "returned sy-subrc = 0 with message DH051 clearing the active version, TR_TADIR_" +
+        "INTERFACE removed the TADIR row, and a post-delete re-read proved absence, emitting " +
+        "SHLP-DELETED / SHLP-GONE. Proven live again on A4H 2026-09-15 for the inactive-only " +
+        "case: a leftover forced via a temporary $TMP probe class (DDIF_SHLP_PUT + " +
+        "DDIF_SHLP_ACTIVATE against a collective with a dangling include, rc = 8 / DH109, " +
+        "DD30L showing AS4LOCAL = 'N' only plus one TADIR row) read back as NOT_FOUND through " +
+        "abap_read, then deleted cleanly (SHLP-DELETED / SHLP-GONE) with a note explaining it " +
+        "had no active version, and a follow-up DD30L check found zero rows in either state. " +
+        "`abap_journal mode: \"undo\"` still refuses a SHLP/DH write as irreversible, by design " +
+        "— not exercised by this round.",
+      // Both the confirm_in_use-guarded active-version delete and the
+      // inactive-only-leftover delete, proven live on A4H 2026-09-12/
+      // 2026-09-15 — see `limits` above for the run detail.
+      verified: true,
     },
   },
   "VIEW/DV": {
@@ -1022,11 +1144,15 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
         "ADT's REST surface is GET-only for classic (non-CDS) views: /sap/bc/adt/ddic/views/... " +
         "returns 405 ExceptionMethodNotSupported on every mutating verb, and the discovery " +
         "collection advertises an empty <app:accept>. That GET is not a route a caller can " +
-        "take from here: with no collection there is nothing to resolve a name against, and " +
-        "abap_search rejects VIEW/DV as an unrecognised type, so there is no way to read a " +
-        "classic view through abapsmith either. Four independent recons agree. This entry " +
-        "previously read 'not reachable over ADT, every read and write 404s' " +
-        "and concluded the type was unwritable — the REST finding is right, the conclusion was " +
+        "take from here: there is no REST collection to resolve a name against. That no longer " +
+        "strands VIEW/DV, though: src/adt/types.ts gives it a TypeSpec, so abap_search resolves " +
+        "it directly (confirmed live on A4H 2026-09-15: abap_search \"H_T000\" returns " +
+        "VIEW/DV H_T000 (STRM_DB) alongside its SHLP/DH match), and src/adt/catalog-read.ts " +
+        "reads DD25L/DD25T/DD26S/DD27S/TVDIR through plain-text catalog SELECTs instead of the " +
+        "REST collection, so a classic view is both searchable and readable through abapsmith " +
+        "despite the closed REST GET route. Four independent recons agree on the REST finding. " +
+        "This entry previously read 'not reachable over ADT, every read and write 404s' and " +
+        "concluded the type was unwritable — the REST finding is right, the conclusion was " +
         "not: SE11 does not use REST either.",
       via:
         "DDIF_VIEW_PUT then DDIF_VIEW_ACTIVATE (function group SDIC — the same DD_VIEW_EXPAND/" +
@@ -1038,14 +1164,21 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
         "search-help attachments (DD35V/DD36M) are not exposed. NO SE54 table-maintenance " +
         "dialog is generated: VIEW_MAINTENANCE_GENERATE is a SET PARAMETER + CALL TRANSACTION " +
         "'SE55' wrapper around an interactive wizard with no headless equivalent, so a view " +
-        "created here has no maintenance view/dialog and SM30 will not open it. The bridge " +
-        "creates and deletes only — changing an existing view is not supported. Whether " +
-        "DDIF_VIEW_PUT would behave as an upsert against a view that already exists is " +
-        "inferred, not live-verified: no create-over-an-existing-view call has ever been " +
-        "attempted here. The create is proven live on A4H: 2026-09-04, into the TRANSPORTABLE " +
+        "created here has no maintenance view/dialog and SM30 will not open it. Changing an " +
+        "EXISTING view is now supported too, over src/adt/view-update.ts's updateClassicView: " +
+        "it dispatches the fluid classic tool's update_view action, which pre-checks the view " +
+        "exists, then runs the identical RS_CORR_INSERT / DDIF_VIEW_PUT / COMMIT WORK / " +
+        "DDIF_VIEW_ACTIVATE / COMMIT WORK sequence as create. DDIF_VIEW_PUT REPLACES the whole " +
+        "definition: any joined field not passed in the update call is removed — abap-view.ts's " +
+        "update_view method emits a ZMCP-DDIC-NOTE> line saying so. Proven live on A4H " +
+        "(NetWeaver 7.54, client 001) 2026-09-12, in $TMP only: DDIF_VIEW_PUT returned message " +
+        "D0322, activation returned sy-subrc = 0, and a read-back (through the catalog route) " +
+        "showed the field count going from 2 to 3. The transportable (non-$TMP) path runs the " +
+        "identical FM sequence with a real korrnum but has NOT itself been run against a live " +
+        "system. The create is proven live on A4H: 2026-09-04, into the TRANSPORTABLE " +
         "a transportable package with a corr_nr, produced VIEW-REGISTERED / VIEW-PUT / " +
-        "VIEW-ACTIVATED, the view read back with its fields (not through abap_read — that path " +
-        "stays closed, see adtRest above), and a TADIR row; 2026-09-05, RS_CORR_INSERT " +
+        "VIEW-ACTIVATED, the view read back with its fields (through the catalog route now — " +
+        "see adtRest above), and a TADIR row; 2026-09-05, RS_CORR_INSERT " +
         "called for a LOCAL (`$`-prefixed) package with korrnum = space and the 44-character " +
         "DICT object key returned sy-subrc 0 and wrote a TADIR row under that package's `$` " +
         "devclass, and the created view was then removed cleanly by the delete bridge (see " +
@@ -1059,9 +1192,7 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
         "malformed number). A LOCAL package still refuses a corr_nr (BAD_INPUT). Registering the " +
         "view in TADIR either way — with the caller's corr_nr " +
         "or with korrnum = space — is what makes the created view deletable afterwards. See " +
-        "src/adt/view-create.ts. The create is otherwise irreversible in the sense that " +
-        "abapsmith cannot read the view back to verify it: success is proven by the transcript " +
-        "markers, not by a read-back.",
+        "src/adt/view-create.ts and src/adt/view-update.ts.",
     },
     bridgeDelete: {
       adtRest:
@@ -1074,7 +1205,12 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
         "re-reading DD25L and TADIR after COMMIT WORK, not by a clean FM return alone. See " +
         "src/adt/view-delete.ts and src/adt/ddic-bridge.ts.",
       limits:
-        "DDIF_VIEW_DELETE, the route this bridge used before, was live-disproven on A4H " +
+        "Guarded by a where-used check: a view with a generated SE54 maintenance dialog (TVDIR, " +
+        "keyed by TABNAME — views share the table's row) refuses the delete unless the caller " +
+        "passes confirm_maintenance_dialog, since deleting the view out from under that dialog " +
+        "leaves it broken; abap-view.ts's delete_view method emits a ZMCP-DDIC-NOTE> line when " +
+        "the caller overrides it. DDIF_VIEW_DELETE, the route this bridge used before, was " +
+        "live-disproven on A4H " +
         "2026-09-04: the function does not exist on this system (CHECK_FAILED). The DD_OBJ_DEL " +
         "route is measured, not exhaustively verified — RS_DD_DELETE_OBJ, the obvious " +
         "alternative, opens a CTS dialog and short-dumps headless, so it is deliberately not " +
@@ -1102,7 +1238,11 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
         "ADT exposes a transaction read-only through the generic VIT bridge and returns 405 " +
         "ExceptionMethodNotSupported on every mutating verb; there is no writable ADT " +
         "collection for TRAN/T. (The ADT type code is TRAN/T, not TSTC — TSTC is the " +
-        "underlying database table, not an ADT object type.)",
+        "underlying database table, not an ADT object type.) src/adt/catalog-read.ts also " +
+        "reads TSTC/TSTCT/TSTCP/TSTCA/AGR_TCODES through plain-text catalog SELECTs, which " +
+        "return strictly more than the VIT bridge's read (call parameters, authorisation " +
+        "checks, role-menu membership) and work in every ABAP_MODE, unlike the fluid bridge " +
+        "the writes below depend on.",
       via:
         "RPY_TRANSACTION_INSERT (function group SEUA) — SE93's own backend: it collision-checks " +
         "TSTC, runs RS_ACCESS_PERMISSION, fires the SWBM_C_OP_CREATE BAdI check, calls " +
@@ -1112,14 +1252,25 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
         "Creates a REPORT transaction (dynpro 1000) that starts an EXISTING program the caller " +
         "names; the program is not created or checked for existence here. Dialog, parameter, " +
         "variant and OO transactions, and a caller-chosen dynpro number, are not exposed. " +
-        "Changing an existing transaction is still not supported: abapsmith " +
-        "implements no update route for TRAN/T — the bridge implements create and delete only. " +
-        "Whether function group SEUA offers any change FM at all — and whether SE93's own edit " +
-        "path uses one — is unknown; that has never been investigated here, so this is a " +
-        "statement about what abapsmith implements, not a claim that the backend itself would " +
-        "refuse a change: unverified. Deleting one is " +
-        "attempted through a bridge whose delete FM parameter set is inferred (live-verified " +
-        "once for a $ package) — see this type's bridgeDelete entry below. A transportable package " +
+        "Retargeting an EXISTING transaction to a different program is now supported over " +
+        "src/adt/tran-update.ts's updateTransaction: it dispatches the fluid classic tool's " +
+        "update_transaction action, which checks TSTC existence, refuses the retarget unless " +
+        "the caller passes confirm_in_role_menu when the tcode is already assigned to one or " +
+        "more roles' menus (AGR_TCODES) — an SM01 transaction lock is NOT checked either way, " +
+        "by explicit design choice, see abap-tran.ts's own honesty note — registers the change " +
+        "via RS_CORR_INSERT, calls RPY_TRANSACTION_DELETE (function group SEUA) with " +
+        "suppress_corr_insert/suppress_corr_check both 'X' since the registration above already " +
+        "covers CTS, then re-RPY_TRANSACTION_INSERTs against the new program, then re-reads " +
+        "TSTC to prove PGMNA actually changed. RPY_TRANSACTION_DELETE's signature was captured " +
+        "live on A4H (NetWeaver 7.54, client 001) 2026-09-12 — not inferred, as this entry " +
+        "previously read: IN TRANSACTION TSTC-TCODE (required), TRANSPORT_NUMBER RGLIF-TRKORR, " +
+        "SUPPRESS_AUTHORITY_CHECK CHAR1, SUPPRESS_CORR_INSERT CHAR1, SUPPRESS_CORR_CHECK CHAR1; " +
+        "exceptions NOT_EXCECUTED (SAP's own misspelling, not a typo introduced here) and " +
+        "OBJECT_NOT_FOUND. Proven live on A4H 2026-09-12, in $TMP only: the delete step returned " +
+        "message EU075, and the read-back showed the new program. The transportable (non-$TMP) " +
+        "path runs the identical FM sequence with a real korrnum but has NOT itself been run " +
+        "against a live system — see this type's bridgeDelete entry below for the same caveat on " +
+        "plain deletion. A transportable package " +
         "requires corr_nr (TRANSPORT_ERROR without one); a $ package refuses one (BAD_INPUT) " +
         "and registers with korrnum = space. RPY_TRANSACTION_INSERT's signature was read live " +
         "on A4H 2026-09-05: transport_number is optional and is forwarded verbatim to " +
@@ -1136,10 +1287,17 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
         "generated IF_OO_ADT_CLASSRUN bridge. Success is proven by re-reading TSTC, not by a " +
         "clean FM return alone. See src/adt/tran-delete.ts and src/adt/ddic-bridge.ts.",
       limits:
-        "RPY_TRANSACTION_DELETE's parameter set is inferred from RPY_TRANSACTION_INSERT's " +
-        "`transaction` parameter name, not transcribed from a capture of the delete FM itself. " +
-        "Live-verified once, 2026-09-05: a $ package transaction was created and then deleted " +
-        "with TRAN-DELETED / TRAN-GONE and a post-delete re-read proving absence. " +
+        "RPY_TRANSACTION_DELETE's parameter set was captured live on A4H (NetWeaver 7.54, " +
+        "client 001) 2026-09-12 — not inferred from RPY_TRANSACTION_INSERT's `transaction` " +
+        "parameter name, as this entry previously read: IN TRANSACTION TSTC-TCODE (required), " +
+        "TRANSPORT_NUMBER RGLIF-TRKORR, SUPPRESS_AUTHORITY_CHECK CHAR1, SUPPRESS_CORR_INSERT " +
+        "CHAR1, SUPPRESS_CORR_CHECK CHAR1; exceptions NOT_EXCECUTED (SAP's own misspelling) and " +
+        "OBJECT_NOT_FOUND — see this type's bridgeCreate entry above, where the same signature " +
+        "backs the retarget route. Guarded by the same where-used check as retargeting: a tcode " +
+        "already assigned to one or more roles' menus (AGR_TCODES) refuses the delete unless " +
+        "the caller passes confirm_in_role_menu; an SM01 transaction lock is NOT checked either " +
+        "way. Live-verified once, 2026-09-05: a $ package transaction was created and then " +
+        "deleted with TRAN-DELETED / TRAN-GONE and a post-delete re-read proving absence. " +
         "This bridgeCreate entry's own `via` already records that " +
         "RPY_TRANSACTION_INSERT calls RS_CORR_INSERT for transport/TADIR registration; whether " +
         "RPY_TRANSACTION_DELETE does the same is unknown, so deleting a transaction out of a " +
@@ -1281,7 +1439,8 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
         "markers; the round-3 delete-path defect below never touched create.",
       limits:
         "Changing or updating an existing index is not supported: the bridge creates and " +
-        "deletes only, the same as VIEW/DV and TRAN/T — drop the index (bridgeDelete) and " +
+        "deletes only, unlike VIEW/DV and TRAN/T, which now have a working update route " +
+        "(src/adt/view-update.ts, src/adt/tran-update.ts) — drop the index (bridgeDelete) and " +
         "recreate it instead. There is no abap_read route for TABL/DI, per adtRest above. A " +
         "unique create over two non-client fields of a client-dependent table returned " +
         "ACTFAILED='X' live on A4H 2026-09-05; the client-field cause, then only suspected, " +
@@ -1533,16 +1692,46 @@ export const ABAP_WRITE_TYPES: readonly string[] = codesWith(
 
 /**
  * Types `abap_read`'s `resolveObject` refuses outright on an explicit type
- * hint, before any network call — the `unsupported` entries plus the
- * bridge-only-create types with no ADT-readable collection (`VIEW/DV`,
- * `TRAN/T`, `TABL/DI`), MINUS the types that carry `catalogRead`: those have
- * no ADT resource either, but `abap_read` dispatches them to a catalog-table
- * render before `resolveObject` ever runs, so they are readable in practice
- * (`SUSO/B`, `TABL/DI`). Mirrors the check in `src/adt/resolve.ts`.
+ * hint, before any network call: the `unsupported` entries, plus bridge-only
+ * -create types (`bridgeCreate` set, `create` absent) that have NO read
+ * route of any kind. Two separate exemptions carve types back out of it,
+ * because abapsmith has two unrelated catalog-backed read routes:
+ *
+ * - `SHLP/DH`, `VIEW/DV` and `TRAN/T` are bridge-only-create but each has a
+ *   `types.ts` entry with `mode: "ddic"` whose `ddic-strategy.ts`
+ *   `ddicStrategy()` is `"catalog"` — `src/adt/catalog-query.ts`/
+ *   `catalog-read.ts` read them through plain-text catalog SELECTs against
+ *   the freestyle data-preview endpoint instead of an ADT REST collection
+ *   (see `resolve.ts`'s `isBridgeOnlyCreateType` check for the same rule,
+ *   applied the same way). Derived from the specs below, not hand-listed.
+ * - Types carrying a `catalogRead` entry (`SUSO/B`, `TABL/DI`) have no ADT
+ *   resource either, but `abap_read` dispatches them to a catalog-TABLE
+ *   render (`src/tools/read.ts`) before `resolveObject` ever runs, so they
+ *   are readable in practice. That is a different render from the `ddic`
+ *   route above — a fixed row listing, not pseudo-DDL — hence a separate
+ *   capability field rather than one unified mechanism.
+ *
+ * `TABL/DI` would otherwise be the only member of the second group (it has
+ * no `types.ts` entry at all — `specForType("TABL/DI")` is `undefined` — so
+ * there is no read mode to check and the first exemption cannot reach it);
+ * its `catalogRead` entry is what spares it. Mirrors the check in
+ * `src/adt/resolve.ts`.
  */
 export const NON_READABLE_TYPES: readonly string[] = codesWith(
-  (c) => c.catalogRead === undefined && (c.unsupported !== undefined || (c.bridgeCreate !== undefined && c.create === undefined)),
-);
+  (c) =>
+    c.catalogRead === undefined &&
+    (c.unsupported !== undefined || (c.bridgeCreate !== undefined && c.create === undefined)),
+).filter((code) => {
+  // Deliberately re-derives readability from `types.ts`/`ddic-strategy.ts`
+  // rather than hand-listing "SHLP/DH, VIEW/DV, TRAN/T" here, so a future
+  // catalog-based type doesn't need this file touched too. `ddicStrategy` and
+  // `TYPES` are already imported above for other checks in this file (e.g.
+  // `assertWritableTypesAreReadable`) — no new import, and no cycle:
+  // `ddic-strategy.ts` has zero imports of its own, so it can never
+  // participate in one.
+  const spec = TYPES.find((t) => t.type === code);
+  return !(spec?.mode === "ddic" && ddicStrategy(spec.kind) !== "unsupported");
+});
 
 /**
  * Types no `abap_write` route reaches at all — no `create`, `bridgeCreate`,
@@ -1781,8 +1970,8 @@ export function assertNoConflictingCapabilities(): void {
  *     (`capabilitiesFor(type)?.write?.shape === "properties"`), so this case
  *     is readable BY CONSTRUCTION, not by restating a second list here.
  *   - it is `mode: "ddic"` with a `write.shape` of `"source"` (today: TABL/DT,
- *     TABL/DS) — `ddic.ts`'s `ddicStrategy()` must recognise its `kind` as
- *     `"source"`-rendered, i.e. `DDIC_SOURCE_BASED`.
+ *     TABL/DS) — `ddic-strategy.ts`'s `ddicStrategy()` must recognise its
+ *     `kind` as `"source"`-rendered, i.e. `DDIC_SOURCE_BASED`.
  *
  * If a future type fails all three, that is a real design question — does it
  * need a new `ddic.ts` renderer, a `format: "raw"` extension, or is

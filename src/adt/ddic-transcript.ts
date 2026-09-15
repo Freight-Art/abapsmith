@@ -21,6 +21,8 @@ export const DDIC_TAGS = [
   "VIEW-PUT",
   "VIEW-REGISTERED",
   "VIEW-ACTIVATED",
+  // view-update bridge (DDIF_VIEW_PUT/ACTIVATE, same activation pair as create):
+  "VIEW-UPDATED",
   "TRAN-CREATED",
   "PKG-CREATED",
   "PKG-PARENT-SET",
@@ -34,6 +36,9 @@ export const DDIC_TAGS = [
   "VIEW-GONE",
   "TRAN-DELETED",
   "TRAN-GONE",
+  // transaction-update (retarget) bridge: delete+insert inside one RS_CORR_INSERT registration:
+  "TRAN-REGISTERED",
+  "TRAN-RETARGETED",
   // transport-entry-remove bridge:
   "TREN-REMOVED",
   "TREN-GONE",
@@ -45,6 +50,12 @@ export const DDIC_TAGS = [
   "INDEX-GONE",
   // FM reported ACTFAILED on delete but the post-commit DD12V/DD17S read-back found the index gone anyway — live 2026-09-05.
   "INDEX-DELETED-ACTFAILED",
+  // search-help create/update/delete bridge (DDIF_SHLP_PUT/ACTIVATE, DD_OBJ_DEL) - proven live on A4H 2026-09-12:
+  "SHLP-REGISTERED",
+  "SHLP-PUT",
+  "SHLP-ACTIVATED",
+  "SHLP-DELETED",
+  "SHLP-GONE",
 ] as const;
 export type DdicTag = (typeof DDIC_TAGS)[number];
 

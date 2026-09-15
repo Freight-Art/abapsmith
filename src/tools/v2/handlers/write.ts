@@ -105,7 +105,33 @@ export async function handleAbapWrite(args: unknown, deps: V2ToolDeps): Promise<
     const objectName = a.object;
     // Single source of truth for the operation kind, used by both the safety
     // gate and the core input below (see `input` for why it can't just forward).
-    const writeMode: WriteInputV2["mode"] = a.mode === "delete" ? "delete" : "write";
+    // `mode:"update"` is refused rather than silently downgraded to a create:
+    // every update route (SHLP/DH, VIEW/DV, TRAN/T) also needs a payload
+    // field (`shlp`, `view_fields`, `program`) that v2 does not carry, so
+    // `update` genuinely cannot work here today — see KNOWN_V1_ONLY_WRITE_FIELDS
+    // in test/v2-write-arg-forwarding.test.ts.
+    let writeMode: WriteInputV2["mode"];
+    if (a.mode === undefined || a.mode === "write") {
+      writeMode = "write";
+    } else if (a.mode === "delete") {
+      writeMode = "delete";
+    } else if (a.mode === "update") {
+      throw new AbapError(
+        "BAD_INPUT",
+        "mode:\"update\" is a v1-only route on this surface today — its redefine payload fields " +
+          "(`shlp`, `view_fields`, `program`) are not carried by v2's schema.",
+        { object: a.object },
+        "This is the v2 surface. The v1 `abap_write` tool (the default — reached by unsetting " +
+          "ABAP_TOOL_SURFACE) carries mode:\"update\".",
+      );
+    } else {
+      throw new AbapError(
+        "BAD_INPUT",
+        `Unrecognised mode "${a.mode}".`,
+        { object: a.object },
+        "Pass mode:\"write\" (default) or mode:\"delete\".",
+      );
+    }
 
     // Narrowed before the safety gate/network so a bad `include` is refused
     // by name at zero cost — same pattern as the edit/source check above.

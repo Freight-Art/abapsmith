@@ -90,6 +90,11 @@ export const abapWriteInputSchema = {
       longLength: z.number().optional(),
       headingLabel: z.string().optional(),
       headingLength: z.number().optional(),
+      searchHelp: z.string().optional().describe("DTEL/DE only: search help attached (DD04L-SHLPNAME)."),
+      searchHelpParameter: z
+        .string()
+        .optional()
+        .describe("DTEL/DE only: the search help's own interface parameter this data element binds to (DD04L-SHLPFIELD). Refused without `searchHelp`."),
     })
     .strict()
     .optional()
@@ -97,6 +102,18 @@ export const abapWriteInputSchema = {
       "Structured create for DOMA/DD, DTEL/DE, TTYP/DA only — alternative to `source`, never both. " +
         "Unverified: this path has never itself been sent to a live system.",
     ),
+  confirm_in_use: z
+    .boolean()
+    .optional()
+    .describe("SHLP/DH delete only: required true when the search help is still attached elsewhere. Refused zero-network otherwise."),
+  confirm_maintenance_dialog: z
+    .boolean()
+    .optional()
+    .describe("VIEW/DV delete only: overrides refusal when the view still has a generated maintenance dialog (TVDIR)."),
+  confirm_in_role_menu: z
+    .boolean()
+    .optional()
+    .describe("TRAN/T delete or update (retarget) only: overrides refusal when the tcode is assigned to a role menu (AGR_TCODES)."),
 };
 
 // abap_do's description is built per mode by buildAbapDoDescription(mode) below.
