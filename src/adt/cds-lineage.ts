@@ -823,7 +823,10 @@ export async function buildLineage(
     return node;
   }
 
-  const { node: rootNode, parsed: rootParsed } = await expand(root, 1);
+  // The root sits at depth 0 so that `depth` counts levels BELOW it: depth=1
+  // renders the root plus its direct data sources/associations as leaves —
+  // the shape the doc example shows — never the root alone.
+  const { node: rootNode, parsed: rootParsed } = await expand(root, 0);
 
   let fieldChain: FieldLineageStep[] | undefined;
   if (opts.field !== undefined) {

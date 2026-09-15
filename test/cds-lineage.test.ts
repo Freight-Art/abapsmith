@@ -192,6 +192,28 @@ describe("buildLineage: multi-hop chain 976 -> 977 -> base table zdemo_soh", () 
   });
 });
 
+describe("buildLineage: depth counts levels below the root", () => {
+  it("depth:1 renders the root plus its direct data sources as depth-limited leaves, never the root alone", async () => {
+    const root976 = ddlsObj("ZDEMO_C_SalesOrder_TP_D", "/976/source/main");
+    const obj977 = ddlsObj("ZDEMO_I_SalesOrder_TP_D", "/977/source/main");
+    resolveMap.set("ZDEMO_I_SALESORDER_TP_D", obj977);
+    const conn = {
+      cfg: { sid: "A4H" },
+      get: async (uri: string) => {
+        if (uri === "/976/source/main") return { body: SRC_976, headers: {} };
+        if (uri === "/977/source/main") return { body: SRC_977, headers: {} };
+        throw new Error(`unexpected readSource uri: ${uri}`);
+      },
+    } as unknown as AbapConnection;
+
+    const result = await buildLineage(conn, root976, { depth: 1 });
+    expect(result.root.children.length).toBeGreaterThan(0);
+    const rendered = renderLineage(result);
+    expect(rendered.body).toMatch(/ZDEMO_I_SalesOrder_TP_D.*\(depth limit \(1\) reached\)/);
+    expect(result.sourceReads).toBe(2);
+  });
+});
+
 describe("buildLineage: hand-written cycle renders \"(cycle -> seen above)\"", () => {
   it("a child chain that resolves back to the root's own name is caught as a cycle, not infinitely recursed", async () => {
     // ROOT_VIEW selects from CHILD_VIEW, which selects from ROOT_VIEW again
