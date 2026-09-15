@@ -736,6 +736,37 @@ describe("composition sanity", () => {
     expect(created[0]!.uri).toContain("start=1");
   });
 
+  it("setBreakpoints passes opts.debuggeeSessionIds through to the POST's query string", async () => {
+    const fake = new FakeTransport([
+      { status: 200, headers: {}, body: "" },
+    ]);
+    const client = new DebugClient({ transport: fake, longPoll: new FakeListener() });
+    await client.setBreakpoints(
+      {
+        debuggingMode: "user",
+        scope: "external",
+        requestUser: "DEV",
+        breakpoints: [{ kind: "statement", statement: "WRITE" }],
+      },
+      { debuggeeSessionIds: ["sidA", "sidB"] },
+    );
+    expect(fake.calls[0]!.path).toContain("debuggeeSessionIds=sidA%2CsidB");
+  });
+
+  it("setBreakpoints omits debuggeeSessionIds from the query string when opts don't supply it", async () => {
+    const fake = new FakeTransport([
+      { status: 200, headers: {}, body: "" },
+    ]);
+    const client = new DebugClient({ transport: fake, longPoll: new FakeListener() });
+    await client.setBreakpoints({
+      debuggingMode: "user",
+      scope: "external",
+      requestUser: "DEV",
+      breakpoints: [{ kind: "statement", statement: "WRITE" }],
+    });
+    expect(fake.calls[0]!.path).not.toContain("debuggeeSessionIds");
+  });
+
   it("getVariables posts path-addressed ids as the asx:abap body", async () => {
     const fake = new FakeTransport([
       {

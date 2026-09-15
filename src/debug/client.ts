@@ -369,13 +369,21 @@ export class DebugClient {
 
   // --- Breakpoints -----------------------------------------------------
 
+  /**
+   * `opts.debuggeeSessionIds`, when non-empty, is what makes a breakpoint change land
+   * on the SUSPENDED debuggee's very next step instead of one stop-cycle late — see
+   * `BreakpointsPostQuery.debuggeeSessionIds`'s doc comment in `endpoints.ts` for the
+   * full `notify_dbg_sess_ids` / `debuggee_reload_bps` / `DEBUGGEE_STOP kind='R'`
+   * chain. Pure pass-through: this method does not decide when to populate it — see
+   * `DebugSession.armBreakpointsTwoPass()`/`removeBreakpoint()`.
+   */
   async setBreakpoints(
     request: BreakpointsRequest,
-    opts: { checkConflict?: boolean } = {},
+    opts: { checkConflict?: boolean; debuggeeSessionIds?: readonly string[] } = {},
   ): Promise<Array<CreatedBreakpoint | BreakpointError>> {
     const raw = await this.transport.request({
       method: "POST",
-      path: breakpointsPostUrl({ checkConflict: opts.checkConflict }),
+      path: breakpointsPostUrl({ checkConflict: opts.checkConflict, debuggeeSessionIds: opts.debuggeeSessionIds }),
       headers: { "Content-Type": BREAKPOINTS_CONTENT_TYPE, Accept: BREAKPOINTS_ACCEPT },
       body: buildBreakpointsRequestXml(request),
     });

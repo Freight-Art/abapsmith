@@ -122,6 +122,38 @@ const BREAKPOINTS_XML =
   `<?xml version="1.0"?><dbg:breakpoints xmlns:dbg="http://www.sap.com/adt/debugger">` +
   `<dbg:breakpoint kind="line" id="BP1"/></dbg:breakpoints>`;
 
+/**
+ * Two owned line breakpoints, mirroring the live 2026-09-15 ZCL_I89_PROBE3
+ * sequence (source lines 39 and 34) that `removeBreakpoint()`'s re-assert POST
+ * exists for — see its doc comment in `session.ts`.
+ */
+const BREAKPOINTS_XML_TWO_LINES =
+  `<?xml version="1.0"?><dbg:breakpoints xmlns:dbg="http://www.sap.com/adt/debugger">` +
+  `<dbg:breakpoint kind="line" id="BP1" uri="/sap/bc/adt/oo/classes/zcl_i89_probe3/source/main#start=39"/>` +
+  `<dbg:breakpoint kind="line" id="BP2" uri="/sap/bc/adt/oo/classes/zcl_i89_probe3/source/main#start=34"/>` +
+  `</dbg:breakpoints>`;
+
+/**
+ * A single owned line breakpoint, WITH a real `uri` (unlike `BREAKPOINTS_XML`'s
+ * uri-less row). `notifyDebuggeeOfOwnedBreakpoints()` re-serialises owned rows
+ * for its re-assert POST, and a `line` breakpoint's `uri` is mandatory on the
+ * wire (`REQUIRED_BREAKPOINT_FIELDS` in `xml-request.ts`) — an owned row
+ * missing one makes that re-serialisation throw, which the notify's
+ * best-effort try/catch then swallows without ever reaching the transport.
+ * Tests that need to observe a real notify POST must arm breakpoints whose
+ * echoed rows carry a `uri`, hence these two (same lines as
+ * `BREAKPOINTS_XML_TWO_LINES`, echoed one at a time to simulate two separate
+ * `addBreakpoints()` calls building up ownership).
+ */
+const BREAKPOINTS_LINE39_XML =
+  `<?xml version="1.0"?><dbg:breakpoints xmlns:dbg="http://www.sap.com/adt/debugger">` +
+  `<dbg:breakpoint kind="line" id="BP1" uri="/sap/bc/adt/oo/classes/zcl_i89_probe3/source/main#start=39"/>` +
+  `</dbg:breakpoints>`;
+const BREAKPOINTS_LINE34_XML =
+  `<?xml version="1.0"?><dbg:breakpoints xmlns:dbg="http://www.sap.com/adt/debugger">` +
+  `<dbg:breakpoint kind="line" id="BP2" uri="/sap/bc/adt/oo/classes/zcl_i89_probe3/source/main#start=34"/>` +
+  `</dbg:breakpoints>`;
+
 const okResponse = (body = ""): RawResponse => ({ status: 200, headers: {}, body });
 
 // ---------------------------------------------------------------------------
@@ -200,6 +232,9 @@ const LISTENER_ABSENT: Thunk = () => {
 const LISTENER_EXISTS: Thunk = () => okResponse("");
 const OK: Thunk = () => okResponse("");
 const BREAKPOINTS_OK: Thunk = () => okResponse(BREAKPOINTS_XML);
+const BREAKPOINTS_TWO_OK: Thunk = () => okResponse(BREAKPOINTS_XML_TWO_LINES);
+const BREAKPOINTS_LINE39_OK: Thunk = () => okResponse(BREAKPOINTS_LINE39_XML);
+const BREAKPOINTS_LINE34_OK: Thunk = () => okResponse(BREAKPOINTS_LINE34_XML);
 const TERMINATE_OK: Thunk = () => okResponse("");
 /** The 500-is-success shape — see debug-client.test.ts's terminateDebuggee tests. */
 const TERMINATE_500_SUCCESS: Thunk = () => {
@@ -3118,8 +3153,12 @@ describe("removeBreakpoint()", () => {
 
     await session.removeBreakpoint(stateId, "BP1");
 
-    const deleteCall = transport.callsOf("setBreakpoints").at(-1)!;
-    expect(deleteCall.method).toBe("DELETE");
+    // Not `.at(-1)` — while attached to a suspended debuggee, removeBreakpoint()
+    // also issues a follow-up notify-only POST after the DELETE (see the
+    // "removeBreakpoint() notify POST" describe block below), so the DELETE is no
+    // longer necessarily the last "setBreakpoints"-classified call.
+    const deleteCall = transport.callsOf("setBreakpoints").find((c) => c.method === "DELETE")!;
+    expect(deleteCall).toBeDefined();
     expect(deleteCall.path).toContain("/debugger/breakpoints/BP1");
     expect(session.listOwnedBreakpoints()).toEqual([]);
   });
@@ -3165,6 +3204,182 @@ describe("removeBreakpoint()", () => {
       (e: unknown) => isAbapError(e) && e.code === "BAD_INPUT" && e.message.includes("No active debug session state"),
     );
     expect(transport.calls).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// issue-89 — `debuggeeSessionIds` notify wiring. Without this, a breakpoint
+// add/remove issued while a debuggee is SUSPENDED only takes effect one
+// stop-cycle late: SAP only reloads breakpoints for a live debuggee via
+// `notify_dbg_sess_ids` -> `debuggee_reload_bps` -> RFC `DEBUGGEE_STOP
+// kind='R'`, and that chain is only driven by this query parameter on POST
+// (see `BreakpointsPostQuery.debuggeeSessionIds`'s doc comment in
+// `endpoints.ts`). `attachXml()` always sets `debuggeeSessionId="debuggee456"`,
+// so every session attached via `attachOk()` has a non-empty id to send.
+// ---------------------------------------------------------------------------
+
+describe("issue-89 — debuggeeSessionIds notify wiring", () => {
+  it("addBreakpoints() while suspended: validation and arming carry no debuggeeSessionIds, then a third POST notifies with the FULL owned set (pre-existing + new)", async () => {
+    const line39Uri = "/sap/bc/adt/oo/classes/zcl_i89_probe3/source/main#start=39";
+    const line34Uri = "/sap/bc/adt/oo/classes/zcl_i89_probe3/source/main#start=34";
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk()],
+      // First addBreakpoints() call (validation, arming, notify) establishes
+      // ownership of line 39 — the pre-existing breakpoint the regression is
+      // about: the live 2026-09-15 bug replaced this with the SECOND call's
+      // delta body, dropping it silently. Second call (validation, arming,
+      // notify) is the one under test, adding line 34.
+      setBreakpoints: [BREAKPOINTS_LINE39_OK, BREAKPOINTS_LINE39_OK, OK, BREAKPOINTS_LINE34_OK, BREAKPOINTS_LINE34_OK, OK],
+    });
+    const session = makeSession({ transport });
+    const { stateId } = await session.attach("D1");
+
+    await session.addBreakpoints(stateId, [{ kind: "line", uri: line39Uri }]);
+    const callsBeforeSecondAdd = transport.callsOf("setBreakpoints").length;
+
+    await session.addBreakpoints(stateId, [{ kind: "line", uri: line34Uri }]);
+
+    const bpCalls = transport.callsOf("setBreakpoints").slice(callsBeforeSecondAdd);
+    expect(bpCalls).toHaveLength(3);
+    const [validationCall, armingCall, notifyCall] = bpCalls;
+    expect(validationCall!.path).not.toContain("debuggeeSessionIds");
+    expect(armingCall!.path).not.toContain("debuggeeSessionIds");
+    expect(notifyCall!.path).toContain("debuggeeSessionIds=debuggee456");
+
+    const body = notifyCall!.body ?? "";
+    expect(body).not.toContain("syncScope");
+    expect(body).not.toContain(' id="');
+    expect(body).not.toContain("validationOnly");
+    // Both the pre-existing (line 39) and the newly-added (line 34) breakpoints
+    // are present — proving the notify body is the FULL owned set, not just
+    // the delta this call happened to add (the exact live regression: a
+    // delta-shaped body silently drops every breakpoint not repeated in it).
+    expect(body).toContain(`adtcore:uri="${line39Uri}"`);
+    expect(body).toContain(`adtcore:uri="${line34Uri}"`);
+    expect(body.match(/<breakpoint /g) ?? []).toHaveLength(2);
+  });
+
+  it("prepareBreakpoints() (pre-attach, not suspended) issues only the two passes — no third notify POST", async () => {
+    const transport = new FakeTransport({ setBreakpoints: [BREAKPOINTS_OK] });
+    const session = makeSession({ transport });
+
+    await session.prepareBreakpoints([{ kind: "statement", statement: "WRITE" }]);
+
+    const bpCalls = transport.callsOf("setBreakpoints");
+    expect(bpCalls).toHaveLength(2);
+    for (const call of bpCalls) {
+      expect(call.path).not.toContain("debuggeeSessionIds");
+    }
+  });
+
+  it("removeBreakpoint() issues exactly one follow-up POST that re-asserts the still-owned breakpoints (no id, no validationOnly, no syncScope), while attached", async () => {
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk()],
+      setBreakpoints: [BREAKPOINTS_TWO_OK, BREAKPOINTS_TWO_OK, OK, OK],
+    });
+    const line39Uri = "/sap/bc/adt/oo/classes/zcl_i89_probe3/source/main#start=39";
+    const line34Uri = "/sap/bc/adt/oo/classes/zcl_i89_probe3/source/main#start=34";
+    const session = makeSession({ transport });
+    const { stateId } = await session.attach("D1");
+    const [, bp34] = await session.addBreakpoints(stateId, [
+      { kind: "line", uri: line39Uri },
+      { kind: "line", uri: line34Uri },
+    ]);
+    const callsBeforeRemove = transport.calls.length;
+
+    // Remove line 34 — line 39 (armed in the same stop) survives and must be
+    // re-asserted, exactly like the live ZCL_I89_PROBE3 sequence this guards.
+    await session.removeBreakpoint(stateId, bp34!.id);
+
+    const callsAfterRemove = transport.calls.slice(callsBeforeRemove);
+    expect(callsAfterRemove).toHaveLength(2);
+    const [deleteCall, notifyCall] = callsAfterRemove;
+    expect(deleteCall!.method).toBe("DELETE");
+    expect(notifyCall!.method).toBe("POST");
+    expect(notifyCall!.path).toContain("/debugger/breakpoints");
+    expect(notifyCall!.path).toContain("debuggeeSessionIds=debuggee456");
+    const body = notifyCall!.body ?? "";
+    expect(body).not.toContain("syncScope");
+    expect(body).not.toContain(' id="');
+    expect(body).not.toContain("validationOnly");
+    // The surviving breakpoint (line 39) is re-asserted...
+    expect(body).toContain(`adtcore:uri="${line39Uri}"`);
+    // ...but the removed one (line 34) is not, and there is exactly one <breakpoint> element.
+    expect(body).not.toContain(line34Uri);
+    expect(body.match(/<breakpoint /g) ?? []).toHaveLength(1);
+  });
+
+  it("removeBreakpoint() sends an empty breakpoints body in its follow-up POST when the removed breakpoint was the only one owned", async () => {
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk()],
+      setBreakpoints: [BREAKPOINTS_OK, BREAKPOINTS_OK, OK, OK],
+    });
+    const session = makeSession({ transport });
+    const { stateId } = await session.attach("D1");
+    await session.addBreakpoints(stateId, [{ kind: "line", uri: "/some/uri#start=1" }]);
+    const callsBeforeRemove = transport.calls.length;
+
+    await session.removeBreakpoint(stateId, "BP1");
+
+    const callsAfterRemove = transport.calls.slice(callsBeforeRemove);
+    expect(callsAfterRemove).toHaveLength(2);
+    const [deleteCall, notifyCall] = callsAfterRemove;
+    expect(deleteCall!.method).toBe("DELETE");
+    expect(notifyCall!.method).toBe("POST");
+    expect(notifyCall!.path).toContain("debuggeeSessionIds=debuggee456");
+    // Nothing left owned — the re-assert body is naturally empty, same as before.
+    expect(notifyCall!.body ?? "").not.toContain("<breakpoint ");
+    expect(session.listOwnedBreakpoints()).toEqual([]);
+  });
+
+  it("a rejecting notify POST does not fail removeBreakpoint — the removal already succeeded", async () => {
+    const notifyRejects: Thunk = () => {
+      throw new AbapError("ADT_ERROR", "notify boom");
+    };
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk()],
+      setBreakpoints: [BREAKPOINTS_OK, BREAKPOINTS_OK, OK, notifyRejects],
+    });
+    const session = makeSession({ transport });
+    const { stateId } = await session.attach("D1");
+    await session.addBreakpoints(stateId, [{ kind: "line", uri: "/some/uri#start=1" }]);
+
+    await expect(session.removeBreakpoint(stateId, "BP1")).resolves.toBeUndefined();
+    expect(session.listOwnedBreakpoints()).toEqual([]);
+  });
+
+  it("deleteOwnedBreakpoints() at shutdown issues no notify POST — one targeted DELETE per breakpoint, nothing else", async () => {
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk()],
+      // Real uri (unlike BREAKPOINTS_OK's) so addBreakpoints()'s own notify
+      // pass actually reaches the transport instead of being swallowed by its
+      // best-effort try/catch — otherwise this test would "pass" for the
+      // wrong reason and prove nothing about deleteOwnedBreakpoints() itself.
+      setBreakpoints: [BREAKPOINTS_LINE39_OK, BREAKPOINTS_LINE39_OK, OK, OK],
+      terminateDebuggee: [TERMINATE_OK],
+      stopListener: [OK],
+    });
+    const session = makeSession({ transport });
+    const { stateId } = await session.attach("D1");
+    await session.addBreakpoints(stateId, [
+      { kind: "line", uri: "/sap/bc/adt/oo/classes/zcl_i89_probe3/source/main#start=39" },
+    ]);
+
+    await session.terminate();
+
+    const bpCalls = transport.callsOf("setBreakpoints");
+    // validation pass + arming pass + addBreakpoints()'s own notify (3) +
+    // exactly one shutdown DELETE (1) = 4. deleteOwnedBreakpoints() itself
+    // contributes only the DELETE — no notify-only POST follows it.
+    expect(bpCalls).toHaveLength(4);
+    expect(bpCalls.filter((c) => c.method === "DELETE")).toHaveLength(1);
+    expect(bpCalls.filter((c) => c.method === "POST")).toHaveLength(3);
+    expect(bpCalls[bpCalls.length - 1]!.method).toBe("DELETE");
   });
 });
 

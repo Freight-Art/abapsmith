@@ -655,7 +655,7 @@ describe("abap_debug start — refuses a second concurrent session", () => {
         writableGate(),
       ),
     ).rejects.toSatisfy((e: unknown) => {
-      if (!isAbapError(e) || e.code !== "UNSUPPORTED") return false;
+      if (!isAbapError(e) || e.code !== "DEBUG_ALL_LEASES_BUSY") return false;
       expect(e.message).toContain("suspended");
       return true;
     });
@@ -1062,6 +1062,94 @@ describe("abap_debug step — round 3: generic-fallback termination evidence is 
     // is the "never drop a genuinely informative excerpt" half of the fix.
     expect(stepResult.text).toContain("Raw evidence:");
     expect(stepResult.text).toContain("diagnostic ID XYZ-789");
+
+    const stopResult = await abapDebug(DUMMY_CONN, { action: "stop" } as DebugInput, 60_000, UNUSED_DEPS, writableGate());
+    expect(stopResult.text).toContain("idle");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Issue #89 — `cx_adt_rest_data_invalid`'s bare default text ("Data is
+// invalid and could not be converted") reached a caller once as the ENTIRE
+// explanation for a debugger death, via `snapshot.deathDetail` rendered
+// verbatim by `composeDeathOutput`. It carries no detail of its own and
+// reads like a complaint about the caller's data, which it is not — see
+// `explainOpaqueDeathDetail`'s doc comment in src/tools/debug.ts. These
+// tests pin that the note is expanded with an explanation when the detail
+// IS that exact text (any casing/whitespace), and left untouched otherwise.
+// ---------------------------------------------------------------------------
+
+describe("abap_debug step — opaque cx_adt_rest_data_invalid death detail is explained, not left bare", () => {
+  it('a death detail that IS "Data is invalid and could not be converted" (any casing / surrounding whitespace) is expanded with the explanation', async () => {
+    const log: string[] = [];
+    const listener = new FakeListener(log);
+    let getStackCalls = 0;
+    const opaqueDetail = "  DATA IS INVALID and COULD NOT be Converted  ";
+    const transport = new FakeTransport(
+      log,
+      HAPPY_TABLE({
+        getStack: () => {
+          getStackCalls++;
+          if (getStackCalls === 1) return okResponse(buildStackXml("ZTEST_MCP_CRUD", 15));
+          throw new AbapError("SESSION_DEAD", opaqueDetail, {});
+        },
+        step: okResponse(buildStepXml({})),
+      }),
+    );
+    const deps = makeDeps({ log, transport, listener });
+
+    const stateId1 = await startSuspended(deps, listener, "D89a");
+    const stepResult = await abapDebug(
+      DUMMY_CONN,
+      { action: "step", step: "continue", stateId: stateId1 } as DebugInput,
+      60_000,
+      deps,
+      writableGate(),
+    );
+
+    // The server's own text is kept verbatim, not replaced...
+    expect(stepResult.text).toContain(opaqueDetail);
+    // ...with an explanation appended, not standing alone unexplained.
+    expect(stepResult.text).toContain("cx_adt_rest_data_invalid");
+    expect(stepResult.text).toContain("ADT REST layer");
+    expect(stepResult.text).toContain("not a complaint about a value");
+    expect(stepResult.text).toContain("live verification run on 2026-09-15");
+    expect(stepResult.text).toContain("start a new one");
+
+    const stopResult = await abapDebug(DUMMY_CONN, { action: "stop" } as DebugInput, 60_000, UNUSED_DEPS, writableGate());
+    expect(stopResult.text).toContain("idle");
+  });
+
+  it("any other death detail passes through untouched — no explanation is appended for unrelated text", async () => {
+    const log: string[] = [];
+    const listener = new FakeListener(log);
+    let getStackCalls = 0;
+    const unrelatedDetail = "Some other ABAP-side termination detail entirely unrelated to data conversion";
+    const transport = new FakeTransport(
+      log,
+      HAPPY_TABLE({
+        getStack: () => {
+          getStackCalls++;
+          if (getStackCalls === 1) return okResponse(buildStackXml("ZTEST_MCP_CRUD", 15));
+          throw new AbapError("SESSION_DEAD", unrelatedDetail, {});
+        },
+        step: okResponse(buildStepXml({})),
+      }),
+    );
+    const deps = makeDeps({ log, transport, listener });
+
+    const stateId1 = await startSuspended(deps, listener, "D89b");
+    const stepResult = await abapDebug(
+      DUMMY_CONN,
+      { action: "step", step: "continue", stateId: stateId1 } as DebugInput,
+      60_000,
+      deps,
+      writableGate(),
+    );
+
+    expect(stepResult.text).toContain(unrelatedDetail);
+    expect(stepResult.text).not.toContain("cx_adt_rest_data_invalid");
+    expect(stepResult.text).not.toContain("live verification run on 2026-09-15");
 
     const stopResult = await abapDebug(DUMMY_CONN, { action: "stop" } as DebugInput, 60_000, UNUSED_DEPS, writableGate());
     expect(stopResult.text).toContain("idle");
@@ -3495,11 +3583,20 @@ describe("B4 — a step's reachedWatchpoints reports the stop, the NEW value fro
 // ---------------------------------------------------------------------------
 // B5 (issue #89) — the lane refusal. At the shipped default
 // (ABAP_DEBUG_SESSIONS unset, `deps.debugLaneCount` absent, `laneLimit` 1)
-// `handleStart`'s own comment calls out a HARD REQUIREMENT: this branch must
-// stay byte-identical to the pre-lane single-session refusal. Pinned here
-// verbatim rather than the substring check the pre-existing "refuses a
-// second concurrent session" test (above) already makes, so a future change
-// to lane 0's wording cannot slip through unnoticed. With
+// `handleStart` used to carry a HARD REQUIREMENT that its busy-session
+// refusal stay byte-identical to the pre-lane single-session refusal
+// (`UNSUPPORTED`, "one session per process"). A live verification run found
+// that requirement produced an inconsistency the caller could not see
+// through: the SAME condition ("this process has no free debug lane right
+// now") threw a DIFFERENT code depending purely on `laneLimit` — the
+// laneLimit>1 branch already threw `DEBUG_ALL_LEASES_BUSY` for "all lanes
+// busy". The requirement is now withdrawn for that busy case: laneLimit 1
+// throws `DEBUG_ALL_LEASES_BUSY` too, pinned verbatim below (rather than the
+// substring check the pre-existing "refuses a second concurrent session"
+// test (above) already makes) so a future change to lane 0's wording cannot
+// slip through unnoticed. The leaked-session refusal is a DIFFERENT
+// condition (nothing busy, debris from an earlier failed start) and keeps
+// `UNSUPPORTED` at every lane count — pinned separately below. With
 // `deps.debugLaneCount` raised, two starts land on separate lanes (0 and 1)
 // and a third is refused with `DEBUG_ALL_LEASES_BUSY`, naming the lane count
 // and the setting that raises it.
@@ -3508,8 +3605,10 @@ describe("B4 — a step's reachedWatchpoints reports the stop, the NEW value fro
 describe("B5 — the lane refusal", () => {
   it(
     'at today\'s default (one lane) a second concurrent start is refused with EXACTLY ' +
-      '\'A debug session is already "<status>" (one session per process) — stop it first: ' +
-      "abap_debug({action:\"stop\"}).' — byte-identical to the pre-lane wording",
+      '\'This process is configured for a single debug session (laneLimit 1) and it is already ' +
+      '"<status>" — stop it first: abap_debug({action:"stop"}). Raise ABAP_DEBUG_SESSIONS ' +
+      "to run more than one at a time...' as DEBUG_ALL_LEASES_BUSY, not the old UNSUPPORTED " +
+      "'one session per process' wording",
     async () => {
       const log1: string[] = [];
       const listener1 = new FakeListener(log1);
@@ -3539,11 +3638,16 @@ describe("B5 — the lane refusal", () => {
           writableGate(),
         ),
       ).rejects.toSatisfy((e: unknown) => {
-        if (!isAbapError(e) || e.code !== "UNSUPPORTED") return false;
+        if (!isAbapError(e) || e.code !== "DEBUG_ALL_LEASES_BUSY") return false;
         expect(e.message).toBe(
-          'A debug session is already "suspended" (one session per process) — ' +
-            'stop it first: abap_debug({action:"stop"}).',
+          'This process is configured for a single debug session (laneLimit 1) and it is ' +
+            'already "suspended" — stop it first: abap_debug({action:"stop"}). Raise ' +
+            "ABAP_DEBUG_SESSIONS to run more than one at a time — itself capped at " +
+            "floor(ABAP_DEBUG_DIA_BUDGET / 2), since each concurrent debug session pins 2 dialog " +
+            "work processes on the SAP appliance (see debugDiaBudget/debugSessions in src/config.ts).",
         );
+        expect((e as AbapError).details).toMatchObject({ laneLimit: 1, status: "suspended" });
+        expect((e as AbapError).retryable).toBe(true);
         return true;
       });
 
@@ -3552,6 +3656,108 @@ describe("B5 — the lane refusal", () => {
       );
     },
   );
+
+  it("throws the SAME code (DEBUG_ALL_LEASES_BUSY) for a busy process whether laneLimit is 1 or 2", async () => {
+    // laneLimit 1: one live session, no free lane.
+    const log1: string[] = [];
+    const listener1 = new FakeListener(log1);
+    const transport1 = new FakeTransport(log1, HAPPY_TABLE());
+    const deps1 = makeDeps({ log: log1, transport: transport1, listener: listener1 });
+    const promise1 = abapDebug(DUMMY_CONN, START_INPUT, 60_000, deps1, writableGate());
+    await flushMicrotasks();
+    listener1.resolveWith(okResponse(buildDebuggeeXml("B5-same-code-1")));
+    await promise1; // now "suspended"
+
+    const busyAtOne = await abapDebug(
+      DUMMY_CONN,
+      { action: "start", breakpoints: [{ kind: "line", object: "ZOTHER", line: 1 }], run: { object: "ZOTHER" } } as DebugInput,
+      60_000,
+      makeDeps({ log: [], transport: new FakeTransport([], {}), listener: new FakeListener([]) }),
+      writableGate(),
+    ).catch((e: unknown) => e);
+    expect(isAbapError(busyAtOne) && busyAtOne.code).toBe("DEBUG_ALL_LEASES_BUSY");
+
+    await abapDebug(DUMMY_CONN, { action: "stop" } as DebugInput, 60_000, UNUSED_DEPS, writableGate()).catch(
+      () => {},
+    );
+
+    // laneLimit 2: fill both lanes, then a third start finds none free.
+    const laneCount = resolveDebugSessionLimit({ debugSessions: 2, debugDiaBudget: 10 });
+    expect(laneCount).toBe(2);
+
+    const logA: string[] = [];
+    const listenerA = new FakeListener(logA);
+    const transportA = new FakeTransport(logA, HAPPY_TABLE({ getStack: okResponse(buildStackXml("ZLANE_A", 1)) }));
+    const depsA = makeDeps({ log: logA, transport: transportA, listener: listenerA, debugLaneCount: laneCount });
+    const promiseA = abapDebug(
+      DUMMY_CONN,
+      { action: "start", breakpoints: [{ kind: "line", object: "ZLANE_A", line: 1 }], run: { object: "ZLANE_A" } } as DebugInput,
+      60_000,
+      depsA,
+      writableGate(),
+    );
+    await flushMicrotasks();
+    listenerA.resolveWith(okResponse(buildDebuggeeXml("B5-same-code-A")));
+    await promiseA;
+
+    const logB: string[] = [];
+    const listenerB = new FakeListener(logB);
+    const transportB = new FakeTransport(logB, HAPPY_TABLE({ getStack: okResponse(buildStackXml("ZLANE_B", 1)) }));
+    const depsB = makeDeps({ log: logB, transport: transportB, listener: listenerB, debugLaneCount: laneCount });
+    const promiseB = abapDebug(
+      DUMMY_CONN,
+      { action: "start", breakpoints: [{ kind: "line", object: "ZLANE_B", line: 1 }], run: { object: "ZLANE_B" } } as DebugInput,
+      60_000,
+      depsB,
+      writableGate(),
+    );
+    await flushMicrotasks();
+    listenerB.resolveWith(okResponse(buildDebuggeeXml("B5-same-code-B")));
+    await promiseB;
+
+    try {
+      const busyAtTwo = await abapDebug(
+        DUMMY_CONN,
+        { action: "start", breakpoints: [{ kind: "line", object: "ZLANE_C", line: 1 }], run: { object: "ZLANE_C" } } as DebugInput,
+        60_000,
+        makeDeps({ log: [], transport: new FakeTransport([], {}), listener: new FakeListener([]), debugLaneCount: laneCount }),
+        writableGate(),
+      ).catch((e: unknown) => e);
+      expect(isAbapError(busyAtTwo) && busyAtTwo.code).toBe("DEBUG_ALL_LEASES_BUSY");
+      expect(isAbapError(busyAtOne) && isAbapError(busyAtTwo) && busyAtOne.code === busyAtTwo.code).toBe(true);
+    } finally {
+      await abapDebug(DUMMY_CONN, { action: "stop" } as DebugInput, 60_000, UNUSED_DEPS, writableGate()).catch(
+        () => {},
+      );
+      await abapDebug(DUMMY_CONN, { action: "stop" } as DebugInput, 60_000, UNUSED_DEPS, writableGate()).catch(
+        () => {},
+      );
+    }
+  });
+
+  it("a LEAKED session (none of this process's tracked lanes) still refuses with UNSUPPORTED at laneLimit 1 — the busy-case code change above does not touch it", async () => {
+    const log: string[] = [];
+    const listener = new FakeListener(log);
+    const transport = new FakeTransport(log, HAPPY_TABLE());
+    const deps = makeDeps({ log, transport, listener });
+    const leaked = deps.createSession(DUMMY_CONN, writableGate(), {});
+    expect(listActiveDebugSessions()).toContain(leaked);
+
+    try {
+      await expect(abapDebug(DUMMY_CONN, START_INPUT, 60_000, UNUSED_DEPS, writableGate())).rejects.toSatisfy(
+        (e: unknown) => {
+          if (!isAbapError(e) || e.code !== "UNSUPPORTED") return false;
+          expect(e.message).toMatch(/never became this process's active session/);
+          expect(e.message).toMatch(/stop/i);
+          expect((e as AbapError).retryable).toBe(true);
+          return true;
+        },
+      );
+    } finally {
+      await leaked.terminate("terminated_by_caller");
+      forceDropDebugSession(leaked);
+    }
+  });
 
   it("resolveDebugIdentity(cfg, 0) and debugArmLockPath(stateDir, cfg) — the values lane 0 uses — are byte-identical to their pre-lane, lane-argument-omitted call shape", () => {
     // Pure functions, no fakes needed: proves lane 0's default argument
@@ -3574,14 +3780,20 @@ describe("B5 — the lane refusal", () => {
     const laneCount = resolveDebugSessionLimit({ debugSessions: 2, debugDiaBudget: 10 });
     expect(laneCount).toBe(2);
 
+    // Issue #89: `handleStart` now auto-continues past a stop whose stack
+    // does not mention the run object (see the M16 describe block above) —
+    // so each lane's fixture stack must actually name that lane's own run
+    // object (ZLANE_ONE / ZLANE_TWO), not the shared default ZTEST_MCP_CRUD
+    // fixture, or the auto-continue loop would try to step a transport that
+    // (correctly, for this test) never configured a "step" responder.
     const log1: string[] = [];
     const listener1 = new FakeListener(log1);
-    const transport1 = new FakeTransport(log1, HAPPY_TABLE());
+    const transport1 = new FakeTransport(log1, HAPPY_TABLE({ getStack: okResponse(buildStackXml("ZLANE_ONE", 1)) }));
     const deps1 = makeDeps({ log: log1, transport: transport1, listener: listener1, debugLaneCount: laneCount });
 
     const log2: string[] = [];
     const listener2 = new FakeListener(log2);
-    const transport2 = new FakeTransport(log2, HAPPY_TABLE());
+    const transport2 = new FakeTransport(log2, HAPPY_TABLE({ getStack: okResponse(buildStackXml("ZLANE_TWO", 1)) }));
     const deps2 = makeDeps({ log: log2, transport: transport2, listener: listener2, debugLaneCount: laneCount });
 
     const log3: string[] = [];
@@ -5427,5 +5639,425 @@ describe("issue-89 — dropDebugSessionOnConnection (drop stateful session after
       waitForDebuggeeSpy.mockRestore();
       terminateSpy.mockRestore();
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// issue-89, round 2 — live re-verification on 2026-09-15 found that
+// `dropDebugSessionOnConnection` on a SHARED pooled connection (the fix
+// above) was NOT sufficient: the "Debuggee already attached" failure
+// recurred on a later `start` even after a clean stop. The primary fix is
+// now a DEDICATED connection per debug session
+// (`DebugToolDeps.createDebugSessionConnection`): nothing else ever shares
+// its stateful ADT session, so there is no shared connection left for a
+// later `start` to inherit a stale attachment from. See
+// `dropDebugSessionOnConnection`'s doc comment (src/tools/debug.ts) for the
+// full, updated evidence writeup; that function is retained only as the
+// fallback for callers with no dedicated-connection dep, and for
+// `clearLeakedSessions`.
+// ---------------------------------------------------------------------------
+
+describe("M15 — the debug session runs on its OWN dedicated connection", () => {
+  /**
+   * A fake dedicated connection with the four members `makeSessionConnCloser`
+   * and `dropDebugSessionOnConnection` ever touch. Non-shared per call (like
+   * `makeDropSpyConn` above) so exact call-count assertions here never pick
+   * up calls from anywhere else in the file.
+   */
+  function makeSessionConnSpy(): {
+    conn: AbapConnection;
+    shutdown: ReturnType<typeof vi.fn>;
+    dispose: ReturnType<typeof vi.fn>;
+    dropSession: ReturnType<typeof vi.fn>;
+  } {
+    const shutdown = vi.fn(async () => {});
+    const dispose = vi.fn(() => {});
+    const dropSession = vi.fn(async () => {});
+    const conn = { shutdown, dispose, heldLockUris: () => [], dropSession } as unknown as AbapConnection;
+    return { conn, shutdown, dispose, dropSession };
+  }
+
+  /**
+   * A hand-built `PoolSlot` over a spy connection, standing in for
+   * `pool.reserveDebug()` — issue #89's dedicated connection makes the
+   * SLOT'S connection irrelevant to `sessionConn` (see `handleStart`), so
+   * these tests don't need a real `AdtSessionPool` to prove anything about
+   * it; they only need `release()` to be observable.
+   */
+  function makeFakeSlot(conn: AbapConnection): { reserveDebugSession: () => Promise<PoolSlotLike>; release: ReturnType<typeof vi.fn> } {
+    const release = vi.fn(() => {});
+    return {
+      reserveDebugSession: async () => ({ conn, role: "debug", id: 0, release }),
+      release,
+    };
+  }
+  /** Structural stand-in for `PoolSlot` (src/adt/pool.ts) — not imported so this test file doesn't need a new import just for a hand-built literal's type. */
+  interface PoolSlotLike {
+    conn: AbapConnection;
+    role: "debug";
+    id: number;
+    release: () => void;
+  }
+
+  it("createSession is called with the DEDICATED connection — not the leased slot's connection, and not the caller's", async () => {
+    const log: string[] = [];
+    const listener = new FakeListener(log);
+    const transport = new FakeTransport(log, HAPPY_TABLE());
+    const base = makeDeps({ log, transport, listener });
+    const { conn: dedicatedConn } = makeSessionConnSpy();
+    const leasedConn = { heldLockUris: () => [], dropSession: async () => {} } as unknown as AbapConnection;
+    const { reserveDebugSession } = makeFakeSlot(leasedConn);
+
+    let capturedConn: AbapConnection | undefined;
+    const deps: DebugToolDeps = {
+      ...base,
+      createSession(conn, safety, opts) {
+        capturedConn = conn;
+        return base.createSession(conn, safety, opts);
+      },
+      reserveDebugSession,
+      createDebugSessionConnection: async () => dedicatedConn,
+    };
+
+    const callerConn = {} as unknown as AbapConnection;
+    const promise = abapDebug(callerConn, START_INPUT, 60_000, deps, writableGate());
+    await flushMicrotasks();
+    listener.resolveWith(okResponse(buildDebuggeeXml("M15a")));
+    await promise;
+
+    expect(capturedConn).toBe(dedicatedConn);
+    expect(capturedConn).not.toBe(leasedConn);
+    expect(capturedConn).not.toBe(callerConn);
+
+    const stopped = await abapDebug(DUMMY_CONN, { action: "stop" } as DebugInput, 60_000, deps, writableGate());
+    expect(stopped.text).toBeTruthy();
+  });
+
+  it("a successful stop shuts the dedicated connection down and disposes it exactly once, and never calls dropSession() on the leased slot's connection", async () => {
+    const log: string[] = [];
+    const listener = new FakeListener(log);
+    const transport = new FakeTransport(log, HAPPY_TABLE());
+    const base = makeDeps({ log, transport, listener });
+    const { conn: dedicatedConn, shutdown, dispose } = makeSessionConnSpy();
+    const { conn: leasedConn, dropSession: leasedDropSession } = makeSessionConnSpy();
+    const { reserveDebugSession } = makeFakeSlot(leasedConn);
+
+    const deps: DebugToolDeps = {
+      ...base,
+      reserveDebugSession,
+      createDebugSessionConnection: async () => dedicatedConn,
+    };
+
+    const promise = abapDebug(DUMMY_CONN, START_INPUT, 60_000, deps, writableGate());
+    await flushMicrotasks();
+    listener.resolveWith(okResponse(buildDebuggeeXml("M15b")));
+    await promise;
+    // Not yet — closing the session connection is stop/failed-start hygiene,
+    // never part of a successful start.
+    expect(shutdown).not.toHaveBeenCalled();
+
+    const stopResult = await abapDebug(DUMMY_CONN, { action: "stop" } as DebugInput, 60_000, deps, writableGate());
+    expect(stopResult.text).toBeTruthy();
+    expect(shutdown).toHaveBeenCalledTimes(1);
+    expect(shutdown).toHaveBeenCalledWith("debug-session-done");
+    expect(dispose).toHaveBeenCalledTimes(1);
+    // THE ASSERTION THAT MATTERS: the leased slot's connection is a
+    // bystander now — `dropDebugSessionOnConnection` (the pre-issue-89
+    // fallback) must never run against it while a dedicated connection is in
+    // play.
+    expect(leasedDropSession).not.toHaveBeenCalled();
+  });
+
+  it("a failed start also shuts the dedicated connection down exactly once", async () => {
+    const log: string[] = [];
+    const listener = new FakeListener(log);
+    const transport = new FakeTransport(log, HAPPY_TABLE({ attach: ATTACH_EXPLODES }));
+    const deps0 = makeDeps({ log, transport, listener });
+    const { conn: dedicatedConn, shutdown, dispose } = makeSessionConnSpy();
+    const { conn: leasedConn } = makeSessionConnSpy();
+    const { reserveDebugSession } = makeFakeSlot(leasedConn);
+
+    const deps: DebugToolDeps = {
+      ...deps0,
+      reserveDebugSession,
+      createDebugSessionConnection: async () => dedicatedConn,
+    };
+
+    const promise = abapDebug(DUMMY_CONN, START_INPUT, 60_000, deps, writableGate());
+    await flushMicrotasks();
+    listener.resolveWith(okResponse(buildDebuggeeXml("M15c")));
+    await expect(promise).rejects.toThrow();
+
+    expect(shutdown).toHaveBeenCalledTimes(1);
+    expect(dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it(
+    "two consecutive start->stop cycles in one process mint a FRESH dedicated connection each time " +
+      "(regression guard: the live defect was a SECOND start inheriting the FIRST session's ABAP session)",
+    async () => {
+      const log: string[] = [];
+      const listener = new FakeListener(log);
+      const transport = new FakeTransport(log, HAPPY_TABLE());
+      const base = makeDeps({ log, transport, listener });
+
+      const spies: ReturnType<typeof makeSessionConnSpy>[] = [];
+      const minted: AbapConnection[] = [];
+      const deps: DebugToolDeps = {
+        ...base,
+        reserveDebugSession: async () => {
+          const { conn } = makeSessionConnSpy();
+          return { conn, role: "debug", id: spies.length, release: vi.fn() };
+        },
+        createDebugSessionConnection: async () => {
+          const spy = makeSessionConnSpy();
+          spies.push(spy);
+          minted.push(spy.conn);
+          return spy.conn;
+        },
+      };
+
+      const promise1 = abapDebug(DUMMY_CONN, START_INPUT, 60_000, deps, writableGate());
+      await flushMicrotasks();
+      listener.resolveWith(okResponse(buildDebuggeeXml("M15d-1")));
+      await promise1;
+      await abapDebug(DUMMY_CONN, { action: "stop" } as DebugInput, 60_000, deps, writableGate());
+
+      const promise2 = abapDebug(DUMMY_CONN, START_INPUT, 60_000, deps, writableGate());
+      await flushMicrotasks();
+      listener.resolveWith(okResponse(buildDebuggeeXml("M15d-2")));
+      await promise2;
+      await abapDebug(DUMMY_CONN, { action: "stop" } as DebugInput, 60_000, deps, writableGate());
+
+      expect(minted).toHaveLength(2);
+      expect(minted[0]).not.toBe(minted[1]);
+      expect(spies[0]!.shutdown).toHaveBeenCalledTimes(1);
+      expect(spies[1]!.shutdown).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it(
+    "a debuggee that dies naturally during a step (composeDeathOutput) also shuts the dedicated " +
+      "connection down — previously nothing released it at all",
+    async () => {
+      const log: string[] = [];
+      const listener = new FakeListener(log);
+      const transport = new FakeTransport(
+        log,
+        HAPPY_TABLE({
+          step: () =>
+            okResponse(buildStepXml({ debugSessionId: "SESS1", isSteppingPossible: false, isTerminationPossible: false })),
+        }),
+      );
+      const base = makeDeps({
+        log,
+        transport,
+        listener,
+        triggerImpl: async () => ({ text: "M15e OUTPUT", truncated: false, estimatedTokens: 4 }),
+      });
+      const { conn: dedicatedConn, shutdown, dispose } = makeSessionConnSpy();
+      const deps: DebugToolDeps = {
+        ...base,
+        createDebugSessionConnection: async () => dedicatedConn,
+      };
+
+      const startPromise = abapDebug(DUMMY_CONN, START_INPUT, 60_000, deps, writableGate());
+      await flushMicrotasks();
+      listener.resolveWith(okResponse(buildDebuggeeXml("M15e")));
+      const startResult = await startPromise;
+      const stateId1 = extractStateId(startResult.text)!;
+
+      expect(shutdown).not.toHaveBeenCalled();
+
+      const stepResult = await abapDebug(
+        DUMMY_CONN,
+        { action: "step", step: "continue", stateId: stateId1 } as DebugInput,
+        60_000,
+        deps,
+        writableGate(),
+      );
+      expect(stepResult.text).toContain("M15e OUTPUT");
+      // THE FIX: before it, a debuggee finishing on its own mid-step released
+      // NEITHER connection — this session connection kept its stateful ADT
+      // session forever, and the NEXT `start` in this process inherited the
+      // "Debuggee already attached" failure.
+      expect(shutdown).toHaveBeenCalledTimes(1);
+      expect(dispose).toHaveBeenCalledTimes(1);
+
+      // The lane was already cleared by handleStep — a follow-up stop is a
+      // harmless no-op, same as the pre-existing signal-B test above.
+      const stopResult = await abapDebug(DUMMY_CONN, { action: "stop" } as DebugInput, 60_000, UNUSED_DEPS, writableGate());
+      expect(stopResult.text).toContain("idle");
+    },
+  );
+
+  it("a createDebugSessionConnection that REJECTS releases the reserved pool slot and surfaces the original error", async () => {
+    const log: string[] = [];
+    const listener = new FakeListener(log);
+    const transport = new FakeTransport(log, HAPPY_TABLE());
+    const base = makeDeps({ log, transport, listener });
+    const release = vi.fn(() => {});
+    const leasedConn = { heldLockUris: () => [], dropSession: async () => {} } as unknown as AbapConnection;
+    const boom = new Error("createDebugSessionConnection exploded on purpose");
+
+    const deps: DebugToolDeps = {
+      ...base,
+      reserveDebugSession: async () => ({ conn: leasedConn, role: "debug", id: 0, release }),
+      createDebugSessionConnection: async () => {
+        throw boom;
+      },
+    };
+
+    await expect(abapDebug(DUMMY_CONN, START_INPUT, 60_000, deps, writableGate())).rejects.toThrow(
+      "createDebugSessionConnection exploded on purpose",
+    );
+    // Nothing else will ever release this slot — no session was ever
+    // constructed, so `createSession`'s own catch (which normally releases
+    // it) never even ran.
+    expect(release).toHaveBeenCalledTimes(1);
+  });
+
+  // Fallback (no `createDebugSessionConnection` dep at all) is covered by the
+  // pre-existing "a successful stop on an active run calls conn.dropSession()
+  // exactly once, on the session's own connection" test in the
+  // "issue-89 — dropDebugSessionOnConnection" describe block above — it
+  // builds `deps` via plain `makeDeps()` (no dedicated-connection dep) and
+  // asserts `dropSession()` runs exactly once on the caller's own connection
+  // at `stop`, byte-identical to before this change.
+});
+
+// ---------------------------------------------------------------------------
+// M16 (issue #89, live 2026-09-15, A4H appliance): a `statement:"RAISE"`
+// breakpoint suspended in SAP gateway/framework code long before the
+// caller's own $TMP probe class (`START_INPUT.run.object`,
+// "ZTEST_MCP_CRUD") ever ran — SAP's own `TPDA_ADT_BREAKPOINTS_REQUEST`
+// XSLT emits only the `statement` attribute, with no program/include
+// restriction on the wire, so the breakpoint fires in the FIRST code that
+// executes it anywhere in the work process. `handleStart` now auto-continues
+// past a stop whose stack does not mention the run object, bounded by
+// `MAX_FRAMEWORK_AUTO_CONTINUES` (10). These tests drive that loop directly
+// via `getStack`'s responder — the framework stop is modelled as a stack
+// rooted in "SAPLSYST" (a stand-in gateway/kernel program), which shares no
+// prefix with "ZTEST_MCP_CRUD" and whose uri carries no "/ztest_mcp_crud/"
+// segment either, so `stackTouchesObject` correctly reports it as unrelated.
+// ---------------------------------------------------------------------------
+
+describe("M16 — start auto-continues past framework stops outside the run object", () => {
+  const FRAMEWORK_STACK_XML = buildStackXml("SAPLSYST", 42);
+  const TARGET_STACK_XML = buildStackXml("ZTEST_MCP_CRUD", 20);
+  const ALIVE_STEP_XML = okResponse(buildStepXml({}));
+
+  it("the first attach lands in a framework frame; the next continue lands inside the run object", async () => {
+    const log: string[] = [];
+    const listener = new FakeListener(log);
+    let getStackCalls = 0;
+    const transport = new FakeTransport(
+      log,
+      HAPPY_TABLE({
+        getStack: () => {
+          getStackCalls++;
+          return okResponse(getStackCalls === 1 ? FRAMEWORK_STACK_XML : TARGET_STACK_XML);
+        },
+        step: () => ALIVE_STEP_XML,
+      }),
+    );
+    const deps = makeDeps({ log, transport, listener });
+
+    const promise = abapDebug(DUMMY_CONN, START_INPUT, 60_000, deps, writableGate());
+    await flushMicrotasks();
+    listener.resolveWith(okResponse(buildDebuggeeXml("M16a")));
+    const result = await promise;
+
+    // The response reports the IN-OBJECT stop, not the framework one it
+    // auto-continued past.
+    expect(result.text).toContain("program: ZTEST_MCP_CRUD");
+    expect(result.text).toContain("line: 20");
+    // Exactly one continue was needed to get there.
+    expect(log.filter((k) => k === "step").length).toBe(1);
+    // The note names the skipped location.
+    expect(result.text).toMatch(/NOTE:.*SAPLSYST\/SAPLSYST:42/);
+  });
+
+  it("the first attach already lands inside the run object — session.step is never called and no skip note appears", async () => {
+    const log: string[] = [];
+    const listener = new FakeListener(log);
+    // HAPPY_TABLE's default getStack already answers with a ZTEST_MCP_CRUD
+    // stack — the run object is hit on the very first attach.
+    const transport = new FakeTransport(log, HAPPY_TABLE());
+    const deps = makeDeps({ log, transport, listener });
+
+    const promise = abapDebug(DUMMY_CONN, START_INPUT, 60_000, deps, writableGate());
+    await flushMicrotasks();
+    listener.resolveWith(okResponse(buildDebuggeeXml("M16b")));
+    const result = await promise;
+
+    expect(result.text).toContain("program: ZTEST_MCP_CRUD");
+    expect(log.filter((k) => k === "step").length).toBe(0);
+    expect(result.text).not.toMatch(/NOTE:.*Auto-continued/);
+    expect(result.text).not.toMatch(/NOTE:.*Auto-continue stopped/);
+  });
+
+  it("every continue stays outside the run object — exactly MAX_FRAMEWORK_AUTO_CONTINUES steps are issued and the bound-reached note is returned", async () => {
+    const log: string[] = [];
+    const listener = new FakeListener(log);
+    const transport = new FakeTransport(
+      log,
+      HAPPY_TABLE({
+        getStack: () => okResponse(FRAMEWORK_STACK_XML),
+        step: () => ALIVE_STEP_XML,
+      }),
+    );
+    const deps = makeDeps({ log, transport, listener });
+
+    const promise = abapDebug(DUMMY_CONN, START_INPUT, 60_000, deps, writableGate());
+    await flushMicrotasks();
+    listener.resolveWith(okResponse(buildDebuggeeXml("M16c")));
+    const result = await promise;
+
+    // The call still succeeds — the bound is a "stop looping", never a throw.
+    expect(result.text).toBeTruthy();
+    expect(log.filter((k) => k === "step").length).toBe(10);
+    expect(result.text).toContain(
+      "Auto-continue stopped after reaching MAX_FRAMEWORK_AUTO_CONTINUES (10) without a stack mentioning ZTEST_MCP_CRUD",
+    );
+  });
+
+  it("the debuggee dies during auto-continue — a death response is returned, the lane is cleared, and the skipped-stops note is present", async () => {
+    const log: string[] = [];
+    const listener = new FakeListener(log);
+    let getStackCalls = 0;
+    const transport = new FakeTransport(
+      log,
+      HAPPY_TABLE({
+        getStack: () => {
+          getStackCalls++;
+          if (getStackCalls === 1) return okResponse(FRAMEWORK_STACK_XML);
+          // Mirrors the "round 3" Signal-A shape above: the physical step
+          // succeeds, and death surfaces on the follow-up getStack() read.
+          throw new AbapError("SESSION_DEAD", "An exception was raised", {
+            bodyExcerpt: "An exception was raised",
+          });
+        },
+        step: () => ALIVE_STEP_XML,
+      }),
+    );
+    const deps = makeDeps({ log, transport, listener });
+
+    const promise = abapDebug(DUMMY_CONN, START_INPUT, 60_000, deps, writableGate());
+    await flushMicrotasks();
+    listener.resolveWith(okResponse(buildDebuggeeXml("M16d")));
+    const result = await promise;
+
+    // A death response — success-shaped, per composeDeathOutput's own
+    // contract ("the debuggee finishing is a normal outcome, not a tool
+    // failure"), never a throw.
+    expect(result.text).toContain("terminationKind:");
+    expect(result.text).toMatch(/NOTE:.*Auto-continued past 1 stop\(s\).*SAPLSYST\/SAPLSYST:42/);
+
+    // The lane was cleared as part of the death path: a follow-up stop, with
+    // deps that would throw if a real session were still tracked, reports
+    // "idle" exactly like the pre-existing natural-death-mid-step test does.
+    const stopResult = await abapDebug(DUMMY_CONN, { action: "stop" } as DebugInput, 60_000, UNUSED_DEPS, writableGate());
+    expect(stopResult.text).toContain("status: idle");
   });
 });

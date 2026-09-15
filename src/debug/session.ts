@@ -576,6 +576,19 @@ export class DebugSession {
    * `BAD_INPUT` names every refusal. The real pass is checked the same way
    * defensively, in case SAP refuses something for real that it accepted during
    * validation.
+   *
+   * Neither pass notifies a suspended debuggee directly — sending
+   * `debuggeeSessionIds` on either would let a delta-shaped body reach the
+   * debuggee's reload. The validation pass's body is `validationOnly` rows that
+   * register nothing, and the arming pass's body is only the breakpoints THIS
+   * call is adding, which is exactly the delta shape `notifyDebuggeeOfOwnedBreakpoints()`'s
+   * doc comment documents as unsafe. Once the arming pass has succeeded and
+   * `ownedBreakpoints` reflects the newly created rows, this method calls
+   * `notifyDebuggeeOfOwnedBreakpoints()` with this session's now-complete owned
+   * set — see that method's doc comment for the full mechanism and the live
+   * evidence behind why the notify body must never be a delta. Pre-attach,
+   * `prepareBreakpoints()` naturally makes that call a no-op (status isn't
+   * `"suspended"` yet).
    */
   private async armBreakpointsTwoPass(opName: string, breakpoints: Breakpoint[]): Promise<CreatedBreakpoint[]> {
     const buildRequest = (bps: Breakpoint[]): BreakpointsRequest => ({
@@ -629,7 +642,74 @@ export class DebugSession {
       }
       if (!this.ownedBreakpoints.some((b) => b.id === bp.id)) this.ownedBreakpoints.push(bp);
     }
+    await this.notifyDebuggeeOfOwnedBreakpoints(opName);
     return created;
+  }
+
+  /**
+   * Best-effort wake-up nudge telling a suspended debuggee to reload the
+   * external breakpoint set: `setBreakpoints()`'s `debuggeeSessionIds` opt
+   * triggers `notify_dbg_sess_ids` -> `debuggee_reload_bps` -> RFC
+   * `DEBUGGEE_STOP kind='R'` server-side (full chain on
+   * `BreakpointsPostQuery.debuggeeSessionIds` in `endpoints.ts`). No-op
+   * (issues nothing) unless this session is currently attached to a suspended
+   * debuggee (`attachedDebuggeeSessionIds()` returns `[]` otherwise).
+   *
+   * The body sent is ALWAYS this session's complete owned set —
+   * `ownedBreakpoints`, each row stripped of its server-assigned `id` and any
+   * `validationOnly` flag — never a delta of just what changed. Live-verified
+   * today, 2026-09-15, against class ZCL_I89_PROBE3 in $TMP, whose `work`
+   * method's `DO 4 TIMES.` loop puts source line 26 inside the loop body (hit
+   * once per iteration, 4 times total per run): with no breakpoint changes at
+   * all, a line breakpoint on line 26 fired on every one of the 4 continues, as
+   * it must. But starting suspended at line 26 and then `op:"add"`ing a line
+   * breakpoint on line 39 with a POST whose body carried ONLY that newly added
+   * breakpoint (the delta) — the shape both call sites used to send here — the
+   * next continue stopped at line 39 as expected, and line 26 NEVER fired again
+   * for the remaining loop iterations. The reload does not merge with what the
+   * debuggee already had and does not re-read the full server-side external
+   * set: it replaces the suspended debuggee's entire runtime breakpoint set
+   * with EXACTLY the POSTed body. A delta-shaped body therefore silently drops
+   * every breakpoint this session owns that isn't repeated in it — which is why
+   * every caller of this method must pass the full owned set, never a delta.
+   *
+   * NEVER add `syncScope` here. That would instead make this POST's body the
+   * new authoritative breakpoint set for its *scope* server-side, wiping every
+   * OTHER external breakpoint (including ones armed by other sessions) —
+   * exactly the bug `ownedBreakpoints`'s doc comment and
+   * `deleteOwnedBreakpoints()` exist to avoid for DELETE. Omitting it is what
+   * keeps this call a pure re-assertion of what this session already owns,
+   * rather than a replacement of the scope's whole breakpoint set.
+   *
+   * BEST-EFFORT: wrapped so a rejection is only logged, never thrown — by the
+   * time this runs, the caller's own operation (arming or removing a
+   * breakpoint) has already succeeded server-side, and must not be turned into
+   * an error by a notification that is purely an optimization; the debuggee
+   * will still pick up the change on its next unrelated reload.
+   */
+  private async notifyDebuggeeOfOwnedBreakpoints(label: string): Promise<void> {
+    const debuggeeSessionIds = this.attachedDebuggeeSessionIds();
+    if (debuggeeSessionIds.length === 0) return;
+    this.noteStatefulRequest(`${label} (re-assert+notify)`);
+    try {
+      const reassert = this.ownedBreakpoints.map(({ id: _id, validationOnly: _v, ...bp }) => bp as Breakpoint);
+      await this.client.setBreakpoints(
+        {
+          debuggingMode: this.context.debuggingMode,
+          requestUser: this.context.requestUser,
+          terminalId: this.context.terminalId,
+          ideId: this.context.ideId,
+          scope: "external",
+          breakpoints: reassert,
+        },
+        { debuggeeSessionIds },
+      );
+    } catch (e) {
+      this.log(
+        `[debug-session] ${label}: notifying the suspended debuggee to reload immediately failed (it will still ` +
+          `pick up the change on its next unrelated reload): ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
   }
 
   /**
@@ -690,6 +770,18 @@ export class DebugSession {
    * silently issuing a DELETE this session has no record of arming; that refusal
    * never touches the network. A server `NOT_FOUND` means the breakpoint is
    * already gone (e.g. deleted through another path) — resolved, not thrown.
+   *
+   * DELETE has no `debuggeeSessionIds` equivalent (see `deleteBreakpointUrl`'s doc
+   * comment in `endpoints.ts`), so a suspended debuggee would otherwise not learn a
+   * breakpoint was removed until its next unrelated reload. To close that gap, once
+   * the DELETE has succeeded (or was tolerated as already-`NOT_FOUND`) and this
+   * session's local bookkeeping is updated, `notifyDebuggeeOfOwnedBreakpoints()` is
+   * called to re-assert every breakpoint this session STILL owns after the
+   * removal — see that method's doc comment for the full mechanism, the live
+   * 2026-09-15 evidence for why the notify body must always be the complete owned
+   * set rather than an empty `breakpoints: []` or a delta, and why it is
+   * best-effort. When nothing is left owned the body is naturally `[]` again —
+   * that is correct, there is nothing left to preserve.
    */
   async removeBreakpoint(stateId: StateId, id: string): Promise<void> {
     return this.runStateful(stateId, async () => {
@@ -717,6 +809,8 @@ export class DebugSession {
         if (!(isAbapError(e) && e.code === "NOT_FOUND")) throw e;
       }
       this.ownedBreakpoints.splice(idx, 1);
+
+      await this.notifyDebuggeeOfOwnedBreakpoints(`removeBreakpoint ${id}`);
     });
   }
 
@@ -1287,6 +1381,27 @@ export class DebugSession {
     this.status = "suspended";
     this.startIdleTimer();
     return { attach: attachResult, stack, stateId: this.currentStateId };
+  }
+
+  /**
+   * Ids to pass as `setBreakpoints()`'s `debuggeeSessionIds` opt so a breakpoint
+   * change reaches an ALREADY-SUSPENDED debuggee before its very next step instead
+   * of one stop-cycle late — see `BreakpointsPostQuery.debuggeeSessionIds`'s doc
+   * comment in `endpoints.ts` for the full `notify_dbg_sess_ids`/
+   * `debuggee_reload_bps`/`DEBUGGEE_STOP kind='R'` chain this feeds.
+   *
+   * Empty (nothing to notify) unless BOTH:
+   *   - `this.status === "suspended"`, i.e. there is a live debuggee parked on a
+   *     stopped state right now — pre-attach (`prepareBreakpoints()`) and
+   *     post-terminate there is nothing to wake up; and
+   *   - `this.lastAttachResult?.debuggeeSessionId` is a real, non-empty value.
+   *     `syntheticAttachResult()` deliberately sets this to `""` for its
+   *     no-real-wire-data recovery path — that empty string must never be sent.
+   */
+  private attachedDebuggeeSessionIds(): readonly string[] {
+    if (this.status !== "suspended") return [];
+    const id = this.lastAttachResult?.debuggeeSessionId;
+    return typeof id === "string" && id.length > 0 ? [id] : [];
   }
 
   // --- stateId validation ------------------------------------------------------

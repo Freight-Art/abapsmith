@@ -269,6 +269,49 @@ describe("breakpoints", () => {
     expect(breakpointsPostUrl()).toBe(DEBUGGER_BREAKPOINTS_PATH);
   });
 
+  it("post URL omits debuggeeSessionIds entirely when not given", () => {
+    expect(breakpointsPostUrl()).toBe(DEBUGGER_BREAKPOINTS_PATH);
+    expect(breakpointsPostUrl({ checkConflict: true })).not.toContain("debuggeeSessionIds");
+  });
+
+  it("post URL omits debuggeeSessionIds entirely when given an empty array", () => {
+    const url = breakpointsPostUrl({ debuggeeSessionIds: [] });
+    expect(url).toBe(DEBUGGER_BREAKPOINTS_PATH);
+    expect(url).not.toContain("debuggeeSessionIds");
+  });
+
+  it("post URL omits debuggeeSessionIds entirely when every entry is blank/empty", () => {
+    const url = breakpointsPostUrl({ debuggeeSessionIds: ["", "   "] });
+    expect(url).toBe(DEBUGGER_BREAKPOINTS_PATH);
+    expect(url).not.toContain("debuggeeSessionIds");
+  });
+
+  it("post URL carries a single debuggeeSessionIds id, percent-encoding its embedded space", () => {
+    // Real-shape id, verbatim off a live attach response: 16-char session id
+    // (space-padded) + 32-char RFC destination.
+    const url = breakpointsPostUrl({ debuggeeSessionIds: ["170000007A2F00  a4hsandbox_A4H_00"] });
+    expect(url).toBe(
+      `${DEBUGGER_BREAKPOINTS_PATH}?debuggeeSessionIds=170000007A2F00%20%20a4hsandbox_A4H_00`,
+    );
+  });
+
+  it("post URL joins two debuggeeSessionIds with a literal comma, then percent-encodes the whole value", () => {
+    const url = breakpointsPostUrl({ debuggeeSessionIds: ["sid one", "sid two"] });
+    expect(url).toBe(
+      `${DEBUGGER_BREAKPOINTS_PATH}?debuggeeSessionIds=sid%20one%2Csid%20two`,
+    );
+  });
+
+  it("post URL drops blank entries before joining debuggeeSessionIds, without a stray comma", () => {
+    const url = breakpointsPostUrl({ debuggeeSessionIds: ["sidA", "", "sidB"] });
+    expect(url).toBe(`${DEBUGGER_BREAKPOINTS_PATH}?debuggeeSessionIds=sidA%2CsidB`);
+  });
+
+  it("post URL combines checkConflict and debuggeeSessionIds as separate query params", () => {
+    const url = breakpointsPostUrl({ checkConflict: true, debuggeeSessionIds: ["sidA"] });
+    expect(url).toBe(`${DEBUGGER_BREAKPOINTS_PATH}?checkConflict=true&debuggeeSessionIds=sidA`);
+  });
+
   it("delete URL encodes the server-assigned id as a path segment", () => {
     const url = deleteBreakpointUrl({
       id: "KIND=0.SOURCETYPE=ABAP.MAIN_PROGRAM=ZFOO",

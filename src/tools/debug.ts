@@ -45,7 +45,7 @@ import {
 import { resolveDebugIdentity, warnIfDerivedIdentity } from "../debug/identity.js";
 import { createDebugArmLocks } from "../debug/arm-lock.js";
 import { resolveStateDir } from "../state-dir.js";
-import type { DebugSessionLease } from "../debug/transport.js";
+import { ADT_REST_DATA_INVALID_TEXT, type DebugSessionLease } from "../debug/transport.js";
 import { withStartFragment } from "../debug/endpoints.js";
 import type { PoolSlot, SessionPool } from "../adt/pool.js";
 import {
@@ -146,6 +146,22 @@ export interface DebugToolDeps {
   ): DebugSession;
   /** Produce a second, independent, already-CONNECTED AbapConnection for firing the trigger. */
   createTriggerConnection(): Promise<AbapConnection>;
+  /**
+   * Mint a dedicated, already-CONNECTED `AbapConnection` that the
+   * `DebugSession`'s `DebugClient` is built on for this session's ENTIRE
+   * life, and that is shut down and discarded outright (never returned to
+   * a pool) when the session ends — see `makeSessionConnCloser`. Nothing
+   * else ever shares its stateful ADT session (`sap-contextid`), so the
+   * "Debuggee already attached" defect `dropDebugSessionOnConnection`
+   * documents cannot recur: there is no SHARED connection left for a later
+   * `start` to inherit a stale attachment from.
+   *
+   * Optional purely so hand-built test literals may omit it. When absent,
+   * `handleStart` falls back to the leased slot's connection (`slot?.conn
+   * ?? conn`) — the historical behaviour, still exercised by the M14 test
+   * above and by the fallback tests in the M15 block (issue #89).
+   */
+  createDebugSessionConnection?(): Promise<AbapConnection>;
   /** Resolve an object ref on `conn` — defaults to `resolveObject` from adt/resolve.js. Injected so tests don't need a real connection. */
   resolveObject(conn: AbapConnection, ref: string): Promise<ResolvedObject>;
   /**
@@ -304,6 +320,15 @@ export function createLiveDebugToolDeps(params: {
       c.dispose();
       return c;
     },
+    async createDebugSessionConnection() {
+      // Same pool-law-L3 / D8-unsubscribe reasoning as `createTriggerConnection`
+      // just above — see its comment. The only difference is `purpose`: this
+      // connection is the session's OWN, not the trigger bridge's.
+      const c = params.pool.createUnpooledConnection("debug-session");
+      await c.connect();
+      c.dispose();
+      return c;
+    },
     resolveObject(conn, ref) {
       return resolveObjectLive(conn, ref);
     },
@@ -450,16 +475,29 @@ interface DebugGateTarget {
 interface CurrentRun {
   session: DebugSession;
   /**
-   * The connection the session's `DebugClient` was actually built on
-   * (`slot?.conn ?? conn` at `start` time) — NOT necessarily the `conn` a
-   * later `stop` call happens to be handed. `handleStop` must drop the
-   * stateful ABAP session on THIS connection (see
-   * `dropDebugSessionOnConnection`'s doc comment for why): "M14 — handleStart
-   * builds the debug client on the LEASED slot's connection, not the
-   * caller's" (test/debug-tools.test.ts) pins that the two can be different
-   * objects entirely.
+   * The connection the session's `DebugClient` was actually built on — NOT
+   * necessarily the `conn` a later `stop` call happens to be handed. When
+   * `deps.createDebugSessionConnection` is present (the live default, issue
+   * #89) this is a DEDICATED connection minted just for this session, shut
+   * down and discarded outright at teardown via `closeSessionConn`. When
+   * absent, it falls back to the leased slot's connection (`slot?.conn ??
+   * conn`), same as before issue #89: "M14 — handleStart builds the debug
+   * client on the LEASED slot's connection, not the caller's"
+   * (test/debug-tools.test.ts) pins that the two can be different objects
+   * entirely.
    */
   sessionConn: AbapConnection;
+  /**
+   * Release `sessionConn`. Idempotent, never rejects, safe to call from any
+   * teardown path in any order — same contract as `closeTriggerConn` below,
+   * just async since a dedicated connection's `shutdown()` is a real network
+   * call. For a DEDICATED connection (see `sessionConn`'s doc comment):
+   * `shutdown()` then `dispose()`, discarding it outright. For the fallback
+   * shared connection: `dropDebugSessionOnConnection()`, which only drops the
+   * stateful ADT session and leaves the (pool-owned) connection itself alone.
+   * See `makeSessionConnCloser`.
+   */
+  closeSessionConn: () => Promise<void>;
   triggerConn: AbapConnection;
   /** D4 — the object every follow-up write on this session is gated against. */
   gateTarget: DebugGateTarget;
@@ -584,12 +622,22 @@ function assertSessionWrite(
  * nothing about this module's `currentRun` — the trigger connection and
  * registry slot are ours to release. Never throws, never awaits the network,
  * order-independent with `shutdownAllDebugSessions()`. Deliberately not gated.
+ *
+ * `closeSessionConn()` is fired with `void`, not `await`, deliberately: this
+ * function's contract ("never awaits the network") must stay true even
+ * though `closeSessionConn` is itself async (a dedicated connection's
+ * `shutdown()` is a real network round trip). Firing it and moving on is
+ * still strictly better than the pre-issue-89 behaviour, which released
+ * NOTHING here at all — the session connection now at least gets a best-
+ * effort shutdown kicked off before the process goes away, instead of being
+ * abandoned outright.
  */
 export function shutdownDebugTools(): void {
   const runs = debugLanes;
   debugLanes = [];
   for (const run of runs) {
     run?.closeTriggerConn();
+    void run?.closeSessionConn();
   }
 }
 
@@ -697,6 +745,22 @@ const DROP_DEBUG_SESSION_WAIT_MS = 3_000;
  * later `attach` on the SAME `sap-contextid` — only a fresh ABAP session is
  * clean.
  *
+ * NOT SOLVED by this function alone — re-verified live on 2026-09-15, same
+ * day as the evidence above: dropping the stateful session on a SHARED
+ * pooled connection proved insufficient. The failure recurred after clean
+ * stops in further live re-verification. The evidence above (first cycle
+ * clean, later `start`s on the same connection failing, a fresh connection
+ * at the same identity reporting `terminateDebuggee` -> 404 `noSessionAttached`
+ * and an empty listener poll) all still stands — it is the DIAGNOSIS, not
+ * the fix. The primary fix is now a DEDICATED connection per debug session
+ * (`DebugToolDeps.createDebugSessionConnection`, `makeSessionConnCloser`):
+ * nothing else ever shares a dedicated connection's `sap-contextid`, so
+ * there is no shared connection left for a later `start` to inherit a stale
+ * attachment from at all. This function is retained as the FALLBACK for
+ * callers that supply no `createDebugSessionConnection` dep, and for
+ * `clearLeakedSessions` (which has no per-session dedicated connection to
+ * reach for — a leaked session was never routed through `CurrentRun`).
+ *
  * GUARD: skipped (logged, not enforced) when `conn` reports it is holding
  * object locks — `dropSession()` releases every lock the session holds (see
  * its doc comment in src/adt/connection.ts), and this helper has no
@@ -717,6 +781,11 @@ async function dropDebugSessionOnConnection(
   log: ((msg: string) => void) | undefined,
   why: string,
 ): Promise<void> {
+  // Bracketing "starting"/"completed" log lines exist so a live run can prove
+  // from the log alone whether this actually ran or was skipped by the
+  // held-locks guard below — exactly the kind of question the 2026-09-15
+  // re-verification (see this function's doc comment) needed an answer to.
+  log?.(`abap_debug: dropSession() after ${why} — starting.`);
   const heldLocks = conn.heldLockUris();
   if (heldLocks.length > 0) {
     log?.(
@@ -732,6 +801,8 @@ async function dropDebugSessionOnConnection(
         `abap_debug: dropSession() after ${why} had not returned after ${DROP_DEBUG_SESSION_WAIT_MS} ms — ` +
           "it continues in the background.",
       );
+    } else {
+      log?.(`abap_debug: dropSession() after ${why} — completed.`);
     }
   } catch (e) {
     // Defensive only — `dropSession()`'s own doc comment says it logs and
@@ -766,6 +837,52 @@ function makeTriggerConnCloser(
       log?.(`abap_debug: trigger connection shutdown threw: ${describeUnknownError(e)}`);
       triggerConn.dispose();
     }
+  };
+}
+
+/**
+ * Build the idempotent, never-throwing closer stored on `CurrentRun.closeSessionConn`
+ * (issue #89). `owned` distinguishes the two shapes `sessionConn` can be:
+ *
+ * - `owned: true` (a DEDICATED connection from `deps.createDebugSessionConnection`):
+ *   the connection belongs to nobody else, so it is shut down and DISCARDED
+ *   outright — `shutdown()` then, in a `finally` so it runs even if `shutdown()`
+ *   throws synchronously or its promise rejects, `dispose()`. Mirrors
+ *   `makeTriggerConnCloser`'s own throw/reject handling exactly, for the same
+ *   reason: both failure shapes must be contained and logged, never surface as
+ *   an `unhandledRejection`.
+ * - `owned: false` (the fallback shared/leased connection): the connection is
+ *   NOT ours to shut down — other callers may still hold or reuse it — so only
+ *   `dropDebugSessionOnConnection` runs, resetting the stateful ADT session and
+ *   leaving the connection itself alone. Unchanged behaviour: the pre-existing
+ *   `dropSession()` tests keep passing against this path.
+ *
+ * Never rejects under any circumstances, in either shape.
+ */
+function makeSessionConnCloser(
+  conn: AbapConnection,
+  log: ((msg: string) => void) | undefined,
+  owned: boolean,
+  why: string,
+): () => Promise<void> {
+  let closed = false;
+  return async () => {
+    if (closed) return;
+    closed = true;
+    if (!owned) {
+      await dropDebugSessionOnConnection(conn, log, why);
+      return;
+    }
+    try {
+      await conn.shutdown("debug-session-done").catch((e: unknown) => {
+        log?.(`abap_debug: dedicated debug session connection shutdown failed: ${describeUnknownError(e)}`);
+      });
+    } catch (e) {
+      log?.(`abap_debug: dedicated debug session connection shutdown threw: ${describeUnknownError(e)}`);
+    } finally {
+      conn.dispose();
+    }
+    log?.(`abap_debug: dedicated debug session connection discarded after ${why}.`);
   };
 }
 
@@ -1159,12 +1276,43 @@ function renderTerminationEvidence(tr: DebugTerminationResult | undefined): stri
   }
 }
 
+/**
+ * `snapshot.deathDetail` sometimes carries `ADT_REST_DATA_INVALID_TEXT`
+ * verbatim — `cx_adt_rest_data_invalid`'s bare default text, which reads
+ * like a complaint about the caller's data but is neither: it is SAP's ADT
+ * REST layer saying it could not convert the payload of the debugger
+ * request in flight, and it carries no detail of its own. Reported by a
+ * live verification run on 2026-09-15 on a `step`/`continue` issued right
+ * after breakpoints were changed under a suspended debuggee, at a point
+ * where that change reached the debuggee one stop-cycle late and the
+ * debuggee was already gone (see `removeBreakpoint`/`armBreakpointsTwoPass`
+ * in src/debug/session.ts, which now notify the attached debuggee
+ * immediately, so this shape should no longer occur that way). Matched
+ * case-insensitively after trimming, same as `translateDebugError`'s hint
+ * for the same text (src/debug/transport.ts) — this only ADDS an
+ * explanation after the server's own text, never replaces it.
+ */
+function explainOpaqueDeathDetail(detail: string): string {
+  if (detail.trim().toLowerCase() !== ADT_REST_DATA_INVALID_TEXT.toLowerCase()) return detail;
+  return (
+    `${detail} — this is cx_adt_rest_data_invalid's default text, raised by SAP's ADT REST layer ` +
+    "when it cannot convert the payload of the debugger request in flight; it is not a complaint " +
+    "about a value passed to this tool, and the server gives no further detail. Reported by a " +
+    "live verification run on 2026-09-15 right after breakpoints were changed under a suspended " +
+    "debuggee, at a point where that change reached the debuggee one stop-cycle late and the " +
+    "debuggee was already gone; breakpoint changes now notify the attached debuggee immediately, " +
+    "so this shape should no longer occur that way. In practice: the debug session is no longer " +
+    "there to step — start a new one."
+  );
+}
+
 /** Compose the response for a session that has died (debuggee finished, whether via signal A or signal B). Always a SUCCESSFUL response — the debuggee finishing is a normal outcome, not a tool failure. */
 async function composeDeathOutput(
   run: CurrentRun,
   action: string,
   maxChars: number,
   cause?: unknown,
+  extraNotes: readonly string[] = [],
 ): Promise<BuiltResponse> {
   // Bounded like `stop`: the session is already dead and its lane is
   // cleared right after this, so a trigger that never returns must not wedge
@@ -1176,6 +1324,15 @@ async function composeDeathOutput(
   };
   // Last chance to release the trigger connection before the lane is dropped.
   run.closeTriggerConn();
+  // Last chance to release the session connection too — this path (the
+  // debuggee finishing on its own during a `step`/`continue`, not a caller
+  // `stop`) previously released NEITHER connection at all: `handleStep` just
+  // read the death and cleared the lane. A real bug, not just plumbing —
+  // the session connection kept its stateful ADT session forever, and every
+  // later `start` in this process inherited the "Debuggee already attached"
+  // failure `dropDebugSessionOnConnection` documents, even though the
+  // session that caused it had died cleanly on its own.
+  await run.closeSessionConn();
   const snapshot = run.session.snapshot;
   // `deathDetail` and `terminationResult.detail` are always the SAME string
   // (both set from `doTerminate()`'s one `detail` param) — suppress the same
@@ -1183,7 +1340,10 @@ async function composeDeathOutput(
   // or it prints twice.
   const showDeathDetail = !isGenericFallbackEvidence(snapshot.terminationResult);
   const notes = [
-    showDeathDetail ? snapshot.deathDetail : undefined,
+    ...extraNotes,
+    showDeathDetail && snapshot.deathDetail !== undefined
+      ? explainOpaqueDeathDetail(snapshot.deathDetail)
+      : undefined,
     snapshot.deathDetail === undefined && cause instanceof Error ? cause.message : undefined,
     ...renderTerminationEvidence(snapshot.terminationResult),
   ].filter((n): n is string => Boolean(n));
@@ -1214,6 +1374,54 @@ async function composeDeathOutput(
     sections: [outputSection],
     notes,
     maxChars: clampMaxChars(maxChars),
+  });
+}
+
+/**
+ * Issue #89 (live, 2026-09-15, A4H appliance): a `statement:"RAISE"` breakpoint
+ * suspended in SAP gateway/framework code long before the caller's own $TMP
+ * probe class ever ran. This is inherent, not a fluke — SAP's own XSLT
+ * `TPDA_ADT_BREAKPOINTS_REQUEST` emits ONLY the `statement` attribute for a
+ * statement breakpoint (same for exception/message breakpoints — see the
+ * "names no object" comments on those breakpoint kinds above); there is no
+ * program/include restriction on the wire at all, so the breakpoint fires in
+ * the FIRST code that executes that statement anywhere in the work process.
+ * `handleStart` auto-continues past a stop whose stack does not mention the
+ * run object, bounded by this constant so a statement that keeps firing in
+ * framework code on every single step (plausible — RAISE-shaped statements
+ * are common in kernel dispatch code) can never spin `start` forever.
+ */
+const MAX_FRAMEWORK_AUTO_CONTINUES = 10;
+
+/**
+ * Does any frame in `stack` plausibly belong to `objectName` (already
+ * `parseObjectRef(...).name.toUpperCase()`)? Used to decide whether a stop
+ * is the caller's own breakpoint or a framework stop to auto-continue past
+ * (see `MAX_FRAMEWORK_AUTO_CONTINUES`'s doc comment for why this exists).
+ *
+ * Matches generously and in only ONE direction of error: a class pool's
+ * program/include names carry generated suffixes (`ZCL_FOO===============CP`,
+ * its include `ZCL_FOO===============CM001`), so names are normalized with
+ * `.replace(/=+/g, "")` and matched with `startsWith` rather than exact
+ * equality; a frame is also accepted via its source `uri` containing
+ * `/objectname/` (lowercased), since some frames carry no resolvable
+ * program/include name at all. Both checks can OVER-match — a prefix match
+ * can hit a similarly named but different object (`ZFOO_BAR` matching a
+ * query for `ZFOO`), and a `uri` substring match is even looser. That is the
+ * SAFE direction of error here: over-matching only ever means "treat this
+ * stop as the caller's own and stop auto-continuing" — the worst case is
+ * this function does nothing (the caller gets the stop `start` would have
+ * produced with no auto-continue at all), never that it silently skips a
+ * stop the caller actually wanted.
+ */
+function stackTouchesObject(stack: DebugStack, objectName: string): boolean {
+  const normalize = (n: string): string => n.toUpperCase().replace(/=+/g, "");
+  const uriNeedle = `/${objectName.toLowerCase()}/`;
+  return stack.frames.some((frame) => {
+    if (normalize(frame.programName).startsWith(objectName)) return true;
+    if (normalize(frame.includeName).startsWith(objectName)) return true;
+    if (frame.uri && frame.uri.toLowerCase().includes(uriNeedle)) return true;
+    return false;
   });
 }
 
@@ -1315,12 +1523,23 @@ async function handleStart(
   const laneLimit = deps.debugLaneCount ?? 1;
   let targetLane: number;
   if (laneLimit === 1) {
-    // HARD REQUIREMENT: with the shipped default (ABAP_DEBUG_SESSIONS
-    // unset, laneLimit 1), this whole branch must stay byte-identical to
-    // the pre-B2 single-session refusal — verbatim below, only reading
-    // `debugLanes[0]` where it used to read the bare module-level
-    // `currentRun` (the same thing, since lane 0 IS `currentRun` at this
-    // limit). Reads `listActiveDebugSessions()` — the same registry
+    // WITHDRAWN HARD REQUIREMENT, busy case only: this branch used to carry
+    // a HARD REQUIREMENT that it stay byte-identical to the pre-B2
+    // single-session refusal, for BOTH the "busy" (tracked) and "leaked"
+    // (untracked) sub-cases below. Issue #89: a live verification run found
+    // that requirement produced an inconsistency — the identical condition
+    // ("this process has no free debug lane right now") threw `UNSUPPORTED`
+    // here at laneLimit 1, but `DEBUG_ALL_LEASES_BUSY` in the laneLimit > 1
+    // branch below, purely as a function of a config value the caller has no
+    // way to see from the error alone. The requirement is now withdrawn for
+    // the busy case: the old `UNSUPPORTED` ("one session per process") shape
+    // is REPLACED by `DEBUG_ALL_LEASES_BUSY` so both lane counts report the
+    // same code for the same condition. The leaked-session refusal further
+    // below is a DIFFERENT condition — nothing is legitimately busy, an
+    // earlier failed start left debris that needs clearing — and it keeps
+    // throwing `UNSUPPORTED`, unchanged, and must stay that way.
+    //
+    // Reads `listActiveDebugSessions()` — the same registry
     // `handleStop`/`handleStatus` consult (see `clearLeakedSessions`) —
     // never `debugLanes[0]` alone. `debugLanes[0]` only exists after a FULL
     // success; a `start` that constructs a `DebugSession` and then fails
@@ -1332,16 +1551,26 @@ async function handleStart(
     if (live.length > 0) {
       const status = live[0]!.snapshot.status;
       const tracked = debugLanes[0] !== undefined && live.includes(debugLanes[0].session);
+      if (tracked) {
+        throw new AbapError(
+          "DEBUG_ALL_LEASES_BUSY",
+          `This process is configured for a single debug session (laneLimit 1) and it is ` +
+            `already "${status}" — stop it first: abap_debug({action:"stop"}). Raise ` +
+            "ABAP_DEBUG_SESSIONS to run more than one at a time — itself capped at " +
+            "floor(ABAP_DEBUG_DIA_BUDGET / 2), since each concurrent debug session pins 2 dialog " +
+            "work processes on the SAP appliance (see debugDiaBudget/debugSessions in src/config.ts).",
+          { laneLimit, status },
+          undefined,
+          { retryable: true }, // transient occupancy, not an unimplemented capability — a stop clears it
+        );
+      }
       throw new AbapError(
         "UNSUPPORTED",
-        tracked
-          ? `A debug session is already "${status}" (one session per process) — ` +
-            "stop it first: abap_debug({action:\"stop\"})."
-          : `A debug session from an earlier, unsuccessful start attempt is still registered ` +
-            `(status "${status}") even though it never became this process's active session ` +
-            "(one session per process) — clear it first: abap_debug({action:\"stop\"}); if that " +
-            "reports the cleanup is still running, retry, or use " +
-            "abap_debug({action:\"stop\", force:true}) to force it out of tracking.",
+        `A debug session from an earlier, unsuccessful start attempt is still registered ` +
+          `(status "${status}") even though it never became this process's active session ` +
+          "(one session per process) — clear it first: abap_debug({action:\"stop\"}); if that " +
+          "reports the cleanup is still running, retry, or use " +
+          "abap_debug({action:\"stop\", force:true}) to force it out of tracking.",
         { status, tracked },
         undefined,
         { retryable: true }, // transient occupancy, not an unimplemented capability — a stop clears it
@@ -1381,14 +1610,19 @@ async function handleStart(
       // All of THIS process's own configured lanes are busy — see
       // src/adt/errors.ts's `DEBUG_ALL_LEASES_BUSY` doc comment for how
       // this differs from `DEBUG_SESSION_LOCKED_CROSS_PROCESS` and from
-      // SAP's own 409/conflictDetected.
+      // SAP's own 409/conflictDetected. `status` names one representative
+      // busy lane (lane 0's) status — the same detail key the laneLimit-1
+      // branch above attaches for its one busy session, so both
+      // `DEBUG_ALL_LEASES_BUSY` shapes carry `{ laneLimit, status }` and are
+      // machine-comparable regardless of which branch fired (issue #89).
+      const status = activeLaneRuns()[0]!.session.snapshot.status;
       throw new AbapError(
         "DEBUG_ALL_LEASES_BUSY",
-        `All ${laneLimit} configured debug lanes are already busy in this process. Raise ` +
-          "ABAP_DEBUG_SESSIONS to configure more — itself capped at " +
+        `All ${laneLimit} configured debug lanes are already busy in this process (e.g. status ` +
+          `"${status}"). Raise ABAP_DEBUG_SESSIONS to configure more — itself capped at ` +
           "floor(ABAP_DEBUG_DIA_BUDGET / 2), since each concurrent debug session pins 2 dialog " +
           "work processes on the SAP appliance (see debugDiaBudget/debugSessions in src/config.ts).",
-        { laneLimit },
+        { laneLimit, status },
         'Stop an existing session first: abap_debug({action:"stop"}).',
         { retryable: true },
       );
@@ -1435,16 +1669,41 @@ async function handleStart(
 
   // Reserve BEFORE the debug client is built, AFTER all input validation
   // above — a BAD_INPUT never takes a lease, and a refusal surfaces with
-  // nothing armed. Build on the LEASED slot's connection, never the caller's:
-  // the long poll reads its cookies/CSRF from that connection. Coincide at
-  // the shipped maxSessions:1; not above it.
+  // nothing armed. This lease is STILL the DIA-budget accounting for the work
+  // process the debug session pins (handed to `createSession` as
+  // `sessionLease` below, released exactly once by `DebugSession.doTerminate`) —
+  // issue #89 does not change that. What it changes is which CONNECTION the
+  // debugger actually talks on: that is now a separate, dedicated one (see
+  // `sessionConn` below), not the leased slot's connection.
   const slot = await deps.reserveDebugSession?.("debugger/listeners");
+  // A dedicated connection for this session's whole life — issue #89. Nothing
+  // else ever shares its stateful ADT session, so no later `start` in this
+  // process can inherit a "Debuggee already attached" failure from it. Minted
+  // AFTER the slot so a failure here still has a slot to release; released
+  // BEFORE rethrowing, since nothing else will ever exist to release it.
+  let dedicatedConn: AbapConnection | undefined;
+  if (deps.createDebugSessionConnection) {
+    try {
+      dedicatedConn = await deps.createDebugSessionConnection();
+    } catch (e) {
+      slot?.release(); // nothing else will ever release it — no session exists yet
+      throw e;
+    }
+  }
   // Captured once, ahead of `createSession`, so both the success path
   // (stored on `CurrentRun` for a later `stop` to drop) and this function's
   // own failure-cleanup path below share the exact connection the session's
   // `DebugClient` was actually wired to — see `sessionConn`'s doc comment on
-  // `CurrentRun`.
-  const sessionConn = slot?.conn ?? conn;
+  // `CurrentRun`. Falls back to the leased slot's connection, then the
+  // caller's own, only when `deps.createDebugSessionConnection` is absent —
+  // the historical, still-tested (M14) behaviour.
+  const sessionConn = dedicatedConn ?? slot?.conn ?? conn;
+  const closeSessionConn = makeSessionConnCloser(
+    sessionConn,
+    deps.log,
+    dedicatedConn !== undefined,
+    "session end",
+  );
   let session: DebugSession;
   try {
     session = deps.createSession(sessionConn, gate, {
@@ -1453,8 +1712,10 @@ async function handleStart(
       lane: targetLane,
     });
   } catch (e) {
-    // The session never existed, so nothing else will ever release this.
+    // The session never existed, so nothing else will ever release the slot
+    // — and, if minted, the dedicated connection this session never got to use.
     slot?.release();
+    void closeSessionConn();
     throw e;
   }
 
@@ -1651,10 +1912,14 @@ async function handleStart(
       cleanupWaitMs,
     );
     // A failed start still attached (or attempted to attach) on `sessionConn`
-    // — drop it here too, or the NEXT `start` on this same connection inherits
-    // the live "Debuggee already attached" defect `dropDebugSessionOnConnection`
-    // documents, exactly as if this had been a clean `stop`.
-    await dropDebugSessionOnConnection(sessionConn, deps.log, "a failed start");
+    // — release it here too, or the NEXT `start` inherits the live "Debuggee
+    // already attached" defect `dropDebugSessionOnConnection` documents,
+    // exactly as if this had been a clean `stop`. On the (default, issue #89)
+    // dedicated-connection path this discards `sessionConn` outright — there
+    // is no "next start on this connection" to protect, since nothing else
+    // will ever use it. On the fallback shared-connection path it drops just
+    // the stateful ADT session, same as before.
+    await closeSessionConn();
 
     // `currentRun` is only assigned on success, so on a failed start
     // `triggerSettled` would otherwise be discarded — surface it in the
@@ -1698,6 +1963,7 @@ async function handleStart(
   const run: CurrentRun = {
     session,
     sessionConn,
+    closeSessionConn,
     triggerConn: triggerConn!,
     triggerSettled: triggerSettled!,
     closeTriggerConn,
@@ -1706,6 +1972,78 @@ async function handleStart(
     lane: targetLane,
   };
   debugLanes[targetLane] = run;
+
+  // Issue #89: auto-continue past framework stops that have nothing to do
+  // with the object this session was started against — see
+  // `MAX_FRAMEWORK_AUTO_CONTINUES`'s doc comment for the live evidence and
+  // `stackTouchesObject`'s for the (deliberately generous, conservatively
+  // one-directional) match rule.
+  const runObjectName = parseObjectRef(input.run.object).name.toUpperCase();
+  const skippedFrameworkStops: string[] = [];
+  const describeTopFrame = (stack: DebugStack): string => {
+    const frame = stack.frames[0];
+    if (!frame) return "<no frame reported>";
+    const eventBits = [frame.eventType, frame.eventName].filter((s) => s).join(" ");
+    return `${frame.programName}/${frame.includeName}:${frame.line}${eventBits ? ` (${eventBits})` : ""}`;
+  };
+  while (
+    skippedFrameworkStops.length < MAX_FRAMEWORK_AUTO_CONTINUES &&
+    !stackTouchesObject(attachedStack, runObjectName)
+  ) {
+    skippedFrameworkStops.push(describeTopFrame(attachedStack));
+    let result: Awaited<ReturnType<DebugSession["step"]>>;
+    try {
+      result = await run.session.step(attachedStateId, "stepContinue");
+    } catch (e) {
+      if (run.session.snapshot.status === "dead") {
+        skipCountWarnings.push(
+          `Auto-continued past ${skippedFrameworkStops.length} stop(s) outside ${runObjectName} before the ` +
+            `debuggee died: ${skippedFrameworkStops.join("; ")}. A statement/exception/message breakpoint has ` +
+            "no program/include restriction on the wire in ADT, so it fires in the first code that hits it " +
+            `anywhere in the work process (see MAX_FRAMEWORK_AUTO_CONTINUES's doc comment, src/tools/debug.ts).`,
+        );
+        const out = await composeDeathOutput(run, "start", maxChars, e, skipCountWarnings);
+        debugLanes[run.lane] = undefined;
+        return out;
+      }
+      throw e;
+    }
+    if (run.session.snapshot.status === "dead") {
+      skipCountWarnings.push(
+        `Auto-continued past ${skippedFrameworkStops.length} stop(s) outside ${runObjectName} before the ` +
+          `debuggee died: ${skippedFrameworkStops.join("; ")}. A statement/exception/message breakpoint has no ` +
+          "program/include restriction on the wire in ADT, so it fires in the first code that hits it anywhere " +
+          `in the work process (see MAX_FRAMEWORK_AUTO_CONTINUES's doc comment, src/tools/debug.ts).`,
+      );
+      const out = await composeDeathOutput(run, "start", maxChars, undefined, skipCountWarnings);
+      debugLanes[run.lane] = undefined;
+      return out;
+    }
+    attachedStack = result.stack;
+    attachedStateId = result.stateId;
+    run.lastStack = result.stack;
+  }
+
+  if (skippedFrameworkStops.length > 0) {
+    if (stackTouchesObject(attachedStack, runObjectName)) {
+      skipCountWarnings.push(
+        `Auto-continued past ${skippedFrameworkStops.length} stop(s) whose stack did not mention ` +
+          `${runObjectName} before reaching this one: ${skippedFrameworkStops.join("; ")}. A statement/` +
+          "exception/message breakpoint has no program/include restriction on the wire in ADT — it fires in " +
+          "the first code that hits it anywhere in the work process, which is very often SAP's own " +
+          "gateway/framework code running long before the caller's own object gets a chance to run (see " +
+          "MAX_FRAMEWORK_AUTO_CONTINUES's doc comment, src/tools/debug.ts).",
+      );
+    } else {
+      skipCountWarnings.push(
+        `Auto-continue stopped after reaching MAX_FRAMEWORK_AUTO_CONTINUES (${MAX_FRAMEWORK_AUTO_CONTINUES}) ` +
+          `without a stack mentioning ${runObjectName}: ${skippedFrameworkStops.join("; ")}. The session is ` +
+          `suspended in code outside ${runObjectName} — keep issuing ` +
+          'abap_debug({action:"step", step:"continue"}) to move past it, or inspect the current stop as-is.',
+      );
+    }
+  }
+
   return await composeStopOutput(run, "start", attachedStack, attachedStateId, maxChars, skipCountWarnings);
 }
 
@@ -2558,9 +2896,13 @@ async function handleStop(
     run.closeTriggerConn();
     // Runs on every branch above, including a terminate() that threw or
     // timed out — see `dropDebugSessionOnConnection`'s doc comment for the
-    // live evidence this fixes. `run.sessionConn`, not the `conn` this call
-    // was handed: they can be different objects (see `CurrentRun.sessionConn`).
-    await dropDebugSessionOnConnection(run.sessionConn, deps.log, "stop");
+    // live evidence this fixes. `run.closeSessionConn()`, not a call keyed
+    // off `conn` (the argument this call was handed): `run.sessionConn` can
+    // be a different object entirely (see `CurrentRun.sessionConn`'s doc
+    // comment) — a dedicated connection this session owns outright and
+    // discards here, or the fallback shared connection, whose stateful ADT
+    // session alone gets dropped.
+    await run.closeSessionConn();
     debugLanes[run.lane] = undefined;
   }
 }

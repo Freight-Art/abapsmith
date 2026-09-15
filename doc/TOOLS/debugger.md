@@ -54,6 +54,49 @@ not an enum in this schema: `GET /sap/bc/adt/debugger/breakpoints/statements`
 answers roughly 27 KB of rows, so a bad keyword is not caught client-side —
 SAP validates it, and refuses it, when the breakpoint is armed.
 
+A statement breakpoint has **no** program/include restriction on the ADT
+wire: SAP's request XSLT `TPDA_ADT_BREAKPOINTS_REQUEST` emits only the
+`statement` attribute for `KIND=1`, so there is nothing to scope it to an
+object with. It therefore fires in the first code anywhere in the system
+that executes that statement under this SAP user — very often SAP
+framework code, and sometimes an entirely different session's debuggee,
+before your own object runs at all. Live examples caught this way while
+trying to break on a statement inside a probe class:
+`/IWFND/CL_MGW_DEST_FINDER=>RAISE_LOG_EXCEPTION:1200`,
+`CL_OO_CLIF_SOURCE=>IF_OO_CLIF_PERSISTENCE_SOURCE~READ_REPORT`, and
+`CL_WB_REGISTRY=>IF_WB_OBJTYPE_PROVIDER~GET_OBJTYPE_ACCESS`.
+
+Because of that, `start` now auto-continues past framework stops: when
+the first stop's call stack does not touch the object named in `run`,
+`start` issues `stepContinue` and waits for the next stop, up to 10 times
+(`MAX_FRAMEWORK_AUTO_CONTINUES` in `src/tools/debug.ts`), and returns the
+first stop whose stack does touch the run's object. The skipped stops
+are listed in a `NOTE:` on the response, so nothing is hidden. If the
+bound is reached, or the foreign debuggee ends while being continued,
+`start` returns what it has with a note saying so.
+
+The statement catalogue (`GET /sap/bc/adt/debugger/breakpoints/statements`,
+418 rows on A4H) lists statement variants as separate entries: `RAISE`,
+`RAISE EXCEPTION`, `RAISE EXCEPTION TYPE`, `RAISE EXCEPTION RESUMABLE`,
+`RAISE EVENT`, `RAISE SHORTDUMP`, and `RAISE SYSTEM-EXCEPTION` are seven
+different catalogue entries, and `statement: "RAISE"` does not match a
+`RAISE EXCEPTION TYPE cx_….` in the source. Pick the exact catalogue
+entry for the statement you want; an entry that is legal but never
+executed is armed successfully and simply never fires.
+
+Practical advice: when you need to be sure you land in your own code,
+pair the statement breakpoint with a line or exception breakpoint inside
+the target object in the same `start`, then `step: "continue"`.
+Live-verified 2026-09-15: a `start` on `ZCL_I89_PROBE3` arming both a
+line breakpoint on line 24 and `statement: "RAISE EXCEPTION TYPE"`
+suspended at line 24 in `ZCL_I89_PROBE3================CM002`
+(`METHOD WORK`), and one `continue` then stopped at line 29 — the
+`RAISE EXCEPTION TYPE cx_sy_move_cast_error.` statement — still inside
+`ZCL_I89_PROBE3`. Arming the same statement breakpoint alone, on the
+other hand, was consumed by three framework stops that `start`
+auto-continued past, and that framework debuggee ended before the
+probe's own session was caught.
+
 A message breakpoint (`kind: "message"`): `msgId` (string, required —
 message class, e.g. `00`), `msgNo` (string, required — message number, e.g.
 `"008"`; a string rather than a number because a leading zero is
@@ -177,6 +220,11 @@ live: `test/cassettes/debugger/watchpoint-get-unknown-id-404.cassette.json`).
 }
 ```
 
+Verified live 2026-09-15: a watchpoint on `LV_TOTAL` with
+`condition: "LV_TOTAL > 3"` did not report the writes that moved the
+variable 0→1 and 1→3, and reported the hit at 3→6 — so the condition,
+not merely the write, gated the stop.
+
 ### `action="stop"` — cleanup timing and forced clearing
 
 Exception, statement, and message breakpoints are armed against the **SAP
@@ -202,19 +250,41 @@ armed. When that happens on an active session's `stop`, calling
 attached at this server's identity, on top of the ordinary cleanup — use it
 to recover before starting a new session against the same target.
 
-### Connection hygiene: the stateful ADT session is dropped after every debug session
+### Connection hygiene: a dedicated connection per debug session
 
-SAP binds a debuggee's ATTACH to the connection's stateful ADT session (the
-`sap-contextid`), not just to the debugger identity (`terminalId`/`ideId`).
-Live-verified 2026-09-15 against A4H: inside one abapsmith process, the FIRST
-`start`→`stop` cycle works, and every later `start` on the SAME connection
-then fails with HTTP 500 "Debuggee already attached", even though a fresh
-connection at the identical identity reports `terminateDebuggee` → 404
-`noSessionAttached` and an empty 8-second listener poll — proof the server
-side is already clean. To avoid this, the connection's stateful ADT session
-is dropped after every debug session ends (a clean `stop`, a force-cleared
-one, or a failed `start`'s own cleanup), so the next `start` always attaches
-under a fresh ABAP session.
+SAP binds a debuggee's ATTACH to the connection's stateful ADT session
+(the `sap-contextid`), not just to the debugger identity
+(`terminalId`/`ideId`). Inside one abapsmith process the first
+`start`→`stop` cycle worked and every later `start` that reused the same
+connection failed with HTTP 500 "Debuggee already attached, and it does
+not belong to this session", even though a fresh connection at the
+identical identity reported `terminateDebuggee` → 404 `noSessionAttached`
+and an empty listener poll — so the server side was already clean.
+
+The fix now in place: a debug session gets its **own** `AbapConnection`,
+minted from the same configuration and credentials via
+`pool.createUnpooledConnection("debug-session")` and owned for the life
+of that debug session. It is not a pooled slot, so no other tool ever
+shares its `sap-contextid` and no pooled lock guard applies to it. At the
+end of the session — a clean `stop`, a force-cleared one, or a failed
+`start`'s own cleanup — the connection is dropped and discarded, and the
+next `start` mints a fresh one.
+
+What was actually observed: live on 2026-09-15, six consecutive
+`start`→`stop` cycles inside a single abapsmith server process against
+`ZCL_I89_PROBE3`, mixing exception breakpoints (`CX_SY_ZERODIVIDE`,
+`CX_SY_MOVE_CAST_ERROR`), message breakpoints (`00`/`001`/`S`) and line
+breakpoints (lines 25 and 39). Every `start` reported `suspended` with
+the stack inside `ZCL_I89_PROBE3`; every `stop` reported `dead` /
+`terminated_by_caller` in 303-603 ms; no `force: true` was used on any
+of them; "Debuggee already attached" did not occur once; and `status`
+was `idle` before the first cycle and after the last.
+
+One honest limit: this was measured on A4H with `ABAP_DEBUG_SESSIONS=1`
+and a single SAP user. It is evidence that the dedicated connection
+removes the repeat-`start` failure on that path, not a proof that no
+other route to a stranded debuggee exists — `stop`'s `force: true`
+recovery described above still stands.
 
 ### `ABAP_DEBUG_SESSIONS`
 
@@ -228,13 +298,26 @@ behaviour, so leaving this setting unset changes nothing.
 
 Raising it only raises this **client's own local cap**. Once every
 configured lane in this process is already held by a lease, a further
-`start` is refused locally as `DEBUG_ALL_LEASES_BUSY`. But SAP itself still
-allows only **one active debug listener per SAP user** on a system: a second
-`POST /sap/bc/adt/debugger/listeners` for the same user is refused with
-`409`/`conflictDetected` (T100 `SY 530`, "Another session already exists
-with global debugging scope for user X") **even when the second request
-carries a different `terminalId`** from the holder's — SAP's exclusivity at
-this scope is keyed on the SAP user, not on the terminal or IDE id (live:
+`start` is refused locally as `DEBUG_ALL_LEASES_BUSY`. This now holds at
+every lane count, including the default `ABAP_DEBUG_SESSIONS=1`: a
+`start` while this process already holds a tracked, live debug session is
+refused with `DEBUG_ALL_LEASES_BUSY` (details carry `laneLimit` and the
+busy session's `status`), and the message points at
+`abap_debug({action:"stop"})`. At `laneLimit` 1 this replaced an older
+`UNSUPPORTED` error shape, so a caller that matched on `UNSUPPORTED` for
+the busy case must now match on `DEBUG_ALL_LEASES_BUSY`. One carve-out
+remains: `UNSUPPORTED` is still what you get when the blocking session is
+untracked/leaked (a debuggee left attached at this server's identity with
+no lease behind it), because that is not a lease-exhaustion condition and
+`stop` alone may not clear it.
+
+But SAP itself still allows only **one active debug listener per SAP
+user** on a system: a second `POST /sap/bc/adt/debugger/listeners` for
+the same user is refused with `409`/`conflictDetected` (T100 `SY 530`,
+"Another session already exists with global debugging scope for user
+X") **even when the second request carries a different `terminalId`**
+from the holder's — SAP's exclusivity at this scope is keyed on the SAP
+user, not on the terminal or IDE id (live:
 `test/cassettes/debugger/listener-conflict-409.cassette.json`). So for a
 single-`ABAP_USER` deployment, raising `ABAP_DEBUG_SESSIONS` past 1 does not
 make a second concurrent debug session possible — it only moves the refusal
@@ -276,11 +359,6 @@ Example (start):
   for symmetry with the step response, but the attach capture
   (`test/fixtures/live-captured/908-attach-i89.xml`) contains none, because
   that stop was a line breakpoint, not a watchpoint hit.
-- A *conditional* watchpoint actually gating a stop is `unverified`. A
-  condition was accepted, stored, and echoed back verbatim, but in the
-  capture run the unconditional watchpoint on the same variable fired first
-  (`test/fixtures/live-captured/944-step-continue-conditional-watchpoint.xml`),
-  so a condition was never isolated as the cause of a hit.
 - Two genuinely concurrent debug sessions is `unverified`. Never
   demonstrated on the appliance, for the per-user exclusivity reason under
   [`ABAP_DEBUG_SESSIONS`](#abap_debug_sessions) above.
