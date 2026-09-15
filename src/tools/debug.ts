@@ -5,8 +5,11 @@
  * Pure orchestration: never talks to `DebugClient` or raw HTTP directly.
  * State lives in `DebugSession` (`src/debug/session.ts`); variable rendering
  * lives in `src/debug/render.ts`. This file:
- *   - owns the one module-level "current debug session" registry (one
- *     session per process),
+ *   - owns the module-level "current debug session" registry — one slot
+ *     ("lane") per concurrent session this process is configured for
+ *     (`resolveDebugSessionLimit(cfg)`, `src/adt/pool.ts`; default 1, the
+ *     historical "one session per process" behaviour, unchanged when
+ *     `ABAP_DEBUG_SESSIONS` is unset),
  *   - drives the two-connection choreography a debug session needs (one
  *     connection arms the listener and waits; a second, independent
  *     connection fires the trigger that hits the breakpoint —
@@ -40,7 +43,7 @@ import {
   type DebugTerminationResult,
 } from "../debug/session.js";
 import { resolveDebugIdentity, warnIfDerivedIdentity } from "../debug/identity.js";
-import { createDebugArmLock } from "../debug/arm-lock.js";
+import { createDebugArmLocks } from "../debug/arm-lock.js";
 import { resolveStateDir } from "../state-dir.js";
 import type { DebugSessionLease } from "../debug/transport.js";
 import { withStartFragment } from "../debug/endpoints.js";
@@ -72,11 +75,10 @@ import type {
 } from "../debug/types.js";
 import { abapRun, type RunInput } from "./run.js";
 // B2 (issue #89): multi-lane debug sessions. `resolveDebugSessionLimit` reads
-// ABAP_DEBUG_SESSIONS/ABAP_DEBUG_DIA_BUDGET (src/adt/pool.js, owned by a
-// sibling in-flight change) to decide how many concurrent `DebugSession`s
-// this PROCESS will hold; `DebugArmLock` is one-per-lane below.
+// ABAP_DEBUG_SESSIONS/ABAP_DEBUG_DIA_BUDGET (src/adt/pool.js) to decide how
+// many concurrent `DebugSession`s this PROCESS will hold; `DebugArmLock` is
+// one-per-lane below (`createDebugArmLocks`, src/debug/arm-lock.js).
 import { resolveDebugSessionLimit } from "../adt/pool.js";
-import type { DebugArmLock } from "../debug/arm-lock.js";
 
 // ---------------------------------------------------------------------------
 // Dependency injection seam — makes this file offline-testable without a real
@@ -156,6 +158,16 @@ export interface DebugToolDeps {
   /** Optional sink for teardown diagnostics that must never become an exception. */
   log?: (msg: string) => void;
   /**
+   * How many concurrent debug lanes this process is configured for —
+   * `resolveDebugSessionLimit(cfg)` (`src/adt/pool.ts`), surfaced through
+   * `DebugToolDeps` the same way `allowJumpToLine` surfaces a cfg-derived
+   * scalar without threading `Config` itself through every handler.
+   * Optional, defaulting to `1` (see `laneLimit` below), so every existing
+   * test double/call site that never heard of lanes keeps building exactly
+   * one — byte-identical to the pre-B2 single-session behaviour.
+   */
+  debugLaneCount?: number;
+  /**
    * Reserve the pooled session this debug session will own for its whole
    * life. Always supplied by `createLiveDebugToolDeps`; optional so hand-built
    * test literals may omit it. Handed to `createSession` as `sessionLease`
@@ -170,14 +182,14 @@ export interface DebugToolDeps {
   allowJumpToLine?: boolean;
   /**
    * Best-effort release of a debug listener armed at THIS server's own
-   * deterministic (terminalId, ideId) identity with no `currentRun` in this
+   * deterministic (terminalId, ideId) identity with no tracked debug lane in this
    * process to route a `stop` through — e.g. an earlier process instance
    * armed it and exited uncleanly.
    */
   releaseOrphanListener?(conn: AbapConnection): Promise<OrphanListenerResult>;
   /**
    * Force-clear a debuggee ATTACHED (suspended) at THIS server's own
-   * identity with no `currentRun` to route a `stop` through — the
+   * identity with no tracked debug lane to route a `stop` through — the
    * debuggee-shaped counterpart to `releaseOrphanListener`. Needed because a
    * hard process crash cannot run in-process cleanup, so SAP keeps holding
    * the attachment and the next `start` fails with "Debuggee already
@@ -215,18 +227,23 @@ export function createLiveDebugToolDeps(params: {
    */
   gate: SafetyGate;
 }): DebugToolDeps {
-  // ONE instance for this process, shared by `createSession` and the
+  // One lock PER LANE for this process, shared by `createSession` and the
   // `releaseOrphanDebuggee` probe — both arm a listener at the same identity
   // and must be counted by the same lock. Built over `resolveStateDir`, like
   // `AdtSessionPool`'s `FileLockObjectGate`. `enabled`/`waitMs` come from the
-  // parsed `Config` rather than re-derived from `process.env`.
-  const armLock = createDebugArmLock({
+  // parsed `Config` rather than re-derived from `process.env`. `armLocks[0]`
+  // is byte-identical to the single lock this used to build (see
+  // `debugArmLockPath`'s lane-0 doc comment, src/debug/arm-lock.js).
+  const laneCount = resolveDebugSessionLimit(params.cfg);
+  const armLocks = createDebugArmLocks({
+    lanes: laneCount,
     stateDir: resolveStateDir(process.env),
     cfg: params.cfg,
     enabled: params.cfg.crossProcessDebugLock,
     waitMs: params.cfg.debugLockWaitMs,
   });
   return {
+    debugLaneCount: laneCount,
     createSession(conn, safety, opts) {
       // D15 — hand the gate and the debuggee down to `DebugTransport`. Not a
       // second policy source: whatever `handleStart` passes here is the very
@@ -250,7 +267,13 @@ export function createLiveDebugToolDeps(params: {
       // a debuggee started from a real SAP GUI session, which might populate
       // TERMINAL_ID and behave differently. Full experiment writeup: see
       // the git history.
-      const identity = resolveDebugIdentity(params.cfg);
+      //
+      // `opts?.lane` defaults to 0 so a call site that never heard of lanes
+      // (every existing test double, and every real call at the shipped
+      // ABAP_DEBUG_SESSIONS=1 default) gets byte-identical identity/lock
+      // selection to before lanes existed.
+      const lane = opts?.lane ?? 0;
+      const identity = resolveDebugIdentity(params.cfg, lane);
       warnIfDerivedIdentity(identity, opts?.log ?? params.log);
       const sessionOpts: DebugSessionOptions = {
         client,
@@ -262,7 +285,7 @@ export function createLiveDebugToolDeps(params: {
         },
         log: opts?.log ?? params.log,
         sessionLease: opts?.sessionLease,
-        armLock,
+        armLock: armLocks[lane]!,
       };
       return new DebugSession(sessionOpts);
     },
@@ -291,8 +314,15 @@ export function createLiveDebugToolDeps(params: {
     reserveDebugSession: (op: string) => params.pool.reserveDebug(op),
     allowJumpToLine: params.cfg.allowDebugJumpToLine,
     async releaseOrphanListener(conn) {
-      // Same deterministic identity `createSession` derives — can only find a
-      // listener THIS server's own identity would have armed.
+      // Lane 0's identity only, deliberately — an orphan here means an
+      // EARLIER PROCESS INSTANCE armed a listener and exited uncleanly, and
+      // lane 0 is the only lane every process (single- or multi-lane
+      // configured) always has. Not extended to every configured lane: SAP's
+      // own exclusivity is per SAP USER, not per (terminalId, ideId) (see
+      // src/debug/identity.ts), so a listener armed under a non-zero lane's
+      // identity is still one listener for the same user this query can
+      // reasonably be expected to see regardless of which lane's identity
+      // asks.
       const identity = resolveDebugIdentity(params.cfg);
       // Same gate every mutating debugger call goes through — omitting it
       // hits `DebugTransport.authorizeMutation`'s SAFETY_DENIED refusal on
@@ -330,6 +360,7 @@ export function createLiveDebugToolDeps(params: {
       // near-instantly, so a short window distinguishes "reconnected" from
       // "nothing here" without a full listener timeout. See archive.
       const client = createDebugClientForConnection(conn, { safety: params.gate });
+      // Lane 0 only — same reasoning as `releaseOrphanListener` above.
       const identity = resolveDebugIdentity(params.cfg);
       const probe = new DebugSession({
         client,
@@ -345,7 +376,7 @@ export function createLiveDebugToolDeps(params: {
         // The probe arms a REAL listener at this identity, so it contends for
         // the same debugger slot and must take the same lock — a no-op if
         // THIS process already holds it, a refusal if another one does.
-        armLock,
+        armLock: armLocks[0]!,
       });
       try {
         await probe.armListener();
@@ -380,7 +411,8 @@ export function createLiveDebugToolDeps(params: {
 }
 
 // ---------------------------------------------------------------------------
-// Module-level session registry — one debug session per process.
+// Module-level session registry — up to `resolveDebugSessionLimit(cfg)` lanes
+// per process (one, in the shipped default). See `debugLanes` below.
 // ---------------------------------------------------------------------------
 
 /**
@@ -415,9 +447,81 @@ interface CurrentRun {
    * against the trigger's settle handler.
    */
   closeTriggerConn: () => void;
+  /**
+   * Which slot in `debugLanes` this run occupies — see `resolveLaneRun`
+   * below for why every follow-up action needs to know.
+   */
+  lane: number;
 }
 
-let currentRun: CurrentRun | undefined;
+// One slot per configured debug lane. A plain, sparse, lazily-populated
+// array rather than something pre-sized at module load: `Config` (and so
+// `resolveDebugSessionLimit(cfg)`) is not available until a caller builds a
+// `DebugToolDeps`, well after this module's top level runs — see
+// `createLiveDebugToolDeps` above, which is the only place `cfg` reaches
+// this file at all. Index 0 is the historical, sole slot: at the shipped
+// `ABAP_DEBUG_SESSIONS` default (1), only `debugLanes[0]` is ever touched,
+// so behaviour, identity, and lock selection stay byte-identical to before
+// lanes existed.
+let debugLanes: (CurrentRun | undefined)[] = [];
+
+/** Every currently-occupied lane's run, in ascending lane order. */
+function activeLaneRuns(): CurrentRun[] {
+  return debugLanes.filter((r): r is CurrentRun => r !== undefined);
+}
+
+/**
+ * Resolve which lane's run a call should act on.
+ *
+ * - Zero lanes occupied: `undefined` — the historical "no active debug
+ *   session" case, unchanged.
+ * - Exactly one lane occupied (every real deployment, always, since SAP's
+ *   own per-SAP-USER debugger-listener exclusivity — see
+ *   `src/debug/identity.ts` — means a second lane in the SAME process only
+ *   has a chance of ever getting occupied under a DIFFERENT `ABAP_USER`):
+ *   that lane, byte-identical to the pre-B2 single-`currentRun` behaviour,
+ *   REGARDLESS of whether `stateId` matches — a stale-but-real `stateId`
+ *   still routes to the one real session, which refuses it itself with its
+ *   own existing "stateId does not match"/stale wording
+ *   (`DebugSession.validateStateId`, src/debug/session.ts). This function
+ *   never reproduces or rewords that refusal.
+ * - More than one lane occupied (only reachable with a hand-built test
+ *   double — see above): an exact match against a lane's CURRENTLY expected
+ *   `stateId` (`session.snapshot.stateId`) picks that lane; `stateId` is a
+ *   hash over each session's own unique `debugSessionId`
+ *   (`src/debug/types.ts`), so an exact match reliably names the right lane.
+ *   No match (including when the caller passed no `stateId` at all, e.g.
+ *   `keepalive`/`stop`/`status` — see below) deterministically falls back to
+ *   the LOWEST-INDEXED occupied lane, so a genuinely stale-but-real
+ *   `stateId` for some OTHER lane still reaches a real session and gets
+ *   that session's own stale-stateId refusal, rather than a new "lane not
+ *   found" error this change does not introduce.
+ *
+ * `keepalive`/`stop`/`status` carry no `stateId` in their input schema at
+ * all (`debugInputSchema` — "keepalive/stop/status need nothing") and this
+ * change does not add one — extending the schema is outside this file's
+ * scope for B2. Calling this with `stateId: undefined` for those three
+ * actions is the conservative fallback: reduces to the single active lane
+ * (i.e. always, outside contrived multi-lane tests) and picks the
+ * lowest-indexed lane deterministically in the fabricated multi-lane case.
+ */
+function resolveLaneRun(stateId: StateId | undefined): CurrentRun | undefined {
+  const active = activeLaneRuns();
+  if (active.length <= 1) return active[0];
+  if (stateId !== undefined) {
+    const exact = active.find((r) => r.session.snapshot.stateId === stateId);
+    if (exact) return exact;
+  }
+  return active[0];
+}
+
+/** Lowest-indexed lane with no run tracked, below `limit` — `undefined` if every lane 0..limit-1 is occupied. */
+function firstFreeLane(limit: number): number | undefined {
+  for (let i = 0; i < limit; i++) {
+    if (debugLanes[i] === undefined) return i;
+  }
+  return undefined;
+}
 
 // D4 — the safety gate (src/safety.ts), applied to the debugger's WRITES: arming/
 // clearing a breakpoint, every step, `keepalive`, `stop`. READS (`stack`, `status`,
@@ -451,9 +555,11 @@ function assertSessionWrite(
  * order-independent with `shutdownAllDebugSessions()`. Deliberately not gated.
  */
 export function shutdownDebugTools(): void {
-  const run = currentRun;
-  currentRun = undefined;
-  run?.closeTriggerConn();
+  const runs = debugLanes;
+  debugLanes = [];
+  for (const run of runs) {
+    run?.closeTriggerConn();
+  }
 }
 
 // Bounded waits: `triggerRun` may be blocked inside the debuggee we're tearing
@@ -929,7 +1035,7 @@ async function composeDeathOutput(
   maxChars: number,
   cause?: unknown,
 ): Promise<BuiltResponse> {
-  // Bounded like `stop`: the session is already dead and `currentRun` is
+  // Bounded like `stop`: the session is already dead and its lane is
   // cleared right after this, so a trigger that never returns must not wedge
   // the death response.
   const settled = await raceDeadline(run.triggerSettled, STOP_WAIT_MS);
@@ -937,7 +1043,7 @@ async function composeDeathOutput(
     title: "PROGRAM OUTPUT",
     content: renderTriggerOutcome(settled, STOP_WAIT_MS),
   };
-  // Last chance to release the trigger connection before `currentRun` is dropped.
+  // Last chance to release the trigger connection before the lane is dropped.
   run.closeTriggerConn();
   const snapshot = run.session.snapshot;
   // `deathDetail` and `terminationResult.detail` are always the SAME string
@@ -1072,31 +1178,101 @@ async function handleStart(
   deps: DebugToolDeps,
   gate: SafetyGate,
 ): Promise<BuiltResponse> {
-  // Reads `listActiveDebugSessions()` — the same registry `handleStop`/
-  // `handleStatus` consult (see `clearLeakedSessions`) — never `currentRun`
-  // alone. `currentRun` only exists after a FULL success; a `start` that
-  // constructs a `DebugSession` and then fails leaves it registered here with
-  // no matching `currentRun` ("leaked"). Distinguishing the two in the
-  // message matters: a leaked session's cleanup already ran once, so a plain
-  // `stop` is more likely to need a retry or `force:true`.
-  const live = listActiveDebugSessions();
-  if (live.length > 0) {
-    const status = live[0]!.snapshot.status;
-    const tracked = currentRun !== undefined && live.includes(currentRun.session);
-    throw new AbapError(
-      "UNSUPPORTED",
-      tracked
-        ? `A debug session is already "${status}" (one session per process) — ` +
-          "stop it first: abap_debug({action:\"stop\"})."
-        : `A debug session from an earlier, unsuccessful start attempt is still registered ` +
-          `(status "${status}") even though it never became this process's active session ` +
-          "(one session per process) — clear it first: abap_debug({action:\"stop\"}); if that " +
-          "reports the cleanup is still running, retry, or use " +
-          "abap_debug({action:\"stop\", force:true}) to force it out of tracking.",
-      { status, tracked },
-      undefined,
-      { retryable: true }, // transient occupancy, not an unimplemented capability — a stop clears it
-    );
+  // How many lanes this process is configured for — `DebugToolDeps` surfaces
+  // it (see its doc comment); absent (a test double that never heard of
+  // lanes) reads as 1, byte-identical to the pre-B2 single-lane behaviour.
+  const laneLimit = deps.debugLaneCount ?? 1;
+  let targetLane: number;
+  if (laneLimit === 1) {
+    // HARD REQUIREMENT: with the shipped default (ABAP_DEBUG_SESSIONS
+    // unset, laneLimit 1), this whole branch must stay byte-identical to
+    // the pre-B2 single-session refusal — verbatim below, only reading
+    // `debugLanes[0]` where it used to read the bare module-level
+    // `currentRun` (the same thing, since lane 0 IS `currentRun` at this
+    // limit). Reads `listActiveDebugSessions()` — the same registry
+    // `handleStop`/`handleStatus` consult (see `clearLeakedSessions`) —
+    // never `debugLanes[0]` alone. `debugLanes[0]` only exists after a FULL
+    // success; a `start` that constructs a `DebugSession` and then fails
+    // leaves it registered here with no matching `debugLanes[0]` ("leaked").
+    // Distinguishing the two in the message matters: a leaked session's
+    // cleanup already ran once, so a plain `stop` is more likely to need a
+    // retry or `force:true`.
+    const live = listActiveDebugSessions();
+    if (live.length > 0) {
+      const status = live[0]!.snapshot.status;
+      const tracked = debugLanes[0] !== undefined && live.includes(debugLanes[0].session);
+      throw new AbapError(
+        "UNSUPPORTED",
+        tracked
+          ? `A debug session is already "${status}" (one session per process) — ` +
+            "stop it first: abap_debug({action:\"stop\"})."
+          : `A debug session from an earlier, unsuccessful start attempt is still registered ` +
+            `(status "${status}") even though it never became this process's active session ` +
+            "(one session per process) — clear it first: abap_debug({action:\"stop\"}); if that " +
+            "reports the cleanup is still running, retry, or use " +
+            "abap_debug({action:\"stop\", force:true}) to force it out of tracking.",
+        { status, tracked },
+        undefined,
+        { retryable: true }, // transient occupancy, not an unimplemented capability — a stop clears it
+      );
+    }
+    targetLane = 0;
+  } else {
+    // Multi-lane path (laneLimit > 1) — deliberately kept SEPARATE from the
+    // limit-1 branch above rather than folded into one unified check, so
+    // the hard byte-identical requirement above can never be perturbed by
+    // logic that only exists for laneLimit > 1.
+    //
+    // A session `listActiveDebugSessions()` shows that no lane currently
+    // tracks is "leaked" — left behind by an earlier start attempt that
+    // constructed a `DebugSession` and then failed before any lane could
+    // claim it — a process-wide hazard independent of which lane would
+    // otherwise be free. Cleared the same way the limit-1 branch treats an
+    // untracked session: refuse and name `abap_debug({action:"stop"})`.
+    const tracked = new Set(activeLaneRuns().map((r) => r.session));
+    const leaked = listActiveDebugSessions().find((s) => !tracked.has(s));
+    if (leaked) {
+      const status = leaked.snapshot.status;
+      throw new AbapError(
+        "UNSUPPORTED",
+        `A debug session from an earlier, unsuccessful start attempt is still registered ` +
+          `(status "${status}") even though it is not one of this process's tracked debug ` +
+          "lanes — clear it first: abap_debug({action:\"stop\"}); if that reports the cleanup " +
+          "is still running, retry, or use abap_debug({action:\"stop\", force:true}) to force it " +
+          "out of tracking.",
+        { status, tracked: false },
+        undefined,
+        { retryable: true },
+      );
+    }
+    const free = firstFreeLane(laneLimit);
+    if (free === undefined) {
+      // All of THIS process's own configured lanes are busy — see
+      // src/adt/errors.ts's `DEBUG_ALL_LEASES_BUSY` doc comment for how
+      // this differs from `DEBUG_SESSION_LOCKED_CROSS_PROCESS` and from
+      // SAP's own 409/conflictDetected.
+      throw new AbapError(
+        "DEBUG_ALL_LEASES_BUSY",
+        `All ${laneLimit} configured debug lanes are already busy in this process. Raise ` +
+          "ABAP_DEBUG_SESSIONS to configure more — itself capped at " +
+          "floor(ABAP_DEBUG_DIA_BUDGET / 2), since each concurrent debug session pins 2 dialog " +
+          "work processes on the SAP appliance (see debugDiaBudget/debugSessions in src/config.ts).",
+        { laneLimit },
+        'Stop an existing session first: abap_debug({action:"stop"}).',
+        { retryable: true },
+      );
+    }
+    // Raising ABAP_DEBUG_SESSIONS only raises THIS CLIENT's own limit — it
+    // does not, by itself, make a second concurrent debug session work.
+    // Per the wire evidence identity.ts cites (test/cassettes/debugger/
+    // listener-conflict-409.cassette.json), SAP refuses a second
+    // global-scope debugger listener for the SAME SAP user with a
+    // 409/conflictDetected (T100 SY 530) even from a different
+    // (terminalId, ideId) identity — so a second lane only has a chance of
+    // doing anything useful when it authenticates as a DIFFERENT
+    // ABAP_USER. Not claimed as tested in this multi-lane shape; only the
+    // underlying single-listener exclusivity is evidenced.
+    targetLane = free;
   }
 
   if (!input.breakpoints || input.breakpoints.length === 0) {
@@ -1137,6 +1313,7 @@ async function handleStart(
     session = deps.createSession(slot?.conn ?? conn, gate, {
       target: sessionTarget,
       sessionLease: slot,
+      lane: targetLane,
     });
   } catch (e) {
     // The session never existed, so nothing else will ever release this.
@@ -1369,15 +1546,17 @@ async function handleStart(
 
   // Necessarily assigned here: the only way past the block above is a clean
   // run through the try, since the catch always rethrows.
-  currentRun = {
+  const run: CurrentRun = {
     session,
     triggerConn: triggerConn!,
     triggerSettled: triggerSettled!,
     closeTriggerConn,
     gateTarget,
     lastStack: attachedStack,
+    lane: targetLane,
   };
-  return await composeStopOutput(currentRun, "start", attachedStack, attachedStateId, maxChars, skipCountWarnings);
+  debugLanes[targetLane] = run;
+  return await composeStopOutput(run, "start", attachedStack, attachedStateId, maxChars, skipCountWarnings);
 }
 
 async function handleStep(
@@ -1386,7 +1565,8 @@ async function handleStep(
   gate: SafetyGate,
   deps: DebugToolDeps,
 ): Promise<BuiltResponse> {
-  if (!currentRun) {
+  const run = resolveLaneRun(input.stateId);
+  if (!run) {
     throw new AbapError(
       "BAD_INPUT",
       'No active debug session. Start one with abap_debug({action:"start", ...}).',
@@ -1398,7 +1578,6 @@ async function handleStep(
   if (!input.step) {
     throw new AbapError("BAD_INPUT", 'abap_debug({action:"step"}) requires "step".');
   }
-  const run = currentRun;
   // D4: a step resumes a suspended debuggee on the live system. Gated BEFORE
   // the request is built, against the object this session was armed on.
   assertSessionWrite(gate, run);
@@ -1455,14 +1634,14 @@ async function handleStep(
   } catch (e) {
     if (run.session.snapshot.status === "dead") {
       const out = await composeDeathOutput(run, "step", maxChars, e);
-      currentRun = undefined;
+      debugLanes[run.lane] = undefined;
       return out;
     }
     throw e;
   }
   if (run.session.snapshot.status === "dead") {
     const out = await composeDeathOutput(run, "step", maxChars);
-    currentRun = undefined;
+    debugLanes[run.lane] = undefined;
     return out;
   }
   run.lastStack = result.stack;
@@ -1518,7 +1697,8 @@ async function handleStep(
 }
 
 async function handleStack(input: DebugInput, maxChars: number): Promise<BuiltResponse> {
-  if (!currentRun) {
+  const run = resolveLaneRun(input.stateId);
+  if (!run) {
     throw new AbapError(
       "BAD_INPUT",
       'No active debug session. Start one with abap_debug({action:"start", ...}).',
@@ -1527,15 +1707,15 @@ async function handleStack(input: DebugInput, maxChars: number): Promise<BuiltRe
   if (!input.stateId) {
     throw new AbapError("BAD_INPUT", 'abap_debug({action:"stack"}) requires "stateId".');
   }
-  const stack = await currentRun.session.getStack(input.stateId);
-  currentRun.lastStack = stack;
+  const stack = await run.session.getStack(input.stateId);
+  run.lastStack = stack;
   const stackText = renderStackSection(stack, input.stateId);
   const visibleFrames = stack.frames.filter((f) => !f.systemProgram);
   const top = visibleFrames[0] ?? stack.frames[0];
   return buildResponse({
     header: {
       action: "stack",
-      status: currentRun.session.snapshot.status,
+      status: run.session.snapshot.status,
       program: top?.programName,
       include: top?.includeName,
       line: top?.line,
@@ -1556,7 +1736,8 @@ async function handleStack(input: DebugInput, maxChars: number): Promise<BuiltRe
  * stays unexposed).
  */
 async function handleFrame(input: DebugInput, maxChars: number): Promise<BuiltResponse> {
-  if (!currentRun) {
+  const run = resolveLaneRun(input.stateId);
+  if (!run) {
     throw new AbapError(
       "BAD_INPUT",
       'No active debug session. Start one with abap_debug({action:"start", ...}).',
@@ -1572,7 +1753,6 @@ async function handleFrame(input: DebugInput, maxChars: number): Promise<BuiltRe
         "to move the read cursor to.",
     );
   }
-  const run = currentRun;
   // Hoisted so the STACK section can render from a narrowed local — the
   // compiler can't follow "target implies lastStack" through the optional
   // chain plus `find`.
@@ -1620,7 +1800,11 @@ async function handleKeepalive(
   maxChars: number,
   gate: SafetyGate,
 ): Promise<BuiltResponse> {
-  if (!currentRun) {
+  // `keepalive`'s input schema carries no `stateId` — resolve conservatively
+  // (see `resolveLaneRun`'s doc comment): the sole active lane, or the
+  // lowest-indexed one if more than one lane happens to be active.
+  const run = resolveLaneRun(undefined);
+  if (!run) {
     throw new AbapError(
       "BAD_INPUT",
       'No active debug session. Start one with abap_debug({action:"start", ...}).',
@@ -1628,9 +1812,9 @@ async function handleKeepalive(
   }
   // D4: keepalive keeps a dialog work process pinned on the live system —
   // a write, and formerly the one execution-affecting action with no check.
-  assertSessionWrite(gate, currentRun);
-  currentRun.session.keepalive();
-  const snapshot = currentRun.session.snapshot;
+  assertSessionWrite(gate, run);
+  run.session.keepalive();
+  const snapshot = run.session.snapshot;
   return buildResponse({
     header: {
       action: "keepalive",
@@ -1736,13 +1920,13 @@ async function handleBreakpoints(
   deps: DebugToolDeps,
   gate: SafetyGate,
 ): Promise<BuiltResponse> {
-  if (!currentRun) {
+  const run = resolveLaneRun(input.stateId);
+  if (!run) {
     throw new AbapError(
       "BAD_INPUT",
       'No active debug session. Start one with abap_debug({action:"start", ...}).',
     );
   }
-  const run = currentRun;
   const op = input.op ?? "list";
   if (!input.stateId) {
     throw new AbapError(
@@ -1873,13 +2057,13 @@ function renderWatchValue(raw: string): string {
  * which stop this call addresses).
  */
 async function handleWatch(input: DebugInput, maxChars: number, gate: SafetyGate): Promise<BuiltResponse> {
-  if (!currentRun) {
+  const run = resolveLaneRun(input.stateId);
+  if (!run) {
     throw new AbapError(
       "BAD_INPUT",
       'No active debug session. Start one with abap_debug({action:"start", ...}).',
     );
   }
-  const run = currentRun;
   const op = input.op ?? (input.variable !== undefined ? "add" : "list");
   if (!input.stateId) {
     throw new AbapError(
@@ -1968,7 +2152,7 @@ async function handleWatch(input: DebugInput, maxChars: number, gate: SafetyGate
   });
 }
 
-/** Result of a `clearLeakedSessions` pass: `found` = sessions `listActiveDebugSessions()` showed that `currentRun` did not track; `notes` describes what happened to each. */
+/** Result of a `clearLeakedSessions` pass: `found` = sessions `listActiveDebugSessions()` showed that no tracked lane (`debugLanes`) accounted for; `notes` describes what happened to each. */
 interface LeakedSessionClearResult {
   found: number;
   notes: string[];
@@ -1977,17 +2161,17 @@ interface LeakedSessionClearResult {
 /**
  * Single source of truth for "is there a debug session this process is still
  * responsible for": `listActiveDebugSessions()` — the same registry
- * `handleStart`'s guard reads. `currentRun` is NOT an independent answer —
- * it's auxiliary bookkeeping that only exists after full success. A `start`
- * that constructs a session and then fails leaves it in `activeSessions`
- * with no `currentRun`, which used to make `stop`/`status` blind to it
- * (both dispatched on `currentRun` alone) — a process-lifetime deadlock,
- * since the guard refused every subsequent `start` forever with nothing able
- * to clear it.
+ * `handleStart`'s guard reads. The tracked lanes (`debugLanes`) are NOT an
+ * independent answer — they're auxiliary bookkeeping that only exists after
+ * full success. A `start` that constructs a session and then fails leaves it
+ * in `activeSessions` with no matching tracked lane, which used to make
+ * `stop`/`status` blind to it (both dispatched on the tracked lanes alone) —
+ * a process-lifetime deadlock, since the guard refused every subsequent
+ * `start` forever with nothing able to clear it.
  *
  * This closes that gap: drives EVERY session the registry shows towards
- * `terminate()`, bounded like the `currentRun`-tracked path. Loops
- * defensively even though at most one such session is expected.
+ * `terminate()`, bounded like the lane-tracked path. Loops defensively even
+ * though at most one such session is expected per lane.
  *
  * `force` additionally force-drops (`forceDropDebugSession`) any session
  * whose bounded `terminate()` wait didn't return — last-resort for
@@ -1995,7 +2179,8 @@ interface LeakedSessionClearResult {
  * left tracked, same "continues in the background" contract as elsewhere.
  */
 async function clearLeakedSessions(force: boolean): Promise<LeakedSessionClearResult> {
-  const leaked = listActiveDebugSessions().filter((s) => s !== currentRun?.session);
+  const tracked = new Set(activeLaneRuns().map((r) => r.session));
+  const leaked = listActiveDebugSessions().filter((s) => !tracked.has(s));
   if (leaked.length === 0) return { found: 0, notes: [] };
   const notes: string[] = [];
   await Promise.all(
@@ -2046,10 +2231,11 @@ async function handleStop(
   gate: SafetyGate,
   force = false,
 ): Promise<BuiltResponse> {
-  if (!currentRun) {
-    // `currentRun` unset does NOT mean `listActiveDebugSessions()` is empty —
+  const run = resolveLaneRun(undefined);
+  if (!run) {
+    // No active lane does NOT mean `listActiveDebugSessions()` is empty —
     // a `start` that constructed a session and then failed leaves it
-    // registered with no `currentRun`. Reach for it unconditionally, before
+    // registered with no tracked lane. Reach for it unconditionally, before
     // the orphan checks below (those cover a DIFFERENT gap: a listener/
     // debuggee left by an EARLIER PROCESS INSTANCE, with no live session
     // object at all). See `clearLeakedSessions`.
@@ -2122,7 +2308,6 @@ async function handleStop(
       maxChars: clampMaxChars(maxChars),
     });
   }
-  const run = currentRun;
   // D4: terminating a debuggee issues `terminateDebuggee` against the live
   // system. In practice this only refuses if the gate was tightened AFTER
   // `start` — and even then the work process isn't stranded, since
@@ -2130,7 +2315,7 @@ async function handleStop(
   assertSessionWrite(gate, run);
   const notes: string[] = [];
   // Both waits are bounded (an unreturned trigger used to hang `stop`
-  // forever and leave `currentRun` set); dropping the session has
+  // forever and leave the lane occupied); dropping the session has
   // finally-block semantics regardless of how they resolve.
   try {
     const terminated = await raceDeadline(
@@ -2169,12 +2354,13 @@ async function handleStop(
     // Unconditional: the run is over either way, so the trigger connection is
     // released and the registry cleared even if composing the response threw.
     run.closeTriggerConn();
-    currentRun = undefined;
+    debugLanes[run.lane] = undefined;
   }
 }
 
 async function handleStatus(maxChars: number): Promise<BuiltResponse> {
-  if (!currentRun) {
+  const run = resolveLaneRun(undefined);
+  if (!run) {
     // Same registry `handleStart`'s guard reads — report what's REALLY there
     // instead of a blanket "idle" that would mask a leaked session `start` is
     // refusing on and `stop` can already clear. A caller told "idle" here
@@ -2204,7 +2390,7 @@ async function handleStatus(maxChars: number): Promise<BuiltResponse> {
       maxChars: clampMaxChars(maxChars),
     });
   }
-  const snapshot = currentRun.session.snapshot;
+  const snapshot = run.session.snapshot;
   const notes: string[] = [];
   if (snapshot.status === "dead") {
     notes.push('Session is dead — check PROGRAM OUTPUT via a step/stop response for the captured trigger output.');
@@ -2278,13 +2464,14 @@ const SCOPE_ID_BY_NAME: Record<"locals" | "parameters" | "globals", string> = {
 };
 
 export async function abapDebugVars(input: DebugVarsInput, maxChars: number): Promise<BuiltResponse> {
-  if (!currentRun) {
+  const run = resolveLaneRun(input.stateId);
+  if (!run) {
     throw new AbapError("BAD_INPUT", "No active debug session.");
   }
   if (!input.stateId) {
     throw new AbapError("BAD_INPUT", 'abap_debug_vars requires "stateId".');
   }
-  const root = await currentRun.session.getRootVariables(input.stateId);
+  const root = await run.session.getRootVariables(input.stateId);
 
   const scopeOf = new Map<string, string>();
   for (const h of root.variables.hierarchies) {
@@ -2427,13 +2614,13 @@ export const DebugValueInput = z.object(debugValueInputSchema);
 export type DebugValueInput = z.infer<typeof DebugValueInput>;
 
 export async function abapDebugValue(input: DebugValueInput, maxChars: number): Promise<BuiltResponse> {
-  if (!currentRun) {
+  const run = resolveLaneRun(input.stateId);
+  if (!run) {
     throw new AbapError("BAD_INPUT", "No active debug session.");
   }
   if (!input.stateId) {
     throw new AbapError("BAD_INPUT", 'abap_debug_value requires "stateId".');
   }
-  const run = currentRun;
 
   const validation = validatePath(input.path);
   if (!validation.ok) {

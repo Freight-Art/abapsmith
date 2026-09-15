@@ -35,6 +35,9 @@ import type { ResolvedObject } from "../src/adt/resolve.js";
 import { specForType } from "../src/adt/types.js";
 import type { BuiltResponse } from "../src/compact.js";
 import { ConfigSchema, type Config } from "../src/config.js";
+import { resolveDebugSessionLimit } from "../src/adt/pool.js";
+import { resolveDebugIdentity } from "../src/debug/identity.js";
+import { debugArmLockPath } from "../src/debug/arm-lock.js";
 import { SafetyGate } from "../src/safety.js";
 import { DebugClient, type DebugListenIssuer, type DebugRequestIssuer } from "../src/debug/client.js";
 import {
@@ -44,6 +47,8 @@ import {
   shutdownAllDebugSessions,
 } from "../src/debug/session.js";
 import type { DebugRequestOptions, LongPollHandle } from "../src/debug/transport.js";
+import { translateDebugError } from "../src/debug/transport.js";
+import { parseAdtError } from "../src/debug/xml-response.js";
 import type { RawResponse } from "../src/debug/types.js";
 import {
   abapDebug,
@@ -343,6 +348,13 @@ interface MakeDepsOpts {
   registrationPollTimeoutMs?: number;
   /** Captures `triggerConn.dispose()` calls (finding: leaked process listeners) — pass a `vi.fn()` to assert on it directly. */
   disposeSpy?: ReturnType<typeof vi.fn>;
+  /**
+   * B5 (issue #89): surfaced as `DebugToolDeps.debugLaneCount`. Omitted by
+   * every existing caller of `makeDeps`, so `deps.debugLaneCount` reads
+   * `undefined` and `handleStart`'s own `?? 1` keeps every pre-existing test
+   * on the single-lane path, byte-identical to before lanes existed.
+   */
+  debugLaneCount?: number;
 }
 
 function makeDeps(opts: MakeDepsOpts): DebugToolDeps {
@@ -352,6 +364,7 @@ function makeDeps(opts: MakeDepsOpts): DebugToolDeps {
     log: (msg: string) => {
       opts.depsLog?.push(msg);
     },
+    debugLaneCount: opts.debugLaneCount,
     createSession(_conn, _safety, sessionOpts) {
       const client = new DebugClient({ transport: opts.transport, longPoll: opts.listener });
       return new DebugSession({
@@ -2780,6 +2793,707 @@ describe("D5 — breakpoint condition and skipCount survive the schema and reach
 
     expect(started.text).not.toContain("NOT enforced");
     expect(started.text).not.toContain("skipCount:0");
+  }, 20_000);
+});
+
+// ---------------------------------------------------------------------------
+// B1 (issue #89) — `exception`/`statement`/`message` breakpoints reach the
+// schema and the arm request exactly as `line` always has, and an
+// object-less breakpoint set never narrows the safety gate the way a `line`
+// breakpoint does (src/tools/debug.ts, the `bp.kind === "line"` branch vs.
+// the `else if (bp.kind === "exception")` branch and its siblings).
+// ---------------------------------------------------------------------------
+
+describe("B1 — exception, statement and message breakpoints reach the schema and the arm request", () => {
+  it("accepts all three new kinds through DebugInput, and keeps msgNo a string with its leading zeros intact", () => {
+    const parsed = DebugInput.parse({
+      action: "start",
+      breakpoints: [
+        { kind: "exception", exceptionClass: "CX_SY_ZERODIVIDE" },
+        { kind: "statement", statement: "RAISE" },
+        { kind: "message", msgId: "00", msgNo: "008", msgTy: "E" },
+      ],
+      run: { object: "ZTEST_MCP_CRUD", mode: "report" },
+    });
+    const [exc, stmt, msg] = parsed.breakpoints!;
+    expect(exc).toMatchObject({ kind: "exception", exceptionClass: "CX_SY_ZERODIVIDE" });
+    expect(stmt).toMatchObject({ kind: "statement", statement: "RAISE" });
+    expect(msg).toMatchObject({ kind: "message", msgId: "00", msgTy: "E" });
+    // The point of the test: a schema that ran msgNo through z.number() would
+    // already have turned "008" into 8 here, before the breakpoint even
+    // reaches the wire builder (src/debug/xml-request.ts comments on this).
+    expect((msg as { msgNo: string }).msgNo).toBe("008");
+    expect(typeof (msg as { msgNo: string }).msgNo).toBe("string");
+  });
+
+  it("arms a mixed line+exception+statement+message array in ONE breakpoints POST, with every kind's attributes intact", async () => {
+    const log: string[] = [];
+    const listener = new FakeListener(log);
+    const transport = new FakeTransport(log, HAPPY_TABLE());
+    const deps = makeDeps({ log, transport, listener });
+
+    const input = DebugInput.parse({
+      action: "start",
+      breakpoints: [
+        { kind: "line", object: "ZTEST_MCP_CRUD", line: 15 },
+        { kind: "exception", exceptionClass: "CX_SY_ZERODIVIDE" },
+        { kind: "statement", statement: "RAISE" },
+        { kind: "message", msgId: "00", msgNo: "008", msgTy: "E" },
+      ],
+      run: { object: "ZTEST_MCP_CRUD", mode: "report" },
+    });
+
+    const promise = abapDebug(DUMMY_CONN, input, 60_000, deps, writableGate());
+    await flushMicrotasks();
+    listener.resolveWith(okResponse(buildDebuggeeXml("B1a")));
+    await promise;
+
+    const realPosts = transport.calls.filter(
+      (c) =>
+        c.path.includes("/debugger/breakpoints") &&
+        c.method === "POST" &&
+        !c.body?.includes('validationOnly="true"'),
+    );
+    // All four breakpoints arm in the SAME request, not one POST per kind.
+    expect(realPosts.length).toBe(1);
+    const body = realPosts[0]!.body ?? "";
+    expect(body).toContain('exceptionClass="CX_SY_ZERODIVIDE"');
+    expect(body).toContain('statement="RAISE"');
+    expect(body).toContain('msgId="00"');
+    expect(body).toContain('msgNo="008"');
+    expect(body).toContain('msgTy="E"');
+    // Confirms "008" reached the wire as literal digits, not coerced to "8".
+    expect(body).not.toContain('msgNo="8"');
+  }, 20_000);
+
+  it("keeps the package-allowlist check deferred (preflight) for a start whose breakpoints are all object-less — no line kind to resolve and narrow the gate", async () => {
+    // Same mismatched-package gate shape as the D4 test above ("applies the
+    // PACKAGE allowlist to the breakpoint's own resolved package"), but with
+    // NO `line` breakpoint in the set. A `line` breakpoint resolves its
+    // object and narrows `gateTarget` from "preflight" to "final" with the
+    // real package (src/tools/debug.ts); exception/statement/message never
+    // do that — the code's own comment there says they stay "preflight" —
+    // and SafetyGate (src/safety.ts, the `opts.phase !== "preflight" ||
+    // packageKnown` gate around the package-allowlist rule) skips that rule
+    // entirely while the phase is preflight and no package is known yet. The
+    // name-prefix rule is NOT phase-gated, so it still has to match ("Z").
+    const log: string[] = [];
+    const listener = new FakeListener(log);
+    const transport = new FakeTransport(log, HAPPY_TABLE());
+    const deps = makeDeps({ log, transport, listener });
+    const gate = new SafetyGate({ readOnly: false, allowPackages: ["ZPKG_NOT_TMP"], allowNamePrefixes: ["Z"] });
+
+    const input = DebugInput.parse({
+      action: "start",
+      breakpoints: [
+        { kind: "exception", exceptionClass: "CX_SY_ZERODIVIDE" },
+        { kind: "statement", statement: "RAISE" },
+        { kind: "message", msgId: "00", msgNo: "008", msgTy: "E" },
+      ],
+      run: { object: "ZTEST_MCP_CRUD", mode: "report" },
+    });
+
+    const promise = abapDebug(DUMMY_CONN, input, 60_000, deps, gate);
+    await flushMicrotasks();
+    listener.resolveWith(okResponse(buildDebuggeeXml("B1b")));
+    // A mismatched allowPackages is otherwise fatal (see the D4 test with a
+    // `line` breakpoint, which SAFETY_DENIEDs on this exact allowlist) — so
+    // reaching a normal "suspended" result IS the assertion that the package
+    // rule never ran here. No `line` breakpoint also means `resolveObject`
+    // is never called for this start at all.
+    const result = await promise;
+    expect(extractStateId(result.text)).toBeTruthy();
+    expect(countOf(log, "resolveObject:ZTEST_MCP_CRUD")).toBe(0);
+  }, 20_000);
+});
+
+// ---------------------------------------------------------------------------
+// B2 (issue #89) — action="breakpoints": list/add/remove against the
+// session's OWN in-memory record (src/tools/debug.ts, handleBreakpoints).
+// ADT has no server-side read of what's actually armed while stopped —
+// `GET /sap/bc/adt/debugger/breakpoints` answers 200 with a zero-byte body,
+// live-verified both while breakpoints are armed and after cleanup
+// (test/fixtures/live-captured/917-bp-list-while-stopped.meta.json and
+// 925-bp-list-after-cleanup.meta.json) — so op:"list" can only ever report
+// this session's own bookkeeping, never confirm the server's live state.
+// ---------------------------------------------------------------------------
+
+describe('B2 — action="breakpoints": list is this session\'s own record, add arms additively, remove is ownership-checked', () => {
+  it('op:"list" (the default) reports exactly what THIS session armed at start, with no network call at all', async () => {
+    const log: string[] = [];
+    const listener = new FakeListener(log);
+    const transport = new FakeTransport(log, HAPPY_TABLE());
+    const deps = makeDeps({ log, transport, listener });
+    const stateId = await startSuspended(deps, listener, "B2a");
+
+    const before = transport.calls.length;
+    const listed = await abapDebug(
+      DUMMY_CONN,
+      { action: "breakpoints", stateId } as DebugInput,
+      60_000,
+      deps,
+      writableGate(),
+    );
+    // No network call at all — see this describe block's header comment on
+    // why a server-side read is impossible here, not merely unimplemented.
+    expect(transport.calls.length).toBe(before);
+    expect(listed.text).toContain("op: list");
+    expect(listed.text).toContain("count: 1");
+    expect(listed.text).toContain("BP1");
+    expect(listed.text).toContain("no server-side read");
+  }, 20_000);
+
+  it('op:"add" while stopped arms an additional breakpoint additively — the POST carries no syncScope element at all', async () => {
+    const log: string[] = [];
+    const listener = new FakeListener(log);
+    let realCalls = 0;
+    const transport = new FakeTransport(
+      log,
+      HAPPY_TABLE({
+        "setBreakpoints:real": () => {
+          realCalls++;
+          // Call 1 is `start()`'s own arm (the `line` breakpoint, BP1); call 2
+          // is this test's `op:"add"` call, arming an `exception` breakpoint.
+          if (realCalls === 1) return okResponse(BREAKPOINTS_XML);
+          return okResponse(
+            '<?xml version="1.0"?><dbg:breakpoints xmlns:dbg="http://www.sap.com/adt/debugger">' +
+              '<dbg:breakpoint kind="exception" id="BP2" exceptionClass="CX_SY_ZERODIVIDE"/></dbg:breakpoints>',
+          );
+        },
+      }),
+    );
+    const deps = makeDeps({ log, transport, listener });
+    const stateId = await startSuspended(deps, listener, "B2b");
+
+    const added = await abapDebug(
+      DUMMY_CONN,
+      {
+        action: "breakpoints",
+        op: "add",
+        stateId,
+        breakpoints: [{ kind: "exception", exceptionClass: "CX_SY_ZERODIVIDE" }],
+      } as DebugInput,
+      60_000,
+      deps,
+      writableGate(),
+    );
+
+    expect(added.text).toContain("op: add");
+    expect(added.text).toContain("BP2");
+    expect(added.text).toContain("exception CX_SY_ZERODIVIDE");
+
+    // classify() (this file) routes every /debugger/breakpoints POST that
+    // isn't a validation pass to "setBreakpoints:real" — [0] is start()'s own
+    // arm, [1] is this op:"add" call's real (non-validation) pass.
+    const realPosts = transport.calls.filter(
+      (c) =>
+        c.path.includes("/debugger/breakpoints") &&
+        c.method === "POST" &&
+        !c.body?.includes('validationOnly="true"'),
+    );
+    expect(realPosts.length).toBe(2);
+    expect(realPosts[1]!.body ?? "").not.toContain("syncScope");
+
+    // Additive, not a replace — both the line breakpoint from start() and the
+    // new exception breakpoint are owned now.
+    const listed = await abapDebug(
+      DUMMY_CONN,
+      { action: "breakpoints", stateId } as DebugInput,
+      60_000,
+      deps,
+      writableGate(),
+    );
+    expect(listed.text).toContain("count: 2");
+    expect(listed.text).toContain("BP1");
+    expect(listed.text).toContain("BP2");
+  }, 20_000);
+
+  it('op:"remove" deletes an id THIS session owns, and refuses (BAD_INPUT, naming the owned ids) an id it does not — without ever touching the network for the refusal', async () => {
+    const log: string[] = [];
+    const listener = new FakeListener(log);
+    const transport = new FakeTransport(log, HAPPY_TABLE());
+    const deps = makeDeps({ log, transport, listener });
+    const stateId = await startSuspended(deps, listener, "B2c");
+
+    const beforeCalls = transport.calls.length;
+    await expect(
+      abapDebug(
+        DUMMY_CONN,
+        { action: "breakpoints", op: "remove", stateId, id: "NOT-OWNED" } as DebugInput,
+        60_000,
+        deps,
+        writableGate(),
+      ),
+    ).rejects.toSatisfy((e: unknown) => {
+      if (!isAbapError(e) || e.code !== "BAD_INPUT") return false;
+      expect(e.message).toContain("NOT-OWNED");
+      expect(e.message).toContain("BP1"); // names what it DOES own
+      return true;
+    });
+    // Refused before any request — ownership is checked client-side first.
+    expect(transport.calls.length).toBe(beforeCalls);
+
+    const removed = await abapDebug(
+      DUMMY_CONN,
+      { action: "breakpoints", op: "remove", stateId, id: "BP1" } as DebugInput,
+      60_000,
+      deps,
+      writableGate(),
+    );
+    expect(removed.text).toContain("op: remove");
+    expect(removed.text).toContain("BP1");
+
+    const listed = await abapDebug(
+      DUMMY_CONN,
+      { action: "breakpoints", stateId } as DebugInput,
+      60_000,
+      deps,
+      writableGate(),
+    );
+    expect(listed.text).toContain("count: 0");
+  }, 20_000);
+});
+
+// ---------------------------------------------------------------------------
+// B3 (issue #89) — action="watch": add/list/remove round-trip using the real
+// captured create->list sequence (test/fixtures/live-captured/
+// 911-watchpoint-create-lv-total.xml, 912-watchpoint-list-armed.xml,
+// 919-watchpoint-delete.txt — a zero-byte 200 body, same convention as
+// deleteBreakpoint), plus the two real captured failure shapes cited in the
+// issue:
+//   - 400 ExceptionParameterNotFound / SADT_RESOURCE 017 (missing variableName)
+//     from test/cassettes/debugger/watchpoint-create-missing-variable-400
+//     .cassette.json, body verbatim from 910-watchpoint-create-missing
+//     -variable-400.xml. NOTE (see comment on the test itself): the capture's
+//     own trigger — a POST with NO variableName at all — can never actually
+//     be produced by this tool, because both `handleWatch` (input.variable
+//     falsy check) and `DebugSession.addWatchpoint` (blank-after-trim check)
+//     refuse client-side before any request is built. The captured bytes are
+//     still real and still worth pinning: this test proves the tool turns
+//     THIS EXACT wire error into a structured refusal if SAP were ever to
+//     answer it to a well-formed call, not that a caller can trigger it.
+//   - 404 AdtFailed / TPDA_ADT 013 (unknown watchpoint id) from
+//     watchpoint-get-unknown-id-404.cassette.json, body verbatim from
+//     943-watchpoint-get-unknown-id.xml. This is `DebugClient.getWatchpoint`
+//     (single-id GET) — confirmed by reading src/debug/session.ts and
+//     src/tools/debug.ts that NEITHER `DebugSession` nor any `abap_debug`
+//     handler ever calls it: `op:"remove"` issues a DELETE
+//     (`deleteWatchpoint`), and `op:"list"`/the step-hit lookup both use the
+//     full-list GET (`listWatchpoints`) filtered client-side. So this failure
+//     shape is exercised directly against `DebugClient`, one layer below the
+//     tool surface, rather than through `abapDebug` — there is no path from
+//     the tool into `getWatchpoint` to test it through.
+// ---------------------------------------------------------------------------
+
+describe('B3 — action="watch": add/list/remove round-trip, and the two real captured failure shapes', () => {
+  it('op:"add" creates a watchpoint and reports its id, variable name and old/new value pair', async () => {
+    const log: string[] = [];
+    const listener = new FakeListener(log);
+    const transport = new FakeTransport(
+      log,
+      HAPPY_TABLE({
+        createWatchpoint: () => okResponse(live("911-watchpoint-create-lv-total.xml")),
+      }),
+    );
+    const deps = makeDeps({ log, transport, listener });
+    const stateId = await startSuspended(deps, listener, "B3a");
+
+    const added = await abapDebug(
+      DUMMY_CONN,
+      { action: "watch", op: "add", stateId, variable: "LV_TOTAL" } as DebugInput,
+      60_000,
+      deps,
+      writableGate(),
+    );
+    expect(added.text).toContain("op: add");
+    expect(added.text).toContain("count: 1");
+    expect(added.text).toContain("1\tLV_TOTAL");
+    // 911's captured currentValue is "0 " (trailing space, real wire bytes) —
+    // rendered through the same renderScalar() path real variables use.
+    expect(added.text).toContain("0");
+
+    const create = transport.calls.find((c) => c.path.includes("/debugger/watchpoints") && c.method === "POST");
+    expect(create).toBeDefined();
+    expect(create!.path).toContain("variableName=LV_TOTAL");
+  }, 20_000);
+
+  it('op:"list" and op:"remove" round-trip a watchpoint this session created', async () => {
+    const log: string[] = [];
+    const listener = new FakeListener(log);
+    const transport = new FakeTransport(
+      log,
+      HAPPY_TABLE({
+        createWatchpoint: () => okResponse(live("911-watchpoint-create-lv-total.xml")),
+        listWatchpoints: () => okResponse(live("912-watchpoint-list-armed.xml")),
+        deleteWatchpoint: () => okResponse(live("919-watchpoint-delete.txt")),
+      }),
+    );
+    const deps = makeDeps({ log, transport, listener });
+    const stateId = await startSuspended(deps, listener, "B3b");
+
+    await abapDebug(
+      DUMMY_CONN,
+      { action: "watch", op: "add", stateId, variable: "LV_TOTAL" } as DebugInput,
+      60_000,
+      deps,
+      writableGate(),
+    );
+
+    const listed = await abapDebug(
+      DUMMY_CONN,
+      { action: "watch", op: "list", stateId } as DebugInput,
+      60_000,
+      deps,
+      writableGate(),
+    );
+    expect(listed.text).toContain("op: list");
+    expect(listed.text).toContain("count: 1");
+    expect(listed.text).toContain("1\tLV_TOTAL");
+
+    const removed = await abapDebug(
+      DUMMY_CONN,
+      { action: "watch", op: "remove", stateId, id: "1" } as DebugInput,
+      60_000,
+      deps,
+      writableGate(),
+    );
+    expect(removed.text).toContain("op: remove");
+
+    const deleteCall = transport.calls.find((c) => c.method === "DELETE" && c.path.includes("/debugger/watchpoints"));
+    expect(deleteCall).toBeDefined();
+    expect(deleteCall!.path).toContain("/1");
+  }, 20_000);
+
+  it("turns the real captured 400 (ExceptionParameterNotFound, SADT_RESOURCE 017) from a createWatchpoint POST into a structured refusal, not a raw HTTP error", async () => {
+    // Verbatim body from test/cassettes/debugger/watchpoint-create-missing-variable-400
+    // .cassette.json / test/fixtures/live-captured/910-watchpoint-create-missing
+    // -variable-400.xml — see the describe-block comment above for why this test
+    // drives a well-formed op:"add" call rather than reproducing the capture's own
+    // (unreachable through this tool) missing-variableName trigger.
+    const MISSING_VARIABLE_400_BODY =
+      '<?xml version="1.0" encoding="utf-8"?><exc:exception xmlns:exc="http://www.sap.com/abapxml/types/communicationframework"><namespace id="com.sap.adt"/><type id="ExceptionParameterNotFound"/><message lang="EN">Parameter variableName could not be found.</message><localizedMessage lang="EN">Parameter variableName could not be found.</localizedMessage><properties><entry key="T100KEY-ID">SADT_RESOURCE</entry><entry key="T100KEY-NO">017</entry><entry key="T100KEY-V1">variableName</entry></properties></exc:exception>';
+
+    const log: string[] = [];
+    const listener = new FakeListener(log);
+    const transport = new FakeTransport(
+      log,
+      HAPPY_TABLE({
+        createWatchpoint: (opts) => {
+          throw translateDebugError(parseAdtError(MISSING_VARIABLE_400_BODY, 400, opts.path));
+        },
+      }),
+    );
+    const deps = makeDeps({ log, transport, listener });
+    const stateId = await startSuspended(deps, listener, "B3c");
+
+    await expect(
+      abapDebug(
+        DUMMY_CONN,
+        { action: "watch", op: "add", stateId, variable: "LV_TOTAL" } as DebugInput,
+        60_000,
+        deps,
+        writableGate(),
+      ),
+    ).rejects.toSatisfy((e: unknown) => {
+      // Not a raw HTTP error, not a bare "400": a real AbapError code, with
+      // the wire's own diagnostic text still reachable for a human.
+      expect(isAbapError(e)).toBe(true);
+      const err = e as AbapError;
+      expect(typeof err.code).toBe("string");
+      expect(err.code).not.toBe("");
+      expect(JSON.stringify(err.details ?? {}) + err.message).toContain("variableName");
+      return true;
+    });
+  }, 20_000);
+
+  it("turns the real captured 404 (AdtFailed, TPDA_ADT 013) from a single-watchpoint GET into `undefined`, at the DebugClient layer this tool never actually reaches", async () => {
+    // Verbatim body from test/cassettes/debugger/watchpoint-get-unknown-id-404
+    // .cassette.json / test/fixtures/live-captured/943-watchpoint-get-unknown-id.xml.
+    // No `abap_debug` handler ever calls `DebugClient.getWatchpoint` (see the
+    // describe-block comment above), so this is exercised one layer below the
+    // tool surface, directly against `DebugClient`.
+    const UNKNOWN_ID_404_BODY =
+      '<?xml version="1.0" encoding="utf-8"?><exc:exception xmlns:exc="http://www.sap.com/abapxml/types/communicationframework"><namespace id="com.sap.adt"/><type id="AdtFailed"/><message lang="EN">Cannot retrieve watchpoint data: Watchpoint not found</message><localizedMessage lang="EN">Cannot retrieve watchpoint data: Watchpoint not found</localizedMessage><properties><entry key="T100KEY-ID">TPDA_ADT</entry><entry key="T100KEY-NO">013</entry><entry key="T100KEY-V1">Watchpoint not found</entry></properties></exc:exception>';
+
+    const log: string[] = [];
+    const listener = new FakeListener(log);
+    const transport = new FakeTransport(log, {
+      listWatchpoints: (opts) => {
+        throw translateDebugError(parseAdtError(UNKNOWN_ID_404_BODY, 404, opts.path));
+      },
+    });
+    const client = new DebugClient({ transport, longPoll: listener });
+
+    // `getWatchpoint`'s own doc comment (src/debug/client.ts) says a genuine
+    // ADT 404 with `abapType` set resolves to `undefined` rather than
+    // rejecting — mirroring `getListener`'s 404 discrimination. Confirmed
+    // here against the real captured bytes rather than an invented body.
+    await expect(client.getWatchpoint("99")).resolves.toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// B4 (issue #89) — the step-time watchpoint hit: a step's own response only
+// ever carries the NEW value (real captured
+// test/fixtures/live-captured/913-step-continue-to-watchpoint-hit.xml has
+// `<reachedWatchpoints><watchpoint id="1" ... variableName="LV_TOTAL">
+// <currentValue>1 </currentValue>` and NO old-value field at all) — the OLD
+// value shown alongside it must come from a separate read-back of the
+// watchpoint resource (914-watchpoint-list-after-hit.xml, whose oldValue is
+// "0 ", currentValue "1 " — the same hit). `handleStep`'s own comment block
+// calls this out by name: "Old value ... read back from the watchpoint
+// resource after the stop", never something the step itself reported.
+// ---------------------------------------------------------------------------
+
+describe("B4 — a step's reachedWatchpoints reports the stop, the NEW value from the step, and the OLD value labelled as read back afterward", () => {
+  it("names the hit variable, shows the new value from the step response, and labels the old value as read back from the watchpoint resource — not from the step", async () => {
+    const log: string[] = [];
+    const listener = new FakeListener(log);
+    const transport = new FakeTransport(
+      log,
+      HAPPY_TABLE({
+        createWatchpoint: () => okResponse(live("911-watchpoint-create-lv-total.xml")),
+        step: () => okResponse(live("913-step-continue-to-watchpoint-hit.xml")),
+        listWatchpoints: () => okResponse(live("914-watchpoint-list-after-hit.xml")),
+      }),
+    );
+    const deps = makeDeps({ log, transport, listener });
+    const stateId = await startSuspended(deps, listener, "B4a");
+    // The session must actually OWN watchpoint id "1" for readWatchpoints()
+    // to issue the read-back at all — it short-circuits to [] (no wire call)
+    // when `ownedWatchpoints` is empty (src/debug/session.ts, readWatchpoints
+    // doc comment: "Issues nothing ... when this session owns no watchpoints").
+    await abapDebug(
+      DUMMY_CONN,
+      { action: "watch", op: "add", stateId, variable: "LV_TOTAL" } as DebugInput,
+      60_000,
+      deps,
+      writableGate(),
+    );
+
+    const stepResult = await abapDebug(
+      DUMMY_CONN,
+      { action: "step", step: "continue", stateId } as DebugInput,
+      60_000,
+      deps,
+      writableGate(),
+    );
+
+    expect(stepResult.text).toContain("Stopped on watchpoint 1 (LV_TOTAL)");
+    // NEW value ("1 ", real captured bytes) comes from the step response itself.
+    expect(stepResult.text).toContain("now 1");
+    // OLD value ("0 ", real captured bytes) is explicitly labelled as a
+    // read-back from the watchpoint resource, not something the step reported.
+    expect(stepResult.text).toContain("was 0");
+    expect(stepResult.text).toContain("read back from the watchpoint resource after the stop");
+  }, 20_000);
+
+  it("degrades to an honest 'not available' note, without losing the step's own result, when the read-back itself fails", async () => {
+    const log: string[] = [];
+    const listener = new FakeListener(log);
+    const transport = new FakeTransport(
+      log,
+      HAPPY_TABLE({
+        createWatchpoint: () => okResponse(live("911-watchpoint-create-lv-total.xml")),
+        step: () => okResponse(live("913-step-continue-to-watchpoint-hit.xml")),
+        listWatchpoints: () => {
+          throw new AbapError("SESSION_DEAD", "An exception was raised", {
+            bodyExcerpt: "An exception was raised",
+          });
+        },
+      }),
+    );
+    const deps = makeDeps({ log, transport, listener });
+    const stateId = await startSuspended(deps, listener, "B4b");
+    await abapDebug(
+      DUMMY_CONN,
+      { action: "watch", op: "add", stateId, variable: "LV_TOTAL" } as DebugInput,
+      60_000,
+      deps,
+      writableGate(),
+    );
+
+    // The read-back failing must not be mistaken for the debuggee itself
+    // dying — `readWatchpoints()`'s failure is caught locally in `handleStep`
+    // and degrades to a note, so the step's own successful result (still
+    // alive) must still come through.
+    const stepResult = await abapDebug(
+      DUMMY_CONN,
+      { action: "step", step: "continue", stateId } as DebugInput,
+      60_000,
+      deps,
+      writableGate(),
+    );
+
+    expect(stepResult.text).toContain("Stopped on watchpoint 1 (LV_TOTAL)");
+    expect(stepResult.text).toContain("now 1");
+    expect(stepResult.text).not.toContain("was 0");
+    expect(stepResult.text).toContain("Old value not available from this step's own data");
+  }, 20_000);
+});
+
+// ---------------------------------------------------------------------------
+// B5 (issue #89) — the lane refusal. At the shipped default
+// (ABAP_DEBUG_SESSIONS unset, `deps.debugLaneCount` absent, `laneLimit` 1)
+// `handleStart`'s own comment calls out a HARD REQUIREMENT: this branch must
+// stay byte-identical to the pre-lane single-session refusal. Pinned here
+// verbatim rather than the substring check the pre-existing "refuses a
+// second concurrent session" test (above) already makes, so a future change
+// to lane 0's wording cannot slip through unnoticed. With
+// `deps.debugLaneCount` raised, two starts land on separate lanes (0 and 1)
+// and a third is refused with `DEBUG_ALL_LEASES_BUSY`, naming the lane count
+// and the setting that raises it.
+// ---------------------------------------------------------------------------
+
+describe("B5 — the lane refusal", () => {
+  it(
+    'at today\'s default (one lane) a second concurrent start is refused with EXACTLY ' +
+      '\'A debug session is already "<status>" (one session per process) — stop it first: ' +
+      "abap_debug({action:\"stop\"}).' — byte-identical to the pre-lane wording",
+    async () => {
+      const log1: string[] = [];
+      const listener1 = new FakeListener(log1);
+      const transport1 = new FakeTransport(log1, HAPPY_TABLE());
+      const deps1 = makeDeps({ log: log1, transport: transport1, listener: listener1 });
+
+      const promise1 = abapDebug(DUMMY_CONN, START_INPUT, 60_000, deps1, writableGate());
+      await flushMicrotasks();
+      listener1.resolveWith(okResponse(buildDebuggeeXml("B5a")));
+      await promise1; // now "suspended"
+
+      const log2: string[] = [];
+      const listener2 = new FakeListener(log2);
+      const transport2 = new FakeTransport(log2, {});
+      const deps2 = makeDeps({ log: log2, transport: transport2, listener: listener2 });
+
+      await expect(
+        abapDebug(
+          DUMMY_CONN,
+          {
+            action: "start",
+            breakpoints: [{ kind: "line", object: "ZOTHER", line: 1 }],
+            run: { object: "ZOTHER" },
+          } as DebugInput,
+          60_000,
+          deps2,
+          writableGate(),
+        ),
+      ).rejects.toSatisfy((e: unknown) => {
+        if (!isAbapError(e) || e.code !== "UNSUPPORTED") return false;
+        expect(e.message).toBe(
+          'A debug session is already "suspended" (one session per process) — ' +
+            'stop it first: abap_debug({action:"stop"}).',
+        );
+        return true;
+      });
+
+      await abapDebug(DUMMY_CONN, { action: "stop" } as DebugInput, 60_000, UNUSED_DEPS, writableGate()).catch(
+        () => {},
+      );
+    },
+  );
+
+  it("resolveDebugIdentity(cfg, 0) and debugArmLockPath(stateDir, cfg) — the values lane 0 uses — are byte-identical to their pre-lane, lane-argument-omitted call shape", () => {
+    // Pure functions, no fakes needed: proves lane 0's default argument
+    // (`lane = 0`) truly reproduces the pre-B2 single-lane call shape,
+    // rather than merely being labelled "lane 0" while quietly differing.
+    const identityCfg = { sid: "A4H", user: "DEVELOPER", terminalId: undefined, ideId: undefined };
+    expect(resolveDebugIdentity(identityCfg, 0)).toEqual(resolveDebugIdentity(identityCfg));
+
+    const lockCfg = { url: "https://a4h.example.com:44300", client: "001", user: "DEVELOPER" };
+    expect(debugArmLockPath("/tmp/abapsmith-state", lockCfg, 0)).toBe(
+      debugArmLockPath("/tmp/abapsmith-state", lockCfg),
+    );
+  });
+
+  it("raising the lane count lets two starts succeed on separate lanes, and refuses a third with DEBUG_ALL_LEASES_BUSY naming the lane count and the setting that raises it", async () => {
+    // The lane count itself comes from the real production function, not a
+    // hand-picked constant — proves the tool's `laneLimit` really is
+    // `resolveDebugSessionLimit(cfg)`'s output, surfaced via
+    // `DebugToolDeps.debugLaneCount` (see `makeDeps`'s doc comment above).
+    const laneCount = resolveDebugSessionLimit({ debugSessions: 2, debugDiaBudget: 10 });
+    expect(laneCount).toBe(2);
+
+    const log1: string[] = [];
+    const listener1 = new FakeListener(log1);
+    const transport1 = new FakeTransport(log1, HAPPY_TABLE());
+    const deps1 = makeDeps({ log: log1, transport: transport1, listener: listener1, debugLaneCount: laneCount });
+
+    const log2: string[] = [];
+    const listener2 = new FakeListener(log2);
+    const transport2 = new FakeTransport(log2, HAPPY_TABLE());
+    const deps2 = makeDeps({ log: log2, transport: transport2, listener: listener2, debugLaneCount: laneCount });
+
+    const log3: string[] = [];
+    const listener3 = new FakeListener(log3);
+    const transport3 = new FakeTransport(log3, {});
+    const deps3 = makeDeps({ log: log3, transport: transport3, listener: listener3, debugLaneCount: laneCount });
+
+    try {
+      const promise1 = abapDebug(
+        DUMMY_CONN,
+        {
+          action: "start",
+          breakpoints: [{ kind: "line", object: "ZLANE_ONE", line: 1 }],
+          run: { object: "ZLANE_ONE" },
+        } as DebugInput,
+        60_000,
+        deps1,
+        writableGate(),
+      );
+      await flushMicrotasks();
+      listener1.resolveWith(okResponse(buildDebuggeeXml("B5-lane0")));
+      const result1 = await promise1;
+      expect(result1.text).toContain("status: suspended");
+
+      const promise2 = abapDebug(
+        DUMMY_CONN,
+        {
+          action: "start",
+          breakpoints: [{ kind: "line", object: "ZLANE_TWO", line: 1 }],
+          run: { object: "ZLANE_TWO" },
+        } as DebugInput,
+        60_000,
+        deps2,
+        writableGate(),
+      );
+      await flushMicrotasks();
+      listener2.resolveWith(okResponse(buildDebuggeeXml("B5-lane1")));
+      const result2 = await promise2;
+      expect(result2.text).toContain("status: suspended");
+
+      // Both lanes are now busy — a third start (any deps reporting the SAME
+      // laneCount) must be refused without ever touching its own transport.
+      await expect(
+        abapDebug(
+          DUMMY_CONN,
+          {
+            action: "start",
+            breakpoints: [{ kind: "line", object: "ZLANE_THREE", line: 1 }],
+            run: { object: "ZLANE_THREE" },
+          } as DebugInput,
+          60_000,
+          deps3,
+          writableGate(),
+        ),
+      ).rejects.toSatisfy((e: unknown) => {
+        if (!isAbapError(e) || e.code !== "DEBUG_ALL_LEASES_BUSY") return false;
+        expect(e.message).toContain(`All ${laneCount} configured debug lanes are already busy`);
+        expect(e.message).toContain("ABAP_DEBUG_SESSIONS");
+        return true;
+      });
+      expect(transport3.calls.length).toBe(0);
+    } finally {
+      // Cleanup: `stop` (no stateId) always resolves to the LOWEST-indexed
+      // active lane (see `resolveLaneRun`'s doc comment) — two calls drain
+      // both lanes in turn, so neither leaks into the next test.
+      await abapDebug(DUMMY_CONN, { action: "stop" } as DebugInput, 60_000, UNUSED_DEPS, writableGate()).catch(
+        () => {},
+      );
+      await abapDebug(DUMMY_CONN, { action: "stop" } as DebugInput, 60_000, UNUSED_DEPS, writableGate()).catch(
+        () => {},
+      );
+    }
   }, 20_000);
 });
 

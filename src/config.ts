@@ -10,6 +10,15 @@ import { config as loadDotenv } from "dotenv";
 import { z } from "zod";
 
 import { isTrkorr } from "./adt/transports.js";
+// Value import, not just a type — used below to size the startup warning's
+// debug-lease reservation to the actual configured lane count. Safe despite
+// `src/adt/pool.ts` importing `Config` back from here (via `type Config` at
+// its top, and transitively via `./connection.js`'s `stripUrlCredentials`
+// import): `resolveDebugSessionLimit` is only called inside `loadConfig()`'s
+// body, never at either module's top level, so by the time it runs the
+// whole module graph has already finished evaluating — a standard, safe ESM
+// circular-import shape. Verified with a built `dist/config.js` import.
+import { resolveDebugSessionLimit } from "./adt/pool.js";
 import {
   loadCaBundle,
   loadClientCertMaterial,
@@ -1775,18 +1784,28 @@ export function loadConfig(opts: LoadConfigOptions = {}): Config {
         "listeners for one SAP user at once.",
     );
   }
-  // Not a hard failure: lane limits aren't clamped to pool size, so
+  // The debug-lease reservation below must be the number of concurrent debug
+  // LEASES this pool's "debug" role can actually hand out —
+  // `resolveDebugSessionLimit(cfg)`, the same lane count `src/tools/debug.ts`
+  // sizes its lane array from — not `DIA_COST_PER_DEBUG_SESSION`
+  // (`src/adt/pool.ts`). Those are different resources: `DIA_COST_PER_DEBUG_SESSION`
+  // counts dialog work processes pinned on the SAP appliance per session,
+  // while `maxSessions`/`readConcurrency`/`writeConcurrency` here all count
+  // THIS client's own ADT session pool slots — a debug lane consumes one of
+  // those slots, not a DIA process, so the lane count is the right unit to
+  // add. Not a hard failure: lane limits aren't clamped to pool size, so
   // over-subscription just degrades to queuing for the smaller number of
   // slots — a startup refine() would turn a survivable misconfiguration into
   // an outage over something that still runs correctly, just slower.
-  if (cfg.readConcurrency + cfg.writeConcurrency + 1 > cfg.maxSessions) {
+  const debugLaneCount = resolveDebugSessionLimit(cfg);
+  if (cfg.readConcurrency + cfg.writeConcurrency + debugLaneCount > cfg.maxSessions) {
     warn(
       `[abapsmith] WARNING: readConcurrency (${cfg.readConcurrency}) + writeConcurrency ` +
-        `(${cfg.writeConcurrency}) + 1 reserved debug lease slot exceeds maxSessions ` +
-        `(${cfg.maxSessions}). The lane limits are not clamped to the pool size, so the ` +
-        "lanes simply contend for the smaller number of actual slots — the excess lane " +
-        "capacity configured above is unreachable. Accepted as written; the server starts " +
-        "normally.",
+        `(${cfg.writeConcurrency}) + ${debugLaneCount} reserved debug lease slot` +
+        `${debugLaneCount === 1 ? "" : "s"} exceeds maxSessions (${cfg.maxSessions}). ` +
+        "The lane limits are not clamped to the pool size, so the lanes simply contend for " +
+        "the smaller number of actual slots — the excess lane capacity configured above is " +
+        "unreachable. Accepted as written; the server starts normally.",
     );
   }
   if (cfg.serialiseSameObjectWrites === false) {
