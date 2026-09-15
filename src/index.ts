@@ -14,10 +14,11 @@ import type { AbapConnection } from "./adt/connection.js";
 import { AuthCircuitBreaker } from "./adt/circuit-breaker.js";
 import { BUILTIN_FLUID_TOOLS } from "./adt/fluid/builtin/index.js";
 import { loadFluidTools } from "./adt/fluid/plugin-loader.js";
-import { loadConfig, redactConfigSecrets } from "./config.js";
+import { loadConfig, redactConfigSecrets, type Config } from "./config.js";
 import { shutdownAllDebugSessions } from "./debug/session.js";
 import { createServer } from "./server.js";
 import { registerShutdownHandler } from "./shutdown-hook.js";
+import { loadSystems, type SystemSpec } from "./systems/spec.js";
 import { shutdownDebugTools } from "./tools/debug.js";
 
 /** The two members of the primary connection this file needs. */
@@ -53,14 +54,35 @@ export function armDebugShutdown(
 }
 
 async function main(): Promise<void> {
-  let cfg;
+  let cfg: Config;
+  // `loadSystems()` returns `undefined` when none of the multi-system env
+  // vars (ABAP_SYSTEMS / ABAP_SYSTEM_<ALIAS>_*) are set — that is the cue to
+  // fall back to the single-system `loadConfig()` path, unchanged. When it
+  // does return, every validation problem across every system has already
+  // been folded into ONE thrown Error, so the catch block below handles both
+  // sources the same way.
+  let systems: readonly SystemSpec[] | undefined;
   try {
-    cfg = loadConfig();
+    systems = loadSystems();
+    if (systems === undefined) {
+      cfg = loadConfig();
+    } else {
+      const def = systems.find((s) => s.isDefault);
+      if (def === undefined) {
+        // Not reachable: loadSystems() guarantees exactly one `isDefault`
+        // entry in any list it returns. Written as an explicit check rather
+        // than a `!` assertion to stay honest under noUncheckedIndexedAccess,
+        // same discipline as SystemRegistry.all().
+        throw new Error("loadSystems() returned no default system.");
+      }
+      cfg = def.cfg;
+    }
   } catch (e) {
     process.stderr.write(`${e instanceof Error ? e.message : String(e)}\n`);
     process.stderr.write(
       "\nSet ABAP_URL, ABAP_USER and ABAP_PASSWORD (a .env file in the working " +
-        "directory is picked up automatically).\n",
+        "directory is picked up automatically), or configure ABAP_SYSTEMS / " +
+        "ABAP_SYSTEM_<ALIAS>_* for a multi-system deployment.\n",
     );
     process.exit(1);
   }
@@ -68,6 +90,18 @@ async function main(): Promise<void> {
   process.stderr.write(
     `[abapsmith] config (secrets redacted; host, user and SID are not): ${JSON.stringify(redactConfigSecrets(cfg))}\n`,
   );
+  if (systems !== undefined) {
+    // One additional line per non-default system — the default's line above
+    // already covers it. Same redaction rule, so a fleet's stderr output
+    // never leaks more than a single-system deployment's already does.
+    for (const s of systems) {
+      if (s.isDefault) continue;
+      process.stderr.write(
+        `[abapsmith] config [${s.alias}] (secrets redacted; host, user and SID are not): ` +
+          `${JSON.stringify(redactConfigSecrets(s.cfg))}\n`,
+      );
+    }
+  }
 
   // Plugin discovery is filesystem work and async, and `createServer` is
   // synchronous by design (it is the composition root, not an I/O step) — so
@@ -82,7 +116,7 @@ async function main(): Promise<void> {
 
   // Sole circuit breaker instance for the process; forConfig() replays any
   // existing lockout for these credentials at zero request cost.
-  const server = createServer(cfg, { breaker: AuthCircuitBreaker.forConfig(cfg), fluidToolSet });
+  const server = createServer(cfg, { breaker: AuthCircuitBreaker.forConfig(cfg), fluidToolSet, systems });
   // Must precede server.start() — see armDebugShutdown.
   armDebugShutdown(server, async () => {
     // Synchronous and first: closes the debug trigger connection before any

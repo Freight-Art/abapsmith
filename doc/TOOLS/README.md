@@ -30,3 +30,38 @@ requiredness and defaults are taken from the schema, not from prose.
 | [ui-and-fpm.md](ui-and-fpm.md) | `abap_fpm_read`, `abap_ui` — reading FPM/FBI configuration and driving classic dynpro screens via batch input. |
 | [system-resource.md](system-resource.md) | The `abap://{SID}/system` MCP resource. |
 | [abap-fluid.md](abap-fluid.md) | `abap_fluid` — the single entry point to the fluid API: deploying and running generated ABAP tools that install into `$ABAPSMITH_FLUID_API`. |
+
+## The `system` parameter
+
+With [more than one system configured](../CONFIGURATION/multi-system.md),
+every tool in this reference gains one more, optional parameter not
+listed in the tables below: `system`, naming which configured system's
+alias the call targets. It is omitted from every per-tool table in this
+folder because it is not specific to any one tool — it behaves identically
+everywhere it appears, so it is documented once, here, instead of being
+repeated in each file.
+
+`system` accepts one of the configured aliases (the same string used as
+the key in `ABAP_SYSTEMS`'s `systems` map, or in
+`ABAP_SYSTEM_<ALIAS>_*`). Omitting it targets the default system. Naming
+an alias that is not configured is refused with `UNKNOWN_SYSTEM`, listing
+the aliases that actually are. **On a single-system server, `system` is not
+in any tool's schema at all** — the parameter only exists once there is
+more than one system to choose between, so a single-system deployment's
+tool schemas, `tools/list` output and context cost are byte-for-byte what
+they were before this feature existed.
+
+`system` selects which system's connection, session pool and permission
+gate a call runs against — see
+[SAFETY/permission-model.md](../SAFETY/permission-model.md#the-mode-ladder-is-per-system)
+for how the permission decision is made per call rather than process-wide,
+and
+[CONCURRENCY/multi-system-pools.md](../CONCURRENCY/multi-system-pools.md)
+for what is isolated per system versus what stays a single, process-wide
+resource (the debugger lane, in particular — see
+[debugger.md](debugger.md#system_mismatch-one-debug-session-for-the-whole-process)).
+`abap_read`'s `view="diff"` additionally has its own pair of
+system-naming parameters, `from_system`/`to_system`, for comparing an
+object ACROSS two systems in one call rather than targeting one system for
+the whole call — see
+[read-and-search.md](read-and-search.md#viewdiff-same-system-versions-and-cross-system-comparison).

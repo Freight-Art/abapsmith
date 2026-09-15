@@ -12,6 +12,7 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { SessionPool } from "../adt/pool.js";
 import type { Config } from "../config.js";
 import type { SafetyGate } from "../safety.js";
+import { AbapError } from "../adt/errors.js";
 import {
   abapDebug,
   abapDebugValue,
@@ -25,6 +26,10 @@ import {
   type DebugVarsInput,
 } from "./debug.js";
 import { preflight } from "./preflight.js";
+// Written by another agent as part of issue #93 (multi-system support); see
+// this file's `debugSessionSystem` guard below. If this import fails to
+// resolve, that module has not landed yet — see the guard's own doc comment.
+import { currentSystemAlias } from "../systems/current.js";
 
 /**
  * `abap_debug` actions needing no `execute` gate at THIS layer, for two
@@ -85,6 +90,50 @@ export function registerDebugTools(mcp: McpServer, deps: DebugRegistrationDeps):
    */
   const debugSessionObjects = new Map<string, string>();
 
+  /**
+   * Which system's alias `abap_debug action="start"` last started a session
+   * against — issue #93 (multi-system support). `debugLanes` (debug.ts) is
+   * MODULE-GLOBAL: one process has exactly one set of debug lanes regardless
+   * of how many systems are configured, so a session started against DEV
+   * must not be stepped, inspected or stopped by a call this process routed
+   * to QAS — the wire request would go out on QAS's connection but land on
+   * DEV's suspended debuggee (or simply fail confusingly), neither of which
+   * is what "call routed to QAS" should ever silently do.
+   *
+   * `undefined` means "no session recorded" (idle, or a single-system server
+   * where `currentSystemAlias()` never returns anything to disagree with) —
+   * see {@link assertSameSystemAsSession}. Reset to `undefined` at the same
+   * two points `debugSessionObjects` is cleared: `stop`, and `status: dead`.
+   */
+  let debugSessionSystem: string | undefined;
+
+  /**
+   * Refuses a call routed to a DIFFERENT system than the one the active
+   * debug session belongs to. `alias === undefined` means either a
+   * single-system server (no routing to disagree with) or this call wasn't
+   * itself routed anywhere in particular — neither is evidence of a
+   * mismatch, so only a concrete alias that actually differs refuses.
+   * Called from all three tool handlers, before anything else; `abap_debug`
+   * additionally skips this for `action === "start"` (see the call site) —
+   * starting a fresh session records the lane's system rather than checking
+   * it against a lane that, by definition, is about to be (re)started.
+   */
+  function assertSameSystemAsSession(): void {
+    const alias = currentSystemAlias();
+    if (debugSessionSystem !== undefined && alias !== undefined && alias !== debugSessionSystem) {
+      throw new AbapError(
+        "SYSTEM_MISMATCH",
+        `The active debug session belongs to system "${debugSessionSystem}"; this call was routed ` +
+          `to system "${alias}". This process has ONE debugger lane shared by every configured ` +
+          "system, so the call was refused rather than stepping, inspecting or stopping a session " +
+          "that belongs to another system.",
+        { sessionSystem: debugSessionSystem, requestedSystem: alias },
+        `Re-issue the call with system: "${debugSessionSystem}", or stop the session first ` +
+          '(abap_debug action="stop").',
+      );
+    }
+  }
+
   mcp.registerTool(
     "abap_debug",
     {
@@ -97,6 +146,11 @@ export function registerDebugTools(mcp: McpServer, deps: DebugRegistrationDeps):
     async (args) => {
       try {
         const a = args as { action?: string; run?: { object: string }; stateId?: string };
+        // Cross-system guard (issue #93) — skipped only for "start": a fresh
+        // start records the lane's system below rather than checking it
+        // against a lane that's being (re)started. Every other action
+        // (including "stop") is checked before anything else runs.
+        if (a.action !== "start") assertSameSystemAsSession();
         // step is as consequential as start; unknown actions are gated by default.
         if (!DEBUG_UNGATED_ACTIONS.has(a.action ?? "")) {
           const object =
@@ -117,13 +171,17 @@ export function registerDebugTools(mcp: McpServer, deps: DebugRegistrationDeps):
         const nextStateId = stateIdOfResponse(res.text);
         if (a.action === "start" && a.run?.object && nextStateId) {
           debugSessionObjects.set(nextStateId, a.run.object);
+          debugSessionSystem = currentSystemAlias();
         } else if (a.action === "step" && a.stateId) {
           const carried = debugSessionObjects.get(a.stateId);
           debugSessionObjects.delete(a.stateId); // the previous stop is gone
           if (carried && nextStateId) debugSessionObjects.set(nextStateId, carried);
         }
         // Session over: clear the map (dead sessions report "status: dead").
-        if (a.action === "stop" || /^status: dead$/m.test(res.text)) debugSessionObjects.clear();
+        if (a.action === "stop" || /^status: dead$/m.test(res.text)) {
+          debugSessionObjects.clear();
+          debugSessionSystem = undefined;
+        }
         return ok(res.text);
       } catch (e) {
         return deps.errorResult(e);
@@ -142,6 +200,7 @@ export function registerDebugTools(mcp: McpServer, deps: DebugRegistrationDeps):
     },
     async (args) => {
       try {
+        assertSameSystemAsSession();
         deps.safety.assert("read");
         const res = await abapDebugVars(args as DebugVarsInput, deps.cfg.maxResponseChars);
         return ok(res.text);
@@ -161,6 +220,7 @@ export function registerDebugTools(mcp: McpServer, deps: DebugRegistrationDeps):
     },
     async (args) => {
       try {
+        assertSameSystemAsSession();
         deps.safety.assert("read");
         const res = await abapDebugValue(args as DebugValueInput, deps.cfg.maxResponseChars);
         return ok(res.text);

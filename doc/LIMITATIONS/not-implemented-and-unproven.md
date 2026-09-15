@@ -365,3 +365,30 @@ exist and may work, but have not been exercised against a real system.
   exist," and its ADT discovery document does not advertise
   `traces.sqltraces`). Only `sql_trace` inside the ABAP-trace parameters,
   which feeds the `db` view of an ordinary trace, is verified live.
+- **Multi-system support (issue #93) has never been exercised against two
+  genuinely distinct SAP systems.** [Multi-system
+  configuration](../CONFIGURATION/multi-system.md), per-system routing (the
+  `system` tool parameter and `AsyncLocalStorage`-based request routing),
+  and cross-system `view="diff"` are covered by unit tests run against
+  fakes, and separately by ordinary single-system live runs against A4H —
+  proving that a system entry's resolved config behaves the same way a
+  single-system config does, and that the routing plumbing does not break
+  the single-system path it replaced. What that does NOT prove is two real
+  systems being driven from one process at once, because the reference
+  sandbox this project develops against is a single SAP appliance, and
+  there has never been a second one available to configure alongside it.
+  Concretely, still unproven: (a) that two sets of ADT session cookies,
+  one per system's connection pool, genuinely stay separate under
+  concurrent load rather than one system's session state leaking into the
+  other's under contention; (b) that a second system's `/discovery`
+  feature inventory and T000 client-role probe behave as modelled once a
+  real second system is actually in the loop, rather than only against
+  the one appliance every other capability in this project is grounded
+  against; (c) that per-system journal directories do not collide in
+  practice — nothing currently detects two aliases configured to point at
+  the same journal directory (see
+  [CONCURRENCY/multi-system-pools.md](../CONCURRENCY/multi-system-pools.md#journal-one-directory-per-system)),
+  and this has never been tested against two real, independently-behaving
+  systems writing undo records concurrently. Treat multi-system support as
+  implemented and unit-tested, not as live-verified the way this project's
+  single-system capabilities generally are.

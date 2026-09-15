@@ -111,6 +111,14 @@ import { fluidDisabledReason } from "../adt/fluid/enabled.js";
 import { FLUID_PACKAGE } from "../adt/fluid/package.js";
 import { coreTool, CORE_TOOL_ID, CORE_BODY_CLASS } from "../adt/fluid/builtin/core.js";
 import type { LoadedFluidTool } from "../adt/fluid/manifest.js";
+// Circular by design: `read-systems.ts` imports `buildReadResponse`,
+// `includeNote`, `DIFF_MAX_HUNKS` and the `ReadInput`/`ReadSystemSide`
+// types back from this file, so the two share rendering machinery without
+// either re-declaring it. Safe because every use on both sides is inside a
+// function body (`registerReadTools`'s handler here, `runCrossSystemDiff`
+// there) — nothing at either module's top level touches the other's
+// exports before both have finished loading.
+import { runCrossSystemDiff } from "./read-systems.js";
 
 export const readInputSchema = {
   object: z.string().describe('Name, "class X", "table Y", or ADT URI.'),
@@ -222,6 +230,27 @@ export const readInputSchema = {
 
 export const ReadInput = z.object(readInputSchema);
 export type ReadInput = z.infer<typeof ReadInput>;
+
+/**
+ * Cross-system `view="diff"` parameters (issue #93) — deliberately kept OUT
+ * of `readInputSchema` itself and spliced in by `registerReadTools` only
+ * when `deps.multiSystem` is true, so a single-system server's schema
+ * bytes stay exactly as they were: these two fields would be dead weight
+ * (nothing to name) when there is only one configured system.
+ */
+export const crossSystemInputSchema = {
+  from_system: z
+    .string()
+    .optional()
+    .describe('view="diff": compare the object as it is on this system. Defaults to the called system.'),
+  to_system: z
+    .string()
+    .optional()
+    .describe(
+      'view="diff": the other side of a cross-system comparison, e.g. ' +
+        '{"object":"ZCL_FOO","view":"diff","to_system":"QAS"}.',
+    ),
+};
 
 /**
  * Kinds for which `outline=true` can actually produce a component list. ADT
@@ -581,7 +610,7 @@ function buildSourceResponse(
  * line entirely — never trade away body lines the caller didn't ask to
  * lose just to fit a header the caller didn't ask for.
  */
-function buildReadResponse(parts: ResponseParts): BuiltResponse {
+export function buildReadResponse(parts: ResponseParts): BuiltResponse {
   const first = buildResponse(parts);
   if (first.truncated) return first;
   const facts = [
@@ -777,8 +806,13 @@ const NO_ETAG = "";
  */
 const CORE_TOOLS: ReadonlyMap<string, LoadedFluidTool> = new Map([[CORE_TOOL_ID, coreTool]]);
 
-/** Hunk ceiling for one diff response. Excess is reported, never dropped silently. */
-const DIFF_MAX_HUNKS = 200;
+/**
+ * Hunk ceiling for one diff response. Excess is reported, never dropped
+ * silently. Exported so `read-systems.ts`'s cross-system diff shares the
+ * exact same ceiling as the same-system `readDiff` below, rather than
+ * re-declaring a second number that could drift from it.
+ */
+export const DIFF_MAX_HUNKS = 200;
 
 /**
  * DEVC/K's own maximum for `depth` — used to live as zod's `.max(3)` on the
@@ -1204,8 +1238,12 @@ function viewInclude(input: ReadInput, obj: ResolvedObject): ClassInclude | unde
   return input.include ?? obj.include ?? "main";
 }
 
-/** The disclosure that goes with {@link viewInclude}. Never silent. */
-function includeNote(include: ClassInclude | undefined): string[] {
+/**
+ * The disclosure that goes with {@link viewInclude}. Never silent. Exported
+ * for `read-systems.ts`'s cross-system diff, which asks the identical
+ * question about a caller-chosen `include` on two systems at once.
+ */
+export function includeNote(include: ClassInclude | undefined): string[] {
   if (!include) return [];
   const others = CLASS_INCLUDES.filter((i) => i !== include);
   return [
@@ -3010,6 +3048,24 @@ export async function abapRead(
   );
 }
 
+/**
+ * One side of a cross-system comparison (issue #93) — everything
+ * `runCrossSystemDiff` (`read-systems.ts`) needs to read an object off ONE
+ * configured system: its own pool, its own gate, its own connection
+ * bootstrap. Declared here, not imported from `../systems/registry.ts`,
+ * so this file (and `read-systems.ts`) has no compile-time dependency on
+ * the multi-system composition layer — only on this narrow shape.
+ * `SystemContext` (`../systems/registry.ts`) satisfies this structurally;
+ * nothing here assumes it is the only thing that ever will.
+ */
+export interface ReadSystemSide {
+  readonly alias: string;
+  readonly cfg: Config;
+  readonly pool: SessionPool;
+  readonly safety: SafetyGate;
+  readonly ensureConnected: () => Promise<void>;
+}
+
 export interface ReadToolDeps {
   readonly pool: SessionPool;
   readonly safety: SafetyGate;
@@ -3020,6 +3076,27 @@ export interface ReadToolDeps {
   // `registerReadTools` below), both of which need the full `Config`, not
   // just the response-size field every other view uses.
   readonly cfg: Config;
+  /**
+   * Every configured system, for cross-system `view="diff"`
+   * (`from_system`/`to_system`) — issue #93. `undefined` on a
+   * single-system server exactly like `multiSystem` below; the two always
+   * agree (`multiSystem` is `true` iff this is set), kept as two fields
+   * rather than one so the schema-inclusion check (`multiSystem`) reads as
+   * a plain boolean at the call site instead of an existence check on an
+   * object whose only use is that check.
+   */
+  readonly systems?: {
+    readonly aliases: readonly string[];
+    resolve(alias?: string): ReadSystemSide;
+  };
+  /**
+   * True when more than one system is configured. Gates whether
+   * `from_system`/`to_system` are spliced into the registered schema at
+   * all (see `registerReadTools`) — keeping a single-system server's
+   * schema bytes exactly as they were, since a lone-system deployment has
+   * no second system to name.
+   */
+  readonly multiSystem?: boolean;
 }
 
 /**
@@ -3044,6 +3121,103 @@ export interface ReadToolDeps {
 const okRead = (res: BuiltResponse & { etag: string }): CallToolResult => ({
   content: [{ type: "text", text: res.text }],
 });
+
+/**
+ * Validates a cross-system `view="diff"` request (`from_system`/
+ * `to_system`, issue #93) and resolves both sides, or refuses with a
+ * structured `AbapError` naming exactly which combination is unsupported.
+ * Runs before either side's connection is opened — a refusal here costs
+ * nothing beyond parsing the input. `input.include` is deliberately never
+ * refused: a class include is legitimate on both sides of a cross-system
+ * comparison (e.g. comparing `testclasses` on two systems), and is honoured
+ * by `runCrossSystemDiff` exactly like an ordinary read honours it.
+ */
+function resolveCrossSystemSides(
+  input: ReadInput & { from_system?: string; to_system?: string },
+  deps: ReadToolDeps,
+): { from: ReadSystemSide; to: ReadSystemSide } {
+  if (!deps.multiSystem || !deps.systems) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "from_system/to_system name a system to compare against, but this server has only one " +
+        `configured system (${deps.cfg.sid}) — there is nothing to compare it to.`,
+      { object: input.object, system: deps.cfg.sid },
+      "Configure a second system to enable cross-system diff; see doc/CONFIGURATION/multi-system.md.",
+    );
+  }
+  if (input.view !== "diff") {
+    throw new AbapError(
+      "BAD_INPUT",
+      "from_system/to_system is only meaningful with view=\"diff\"; " +
+        (input.view === undefined
+          ? "no view was requested"
+          : `view="${input.view}" was requested instead`) +
+        ", so this would have been answered by a different view entirely with your parameter discarded.",
+      { object: input.object, view: input.view },
+      'Add view="diff", or drop from_system/to_system.',
+    );
+  }
+  // `from`/`to` select a VERSION on one system's history feed; a
+  // cross-system diff compares CURRENT active source across two
+  // independent systems instead — there is no shared version feed for
+  // either to select from. `context` (hunk context lines) IS still
+  // meaningful here and is deliberately not refused.
+  for (const [param, value] of [
+    ["from", input.from],
+    ["to", input.to],
+  ] as const) {
+    if (value !== undefined) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${param} selects a version on one system's history feed; a cross-system diff (from_system/` +
+          `to_system) compares the CURRENT ACTIVE source of ${input.object} on two different systems ` +
+          `instead — two independent SAP systems share no version feed for ${param} to select from.`,
+        { object: input.object, param },
+        `Drop ${param}, or drop from_system/to_system and compare two versions on one system instead.`,
+      );
+    }
+  }
+
+  const from = deps.systems.resolve(input.from_system);
+  const to = deps.systems.resolve(input.to_system);
+  if (from.alias === to.alias) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `from_system and to_system both resolved to "${from.alias}" — a cross-system diff compares two ` +
+        "DIFFERENT systems; comparing a system against itself would always report no differences for " +
+        "current active source.",
+      { object: input.object, alias: from.alias },
+      "Name a different to_system, or drop from_system/to_system and use from/to to compare two " +
+        `versions on ${from.alias} instead.`,
+    );
+  }
+
+  // Every other view="diff" param that answers a narrower question than
+  // "the whole object's current source" — mirrors the abapRead param-
+  // refusal loops above, one message per parameter so the caller learns
+  // exactly which one to drop rather than a generic "unsupported input".
+  for (const [param, value] of [
+    ["method", input.method],
+    ["outline", input.outline],
+    ["line", input.line],
+    ["column", input.column],
+    ["types", input.types],
+    ["depth", input.depth],
+  ] as const) {
+    if (value !== undefined) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${param} is not meaningful for a cross-system diff: from_system/to_system compares the ` +
+          `current active source of ${input.object} as a whole on two systems, not a single ` +
+          "component, source position, or package listing within it.",
+        { object: input.object, param },
+        `Drop ${param}.`,
+      );
+    }
+  }
+
+  return { from, to };
+}
 
 /**
  * Registers `abap_read` on the given MCP server. Reads either raw source
@@ -3094,12 +3268,37 @@ export function registerReadTools(mcp: McpServer, deps: ReadToolDeps): void {
         "(CLAS/INTF/PROG/FUGR/DDLS) with public API, dependencies, tests and recent history. " +
         "Returns an etag. Capped ~15k tokens — use outline/method/offset for large objects. " +
         "Example: {\"object\":\"ZCL_FOO\",\"type\":\"CLAS/OC\"}.",
-      inputSchema: readInputSchema,
+      // `from_system`/`to_system` (issue #93, cross-system view="diff")
+      // are spliced in only when more than one system is configured —
+      // a single-system server has nothing a second system field could
+      // ever name, so its schema bytes stay exactly what they always were.
+      inputSchema: deps.multiSystem ? { ...readInputSchema, ...crossSystemInputSchema } : readInputSchema,
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
     async (args) => {
       try {
-        const input = args as ReadInput;
+        // `args as ReadInput & {...}`, not `as never` — see the comment on
+        // the plain-`ReadInput` cast further down for why this matters.
+        // `from_system`/`to_system` are cast here unconditionally: on a
+        // single-system server they are simply never present in `args`
+        // (dropped by the schema, which never declared them), so this
+        // widening is safe regardless of `deps.multiSystem`.
+        const input = args as ReadInput & { from_system?: string; to_system?: string };
+
+        // Cross-system diff (issue #93): checked FIRST, before this call
+        // touches the DEFAULT system's connection/pool/gate at all — both
+        // sides open their own connection and assert their own gate inside
+        // `runCrossSystemDiff`/`fetchCrossSystemSide`, never the default's.
+        if (input.from_system !== undefined || input.to_system !== undefined) {
+          const { from, to } = resolveCrossSystemSides(input, deps);
+          const built = await runCrossSystemDiff({
+            from,
+            to,
+            input,
+            maxChars: deps.cfg.maxResponseChars,
+          });
+          return okRead({ ...built, etag: NO_ETAG });
+        }
 
         // `view="docu"` without `method=` is the only branch that needs a
         // fluid write slot (see this function's JSDoc); every other input,

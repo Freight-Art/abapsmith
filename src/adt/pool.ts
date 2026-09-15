@@ -41,6 +41,7 @@ import { AbapError, isAbapError, describeUnknownError } from "./errors.js";
 import { CONNECT_FAILURE_REASONS, type ConnectFailureReason } from "./connect-failure.js";
 import { objectUriOf } from "./session.js";
 import { SessionBusyError, type SessionBusyReason } from "./session-lock.js";
+import { systemKey } from "../system-key.js";
 import {
   type ObjectGate,
   InProcessObjectGate,
@@ -481,6 +482,25 @@ export class AdtSessionPool implements SessionPool {
     // serialising same-object writes across abapsmith processes too. The `??` fallback to
     // resolveCrossProcessObjectLock() only matters for a partial `Config` test double; a real
     // parsed `Config` always supplies the boolean.
+    // `scope` (issue #93, multi-system support): object identity is really
+    // `(system, object)`, not just `object` — the default `FileLockObjectGate`
+    // hashes the object URI alone (see `objectGateLockPath`'s doc comment),
+    // so without a scope, writing `ZCL_FOO` on one configured system would
+    // serialise against writing `ZCL_FOO` on a different one, even though
+    // they are two different objects that only share a name. Guarded rather
+    // than unconditional because this file's own tests (`test/pool.test.ts`)
+    // build a partial `Config` double that may omit `sid`/`url`/`client`
+    // entirely — passing `scope: undefined` there reproduces the exact
+    // pre-#93 path, not a scoped one keyed on "undefined".
+    const scope =
+      typeof opts.cfg.sid === "string" &&
+      opts.cfg.sid !== "" &&
+      typeof opts.cfg.url === "string" &&
+      opts.cfg.url !== "" &&
+      typeof opts.cfg.client === "string" &&
+      opts.cfg.client !== ""
+        ? systemKey({ sid: opts.cfg.sid, url: opts.cfg.url, client: opts.cfg.client })
+        : undefined;
     this.gate =
       opts.gate ??
       (opts.cfg.serialiseSameObjectWrites === false
@@ -490,6 +510,7 @@ export class AdtSessionPool implements SessionPool {
           : new FileLockObjectGate({
               stateDir: resolveStateDir(process.env),
               waitMs: opts.cfg.objectLockWaitMs,
+              scope,
             }));
     this.maxQueue = Math.max(0, opts.maxQueue ?? DEFAULT_POOL_MAX_QUEUE);
     this.now = opts.now ?? (() => Date.now());

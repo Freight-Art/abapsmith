@@ -149,15 +149,34 @@ export function resolveCrossProcessObjectLock(env: NodeJS.ProcessEnv = process.e
 const LOCK_HASH_HEX_LEN = 20;
 
 /**
- * `<stateDir>/locks/objects/<sha256(objectUri)-20hex>.lock` — the cross-process
+ * `<stateDir>/locks/objects/<sha256(scope\nobjectUri)-20hex>.lock` — the cross-process
  * lock file for one object. URI is hashed because it's a full ADT path, not a
  * legal filename component everywhere; 20 hex chars (80 bits) is a lock
  * namespace, not a security boundary, so a birthday collision isn't a
  * realistic concern. Exported for tests to assert on / pre-create the file.
+ *
+ * `scope` (added for multi-system support, issue #93) distinguishes one
+ * SAP SYSTEM from another: object identity is really `(system, object)`, not
+ * just `object`, so without a scope two differently-configured systems that
+ * both happen to have a `ZCL_FOO` would serialise writes against each other
+ * for no reason — they are two different objects that only share a name.
+ * Absent `scope` (the default), this is EXACTLY today's path — no scope
+ * segment is added — so `test/pool-cross-process-object-gate.test.ts` and any
+ * other caller that never passes one keeps resolving the identical filename.
+ *
+ * Consequence for an existing installation: once a caller starts passing a
+ * scope (see {@link FileLockObjectGate}, `AdtSessionPool`'s constructor), the
+ * lock FILE NAME for a given object changes — a lock held under the old,
+ * unscoped path is a different file from the new, scoped one. An abapsmith
+ * process running an OLDER version concurrently with a newer, scoped one
+ * would therefore not see the newer process's lock (and vice versa): a
+ * narrow upgrade-window gap, not a steady-state hole — once every running
+ * process is on the scoped version, the gate is exact again.
  */
-export function objectGateLockPath(stateDir: string, objectUri: string): string {
+export function objectGateLockPath(stateDir: string, objectUri: string, scope?: string): string {
   const key = objectUriOf(objectUri);
-  const hash = createHash("sha256").update(key).digest("hex").slice(0, LOCK_HASH_HEX_LEN);
+  const hashInput = scope !== undefined ? `${scope}\n${key}` : key;
+  const hash = createHash("sha256").update(hashInput).digest("hex").slice(0, LOCK_HASH_HEX_LEN);
   return path.join(stateDir, "locks", "objects", `${hash}.lock`);
 }
 
@@ -221,15 +240,23 @@ export class FileLockObjectGate implements ObjectGate {
   private readonly inner = new InProcessObjectGate();
   private readonly stateDir: string;
   private readonly waitMs: number;
+  /**
+   * Which SAP system this gate's locks belong to (issue #93) — see
+   * {@link objectGateLockPath}'s doc comment for why object identity needs
+   * this on top of the object URI. `undefined` reproduces the pre-#93 path
+   * exactly, for a single-system server or a caller that doesn't care.
+   */
+  private readonly scope: string | undefined;
 
-  constructor(opts: { stateDir: string; waitMs?: number }) {
+  constructor(opts: { stateDir: string; waitMs?: number; scope?: string }) {
     this.stateDir = opts.stateDir;
     this.waitMs = opts.waitMs ?? resolveObjectLockWaitMs();
+    this.scope = opts.scope;
   }
 
   run<T>(objectUri: string, fn: () => Promise<T>): Promise<T> {
     return this.inner.run(objectUri, async () => {
-      const lockPath = objectGateLockPath(this.stateDir, objectUri);
+      const lockPath = objectGateLockPath(this.stateDir, objectUri, this.scope);
       try {
         return await withFileLock(lockPath, fn, {
           waitMs: this.waitMs,

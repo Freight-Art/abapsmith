@@ -370,6 +370,25 @@ export type AbapErrorCode =
   | "FLUID_ACTION_FAILED"
   /** The deployed ABAP side sent a response shape this client doesn't understand. */
   | "FLUID_PROTOCOL_ERROR"
+  // ---- Multi-system routing (issue #93) ----
+  /**
+   * A tool call named a `system` alias that is not configured. Minted by
+   * `SystemRegistry.resolve` (`src/systems/registry.ts`). The message lists
+   * every alias the process actually knows about, since the usual cause is
+   * a typo or a stale alias from a config that has since changed.
+   */
+  | "UNKNOWN_SYSTEM"
+  /**
+   * A call was routed to a different system than the one that owns the
+   * state it would touch. The only case that exists today is the debugger:
+   * `debugLanes` (`src/tools/debug.ts`) is process-global, not per-system,
+   * so a session started against one system must refuse a step/inspect/stop
+   * routed to another rather than silently acting on the wrong connection.
+   * Not `SAFETY_DENIED` (nothing about permissions is in question) and not
+   * `UNKNOWN_SYSTEM` (the named system is real; it just isn't the one
+   * holding the state this call would touch).
+   */
+  | "SYSTEM_MISMATCH"
   // ---- Data snapshots (src/snapshot-store.ts, abap_data_preview diff) ----
   /**
    * A stored data snapshot outlived its TTL (`dataSnapshotTtlHours` /
@@ -457,6 +476,8 @@ export const RETRYABILITY: Record<AbapErrorCode, Retryability> = {
   FLUID_MANIFEST_INVALID: "terminal", // the manifest on disk is wrong; the call's arguments cannot fix it
   FLUID_ACTION_FAILED: "terminal", // the ABAP action itself reported the failure; abapsmith cannot judge a retry's safety
   FLUID_PROTOCOL_ERROR: "terminal", // the deployed ABAP is not speaking the contract; a redeploy, not a retry
+  UNKNOWN_SYSTEM: "retryable", // a correct alias (see the message's list) resolves this
+  SYSTEM_MISMATCH: "retryable", // re-issuing with the session's own system, or stopping it first, resolves this
   SNAPSHOT_EXPIRED: "terminal", // no argument the caller can supply brings a deleted snapshot back; a new snapshot has a new id
 };
 

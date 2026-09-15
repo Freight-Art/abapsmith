@@ -25157,7 +25157,7 @@ var require_axios = __commonJS({
     var isNumber = typeOfTest("number");
     var isObject2 = (thing) => thing !== null && typeof thing === "object";
     var isBoolean = (thing) => thing === true || thing === false;
-    var isPlainObject7 = (val) => {
+    var isPlainObject8 = (val) => {
       if (!isObject2(val)) {
         return false;
       }
@@ -25272,9 +25272,9 @@ var require_axios = __commonJS({
         }
         const targetKey = caseless && typeof key === "string" && findKey(result, key) || key;
         const existing = hasOwnProperty(result, targetKey) ? result[targetKey] : void 0;
-        if (isPlainObject7(existing) && isPlainObject7(val)) {
+        if (isPlainObject8(existing) && isPlainObject8(val)) {
           result[targetKey] = merge2(existing, val);
-        } else if (isPlainObject7(val)) {
+        } else if (isPlainObject8(val)) {
           result[targetKey] = merge2({}, val);
         } else if (isArray(val)) {
           result[targetKey] = val.slice();
@@ -25539,7 +25539,7 @@ var require_axios = __commonJS({
       isNumber,
       isBoolean,
       isObject: isObject2,
-      isPlainObject: isPlainObject7,
+      isPlainObject: isPlainObject8,
       isEmptyObject,
       isReadableStream,
       isRequest,
@@ -36666,6 +36666,10 @@ var init_errors = __esm({
       // the ABAP action itself reported the failure; abapsmith cannot judge a retry's safety
       FLUID_PROTOCOL_ERROR: "terminal",
       // the deployed ABAP is not speaking the contract; a redeploy, not a retry
+      UNKNOWN_SYSTEM: "retryable",
+      // a correct alias (see the message's list) resolves this
+      SYSTEM_MISMATCH: "retryable",
+      // re-issuing with the session's own system, or stopping it first, resolves this
       SNAPSHOT_EXPIRED: "terminal"
       // no argument the caller can supply brings a deleted snapshot back; a new snapshot has a new id
     };
@@ -57442,17 +57446,17 @@ function tagExpWithClosingIndex(xmlData, i, closingChar = ">") {
     }
   }
 }
-function findClosingIndex(xmlData, str7, i, errMsg) {
+function findClosingIndex(xmlData, str7, i, errMsg2) {
   const closingIndex = xmlData.indexOf(str7, i);
   if (closingIndex === -1) {
-    throw new Error(errMsg);
+    throw new Error(errMsg2);
   } else {
     return closingIndex + str7.length - 1;
   }
 }
-function findClosingChar(xmlData, char, i, errMsg) {
+function findClosingChar(xmlData, char, i, errMsg2) {
   const closingIndex = xmlData.indexOf(char, i);
-  if (closingIndex === -1) throw new Error(errMsg);
+  if (closingIndex === -1) throw new Error(errMsg2);
   return closingIndex;
 }
 function readTagExp(xmlData, i, removeNSPrefix, closingChar = ">") {
@@ -62213,6 +62217,24 @@ var init_connection = __esm({
   }
 });
 
+// src/system-key.ts
+function systemKey(parts) {
+  const raw = parts.url.trim();
+  let origin;
+  try {
+    const u = new URL(raw);
+    origin = (u.origin && u.origin !== "null" ? u.origin : `${u.protocol}//${u.host}`).toLowerCase();
+  } catch {
+    origin = raw.toLowerCase();
+  }
+  return [parts.sid.trim().toUpperCase(), origin, parts.client.trim()].map(encodeURIComponent).join("|");
+}
+var init_system_key = __esm({
+  "src/system-key.ts"() {
+    "use strict";
+  }
+});
+
 // src/adt/object-gate.ts
 import { createHash as createHash4 } from "node:crypto";
 import * as path4 from "node:path";
@@ -62235,9 +62257,11 @@ function resolveCrossProcessObjectLock(env = process.env) {
   if (v === "") return true;
   return !["false", "0", "no", "off"].includes(v);
 }
-function objectGateLockPath(stateDir, objectUri) {
+function objectGateLockPath(stateDir, objectUri, scope) {
   const key = objectUriOf(objectUri);
-  const hash2 = createHash4("sha256").update(key).digest("hex").slice(0, LOCK_HASH_HEX_LEN);
+  const hashInput = scope !== void 0 ? `${scope}
+${key}` : key;
+  const hash2 = createHash4("sha256").update(hashInput).digest("hex").slice(0, LOCK_HASH_HEX_LEN);
   return path4.join(stateDir, "locks", "objects", `${hash2}.lock`);
 }
 function toObjectLockBusyError(e, objectUri, lockPath) {
@@ -62290,13 +62314,21 @@ var init_object_gate = __esm({
       inner = new InProcessObjectGate();
       stateDir;
       waitMs;
+      /**
+       * Which SAP system this gate's locks belong to (issue #93) — see
+       * {@link objectGateLockPath}'s doc comment for why object identity needs
+       * this on top of the object URI. `undefined` reproduces the pre-#93 path
+       * exactly, for a single-system server or a caller that doesn't care.
+       */
+      scope;
       constructor(opts) {
         this.stateDir = opts.stateDir;
         this.waitMs = opts.waitMs ?? resolveObjectLockWaitMs();
+        this.scope = opts.scope;
       }
       run(objectUri, fn) {
         return this.inner.run(objectUri, async () => {
-          const lockPath = objectGateLockPath(this.stateDir, objectUri);
+          const lockPath = objectGateLockPath(this.stateDir, objectUri, this.scope);
           try {
             return await withFileLock(lockPath, fn, {
               waitMs: this.waitMs,
@@ -62356,6 +62388,7 @@ var init_pool = __esm({
     init_connect_failure();
     init_session();
     init_session_lock();
+    init_system_key();
     init_object_gate();
     DEFAULT_POOL_MAX_QUEUE = 8;
     DEBUG_CONCURRENCY = 1;
@@ -62406,9 +62439,11 @@ var init_pool = __esm({
         this.sharedBreaker = opts.breaker;
         this.factory = opts.createConnection ?? ((cfg, o) => new AbapConnection(cfg, o));
         this.prepareFn = opts.prepareConnection;
+        const scope = typeof opts.cfg.sid === "string" && opts.cfg.sid !== "" && typeof opts.cfg.url === "string" && opts.cfg.url !== "" && typeof opts.cfg.client === "string" && opts.cfg.client !== "" ? systemKey({ sid: opts.cfg.sid, url: opts.cfg.url, client: opts.cfg.client }) : void 0;
         this.gate = opts.gate ?? (opts.cfg.serialiseSameObjectWrites === false ? new NoopObjectGate() : (opts.cfg.crossProcessObjectLock ?? resolveCrossProcessObjectLock()) === false ? new InProcessObjectGate() : new FileLockObjectGate({
           stateDir: resolveStateDir(process.env),
-          waitMs: opts.cfg.objectLockWaitMs
+          waitMs: opts.cfg.objectLockWaitMs,
+          scope
         }));
         this.maxQueue = Math.max(0, opts.maxQueue ?? DEFAULT_POOL_MAX_QUEUE);
         this.now = opts.now ?? (() => Date.now());
@@ -101772,1575 +101807,8 @@ var StdioServerTransport = class {
 };
 
 // src/server.ts
-init_connection();
 init_errors();
-init_pool();
-
-// src/adt/session-transport.ts
-init_errors();
-init_transports();
-function parsePolicy(allowTransports) {
-  const entries = allowTransports.map((e) => e.trim()).filter((e) => e !== "");
-  const disabled = allowTransports.length === 0;
-  const pins = [];
-  let auto = false;
-  let wildcard = false;
-  for (const entry of entries) {
-    const upper = entry.toUpperCase();
-    if (upper === "AUTO") auto = true;
-    else if (entry === "*") wildcard = true;
-    else if (isTrkorr(upper)) pins.push(upper);
-  }
-  return { disabled, auto: auto || wildcard, wildcard, pins };
-}
-function notNeeded(reason) {
-  return { outcome: "not-needed", created: false, pinned: false, reason };
-}
-function granted(corrNr, source, reason, overrodeCorrNr) {
-  return {
-    outcome: "transport",
-    corrNr,
-    created: source === "session-created",
-    pinned: source === "server-pin" || source === "config-pin",
-    source,
-    reason,
-    ...overrodeCorrNr !== void 0 ? { overrodeCorrNr } : {}
-  };
-}
-function denied(denial, code, reason, hint) {
-  return {
-    outcome: "denied",
-    created: false,
-    pinned: false,
-    denial,
-    code,
-    reason,
-    ...hint === void 0 ? {} : { hint }
-  };
-}
-function toAbapError(res) {
-  if (res.outcome !== "denied") return void 0;
-  return new AbapError(
-    res.code,
-    res.reason,
-    { denial: res.denial },
-    res.hint
-  );
-}
-function pickLatest(candidates) {
-  return candidates.reduce((best, c) => {
-    const bestChanged = best.lastChanged ?? "";
-    const cChanged = c.lastChanged ?? "";
-    if (cChanged !== bestChanged) return cChanged > bestChanged ? c : best;
-    return c.trkorr > best.trkorr ? c : best;
-  });
-}
-var SessionTransport = class _SessionTransport {
-  #policy;
-  #cts;
-  #whoami;
-  #now;
-  #description;
-  #onCreated;
-  #authorizeCreate;
-  #state;
-  /**
-   * Single-flight guard. A *promise*, not a boolean: a boolean can only
-   * say "someone is creating", which leaves the second caller with nothing to
-   * await and no TRKORR to return. Holding the promise means every racer on a
-   * cold cache gets the same request.
-   */
-  #inflight;
-  /** The most recent `#resolveAuto` decision. See `lastAutoDecision`. */
-  #lastAutoDecision;
-  /** TRKORRs this session itself created — auto-create, or `noteCreated()`. */
-  #created = /* @__PURE__ */ new Set();
-  constructor(opts) {
-    this.#policy = parsePolicy(opts.allowTransports);
-    this.#cts = {
-      trRequirement: opts.cts?.trRequirement ?? trRequirement,
-      trCreate: opts.cts?.trCreate ?? trCreate,
-      trShow: opts.cts?.trShow ?? trShow
-    };
-    this.#whoami = opts.whoami ?? (() => void 0);
-    this.#now = opts.now ?? (() => /* @__PURE__ */ new Date());
-    this.#description = opts.description;
-    this.#onCreated = opts.onCreated;
-    this.#authorizeCreate = opts.authorizeCreate;
-    this.#state = this.#policy.disabled ? {
-      kind: "disabled",
-      reason: "ABAP_ALLOW_TRANSPORTS is explicitly empty \u2014 every transportable write is refused."
-    } : { kind: "idle" };
-  }
-  /** The state machine, for tests and for `abap_transport`'s status output. */
-  get state() {
-    return this.#state;
-  }
-  /** The cached session TRKORR, if one is currently active. */
-  get trkorr() {
-    return this.#state.kind === "active" ? this.#state.trkorr : void 0;
-  }
-  /**
-   * The last decision `#resolveAuto` made, so a write response can quote it.
-   * Only meaningful when its `trkorr` matches the request the write actually
-   * used — a caller must check that before attributing the reason to itself.
-   */
-  get lastAutoDecision() {
-    return this.#lastAutoDecision;
-  }
-  /** Did THIS session create `trkorr` — auto-create, or a caller's `noteCreated()`? */
-  createdThisSession(trkorr) {
-    const t = trkorr?.trim().toUpperCase();
-    return t !== void 0 && t !== "" && this.#created.has(t);
-  }
-  /** Record a request created outside the auto-resolve path (`abap_transport operation=create`). */
-  noteCreated(trkorr) {
-    this.#created.add(trkorr.trim().toUpperCase());
-  }
-  /**
-   * Decide which transport request this write goes into.
-   *
-   * Never returns "no transport, just try it" for a transportable object — see
-   * the module header, rule 2. Wire failures from `transports.ts` propagate as
-   * thrown `AbapError`s; *decisions* always come back as a value.
-   */
-  async resolve(conn, obj, operation = "I", opts = {}) {
-    const named = _SessionTransport.#normalizeCorrNr(opts.corrNr);
-    if (!named.ok) return named.denied;
-    const wanted = named.wanted;
-    const req = await this.#cts.trRequirement(
-      conn,
-      obj.uri,
-      obj.devclass,
-      operation
-    );
-    if (req.checkFailed) {
-      const msgs = req.messages.map((m) => m.text).filter((t) => t !== void 0 && t !== "").join("; ");
-      return denied(
-        "precheck-failed",
-        "TRANSPORT_ERROR",
-        `The transport pre-check for ${obj.name ?? obj.uri} failed${msgs === "" ? "." : `: ${msgs}`}`
-      );
-    }
-    if (req.kind === "local") {
-      return notNeeded(
-        `${obj.name ?? obj.uri} is local (package ${req.devclass ?? "$TMP"}) \u2014 no transport request is involved.`
-      );
-    }
-    return this.#decideTransportable(
-      conn,
-      obj,
-      wanted,
-      req.pinnedTo,
-      req.pinnedOwner,
-      req.devclass,
-      req.candidates,
-      opts.revalidate === true
-    );
-  }
-  /**
-   * Decides a transport for a `DEVC/K` package create: CTS can't
-   * classify an object that doesn't exist, so resolve()'s pre-flight always
-   * answers "local". Runs Steps 3-7 unchanged with pinnedTo forced undefined
-   * (no server pin is possible), and never returns "not-needed". `candidates`
-   * is always empty here — CTS has never seen this object, so there is no
-   * candidate list to trust.
-   */
-  async resolveForNewTransportable(conn, obj, opts = {}) {
-    const named = _SessionTransport.#normalizeCorrNr(opts.corrNr);
-    if (!named.ok) return named.denied;
-    return this.#decideTransportable(
-      conn,
-      obj,
-      named.wanted,
-      void 0,
-      void 0,
-      obj.devclass,
-      [],
-      opts.revalidate === true
-    );
-  }
-  /**
-   * Steps 3–7 of `resolve()`, extracted so they are shared verbatim with
-   * `resolveForNewTransportable()`. Steps 1, 1b and 2 (the CTS pre-flight
-   * that only `resolve()` can perform) live in `resolve()` itself.
-   */
-  async #decideTransportable(conn, obj, wanted, pinnedTo, pinnedOwner, devclass, candidates, revalidate) {
-    this.#lastAutoDecision = void 0;
-    if (this.#policy.disabled) {
-      return denied(
-        "transports-disabled",
-        "TRANSPORT_ERROR",
-        `${obj.name ?? obj.uri} needs a transport request, but ABAP_ALLOW_TRANSPORTS is explicitly empty \u2014 every transportable write is refused. Local ($TMP) writes are unaffected.`,
-        "Set ABAP_ALLOW_TRANSPORTS=auto, or list a specific request number."
-      );
-    }
-    if (pinnedTo !== void 0 && pinnedTo !== "") {
-      return this.#resolvePin(pinnedTo, pinnedOwner, obj, wanted);
-    }
-    if (wanted !== void 0) {
-      if (!this.#callerMayName(wanted)) {
-        return denied(
-          "not-allowlisted",
-          "TRANSPORT_ERROR",
-          `Transport ${wanted} is not permitted by ABAP_ALLOW_TRANSPORTS [${this.#policy.pins.join(", ") || "auto"}].`,
-          'Add it to ABAP_ALLOW_TRANSPORTS, or use "*" to allow any caller-named request.'
-        );
-      }
-      const problem = await this.#checkUsable(conn, wanted);
-      if (problem !== void 0) return problem;
-      return granted(wanted, "caller", `Using caller-supplied request ${wanted}.`);
-    }
-    if (this.#policy.pins.length > 0) {
-      return this.#resolveConfigPin(conn);
-    }
-    if (!this.#policy.auto) {
-      return denied(
-        "not-allowlisted",
-        "TRANSPORT_ERROR",
-        `${obj.name ?? obj.uri} needs a transport request, but ABAP_ALLOW_TRANSPORTS does not permit creating one and no request was named.`,
-        "Pass a corr_nr, or set ABAP_ALLOW_TRANSPORTS=auto to let this session create one."
-      );
-    }
-    return this.#resolveAuto(conn, obj, devclass, candidates, revalidate);
-  }
-  /**
-   * Step 0 shared by `resolve()` and `resolveForNewTransportable()`: validate
-   * a caller-supplied `corrNr` and normalise it, so the two entry points
-   * cannot drift on what counts as a well-formed request number.
-   */
-  static #normalizeCorrNr(corrNr) {
-    const named = corrNr?.trim();
-    if (named !== void 0 && named !== "" && !isTrkorr(named)) {
-      return {
-        ok: false,
-        denied: denied(
-          "bad-corrnr",
-          "BAD_INPUT",
-          `"${named}" is not a well-formed transport request number.`,
-          "Expected a TRKORR such as A4HK900123."
-        )
-      };
-    }
-    return { ok: true, wanted: named === "" ? void 0 : named?.toUpperCase() };
-  }
-  /**
-   * Mark the cached request dead. Called by `abap_transport` after it deletes
-   * or releases the session request (and only after the mandatory verification
-   * re-read — a bare 200 proves nothing), and by the write path
-   * when a 403 identifies the request as missing.
-   *
-   * No-op unless `trkorr` is the one we are actually holding, so an unrelated
-   * release cannot knock out our session.
-   */
-  invalidate(trkorr, reason) {
-    if (this.#state.kind !== "active") return;
-    if (this.#state.trkorr.toUpperCase() !== trkorr.trim().toUpperCase()) return;
-    this.#state = {
-      kind: "gone",
-      trkorr: this.#state.trkorr,
-      reason,
-      detectedAt: this.#now().toISOString()
-    };
-  }
-  /** Lazy re-validation: reads the cached request, invalidating it if gone. Safe when nothing is cached. */
-  async revalidate(conn) {
-    if (this.#state.kind !== "active") return this.#state;
-    const trkorr = this.#state.trkorr;
-    const reason = await this.#probe(conn, trkorr);
-    if (reason !== void 0) this.invalidate(trkorr, reason);
-    return this.#state;
-  }
-  /** One line a tool response can print. */
-  describe() {
-    const s = this.#state;
-    switch (s.kind) {
-      case "disabled":
-        return `transport: disabled \u2014 ${s.reason}`;
-      case "idle":
-        return this.#policy.pins.length > 0 ? `transport: none yet (pinned mode \u2014 will use one of ${this.#policy.pins.join(", ")}, never creates)` : this.#policy.auto ? "transport: none yet (auto \u2014 one request will be created on the first transportable write)" : "transport: none yet (no auto-create; the caller must name a request)";
-      case "creating":
-        return `transport: creating (since ${new Date(s.since).toISOString()})`;
-      case "active": {
-        const pkg = s.devclass === void 0 ? "" : `, package ${s.devclass}`;
-        switch (s.origin) {
-          case "created":
-            return `transport: ${s.trkorr} (session, created ${s.createdAt}${pkg})`;
-          case "adopted":
-            return `transport: ${s.trkorr} (session, adopted ${s.createdAt}${pkg})`;
-          case "config-pin":
-            return `transport: ${s.trkorr} (pinned by configuration)`;
-        }
-      }
-      case "gone":
-        return `transport: ${s.trkorr} is gone (${s.reason}, detected ${s.detectedAt}) \u2014 the next transportable write resolves afresh`;
-    }
-  }
-  // -------------------------------------------------------------------------
-  // Internals
-  // -------------------------------------------------------------------------
-  #callerMayName(trkorr) {
-    if (this.#policy.wildcard) return true;
-    return this.#policy.pins.includes(trkorr);
-  }
-  #resolvePin(pinnedTo, pinnedOwner, obj, wanted) {
-    const me = this.#whoami();
-    if (pinnedOwner !== void 0 && pinnedOwner !== "" && me !== void 0 && me !== "" && pinnedOwner.toUpperCase() !== me.toUpperCase()) {
-      return denied(
-        "pinned-elsewhere",
-        "TRANSPORT_LOCKED",
-        `${obj.name ?? obj.uri} is already recorded in request ${pinnedTo}, which belongs to ${pinnedOwner}, not ${me}.`,
-        `Ask ${pinnedOwner} to release ${pinnedTo}, or add yourself to it.`
-      );
-    }
-    const overrode = wanted !== void 0 && wanted !== pinnedTo.toUpperCase() ? wanted : void 0;
-    const note = overrode !== void 0 ? ` (overriding the requested ${overrode})` : "";
-    return granted(
-      pinnedTo,
-      "server-pin",
-      `${obj.name ?? obj.uri} is already recorded in request ${pinnedTo} \u2014 imposed by the server${note}.`,
-      overrode
-    );
-  }
-  async #resolveConfigPin(conn) {
-    if (this.#state.kind === "active") {
-      return granted(
-        this.#state.trkorr,
-        "config-pin",
-        `Using configured request ${this.#state.trkorr}.`
-      );
-    }
-    const problems = [];
-    for (const pin of this.#policy.pins) {
-      const problem = await this.#checkUsable(conn, pin);
-      if (problem === void 0) {
-        this.#state = {
-          kind: "active",
-          trkorr: pin,
-          createdAt: this.#now().toISOString(),
-          origin: "config-pin"
-        };
-        return granted(pin, "config-pin", `Using configured request ${pin}.`);
-      }
-      problems.push(problem.outcome === "denied" ? problem.reason : pin);
-    }
-    return denied(
-      "no-usable-pin",
-      "TRANSPORT_ERROR",
-      `None of the transport requests in ABAP_ALLOW_TRANSPORTS is usable: ${problems.join(" ")}`,
-      "Pinned mode never creates a request; list a modifiable one or set ABAP_ALLOW_TRANSPORTS=auto."
-    );
-  }
-  async #resolveAuto(conn, obj, reqDevclass, candidates, revalidate) {
-    if (this.#state.kind === "gone") {
-      const dead = this.#state;
-      this.#state = { kind: "idle" };
-      return denied(
-        "transport-gone",
-        "TRANSPORT_GONE",
-        `The session transport request ${dead.trkorr} is no longer usable (${dead.reason}). Nothing was written. Retry \u2014 the next write will resolve a fresh request.`
-      );
-    }
-    let healedPrefix = "";
-    let retired;
-    let preemptedFrom;
-    if (this.#state.kind === "active") {
-      const cached2 = this.#state.trkorr;
-      const preempting = !this.createdThisSession(cached2) && candidates.some(
-        (c) => c.kind === "workbench" && c.status === "modifiable" && this.createdThisSession(c.trkorr)
-      );
-      if (preempting) {
-        preemptedFrom = cached2;
-      } else {
-        const corroboratedAlive = candidates.some(
-          (c) => c.status === "modifiable" && c.trkorr.toUpperCase() === cached2.toUpperCase()
-        );
-        const needsProbe = revalidate || candidates.length > 0 && !corroboratedAlive;
-        const goneReason = needsProbe ? await this.#probe(conn, cached2) : void 0;
-        if (!needsProbe || goneReason === void 0) {
-          return this.#autoGranted(
-            cached2,
-            "session-cached",
-            `Reusing this session's request ${cached2}.`
-          );
-        }
-        this.invalidate(cached2, goneReason);
-        this.#state = { kind: "idle" };
-        healedPrefix = `The session's previous request ${cached2} is no longer usable (${goneReason}). `;
-        retired = cached2;
-      }
-    }
-    const devclass = reqDevclass ?? obj.devclass;
-    if (devclass === void 0 || devclass === "") {
-      return denied(
-        "unknown-package",
-        "BAD_INPUT",
-        `Cannot create a transport request for ${obj.name ?? obj.uri}: its package could not be determined.`,
-        "Pass devclass explicitly."
-      );
-    }
-    const sessionCreated = candidates.filter(
-      (c) => (
-        // Same "don't re-adopt what the heal branch just killed" guard as
-        // the attributed tier below.
-        (retired === void 0 || c.trkorr.toUpperCase() !== retired.toUpperCase()) && c.kind === "workbench" && c.status === "modifiable" && this.createdThisSession(c.trkorr)
-      )
-    );
-    if (sessionCreated.length > 0) {
-      const chosen = pickLatest(sessionCreated);
-      this.#state = {
-        kind: "active",
-        trkorr: chosen.trkorr,
-        devclass,
-        createdAt: this.#now().toISOString(),
-        origin: "adopted"
-      };
-      const reason = preemptedFrom !== void 0 ? `${healedPrefix}Switched from ${preemptedFrom}, which this session did not create, to ${chosen.trkorr}, which THIS SESSION created.` : `${healedPrefix}Adopted request ${chosen.trkorr}, which THIS SESSION created, rather than creating another.`;
-      return this.#autoGranted(chosen.trkorr, "session-adopted", reason);
-    }
-    const me = this.#whoami();
-    const attributed = me === void 0 || me === "" ? [] : candidates.filter(
-      (c) => (
-        // CTS's candidate list can still show a request the trShow probe
-        // just proved dead above; the probe is the newer evidence, so a
-        // just-retired request must never be re-adopted in this call.
-        (retired === void 0 || c.trkorr.toUpperCase() !== retired.toUpperCase()) && c.kind === "workbench" && c.status === "modifiable" && c.owner.toUpperCase() === me.toUpperCase() && this.#isOwnDescription(c.description) && // Already had its chance in tier 1 above; never double-counted.
-        !this.createdThisSession(c.trkorr)
-      )
-    );
-    if (attributed.length > 0) {
-      const chosen = pickLatest(attributed);
-      this.#state = {
-        kind: "active",
-        trkorr: chosen.trkorr,
-        devclass,
-        createdAt: this.#now().toISOString(),
-        origin: "adopted"
-      };
-      return this.#autoGranted(
-        chosen.trkorr,
-        "session-adopted",
-        `${healedPrefix}Adopted existing request ${chosen.trkorr} rather than creating another: it is a modifiable workbench request owned by ${chosen.owner} and carries abapsmith's own session description (${chosen.description}). THIS SESSION DID NOT CREATE IT \u2014 it was already open when this session started, so it may already hold objects from earlier work, and abap_transport_release will refuse to release it without an explicit override.`
-      );
-    }
-    const declineReason = me === void 0 || me === "" ? `The connected SAP user could not be established, so no existing request could be attributed to abapsmith (and none was created by this session either).` : candidates.length === 0 ? `CTS offered no existing request for package ${devclass}.` : `CTS offered ${candidates.length} candidate request(s) for package ${devclass}, none of which this session created or could attribute to itself (a modifiable workbench request owned by ${me} carrying abapsmith's own session description).`;
-    const { trkorr, created } = await this.#createOnce(conn, obj.uri, devclass);
-    return this.#autoGranted(
-      trkorr,
-      created ? "session-created" : "session-cached",
-      created ? `${healedPrefix}Created request ${trkorr} for this session. ${declineReason}` : `Reusing this session's request ${trkorr}.`
-    );
-  }
-  /** Wraps `granted()` and records the decision so `lastAutoDecision` can quote it. */
-  #autoGranted(corrNr, source, reason) {
-    this.#lastAutoDecision = { trkorr: corrNr, source, reason };
-    return granted(corrNr, source, reason);
-  }
-  /**
-   * Single-flight creation. Two writes racing on a cold cache share one
-   * promise, so exactly one `trCreate` POST goes out; `created` is true only
-   * for the caller that started the flight.
-   */
-  async #createOnce(conn, objSourceUrl, devClass) {
-    const existing = this.#inflight;
-    if (existing !== void 0) return { trkorr: await existing, created: false };
-    const description = this.#buildDescription();
-    const flight = this.#doCreate(conn, objSourceUrl, devClass, description).catch((err) => {
-      if (this.#state.kind === "creating") this.#state = { kind: "idle" };
-      throw err;
-    }).finally(() => {
-      this.#inflight = void 0;
-    });
-    this.#inflight = flight;
-    return { trkorr: await flight, created: true };
-  }
-  /**
-   * ORDERING: the journal hook fires AFTER the server confirms creation, not
-   * before. A pre-POST entry can't name a real TRKORR and gets written even
-   * for failed creations; the accepted cost of firing after is a crash window
-   * between `trCreate` returning and the hook completing, where a numbered
-   * request could exist with no journal entry. That window is narrowed as far
-   * as possible: the hook is `await`ed before the TRKORR is returned, so it's
-   * never used by a write path whose journal entry hasn't landed. See archive
-   * for the full trade-off writeup.
-   */
-  async #doCreate(conn, objSourceUrl, devClass, description) {
-    this.#state = { kind: "creating", since: this.#now().getTime() };
-    if (!this.#authorizeCreate) {
-      throw new Error(
-        "SessionTransport: auto-create reached trCreate() with no authorizeCreate() minter configured. This is an internal wiring bug, not a safety refusal \u2014 see SessionTransportOptions.authorizeCreate in src/adt/session-transport.ts."
-      );
-    }
-    const authorized = this.#authorizeCreate(devClass);
-    const created = await this.#cts.trCreate(
-      conn,
-      {
-        objSourceUrl,
-        description,
-        devClass
-      },
-      authorized
-    );
-    this.noteCreated(created.trkorr);
-    const createdAt = this.#now().toISOString();
-    this.#state = {
-      kind: "active",
-      trkorr: created.trkorr,
-      devclass: devClass,
-      createdAt,
-      origin: "created"
-    };
-    try {
-      await this.#onCreated?.({
-        trkorr: created.trkorr,
-        devclass: devClass,
-        description,
-        createdAt,
-        objSourceUrl,
-        source: "session-created"
-      });
-    } catch (err) {
-      process.stderr.write(
-        `[abapsmith] WARNING: transport request ${created.trkorr} WAS CREATED on the ABAP system (package ${devClass}) but recording it failed: ${err.message}. Note ${created.trkorr} down NOW \u2014 abapsmith has no journal entry for it, and it will not appear in abap_journal. It must be released or deleted by hand.
-`
-      );
-    }
-    return created.trkorr;
-  }
-  /**
-   * SAP's AS4TEXT field holds 60 characters; deliberately not truncated here
-   * — an over-long override should surface as a loud ADT error, not get
-   * silently shortened.
-   */
-  #buildDescription() {
-    return this.#description ?? `abapsmith session ${this.#now().toISOString().slice(0, 10)}`;
-  }
-  /** Is `description` one `#buildDescription()` would produce? */
-  #isOwnDescription(description) {
-    const trimmed = description.trim();
-    return this.#description !== void 0 ? trimmed === this.#description.trim() : /^abapsmith session \d{4}-\d{2}-\d{2}$/.test(trimmed);
-  }
-  /**
-   * Is `trkorr` a request we can write into right now? Returns `undefined` when
-   * it is, or the `denied` resolution explaining why not.
-   */
-  async #checkUsable(conn, trkorr) {
-    let request;
-    try {
-      request = await this.#cts.trShow(conn, trkorr);
-    } catch (err) {
-      if (err instanceof AbapError && err.code === "TRANSPORT_GONE") {
-        return denied(
-          "corrnr-unusable",
-          "TRANSPORT_GONE",
-          `Transport request ${trkorr} does not exist in this system.`
-        );
-      }
-      throw err;
-    }
-    if (request.status === "released") {
-      return denied(
-        "corrnr-unusable",
-        "TRANSPORT_ERROR",
-        `Transport request ${trkorr} has already been released and cannot take further objects.`
-      );
-    }
-    if (request.status !== "modifiable") {
-      return denied(
-        "corrnr-unusable",
-        "TRANSPORT_LOCKED",
-        `Transport request ${trkorr} is ${request.statusText ?? request.status} and cannot take further objects.`
-      );
-    }
-    const me = this.#whoami();
-    if (me !== void 0 && me !== "" && request.owner !== "" && request.owner.toUpperCase() !== me.toUpperCase() && !request.tasks.some((t) => t.owner.toUpperCase() === me.toUpperCase())) {
-      return denied(
-        "corrnr-unusable",
-        "TRANSPORT_LOCKED",
-        `Transport request ${trkorr} belongs to ${request.owner}, and ${me} has no task in it.`
-      );
-    }
-    return void 0;
-  }
-  /** `undefined` when the request is still alive, else why it is not. */
-  async #probe(conn, trkorr) {
-    try {
-      const request = await this.#cts.trShow(conn, trkorr);
-      return request.status === "released" ? "released" : void 0;
-    } catch (err) {
-      if (err instanceof AbapError && err.code === "TRANSPORT_GONE") {
-        return "not-found";
-      }
-      throw err;
-    }
-  }
-};
-
-// src/server.ts
 init_config();
-
-// src/journal.ts
-init_errors();
-init_compact();
-import { randomBytes as randomBytes5 } from "node:crypto";
-import { promises as fs3 } from "node:fs";
-import * as path5 from "node:path";
-
-// src/mcp-session.ts
-import { AsyncLocalStorage as AsyncLocalStorage3 } from "node:async_hooks";
-var store = new AsyncLocalStorage3();
-function runInMcpSession(ctx, fn) {
-  return store.run(ctx, fn);
-}
-function currentMcpSession() {
-  return store.getStore();
-}
-function mcpSessionActor(ctx) {
-  return ctx.caller ?? ctx.client;
-}
-
-// src/journal.ts
-init_state_dir();
-function journalRef(t) {
-  return {
-    name: t.name,
-    type: t.type,
-    uri: t.uri,
-    sourceUri: t.sourceUri,
-    package: t.packageName,
-    description: t.description
-  };
-}
-var CAPTURE_VALUES = /* @__PURE__ */ new Set([
-  "captured",
-  "confirmed-absent",
-  "failed",
-  "unknown"
-]);
-function normaliseCapture(value) {
-  return typeof value === "string" && CAPTURE_VALUES.has(value) ? value : "unknown";
-}
-function systemKey(parts) {
-  const raw = parts.url.trim();
-  let origin;
-  try {
-    const u = new URL(raw);
-    origin = (u.origin && u.origin !== "null" ? u.origin : `${u.protocol}//${u.host}`).toLowerCase();
-  } catch {
-    origin = raw.toLowerCase();
-  }
-  return [parts.sid.trim().toUpperCase(), origin, parts.client.trim()].map(encodeURIComponent).join("|");
-}
-var DEFAULT_MAX_ENTRIES = 200;
-var DEFAULT_MAX_AGE_DAYS = 30;
-var STALE_PENDING_MS = 5 * 6e4;
-var INDEX_FILE = "index.jsonl";
-var BLOB_DIR = "blobs";
-var INFLIGHT_DIR = ".inflight";
-var INFLIGHT_GRACE_MS = 15 * 6e4;
-var PRUNE_SLACK = 1.25;
-var OFF_VALUES = /* @__PURE__ */ new Set(["off", "false", "0", "no", "none", "disabled"]);
-function intFromEnv2(raw, fallback) {
-  if (raw === void 0 || raw.trim() === "") return fallback;
-  const n = Number(raw.trim());
-  if (!Number.isFinite(n) || n < 0) return fallback;
-  return Math.floor(n);
-}
-function safeSegment(sid) {
-  const cleaned = sid.trim().replace(/[^A-Za-z0-9_-]/g, "_");
-  return cleaned.length ? cleaned.toUpperCase() : "UNKNOWN";
-}
-function journalConfigFromEnv(env, sid, cwd) {
-  const flag3 = env.ABAP_JOURNAL?.trim().toLowerCase();
-  const enabled = !(flag3 !== void 0 && OFF_VALUES.has(flag3));
-  const base = cwd ?? process.cwd();
-  const root = env.ABAP_JOURNAL_DIR?.trim() ? path5.resolve(base, env.ABAP_JOURNAL_DIR.trim()) : path5.resolve(base, ".abapsmith", "journal");
-  const actor = env.ABAP_ACTOR?.trim() || void 0;
-  return {
-    dir: path5.join(root, safeSegment(sid)),
-    enabled,
-    maxEntries: intFromEnv2(env.ABAP_JOURNAL_MAX_ENTRIES, DEFAULT_MAX_ENTRIES),
-    maxAgeDays: intFromEnv2(env.ABAP_JOURNAL_MAX_AGE_DAYS, DEFAULT_MAX_AGE_DAYS),
-    ...actor ? { actor } : {}
-  };
-}
-function sourceFingerprint(source) {
-  return contentHash(canonicalSource(source));
-}
-var lastMs = 0;
-function compactTimestamp(ms) {
-  return new Date(ms).toISOString().replace(/[-:]/g, "").replace(/\.(\d{3})Z$/, "$1Z");
-}
-function newId() {
-  const ms = Math.max(Date.now(), lastMs + 1);
-  lastMs = ms;
-  return `${compactTimestamp(ms)}-${randomBytes5(3).toString("hex")}`;
-}
-var JOURNAL_ID_RE = /^\d{8}T\d{9}Z-[0-9a-f]{6}$/;
-function looksLikeJournalId(stem) {
-  return JOURNAL_ID_RE.test(stem);
-}
-function assertValidId(id) {
-  if (typeof id !== "string" || id.trim() === "" || /[/\\]/.test(id) || id.includes("..")) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `Not a valid journal entry id: ${JSON.stringify(id)}`,
-      { id },
-      "Ids look like 20260731T134500123Z-a1b2c3; list the journal to get one."
-    );
-  }
-}
-var MARKER_RE = /^(.*)\.(\d+)$/;
-function pidIsAlive(pid) {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (e) {
-    return e.code !== "ESRCH";
-  }
-}
-function isEntry(rec) {
-  return typeof rec.id === "string" && typeof rec.ts === "string" && typeof rec.operation === "string" && typeof rec.outcome === "string" && typeof rec.object === "object" && rec.object !== null;
-}
-var Journal = class _Journal {
-  enabled;
-  dir;
-  config;
-  /**
-   * Public so undo can check that the entry it is about to replay was
-   * recorded against the system it is connected to. Read-only.
-   */
-  system;
-  indexPath;
-  blobDir;
-  /**
-   * Cross-process lock guarding `index.jsonl` — see src/state-dir.ts. A
-   * SIBLING of the index, deliberately NOT inside `blobs/`: `sweepBlobs()`
-   * reads and deletes out of that directory, and a lock file appearing and
-   * disappearing under another process's feet has no business being where
-   * the sweep can see it. Per journal directory (per SID) — two SIDs have no
-   * reason to wait on each other.
-   */
-  lockPath;
-  /**
-   * On-disk mirror of {@link inFlight} — see {@link INFLIGHT_DIR} for why it
-   * is a sibling of the index rather than nested under `blobs/.inflight`.
-   */
-  inFlightDir;
-  /**
-   * Serialises index mutations within the process so two writers never
-   * interleave — see `runExclusive()`.
-   */
-  tail = Promise.resolve();
-  /**
-   * Ids whose blobs are on disk but whose index line has not landed yet.
-   * `begin()` writes blobs first BY DESIGN (the index must never point at a
-   * blob that does not exist yet), so between the two `readAll()` cannot see
-   * the id but its blobs are real — a concurrent `prune()`/`sweepBlobs()`
-   * must be told to spare them, or the index line lands pointing at a deleted
-   * blob and undo is silently left with nothing to restore.
-   *
-   * PROCESS-LOCAL. A four-process reproduction found the same bug one level
-   * up — process A's sweep cannot see process B's set — hence
-   * {@link inFlightDir}, which mirrors this set to disk. The mirror is
-   * advisory (best-effort, may lag or leak); this set stays the authority for
-   * our own ids and is consulted first in `sweepBlobs()`.
-   */
-  inFlight = /* @__PURE__ */ new Set();
-  /** Lines currently in the index, once known. Drives the lazy prune. */
-  lineCount;
-  /** MCP client identity, set post-construction — see `setClientActor()`. */
-  clientActor;
-  /** This process/session's id, set post-construction — see `setClientSession()`. */
-  clientSessionId;
-  /** Provenance of {@link clientSessionId}. Meaningful only alongside it. */
-  clientSessionSource;
-  constructor(cfg, system) {
-    this.config = Object.freeze({ ...cfg });
-    this.enabled = cfg.enabled;
-    this.dir = cfg.dir;
-    this.system = system;
-    this.indexPath = path5.join(cfg.dir, INDEX_FILE);
-    this.blobDir = path5.join(cfg.dir, BLOB_DIR);
-    this.lockPath = `${this.indexPath}.lock`;
-    this.inFlightDir = path5.join(this.dir, INFLIGHT_DIR);
-  }
-  /**
-   * The stdio/process-wide fallback. Must be lazy, unlike `config.actor`:
-   * the client identity is unknown until the transport's initialize
-   * handshake completes, which is after this `Journal` is constructed
-   * (src/server.ts). Under `ABAP_MCP_TRANSPORT=http` this is set once from
-   * the DEFAULT `McpServer` only (`createServer`'s `createMcpServer(undefined)`
-   * call in src/server.ts) — every per-session `McpServer` instead sets
-   * `McpSessionContext.client` (src/mcp-session.ts), which
-   * `resolveActor()` below consults first via the ambient session.
-   */
-  setClientActor(name) {
-    this.clientActor = name?.trim() || void 0;
-  }
-  /**
-   * `ABAP_ACTOR` (`config.actor`) still wins over everything — it is an
-   * operator override. Below that, the ambient per-MCP-session identity
-   * (`currentMcpSession()`, src/mcp-session.ts) wins over this process-wide
-   * `clientActor`: under `ABAP_MCP_TRANSPORT=http` `clientActor` is shared by
-   * every session this process serves and therefore cannot answer "who" —
-   * only the ambient context, set per request by `src/mcp-http.ts`, can.
-   */
-  resolveActor() {
-    const ambient = (() => {
-      const c = currentMcpSession();
-      return c ? mcpSessionActor(c) : void 0;
-    })();
-    return this.config.actor ?? ambient ?? this.clientActor;
-  }
-  /**
-   * Set the id this server run/session writes onto every entry from here on
-   * — see `JournalEntry.sessionId`/`sessionIdSource`. Same lazy-timing
-   * reason as `setClientActor()`: called once, from `oninitialized`
-   * (src/server.ts), after this `Journal` is constructed. This is the
-   * stdio/process-wide fallback, same as `setClientActor()` — an ambient
-   * `McpSessionContext.sessionId` (set per request by `src/mcp-http.ts`)
-   * overrides it; see `begin()` and the `sessionId` getter below.
-   */
-  setClientSession(id, source) {
-    this.clientSessionId = id?.trim() || void 0;
-    this.clientSessionSource = this.clientSessionId ? source : void 0;
-  }
-  /**
-   * The session id that would be spliced onto the NEXT entry for THIS
-   * (stdio, process-wide) fallback, or `undefined` if none has been set
-   * yet — UNLESS an ambient `McpSessionContext` (src/mcp-session.ts) is
-   * current, in which case its `sessionId` wins: `abap_journal mode=list
-   * session=current` (src/tools/journal.ts) must resolve the CALLING
-   * session under `ABAP_MCP_TRANSPORT=http`, not the process. Exposed so
-   * that tool can resolve "this conversation" without duplicating
-   * `setClientSession()`'s storage.
-   */
-  get sessionId() {
-    return currentMcpSession()?.sessionId ?? this.clientSessionId;
-  }
-  // -- reading ------------------------------------------------------------
-  /**
-   * Read the append-only index and merge it shallowly by id, in file order.
-   * A malformed line — the realistic shape of a crash mid-append is a truncated
-   * *last* line — is skipped, never fatal: the rest of the journal is exactly
-   * the evidence someone is looking for after that crash.
-   */
-  async readAll() {
-    let text5;
-    try {
-      text5 = await fs3.readFile(this.indexPath, "utf8");
-    } catch (e) {
-      if (e.code === "ENOENT") return /* @__PURE__ */ new Map();
-      throw e;
-    }
-    const merged = /* @__PURE__ */ new Map();
-    for (const line2 of text5.split("\n")) {
-      const trimmed = line2.trim();
-      if (!trimmed) continue;
-      let rec;
-      try {
-        rec = JSON.parse(trimmed);
-      } catch {
-        continue;
-      }
-      if (typeof rec !== "object" || rec === null) continue;
-      const patch = rec;
-      if (typeof patch.id !== "string" || patch.id === "") continue;
-      merged.set(patch.id, { ...merged.get(patch.id) ?? {}, ...patch });
-    }
-    const out = /* @__PURE__ */ new Map();
-    for (const [id, rec] of merged) {
-      if (!isEntry(rec)) continue;
-      out.set(id, { ...rec, beforeCapture: normaliseCapture(rec.beforeCapture) });
-    }
-    return out;
-  }
-  static sortNewestFirst(entries) {
-    return entries.sort((a, b) => a.id < b.id ? 1 : a.id > b.id ? -1 : 0);
-  }
-  async get(id) {
-    if (!this.enabled) return void 0;
-    assertValidId(id);
-    return (await this.readAll()).get(id);
-  }
-  /**
-   * Newest first. `object` filters on object name (case-insensitive, exact).
-   * `sessionId` filters on `JournalEntry.sessionId` (exact — it's an opaque
-   * id, not a human-typed name, so no case-folding).
-   *
-   * `since` keeps entries with `ts >= since` (both parsed with `Date.parse`).
-   * An entry whose own `ts` fails to parse is dropped — it cannot be placed
-   * in time, so keeping it would be a guess. `since` itself failing to parse
-   * is the caller's mistake, not something to swallow: it throws
-   * `AbapError("BAD_INPUT", …)` naming the value, since silently treating an
-   * unparseable `since` as "no filter" would return entries the caller
-   * explicitly tried to exclude.
-   *
-   * `systemKey` keeps only entries whose `JournalEntry.systemKey` exactly
-   * equals the given value. An entry with NO `systemKey` recorded is dropped
-   * by this filter, not kept — an entry that never states which system it
-   * belongs to must never be assumed to belong to the one currently
-   * connected.
-   */
-  async list(opts = {}) {
-    if (!this.enabled) return [];
-    const wanted = opts.object?.trim().toUpperCase();
-    const wantedSession = opts.sessionId?.trim();
-    let sinceMs;
-    if (opts.since !== void 0) {
-      sinceMs = Date.parse(opts.since);
-      if (Number.isNaN(sinceMs)) {
-        throw new AbapError(
-          "BAD_INPUT",
-          `\`since\` "${opts.since}" is not a timestamp \`Date.parse\` can read.`,
-          { since: opts.since },
-          "Pass an ISO-8601 timestamp, e.g. the `ts` field a journal entry already carries."
-        );
-      }
-    }
-    let entries = [...(await this.readAll()).values()];
-    if (wanted) entries = entries.filter((e) => (e.object?.name ?? "").toUpperCase() === wanted);
-    if (opts.operation) entries = entries.filter((e) => e.operation === opts.operation);
-    if (wantedSession) entries = entries.filter((e) => e.sessionId === wantedSession);
-    if (sinceMs !== void 0) {
-      const floor = sinceMs;
-      entries = entries.filter((e) => {
-        const t = Date.parse(e.ts);
-        return !Number.isNaN(t) && t >= floor;
-      });
-    }
-    if (opts.systemKey !== void 0) {
-      entries = entries.filter((e) => e.systemKey !== void 0 && e.systemKey === opts.systemKey);
-    }
-    entries = _Journal.sortNewestFirst(entries);
-    return opts.limit !== void 0 && opts.limit >= 0 ? entries.slice(0, opts.limit) : entries;
-  }
-  async readBlob(image) {
-    if (!this.enabled || !image?.blob) return void 0;
-    const file2 = path5.join(this.blobDir, image.blob);
-    if (path5.dirname(path5.resolve(file2)) !== path5.resolve(this.blobDir)) return void 0;
-    try {
-      return await fs3.readFile(file2, "utf8");
-    } catch (e) {
-      if (e.code === "ENOENT") return void 0;
-      throw e;
-    }
-  }
-  /** The recorded before-image source text, or undefined. */
-  beforeImage(entry) {
-    return this.readBlob(entry.before);
-  }
-  afterImage(entry) {
-    return this.readBlob(entry.after);
-  }
-  // -- writing ------------------------------------------------------------
-  /**
-   * Both directories the write path needs, created idempotently.
-   *
-   * `blobs/` and `.inflight/` are siblings — see {@link INFLIGHT_DIR} — so
-   * both `mkdir`s are load-bearing. Must NOT take the index lock: it is
-   * called from `begin()` and `settleInner()` (outside any locked section)
-   * AND from `pruneLocked()` (inside one), and the lock is not re-entrant.
-   */
-  async ensureDirs() {
-    await fs3.mkdir(this.blobDir, { recursive: true });
-    await fs3.mkdir(this.inFlightDir, { recursive: true });
-  }
-  /**
-   * Run `fn` with exclusive access to the index file, queued behind every
-   * other exclusive section.
-   *
-   * `append()` needs this so two lines never interleave. `prune()` needs it
-   * for a sharper reason: it rewrites the file via tmp+rename, and an
-   * `append()` landing in the OLD inode between prune's `readAll()` and its
-   * `rename()` would be silently discarded.
-   *
-   * DEADLOCK: an exclusive section must NEVER await another one, because the
-   * inner call queues behind the outer, which is waiting for it. `begin()`
-   * calls both, but strictly in sequence: it awaits `append()` to completion,
-   * leaving the section, before calling `maybePrune()` → `prune()`. A failed
-   * section must not poison the queue, so the tail swallows.
-   */
-  runExclusive(fn) {
-    const run = this.tail.then(fn);
-    this.tail = run.then(
-      () => void 0,
-      () => void 0
-    );
-    return run;
-  }
-  /**
-   * `runExclusive()`'s cross-process other half — orders writers against the
-   * other N-1 server processes sharing the directory, which an in-process
-   * promise chain cannot see.
-   *
-   * ORDERING RULE, which every caller must obey: take this INSIDE
-   * `runExclusive()`, never around it. `withFileLock` is not re-entrant; the
-   * inverted order deadlocks against a queued `append()` that is itself
-   * waiting on the file lock, ended only by the wait budget expiring into a
-   * `JOURNAL_IO` throw.
-   *
-   * Not taken by `ensureDirs()` or `sweepBlobs()`: both are reached from
-   * inside and outside the locked section, so neither may acquire on its own.
-   */
-  withIndexLock(fn) {
-    return withFileLock(this.lockPath, fn);
-  }
-  /**
-   * Where this process publishes "I am mid-`begin()` on `id`". The pid is
-   * part of the NAME, not the contents: reaping needs it without opening the
-   * file, and two processes racing on a colliding id still get one marker
-   * each.
-   */
-  markerPath(id) {
-    return path5.join(this.inFlightDir, `${id}.${process.pid}`);
-  }
-  /**
-   * Publish / retract an in-flight marker. Both are BEST-EFFORT and neither
-   * may ever throw: the marker is a strict improvement over the status quo
-   * (today the sweep sees nothing of other processes), and a safety
-   * improvement that can fail a write is not an improvement — `begin()`
-   * already refuses loudly on journal I/O for that exact reason.
-   *
-   * Uses `fs.open(…, "w")` rather than `fs.writeFile` deliberately:
-   * test/journal.test.ts:670 replaces the module-level `promises.writeFile`
-   * to park a specific blob write mid-`begin()`, and going through that mock
-   * would be a needless dependency on its exact predicate — src/state-dir.ts's
-   * lock write dodges the same spy for the same reason.
-   */
-  async publishInFlight(id) {
-    try {
-      const handle = await fs3.open(this.markerPath(id), "w");
-      await handle.close();
-    } catch {
-    }
-  }
-  async retractInFlight(id) {
-    try {
-      await fs3.unlink(this.markerPath(id));
-    } catch {
-    }
-  }
-  append(record2) {
-    const line2 = JSON.stringify(record2) + "\n";
-    return this.runExclusive(
-      () => this.withIndexLock(async () => {
-        await fs3.appendFile(this.indexPath, line2, "utf8");
-        if (this.lineCount !== void 0) this.lineCount += 1;
-      })
-    );
-  }
-  /**
-   * `partIndex` names a blob belonging to `entry.parts[partIndex]` instead of
-   * the primary `entry.before`/`entry.after` — see `JournalEntry.parts`. Only
-   * changes the filename (`<id>.part<N>.before|after.txt` instead of
-   * `<id>.before|after.txt`); `sweepBlobs()`'s pattern is kept in sync with
-   * this shape.
-   */
-  async writeImage(id, which, source, serverEtag, partIndex) {
-    const blob = partIndex === void 0 ? `${id}.${which}.txt` : `${id}.part${partIndex}.${which}.txt`;
-    await fs3.writeFile(path5.join(this.blobDir, blob), source, "utf8");
-    return {
-      etag: contentHash(source),
-      fingerprint: sourceFingerprint(source),
-      bytes: Buffer.byteLength(source, "utf8"),
-      blob,
-      ...serverEtag ? { serverEtag } : {}
-    };
-  }
-  /**
-   * Record the intent + before-image BEFORE the mutation, and get it on disk
-   * (blobs first, then the index line, so the index never points at a blob
-   * that does not exist yet).
-   *
-   * A filesystem failure here is NOT swallowed: a journal that silently fails
-   * to record is worse than no journal, because the caller believes it has
-   * undo. Throws `JOURNAL_IO` stating plainly that the mutation was not
-   * attempted — deliberately NOT `SAFETY_DENIED`, which would send whoever
-   * hits a disk-full/permissions error reading allowlists for a problem that
-   * has nothing to do with the ABAP system.
-   *
-   * Returns `undefined` when the journal is disabled — never a fabricated
-   * entry. The old code handed back an entry with id `disabled-<ts>-<hex>`,
-   * and every caller advertised an undo that could never work, surfacing only
-   * later as "unknown journal entry".
-   */
-  async begin(input) {
-    if (!this.enabled) return void 0;
-    const id = newId();
-    const ts = (/* @__PURE__ */ new Date()).toISOString();
-    const beforeCapture = input.beforeCapture ?? (input.existedBefore ? input.beforeSource !== void 0 ? "captured" : "failed" : "unknown");
-    const actor = this.resolveActor();
-    const ambient = currentMcpSession();
-    const sessionId = ambient?.sessionId ?? this.clientSessionId;
-    const sessionIdSource = ambient?.sessionId !== void 0 ? "transport" : this.clientSessionSource;
-    const entry = {
-      id,
-      ts,
-      system: this.system,
-      ...input.systemKey ? { systemKey: input.systemKey } : {},
-      operation: input.operation,
-      object: input.object,
-      existedBefore: input.existedBefore,
-      beforeCapture,
-      ...input.beforeKind ? { beforeKind: input.beforeKind } : {},
-      outcome: "pending",
-      ...input.undoOf ? { undoOf: input.undoOf } : {},
-      ...input.tool ? { tool: input.tool } : {},
-      ...actor ? { actor } : {},
-      ...sessionId ? { sessionId, sessionIdSource } : {},
-      ...input.corrNr ? { corrNr: input.corrNr } : {},
-      ...input.trSource ? { trSource: input.trSource } : {},
-      ...input.irreversible ? { irreversible: input.irreversible } : {}
-    };
-    this.inFlight.add(id);
-    try {
-      await this.ensureDirs();
-      await this.publishInFlight(id);
-      if (input.existedBefore) {
-        entry.before = input.beforeSource !== void 0 ? await this.writeImage(id, "before", input.beforeSource, input.beforeServerEtag) : (
-          // The object existed but we could not read source for it. Record
-          // a blob-less image so "before is present iff it existed" holds.
-          // FABRICATED — etag/fingerprint hash the empty string, not
-          // anything the server sent — which is why the derivation above
-          // marks this case "failed": undo must not restore this over a
-          // real object.
-          {
-            etag: contentHash(""),
-            fingerprint: sourceFingerprint(""),
-            bytes: 0,
-            ...input.beforeServerEtag ? { serverEtag: input.beforeServerEtag } : {}
-          }
-        );
-      }
-      if (input.afterSource !== void 0) {
-        entry.after = await this.writeImage(id, "after", input.afterSource);
-      }
-      if (input.parts && input.parts.length > 0) {
-        const parts = [];
-        for (let i = 0; i < input.parts.length; i++) {
-          const p = input.parts[i];
-          const partCapture = p.beforeCapture ?? (p.existedBefore ? p.beforeSource !== void 0 ? "captured" : "failed" : "unknown");
-          const part = {
-            object: p.object,
-            existedBefore: p.existedBefore,
-            beforeCapture: partCapture
-          };
-          if (p.existedBefore) {
-            part.before = p.beforeSource !== void 0 ? await this.writeImage(id, "before", p.beforeSource, p.beforeServerEtag, i) : (
-              // Same fabricated-empty-image case as the primary object's — see above.
-              {
-                etag: contentHash(""),
-                fingerprint: sourceFingerprint(""),
-                bytes: 0,
-                ...p.beforeServerEtag ? { serverEtag: p.beforeServerEtag } : {}
-              }
-            );
-          }
-          if (p.afterSource !== void 0) {
-            part.after = await this.writeImage(id, "after", p.afterSource, void 0, i);
-          }
-          parts.push(part);
-        }
-        entry.parts = parts;
-      }
-      await this.append(entry);
-    } catch (e) {
-      throw new AbapError(
-        "JOURNAL_IO",
-        `Could not write the local journal at ${this.dir}: ${e.message}. The ${input.operation} of ${input.object?.name ?? "(unknown)"} was NOT attempted.`,
-        {
-          dir: this.dir,
-          operation: input.operation,
-          object: input.object?.name,
-          cause: e.code,
-          note: "This is a LOCAL filesystem problem, not an ABAP authorisation or safety-gate refusal. Nothing was sent to the ABAP system."
-        },
-        "Fix the journal directory (permissions, disk space, ABAP_JOURNAL_DIR) or set ABAP_JOURNAL=off to knowingly work without an undo trail."
-      );
-    } finally {
-      this.inFlight.delete(id);
-      await this.retractInFlight(id);
-    }
-    await this.maybePrune();
-    return entry;
-  }
-  /**
-   * Append the outcome of a previously-begun entry.
-   *
-   * By the time this runs the mutation has already happened, so a filesystem
-   * failure here must never mask the real outcome: it is reported on stderr
-   * and the merged entry is returned anyway. Throws only for a structurally
-   * invalid id (`BAD_INPUT`), which is a caller bug.
-   *
-   * A thin lossy view of `settle()`: everything that is not an outright
-   * success collapses back to `undefined`. New code should call `settle()`.
-   */
-  async finish(id, patch) {
-    return (await this.settleInner(id, patch)).merged;
-  }
-  /**
-   * Total, non-silent version of finish(): resolves an entry to a DEFINITE
-   * terminal outcome and tells the caller whether it actually landed.
-   *
-   * `finish()` returns `undefined` for an unknown id, for a disabled journal
-   * and (in effect) for a write that failed, so a caller cannot tell "there
-   * was never such an entry" from "the disk refused the patch". This is
-   * caller-driven resolution, NOT auto-repair: it only ever writes the
-   * outcome the caller asserts — see the header, and `listPending()`.
-   */
-  async settle(id, patch) {
-    return (await this.settleInner(id, patch)).result;
-  }
-  /**
-   * The shared body. Returns both the machine-readable result and the merged
-   * view, because `finish()` and `settle()` disagree about what to do with the
-   * io-error case and neither should be reimplemented in terms of the other's
-   * lossy answer.
-   */
-  async settleInner(id, patch) {
-    if (!this.enabled) return { result: { settled: false, reason: "disabled" } };
-    assertValidId(id);
-    if (patch.outcome === "pending") {
-      return { result: { settled: false, reason: "not-terminal" } };
-    }
-    const existing = (await this.readAll()).get(id);
-    if (!existing) return { result: { settled: false, reason: "unknown-entry" } };
-    const record2 = { id, outcome: patch.outcome };
-    if (patch.error !== void 0) record2.error = patch.error;
-    if (patch.activation !== void 0) record2.activation = patch.activation;
-    if (patch.corrNr !== void 0) record2.corrNr = patch.corrNr;
-    try {
-      if (patch.afterSource !== void 0) {
-        await this.ensureDirs();
-        record2.after = await this.writeImage(id, "after", patch.afterSource);
-      }
-      if (patch.partsAfterSource) {
-        await this.ensureDirs();
-        const parts = (existing.parts ?? []).map((p) => ({ ...p }));
-        for (const [idxStr, source] of Object.entries(patch.partsAfterSource)) {
-          const idx2 = Number(idxStr);
-          if (!Number.isInteger(idx2) || idx2 < 0 || idx2 >= parts.length) continue;
-          parts[idx2] = { ...parts[idx2], after: await this.writeImage(id, "after", source, void 0, idx2) };
-        }
-        record2.parts = parts;
-      }
-      await this.append(record2);
-    } catch (e) {
-      process.stderr.write(
-        `[abapsmith] WARNING: journal finish for ${id} could not be written (${e.message}). The operation itself already completed with outcome=${patch.outcome}.
-`
-      );
-      return {
-        result: { settled: false, reason: "io-error", error: e.message },
-        merged: { ...existing, ...record2 }
-      };
-    }
-    const merged = { ...existing, ...record2 };
-    return { result: { settled: true, entry: merged }, merged };
-  }
-  /**
-   * Close a `pending` entry by hand on an operator's say-so, WITHOUT
-   * abapsmith having observed the outcome and WITHOUT deleting anything —
-   * see `JournalEntry.reconciled`. This is how a false STRANDED entry (see
-   * `STALE_PENDING_MS`, src/tools/journal.ts) gets retired: the crash or
-   * timeout that left it `pending` is not something abapsmith can go back
-   * and watch happen, so a human states what happened instead, and that
-   * statement is recorded as a statement, never dressed up as a fact
-   * abapsmith itself witnessed.
-   *
-   * Deliberately does NOT run under `runExclusive`/the file lock, exactly
-   * like `settleInner()` above — same reasoning, kept in sync by hand so
-   * nobody "fixes" only one of them.
-   */
-  async reconcile(id, input) {
-    if (!this.enabled) return { reconciled: false, reason: "disabled" };
-    assertValidId(id);
-    if (input.outcome !== "succeeded" && input.outcome !== "failed") {
-      throw new AbapError(
-        "BAD_INPUT",
-        `Not a valid reconciled outcome: ${JSON.stringify(input.outcome)}. "pending" is the state a reconciliation LEAVES, not one it can arrive at.`,
-        { outcome: input.outcome },
-        `Pass outcome: "succeeded" or "failed".`
-      );
-    }
-    const reason = input.reason?.trim() ?? "";
-    if (!reason) {
-      throw new AbapError(
-        "BAD_INPUT",
-        "A reconciliation must state why: the reason is the only evidence this entry will ever carry for its asserted outcome.",
-        { id },
-        "Pass a non-empty reason describing how the outcome is known."
-      );
-    }
-    const existing = (await this.readAll()).get(id);
-    if (!existing) return { reconciled: false, reason: "unknown-entry" };
-    if (existing.outcome !== "pending") {
-      return { reconciled: false, reason: "already-settled", entry: existing };
-    }
-    const actor = this.resolveActor();
-    const reconciled = {
-      at: (/* @__PURE__ */ new Date()).toISOString(),
-      reason,
-      ...actor ? { by: actor } : {}
-    };
-    const record2 = { id, outcome: input.outcome, reconciled };
-    if (input.outcome === "failed") record2.error = reason;
-    try {
-      await this.append(record2);
-    } catch (e) {
-      return {
-        reconciled: false,
-        reason: "io-error",
-        error: e.message,
-        entry: { ...existing, ...record2 }
-      };
-    }
-    return { reconciled: true, entry: { ...existing, ...record2 } };
-  }
-  /**
-   * Entries still sitting at `outcome: "pending"`, newest first. Nothing
-   * sweeps them, so unless something *lists* them they accumulate invisibly.
-   *
-   * `staleAfterMs` filters to entries at least that old. An entry whose `ts`
-   * does not parse counts as STALE — hiding it behind an age filter would
-   * bury the one entry most worth a human's attention. (`prune()` makes the
-   * opposite call for the same input — there an unparsable ts means KEEP —
-   * and both land on "the evidence stays visible".)
-   */
-  async listPending(opts = {}) {
-    if (!this.enabled) return [];
-    const pending = [...(await this.readAll()).values()].filter((e) => e.outcome === "pending");
-    const stale = opts.staleAfterMs;
-    const now = Date.now();
-    const filtered = stale === void 0 || stale <= 0 ? pending : pending.filter((e) => {
-      const t = Date.parse(e.ts);
-      return Number.isFinite(t) ? now - t >= stale : true;
-    });
-    return _Journal.sortNewestFirst(filtered);
-  }
-  /**
-   * Record that `id` was undone by entry `undoneBy`. Best-effort for the same
-   * reason as `finish()` — it runs after a real mutation — but an unknown id is
-   * a caller bug and is reported as `BAD_INPUT`.
-   */
-  async markUndone(id, undoneBy) {
-    if (!this.enabled) return;
-    assertValidId(id);
-    assertValidId(undoneBy);
-    if (!(await this.readAll()).has(id)) {
-      throw new AbapError("BAD_INPUT", `Unknown journal entry: ${id}`, { id });
-    }
-    try {
-      await this.append({ id, undoneBy });
-    } catch (e) {
-      process.stderr.write(
-        `[abapsmith] WARNING: could not record that ${id} was undone by ${undoneBy} (${e.message}). The undo itself already ran.
-`
-      );
-    }
-  }
-  // -- retention ----------------------------------------------------------
-  /** Prune only when the index has grown meaningfully past the cap. */
-  async maybePrune() {
-    const cap = this.config.maxEntries;
-    if (cap <= 0) return;
-    if (this.lineCount === void 0) {
-      try {
-        const text5 = await fs3.readFile(this.indexPath, "utf8");
-        this.lineCount = text5.split("\n").filter((l) => l.trim() !== "").length;
-      } catch {
-        this.lineCount = 0;
-      }
-    }
-    if (this.lineCount <= cap * PRUNE_SLACK) return;
-    try {
-      await this.prune();
-    } catch (e) {
-      process.stderr.write(`[abapsmith] WARNING: journal prune failed: ${e.message}
-`);
-    }
-  }
-  /**
-   * Apply the retention policy. Keeps entries newer than `maxAgeDays` AND
-   * within the newest `maxEntries` — dropped if it fails either rule. Either
-   * limit is disabled by setting it to 0.
-   *
-   * The index is rewritten atomically (`index.jsonl.tmp` + rename), the only
-   * place in this module that does not append. The whole body runs under
-   * `runExclusive()` AND the cross-process file lock (`withIndexLock()`):
-   * "atomic rename" only protects a *reader*, not a concurrent `append()`
-   * whose line lands in the inode about to be replaced. A four-process test
-   * without the cross-process lock left 6 of 22 surviving index entries
-   * pointing at a destroyed before-image.
-   */
-  async prune() {
-    if (!this.enabled) return { removedEntries: 0, removedBlobs: 0 };
-    return this.runExclusive(() => this.withIndexLock(() => this.pruneLocked()));
-  }
-  async pruneLocked() {
-    const all = await this.readAll();
-    if (all.size === 0) return { removedEntries: 0, removedBlobs: 0 };
-    const ordered = _Journal.sortNewestFirst([...all.values()]);
-    const cutoff = this.config.maxAgeDays > 0 ? Date.now() - this.config.maxAgeDays * 864e5 : void 0;
-    const keep = [];
-    const drop = [];
-    for (const e of ordered) {
-      const tooOld = (() => {
-        if (cutoff === void 0) return false;
-        const t = Date.parse(e.ts);
-        return Number.isFinite(t) ? t < cutoff : false;
-      })();
-      const tooMany = this.config.maxEntries > 0 && keep.length >= this.config.maxEntries;
-      if ((tooOld || tooMany) && !this.inFlight.has(e.id)) drop.push(e);
-      else keep.push(e);
-    }
-    if (drop.length === 0) {
-      const removedBlobs2 = await this.sweepBlobs(new Set(keep.map((e) => e.id)));
-      this.lineCount = keep.length;
-      return { removedEntries: 0, removedBlobs: removedBlobs2 };
-    }
-    const body = keep.slice().reverse().map((e) => JSON.stringify(e)).join("\n");
-    const tmp = `${this.indexPath}.${process.pid}.${randomBytes5(4).toString("hex")}.tmp`;
-    await this.ensureDirs();
-    await fs3.writeFile(tmp, body.length ? body + "\n" : "", "utf8");
-    await fs3.rename(tmp, this.indexPath);
-    this.lineCount = keep.length;
-    const removedBlobs = await this.sweepBlobs(new Set(keep.map((e) => e.id)));
-    return { removedEntries: drop.length, removedBlobs };
-  }
-  /**
-   * Delete blobs that no entry can still reach. Returns how many went.
-   *
-   * Deleting is irreversible and these files are the undo trail, so the
-   * burden of proof runs one way: a file is removed only if it is positively
-   * identified as a journal blob AND positively known to be unreachable —
-   * ALL of:
-   *
-   *  - the name matches `<id>.before|after.txt` or a multi-part image's
-   *    `<id>.part<N>.before|after.txt` (see `JournalEntry.parts`); either
-   *    shape's stem is the entry id, which is all this function keys
-   *    survival on;
-   *  - the stem is a well-formed journal id (`looksLikeJournalId`) — the old
-   *    code only checked the suffix and happily unlinked `notes.before.txt`
-   *    sitting in the blob directory;
-   *  - the id is not in `surviving`, not in `inFlight` (an in-flight entry
-   *    has no index line yet, so it cannot be in `surviving`), and not
-   *    REGISTERED in the on-disk in-flight registry — the cross-process
-   *    extension of `inFlight`, without which process A's sweep could unlink
-   *    process B's live before-image (a four-process run left 6 of 22
-   *    surviving entries in exactly that state, silently swallowed by
-   *    `readBlob()`'s ENOENT handling).
-   *
-   * Deliberately NOT a survival rule: the age of the BLOB. An mtime grace
-   * window was proposed and rejected — a crash-orphaned blob is
-   * indistinguishable on disk from one written a millisecond ago by a live
-   * `begin()`; only knowing which writes are open can tell them apart, which
-   * is what the in-flight rules do instead. test/journal.test.ts:573-588 pins
-   * that an orphan blob written moments ago is swept on the very next prune.
-   *
-   * The registry directory itself is a sibling of the index (see
-   * {@link INFLIGHT_DIR}), so this `readdir` never returns it.
-   */
-  async sweepBlobs(surviving) {
-    let files;
-    try {
-      files = await fs3.readdir(this.blobDir);
-    } catch (e) {
-      if (e.code === "ENOENT") return 0;
-      throw e;
-    }
-    const registered = await this.readInFlightRegistry();
-    let removed = 0;
-    for (const f of files) {
-      const m = /^(.+)\.(?:part\d+\.)?(before|after)\.txt$/.exec(f);
-      if (!m || !m[1]) continue;
-      const stem = m[1];
-      if (!looksLikeJournalId(stem)) continue;
-      if (surviving.has(stem) || this.inFlight.has(stem) || registered.has(stem)) continue;
-      try {
-        await fs3.unlink(path5.join(this.blobDir, f));
-        removed += 1;
-      } catch {
-      }
-    }
-    return removed;
-  }
-  /**
-   * The ids some process is currently mid-`begin()` on, per the on-disk
-   * registry — and, as a side effect, where markers that can no longer be
-   * protecting anything are reaped (before the returned set is built, so a
-   * reaped marker never gets one more free pass — without reaping at all, a
-   * process killed between `publishInFlight()` and its `finally` would
-   * protect a blob forever).
-   *
-   * A marker is reaped only when BOTH {@link INFLIGHT_GRACE_MS} has elapsed
-   * AND {@link pidIsAlive} proves the pid dead — never one of our own,
-   * whatever its age. Every uncertainty resolves towards protecting: a
-   * marker we could not `stat` keeps its id alive, an over-protective entry
-   * costs one delayed sweep, an under-protective one destroys a before-image.
-   */
-  async readInFlightRegistry() {
-    let markers;
-    try {
-      markers = await fs3.readdir(this.inFlightDir);
-    } catch (e) {
-      if (e.code === "ENOENT") return /* @__PURE__ */ new Set();
-      throw e;
-    }
-    const registered = /* @__PURE__ */ new Set();
-    const now = Date.now();
-    for (const name of markers) {
-      const m = MARKER_RE.exec(name);
-      const id = m?.[1];
-      const pid = m?.[2] !== void 0 ? Number(m[2]) : Number.NaN;
-      if (await this.reapMarker(name, pid, now)) continue;
-      if (id) registered.add(id);
-    }
-    return registered;
-  }
-  /** True when `name` no longer protects an id — see `readInFlightRegistry()`. */
-  async reapMarker(name, pid, now) {
-    if (pid === process.pid) return false;
-    const marker = path5.join(this.inFlightDir, name);
-    let age;
-    try {
-      age = now - (await fs3.stat(marker)).mtimeMs;
-    } catch {
-      return false;
-    }
-    if (age <= INFLIGHT_GRACE_MS) return false;
-    if (Number.isInteger(pid) && pid > 0 && pidIsAlive(pid)) return false;
-    try {
-      await fs3.unlink(marker);
-    } catch {
-    }
-    return true;
-  }
-};
-async function withJournalledMutation(journal, spec, run) {
-  let entryId;
-  const onBeforeImage = async (image) => {
-    if (!journal) return;
-    const entry = await journal.begin(spec.begin(image));
-    if (entry) entryId = entry.id;
-  };
-  const settle = async (patch) => {
-    if (!journal || entryId === void 0) return;
-    await journal.finish(entryId, patch);
-  };
-  let result;
-  try {
-    result = await run(onBeforeImage);
-  } catch (e) {
-    if ((spec.onError ?? "record-failed") === "record-failed") {
-      await settle({ outcome: "failed", error: String(e) });
-    }
-    throw e;
-  }
-  return { result, entryId, settle };
-}
 
 // src/mcp-http.ts
 import { createServer as createHttpServer } from "node:http";
@@ -105253,6 +103721,21 @@ var StreamableHTTPServerTransport = class {
 
 // src/mcp-http.ts
 init_mcp_http_auth();
+
+// src/mcp-session.ts
+import { AsyncLocalStorage as AsyncLocalStorage3 } from "node:async_hooks";
+var store = new AsyncLocalStorage3();
+function runInMcpSession(ctx, fn) {
+  return store.run(ctx, fn);
+}
+function currentMcpSession() {
+  return store.getStore();
+}
+function mcpSessionActor(ctx) {
+  return ctx.caller ?? ctx.client;
+}
+
+// src/mcp-http.ts
 var MAX_HTTP_BODY_BYTES = 4 * 1024 * 1024;
 function jsonRpcError(code, message) {
   return { jsonrpc: "2.0", error: { code, message }, id: null };
@@ -105449,16 +103932,2197 @@ async function startMcpHttpServer(opts) {
 }
 
 // src/server.ts
-init_safety();
 init_shutdown_hook();
 
-// src/tools/activate.ts
-init_zod();
+// src/systems/context.ts
+init_connection();
+init_pool();
 
-// src/adt/activate.ts
-var import_utilities = __toESM(require_utilities(), 1);
+// src/adt/session-transport.ts
 init_errors();
-init_truncate();
+init_transports();
+function parsePolicy(allowTransports) {
+  const entries = allowTransports.map((e) => e.trim()).filter((e) => e !== "");
+  const disabled = allowTransports.length === 0;
+  const pins = [];
+  let auto = false;
+  let wildcard = false;
+  for (const entry of entries) {
+    const upper = entry.toUpperCase();
+    if (upper === "AUTO") auto = true;
+    else if (entry === "*") wildcard = true;
+    else if (isTrkorr(upper)) pins.push(upper);
+  }
+  return { disabled, auto: auto || wildcard, wildcard, pins };
+}
+function notNeeded(reason) {
+  return { outcome: "not-needed", created: false, pinned: false, reason };
+}
+function granted(corrNr, source, reason, overrodeCorrNr) {
+  return {
+    outcome: "transport",
+    corrNr,
+    created: source === "session-created",
+    pinned: source === "server-pin" || source === "config-pin",
+    source,
+    reason,
+    ...overrodeCorrNr !== void 0 ? { overrodeCorrNr } : {}
+  };
+}
+function denied(denial, code, reason, hint) {
+  return {
+    outcome: "denied",
+    created: false,
+    pinned: false,
+    denial,
+    code,
+    reason,
+    ...hint === void 0 ? {} : { hint }
+  };
+}
+function toAbapError(res) {
+  if (res.outcome !== "denied") return void 0;
+  return new AbapError(
+    res.code,
+    res.reason,
+    { denial: res.denial },
+    res.hint
+  );
+}
+function pickLatest(candidates) {
+  return candidates.reduce((best, c) => {
+    const bestChanged = best.lastChanged ?? "";
+    const cChanged = c.lastChanged ?? "";
+    if (cChanged !== bestChanged) return cChanged > bestChanged ? c : best;
+    return c.trkorr > best.trkorr ? c : best;
+  });
+}
+var SessionTransport = class _SessionTransport {
+  #policy;
+  #cts;
+  #whoami;
+  #now;
+  #description;
+  #onCreated;
+  #authorizeCreate;
+  #state;
+  /**
+   * Single-flight guard. A *promise*, not a boolean: a boolean can only
+   * say "someone is creating", which leaves the second caller with nothing to
+   * await and no TRKORR to return. Holding the promise means every racer on a
+   * cold cache gets the same request.
+   */
+  #inflight;
+  /** The most recent `#resolveAuto` decision. See `lastAutoDecision`. */
+  #lastAutoDecision;
+  /** TRKORRs this session itself created — auto-create, or `noteCreated()`. */
+  #created = /* @__PURE__ */ new Set();
+  constructor(opts) {
+    this.#policy = parsePolicy(opts.allowTransports);
+    this.#cts = {
+      trRequirement: opts.cts?.trRequirement ?? trRequirement,
+      trCreate: opts.cts?.trCreate ?? trCreate,
+      trShow: opts.cts?.trShow ?? trShow
+    };
+    this.#whoami = opts.whoami ?? (() => void 0);
+    this.#now = opts.now ?? (() => /* @__PURE__ */ new Date());
+    this.#description = opts.description;
+    this.#onCreated = opts.onCreated;
+    this.#authorizeCreate = opts.authorizeCreate;
+    this.#state = this.#policy.disabled ? {
+      kind: "disabled",
+      reason: "ABAP_ALLOW_TRANSPORTS is explicitly empty \u2014 every transportable write is refused."
+    } : { kind: "idle" };
+  }
+  /** The state machine, for tests and for `abap_transport`'s status output. */
+  get state() {
+    return this.#state;
+  }
+  /** The cached session TRKORR, if one is currently active. */
+  get trkorr() {
+    return this.#state.kind === "active" ? this.#state.trkorr : void 0;
+  }
+  /**
+   * The last decision `#resolveAuto` made, so a write response can quote it.
+   * Only meaningful when its `trkorr` matches the request the write actually
+   * used — a caller must check that before attributing the reason to itself.
+   */
+  get lastAutoDecision() {
+    return this.#lastAutoDecision;
+  }
+  /** Did THIS session create `trkorr` — auto-create, or a caller's `noteCreated()`? */
+  createdThisSession(trkorr) {
+    const t = trkorr?.trim().toUpperCase();
+    return t !== void 0 && t !== "" && this.#created.has(t);
+  }
+  /** Record a request created outside the auto-resolve path (`abap_transport operation=create`). */
+  noteCreated(trkorr) {
+    this.#created.add(trkorr.trim().toUpperCase());
+  }
+  /**
+   * Decide which transport request this write goes into.
+   *
+   * Never returns "no transport, just try it" for a transportable object — see
+   * the module header, rule 2. Wire failures from `transports.ts` propagate as
+   * thrown `AbapError`s; *decisions* always come back as a value.
+   */
+  async resolve(conn, obj, operation = "I", opts = {}) {
+    const named = _SessionTransport.#normalizeCorrNr(opts.corrNr);
+    if (!named.ok) return named.denied;
+    const wanted = named.wanted;
+    const req = await this.#cts.trRequirement(
+      conn,
+      obj.uri,
+      obj.devclass,
+      operation
+    );
+    if (req.checkFailed) {
+      const msgs = req.messages.map((m) => m.text).filter((t) => t !== void 0 && t !== "").join("; ");
+      return denied(
+        "precheck-failed",
+        "TRANSPORT_ERROR",
+        `The transport pre-check for ${obj.name ?? obj.uri} failed${msgs === "" ? "." : `: ${msgs}`}`
+      );
+    }
+    if (req.kind === "local") {
+      return notNeeded(
+        `${obj.name ?? obj.uri} is local (package ${req.devclass ?? "$TMP"}) \u2014 no transport request is involved.`
+      );
+    }
+    return this.#decideTransportable(
+      conn,
+      obj,
+      wanted,
+      req.pinnedTo,
+      req.pinnedOwner,
+      req.devclass,
+      req.candidates,
+      opts.revalidate === true
+    );
+  }
+  /**
+   * Decides a transport for a `DEVC/K` package create: CTS can't
+   * classify an object that doesn't exist, so resolve()'s pre-flight always
+   * answers "local". Runs Steps 3-7 unchanged with pinnedTo forced undefined
+   * (no server pin is possible), and never returns "not-needed". `candidates`
+   * is always empty here — CTS has never seen this object, so there is no
+   * candidate list to trust.
+   */
+  async resolveForNewTransportable(conn, obj, opts = {}) {
+    const named = _SessionTransport.#normalizeCorrNr(opts.corrNr);
+    if (!named.ok) return named.denied;
+    return this.#decideTransportable(
+      conn,
+      obj,
+      named.wanted,
+      void 0,
+      void 0,
+      obj.devclass,
+      [],
+      opts.revalidate === true
+    );
+  }
+  /**
+   * Steps 3–7 of `resolve()`, extracted so they are shared verbatim with
+   * `resolveForNewTransportable()`. Steps 1, 1b and 2 (the CTS pre-flight
+   * that only `resolve()` can perform) live in `resolve()` itself.
+   */
+  async #decideTransportable(conn, obj, wanted, pinnedTo, pinnedOwner, devclass, candidates, revalidate) {
+    this.#lastAutoDecision = void 0;
+    if (this.#policy.disabled) {
+      return denied(
+        "transports-disabled",
+        "TRANSPORT_ERROR",
+        `${obj.name ?? obj.uri} needs a transport request, but ABAP_ALLOW_TRANSPORTS is explicitly empty \u2014 every transportable write is refused. Local ($TMP) writes are unaffected.`,
+        "Set ABAP_ALLOW_TRANSPORTS=auto, or list a specific request number."
+      );
+    }
+    if (pinnedTo !== void 0 && pinnedTo !== "") {
+      return this.#resolvePin(pinnedTo, pinnedOwner, obj, wanted);
+    }
+    if (wanted !== void 0) {
+      if (!this.#callerMayName(wanted)) {
+        return denied(
+          "not-allowlisted",
+          "TRANSPORT_ERROR",
+          `Transport ${wanted} is not permitted by ABAP_ALLOW_TRANSPORTS [${this.#policy.pins.join(", ") || "auto"}].`,
+          'Add it to ABAP_ALLOW_TRANSPORTS, or use "*" to allow any caller-named request.'
+        );
+      }
+      const problem = await this.#checkUsable(conn, wanted);
+      if (problem !== void 0) return problem;
+      return granted(wanted, "caller", `Using caller-supplied request ${wanted}.`);
+    }
+    if (this.#policy.pins.length > 0) {
+      return this.#resolveConfigPin(conn);
+    }
+    if (!this.#policy.auto) {
+      return denied(
+        "not-allowlisted",
+        "TRANSPORT_ERROR",
+        `${obj.name ?? obj.uri} needs a transport request, but ABAP_ALLOW_TRANSPORTS does not permit creating one and no request was named.`,
+        "Pass a corr_nr, or set ABAP_ALLOW_TRANSPORTS=auto to let this session create one."
+      );
+    }
+    return this.#resolveAuto(conn, obj, devclass, candidates, revalidate);
+  }
+  /**
+   * Step 0 shared by `resolve()` and `resolveForNewTransportable()`: validate
+   * a caller-supplied `corrNr` and normalise it, so the two entry points
+   * cannot drift on what counts as a well-formed request number.
+   */
+  static #normalizeCorrNr(corrNr) {
+    const named = corrNr?.trim();
+    if (named !== void 0 && named !== "" && !isTrkorr(named)) {
+      return {
+        ok: false,
+        denied: denied(
+          "bad-corrnr",
+          "BAD_INPUT",
+          `"${named}" is not a well-formed transport request number.`,
+          "Expected a TRKORR such as A4HK900123."
+        )
+      };
+    }
+    return { ok: true, wanted: named === "" ? void 0 : named?.toUpperCase() };
+  }
+  /**
+   * Mark the cached request dead. Called by `abap_transport` after it deletes
+   * or releases the session request (and only after the mandatory verification
+   * re-read — a bare 200 proves nothing), and by the write path
+   * when a 403 identifies the request as missing.
+   *
+   * No-op unless `trkorr` is the one we are actually holding, so an unrelated
+   * release cannot knock out our session.
+   */
+  invalidate(trkorr, reason) {
+    if (this.#state.kind !== "active") return;
+    if (this.#state.trkorr.toUpperCase() !== trkorr.trim().toUpperCase()) return;
+    this.#state = {
+      kind: "gone",
+      trkorr: this.#state.trkorr,
+      reason,
+      detectedAt: this.#now().toISOString()
+    };
+  }
+  /** Lazy re-validation: reads the cached request, invalidating it if gone. Safe when nothing is cached. */
+  async revalidate(conn) {
+    if (this.#state.kind !== "active") return this.#state;
+    const trkorr = this.#state.trkorr;
+    const reason = await this.#probe(conn, trkorr);
+    if (reason !== void 0) this.invalidate(trkorr, reason);
+    return this.#state;
+  }
+  /** One line a tool response can print. */
+  describe() {
+    const s = this.#state;
+    switch (s.kind) {
+      case "disabled":
+        return `transport: disabled \u2014 ${s.reason}`;
+      case "idle":
+        return this.#policy.pins.length > 0 ? `transport: none yet (pinned mode \u2014 will use one of ${this.#policy.pins.join(", ")}, never creates)` : this.#policy.auto ? "transport: none yet (auto \u2014 one request will be created on the first transportable write)" : "transport: none yet (no auto-create; the caller must name a request)";
+      case "creating":
+        return `transport: creating (since ${new Date(s.since).toISOString()})`;
+      case "active": {
+        const pkg = s.devclass === void 0 ? "" : `, package ${s.devclass}`;
+        switch (s.origin) {
+          case "created":
+            return `transport: ${s.trkorr} (session, created ${s.createdAt}${pkg})`;
+          case "adopted":
+            return `transport: ${s.trkorr} (session, adopted ${s.createdAt}${pkg})`;
+          case "config-pin":
+            return `transport: ${s.trkorr} (pinned by configuration)`;
+        }
+      }
+      case "gone":
+        return `transport: ${s.trkorr} is gone (${s.reason}, detected ${s.detectedAt}) \u2014 the next transportable write resolves afresh`;
+    }
+  }
+  // -------------------------------------------------------------------------
+  // Internals
+  // -------------------------------------------------------------------------
+  #callerMayName(trkorr) {
+    if (this.#policy.wildcard) return true;
+    return this.#policy.pins.includes(trkorr);
+  }
+  #resolvePin(pinnedTo, pinnedOwner, obj, wanted) {
+    const me = this.#whoami();
+    if (pinnedOwner !== void 0 && pinnedOwner !== "" && me !== void 0 && me !== "" && pinnedOwner.toUpperCase() !== me.toUpperCase()) {
+      return denied(
+        "pinned-elsewhere",
+        "TRANSPORT_LOCKED",
+        `${obj.name ?? obj.uri} is already recorded in request ${pinnedTo}, which belongs to ${pinnedOwner}, not ${me}.`,
+        `Ask ${pinnedOwner} to release ${pinnedTo}, or add yourself to it.`
+      );
+    }
+    const overrode = wanted !== void 0 && wanted !== pinnedTo.toUpperCase() ? wanted : void 0;
+    const note = overrode !== void 0 ? ` (overriding the requested ${overrode})` : "";
+    return granted(
+      pinnedTo,
+      "server-pin",
+      `${obj.name ?? obj.uri} is already recorded in request ${pinnedTo} \u2014 imposed by the server${note}.`,
+      overrode
+    );
+  }
+  async #resolveConfigPin(conn) {
+    if (this.#state.kind === "active") {
+      return granted(
+        this.#state.trkorr,
+        "config-pin",
+        `Using configured request ${this.#state.trkorr}.`
+      );
+    }
+    const problems = [];
+    for (const pin of this.#policy.pins) {
+      const problem = await this.#checkUsable(conn, pin);
+      if (problem === void 0) {
+        this.#state = {
+          kind: "active",
+          trkorr: pin,
+          createdAt: this.#now().toISOString(),
+          origin: "config-pin"
+        };
+        return granted(pin, "config-pin", `Using configured request ${pin}.`);
+      }
+      problems.push(problem.outcome === "denied" ? problem.reason : pin);
+    }
+    return denied(
+      "no-usable-pin",
+      "TRANSPORT_ERROR",
+      `None of the transport requests in ABAP_ALLOW_TRANSPORTS is usable: ${problems.join(" ")}`,
+      "Pinned mode never creates a request; list a modifiable one or set ABAP_ALLOW_TRANSPORTS=auto."
+    );
+  }
+  async #resolveAuto(conn, obj, reqDevclass, candidates, revalidate) {
+    if (this.#state.kind === "gone") {
+      const dead = this.#state;
+      this.#state = { kind: "idle" };
+      return denied(
+        "transport-gone",
+        "TRANSPORT_GONE",
+        `The session transport request ${dead.trkorr} is no longer usable (${dead.reason}). Nothing was written. Retry \u2014 the next write will resolve a fresh request.`
+      );
+    }
+    let healedPrefix = "";
+    let retired;
+    let preemptedFrom;
+    if (this.#state.kind === "active") {
+      const cached2 = this.#state.trkorr;
+      const preempting = !this.createdThisSession(cached2) && candidates.some(
+        (c) => c.kind === "workbench" && c.status === "modifiable" && this.createdThisSession(c.trkorr)
+      );
+      if (preempting) {
+        preemptedFrom = cached2;
+      } else {
+        const corroboratedAlive = candidates.some(
+          (c) => c.status === "modifiable" && c.trkorr.toUpperCase() === cached2.toUpperCase()
+        );
+        const needsProbe = revalidate || candidates.length > 0 && !corroboratedAlive;
+        const goneReason = needsProbe ? await this.#probe(conn, cached2) : void 0;
+        if (!needsProbe || goneReason === void 0) {
+          return this.#autoGranted(
+            cached2,
+            "session-cached",
+            `Reusing this session's request ${cached2}.`
+          );
+        }
+        this.invalidate(cached2, goneReason);
+        this.#state = { kind: "idle" };
+        healedPrefix = `The session's previous request ${cached2} is no longer usable (${goneReason}). `;
+        retired = cached2;
+      }
+    }
+    const devclass = reqDevclass ?? obj.devclass;
+    if (devclass === void 0 || devclass === "") {
+      return denied(
+        "unknown-package",
+        "BAD_INPUT",
+        `Cannot create a transport request for ${obj.name ?? obj.uri}: its package could not be determined.`,
+        "Pass devclass explicitly."
+      );
+    }
+    const sessionCreated = candidates.filter(
+      (c) => (
+        // Same "don't re-adopt what the heal branch just killed" guard as
+        // the attributed tier below.
+        (retired === void 0 || c.trkorr.toUpperCase() !== retired.toUpperCase()) && c.kind === "workbench" && c.status === "modifiable" && this.createdThisSession(c.trkorr)
+      )
+    );
+    if (sessionCreated.length > 0) {
+      const chosen = pickLatest(sessionCreated);
+      this.#state = {
+        kind: "active",
+        trkorr: chosen.trkorr,
+        devclass,
+        createdAt: this.#now().toISOString(),
+        origin: "adopted"
+      };
+      const reason = preemptedFrom !== void 0 ? `${healedPrefix}Switched from ${preemptedFrom}, which this session did not create, to ${chosen.trkorr}, which THIS SESSION created.` : `${healedPrefix}Adopted request ${chosen.trkorr}, which THIS SESSION created, rather than creating another.`;
+      return this.#autoGranted(chosen.trkorr, "session-adopted", reason);
+    }
+    const me = this.#whoami();
+    const attributed = me === void 0 || me === "" ? [] : candidates.filter(
+      (c) => (
+        // CTS's candidate list can still show a request the trShow probe
+        // just proved dead above; the probe is the newer evidence, so a
+        // just-retired request must never be re-adopted in this call.
+        (retired === void 0 || c.trkorr.toUpperCase() !== retired.toUpperCase()) && c.kind === "workbench" && c.status === "modifiable" && c.owner.toUpperCase() === me.toUpperCase() && this.#isOwnDescription(c.description) && // Already had its chance in tier 1 above; never double-counted.
+        !this.createdThisSession(c.trkorr)
+      )
+    );
+    if (attributed.length > 0) {
+      const chosen = pickLatest(attributed);
+      this.#state = {
+        kind: "active",
+        trkorr: chosen.trkorr,
+        devclass,
+        createdAt: this.#now().toISOString(),
+        origin: "adopted"
+      };
+      return this.#autoGranted(
+        chosen.trkorr,
+        "session-adopted",
+        `${healedPrefix}Adopted existing request ${chosen.trkorr} rather than creating another: it is a modifiable workbench request owned by ${chosen.owner} and carries abapsmith's own session description (${chosen.description}). THIS SESSION DID NOT CREATE IT \u2014 it was already open when this session started, so it may already hold objects from earlier work, and abap_transport_release will refuse to release it without an explicit override.`
+      );
+    }
+    const declineReason = me === void 0 || me === "" ? `The connected SAP user could not be established, so no existing request could be attributed to abapsmith (and none was created by this session either).` : candidates.length === 0 ? `CTS offered no existing request for package ${devclass}.` : `CTS offered ${candidates.length} candidate request(s) for package ${devclass}, none of which this session created or could attribute to itself (a modifiable workbench request owned by ${me} carrying abapsmith's own session description).`;
+    const { trkorr, created } = await this.#createOnce(conn, obj.uri, devclass);
+    return this.#autoGranted(
+      trkorr,
+      created ? "session-created" : "session-cached",
+      created ? `${healedPrefix}Created request ${trkorr} for this session. ${declineReason}` : `Reusing this session's request ${trkorr}.`
+    );
+  }
+  /** Wraps `granted()` and records the decision so `lastAutoDecision` can quote it. */
+  #autoGranted(corrNr, source, reason) {
+    this.#lastAutoDecision = { trkorr: corrNr, source, reason };
+    return granted(corrNr, source, reason);
+  }
+  /**
+   * Single-flight creation. Two writes racing on a cold cache share one
+   * promise, so exactly one `trCreate` POST goes out; `created` is true only
+   * for the caller that started the flight.
+   */
+  async #createOnce(conn, objSourceUrl, devClass) {
+    const existing = this.#inflight;
+    if (existing !== void 0) return { trkorr: await existing, created: false };
+    const description = this.#buildDescription();
+    const flight = this.#doCreate(conn, objSourceUrl, devClass, description).catch((err) => {
+      if (this.#state.kind === "creating") this.#state = { kind: "idle" };
+      throw err;
+    }).finally(() => {
+      this.#inflight = void 0;
+    });
+    this.#inflight = flight;
+    return { trkorr: await flight, created: true };
+  }
+  /**
+   * ORDERING: the journal hook fires AFTER the server confirms creation, not
+   * before. A pre-POST entry can't name a real TRKORR and gets written even
+   * for failed creations; the accepted cost of firing after is a crash window
+   * between `trCreate` returning and the hook completing, where a numbered
+   * request could exist with no journal entry. That window is narrowed as far
+   * as possible: the hook is `await`ed before the TRKORR is returned, so it's
+   * never used by a write path whose journal entry hasn't landed. See archive
+   * for the full trade-off writeup.
+   */
+  async #doCreate(conn, objSourceUrl, devClass, description) {
+    this.#state = { kind: "creating", since: this.#now().getTime() };
+    if (!this.#authorizeCreate) {
+      throw new Error(
+        "SessionTransport: auto-create reached trCreate() with no authorizeCreate() minter configured. This is an internal wiring bug, not a safety refusal \u2014 see SessionTransportOptions.authorizeCreate in src/adt/session-transport.ts."
+      );
+    }
+    const authorized = this.#authorizeCreate(devClass);
+    const created = await this.#cts.trCreate(
+      conn,
+      {
+        objSourceUrl,
+        description,
+        devClass
+      },
+      authorized
+    );
+    this.noteCreated(created.trkorr);
+    const createdAt = this.#now().toISOString();
+    this.#state = {
+      kind: "active",
+      trkorr: created.trkorr,
+      devclass: devClass,
+      createdAt,
+      origin: "created"
+    };
+    try {
+      await this.#onCreated?.({
+        trkorr: created.trkorr,
+        devclass: devClass,
+        description,
+        createdAt,
+        objSourceUrl,
+        source: "session-created"
+      });
+    } catch (err) {
+      process.stderr.write(
+        `[abapsmith] WARNING: transport request ${created.trkorr} WAS CREATED on the ABAP system (package ${devClass}) but recording it failed: ${err.message}. Note ${created.trkorr} down NOW \u2014 abapsmith has no journal entry for it, and it will not appear in abap_journal. It must be released or deleted by hand.
+`
+      );
+    }
+    return created.trkorr;
+  }
+  /**
+   * SAP's AS4TEXT field holds 60 characters; deliberately not truncated here
+   * — an over-long override should surface as a loud ADT error, not get
+   * silently shortened.
+   */
+  #buildDescription() {
+    return this.#description ?? `abapsmith session ${this.#now().toISOString().slice(0, 10)}`;
+  }
+  /** Is `description` one `#buildDescription()` would produce? */
+  #isOwnDescription(description) {
+    const trimmed = description.trim();
+    return this.#description !== void 0 ? trimmed === this.#description.trim() : /^abapsmith session \d{4}-\d{2}-\d{2}$/.test(trimmed);
+  }
+  /**
+   * Is `trkorr` a request we can write into right now? Returns `undefined` when
+   * it is, or the `denied` resolution explaining why not.
+   */
+  async #checkUsable(conn, trkorr) {
+    let request;
+    try {
+      request = await this.#cts.trShow(conn, trkorr);
+    } catch (err) {
+      if (err instanceof AbapError && err.code === "TRANSPORT_GONE") {
+        return denied(
+          "corrnr-unusable",
+          "TRANSPORT_GONE",
+          `Transport request ${trkorr} does not exist in this system.`
+        );
+      }
+      throw err;
+    }
+    if (request.status === "released") {
+      return denied(
+        "corrnr-unusable",
+        "TRANSPORT_ERROR",
+        `Transport request ${trkorr} has already been released and cannot take further objects.`
+      );
+    }
+    if (request.status !== "modifiable") {
+      return denied(
+        "corrnr-unusable",
+        "TRANSPORT_LOCKED",
+        `Transport request ${trkorr} is ${request.statusText ?? request.status} and cannot take further objects.`
+      );
+    }
+    const me = this.#whoami();
+    if (me !== void 0 && me !== "" && request.owner !== "" && request.owner.toUpperCase() !== me.toUpperCase() && !request.tasks.some((t) => t.owner.toUpperCase() === me.toUpperCase())) {
+      return denied(
+        "corrnr-unusable",
+        "TRANSPORT_LOCKED",
+        `Transport request ${trkorr} belongs to ${request.owner}, and ${me} has no task in it.`
+      );
+    }
+    return void 0;
+  }
+  /** `undefined` when the request is still alive, else why it is not. */
+  async #probe(conn, trkorr) {
+    try {
+      const request = await this.#cts.trShow(conn, trkorr);
+      return request.status === "released" ? "released" : void 0;
+    } catch (err) {
+      if (err instanceof AbapError && err.code === "TRANSPORT_GONE") {
+        return "not-found";
+      }
+      throw err;
+    }
+  }
+};
+
+// src/systems/context.ts
+init_config();
+
+// src/journal.ts
+init_errors();
+init_compact();
+import { randomBytes as randomBytes5 } from "node:crypto";
+import { promises as fs3 } from "node:fs";
+import * as path5 from "node:path";
+init_state_dir();
+init_system_key();
+function journalRef(t) {
+  return {
+    name: t.name,
+    type: t.type,
+    uri: t.uri,
+    sourceUri: t.sourceUri,
+    package: t.packageName,
+    description: t.description
+  };
+}
+var CAPTURE_VALUES = /* @__PURE__ */ new Set([
+  "captured",
+  "confirmed-absent",
+  "failed",
+  "unknown"
+]);
+function normaliseCapture(value) {
+  return typeof value === "string" && CAPTURE_VALUES.has(value) ? value : "unknown";
+}
+var DEFAULT_MAX_ENTRIES = 200;
+var DEFAULT_MAX_AGE_DAYS = 30;
+var STALE_PENDING_MS = 5 * 6e4;
+var INDEX_FILE = "index.jsonl";
+var BLOB_DIR = "blobs";
+var INFLIGHT_DIR = ".inflight";
+var INFLIGHT_GRACE_MS = 15 * 6e4;
+var PRUNE_SLACK = 1.25;
+var OFF_VALUES = /* @__PURE__ */ new Set(["off", "false", "0", "no", "none", "disabled"]);
+function intFromEnv2(raw, fallback) {
+  if (raw === void 0 || raw.trim() === "") return fallback;
+  const n = Number(raw.trim());
+  if (!Number.isFinite(n) || n < 0) return fallback;
+  return Math.floor(n);
+}
+function safeSegment(sid) {
+  const cleaned = sid.trim().replace(/[^A-Za-z0-9_-]/g, "_");
+  return cleaned.length ? cleaned.toUpperCase() : "UNKNOWN";
+}
+function journalConfigFromEnv(env, sid, cwd) {
+  const flag3 = env.ABAP_JOURNAL?.trim().toLowerCase();
+  const enabled = !(flag3 !== void 0 && OFF_VALUES.has(flag3));
+  const base = cwd ?? process.cwd();
+  const root = env.ABAP_JOURNAL_DIR?.trim() ? path5.resolve(base, env.ABAP_JOURNAL_DIR.trim()) : path5.resolve(base, ".abapsmith", "journal");
+  const actor = env.ABAP_ACTOR?.trim() || void 0;
+  return {
+    dir: path5.join(root, safeSegment(sid)),
+    enabled,
+    maxEntries: intFromEnv2(env.ABAP_JOURNAL_MAX_ENTRIES, DEFAULT_MAX_ENTRIES),
+    maxAgeDays: intFromEnv2(env.ABAP_JOURNAL_MAX_AGE_DAYS, DEFAULT_MAX_AGE_DAYS),
+    ...actor ? { actor } : {}
+  };
+}
+function sourceFingerprint(source) {
+  return contentHash(canonicalSource(source));
+}
+var lastMs = 0;
+function compactTimestamp(ms) {
+  return new Date(ms).toISOString().replace(/[-:]/g, "").replace(/\.(\d{3})Z$/, "$1Z");
+}
+function newId() {
+  const ms = Math.max(Date.now(), lastMs + 1);
+  lastMs = ms;
+  return `${compactTimestamp(ms)}-${randomBytes5(3).toString("hex")}`;
+}
+var JOURNAL_ID_RE = /^\d{8}T\d{9}Z-[0-9a-f]{6}$/;
+function looksLikeJournalId(stem) {
+  return JOURNAL_ID_RE.test(stem);
+}
+function assertValidId(id) {
+  if (typeof id !== "string" || id.trim() === "" || /[/\\]/.test(id) || id.includes("..")) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `Not a valid journal entry id: ${JSON.stringify(id)}`,
+      { id },
+      "Ids look like 20260731T134500123Z-a1b2c3; list the journal to get one."
+    );
+  }
+}
+var MARKER_RE = /^(.*)\.(\d+)$/;
+function pidIsAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return e.code !== "ESRCH";
+  }
+}
+function isEntry(rec) {
+  return typeof rec.id === "string" && typeof rec.ts === "string" && typeof rec.operation === "string" && typeof rec.outcome === "string" && typeof rec.object === "object" && rec.object !== null;
+}
+var Journal = class _Journal {
+  enabled;
+  dir;
+  config;
+  /**
+   * Public so undo can check that the entry it is about to replay was
+   * recorded against the system it is connected to. Read-only.
+   */
+  system;
+  indexPath;
+  blobDir;
+  /**
+   * Cross-process lock guarding `index.jsonl` — see src/state-dir.ts. A
+   * SIBLING of the index, deliberately NOT inside `blobs/`: `sweepBlobs()`
+   * reads and deletes out of that directory, and a lock file appearing and
+   * disappearing under another process's feet has no business being where
+   * the sweep can see it. Per journal directory (per SID) — two SIDs have no
+   * reason to wait on each other.
+   */
+  lockPath;
+  /**
+   * On-disk mirror of {@link inFlight} — see {@link INFLIGHT_DIR} for why it
+   * is a sibling of the index rather than nested under `blobs/.inflight`.
+   */
+  inFlightDir;
+  /**
+   * Serialises index mutations within the process so two writers never
+   * interleave — see `runExclusive()`.
+   */
+  tail = Promise.resolve();
+  /**
+   * Ids whose blobs are on disk but whose index line has not landed yet.
+   * `begin()` writes blobs first BY DESIGN (the index must never point at a
+   * blob that does not exist yet), so between the two `readAll()` cannot see
+   * the id but its blobs are real — a concurrent `prune()`/`sweepBlobs()`
+   * must be told to spare them, or the index line lands pointing at a deleted
+   * blob and undo is silently left with nothing to restore.
+   *
+   * PROCESS-LOCAL. A four-process reproduction found the same bug one level
+   * up — process A's sweep cannot see process B's set — hence
+   * {@link inFlightDir}, which mirrors this set to disk. The mirror is
+   * advisory (best-effort, may lag or leak); this set stays the authority for
+   * our own ids and is consulted first in `sweepBlobs()`.
+   */
+  inFlight = /* @__PURE__ */ new Set();
+  /** Lines currently in the index, once known. Drives the lazy prune. */
+  lineCount;
+  /** MCP client identity, set post-construction — see `setClientActor()`. */
+  clientActor;
+  /** This process/session's id, set post-construction — see `setClientSession()`. */
+  clientSessionId;
+  /** Provenance of {@link clientSessionId}. Meaningful only alongside it. */
+  clientSessionSource;
+  constructor(cfg, system) {
+    this.config = Object.freeze({ ...cfg });
+    this.enabled = cfg.enabled;
+    this.dir = cfg.dir;
+    this.system = system;
+    this.indexPath = path5.join(cfg.dir, INDEX_FILE);
+    this.blobDir = path5.join(cfg.dir, BLOB_DIR);
+    this.lockPath = `${this.indexPath}.lock`;
+    this.inFlightDir = path5.join(this.dir, INFLIGHT_DIR);
+  }
+  /**
+   * The stdio/process-wide fallback. Must be lazy, unlike `config.actor`:
+   * the client identity is unknown until the transport's initialize
+   * handshake completes, which is after this `Journal` is constructed
+   * (src/server.ts). Under `ABAP_MCP_TRANSPORT=http` this is set once from
+   * the DEFAULT `McpServer` only (`createServer`'s `createMcpServer(undefined)`
+   * call in src/server.ts) — every per-session `McpServer` instead sets
+   * `McpSessionContext.client` (src/mcp-session.ts), which
+   * `resolveActor()` below consults first via the ambient session.
+   */
+  setClientActor(name) {
+    this.clientActor = name?.trim() || void 0;
+  }
+  /**
+   * `ABAP_ACTOR` (`config.actor`) still wins over everything — it is an
+   * operator override. Below that, the ambient per-MCP-session identity
+   * (`currentMcpSession()`, src/mcp-session.ts) wins over this process-wide
+   * `clientActor`: under `ABAP_MCP_TRANSPORT=http` `clientActor` is shared by
+   * every session this process serves and therefore cannot answer "who" —
+   * only the ambient context, set per request by `src/mcp-http.ts`, can.
+   */
+  resolveActor() {
+    const ambient = (() => {
+      const c = currentMcpSession();
+      return c ? mcpSessionActor(c) : void 0;
+    })();
+    return this.config.actor ?? ambient ?? this.clientActor;
+  }
+  /**
+   * Set the id this server run/session writes onto every entry from here on
+   * — see `JournalEntry.sessionId`/`sessionIdSource`. Same lazy-timing
+   * reason as `setClientActor()`: called once, from `oninitialized`
+   * (src/server.ts), after this `Journal` is constructed. This is the
+   * stdio/process-wide fallback, same as `setClientActor()` — an ambient
+   * `McpSessionContext.sessionId` (set per request by `src/mcp-http.ts`)
+   * overrides it; see `begin()` and the `sessionId` getter below.
+   */
+  setClientSession(id, source) {
+    this.clientSessionId = id?.trim() || void 0;
+    this.clientSessionSource = this.clientSessionId ? source : void 0;
+  }
+  /**
+   * The session id that would be spliced onto the NEXT entry for THIS
+   * (stdio, process-wide) fallback, or `undefined` if none has been set
+   * yet — UNLESS an ambient `McpSessionContext` (src/mcp-session.ts) is
+   * current, in which case its `sessionId` wins: `abap_journal mode=list
+   * session=current` (src/tools/journal.ts) must resolve the CALLING
+   * session under `ABAP_MCP_TRANSPORT=http`, not the process. Exposed so
+   * that tool can resolve "this conversation" without duplicating
+   * `setClientSession()`'s storage.
+   */
+  get sessionId() {
+    return currentMcpSession()?.sessionId ?? this.clientSessionId;
+  }
+  // -- reading ------------------------------------------------------------
+  /**
+   * Read the append-only index and merge it shallowly by id, in file order.
+   * A malformed line — the realistic shape of a crash mid-append is a truncated
+   * *last* line — is skipped, never fatal: the rest of the journal is exactly
+   * the evidence someone is looking for after that crash.
+   */
+  async readAll() {
+    let text5;
+    try {
+      text5 = await fs3.readFile(this.indexPath, "utf8");
+    } catch (e) {
+      if (e.code === "ENOENT") return /* @__PURE__ */ new Map();
+      throw e;
+    }
+    const merged = /* @__PURE__ */ new Map();
+    for (const line2 of text5.split("\n")) {
+      const trimmed = line2.trim();
+      if (!trimmed) continue;
+      let rec;
+      try {
+        rec = JSON.parse(trimmed);
+      } catch {
+        continue;
+      }
+      if (typeof rec !== "object" || rec === null) continue;
+      const patch = rec;
+      if (typeof patch.id !== "string" || patch.id === "") continue;
+      merged.set(patch.id, { ...merged.get(patch.id) ?? {}, ...patch });
+    }
+    const out = /* @__PURE__ */ new Map();
+    for (const [id, rec] of merged) {
+      if (!isEntry(rec)) continue;
+      out.set(id, { ...rec, beforeCapture: normaliseCapture(rec.beforeCapture) });
+    }
+    return out;
+  }
+  static sortNewestFirst(entries) {
+    return entries.sort((a, b) => a.id < b.id ? 1 : a.id > b.id ? -1 : 0);
+  }
+  async get(id) {
+    if (!this.enabled) return void 0;
+    assertValidId(id);
+    return (await this.readAll()).get(id);
+  }
+  /**
+   * Newest first. `object` filters on object name (case-insensitive, exact).
+   * `sessionId` filters on `JournalEntry.sessionId` (exact — it's an opaque
+   * id, not a human-typed name, so no case-folding).
+   *
+   * `since` keeps entries with `ts >= since` (both parsed with `Date.parse`).
+   * An entry whose own `ts` fails to parse is dropped — it cannot be placed
+   * in time, so keeping it would be a guess. `since` itself failing to parse
+   * is the caller's mistake, not something to swallow: it throws
+   * `AbapError("BAD_INPUT", …)` naming the value, since silently treating an
+   * unparseable `since` as "no filter" would return entries the caller
+   * explicitly tried to exclude.
+   *
+   * `systemKey` keeps only entries whose `JournalEntry.systemKey` exactly
+   * equals the given value. An entry with NO `systemKey` recorded is dropped
+   * by this filter, not kept — an entry that never states which system it
+   * belongs to must never be assumed to belong to the one currently
+   * connected.
+   */
+  async list(opts = {}) {
+    if (!this.enabled) return [];
+    const wanted = opts.object?.trim().toUpperCase();
+    const wantedSession = opts.sessionId?.trim();
+    let sinceMs;
+    if (opts.since !== void 0) {
+      sinceMs = Date.parse(opts.since);
+      if (Number.isNaN(sinceMs)) {
+        throw new AbapError(
+          "BAD_INPUT",
+          `\`since\` "${opts.since}" is not a timestamp \`Date.parse\` can read.`,
+          { since: opts.since },
+          "Pass an ISO-8601 timestamp, e.g. the `ts` field a journal entry already carries."
+        );
+      }
+    }
+    let entries = [...(await this.readAll()).values()];
+    if (wanted) entries = entries.filter((e) => (e.object?.name ?? "").toUpperCase() === wanted);
+    if (opts.operation) entries = entries.filter((e) => e.operation === opts.operation);
+    if (wantedSession) entries = entries.filter((e) => e.sessionId === wantedSession);
+    if (sinceMs !== void 0) {
+      const floor = sinceMs;
+      entries = entries.filter((e) => {
+        const t = Date.parse(e.ts);
+        return !Number.isNaN(t) && t >= floor;
+      });
+    }
+    if (opts.systemKey !== void 0) {
+      entries = entries.filter((e) => e.systemKey !== void 0 && e.systemKey === opts.systemKey);
+    }
+    entries = _Journal.sortNewestFirst(entries);
+    return opts.limit !== void 0 && opts.limit >= 0 ? entries.slice(0, opts.limit) : entries;
+  }
+  async readBlob(image) {
+    if (!this.enabled || !image?.blob) return void 0;
+    const file2 = path5.join(this.blobDir, image.blob);
+    if (path5.dirname(path5.resolve(file2)) !== path5.resolve(this.blobDir)) return void 0;
+    try {
+      return await fs3.readFile(file2, "utf8");
+    } catch (e) {
+      if (e.code === "ENOENT") return void 0;
+      throw e;
+    }
+  }
+  /** The recorded before-image source text, or undefined. */
+  beforeImage(entry) {
+    return this.readBlob(entry.before);
+  }
+  afterImage(entry) {
+    return this.readBlob(entry.after);
+  }
+  // -- writing ------------------------------------------------------------
+  /**
+   * Both directories the write path needs, created idempotently.
+   *
+   * `blobs/` and `.inflight/` are siblings — see {@link INFLIGHT_DIR} — so
+   * both `mkdir`s are load-bearing. Must NOT take the index lock: it is
+   * called from `begin()` and `settleInner()` (outside any locked section)
+   * AND from `pruneLocked()` (inside one), and the lock is not re-entrant.
+   */
+  async ensureDirs() {
+    await fs3.mkdir(this.blobDir, { recursive: true });
+    await fs3.mkdir(this.inFlightDir, { recursive: true });
+  }
+  /**
+   * Run `fn` with exclusive access to the index file, queued behind every
+   * other exclusive section.
+   *
+   * `append()` needs this so two lines never interleave. `prune()` needs it
+   * for a sharper reason: it rewrites the file via tmp+rename, and an
+   * `append()` landing in the OLD inode between prune's `readAll()` and its
+   * `rename()` would be silently discarded.
+   *
+   * DEADLOCK: an exclusive section must NEVER await another one, because the
+   * inner call queues behind the outer, which is waiting for it. `begin()`
+   * calls both, but strictly in sequence: it awaits `append()` to completion,
+   * leaving the section, before calling `maybePrune()` → `prune()`. A failed
+   * section must not poison the queue, so the tail swallows.
+   */
+  runExclusive(fn) {
+    const run = this.tail.then(fn);
+    this.tail = run.then(
+      () => void 0,
+      () => void 0
+    );
+    return run;
+  }
+  /**
+   * `runExclusive()`'s cross-process other half — orders writers against the
+   * other N-1 server processes sharing the directory, which an in-process
+   * promise chain cannot see.
+   *
+   * ORDERING RULE, which every caller must obey: take this INSIDE
+   * `runExclusive()`, never around it. `withFileLock` is not re-entrant; the
+   * inverted order deadlocks against a queued `append()` that is itself
+   * waiting on the file lock, ended only by the wait budget expiring into a
+   * `JOURNAL_IO` throw.
+   *
+   * Not taken by `ensureDirs()` or `sweepBlobs()`: both are reached from
+   * inside and outside the locked section, so neither may acquire on its own.
+   */
+  withIndexLock(fn) {
+    return withFileLock(this.lockPath, fn);
+  }
+  /**
+   * Where this process publishes "I am mid-`begin()` on `id`". The pid is
+   * part of the NAME, not the contents: reaping needs it without opening the
+   * file, and two processes racing on a colliding id still get one marker
+   * each.
+   */
+  markerPath(id) {
+    return path5.join(this.inFlightDir, `${id}.${process.pid}`);
+  }
+  /**
+   * Publish / retract an in-flight marker. Both are BEST-EFFORT and neither
+   * may ever throw: the marker is a strict improvement over the status quo
+   * (today the sweep sees nothing of other processes), and a safety
+   * improvement that can fail a write is not an improvement — `begin()`
+   * already refuses loudly on journal I/O for that exact reason.
+   *
+   * Uses `fs.open(…, "w")` rather than `fs.writeFile` deliberately:
+   * test/journal.test.ts:670 replaces the module-level `promises.writeFile`
+   * to park a specific blob write mid-`begin()`, and going through that mock
+   * would be a needless dependency on its exact predicate — src/state-dir.ts's
+   * lock write dodges the same spy for the same reason.
+   */
+  async publishInFlight(id) {
+    try {
+      const handle = await fs3.open(this.markerPath(id), "w");
+      await handle.close();
+    } catch {
+    }
+  }
+  async retractInFlight(id) {
+    try {
+      await fs3.unlink(this.markerPath(id));
+    } catch {
+    }
+  }
+  append(record2) {
+    const line2 = JSON.stringify(record2) + "\n";
+    return this.runExclusive(
+      () => this.withIndexLock(async () => {
+        await fs3.appendFile(this.indexPath, line2, "utf8");
+        if (this.lineCount !== void 0) this.lineCount += 1;
+      })
+    );
+  }
+  /**
+   * `partIndex` names a blob belonging to `entry.parts[partIndex]` instead of
+   * the primary `entry.before`/`entry.after` — see `JournalEntry.parts`. Only
+   * changes the filename (`<id>.part<N>.before|after.txt` instead of
+   * `<id>.before|after.txt`); `sweepBlobs()`'s pattern is kept in sync with
+   * this shape.
+   */
+  async writeImage(id, which, source, serverEtag, partIndex) {
+    const blob = partIndex === void 0 ? `${id}.${which}.txt` : `${id}.part${partIndex}.${which}.txt`;
+    await fs3.writeFile(path5.join(this.blobDir, blob), source, "utf8");
+    return {
+      etag: contentHash(source),
+      fingerprint: sourceFingerprint(source),
+      bytes: Buffer.byteLength(source, "utf8"),
+      blob,
+      ...serverEtag ? { serverEtag } : {}
+    };
+  }
+  /**
+   * Record the intent + before-image BEFORE the mutation, and get it on disk
+   * (blobs first, then the index line, so the index never points at a blob
+   * that does not exist yet).
+   *
+   * A filesystem failure here is NOT swallowed: a journal that silently fails
+   * to record is worse than no journal, because the caller believes it has
+   * undo. Throws `JOURNAL_IO` stating plainly that the mutation was not
+   * attempted — deliberately NOT `SAFETY_DENIED`, which would send whoever
+   * hits a disk-full/permissions error reading allowlists for a problem that
+   * has nothing to do with the ABAP system.
+   *
+   * Returns `undefined` when the journal is disabled — never a fabricated
+   * entry. The old code handed back an entry with id `disabled-<ts>-<hex>`,
+   * and every caller advertised an undo that could never work, surfacing only
+   * later as "unknown journal entry".
+   */
+  async begin(input) {
+    if (!this.enabled) return void 0;
+    const id = newId();
+    const ts = (/* @__PURE__ */ new Date()).toISOString();
+    const beforeCapture = input.beforeCapture ?? (input.existedBefore ? input.beforeSource !== void 0 ? "captured" : "failed" : "unknown");
+    const actor = this.resolveActor();
+    const ambient = currentMcpSession();
+    const sessionId = ambient?.sessionId ?? this.clientSessionId;
+    const sessionIdSource = ambient?.sessionId !== void 0 ? "transport" : this.clientSessionSource;
+    const entry = {
+      id,
+      ts,
+      system: this.system,
+      ...input.systemKey ? { systemKey: input.systemKey } : {},
+      operation: input.operation,
+      object: input.object,
+      existedBefore: input.existedBefore,
+      beforeCapture,
+      ...input.beforeKind ? { beforeKind: input.beforeKind } : {},
+      outcome: "pending",
+      ...input.undoOf ? { undoOf: input.undoOf } : {},
+      ...input.tool ? { tool: input.tool } : {},
+      ...actor ? { actor } : {},
+      ...sessionId ? { sessionId, sessionIdSource } : {},
+      ...input.corrNr ? { corrNr: input.corrNr } : {},
+      ...input.trSource ? { trSource: input.trSource } : {},
+      ...input.irreversible ? { irreversible: input.irreversible } : {}
+    };
+    this.inFlight.add(id);
+    try {
+      await this.ensureDirs();
+      await this.publishInFlight(id);
+      if (input.existedBefore) {
+        entry.before = input.beforeSource !== void 0 ? await this.writeImage(id, "before", input.beforeSource, input.beforeServerEtag) : (
+          // The object existed but we could not read source for it. Record
+          // a blob-less image so "before is present iff it existed" holds.
+          // FABRICATED — etag/fingerprint hash the empty string, not
+          // anything the server sent — which is why the derivation above
+          // marks this case "failed": undo must not restore this over a
+          // real object.
+          {
+            etag: contentHash(""),
+            fingerprint: sourceFingerprint(""),
+            bytes: 0,
+            ...input.beforeServerEtag ? { serverEtag: input.beforeServerEtag } : {}
+          }
+        );
+      }
+      if (input.afterSource !== void 0) {
+        entry.after = await this.writeImage(id, "after", input.afterSource);
+      }
+      if (input.parts && input.parts.length > 0) {
+        const parts = [];
+        for (let i = 0; i < input.parts.length; i++) {
+          const p = input.parts[i];
+          const partCapture = p.beforeCapture ?? (p.existedBefore ? p.beforeSource !== void 0 ? "captured" : "failed" : "unknown");
+          const part = {
+            object: p.object,
+            existedBefore: p.existedBefore,
+            beforeCapture: partCapture
+          };
+          if (p.existedBefore) {
+            part.before = p.beforeSource !== void 0 ? await this.writeImage(id, "before", p.beforeSource, p.beforeServerEtag, i) : (
+              // Same fabricated-empty-image case as the primary object's — see above.
+              {
+                etag: contentHash(""),
+                fingerprint: sourceFingerprint(""),
+                bytes: 0,
+                ...p.beforeServerEtag ? { serverEtag: p.beforeServerEtag } : {}
+              }
+            );
+          }
+          if (p.afterSource !== void 0) {
+            part.after = await this.writeImage(id, "after", p.afterSource, void 0, i);
+          }
+          parts.push(part);
+        }
+        entry.parts = parts;
+      }
+      await this.append(entry);
+    } catch (e) {
+      throw new AbapError(
+        "JOURNAL_IO",
+        `Could not write the local journal at ${this.dir}: ${e.message}. The ${input.operation} of ${input.object?.name ?? "(unknown)"} was NOT attempted.`,
+        {
+          dir: this.dir,
+          operation: input.operation,
+          object: input.object?.name,
+          cause: e.code,
+          note: "This is a LOCAL filesystem problem, not an ABAP authorisation or safety-gate refusal. Nothing was sent to the ABAP system."
+        },
+        "Fix the journal directory (permissions, disk space, ABAP_JOURNAL_DIR) or set ABAP_JOURNAL=off to knowingly work without an undo trail."
+      );
+    } finally {
+      this.inFlight.delete(id);
+      await this.retractInFlight(id);
+    }
+    await this.maybePrune();
+    return entry;
+  }
+  /**
+   * Append the outcome of a previously-begun entry.
+   *
+   * By the time this runs the mutation has already happened, so a filesystem
+   * failure here must never mask the real outcome: it is reported on stderr
+   * and the merged entry is returned anyway. Throws only for a structurally
+   * invalid id (`BAD_INPUT`), which is a caller bug.
+   *
+   * A thin lossy view of `settle()`: everything that is not an outright
+   * success collapses back to `undefined`. New code should call `settle()`.
+   */
+  async finish(id, patch) {
+    return (await this.settleInner(id, patch)).merged;
+  }
+  /**
+   * Total, non-silent version of finish(): resolves an entry to a DEFINITE
+   * terminal outcome and tells the caller whether it actually landed.
+   *
+   * `finish()` returns `undefined` for an unknown id, for a disabled journal
+   * and (in effect) for a write that failed, so a caller cannot tell "there
+   * was never such an entry" from "the disk refused the patch". This is
+   * caller-driven resolution, NOT auto-repair: it only ever writes the
+   * outcome the caller asserts — see the header, and `listPending()`.
+   */
+  async settle(id, patch) {
+    return (await this.settleInner(id, patch)).result;
+  }
+  /**
+   * The shared body. Returns both the machine-readable result and the merged
+   * view, because `finish()` and `settle()` disagree about what to do with the
+   * io-error case and neither should be reimplemented in terms of the other's
+   * lossy answer.
+   */
+  async settleInner(id, patch) {
+    if (!this.enabled) return { result: { settled: false, reason: "disabled" } };
+    assertValidId(id);
+    if (patch.outcome === "pending") {
+      return { result: { settled: false, reason: "not-terminal" } };
+    }
+    const existing = (await this.readAll()).get(id);
+    if (!existing) return { result: { settled: false, reason: "unknown-entry" } };
+    const record2 = { id, outcome: patch.outcome };
+    if (patch.error !== void 0) record2.error = patch.error;
+    if (patch.activation !== void 0) record2.activation = patch.activation;
+    if (patch.corrNr !== void 0) record2.corrNr = patch.corrNr;
+    try {
+      if (patch.afterSource !== void 0) {
+        await this.ensureDirs();
+        record2.after = await this.writeImage(id, "after", patch.afterSource);
+      }
+      if (patch.partsAfterSource) {
+        await this.ensureDirs();
+        const parts = (existing.parts ?? []).map((p) => ({ ...p }));
+        for (const [idxStr, source] of Object.entries(patch.partsAfterSource)) {
+          const idx2 = Number(idxStr);
+          if (!Number.isInteger(idx2) || idx2 < 0 || idx2 >= parts.length) continue;
+          parts[idx2] = { ...parts[idx2], after: await this.writeImage(id, "after", source, void 0, idx2) };
+        }
+        record2.parts = parts;
+      }
+      await this.append(record2);
+    } catch (e) {
+      process.stderr.write(
+        `[abapsmith] WARNING: journal finish for ${id} could not be written (${e.message}). The operation itself already completed with outcome=${patch.outcome}.
+`
+      );
+      return {
+        result: { settled: false, reason: "io-error", error: e.message },
+        merged: { ...existing, ...record2 }
+      };
+    }
+    const merged = { ...existing, ...record2 };
+    return { result: { settled: true, entry: merged }, merged };
+  }
+  /**
+   * Close a `pending` entry by hand on an operator's say-so, WITHOUT
+   * abapsmith having observed the outcome and WITHOUT deleting anything —
+   * see `JournalEntry.reconciled`. This is how a false STRANDED entry (see
+   * `STALE_PENDING_MS`, src/tools/journal.ts) gets retired: the crash or
+   * timeout that left it `pending` is not something abapsmith can go back
+   * and watch happen, so a human states what happened instead, and that
+   * statement is recorded as a statement, never dressed up as a fact
+   * abapsmith itself witnessed.
+   *
+   * Deliberately does NOT run under `runExclusive`/the file lock, exactly
+   * like `settleInner()` above — same reasoning, kept in sync by hand so
+   * nobody "fixes" only one of them.
+   */
+  async reconcile(id, input) {
+    if (!this.enabled) return { reconciled: false, reason: "disabled" };
+    assertValidId(id);
+    if (input.outcome !== "succeeded" && input.outcome !== "failed") {
+      throw new AbapError(
+        "BAD_INPUT",
+        `Not a valid reconciled outcome: ${JSON.stringify(input.outcome)}. "pending" is the state a reconciliation LEAVES, not one it can arrive at.`,
+        { outcome: input.outcome },
+        `Pass outcome: "succeeded" or "failed".`
+      );
+    }
+    const reason = input.reason?.trim() ?? "";
+    if (!reason) {
+      throw new AbapError(
+        "BAD_INPUT",
+        "A reconciliation must state why: the reason is the only evidence this entry will ever carry for its asserted outcome.",
+        { id },
+        "Pass a non-empty reason describing how the outcome is known."
+      );
+    }
+    const existing = (await this.readAll()).get(id);
+    if (!existing) return { reconciled: false, reason: "unknown-entry" };
+    if (existing.outcome !== "pending") {
+      return { reconciled: false, reason: "already-settled", entry: existing };
+    }
+    const actor = this.resolveActor();
+    const reconciled = {
+      at: (/* @__PURE__ */ new Date()).toISOString(),
+      reason,
+      ...actor ? { by: actor } : {}
+    };
+    const record2 = { id, outcome: input.outcome, reconciled };
+    if (input.outcome === "failed") record2.error = reason;
+    try {
+      await this.append(record2);
+    } catch (e) {
+      return {
+        reconciled: false,
+        reason: "io-error",
+        error: e.message,
+        entry: { ...existing, ...record2 }
+      };
+    }
+    return { reconciled: true, entry: { ...existing, ...record2 } };
+  }
+  /**
+   * Entries still sitting at `outcome: "pending"`, newest first. Nothing
+   * sweeps them, so unless something *lists* them they accumulate invisibly.
+   *
+   * `staleAfterMs` filters to entries at least that old. An entry whose `ts`
+   * does not parse counts as STALE — hiding it behind an age filter would
+   * bury the one entry most worth a human's attention. (`prune()` makes the
+   * opposite call for the same input — there an unparsable ts means KEEP —
+   * and both land on "the evidence stays visible".)
+   */
+  async listPending(opts = {}) {
+    if (!this.enabled) return [];
+    const pending = [...(await this.readAll()).values()].filter((e) => e.outcome === "pending");
+    const stale = opts.staleAfterMs;
+    const now = Date.now();
+    const filtered = stale === void 0 || stale <= 0 ? pending : pending.filter((e) => {
+      const t = Date.parse(e.ts);
+      return Number.isFinite(t) ? now - t >= stale : true;
+    });
+    return _Journal.sortNewestFirst(filtered);
+  }
+  /**
+   * Record that `id` was undone by entry `undoneBy`. Best-effort for the same
+   * reason as `finish()` — it runs after a real mutation — but an unknown id is
+   * a caller bug and is reported as `BAD_INPUT`.
+   */
+  async markUndone(id, undoneBy) {
+    if (!this.enabled) return;
+    assertValidId(id);
+    assertValidId(undoneBy);
+    if (!(await this.readAll()).has(id)) {
+      throw new AbapError("BAD_INPUT", `Unknown journal entry: ${id}`, { id });
+    }
+    try {
+      await this.append({ id, undoneBy });
+    } catch (e) {
+      process.stderr.write(
+        `[abapsmith] WARNING: could not record that ${id} was undone by ${undoneBy} (${e.message}). The undo itself already ran.
+`
+      );
+    }
+  }
+  // -- retention ----------------------------------------------------------
+  /** Prune only when the index has grown meaningfully past the cap. */
+  async maybePrune() {
+    const cap = this.config.maxEntries;
+    if (cap <= 0) return;
+    if (this.lineCount === void 0) {
+      try {
+        const text5 = await fs3.readFile(this.indexPath, "utf8");
+        this.lineCount = text5.split("\n").filter((l) => l.trim() !== "").length;
+      } catch {
+        this.lineCount = 0;
+      }
+    }
+    if (this.lineCount <= cap * PRUNE_SLACK) return;
+    try {
+      await this.prune();
+    } catch (e) {
+      process.stderr.write(`[abapsmith] WARNING: journal prune failed: ${e.message}
+`);
+    }
+  }
+  /**
+   * Apply the retention policy. Keeps entries newer than `maxAgeDays` AND
+   * within the newest `maxEntries` — dropped if it fails either rule. Either
+   * limit is disabled by setting it to 0.
+   *
+   * The index is rewritten atomically (`index.jsonl.tmp` + rename), the only
+   * place in this module that does not append. The whole body runs under
+   * `runExclusive()` AND the cross-process file lock (`withIndexLock()`):
+   * "atomic rename" only protects a *reader*, not a concurrent `append()`
+   * whose line lands in the inode about to be replaced. A four-process test
+   * without the cross-process lock left 6 of 22 surviving index entries
+   * pointing at a destroyed before-image.
+   */
+  async prune() {
+    if (!this.enabled) return { removedEntries: 0, removedBlobs: 0 };
+    return this.runExclusive(() => this.withIndexLock(() => this.pruneLocked()));
+  }
+  async pruneLocked() {
+    const all = await this.readAll();
+    if (all.size === 0) return { removedEntries: 0, removedBlobs: 0 };
+    const ordered = _Journal.sortNewestFirst([...all.values()]);
+    const cutoff = this.config.maxAgeDays > 0 ? Date.now() - this.config.maxAgeDays * 864e5 : void 0;
+    const keep = [];
+    const drop = [];
+    for (const e of ordered) {
+      const tooOld = (() => {
+        if (cutoff === void 0) return false;
+        const t = Date.parse(e.ts);
+        return Number.isFinite(t) ? t < cutoff : false;
+      })();
+      const tooMany = this.config.maxEntries > 0 && keep.length >= this.config.maxEntries;
+      if ((tooOld || tooMany) && !this.inFlight.has(e.id)) drop.push(e);
+      else keep.push(e);
+    }
+    if (drop.length === 0) {
+      const removedBlobs2 = await this.sweepBlobs(new Set(keep.map((e) => e.id)));
+      this.lineCount = keep.length;
+      return { removedEntries: 0, removedBlobs: removedBlobs2 };
+    }
+    const body = keep.slice().reverse().map((e) => JSON.stringify(e)).join("\n");
+    const tmp = `${this.indexPath}.${process.pid}.${randomBytes5(4).toString("hex")}.tmp`;
+    await this.ensureDirs();
+    await fs3.writeFile(tmp, body.length ? body + "\n" : "", "utf8");
+    await fs3.rename(tmp, this.indexPath);
+    this.lineCount = keep.length;
+    const removedBlobs = await this.sweepBlobs(new Set(keep.map((e) => e.id)));
+    return { removedEntries: drop.length, removedBlobs };
+  }
+  /**
+   * Delete blobs that no entry can still reach. Returns how many went.
+   *
+   * Deleting is irreversible and these files are the undo trail, so the
+   * burden of proof runs one way: a file is removed only if it is positively
+   * identified as a journal blob AND positively known to be unreachable —
+   * ALL of:
+   *
+   *  - the name matches `<id>.before|after.txt` or a multi-part image's
+   *    `<id>.part<N>.before|after.txt` (see `JournalEntry.parts`); either
+   *    shape's stem is the entry id, which is all this function keys
+   *    survival on;
+   *  - the stem is a well-formed journal id (`looksLikeJournalId`) — the old
+   *    code only checked the suffix and happily unlinked `notes.before.txt`
+   *    sitting in the blob directory;
+   *  - the id is not in `surviving`, not in `inFlight` (an in-flight entry
+   *    has no index line yet, so it cannot be in `surviving`), and not
+   *    REGISTERED in the on-disk in-flight registry — the cross-process
+   *    extension of `inFlight`, without which process A's sweep could unlink
+   *    process B's live before-image (a four-process run left 6 of 22
+   *    surviving entries in exactly that state, silently swallowed by
+   *    `readBlob()`'s ENOENT handling).
+   *
+   * Deliberately NOT a survival rule: the age of the BLOB. An mtime grace
+   * window was proposed and rejected — a crash-orphaned blob is
+   * indistinguishable on disk from one written a millisecond ago by a live
+   * `begin()`; only knowing which writes are open can tell them apart, which
+   * is what the in-flight rules do instead. test/journal.test.ts:573-588 pins
+   * that an orphan blob written moments ago is swept on the very next prune.
+   *
+   * The registry directory itself is a sibling of the index (see
+   * {@link INFLIGHT_DIR}), so this `readdir` never returns it.
+   */
+  async sweepBlobs(surviving) {
+    let files;
+    try {
+      files = await fs3.readdir(this.blobDir);
+    } catch (e) {
+      if (e.code === "ENOENT") return 0;
+      throw e;
+    }
+    const registered = await this.readInFlightRegistry();
+    let removed = 0;
+    for (const f of files) {
+      const m = /^(.+)\.(?:part\d+\.)?(before|after)\.txt$/.exec(f);
+      if (!m || !m[1]) continue;
+      const stem = m[1];
+      if (!looksLikeJournalId(stem)) continue;
+      if (surviving.has(stem) || this.inFlight.has(stem) || registered.has(stem)) continue;
+      try {
+        await fs3.unlink(path5.join(this.blobDir, f));
+        removed += 1;
+      } catch {
+      }
+    }
+    return removed;
+  }
+  /**
+   * The ids some process is currently mid-`begin()` on, per the on-disk
+   * registry — and, as a side effect, where markers that can no longer be
+   * protecting anything are reaped (before the returned set is built, so a
+   * reaped marker never gets one more free pass — without reaping at all, a
+   * process killed between `publishInFlight()` and its `finally` would
+   * protect a blob forever).
+   *
+   * A marker is reaped only when BOTH {@link INFLIGHT_GRACE_MS} has elapsed
+   * AND {@link pidIsAlive} proves the pid dead — never one of our own,
+   * whatever its age. Every uncertainty resolves towards protecting: a
+   * marker we could not `stat` keeps its id alive, an over-protective entry
+   * costs one delayed sweep, an under-protective one destroys a before-image.
+   */
+  async readInFlightRegistry() {
+    let markers;
+    try {
+      markers = await fs3.readdir(this.inFlightDir);
+    } catch (e) {
+      if (e.code === "ENOENT") return /* @__PURE__ */ new Set();
+      throw e;
+    }
+    const registered = /* @__PURE__ */ new Set();
+    const now = Date.now();
+    for (const name of markers) {
+      const m = MARKER_RE.exec(name);
+      const id = m?.[1];
+      const pid = m?.[2] !== void 0 ? Number(m[2]) : Number.NaN;
+      if (await this.reapMarker(name, pid, now)) continue;
+      if (id) registered.add(id);
+    }
+    return registered;
+  }
+  /** True when `name` no longer protects an id — see `readInFlightRegistry()`. */
+  async reapMarker(name, pid, now) {
+    if (pid === process.pid) return false;
+    const marker = path5.join(this.inFlightDir, name);
+    let age;
+    try {
+      age = now - (await fs3.stat(marker)).mtimeMs;
+    } catch {
+      return false;
+    }
+    if (age <= INFLIGHT_GRACE_MS) return false;
+    if (Number.isInteger(pid) && pid > 0 && pidIsAlive(pid)) return false;
+    try {
+      await fs3.unlink(marker);
+    } catch {
+    }
+    return true;
+  }
+};
+async function withJournalledMutation(journal, spec, run) {
+  let entryId;
+  const onBeforeImage = async (image) => {
+    if (!journal) return;
+    const entry = await journal.begin(spec.begin(image));
+    if (entry) entryId = entry.id;
+  };
+  const settle = async (patch) => {
+    if (!journal || entryId === void 0) return;
+    await journal.finish(entryId, patch);
+  };
+  let result;
+  try {
+    result = await run(onBeforeImage);
+  } catch (e) {
+    if ((spec.onError ?? "record-failed") === "record-failed") {
+      await settle({ outcome: "failed", error: String(e) });
+    }
+    throw e;
+  }
+  return { result, entryId, settle };
+}
+
+// src/systems/context.ts
+init_safety();
+
+// src/tools/debug.ts
+init_zod();
+init_errors();
+
+// src/adt/resolve.ts
+init_safety();
+init_capabilities();
+init_ddic_strategy();
+init_errors();
+
+// src/adt/search-descriptions.ts
+var VERIFIED_GROUPS = /* @__PURE__ */ new Set(["TABL", "PROG"]);
+var KNOWN_CLEAN_GROUPS = /* @__PURE__ */ new Set(["FUGR"]);
+var typeGroupOf = (r) => (r["adtcore:type"] ?? "").split("/")[0].toUpperCase();
+var byNameAscending = (a, b) => {
+  const [x, y] = [a["adtcore:name"] ?? "", b["adtcore:name"] ?? ""];
+  return x < y ? -1 : x > y ? 1 : 0;
+};
+var wireOrderMatchesModel = (entries) => entries.every((entry, i) => {
+  if (i === 0) return true;
+  const prevType = (entries[i - 1].ref["adtcore:type"] ?? "").toUpperCase();
+  const type = (entry.ref["adtcore:type"] ?? "").toUpperCase();
+  if (prevType !== type) return prevType <= type;
+  const prevName = (entries[i - 1].ref["adtcore:name"] ?? "").toUpperCase();
+  const name = (entry.ref["adtcore:name"] ?? "").toUpperCase();
+  return prevName <= name;
+});
+function repairSearchDescriptions(refs) {
+  const groups = /* @__PURE__ */ new Map();
+  refs.forEach((ref2, index) => {
+    const key = typeGroupOf(ref2);
+    const bucket = groups.get(key);
+    if (bucket) bucket.push({ index, ref: ref2 });
+    else groups.set(key, [{ index, ref: ref2 }]);
+  });
+  const out = refs.slice();
+  const repairedGroups = /* @__PURE__ */ new Set();
+  const suspectGroups = /* @__PURE__ */ new Set();
+  for (const [key, entries] of groups) {
+    if (KNOWN_CLEAN_GROUPS.has(key)) continue;
+    const distinctTypes = new Set(entries.map((e) => e.ref["adtcore:type"] ?? ""));
+    if (distinctTypes.size < 2) continue;
+    if (entries.some((e) => !e.ref["adtcore:description"])) continue;
+    if (!wireOrderMatchesModel(entries)) continue;
+    const wireDescriptions = entries.map((e) => e.ref["adtcore:description"]);
+    const byName = entries.slice().sort((a, b) => byNameAscending(a.ref, b.ref));
+    const permutation = byName.map((entry, i) => ({ entry, description: wireDescriptions[i] }));
+    const changed = permutation.some(({ entry, description }) => description !== entry.ref["adtcore:description"]);
+    if (!changed) continue;
+    if (!VERIFIED_GROUPS.has(key)) {
+      suspectGroups.add(key);
+      continue;
+    }
+    for (const { entry, description } of permutation) {
+      out[entry.index] = { ...entry.ref, "adtcore:description": description };
+    }
+    repairedGroups.add(key);
+  }
+  return { refs: out, repairedGroups: [...repairedGroups].sort(), suspectGroups: [...suspectGroups].sort() };
+}
+
+// src/adt/resolve.ts
+init_types();
+var SUB_OBJECT_NOUNS = {
+  indexes: "index",
+  values: "fixed value",
+  objectstructure: "object structure"
+};
+function activationFromVersion(version2) {
+  if (typeof version2 !== "string") return "unknown";
+  const v = version2.trim().toLowerCase();
+  if (v === "active") return "active-is-current";
+  if (v === "inactive") return "newer-inactive-exists";
+  return "unknown";
+}
+function conventionSpec(name) {
+  const n = name.toUpperCase();
+  if (/^(Z|Y|\/\w+\/)?CL_/.test(n) || /^CL_/.test(n)) return specForType("CLAS/OC");
+  if (/^(Z|Y|\/\w+\/)?IF_/.test(n) || /^IF_/.test(n)) return specForType("INTF/OI");
+  if (/^(Z|Y)?I_/.test(n)) return specForType("DDLS/DF");
+  return void 0;
+}
+function parseObjectRef(input, hint) {
+  const raw = (input ?? "").trim();
+  if (!raw) throw new AbapError("BAD_INPUT", "Empty object reference.");
+  const res = /^abap:\/\/([^/]+)\/([^/]+)\/(.+)$/i.exec(raw);
+  if (res) {
+    const spec2 = specForType(res[2]);
+    const { name: name2, member: member2 } = splitMember(res[3]);
+    return { name: name2.toUpperCase(), spec: spec2, member: member2, via: spec2 ? "typecode" : "unknown" };
+  }
+  if (/^https?:\/\//i.test(raw) || raw.startsWith("/sap/bc/adt/")) {
+    const hit = specFromUri(raw);
+    if (!hit) {
+      const issue4 = classifyUnmatchedAdtPath(raw);
+      if (issue4?.kind === "sub-object") {
+        const noun = SUB_OBJECT_NOUNS[issue4.segment] ?? issue4.segment;
+        const article = /^[aeiou]/i.test(noun) ? "an" : "a";
+        const target = issue4.subName ? `${noun} ${issue4.subName}` : `${article} ${noun}`;
+        const parentLabel = issue4.spec.label.toLowerCase();
+        throw new AbapError(
+          "UNSUPPORTED",
+          `${noun[0].toUpperCase()}${noun.slice(1)} sub-objects are not readable: ${raw} addresses ${target} inside ${parentLabel} ${issue4.name}.`,
+          {
+            uri: raw,
+            type: issue4.spec.type,
+            object: issue4.name,
+            subObject: issue4.segment,
+            ...issue4.subName ? { subName: issue4.subName } : {}
+          },
+          `abapsmith addresses whole objects. Pass the ${parentLabel} itself: "${issue4.name}" or ${buildUri(issue4.spec, issue4.name, issue4.parent)}.`
+        );
+      }
+      if (issue4?.kind === "not-an-object") {
+        throw new AbapError(
+          "BAD_INPUT",
+          `${raw} addresses a ${issue4.what}, not an ABAP repository object.`,
+          { uri: raw },
+          issue4.what === "transport request" ? "Use abap_transport to work with transport requests." : void 0
+        );
+      }
+      throw new AbapError(
+        "BAD_INPUT",
+        `Unrecognised ADT URI: ${raw}`,
+        { uri: raw },
+        'Pass an object name instead, e.g. "class ZCL_FOO".'
+      );
+    }
+    return {
+      name: hit.name,
+      spec: hit.spec,
+      parent: hit.parent,
+      // Must propagate: dropping it silently substitutes /source/main for whatever include was asked for.
+      include: hit.include,
+      uri: buildUri(hit.spec, hit.name, hit.parent),
+      via: "uri"
+    };
+  }
+  let rest = raw;
+  let spec;
+  let via = "unknown";
+  const codeMatch = /^([A-Za-z]{4}(?:\/[A-Za-z]{1,3})?)\s+(.+)$/.exec(rest);
+  if (codeMatch) {
+    const candidate = specForType(codeMatch[1]);
+    const lower = rest.toLowerCase();
+    const stolenByLongerKeyword = KEYWORDS_BY_LENGTH.some(
+      ({ keyword }) => keyword.length > codeMatch[1].length && lower.startsWith(keyword + " ")
+    );
+    if (candidate && !stolenByLongerKeyword) {
+      spec = candidate;
+      rest = codeMatch[2].trim();
+      via = "typecode";
+    }
+  }
+  if (!spec) {
+    const lower = rest.toLowerCase();
+    for (const { keyword, spec: cand } of KEYWORDS_BY_LENGTH) {
+      if (lower.startsWith(keyword + " ")) {
+        spec = cand;
+        rest = rest.slice(keyword.length).trim();
+        via = "keyword";
+        break;
+      }
+    }
+  }
+  let parent;
+  const inMatch = /^(.*?)\s+(?:in|of|from)\s+([A-Za-z0-9_/]+)$/i.exec(rest);
+  if (inMatch) {
+    rest = inMatch[1].trim();
+    parent = inMatch[2].toUpperCase();
+    if (!isAddressableAbapObjectName(parent)) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${JSON.stringify(parent)} is not a valid container name in ${JSON.stringify(input)}.`,
+        { input, parent },
+        `The container name is embedded in the object's URI, so a malformed one would address a different object than the one you meant. Fix the spelling, e.g. "ZFM in ZFG".`
+      );
+    }
+  }
+  const { name: namePart, member } = splitMember(rest);
+  let name = namePart;
+  const parentAware = spec ?? hint;
+  if (!parent && parentAware?.parentPath && name.includes("/")) {
+    const split = splitParentName(name);
+    if (split) {
+      parent = split.parent.toUpperCase();
+      name = split.name;
+    }
+  }
+  name = name.trim().replace(/^["'`]|["'`]$/g, "");
+  if (!isAddressableAbapObjectName(name)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `Could not extract an ABAP object name from ${JSON.stringify(input)}.`,
+      { input },
+      name.includes("/") ? `Pass the object's type (e.g. type: "FUGR/FF") to address it as "PARENT/NAME", or spell it as "NAME in GROUP".` : 'Try "class ZCL_FOO", "ZCL_FOO", or a full ADT URI.'
+    );
+  }
+  name = name.toUpperCase();
+  if (!spec) {
+    const guess = conventionSpec(name);
+    if (guess) {
+      spec = guess;
+      via = "convention";
+    }
+  }
+  return { name, spec, parent, member, via };
+}
+function splitMember(s) {
+  const m = /^(.*?)(?:=>|->|~|::|\.)([A-Za-z_][A-Za-z0-9_~/]*)$/.exec(s.trim());
+  if (!m) return { name: s.trim() };
+  return { name: m[1].trim(), member: m[2].toUpperCase() };
+}
+function splitParentName(input) {
+  const candidates = [];
+  for (let i = 0; i < input.length; i++) {
+    if (input[i] !== "/") continue;
+    const parent = input.slice(0, i);
+    if (!isAddressableAbapObjectName(parent)) continue;
+    const name = input.slice(i + 1);
+    if (isAddressableAbapObjectName(name)) candidates.push({ parent, name });
+  }
+  return candidates.length === 1 ? candidates[0] : void 0;
+}
+async function resolveObject(conn, input, opts = {}) {
+  if (opts.type) {
+    const cap = capabilitiesFor(opts.type);
+    const code = opts.type.trim().toUpperCase();
+    if (cap?.unsupported) {
+      throw new AbapError(
+        "UNSUPPORTED",
+        `${cap.label} (${code}) cannot be read by abapsmith. ${cap.unsupported.reason} ${TERMINAL_REFUSAL_NOTE}`,
+        { type: code },
+        // `catalogRead` types (SUSO/B) have no ADT resource to resolve a URI
+        // against either — resolveObject genuinely cannot serve them — but
+        // abap_read dispatches on the explicit type hint before this
+        // function ever runs, so the hint points there instead of the
+        // registry's own (write-focused) alternative text.
+        cap.catalogRead ? `There is no ADT resource to resolve a URI against. abap_read {"object":"<name>","type":"${code}"} renders it read-only from the catalog (${cap.catalogRead.from}) \u2014 name it as ${cap.catalogRead.nameForm}.` : cap.unsupported.alternative,
+        { retryable: false }
+        // matches UNSUPPORTED's own default; reaffirmed for readability at the throw site
+      );
+    }
+    if (cap?.bridgeCreate && isBridgeOnlyCreateType(opts.type)) {
+      const spec2 = specForType(opts.type);
+      const readable = spec2?.mode === "ddic" && ddicStrategy(spec2.kind) !== "unsupported";
+      if (!readable) {
+        throw new AbapError(
+          "UNSUPPORTED",
+          `${cap.label} (${code}) has no ADT-readable collection to resolve a URI against. ${cap.bridgeCreate.adtRest} ${TERMINAL_REFUSAL_NOTE}`,
+          { type: code },
+          // Same catalogRead redirect as above — TABL/DI has no ADT resource
+          // either, but abap_read's explicit-type dispatch renders it from
+          // catalog tables before resolveObject is reached.
+          cap.catalogRead ? `abap_read {"object":"<name>","type":"${code}"} renders it read-only from the catalog (${cap.catalogRead.from}) \u2014 name it as ${cap.catalogRead.nameForm}.` : (
+            // Registry-sourced when the create is refused, so this hint cannot
+            // send a caller to `abap_write` for a create `abap_write` will refuse.
+            cap.bridgeCreate.createRefused ?? "abapsmith can create this type through a generated classrun bridge (see abap_write), but cannot read one back."
+          ),
+          { retryable: false }
+          // matches UNSUPPORTED's own default; reaffirmed for readability at the throw site
+        );
+      }
+    }
+  }
+  const forced = opts.type ? specForType(opts.type) : void 0;
+  const parsed = parseObjectRef(input, forced);
+  const spec = forced ?? parsed.spec;
+  const certain = forced !== void 0 || parsed.via === "uri" || parsed.via === "typecode" || parsed.via === "keyword" || opts.trustHint === true;
+  if (spec && certain && spec.parentPath && !parsed.parent) {
+    return resolveParented(conn, spec, parsed);
+  }
+  if (spec && certain && (!spec.parentPath || parsed.parent)) {
+    const packageName = await lookupPackageName(conn, parsed.name, spec.type);
+    return finish(conn, spec, parsed.name, parsed, { packageName });
+  }
+  const results = await searchExact(conn, parsed.name, spec?.type);
+  if (results.length === 0) {
+    const guessed = forced === void 0 && parsed.via === "convention";
+    if (spec && !guessed) return finish(conn, spec, parsed.name, parsed, {});
+    if (spec && guessed && await existsAt(conn, buildUri(spec, parsed.name, parsed.parent))) {
+      return finish(conn, spec, parsed.name, parsed, {});
+    }
+    throw new AbapError(
+      "NOT_FOUND",
+      `No ABAP object named ${parsed.name} was found.`,
+      {
+        name: parsed.name,
+        ...spec ? { assumedType: spec.type, assumedFrom: "naming-convention" } : {}
+      },
+      spec ? `The name looks like a ${spec.label} by convention, but the repository search found no object called ${parsed.name} and a direct read of the ${spec.label} URI did not find one either. Check the spelling, or use abap_search with a pattern (e.g. {"query": "ZCL_*"}).` : 'Use abap_search to look for a pattern, e.g. {"query": "ZCL_*"}.'
+    );
+  }
+  const usable = results.map((r) => ({ r, spec: specForType(r["adtcore:type"]) })).filter((x) => x.spec !== void 0);
+  if (usable.length === 0) {
+    throw new AbapError(
+      "UNSUPPORTED",
+      `${parsed.name} exists but its type (${results[0]["adtcore:type"]}) is not a readable source object.`,
+      { name: parsed.name, types: results.map((r) => r["adtcore:type"]) }
+    );
+  }
+  if (usable.length > 1) {
+    const preferred = spec ? usable.find((u) => u.spec.type === spec.type) : void 0;
+    if (!preferred) {
+      throw new AbapError(
+        "AMBIGUOUS",
+        `${parsed.name} matches ${usable.length} object types.`,
+        { candidates: usable.map((u) => ({ type: u.spec.type, name: u.r["adtcore:name"] })) },
+        'Disambiguate with a type prefix, e.g. "class ZCL_FOO" or {"type": "TABL/DT"}.'
+      );
+    }
+    return finishFromSearch(conn, preferred.spec, preferred.r, parsed);
+  }
+  return finishFromSearch(conn, usable[0].spec, usable[0].r, parsed);
+}
+async function searchExact(conn, name, type) {
+  const spec = type ? specForType(type) : void 0;
+  const kind = spec?.parentPath ? void 0 : type?.split("/")[0];
+  const results = await conn.adt.searchObject(name, kind, 25);
+  const { refs: repaired } = repairSearchDescriptions(results);
+  const exact = repaired.filter((r) => r["adtcore:name"]?.toUpperCase() === name.toUpperCase());
+  return exact.length ? exact : [];
+}
+async function identifyByName(conn, name) {
+  const results = await searchExact(conn, name).catch(() => []);
+  const byType = /* @__PURE__ */ new Map();
+  for (const r of results) {
+    const spec = specForType(r["adtcore:type"]);
+    if (spec) byType.set(spec.type, spec);
+  }
+  return [...byType.values()];
+}
+async function existsAt(conn, uri) {
+  try {
+    return Boolean(await conn.adt.objectStructure(uri));
+  } catch {
+    return false;
+  }
+}
+async function lookupPackageName(conn, name, type) {
+  try {
+    const results = await searchExact(conn, name, type);
+    const matching = results.find((r) => r["adtcore:type"]?.toUpperCase() === type.toUpperCase());
+    return (matching ?? results[0])?.["adtcore:packageName"];
+  } catch {
+    return void 0;
+  }
+}
+async function resolveParented(conn, spec, parsed) {
+  const rows = await searchExact(conn, parsed.name, spec.type);
+  const withParent = rows.filter((r) => r["adtcore:type"]?.toUpperCase() === spec.type.toUpperCase()).map((r) => ({ r, parent: specFromUri(cleanUri(r["adtcore:uri"]) ?? "")?.parent })).filter((x) => x.parent !== void 0);
+  const groups = [];
+  for (const { parent } of withParent) {
+    if (!groups.includes(parent)) groups.push(parent);
+  }
+  if (groups.length === 1) {
+    const match = withParent.find((x) => x.parent === groups[0]);
+    return finishFromSearch(conn, spec, match.r, parsed);
+  }
+  if (groups.length > 1) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${spec.label} ${parsed.name} exists in ${groups.length} function groups (${groups.join(", ")}).`,
+      { name: parsed.name, type: spec.type, groups },
+      `Name the group: "${parsed.name} in ${groups[0]}" or "${groups[0]}/${parsed.name}".`
+    );
+  }
+  const why = spec.type === "FUGR/FF" ? `it does not index generated function modules (ENQUEUE_*, and others), which exist and read fine once the group is named` : `the search does not index ${spec.label.toLowerCase()}s at all`;
+  throw new AbapError(
+    "BAD_INPUT",
+    `${spec.label} ${parsed.name} needs its function group.`,
+    { name: parsed.name, type: spec.type },
+    `The repository search found no ${spec.label.toLowerCase()} called ${parsed.name} to take the group from \u2014 ${why}. Say "${parsed.name} in ZFG" or "ZFG/${parsed.name}".`
+  );
+}
+function finishFromSearch(conn, spec, r, parsed) {
+  const uri = cleanUri(r["adtcore:uri"]);
+  const enriched = parsed.parent ? parsed : withParentFromUri(parsed, uri);
+  return finish(conn, spec, r["adtcore:name"].toUpperCase(), enriched, {
+    description: r["adtcore:description"],
+    packageName: r["adtcore:packageName"],
+    uri,
+    // Free if the server volunteers adtcore:version; SearchResult doesn't type it but
+    // searchObject returns every objectReference attribute. Usually "unknown", not "active".
+    activation: activationFromVersion(
+      r["adtcore:version"]
+    )
+  });
+}
+async function checkActivation(conn, obj) {
+  try {
+    const struc = await conn.adt.objectStructure(obj.uri);
+    return activationFromVersion(struc?.metaData?.["adtcore:version"]);
+  } catch {
+    return "unknown";
+  }
+}
+function withParentFromUri(parsed, uri) {
+  if (!uri) return parsed;
+  const hit = specFromUri(uri);
+  return hit?.parent ? { ...parsed, parent: hit.parent } : parsed;
+}
+function finish(conn, spec, name, parsed, extra) {
+  if (spec.parentPath && !parsed.parent) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${spec.label} ${name} needs its function group.`,
+      { name, type: spec.type },
+      'Say e.g. "function module Z_FOO in ZFG" or "ZFG/Z_FOO". abap_search {"query":"Z_FOO","type":"FUGR/FF"} lists the owning group in its `group` column.'
+    );
+  }
+  const uri = cleanUri(extra.uri) ?? parsed.uri ?? buildUri(spec, name, parsed.parent);
+  const include = spec.type === "CLAS/OC" ? parsed.include : void 0;
+  const sourceUri = spec.supportsSource ? spec.type === "CLAS/OC" ? classIncludeUri(uri, include ?? "main") : `${uri}/source/main` : void 0;
+  return {
+    system: conn.cfg.sid,
+    type: spec.type,
+    kind: spec.kind,
+    label: spec.label,
+    name,
+    uri,
+    sourceUri,
+    include,
+    parent: parsed.parent,
+    member: parsed.member,
+    description: extra.description,
+    packageName: extra.packageName,
+    mode: spec.mode,
+    // Never omitted: a consumer must name a state before claiming the active version is current.
+    activation: extra.activation ?? "unknown",
+    spec
+  };
+}
+function cleanUri(uri) {
+  if (!uri) return void 0;
+  return uri.replace(/[?#].*$/, "");
+}
+
+// src/tools/debug.ts
+init_compact();
+
+// src/debug/identity.ts
+function resolveDebugIdentity(cfg, lane = 0) {
+  const terminal = resolveLanePart(cfg.terminalId, `${cfg.sid}:${cfg.user}:terminalId`, lane);
+  const ide = resolveLanePart(cfg.ideId, `${cfg.sid}:${cfg.user}:ideId`, lane);
+  return {
+    terminalId: terminal.value,
+    ideId: ide.value,
+    terminalIdSource: terminal.source,
+    ideIdSource: ide.source,
+    lane
+  };
+}
+function resolveLanePart(explicit, baseSeed, lane) {
+  if (lane === 0) {
+    return {
+      value: resolveTerminalId({ explicit, seed: baseSeed }),
+      source: explicit?.trim() ? "config" : "derived"
+    };
+  }
+  const trimmedExplicit = explicit?.trim();
+  const seed = trimmedExplicit ? `${trimmedExplicit}:lane${lane}` : `${baseSeed}:lane${lane}`;
+  return {
+    value: resolveTerminalId({ seed }),
+    source: "lane-derived"
+  };
+}
+var warned = false;
+function warnIfDerivedIdentity(id, warn) {
+  if (warned) return false;
+  const derivedParts = [];
+  if (id.terminalIdSource !== "config") derivedParts.push("terminalId");
+  if (id.ideIdSource !== "config") derivedParts.push("ideId");
+  if (derivedParts.length === 0) return false;
+  warned = true;
+  const laneNote = id.lane > 0 ? ` (lane ${id.lane})` : "";
+  warn(
+    `[abapsmith] WARNING: debug identity's ${derivedParts.join(" and ")} ${derivedParts.length > 1 ? "were" : "was"} derived from SID+user${laneNote} (not explicitly configured). A second MCP server process for the same SAP user derives the IDENTICAL pair and SAP cannot tell the two apart. Only explicitly-configured ABAP_TERMINAL_ID / ABAP_IDE_ID are provably multi-process-safe \u2014 set them to distinct 32-uppercase-hex values per terminal.`
+  );
+  return true;
+}
+
+// src/debug/arm-lock.ts
+init_errors();
+init_state_dir();
+import { createHash as createHash7 } from "node:crypto";
+import * as path6 from "node:path";
+var NoopDebugArmLock = class {
+  async acquire() {
+  }
+  release() {
+  }
+};
+function resolveDebugLockWaitMs(env = process.env) {
+  const DEFAULT_MS = 1500;
+  const MIN_MS = 200;
+  const MAX_MS = 3e4;
+  const raw = env.ABAP_DEBUG_LOCK_WAIT_MS;
+  if (raw === void 0 || raw.trim() === "") return DEFAULT_MS;
+  const n = Number(raw.trim());
+  if (!Number.isFinite(n) || n < 0) return DEFAULT_MS;
+  const ms = Math.floor(n);
+  if (ms < MIN_MS || ms > MAX_MS) return DEFAULT_MS;
+  return ms;
+}
+function resolveCrossProcessDebugLock(env = process.env) {
+  const raw = env.ABAP_CROSS_PROCESS_DEBUG_LOCK;
+  if (raw === void 0) return true;
+  const v = raw.trim().toLowerCase();
+  if (v === "") return true;
+  return !["false", "0", "no", "off"].includes(v);
+}
+var DEBUG_ARM_LOCK_HARD_STALE_MS = 36e5;
+var LOCK_HASH_HEX_LEN2 = 20;
+function debugArmLockKey(cfg) {
+  return `${cfg.url.trim()}|${(cfg.client ?? "").trim()}|${cfg.user.trim().toUpperCase()}`;
+}
+function debugArmLockPath(stateDir, cfg, lane = 0) {
+  const hashInput = lane === 0 ? debugArmLockKey(cfg) : `${debugArmLockKey(cfg)}|lane${lane}`;
+  const hash2 = createHash7("sha256").update(hashInput).digest("hex").slice(0, LOCK_HASH_HEX_LEN2);
+  return path6.join(stateDir, "locks", "debug", `${hash2}.lock`);
+}
+function toDebugLockBusyError(e, key, lockPath) {
+  const holder = fileLockHolderOf(e);
+  const held = holder ? `held by pid ${holder.pid} on ${holder.hostname} since ${holder.startedAt || "an unknown time"}` : "the holder is unknown \u2014 the lock file could not be read, or was written by another version";
+  return new AbapError(
+    "DEBUG_SESSION_LOCKED_CROSS_PROCESS",
+    `Cannot start a debug session: another abapsmith process is already holding the debugger slot for this system/client/user (${held}). SAP allows one debug listener per user on a system, so arming a second one would silently reassign or wedge the other session.`,
+    { key, lockPath, holder, cause: describeUnknownError(e) },
+    `Stop the other debug session (abap_debug with action "stop") and retry. If no other abapsmith process is actually running, this is a stale leftover and you can delete ${lockPath} by hand \u2014 a holder whose process has died is normally collected automatically within a few seconds. Set ABAP_CROSS_PROCESS_DEBUG_LOCK=false to disable this guard entirely (at the cost of the protection it provides).`
+  );
+}
+function deferred() {
+  let resolve5;
+  let reject;
+  const promise2 = new Promise((res, rej) => {
+    resolve5 = res;
+    reject = rej;
+  });
+  return { promise: promise2, resolve: resolve5, reject };
+}
+var FileLockDebugArmLock = class {
+  lockPath;
+  key;
+  waitMs;
+  /** How many callers currently hold this lock. Released at 0. */
+  holds = 0;
+  /** Resolved by {@link release} to end the `withFileLock` scope. */
+  hold;
+  /** In flight while an acquisition is racing, so concurrent callers await it. */
+  acquiring;
+  constructor(opts) {
+    this.lockPath = debugArmLockPath(opts.stateDir, opts.cfg, opts.lane ?? 0);
+    this.key = debugArmLockKey(opts.cfg);
+    this.waitMs = opts.waitMs ?? resolveDebugLockWaitMs();
+  }
+  /** The file this instance contends on. For diagnostics and tests. */
+  get path() {
+    return this.lockPath;
+  }
+  /** Whether this process currently holds the lock. For tests and diagnostics. */
+  get held() {
+    return this.holds > 0;
+  }
+  async acquire() {
+    if (this.holds > 0) {
+      this.holds += 1;
+      return;
+    }
+    if (this.acquiring !== void 0) {
+      await this.acquiring;
+      this.holds += 1;
+      return;
+    }
+    const attempt = this.run();
+    this.acquiring = attempt;
+    try {
+      await attempt;
+    } finally {
+      this.acquiring = void 0;
+    }
+    this.holds = 1;
+  }
+  release() {
+    if (this.holds === 0) return;
+    this.holds -= 1;
+    if (this.holds > 0) return;
+    const hold = this.hold;
+    this.hold = void 0;
+    hold?.resolve();
+  }
+  /**
+   * Opens the `withFileLock` scope and resolves once the lock is GRANTED,
+   * leaving the scope running until {@link release}.
+   */
+  async run() {
+    const granted2 = deferred();
+    const hold = deferred();
+    const scope = withFileLock(
+      this.lockPath,
+      async () => {
+        granted2.resolve();
+        await hold.promise;
+      },
+      { waitMs: this.waitMs, hardStaleMs: DEBUG_ARM_LOCK_HARD_STALE_MS }
+    );
+    let failure;
+    const settled = scope.then(
+      () => void 0,
+      (e) => {
+        failure = e;
+        this.hold = void 0;
+        return void 0;
+      }
+    );
+    await Promise.race([granted2.promise, settled]);
+    if (failure !== void 0) {
+      if (isFileLockAcquisitionFailure(failure, this.lockPath)) {
+        throw toDebugLockBusyError(failure, this.key, this.lockPath);
+      }
+      throw failure;
+    }
+    this.hold = hold;
+  }
+};
+function createDebugArmLock(opts) {
+  const enabled = opts.enabled ?? resolveCrossProcessDebugLock(opts.env ?? process.env);
+  if (!enabled) return new NoopDebugArmLock();
+  return new FileLockDebugArmLock({ stateDir: opts.stateDir, cfg: opts.cfg, waitMs: opts.waitMs, lane: opts.lane });
+}
+function createDebugArmLocks(opts) {
+  const lanes = Number.isInteger(opts.lanes) && opts.lanes > 0 ? opts.lanes : 1;
+  const locks = [];
+  for (let lane = 0; lane < lanes; lane++) {
+    locks.push(createDebugArmLock({ ...opts, lane }));
+  }
+  return locks;
+}
+
+// src/tools/debug.ts
+init_state_dir();
 
 // src/debug/render.ts
 var DEBUG_MAX_CHARS = 3e4;
@@ -106031,1477 +106695,415 @@ function renderStackSection(stack, stateId) {
   return lines.join("\n");
 }
 
-// src/adt/activate.ts
-init_types();
-
-// src/adt/revisions.ts
-var import_abap_adt_api6 = __toESM(require_build(), 1);
-init_errors();
+// src/adt/enhancement.ts
 init_session();
-var ACTIVE_VERSION_ID = "00000";
-var INACTIVE_VERSION_ID = "99999";
-var VERSIONS_REL = "http://www.sap.com/adt/relations/versions";
-var NO_VERSIONS_LINK_HINT = "Version management is a per-object property, not a system-wide feature: an object type with no version management (many DDIC and generated objects) carries no versions link on its ADT structure document, so there is nothing to list and nothing to diff. Read the object normally (omit `view`) to see its current source.";
-var NO_RELEASED_HISTORY_EXPLANATION = "has no released version history: the only entry in its ADT version feed is the ACTIVE pseudo-version (00000), which serves the object's CURRENT source rather than a snapshot. SAP writes a version row on transport release or upgrade import, never on local activation \u2014 so a $TMP / local object accumulates no history no matter how many times it is edited and reactivated. There is no predecessor to diff against.";
-function versionIdFromContentUri(uri) {
-  const path9 = uri.replace(/[?#].*$/, "").replace(/\/+$/, "");
-  const segs = path9.split("/");
-  if (segs.length < 2) return "";
-  const candidate = segs[segs.length - 2] ?? "";
-  if (!/^\d{1,5}$/.test(candidate)) return "";
-  const marker = segs[segs.length - 4];
-  if (marker !== void 0 && marker.toLowerCase() !== "versions") return "";
-  return candidate;
+init_errors();
+
+// src/adt/enhancement-xml.ts
+init_errors();
+init_fxp();
+var xmlParser = new XMLParser({
+  ignoreAttributes: false,
+  attributeNamePrefix: "@_",
+  removeNSPrefix: true,
+  parseAttributeValue: false,
+  parseTagValue: false,
+  trimValues: true
+});
+function xnode(value) {
+  if (value === void 0 || value === null) return void 0;
+  if (Array.isArray(value)) return void 0;
+  if (typeof value !== "object") return void 0;
+  return value;
 }
-function revisionKind(versionId) {
-  if (versionId === "") return "released";
-  const n = Number(versionId);
-  if (n === Number(ACTIVE_VERSION_ID)) return "active";
-  if (n === Number(INACTIVE_VERSION_ID)) return "inactive";
-  return "released";
+function xmany(value) {
+  if (value === void 0 || value === null) return [];
+  if (Array.isArray(value)) {
+    return value.filter((v) => typeof v === "object" && v !== null);
+  }
+  if (typeof value === "object") return [value];
+  return [];
 }
-function text2(value) {
-  return value === void 0 || value === null ? "" : String(value);
+function xattr(n, name) {
+  if (!n) return void 0;
+  const v = n["@_" + name];
+  if (v === void 0 || v === null) return void 0;
+  return String(v);
 }
-function normaliseRevisions(raw) {
-  const mapped = raw.map((r) => {
-    const uri = text2(r.uri);
-    const versionId = versionIdFromContentUri(uri);
-    return {
-      versionId,
-      kind: revisionKind(versionId),
-      description: text2(r.versionTitle),
-      transport: text2(r.version),
-      author: text2(r.author),
-      date: text2(r.date),
-      uri
-    };
-  });
-  const byDateDesc = (a, b) => {
-    if (a.date === b.date) return 0;
-    if (a.date === "") return 1;
-    if (b.date === "") return -1;
-    return a.date < b.date ? 1 : -1;
+function xbool(n, name) {
+  const v = xattr(n, name);
+  if (v === void 0) return void 0;
+  return v === "true";
+}
+function fail(message, details = {}) {
+  throw new AbapError(
+    "BAD_INPUT",
+    `enhancement XML: ${message}`,
+    details,
+    "The decoder refuses to guess at malformed or unsupported input \u2014 fix or re-capture the source document rather than relying on a silent fallback."
+  );
+}
+function parseXml2(xmlText2, context) {
+  let parsed;
+  try {
+    parsed = xmlParser.parse(xmlText2) ?? {};
+  } catch (e) {
+    fail(`could not parse ${context} XML: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  return parsed;
+}
+function xref(n) {
+  if (!n) return void 0;
+  const type = xattr(n, "type");
+  const name = xattr(n, "name");
+  if (!type || !name) return void 0;
+  return { uri: xattr(n, "uri"), type, name };
+}
+function parseCommon(root) {
+  const pkgNode = xnode(root.packageRef);
+  const packageRef = pkgNode ? {
+    uri: xattr(pkgNode, "uri"),
+    type: xattr(pkgNode, "type") ?? "",
+    name: xattr(pkgNode, "name") ?? "",
+    description: xattr(pkgNode, "description")
+  } : void 0;
+  return {
+    name: xattr(root, "name") ?? "",
+    type: xattr(root, "type") ?? "",
+    description: xattr(root, "description"),
+    packageRef,
+    responsible: xattr(root, "responsible"),
+    masterLanguage: xattr(root, "masterLanguage"),
+    masterSystem: xattr(root, "masterSystem"),
+    activationStatus: xattr(root, "version"),
+    language: xattr(root, "language"),
+    createdAt: xattr(root, "createdAt"),
+    createdBy: xattr(root, "createdBy"),
+    changedAt: xattr(root, "changedAt"),
+    changedBy: xattr(root, "changedBy")
   };
-  const pseudo = mapped.filter((e) => e.kind !== "released").sort(byDateDesc);
-  const numbered = mapped.filter((e) => e.kind === "released" && e.versionId !== "").sort((a, b) => Number(b.versionId) - Number(a.versionId));
-  const unnumbered = mapped.filter((e) => e.kind === "released" && e.versionId === "").sort(byDateDesc);
-  const sorted = [...pseudo, ...numbered, ...unnumbered];
-  const seen = /* @__PURE__ */ new Set();
+}
+function parseFilterCondition(n) {
+  return {
+    filterName: xattr(n, "filterName"),
+    filterType: xattr(n, "filterType"),
+    comparator1: xattr(n, "comparator1"),
+    value1: xattr(n, "value1"),
+    comparator2: xattr(n, "comparator2"),
+    value2: xattr(n, "value2")
+  };
+}
+function parseFilterTreeChildren(n) {
   const out = [];
-  for (const entry of sorted) {
-    if (entry.versionId !== "") {
-      if (seen.has(entry.versionId)) continue;
-      seen.add(entry.versionId);
-    }
-    out.push(entry);
+  for (const andNode of xmany(n.and)) {
+    out.push({ kind: "and", children: parseFilterTreeChildren(andNode) });
+  }
+  for (const orNode of xmany(n.or)) {
+    out.push({ kind: "or", children: parseFilterTreeChildren(orNode) });
+  }
+  for (const filterNode of xmany(n.filter)) {
+    out.push({ kind: "filter", condition: parseFilterCondition(filterNode) });
   }
   return out;
 }
-function releasedVersions(entries) {
-  return entries.filter((e) => e.kind === "released");
+function parseFilterTree(n) {
+  if (!n) return void 0;
+  const children = parseFilterTreeChildren(n);
+  if (children.length === 0) return void 0;
+  if (children.length === 1) return children[0];
+  return { kind: "or", children };
 }
-async function listRevisions(conn, obj, include) {
-  let raw;
-  try {
-    raw = await conn.adt.revisions(obj.uri, include);
-  } catch (e) {
-    const err = translateAdtError(e, {
-      operation: "read version history",
-      uri: obj.uri,
-      name: obj.name,
-      type: obj.type
-    });
-    if (/revision url not found/i.test(err.message)) {
-      const versioned = include ? await versionedIncludes(conn, obj.uri) : void 0;
-      const others = versioned?.filter((i) => i !== include) ?? [];
-      throw new AbapError(
-        "UNSUPPORTED",
-        `${obj.type} ${obj.name} has no ADT version feed: its object structure carries no "versions" link relation${include ? ` on include ${include}` : ""}, so there is no history to read and nothing to diff.` + (others.length ? ` The includes that DO carry one on this object are: ${others.join(", ")}.` : ""),
-        {
-          type: obj.type,
-          name: obj.name,
-          uri: obj.uri,
-          ...include ? { include } : {},
-          ...versioned ? { versionedIncludes: versioned } : {}
-        },
-        others.length ? `Re-run with include="${others[0]}" to read that include's history.` : NO_VERSIONS_LINK_HINT
-      );
-    }
-    throw err;
-  }
-  return normaliseRevisions(raw);
+function parseBadiImplementationEntry(n) {
+  return {
+    name: xattr(n, "name") ?? "",
+    shortText: xattr(n, "shortText"),
+    isExample: xbool(n, "isExample"),
+    isDefault: xbool(n, "isDefault"),
+    isActive: xbool(n, "isActive"),
+    isCustomizingSupported: xbool(n, "isCustomizingSupported"),
+    runtimeBehaviorShorttext: xattr(n, "runtimeBehaviorShorttext"),
+    enhancementSpot: xref(xnode(n.enhancementSpot)),
+    badiDefinition: xref(xnode(n.badiDefinition)),
+    implementingClass: xref(xnode(n.implementingClass)),
+    filterTree: parseFilterTree(xnode(n.filterTree))
+  };
 }
-async function versionedIncludes(conn, uri) {
-  try {
-    const struct = await conn.adt.objectStructure(uri);
-    if (!(0, import_abap_adt_api6.isClassStructure)(struct)) return void 0;
-    return struct.includes.filter((i) => (i.links ?? []).some((l) => l.rel === VERSIONS_REL)).map((i) => String(i["class:includeType"]));
-  } catch {
-    return void 0;
-  }
+function parseBadiImplementation(xmlText2) {
+  const parsed = parseXml2(xmlText2, "enhoxh (BAdI implementation)");
+  const root = xnode(parsed.objectData);
+  if (!root) fail("not an ENHO/XH BAdI implementation document (no <enho:objectData> root element)");
+  const common = parseCommon(root);
+  const contentCommon = xnode(root.contentCommon);
+  const contentSpecific = xnode(root.contentSpecific);
+  const badiTech = xnode(contentSpecific?.badiTechnology);
+  const implsNode = xnode(badiTech?.badiImplementations);
+  const implNodes = implsNode ? xmany(implsNode.badiImplementation) : [];
+  return {
+    ...common,
+    toolType: xattr(contentCommon, "toolType"),
+    adjustmentStatus: xattr(contentCommon, "adjustmentStatus"),
+    upgradeFlag: xbool(contentCommon, "upgradeFlag"),
+    implementations: implNodes.map(parseBadiImplementationEntry)
+  };
 }
-async function revisionSource(conn, entry, ctx) {
-  if (!entry.uri) {
-    throw new AbapError(
-      "ADT_ERROR",
-      `Version ${describeEntry(entry)} of ${ctx.type} ${ctx.name} carries no content URI (the feed entry had no atom:content/@src), so its source cannot be fetched.`,
-      { type: ctx.type, name: ctx.name, version: entry.versionId },
-      'Pick a different version from the history listing (view="history").'
-    );
-  }
-  try {
-    return await conn.adt.getObjectSource(entry.uri);
-  } catch (e) {
-    throw translateAdtError(e, {
-      operation: `read source of version ${describeEntry(entry)}`,
-      uri: entry.uri,
-      name: ctx.name,
-      type: ctx.type
-    });
-  }
+function parseUsageRef(n) {
+  return {
+    programId: xattr(n, "program_id"),
+    elementUsage: xattr(n, "element_usage"),
+    upgrade: xbool(n, "upgrade"),
+    automaticTransport: xbool(n, "automatic_transport"),
+    parent: xattr(n, "parent"),
+    objectReference: xref(xnode(n.objectReference)),
+    mainObjectReference: xref(xnode(n.mainObjectReference))
+  };
 }
-function describeEntry(entry) {
-  const id = entry.versionId || "(unnumbered)";
-  if (entry.kind === "active") return `${id} (ACTIVE \u2014 current source)`;
-  if (entry.kind === "inactive") return `${id} (INACTIVE)`;
-  return id;
-}
-function selectRevision(entries, selector, ctx) {
-  const want = selector.trim();
-  const lower = want.toLowerCase();
-  if (/^#\d+$/.test(want)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `${ctx.param}="${selector}" is a positional handle, and this feature does not have positions. ADT version feeds repeat the same ACTIVE row many times over (68 entries, ~60 of them identical, on one captured feed), so a position number names nothing stable.`,
-      { type: ctx.type, name: ctx.name, requested: selector },
-      'Pass the version NUMBER instead \u2014 list them with view="history" \u2014 or "active" for the current source.'
-    );
-  }
-  if (lower === "active") {
-    const hit = entries.find((e) => e.kind === "active");
-    if (hit) return hit;
-  }
-  if (lower === "inactive") {
-    const hit = entries.find((e) => e.kind === "inactive");
-    if (hit) return hit;
-  }
-  if (/^\d+$/.test(want)) {
-    const asNumber = Number(want);
-    const byNumber = entries.find(
-      (e) => e.versionId !== "" && Number(e.versionId) === asNumber
-    );
-    if (byNumber) return byNumber;
-  }
-  const byTransport = entries.find(
-    (e) => e.transport !== "" && e.transport.toLowerCase() === lower
-  );
-  if (byTransport) return byTransport;
-  const released = releasedVersions(entries);
-  throw new AbapError(
-    "NOT_FOUND",
-    `${ctx.param}="${selector}" matches no version of ${ctx.type} ${ctx.name}. The feed has ${released.length} released version(s)${released.length ? `: ${released.slice(0, 10).map((e) => e.versionId).join(", ")}${released.length > 10 ? ", \u2026" : ""}` : ""}${entries.some((e) => e.kind === "active") ? ", plus the ACTIVE pseudo-version 00000" : ""}.`,
-    { type: ctx.type, name: ctx.name, requested: selector, released: released.length },
-    'Call abap_read with view="history" to list the versions, then pass a version number or its transport. Omitting both from and to diffs the two newest released versions and needs no identifier at all.'
-  );
-}
-function compareAge(a, b) {
-  if (a.kind === "released" && b.kind === "released" && a.versionId !== "" && b.versionId !== "") {
-    return Number(a.versionId) - Number(b.versionId);
-  }
-  if (a.date !== "" && b.date !== "") {
-    return a.date < b.date ? -1 : a.date > b.date ? 1 : 0;
+function parseEnclosureLink(n) {
+  for (const linkNode of xmany(n.link)) {
+    if (xattr(linkNode, "rel") === "enclosure") return xattr(linkNode, "href");
   }
   return void 0;
 }
-function noReleasedHistory(ctx, entries) {
-  return new AbapError(
-    "NOT_FOUND",
-    `${ctx.type} ${ctx.name} ${NO_RELEASED_HISTORY_EXPLANATION}`,
-    { type: ctx.type, name: ctx.name, entries, released: 0 },
-    "Nothing is wrong with the object or the request \u2014 this is what version history looks like for a local object. To compare against something, read the current source with a plain abap_read (omit `view`) and diff it against whatever you are holding."
-  );
-}
-function resolveDiffPair(entries, from, to, ctx) {
-  const released = releasedVersions(entries);
-  const active = entries.find((e) => e.kind === "active");
-  if (entries.length === 0) {
-    throw new AbapError(
-      "NOT_FOUND",
-      `${ctx.type} ${ctx.name} has a version feed, but ADT returned no entries in it, so there is nothing to diff.`,
-      { type: ctx.type, name: ctx.name },
-      NO_VERSIONS_LINK_HINT
-    );
-  }
-  if (released.length === 0 && from === void 0 && to === void 0) {
-    throw noReleasedHistory(ctx, entries.length);
-  }
-  const newer = to === void 0 ? defaultNewer(released, active, ctx) : selectRevision(entries, to, { ...ctx, param: "to" });
-  const newerDefaulted = to === void 0;
-  if (from !== void 0) {
-    const older2 = selectRevision(entries, from, { ...ctx, param: "from" });
-    if (older2.uri === newer.uri) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `from and to both resolved to the same version (${describeEntry(newer)}) of ${ctx.type} ${ctx.name}. A version does not differ from itself.`,
-        { type: ctx.type, name: ctx.name, version: newer.versionId },
-        "Pick two different versions, or omit from to compare against the previous released version."
-      );
-    }
-    const order = compareAge(older2, newer);
-    if (order !== void 0 && order > 0) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `from=${describeEntry(older2)} is NEWER than to=${describeEntry(newer)} for ${ctx.type} ${ctx.name}; the diff would read backwards.`,
-        { type: ctx.type, name: ctx.name, from: older2.versionId, to: newer.versionId },
-        "Swap them: from is the older side, to is the newer side."
-      );
-    }
-    return { older: older2, newer, newerDefaulted, olderDefaulted: false, newerIsActive: newer.kind === "active" };
-  }
-  const older = predecessorOf(released, newer);
-  if (!older) {
-    if (released.length === 0) throw noReleasedHistory(ctx, entries.length);
-    throw new AbapError(
-      "NOT_FOUND",
-      `${describeEntry(newer)} is the oldest released version of ${ctx.type} ${ctx.name} that the ADT version feed lists, so it has no predecessor to compare against.`,
-      { type: ctx.type, name: ctx.name, version: newer.versionId, released: released.length },
-      released.length > 1 ? `Pass an explicit pair, e.g. from="${released[released.length - 1].versionId}" to="${released[0].versionId}".` : "This object has exactly one released version \u2014 there is nothing older to compare it with."
-    );
-  }
+function parseHookImplementation(n) {
   return {
-    older,
-    newer,
-    newerDefaulted,
-    olderDefaulted: true,
-    newerIsActive: newer.kind === "active"
+    id: xattr(n, "id"),
+    spotName: xattr(n, "spotname"),
+    programName: xattr(n, "programname"),
+    overwrite: xattr(n, "overwrite"),
+    method: xattr(n, "method"),
+    enhMode: xattr(n, "enhmode"),
+    fullName: xattr(n, "full_name") ?? xattr(n, "fullname"),
+    fullDescription: xattr(n, "full_description"),
+    enclosureUri: parseEnclosureLink(n)
   };
 }
-function defaultNewer(released, active, ctx) {
-  if (released.length >= 2) return released[0];
-  if (released.length === 1 && active) return active;
-  if (released.length === 1) return released[0];
-  throw noReleasedHistory(ctx, released.length);
-}
-function predecessorOf(released, newer) {
-  if (newer.kind !== "released") return released[0];
-  const idx2 = released.findIndex((e) => e.uri === newer.uri);
-  if (idx2 === -1) return released[0];
-  return released[idx2 + 1];
-}
-
-// src/adt/activate.ts
-function isFailureSeverity(severity) {
-  return /[EAX]/.test(String(severity ?? "").toUpperCase());
-}
-function parseStartFragment(href) {
-  if (!href) return void 0;
-  const m = /#start=(\d+)(?:,(\d+))?/.exec(String(href));
-  if (!m) return void 0;
-  const line2 = Number(m[1]);
-  if (!Number.isFinite(line2) || line2 <= 0) return void 0;
-  return { line: line2, col: m[2] ? Number(m[2]) : 0 };
-}
-function tally(messages) {
-  let errors = 0;
-  let warnings = 0;
-  for (const m of messages) {
-    if (isFailureSeverity(m.severity)) errors++;
-    else if (String(m.severity).toUpperCase() === "W") warnings++;
-  }
-  return { errors, warnings };
-}
-function severityRank(severity) {
-  const s = String(severity ?? "").toUpperCase();
-  if (/[EAX]/.test(s)) return 0;
-  if (s === "W") return 1;
-  if (s === "I") return 2;
-  return 3;
-}
-function renderMessages(messages, source) {
-  if (messages.length === 0) return "";
-  const ordered = messages.map((m, i) => ({ m, i })).sort((a, b) => {
-    const bySeverity = severityRank(a.m.severity) - severityRank(b.m.severity);
-    if (bySeverity !== 0) return bySeverity;
-    const byLine = (a.m.line ?? Number.MAX_SAFE_INTEGER) - (b.m.line ?? Number.MAX_SAFE_INTEGER);
-    if (byLine !== 0) return byLine;
-    const byCol = (a.m.col ?? 0) - (b.m.col ?? 0);
-    if (byCol !== 0) return byCol;
-    return a.i - b.i;
-  }).map((x) => x.m);
-  const lines = source === void 0 ? void 0 : source.replace(/\r\n/g, "\n").split("\n");
-  const objects = new Set(ordered.map((m) => m.objDescr).filter(Boolean));
-  const showObj = objects.size > 1;
-  const gutter = String(Math.max(...ordered.map((m) => m.line ?? 0), 0)).length;
-  const out = [];
-  let lastEchoed;
-  for (const m of ordered) {
-    const sev = String(m.severity ?? "?").toUpperCase();
-    const where2 = m.line === void 0 ? "(no position)" : `line ${m.line}${m.col === void 0 ? "" : ` col ${m.col}`}`;
-    const who = showObj && m.objDescr ? `[${m.objDescr}] ` : "";
-    out.push(`${sev} ${where2}  ${who}${m.text}`);
-    if (!lines || m.line === void 0) continue;
-    if (m.line === lastEchoed) continue;
-    const raw = lines[m.line - 1];
-    if (raw === void 0) continue;
-    const clipped = truncateForDisplay(raw, ECHO_LINE_MAX);
-    const pad2 = " ".repeat(gutter);
-    out.push(`  ${String(m.line).padStart(gutter)} | ${clipped}`);
-    const col = m.col ?? 0;
-    if (col <= clipped.length) {
-      out.push(`  ${pad2} | ${" ".repeat(col)}^`);
-    }
-    lastEchoed = m.line;
-  }
-  if (ordered.some((m) => m.forceSupported)) {
-    out.push(
-      "The ABAP system reports that this activation could be forced; abapsmith does not force activation."
-    );
-  }
-  return out.join("\n");
-}
-function renderInactive(inactive) {
-  if (inactive.length === 0) return "";
-  const { objects, unnamed } = displayInactive(inactive);
-  if (objects.length === 0) {
-    return unnamed === 1 ? "1 dependent object is still inactive, but SAP's reply named neither it nor its type." : `${unnamed} dependent objects are still inactive, but SAP's reply named neither them nor their types.`;
-  }
-  const head = objects.length === 1 ? "1 dependent object is still inactive:" : `${objects.length} dependent objects are still inactive:`;
-  const lines = [
-    head,
-    ...objects.map((o) => `  ${o.type} ${o.name}`),
-    "Activate them first, or activate them together with this object."
-  ];
-  if (unnamed > 0) {
-    lines.push(
-      `${unnamed} more inactive dependent${unnamed === 1 ? "" : "s"} had no name/type in SAP's reply and ${unnamed === 1 ? "is" : "are"} omitted above.`
-    );
-  }
-  return lines.join("\n");
-}
-function displayInactive(inactive) {
-  const objects = [];
-  const seen = /* @__PURE__ */ new Set();
-  let unnamed = 0;
-  for (const ref2 of inactive) {
-    const name = String(ref2.name ?? "").trim();
-    const type = String(ref2.type ?? "").trim();
-    if (name === "(unknown)" && type === "(unknown)" || !name && !type) {
-      unnamed++;
-      continue;
-    }
-    const key = `${name.toLowerCase()} ${type.toLowerCase()}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    objects.push(ref2);
-  }
-  return { objects, unnamed };
-}
-function summariseMessages(outcome) {
-  const parts = [];
-  if (outcome.errors) parts.push(`${outcome.errors} error${outcome.errors === 1 ? "" : "s"}`);
-  if (outcome.warnings)
-    parts.push(`${outcome.warnings} warning${outcome.warnings === 1 ? "" : "s"}`);
-  const other = outcome.messages.length - outcome.errors - outcome.warnings;
-  if (other > 0) parts.push(`${other} info`);
-  return parts.join(", ");
-}
-function checkFailedError(outcome, context = { what: "Check" }) {
-  const rendered = renderMessages(outcome.messages, context.source);
-  return new AbapError(
-    "CHECK_FAILED",
-    `${context.what}${context.name ? ` of ${context.name}` : ""} failed: ${summariseMessages(outcome) || "no details returned"}.`,
-    {
-      ...context.name ? { object: context.name } : {},
-      summary: summariseMessages(outcome),
-      messages: rendered,
-      raw: outcome.messages
-    },
-    context.hint ?? "Fix the reported lines and write again. Line numbers come from the ADT href fragment, not from the message ordinal, so they are the real source lines."
-  );
-}
-function isActivationOutcome(o) {
-  return "activated" in o;
-}
-var INACTIVE_NAMES_IN_MESSAGE = 10;
-function assertNoErrors(outcome, context) {
-  if (outcome.errors > 0) throw checkFailedError(outcome, context);
-  if (!isActivationOutcome(outcome) || outcome.activated) return outcome;
-  const name = context.name ?? "the object";
-  const details = {
-    object: context.name,
-    activated: false,
-    inactive: outcome.inactive,
-    errors: outcome.errors,
-    warnings: outcome.warnings
-  };
-  if (outcome.inactive.length > 0) {
-    const { objects, unnamed } = displayInactive(outcome.inactive);
-    const named = objects.slice(0, INACTIVE_NAMES_IN_MESSAGE).map((o) => `${o.type} ${o.name}`);
-    const rest = objects.length - named.length;
-    const namedList = rest > 0 ? `${named.join(", ")}, +${rest} more (${elide(
-      "dependent objects",
-      rest,
-      "this error's hint field, which lists every inactive object"
-    )})` : named.join(", ");
-    const hint = context.hint ?? (outcome.preaudit && outcome.preaudit.length > 0 ? "abapsmith already re-sent the activation naming every object ADT's preaudit reply listed, and a re-check still reports these as inactive \u2014 one of them cannot activate. Check them individually with `abap_activate mode=check`." : renderInactive(outcome.inactive));
-    throw new AbapError(
-      "CHECK_FAILED",
-      objects.length === 0 && unnamed > 0 ? `${context.what} failed: ${name} was NOT activated. SAP's reply listed ${unnamed} inactive dependent${unnamed === 1 ? "" : "s"} but gave no name or type for ${unnamed === 1 ? "it" : "them"}.` : `${context.what} failed: ${name} was NOT activated because ${objects.length} dependent object${objects.length === 1 ? " is" : "s are"} still inactive (${namedList}).`,
-      { ...details, inactiveRendered: renderInactive(outcome.inactive) },
-      hint
-    );
-  }
-  if (outcome.messages.length === 0) {
-    throw new AbapError(
-      "CHECK_FAILED",
-      `Activation of ${name} reported failure without any message.`,
-      details,
-      context.hint ?? "Re-run the syntax check; the object is still inactive."
-    );
-  }
-  const base = checkFailedError(outcome, context);
-  throw new AbapError(
-    "CHECK_FAILED",
-    `${base.message} ${name} was NOT activated.`,
-    { ...base.details, ...details },
-    base.hint
-  );
-}
-var KNOWN_ADVISORY_CHECK_MESSAGES = [
-  /^Tab\.\s+\S+\s+is of type INTTAB\s*\(Technical settings are not meaningful\)/i
-];
-function isKnownAdvisoryCheckMessage(text5) {
-  return KNOWN_ADVISORY_CHECK_MESSAGES.some((re) => re.test(text5));
-}
-function mapCheckResults(results) {
-  return results.map((r) => ({
-    severity: isKnownAdvisoryCheckMessage(String(r.text ?? "")) ? "I" : String(r.severity ?? "E").toUpperCase(),
-    // `fullParse` has `parseAttributeValue: true`, so a purely numeric shortText
-    // would arrive as a number — String() keeps the renderer total.
-    text: String(r.text ?? "").trim(),
-    ...r.line > 0 ? { line: r.line, col: r.offset ?? 0 } : {},
-    ...r.uri ? { uri: r.uri } : {}
-  }));
-}
-function mapActivationMessages(result) {
-  return (result.messages ?? []).map((m) => {
-    const pos = parseStartFragment(m.href);
-    return {
-      severity: String(m.type ?? "E").toUpperCase(),
-      text: String(m.shortText ?? "Syntax error").trim(),
-      ...pos ? { line: pos.line, col: pos.col } : {},
-      ...m.objDescr ? { objDescr: String(m.objDescr) } : {},
-      ...m.href ? { uri: String(m.href) } : {},
-      ...m.forceSupported ? { forceSupported: true } : {}
-    };
-  });
-}
-function mapInactiveObjects(result) {
-  return (result.inactive ?? []).map((rec) => {
-    const o = rec.object;
-    if (!o) return { name: "(unknown)", type: "(unknown)" };
-    return {
-      name: String(o["adtcore:name"] ?? ""),
-      type: String(o["adtcore:type"] ?? ""),
-      ...o["adtcore:uri"] ? { uri: String(o["adtcore:uri"]) } : {}
-    };
-  });
-}
-var isCdsCheckUrl = (url2) => /^\/sap\/bc\/adt\/((ddic\/ddlx?)|(acm\/dcl))\/sources\//.test(url2);
-async function checkSource(conn, target, source) {
-  const objectUri = target.uri;
-  const artifactUri = target.sourceUri || `${target.uri}/source/main`;
-  let results;
-  try {
-    results = isCdsCheckUrl(artifactUri) ? await conn.adt.syntaxCheck(objectUri, artifactUri, source) : await conn.adt.syntaxCheck(artifactUri, objectUri, source);
-  } catch (e) {
-    if (isAbapError(e)) throw e;
-    throw new AbapError(
-      "ADT_ERROR",
-      `Syntax check of ${target.name} failed to run: ${describeUnknownError(e)}`,
-      { object: target.name, uri: objectUri },
-      "checkruns neither locks nor writes, so this is a transport/endpoint problem, not a source problem. The object may not be a type the abapCheckRun reporter supports."
-    );
-  }
-  const messages = mapCheckResults(results);
-  const counts = tally(messages);
-  return { ok: counts.errors === 0, messages, ...counts };
-}
-async function prettyPrintSource(conn, source) {
-  let formatted;
-  try {
-    formatted = await conn.adt.prettyPrinter(source);
-  } catch (e) {
-    if (isAbapError(e)) throw e;
-    throw new AbapError(
-      "ADT_ERROR",
-      `Pretty-print failed to run: ${describeUnknownError(e)}`,
-      {},
-      "prettyprinter neither locks nor writes, so this is a transport/endpoint problem, not a source problem."
-    );
-  }
-  formatted = formatted.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-  const changed = formatted !== source;
-  let linesChanged = 0;
-  if (changed) {
-    const inputLines = source.split("\n");
-    const outputLines = formatted.split("\n");
-    const commonLen = Math.min(inputLines.length, outputLines.length);
-    let differing = 0;
-    for (let i = 0; i < commonLen; i++) {
-      if (inputLines[i] !== outputLines[i]) differing++;
-    }
-    linesChanged = differing + Math.abs(inputLines.length - outputLines.length);
-  }
-  return { source: formatted, changed, linesChanged };
-}
-async function releaseActivationEnqueues(conn) {
-  if (conn.heldLockUris().length > 0) return;
-  try {
-    await conn.dropSession();
-  } catch {
-  }
-}
-async function activateObject(conn, target) {
-  let result;
-  try {
-    result = await conn.adt.activate(target.name, target.uri, void 0, true);
-  } catch (e) {
-    if (isAbapError(e)) throw e;
-    throw translateActivationError(e, target);
-  }
-  let preaudit;
-  try {
-    const phase2 = await activateWithPreauditSet(conn, [target], result);
-    if (phase2) {
-      result = phase2.result;
-      preaudit = phase2.preaudit;
-    }
-  } catch (e) {
-    if (isAbapError(e)) throw e;
-    throw translateActivationError(e, target);
-  }
-  const messages = mapActivationMessages(result);
-  const inactive = mapInactiveObjects(result);
-  const counts = tally(messages);
-  const activated = result.success !== false && counts.errors === 0 && inactive.length === 0;
-  if (preaudit && !activated) await releaseActivationEnqueues(conn);
+function parseSourceCodePlugin(xmlText2) {
+  const parsed = parseXml2(xmlText2, "enhoxhh (source-code plugin)");
+  const root = xnode(parsed.enhancement);
+  if (!root) fail("not an ENHO/XHH source-code plugin document (no <enho:enhancement> root element)");
+  const common = parseCommon(root);
+  const contentCommon = xnode(root.contentCommon);
+  const switchNode = xnode(contentCommon?.switch);
+  const usagesNode = xnode(contentCommon?.usages);
+  const usageNodes = usagesNode ? xmany(usagesNode.referencedObject) : [];
+  const contentSpecific = xnode(root.contentSpecific);
+  const hookTech = xnode(contentSpecific?.hookTechnology);
+  const hookImplNodes = hookTech ? xmany(hookTech.hookImplementation) : [];
   return {
-    activated,
-    ok: counts.errors === 0 && inactive.length === 0,
-    messages,
-    inactive,
-    ...counts,
-    ...preaudit ? { preaudit } : {}
+    ...common,
+    sourceUri: xattr(root, "sourceUri"),
+    fixPointArithmetic: xbool(root, "fixPointArithmetic"),
+    activeUnicodeCheck: xbool(root, "activeUnicodeCheck"),
+    toolType: xattr(contentCommon, "toolType"),
+    adjustmentStatus: xattr(contentCommon, "adjustmentStatus"),
+    switchState: xattr(switchNode, "state"),
+    switchReference: xref(xnode(switchNode?.reference)),
+    usages: usageNodes.map(parseUsageRef),
+    enhancedObject: xref(xnode(hookTech?.enhancedObject)),
+    nextId: xattr(hookTech, "nextId"),
+    hookImplementations: hookImplNodes.map(parseHookImplementation)
+  };
+}
+function parseBadiFilterDeclaration(n) {
+  return {
+    filterName: xattr(n, "filterName"),
+    filterType: xattr(n, "filterType"),
+    shorttext: xattr(n, "shorttext"),
+    onlyConstantFilterValues: xbool(n, "onlyConstantFilterValues")
+  };
+}
+function parseBadiDefinitionEntry(n) {
+  const filtersNode = xnode(n.filters);
+  const filterNodes = filtersNode ? xmany(filtersNode.filter) : [];
+  return {
+    name: xattr(n, "name") ?? "",
+    shorttext: xattr(n, "shorttext"),
+    singleUse: xbool(n, "singleUse"),
+    useFallbackClass: xbool(n, "useFallbackClass"),
+    filterLimitation: xbool(n, "filterLimitation"),
+    documentationId: xattr(n, "documentationId"),
+    interfaceRef: xref(xnode(n.interface)),
+    filters: filterNodes.map(parseBadiFilterDeclaration)
+  };
+}
+function parseEnhancementSpot(xmlText2) {
+  const parsed = parseXml2(xmlText2, "enhsxs (enhancement spot)");
+  const root = xnode(parsed.objectData);
+  if (!root) fail("not an ENHS/XS enhancement spot document (no <enhs:objectData> root element)");
+  const common = parseCommon(root);
+  const contentCommon = xnode(root.contentCommon);
+  const contentSpecific = xnode(root.contentSpecific);
+  const badiTech = xnode(contentSpecific?.badiTechnology);
+  const defsNode = xnode(badiTech?.badiDefinitions);
+  const defNodes = defsNode ? xmany(defsNode.badiDefinition) : [];
+  return {
+    ...common,
+    toolType: xattr(contentCommon, "toolType"),
+    internal: xbool(contentCommon, "internal"),
+    badiDefinitions: defNodes.map(parseBadiDefinitionEntry)
   };
 }
 function escapeXmlAttr(value) {
   return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
-function buildActivationBody(targets) {
-  const refs = targets.map(
-    (t) => `<adtcore:objectReference adtcore:uri="${escapeXmlAttr(t.uri)}" adtcore:name="${escapeXmlAttr(t.name)}"/>`
-  ).join("");
-  return `<?xml version="1.0" encoding="UTF-8"?><adtcore:objectReferences xmlns:adtcore="http://www.sap.com/adt/core">${refs}</adtcore:objectReferences>`;
-}
-function toActivationElement(source) {
-  const s = source;
-  if (!s || !s["ioc:ref"]) return void 0;
-  return {
-    deleted: s["@_ioc:deleted"],
-    user: s["@_ioc:user"],
-    ...(0, import_utilities.xmlNodeAttr)(s["ioc:ref"])
-  };
-}
-function parseInactiveObjects(raw) {
-  return (0, import_utilities.xmlArray)(raw, "ioc:inactiveObjects", "ioc:entry").map((obj) => ({
-    object: toActivationElement((0, import_utilities.xmlNode)(obj, "ioc:object")),
-    transport: toActivationElement((0, import_utilities.xmlNode)(obj, "ioc:transport"))
-  }));
-}
-function parseActivationResponse(body) {
-  let messages = [];
-  let success2 = true;
-  let inactive = [];
-  if (body) {
-    const raw = (0, import_utilities.fullParse)(body);
-    inactive = parseInactiveObjects(raw);
-    messages = (0, import_utilities.xmlArray)(raw, "chkl:messages", "msg").map((m) => {
-      const rec = m;
-      const message = (0, import_utilities.xmlNodeAttr)(rec);
-      const shortTextNode = rec["shortText"];
-      message.shortText = shortTextNode?.txt || "Syntax error";
-      return message;
+var ROOT_TAG_RE = /^(\s*<\?xml[^>]*\?>\s*)(<[A-Za-z_][\w.-]*:[A-Za-z_][\w.-]*\b)([^>]*?)(\/?)>/;
+function patchEnhancementRootAttribute(xmlText2, attribute, value) {
+  const m = ROOT_TAG_RE.exec(xmlText2);
+  if (!m) {
+    fail("could not locate a root element to patch (no recognisable opening tag at the start of the document)", {
+      attribute
     });
-    if (inactive.length > 0) {
-      success2 = false;
-    } else {
-      for (const m of messages) {
-        if (/[EAX]/.test(String(m.type))) {
-          success2 = false;
-          break;
-        }
-      }
-    }
+    throw new Error("unreachable \u2014 fail() always throws");
   }
-  return { messages, success: success2, inactive };
-}
-function normaliseAdtUri(uri) {
-  if (!uri) return "";
-  return (String(uri).split("#")[0] ?? "").split("?")[0].replace(/\/+$/, "").toLowerCase();
-}
-function activationRefKey(uri) {
-  if (!uri) return "";
-  const s = String(uri);
-  const cut = s.indexOf("#");
-  return cut === -1 ? normaliseAdtUri(s) : normaliseAdtUri(s.slice(0, cut)) + s.slice(cut).toLowerCase();
-}
-async function postActivation(conn, targets, preauditRequested) {
-  const resp = await conn.post("/sap/bc/adt/activation", {
-    qs: { method: "activate", preauditRequested: preauditRequested ? "true" : "false" },
-    headers: { "Content-Type": "application/xml", Accept: "application/xml" },
-    body: buildActivationBody(targets)
-  });
-  return parseActivationResponse(resp.body);
-}
-function preauditActivationSet(seeds, inactive) {
-  const targets = [...seeds];
-  const seen = new Set(seeds.map((s) => activationRefKey(s.uri)));
-  let unaddressable = 0;
-  for (const ref2 of inactive) {
-    if (!ref2.uri) {
-      unaddressable++;
-      continue;
-    }
-    const key = activationRefKey(ref2.uri);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    targets.push({ name: ref2.name, uri: ref2.uri, ...ref2.type ? { type: ref2.type } : {} });
-  }
-  return { targets, unaddressable };
-}
-function toInactiveRecord(ref2) {
-  return {
-    object: {
-      "adtcore:name": ref2.name,
-      "adtcore:type": ref2.type,
-      ...ref2.uri ? { "adtcore:uri": ref2.uri } : {}
-    }
-  };
-}
-async function seedsStillInactive(conn, seeds) {
-  let anyReadable = false;
-  const stillInactive = [];
-  for (const seed of seeds) {
-    let entries;
-    try {
-      entries = normaliseRevisions(await conn.adt.revisions(seed.uri));
-    } catch {
-      continue;
-    }
-    anyReadable = true;
-    if (entries.some((e) => e.kind === "inactive")) {
-      stillInactive.push({ name: seed.name, type: seed.type ?? "", uri: seed.uri });
-    }
-  }
-  return anyReadable ? stillInactive : void 0;
-}
-async function activateWithPreauditSet(conn, seeds, first) {
-  if (first.inactive.length === 0) return void 0;
-  if (tally(mapActivationMessages(first)).errors > 0) return void 0;
-  const preaudit = mapInactiveObjects(first);
-  const set2 = preauditActivationSet(seeds, preaudit);
-  if (set2.targets.length <= seeds.length) return void 0;
-  const second = await postActivation(conn, set2.targets, false);
-  if (second.inactive.length > 0 || tally(mapActivationMessages(second)).errors > 0) {
-    return { result: second, preaudit };
-  }
-  const stillInactive = await seedsStillInactive(conn, seeds);
-  if (stillInactive === void 0 || stillInactive.length === 0) {
-    return {
-      // Phase two's own messages — warnings, typically — would otherwise be
-      // dropped on the floor by a clean verification.
-      result: { messages: second.messages, success: second.success, inactive: [] },
-      preaudit
-    };
-  }
-  return {
-    result: {
-      messages: second.messages,
-      success: false,
-      inactive: stillInactive.map(toInactiveRecord)
-    },
-    preaudit
-  };
-}
-function uriAddresses(href, targetUri) {
-  if (!href || !targetUri) return false;
-  return href === targetUri || href.startsWith(`${targetUri}/`);
-}
-function attributeToTarget(message, targets) {
-  const href = normaliseAdtUri(message.uri);
-  if (href) {
-    let best;
-    let bestLen = -1;
-    for (const t of targets) {
-      const key = normaliseAdtUri(t.uri);
-      if (uriAddresses(href, key) && key.length > bestLen) {
-        best = t;
-        bestLen = key.length;
-      }
-    }
-    if (best) return best;
-  }
-  const descr = String(message.objDescr ?? "").toUpperCase();
-  if (descr) {
-    const hits = targets.filter((t) => {
-      const name = t.name.trim().toUpperCase();
-      if (!name) return false;
-      return new RegExp(`(^|[^A-Z0-9_])${escapeRegExp2(name)}([^A-Z0-9_]|$)`).test(descr);
+  const whole = m[0];
+  const prolog = m[1];
+  const tagOpen = m[2];
+  const attrs = m[3];
+  const selfClose = m[4];
+  const localName2 = tagOpen.replace(/^<[A-Za-z_][\w.-]*:/, "<");
+  if (localName2 !== "<objectData" && localName2 !== "<enhancement") {
+    fail(`unrecognised enhancement document root element "${tagOpen.slice(1)}" \u2014 refusing to patch it`, {
+      attribute,
+      rootTag: tagOpen.slice(1)
     });
-    if (hits.length === 1) return hits[0];
   }
-  return void 0;
+  const escaped = escapeXmlAttr(value);
+  const attrRe = /(?:^|\s)(adtcore:)?description\s*=\s*(?:"[^"]*"|'[^']*')/;
+  const existing = attrRe.exec(attrs);
+  let newAttrs;
+  if (existing) {
+    const prefix = existing[1] ?? "";
+    newAttrs = attrs.slice(0, existing.index) + (existing[0].startsWith(" ") ? " " : "") + `${prefix}${attribute}="${escaped}"` + attrs.slice(existing.index + existing[0].length);
+  } else {
+    newAttrs = `${attrs} adtcore:${attribute}="${escaped}"`;
+  }
+  const newTagOpen = `${prolog}${tagOpen}${newAttrs}${selfClose}>`;
+  return xmlText2.slice(0, m.index) + newTagOpen + xmlText2.slice(m.index + whole.length);
 }
+var ROOT_DESCRIPTION_VALUE_RE = /(?:^|\s)(?:adtcore:)?description\s*=\s*(?:"([^"]*)"|'([^']*)')/;
+function hasEnhancementRootDescription(xmlText2) {
+  const m = ROOT_TAG_RE.exec(xmlText2);
+  if (!m) return false;
+  const attrs = m[3] ?? "";
+  const valueMatch = ROOT_DESCRIPTION_VALUE_RE.exec(attrs);
+  if (!valueMatch) return false;
+  const raw = valueMatch[1] ?? valueMatch[2] ?? "";
+  return raw.length > 0;
+}
+var BADI_IMPL_TAG_RE = /<enho:badiImplementation\b([^>]*?)(\/?)>/g;
 function escapeRegExp2(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
-function assertNoDuplicates(targets) {
-  const seen = /* @__PURE__ */ new Map();
-  for (const t of targets) {
-    const key = normaliseAdtUri(t.uri) || t.name.trim().toUpperCase();
-    const prev = seen.get(key);
-    if (prev !== void 0) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `Activation set names the same object twice: ${prev} and ${t.name} both resolve to ${key}.`,
-        { duplicate: t.name, alsoNamed: prev, uri: t.uri },
-        "List each object once. Activation order inside the set does not matter \u2014 the server resolves the dependencies itself \u2014 so a repeat buys nothing."
-      );
+function patchBadiImplementationActive(xmlText2, implName, active) {
+  const nameAttrRe = new RegExp(`(?:^|\\s)enho:name\\s*=\\s*"${escapeRegExp2(escapeXmlAttr(implName))}"`);
+  BADI_IMPL_TAG_RE.lastIndex = 0;
+  let found;
+  let m;
+  while ((m = BADI_IMPL_TAG_RE.exec(xmlText2)) !== null) {
+    const attrs = m[1] ?? "";
+    if (nameAttrRe.test(attrs)) {
+      found = { full: m[0], attrs, selfClose: m[2] ?? "", index: m.index };
+      break;
     }
-    seen.set(key, t.name);
   }
-}
-var MAX_ACTIVATION_BATCH = 50;
-function isFanoutProneType(type) {
-  const spec = specForType(type);
-  if (!spec) return true;
-  return spec.mode === "ddic";
-}
-function chunkActivationTargets(targets, sizes) {
-  const chunks = [];
-  let current = [];
-  let currentFanoutProne;
-  let currentCap = 0;
-  for (const t of targets) {
-    const fanoutProne = isFanoutProneType(t.type);
-    const cap = fanoutProne ? sizes.ddic : sizes.safe;
-    const startsNewChunk = current.length === 0 || currentFanoutProne !== fanoutProne || current.length >= currentCap;
-    if (startsNewChunk) {
-      if (current.length) chunks.push(current);
-      current = [];
-      currentFanoutProne = fanoutProne;
-      currentCap = cap;
-    }
-    current.push(t);
+  if (!found) {
+    fail(`could not locate a <enho:badiImplementation> entry named "${implName}" to patch`, { implName });
+    throw new Error("unreachable \u2014 fail() always throws");
   }
-  if (current.length) chunks.push(current);
-  return chunks;
+  const valueStr = active ? "true" : "false";
+  const attrRe = /(?:^|\s)(enho:)?isActive\s*=\s*(?:"[^"]*"|'[^']*')/;
+  const existing = attrRe.exec(found.attrs);
+  let newAttrs;
+  if (existing) {
+    const prefix = existing[1] ?? "";
+    newAttrs = found.attrs.slice(0, existing.index) + (existing[0].startsWith(" ") ? " " : "") + `${prefix}isActive="${valueStr}"` + found.attrs.slice(existing.index + existing[0].length);
+  } else {
+    newAttrs = `${found.attrs} enho:isActive="${valueStr}"`;
+  }
+  const newTag = `<enho:badiImplementation${newAttrs}${found.selfClose}>`;
+  return xmlText2.slice(0, found.index) + newTag + xmlText2.slice(found.index + found.full.length);
 }
-async function activateObjects(conn, targets, opts) {
-  if (targets.length === 0) {
+
+// src/adt/enhancement.ts
+var ENHOXH_COLLECTION = "/sap/bc/adt/enhancements/enhoxh";
+var ENHOXHH_COLLECTION = "/sap/bc/adt/enhancements/enhoxhh";
+var ENHSXS_COLLECTION = "/sap/bc/adt/enhancements/enhsxs";
+var ENHOXH_ACCEPT = "application/vnd.sap.adt.enh.enho.v1+xml";
+var ENHOXHH_ACCEPT = "application/vnd.sap.adt.enh.enhoxhh.v2+xml";
+var ENHSXS_ACCEPT = "application/vnd.sap.adt.enh.enhs.v1+xml";
+var ENHOXH_TYPE = "ENHO/XH";
+var ENHOXHH_TYPE = "ENHO/XHH";
+var ENHSXS_TYPE = "ENHS/XS";
+function buildEnhancementUri(collection, name) {
+  const trimmedName = name.trim();
+  if (!trimmedName) {
     throw new AbapError(
       "BAD_INPUT",
-      "Activation set is empty; there is nothing to activate.",
-      { count: 0 },
-      "Name at least one object."
+      "Enhancement object name must not be empty.",
+      { collection },
+      "Pass the object name, e.g. the BAdI implementation's technical name."
     );
   }
-  if (targets.length > MAX_ACTIVATION_BATCH) {
+  const uri = `${collection}/${encodeURIComponent(trimmedName)}`;
+  if (/\/sap\/bc\/adt\/sap\/bc\/adt\//i.test(uri)) {
     throw new AbapError(
       "BAD_INPUT",
-      `Activation set has ${targets.length} objects; the limit for one call is ${MAX_ACTIVATION_BATCH}.`,
-      { count: targets.length, limit: MAX_ACTIVATION_BATCH },
-      `Split it into sets of at most ${MAX_ACTIVATION_BATCH}. Keep mutually dependent objects together in the same set.`
+      `Refused to build a doubled-prefix enhancement URI: ${uri}`,
+      { collection, name: trimmedName, uri },
+      "This system's /sap/bc/adt/discovery document is known to carry a doubled /sap/bc/adt/sap/bc/adt/ prefix on 29/239 templateLink/@template values, including the entire Enhancements workspace. Resolve the collection path from app:collection/@href, never from templateLink/@template."
     );
   }
-  assertNoDuplicates(targets);
-  const chunks = chunkActivationTargets(targets, {
-    ddic: conn.cfg.maxDdicActivationBatch,
-    safe: conn.cfg.maxSafeActivationBatch
-  });
-  const buckets = /* @__PURE__ */ new Map();
-  for (const t of targets) buckets.set(t, { messages: [], inactive: [] });
-  const disposition = new Map(
-    targets.map((t) => [t, "not-sent"])
-  );
-  const unattributed = [];
-  const unattributedInactive = [];
-  const allMessages = [];
-  const allInactive = [];
-  const allPreaudit = [];
-  let anyChunkFailed = false;
-  if (chunks.length > 1) {
-    process.stderr.write(
-      `[abapsmith] activation batch of ${targets.length} split into ${chunks.length} chunks (DDIC-aware chunking): sizes ${chunks.map((c) => c.length).join(", ")}
-`
-    );
-  }
-  let dispatchError;
-  try {
-    for (const chunk3 of chunks) {
-      let result;
-      try {
-        result = await postActivation(conn, chunk3, true);
-        const phase2 = await activateWithPreauditSet(conn, chunk3, result);
-        if (phase2) {
-          result = phase2.result;
-          allPreaudit.push(...phase2.preaudit);
-        }
-      } catch (e) {
-        for (const t of chunk3) disposition.set(t, "unknown");
-        if (isAbapError(e)) throw e;
-        throw translateActivationError(e, {
-          name: chunk3.map((t) => t.name).join(" + "),
-          uri: chunk3[0].uri
-        });
-      }
-      const messages = mapActivationMessages(result);
-      const inactive = mapInactiveObjects(result);
-      if (result.success === false) anyChunkFailed = true;
-      allMessages.push(...messages);
-      allInactive.push(...inactive);
-      const chunkActivated = result.success !== false && tally(messages).errors === 0 && inactive.length === 0;
-      for (const t of chunk3) disposition.set(t, chunkActivated ? "activated" : "not-activated");
-      for (const m of messages) {
-        const owner = attributeToTarget(m, targets);
-        if (owner) buckets.get(owner).messages.push(m);
-        else unattributed.push(m);
-      }
-      for (const i of inactive) {
-        const owner = attributeToTarget({ uri: i.uri, objDescr: i.name }, targets);
-        if (owner) buckets.get(owner).inactive.push(i);
-        else unattributedInactive.push(i);
-      }
+  return uri;
+}
+function firstHeader(headers, name) {
+  const lower = name.toLowerCase();
+  for (const k of Object.keys(headers)) {
+    if (k.toLowerCase() === lower) {
+      const v = headers[k];
+      if (Array.isArray(v)) return v.length ? String(v[0]) : void 0;
+      return v === void 0 || v === null ? void 0 : String(v);
     }
-  } catch (e) {
-    dispatchError = e;
   }
-  const counts = tally(allMessages);
-  const activated = dispatchError === void 0 && !anyChunkFailed && counts.errors === 0 && allInactive.length === 0;
-  if (allPreaudit.length > 0 && !activated) await releaseActivationEnqueues(conn);
-  const perObject = targets.map((target) => {
-    const b = buckets.get(target);
-    const c = tally(b.messages);
-    const objOk = c.errors === 0 && b.inactive.length === 0;
-    const d = disposition.get(target);
-    return {
-      target,
-      // See BatchActivationOutcome: the batch's verdict, not a per-object
-      // observation. Never `true` for a member of a batch that failed.
-      activated: activated && objOk,
-      ok: objOk,
-      disposition: d === "activated" && !objOk ? "not-activated" : d,
-      messages: b.messages,
-      inactive: b.inactive,
-      ...c
-    };
-  });
-  opts?.onDisposition?.(perObject.map((o) => o.disposition));
-  if (dispatchError !== void 0) throw dispatchError;
-  return {
-    activated,
-    ok: counts.errors === 0 && allInactive.length === 0,
-    messages: allMessages,
-    inactive: allInactive,
-    ...counts,
-    ...allPreaudit.length ? { preaudit: allPreaudit } : {},
-    targets,
-    perObject,
-    unattributed,
-    unattributedInactive
-  };
-}
-function renderBatch(outcome) {
-  const lines = [];
-  for (const o of outcome.perObject) {
-    const summary = summariseMessages(o) || (o.ok ? "clean" : "not activated");
-    lines.push(`## ${o.target.name} \u2014 ${summary}${o.ok ? "" : "  <- BLAMED"}`);
-    const text5 = renderMessages(o.messages);
-    if (text5.trim()) lines.push(text5);
-    if (o.inactive.length) lines.push(renderInactive(o.inactive));
-  }
-  if (outcome.unattributed.length || outcome.unattributedInactive.length) {
-    lines.push(
-      `## (unattributed) \u2014 ${outcome.unattributed.length} message(s), ${outcome.unattributedInactive.length} inactive dependent(s)`,
-      "The server did not tie these to any object in the set. They are NOT assigned to a guessed owner, and they still count against the activation."
-    );
-    const text5 = renderMessages(outcome.unattributed);
-    if (text5.trim()) lines.push(text5);
-    if (outcome.unattributedInactive.length) lines.push(renderInactive(outcome.unattributedInactive));
-  }
-  return lines.join("\n");
-}
-function assertBatchActivated(outcome, context = { what: "Activation" }) {
-  if (outcome.activated && outcome.errors === 0) return outcome;
-  const blamed = outcome.perObject.filter((o) => !o.ok);
-  const names = blamed.map((o) => o.target.name);
-  const unplaced = outcome.unattributed.length + outcome.unattributedInactive.length;
-  const who = names.length > 0 ? `${names.join(", ")} ${names.length === 1 ? "was" : "were"} blamed` : "no object could be blamed";
-  const tail = unplaced > 0 ? ` ${unplaced} message(s) could not be tied to any object in the set and are reported as unattributed.` : "";
-  const alreadyActive = outcome.perObject.filter((o) => o.disposition === "activated").map((o) => o.target.name);
-  throw new AbapError(
-    "CHECK_FAILED",
-    `${context.what} of ${outcome.targets.length} objects failed: ${summariseMessages(outcome) || "no details returned"}; ${who}.${tail}`,
-    {
-      activated: false,
-      objects: outcome.targets.map((t) => t.name),
-      blamed: names,
-      unattributedCount: unplaced,
-      summary: summariseMessages(outcome),
-      perObject: outcome.perObject.map((o) => ({
-        object: o.target.name,
-        ok: o.ok,
-        disposition: o.disposition,
-        errors: o.errors,
-        warnings: o.warnings,
-        messages: o.messages,
-        inactive: o.inactive
-      })),
-      unattributed: outcome.unattributed,
-      messages: renderBatch(outcome)
-    },
-    names.length > 0 ? `Fix ${names.join(", ")} and activate the set again.` + (alreadyActive.length > 0 ? ` ${alreadyActive.join(", ")} already activated in an earlier request of this batch and stayed active \u2014 ADT has no deactivate. Re-activating the whole set is still the simplest way to finish.` : " The whole set is still inactive \u2014 objects with no messages of their own were not confirmed activated either, so re-activate the complete set rather than only the objects you edited.") : "The activation failed without naming an object in the set. Re-read the objects to see which are still inactive, and check the unattributed messages above."
-  );
-}
-function translateActivationError(e, target) {
-  const err = e;
-  const status = Number(err?.err ?? err?.status ?? 0);
-  const type = String(err?.type ?? "");
-  const text5 = describeUnknownError(e);
-  if (status === 403 && (/ResourceNoAccess/i.test(type) || /currently editing/i.test(text5))) {
-    return new AbapError(
-      "LOCKED",
-      `Cannot activate ${target.name}: the object is locked (${text5}).`,
-      { object: target.name, uri: target.uri, adtType: type || void 0 },
-      "You cannot activate an object while holding its own lock. Unlock first: lock \u2192 PUT source \u2192 unlock \u2192 activate. If the lock is held elsewhere, it must be released there: ADT locks bind to a SESSION (`sap-contextid`), not a user, so the holder may be another session of the SAME user (e.g. a stale editor tab), not necessarily a different person."
-    );
-  }
-  return new AbapError(
-    "ADT_ERROR",
-    `Activation of ${target.name} failed: ${text5}`,
-    { object: target.name, uri: target.uri, status: status || void 0, adtType: type || void 0 },
-    "Activation returns 200 for syntax errors, so a thrown error here is a transport/authorisation problem rather than a source problem."
-  );
-}
-
-// src/tools/activate.ts
-init_capabilities();
-init_errors();
-
-// src/adt/resolve.ts
-init_safety();
-init_capabilities();
-init_ddic_strategy();
-init_errors();
-
-// src/adt/search-descriptions.ts
-var VERIFIED_GROUPS = /* @__PURE__ */ new Set(["TABL", "PROG"]);
-var KNOWN_CLEAN_GROUPS = /* @__PURE__ */ new Set(["FUGR"]);
-var typeGroupOf = (r) => (r["adtcore:type"] ?? "").split("/")[0].toUpperCase();
-var byNameAscending = (a, b) => {
-  const [x, y] = [a["adtcore:name"] ?? "", b["adtcore:name"] ?? ""];
-  return x < y ? -1 : x > y ? 1 : 0;
-};
-var wireOrderMatchesModel = (entries) => entries.every((entry, i) => {
-  if (i === 0) return true;
-  const prevType = (entries[i - 1].ref["adtcore:type"] ?? "").toUpperCase();
-  const type = (entry.ref["adtcore:type"] ?? "").toUpperCase();
-  if (prevType !== type) return prevType <= type;
-  const prevName = (entries[i - 1].ref["adtcore:name"] ?? "").toUpperCase();
-  const name = (entry.ref["adtcore:name"] ?? "").toUpperCase();
-  return prevName <= name;
-});
-function repairSearchDescriptions(refs) {
-  const groups = /* @__PURE__ */ new Map();
-  refs.forEach((ref2, index) => {
-    const key = typeGroupOf(ref2);
-    const bucket = groups.get(key);
-    if (bucket) bucket.push({ index, ref: ref2 });
-    else groups.set(key, [{ index, ref: ref2 }]);
-  });
-  const out = refs.slice();
-  const repairedGroups = /* @__PURE__ */ new Set();
-  const suspectGroups = /* @__PURE__ */ new Set();
-  for (const [key, entries] of groups) {
-    if (KNOWN_CLEAN_GROUPS.has(key)) continue;
-    const distinctTypes = new Set(entries.map((e) => e.ref["adtcore:type"] ?? ""));
-    if (distinctTypes.size < 2) continue;
-    if (entries.some((e) => !e.ref["adtcore:description"])) continue;
-    if (!wireOrderMatchesModel(entries)) continue;
-    const wireDescriptions = entries.map((e) => e.ref["adtcore:description"]);
-    const byName = entries.slice().sort((a, b) => byNameAscending(a.ref, b.ref));
-    const permutation = byName.map((entry, i) => ({ entry, description: wireDescriptions[i] }));
-    const changed = permutation.some(({ entry, description }) => description !== entry.ref["adtcore:description"]);
-    if (!changed) continue;
-    if (!VERIFIED_GROUPS.has(key)) {
-      suspectGroups.add(key);
-      continue;
-    }
-    for (const { entry, description } of permutation) {
-      out[entry.index] = { ...entry.ref, "adtcore:description": description };
-    }
-    repairedGroups.add(key);
-  }
-  return { refs: out, repairedGroups: [...repairedGroups].sort(), suspectGroups: [...suspectGroups].sort() };
-}
-
-// src/adt/resolve.ts
-init_types();
-var SUB_OBJECT_NOUNS = {
-  indexes: "index",
-  values: "fixed value",
-  objectstructure: "object structure"
-};
-function activationFromVersion(version2) {
-  if (typeof version2 !== "string") return "unknown";
-  const v = version2.trim().toLowerCase();
-  if (v === "active") return "active-is-current";
-  if (v === "inactive") return "newer-inactive-exists";
-  return "unknown";
-}
-function conventionSpec(name) {
-  const n = name.toUpperCase();
-  if (/^(Z|Y|\/\w+\/)?CL_/.test(n) || /^CL_/.test(n)) return specForType("CLAS/OC");
-  if (/^(Z|Y|\/\w+\/)?IF_/.test(n) || /^IF_/.test(n)) return specForType("INTF/OI");
-  if (/^(Z|Y)?I_/.test(n)) return specForType("DDLS/DF");
   return void 0;
 }
-function parseObjectRef(input, hint) {
-  const raw = (input ?? "").trim();
-  if (!raw) throw new AbapError("BAD_INPUT", "Empty object reference.");
-  const res = /^abap:\/\/([^/]+)\/([^/]+)\/(.+)$/i.exec(raw);
-  if (res) {
-    const spec2 = specForType(res[2]);
-    const { name: name2, member: member2 } = splitMember(res[3]);
-    return { name: name2.toUpperCase(), spec: spec2, member: member2, via: spec2 ? "typecode" : "unknown" };
-  }
-  if (/^https?:\/\//i.test(raw) || raw.startsWith("/sap/bc/adt/")) {
-    const hit = specFromUri(raw);
-    if (!hit) {
-      const issue4 = classifyUnmatchedAdtPath(raw);
-      if (issue4?.kind === "sub-object") {
-        const noun = SUB_OBJECT_NOUNS[issue4.segment] ?? issue4.segment;
-        const article = /^[aeiou]/i.test(noun) ? "an" : "a";
-        const target = issue4.subName ? `${noun} ${issue4.subName}` : `${article} ${noun}`;
-        const parentLabel = issue4.spec.label.toLowerCase();
-        throw new AbapError(
-          "UNSUPPORTED",
-          `${noun[0].toUpperCase()}${noun.slice(1)} sub-objects are not readable: ${raw} addresses ${target} inside ${parentLabel} ${issue4.name}.`,
-          {
-            uri: raw,
-            type: issue4.spec.type,
-            object: issue4.name,
-            subObject: issue4.segment,
-            ...issue4.subName ? { subName: issue4.subName } : {}
-          },
-          `abapsmith addresses whole objects. Pass the ${parentLabel} itself: "${issue4.name}" or ${buildUri(issue4.spec, issue4.name, issue4.parent)}.`
-        );
-      }
-      if (issue4?.kind === "not-an-object") {
-        throw new AbapError(
-          "BAD_INPUT",
-          `${raw} addresses a ${issue4.what}, not an ABAP repository object.`,
-          { uri: raw },
-          issue4.what === "transport request" ? "Use abap_transport to work with transport requests." : void 0
-        );
-      }
-      throw new AbapError(
-        "BAD_INPUT",
-        `Unrecognised ADT URI: ${raw}`,
-        { uri: raw },
-        'Pass an object name instead, e.g. "class ZCL_FOO".'
-      );
-    }
-    return {
-      name: hit.name,
-      spec: hit.spec,
-      parent: hit.parent,
-      // Must propagate: dropping it silently substitutes /source/main for whatever include was asked for.
-      include: hit.include,
-      uri: buildUri(hit.spec, hit.name, hit.parent),
-      via: "uri"
-    };
-  }
-  let rest = raw;
-  let spec;
-  let via = "unknown";
-  const codeMatch = /^([A-Za-z]{4}(?:\/[A-Za-z]{1,3})?)\s+(.+)$/.exec(rest);
-  if (codeMatch) {
-    const candidate = specForType(codeMatch[1]);
-    const lower = rest.toLowerCase();
-    const stolenByLongerKeyword = KEYWORDS_BY_LENGTH.some(
-      ({ keyword }) => keyword.length > codeMatch[1].length && lower.startsWith(keyword + " ")
-    );
-    if (candidate && !stolenByLongerKeyword) {
-      spec = candidate;
-      rest = codeMatch[2].trim();
-      via = "typecode";
-    }
-  }
-  if (!spec) {
-    const lower = rest.toLowerCase();
-    for (const { keyword, spec: cand } of KEYWORDS_BY_LENGTH) {
-      if (lower.startsWith(keyword + " ")) {
-        spec = cand;
-        rest = rest.slice(keyword.length).trim();
-        via = "keyword";
-        break;
-      }
-    }
-  }
-  let parent;
-  const inMatch = /^(.*?)\s+(?:in|of|from)\s+([A-Za-z0-9_/]+)$/i.exec(rest);
-  if (inMatch) {
-    rest = inMatch[1].trim();
-    parent = inMatch[2].toUpperCase();
-    if (!isAddressableAbapObjectName(parent)) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `${JSON.stringify(parent)} is not a valid container name in ${JSON.stringify(input)}.`,
-        { input, parent },
-        `The container name is embedded in the object's URI, so a malformed one would address a different object than the one you meant. Fix the spelling, e.g. "ZFM in ZFG".`
-      );
-    }
-  }
-  const { name: namePart, member } = splitMember(rest);
-  let name = namePart;
-  const parentAware = spec ?? hint;
-  if (!parent && parentAware?.parentPath && name.includes("/")) {
-    const split = splitParentName(name);
-    if (split) {
-      parent = split.parent.toUpperCase();
-      name = split.name;
-    }
-  }
-  name = name.trim().replace(/^["'`]|["'`]$/g, "");
-  if (!isAddressableAbapObjectName(name)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `Could not extract an ABAP object name from ${JSON.stringify(input)}.`,
-      { input },
-      name.includes("/") ? `Pass the object's type (e.g. type: "FUGR/FF") to address it as "PARENT/NAME", or spell it as "NAME in GROUP".` : 'Try "class ZCL_FOO", "ZCL_FOO", or a full ADT URI.'
-    );
-  }
-  name = name.toUpperCase();
-  if (!spec) {
-    const guess = conventionSpec(name);
-    if (guess) {
-      spec = guess;
-      via = "convention";
-    }
-  }
-  return { name, spec, parent, member, via };
-}
-function splitMember(s) {
-  const m = /^(.*?)(?:=>|->|~|::|\.)([A-Za-z_][A-Za-z0-9_~/]*)$/.exec(s.trim());
-  if (!m) return { name: s.trim() };
-  return { name: m[1].trim(), member: m[2].toUpperCase() };
-}
-function splitParentName(input) {
-  const candidates = [];
-  for (let i = 0; i < input.length; i++) {
-    if (input[i] !== "/") continue;
-    const parent = input.slice(0, i);
-    if (!isAddressableAbapObjectName(parent)) continue;
-    const name = input.slice(i + 1);
-    if (isAddressableAbapObjectName(name)) candidates.push({ parent, name });
-  }
-  return candidates.length === 1 ? candidates[0] : void 0;
-}
-async function resolveObject(conn, input, opts = {}) {
-  if (opts.type) {
-    const cap = capabilitiesFor(opts.type);
-    const code = opts.type.trim().toUpperCase();
-    if (cap?.unsupported) {
-      throw new AbapError(
-        "UNSUPPORTED",
-        `${cap.label} (${code}) cannot be read by abapsmith. ${cap.unsupported.reason} ${TERMINAL_REFUSAL_NOTE}`,
-        { type: code },
-        // `catalogRead` types (SUSO/B) have no ADT resource to resolve a URI
-        // against either — resolveObject genuinely cannot serve them — but
-        // abap_read dispatches on the explicit type hint before this
-        // function ever runs, so the hint points there instead of the
-        // registry's own (write-focused) alternative text.
-        cap.catalogRead ? `There is no ADT resource to resolve a URI against. abap_read {"object":"<name>","type":"${code}"} renders it read-only from the catalog (${cap.catalogRead.from}) \u2014 name it as ${cap.catalogRead.nameForm}.` : cap.unsupported.alternative,
-        { retryable: false }
-        // matches UNSUPPORTED's own default; reaffirmed for readability at the throw site
-      );
-    }
-    if (cap?.bridgeCreate && isBridgeOnlyCreateType(opts.type)) {
-      const spec2 = specForType(opts.type);
-      const readable = spec2?.mode === "ddic" && ddicStrategy(spec2.kind) !== "unsupported";
-      if (!readable) {
-        throw new AbapError(
-          "UNSUPPORTED",
-          `${cap.label} (${code}) has no ADT-readable collection to resolve a URI against. ${cap.bridgeCreate.adtRest} ${TERMINAL_REFUSAL_NOTE}`,
-          { type: code },
-          // Same catalogRead redirect as above — TABL/DI has no ADT resource
-          // either, but abap_read's explicit-type dispatch renders it from
-          // catalog tables before resolveObject is reached.
-          cap.catalogRead ? `abap_read {"object":"<name>","type":"${code}"} renders it read-only from the catalog (${cap.catalogRead.from}) \u2014 name it as ${cap.catalogRead.nameForm}.` : (
-            // Registry-sourced when the create is refused, so this hint cannot
-            // send a caller to `abap_write` for a create `abap_write` will refuse.
-            cap.bridgeCreate.createRefused ?? "abapsmith can create this type through a generated classrun bridge (see abap_write), but cannot read one back."
-          ),
-          { retryable: false }
-          // matches UNSUPPORTED's own default; reaffirmed for readability at the throw site
-        );
-      }
-    }
-  }
-  const forced = opts.type ? specForType(opts.type) : void 0;
-  const parsed = parseObjectRef(input, forced);
-  const spec = forced ?? parsed.spec;
-  const certain = forced !== void 0 || parsed.via === "uri" || parsed.via === "typecode" || parsed.via === "keyword" || opts.trustHint === true;
-  if (spec && certain && spec.parentPath && !parsed.parent) {
-    return resolveParented(conn, spec, parsed);
-  }
-  if (spec && certain && (!spec.parentPath || parsed.parent)) {
-    const packageName = await lookupPackageName(conn, parsed.name, spec.type);
-    return finish(conn, spec, parsed.name, parsed, { packageName });
-  }
-  const results = await searchExact(conn, parsed.name, spec?.type);
-  if (results.length === 0) {
-    const guessed = forced === void 0 && parsed.via === "convention";
-    if (spec && !guessed) return finish(conn, spec, parsed.name, parsed, {});
-    if (spec && guessed && await existsAt(conn, buildUri(spec, parsed.name, parsed.parent))) {
-      return finish(conn, spec, parsed.name, parsed, {});
-    }
-    throw new AbapError(
-      "NOT_FOUND",
-      `No ABAP object named ${parsed.name} was found.`,
-      {
-        name: parsed.name,
-        ...spec ? { assumedType: spec.type, assumedFrom: "naming-convention" } : {}
-      },
-      spec ? `The name looks like a ${spec.label} by convention, but the repository search found no object called ${parsed.name} and a direct read of the ${spec.label} URI did not find one either. Check the spelling, or use abap_search with a pattern (e.g. {"query": "ZCL_*"}).` : 'Use abap_search to look for a pattern, e.g. {"query": "ZCL_*"}.'
-    );
-  }
-  const usable = results.map((r) => ({ r, spec: specForType(r["adtcore:type"]) })).filter((x) => x.spec !== void 0);
-  if (usable.length === 0) {
-    throw new AbapError(
-      "UNSUPPORTED",
-      `${parsed.name} exists but its type (${results[0]["adtcore:type"]}) is not a readable source object.`,
-      { name: parsed.name, types: results.map((r) => r["adtcore:type"]) }
-    );
-  }
-  if (usable.length > 1) {
-    const preferred = spec ? usable.find((u) => u.spec.type === spec.type) : void 0;
-    if (!preferred) {
-      throw new AbapError(
-        "AMBIGUOUS",
-        `${parsed.name} matches ${usable.length} object types.`,
-        { candidates: usable.map((u) => ({ type: u.spec.type, name: u.r["adtcore:name"] })) },
-        'Disambiguate with a type prefix, e.g. "class ZCL_FOO" or {"type": "TABL/DT"}.'
-      );
-    }
-    return finishFromSearch(conn, preferred.spec, preferred.r, parsed);
-  }
-  return finishFromSearch(conn, usable[0].spec, usable[0].r, parsed);
-}
-async function searchExact(conn, name, type) {
-  const spec = type ? specForType(type) : void 0;
-  const kind = spec?.parentPath ? void 0 : type?.split("/")[0];
-  const results = await conn.adt.searchObject(name, kind, 25);
-  const { refs: repaired } = repairSearchDescriptions(results);
-  const exact = repaired.filter((r) => r["adtcore:name"]?.toUpperCase() === name.toUpperCase());
-  return exact.length ? exact : [];
-}
-async function identifyByName(conn, name) {
-  const results = await searchExact(conn, name).catch(() => []);
-  const byType = /* @__PURE__ */ new Map();
-  for (const r of results) {
-    const spec = specForType(r["adtcore:type"]);
-    if (spec) byType.set(spec.type, spec);
-  }
-  return [...byType.values()];
-}
-async function existsAt(conn, uri) {
+async function readBadiImplementation(conn, name) {
+  conn.discovery.assertSupported("enhancements", "BAdI implementations (ENHO/XH)");
+  const uri = buildEnhancementUri(ENHOXH_COLLECTION, name);
   try {
-    return Boolean(await conn.adt.objectStructure(uri));
-  } catch {
-    return false;
+    const resp = await conn.get(uri, { headers: { Accept: ENHOXH_ACCEPT } });
+    const etag = firstHeader(resp.headers, "etag");
+    return { xml: resp.body, data: parseBadiImplementation(resp.body), ...etag ? { etag } : {} };
+  } catch (e) {
+    if (isAbapError(e)) throw e;
+    throw translateAdtError(e, { operation: "read", uri, name, type: ENHOXH_TYPE });
   }
 }
-async function lookupPackageName(conn, name, type) {
+async function readSourceCodePlugin(conn, name) {
+  conn.discovery.assertSupported("enhancements", "source-code plug-ins (ENHO/XHH)");
+  const uri = buildEnhancementUri(ENHOXHH_COLLECTION, name);
   try {
-    const results = await searchExact(conn, name, type);
-    const matching = results.find((r) => r["adtcore:type"]?.toUpperCase() === type.toUpperCase());
-    return (matching ?? results[0])?.["adtcore:packageName"];
-  } catch {
-    return void 0;
+    const resp = await conn.get(uri, { headers: { Accept: ENHOXHH_ACCEPT } });
+    const etag = firstHeader(resp.headers, "etag");
+    return { xml: resp.body, data: parseSourceCodePlugin(resp.body), ...etag ? { etag } : {} };
+  } catch (e) {
+    if (isAbapError(e)) throw e;
+    throw translateAdtError(e, { operation: "read", uri, name, type: ENHOXHH_TYPE });
   }
 }
-async function resolveParented(conn, spec, parsed) {
-  const rows = await searchExact(conn, parsed.name, spec.type);
-  const withParent = rows.filter((r) => r["adtcore:type"]?.toUpperCase() === spec.type.toUpperCase()).map((r) => ({ r, parent: specFromUri(cleanUri(r["adtcore:uri"]) ?? "")?.parent })).filter((x) => x.parent !== void 0);
-  const groups = [];
-  for (const { parent } of withParent) {
-    if (!groups.includes(parent)) groups.push(parent);
-  }
-  if (groups.length === 1) {
-    const match = withParent.find((x) => x.parent === groups[0]);
-    return finishFromSearch(conn, spec, match.r, parsed);
-  }
-  if (groups.length > 1) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `${spec.label} ${parsed.name} exists in ${groups.length} function groups (${groups.join(", ")}).`,
-      { name: parsed.name, type: spec.type, groups },
-      `Name the group: "${parsed.name} in ${groups[0]}" or "${groups[0]}/${parsed.name}".`
-    );
-  }
-  const why = spec.type === "FUGR/FF" ? `it does not index generated function modules (ENQUEUE_*, and others), which exist and read fine once the group is named` : `the search does not index ${spec.label.toLowerCase()}s at all`;
-  throw new AbapError(
-    "BAD_INPUT",
-    `${spec.label} ${parsed.name} needs its function group.`,
-    { name: parsed.name, type: spec.type },
-    `The repository search found no ${spec.label.toLowerCase()} called ${parsed.name} to take the group from \u2014 ${why}. Say "${parsed.name} in ZFG" or "ZFG/${parsed.name}".`
-  );
-}
-function finishFromSearch(conn, spec, r, parsed) {
-  const uri = cleanUri(r["adtcore:uri"]);
-  const enriched = parsed.parent ? parsed : withParentFromUri(parsed, uri);
-  return finish(conn, spec, r["adtcore:name"].toUpperCase(), enriched, {
-    description: r["adtcore:description"],
-    packageName: r["adtcore:packageName"],
-    uri,
-    // Free if the server volunteers adtcore:version; SearchResult doesn't type it but
-    // searchObject returns every objectReference attribute. Usually "unknown", not "active".
-    activation: activationFromVersion(
-      r["adtcore:version"]
-    )
-  });
-}
-async function checkActivation(conn, obj) {
+async function readEnhancementSpot(conn, name) {
+  conn.discovery.assertSupported("enhancements", "enhancement spots (ENHS/XS)");
+  const uri = buildEnhancementUri(ENHSXS_COLLECTION, name);
   try {
-    const struc = await conn.adt.objectStructure(obj.uri);
-    return activationFromVersion(struc?.metaData?.["adtcore:version"]);
-  } catch {
-    return "unknown";
-  }
-}
-function withParentFromUri(parsed, uri) {
-  if (!uri) return parsed;
-  const hit = specFromUri(uri);
-  return hit?.parent ? { ...parsed, parent: hit.parent } : parsed;
-}
-function finish(conn, spec, name, parsed, extra) {
-  if (spec.parentPath && !parsed.parent) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `${spec.label} ${name} needs its function group.`,
-      { name, type: spec.type },
-      'Say e.g. "function module Z_FOO in ZFG" or "ZFG/Z_FOO". abap_search {"query":"Z_FOO","type":"FUGR/FF"} lists the owning group in its `group` column.'
-    );
-  }
-  const uri = cleanUri(extra.uri) ?? parsed.uri ?? buildUri(spec, name, parsed.parent);
-  const include = spec.type === "CLAS/OC" ? parsed.include : void 0;
-  const sourceUri = spec.supportsSource ? spec.type === "CLAS/OC" ? classIncludeUri(uri, include ?? "main") : `${uri}/source/main` : void 0;
-  return {
-    system: conn.cfg.sid,
-    type: spec.type,
-    kind: spec.kind,
-    label: spec.label,
-    name,
-    uri,
-    sourceUri,
-    include,
-    parent: parsed.parent,
-    member: parsed.member,
-    description: extra.description,
-    packageName: extra.packageName,
-    mode: spec.mode,
-    // Never omitted: a consumer must name a state before claiming the active version is current.
-    activation: extra.activation ?? "unknown",
-    spec
-  };
-}
-function cleanUri(uri) {
-  if (!uri) return void 0;
-  return uri.replace(/[?#].*$/, "");
-}
-
-// src/tools/activate.ts
-init_session();
-
-// src/adt/locked-holders.ts
-init_errors();
-
-// src/adt/enqueue-read.ts
-init_errors();
-
-// src/adt/fpm-lock.ts
-init_errors();
-import { createHash as createHash8 } from "node:crypto";
-
-// src/adt/run.ts
-var import_abap_adt_api8 = __toESM(require_build(), 1);
-init_errors();
-import { createHash as createHash7 } from "node:crypto";
-
-// src/adt/bridge-residue.ts
-init_errors();
-function discloseBridgeResidue(e, className, packageName, stage) {
-  if (!isAbapError(e)) return e;
-  if (e.details.bridgeLeftBehind === true) return e;
-  const outcome = stage === "activate-gate" ? "was blocked before activation could run; it is left behind there, inactive" : stage === "activation" ? "failed to activate; it is left behind there, inactive" : stage === "verify" ? "activated, then failed post-activation verification; it is left behind there" : "activated, then failed the source read-back that confirms what landed; it is left behind there";
-  const residueHint = `Bridge class ${className} was written to ${packageName} but ${outcome} \u2014 safe to delete.`;
-  const disclosed = new AbapError(
-    e.code,
-    e.message,
-    { ...e.details, bridgeClass: className, bridgeLeftBehind: true },
-    e.hint ? `${e.hint} ${residueHint}` : residueHint
-  );
-  disclosed.stack = e.stack;
-  disclosed.cause = e.cause;
-  return disclosed;
-}
-
-// src/adt/run.ts
-init_truncate();
-init_session();
-
-// src/adt/write.ts
-var import_abap_adt_api7 = __toESM(require_build(), 1);
-init_compact();
-init_safety();
-
-// src/adt/bridge-mutation.ts
-function assertBridgeMutation(gate, target, opts) {
-  gate.assert(
-    opts.op ?? "write",
-    {
-      type: target.type,
-      name: target.name,
-      packageName: target.packageName,
-      // superPackage/exists must reach the gate so it judges the same
-      // mutation `authorizeMutation` already did (see `BridgeMutationTarget`).
-      // Spread conditionally to avoid adding `undefined` keys for existing
-      // VIEW/DV/TRAN/T callers.
-      ...target.superPackage !== void 0 ? { superPackage: target.superPackage } : {},
-      ...target.exists !== void 0 ? { exists: target.exists } : {}
-    },
-    opts.corr !== void 0 ? { corr: opts.corr } : {}
-  );
-  if (opts.activate) {
-    gate.assert("activate", target, opts.corr !== void 0 ? { corr: opts.corr } : {});
+    const resp = await conn.get(uri, { headers: { Accept: ENHSXS_ACCEPT } });
+    const etag = firstHeader(resp.headers, "etag");
+    return { xml: resp.body, data: parseEnhancementSpot(resp.body), ...etag ? { etag } : {} };
+  } catch (e) {
+    if (isAbapError(e)) throw e;
+    throw translateAdtError(e, { operation: "read", uri, name, type: ENHSXS_TYPE });
   }
 }
 
-// src/adt/enhancement-refusals.ts
+// src/tools/run.ts
+init_zod();
 init_errors();
 
 // src/adt/source.ts
@@ -108079,7 +107681,1030 @@ function renderOutline(members) {
   return rows.join("\n");
 }
 
+// src/adt/run.ts
+var import_abap_adt_api8 = __toESM(require_build(), 1);
+init_errors();
+import { createHash as createHash8 } from "node:crypto";
+
+// src/adt/bridge-residue.ts
+init_errors();
+function discloseBridgeResidue(e, className, packageName, stage) {
+  if (!isAbapError(e)) return e;
+  if (e.details.bridgeLeftBehind === true) return e;
+  const outcome = stage === "activate-gate" ? "was blocked before activation could run; it is left behind there, inactive" : stage === "activation" ? "failed to activate; it is left behind there, inactive" : stage === "verify" ? "activated, then failed post-activation verification; it is left behind there" : "activated, then failed the source read-back that confirms what landed; it is left behind there";
+  const residueHint = `Bridge class ${className} was written to ${packageName} but ${outcome} \u2014 safe to delete.`;
+  const disclosed = new AbapError(
+    e.code,
+    e.message,
+    { ...e.details, bridgeClass: className, bridgeLeftBehind: true },
+    e.hint ? `${e.hint} ${residueHint}` : residueHint
+  );
+  disclosed.stack = e.stack;
+  disclosed.cause = e.cause;
+  return disclosed;
+}
+
+// src/adt/run.ts
+init_truncate();
+init_session();
+
+// src/adt/write.ts
+var import_abap_adt_api7 = __toESM(require_build(), 1);
+init_compact();
+init_safety();
+
+// src/adt/activate.ts
+var import_utilities = __toESM(require_utilities(), 1);
+init_errors();
+init_truncate();
+init_types();
+
+// src/adt/revisions.ts
+var import_abap_adt_api6 = __toESM(require_build(), 1);
+init_errors();
+init_session();
+var ACTIVE_VERSION_ID = "00000";
+var INACTIVE_VERSION_ID = "99999";
+var VERSIONS_REL = "http://www.sap.com/adt/relations/versions";
+var NO_VERSIONS_LINK_HINT = "Version management is a per-object property, not a system-wide feature: an object type with no version management (many DDIC and generated objects) carries no versions link on its ADT structure document, so there is nothing to list and nothing to diff. Read the object normally (omit `view`) to see its current source.";
+var NO_RELEASED_HISTORY_EXPLANATION = "has no released version history: the only entry in its ADT version feed is the ACTIVE pseudo-version (00000), which serves the object's CURRENT source rather than a snapshot. SAP writes a version row on transport release or upgrade import, never on local activation \u2014 so a $TMP / local object accumulates no history no matter how many times it is edited and reactivated. There is no predecessor to diff against.";
+function versionIdFromContentUri(uri) {
+  const path9 = uri.replace(/[?#].*$/, "").replace(/\/+$/, "");
+  const segs = path9.split("/");
+  if (segs.length < 2) return "";
+  const candidate = segs[segs.length - 2] ?? "";
+  if (!/^\d{1,5}$/.test(candidate)) return "";
+  const marker = segs[segs.length - 4];
+  if (marker !== void 0 && marker.toLowerCase() !== "versions") return "";
+  return candidate;
+}
+function revisionKind(versionId) {
+  if (versionId === "") return "released";
+  const n = Number(versionId);
+  if (n === Number(ACTIVE_VERSION_ID)) return "active";
+  if (n === Number(INACTIVE_VERSION_ID)) return "inactive";
+  return "released";
+}
+function text2(value) {
+  return value === void 0 || value === null ? "" : String(value);
+}
+function normaliseRevisions(raw) {
+  const mapped = raw.map((r) => {
+    const uri = text2(r.uri);
+    const versionId = versionIdFromContentUri(uri);
+    return {
+      versionId,
+      kind: revisionKind(versionId),
+      description: text2(r.versionTitle),
+      transport: text2(r.version),
+      author: text2(r.author),
+      date: text2(r.date),
+      uri
+    };
+  });
+  const byDateDesc = (a, b) => {
+    if (a.date === b.date) return 0;
+    if (a.date === "") return 1;
+    if (b.date === "") return -1;
+    return a.date < b.date ? 1 : -1;
+  };
+  const pseudo = mapped.filter((e) => e.kind !== "released").sort(byDateDesc);
+  const numbered = mapped.filter((e) => e.kind === "released" && e.versionId !== "").sort((a, b) => Number(b.versionId) - Number(a.versionId));
+  const unnumbered = mapped.filter((e) => e.kind === "released" && e.versionId === "").sort(byDateDesc);
+  const sorted = [...pseudo, ...numbered, ...unnumbered];
+  const seen = /* @__PURE__ */ new Set();
+  const out = [];
+  for (const entry of sorted) {
+    if (entry.versionId !== "") {
+      if (seen.has(entry.versionId)) continue;
+      seen.add(entry.versionId);
+    }
+    out.push(entry);
+  }
+  return out;
+}
+function releasedVersions(entries) {
+  return entries.filter((e) => e.kind === "released");
+}
+async function listRevisions(conn, obj, include) {
+  let raw;
+  try {
+    raw = await conn.adt.revisions(obj.uri, include);
+  } catch (e) {
+    const err = translateAdtError(e, {
+      operation: "read version history",
+      uri: obj.uri,
+      name: obj.name,
+      type: obj.type
+    });
+    if (/revision url not found/i.test(err.message)) {
+      const versioned = include ? await versionedIncludes(conn, obj.uri) : void 0;
+      const others = versioned?.filter((i) => i !== include) ?? [];
+      throw new AbapError(
+        "UNSUPPORTED",
+        `${obj.type} ${obj.name} has no ADT version feed: its object structure carries no "versions" link relation${include ? ` on include ${include}` : ""}, so there is no history to read and nothing to diff.` + (others.length ? ` The includes that DO carry one on this object are: ${others.join(", ")}.` : ""),
+        {
+          type: obj.type,
+          name: obj.name,
+          uri: obj.uri,
+          ...include ? { include } : {},
+          ...versioned ? { versionedIncludes: versioned } : {}
+        },
+        others.length ? `Re-run with include="${others[0]}" to read that include's history.` : NO_VERSIONS_LINK_HINT
+      );
+    }
+    throw err;
+  }
+  return normaliseRevisions(raw);
+}
+async function versionedIncludes(conn, uri) {
+  try {
+    const struct = await conn.adt.objectStructure(uri);
+    if (!(0, import_abap_adt_api6.isClassStructure)(struct)) return void 0;
+    return struct.includes.filter((i) => (i.links ?? []).some((l) => l.rel === VERSIONS_REL)).map((i) => String(i["class:includeType"]));
+  } catch {
+    return void 0;
+  }
+}
+async function revisionSource(conn, entry, ctx) {
+  if (!entry.uri) {
+    throw new AbapError(
+      "ADT_ERROR",
+      `Version ${describeEntry(entry)} of ${ctx.type} ${ctx.name} carries no content URI (the feed entry had no atom:content/@src), so its source cannot be fetched.`,
+      { type: ctx.type, name: ctx.name, version: entry.versionId },
+      'Pick a different version from the history listing (view="history").'
+    );
+  }
+  try {
+    return await conn.adt.getObjectSource(entry.uri);
+  } catch (e) {
+    throw translateAdtError(e, {
+      operation: `read source of version ${describeEntry(entry)}`,
+      uri: entry.uri,
+      name: ctx.name,
+      type: ctx.type
+    });
+  }
+}
+function describeEntry(entry) {
+  const id = entry.versionId || "(unnumbered)";
+  if (entry.kind === "active") return `${id} (ACTIVE \u2014 current source)`;
+  if (entry.kind === "inactive") return `${id} (INACTIVE)`;
+  return id;
+}
+function selectRevision(entries, selector, ctx) {
+  const want = selector.trim();
+  const lower = want.toLowerCase();
+  if (/^#\d+$/.test(want)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${ctx.param}="${selector}" is a positional handle, and this feature does not have positions. ADT version feeds repeat the same ACTIVE row many times over (68 entries, ~60 of them identical, on one captured feed), so a position number names nothing stable.`,
+      { type: ctx.type, name: ctx.name, requested: selector },
+      'Pass the version NUMBER instead \u2014 list them with view="history" \u2014 or "active" for the current source.'
+    );
+  }
+  if (lower === "active") {
+    const hit = entries.find((e) => e.kind === "active");
+    if (hit) return hit;
+  }
+  if (lower === "inactive") {
+    const hit = entries.find((e) => e.kind === "inactive");
+    if (hit) return hit;
+  }
+  if (/^\d+$/.test(want)) {
+    const asNumber = Number(want);
+    const byNumber = entries.find(
+      (e) => e.versionId !== "" && Number(e.versionId) === asNumber
+    );
+    if (byNumber) return byNumber;
+  }
+  const byTransport = entries.find(
+    (e) => e.transport !== "" && e.transport.toLowerCase() === lower
+  );
+  if (byTransport) return byTransport;
+  const released = releasedVersions(entries);
+  throw new AbapError(
+    "NOT_FOUND",
+    `${ctx.param}="${selector}" matches no version of ${ctx.type} ${ctx.name}. The feed has ${released.length} released version(s)${released.length ? `: ${released.slice(0, 10).map((e) => e.versionId).join(", ")}${released.length > 10 ? ", \u2026" : ""}` : ""}${entries.some((e) => e.kind === "active") ? ", plus the ACTIVE pseudo-version 00000" : ""}.`,
+    { type: ctx.type, name: ctx.name, requested: selector, released: released.length },
+    'Call abap_read with view="history" to list the versions, then pass a version number or its transport. Omitting both from and to diffs the two newest released versions and needs no identifier at all.'
+  );
+}
+function compareAge(a, b) {
+  if (a.kind === "released" && b.kind === "released" && a.versionId !== "" && b.versionId !== "") {
+    return Number(a.versionId) - Number(b.versionId);
+  }
+  if (a.date !== "" && b.date !== "") {
+    return a.date < b.date ? -1 : a.date > b.date ? 1 : 0;
+  }
+  return void 0;
+}
+function noReleasedHistory(ctx, entries) {
+  return new AbapError(
+    "NOT_FOUND",
+    `${ctx.type} ${ctx.name} ${NO_RELEASED_HISTORY_EXPLANATION}`,
+    { type: ctx.type, name: ctx.name, entries, released: 0 },
+    "Nothing is wrong with the object or the request \u2014 this is what version history looks like for a local object. To compare against something, read the current source with a plain abap_read (omit `view`) and diff it against whatever you are holding."
+  );
+}
+function resolveDiffPair(entries, from, to, ctx) {
+  const released = releasedVersions(entries);
+  const active = entries.find((e) => e.kind === "active");
+  if (entries.length === 0) {
+    throw new AbapError(
+      "NOT_FOUND",
+      `${ctx.type} ${ctx.name} has a version feed, but ADT returned no entries in it, so there is nothing to diff.`,
+      { type: ctx.type, name: ctx.name },
+      NO_VERSIONS_LINK_HINT
+    );
+  }
+  if (released.length === 0 && from === void 0 && to === void 0) {
+    throw noReleasedHistory(ctx, entries.length);
+  }
+  const newer = to === void 0 ? defaultNewer(released, active, ctx) : selectRevision(entries, to, { ...ctx, param: "to" });
+  const newerDefaulted = to === void 0;
+  if (from !== void 0) {
+    const older2 = selectRevision(entries, from, { ...ctx, param: "from" });
+    if (older2.uri === newer.uri) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `from and to both resolved to the same version (${describeEntry(newer)}) of ${ctx.type} ${ctx.name}. A version does not differ from itself.`,
+        { type: ctx.type, name: ctx.name, version: newer.versionId },
+        "Pick two different versions, or omit from to compare against the previous released version."
+      );
+    }
+    const order = compareAge(older2, newer);
+    if (order !== void 0 && order > 0) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `from=${describeEntry(older2)} is NEWER than to=${describeEntry(newer)} for ${ctx.type} ${ctx.name}; the diff would read backwards.`,
+        { type: ctx.type, name: ctx.name, from: older2.versionId, to: newer.versionId },
+        "Swap them: from is the older side, to is the newer side."
+      );
+    }
+    return { older: older2, newer, newerDefaulted, olderDefaulted: false, newerIsActive: newer.kind === "active" };
+  }
+  const older = predecessorOf(released, newer);
+  if (!older) {
+    if (released.length === 0) throw noReleasedHistory(ctx, entries.length);
+    throw new AbapError(
+      "NOT_FOUND",
+      `${describeEntry(newer)} is the oldest released version of ${ctx.type} ${ctx.name} that the ADT version feed lists, so it has no predecessor to compare against.`,
+      { type: ctx.type, name: ctx.name, version: newer.versionId, released: released.length },
+      released.length > 1 ? `Pass an explicit pair, e.g. from="${released[released.length - 1].versionId}" to="${released[0].versionId}".` : "This object has exactly one released version \u2014 there is nothing older to compare it with."
+    );
+  }
+  return {
+    older,
+    newer,
+    newerDefaulted,
+    olderDefaulted: true,
+    newerIsActive: newer.kind === "active"
+  };
+}
+function defaultNewer(released, active, ctx) {
+  if (released.length >= 2) return released[0];
+  if (released.length === 1 && active) return active;
+  if (released.length === 1) return released[0];
+  throw noReleasedHistory(ctx, released.length);
+}
+function predecessorOf(released, newer) {
+  if (newer.kind !== "released") return released[0];
+  const idx2 = released.findIndex((e) => e.uri === newer.uri);
+  if (idx2 === -1) return released[0];
+  return released[idx2 + 1];
+}
+
+// src/adt/activate.ts
+function isFailureSeverity(severity) {
+  return /[EAX]/.test(String(severity ?? "").toUpperCase());
+}
+function parseStartFragment(href) {
+  if (!href) return void 0;
+  const m = /#start=(\d+)(?:,(\d+))?/.exec(String(href));
+  if (!m) return void 0;
+  const line2 = Number(m[1]);
+  if (!Number.isFinite(line2) || line2 <= 0) return void 0;
+  return { line: line2, col: m[2] ? Number(m[2]) : 0 };
+}
+function tally(messages) {
+  let errors = 0;
+  let warnings = 0;
+  for (const m of messages) {
+    if (isFailureSeverity(m.severity)) errors++;
+    else if (String(m.severity).toUpperCase() === "W") warnings++;
+  }
+  return { errors, warnings };
+}
+function severityRank(severity) {
+  const s = String(severity ?? "").toUpperCase();
+  if (/[EAX]/.test(s)) return 0;
+  if (s === "W") return 1;
+  if (s === "I") return 2;
+  return 3;
+}
+function renderMessages(messages, source) {
+  if (messages.length === 0) return "";
+  const ordered = messages.map((m, i) => ({ m, i })).sort((a, b) => {
+    const bySeverity = severityRank(a.m.severity) - severityRank(b.m.severity);
+    if (bySeverity !== 0) return bySeverity;
+    const byLine = (a.m.line ?? Number.MAX_SAFE_INTEGER) - (b.m.line ?? Number.MAX_SAFE_INTEGER);
+    if (byLine !== 0) return byLine;
+    const byCol = (a.m.col ?? 0) - (b.m.col ?? 0);
+    if (byCol !== 0) return byCol;
+    return a.i - b.i;
+  }).map((x) => x.m);
+  const lines = source === void 0 ? void 0 : source.replace(/\r\n/g, "\n").split("\n");
+  const objects = new Set(ordered.map((m) => m.objDescr).filter(Boolean));
+  const showObj = objects.size > 1;
+  const gutter = String(Math.max(...ordered.map((m) => m.line ?? 0), 0)).length;
+  const out = [];
+  let lastEchoed;
+  for (const m of ordered) {
+    const sev = String(m.severity ?? "?").toUpperCase();
+    const where2 = m.line === void 0 ? "(no position)" : `line ${m.line}${m.col === void 0 ? "" : ` col ${m.col}`}`;
+    const who = showObj && m.objDescr ? `[${m.objDescr}] ` : "";
+    out.push(`${sev} ${where2}  ${who}${m.text}`);
+    if (!lines || m.line === void 0) continue;
+    if (m.line === lastEchoed) continue;
+    const raw = lines[m.line - 1];
+    if (raw === void 0) continue;
+    const clipped = truncateForDisplay(raw, ECHO_LINE_MAX);
+    const pad2 = " ".repeat(gutter);
+    out.push(`  ${String(m.line).padStart(gutter)} | ${clipped}`);
+    const col = m.col ?? 0;
+    if (col <= clipped.length) {
+      out.push(`  ${pad2} | ${" ".repeat(col)}^`);
+    }
+    lastEchoed = m.line;
+  }
+  if (ordered.some((m) => m.forceSupported)) {
+    out.push(
+      "The ABAP system reports that this activation could be forced; abapsmith does not force activation."
+    );
+  }
+  return out.join("\n");
+}
+function renderInactive(inactive) {
+  if (inactive.length === 0) return "";
+  const { objects, unnamed } = displayInactive(inactive);
+  if (objects.length === 0) {
+    return unnamed === 1 ? "1 dependent object is still inactive, but SAP's reply named neither it nor its type." : `${unnamed} dependent objects are still inactive, but SAP's reply named neither them nor their types.`;
+  }
+  const head = objects.length === 1 ? "1 dependent object is still inactive:" : `${objects.length} dependent objects are still inactive:`;
+  const lines = [
+    head,
+    ...objects.map((o) => `  ${o.type} ${o.name}`),
+    "Activate them first, or activate them together with this object."
+  ];
+  if (unnamed > 0) {
+    lines.push(
+      `${unnamed} more inactive dependent${unnamed === 1 ? "" : "s"} had no name/type in SAP's reply and ${unnamed === 1 ? "is" : "are"} omitted above.`
+    );
+  }
+  return lines.join("\n");
+}
+function displayInactive(inactive) {
+  const objects = [];
+  const seen = /* @__PURE__ */ new Set();
+  let unnamed = 0;
+  for (const ref2 of inactive) {
+    const name = String(ref2.name ?? "").trim();
+    const type = String(ref2.type ?? "").trim();
+    if (name === "(unknown)" && type === "(unknown)" || !name && !type) {
+      unnamed++;
+      continue;
+    }
+    const key = `${name.toLowerCase()} ${type.toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    objects.push(ref2);
+  }
+  return { objects, unnamed };
+}
+function summariseMessages(outcome) {
+  const parts = [];
+  if (outcome.errors) parts.push(`${outcome.errors} error${outcome.errors === 1 ? "" : "s"}`);
+  if (outcome.warnings)
+    parts.push(`${outcome.warnings} warning${outcome.warnings === 1 ? "" : "s"}`);
+  const other = outcome.messages.length - outcome.errors - outcome.warnings;
+  if (other > 0) parts.push(`${other} info`);
+  return parts.join(", ");
+}
+function checkFailedError(outcome, context = { what: "Check" }) {
+  const rendered = renderMessages(outcome.messages, context.source);
+  return new AbapError(
+    "CHECK_FAILED",
+    `${context.what}${context.name ? ` of ${context.name}` : ""} failed: ${summariseMessages(outcome) || "no details returned"}.`,
+    {
+      ...context.name ? { object: context.name } : {},
+      summary: summariseMessages(outcome),
+      messages: rendered,
+      raw: outcome.messages
+    },
+    context.hint ?? "Fix the reported lines and write again. Line numbers come from the ADT href fragment, not from the message ordinal, so they are the real source lines."
+  );
+}
+function isActivationOutcome(o) {
+  return "activated" in o;
+}
+var INACTIVE_NAMES_IN_MESSAGE = 10;
+function assertNoErrors(outcome, context) {
+  if (outcome.errors > 0) throw checkFailedError(outcome, context);
+  if (!isActivationOutcome(outcome) || outcome.activated) return outcome;
+  const name = context.name ?? "the object";
+  const details = {
+    object: context.name,
+    activated: false,
+    inactive: outcome.inactive,
+    errors: outcome.errors,
+    warnings: outcome.warnings
+  };
+  if (outcome.inactive.length > 0) {
+    const { objects, unnamed } = displayInactive(outcome.inactive);
+    const named = objects.slice(0, INACTIVE_NAMES_IN_MESSAGE).map((o) => `${o.type} ${o.name}`);
+    const rest = objects.length - named.length;
+    const namedList = rest > 0 ? `${named.join(", ")}, +${rest} more (${elide(
+      "dependent objects",
+      rest,
+      "this error's hint field, which lists every inactive object"
+    )})` : named.join(", ");
+    const hint = context.hint ?? (outcome.preaudit && outcome.preaudit.length > 0 ? "abapsmith already re-sent the activation naming every object ADT's preaudit reply listed, and a re-check still reports these as inactive \u2014 one of them cannot activate. Check them individually with `abap_activate mode=check`." : renderInactive(outcome.inactive));
+    throw new AbapError(
+      "CHECK_FAILED",
+      objects.length === 0 && unnamed > 0 ? `${context.what} failed: ${name} was NOT activated. SAP's reply listed ${unnamed} inactive dependent${unnamed === 1 ? "" : "s"} but gave no name or type for ${unnamed === 1 ? "it" : "them"}.` : `${context.what} failed: ${name} was NOT activated because ${objects.length} dependent object${objects.length === 1 ? " is" : "s are"} still inactive (${namedList}).`,
+      { ...details, inactiveRendered: renderInactive(outcome.inactive) },
+      hint
+    );
+  }
+  if (outcome.messages.length === 0) {
+    throw new AbapError(
+      "CHECK_FAILED",
+      `Activation of ${name} reported failure without any message.`,
+      details,
+      context.hint ?? "Re-run the syntax check; the object is still inactive."
+    );
+  }
+  const base = checkFailedError(outcome, context);
+  throw new AbapError(
+    "CHECK_FAILED",
+    `${base.message} ${name} was NOT activated.`,
+    { ...base.details, ...details },
+    base.hint
+  );
+}
+var KNOWN_ADVISORY_CHECK_MESSAGES = [
+  /^Tab\.\s+\S+\s+is of type INTTAB\s*\(Technical settings are not meaningful\)/i
+];
+function isKnownAdvisoryCheckMessage(text5) {
+  return KNOWN_ADVISORY_CHECK_MESSAGES.some((re) => re.test(text5));
+}
+function mapCheckResults(results) {
+  return results.map((r) => ({
+    severity: isKnownAdvisoryCheckMessage(String(r.text ?? "")) ? "I" : String(r.severity ?? "E").toUpperCase(),
+    // `fullParse` has `parseAttributeValue: true`, so a purely numeric shortText
+    // would arrive as a number — String() keeps the renderer total.
+    text: String(r.text ?? "").trim(),
+    ...r.line > 0 ? { line: r.line, col: r.offset ?? 0 } : {},
+    ...r.uri ? { uri: r.uri } : {}
+  }));
+}
+function mapActivationMessages(result) {
+  return (result.messages ?? []).map((m) => {
+    const pos = parseStartFragment(m.href);
+    return {
+      severity: String(m.type ?? "E").toUpperCase(),
+      text: String(m.shortText ?? "Syntax error").trim(),
+      ...pos ? { line: pos.line, col: pos.col } : {},
+      ...m.objDescr ? { objDescr: String(m.objDescr) } : {},
+      ...m.href ? { uri: String(m.href) } : {},
+      ...m.forceSupported ? { forceSupported: true } : {}
+    };
+  });
+}
+function mapInactiveObjects(result) {
+  return (result.inactive ?? []).map((rec) => {
+    const o = rec.object;
+    if (!o) return { name: "(unknown)", type: "(unknown)" };
+    return {
+      name: String(o["adtcore:name"] ?? ""),
+      type: String(o["adtcore:type"] ?? ""),
+      ...o["adtcore:uri"] ? { uri: String(o["adtcore:uri"]) } : {}
+    };
+  });
+}
+var isCdsCheckUrl = (url2) => /^\/sap\/bc\/adt\/((ddic\/ddlx?)|(acm\/dcl))\/sources\//.test(url2);
+async function checkSource(conn, target, source) {
+  const objectUri = target.uri;
+  const artifactUri = target.sourceUri || `${target.uri}/source/main`;
+  let results;
+  try {
+    results = isCdsCheckUrl(artifactUri) ? await conn.adt.syntaxCheck(objectUri, artifactUri, source) : await conn.adt.syntaxCheck(artifactUri, objectUri, source);
+  } catch (e) {
+    if (isAbapError(e)) throw e;
+    throw new AbapError(
+      "ADT_ERROR",
+      `Syntax check of ${target.name} failed to run: ${describeUnknownError(e)}`,
+      { object: target.name, uri: objectUri },
+      "checkruns neither locks nor writes, so this is a transport/endpoint problem, not a source problem. The object may not be a type the abapCheckRun reporter supports."
+    );
+  }
+  const messages = mapCheckResults(results);
+  const counts = tally(messages);
+  return { ok: counts.errors === 0, messages, ...counts };
+}
+async function prettyPrintSource(conn, source) {
+  let formatted;
+  try {
+    formatted = await conn.adt.prettyPrinter(source);
+  } catch (e) {
+    if (isAbapError(e)) throw e;
+    throw new AbapError(
+      "ADT_ERROR",
+      `Pretty-print failed to run: ${describeUnknownError(e)}`,
+      {},
+      "prettyprinter neither locks nor writes, so this is a transport/endpoint problem, not a source problem."
+    );
+  }
+  formatted = formatted.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const changed = formatted !== source;
+  let linesChanged = 0;
+  if (changed) {
+    const inputLines = source.split("\n");
+    const outputLines = formatted.split("\n");
+    const commonLen = Math.min(inputLines.length, outputLines.length);
+    let differing = 0;
+    for (let i = 0; i < commonLen; i++) {
+      if (inputLines[i] !== outputLines[i]) differing++;
+    }
+    linesChanged = differing + Math.abs(inputLines.length - outputLines.length);
+  }
+  return { source: formatted, changed, linesChanged };
+}
+async function releaseActivationEnqueues(conn) {
+  if (conn.heldLockUris().length > 0) return;
+  try {
+    await conn.dropSession();
+  } catch {
+  }
+}
+async function activateObject(conn, target) {
+  let result;
+  try {
+    result = await conn.adt.activate(target.name, target.uri, void 0, true);
+  } catch (e) {
+    if (isAbapError(e)) throw e;
+    throw translateActivationError(e, target);
+  }
+  let preaudit;
+  try {
+    const phase2 = await activateWithPreauditSet(conn, [target], result);
+    if (phase2) {
+      result = phase2.result;
+      preaudit = phase2.preaudit;
+    }
+  } catch (e) {
+    if (isAbapError(e)) throw e;
+    throw translateActivationError(e, target);
+  }
+  const messages = mapActivationMessages(result);
+  const inactive = mapInactiveObjects(result);
+  const counts = tally(messages);
+  const activated = result.success !== false && counts.errors === 0 && inactive.length === 0;
+  if (preaudit && !activated) await releaseActivationEnqueues(conn);
+  return {
+    activated,
+    ok: counts.errors === 0 && inactive.length === 0,
+    messages,
+    inactive,
+    ...counts,
+    ...preaudit ? { preaudit } : {}
+  };
+}
+function escapeXmlAttr2(value) {
+  return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+function buildActivationBody(targets) {
+  const refs = targets.map(
+    (t) => `<adtcore:objectReference adtcore:uri="${escapeXmlAttr2(t.uri)}" adtcore:name="${escapeXmlAttr2(t.name)}"/>`
+  ).join("");
+  return `<?xml version="1.0" encoding="UTF-8"?><adtcore:objectReferences xmlns:adtcore="http://www.sap.com/adt/core">${refs}</adtcore:objectReferences>`;
+}
+function toActivationElement(source) {
+  const s = source;
+  if (!s || !s["ioc:ref"]) return void 0;
+  return {
+    deleted: s["@_ioc:deleted"],
+    user: s["@_ioc:user"],
+    ...(0, import_utilities.xmlNodeAttr)(s["ioc:ref"])
+  };
+}
+function parseInactiveObjects(raw) {
+  return (0, import_utilities.xmlArray)(raw, "ioc:inactiveObjects", "ioc:entry").map((obj) => ({
+    object: toActivationElement((0, import_utilities.xmlNode)(obj, "ioc:object")),
+    transport: toActivationElement((0, import_utilities.xmlNode)(obj, "ioc:transport"))
+  }));
+}
+function parseActivationResponse(body) {
+  let messages = [];
+  let success2 = true;
+  let inactive = [];
+  if (body) {
+    const raw = (0, import_utilities.fullParse)(body);
+    inactive = parseInactiveObjects(raw);
+    messages = (0, import_utilities.xmlArray)(raw, "chkl:messages", "msg").map((m) => {
+      const rec = m;
+      const message = (0, import_utilities.xmlNodeAttr)(rec);
+      const shortTextNode = rec["shortText"];
+      message.shortText = shortTextNode?.txt || "Syntax error";
+      return message;
+    });
+    if (inactive.length > 0) {
+      success2 = false;
+    } else {
+      for (const m of messages) {
+        if (/[EAX]/.test(String(m.type))) {
+          success2 = false;
+          break;
+        }
+      }
+    }
+  }
+  return { messages, success: success2, inactive };
+}
+function normaliseAdtUri(uri) {
+  if (!uri) return "";
+  return (String(uri).split("#")[0] ?? "").split("?")[0].replace(/\/+$/, "").toLowerCase();
+}
+function activationRefKey(uri) {
+  if (!uri) return "";
+  const s = String(uri);
+  const cut = s.indexOf("#");
+  return cut === -1 ? normaliseAdtUri(s) : normaliseAdtUri(s.slice(0, cut)) + s.slice(cut).toLowerCase();
+}
+async function postActivation(conn, targets, preauditRequested) {
+  const resp = await conn.post("/sap/bc/adt/activation", {
+    qs: { method: "activate", preauditRequested: preauditRequested ? "true" : "false" },
+    headers: { "Content-Type": "application/xml", Accept: "application/xml" },
+    body: buildActivationBody(targets)
+  });
+  return parseActivationResponse(resp.body);
+}
+function preauditActivationSet(seeds, inactive) {
+  const targets = [...seeds];
+  const seen = new Set(seeds.map((s) => activationRefKey(s.uri)));
+  let unaddressable = 0;
+  for (const ref2 of inactive) {
+    if (!ref2.uri) {
+      unaddressable++;
+      continue;
+    }
+    const key = activationRefKey(ref2.uri);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    targets.push({ name: ref2.name, uri: ref2.uri, ...ref2.type ? { type: ref2.type } : {} });
+  }
+  return { targets, unaddressable };
+}
+function toInactiveRecord(ref2) {
+  return {
+    object: {
+      "adtcore:name": ref2.name,
+      "adtcore:type": ref2.type,
+      ...ref2.uri ? { "adtcore:uri": ref2.uri } : {}
+    }
+  };
+}
+async function seedsStillInactive(conn, seeds) {
+  let anyReadable = false;
+  const stillInactive = [];
+  for (const seed of seeds) {
+    let entries;
+    try {
+      entries = normaliseRevisions(await conn.adt.revisions(seed.uri));
+    } catch {
+      continue;
+    }
+    anyReadable = true;
+    if (entries.some((e) => e.kind === "inactive")) {
+      stillInactive.push({ name: seed.name, type: seed.type ?? "", uri: seed.uri });
+    }
+  }
+  return anyReadable ? stillInactive : void 0;
+}
+async function activateWithPreauditSet(conn, seeds, first) {
+  if (first.inactive.length === 0) return void 0;
+  if (tally(mapActivationMessages(first)).errors > 0) return void 0;
+  const preaudit = mapInactiveObjects(first);
+  const set2 = preauditActivationSet(seeds, preaudit);
+  if (set2.targets.length <= seeds.length) return void 0;
+  const second = await postActivation(conn, set2.targets, false);
+  if (second.inactive.length > 0 || tally(mapActivationMessages(second)).errors > 0) {
+    return { result: second, preaudit };
+  }
+  const stillInactive = await seedsStillInactive(conn, seeds);
+  if (stillInactive === void 0 || stillInactive.length === 0) {
+    return {
+      // Phase two's own messages — warnings, typically — would otherwise be
+      // dropped on the floor by a clean verification.
+      result: { messages: second.messages, success: second.success, inactive: [] },
+      preaudit
+    };
+  }
+  return {
+    result: {
+      messages: second.messages,
+      success: false,
+      inactive: stillInactive.map(toInactiveRecord)
+    },
+    preaudit
+  };
+}
+function uriAddresses(href, targetUri) {
+  if (!href || !targetUri) return false;
+  return href === targetUri || href.startsWith(`${targetUri}/`);
+}
+function attributeToTarget(message, targets) {
+  const href = normaliseAdtUri(message.uri);
+  if (href) {
+    let best;
+    let bestLen = -1;
+    for (const t of targets) {
+      const key = normaliseAdtUri(t.uri);
+      if (uriAddresses(href, key) && key.length > bestLen) {
+        best = t;
+        bestLen = key.length;
+      }
+    }
+    if (best) return best;
+  }
+  const descr = String(message.objDescr ?? "").toUpperCase();
+  if (descr) {
+    const hits = targets.filter((t) => {
+      const name = t.name.trim().toUpperCase();
+      if (!name) return false;
+      return new RegExp(`(^|[^A-Z0-9_])${escapeRegExp3(name)}([^A-Z0-9_]|$)`).test(descr);
+    });
+    if (hits.length === 1) return hits[0];
+  }
+  return void 0;
+}
+function escapeRegExp3(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function assertNoDuplicates(targets) {
+  const seen = /* @__PURE__ */ new Map();
+  for (const t of targets) {
+    const key = normaliseAdtUri(t.uri) || t.name.trim().toUpperCase();
+    const prev = seen.get(key);
+    if (prev !== void 0) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `Activation set names the same object twice: ${prev} and ${t.name} both resolve to ${key}.`,
+        { duplicate: t.name, alsoNamed: prev, uri: t.uri },
+        "List each object once. Activation order inside the set does not matter \u2014 the server resolves the dependencies itself \u2014 so a repeat buys nothing."
+      );
+    }
+    seen.set(key, t.name);
+  }
+}
+var MAX_ACTIVATION_BATCH = 50;
+function isFanoutProneType(type) {
+  const spec = specForType(type);
+  if (!spec) return true;
+  return spec.mode === "ddic";
+}
+function chunkActivationTargets(targets, sizes) {
+  const chunks = [];
+  let current = [];
+  let currentFanoutProne;
+  let currentCap = 0;
+  for (const t of targets) {
+    const fanoutProne = isFanoutProneType(t.type);
+    const cap = fanoutProne ? sizes.ddic : sizes.safe;
+    const startsNewChunk = current.length === 0 || currentFanoutProne !== fanoutProne || current.length >= currentCap;
+    if (startsNewChunk) {
+      if (current.length) chunks.push(current);
+      current = [];
+      currentFanoutProne = fanoutProne;
+      currentCap = cap;
+    }
+    current.push(t);
+  }
+  if (current.length) chunks.push(current);
+  return chunks;
+}
+async function activateObjects(conn, targets, opts) {
+  if (targets.length === 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "Activation set is empty; there is nothing to activate.",
+      { count: 0 },
+      "Name at least one object."
+    );
+  }
+  if (targets.length > MAX_ACTIVATION_BATCH) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `Activation set has ${targets.length} objects; the limit for one call is ${MAX_ACTIVATION_BATCH}.`,
+      { count: targets.length, limit: MAX_ACTIVATION_BATCH },
+      `Split it into sets of at most ${MAX_ACTIVATION_BATCH}. Keep mutually dependent objects together in the same set.`
+    );
+  }
+  assertNoDuplicates(targets);
+  const chunks = chunkActivationTargets(targets, {
+    ddic: conn.cfg.maxDdicActivationBatch,
+    safe: conn.cfg.maxSafeActivationBatch
+  });
+  const buckets = /* @__PURE__ */ new Map();
+  for (const t of targets) buckets.set(t, { messages: [], inactive: [] });
+  const disposition = new Map(
+    targets.map((t) => [t, "not-sent"])
+  );
+  const unattributed = [];
+  const unattributedInactive = [];
+  const allMessages = [];
+  const allInactive = [];
+  const allPreaudit = [];
+  let anyChunkFailed = false;
+  if (chunks.length > 1) {
+    process.stderr.write(
+      `[abapsmith] activation batch of ${targets.length} split into ${chunks.length} chunks (DDIC-aware chunking): sizes ${chunks.map((c) => c.length).join(", ")}
+`
+    );
+  }
+  let dispatchError;
+  try {
+    for (const chunk3 of chunks) {
+      let result;
+      try {
+        result = await postActivation(conn, chunk3, true);
+        const phase2 = await activateWithPreauditSet(conn, chunk3, result);
+        if (phase2) {
+          result = phase2.result;
+          allPreaudit.push(...phase2.preaudit);
+        }
+      } catch (e) {
+        for (const t of chunk3) disposition.set(t, "unknown");
+        if (isAbapError(e)) throw e;
+        throw translateActivationError(e, {
+          name: chunk3.map((t) => t.name).join(" + "),
+          uri: chunk3[0].uri
+        });
+      }
+      const messages = mapActivationMessages(result);
+      const inactive = mapInactiveObjects(result);
+      if (result.success === false) anyChunkFailed = true;
+      allMessages.push(...messages);
+      allInactive.push(...inactive);
+      const chunkActivated = result.success !== false && tally(messages).errors === 0 && inactive.length === 0;
+      for (const t of chunk3) disposition.set(t, chunkActivated ? "activated" : "not-activated");
+      for (const m of messages) {
+        const owner = attributeToTarget(m, targets);
+        if (owner) buckets.get(owner).messages.push(m);
+        else unattributed.push(m);
+      }
+      for (const i of inactive) {
+        const owner = attributeToTarget({ uri: i.uri, objDescr: i.name }, targets);
+        if (owner) buckets.get(owner).inactive.push(i);
+        else unattributedInactive.push(i);
+      }
+    }
+  } catch (e) {
+    dispatchError = e;
+  }
+  const counts = tally(allMessages);
+  const activated = dispatchError === void 0 && !anyChunkFailed && counts.errors === 0 && allInactive.length === 0;
+  if (allPreaudit.length > 0 && !activated) await releaseActivationEnqueues(conn);
+  const perObject = targets.map((target) => {
+    const b = buckets.get(target);
+    const c = tally(b.messages);
+    const objOk = c.errors === 0 && b.inactive.length === 0;
+    const d = disposition.get(target);
+    return {
+      target,
+      // See BatchActivationOutcome: the batch's verdict, not a per-object
+      // observation. Never `true` for a member of a batch that failed.
+      activated: activated && objOk,
+      ok: objOk,
+      disposition: d === "activated" && !objOk ? "not-activated" : d,
+      messages: b.messages,
+      inactive: b.inactive,
+      ...c
+    };
+  });
+  opts?.onDisposition?.(perObject.map((o) => o.disposition));
+  if (dispatchError !== void 0) throw dispatchError;
+  return {
+    activated,
+    ok: counts.errors === 0 && allInactive.length === 0,
+    messages: allMessages,
+    inactive: allInactive,
+    ...counts,
+    ...allPreaudit.length ? { preaudit: allPreaudit } : {},
+    targets,
+    perObject,
+    unattributed,
+    unattributedInactive
+  };
+}
+function renderBatch(outcome) {
+  const lines = [];
+  for (const o of outcome.perObject) {
+    const summary = summariseMessages(o) || (o.ok ? "clean" : "not activated");
+    lines.push(`## ${o.target.name} \u2014 ${summary}${o.ok ? "" : "  <- BLAMED"}`);
+    const text5 = renderMessages(o.messages);
+    if (text5.trim()) lines.push(text5);
+    if (o.inactive.length) lines.push(renderInactive(o.inactive));
+  }
+  if (outcome.unattributed.length || outcome.unattributedInactive.length) {
+    lines.push(
+      `## (unattributed) \u2014 ${outcome.unattributed.length} message(s), ${outcome.unattributedInactive.length} inactive dependent(s)`,
+      "The server did not tie these to any object in the set. They are NOT assigned to a guessed owner, and they still count against the activation."
+    );
+    const text5 = renderMessages(outcome.unattributed);
+    if (text5.trim()) lines.push(text5);
+    if (outcome.unattributedInactive.length) lines.push(renderInactive(outcome.unattributedInactive));
+  }
+  return lines.join("\n");
+}
+function assertBatchActivated(outcome, context = { what: "Activation" }) {
+  if (outcome.activated && outcome.errors === 0) return outcome;
+  const blamed = outcome.perObject.filter((o) => !o.ok);
+  const names = blamed.map((o) => o.target.name);
+  const unplaced = outcome.unattributed.length + outcome.unattributedInactive.length;
+  const who = names.length > 0 ? `${names.join(", ")} ${names.length === 1 ? "was" : "were"} blamed` : "no object could be blamed";
+  const tail = unplaced > 0 ? ` ${unplaced} message(s) could not be tied to any object in the set and are reported as unattributed.` : "";
+  const alreadyActive = outcome.perObject.filter((o) => o.disposition === "activated").map((o) => o.target.name);
+  throw new AbapError(
+    "CHECK_FAILED",
+    `${context.what} of ${outcome.targets.length} objects failed: ${summariseMessages(outcome) || "no details returned"}; ${who}.${tail}`,
+    {
+      activated: false,
+      objects: outcome.targets.map((t) => t.name),
+      blamed: names,
+      unattributedCount: unplaced,
+      summary: summariseMessages(outcome),
+      perObject: outcome.perObject.map((o) => ({
+        object: o.target.name,
+        ok: o.ok,
+        disposition: o.disposition,
+        errors: o.errors,
+        warnings: o.warnings,
+        messages: o.messages,
+        inactive: o.inactive
+      })),
+      unattributed: outcome.unattributed,
+      messages: renderBatch(outcome)
+    },
+    names.length > 0 ? `Fix ${names.join(", ")} and activate the set again.` + (alreadyActive.length > 0 ? ` ${alreadyActive.join(", ")} already activated in an earlier request of this batch and stayed active \u2014 ADT has no deactivate. Re-activating the whole set is still the simplest way to finish.` : " The whole set is still inactive \u2014 objects with no messages of their own were not confirmed activated either, so re-activate the complete set rather than only the objects you edited.") : "The activation failed without naming an object in the set. Re-read the objects to see which are still inactive, and check the unattributed messages above."
+  );
+}
+function translateActivationError(e, target) {
+  const err = e;
+  const status = Number(err?.err ?? err?.status ?? 0);
+  const type = String(err?.type ?? "");
+  const text5 = describeUnknownError(e);
+  if (status === 403 && (/ResourceNoAccess/i.test(type) || /currently editing/i.test(text5))) {
+    return new AbapError(
+      "LOCKED",
+      `Cannot activate ${target.name}: the object is locked (${text5}).`,
+      { object: target.name, uri: target.uri, adtType: type || void 0 },
+      "You cannot activate an object while holding its own lock. Unlock first: lock \u2192 PUT source \u2192 unlock \u2192 activate. If the lock is held elsewhere, it must be released there: ADT locks bind to a SESSION (`sap-contextid`), not a user, so the holder may be another session of the SAME user (e.g. a stale editor tab), not necessarily a different person."
+    );
+  }
+  return new AbapError(
+    "ADT_ERROR",
+    `Activation of ${target.name} failed: ${text5}`,
+    { object: target.name, uri: target.uri, status: status || void 0, adtType: type || void 0 },
+    "Activation returns 200 for syntax errors, so a thrown error here is a transport/authorisation problem rather than a source problem."
+  );
+}
+
+// src/adt/bridge-mutation.ts
+function assertBridgeMutation(gate, target, opts) {
+  gate.assert(
+    opts.op ?? "write",
+    {
+      type: target.type,
+      name: target.name,
+      packageName: target.packageName,
+      // superPackage/exists must reach the gate so it judges the same
+      // mutation `authorizeMutation` already did (see `BridgeMutationTarget`).
+      // Spread conditionally to avoid adding `undefined` keys for existing
+      // VIEW/DV/TRAN/T callers.
+      ...target.superPackage !== void 0 ? { superPackage: target.superPackage } : {},
+      ...target.exists !== void 0 ? { exists: target.exists } : {}
+    },
+    opts.corr !== void 0 ? { corr: opts.corr } : {}
+  );
+  if (opts.activate) {
+    gate.assert("activate", target, opts.corr !== void 0 ? { corr: opts.corr } : {});
+  }
+}
+
 // src/adt/enhancement-refusals.ts
+init_errors();
 var REFUSALS = [
   {
     // Family #2 — test/fixtures/enhancement/196-corrnr-task-not-request-400.xml
@@ -108241,13 +108866,13 @@ var SERVER_VERSION = readPackageVersion(packageJson);
 init_errors();
 
 // src/adt/fluid/registry.ts
-import * as path6 from "node:path";
+import * as path7 from "node:path";
 import { readFileSync as readFileSync5 } from "node:fs";
 init_state_dir();
 var REGISTRY_VERSION = 1;
 var REGISTRY_FILE = "registry.json";
 function fluidRegistryPath(cfg) {
-  return path6.join(path6.resolve(cfg.stateDir), "fluid", safeSegment(cfg.sid), REGISTRY_FILE);
+  return path7.join(path7.resolve(cfg.stateDir), "fluid", safeSegment(cfg.sid), REGISTRY_FILE);
 }
 function coerceEntry(value) {
   if (typeof value !== "object" || value === null) return void 0;
@@ -110970,13 +111595,13 @@ function containerParent(t) {
     parentPath: `/sap/bc/adt/functions/groups/${encodeURIComponent(group.toLowerCase())}`
   };
 }
-function escapeXmlAttr2(value) {
+function escapeXmlAttr3(value) {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 function buildSkeletonXml(conn, t, skeleton) {
   const root = skeleton.rootName;
   const rootAttrs = skeleton.rootAttributes ? `${skeleton.rootAttributes} ` : "";
-  return `<${root} ${skeleton.namespace} xmlns:adtcore="http://www.sap.com/adt/core" ` + rootAttrs + `adtcore:description="${escapeXmlAttr2(t.description)}" adtcore:name="${escapeXmlAttr2(t.name)}" adtcore:type="${escapeXmlAttr2(t.type)}" adtcore:language="EN" adtcore:masterLanguage="EN" adtcore:responsible="${escapeXmlAttr2(conn.cfg.user)}"><adtcore:packageRef adtcore:name="${escapeXmlAttr2(t.packageName)}"/></${root}>`;
+  return `<${root} ${skeleton.namespace} xmlns:adtcore="http://www.sap.com/adt/core" ` + rootAttrs + `adtcore:description="${escapeXmlAttr3(t.description)}" adtcore:name="${escapeXmlAttr3(t.name)}" adtcore:type="${escapeXmlAttr3(t.type)}" adtcore:language="EN" adtcore:masterLanguage="EN" adtcore:responsible="${escapeXmlAttr3(conn.cfg.user)}"><adtcore:packageRef adtcore:name="${escapeXmlAttr3(t.packageName)}"/></${root}>`;
 }
 async function createByXml(conn, t, corr, payload) {
   const skeleton = capabilitiesFor(t.type)?.create?.skeleton;
@@ -112347,7 +112972,7 @@ function bridgeClassName(report) {
   const safe = canon.replace(/[^A-Z0-9_]/g, "_");
   const budget = MAX_NAME - BRIDGE_CLASS_PREFIX.length;
   if (safe.length <= budget && safe === canon) return BRIDGE_CLASS_PREFIX + safe;
-  const hash2 = createHash7("sha256").update(canon, "utf8").digest("hex").slice(0, HASH_LEN).toUpperCase();
+  const hash2 = createHash8("sha256").update(canon, "utf8").digest("hex").slice(0, HASH_LEN).toUpperCase();
   const keep = safe.slice(0, budget - HASH_LEN - 1);
   return `${BRIDGE_CLASS_PREFIX}${keep}_${hash2}`;
 }
@@ -112804,6 +113429,3720 @@ async function runReport(conn, reportName, gate, parameters = []) {
   };
 }
 
+// src/adt/authtrace.ts
+init_errors();
+var AUTHTRACE_TOOLS = /* @__PURE__ */ new Map([
+  [
+    AUTHTRACE_TOOL_ID,
+    {
+      manifest: authtraceManifest,
+      origin: "builtin",
+      sources: authtraceSources,
+      version: manifestVersion(authtraceManifest, authtraceSources)
+    }
+  ]
+]);
+async function runAuthtrace(deps, action, args) {
+  const res = await dispatch2(
+    { conn: deps.conn, cfg: deps.conn.cfg, gate: deps.gate, tools: AUTHTRACE_TOOLS },
+    {
+      tool: AUTHTRACE_TOOL_ID,
+      action,
+      args,
+      caller: { tool: "authtrace", action }
+    }
+  );
+  return res.result;
+}
+function fail2(action, reason, result) {
+  throw new AbapError(
+    "FLUID_PROTOCOL_ERROR",
+    `authtrace.${action} ${reason}`,
+    { tool: AUTHTRACE_TOOL_ID, action, result }
+  );
+}
+function singleRow(action, result) {
+  if (!Array.isArray(result)) {
+    fail2(action, "returned a result that is not an array", result);
+  }
+  if (result.length !== 1) {
+    fail2(action, `returned ${result.length} rows, expected exactly 1`, result);
+  }
+  const row2 = result[0];
+  if (typeof row2 !== "object" || row2 === null || Array.isArray(row2)) {
+    fail2(action, "row 0 is not an object", result);
+  }
+  return row2;
+}
+function reqBool(action, row2, key, result) {
+  const v = row2[key];
+  if (typeof v !== "boolean") {
+    fail2(action, `row 0.${key} is missing or not a boolean`, result);
+  }
+  return v;
+}
+function reqString(action, row2, key, result) {
+  const v = row2[key];
+  if (typeof v !== "string") {
+    fail2(action, `row 0.${key} is missing or not a string`, result);
+  }
+  return v;
+}
+function optString(row2, key) {
+  const v = row2[key];
+  return typeof v === "string" ? v.trim() : "";
+}
+function mapOnRow(result) {
+  const row2 = singleRow(AUTHTRACE_ACTION_ON, result);
+  return {
+    active: reqBool(AUTHTRACE_ACTION_ON, row2, "active", result),
+    forUser: reqString(AUTHTRACE_ACTION_ON, row2, "for_user", result),
+    errorsOnly: reqBool(AUTHTRACE_ACTION_ON, row2, "errors_only", result),
+    timestamp: optString(row2, "timestamp")
+  };
+}
+function mapOffRow(result) {
+  const row2 = singleRow(AUTHTRACE_ACTION_OFF, result);
+  return {
+    active: reqBool(AUTHTRACE_ACTION_OFF, row2, "active", result)
+  };
+}
+function mapCheckRows(action, result, expectedOrigin) {
+  if (!Array.isArray(result)) {
+    fail2(action, "returned a result that is not an array", result);
+  }
+  return result.map((row2, i) => {
+    if (typeof row2 !== "object" || row2 === null || Array.isArray(row2)) {
+      fail2(action, `row ${i} is not an object`, result);
+    }
+    const r = row2;
+    const origin = r["origin"];
+    if (origin !== "trace" && origin !== "su53") {
+      fail2(action, `row ${i}.origin is "${String(origin)}", expected "trace" or "su53"`, result);
+    }
+    if (origin !== expectedOrigin) {
+      fail2(action, `row ${i}.origin is "${origin}", expected "${expectedOrigin}" for action "${action}"`, result);
+    }
+    const check2 = {
+      origin,
+      object: reqString(action, r, "object", result),
+      rc: reqString(action, r, "rc", result),
+      reason: reqString(action, r, "reason", result),
+      fields: reqString(action, r, "fields", result),
+      program: reqString(action, r, "program", result),
+      line: reqString(action, r, "line", result),
+      tcode: reqString(action, r, "tcode", result),
+      timestamp: reqString(action, r, "timestamp", result)
+    };
+    return check2;
+  });
+}
+async function authTraceOn(deps, user, opts = {}) {
+  const errorsOnly = opts.errorsOnly ?? true;
+  const result = await runAuthtrace(deps, AUTHTRACE_ACTION_ON, { user, errors_only: errorsOnly });
+  return mapOnRow(result);
+}
+async function authTraceOff(deps) {
+  const result = await runAuthtrace(deps, AUTHTRACE_ACTION_OFF, {});
+  return mapOffRow(result);
+}
+async function readFailedAuthChecks(deps, query) {
+  const readArgs = { user: query.user, from: query.from };
+  if (query.to !== void 0) {
+    readArgs["to"] = query.to;
+  }
+  const traceResult = await runAuthtrace(deps, AUTHTRACE_ACTION_READ, readArgs);
+  const traceChecks = mapCheckRows(AUTHTRACE_ACTION_READ, traceResult, "trace");
+  if (traceChecks.length > 0) {
+    return { checks: traceChecks, usedFallback: false };
+  }
+  const su53Result = await runAuthtrace(deps, AUTHTRACE_ACTION_SU53, { user: query.user, from: query.from });
+  const su53Checks = mapCheckRows(AUTHTRACE_ACTION_SU53, su53Result, "su53");
+  return { checks: su53Checks, usedFallback: true };
+}
+function renderFailedAuthChecks(checks) {
+  if (checks.length === 0) {
+    return "";
+  }
+  const lines = ["FAILED AUTH CHECKS"];
+  for (const c of checks) {
+    const provenance = c.origin === "trace" ? "[trace]" : "[SU53 fallback]";
+    const parts = [];
+    if (c.object !== "") parts.push(c.object);
+    if (c.fields !== "") parts.push(c.fields);
+    if (c.rc !== "") parts.push(`rc=${c.rc}`);
+    let at = "";
+    if (c.program !== "" && c.line !== "") {
+      at = `at ${c.program} line ${c.line}`;
+    } else if (c.program !== "") {
+      at = `at ${c.program}`;
+    } else if (c.line !== "") {
+      at = `at line ${c.line}`;
+    }
+    if (at !== "") parts.push(at);
+    parts.push(provenance);
+    lines.push(parts.join(" "));
+  }
+  return lines.join("\n");
+}
+function abapTimestamp(d) {
+  const pad2 = (n, w = 2) => String(n).padStart(w, "0");
+  return `${d.getUTCFullYear()}${pad2(d.getUTCMonth() + 1)}${pad2(d.getUTCDate())}${pad2(d.getUTCHours())}${pad2(d.getUTCMinutes())}${pad2(d.getUTCSeconds())}`;
+}
+function describeFailure3(e) {
+  if (isAbapError(e)) {
+    return `${e.code}: ${e.message}`;
+  }
+  if (e instanceof Error) {
+    return e.message;
+  }
+  try {
+    return String(e);
+  } catch {
+    return "unknown error";
+  }
+}
+var SWITCH_OFF_ERROR_KEY = "__authTraceSwitchOffError__";
+var AUTH_TRACE_KEY = "__authTraceOutcome__";
+async function withAuthTrace(deps, user, fn) {
+  let switchedOn = false;
+  let onFailureReason;
+  let from = abapTimestamp(/* @__PURE__ */ new Date());
+  try {
+    const onResult = await authTraceOn(deps, user);
+    switchedOn = true;
+    if (onResult.timestamp !== "") {
+      from = onResult.timestamp;
+    }
+  } catch (e) {
+    onFailureReason = describeFailure3(e);
+  }
+  let result;
+  let fnError;
+  let fnThrew = false;
+  try {
+    result = await fn();
+  } catch (e) {
+    fnThrew = true;
+    fnError = e;
+  }
+  let authTrace;
+  if (!switchedOn) {
+    authTrace = { ok: false, reason: `unavailable: ${onFailureReason ?? "unknown reason"}` };
+  } else {
+    try {
+      const to = abapTimestamp(/* @__PURE__ */ new Date());
+      const { checks, usedFallback } = await readFailedAuthChecks(deps, { user, from, to });
+      authTrace = { ok: true, checks, usedFallback };
+    } catch (e) {
+      authTrace = { ok: false, reason: `unavailable: ${describeFailure3(e)}` };
+    }
+  }
+  let switchOffError;
+  if (switchedOn) {
+    try {
+      await authTraceOff(deps);
+    } catch (e) {
+      switchOffError = describeFailure3(e);
+    }
+  }
+  if (fnThrew) {
+    if (typeof fnError === "object" && fnError !== null) {
+      try {
+        Object.defineProperty(fnError, AUTH_TRACE_KEY, {
+          value: authTrace,
+          enumerable: false,
+          configurable: true
+        });
+        if (switchOffError !== void 0) {
+          Object.defineProperty(fnError, SWITCH_OFF_ERROR_KEY, {
+            value: switchOffError,
+            enumerable: false,
+            configurable: true
+          });
+        }
+      } catch {
+      }
+    }
+    throw fnError;
+  }
+  return {
+    value: result,
+    authTrace,
+    ...switchOffError !== void 0 ? { switchOffError } : {}
+  };
+}
+function switchOffErrorOf(e) {
+  if (typeof e !== "object" || e === null) return void 0;
+  const v = e[SWITCH_OFF_ERROR_KEY];
+  return typeof v === "string" ? v : void 0;
+}
+function authTraceOf(e) {
+  if (typeof e !== "object" || e === null) return void 0;
+  const v = e[AUTH_TRACE_KEY];
+  return v === void 0 ? void 0 : v;
+}
+
+// src/tools/run.ts
+init_compact();
+
+// src/adt/index-create.ts
+init_errors();
+init_enhancement_templates();
+
+// src/adt/index-read.ts
+init_compact();
+init_errors();
+var catalogSelectModule;
+function loadCatalogSelect() {
+  return catalogSelectModule ??= Promise.resolve().then(() => (init_catalog_select(), catalog_select_exports));
+}
+var INDEX_CATALOG = Object.freeze({
+  indexHeader: Object.freeze({
+    table: "DD12V",
+    fields: Object.freeze({
+      table: "SQLTAB",
+      index: "INDEXNAME",
+      language: "DDLANGUAGE",
+      unique: "UNIQUEFLAG",
+      activation: "AS4LOCAL",
+      dbState: "DBSTATE",
+      description: "DDTEXT"
+    }),
+    confidence: "high",
+    note: "capture 858: language-dependent (DDLANGUAGE) \u2014 one row per maintained language per index, must be deduped by INDEXNAME. capture 860: a table with no secondary index answers 200 with totalRows 0, a definitive absence, not an error."
+  }),
+  indexField: Object.freeze({
+    table: "DD17S",
+    fields: Object.freeze({
+      table: "SQLTAB",
+      index: "INDEXNAME",
+      position: "POSITION",
+      field: "FIELDNAME"
+    }),
+    confidence: "high",
+    note: 'capture 859: not language-dependent. POSITION is a zero-padded numeric string (e.g. "0001") \u2014 parse with Number(), never string-sort it.'
+  })
+});
+function tbl(key) {
+  return INDEX_CATALOG[key].table;
+}
+function fld(key, field) {
+  const fields = INDEX_CATALOG[key].fields;
+  return fields[field];
+}
+var INDEX_TABLE_NAME_MAX = 30;
+var INDEX_ID_MAX = 3;
+var INDEX_ROW_CAP = 200;
+var DEFAULT_LANGUAGE = "E";
+function isValidIndexIdentifier(name, maxLength) {
+  if (typeof name !== "string") return false;
+  if (name.length === 0 || name.length > maxLength) return false;
+  return /^[A-Za-z][A-Za-z0-9_]*$/.test(name);
+}
+function assertIndexIdentifier(value, what, maxLength) {
+  if (typeof value !== "string" || !isValidIndexIdentifier(value, maxLength)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${what} ${JSON.stringify(value)} is not a valid ABAP object name (a letter, then letters, digits and underscores only, max ${maxLength} characters).`,
+      { what, value },
+      "This value is substituted into a catalog SELECT's WHERE literal \u2014 an over-long or malformed name is refused client-side, before any SQL literal is built, rather than sent to the freestyle endpoint, which answers HTTP 400 (not an empty result) for a literal wider than the target column's declared DDIC width."
+    );
+  }
+  return value;
+}
+function assertIndexTableName(value) {
+  return assertIndexIdentifier(value, "table", INDEX_TABLE_NAME_MAX);
+}
+function assertIndexIdValue(value) {
+  return assertIndexIdentifier(value, "indexId", INDEX_ID_MAX);
+}
+function serverNotes(result) {
+  return result.messages.map((m) => `[server] ${m.text}${m.severity ? ` (${m.severity})` : ""}`);
+}
+function noteIfCut(result, cap, what, notes) {
+  if (result.totalRows !== void 0 && result.totalRows > result.rows.length) {
+    notes.push(
+      `${what} reports ${result.totalRows} total rows but only ${result.rows.length} were fetched (row cap ${cap}) \u2014 the remainder was cut, not silently dropped.`
+    );
+  }
+}
+function activationLabel(activation) {
+  switch (activation) {
+    case "A":
+      return "active";
+    case "N":
+      return "inactive (revised, not activated)";
+    case "":
+      return "unknown (blank AS4LOCAL)";
+    default:
+      return `unrecognized (AS4LOCAL = ${JSON.stringify(activation)})`;
+  }
+}
+async function readTableIndexes(conn, table, opts) {
+  const { buildCatalogSelect: buildCatalogSelect2, catalogLiteral: catalogLiteral2, requireCatalogColumn: requireCatalogColumn2, runCatalogSelect: runCatalogSelect2 } = await loadCatalogSelect();
+  const notes = [];
+  const t = assertIndexTableName(table.trim().toUpperCase());
+  const language = (opts?.language ?? DEFAULT_LANGUAGE).trim().toUpperCase() || DEFAULT_LANGUAGE;
+  const TABLE_F = fld("indexHeader", "table");
+  const INDEX_F = fld("indexHeader", "index");
+  const headerSql = buildCatalogSelect2(
+    [TABLE_F, INDEX_F, fld("indexHeader", "language"), fld("indexHeader", "unique"), fld("indexHeader", "activation"), fld("indexHeader", "dbState"), fld("indexHeader", "description")].join(", "),
+    tbl("indexHeader"),
+    [`${TABLE_F} = ${catalogLiteral2(t)}`],
+    INDEX_F
+  );
+  const headerResult = await runCatalogSelect2(conn, headerSql, INDEX_ROW_CAP);
+  notes.push(...serverNotes(headerResult));
+  noteIfCut(headerResult, INDEX_ROW_CAP, `${tbl("indexHeader")} lookup for "${t}"`, notes);
+  if (headerResult.rows.length > 0) requireCatalogColumn2(headerResult, INDEX_F);
+  const byIndex = /* @__PURE__ */ new Map();
+  let dedupedAny = false;
+  for (const row2 of headerResult.rows) {
+    const id = row2[INDEX_F] ?? "";
+    if (id === "") continue;
+    const existing = byIndex.get(id);
+    if (existing === void 0) {
+      byIndex.set(id, row2);
+      continue;
+    }
+    dedupedAny = true;
+    const rowLanguage = (row2[fld("indexHeader", "language")] ?? "").trim().toUpperCase();
+    if (rowLanguage === language) byIndex.set(id, row2);
+  }
+  if (dedupedAny) {
+    notes.push(
+      `${tbl("indexHeader")} carried more than one row per index (language-dependent \u2014 see INDEX_CATALOG note): reduced to one row per index, preferring DDLANGUAGE = "${language}".`
+    );
+  }
+  const FTABLE_F = fld("indexField", "table");
+  const FINDEX_F = fld("indexField", "index");
+  const fieldSql = buildCatalogSelect2(
+    [FTABLE_F, FINDEX_F, fld("indexField", "position"), fld("indexField", "field")].join(", "),
+    tbl("indexField"),
+    [`${FTABLE_F} = ${catalogLiteral2(t)}`],
+    FINDEX_F
+  );
+  const fieldResult = await runCatalogSelect2(conn, fieldSql, INDEX_ROW_CAP);
+  notes.push(...serverNotes(fieldResult));
+  noteIfCut(fieldResult, INDEX_ROW_CAP, `${tbl("indexField")} lookup for "${t}"`, notes);
+  if (fieldResult.rows.length > 0) requireCatalogColumn2(fieldResult, FINDEX_F);
+  const fieldsByIndex = /* @__PURE__ */ new Map();
+  for (const row2 of fieldResult.rows) {
+    const id = row2[FINDEX_F] ?? "";
+    if (id === "") continue;
+    const position = Number(row2[fld("indexField", "position")] ?? "0");
+    const field = row2[fld("indexField", "field")] ?? "";
+    const list3 = fieldsByIndex.get(id);
+    const entry = { position: Number.isNaN(position) ? 0 : position, field };
+    if (list3) list3.push(entry);
+    else fieldsByIndex.set(id, [entry]);
+  }
+  for (const list3 of fieldsByIndex.values()) list3.sort((a, b) => a.position - b.position);
+  const indexes = [...byIndex.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([id, row2]) => {
+    const activation = row2[fld("indexHeader", "activation")] ?? "";
+    return {
+      id,
+      table: t,
+      description: row2[fld("indexHeader", "description")] ?? "",
+      unique: (row2[fld("indexHeader", "unique")] ?? "").trim() !== "",
+      activation,
+      activationLabel: activationLabel(activation),
+      dbState: row2[fld("indexHeader", "dbState")] ?? "",
+      fields: (fieldsByIndex.get(id) ?? []).map((f) => f.field)
+    };
+  });
+  return { indexes, notes };
+}
+async function readSecondaryIndex(conn, table, indexId, opts) {
+  const id = assertIndexIdValue(indexId.trim().toUpperCase());
+  const { indexes, notes } = await readTableIndexes(conn, table, opts);
+  const index = indexes.find((i) => i.id === id);
+  return { index, notes };
+}
+async function verifySecondaryIndex(conn, table, indexId, expect) {
+  try {
+    const id = assertIndexIdValue(indexId.trim().toUpperCase());
+    const t = assertIndexTableName(table.trim().toUpperCase());
+    const { index } = await readSecondaryIndex(conn, t, id);
+    if (index === void 0) {
+      const mismatch2 = expect === "present" ? " \u2014 expected present, but the catalog shows no such row." : "";
+      return {
+        verified: true,
+        present: false,
+        active: false,
+        statement: `index ${id} on ${t} is absent from DD12V${mismatch2}`
+      };
+    }
+    const active = index.activation === "A";
+    const fieldsClause = index.fields.length > 0 ? `, with fields ${index.fields.join(", ")}` : ", with no fields on record";
+    const mismatch = expect === "absent" ? " \u2014 expected absent, but the catalog still shows it." : "";
+    const statement = `index ${id} on ${t} is present and ${active ? "active" : `inactive (${index.activationLabel})`} (DD12V-AS4LOCAL = '${index.activation}')${fieldsClause}${mismatch}`;
+    return { verified: true, present: true, active, statement, index };
+  } catch (e) {
+    const reason = e instanceof Error ? e.message : String(e);
+    return {
+      verified: false,
+      present: false,
+      active: false,
+      statement: `could not verify index ${indexId} on ${table}: the DD12V/DD17S re-read itself failed (${reason}).`,
+      reason
+    };
+  }
+}
+function renderIndexSection(indexes) {
+  const title = "SECONDARY INDEXES";
+  if (indexes.length === 0) {
+    return {
+      title,
+      content: "This table has no secondary index \u2014 a DD12V read for this table returned zero rows (a definitive empty result, see capture 860), not an unread or failed check."
+    };
+  }
+  const content = textTable(
+    indexes.map((i) => ({
+      index: i.id,
+      unique: i.unique ? "UNIQUE" : "",
+      status: i.activationLabel,
+      "db status": i.dbState,
+      fields: i.fields.join(", "),
+      description: i.description
+    })),
+    ["index", "unique", "status", "db status", "fields", "description"]
+  );
+  return { title, content };
+}
+function renderSecondaryIndex(index) {
+  const ddl = [
+    `define index ${index.id.toLowerCase()} on ${index.table.toLowerCase()} {`,
+    ...index.fields.map((f) => `  ${f.toLowerCase()};`),
+    `}`
+  ].join("\n");
+  const sections = [
+    {
+      title: "INDEX HEADER",
+      content: textTable(
+        [
+          {
+            table: index.table,
+            index: index.id,
+            unique: index.unique ? "UNIQUE" : "",
+            status: index.activationLabel,
+            "db status": index.dbState,
+            description: index.description
+          }
+        ],
+        ["table", "index", "unique", "status", "db status", "description"]
+      )
+    }
+  ];
+  const hashInput = [
+    index.table,
+    index.id,
+    index.description,
+    index.unique ? "UNIQUE" : "",
+    index.activation,
+    index.dbState,
+    ...index.fields
+  ].join("|");
+  return {
+    ddl,
+    sections,
+    meta: {
+      table: index.table,
+      index: index.id,
+      unique: index.unique ? "true" : "false",
+      activation: index.activation,
+      db_status: index.dbState,
+      fields: index.fields.length
+    },
+    notes: [],
+    hashInput
+  };
+}
+
+// src/adt/resolved-package.ts
+init_errors();
+var SERVER_RESOLVED = /* @__PURE__ */ Symbol("abapsmith.server-resolved-package");
+function isServerPackage(value) {
+  return typeof value === "object" && value !== null && value[SERVER_RESOLVED] === true && typeof value.name === "string" && value.name.trim().length > 0;
+}
+function serverPackage(outcome) {
+  if (outcome.status !== "confirmed") return void 0;
+  const name = outcome.packageName?.trim();
+  if (!name) return void 0;
+  return { name: name.toUpperCase(), [SERVER_RESOLVED]: true };
+}
+function assertServerPackage(value, context) {
+  if (isServerPackage(value)) return;
+  throw new AbapError(
+    "SAFETY_DENIED",
+    `abapsmith could not determine which package ${context} belongs to, so it refuses the operation (the value was not confirmed by a server read-back).`,
+    { reason: "PACKAGE_UNKNOWN", context },
+    "Every write, delete and activation is judged against the object's real package. Rather than trust a caller-supplied or guessed value, abapsmith stops here. Resolve the package from the server, then retry.",
+    { retryable: true }
+    // a failure to determine the package, not a policy verdict — a healthy connection resolves it
+  );
+}
+
+// src/adt/index-create.ts
+init_session();
+init_transports();
+init_types();
+var INDEX_NAME_MAX = 3;
+var INDEX_TEXT_MAX = 60;
+var MAX_INDEX_FIELDS = 16;
+var INDEX_FIELD_NAME_MAX = 30;
+var BASE_TABLE_MAX = 30;
+var PACKAGE_MAX = 30;
+var PACKAGE_RULES2 = { maxLength: PACKAGE_MAX, allowLocal: true };
+var CREATE_FM_WHAT = "DD_INDEX_INTERFACE insert";
+var DELETE_FM_WHAT = "DD_INDEX_INTERFACE delete";
+async function resolveIndexOwner(conn, baseTable) {
+  const uri = buildUri(specForType("TABL/DT"), baseTable);
+  let body;
+  try {
+    const resp = await conn.get(uri, { headers: { Accept: "application/*" } });
+    body = resp.body ?? "";
+  } catch (e) {
+    if (isNotFoundError(e)) {
+      throw new AbapError(
+        "NOT_FOUND",
+        `Base table ${baseTable} does not exist, so there is nothing to index.`,
+        { baseTable, uri }
+      );
+    }
+    throw e;
+  }
+  const resolved = serverPackage({
+    status: "confirmed",
+    uri,
+    via: "read-back",
+    packageName: packageRefName(body)
+  });
+  if (!resolved) {
+    throw new AbapError(
+      "SAFETY_DENIED",
+      `abapsmith could not determine which package base table ${baseTable} \u2014 and therefore any index on it \u2014 belongs to: the table's ADT XML answered but carried no <adtcore:packageRef adtcore:name> element.`,
+      { reason: "PACKAGE_UNKNOWN", baseTable, uri },
+      "Every write, delete and activation is judged against the object's real package. Rather than trust a caller-supplied or guessed value, abapsmith stops here. Confirm the table is registered with a real packageRef, then retry.",
+      { retryable: true }
+      // a failure to determine the package, not a policy verdict
+    );
+  }
+  return { packageName: resolved, uri };
+}
+function isLocalPackage(packageName) {
+  return isLocalPackageName(packageName);
+}
+function assertCorrNr(value) {
+  if (!isTrkorr(value)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `corr_nr ${JSON.stringify(value)} is not a transport request/task number this system would issue (e.g. A4HK900121). This module never acquires a request on its own \u2014 the caller must hand it one that has already been judged by the safety gate.`,
+      { what: "corrNr", value }
+    );
+  }
+  return value.trim().toUpperCase();
+}
+function assertSecondaryIndexTarget(packageName, corrNr) {
+  const validated = assertEnhIdentifier(packageName, "packageName", PACKAGE_RULES2);
+  const local = isLocalPackage(validated);
+  if (local && corrNr !== void 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `corr_nr ${JSON.stringify(corrNr)} was supplied for local package ${JSON.stringify(validated)}, but a local ($-prefixed) index is created with NO_TRANSP_REQUEST = 'X' rather than on a transport request, so there is nothing here for one to attach to.`,
+      { packageName: validated, corrNr }
+    );
+  }
+  if (!local && corrNr === void 0) {
+    throw new AbapError(
+      "TRANSPORT_ERROR",
+      `packageName ${JSON.stringify(validated)} is not local ($-prefixed), so this index must be created with TRANSPORT_NUMBER set, which requires a transport request \u2014 pass corr_nr (an ALREADY gate-judged TRKORR, e.g. A4HK900121).`,
+      { packageName: validated },
+      "Via abap_write, pass corr_nr with the TRKORR the safety gate already judged for this write (see the abapsmith-put-work-on-a-transport skill)."
+    );
+  }
+  return local ? "" : assertCorrNr(corrNr);
+}
+function indexGateName(baseTable, indexName) {
+  return `${baseTable}-${indexName}`;
+}
+function resolveIndexObjectInput(object3, baseTable) {
+  const parts = object3.split("/");
+  if (parts.length === 1) {
+    if (!baseTable?.trim()) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `"${object3}" does not by itself name a table secondary index (TABL/DI): pass either "<TABLE>/<INDEX>" (e.g. "ZTAB/Z01", the same form abap_read accepts) or the bare index name plus base_table (e.g. object: "${object3}", base_table: "ZTAB").`,
+        { object: object3, type: "TABL/DI" },
+        'Add base_table, or address it as "<TABLE>/<INDEX>".'
+      );
+    }
+    return { object: object3, baseTable };
+  }
+  if (parts.length !== 2 || parts[0].trim() === "" || parts[1].trim() === "") {
+    throw new AbapError(
+      "BAD_INPUT",
+      `"${object3}" is not a valid TABL/DI name: expected "<TABLE>/<INDEX>", e.g. "ZTAB/Z01".`,
+      { object: object3, type: "TABL/DI" },
+      'Name it as "<TABLE>/<INDEX>", e.g. "ZTAB/Z01", or pass the bare index name with base_table.'
+    );
+  }
+  const [table, indexName] = parts;
+  if (baseTable?.trim() && baseTable.trim().toUpperCase() !== table.trim().toUpperCase()) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `object ${JSON.stringify(object3)} names base table ${JSON.stringify(table)}, but base_table ${JSON.stringify(baseTable)} was also given and disagrees \u2014 abapsmith will not silently pick one.`,
+      { object: object3, base_table: baseTable, type: "TABL/DI" },
+      `Drop base_table to use ${JSON.stringify(table)} from object, or change object to "${baseTable.trim()}/${indexName}" to match base_table.`
+    );
+  }
+  return { object: indexName, baseTable: baseTable?.trim() || table };
+}
+function validate2(p) {
+  const indexName = assertEnhIdentifier(p.indexName, "indexName", { maxLength: INDEX_NAME_MAX });
+  const baseTable = assertEnhIdentifier(p.baseTable, "baseTable", { maxLength: BASE_TABLE_MAX });
+  if (!Array.isArray(p.fields) || p.fields.length === 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "fields must be a non-empty list of base-table field names \u2014 a secondary index with no field at all is not one DD_INDEX_INTERFACE would accept.",
+      { indexName, baseTable }
+    );
+  }
+  if (p.fields.length > MAX_INDEX_FIELDS) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `fields has ${p.fields.length} entries, more than the ${MAX_INDEX_FIELDS} this bridge generates.`,
+      { indexName, count: p.fields.length, max: MAX_INDEX_FIELDS }
+    );
+  }
+  const fields = p.fields.map(
+    (f, i) => assertEnhIdentifier(f, `fields[${i}]`, { maxLength: INDEX_FIELD_NAME_MAX })
+  );
+  const description = assertAbapText(p.description, "description", INDEX_TEXT_MAX);
+  const packageNameStr = assertEnhIdentifier(p.packageName.name, "packageName", PACKAGE_RULES2);
+  const trkorr = assertSecondaryIndexTarget(packageNameStr, p.corrNr);
+  const corrNr = trkorr === "" ? void 0 : trkorr;
+  const unique = p.unique === true;
+  return { indexName, baseTable, fields, description, packageName: p.packageName, corrNr, unique };
+}
+function validateDelete(p) {
+  const indexName = assertEnhIdentifier(p.indexName, "indexName", { maxLength: INDEX_NAME_MAX });
+  const baseTable = assertEnhIdentifier(p.baseTable, "baseTable", { maxLength: BASE_TABLE_MAX });
+  const packageNameStr = assertEnhIdentifier(p.packageName.name, "packageName", PACKAGE_RULES2);
+  const trkorr = assertSecondaryIndexTarget(packageNameStr, p.corrNr);
+  const corrNr = trkorr === "" ? void 0 : trkorr;
+  return { indexName, baseTable, packageName: p.packageName, corrNr };
+}
+var DD_INDEX_EXCEPTIONS = [
+  {
+    subrc: 1,
+    name: "cancelled",
+    code: "CHECK_FAILED",
+    message: "DD_INDEX_INTERFACE was cancelled (CANCELLED) \u2014 typically a popup a headless bridge execution cannot answer.",
+    hint: "Retry once; a cancelled dialog is not evidence anything about the request itself was wrong."
+  },
+  {
+    subrc: 2,
+    name: "already_exist",
+    code: "CHECK_FAILED",
+    message: "DD_INDEX_INTERFACE reports this index already exists on the base table (ALREADY_EXIST).",
+    hint: 'Use mode: "delete" to remove the existing index first if a different definition is wanted, then create again.'
+  },
+  {
+    subrc: 3,
+    name: "permission_error",
+    code: "SAFETY_DENIED",
+    message: "DD_INDEX_INTERFACE refused its own authority check (PERMISSION_ERROR) \u2014 this is SAP's OWN MAKE_CORR_ENTRY authorization check inside the function module, not abapsmith's safety gate.",
+    hint: "The service user this bridge runs as lacks authority for this object; a different corr_nr will not change that."
+  },
+  {
+    subrc: 4,
+    name: "name_not_allowed",
+    code: "BAD_INPUT",
+    message: "DD_INDEX_INTERFACE refused this index name (NAME_NOT_ALLOWED) \u2014 commonly outside the customer namespace or already used elsewhere.",
+    hint: "Pick a different index name."
+  },
+  {
+    subrc: 5,
+    name: "db_access_error",
+    code: "CHECK_FAILED",
+    message: "DD_INDEX_INTERFACE hit a database access error (DB_ACCESS_ERROR) while writing the dictionary tables.",
+    hint: "Not a request-shape problem; check the base table for an inconsistent or locked dictionary state."
+  },
+  {
+    subrc: 6,
+    name: "basetab_error",
+    code: "NOT_FOUND",
+    message: "DD_INDEX_INTERFACE reports a problem with the base table (BASETAB_ERROR) \u2014 commonly that it does not exist or is inactive.",
+    hint: "Confirm the base table exists and is active before creating an index on it."
+  },
+  {
+    subrc: 7,
+    name: "not_exist",
+    code: "NOT_FOUND",
+    message: "DD_INDEX_INTERFACE reports this index does not exist (NOT_EXIST).",
+    hint: "Confirm the index name and base table; deleting a name that was never created returns this."
+  },
+  {
+    subrc: 8,
+    name: "others",
+    code: "CHECK_FAILED",
+    message: "DD_INDEX_INTERFACE failed with an unclassified exception (OTHERS).",
+    hint: void 0
+  }
+];
+function indexCreatePartialSuccess(indexName, baseTable) {
+  return {
+    completed: {
+      "INDEX-CREATED": `DD_INDEX_INTERFACE (action='I') created ${indexName} on ${baseTable}, and the COMMIT WORK that follows it committed it.`,
+      "INDEX-ACTIVE": `${indexName} was found active (AS4LOCAL = 'A') in DD12V on re-read after the commit.`
+    },
+    hint: `If INDEX-CREATED fired, ${indexName} exists on ${baseTable} \u2014 abap_write mode="delete" type="TABL/DI" can remove it rather than retrying the create, which would collide with it.`
+  };
+}
+function assertCreateVerdictAgrees(indexName, baseTable, verdict) {
+  if (!verdict.verified || verdict.present && verdict.active) return;
+  const { completed, hint } = indexCreatePartialSuccess(indexName, baseTable);
+  const done = Object.values(completed).filter((v) => v !== void 0);
+  throw new AbapError(
+    "CHECK_FAILED",
+    `DD_INDEX_INTERFACE's own transcript reported ${indexName} on ${baseTable} created and active, but the independent DD12V/DD17S re-read run right after it disagrees: ${verdict.statement}. PARTIAL SUCCESS, NOT A NO-OP: ${done.join("; ")}.`,
+    { indexName, baseTable, verdict },
+    hint
+  );
+}
+function indexBridgeErrorHook(what, indexName, baseTable) {
+  const fmWhat = what === "insert" ? CREATE_FM_WHAT : DELETE_FM_WHAT;
+  const subrcRe = new RegExp(`^${fmWhat} failed, sy-subrc=(\\d+),`);
+  return (transcript) => {
+    const line2 = transcript.errorLine;
+    if (!line2) return;
+    if (line2.includes(`${indexName} on ${baseTable} does not exist`)) {
+      throw new AbapError(
+        "NOT_FOUND",
+        `Index ${indexName} on ${baseTable} does not exist, so there is nothing to delete. Raw ABAP-side detail: ${line2}`,
+        { indexName, baseTable, raw: transcript.raw }
+      );
+    }
+    if (line2.includes(`unique index ${indexName} on ${baseTable} omits the client field`)) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `Index ${indexName} was not created: a unique secondary index on client-dependent base table ${baseTable} must include that table's client field. Raw ABAP-side detail: ${line2}`,
+        { indexName, baseTable, raw: transcript.raw },
+        `Add ${baseTable}'s client field to index_fields, or create ${indexName} without index_unique.`
+      );
+    }
+    const m = subrcRe.exec(line2);
+    if (!m) return;
+    const subrc = Number(m[1]);
+    const entry = DD_INDEX_EXCEPTIONS.find((e) => e.subrc === subrc);
+    if (!entry) return;
+    throw new AbapError(entry.code, entry.message, { indexName, baseTable, subrc, raw: transcript.raw }, entry.hint);
+  };
+}
+async function createSecondaryIndex(conn, gate, params) {
+  assertServerPackage(params.packageName, `secondary index ${params.indexName} on ${params.baseTable}`);
+  const validated = validate2(params);
+  const { indexName, baseTable, fields, description, packageName, corrNr, unique } = validated;
+  const corr = corrNr === void 0 ? void 0 : { kind: "transport", corrNr, source: "named" };
+  assertBridgeMutation(
+    gate,
+    { type: "TABL/DI", name: indexGateName(baseTable, indexName), packageName: packageName.name },
+    { activate: true, ...corr !== void 0 ? { corr } : {} }
+  );
+  const partial2 = indexCreatePartialSuccess(indexName, baseTable);
+  const result = await runClassicAction(conn, gate, {
+    action: "create_index",
+    args: {
+      index_name: indexName,
+      base_table: baseTable,
+      fields,
+      description,
+      package_name: packageName.name,
+      corr_nr: corrNr ?? "",
+      ...params.unique !== void 0 ? { unique } : {}
+    },
+    what: `Creating secondary index ${indexName} on ${baseTable}`,
+    expectTags: ["INDEX-CREATED", "INDEX-ACTIVE", "INDEX-FIELDS"],
+    beforeAssert: indexBridgeErrorHook("insert", indexName, baseTable),
+    completed: partial2.completed,
+    partialHint: partial2.hint
+  });
+  const verdict = await verifySecondaryIndex(conn, baseTable, indexName, "present");
+  assertCreateVerdictAgrees(indexName, baseTable, verdict);
+  return { ...result, verdict };
+}
+function callerVisibleIndexTags(tags) {
+  return tags.filter((t) => !t.includes("ACTFAILED"));
+}
+async function deleteSecondaryIndexViaBridge(conn, gate, params) {
+  assertServerPackage(params.packageName, `secondary index ${params.indexName} on ${params.baseTable}`);
+  const validated = validateDelete(params);
+  const { indexName, baseTable, packageName, corrNr } = validated;
+  const corr = corrNr === void 0 ? void 0 : { kind: "transport", corrNr, source: "named" };
+  assertBridgeMutation(
+    gate,
+    { type: "TABL/DI", name: indexGateName(baseTable, indexName), packageName: packageName.name },
+    { activate: true, op: "delete", ...corr !== void 0 ? { corr } : {} }
+  );
+  const result = await runClassicAction(conn, gate, {
+    action: "delete_index",
+    args: {
+      index_name: indexName,
+      base_table: baseTable,
+      package_name: packageName.name,
+      corr_nr: corrNr ?? ""
+    },
+    what: `Deleting secondary index ${indexName} on ${baseTable}`,
+    expectTags: ["INDEX-DELETED", "INDEX-GONE"],
+    beforeAssert: indexBridgeErrorHook("delete", indexName, baseTable)
+  });
+  const verdict = await verifySecondaryIndex(conn, baseTable, indexName, "absent");
+  return { ...result, verdict };
+}
+
+// src/tools/preflight.ts
+init_types();
+init_safety();
+function isIndexType(type) {
+  return (type ?? "").trim().toUpperCase() === "TABL/DI";
+}
+function preflight(args) {
+  if (isIndexType(args.type)) {
+    const resolved = resolveIndexObjectInput(args.object, args.base_table);
+    return { name: resolved.object.trim().toUpperCase(), packageName: args.package, type: args.type };
+  }
+  const parsed = parseObjectRef(args.object, specForType(args.type));
+  const type = args.type ?? parsed.spec?.type;
+  if (type === "DEVC/K") {
+    return {
+      name: parsed.name,
+      packageName: parsed.name,
+      type,
+      ...args.package?.trim() ? { superPackage: args.package.trim().toUpperCase() } : {}
+    };
+  }
+  return { name: parsed.name, packageName: args.package, type };
+}
+function writeGateKey(object3, type, baseTable) {
+  const name = isIndexType(type) ? resolveIndexObjectInput(object3, baseTable).object.trim().toUpperCase() : parseObjectRef(object3, specForType(type)).name.trim().toUpperCase();
+  return name.length > 0 ? name : void 0;
+}
+function enhancementPreflightIntent(pf) {
+  if (!isEnhancementType(pf.type) || !pf.affects) return void 0;
+  return enhancementIntentFor({ name: pf.name, type: pf.type ?? "", packageName: "" }, pf.affects);
+}
+
+// src/tools/run.ts
+init_datapreview();
+init_datapreview_filter();
+
+// src/snapshot-run.ts
+init_errors();
+init_datapreview_filter();
+
+// src/snapshot-store.ts
+init_errors();
+init_state_dir();
+import { createHash as createHash9, randomBytes as randomBytes6 } from "node:crypto";
+import { readdirSync, readFileSync as readFileSync6, unlinkSync as unlinkSync3 } from "node:fs";
+import * as path8 from "node:path";
+function newSnapshotId() {
+  return `snap_${randomBytes6(16).toString("hex")}`;
+}
+var SNAPSHOT_ID_RE = /^snap_[0-9a-f]{32}$/;
+function assertValidSnapshotId(id) {
+  if (typeof id !== "string" || !SNAPSHOT_ID_RE.test(id)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `Not a valid snapshot id: ${JSON.stringify(id)}`,
+      { id },
+      "Snapshot ids look like snap_ followed by 32 hex characters \u2014 exactly what newSnapshotId() returns."
+    );
+  }
+}
+function snapshotsRoot(stateDir) {
+  return path8.join(stateDir ?? resolveStateDir(), "snapshots");
+}
+function hashSystemKey(systemKey2) {
+  return createHash9("sha256").update(systemKey2, "utf8").digest("hex").slice(0, 32);
+}
+function systemDirFor(systemKey2, stateDir) {
+  return path8.join(snapshotsRoot(stateDir), hashSystemKey(systemKey2));
+}
+function snapshotFilePath(dir, id) {
+  return path8.join(dir, `${id}.json`);
+}
+var SNAPSHOT_FILE_RE = /^(snap_[0-9a-f]{32})\.json$/;
+function withSnapshotDirLock(dir, fn) {
+  const lockPath = `${dir}.lock`;
+  try {
+    return withFileLockSync(lockPath, fn, { waitMs: resolveLockWaitMs() });
+  } catch (e) {
+    if (isFileLockAcquisitionFailure(e, lockPath)) throw e;
+    if (isAbapError(e)) throw e;
+    throw new AbapError(
+      "JOURNAL_IO",
+      `Could not access the snapshot store at ${dir}: ${e.message}.`,
+      { dir, cause: e.code },
+      "Check that ABAP_STATE_DIR is writable, or point ABAP_STATE_DIR at a directory you own."
+    );
+  }
+}
+function isStoredSnapshotShape(v) {
+  if (typeof v !== "object" || v === null) return false;
+  const r = v;
+  return r.version === 1 && typeof r.id === "string" && typeof r.systemKey === "string" && typeof r.createdAt === "string" && typeof r.expiresAt === "string" && typeof r.ttlHours === "number" && typeof r.selection === "object" && r.selection !== null && Array.isArray(r.columns) && Array.isArray(r.rows) && typeof r.moreRowsExist === "boolean" && Array.isArray(r.keyColumns) && typeof r.keyComplete === "boolean";
+}
+function parseSnapshotFile(filePath) {
+  let raw;
+  try {
+    raw = readFileSync6(filePath, "utf8");
+  } catch (e) {
+    if (e.code === "ENOENT") return { ok: false };
+    throw e;
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return { ok: false };
+  }
+  if (!isStoredSnapshotShape(parsed)) return { ok: false };
+  return { ok: true, snap: parsed };
+}
+function isExpiredAt(snap, now) {
+  const t = Date.parse(snap.expiresAt);
+  return !Number.isFinite(t) || t <= now.getTime();
+}
+function pruneLocked(dir, now) {
+  let entries;
+  try {
+    entries = readdirSync(dir);
+  } catch (e) {
+    if (e.code === "ENOENT") return 0;
+    throw e;
+  }
+  let removed = 0;
+  for (const name of entries) {
+    if (!SNAPSHOT_FILE_RE.test(name)) continue;
+    const filePath = path8.join(dir, name);
+    const parsed = parseSnapshotFile(filePath);
+    if (!parsed.ok || isExpiredAt(parsed.snap, now)) {
+      try {
+        unlinkSync3(filePath);
+        removed += 1;
+      } catch (e) {
+        if (e.code !== "ENOENT") throw e;
+      }
+    }
+  }
+  return removed;
+}
+function pruneSnapshots(systemKey2, opts = {}) {
+  const dir = systemDirFor(systemKey2, opts.stateDir);
+  const now = opts.now ?? /* @__PURE__ */ new Date();
+  return withSnapshotDirLock(dir, () => pruneLocked(dir, now));
+}
+function writeSnapshot(snap, opts = {}) {
+  assertValidSnapshotId(snap.id);
+  pruneSnapshots(snap.systemKey, opts);
+  const dir = systemDirFor(snap.systemKey, opts.stateDir);
+  withSnapshotDirLock(dir, () => {
+    const filePath = snapshotFilePath(dir, snap.id);
+    atomicWriteFileSync(filePath, JSON.stringify(snap));
+    hardenFileModeSync(filePath);
+  });
+}
+function readSnapshot(id, systemKey2, opts = {}) {
+  assertValidSnapshotId(id);
+  const dir = systemDirFor(systemKey2, opts.stateDir);
+  const filePath = snapshotFilePath(dir, id);
+  const now = opts.now ?? /* @__PURE__ */ new Date();
+  const parsed = parseSnapshotFile(filePath);
+  if (!parsed.ok) throw snapshotNotFound(id);
+  if (parsed.snap.systemKey !== systemKey2) {
+    throw snapshotNotFound(id);
+  }
+  if (isExpiredAt(parsed.snap, now)) {
+    withSnapshotDirLock(dir, () => {
+      try {
+        unlinkSync3(filePath);
+      } catch (e) {
+        if (e.code !== "ENOENT") throw e;
+      }
+    });
+    throw snapshotExpired(parsed.snap);
+  }
+  pruneSnapshots(systemKey2, opts);
+  return parsed.snap;
+}
+function snapshotNotFound(id) {
+  return new AbapError(
+    "NOT_FOUND",
+    `No stored data snapshot ${id}.`,
+    { id },
+    "The snapshot id is wrong, or was never taken against this connection \u2014 snapshots are scoped to one system and are never visible from another."
+  );
+}
+function snapshotExpired(snap) {
+  return new AbapError(
+    "SNAPSHOT_EXPIRED",
+    `Snapshot ${snap.id} was taken at ${snap.createdAt} and expired at ${snap.expiresAt} (TTL ${snap.ttlHours}h); it has been deleted.`,
+    { id: snap.id, createdAt: snap.createdAt, expiresAt: snap.expiresAt, ttlHours: snap.ttlHours },
+    "Take a fresh snapshot and diff against that instead \u2014 a deleted snapshot cannot be recovered."
+  );
+}
+function indexByName(columns) {
+  const index = /* @__PURE__ */ new Map();
+  columns.forEach((c, i) => index.set(c.name, i));
+  return index;
+}
+function groupByKey(rows, keyOf) {
+  const groups = /* @__PURE__ */ new Map();
+  for (const row2 of rows) {
+    const key = keyOf(row2);
+    const list3 = groups.get(key);
+    if (list3) list3.push(row2);
+    else groups.set(key, [row2]);
+  }
+  return groups;
+}
+function isFullColumnSet(matchOn, names) {
+  return matchOn.length === names.size && matchOn.every((c) => names.has(c));
+}
+function diffSnapshotRows(before, after, matchOn) {
+  const beforeIndex = indexByName(before.columns);
+  const afterIndex = indexByName(after.columns);
+  for (const col of matchOn) {
+    if (!beforeIndex.has(col) || !afterIndex.has(col)) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `Cannot match snapshot rows on "${col}": it is not present in both snapshots being diffed.`,
+        { column: col, matchOn },
+        "matchOn must name columns present in BOTH the before and after snapshot."
+      );
+    }
+  }
+  const beforeNames = new Set(before.columns.map((c) => c.name));
+  const afterNames = new Set(after.columns.map((c) => c.name));
+  const columnsAddedInAfter = [...afterNames].filter((n) => !beforeNames.has(n));
+  const columnsRemovedInAfter = [...beforeNames].filter((n) => !afterNames.has(n));
+  const allColumnNames = [...before.columns.map((c) => c.name), ...columnsAddedInAfter];
+  const matchedOnFullKey = !isFullColumnSet(matchOn, beforeNames) && !isFullColumnSet(matchOn, afterNames);
+  const keyOf = (row2, index) => JSON.stringify(matchOn.map((c) => row2[index.get(c)] ?? ""));
+  const beforeGroups = groupByKey(before.rows, (r) => keyOf(r, beforeIndex));
+  const afterGroups = groupByKey(after.rows, (r) => keyOf(r, afterIndex));
+  const inserted = [];
+  const deleted = [];
+  const changed = [];
+  const allKeys = /* @__PURE__ */ new Set([...beforeGroups.keys(), ...afterGroups.keys()]);
+  for (const key of allKeys) {
+    const bRows = beforeGroups.get(key) ?? [];
+    const aRows = afterGroups.get(key) ?? [];
+    const pairCount = Math.min(bRows.length, aRows.length);
+    for (let i = 0; i < pairCount; i++) {
+      const b = bRows[i];
+      const a = aRows[i];
+      const changes = [];
+      for (const name of allColumnNames) {
+        const bi = beforeIndex.get(name);
+        const ai = afterIndex.get(name);
+        const oldVal = bi === void 0 ? "" : b[bi] ?? "";
+        const newVal = ai === void 0 ? "" : a[ai] ?? "";
+        if (bi === void 0 || ai === void 0 || oldVal !== newVal) {
+          changes.push({ column: name, old: oldVal, new: newVal });
+        }
+      }
+      if (changes.length > 0) {
+        changed.push({ key: JSON.parse(key), changes });
+      }
+    }
+    for (let i = pairCount; i < bRows.length; i++) deleted.push(bRows[i]);
+    for (let i = pairCount; i < aRows.length; i++) inserted.push(aRows[i]);
+  }
+  return {
+    inserted,
+    deleted,
+    changed,
+    matchedOn: [...matchOn],
+    matchedOnFullKey,
+    columnsAddedInAfter,
+    columnsRemovedInAfter
+  };
+}
+
+// src/snapshot-run.ts
+init_compact();
+function hasProjection(filter) {
+  return filter?.columns !== void 0 && filter.columns.length > 0;
+}
+async function takeSnapshot(deps, opts) {
+  deps.assertDataPreview(opts.table);
+  const effective = Math.min(opts.maxRowsRequested, deps.maxRows);
+  const requestedTtl = opts.ttlHours ?? deps.ttlCeilingHours;
+  const ttlHours = Math.min(requestedTtl, deps.ttlCeilingHours);
+  const ttlClamped = ttlHours < requestedTtl;
+  const result = await deps.read(opts.table, effective, opts.filter);
+  const now = deps.now?.() ?? /* @__PURE__ */ new Date();
+  const createdAt = now.toISOString();
+  const expiresAt = new Date(now.getTime() + ttlHours * 36e5).toISOString();
+  const columns = result.columns.map((c) => ({ name: c.name, key: c.key === true }));
+  let keyColumns;
+  let keyComplete;
+  if (!hasProjection(opts.filter)) {
+    keyColumns = columns.filter((c) => c.key).map((c) => c.name);
+    keyComplete = keyColumns.length > 0;
+  } else {
+    keyColumns = columns.filter((c) => c.key).map((c) => c.name);
+    keyComplete = false;
+  }
+  const snapshot = {
+    version: 1,
+    id: newSnapshotId(),
+    systemKey: deps.systemKey,
+    createdAt,
+    expiresAt,
+    ttlHours,
+    selection: {
+      table: result.table,
+      max_rows: effective,
+      ...opts.filter !== void 0 && !isEmptyFilter(opts.filter) ? { filter: opts.filter } : {}
+    },
+    columns,
+    rows: result.rows,
+    moreRowsExist: result.moreRowsExist,
+    keyColumns,
+    keyComplete
+  };
+  writeSnapshot(snapshot, { stateDir: deps.stateDir, now });
+  return { snapshot, result, ttlClamped };
+}
+async function diffSnapshot(deps, id) {
+  const before = readSnapshot(id, deps.systemKey, { stateDir: deps.stateDir, now: deps.now?.() });
+  deps.assertDataPreview(before.selection.table);
+  const after = await deps.read(before.selection.table, before.selection.max_rows, before.selection.filter);
+  let matchOn;
+  if (before.keyComplete) {
+    matchOn = before.keyColumns;
+  } else {
+    const afterNames = new Set(after.columns.map((c) => c.name));
+    matchOn = before.columns.map((c) => c.name).filter((name) => afterNames.has(name));
+    if (matchOn.length === 0) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `Snapshot ${before.id} of ${before.selection.table} has no complete key, and the current read shares no column name with it, so the two reads cannot be compared.`,
+        { snapshotId: before.id, table: before.selection.table },
+        "Take a fresh snapshot of the entity in its current shape and diff against that instead."
+      );
+    }
+  }
+  const afterColumns = after.columns.map((c) => ({ name: c.name, key: c.key === true }));
+  const diff = diffSnapshotRows(before, { columns: afterColumns, rows: after.rows }, matchOn);
+  return {
+    before,
+    after,
+    diff,
+    moreRowsExistBefore: before.moreRowsExist,
+    moreRowsExistAfter: after.moreRowsExist
+  };
+}
+function uniqueColumnKeys(names) {
+  const seen = /* @__PURE__ */ new Map();
+  return names.map((raw, i) => {
+    const base = raw === "" ? `col${i + 1}` : raw;
+    const n = seen.get(base) ?? 0;
+    seen.set(base, n + 1);
+    return n === 0 ? base : `${base}#${n + 1}`;
+  });
+}
+function rowsTable(names, rows) {
+  if (rows.length === 0) return "";
+  const keys = uniqueColumnKeys(names);
+  const records = rows.map((cells) => {
+    const rec = {};
+    keys.forEach((k, i) => {
+      rec[k] = cells[i] ?? "";
+    });
+    return rec;
+  });
+  return textTable(records, keys);
+}
+var CHANGED_ROW_COLUMNS = ["key", "column", "old", "new"];
+function changedRowsTable(changed) {
+  const rows = [];
+  for (const row2 of changed) {
+    const key = row2.key.join("/");
+    for (const c of row2.changes) {
+      rows.push({ key, column: c.column, old: c.old, new: c.new });
+    }
+  }
+  return textTable(rows, [...CHANGED_ROW_COLUMNS]);
+}
+function renderWhereCondition(c) {
+  if (c.op === "is_null") return `${c.field} is_null`;
+  if (Array.isArray(c.value)) return `${c.field} ${c.op} (${c.value.join(", ")})`;
+  return `${c.field} ${c.op} ${String(c.value)}`;
+}
+function renderSnapshot(snapshot, result, opts) {
+  const notes = [
+    "Rows were stored for a later `diff`, not shown here \u2014 a snapshot response prints no business rows."
+  ];
+  if (snapshot.selection.max_rows < opts.maxRowsRequested) {
+    notes.push(
+      `CLAMPED: max_rows:${opts.maxRowsRequested} exceeds this server's ${snapshot.selection.max_rows}-row ceiling (ABAP_DATA_PREVIEW_MAX_ROWS), so only ${snapshot.selection.max_rows} row(s) were requested from ${snapshot.selection.table}. The rows beyond that were NOT fetched and are NOT stored. The ceiling is an operator setting \u2014 no argument raises it.`
+    );
+  }
+  if (result.moreRowsExist) {
+    notes.push(
+      `INCOMPLETE: ${snapshot.selection.table} holds more rows than the ${snapshot.rows.length} stored. This snapshot covers only the first N rows in the table's own order, NOT a sample and NOT the whole table \u2014 a later \`diff\` against this snapshot cannot see inserts or deletes beyond that ceiling and will not invent them.`
+    );
+  }
+  if (opts.ttlClamped) {
+    notes.push(
+      `TTL CLAMPED: ttl_hours:${opts.ttlRequested} exceeds this server's ${opts.ttlCeiling}-hour ceiling (ABAP_DATA_SNAPSHOT_TTL_HOURS), so this snapshot expires at ${snapshot.expiresAt} instead. The ceiling is an operator setting \u2014 no argument raises it.`
+    );
+  }
+  if (!snapshot.keyComplete) {
+    notes.push(
+      "INCOMPLETE KEY: " + (snapshot.keyColumns.length > 0 ? `${snapshot.selection.table}'s DDIC key was not fully covered by what was read (columns: ${snapshot.keyColumns.join(", ")}).` : `${snapshot.selection.table} reported no key column at all.`) + " A later `diff` will match on every selected column instead, so an edited row will surface as one deleted row plus one inserted row, not as a change."
+    );
+  }
+  const filter = snapshot.selection.filter;
+  const selectionLines = [`table: ${snapshot.selection.table}`, `max_rows: ${snapshot.selection.max_rows}`];
+  if (filter?.columns?.length) selectionLines.push(`columns: ${filter.columns.join(", ")}`);
+  if (filter?.where?.length) {
+    selectionLines.push(`where: ${filter.where.map(renderWhereCondition).join(" AND ")}`);
+  }
+  if (filter?.orderBy?.length) {
+    selectionLines.push(`order_by: ${filter.orderBy.map((o) => `${o.field} ${o.direction ?? "asc"}`).join(", ")}`);
+  }
+  if (filter?.distinct) selectionLines.push("distinct: true");
+  return buildResponse({
+    header: {
+      snapshot_id: snapshot.id,
+      table: snapshot.selection.table,
+      columns: snapshot.columns.length,
+      rows_stored: snapshot.rows.length,
+      rows_requested: opts.maxRowsRequested,
+      more_rows_exist: result.moreRowsExist,
+      expires_at: snapshot.expiresAt,
+      ttl_hours: snapshot.ttlHours
+    },
+    sections: [
+      { title: "SELECTION", content: selectionLines.join("\n") },
+      {
+        title: "KEY",
+        content: snapshot.keyComplete ? `key columns (complete): ${snapshot.keyColumns.join(", ")}` : snapshot.keyColumns.length > 0 ? `key columns (incomplete): ${snapshot.keyColumns.join(", ")}` : "no key columns reported"
+      }
+    ],
+    notes,
+    maxChars: opts.maxChars
+  });
+}
+function renderDiff(out, maxChars) {
+  const { before, after, diff } = out;
+  const notes = [];
+  if (!diff.matchedOnFullKey) {
+    notes.push(
+      "MATCHED ON SELECTED COLUMNS, NOT A KEY: the snapshot did not have a complete DDIC key, so rows were matched on every selected column instead. An edited row therefore shows up as one DELETED row plus one INSERTED row rather than a CHANGED row \u2014 a structural limit of matching on full-row identity, not a failure."
+    );
+  }
+  if (out.moreRowsExistBefore || out.moreRowsExistAfter) {
+    notes.push(
+      "Both reads stopped at the same row ceiling, so rows past it were never compared on either side and are not reported here as inserted or deleted."
+    );
+  }
+  if (diff.columnsAddedInAfter.length > 0) {
+    notes.push(
+      `COLUMNS ADDED: ${diff.columnsAddedInAfter.join(", ")} are present in the new read but were not in the snapshot, so every matched row shows them as a change \u2014 there is no snapshot-side value to compare against.`
+    );
+  }
+  if (diff.columnsRemovedInAfter.length > 0) {
+    notes.push(
+      `COLUMNS REMOVED: ${diff.columnsRemovedInAfter.join(", ")} were in the snapshot but are no longer in the new read, so every matched row shows them as a change \u2014 there is no new-side value to compare against.`
+    );
+  }
+  if (diff.inserted.length === 0 && diff.deleted.length === 0 && diff.changed.length === 0) {
+    notes.push(
+      'No difference was found within the compared window \u2014 a real "nothing changed" for the rows that were compared. It says nothing about rows beyond the ceiling, if the note above applies.'
+    );
+  }
+  return buildResponse({
+    header: {
+      snapshot_id: before.id,
+      table: before.selection.table,
+      taken_at: before.createdAt,
+      inserted: diff.inserted.length,
+      deleted: diff.deleted.length,
+      changed: diff.changed.length,
+      matched_on_full_key: diff.matchedOnFullKey
+    },
+    sections: [
+      { title: "MATCHED ON", content: diff.matchedOn.join(", ") },
+      { title: "INSERTED", content: rowsTable(after.columns.map((c) => c.name), diff.inserted) },
+      { title: "DELETED", content: rowsTable(before.columns.map((c) => c.name), diff.deleted) },
+      { title: "CHANGED", content: changedRowsTable(diff.changed) }
+    ],
+    notes,
+    maxChars
+  });
+}
+function renderDataChangesSection(results) {
+  const blocks = [];
+  for (const r of results) {
+    if ("refused" in r.outcome) {
+      blocks.push(`snapshot ${r.id}: refused \u2014 ${r.outcome.refused}`);
+      continue;
+    }
+    const out = r.outcome;
+    const line2 = `snapshot ${r.id} on ${out.before.selection.table}: +${out.diff.inserted.length} -${out.diff.deleted.length} ~${out.diff.changed.length}`;
+    const table = changedRowsTable(out.diff.changed);
+    blocks.push(table ? `${line2}
+${table}` : line2);
+  }
+  return blocks.join("\n\n");
+}
+function auditSnapshot(snapshot, log2) {
+  log2(
+    `[abapsmith] audit: abap_data_preview mode=snapshot table=${snapshot.selection.table} rows=${snapshot.rows.length} snapshot_id=${snapshot.id}`
+  );
+}
+function auditDiff(out, log2) {
+  log2(
+    `[abapsmith] audit: abap_data_preview mode=diff table=${out.before.selection.table} inserted=${out.diff.inserted.length} deleted=${out.diff.deleted.length} changed=${out.diff.changed.length}`
+  );
+}
+
+// src/tools/run.ts
+var runRangeSchema = external_exports.object({
+  sign: external_exports.enum(["I", "E"]).optional(),
+  option: external_exports.enum(["EQ", "NE", "GT", "LT", "GE", "LE", "CP", "NP", "BT", "NB"]).optional(),
+  low: external_exports.string(),
+  high: external_exports.string().optional()
+});
+var runParameterSchema = external_exports.object({
+  name: external_exports.string(),
+  type: external_exports.enum(["char", "int", "packed", "date"]).optional(),
+  value: external_exports.string().optional(),
+  ranges: external_exports.array(runRangeSchema).optional().describe("SELECT-OPTIONS rows; must be non-empty.")
+});
+var runInputSchema = {
+  object: external_exports.string().describe("Class or report to execute."),
+  mode: external_exports.enum(["class", "report", "auto"]).optional().describe("Default auto."),
+  // Report mode only: fills PARAMETERS/SELECT-OPTIONS — see ../adt/run-parameters.ts.
+  parameters: external_exports.array(runParameterSchema).optional(),
+  auth_trace: external_exports.boolean().optional().describe(
+    "Switch on the SAP authorization trace for the connected user, run, then read back and switch it back off. Refused on a read-only server. Default false."
+  ),
+  snapshot_ids: external_exports.array(external_exports.string()).optional().describe(
+    `Snapshot ids from prior abap_data_preview mode="snapshot" calls. After this call finishes, each one is re-read and diffed, and the result is appended as a DATA CHANGES section. The diff obeys the same data-preview policy as the snapshot did \u2014 if it is refused, this call's own result still returns and the section says why.`
+  )
+};
+var RunInput = external_exports.object(runInputSchema);
+function authTraceHeaderValue(outcome) {
+  if (!outcome.ok) return outcome.reason;
+  return outcome.checks.length > 0 ? `${outcome.checks.length} failed check(s)` : "no failed checks";
+}
+function authTraceSection(outcome) {
+  if (!outcome.ok || outcome.checks.length === 0) return void 0;
+  const rendered = renderFailedAuthChecks(outcome.checks);
+  const [, ...rest] = rendered.split("\n");
+  return { title: "FAILED AUTH CHECKS", content: rest.join("\n") };
+}
+function attachAuthTraceToError(e) {
+  const outcome = authTraceOf(e);
+  if (outcome === void 0 || !isAbapError(e)) return;
+  e.details["failedAuthChecks"] = outcome.ok ? outcome.checks.length > 0 ? renderFailedAuthChecks(outcome.checks) : "no failed checks" : outcome.reason;
+  const switchOffError = switchOffErrorOf(e);
+  if (switchOffError !== void 0) {
+    e.details["authTraceSwitchOffError"] = switchOffError;
+  }
+}
+async function abapRun(conn, input, maxChars, gate) {
+  const authTraceRequested = input.auth_trace === true;
+  if (authTraceRequested && gate.config.readOnly === true) {
+    throw new AbapError(
+      "SAFETY_DENIED",
+      "auth_trace switches the SAP authorization trace on for the connected user, a system-level action, so it is refused on a read-only server.",
+      { auth_trace: true },
+      "Ask the operator to enable writes (ABAP_ALLOW_WRITE), or omit auth_trace to run without it."
+    );
+  }
+  const requested = input.mode ?? "auto";
+  const obj = await resolveObject(conn, input.object);
+  let mode;
+  if (requested === "auto") {
+    if (obj.kind === "CLAS") mode = "class";
+    else if (obj.kind === "PROG") mode = "report";
+    else {
+      throw new AbapError(
+        "UNSUPPORTED",
+        `${obj.type} ${obj.name} is not executable: only classes implementing IF_OO_ADT_CLASSRUN and reports (PROG) can be run.`,
+        { object: obj.name, type: obj.type },
+        "Wrap the logic in a small IF_OO_ADT_CLASSRUN class and run that."
+      );
+    }
+  } else {
+    if (requested === "class" && obj.kind !== "CLAS") {
+      throw new AbapError(
+        "BAD_INPUT",
+        `mode "class" was requested for ${obj.name}, but it resolved to ${obj.type} (kind ${obj.kind}), not a class.`,
+        { object: obj.name, requestedMode: requested, resolvedType: obj.type, resolvedKind: obj.kind },
+        'Use mode "report" (or omit mode / use "auto") for PROG objects.'
+      );
+    }
+    if (requested === "report" && obj.kind !== "PROG") {
+      throw new AbapError(
+        "BAD_INPUT",
+        `mode "report" was requested for ${obj.name}, but it resolved to ${obj.type} (kind ${obj.kind}), not a report.`,
+        { object: obj.name, requestedMode: requested, resolvedType: obj.type, resolvedKind: obj.kind },
+        'Use mode "class" (or omit mode / use "auto") for CLAS objects.'
+      );
+    }
+    mode = requested;
+  }
+  const parameters = input.parameters ?? [];
+  if (parameters.length > 0 && mode !== "report") {
+    throw new AbapError(
+      "BAD_INPUT",
+      `"parameters" was supplied but mode is "${mode}", not "report" \u2014 selection-screen values only apply to classic reports.`,
+      { object: obj.name, mode }
+    );
+  }
+  const executeAuthorization = gate.authorize("execute", {
+    name: obj.name,
+    packageName: obj.packageName,
+    type: obj.type
+  });
+  const executeRun = async () => {
+    if (mode === "class") {
+      return runClass(conn, executeAuthorization.target.name);
+    }
+    gate.assert("write", {
+      name: bridgeClassName(obj.name),
+      packageName: FLUID_PACKAGE,
+      type: "CLAS/OC"
+    });
+    return runReport(conn, obj.name, gate, parameters);
+  };
+  let res;
+  let authTraceOutcome;
+  let authTraceSwitchOffError;
+  if (authTraceRequested) {
+    try {
+      const wrapped = await withAuthTrace({ conn, gate }, conn.cfg.user, executeRun);
+      res = wrapped.value;
+      authTraceOutcome = wrapped.authTrace;
+      authTraceSwitchOffError = wrapped.switchOffError;
+    } catch (e) {
+      attachAuthTraceToError(e);
+      throw e;
+    }
+  } else {
+    res = await executeRun();
+  }
+  const notes = [];
+  if (res.mode === "report") {
+    notes.push(
+      `Output was captured through a generated IF_OO_ADT_CLASSRUN bridge class (${res.bridgeClass ?? "n/a"}) that SUBMITs the report EXPORTING LIST TO MEMORY` + (parameters.length > 0 ? ` WITH SELECTION-TABLE (${parameters.length} field(s) supplied \u2014 see "parameters").` : `. PARAMETERS/SELECT-OPTIONS values can be supplied via the "parameters" input; omitted fields run with the report's own defaults.`) + " The bridge is a real object created in the write allowlist."
+    );
+    notes.push(
+      'Interactive rendering (an ALV grid/list DISPLAY(), classic interactive list events, or any other dynpro) is NOT supported and cannot be made to work over this execution surface: classrun is headless (no window system), and calling e.g. CL_SALV_TABLE->DISPLAY() here raises CX_SY_SEND_DYNPRO_NO_RECEIVER ("No window system type specified") \u2014 confirmed live, not a guess. To verify such logic, run headless and inspect the underlying data (the internal table/data provider) instead of calling DISPLAY(), or add a WRITE-based fallback path for use under this tool.'
+    );
+    if (parameters.length > 0) {
+      try {
+        const src = await readSource(conn, obj);
+        const parsed = parseSelectionScreen(src.source);
+        notes.push(...selectionScreenNotes(parsed, parameters));
+      } catch (e) {
+        notes.push(
+          `Selection-screen source could not be re-read for cross-checking parameter names (${isAbapError(e) ? e.message : "unexpected error"}) \u2014 the run itself was not affected.`
+        );
+      }
+    }
+  }
+  let activation;
+  try {
+    activation = await checkActivation(conn, obj);
+  } catch {
+    activation = "unknown";
+  }
+  notes.push(
+    activation === "active-is-current" ? "Executed in a fresh session, so the code that ran is the code currently active \u2014 not a cached copy." : activation === "newer-inactive-exists" ? "Executed in a fresh session, but a NEWER INACTIVE version exists on the server: what ran is the older ACTIVE code, not your latest edit." : "Executed in a fresh session (no cached copy). Whether the active version is the newest was NOT checked."
+  );
+  if (authTraceRequested) {
+    notes.push(
+      "auth_trace reads the SAP authorization trace (falling back to the SU53 buffer) for this run only; it changes no authorisation, role or profile."
+    );
+    if (authTraceOutcome?.ok && authTraceOutcome.usedFallback) {
+      notes.push(
+        "The kernel authorization trace returned nothing, so this came from the SU53 buffer, which shows only what that buffer retained \u2014 it is not a complete record of this run."
+      );
+    }
+    if (authTraceSwitchOffError !== void 0) {
+      notes.push(
+        `The authorization trace may have been left switched ON: switching it back off failed (${authTraceSwitchOffError}).`
+      );
+    }
+  }
+  if (res.mode === "report" && res.bridgeActivationVerified !== true) {
+    notes.push(
+      "Additionally, activation of the generated bridge class itself was NOT positively verified before it ran \u2014 a separate concern from the target object's activation state noted above."
+    );
+  }
+  const hasDiagnostics = Boolean(res.diagnostics?.length);
+  if (hasDiagnostics) {
+    notes.push(
+      `The ABAP bridge driver reported ${res.diagnostics.length} diagnostic line(s) \u2014 see the DIAGNOSTICS section below. This usually means the capture step itself failed (e.g. no list in ABAP memory), NOT merely that the report printed nothing.`
+    );
+  }
+  const droppedLines = res.droppedLines ?? 0;
+  if (droppedLines > 0) {
+    notes.push(
+      `${droppedLines} line(s) of captured output were dropped and are not shown below.`
+    );
+  }
+  if (res.outputComplete === false) {
+    notes.push(
+      "ABAP-side width truncation was detected: one or more output lines may have been cut short by the classic list width before this tool ever saw them. The output below is not guaranteed complete."
+    );
+  }
+  const genuinelyEmpty = res.lines === 0 && droppedLines === 0 && !hasDiagnostics;
+  const body = res.output.trim() ? res.output : genuinelyEmpty ? "(no output)" : "(nothing shown here \u2014 but this run is NOT confirmed empty: see the NOTE(s) above about diagnostics, dropped lines, and/or incomplete output. Do not read this as a clean, silent, successful run.)";
+  const logLastSeconds = Math.ceil(res.durationMs / 1e3) + 5;
+  const logHint = `Application log (BAL) entries this execution may have written: abap_fluid {"tool":"${LOG_TOOL_ID}","action":"${LOG_ACTION}","args":{"last_seconds":${logLastSeconds},"detail":"messages"}} \u2014 last_seconds is measured on the server clock, so it covers this run.`;
+  notes.push(logHint);
+  const authTraceSectionValue = authTraceOutcome ? authTraceSection(authTraceOutcome) : void 0;
+  const sections = [];
+  if (hasDiagnostics) sections.push({ title: "DIAGNOSTICS", content: res.diagnostics.join("\n") });
+  if (authTraceSectionValue) sections.push(authTraceSectionValue);
+  return buildResponse({
+    header: {
+      system: conn.cfg.sid,
+      object: `${obj.type} ${obj.name}`,
+      mode: res.mode,
+      lines: res.lines,
+      durationMs: res.durationMs,
+      bridgeClass: res.bridgeClass,
+      bridgeRefreshed: res.bridgeRefreshed,
+      droppedLines: droppedLines > 0 ? droppedLines : void 0,
+      outputComplete: res.outputComplete === false ? false : void 0,
+      auth_trace: authTraceOutcome ? authTraceHeaderValue(authTraceOutcome) : void 0
+    },
+    sections: sections.length > 0 ? sections : void 0,
+    body,
+    bodyLabel: "OUTPUT",
+    notes,
+    hints: ["Have the code print less, or filter inside ABAP, if the output is truncated."],
+    maxChars
+  });
+}
+var ok = (text5) => ({ content: [{ type: "text", text: text5 }] });
+async function runSnapshotDiffs(deps, ids, audit) {
+  if (ids === void 0 || ids.length === 0) return void 0;
+  let runDeps;
+  try {
+    runDeps = {
+      read: (table, maxRows, filter) => deps.pool.withRead(
+        "abap_data_preview",
+        (conn) => previewDdicEntity(conn, { table, maxRows, ...filter && !isEmptyFilter(filter) ? { filter } : {} })
+      ),
+      assertDataPreview: (t) => deps.safety.assertDataPreview(t),
+      systemKey: systemKey(deps.cfg),
+      maxRows: deps.cfg.dataPreviewMaxRows,
+      ttlCeilingHours: deps.cfg.dataSnapshotTtlHours
+    };
+  } catch (e) {
+    return `snapshot diff setup failed: ${isAbapError(e) ? `${e.code}: ${e.message}` : String(e)}`;
+  }
+  const results = [];
+  for (const id of ids) {
+    try {
+      const out = await diffSnapshot(runDeps, id);
+      auditDiff(out, audit);
+      results.push({ id, outcome: out });
+    } catch (e) {
+      results.push({
+        id,
+        outcome: { refused: isAbapError(e) ? `${e.code}: ${e.message}` : String(e) }
+      });
+    }
+  }
+  return renderDataChangesSection(results);
+}
+function registerRunTools(mcp, deps) {
+  const audit = (m) => void process.stderr.write(m + "\n");
+  mcp.registerTool(
+    "abap_run",
+    {
+      description: "Execute an IF_OO_ADT_CLASSRUN class or report; returns output. `parameters` (report mode) fills PARAMETERS/SELECT-OPTIONS. Headless \u2014 no interactive list/ALV grid. Executed ABAP runs with the connected user's full SAP authorisations and is not constrained by this server's package, name or transport allowlists.",
+      inputSchema: runInputSchema,
+      annotations: { readOnlyHint: false, destructiveHint: true }
+    },
+    async (args) => {
+      try {
+        deps.safety.assert("execute", preflight(args), { phase: "preflight" });
+        await deps.ensureConnected();
+        const res = await deps.pool.withWrite(
+          "abap_run",
+          void 0,
+          (conn) => abapRun(conn, args, deps.cfg.maxResponseChars, deps.safety)
+        );
+        const a = args;
+        const changes = await runSnapshotDiffs(deps, a.snapshot_ids, audit);
+        return ok(changes ? `${res.text}
+
+DATA CHANGES
+${changes}` : res.text);
+      } catch (e) {
+        return deps.errorResult(e);
+      }
+    }
+  );
+}
+
+// src/tools/debug.ts
+init_pool();
+function createLiveDebugToolDeps(params) {
+  const laneCount = resolveDebugSessionLimit(params.cfg);
+  const armLocks = createDebugArmLocks({
+    lanes: laneCount,
+    stateDir: resolveStateDir(process.env),
+    cfg: params.cfg,
+    enabled: params.cfg.crossProcessDebugLock,
+    waitMs: params.cfg.debugLockWaitMs
+  });
+  return {
+    debugLaneCount: laneCount,
+    createSession(conn, safety, opts) {
+      const client = createDebugClientForConnection(conn, {
+        safety,
+        target: opts?.target
+      });
+      const lane = opts?.lane ?? 0;
+      const identity = resolveDebugIdentity(params.cfg, lane);
+      warnIfDerivedIdentity(identity, opts?.log ?? params.log);
+      const sessionOpts = {
+        client,
+        context: {
+          debuggingMode: "user",
+          requestUser: params.cfg.user,
+          terminalId: identity.terminalId,
+          ideId: identity.ideId
+        },
+        log: opts?.log ?? params.log,
+        sessionLease: opts?.sessionLease,
+        armLock: armLocks[lane]
+      };
+      return new DebugSession(sessionOpts);
+    },
+    async createTriggerConnection() {
+      const c = params.pool.createUnpooledConnection("debug-trigger");
+      await c.connect();
+      c.dispose();
+      return c;
+    },
+    async createDebugSessionConnection() {
+      const c = params.pool.createUnpooledConnection("debug-session");
+      await c.connect();
+      c.dispose();
+      return c;
+    },
+    resolveObject(conn, ref2) {
+      return resolveObject(conn, ref2);
+    },
+    triggerRun(conn, input, maxChars, gate) {
+      return abapRun(conn, input, maxChars, gate);
+    },
+    log: params.log,
+    reserveDebugSession: (op) => params.pool.reserveDebug(op),
+    allowJumpToLine: params.cfg.allowDebugJumpToLine,
+    async releaseOrphanListener(conn) {
+      const identity = resolveDebugIdentity(params.cfg);
+      const client = createDebugClientForConnection(conn, { safety: params.gate });
+      const context = {
+        debuggingMode: "user",
+        requestUser: params.cfg.user,
+        terminalId: identity.terminalId,
+        ideId: identity.ideId
+      };
+      const probe3 = await client.getListener(context);
+      if (probe3.kind === "absent") return { kind: "absent" };
+      if (probe3.kind === "conflict") {
+        return { kind: "conflict", detail: probe3.conflict.conflictText };
+      }
+      await client.stopListener(context);
+      return { kind: "released" };
+    },
+    async releaseOrphanDebuggee(conn) {
+      const client = createDebugClientForConnection(conn, { safety: params.gate });
+      const identity = resolveDebugIdentity(params.cfg);
+      const probe3 = new DebugSession({
+        client,
+        context: {
+          debuggingMode: "user",
+          requestUser: params.cfg.user,
+          terminalId: identity.terminalId,
+          ideId: identity.ideId
+        },
+        log: params.log,
+        listenerTimeoutSeconds: 5,
+        registrationPollTimeoutMs: 3e3,
+        // The probe arms a REAL listener at this identity, so it contends for
+        // the same debugger slot and must take the same lock — a no-op if
+        // THIS process already holds it, a refusal if another one does.
+        armLock: armLocks[0]
+      });
+      try {
+        await probe3.armListener();
+        const caught = await probe3.waitForDebuggee();
+        if (caught.kind !== "debuggee") {
+          try {
+            await probe3.terminate("terminated_by_caller", "cleanup after releaseOrphanDebuggee found nothing (absent)");
+          } catch {
+          }
+          return { kind: "absent" };
+        }
+        await probe3.attach(caught.debuggee.id);
+        await probe3.terminate("terminated_by_caller", "force-cleared orphaned debuggee (abap_debug stop force:true)");
+        return { kind: "released" };
+      } catch (e) {
+        try {
+          await probe3.terminate("terminated_by_caller", "cleanup after failed orphan-debuggee force-clear");
+        } catch {
+        }
+        if (isAbapError(e) && e.code === "NOT_CONNECTED") {
+          return { kind: "absent" };
+        }
+        return { kind: "unknown", detail: describeUnknownError(e) };
+      }
+    }
+  };
+}
+var debugLanes = [];
+function activeLaneRuns() {
+  return debugLanes.filter((r) => r !== void 0);
+}
+function resolveLaneRun(stateId) {
+  const active = activeLaneRuns();
+  if (active.length <= 1) return active[0];
+  if (stateId !== void 0) {
+    const exact = active.find((r) => r.session.snapshot.stateId === stateId);
+    if (exact) return exact;
+  }
+  return active[0];
+}
+function firstFreeLane(limit) {
+  for (let i = 0; i < limit; i++) {
+    if (debugLanes[i] === void 0) return i;
+  }
+  return void 0;
+}
+function assertDebugWrite(gate, target, phase = "final") {
+  return gate.authorize("execute", target, { phase });
+}
+function assertSessionWrite(gate, run) {
+  return assertDebugWrite(gate, run.gateTarget.target, run.gateTarget.phase);
+}
+function shutdownDebugTools() {
+  const runs = debugLanes;
+  debugLanes = [];
+  for (const run of runs) {
+    run?.closeTriggerConn();
+    void run?.closeSessionConn();
+  }
+}
+var TIMED_OUT = /* @__PURE__ */ Symbol("debug.timed-out");
+function raceDeadline(p, ms) {
+  let timer;
+  const deadline2 = new Promise((resolve5) => {
+    timer = setTimeout(() => resolve5(TIMED_OUT), ms);
+    if (typeof timer.unref === "function") timer.unref();
+  });
+  return Promise.race([p, deadline2]).finally(() => {
+    if (timer !== void 0) clearTimeout(timer);
+  });
+}
+var START_FAILURE_TRIGGER_WAIT_MS = 2e3;
+var START_FAILURE_CLEANUP_WAIT_MS = 5e3;
+var STOP_WAIT_MS = 5e3;
+var FORCE_CLEAR_WAIT_MS = 15e3;
+var DROP_DEBUG_SESSION_WAIT_MS = 3e3;
+async function dropDebugSessionOnConnection(conn, log2, why) {
+  log2?.(`abap_debug: dropSession() after ${why} \u2014 starting.`);
+  const heldLocks = conn.heldLockUris();
+  if (heldLocks.length > 0) {
+    log2?.(
+      `abap_debug: skipped dropSession() after ${why} \u2014 connection holds ${heldLocks.length} object lock(s), and dropSession() would silently release them.`
+    );
+    return;
+  }
+  try {
+    const outcome = await raceDeadline(conn.dropSession(), DROP_DEBUG_SESSION_WAIT_MS);
+    if (outcome === TIMED_OUT) {
+      log2?.(
+        `abap_debug: dropSession() after ${why} had not returned after ${DROP_DEBUG_SESSION_WAIT_MS} ms \u2014 it continues in the background.`
+      );
+    } else {
+      log2?.(`abap_debug: dropSession() after ${why} \u2014 completed.`);
+    }
+  } catch (e) {
+    log2?.(`abap_debug: dropSession() after ${why} failed (ignored): ${describeUnknownError(e)}`);
+  }
+}
+function makeTriggerConnCloser(triggerConn, log2) {
+  let closed = false;
+  return () => {
+    if (closed) return;
+    closed = true;
+    try {
+      void triggerConn.shutdown("debug-trigger-done").catch((e) => {
+        log2?.(`abap_debug: trigger connection shutdown failed: ${describeUnknownError(e)}`);
+      }).finally(() => triggerConn.dispose());
+    } catch (e) {
+      log2?.(`abap_debug: trigger connection shutdown threw: ${describeUnknownError(e)}`);
+      triggerConn.dispose();
+    }
+  };
+}
+function makeSessionConnCloser(conn, log2, owned, why) {
+  let closed = false;
+  return async () => {
+    if (closed) return;
+    closed = true;
+    if (!owned) {
+      await dropDebugSessionOnConnection(conn, log2, why);
+      return;
+    }
+    try {
+      await conn.shutdown("debug-session-done").catch((e) => {
+        log2?.(`abap_debug: dedicated debug session connection shutdown failed: ${describeUnknownError(e)}`);
+      });
+    } catch (e) {
+      log2?.(`abap_debug: dedicated debug session connection shutdown threw: ${describeUnknownError(e)}`);
+    } finally {
+      conn.dispose();
+    }
+    log2?.(`abap_debug: dedicated debug session connection discarded after ${why}.`);
+  };
+}
+function renderTriggerOutcome(settled, waitedMs) {
+  if (settled === TIMED_OUT) {
+    return `(the trigger run had NOT returned after ${waitedMs} ms, so no program output is available \u2014 it may still be blocked inside the debuggee)`;
+  }
+  return settled.ok ? settled.text : `(trigger did not complete normally: ${settled.error})`;
+}
+function triggerOutcomeHeader(settled) {
+  if (settled === TIMED_OUT) return "trigger_not_returned";
+  if (settled.ok) return "ran_to_completion";
+  return settled.code === "RUNTIME_DUMP" ? "short_dumped" : "trigger_failed";
+}
+function clampMaxChars(maxChars) {
+  return Math.min(maxChars, DEBUG_MAX_CHARS);
+}
+var breakpointConditionFields = {
+  condition: external_exports.string().trim().min(1).max(255).optional(),
+  skipCount: external_exports.number().int().nonnegative().max(1e6).optional()
+};
+var lineBreakpointSchema = external_exports.object({
+  ...breakpointConditionFields,
+  kind: external_exports.literal("line"),
+  object: external_exports.string().describe("Class or report to break in \u2014 any form abap_read/abap_run accept."),
+  line: external_exports.number().int().min(1).max(999999).describe(
+    "1-based; SAP may snap it to the nearest executable statement (the start response reports the correction)."
+  )
+});
+var exceptionBreakpointSchema = external_exports.object({
+  ...breakpointConditionFields,
+  kind: external_exports.literal("exception"),
+  exceptionClass: external_exports.string().describe("Exception class to break on, e.g. CX_SY_ZERODIVIDE.")
+});
+var statementBreakpointSchema = external_exports.object({
+  ...breakpointConditionFields,
+  kind: external_exports.literal("statement"),
+  statement: external_exports.string().describe("ABAP statement keyword to break on, e.g. RAISE. SAP validates it.")
+});
+var messageBreakpointSchema = external_exports.object({
+  ...breakpointConditionFields,
+  kind: external_exports.literal("message"),
+  msgId: external_exports.string().describe("Message class, e.g. 00."),
+  // String, not number: leading zeros (e.g. "001") are significant and must survive.
+  msgNo: external_exports.string().describe("Message number, e.g. 001."),
+  msgTy: external_exports.string().describe("Message type letter, e.g. E.")
+});
+var debugInputSchema = {
+  action: external_exports.enum(["start", "step", "stack", "frame", "breakpoints", "watch", "keepalive", "stop", "status"]).describe(
+    "start needs breakpoints+run. step needs stateId+step. stack needs stateId. frame needs stateId+frame. breakpoints needs stateId (op add/remove) or nothing (op list, default). watch needs stateId+variable (op add, default when variable given) or stateId+id (op remove) or stateId (op list). keepalive/stop/status need nothing."
+  ),
+  breakpoints: external_exports.array(
+    external_exports.discriminatedUnion("kind", [
+      lineBreakpointSchema,
+      exceptionBreakpointSchema,
+      statementBreakpointSchema,
+      messageBreakpointSchema
+    ])
+  ).optional().describe(
+    '\u22651 entry, required for action="start" and for action="breakpoints" op="add"; kinds (line/exception/statement/message) may mix and are validated against SAP before arming. All kinds take optional condition (ABAP expression, suspend only when true) and skipCount (sent to SAP, NOT enforced \u2014 use step:"continue").'
+  ),
+  run: external_exports.object({
+    object: external_exports.string().describe("Class or report to execute \u2014 same resolution rules as abap_run."),
+    mode: external_exports.enum(["class", "report", "auto"]).optional().describe("Default auto.")
+  }).optional().describe(
+    'The program to trigger (action="start").'
+  ),
+  step: external_exports.enum(["into", "over", "return", "continue", "runToLine", "jumpToLine"]).optional().describe(
+    'continue may end the session (status="dead" plus captured output). runToLine/jumpToLine need toLine; jumpToLine also needs server ABAP_ALLOW_DEBUG_JUMP_TO_LINE=true and confirm:"jumpToLine".'
+  ),
+  toLine: external_exports.number().int().min(1).max(999999).optional().describe(
+    `Required for step="runToLine"/"jumpToLine". 1-based line in the current frame's source.`
+  ),
+  stateId: external_exports.string().optional().describe(
+    "From the most recent start/step/stack/frame response; a stale id is refused."
+  ),
+  frame: external_exports.number().int().min(1).describe(
+    "1-based stackPosition from the last STACK section. Read-only."
+  ).optional(),
+  // Shared between action="breakpoints" and action="watch" — meaning depends
+  // on which. breakpoints: defaults to "list". watch: defaults to "add" when
+  // "variable" is given, else "list".
+  op: external_exports.enum(["list", "add", "remove"]).optional().describe(
+    'action="breakpoints"/"watch" only. breakpoints defaults to "list"; watch defaults to "add" when "variable" is set, else "list".'
+  ),
+  id: external_exports.string().optional().describe('action="breakpoints"/"watch" op="remove" only \u2014 the id to remove.'),
+  variable: external_exports.string().optional().describe(
+    'action="watch" only \u2014 variable path to watch, same syntax abap_debug_value accepts. Presence selects op="add".'
+  ),
+  confirm: external_exports.string().optional().describe(
+    'Required for step="jumpToLine": echo "jumpToLine". Ignored otherwise.'
+  ),
+  // "Uncleanly-exited process" = crash/kill-9/container respawn; NOT
+  // automatic (unlike listener release) because terminating a SUSPENDED
+  // debuggee ends real work; identity-scoped so it can only reach a debuggee
+  // this server armed. See `releaseOrphanDebuggee` above; full prose moved to
+  // doc/TOOLS/debugger.md.
+  force: external_exports.boolean().optional().describe(
+    `stop only \u2014 force-terminates a debuggee left attached by an unclean exit (the "Debuggee already attached" error's escape hatch).`
+  ),
+  // Top-level and named identically to the per-breakpoint `condition` field
+  // above, but distinct: that one nests inside a `breakpoints[]` entry and
+  // conditions a LINE/EXCEPTION/STATEMENT/MESSAGE breakpoint; this one is a
+  // sibling of `variable` and conditions a WATCHPOINT (action="watch" only)
+  // — different key paths, so the two never collide on the wire.
+  condition: external_exports.string().trim().min(1).max(255).optional().describe(
+    'action="watch" op="add" only \u2014 ABAP expression; the watchpoint only suspends when it evaluates true.'
+  )
+};
+var DebugInput = external_exports.object(debugInputSchema);
+function stepKindOf(step) {
+  switch (step) {
+    case "into":
+      return "stepInto";
+    case "over":
+      return "stepOver";
+    case "return":
+      return "stepReturn";
+    case "continue":
+      return "stepContinue";
+    case "runToLine":
+      return "stepRunToLine";
+    case "jumpToLine":
+      return "stepJumpToLine";
+  }
+}
+var LINE_TARGETED_STEPS = /* @__PURE__ */ new Set([
+  "stepRunToLine",
+  "stepJumpToLine"
+]);
+function lineStepUri(stack, toLine) {
+  const frame = stack?.frames.find((f) => !f.systemProgram && f.uri) ?? stack?.frames.find((f) => f.uri);
+  if (!frame?.uri) {
+    throw new AbapError(
+      "UNSUPPORTED",
+      `step:"runToLine"/"jumpToLine" needs the current frame's source URI, and the last stack reported none (system frames often have no resolvable source). Use step:"over"/"into" instead, or set a line breakpoint and step:"continue" to it.`,
+      { toLine }
+    );
+  }
+  return withStartFragment(frame.uri.split("#")[0], toLine);
+}
+async function composeStopOutput(run, action, stack, stateId, maxChars, extraNotes = []) {
+  const root = await run.session.getRootVariables(stateId);
+  const entries = root.variables.variables.map((variable) => ({ variable }));
+  const survey = renderSurvey(entries, { maxChars: DEBUG_MAX_CHARS, stateId });
+  const stackText = renderStackSection(stack, stateId);
+  const visibleFrames = stack.frames.filter((f) => !f.systemProgram);
+  const top = visibleFrames[0] ?? stack.frames[0];
+  return buildResponse({
+    header: {
+      action,
+      status: run.session.snapshot.status,
+      program: top?.programName,
+      include: top?.includeName,
+      line: top?.line,
+      stateId
+    },
+    sections: [{ title: "STACK", content: stackText }],
+    body: survey.text,
+    bodyLabel: "VARIABLES",
+    notes: [
+      ...extraNotes,
+      ...survey.degraded.length ? [`${survey.degraded.length} value(s) shortened to fit budget \u2014 each still names its own retrieval call.`] : []
+    ],
+    maxChars: clampMaxChars(maxChars)
+  });
+}
+function isGenericFallbackEvidence(tr) {
+  if (!tr) return false;
+  if (tr.kind !== "exception" && tr.kind !== "session_ended") return false;
+  return tr.bodyExcerpt !== void 0 && tr.bodyExcerpt === tr.detail;
+}
+function renderTerminationEvidence(tr) {
+  if (!tr) return [];
+  const showBodyExcerpt = !isGenericFallbackEvidence(tr);
+  switch (tr.kind) {
+    case "exception":
+      return [
+        `Termination evidence: the debuggee ended via an ABAP exception \u2014 ${tr.exceptionClassNames.join(", ")}.` + (tr.bodyExcerpt && showBodyExcerpt ? ` Raw evidence: ${tr.bodyExcerpt}` : "")
+      ];
+    case "session_ended":
+      return [
+        "Termination evidence: the debug session ended (SAP reported the session/debuggee is gone), but the response carried no exception class name \u2014 this is NOT confirmed to be an exception; it is only confirmed to be a session-gone condition." + (tr.bodyExcerpt && showBodyExcerpt ? ` Raw evidence: ${tr.bodyExcerpt}` : "")
+      ];
+    case "idle_timeout":
+      return [`Termination evidence: idle timeout \u2014 no debugger activity for ${tr.thresholdMs}ms.`];
+    case "terminated_by_caller":
+      return [`Termination evidence: stopped by explicit caller request (abap_debug action:"stop").`];
+    case "finished":
+      return [
+        "Termination evidence: the debuggee itself reported stepping/termination as no longer possible (a clean finish \u2014 no exception, no timeout, no caller-requested stop)."
+      ];
+  }
+}
+function explainOpaqueDeathDetail(detail) {
+  if (detail.trim().toLowerCase() !== ADT_REST_DATA_INVALID_TEXT.toLowerCase()) return detail;
+  return `${detail} \u2014 this is cx_adt_rest_data_invalid's default text, raised by SAP's ADT REST layer when it cannot convert the payload of the debugger request in flight; it is not a complaint about a value passed to this tool, and the server gives no further detail. Reported by a live verification run on 2026-09-15 right after breakpoints were changed under a suspended debuggee, at a point where that change reached the debuggee one stop-cycle late and the debuggee was already gone; breakpoint changes now notify the attached debuggee immediately, so this shape should no longer occur that way. In practice: the debug session is no longer there to step \u2014 start a new one.`;
+}
+async function composeDeathOutput(run, action, maxChars, cause, extraNotes = []) {
+  const settled = await raceDeadline(run.triggerSettled, STOP_WAIT_MS);
+  const outputSection = {
+    title: "PROGRAM OUTPUT",
+    content: renderTriggerOutcome(settled, STOP_WAIT_MS)
+  };
+  run.closeTriggerConn();
+  await run.closeSessionConn();
+  const snapshot = run.session.snapshot;
+  const showDeathDetail = !isGenericFallbackEvidence(snapshot.terminationResult);
+  const notes = [
+    ...extraNotes,
+    showDeathDetail && snapshot.deathDetail !== void 0 ? explainOpaqueDeathDetail(snapshot.deathDetail) : void 0,
+    snapshot.deathDetail === void 0 && cause instanceof Error ? cause.message : void 0,
+    ...renderTerminationEvidence(snapshot.terminationResult)
+  ].filter((n) => Boolean(n));
+  if (settled === TIMED_OUT) {
+    notes.push("Program output is incomplete: the trigger run had not returned when the wait expired.");
+  }
+  const triggerOutcome = triggerOutcomeHeader(settled);
+  if (triggerOutcome === "short_dumped" || triggerOutcome === "trigger_failed") {
+    notes.push(
+      `triggerOutcome ("${triggerOutcome}") comes from the trigger run used to reach the breakpoint, not from the debug session's own termination evidence above \u2014 the two are independent signals and can disagree. See PROGRAM OUTPUT for the trigger run's own error text.`
+    );
+  }
+  return buildResponse({
+    header: {
+      action,
+      status: snapshot.status,
+      deathReason: snapshot.deathReason,
+      terminationKind: snapshot.terminationResult?.kind,
+      triggerOutcome
+    },
+    sections: [outputSection],
+    notes,
+    maxChars: clampMaxChars(maxChars)
+  });
+}
+var MAX_FRAMEWORK_AUTO_CONTINUES = 10;
+function stackTouchesObject(stack, objectName) {
+  const normalize = (n) => n.toUpperCase().replace(/=+/g, "");
+  const uriNeedle = `/${objectName.toLowerCase()}/`;
+  return stack.frames.some((frame) => {
+    if (normalize(frame.programName).startsWith(objectName)) return true;
+    if (normalize(frame.includeName).startsWith(objectName)) return true;
+    if (frame.uri && frame.uri.toLowerCase().includes(uriNeedle)) return true;
+    return false;
+  });
+}
+var ENHANCEMENT_DEBUG_TYPES = /* @__PURE__ */ new Set(["ENHO/XH", "ENHO/XHH", "ENHS/XS"]);
+async function refuseEnhancementDebugTarget(conn, bpObject, resolved) {
+  const name = resolved.name;
+  let advice;
+  switch (resolved.type) {
+    case "ENHO/XH": {
+      let classNames = [];
+      try {
+        const doc = await readBadiImplementation(conn, name);
+        classNames = doc.data.implementations.map((impl) => impl.implementingClass?.name).filter((n) => Boolean(n));
+      } catch {
+      }
+      advice = classNames.length > 0 ? `Set the breakpoint in its implementing class instead: ${classNames.join(", ")}.` : "Set the breakpoint in its implementing class instead \u2014 read this BAdI implementation with abap_read to find the class name.";
+      break;
+    }
+    case "ENHO/XHH": {
+      let enhancedObject;
+      try {
+        const doc = await readSourceCodePlugin(conn, name);
+        enhancedObject = doc.data.enhancedObject?.name;
+      } catch {
+      }
+      advice = enhancedObject ? `Set the breakpoint in the object it enhances instead: ${enhancedObject}.` : "Set the breakpoint in the object it enhances instead \u2014 read this enhancement plug-in with abap_read to find that object.";
+      break;
+    }
+    case "ENHS/XS": {
+      let badiNames = [];
+      try {
+        const doc = await readEnhancementSpot(conn, name);
+        badiNames = doc.data.badiDefinitions.map((d) => d.name).filter(Boolean);
+      } catch {
+      }
+      advice = badiNames.length > 0 ? `Set the breakpoint in an implementation of one of its BAdI definitions instead: ${badiNames.join(", ")}.` : "Set the breakpoint in an implementation of one of its BAdI definitions instead \u2014 read this enhancement spot with abap_read to find them.";
+      break;
+    }
+    default:
+      advice = "Set the breakpoint in its implementation instead.";
+  }
+  throw new AbapError(
+    "UNSUPPORTED",
+    `${bpObject} is ${resolved.spec.label} (${resolved.type}), which has no debuggable source of its own. ${advice}`,
+    { object: bpObject, type: resolved.type }
+  );
+}
+async function handleStart(conn, input, maxChars, deps, gate) {
+  const laneLimit = deps.debugLaneCount ?? 1;
+  let targetLane;
+  if (laneLimit === 1) {
+    const live = listActiveDebugSessions();
+    if (live.length > 0) {
+      const status = live[0].snapshot.status;
+      const tracked = debugLanes[0] !== void 0 && live.includes(debugLanes[0].session);
+      if (tracked) {
+        throw new AbapError(
+          "DEBUG_ALL_LEASES_BUSY",
+          `This process is configured for a single debug session (laneLimit 1) and it is already "${status}" \u2014 stop it first: abap_debug({action:"stop"}). Raise ABAP_DEBUG_SESSIONS to run more than one at a time \u2014 itself capped at floor(ABAP_DEBUG_DIA_BUDGET / 2), since each concurrent debug session pins 2 dialog work processes on the SAP appliance (see debugDiaBudget/debugSessions in src/config.ts).`,
+          { laneLimit, status },
+          void 0,
+          { retryable: true }
+          // transient occupancy, not an unimplemented capability — a stop clears it
+        );
+      }
+      throw new AbapError(
+        "UNSUPPORTED",
+        `A debug session from an earlier, unsuccessful start attempt is still registered (status "${status}") even though it never became this process's active session (one session per process) \u2014 clear it first: abap_debug({action:"stop"}); if that reports the cleanup is still running, retry, or use abap_debug({action:"stop", force:true}) to force it out of tracking.`,
+        { status, tracked },
+        void 0,
+        { retryable: true }
+        // transient occupancy, not an unimplemented capability — a stop clears it
+      );
+    }
+    targetLane = 0;
+  } else {
+    const tracked = new Set(activeLaneRuns().map((r) => r.session));
+    const leaked = listActiveDebugSessions().find((s) => !tracked.has(s));
+    if (leaked) {
+      const status = leaked.snapshot.status;
+      throw new AbapError(
+        "UNSUPPORTED",
+        `A debug session from an earlier, unsuccessful start attempt is still registered (status "${status}") even though it is not one of this process's tracked debug lanes \u2014 clear it first: abap_debug({action:"stop"}); if that reports the cleanup is still running, retry, or use abap_debug({action:"stop", force:true}) to force it out of tracking.`,
+        { status, tracked: false },
+        void 0,
+        { retryable: true }
+        // transient occupancy, not an unimplemented capability — a stop clears it
+      );
+    }
+    const free = firstFreeLane(laneLimit);
+    if (free === void 0) {
+      const status = activeLaneRuns()[0].session.snapshot.status;
+      throw new AbapError(
+        "DEBUG_ALL_LEASES_BUSY",
+        `All ${laneLimit} configured debug lanes are already busy in this process (e.g. status "${status}"). Raise ABAP_DEBUG_SESSIONS to configure more \u2014 itself capped at floor(ABAP_DEBUG_DIA_BUDGET / 2), since each concurrent debug session pins 2 dialog work processes on the SAP appliance (see debugDiaBudget/debugSessions in src/config.ts).`,
+        { laneLimit, status },
+        'Stop an existing session first: abap_debug({action:"stop"}).',
+        { retryable: true }
+        // transient occupancy: a stop on any lane frees one (issue #89)
+      );
+    }
+    targetLane = free;
+  }
+  if (!input.breakpoints || input.breakpoints.length === 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      'abap_debug({action:"start"}) requires a non-empty "breakpoints" array.',
+      {}
+    );
+  }
+  if (!input.run) {
+    throw new AbapError(
+      "BAD_INPUT",
+      'abap_debug({action:"start"}) requires a "run" object naming the program to trigger.',
+      {}
+    );
+  }
+  const runTarget = { name: parseObjectRef(input.run.object).name };
+  assertDebugWrite(gate, runTarget, "preflight");
+  const sessionTarget = { ...runTarget };
+  let gateTarget = { target: sessionTarget, phase: "preflight" };
+  const slot = await deps.reserveDebugSession?.("debugger/listeners");
+  let dedicatedConn;
+  if (deps.createDebugSessionConnection) {
+    try {
+      dedicatedConn = await deps.createDebugSessionConnection();
+    } catch (e) {
+      slot?.release();
+      throw e;
+    }
+  }
+  const sessionConn = dedicatedConn ?? slot?.conn ?? conn;
+  const closeSessionConn = makeSessionConnCloser(
+    sessionConn,
+    deps.log,
+    dedicatedConn !== void 0,
+    "session end"
+  );
+  let session;
+  try {
+    session = deps.createSession(sessionConn, gate, {
+      target: sessionTarget,
+      sessionLease: slot,
+      lane: targetLane
+    });
+  } catch (e) {
+    slot?.release();
+    void closeSessionConn();
+    throw e;
+  }
+  let attachedStack;
+  let attachedStateId;
+  let triggerConn;
+  let triggerSettled;
+  const skipCountWarnings = [];
+  let closeTriggerConn = () => {
+  };
+  try {
+    const resolvedCache = /* @__PURE__ */ new Map();
+    const breakpoints = [];
+    for (const bp of input.breakpoints) {
+      if (bp.skipCount !== void 0 && bp.skipCount > 0) {
+        const where2 = bp.kind === "line" ? `${bp.object}:${bp.line}` : bp.kind === "exception" ? bp.exceptionClass : bp.kind === "statement" ? bp.statement : `${bp.msgId} ${bp.msgTy}${bp.msgNo}`;
+        skipCountWarnings.push(
+          `skipCount:${bp.skipCount} on ${where2} was sent to SAP but is NOT enforced by this ADT debugger backend (live-verified on A4H) \u2014 expect a suspend on EVERY hit, not just the Nth. Use abap_debug({action:"step", step:"continue"}) to advance past hits you want to skip.`
+        );
+      }
+      if (bp.kind === "line") {
+        const key = bp.object.toUpperCase();
+        let resolved = resolvedCache.get(key);
+        if (!resolved) {
+          try {
+            resolved = await deps.resolveObject(conn, bp.object);
+          } catch (e) {
+            if (e instanceof AbapError && e.code === "UNSUPPORTED" && Array.isArray(e.details.types) && e.details.types.includes("BOBF")) {
+              throw new AbapError(
+                "UNSUPPORTED",
+                `${bp.object} is a BOPF business object, which has no source. Set the breakpoint in its implementation class instead.`,
+                { object: bp.object },
+                'Run abap_bopf mode:"show" to list them.'
+              );
+            }
+            throw e;
+          }
+          resolvedCache.set(key, resolved);
+        }
+        if (ENHANCEMENT_DEBUG_TYPES.has(resolved.type)) {
+          await refuseEnhancementDebugTarget(conn, bp.object, resolved);
+        }
+        const baseUri = resolved.sourceUri ?? resolved.uri;
+        if (!baseUri) {
+          throw new AbapError(
+            "UNSUPPORTED",
+            `${bp.object} has no source URI to attach a line breakpoint to.`,
+            { object: bp.object }
+          );
+        }
+        const bpTarget = {
+          name: resolved.name,
+          packageName: resolved.packageName,
+          type: resolved.type
+        };
+        assertDebugWrite(gate, bpTarget);
+        if (gateTarget.phase === "preflight") {
+          Object.assign(sessionTarget, bpTarget);
+          gateTarget = { target: sessionTarget, phase: "final" };
+        }
+        breakpoints.push({
+          kind: "line",
+          uri: `${baseUri}#start=${bp.line}`,
+          // D5: forward what the caller asked for instead of dropping it.
+          ...bp.condition !== void 0 ? { condition: bp.condition } : {},
+          ...bp.skipCount !== void 0 ? { skipCount: bp.skipCount } : {}
+        });
+      } else if (bp.kind === "exception") {
+        breakpoints.push({
+          kind: "exception",
+          exceptionClass: bp.exceptionClass,
+          ...bp.condition !== void 0 ? { condition: bp.condition } : {},
+          ...bp.skipCount !== void 0 ? { skipCount: bp.skipCount } : {}
+        });
+      } else if (bp.kind === "statement") {
+        breakpoints.push({
+          kind: "statement",
+          statement: bp.statement,
+          ...bp.condition !== void 0 ? { condition: bp.condition } : {},
+          ...bp.skipCount !== void 0 ? { skipCount: bp.skipCount } : {}
+        });
+      } else {
+        breakpoints.push({
+          kind: "message",
+          msgId: bp.msgId,
+          msgNo: bp.msgNo,
+          msgTy: bp.msgTy,
+          ...bp.condition !== void 0 ? { condition: bp.condition } : {},
+          ...bp.skipCount !== void 0 ? { skipCount: bp.skipCount } : {}
+        });
+      }
+    }
+    await session.prepareBreakpoints(breakpoints);
+    await session.armListener();
+    triggerConn = await deps.createTriggerConnection();
+    closeTriggerConn = makeTriggerConnCloser(triggerConn, deps.log);
+    triggerSettled = deps.triggerRun(triggerConn, input.run, maxChars, gate).then(
+      (res) => ({ ok: true, text: res.text }),
+      // Preserve the structured AbapError.code alongside the flattened
+      // message — see `DebugTriggerOutcome`'s doc comment.
+      (e) => ({ ok: false, error: describeUnknownError(e), code: isAbapError(e) ? e.code : void 0 })
+    );
+    void triggerSettled.finally(closeTriggerConn).catch(() => {
+    });
+    const listenResult = await session.waitForDebuggee();
+    if (listenResult.kind !== "debuggee") {
+      if (listenResult.kind === "conflict") {
+        throw new AbapError(
+          "ADT_ERROR",
+          `abap_debug start: another listener already holds this session (${listenResult.conflict.conflictText}${listenResult.conflict.ideUser ? `, ideUser=${listenResult.conflict.ideUser}` : ""}).`,
+          { conflict: listenResult.conflict },
+          "Retrying will not clear this: a 409 here means a DIFFERENT (terminalId, ideId) identity already holds the global-scope listener for this SAP user. Stop that listener, or give this process a stable ABAP_TERMINAL_ID/ABAP_IDE_ID pair that matches it."
+        );
+      }
+      throw new AbapError(
+        "ADT_ERROR",
+        `abap_debug start: timed out waiting for the debuggee to hit a breakpoint (kind="${listenResult.kind}").`,
+        { kind: listenResult.kind }
+      );
+    }
+    const attached = await session.attach(listenResult.debuggee.id);
+    attachedStack = attached.stack;
+    attachedStateId = attached.stateId;
+  } catch (e) {
+    const cleanupWaitMs = Math.max(START_FAILURE_CLEANUP_WAIT_MS, session.terminateDeadlineMs + 1e3);
+    await raceDeadline(
+      session.cleanup().catch(() => void 0),
+      cleanupWaitMs
+    );
+    await closeSessionConn();
+    let triggerNote;
+    if (triggerSettled) {
+      const settled = await raceDeadline(triggerSettled, START_FAILURE_TRIGGER_WAIT_MS);
+      if (settled === TIMED_OUT) {
+        triggerNote = `The trigger run had NOT returned after ${START_FAILURE_TRIGGER_WAIT_MS} ms, so no program output is available to explain this.`;
+      } else if (!settled.ok) {
+        triggerNote = `The trigger run itself failed: ${settled.error}`;
+      } else {
+        const text5 = settled.text.trim();
+        triggerNote = text5 ? `PROGRAM OUTPUT from the trigger run:
+${text5}` : "The trigger run completed and produced no output.";
+      }
+    }
+    closeTriggerConn();
+    if (triggerNote) {
+      if (e instanceof Error) {
+        e.message = `${e.message}
+
+${triggerNote}`;
+        throw e;
+      }
+      throw new AbapError("ADT_ERROR", `${describeUnknownError(e)}
+
+${triggerNote}`, {});
+    }
+    throw e;
+  }
+  const run = {
+    session,
+    sessionConn,
+    closeSessionConn,
+    triggerConn,
+    triggerSettled,
+    closeTriggerConn,
+    gateTarget,
+    lastStack: attachedStack,
+    lane: targetLane
+  };
+  debugLanes[targetLane] = run;
+  const runObjectName = parseObjectRef(input.run.object).name.toUpperCase();
+  const skippedFrameworkStops = [];
+  const describeTopFrame = (stack) => {
+    const frame = stack.frames[0];
+    if (!frame) return "<no frame reported>";
+    const eventBits = [frame.eventType, frame.eventName].filter((s) => s).join(" ");
+    return `${frame.programName}/${frame.includeName}:${frame.line}${eventBits ? ` (${eventBits})` : ""}`;
+  };
+  while (skippedFrameworkStops.length < MAX_FRAMEWORK_AUTO_CONTINUES && !stackTouchesObject(attachedStack, runObjectName)) {
+    skippedFrameworkStops.push(describeTopFrame(attachedStack));
+    let result;
+    try {
+      result = await run.session.step(attachedStateId, "stepContinue");
+    } catch (e) {
+      if (run.session.snapshot.status === "dead") {
+        skipCountWarnings.push(
+          `Auto-continued past ${skippedFrameworkStops.length} stop(s) outside ${runObjectName} before the debuggee died: ${skippedFrameworkStops.join("; ")}. A statement/exception/message breakpoint has no program/include restriction on the wire in ADT, so it fires in the first code that hits it anywhere in the work process (see MAX_FRAMEWORK_AUTO_CONTINUES's doc comment, src/tools/debug.ts).`
+        );
+        const out = await composeDeathOutput(run, "start", maxChars, e, skipCountWarnings);
+        debugLanes[run.lane] = void 0;
+        return out;
+      }
+      throw e;
+    }
+    if (run.session.snapshot.status === "dead") {
+      skipCountWarnings.push(
+        `Auto-continued past ${skippedFrameworkStops.length} stop(s) outside ${runObjectName} before the debuggee died: ${skippedFrameworkStops.join("; ")}. A statement/exception/message breakpoint has no program/include restriction on the wire in ADT, so it fires in the first code that hits it anywhere in the work process (see MAX_FRAMEWORK_AUTO_CONTINUES's doc comment, src/tools/debug.ts).`
+      );
+      const out = await composeDeathOutput(run, "start", maxChars, void 0, skipCountWarnings);
+      debugLanes[run.lane] = void 0;
+      return out;
+    }
+    attachedStack = result.stack;
+    attachedStateId = result.stateId;
+    run.lastStack = result.stack;
+  }
+  if (skippedFrameworkStops.length > 0) {
+    if (stackTouchesObject(attachedStack, runObjectName)) {
+      skipCountWarnings.push(
+        `Auto-continued past ${skippedFrameworkStops.length} stop(s) whose stack did not mention ${runObjectName} before reaching this one: ${skippedFrameworkStops.join("; ")}. A statement/exception/message breakpoint has no program/include restriction on the wire in ADT \u2014 it fires in the first code that hits it anywhere in the work process, which is very often SAP's own gateway/framework code running long before the caller's own object gets a chance to run (see MAX_FRAMEWORK_AUTO_CONTINUES's doc comment, src/tools/debug.ts).`
+      );
+    } else {
+      skipCountWarnings.push(
+        `Auto-continue stopped after reaching MAX_FRAMEWORK_AUTO_CONTINUES (${MAX_FRAMEWORK_AUTO_CONTINUES}) without a stack mentioning ${runObjectName}: ${skippedFrameworkStops.join("; ")}. The session is suspended in code outside ${runObjectName} \u2014 keep issuing abap_debug({action:"step", step:"continue"}) to move past it, or inspect the current stop as-is.`
+      );
+    }
+  }
+  return await composeStopOutput(run, "start", attachedStack, attachedStateId, maxChars, skipCountWarnings);
+}
+async function handleStep(input, maxChars, gate, deps) {
+  const run = resolveLaneRun(input.stateId);
+  if (!run) {
+    throw new AbapError(
+      "BAD_INPUT",
+      'No active debug session. Start one with abap_debug({action:"start", ...}).'
+    );
+  }
+  if (!input.stateId) {
+    throw new AbapError("BAD_INPUT", 'abap_debug({action:"step"}) requires "stateId".');
+  }
+  if (!input.step) {
+    throw new AbapError("BAD_INPUT", 'abap_debug({action:"step"}) requires "step".');
+  }
+  assertSessionWrite(gate, run);
+  const kind = stepKindOf(input.step);
+  if (kind === "stepJumpToLine") {
+    if (deps.allowJumpToLine !== true) {
+      throw new AbapError(
+        "DEBUG_JUMP_DISABLED",
+        'step:"jumpToLine" is disabled on this server. Set ABAP_ALLOW_DEBUG_JUMP_TO_LINE=true to enable it \u2014 this is deliberately separate from ABAP_ALLOW_WRITE, because jumpToLine can skip statements (and any authorization/validation checks they would have run) instead of executing them in order. Use step:"runToLine" instead if the code in between is safe to run.',
+        { step: input.step }
+      );
+    }
+    if (input.confirm !== "jumpToLine") {
+      throw new AbapError(
+        "BAD_INPUT",
+        'step:"jumpToLine" requires confirm:"jumpToLine" on the SAME call, even though ABAP_ALLOW_DEBUG_JUMP_TO_LINE is enabled \u2014 this step can skip code (and any checks it would have run) rather than executing it in order. Reissue the call with confirm:"jumpToLine" once you are sure this is the right target line.',
+        { step: input.step }
+      );
+    }
+  }
+  let uri;
+  if (LINE_TARGETED_STEPS.has(kind)) {
+    if (input.toLine === void 0) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `abap_debug({action:"step", step:"${input.step}"}) requires "toLine" \u2014 the line in the current program to run to. Without it there is no target and the step would be a no-op.`,
+        { step: input.step }
+      );
+    }
+    uri = lineStepUri(run.lastStack, input.toLine);
+  }
+  let result;
+  try {
+    result = await run.session.step(input.stateId, kind, uri);
+  } catch (e) {
+    if (run.session.snapshot.status === "dead") {
+      const out = await composeDeathOutput(run, "step", maxChars, e);
+      debugLanes[run.lane] = void 0;
+      return out;
+    }
+    throw e;
+  }
+  if (run.session.snapshot.status === "dead") {
+    const out = await composeDeathOutput(run, "step", maxChars);
+    debugLanes[run.lane] = void 0;
+    return out;
+  }
+  run.lastStack = result.stack;
+  const revisitNotes = result.positionVisitCount > 1 ? [
+    `Position revisited: this exact program/line/stack-level has now been reached ${result.positionVisitCount} times by stepping in this session. If you are stepping through a loop body, "step over"/"step into" can under-report how many iterations actually ran between visits \u2014 this only proves you returned to this line, not how many times the loop body executed in between. For a reliable per-iteration count, set a breakpoint at the loop body's start (abap_debug action:"start" or a line breakpoint) and use step:"continue" repeatedly instead of stepping through \u2014 each hit is a real, separately counted stop.`
+  ] : [];
+  const watchpointNotes = [];
+  if (result.step.reachedWatchpoints.length > 0) {
+    let byId;
+    try {
+      const owned = await run.session.readWatchpoints();
+      byId = new Map(owned.map((wp) => [wp.id, wp]));
+    } catch {
+      byId = void 0;
+    }
+    for (const hit of result.step.reachedWatchpoints) {
+      const old = byId?.get(hit.id)?.oldValue;
+      watchpointNotes.push(
+        `Stopped on watchpoint ${hit.id} (${hit.variableName}): now ${renderWatchValue(hit.currentValue)}` + (old !== void 0 ? `, was ${renderWatchValue(old)} (read back from the watchpoint resource after the stop)` : `. Old value not available from this step's own data \u2014 call abap_debug({action:"watch", op:"list"}) to check.`)
+      );
+    }
+  }
+  return composeStopOutput(run, "step", result.stack, result.stateId, maxChars, [
+    ...revisitNotes,
+    ...watchpointNotes
+  ]);
+}
+async function handleStack(input, maxChars) {
+  const run = resolveLaneRun(input.stateId);
+  if (!run) {
+    throw new AbapError(
+      "BAD_INPUT",
+      'No active debug session. Start one with abap_debug({action:"start", ...}).'
+    );
+  }
+  if (!input.stateId) {
+    throw new AbapError("BAD_INPUT", 'abap_debug({action:"stack"}) requires "stateId".');
+  }
+  const stack = await run.session.getStack(input.stateId);
+  run.lastStack = stack;
+  const stackText = renderStackSection(stack, input.stateId);
+  const visibleFrames = stack.frames.filter((f) => !f.systemProgram);
+  const top = visibleFrames[0] ?? stack.frames[0];
+  return buildResponse({
+    header: {
+      action: "stack",
+      status: run.session.snapshot.status,
+      program: top?.programName,
+      include: top?.includeName,
+      line: top?.line,
+      stateId: input.stateId
+    },
+    sections: [{ title: "STACK", content: stackText }],
+    maxChars: clampMaxChars(maxChars)
+  });
+}
+async function handleFrame(input, maxChars) {
+  const run = resolveLaneRun(input.stateId);
+  if (!run) {
+    throw new AbapError(
+      "BAD_INPUT",
+      'No active debug session. Start one with abap_debug({action:"start", ...}).'
+    );
+  }
+  if (!input.stateId) {
+    throw new AbapError("BAD_INPUT", 'abap_debug({action:"frame"}) requires "stateId".');
+  }
+  if (input.frame === void 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      'abap_debug({action:"frame"}) requires "frame" \u2014 the 1-based stackPosition of the frame to move the read cursor to.'
+    );
+  }
+  const lastStack = run.lastStack;
+  const target = lastStack?.frames.find((f) => f.stackPosition === input.frame);
+  if (!lastStack || !target) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `abap_debug({action:"frame", frame:${input.frame}}) does not match any frame in the most recently known stack. Call abap_debug({action:"stack", stateId:"${input.stateId}"}) first to see the current stackPosition values.`,
+      { frame: input.frame }
+    );
+  }
+  await run.session.setStackPosition(input.stateId, { stackPosition: input.frame, stackType: "ABAP" });
+  const root = await run.session.getRootVariables(input.stateId);
+  const entries = root.variables.variables.map((variable) => ({ variable }));
+  const survey = renderSurvey(entries, { maxChars: DEBUG_MAX_CHARS, stateId: input.stateId });
+  const stackText = renderStackSection(lastStack, input.stateId);
+  return buildResponse({
+    header: {
+      action: "frame",
+      status: run.session.snapshot.status,
+      program: target.programName,
+      include: target.includeName,
+      line: target.line,
+      frame: target.stackPosition,
+      stateId: input.stateId
+    },
+    sections: [{ title: "STACK", content: stackText }],
+    body: survey.text,
+    bodyLabel: "VARIABLES",
+    notes: [
+      `Read cursor switched to frame #${target.stackPosition} \u2014 this does not change what runs next. The next step resumes from the live top frame regardless (live-verified).`,
+      ...survey.degraded.length ? [`${survey.degraded.length} value(s) shortened to fit budget \u2014 each still names its own retrieval call.`] : []
+    ],
+    maxChars: clampMaxChars(maxChars)
+  });
+}
+async function handleKeepalive(maxChars, gate) {
+  const run = resolveLaneRun(void 0);
+  if (!run) {
+    throw new AbapError(
+      "BAD_INPUT",
+      'No active debug session. Start one with abap_debug({action:"start", ...}).'
+    );
+  }
+  assertSessionWrite(gate, run);
+  run.session.keepalive();
+  const snapshot = run.session.snapshot;
+  return buildResponse({
+    header: {
+      action: "keepalive",
+      status: snapshot.status,
+      stateId: snapshot.stateId,
+      debugSessionId: snapshot.debugSessionId
+    },
+    maxChars: clampMaxChars(maxChars)
+  });
+}
+function describeBreakpoint(bp) {
+  switch (bp.kind) {
+    case "line":
+      return bp.uri;
+    case "exception":
+      return `exception ${bp.exceptionClass}`;
+    case "statement":
+      return `statement ${bp.statement}`;
+    case "message":
+      return `message ${bp.msgId} ${bp.msgTy}${bp.msgNo}`;
+  }
+}
+async function mapInputBreakpointForAdd(bp, conn, deps, resolvedCache) {
+  if (bp.kind === "line") {
+    const key = bp.object.toUpperCase();
+    let resolved = resolvedCache.get(key);
+    if (!resolved) {
+      resolved = await deps.resolveObject(conn, bp.object);
+      resolvedCache.set(key, resolved);
+    }
+    const baseUri = resolved.sourceUri ?? resolved.uri;
+    if (!baseUri) {
+      throw new AbapError(
+        "UNSUPPORTED",
+        `${bp.object} has no source URI to attach a line breakpoint to.`,
+        { object: bp.object }
+      );
+    }
+    return {
+      kind: "line",
+      uri: `${baseUri}#start=${bp.line}`,
+      ...bp.condition !== void 0 ? { condition: bp.condition } : {},
+      ...bp.skipCount !== void 0 ? { skipCount: bp.skipCount } : {}
+    };
+  }
+  if (bp.kind === "exception") {
+    return {
+      kind: "exception",
+      exceptionClass: bp.exceptionClass,
+      ...bp.condition !== void 0 ? { condition: bp.condition } : {},
+      ...bp.skipCount !== void 0 ? { skipCount: bp.skipCount } : {}
+    };
+  }
+  if (bp.kind === "statement") {
+    return {
+      kind: "statement",
+      statement: bp.statement,
+      ...bp.condition !== void 0 ? { condition: bp.condition } : {},
+      ...bp.skipCount !== void 0 ? { skipCount: bp.skipCount } : {}
+    };
+  }
+  return {
+    kind: "message",
+    msgId: bp.msgId,
+    msgNo: bp.msgNo,
+    msgTy: bp.msgTy,
+    ...bp.condition !== void 0 ? { condition: bp.condition } : {},
+    ...bp.skipCount !== void 0 ? { skipCount: bp.skipCount } : {}
+  };
+}
+async function handleBreakpoints(conn, input, maxChars, deps, gate) {
+  const run = resolveLaneRun(input.stateId);
+  if (!run) {
+    throw new AbapError(
+      "BAD_INPUT",
+      'No active debug session. Start one with abap_debug({action:"start", ...}).'
+    );
+  }
+  const op = input.op ?? "list";
+  if (!input.stateId) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `abap_debug({action:"breakpoints", op:"${op}"}) requires "stateId" \u2014 same as stack/frame, to confirm which stop this call addresses.`
+    );
+  }
+  if (op === "list") {
+    const owned = run.session.listOwnedBreakpoints();
+    return buildResponse({
+      header: {
+        action: "breakpoints",
+        op: "list",
+        status: run.session.snapshot.status,
+        stateId: input.stateId,
+        count: owned.length
+      },
+      sections: [
+        {
+          title: "BREAKPOINTS",
+          content: owned.length ? owned.map((bp) => `${bp.id}	${describeBreakpoint(bp)}`).join("\n") : "(none owned by this session)"
+        }
+      ],
+      notes: [
+        "This lists only breakpoints THIS session armed (in-memory) \u2014 ADT has no server-side read of what is actually armed while stopped (live-verified \u2014 see the two captures cited in this handler's doc comment). If SAP silently dropped or renumbered one, this will not show it."
+      ],
+      maxChars: clampMaxChars(maxChars)
+    });
+  }
+  if (op === "add") {
+    if (!input.breakpoints || input.breakpoints.length === 0) {
+      throw new AbapError(
+        "BAD_INPUT",
+        'abap_debug({action:"breakpoints", op:"add"}) requires a non-empty "breakpoints" array.'
+      );
+    }
+    assertSessionWrite(gate, run);
+    const resolvedCache = /* @__PURE__ */ new Map();
+    const toArm = [];
+    for (const bp of input.breakpoints) {
+      toArm.push(await mapInputBreakpointForAdd(bp, conn, deps, resolvedCache));
+    }
+    const created = await run.session.addBreakpoints(input.stateId, toArm);
+    return buildResponse({
+      header: {
+        action: "breakpoints",
+        op: "add",
+        status: run.session.snapshot.status,
+        stateId: input.stateId,
+        count: created.length
+      },
+      sections: [
+        { title: "BREAKPOINTS", content: created.map((bp) => `${bp.id}	${describeBreakpoint(bp)}`).join("\n") }
+      ],
+      notes: [
+        'Ids are server-assigned and unpredictable \u2014 do not guess one from a prior session or a pattern (live example: a breakpoint set at "#start=11" came back tagged "INCLUDE=...CM001.LINE_NR=5"). Use the id printed above for a later op:"remove".'
+      ],
+      maxChars: clampMaxChars(maxChars)
+    });
+  }
+  if (!input.id) {
+    throw new AbapError("BAD_INPUT", 'abap_debug({action:"breakpoints", op:"remove"}) requires "id".');
+  }
+  assertSessionWrite(gate, run);
+  await run.session.removeBreakpoint(input.stateId, input.id);
+  return buildResponse({
+    header: {
+      action: "breakpoints",
+      op: "remove",
+      status: run.session.snapshot.status,
+      stateId: input.stateId,
+      id: input.id
+    },
+    maxChars: clampMaxChars(maxChars)
+  });
+}
+function renderWatchValue(raw) {
+  return renderScalar({
+    id: "",
+    name: "",
+    declaredTypeName: "",
+    actualTypeName: "",
+    kind: "",
+    instantiationKind: "",
+    accessKind: "",
+    metaType: "unknown",
+    parameterKind: "",
+    value: raw,
+    hexValue: "",
+    readOnly: true,
+    technicalType: "",
+    length: raw.length,
+    tableBody: "",
+    isValueIncomplete: false,
+    isException: false,
+    inheritanceLevel: 0,
+    inheritanceClass: ""
+  });
+}
+async function handleWatch(input, maxChars, gate) {
+  const run = resolveLaneRun(input.stateId);
+  if (!run) {
+    throw new AbapError(
+      "BAD_INPUT",
+      'No active debug session. Start one with abap_debug({action:"start", ...}).'
+    );
+  }
+  const op = input.op ?? (input.variable !== void 0 ? "add" : "list");
+  if (!input.stateId) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `abap_debug({action:"watch", op:"${op}"}) requires "stateId" \u2014 same as stack/frame, to confirm which stop this call addresses.`
+    );
+  }
+  if (op === "add") {
+    if (!input.variable) {
+      throw new AbapError("BAD_INPUT", 'abap_debug({action:"watch", op:"add"}) requires "variable".');
+    }
+    assertSessionWrite(gate, run);
+    const created = await run.session.addWatchpoint(input.stateId, {
+      variableName: input.variable,
+      ...input.condition !== void 0 ? { condition: input.condition } : {}
+    });
+    const lines = created.map(
+      (wp) => `${wp.id}	${wp.variableName}` + (wp.condition ? ` (condition: ${wp.condition})` : "") + (wp.currentValue !== void 0 ? ` = ${renderWatchValue(wp.currentValue)}` : "")
+    );
+    return buildResponse({
+      header: {
+        action: "watch",
+        op: "add",
+        status: run.session.snapshot.status,
+        stateId: input.stateId,
+        count: created.length
+      },
+      sections: [{ title: "WATCHPOINTS", content: lines.join("\n") }],
+      notes: [
+        `Watchpoint ids are not stable handles in general \u2014 a PUT that modifies a watchpoint's condition can retire the old id and hand back a new one (live-verified: see test/fixtures/live-captured/940-watchpoint-modify-condition.meta.json, 941-watchpoint-list-after-modify.meta.json, and 942-watchpoint-create-duplicate.meta.json). This tool never modifies a watchpoint (only creates/lists/removes), so within this session's life the id returned here stays valid until you remove it with op:"remove".`
+      ],
+      maxChars: clampMaxChars(maxChars)
+    });
+  }
+  if (op === "list") {
+    const owned = await run.session.readWatchpoints();
+    const lines = owned.map(
+      (wp) => `${wp.id}	${wp.variableName}` + (wp.condition ? ` (condition: ${wp.condition})` : "") + (wp.currentValue !== void 0 ? ` = ${renderWatchValue(wp.currentValue)}` : "") + (wp.oldValue !== void 0 ? ` (was ${renderWatchValue(wp.oldValue)})` : "")
+    );
+    return buildResponse({
+      header: {
+        action: "watch",
+        op: "list",
+        status: run.session.snapshot.status,
+        stateId: input.stateId,
+        count: owned.length
+      },
+      sections: [
+        { title: "WATCHPOINTS", content: owned.length ? lines.join("\n") : "(none owned by this session)" }
+      ],
+      maxChars: clampMaxChars(maxChars)
+    });
+  }
+  if (!input.id) {
+    throw new AbapError("BAD_INPUT", 'abap_debug({action:"watch", op:"remove"}) requires "id".');
+  }
+  assertSessionWrite(gate, run);
+  await run.session.removeWatchpoint(input.stateId, input.id);
+  return buildResponse({
+    header: {
+      action: "watch",
+      op: "remove",
+      status: run.session.snapshot.status,
+      stateId: input.stateId,
+      id: input.id
+    },
+    maxChars: clampMaxChars(maxChars)
+  });
+}
+async function clearLeakedSessions(force, conn, log2) {
+  const tracked = new Set(activeLaneRuns().map((r) => r.session));
+  const leaked = listActiveDebugSessions().filter((s) => !tracked.has(s));
+  if (leaked.length === 0) return { found: 0, notes: [] };
+  const notes = [];
+  await Promise.all(
+    leaked.map(async (session) => {
+      const before = session.snapshot.status;
+      const outcome = await raceDeadline(
+        session.terminate("terminated_by_caller").catch((e) => {
+          notes.push(`Leaked debug session cleanup reported an error: ${describeUnknownError(e)}`);
+        }),
+        STOP_WAIT_MS
+      );
+      if (outcome === TIMED_OUT) {
+        if (force) {
+          forceDropDebugSession(session);
+          notes.push(
+            `A leaked debug session (was "${before}") had not finished terminate() after ${STOP_WAIT_MS} ms \u2014 force-dropped from tracking so start is unblocked; its own cleanup continues in the background.`
+          );
+        } else {
+          notes.push(
+            `A leaked debug session (still "${before}") had not finished terminate() after ${STOP_WAIT_MS} ms \u2014 it continues in the background; retry stop, or use stop({force:true}) to unblock start now.`
+          );
+        }
+        return;
+      }
+      notes.push(
+        `Cleared a leaked debug session (no in-process trigger/gate bookkeeping \u2014 most likely left behind by a start that constructed it and then failed) that was "${before}"; it is now "${session.snapshot.status}".`
+      );
+    })
+  );
+  await dropDebugSessionOnConnection(conn, log2, "clearing leaked debug session(s)");
+  return { found: leaked.length, notes };
+}
+function formatAbandonedCleanupNote(steps) {
+  return `Cleanup timed out on: ${steps.join(", ")} \u2014 may still be armed on the server (e.g. a breakpoint); a later session could hit it.`;
+}
+async function handleStop(conn, maxChars, deps, gate, force = false) {
+  const run = resolveLaneRun(void 0);
+  if (!run) {
+    const leaked = await clearLeakedSessions(force, conn, deps.log);
+    let orphanNote;
+    if (deps.releaseOrphanListener) {
+      try {
+        const result = await raceDeadline(deps.releaseOrphanListener(conn), STOP_WAIT_MS);
+        if (result === TIMED_OUT) {
+          orphanNote = "Checked for a listener orphaned by an earlier process instance, but the check had not returned in time \u2014 nothing more to report.";
+        } else if (result.kind === "released") {
+          orphanNote = "Released a debug listener armed at this server's identity with no in-process session tracking it \u2014 most likely left behind by an earlier, uncleanly-exited process instance.";
+        } else if (result.kind === "conflict") {
+          orphanNote = `Found something at this server's listener identity but could not confirm release: ${result.detail}`;
+        }
+      } catch (e) {
+        orphanNote = `Orphaned-listener check failed: ${describeUnknownError(e)}`;
+      }
+    }
+    let debuggeeNote;
+    if (force && deps.releaseOrphanDebuggee) {
+      try {
+        const result = await raceDeadline(deps.releaseOrphanDebuggee(conn), FORCE_CLEAR_WAIT_MS);
+        if (result === TIMED_OUT) {
+          debuggeeNote = "Force-clear of an orphaned debuggee was requested, but the check had not returned in time \u2014 nothing more to report.";
+        } else if (result.kind === "released") {
+          debuggeeNote = "Force-terminated a debuggee attached at this server's identity with no in-process session tracking it \u2014 most likely left behind by an earlier, uncleanly-exited process instance (crash, kill -9, container respawn).";
+        } else if (result.kind === "unknown") {
+          debuggeeNote = `Force-clear of an orphaned debuggee did not confirm success: ${result.detail}`;
+        }
+      } catch (e) {
+        debuggeeNote = `Force-clear of an orphaned debuggee failed: ${describeUnknownError(e)}`;
+      }
+    }
+    return buildResponse({
+      header: { action: "stop", status: leaked.found > 0 ? "dead" : "idle" },
+      notes: [
+        leaked.found > 0 ? `Cleared ${leaked.found} leaked debug session(s) (constructed by an earlier start that never completed, with no in-process tracking of its own).` : "No active debug session (nothing to stop).",
+        ...leaked.notes,
+        ...orphanNote ? [orphanNote] : [],
+        ...debuggeeNote ? [debuggeeNote] : []
+      ],
+      maxChars: clampMaxChars(maxChars)
+    });
+  }
+  assertSessionWrite(gate, run);
+  const notes = [];
+  try {
+    const terminateWaitMs = Math.max(STOP_WAIT_MS, run.session.terminateDeadlineMs + 1e3);
+    let terminateTimedOut = false;
+    const terminated = await raceDeadline(
+      run.session.terminate("terminated_by_caller").catch((e) => {
+        notes.push(`Session terminate reported an error: ${describeUnknownError(e)}`);
+      }),
+      terminateWaitMs
+    );
+    if (terminated === TIMED_OUT) {
+      terminateTimedOut = true;
+      notes.push(
+        `Session terminate had not returned after ${terminateWaitMs} ms \u2014 it continues in the background; the session was dropped here anyway.`
+      );
+    }
+    const settled = await raceDeadline(run.triggerSettled, STOP_WAIT_MS);
+    if (settled === TIMED_OUT) {
+      notes.push(
+        "Program output is incomplete: the trigger run had not returned when stop gave up waiting."
+      );
+    }
+    const finalSnapshot = run.session.snapshot;
+    const cleanupAbandonedSteps = finalSnapshot.abandonedCleanupSteps?.length;
+    if (cleanupAbandonedSteps) {
+      notes.push(formatAbandonedCleanupNote(finalSnapshot.abandonedCleanupSteps));
+    }
+    if ((terminateTimedOut || cleanupAbandonedSteps) && force && deps.releaseOrphanDebuggee) {
+      try {
+        const result = await raceDeadline(deps.releaseOrphanDebuggee(conn), FORCE_CLEAR_WAIT_MS);
+        if (result === TIMED_OUT) {
+          notes.push(
+            "Force-clear of a possibly-still-attached debuggee was requested, but the check had not returned in time \u2014 nothing more to report."
+          );
+        } else if (result.kind === "released") {
+          notes.push(
+            "Force-terminated a debuggee still attached at this server's identity after cleanup did not confirm it was gone."
+          );
+        } else if (result.kind === "unknown") {
+          notes.push(`Force-clear of a possibly-still-attached debuggee did not confirm success: ${result.detail}`);
+        }
+      } catch (e) {
+        notes.push(`Force-clear of a possibly-still-attached debuggee failed: ${describeUnknownError(e)}`);
+      }
+    }
+    return buildResponse({
+      header: { action: "stop", status: finalSnapshot.status, deathReason: finalSnapshot.deathReason },
+      sections: [{ title: "PROGRAM OUTPUT", content: renderTriggerOutcome(settled, STOP_WAIT_MS) }],
+      notes,
+      maxChars: clampMaxChars(maxChars)
+    });
+  } finally {
+    run.closeTriggerConn();
+    await run.closeSessionConn();
+    debugLanes[run.lane] = void 0;
+  }
+}
+async function handleStatus(maxChars) {
+  const run = resolveLaneRun(void 0);
+  if (!run) {
+    const leaked = listActiveDebugSessions()[0];
+    if (!leaked) {
+      return buildResponse({
+        header: { action: "status", status: "idle", note: "no active debug session" },
+        maxChars: clampMaxChars(maxChars)
+      });
+    }
+    const snapshot2 = leaked.snapshot;
+    return buildResponse({
+      header: {
+        action: "status",
+        status: snapshot2.status,
+        stateId: snapshot2.stateId,
+        debugSessionId: snapshot2.debugSessionId,
+        debuggeeId: snapshot2.debuggeeId,
+        deathReason: snapshot2.deathReason,
+        deathDetail: snapshot2.deathDetail
+      },
+      notes: [
+        'This session has no in-process trigger/gate bookkeeping (most likely an earlier start that constructed it and then failed before completing) \u2014 abap_debug({action:"stop"}) will clear it.'
+      ],
+      maxChars: clampMaxChars(maxChars)
+    });
+  }
+  const snapshot = run.session.snapshot;
+  const notes = [];
+  if (snapshot.status === "dead") {
+    notes.push("Session is dead \u2014 check PROGRAM OUTPUT via a step/stop response for the captured trigger output.");
+  }
+  return buildResponse({
+    header: {
+      action: "status",
+      status: snapshot.status,
+      stateId: snapshot.stateId,
+      debugSessionId: snapshot.debugSessionId,
+      debuggeeId: snapshot.debuggeeId,
+      deathReason: snapshot.deathReason,
+      deathDetail: snapshot.deathDetail
+    },
+    notes,
+    maxChars: clampMaxChars(maxChars)
+  });
+}
+async function abapDebug(conn, input, maxChars, deps, gate) {
+  switch (input.action) {
+    case "start":
+      return handleStart(conn, input, maxChars, deps, gate);
+    case "step":
+      return handleStep(input, maxChars, gate, deps);
+    case "stack":
+      return handleStack(input, maxChars);
+    case "frame":
+      return handleFrame(input, maxChars);
+    case "breakpoints":
+      return handleBreakpoints(conn, input, maxChars, deps, gate);
+    case "watch":
+      return handleWatch(input, maxChars, gate);
+    case "keepalive":
+      return handleKeepalive(maxChars, gate);
+    case "stop":
+      return handleStop(conn, maxChars, deps, gate, input.force === true);
+    case "status":
+      return handleStatus(maxChars);
+  }
+}
+var debugVarsInputSchema = {
+  stateId: external_exports.string().describe("From the most recent start/step/stack/frame response."),
+  scope: external_exports.enum(["all", "locals", "parameters", "globals"]).optional().describe("Default all."),
+  filter: external_exports.string().optional().describe("Substring match on name.")
+};
+var DebugVarsInput = external_exports.object(debugVarsInputSchema);
+var SCOPE_ID_BY_NAME = {
+  locals: "@LOCALS",
+  parameters: "@PARAMETERS",
+  globals: "@GLOBALS"
+};
+async function abapDebugVars(input, maxChars) {
+  const run = resolveLaneRun(input.stateId);
+  if (!run) {
+    throw new AbapError("BAD_INPUT", "No active debug session.");
+  }
+  if (!input.stateId) {
+    throw new AbapError("BAD_INPUT", 'abap_debug_vars requires "stateId".');
+  }
+  const root = await run.session.getRootVariables(input.stateId);
+  const scopeOf = /* @__PURE__ */ new Map();
+  for (const h of root.variables.hierarchies) {
+    scopeOf.set(h.childId, h.parentId);
+  }
+  let filtered = root.variables.variables;
+  if (input.scope && input.scope !== "all") {
+    const wantScopeId = SCOPE_ID_BY_NAME[input.scope];
+    filtered = filtered.filter((v) => scopeOf.get(v.id) === wantScopeId);
+  }
+  if (input.filter) {
+    const needle = input.filter.toLowerCase();
+    filtered = filtered.filter((v) => v.name.toLowerCase().includes(needle));
+  }
+  const survey = renderSurvey(
+    filtered.map((variable) => ({ variable })),
+    {
+      maxChars: DEBUG_MAX_CHARS,
+      scopeLabel: input.scope && input.scope !== "all" ? input.scope.toUpperCase() : void 0,
+      // D6 — real stateId, not `STATE_ID_PLACEHOLDER`.
+      stateId: input.stateId
+    }
+  );
+  return buildResponse({
+    header: { stateId: input.stateId, scope: input.scope ?? "all", count: filtered.length },
+    body: survey.text,
+    bodyLabel: "VARIABLES",
+    notes: survey.degraded.length ? [`${survey.degraded.length} value(s) shortened to fit budget \u2014 each still names its own retrieval call.`] : [],
+    maxChars: clampMaxChars(maxChars)
+  });
+}
+var DEFAULT_TABLE_ROWS = 20;
+var MAX_TABLE_ROWS = 200;
+var MAX_LISTED_IDS = 25;
+function listIds(ids) {
+  if (ids.length <= MAX_LISTED_IDS) return ids.join(", ");
+  const shown = ids.slice(0, MAX_LISTED_IDS);
+  return `${shown.join(", ")} \u2026 [TRUNCATED: ${shown.length} of ${ids.length} id(s) listed, ${ids.length - shown.length} cut]`;
+}
+function describeOmissions(requestedIds, align, ctx) {
+  const notes = [];
+  if (align.missing.length > 0) {
+    notes.push(
+      `OMITTED: the debugger returned ${align.resolved.length} of the ${requestedIds.length} variable id(s) requested for ${ctx.subject} \u2014 ${listIds(align.missing)} came back with NO row at all and are NOT shown. A requested id with no row is UNRESOLVED at this stop (unknown name, out-of-range index, or not visible in this frame); it is NOT an empty value, and re-requesting it returns the same nothing. Confirm the id exists here with abap_debug_vars({stateId:"${ctx.stateId}"}).`
+    );
+  }
+  if (align.unexpected.length > 0) {
+    const ids = align.unexpected.map((v) => v.id);
+    notes.push(
+      `UNREQUESTED: the debugger also returned ${align.unexpected.length} row(s) whose id was NOT requested \u2014 ${listIds(ids)}. Their values are NOT shown, because a row nobody asked for, rendered under ${ctx.subject}, is a wrong answer wearing the right label \u2014 the exact mis-attribution that hid this defect. Read one on purpose with abap_debug_value({stateId:"${ctx.stateId}", path:"${ids[0]}"}).`
+    );
+  }
+  return notes;
+}
+var debugValueInputSchema = {
+  stateId: external_exports.string().describe("From the most recent start/step/stack/frame response."),
+  path: external_exports.string().describe(
+    "Variable path, e.g. LT_ITEMS[42]-MATNR. Field symbols keep their angle brackets, e.g. <LS_ITEM>. Unknown paths return empty, not NOT_FOUND."
+  ),
+  from: external_exports.number().int().min(1).max(999999).optional().describe("First row \u2014 tables only. Default 1."),
+  count: external_exports.number().int().positive().max(MAX_TABLE_ROWS).optional().describe(`Tables only. Default ${DEFAULT_TABLE_ROWS}, max ${MAX_TABLE_ROWS}. Page with "from".`),
+  depth: external_exports.number().int().min(1).max(999999).optional().describe("Max nesting depth. Default 3.")
+};
+var DebugValueInput = external_exports.object(debugValueInputSchema);
+async function abapDebugValue(input, maxChars) {
+  const run = resolveLaneRun(input.stateId);
+  if (!run) {
+    throw new AbapError("BAD_INPUT", "No active debug session.");
+  }
+  if (!input.stateId) {
+    throw new AbapError("BAD_INPUT", 'abap_debug_value requires "stateId".');
+  }
+  const validation = validatePath(input.path);
+  if (!validation.ok) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `Malformed path at "${validation.segment}": ${validation.message}`,
+      { path: input.path, segment: validation.segment }
+    );
+  }
+  const canonicalPath = formatPath(validation.path);
+  const clampedMaxChars = clampMaxChars(maxChars);
+  let rootVars;
+  try {
+    rootVars = await run.session.getVariables(input.stateId, [canonicalPath]);
+  } catch (e) {
+    if (e instanceof DebugXmlParseError) {
+      return buildResponse({
+        header: { stateId: input.stateId, path: canonicalPath },
+        body: renderEmptyBodyTrap({ path: canonicalPath }),
+        bodyLabel: "VALUE",
+        maxChars: clampedMaxChars
+      });
+    }
+    throw e;
+  }
+  const rootAlign = alignRequestedVariables([canonicalPath], rootVars);
+  const rootNotes = describeOmissions([canonicalPath], rootAlign, {
+    subject: canonicalPath,
+    stateId: input.stateId
+  });
+  const rootVar = rootAlign.resolved[0];
+  if (!rootVar) {
+    return buildResponse({
+      header: { stateId: input.stateId, path: canonicalPath },
+      // The empty-body trap claims "0 bytes", which is only true when the
+      // debugger really sent nothing. Rows for OTHER ids is a different fact and
+      // gets its own words rather than a convenient lie.
+      body: rootVars.length > 0 ? rootNotes.join("\n\n") : renderEmptyBodyTrap({ path: canonicalPath }),
+      bodyLabel: "VALUE",
+      maxChars: clampedMaxChars
+    });
+  }
+  if (!isComplex(rootVar.metaType)) {
+    const node3 = { variable: rootVar };
+    const { text: text6 } = renderDrill(node3, canonicalPath, {
+      depth: input.depth,
+      maxChars: clampedMaxChars,
+      stateId: input.stateId
+    });
+    return buildResponse({
+      header: { stateId: input.stateId, path: canonicalPath },
+      body: text6,
+      bodyLabel: "VALUE",
+      notes: rootNotes,
+      maxChars: clampedMaxChars
+    });
+  }
+  if (rootVar.metaType === "table") {
+    const total = rootVar.tableLines;
+    const from = input.from ?? 1;
+    const requestedCount = input.count ?? DEFAULT_TABLE_ROWS;
+    const count = Math.min(requestedCount, MAX_TABLE_ROWS);
+    const countWasClamped = count < requestedCount;
+    if (total !== void 0 && total > 0 && from > total) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${canonicalPath} has ${total} row(s) \u2014 "from" (${from}) is past the end. Ask for a row in 1..${total}.`,
+        { path: canonicalPath, from, tableLines: total }
+      );
+    }
+    const tableNotes = [...rootNotes];
+    if (countWasClamped) {
+      tableNotes.push(
+        `TRUNCATED: count:${requestedCount} exceeds the ${MAX_TABLE_ROWS}-row maximum, so only ${count} row(s) were requested from ${canonicalPath} \u2014 rows ${from + count} onward were NOT fetched and are NOT shown. Continue with abap_debug_value({stateId:"${input.stateId}", path:"${canonicalPath}", from:${from + count}, count:${MAX_TABLE_ROWS}}).`
+      );
+    }
+    if (total === 0) {
+      tableNotes.push(`${canonicalPath} is empty: 0 rows.`);
+    } else if (total === void 0) {
+      tableNotes.push(
+        `Row count is unavailable \u2014 the debugger did not report TABLE_LINES for ${canonicalPath}. This is NOT the same as an empty table. "from" could not be range-checked. To settle it, probe the first row: abap_debug_value({stateId:"${input.stateId}", path:"${canonicalPath}[1]"}) \u2014 a row comes back only if data is actually present.`
+      );
+      if (input.from !== void 0 && input.from > 1) {
+        tableNotes.push(
+          `"from" (${input.from}) could not be range-checked because the row count is unavailable.`
+        );
+      }
+    }
+    const clampedFrom = total !== void 0 && total > 0 ? Math.min(Math.max(1, from), total) : total === 0 ? 1 : from;
+    const clampedTo = total !== void 0 && total > 0 ? Math.min(clampedFrom + count - 1, total) : total === 0 ? 0 : from + count - 1;
+    let rowNodes = [];
+    if (total === void 0 || total > 0 && clampedTo >= clampedFrom) {
+      const ids = Array.from({ length: clampedTo - clampedFrom + 1 }, (_, i) => `${canonicalPath}[${clampedFrom + i}]`);
+      let rowCount = 0;
+      try {
+        const rowVars = await run.session.getVariables(input.stateId, ids);
+        rowCount = rowVars.length;
+        const rowAlign = alignRequestedVariables(ids, rowVars);
+        rowNodes = rowAlign.resolved.map((variable) => ({ variable }));
+        tableNotes.push(
+          ...describeOmissions(ids, rowAlign, { subject: canonicalPath, stateId: input.stateId })
+        );
+      } catch (e) {
+        if (e instanceof DebugXmlParseError) {
+          return buildResponse({
+            header: { stateId: input.stateId, path: canonicalPath },
+            body: renderEmptyBodyTrap({ path: canonicalPath, tableLines: total }),
+            bodyLabel: "VALUE",
+            notes: tableNotes,
+            maxChars: clampedMaxChars
+          });
+        }
+        throw e;
+      }
+      if (ids.length > 0 && rowCount === 0) {
+        return buildResponse({
+          header: { stateId: input.stateId, path: canonicalPath },
+          body: renderEmptyBodyTrap({ path: canonicalPath, tableLines: total }),
+          bodyLabel: "VALUE",
+          notes: tableNotes,
+          maxChars: clampedMaxChars
+        });
+      }
+    }
+    const node3 = { variable: rootVar, children: rowNodes };
+    const { text: text6 } = renderDrill(node3, canonicalPath, {
+      rows: { start: clampedFrom, end: clampedTo || clampedFrom },
+      maxChars: clampedMaxChars,
+      stateId: input.stateId
+    });
+    return buildResponse({
+      header: { stateId: input.stateId, path: canonicalPath },
+      body: text6,
+      bodyLabel: "VALUE",
+      notes: tableNotes,
+      maxChars: clampedMaxChars
+    });
+  }
+  let childResult;
+  try {
+    childResult = await run.session.getChildVariables(input.stateId, [canonicalPath]);
+  } catch (e) {
+    if (e instanceof DebugXmlParseError) {
+      childResult = { hierarchies: [], variables: [] };
+    } else {
+      throw e;
+    }
+  }
+  const node2 = withChildren(rootVar, childResult);
+  const { text: text5 } = renderDrill(node2, canonicalPath, {
+    depth: input.depth,
+    maxChars: clampedMaxChars,
+    stateId: input.stateId
+  });
+  return buildResponse({
+    header: { stateId: input.stateId, path: canonicalPath },
+    body: text5,
+    bodyLabel: "VALUE",
+    // The `getChildVariables` hop below returns CHILDREN of `canonicalPath`, whose
+    // ids are by definition not the id that was requested, so it has no requested-id
+    // alignment to do. `rootNotes` still travels: it describes the root read.
+    notes: rootNotes,
+    maxChars: clampedMaxChars
+  });
+}
+
+// src/systems/context.ts
+function mergeConnectionOptions(base, over) {
+  const merged = { ...base };
+  for (const [key, value] of Object.entries(over)) {
+    if (value !== void 0) merged[key] = value;
+  }
+  return merged;
+}
+function transportCreateJournalHook(deps) {
+  const { journal, cfg, warn } = deps;
+  return async (event) => {
+    try {
+      const entry = await journal.begin({
+        operation: "transport-create",
+        object: {
+          name: event.trkorr,
+          type: "CTS/TR",
+          uri: `/sap/bc/adt/cts/transportrequests/${event.trkorr}`,
+          package: event.devclass ?? "",
+          description: event.description
+        },
+        // The server minted this number: there was no request here before.
+        existedBefore: false,
+        systemKey: systemKey({ sid: cfg.sid, url: cfg.url, client: cfg.client }),
+        corrNr: event.trkorr,
+        trSource: event.source,
+        tool: "abapsmith session transport (auto-created)"
+      });
+      if (!entry) return;
+      const settled = await journal.settle(entry.id, { outcome: "succeeded" });
+      if (!settled.settled) {
+        warn(
+          `[abapsmith] WARNING: transport request ${event.trkorr} was created and journalled as ${entry.id}, but the entry could not be settled (${settled.reason}${settled.error ? `: ${settled.error}` : ""}). It will read as \`pending\` \u2014 the request itself DOES exist on ${cfg.sid}.`
+        );
+      }
+    } catch (e) {
+      warn(
+        `[abapsmith] WARNING: transport request ${event.trkorr} WAS CREATED on ${cfg.sid} (package ${event.devclass ?? "unknown"}, for ${event.objSourceUrl}) but could NOT be journalled: ${e.message}. abapsmith has no record of it and abap_journal will not show it. Write ${event.trkorr} down now \u2014 it has to be released or deleted by hand.`
+      );
+    }
+  };
+}
+function createSystemContext(spec, opts) {
+  const { alias, cfg, isDefault } = spec;
+  const { base, warn } = opts;
+  const overrides = opts.connectionOptionsFor?.(alias);
+  const breaker = overrides?.breaker ?? (isDefault ? base.breaker : AuthCircuitBreaker.forConfig(cfg));
+  const connOpts = mergeConnectionOptions(
+    mergeConnectionOptions(base, overrides ?? {}),
+    { breaker }
+  );
+  const pool = new AdtSessionPool({
+    cfg,
+    // The pool sets `breaker` before building slot 0, so `mergeConnectionOptions`
+    // below always sees the same instance on both sides.
+    breaker,
+    log: warn,
+    createConnection: (poolCfg, poolOpts) => new AbapConnection(poolCfg, mergeConnectionOptions(connOpts, poolOpts)),
+    /**
+     * No-op for the primary slot: `ensureConnected()` below remains slot 0's
+     * sole connect path (it applies the safety-gate verdict and owns the
+     * `onDead` revival memo) — preparing it here too would cost a logon just
+     * for taking the slot. Non-primary slots have no such owner, so they
+     * connect here. `isPrimary` comes from the pool as an argument rather
+     * than `conn !== pool.primary()`, which was re-entrant and could skip
+     * connecting the very slot being prepared — see
+     * the git history.
+     */
+    prepareConnection: async (conn, _role, isPrimary) => {
+      if (!isPrimary) await conn.connect();
+    }
+  });
+  const journal = isDefault && base.journal !== void 0 ? base.journal : new Journal(journalConfigFromEnv(spec.env, cfg.sid), cfg.sid);
+  const safety = new SafetyGate({
+    readOnly: cfg.readOnly,
+    allowPackages: cfg.allowPackages,
+    allowNamePrefixes: cfg.allowNamePrefixes,
+    allowTransports: cfg.allowTransports,
+    allowTransportRelease: cfg.allowTransportRelease,
+    allowTransportDelete: cfg.allowTransportDelete,
+    allowCascadeDelete: cfg.allowCascadeDelete,
+    allowServicePublish: cfg.allowServicePublish,
+    allowEnhancements: cfg.allowEnhancements,
+    enhanceTargets: cfg.enhanceTargets,
+    enhanceTargetPackages: cfg.enhanceTargetPackages,
+    originSystems: cfg.originSystems,
+    // This system's own SID, so the origin gate (SafetyGate.isLocalOrigin)
+    // recognises this system's own content as local without needing it
+    // repeated via ABAP_ORIGIN_SYSTEMS.
+    sid: cfg.sid,
+    // Operator additions to the frozen data-preview deny-list.
+    dataPreviewDenyTables: cfg.dataPreviewDenyTables,
+    // Tier-2 dump reads; registration-time counterpart is
+    // `capabilities.canReadDumpVariables` below (both read
+    // `cfg.allowDumpVariables`, deliberately not `readOnly`).
+    allowDumpVariables: cfg.allowDumpVariables,
+    // Not a capability — records WHICH MECHANISM decided every field above,
+    // so a refusal names the actual input rather than guessing legacy flags.
+    abapMode: cfg.abapMode
+  });
+  const capabilities = resolveStaticCapabilities(cfg);
+  const transport = new SessionTransport({
+    allowTransports: cfg.allowTransports,
+    whoami: () => cfg.user,
+    onCreated: transportCreateJournalHook({ journal, cfg, warn }),
+    // Mints the `AuthorizedTarget` `trCreate` requires. Mirrors `opCreate`
+    // (src/tools/transport.ts): the auto-created package is passed as both
+    // `name` and `packageName`, so ABAP_ALLOW_NAME_PREFIXES also judges it.
+    authorizeCreate: (devClass) => safety.authorize(
+      "transport",
+      { name: devClass, packageName: devClass },
+      { corr: { kind: "unresolved" } }
+    )
+  });
+  const debugDeps = createLiveDebugToolDeps({
+    cfg,
+    pool,
+    log: warn,
+    gate: safety
+  });
+  let connectPromise;
+  let watched;
+  const watchPrimary = (conn) => {
+    if (watched === conn) return;
+    watched = conn;
+    connectPromise = void 0;
+    conn.onDead(() => {
+      if (watched === conn) connectPromise = void 0;
+    });
+  };
+  watchPrimary(pool.primary());
+  const label = opts.labelSystems ? `${alias}: ` : "";
+  const ensureConnected = async () => {
+    const connection = pool.primary();
+    watchPrimary(connection);
+    if (connection.isConnected) return;
+    if (connectPromise && connection.breaker.authProbeArmed) connectPromise = void 0;
+    connectPromise ??= connection.connect().then(
+      (info) => {
+        safety.update({
+          productive: info.roleDetection.role === "productive",
+          systemRole: info.systemRole,
+          writesLockedOut: info.writesLockedOut,
+          lockoutReason: info.roleDetection.reason,
+          roleProbeFailure: info.roleDetection.probeFailure
+        });
+        if (info.writesLockedOut && !cfg.readOnly) {
+          warn(
+            `[abapsmith] ${label}WARNING: writes are enabled by configuration (${cfg.abapMode !== void 0 ? `ABAP_MODE=${cfg.abapMode}` : "ABAP_ALLOW_WRITE=true"}), but they are REFUSED on this system: ${info.roleDetection.reason} (role=${info.roleDetection.role}, client=${info.roleDetection.client ?? "unknown"}, T000-CCCATEGORY=${info.roleDetection.ccCategory ?? "unknown"}). This is fail-closed by design and there is no override \u2014 a system that cannot be PROVEN non-productive is treated exactly like a productive one.`
+          );
+        } else if (!info.writesLockedOut && !cfg.readOnly) {
+          warn(
+            `[abapsmith] ${label}writes are LIVE \u2014 ${cfg.sid} proven non-productive (client ${info.roleDetection.client ?? "?"}, T000-CCCATEGORY=${info.roleDetection.ccCategory ?? "?"}).`
+          );
+        }
+        return info;
+      },
+      (e) => {
+        const authLatched = connection.breaker.state === "latched";
+        if (!authLatched) connectPromise = void 0;
+        throw e;
+      }
+    );
+    await connectPromise;
+  };
+  return {
+    alias,
+    isDefault,
+    cfg,
+    pool,
+    safety,
+    journal,
+    transport,
+    debugDeps,
+    capabilities,
+    get connection() {
+      return pool.primary();
+    },
+    ensureConnected,
+    async shutdown(reason) {
+      await pool.shutdown(reason);
+      pool.dispose();
+    }
+  };
+}
+
+// src/systems/registry.ts
+init_errors();
+
+// src/systems/current.ts
+import { AsyncLocalStorage as AsyncLocalStorage4 } from "node:async_hooks";
+var storage = new AsyncLocalStorage4();
+function currentSystemAlias() {
+  return storage.getStore();
+}
+function runInSystem(alias, fn) {
+  return storage.run(alias, fn);
+}
+
+// src/systems/registry.ts
+var SystemRegistry = class {
+  byAlias = /* @__PURE__ */ new Map();
+  defaultContext;
+  orderedAliases;
+  constructor(contexts) {
+    if (contexts.length === 0) {
+      throw new Error("SystemRegistry requires at least one SystemContext.");
+    }
+    let def;
+    for (const ctx of contexts) {
+      this.byAlias.set(ctx.alias.toUpperCase(), ctx);
+      if (ctx.isDefault) def = ctx;
+    }
+    if (def === void 0) {
+      throw new Error("SystemRegistry requires exactly one SystemContext with isDefault true.");
+    }
+    this.defaultContext = def;
+    this.orderedAliases = [def.alias, ...contexts.filter((c) => !c.isDefault).map((c) => c.alias)];
+  }
+  get size() {
+    return this.byAlias.size;
+  }
+  /** Default first, then the rest in construction order. */
+  get aliases() {
+    return this.orderedAliases;
+  }
+  get default() {
+    return this.defaultContext;
+  }
+  /**
+   * Resolves a caller-supplied `system` argument.
+   *
+   * - `undefined` ⇒ the in-flight routed context if one exists (nested tool
+   *   calls made from inside an already-routed handler stay on that
+   *   system), else the default system.
+   * - A configured alias (case-insensitive, surrounding whitespace
+   *   trimmed) ⇒ that system's context.
+   * - Anything else ⇒ throws `AbapError("UNKNOWN_SYSTEM", ...)` naming the
+   *   alias that was requested and listing every alias this process
+   *   actually knows about.
+   */
+  resolve(alias) {
+    if (alias === void 0) return this.current();
+    const key = alias.trim().toUpperCase();
+    const ctx = this.byAlias.get(key);
+    if (ctx !== void 0) return ctx;
+    throw new AbapError(
+      "UNKNOWN_SYSTEM",
+      `"${alias}" is not a configured system. Configured aliases: [${this.orderedAliases.join(", ")}].`,
+      { requested: alias, configured: this.orderedAliases },
+      `See doc/CONFIGURATION/multi-system.md for how to add a system, or omit \`system\` to use the default (${this.defaultContext.alias}).`
+    );
+  }
+  /** The in-flight routed context, or the default. Never throws. */
+  current() {
+    const alias = currentSystemAlias();
+    if (alias === void 0) return this.defaultContext;
+    return this.byAlias.get(alias.toUpperCase()) ?? this.defaultContext;
+  }
+  all() {
+    const out = [];
+    for (const alias of this.orderedAliases) {
+      const ctx = this.byAlias.get(alias.toUpperCase());
+      if (ctx !== void 0) out.push(ctx);
+    }
+    return out;
+  }
+};
+
+// src/systems/route.ts
+init_zod();
+function installSystemRouting(mcp, registry2) {
+  if (registry2.size <= 1) return;
+  const rawRegisterTool = mcp.registerTool.bind(mcp);
+  const systemParamDescription = `SAP system alias, e.g. "QAS". Defaults to ${registry2.default.alias}.`;
+  mcp.registerTool = ((name, config2, cb) => {
+    const hasSchema = config2.inputSchema !== void 0;
+    if (!hasSchema) {
+      const original2 = cb;
+      const wrapped2 = (extra) => {
+        const ctx = registry2.resolve(void 0);
+        return runInSystem(ctx.alias, () => original2(extra));
+      };
+      return rawRegisterTool(name, config2, wrapped2);
+    }
+    const wrappedInputSchema = {
+      ...config2.inputSchema,
+      system: external_exports.string().optional().describe(systemParamDescription)
+    };
+    const original = cb;
+    const wrapped = (args, extra) => {
+      const { system, ...rest } = args;
+      const ctx = registry2.resolve(typeof system === "string" ? system : void 0);
+      return runInSystem(ctx.alias, () => original(rest, extra));
+    };
+    return rawRegisterTool(name, { ...config2, inputSchema: wrappedInputSchema }, wrapped);
+  });
+}
+
+// src/tools/activate.ts
+init_zod();
+init_capabilities();
+init_errors();
+init_session();
+
+// src/adt/locked-holders.ts
+init_errors();
+
+// src/adt/enqueue-read.ts
+init_errors();
+
+// src/adt/fpm-lock.ts
+init_errors();
+import { createHash as createHash10 } from "node:crypto";
+
 // src/adt/fpm-runtime.ts
 init_errors();
 
@@ -112871,7 +117210,7 @@ var FEEDER_INTERFACE_BY_COMPONENT = {
   FPM_SEARCH_UIBB: "IF_FPM_GUIBB_SEARCH",
   FPM_TREE_UIBB: "IF_FPM_GUIBB_LIST"
 };
-var xmlParser = new XMLParser({
+var xmlParser2 = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: "@_",
   parseTagValue: false,
@@ -112914,7 +117253,7 @@ function findAllNodesByName(el, name, acc = []) {
 function parseConfigXml(xml3) {
   if (!xml3.trim()) return void 0;
   try {
-    const doc = xmlParser.parse(xml3);
+    const doc = xmlParser2.parse(xml3);
     if (!isRecord(doc)) return void 0;
     const root = doc["Component"];
     return isRecord(root) ? root : void 0;
@@ -113975,12 +118314,12 @@ function lockDiscriminator(q) {
     kind: q.key.kind,
     label,
     // Body's own hash: differing ABAP gets a differing bridge class.
-    body: createHash8("sha256").update(body, "utf8").digest("hex")
+    body: createHash10("sha256").update(body, "utf8").digest("hex")
   });
 }
 function fpmLockBridgeClassName(q) {
   const hashHexLen = MAX_NAME - FPM_LOCK_BRIDGE_CLASS_PREFIX.length;
-  const hash2 = createHash8("sha256").update(lockDiscriminator(q), "utf8").digest("hex").slice(0, hashHexLen).toUpperCase();
+  const hash2 = createHash10("sha256").update(lockDiscriminator(q), "utf8").digest("hex").slice(0, hashHexLen).toUpperCase();
   return `${FPM_LOCK_BRIDGE_CLASS_PREFIX}${hash2}`;
 }
 function abapLiteral2(value, what) {
@@ -114767,7 +119106,7 @@ function assertLocksArgs(args) {
     throw new AbapError("BAD_INPUT", "core.locks: max must be a non-negative integer.", { max });
   }
 }
-function fail(reason, rows) {
+function fail3(reason, rows) {
   throw new AbapError("FLUID_PROTOCOL_ERROR", `core.locks ${reason}`, {
     tool: LOCKS_TOOL_ID,
     action: LOCKS_ACTION,
@@ -114793,39 +119132,39 @@ function isSummaryRow(r) {
 }
 function mapLockRows(rows) {
   if (!Array.isArray(rows)) {
-    fail("returned a result that is not an array", rows);
+    fail3("returned a result that is not an array", rows);
   }
   if (rows.length === 0) {
-    fail("returned no rows at all (expected at least a meta row and a summary row)", rows);
+    fail3("returned no rows at all (expected at least a meta row and a summary row)", rows);
   }
   const first = rows[0];
   if (typeof first !== "object" || first === null || Array.isArray(first)) {
-    fail("row 0 is not an object", rows);
+    fail3("row 0 is not an object", rows);
   }
   const firstR = first;
   if (firstR["kind"] !== "meta") {
-    fail(`row 0 has kind "${String(firstR["kind"])}", expected "meta"`, rows);
+    fail3(`row 0 has kind "${String(firstR["kind"])}", expected "meta"`, rows);
   }
   if (!isMetaRow(firstR)) {
-    fail("row 0 is a meta row missing or mistyping one of its required fields", rows);
+    fail3("row 0 is a meta row missing or mistyping one of its required fields", rows);
   }
   const locks = [];
   let summary;
   for (let i = 1; i < rows.length; i++) {
     const row2 = rows[i];
     if (typeof row2 !== "object" || row2 === null || Array.isArray(row2)) {
-      fail(`row ${i} is not an object`, rows);
+      fail3(`row ${i} is not an object`, rows);
     }
     const r = row2;
     if (r["kind"] !== "lock" && r["kind"] !== "summary") {
-      fail(`row ${i} has kind "${String(r["kind"])}", expected "lock" or "summary"`, rows);
+      fail3(`row ${i} has kind "${String(r["kind"])}", expected "lock" or "summary"`, rows);
     }
     if (summary !== void 0) {
-      fail(`row ${i} follows the trailing summary row`, rows);
+      fail3(`row ${i} follows the trailing summary row`, rows);
     }
     if (r["kind"] === "lock") {
       if (!isLockRow(r)) {
-        fail(`row ${i} is a lock row missing or mistyping one of its required fields`, rows);
+        fail3(`row ${i} is a lock row missing or mistyping one of its required fields`, rows);
       }
       const lock = {
         gname: r.gname,
@@ -114850,10 +119189,10 @@ function mapLockRows(rows) {
       continue;
     }
     if (!isSummaryRow(r)) {
-      fail(`row ${i} is a summary row missing or mistyping one of its required fields`, rows);
+      fail3(`row ${i} is a summary row missing or mistyping one of its required fields`, rows);
     }
     if (i !== rows.length - 1) {
-      fail("returned a summary row that is not the last element", rows);
+      fail3("returned a summary row that is not the last element", rows);
     }
     summary = {
       object: firstR.object,
@@ -114869,7 +119208,7 @@ function mapLockRows(rows) {
     };
   }
   if (summary === void 0) {
-    fail("did not return a summary row", rows);
+    fail3("did not return a summary row", rows);
   }
   return { locks, summary };
 }
@@ -115046,654 +119385,6 @@ init_types();
 init_compact();
 init_safety();
 init_truncate();
-
-// src/adt/index-create.ts
-init_errors();
-init_enhancement_templates();
-
-// src/adt/index-read.ts
-init_compact();
-init_errors();
-var catalogSelectModule;
-function loadCatalogSelect() {
-  return catalogSelectModule ??= Promise.resolve().then(() => (init_catalog_select(), catalog_select_exports));
-}
-var INDEX_CATALOG = Object.freeze({
-  indexHeader: Object.freeze({
-    table: "DD12V",
-    fields: Object.freeze({
-      table: "SQLTAB",
-      index: "INDEXNAME",
-      language: "DDLANGUAGE",
-      unique: "UNIQUEFLAG",
-      activation: "AS4LOCAL",
-      dbState: "DBSTATE",
-      description: "DDTEXT"
-    }),
-    confidence: "high",
-    note: "capture 858: language-dependent (DDLANGUAGE) \u2014 one row per maintained language per index, must be deduped by INDEXNAME. capture 860: a table with no secondary index answers 200 with totalRows 0, a definitive absence, not an error."
-  }),
-  indexField: Object.freeze({
-    table: "DD17S",
-    fields: Object.freeze({
-      table: "SQLTAB",
-      index: "INDEXNAME",
-      position: "POSITION",
-      field: "FIELDNAME"
-    }),
-    confidence: "high",
-    note: 'capture 859: not language-dependent. POSITION is a zero-padded numeric string (e.g. "0001") \u2014 parse with Number(), never string-sort it.'
-  })
-});
-function tbl(key) {
-  return INDEX_CATALOG[key].table;
-}
-function fld(key, field) {
-  const fields = INDEX_CATALOG[key].fields;
-  return fields[field];
-}
-var INDEX_TABLE_NAME_MAX = 30;
-var INDEX_ID_MAX = 3;
-var INDEX_ROW_CAP = 200;
-var DEFAULT_LANGUAGE = "E";
-function isValidIndexIdentifier(name, maxLength) {
-  if (typeof name !== "string") return false;
-  if (name.length === 0 || name.length > maxLength) return false;
-  return /^[A-Za-z][A-Za-z0-9_]*$/.test(name);
-}
-function assertIndexIdentifier(value, what, maxLength) {
-  if (typeof value !== "string" || !isValidIndexIdentifier(value, maxLength)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `${what} ${JSON.stringify(value)} is not a valid ABAP object name (a letter, then letters, digits and underscores only, max ${maxLength} characters).`,
-      { what, value },
-      "This value is substituted into a catalog SELECT's WHERE literal \u2014 an over-long or malformed name is refused client-side, before any SQL literal is built, rather than sent to the freestyle endpoint, which answers HTTP 400 (not an empty result) for a literal wider than the target column's declared DDIC width."
-    );
-  }
-  return value;
-}
-function assertIndexTableName(value) {
-  return assertIndexIdentifier(value, "table", INDEX_TABLE_NAME_MAX);
-}
-function assertIndexIdValue(value) {
-  return assertIndexIdentifier(value, "indexId", INDEX_ID_MAX);
-}
-function serverNotes(result) {
-  return result.messages.map((m) => `[server] ${m.text}${m.severity ? ` (${m.severity})` : ""}`);
-}
-function noteIfCut(result, cap, what, notes) {
-  if (result.totalRows !== void 0 && result.totalRows > result.rows.length) {
-    notes.push(
-      `${what} reports ${result.totalRows} total rows but only ${result.rows.length} were fetched (row cap ${cap}) \u2014 the remainder was cut, not silently dropped.`
-    );
-  }
-}
-function activationLabel(activation) {
-  switch (activation) {
-    case "A":
-      return "active";
-    case "N":
-      return "inactive (revised, not activated)";
-    case "":
-      return "unknown (blank AS4LOCAL)";
-    default:
-      return `unrecognized (AS4LOCAL = ${JSON.stringify(activation)})`;
-  }
-}
-async function readTableIndexes(conn, table, opts) {
-  const { buildCatalogSelect: buildCatalogSelect2, catalogLiteral: catalogLiteral2, requireCatalogColumn: requireCatalogColumn2, runCatalogSelect: runCatalogSelect2 } = await loadCatalogSelect();
-  const notes = [];
-  const t = assertIndexTableName(table.trim().toUpperCase());
-  const language = (opts?.language ?? DEFAULT_LANGUAGE).trim().toUpperCase() || DEFAULT_LANGUAGE;
-  const TABLE_F = fld("indexHeader", "table");
-  const INDEX_F = fld("indexHeader", "index");
-  const headerSql = buildCatalogSelect2(
-    [TABLE_F, INDEX_F, fld("indexHeader", "language"), fld("indexHeader", "unique"), fld("indexHeader", "activation"), fld("indexHeader", "dbState"), fld("indexHeader", "description")].join(", "),
-    tbl("indexHeader"),
-    [`${TABLE_F} = ${catalogLiteral2(t)}`],
-    INDEX_F
-  );
-  const headerResult = await runCatalogSelect2(conn, headerSql, INDEX_ROW_CAP);
-  notes.push(...serverNotes(headerResult));
-  noteIfCut(headerResult, INDEX_ROW_CAP, `${tbl("indexHeader")} lookup for "${t}"`, notes);
-  if (headerResult.rows.length > 0) requireCatalogColumn2(headerResult, INDEX_F);
-  const byIndex = /* @__PURE__ */ new Map();
-  let dedupedAny = false;
-  for (const row2 of headerResult.rows) {
-    const id = row2[INDEX_F] ?? "";
-    if (id === "") continue;
-    const existing = byIndex.get(id);
-    if (existing === void 0) {
-      byIndex.set(id, row2);
-      continue;
-    }
-    dedupedAny = true;
-    const rowLanguage = (row2[fld("indexHeader", "language")] ?? "").trim().toUpperCase();
-    if (rowLanguage === language) byIndex.set(id, row2);
-  }
-  if (dedupedAny) {
-    notes.push(
-      `${tbl("indexHeader")} carried more than one row per index (language-dependent \u2014 see INDEX_CATALOG note): reduced to one row per index, preferring DDLANGUAGE = "${language}".`
-    );
-  }
-  const FTABLE_F = fld("indexField", "table");
-  const FINDEX_F = fld("indexField", "index");
-  const fieldSql = buildCatalogSelect2(
-    [FTABLE_F, FINDEX_F, fld("indexField", "position"), fld("indexField", "field")].join(", "),
-    tbl("indexField"),
-    [`${FTABLE_F} = ${catalogLiteral2(t)}`],
-    FINDEX_F
-  );
-  const fieldResult = await runCatalogSelect2(conn, fieldSql, INDEX_ROW_CAP);
-  notes.push(...serverNotes(fieldResult));
-  noteIfCut(fieldResult, INDEX_ROW_CAP, `${tbl("indexField")} lookup for "${t}"`, notes);
-  if (fieldResult.rows.length > 0) requireCatalogColumn2(fieldResult, FINDEX_F);
-  const fieldsByIndex = /* @__PURE__ */ new Map();
-  for (const row2 of fieldResult.rows) {
-    const id = row2[FINDEX_F] ?? "";
-    if (id === "") continue;
-    const position = Number(row2[fld("indexField", "position")] ?? "0");
-    const field = row2[fld("indexField", "field")] ?? "";
-    const list3 = fieldsByIndex.get(id);
-    const entry = { position: Number.isNaN(position) ? 0 : position, field };
-    if (list3) list3.push(entry);
-    else fieldsByIndex.set(id, [entry]);
-  }
-  for (const list3 of fieldsByIndex.values()) list3.sort((a, b) => a.position - b.position);
-  const indexes = [...byIndex.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([id, row2]) => {
-    const activation = row2[fld("indexHeader", "activation")] ?? "";
-    return {
-      id,
-      table: t,
-      description: row2[fld("indexHeader", "description")] ?? "",
-      unique: (row2[fld("indexHeader", "unique")] ?? "").trim() !== "",
-      activation,
-      activationLabel: activationLabel(activation),
-      dbState: row2[fld("indexHeader", "dbState")] ?? "",
-      fields: (fieldsByIndex.get(id) ?? []).map((f) => f.field)
-    };
-  });
-  return { indexes, notes };
-}
-async function readSecondaryIndex(conn, table, indexId, opts) {
-  const id = assertIndexIdValue(indexId.trim().toUpperCase());
-  const { indexes, notes } = await readTableIndexes(conn, table, opts);
-  const index = indexes.find((i) => i.id === id);
-  return { index, notes };
-}
-async function verifySecondaryIndex(conn, table, indexId, expect) {
-  try {
-    const id = assertIndexIdValue(indexId.trim().toUpperCase());
-    const t = assertIndexTableName(table.trim().toUpperCase());
-    const { index } = await readSecondaryIndex(conn, t, id);
-    if (index === void 0) {
-      const mismatch2 = expect === "present" ? " \u2014 expected present, but the catalog shows no such row." : "";
-      return {
-        verified: true,
-        present: false,
-        active: false,
-        statement: `index ${id} on ${t} is absent from DD12V${mismatch2}`
-      };
-    }
-    const active = index.activation === "A";
-    const fieldsClause = index.fields.length > 0 ? `, with fields ${index.fields.join(", ")}` : ", with no fields on record";
-    const mismatch = expect === "absent" ? " \u2014 expected absent, but the catalog still shows it." : "";
-    const statement = `index ${id} on ${t} is present and ${active ? "active" : `inactive (${index.activationLabel})`} (DD12V-AS4LOCAL = '${index.activation}')${fieldsClause}${mismatch}`;
-    return { verified: true, present: true, active, statement, index };
-  } catch (e) {
-    const reason = e instanceof Error ? e.message : String(e);
-    return {
-      verified: false,
-      present: false,
-      active: false,
-      statement: `could not verify index ${indexId} on ${table}: the DD12V/DD17S re-read itself failed (${reason}).`,
-      reason
-    };
-  }
-}
-function renderIndexSection(indexes) {
-  const title = "SECONDARY INDEXES";
-  if (indexes.length === 0) {
-    return {
-      title,
-      content: "This table has no secondary index \u2014 a DD12V read for this table returned zero rows (a definitive empty result, see capture 860), not an unread or failed check."
-    };
-  }
-  const content = textTable(
-    indexes.map((i) => ({
-      index: i.id,
-      unique: i.unique ? "UNIQUE" : "",
-      status: i.activationLabel,
-      "db status": i.dbState,
-      fields: i.fields.join(", "),
-      description: i.description
-    })),
-    ["index", "unique", "status", "db status", "fields", "description"]
-  );
-  return { title, content };
-}
-function renderSecondaryIndex(index) {
-  const ddl = [
-    `define index ${index.id.toLowerCase()} on ${index.table.toLowerCase()} {`,
-    ...index.fields.map((f) => `  ${f.toLowerCase()};`),
-    `}`
-  ].join("\n");
-  const sections = [
-    {
-      title: "INDEX HEADER",
-      content: textTable(
-        [
-          {
-            table: index.table,
-            index: index.id,
-            unique: index.unique ? "UNIQUE" : "",
-            status: index.activationLabel,
-            "db status": index.dbState,
-            description: index.description
-          }
-        ],
-        ["table", "index", "unique", "status", "db status", "description"]
-      )
-    }
-  ];
-  const hashInput = [
-    index.table,
-    index.id,
-    index.description,
-    index.unique ? "UNIQUE" : "",
-    index.activation,
-    index.dbState,
-    ...index.fields
-  ].join("|");
-  return {
-    ddl,
-    sections,
-    meta: {
-      table: index.table,
-      index: index.id,
-      unique: index.unique ? "true" : "false",
-      activation: index.activation,
-      db_status: index.dbState,
-      fields: index.fields.length
-    },
-    notes: [],
-    hashInput
-  };
-}
-
-// src/adt/resolved-package.ts
-init_errors();
-var SERVER_RESOLVED = /* @__PURE__ */ Symbol("abapsmith.server-resolved-package");
-function isServerPackage(value) {
-  return typeof value === "object" && value !== null && value[SERVER_RESOLVED] === true && typeof value.name === "string" && value.name.trim().length > 0;
-}
-function serverPackage(outcome) {
-  if (outcome.status !== "confirmed") return void 0;
-  const name = outcome.packageName?.trim();
-  if (!name) return void 0;
-  return { name: name.toUpperCase(), [SERVER_RESOLVED]: true };
-}
-function assertServerPackage(value, context) {
-  if (isServerPackage(value)) return;
-  throw new AbapError(
-    "SAFETY_DENIED",
-    `abapsmith could not determine which package ${context} belongs to, so it refuses the operation (the value was not confirmed by a server read-back).`,
-    { reason: "PACKAGE_UNKNOWN", context },
-    "Every write, delete and activation is judged against the object's real package. Rather than trust a caller-supplied or guessed value, abapsmith stops here. Resolve the package from the server, then retry.",
-    { retryable: true }
-    // a failure to determine the package, not a policy verdict — a healthy connection resolves it
-  );
-}
-
-// src/adt/index-create.ts
-init_session();
-init_transports();
-init_types();
-var INDEX_NAME_MAX = 3;
-var INDEX_TEXT_MAX = 60;
-var MAX_INDEX_FIELDS = 16;
-var INDEX_FIELD_NAME_MAX = 30;
-var BASE_TABLE_MAX = 30;
-var PACKAGE_MAX = 30;
-var PACKAGE_RULES2 = { maxLength: PACKAGE_MAX, allowLocal: true };
-var CREATE_FM_WHAT = "DD_INDEX_INTERFACE insert";
-var DELETE_FM_WHAT = "DD_INDEX_INTERFACE delete";
-async function resolveIndexOwner(conn, baseTable) {
-  const uri = buildUri(specForType("TABL/DT"), baseTable);
-  let body;
-  try {
-    const resp = await conn.get(uri, { headers: { Accept: "application/*" } });
-    body = resp.body ?? "";
-  } catch (e) {
-    if (isNotFoundError(e)) {
-      throw new AbapError(
-        "NOT_FOUND",
-        `Base table ${baseTable} does not exist, so there is nothing to index.`,
-        { baseTable, uri }
-      );
-    }
-    throw e;
-  }
-  const resolved = serverPackage({
-    status: "confirmed",
-    uri,
-    via: "read-back",
-    packageName: packageRefName(body)
-  });
-  if (!resolved) {
-    throw new AbapError(
-      "SAFETY_DENIED",
-      `abapsmith could not determine which package base table ${baseTable} \u2014 and therefore any index on it \u2014 belongs to: the table's ADT XML answered but carried no <adtcore:packageRef adtcore:name> element.`,
-      { reason: "PACKAGE_UNKNOWN", baseTable, uri },
-      "Every write, delete and activation is judged against the object's real package. Rather than trust a caller-supplied or guessed value, abapsmith stops here. Confirm the table is registered with a real packageRef, then retry.",
-      { retryable: true }
-      // a failure to determine the package, not a policy verdict
-    );
-  }
-  return { packageName: resolved, uri };
-}
-function isLocalPackage(packageName) {
-  return isLocalPackageName(packageName);
-}
-function assertCorrNr(value) {
-  if (!isTrkorr(value)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `corr_nr ${JSON.stringify(value)} is not a transport request/task number this system would issue (e.g. A4HK900121). This module never acquires a request on its own \u2014 the caller must hand it one that has already been judged by the safety gate.`,
-      { what: "corrNr", value }
-    );
-  }
-  return value.trim().toUpperCase();
-}
-function assertSecondaryIndexTarget(packageName, corrNr) {
-  const validated = assertEnhIdentifier(packageName, "packageName", PACKAGE_RULES2);
-  const local = isLocalPackage(validated);
-  if (local && corrNr !== void 0) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `corr_nr ${JSON.stringify(corrNr)} was supplied for local package ${JSON.stringify(validated)}, but a local ($-prefixed) index is created with NO_TRANSP_REQUEST = 'X' rather than on a transport request, so there is nothing here for one to attach to.`,
-      { packageName: validated, corrNr }
-    );
-  }
-  if (!local && corrNr === void 0) {
-    throw new AbapError(
-      "TRANSPORT_ERROR",
-      `packageName ${JSON.stringify(validated)} is not local ($-prefixed), so this index must be created with TRANSPORT_NUMBER set, which requires a transport request \u2014 pass corr_nr (an ALREADY gate-judged TRKORR, e.g. A4HK900121).`,
-      { packageName: validated },
-      "Via abap_write, pass corr_nr with the TRKORR the safety gate already judged for this write (see the abapsmith-put-work-on-a-transport skill)."
-    );
-  }
-  return local ? "" : assertCorrNr(corrNr);
-}
-function indexGateName(baseTable, indexName) {
-  return `${baseTable}-${indexName}`;
-}
-function resolveIndexObjectInput(object3, baseTable) {
-  const parts = object3.split("/");
-  if (parts.length === 1) {
-    if (!baseTable?.trim()) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `"${object3}" does not by itself name a table secondary index (TABL/DI): pass either "<TABLE>/<INDEX>" (e.g. "ZTAB/Z01", the same form abap_read accepts) or the bare index name plus base_table (e.g. object: "${object3}", base_table: "ZTAB").`,
-        { object: object3, type: "TABL/DI" },
-        'Add base_table, or address it as "<TABLE>/<INDEX>".'
-      );
-    }
-    return { object: object3, baseTable };
-  }
-  if (parts.length !== 2 || parts[0].trim() === "" || parts[1].trim() === "") {
-    throw new AbapError(
-      "BAD_INPUT",
-      `"${object3}" is not a valid TABL/DI name: expected "<TABLE>/<INDEX>", e.g. "ZTAB/Z01".`,
-      { object: object3, type: "TABL/DI" },
-      'Name it as "<TABLE>/<INDEX>", e.g. "ZTAB/Z01", or pass the bare index name with base_table.'
-    );
-  }
-  const [table, indexName] = parts;
-  if (baseTable?.trim() && baseTable.trim().toUpperCase() !== table.trim().toUpperCase()) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `object ${JSON.stringify(object3)} names base table ${JSON.stringify(table)}, but base_table ${JSON.stringify(baseTable)} was also given and disagrees \u2014 abapsmith will not silently pick one.`,
-      { object: object3, base_table: baseTable, type: "TABL/DI" },
-      `Drop base_table to use ${JSON.stringify(table)} from object, or change object to "${baseTable.trim()}/${indexName}" to match base_table.`
-    );
-  }
-  return { object: indexName, baseTable: baseTable?.trim() || table };
-}
-function validate2(p) {
-  const indexName = assertEnhIdentifier(p.indexName, "indexName", { maxLength: INDEX_NAME_MAX });
-  const baseTable = assertEnhIdentifier(p.baseTable, "baseTable", { maxLength: BASE_TABLE_MAX });
-  if (!Array.isArray(p.fields) || p.fields.length === 0) {
-    throw new AbapError(
-      "BAD_INPUT",
-      "fields must be a non-empty list of base-table field names \u2014 a secondary index with no field at all is not one DD_INDEX_INTERFACE would accept.",
-      { indexName, baseTable }
-    );
-  }
-  if (p.fields.length > MAX_INDEX_FIELDS) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `fields has ${p.fields.length} entries, more than the ${MAX_INDEX_FIELDS} this bridge generates.`,
-      { indexName, count: p.fields.length, max: MAX_INDEX_FIELDS }
-    );
-  }
-  const fields = p.fields.map(
-    (f, i) => assertEnhIdentifier(f, `fields[${i}]`, { maxLength: INDEX_FIELD_NAME_MAX })
-  );
-  const description = assertAbapText(p.description, "description", INDEX_TEXT_MAX);
-  const packageNameStr = assertEnhIdentifier(p.packageName.name, "packageName", PACKAGE_RULES2);
-  const trkorr = assertSecondaryIndexTarget(packageNameStr, p.corrNr);
-  const corrNr = trkorr === "" ? void 0 : trkorr;
-  const unique = p.unique === true;
-  return { indexName, baseTable, fields, description, packageName: p.packageName, corrNr, unique };
-}
-function validateDelete(p) {
-  const indexName = assertEnhIdentifier(p.indexName, "indexName", { maxLength: INDEX_NAME_MAX });
-  const baseTable = assertEnhIdentifier(p.baseTable, "baseTable", { maxLength: BASE_TABLE_MAX });
-  const packageNameStr = assertEnhIdentifier(p.packageName.name, "packageName", PACKAGE_RULES2);
-  const trkorr = assertSecondaryIndexTarget(packageNameStr, p.corrNr);
-  const corrNr = trkorr === "" ? void 0 : trkorr;
-  return { indexName, baseTable, packageName: p.packageName, corrNr };
-}
-var DD_INDEX_EXCEPTIONS = [
-  {
-    subrc: 1,
-    name: "cancelled",
-    code: "CHECK_FAILED",
-    message: "DD_INDEX_INTERFACE was cancelled (CANCELLED) \u2014 typically a popup a headless bridge execution cannot answer.",
-    hint: "Retry once; a cancelled dialog is not evidence anything about the request itself was wrong."
-  },
-  {
-    subrc: 2,
-    name: "already_exist",
-    code: "CHECK_FAILED",
-    message: "DD_INDEX_INTERFACE reports this index already exists on the base table (ALREADY_EXIST).",
-    hint: 'Use mode: "delete" to remove the existing index first if a different definition is wanted, then create again.'
-  },
-  {
-    subrc: 3,
-    name: "permission_error",
-    code: "SAFETY_DENIED",
-    message: "DD_INDEX_INTERFACE refused its own authority check (PERMISSION_ERROR) \u2014 this is SAP's OWN MAKE_CORR_ENTRY authorization check inside the function module, not abapsmith's safety gate.",
-    hint: "The service user this bridge runs as lacks authority for this object; a different corr_nr will not change that."
-  },
-  {
-    subrc: 4,
-    name: "name_not_allowed",
-    code: "BAD_INPUT",
-    message: "DD_INDEX_INTERFACE refused this index name (NAME_NOT_ALLOWED) \u2014 commonly outside the customer namespace or already used elsewhere.",
-    hint: "Pick a different index name."
-  },
-  {
-    subrc: 5,
-    name: "db_access_error",
-    code: "CHECK_FAILED",
-    message: "DD_INDEX_INTERFACE hit a database access error (DB_ACCESS_ERROR) while writing the dictionary tables.",
-    hint: "Not a request-shape problem; check the base table for an inconsistent or locked dictionary state."
-  },
-  {
-    subrc: 6,
-    name: "basetab_error",
-    code: "NOT_FOUND",
-    message: "DD_INDEX_INTERFACE reports a problem with the base table (BASETAB_ERROR) \u2014 commonly that it does not exist or is inactive.",
-    hint: "Confirm the base table exists and is active before creating an index on it."
-  },
-  {
-    subrc: 7,
-    name: "not_exist",
-    code: "NOT_FOUND",
-    message: "DD_INDEX_INTERFACE reports this index does not exist (NOT_EXIST).",
-    hint: "Confirm the index name and base table; deleting a name that was never created returns this."
-  },
-  {
-    subrc: 8,
-    name: "others",
-    code: "CHECK_FAILED",
-    message: "DD_INDEX_INTERFACE failed with an unclassified exception (OTHERS).",
-    hint: void 0
-  }
-];
-function indexCreatePartialSuccess(indexName, baseTable) {
-  return {
-    completed: {
-      "INDEX-CREATED": `DD_INDEX_INTERFACE (action='I') created ${indexName} on ${baseTable}, and the COMMIT WORK that follows it committed it.`,
-      "INDEX-ACTIVE": `${indexName} was found active (AS4LOCAL = 'A') in DD12V on re-read after the commit.`
-    },
-    hint: `If INDEX-CREATED fired, ${indexName} exists on ${baseTable} \u2014 abap_write mode="delete" type="TABL/DI" can remove it rather than retrying the create, which would collide with it.`
-  };
-}
-function assertCreateVerdictAgrees(indexName, baseTable, verdict) {
-  if (!verdict.verified || verdict.present && verdict.active) return;
-  const { completed, hint } = indexCreatePartialSuccess(indexName, baseTable);
-  const done = Object.values(completed).filter((v) => v !== void 0);
-  throw new AbapError(
-    "CHECK_FAILED",
-    `DD_INDEX_INTERFACE's own transcript reported ${indexName} on ${baseTable} created and active, but the independent DD12V/DD17S re-read run right after it disagrees: ${verdict.statement}. PARTIAL SUCCESS, NOT A NO-OP: ${done.join("; ")}.`,
-    { indexName, baseTable, verdict },
-    hint
-  );
-}
-function indexBridgeErrorHook(what, indexName, baseTable) {
-  const fmWhat = what === "insert" ? CREATE_FM_WHAT : DELETE_FM_WHAT;
-  const subrcRe = new RegExp(`^${fmWhat} failed, sy-subrc=(\\d+),`);
-  return (transcript) => {
-    const line2 = transcript.errorLine;
-    if (!line2) return;
-    if (line2.includes(`${indexName} on ${baseTable} does not exist`)) {
-      throw new AbapError(
-        "NOT_FOUND",
-        `Index ${indexName} on ${baseTable} does not exist, so there is nothing to delete. Raw ABAP-side detail: ${line2}`,
-        { indexName, baseTable, raw: transcript.raw }
-      );
-    }
-    if (line2.includes(`unique index ${indexName} on ${baseTable} omits the client field`)) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `Index ${indexName} was not created: a unique secondary index on client-dependent base table ${baseTable} must include that table's client field. Raw ABAP-side detail: ${line2}`,
-        { indexName, baseTable, raw: transcript.raw },
-        `Add ${baseTable}'s client field to index_fields, or create ${indexName} without index_unique.`
-      );
-    }
-    const m = subrcRe.exec(line2);
-    if (!m) return;
-    const subrc = Number(m[1]);
-    const entry = DD_INDEX_EXCEPTIONS.find((e) => e.subrc === subrc);
-    if (!entry) return;
-    throw new AbapError(entry.code, entry.message, { indexName, baseTable, subrc, raw: transcript.raw }, entry.hint);
-  };
-}
-async function createSecondaryIndex(conn, gate, params) {
-  assertServerPackage(params.packageName, `secondary index ${params.indexName} on ${params.baseTable}`);
-  const validated = validate2(params);
-  const { indexName, baseTable, fields, description, packageName, corrNr, unique } = validated;
-  const corr = corrNr === void 0 ? void 0 : { kind: "transport", corrNr, source: "named" };
-  assertBridgeMutation(
-    gate,
-    { type: "TABL/DI", name: indexGateName(baseTable, indexName), packageName: packageName.name },
-    { activate: true, ...corr !== void 0 ? { corr } : {} }
-  );
-  const partial2 = indexCreatePartialSuccess(indexName, baseTable);
-  const result = await runClassicAction(conn, gate, {
-    action: "create_index",
-    args: {
-      index_name: indexName,
-      base_table: baseTable,
-      fields,
-      description,
-      package_name: packageName.name,
-      corr_nr: corrNr ?? "",
-      ...params.unique !== void 0 ? { unique } : {}
-    },
-    what: `Creating secondary index ${indexName} on ${baseTable}`,
-    expectTags: ["INDEX-CREATED", "INDEX-ACTIVE", "INDEX-FIELDS"],
-    beforeAssert: indexBridgeErrorHook("insert", indexName, baseTable),
-    completed: partial2.completed,
-    partialHint: partial2.hint
-  });
-  const verdict = await verifySecondaryIndex(conn, baseTable, indexName, "present");
-  assertCreateVerdictAgrees(indexName, baseTable, verdict);
-  return { ...result, verdict };
-}
-function callerVisibleIndexTags(tags) {
-  return tags.filter((t) => !t.includes("ACTFAILED"));
-}
-async function deleteSecondaryIndexViaBridge(conn, gate, params) {
-  assertServerPackage(params.packageName, `secondary index ${params.indexName} on ${params.baseTable}`);
-  const validated = validateDelete(params);
-  const { indexName, baseTable, packageName, corrNr } = validated;
-  const corr = corrNr === void 0 ? void 0 : { kind: "transport", corrNr, source: "named" };
-  assertBridgeMutation(
-    gate,
-    { type: "TABL/DI", name: indexGateName(baseTable, indexName), packageName: packageName.name },
-    { activate: true, op: "delete", ...corr !== void 0 ? { corr } : {} }
-  );
-  const result = await runClassicAction(conn, gate, {
-    action: "delete_index",
-    args: {
-      index_name: indexName,
-      base_table: baseTable,
-      package_name: packageName.name,
-      corr_nr: corrNr ?? ""
-    },
-    what: `Deleting secondary index ${indexName} on ${baseTable}`,
-    expectTags: ["INDEX-DELETED", "INDEX-GONE"],
-    beforeAssert: indexBridgeErrorHook("delete", indexName, baseTable)
-  });
-  const verdict = await verifySecondaryIndex(conn, baseTable, indexName, "absent");
-  return { ...result, verdict };
-}
-
-// src/tools/preflight.ts
-init_types();
-init_safety();
-function isIndexType(type) {
-  return (type ?? "").trim().toUpperCase() === "TABL/DI";
-}
-function preflight(args) {
-  if (isIndexType(args.type)) {
-    const resolved = resolveIndexObjectInput(args.object, args.base_table);
-    return { name: resolved.object.trim().toUpperCase(), packageName: args.package, type: args.type };
-  }
-  const parsed = parseObjectRef(args.object, specForType(args.type));
-  const type = args.type ?? parsed.spec?.type;
-  if (type === "DEVC/K") {
-    return {
-      name: parsed.name,
-      packageName: parsed.name,
-      type,
-      ...args.package?.trim() ? { superPackage: args.package.trim().toUpperCase() } : {}
-    };
-  }
-  return { name: parsed.name, packageName: args.package, type };
-}
-function writeGateKey(object3, type, baseTable) {
-  const name = isIndexType(type) ? resolveIndexObjectInput(object3, baseTable).object.trim().toUpperCase() : parseObjectRef(object3, specForType(type)).name.trim().toUpperCase();
-  return name.length > 0 ? name : void 0;
-}
-function enhancementPreflightIntent(pf) {
-  if (!isEnhancementType(pf.type) || !pf.affects) return void 0;
-  return enhancementIntentFor({ name: pf.name, type: pf.type ?? "", packageName: "" }, pf.affects);
-}
 
 // src/tools/write.ts
 init_zod();
@@ -118200,11 +121891,11 @@ var DDIC_SHAPES = {
     skeleton: TTYP_SKELETON
   }
 };
-function escapeXmlAttr3(s) {
+function escapeXmlAttr4(s) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
 }
 function renderSkeleton(shape, name) {
-  return shape.skeleton.replace('adtcore:name="NAME"', () => `adtcore:name="${escapeXmlAttr3(name)}"`);
+  return shape.skeleton.replace('adtcore:name="NAME"', () => `adtcore:name="${escapeXmlAttr4(name)}"`);
 }
 function ddicDescriptorSkeleton(type, name) {
   const shape = DDIC_SHAPES[type];
@@ -118212,7 +121903,7 @@ function ddicDescriptorSkeleton(type, name) {
   return renderSkeleton(shape, name);
 }
 var XML_COMMENT_RE2 = /<!--[\s\S]*?-->/g;
-var ROOT_TAG_RE = /<([A-Za-z_][\w.-]*)(?::([A-Za-z_][\w.-]*))?\b[^>]*>/;
+var ROOT_TAG_RE2 = /<([A-Za-z_][\w.-]*)(?::([A-Za-z_][\w.-]*))?\b[^>]*>/;
 var DATA_ELEMENT_TAG_RE = /<(?:([A-Za-z_][\w.-]*):)?dataElement\b[^>]*>/;
 var XMLNS_ATTR_RE = /(?:^|\s)xmlns(?::([A-Za-z_][\w.-]*))?\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
 function collectXmlns(tagText) {
@@ -118266,7 +121957,7 @@ function assertDdicDescriptorShape(type, name, xml3) {
   const expected = DDIC_SHAPES[type];
   if (!expected) return;
   const stripped = xml3.replace(XML_COMMENT_RE2, "");
-  const rootMatch = ROOT_TAG_RE.exec(stripped);
+  const rootMatch = ROOT_TAG_RE2.exec(stripped);
   if (!rootMatch) return;
   const rootTag = rootMatch[0];
   if (rootMatch[1] === void 0) return;
@@ -118369,7 +122060,7 @@ function buildDoma(name, description, packageName, f) {
   const outputLength = f.outputLength ?? length;
   const lowercase2 = f.lowercase ?? false;
   const signExists = f.signExists ?? false;
-  return `${XML_DECL}<doma:domain xmlns:doma="http://www.sap.com/dictionary/domain" xmlns:adtcore="${ADTCORE_NS2}" adtcore:name="${escapeXmlAttr3(name)}" adtcore:type="DOMA/DD" adtcore:description="${escapeXmlAttr3(description)}"><adtcore:packageRef adtcore:name="${escapeXmlAttr3(packageName)}"/><doma:content><doma:typeInformation>${elem("doma:datatype", dataType)}${elem("doma:length", num2(length))}${elem("doma:decimals", num2(decimals))}</doma:typeInformation><doma:outputInformation>${elem("doma:length", num2(outputLength))}${elem("doma:lowercase", String(lowercase2))}${elem("doma:signExists", String(signExists))}</doma:outputInformation></doma:content></doma:domain>`;
+  return `${XML_DECL}<doma:domain xmlns:doma="http://www.sap.com/dictionary/domain" xmlns:adtcore="${ADTCORE_NS2}" adtcore:name="${escapeXmlAttr4(name)}" adtcore:type="DOMA/DD" adtcore:description="${escapeXmlAttr4(description)}"><adtcore:packageRef adtcore:name="${escapeXmlAttr4(packageName)}"/><doma:content><doma:typeInformation>${elem("doma:datatype", dataType)}${elem("doma:length", num2(length))}${elem("doma:decimals", num2(decimals))}</doma:typeInformation><doma:outputInformation>${elem("doma:length", num2(outputLength))}${elem("doma:lowercase", String(lowercase2))}${elem("doma:signExists", String(signExists))}</doma:outputInformation></doma:content></doma:domain>`;
 }
 function buildDtel(name, description, packageName, f) {
   const typeKind = f.typeKind ?? "predefinedAbapType";
@@ -118403,7 +122094,7 @@ function buildDtel(name, description, packageName, f) {
   }
   const searchHelp = f.searchHelp !== void 0 ? normalizeShlpIdentifier(f.searchHelp, "searchHelp", "DTEL/DE", name) : "";
   const searchHelpParameter = f.searchHelpParameter !== void 0 ? normalizeShlpIdentifier(f.searchHelpParameter, "searchHelpParameter", "DTEL/DE", name) : "";
-  return `${XML_DECL}<blue:wbobj xmlns:blue="http://www.sap.com/wbobj/dictionary/dtel" xmlns:adtcore="${ADTCORE_NS2}" adtcore:name="${escapeXmlAttr3(name)}" adtcore:type="DTEL/DE" adtcore:description="${escapeXmlAttr3(description)}"><adtcore:packageRef adtcore:name="${escapeXmlAttr3(packageName)}"/><dtel:dataElement xmlns:dtel="${DATAELEMENT_NS}">${elem("dtel:typeKind", typeKind)}${elem("dtel:typeName", typeName)}${elem("dtel:dataType", dataType)}${elem("dtel:dataTypeLength", numPadded(length, 6))}${elem("dtel:dataTypeDecimals", numPadded(decimals, 6))}${elem("dtel:shortFieldLabel", shortLabel)}${elem("dtel:shortFieldLength", num2(shortLength))}${elem("dtel:shortFieldMaxLength", num2(DTEL_MAX_LENGTH.short))}${elem("dtel:mediumFieldLabel", mediumLabel)}${elem("dtel:mediumFieldLength", num2(mediumLength))}${elem("dtel:mediumFieldMaxLength", num2(DTEL_MAX_LENGTH.medium))}${elem("dtel:longFieldLabel", longLabel)}${elem("dtel:longFieldLength", num2(longLength))}${elem("dtel:longFieldMaxLength", num2(DTEL_MAX_LENGTH.long))}${elem("dtel:headingFieldLabel", headingLabel)}${elem("dtel:headingFieldLength", num2(headingLength))}${elem("dtel:headingFieldMaxLength", num2(DTEL_MAX_LENGTH.heading))}${elem("dtel:searchHelp", searchHelp)}${elem("dtel:searchHelpParameter", searchHelpParameter)}${elem("dtel:setGetParameter", "")}${elem("dtel:defaultComponentName", "")}${elem("dtel:deactivateInputHistory", "false")}${elem("dtel:changeDocument", "false")}${elem("dtel:leftToRightDirection", "false")}${elem("dtel:deactivateBIDIFiltering", "false")}</dtel:dataElement></blue:wbobj>`;
+  return `${XML_DECL}<blue:wbobj xmlns:blue="http://www.sap.com/wbobj/dictionary/dtel" xmlns:adtcore="${ADTCORE_NS2}" adtcore:name="${escapeXmlAttr4(name)}" adtcore:type="DTEL/DE" adtcore:description="${escapeXmlAttr4(description)}"><adtcore:packageRef adtcore:name="${escapeXmlAttr4(packageName)}"/><dtel:dataElement xmlns:dtel="${DATAELEMENT_NS}">${elem("dtel:typeKind", typeKind)}${elem("dtel:typeName", typeName)}${elem("dtel:dataType", dataType)}${elem("dtel:dataTypeLength", numPadded(length, 6))}${elem("dtel:dataTypeDecimals", numPadded(decimals, 6))}${elem("dtel:shortFieldLabel", shortLabel)}${elem("dtel:shortFieldLength", num2(shortLength))}${elem("dtel:shortFieldMaxLength", num2(DTEL_MAX_LENGTH.short))}${elem("dtel:mediumFieldLabel", mediumLabel)}${elem("dtel:mediumFieldLength", num2(mediumLength))}${elem("dtel:mediumFieldMaxLength", num2(DTEL_MAX_LENGTH.medium))}${elem("dtel:longFieldLabel", longLabel)}${elem("dtel:longFieldLength", num2(longLength))}${elem("dtel:longFieldMaxLength", num2(DTEL_MAX_LENGTH.long))}${elem("dtel:headingFieldLabel", headingLabel)}${elem("dtel:headingFieldLength", num2(headingLength))}${elem("dtel:headingFieldMaxLength", num2(DTEL_MAX_LENGTH.heading))}${elem("dtel:searchHelp", searchHelp)}${elem("dtel:searchHelpParameter", searchHelpParameter)}${elem("dtel:setGetParameter", "")}${elem("dtel:defaultComponentName", "")}${elem("dtel:deactivateInputHistory", "false")}${elem("dtel:changeDocument", "false")}${elem("dtel:leftToRightDirection", "false")}${elem("dtel:deactivateBIDIFiltering", "false")}</dtel:dataElement></blue:wbobj>`;
 }
 function buildTtyp(name, description, packageName, f) {
   const typeKind = f.typeKind ?? "dictionaryType";
@@ -118419,7 +122110,7 @@ function buildTtyp(name, description, packageName, f) {
   const dataType = f.dataType ?? "STRU";
   const length = f.length ?? 0;
   const decimals = f.decimals ?? 0;
-  return `${XML_DECL}<ttyp:tableType xmlns:ttyp="http://www.sap.com/dictionary/tabletype" xmlns:adtcore="${ADTCORE_NS2}" adtcore:name="${escapeXmlAttr3(name)}" adtcore:type="TTYP/DA" adtcore:description="${escapeXmlAttr3(description)}"><adtcore:packageRef adtcore:name="${escapeXmlAttr3(packageName)}"/><ttyp:rowType>${elem("ttyp:typeKind", typeKind)}${elem("ttyp:typeName", typeName)}<ttyp:builtInType>${elem("ttyp:dataType", dataType)}${elem("ttyp:length", numPadded(length, 6))}${elem("ttyp:decimals", numPadded(decimals, 6))}</ttyp:builtInType><ttyp:rangeType/></ttyp:rowType></ttyp:tableType>`;
+  return `${XML_DECL}<ttyp:tableType xmlns:ttyp="http://www.sap.com/dictionary/tabletype" xmlns:adtcore="${ADTCORE_NS2}" adtcore:name="${escapeXmlAttr4(name)}" adtcore:type="TTYP/DA" adtcore:description="${escapeXmlAttr4(description)}"><adtcore:packageRef adtcore:name="${escapeXmlAttr4(packageName)}"/><ttyp:rowType>${elem("ttyp:typeKind", typeKind)}${elem("ttyp:typeName", typeName)}<ttyp:builtInType>${elem("ttyp:dataType", dataType)}${elem("ttyp:length", numPadded(length, 6))}${elem("ttyp:decimals", numPadded(decimals, 6))}</ttyp:builtInType><ttyp:rangeType/></ttyp:rowType></ttyp:tableType>`;
 }
 function buildStructuredDdicDescriptor(type, name, description, packageName, fields) {
   const allowed = STRUCTURED_FIELDS_BY_TYPE[type];
@@ -121907,7 +125598,7 @@ async function abapDeleteIndexViaBridge(conn, target, input, maxChars, gate) {
     maxChars
   });
 }
-var ok = (text5) => ({ content: [{ type: "text", text: text5 }] });
+var ok2 = (text5) => ({ content: [{ type: "text", text: text5 }] });
 function registerWriteTools(mcp, deps) {
   mcp.registerTool(
     "abap_write",
@@ -121952,7 +125643,7 @@ function registerWriteTools(mcp, deps) {
             deps.cfg.verifyWrites
           );
           const res2 = await deps.pool.withWrite("abap_write", void 0, run);
-          return ok(res2.text);
+          return ok2(res2.text);
         }
         if (a.object === void 0) {
           throw new AbapError(
@@ -121984,7 +125675,7 @@ function registerWriteTools(mcp, deps) {
             deps.cfg.verifyWrites
           )
         );
-        return ok(res.text);
+        return ok2(res.text);
       } catch (e) {
         return deps.errorResult(await enrichLockedError(e, lockedObject, "abap_write", deps.lockHolders, deps.warn));
       }
@@ -122616,7 +126307,7 @@ async function abapActivateFormat(conn, input, maxChars, gate, transport, journa
     maxChars
   });
 }
-var ok2 = (text5) => ({ content: [{ type: "text", text: text5 }] });
+var ok3 = (text5) => ({ content: [{ type: "text", text: text5 }] });
 function registerActivateTools(mcp, deps) {
   mcp.registerTool(
     "abap_activate",
@@ -122663,7 +126354,7 @@ function registerActivateTools(mcp, deps) {
           await deps.ensureConnected();
           const run2 = (conn) => abapActivate(conn, args, deps.cfg.maxResponseChars, deps.safety, deps.transport, deps.journal);
           const res2 = await deps.pool.withWrite("abap_activate", void 0, run2);
-          return ok2(res2.text);
+          return ok3(res2.text);
         }
         if (mode === "format") {
           if (a.affects !== void 0) {
@@ -122703,7 +126394,7 @@ function registerActivateTools(mcp, deps) {
               deps.cfg.verifyWrites
             );
             const res3 = await deps.pool.withRead("abap_activate", run3);
-            return ok2(res3.text);
+            return ok3(res3.text);
           }
           const object4 = a.object;
           lockedObject = object4;
@@ -122722,7 +126413,7 @@ function registerActivateTools(mcp, deps) {
             deps.cfg.verifyWrites
           );
           const res2 = await deps.pool.withWrite("abap_activate", writeGateKey(object4, a.type), run2);
-          return ok2(res2.text);
+          return ok3(res2.text);
         }
         if (a.object === void 0) {
           throw new AbapError(
@@ -122747,7 +126438,7 @@ function registerActivateTools(mcp, deps) {
         await deps.ensureConnected();
         const run = (conn) => abapActivate(conn, args, deps.cfg.maxResponseChars, deps.safety, deps.transport, deps.journal);
         const res = mode === "activate" ? await deps.pool.withWrite("abap_activate", writeGateKey(object3, a.type), run) : await deps.pool.withRead("abap_activate", run);
-        return ok2(res.text);
+        return ok3(res.text);
       } catch (e) {
         return deps.errorResult(await enrichLockedError(e, lockedObject, "abap_activate", deps.lockHolders, deps.warn));
       }
@@ -122755,3373 +126446,8 @@ function registerActivateTools(mcp, deps) {
   );
 }
 
-// src/tools/debug.ts
-init_zod();
-init_errors();
-init_compact();
-
-// src/debug/identity.ts
-function resolveDebugIdentity(cfg, lane = 0) {
-  const terminal = resolveLanePart(cfg.terminalId, `${cfg.sid}:${cfg.user}:terminalId`, lane);
-  const ide = resolveLanePart(cfg.ideId, `${cfg.sid}:${cfg.user}:ideId`, lane);
-  return {
-    terminalId: terminal.value,
-    ideId: ide.value,
-    terminalIdSource: terminal.source,
-    ideIdSource: ide.source,
-    lane
-  };
-}
-function resolveLanePart(explicit, baseSeed, lane) {
-  if (lane === 0) {
-    return {
-      value: resolveTerminalId({ explicit, seed: baseSeed }),
-      source: explicit?.trim() ? "config" : "derived"
-    };
-  }
-  const trimmedExplicit = explicit?.trim();
-  const seed = trimmedExplicit ? `${trimmedExplicit}:lane${lane}` : `${baseSeed}:lane${lane}`;
-  return {
-    value: resolveTerminalId({ seed }),
-    source: "lane-derived"
-  };
-}
-var warned = false;
-function warnIfDerivedIdentity(id, warn) {
-  if (warned) return false;
-  const derivedParts = [];
-  if (id.terminalIdSource !== "config") derivedParts.push("terminalId");
-  if (id.ideIdSource !== "config") derivedParts.push("ideId");
-  if (derivedParts.length === 0) return false;
-  warned = true;
-  const laneNote = id.lane > 0 ? ` (lane ${id.lane})` : "";
-  warn(
-    `[abapsmith] WARNING: debug identity's ${derivedParts.join(" and ")} ${derivedParts.length > 1 ? "were" : "was"} derived from SID+user${laneNote} (not explicitly configured). A second MCP server process for the same SAP user derives the IDENTICAL pair and SAP cannot tell the two apart. Only explicitly-configured ABAP_TERMINAL_ID / ABAP_IDE_ID are provably multi-process-safe \u2014 set them to distinct 32-uppercase-hex values per terminal.`
-  );
-  return true;
-}
-
-// src/debug/arm-lock.ts
-init_errors();
-init_state_dir();
-import { createHash as createHash9 } from "node:crypto";
-import * as path7 from "node:path";
-var NoopDebugArmLock = class {
-  async acquire() {
-  }
-  release() {
-  }
-};
-function resolveDebugLockWaitMs(env = process.env) {
-  const DEFAULT_MS = 1500;
-  const MIN_MS = 200;
-  const MAX_MS = 3e4;
-  const raw = env.ABAP_DEBUG_LOCK_WAIT_MS;
-  if (raw === void 0 || raw.trim() === "") return DEFAULT_MS;
-  const n = Number(raw.trim());
-  if (!Number.isFinite(n) || n < 0) return DEFAULT_MS;
-  const ms = Math.floor(n);
-  if (ms < MIN_MS || ms > MAX_MS) return DEFAULT_MS;
-  return ms;
-}
-function resolveCrossProcessDebugLock(env = process.env) {
-  const raw = env.ABAP_CROSS_PROCESS_DEBUG_LOCK;
-  if (raw === void 0) return true;
-  const v = raw.trim().toLowerCase();
-  if (v === "") return true;
-  return !["false", "0", "no", "off"].includes(v);
-}
-var DEBUG_ARM_LOCK_HARD_STALE_MS = 36e5;
-var LOCK_HASH_HEX_LEN2 = 20;
-function debugArmLockKey(cfg) {
-  return `${cfg.url.trim()}|${(cfg.client ?? "").trim()}|${cfg.user.trim().toUpperCase()}`;
-}
-function debugArmLockPath(stateDir, cfg, lane = 0) {
-  const hashInput = lane === 0 ? debugArmLockKey(cfg) : `${debugArmLockKey(cfg)}|lane${lane}`;
-  const hash2 = createHash9("sha256").update(hashInput).digest("hex").slice(0, LOCK_HASH_HEX_LEN2);
-  return path7.join(stateDir, "locks", "debug", `${hash2}.lock`);
-}
-function toDebugLockBusyError(e, key, lockPath) {
-  const holder = fileLockHolderOf(e);
-  const held = holder ? `held by pid ${holder.pid} on ${holder.hostname} since ${holder.startedAt || "an unknown time"}` : "the holder is unknown \u2014 the lock file could not be read, or was written by another version";
-  return new AbapError(
-    "DEBUG_SESSION_LOCKED_CROSS_PROCESS",
-    `Cannot start a debug session: another abapsmith process is already holding the debugger slot for this system/client/user (${held}). SAP allows one debug listener per user on a system, so arming a second one would silently reassign or wedge the other session.`,
-    { key, lockPath, holder, cause: describeUnknownError(e) },
-    `Stop the other debug session (abap_debug with action "stop") and retry. If no other abapsmith process is actually running, this is a stale leftover and you can delete ${lockPath} by hand \u2014 a holder whose process has died is normally collected automatically within a few seconds. Set ABAP_CROSS_PROCESS_DEBUG_LOCK=false to disable this guard entirely (at the cost of the protection it provides).`
-  );
-}
-function deferred() {
-  let resolve5;
-  let reject;
-  const promise2 = new Promise((res, rej) => {
-    resolve5 = res;
-    reject = rej;
-  });
-  return { promise: promise2, resolve: resolve5, reject };
-}
-var FileLockDebugArmLock = class {
-  lockPath;
-  key;
-  waitMs;
-  /** How many callers currently hold this lock. Released at 0. */
-  holds = 0;
-  /** Resolved by {@link release} to end the `withFileLock` scope. */
-  hold;
-  /** In flight while an acquisition is racing, so concurrent callers await it. */
-  acquiring;
-  constructor(opts) {
-    this.lockPath = debugArmLockPath(opts.stateDir, opts.cfg, opts.lane ?? 0);
-    this.key = debugArmLockKey(opts.cfg);
-    this.waitMs = opts.waitMs ?? resolveDebugLockWaitMs();
-  }
-  /** The file this instance contends on. For diagnostics and tests. */
-  get path() {
-    return this.lockPath;
-  }
-  /** Whether this process currently holds the lock. For tests and diagnostics. */
-  get held() {
-    return this.holds > 0;
-  }
-  async acquire() {
-    if (this.holds > 0) {
-      this.holds += 1;
-      return;
-    }
-    if (this.acquiring !== void 0) {
-      await this.acquiring;
-      this.holds += 1;
-      return;
-    }
-    const attempt = this.run();
-    this.acquiring = attempt;
-    try {
-      await attempt;
-    } finally {
-      this.acquiring = void 0;
-    }
-    this.holds = 1;
-  }
-  release() {
-    if (this.holds === 0) return;
-    this.holds -= 1;
-    if (this.holds > 0) return;
-    const hold = this.hold;
-    this.hold = void 0;
-    hold?.resolve();
-  }
-  /**
-   * Opens the `withFileLock` scope and resolves once the lock is GRANTED,
-   * leaving the scope running until {@link release}.
-   */
-  async run() {
-    const granted2 = deferred();
-    const hold = deferred();
-    const scope = withFileLock(
-      this.lockPath,
-      async () => {
-        granted2.resolve();
-        await hold.promise;
-      },
-      { waitMs: this.waitMs, hardStaleMs: DEBUG_ARM_LOCK_HARD_STALE_MS }
-    );
-    let failure;
-    const settled = scope.then(
-      () => void 0,
-      (e) => {
-        failure = e;
-        this.hold = void 0;
-        return void 0;
-      }
-    );
-    await Promise.race([granted2.promise, settled]);
-    if (failure !== void 0) {
-      if (isFileLockAcquisitionFailure(failure, this.lockPath)) {
-        throw toDebugLockBusyError(failure, this.key, this.lockPath);
-      }
-      throw failure;
-    }
-    this.hold = hold;
-  }
-};
-function createDebugArmLock(opts) {
-  const enabled = opts.enabled ?? resolveCrossProcessDebugLock(opts.env ?? process.env);
-  if (!enabled) return new NoopDebugArmLock();
-  return new FileLockDebugArmLock({ stateDir: opts.stateDir, cfg: opts.cfg, waitMs: opts.waitMs, lane: opts.lane });
-}
-function createDebugArmLocks(opts) {
-  const lanes = Number.isInteger(opts.lanes) && opts.lanes > 0 ? opts.lanes : 1;
-  const locks = [];
-  for (let lane = 0; lane < lanes; lane++) {
-    locks.push(createDebugArmLock({ ...opts, lane }));
-  }
-  return locks;
-}
-
-// src/tools/debug.ts
-init_state_dir();
-
-// src/adt/enhancement.ts
-init_session();
-init_errors();
-
-// src/adt/enhancement-xml.ts
-init_errors();
-init_fxp();
-var xmlParser2 = new XMLParser({
-  ignoreAttributes: false,
-  attributeNamePrefix: "@_",
-  removeNSPrefix: true,
-  parseAttributeValue: false,
-  parseTagValue: false,
-  trimValues: true
-});
-function xnode(value) {
-  if (value === void 0 || value === null) return void 0;
-  if (Array.isArray(value)) return void 0;
-  if (typeof value !== "object") return void 0;
-  return value;
-}
-function xmany(value) {
-  if (value === void 0 || value === null) return [];
-  if (Array.isArray(value)) {
-    return value.filter((v) => typeof v === "object" && v !== null);
-  }
-  if (typeof value === "object") return [value];
-  return [];
-}
-function xattr(n, name) {
-  if (!n) return void 0;
-  const v = n["@_" + name];
-  if (v === void 0 || v === null) return void 0;
-  return String(v);
-}
-function xbool(n, name) {
-  const v = xattr(n, name);
-  if (v === void 0) return void 0;
-  return v === "true";
-}
-function fail2(message, details = {}) {
-  throw new AbapError(
-    "BAD_INPUT",
-    `enhancement XML: ${message}`,
-    details,
-    "The decoder refuses to guess at malformed or unsupported input \u2014 fix or re-capture the source document rather than relying on a silent fallback."
-  );
-}
-function parseXml2(xmlText2, context) {
-  let parsed;
-  try {
-    parsed = xmlParser2.parse(xmlText2) ?? {};
-  } catch (e) {
-    fail2(`could not parse ${context} XML: ${e instanceof Error ? e.message : String(e)}`);
-  }
-  return parsed;
-}
-function xref(n) {
-  if (!n) return void 0;
-  const type = xattr(n, "type");
-  const name = xattr(n, "name");
-  if (!type || !name) return void 0;
-  return { uri: xattr(n, "uri"), type, name };
-}
-function parseCommon(root) {
-  const pkgNode = xnode(root.packageRef);
-  const packageRef = pkgNode ? {
-    uri: xattr(pkgNode, "uri"),
-    type: xattr(pkgNode, "type") ?? "",
-    name: xattr(pkgNode, "name") ?? "",
-    description: xattr(pkgNode, "description")
-  } : void 0;
-  return {
-    name: xattr(root, "name") ?? "",
-    type: xattr(root, "type") ?? "",
-    description: xattr(root, "description"),
-    packageRef,
-    responsible: xattr(root, "responsible"),
-    masterLanguage: xattr(root, "masterLanguage"),
-    masterSystem: xattr(root, "masterSystem"),
-    activationStatus: xattr(root, "version"),
-    language: xattr(root, "language"),
-    createdAt: xattr(root, "createdAt"),
-    createdBy: xattr(root, "createdBy"),
-    changedAt: xattr(root, "changedAt"),
-    changedBy: xattr(root, "changedBy")
-  };
-}
-function parseFilterCondition(n) {
-  return {
-    filterName: xattr(n, "filterName"),
-    filterType: xattr(n, "filterType"),
-    comparator1: xattr(n, "comparator1"),
-    value1: xattr(n, "value1"),
-    comparator2: xattr(n, "comparator2"),
-    value2: xattr(n, "value2")
-  };
-}
-function parseFilterTreeChildren(n) {
-  const out = [];
-  for (const andNode of xmany(n.and)) {
-    out.push({ kind: "and", children: parseFilterTreeChildren(andNode) });
-  }
-  for (const orNode of xmany(n.or)) {
-    out.push({ kind: "or", children: parseFilterTreeChildren(orNode) });
-  }
-  for (const filterNode of xmany(n.filter)) {
-    out.push({ kind: "filter", condition: parseFilterCondition(filterNode) });
-  }
-  return out;
-}
-function parseFilterTree(n) {
-  if (!n) return void 0;
-  const children = parseFilterTreeChildren(n);
-  if (children.length === 0) return void 0;
-  if (children.length === 1) return children[0];
-  return { kind: "or", children };
-}
-function parseBadiImplementationEntry(n) {
-  return {
-    name: xattr(n, "name") ?? "",
-    shortText: xattr(n, "shortText"),
-    isExample: xbool(n, "isExample"),
-    isDefault: xbool(n, "isDefault"),
-    isActive: xbool(n, "isActive"),
-    isCustomizingSupported: xbool(n, "isCustomizingSupported"),
-    runtimeBehaviorShorttext: xattr(n, "runtimeBehaviorShorttext"),
-    enhancementSpot: xref(xnode(n.enhancementSpot)),
-    badiDefinition: xref(xnode(n.badiDefinition)),
-    implementingClass: xref(xnode(n.implementingClass)),
-    filterTree: parseFilterTree(xnode(n.filterTree))
-  };
-}
-function parseBadiImplementation(xmlText2) {
-  const parsed = parseXml2(xmlText2, "enhoxh (BAdI implementation)");
-  const root = xnode(parsed.objectData);
-  if (!root) fail2("not an ENHO/XH BAdI implementation document (no <enho:objectData> root element)");
-  const common = parseCommon(root);
-  const contentCommon = xnode(root.contentCommon);
-  const contentSpecific = xnode(root.contentSpecific);
-  const badiTech = xnode(contentSpecific?.badiTechnology);
-  const implsNode = xnode(badiTech?.badiImplementations);
-  const implNodes = implsNode ? xmany(implsNode.badiImplementation) : [];
-  return {
-    ...common,
-    toolType: xattr(contentCommon, "toolType"),
-    adjustmentStatus: xattr(contentCommon, "adjustmentStatus"),
-    upgradeFlag: xbool(contentCommon, "upgradeFlag"),
-    implementations: implNodes.map(parseBadiImplementationEntry)
-  };
-}
-function parseUsageRef(n) {
-  return {
-    programId: xattr(n, "program_id"),
-    elementUsage: xattr(n, "element_usage"),
-    upgrade: xbool(n, "upgrade"),
-    automaticTransport: xbool(n, "automatic_transport"),
-    parent: xattr(n, "parent"),
-    objectReference: xref(xnode(n.objectReference)),
-    mainObjectReference: xref(xnode(n.mainObjectReference))
-  };
-}
-function parseEnclosureLink(n) {
-  for (const linkNode of xmany(n.link)) {
-    if (xattr(linkNode, "rel") === "enclosure") return xattr(linkNode, "href");
-  }
-  return void 0;
-}
-function parseHookImplementation(n) {
-  return {
-    id: xattr(n, "id"),
-    spotName: xattr(n, "spotname"),
-    programName: xattr(n, "programname"),
-    overwrite: xattr(n, "overwrite"),
-    method: xattr(n, "method"),
-    enhMode: xattr(n, "enhmode"),
-    fullName: xattr(n, "full_name") ?? xattr(n, "fullname"),
-    fullDescription: xattr(n, "full_description"),
-    enclosureUri: parseEnclosureLink(n)
-  };
-}
-function parseSourceCodePlugin(xmlText2) {
-  const parsed = parseXml2(xmlText2, "enhoxhh (source-code plugin)");
-  const root = xnode(parsed.enhancement);
-  if (!root) fail2("not an ENHO/XHH source-code plugin document (no <enho:enhancement> root element)");
-  const common = parseCommon(root);
-  const contentCommon = xnode(root.contentCommon);
-  const switchNode = xnode(contentCommon?.switch);
-  const usagesNode = xnode(contentCommon?.usages);
-  const usageNodes = usagesNode ? xmany(usagesNode.referencedObject) : [];
-  const contentSpecific = xnode(root.contentSpecific);
-  const hookTech = xnode(contentSpecific?.hookTechnology);
-  const hookImplNodes = hookTech ? xmany(hookTech.hookImplementation) : [];
-  return {
-    ...common,
-    sourceUri: xattr(root, "sourceUri"),
-    fixPointArithmetic: xbool(root, "fixPointArithmetic"),
-    activeUnicodeCheck: xbool(root, "activeUnicodeCheck"),
-    toolType: xattr(contentCommon, "toolType"),
-    adjustmentStatus: xattr(contentCommon, "adjustmentStatus"),
-    switchState: xattr(switchNode, "state"),
-    switchReference: xref(xnode(switchNode?.reference)),
-    usages: usageNodes.map(parseUsageRef),
-    enhancedObject: xref(xnode(hookTech?.enhancedObject)),
-    nextId: xattr(hookTech, "nextId"),
-    hookImplementations: hookImplNodes.map(parseHookImplementation)
-  };
-}
-function parseBadiFilterDeclaration(n) {
-  return {
-    filterName: xattr(n, "filterName"),
-    filterType: xattr(n, "filterType"),
-    shorttext: xattr(n, "shorttext"),
-    onlyConstantFilterValues: xbool(n, "onlyConstantFilterValues")
-  };
-}
-function parseBadiDefinitionEntry(n) {
-  const filtersNode = xnode(n.filters);
-  const filterNodes = filtersNode ? xmany(filtersNode.filter) : [];
-  return {
-    name: xattr(n, "name") ?? "",
-    shorttext: xattr(n, "shorttext"),
-    singleUse: xbool(n, "singleUse"),
-    useFallbackClass: xbool(n, "useFallbackClass"),
-    filterLimitation: xbool(n, "filterLimitation"),
-    documentationId: xattr(n, "documentationId"),
-    interfaceRef: xref(xnode(n.interface)),
-    filters: filterNodes.map(parseBadiFilterDeclaration)
-  };
-}
-function parseEnhancementSpot(xmlText2) {
-  const parsed = parseXml2(xmlText2, "enhsxs (enhancement spot)");
-  const root = xnode(parsed.objectData);
-  if (!root) fail2("not an ENHS/XS enhancement spot document (no <enhs:objectData> root element)");
-  const common = parseCommon(root);
-  const contentCommon = xnode(root.contentCommon);
-  const contentSpecific = xnode(root.contentSpecific);
-  const badiTech = xnode(contentSpecific?.badiTechnology);
-  const defsNode = xnode(badiTech?.badiDefinitions);
-  const defNodes = defsNode ? xmany(defsNode.badiDefinition) : [];
-  return {
-    ...common,
-    toolType: xattr(contentCommon, "toolType"),
-    internal: xbool(contentCommon, "internal"),
-    badiDefinitions: defNodes.map(parseBadiDefinitionEntry)
-  };
-}
-function escapeXmlAttr4(value) {
-  return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-var ROOT_TAG_RE2 = /^(\s*<\?xml[^>]*\?>\s*)(<[A-Za-z_][\w.-]*:[A-Za-z_][\w.-]*\b)([^>]*?)(\/?)>/;
-function patchEnhancementRootAttribute(xmlText2, attribute, value) {
-  const m = ROOT_TAG_RE2.exec(xmlText2);
-  if (!m) {
-    fail2("could not locate a root element to patch (no recognisable opening tag at the start of the document)", {
-      attribute
-    });
-    throw new Error("unreachable \u2014 fail() always throws");
-  }
-  const whole = m[0];
-  const prolog = m[1];
-  const tagOpen = m[2];
-  const attrs = m[3];
-  const selfClose = m[4];
-  const localName2 = tagOpen.replace(/^<[A-Za-z_][\w.-]*:/, "<");
-  if (localName2 !== "<objectData" && localName2 !== "<enhancement") {
-    fail2(`unrecognised enhancement document root element "${tagOpen.slice(1)}" \u2014 refusing to patch it`, {
-      attribute,
-      rootTag: tagOpen.slice(1)
-    });
-  }
-  const escaped = escapeXmlAttr4(value);
-  const attrRe = /(?:^|\s)(adtcore:)?description\s*=\s*(?:"[^"]*"|'[^']*')/;
-  const existing = attrRe.exec(attrs);
-  let newAttrs;
-  if (existing) {
-    const prefix = existing[1] ?? "";
-    newAttrs = attrs.slice(0, existing.index) + (existing[0].startsWith(" ") ? " " : "") + `${prefix}${attribute}="${escaped}"` + attrs.slice(existing.index + existing[0].length);
-  } else {
-    newAttrs = `${attrs} adtcore:${attribute}="${escaped}"`;
-  }
-  const newTagOpen = `${prolog}${tagOpen}${newAttrs}${selfClose}>`;
-  return xmlText2.slice(0, m.index) + newTagOpen + xmlText2.slice(m.index + whole.length);
-}
-var ROOT_DESCRIPTION_VALUE_RE = /(?:^|\s)(?:adtcore:)?description\s*=\s*(?:"([^"]*)"|'([^']*)')/;
-function hasEnhancementRootDescription(xmlText2) {
-  const m = ROOT_TAG_RE2.exec(xmlText2);
-  if (!m) return false;
-  const attrs = m[3] ?? "";
-  const valueMatch = ROOT_DESCRIPTION_VALUE_RE.exec(attrs);
-  if (!valueMatch) return false;
-  const raw = valueMatch[1] ?? valueMatch[2] ?? "";
-  return raw.length > 0;
-}
-var BADI_IMPL_TAG_RE = /<enho:badiImplementation\b([^>]*?)(\/?)>/g;
-function escapeRegExp3(s) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-function patchBadiImplementationActive(xmlText2, implName, active) {
-  const nameAttrRe = new RegExp(`(?:^|\\s)enho:name\\s*=\\s*"${escapeRegExp3(escapeXmlAttr4(implName))}"`);
-  BADI_IMPL_TAG_RE.lastIndex = 0;
-  let found;
-  let m;
-  while ((m = BADI_IMPL_TAG_RE.exec(xmlText2)) !== null) {
-    const attrs = m[1] ?? "";
-    if (nameAttrRe.test(attrs)) {
-      found = { full: m[0], attrs, selfClose: m[2] ?? "", index: m.index };
-      break;
-    }
-  }
-  if (!found) {
-    fail2(`could not locate a <enho:badiImplementation> entry named "${implName}" to patch`, { implName });
-    throw new Error("unreachable \u2014 fail() always throws");
-  }
-  const valueStr = active ? "true" : "false";
-  const attrRe = /(?:^|\s)(enho:)?isActive\s*=\s*(?:"[^"]*"|'[^']*')/;
-  const existing = attrRe.exec(found.attrs);
-  let newAttrs;
-  if (existing) {
-    const prefix = existing[1] ?? "";
-    newAttrs = found.attrs.slice(0, existing.index) + (existing[0].startsWith(" ") ? " " : "") + `${prefix}isActive="${valueStr}"` + found.attrs.slice(existing.index + existing[0].length);
-  } else {
-    newAttrs = `${found.attrs} enho:isActive="${valueStr}"`;
-  }
-  const newTag = `<enho:badiImplementation${newAttrs}${found.selfClose}>`;
-  return xmlText2.slice(0, found.index) + newTag + xmlText2.slice(found.index + found.full.length);
-}
-
-// src/adt/enhancement.ts
-var ENHOXH_COLLECTION = "/sap/bc/adt/enhancements/enhoxh";
-var ENHOXHH_COLLECTION = "/sap/bc/adt/enhancements/enhoxhh";
-var ENHSXS_COLLECTION = "/sap/bc/adt/enhancements/enhsxs";
-var ENHOXH_ACCEPT = "application/vnd.sap.adt.enh.enho.v1+xml";
-var ENHOXHH_ACCEPT = "application/vnd.sap.adt.enh.enhoxhh.v2+xml";
-var ENHSXS_ACCEPT = "application/vnd.sap.adt.enh.enhs.v1+xml";
-var ENHOXH_TYPE = "ENHO/XH";
-var ENHOXHH_TYPE = "ENHO/XHH";
-var ENHSXS_TYPE = "ENHS/XS";
-function buildEnhancementUri(collection, name) {
-  const trimmedName = name.trim();
-  if (!trimmedName) {
-    throw new AbapError(
-      "BAD_INPUT",
-      "Enhancement object name must not be empty.",
-      { collection },
-      "Pass the object name, e.g. the BAdI implementation's technical name."
-    );
-  }
-  const uri = `${collection}/${encodeURIComponent(trimmedName)}`;
-  if (/\/sap\/bc\/adt\/sap\/bc\/adt\//i.test(uri)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `Refused to build a doubled-prefix enhancement URI: ${uri}`,
-      { collection, name: trimmedName, uri },
-      "This system's /sap/bc/adt/discovery document is known to carry a doubled /sap/bc/adt/sap/bc/adt/ prefix on 29/239 templateLink/@template values, including the entire Enhancements workspace. Resolve the collection path from app:collection/@href, never from templateLink/@template."
-    );
-  }
-  return uri;
-}
-function firstHeader(headers, name) {
-  const lower = name.toLowerCase();
-  for (const k of Object.keys(headers)) {
-    if (k.toLowerCase() === lower) {
-      const v = headers[k];
-      if (Array.isArray(v)) return v.length ? String(v[0]) : void 0;
-      return v === void 0 || v === null ? void 0 : String(v);
-    }
-  }
-  return void 0;
-}
-async function readBadiImplementation(conn, name) {
-  conn.discovery.assertSupported("enhancements", "BAdI implementations (ENHO/XH)");
-  const uri = buildEnhancementUri(ENHOXH_COLLECTION, name);
-  try {
-    const resp = await conn.get(uri, { headers: { Accept: ENHOXH_ACCEPT } });
-    const etag = firstHeader(resp.headers, "etag");
-    return { xml: resp.body, data: parseBadiImplementation(resp.body), ...etag ? { etag } : {} };
-  } catch (e) {
-    if (isAbapError(e)) throw e;
-    throw translateAdtError(e, { operation: "read", uri, name, type: ENHOXH_TYPE });
-  }
-}
-async function readSourceCodePlugin(conn, name) {
-  conn.discovery.assertSupported("enhancements", "source-code plug-ins (ENHO/XHH)");
-  const uri = buildEnhancementUri(ENHOXHH_COLLECTION, name);
-  try {
-    const resp = await conn.get(uri, { headers: { Accept: ENHOXHH_ACCEPT } });
-    const etag = firstHeader(resp.headers, "etag");
-    return { xml: resp.body, data: parseSourceCodePlugin(resp.body), ...etag ? { etag } : {} };
-  } catch (e) {
-    if (isAbapError(e)) throw e;
-    throw translateAdtError(e, { operation: "read", uri, name, type: ENHOXHH_TYPE });
-  }
-}
-async function readEnhancementSpot(conn, name) {
-  conn.discovery.assertSupported("enhancements", "enhancement spots (ENHS/XS)");
-  const uri = buildEnhancementUri(ENHSXS_COLLECTION, name);
-  try {
-    const resp = await conn.get(uri, { headers: { Accept: ENHSXS_ACCEPT } });
-    const etag = firstHeader(resp.headers, "etag");
-    return { xml: resp.body, data: parseEnhancementSpot(resp.body), ...etag ? { etag } : {} };
-  } catch (e) {
-    if (isAbapError(e)) throw e;
-    throw translateAdtError(e, { operation: "read", uri, name, type: ENHSXS_TYPE });
-  }
-}
-
-// src/tools/run.ts
-init_zod();
-init_errors();
-
-// src/adt/authtrace.ts
-init_errors();
-var AUTHTRACE_TOOLS = /* @__PURE__ */ new Map([
-  [
-    AUTHTRACE_TOOL_ID,
-    {
-      manifest: authtraceManifest,
-      origin: "builtin",
-      sources: authtraceSources,
-      version: manifestVersion(authtraceManifest, authtraceSources)
-    }
-  ]
-]);
-async function runAuthtrace(deps, action, args) {
-  const res = await dispatch2(
-    { conn: deps.conn, cfg: deps.conn.cfg, gate: deps.gate, tools: AUTHTRACE_TOOLS },
-    {
-      tool: AUTHTRACE_TOOL_ID,
-      action,
-      args,
-      caller: { tool: "authtrace", action }
-    }
-  );
-  return res.result;
-}
-function fail3(action, reason, result) {
-  throw new AbapError(
-    "FLUID_PROTOCOL_ERROR",
-    `authtrace.${action} ${reason}`,
-    { tool: AUTHTRACE_TOOL_ID, action, result }
-  );
-}
-function singleRow(action, result) {
-  if (!Array.isArray(result)) {
-    fail3(action, "returned a result that is not an array", result);
-  }
-  if (result.length !== 1) {
-    fail3(action, `returned ${result.length} rows, expected exactly 1`, result);
-  }
-  const row2 = result[0];
-  if (typeof row2 !== "object" || row2 === null || Array.isArray(row2)) {
-    fail3(action, "row 0 is not an object", result);
-  }
-  return row2;
-}
-function reqBool(action, row2, key, result) {
-  const v = row2[key];
-  if (typeof v !== "boolean") {
-    fail3(action, `row 0.${key} is missing or not a boolean`, result);
-  }
-  return v;
-}
-function reqString(action, row2, key, result) {
-  const v = row2[key];
-  if (typeof v !== "string") {
-    fail3(action, `row 0.${key} is missing or not a string`, result);
-  }
-  return v;
-}
-function optString(row2, key) {
-  const v = row2[key];
-  return typeof v === "string" ? v.trim() : "";
-}
-function mapOnRow(result) {
-  const row2 = singleRow(AUTHTRACE_ACTION_ON, result);
-  return {
-    active: reqBool(AUTHTRACE_ACTION_ON, row2, "active", result),
-    forUser: reqString(AUTHTRACE_ACTION_ON, row2, "for_user", result),
-    errorsOnly: reqBool(AUTHTRACE_ACTION_ON, row2, "errors_only", result),
-    timestamp: optString(row2, "timestamp")
-  };
-}
-function mapOffRow(result) {
-  const row2 = singleRow(AUTHTRACE_ACTION_OFF, result);
-  return {
-    active: reqBool(AUTHTRACE_ACTION_OFF, row2, "active", result)
-  };
-}
-function mapCheckRows(action, result, expectedOrigin) {
-  if (!Array.isArray(result)) {
-    fail3(action, "returned a result that is not an array", result);
-  }
-  return result.map((row2, i) => {
-    if (typeof row2 !== "object" || row2 === null || Array.isArray(row2)) {
-      fail3(action, `row ${i} is not an object`, result);
-    }
-    const r = row2;
-    const origin = r["origin"];
-    if (origin !== "trace" && origin !== "su53") {
-      fail3(action, `row ${i}.origin is "${String(origin)}", expected "trace" or "su53"`, result);
-    }
-    if (origin !== expectedOrigin) {
-      fail3(action, `row ${i}.origin is "${origin}", expected "${expectedOrigin}" for action "${action}"`, result);
-    }
-    const check2 = {
-      origin,
-      object: reqString(action, r, "object", result),
-      rc: reqString(action, r, "rc", result),
-      reason: reqString(action, r, "reason", result),
-      fields: reqString(action, r, "fields", result),
-      program: reqString(action, r, "program", result),
-      line: reqString(action, r, "line", result),
-      tcode: reqString(action, r, "tcode", result),
-      timestamp: reqString(action, r, "timestamp", result)
-    };
-    return check2;
-  });
-}
-async function authTraceOn(deps, user, opts = {}) {
-  const errorsOnly = opts.errorsOnly ?? true;
-  const result = await runAuthtrace(deps, AUTHTRACE_ACTION_ON, { user, errors_only: errorsOnly });
-  return mapOnRow(result);
-}
-async function authTraceOff(deps) {
-  const result = await runAuthtrace(deps, AUTHTRACE_ACTION_OFF, {});
-  return mapOffRow(result);
-}
-async function readFailedAuthChecks(deps, query) {
-  const readArgs = { user: query.user, from: query.from };
-  if (query.to !== void 0) {
-    readArgs["to"] = query.to;
-  }
-  const traceResult = await runAuthtrace(deps, AUTHTRACE_ACTION_READ, readArgs);
-  const traceChecks = mapCheckRows(AUTHTRACE_ACTION_READ, traceResult, "trace");
-  if (traceChecks.length > 0) {
-    return { checks: traceChecks, usedFallback: false };
-  }
-  const su53Result = await runAuthtrace(deps, AUTHTRACE_ACTION_SU53, { user: query.user, from: query.from });
-  const su53Checks = mapCheckRows(AUTHTRACE_ACTION_SU53, su53Result, "su53");
-  return { checks: su53Checks, usedFallback: true };
-}
-function renderFailedAuthChecks(checks) {
-  if (checks.length === 0) {
-    return "";
-  }
-  const lines = ["FAILED AUTH CHECKS"];
-  for (const c of checks) {
-    const provenance = c.origin === "trace" ? "[trace]" : "[SU53 fallback]";
-    const parts = [];
-    if (c.object !== "") parts.push(c.object);
-    if (c.fields !== "") parts.push(c.fields);
-    if (c.rc !== "") parts.push(`rc=${c.rc}`);
-    let at = "";
-    if (c.program !== "" && c.line !== "") {
-      at = `at ${c.program} line ${c.line}`;
-    } else if (c.program !== "") {
-      at = `at ${c.program}`;
-    } else if (c.line !== "") {
-      at = `at line ${c.line}`;
-    }
-    if (at !== "") parts.push(at);
-    parts.push(provenance);
-    lines.push(parts.join(" "));
-  }
-  return lines.join("\n");
-}
-function abapTimestamp(d) {
-  const pad2 = (n, w = 2) => String(n).padStart(w, "0");
-  return `${d.getUTCFullYear()}${pad2(d.getUTCMonth() + 1)}${pad2(d.getUTCDate())}${pad2(d.getUTCHours())}${pad2(d.getUTCMinutes())}${pad2(d.getUTCSeconds())}`;
-}
-function describeFailure3(e) {
-  if (isAbapError(e)) {
-    return `${e.code}: ${e.message}`;
-  }
-  if (e instanceof Error) {
-    return e.message;
-  }
-  try {
-    return String(e);
-  } catch {
-    return "unknown error";
-  }
-}
-var SWITCH_OFF_ERROR_KEY = "__authTraceSwitchOffError__";
-var AUTH_TRACE_KEY = "__authTraceOutcome__";
-async function withAuthTrace(deps, user, fn) {
-  let switchedOn = false;
-  let onFailureReason;
-  let from = abapTimestamp(/* @__PURE__ */ new Date());
-  try {
-    const onResult = await authTraceOn(deps, user);
-    switchedOn = true;
-    if (onResult.timestamp !== "") {
-      from = onResult.timestamp;
-    }
-  } catch (e) {
-    onFailureReason = describeFailure3(e);
-  }
-  let result;
-  let fnError;
-  let fnThrew = false;
-  try {
-    result = await fn();
-  } catch (e) {
-    fnThrew = true;
-    fnError = e;
-  }
-  let authTrace;
-  if (!switchedOn) {
-    authTrace = { ok: false, reason: `unavailable: ${onFailureReason ?? "unknown reason"}` };
-  } else {
-    try {
-      const to = abapTimestamp(/* @__PURE__ */ new Date());
-      const { checks, usedFallback } = await readFailedAuthChecks(deps, { user, from, to });
-      authTrace = { ok: true, checks, usedFallback };
-    } catch (e) {
-      authTrace = { ok: false, reason: `unavailable: ${describeFailure3(e)}` };
-    }
-  }
-  let switchOffError;
-  if (switchedOn) {
-    try {
-      await authTraceOff(deps);
-    } catch (e) {
-      switchOffError = describeFailure3(e);
-    }
-  }
-  if (fnThrew) {
-    if (typeof fnError === "object" && fnError !== null) {
-      try {
-        Object.defineProperty(fnError, AUTH_TRACE_KEY, {
-          value: authTrace,
-          enumerable: false,
-          configurable: true
-        });
-        if (switchOffError !== void 0) {
-          Object.defineProperty(fnError, SWITCH_OFF_ERROR_KEY, {
-            value: switchOffError,
-            enumerable: false,
-            configurable: true
-          });
-        }
-      } catch {
-      }
-    }
-    throw fnError;
-  }
-  return {
-    value: result,
-    authTrace,
-    ...switchOffError !== void 0 ? { switchOffError } : {}
-  };
-}
-function switchOffErrorOf(e) {
-  if (typeof e !== "object" || e === null) return void 0;
-  const v = e[SWITCH_OFF_ERROR_KEY];
-  return typeof v === "string" ? v : void 0;
-}
-function authTraceOf(e) {
-  if (typeof e !== "object" || e === null) return void 0;
-  const v = e[AUTH_TRACE_KEY];
-  return v === void 0 ? void 0 : v;
-}
-
-// src/tools/run.ts
-init_compact();
-init_datapreview();
-init_datapreview_filter();
-
-// src/snapshot-run.ts
-init_errors();
-init_datapreview_filter();
-
-// src/snapshot-store.ts
-init_errors();
-init_state_dir();
-import { createHash as createHash10, randomBytes as randomBytes6 } from "node:crypto";
-import { readdirSync, readFileSync as readFileSync6, unlinkSync as unlinkSync3 } from "node:fs";
-import * as path8 from "node:path";
-function newSnapshotId() {
-  return `snap_${randomBytes6(16).toString("hex")}`;
-}
-var SNAPSHOT_ID_RE = /^snap_[0-9a-f]{32}$/;
-function assertValidSnapshotId(id) {
-  if (typeof id !== "string" || !SNAPSHOT_ID_RE.test(id)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `Not a valid snapshot id: ${JSON.stringify(id)}`,
-      { id },
-      "Snapshot ids look like snap_ followed by 32 hex characters \u2014 exactly what newSnapshotId() returns."
-    );
-  }
-}
-function snapshotsRoot(stateDir) {
-  return path8.join(stateDir ?? resolveStateDir(), "snapshots");
-}
-function hashSystemKey(systemKey2) {
-  return createHash10("sha256").update(systemKey2, "utf8").digest("hex").slice(0, 32);
-}
-function systemDirFor(systemKey2, stateDir) {
-  return path8.join(snapshotsRoot(stateDir), hashSystemKey(systemKey2));
-}
-function snapshotFilePath(dir, id) {
-  return path8.join(dir, `${id}.json`);
-}
-var SNAPSHOT_FILE_RE = /^(snap_[0-9a-f]{32})\.json$/;
-function withSnapshotDirLock(dir, fn) {
-  const lockPath = `${dir}.lock`;
-  try {
-    return withFileLockSync(lockPath, fn, { waitMs: resolveLockWaitMs() });
-  } catch (e) {
-    if (isFileLockAcquisitionFailure(e, lockPath)) throw e;
-    if (isAbapError(e)) throw e;
-    throw new AbapError(
-      "JOURNAL_IO",
-      `Could not access the snapshot store at ${dir}: ${e.message}.`,
-      { dir, cause: e.code },
-      "Check that ABAP_STATE_DIR is writable, or point ABAP_STATE_DIR at a directory you own."
-    );
-  }
-}
-function isStoredSnapshotShape(v) {
-  if (typeof v !== "object" || v === null) return false;
-  const r = v;
-  return r.version === 1 && typeof r.id === "string" && typeof r.systemKey === "string" && typeof r.createdAt === "string" && typeof r.expiresAt === "string" && typeof r.ttlHours === "number" && typeof r.selection === "object" && r.selection !== null && Array.isArray(r.columns) && Array.isArray(r.rows) && typeof r.moreRowsExist === "boolean" && Array.isArray(r.keyColumns) && typeof r.keyComplete === "boolean";
-}
-function parseSnapshotFile(filePath) {
-  let raw;
-  try {
-    raw = readFileSync6(filePath, "utf8");
-  } catch (e) {
-    if (e.code === "ENOENT") return { ok: false };
-    throw e;
-  }
-  let parsed;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return { ok: false };
-  }
-  if (!isStoredSnapshotShape(parsed)) return { ok: false };
-  return { ok: true, snap: parsed };
-}
-function isExpiredAt(snap, now) {
-  const t = Date.parse(snap.expiresAt);
-  return !Number.isFinite(t) || t <= now.getTime();
-}
-function pruneLocked(dir, now) {
-  let entries;
-  try {
-    entries = readdirSync(dir);
-  } catch (e) {
-    if (e.code === "ENOENT") return 0;
-    throw e;
-  }
-  let removed = 0;
-  for (const name of entries) {
-    if (!SNAPSHOT_FILE_RE.test(name)) continue;
-    const filePath = path8.join(dir, name);
-    const parsed = parseSnapshotFile(filePath);
-    if (!parsed.ok || isExpiredAt(parsed.snap, now)) {
-      try {
-        unlinkSync3(filePath);
-        removed += 1;
-      } catch (e) {
-        if (e.code !== "ENOENT") throw e;
-      }
-    }
-  }
-  return removed;
-}
-function pruneSnapshots(systemKey2, opts = {}) {
-  const dir = systemDirFor(systemKey2, opts.stateDir);
-  const now = opts.now ?? /* @__PURE__ */ new Date();
-  return withSnapshotDirLock(dir, () => pruneLocked(dir, now));
-}
-function writeSnapshot(snap, opts = {}) {
-  assertValidSnapshotId(snap.id);
-  pruneSnapshots(snap.systemKey, opts);
-  const dir = systemDirFor(snap.systemKey, opts.stateDir);
-  withSnapshotDirLock(dir, () => {
-    const filePath = snapshotFilePath(dir, snap.id);
-    atomicWriteFileSync(filePath, JSON.stringify(snap));
-    hardenFileModeSync(filePath);
-  });
-}
-function readSnapshot(id, systemKey2, opts = {}) {
-  assertValidSnapshotId(id);
-  const dir = systemDirFor(systemKey2, opts.stateDir);
-  const filePath = snapshotFilePath(dir, id);
-  const now = opts.now ?? /* @__PURE__ */ new Date();
-  const parsed = parseSnapshotFile(filePath);
-  if (!parsed.ok) throw snapshotNotFound(id);
-  if (parsed.snap.systemKey !== systemKey2) {
-    throw snapshotNotFound(id);
-  }
-  if (isExpiredAt(parsed.snap, now)) {
-    withSnapshotDirLock(dir, () => {
-      try {
-        unlinkSync3(filePath);
-      } catch (e) {
-        if (e.code !== "ENOENT") throw e;
-      }
-    });
-    throw snapshotExpired(parsed.snap);
-  }
-  pruneSnapshots(systemKey2, opts);
-  return parsed.snap;
-}
-function snapshotNotFound(id) {
-  return new AbapError(
-    "NOT_FOUND",
-    `No stored data snapshot ${id}.`,
-    { id },
-    "The snapshot id is wrong, or was never taken against this connection \u2014 snapshots are scoped to one system and are never visible from another."
-  );
-}
-function snapshotExpired(snap) {
-  return new AbapError(
-    "SNAPSHOT_EXPIRED",
-    `Snapshot ${snap.id} was taken at ${snap.createdAt} and expired at ${snap.expiresAt} (TTL ${snap.ttlHours}h); it has been deleted.`,
-    { id: snap.id, createdAt: snap.createdAt, expiresAt: snap.expiresAt, ttlHours: snap.ttlHours },
-    "Take a fresh snapshot and diff against that instead \u2014 a deleted snapshot cannot be recovered."
-  );
-}
-function indexByName(columns) {
-  const index = /* @__PURE__ */ new Map();
-  columns.forEach((c, i) => index.set(c.name, i));
-  return index;
-}
-function groupByKey(rows, keyOf) {
-  const groups = /* @__PURE__ */ new Map();
-  for (const row2 of rows) {
-    const key = keyOf(row2);
-    const list3 = groups.get(key);
-    if (list3) list3.push(row2);
-    else groups.set(key, [row2]);
-  }
-  return groups;
-}
-function isFullColumnSet(matchOn, names) {
-  return matchOn.length === names.size && matchOn.every((c) => names.has(c));
-}
-function diffSnapshotRows(before, after, matchOn) {
-  const beforeIndex = indexByName(before.columns);
-  const afterIndex = indexByName(after.columns);
-  for (const col of matchOn) {
-    if (!beforeIndex.has(col) || !afterIndex.has(col)) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `Cannot match snapshot rows on "${col}": it is not present in both snapshots being diffed.`,
-        { column: col, matchOn },
-        "matchOn must name columns present in BOTH the before and after snapshot."
-      );
-    }
-  }
-  const beforeNames = new Set(before.columns.map((c) => c.name));
-  const afterNames = new Set(after.columns.map((c) => c.name));
-  const columnsAddedInAfter = [...afterNames].filter((n) => !beforeNames.has(n));
-  const columnsRemovedInAfter = [...beforeNames].filter((n) => !afterNames.has(n));
-  const allColumnNames = [...before.columns.map((c) => c.name), ...columnsAddedInAfter];
-  const matchedOnFullKey = !isFullColumnSet(matchOn, beforeNames) && !isFullColumnSet(matchOn, afterNames);
-  const keyOf = (row2, index) => JSON.stringify(matchOn.map((c) => row2[index.get(c)] ?? ""));
-  const beforeGroups = groupByKey(before.rows, (r) => keyOf(r, beforeIndex));
-  const afterGroups = groupByKey(after.rows, (r) => keyOf(r, afterIndex));
-  const inserted = [];
-  const deleted = [];
-  const changed = [];
-  const allKeys = /* @__PURE__ */ new Set([...beforeGroups.keys(), ...afterGroups.keys()]);
-  for (const key of allKeys) {
-    const bRows = beforeGroups.get(key) ?? [];
-    const aRows = afterGroups.get(key) ?? [];
-    const pairCount = Math.min(bRows.length, aRows.length);
-    for (let i = 0; i < pairCount; i++) {
-      const b = bRows[i];
-      const a = aRows[i];
-      const changes = [];
-      for (const name of allColumnNames) {
-        const bi = beforeIndex.get(name);
-        const ai = afterIndex.get(name);
-        const oldVal = bi === void 0 ? "" : b[bi] ?? "";
-        const newVal = ai === void 0 ? "" : a[ai] ?? "";
-        if (bi === void 0 || ai === void 0 || oldVal !== newVal) {
-          changes.push({ column: name, old: oldVal, new: newVal });
-        }
-      }
-      if (changes.length > 0) {
-        changed.push({ key: JSON.parse(key), changes });
-      }
-    }
-    for (let i = pairCount; i < bRows.length; i++) deleted.push(bRows[i]);
-    for (let i = pairCount; i < aRows.length; i++) inserted.push(aRows[i]);
-  }
-  return {
-    inserted,
-    deleted,
-    changed,
-    matchedOn: [...matchOn],
-    matchedOnFullKey,
-    columnsAddedInAfter,
-    columnsRemovedInAfter
-  };
-}
-
-// src/snapshot-run.ts
-init_compact();
-function hasProjection(filter) {
-  return filter?.columns !== void 0 && filter.columns.length > 0;
-}
-async function takeSnapshot(deps, opts) {
-  deps.assertDataPreview(opts.table);
-  const effective = Math.min(opts.maxRowsRequested, deps.maxRows);
-  const requestedTtl = opts.ttlHours ?? deps.ttlCeilingHours;
-  const ttlHours = Math.min(requestedTtl, deps.ttlCeilingHours);
-  const ttlClamped = ttlHours < requestedTtl;
-  const result = await deps.read(opts.table, effective, opts.filter);
-  const now = deps.now?.() ?? /* @__PURE__ */ new Date();
-  const createdAt = now.toISOString();
-  const expiresAt = new Date(now.getTime() + ttlHours * 36e5).toISOString();
-  const columns = result.columns.map((c) => ({ name: c.name, key: c.key === true }));
-  let keyColumns;
-  let keyComplete;
-  if (!hasProjection(opts.filter)) {
-    keyColumns = columns.filter((c) => c.key).map((c) => c.name);
-    keyComplete = keyColumns.length > 0;
-  } else {
-    keyColumns = columns.filter((c) => c.key).map((c) => c.name);
-    keyComplete = false;
-  }
-  const snapshot = {
-    version: 1,
-    id: newSnapshotId(),
-    systemKey: deps.systemKey,
-    createdAt,
-    expiresAt,
-    ttlHours,
-    selection: {
-      table: result.table,
-      max_rows: effective,
-      ...opts.filter !== void 0 && !isEmptyFilter(opts.filter) ? { filter: opts.filter } : {}
-    },
-    columns,
-    rows: result.rows,
-    moreRowsExist: result.moreRowsExist,
-    keyColumns,
-    keyComplete
-  };
-  writeSnapshot(snapshot, { stateDir: deps.stateDir, now });
-  return { snapshot, result, ttlClamped };
-}
-async function diffSnapshot(deps, id) {
-  const before = readSnapshot(id, deps.systemKey, { stateDir: deps.stateDir, now: deps.now?.() });
-  deps.assertDataPreview(before.selection.table);
-  const after = await deps.read(before.selection.table, before.selection.max_rows, before.selection.filter);
-  let matchOn;
-  if (before.keyComplete) {
-    matchOn = before.keyColumns;
-  } else {
-    const afterNames = new Set(after.columns.map((c) => c.name));
-    matchOn = before.columns.map((c) => c.name).filter((name) => afterNames.has(name));
-    if (matchOn.length === 0) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `Snapshot ${before.id} of ${before.selection.table} has no complete key, and the current read shares no column name with it, so the two reads cannot be compared.`,
-        { snapshotId: before.id, table: before.selection.table },
-        "Take a fresh snapshot of the entity in its current shape and diff against that instead."
-      );
-    }
-  }
-  const afterColumns = after.columns.map((c) => ({ name: c.name, key: c.key === true }));
-  const diff = diffSnapshotRows(before, { columns: afterColumns, rows: after.rows }, matchOn);
-  return {
-    before,
-    after,
-    diff,
-    moreRowsExistBefore: before.moreRowsExist,
-    moreRowsExistAfter: after.moreRowsExist
-  };
-}
-function uniqueColumnKeys(names) {
-  const seen = /* @__PURE__ */ new Map();
-  return names.map((raw, i) => {
-    const base = raw === "" ? `col${i + 1}` : raw;
-    const n = seen.get(base) ?? 0;
-    seen.set(base, n + 1);
-    return n === 0 ? base : `${base}#${n + 1}`;
-  });
-}
-function rowsTable(names, rows) {
-  if (rows.length === 0) return "";
-  const keys = uniqueColumnKeys(names);
-  const records = rows.map((cells) => {
-    const rec = {};
-    keys.forEach((k, i) => {
-      rec[k] = cells[i] ?? "";
-    });
-    return rec;
-  });
-  return textTable(records, keys);
-}
-var CHANGED_ROW_COLUMNS = ["key", "column", "old", "new"];
-function changedRowsTable(changed) {
-  const rows = [];
-  for (const row2 of changed) {
-    const key = row2.key.join("/");
-    for (const c of row2.changes) {
-      rows.push({ key, column: c.column, old: c.old, new: c.new });
-    }
-  }
-  return textTable(rows, [...CHANGED_ROW_COLUMNS]);
-}
-function renderWhereCondition(c) {
-  if (c.op === "is_null") return `${c.field} is_null`;
-  if (Array.isArray(c.value)) return `${c.field} ${c.op} (${c.value.join(", ")})`;
-  return `${c.field} ${c.op} ${String(c.value)}`;
-}
-function renderSnapshot(snapshot, result, opts) {
-  const notes = [
-    "Rows were stored for a later `diff`, not shown here \u2014 a snapshot response prints no business rows."
-  ];
-  if (snapshot.selection.max_rows < opts.maxRowsRequested) {
-    notes.push(
-      `CLAMPED: max_rows:${opts.maxRowsRequested} exceeds this server's ${snapshot.selection.max_rows}-row ceiling (ABAP_DATA_PREVIEW_MAX_ROWS), so only ${snapshot.selection.max_rows} row(s) were requested from ${snapshot.selection.table}. The rows beyond that were NOT fetched and are NOT stored. The ceiling is an operator setting \u2014 no argument raises it.`
-    );
-  }
-  if (result.moreRowsExist) {
-    notes.push(
-      `INCOMPLETE: ${snapshot.selection.table} holds more rows than the ${snapshot.rows.length} stored. This snapshot covers only the first N rows in the table's own order, NOT a sample and NOT the whole table \u2014 a later \`diff\` against this snapshot cannot see inserts or deletes beyond that ceiling and will not invent them.`
-    );
-  }
-  if (opts.ttlClamped) {
-    notes.push(
-      `TTL CLAMPED: ttl_hours:${opts.ttlRequested} exceeds this server's ${opts.ttlCeiling}-hour ceiling (ABAP_DATA_SNAPSHOT_TTL_HOURS), so this snapshot expires at ${snapshot.expiresAt} instead. The ceiling is an operator setting \u2014 no argument raises it.`
-    );
-  }
-  if (!snapshot.keyComplete) {
-    notes.push(
-      "INCOMPLETE KEY: " + (snapshot.keyColumns.length > 0 ? `${snapshot.selection.table}'s DDIC key was not fully covered by what was read (columns: ${snapshot.keyColumns.join(", ")}).` : `${snapshot.selection.table} reported no key column at all.`) + " A later `diff` will match on every selected column instead, so an edited row will surface as one deleted row plus one inserted row, not as a change."
-    );
-  }
-  const filter = snapshot.selection.filter;
-  const selectionLines = [`table: ${snapshot.selection.table}`, `max_rows: ${snapshot.selection.max_rows}`];
-  if (filter?.columns?.length) selectionLines.push(`columns: ${filter.columns.join(", ")}`);
-  if (filter?.where?.length) {
-    selectionLines.push(`where: ${filter.where.map(renderWhereCondition).join(" AND ")}`);
-  }
-  if (filter?.orderBy?.length) {
-    selectionLines.push(`order_by: ${filter.orderBy.map((o) => `${o.field} ${o.direction ?? "asc"}`).join(", ")}`);
-  }
-  if (filter?.distinct) selectionLines.push("distinct: true");
-  return buildResponse({
-    header: {
-      snapshot_id: snapshot.id,
-      table: snapshot.selection.table,
-      columns: snapshot.columns.length,
-      rows_stored: snapshot.rows.length,
-      rows_requested: opts.maxRowsRequested,
-      more_rows_exist: result.moreRowsExist,
-      expires_at: snapshot.expiresAt,
-      ttl_hours: snapshot.ttlHours
-    },
-    sections: [
-      { title: "SELECTION", content: selectionLines.join("\n") },
-      {
-        title: "KEY",
-        content: snapshot.keyComplete ? `key columns (complete): ${snapshot.keyColumns.join(", ")}` : snapshot.keyColumns.length > 0 ? `key columns (incomplete): ${snapshot.keyColumns.join(", ")}` : "no key columns reported"
-      }
-    ],
-    notes,
-    maxChars: opts.maxChars
-  });
-}
-function renderDiff(out, maxChars) {
-  const { before, after, diff } = out;
-  const notes = [];
-  if (!diff.matchedOnFullKey) {
-    notes.push(
-      "MATCHED ON SELECTED COLUMNS, NOT A KEY: the snapshot did not have a complete DDIC key, so rows were matched on every selected column instead. An edited row therefore shows up as one DELETED row plus one INSERTED row rather than a CHANGED row \u2014 a structural limit of matching on full-row identity, not a failure."
-    );
-  }
-  if (out.moreRowsExistBefore || out.moreRowsExistAfter) {
-    notes.push(
-      "Both reads stopped at the same row ceiling, so rows past it were never compared on either side and are not reported here as inserted or deleted."
-    );
-  }
-  if (diff.columnsAddedInAfter.length > 0) {
-    notes.push(
-      `COLUMNS ADDED: ${diff.columnsAddedInAfter.join(", ")} are present in the new read but were not in the snapshot, so every matched row shows them as a change \u2014 there is no snapshot-side value to compare against.`
-    );
-  }
-  if (diff.columnsRemovedInAfter.length > 0) {
-    notes.push(
-      `COLUMNS REMOVED: ${diff.columnsRemovedInAfter.join(", ")} were in the snapshot but are no longer in the new read, so every matched row shows them as a change \u2014 there is no new-side value to compare against.`
-    );
-  }
-  if (diff.inserted.length === 0 && diff.deleted.length === 0 && diff.changed.length === 0) {
-    notes.push(
-      'No difference was found within the compared window \u2014 a real "nothing changed" for the rows that were compared. It says nothing about rows beyond the ceiling, if the note above applies.'
-    );
-  }
-  return buildResponse({
-    header: {
-      snapshot_id: before.id,
-      table: before.selection.table,
-      taken_at: before.createdAt,
-      inserted: diff.inserted.length,
-      deleted: diff.deleted.length,
-      changed: diff.changed.length,
-      matched_on_full_key: diff.matchedOnFullKey
-    },
-    sections: [
-      { title: "MATCHED ON", content: diff.matchedOn.join(", ") },
-      { title: "INSERTED", content: rowsTable(after.columns.map((c) => c.name), diff.inserted) },
-      { title: "DELETED", content: rowsTable(before.columns.map((c) => c.name), diff.deleted) },
-      { title: "CHANGED", content: changedRowsTable(diff.changed) }
-    ],
-    notes,
-    maxChars
-  });
-}
-function renderDataChangesSection(results) {
-  const blocks = [];
-  for (const r of results) {
-    if ("refused" in r.outcome) {
-      blocks.push(`snapshot ${r.id}: refused \u2014 ${r.outcome.refused}`);
-      continue;
-    }
-    const out = r.outcome;
-    const line2 = `snapshot ${r.id} on ${out.before.selection.table}: +${out.diff.inserted.length} -${out.diff.deleted.length} ~${out.diff.changed.length}`;
-    const table = changedRowsTable(out.diff.changed);
-    blocks.push(table ? `${line2}
-${table}` : line2);
-  }
-  return blocks.join("\n\n");
-}
-function auditSnapshot(snapshot, log2) {
-  log2(
-    `[abapsmith] audit: abap_data_preview mode=snapshot table=${snapshot.selection.table} rows=${snapshot.rows.length} snapshot_id=${snapshot.id}`
-  );
-}
-function auditDiff(out, log2) {
-  log2(
-    `[abapsmith] audit: abap_data_preview mode=diff table=${out.before.selection.table} inserted=${out.diff.inserted.length} deleted=${out.diff.deleted.length} changed=${out.diff.changed.length}`
-  );
-}
-
-// src/tools/run.ts
-var runRangeSchema = external_exports.object({
-  sign: external_exports.enum(["I", "E"]).optional(),
-  option: external_exports.enum(["EQ", "NE", "GT", "LT", "GE", "LE", "CP", "NP", "BT", "NB"]).optional(),
-  low: external_exports.string(),
-  high: external_exports.string().optional()
-});
-var runParameterSchema = external_exports.object({
-  name: external_exports.string(),
-  type: external_exports.enum(["char", "int", "packed", "date"]).optional(),
-  value: external_exports.string().optional(),
-  ranges: external_exports.array(runRangeSchema).optional().describe("SELECT-OPTIONS rows; must be non-empty.")
-});
-var runInputSchema = {
-  object: external_exports.string().describe("Class or report to execute."),
-  mode: external_exports.enum(["class", "report", "auto"]).optional().describe("Default auto."),
-  // Report mode only: fills PARAMETERS/SELECT-OPTIONS — see ../adt/run-parameters.ts.
-  parameters: external_exports.array(runParameterSchema).optional(),
-  auth_trace: external_exports.boolean().optional().describe(
-    "Switch on the SAP authorization trace for the connected user, run, then read back and switch it back off. Refused on a read-only server. Default false."
-  ),
-  snapshot_ids: external_exports.array(external_exports.string()).optional().describe(
-    `Snapshot ids from prior abap_data_preview mode="snapshot" calls. After this call finishes, each one is re-read and diffed, and the result is appended as a DATA CHANGES section. The diff obeys the same data-preview policy as the snapshot did \u2014 if it is refused, this call's own result still returns and the section says why.`
-  )
-};
-var RunInput = external_exports.object(runInputSchema);
-function authTraceHeaderValue(outcome) {
-  if (!outcome.ok) return outcome.reason;
-  return outcome.checks.length > 0 ? `${outcome.checks.length} failed check(s)` : "no failed checks";
-}
-function authTraceSection(outcome) {
-  if (!outcome.ok || outcome.checks.length === 0) return void 0;
-  const rendered = renderFailedAuthChecks(outcome.checks);
-  const [, ...rest] = rendered.split("\n");
-  return { title: "FAILED AUTH CHECKS", content: rest.join("\n") };
-}
-function attachAuthTraceToError(e) {
-  const outcome = authTraceOf(e);
-  if (outcome === void 0 || !isAbapError(e)) return;
-  e.details["failedAuthChecks"] = outcome.ok ? outcome.checks.length > 0 ? renderFailedAuthChecks(outcome.checks) : "no failed checks" : outcome.reason;
-  const switchOffError = switchOffErrorOf(e);
-  if (switchOffError !== void 0) {
-    e.details["authTraceSwitchOffError"] = switchOffError;
-  }
-}
-async function abapRun(conn, input, maxChars, gate) {
-  const authTraceRequested = input.auth_trace === true;
-  if (authTraceRequested && gate.config.readOnly === true) {
-    throw new AbapError(
-      "SAFETY_DENIED",
-      "auth_trace switches the SAP authorization trace on for the connected user, a system-level action, so it is refused on a read-only server.",
-      { auth_trace: true },
-      "Ask the operator to enable writes (ABAP_ALLOW_WRITE), or omit auth_trace to run without it."
-    );
-  }
-  const requested = input.mode ?? "auto";
-  const obj = await resolveObject(conn, input.object);
-  let mode;
-  if (requested === "auto") {
-    if (obj.kind === "CLAS") mode = "class";
-    else if (obj.kind === "PROG") mode = "report";
-    else {
-      throw new AbapError(
-        "UNSUPPORTED",
-        `${obj.type} ${obj.name} is not executable: only classes implementing IF_OO_ADT_CLASSRUN and reports (PROG) can be run.`,
-        { object: obj.name, type: obj.type },
-        "Wrap the logic in a small IF_OO_ADT_CLASSRUN class and run that."
-      );
-    }
-  } else {
-    if (requested === "class" && obj.kind !== "CLAS") {
-      throw new AbapError(
-        "BAD_INPUT",
-        `mode "class" was requested for ${obj.name}, but it resolved to ${obj.type} (kind ${obj.kind}), not a class.`,
-        { object: obj.name, requestedMode: requested, resolvedType: obj.type, resolvedKind: obj.kind },
-        'Use mode "report" (or omit mode / use "auto") for PROG objects.'
-      );
-    }
-    if (requested === "report" && obj.kind !== "PROG") {
-      throw new AbapError(
-        "BAD_INPUT",
-        `mode "report" was requested for ${obj.name}, but it resolved to ${obj.type} (kind ${obj.kind}), not a report.`,
-        { object: obj.name, requestedMode: requested, resolvedType: obj.type, resolvedKind: obj.kind },
-        'Use mode "class" (or omit mode / use "auto") for CLAS objects.'
-      );
-    }
-    mode = requested;
-  }
-  const parameters = input.parameters ?? [];
-  if (parameters.length > 0 && mode !== "report") {
-    throw new AbapError(
-      "BAD_INPUT",
-      `"parameters" was supplied but mode is "${mode}", not "report" \u2014 selection-screen values only apply to classic reports.`,
-      { object: obj.name, mode }
-    );
-  }
-  const executeAuthorization = gate.authorize("execute", {
-    name: obj.name,
-    packageName: obj.packageName,
-    type: obj.type
-  });
-  const executeRun = async () => {
-    if (mode === "class") {
-      return runClass(conn, executeAuthorization.target.name);
-    }
-    gate.assert("write", {
-      name: bridgeClassName(obj.name),
-      packageName: FLUID_PACKAGE,
-      type: "CLAS/OC"
-    });
-    return runReport(conn, obj.name, gate, parameters);
-  };
-  let res;
-  let authTraceOutcome;
-  let authTraceSwitchOffError;
-  if (authTraceRequested) {
-    try {
-      const wrapped = await withAuthTrace({ conn, gate }, conn.cfg.user, executeRun);
-      res = wrapped.value;
-      authTraceOutcome = wrapped.authTrace;
-      authTraceSwitchOffError = wrapped.switchOffError;
-    } catch (e) {
-      attachAuthTraceToError(e);
-      throw e;
-    }
-  } else {
-    res = await executeRun();
-  }
-  const notes = [];
-  if (res.mode === "report") {
-    notes.push(
-      `Output was captured through a generated IF_OO_ADT_CLASSRUN bridge class (${res.bridgeClass ?? "n/a"}) that SUBMITs the report EXPORTING LIST TO MEMORY` + (parameters.length > 0 ? ` WITH SELECTION-TABLE (${parameters.length} field(s) supplied \u2014 see "parameters").` : `. PARAMETERS/SELECT-OPTIONS values can be supplied via the "parameters" input; omitted fields run with the report's own defaults.`) + " The bridge is a real object created in the write allowlist."
-    );
-    notes.push(
-      'Interactive rendering (an ALV grid/list DISPLAY(), classic interactive list events, or any other dynpro) is NOT supported and cannot be made to work over this execution surface: classrun is headless (no window system), and calling e.g. CL_SALV_TABLE->DISPLAY() here raises CX_SY_SEND_DYNPRO_NO_RECEIVER ("No window system type specified") \u2014 confirmed live, not a guess. To verify such logic, run headless and inspect the underlying data (the internal table/data provider) instead of calling DISPLAY(), or add a WRITE-based fallback path for use under this tool.'
-    );
-    if (parameters.length > 0) {
-      try {
-        const src = await readSource(conn, obj);
-        const parsed = parseSelectionScreen(src.source);
-        notes.push(...selectionScreenNotes(parsed, parameters));
-      } catch (e) {
-        notes.push(
-          `Selection-screen source could not be re-read for cross-checking parameter names (${isAbapError(e) ? e.message : "unexpected error"}) \u2014 the run itself was not affected.`
-        );
-      }
-    }
-  }
-  let activation;
-  try {
-    activation = await checkActivation(conn, obj);
-  } catch {
-    activation = "unknown";
-  }
-  notes.push(
-    activation === "active-is-current" ? "Executed in a fresh session, so the code that ran is the code currently active \u2014 not a cached copy." : activation === "newer-inactive-exists" ? "Executed in a fresh session, but a NEWER INACTIVE version exists on the server: what ran is the older ACTIVE code, not your latest edit." : "Executed in a fresh session (no cached copy). Whether the active version is the newest was NOT checked."
-  );
-  if (authTraceRequested) {
-    notes.push(
-      "auth_trace reads the SAP authorization trace (falling back to the SU53 buffer) for this run only; it changes no authorisation, role or profile."
-    );
-    if (authTraceOutcome?.ok && authTraceOutcome.usedFallback) {
-      notes.push(
-        "The kernel authorization trace returned nothing, so this came from the SU53 buffer, which shows only what that buffer retained \u2014 it is not a complete record of this run."
-      );
-    }
-    if (authTraceSwitchOffError !== void 0) {
-      notes.push(
-        `The authorization trace may have been left switched ON: switching it back off failed (${authTraceSwitchOffError}).`
-      );
-    }
-  }
-  if (res.mode === "report" && res.bridgeActivationVerified !== true) {
-    notes.push(
-      "Additionally, activation of the generated bridge class itself was NOT positively verified before it ran \u2014 a separate concern from the target object's activation state noted above."
-    );
-  }
-  const hasDiagnostics = Boolean(res.diagnostics?.length);
-  if (hasDiagnostics) {
-    notes.push(
-      `The ABAP bridge driver reported ${res.diagnostics.length} diagnostic line(s) \u2014 see the DIAGNOSTICS section below. This usually means the capture step itself failed (e.g. no list in ABAP memory), NOT merely that the report printed nothing.`
-    );
-  }
-  const droppedLines = res.droppedLines ?? 0;
-  if (droppedLines > 0) {
-    notes.push(
-      `${droppedLines} line(s) of captured output were dropped and are not shown below.`
-    );
-  }
-  if (res.outputComplete === false) {
-    notes.push(
-      "ABAP-side width truncation was detected: one or more output lines may have been cut short by the classic list width before this tool ever saw them. The output below is not guaranteed complete."
-    );
-  }
-  const genuinelyEmpty = res.lines === 0 && droppedLines === 0 && !hasDiagnostics;
-  const body = res.output.trim() ? res.output : genuinelyEmpty ? "(no output)" : "(nothing shown here \u2014 but this run is NOT confirmed empty: see the NOTE(s) above about diagnostics, dropped lines, and/or incomplete output. Do not read this as a clean, silent, successful run.)";
-  const logLastSeconds = Math.ceil(res.durationMs / 1e3) + 5;
-  const logHint = `Application log (BAL) entries this execution may have written: abap_fluid {"tool":"${LOG_TOOL_ID}","action":"${LOG_ACTION}","args":{"last_seconds":${logLastSeconds},"detail":"messages"}} \u2014 last_seconds is measured on the server clock, so it covers this run.`;
-  notes.push(logHint);
-  const authTraceSectionValue = authTraceOutcome ? authTraceSection(authTraceOutcome) : void 0;
-  const sections = [];
-  if (hasDiagnostics) sections.push({ title: "DIAGNOSTICS", content: res.diagnostics.join("\n") });
-  if (authTraceSectionValue) sections.push(authTraceSectionValue);
-  return buildResponse({
-    header: {
-      system: conn.cfg.sid,
-      object: `${obj.type} ${obj.name}`,
-      mode: res.mode,
-      lines: res.lines,
-      durationMs: res.durationMs,
-      bridgeClass: res.bridgeClass,
-      bridgeRefreshed: res.bridgeRefreshed,
-      droppedLines: droppedLines > 0 ? droppedLines : void 0,
-      outputComplete: res.outputComplete === false ? false : void 0,
-      auth_trace: authTraceOutcome ? authTraceHeaderValue(authTraceOutcome) : void 0
-    },
-    sections: sections.length > 0 ? sections : void 0,
-    body,
-    bodyLabel: "OUTPUT",
-    notes,
-    hints: ["Have the code print less, or filter inside ABAP, if the output is truncated."],
-    maxChars
-  });
-}
-var ok3 = (text5) => ({ content: [{ type: "text", text: text5 }] });
-async function runSnapshotDiffs(deps, ids, audit) {
-  if (ids === void 0 || ids.length === 0) return void 0;
-  let runDeps;
-  try {
-    runDeps = {
-      read: (table, maxRows, filter) => deps.pool.withRead(
-        "abap_data_preview",
-        (conn) => previewDdicEntity(conn, { table, maxRows, ...filter && !isEmptyFilter(filter) ? { filter } : {} })
-      ),
-      assertDataPreview: (t) => deps.safety.assertDataPreview(t),
-      systemKey: systemKey(deps.cfg),
-      maxRows: deps.cfg.dataPreviewMaxRows,
-      ttlCeilingHours: deps.cfg.dataSnapshotTtlHours
-    };
-  } catch (e) {
-    return `snapshot diff setup failed: ${isAbapError(e) ? `${e.code}: ${e.message}` : String(e)}`;
-  }
-  const results = [];
-  for (const id of ids) {
-    try {
-      const out = await diffSnapshot(runDeps, id);
-      auditDiff(out, audit);
-      results.push({ id, outcome: out });
-    } catch (e) {
-      results.push({
-        id,
-        outcome: { refused: isAbapError(e) ? `${e.code}: ${e.message}` : String(e) }
-      });
-    }
-  }
-  return renderDataChangesSection(results);
-}
-function registerRunTools(mcp, deps) {
-  const audit = (m) => void process.stderr.write(m + "\n");
-  mcp.registerTool(
-    "abap_run",
-    {
-      description: "Execute an IF_OO_ADT_CLASSRUN class or report; returns output. `parameters` (report mode) fills PARAMETERS/SELECT-OPTIONS. Headless \u2014 no interactive list/ALV grid. Executed ABAP runs with the connected user's full SAP authorisations and is not constrained by this server's package, name or transport allowlists.",
-      inputSchema: runInputSchema,
-      annotations: { readOnlyHint: false, destructiveHint: true }
-    },
-    async (args) => {
-      try {
-        deps.safety.assert("execute", preflight(args), { phase: "preflight" });
-        await deps.ensureConnected();
-        const res = await deps.pool.withWrite(
-          "abap_run",
-          void 0,
-          (conn) => abapRun(conn, args, deps.cfg.maxResponseChars, deps.safety)
-        );
-        const a = args;
-        const changes = await runSnapshotDiffs(deps, a.snapshot_ids, audit);
-        return ok3(changes ? `${res.text}
-
-DATA CHANGES
-${changes}` : res.text);
-      } catch (e) {
-        return deps.errorResult(e);
-      }
-    }
-  );
-}
-
-// src/tools/debug.ts
-init_pool();
-function createLiveDebugToolDeps(params) {
-  const laneCount = resolveDebugSessionLimit(params.cfg);
-  const armLocks = createDebugArmLocks({
-    lanes: laneCount,
-    stateDir: resolveStateDir(process.env),
-    cfg: params.cfg,
-    enabled: params.cfg.crossProcessDebugLock,
-    waitMs: params.cfg.debugLockWaitMs
-  });
-  return {
-    debugLaneCount: laneCount,
-    createSession(conn, safety, opts) {
-      const client = createDebugClientForConnection(conn, {
-        safety,
-        target: opts?.target
-      });
-      const lane = opts?.lane ?? 0;
-      const identity = resolveDebugIdentity(params.cfg, lane);
-      warnIfDerivedIdentity(identity, opts?.log ?? params.log);
-      const sessionOpts = {
-        client,
-        context: {
-          debuggingMode: "user",
-          requestUser: params.cfg.user,
-          terminalId: identity.terminalId,
-          ideId: identity.ideId
-        },
-        log: opts?.log ?? params.log,
-        sessionLease: opts?.sessionLease,
-        armLock: armLocks[lane]
-      };
-      return new DebugSession(sessionOpts);
-    },
-    async createTriggerConnection() {
-      const c = params.pool.createUnpooledConnection("debug-trigger");
-      await c.connect();
-      c.dispose();
-      return c;
-    },
-    async createDebugSessionConnection() {
-      const c = params.pool.createUnpooledConnection("debug-session");
-      await c.connect();
-      c.dispose();
-      return c;
-    },
-    resolveObject(conn, ref2) {
-      return resolveObject(conn, ref2);
-    },
-    triggerRun(conn, input, maxChars, gate) {
-      return abapRun(conn, input, maxChars, gate);
-    },
-    log: params.log,
-    reserveDebugSession: (op) => params.pool.reserveDebug(op),
-    allowJumpToLine: params.cfg.allowDebugJumpToLine,
-    async releaseOrphanListener(conn) {
-      const identity = resolveDebugIdentity(params.cfg);
-      const client = createDebugClientForConnection(conn, { safety: params.gate });
-      const context = {
-        debuggingMode: "user",
-        requestUser: params.cfg.user,
-        terminalId: identity.terminalId,
-        ideId: identity.ideId
-      };
-      const probe3 = await client.getListener(context);
-      if (probe3.kind === "absent") return { kind: "absent" };
-      if (probe3.kind === "conflict") {
-        return { kind: "conflict", detail: probe3.conflict.conflictText };
-      }
-      await client.stopListener(context);
-      return { kind: "released" };
-    },
-    async releaseOrphanDebuggee(conn) {
-      const client = createDebugClientForConnection(conn, { safety: params.gate });
-      const identity = resolveDebugIdentity(params.cfg);
-      const probe3 = new DebugSession({
-        client,
-        context: {
-          debuggingMode: "user",
-          requestUser: params.cfg.user,
-          terminalId: identity.terminalId,
-          ideId: identity.ideId
-        },
-        log: params.log,
-        listenerTimeoutSeconds: 5,
-        registrationPollTimeoutMs: 3e3,
-        // The probe arms a REAL listener at this identity, so it contends for
-        // the same debugger slot and must take the same lock — a no-op if
-        // THIS process already holds it, a refusal if another one does.
-        armLock: armLocks[0]
-      });
-      try {
-        await probe3.armListener();
-        const caught = await probe3.waitForDebuggee();
-        if (caught.kind !== "debuggee") {
-          try {
-            await probe3.terminate("terminated_by_caller", "cleanup after releaseOrphanDebuggee found nothing (absent)");
-          } catch {
-          }
-          return { kind: "absent" };
-        }
-        await probe3.attach(caught.debuggee.id);
-        await probe3.terminate("terminated_by_caller", "force-cleared orphaned debuggee (abap_debug stop force:true)");
-        return { kind: "released" };
-      } catch (e) {
-        try {
-          await probe3.terminate("terminated_by_caller", "cleanup after failed orphan-debuggee force-clear");
-        } catch {
-        }
-        if (isAbapError(e) && e.code === "NOT_CONNECTED") {
-          return { kind: "absent" };
-        }
-        return { kind: "unknown", detail: describeUnknownError(e) };
-      }
-    }
-  };
-}
-var debugLanes = [];
-function activeLaneRuns() {
-  return debugLanes.filter((r) => r !== void 0);
-}
-function resolveLaneRun(stateId) {
-  const active = activeLaneRuns();
-  if (active.length <= 1) return active[0];
-  if (stateId !== void 0) {
-    const exact = active.find((r) => r.session.snapshot.stateId === stateId);
-    if (exact) return exact;
-  }
-  return active[0];
-}
-function firstFreeLane(limit) {
-  for (let i = 0; i < limit; i++) {
-    if (debugLanes[i] === void 0) return i;
-  }
-  return void 0;
-}
-function assertDebugWrite(gate, target, phase = "final") {
-  return gate.authorize("execute", target, { phase });
-}
-function assertSessionWrite(gate, run) {
-  return assertDebugWrite(gate, run.gateTarget.target, run.gateTarget.phase);
-}
-function shutdownDebugTools() {
-  const runs = debugLanes;
-  debugLanes = [];
-  for (const run of runs) {
-    run?.closeTriggerConn();
-    void run?.closeSessionConn();
-  }
-}
-var TIMED_OUT = /* @__PURE__ */ Symbol("debug.timed-out");
-function raceDeadline(p, ms) {
-  let timer;
-  const deadline2 = new Promise((resolve5) => {
-    timer = setTimeout(() => resolve5(TIMED_OUT), ms);
-    if (typeof timer.unref === "function") timer.unref();
-  });
-  return Promise.race([p, deadline2]).finally(() => {
-    if (timer !== void 0) clearTimeout(timer);
-  });
-}
-var START_FAILURE_TRIGGER_WAIT_MS = 2e3;
-var START_FAILURE_CLEANUP_WAIT_MS = 5e3;
-var STOP_WAIT_MS = 5e3;
-var FORCE_CLEAR_WAIT_MS = 15e3;
-var DROP_DEBUG_SESSION_WAIT_MS = 3e3;
-async function dropDebugSessionOnConnection(conn, log2, why) {
-  log2?.(`abap_debug: dropSession() after ${why} \u2014 starting.`);
-  const heldLocks = conn.heldLockUris();
-  if (heldLocks.length > 0) {
-    log2?.(
-      `abap_debug: skipped dropSession() after ${why} \u2014 connection holds ${heldLocks.length} object lock(s), and dropSession() would silently release them.`
-    );
-    return;
-  }
-  try {
-    const outcome = await raceDeadline(conn.dropSession(), DROP_DEBUG_SESSION_WAIT_MS);
-    if (outcome === TIMED_OUT) {
-      log2?.(
-        `abap_debug: dropSession() after ${why} had not returned after ${DROP_DEBUG_SESSION_WAIT_MS} ms \u2014 it continues in the background.`
-      );
-    } else {
-      log2?.(`abap_debug: dropSession() after ${why} \u2014 completed.`);
-    }
-  } catch (e) {
-    log2?.(`abap_debug: dropSession() after ${why} failed (ignored): ${describeUnknownError(e)}`);
-  }
-}
-function makeTriggerConnCloser(triggerConn, log2) {
-  let closed = false;
-  return () => {
-    if (closed) return;
-    closed = true;
-    try {
-      void triggerConn.shutdown("debug-trigger-done").catch((e) => {
-        log2?.(`abap_debug: trigger connection shutdown failed: ${describeUnknownError(e)}`);
-      }).finally(() => triggerConn.dispose());
-    } catch (e) {
-      log2?.(`abap_debug: trigger connection shutdown threw: ${describeUnknownError(e)}`);
-      triggerConn.dispose();
-    }
-  };
-}
-function makeSessionConnCloser(conn, log2, owned, why) {
-  let closed = false;
-  return async () => {
-    if (closed) return;
-    closed = true;
-    if (!owned) {
-      await dropDebugSessionOnConnection(conn, log2, why);
-      return;
-    }
-    try {
-      await conn.shutdown("debug-session-done").catch((e) => {
-        log2?.(`abap_debug: dedicated debug session connection shutdown failed: ${describeUnknownError(e)}`);
-      });
-    } catch (e) {
-      log2?.(`abap_debug: dedicated debug session connection shutdown threw: ${describeUnknownError(e)}`);
-    } finally {
-      conn.dispose();
-    }
-    log2?.(`abap_debug: dedicated debug session connection discarded after ${why}.`);
-  };
-}
-function renderTriggerOutcome(settled, waitedMs) {
-  if (settled === TIMED_OUT) {
-    return `(the trigger run had NOT returned after ${waitedMs} ms, so no program output is available \u2014 it may still be blocked inside the debuggee)`;
-  }
-  return settled.ok ? settled.text : `(trigger did not complete normally: ${settled.error})`;
-}
-function triggerOutcomeHeader(settled) {
-  if (settled === TIMED_OUT) return "trigger_not_returned";
-  if (settled.ok) return "ran_to_completion";
-  return settled.code === "RUNTIME_DUMP" ? "short_dumped" : "trigger_failed";
-}
-function clampMaxChars(maxChars) {
-  return Math.min(maxChars, DEBUG_MAX_CHARS);
-}
-var breakpointConditionFields = {
-  condition: external_exports.string().trim().min(1).max(255).optional(),
-  skipCount: external_exports.number().int().nonnegative().max(1e6).optional()
-};
-var lineBreakpointSchema = external_exports.object({
-  ...breakpointConditionFields,
-  kind: external_exports.literal("line"),
-  object: external_exports.string().describe("Class or report to break in \u2014 any form abap_read/abap_run accept."),
-  line: external_exports.number().int().min(1).max(999999).describe(
-    "1-based; SAP may snap it to the nearest executable statement (the start response reports the correction)."
-  )
-});
-var exceptionBreakpointSchema = external_exports.object({
-  ...breakpointConditionFields,
-  kind: external_exports.literal("exception"),
-  exceptionClass: external_exports.string().describe("Exception class to break on, e.g. CX_SY_ZERODIVIDE.")
-});
-var statementBreakpointSchema = external_exports.object({
-  ...breakpointConditionFields,
-  kind: external_exports.literal("statement"),
-  statement: external_exports.string().describe("ABAP statement keyword to break on, e.g. RAISE. SAP validates it.")
-});
-var messageBreakpointSchema = external_exports.object({
-  ...breakpointConditionFields,
-  kind: external_exports.literal("message"),
-  msgId: external_exports.string().describe("Message class, e.g. 00."),
-  // String, not number: leading zeros (e.g. "001") are significant and must survive.
-  msgNo: external_exports.string().describe("Message number, e.g. 001."),
-  msgTy: external_exports.string().describe("Message type letter, e.g. E.")
-});
-var debugInputSchema = {
-  action: external_exports.enum(["start", "step", "stack", "frame", "breakpoints", "watch", "keepalive", "stop", "status"]).describe(
-    "start needs breakpoints+run. step needs stateId+step. stack needs stateId. frame needs stateId+frame. breakpoints needs stateId (op add/remove) or nothing (op list, default). watch needs stateId+variable (op add, default when variable given) or stateId+id (op remove) or stateId (op list). keepalive/stop/status need nothing."
-  ),
-  breakpoints: external_exports.array(
-    external_exports.discriminatedUnion("kind", [
-      lineBreakpointSchema,
-      exceptionBreakpointSchema,
-      statementBreakpointSchema,
-      messageBreakpointSchema
-    ])
-  ).optional().describe(
-    '\u22651 entry, required for action="start" and for action="breakpoints" op="add"; kinds (line/exception/statement/message) may mix and are validated against SAP before arming. All kinds take optional condition (ABAP expression, suspend only when true) and skipCount (sent to SAP, NOT enforced \u2014 use step:"continue").'
-  ),
-  run: external_exports.object({
-    object: external_exports.string().describe("Class or report to execute \u2014 same resolution rules as abap_run."),
-    mode: external_exports.enum(["class", "report", "auto"]).optional().describe("Default auto.")
-  }).optional().describe(
-    'The program to trigger (action="start").'
-  ),
-  step: external_exports.enum(["into", "over", "return", "continue", "runToLine", "jumpToLine"]).optional().describe(
-    'continue may end the session (status="dead" plus captured output). runToLine/jumpToLine need toLine; jumpToLine also needs server ABAP_ALLOW_DEBUG_JUMP_TO_LINE=true and confirm:"jumpToLine".'
-  ),
-  toLine: external_exports.number().int().min(1).max(999999).optional().describe(
-    `Required for step="runToLine"/"jumpToLine". 1-based line in the current frame's source.`
-  ),
-  stateId: external_exports.string().optional().describe(
-    "From the most recent start/step/stack/frame response; a stale id is refused."
-  ),
-  frame: external_exports.number().int().min(1).describe(
-    "1-based stackPosition from the last STACK section. Read-only."
-  ).optional(),
-  // Shared between action="breakpoints" and action="watch" — meaning depends
-  // on which. breakpoints: defaults to "list". watch: defaults to "add" when
-  // "variable" is given, else "list".
-  op: external_exports.enum(["list", "add", "remove"]).optional().describe(
-    'action="breakpoints"/"watch" only. breakpoints defaults to "list"; watch defaults to "add" when "variable" is set, else "list".'
-  ),
-  id: external_exports.string().optional().describe('action="breakpoints"/"watch" op="remove" only \u2014 the id to remove.'),
-  variable: external_exports.string().optional().describe(
-    'action="watch" only \u2014 variable path to watch, same syntax abap_debug_value accepts. Presence selects op="add".'
-  ),
-  confirm: external_exports.string().optional().describe(
-    'Required for step="jumpToLine": echo "jumpToLine". Ignored otherwise.'
-  ),
-  // "Uncleanly-exited process" = crash/kill-9/container respawn; NOT
-  // automatic (unlike listener release) because terminating a SUSPENDED
-  // debuggee ends real work; identity-scoped so it can only reach a debuggee
-  // this server armed. See `releaseOrphanDebuggee` above; full prose moved to
-  // doc/TOOLS/debugger.md.
-  force: external_exports.boolean().optional().describe(
-    `stop only \u2014 force-terminates a debuggee left attached by an unclean exit (the "Debuggee already attached" error's escape hatch).`
-  ),
-  // Top-level and named identically to the per-breakpoint `condition` field
-  // above, but distinct: that one nests inside a `breakpoints[]` entry and
-  // conditions a LINE/EXCEPTION/STATEMENT/MESSAGE breakpoint; this one is a
-  // sibling of `variable` and conditions a WATCHPOINT (action="watch" only)
-  // — different key paths, so the two never collide on the wire.
-  condition: external_exports.string().trim().min(1).max(255).optional().describe(
-    'action="watch" op="add" only \u2014 ABAP expression; the watchpoint only suspends when it evaluates true.'
-  )
-};
-var DebugInput = external_exports.object(debugInputSchema);
-function stepKindOf(step) {
-  switch (step) {
-    case "into":
-      return "stepInto";
-    case "over":
-      return "stepOver";
-    case "return":
-      return "stepReturn";
-    case "continue":
-      return "stepContinue";
-    case "runToLine":
-      return "stepRunToLine";
-    case "jumpToLine":
-      return "stepJumpToLine";
-  }
-}
-var LINE_TARGETED_STEPS = /* @__PURE__ */ new Set([
-  "stepRunToLine",
-  "stepJumpToLine"
-]);
-function lineStepUri(stack, toLine) {
-  const frame = stack?.frames.find((f) => !f.systemProgram && f.uri) ?? stack?.frames.find((f) => f.uri);
-  if (!frame?.uri) {
-    throw new AbapError(
-      "UNSUPPORTED",
-      `step:"runToLine"/"jumpToLine" needs the current frame's source URI, and the last stack reported none (system frames often have no resolvable source). Use step:"over"/"into" instead, or set a line breakpoint and step:"continue" to it.`,
-      { toLine }
-    );
-  }
-  return withStartFragment(frame.uri.split("#")[0], toLine);
-}
-async function composeStopOutput(run, action, stack, stateId, maxChars, extraNotes = []) {
-  const root = await run.session.getRootVariables(stateId);
-  const entries = root.variables.variables.map((variable) => ({ variable }));
-  const survey = renderSurvey(entries, { maxChars: DEBUG_MAX_CHARS, stateId });
-  const stackText = renderStackSection(stack, stateId);
-  const visibleFrames = stack.frames.filter((f) => !f.systemProgram);
-  const top = visibleFrames[0] ?? stack.frames[0];
-  return buildResponse({
-    header: {
-      action,
-      status: run.session.snapshot.status,
-      program: top?.programName,
-      include: top?.includeName,
-      line: top?.line,
-      stateId
-    },
-    sections: [{ title: "STACK", content: stackText }],
-    body: survey.text,
-    bodyLabel: "VARIABLES",
-    notes: [
-      ...extraNotes,
-      ...survey.degraded.length ? [`${survey.degraded.length} value(s) shortened to fit budget \u2014 each still names its own retrieval call.`] : []
-    ],
-    maxChars: clampMaxChars(maxChars)
-  });
-}
-function isGenericFallbackEvidence(tr) {
-  if (!tr) return false;
-  if (tr.kind !== "exception" && tr.kind !== "session_ended") return false;
-  return tr.bodyExcerpt !== void 0 && tr.bodyExcerpt === tr.detail;
-}
-function renderTerminationEvidence(tr) {
-  if (!tr) return [];
-  const showBodyExcerpt = !isGenericFallbackEvidence(tr);
-  switch (tr.kind) {
-    case "exception":
-      return [
-        `Termination evidence: the debuggee ended via an ABAP exception \u2014 ${tr.exceptionClassNames.join(", ")}.` + (tr.bodyExcerpt && showBodyExcerpt ? ` Raw evidence: ${tr.bodyExcerpt}` : "")
-      ];
-    case "session_ended":
-      return [
-        "Termination evidence: the debug session ended (SAP reported the session/debuggee is gone), but the response carried no exception class name \u2014 this is NOT confirmed to be an exception; it is only confirmed to be a session-gone condition." + (tr.bodyExcerpt && showBodyExcerpt ? ` Raw evidence: ${tr.bodyExcerpt}` : "")
-      ];
-    case "idle_timeout":
-      return [`Termination evidence: idle timeout \u2014 no debugger activity for ${tr.thresholdMs}ms.`];
-    case "terminated_by_caller":
-      return [`Termination evidence: stopped by explicit caller request (abap_debug action:"stop").`];
-    case "finished":
-      return [
-        "Termination evidence: the debuggee itself reported stepping/termination as no longer possible (a clean finish \u2014 no exception, no timeout, no caller-requested stop)."
-      ];
-  }
-}
-function explainOpaqueDeathDetail(detail) {
-  if (detail.trim().toLowerCase() !== ADT_REST_DATA_INVALID_TEXT.toLowerCase()) return detail;
-  return `${detail} \u2014 this is cx_adt_rest_data_invalid's default text, raised by SAP's ADT REST layer when it cannot convert the payload of the debugger request in flight; it is not a complaint about a value passed to this tool, and the server gives no further detail. Reported by a live verification run on 2026-09-15 right after breakpoints were changed under a suspended debuggee, at a point where that change reached the debuggee one stop-cycle late and the debuggee was already gone; breakpoint changes now notify the attached debuggee immediately, so this shape should no longer occur that way. In practice: the debug session is no longer there to step \u2014 start a new one.`;
-}
-async function composeDeathOutput(run, action, maxChars, cause, extraNotes = []) {
-  const settled = await raceDeadline(run.triggerSettled, STOP_WAIT_MS);
-  const outputSection = {
-    title: "PROGRAM OUTPUT",
-    content: renderTriggerOutcome(settled, STOP_WAIT_MS)
-  };
-  run.closeTriggerConn();
-  await run.closeSessionConn();
-  const snapshot = run.session.snapshot;
-  const showDeathDetail = !isGenericFallbackEvidence(snapshot.terminationResult);
-  const notes = [
-    ...extraNotes,
-    showDeathDetail && snapshot.deathDetail !== void 0 ? explainOpaqueDeathDetail(snapshot.deathDetail) : void 0,
-    snapshot.deathDetail === void 0 && cause instanceof Error ? cause.message : void 0,
-    ...renderTerminationEvidence(snapshot.terminationResult)
-  ].filter((n) => Boolean(n));
-  if (settled === TIMED_OUT) {
-    notes.push("Program output is incomplete: the trigger run had not returned when the wait expired.");
-  }
-  const triggerOutcome = triggerOutcomeHeader(settled);
-  if (triggerOutcome === "short_dumped" || triggerOutcome === "trigger_failed") {
-    notes.push(
-      `triggerOutcome ("${triggerOutcome}") comes from the trigger run used to reach the breakpoint, not from the debug session's own termination evidence above \u2014 the two are independent signals and can disagree. See PROGRAM OUTPUT for the trigger run's own error text.`
-    );
-  }
-  return buildResponse({
-    header: {
-      action,
-      status: snapshot.status,
-      deathReason: snapshot.deathReason,
-      terminationKind: snapshot.terminationResult?.kind,
-      triggerOutcome
-    },
-    sections: [outputSection],
-    notes,
-    maxChars: clampMaxChars(maxChars)
-  });
-}
-var MAX_FRAMEWORK_AUTO_CONTINUES = 10;
-function stackTouchesObject(stack, objectName) {
-  const normalize = (n) => n.toUpperCase().replace(/=+/g, "");
-  const uriNeedle = `/${objectName.toLowerCase()}/`;
-  return stack.frames.some((frame) => {
-    if (normalize(frame.programName).startsWith(objectName)) return true;
-    if (normalize(frame.includeName).startsWith(objectName)) return true;
-    if (frame.uri && frame.uri.toLowerCase().includes(uriNeedle)) return true;
-    return false;
-  });
-}
-var ENHANCEMENT_DEBUG_TYPES = /* @__PURE__ */ new Set(["ENHO/XH", "ENHO/XHH", "ENHS/XS"]);
-async function refuseEnhancementDebugTarget(conn, bpObject, resolved) {
-  const name = resolved.name;
-  let advice;
-  switch (resolved.type) {
-    case "ENHO/XH": {
-      let classNames = [];
-      try {
-        const doc = await readBadiImplementation(conn, name);
-        classNames = doc.data.implementations.map((impl) => impl.implementingClass?.name).filter((n) => Boolean(n));
-      } catch {
-      }
-      advice = classNames.length > 0 ? `Set the breakpoint in its implementing class instead: ${classNames.join(", ")}.` : "Set the breakpoint in its implementing class instead \u2014 read this BAdI implementation with abap_read to find the class name.";
-      break;
-    }
-    case "ENHO/XHH": {
-      let enhancedObject;
-      try {
-        const doc = await readSourceCodePlugin(conn, name);
-        enhancedObject = doc.data.enhancedObject?.name;
-      } catch {
-      }
-      advice = enhancedObject ? `Set the breakpoint in the object it enhances instead: ${enhancedObject}.` : "Set the breakpoint in the object it enhances instead \u2014 read this enhancement plug-in with abap_read to find that object.";
-      break;
-    }
-    case "ENHS/XS": {
-      let badiNames = [];
-      try {
-        const doc = await readEnhancementSpot(conn, name);
-        badiNames = doc.data.badiDefinitions.map((d) => d.name).filter(Boolean);
-      } catch {
-      }
-      advice = badiNames.length > 0 ? `Set the breakpoint in an implementation of one of its BAdI definitions instead: ${badiNames.join(", ")}.` : "Set the breakpoint in an implementation of one of its BAdI definitions instead \u2014 read this enhancement spot with abap_read to find them.";
-      break;
-    }
-    default:
-      advice = "Set the breakpoint in its implementation instead.";
-  }
-  throw new AbapError(
-    "UNSUPPORTED",
-    `${bpObject} is ${resolved.spec.label} (${resolved.type}), which has no debuggable source of its own. ${advice}`,
-    { object: bpObject, type: resolved.type }
-  );
-}
-async function handleStart(conn, input, maxChars, deps, gate) {
-  const laneLimit = deps.debugLaneCount ?? 1;
-  let targetLane;
-  if (laneLimit === 1) {
-    const live = listActiveDebugSessions();
-    if (live.length > 0) {
-      const status = live[0].snapshot.status;
-      const tracked = debugLanes[0] !== void 0 && live.includes(debugLanes[0].session);
-      if (tracked) {
-        throw new AbapError(
-          "DEBUG_ALL_LEASES_BUSY",
-          `This process is configured for a single debug session (laneLimit 1) and it is already "${status}" \u2014 stop it first: abap_debug({action:"stop"}). Raise ABAP_DEBUG_SESSIONS to run more than one at a time \u2014 itself capped at floor(ABAP_DEBUG_DIA_BUDGET / 2), since each concurrent debug session pins 2 dialog work processes on the SAP appliance (see debugDiaBudget/debugSessions in src/config.ts).`,
-          { laneLimit, status },
-          void 0,
-          { retryable: true }
-          // transient occupancy, not an unimplemented capability — a stop clears it
-        );
-      }
-      throw new AbapError(
-        "UNSUPPORTED",
-        `A debug session from an earlier, unsuccessful start attempt is still registered (status "${status}") even though it never became this process's active session (one session per process) \u2014 clear it first: abap_debug({action:"stop"}); if that reports the cleanup is still running, retry, or use abap_debug({action:"stop", force:true}) to force it out of tracking.`,
-        { status, tracked },
-        void 0,
-        { retryable: true }
-        // transient occupancy, not an unimplemented capability — a stop clears it
-      );
-    }
-    targetLane = 0;
-  } else {
-    const tracked = new Set(activeLaneRuns().map((r) => r.session));
-    const leaked = listActiveDebugSessions().find((s) => !tracked.has(s));
-    if (leaked) {
-      const status = leaked.snapshot.status;
-      throw new AbapError(
-        "UNSUPPORTED",
-        `A debug session from an earlier, unsuccessful start attempt is still registered (status "${status}") even though it is not one of this process's tracked debug lanes \u2014 clear it first: abap_debug({action:"stop"}); if that reports the cleanup is still running, retry, or use abap_debug({action:"stop", force:true}) to force it out of tracking.`,
-        { status, tracked: false },
-        void 0,
-        { retryable: true }
-        // transient occupancy, not an unimplemented capability — a stop clears it
-      );
-    }
-    const free = firstFreeLane(laneLimit);
-    if (free === void 0) {
-      const status = activeLaneRuns()[0].session.snapshot.status;
-      throw new AbapError(
-        "DEBUG_ALL_LEASES_BUSY",
-        `All ${laneLimit} configured debug lanes are already busy in this process (e.g. status "${status}"). Raise ABAP_DEBUG_SESSIONS to configure more \u2014 itself capped at floor(ABAP_DEBUG_DIA_BUDGET / 2), since each concurrent debug session pins 2 dialog work processes on the SAP appliance (see debugDiaBudget/debugSessions in src/config.ts).`,
-        { laneLimit, status },
-        'Stop an existing session first: abap_debug({action:"stop"}).',
-        { retryable: true }
-        // transient occupancy: a stop on any lane frees one (issue #89)
-      );
-    }
-    targetLane = free;
-  }
-  if (!input.breakpoints || input.breakpoints.length === 0) {
-    throw new AbapError(
-      "BAD_INPUT",
-      'abap_debug({action:"start"}) requires a non-empty "breakpoints" array.',
-      {}
-    );
-  }
-  if (!input.run) {
-    throw new AbapError(
-      "BAD_INPUT",
-      'abap_debug({action:"start"}) requires a "run" object naming the program to trigger.',
-      {}
-    );
-  }
-  const runTarget = { name: parseObjectRef(input.run.object).name };
-  assertDebugWrite(gate, runTarget, "preflight");
-  const sessionTarget = { ...runTarget };
-  let gateTarget = { target: sessionTarget, phase: "preflight" };
-  const slot = await deps.reserveDebugSession?.("debugger/listeners");
-  let dedicatedConn;
-  if (deps.createDebugSessionConnection) {
-    try {
-      dedicatedConn = await deps.createDebugSessionConnection();
-    } catch (e) {
-      slot?.release();
-      throw e;
-    }
-  }
-  const sessionConn = dedicatedConn ?? slot?.conn ?? conn;
-  const closeSessionConn = makeSessionConnCloser(
-    sessionConn,
-    deps.log,
-    dedicatedConn !== void 0,
-    "session end"
-  );
-  let session;
-  try {
-    session = deps.createSession(sessionConn, gate, {
-      target: sessionTarget,
-      sessionLease: slot,
-      lane: targetLane
-    });
-  } catch (e) {
-    slot?.release();
-    void closeSessionConn();
-    throw e;
-  }
-  let attachedStack;
-  let attachedStateId;
-  let triggerConn;
-  let triggerSettled;
-  const skipCountWarnings = [];
-  let closeTriggerConn = () => {
-  };
-  try {
-    const resolvedCache = /* @__PURE__ */ new Map();
-    const breakpoints = [];
-    for (const bp of input.breakpoints) {
-      if (bp.skipCount !== void 0 && bp.skipCount > 0) {
-        const where2 = bp.kind === "line" ? `${bp.object}:${bp.line}` : bp.kind === "exception" ? bp.exceptionClass : bp.kind === "statement" ? bp.statement : `${bp.msgId} ${bp.msgTy}${bp.msgNo}`;
-        skipCountWarnings.push(
-          `skipCount:${bp.skipCount} on ${where2} was sent to SAP but is NOT enforced by this ADT debugger backend (live-verified on A4H) \u2014 expect a suspend on EVERY hit, not just the Nth. Use abap_debug({action:"step", step:"continue"}) to advance past hits you want to skip.`
-        );
-      }
-      if (bp.kind === "line") {
-        const key = bp.object.toUpperCase();
-        let resolved = resolvedCache.get(key);
-        if (!resolved) {
-          try {
-            resolved = await deps.resolveObject(conn, bp.object);
-          } catch (e) {
-            if (e instanceof AbapError && e.code === "UNSUPPORTED" && Array.isArray(e.details.types) && e.details.types.includes("BOBF")) {
-              throw new AbapError(
-                "UNSUPPORTED",
-                `${bp.object} is a BOPF business object, which has no source. Set the breakpoint in its implementation class instead.`,
-                { object: bp.object },
-                'Run abap_bopf mode:"show" to list them.'
-              );
-            }
-            throw e;
-          }
-          resolvedCache.set(key, resolved);
-        }
-        if (ENHANCEMENT_DEBUG_TYPES.has(resolved.type)) {
-          await refuseEnhancementDebugTarget(conn, bp.object, resolved);
-        }
-        const baseUri = resolved.sourceUri ?? resolved.uri;
-        if (!baseUri) {
-          throw new AbapError(
-            "UNSUPPORTED",
-            `${bp.object} has no source URI to attach a line breakpoint to.`,
-            { object: bp.object }
-          );
-        }
-        const bpTarget = {
-          name: resolved.name,
-          packageName: resolved.packageName,
-          type: resolved.type
-        };
-        assertDebugWrite(gate, bpTarget);
-        if (gateTarget.phase === "preflight") {
-          Object.assign(sessionTarget, bpTarget);
-          gateTarget = { target: sessionTarget, phase: "final" };
-        }
-        breakpoints.push({
-          kind: "line",
-          uri: `${baseUri}#start=${bp.line}`,
-          // D5: forward what the caller asked for instead of dropping it.
-          ...bp.condition !== void 0 ? { condition: bp.condition } : {},
-          ...bp.skipCount !== void 0 ? { skipCount: bp.skipCount } : {}
-        });
-      } else if (bp.kind === "exception") {
-        breakpoints.push({
-          kind: "exception",
-          exceptionClass: bp.exceptionClass,
-          ...bp.condition !== void 0 ? { condition: bp.condition } : {},
-          ...bp.skipCount !== void 0 ? { skipCount: bp.skipCount } : {}
-        });
-      } else if (bp.kind === "statement") {
-        breakpoints.push({
-          kind: "statement",
-          statement: bp.statement,
-          ...bp.condition !== void 0 ? { condition: bp.condition } : {},
-          ...bp.skipCount !== void 0 ? { skipCount: bp.skipCount } : {}
-        });
-      } else {
-        breakpoints.push({
-          kind: "message",
-          msgId: bp.msgId,
-          msgNo: bp.msgNo,
-          msgTy: bp.msgTy,
-          ...bp.condition !== void 0 ? { condition: bp.condition } : {},
-          ...bp.skipCount !== void 0 ? { skipCount: bp.skipCount } : {}
-        });
-      }
-    }
-    await session.prepareBreakpoints(breakpoints);
-    await session.armListener();
-    triggerConn = await deps.createTriggerConnection();
-    closeTriggerConn = makeTriggerConnCloser(triggerConn, deps.log);
-    triggerSettled = deps.triggerRun(triggerConn, input.run, maxChars, gate).then(
-      (res) => ({ ok: true, text: res.text }),
-      // Preserve the structured AbapError.code alongside the flattened
-      // message — see `DebugTriggerOutcome`'s doc comment.
-      (e) => ({ ok: false, error: describeUnknownError(e), code: isAbapError(e) ? e.code : void 0 })
-    );
-    void triggerSettled.finally(closeTriggerConn).catch(() => {
-    });
-    const listenResult = await session.waitForDebuggee();
-    if (listenResult.kind !== "debuggee") {
-      if (listenResult.kind === "conflict") {
-        throw new AbapError(
-          "ADT_ERROR",
-          `abap_debug start: another listener already holds this session (${listenResult.conflict.conflictText}${listenResult.conflict.ideUser ? `, ideUser=${listenResult.conflict.ideUser}` : ""}).`,
-          { conflict: listenResult.conflict },
-          "Retrying will not clear this: a 409 here means a DIFFERENT (terminalId, ideId) identity already holds the global-scope listener for this SAP user. Stop that listener, or give this process a stable ABAP_TERMINAL_ID/ABAP_IDE_ID pair that matches it."
-        );
-      }
-      throw new AbapError(
-        "ADT_ERROR",
-        `abap_debug start: timed out waiting for the debuggee to hit a breakpoint (kind="${listenResult.kind}").`,
-        { kind: listenResult.kind }
-      );
-    }
-    const attached = await session.attach(listenResult.debuggee.id);
-    attachedStack = attached.stack;
-    attachedStateId = attached.stateId;
-  } catch (e) {
-    const cleanupWaitMs = Math.max(START_FAILURE_CLEANUP_WAIT_MS, session.terminateDeadlineMs + 1e3);
-    await raceDeadline(
-      session.cleanup().catch(() => void 0),
-      cleanupWaitMs
-    );
-    await closeSessionConn();
-    let triggerNote;
-    if (triggerSettled) {
-      const settled = await raceDeadline(triggerSettled, START_FAILURE_TRIGGER_WAIT_MS);
-      if (settled === TIMED_OUT) {
-        triggerNote = `The trigger run had NOT returned after ${START_FAILURE_TRIGGER_WAIT_MS} ms, so no program output is available to explain this.`;
-      } else if (!settled.ok) {
-        triggerNote = `The trigger run itself failed: ${settled.error}`;
-      } else {
-        const text5 = settled.text.trim();
-        triggerNote = text5 ? `PROGRAM OUTPUT from the trigger run:
-${text5}` : "The trigger run completed and produced no output.";
-      }
-    }
-    closeTriggerConn();
-    if (triggerNote) {
-      if (e instanceof Error) {
-        e.message = `${e.message}
-
-${triggerNote}`;
-        throw e;
-      }
-      throw new AbapError("ADT_ERROR", `${describeUnknownError(e)}
-
-${triggerNote}`, {});
-    }
-    throw e;
-  }
-  const run = {
-    session,
-    sessionConn,
-    closeSessionConn,
-    triggerConn,
-    triggerSettled,
-    closeTriggerConn,
-    gateTarget,
-    lastStack: attachedStack,
-    lane: targetLane
-  };
-  debugLanes[targetLane] = run;
-  const runObjectName = parseObjectRef(input.run.object).name.toUpperCase();
-  const skippedFrameworkStops = [];
-  const describeTopFrame = (stack) => {
-    const frame = stack.frames[0];
-    if (!frame) return "<no frame reported>";
-    const eventBits = [frame.eventType, frame.eventName].filter((s) => s).join(" ");
-    return `${frame.programName}/${frame.includeName}:${frame.line}${eventBits ? ` (${eventBits})` : ""}`;
-  };
-  while (skippedFrameworkStops.length < MAX_FRAMEWORK_AUTO_CONTINUES && !stackTouchesObject(attachedStack, runObjectName)) {
-    skippedFrameworkStops.push(describeTopFrame(attachedStack));
-    let result;
-    try {
-      result = await run.session.step(attachedStateId, "stepContinue");
-    } catch (e) {
-      if (run.session.snapshot.status === "dead") {
-        skipCountWarnings.push(
-          `Auto-continued past ${skippedFrameworkStops.length} stop(s) outside ${runObjectName} before the debuggee died: ${skippedFrameworkStops.join("; ")}. A statement/exception/message breakpoint has no program/include restriction on the wire in ADT, so it fires in the first code that hits it anywhere in the work process (see MAX_FRAMEWORK_AUTO_CONTINUES's doc comment, src/tools/debug.ts).`
-        );
-        const out = await composeDeathOutput(run, "start", maxChars, e, skipCountWarnings);
-        debugLanes[run.lane] = void 0;
-        return out;
-      }
-      throw e;
-    }
-    if (run.session.snapshot.status === "dead") {
-      skipCountWarnings.push(
-        `Auto-continued past ${skippedFrameworkStops.length} stop(s) outside ${runObjectName} before the debuggee died: ${skippedFrameworkStops.join("; ")}. A statement/exception/message breakpoint has no program/include restriction on the wire in ADT, so it fires in the first code that hits it anywhere in the work process (see MAX_FRAMEWORK_AUTO_CONTINUES's doc comment, src/tools/debug.ts).`
-      );
-      const out = await composeDeathOutput(run, "start", maxChars, void 0, skipCountWarnings);
-      debugLanes[run.lane] = void 0;
-      return out;
-    }
-    attachedStack = result.stack;
-    attachedStateId = result.stateId;
-    run.lastStack = result.stack;
-  }
-  if (skippedFrameworkStops.length > 0) {
-    if (stackTouchesObject(attachedStack, runObjectName)) {
-      skipCountWarnings.push(
-        `Auto-continued past ${skippedFrameworkStops.length} stop(s) whose stack did not mention ${runObjectName} before reaching this one: ${skippedFrameworkStops.join("; ")}. A statement/exception/message breakpoint has no program/include restriction on the wire in ADT \u2014 it fires in the first code that hits it anywhere in the work process, which is very often SAP's own gateway/framework code running long before the caller's own object gets a chance to run (see MAX_FRAMEWORK_AUTO_CONTINUES's doc comment, src/tools/debug.ts).`
-      );
-    } else {
-      skipCountWarnings.push(
-        `Auto-continue stopped after reaching MAX_FRAMEWORK_AUTO_CONTINUES (${MAX_FRAMEWORK_AUTO_CONTINUES}) without a stack mentioning ${runObjectName}: ${skippedFrameworkStops.join("; ")}. The session is suspended in code outside ${runObjectName} \u2014 keep issuing abap_debug({action:"step", step:"continue"}) to move past it, or inspect the current stop as-is.`
-      );
-    }
-  }
-  return await composeStopOutput(run, "start", attachedStack, attachedStateId, maxChars, skipCountWarnings);
-}
-async function handleStep(input, maxChars, gate, deps) {
-  const run = resolveLaneRun(input.stateId);
-  if (!run) {
-    throw new AbapError(
-      "BAD_INPUT",
-      'No active debug session. Start one with abap_debug({action:"start", ...}).'
-    );
-  }
-  if (!input.stateId) {
-    throw new AbapError("BAD_INPUT", 'abap_debug({action:"step"}) requires "stateId".');
-  }
-  if (!input.step) {
-    throw new AbapError("BAD_INPUT", 'abap_debug({action:"step"}) requires "step".');
-  }
-  assertSessionWrite(gate, run);
-  const kind = stepKindOf(input.step);
-  if (kind === "stepJumpToLine") {
-    if (deps.allowJumpToLine !== true) {
-      throw new AbapError(
-        "DEBUG_JUMP_DISABLED",
-        'step:"jumpToLine" is disabled on this server. Set ABAP_ALLOW_DEBUG_JUMP_TO_LINE=true to enable it \u2014 this is deliberately separate from ABAP_ALLOW_WRITE, because jumpToLine can skip statements (and any authorization/validation checks they would have run) instead of executing them in order. Use step:"runToLine" instead if the code in between is safe to run.',
-        { step: input.step }
-      );
-    }
-    if (input.confirm !== "jumpToLine") {
-      throw new AbapError(
-        "BAD_INPUT",
-        'step:"jumpToLine" requires confirm:"jumpToLine" on the SAME call, even though ABAP_ALLOW_DEBUG_JUMP_TO_LINE is enabled \u2014 this step can skip code (and any checks it would have run) rather than executing it in order. Reissue the call with confirm:"jumpToLine" once you are sure this is the right target line.',
-        { step: input.step }
-      );
-    }
-  }
-  let uri;
-  if (LINE_TARGETED_STEPS.has(kind)) {
-    if (input.toLine === void 0) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `abap_debug({action:"step", step:"${input.step}"}) requires "toLine" \u2014 the line in the current program to run to. Without it there is no target and the step would be a no-op.`,
-        { step: input.step }
-      );
-    }
-    uri = lineStepUri(run.lastStack, input.toLine);
-  }
-  let result;
-  try {
-    result = await run.session.step(input.stateId, kind, uri);
-  } catch (e) {
-    if (run.session.snapshot.status === "dead") {
-      const out = await composeDeathOutput(run, "step", maxChars, e);
-      debugLanes[run.lane] = void 0;
-      return out;
-    }
-    throw e;
-  }
-  if (run.session.snapshot.status === "dead") {
-    const out = await composeDeathOutput(run, "step", maxChars);
-    debugLanes[run.lane] = void 0;
-    return out;
-  }
-  run.lastStack = result.stack;
-  const revisitNotes = result.positionVisitCount > 1 ? [
-    `Position revisited: this exact program/line/stack-level has now been reached ${result.positionVisitCount} times by stepping in this session. If you are stepping through a loop body, "step over"/"step into" can under-report how many iterations actually ran between visits \u2014 this only proves you returned to this line, not how many times the loop body executed in between. For a reliable per-iteration count, set a breakpoint at the loop body's start (abap_debug action:"start" or a line breakpoint) and use step:"continue" repeatedly instead of stepping through \u2014 each hit is a real, separately counted stop.`
-  ] : [];
-  const watchpointNotes = [];
-  if (result.step.reachedWatchpoints.length > 0) {
-    let byId;
-    try {
-      const owned = await run.session.readWatchpoints();
-      byId = new Map(owned.map((wp) => [wp.id, wp]));
-    } catch {
-      byId = void 0;
-    }
-    for (const hit of result.step.reachedWatchpoints) {
-      const old = byId?.get(hit.id)?.oldValue;
-      watchpointNotes.push(
-        `Stopped on watchpoint ${hit.id} (${hit.variableName}): now ${renderWatchValue(hit.currentValue)}` + (old !== void 0 ? `, was ${renderWatchValue(old)} (read back from the watchpoint resource after the stop)` : `. Old value not available from this step's own data \u2014 call abap_debug({action:"watch", op:"list"}) to check.`)
-      );
-    }
-  }
-  return composeStopOutput(run, "step", result.stack, result.stateId, maxChars, [
-    ...revisitNotes,
-    ...watchpointNotes
-  ]);
-}
-async function handleStack(input, maxChars) {
-  const run = resolveLaneRun(input.stateId);
-  if (!run) {
-    throw new AbapError(
-      "BAD_INPUT",
-      'No active debug session. Start one with abap_debug({action:"start", ...}).'
-    );
-  }
-  if (!input.stateId) {
-    throw new AbapError("BAD_INPUT", 'abap_debug({action:"stack"}) requires "stateId".');
-  }
-  const stack = await run.session.getStack(input.stateId);
-  run.lastStack = stack;
-  const stackText = renderStackSection(stack, input.stateId);
-  const visibleFrames = stack.frames.filter((f) => !f.systemProgram);
-  const top = visibleFrames[0] ?? stack.frames[0];
-  return buildResponse({
-    header: {
-      action: "stack",
-      status: run.session.snapshot.status,
-      program: top?.programName,
-      include: top?.includeName,
-      line: top?.line,
-      stateId: input.stateId
-    },
-    sections: [{ title: "STACK", content: stackText }],
-    maxChars: clampMaxChars(maxChars)
-  });
-}
-async function handleFrame(input, maxChars) {
-  const run = resolveLaneRun(input.stateId);
-  if (!run) {
-    throw new AbapError(
-      "BAD_INPUT",
-      'No active debug session. Start one with abap_debug({action:"start", ...}).'
-    );
-  }
-  if (!input.stateId) {
-    throw new AbapError("BAD_INPUT", 'abap_debug({action:"frame"}) requires "stateId".');
-  }
-  if (input.frame === void 0) {
-    throw new AbapError(
-      "BAD_INPUT",
-      'abap_debug({action:"frame"}) requires "frame" \u2014 the 1-based stackPosition of the frame to move the read cursor to.'
-    );
-  }
-  const lastStack = run.lastStack;
-  const target = lastStack?.frames.find((f) => f.stackPosition === input.frame);
-  if (!lastStack || !target) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `abap_debug({action:"frame", frame:${input.frame}}) does not match any frame in the most recently known stack. Call abap_debug({action:"stack", stateId:"${input.stateId}"}) first to see the current stackPosition values.`,
-      { frame: input.frame }
-    );
-  }
-  await run.session.setStackPosition(input.stateId, { stackPosition: input.frame, stackType: "ABAP" });
-  const root = await run.session.getRootVariables(input.stateId);
-  const entries = root.variables.variables.map((variable) => ({ variable }));
-  const survey = renderSurvey(entries, { maxChars: DEBUG_MAX_CHARS, stateId: input.stateId });
-  const stackText = renderStackSection(lastStack, input.stateId);
-  return buildResponse({
-    header: {
-      action: "frame",
-      status: run.session.snapshot.status,
-      program: target.programName,
-      include: target.includeName,
-      line: target.line,
-      frame: target.stackPosition,
-      stateId: input.stateId
-    },
-    sections: [{ title: "STACK", content: stackText }],
-    body: survey.text,
-    bodyLabel: "VARIABLES",
-    notes: [
-      `Read cursor switched to frame #${target.stackPosition} \u2014 this does not change what runs next. The next step resumes from the live top frame regardless (live-verified).`,
-      ...survey.degraded.length ? [`${survey.degraded.length} value(s) shortened to fit budget \u2014 each still names its own retrieval call.`] : []
-    ],
-    maxChars: clampMaxChars(maxChars)
-  });
-}
-async function handleKeepalive(maxChars, gate) {
-  const run = resolveLaneRun(void 0);
-  if (!run) {
-    throw new AbapError(
-      "BAD_INPUT",
-      'No active debug session. Start one with abap_debug({action:"start", ...}).'
-    );
-  }
-  assertSessionWrite(gate, run);
-  run.session.keepalive();
-  const snapshot = run.session.snapshot;
-  return buildResponse({
-    header: {
-      action: "keepalive",
-      status: snapshot.status,
-      stateId: snapshot.stateId,
-      debugSessionId: snapshot.debugSessionId
-    },
-    maxChars: clampMaxChars(maxChars)
-  });
-}
-function describeBreakpoint(bp) {
-  switch (bp.kind) {
-    case "line":
-      return bp.uri;
-    case "exception":
-      return `exception ${bp.exceptionClass}`;
-    case "statement":
-      return `statement ${bp.statement}`;
-    case "message":
-      return `message ${bp.msgId} ${bp.msgTy}${bp.msgNo}`;
-  }
-}
-async function mapInputBreakpointForAdd(bp, conn, deps, resolvedCache) {
-  if (bp.kind === "line") {
-    const key = bp.object.toUpperCase();
-    let resolved = resolvedCache.get(key);
-    if (!resolved) {
-      resolved = await deps.resolveObject(conn, bp.object);
-      resolvedCache.set(key, resolved);
-    }
-    const baseUri = resolved.sourceUri ?? resolved.uri;
-    if (!baseUri) {
-      throw new AbapError(
-        "UNSUPPORTED",
-        `${bp.object} has no source URI to attach a line breakpoint to.`,
-        { object: bp.object }
-      );
-    }
-    return {
-      kind: "line",
-      uri: `${baseUri}#start=${bp.line}`,
-      ...bp.condition !== void 0 ? { condition: bp.condition } : {},
-      ...bp.skipCount !== void 0 ? { skipCount: bp.skipCount } : {}
-    };
-  }
-  if (bp.kind === "exception") {
-    return {
-      kind: "exception",
-      exceptionClass: bp.exceptionClass,
-      ...bp.condition !== void 0 ? { condition: bp.condition } : {},
-      ...bp.skipCount !== void 0 ? { skipCount: bp.skipCount } : {}
-    };
-  }
-  if (bp.kind === "statement") {
-    return {
-      kind: "statement",
-      statement: bp.statement,
-      ...bp.condition !== void 0 ? { condition: bp.condition } : {},
-      ...bp.skipCount !== void 0 ? { skipCount: bp.skipCount } : {}
-    };
-  }
-  return {
-    kind: "message",
-    msgId: bp.msgId,
-    msgNo: bp.msgNo,
-    msgTy: bp.msgTy,
-    ...bp.condition !== void 0 ? { condition: bp.condition } : {},
-    ...bp.skipCount !== void 0 ? { skipCount: bp.skipCount } : {}
-  };
-}
-async function handleBreakpoints(conn, input, maxChars, deps, gate) {
-  const run = resolveLaneRun(input.stateId);
-  if (!run) {
-    throw new AbapError(
-      "BAD_INPUT",
-      'No active debug session. Start one with abap_debug({action:"start", ...}).'
-    );
-  }
-  const op = input.op ?? "list";
-  if (!input.stateId) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `abap_debug({action:"breakpoints", op:"${op}"}) requires "stateId" \u2014 same as stack/frame, to confirm which stop this call addresses.`
-    );
-  }
-  if (op === "list") {
-    const owned = run.session.listOwnedBreakpoints();
-    return buildResponse({
-      header: {
-        action: "breakpoints",
-        op: "list",
-        status: run.session.snapshot.status,
-        stateId: input.stateId,
-        count: owned.length
-      },
-      sections: [
-        {
-          title: "BREAKPOINTS",
-          content: owned.length ? owned.map((bp) => `${bp.id}	${describeBreakpoint(bp)}`).join("\n") : "(none owned by this session)"
-        }
-      ],
-      notes: [
-        "This lists only breakpoints THIS session armed (in-memory) \u2014 ADT has no server-side read of what is actually armed while stopped (live-verified \u2014 see the two captures cited in this handler's doc comment). If SAP silently dropped or renumbered one, this will not show it."
-      ],
-      maxChars: clampMaxChars(maxChars)
-    });
-  }
-  if (op === "add") {
-    if (!input.breakpoints || input.breakpoints.length === 0) {
-      throw new AbapError(
-        "BAD_INPUT",
-        'abap_debug({action:"breakpoints", op:"add"}) requires a non-empty "breakpoints" array.'
-      );
-    }
-    assertSessionWrite(gate, run);
-    const resolvedCache = /* @__PURE__ */ new Map();
-    const toArm = [];
-    for (const bp of input.breakpoints) {
-      toArm.push(await mapInputBreakpointForAdd(bp, conn, deps, resolvedCache));
-    }
-    const created = await run.session.addBreakpoints(input.stateId, toArm);
-    return buildResponse({
-      header: {
-        action: "breakpoints",
-        op: "add",
-        status: run.session.snapshot.status,
-        stateId: input.stateId,
-        count: created.length
-      },
-      sections: [
-        { title: "BREAKPOINTS", content: created.map((bp) => `${bp.id}	${describeBreakpoint(bp)}`).join("\n") }
-      ],
-      notes: [
-        'Ids are server-assigned and unpredictable \u2014 do not guess one from a prior session or a pattern (live example: a breakpoint set at "#start=11" came back tagged "INCLUDE=...CM001.LINE_NR=5"). Use the id printed above for a later op:"remove".'
-      ],
-      maxChars: clampMaxChars(maxChars)
-    });
-  }
-  if (!input.id) {
-    throw new AbapError("BAD_INPUT", 'abap_debug({action:"breakpoints", op:"remove"}) requires "id".');
-  }
-  assertSessionWrite(gate, run);
-  await run.session.removeBreakpoint(input.stateId, input.id);
-  return buildResponse({
-    header: {
-      action: "breakpoints",
-      op: "remove",
-      status: run.session.snapshot.status,
-      stateId: input.stateId,
-      id: input.id
-    },
-    maxChars: clampMaxChars(maxChars)
-  });
-}
-function renderWatchValue(raw) {
-  return renderScalar({
-    id: "",
-    name: "",
-    declaredTypeName: "",
-    actualTypeName: "",
-    kind: "",
-    instantiationKind: "",
-    accessKind: "",
-    metaType: "unknown",
-    parameterKind: "",
-    value: raw,
-    hexValue: "",
-    readOnly: true,
-    technicalType: "",
-    length: raw.length,
-    tableBody: "",
-    isValueIncomplete: false,
-    isException: false,
-    inheritanceLevel: 0,
-    inheritanceClass: ""
-  });
-}
-async function handleWatch(input, maxChars, gate) {
-  const run = resolveLaneRun(input.stateId);
-  if (!run) {
-    throw new AbapError(
-      "BAD_INPUT",
-      'No active debug session. Start one with abap_debug({action:"start", ...}).'
-    );
-  }
-  const op = input.op ?? (input.variable !== void 0 ? "add" : "list");
-  if (!input.stateId) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `abap_debug({action:"watch", op:"${op}"}) requires "stateId" \u2014 same as stack/frame, to confirm which stop this call addresses.`
-    );
-  }
-  if (op === "add") {
-    if (!input.variable) {
-      throw new AbapError("BAD_INPUT", 'abap_debug({action:"watch", op:"add"}) requires "variable".');
-    }
-    assertSessionWrite(gate, run);
-    const created = await run.session.addWatchpoint(input.stateId, {
-      variableName: input.variable,
-      ...input.condition !== void 0 ? { condition: input.condition } : {}
-    });
-    const lines = created.map(
-      (wp) => `${wp.id}	${wp.variableName}` + (wp.condition ? ` (condition: ${wp.condition})` : "") + (wp.currentValue !== void 0 ? ` = ${renderWatchValue(wp.currentValue)}` : "")
-    );
-    return buildResponse({
-      header: {
-        action: "watch",
-        op: "add",
-        status: run.session.snapshot.status,
-        stateId: input.stateId,
-        count: created.length
-      },
-      sections: [{ title: "WATCHPOINTS", content: lines.join("\n") }],
-      notes: [
-        `Watchpoint ids are not stable handles in general \u2014 a PUT that modifies a watchpoint's condition can retire the old id and hand back a new one (live-verified: see test/fixtures/live-captured/940-watchpoint-modify-condition.meta.json, 941-watchpoint-list-after-modify.meta.json, and 942-watchpoint-create-duplicate.meta.json). This tool never modifies a watchpoint (only creates/lists/removes), so within this session's life the id returned here stays valid until you remove it with op:"remove".`
-      ],
-      maxChars: clampMaxChars(maxChars)
-    });
-  }
-  if (op === "list") {
-    const owned = await run.session.readWatchpoints();
-    const lines = owned.map(
-      (wp) => `${wp.id}	${wp.variableName}` + (wp.condition ? ` (condition: ${wp.condition})` : "") + (wp.currentValue !== void 0 ? ` = ${renderWatchValue(wp.currentValue)}` : "") + (wp.oldValue !== void 0 ? ` (was ${renderWatchValue(wp.oldValue)})` : "")
-    );
-    return buildResponse({
-      header: {
-        action: "watch",
-        op: "list",
-        status: run.session.snapshot.status,
-        stateId: input.stateId,
-        count: owned.length
-      },
-      sections: [
-        { title: "WATCHPOINTS", content: owned.length ? lines.join("\n") : "(none owned by this session)" }
-      ],
-      maxChars: clampMaxChars(maxChars)
-    });
-  }
-  if (!input.id) {
-    throw new AbapError("BAD_INPUT", 'abap_debug({action:"watch", op:"remove"}) requires "id".');
-  }
-  assertSessionWrite(gate, run);
-  await run.session.removeWatchpoint(input.stateId, input.id);
-  return buildResponse({
-    header: {
-      action: "watch",
-      op: "remove",
-      status: run.session.snapshot.status,
-      stateId: input.stateId,
-      id: input.id
-    },
-    maxChars: clampMaxChars(maxChars)
-  });
-}
-async function clearLeakedSessions(force, conn, log2) {
-  const tracked = new Set(activeLaneRuns().map((r) => r.session));
-  const leaked = listActiveDebugSessions().filter((s) => !tracked.has(s));
-  if (leaked.length === 0) return { found: 0, notes: [] };
-  const notes = [];
-  await Promise.all(
-    leaked.map(async (session) => {
-      const before = session.snapshot.status;
-      const outcome = await raceDeadline(
-        session.terminate("terminated_by_caller").catch((e) => {
-          notes.push(`Leaked debug session cleanup reported an error: ${describeUnknownError(e)}`);
-        }),
-        STOP_WAIT_MS
-      );
-      if (outcome === TIMED_OUT) {
-        if (force) {
-          forceDropDebugSession(session);
-          notes.push(
-            `A leaked debug session (was "${before}") had not finished terminate() after ${STOP_WAIT_MS} ms \u2014 force-dropped from tracking so start is unblocked; its own cleanup continues in the background.`
-          );
-        } else {
-          notes.push(
-            `A leaked debug session (still "${before}") had not finished terminate() after ${STOP_WAIT_MS} ms \u2014 it continues in the background; retry stop, or use stop({force:true}) to unblock start now.`
-          );
-        }
-        return;
-      }
-      notes.push(
-        `Cleared a leaked debug session (no in-process trigger/gate bookkeeping \u2014 most likely left behind by a start that constructed it and then failed) that was "${before}"; it is now "${session.snapshot.status}".`
-      );
-    })
-  );
-  await dropDebugSessionOnConnection(conn, log2, "clearing leaked debug session(s)");
-  return { found: leaked.length, notes };
-}
-function formatAbandonedCleanupNote(steps) {
-  return `Cleanup timed out on: ${steps.join(", ")} \u2014 may still be armed on the server (e.g. a breakpoint); a later session could hit it.`;
-}
-async function handleStop(conn, maxChars, deps, gate, force = false) {
-  const run = resolveLaneRun(void 0);
-  if (!run) {
-    const leaked = await clearLeakedSessions(force, conn, deps.log);
-    let orphanNote;
-    if (deps.releaseOrphanListener) {
-      try {
-        const result = await raceDeadline(deps.releaseOrphanListener(conn), STOP_WAIT_MS);
-        if (result === TIMED_OUT) {
-          orphanNote = "Checked for a listener orphaned by an earlier process instance, but the check had not returned in time \u2014 nothing more to report.";
-        } else if (result.kind === "released") {
-          orphanNote = "Released a debug listener armed at this server's identity with no in-process session tracking it \u2014 most likely left behind by an earlier, uncleanly-exited process instance.";
-        } else if (result.kind === "conflict") {
-          orphanNote = `Found something at this server's listener identity but could not confirm release: ${result.detail}`;
-        }
-      } catch (e) {
-        orphanNote = `Orphaned-listener check failed: ${describeUnknownError(e)}`;
-      }
-    }
-    let debuggeeNote;
-    if (force && deps.releaseOrphanDebuggee) {
-      try {
-        const result = await raceDeadline(deps.releaseOrphanDebuggee(conn), FORCE_CLEAR_WAIT_MS);
-        if (result === TIMED_OUT) {
-          debuggeeNote = "Force-clear of an orphaned debuggee was requested, but the check had not returned in time \u2014 nothing more to report.";
-        } else if (result.kind === "released") {
-          debuggeeNote = "Force-terminated a debuggee attached at this server's identity with no in-process session tracking it \u2014 most likely left behind by an earlier, uncleanly-exited process instance (crash, kill -9, container respawn).";
-        } else if (result.kind === "unknown") {
-          debuggeeNote = `Force-clear of an orphaned debuggee did not confirm success: ${result.detail}`;
-        }
-      } catch (e) {
-        debuggeeNote = `Force-clear of an orphaned debuggee failed: ${describeUnknownError(e)}`;
-      }
-    }
-    return buildResponse({
-      header: { action: "stop", status: leaked.found > 0 ? "dead" : "idle" },
-      notes: [
-        leaked.found > 0 ? `Cleared ${leaked.found} leaked debug session(s) (constructed by an earlier start that never completed, with no in-process tracking of its own).` : "No active debug session (nothing to stop).",
-        ...leaked.notes,
-        ...orphanNote ? [orphanNote] : [],
-        ...debuggeeNote ? [debuggeeNote] : []
-      ],
-      maxChars: clampMaxChars(maxChars)
-    });
-  }
-  assertSessionWrite(gate, run);
-  const notes = [];
-  try {
-    const terminateWaitMs = Math.max(STOP_WAIT_MS, run.session.terminateDeadlineMs + 1e3);
-    let terminateTimedOut = false;
-    const terminated = await raceDeadline(
-      run.session.terminate("terminated_by_caller").catch((e) => {
-        notes.push(`Session terminate reported an error: ${describeUnknownError(e)}`);
-      }),
-      terminateWaitMs
-    );
-    if (terminated === TIMED_OUT) {
-      terminateTimedOut = true;
-      notes.push(
-        `Session terminate had not returned after ${terminateWaitMs} ms \u2014 it continues in the background; the session was dropped here anyway.`
-      );
-    }
-    const settled = await raceDeadline(run.triggerSettled, STOP_WAIT_MS);
-    if (settled === TIMED_OUT) {
-      notes.push(
-        "Program output is incomplete: the trigger run had not returned when stop gave up waiting."
-      );
-    }
-    const finalSnapshot = run.session.snapshot;
-    const cleanupAbandonedSteps = finalSnapshot.abandonedCleanupSteps?.length;
-    if (cleanupAbandonedSteps) {
-      notes.push(formatAbandonedCleanupNote(finalSnapshot.abandonedCleanupSteps));
-    }
-    if ((terminateTimedOut || cleanupAbandonedSteps) && force && deps.releaseOrphanDebuggee) {
-      try {
-        const result = await raceDeadline(deps.releaseOrphanDebuggee(conn), FORCE_CLEAR_WAIT_MS);
-        if (result === TIMED_OUT) {
-          notes.push(
-            "Force-clear of a possibly-still-attached debuggee was requested, but the check had not returned in time \u2014 nothing more to report."
-          );
-        } else if (result.kind === "released") {
-          notes.push(
-            "Force-terminated a debuggee still attached at this server's identity after cleanup did not confirm it was gone."
-          );
-        } else if (result.kind === "unknown") {
-          notes.push(`Force-clear of a possibly-still-attached debuggee did not confirm success: ${result.detail}`);
-        }
-      } catch (e) {
-        notes.push(`Force-clear of a possibly-still-attached debuggee failed: ${describeUnknownError(e)}`);
-      }
-    }
-    return buildResponse({
-      header: { action: "stop", status: finalSnapshot.status, deathReason: finalSnapshot.deathReason },
-      sections: [{ title: "PROGRAM OUTPUT", content: renderTriggerOutcome(settled, STOP_WAIT_MS) }],
-      notes,
-      maxChars: clampMaxChars(maxChars)
-    });
-  } finally {
-    run.closeTriggerConn();
-    await run.closeSessionConn();
-    debugLanes[run.lane] = void 0;
-  }
-}
-async function handleStatus(maxChars) {
-  const run = resolveLaneRun(void 0);
-  if (!run) {
-    const leaked = listActiveDebugSessions()[0];
-    if (!leaked) {
-      return buildResponse({
-        header: { action: "status", status: "idle", note: "no active debug session" },
-        maxChars: clampMaxChars(maxChars)
-      });
-    }
-    const snapshot2 = leaked.snapshot;
-    return buildResponse({
-      header: {
-        action: "status",
-        status: snapshot2.status,
-        stateId: snapshot2.stateId,
-        debugSessionId: snapshot2.debugSessionId,
-        debuggeeId: snapshot2.debuggeeId,
-        deathReason: snapshot2.deathReason,
-        deathDetail: snapshot2.deathDetail
-      },
-      notes: [
-        'This session has no in-process trigger/gate bookkeeping (most likely an earlier start that constructed it and then failed before completing) \u2014 abap_debug({action:"stop"}) will clear it.'
-      ],
-      maxChars: clampMaxChars(maxChars)
-    });
-  }
-  const snapshot = run.session.snapshot;
-  const notes = [];
-  if (snapshot.status === "dead") {
-    notes.push("Session is dead \u2014 check PROGRAM OUTPUT via a step/stop response for the captured trigger output.");
-  }
-  return buildResponse({
-    header: {
-      action: "status",
-      status: snapshot.status,
-      stateId: snapshot.stateId,
-      debugSessionId: snapshot.debugSessionId,
-      debuggeeId: snapshot.debuggeeId,
-      deathReason: snapshot.deathReason,
-      deathDetail: snapshot.deathDetail
-    },
-    notes,
-    maxChars: clampMaxChars(maxChars)
-  });
-}
-async function abapDebug(conn, input, maxChars, deps, gate) {
-  switch (input.action) {
-    case "start":
-      return handleStart(conn, input, maxChars, deps, gate);
-    case "step":
-      return handleStep(input, maxChars, gate, deps);
-    case "stack":
-      return handleStack(input, maxChars);
-    case "frame":
-      return handleFrame(input, maxChars);
-    case "breakpoints":
-      return handleBreakpoints(conn, input, maxChars, deps, gate);
-    case "watch":
-      return handleWatch(input, maxChars, gate);
-    case "keepalive":
-      return handleKeepalive(maxChars, gate);
-    case "stop":
-      return handleStop(conn, maxChars, deps, gate, input.force === true);
-    case "status":
-      return handleStatus(maxChars);
-  }
-}
-var debugVarsInputSchema = {
-  stateId: external_exports.string().describe("From the most recent start/step/stack/frame response."),
-  scope: external_exports.enum(["all", "locals", "parameters", "globals"]).optional().describe("Default all."),
-  filter: external_exports.string().optional().describe("Substring match on name.")
-};
-var DebugVarsInput = external_exports.object(debugVarsInputSchema);
-var SCOPE_ID_BY_NAME = {
-  locals: "@LOCALS",
-  parameters: "@PARAMETERS",
-  globals: "@GLOBALS"
-};
-async function abapDebugVars(input, maxChars) {
-  const run = resolveLaneRun(input.stateId);
-  if (!run) {
-    throw new AbapError("BAD_INPUT", "No active debug session.");
-  }
-  if (!input.stateId) {
-    throw new AbapError("BAD_INPUT", 'abap_debug_vars requires "stateId".');
-  }
-  const root = await run.session.getRootVariables(input.stateId);
-  const scopeOf = /* @__PURE__ */ new Map();
-  for (const h of root.variables.hierarchies) {
-    scopeOf.set(h.childId, h.parentId);
-  }
-  let filtered = root.variables.variables;
-  if (input.scope && input.scope !== "all") {
-    const wantScopeId = SCOPE_ID_BY_NAME[input.scope];
-    filtered = filtered.filter((v) => scopeOf.get(v.id) === wantScopeId);
-  }
-  if (input.filter) {
-    const needle = input.filter.toLowerCase();
-    filtered = filtered.filter((v) => v.name.toLowerCase().includes(needle));
-  }
-  const survey = renderSurvey(
-    filtered.map((variable) => ({ variable })),
-    {
-      maxChars: DEBUG_MAX_CHARS,
-      scopeLabel: input.scope && input.scope !== "all" ? input.scope.toUpperCase() : void 0,
-      // D6 — real stateId, not `STATE_ID_PLACEHOLDER`.
-      stateId: input.stateId
-    }
-  );
-  return buildResponse({
-    header: { stateId: input.stateId, scope: input.scope ?? "all", count: filtered.length },
-    body: survey.text,
-    bodyLabel: "VARIABLES",
-    notes: survey.degraded.length ? [`${survey.degraded.length} value(s) shortened to fit budget \u2014 each still names its own retrieval call.`] : [],
-    maxChars: clampMaxChars(maxChars)
-  });
-}
-var DEFAULT_TABLE_ROWS = 20;
-var MAX_TABLE_ROWS = 200;
-var MAX_LISTED_IDS = 25;
-function listIds(ids) {
-  if (ids.length <= MAX_LISTED_IDS) return ids.join(", ");
-  const shown = ids.slice(0, MAX_LISTED_IDS);
-  return `${shown.join(", ")} \u2026 [TRUNCATED: ${shown.length} of ${ids.length} id(s) listed, ${ids.length - shown.length} cut]`;
-}
-function describeOmissions(requestedIds, align, ctx) {
-  const notes = [];
-  if (align.missing.length > 0) {
-    notes.push(
-      `OMITTED: the debugger returned ${align.resolved.length} of the ${requestedIds.length} variable id(s) requested for ${ctx.subject} \u2014 ${listIds(align.missing)} came back with NO row at all and are NOT shown. A requested id with no row is UNRESOLVED at this stop (unknown name, out-of-range index, or not visible in this frame); it is NOT an empty value, and re-requesting it returns the same nothing. Confirm the id exists here with abap_debug_vars({stateId:"${ctx.stateId}"}).`
-    );
-  }
-  if (align.unexpected.length > 0) {
-    const ids = align.unexpected.map((v) => v.id);
-    notes.push(
-      `UNREQUESTED: the debugger also returned ${align.unexpected.length} row(s) whose id was NOT requested \u2014 ${listIds(ids)}. Their values are NOT shown, because a row nobody asked for, rendered under ${ctx.subject}, is a wrong answer wearing the right label \u2014 the exact mis-attribution that hid this defect. Read one on purpose with abap_debug_value({stateId:"${ctx.stateId}", path:"${ids[0]}"}).`
-    );
-  }
-  return notes;
-}
-var debugValueInputSchema = {
-  stateId: external_exports.string().describe("From the most recent start/step/stack/frame response."),
-  path: external_exports.string().describe(
-    "Variable path, e.g. LT_ITEMS[42]-MATNR. Field symbols keep their angle brackets, e.g. <LS_ITEM>. Unknown paths return empty, not NOT_FOUND."
-  ),
-  from: external_exports.number().int().min(1).max(999999).optional().describe("First row \u2014 tables only. Default 1."),
-  count: external_exports.number().int().positive().max(MAX_TABLE_ROWS).optional().describe(`Tables only. Default ${DEFAULT_TABLE_ROWS}, max ${MAX_TABLE_ROWS}. Page with "from".`),
-  depth: external_exports.number().int().min(1).max(999999).optional().describe("Max nesting depth. Default 3.")
-};
-var DebugValueInput = external_exports.object(debugValueInputSchema);
-async function abapDebugValue(input, maxChars) {
-  const run = resolveLaneRun(input.stateId);
-  if (!run) {
-    throw new AbapError("BAD_INPUT", "No active debug session.");
-  }
-  if (!input.stateId) {
-    throw new AbapError("BAD_INPUT", 'abap_debug_value requires "stateId".');
-  }
-  const validation = validatePath(input.path);
-  if (!validation.ok) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `Malformed path at "${validation.segment}": ${validation.message}`,
-      { path: input.path, segment: validation.segment }
-    );
-  }
-  const canonicalPath = formatPath(validation.path);
-  const clampedMaxChars = clampMaxChars(maxChars);
-  let rootVars;
-  try {
-    rootVars = await run.session.getVariables(input.stateId, [canonicalPath]);
-  } catch (e) {
-    if (e instanceof DebugXmlParseError) {
-      return buildResponse({
-        header: { stateId: input.stateId, path: canonicalPath },
-        body: renderEmptyBodyTrap({ path: canonicalPath }),
-        bodyLabel: "VALUE",
-        maxChars: clampedMaxChars
-      });
-    }
-    throw e;
-  }
-  const rootAlign = alignRequestedVariables([canonicalPath], rootVars);
-  const rootNotes = describeOmissions([canonicalPath], rootAlign, {
-    subject: canonicalPath,
-    stateId: input.stateId
-  });
-  const rootVar = rootAlign.resolved[0];
-  if (!rootVar) {
-    return buildResponse({
-      header: { stateId: input.stateId, path: canonicalPath },
-      // The empty-body trap claims "0 bytes", which is only true when the
-      // debugger really sent nothing. Rows for OTHER ids is a different fact and
-      // gets its own words rather than a convenient lie.
-      body: rootVars.length > 0 ? rootNotes.join("\n\n") : renderEmptyBodyTrap({ path: canonicalPath }),
-      bodyLabel: "VALUE",
-      maxChars: clampedMaxChars
-    });
-  }
-  if (!isComplex(rootVar.metaType)) {
-    const node3 = { variable: rootVar };
-    const { text: text6 } = renderDrill(node3, canonicalPath, {
-      depth: input.depth,
-      maxChars: clampedMaxChars,
-      stateId: input.stateId
-    });
-    return buildResponse({
-      header: { stateId: input.stateId, path: canonicalPath },
-      body: text6,
-      bodyLabel: "VALUE",
-      notes: rootNotes,
-      maxChars: clampedMaxChars
-    });
-  }
-  if (rootVar.metaType === "table") {
-    const total = rootVar.tableLines;
-    const from = input.from ?? 1;
-    const requestedCount = input.count ?? DEFAULT_TABLE_ROWS;
-    const count = Math.min(requestedCount, MAX_TABLE_ROWS);
-    const countWasClamped = count < requestedCount;
-    if (total !== void 0 && total > 0 && from > total) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `${canonicalPath} has ${total} row(s) \u2014 "from" (${from}) is past the end. Ask for a row in 1..${total}.`,
-        { path: canonicalPath, from, tableLines: total }
-      );
-    }
-    const tableNotes = [...rootNotes];
-    if (countWasClamped) {
-      tableNotes.push(
-        `TRUNCATED: count:${requestedCount} exceeds the ${MAX_TABLE_ROWS}-row maximum, so only ${count} row(s) were requested from ${canonicalPath} \u2014 rows ${from + count} onward were NOT fetched and are NOT shown. Continue with abap_debug_value({stateId:"${input.stateId}", path:"${canonicalPath}", from:${from + count}, count:${MAX_TABLE_ROWS}}).`
-      );
-    }
-    if (total === 0) {
-      tableNotes.push(`${canonicalPath} is empty: 0 rows.`);
-    } else if (total === void 0) {
-      tableNotes.push(
-        `Row count is unavailable \u2014 the debugger did not report TABLE_LINES for ${canonicalPath}. This is NOT the same as an empty table. "from" could not be range-checked. To settle it, probe the first row: abap_debug_value({stateId:"${input.stateId}", path:"${canonicalPath}[1]"}) \u2014 a row comes back only if data is actually present.`
-      );
-      if (input.from !== void 0 && input.from > 1) {
-        tableNotes.push(
-          `"from" (${input.from}) could not be range-checked because the row count is unavailable.`
-        );
-      }
-    }
-    const clampedFrom = total !== void 0 && total > 0 ? Math.min(Math.max(1, from), total) : total === 0 ? 1 : from;
-    const clampedTo = total !== void 0 && total > 0 ? Math.min(clampedFrom + count - 1, total) : total === 0 ? 0 : from + count - 1;
-    let rowNodes = [];
-    if (total === void 0 || total > 0 && clampedTo >= clampedFrom) {
-      const ids = Array.from({ length: clampedTo - clampedFrom + 1 }, (_, i) => `${canonicalPath}[${clampedFrom + i}]`);
-      let rowCount = 0;
-      try {
-        const rowVars = await run.session.getVariables(input.stateId, ids);
-        rowCount = rowVars.length;
-        const rowAlign = alignRequestedVariables(ids, rowVars);
-        rowNodes = rowAlign.resolved.map((variable) => ({ variable }));
-        tableNotes.push(
-          ...describeOmissions(ids, rowAlign, { subject: canonicalPath, stateId: input.stateId })
-        );
-      } catch (e) {
-        if (e instanceof DebugXmlParseError) {
-          return buildResponse({
-            header: { stateId: input.stateId, path: canonicalPath },
-            body: renderEmptyBodyTrap({ path: canonicalPath, tableLines: total }),
-            bodyLabel: "VALUE",
-            notes: tableNotes,
-            maxChars: clampedMaxChars
-          });
-        }
-        throw e;
-      }
-      if (ids.length > 0 && rowCount === 0) {
-        return buildResponse({
-          header: { stateId: input.stateId, path: canonicalPath },
-          body: renderEmptyBodyTrap({ path: canonicalPath, tableLines: total }),
-          bodyLabel: "VALUE",
-          notes: tableNotes,
-          maxChars: clampedMaxChars
-        });
-      }
-    }
-    const node3 = { variable: rootVar, children: rowNodes };
-    const { text: text6 } = renderDrill(node3, canonicalPath, {
-      rows: { start: clampedFrom, end: clampedTo || clampedFrom },
-      maxChars: clampedMaxChars,
-      stateId: input.stateId
-    });
-    return buildResponse({
-      header: { stateId: input.stateId, path: canonicalPath },
-      body: text6,
-      bodyLabel: "VALUE",
-      notes: tableNotes,
-      maxChars: clampedMaxChars
-    });
-  }
-  let childResult;
-  try {
-    childResult = await run.session.getChildVariables(input.stateId, [canonicalPath]);
-  } catch (e) {
-    if (e instanceof DebugXmlParseError) {
-      childResult = { hierarchies: [], variables: [] };
-    } else {
-      throw e;
-    }
-  }
-  const node2 = withChildren(rootVar, childResult);
-  const { text: text5 } = renderDrill(node2, canonicalPath, {
-    depth: input.depth,
-    maxChars: clampedMaxChars,
-    stateId: input.stateId
-  });
-  return buildResponse({
-    header: { stateId: input.stateId, path: canonicalPath },
-    body: text5,
-    bodyLabel: "VALUE",
-    // The `getChildVariables` hop below returns CHILDREN of `canonicalPath`, whose
-    // ids are by definition not the id that was requested, so it has no requested-id
-    // alignment to do. `rootNotes` still travels: it describes the root read.
-    notes: rootNotes,
-    maxChars: clampedMaxChars
-  });
-}
-
 // src/tools/debug-register.ts
+init_errors();
 var DEBUG_UNGATED_ACTIONS = /* @__PURE__ */ new Set([
   "stack",
   "frame",
@@ -126137,6 +126463,18 @@ function stateIdOfResponse(text5) {
 var ok4 = (text5) => ({ content: [{ type: "text", text: text5 }] });
 function registerDebugTools(mcp, deps) {
   const debugSessionObjects = /* @__PURE__ */ new Map();
+  let debugSessionSystem;
+  function assertSameSystemAsSession() {
+    const alias = currentSystemAlias();
+    if (debugSessionSystem !== void 0 && alias !== void 0 && alias !== debugSessionSystem) {
+      throw new AbapError(
+        "SYSTEM_MISMATCH",
+        `The active debug session belongs to system "${debugSessionSystem}"; this call was routed to system "${alias}". This process has ONE debugger lane shared by every configured system, so the call was refused rather than stepping, inspecting or stopping a session that belongs to another system.`,
+        { sessionSystem: debugSessionSystem, requestedSystem: alias },
+        `Re-issue the call with system: "${debugSessionSystem}", or stop the session first (abap_debug action="stop").`
+      );
+    }
+  }
   mcp.registerTool(
     "abap_debug",
     {
@@ -126147,6 +126485,7 @@ function registerDebugTools(mcp, deps) {
     async (args) => {
       try {
         const a = args;
+        if (a.action !== "start") assertSameSystemAsSession();
         if (!DEBUG_UNGATED_ACTIONS.has(a.action ?? "")) {
           const object3 = a.action === "step" ? a.stateId ? debugSessionObjects.get(a.stateId) : void 0 : a.run?.object;
           deps.safety.assert("execute", object3 ? preflight({ object: object3 }) : void 0, {
@@ -126159,12 +126498,16 @@ function registerDebugTools(mcp, deps) {
         const nextStateId = stateIdOfResponse(res.text);
         if (a.action === "start" && a.run?.object && nextStateId) {
           debugSessionObjects.set(nextStateId, a.run.object);
+          debugSessionSystem = currentSystemAlias();
         } else if (a.action === "step" && a.stateId) {
           const carried = debugSessionObjects.get(a.stateId);
           debugSessionObjects.delete(a.stateId);
           if (carried && nextStateId) debugSessionObjects.set(nextStateId, carried);
         }
-        if (a.action === "stop" || /^status: dead$/m.test(res.text)) debugSessionObjects.clear();
+        if (a.action === "stop" || /^status: dead$/m.test(res.text)) {
+          debugSessionObjects.clear();
+          debugSessionSystem = void 0;
+        }
         return ok4(res.text);
       } catch (e) {
         return deps.errorResult(e);
@@ -126180,6 +126523,7 @@ function registerDebugTools(mcp, deps) {
     },
     async (args) => {
       try {
+        assertSameSystemAsSession();
         deps.safety.assert("read");
         const res = await abapDebugVars(args, deps.cfg.maxResponseChars);
         return ok4(res.text);
@@ -126197,6 +126541,7 @@ function registerDebugTools(mcp, deps) {
     },
     async (args) => {
       try {
+        assertSameSystemAsSession();
         deps.safety.assert("read");
         const res = await abapDebugValue(args, deps.cfg.maxResponseChars);
         return ok4(res.text);
@@ -131207,6 +131552,100 @@ function buildDigestSections(input, opts) {
   };
 }
 
+// src/tools/read-systems.ts
+init_errors();
+init_compact();
+function describeSide(side, obj) {
+  return `${side.alias} (${obj.system}/${side.cfg.client})`;
+}
+async function fetchCrossSystemSide(side, input) {
+  await side.ensureConnected();
+  side.safety.assert("read");
+  try {
+    return await side.pool.withRead("abap_read", async (conn) => {
+      const obj = await resolveObject(conn, input.object, input.type ? { type: input.type } : {});
+      const { source } = await readSource(conn, obj, input.include);
+      return { obj, source };
+    });
+  } catch (e) {
+    if (e instanceof AbapError && e.code === "NOT_FOUND") {
+      throw new AbapError(
+        e.code,
+        `${input.object} was not found on ${side.alias} (${e.message})`,
+        { ...e.details, system: side.alias },
+        e.hint
+      );
+    }
+    throw e;
+  }
+}
+async function runCrossSystemDiff(params) {
+  const { from, to, input, maxChars } = params;
+  const [older, newer] = await Promise.all([fetchCrossSystemSide(from, input), fetchCrossSystemSide(to, input)]);
+  const result = diffSources(older.source, newer.source, {
+    context: input.context ?? DEFAULT_CONTEXT_LINES,
+    maxHunks: DIFF_MAX_HUNKS
+  });
+  const rendered = renderHunks(result.hunks);
+  const window2 = sliceLines(rendered, input.offset ?? 1, input.limit);
+  const fromLabel = describeSide(from, older.obj);
+  const toLabel = describeSide(to, newer.obj);
+  const notes = [
+    `Compares the CURRENT ACTIVE source of ${older.obj.type} ${older.obj.name} on ${fromLabel} against ${newer.obj.type} ${newer.obj.name} on ${toLabel} \u2014 not a released version on either side, and no shared version feed between two independent systems, unlike a same-system view="diff".`,
+    "Only the unified-diff hunks were fetched from each side, not either full source.",
+    ...includeNote(input.include)
+  ];
+  if (older.obj.type !== newer.obj.type) {
+    notes.push(
+      `TYPE DIFFERS: ${older.obj.name} resolved to ${older.obj.type} on ${from.alias} but ${newer.obj.type} on ${to.alias}. This is a finding, not an error \u2014 the object may have been recreated under a different type on one side.`
+    );
+  }
+  if (older.obj.packageName !== newer.obj.packageName) {
+    notes.push(
+      `PACKAGE DIFFERS: ${older.obj.packageName ?? "(none)"} on ${from.alias} vs. ${newer.obj.packageName ?? "(none)"} on ${to.alias}. This is a finding, not an error.`
+    );
+  }
+  if (result.coarse) {
+    notes.push(
+      "COARSE DIFF: the two sides share almost no leading or trailing lines, so the exact line-matching pass was skipped and the whole changed region is reported as one delete-then-insert block. The diff is correct but not minimal."
+    );
+  }
+  if (result.droppedHunks > 0) {
+    notes.push(
+      `TRUNCATED: showing ${result.hunks.length} of ${result.totalHunks} hunks; ${result.droppedHunks} were withheld to stay inside the response budget. Narrow the comparison (e.g. include="main" only) or read each side separately.`
+    );
+  }
+  const header = {
+    object: input.object,
+    view: "diff",
+    ...input.include ? { include: input.include } : {},
+    from: fromLabel,
+    to: toLabel,
+    added: result.added,
+    removed: result.removed,
+    hunks: result.totalHunks
+  };
+  if (older.obj.packageName === newer.obj.packageName) {
+    header.package = older.obj.packageName;
+  } else {
+    header.fromPackage = older.obj.packageName;
+    header.toPackage = newer.obj.packageName;
+  }
+  return buildReadResponse({
+    header,
+    body: result.identical ? `(no differences: ${older.obj.type} ${older.obj.name} is line-for-line identical on ${fromLabel} and ${toLabel}.)` : window2.text,
+    bodyLabel: "DIFF",
+    bodyOffset: result.identical ? void 0 : window2.offset,
+    bodyTotalLines: result.identical ? void 0 : window2.total,
+    notes,
+    hints: [
+      `Unified-diff hunks only \u2014 the unchanged bulk of both sides was never fetched into this response. Read a side in full with a plain abap_read against system: "${from.alias}" or system: "${to.alias}" if you need it.`
+    ],
+    pagingParam: "offset",
+    maxChars
+  });
+}
+
 // src/tools/read.ts
 var readInputSchema = {
   object: external_exports.string().describe('Name, "class X", "table Y", or ADT URI.'),
@@ -131265,6 +131704,12 @@ var readInputSchema = {
   )
 };
 var ReadInput = external_exports.object(readInputSchema);
+var crossSystemInputSchema = {
+  from_system: external_exports.string().optional().describe('view="diff": compare the object as it is on this system. Defaults to the called system.'),
+  to_system: external_exports.string().optional().describe(
+    'view="diff": the other side of a cross-system comparison, e.g. {"object":"ZCL_FOO","view":"diff","to_system":"QAS"}.'
+  )
+};
 var OUTLINE_KINDS = /* @__PURE__ */ new Set(["CLAS", "INTF"]);
 var ENHANCEMENT_KINDS = /* @__PURE__ */ new Set(["ENHO/XH", "ENHO/XHH", "ENHS"]);
 function renderRef(ref2) {
@@ -132861,18 +133306,91 @@ async function abapRead(conn, input, maxChars, gate) {
 var okRead = (res) => ({
   content: [{ type: "text", text: res.text }]
 });
+function resolveCrossSystemSides(input, deps) {
+  if (!deps.multiSystem || !deps.systems) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `from_system/to_system name a system to compare against, but this server has only one configured system (${deps.cfg.sid}) \u2014 there is nothing to compare it to.`,
+      { object: input.object, system: deps.cfg.sid },
+      "Configure a second system to enable cross-system diff; see doc/CONFIGURATION/multi-system.md."
+    );
+  }
+  if (input.view !== "diff") {
+    throw new AbapError(
+      "BAD_INPUT",
+      'from_system/to_system is only meaningful with view="diff"; ' + (input.view === void 0 ? "no view was requested" : `view="${input.view}" was requested instead`) + ", so this would have been answered by a different view entirely with your parameter discarded.",
+      { object: input.object, view: input.view },
+      'Add view="diff", or drop from_system/to_system.'
+    );
+  }
+  for (const [param, value] of [
+    ["from", input.from],
+    ["to", input.to]
+  ]) {
+    if (value !== void 0) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${param} selects a version on one system's history feed; a cross-system diff (from_system/to_system) compares the CURRENT ACTIVE source of ${input.object} on two different systems instead \u2014 two independent SAP systems share no version feed for ${param} to select from.`,
+        { object: input.object, param },
+        `Drop ${param}, or drop from_system/to_system and compare two versions on one system instead.`
+      );
+    }
+  }
+  const from = deps.systems.resolve(input.from_system);
+  const to = deps.systems.resolve(input.to_system);
+  if (from.alias === to.alias) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `from_system and to_system both resolved to "${from.alias}" \u2014 a cross-system diff compares two DIFFERENT systems; comparing a system against itself would always report no differences for current active source.`,
+      { object: input.object, alias: from.alias },
+      `Name a different to_system, or drop from_system/to_system and use from/to to compare two versions on ${from.alias} instead.`
+    );
+  }
+  for (const [param, value] of [
+    ["method", input.method],
+    ["outline", input.outline],
+    ["line", input.line],
+    ["column", input.column],
+    ["types", input.types],
+    ["depth", input.depth]
+  ]) {
+    if (value !== void 0) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${param} is not meaningful for a cross-system diff: from_system/to_system compares the current active source of ${input.object} as a whole on two systems, not a single component, source position, or package listing within it.`,
+        { object: input.object, param },
+        `Drop ${param}.`
+      );
+    }
+  }
+  return { from, to };
+}
 function registerReadTools(mcp, deps) {
   mcp.registerTool(
     "abap_read",
     {
       title: "Read ABAP object",
       description: `Read an ABAP object: source, pseudo-DDL, a DEVC/K package listing (types/depth filter it), or (SUSO/B, TABL/DI) a read-only catalog render. view="docu" reads SAP's own documentation (or, with method=, a method's ABAP Doc); view="digest" gives a one-page overview (CLAS/INTF/PROG/FUGR/DDLS) with public API, dependencies, tests and recent history. Returns an etag. Capped ~15k tokens \u2014 use outline/method/offset for large objects. Example: {"object":"ZCL_FOO","type":"CLAS/OC"}.`,
-      inputSchema: readInputSchema,
+      // `from_system`/`to_system` (issue #93, cross-system view="diff")
+      // are spliced in only when more than one system is configured —
+      // a single-system server has nothing a second system field could
+      // ever name, so its schema bytes stay exactly what they always were.
+      inputSchema: deps.multiSystem ? { ...readInputSchema, ...crossSystemInputSchema } : readInputSchema,
       annotations: { readOnlyHint: true, openWorldHint: true }
     },
     async (args) => {
       try {
         const input = args;
+        if (input.from_system !== void 0 || input.to_system !== void 0) {
+          const { from, to } = resolveCrossSystemSides(input, deps);
+          const built = await runCrossSystemDiff({
+            from,
+            to,
+            input,
+            maxChars: deps.cfg.maxResponseChars
+          });
+          return okRead({ ...built, etag: NO_ETAG });
+        }
         if (input.view === "docu" && input.method === void 0) {
           await deps.ensureConnected();
           deps.safety.assert("read");
@@ -159327,52 +159845,6 @@ function fitEnvelope(payload) {
 
 // src/server.ts
 var SERVER_NAME = "abapsmith";
-function transportCreateJournalHook(deps) {
-  const { journal, cfg, warn } = deps;
-  return async (event) => {
-    try {
-      const entry = await journal.begin({
-        operation: "transport-create",
-        object: {
-          name: event.trkorr,
-          type: "CTS/TR",
-          uri: `/sap/bc/adt/cts/transportrequests/${event.trkorr}`,
-          package: event.devclass ?? "",
-          description: event.description
-        },
-        // The server minted this number: there was no request here before.
-        existedBefore: false,
-        systemKey: systemKey({
-          sid: cfg.sid,
-          url: cfg.url,
-          client: cfg.client
-        }),
-        corrNr: event.trkorr,
-        trSource: event.source,
-        tool: "abapsmith session transport (auto-created)"
-      });
-      if (!entry) return;
-      const settled = await journal.settle(entry.id, { outcome: "succeeded" });
-      if (!settled.settled) {
-        warn(
-          `[abapsmith] WARNING: transport request ${event.trkorr} was created and journalled as ${entry.id}, but the entry could not be settled (${settled.reason}${settled.error ? `: ${settled.error}` : ""}). It will read as \`pending\` \u2014 the request itself DOES exist on ${cfg.sid}.`
-        );
-      }
-    } catch (e) {
-      warn(
-        `[abapsmith] WARNING: transport request ${event.trkorr} WAS CREATED on ${cfg.sid} (package ${event.devclass ?? "unknown"}, for ${event.objSourceUrl}) but could NOT be journalled: ${e.message}. abapsmith has no record of it and abap_journal will not show it. Write ${event.trkorr} down now \u2014 it has to be released or deleted by hand.`
-      );
-    }
-  };
-}
-function mergeConnectionOptions(base, over) {
-  const merged = { ...base };
-  for (const [key, value] of Object.entries(over)) {
-    if (value !== void 0)
-      merged[key] = value;
-  }
-  return merged;
-}
 function stripRedundantSchemaKeys(value) {
   if (Array.isArray(value)) return value.map(stripRedundantSchemaKeys);
   if (value !== null && typeof value === "object") {
@@ -159412,223 +159884,155 @@ function packageScopeSentence(readOnly, allowPackages) {
   }
   return `ABAP_ALLOW_PACKAGES is [${allowPackages.join(", ")}] here, so only those packages are writable; unset allows every customer package, and an empty value refuses every write.`;
 }
-function instructionsFor(abapMode, readOnly, allowPackages, fluidAvailable = false, lockedToolCount = 0) {
+function instructionsFor(abapMode, readOnly, allowPackages, fluidAvailable = false, lockedToolCount = 0, systems) {
   const writeGate = abapMode !== void 0 ? `unless ABAP_MODE is edit or admin (it is ${abapMode})` : "unless the operator set ABAP_ALLOW_WRITE";
   const packageScope = packageScopeSentence(readOnly, allowPackages);
-  return `Access to an SAP ABAP system over ADT. Use abap_search to locate objects, abap_read to read source or DDIC definitions (outline=true first for large classes, then method=), abap_write to create/change/delete, abap_activate to syntax-check or activate, abap_run to execute a class or report and capture its output, abap_test to run ABAP Unit tests (it reports NO TESTS RAN separately from PASSED \u2014 they are not the same answer), abap_debug/abap_debug_vars/abap_debug_value to set breakpoints and step through execution with full variable inspection, abap_journal to see what you changed and undo it. Writes are OFF ${writeGate}, and need a customer-namespace object name plus a package the allowlist permits: ${packageScope} Every write records the previous source locally first, so abap_journal mode=undo can put it back \u2014 but only for objects this server wrote. Responses are capped and truncation is always marked.` + (fluidAvailable ? " abap_fluid deploys and runs small generated ABAP tools inside $ABAPSMITH_FLUID_API (call it with no arguments for the catalogue)." : "") + (lockedToolCount > 0 ? ` ${lockedToolCount} further tools are listed but LOCKED at this permission level (abap_write among them) \u2014 each one's description says what unlocks it, and calling one returns a refusal without touching the SAP system.` : "");
+  const systemsSentence = systems !== void 0 && systems.length > 1 ? ` This process serves ${systems.length} systems: ${systems.map((s) => `${s.alias} (${s.sid}, ${s.mode})`).join(", ")}. Every tool takes an optional system parameter naming one of these aliases and defaults to ${systems[0]?.alias ?? "the default system"} when omitted; each system's permission ceiling is its own \u2014 read-only on one alias is not lifted by admin mode on another.` : "";
+  return `Access to an SAP ABAP system over ADT. Use abap_search to locate objects, abap_read to read source or DDIC definitions (outline=true first for large classes, then method=), abap_write to create/change/delete, abap_activate to syntax-check or activate, abap_run to execute a class or report and capture its output, abap_test to run ABAP Unit tests (it reports NO TESTS RAN separately from PASSED \u2014 they are not the same answer), abap_debug/abap_debug_vars/abap_debug_value to set breakpoints and step through execution with full variable inspection, abap_journal to see what you changed and undo it. Writes are OFF ${writeGate}, and need a customer-namespace object name plus a package the allowlist permits: ${packageScope} Every write records the previous source locally first, so abap_journal mode=undo can put it back \u2014 but only for objects this server wrote. Responses are capped and truncation is always marked.` + (fluidAvailable ? " abap_fluid deploys and runs small generated ABAP tools inside $ABAPSMITH_FLUID_API (call it with no arguments for the catalogue)." : "") + (lockedToolCount > 0 ? ` ${lockedToolCount} further tools are listed but LOCKED at this permission level (abap_write among them) \u2014 each one's description says what unlocks it, and calling one returns a refusal without touching the SAP system.` : "") + systemsSentence;
 }
 function describeStartupProbeFailure(e) {
   if (isAbapError(e)) return { code: e.code, message: e.message, hint: e.hint };
   return { code: "UNKNOWN", message: describeUnknownError(e) };
 }
+function withDeps(base, extra) {
+  return Object.create(base, Object.getOwnPropertyDescriptors(extra));
+}
 function createServer(cfg, opts) {
   const warn = opts.log ?? ((m) => process.stderr.write(m + "\n"));
-  const pool = new AdtSessionPool({
-    cfg,
-    // The pool sets `breaker` before building slot 0, so `mergeConnectionOptions`
-    // below always sees the same instance on both sides.
-    breaker: opts.breaker,
-    log: warn,
-    createConnection: (poolCfg, poolOpts) => new AbapConnection(poolCfg, mergeConnectionOptions(opts, poolOpts)),
-    /**
-     * No-op for the primary slot: `ensureConnected()` below remains slot 0's
-     * sole connect path (it applies the safety-gate verdict and owns the
-     * `onDead` revival memo) — preparing it here too would cost a logon just
-     * for taking the slot. Non-primary slots have no such owner, so they
-     * connect here. `isPrimary` comes from the pool as an argument rather
-     * than `conn !== pool.primary()`, which was re-entrant and could skip
-     * connecting the very slot being prepared — see
-     * the git history.
-     */
-    prepareConnection: async (conn, _role, isPrimary) => {
-      if (!isPrimary) await conn.connect();
-    }
-  });
-  const journal = opts.journal ?? new Journal(journalConfigFromEnv(process.env, cfg.sid), cfg.sid);
-  const safety = new SafetyGate({
-    readOnly: cfg.readOnly,
-    allowPackages: cfg.allowPackages,
-    allowNamePrefixes: cfg.allowNamePrefixes,
-    allowTransports: cfg.allowTransports,
-    allowTransportRelease: cfg.allowTransportRelease,
-    allowTransportDelete: cfg.allowTransportDelete,
-    allowCascadeDelete: cfg.allowCascadeDelete,
-    allowServicePublish: cfg.allowServicePublish,
-    allowEnhancements: cfg.allowEnhancements,
-    enhanceTargets: cfg.enhanceTargets,
-    enhanceTargetPackages: cfg.enhanceTargetPackages,
-    originSystems: cfg.originSystems,
-    // This server's own SID, so the origin gate (SafetyGate.isLocalOrigin)
-    // recognises this system's own content as local without needing it
-    // repeated via ABAP_ORIGIN_SYSTEMS.
-    sid: cfg.sid,
-    // Operator additions to the frozen data-preview deny-list.
-    dataPreviewDenyTables: cfg.dataPreviewDenyTables,
-    // Tier-2 dump reads; registration-time counterpart is
-    // `toolCapabilities.canReadDumpVariables` below (both read
-    // `cfg.allowDumpVariables`, deliberately not `readOnly`).
-    allowDumpVariables: cfg.allowDumpVariables,
-    // Not a capability — records WHICH MECHANISM decided every field above,
-    // so a refusal names the actual input rather than guessing legacy flags.
-    abapMode: cfg.abapMode
-  });
-  const toolCapabilities = resolveStaticCapabilities(cfg);
-  const lockedTools = lockedToolsFor(cfg);
-  const transport = new SessionTransport({
-    allowTransports: cfg.allowTransports,
-    whoami: () => cfg.user,
-    onCreated: transportCreateJournalHook({ journal, cfg, warn }),
-    // Mints the `AuthorizedTarget` `trCreate` requires. Mirrors `opCreate`
-    // (src/tools/transport.ts): the auto-created package is passed as both
-    // `name` and `packageName`, so ABAP_ALLOW_NAME_PREFIXES also judges it.
-    authorizeCreate: (devClass) => safety.authorize(
-      "transport",
-      { name: devClass, packageName: devClass },
-      { corr: { kind: "unresolved" } }
-    )
-  });
-  const debugDeps = createLiveDebugToolDeps({
-    cfg,
-    pool,
-    log: warn,
-    gate: safety
-  });
-  const processSessionId = randomUUID3();
-  let connectPromise;
-  let watched;
-  const watchPrimary = (conn) => {
-    if (watched === conn) return;
-    watched = conn;
-    connectPromise = void 0;
-    conn.onDead(() => {
-      if (watched === conn) connectPromise = void 0;
-    });
+  const specs = opts.systems && opts.systems.length > 0 ? opts.systems : [{ alias: cfg.sid, cfg, isDefault: true, env: process.env, source: "process.env" }];
+  const labelSystems = specs.length > 1;
+  const contexts = specs.map(
+    (spec) => createSystemContext(spec, {
+      base: opts,
+      connectionOptionsFor: opts.connectionOptionsFor,
+      warn,
+      labelSystems
+    })
+  );
+  const registry2 = new SystemRegistry(contexts);
+  const def = registry2.default;
+  const toolCapabilities = {
+    canWrite: contexts.some((c) => c.capabilities.canWrite),
+    canReleaseTransport: contexts.some((c) => c.capabilities.canReleaseTransport),
+    canEnhance: contexts.some((c) => c.capabilities.canEnhance),
+    canPreviewData: contexts.some((c) => c.capabilities.canPreviewData),
+    canReadDumpVariables: contexts.some((c) => c.capabilities.canReadDumpVariables),
+    canUseFluidApi: contexts.some((c) => c.capabilities.canUseFluidApi)
   };
-  watchPrimary(pool.primary());
-  const ensureConnected = async () => {
-    const connection = pool.primary();
-    watchPrimary(connection);
-    if (connection.isConnected) return;
-    if (connectPromise && connection.breaker.authProbeArmed)
-      connectPromise = void 0;
-    connectPromise ??= connection.connect().then(
-      (info) => {
-        safety.update({
-          productive: info.roleDetection.role === "productive",
-          systemRole: info.systemRole,
-          writesLockedOut: info.writesLockedOut,
-          lockoutReason: info.roleDetection.reason,
-          roleProbeFailure: info.roleDetection.probeFailure
-        });
-        if (info.writesLockedOut && !cfg.readOnly) {
-          warn(
-            `[abapsmith] WARNING: writes are enabled by configuration (${cfg.abapMode !== void 0 ? `ABAP_MODE=${cfg.abapMode}` : "ABAP_ALLOW_WRITE=true"}), but they are REFUSED on this system: ${info.roleDetection.reason} (role=${info.roleDetection.role}, client=${info.roleDetection.client ?? "unknown"}, T000-CCCATEGORY=${info.roleDetection.ccCategory ?? "unknown"}). This is fail-closed by design and there is no override \u2014 a system that cannot be PROVEN non-productive is treated exactly like a productive one.`
-          );
-        } else if (!info.writesLockedOut && !cfg.readOnly) {
-          warn(
-            `[abapsmith] writes are LIVE \u2014 ${cfg.sid} proven non-productive (client ${info.roleDetection.client ?? "?"}, T000-CCCATEGORY=${info.roleDetection.ccCategory ?? "?"}).`
-          );
-        }
-        return info;
-      },
-      (e) => {
-        const authLatched = connection.breaker.state === "latched";
-        if (!authLatched) connectPromise = void 0;
-        throw e;
+  const lockedTools = specs.every((s) => s.cfg.readOnly) ? lockedToolsFor(def.cfg) : [];
+  const systemModeLabel = (c) => c.abapMode ?? (c.readOnly ? "read-only" : "write");
+  const systemsForInstructions = registry2.size > 1 ? contexts.map((c) => ({ alias: c.alias, sid: c.cfg.sid, mode: systemModeLabel(c.cfg) })) : void 0;
+  const instructions = instructionsFor(
+    def.cfg.abapMode,
+    def.cfg.readOnly,
+    def.cfg.allowPackages,
+    toolCapabilities.canUseFluidApi,
+    lockedTools.length,
+    systemsForInstructions
+  );
+  const resourceUriByAlias = /* @__PURE__ */ new Map();
+  {
+    const seen = /* @__PURE__ */ new Set();
+    for (const ctx of registry2.all()) {
+      const uri = `abap://${ctx.cfg.sid}/system`;
+      let resourceUri = uri;
+      if (seen.has(uri)) {
+        resourceUri = `abap://${ctx.cfg.sid}/system-${ctx.alias.toLowerCase()}`;
+        warn(
+          `[abapsmith] WARNING: system "${ctx.alias}" shares SID "${ctx.cfg.sid}" with an earlier configured system \u2014 its resource is registered at ${resourceUri} instead of ${uri}.`
+        );
       }
-    );
-    await connectPromise;
+      seen.add(uri);
+      resourceUriByAlias.set(ctx.alias, resourceUri);
+    }
+  }
+  const processSessionId = randomUUID3();
+  const routed = {
+    get pool() {
+      return registry2.current().pool;
+    },
+    get cfg() {
+      return registry2.current().cfg;
+    },
+    get safety() {
+      return registry2.current().safety;
+    },
+    get journal() {
+      return registry2.current().journal;
+    },
+    get transport() {
+      return registry2.current().transport;
+    },
+    get debugDeps() {
+      return registry2.current().debugDeps;
+    },
+    ensureConnected: () => registry2.current().ensureConnected(),
+    errorResult,
+    warn
   };
   const createMcpServer = (ctx) => {
-    const mcp2 = new McpServer(
-      { name: SERVER_NAME, version: SERVER_VERSION },
-      {
-        instructions: instructionsFor(
-          cfg.abapMode,
-          cfg.readOnly,
-          cfg.allowPackages,
-          toolCapabilities.canUseFluidApi,
-          lockedTools.length
-        )
-      }
-    );
+    const mcp2 = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION }, { instructions });
+    installSystemRouting(mcp2, registry2);
     mcp2.server.oninitialized = () => {
       if (ctx === void 0) {
-        journal.setClientActor(mcp2.server.getClientVersion()?.name);
+        const clientName = mcp2.server.getClientVersion()?.name;
         const transportSessionId = mcp2.server.transport?.sessionId;
-        journal.setClientSession(
-          transportSessionId ?? processSessionId,
-          transportSessionId ? "transport" : "process"
-        );
+        const sessionId = transportSessionId ?? processSessionId;
+        const sessionSource = transportSessionId ? "transport" : "process";
+        for (const systemCtx of contexts) {
+          systemCtx.journal.setClientActor(clientName);
+          systemCtx.journal.setClientSession(sessionId, sessionSource);
+        }
       } else {
         ctx.client = mcp2.server.getClientVersion()?.name;
         ctx.sessionId ??= mcp2.server.transport?.sessionId;
       }
     };
-    registerTransportTools(mcp2, {
-      // The pool, not the connection: transport ops have no single ABAP
-      // object to gate on (a TRKORR isn't a repository object).
-      pool,
-      cfg,
-      safety,
-      ensureConnected,
-      errorResult,
-      journal,
-      warn,
-      // Same manager that adopts requests knows which of them this session
-      // created — `abap_transport show` and the release gate read the
-      // record `transport`'s resolver writes.
-      ownership: transport,
-      // `abap_transport`'s list/show/check/users submodes are ungated and
-      // always registered; only `abap_transport_release` is gated.
-      registerRelease: toolCapabilities.canReleaseTransport
-    });
-    registerBopfTools(mcp2, {
-      pool,
-      cfg,
-      safety,
-      ensureConnected,
-      errorResult,
-      transport,
-      journal,
-      registerWrite: toolCapabilities.canWrite
-    });
-    registerEnhancementTools(mcp2, {
-      pool,
-      cfg,
-      safety,
-      ensureConnected,
-      errorResult,
-      transport,
-      journal
-    });
-    registerReadTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult });
-    registerSearchTools(mcp2, {
-      pool,
-      cfg,
-      safety,
-      ensureConnected,
-      errorResult
-    });
-    registerOpenUrlTools(mcp2, {
-      pool,
-      cfg,
-      safety,
-      ensureConnected,
-      errorResult
-    });
-    registerImgTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult });
+    registerTransportTools(
+      mcp2,
+      withDeps(routed, {
+        // The pool, not the connection: transport ops have no single ABAP
+        // object to gate on (a TRKORR isn't a repository object).
+        // Same manager that adopts requests knows which of them this session
+        // created — `abap_transport show` and the release gate read the
+        // record `transport`'s resolver writes. A getter, like the rest of
+        // `routed`: the manager that "this session" means depends on which
+        // system the call was routed to.
+        get ownership() {
+          return registry2.current().transport;
+        },
+        // `abap_transport`'s list/show/check/users submodes are ungated and
+        // always registered; only `abap_transport_release` is gated.
+        registerRelease: toolCapabilities.canReleaseTransport
+      })
+    );
+    registerBopfTools(mcp2, withDeps(routed, { registerWrite: toolCapabilities.canWrite }));
+    registerEnhancementTools(mcp2, routed);
+    registerReadTools(
+      mcp2,
+      withDeps(routed, {
+        systems: {
+          aliases: registry2.aliases,
+          resolve: (alias) => registry2.resolve(alias)
+        },
+        multiSystem: registry2.size > 1
+      })
+    );
+    registerSearchTools(mcp2, routed);
+    registerOpenUrlTools(mcp2, routed);
+    registerImgTools(mcp2, routed);
     const fluidToolSet = opts.fluidToolSet ?? builtinFluidToolSet(BUILTIN_FLUID_TOOLS);
     const lockHolders = toolCapabilities.canUseFluidApi ? async (argPattern, callerTool) => {
-      const result = await pool.withRead(
+      const system = registry2.current();
+      const result = await system.pool.withRead(
         `${callerTool}:lock_holders`,
         (conn) => dispatch2(
           {
             conn,
-            cfg,
-            gate: safety,
+            cfg: system.cfg,
+            gate: system.safety,
             tools: fluidToolSet.tools,
-            journal,
+            journal: system.journal,
             warn
           },
           {
@@ -159639,211 +160043,88 @@ function createServer(cfg, opts) {
           }
         )
       );
-      return mapLockRows(
-        Array.isArray(result.result) ? result.result : []
-      );
+      return mapLockRows(Array.isArray(result.result) ? result.result : []);
     } : void 0;
     if (toolCapabilities.canWrite) {
-      registerBopfTestTool(mcp2, {
-        ...createBopfTestDeps(),
-        pool,
-        cfg,
-        safety,
-        ensureConnected,
-        errorResult
-      });
-      registerFpmTools(mcp2, {
-        pool,
-        cfg,
-        safety,
-        ensureConnected,
-        errorResult
-      });
-      registerUiTools(mcp2, {
-        pool,
-        cfg,
-        safety,
-        ensureConnected,
-        errorResult,
-        journal
-      });
-      registerWriteTools(mcp2, {
-        pool,
-        cfg,
-        safety,
-        ensureConnected,
-        errorResult,
-        journal,
-        transport,
-        lockHolders,
-        warn
-      });
-      registerImgEditTools(mcp2, {
-        pool,
-        cfg,
-        safety,
-        ensureConnected,
-        errorResult,
-        journal
-      });
-      registerRunTools(mcp2, {
-        pool,
-        cfg,
-        safety,
-        ensureConnected,
-        errorResult
-      });
-      registerTestTools(mcp2, {
-        pool,
-        cfg,
-        safety,
-        ensureConnected,
-        errorResult,
-        journal
-      });
-      registerAtcTools(mcp2, {
-        pool,
-        cfg,
-        safety,
-        ensureConnected,
-        errorResult
-      });
-      registerQuickFixTools(mcp2, {
-        pool,
-        cfg,
-        safety,
-        ensureConnected,
-        errorResult,
-        journal,
-        transport
-      });
+      registerBopfTestTool(mcp2, withDeps(routed, createBopfTestDeps()));
+      registerFpmTools(mcp2, routed);
+      registerUiTools(mcp2, routed);
+      registerWriteTools(mcp2, withDeps(routed, { lockHolders }));
+      registerImgEditTools(mcp2, routed);
+      registerRunTools(mcp2, routed);
+      registerTestTools(mcp2, routed);
+      registerAtcTools(mcp2, routed);
+      registerQuickFixTools(mcp2, routed);
     }
-    registerActivateTools(mcp2, {
-      pool,
-      cfg,
-      safety,
-      ensureConnected,
-      errorResult,
-      transport,
-      journal,
-      lockHolders,
-      warn
-    });
-    registerJournalTools(mcp2, {
-      pool,
-      cfg,
-      safety,
-      ensureConnected,
-      errorResult,
-      journal
-    });
-    registerDebugTools(mcp2, {
-      pool,
-      cfg,
-      safety,
-      ensureConnected,
-      errorResult,
-      debugDeps
-    });
+    registerActivateTools(mcp2, withDeps(routed, { lockHolders }));
+    registerJournalTools(mcp2, routed);
+    registerDebugTools(mcp2, routed);
     if (toolCapabilities.canPreviewData) {
-      registerDataPreviewTools(mcp2, {
-        pool,
-        cfg,
-        safety,
-        ensureConnected,
-        errorResult
-      });
+      registerDataPreviewTools(mcp2, routed);
     }
-    registerDumpTools(mcp2, {
-      pool,
-      cfg,
-      safety,
-      ensureConnected,
-      errorResult,
-      registerVariables: toolCapabilities.canReadDumpVariables
-    });
-    registerServiceTools(mcp2, {
-      pool,
-      cfg,
-      safety,
-      ensureConnected,
-      errorResult,
-      journal,
-      warn
-    });
-    registerTraceTools(mcp2, {
-      pool,
-      safety,
-      ensureConnected,
-      errorResult,
-      cfg,
-      journal
-    });
+    registerDumpTools(mcp2, withDeps(routed, { registerVariables: toolCapabilities.canReadDumpVariables }));
+    registerServiceTools(mcp2, routed);
+    registerTraceTools(mcp2, routed);
     if (toolCapabilities.canUseFluidApi) {
-      registerFluidTool(mcp2, {
-        pool,
-        cfg,
-        safety,
-        ensureConnected,
-        errorResult,
-        journal,
-        warn,
-        toolSet: fluidToolSet
-      });
+      registerFluidTool(mcp2, withDeps(routed, { toolSet: fluidToolSet }));
     }
-    registerLockedTools(mcp2, { cfg, errorResult, tools: lockedTools });
-    mcp2.registerResource(
-      "system",
-      `abap://${cfg.sid}/system`,
-      {
-        title: `ABAP system ${cfg.sid}`,
-        description: "Connection state, system role, and the ADT feature inventory from /discovery.",
-        mimeType: "application/json"
-      },
-      async (uri) => {
-        await ensureConnected();
-        return {
-          contents: [
-            {
-              uri: uri.href,
-              mimeType: "application/json",
-              text: JSON.stringify(
-                {
-                  connection: pool.primary().info(),
-                  discovery: pool.primary().discovery.summary(),
-                  // Live occupancy at the instant of the read — `stats()` is
-                  // synchronous, no pool lease, safe to read mid-incident even while
-                  // saturated. `limits` are the denominators busy/idle are out of;
-                  // without them `busy: 5` alone doesn't say whether that's fine.
-                  sessions: {
-                    ...pool.stats(),
-                    limits: {
-                      maxSessions: cfg.maxSessions,
-                      readConcurrency: cfg.readConcurrency,
-                      writeConcurrency: cfg.writeConcurrency
+    registerLockedTools(mcp2, { cfg: def.cfg, errorResult, tools: lockedTools });
+    for (const systemCtx of registry2.all()) {
+      const resourceUri = resourceUriByAlias.get(systemCtx.alias) ?? `abap://${systemCtx.cfg.sid}/system`;
+      const resourceName = registry2.size > 1 ? `system-${systemCtx.alias.toLowerCase()}` : "system";
+      mcp2.registerResource(
+        resourceName,
+        resourceUri,
+        {
+          title: registry2.size > 1 ? `ABAP system ${systemCtx.cfg.sid} (${systemCtx.alias})` : `ABAP system ${systemCtx.cfg.sid}`,
+          description: "Connection state, system role, and the ADT feature inventory from /discovery.",
+          mimeType: "application/json"
+        },
+        async (uri) => {
+          await systemCtx.ensureConnected();
+          return {
+            contents: [
+              {
+                uri: uri.href,
+                mimeType: "application/json",
+                text: JSON.stringify(
+                  {
+                    connection: systemCtx.pool.primary().info(),
+                    discovery: systemCtx.pool.primary().discovery.summary(),
+                    // Live occupancy at the instant of the read — `stats()` is
+                    // synchronous, no pool lease, safe to read mid-incident even while
+                    // saturated. `limits` are the denominators busy/idle are out of;
+                    // without them `busy: 5` alone doesn't say whether that's fine.
+                    sessions: {
+                      ...systemCtx.pool.stats(),
+                      limits: {
+                        maxSessions: systemCtx.cfg.maxSessions,
+                        readConcurrency: systemCtx.cfg.readConcurrency,
+                        writeConcurrency: systemCtx.cfg.writeConcurrency
+                      }
+                    },
+                    safety: {
+                      ...systemCtx.safety.config,
+                      writesEnabled: !systemCtx.safety.config.readOnly,
+                      allowPackages: systemCtx.safety.config.allowPackages,
+                      allowNamePrefixes: systemCtx.safety.namePrefixes,
+                      allowTransports: systemCtx.safety.transportAllowlist
+                    },
+                    journal: {
+                      enabled: systemCtx.journal.enabled,
+                      dir: systemCtx.journal.enabled ? systemCtx.journal.dir : null,
+                      retention: `${systemCtx.journal.config.maxEntries} entries / ${systemCtx.journal.config.maxAgeDays} days`
                     }
                   },
-                  safety: {
-                    ...safety.config,
-                    writesEnabled: !safety.config.readOnly,
-                    allowPackages: safety.config.allowPackages,
-                    allowNamePrefixes: safety.namePrefixes,
-                    allowTransports: safety.transportAllowlist
-                  },
-                  journal: {
-                    enabled: journal.enabled,
-                    dir: journal.enabled ? journal.dir : null,
-                    retention: `${journal.config.maxEntries} entries / ${journal.config.maxAgeDays} days`
-                  }
-                },
-                null,
-                2
-              )
-            }
-          ]
-        };
-      }
-    );
+                  null,
+                  2
+                )
+              }
+            ]
+          };
+        }
+      );
+    }
     stripSchemaKeyOnConnect(mcp2);
     return mcp2;
   };
@@ -159853,13 +160134,17 @@ function createServer(cfg, opts) {
   let unregisterHttpShutdown;
   return {
     mcp,
-    pool,
+    // The default system's pool/connection/safety/journal — see this
+    // field's doc comment on `AbapsmithServer` for why it's the default and
+    // not "whichever system was routed last".
+    pool: def.pool,
     // A getter, not a snapshot: see the contract on `AbapsmithServer.connection`.
     get connection() {
-      return pool.primary();
+      return def.pool.primary();
     },
-    safety,
-    journal,
+    safety: def.safety,
+    journal: def.journal,
+    systems: registry2,
     get httpAddress() {
       return http3?.address;
     },
@@ -159867,7 +160152,6 @@ function createServer(cfg, opts) {
       return http3?.sessionCount ?? 0;
     },
     async start() {
-      const mode = cfg.readOnly ? "read-only" : `WRITES ENABLED \u2192 packages [${cfg.allowPackages.join(", ")}]`;
       if (cfg.mcpTransport === "stdio") {
         await mcp.connect(new StdioServerTransport());
       } else {
@@ -159881,39 +160165,44 @@ function createServer(cfg, opts) {
         });
         httpAddr = http3.address;
         const httpRef = http3;
-        unregisterHttpShutdown = registerShutdownHandler(
-          "abapsmith/mcp-http",
-          async () => {
-            await httpRef.close();
+        unregisterHttpShutdown = registerShutdownHandler("abapsmith/mcp-http", async () => {
+          await httpRef.close();
+        });
+      }
+      for (const systemCtx of registry2.all()) {
+        const label = registry2.size > 1 ? `${systemCtx.alias}: ` : "";
+        const mode = systemCtx.cfg.readOnly ? "read-only" : `WRITES ENABLED \u2192 packages [${systemCtx.cfg.allowPackages.join(", ")}]`;
+        let notConnectedSuffix = "";
+        if (systemCtx.cfg.startupProbe) {
+          try {
+            await systemCtx.ensureConnected();
+            const info = systemCtx.pool.primary().info();
+            warn(
+              `[abapsmith] ${label}connected \u2014 authenticated to ${info.sid} @ ${info.url} as ${info.user} (client ${info.client})`
+            );
+          } catch (e) {
+            const { code, message, hint } = describeStartupProbeFailure(e);
+            warn(
+              `[abapsmith] ${label}STARTUP PROBE FAILED (${code}): ${message}` + (hint ? ` \u2014 ${hint}` : "")
+            );
+            notConnectedSuffix = " \u2014 NOT CONNECTED, see probe failure above";
           }
-        );
-      }
-      let notConnectedSuffix = "";
-      if (cfg.startupProbe) {
-        try {
-          await ensureConnected();
-          const info = pool.primary().info();
-          warn(
-            `[abapsmith] connected \u2014 authenticated to ${info.sid} @ ${info.url} as ${info.user} (client ${info.client})`
-          );
-        } catch (e) {
-          const { code, message, hint } = describeStartupProbeFailure(e);
-          warn(
-            `[abapsmith] STARTUP PROBE FAILED (${code}): ${message}` + (hint ? ` \u2014 ${hint}` : "")
-          );
-          notConnectedSuffix = " \u2014 NOT CONNECTED, see probe failure above";
         }
+        if (cfg.mcpTransport === "stdio") {
+          warn(
+            `[abapsmith] ${label}ready on stdio \u2014 ${systemCtx.cfg.sid} @ ${stripUrlCredentials(systemCtx.cfg.url)} as ${systemCtx.cfg.user} (${mode})${notConnectedSuffix}`
+          );
+        } else if (httpAddr) {
+          const hostForUrl = httpAddr.host.includes(":") ? `[${httpAddr.host}]` : httpAddr.host;
+          warn(
+            `[abapsmith] ${label}ready on http://${hostForUrl}:${httpAddr.port}${cfg.mcpHttpPath} \u2014 ${systemCtx.cfg.sid} @ ${stripUrlCredentials(systemCtx.cfg.url)} as ${systemCtx.cfg.user} (${mode})${notConnectedSuffix}`
+          );
+        }
+        warn(
+          systemCtx.journal.enabled ? `[abapsmith] ${label}write journal: ${systemCtx.journal.dir} (keeps ${systemCtx.journal.config.maxEntries} entries / ${systemCtx.journal.config.maxAgeDays} days; before-images contain source \u2014 do not commit it)` : `[abapsmith] ${label}WARNING: write journal DISABLED (ABAP_JOURNAL=off) \u2014 writes cannot be undone.`
+        );
       }
-      if (cfg.mcpTransport === "stdio") {
-        warn(
-          `[abapsmith] ready on stdio \u2014 ${cfg.sid} @ ${stripUrlCredentials(cfg.url)} as ${cfg.user} (${mode})${notConnectedSuffix}`
-        );
-      } else if (httpAddr) {
-        const addr = httpAddr;
-        const hostForUrl = addr.host.includes(":") ? `[${addr.host}]` : addr.host;
-        warn(
-          `[abapsmith] ready on http://${hostForUrl}:${addr.port}${cfg.mcpHttpPath} \u2014 ${cfg.sid} @ ${stripUrlCredentials(cfg.url)} as ${cfg.user} (${mode})${notConnectedSuffix}`
-        );
+      if (cfg.mcpTransport !== "stdio" && httpAddr) {
         if (cfg.mcpHttpTokens.length > 0) {
           const names = cfg.mcpHttpTokens.map((t) => t.name ?? "(unnamed)").join(", ");
           warn(
@@ -159925,25 +160214,18 @@ function createServer(cfg, opts) {
           );
         }
       }
-      warn(
-        journal.enabled ? `[abapsmith] write journal: ${journal.dir} (keeps ${journal.config.maxEntries} entries / ${journal.config.maxAgeDays} days; before-images contain source \u2014 do not commit it)` : "[abapsmith] WARNING: write journal DISABLED (ABAP_JOURNAL=off) \u2014 writes cannot be undone."
-      );
     },
     async closeClients() {
       try {
         await mcp.close();
       } catch (e) {
-        warn(
-          `[abapsmith] WARNING: closing the default MCP server failed: ${e.message}`
-        );
+        warn(`[abapsmith] WARNING: closing the default MCP server failed: ${e.message}`);
       }
       if (http3) {
         try {
           await http3.close();
         } catch (e) {
-          warn(
-            `[abapsmith] WARNING: closing the HTTP MCP listener failed: ${e.message}`
-          );
+          warn(`[abapsmith] WARNING: closing the HTTP MCP listener failed: ${e.message}`);
         }
         http3 = void 0;
       }
@@ -159957,14 +160239,13 @@ function createServer(cfg, opts) {
         try {
           await http3.close();
         } catch (e) {
-          warn(
-            `[abapsmith] WARNING: closing the HTTP MCP listener failed: ${e.message}`
-          );
+          warn(`[abapsmith] WARNING: closing the HTTP MCP listener failed: ${e.message}`);
         }
         http3 = void 0;
       }
-      await pool.shutdown("mcp-stop");
-      pool.dispose();
+      for (const systemCtx of registry2.all()) {
+        await systemCtx.shutdown("mcp-stop");
+      }
       await mcp.close();
     }
   };
@@ -159972,6 +160253,404 @@ function createServer(cfg, opts) {
 
 // src/index.ts
 init_shutdown_hook();
+
+// src/systems/spec.ts
+init_config();
+import { readFileSync as readFileSync7 } from "node:fs";
+function isValidAlias(alias) {
+  return /^[A-Z0-9]{1,16}$/.test(alias);
+}
+var FILE_KEY_TO_ENV_VAR = Object.freeze({
+  url: "ABAP_URL",
+  user: "ABAP_USER",
+  client: "ABAP_CLIENT",
+  sid: "ABAP_SID",
+  mode: "ABAP_MODE",
+  allow_packages: "ABAP_ALLOW_PACKAGES",
+  allow_name_prefixes: "ABAP_ALLOW_NAME_PREFIXES",
+  allow_transports: "ABAP_ALLOW_TRANSPORTS"
+});
+var RECOGNISED_ENTRY_KEYS = /* @__PURE__ */ new Set([
+  ...Object.keys(FILE_KEY_TO_ENV_VAR),
+  "password_env",
+  "default",
+  "env",
+  "secrets"
+]);
+var SECRET_ENTRY_KEYS = /* @__PURE__ */ new Set(["password", "passwd", "pass"]);
+var FORBIDDEN_ENV_NAME_RE = /PASSWORD|PASSPHRASE|SECRET|TOKEN|COOKIE/i;
+function errMsg(e) {
+  return e instanceof Error ? e.message : String(e);
+}
+function isPlainObject7(v) {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+function truthy(v) {
+  return ["1", "true", "yes", "on"].includes(v.trim().toLowerCase());
+}
+function entryProblem(alias, source, message) {
+  return `systems entry ${alias} (${source}): ${message}`;
+}
+function fileValueToEnvString(value, what) {
+  if (Array.isArray(value)) {
+    if (!value.every((v) => typeof v === "string")) {
+      return { error: `${what} must be an array of strings.` };
+    }
+    return { value: value.join(",") };
+  }
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return { value: String(value) };
+  }
+  return {
+    error: `${what} must be a string, number, boolean, or array of strings (got ${value === null ? "null" : typeof value}).`
+  };
+}
+function flattenMultilineError(message) {
+  const lines = message.split("\n").map((l) => l.trim()).filter((l) => l.length > 0);
+  if (lines.length <= 1) return message;
+  const [first, ...rest] = lines;
+  const bullets = rest.map((l) => l.replace(/^-\s*/, ""));
+  return `${first} ${bullets.join("; ")}`;
+}
+function loadSystems(opts = {}) {
+  if (!opts.skipDotenv) loadEnvFile();
+  const env = opts.env ?? process.env;
+  const warn = opts.warn ?? ((m) => process.stderr.write(m + "\n"));
+  const readFile2 = opts.readFile ?? ((p) => readFileSync7(p, "utf8"));
+  const rawAbapSystems = env.ABAP_SYSTEMS;
+  const hasAbapSystems = rawAbapSystems !== void 0 && rawAbapSystems.trim() !== "";
+  const systemEnvVarNames = Object.keys(env).filter((k) => k.startsWith("ABAP_SYSTEM_")).sort();
+  if (!hasAbapSystems && systemEnvVarNames.length === 0) return void 0;
+  const problems = [];
+  const builds = /* @__PURE__ */ new Map();
+  function getBuild(alias) {
+    const existing = builds.get(alias);
+    if (existing !== void 0) return existing;
+    const created = { overlay: {}, defaultFlag: false, fromEnv: false, fromFile: false };
+    builds.set(alias, created);
+    return created;
+  }
+  let fileSourceLabel;
+  let fileTopDefault;
+  if (rawAbapSystems !== void 0 && rawAbapSystems.trim() !== "") {
+    const trimmed = rawAbapSystems.trim();
+    let json3;
+    if (trimmed.startsWith("{")) {
+      fileSourceLabel = "file:<inline JSON>";
+      try {
+        json3 = JSON.parse(trimmed);
+      } catch (e) {
+        problems.push(`ABAP_SYSTEMS is inline JSON but could not be parsed: ${errMsg(e)}`);
+      }
+    } else {
+      fileSourceLabel = `file:${trimmed}`;
+      let text5;
+      try {
+        text5 = readFile2(trimmed);
+      } catch (e) {
+        problems.push(`ABAP_SYSTEMS names ${trimmed}, which could not be read: ${errMsg(e)}`);
+      }
+      if (text5 !== void 0) {
+        try {
+          json3 = JSON.parse(text5);
+        } catch (e) {
+          problems.push(`ABAP_SYSTEMS file ${trimmed} is not valid JSON: ${errMsg(e)}`);
+        }
+      }
+    }
+    if (json3 !== void 0) {
+      if (!isPlainObject7(json3)) {
+        problems.push(`${fileSourceLabel}: top-level JSON must be an object with a "systems" key.`);
+      } else {
+        for (const key of Object.keys(json3)) {
+          if (key !== "default" && key !== "systems") {
+            problems.push(
+              `${fileSourceLabel}: unrecognised top-level key "${key}" \u2014 only "default" and "systems" are recognised.`
+            );
+          }
+        }
+        const rawDefault = json3.default;
+        if (rawDefault !== void 0) {
+          if (typeof rawDefault !== "string" || rawDefault.trim() === "") {
+            problems.push(`${fileSourceLabel}: "default" must be a non-empty string naming a system alias.`);
+          } else {
+            fileTopDefault = rawDefault;
+          }
+        }
+        const rawSystems = json3.systems;
+        if (!isPlainObject7(rawSystems) || Object.keys(rawSystems).length === 0) {
+          problems.push(`${fileSourceLabel}: "systems" must be a non-empty object mapping alias to system settings.`);
+        } else {
+          for (const [rawAlias, rawEntry] of Object.entries(rawSystems)) {
+            if (!isPlainObject7(rawEntry)) {
+              problems.push(`${fileSourceLabel}: systems entry "${rawAlias}" must be an object.`);
+              continue;
+            }
+            if (!isValidAlias(rawAlias)) {
+              problems.push(
+                `${fileSourceLabel}: systems entry "${rawAlias}": alias is invalid \u2014 expected 1-16 uppercase letters or digits (A-Z, 0-9), e.g. "DEV".`
+              );
+              continue;
+            }
+            const alias = rawAlias;
+            const build = getBuild(alias);
+            build.fromFile = true;
+            for (const [key, value] of Object.entries(rawEntry)) {
+              if (SECRET_ENTRY_KEYS.has(key.toLowerCase())) {
+                problems.push(
+                  entryProblem(
+                    alias,
+                    fileSourceLabel,
+                    `"${key}" would put a secret in this file \u2014 use "password_env" (or "secrets") to name an environment variable instead.`
+                  )
+                );
+                continue;
+              }
+              if (!RECOGNISED_ENTRY_KEYS.has(key)) {
+                problems.push(entryProblem(alias, fileSourceLabel, `unrecognised key "${key}".`));
+                continue;
+              }
+              if (key === "default") {
+                if (typeof value !== "boolean") {
+                  problems.push(entryProblem(alias, fileSourceLabel, '"default" must be true or false.'));
+                } else if (value) {
+                  build.defaultFlag = true;
+                }
+                continue;
+              }
+              if (key === "password_env") {
+                if (typeof value !== "string" || value.trim() === "") {
+                  problems.push(
+                    entryProblem(
+                      alias,
+                      fileSourceLabel,
+                      '"password_env" must be a non-empty string naming an environment variable.'
+                    )
+                  );
+                  continue;
+                }
+                const resolved = env[value];
+                if (resolved === void 0 || resolved.trim() === "") {
+                  problems.push(
+                    entryProblem(alias, fileSourceLabel, `password_env names ${value}, which is not set in the environment.`)
+                  );
+                } else {
+                  build.overlay.ABAP_PASSWORD = resolved;
+                }
+                continue;
+              }
+              if (key === "env") {
+                if (!isPlainObject7(value)) {
+                  problems.push(
+                    entryProblem(alias, fileSourceLabel, '"env" must be an object of ABAP_* environment overrides.')
+                  );
+                  continue;
+                }
+                for (const [envKey, envVal] of Object.entries(value)) {
+                  if (!envKey.startsWith("ABAP_")) {
+                    problems.push(entryProblem(alias, fileSourceLabel, `"env" key "${envKey}" must start with ABAP_.`));
+                    continue;
+                  }
+                  if (FORBIDDEN_ENV_NAME_RE.test(envKey)) {
+                    problems.push(
+                      entryProblem(
+                        alias,
+                        fileSourceLabel,
+                        `"env.${envKey}" would put a secret in this file \u2014 use "secrets" to name an environment variable holding the value instead.`
+                      )
+                    );
+                    continue;
+                  }
+                  const converted2 = fileValueToEnvString(envVal, `"env.${envKey}"`);
+                  if ("error" in converted2) {
+                    problems.push(entryProblem(alias, fileSourceLabel, converted2.error));
+                  } else {
+                    build.overlay[envKey] = converted2.value;
+                  }
+                }
+                continue;
+              }
+              if (key === "secrets") {
+                if (!isPlainObject7(value)) {
+                  problems.push(
+                    entryProblem(
+                      alias,
+                      fileSourceLabel,
+                      '"secrets" must be an object mapping an ABAP_* variable name to the name of an environment variable.'
+                    )
+                  );
+                  continue;
+                }
+                for (const [secretKey, secretVarName] of Object.entries(value)) {
+                  if (!secretKey.startsWith("ABAP_")) {
+                    problems.push(
+                      entryProblem(alias, fileSourceLabel, `"secrets" key "${secretKey}" must start with ABAP_.`)
+                    );
+                    continue;
+                  }
+                  if (typeof secretVarName !== "string" || secretVarName.trim() === "") {
+                    problems.push(
+                      entryProblem(
+                        alias,
+                        fileSourceLabel,
+                        `"secrets.${secretKey}" must be a non-empty string naming an environment variable.`
+                      )
+                    );
+                    continue;
+                  }
+                  const resolved = env[secretVarName];
+                  if (resolved === void 0 || resolved.trim() === "") {
+                    problems.push(
+                      entryProblem(
+                        alias,
+                        fileSourceLabel,
+                        `secrets.${secretKey} names ${secretVarName}, which is not set in the environment.`
+                      )
+                    );
+                  } else {
+                    build.overlay[secretKey] = resolved;
+                  }
+                }
+                continue;
+              }
+              const envVarName = FILE_KEY_TO_ENV_VAR[key];
+              const converted = fileValueToEnvString(value, `"${key}"`);
+              if ("error" in converted) {
+                problems.push(entryProblem(alias, fileSourceLabel, converted.error));
+              } else if (envVarName !== void 0) {
+                build.overlay[envVarName] = converted.value;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  for (const varName of systemEnvVarNames) {
+    const rest = varName.slice("ABAP_SYSTEM_".length);
+    const underscoreIdx = rest.indexOf("_");
+    if (underscoreIdx === -1) {
+      problems.push(`${varName} has no setting name \u2014 expected ABAP_SYSTEM_<ALIAS>_<SETTING>.`);
+      continue;
+    }
+    const alias = rest.slice(0, underscoreIdx);
+    const setting = rest.slice(underscoreIdx + 1);
+    if (!isValidAlias(alias)) {
+      problems.push(
+        `${varName}: "${alias}" is not a valid system alias \u2014 expected 1-16 uppercase letters or digits (A-Z, 0-9); an alias may not contain "_".`
+      );
+      continue;
+    }
+    const value = env[varName];
+    if (value === void 0) continue;
+    const build = getBuild(alias);
+    build.fromEnv = true;
+    if (setting === "DEFAULT") {
+      build.defaultFlag = truthy(value);
+      continue;
+    }
+    if (setting === "PASSWORD_ENV") {
+      if (value.trim() === "") {
+        problems.push(entryProblem(alias, "env", `${varName} must name a non-empty environment variable.`));
+        continue;
+      }
+      const resolved = env[value];
+      if (resolved === void 0 || resolved.trim() === "") {
+        problems.push(entryProblem(alias, "env", `password_env names ${value}, which is not set in the environment.`));
+      } else {
+        build.overlay.ABAP_PASSWORD = resolved;
+      }
+      continue;
+    }
+    build.overlay[`ABAP_${setting}`] = value;
+  }
+  const aliases = [...builds.keys()];
+  let defaultAlias;
+  if (aliases.length > 0) {
+    if (fileTopDefault !== void 0 && !aliases.includes(fileTopDefault)) {
+      problems.push(`${fileSourceLabel ?? "ABAP_SYSTEMS"}: "default" names "${fileTopDefault}", which is not a defined system.`);
+      fileTopDefault = void 0;
+    }
+    const markedAliases = [...builds.entries()].filter(([, b]) => b.defaultFlag).map(([a]) => a);
+    if (fileTopDefault !== void 0 && markedAliases.length > 0) {
+      const agree = markedAliases.length === 1 && markedAliases[0] === fileTopDefault;
+      if (agree) {
+        defaultAlias = fileTopDefault;
+      } else {
+        problems.push(
+          `default system is ambiguous: the top-level "default" names "${fileTopDefault}", but [${markedAliases.join(", ")}] ${markedAliases.length === 1 ? "is" : "are"} also marked default individually \u2014 use only one way to mark the default system.`
+        );
+      }
+    } else if (fileTopDefault !== void 0) {
+      defaultAlias = fileTopDefault;
+    } else if (markedAliases.length === 1) {
+      defaultAlias = markedAliases[0];
+    } else if (markedAliases.length > 1) {
+      problems.push(`more than one system is marked default: [${markedAliases.join(", ")}] \u2014 mark exactly one.`);
+    } else if (aliases.length === 1) {
+      defaultAlias = aliases[0];
+    } else {
+      problems.push(
+        `no default system is marked and there is more than one system [${aliases.slice().sort().join(", ")}] \u2014 mark exactly one as default (top-level "default" in the systems file, "default": true on one entry, or ABAP_SYSTEM_<ALIAS>_DEFAULT=true).`
+      );
+    }
+  } else if (problems.length === 0) {
+    problems.push("ABAP_SYSTEMS / ABAP_SYSTEM_* is present, but no usable system entry was found in it.");
+  }
+  const baseEnv = { ...env };
+  for (const key of Object.keys(baseEnv)) {
+    if (key.startsWith("ABAP_SYSTEM_")) delete baseEnv[key];
+  }
+  const seenWarnings = /* @__PURE__ */ new Set();
+  const dedupedWarn = (msg) => {
+    if (seenWarnings.has(msg)) return;
+    seenWarnings.add(msg);
+    warn(msg);
+  };
+  const specs = [];
+  for (const alias of aliases) {
+    const build = builds.get(alias);
+    if (build === void 0) continue;
+    const source = build.fromEnv ? "env" : fileSourceLabel ?? "file:<unknown>";
+    const entryEnv = { ...baseEnv, ...build.overlay };
+    let cfg;
+    try {
+      cfg = loadConfig({ env: entryEnv, skipDotenv: true, warn: dedupedWarn });
+    } catch (e) {
+      problems.push(entryProblem(alias, source, flattenMultilineError(errMsg(e))));
+    }
+    if (cfg !== void 0) {
+      specs.push({ alias, cfg, isDefault: alias === defaultAlias, env: entryEnv, source });
+    }
+  }
+  if (problems.length > 0) {
+    const lines = problems.map((p) => `  - ${p}`);
+    throw new Error(
+      `Invalid abapsmith multi-system configuration (${problems.length} problem${problems.length === 1 ? "" : "s"}):
+${lines.join("\n")}
+Every entry is validated at startup; fix all of them before the server will start.`
+    );
+  }
+  const seenSystems = /* @__PURE__ */ new Map();
+  for (const spec of specs) {
+    const key = `${spec.cfg.sid}\0${spec.cfg.url}\0${spec.cfg.client}`;
+    const existing = seenSystems.get(key);
+    if (existing !== void 0) {
+      warn(
+        `[abapsmith] WARNING: systems ${existing} and ${spec.alias} share the same sid/url/client (sid=${spec.cfg.sid}) \u2014 they will share a journal directory.`
+      );
+    } else {
+      seenSystems.set(key, spec.alias);
+    }
+  }
+  specs.sort((a, b) => {
+    if (a.isDefault !== b.isDefault) return a.isDefault ? -1 : 1;
+    return a.alias < b.alias ? -1 : a.alias > b.alias ? 1 : 0;
+  });
+  return Object.freeze(specs.map((s) => Object.freeze(s)));
+}
+
+// src/index.ts
 function armDebugShutdown(server, cleanup) {
   let armed;
   return registerShutdownHandler("abapsmith/debug-shutdown", () => {
@@ -159984,13 +160663,23 @@ function armDebugShutdown(server, cleanup) {
 }
 async function main() {
   let cfg;
+  let systems;
   try {
-    cfg = loadConfig();
+    systems = loadSystems();
+    if (systems === void 0) {
+      cfg = loadConfig();
+    } else {
+      const def = systems.find((s) => s.isDefault);
+      if (def === void 0) {
+        throw new Error("loadSystems() returned no default system.");
+      }
+      cfg = def.cfg;
+    }
   } catch (e) {
     process.stderr.write(`${e instanceof Error ? e.message : String(e)}
 `);
     process.stderr.write(
-      "\nSet ABAP_URL, ABAP_USER and ABAP_PASSWORD (a .env file in the working directory is picked up automatically).\n"
+      "\nSet ABAP_URL, ABAP_USER and ABAP_PASSWORD (a .env file in the working directory is picked up automatically), or configure ABAP_SYSTEMS / ABAP_SYSTEM_<ALIAS>_* for a multi-system deployment.\n"
     );
     process.exit(1);
   }
@@ -159998,6 +160687,15 @@ async function main() {
     `[abapsmith] config (secrets redacted; host, user and SID are not): ${JSON.stringify(redactConfigSecrets(cfg))}
 `
   );
+  if (systems !== void 0) {
+    for (const s of systems) {
+      if (s.isDefault) continue;
+      process.stderr.write(
+        `[abapsmith] config [${s.alias}] (secrets redacted; host, user and SID are not): ${JSON.stringify(redactConfigSecrets(s.cfg))}
+`
+      );
+    }
+  }
   const fluidToolSet = await loadFluidTools(cfg, BUILTIN_FLUID_TOOLS);
   for (const r of fluidToolSet.refused) {
     process.stderr.write(`[abapsmith] fluid plugin refused (${r.code}): ${r.path} \u2014 ${r.reason}
@@ -160007,7 +160705,7 @@ async function main() {
     process.stderr.write(`[abapsmith] fluid plugin warning: ${w}
 `);
   }
-  const server = createServer(cfg, { breaker: AuthCircuitBreaker.forConfig(cfg), fluidToolSet });
+  const server = createServer(cfg, { breaker: AuthCircuitBreaker.forConfig(cfg), fluidToolSet, systems });
   armDebugShutdown(server, async () => {
     shutdownDebugTools();
     await shutdownAllDebugSessions((m) => process.stderr.write(`${m}

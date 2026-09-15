@@ -49,6 +49,29 @@ serialised against it the way two single-object writes to that object would
 be. This is accepted, not hidden: nothing else in the pool exposes a way to
 take more than one object lock per checkout.
 
+### The object gate key now includes the system
+
+With [more than one system configured](multi-system-pools.md), the gate is
+keyed on `(system, object)`, not on the object URI alone — a `scope`
+(the system's alias) is hashed together with the object URI
+(`objectGateLockPath(stateDir, objectUri, scope)`, `src/adt/object-gate.ts`).
+This is deliberate: object identity is really per-system, so a `ZCL_FOO` on
+DEV and a `ZCL_FOO` on QAS are different objects that only happen to share
+a name, and without a scope they would serialise writes against each other
+for no reason. `FileLockObjectGate`'s constructor takes an optional `scope`
+for exactly this; a single-system server passes none, and an unscoped call
+resolves the identical lock-file path this mechanism has always used.
+
+The consequence is in the lock **file name**, not only in behavior: adding
+a scope changes which file on disk represents a given object's lock, since
+the file name is a hash of `scope\nobjectUri` rather than of `objectUri`
+alone. This opens a narrow upgrade-window gap rather than a steady-state
+hole — an abapsmith process still running an older, unscoped build next to
+a newer, scoped one would not see each other's lock for the same object,
+because each is watching a differently-named file. Once every process
+sharing a state directory is on the scoped version, the gate is exact
+again, the same as before this change.
+
 A file-lock wait defaults to 1 500 ms (`ABAP_OBJECT_LOCK_WAIT_MS`, accepted
 range 200–30 000 ms) — deliberately short, because the holder is not this
 process and there is no reason to sit on an MCP tool call hoping it lets go.
@@ -99,6 +122,20 @@ the same SAP user. A second lane only has a chance of actually attaching a
 debuggee when it authenticates as a **different** `ABAP_USER`, or once a
 terminal-scoped debugging mode (`debuggingMode: "terminal"`) is proven
 functional — modelled in this repo but never demonstrated to work.
+
+**Unlike the object gate, this key needs no explicit system scope** — with
+[more than one system configured](multi-system-pools.md), `ABAP_URL` and
+`client` already differ per system, so the `(ABAP_URL, client, user)` key
+above naturally separates one system's debug lease from another's without
+any change here. What does NOT separate per system is the lane pool itself:
+`resolveDebugSessionLimit(cfg)` sizes one counter for the whole process, not
+one counter per configured system, so the debugger is the one part of this
+page that stays a single, process-wide resource shared across every system
+rather than being duplicated per system the way the object gate and the
+session pools are. See
+[TOOLS/debugger.md](../TOOLS/debugger.md#system_mismatch-one-debug-session-for-the-whole-process)
+for the `SYSTEM_MISMATCH` refusal this produces when a debugger call is
+routed at a different system than the one the active session belongs to.
 
 This is a **sibling** of `ObjectGate` above, not a reuse of it with a synthetic key:
 the object gate canonicalises its key as an object URI (which would mangle a

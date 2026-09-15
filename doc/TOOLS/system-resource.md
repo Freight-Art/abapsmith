@@ -1,8 +1,11 @@
 # Resource: `abap://{SID}/system`
 
-The one MCP resource this server exposes. `{SID}` is the configured system
-ID, e.g. `abap://A4H/system`. Reading it triggers a connection (if not
-already connected) and returns a JSON document:
+This is the only MCP resource this server exposes, and normally the only
+one listed. With a [single system configured](../CONFIGURATION/multi-system.md),
+`{SID}` is that system's SID, e.g. `abap://A4H/system`; with more than one
+system configured, one such resource is registered per system, each keyed
+on that system's own SID. Reading one triggers a connection to that system
+(if not already connected) and returns a JSON document:
 
 ```json
 {
@@ -27,6 +30,25 @@ already connected) and returns a JSON document:
   }
 }
 ```
+
+This body's shape is the same whether one system is configured or several
+— every field is read off the resource's own system's context (its own
+connection, pool, safety gate and journal), so there is nothing in the
+document itself that names the system or lists any others. What differs
+by system count is which — and how many — resources get registered, and
+their name, title and URI:
+
+- With exactly one system configured, one resource is registered: name
+  `system`, title `ABAP system {SID}`, URI `abap://{SID}/system` — byte-
+  identical to before this feature existed.
+- With more than one system configured, one resource is registered per
+  system. Each one's name becomes `system-{alias-lowercase}` and its title
+  becomes `ABAP system {SID} ({ALIAS})`. The URI still defaults to
+  `abap://{SID}/system`, *unless* two configured systems share the same
+  SID, in which case the second one registers at
+  `abap://{SID}/system-{alias-lowercase}` instead, and the server prints a
+  stderr warning naming both the alias that collided and the alias it
+  collided with.
 
 `connection` and `discovery` reflect live session state. `sessions` is a
 snapshot of this process's own pool occupancy: `total` is the slots the pool
