@@ -124,13 +124,11 @@ function registered(conn: AbapConnection, journal: Journal): Map<string, { handl
   return tools;
 }
 
-// Deliberately no "src" frame here: METHOD emit_src (src/adt/fluid/builtin/ui.ts) emits a bare
-// unquoted integer for a src frame's "line", but the declared output schema (uiManifest, fcode
-// action) says every frame's "line" is a string - a real src frame fails validateAgainstSchema
-// (see test/fluid-builtin-ui.test.ts's round-trip test for that exact, unfixed mismatch). Including
-// one here would make dispatch() reject this fake transcript with FLUID_PROTOCOL_ERROR before this
-// tool-level test ever got to exercise rendering, so this fixture sticks to frame kinds whose "line"
-// really is a string (flow), to stay a valid schema round-trip.
+// No "src" frame here: this fixture only needs to exercise PAI-module/FCODE rendering, which
+// none of the frames below depend on. METHOD emit_src (src/adt/fluid/builtin/ui.ts) used to emit
+// a bare unquoted integer for a src frame's "line" against a schema that declares every frame's
+// "line" as a string; that mismatch is fixed (emit_src now quotes it, like every other frame) —
+// see test/fluid-builtin-ui.test.ts's round-trip test.
 const FRAMES: readonly unknown[] = [
   { kind: "target", program: "SAPMSVMA", dynpro: "0100", fcode_filter: "" },
   { kind: "flow", index: 1, line: "PROCESS AFTER INPUT." },
@@ -144,6 +142,68 @@ const FRAMES: readonly unknown[] = [
 function fcodeHappyPath(): (o: HttpClientOptions) => HttpClientResponse {
   const fluidRoute = dynamicUiFluidRoute({
     transcript: () => uiFcodeConsole(FRAMES),
+    packageName: FLUID_PACKAGE,
+  });
+  return (o: HttpClientOptions) => {
+    if (o.url.includes(SESSION_URL)) return resp(200, "<graph/>", LOGIN_HEADERS);
+    if (o.url.includes("/ato/settings")) return resp(200, "<settings/>", OK_XML);
+    if (o.url.includes(DATA_PREVIEW_PATH)) return systemRoleProbeResponse("nonproductive");
+    const fluid = fluidRoute(o);
+    if (fluid) return fluid;
+    return resp(200, "<ok/>", OK_XML);
+  };
+}
+
+// Frames for a synthetic MODULE MULTI_CASE with TWO top-level CASE ok_code statements (issue
+// #101, DEFECT 1) where the first CASE's WHEN 'ONE' branch remaps the dispatch variable with a
+// MOVE statement (DEFECT 2) to a literal ('REMAPPED') that only the SECOND CASE recognises. Tracing
+// fcode "ONE" end to end through the tool should surface BOTH the WHEN 'ONE' branch (first CASE)
+// and, via one-hop remap-following, the WHEN 'REMAPPED' branch (second CASE) with its own PERFORM,
+// plus a NOTE line carrying the remap provenance so a reader can see why a branch that doesn't
+// literally say 'ONE' is shown.
+const MULTI_CASE_MODULE_LINES: readonly string[] = [
+  "module multi_case.",
+  "case ok_code.",
+  "  when 'ONE'.",
+  "    move 'REMAPPED' to ok_code.",
+  "  when 'TWO'.",
+  "    perform handle_two.",
+  "endcase.",
+  "case ok_code.",
+  "  when 'REMAPPED'.",
+  "    perform handle_remapped.",
+  "  when 'THREE'.",
+  "    perform handle_three.",
+  "endcase.",
+  "endmodule.",
+];
+const MULTI_CASE_LINE_FROM = 500;
+const MULTI_CASE_LINE_TO = MULTI_CASE_LINE_FROM + MULTI_CASE_MODULE_LINES.length - 1;
+
+const MULTI_CASE_FRAMES: readonly unknown[] = [
+  { kind: "target", program: "SAPMSVMA", dynpro: "0100", fcode_filter: "" },
+  { kind: "flow", index: 1, line: "PROCESS AFTER INPUT." },
+  { kind: "pai_module", index: 1, name: "MULTI_CASE", at_exit: false, flow_line: 1 },
+  { kind: "cua", functions: [{ code: "ONE", text: "One", type: "E" }], fkeys: [] },
+  { kind: "include", name: "SAPMSVMA", lines: MULTI_CASE_LINE_TO },
+  { kind: "module", name: "MULTI_CASE", include: "SAPMSVMA", line_from: MULTI_CASE_LINE_FROM, line_to: MULTI_CASE_LINE_TO },
+  ...MULTI_CASE_MODULE_LINES.map((text, i) => ({ kind: "src", include: "SAPMSVMA", line: String(MULTI_CASE_LINE_FROM + i), text })),
+  {
+    kind: "summary",
+    program: "SAPMSVMA",
+    dynpro: "0100",
+    includes: 1,
+    includes_failed: 0,
+    modules: 1,
+    pai_modules: 1,
+    src_lines: MULTI_CASE_MODULE_LINES.length,
+    truncated: "",
+  },
+];
+
+function fcodeMultiCasePath(): (o: HttpClientOptions) => HttpClientResponse {
+  const fluidRoute = dynamicUiFluidRoute({
+    transcript: () => uiFcodeConsole(MULTI_CASE_FRAMES),
     packageName: FLUID_PACKAGE,
   });
   return (o: HttpClientOptions) => {
@@ -222,5 +282,25 @@ describe("abap_ui mode:\"fcode\"", () => {
     if (!text || text.type !== "text") throw new Error("expected a text content part");
     const parsed = JSON.parse(text.text) as { message: string };
     expect(parsed.message).toBe('mode:"fcode" needs either tcode, or both program and dynpro.');
+  });
+
+  it("DEFECT 1 + DEFECT 2 (issue #101): a module with two top-level CASE ok_code blocks and an in-branch MOVE remap renders BOTH branches, with remap provenance as a NOTE", async () => {
+    const { conn } = await connected(fcodeMultiCasePath());
+    const journal = new Journal({ dir: "/tmp/abapsmith-ui-fcode-tool-test", enabled: false, maxEntries: 0, maxAgeDays: 0 }, "A4H");
+    const tools = registered(conn, journal);
+
+    const result = await invoke(tools, "abap_ui", { mode: "fcode", program: "SAPMSVMA", dynpro: "0100", fcode: "ONE" });
+    const text = okText(result);
+
+    expect(text).toContain("MODULE MULTI_CASE");
+    // Both branches show up under the same module hit: the literal match (first CASE) and the
+    // one-hop remap target (second CASE) — a genuine multi-branch result from a single fcode.
+    expect(text).toContain("WHEN ONE — lines 502-503");
+    expect(text).toContain("WHEN REMAPPED — lines 508-509");
+    expect(text).toContain("- line 509: PERFORM handle_remapped");
+    // The remap provenance is surfaced generically via the notes pipeline (buildResponse renders
+    // f.notes as "NOTE: ..." lines) rather than inline on the WHEN line, since the per-branch
+    // renderer (renderModuleHit) is untouched by this fix.
+    expect(text).toMatch(/NOTE: fcode "ONE" in module MULTI_CASE: WHEN 'ONE' remaps to 'REMAPPED' at line 503/);
   });
 });

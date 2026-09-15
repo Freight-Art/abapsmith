@@ -69,6 +69,18 @@ const FPM_SOURCE = `CLASS zcl_zmcp_fluid_fpm DEFINITION
            END OF ty_ref,
            tt_ref TYPE STANDARD TABLE OF ty_ref WITH EMPTY KEY.
 
+    " Issue #101 Defect 3: FOR ALL ENTRIES requires the itab field and the DB
+    " column to have the same type AND length - ty_ref's STRING components
+    " (built for XML-derived values of unknown length) do not qualify against
+    " WDY_CONFIG_COMPT's fixed-length key fields, so this driver table is
+    " typed directly off that table's own key components instead.
+    TYPES: BEGIN OF ty_text_cfg,
+             config_id   TYPE wdy_config_compt-config_id,
+             config_type TYPE wdy_config_compt-config_type,
+             config_var  TYPE wdy_config_compt-config_var,
+           END OF ty_text_cfg,
+           tt_text_cfg TYPE STANDARD TABLE OF ty_text_cfg WITH EMPTY KEY.
+
     CLASS-METHODS find.
     CLASS-METHODS outline.
     CLASS-METHODS app.
@@ -651,6 +663,13 @@ CLASS zcl_zmcp_fluid_fpm IMPLEMENTATION.
     zcl_zmcp_fluid_rt=>out_chunk( lv_root_json ).
     zcl_zmcp_fluid_rt=>out( '' ).
 
+    " Driver table for the WDY_CONFIG_COMPT text-id lookup below (issue #101
+    " Defect 3): one (config_id, config_type, config_var) tuple per config
+    " actually read, root included, so a toolbar button's numeric TEXT
+    " (Transl="true") can be resolved no matter which config declared it.
+    DATA(lt_text_cfg) = VALUE tt_text_cfg(
+      ( config_id = lv_config_id config_type = lv_config_type config_var = lv_config_var ) ).
+
     DATA(lt_refs) = VALUE tt_ref( ).
     DATA(lo_root_el) = parse_doc( lv_root_xml ).
     IF lo_root_el IS BOUND.
@@ -745,6 +764,8 @@ CLASS zcl_zmcp_fluid_fpm IMPLEMENTATION.
       ENDIF.
 
       lv_configs_read = lv_configs_read + 1.
+      APPEND VALUE ty_text_cfg( config_id = ls_child-config_id config_type = lv_child_type
+                                config_var = ls_child-config_var ) TO lt_text_cfg.
       DATA(lv_child_json) =
         |\\{"kind":"config","role":"child",| &&
         |"ref_node":"{ zcl_zmcp_fluid_rt=>esc( ls_child-ref_node ) }",| &&
@@ -762,6 +783,39 @@ CLASS zcl_zmcp_fluid_fpm IMPLEMENTATION.
         walk_bo( EXPORTING io_node = lo_child_el CHANGING ct_bo = lt_bo ).
       ENDIF.
     ENDLOOP.
+
+    " Issue #101 Defect 3: a toolbar/button-row TEXT marked Transl="true" is
+    " a WDY_CONFIG_COMPT text_id, not a label - resolve every text_id that
+    " belongs to any config actually read above in one shot. Unconditional
+    " (not gated by resolve=true): unlike the BOPF/fpm_event catalogues this
+    " is a targeted, bounded read (one row per config already in hand), not
+    " an extra whole-system fetch.
+    DATA(lv_text_ids) = 0.
+    IF lt_text_cfg IS NOT INITIAL.
+      TRY.
+          SELECT config_id, config_type, config_var, langu, text_id, description
+            FROM wdy_config_compt
+            FOR ALL ENTRIES IN @lt_text_cfg
+            WHERE config_id = @lt_text_cfg-config_id
+              AND config_type = @lt_text_cfg-config_type
+              AND config_var = @lt_text_cfg-config_var
+            INTO TABLE @DATA(lt_texts).
+          LOOP AT lt_texts INTO DATA(ls_text).
+            lv_text_ids = lv_text_ids + 1.
+            zcl_zmcp_fluid_rt=>out(
+              |\\{"kind":"text_id",| &&
+              |"config_id":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_text-config_id ) ) }",| &&
+              |"config_type":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_text-config_type ) ) }",| &&
+              |"config_var":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_text-config_var ) ) }",| &&
+              |"langu":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_text-langu ) ) }",| &&
+              |"text_id":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_text-text_id ) ) }",| &&
+              |"description":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_text-description ) ) }"\\}| ).
+          ENDLOOP.
+        CATCH cx_root INTO DATA(lx_text).
+          zcl_zmcp_fluid_rt=>out(
+            |\\{"kind":"text_id_error","text":"{ zcl_zmcp_fluid_rt=>esc( lx_text->get_text( ) ) }"\\}| ).
+      ENDTRY.
+    ENDIF.
 
     DATA(lv_bopf_nodes)   = 0.
     DATA(lv_bopf_actions) = 0.
@@ -781,8 +835,9 @@ CLASS zcl_zmcp_fluid_fpm IMPLEMENTATION.
             IF NOT ls_fpm_const-cmpname CP 'GC_EVENT_*'.
               CONTINUE.
             ENDIF.
-            DATA(lv_raw_val) = ls_fpm_const-attvalue.
-            DATA(lv_raw_len) = strlen( lv_raw_val ).
+            DATA(lv_raw_val) = CONV string( ls_fpm_const-attvalue ).
+            DATA lv_raw_len TYPE i.
+            lv_raw_len = strlen( lv_raw_val ).
             DATA(lv_event_id) = lv_raw_val.
             IF lv_raw_len >= 2 AND substring( val = lv_raw_val len = 1 ) = \`'\`
                 AND substring( val = lv_raw_val off = lv_raw_len - 1 len = 1 ) = \`'\`.
@@ -791,7 +846,7 @@ CLASS zcl_zmcp_fluid_fpm IMPLEMENTATION.
             REPLACE ALL OCCURRENCES OF \`''\` IN lv_event_id WITH \`'\`.
             lv_fpm_events = lv_fpm_events + 1.
             zcl_zmcp_fluid_rt=>out(
-              |\\{"kind":"fpm_event","name":"{ zcl_zmcp_fluid_rt=>esc( ls_fpm_const-cmpname ) }",| &&
+              |\\{"kind":"fpm_event","name":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_fpm_const-cmpname ) ) }",| &&
               |"event_id":"{ zcl_zmcp_fluid_rt=>esc( lv_event_id ) }"\\}| ).
           ENDLOOP.
         CATCH cx_root INTO DATA(lx_fpm_ev).
@@ -831,7 +886,7 @@ CLASS zcl_zmcp_fluid_fpm IMPLEMENTATION.
         TRY.
             SELECT act_name, act_key, node_key, act_class, act_cat FROM /bobf/act_list
               WHERE name = @lv_bo AND version = '00000'
-              INTO TABLE @DATA(lt_acts) UP TO 200 ROWS.
+              INTO TABLE @DATA(lt_acts).
             LOOP AT lt_acts INTO DATA(ls_act).
               lv_bopf_actions = lv_bopf_actions + 1.
               DATA(lv_an)   = |{ ls_act-act_name }|.
@@ -859,7 +914,8 @@ CLASS zcl_zmcp_fluid_fpm IMPLEMENTATION.
       |\\{"kind":"summary","configs_read":{ lv_configs_read },| &&
       |"configs_failed":{ lv_configs_failed },"configs_skipped":{ lv_configs_skipped },| &&
       |"bopf_nodes":{ lv_bopf_nodes },"bopf_actions":{ lv_bopf_actions },| &&
-      |"fpm_events":{ lv_fpm_events },| &&
+      |"fpm_events":{ lv_fpm_events },"text_ids":{ lv_text_ids },| &&
+      |"logon_langu":"{ zcl_zmcp_fluid_rt=>esc( CONV string( sy-langu ) ) }",| &&
       |"truncated":"{ zcl_zmcp_fluid_rt=>esc( lv_trunc ) }"\\}| ).
   ENDMETHOD.
 
@@ -1074,7 +1130,7 @@ export const fpmManifest: FluidManifest = {
       output: {
         type: "array",
         description:
-          'One kind="config" row for the root and each referenced config read or skipped, then (if resolve=true) kind="fpm_event"/"fpm_event_error" and kind="bopf_node"/"bopf_action"/"bopf_error" rows, then exactly one final kind="summary" row.',
+          'One kind="config" row for the root and each referenced config read or skipped, then kind="text_id"/"text_id_error" rows (WDY_CONFIG_COMPT lookup for every config read, unconditional), then (if resolve=true) kind="fpm_event"/"fpm_event_error" and kind="bopf_node"/"bopf_action"/"bopf_error" rows, then exactly one final kind="summary" row.',
         items: {
           type: "object",
           required: ["kind"],
@@ -1083,6 +1139,8 @@ export const fpmManifest: FluidManifest = {
               type: "string",
               enum: [
                 "config",
+                "text_id",
+                "text_id_error",
                 "fpm_event",
                 "fpm_event_error",
                 "bopf_node",
@@ -1101,6 +1159,9 @@ export const fpmManifest: FluidManifest = {
             xml: { type: "string", description: "Decoded UTF-8 config XML; present on successfully read config rows." },
             skipped: { type: "string", description: 'child config rows only: "uibb-filter" when excluded by the uibb input.' },
             read_error: { type: "string", description: "child config rows only: set instead of xml when the re-read failed." },
+            langu: { type: "string", description: "text_id rows only: WDY_CONFIG_COMPT-LANGU, SAP's 1-char legacy language code (e.g. E, D), not ISO." },
+            text_id: { type: "string", description: 'text_id rows only: WDY_CONFIG_COMPT-TEXT_ID, the same numeric key a Transl="true" TEXT element holds.' },
+            description: { type: "string", description: "text_id rows only: WDY_CONFIG_COMPT-DESCRIPTION, the resolved label for text_id/langu." },
             name: { type: "string", description: "fpm_event rows only: the CL_FPM_EVENT constant name, e.g. GC_EVENT_OPEN_POPUP." },
             event_id: { type: "string", description: "fpm_event rows only: the constant's string value." },
             bo: { type: "string", description: "bopf_node/bopf_action/bopf_error rows: the BOPF BO name." },
@@ -1111,13 +1172,15 @@ export const fpmManifest: FluidManifest = {
             act_key: { type: "string" },
             act_class: { type: "string" },
             act_cat: { type: "string" },
-            text: { type: "string", description: "fpm_event_error/bopf_error rows only: the caught exception's text." },
+            text: { type: "string", description: "fpm_event_error/bopf_error/text_id_error rows only: the caught exception's text." },
             configs_read: { type: "integer" },
             configs_failed: { type: "integer" },
             configs_skipped: { type: "integer" },
             bopf_nodes: { type: "integer" },
             bopf_actions: { type: "integer" },
             fpm_events: { type: "integer" },
+            text_ids: { type: "integer", description: "summary row only: count of text_id rows emitted." },
+            logon_langu: { type: "string", description: "summary row only: SY-LANGU, the calling user's logon language (1-char legacy code) used to pick text_id rows." },
             truncated: { type: "string", description: 'summary row only: "" | "configs" | "bopf".' },
           },
         },

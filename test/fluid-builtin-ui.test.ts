@@ -309,9 +309,9 @@ describe("uiManifest / uiSources", () => {
       { kind: "cua" },
       { kind: "include", name: "SAPMSVMA", lines: 220 },
       { kind: "module", name: "EXIT_COMMAND", include: "SAPMSVMA", line_from: 453, line_to: 458 },
-      // emit_src's ABAP emits "line" as a bare (unquoted) integer literal - lv_j is TYPE i - not a
-      // JSON string, so this fixture deliberately uses a number here to match the real wire shape.
-      { kind: "src", include: "SAPMSVMA", line: 454, text: "set screen 0." },
+      // emit_src's ABAP emits "line" quoted (`"line":"{ lv_j }"`), same as every other frame's
+      // "line" field, so this fixture uses a string here to match the real wire shape.
+      { kind: "src", include: "SAPMSVMA", line: "454", text: "set screen 0." },
       { kind: "summary", program: "SAPMSVMA", dynpro: "0100", includes: 1, includes_failed: 0, modules: 1, pai_modules: 1, src_lines: 1, truncated: "" },
     ];
 
@@ -329,13 +329,9 @@ describe("uiManifest / uiSources", () => {
     expect(transcript.values).toEqual(frames);
 
     const schemaErrors = validateAgainstSchema(transcript.values, fcodeAction.output, "result");
-    // Every frame kind validates cleanly against fcodeAction.output.items EXCEPT "src": the
-    // manifest declares "line" as a single `{ type: "string" }` shared between "flow" frames
-    // (where the line really is a string of flow-logic text) and "src" frames (where emit_src
-    // emits a bare, unquoted ABAP integer). JSON Schema has no per-discriminant-value typing
-    // here, so this is a genuine, provable mismatch between the declared schema and the real
-    // wire format for "src" frames - not a bug in this test. It is not fixed here because doing
-    // so is production code, out of scope for this test-only change.
-    expect(schemaErrors).toEqual(["result[6].line: must be a string"]);
+    // Every frame kind validates cleanly against fcodeAction.output.items, including "src":
+    // emit_src now quotes "line" the same way every other frame does, so the declared
+    // `{ type: "string" }` schema and the real wire format agree.
+    expect(schemaErrors).toEqual([]);
   });
 });

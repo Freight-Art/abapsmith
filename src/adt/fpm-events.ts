@@ -23,6 +23,7 @@
  * by position, and every field access tolerates "absent".
  */
 import { XMLParser } from "fast-xml-parser";
+import { truncateText, MESSAGE_EXCERPT_MAX } from "../truncate.js";
 
 // ---------------------------------------------------------------------------
 // Raw frames — mirrors fpmManifest's "events" action output exactly
@@ -79,6 +80,29 @@ export interface FpmEventsBopfErrorFrame {
   text: string;
 }
 
+/**
+ * One WDY_CONFIG_COMPT row (issue #101 Defect 3) — the real per-text-id
+ * resolution table for a toolbar/button TEXT marked `Transl="true"`,
+ * confirmed live against `/BOFU/TEST_FBI_SALES_ORDER_OVP` (TEXT_ID 30 ->
+ * "Change", 34 -> "Save", 38 -> "Read-Only", 42 -> "Refresh", 46 ->
+ * "Cancel", 12 -> "Start"). `langu` is SAP's 1-char legacy code (E/D/...),
+ * not ISO 639-1.
+ */
+export interface FpmEventsTextIdFrame {
+  kind: "text_id";
+  config_id: string;
+  config_type: string;
+  config_var: string;
+  langu: string;
+  text_id: string;
+  description: string;
+}
+
+export interface FpmEventsTextIdErrorFrame {
+  kind: "text_id_error";
+  text: string;
+}
+
 export interface FpmEventsSummaryFrame {
   kind: "summary";
   configs_read: number;
@@ -87,6 +111,10 @@ export interface FpmEventsSummaryFrame {
   bopf_nodes: number;
   bopf_actions: number;
   fpm_events: number;
+  /** Count of `text_id` frames emitted (issue #101 Defect 3). */
+  text_ids: number;
+  /** SY-LANGU at read time: the calling user's logon language, 1-char legacy code. Used by text_id resolution's language fallback (logon language -> "E" -> whatever exists — no master-language field exists on this table to try an "original language" step). */
+  logon_langu: string;
   truncated: string;
 }
 
@@ -97,6 +125,8 @@ export type FpmEventsFrame =
   | FpmEventsBopfNodeFrame
   | FpmEventsBopfActionFrame
   | FpmEventsBopfErrorFrame
+  | FpmEventsTextIdFrame
+  | FpmEventsTextIdErrorFrame
   | FpmEventsSummaryFrame;
 
 export interface FpmEventsRaw {
@@ -106,6 +136,8 @@ export interface FpmEventsRaw {
   bopfNodes: FpmEventsBopfNodeFrame[];
   bopfActions: FpmEventsBopfActionFrame[];
   bopfErrors: FpmEventsBopfErrorFrame[];
+  textIds: FpmEventsTextIdFrame[];
+  textIdErrors: FpmEventsTextIdErrorFrame[];
   summary?: FpmEventsSummaryFrame;
   /** Frames whose "kind" didn't match anything above — a protocol drift, not swallowed silently. */
   unrecognised: unknown[];
@@ -130,6 +162,8 @@ export function splitEventFrames(values: readonly unknown[]): FpmEventsRaw {
     bopfNodes: [],
     bopfActions: [],
     bopfErrors: [],
+    textIds: [],
+    textIdErrors: [],
     summary: undefined,
     unrecognised: [],
   };
@@ -158,6 +192,12 @@ export function splitEventFrames(values: readonly unknown[]): FpmEventsRaw {
       case "bopf_error":
         raw.bopfErrors.push(v as unknown as FpmEventsBopfErrorFrame);
         break;
+      case "text_id":
+        raw.textIds.push(v as unknown as FpmEventsTextIdFrame);
+        break;
+      case "text_id_error":
+        raw.textIdErrors.push(v as unknown as FpmEventsTextIdErrorFrame);
+        break;
       case "summary":
         raw.summary = v as unknown as FpmEventsSummaryFrame;
         break;
@@ -176,9 +216,59 @@ export function splitEventFrames(values: readonly unknown[]): FpmEventsRaw {
 export interface FpmEventHandlerBopf {
   kind: "bopf";
   bo: string;
-  /** Ready-to-run follow-up: `abap_bopf`'s param is `bo`, not `node`/`action` — see this file's header note on the discrepancy this corrects. */
+  /**
+   * The BOPF node this handler acts on, taken from the config's own BO/NODE
+   * pairing (an Item's NAME=BO/VALUE with a sibling NAME=NODE/VALUE, or a
+   * literal `<BO>`/`<NODE>` sibling pair — see `collectBoNodePairs`), never
+   * from EVENT_PARAMETERS (always empty in every observed config). Kept
+   * even when it does not exist in `/BOBF/OBM_NODE` (see `note`) — only left
+   * undefined when the config pairs no NODE with this BO at all.
+   */
+  node?: string;
+  /**
+   * The BOPF action this handler runs. The only candidate available is the
+   * raw event id itself (again, EVENT_PARAMETERS is always empty), cross-
+   * checked against `/BOBF/ACT_LIST`. Left undefined — with `note` always
+   * explaining why — whenever that cannot be confirmed, including the
+   * expected case of FBI framework events (FBI_CREATE/FBI_DELETE/...) whose
+   * real BOPF action is mapped internally by the FBI connector and never
+   * appears anywhere in configuration.
+   */
+  action?: string;
+  /** Explains any gap in `node`/`action` above: unverifiable (no BOPF catalogue was fetched — pass resolve=true), not found in the catalogue, or not determinable from configuration at all. Always present when `node` or `action` is either undefined or unverified. */
+  note?: string;
+  /**
+   * Ready-to-run follow-up. Deliberately still just `{"mode":"show","bo":...}`,
+   * not `node`/`action` embedded: `abap_bopf`'s own read-tool schema
+   * (src/tools/bopf.ts `bopfInputSchema`) only accepts
+   * mode/bo/query/object_type/max_results/max_sites — it has no node/action
+   * parameters at all (those exist only on the separate write tool
+   * `abap_bopf_edit`) — so putting them in this JSON string would be
+   * silently stripped by the tool's own schema and would misrepresent what
+   * the call does. `mode:"show"` already returns the BO's full digest,
+   * including every node/action name, which is the most specific call this
+   * tool supports; `node`/`action` are surfaced as their own fields instead.
+   */
   call: string;
 }
+
+/**
+ * Maps a generic FPM GUIBB component name (WDY_CONFIG_DATA/_APPL's own
+ * COMPONENT column, already on `FpmEventsConfigFrame.component`) to the
+ * interface that declares its event entry point. LIST/FORM/SEARCH are each
+ * confirmed live: every one declares its own `PROCESS_EVENT` method (not
+ * inherited from the generic IF_FPM_GUIBB base, which only carries
+ * GET_PARAMETER_LIST/INITIALIZE). TREE has no dedicated interface at all —
+ * mapped to LIST's by symmetry, NOT independently confirmed. FORM_REPEATER/
+ * LAUNCHPAD/CAROUSEL/CHART interfaces exist but their PROCESS_EVENT was not
+ * read live, so they are deliberately absent here rather than guessed.
+ */
+const FEEDER_INTERFACE_BY_COMPONENT: Readonly<Record<string, string>> = {
+  FPM_LIST_UIBB: "IF_FPM_GUIBB_LIST",
+  FPM_FORM_UIBB: "IF_FPM_GUIBB_FORM",
+  FPM_SEARCH_UIBB: "IF_FPM_GUIBB_SEARCH",
+  FPM_TREE_UIBB: "IF_FPM_GUIBB_LIST",
+};
 
 export interface FpmEventHandlerFeeder {
   kind: "feeder";
@@ -186,6 +276,16 @@ export interface FpmEventHandlerFeeder {
   configId: string;
   configType: string;
   configVar: string;
+  /**
+   * Interface-qualified GUIBB event entry point, e.g.
+   * "IF_FPM_GUIBB_LIST~PROCESS_EVENT" — see `FEEDER_INTERFACE_BY_COMPONENT`.
+   * Undefined when the target config's own COMPONENT does not match a known
+   * generic FPM GUIBB kind (a fully custom component, or one of the kinds
+   * not independently confirmed).
+   */
+  method?: string;
+  /** `abap_read {"object":"<feederClass>","method":"<method>"}` — only set alongside `method`. */
+  call?: string;
 }
 
 export interface FpmEventHandlerAppController {
@@ -201,9 +301,34 @@ export interface FpmEventHandlerStandard {
   verified: boolean;
 }
 
+export interface FpmEventHandlerActionImpl {
+  kind: "action_impl";
+  /**
+   * ABAP class named in an FBI action's ACTION_IMPL. A concrete handler —
+   * this action IS implemented by this class — but not itself a config/BO/
+   * event, so there is nothing further here to follow.
+   */
+  implClass: string;
+}
+
 export interface FpmEventHandlerUnresolved {
   kind: "unresolved";
   reason: string;
+  /**
+   * Serialisation of the raw XML element (or other frame) the resolver was
+   * looking at when it gave up classifying it — issue #101's "unknown XML
+   * shapes → unresolved with the raw element excerpt, never silently
+   * dropped". This is `JSON.stringify` of the parsed element (fast-xml-parser
+   * output), not the original XML bytes — this module's parser does not keep
+   * source offsets — but it is exactly the shape the resolver examined, so
+   * nothing about the offending element is lost. Truncated with
+   * `truncateText`/`MESSAGE_EXCERPT_MAX` (src/truncate.ts) when long, never a
+   * hand-rolled slice. Left absent only when the failure is purely logical —
+   * no element was ever involved to excerpt (none of the sites in this file
+   * hit that case today; every `unresolved` handler here is built from a
+   * parsed Item/Node).
+   */
+  excerpt?: string;
 }
 
 export type FpmEventHandler =
@@ -211,6 +336,7 @@ export type FpmEventHandler =
   | FpmEventHandlerFeeder
   | FpmEventHandlerAppController
   | FpmEventHandlerStandard
+  | FpmEventHandlerActionImpl
   | FpmEventHandlerUnresolved;
 
 export interface FpmEventRow {
@@ -220,8 +346,22 @@ export interface FpmEventRow {
   configVar: string;
   source: "toolbar" | "uibb_toolbar" | "button_row" | "fbi_action";
   elementId: string;
-  /** Raw TEXT/HEADER value — often a bare number (a WDY_CONFIG_DATT/_APPT text-table key), see the module note below. */
+  /**
+   * The element's label. When the raw TEXT/HEADER value carried
+   * `Transl="true"` and a matching WDY_CONFIG_COMPT row was found (see
+   * `textKey`, and the module's final "text keys" note), this is the
+   * resolved DESCRIPTION, not the bare key. Otherwise (not translatable, or
+   * translatable but unresolved) this is the raw value as captured, exactly
+   * as before Defect 3.
+   */
   text?: string;
+  /**
+   * Present only when the raw TEXT/HEADER value carried `Transl="true"` —
+   * the original WDY_CONFIG_COMPT `text_id` key, kept alongside the
+   * (possibly resolved) `text` above so the raw key is never lost even when
+   * resolution succeeds.
+   */
+  textKey?: string;
   /** Decoded TYPE/DISPLAY_TYPE label, e.g. "Button", "Toggle Button" — the raw code if not in the known domain values. */
   elementType?: string;
   eventId?: string;
@@ -291,6 +431,20 @@ function text(v: unknown): string {
   return String(v);
 }
 
+/**
+ * Same normalisation as `text()`, but also reports whether the element
+ * carried `Transl="true"` — the marker (issue #101 Defect 3) that a bare
+ * numeric value is a WDY_CONFIG_COMPT `text_id` key rather than a literal
+ * label. Confirmed live: `<TEXT Transl="true">30</TEXT>` etc. in
+ * test/fixtures/fpm-events/ovp-test-fbi-sales-order.config.xml, matching
+ * exactly that fixture's real /BOFU/TEST_FBI_SALES_ORDER_OVP TEXT_ID rows.
+ */
+function textTransl(v: unknown): { value: string; translatable: boolean } {
+  const value = text(v);
+  const translatable = isRecord(v) && v["@_Transl"] === "true";
+  return { value, translatable };
+}
+
 function items(node: unknown): Record<string, unknown>[] {
   if (!isRecord(node)) return [];
   return asArray(node["Item"] as Record<string, unknown> | Record<string, unknown>[] | undefined).filter(isRecord);
@@ -341,8 +495,12 @@ interface ToolbarButtonRaw {
   source: "toolbar" | "uibb_toolbar";
   elementId: string;
   text: string;
+  /** True when TEXT carried `Transl="true"` — `text` is a WDY_CONFIG_COMPT text_id key, not a literal label (issue #101 Defect 3). */
+  textTransl: boolean;
   type: string;
   actionIds: string[];
+  /** The parsed BUTTON Item this row came from — excerpted into an unresolved handler, never dropped. */
+  raw: Record<string, unknown>;
 }
 
 const FPM_BUTTON_TYPE: Readonly<Record<string, string>> = {
@@ -367,12 +525,15 @@ function collectToolbarButtons(root: Record<string, unknown>): ToolbarButtonRaw[
             .flatMap((n) => items(n))
             .map((i) => text(i["ACTION_ID"]))
             .filter((id) => id !== "");
+          const btnText = textTransl(buttonItem["TEXT"]);
           rows.push({
             source,
             elementId,
-            text: text(buttonItem["TEXT"]),
+            text: btnText.value,
+            textTransl: btnText.translatable,
             type: text(buttonItem["TYPE"]),
             actionIds: subActionIds.length ? subActionIds : elementId ? [elementId] : [],
+            raw: buttonItem,
           });
         }
       }
@@ -389,8 +550,12 @@ function collectToolbarButtons(root: Record<string, unknown>): ToolbarButtonRaw[
 interface ButtonRowRaw {
   elementId: string;
   text: string;
+  /** True when TEXT carried `Transl="true"` — `text` is a WDY_CONFIG_COMPT text_id key, not a literal label (issue #101 Defect 3). */
+  textTransl: boolean;
   displayType: string;
   events: { eventId: string; text: string }[];
+  /** The parsed BUTTON_ROW_ELEMENT Item this row came from — excerpted into an unresolved handler, never dropped. */
+  raw: Record<string, unknown>;
 }
 
 const FPMGB_DISPLAY_TYPE: Readonly<Record<string, string>> = {
@@ -409,11 +574,14 @@ function collectButtonRows(root: Record<string, unknown>): ButtonRowRaw[] {
         const events = findAllNodesByName(elItem, "BUTTON_ACTION")
           .flatMap((n) => items(n))
           .map((i) => ({ eventId: text(i["EVENT_ID"]), text: text(i["TEXT"]) }));
+        const rowText = textTransl(elItem["TEXT"]);
         rows.push({
           elementId: text(elItem["ELEMENT_ID"]),
-          text: text(elItem["TEXT"]),
+          text: rowText.value,
+          textTransl: rowText.translatable,
           displayType: text(elItem["DISPLAY_TYPE"]),
           events,
+          raw: elItem,
         });
       }
     }
@@ -431,9 +599,13 @@ interface FbiActionRaw {
   actionImpl: string;
   actionConf: string;
   text: string;
+  /** True when TEXT carried `Transl="true"` — `text` is a WDY_CONFIG_COMPT text_id key, not a literal label (issue #101 Defect 3). */
+  textTransl: boolean;
   tooltip: string;
   enabled: string;
   navRole: string;
+  /** The parsed ACTIONS Item this row came from — excerpted into an unresolved handler, never dropped. */
+  raw: Record<string, unknown>;
 }
 
 function collectFbiActions(root: Record<string, unknown>): FbiActionRaw[] {
@@ -442,14 +614,17 @@ function collectFbiActions(root: Record<string, unknown>): FbiActionRaw[] {
     for (const ctxItem of items(ctxNode)) {
       for (const actionsNode of findAllNodesByName(ctxItem, "ACTIONS")) {
         for (const item of items(actionsNode)) {
+          const actionText = textTransl(item["TEXT"]);
           rows.push({
             actionId: text(item["ACTIONID"]),
             actionImpl: text(item["ACTION_IMPL"]),
             actionConf: text(item["ACTION_CONF"]),
-            text: text(item["TEXT"]),
+            text: actionText.value,
+            textTransl: actionText.translatable,
             tooltip: text(item["TOOLTIP"]),
             enabled: text(item["ENABLED"]),
             navRole: text(item["NAV_ROLE"]),
+            raw: item,
           });
         }
       }
@@ -503,6 +678,42 @@ function stripCounterSuffix(id: string): string {
 
 function findAction(actions: ActionCatalogueRow[], actionId: string): ActionCatalogueRow | undefined {
   return actions.find((a) => a.id === actionId) ?? actions.find((a) => stripCounterSuffix(a.id) === actionId);
+}
+
+/**
+ * Serialises the raw parsed XML element (or other frame) an unresolved
+ * handler could not classify, for `FpmEventHandlerUnresolved.excerpt` — see
+ * that field's doc comment. `JSON.stringify` rather than the original XML
+ * bytes (this module's parser keeps no source offsets); truncated with the
+ * shared `truncateText` helper, never a hand-rolled `.slice()`, so a long
+ * element still discloses that it was cut.
+ */
+function excerptOf(el: unknown): string {
+  let raw: string;
+  try {
+    raw = JSON.stringify(el) ?? String(el);
+  } catch {
+    raw = String(el);
+  }
+  return truncateText(raw, MESSAGE_EXCERPT_MAX);
+}
+
+/** Attaches `excerptOf(raw)` to `handler` iff it is unresolved — every other kind is a concrete answer with nothing to excerpt. */
+function withExcerpt(handler: FpmEventHandler, raw: unknown): FpmEventHandler {
+  return handler.kind === "unresolved" ? { ...handler, excerpt: excerptOf(raw) } : handler;
+}
+
+/**
+ * Finds an already-parsed config by its bare `config_id` alone, ignoring
+ * type/var — used for FBI ACTION_CONF, which names a config_id but (unlike
+ * ACTION/WIRE targets) carries no CONFIG_TYPE/CONFIG_VAR of its own. Only
+ * ever finds a hit when that config happens to have been fetched some other
+ * way (e.g. it's the root, or another element's CONFIG_ID reference reached
+ * it) — walk_refs (fluid/builtin/fpm.ts) does not follow ACTION_CONF itself.
+ */
+function findConfigByBareId(configs: readonly ParsedConfig[], configId: string): ParsedConfig | undefined {
+  const norm = configId.trim().toUpperCase();
+  return configs.find((c) => c.configId.trim().toUpperCase() === norm);
 }
 
 // ---------------------------------------------------------------------------
@@ -593,6 +804,45 @@ function collectBoNames(root: Record<string, unknown>): string[] {
   return [...out];
 }
 
+/**
+ * Pairs each BO name `collectBoNames` finds with whatever NODE sits
+ * alongside it in the SAME Item — the config's own BO/NODE pairing (issue
+ * #101 Defect 1), never EVENT_PARAMETERS (always empty in every observed
+ * config). Mirrors `collectBoNames`'s two known shapes: a literal `<BO>`/
+ * `<NODE>` sibling pair (FBI VIEW HEADER, e.g.
+ * test/fixtures/fpm/36-BOFU_DEMO_SO_HDR_VIEW.full-config.xml), and a
+ * PARAMETER Item's NAME=BO/VALUE with a sibling Item's NAME=NODE/VALUE
+ * (GUIBB PARAMETER, e.g.
+ * test/fixtures/fpm-events/list-uibb-test-sales-order-item.config.xml).
+ * `node` is left undefined when a BO is found with no paired NODE anywhere
+ * in the same Item — the caller (`classifyHandler`/`buildBopfHandler`) is
+ * responsible for surfacing that gap via a `note`, not this collector.
+ */
+interface BoNodePair {
+  bo: string;
+  node?: string;
+}
+
+function collectBoNodePairs(root: Record<string, unknown>): BoNodePair[] {
+  const out: BoNodePair[] = [];
+  const walk = (el: unknown): void => {
+    if (!isRecord(el)) return;
+    const literalBo = text(el["BO"]);
+    if (literalBo) out.push({ bo: literalBo, node: text(el["NODE"]) || undefined });
+    const nameValue = new Map<string, string>();
+    for (const item of items(el)) {
+      const name = text(item["NAME"]);
+      if (name) nameValue.set(name, text(item["VALUE"]));
+    }
+    const paramBo = nameValue.get("BO");
+    if (paramBo) out.push({ bo: paramBo, node: nameValue.get("NODE") || undefined });
+    for (const item of items(el)) walk(item);
+    for (const node of asArray(el["Node"] as Record<string, unknown> | Record<string, unknown>[] | undefined)) walk(node);
+  };
+  walk(root);
+  return out;
+}
+
 // ---------------------------------------------------------------------------
 // resolveFpmEvents — ties everything above together.
 // ---------------------------------------------------------------------------
@@ -601,6 +851,8 @@ interface ParsedConfig {
   configId: string;
   configType: string;
   configVar: string;
+  /** WDY_CONFIG_DATA/_APPL's own COMPONENT column (FpmEventsConfigFrame.component) — the generic FPM GUIBB kind, e.g. "FPM_LIST_UIBB", or a fully custom component. Used to name the feeder's PROCESS_EVENT interface (Defect 2). */
+  component: string;
   root: Record<string, unknown>;
   actions: ActionCatalogueRow[];
   toolbarButtons: ToolbarButtonRaw[];
@@ -610,19 +862,21 @@ interface ParsedConfig {
   appSpecificCC?: { component: string; configId: string; configType: string; configVar: string };
   feeders: string[];
   boNames: string[];
+  boNodePairs: BoNodePair[];
 }
 
 function normKey(configId: string, configType: string | undefined, configVar: string | undefined): string {
   return `${configId.trim().toUpperCase()}|${(configType || "00").trim().toUpperCase()}|${(configVar ?? "").trim().toUpperCase()}`;
 }
 
-function parseConfig(frame: { config_id: string; config_type: string; config_var: string; xml?: string }): ParsedConfig | undefined {
+function parseConfig(frame: { config_id: string; config_type: string; config_var: string; component?: string; xml?: string }): ParsedConfig | undefined {
   const root = frame.xml ? parseConfigXml(frame.xml) : undefined;
   if (!root) return undefined;
   return {
     configId: frame.config_id,
     configType: frame.config_type || "00",
     configVar: frame.config_var,
+    component: frame.component ?? "",
     root,
     actions: collectActions(root),
     toolbarButtons: collectToolbarButtons(root),
@@ -632,6 +886,7 @@ function parseConfig(frame: { config_id: string; config_type: string; config_var
     appSpecificCC: collectAppSpecificCC(root),
     feeders: collectFeeders(root),
     boNames: collectBoNames(root),
+    boNodePairs: collectBoNodePairs(root),
   };
 }
 
@@ -642,10 +897,84 @@ interface HandlerTarget {
   configVar?: string;
 }
 
+/**
+ * Builds the "bopf" handler's node/action/note (Defect 1). `bo` and
+ * `nodeCandidate` come from the target config's own `collectBoNodePairs`
+ * result; `eventId` is the only available action-name candidate (raw event
+ * id — EVENT_PARAMETERS is always empty). Cross-checks both against the
+ * BOPF catalogue frames (`/BOBF/OBM_NODE`/`/BOBF/ACT_LIST`, only fetched
+ * when `resolve=true`) without ever silently dropping a name that fails
+ * verification — see the field doc comments on FpmEventHandlerBopf.
+ */
+function buildBopfHandler(
+  bo: string,
+  nodeCandidate: string | undefined,
+  eventId: string,
+  ctx: {
+    bopfNodes: readonly FpmEventsBopfNodeFrame[];
+    bopfActions: readonly FpmEventsBopfActionFrame[];
+    bopfErrors: readonly FpmEventsBopfErrorFrame[];
+  },
+): FpmEventHandlerBopf {
+  const call = `abap_bopf {"mode":"show","bo":"${bo}"}`;
+  const nodesForBo = ctx.bopfNodes.filter((n) => n.bo === bo);
+  const actionsForBo = ctx.bopfActions.filter((a) => a.bo === bo);
+  const errorForBo = ctx.bopfErrors.find((e) => e.bo === bo);
+  const catalogueFetched = nodesForBo.length > 0 || actionsForBo.length > 0 || errorForBo !== undefined;
+
+  const notes: string[] = [];
+  if (errorForBo) {
+    notes.push(`the /BOBF/OBM_NODE + /BOBF/ACT_LIST read for BO "${bo}" failed (${errorForBo.text}) — node/action below are unverified.`);
+  } else if (!catalogueFetched) {
+    notes.push(`node/action were not verified against /BOBF/OBM_NODE or /BOBF/ACT_LIST for BO "${bo}" — pass resolve=true to fetch that catalogue.`);
+  }
+
+  const node = nodeCandidate || undefined;
+  if (!nodeCandidate) {
+    notes.push(`no NODE is paired with BO "${bo}" anywhere in this button's config — cannot say which BOPF node this handler acts on.`);
+  } else if (catalogueFetched && !errorForBo && !nodesForBo.some((n) => n.node_name === nodeCandidate)) {
+    notes.push(`node "${nodeCandidate}" was not found in /BOBF/OBM_NODE for BO "${bo}" — kept as-is rather than dropped, but unverified.`);
+  }
+
+  const matchedNode = nodeCandidate ? nodesForBo.find((n) => n.node_name === nodeCandidate) : undefined;
+  const candidateActions = matchedNode ? actionsForBo.filter((a) => a.node_key === matchedNode.node_key) : actionsForBo;
+
+  let action: string | undefined;
+  if (!eventId) {
+    notes.push("no event id was available to try as a BOPF action name.");
+  } else if (catalogueFetched && !errorForBo) {
+    const matchedAction = candidateActions.find((a) => a.act_name === eventId);
+    if (matchedAction) {
+      action = eventId;
+    } else if (eventId.startsWith("FBI_")) {
+      notes.push(
+        `event "${eventId}" is an FBI framework event — its real BOPF action is mapped internally by the FBI connector and never appears in /BOBF/ACT_LIST or anywhere else in configuration, so it cannot be determined here.`,
+      );
+    } else {
+      notes.push(
+        `event "${eventId}" does not name any action in /BOBF/ACT_LIST for BO "${bo}"${matchedNode ? ` node "${nodeCandidate}"` : ""} — cannot say what action this handler runs.`,
+      );
+    }
+  } else if (eventId.startsWith("FBI_")) {
+    notes.push(
+      `event "${eventId}" is an FBI framework event — its real BOPF action is mapped internally by the FBI connector and never appears in /BOBF/ACT_LIST or anywhere else in configuration, so it would not have been determinable even with resolve=true.`,
+    );
+  }
+
+  return { kind: "bopf", bo, node, action, call, note: notes.length ? notes.join(" ") : undefined };
+}
+
 function classifyHandler(
   eventId: string,
   target: HandlerTarget | undefined,
-  ctx: { standardEventIds: ReadonlySet<string>; standardVerified: boolean; configsByKey: ReadonlyMap<string, ParsedConfig> },
+  ctx: {
+    standardEventIds: ReadonlySet<string>;
+    standardVerified: boolean;
+    configsByKey: ReadonlyMap<string, ParsedConfig>;
+    bopfNodes: readonly FpmEventsBopfNodeFrame[];
+    bopfActions: readonly FpmEventsBopfActionFrame[];
+    bopfErrors: readonly FpmEventsBopfErrorFrame[];
+  },
 ): FpmEventHandler {
   if (eventId) {
     const looksStandard = eventId.startsWith("FPM_");
@@ -657,15 +986,22 @@ function classifyHandler(
     const cfg = ctx.configsByKey.get(normKey(target.configId, target.configType, target.configVar));
     if (cfg) {
       const bo = cfg.boNames[0];
-      if (bo) return { kind: "bopf", bo, call: `abap_bopf {"mode":"show","bo":"${bo}"}` };
+      if (bo) {
+        const nodeCandidate = cfg.boNodePairs.find((p) => p.bo === bo)?.node;
+        return buildBopfHandler(bo, nodeCandidate, eventId, ctx);
+      }
       const feeder = cfg.feeders[0];
       if (feeder) {
+        const iface = FEEDER_INTERFACE_BY_COMPONENT[cfg.component];
+        const method = iface ? `${iface}~PROCESS_EVENT` : undefined;
         return {
           kind: "feeder",
           feederClass: feeder,
           configId: target.configId,
           configType: target.configType || "00",
           configVar: target.configVar ?? "",
+          method,
+          call: method ? `abap_read {"object":"${feeder}","method":"${method}"}` : undefined,
         };
       }
       return {
@@ -692,6 +1028,59 @@ function classifyHandler(
   };
 }
 
+// ---------------------------------------------------------------------------
+// WDY_CONFIG_COMPT text-id resolution (issue #101 Defect 3).
+// ---------------------------------------------------------------------------
+
+interface TextIdEntry {
+  byLangu: Map<string, string>;
+  /** Insertion order of the langu values seen, for the "whatever exists" fallback step. */
+  order: string[];
+}
+
+/** Indexes every `text_id` frame by (config, text_id), keeping every language row so `resolveTextId` can fall back. */
+function buildTextIndex(frames: readonly FpmEventsTextIdFrame[]): Map<string, TextIdEntry> {
+  const idx = new Map<string, TextIdEntry>();
+  for (const f of frames) {
+    const key = `${normKey(f.config_id, f.config_type, f.config_var)} ${f.text_id}`;
+    let entry = idx.get(key);
+    if (!entry) {
+      entry = { byLangu: new Map(), order: [] };
+      idx.set(key, entry);
+    }
+    if (!entry.byLangu.has(f.langu)) {
+      entry.byLangu.set(f.langu, f.description);
+      entry.order.push(f.langu);
+    }
+  }
+  return idx;
+}
+
+/**
+ * Resolves one WDY_CONFIG_COMPT text_id to its DESCRIPTION for a given
+ * config: logon language, then "E", then whatever language is on file.
+ * WDY_CONFIG_COMPT has no master/original-language column, so — unlike a
+ * text-table with an explicit original-language field — there is no middle
+ * step to try between the logon language and "E"; this is a live finding,
+ * not an oversight. Returns undefined when no row matches the config/text_id
+ * pair at all.
+ */
+function resolveTextId(
+  idx: Map<string, TextIdEntry>,
+  configId: string,
+  configType: string,
+  configVar: string,
+  textId: string,
+  logonLangu: string,
+): string | undefined {
+  const entry = idx.get(`${normKey(configId, configType, configVar)} ${textId}`);
+  if (!entry) return undefined;
+  if (logonLangu && entry.byLangu.has(logonLangu)) return entry.byLangu.get(logonLangu);
+  if (entry.byLangu.has("E")) return entry.byLangu.get("E");
+  const first = entry.order[0];
+  return first !== undefined ? entry.byLangu.get(first) : undefined;
+}
+
 /**
  * Turns `splitEventFrames`'s buckets into a "which toolbar element raises
  * which event, and what handles it" model. Best-effort throughout — see the
@@ -712,6 +1101,21 @@ export function resolveFpmEvents(raw: FpmEventsRaw): FpmEventsResolved {
   const skipped = raw.configs
     .filter((c) => c.role === "child" && c.skipped !== undefined)
     .map((c) => ({ configId: c.config_id, configType: c.config_type || "00", configVar: c.config_var }));
+
+  // Issue #101 Defect 3: resolve every Transl="true" TEXT against the
+  // text_id frames the ABAP side already collected for every config read
+  // (see fluid/builtin/fpm.ts's WDY_CONFIG_COMPT SELECT).
+  const textIndex = buildTextIndex(raw.textIds);
+  const logonLangu = raw.summary?.logon_langu ?? "";
+  let hadTranslatableText = false;
+  let hadUnresolvedTranslatableText = false;
+  function resolveRowText(cfg: ParsedConfig, rawValue: string, translatable: boolean): { text?: string; textKey?: string } {
+    if (!translatable || !rawValue) return { text: rawValue || undefined, textKey: undefined };
+    hadTranslatableText = true;
+    const resolved = resolveTextId(textIndex, cfg.configId, cfg.configType, cfg.configVar, rawValue, logonLangu);
+    if (resolved === undefined) hadUnresolvedTranslatableText = true;
+    return { text: resolved ?? rawValue, textKey: rawValue };
+  }
 
   const readable = raw.configs.filter((c) => c.xml !== undefined);
   const parsedConfigs: ParsedConfig[] = [];
@@ -738,7 +1142,14 @@ export function resolveFpmEvents(raw: FpmEventsRaw): FpmEventsResolved {
     notes.push(`the CL_FPM_EVENT catalogue read failed (${raw.fpmEventErrors.map((e) => e.text).join("; ")}) — "standard" handlers below are a name-prefix guess, not verified.`);
   }
 
-  const ctx = { standardEventIds, standardVerified: standardVerified && raw.fpmEventErrors.length === 0, configsByKey };
+  const ctx = {
+    standardEventIds,
+    standardVerified: standardVerified && raw.fpmEventErrors.length === 0,
+    configsByKey,
+    bopfNodes: raw.bopfNodes,
+    bopfActions: raw.bopfActions,
+    bopfErrors: raw.bopfErrors,
+  };
 
   const wires: FpmWireRow[] = [];
   let appController: { component: string; configId: string; configType: string; configVar: string } | undefined;
@@ -768,10 +1179,10 @@ export function resolveFpmEvents(raw: FpmEventsRaw): FpmEventsResolved {
           configVar: cfg.configVar,
           source: btn.source,
           elementId: btn.elementId || actionId,
-          text: btn.text || undefined,
+          ...resolveRowText(cfg, btn.text, btn.textTransl),
           elementType: typeLabel,
           eventId: eventId || undefined,
-          handler: classifyHandler(eventId, target, ctx),
+          handler: withExcerpt(classifyHandler(eventId, target, ctx), btn.raw),
         });
       }
     }
@@ -785,9 +1196,13 @@ export function resolveFpmEvents(raw: FpmEventsRaw): FpmEventsResolved {
           configVar: cfg.configVar,
           source: "button_row",
           elementId: row.elementId,
-          text: row.text || undefined,
+          ...resolveRowText(cfg, row.text, row.textTransl),
           elementType: typeLabel,
-          handler: { kind: "unresolved", reason: "no BUTTON_ACTION child — this button row element declares no event" },
+          handler: {
+            kind: "unresolved",
+            reason: "no BUTTON_ACTION child — this button row element declares no event",
+            excerpt: excerptOf(row.raw),
+          },
         });
         continue;
       }
@@ -805,32 +1220,55 @@ export function resolveFpmEvents(raw: FpmEventsRaw): FpmEventsResolved {
           configVar: cfg.configVar,
           source: "button_row",
           elementId: row.elementId,
-          text: row.text || undefined,
+          ...resolveRowText(cfg, row.text, row.textTransl),
           elementType: typeLabel,
           eventId: ev.eventId || undefined,
-          handler: classifyHandler(ev.eventId, selfTarget, ctx),
+          handler: withExcerpt(classifyHandler(ev.eventId, selfTarget, ctx), row.raw),
         });
       }
     }
 
     for (const action of cfg.fbiActions) {
-      if (action.actionConf) {
-        // ACTION_CONF is a config_id, not a CONFIG_ID-bearing child element —
-        // the ABAP side's walk_refs only follows Items with a literal
-        // CONFIG_ID child (fluid/builtin/fpm.ts), so this target was never
-        // walked/fetched even if its config exists. Reported as-is, not
-        // resolved further.
+      // ACTION_CONF names a config_id, but walk_refs (fluid/builtin/fpm.ts)
+      // only follows Items with a literal CONFIG_ID child — ACTION_CONF is
+      // not one — so that target is normally never fetched even when its
+      // config exists. It is only "usable" here when the config happens to
+      // have been fetched some other way (root, or another CONFIG_ID
+      // reference reached it); otherwise it is no better than not having
+      // one, and ACTION_IMPL — a concrete handler class — is preferred over
+      // reporting unresolved. Confirmed against the /BOFU/DEMO_SO_HDR_VIEW
+      // fixture's DELIVER_ORDER action, whose ACTION_CONF
+      // ("/BOFU/DEMO/DELIVER_CONFIRMATION") is never fetched but whose
+      // ACTION_IMPL ("DELIVER") is a real handler class.
+      const confTarget = action.actionConf ? findConfigByBareId(parsedConfigs, action.actionConf) : undefined;
+      if (confTarget) {
         events.push({
           configId: cfg.configId,
           configType: cfg.configType,
           configVar: cfg.configVar,
           source: "fbi_action",
           elementId: action.actionId,
-          text: action.text || undefined,
-          handler: {
-            kind: "unresolved",
-            reason: `ACTION_CONF points to config "${action.actionConf}" — not followed by the events scan (only CONFIG_ID-bearing references are walked)`,
-          },
+          ...resolveRowText(cfg, action.text, action.textTransl),
+          handler: withExcerpt(
+            classifyHandler(
+              "",
+              { configId: confTarget.configId, configType: confTarget.configType, configVar: confTarget.configVar },
+              ctx,
+            ),
+            action.raw,
+          ),
+        });
+        continue;
+      }
+      if (action.actionImpl) {
+        events.push({
+          configId: cfg.configId,
+          configType: cfg.configType,
+          configVar: cfg.configVar,
+          source: "fbi_action",
+          elementId: action.actionId,
+          ...resolveRowText(cfg, action.text, action.textTransl),
+          handler: { kind: "action_impl", implClass: action.actionImpl },
         });
         continue;
       }
@@ -840,10 +1278,16 @@ export function resolveFpmEvents(raw: FpmEventsRaw): FpmEventsResolved {
         configVar: cfg.configVar,
         source: "fbi_action",
         elementId: action.actionId,
-        text: action.text || undefined,
-        handler: action.actionImpl
-          ? { kind: "unresolved", reason: `ACTION_IMPL "${action.actionImpl}" — a handler class, not a config/BO; not resolved further` }
-          : { kind: "unresolved", reason: "no ACTION_IMPL/ACTION_CONF — cannot tell what handles this action" },
+        ...resolveRowText(cfg, action.text, action.textTransl),
+        handler: withExcerpt(
+          action.actionConf
+            ? {
+                kind: "unresolved",
+                reason: `ACTION_CONF points to config "${action.actionConf}" — not followed by the events scan (only CONFIG_ID-bearing references are walked), and there is no ACTION_IMPL to fall back to`,
+              }
+            : { kind: "unresolved", reason: "no ACTION_IMPL/ACTION_CONF — cannot tell what handles this action" },
+          action.raw,
+        ),
       });
     }
   }
@@ -853,9 +1297,21 @@ export function resolveFpmEvents(raw: FpmEventsRaw): FpmEventsResolved {
     notes.push("the root config's own XML could not be parsed as an fpm/fbi Component document — no toolbar/wire/action extraction was possible for it.");
   }
 
-  notes.push(
-    "Toolbar texts shown as a bare number are WDY_CONFIG_DATT/_APPT text keys, not labels — this mode does not resolve them.",
-  );
+  if (hadTranslatableText) {
+    if (raw.textIdErrors.length > 0) {
+      notes.push(
+        `Toolbar/action texts marked as text keys could not be resolved against WDY_CONFIG_COMPT (read failed: ${raw.textIdErrors.map((e) => e.text).join("; ")}) — "text" holds the raw numeric key instead of a label; see "textKey".`,
+      );
+    } else if (hadUnresolvedTranslatableText) {
+      notes.push(
+        'Some toolbar/action texts are WDY_CONFIG_COMPT text keys with no matching row for this config (logon language, "E", or any language on file) — for those, "text" falls back to the raw numeric key; see "textKey" for the key on every resolved element too.',
+      );
+    } else {
+      notes.push(
+        'Toolbar/action texts marked Transl="true" are WDY_CONFIG_COMPT text keys — "text" is resolved to the description for the logon language, falling back to "E" and then to whatever language is on file (WDY_CONFIG_COMPT has no master-language column), and "textKey" carries the original numeric key.',
+      );
+    }
+  }
 
   return {
     root: {

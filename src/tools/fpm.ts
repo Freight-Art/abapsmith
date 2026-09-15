@@ -43,7 +43,7 @@ export const fpmReadInputSchema = {
       "find: search configs. outline: one config's node tree. app: an application config's full " +
         "UIBB hierarchy. locks: who holds enqueue locks on a config. events: trace which toolbar/" +
         "button-row/FBI-action elements raise which FPM event, and what handles it (standard FPM, " +
-        "BOPF, feeder, app controller, or unresolved).",
+        "BOPF, feeder, app controller, ACTION_IMPL class, or unresolved).",
     ),
   config_id: z
     .string()
@@ -513,14 +513,22 @@ function describeHandler(h: FpmEventHandler): string {
   switch (h.kind) {
     case "standard":
       return h.verified ? `standard (${h.eventId})` : `standard (${h.eventId}, unverified — pass resolve=true)`;
-    case "bopf":
-      return `bopf ${h.bo} — follow up: ${h.call}`;
-    case "feeder":
-      return `feeder ${h.feederClass} (config ${h.configId})`;
+    case "bopf": {
+      const base = `bopf (${h.bo}, ${h.node ?? "?"}, ${h.action ?? "?"}) — follow up: ${h.call}`;
+      return h.note ? `${base} — ${h.note}` : base;
+    }
+    case "feeder": {
+      const base = h.method
+        ? `feeder ${h.feederClass} method ${h.method} (config ${h.configId})`
+        : `feeder ${h.feederClass} (config ${h.configId})`;
+      return h.call ? `${base} — follow up: ${h.call}` : base;
+    }
     case "app_controller":
       return `app_controller ${h.component}`;
+    case "action_impl":
+      return `action_impl ${h.implClass}`;
     case "unresolved":
-      return `unresolved — ${h.reason}`;
+      return h.excerpt ? `unresolved — ${h.reason} — excerpt: ${h.excerpt}` : `unresolved — ${h.reason}`;
   }
 }
 
@@ -584,6 +592,7 @@ function buildEventsResponse(
     source: e.source,
     element_id: e.elementId,
     text: e.text ?? "",
+    text_key: e.textKey ?? "",
     event_id: e.eventId ?? "",
     handler: e.handler.kind,
     detail: describeHandler(e.handler),
@@ -649,7 +658,7 @@ function buildEventsResponse(
     },
     sections,
     body: rows.length
-      ? textTable(rows, ["config_id", "source", "element_id", "text", "event_id", "handler", "detail"])
+      ? textTable(rows, ["config_id", "source", "element_id", "text", "text_key", "event_id", "handler", "detail"])
       : "(no toolbar/button-row/fbi-action elements found)",
     bodyLabel: "EVENTS",
     notes,
@@ -791,7 +800,7 @@ const FPM_TOOL_DESCRIPTION =
   "component/config_id pattern/package. outline: one configuration's XML plus delta/package " +
   "metadata. app: an application configuration's full UIBB hierarchy with feeder/BOPF hints " +
   "(resolve, default true). events: trace which toolbar/button-row/FBI-action raises which FPM " +
-  "event and what handles it (standard FPM, BOPF, feeder, app controller, or unresolved), " +
+  "event and what handles it (standard FPM, BOPF, feeder, app controller, ACTION_IMPL class, or unresolved), " +
   "optionally cross-checked against the CL_FPM_EVENT and BOPF catalogues (resolve, default true). " +
   "locks: enqueue lock holders. Read-only; every call deploys a throwaway bridge class into " +
   "abapsmith's own package.";

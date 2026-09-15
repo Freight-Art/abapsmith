@@ -193,12 +193,61 @@ describe("resolveFpmEvents — OVP toolbar (ovp-test-fbi-sales-order.config.xml)
     expect(byElementId(ev.events, "ELEMENT_ID_5")?.handler).toEqual({ kind: "standard", eventId: "FPM_EDIT", verified: false });
   });
 
-  it("always discloses that a bare-number toolbar text is a text key, not a label", () => {
+  it("falls back to the raw numeric text key, with a note, when no WDY_CONFIG_COMPT row matches it (issue #101 Defect 3)", () => {
+    // No text_id frames at all here, so every Transl="true" TEXT (30, 34,
+    // 38, 42, 46, 12 in this fixture) is left unresolved.
     const raw = splitEventFrames([rootConfig({ config_id: "/BOFU/TEST_FBI_SALES_ORDER_OVP", xml: OVP_TOOLBAR_XML })]);
     const ev = resolveFpmEvents(raw);
-    expect(ev.notes).toContain(
-      "Toolbar texts shown as a bare number are WDY_CONFIG_DATT/_APPT text keys, not labels — this mode does not resolve them.",
-    );
+    const translatable = ev.events.filter((e) => e.textKey !== undefined);
+    expect(translatable.length).toBeGreaterThan(0);
+    for (const row of translatable) {
+      expect(row.text).toBe(row.textKey);
+    }
+    expect(ev.notes.some((n) => n.includes("WDY_CONFIG_COMPT") && n.includes("no matching row"))).toBe(true);
+  });
+
+  it("resolves a Transl=\"true\" toolbar text to its WDY_CONFIG_COMPT description, preferring the logon language (issue #101 Defect 3)", () => {
+    const raw = splitEventFrames([
+      rootConfig({ config_id: "/BOFU/TEST_FBI_SALES_ORDER_OVP", xml: OVP_TOOLBAR_XML }),
+      { kind: "text_id", config_id: "/BOFU/TEST_FBI_SALES_ORDER_OVP", config_type: "00", config_var: "", langu: "E", text_id: "30", description: "Change" },
+      { kind: "text_id", config_id: "/BOFU/TEST_FBI_SALES_ORDER_OVP", config_type: "00", config_var: "", langu: "D", text_id: "30", description: "Ändern" },
+      { kind: "summary", configs_read: 1, configs_failed: 0, configs_skipped: 0, bopf_nodes: 0, bopf_actions: 0, fpm_events: 0, text_ids: 2, logon_langu: "D", truncated: "" },
+    ]);
+    const ev = resolveFpmEvents(raw);
+    const changed = ev.events.find((e) => e.textKey === "30");
+    expect(changed).toBeDefined();
+    expect(changed?.text).toBe("Ändern");
+    expect(changed?.textKey).toBe("30");
+    expect(ev.notes.some((n) => n.includes("WDY_CONFIG_COMPT") && n.includes("resolved"))).toBe(true);
+  });
+
+  it("falls back to \"E\", then to whatever language is on file, when the logon language has no row (issue #101 Defect 3)", () => {
+    const rawFallbackToE = splitEventFrames([
+      rootConfig({ config_id: "/BOFU/TEST_FBI_SALES_ORDER_OVP", xml: OVP_TOOLBAR_XML }),
+      { kind: "text_id", config_id: "/BOFU/TEST_FBI_SALES_ORDER_OVP", config_type: "00", config_var: "", langu: "E", text_id: "30", description: "Change" },
+      { kind: "summary", configs_read: 1, configs_failed: 0, configs_skipped: 0, bopf_nodes: 0, bopf_actions: 0, fpm_events: 0, text_ids: 1, logon_langu: "F", truncated: "" },
+    ]);
+    const evFallbackToE = resolveFpmEvents(rawFallbackToE);
+    expect(evFallbackToE.events.find((e) => e.textKey === "30")?.text).toBe("Change");
+
+    const rawFallbackToFirst = splitEventFrames([
+      rootConfig({ config_id: "/BOFU/TEST_FBI_SALES_ORDER_OVP", xml: OVP_TOOLBAR_XML }),
+      { kind: "text_id", config_id: "/BOFU/TEST_FBI_SALES_ORDER_OVP", config_type: "00", config_var: "", langu: "J", text_id: "30", description: "変更" },
+      { kind: "summary", configs_read: 1, configs_failed: 0, configs_skipped: 0, bopf_nodes: 0, bopf_actions: 0, fpm_events: 0, text_ids: 1, logon_langu: "F", truncated: "" },
+    ]);
+    const evFallbackToFirst = resolveFpmEvents(rawFallbackToFirst);
+    expect(evFallbackToFirst.events.find((e) => e.textKey === "30")?.text).toBe("変更");
+  });
+
+  it("reports a WDY_CONFIG_COMPT read failure as an explicit note, and leaves text as the raw key (issue #101 Defect 3)", () => {
+    const raw = splitEventFrames([
+      rootConfig({ config_id: "/BOFU/TEST_FBI_SALES_ORDER_OVP", xml: OVP_TOOLBAR_XML }),
+      { kind: "text_id_error", text: "DBIF_RSQL_TABLE_UNKNOWN" },
+    ]);
+    const ev = resolveFpmEvents(raw);
+    const row = ev.events.find((e) => e.textKey === "30");
+    expect(row?.text).toBe("30");
+    expect(ev.notes.some((n) => n.includes("WDY_CONFIG_COMPT") && n.includes("DBIF_RSQL_TABLE_UNKNOWN"))).toBe(true);
   });
 
   it("decodes all four WIRE_MODEL/WIRE rows (source/target/connector), and does not attempt to decode DEPENDENCY_PARAM", () => {
@@ -241,30 +290,51 @@ describe("resolveFpmEvents — LIST GUIBB button row (list-uibb-test-sales-order
     expect(del.eventId).toBe("FBI_DELETE");
 
     // The config's own PARAMETER node has NAME=BO/VALUE=/BOFU/TEST_SALES_ORDER
-    // (an Item/NAME-VALUE pair, not a literal <BO> element — see the FBI VIEW
-    // test below for the other shape) and a literal FEEDER element
-    // (/BOFU/CL_FBI_GUIBB_LIST). Because a BO parameter is present, "bopf"
-    // wins over "feeder" (classifyHandler checks boNames before feeders).
-    const expectedHandler = {
-      kind: "bopf" as const,
+    // and a sibling NAME=NODE/VALUE=ITEM pair (an Item/NAME-VALUE pair, not a
+    // literal <BO>/<NODE> element — see the FBI VIEW test below for the
+    // other shape) and a literal FEEDER element (/BOFU/CL_FBI_GUIBB_LIST).
+    // Because a BO parameter is present, "bopf" wins over "feeder"
+    // (classifyHandler checks boNames before feeders). No bopf_node/
+    // bopf_action frames were supplied in this raw (resolve was not
+    // requested), so `action` stays undefined even though FBI_CREATE/
+    // FBI_DELETE are exactly the framework-event case issue #101 calls
+    // out: their real BOPF action (CREATE_ITEM/DELETE_ITEM under BOPF node
+    // ITEM, confirmed live against /BOFU/TEST_SALES_ORDER's own
+    // /BOBF/ACT_LIST) is mapped internally by the FBI connector and never
+    // named as "FBI_CREATE"/"FBI_DELETE" anywhere in configuration or in
+    // the BOPF catalogue itself.
+    const noteFor = (eventId: string) =>
+      `node/action were not verified against /BOBF/OBM_NODE or /BOBF/ACT_LIST for BO "/BOFU/TEST_SALES_ORDER" — pass resolve=true to fetch that catalogue. ` +
+      `event "${eventId}" is an FBI framework event — its real BOPF action is mapped internally by the FBI connector and never appears in /BOBF/ACT_LIST or anywhere else in configuration, so it would not have been determinable even with resolve=true.`;
+    expect(create.handler).toEqual({
+      kind: "bopf",
       bo: "/BOFU/TEST_SALES_ORDER",
+      node: "ITEM",
+      action: undefined,
       call: 'abap_bopf {"mode":"show","bo":"/BOFU/TEST_SALES_ORDER"}',
-    };
-    expect(create.handler).toEqual(expectedHandler);
-    expect(del.handler).toEqual(expectedHandler);
+      note: noteFor("FBI_CREATE"),
+    });
+    expect(del.handler).toEqual({
+      kind: "bopf",
+      bo: "/BOFU/TEST_SALES_ORDER",
+      node: "ITEM",
+      action: undefined,
+      call: 'abap_bopf {"mode":"show","bo":"/BOFU/TEST_SALES_ORDER"}',
+      note: noteFor("FBI_DELETE"),
+    });
   });
 });
 
 describe("resolveFpmEvents — FBI VIEW action mapping (36-BOFU_DEMO_SO_HDR_VIEW.full-config.xml)", () => {
-  it("reports DELIVER_ORDER's ACTION_CONF target honestly as unresolved (ACTION_CONF wins over ACTION_IMPL when both are present)", () => {
+  it("resolves DELIVER_ORDER from ACTION_IMPL, since its ACTION_CONF target was never fetched (ACTION_CONF is only preferred when it names a config that was actually read)", () => {
     // This fixture's own ACTIONS/DELIVER_ORDER entry has BOTH an ACTION_CONF
     // ("/BOFU/DEMO/DELIVER_CONFIRMATION") and an ACTION_IMPL ("DELIVER").
-    // Per the source's own precedence (src/adt/fpm-events.ts, the ACTION_CONF
-    // check runs first and `continue`s before the ACTION_IMPL branch is ever
-    // reached), the resolved handler names the ACTION_CONF, not ACTION_IMPL —
     // walk_refs (fluid/builtin/fpm.ts) only follows Items with a literal
-    // CONFIG_ID child, and ACTION_CONF is not one, so that target was never
-    // walked/read regardless of what ACTION_IMPL says.
+    // CONFIG_ID child, and ACTION_CONF is not one, so that config is never
+    // fetched in practice. Per the source's precedence (src/adt/fpm-events.ts),
+    // ACTION_CONF only wins when it names a config that is actually among the
+    // ones read (parsedConfigs); here it doesn't, so resolution falls through
+    // to the concrete ACTION_IMPL class instead of reporting unresolved.
     const raw = splitEventFrames([
       rootConfig({ config_id: "/BOFU/DEMO_SO_HDR_VIEW", component: "/BOFU/FBI_VIEW", xml: FBI_VIEW_XML }),
     ]);
@@ -274,11 +344,7 @@ describe("resolveFpmEvents — FBI VIEW action mapping (36-BOFU_DEMO_SO_HDR_VIEW
     if (!row) return;
     expect(row.source).toBe("fbi_action");
     expect(row.text).toBe("DELIVER");
-    expect(row.handler.kind).toBe("unresolved");
-    if (row.handler.kind === "unresolved") {
-      expect(row.handler.reason).toContain("/BOFU/DEMO/DELIVER_CONFIRMATION");
-      expect(row.handler.reason).toContain("ACTION_CONF");
-    }
+    expect(row.handler).toEqual({ kind: "action_impl", implClass: "DELIVER" });
   });
 
   it("extracts BO/NODE from HEADER's literal <BO>/<NODE> elements (the shape this fixture uses, distinct from the Item/NAME=BO,VALUE pair the LIST GUIBB fixture uses) and resolves a referencing toolbar button to bopf", () => {
@@ -311,17 +377,23 @@ describe("resolveFpmEvents — FBI VIEW action mapping (36-BOFU_DEMO_SO_HDR_VIEW
 
     const openHdr = byElementId(ev.events, "OPEN_HDR");
     expect(openHdr).toBeDefined();
+    // The event id here is "SHOW_DETAIL" (this ACTION catalogue entry's own
+    // EVENT_ID), not an FBI_ framework event — so the note is the plain
+    // "not verified" one, without the framework-event caveat.
     expect(openHdr?.handler).toEqual({
       kind: "bopf",
       bo: "/BOFU/DEMO_SALES_ORDER",
+      node: "ROOT",
+      action: undefined,
       call: 'abap_bopf {"mode":"show","bo":"/BOFU/DEMO_SALES_ORDER"}',
+      note: 'node/action were not verified against /BOBF/OBM_NODE or /BOBF/ACT_LIST for BO "/BOFU/DEMO_SALES_ORDER" — pass resolve=true to fetch that catalogue.',
     });
 
     // The referenced child config's own DELIVER_ORDER fbi_action is still
     // resolved too (parsedConfigs includes every readable config, root and
-    // child alike) - same ACTION_CONF-wins-over-ACTION_IMPL outcome as above.
+    // child alike) - same ACTION_IMPL fallback outcome as above.
     const deliver = byElementId(ev.events, "DELIVER_ORDER");
-    expect(deliver?.handler.kind).toBe("unresolved");
+    expect(deliver?.handler.kind).toBe("action_impl");
   });
 });
 
@@ -376,14 +448,11 @@ describe("resolveFpmEvents — app controller (ovp-appcc-class.config.xml)", () 
 describe("resolveFpmEvents — unresolved shapes are always surfaced, never dropped", () => {
   it("a toolbar button with no ACTION_SUB_ITEM and no matching ACTION catalogue entry comes back unresolved with a specific reason", () => {
     // This is the single most important behaviour for issue #101: an
-    // unrecognised/unmatched element must be reported, not silently
-    // vanish from the trace. Note on the interface: FpmEventHandlerUnresolved
-    // (src/adt/fpm-events.ts) carries only a `reason: string`, not a raw XML
-    // excerpt of the offending element — the row's own `elementId` plus this
-    // reason string is what identifies it; the source config's full XML is
-    // separately available via the config frame's own `xml` field, so
-    // nothing about the offending element is actually lost, but there is no
-    // dedicated per-element excerpt field to assert on here.
+    // unrecognised/unmatched element must be reported, not silently vanish
+    // from the trace. FpmEventHandlerUnresolved (src/adt/fpm-events.ts)
+    // carries both a `reason: string` and an `excerpt` of the raw offending
+    // element (truncated via truncateText, never a hand-rolled slice) —
+    // assert both below.
     const rootXml =
       `<?xml version="1.0"?><Component Name="X" ConfId="MYSTERY" ConfType="00" ConfVar="">` +
       `<Node Name="TOOLBAR" SimpleFormat="true"><Item Index="000001" SimpleFormat="true">` +
@@ -402,6 +471,9 @@ describe("resolveFpmEvents — unresolved shapes are always surfaced, never drop
     if (row.handler.kind === "unresolved") {
       expect(row.handler.reason.length).toBeGreaterThan(0);
       expect(row.handler.reason).toContain("no ACTION catalogue entry matched this toolbar element's id");
+      expect(row.handler.excerpt).toBeDefined();
+      expect(row.handler.excerpt?.length ?? 0).toBeGreaterThan(0);
+      expect(row.handler.excerpt).toContain("MYSTERY_BTN");
     }
   });
 
@@ -415,10 +487,14 @@ describe("resolveFpmEvents — unresolved shapes are always surfaced, never drop
     const raw = splitEventFrames([rootConfig({ config_id: "ROWCFG", xml: rootXml })]);
     const ev = resolveFpmEvents(raw);
     expect(ev.events.length).toBe(1);
-    expect(ev.events[0].handler).toEqual({
-      kind: "unresolved",
-      reason: "no BUTTON_ACTION child — this button row element declares no event",
-    });
+    const handler = ev.events[0].handler;
+    expect(handler.kind).toBe("unresolved");
+    if (handler.kind === "unresolved") {
+      expect(handler.reason).toBe("no BUTTON_ACTION child — this button row element declares no event");
+      expect(handler.excerpt).toBeDefined();
+      expect(handler.excerpt?.length ?? 0).toBeGreaterThan(0);
+      expect(handler.excerpt).toContain("NO_ACTION_ROW");
+    }
   });
 
   it("an fbi_action with neither ACTION_IMPL nor ACTION_CONF comes back unresolved rather than being skipped", () => {
@@ -431,10 +507,14 @@ describe("resolveFpmEvents — unresolved shapes are always surfaced, never drop
     const raw = splitEventFrames([rootConfig({ config_id: "ACTCFG", xml: rootXml })]);
     const ev = resolveFpmEvents(raw);
     expect(ev.events.length).toBe(1);
-    expect(ev.events[0].handler).toEqual({
-      kind: "unresolved",
-      reason: "no ACTION_IMPL/ACTION_CONF — cannot tell what handles this action",
-    });
+    const handler = ev.events[0].handler;
+    expect(handler.kind).toBe("unresolved");
+    if (handler.kind === "unresolved") {
+      expect(handler.reason).toBe("no ACTION_IMPL/ACTION_CONF — cannot tell what handles this action");
+      expect(handler.excerpt).toBeDefined();
+      expect(handler.excerpt?.length ?? 0).toBeGreaterThan(0);
+      expect(handler.excerpt).toContain("BARE_ACTION");
+    }
   });
 });
 
@@ -489,11 +569,166 @@ describe("resolveFpmEvents — BOPF catalogue frames pass through splitEventFram
     expect(raw.bopfActions.length).toBe(1);
     expect(raw.bopfActions[0].act_class).toBe("/BOBF/CL_DEMO_SAM_SALES_ORDER");
 
-    // resolveFpmEvents does not fold bopf_node/bopf_action frames into
-    // `events`/`wires`/`views` at all — they are raw catalogue data the tool
-    // layer renders separately (see src/tools/fpm.ts's summary counts), not
-    // part of the toolbar/button-row/fbi-action event trace.
+    // This particular config has no toolbar/button elements at all, so
+    // there is nothing here for the bopf_node/bopf_action frames to feed
+    // into — `events` stays empty. See the next describe block for cases
+    // where they DO feed into a "bopf" handler's node/action fields.
     const ev = resolveFpmEvents(raw);
     expect(ev.events).toEqual([]);
+  });
+});
+
+describe("resolveFpmEvents — bopf handler node/action verification against the BOPF catalogue (issue #101 Defect 1)", () => {
+  // A minimal synthetic config: one BUTTON_ROW_ELEMENT whose BUTTON_ACTION
+  // event id is deliberately chosen to literally match a real BOPF action
+  // name, on a config whose PARAMETER declares BO+NODE — every field
+  // classifyHandler/buildBopfHandler needs, isolated from any of the other
+  // fixtures' incidental shapes.
+  function rowConfigXml(bo: string, node: string, eventId: string): string {
+    return (
+      `<?xml version="1.0"?><Component Name="X" ConfId="BOPFCFG" ConfType="00" ConfVar="">` +
+      `<Node Name="PARAMETER" SimpleFormat="true"><Item Index="000001" SimpleFormat="true">` +
+      `<Item Index="000001"><NAME>BO</NAME><VALUE>${bo}</VALUE></Item>` +
+      `<Item Index="000002"><NAME>NODE</NAME><VALUE>${node}</VALUE></Item>` +
+      `</Item></Node>` +
+      `<Node Name="BUTTON_ROW" SimpleFormat="true"><Item Index="000001" SimpleFormat="true">` +
+      `<Node Name="BUTTON_ROW_ELEMENT" SimpleFormat="true"><Item Index="000001" SimpleFormat="true">` +
+      `<ELEMENT_ID>ROW_1</ELEMENT_ID><TEXT></TEXT><DISPLAY_TYPE>BT</DISPLAY_TYPE>` +
+      `<Node Name="BUTTON_ACTION" SimpleFormat="true"><Item Index="000001" SimpleFormat="true">` +
+      `<EVENT_ID>${eventId}</EVENT_ID><TEXT></TEXT></Item></Node>` +
+      `</Item></Node></Item></Node></Component>`
+    );
+  }
+
+  it("confirms both node and action when they match the fetched /BOBF/OBM_NODE + /BOBF/ACT_LIST rows — no note needed", () => {
+    const bo = BOPF_CATALOGUE.bo;
+    const node = BOPF_CATALOGUE.nodes.find((n) => n.nodeName === "ITEM");
+    const action = BOPF_CATALOGUE.actions.find((a) => a.actName === "CREATE_ITEM");
+    expect(node).toBeDefined();
+    expect(action).toBeDefined();
+    if (!node || !action) return;
+
+    const raw = splitEventFrames([
+      rootConfig({ config_id: "BOPFCFG", xml: rowConfigXml(bo, "ITEM", "CREATE_ITEM") }),
+      { kind: "bopf_node", bo, node_name: node.nodeName, node_key: node.nodeKey, bo_key: node.boKey },
+      { kind: "bopf_action", bo, act_name: action.actName, act_key: action.actKey, node_key: action.nodeKey, act_class: action.actClass, act_cat: action.actCat },
+    ]);
+    const ev = resolveFpmEvents(raw);
+    const row = byElementId(ev.events, "ROW_1");
+    expect(row?.handler).toEqual({
+      kind: "bopf",
+      bo,
+      node: "ITEM",
+      action: "CREATE_ITEM",
+      call: `abap_bopf {"mode":"show","bo":"${bo}"}`,
+      note: undefined,
+    });
+  });
+
+  it("keeps an unmatched node name rather than dropping it, and explains why the action can't be confirmed either", () => {
+    const bo = BOPF_CATALOGUE.bo;
+    const node = BOPF_CATALOGUE.nodes.find((n) => n.nodeName === "ITEM");
+    expect(node).toBeDefined();
+    if (!node) return;
+
+    const raw = splitEventFrames([
+      rootConfig({ config_id: "BOPFCFG", xml: rowConfigXml(bo, "NO_SUCH_NODE", "NO_SUCH_ACTION") }),
+      { kind: "bopf_node", bo, node_name: node.nodeName, node_key: node.nodeKey, bo_key: node.boKey },
+    ]);
+    const ev = resolveFpmEvents(raw);
+    const row = byElementId(ev.events, "ROW_1");
+    expect(row?.handler.kind).toBe("bopf");
+    if (row?.handler.kind !== "bopf") return;
+    expect(row.handler.node).toBe("NO_SUCH_NODE");
+    expect(row.handler.action).toBeUndefined();
+    expect(row.handler.note).toContain(`node "NO_SUCH_NODE" was not found in /BOBF/OBM_NODE for BO "${bo}"`);
+    expect(row.handler.note).toContain(`event "NO_SUCH_ACTION" does not name any action in /BOBF/ACT_LIST for BO "${bo}"`);
+  });
+
+  it("reports a failed BOPF catalogue read as an explicit note rather than a false negative", () => {
+    const bo = BOPF_CATALOGUE.bo;
+    const raw = splitEventFrames([
+      rootConfig({ config_id: "BOPFCFG", xml: rowConfigXml(bo, "ITEM", "CREATE_ITEM") }),
+      { kind: "bopf_error", bo, text: "DBIF_RSQL_TABLE_UNKNOWN" },
+    ]);
+    const ev = resolveFpmEvents(raw);
+    const row = byElementId(ev.events, "ROW_1");
+    expect(row?.handler.kind).toBe("bopf");
+    if (row?.handler.kind !== "bopf") return;
+    expect(row.handler.node).toBe("ITEM");
+    expect(row.handler.action).toBeUndefined();
+    expect(row.handler.note).toContain(`the /BOBF/OBM_NODE + /BOBF/ACT_LIST read for BO "${bo}" failed (DBIF_RSQL_TABLE_UNKNOWN)`);
+  });
+
+  it("leaves node undefined, with a note, when the config pairs no NODE with its BO at all", () => {
+    const rootXml =
+      `<?xml version="1.0"?><Component Name="X" ConfId="NONODE" ConfType="00" ConfVar="">` +
+      `<Node Name="PARAMETER" SimpleFormat="true"><Item Index="000001" SimpleFormat="true">` +
+      `<Item Index="000001"><NAME>BO</NAME><VALUE>/BOFU/X</VALUE></Item>` +
+      `</Item></Node>` +
+      `<Node Name="BUTTON_ROW" SimpleFormat="true"><Item Index="000001" SimpleFormat="true">` +
+      `<Node Name="BUTTON_ROW_ELEMENT" SimpleFormat="true"><Item Index="000001" SimpleFormat="true">` +
+      `<ELEMENT_ID>ROW_1</ELEMENT_ID><TEXT></TEXT><DISPLAY_TYPE>BT</DISPLAY_TYPE>` +
+      `<Node Name="BUTTON_ACTION" SimpleFormat="true"><Item Index="000001" SimpleFormat="true">` +
+      `<EVENT_ID>SOME_EVENT</EVENT_ID><TEXT></TEXT></Item></Node>` +
+      `</Item></Node></Item></Node></Component>`;
+    const raw = splitEventFrames([rootConfig({ config_id: "NONODE", xml: rootXml })]);
+    const ev = resolveFpmEvents(raw);
+    const row = byElementId(ev.events, "ROW_1");
+    expect(row?.handler.kind).toBe("bopf");
+    if (row?.handler.kind !== "bopf") return;
+    expect(row.handler.node).toBeUndefined();
+    expect(row.handler.note).toContain('no NODE is paired with BO "/BOFU/X" anywhere in this button\'s config');
+  });
+});
+
+describe("resolveFpmEvents — feeder handler method (issue #101 Defect 2)", () => {
+  // No BO anywhere in this config, so classifyHandler falls through to the
+  // feeder branch instead of bopf. FEEDER_INTERFACE_BY_COMPONENT is keyed
+  // by the config's own COMPONENT (WDY_CONFIG_DATA/_APPL's COMPONENT
+  // column, threaded straight through as FpmEventsConfigFrame.component).
+  function feederConfigXml(eventId: string): string {
+    return (
+      `<?xml version="1.0"?><Component Name="X" ConfId="FEEDERCFG" ConfType="00" ConfVar="">` +
+      `<Node Name="CONFIGURATION_CONTEXT" SimpleFormat="true"><Item Index="000001" SimpleFormat="true">` +
+      `<FEEDER>ZCL_MY_FEEDER</FEEDER>` +
+      `<Node Name="BUTTON_ROW" SimpleFormat="true"><Item Index="000001" SimpleFormat="true">` +
+      `<Node Name="BUTTON_ROW_ELEMENT" SimpleFormat="true"><Item Index="000001" SimpleFormat="true">` +
+      `<ELEMENT_ID>ROW_1</ELEMENT_ID><TEXT></TEXT><DISPLAY_TYPE>BT</DISPLAY_TYPE>` +
+      `<Node Name="BUTTON_ACTION" SimpleFormat="true"><Item Index="000001" SimpleFormat="true">` +
+      `<EVENT_ID>${eventId}</EVENT_ID><TEXT></TEXT></Item></Node>` +
+      `</Item></Node></Item></Node>` +
+      `</Item></Node></Component>`
+    );
+  }
+
+  it("names the interface-qualified PROCESS_EVENT method and an abap_read call for a known GUIBB component", () => {
+    const raw = splitEventFrames([
+      rootConfig({ config_id: "FEEDERCFG", component: "FPM_FORM_UIBB", xml: feederConfigXml("MY_EVENT") }),
+    ]);
+    const ev = resolveFpmEvents(raw);
+    const row = byElementId(ev.events, "ROW_1");
+    expect(row?.handler).toEqual({
+      kind: "feeder",
+      feederClass: "ZCL_MY_FEEDER",
+      configId: "FEEDERCFG",
+      configType: "00",
+      configVar: "",
+      method: "IF_FPM_GUIBB_FORM~PROCESS_EVENT",
+      call: 'abap_read {"object":"ZCL_MY_FEEDER","method":"IF_FPM_GUIBB_FORM~PROCESS_EVENT"}',
+    });
+  });
+
+  it("leaves method and call undefined for a component with no confirmed GUIBB event interface", () => {
+    const raw = splitEventFrames([
+      rootConfig({ config_id: "FEEDERCFG", component: "/BOFU/FBI_VIEW", xml: feederConfigXml("MY_EVENT") }),
+    ]);
+    const ev = resolveFpmEvents(raw);
+    const row = byElementId(ev.events, "ROW_1");
+    expect(row?.handler.kind).toBe("feeder");
+    if (row?.handler.kind !== "feeder") return;
+    expect(row.handler.feederClass).toBe("ZCL_MY_FEEDER");
+    expect(row.handler.method).toBeUndefined();
+    expect(row.handler.call).toBeUndefined();
   });
 });

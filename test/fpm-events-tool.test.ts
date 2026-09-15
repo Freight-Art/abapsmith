@@ -292,6 +292,43 @@ describe("abap_fpm_read mode=events — response rendering", () => {
     expect(text).toContain("XML decoding has only been verified in depth against FORM/LIST UIBBs");
   });
 
+  it("an unresolved handler's row surfaces the raw-element excerpt in the rendered text, not just the reason (issue #101)", async () => {
+    // TYPE "ZZ" is not a decoded button type and this element's ID has no
+    // matching ACTION catalogue entry, so classifyHandler reports it
+    // unresolved. describeHandler (src/tools/fpm.ts) must render the
+    // FpmEventHandlerUnresolved.excerpt alongside the reason, not just the
+    // reason — this is the tool-level half of issue #101's "never silently
+    // dropped" requirement (test/fpm-events.test.ts covers the field itself).
+    const mysteryXml =
+      `<Component Name="FPM_OVP_COMPONENT" ConfId="EVENTS_TOOL_TEST_MYSTERY" ConfType="00" ConfVar="">` +
+      `<Node Name="TOOLBAR"><Node Name="BUTTON"><Item>` +
+      `<ELEMENT_ID>MYSTERY_BTN</ELEMENT_ID><TYPE>ZZ</TYPE>` +
+      `</Item></Node></Node>` +
+      `</Component>`;
+    const { conn } = await connectedFluid({
+      transcript: () =>
+        fpmTranscript({
+          ver: FPM_VER,
+          action: "events",
+          outs: [configFrame({ config_id: "EVENTS_TOOL_TEST_MYSTERY", xml: mysteryXml }), SUMMARY_FRAME],
+        }),
+    });
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_fpm_read", {
+      mode: "events",
+      config_id: "EVENTS_TOOL_TEST_MYSTERY",
+    });
+    const text = okText(result);
+
+    expect(text).toContain("MYSTERY_BTN");
+    expect(text).toContain("unresolved");
+    expect(text).toContain("excerpt:");
+    // The excerpt itself is a serialisation of the offending raw element —
+    // it must actually mention the element's own id, not just the reason.
+    expect(text).toMatch(/excerpt:.*MYSTERY_BTN/);
+  });
+
   it("a config with no toolbar/button-row/fbi-action elements renders the explicit empty-body message, not a blank table", async () => {
     const emptyXml = `<Component Name="FPM_OVP_COMPONENT" ConfId="EVENTS_TOOL_TEST_EMPTY" ConfType="00" ConfVar=""/>`;
     const { conn } = await connectedFluid({
@@ -339,6 +376,142 @@ describe("abap_fpm_read mode=events — response rendering", () => {
     });
     const text = okText(result);
     expect(text).toContain('mode "events" ignores xml_offset/xml_limit');
+  });
+});
+
+describe("abap_fpm_read mode=events — bopf/feeder handler rendering (issue #101 Defects 1 & 2)", () => {
+  it("renders a bopf handler's node, action and note alongside the abap_bopf follow-up", async () => {
+    // Same BUTTON_ROW/BUTTON_ROW_ELEMENT/BUTTON_ACTION + PARAMETER BO/NODE
+    // shape as test/fpm-events.test.ts's rowConfigXml helper, but the
+    // action deliberately does NOT match any /BOBF/ACT_LIST row supplied
+    // below, so buildBopfHandler leaves `action` undefined with a note —
+    // exercising describeHandler's full bopf rendering, not just the happy
+    // path.
+    const bopfXml =
+      `<Component Name="X" ConfId="BOPF_TOOL_TEST" ConfType="00" ConfVar="">` +
+      `<Node Name="PARAMETER" SimpleFormat="true"><Item Index="000001" SimpleFormat="true">` +
+      `<Item Index="000001"><NAME>BO</NAME><VALUE>/BOFU/X</VALUE></Item>` +
+      `<Item Index="000002"><NAME>NODE</NAME><VALUE>ITEM</VALUE></Item>` +
+      `</Item></Node>` +
+      `<Node Name="BUTTON_ROW" SimpleFormat="true"><Item Index="000001" SimpleFormat="true">` +
+      `<Node Name="BUTTON_ROW_ELEMENT" SimpleFormat="true"><Item Index="000001" SimpleFormat="true">` +
+      `<ELEMENT_ID>ROW_1</ELEMENT_ID><TEXT></TEXT><DISPLAY_TYPE>BT</DISPLAY_TYPE>` +
+      `<Node Name="BUTTON_ACTION" SimpleFormat="true"><Item Index="000001" SimpleFormat="true">` +
+      `<EVENT_ID>FBI_CREATE</EVENT_ID><TEXT></TEXT></Item></Node>` +
+      `</Item></Node></Item></Node></Component>`;
+    const { conn } = await connectedFluid({
+      transcript: () =>
+        fpmTranscript({
+          ver: FPM_VER,
+          action: "events",
+          outs: [
+            configFrame({ config_id: "BOPF_TOOL_TEST", xml: bopfXml }),
+            { kind: "bopf_node", bo: "/BOFU/X", node_name: "ITEM", node_key: "NODEKEY1", bo_key: "BOKEY1" },
+            { kind: "bopf_action", bo: "/BOFU/X", act_name: "CREATE_ITEM", act_key: "ACTKEY1", node_key: "NODEKEY1", act_class: "ZCL_X", act_cat: "1" },
+            SUMMARY_FRAME,
+          ],
+        }),
+    });
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_fpm_read", {
+      mode: "events",
+      config_id: "BOPF_TOOL_TEST",
+      resolve: true,
+    });
+    const text = okText(result);
+
+    expect(text).toContain("bopf (/BOFU/X, ITEM, ?)");
+    expect(text).toContain('follow up: abap_bopf {"mode":"show","bo":"/BOFU/X"}');
+    expect(text).toContain("FBI framework event");
+  });
+
+  it("renders a feeder handler's interface-qualified method and abap_read follow-up", async () => {
+    const feederXml =
+      `<Component Name="X" ConfId="FEEDER_TOOL_TEST" ConfType="00" ConfVar="">` +
+      `<Node Name="CONFIGURATION_CONTEXT" SimpleFormat="true"><Item Index="000001" SimpleFormat="true">` +
+      `<FEEDER>ZCL_MY_TOOL_FEEDER</FEEDER>` +
+      `<Node Name="BUTTON_ROW" SimpleFormat="true"><Item Index="000001" SimpleFormat="true">` +
+      `<Node Name="BUTTON_ROW_ELEMENT" SimpleFormat="true"><Item Index="000001" SimpleFormat="true">` +
+      `<ELEMENT_ID>ROW_1</ELEMENT_ID><TEXT></TEXT><DISPLAY_TYPE>BT</DISPLAY_TYPE>` +
+      `<Node Name="BUTTON_ACTION" SimpleFormat="true"><Item Index="000001" SimpleFormat="true">` +
+      `<EVENT_ID>MY_EVENT</EVENT_ID><TEXT></TEXT></Item></Node>` +
+      `</Item></Node></Item></Node>` +
+      `</Item></Node></Component>`;
+    const { conn } = await connectedFluid({
+      transcript: () =>
+        fpmTranscript({
+          ver: FPM_VER,
+          action: "events",
+          outs: [
+            configFrame({ config_id: "FEEDER_TOOL_TEST", component: "FPM_LIST_UIBB", xml: feederXml }),
+            SUMMARY_FRAME,
+          ],
+        }),
+    });
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_fpm_read", {
+      mode: "events",
+      config_id: "FEEDER_TOOL_TEST",
+    });
+    const text = okText(result);
+
+    expect(text).toContain("feeder ZCL_MY_TOOL_FEEDER method IF_FPM_GUIBB_LIST~PROCESS_EVENT");
+    expect(text).toContain(
+      'follow up: abap_read {"object":"ZCL_MY_TOOL_FEEDER","method":"IF_FPM_GUIBB_LIST~PROCESS_EVENT"}',
+    );
+  });
+});
+
+describe("abap_fpm_read mode=events — toolbar text resolution via WDY_CONFIG_COMPT (issue #101 Defect 3)", () => {
+  const translXml =
+    `<Component Name="X" ConfId="TEXT_TOOL_TEST" ConfType="00" ConfVar="">` +
+    `<Node Name="TOOLBAR"><Node Name="BUTTON"><Item>` +
+    `<ELEMENT_ID>FPM_SAVE</ELEMENT_ID><TYPE>BU</TYPE><TEXT Transl="true">30</TEXT>` +
+    `<Node Name="BUTTON_SUB_ITEM"><Item><ACTION_ID>FPM_SAVE</ACTION_ID></Item></Node>` +
+    `</Item></Node></Node>` +
+    `<Node Name="ACTION"><Item><ID>FPM_SAVE</ID><EVENT_ID>FPM_SAVE</EVENT_ID></Item></Node>` +
+    `</Component>`;
+
+  it("resolves a text_id row to its description, and shows the raw key in a separate TEXT_KEY column", async () => {
+    const { conn } = await connectedFluid({
+      transcript: () =>
+        fpmTranscript({
+          ver: FPM_VER,
+          action: "events",
+          outs: [
+            configFrame({ config_id: "TEXT_TOOL_TEST", component: "FPM_OVP_COMPONENT", xml: translXml }),
+            { kind: "text_id", config_id: "TEXT_TOOL_TEST", config_type: "00", config_var: "", langu: "E", text_id: "30", description: "Change" },
+            { ...SUMMARY_FRAME, text_ids: 1, logon_langu: "E" },
+          ],
+        }),
+    });
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_fpm_read", { mode: "events", config_id: "TEXT_TOOL_TEST" });
+    const text = okText(result);
+
+    expect(text).toMatch(/\bChange\b/);
+    expect(text).toContain("30");
+    expect(text).toMatch(/WDY_CONFIG_COMPT.*resolved/);
+  });
+
+  it("falls back to the raw numeric key, with a note, when no WDY_CONFIG_COMPT row matches", async () => {
+    const { conn } = await connectedFluid({
+      transcript: () =>
+        fpmTranscript({
+          ver: FPM_VER,
+          action: "events",
+          outs: [configFrame({ config_id: "TEXT_TOOL_TEST", component: "FPM_OVP_COMPONENT", xml: translXml }), SUMMARY_FRAME],
+        }),
+    });
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_fpm_read", { mode: "events", config_id: "TEXT_TOOL_TEST" });
+    const text = okText(result);
+
+    expect(text).toMatch(/WDY_CONFIG_COMPT.*no matching row/);
   });
 });
 

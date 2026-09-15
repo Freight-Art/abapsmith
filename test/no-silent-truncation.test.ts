@@ -362,6 +362,12 @@ const ALLOWED_LINES: { file: string; contains: string; reason: string }[] = [
     reason:
       "Pure arithmetic inside `blockLen` — it prices a candidate `kept` for the fit search and renders nothing. The output built from the same `kept` is `buildBlock`, whose omitted tail is disclosed by collapseLine()/elide() a few lines above.",
   },
+  {
+    file: "src/adt/ui-fcode.ts",
+    contains: "all.slice(0, MAX_FCODES)",
+    reason:
+      "MAX_FCODES caps the enumerated function-code list; the cap is disclosed — analyzeFcodes pushes a note naming the total and the cap, and adds \"fcodes\" to the response's truncated field.",
+  },
 ];
 
 function allowedReason(relPath: string, line: string): string | undefined {

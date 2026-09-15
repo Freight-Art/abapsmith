@@ -80,9 +80,18 @@ inference from a search snippet.
    → the `WHEN` branch whose literal matches, with its outgoing calls
    (`PERFORM`, `CALL FUNCTION`, `CALL METHOD`/`->`, `CALL TRANSACTION`,
    `LEAVE TO TRANSACTION`, `SUBMIT`). Then `abap_read` that exact line range.
-   - Refusal to expect: a `CASE` on something other than the OK-code field,
+   - A module can hold more than one top-level `CASE` on the dispatch field
+     — typically a small remap `CASE` ahead of the real dispatch `CASE` —
+     and the dispatch field itself is usually an *alias* assigned from the
+     OK-code field (`function = ok_code.`), not the OK-code field itself.
+     Reading only the first `CASE` in a module, or assuming the field
+     matched is literally `ok_code`, misses the actual handling; `fcode`
+     itself checks every top-level `CASE` and follows one remap hop,
+     reporting the branch that did the remapping via a `viaRemap` note.
+   - Refusal to expect: a `CASE` on something other than the dispatch field,
      or a lookup-table / dynamic dispatch, is reported as `unresolved`,
-     naming the module and include — it never silently falls through.
+     naming the module and include — it never suppresses branches found by
+     another `CASE` in the same module, and it never silently falls through.
    - Fallback when `fcode` is unresolved, or absent under `ABAP_MODE=read`:
      fall back to `abap_ui mode="screen"` for the flow logic, resolve the
      real includes by hand through `D010INC` (filtering out generated
@@ -103,8 +112,10 @@ inference from a search snippet.
      resolved
    - nothing is executed, so no run-time event is observed
    Also: a toolbar `TEXT` value is often a bare number — a key into
-   `WDY_CONFIG_DATT`/`WDY_CONFIG_APPT` — and `mode=events` does not resolve
-   it and says so.
+   `WDY_CONFIG_COMPT` (`CONFIG_ID`/`CONFIG_TYPE`/`CONFIG_VAR`/`LANGU`/
+   `TEXT_ID` → `DESCRIPTION`; confirmed live on A4H, see below) — and
+   `mode=events` resolves what it can and reports the outcome in a note
+   either way.
    - Refusal to expect: absent under `ABAP_MODE=read`; refuses
      `FLUID_API_DISABLED` if `ABAP_FLUID_API=false`.
    - Fallback: if `mode=app` reports a configuration does not exist, retry
@@ -139,12 +150,14 @@ capability.
 
 ## Live transcript (A4H, 2026-09-15)
 
-Everything below was actually observed on that date, but **with the tools
-already shipped at the time** — `abap_ui mode="screen"`, `abap_read`,
-`abap_search mode="source"`, `abap_data_preview`, `abap_fpm_read
-mode="outline"`. Neither `abap_ui mode="fcode"` nor `abap_fpm_read
-mode="events"` has ever run against a live system: both are **unverified**,
-built in this same change as this skill.
+Everything below was actually observed on that date. `abap_ui mode="fcode"`
+has now run end to end on A4H (the SM30/UPD trace below) and its output was
+used to find and fix two real bugs in the tool itself. `abap_fpm_read
+mode="events"` has also run on A4H and its structural output — UIBBs,
+events, wires, and `standard`/`bopf`/`feeder` handler resolution — is
+confirmed, including the *resolved text* of numeric toolbar labels: the
+`WDY_CONFIG_COMPT` lookup now returns the label in `text` with the raw key
+in `textKey` (see below).
 
 - `abap_ui {"mode":"screen","program":"SAPMSVMA","dynpro":"100"}` returned
   `fieldsCount 28, flowCount 23, statusCount 3, functionsCount 16,
@@ -200,17 +213,69 @@ built in this same change as this skill.
   lists exactly that ID under `config_type=00`. `mode=outline` on the same
   key succeeded. Practical advice: if `mode=app` reports a configuration
   does not exist, retry with `mode=outline` before concluding anything.
+- Message number traced end to end: `abap_search
+  {"mode":"source","query":"e077",...}` led to function group `0SVM`,
+  include `L0SVMI10`, line 170.
+- Classic dynpro button traced end to end through `abap_ui mode="fcode"`:
+  `abap_ui {"mode":"fcode","tcode":"SM30","fcode":"UPD"}` resolved `SM30` to
+  program `SAPMSVMA`, dynpro `0100`, and reported the PAI modules in
+  flow-logic order — `EXIT_COMMAND` (`AT EXIT-COMMAND`), `CHECK_VARIANT`
+  (`ON CHAIN-REQUEST`), `ACTION`. For `ACTION` it reported
+  `dispatch: alias on function (assigned from ok_code at line 118)` and
+  three matching `WHEN` branches: `WHEN UPD` at lines 128-128 (the
+  pre-dispatch remap `CASE` at 127-131, `when 'UPD '. move 'UPDL' to
+  function.`), `WHEN UPD` at lines 158-162, and `WHEN UPDL` at lines 163-167
+  (reached `viaRemap` from `UPD`) — each carrying its own exact
+  `abap_read {"object":"SAPMSVMA","offset":<n>,"limit":<n>}` call.
+  `EXIT_COMMAND` and `CHECK_VARIANT` came back `unresolved`, each with a
+  stated reason (no `CASE` in the module body — its statements run for
+  every function code), naming module and include rather than being
+  silently dropped. This run is what surfaced the alias-dispatch and
+  multi-`CASE` behaviour described in Procedure B above: it found and fixed
+  two real bugs in `fcode` itself (the dispatch field was assumed to be
+  `ok_code` verbatim, and only the first top-level `CASE` in a module was
+  read).
+- FBI view button mapped to a BOPF action: on configuration
+  `/BOFU/TEST_SALES_ORDER`, the button `FBI_CREATE` resolved through the
+  view configuration's `ACTIONS` node to a BO action.
+- FPM/FBI event tracing run on the OVP application config: `abap_fpm_read
+  {"mode":"events","config_id":"/BOFU/TEST_FBI_SALES_ORDER_OVP",
+  "config_type":"00"}` returned 7 UIBB views, 8 events, 4 wires (source
+  UIBB, target UIBB, connector class) and the application controller class;
+  handlers resolved as `standard` (floorplan-handled, with the event name)
+  and `bopf` (BO `/BOFU/TEST_SALES_ORDER`, node `ITEM`, action unresolved
+  for the two FBI framework events `FBI_CREATE`/`FBI_DELETE` — the
+  connector maps the action internally and it never appears in
+  `/BOBF/ACT_LIST` or anywhere else in configuration).
+- Freestyle feeder button traced end to end through `abap_fpm_read
+  mode="events"`: `abap_fpm_read
+  {"mode":"events","config_id":"/BOFU/TEST_CUSTOMER_OIF","config_type":"00"}`
+  resolved `feeder` handlers naming the feeder classes
+  `/BOFU/CL_FBI_CHDOC_ROOT_MUL` and `/BOFU/CL_FBI_CHDOC_ROOT_SINGLE`.
+- Toolbar `TEXT` labels: the numeric keys seen in configuration XML (e.g.
+  `30`, `34`, `38`, `42`, `46`, `12`) were confirmed live against
+  `WDY_CONFIG_COMPT` (`CONFIG_ID` C(32), `CONFIG_TYPE` N(2), `CONFIG_VAR`
+  C(6), `LANGU` C(2), `TEXT_ID` C(6), `DESCRIPTION` C(255)) via
+  `abap_data_preview` — `30`→"Change", `34`→"Save", `38`→"Read-Only",
+  `42`→"Refresh", `46`→"Cancel", `12`→"Start". `WDY_CONFIG_DATT` and
+  `WDY_CONFIG_APPT` were also checked and do **not** hold these labels.
+  `abap_fpm_read mode="events"` on the same OVP config returned exactly
+  these six resolutions in `text` (raw key in `textKey`), so the
+  resolved-text *output* of `mode=events` — not just the table lookup
+  behind it — is confirmed end to end (see `doc/TOOLS/ui-and-fpm.md`).
+- A function module reached only through a dynamic caller: where-used on
+  `VIEW_MAINTENANCE_CALL` returned 0 registered references, even though the
+  function module is plainly called dynamically — that zero is itself the
+  finding (where-used is a static index and does not see dynamic callers,
+  exactly the blind spot Procedure A warns about), and a source scan
+  scoped to package `SVIM` was used instead.
 
-## Worked runs still owed
-
-The following live runs are outstanding — none of them has been done yet:
-
-- A function module reached only through a dynamic caller.
-- A message number traced from source back to its raising statement.
-- A classic dynpro button, end to end, through `abap_ui mode="fcode"`.
-- An FBI view button mapped all the way to a BOPF action.
-- A freestyle feeder button, end to end, through `abap_fpm_read
-  mode="events"`.
+Still open: for an FBI framework event such as `FBI_CREATE`/`FBI_DELETE`,
+the `bopf` handler names the BO and node but not the action, because the
+FBI connector maps it internally and it never appears in `/BOBF/ACT_LIST`
+or anywhere else in configuration. XML decoding is verified in depth only
+for FORM/LIST UIBBs and one FBI view shape; other UIBB kinds and FBI view
+shapes are untested.
 
 ## Surface note
 

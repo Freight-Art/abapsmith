@@ -133,8 +133,30 @@ function str(v: unknown, fallback = ""): string {
   return typeof v === "string" ? v : fallback;
 }
 
+/**
+ * Accepts a genuine JSON number OR a string holding one — `fcode`'s own
+ * output schema types some numeric fields (e.g. `src[].line`) as strings
+ * because that's what `emit_src` (fluid/builtin/ui.ts) writes (`"line":"117"`,
+ * not `"line":117`), deliberately: a bare unquoted `WRITE`d integer risks
+ * leading/trailing spaces breaking the JSON, so the ABAP side always quotes
+ * it. Rejecting the quoting here (the bug this comment replaces) silently
+ * turned every quoted line number into 0, which cascaded into every src line
+ * landing at line 0, every per-module body coming out empty, and dispatch
+ * resolution reporting "no CASE found" for modules that do have one —
+ * confirmed live against SAPMSVMA/0100 on A4H, 2026-09-15. Only a fallback
+ * on a genuinely non-numeric value (missing field, "", non-numeric text) —
+ * never a relaxation of what the emitted JSON looks like.
+ */
 function num(v: unknown, fallback = 0): number {
-  return typeof v === "number" && Number.isFinite(v) ? v : fallback;
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string") {
+    const trimmed = v.trim();
+    if (trimmed !== "") {
+      const n = Number(trimmed);
+      if (Number.isFinite(n)) return n;
+    }
+  }
+  return fallback;
 }
 
 function bool(v: unknown, fallback = false): boolean {
@@ -292,6 +314,14 @@ export interface UiFcodeBranch {
   }[];
   /** Suggested `abap_read` call to view this branch's own lines, e.g. `abap_read {"object":"SAPMSVMA","offset":120,"limit":4}`. */
   read: string;
+  /**
+   * Set when this branch is included NOT because its own WHEN literal matched the
+   * traced fcode, but because a branch that DID match reassigns the dispatch
+   * variable to a new literal (`when 'UPD '. move 'UPDL' to function.`) and this
+   * branch is the one that literal leads to, one hop away — e.g.
+   * `"UPD -> UPDL at line 128"`. See analyzeFcodes' remap-following logic.
+   */
+  viaRemap?: string;
 }
 
 export interface UiFcodeModuleHit {
@@ -472,6 +502,87 @@ function findPreDispatchRemap(
   return found;
 }
 
+/**
+ * Splits a module body into its top-level CASE...ENDCASE ranges — a CASE
+ * nested inside another CASE's WHEN is not top-level, it belongs to that
+ * WHEN's own body and is skipped over here (via the same depth-tracking
+ * ENDCASE search analyzeModuleBody used to do for a single CASE). A real
+ * module can and does contain more than one top-level CASE on the same
+ * variable — SAPMSVMA's MODULE ACTION has a small pre-dispatch remap CASE
+ * followed by the real dispatch CASE, both switching on `function` (see the
+ * module header and test/fixtures/ui-fcode/sapmsvma-lines-110-329.abap) —
+ * every one of them needs its own dispatch resolution and its own branches,
+ * not just the first. Order preserved, source order top to bottom. An
+ * unterminated trailing CASE (no matching ENDCASE) still gets a range; it
+ * just runs to the end of the module.
+ */
+function findTopLevelCases(stmts: readonly Stmt[]): { caseIdx: number; endcaseIdx: number }[] {
+  const cases: { caseIdx: number; endcaseIdx: number }[] = [];
+  let i = 0;
+  while (i < stmts.length) {
+    if (/^case\s+/i.test(stmts[i]!.norm)) {
+      let depth = 1;
+      let j = i + 1;
+      for (; j < stmts.length; j++) {
+        const n = stmts[j]!.norm;
+        if (/^case\s+/i.test(n)) depth++;
+        else if (/^endcase\b/i.test(n)) {
+          depth--;
+          if (depth === 0) break;
+        }
+      }
+      cases.push({ caseIdx: i, endcaseIdx: j }); // j === stmts.length when unterminated
+      i = j + 1;
+    } else {
+      i++;
+    }
+  }
+  return cases;
+}
+
+/**
+ * Best-effort detection of an IN-BRANCH literal remap: a WHEN branch body
+ * that assigns a new LITERAL into the very variable the enclosing CASE
+ * switches on — `when 'UPD '. move 'UPDL' to function.` (the real,
+ * observed SAPMSVMA idiom) or the `function = 'UPDL'.` equivalent. Only the
+ * FIRST such assignment in `stmts[fromIdx..toIdx)` is reported — analyzeFcodes
+ * follows this exactly one hop and then stops, never chases a chain of
+ * remaps. Deliberately scoped to one branch's own statements, unlike
+ * {@link findPreDispatchRemap} (which looks at unconditional statements
+ * before a CASE): a remap written inside one WHEN branch of an earlier CASE
+ * only actually fires when that branch runs, so it must never be reported as
+ * if it were an unconditional pre-dispatch reassignment.
+ */
+function findLiteralRemap(
+  stmts: readonly Stmt[],
+  fromIdx: number,
+  toIdx: number,
+  dispatchVar: string,
+): { literal: string; line: number } | undefined {
+  const target = dispatchVar.trim().toLowerCase();
+  for (let i = fromIdx; i < toIdx; i++) {
+    const stmt = stmts[i]!;
+    const s = stmt.norm;
+    let lhs: string | undefined;
+    let literal: string | undefined;
+    let m = /^(\S+)\s*=\s*'([^']*)'$/i.exec(s);
+    if (m) {
+      lhs = m[1];
+      literal = m[2];
+    } else {
+      m = /^move\s+'([^']*)'\s+to\s+(\S+)$/i.exec(s);
+      if (m) {
+        literal = m[1];
+        lhs = m[2];
+      }
+    }
+    if (lhs === undefined || literal === undefined) continue;
+    if (lhs.trim().toLowerCase() !== target) continue;
+    return { literal, line: stmt.startLine };
+  }
+  return undefined;
+}
+
 interface Call {
   kind: "PERFORM" | "CALL FUNCTION" | "CALL METHOD" | "CALL TRANSACTION" | "LEAVE TO TRANSACTION" | "SUBMIT";
   target: string;
@@ -534,17 +645,26 @@ function parseWhenLiterals(whenNorm: string): string[] {
   return [];
 }
 
+type WorkingBranch = UiFcodeBranch & { literalsUpper: string[]; remapsTo?: { literal: string; line: number } };
+
 interface ModuleAnalysis {
   dispatch: UiFcodeModuleHit["dispatch"];
-  branches: (UiFcodeBranch & { literalsUpper: string[] })[];
-  remapNote?: string;
+  branches: WorkingBranch[];
+  /** One entry per top-level CASE that had a pre-dispatch remap (see {@link findPreDispatchRemap}) — a module can have more than one qualifying CASE, each with its own. */
+  remapNotes: string[];
 }
 
 /**
- * The core per-module analysis: finds the (first) dispatch CASE, resolves
- * what it switches on, and slices out every top-level WHEN branch with its
- * literals and outgoing calls. Independent of any one fcode — run once per
- * module, reused for every row.
+ * The core per-module analysis: finds EVERY top-level dispatch CASE (see
+ * {@link findTopLevelCases} — a module can have more than one, e.g. a small
+ * pre-dispatch remap CASE followed by the real dispatch CASE, both on the
+ * same variable), resolves what each one switches on, and slices out every
+ * top-level WHEN branch of every CASE that qualifies (switches on
+ * ok_code/sy-ucomm, or a local alias last assigned from one of those) with
+ * its literals and outgoing calls. A CASE that does NOT qualify contributes
+ * no branches; if NONE qualify, the module's dispatch is reported unresolved
+ * using the first CASE found, exactly as when there was only ever one.
+ * Independent of any one fcode — run once per module, reused for every row.
  */
 function analyzeModuleBody(
   moduleName: string,
@@ -554,9 +674,9 @@ function analyzeModuleBody(
   lineTo: number,
   stmts: readonly Stmt[],
 ): ModuleAnalysis {
-  const caseIdx = stmts.findIndex((s) => /^case\s+/i.test(s.norm));
+  const topCases = findTopLevelCases(stmts);
 
-  if (caseIdx === -1) {
+  if (topCases.length === 0) {
     // No CASE at all — not an error, just a module that always runs.
     return {
       dispatch: { kind: "none" },
@@ -570,82 +690,102 @@ function analyzeModuleBody(
           read: buildRead(include, program, lineFrom, lineTo),
         },
       ],
+      remapNotes: [],
     };
   }
 
-  const caseExpr = stmts[caseIdx]!.norm.replace(/^case\s+/i, "").trim();
-  const aliases = findAliasAssignments(stmts, caseIdx);
-  const lastAlias = aliases.length > 0 ? aliases[aliases.length - 1] : undefined;
+  interface CaseResult {
+    dispatch: UiFcodeModuleHit["dispatch"];
+    branches: WorkingBranch[];
+  }
 
-  let dispatch: UiFcodeModuleHit["dispatch"];
-  const direct = isOkCodeLike(caseExpr);
-  if (direct) {
-    dispatch = { kind: direct, expression: caseExpr };
-  } else {
-    const aliasHit = [...aliases].reverse().find((a) => a.lhs.trim().toLowerCase() === caseExpr.toLowerCase());
-    if (aliasHit) {
-      dispatch = {
-        kind: "alias",
-        expression: caseExpr,
-        aliasAssignedFrom: aliasHit.rhsText,
-        aliasLine: aliasHit.line,
-      };
+  const remapNotes: string[] = [];
+  const caseResults: CaseResult[] = topCases.map(({ caseIdx, endcaseIdx }) => {
+    const caseExpr = stmts[caseIdx]!.norm.replace(/^case\s+/i, "").trim();
+    const aliases = findAliasAssignments(stmts, caseIdx);
+    const lastAlias = aliases.length > 0 ? aliases[aliases.length - 1] : undefined;
+
+    let dispatch: UiFcodeModuleHit["dispatch"];
+    const direct = isOkCodeLike(caseExpr);
+    if (direct) {
+      dispatch = { kind: direct, expression: caseExpr };
     } else {
-      dispatch = {
-        kind: "unresolved",
-        expression: caseExpr,
-        reason: `CASE on "${caseExpr}", which is not ok_code/sy-ucomm and was not assigned from one inside this module`,
-      };
-    }
-  }
-
-  // Pre-dispatch remap: whatever the CASE actually names, reassigned from a
-  // non-ok_code/sy-ucomm source before the CASE runs (skip the alias
-  // definition statement itself, if that's what resolved `dispatch`).
-  const remap = findPreDispatchRemap(stmts, caseIdx, caseExpr, lastAlias?.stmtIndex);
-  const remapNote = remap
-    ? `Module ${moduleName} reassigns "${caseExpr}" before dispatch (line ${remap.line}: "${remap.text}") — ` +
-      "not followed; branch literals below are still matched against the ORIGINAL fcode, not this remapped value."
-    : undefined;
-
-  // Walk from just after the CASE, tracking nested-CASE depth so an inner
-  // CASE's own WHEN/ENDCASE never closes our branches.
-  let depth = 1;
-  let endcaseIdx = stmts.length;
-  const whenIdx: number[] = [];
-  for (let i = caseIdx + 1; i < stmts.length; i++) {
-    const n = stmts[i]!.norm;
-    if (/^case\s+/i.test(n)) {
-      depth++;
-    } else if (/^endcase\b/i.test(n)) {
-      depth--;
-      if (depth === 0) {
-        endcaseIdx = i;
-        break;
+      const aliasHit = [...aliases].reverse().find((a) => a.lhs.trim().toLowerCase() === caseExpr.toLowerCase());
+      if (aliasHit) {
+        dispatch = {
+          kind: "alias",
+          expression: caseExpr,
+          aliasAssignedFrom: aliasHit.rhsText,
+          aliasLine: aliasHit.line,
+        };
+      } else {
+        dispatch = {
+          kind: "unresolved",
+          expression: caseExpr,
+          reason: `CASE on "${caseExpr}", which is not ok_code/sy-ucomm and was not assigned from one inside this module`,
+        };
       }
-    } else if (depth === 1 && /^when\s+/i.test(n)) {
-      whenIdx.push(i);
     }
-  }
 
-  const branches: (UiFcodeBranch & { literalsUpper: string[] })[] = whenIdx.map((wi, k) => {
-    const bodyFrom = wi + 1;
-    const bodyTo = k + 1 < whenIdx.length ? whenIdx[k + 1]! : endcaseIdx;
-    const literals = parseWhenLiterals(stmts[wi]!.norm);
-    const lastStmtIdx = bodyTo > bodyFrom ? bodyTo - 1 : wi;
-    const lineFrom = stmts[wi]!.startLine;
-    const lineTo = stmts[lastStmtIdx]!.endLine;
-    return {
-      literals,
-      literalsUpper: literals.map((l) => l.trim().toUpperCase()),
-      lineFrom,
-      lineTo,
-      calls: extractCalls(stmts, bodyFrom, bodyTo),
-      read: buildRead(include, program, lineFrom, lineTo),
-    };
+    // Pre-dispatch remap: whatever THIS CASE actually names, reassigned from
+    // a non-ok_code/sy-ucomm source before it runs (skip the alias
+    // definition statement itself, if that's what resolved `dispatch`).
+    const remap = findPreDispatchRemap(stmts, caseIdx, caseExpr, lastAlias?.stmtIndex);
+    if (remap) {
+      remapNotes.push(
+        `Module ${moduleName} reassigns "${caseExpr}" before dispatch (line ${remap.line}: "${remap.text}") — ` +
+          "not followed; branch literals below are still matched against the ORIGINAL fcode, not this remapped value.",
+      );
+    }
+
+    if (dispatch.kind === "unresolved") {
+      return { dispatch, branches: [] };
+    }
+
+    // Walk this CASE's own body, tracking nested-CASE depth so an inner
+    // CASE's own WHEN/ENDCASE never closes our branches.
+    let depth = 1;
+    const whenIdx: number[] = [];
+    for (let i = caseIdx + 1; i < endcaseIdx; i++) {
+      const n = stmts[i]!.norm;
+      if (/^case\s+/i.test(n)) depth++;
+      else if (/^endcase\b/i.test(n)) depth--;
+      else if (depth === 1 && /^when\s+/i.test(n)) whenIdx.push(i);
+    }
+
+    const branches: WorkingBranch[] = whenIdx.map((wi, k) => {
+      const bodyFrom = wi + 1;
+      const bodyTo = k + 1 < whenIdx.length ? whenIdx[k + 1]! : endcaseIdx;
+      const literals = parseWhenLiterals(stmts[wi]!.norm);
+      const lastStmtIdx = bodyTo > bodyFrom ? bodyTo - 1 : wi;
+      const branchLineFrom = stmts[wi]!.startLine;
+      const branchLineTo = stmts[lastStmtIdx]!.endLine;
+      const remapsTo = findLiteralRemap(stmts, bodyFrom, bodyTo, caseExpr);
+      return {
+        literals,
+        literalsUpper: literals.map((l) => l.trim().toUpperCase()),
+        lineFrom: branchLineFrom,
+        lineTo: branchLineTo,
+        calls: extractCalls(stmts, bodyFrom, bodyTo),
+        read: buildRead(include, program, branchLineFrom, branchLineTo),
+        ...(remapsTo ? { remapsTo } : {}),
+      };
+    });
+
+    return { dispatch, branches };
   });
 
-  return { dispatch, branches, ...(remapNote ? { remapNote } : {}) };
+  // Only a CASE that switches on ok_code/sy-ucomm (directly or via alias)
+  // contributes branches. When at least one does, the module's reported
+  // `dispatch` is the first qualifying one (in the observed SAPMSVMA case
+  // they all resolve to the same alias anyway); when NONE does, fall back to
+  // the first CASE found and report it unresolved by name, exactly as
+  // before this module could ever have more than one CASE.
+  const qualifying = caseResults.filter((r) => r.dispatch.kind !== "unresolved");
+  const dispatch = (qualifying[0] ?? caseResults[0]!).dispatch;
+  const branches = qualifying.flatMap((r) => r.branches);
+
+  return { dispatch, branches, remapNotes };
 }
 
 // ---------------------------------------------------------------------------
@@ -713,7 +853,7 @@ export function analyzeFcodes(raw: UiFcodeRaw, opts: { fcode?: string }): UiFcod
     }
     const stmts = splitStatements(lines);
     const analysis = analyzeModuleBody(pai.name, frame.include, program, frame.lineFrom, frame.lineTo, stmts);
-    if (analysis.remapNote) notes.push(analysis.remapNote);
+    for (const n of analysis.remapNotes) notes.push(n);
     resolved.push({ pai, frame, analysis });
   }
 
@@ -773,6 +913,39 @@ export function analyzeFcodes(raw: UiFcodeRaw, opts: { fcode?: string }): UiFcod
         }
       }
 
+      // DEFECT 2b: a matched branch that reassigns the dispatch variable to a
+      // new LITERAL (`when 'UPD '. move 'UPDL' to function.`, found by
+      // analyzeModuleBody/findLiteralRemap) is followed exactly ONE hop —
+      // the branch(es) elsewhere in the module matching that new literal are
+      // pulled in too, flagged with `viaRemap` provenance, rather than left
+      // invisible just because their own WHEN literal never matched the
+      // fcode the caller actually asked for. If the destination branch
+      // itself remaps again, that's noted but not chased further.
+      const seen = new Set<WorkingBranch>(branches);
+      const remapBranches: WorkingBranch[] = [];
+      for (const source of branches) {
+        if (!source.remapsTo) continue;
+        const remapLiteral = normFcode(source.remapsTo.literal);
+        if (remapLiteral === fcode) continue; // points back at itself — no infinite work
+        const targets = analysis.branches.filter((t) => !seen.has(t) && t.literalsUpper.includes(remapLiteral));
+        if (targets.length === 0) continue;
+        notes.push(
+          `fcode "${fcode}" in module ${pai.name}: WHEN '${fcode}' remaps to '${remapLiteral}' at line ` +
+            `${source.remapsTo.line} — also showing the WHEN '${remapLiteral}' branch(es) it leads to.`,
+        );
+        for (const target of targets) {
+          seen.add(target);
+          remapBranches.push({ ...target, viaRemap: `${fcode} -> ${remapLiteral} at line ${source.remapsTo.line}` });
+          if (target.remapsTo) {
+            notes.push(
+              `Module ${pai.name}: the WHEN '${remapLiteral}' branch reached via remap itself reassigns to ` +
+                `'${normFcode(target.remapsTo.literal)}' at line ${target.remapsTo.line} — not followed (one hop only).`,
+            );
+          }
+        }
+      }
+      branches = [...branches, ...remapBranches];
+
       modules.push({
         module: pai.name,
         include: frame.include,
@@ -782,7 +955,7 @@ export function analyzeFcodes(raw: UiFcodeRaw, opts: { fcode?: string }): UiFcod
         ...(pai.condition !== undefined ? { condition: pai.condition } : {}),
         flowIndex: pai.flowLine,
         dispatch: analysis.dispatch,
-        branches: branches.map(({ literalsUpper: _literalsUpper, ...b }) => b),
+        branches: branches.map(({ literalsUpper: _literalsUpper, remapsTo: _remapsTo, ...b }) => b),
         read: buildRead(frame.include, program, frame.lineFrom, frame.lineTo),
       });
 

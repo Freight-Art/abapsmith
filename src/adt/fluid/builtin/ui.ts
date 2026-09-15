@@ -619,7 +619,7 @@ CLASS zcl_zmcp_fluid_ui IMPLEMENTATION.
       IF sy-subrc = 0.
         zcl_zmcp_fluid_rt=>out(
           |\\{"kind":"src","include":"{ zcl_zmcp_fluid_rt=>esc( iv_include ) }",| &&
-          |"line":{ lv_j },"text":"{ zcl_zmcp_fluid_rt=>esc( lv_line ) }"\\}| ).
+          |"line":"{ lv_j }","text":"{ zcl_zmcp_fluid_rt=>esc( lv_line ) }"\\}| ).
         cv_src_count = cv_src_count + 1.
       ENDIF.
       lv_j = lv_j + 1.

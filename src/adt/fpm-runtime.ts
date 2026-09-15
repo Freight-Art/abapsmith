@@ -323,6 +323,8 @@ const FPM_EVENTS_FRAME_KINDS: ReadonlySet<string> = new Set([
   "bopf_node",
   "bopf_action",
   "bopf_error",
+  "text_id",
+  "text_id_error",
   "summary",
 ]);
 

@@ -195,4 +195,62 @@ describe("fpmManifest / fpmSources — events action", () => {
 
     expect((transcript.values[0] as Record<string, unknown>).config_id).toBe(rootConfigId);
   });
+
+  it('an "events" run\'s text_id/text_id_error frames (issue #101 Defect 3) round-trip through parseFluidConsole and the declared schema', () => {
+    const eventsAction = fpmManifest.actions.find((a) => a.name === "events");
+    expect(eventsAction).toBeDefined();
+    if (!eventsAction) return;
+
+    // Live-confirmed TEXT_ID/DESCRIPTION values from /BOFU/TEST_FBI_SALES_ORDER_OVP
+    // (see test/fpm-events.test.ts's OVP toolbar fixture).
+    const textIdFrame = {
+      kind: "text_id",
+      config_id: "/BOFU/TEST_FBI_SALES_ORDER_OVP",
+      config_type: "00",
+      config_var: "",
+      langu: "E",
+      text_id: "30",
+      description: "Change",
+    };
+    const textIdErrorFrame = { kind: "text_id_error", text: "DBIF_RSQL_TABLE_UNKNOWN" };
+    const summaryFrame = {
+      kind: "summary",
+      configs_read: 1,
+      configs_failed: 0,
+      configs_skipped: 0,
+      bopf_nodes: 0,
+      bopf_actions: 0,
+      fpm_events: 0,
+      text_ids: 1,
+      logon_langu: "E",
+      truncated: "",
+    };
+
+    const outPayloads = [textIdFrame, textIdErrorFrame, summaryFrame].map((v) => JSON.stringify(v));
+    const beginPayload = JSON.stringify({ id: "fpm", ver: "abcd1234", action: "events", contract: "1.0" });
+    const endPayload = JSON.stringify({ rc: 0, outBytes: 0, truncated: false, ms: 4 });
+    const transcriptLines = [
+      `ZMCP-H>BEGIN ${beginPayload}`,
+      ...outPayloads.map((p) => `ZMCP-H>OUT ${p}`),
+      `ZMCP-H>END ${endPayload}`,
+    ];
+    const transcript = parseFluidConsole(transcriptLines.join("\n"));
+    expect(transcript.errors).toEqual([]);
+    expect(transcript.stray).toEqual([]);
+    expect(transcript.dropped).toEqual([]);
+    expect(transcript.values.length).toBe(outPayloads.length);
+
+    const itemsSchema = eventsAction.output.items;
+    expect(itemsSchema, "events action output.items must be defined for array output").toBeDefined();
+    if (!itemsSchema) return;
+    for (const value of transcript.values) {
+      const schemaErrors = validateAgainstSchema(value, itemsSchema, "result[i]");
+      expect(schemaErrors, JSON.stringify(value)).toEqual([]);
+    }
+
+    expect((transcript.values[0] as Record<string, unknown>).kind).toBe("text_id");
+    expect((transcript.values[0] as Record<string, unknown>).description).toBe("Change");
+    expect((transcript.values[1] as Record<string, unknown>).kind).toBe("text_id_error");
+    expect((transcript.values[2] as Record<string, unknown>).logon_langu).toBe("E");
+  });
 });
