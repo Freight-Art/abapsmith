@@ -5242,34 +5242,34 @@ var require_utilities = __commonJS({
     exports2.xmlArrayType = xmlArrayType;
     var extractXmlArray = (x) => x ? (0, exports2.isArray)(x) ? x : [x] : [];
     exports2.extractXmlArray = extractXmlArray;
-    function xmlNode2(xml3, ...path8) {
+    function xmlNode2(xml3, ...path9) {
       let current = xml3;
-      path8.some((key) => {
+      path9.some((key) => {
         if ((0, exports2.isObject)(current))
           current = current[key];
         return !current;
       });
       return current;
     }
-    function xmlFlatArray(xml3, ...path8) {
+    function xmlFlatArray(xml3, ...path9) {
       if (!xml3)
         return [];
-      if (path8.length === 0) {
+      if (path9.length === 0) {
         if ((0, exports2.isArray)(xml3))
           return xml3;
         else
           return [xml3];
       }
       if ((0, exports2.isArray)(xml3))
-        return xml3.reduce((arr, x) => [...arr, ...xmlFlatArray(x, ...path8)], []);
+        return xml3.reduce((arr, x) => [...arr, ...xmlFlatArray(x, ...path9)], []);
       if ((0, exports2.isObject)(xml3)) {
-        const [idx2, ...rest] = path8;
+        const [idx2, ...rest] = path9;
         return xmlFlatArray(xml3[idx2], ...rest);
       }
       return [];
     }
-    function xmlArray2(xml3, ...path8) {
-      const node2 = xmlNode2(xml3, ...path8);
+    function xmlArray2(xml3, ...path9) {
+      const node2 = xmlNode2(xml3, ...path9);
       if (node2) {
         if ((0, exports2.isArray)(node2))
           return node2;
@@ -12905,21 +12905,21 @@ var require_src = __commonJS({
       }
       return type;
     };
-    var errorMessageSimple = function(expectedType, path8, error51, options) {
+    var errorMessageSimple = function(expectedType, path9, error51, options) {
       return [
         "Expecting " + truncateType(expectedType, options),
-        path8 === "" ? "" : "at " + path8,
+        path9 === "" ? "" : "at " + path9,
         "but instead got: " + jsToString(error51.value),
         error51.message ? "(" + error51.message + ")" : ""
       ].filter(Boolean).join(" ");
     };
-    var errorMessageUnion = function(expectedTypes, path8, value, options) {
+    var errorMessageUnion = function(expectedTypes, path9, value, options) {
       return [
         "Expecting one of:\n",
         expectedTypes.map(function(type) {
           return "    " + truncateType(type, options);
         }).join("\n"),
-        path8 === "" ? "\n" : "\nat " + path8 + " ",
+        path9 === "" ? "\n" : "\nat " + path9 + " ",
         "but instead got: " + jsToString(value)
       ].filter(Boolean).join("");
     };
@@ -12928,7 +12928,7 @@ var require_src = __commonJS({
         return A.lookup(n + 1, ctx);
       }));
     };
-    var formatValidationErrorOfUnion = function(path8, errors, options) {
+    var formatValidationErrorOfUnion = function(path9, errors, options) {
       var expectedTypes = pipeable_1.pipe(errors, A.map(getValidationContext), A.map(findExpectedType), A.compact);
       var value = pipeable_1.pipe(expectedTypes, A.head, O.map(function(v) {
         return v.actual;
@@ -12939,26 +12939,26 @@ var require_src = __commonJS({
         var type = _a3.type;
         return type.name;
       });
-      return expected.length > 0 ? O.some(errorMessageUnion(expected, path8, value, options)) : O.none;
+      return expected.length > 0 ? O.some(errorMessageUnion(expected, path9, value, options)) : O.none;
     };
-    var formatValidationCommonError = function(path8, error51, options) {
+    var formatValidationCommonError = function(path9, error51, options) {
       return pipeable_1.pipe(error51, getErrorFromCtx, O.map(function(errorContext) {
-        return errorMessageSimple(errorContext.type.name, path8, error51, options);
+        return errorMessageSimple(errorContext.type.name, path9, error51, options);
       }));
     };
-    var groupByKey = NEA.groupBy(function(error51) {
+    var groupByKey2 = NEA.groupBy(function(error51) {
       return pipeable_1.pipe(error51.context, utils_1.takeUntil(isUnionType), keyPath);
     });
-    var format = function(path8, errors, options) {
-      return NEA.tail(errors).length > 0 ? formatValidationErrorOfUnion(path8, errors, options) : formatValidationCommonError(path8, NEA.head(errors), options);
+    var format = function(path9, errors, options) {
+      return NEA.tail(errors).length > 0 ? formatValidationErrorOfUnion(path9, errors, options) : formatValidationCommonError(path9, NEA.head(errors), options);
     };
     var formatValidationError = function(error51, options) {
       return formatValidationCommonError(keyPath(error51.context), error51, options);
     };
     exports2.formatValidationError = formatValidationError;
     var formatValidationErrors = function(errors, options) {
-      return pipeable_1.pipe(errors, groupByKey, R.mapWithIndex(function(path8, errors2) {
-        return format(path8, errors2, options);
+      return pipeable_1.pipe(errors, groupByKey2, R.mapWithIndex(function(path9, errors2) {
+        return format(path9, errors2, options);
       }), R.compact, R.toArray, A.map(function(_a3) {
         var _key = _a3[0], error51 = _a3[1];
         return error51;
@@ -22021,11 +22021,11 @@ var require_mime_types = __commonJS({
       }
       return exts[0];
     }
-    function lookup(path8) {
-      if (!path8 || typeof path8 !== "string") {
+    function lookup(path9) {
+      if (!path9 || typeof path9 !== "string") {
         return false;
       }
-      var extension2 = extname("x." + path8).toLowerCase().substr(1);
+      var extension2 = extname("x." + path9).toLowerCase().substr(1);
       if (!extension2) {
         return false;
       }
@@ -23130,7 +23130,7 @@ var require_form_data = __commonJS({
     "use strict";
     var CombinedStream = require_combined_stream();
     var util2 = __require("util");
-    var path8 = __require("path");
+    var path9 = __require("path");
     var http3 = __require("http");
     var https4 = __require("https");
     var parseUrl2 = __require("url").parse;
@@ -23261,11 +23261,11 @@ var require_form_data = __commonJS({
     FormData2.prototype._getContentDisposition = function(value, options) {
       var filename;
       if (typeof options.filepath === "string") {
-        filename = path8.normalize(options.filepath).replace(/\\/g, "/");
+        filename = path9.normalize(options.filepath).replace(/\\/g, "/");
       } else if (options.filename || value && (value.name || value.path)) {
-        filename = path8.basename(options.filename || value && (value.name || value.path));
+        filename = path9.basename(options.filename || value && (value.name || value.path));
       } else if (value && value.readable && hasOwn(value, "httpVersion")) {
-        filename = path8.basename(value.client._httpMessage.path || "");
+        filename = path9.basename(value.client._httpMessage.path || "");
       }
       if (filename) {
         return 'filename="' + escapeHeaderParam(filename) + '"';
@@ -25087,7 +25087,7 @@ var require_axios = __commonJS({
     var https4 = __require("https");
     var http22 = __require("http2");
     var util2 = __require("util");
-    var path8 = __require("path");
+    var path9 = __require("path");
     var followRedirects = require_follow_redirects();
     var zlib = __require("zlib");
     var stream = __require("stream");
@@ -26155,9 +26155,9 @@ var require_axios = __commonJS({
     function removeBrackets(key) {
       return utils$1.endsWith(key, "[]") ? key.slice(0, -2) : key;
     }
-    function renderKey(path9, key, dots) {
-      if (!path9) return key;
-      return path9.concat(key).map(function each(token, i) {
+    function renderKey(path10, key, dots) {
+      if (!path10) return key;
+      return path10.concat(key).map(function each(token, i) {
         token = removeBrackets(token);
         return !dots && i ? "[" + token + "]" : token;
       }).join(dots ? "." : "");
@@ -26235,13 +26235,13 @@ var require_axios = __commonJS({
           return currentValue;
         });
       }
-      function defaultVisitor(value, key, path9) {
+      function defaultVisitor(value, key, path10) {
         let arr = value;
         if (utils$1.isReactNative(formData) && utils$1.isReactNativeBlob(value)) {
-          formData.append(renderKey(path9, key, dots), convertValue(value));
+          formData.append(renderKey(path10, key, dots), convertValue(value));
           return false;
         }
-        if (value && !path9 && typeof value === "object") {
+        if (value && !path10 && typeof value === "object") {
           if (utils$1.endsWith(key, "{}")) {
             key = metaTokens ? key : key.slice(0, -2);
             value = stringifyWithDepthLimit(value, 1);
@@ -26260,7 +26260,7 @@ var require_axios = __commonJS({
         if (isVisitable(value)) {
           return true;
         }
-        formData.append(renderKey(path9, key, dots), convertValue(value));
+        formData.append(renderKey(path10, key, dots), convertValue(value));
         return false;
       }
       const exposedHelpers = Object.assign(predicates, {
@@ -26268,17 +26268,17 @@ var require_axios = __commonJS({
         convertValue,
         isVisitable
       });
-      function build(value, path9, depth = 0) {
+      function build(value, path10, depth = 0) {
         if (utils$1.isUndefined(value)) return;
         throwIfMaxDepthExceeded(depth);
         if (stack.indexOf(value) !== -1) {
-          throw new Error("Circular reference detected in " + path9.join("."));
+          throw new Error("Circular reference detected in " + path10.join("."));
         }
         stack.push(value);
         utils$1.forEach(value, function each(el, key) {
-          const result = !(utils$1.isUndefined(el) || el === null) && visitor.call(formData, el, utils$1.isString(key) ? key.trim() : key, path9, exposedHelpers);
+          const result = !(utils$1.isUndefined(el) || el === null) && visitor.call(formData, el, utils$1.isString(key) ? key.trim() : key, path10, exposedHelpers);
           if (result === true) {
-            build(el, path9 ? path9.concat(key) : [key], depth + 1);
+            build(el, path10 ? path10.concat(key) : [key], depth + 1);
           }
         });
         stack.pop();
@@ -26467,7 +26467,7 @@ var require_axios = __commonJS({
     };
     function toURLEncodedForm(data, options) {
       return toFormData(data, new platform.classes.URLSearchParams(), {
-        visitor: function(value, key, path9, helpers) {
+        visitor: function(value, key, path10, helpers) {
           if (platform.isNode && utils$1.isBuffer(value)) {
             this.append(key, value.toString("base64"));
             return false;
@@ -26484,14 +26484,14 @@ var require_axios = __commonJS({
       }
     }
     function parsePropPath(name) {
-      const path9 = [];
+      const path10 = [];
       const pattern = /[^.[\]]+|\[([^.[\]]*)]/g;
       let match;
       while ((match = pattern.exec(name)) !== null) {
-        throwIfDepthExceeded(path9.length);
-        path9.push(match[0] === "[]" ? "" : match[1] || match[0]);
+        throwIfDepthExceeded(path10.length);
+        path10.push(match[0] === "[]" ? "" : match[1] || match[0]);
       }
-      return path9;
+      return path10;
     }
     function arrayToObject(arr) {
       const obj = {};
@@ -26506,12 +26506,12 @@ var require_axios = __commonJS({
       return obj;
     }
     function formDataToJSON(formData) {
-      function buildPath(path9, value, target, index) {
+      function buildPath(path10, value, target, index) {
         throwIfDepthExceeded(index);
-        let name = path9[index++];
+        let name = path10[index++];
         if (name === "__proto__") return true;
         const isNumericKey = Number.isFinite(+name);
-        const isLast = index >= path9.length;
+        const isLast = index >= path10.length;
         name = !name && utils$1.isArray(target) ? target.length : name;
         if (isLast) {
           if (utils$1.hasOwnProp(target, name)) {
@@ -26524,7 +26524,7 @@ var require_axios = __commonJS({
         if (!utils$1.hasOwnProp(target, name) || !utils$1.isObject(target[name])) {
           target[name] = [];
         }
-        const result = buildPath(path9, value, target[name], index);
+        const result = buildPath(path10, value, target[name], index);
         if (result && utils$1.isArray(target[name])) {
           target[name] = arrayToObject(target[name]);
         }
@@ -28135,8 +28135,8 @@ var require_axios = __commonJS({
           const allowedSocketPaths = own2("allowedSocketPaths");
           if (allowedSocketPaths != null) {
             const allowed = Array.isArray(allowedSocketPaths) ? allowedSocketPaths : [allowedSocketPaths];
-            const resolvedSocket = path8.resolve(socketPath);
-            const isAllowed = allowed.some((entry) => typeof entry === "string" && path8.resolve(entry) === resolvedSocket);
+            const resolvedSocket = path9.resolve(socketPath);
+            const isAllowed = allowed.some((entry) => typeof entry === "string" && path9.resolve(entry) === resolvedSocket);
             if (!isAllowed) {
               return reject(new AxiosError(`socketPath "${socketPath}" is not permitted by allowedSocketPaths`, AxiosError.ERR_BAD_OPTION_VALUE, config2));
             }
@@ -28435,14 +28435,14 @@ var require_axios = __commonJS({
     var cookies = platform.hasStandardBrowserEnv ? (
       // Standard browser envs support document.cookie
       {
-        write(name, value, expires, path9, domain2, secure, sameSite) {
+        write(name, value, expires, path10, domain2, secure, sameSite) {
           if (typeof document === "undefined") return;
           const cookie = [`${name}=${encodeURIComponent(value)}`];
           if (utils$1.isNumber(expires)) {
             cookie.push(`expires=${new Date(expires).toUTCString()}`);
           }
-          if (utils$1.isString(path9)) {
-            cookie.push(`path=${path9}`);
+          if (utils$1.isString(path10)) {
+            cookie.push(`path=${path10}`);
           }
           if (utils$1.isString(domain2)) {
             cookie.push(`domain=${domain2}`);
@@ -31281,22 +31281,22 @@ var require_cds = __commonJS({
       const children = (0, utilities_1.xmlArray)(raw, "abapsource:elementInfo").map(parseDdicElement);
       return { type, name, properties, children };
     }
-    async function ddicElement(h, path8, getTargetForAssociation = false, getExtensionViews = true, getSecondaryObjects = true) {
+    async function ddicElement(h, path9, getTargetForAssociation = false, getExtensionViews = true, getSecondaryObjects = true) {
       const headers = { Accept: "application/vnd.sap.adt.elementinfo+xml" };
       const qs = (0, utilities_1.formatQS)({
         getTargetForAssociation,
         getExtensionViews,
         getSecondaryObjects,
-        path: path8
+        path: path9
       });
       const uri = `/sap/bc/adt/ddic/ddl/elementinfo?${qs}`;
       const response = await h.request(uri, { headers });
       const raw = (0, utilities_1.fullParse)(response.body);
       return parseDdicElement(raw["abapsource:elementInfo"]);
     }
-    async function ddicRepositoryAccess(h, path8) {
+    async function ddicRepositoryAccess(h, path9) {
       const headers = { Accept: "application/*" };
-      const qs = (0, utilities_1.isArray)(path8) ? (0, utilities_1.formatQS)({ requestScope: "all", path: path8 }) : `datasource=${encodeURIComponent(path8)}`;
+      const qs = (0, utilities_1.isArray)(path9) ? (0, utilities_1.formatQS)({ requestScope: "all", path: path9 }) : `datasource=${encodeURIComponent(path9)}`;
       const url2 = `/sap/bc/adt/ddic/ddl/ddicrepositoryaccess?${qs}`;
       const response = await h.request(url2, { headers });
       const raw = (0, utilities_1.fullParse)(response.body);
@@ -35702,8 +35702,8 @@ var require_AdtClient = __commonJS({
        *   - any path ending with `/source/main`  (programs, includes, FMs, …)
        *   - class include paths: `/oo/classes/<name>/includes/<include>`
        */
-      static isMainInclude(path8) {
-        const stripped = path8.replace(/\/+$/, "");
+      static isMainInclude(path9) {
+        const stripped = path9.replace(/\/+$/, "");
         if (stripped.endsWith("/source/main"))
           return true;
         if (/\/oo\/classes\/[^/]+\/includes\/[^/]+$/.test(stripped))
@@ -36157,11 +36157,11 @@ var require_AdtClient = __commonJS({
       annotationDefinitions() {
         return (0, api_1.annotationDefinitions)(this.h);
       }
-      ddicElement(path8, getTargetForAssociation = false, getExtensionViews = true, getSecondaryObjects = true) {
-        return (0, api_1.ddicElement)(this.h, path8, getTargetForAssociation, getExtensionViews, getSecondaryObjects);
+      ddicElement(path9, getTargetForAssociation = false, getExtensionViews = true, getSecondaryObjects = true) {
+        return (0, api_1.ddicElement)(this.h, path9, getTargetForAssociation, getExtensionViews, getSecondaryObjects);
       }
-      ddicRepositoryAccess(path8) {
-        return (0, api_1.ddicRepositoryAccess)(this.h, path8);
+      ddicRepositoryAccess(path9) {
+        return (0, api_1.ddicRepositoryAccess)(this.h, path9);
       }
       publishServiceBinding(name, version2) {
         return (0, api_1.publishServiceBinding)(this.h, name, version2);
@@ -36664,8 +36664,10 @@ var init_errors = __esm({
       // the manifest on disk is wrong; the call's arguments cannot fix it
       FLUID_ACTION_FAILED: "terminal",
       // the ABAP action itself reported the failure; abapsmith cannot judge a retry's safety
-      FLUID_PROTOCOL_ERROR: "terminal"
+      FLUID_PROTOCOL_ERROR: "terminal",
       // the deployed ABAP is not speaking the contract; a redeploy, not a retry
+      SNAPSHOT_EXPIRED: "terminal"
+      // no argument the caller can supply brings a deleted snapshot back; a new snapshot has a new id
     };
     AbapError = class extends Error {
       code;
@@ -36707,8 +36709,8 @@ function redactPair(pair) {
 function redactPairs(text5, separators) {
   return text5.split(separators).map((token, i) => i % 2 === 0 ? redactPair(token) : token).join("");
 }
-function redactUrlForCapture(path8) {
-  const text5 = typeof path8 === "string" ? path8 : String(path8 ?? "");
+function redactUrlForCapture(path9) {
+  const text5 = typeof path9 === "string" ? path9 : String(path9 ?? "");
   const hashIdx = text5.indexOf("#");
   const beforeHash = hashIdx < 0 ? text5 : text5.slice(0, hashIdx);
   const fragment = hashIdx < 0 ? void 0 : text5.slice(hashIdx + 1);
@@ -38462,10 +38464,10 @@ function mergeDefs(...defs) {
 function cloneDef(schema) {
   return mergeDefs(schema._zod.def);
 }
-function getElementAtPath(obj, path8) {
-  if (!path8)
+function getElementAtPath(obj, path9) {
+  if (!path9)
     return obj;
-  return path8.reduce((acc, key) => acc?.[key], obj);
+  return path9.reduce((acc, key) => acc?.[key], obj);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -38793,11 +38795,11 @@ function explicitlyAborted(x, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path8, issues) {
+function prefixIssues(path9, issues) {
   return issues.map((iss) => {
     var _a3;
     (_a3 = iss).path ?? (_a3.path = []);
-    iss.path.unshift(path8);
+    iss.path.unshift(path9);
     return iss;
   });
 }
@@ -39014,16 +39016,16 @@ function flattenError(error51, mapper = (issue4) => issue4.message) {
 }
 function formatError(error51, mapper = (issue4) => issue4.message) {
   const fieldErrors = { _errors: [] };
-  const processError = (error52, path8 = []) => {
+  const processError = (error52, path9 = []) => {
     for (const issue4 of error52.issues) {
       if (issue4.code === "invalid_union" && issue4.errors.length) {
-        issue4.errors.map((issues) => processError({ issues }, [...path8, ...issue4.path]));
+        issue4.errors.map((issues) => processError({ issues }, [...path9, ...issue4.path]));
       } else if (issue4.code === "invalid_key") {
-        processError({ issues: issue4.issues }, [...path8, ...issue4.path]);
+        processError({ issues: issue4.issues }, [...path9, ...issue4.path]);
       } else if (issue4.code === "invalid_element") {
-        processError({ issues: issue4.issues }, [...path8, ...issue4.path]);
+        processError({ issues: issue4.issues }, [...path9, ...issue4.path]);
       } else {
-        const fullpath = [...path8, ...issue4.path];
+        const fullpath = [...path9, ...issue4.path];
         if (fullpath.length === 0) {
           fieldErrors._errors.push(mapper(issue4));
         } else {
@@ -39050,17 +39052,17 @@ function formatError(error51, mapper = (issue4) => issue4.message) {
 }
 function treeifyError(error51, mapper = (issue4) => issue4.message) {
   const result = { errors: [] };
-  const processError = (error52, path8 = []) => {
+  const processError = (error52, path9 = []) => {
     var _a3, _b;
     for (const issue4 of error52.issues) {
       if (issue4.code === "invalid_union" && issue4.errors.length) {
-        issue4.errors.map((issues) => processError({ issues }, [...path8, ...issue4.path]));
+        issue4.errors.map((issues) => processError({ issues }, [...path9, ...issue4.path]));
       } else if (issue4.code === "invalid_key") {
-        processError({ issues: issue4.issues }, [...path8, ...issue4.path]);
+        processError({ issues: issue4.issues }, [...path9, ...issue4.path]);
       } else if (issue4.code === "invalid_element") {
-        processError({ issues: issue4.issues }, [...path8, ...issue4.path]);
+        processError({ issues: issue4.issues }, [...path9, ...issue4.path]);
       } else {
-        const fullpath = [...path8, ...issue4.path];
+        const fullpath = [...path9, ...issue4.path];
         if (fullpath.length === 0) {
           result.errors.push(mapper(issue4));
           continue;
@@ -39092,8 +39094,8 @@ function treeifyError(error51, mapper = (issue4) => issue4.message) {
 }
 function toDotPath(_path) {
   const segs = [];
-  const path8 = _path.map((seg) => typeof seg === "object" ? seg.key : seg);
-  for (const seg of path8) {
+  const path9 = _path.map((seg) => typeof seg === "object" ? seg.key : seg);
+  for (const seg of path9) {
     if (typeof seg === "number")
       segs.push(`[${seg}]`);
     else if (typeof seg === "symbol")
@@ -52523,13 +52525,13 @@ function resolveRef(ref2, ctx) {
   if (!ref2.startsWith("#")) {
     throw new Error("External $ref is not supported, only local refs (#/...) are allowed");
   }
-  const path8 = ref2.slice(1).split("/").filter(Boolean);
-  if (path8.length === 0) {
+  const path9 = ref2.slice(1).split("/").filter(Boolean);
+  if (path9.length === 0) {
     return ctx.rootSchema;
   }
   const defsKey = ctx.version === "draft-2020-12" ? "$defs" : "definitions";
-  if (path8[0] === defsKey) {
-    const key = path8[1];
+  if (path9[0] === defsKey) {
+    const key = path9[1];
     if (!key || !ctx.defs[key]) {
       throw new Error(`Reference not found: ${ref2}`);
     }
@@ -53484,7 +53486,7 @@ var init_compact = __esm({
 var require_main = __commonJS({
   "node_modules/dotenv/lib/main.js"(exports2, module) {
     var fs4 = __require("fs");
-    var path8 = __require("path");
+    var path9 = __require("path");
     var os2 = __require("os");
     var crypto2 = __require("crypto");
     var TIPS = [
@@ -53623,7 +53625,7 @@ var require_main = __commonJS({
           possibleVaultPath = options.path.endsWith(".vault") ? options.path : `${options.path}.vault`;
         }
       } else {
-        possibleVaultPath = path8.resolve(process.cwd(), ".env.vault");
+        possibleVaultPath = path9.resolve(process.cwd(), ".env.vault");
       }
       if (fs4.existsSync(possibleVaultPath)) {
         return possibleVaultPath;
@@ -53631,7 +53633,7 @@ var require_main = __commonJS({
       return null;
     }
     function _resolveHome(envPath) {
-      return envPath[0] === "~" ? path8.join(os2.homedir(), envPath.slice(1)) : envPath;
+      return envPath[0] === "~" ? path9.join(os2.homedir(), envPath.slice(1)) : envPath;
     }
     function _configVault(options) {
       const debug = parseBoolean(process.env.DOTENV_CONFIG_DEBUG || options && options.debug);
@@ -53648,7 +53650,7 @@ var require_main = __commonJS({
       return { parsed };
     }
     function configDotenv(options) {
-      const dotenvPath = path8.resolve(process.cwd(), ".env");
+      const dotenvPath = path9.resolve(process.cwd(), ".env");
       let encoding = "utf8";
       let processEnv = process.env;
       if (options && options.processEnv != null) {
@@ -53676,13 +53678,13 @@ var require_main = __commonJS({
       }
       let lastError;
       const parsedAll = {};
-      for (const path9 of optionPaths) {
+      for (const path10 of optionPaths) {
         try {
-          const parsed = DotenvModule.parse(fs4.readFileSync(path9, { encoding }));
+          const parsed = DotenvModule.parse(fs4.readFileSync(path10, { encoding }));
           DotenvModule.populate(parsedAll, parsed, options);
         } catch (e) {
           if (debug) {
-            _debug(`failed to load ${path9} ${e.message}`);
+            _debug(`failed to load ${path10} ${e.message}`);
           }
           lastError = e;
         }
@@ -53695,7 +53697,7 @@ var require_main = __commonJS({
         const shortPaths = [];
         for (const filePath of optionPaths) {
           try {
-            const relative2 = path8.relative(process.cwd(), filePath);
+            const relative2 = path9.relative(process.cwd(), filePath);
             shortPaths.push(relative2);
           } catch (e) {
             if (debug) {
@@ -55940,16 +55942,16 @@ var init_Matcher = __esm({
        * @returns {string|undefined}
        */
       getCurrentTag() {
-        const path8 = this._matcher.path;
-        return path8.length > 0 ? path8[path8.length - 1].tag : void 0;
+        const path9 = this._matcher.path;
+        return path9.length > 0 ? path9[path9.length - 1].tag : void 0;
       }
       /**
        * Get current namespace.
        * @returns {string|undefined}
        */
       getCurrentNamespace() {
-        const path8 = this._matcher.path;
-        return path8.length > 0 ? path8[path8.length - 1].namespace : void 0;
+        const path9 = this._matcher.path;
+        return path9.length > 0 ? path9[path9.length - 1].namespace : void 0;
       }
       /**
        * Get current node's attribute value.
@@ -55957,9 +55959,9 @@ var init_Matcher = __esm({
        * @returns {*}
        */
       getAttrValue(attrName) {
-        const path8 = this._matcher.path;
-        if (path8.length === 0) return void 0;
-        return path8[path8.length - 1].values?.[attrName];
+        const path9 = this._matcher.path;
+        if (path9.length === 0) return void 0;
+        return path9[path9.length - 1].values?.[attrName];
       }
       /**
        * Check if current node has an attribute.
@@ -55967,9 +55969,9 @@ var init_Matcher = __esm({
        * @returns {boolean}
        */
       hasAttr(attrName) {
-        const path8 = this._matcher.path;
-        if (path8.length === 0) return false;
-        const current = path8[path8.length - 1];
+        const path9 = this._matcher.path;
+        if (path9.length === 0) return false;
+        const current = path9[path9.length - 1];
         return current.values !== void 0 && attrName in current.values;
       }
       /**
@@ -55995,18 +55997,18 @@ var init_Matcher = __esm({
        * @returns {number}
        */
       getPosition() {
-        const path8 = this._matcher.path;
-        if (path8.length === 0) return -1;
-        return path8[path8.length - 1].position ?? 0;
+        const path9 = this._matcher.path;
+        if (path9.length === 0) return -1;
+        return path9[path9.length - 1].position ?? 0;
       }
       /**
        * Get current node's repeat counter (occurrence count of this tag name).
        * @returns {number}
        */
       getCounter() {
-        const path8 = this._matcher.path;
-        if (path8.length === 0) return -1;
-        return path8[path8.length - 1].counter ?? 0;
+        const path9 = this._matcher.path;
+        if (path9.length === 0) return -1;
+        return path9[path9.length - 1].counter ?? 0;
       }
       /**
        * Get current node's sibling index (alias for getPosition).
@@ -58413,17 +58415,17 @@ async function trCreate(conn, input, authorized) {
   } catch (e) {
     throw ctsError(e, "trCreate");
   }
-  const path8 = raw.trim();
-  const trkorr = (path8.split("/").pop() ?? "").trim().toUpperCase();
+  const path9 = raw.trim();
+  const trkorr = (path9.split("/").pop() ?? "").trim().toUpperCase();
   if (!isTrkorr(trkorr)) {
     throw new AbapError(
       "TRANSPORT_ERROR",
-      `Transport creation returned an unrecognised response: ${JSON.stringify(path8)}`,
-      { operation: "trCreate", body: path8 },
+      `Transport creation returned an unrecognised response: ${JSON.stringify(path9)}`,
+      { operation: "trCreate", body: path9 },
       "Expected a path like /com.sap.cts/object_record/A4HK900121."
     );
   }
-  return { trkorr, path: path8 };
+  return { trkorr, path: path9 };
 }
 async function trShow(conn, trkorr) {
   const number4 = assertTrkorr(trkorr, "trShow");
@@ -59002,8 +59004,8 @@ function trimSegment(s) {
   const t = s.trim();
   return /^\.+$/.test(t) ? t : t.replace(/[\s.]+$/, "");
 }
-function terminalSegments(path8) {
-  const parts = path8.split("/").map(trimSegment).filter((p) => p !== "");
+function terminalSegments(path9) {
+  const parts = path9.split("/").map(trimSegment).filter((p) => p !== "");
   const out = [];
   const literal2 = parts[parts.length - 1];
   if (literal2 !== void 0) out.push(literal2);
@@ -59028,8 +59030,8 @@ function candidatePaths(url2) {
   return [...forms];
 }
 function deniedPathSegment(url2) {
-  for (const path8 of candidatePaths(url2)) {
-    for (const segment of terminalSegments(path8)) {
+  for (const path9 of candidatePaths(url2)) {
+    for (const segment of terminalSegments(path9)) {
       if (DENIED_RELEASE_SEGMENTS.includes(segment)) return segment;
     }
   }
@@ -61684,20 +61686,20 @@ var init_connection = __esm({
        * lease (`pool.ts`). Whether a cookie was actually set is reported via
        * `cookieJarChanged` rather than assumed.
        */
-      async serviceRuntimeGet(path8) {
+      async serviceRuntimeGet(path9) {
         this.assertUsable();
-        if (!SERVICE_METADATA_PATH.test(path8)) {
+        if (!SERVICE_METADATA_PATH.test(path9)) {
           throw new AbapError(
             "BAD_INPUT",
-            `Refusing to request '${path8}': this connection will only fetch OData $metadata, never service data. The path must be rooted at /sap/opu/odata or /sap/opu/odata4 and end in /$metadata.`,
-            { path: path8 },
+            `Refusing to request '${path9}': this connection will only fetch OData $metadata, never service data. The path must be rooted at /sap/opu/odata or /sap/opu/odata4 and end in /$metadata.`,
+            { path: path9 },
             "abapsmith reads OData CONTRACTS, never rows (parity item P-40). Entity reads, $batch and $filter are out of scope by design and no option enables them \u2014 an ADT developer session is not an application user session, and reading business data through one would escape the authorization concept the operator set. Use a real OData client with its own credentials for data."
           );
         }
         const jar = this.cookieJar();
         const before = jar ? new Map(jar) : void 0;
         try {
-          const resp = await this.request(path8, {
+          const resp = await this.request(path9, {
             method: "GET",
             // The OData runtime content-negotiates. `application/xml` is what
             // returns EDMX; `application/json` returns a JSON metadata document
@@ -63073,16 +63075,16 @@ var init_pool = __esm({
 });
 
 // src/auth/client-cert.ts
-function readNamedFile(envVar, path8, readFile2) {
+function readNamedFile(envVar, path9, readFile2) {
   try {
-    return { ok: true, buf: readFile2(path8) };
+    return { ok: true, buf: readFile2(path9) };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    return { ok: false, issue: `${envVar} (${path8}) could not be read: ${msg}.` };
+    return { ok: false, issue: `${envVar} (${path9}) could not be read: ${msg}.` };
   }
 }
-function isPfxPath(path8) {
-  const lower = path8.toLowerCase();
+function isPfxPath(path9) {
+  const lower = path9.toLowerCase();
   return lower.endsWith(".pfx") || lower.endsWith(".p12");
 }
 function loadClientCertMaterial(spec, readFile2) {
@@ -63141,15 +63143,15 @@ function loadClientCertMaterial(spec, readFile2) {
     }
   };
 }
-function loadCaBundle(path8, readFile2) {
-  const read = readNamedFile("ABAP_CA_CERT", path8, readFile2);
+function loadCaBundle(path9, readFile2) {
+  const read = readNamedFile("ABAP_CA_CERT", path9, readFile2);
   if (!read.ok) return { issue: read.issue };
   if (!read.buf.toString("utf8").includes("-----BEGIN")) {
     return {
-      issue: `ABAP_CA_CERT (${path8}) does not look like a PEM file (no "-----BEGIN" line). Point it at a PEM CA certificate or bundle.`
+      issue: `ABAP_CA_CERT (${path9}) does not look like a PEM file (no "-----BEGIN" line). Point it at a PEM CA certificate or bundle.`
     };
   }
-  return { bundle: { pem: read.buf, path: path8 } };
+  return { bundle: { pem: read.buf, path: path9 } };
 }
 var init_client_cert = __esm({
   "src/auth/client-cert.ts"() {
@@ -63163,13 +63165,13 @@ function joinFieldNames(names) {
   if (names.length === 2) return `${names[0]} and ${names[1]}`;
   return `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
 }
-function parseServiceKey(path8, raw) {
+function parseServiceKey(path9, raw) {
   let parsed;
   try {
     parsed = JSON.parse(raw);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    return { issue: `ABAP_SERVICE_KEY (${path8}) is not valid JSON: ${msg}.` };
+    return { issue: `ABAP_SERVICE_KEY (${path9}) is not valid JSON: ${msg}.` };
   }
   const uaa = parsed?.uaa;
   const clientId = typeof uaa?.clientid === "string" ? uaa.clientid : void 0;
@@ -63182,11 +63184,11 @@ function parseServiceKey(path8, raw) {
   ];
   if (missing.length > 0) {
     return {
-      issue: `ABAP_SERVICE_KEY (${path8}) is missing ${joinFieldNames(missing)} \u2014 this does not look like an SAP BTP ABAP-environment service key.`
+      issue: `ABAP_SERVICE_KEY (${path9}) is missing ${joinFieldNames(missing)} \u2014 this does not look like an SAP BTP ABAP-environment service key.`
     };
   }
   if (clientId === void 0 || clientSecret === void 0 || uaaUrl === void 0) {
-    return { issue: `ABAP_SERVICE_KEY (${path8}) is missing required uaa fields.` };
+    return { issue: `ABAP_SERVICE_KEY (${path9}) is missing required uaa fields.` };
   }
   const tokenUrl = uaaUrl.endsWith("/oauth/token") ? uaaUrl : `${uaaUrl.replace(/\/+$/, "")}/oauth/token`;
   const scope = typeof uaa?.scope === "string" && uaa.scope.length > 0 ? uaa.scope : void 0;
@@ -63197,7 +63199,7 @@ function parseServiceKey(path8, raw) {
       clientSecret,
       ...scope !== void 0 ? { scope } : {},
       source: "service-key",
-      serviceKeyPath: path8
+      serviceKeyPath: path9
     }
   };
 }
@@ -63568,22 +63570,22 @@ function buildUri(spec, name, parent) {
   return spec.path.replace("{name}", encodeURIComponent(name.toLowerCase())).replace("{parent}", encodeURIComponent((parent ?? "").toLowerCase()));
 }
 function specFromUri(uri) {
-  let path8 = uri.replace(/^https?:\/\/[^/]+/i, "").replace(/[?#].*$/, "").replace(/\/source\/main.*$/, "");
+  let path9 = uri.replace(/^https?:\/\/[^/]+/i, "").replace(/[?#].*$/, "").replace(/\/source\/main.*$/, "");
   let include;
-  const ci = /^(.*\/oo\/classes\/[^/]+)\/includes\/([^/]+)$/i.exec(path8);
+  const ci = /^(.*\/oo\/classes\/[^/]+)\/includes\/([^/]+)$/i.exec(path9);
   if (ci) {
     include = assertClassInclude(decodeURIComponent(ci[2]), uri);
-    path8 = ci[1];
+    path9 = ci[1];
   }
-  let m = /^\/sap\/bc\/adt\/functions\/groups\/([^/]+)\/fmodules\/([^/]+)$/i.exec(path8);
+  let m = /^\/sap\/bc\/adt\/functions\/groups\/([^/]+)\/fmodules\/([^/]+)$/i.exec(path9);
   if (m) return { spec: BY_TYPE.get("FUGR/FF"), name: dec(m[2]), parent: dec(m[1]) };
-  m = /^\/sap\/bc\/adt\/functions\/groups\/([^/]+)\/includes\/([^/]+)$/i.exec(path8);
+  m = /^\/sap\/bc\/adt\/functions\/groups\/([^/]+)\/includes\/([^/]+)$/i.exec(path9);
   if (m) return { spec: BY_TYPE.get("FUGR/I"), name: dec(m[2]), parent: dec(m[1]) };
   for (const spec of TYPES) {
     if (spec.parentPath) continue;
     const prefix = spec.path.replace("/{name}", "");
     const re = new RegExp(`^${escapeRe(prefix)}/([^/]+)$`, "i");
-    const hit = re.exec(path8);
+    const hit = re.exec(path9);
     if (!hit) continue;
     const name = dec(hit[1]);
     if (include) {
@@ -63606,16 +63608,16 @@ function specFromUri(uri) {
   return void 0;
 }
 function classifyUnmatchedAdtPath(uri) {
-  const path8 = uri.replace(/^https?:\/\/[^/]+/i, "").replace(/[?#].*$/, "").replace(/\/source\/main.*$/, "");
+  const path9 = uri.replace(/^https?:\/\/[^/]+/i, "").replace(/[?#].*$/, "").replace(/\/source\/main.*$/, "");
   for (const { re, what } of NOT_AN_OBJECT) {
-    if (re.test(path8)) return { kind: "not-an-object", what };
+    if (re.test(path9)) return { kind: "not-an-object", what };
   }
   for (const { type, mid } of TWO_SEGMENT_KINDS) {
     const re = new RegExp(
       `^\\/sap\\/bc\\/adt\\/functions\\/groups\\/([^/]+)\\/${mid}\\/([^/]+)\\/([^/]+)(?:\\/([^/]+))?$`,
       "i"
     );
-    const m = re.exec(path8);
+    const m = re.exec(path9);
     if (m) {
       return {
         kind: "sub-object",
@@ -63631,7 +63633,7 @@ function classifyUnmatchedAdtPath(uri) {
     if (spec.parentPath) continue;
     const prefix = spec.path.replace("/{name}", "");
     const re = new RegExp(`^${escapeRe(prefix)}/([^/]+)/([^/]+)(?:/([^/]+))?$`, "i");
-    const m = re.exec(path8);
+    const m = re.exec(path9);
     if (!m) continue;
     return {
       kind: "sub-object",
@@ -66206,10 +66208,10 @@ var init_safety = __esm({
 
 // src/config.ts
 import { readFileSync as readFileSync3 } from "node:fs";
-function loadEnvFile(path8) {
+function loadEnvFile(path9) {
   if (dotenvLoaded) return;
   dotenvLoaded = true;
-  (0, import_dotenv.config)(path8 ? { path: path8, quiet: true } : { quiet: true });
+  (0, import_dotenv.config)(path9 ? { path: path9, quiet: true } : { quiet: true });
 }
 function stripUrlCredentials(url2) {
   if (typeof url2 !== "string" || !url2.includes("@")) return url2;
@@ -66587,6 +66589,7 @@ function loadConfig(opts = {}) {
     // single source of truth, so out-of-range/invalid input reaches the
     // startup error list rather than being papered over here.
     dataPreviewMaxRows: env.ABAP_DATA_PREVIEW_MAX_ROWS,
+    dataSnapshotTtlHours: env.ABAP_DATA_SNAPSHOT_TTL_HOURS,
     // Not mode-derived — verification posture is orthogonal to the ABAP_MODE
     // permission ceiling.
     verifyWrites: env.ABAP_VERIFY_WRITES,
@@ -66881,6 +66884,7 @@ function redactConfigSecrets(cfg) {
     allowEnhancementDelete: cfg.allowEnhancementDelete,
     allowDataPreview: cfg.allowDataPreview,
     dataPreviewMaxRows: cfg.dataPreviewMaxRows,
+    dataSnapshotTtlHours: cfg.dataSnapshotTtlHours,
     dataPreviewDenyTables: cfg.dataPreviewDenyTables,
     allowDumpVariables: cfg.allowDumpVariables,
     allowUiPress: cfg.allowUiPress,
@@ -67181,6 +67185,17 @@ var init_config = __esm({
        * itself has no maximum of its own.
        */
       dataPreviewMaxRows: external_exports.coerce.number().int().positive().max(1e3).default(100),
+      /**
+       * Ceiling on how long a stored data-preview snapshot (`src/snapshot-store.ts`)
+       * may live before it is treated as expired and deleted. Default **24**
+       * hours, hard max **8760** (365 days — a sanity bound, not an endorsement of
+       * keeping business-row snapshots that long). An operator CEILING only: a
+       * caller's own `ttl_hours` on a given snapshot is clamped DOWN to this value
+       * when it exceeds it, never raised up to it — the same "narrow only" shape
+       * as `dataPreviewMaxRows` for row counts. `.positive()` rejects `0`; there
+       * is no "keep forever" spelling for a store that holds business data.
+       */
+      dataSnapshotTtlHours: external_exports.coerce.number().int().positive().max(8760).default(24),
       /**
        * OPERATOR ADDITIONS to the data-preview table deny-list — never
        * replacements. `[]` by default, upper-cased on the way in. The frozen
@@ -70759,8 +70774,8 @@ var require_utils2 = __commonJS({
       }
       return ind;
     }
-    function removeDotSegments(path8) {
-      let input = path8;
+    function removeDotSegments(path9) {
+      let input = path9;
       const output = [];
       let nextSlash = -1;
       let len = 0;
@@ -71012,8 +71027,8 @@ var require_schemes = __commonJS({
         wsComponent.secure = void 0;
       }
       if (wsComponent.resourceName) {
-        const [path8, query] = wsComponent.resourceName.split("?");
-        wsComponent.path = path8 && path8 !== "/" ? path8 : void 0;
+        const [path9, query] = wsComponent.resourceName.split("?");
+        wsComponent.path = path9 && path9 !== "/" ? path9 : void 0;
         wsComponent.query = query;
         wsComponent.resourceName = void 0;
       }
@@ -81715,6 +81730,423 @@ var docuPart = {
   ENDMETHOD.`
 };
 
+// src/adt/fluid/builtin/core/abap-change-docs.ts
+var changeDocsPart = {
+  actions: [{ action: "change_docs", method: "do_change_docs" }],
+  source: `  METHOD do_change_docs.
+    TYPES: BEGIN OF ty_hdr,
+             objectclas TYPE cdhdr-objectclas,
+             objectid   TYPE cdhdr-objectid,
+             changenr   TYPE cdhdr-changenr,
+             username   TYPE cdhdr-username,
+             udate      TYPE cdhdr-udate,
+             utime      TYPE cdhdr-utime,
+             tcode      TYPE cdhdr-tcode,
+             change_ind TYPE cdhdr-change_ind,
+           END OF ty_hdr.
+    TYPES: BEGIN OF ty_pos,
+             tabname   TYPE cdpos-tabname,
+             tabkey    TYPE cdpos-tabkey,
+             fname     TYPE cdpos-fname,
+             chngind   TYPE cdpos-chngind,
+             value_new TYPE cdpos-value_new,
+             value_old TYPE cdpos-value_old,
+           END OF ty_pos.
+
+    DATA lv_class    TYPE string.
+    DATA lv_objid_in TYPE string.
+    DATA lv_user_in  TYPE string.
+    DATA lv_tcode_in TYPE string.
+    DATA lv_objid    TYPE string.
+    DATA lv_user     TYPE string.
+    DATA lv_tcode    TYPE string.
+    DATA lv_since    TYPE string.
+    DATA lv_until    TYPE string.
+    DATA lv_max      TYPE i.
+    DATA lv_probe    TYPE i.
+    DATA lv_now_d    TYPE d.
+    DATA lv_now_t    TYPE t.
+    DATA lv_d_since  TYPE d.
+    DATA lv_t_since  TYPE t.
+    DATA lv_d_until  TYPE d.
+    DATA lv_t_until  TYPE t.
+    DATA lt_hdr      TYPE STANDARD TABLE OF ty_hdr WITH EMPTY KEY.
+    DATA lt_pos      TYPE STANDARD TABLE OF ty_pos WITH EMPTY KEY.
+    DATA lv_truncated TYPE abap_bool.
+    DATA lv_truncated_lit     TYPE string.
+    DATA lv_udate_s           TYPE string.
+    DATA lv_utime_s           TYPE string.
+    DATA lv_since_s           TYPE string.
+    DATA lv_until_s           TYPE string.
+    DATA lv_server_time       TYPE string.
+    DATA lv_changes_returned  TYPE i.
+    DATA lv_positions_returned TYPE i.
+
+    lv_class = to_upper( s( 'objectclass' ) ).
+    IF lv_class IS INITIAL.
+      fail( 'objectclass is required' ).
+      RETURN.
+    ENDIF.
+
+    lv_objid_in = to_upper( s( 'objectid' ) ).
+    IF lv_objid_in IS INITIAL.
+      lv_objid = '%'.
+    ELSE.
+      REPLACE ALL OCCURRENCES OF '*' IN lv_objid_in WITH '%'.
+      lv_objid = lv_objid_in.
+    ENDIF.
+
+    lv_user_in = to_upper( s( 'user' ) ).
+    IF lv_user_in IS INITIAL.
+      lv_user = '%'.
+    ELSE.
+      REPLACE ALL OCCURRENCES OF '*' IN lv_user_in WITH '%'.
+      lv_user = lv_user_in.
+    ENDIF.
+
+    lv_tcode_in = to_upper( s( 'tcode' ) ).
+    IF lv_tcode_in IS INITIAL.
+      lv_tcode = '%'.
+    ELSE.
+      REPLACE ALL OCCURRENCES OF '*' IN lv_tcode_in WITH '%'.
+      lv_tcode = lv_tcode_in.
+    ENDIF.
+
+    lv_max = num( 'max' ).
+    IF lv_max <= 0.
+      lv_max = 20.
+    ENDIF.
+    lv_probe = lv_max + 1.
+
+    " One server-time snapshot for both the default window and the summary's
+    " server_time, so the two never disagree about "now". since/until are
+    " always server time, YYYYMMDDHHMMSS, no time zone conversion.
+    GET TIME.
+    lv_now_d = sy-datum.
+    lv_now_t = sy-uzeit.
+
+    lv_d_until = lv_now_d.
+    lv_t_until = lv_now_t.
+    lv_until = s( 'until' ).
+    IF lv_until IS NOT INITIAL.
+      IF strlen( lv_until ) <> 14 OR lv_until CN '0123456789'.
+        fail( |until must be 14 digits YYYYMMDDHHMMSS, got "{ lv_until }"| ).
+        RETURN.
+      ENDIF.
+      lv_d_until = lv_until(8).
+      lv_t_until = lv_until+8(6).
+    ENDIF.
+
+    " Default since is exactly 24 hours before "now": same time of day, the
+    " previous calendar day - TYPE D arithmetic already rolls over month and
+    " year boundaries correctly, so no timestamp conversion is needed here.
+    lv_d_since = lv_now_d - 1.
+    lv_t_since = lv_now_t.
+    lv_since = s( 'since' ).
+    IF lv_since IS NOT INITIAL.
+      IF strlen( lv_since ) <> 14 OR lv_since CN '0123456789'.
+        fail( |since must be 14 digits YYYYMMDDHHMMSS, got "{ lv_since }"| ).
+        RETURN.
+      ENDIF.
+      lv_d_since = lv_since(8).
+      lv_t_since = lv_since+8(6).
+    ENDIF.
+
+    " UP TO @lv_probe ROWS fetches one row past lv_max, purely to detect
+    " truncation - see the DELETE below, the same probe pattern core.log
+    " uses for BAL_DB_SEARCH's result.
+    TRY.
+        SELECT objectclas, objectid, changenr, username, udate, utime, tcode, change_ind
+          FROM cdhdr
+          WHERE objectclas = @lv_class
+            AND objectid LIKE @lv_objid
+            AND username LIKE @lv_user
+            AND tcode LIKE @lv_tcode
+            AND ( udate > @lv_d_since OR ( udate = @lv_d_since AND utime >= @lv_t_since ) )
+            AND ( udate < @lv_d_until OR ( udate = @lv_d_until AND utime <= @lv_t_until ) )
+          ORDER BY udate DESCENDING, utime DESCENDING, changenr DESCENDING
+          INTO TABLE @lt_hdr
+          UP TO @lv_probe ROWS.
+      CATCH cx_root INTO DATA(lx_hdr).
+        fail( |change-document read failed: { lx_hdr->get_text( ) }| ).
+        RETURN.
+    ENDTRY.
+
+    lv_truncated = abap_false.
+    IF lines( lt_hdr ) > lv_max.
+      lv_truncated = abap_true.
+      " DELETE ... FROM requires a data object, not an arithmetic expression.
+      DELETE lt_hdr FROM lv_probe.
+    ENDIF.
+
+    lv_changes_returned = 0.
+    lv_positions_returned = 0.
+
+    LOOP AT lt_hdr INTO DATA(ls_hdr).
+      lv_changes_returned = lv_changes_returned + 1.
+
+      CLEAR lt_pos.
+      TRY.
+          SELECT tabname, tabkey, fname, chngind, value_new, value_old
+            FROM cdpos
+            WHERE objectclas = @ls_hdr-objectclas
+              AND objectid = @ls_hdr-objectid
+              AND changenr = @ls_hdr-changenr
+            INTO TABLE @lt_pos.
+        CATCH cx_root INTO DATA(lx_pos).
+          fail( |change-document position read failed: { lx_pos->get_text( ) }| ).
+          RETURN.
+      ENDTRY.
+
+      lv_udate_s = |{ ls_hdr-udate DATE = RAW }|.
+      lv_utime_s = |{ ls_hdr-utime TIME = RAW }|.
+
+      zcl_zmcp_fluid_rt=>out(
+        |\\{"kind":"header","objectclas":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_hdr-objectclas ) ) }",| &&
+        |"objectid":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_hdr-objectid ) ) }",| &&
+        |"changenr":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_hdr-changenr ) ) }",| &&
+        |"username":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_hdr-username ) ) }",| &&
+        |"udate":"{ zcl_zmcp_fluid_rt=>esc( lv_udate_s ) }",| &&
+        |"utime":"{ zcl_zmcp_fluid_rt=>esc( lv_utime_s ) }",| &&
+        |"tcode":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_hdr-tcode ) ) }",| &&
+        |"change_ind":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_hdr-change_ind ) ) }"\\}| ).
+
+      LOOP AT lt_pos INTO DATA(ls_pos).
+        lv_positions_returned = lv_positions_returned + 1.
+        zcl_zmcp_fluid_rt=>out(
+          |\\{"kind":"pos","changenr":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_hdr-changenr ) ) }",| &&
+          |"tabname":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_pos-tabname ) ) }",| &&
+          |"tabkey":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_pos-tabkey ) ) }",| &&
+          |"fname":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_pos-fname ) ) }",| &&
+          |"chngind":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_pos-chngind ) ) }",| &&
+          |"value_old":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_pos-value_old ) ) }",| &&
+          |"value_new":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_pos-value_new ) ) }"\\}| ).
+      ENDLOOP.
+    ENDLOOP.
+
+    lv_since_s = |{ lv_d_since DATE = RAW }{ lv_t_since TIME = RAW }|.
+    lv_until_s = |{ lv_d_until DATE = RAW }{ lv_t_until TIME = RAW }|.
+    lv_server_time = |{ lv_now_d DATE = RAW }{ lv_now_t TIME = RAW }|.
+
+    IF lv_truncated = abap_true.
+      lv_truncated_lit = 'true'.
+    ELSE.
+      lv_truncated_lit = 'false'.
+    ENDIF.
+
+    zcl_zmcp_fluid_rt=>out(
+      |\\{"kind":"summary","changes_returned":{ lv_changes_returned },| &&
+      |"positions_returned":{ lv_positions_returned },| &&
+      |"truncated":{ lv_truncated_lit },| &&
+      |"objectclass":"{ zcl_zmcp_fluid_rt=>esc( lv_class ) }",| &&
+      |"objectid":"{ zcl_zmcp_fluid_rt=>esc( lv_objid ) }",| &&
+      |"user":"{ zcl_zmcp_fluid_rt=>esc( lv_user ) }",| &&
+      |"tcode":"{ zcl_zmcp_fluid_rt=>esc( lv_tcode ) }",| &&
+      |"since":"{ zcl_zmcp_fluid_rt=>esc( lv_since_s ) }",| &&
+      |"until":"{ zcl_zmcp_fluid_rt=>esc( lv_until_s ) }",| &&
+      |"max":{ lv_max },| &&
+      |"server_time":"{ zcl_zmcp_fluid_rt=>esc( lv_server_time ) }"\\}| ).
+  ENDMETHOD.`
+};
+
+// src/adt/fluid/builtin/core/abap-locks.ts
+var locksPart = {
+  actions: [{ action: "locks", method: "do_locks" }],
+  source: `  METHOD do_locks.
+    DATA lv_object    TYPE string.
+    DATA lv_table     TYPE string.
+    DATA lv_user      TYPE string.
+    DATA lv_max       TYPE i.
+    DATA lv_read      TYPE i.
+    DATA lv_matched   TYPE i.
+    DATA lv_kept      TYPE i.
+    DATA lv_trunc     TYPE abap_bool.
+    DATA lv_first     TYPE abap_bool.
+    DATA lv_json      TYPE string.
+    DATA lv_gtval     TYPE string.
+    DATA lv_now_d     TYPE d.
+    DATA lv_now_t     TYPE t.
+    DATA lv_server    TYPE string.
+    DATA lv_lk_number TYPE i.
+    DATA lv_lk_subrc  TYPE sy-subrc.
+    DATA lt_enq       TYPE STANDARD TABLE OF seqg3 WITH DEFAULT KEY.
+    DATA ls_enq       TYPE seqg3.
+    DATA lo_type      TYPE REF TO cl_abap_typedescr.
+    DATA lo_struct    TYPE REF TO cl_abap_structdescr.
+    DATA ls_comp      TYPE abap_compdescr.
+    TYPES: BEGIN OF ty_opt,
+             comp    TYPE string,
+             key     TYPE string,
+             present TYPE abap_bool,
+           END OF ty_opt.
+    DATA lt_opt TYPE STANDARD TABLE OF ty_opt WITH DEFAULT KEY.
+    DATA ls_opt TYPE ty_opt.
+    FIELD-SYMBOLS <lv_gt> TYPE any.
+
+    lv_object = to_upper( s( 'object' ) ).
+    lv_table  = to_upper( s( 'table' ) ).
+    lv_user   = to_upper( s( 'user' ) ).
+    lv_max    = num( 'max' ).
+    IF lv_object IS INITIAL AND lv_table IS INITIAL AND lv_user IS INITIAL.
+      fail( 'at least one of object, table or user is required' ).
+      RETURN.
+    ENDIF.
+    IF lv_max <= 0.
+      lv_max = 50.
+    ENDIF.
+
+    CLEAR ls_opt.
+    ls_opt-comp = 'GTCODE'.
+    ls_opt-key  = 'tcode'.
+    APPEND ls_opt TO lt_opt.
+    CLEAR ls_opt.
+    ls_opt-comp = 'GTHOST'.
+    ls_opt-key  = 'host'.
+    APPEND ls_opt TO lt_opt.
+    CLEAR ls_opt.
+    ls_opt-comp = 'GTDATE'.
+    ls_opt-key  = 'date'.
+    APPEND ls_opt TO lt_opt.
+    CLEAR ls_opt.
+    ls_opt-comp = 'GTTIME'.
+    ls_opt-key  = 'time'.
+    APPEND ls_opt TO lt_opt.
+    CLEAR ls_opt.
+    ls_opt-comp = 'GTWP'.
+    ls_opt-key  = 'wp'.
+    APPEND ls_opt TO lt_opt.
+    CLEAR ls_opt.
+    ls_opt-comp = 'GTSYSNR'.
+    ls_opt-key  = 'sysnr'.
+    APPEND ls_opt TO lt_opt.
+    CLEAR ls_opt.
+    ls_opt-comp = 'GTUSEC'.
+    ls_opt-key  = 'usec'.
+    APPEND ls_opt TO lt_opt.
+
+    cl_abap_typedescr=>describe_by_name(
+      EXPORTING  p_name         = 'SEQG3'
+      RECEIVING  p_descr_ref    = lo_type
+      EXCEPTIONS type_not_found = 1
+                 OTHERS         = 2 ).
+    IF sy-subrc = 0 AND lo_type->kind = cl_abap_typedescr=>kind_struct.
+      lo_struct ?= lo_type.
+      LOOP AT lo_struct->components INTO ls_comp.
+        READ TABLE lt_opt INTO ls_opt WITH KEY comp = ls_comp-name.
+        IF sy-subrc = 0.
+          ls_opt-present = abap_true.
+          MODIFY lt_opt FROM ls_opt INDEX sy-tabix TRANSPORTING present.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
+
+    lv_json = '{"kind":"meta"'.
+    lv_json = lv_json && |,"object":"{ zcl_zmcp_fluid_rt=>esc( lv_object ) }"|.
+    lv_json = lv_json && |,"table":"{ zcl_zmcp_fluid_rt=>esc( lv_table ) }"|.
+    lv_json = lv_json && |,"user":"{ zcl_zmcp_fluid_rt=>esc( lv_user ) }"|.
+    lv_json = lv_json && |,"max":{ lv_max }|.
+    lv_json = lv_json && ',"fields_present":['.
+    lv_first = abap_true.
+    LOOP AT lt_opt INTO ls_opt WHERE present = abap_true.
+      IF lv_first = abap_false.
+        lv_json = lv_json && ','.
+      ENDIF.
+      lv_first = abap_false.
+      lv_json = lv_json && |"{ ls_opt-key }"|.
+    ENDLOOP.
+    lv_json = lv_json && ']}'.
+    zcl_zmcp_fluid_rt=>out( lv_json ).
+
+    CALL FUNCTION 'ENQUEUE_READ'
+      EXPORTING
+        gclient               = space
+        gname                 = space
+        garg                  = space
+        guname                = space
+      IMPORTING
+        number                = lv_lk_number
+        subrc                 = lv_lk_subrc
+      TABLES
+        enq                   = lt_enq
+      EXCEPTIONS
+        communication_failure = 1
+        system_failure        = 2
+        OTHERS                = 3.
+    IF sy-subrc <> 0.
+      fail( |ENQUEUE_READ failed subrc={ sy-subrc }| ).
+      RETURN.
+    ENDIF.
+
+    lv_read    = lines( lt_enq ).
+    lv_matched = 0.
+    lv_kept    = 0.
+    LOOP AT lt_enq INTO ls_enq.
+      " object can land in either GNAME or GOBJ depending on which the lock
+      " object populates - matching either is what lets the caller find "the
+      " lock on this object" without knowing which field their particular
+      " lock object fills.
+      IF lv_object IS NOT INITIAL AND NOT ( ls_enq-gname CP lv_object OR ls_enq-gobj CP lv_object ).
+        CONTINUE.
+      ENDIF.
+      IF lv_table IS NOT INITIAL AND NOT ls_enq-garg CP lv_table.
+        CONTINUE.
+      ENDIF.
+      IF lv_user IS NOT INITIAL AND NOT ls_enq-guname CP lv_user.
+        CONTINUE.
+      ENDIF.
+      lv_matched = lv_matched + 1.
+      IF lv_kept >= lv_max.
+        CONTINUE.
+      ENDIF.
+      lv_kept = lv_kept + 1.
+
+      lv_json = '{"kind":"lock"'.
+      lv_json = lv_json && |,"gname":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_enq-gname ) ) }"|.
+      lv_json = lv_json && |,"gobj":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_enq-gobj ) ) }"|.
+      lv_json = lv_json && |,"garg":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_enq-garg ) ) }"|.
+      lv_json = lv_json && |,"gmode":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_enq-gmode ) ) }"|.
+      lv_json = lv_json && |,"guname":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_enq-guname ) ) }"|.
+      lv_json = lv_json && |,"gclient":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_enq-gclient ) ) }"|.
+      lv_json = lv_json && |,"gusr":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_enq-gusr ) ) }"|.
+      lv_json = lv_json && |,"gusrvb":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_enq-gusrvb ) ) }"|.
+      lv_json = lv_json && |,"guse":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_enq-guse ) ) }"|.
+      lv_json = lv_json && |,"gusevb":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_enq-gusevb ) ) }"|.
+      LOOP AT lt_opt INTO ls_opt WHERE present = abap_true.
+        ASSIGN COMPONENT ls_opt-comp OF STRUCTURE ls_enq TO <lv_gt>.
+        IF sy-subrc = 0.
+          lv_gtval = <lv_gt>.
+          lv_json = lv_json && |,"{ ls_opt-key }":"{ zcl_zmcp_fluid_rt=>esc( lv_gtval ) }"|.
+        ENDIF.
+      ENDLOOP.
+      lv_json = lv_json && '}'.
+      zcl_zmcp_fluid_rt=>out( lv_json ).
+    ENDLOOP.
+
+    IF lv_matched > lv_kept.
+      lv_trunc = abap_true.
+    ELSE.
+      lv_trunc = abap_false.
+    ENDIF.
+
+    lv_now_d = sy-datum.
+    lv_now_t = sy-uzeit.
+    lv_server = |{ lv_now_d DATE = RAW }{ lv_now_t TIME = RAW }|.
+
+    lv_json = '{"kind":"summary"'.
+    lv_json = lv_json && |,"locks_read":{ lv_read }|.
+    lv_json = lv_json && |,"matched":{ lv_matched }|.
+    lv_json = lv_json && |,"kept":{ lv_kept }|.
+    IF lv_trunc = abap_true.
+      lv_json = lv_json && ',"truncated":true'.
+    ELSE.
+      lv_json = lv_json && ',"truncated":false'.
+    ENDIF.
+    lv_json = lv_json && |,"server_time":"{ lv_server }"|.
+    lv_json = lv_json && '}'.
+    zcl_zmcp_fluid_rt=>out( lv_json ).
+  ENDMETHOD.`
+};
+
 // src/adt/fluid/builtin/core.ts
 var CORE_TOOL_ID = "core";
 var CORE_BODY_CLASS = "ZCL_ZMCP_FLUID_CORE";
@@ -81729,12 +82161,12 @@ var RUNTIME_OBJECT3 = fluidRuntimeManifest.objects.find((o) => o.name === FLUID_
 if (RUNTIME_OBJECT3 === void 0) {
   throw new Error(`fluidRuntimeManifest has no entry for ${FLUID_RUNTIME_CLASS}`);
 }
-var CORE_SOURCE = coreBodySource([selectPart, fmPart, docuPart]);
+var CORE_SOURCE = coreBodySource([selectPart, fmPart, docuPart, changeDocsPart, locksPart]);
 var coreManifest = {
   contract: FLUID_CONTRACT,
   id: CORE_TOOL_ID,
   title: "Core read/execute bridge",
-  description: "Table select, function-module interface description and call, and SAP documentation reads.",
+  description: "Table select, function-module interface description and call, SAP documentation reads, change-document (CDHDR/CDPOS) reads, and enqueue-lock (SM12) reads.",
   objects: [
     {
       name: FLUID_RUNTIME_CLASS,
@@ -81842,6 +82274,100 @@ var coreManifest = {
       // `describe_fm`'s function module name are.
     },
     {
+      name: "change_docs",
+      category: "read",
+      description: "Reads SAP change documents (CDHDR/CDPOS) for one object class \u2014 who changed a business object, when, and which field values changed. Judged by the data-preview policy.",
+      input: {
+        type: "object",
+        required: ["objectclass"],
+        properties: {
+          objectclass: {
+            type: "string",
+            maxLength: 15,
+            description: "The CDHDR object class to read, e.g. MATERIAL, KNA1."
+          },
+          objectid: {
+            type: "string",
+            maxLength: 90,
+            description: "CDHDR-OBJECTID. `*` is a wildcard; omitted matches every object id."
+          },
+          user: {
+            type: "string",
+            maxLength: 12,
+            description: "CDHDR-USERNAME. `*` is a wildcard; omitted is unrestricted."
+          },
+          since: {
+            type: "string",
+            maxLength: 14,
+            description: "Window start, YYYYMMDDHHMMSS in server time. Default window is the last 24 hours."
+          },
+          until: {
+            type: "string",
+            maxLength: 14,
+            description: "Window end, YYYYMMDDHHMMSS in server time. Default window is the last 24 hours."
+          },
+          tcode: {
+            type: "string",
+            maxLength: 20,
+            description: "CDHDR-TCODE. `*` is a wildcard."
+          },
+          max: {
+            type: "integer",
+            minimum: 0,
+            description: "Cap on change DOCUMENTS, not positions; 0 or omitted means 20. Positions of each returned document are read in full, then clamped as a whole against the data-preview row ceiling in TypeScript."
+          }
+        }
+      },
+      output: {
+        type: "array",
+        items: { type: "object" },
+        description: "One header row per change document, that document's position rows, then one trailing summary row."
+      }
+      // No `targets`: an object class is not a repository object the write gate can name the way
+      // `select`'s table or `describe_fm`'s function module name are. The tables actually read —
+      // CDHDR, CDPOS, and whatever tables the returned positions name — are judged by the
+      // data-preview policy instead, partly in `guardCoreAction` below (CDHDR/CDPOS themselves,
+      // before the ABAP runs) and partly in `applyPositionPolicy` after the rows come back (every
+      // table a returned position names, which cannot be known until then).
+    },
+    {
+      name: "locks",
+      category: "read",
+      description: "Reads enqueue locks (the SM12 view) filtered by lock object, lock argument or user. Read-only; there is no release path. At least one of object/table/user is required \u2014 without one this would dump the whole enqueue table.",
+      input: {
+        type: "object",
+        properties: {
+          object: {
+            type: "string",
+            maxLength: 30,
+            description: "Lock object / table name pattern, matched against SEQG3-GNAME or SEQG3-GOBJ. `*` is a wildcard. At least one of object/table/user is required."
+          },
+          table: {
+            type: "string",
+            maxLength: 90,
+            description: "Lock ARGUMENT pattern, matched against SEQG3-GARG. `*` is a wildcard. At least one of object/table/user is required."
+          },
+          user: {
+            type: "string",
+            maxLength: 12,
+            description: "SEQG3-GUNAME pattern. `*` is a wildcard. At least one of object/table/user is required."
+          },
+          max: {
+            type: "integer",
+            minimum: 0,
+            description: "Row cap; 0 or omitted means 50."
+          }
+        }
+      },
+      output: {
+        type: "array",
+        items: { type: "object" },
+        description: "One meta row, one row per lock, then one trailing summary row."
+      }
+      // No `targets`: an enqueue lock is runtime state, not a repository object the write gate
+      // can name.
+    },
+    {
       name: "call_fm",
       category: "execute",
       description: "Calls a function module in the caller's own system, under the caller's own authorizations.",
@@ -81928,6 +82454,21 @@ async function guardCoreAction(deps, req) {
         { tool: req.tool, action: req.action, rule: "ABAP_ALLOW_DATA_PREVIEW" }
       );
     }
+    return;
+  }
+  if (req.action === "change_docs") {
+    deps.gate.assertDataPreview("CDHDR");
+    deps.gate.assertDataPreview("CDPOS");
+    if (!deps.cfg.allowDataPreview) {
+      throw new AbapError(
+        "SAFETY_DENIED",
+        `core.change_docs reads table data, which is off by default. Set ABAP_ALLOW_DATA_PREVIEW=true to allow it.`,
+        { tool: req.tool, action: req.action, rule: "ABAP_ALLOW_DATA_PREVIEW" }
+      );
+    }
+    return;
+  }
+  if (req.action === "locks") {
     return;
   }
   if (req.action === "call_fm") {
@@ -87680,37 +88221,37 @@ function isSapClientKey(key) {
   const k = key.toLowerCase().replace(/[-_]/g, "");
   return k === "sapclient";
 }
-function assertValidAdtPath(path8) {
-  if (typeof path8 !== "string" || path8.trim().length === 0) {
-    throw new Error(`buildUrl: path must be a non-empty string \u2014 got ${JSON.stringify(path8)}.`);
+function assertValidAdtPath(path9) {
+  if (typeof path9 !== "string" || path9.trim().length === 0) {
+    throw new Error(`buildUrl: path must be a non-empty string \u2014 got ${JSON.stringify(path9)}.`);
   }
-  if (/^[A-Za-z][A-Za-z0-9+.\-]*:/.test(path8) || path8.startsWith("//")) {
+  if (/^[A-Za-z][A-Za-z0-9+.\-]*:/.test(path9) || path9.startsWith("//")) {
     throw new Error(
-      `buildUrl: path must not be an absolute URL \u2014 got "${path8}". This module only ever builds paths relative to the ADT server; scheme/host selection happens at the HTTP-client layer, never here.`
+      `buildUrl: path must not be an absolute URL \u2014 got "${path9}". This module only ever builds paths relative to the ADT server; scheme/host selection happens at the HTTP-client layer, never here.`
     );
   }
-  if (path8.includes("?")) {
+  if (path9.includes("?")) {
     throw new Error(
-      `buildUrl: path must not contain a query string \u2014 got "${path8}". Query params must go through the params argument so they are encoded by buildQuery, not hand-concatenated onto path.`
+      `buildUrl: path must not contain a query string \u2014 got "${path9}". Query params must go through the params argument so they are encoded by buildQuery, not hand-concatenated onto path.`
     );
   }
-  if (path8.includes("#")) {
+  if (path9.includes("#")) {
     throw new Error(
-      `buildUrl: path must not contain a fragment \u2014 got "${path8}". A "#start=N" fragment belongs in the uri query VALUE (see withStartFragment), not in path itself.`
+      `buildUrl: path must not contain a fragment \u2014 got "${path9}". A "#start=N" fragment belongs in the uri query VALUE (see withStartFragment), not in path itself.`
     );
   }
-  if (/[\\\s\x00-\x1f\x7f]/.test(path8)) {
+  if (/[\\\s\x00-\x1f\x7f]/.test(path9)) {
     throw new Error(
-      `buildUrl: path must not contain a backslash, whitespace or control character \u2014 got "${path8}".`
+      `buildUrl: path must not contain a backslash, whitespace or control character \u2014 got "${path9}".`
     );
   }
-  let normalised = path8.startsWith("/") ? path8 : `/${path8}`;
+  let normalised = path9.startsWith("/") ? path9 : `/${path9}`;
   while (normalised.length > 1 && normalised.endsWith("/")) {
     normalised = normalised.slice(0, -1);
   }
   const segments = normalised.split("/");
   if (segments.some((s) => s === "." || s === "..")) {
-    throw new Error(`buildUrl: path must not contain a traversal segment ("." or "..") \u2014 got "${path8}".`);
+    throw new Error(`buildUrl: path must not contain a traversal segment ("." or "..") \u2014 got "${path9}".`);
   }
   if (normalised !== "/sap/bc/adt" && !normalised.startsWith("/sap/bc/adt/")) {
     throw new Error(
@@ -87719,8 +88260,8 @@ function assertValidAdtPath(path8) {
   }
   return normalised;
 }
-function buildUrl(path8, params) {
-  const normalised = assertValidAdtPath(path8);
+function buildUrl(path9, params) {
+  const normalised = assertValidAdtPath(path9);
   return params ? `${normalised}${buildQuery(params)}` : normalised;
 }
 function breakpointsPostUrl(query = {}) {
@@ -88829,21 +89370,21 @@ function collectExceptionClassNames(properties) {
   }
   return out;
 }
-function parseAdtError(body, status, path8) {
+function parseAdtError(body, status, path9) {
   const bodyExcerpt = truncateDiagnosticBody(body);
   const trimmed = body.trim();
   if (!trimmed) {
-    return { status, message: `HTTP ${status}`, path: path8, bodyExcerpt };
+    return { status, message: `HTTP ${status}`, path: path9, bodyExcerpt };
   }
   let parsed;
   try {
     parsed = parser.parse(body);
   } catch {
-    return { status, message: truncateText(trimmed, MESSAGE_EXCERPT_MAX), path: path8, bodyExcerpt };
+    return { status, message: truncateText(trimmed, MESSAGE_EXCERPT_MAX), path: path9, bodyExcerpt };
   }
   const root = parsed.exception;
   if (!root || typeof root !== "object") {
-    return { status, message: truncateText(trimmed, MESSAGE_EXCERPT_MAX), path: path8, bodyExcerpt };
+    return { status, message: truncateText(trimmed, MESSAGE_EXCERPT_MAX), path: path9, bodyExcerpt };
   }
   const properties = {};
   const propertiesNode = root.properties;
@@ -88859,7 +89400,7 @@ function parseAdtError(body, status, path8) {
     subtype: properties["com.sap.adt.communicationFramework.subType"],
     abapType,
     message,
-    path: path8,
+    path: path9,
     bodyExcerpt,
     ...exceptionClassNames.length ? { exceptionClassNames } : {}
   };
@@ -88974,15 +89515,15 @@ ${httpRequest}\r
   return `${parts.join("")}--${boundary}--\r
 `;
 }
-function decodeBatchPart(result, path8, parse4) {
+function decodeBatchPart(result, path9, parse4) {
   if (result.status >= 400) {
-    return { ok: false, error: parseAdtError(result.body, result.status, path8) };
+    return { ok: false, error: parseAdtError(result.body, result.status, path9) };
   }
   try {
     return { ok: true, value: parse4(result.body) };
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
-    return { ok: false, error: { status: result.status, message, path: path8, bodyExcerpt: truncateDiagnosticBody(result.body) } };
+    return { ok: false, error: { status: result.status, message, path: path9, bodyExcerpt: truncateDiagnosticBody(result.body) } };
   }
 }
 var DebugClient = class {
@@ -89758,19 +90299,19 @@ function mergeCookieHeader(existing, setCookie) {
   }
   return [...jar].map(([k, v]) => `${k}=${v}`).join("; ");
 }
-function joinUrl(baseUrl, path8) {
+function joinUrl(baseUrl, path9) {
   const base = baseUrl.replace(/\/+$/, "");
-  const p = path8.startsWith("/") ? path8 : `/${path8}`;
+  const p = path9.startsWith("/") ? path9 : `/${path9}`;
   return base + p;
 }
-function buildUrlWithQuery(baseUrl, path8, qs) {
-  const url2 = joinUrl(baseUrl, path8);
+function buildUrlWithQuery(baseUrl, path9, qs) {
+  const url2 = joinUrl(baseUrl, path9);
   if (!qs || Object.keys(qs).length === 0) return url2;
   const search = new URLSearchParams(qs).toString();
   return `${url2}?${search}`;
 }
-function adtErrorFromException(e, path8) {
-  captureErrorBody("adtErrorFromException", path8, e);
+function adtErrorFromException(e, path9) {
+  captureErrorBody("adtErrorFromException", path9, e);
   const info = adtExceptionInfo(e);
   const message = info?.message || describeUnknownError(e);
   const rawBody = info?.response?.body ?? "";
@@ -89780,7 +90321,7 @@ function adtErrorFromException(e, path8) {
     subtype: info?.properties["com.sap.adt.communicationFramework.subType"] || void 0,
     abapType: info?.type,
     message,
-    path: path8,
+    path: path9,
     bodyExcerpt: truncateDiagnosticBody(rawBody || message),
     ...exceptionClassNames.length ? { exceptionClassNames } : {}
   };
@@ -90076,12 +90617,12 @@ var DebugLongPollClient = class {
    * CSRF-stale-token retry (see the file's layering note); a 401 or ICF
    * logon-failure body trips the shared breaker instead.
    */
-  listen(path8, opts = {}) {
+  listen(path9, opts = {}) {
     if (this.inFlight) {
       throw new AbapError(
         "LOCKED",
         "A long-poll is already in flight on this DebugLongPollClient; concurrent listen() calls on one client would share (and corrupt) a single stateful ADT session.",
-        { path: path8 },
+        { path: path9 },
         // Deliberately not "…or use a separate terminalId": SAP rejects a
         // second global-scope listener for the same identity with
         // 409/conflictDetected, keyed on (terminalId, ideId); switching to
@@ -90091,7 +90632,7 @@ var DebugLongPollClient = class {
         "Await or abort() the outstanding LongPollHandle first, or use a separate DebugLongPollClient for a different endpoint \u2014 a second concurrent poll with the SAME identity is not cancelled by SAP, it is accepted and can wedge both polls for many minutes with no established recovery, so refusing it here rather than risking that is safer."
       );
     }
-    const url2 = buildUrlWithQuery(this.baseUrl, path8, opts.qs);
+    const url2 = buildUrlWithQuery(this.baseUrl, path9, opts.qs);
     const controller = new AbortController();
     let aborted2 = false;
     const abort = () => {
@@ -90110,7 +90651,7 @@ var DebugLongPollClient = class {
       resolveArmed = res;
     });
     this.inFlight = true;
-    const result = this.run(url2, opts.headers, controller.signal, path8, resolveArmed).finally(
+    const result = this.run(url2, opts.headers, controller.signal, path9, resolveArmed).finally(
       () => clearTimeout(timer)
     );
     void result.catch(() => {
@@ -90124,7 +90665,7 @@ var DebugLongPollClient = class {
       }
     };
   }
-  async run(url2, extraHeaders, signal, path8, resolveArmed) {
+  async run(url2, extraHeaders, signal, path9, resolveArmed) {
     let armedSignalled = false;
     let isProbe = false;
     let sawResponse = false;
@@ -90166,7 +90707,7 @@ var DebugLongPollClient = class {
             throw new AbapError(
               "TRANSPORT_ERROR",
               "Long-poll cancelled before it produced a result.",
-              { path: path8 },
+              { path: path9 },
               "Expected on deliberate abort(); if unexpected, check the caller's own timeout."
             );
           }
@@ -90182,7 +90723,7 @@ var DebugLongPollClient = class {
           const cancelled = () => new AbapError(
             "TRANSPORT_ERROR",
             "Long-poll cancelled before it produced a result.",
-            { path: path8 },
+            { path: path9 },
             "Cancelled while refreshing the CSRF token. Expected on deliberate abort(); if unexpected, check the caller's own timeout."
           );
           try {
@@ -90210,19 +90751,19 @@ var DebugLongPollClient = class {
           } catch (e) {
             if (e instanceof AbapError) throw e;
             if ("thrown" in cookieFailure) {
-              throw translateDebugError(adtErrorFromException(cookieFailure.thrown, path8));
+              throw translateDebugError(adtErrorFromException(cookieFailure.thrown, path9));
             }
             if (signal.aborted || isAbortError(e)) throw cancelled();
-            throw translateDebugError(adtErrorFromException(e, path8));
+            throw translateDebugError(adtErrorFromException(e, path9));
           }
           if ("thrown" in cookieFailure) {
-            throw translateDebugError(adtErrorFromException(cookieFailure.thrown, path8));
+            throw translateDebugError(adtErrorFromException(cookieFailure.thrown, path9));
           }
           if (signal.aborted) throw cancelled();
           continue;
         }
         if (raw.status >= 400) {
-          throw translateDebugError(parseAdtError(raw.body, raw.status, path8));
+          throw translateDebugError(parseAdtError(raw.body, raw.status, path9));
         }
         return raw;
       }
@@ -92003,8 +92544,8 @@ function getErrorMap2() {
 
 // node_modules/zod/v3/helpers/parseUtil.js
 var makeIssue = (params) => {
-  const { data, path: path8, errorMaps, issueData } = params;
-  const fullPath = [...path8, ...issueData.path || []];
+  const { data, path: path9, errorMaps, issueData } = params;
+  const fullPath = [...path9, ...issueData.path || []];
   const fullIssue = {
     ...issueData,
     path: fullPath
@@ -92119,11 +92660,11 @@ var errorUtil;
 
 // node_modules/zod/v3/types.js
 var ParseInputLazyPath = class {
-  constructor(parent, value, path8, key) {
+  constructor(parent, value, path9, key) {
     this._cachedPath = [];
     this.parent = parent;
     this.data = value;
-    this._path = path8;
+    this._path = path9;
     this._key = key;
   }
   get path() {
@@ -95662,11 +96203,11 @@ function normalizeObjectSchema(schema) {
   }
   return void 0;
 }
-function getDotPath(path8) {
-  if (path8.length === 0) {
+function getDotPath(path9) {
+  if (path9.length === 0) {
     return "object root";
   }
-  return path8.reduce((acc, seg, index) => {
+  return path9.reduce((acc, seg, index) => {
     if (index === 0) {
       return String(seg);
     }
@@ -105045,9 +105586,9 @@ function parsePath(raw) {
   }
   return { root, steps };
 }
-function formatPath(path8) {
-  let out = path8.root;
-  for (const step of path8.steps) {
+function formatPath(path9) {
+  let out = path9.root;
+  for (const step of path9.steps) {
     out += step.kind === "component" ? `-${step.name}` : `[${step.value}]`;
   }
   return out;
@@ -105070,8 +105611,8 @@ function retrievalWindow(start, end, total) {
   const count = last - from + 1;
   return count >= 1 ? { from, count } : void 0;
 }
-function buildRetrievalCall(path8, window2, stateId) {
-  const args = [`stateId: "${stateId ?? STATE_ID_PLACEHOLDER}"`, `path: "${path8}"`];
+function buildRetrievalCall(path9, window2, stateId) {
+  const args = [`stateId: "${stateId ?? STATE_ID_PLACEHOLDER}"`, `path: "${path9}"`];
   if (window2 !== void 0) {
     args.push(`from: ${window2.from}`, `count: ${window2.count}`);
   }
@@ -105282,7 +105823,7 @@ function unplaceableRowsBlock(nodes, reason, stateId) {
     )
   ];
 }
-function buildTableRowsRender(v, rows, window2, path8, stateId) {
+function buildTableRowsRender(v, rows, window2, path9, stateId) {
   const total = v.tableLines;
   if (total !== void 0 && total <= 0) {
     return {
@@ -105305,7 +105846,7 @@ function buildTableRowsRender(v, rows, window2, path8, stateId) {
     if (r.index > next) {
       units.push({
         index: next,
-        line: `  ${elide("rows", r.index - next, buildRetrievalCall(path8, retrievalWindow(next, r.index - 1, total), stateId))}`
+        line: `  ${elide("rows", r.index - next, buildRetrievalCall(path9, retrievalWindow(next, r.index - 1, total), stateId))}`
       });
     }
     units.push({
@@ -105317,20 +105858,20 @@ function buildTableRowsRender(v, rows, window2, path8, stateId) {
   if (next <= hi) {
     units.push({
       index: next,
-      line: `  ${elide("rows", hi - next + 1, buildRetrievalCall(path8, retrievalWindow(next, hi, total), stateId))}`
+      line: `  ${elide("rows", hi - next + 1, buildRetrievalCall(path9, retrievalWindow(next, hi, total), stateId))}`
     });
   }
   const leading = [];
   const before = lo - 1;
   if (before > 0) {
-    leading.push(`  ${elide("rows", before, buildRetrievalCall(path8, retrievalWindow(1, before, total), stateId))}`);
+    leading.push(`  ${elide("rows", before, buildRetrievalCall(path9, retrievalWindow(1, before, total), stateId))}`);
   }
   const trailing = [];
   if (total !== void 0) {
     const after = total - hi;
     if (after > 0) {
       trailing.push(
-        `  ${elide("rows", after, buildRetrievalCall(path8, retrievalWindow(hi + 1, total, total), stateId))}`
+        `  ${elide("rows", after, buildRetrievalCall(path9, retrievalWindow(hi + 1, total, total), stateId))}`
       );
     }
     if (window2.start !== lo || window2.end !== hi) {
@@ -105346,7 +105887,7 @@ function buildTableRowsRender(v, rows, window2, path8, stateId) {
         "fetched rows outside the rendered window",
         outside.length,
         // A SPAN not a set — over-fetching gaps is harmless, dropping rows silently is not.
-        buildRetrievalCall(path8, retrievalWindow(Math.min(...indices), Math.max(...indices), total), stateId)
+        buildRetrievalCall(path9, retrievalWindow(Math.min(...indices), Math.max(...indices), total), stateId)
       )}`
     );
   }
@@ -105365,13 +105906,13 @@ function rowIndexOf(id) {
   const m = /\[(\d+)\]$/.exec(id);
   return m ? Number(m[1]) : -1;
 }
-function renderNode(node2, depth, maxDepth, path8, stateId) {
+function renderNode(node2, depth, maxDepth, path9, stateId) {
   const v = node2.variable;
   const indent = "  ".repeat(depth);
   if (v.metaType === "table") {
     return [
       `${indent}${v.name}: ${describeComplex(v)}`,
-      `${indent}  \u2192 ${buildRetrievalCall(path8, reachableWindow(v), stateId)}`
+      `${indent}  \u2192 ${buildRetrievalCall(path9, reachableWindow(v), stateId)}`
     ];
   }
   if (!isComplex(v.metaType)) {
@@ -105382,21 +105923,21 @@ function renderNode(node2, depth, maxDepth, path8, stateId) {
     if (node2.children && node2.children.length > 0) {
       return [
         line2,
-        `${indent}  ${elide("children", node2.children.length, buildRetrievalCall(path8, void 0, stateId))}`
+        `${indent}  ${elide("children", node2.children.length, buildRetrievalCall(path9, void 0, stateId))}`
       ];
     }
     return [line2];
   }
   if (!node2.children) {
-    return [line2, `${indent}  (not expanded \u2014 ${buildRetrievalCall(path8, void 0, stateId)})`];
+    return [line2, `${indent}  (not expanded \u2014 ${buildRetrievalCall(path9, void 0, stateId)})`];
   }
   const childLines = node2.children.flatMap(
-    (c) => renderNode(c, depth + 1, maxDepth, `${path8}-${c.variable.name}`, stateId)
+    (c) => renderNode(c, depth + 1, maxDepth, `${path9}-${c.variable.name}`, stateId)
   );
   return [line2, ...childLines];
 }
-function renderTableWithinBudget(v, rows, window2, path8, maxChars, stateId) {
-  const parts = buildTableRowsRender(v, rows, window2, path8, stateId);
+function renderTableWithinBudget(v, rows, window2, path9, maxChars, stateId) {
+  const parts = buildTableRowsRender(v, rows, window2, path9, stateId);
   const assemble = (units, drop) => [
     parts.header,
     ...parts.leading,
@@ -105411,7 +105952,7 @@ function renderTableWithinBudget(v, rows, window2, path8, maxChars, stateId) {
   const worstDrop = `  ${elide(
     "rows",
     parts.window.end - parts.window.start + 1,
-    buildRetrievalCall(path8, retrievalWindow(parts.window.start, parts.window.end), stateId)
+    buildRetrievalCall(path9, retrievalWindow(parts.window.start, parts.window.end), stateId)
   )}`;
   const overhead = [parts.header, ...parts.leading, ...parts.trailing, worstDrop].reduce(
     (n, line2) => n + line2.length + 1,
@@ -105429,20 +105970,20 @@ function renderTableWithinBudget(v, rows, window2, path8, maxChars, stateId) {
   const droppedStart = dropped[0].index;
   const droppedEnd = parts.window.end;
   const nextCall = kept.length > 0 ? buildRetrievalCall(
-    path8,
+    path9,
     retrievalWindow(droppedStart, Math.min(droppedStart + kept.length - 1, droppedEnd)),
     stateId
-  ) : buildRetrievalCall(`${path8}[${droppedStart}]`, void 0, stateId);
+  ) : buildRetrievalCall(`${path9}[${droppedStart}]`, void 0, stateId);
   return assemble(kept, `  ${elide("rows", droppedEnd - droppedStart + 1, nextCall)}`);
 }
-function renderDrill(node2, path8, opts) {
+function renderDrill(node2, path9, opts) {
   const maxDepth = opts?.depth ?? 3;
   const maxChars = opts?.maxChars ?? DEBUG_MAX_CHARS;
   const stateId = opts?.stateId;
   if (node2.variable.metaType === "table" && opts?.rows && node2.children) {
-    return { text: renderTableWithinBudget(node2.variable, node2.children, opts.rows, path8, maxChars, stateId) };
+    return { text: renderTableWithinBudget(node2.variable, node2.children, opts.rows, path9, maxChars, stateId) };
   }
-  const lines = renderNode(node2, 0, maxDepth, path8, stateId);
+  const lines = renderNode(node2, 0, maxDepth, path9, stateId);
   let text5 = lines.join("\n");
   if (text5.length > maxChars) {
     const kept = [];
@@ -105454,7 +105995,7 @@ function renderDrill(node2, path8, opts) {
     }
     if (kept.length === 0 && lines.length > 0) kept.push(lines[0]);
     const remaining = lines.length - kept.length;
-    text5 = remaining > 0 ? [...kept, elide("lines", remaining, buildRetrievalCall(path8, void 0, stateId))].join("\n") : kept.join("\n");
+    text5 = remaining > 0 ? [...kept, elide("lines", remaining, buildRetrievalCall(path9, void 0, stateId))].join("\n") : kept.join("\n");
   }
   return { text: text5 };
 }
@@ -105503,8 +106044,8 @@ var VERSIONS_REL = "http://www.sap.com/adt/relations/versions";
 var NO_VERSIONS_LINK_HINT = "Version management is a per-object property, not a system-wide feature: an object type with no version management (many DDIC and generated objects) carries no versions link on its ADT structure document, so there is nothing to list and nothing to diff. Read the object normally (omit `view`) to see its current source.";
 var NO_RELEASED_HISTORY_EXPLANATION = "has no released version history: the only entry in its ADT version feed is the ACTIVE pseudo-version (00000), which serves the object's CURRENT source rather than a snapshot. SAP writes a version row on transport release or upgrade import, never on local activation \u2014 so a $TMP / local object accumulates no history no matter how many times it is edited and reactivated. There is no predecessor to diff against.";
 function versionIdFromContentUri(uri) {
-  const path8 = uri.replace(/[?#].*$/, "").replace(/\/+$/, "");
-  const segs = path8.split("/");
+  const path9 = uri.replace(/[?#].*$/, "").replace(/\/+$/, "");
+  const segs = path9.split("/");
   if (segs.length < 2) return "";
   const candidate = segs[segs.length - 2] ?? "";
   if (!/^\d{1,5}$/.test(candidate)) return "";
@@ -106895,10 +107436,46 @@ function cleanUri(uri) {
 
 // src/tools/activate.ts
 init_session();
-init_types();
+
+// src/adt/locked-holders.ts
+init_errors();
+
+// src/adt/enqueue-read.ts
+init_errors();
+
+// src/adt/fpm-lock.ts
+init_errors();
+import { createHash as createHash8 } from "node:crypto";
+
+// src/adt/run.ts
+var import_abap_adt_api8 = __toESM(require_build(), 1);
+init_errors();
+import { createHash as createHash7 } from "node:crypto";
+
+// src/adt/bridge-residue.ts
+init_errors();
+function discloseBridgeResidue(e, className, packageName, stage) {
+  if (!isAbapError(e)) return e;
+  if (e.details.bridgeLeftBehind === true) return e;
+  const outcome = stage === "activate-gate" ? "was blocked before activation could run; it is left behind there, inactive" : stage === "activation" ? "failed to activate; it is left behind there, inactive" : stage === "verify" ? "activated, then failed post-activation verification; it is left behind there" : "activated, then failed the source read-back that confirms what landed; it is left behind there";
+  const residueHint = `Bridge class ${className} was written to ${packageName} but ${outcome} \u2014 safe to delete.`;
+  const disclosed = new AbapError(
+    e.code,
+    e.message,
+    { ...e.details, bridgeClass: className, bridgeLeftBehind: true },
+    e.hint ? `${e.hint} ${residueHint}` : residueHint
+  );
+  disclosed.stack = e.stack;
+  disclosed.cause = e.cause;
+  return disclosed;
+}
+
+// src/adt/run.ts
+init_truncate();
+init_session();
 
 // src/adt/write.ts
-var import_abap_adt_api8 = __toESM(require_build(), 1);
+var import_abap_adt_api7 = __toESM(require_build(), 1);
 init_compact();
 init_safety();
 
@@ -107592,32 +108169,20 @@ init_errors();
 init_safety();
 init_errors();
 
-// src/adt/run.ts
-var import_abap_adt_api7 = __toESM(require_build(), 1);
-init_errors();
-import { createHash as createHash7 } from "node:crypto";
-
-// src/adt/bridge-residue.ts
-init_errors();
-function discloseBridgeResidue(e, className, packageName, stage) {
-  if (!isAbapError(e)) return e;
-  if (e.details.bridgeLeftBehind === true) return e;
-  const outcome = stage === "activate-gate" ? "was blocked before activation could run; it is left behind there, inactive" : stage === "activation" ? "failed to activate; it is left behind there, inactive" : stage === "verify" ? "activated, then failed post-activation verification; it is left behind there" : "activated, then failed the source read-back that confirms what landed; it is left behind there";
-  const residueHint = `Bridge class ${className} was written to ${packageName} but ${outcome} \u2014 safe to delete.`;
-  const disclosed = new AbapError(
-    e.code,
-    e.message,
-    { ...e.details, bridgeClass: className, bridgeLeftBehind: true },
-    e.hint ? `${e.hint} ${residueHint}` : residueHint
-  );
-  disclosed.stack = e.stack;
-  disclosed.cause = e.cause;
-  return disclosed;
+// src/adt/fluid/enabled.ts
+function fluidDisabledReason(cfg, gate) {
+  if (cfg.fluidApi === false) return { kind: "flag", field: "ABAP_FLUID_API" };
+  if (cfg.abapMode === "read") return { kind: "read-only", field: "cfg.abapMode" };
+  if (cfg.readOnly === true) return { kind: "read-only", field: "cfg.readOnly" };
+  if (gate !== void 0) {
+    const g = gate.config;
+    if (g.productive === true) return { kind: "read-only", field: "gate.config.productive" };
+    if (g.systemRole === "productive") return { kind: "read-only", field: "gate.config.systemRole" };
+    if (g.roleProbeFailure !== void 0) return { kind: "read-only", field: "gate.config.roleProbeFailure" };
+    if (g.writesLockedOut === true) return { kind: "read-only", field: "gate.config.writesLockedOut" };
+  }
+  return void 0;
 }
-
-// src/adt/run.ts
-init_truncate();
-init_session();
 
 // src/adt/fluid/package.ts
 var FLUID_PACKAGE = "$ABAPSMITH_FLUID_API";
@@ -107655,1329 +108220,6 @@ function ensureFluidPackage(conn, gate) {
     memo.delete(key);
   });
   return attempt;
-}
-
-// src/adt/fluid/enabled.ts
-function fluidDisabledReason(cfg, gate) {
-  if (cfg.fluidApi === false) return { kind: "flag", field: "ABAP_FLUID_API" };
-  if (cfg.abapMode === "read") return { kind: "read-only", field: "cfg.abapMode" };
-  if (cfg.readOnly === true) return { kind: "read-only", field: "cfg.readOnly" };
-  if (gate !== void 0) {
-    const g = gate.config;
-    if (g.productive === true) return { kind: "read-only", field: "gate.config.productive" };
-    if (g.systemRole === "productive") return { kind: "read-only", field: "gate.config.systemRole" };
-    if (g.roleProbeFailure !== void 0) return { kind: "read-only", field: "gate.config.roleProbeFailure" };
-    if (g.writesLockedOut === true) return { kind: "read-only", field: "gate.config.writesLockedOut" };
-  }
-  return void 0;
-}
-
-// src/adt/dumps-query.ts
-init_errors();
-var DUMPS_FEED_PATH = "/sap/bc/adt/runtime/dumps";
-var DUMPS_FEED_PARAMS = Object.freeze([
-  "$query",
-  "from",
-  "to",
-  "$top",
-  "$queryCheck",
-  "$inlinecount"
-]);
-var DUMPS_MAX_ROWS = 1e3;
-var DUMPS_RESIDENCE_WINDOW_DAYS = 8;
-var SILENTLY_IGNORED_PARAMS = Object.freeze({
-  query: "The parameter is `$query`, with the dollar sign. Sending `query=` returns HTTP 200 and the complete unfiltered feed \u2014 this near-miss is the single costliest mistake on this surface.",
-  $skip: 'There is no skip/offset parameter. Page with the `rel="next"` cursor (`to=`) instead.',
-  $filter: "OData syntax is not understood here. The filter parameter is `$query`, in FQL.",
-  $orderby: "There is no ordering parameter; the feed is returned newest-first.",
-  $select: "There is no projection parameter.",
-  queryString: "`queryString` is the attribute name inside `feed:queryVariant`, not a parameter.",
-  variant: "Server-side variants cannot be selected by name; expand them into a `$query` yourself.",
-  user: "Filter by user with `$query=and ( equals ( user , NAME ) )`, not a `user=` parameter.",
-  maxHits: "The row limit is `$top`.",
-  size: "The row limit is `$top`.",
-  pageSize: "The row limit is `$top`.",
-  client: "The client is fixed by the logon; it cannot be selected per request.",
-  $inlinecount: "Recognised by the server but INERT: it produces no count element anywhere, so this builder never sends it. There is no total-count facility on this feed \u2014 count `atom:entry` elements from the response instead, bounded by C_MAX_DUMPS = 1000 and the 8-day residence window."
-});
-function isRecognisedFeedParam(name) {
-  return DUMPS_FEED_PARAMS.includes(name);
-}
-function assertRecognisedFeedParam(name) {
-  if (isRecognisedFeedParam(name)) return name;
-  const known = SILENTLY_IGNORED_PARAMS[name];
-  throw new AbapError(
-    "BAD_INPUT",
-    `'${name}' is not a query parameter of the ABAP runtime-dumps feed.`,
-    { parameter: name, recognised: [...DUMPS_FEED_PARAMS] },
-    (known ? `${known} ` : "") + `This server silently ignores unrecognised parameters and answers HTTP 200 with the full unfiltered feed, so an unknown name is refused here rather than sent. The six recognised parameters are ${DUMPS_FEED_PARAMS.join(", ")}.`
-  );
-}
-var FQL_OPERATORS = Object.freeze({
-  equals: 1,
-  notEquals: 1,
-  contains: 1,
-  notContains: 1,
-  greater: 1,
-  greaterOrEquals: 1,
-  less: 1,
-  lessOrEquals: 1,
-  between: 2,
-  notBetween: 2
-});
-var FQL_JUNCTIONS = Object.freeze(["and", "or"]);
-var STRING_OPS = ["equals", "notEquals", "contains", "notContains"];
-var DATETIME_OPS = [
-  "equals",
-  "notEquals",
-  "greater",
-  "greaterOrEquals",
-  "less",
-  "lessOrEquals",
-  "between",
-  "notBetween"
-];
-var DUMPS_CONTRACT_AS_CAPTURED = Object.freeze({
-  queryDepth: 2,
-  // served, not assumed — no `queryDepthAssumed`.
-  operators: FQL_OPERATORS,
-  attributes: Object.freeze([
-    { id: "package", dataType: "string", operators: STRING_OPS },
-    { id: "packageHierarchy", dataType: "string", operators: STRING_OPS },
-    { id: "packageResponsible", dataType: "string", operators: STRING_OPS },
-    { id: "objectResponsible", dataType: "string", operators: STRING_OPS },
-    { id: "responsible", dataType: "string", operators: STRING_OPS },
-    { id: "objectName", dataType: "string", operators: STRING_OPS },
-    { id: "component", dataType: "string", operators: STRING_OPS },
-    // The asymmetry: `string` dataType, but only two operators.
-    { id: "user", dataType: "string", operators: Object.freeze(["equals", "notEquals"]) },
-    { id: "runtimeError", dataType: "string", operators: STRING_OPS },
-    { id: "exception", dataType: "string", operators: STRING_OPS },
-    { id: "datetime", dataType: "dateTime", operators: DATETIME_OPS }
-  ])
-});
-var DUMPS_ASSUMED_QUERY_DEPTH = 2;
-function toDumpsQueryContract(extendedData) {
-  const attributes = Object.freeze(
-    extendedData.attributes.map(
-      (a) => Object.freeze({
-        id: a.id,
-        dataType: a.dataTypeId,
-        operators: Object.freeze([...a.operatorIds])
-      })
-    )
-  );
-  const operators = {};
-  for (const op of extendedData.operators) operators[op.id] = op.numberOfOperands;
-  const hasOperators = Object.keys(operators).length > 0;
-  const served = extendedData.queryDepth;
-  const queryDepthIsServed = Number.isInteger(served) && served > 0;
-  return Object.freeze({
-    attributes,
-    queryDepth: queryDepthIsServed ? served : DUMPS_ASSUMED_QUERY_DEPTH,
-    ...queryDepthIsServed ? {} : { queryDepthAssumed: true },
-    ...hasOperators ? { operators: Object.freeze(operators) } : {}
-  });
-}
-var TS14_RE = /^\d{14}$/;
-var ISO_RE = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?Z$/;
-var pad = (n, width) => String(n).padStart(width, "0");
-function isValidTimestamp14(text5) {
-  if (!TS14_RE.test(text5)) return false;
-  const y = Number(text5.slice(0, 4));
-  const mo = Number(text5.slice(4, 6));
-  const d = Number(text5.slice(6, 8));
-  const h = Number(text5.slice(8, 10));
-  const mi = Number(text5.slice(10, 12));
-  const s = Number(text5.slice(12, 14));
-  if (mo < 1 || mo > 12 || d < 1 || d > 31 || h > 23 || mi > 59 || s > 59) return false;
-  const dt = new Date(Date.UTC(y, mo - 1, d, h, mi, s));
-  return dt.getUTCFullYear() === y && dt.getUTCMonth() === mo - 1 && dt.getUTCDate() === d && dt.getUTCHours() === h && dt.getUTCMinutes() === mi && dt.getUTCSeconds() === s;
-}
-function timestamp14(date5) {
-  return pad(date5.getUTCFullYear(), 4) + pad(date5.getUTCMonth() + 1, 2) + pad(date5.getUTCDate(), 2) + pad(date5.getUTCHours(), 2) + pad(date5.getUTCMinutes(), 2) + pad(date5.getUTCSeconds(), 2);
-}
-function normaliseTimestamp(value) {
-  if (value instanceof Date) {
-    return Number.isNaN(value.getTime()) ? void 0 : timestamp14(value);
-  }
-  const text5 = String(value).trim();
-  if (TS14_RE.test(text5)) return isValidTimestamp14(text5) ? text5 : void 0;
-  const m = ISO_RE.exec(text5);
-  if (!m) return void 0;
-  const candidate = `${m[1]}${m[2]}${m[3]}${m[4]}${m[5]}${m[6]}`;
-  return isValidTimestamp14(candidate) ? candidate : void 0;
-}
-function residenceWindowStart(now = /* @__PURE__ */ new Date()) {
-  const start = new Date(now.getTime());
-  start.setUTCDate(start.getUTCDate() - (DUMPS_RESIDENCE_WINDOW_DAYS - 1));
-  start.setUTCHours(0, 0, 0, 0);
-  return timestamp14(start);
-}
-var STRUCTURAL = /* @__PURE__ */ new Set(["(", ")", ","]);
-function tokenise(text5) {
-  const tokens = [];
-  let i = 0;
-  while (i < text5.length) {
-    const ch = text5[i];
-    if (/\s/.test(ch)) {
-      i += 1;
-      continue;
-    }
-    if (STRUCTURAL.has(ch)) {
-      tokens.push({ kind: ch, pos: i });
-      i += 1;
-      continue;
-    }
-    const start = i;
-    while (i < text5.length && !/\s/.test(text5[i]) && !STRUCTURAL.has(text5[i])) {
-      i += 1;
-    }
-    tokens.push({ kind: "word", text: text5.slice(start, i), pos: start });
-  }
-  return tokens;
-}
-function parseFqlQuery(text5) {
-  const tokens = tokenise(text5);
-  if (tokens.length === 0) return { error: "the query is empty" };
-  let i = 0;
-  const peek = () => tokens[i];
-  let failure;
-  const fail6 = (message, token) => {
-    failure ??= token ? `${message} at offset ${token.pos}` : message;
-    return void 0;
-  };
-  const parseNode = (depth) => {
-    if (depth > 64) return fail6("the query nests too deeply to parse");
-    const head = peek();
-    if (!head) return fail6("unexpected end of query; expected an operator or `and`/`or`");
-    if (head.kind !== "word") return fail6(`unexpected '${head.kind}'`, head);
-    i += 1;
-    const open = peek();
-    if (!open || open.kind !== "(") {
-      return fail6(`expected '(' after '${head.text}'`, open ?? head);
-    }
-    i += 1;
-    const lower = head.text.toLowerCase();
-    const isJunction = FQL_JUNCTIONS.includes(lower);
-    if (isJunction) {
-      const children = [];
-      if (peek()?.kind === ")") {
-        i += 1;
-        return { kind: "junction", junction: lower, children };
-      }
-      for (; ; ) {
-        const child4 = parseNode(depth + 1);
-        if (!child4) return void 0;
-        children.push(child4);
-        const next = peek();
-        if (!next) return fail6(`unclosed '${head.text} (' \u2014 expected ')'`);
-        if (next.kind === ",") {
-          i += 1;
-          continue;
-        }
-        if (next.kind === ")") {
-          i += 1;
-          return { kind: "junction", junction: lower, children };
-        }
-        return fail6(`expected ',' or ')'`, next);
-      }
-    }
-    const attrToken = peek();
-    if (!attrToken || attrToken.kind !== "word") {
-      return fail6(`expected an attribute name after '${head.text} ('`, attrToken);
-    }
-    i += 1;
-    const operands = [];
-    for (; ; ) {
-      const next = peek();
-      if (!next) return fail6(`unclosed '${head.text} (' \u2014 expected ')'`);
-      if (next.kind === ")") {
-        i += 1;
-        break;
-      }
-      if (next.kind !== ",") return fail6(`expected ',' or ')'`, next);
-      i += 1;
-      const parts = [];
-      for (; ; ) {
-        const v = peek();
-        if (!v || v.kind !== "word") break;
-        parts.push(v.text);
-        i += 1;
-      }
-      operands.push(parts.join(" "));
-    }
-    return {
-      kind: "predicate",
-      operator: head.text,
-      attribute: attrToken.text,
-      operands
-    };
-  };
-  const node2 = parseNode(0);
-  if (!node2) return { error: failure ?? "the query could not be parsed" };
-  const trailing = peek();
-  if (trailing) {
-    return {
-      error: `unexpected trailing input at offset ${trailing.pos} \u2014 a query is a single top-level and(\u2026)/or(\u2026)`
-    };
-  }
-  return { node: node2 };
-}
-var quoted = (v) => v.length >= 2 && (v.startsWith("'") && v.endsWith("'") || v.startsWith('"') && v.endsWith('"'));
-function nodeDepth(node2) {
-  if (node2.kind === "predicate") return 1;
-  if (node2.children.length === 0) return 1;
-  return 1 + Math.max(...node2.children.map(nodeDepth));
-}
-function collectPredicates(node2, out) {
-  if (node2.kind === "predicate") {
-    out.push(node2);
-    return;
-  }
-  for (const child4 of node2.children) collectPredicates(child4, out);
-}
-function findAttribute(contract, name) {
-  const lower = name.toLowerCase();
-  return contract.attributes.find((a) => a.id.toLowerCase() === lower);
-}
-function findOperator(name) {
-  const lower = name.toLowerCase();
-  return Object.keys(FQL_OPERATORS).find((o) => o.toLowerCase() === lower);
-}
-function validateOperands(attribute, operator, operands, violations) {
-  const isDateTime = attribute.dataType.toLowerCase() === "datetime";
-  for (const raw of operands) {
-    const value = raw.trim();
-    if (value === "") {
-      violations.push({
-        code: "INVALID_VALUE",
-        attribute: attribute.id,
-        operator,
-        message: `Empty value in ${operator}(${attribute.id}, \u2026). FQL values are unquoted and there is no empty literal \u2014 omit the predicate instead.`
-      });
-      continue;
-    }
-    if (quoted(value)) {
-      violations.push({
-        code: "INVALID_VALUE",
-        attribute: attribute.id,
-        operator,
-        message: `Value ${value} for '${attribute.id}' is quoted. FQL values are UNQUOTED \u2014 write ${operator} ( ${attribute.id} , ${value.slice(1, -1)} ).`
-      });
-      continue;
-    }
-    if (/[(),]/.test(value)) {
-      violations.push({
-        code: "INVALID_VALUE",
-        attribute: attribute.id,
-        operator,
-        message: `Value '${value}' for '${attribute.id}' contains '(' , ')' or ',', which are structural in FQL. The grammar has no quoting or escaping, so such a value cannot be expressed.`
-      });
-      continue;
-    }
-    if (/\s/.test(value)) {
-      violations.push({
-        code: "INVALID_VALUE",
-        attribute: attribute.id,
-        operator,
-        message: `Value '${value}' for '${attribute.id}' contains whitespace. Whitespace is insignificant in FQL and there is no quoting, so a value containing a space cannot be sent unambiguously.`
-      });
-      continue;
-    }
-    if (isDateTime && !isValidTimestamp14(value)) {
-      violations.push({
-        code: "MALFORMED_DATETIME",
-        attribute: attribute.id,
-        operator,
-        message: `'${value}' is not a valid datetime literal for '${attribute.id}'. Inside $query, dateTime values are 14 digits, YYYYMMDDHHMMSS, unquoted \u2014 e.g. 20260804000000. ISO-8601 is accepted by from/to, but NOT inside $query.`
-      });
-    }
-  }
-}
-function validateFqlQuery(query, contract = DUMPS_CONTRACT_AS_CAPTURED) {
-  const violations = [];
-  let root;
-  if (typeof query === "string") {
-    const parsed = parseFqlQuery(query);
-    if (!parsed.node) {
-      return {
-        ok: false,
-        violations: [
-          {
-            code: "SYNTAX",
-            message: `The query could not be parsed: ${parsed.error}. Expected the canonical form \`and ( equals ( user , DEVELOPER ) )\` \u2014 junction wrapper, then one or more \`operator ( attribute , value )\` predicates.`
-          }
-        ]
-      };
-    }
-    root = parsed.node;
-  } else {
-    root = {
-      kind: "junction",
-      junction: query.junction,
-      children: query.predicates.map((p) => ({ kind: "predicate", ...p }))
-    };
-    if (!FQL_JUNCTIONS.includes(query.junction)) {
-      violations.push({
-        code: "MISSING_WRAPPER",
-        message: `'${String(query.junction)}' is not a junction. The top-level wrapper must be \`and\` or \`or\`.`
-      });
-    }
-  }
-  if (root.kind !== "junction") {
-    violations.push({
-      code: "MISSING_WRAPPER",
-      ...root.attribute ? { attribute: root.attribute } : {},
-      operator: root.operator,
-      message: `The query is a bare '${root.operator}' predicate. A top-level and(\u2026)/or(\u2026) wrapper is MANDATORY on this feed, even for a single predicate \u2014 wrap it as and ( ${root.operator} ( ${root.attribute} , \u2026 ) ). Without the wrapper the server answers 400 with a body that says nothing about why.`
-    });
-  } else if (root.children.length === 0) {
-    violations.push({
-      code: "EMPTY_QUERY",
-      message: `'${root.junction} ( )' has no predicates. Omit $query entirely to read the unfiltered feed \u2014 but note the 8-day residence window still applies.`
-    });
-  }
-  const maxDepth = Number.isInteger(contract.queryDepth) ? contract.queryDepth : DUMPS_ASSUMED_QUERY_DEPTH;
-  const depth = nodeDepth(root);
-  if (depth > maxDepth) {
-    violations.push({
-      code: "EXCESS_DEPTH",
-      message: `The query nests ${depth} levels deep; ` + (contract.queryDepthAssumed === true ? `this feed served no queryDepth, so ${maxDepth} was ASSUMED \u2014 the smallest depth at which a legal query exists. The limit above is this client's, not the server's.` : `this feed advertises queryDepth ${maxDepth} and ENFORCES it (a third level is HTTP 400).`) + " One junction wrapper plus its predicates is depth 2 \u2014 flatten the nested junctions into a single and(\u2026)/or(\u2026)."
-    });
-  }
-  const predicates = [];
-  collectPredicates(root, predicates);
-  const operatorArity = contract.operators ?? FQL_OPERATORS;
-  for (const p of predicates) {
-    const attribute = findAttribute(contract, p.attribute);
-    if (!attribute) {
-      violations.push({
-        code: "UNKNOWN_ATTRIBUTE",
-        attribute: p.attribute,
-        operator: p.operator,
-        message: `'${p.attribute}' is not a filterable attribute of this feed. The ${contract.attributes.length} it serves are: ${contract.attributes.map((a) => a.id).join(", ")}.`
-      });
-      continue;
-    }
-    const operator = findOperator(p.operator);
-    if (!operator) {
-      violations.push({
-        code: "UNKNOWN_OPERATOR",
-        attribute: attribute.id,
-        operator: p.operator,
-        message: `'${p.operator}' is not an FQL operator. The 10 operators are: ${Object.keys(FQL_OPERATORS).join(", ")}.`
-      });
-      continue;
-    }
-    const permitted = attribute.operators.some((o) => o.toLowerCase() === operator.toLowerCase());
-    if (!permitted) {
-      const asymmetry = attribute.id === "user" ? " 'user' is a string attribute that nonetheless permits only equals/notEquals \u2014 this asymmetry is served in the contract and is not derivable from the dataType." : "";
-      violations.push({
-        code: "OPERATOR_NOT_PERMITTED",
-        attribute: attribute.id,
-        operator,
-        message: `Operator '${operator}' is not permitted for attribute '${attribute.id}'. The feed permits ${attribute.operators.join(", ")} for it.${asymmetry}`
-      });
-      continue;
-    }
-    const expected = operatorArity[operator] ?? FQL_OPERATORS[operator];
-    if (p.operands.length !== expected) {
-      violations.push({
-        code: "OPERAND_COUNT",
-        attribute: attribute.id,
-        operator,
-        message: `Operator '${operator}' takes ${expected} operand${expected === 1 ? "" : "s"}, but ${p.operands.length} ${p.operands.length === 1 ? "was" : "were"} given for '${attribute.id}'. Write ` + (expected === 2 ? `${operator} ( ${attribute.id} , <low> , <high> ).` : `${operator} ( ${attribute.id} , <value> ).`)
-      });
-      continue;
-    }
-    validateOperands(attribute, operator, p.operands, violations);
-  }
-  if (violations.length > 0) return { ok: false, violations };
-  const junction = root.junction;
-  const canonicalQuery = {
-    junction,
-    predicates: predicates.map((p) => ({
-      attribute: findAttribute(contract, p.attribute).id,
-      operator: findOperator(p.operator),
-      operands: p.operands.map((o) => o.trim())
-    }))
-  };
-  return { ok: true, violations: [], canonical: formatFqlQuery(canonicalQuery) };
-}
-function formatFqlQuery(query) {
-  const predicates = query.predicates.map(
-    (p) => `${p.operator} ( ${[p.attribute, ...p.operands.map((o) => o.trim())].join(" , ")} )`
-  );
-  return `${query.junction} ( ${predicates.join(" , ")} )`;
-}
-function assertValidFqlQuery(query, contract = DUMPS_CONTRACT_AS_CAPTURED) {
-  const result = validateFqlQuery(query, contract);
-  if (result.ok && result.canonical !== void 0) return result.canonical;
-  const messages = result.violations.map((v) => v.message);
-  throw new AbapError(
-    "BAD_INPUT",
-    `The dump filter is not a valid query for this feed: ${messages.join(" ")}`,
-    {
-      violations: result.violations,
-      query: typeof query === "string" ? query : { ...query }
-    },
-    "This was refused before sending. The server rejects an invalid $query with a 372-byte ExceptionInvalidData body that is byte-identical for an unknown attribute, a syntax error, a missing wrapper and excess depth \u2014 so the reason above is the only one available."
-  );
-}
-function buildFqlQuery(query, contract = DUMPS_CONTRACT_AS_CAPTURED) {
-  return assertValidFqlQuery(query, contract);
-}
-var REQUEST_KEYS = ["$query", "from", "to", "$top", "$queryCheck"];
-function encodePair(name, value) {
-  return `${encodeURIComponent(name)}=${encodeURIComponent(value)}`;
-}
-function normaliseBound(which, value, notes) {
-  const normalised = normaliseTimestamp(value);
-  if (normalised === void 0) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `'${which}' is not a valid timestamp: ${String(value instanceof Date ? value.toString() : value)}.`,
-      { [which]: value instanceof Date ? value.toISOString() : String(value) },
-      "Pass 14 digits (YYYYMMDDHHMMSS), an ISO-8601 UTC instant (YYYY-MM-DDTHH:MM:SSZ), or a Date. An unparseable bound is not an error on this server \u2014 it is SILENTLY IGNORED and answered with the full unfiltered feed, so it is refused here instead of sent."
-    );
-  }
-  if (value instanceof Date === false && String(value).trim() !== normalised) {
-    notes.push(`'${which}' was normalised to the canonical 14-digit form ${normalised}.`);
-  }
-  return normalised;
-}
-function buildDumpsFeedUrl(request, options = {}) {
-  const contract = options.contract ?? DUMPS_CONTRACT_AS_CAPTURED;
-  const basePath = options.basePath ?? DUMPS_FEED_PATH;
-  const now = options.now ?? /* @__PURE__ */ new Date();
-  const notes = [];
-  for (const key of Object.keys(request)) {
-    if (REQUEST_KEYS.includes(key)) continue;
-    assertRecognisedFeedParam(key);
-    throw new AbapError(
-      "BAD_INPUT",
-      `'${key}' is recognised by the server but is not offered by this client.`,
-      { parameter: key },
-      SILENTLY_IGNORED_PARAMS[key] ?? ""
-    );
-  }
-  const params = [];
-  if (request.$query !== void 0) {
-    params.push(["$query", assertValidFqlQuery(request.$query, contract)]);
-  }
-  let fromTs;
-  let toTs;
-  if (request.from !== void 0) {
-    fromTs = normaliseBound("from", request.from, notes);
-    params.push(["from", fromTs]);
-  }
-  if (request.to !== void 0) {
-    toTs = normaliseBound("to", request.to, notes);
-    params.push(["to", toTs]);
-  }
-  if (request.$top !== void 0) {
-    const top = request.$top;
-    if (!Number.isInteger(top) || top < 1) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `$top must be a positive integer, got ${String(top)}.`,
-        { $top: top },
-        "0 is not 'no rows' on this endpoint \u2014 it means UNLIMITED and is silently accepted, so it is refused rather than sent. A non-integer such as 'abc' is the one parameter mistake this server actually reports (HTTP 400); every other bad parameter returns 200 with the complete feed."
-      );
-    }
-    if (top > DUMPS_MAX_ROWS) {
-      notes.push(
-        `$top=${top} exceeds the server's own ceiling C_MAX_DUMPS = ${DUMPS_MAX_ROWS}; at most ${DUMPS_MAX_ROWS} dumps can be returned however large $top is.`
-      );
-    }
-    params.push(["$top", String(top)]);
-  }
-  if (request.$queryCheck === true) params.push(["$queryCheck", "true"]);
-  const windowStart = residenceWindowStart(now);
-  if (fromTs !== void 0 && fromTs < windowStart) {
-    notes.push(
-      `from=${fromTs} predates the dump residence window. The handler ANDs your bound with 'datum ge sy-datum - ${DUMPS_RESIDENCE_WINDOW_DAYS} + 1', so it does NOT widen the window: only dumps from about ${windowStart} onwards are visible over ADT, and the server gives no warning that the rest exist. Older dumps must be read from SNAP by other means.`
-    );
-  }
-  if (toTs !== void 0 && toTs < windowStart) {
-    notes.push(
-      `to=${toTs} predates the dump residence window (about ${windowStart}); this range lies entirely outside what ADT can see and will return an empty feed.`
-    );
-  }
-  if (fromTs !== void 0 && toTs !== void 0 && fromTs > toTs) {
-    notes.push(
-      `from=${fromTs} is later than to=${toTs}. The bounds are an inclusive range (timestamp ge from AND timestamp le to), so this can only return an empty feed.`
-    );
-  }
-  const qs = params.map(([name, value]) => encodePair(name, value)).join("&");
-  return {
-    url: qs ? `${basePath}?${qs}` : basePath,
-    params,
-    notes,
-    residenceWindowStart: windowStart
-  };
-}
-
-// src/adt/run.ts
-init_enhancement_templates();
-
-// src/adt/run-parameters.ts
-init_errors();
-init_enhancement_templates();
-var RSPARAMS_SELNAME_MAX = 8;
-var RSPARAMS_LOW_MAX = 45;
-var RANGE_OPTIONS = /* @__PURE__ */ new Set([
-  "EQ",
-  "NE",
-  "GT",
-  "LT",
-  "GE",
-  "LE",
-  "CP",
-  "NP",
-  "BT",
-  "NB"
-]);
-var RANGE_NEEDS_HIGH = /* @__PURE__ */ new Set(["BT", "NB"]);
-var SELNAME_RE = /^[A-Za-z][A-Za-z0-9_]{0,7}$/;
-function assertSelname(name, what) {
-  if (typeof name !== "string" || !SELNAME_RE.test(name)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `${what} ${JSON.stringify(name)} is not a valid selection-screen field name \u2014 a letter, then letters/digits/underscore, at most ${RSPARAMS_SELNAME_MAX} characters (the ABAP compiler's own PARAMETERS/SELECT-OPTIONS identifier limit).`,
-      { what, value: name, maxLength: RSPARAMS_SELNAME_MAX },
-      "Check the report's own PARAMETERS/SELECT-OPTIONS statement for the exact name."
-    );
-  }
-  return name.toUpperCase();
-}
-var INT_RE = /^-?\d{1,9}$/;
-var PACKED_RE = /^-?\d+(\.\d+)?$/;
-function formatSelectionValue(raw, type, what) {
-  if (typeof raw !== "string") {
-    throw new AbapError("BAD_INPUT", `${what} must be a string.`, { what, type });
-  }
-  switch (type) {
-    case "char":
-      return assertAbapText(raw, what, RSPARAMS_LOW_MAX);
-    case "int": {
-      if (!INT_RE.test(raw)) {
-        throw new AbapError(
-          "BAD_INPUT",
-          `${what} is ${JSON.stringify(raw)}, not a plain integer (optional leading "-", digits only).`,
-          { what, type, value: raw }
-        );
-      }
-      return raw;
-    }
-    case "packed": {
-      if (!PACKED_RE.test(raw)) {
-        throw new AbapError(
-          "BAD_INPUT",
-          `${what} is ${JSON.stringify(raw)}, not a plain decimal number \u2014 use digits with an optional leading "-" and an optional "." decimal point (not ",").`,
-          { what, type, value: raw }
-        );
-      }
-      return raw;
-    }
-    case "date": {
-      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
-      if (!m) {
-        throw new AbapError(
-          "BAD_INPUT",
-          `${what} is ${JSON.stringify(raw)}, not a date in "YYYY-MM-DD" form.`,
-          { what, type, value: raw }
-        );
-      }
-      const [, year, month, day] = m;
-      const monthNum = Number(month);
-      const dayNum = Number(day);
-      if (monthNum < 1 || monthNum > 12 || dayNum < 1 || dayNum > 31) {
-        throw new AbapError(
-          "BAD_INPUT",
-          `${what} is ${JSON.stringify(raw)} \u2014 month must be 01-12 and day 01-31.`,
-          { what, type, value: raw }
-        );
-      }
-      return `${year}${month}${day}`;
-    }
-  }
-}
-function assertOption(option, what) {
-  const opt3 = (option ?? "EQ").toUpperCase();
-  if (!RANGE_OPTIONS.has(opt3)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `${what}.option is ${JSON.stringify(option)}, not one of the ten standard ABAP select-option operators (EQ, NE, GT, LT, GE, LE, CP, NP, BT, NB).`,
-      { what, value: option }
-    );
-  }
-  return opt3;
-}
-function assertSign(sign, what) {
-  const s = (sign ?? "I").toUpperCase();
-  if (s !== "I" && s !== "E") {
-    throw new AbapError(
-      "BAD_INPUT",
-      `${what}.sign is ${JSON.stringify(sign)}, not "I" (include) or "E" (exclude).`,
-      { what, value: sign }
-    );
-  }
-  return s;
-}
-function marshalRange(range, type, kind, selname, what) {
-  const sign = assertSign(range.sign, what);
-  const option = assertOption(range.option, what);
-  const needsHigh = RANGE_NEEDS_HIGH.has(option);
-  if (typeof range.low !== "string") {
-    throw new AbapError("BAD_INPUT", `${what}.low is required and must be a string.`, { what });
-  }
-  if (needsHigh && (range.high === void 0 || range.high === "")) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `${what}: option "${option}" requires a "high" bound, but none was given.`,
-      { what, option }
-    );
-  }
-  if (!needsHigh && range.high !== void 0) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `${what}: option "${option}" does not take a "high" bound, but one was given (${JSON.stringify(range.high)}). Only BT/NB use "high".`,
-      { what, option, value: range.high }
-    );
-  }
-  const low = formatSelectionValue(range.low, type, `${what}.low`);
-  const high = needsHigh ? formatSelectionValue(range.high, type, `${what}.high`) : "";
-  return { selname, kind, sign, option, low, high };
-}
-function marshalSelectionTable(inputs) {
-  const rows = [];
-  const seen = /* @__PURE__ */ new Set();
-  for (const [i, input] of inputs.entries()) {
-    const label = `parameters[${i}]`;
-    if (!input || typeof input !== "object") {
-      throw new AbapError("BAD_INPUT", `${label} must be an object.`, { index: i });
-    }
-    const selname = assertSelname(input.name, `${label}.name`);
-    if (seen.has(selname)) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `${label}.name "${selname}" is a duplicate \u2014 each selection-screen field may appear only once (a SELECT-OPTIONS field with several ranges uses ONE entry with several "ranges" rows).`,
-        { name: selname }
-      );
-    }
-    seen.add(selname);
-    const type = input.type ?? "char";
-    const hasValue = input.value !== void 0;
-    const hasRanges = input.ranges !== void 0;
-    if (hasValue === hasRanges) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `${label} ("${selname}") must set exactly one of "value" (a PARAMETERS field) or "ranges" (a SELECT-OPTIONS field), not both and not neither.`,
-        { name: selname, hasValue, hasRanges }
-      );
-    }
-    if (hasValue) {
-      const low = formatSelectionValue(input.value, type, `${label}.value ("${selname}")`);
-      rows.push({ selname, kind: "P", sign: "I", option: "EQ", low, high: "" });
-      continue;
-    }
-    const ranges = input.ranges;
-    if (!Array.isArray(ranges) || ranges.length === 0) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `${label} ("${selname}").ranges must be a non-empty array.`,
-        { name: selname }
-      );
-    }
-    for (const [j, range] of ranges.entries()) {
-      rows.push(marshalRange(range, type, "S", selname, `${label}.ranges[${j}] ("${selname}")`));
-    }
-  }
-  return rows;
-}
-function parseSelectionScreen(source) {
-  if (typeof source !== "string" || source.length === 0) return [];
-  const noLineComments = source.split(/\r\n|\r|\n/).map((line2) => /^\s*\*/.test(line2) ? "" : line2).join("\n");
-  const noComments = noLineComments.replace(/"[^\n]*/g, "");
-  const statements = noComments.split(/\.(?=\s|$)/);
-  const fields = [];
-  const KEYWORD_RE = /^\s*(PARAMETERS|SELECT-OPTIONS)\s*:?\s*(.*)$/is;
-  for (const stmt of statements) {
-    const m = KEYWORD_RE.exec(stmt.trim());
-    if (!m) continue;
-    const statement = m[1].toUpperCase();
-    const rest = m[2];
-    const decls = rest.split(",");
-    for (const decl of decls) {
-      const trimmed = decl.trim();
-      if (!trimmed) continue;
-      const nameMatch = /^([A-Za-z][A-Za-z0-9_]{0,7})\b/.exec(trimmed);
-      if (!nameMatch) continue;
-      const name = nameMatch[1].toUpperCase();
-      const typeMatch = /\bTYPE\s+([\w/]+)/i.exec(trimmed);
-      const obligatory = /\bOBLIGATORY\b/i.test(trimmed);
-      fields.push({
-        name,
-        statement,
-        ...typeMatch ? { type: typeMatch[1] } : {},
-        obligatory
-      });
-    }
-  }
-  return fields;
-}
-function selectionScreenNotes(parsed, supplied) {
-  const notes = [];
-  if (parsed.length === 0) {
-    if (supplied.length > 0) {
-      notes.push(
-        "The report's source could not be parsed for PARAMETERS/SELECT-OPTIONS declarations (or none were found), so the supplied parameter name(s) could not be cross-checked against it. This is not evidence they are wrong \u2014 only that they are unconfirmed."
-      );
-    }
-    return notes;
-  }
-  const parsedByName = new Map(parsed.map((f) => [f.name, f]));
-  const suppliedNames = new Set(supplied.map((p) => p.name.toUpperCase()));
-  for (const input of supplied) {
-    const name = input.name.toUpperCase();
-    if (!parsedByName.has(name)) {
-      notes.push(
-        `Selection-screen field "${name}" was supplied but not found by source parsing \u2014 the parse is heuristic (macros/INCLUDEs/unusual layouts can defeat it), so this is not proof the field doesn't exist, only that it could not be confirmed.`
-      );
-    }
-  }
-  for (const field of parsed) {
-    if (field.obligatory && !suppliedNames.has(field.name)) {
-      notes.push(
-        `Selection-screen field "${field.name}" is declared OBLIGATORY in the source but no value was supplied \u2014 the report ran with it blank/initial, which may itself cause a selection-screen error or an unintended default.`
-      );
-    }
-  }
-  return notes;
-}
-
-// src/adt/run.ts
-var DUMP_CORRELATION_SLACK_SECONDS = 2;
-function buildDumpCorrelation(serverTime, user) {
-  if (!serverTime) return void 0;
-  const digits = serverTime.replace(/\D/g, "");
-  if (!isValidTimestamp14(digits)) return void 0;
-  const at = Date.UTC(
-    Number(digits.slice(0, 4)),
-    Number(digits.slice(4, 6)) - 1,
-    Number(digits.slice(6, 8)),
-    Number(digits.slice(8, 10)),
-    Number(digits.slice(10, 12)),
-    Number(digits.slice(12, 14))
-  );
-  const slack = DUMP_CORRELATION_SLACK_SECONDS * 1e3;
-  const from = timestamp14(new Date(at - slack));
-  const to = timestamp14(new Date(at + slack));
-  const upper = user?.trim().toUpperCase();
-  const query = upper ? buildFqlQuery({
-    junction: "and",
-    predicates: [{ attribute: "user", operator: "equals", operands: [upper] }]
-  }) : void 0;
-  return {
-    from,
-    to,
-    ...upper ? { user: upper } : {},
-    ...query ? { query } : {},
-    feedPath: DUMPS_FEED_PATH,
-    call: {
-      tool: "abap_dumps",
-      arguments: { mode: "list", from, to, ...query ? { query } : {} }
-    },
-    confidence: "candidates"
-  };
-}
-function dumpHint(correlation) {
-  const args = correlation ? JSON.stringify(correlation.call.arguments) : '{"mode":"list","from":"[YYYYMMDDHHMMSS just before this call]","to":"[just after]"}';
-  const lead = correlation ? "The ICF error page carries only the exception short text \u2014 no dump id, no call stack, no source position." : "The ICF error page carries only the exception short text \u2014 no dump id, no call stack, no source position, and no server time.";
-  return `${lead} Any output written before the dump is lost. The ABAP session was destroyed and has been discarded. Read the full ST22 dump with abap_dumps ${args} \u2014 a window can hold several dumps, so treat each row as a candidate, not the answer. Where that tool is not registered the same feed is ${DUMPS_FEED_PATH}, reaching only the last 8 days.`;
-}
-var LIST_LINE_PREFIX = "LIST> ";
-var ERR_LINE_PREFIX = "ZMCP-ERR> ";
-var WIDTH_TRUNCATION_MARKER = "capture width and may be truncated";
-var CLASSRUN_PATH = "/sap/bc/adt/oo/classrun/";
-var BRIDGE_CLASS_PREFIX = "ZCL_ZMCP_RUN_";
-var MAX_NAME = 30;
-var HASH_LEN = 6;
-var ABAP_NAME = /^[A-Za-z0-9_/]{1,40}$/;
-function assertPlainName(value, what) {
-  const v = value.trim();
-  if (!ABAP_NAME.test(v)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `${what} "${value}" is not a valid ABAP object name.`,
-      { value },
-      "Only letters, digits, underscore and / (namespaces) are accepted \u2014 the name is embedded verbatim in generated ABAP source."
-    );
-  }
-  return v;
-}
-function bridgeClassName(report) {
-  const canon = assertPlainName(report, "Report name").toUpperCase();
-  const safe = canon.replace(/[^A-Z0-9_]/g, "_");
-  const budget = MAX_NAME - BRIDGE_CLASS_PREFIX.length;
-  if (safe.length <= budget && safe === canon) return BRIDGE_CLASS_PREFIX + safe;
-  const hash2 = createHash7("sha256").update(canon, "utf8").digest("hex").slice(0, HASH_LEN).toUpperCase();
-  const keep = safe.slice(0, budget - HASH_LEN - 1);
-  return `${BRIDGE_CLASS_PREFIX}${keep}_${hash2}`;
-}
-function bridgeClassSource(className, report, selectionRows = []) {
-  const cls = assertPlainName(className, "Class name").toLowerCase();
-  const rep = assertPlainName(report, "Report name").toLowerCase();
-  const seltabDecl = selectionRows.length > 0 ? `    DATA: lt_seltab TYPE STANDARD TABLE OF rsparams,
-          ls_seltab TYPE rsparams.
-` : "";
-  const seltabFill = selectionRows.length > 0 ? selectionRows.map(
-    (row2) => `    CLEAR ls_seltab.
-    ls_seltab-selname = ${abapLiteral(row2.selname)}.
-    ls_seltab-kind    = ${abapLiteral(row2.kind)}.
-    ls_seltab-sign    = ${abapLiteral(row2.sign)}.
-    ls_seltab-option  = ${abapLiteral(row2.option)}.
-    ls_seltab-low     = ${abapLiteral(row2.low)}.
-    ls_seltab-high    = ${abapLiteral(row2.high)}.
-    APPEND ls_seltab TO lt_seltab.
-`
-  ).join("") : "";
-  const submitStmt = selectionRows.length > 0 ? `SUBMIT ${rep} WITH SELECTION-TABLE lt_seltab AND RETURN EXPORTING LIST TO MEMORY.` : `SUBMIT ${rep} AND RETURN EXPORTING LIST TO MEMORY.`;
-  return `CLASS ${cls} DEFINITION
-  PUBLIC FINAL
-  CREATE PUBLIC.
-
-  PUBLIC SECTION.
-    INTERFACES if_oo_adt_classrun.
-  PROTECTED SECTION.
-  PRIVATE SECTION.
-ENDCLASS.
-
-
-CLASS ${cls} IMPLEMENTATION.
-
-  METHOD if_oo_adt_classrun~main.
-*   Generated by abapsmith. Runs ${rep.toUpperCase()} and streams its classic list
-*   back through classrun. Do not edit: this class is regenerated from
-*   src/adt/run.ts whenever its content hash changes.
-*   Capture width is 1023 chars (F5) \u2014 the ceiling for a classic ABAP list
-*   line, not a cap chosen here. LOOP below still discloses a residual cut.
-    TYPES: ty_txt_line TYPE c LENGTH 1023.
-    DATA: lt_list TYPE TABLE OF abaplist,
-          lt_txt  TYPE TABLE OF ty_txt_line.
-${seltabDecl}
-${seltabFill}    ${submitStmt}
-    IF sy-subrc <> 0.
-      out->write( |${ERR_LINE_PREFIX}SUBMIT ${rep.toUpperCase()} set sy-subrc = { sy-subrc }| ).
-    ENDIF.
-
-    CALL FUNCTION 'LIST_FROM_MEMORY'
-      TABLES
-        listobject = lt_list
-      EXCEPTIONS
-        not_found  = 1
-        OTHERS     = 2.
-    IF sy-subrc <> 0.
-      out->write( |${ERR_LINE_PREFIX}LIST_FROM_MEMORY sy-subrc = { sy-subrc } (1 = no list in ABAP memory)| ).
-      RETURN.
-    ENDIF.
-
-    CALL FUNCTION 'LIST_TO_ASCI'
-      EXPORTING
-        list_index         = -1
-      TABLES
-        listobject         = lt_list
-        listasci           = lt_txt
-      EXCEPTIONS
-        empty_list         = 1
-        list_index_invalid = 2
-        OTHERS             = 3.
-    IF sy-subrc <> 0.
-      out->write( |${ERR_LINE_PREFIX}LIST_TO_ASCI sy-subrc = { sy-subrc } (1 = empty list)| ).
-      RETURN.
-    ENDIF.
-
-    LOOP AT lt_txt INTO DATA(lv_line).
-      IF strlen( lv_line ) >= 1023.
-        out->write( |${ERR_LINE_PREFIX}list line hit the 1023-char ${WIDTH_TRUNCATION_MARKER}| ).
-      ENDIF.
-      out->write( |${LIST_LINE_PREFIX}{ lv_line }| ).
-    ENDLOOP.
-
-  ENDMETHOD.
-
-ENDCLASS.
-`;
-}
-var isRuleLine = (line2) => /^-{20,}$/.test(line2.trim());
-var LIST_HEADER_DATE_AT_START = /^\s*\d{2}\.\d{2}\.\d{4}\b/;
-var LIST_HEADER_PAGE_NO = /\s\d+$/;
-var looksLikeListPageHeader = (line2) => LIST_HEADER_DATE_AT_START.test(line2) && LIST_HEADER_PAGE_NO.test(line2);
-function stripListHeader(lines) {
-  const out = lines.map((l) => l.replace(/[ \t\r ]+$/, ""));
-  while (out.length > 0 && out[out.length - 1] === "") out.pop();
-  if (out.length >= 2 && out[0] !== "" && looksLikeListPageHeader(out[0]) && isRuleLine(out[1])) {
-    return out.slice(2);
-  }
-  return out;
-}
-function splitBridgeOutput(raw) {
-  const list3 = [];
-  const diagnostics = [];
-  let droppedLines = 0;
-  for (const line2 of raw.replace(/\r\n/g, "\n").split("\n")) {
-    if (line2.startsWith(LIST_LINE_PREFIX)) {
-      list3.push(line2.slice(LIST_LINE_PREFIX.length));
-    } else if (line2.replace(/\s+$/, "") === LIST_LINE_PREFIX.trimEnd()) {
-      list3.push("");
-    } else if (line2.startsWith(ERR_LINE_PREFIX)) {
-      diagnostics.push(line2.trim());
-    } else {
-      droppedLines++;
-    }
-  }
-  return { list: list3, diagnostics, droppedLines };
-}
-function parseBracketFields(text5) {
-  const out = {};
-  const re = /(\w+)=\[(.*?)\](?=\s+\w+=\[|\s*$)/g;
-  let m;
-  while (m = re.exec(text5)) {
-    out[m[1]] = m[2];
-  }
-  return out;
-}
-function invalidateSession(conn) {
-  try {
-    conn.adt.httpClient.csrfToken = "fetch";
-  } catch {
-  }
-}
-var isResponseLike2 = (v) => typeof v === "object" && v !== null && typeof v.status === "number";
-function responseOf(e) {
-  const seen = /* @__PURE__ */ new Set();
-  const queue = [e];
-  while (queue.length) {
-    const node2 = queue.shift();
-    if (!node2 || typeof node2 !== "object" || seen.has(node2)) continue;
-    seen.add(node2);
-    const n = node2;
-    if (isResponseLike2(node2) && typeof n.body === "string") {
-      return {
-        status: n.status,
-        headers: n.headers ?? {},
-        body: n.body,
-        statusText: typeof n.statusText === "string" ? n.statusText : void 0
-      };
-    }
-    queue.push(n.response, n.parent, n.request);
-  }
-  return void 0;
-}
-function tidyShortText(text5) {
-  const normalised = text5.replace(/\(termination:[^)]*\)\s*$/i, "").replace(/^(?:error|exception|fehler)\s*:\s*/i, "").replace(/[<>]/g, " ").replace(/\s+/g, " ").trim();
-  return truncateText(normalised, DUMP_SHORT_TEXT_MAX);
-}
-function translateRunFailure(conn, className, e) {
-  if (isAbapError(e)) return e;
-  const resp = responseOf(e);
-  const kind = classifySessionFailure(resp);
-  if (kind === "dump") {
-    invalidateSession(conn);
-    const parsed = parseDumpPage(resp.body);
-    const shortText = parsed.shortText ? tidyShortText(parsed.shortText) : "(the ICM error page carried no exception short text)";
-    const info = {
-      shortText,
-      ...parsed.serverTime ? { serverTime: parsed.serverTime } : {}
-    };
-    const correlation = buildDumpCorrelation(parsed.serverTime, conn.cfg.user);
-    return new AbapError(
-      "RUNTIME_DUMP",
-      `${className} short-dumped: ${shortText}`,
-      {
-        class: className,
-        ...info,
-        status: resp.status,
-        // Machine-readable so a calling script or orchestrator can act
-        // without regex-scraping the hint prose.
-        ...correlation ? { dumpCorrelation: correlation } : {}
-      },
-      dumpHint(correlation)
-    );
-  }
-  if (kind === "session-timeout") {
-    invalidateSession(conn);
-    return discloseMutationRisk(
-      new AbapError(
-        "SESSION_DEAD",
-        `The ABAP session was gone while running ${className} (HTTP ${resp.status}, "Session Timed Out").`,
-        { class: className, status: resp.status, kind },
-        "This is NOT an authentication failure and does not count against the logon-attempt budget. The session has been discarded; retry the call and a fresh one is established. If it recurs, something dumped just before this request."
-      )
-    );
-  }
-  const translated = translateAdtError(e, {
-    operation: "run class",
-    name: className,
-    uri: `${CLASSRUN_PATH}${className}`
-  });
-  return resp === void 0 && !(0, import_abap_adt_api7.isCsrfError)(e) ? discloseMutationRisk(translated) : translated;
-}
-var UNDEFINED_BODY_LITERAL = "undefined";
-var XML_OR_HTML_BODY_PREFIX = /^(<\?xml|<!DOCTYPE|<html)/i;
-var ADT_EXCEPTION_MARKER = /exc:exception|<exc:/i;
-function bogusBodyReason(raw, trimmed) {
-  if (raw === UNDEFINED_BODY_LITERAL) return 'the body is the literal string "undefined" (an absent HTTP body)';
-  if (ADT_EXCEPTION_MARKER.test(raw)) return "the body carries an ADT exception envelope (exc:exception)";
-  if (XML_OR_HTML_BODY_PREFIX.test(trimmed)) return "the body is XML/HTML markup, not console output";
-  return void 0;
-}
-function assertPlausibleRunOutput(className, raw, bodyBytes) {
-  const reason = bogusBodyReason(raw, raw.trim());
-  if (!reason) return;
-  throw new AbapError(
-    "ADT_ERROR",
-    `${className} returned HTTP 200, but ${reason} \u2014 the response is not usable as program output.`,
-    { class: className, bodyBytes },
-    "classrun returns 200 for both genuine output and an ADT error envelope / ICF error page \u2014 the status code alone proves nothing. Treat this the same as a thrown ADT error rather than trusting the body."
-  );
-}
-async function runClass(conn, className) {
-  const name = assertPlainName(className, "Class name").toUpperCase();
-  if (name.length > MAX_NAME) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `Class name ${name} is longer than ${MAX_NAME} characters.`,
-      { class: name }
-    );
-  }
-  const started = Date.now();
-  const raw = await conn.withFreshSession(async (client) => {
-    try {
-      return await client.runClass(name);
-    } catch (e) {
-      throw translateRunFailure(conn, name, e);
-    }
-  });
-  const bodyBytes = Buffer.byteLength(raw, "utf8");
-  assertPlausibleRunOutput(name, raw, bodyBytes);
-  const output = raw.replace(/\r\n/g, "\n").replace(/\n+$/, "");
-  return {
-    mode: "class",
-    object: name,
-    output,
-    lines: output === "" ? 0 : output.split("\n").length,
-    durationMs: Date.now() - started,
-    droppedLines: 0,
-    bodyBytes,
-    // No visibility into ABAP-side width truncation for an arbitrary class
-    // (only the report bridge, F5, can detect that) — so `true`.
-    outputComplete: true
-  };
-}
-function verifyBridgeActivation(activation, className, what, details) {
-  const positiveEvidence = activation.activated === true && activation.errors === 0 && activation.inactive.length === 0;
-  if (!positiveEvidence) {
-    throw new AbapError(
-      "CHECK_FAILED",
-      `Activation of the generated ${what} ${className} could not be positively verified before executing it.`,
-      {
-        bridgeClass: className,
-        ...details,
-        activated: activation.activated,
-        errors: activation.errors,
-        inactive: activation.inactive
-      },
-      "Never executed: activation reported something short of unambiguous success (not `activated === true`, or a non-empty inactive-objects list). Check the bridge class in ADT before retrying."
-    );
-  }
-  return true;
-}
-function fluidApiDisabled(reason, conn, opts, packageName) {
-  const who = opts.caller ? `${opts.caller.tool} ${opts.caller.action}` : opts.className;
-  const details = {
-    reason: reason.kind,
-    field: reason.field,
-    flag: "ABAP_FLUID_API",
-    flagEnabled: conn.cfg.fluidApi !== false,
-    package: packageName,
-    ...opts.caller ? { tool: opts.caller.tool, action: opts.caller.action } : {},
-    objects: [opts.className]
-  };
-  if (reason.kind === "flag") {
-    return new AbapError(
-      "FLUID_API_DISABLED",
-      `${who} needs abapsmith's fluid API \u2014 the generated ABAP class ${opts.className} that abapsmith installs into ${packageName} \u2014 but the fluid API is disabled by ABAP_FLUID_API=false. Nothing was deployed and nothing was changed.`,
-      details,
-      "Set ABAP_FLUID_API=true, or unset it (it defaults to on), to allow it. The ordinary ceilings still apply on top: a productive or inconclusive system, ABAP_MODE=read, or a read-only session refuses it regardless of this flag."
-    );
-  }
-  return new AbapError(
-    "FLUID_API_DISABLED",
-    `${who} needs abapsmith's fluid API, which installs ABAP objects into ${packageName}. This session is read-only (${reason.field}), so no fluid operation is available. Nothing was deployed and nothing was changed.`,
-    details,
-    "The fluid API installs and runs ABAP; there is no read-only subset of it. Run with ABAP_MODE=edit against a system abapsmith can prove is non-productive."
-  );
-}
-function strandedLegacyPackage(e, className, packageName) {
-  if (packageName !== FLUID_PACKAGE) return void 0;
-  if (!isAbapError(e) || e.code !== "BAD_INPUT") return void 0;
-  if (!isReservedFluidName(className)) return void 0;
-  const details = e.details;
-  const server = details["serverPackage"];
-  if (typeof server !== "string") return void 0;
-  if (details["requestedPackage"] !== FLUID_PACKAGE) return void 0;
-  return LEGACY_FLUID_PACKAGES.includes(server.toUpperCase()) ? server : void 0;
-}
-async function authorizeBridgeTarget(conn, gate, opts, packageName) {
-  const spec = {
-    type: "CLAS/OC",
-    name: opts.className,
-    packageName,
-    description: opts.description
-  };
-  try {
-    return await authorizeMutation(conn, gate, "write", spec);
-  } catch (e) {
-    const strandedIn = strandedLegacyPackage(e, opts.className, packageName);
-    if (strandedIn === void 0) throw e;
-    const authorizedDelete = await authorizeMutation(conn, gate, "delete", {
-      type: "CLAS/OC",
-      name: opts.className
-    });
-    const del = await deleteObject(conn, authorizedDelete, { onBeforeImage: NO_JOURNAL });
-    if (del.deleted === false) {
-      throw new AbapError(
-        "FLUID_OBJECT_CONFLICT",
-        `CLAS/OC ${opts.className} could not be relocated out of ${strandedIn}: the delete was sent, but a read-back confirmed the object is still there.`,
-        { name: opts.className, type: "CLAS/OC", foundIn: strandedIn, requestedPackage: packageName },
-        "Delete it manually, or find out why the delete did not take effect, before retrying."
-      );
-    }
-    try {
-      return await authorizeMutation(conn, gate, "write", spec);
-    } catch (e2) {
-      if (!isSessionDeadFailure(e2)) throw e2;
-      await conn.connect();
-      return await authorizeMutation(conn, gate, "write", spec);
-    }
-  }
-}
-async function deployBridge(conn, gate, opts) {
-  const { className, source } = opts;
-  const packageName = opts.packageName ?? FLUID_PACKAGE;
-  const disabled = fluidDisabledReason(conn.cfg, gate);
-  if (disabled) throw fluidApiDisabled(disabled, conn, opts, packageName);
-  const authorized = await authorizeBridgeTarget(conn, gate, opts, packageName);
-  if (packageName === FLUID_PACKAGE && !authorized.target.exists) {
-    await ensureFluidPackage(conn, gate);
-  }
-  const write = await writeObject(conn, authorized, {
-    source,
-    onBeforeImage: NO_JOURNAL
-  });
-  const bridgeRefreshed = Boolean(write.created || write.changed);
-  const alreadyActive = !write.created && !write.changed && write.target.activation === "active-is-current";
-  let stage = "activate-gate";
-  try {
-    gate.assert("activate", {
-      name: authorized.target.name,
-      packageName: authorized.target.packageName,
-      type: authorized.target.type
-    });
-    if (alreadyActive) {
-      return {
-        className,
-        target: authorized.target,
-        write,
-        bridgeRefreshed,
-        activationSource: "already-active",
-        activationVerified: true
-      };
-    }
-    stage = "activation";
-    const activation = await activateObject(conn, write.target);
-    assertNoErrors(activation, {
-      what: opts.what,
-      name: className,
-      source,
-      ...opts.hint === void 0 ? {} : { hint: opts.hint }
-    });
-    stage = "verify";
-    const activationVerified = opts.verify(activation);
-    return {
-      className,
-      target: authorized.target,
-      write,
-      bridgeRefreshed,
-      activation,
-      activationSource: "post",
-      activationVerified
-    };
-  } catch (e) {
-    throw discloseBridgeResidue(e, className, authorized.target.packageName, stage);
-  }
-}
-function discloseMutationRisk(err) {
-  const disclosure = "The request may already have executed and committed on the server before this response was lost \u2014 do not blindly retry a mutating bridge. Re-read the object first to see whether it changed.";
-  const disclosed = new AbapError(
-    err.code,
-    err.message,
-    { ...err.details, mayHaveExecuted: true },
-    err.hint ? `${err.hint} ${disclosure}` : disclosure
-  );
-  disclosed.stack = err.stack;
-  disclosed.cause = err.cause;
-  return disclosed;
-}
-async function executeBridge(conn, gate, deployed) {
-  const executeAuthorization = gate.authorize("execute", {
-    name: deployed.target.name,
-    packageName: deployed.target.packageName,
-    type: deployed.target.type
-  });
-  return runClass(conn, executeAuthorization.target.name);
-}
-async function runReport(conn, reportName, gate, parameters = []) {
-  const started = Date.now();
-  const report = assertPlainName(reportName, "Report name").toUpperCase();
-  const rows = marshalSelectionTable(parameters);
-  const className = bridgeClassName(report);
-  const source = bridgeClassSource(className, report, rows);
-  const deployed = await deployBridge(conn, gate, {
-    className,
-    source,
-    description: `abapsmith run bridge for report ${report}`,
-    caller: { tool: "abap_run", action: "report" },
-    what: "Activation of the generated run bridge",
-    hint: `The bridge SUBMITs ${report} by name, so the usual cause is that ${report} does not exist, is not a report, or is itself inactive.` + (rows.length > 0 ? ` It also populates a selection table with ${rows.length} row(s) \u2014 a value that does not fit the target field can dump here even when the report itself is fine.` : ""),
-    verify: (activation) => verifyBridgeActivation(activation, className, "run bridge", { report })
-  });
-  const { bridgeRefreshed, activationVerified: bridgeActivationVerified } = deployed;
-  const run = await executeBridge(conn, gate, deployed);
-  const { list: list3, diagnostics, droppedLines: bridgeDroppedLines } = splitBridgeOutput(run.output);
-  const beforeHeaderStrip = list3.length;
-  const stripped = stripListHeader(list3);
-  const headerDroppedLines = beforeHeaderStrip - stripped.length;
-  const output = stripped.join("\n");
-  const outputComplete = !diagnostics.some((d) => d.includes(WIDTH_TRUNCATION_MARKER));
-  return {
-    mode: "report",
-    object: report,
-    output,
-    lines: stripped.length,
-    // F4: the full write → activate → run round trip, not just the classrun leg.
-    durationMs: Date.now() - started,
-    droppedLines: bridgeDroppedLines + headerDroppedLines,
-    bodyBytes: run.bodyBytes,
-    outputComplete,
-    bridgeClass: className,
-    bridgeRefreshed,
-    bridgeActivationVerified,
-    ...diagnostics.length ? { diagnostics } : {}
-  };
 }
 
 // src/version.ts
@@ -110488,7 +109730,7 @@ var NAME_LIMIT_OVERRIDES = {
   // TYPE-POOL naming rule (DD ABAP type-pool names are 5 characters)
 };
 function maxNameLength(type) {
-  return NAME_LIMIT_OVERRIDES[type] ?? import_abap_adt_api8.CreatableTypes.get(type)?.maxLen ?? 30;
+  return NAME_LIMIT_OVERRIDES[type] ?? import_abap_adt_api7.CreatableTypes.get(type)?.maxLen ?? 30;
 }
 function writeShapeOf(type) {
   return capabilitiesFor(type)?.write?.shape ?? "source";
@@ -112254,7 +111496,3553 @@ async function deleteObject(conn, target, opts = { onBeforeImage: NO_JOURNAL }) 
   };
 }
 
+// src/adt/dumps-query.ts
+init_errors();
+var DUMPS_FEED_PATH = "/sap/bc/adt/runtime/dumps";
+var DUMPS_FEED_PARAMS = Object.freeze([
+  "$query",
+  "from",
+  "to",
+  "$top",
+  "$queryCheck",
+  "$inlinecount"
+]);
+var DUMPS_MAX_ROWS = 1e3;
+var DUMPS_RESIDENCE_WINDOW_DAYS = 8;
+var SILENTLY_IGNORED_PARAMS = Object.freeze({
+  query: "The parameter is `$query`, with the dollar sign. Sending `query=` returns HTTP 200 and the complete unfiltered feed \u2014 this near-miss is the single costliest mistake on this surface.",
+  $skip: 'There is no skip/offset parameter. Page with the `rel="next"` cursor (`to=`) instead.',
+  $filter: "OData syntax is not understood here. The filter parameter is `$query`, in FQL.",
+  $orderby: "There is no ordering parameter; the feed is returned newest-first.",
+  $select: "There is no projection parameter.",
+  queryString: "`queryString` is the attribute name inside `feed:queryVariant`, not a parameter.",
+  variant: "Server-side variants cannot be selected by name; expand them into a `$query` yourself.",
+  user: "Filter by user with `$query=and ( equals ( user , NAME ) )`, not a `user=` parameter.",
+  maxHits: "The row limit is `$top`.",
+  size: "The row limit is `$top`.",
+  pageSize: "The row limit is `$top`.",
+  client: "The client is fixed by the logon; it cannot be selected per request.",
+  $inlinecount: "Recognised by the server but INERT: it produces no count element anywhere, so this builder never sends it. There is no total-count facility on this feed \u2014 count `atom:entry` elements from the response instead, bounded by C_MAX_DUMPS = 1000 and the 8-day residence window."
+});
+function isRecognisedFeedParam(name) {
+  return DUMPS_FEED_PARAMS.includes(name);
+}
+function assertRecognisedFeedParam(name) {
+  if (isRecognisedFeedParam(name)) return name;
+  const known = SILENTLY_IGNORED_PARAMS[name];
+  throw new AbapError(
+    "BAD_INPUT",
+    `'${name}' is not a query parameter of the ABAP runtime-dumps feed.`,
+    { parameter: name, recognised: [...DUMPS_FEED_PARAMS] },
+    (known ? `${known} ` : "") + `This server silently ignores unrecognised parameters and answers HTTP 200 with the full unfiltered feed, so an unknown name is refused here rather than sent. The six recognised parameters are ${DUMPS_FEED_PARAMS.join(", ")}.`
+  );
+}
+var FQL_OPERATORS = Object.freeze({
+  equals: 1,
+  notEquals: 1,
+  contains: 1,
+  notContains: 1,
+  greater: 1,
+  greaterOrEquals: 1,
+  less: 1,
+  lessOrEquals: 1,
+  between: 2,
+  notBetween: 2
+});
+var FQL_JUNCTIONS = Object.freeze(["and", "or"]);
+var STRING_OPS = ["equals", "notEquals", "contains", "notContains"];
+var DATETIME_OPS = [
+  "equals",
+  "notEquals",
+  "greater",
+  "greaterOrEquals",
+  "less",
+  "lessOrEquals",
+  "between",
+  "notBetween"
+];
+var DUMPS_CONTRACT_AS_CAPTURED = Object.freeze({
+  queryDepth: 2,
+  // served, not assumed — no `queryDepthAssumed`.
+  operators: FQL_OPERATORS,
+  attributes: Object.freeze([
+    { id: "package", dataType: "string", operators: STRING_OPS },
+    { id: "packageHierarchy", dataType: "string", operators: STRING_OPS },
+    { id: "packageResponsible", dataType: "string", operators: STRING_OPS },
+    { id: "objectResponsible", dataType: "string", operators: STRING_OPS },
+    { id: "responsible", dataType: "string", operators: STRING_OPS },
+    { id: "objectName", dataType: "string", operators: STRING_OPS },
+    { id: "component", dataType: "string", operators: STRING_OPS },
+    // The asymmetry: `string` dataType, but only two operators.
+    { id: "user", dataType: "string", operators: Object.freeze(["equals", "notEquals"]) },
+    { id: "runtimeError", dataType: "string", operators: STRING_OPS },
+    { id: "exception", dataType: "string", operators: STRING_OPS },
+    { id: "datetime", dataType: "dateTime", operators: DATETIME_OPS }
+  ])
+});
+var DUMPS_ASSUMED_QUERY_DEPTH = 2;
+function toDumpsQueryContract(extendedData) {
+  const attributes = Object.freeze(
+    extendedData.attributes.map(
+      (a) => Object.freeze({
+        id: a.id,
+        dataType: a.dataTypeId,
+        operators: Object.freeze([...a.operatorIds])
+      })
+    )
+  );
+  const operators = {};
+  for (const op of extendedData.operators) operators[op.id] = op.numberOfOperands;
+  const hasOperators = Object.keys(operators).length > 0;
+  const served = extendedData.queryDepth;
+  const queryDepthIsServed = Number.isInteger(served) && served > 0;
+  return Object.freeze({
+    attributes,
+    queryDepth: queryDepthIsServed ? served : DUMPS_ASSUMED_QUERY_DEPTH,
+    ...queryDepthIsServed ? {} : { queryDepthAssumed: true },
+    ...hasOperators ? { operators: Object.freeze(operators) } : {}
+  });
+}
+var TS14_RE = /^\d{14}$/;
+var ISO_RE = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?Z$/;
+var pad = (n, width) => String(n).padStart(width, "0");
+function isValidTimestamp14(text5) {
+  if (!TS14_RE.test(text5)) return false;
+  const y = Number(text5.slice(0, 4));
+  const mo = Number(text5.slice(4, 6));
+  const d = Number(text5.slice(6, 8));
+  const h = Number(text5.slice(8, 10));
+  const mi = Number(text5.slice(10, 12));
+  const s = Number(text5.slice(12, 14));
+  if (mo < 1 || mo > 12 || d < 1 || d > 31 || h > 23 || mi > 59 || s > 59) return false;
+  const dt = new Date(Date.UTC(y, mo - 1, d, h, mi, s));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === mo - 1 && dt.getUTCDate() === d && dt.getUTCHours() === h && dt.getUTCMinutes() === mi && dt.getUTCSeconds() === s;
+}
+function timestamp14(date5) {
+  return pad(date5.getUTCFullYear(), 4) + pad(date5.getUTCMonth() + 1, 2) + pad(date5.getUTCDate(), 2) + pad(date5.getUTCHours(), 2) + pad(date5.getUTCMinutes(), 2) + pad(date5.getUTCSeconds(), 2);
+}
+function normaliseTimestamp(value) {
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? void 0 : timestamp14(value);
+  }
+  const text5 = String(value).trim();
+  if (TS14_RE.test(text5)) return isValidTimestamp14(text5) ? text5 : void 0;
+  const m = ISO_RE.exec(text5);
+  if (!m) return void 0;
+  const candidate = `${m[1]}${m[2]}${m[3]}${m[4]}${m[5]}${m[6]}`;
+  return isValidTimestamp14(candidate) ? candidate : void 0;
+}
+function residenceWindowStart(now = /* @__PURE__ */ new Date()) {
+  const start = new Date(now.getTime());
+  start.setUTCDate(start.getUTCDate() - (DUMPS_RESIDENCE_WINDOW_DAYS - 1));
+  start.setUTCHours(0, 0, 0, 0);
+  return timestamp14(start);
+}
+var STRUCTURAL = /* @__PURE__ */ new Set(["(", ")", ","]);
+function tokenise(text5) {
+  const tokens = [];
+  let i = 0;
+  while (i < text5.length) {
+    const ch = text5[i];
+    if (/\s/.test(ch)) {
+      i += 1;
+      continue;
+    }
+    if (STRUCTURAL.has(ch)) {
+      tokens.push({ kind: ch, pos: i });
+      i += 1;
+      continue;
+    }
+    const start = i;
+    while (i < text5.length && !/\s/.test(text5[i]) && !STRUCTURAL.has(text5[i])) {
+      i += 1;
+    }
+    tokens.push({ kind: "word", text: text5.slice(start, i), pos: start });
+  }
+  return tokens;
+}
+function parseFqlQuery(text5) {
+  const tokens = tokenise(text5);
+  if (tokens.length === 0) return { error: "the query is empty" };
+  let i = 0;
+  const peek = () => tokens[i];
+  let failure;
+  const fail8 = (message, token) => {
+    failure ??= token ? `${message} at offset ${token.pos}` : message;
+    return void 0;
+  };
+  const parseNode = (depth) => {
+    if (depth > 64) return fail8("the query nests too deeply to parse");
+    const head = peek();
+    if (!head) return fail8("unexpected end of query; expected an operator or `and`/`or`");
+    if (head.kind !== "word") return fail8(`unexpected '${head.kind}'`, head);
+    i += 1;
+    const open = peek();
+    if (!open || open.kind !== "(") {
+      return fail8(`expected '(' after '${head.text}'`, open ?? head);
+    }
+    i += 1;
+    const lower = head.text.toLowerCase();
+    const isJunction = FQL_JUNCTIONS.includes(lower);
+    if (isJunction) {
+      const children = [];
+      if (peek()?.kind === ")") {
+        i += 1;
+        return { kind: "junction", junction: lower, children };
+      }
+      for (; ; ) {
+        const child4 = parseNode(depth + 1);
+        if (!child4) return void 0;
+        children.push(child4);
+        const next = peek();
+        if (!next) return fail8(`unclosed '${head.text} (' \u2014 expected ')'`);
+        if (next.kind === ",") {
+          i += 1;
+          continue;
+        }
+        if (next.kind === ")") {
+          i += 1;
+          return { kind: "junction", junction: lower, children };
+        }
+        return fail8(`expected ',' or ')'`, next);
+      }
+    }
+    const attrToken = peek();
+    if (!attrToken || attrToken.kind !== "word") {
+      return fail8(`expected an attribute name after '${head.text} ('`, attrToken);
+    }
+    i += 1;
+    const operands = [];
+    for (; ; ) {
+      const next = peek();
+      if (!next) return fail8(`unclosed '${head.text} (' \u2014 expected ')'`);
+      if (next.kind === ")") {
+        i += 1;
+        break;
+      }
+      if (next.kind !== ",") return fail8(`expected ',' or ')'`, next);
+      i += 1;
+      const parts = [];
+      for (; ; ) {
+        const v = peek();
+        if (!v || v.kind !== "word") break;
+        parts.push(v.text);
+        i += 1;
+      }
+      operands.push(parts.join(" "));
+    }
+    return {
+      kind: "predicate",
+      operator: head.text,
+      attribute: attrToken.text,
+      operands
+    };
+  };
+  const node2 = parseNode(0);
+  if (!node2) return { error: failure ?? "the query could not be parsed" };
+  const trailing = peek();
+  if (trailing) {
+    return {
+      error: `unexpected trailing input at offset ${trailing.pos} \u2014 a query is a single top-level and(\u2026)/or(\u2026)`
+    };
+  }
+  return { node: node2 };
+}
+var quoted = (v) => v.length >= 2 && (v.startsWith("'") && v.endsWith("'") || v.startsWith('"') && v.endsWith('"'));
+function nodeDepth(node2) {
+  if (node2.kind === "predicate") return 1;
+  if (node2.children.length === 0) return 1;
+  return 1 + Math.max(...node2.children.map(nodeDepth));
+}
+function collectPredicates(node2, out) {
+  if (node2.kind === "predicate") {
+    out.push(node2);
+    return;
+  }
+  for (const child4 of node2.children) collectPredicates(child4, out);
+}
+function findAttribute(contract, name) {
+  const lower = name.toLowerCase();
+  return contract.attributes.find((a) => a.id.toLowerCase() === lower);
+}
+function findOperator(name) {
+  const lower = name.toLowerCase();
+  return Object.keys(FQL_OPERATORS).find((o) => o.toLowerCase() === lower);
+}
+function validateOperands(attribute, operator, operands, violations) {
+  const isDateTime = attribute.dataType.toLowerCase() === "datetime";
+  for (const raw of operands) {
+    const value = raw.trim();
+    if (value === "") {
+      violations.push({
+        code: "INVALID_VALUE",
+        attribute: attribute.id,
+        operator,
+        message: `Empty value in ${operator}(${attribute.id}, \u2026). FQL values are unquoted and there is no empty literal \u2014 omit the predicate instead.`
+      });
+      continue;
+    }
+    if (quoted(value)) {
+      violations.push({
+        code: "INVALID_VALUE",
+        attribute: attribute.id,
+        operator,
+        message: `Value ${value} for '${attribute.id}' is quoted. FQL values are UNQUOTED \u2014 write ${operator} ( ${attribute.id} , ${value.slice(1, -1)} ).`
+      });
+      continue;
+    }
+    if (/[(),]/.test(value)) {
+      violations.push({
+        code: "INVALID_VALUE",
+        attribute: attribute.id,
+        operator,
+        message: `Value '${value}' for '${attribute.id}' contains '(' , ')' or ',', which are structural in FQL. The grammar has no quoting or escaping, so such a value cannot be expressed.`
+      });
+      continue;
+    }
+    if (/\s/.test(value)) {
+      violations.push({
+        code: "INVALID_VALUE",
+        attribute: attribute.id,
+        operator,
+        message: `Value '${value}' for '${attribute.id}' contains whitespace. Whitespace is insignificant in FQL and there is no quoting, so a value containing a space cannot be sent unambiguously.`
+      });
+      continue;
+    }
+    if (isDateTime && !isValidTimestamp14(value)) {
+      violations.push({
+        code: "MALFORMED_DATETIME",
+        attribute: attribute.id,
+        operator,
+        message: `'${value}' is not a valid datetime literal for '${attribute.id}'. Inside $query, dateTime values are 14 digits, YYYYMMDDHHMMSS, unquoted \u2014 e.g. 20260804000000. ISO-8601 is accepted by from/to, but NOT inside $query.`
+      });
+    }
+  }
+}
+function validateFqlQuery(query, contract = DUMPS_CONTRACT_AS_CAPTURED) {
+  const violations = [];
+  let root;
+  if (typeof query === "string") {
+    const parsed = parseFqlQuery(query);
+    if (!parsed.node) {
+      return {
+        ok: false,
+        violations: [
+          {
+            code: "SYNTAX",
+            message: `The query could not be parsed: ${parsed.error}. Expected the canonical form \`and ( equals ( user , DEVELOPER ) )\` \u2014 junction wrapper, then one or more \`operator ( attribute , value )\` predicates.`
+          }
+        ]
+      };
+    }
+    root = parsed.node;
+  } else {
+    root = {
+      kind: "junction",
+      junction: query.junction,
+      children: query.predicates.map((p) => ({ kind: "predicate", ...p }))
+    };
+    if (!FQL_JUNCTIONS.includes(query.junction)) {
+      violations.push({
+        code: "MISSING_WRAPPER",
+        message: `'${String(query.junction)}' is not a junction. The top-level wrapper must be \`and\` or \`or\`.`
+      });
+    }
+  }
+  if (root.kind !== "junction") {
+    violations.push({
+      code: "MISSING_WRAPPER",
+      ...root.attribute ? { attribute: root.attribute } : {},
+      operator: root.operator,
+      message: `The query is a bare '${root.operator}' predicate. A top-level and(\u2026)/or(\u2026) wrapper is MANDATORY on this feed, even for a single predicate \u2014 wrap it as and ( ${root.operator} ( ${root.attribute} , \u2026 ) ). Without the wrapper the server answers 400 with a body that says nothing about why.`
+    });
+  } else if (root.children.length === 0) {
+    violations.push({
+      code: "EMPTY_QUERY",
+      message: `'${root.junction} ( )' has no predicates. Omit $query entirely to read the unfiltered feed \u2014 but note the 8-day residence window still applies.`
+    });
+  }
+  const maxDepth = Number.isInteger(contract.queryDepth) ? contract.queryDepth : DUMPS_ASSUMED_QUERY_DEPTH;
+  const depth = nodeDepth(root);
+  if (depth > maxDepth) {
+    violations.push({
+      code: "EXCESS_DEPTH",
+      message: `The query nests ${depth} levels deep; ` + (contract.queryDepthAssumed === true ? `this feed served no queryDepth, so ${maxDepth} was ASSUMED \u2014 the smallest depth at which a legal query exists. The limit above is this client's, not the server's.` : `this feed advertises queryDepth ${maxDepth} and ENFORCES it (a third level is HTTP 400).`) + " One junction wrapper plus its predicates is depth 2 \u2014 flatten the nested junctions into a single and(\u2026)/or(\u2026)."
+    });
+  }
+  const predicates = [];
+  collectPredicates(root, predicates);
+  const operatorArity = contract.operators ?? FQL_OPERATORS;
+  for (const p of predicates) {
+    const attribute = findAttribute(contract, p.attribute);
+    if (!attribute) {
+      violations.push({
+        code: "UNKNOWN_ATTRIBUTE",
+        attribute: p.attribute,
+        operator: p.operator,
+        message: `'${p.attribute}' is not a filterable attribute of this feed. The ${contract.attributes.length} it serves are: ${contract.attributes.map((a) => a.id).join(", ")}.`
+      });
+      continue;
+    }
+    const operator = findOperator(p.operator);
+    if (!operator) {
+      violations.push({
+        code: "UNKNOWN_OPERATOR",
+        attribute: attribute.id,
+        operator: p.operator,
+        message: `'${p.operator}' is not an FQL operator. The 10 operators are: ${Object.keys(FQL_OPERATORS).join(", ")}.`
+      });
+      continue;
+    }
+    const permitted = attribute.operators.some((o) => o.toLowerCase() === operator.toLowerCase());
+    if (!permitted) {
+      const asymmetry = attribute.id === "user" ? " 'user' is a string attribute that nonetheless permits only equals/notEquals \u2014 this asymmetry is served in the contract and is not derivable from the dataType." : "";
+      violations.push({
+        code: "OPERATOR_NOT_PERMITTED",
+        attribute: attribute.id,
+        operator,
+        message: `Operator '${operator}' is not permitted for attribute '${attribute.id}'. The feed permits ${attribute.operators.join(", ")} for it.${asymmetry}`
+      });
+      continue;
+    }
+    const expected = operatorArity[operator] ?? FQL_OPERATORS[operator];
+    if (p.operands.length !== expected) {
+      violations.push({
+        code: "OPERAND_COUNT",
+        attribute: attribute.id,
+        operator,
+        message: `Operator '${operator}' takes ${expected} operand${expected === 1 ? "" : "s"}, but ${p.operands.length} ${p.operands.length === 1 ? "was" : "were"} given for '${attribute.id}'. Write ` + (expected === 2 ? `${operator} ( ${attribute.id} , <low> , <high> ).` : `${operator} ( ${attribute.id} , <value> ).`)
+      });
+      continue;
+    }
+    validateOperands(attribute, operator, p.operands, violations);
+  }
+  if (violations.length > 0) return { ok: false, violations };
+  const junction = root.junction;
+  const canonicalQuery = {
+    junction,
+    predicates: predicates.map((p) => ({
+      attribute: findAttribute(contract, p.attribute).id,
+      operator: findOperator(p.operator),
+      operands: p.operands.map((o) => o.trim())
+    }))
+  };
+  return { ok: true, violations: [], canonical: formatFqlQuery(canonicalQuery) };
+}
+function formatFqlQuery(query) {
+  const predicates = query.predicates.map(
+    (p) => `${p.operator} ( ${[p.attribute, ...p.operands.map((o) => o.trim())].join(" , ")} )`
+  );
+  return `${query.junction} ( ${predicates.join(" , ")} )`;
+}
+function assertValidFqlQuery(query, contract = DUMPS_CONTRACT_AS_CAPTURED) {
+  const result = validateFqlQuery(query, contract);
+  if (result.ok && result.canonical !== void 0) return result.canonical;
+  const messages = result.violations.map((v) => v.message);
+  throw new AbapError(
+    "BAD_INPUT",
+    `The dump filter is not a valid query for this feed: ${messages.join(" ")}`,
+    {
+      violations: result.violations,
+      query: typeof query === "string" ? query : { ...query }
+    },
+    "This was refused before sending. The server rejects an invalid $query with a 372-byte ExceptionInvalidData body that is byte-identical for an unknown attribute, a syntax error, a missing wrapper and excess depth \u2014 so the reason above is the only one available."
+  );
+}
+function buildFqlQuery(query, contract = DUMPS_CONTRACT_AS_CAPTURED) {
+  return assertValidFqlQuery(query, contract);
+}
+var REQUEST_KEYS = ["$query", "from", "to", "$top", "$queryCheck"];
+function encodePair(name, value) {
+  return `${encodeURIComponent(name)}=${encodeURIComponent(value)}`;
+}
+function normaliseBound(which, value, notes) {
+  const normalised = normaliseTimestamp(value);
+  if (normalised === void 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `'${which}' is not a valid timestamp: ${String(value instanceof Date ? value.toString() : value)}.`,
+      { [which]: value instanceof Date ? value.toISOString() : String(value) },
+      "Pass 14 digits (YYYYMMDDHHMMSS), an ISO-8601 UTC instant (YYYY-MM-DDTHH:MM:SSZ), or a Date. An unparseable bound is not an error on this server \u2014 it is SILENTLY IGNORED and answered with the full unfiltered feed, so it is refused here instead of sent."
+    );
+  }
+  if (value instanceof Date === false && String(value).trim() !== normalised) {
+    notes.push(`'${which}' was normalised to the canonical 14-digit form ${normalised}.`);
+  }
+  return normalised;
+}
+function buildDumpsFeedUrl(request, options = {}) {
+  const contract = options.contract ?? DUMPS_CONTRACT_AS_CAPTURED;
+  const basePath = options.basePath ?? DUMPS_FEED_PATH;
+  const now = options.now ?? /* @__PURE__ */ new Date();
+  const notes = [];
+  for (const key of Object.keys(request)) {
+    if (REQUEST_KEYS.includes(key)) continue;
+    assertRecognisedFeedParam(key);
+    throw new AbapError(
+      "BAD_INPUT",
+      `'${key}' is recognised by the server but is not offered by this client.`,
+      { parameter: key },
+      SILENTLY_IGNORED_PARAMS[key] ?? ""
+    );
+  }
+  const params = [];
+  if (request.$query !== void 0) {
+    params.push(["$query", assertValidFqlQuery(request.$query, contract)]);
+  }
+  let fromTs;
+  let toTs;
+  if (request.from !== void 0) {
+    fromTs = normaliseBound("from", request.from, notes);
+    params.push(["from", fromTs]);
+  }
+  if (request.to !== void 0) {
+    toTs = normaliseBound("to", request.to, notes);
+    params.push(["to", toTs]);
+  }
+  if (request.$top !== void 0) {
+    const top = request.$top;
+    if (!Number.isInteger(top) || top < 1) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `$top must be a positive integer, got ${String(top)}.`,
+        { $top: top },
+        "0 is not 'no rows' on this endpoint \u2014 it means UNLIMITED and is silently accepted, so it is refused rather than sent. A non-integer such as 'abc' is the one parameter mistake this server actually reports (HTTP 400); every other bad parameter returns 200 with the complete feed."
+      );
+    }
+    if (top > DUMPS_MAX_ROWS) {
+      notes.push(
+        `$top=${top} exceeds the server's own ceiling C_MAX_DUMPS = ${DUMPS_MAX_ROWS}; at most ${DUMPS_MAX_ROWS} dumps can be returned however large $top is.`
+      );
+    }
+    params.push(["$top", String(top)]);
+  }
+  if (request.$queryCheck === true) params.push(["$queryCheck", "true"]);
+  const windowStart = residenceWindowStart(now);
+  if (fromTs !== void 0 && fromTs < windowStart) {
+    notes.push(
+      `from=${fromTs} predates the dump residence window. The handler ANDs your bound with 'datum ge sy-datum - ${DUMPS_RESIDENCE_WINDOW_DAYS} + 1', so it does NOT widen the window: only dumps from about ${windowStart} onwards are visible over ADT, and the server gives no warning that the rest exist. Older dumps must be read from SNAP by other means.`
+    );
+  }
+  if (toTs !== void 0 && toTs < windowStart) {
+    notes.push(
+      `to=${toTs} predates the dump residence window (about ${windowStart}); this range lies entirely outside what ADT can see and will return an empty feed.`
+    );
+  }
+  if (fromTs !== void 0 && toTs !== void 0 && fromTs > toTs) {
+    notes.push(
+      `from=${fromTs} is later than to=${toTs}. The bounds are an inclusive range (timestamp ge from AND timestamp le to), so this can only return an empty feed.`
+    );
+  }
+  const qs = params.map(([name, value]) => encodePair(name, value)).join("&");
+  return {
+    url: qs ? `${basePath}?${qs}` : basePath,
+    params,
+    notes,
+    residenceWindowStart: windowStart
+  };
+}
+
+// src/adt/run.ts
+init_enhancement_templates();
+
+// src/adt/run-parameters.ts
+init_errors();
+init_enhancement_templates();
+var RSPARAMS_SELNAME_MAX = 8;
+var RSPARAMS_LOW_MAX = 45;
+var RANGE_OPTIONS = /* @__PURE__ */ new Set([
+  "EQ",
+  "NE",
+  "GT",
+  "LT",
+  "GE",
+  "LE",
+  "CP",
+  "NP",
+  "BT",
+  "NB"
+]);
+var RANGE_NEEDS_HIGH = /* @__PURE__ */ new Set(["BT", "NB"]);
+var SELNAME_RE = /^[A-Za-z][A-Za-z0-9_]{0,7}$/;
+function assertSelname(name, what) {
+  if (typeof name !== "string" || !SELNAME_RE.test(name)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${what} ${JSON.stringify(name)} is not a valid selection-screen field name \u2014 a letter, then letters/digits/underscore, at most ${RSPARAMS_SELNAME_MAX} characters (the ABAP compiler's own PARAMETERS/SELECT-OPTIONS identifier limit).`,
+      { what, value: name, maxLength: RSPARAMS_SELNAME_MAX },
+      "Check the report's own PARAMETERS/SELECT-OPTIONS statement for the exact name."
+    );
+  }
+  return name.toUpperCase();
+}
+var INT_RE = /^-?\d{1,9}$/;
+var PACKED_RE = /^-?\d+(\.\d+)?$/;
+function formatSelectionValue(raw, type, what) {
+  if (typeof raw !== "string") {
+    throw new AbapError("BAD_INPUT", `${what} must be a string.`, { what, type });
+  }
+  switch (type) {
+    case "char":
+      return assertAbapText(raw, what, RSPARAMS_LOW_MAX);
+    case "int": {
+      if (!INT_RE.test(raw)) {
+        throw new AbapError(
+          "BAD_INPUT",
+          `${what} is ${JSON.stringify(raw)}, not a plain integer (optional leading "-", digits only).`,
+          { what, type, value: raw }
+        );
+      }
+      return raw;
+    }
+    case "packed": {
+      if (!PACKED_RE.test(raw)) {
+        throw new AbapError(
+          "BAD_INPUT",
+          `${what} is ${JSON.stringify(raw)}, not a plain decimal number \u2014 use digits with an optional leading "-" and an optional "." decimal point (not ",").`,
+          { what, type, value: raw }
+        );
+      }
+      return raw;
+    }
+    case "date": {
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+      if (!m) {
+        throw new AbapError(
+          "BAD_INPUT",
+          `${what} is ${JSON.stringify(raw)}, not a date in "YYYY-MM-DD" form.`,
+          { what, type, value: raw }
+        );
+      }
+      const [, year, month, day] = m;
+      const monthNum = Number(month);
+      const dayNum = Number(day);
+      if (monthNum < 1 || monthNum > 12 || dayNum < 1 || dayNum > 31) {
+        throw new AbapError(
+          "BAD_INPUT",
+          `${what} is ${JSON.stringify(raw)} \u2014 month must be 01-12 and day 01-31.`,
+          { what, type, value: raw }
+        );
+      }
+      return `${year}${month}${day}`;
+    }
+  }
+}
+function assertOption(option, what) {
+  const opt3 = (option ?? "EQ").toUpperCase();
+  if (!RANGE_OPTIONS.has(opt3)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${what}.option is ${JSON.stringify(option)}, not one of the ten standard ABAP select-option operators (EQ, NE, GT, LT, GE, LE, CP, NP, BT, NB).`,
+      { what, value: option }
+    );
+  }
+  return opt3;
+}
+function assertSign(sign, what) {
+  const s = (sign ?? "I").toUpperCase();
+  if (s !== "I" && s !== "E") {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${what}.sign is ${JSON.stringify(sign)}, not "I" (include) or "E" (exclude).`,
+      { what, value: sign }
+    );
+  }
+  return s;
+}
+function marshalRange(range, type, kind, selname, what) {
+  const sign = assertSign(range.sign, what);
+  const option = assertOption(range.option, what);
+  const needsHigh = RANGE_NEEDS_HIGH.has(option);
+  if (typeof range.low !== "string") {
+    throw new AbapError("BAD_INPUT", `${what}.low is required and must be a string.`, { what });
+  }
+  if (needsHigh && (range.high === void 0 || range.high === "")) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${what}: option "${option}" requires a "high" bound, but none was given.`,
+      { what, option }
+    );
+  }
+  if (!needsHigh && range.high !== void 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${what}: option "${option}" does not take a "high" bound, but one was given (${JSON.stringify(range.high)}). Only BT/NB use "high".`,
+      { what, option, value: range.high }
+    );
+  }
+  const low = formatSelectionValue(range.low, type, `${what}.low`);
+  const high = needsHigh ? formatSelectionValue(range.high, type, `${what}.high`) : "";
+  return { selname, kind, sign, option, low, high };
+}
+function marshalSelectionTable(inputs) {
+  const rows = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const [i, input] of inputs.entries()) {
+    const label = `parameters[${i}]`;
+    if (!input || typeof input !== "object") {
+      throw new AbapError("BAD_INPUT", `${label} must be an object.`, { index: i });
+    }
+    const selname = assertSelname(input.name, `${label}.name`);
+    if (seen.has(selname)) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${label}.name "${selname}" is a duplicate \u2014 each selection-screen field may appear only once (a SELECT-OPTIONS field with several ranges uses ONE entry with several "ranges" rows).`,
+        { name: selname }
+      );
+    }
+    seen.add(selname);
+    const type = input.type ?? "char";
+    const hasValue = input.value !== void 0;
+    const hasRanges = input.ranges !== void 0;
+    if (hasValue === hasRanges) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${label} ("${selname}") must set exactly one of "value" (a PARAMETERS field) or "ranges" (a SELECT-OPTIONS field), not both and not neither.`,
+        { name: selname, hasValue, hasRanges }
+      );
+    }
+    if (hasValue) {
+      const low = formatSelectionValue(input.value, type, `${label}.value ("${selname}")`);
+      rows.push({ selname, kind: "P", sign: "I", option: "EQ", low, high: "" });
+      continue;
+    }
+    const ranges = input.ranges;
+    if (!Array.isArray(ranges) || ranges.length === 0) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${label} ("${selname}").ranges must be a non-empty array.`,
+        { name: selname }
+      );
+    }
+    for (const [j, range] of ranges.entries()) {
+      rows.push(marshalRange(range, type, "S", selname, `${label}.ranges[${j}] ("${selname}")`));
+    }
+  }
+  return rows;
+}
+function parseSelectionScreen(source) {
+  if (typeof source !== "string" || source.length === 0) return [];
+  const noLineComments = source.split(/\r\n|\r|\n/).map((line2) => /^\s*\*/.test(line2) ? "" : line2).join("\n");
+  const noComments = noLineComments.replace(/"[^\n]*/g, "");
+  const statements = noComments.split(/\.(?=\s|$)/);
+  const fields = [];
+  const KEYWORD_RE = /^\s*(PARAMETERS|SELECT-OPTIONS)\s*:?\s*(.*)$/is;
+  for (const stmt of statements) {
+    const m = KEYWORD_RE.exec(stmt.trim());
+    if (!m) continue;
+    const statement = m[1].toUpperCase();
+    const rest = m[2];
+    const decls = rest.split(",");
+    for (const decl of decls) {
+      const trimmed = decl.trim();
+      if (!trimmed) continue;
+      const nameMatch = /^([A-Za-z][A-Za-z0-9_]{0,7})\b/.exec(trimmed);
+      if (!nameMatch) continue;
+      const name = nameMatch[1].toUpperCase();
+      const typeMatch = /\bTYPE\s+([\w/]+)/i.exec(trimmed);
+      const obligatory = /\bOBLIGATORY\b/i.test(trimmed);
+      fields.push({
+        name,
+        statement,
+        ...typeMatch ? { type: typeMatch[1] } : {},
+        obligatory
+      });
+    }
+  }
+  return fields;
+}
+function selectionScreenNotes(parsed, supplied) {
+  const notes = [];
+  if (parsed.length === 0) {
+    if (supplied.length > 0) {
+      notes.push(
+        "The report's source could not be parsed for PARAMETERS/SELECT-OPTIONS declarations (or none were found), so the supplied parameter name(s) could not be cross-checked against it. This is not evidence they are wrong \u2014 only that they are unconfirmed."
+      );
+    }
+    return notes;
+  }
+  const parsedByName = new Map(parsed.map((f) => [f.name, f]));
+  const suppliedNames = new Set(supplied.map((p) => p.name.toUpperCase()));
+  for (const input of supplied) {
+    const name = input.name.toUpperCase();
+    if (!parsedByName.has(name)) {
+      notes.push(
+        `Selection-screen field "${name}" was supplied but not found by source parsing \u2014 the parse is heuristic (macros/INCLUDEs/unusual layouts can defeat it), so this is not proof the field doesn't exist, only that it could not be confirmed.`
+      );
+    }
+  }
+  for (const field of parsed) {
+    if (field.obligatory && !suppliedNames.has(field.name)) {
+      notes.push(
+        `Selection-screen field "${field.name}" is declared OBLIGATORY in the source but no value was supplied \u2014 the report ran with it blank/initial, which may itself cause a selection-screen error or an unintended default.`
+      );
+    }
+  }
+  return notes;
+}
+
+// src/adt/run.ts
+var DUMP_CORRELATION_SLACK_SECONDS = 2;
+function buildDumpCorrelation(serverTime, user) {
+  if (!serverTime) return void 0;
+  const digits = serverTime.replace(/\D/g, "");
+  if (!isValidTimestamp14(digits)) return void 0;
+  const at = Date.UTC(
+    Number(digits.slice(0, 4)),
+    Number(digits.slice(4, 6)) - 1,
+    Number(digits.slice(6, 8)),
+    Number(digits.slice(8, 10)),
+    Number(digits.slice(10, 12)),
+    Number(digits.slice(12, 14))
+  );
+  const slack = DUMP_CORRELATION_SLACK_SECONDS * 1e3;
+  const from = timestamp14(new Date(at - slack));
+  const to = timestamp14(new Date(at + slack));
+  const upper = user?.trim().toUpperCase();
+  const query = upper ? buildFqlQuery({
+    junction: "and",
+    predicates: [{ attribute: "user", operator: "equals", operands: [upper] }]
+  }) : void 0;
+  return {
+    from,
+    to,
+    ...upper ? { user: upper } : {},
+    ...query ? { query } : {},
+    feedPath: DUMPS_FEED_PATH,
+    call: {
+      tool: "abap_dumps",
+      arguments: { mode: "list", from, to, ...query ? { query } : {} }
+    },
+    confidence: "candidates"
+  };
+}
+function dumpHint(correlation) {
+  const args = correlation ? JSON.stringify(correlation.call.arguments) : '{"mode":"list","from":"[YYYYMMDDHHMMSS just before this call]","to":"[just after]"}';
+  const lead = correlation ? "The ICF error page carries only the exception short text \u2014 no dump id, no call stack, no source position." : "The ICF error page carries only the exception short text \u2014 no dump id, no call stack, no source position, and no server time.";
+  return `${lead} Any output written before the dump is lost. The ABAP session was destroyed and has been discarded. Read the full ST22 dump with abap_dumps ${args} \u2014 a window can hold several dumps, so treat each row as a candidate, not the answer. Where that tool is not registered the same feed is ${DUMPS_FEED_PATH}, reaching only the last 8 days.`;
+}
+var LIST_LINE_PREFIX = "LIST> ";
+var ERR_LINE_PREFIX = "ZMCP-ERR> ";
+var WIDTH_TRUNCATION_MARKER = "capture width and may be truncated";
+var CLASSRUN_PATH = "/sap/bc/adt/oo/classrun/";
+var BRIDGE_CLASS_PREFIX = "ZCL_ZMCP_RUN_";
+var MAX_NAME = 30;
+var HASH_LEN = 6;
+var ABAP_NAME = /^[A-Za-z0-9_/]{1,40}$/;
+function assertPlainName(value, what) {
+  const v = value.trim();
+  if (!ABAP_NAME.test(v)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${what} "${value}" is not a valid ABAP object name.`,
+      { value },
+      "Only letters, digits, underscore and / (namespaces) are accepted \u2014 the name is embedded verbatim in generated ABAP source."
+    );
+  }
+  return v;
+}
+function bridgeClassName(report) {
+  const canon = assertPlainName(report, "Report name").toUpperCase();
+  const safe = canon.replace(/[^A-Z0-9_]/g, "_");
+  const budget = MAX_NAME - BRIDGE_CLASS_PREFIX.length;
+  if (safe.length <= budget && safe === canon) return BRIDGE_CLASS_PREFIX + safe;
+  const hash2 = createHash7("sha256").update(canon, "utf8").digest("hex").slice(0, HASH_LEN).toUpperCase();
+  const keep = safe.slice(0, budget - HASH_LEN - 1);
+  return `${BRIDGE_CLASS_PREFIX}${keep}_${hash2}`;
+}
+function bridgeClassSource(className, report, selectionRows = []) {
+  const cls = assertPlainName(className, "Class name").toLowerCase();
+  const rep = assertPlainName(report, "Report name").toLowerCase();
+  const seltabDecl = selectionRows.length > 0 ? `    DATA: lt_seltab TYPE STANDARD TABLE OF rsparams,
+          ls_seltab TYPE rsparams.
+` : "";
+  const seltabFill = selectionRows.length > 0 ? selectionRows.map(
+    (row2) => `    CLEAR ls_seltab.
+    ls_seltab-selname = ${abapLiteral(row2.selname)}.
+    ls_seltab-kind    = ${abapLiteral(row2.kind)}.
+    ls_seltab-sign    = ${abapLiteral(row2.sign)}.
+    ls_seltab-option  = ${abapLiteral(row2.option)}.
+    ls_seltab-low     = ${abapLiteral(row2.low)}.
+    ls_seltab-high    = ${abapLiteral(row2.high)}.
+    APPEND ls_seltab TO lt_seltab.
+`
+  ).join("") : "";
+  const submitStmt = selectionRows.length > 0 ? `SUBMIT ${rep} WITH SELECTION-TABLE lt_seltab AND RETURN EXPORTING LIST TO MEMORY.` : `SUBMIT ${rep} AND RETURN EXPORTING LIST TO MEMORY.`;
+  return `CLASS ${cls} DEFINITION
+  PUBLIC FINAL
+  CREATE PUBLIC.
+
+  PUBLIC SECTION.
+    INTERFACES if_oo_adt_classrun.
+  PROTECTED SECTION.
+  PRIVATE SECTION.
+ENDCLASS.
+
+
+CLASS ${cls} IMPLEMENTATION.
+
+  METHOD if_oo_adt_classrun~main.
+*   Generated by abapsmith. Runs ${rep.toUpperCase()} and streams its classic list
+*   back through classrun. Do not edit: this class is regenerated from
+*   src/adt/run.ts whenever its content hash changes.
+*   Capture width is 1023 chars (F5) \u2014 the ceiling for a classic ABAP list
+*   line, not a cap chosen here. LOOP below still discloses a residual cut.
+    TYPES: ty_txt_line TYPE c LENGTH 1023.
+    DATA: lt_list TYPE TABLE OF abaplist,
+          lt_txt  TYPE TABLE OF ty_txt_line.
+${seltabDecl}
+${seltabFill}    ${submitStmt}
+    IF sy-subrc <> 0.
+      out->write( |${ERR_LINE_PREFIX}SUBMIT ${rep.toUpperCase()} set sy-subrc = { sy-subrc }| ).
+    ENDIF.
+
+    CALL FUNCTION 'LIST_FROM_MEMORY'
+      TABLES
+        listobject = lt_list
+      EXCEPTIONS
+        not_found  = 1
+        OTHERS     = 2.
+    IF sy-subrc <> 0.
+      out->write( |${ERR_LINE_PREFIX}LIST_FROM_MEMORY sy-subrc = { sy-subrc } (1 = no list in ABAP memory)| ).
+      RETURN.
+    ENDIF.
+
+    CALL FUNCTION 'LIST_TO_ASCI'
+      EXPORTING
+        list_index         = -1
+      TABLES
+        listobject         = lt_list
+        listasci           = lt_txt
+      EXCEPTIONS
+        empty_list         = 1
+        list_index_invalid = 2
+        OTHERS             = 3.
+    IF sy-subrc <> 0.
+      out->write( |${ERR_LINE_PREFIX}LIST_TO_ASCI sy-subrc = { sy-subrc } (1 = empty list)| ).
+      RETURN.
+    ENDIF.
+
+    LOOP AT lt_txt INTO DATA(lv_line).
+      IF strlen( lv_line ) >= 1023.
+        out->write( |${ERR_LINE_PREFIX}list line hit the 1023-char ${WIDTH_TRUNCATION_MARKER}| ).
+      ENDIF.
+      out->write( |${LIST_LINE_PREFIX}{ lv_line }| ).
+    ENDLOOP.
+
+  ENDMETHOD.
+
+ENDCLASS.
+`;
+}
+var isRuleLine = (line2) => /^-{20,}$/.test(line2.trim());
+var LIST_HEADER_DATE_AT_START = /^\s*\d{2}\.\d{2}\.\d{4}\b/;
+var LIST_HEADER_PAGE_NO = /\s\d+$/;
+var looksLikeListPageHeader = (line2) => LIST_HEADER_DATE_AT_START.test(line2) && LIST_HEADER_PAGE_NO.test(line2);
+function stripListHeader(lines) {
+  const out = lines.map((l) => l.replace(/[ \t\r ]+$/, ""));
+  while (out.length > 0 && out[out.length - 1] === "") out.pop();
+  if (out.length >= 2 && out[0] !== "" && looksLikeListPageHeader(out[0]) && isRuleLine(out[1])) {
+    return out.slice(2);
+  }
+  return out;
+}
+function splitBridgeOutput(raw) {
+  const list3 = [];
+  const diagnostics = [];
+  let droppedLines = 0;
+  for (const line2 of raw.replace(/\r\n/g, "\n").split("\n")) {
+    if (line2.startsWith(LIST_LINE_PREFIX)) {
+      list3.push(line2.slice(LIST_LINE_PREFIX.length));
+    } else if (line2.replace(/\s+$/, "") === LIST_LINE_PREFIX.trimEnd()) {
+      list3.push("");
+    } else if (line2.startsWith(ERR_LINE_PREFIX)) {
+      diagnostics.push(line2.trim());
+    } else {
+      droppedLines++;
+    }
+  }
+  return { list: list3, diagnostics, droppedLines };
+}
+function parseBracketFields(text5) {
+  const out = {};
+  const re = /(\w+)=\[(.*?)\](?=\s+\w+=\[|\s*$)/g;
+  let m;
+  while (m = re.exec(text5)) {
+    out[m[1]] = m[2];
+  }
+  return out;
+}
+function invalidateSession(conn) {
+  try {
+    conn.adt.httpClient.csrfToken = "fetch";
+  } catch {
+  }
+}
+var isResponseLike2 = (v) => typeof v === "object" && v !== null && typeof v.status === "number";
+function responseOf(e) {
+  const seen = /* @__PURE__ */ new Set();
+  const queue = [e];
+  while (queue.length) {
+    const node2 = queue.shift();
+    if (!node2 || typeof node2 !== "object" || seen.has(node2)) continue;
+    seen.add(node2);
+    const n = node2;
+    if (isResponseLike2(node2) && typeof n.body === "string") {
+      return {
+        status: n.status,
+        headers: n.headers ?? {},
+        body: n.body,
+        statusText: typeof n.statusText === "string" ? n.statusText : void 0
+      };
+    }
+    queue.push(n.response, n.parent, n.request);
+  }
+  return void 0;
+}
+function tidyShortText(text5) {
+  const normalised = text5.replace(/\(termination:[^)]*\)\s*$/i, "").replace(/^(?:error|exception|fehler)\s*:\s*/i, "").replace(/[<>]/g, " ").replace(/\s+/g, " ").trim();
+  return truncateText(normalised, DUMP_SHORT_TEXT_MAX);
+}
+function translateRunFailure(conn, className, e) {
+  if (isAbapError(e)) return e;
+  const resp = responseOf(e);
+  const kind = classifySessionFailure(resp);
+  if (kind === "dump") {
+    invalidateSession(conn);
+    const parsed = parseDumpPage(resp.body);
+    const shortText = parsed.shortText ? tidyShortText(parsed.shortText) : "(the ICM error page carried no exception short text)";
+    const info = {
+      shortText,
+      ...parsed.serverTime ? { serverTime: parsed.serverTime } : {}
+    };
+    const correlation = buildDumpCorrelation(parsed.serverTime, conn.cfg.user);
+    return new AbapError(
+      "RUNTIME_DUMP",
+      `${className} short-dumped: ${shortText}`,
+      {
+        class: className,
+        ...info,
+        status: resp.status,
+        // Machine-readable so a calling script or orchestrator can act
+        // without regex-scraping the hint prose.
+        ...correlation ? { dumpCorrelation: correlation } : {}
+      },
+      dumpHint(correlation)
+    );
+  }
+  if (kind === "session-timeout") {
+    invalidateSession(conn);
+    return discloseMutationRisk(
+      new AbapError(
+        "SESSION_DEAD",
+        `The ABAP session was gone while running ${className} (HTTP ${resp.status}, "Session Timed Out").`,
+        { class: className, status: resp.status, kind },
+        "This is NOT an authentication failure and does not count against the logon-attempt budget. The session has been discarded; retry the call and a fresh one is established. If it recurs, something dumped just before this request."
+      )
+    );
+  }
+  const translated = translateAdtError(e, {
+    operation: "run class",
+    name: className,
+    uri: `${CLASSRUN_PATH}${className}`
+  });
+  return resp === void 0 && !(0, import_abap_adt_api8.isCsrfError)(e) ? discloseMutationRisk(translated) : translated;
+}
+var UNDEFINED_BODY_LITERAL = "undefined";
+var XML_OR_HTML_BODY_PREFIX = /^(<\?xml|<!DOCTYPE|<html)/i;
+var ADT_EXCEPTION_MARKER = /exc:exception|<exc:/i;
+function bogusBodyReason(raw, trimmed) {
+  if (raw === UNDEFINED_BODY_LITERAL) return 'the body is the literal string "undefined" (an absent HTTP body)';
+  if (ADT_EXCEPTION_MARKER.test(raw)) return "the body carries an ADT exception envelope (exc:exception)";
+  if (XML_OR_HTML_BODY_PREFIX.test(trimmed)) return "the body is XML/HTML markup, not console output";
+  return void 0;
+}
+function assertPlausibleRunOutput(className, raw, bodyBytes) {
+  const reason = bogusBodyReason(raw, raw.trim());
+  if (!reason) return;
+  throw new AbapError(
+    "ADT_ERROR",
+    `${className} returned HTTP 200, but ${reason} \u2014 the response is not usable as program output.`,
+    { class: className, bodyBytes },
+    "classrun returns 200 for both genuine output and an ADT error envelope / ICF error page \u2014 the status code alone proves nothing. Treat this the same as a thrown ADT error rather than trusting the body."
+  );
+}
+async function runClass(conn, className) {
+  const name = assertPlainName(className, "Class name").toUpperCase();
+  if (name.length > MAX_NAME) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `Class name ${name} is longer than ${MAX_NAME} characters.`,
+      { class: name }
+    );
+  }
+  const started = Date.now();
+  const raw = await conn.withFreshSession(async (client) => {
+    try {
+      return await client.runClass(name);
+    } catch (e) {
+      throw translateRunFailure(conn, name, e);
+    }
+  });
+  const bodyBytes = Buffer.byteLength(raw, "utf8");
+  assertPlausibleRunOutput(name, raw, bodyBytes);
+  const output = raw.replace(/\r\n/g, "\n").replace(/\n+$/, "");
+  return {
+    mode: "class",
+    object: name,
+    output,
+    lines: output === "" ? 0 : output.split("\n").length,
+    durationMs: Date.now() - started,
+    droppedLines: 0,
+    bodyBytes,
+    // No visibility into ABAP-side width truncation for an arbitrary class
+    // (only the report bridge, F5, can detect that) — so `true`.
+    outputComplete: true
+  };
+}
+function verifyBridgeActivation(activation, className, what, details) {
+  const positiveEvidence = activation.activated === true && activation.errors === 0 && activation.inactive.length === 0;
+  if (!positiveEvidence) {
+    throw new AbapError(
+      "CHECK_FAILED",
+      `Activation of the generated ${what} ${className} could not be positively verified before executing it.`,
+      {
+        bridgeClass: className,
+        ...details,
+        activated: activation.activated,
+        errors: activation.errors,
+        inactive: activation.inactive
+      },
+      "Never executed: activation reported something short of unambiguous success (not `activated === true`, or a non-empty inactive-objects list). Check the bridge class in ADT before retrying."
+    );
+  }
+  return true;
+}
+function fluidApiDisabled(reason, conn, opts, packageName) {
+  const who = opts.caller ? `${opts.caller.tool} ${opts.caller.action}` : opts.className;
+  const details = {
+    reason: reason.kind,
+    field: reason.field,
+    flag: "ABAP_FLUID_API",
+    flagEnabled: conn.cfg.fluidApi !== false,
+    package: packageName,
+    ...opts.caller ? { tool: opts.caller.tool, action: opts.caller.action } : {},
+    objects: [opts.className]
+  };
+  if (reason.kind === "flag") {
+    return new AbapError(
+      "FLUID_API_DISABLED",
+      `${who} needs abapsmith's fluid API \u2014 the generated ABAP class ${opts.className} that abapsmith installs into ${packageName} \u2014 but the fluid API is disabled by ABAP_FLUID_API=false. Nothing was deployed and nothing was changed.`,
+      details,
+      "Set ABAP_FLUID_API=true, or unset it (it defaults to on), to allow it. The ordinary ceilings still apply on top: a productive or inconclusive system, ABAP_MODE=read, or a read-only session refuses it regardless of this flag."
+    );
+  }
+  return new AbapError(
+    "FLUID_API_DISABLED",
+    `${who} needs abapsmith's fluid API, which installs ABAP objects into ${packageName}. This session is read-only (${reason.field}), so no fluid operation is available. Nothing was deployed and nothing was changed.`,
+    details,
+    "The fluid API installs and runs ABAP; there is no read-only subset of it. Run with ABAP_MODE=edit against a system abapsmith can prove is non-productive."
+  );
+}
+function strandedLegacyPackage(e, className, packageName) {
+  if (packageName !== FLUID_PACKAGE) return void 0;
+  if (!isAbapError(e) || e.code !== "BAD_INPUT") return void 0;
+  if (!isReservedFluidName(className)) return void 0;
+  const details = e.details;
+  const server = details["serverPackage"];
+  if (typeof server !== "string") return void 0;
+  if (details["requestedPackage"] !== FLUID_PACKAGE) return void 0;
+  return LEGACY_FLUID_PACKAGES.includes(server.toUpperCase()) ? server : void 0;
+}
+async function authorizeBridgeTarget(conn, gate, opts, packageName) {
+  const spec = {
+    type: "CLAS/OC",
+    name: opts.className,
+    packageName,
+    description: opts.description
+  };
+  try {
+    return await authorizeMutation(conn, gate, "write", spec);
+  } catch (e) {
+    const strandedIn = strandedLegacyPackage(e, opts.className, packageName);
+    if (strandedIn === void 0) throw e;
+    const authorizedDelete = await authorizeMutation(conn, gate, "delete", {
+      type: "CLAS/OC",
+      name: opts.className
+    });
+    const del = await deleteObject(conn, authorizedDelete, { onBeforeImage: NO_JOURNAL });
+    if (del.deleted === false) {
+      throw new AbapError(
+        "FLUID_OBJECT_CONFLICT",
+        `CLAS/OC ${opts.className} could not be relocated out of ${strandedIn}: the delete was sent, but a read-back confirmed the object is still there.`,
+        { name: opts.className, type: "CLAS/OC", foundIn: strandedIn, requestedPackage: packageName },
+        "Delete it manually, or find out why the delete did not take effect, before retrying."
+      );
+    }
+    try {
+      return await authorizeMutation(conn, gate, "write", spec);
+    } catch (e2) {
+      if (!isSessionDeadFailure(e2)) throw e2;
+      await conn.connect();
+      return await authorizeMutation(conn, gate, "write", spec);
+    }
+  }
+}
+async function deployBridge(conn, gate, opts) {
+  const { className, source } = opts;
+  const packageName = opts.packageName ?? FLUID_PACKAGE;
+  const disabled = fluidDisabledReason(conn.cfg, gate);
+  if (disabled) throw fluidApiDisabled(disabled, conn, opts, packageName);
+  const authorized = await authorizeBridgeTarget(conn, gate, opts, packageName);
+  if (packageName === FLUID_PACKAGE && !authorized.target.exists) {
+    await ensureFluidPackage(conn, gate);
+  }
+  const write = await writeObject(conn, authorized, {
+    source,
+    onBeforeImage: NO_JOURNAL
+  });
+  const bridgeRefreshed = Boolean(write.created || write.changed);
+  const alreadyActive = !write.created && !write.changed && write.target.activation === "active-is-current";
+  let stage = "activate-gate";
+  try {
+    gate.assert("activate", {
+      name: authorized.target.name,
+      packageName: authorized.target.packageName,
+      type: authorized.target.type
+    });
+    if (alreadyActive) {
+      return {
+        className,
+        target: authorized.target,
+        write,
+        bridgeRefreshed,
+        activationSource: "already-active",
+        activationVerified: true
+      };
+    }
+    stage = "activation";
+    const activation = await activateObject(conn, write.target);
+    assertNoErrors(activation, {
+      what: opts.what,
+      name: className,
+      source,
+      ...opts.hint === void 0 ? {} : { hint: opts.hint }
+    });
+    stage = "verify";
+    const activationVerified = opts.verify(activation);
+    return {
+      className,
+      target: authorized.target,
+      write,
+      bridgeRefreshed,
+      activation,
+      activationSource: "post",
+      activationVerified
+    };
+  } catch (e) {
+    throw discloseBridgeResidue(e, className, authorized.target.packageName, stage);
+  }
+}
+function discloseMutationRisk(err) {
+  const disclosure = "The request may already have executed and committed on the server before this response was lost \u2014 do not blindly retry a mutating bridge. Re-read the object first to see whether it changed.";
+  const disclosed = new AbapError(
+    err.code,
+    err.message,
+    { ...err.details, mayHaveExecuted: true },
+    err.hint ? `${err.hint} ${disclosure}` : disclosure
+  );
+  disclosed.stack = err.stack;
+  disclosed.cause = err.cause;
+  return disclosed;
+}
+async function executeBridge(conn, gate, deployed) {
+  const executeAuthorization = gate.authorize("execute", {
+    name: deployed.target.name,
+    packageName: deployed.target.packageName,
+    type: deployed.target.type
+  });
+  return runClass(conn, executeAuthorization.target.name);
+}
+async function runReport(conn, reportName, gate, parameters = []) {
+  const started = Date.now();
+  const report = assertPlainName(reportName, "Report name").toUpperCase();
+  const rows = marshalSelectionTable(parameters);
+  const className = bridgeClassName(report);
+  const source = bridgeClassSource(className, report, rows);
+  const deployed = await deployBridge(conn, gate, {
+    className,
+    source,
+    description: `abapsmith run bridge for report ${report}`,
+    caller: { tool: "abap_run", action: "report" },
+    what: "Activation of the generated run bridge",
+    hint: `The bridge SUBMITs ${report} by name, so the usual cause is that ${report} does not exist, is not a report, or is itself inactive.` + (rows.length > 0 ? ` It also populates a selection table with ${rows.length} row(s) \u2014 a value that does not fit the target field can dump here even when the report itself is fine.` : ""),
+    verify: (activation) => verifyBridgeActivation(activation, className, "run bridge", { report })
+  });
+  const { bridgeRefreshed, activationVerified: bridgeActivationVerified } = deployed;
+  const run = await executeBridge(conn, gate, deployed);
+  const { list: list3, diagnostics, droppedLines: bridgeDroppedLines } = splitBridgeOutput(run.output);
+  const beforeHeaderStrip = list3.length;
+  const stripped = stripListHeader(list3);
+  const headerDroppedLines = beforeHeaderStrip - stripped.length;
+  const output = stripped.join("\n");
+  const outputComplete = !diagnostics.some((d) => d.includes(WIDTH_TRUNCATION_MARKER));
+  return {
+    mode: "report",
+    object: report,
+    output,
+    lines: stripped.length,
+    // F4: the full write → activate → run round trip, not just the classrun leg.
+    durationMs: Date.now() - started,
+    droppedLines: bridgeDroppedLines + headerDroppedLines,
+    bodyBytes: run.bodyBytes,
+    outputComplete,
+    bridgeClass: className,
+    bridgeRefreshed,
+    bridgeActivationVerified,
+    ...diagnostics.length ? { diagnostics } : {}
+  };
+}
+
+// src/adt/fpm-runtime.ts
+init_errors();
+
+// src/adt/fpm-events.ts
+init_fxp();
+init_truncate();
+function isRecord(v) {
+  return typeof v === "object" && v !== null;
+}
+function splitEventFrames(values) {
+  const raw = {
+    configs: [],
+    fpmEvents: [],
+    fpmEventErrors: [],
+    bopfNodes: [],
+    bopfActions: [],
+    bopfErrors: [],
+    textIds: [],
+    textIdErrors: [],
+    summary: void 0,
+    unrecognised: []
+  };
+  for (const v of values) {
+    if (!isRecord(v) || typeof v["kind"] !== "string") {
+      raw.unrecognised.push(v);
+      continue;
+    }
+    switch (v["kind"]) {
+      case "config":
+        raw.configs.push(v);
+        break;
+      case "fpm_event":
+        raw.fpmEvents.push(v);
+        break;
+      case "fpm_event_error":
+        raw.fpmEventErrors.push(v);
+        break;
+      case "bopf_node":
+        raw.bopfNodes.push(v);
+        break;
+      case "bopf_action":
+        raw.bopfActions.push(v);
+        break;
+      case "bopf_error":
+        raw.bopfErrors.push(v);
+        break;
+      case "text_id":
+        raw.textIds.push(v);
+        break;
+      case "text_id_error":
+        raw.textIdErrors.push(v);
+        break;
+      case "summary":
+        raw.summary = v;
+        break;
+      default:
+        raw.unrecognised.push(v);
+    }
+  }
+  return raw;
+}
+var FEEDER_INTERFACE_BY_COMPONENT = {
+  FPM_LIST_UIBB: "IF_FPM_GUIBB_LIST",
+  FPM_FORM_UIBB: "IF_FPM_GUIBB_FORM",
+  FPM_SEARCH_UIBB: "IF_FPM_GUIBB_SEARCH",
+  FPM_TREE_UIBB: "IF_FPM_GUIBB_LIST"
+};
+var xmlParser = new XMLParser({
+  ignoreAttributes: false,
+  attributeNamePrefix: "@_",
+  parseTagValue: false,
+  trimValues: true
+});
+function asArray2(v) {
+  if (v === void 0 || v === null) return [];
+  return Array.isArray(v) ? v : [v];
+}
+function text3(v) {
+  if (v === void 0 || v === null) return "";
+  if (typeof v === "string") return v;
+  if (isRecord(v)) {
+    const t = v["#text"];
+    return typeof t === "string" ? t : "";
+  }
+  return String(v);
+}
+function textTransl(v) {
+  const value = text3(v);
+  const translatable = isRecord(v) && v["@_Transl"] === "true";
+  return { value, translatable };
+}
+function items(node2) {
+  if (!isRecord(node2)) return [];
+  return asArray2(node2["Item"]).filter(isRecord);
+}
+function findAllNodesByName(el, name, acc = []) {
+  if (!isRecord(el)) return acc;
+  for (const node2 of asArray2(el["Node"])) {
+    if (!isRecord(node2)) continue;
+    if (node2["@_Name"] === name) acc.push(node2);
+    findAllNodesByName(node2, name, acc);
+  }
+  for (const item of items(el)) {
+    findAllNodesByName(item, name, acc);
+  }
+  return acc;
+}
+function parseConfigXml(xml3) {
+  if (!xml3.trim()) return void 0;
+  try {
+    const doc = xmlParser.parse(xml3);
+    if (!isRecord(doc)) return void 0;
+    const root = doc["Component"];
+    return isRecord(root) ? root : void 0;
+  } catch {
+    return void 0;
+  }
+}
+var FPM_BUTTON_TYPE = {
+  BU: "Button",
+  TB: "Toggle Button",
+  BC: "Button Choice",
+  LA: "Link To Action"
+};
+function collectToolbarButtons(root) {
+  const rows = [];
+  const variants = [
+    ["TOOLBAR", "BUTTON", "BUTTON_SUB_ITEM", "toolbar"],
+    ["UIBB_TOOLBAR", "UIBB_BUTTON", "UIBB_BUTTON_SUB_ITEM", "uibb_toolbar"]
+  ];
+  for (const [toolbarName, buttonName, subName, source] of variants) {
+    for (const toolbarNode of findAllNodesByName(root, toolbarName)) {
+      for (const buttonNode of findAllNodesByName(toolbarNode, buttonName)) {
+        for (const buttonItem of items(buttonNode)) {
+          const elementId = text3(buttonItem["ELEMENT_ID"]);
+          const subActionIds = findAllNodesByName(buttonItem, subName).flatMap((n) => items(n)).map((i) => text3(i["ACTION_ID"])).filter((id) => id !== "");
+          const btnText = textTransl(buttonItem["TEXT"]);
+          rows.push({
+            source,
+            elementId,
+            text: btnText.value,
+            textTransl: btnText.translatable,
+            type: text3(buttonItem["TYPE"]),
+            actionIds: subActionIds.length ? subActionIds : elementId ? [elementId] : [],
+            raw: buttonItem
+          });
+        }
+      }
+    }
+  }
+  return rows;
+}
+var FPMGB_DISPLAY_TYPE = {
+  BT: "Button",
+  TB: "Toggle Button",
+  BC: "Button-Choice",
+  SE: "Separator",
+  LA: "Link to Action"
+};
+function collectButtonRows(root) {
+  const rows = [];
+  for (const rowNode of findAllNodesByName(root, "BUTTON_ROW")) {
+    for (const elNode of findAllNodesByName(rowNode, "BUTTON_ROW_ELEMENT")) {
+      for (const elItem of items(elNode)) {
+        const events = findAllNodesByName(elItem, "BUTTON_ACTION").flatMap((n) => items(n)).map((i) => ({ eventId: text3(i["EVENT_ID"]), text: text3(i["TEXT"]) }));
+        const rowText = textTransl(elItem["TEXT"]);
+        rows.push({
+          elementId: text3(elItem["ELEMENT_ID"]),
+          text: rowText.value,
+          textTransl: rowText.translatable,
+          displayType: text3(elItem["DISPLAY_TYPE"]),
+          events,
+          raw: elItem
+        });
+      }
+    }
+  }
+  return rows;
+}
+function collectFbiActions(root) {
+  const rows = [];
+  for (const ctxNode of findAllNodesByName(root, "CONFIGURATION_CONTEXT")) {
+    for (const ctxItem of items(ctxNode)) {
+      for (const actionsNode of findAllNodesByName(ctxItem, "ACTIONS")) {
+        for (const item of items(actionsNode)) {
+          const actionText = textTransl(item["TEXT"]);
+          rows.push({
+            actionId: text3(item["ACTIONID"]),
+            actionImpl: text3(item["ACTION_IMPL"]),
+            actionConf: text3(item["ACTION_CONF"]),
+            text: actionText.value,
+            textTransl: actionText.translatable,
+            tooltip: text3(item["TOOLTIP"]),
+            enabled: text3(item["ENABLED"]),
+            navRole: text3(item["NAV_ROLE"]),
+            raw: item
+          });
+        }
+      }
+    }
+  }
+  return rows;
+}
+function collectActions(root) {
+  const rows = [];
+  for (const actionNode of findAllNodesByName(root, "ACTION")) {
+    for (const item of items(actionNode)) {
+      rows.push({
+        id: text3(item["ID"]),
+        eventId: text3(item["EVENT_ID"]),
+        component: text3(item["COMPONENT"]),
+        configId: text3(item["CONFIG_ID"]),
+        configType: text3(item["CONFIG_TYPE"]),
+        configVar: text3(item["CONFIG_VAR"])
+      });
+    }
+  }
+  return rows;
+}
+function stripCounterSuffix(id) {
+  return id.replace(/_\d+$/, "");
+}
+function findAction(actions, actionId) {
+  return actions.find((a) => a.id === actionId) ?? actions.find((a) => stripCounterSuffix(a.id) === actionId);
+}
+function excerptOf(el) {
+  let raw;
+  try {
+    raw = JSON.stringify(el) ?? String(el);
+  } catch {
+    raw = String(el);
+  }
+  return truncateText(raw, MESSAGE_EXCERPT_MAX);
+}
+function withExcerpt(handler, raw) {
+  return handler.kind === "unresolved" ? { ...handler, excerpt: excerptOf(raw) } : handler;
+}
+function findConfigByBareId(configs, configId) {
+  const norm = configId.trim().toUpperCase();
+  return configs.find((c) => c.configId.trim().toUpperCase() === norm);
+}
+function collectWires(root) {
+  const rows = [];
+  for (const wmNode of findAllNodesByName(root, "WIRE_MODEL")) {
+    for (const wireNode of findAllNodesByName(wmNode, "WIRE")) {
+      for (const item of items(wireNode)) {
+        rows.push({
+          configId: text3(item["CONFIG_ID"]),
+          configType: text3(item["CONFIG_TYPE"]),
+          configVar: text3(item["CONFIG_VAR"]),
+          component: text3(item["COMPONENT"]),
+          srcConfigId: text3(item["SRC_CONFIG_ID"]),
+          srcConfigType: text3(item["SRC_CONFIG_TYPE"]),
+          srcConfigVar: text3(item["SRC_CONFIG_VAR"]),
+          srcComponent: text3(item["SRC_COMPONENT"]),
+          connector: text3(item["CONNECTOR"]),
+          portType: text3(item["PORT_TYPE"]),
+          portIdentifier: text3(item["PORT_IDENTIFIER"]),
+          primaryAttribute: text3(item["FPM_PRIMARY_ATTRIBUTE"])
+        });
+      }
+    }
+  }
+  return rows;
+}
+function collectAppSpecificCC(root) {
+  for (const node2 of findAllNodesByName(root, "APP_SPECIFIC_CC")) {
+    for (const item of items(node2)) {
+      return {
+        component: text3(item["COMPONENT"]),
+        configId: text3(item["CONFIG_ID"]),
+        configType: text3(item["CONFIG_TYPE"]),
+        configVar: text3(item["CONFIG_VAR"])
+      };
+    }
+  }
+  return void 0;
+}
+function collectFeeders(root) {
+  const out = [];
+  const walk = (el) => {
+    if (!isRecord(el)) return;
+    const feeder = text3(el["FEEDER"]);
+    if (feeder) out.push(feeder);
+    for (const node2 of asArray2(el["Node"])) walk(node2);
+    for (const item of items(el)) walk(item);
+  };
+  walk(root);
+  return out;
+}
+function collectBoNames(root) {
+  const out = /* @__PURE__ */ new Set();
+  const walk = (el) => {
+    if (!isRecord(el)) return;
+    const bo = text3(el["BO"]);
+    if (bo) out.add(bo);
+    for (const item of items(el)) {
+      if (text3(item["NAME"]) === "BO") {
+        const value = text3(item["VALUE"]);
+        if (value) out.add(value);
+      }
+      walk(item);
+    }
+    for (const node2 of asArray2(el["Node"])) walk(node2);
+  };
+  walk(root);
+  return [...out];
+}
+function collectBoNodePairs(root) {
+  const out = [];
+  const walk = (el) => {
+    if (!isRecord(el)) return;
+    const literalBo = text3(el["BO"]);
+    if (literalBo) out.push({ bo: literalBo, node: text3(el["NODE"]) || void 0 });
+    const nameValue = /* @__PURE__ */ new Map();
+    for (const item of items(el)) {
+      const name = text3(item["NAME"]);
+      if (name) nameValue.set(name, text3(item["VALUE"]));
+    }
+    const paramBo = nameValue.get("BO");
+    if (paramBo) out.push({ bo: paramBo, node: nameValue.get("NODE") || void 0 });
+    for (const item of items(el)) walk(item);
+    for (const node2 of asArray2(el["Node"])) walk(node2);
+  };
+  walk(root);
+  return out;
+}
+function normKey(configId, configType, configVar) {
+  return `${configId.trim().toUpperCase()}|${(configType || "00").trim().toUpperCase()}|${(configVar ?? "").trim().toUpperCase()}`;
+}
+function parseConfig(frame) {
+  const root = frame.xml ? parseConfigXml(frame.xml) : void 0;
+  if (!root) return void 0;
+  return {
+    configId: frame.config_id,
+    configType: frame.config_type || "00",
+    configVar: frame.config_var,
+    component: frame.component ?? "",
+    root,
+    actions: collectActions(root),
+    toolbarButtons: collectToolbarButtons(root),
+    buttonRows: collectButtonRows(root),
+    fbiActions: collectFbiActions(root),
+    wires: collectWires(root),
+    appSpecificCC: collectAppSpecificCC(root),
+    feeders: collectFeeders(root),
+    boNames: collectBoNames(root),
+    boNodePairs: collectBoNodePairs(root)
+  };
+}
+function buildBopfHandler(bo, nodeCandidate, eventId, ctx) {
+  const call = `abap_bopf {"mode":"show","bo":"${bo}"}`;
+  const nodesForBo = ctx.bopfNodes.filter((n) => n.bo === bo);
+  const actionsForBo = ctx.bopfActions.filter((a) => a.bo === bo);
+  const errorForBo = ctx.bopfErrors.find((e) => e.bo === bo);
+  const catalogueFetched = nodesForBo.length > 0 || actionsForBo.length > 0 || errorForBo !== void 0;
+  const notes = [];
+  if (errorForBo) {
+    notes.push(`the /BOBF/OBM_NODE + /BOBF/ACT_LIST read for BO "${bo}" failed (${errorForBo.text}) \u2014 node/action below are unverified.`);
+  } else if (!catalogueFetched) {
+    notes.push(`node/action were not verified against /BOBF/OBM_NODE or /BOBF/ACT_LIST for BO "${bo}" \u2014 pass resolve=true to fetch that catalogue.`);
+  }
+  const node2 = nodeCandidate || void 0;
+  if (!nodeCandidate) {
+    notes.push(`no NODE is paired with BO "${bo}" anywhere in this button's config \u2014 cannot say which BOPF node this handler acts on.`);
+  } else if (catalogueFetched && !errorForBo && !nodesForBo.some((n) => n.node_name === nodeCandidate)) {
+    notes.push(`node "${nodeCandidate}" was not found in /BOBF/OBM_NODE for BO "${bo}" \u2014 kept as-is rather than dropped, but unverified.`);
+  }
+  const matchedNode = nodeCandidate ? nodesForBo.find((n) => n.node_name === nodeCandidate) : void 0;
+  const candidateActions = matchedNode ? actionsForBo.filter((a) => a.node_key === matchedNode.node_key) : actionsForBo;
+  let action;
+  if (!eventId) {
+    notes.push("no event id was available to try as a BOPF action name.");
+  } else if (catalogueFetched && !errorForBo) {
+    const matchedAction = candidateActions.find((a) => a.act_name === eventId);
+    if (matchedAction) {
+      action = eventId;
+    } else if (eventId.startsWith("FBI_")) {
+      notes.push(
+        `event "${eventId}" is an FBI framework event \u2014 its real BOPF action is mapped internally by the FBI connector and never appears in /BOBF/ACT_LIST or anywhere else in configuration, so it cannot be determined here.`
+      );
+    } else {
+      notes.push(
+        `event "${eventId}" does not name any action in /BOBF/ACT_LIST for BO "${bo}"${matchedNode ? ` node "${nodeCandidate}"` : ""} \u2014 cannot say what action this handler runs.`
+      );
+    }
+  } else if (eventId.startsWith("FBI_")) {
+    notes.push(
+      `event "${eventId}" is an FBI framework event \u2014 its real BOPF action is mapped internally by the FBI connector and never appears in /BOBF/ACT_LIST or anywhere else in configuration, so it would not have been determinable even with resolve=true.`
+    );
+  }
+  return { kind: "bopf", bo, node: node2, action, call, note: notes.length ? notes.join(" ") : void 0 };
+}
+function classifyHandler(eventId, target, ctx) {
+  if (eventId) {
+    const looksStandard = eventId.startsWith("FPM_");
+    if (ctx.standardVerified ? ctx.standardEventIds.has(eventId) : looksStandard) {
+      return { kind: "standard", eventId, verified: ctx.standardVerified && ctx.standardEventIds.has(eventId) };
+    }
+  }
+  if (target?.configId) {
+    const cfg = ctx.configsByKey.get(normKey(target.configId, target.configType, target.configVar));
+    if (cfg) {
+      const bo = cfg.boNames[0];
+      if (bo) {
+        const nodeCandidate = cfg.boNodePairs.find((p) => p.bo === bo)?.node;
+        return buildBopfHandler(bo, nodeCandidate, eventId, ctx);
+      }
+      const feeder = cfg.feeders[0];
+      if (feeder) {
+        const iface = FEEDER_INTERFACE_BY_COMPONENT[cfg.component];
+        const method = iface ? `${iface}~PROCESS_EVENT` : void 0;
+        return {
+          kind: "feeder",
+          feederClass: feeder,
+          configId: target.configId,
+          configType: target.configType || "00",
+          configVar: target.configVar ?? "",
+          method,
+          call: method ? `abap_read {"object":"${feeder}","method":"${method}"}` : void 0
+        };
+      }
+      return {
+        kind: "unresolved",
+        reason: `target config ${target.configId} was read but declares no FEEDER and no BO parameter`
+      };
+    }
+    return {
+      kind: "unresolved",
+      reason: `target config ${target.configId} was not read (skipped by uibb filter, failed to read, or not walked) \u2014 cannot tell feeder from BOPF from app controller`
+    };
+  }
+  if (target?.component) {
+    return { kind: "app_controller", component: target.component };
+  }
+  return {
+    kind: "unresolved",
+    reason: eventId ? `event "${eventId}" is not a standard FPM event and has no ACTION target to follow` : "no ACTION catalogue entry matched this toolbar element's id"
+  };
+}
+function buildTextIndex(frames) {
+  const idx2 = /* @__PURE__ */ new Map();
+  for (const f of frames) {
+    const key = `${normKey(f.config_id, f.config_type, f.config_var)} ${f.text_id}`;
+    let entry = idx2.get(key);
+    if (!entry) {
+      entry = { byLangu: /* @__PURE__ */ new Map(), order: [] };
+      idx2.set(key, entry);
+    }
+    if (!entry.byLangu.has(f.langu)) {
+      entry.byLangu.set(f.langu, f.description);
+      entry.order.push(f.langu);
+    }
+  }
+  return idx2;
+}
+function resolveTextId(idx2, configId, configType, configVar, textId, logonLangu) {
+  const entry = idx2.get(`${normKey(configId, configType, configVar)} ${textId}`);
+  if (!entry) return void 0;
+  if (logonLangu && entry.byLangu.has(logonLangu)) return entry.byLangu.get(logonLangu);
+  if (entry.byLangu.has("E")) return entry.byLangu.get("E");
+  const first = entry.order[0];
+  return first !== void 0 ? entry.byLangu.get(first) : void 0;
+}
+function resolveFpmEvents(raw) {
+  const notes = [];
+  const rootFrame = raw.configs.find((c) => c.role === "root");
+  if (!rootFrame) {
+    throw new Error("resolveFpmEvents: no root config frame present \u2014 splitEventFrames was given an empty/invalid transcript");
+  }
+  const unreadable = raw.configs.filter((c) => c.role === "child" && c.read_error !== void 0).map((c) => ({ configId: c.config_id, configType: c.config_type || "00", configVar: c.config_var, error: c.read_error ?? "" }));
+  const skipped = raw.configs.filter((c) => c.role === "child" && c.skipped !== void 0).map((c) => ({ configId: c.config_id, configType: c.config_type || "00", configVar: c.config_var }));
+  const textIndex = buildTextIndex(raw.textIds);
+  const logonLangu = raw.summary?.logon_langu ?? "";
+  let hadTranslatableText = false;
+  let hadUnresolvedTranslatableText = false;
+  function resolveRowText(cfg, rawValue, translatable) {
+    if (!translatable || !rawValue) return { text: rawValue || void 0, textKey: void 0 };
+    hadTranslatableText = true;
+    const resolved = resolveTextId(textIndex, cfg.configId, cfg.configType, cfg.configVar, rawValue, logonLangu);
+    if (resolved === void 0) hadUnresolvedTranslatableText = true;
+    return { text: resolved ?? rawValue, textKey: rawValue };
+  }
+  const readable = raw.configs.filter((c) => c.xml !== void 0);
+  const parsedConfigs = [];
+  for (const frame of readable) {
+    const parsed = parseConfig(frame);
+    if (parsed) {
+      parsedConfigs.push(parsed);
+    } else if (frame.xml && frame.xml.trim()) {
+      notes.push(`config ${frame.config_id} has XML but it could not be parsed as an fpm/fbi Component document \u2014 skipped for event resolution.`);
+    }
+  }
+  const configsByKey = /* @__PURE__ */ new Map();
+  for (const cfg of parsedConfigs) configsByKey.set(normKey(cfg.configId, cfg.configType, cfg.configVar), cfg);
+  const views = parsedConfigs.map((cfg) => {
+    if (cfg.feeders.length > 1) {
+      notes.push(
+        `config ${cfg.configId} names ${cfg.feeders.length} FEEDER classes (${cfg.feeders.join(", ")}) \u2014 only the first, "${cfg.feeders[0]}", is shown as this view's feeder class.`
+      );
+    }
+    const pair = cfg.boNodePairs[0];
+    return {
+      configId: cfg.configId,
+      configType: cfg.configType,
+      configVar: cfg.configVar,
+      kind: cfg.component,
+      feederClass: cfg.feeders[0],
+      bo: pair ? pair.bo : cfg.boNames[0],
+      node: pair ? pair.node : void 0
+    };
+  });
+  const viewsByKey = /* @__PURE__ */ new Map();
+  for (const v of views) viewsByKey.set(normKey(v.configId, v.configType, v.configVar), v);
+  const standardEventIds = new Set(raw.fpmEvents.map((f) => f.event_id));
+  const standardVerified = raw.fpmEvents.length > 0 || raw.fpmEventErrors.length > 0;
+  if (!standardVerified) {
+    notes.push(
+      'resolve was not requested (or the CL_FPM_EVENT catalogue read produced nothing): "standard" handlers below are a name-prefix guess ("FPM_..." events only), not verified against the actual catalogue. Pass resolve=true for a verified match.'
+    );
+  } else if (raw.fpmEventErrors.length > 0) {
+    notes.push(`the CL_FPM_EVENT catalogue read failed (${raw.fpmEventErrors.map((e) => e.text).join("; ")}) \u2014 "standard" handlers below are a name-prefix guess, not verified.`);
+  }
+  const ctx = {
+    standardEventIds,
+    standardVerified: standardVerified && raw.fpmEventErrors.length === 0,
+    configsByKey,
+    bopfNodes: raw.bopfNodes,
+    bopfActions: raw.bopfActions,
+    bopfErrors: raw.bopfErrors
+  };
+  const wires = [];
+  let appController;
+  for (const cfg of parsedConfigs) {
+    wires.push(...cfg.wires);
+    if (!appController && cfg.appSpecificCC && (cfg.appSpecificCC.component || cfg.appSpecificCC.configId)) {
+      appController = cfg.appSpecificCC;
+    }
+  }
+  const events = [];
+  for (const cfg of parsedConfigs) {
+    const view = viewsByKey.get(normKey(cfg.configId, cfg.configType, cfg.configVar));
+    for (const btn of cfg.toolbarButtons) {
+      const typeLabel = FPM_BUTTON_TYPE[btn.type] ?? (btn.type ? `${btn.type} (code not decoded)` : void 0);
+      const actionIds = btn.actionIds.length ? btn.actionIds : [btn.elementId];
+      for (const actionId of actionIds) {
+        if (!actionId) continue;
+        const action = findAction(cfg.actions, actionId);
+        const eventId = action?.eventId ?? "";
+        const target = action ? { component: action.component, configId: action.configId, configType: action.configType, configVar: action.configVar } : void 0;
+        events.push({
+          configId: cfg.configId,
+          configType: cfg.configType,
+          configVar: cfg.configVar,
+          uibbKind: view?.kind,
+          feederClass: view?.feederClass,
+          source: btn.source,
+          elementId: btn.elementId || actionId,
+          ...resolveRowText(cfg, btn.text, btn.textTransl),
+          elementType: typeLabel,
+          eventId: eventId || void 0,
+          handler: withExcerpt(classifyHandler(eventId, target, ctx), btn.raw)
+        });
+      }
+    }
+    for (const row2 of cfg.buttonRows) {
+      const typeLabel = FPMGB_DISPLAY_TYPE[row2.displayType] ?? (row2.displayType ? `${row2.displayType} (code not decoded)` : void 0);
+      if (row2.events.length === 0) {
+        events.push({
+          configId: cfg.configId,
+          configType: cfg.configType,
+          configVar: cfg.configVar,
+          uibbKind: view?.kind,
+          feederClass: view?.feederClass,
+          source: "button_row",
+          elementId: row2.elementId,
+          ...resolveRowText(cfg, row2.text, row2.textTransl),
+          elementType: typeLabel,
+          handler: {
+            kind: "unresolved",
+            reason: "no BUTTON_ACTION child \u2014 this button row element declares no event",
+            excerpt: excerptOf(row2.raw)
+          }
+        });
+        continue;
+      }
+      for (const ev of row2.events) {
+        const selfTarget = { configId: cfg.configId, configType: cfg.configType, configVar: cfg.configVar };
+        events.push({
+          configId: cfg.configId,
+          configType: cfg.configType,
+          configVar: cfg.configVar,
+          uibbKind: view?.kind,
+          feederClass: view?.feederClass,
+          source: "button_row",
+          elementId: row2.elementId,
+          ...resolveRowText(cfg, row2.text, row2.textTransl),
+          elementType: typeLabel,
+          eventId: ev.eventId || void 0,
+          handler: withExcerpt(classifyHandler(ev.eventId, selfTarget, ctx), row2.raw)
+        });
+      }
+    }
+    for (const action of cfg.fbiActions) {
+      const confTarget = action.actionConf ? findConfigByBareId(parsedConfigs, action.actionConf) : void 0;
+      if (confTarget) {
+        events.push({
+          configId: cfg.configId,
+          configType: cfg.configType,
+          configVar: cfg.configVar,
+          uibbKind: view?.kind,
+          feederClass: view?.feederClass,
+          source: "fbi_action",
+          elementId: action.actionId,
+          ...resolveRowText(cfg, action.text, action.textTransl),
+          handler: withExcerpt(
+            classifyHandler(
+              "",
+              { configId: confTarget.configId, configType: confTarget.configType, configVar: confTarget.configVar },
+              ctx
+            ),
+            action.raw
+          )
+        });
+        continue;
+      }
+      if (action.actionImpl) {
+        events.push({
+          configId: cfg.configId,
+          configType: cfg.configType,
+          configVar: cfg.configVar,
+          uibbKind: view?.kind,
+          feederClass: view?.feederClass,
+          source: "fbi_action",
+          elementId: action.actionId,
+          ...resolveRowText(cfg, action.text, action.textTransl),
+          handler: { kind: "action_impl", implClass: action.actionImpl }
+        });
+        continue;
+      }
+      events.push({
+        configId: cfg.configId,
+        configType: cfg.configType,
+        configVar: cfg.configVar,
+        uibbKind: view?.kind,
+        feederClass: view?.feederClass,
+        source: "fbi_action",
+        elementId: action.actionId,
+        ...resolveRowText(cfg, action.text, action.textTransl),
+        handler: withExcerpt(
+          action.actionConf ? {
+            kind: "unresolved",
+            reason: `ACTION_CONF points to config "${action.actionConf}" \u2014 not followed by the events scan (only CONFIG_ID-bearing references are walked), and there is no ACTION_IMPL to fall back to`
+          } : { kind: "unresolved", reason: "no ACTION_IMPL/ACTION_CONF \u2014 cannot tell what handles this action" },
+          action.raw
+        )
+      });
+    }
+  }
+  const rootParsed = configsByKey.get(normKey(rootFrame.config_id, rootFrame.config_type, rootFrame.config_var));
+  if (!rootParsed && rootFrame.xml && rootFrame.xml.trim()) {
+    notes.push("the root config's own XML could not be parsed as an fpm/fbi Component document \u2014 no toolbar/wire/action extraction was possible for it.");
+  }
+  if (hadTranslatableText) {
+    if (raw.textIdErrors.length > 0) {
+      notes.push(
+        `Toolbar/action texts marked as text keys could not be resolved against WDY_CONFIG_COMPT (read failed: ${raw.textIdErrors.map((e) => e.text).join("; ")}) \u2014 "text" holds the raw numeric key instead of a label; see "textKey".`
+      );
+    } else if (hadUnresolvedTranslatableText) {
+      notes.push(
+        'Some toolbar/action texts are WDY_CONFIG_COMPT text keys with no matching row for this config (logon language, "E", or any language on file) \u2014 for those, "text" falls back to the raw numeric key; see "textKey" for the key on every resolved element too.'
+      );
+    } else {
+      notes.push(
+        'Toolbar/action texts marked Transl="true" are WDY_CONFIG_COMPT text keys \u2014 "text" is resolved to the description for the logon language, falling back to "E" and then to whatever language is on file (WDY_CONFIG_COMPT has no master-language column), and "textKey" carries the original numeric key.'
+      );
+    }
+  }
+  return {
+    root: {
+      configId: rootFrame.config_id,
+      configType: rootFrame.config_type || "00",
+      configVar: rootFrame.config_var,
+      component: rootFrame.component ?? "",
+      devclass: rootFrame.devclass ?? ""
+    },
+    appController,
+    wires,
+    views,
+    events,
+    unreadable,
+    skipped,
+    notes,
+    truncated: raw.summary?.truncated ?? ""
+  };
+}
+
+// src/adt/fpm-runtime.ts
+var CONFIG_VAR_MAX = 6;
+function assertConfigId(value) {
+  const v = assertPlainName(value, "config_id");
+  if (v.length > CONFIG_ID_LEN) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `config_id "${value}" is ${v.length} characters long; WDY_CONFIG_ID is CHAR${CONFIG_ID_LEN}.`,
+      { value }
+    );
+  }
+  return v;
+}
+function assertConfigVar(value) {
+  const v = (value ?? "").trim();
+  if (v === "") return "";
+  if (!/^[A-Za-z0-9_]{1,6}$/.test(v) || v.length > CONFIG_VAR_MAX) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `config_var "${value}" must be up to ${CONFIG_VAR_MAX} letters/digits/underscore.`,
+      { value }
+    );
+  }
+  return v;
+}
+var FPM_TOOLS = /* @__PURE__ */ new Map([
+  [
+    "fpm",
+    {
+      manifest: fpmManifest,
+      origin: "builtin",
+      sources: fpmSources,
+      version: manifestVersion(fpmManifest, fpmSources)
+    }
+  ]
+]);
+function fpmDispatchArgs(query) {
+  switch (query.mode) {
+    case "find":
+      return {
+        config_type: query.configType,
+        ...query.component !== void 0 ? { component: query.component } : {},
+        ...query.queryPattern !== void 0 ? { query: query.queryPattern } : {},
+        ...query.package !== void 0 ? { package: query.package } : {}
+      };
+    case "outline":
+      return { config_id: query.configId, config_type: query.configType, config_var: query.configVar };
+    case "app":
+      return { config_id: query.configId, resolve: query.resolve };
+    case "events":
+      return {
+        config_id: query.configId,
+        config_type: query.configType,
+        config_var: query.configVar,
+        ...query.uibb !== void 0 ? { uibb: query.uibb } : {},
+        resolve: query.resolve
+      };
+  }
+}
+var EMPTY_TRANSCRIPT = {
+  count: void 0,
+  configs: [],
+  outlineXml: void 0,
+  outlineMeta: void 0,
+  appNodes: [],
+  droppedLines: 0
+};
+function outlineNotFoundDiagnostic(e) {
+  if (!isAbapError(e) || e.code !== "FLUID_ACTION_FAILED") return void 0;
+  const frames = e.details["frames"];
+  if (!Array.isArray(frames) || frames.length !== 1) return void 0;
+  const frame = frames[0];
+  if (frame.kind === "subrc" && frame.step === "select" && typeof frame.text === "string") {
+    return `${ERR_LINE_PREFIX}${frame.text}`;
+  }
+  if (frame.kind === "exception" && frame.step === "read_comp_config_from_db" && typeof frame.text === "string") {
+    return `${ERR_LINE_PREFIX}READ_COMP_CONFIG_FROM_DB FAILED ${frame.text}`;
+  }
+  return void 0;
+}
+function isFpmFindRow(v) {
+  if (typeof v !== "object" || v === null) return false;
+  const r = v;
+  return typeof r["config_id"] === "string" && typeof r["config_type"] === "string" && typeof r["config_var"] === "string" && typeof r["component"] === "string" && typeof r["description"] === "string" && typeof r["devclass"] === "string";
+}
+function isFpmOutlineResult(v) {
+  if (typeof v !== "object" || v === null) return false;
+  const r = v;
+  if (typeof r["config_id"] !== "string" || typeof r["config_type"] !== "string" || typeof r["config_var"] !== "string" || typeof r["xml"] !== "string" || typeof r["meta"] !== "object" || r["meta"] === null) {
+    return false;
+  }
+  const m = r["meta"];
+  return typeof m["config_idpar"] === "string" && typeof m["config_typepar"] === "string" && typeof m["config_varpar"] === "string" && typeof m["component"] === "string" && typeof m["devclass"] === "string";
+}
+var FPM_EVENTS_FRAME_KINDS = /* @__PURE__ */ new Set([
+  "config",
+  "fpm_event",
+  "fpm_event_error",
+  "bopf_node",
+  "bopf_action",
+  "bopf_error",
+  "text_id",
+  "text_id_error",
+  "summary"
+]);
+function isFpmEventsFrame(v) {
+  if (typeof v !== "object" || v === null) return false;
+  const kind = v["kind"];
+  return typeof kind === "string" && FPM_EVENTS_FRAME_KINDS.has(kind);
+}
+function isFpmAppNodeResult(v) {
+  if (typeof v !== "object" || v === null) return false;
+  const r = v;
+  return typeof r["node_path"] === "string" && typeof r["parent_path"] === "string" && typeof r["is_top_node"] === "boolean" && typeof r["node_name"] === "string" && typeof r["description"] === "string" && typeof r["component_name"] === "string" && typeof r["interface_view"] === "string" && typeof r["config_id"] === "string" && typeof r["config_type"] === "string" && typeof r["config_var"] === "string" && typeof r["target_config_id"] === "string" && typeof r["is_configurable"] === "boolean" && typeof r["is_customized"] === "boolean" && typeof r["is_enhanced"] === "boolean" && typeof r["is_freestyle_uibb"] === "boolean" && typeof r["is_leaf"] === "boolean";
+}
+async function runFpmRead(conn, query, gate) {
+  const started = Date.now();
+  let res;
+  try {
+    res = await dispatch2(
+      { conn, cfg: conn.cfg, gate, tools: FPM_TOOLS },
+      {
+        tool: "fpm",
+        action: query.mode,
+        args: fpmDispatchArgs(query),
+        // Names the MCP-facing tool/action in a FLUID_API_DISABLED refusal — see FluidRunRequest.caller's doc.
+        caller: { tool: "abap_fpm_read", action: query.mode }
+      }
+    );
+  } catch (e) {
+    if (query.mode === "outline") {
+      const diagnostic = outlineNotFoundDiagnostic(e);
+      if (diagnostic !== void 0) {
+        return {
+          query,
+          bridgeClass: fpmManifest.entry,
+          bridgeRefreshed: false,
+          durationMs: Date.now() - started,
+          transcript: { ...EMPTY_TRANSCRIPT, diagnostics: [diagnostic] },
+          outputComplete: true,
+          bodyBytes: 0
+        };
+      }
+    }
+    throw e;
+  }
+  let transcript;
+  switch (query.mode) {
+    case "find": {
+      if (!Array.isArray(res.result) || !res.result.every(isFpmFindRow)) {
+        throw new AbapError(
+          "FLUID_PROTOCOL_ERROR",
+          "fpm.find returned a result that does not match the declared array-of-row schema.",
+          { tool: "fpm", action: "find", result: res.result }
+        );
+      }
+      const rows = res.result;
+      transcript = {
+        // The fluid body applies the `package` filter inside the same loop
+        // that emits each row (builtin/fpm.ts), so — unlike the legacy
+        // bridge's COUNT, taken before that filter — this count and the
+        // number of emitted rows can never diverge: there is no separate
+        // pre-filter total to report any more.
+        count: rows.length,
+        configs: rows.map((r) => ({
+          configId: r.config_id,
+          configType: r.config_type,
+          configVar: r.config_var,
+          component: r.component,
+          description: r.description,
+          devclass: r.devclass
+        })),
+        outlineXml: void 0,
+        outlineMeta: void 0,
+        appNodes: [],
+        diagnostics: [],
+        droppedLines: 0
+      };
+      break;
+    }
+    case "outline": {
+      if (!isFpmOutlineResult(res.result)) {
+        throw new AbapError(
+          "FLUID_PROTOCOL_ERROR",
+          "fpm.outline returned a result that does not match the declared object schema.",
+          { tool: "fpm", action: "outline", result: res.result }
+        );
+      }
+      const r = res.result;
+      transcript = {
+        count: void 0,
+        configs: [],
+        outlineXml: r.xml,
+        outlineMeta: {
+          configIdPar: r.meta.config_idpar,
+          configTypePar: r.meta.config_typepar,
+          configVarPar: r.meta.config_varpar,
+          component: r.meta.component,
+          devclass: r.meta.devclass
+        },
+        appNodes: [],
+        diagnostics: [],
+        droppedLines: 0
+      };
+      break;
+    }
+    case "app": {
+      if (!Array.isArray(res.result) || !res.result.every(isFpmAppNodeResult)) {
+        throw new AbapError(
+          "FLUID_PROTOCOL_ERROR",
+          "fpm.app returned a result that does not match the declared array-of-node schema.",
+          { tool: "fpm", action: "app", result: res.result }
+        );
+      }
+      const nodes = res.result;
+      const diagnostics = [];
+      const appNodes = nodes.map((n) => {
+        if (n.resolve_error !== void 0) {
+          diagnostics.push(`${ERR_LINE_PREFIX}RESOLVE ${n.node_path} FAILED ${n.resolve_error}`);
+        }
+        return {
+          nodePath: n.node_path,
+          parentPath: n.parent_path,
+          isTopNode: n.is_top_node,
+          nodeName: n.node_name,
+          description: n.description,
+          componentName: n.component_name,
+          interfaceView: n.interface_view,
+          configId: n.config_id,
+          configType: n.config_type,
+          configVar: n.config_var,
+          targetConfigId: n.target_config_id,
+          isConfigurable: n.is_configurable,
+          isCustomized: n.is_customized,
+          isEnhanced: n.is_enhanced,
+          isFreestyleUibb: n.is_freestyle_uibb,
+          isLeaf: n.is_leaf,
+          resolved: n.resolved ? {
+            xmlLen: n.resolved.xml_len,
+            feederHint: n.resolved.feeder_hint,
+            bopfHint: n.resolved.bopf_hint,
+            excerpt: n.resolved.excerpt
+          } : void 0
+        };
+      });
+      transcript = {
+        count: nodes.length,
+        configs: [],
+        outlineXml: void 0,
+        outlineMeta: void 0,
+        appNodes,
+        diagnostics,
+        droppedLines: 0
+      };
+      break;
+    }
+    case "events": {
+      if (!Array.isArray(res.result) || !res.result.every(isFpmEventsFrame)) {
+        throw new AbapError(
+          "FLUID_PROTOCOL_ERROR",
+          "fpm.events returned a result that does not match the declared array-of-frame schema.",
+          { tool: "fpm", action: "events", result: res.result }
+        );
+      }
+      const raw = splitEventFrames(res.result);
+      const events = resolveFpmEvents(raw);
+      transcript = {
+        count: void 0,
+        configs: [],
+        outlineXml: void 0,
+        outlineMeta: void 0,
+        appNodes: [],
+        events,
+        diagnostics: raw.unrecognised.length ? [`${ERR_LINE_PREFIX}EVENTS ${raw.unrecognised.length} unrecognised frame(s) \u2014 protocol drift, see bodyBytes/raw result.`] : [],
+        droppedLines: 0
+      };
+      break;
+    }
+  }
+  return {
+    query,
+    bridgeClass: fpmManifest.entry,
+    bridgeRefreshed: res.deployed,
+    durationMs: Date.now() - started,
+    transcript,
+    outputComplete: !res.truncated,
+    bodyBytes: Buffer.byteLength(JSON.stringify(res.result), "utf8")
+  };
+}
+
+// src/adt/fpm-lock.ts
+var CONFIG_TYPE_LEN = 2;
+var CONFIG_VAR_LEN = 6;
+function assertLockConfigType(value) {
+  if (typeof value !== "string" || !/^[0-9]{2}$/.test(value)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `config_type ${JSON.stringify(value)} must be exactly 2 numeric digits (NUMC2) with no surrounding whitespace \u2014 e.g. "00" (component) or "02" (application). It is a lock key field: an absent or malformed value would widen the enqueue into a wildcard lock over every config_type of this config_id.`,
+      { value }
+    );
+  }
+  return value;
+}
+function lockKindForConfigType(configType) {
+  return assertLockConfigType(configType) === "02" ? "application" : "component";
+}
+var LOCK_LINE_PREFIX = "LCK> ";
+var FPM_LOCK_BRIDGE_CLASS_PREFIX = "ZCL_ZMCP_FPMLK_";
+var FPM_LOCK_SCOPE = "1";
+var GARG_WILDCARD_CHAR = "\uFFFF";
+var GARG_LENGTH = 150;
+var GARG_SEGMENTS = {
+  configId: [0, CONFIG_ID_LEN],
+  configType: [CONFIG_ID_LEN, CONFIG_ID_LEN + CONFIG_TYPE_LEN],
+  configVar: [CONFIG_ID_LEN + CONFIG_TYPE_LEN, CONFIG_ID_LEN + CONFIG_TYPE_LEN + CONFIG_VAR_LEN]
+};
+var GARG_TAIL_OFFSET = GARG_SEGMENTS.configVar[1];
+var FPM_LOCK_OBJECTS = {
+  component: {
+    lockObject: "E_WDY_CONFCOMP",
+    enqueueFm: "ENQUEUE_E_WDY_CONFCOMP",
+    dequeueFm: "DEQUEUE_E_WDY_CONFCOMP",
+    gname: "WDY_CONFIG_DATA"
+  },
+  /**
+   * VERIFIED LIVE on A4H (2026-08-11): the FM/lock-object/`GNAME` triple, the 0/32/34
+   * {@link GARG_SEGMENTS} layout, `GUSR` as owner slot, and DEQUEUE release are all confirmed for
+   * this lock object (regression-pinned by test/integration-fpm-lock.test.ts). Still carried over
+   * by analogy, not captured: the full `_SCOPE` release matrix and the X-flag/wildcard-fill
+   * behaviour (only scope 1 / `E_WDY_CONFCOMP` were exercised). See archive for the capture.
+   */
+  application: {
+    lockObject: "E_WDY_CONFAPPL",
+    enqueueFm: "ENQUEUE_E_WDY_CONFAPPL",
+    dequeueFm: "DEQUEUE_E_WDY_CONFAPPL",
+    gname: "WDY_CONFIG_APPL"
+  }
+};
+var MAX_INFERRED_APPL_ROWS = 50;
+var SELF_PROBE_ID_VAR = "lv_lk_selfid";
+var SELF_PROBE_ID_STEM = "ZMCP_LKSELF";
+var SELF_PROBE_ID_ENTROPY_LEN = CONFIG_ID_LEN - SELF_PROBE_ID_STEM.length;
+var SELF_PROBE = {
+  /** Documentation only — never emitted; `configIdExpr` wins. */
+  configId: SELF_PROBE_ID_STEM,
+  configIdExpr: SELF_PROBE_ID_VAR,
+  configType: "99",
+  configVar: "SELFID"
+};
+var ABAP_LEGAL_GARG_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz0123456789_/";
+function padTo(value, len) {
+  return value.length >= len ? value.slice(0, len) : value + " ".repeat(len - value.length);
+}
+function hasWildcardFill(garg) {
+  return garg.includes(GARG_WILDCARD_CHAR);
+}
+var LEGAL_GARG_CHAR = /^[A-Za-z0-9_/ ]*$/;
+function parseGarg(garg) {
+  const padded = padTo(garg, GARG_LENGTH);
+  const seg = (name) => {
+    const [from, to] = GARG_SEGMENTS[name];
+    return padded.slice(from, to);
+  };
+  const configIdSeg = seg("configId");
+  const configTypeSeg = seg("configType");
+  const configVarSeg = seg("configVar");
+  const tailSeg = padded.slice(GARG_TAIL_OFFSET);
+  const wildcardSegments = [];
+  if (!LEGAL_GARG_CHAR.test(configIdSeg)) wildcardSegments.push("configId");
+  if (!LEGAL_GARG_CHAR.test(configTypeSeg)) wildcardSegments.push("configType");
+  if (!LEGAL_GARG_CHAR.test(configVarSeg)) wildcardSegments.push("configVar");
+  if (!LEGAL_GARG_CHAR.test(tailSeg)) wildcardSegments.push("tail");
+  return {
+    raw: garg,
+    configId: configIdSeg.trimEnd(),
+    configType: configTypeSeg.trimEnd(),
+    configVar: configVarSeg.trimEnd(),
+    wildcardSegments,
+    isWildcard: wildcardSegments.length > 0
+  };
+}
+var MAX_BODY_CHARS = 2e4;
+var FORBIDDEN_BODY_TOKENS = [
+  { re: /\bENQUEUE\w*/i, why: "the body must not take or manipulate enqueue locks" },
+  { re: /\bDEQUEUE\w*/i, why: "only the generated protocol may release the lock" },
+  { re: /\bENQUE_\w+/i, why: "ENQUE_DELETE and friends are destructive and gated separately" },
+  { re: /\bRETURN\b/i, why: "an early RETURN would skip the release and the post-body verify" },
+  { re: /\bLEAVE\b/i, why: "LEAVE would abandon the protocol with the lock still held" },
+  { re: /\bEXIT\b/i, why: "EXIT outside a loop leaves the method and skips the release" },
+  { re: /\bSTOP\b/i, why: "STOP ends processing and skips the release" },
+  { re: /\bCHECK\b/i, why: "a failing CHECK exits the processing block and skips the release" },
+  { re: /\bENDMETHOD\b/i, why: "the body must not close the method it is nested in" },
+  { re: /\bENDCLASS\b/i, why: "the body must not close the generated class" },
+  { re: /\bCLASS\s+\w/i, why: "the body must not open a class definition" },
+  { re: /\bSUBMIT\b/i, why: "SUBMIT starts a separate program with its own lock context" },
+  { re: /\bCALL\s+TRANSACTION\b/i, why: "CALL TRANSACTION starts a separate lock context" },
+  { re: /_lk_/i, why: "`_lk_` is the generated protocol's own variable prefix" },
+  { re: /LCK>/, why: "the body must not be able to forge transcript lines" }
+];
+function assertLockBodyIsSafe(body, label) {
+  if (typeof body !== "string") {
+    throw new AbapError("BAD_INPUT", "Locked-operation body must be a string.", { label });
+  }
+  const normalised = body.replace(/\r\n/g, "\n").replace(/[ \t]+$/gm, "");
+  if (normalised.trim() === "") {
+    throw new AbapError(
+      "BAD_INPUT",
+      "Refusing to take an enqueue lock around an empty body \u2014 a lock with nothing to protect is pure contention.",
+      { label }
+    );
+  }
+  if (normalised.length > MAX_BODY_CHARS) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `Locked-operation body is ${normalised.length} characters; the ceiling is ${MAX_BODY_CHARS}.`,
+      { label, length: normalised.length }
+    );
+  }
+  if (/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/.test(normalised)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "Locked-operation body contains control characters.",
+      { label }
+    );
+  }
+  if (normalised.includes("'") && !/^[^']*('[^']*'[^']*)*$/.test(normalised)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "Locked-operation body has an unbalanced ABAP string literal \u2014 it would swallow the release statements that follow it.",
+      { label }
+    );
+  }
+  for (const { re, why } of FORBIDDEN_BODY_TOKENS) {
+    const m = re.exec(normalised);
+    if (m) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `Locked-operation body contains "${m[0]}", which is refused: ${why}.`,
+        { label, token: m[0] }
+      );
+    }
+  }
+  return normalised;
+}
+function isInspectQuery(q) {
+  return "mode" in q;
+}
+function validateInspectQuery(q) {
+  const configId = assertConfigId(q.configId).toUpperCase();
+  const configType = q.configType === void 0 ? void 0 : assertLockConfigType(q.configType);
+  const rawVar = assertConfigVar(q.configVar).toUpperCase();
+  const configVar = q.configVar === void 0 || rawVar === "" ? void 0 : rawVar;
+  return { configId, configType, configVar };
+}
+function lockDiscriminator(q) {
+  if (isInspectQuery(q)) {
+    const v = validateInspectQuery(q);
+    return JSON.stringify({
+      mode: "locks",
+      configId: v.configId,
+      configType: v.configType ?? "",
+      configVar: v.configVar ?? ""
+    });
+  }
+  const body = assertLockBodyIsSafe(q.body, q.bodyLabel);
+  const label = assertPlainName(q.bodyLabel, "bodyLabel");
+  return JSON.stringify({
+    mode: "locked-op",
+    configId: q.key.configId,
+    configType: q.key.configType,
+    configVar: q.key.configVar,
+    kind: q.key.kind,
+    label,
+    // Body's own hash: differing ABAP gets a differing bridge class.
+    body: createHash8("sha256").update(body, "utf8").digest("hex")
+  });
+}
+function fpmLockBridgeClassName(q) {
+  const hashHexLen = MAX_NAME - FPM_LOCK_BRIDGE_CLASS_PREFIX.length;
+  const hash2 = createHash8("sha256").update(lockDiscriminator(q), "utf8").digest("hex").slice(0, hashHexLen).toUpperCase();
+  return `${FPM_LOCK_BRIDGE_CLASS_PREFIX}${hash2}`;
+}
+function abapLiteral2(value, what) {
+  if (/['\r\n]/.test(value) || /[\u0000-\u001F]/.test(value)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${what} contains a character that cannot be embedded in generated ABAP source.`,
+      { value: JSON.stringify(value), what }
+    );
+  }
+  return value;
+}
+var ADT_MAX_SOURCE_LINE_LEN = 255;
+var TEMPLATE_CONTROL_CHAR_RE = new RegExp("[\\u0000-\\u001F]");
+function abapTemplateLiteral(value, what) {
+  if (/[|{}\r\n]/.test(value) || TEMPLATE_CONTROL_CHAR_RE.test(value)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${what} contains a character that cannot be embedded in an ABAP string template.`,
+      { value: JSON.stringify(value), what }
+    );
+  }
+  return value;
+}
+function wrapAbapTemplateLines(text5, indent, what) {
+  const checked = abapTemplateLiteral(text5, what);
+  const overhead = indent.length + "| | &&".length;
+  const budget = ADT_MAX_SOURCE_LINE_LEN - overhead;
+  if (budget < 20) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `indent (${indent.length} chars) leaves no room to wrap ABAP text under the ${ADT_MAX_SOURCE_LINE_LEN}-character ADT line limit.`,
+      { what, indentLength: indent.length }
+    );
+  }
+  const words = checked.split(" ").filter((w) => w.length > 0);
+  for (const word of words) {
+    if (word.length > budget) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${what} contains a single word ${word.length} characters long, which cannot be wrapped under the ${ADT_MAX_SOURCE_LINE_LEN}-character ADT line limit (budget ${budget} at this indent) without splitting it mid-word.`,
+        { what, word, budget }
+      );
+    }
+  }
+  const fragments = [];
+  let current = "";
+  for (const word of words) {
+    const candidate = current === "" ? word : `${current} ${word}`;
+    if (candidate.length > budget && current !== "") {
+      fragments.push(current);
+      current = word;
+    } else {
+      current = candidate;
+    }
+  }
+  fragments.push(current);
+  return fragments.map(
+    (frag, idx2) => idx2 === fragments.length - 1 ? `${indent}|${frag}|` : `${indent}|${frag} | &&`
+  );
+}
+function emitWrappedGuardDetail(text5, indent, what) {
+  const wrapped = wrapAbapTemplateLines(text5, indent, what);
+  wrapped[wrapped.length - 1] += " ).";
+  return wrapped;
+}
+function xFlagLines(indent) {
+  return [
+    `${indent}    x_config_id   = 'X'`,
+    `${indent}    x_config_type = 'X'`,
+    `${indent}    x_config_var  = 'X'`
+  ];
+}
+function configIdOperand(key) {
+  return key.configIdExpr ?? `'${abapLiteral2(key.configId, "config_id")}'`;
+}
+function keyLines(indent, key) {
+  return [
+    `${indent}    config_id     = ${configIdOperand(key)}`,
+    `${indent}    config_type   = '${abapLiteral2(key.configType, "config_type")}'`,
+    `${indent}    config_var    = '${abapLiteral2(key.configVar, "config_var")}'`
+  ];
+}
+function enqueueCall(indent, fm, key, subrcVar) {
+  const lines = [];
+  lines.push(`${indent}CALL FUNCTION '${fm}'`);
+  lines.push(`${indent}  EXPORTING`);
+  lines.push(`${indent}    _scope        = '${FPM_LOCK_SCOPE}'`);
+  lines.push(...keyLines(indent, key));
+  lines.push(...xFlagLines(indent));
+  lines.push(`${indent}  EXCEPTIONS`);
+  lines.push(`${indent}    foreign_lock   = 1`);
+  lines.push(`${indent}    system_failure = 2`);
+  lines.push(`${indent}    OTHERS         = 3.`);
+  lines.push(`${indent}${subrcVar} = sy-subrc.`);
+  return lines;
+}
+function dequeueCall(indent, fm, key, subrcVar) {
+  const lines = [];
+  lines.push(`${indent}CALL FUNCTION '${fm}'`);
+  lines.push(`${indent}  EXPORTING`);
+  lines.push(`${indent}    _scope        = '${FPM_LOCK_SCOPE}'`);
+  lines.push(...keyLines(indent, key));
+  lines.push(...xFlagLines(indent));
+  lines.push(`${indent}    .`);
+  lines.push(`${indent}${subrcVar} = sy-subrc.`);
+  return lines;
+}
+function gargBuildLines(indent, target, key) {
+  const [idFrom] = GARG_SEGMENTS.configId;
+  const [typeFrom] = GARG_SEGMENTS.configType;
+  const [varFrom] = GARG_SEGMENTS.configVar;
+  return [
+    `${indent}CLEAR ${target}.`,
+    `${indent}${target}+${idFrom}(${CONFIG_ID_LEN})   = ${configIdOperand(key)}.`,
+    `${indent}${target}+${typeFrom}(${CONFIG_TYPE_LEN})  = '${abapLiteral2(key.configType, "config_type")}'.`,
+    `${indent}${target}+${varFrom}(${CONFIG_VAR_LEN})  = '${abapLiteral2(key.configVar, "config_var")}'.`
+  ];
+}
+function selfIdentifyDataLines(indent) {
+  return [
+    `${indent}DATA lv_lk_self     TYPE seqg3-gusr.`,
+    `${indent}DATA lv_lk_selfone  TYPE seqg3-gusr.`,
+    `${indent}DATA lv_lk_selfok   TYPE c LENGTH 1 VALUE '-'.`,
+    `${indent}DATA lv_lk_selfbad  TYPE c LENGTH 1 VALUE '-'.`,
+    `${indent}DATA lv_lk_selfsub  TYPE sy-subrc.`,
+    `${indent}DATA lv_lk_selfgarg TYPE seqg3-garg.`,
+    `${indent}DATA lv_lk_selfid   TYPE c LENGTH ${CONFIG_ID_LEN}.`,
+    `${indent}DATA lv_lk_selfuid  TYPE c LENGTH 32.`,
+    `${indent}DATA lv_lk_selfleft TYPE i.`,
+    `${indent}DATA lt_lk_self     TYPE tt_enq.`,
+    `${indent}DATA ls_lk_self     TYPE seqg3.`,
+    // Declared here, not inline in CATCH: the block emits once per lock object, so an inline
+    // DATA(..) here would be a duplicate declaration on the second iteration.
+    `${indent}DATA lx_lk_self     TYPE REF TO cx_root.`
+  ];
+}
+function selfIdentifyLines(indent, kinds) {
+  const lines = [];
+  lines.push(`${indent}" ---- self-identify -------------------------------------------------`);
+  lines.push(`${indent}" GUSR is the ONLY discriminator between our lock and a foreign lock`);
+  lines.push(`${indent}" held by the SAME SAP user in another session: GUNAME is identical in`);
+  lines.push(`${indent}" both and GTCODE is empty in both. The only way to learn our own is to`);
+  lines.push(`${indent}" take a throwaway lock on a key that is not, and never will be, a real`);
+  lines.push(`${indent}" configuration, and read the owner id straight back off it.`);
+  lines.push(`${indent}"`);
+  lines.push(`${indent}" The probe key is minted HERE, at runtime, once per execution. A fixed`);
+  lines.push(`${indent}" one is a self-inflicted denial of service: two sessions probing at the`);
+  lines.push(`${indent}" same moment fight over the SAME throwaway lock, and the loser then`);
+  lines.push(`${indent}" refuses every locked operation it was asked to perform. Being minted`);
+  lines.push(`${indent}" on the server it carries no caller input, so there is nothing here to`);
+  lines.push(`${indent}" inject through - the usual quoting rules simply do not apply to it.`);
+  lines.push(`${indent}" Unverified idiom (not covered by the lock spike): if create_uuid_c32_static`);
+  lines.push(`${indent}" is absent here, activation fails loudly rather than silently reusing a`);
+  lines.push(`${indent}" shared key.`);
+  lines.push(`${indent}lv_lk_selfuid = cl_system_uuid=>create_uuid_c32_static( ).`);
+  lines.push(
+    `${indent}CONCATENATE '${SELF_PROBE_ID_STEM}' lv_lk_selfuid(${SELF_PROBE_ID_ENTROPY_LEN}) INTO lv_lk_selfid.`
+  );
+  lines.push(...gargBuildLines(indent, "lv_lk_selfgarg", SELF_PROBE));
+  for (const kind of kinds) {
+    const obj = FPM_LOCK_OBJECTS[kind];
+    lines.push(`${indent}" probe ${obj.lockObject} - one probe per lock object we are about to`);
+    lines.push(`${indent}" read, because "the owner id is the same on every lock object" is an`);
+    lines.push(`${indent}" INFERENCE the spike never tested. Below it is checked instead.`);
+    lines.push(`${indent}CLEAR lv_lk_selfone.`);
+    lines.push(...enqueueCall(indent, obj.enqueueFm, SELF_PROBE, "lv_lk_selfsub"));
+    lines.push(`${indent}IF lv_lk_selfsub = 0.`);
+    lines.push(`${indent}  " We are now HOLDING the probe lock. Everything between here and the`);
+    lines.push(`${indent}  " DEQUEUE below runs inside its own TRY: an exception raised in the`);
+    lines.push(`${indent}  " read-back would otherwise unwind straight to the single TRY in`);
+    lines.push(`${indent}  " main, skipping this release - and the probe block is emitted once`);
+    lines.push(`${indent}  " PER LOCK OBJECT, so it would strand this iteration-s lock and then`);
+    lines.push(`${indent}  " never reach the next one-s either. A stranded lock is not swept up`);
+    lines.push(`${indent}  " when the request ends (09-LOCK-DISCIPLINE-SPIKE-AUDIT.md), so the`);
+    lines.push(`${indent}  " release has to be reached on every path, including this one.`);
+    lines.push(`${indent}  TRY.`);
+    lines.push(
+      `${indent}      read_locks( EXPORTING iv_gname = '${obj.gname}' iv_garg = lv_lk_selfgarg IMPORTING et_enq = lt_lk_self ).`
+    );
+    lines.push(`${indent}      LOOP AT lt_lk_self INTO ls_lk_self.`);
+    lines.push(`${indent}        IF ls_lk_self-garg = lv_lk_selfgarg.`);
+    lines.push(`${indent}          " A BLANK owner id is not an owner id. GUSR is blank on every`);
+    lines.push(`${indent}          " update-task-slot lock, so accepting a blank here would make`);
+    lines.push(`${indent}          " every one of those compare equal to "ours" further down.`);
+    lines.push(`${indent}          IF ls_lk_self-gusr <> space.`);
+    lines.push(`${indent}            lv_lk_selfone = ls_lk_self-gusr.`);
+    lines.push(`${indent}          ENDIF.`);
+    lines.push(`${indent}          EXIT.`);
+    lines.push(`${indent}        ENDIF.`);
+    lines.push(`${indent}      ENDLOOP.`);
+    lines.push(`${indent}      IF lv_lk_selfone <> space.`);
+    lines.push(`${indent}        IF lv_lk_selfok = 'X'.`);
+    lines.push(`${indent}          IF lv_lk_selfone <> lv_lk_self.`);
+    lines.push(`${indent}            " Two lock objects, two different owner ids for one session:`);
+    lines.push(`${indent}            " the portability inference is false here. Fail closed.`);
+    lines.push(`${indent}            lv_lk_selfbad = 'X'.`);
+    lines.push(`${indent}          ENDIF.`);
+    lines.push(`${indent}        ELSE.`);
+    lines.push(`${indent}          lv_lk_self   = lv_lk_selfone.`);
+    lines.push(`${indent}          lv_lk_selfok = 'X'.`);
+    lines.push(`${indent}        ENDIF.`);
+    lines.push(`${indent}      ELSE.`);
+    lines.push(`${indent}        " The probe held the lock but produced NO usable owner id for this`);
+    lines.push(`${indent}        " lock object: either the read-back found no row for the probe GARG`);
+    lines.push(`${indent}        " or GUSR came back blank. Nothing was verified HERE, and an id`);
+    lines.push(`${indent}        " learned from a PREVIOUS lock object's probe must not be reused to`);
+    lines.push(`${indent}        " label this object's rows MINE - that is exactly the untested`);
+    lines.push(`${indent}        " cross-lock-object portability inference (header item (g)). Throw`);
+    lines.push(`${indent}        " the id away: an unverified probe forces UNKNOWN, never MINE.`);
+    lines.push(`${indent}        lv_lk_selfbad = 'X'.`);
+    lines.push(
+      `${indent}        emit_guard( iv_reason = 'self-probe-owner-id-blank' iv_detail = |the throwaway self-probe on ${obj.lockObject} returned no usable GUSR, so no row on this lock object can be proved ours| ).`
+    );
+    lines.push(`${indent}      ENDIF.`);
+    lines.push(`${indent}    CATCH cx_root INTO lx_lk_self.`);
+    lines.push(`${indent}      " Nothing was verified on this lock object, so the learned id is`);
+    lines.push(`${indent}      " discarded exactly as for a failed probe: an unverified probe`);
+    lines.push(`${indent}      " forces UNKNOWN, never MINE. Control falls through to the DEQUEUE.`);
+    lines.push(`${indent}      lv_lk_selfbad = 'X'.`);
+    lines.push(
+      `${indent}      emit_guard( iv_reason = 'self-probe-exception' iv_detail = |the throwaway self-probe on ${obj.lockObject} raised { cl_abap_classdescr=>get_class_name( lx_lk_self ) }: { lx_lk_self->get_text( ) } - the probe lock is released below regardless| ).`
+    );
+    lines.push(`${indent}  ENDTRY.`);
+    lines.push(...dequeueCall(`${indent}  `, obj.dequeueFm, SELF_PROBE, "lv_lk_selfsub"));
+    lines.push(`${indent}  " The dequeue subrc is narration, here as everywhere: it is 0 even`);
+    lines.push(`${indent}  " when nothing was released. Re-read the probe key and say so if it`);
+    lines.push(`${indent}  " survived.`);
+    lines.push(
+      `${indent}  read_locks( EXPORTING iv_gname = '${obj.gname}' iv_garg = lv_lk_selfgarg IMPORTING et_enq = lt_lk_self ).`
+    );
+    lines.push(`${indent}  lv_lk_selfleft = lines( lt_lk_self ).`);
+    lines.push(`${indent}  IF lv_lk_selfleft > 0.`);
+    lines.push(
+      `${indent}    emit_guard( iv_reason = 'self-probe-not-released' iv_detail = |the throwaway self-probe lock on ${obj.lockObject} survived its DEQUEUE, rows={ lv_lk_selfleft }| ).`
+    );
+    lines.push(`${indent}  ENDIF.`);
+    lines.push(`${indent}ELSE.`);
+    lines.push(`${indent}  " The probe's OWN enqueue failed on this lock object. Silently doing`);
+    lines.push(`${indent}  " nothing here was a fail-OPEN bug: lv_lk_selfok would still carry`);
+    lines.push(`${indent}  " 'X' from an earlier lock object's probe, and every row of THIS`);
+    lines.push(`${indent}  " lock object would then be compared against an id that was never`);
+    lines.push(`${indent}  " verified for it - producing MINE on somebody else's lock. A probe`);
+    lines.push(`${indent}  " that did not succeed must force UNKNOWN.`);
+    lines.push(`${indent}  lv_lk_selfbad = 'X'.`);
+    lines.push(
+      `${indent}  emit_guard( iv_reason = 'self-probe-enqueue-failed' iv_detail = |ENQUEUE on ${obj.lockObject} for the throwaway self-probe returned subrc={ lv_lk_selfsub }, so this session-s owner id is unverified here| ).`
+    );
+    lines.push(`${indent}ENDIF.`);
+  }
+  lines.push(`${indent}IF lv_lk_selfbad = 'X'.`);
+  lines.push(`${indent}  CLEAR lv_lk_self.`);
+  lines.push(`${indent}  lv_lk_selfok = '-'.`);
+  lines.push(
+    `${indent}  emit_guard( iv_reason = 'self-owner-id-not-portable' iv_detail = 'a probe either failed, returned no owner id, or disagreed with another lock object-s, so the learned id was discarded and no row can be proved ours' ).`
+  );
+  lines.push(`${indent}ENDIF.`);
+  lines.push(
+    `${indent}mo_out->write( |${LOCK_LINE_PREFIX}SELF owner=[{ lv_lk_self }] ok=[{ lv_lk_selfok }]| ).`
+  );
+  return lines;
+}
+function lockClassSource(className, what, body) {
+  const cls = assertPlainName(className, "Bridge class name").toLowerCase();
+  return `CLASS ${cls} DEFINITION PUBLIC FINAL CREATE PUBLIC.
+  PUBLIC SECTION.
+    INTERFACES if_oo_adt_classrun.
+  PRIVATE SECTION.
+    TYPES tt_enq TYPE STANDARD TABLE OF seqg3 WITH DEFAULT KEY.
+    "! Every character a GARG built from a validated key can legally contain.
+    "! The blank sits in the MIDDLE because ABAP strips TRAILING blanks from a
+    "! text literal \u2014 written at the end it would silently drop out of the set
+    "! and every blank-padded GARG would look like a wildcard.
+    CONSTANTS gc_legal TYPE string VALUE '${ABAP_LEGAL_GARG_CHARS}'.
+    DATA mo_out TYPE REF TO if_oo_adt_classrun_out.
+    "! ENQUEUE_READ with NO owner filter. Its GUNAME parameter DEFAULTS TO
+    "! SY-UNAME and GCLIENT to SY-MANDT, so a naive call is blind to every
+    "! other user's locks \u2014 which is the one thing this whole module exists to
+    "! see. Filters are exact-match; blank means "no filter"; there is no
+    "! prefix matching on GARG (GARGNOWC = 'X' changed nothing when probed).
+    METHODS read_locks
+      IMPORTING iv_gname TYPE seqg3-gname
+                iv_garg  TYPE seqg3-garg
+      EXPORTING et_enq   TYPE tt_enq.
+    "! Comma-joined names of the GARG segments carrying wildcard fill; empty
+    "! when the GARG is precise. REPORTING ONLY - it sweeps for "anything my
+    "! own key charset cannot produce", which is deliberately broader than the
+    "! fill the spike actually captured. Never use it to veto a write: see
+    "! has_wildcard_fill.
+    METHODS wildcard_segments
+      IMPORTING iv_garg           TYPE seqg3-garg
+      RETURNING VALUE(rv_segments) TYPE string.
+    "! TRUE when the text carries the OBSERVED wildcard fill character U+FFFF
+    "! (UTF-8 EF BF BF). This, not the gc_legal sweep, is what may veto a
+    "! write: a FOREIGN config id can legitimately contain a character our own
+    "! key validators would refuse, and reading that as wildcard fill would let
+    "! an unrelated config block every write in the system.
+    "! Unverified idiom (not covered by the lock spike): cl_abap_conv_in_ce is
+    "! how U+FFFF is named without embedding a noncharacter in generated
+    "! source. If it is absent here activation fails loudly.
+    METHODS has_wildcard_fill
+      IMPORTING iv_text        TYPE clike
+      RETURNING VALUE(rv_wild) TYPE abap_bool.
+    "! Narrows a raw ENQUEUE_READ result to the rows that can bear on ONE
+    "! config id, BEFORE anything is written to the transcript: kept are an
+    "! exact config_id-segment match and any row whose config_id segment is
+    "! wildcard-filled (such a lock covers every config_id, ours included).
+    "! Emitting whole unfiltered enqueue tables risks truncating the transcript
+    "! and losing the trailing RELEASE verdict with it - and a report that
+    "! cannot say whether the lock was released is worse than a long one.
+    "! iv_keep_all = abap_true retains everything: see the caller comment about
+    "! the INFERRED WDY_CONFIG_APPL GARG layout.
+    METHODS filter_rows
+      IMPORTING iv_config_id TYPE clike
+                iv_keep_all  TYPE abap_bool
+                it_enq       TYPE tt_enq
+      EXPORTING et_enq       TYPE tt_enq.
+    METHODS emit_rows
+      IMPORTING iv_phase TYPE string
+                it_enq   TYPE tt_enq.
+    METHODS emit_guard
+      IMPORTING iv_reason TYPE string
+                iv_detail TYPE string.
+ENDCLASS.
+
+CLASS ${cls} IMPLEMENTATION.
+
+  METHOD read_locks.
+    DATA lv_lk_number TYPE i.
+    DATA lv_lk_rsubrc TYPE sy-subrc.
+    CLEAR et_enq.
+    CALL FUNCTION 'ENQUEUE_READ'
+      EXPORTING
+        gclient               = space
+        gname                 = iv_gname
+        garg                  = iv_garg
+        guname                = space
+      IMPORTING
+        number                = lv_lk_number
+        subrc                 = lv_lk_rsubrc
+      TABLES
+        enq                   = et_enq
+      EXCEPTIONS
+        communication_failure = 1
+        system_failure        = 2
+        OTHERS                = 3.
+    IF sy-subrc <> 0.
+      CLEAR et_enq.
+      mo_out->write( |${ERR_LINE_PREFIX}ENQUEUE_READ failed subrc={ sy-subrc } gname={ iv_gname }| ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD wildcard_segments.
+    DATA lv_lk_g TYPE c LENGTH ${GARG_LENGTH}.
+    lv_lk_g = iv_garg.
+    CLEAR rv_segments.
+*   CN = "contains not only": true as soon as one character falls outside the
+*   legal set. That catches the OBSERVED U+FFFF fill without this class ever
+*   having to name the code point, and catches any other fill too.
+    IF lv_lk_g+${GARG_SEGMENTS.configId[0]}(${CONFIG_ID_LEN}) CN gc_legal.
+      rv_segments = 'configId'.
+    ENDIF.
+    IF lv_lk_g+${GARG_SEGMENTS.configType[0]}(${CONFIG_TYPE_LEN}) CN gc_legal.
+      IF strlen( rv_segments ) > 0.
+        rv_segments = rv_segments && ','.
+      ENDIF.
+      rv_segments = rv_segments && 'configType'.
+    ENDIF.
+    IF lv_lk_g+${GARG_SEGMENTS.configVar[0]}(${CONFIG_VAR_LEN}) CN gc_legal.
+      IF strlen( rv_segments ) > 0.
+        rv_segments = rv_segments && ','.
+      ENDIF.
+      rv_segments = rv_segments && 'configVar'.
+    ENDIF.
+    IF lv_lk_g+${GARG_TAIL_OFFSET} CN gc_legal.
+      IF strlen( rv_segments ) > 0.
+        rv_segments = rv_segments && ','.
+      ENDIF.
+      rv_segments = rv_segments && 'tail'.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD has_wildcard_fill.
+    DATA lv_lk_fc TYPE c LENGTH 1.
+    rv_wild = abap_false.
+*   U+FFFF, the fill the spike actually captured (EF BF BF in UTF-8) - NOT
+*   0xFF, and NOT "any character I would not have written myself".
+    lv_lk_fc = cl_abap_conv_in_ce=>uccp( 'FFFF' ).
+    IF iv_text CS lv_lk_fc.
+      rv_wild = abap_true.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD filter_rows.
+    DATA lv_lk_fid TYPE c LENGTH ${CONFIG_ID_LEN}.
+    CLEAR et_enq.
+    LOOP AT it_enq INTO DATA(ls_lk_f).
+      IF iv_keep_all = abap_true.
+        APPEND ls_lk_f TO et_enq.
+        CONTINUE.
+      ENDIF.
+      lv_lk_fid = ls_lk_f-garg+${GARG_SEGMENTS.configId[0]}(${CONFIG_ID_LEN}).
+      IF lv_lk_fid = iv_config_id.
+        APPEND ls_lk_f TO et_enq.
+      ELSEIF has_wildcard_fill( lv_lk_fid ) = abap_true.
+*       A wildcard-filled config_id segment covers every config_id, ours too.
+        APPEND ls_lk_f TO et_enq.
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD emit_rows.
+    DATA lv_lk_wc TYPE string.
+    LOOP AT it_enq INTO DATA(ls_lk_e).
+      mo_out->write( |${LOCK_LINE_PREFIX}ROW phase=[{ iv_phase }] gname=[{ ls_lk_e-gname }] | &&
+        |garg=[{ ls_lk_e-garg }] gmode=[{ ls_lk_e-gmode }] guname=[{ ls_lk_e-guname }] | &&
+        |gclient=[{ ls_lk_e-gclient }] gusr=[{ ls_lk_e-gusr }] gusrvb=[{ ls_lk_e-gusrvb }] | &&
+        |guse=[{ ls_lk_e-guse }] gusevb=[{ ls_lk_e-gusevb }] gobj=[{ ls_lk_e-gobj }]| ).
+      lv_lk_wc = wildcard_segments( ls_lk_e-garg ).
+      IF strlen( lv_lk_wc ) > 0.
+*       Emitted as its own line so the TS side never has to depend on a raw
+*       U+FFFF surviving the HTTP/UTF-8 round trip to know a wildcard is there.
+        mo_out->write( |${LOCK_LINE_PREFIX}WILDCARD phase=[{ iv_phase }] garg=[{ ls_lk_e-garg }] segments=[{ lv_lk_wc }]| ).
+      ENDIF.
+    ENDLOOP.
+    mo_out->write( |${LOCK_LINE_PREFIX}COUNT phase=[{ iv_phase }] rows=[{ lines( it_enq ) }]| ).
+  ENDMETHOD.
+
+  METHOD emit_guard.
+    mo_out->write( |${LOCK_LINE_PREFIX}GUARD reason=[{ iv_reason }] detail=[{ iv_detail }]| ).
+  ENDMETHOD.
+
+  METHOD if_oo_adt_classrun~main.
+*   Generated by abapsmith (${what}). Do not edit \u2014 this class is regenerated
+*   from src/adt/fpm-lock.ts whenever its content hash changes.
+    mo_out = out.
+    TRY.
+${body}
+      CATCH cx_root INTO DATA(lx).
+        out->write( |${ERR_LINE_PREFIX}EXCEPTION { cl_abap_classdescr=>get_class_name( lx ) }: { lx->get_text( ) }| ).
+    ENDTRY.
+  ENDMETHOD.
+
+ENDCLASS.
+`;
+}
+function buildLockInspectSource(q, className) {
+  const { configId, configType, configVar } = validateInspectQuery(q);
+  const kinds = configType === void 0 ? ["component", "application"] : [lockKindForConfigType(configType)];
+  const inspectsAppl = kinds.includes("application");
+  const i = "      ";
+  const lines = [];
+  lines.push(...selfIdentifyDataLines(i));
+  lines.push(`${i}DATA lt_lk_all      TYPE tt_enq.`);
+  lines.push(`${i}DATA lt_lk_read     TYPE tt_enq.`);
+  lines.push(`${i}DATA lt_lk_keep     TYPE tt_enq.`);
+  lines.push(`${i}DATA ls_lk_r        TYPE seqg3.`);
+  lines.push(`${i}DATA lv_lk_cfgid    TYPE c LENGTH ${CONFIG_ID_LEN}.`);
+  lines.push(`${i}DATA lv_lk_idseg    TYPE c LENGTH ${CONFIG_ID_LEN}.`);
+  lines.push(`${i}DATA lv_lk_tyseg    TYPE c LENGTH ${CONFIG_TYPE_LEN}.`);
+  lines.push(`${i}DATA lv_lk_vrseg    TYPE c LENGTH ${CONFIG_VAR_LEN}.`);
+  lines.push(`${i}DATA lv_lk_keep     TYPE c LENGTH 1.`);
+  lines.push(`${i}DATA lv_lk_infer    TYPE c LENGTH 1.`);
+  lines.push(`${i}DATA lv_lk_apflg    TYPE c LENGTH 1 VALUE '-'.`);
+  lines.push(`${i}DATA lv_lk_aptr     TYPE c LENGTH 1 VALUE '-'.`);
+  lines.push(`${i}DATA lv_lk_apn      TYPE i.`);
+  lines.push(``);
+  lines.push(...selfIdentifyLines(i, kinds.length > 0 ? kinds : ["component"]));
+  lines.push(``);
+  lines.push(`${i}" ---- read every lock on the governing lock object(s) ---------------`);
+  for (const kind of kinds) {
+    const obj = FPM_LOCK_OBJECTS[kind];
+    lines.push(`${i}CLEAR lt_lk_read.`);
+    lines.push(`${i}read_locks( EXPORTING iv_gname = '${obj.gname}' iv_garg = space IMPORTING et_enq = lt_lk_read ).`);
+    lines.push(`${i}APPEND LINES OF lt_lk_read TO lt_lk_all.`);
+  }
+  lines.push(``);
+  lines.push(`${i}lv_lk_cfgid = '${abapLiteral2(configId, "config_id")}'.`);
+  lines.push(`${i}LOOP AT lt_lk_all INTO ls_lk_r.`);
+  lines.push(`${i}  lv_lk_keep  = '-'.`);
+  lines.push(`${i}  lv_lk_infer = '-'.`);
+  if (inspectsAppl) {
+    lines.push(`${i}  IF ls_lk_r-gname = '${FPM_LOCK_OBJECTS.application.gname}'.`);
+    lines.push(`${i}    " INFERRED / UNTESTED (header item (f)): the 0/32/34/40 GARG layout`);
+    lines.push(`${i}    " was captured for E_WDY_CONFCOMP ONLY. On WDY_CONFIG_APPL EVERY`);
+    lines.push(`${i}    " slice below is an assumption - INCLUDING one that appears to match,`);
+    lines.push(`${i}    " because a matching bytes-0-31 slice under a wrong layout is still a`);
+    lines.push(`${i}    " guess. Marking the row inferred HERE, before the match test, is what`);
+    lines.push(`${i}    " stops the config_type / config_var narrowing further down from`);
+    lines.push(`${i}    " dropping the single most relevant application row in the report.`);
+    lines.push(`${i}    lv_lk_infer = 'X'.`);
+    lines.push(`${i}    " Skipping that narrowing is a real change to what the caller asked`);
+    lines.push(`${i}    " for, so the report says it out loud rather than quietly widening.`);
+    lines.push(`${i}    lv_lk_apflg = 'X'.`);
+    lines.push(`${i}  ENDIF.`);
+  }
+  lines.push(`${i}  lv_lk_idseg = ls_lk_r-garg+${GARG_SEGMENTS.configId[0]}(${CONFIG_ID_LEN}).`);
+  lines.push(`${i}  IF lv_lk_idseg = lv_lk_cfgid.`);
+  lines.push(`${i}    lv_lk_keep = 'X'.`);
+  lines.push(`${i}  ELSEIF has_wildcard_fill( lv_lk_idseg ) = abap_true.`);
+  lines.push(`${i}    " wildcard in the config_id segment: it covers our config_id too.`);
+  lines.push(`${i}    lv_lk_keep = 'X'.`);
+  if (inspectsAppl) {
+    lines.push(`${i}  ELSEIF ls_lk_r-gname = '${FPM_LOCK_OBJECTS.application.gname}'.`);
+    lines.push(`${i}    " INFERRED / UNTESTED: the spike captured a GARG layout for`);
+    lines.push(`${i}    " E_WDY_CONFCOMP only. It never read one back from E_WDY_CONFAPPL,`);
+    lines.push(`${i}    " so the slice just taken may not be this row-s config id at all,`);
+    lines.push(`${i}    " and "did not match" may only mean "different layout".`);
+    lines.push(`${i}    " Dropping it would delete a real lock from a lock report - the one`);
+    lines.push(`${i}    " direction that gets somebody-s work overwritten. Keep it, mark the`);
+    lines.push(`${i}    " report, and let a human see a row we could not parse.`);
+    lines.push(`${i}    " BUT NOT WITHOUT A CEILING: this keep is unbounded in the enqueue`);
+    lines.push(`${i}    " table-s size, and an over-long transcript is truncated from the END,`);
+    lines.push(`${i}    " which silently drops rows and the trailing verdict with them. Cap it`);
+    lines.push(`${i}    " and SAY when the cap bit, rather than trading a silent drop here for`);
+    lines.push(`${i}    " a silent drop one layer up.`);
+    lines.push(`${i}    IF lv_lk_apn < ${MAX_INFERRED_APPL_ROWS}.`);
+    lines.push(`${i}      lv_lk_apn   = lv_lk_apn + 1.`);
+    lines.push(`${i}      lv_lk_keep  = 'X'.`);
+    lines.push(`${i}    ELSE.`);
+    lines.push(`${i}      lv_lk_aptr  = 'X'.`);
+    lines.push(`${i}    ENDIF.`);
+  }
+  lines.push(`${i}  ENDIF.`);
+  if (configType !== void 0) {
+    lines.push(`${i}  IF lv_lk_keep = 'X' AND lv_lk_infer = '-'.`);
+    lines.push(`${i}    lv_lk_tyseg = ls_lk_r-garg+${GARG_SEGMENTS.configType[0]}(${CONFIG_TYPE_LEN}).`);
+    lines.push(
+      `${i}    IF lv_lk_tyseg <> '${abapLiteral2(configType, "config_type")}'`
+    );
+    lines.push(`${i}       AND has_wildcard_fill( lv_lk_tyseg ) = abap_false.`);
+    lines.push(`${i}      lv_lk_keep = '-'.`);
+    lines.push(`${i}    ENDIF.`);
+    lines.push(`${i}  ENDIF.`);
+  }
+  if (configVar !== void 0) {
+    lines.push(`${i}  IF lv_lk_keep = 'X' AND lv_lk_infer = '-'.`);
+    lines.push(`${i}    lv_lk_vrseg = ls_lk_r-garg+${GARG_SEGMENTS.configVar[0]}(${CONFIG_VAR_LEN}).`);
+    lines.push(
+      `${i}    IF lv_lk_vrseg <> '${abapLiteral2(configVar, "config_var")}'`
+    );
+    lines.push(`${i}       AND has_wildcard_fill( lv_lk_vrseg ) = abap_false.`);
+    lines.push(`${i}      lv_lk_keep = '-'.`);
+    lines.push(`${i}    ENDIF.`);
+    lines.push(`${i}  ENDIF.`);
+  }
+  lines.push(`${i}  IF lv_lk_keep = 'X'.`);
+  lines.push(`${i}    APPEND ls_lk_r TO lt_lk_keep.`);
+  lines.push(`${i}  ENDIF.`);
+  lines.push(`${i}ENDLOOP.`);
+  if (inspectsAppl) {
+    lines.push(`${i}IF lv_lk_apflg = 'X'.`);
+    lines.push(`${i}  emit_guard( iv_reason = 'appl-garg-layout-inferred'`);
+    lines.push(`${i}    iv_detail =`);
+    lines.push(
+      ...emitWrappedGuardDetail(
+        "the GARG segment layout of E_WDY_CONFAPPL was never captured by the spike, so EVERY WDY_CONFIG_APPL row here is treated as unparseable: rows whose id segment did not match were RETAINED rather than dropped, and the config_type / config_var narrowing was SKIPPED for all of them - some of the rows below may belong to another config",
+        `${i}      `,
+        "appl-garg-layout-inferred detail"
+      )
+    );
+    lines.push(`${i}ENDIF.`);
+    lines.push(`${i}IF lv_lk_aptr = 'X'.`);
+    lines.push(`${i}  emit_guard( iv_reason = 'appl-rows-truncated'`);
+    lines.push(`${i}    iv_detail =`);
+    lines.push(
+      ...emitWrappedGuardDetail(
+        `more than ${MAX_INFERRED_APPL_ROWS} WDY_CONFIG_APPL rows were kept only because that lock object-s GARG layout is inferred; the rest were dropped from this report, so it is NOT a complete picture of E_WDY_CONFAPPL`,
+        `${i}      `,
+        "appl-rows-truncated detail"
+      )
+    );
+    lines.push(`${i}ENDIF.`);
+  }
+  lines.push(`${i}emit_rows( iv_phase = 'inspect' it_enq = lt_lk_keep ).`);
+  return lockClassSource(className, "abap_fpm_read, mode=locks", lines.join("\n"));
+}
+var flag = (v) => v === "X";
+function parseLockTranscript(raw) {
+  const diagnostics = [];
+  const aborts = [];
+  let droppedLines = 0;
+  const rawRows = [];
+  const phaseOrder = [];
+  const reportedRows = /* @__PURE__ */ new Map();
+  let selfOwnerId;
+  let acquire;
+  let preSaveVerify;
+  let saveReached = false;
+  let wildcardDetected = false;
+  let releaseStatus;
+  for (const line2 of raw.replace(/\r\n/g, "\n").split("\n")) {
+    if (line2.startsWith(ERR_LINE_PREFIX)) {
+      diagnostics.push(line2.trim());
+      continue;
+    }
+    if (!line2.startsWith(LOCK_LINE_PREFIX)) {
+      if (line2.trim() !== "") droppedLines++;
+      continue;
+    }
+    const rest = line2.slice(LOCK_LINE_PREFIX.length);
+    const spaceIdx = rest.indexOf(" ");
+    const head = spaceIdx === -1 ? rest : rest.slice(0, spaceIdx);
+    const remainder = spaceIdx === -1 ? "" : rest.slice(spaceIdx + 1);
+    const f = parseBracketFields(remainder);
+    switch (head) {
+      case "SELF":
+        if (flag(f.ok) && (f.owner ?? "") !== "") selfOwnerId = f.owner;
+        break;
+      case "ENQ": {
+        const subrc = Number(f.subrc ?? "");
+        acquire = {
+          subrc: Number.isNaN(subrc) ? -1 : subrc,
+          foreignLock: f.exc === "foreign_lock",
+          systemFailure: f.exc === "system_failure"
+        };
+        break;
+      }
+      case "ROW": {
+        const phase = f.phase ?? "";
+        if (!phaseOrder.includes(phase)) phaseOrder.push(phase);
+        const garg = f.garg ?? "";
+        rawRows.push({
+          phase,
+          row: {
+            gname: f.gname ?? "",
+            garg,
+            gmode: f.gmode ?? "",
+            guname: f.guname ?? "",
+            gclient: f.gclient ?? "",
+            gusr: f.gusr ?? "",
+            gusrvb: f.gusrvb ?? "",
+            guse: f.guse ?? "",
+            gusevb: f.gusevb ?? "",
+            gobj: f.gobj ?? "",
+            garg_view: parseGarg(garg)
+          }
+        });
+        break;
+      }
+      case "COUNT": {
+        const phase = f.phase ?? "";
+        if (!phaseOrder.includes(phase)) phaseOrder.push(phase);
+        const n = Number(f.rows ?? "");
+        if (!Number.isNaN(n)) reportedRows.set(phase, n);
+        break;
+      }
+      case "WILDCARD":
+        wildcardDetected = true;
+        break;
+      case "VERIFY":
+        if (f.phase === "presave") {
+          preSaveVerify = {
+            held: flag(f.held),
+            mine: flag(f.mine),
+            wildcard: flag(f.wildcard),
+            passed: flag(f.passed)
+          };
+        }
+        if (flag(f.wildcard)) wildcardDetected = true;
+        break;
+      case "GUARD":
+        aborts.push(`${f.reason ?? "unknown"}: ${f.detail ?? ""}`.trim());
+        break;
+      case "BODY":
+        if (f.state === "begin") saveReached = true;
+        break;
+      case "DEQ":
+        break;
+      case "RELEASE":
+        releaseStatus = f.status === "released" ? "released" : "still-held";
+        break;
+      default:
+        droppedLines++;
+        break;
+    }
+  }
+  const blank = (v) => v.trim() === "";
+  const classify = (row2) => {
+    if (selfOwnerId === void 0) return "UNKNOWN";
+    if (!blank(row2.gusr)) return row2.gusr === selfOwnerId ? "MINE" : "FOREIGN";
+    if (!blank(row2.gusrvb)) return "FOREIGN";
+    return "UNKNOWN";
+  };
+  const byPhase = /* @__PURE__ */ new Map();
+  for (const p of phaseOrder) byPhase.set(p, []);
+  for (const { phase, row: row2 } of rawRows) {
+    const full = { ...row2, ownership: classify(row2) };
+    if (full.garg_view.isWildcard) wildcardDetected = true;
+    byPhase.get(phase)?.push(full);
+  }
+  const phases = phaseOrder.map((phase) => {
+    const rows = byPhase.get(phase) ?? [];
+    const reported = reportedRows.get(phase);
+    if (reported !== void 0 && reported !== rows.length) {
+      diagnostics.push(
+        `phase ${phase}: ABAP reported ${reported} row(s) but ${rows.length} ROW line(s) were parsed \u2014 output may be truncated`
+      );
+    }
+    return { phase, rows, ...reported === void 0 ? {} : { reportedRows: reported } };
+  });
+  let release;
+  if (releaseStatus === "released") {
+    release = { status: "released" };
+  } else if (releaseStatus === "still-held") {
+    const after = byPhase.get("after-release") ?? [];
+    const mine = after.filter((r) => r.ownership === "MINE");
+    release = { status: "still-held", rows: mine.length > 0 ? mine : after };
+  }
+  return {
+    ...selfOwnerId === void 0 ? {} : { selfOwnerId },
+    ...acquire === void 0 ? {} : { acquire },
+    ...preSaveVerify === void 0 ? {} : { preSaveVerify },
+    saveReached,
+    ...release === void 0 ? {} : { release },
+    phases,
+    wildcardDetected,
+    aborts,
+    diagnostics,
+    droppedLines
+  };
+}
+async function runFpmLockInspect(conn, query, gate) {
+  const started = Date.now();
+  const className = fpmLockBridgeClassName(query);
+  const source = buildLockInspectSource(query, className);
+  const deployed = await deployBridge(conn, gate, {
+    className,
+    source,
+    description: "abapsmith FPM lock inspection bridge",
+    caller: { tool: "abap_fpm_read", action: "locks" },
+    what: "Activation of the generated FPM lock bridge",
+    hint: "The bridge reads the enqueue table via ENQUEUE_READ and takes one throwaway self-lock through ENQUEUE_E_WDY_CONFCOMP/CONFAPPL. A syntax error here most likely means one of those function modules, or a SEQG3 field, is not shaped exactly as the lock-discipline spike recorded (see this module's doc comment for confirmed vs. inferred).",
+    verify: (activation) => verifyBridgeActivation(activation, className, "FPM lock bridge", { mode: "locks" })
+  });
+  const { bridgeRefreshed } = deployed;
+  const run = await executeBridge(conn, gate, deployed);
+  const transcript = parseLockTranscript(run.output);
+  return {
+    query,
+    bridgeClass: className,
+    bridgeRefreshed,
+    durationMs: Date.now() - started,
+    transcript,
+    outputComplete: run.outputComplete,
+    bodyBytes: run.bodyBytes
+  };
+}
+
+// src/adt/enqueue-read.ts
+init_compact();
+var LOCKS_TOOL_ID = CORE_TOOL_ID;
+var LOCKS_ACTION = "locks";
+function assertLocksArgs(args) {
+  if (typeof args !== "object" || args === null || Array.isArray(args)) {
+    throw new AbapError("BAD_INPUT", "core.locks: args must be an object.", { args });
+  }
+  const a = args;
+  const object3 = a["object"];
+  const table = a["table"];
+  const user = a["user"];
+  const max = a["max"];
+  if (object3 !== void 0 && typeof object3 !== "string") {
+    throw new AbapError("BAD_INPUT", "core.locks: object must be a string.", { object: object3 });
+  }
+  if (table !== void 0 && typeof table !== "string") {
+    throw new AbapError("BAD_INPUT", "core.locks: table must be a string.", { table });
+  }
+  if (user !== void 0 && typeof user !== "string") {
+    throw new AbapError("BAD_INPUT", "core.locks: user must be a string.", { user });
+  }
+  const hasObject = typeof object3 === "string" && object3.trim() !== "";
+  const hasTable = typeof table === "string" && table.trim() !== "";
+  const hasUser = typeof user === "string" && user.trim() !== "";
+  if (!hasObject && !hasTable && !hasUser) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "core.locks: at least one of object, table or user is required.",
+      { object: object3, table, user },
+      "Pass object, table or user (any combination) to narrow the enqueue-table read."
+    );
+  }
+  if (max !== void 0 && (typeof max !== "number" || !Number.isInteger(max) || max < 0)) {
+    throw new AbapError("BAD_INPUT", "core.locks: max must be a non-negative integer.", { max });
+  }
+}
+function fail(reason, rows) {
+  throw new AbapError("FLUID_PROTOCOL_ERROR", `core.locks ${reason}`, {
+    tool: LOCKS_TOOL_ID,
+    action: LOCKS_ACTION,
+    result: rows
+  });
+}
+var KNOWN_GT_FIELDS = ["tcode", "host", "date", "time", "wp", "sysnr", "usec"];
+function isMetaRow(r) {
+  const fieldsPresent = r["fields_present"];
+  return typeof r["object"] === "string" && typeof r["table"] === "string" && typeof r["user"] === "string" && typeof r["max"] === "number" && Array.isArray(fieldsPresent) && fieldsPresent.every((f) => typeof f === "string");
+}
+function isLockRow(r) {
+  if (typeof r["gname"] !== "string" || typeof r["gobj"] !== "string" || typeof r["garg"] !== "string" || typeof r["gmode"] !== "string" || typeof r["guname"] !== "string" || typeof r["gclient"] !== "string" || typeof r["gusr"] !== "string" || typeof r["gusrvb"] !== "string" || typeof r["guse"] !== "string" || typeof r["gusevb"] !== "string") {
+    return false;
+  }
+  for (const f of KNOWN_GT_FIELDS) {
+    if (f in r && typeof r[f] !== "string") return false;
+  }
+  return true;
+}
+function isSummaryRow(r) {
+  return typeof r["locks_read"] === "number" && typeof r["matched"] === "number" && typeof r["kept"] === "number" && typeof r["truncated"] === "boolean" && typeof r["server_time"] === "string";
+}
+function mapLockRows(rows) {
+  if (!Array.isArray(rows)) {
+    fail("returned a result that is not an array", rows);
+  }
+  if (rows.length === 0) {
+    fail("returned no rows at all (expected at least a meta row and a summary row)", rows);
+  }
+  const first = rows[0];
+  if (typeof first !== "object" || first === null || Array.isArray(first)) {
+    fail("row 0 is not an object", rows);
+  }
+  const firstR = first;
+  if (firstR["kind"] !== "meta") {
+    fail(`row 0 has kind "${String(firstR["kind"])}", expected "meta"`, rows);
+  }
+  if (!isMetaRow(firstR)) {
+    fail("row 0 is a meta row missing or mistyping one of its required fields", rows);
+  }
+  const locks = [];
+  let summary;
+  for (let i = 1; i < rows.length; i++) {
+    const row2 = rows[i];
+    if (typeof row2 !== "object" || row2 === null || Array.isArray(row2)) {
+      fail(`row ${i} is not an object`, rows);
+    }
+    const r = row2;
+    if (r["kind"] !== "lock" && r["kind"] !== "summary") {
+      fail(`row ${i} has kind "${String(r["kind"])}", expected "lock" or "summary"`, rows);
+    }
+    if (summary !== void 0) {
+      fail(`row ${i} follows the trailing summary row`, rows);
+    }
+    if (r["kind"] === "lock") {
+      if (!isLockRow(r)) {
+        fail(`row ${i} is a lock row missing or mistyping one of its required fields`, rows);
+      }
+      const lock = {
+        gname: r.gname,
+        gobj: r.gobj,
+        garg: r.garg,
+        gmode: r.gmode,
+        guname: r.guname,
+        gclient: r.gclient,
+        gusr: r.gusr,
+        gusrvb: r.gusrvb,
+        guse: r.guse,
+        gusevb: r.gusevb,
+        ...r.tcode !== void 0 ? { tcode: r.tcode } : {},
+        ...r.host !== void 0 ? { host: r.host } : {},
+        ...r.date !== void 0 ? { date: r.date } : {},
+        ...r.time !== void 0 ? { time: r.time } : {},
+        ...r.wp !== void 0 ? { wp: r.wp } : {},
+        ...r.sysnr !== void 0 ? { sysnr: r.sysnr } : {},
+        ...r.usec !== void 0 ? { usec: r.usec } : {}
+      };
+      locks.push(lock);
+      continue;
+    }
+    if (!isSummaryRow(r)) {
+      fail(`row ${i} is a summary row missing or mistyping one of its required fields`, rows);
+    }
+    if (i !== rows.length - 1) {
+      fail("returned a summary row that is not the last element", rows);
+    }
+    summary = {
+      object: firstR.object,
+      table: firstR.table,
+      user: firstR.user,
+      max: firstR.max,
+      locks_read: r.locks_read,
+      matched: r.matched,
+      kept: r.kept,
+      truncated: r.truncated,
+      server_time: r.server_time,
+      fields_present: firstR.fields_present
+    };
+  }
+  if (summary === void 0) {
+    fail("did not return a summary row", rows);
+  }
+  return { locks, summary };
+}
+function displayGarg(garg) {
+  return garg.split(GARG_WILDCARD_CHAR).join("*").trimEnd();
+}
+function parseStamp(dateStr, timeStr) {
+  if (dateStr === void 0 || timeStr === void 0) return void 0;
+  if (dateStr.length !== 8 || timeStr.length !== 6) return void 0;
+  if (dateStr === "00000000") return void 0;
+  const year = Number(dateStr.slice(0, 4));
+  const month = Number(dateStr.slice(4, 6));
+  const day = Number(dateStr.slice(6, 8));
+  const hour = Number(timeStr.slice(0, 2));
+  const minute = Number(timeStr.slice(2, 4));
+  const second = Number(timeStr.slice(4, 6));
+  if ([year, month, day, hour, minute, second].some((n) => Number.isNaN(n))) return void 0;
+  return Date.UTC(year, month - 1, day, hour, minute, second);
+}
+function formatDuration(totalSeconds) {
+  const s = Math.max(0, Math.floor(totalSeconds));
+  if (s < 60) return `${s}s`;
+  if (s < 3600) {
+    const m = Math.floor(s / 60);
+    return `${m}m ${String(s % 60).padStart(2, "0")}s`;
+  }
+  if (s < 86400) {
+    const h = Math.floor(s / 3600);
+    return `${h}h ${String(Math.floor(s % 3600 / 60)).padStart(2, "0")}m`;
+  }
+  const d = Math.floor(s / 86400);
+  return `${d}d ${String(Math.floor(s % 86400 / 3600)).padStart(2, "0")}h`;
+}
+function ageCell(dateStr, timeStr, serverTime) {
+  const lockMs = parseStamp(dateStr, timeStr);
+  const nowMs = parseStamp(serverTime.slice(0, 8), serverTime.slice(8, 14));
+  if (lockMs === void 0 || nowMs === void 0 || nowMs < lockMs) return "-";
+  return formatDuration((nowMs - lockMs) / 1e3);
+}
+var LOCK_COLUMNS_BASE = ["gname", "gobj", "user", "mode", "garg"];
+function lockRowCells(lock, fieldsPresent, serverTime) {
+  const wild = hasWildcardFill(lock.garg) ? " (wildcard)" : "";
+  const cells = {
+    gname: lock.gname,
+    gobj: lock.gobj,
+    user: lock.guname,
+    mode: lock.gmode,
+    garg: displayGarg(lock.garg) + wild
+  };
+  if (fieldsPresent.has("tcode")) cells["tcode"] = lock.tcode ?? "";
+  if (fieldsPresent.has("host")) cells["host"] = lock.host ?? "";
+  if (fieldsPresent.has("date") && fieldsPresent.has("time")) {
+    cells["age"] = ageCell(lock.date, lock.time, serverTime);
+  }
+  return cells;
+}
+function renderLocks(result, opts) {
+  const fieldsPresent = new Set(result.summary.fields_present);
+  const columns = [...LOCK_COLUMNS_BASE];
+  if (fieldsPresent.has("tcode")) columns.push("tcode");
+  if (fieldsPresent.has("host")) columns.push("host");
+  const hasAge = fieldsPresent.has("date") && fieldsPresent.has("time");
+  if (hasAge) columns.push("age");
+  const rows = result.locks.map((lock) => lockRowCells(lock, fieldsPresent, result.summary.server_time));
+  const body = textTable(rows, columns);
+  const notes = [];
+  const missing = KNOWN_GT_FIELDS.filter((f) => !fieldsPresent.has(f));
+  if (missing.length > 0) {
+    notes.push(
+      `This system's SEQG3 does not carry: ${missing.join(", ")}. Older SAP releases do not add these diagnostic fields to the lock table, so the corresponding column(s) above are omitted entirely rather than shown blank.`
+    );
+  }
+  if (hasAge && result.locks.length > 0 && result.locks.every((l) => l.date === void 0 || l.date === "" || l.date === "00000000")) {
+    notes.push(
+      "Every returned lock has an initial (00000000) enqueue date, so no age could be computed for any row \u2014 this usually means the field is present but unset on this system, not that every lock is brand new."
+    );
+  }
+  notes.push(
+    "This is a point-in-time snapshot: ENQUEUE_READ takes no lock of its own on the enqueue table, so a row shown here can already be gone, or a new one already added, by the time this text is read."
+  );
+  notes.push(
+    "core.locks is read-only: there is no release/DEQUEUE action here, and there never will be one. Releasing a lock safely requires knowing it is actually yours, which needs more than an object/table/user filter can tell you."
+  );
+  if (result.summary.truncated) {
+    notes.push(
+      `Not every matching lock was returned: ${result.summary.locks_read} lock(s) were read from the enqueue table, ${result.summary.matched} matched object/table/user, and only ${result.summary.kept} (max=${result.summary.max}) are shown below. Raise max, or narrow object/table/user, to see a different slice.`
+    );
+  }
+  notes.push(
+    "guname is the SAP user that owns a lock, not the session: two sessions of the same user hold separate locks with the same guname but different gusr/gusrvb \u2014 compare gusr/gusrvb, not guname, to tell sessions of the same user apart."
+  );
+  const built = buildResponse({
+    header: {
+      tool: "core",
+      action: "locks",
+      object: result.summary.object || "*",
+      table: result.summary.table || "*",
+      user: result.summary.user || "*",
+      max: result.summary.max,
+      read: result.summary.locks_read,
+      matched: result.summary.matched,
+      kept: result.summary.kept,
+      truncated: result.summary.truncated,
+      server_time: result.summary.server_time,
+      ...opts.ms !== void 0 ? { ms: opts.ms } : {},
+      ...opts.version !== void 0 ? { version: opts.version } : {},
+      ...opts.deployed !== void 0 ? { deployed: opts.deployed } : {}
+    },
+    sections: [{ title: "LOCKS", content: body }],
+    notes,
+    // No `pagingParam`: `core.locks` narrows via object/table/user/max, not
+    // an offset — same reasoning as `renderLogRead`'s omission for `log.read`.
+    maxChars: opts.maxChars
+  });
+  return { text: built.text, truncated: built.truncated };
+}
+function auditLocks(result, audit) {
+  audit(
+    `[abapsmith] audit: abap_fluid core.locks object=${result.summary.object || "*"} table=${result.summary.table || "*"} user=${result.summary.user || "*"} read=${result.summary.locks_read} matched=${result.summary.matched} kept=${result.summary.kept}`
+  );
+}
+function formatLockHolders(result, limit) {
+  const out = [];
+  for (const lock of result.locks) {
+    if (out.length >= limit) break;
+    const age = ageCell(lock.date, lock.time, result.summary.server_time);
+    out.push({
+      user: lock.guname,
+      ...lock.tcode !== void 0 ? { tcode: lock.tcode } : {},
+      ...age !== "-" ? { age } : {},
+      gname: lock.gname,
+      garg: displayGarg(lock.garg)
+    });
+  }
+  return out;
+}
+
+// src/adt/locked-holders.ts
+var LOCK_HOLDER_LIMIT = 5;
+async function enrichLockedError(e, objectName, callerTool, lookup, warn) {
+  if (!isAbapError(e) || e.code !== "LOCKED") return e;
+  const blockingUser = e.details.blockingUser;
+  if (typeof blockingUser === "string" && blockingUser.trim() !== "") return e;
+  const name = objectName?.trim();
+  if (!lookup || !name) return e;
+  try {
+    const argPattern = `*${name.toUpperCase()}*`;
+    const result = await lookup(argPattern, callerTool);
+    if (!result || result.locks.length === 0) return e;
+    const holders = formatLockHolders(result, LOCK_HOLDER_LIMIT);
+    if (holders.length === 0) return e;
+    const details = { ...e.details, lock_holders: holders };
+    if (result.locks.length > LOCK_HOLDER_LIMIT) {
+      details.lock_holders_total = result.summary.matched;
+    }
+    return new AbapError(e.code, e.message, details, e.hint, {
+      // Carries the original refusal's classified retryable through unchanged, so attaching holder rows cannot flip terminal into retryable or back.
+      retryable: e.retryable
+    });
+  } catch (lookupError) {
+    warn?.(
+      `Lock holder lookup failed (${describeLookupError(lookupError)}); returning the LOCKED refusal unchanged.`
+    );
+    return e;
+  }
+}
+function describeLookupError(e) {
+  if (e instanceof Error) return e.message;
+  return String(e);
+}
+
 // src/tools/activate.ts
+init_types();
 init_compact();
 init_safety();
 init_truncate();
@@ -115001,7 +117789,7 @@ function nonEmpty(v) {
   const t = (v ?? "").trim();
   return t === "" ? void 0 : t;
 }
-function flag(v) {
+function flag2(v) {
   const t = (v ?? "").trim().toUpperCase();
   return t === "X" || t === "A" || t === "1";
 }
@@ -115128,16 +117916,16 @@ async function readSearchHelpImpl(conn, name, language, opts) {
       "A DD31S row with SUBSHLP = SHLPNAME (this search help pointing at its own interface) was found and left out of INCLUDES, INCLUDED BY and includeCount \u2014 DDIC records an elementary search help's own interface that way, it is not an include relationship. Measured live on A4H 2026-09-15 (ZSH_I83_EL) and confirmed as DDIC's general pattern via DD31S for five standard SAP elementary search helps (/UI2/GROUPS_SH, /AIF/MESSAGE_CLID_SHLP, /UI5/PURPOSE, /BA1/F4_FX_RATETYPE, /AIF/FILEDIALOG)."
     );
   }
-  const elementary = flag(headerRow[fld2("searchHelpHeader", "elementary")]);
+  const elementary = flag2(headerRow[fld2("searchHelpHeader", "elementary")]);
   const description = nonEmpty(text5.rs.records[0]?.[fld2("searchHelpText", "text")]);
   const paramLines = params.rs.records.map((r) => {
-    const imp = flag(r[fld2("searchHelpParam", "importFlag")]) ? "IMPORT" : "";
-    const exp = flag(r[fld2("searchHelpParam", "exportFlag")]) ? "EXPORT" : "";
+    const imp = flag2(r[fld2("searchHelpParam", "importFlag")]) ? "IMPORT" : "";
+    const exp = flag2(r[fld2("searchHelpParam", "exportFlag")]) ? "EXPORT" : "";
     const dir = [imp, exp].filter(Boolean).join("/") || "-";
     return `${r[fld2("searchHelpParam", "field")] ?? ""} : ${r[fld2("searchHelpParam", "dataElement")] ?? ""} (${dir}) POS ${r[fld2("searchHelpParam", "position")] ?? ""}`;
   });
   const includeLines = includesRs.records.map((r) => {
-    const hidden = flag(r[fld2("searchHelpInclude", "hidden")]) ? " HIDDEN" : "";
+    const hidden = flag2(r[fld2("searchHelpInclude", "hidden")]) ? " HIDDEN" : "";
     return `${r[fld2("searchHelpInclude", "includedHelp")] ?? ""} POS ${r[fld2("searchHelpInclude", "position")] ?? ""}${hidden}`;
   });
   const unknownValueDirections = /* @__PURE__ */ new Set();
@@ -115250,8 +118038,8 @@ async function readClassicViewImpl(conn, name, language) {
     return `${r[fld2("viewBaseTable", "table")] ?? ""}${fkText}`;
   });
   const fieldLines = fields.rs.records.map((r) => {
-    const key = flag(r[fld2("viewField", "keyFlag")]) ? " KEY" : "";
-    const ro = flag(r[fld2("viewField", "readOnly")]) ? " READONLY" : "";
+    const key = flag2(r[fld2("viewField", "keyFlag")]) ? " KEY" : "";
+    const ro = flag2(r[fld2("viewField", "readOnly")]) ? " READONLY" : "";
     return `${r[fld2("viewField", "viewField")] ?? ""} : ${r[fld2("viewField", "dataElement")] ?? ""} (${r[fld2("viewField", "table")] ?? ""}.${r[fld2("viewField", "field")] ?? ""})${key}${ro}`;
   });
   const ddl = `VIEW ${name}.
@@ -115261,7 +118049,7 @@ async function readClassicViewImpl(conn, name, language) {
     line("ROOT TABLE", nonEmpty(headerRow[fld2("viewHeader", "rootTable")])),
     line("AGGREGATE TYPE", decodeCode(AGGTYPE_DECODE, headerRow[fld2("viewHeader", "aggregateType")])),
     line("VIEW CLASS", decodeCode(VIEWCLASS_DECODE, headerRow[fld2("viewHeader", "viewClass")])),
-    line("READ ONLY", flag(headerRow[fld2("viewHeader", "readOnly")])),
+    line("READ ONLY", flag2(headerRow[fld2("viewHeader", "readOnly")])),
     line("VIEW GRANT", decodeCode(VIEWGRANT_DECODE, headerRow[fld2("viewHeader", "viewGrant")])),
     line("APPLICATION CLASS", nonEmpty(headerRow[fld2("viewHeader", "applicationClass")])),
     line("MASTER LANGUAGE", nonEmpty(headerRow[fld2("viewHeader", "masterLanguage")])),
@@ -119129,6 +121917,7 @@ function registerWriteTools(mcp, deps) {
       annotations: { readOnlyHint: false, destructiveHint: true }
     },
     async (args) => {
+      let lockedObject;
       try {
         const a = args;
         if (a.objects !== void 0) {
@@ -119174,6 +121963,7 @@ function registerWriteTools(mcp, deps) {
           );
         }
         const object3 = a.object;
+        lockedObject = object3;
         const pf = preflight({ object: object3, type: a.type, package: a.package, base_table: a.base_table });
         deps.safety.assert(a.mode === "delete" ? "delete" : "write", pf, {
           phase: "preflight",
@@ -119196,7 +121986,7 @@ function registerWriteTools(mcp, deps) {
         );
         return ok(res.text);
       } catch (e) {
-        return deps.errorResult(e);
+        return deps.errorResult(await enrichLockedError(e, lockedObject, "abap_write", deps.lockHolders, deps.warn));
       }
     }
   );
@@ -119845,6 +122635,7 @@ function registerActivateTools(mcp, deps) {
       annotations: { readOnlyHint: false, destructiveHint: true }
     },
     async (args) => {
+      let lockedObject;
       try {
         const a = args;
         const mode = a.mode ?? "activate";
@@ -119915,6 +122706,7 @@ function registerActivateTools(mcp, deps) {
             return ok2(res3.text);
           }
           const object4 = a.object;
+          lockedObject = object4;
           deps.safety.assert("write", preflight({ object: object4, type: a.type }), {
             phase: "preflight",
             corr: { kind: "unresolved" }
@@ -119941,6 +122733,7 @@ function registerActivateTools(mcp, deps) {
           );
         }
         const object3 = a.object;
+        lockedObject = object3;
         if (mode === "activate") {
           const pf = preflight({ object: object3, type: a.type });
           deps.safety.assert("activate", pf, {
@@ -119956,7 +122749,7 @@ function registerActivateTools(mcp, deps) {
         const res = mode === "activate" ? await deps.pool.withWrite("abap_activate", writeGateKey(object3, a.type), run) : await deps.pool.withRead("abap_activate", run);
         return ok2(res.text);
       } catch (e) {
-        return deps.errorResult(e);
+        return deps.errorResult(await enrichLockedError(e, lockedObject, "abap_activate", deps.lockHolders, deps.warn));
       }
     }
   );
@@ -120011,7 +122804,7 @@ function warnIfDerivedIdentity(id, warn) {
 // src/debug/arm-lock.ts
 init_errors();
 init_state_dir();
-import { createHash as createHash8 } from "node:crypto";
+import { createHash as createHash9 } from "node:crypto";
 import * as path7 from "node:path";
 var NoopDebugArmLock = class {
   async acquire() {
@@ -120045,7 +122838,7 @@ function debugArmLockKey(cfg) {
 }
 function debugArmLockPath(stateDir, cfg, lane = 0) {
   const hashInput = lane === 0 ? debugArmLockKey(cfg) : `${debugArmLockKey(cfg)}|lane${lane}`;
-  const hash2 = createHash8("sha256").update(hashInput).digest("hex").slice(0, LOCK_HASH_HEX_LEN2);
+  const hash2 = createHash9("sha256").update(hashInput).digest("hex").slice(0, LOCK_HASH_HEX_LEN2);
   return path7.join(stateDir, "locks", "debug", `${hash2}.lock`);
 }
 function toDebugLockBusyError(e, key, lockPath) {
@@ -120175,7 +122968,7 @@ init_errors();
 // src/adt/enhancement-xml.ts
 init_errors();
 init_fxp();
-var xmlParser = new XMLParser({
+var xmlParser2 = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: "@_",
   removeNSPrefix: true,
@@ -120208,7 +123001,7 @@ function xbool(n, name) {
   if (v === void 0) return void 0;
   return v === "true";
 }
-function fail(message, details = {}) {
+function fail2(message, details = {}) {
   throw new AbapError(
     "BAD_INPUT",
     `enhancement XML: ${message}`,
@@ -120219,9 +123012,9 @@ function fail(message, details = {}) {
 function parseXml2(xmlText2, context) {
   let parsed;
   try {
-    parsed = xmlParser.parse(xmlText2) ?? {};
+    parsed = xmlParser2.parse(xmlText2) ?? {};
   } catch (e) {
-    fail(`could not parse ${context} XML: ${e instanceof Error ? e.message : String(e)}`);
+    fail2(`could not parse ${context} XML: ${e instanceof Error ? e.message : String(e)}`);
   }
   return parsed;
 }
@@ -120304,7 +123097,7 @@ function parseBadiImplementationEntry(n) {
 function parseBadiImplementation(xmlText2) {
   const parsed = parseXml2(xmlText2, "enhoxh (BAdI implementation)");
   const root = xnode(parsed.objectData);
-  if (!root) fail("not an ENHO/XH BAdI implementation document (no <enho:objectData> root element)");
+  if (!root) fail2("not an ENHO/XH BAdI implementation document (no <enho:objectData> root element)");
   const common = parseCommon(root);
   const contentCommon = xnode(root.contentCommon);
   const contentSpecific = xnode(root.contentSpecific);
@@ -120352,7 +123145,7 @@ function parseHookImplementation(n) {
 function parseSourceCodePlugin(xmlText2) {
   const parsed = parseXml2(xmlText2, "enhoxhh (source-code plugin)");
   const root = xnode(parsed.enhancement);
-  if (!root) fail("not an ENHO/XHH source-code plugin document (no <enho:enhancement> root element)");
+  if (!root) fail2("not an ENHO/XHH source-code plugin document (no <enho:enhancement> root element)");
   const common = parseCommon(root);
   const contentCommon = xnode(root.contentCommon);
   const switchNode = xnode(contentCommon?.switch);
@@ -120401,7 +123194,7 @@ function parseBadiDefinitionEntry(n) {
 function parseEnhancementSpot(xmlText2) {
   const parsed = parseXml2(xmlText2, "enhsxs (enhancement spot)");
   const root = xnode(parsed.objectData);
-  if (!root) fail("not an ENHS/XS enhancement spot document (no <enhs:objectData> root element)");
+  if (!root) fail2("not an ENHS/XS enhancement spot document (no <enhs:objectData> root element)");
   const common = parseCommon(root);
   const contentCommon = xnode(root.contentCommon);
   const contentSpecific = xnode(root.contentSpecific);
@@ -120422,7 +123215,7 @@ var ROOT_TAG_RE2 = /^(\s*<\?xml[^>]*\?>\s*)(<[A-Za-z_][\w.-]*:[A-Za-z_][\w.-]*\b
 function patchEnhancementRootAttribute(xmlText2, attribute, value) {
   const m = ROOT_TAG_RE2.exec(xmlText2);
   if (!m) {
-    fail("could not locate a root element to patch (no recognisable opening tag at the start of the document)", {
+    fail2("could not locate a root element to patch (no recognisable opening tag at the start of the document)", {
       attribute
     });
     throw new Error("unreachable \u2014 fail() always throws");
@@ -120434,7 +123227,7 @@ function patchEnhancementRootAttribute(xmlText2, attribute, value) {
   const selfClose = m[4];
   const localName2 = tagOpen.replace(/^<[A-Za-z_][\w.-]*:/, "<");
   if (localName2 !== "<objectData" && localName2 !== "<enhancement") {
-    fail(`unrecognised enhancement document root element "${tagOpen.slice(1)}" \u2014 refusing to patch it`, {
+    fail2(`unrecognised enhancement document root element "${tagOpen.slice(1)}" \u2014 refusing to patch it`, {
       attribute,
       rootTag: tagOpen.slice(1)
     });
@@ -120479,7 +123272,7 @@ function patchBadiImplementationActive(xmlText2, implName, active) {
     }
   }
   if (!found) {
-    fail(`could not locate a <enho:badiImplementation> entry named "${implName}" to patch`, { implName });
+    fail2(`could not locate a <enho:badiImplementation> entry named "${implName}" to patch`, { implName });
     throw new Error("unreachable \u2014 fail() always throws");
   }
   const valueStr = active ? "true" : "false";
@@ -120604,7 +123397,7 @@ async function runAuthtrace(deps, action, args) {
   );
   return res.result;
 }
-function fail2(action, reason, result) {
+function fail3(action, reason, result) {
   throw new AbapError(
     "FLUID_PROTOCOL_ERROR",
     `authtrace.${action} ${reason}`,
@@ -120613,28 +123406,28 @@ function fail2(action, reason, result) {
 }
 function singleRow(action, result) {
   if (!Array.isArray(result)) {
-    fail2(action, "returned a result that is not an array", result);
+    fail3(action, "returned a result that is not an array", result);
   }
   if (result.length !== 1) {
-    fail2(action, `returned ${result.length} rows, expected exactly 1`, result);
+    fail3(action, `returned ${result.length} rows, expected exactly 1`, result);
   }
   const row2 = result[0];
   if (typeof row2 !== "object" || row2 === null || Array.isArray(row2)) {
-    fail2(action, "row 0 is not an object", result);
+    fail3(action, "row 0 is not an object", result);
   }
   return row2;
 }
 function reqBool(action, row2, key, result) {
   const v = row2[key];
   if (typeof v !== "boolean") {
-    fail2(action, `row 0.${key} is missing or not a boolean`, result);
+    fail3(action, `row 0.${key} is missing or not a boolean`, result);
   }
   return v;
 }
 function reqString(action, row2, key, result) {
   const v = row2[key];
   if (typeof v !== "string") {
-    fail2(action, `row 0.${key} is missing or not a string`, result);
+    fail3(action, `row 0.${key} is missing or not a string`, result);
   }
   return v;
 }
@@ -120659,19 +123452,19 @@ function mapOffRow(result) {
 }
 function mapCheckRows(action, result, expectedOrigin) {
   if (!Array.isArray(result)) {
-    fail2(action, "returned a result that is not an array", result);
+    fail3(action, "returned a result that is not an array", result);
   }
   return result.map((row2, i) => {
     if (typeof row2 !== "object" || row2 === null || Array.isArray(row2)) {
-      fail2(action, `row ${i} is not an object`, result);
+      fail3(action, `row ${i} is not an object`, result);
     }
     const r = row2;
     const origin = r["origin"];
     if (origin !== "trace" && origin !== "su53") {
-      fail2(action, `row ${i}.origin is "${String(origin)}", expected "trace" or "su53"`, result);
+      fail3(action, `row ${i}.origin is "${String(origin)}", expected "trace" or "su53"`, result);
     }
     if (origin !== expectedOrigin) {
-      fail2(action, `row ${i}.origin is "${origin}", expected "${expectedOrigin}" for action "${action}"`, result);
+      fail3(action, `row ${i}.origin is "${origin}", expected "${expectedOrigin}" for action "${action}"`, result);
     }
     const check2 = {
       origin,
@@ -120835,6 +123628,487 @@ function authTraceOf(e) {
 
 // src/tools/run.ts
 init_compact();
+init_datapreview();
+init_datapreview_filter();
+
+// src/snapshot-run.ts
+init_errors();
+init_datapreview_filter();
+
+// src/snapshot-store.ts
+init_errors();
+init_state_dir();
+import { createHash as createHash10, randomBytes as randomBytes6 } from "node:crypto";
+import { readdirSync, readFileSync as readFileSync6, unlinkSync as unlinkSync3 } from "node:fs";
+import * as path8 from "node:path";
+function newSnapshotId() {
+  return `snap_${randomBytes6(16).toString("hex")}`;
+}
+var SNAPSHOT_ID_RE = /^snap_[0-9a-f]{32}$/;
+function assertValidSnapshotId(id) {
+  if (typeof id !== "string" || !SNAPSHOT_ID_RE.test(id)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `Not a valid snapshot id: ${JSON.stringify(id)}`,
+      { id },
+      "Snapshot ids look like snap_ followed by 32 hex characters \u2014 exactly what newSnapshotId() returns."
+    );
+  }
+}
+function snapshotsRoot(stateDir) {
+  return path8.join(stateDir ?? resolveStateDir(), "snapshots");
+}
+function hashSystemKey(systemKey2) {
+  return createHash10("sha256").update(systemKey2, "utf8").digest("hex").slice(0, 32);
+}
+function systemDirFor(systemKey2, stateDir) {
+  return path8.join(snapshotsRoot(stateDir), hashSystemKey(systemKey2));
+}
+function snapshotFilePath(dir, id) {
+  return path8.join(dir, `${id}.json`);
+}
+var SNAPSHOT_FILE_RE = /^(snap_[0-9a-f]{32})\.json$/;
+function withSnapshotDirLock(dir, fn) {
+  const lockPath = `${dir}.lock`;
+  try {
+    return withFileLockSync(lockPath, fn, { waitMs: resolveLockWaitMs() });
+  } catch (e) {
+    if (isFileLockAcquisitionFailure(e, lockPath)) throw e;
+    if (isAbapError(e)) throw e;
+    throw new AbapError(
+      "JOURNAL_IO",
+      `Could not access the snapshot store at ${dir}: ${e.message}.`,
+      { dir, cause: e.code },
+      "Check that ABAP_STATE_DIR is writable, or point ABAP_STATE_DIR at a directory you own."
+    );
+  }
+}
+function isStoredSnapshotShape(v) {
+  if (typeof v !== "object" || v === null) return false;
+  const r = v;
+  return r.version === 1 && typeof r.id === "string" && typeof r.systemKey === "string" && typeof r.createdAt === "string" && typeof r.expiresAt === "string" && typeof r.ttlHours === "number" && typeof r.selection === "object" && r.selection !== null && Array.isArray(r.columns) && Array.isArray(r.rows) && typeof r.moreRowsExist === "boolean" && Array.isArray(r.keyColumns) && typeof r.keyComplete === "boolean";
+}
+function parseSnapshotFile(filePath) {
+  let raw;
+  try {
+    raw = readFileSync6(filePath, "utf8");
+  } catch (e) {
+    if (e.code === "ENOENT") return { ok: false };
+    throw e;
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return { ok: false };
+  }
+  if (!isStoredSnapshotShape(parsed)) return { ok: false };
+  return { ok: true, snap: parsed };
+}
+function isExpiredAt(snap, now) {
+  const t = Date.parse(snap.expiresAt);
+  return !Number.isFinite(t) || t <= now.getTime();
+}
+function pruneLocked(dir, now) {
+  let entries;
+  try {
+    entries = readdirSync(dir);
+  } catch (e) {
+    if (e.code === "ENOENT") return 0;
+    throw e;
+  }
+  let removed = 0;
+  for (const name of entries) {
+    if (!SNAPSHOT_FILE_RE.test(name)) continue;
+    const filePath = path8.join(dir, name);
+    const parsed = parseSnapshotFile(filePath);
+    if (!parsed.ok || isExpiredAt(parsed.snap, now)) {
+      try {
+        unlinkSync3(filePath);
+        removed += 1;
+      } catch (e) {
+        if (e.code !== "ENOENT") throw e;
+      }
+    }
+  }
+  return removed;
+}
+function pruneSnapshots(systemKey2, opts = {}) {
+  const dir = systemDirFor(systemKey2, opts.stateDir);
+  const now = opts.now ?? /* @__PURE__ */ new Date();
+  return withSnapshotDirLock(dir, () => pruneLocked(dir, now));
+}
+function writeSnapshot(snap, opts = {}) {
+  assertValidSnapshotId(snap.id);
+  pruneSnapshots(snap.systemKey, opts);
+  const dir = systemDirFor(snap.systemKey, opts.stateDir);
+  withSnapshotDirLock(dir, () => {
+    const filePath = snapshotFilePath(dir, snap.id);
+    atomicWriteFileSync(filePath, JSON.stringify(snap));
+    hardenFileModeSync(filePath);
+  });
+}
+function readSnapshot(id, systemKey2, opts = {}) {
+  assertValidSnapshotId(id);
+  const dir = systemDirFor(systemKey2, opts.stateDir);
+  const filePath = snapshotFilePath(dir, id);
+  const now = opts.now ?? /* @__PURE__ */ new Date();
+  const parsed = parseSnapshotFile(filePath);
+  if (!parsed.ok) throw snapshotNotFound(id);
+  if (parsed.snap.systemKey !== systemKey2) {
+    throw snapshotNotFound(id);
+  }
+  if (isExpiredAt(parsed.snap, now)) {
+    withSnapshotDirLock(dir, () => {
+      try {
+        unlinkSync3(filePath);
+      } catch (e) {
+        if (e.code !== "ENOENT") throw e;
+      }
+    });
+    throw snapshotExpired(parsed.snap);
+  }
+  pruneSnapshots(systemKey2, opts);
+  return parsed.snap;
+}
+function snapshotNotFound(id) {
+  return new AbapError(
+    "NOT_FOUND",
+    `No stored data snapshot ${id}.`,
+    { id },
+    "The snapshot id is wrong, or was never taken against this connection \u2014 snapshots are scoped to one system and are never visible from another."
+  );
+}
+function snapshotExpired(snap) {
+  return new AbapError(
+    "SNAPSHOT_EXPIRED",
+    `Snapshot ${snap.id} was taken at ${snap.createdAt} and expired at ${snap.expiresAt} (TTL ${snap.ttlHours}h); it has been deleted.`,
+    { id: snap.id, createdAt: snap.createdAt, expiresAt: snap.expiresAt, ttlHours: snap.ttlHours },
+    "Take a fresh snapshot and diff against that instead \u2014 a deleted snapshot cannot be recovered."
+  );
+}
+function indexByName(columns) {
+  const index = /* @__PURE__ */ new Map();
+  columns.forEach((c, i) => index.set(c.name, i));
+  return index;
+}
+function groupByKey(rows, keyOf) {
+  const groups = /* @__PURE__ */ new Map();
+  for (const row2 of rows) {
+    const key = keyOf(row2);
+    const list3 = groups.get(key);
+    if (list3) list3.push(row2);
+    else groups.set(key, [row2]);
+  }
+  return groups;
+}
+function isFullColumnSet(matchOn, names) {
+  return matchOn.length === names.size && matchOn.every((c) => names.has(c));
+}
+function diffSnapshotRows(before, after, matchOn) {
+  const beforeIndex = indexByName(before.columns);
+  const afterIndex = indexByName(after.columns);
+  for (const col of matchOn) {
+    if (!beforeIndex.has(col) || !afterIndex.has(col)) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `Cannot match snapshot rows on "${col}": it is not present in both snapshots being diffed.`,
+        { column: col, matchOn },
+        "matchOn must name columns present in BOTH the before and after snapshot."
+      );
+    }
+  }
+  const beforeNames = new Set(before.columns.map((c) => c.name));
+  const afterNames = new Set(after.columns.map((c) => c.name));
+  const columnsAddedInAfter = [...afterNames].filter((n) => !beforeNames.has(n));
+  const columnsRemovedInAfter = [...beforeNames].filter((n) => !afterNames.has(n));
+  const allColumnNames = [...before.columns.map((c) => c.name), ...columnsAddedInAfter];
+  const matchedOnFullKey = !isFullColumnSet(matchOn, beforeNames) && !isFullColumnSet(matchOn, afterNames);
+  const keyOf = (row2, index) => JSON.stringify(matchOn.map((c) => row2[index.get(c)] ?? ""));
+  const beforeGroups = groupByKey(before.rows, (r) => keyOf(r, beforeIndex));
+  const afterGroups = groupByKey(after.rows, (r) => keyOf(r, afterIndex));
+  const inserted = [];
+  const deleted = [];
+  const changed = [];
+  const allKeys = /* @__PURE__ */ new Set([...beforeGroups.keys(), ...afterGroups.keys()]);
+  for (const key of allKeys) {
+    const bRows = beforeGroups.get(key) ?? [];
+    const aRows = afterGroups.get(key) ?? [];
+    const pairCount = Math.min(bRows.length, aRows.length);
+    for (let i = 0; i < pairCount; i++) {
+      const b = bRows[i];
+      const a = aRows[i];
+      const changes = [];
+      for (const name of allColumnNames) {
+        const bi = beforeIndex.get(name);
+        const ai = afterIndex.get(name);
+        const oldVal = bi === void 0 ? "" : b[bi] ?? "";
+        const newVal = ai === void 0 ? "" : a[ai] ?? "";
+        if (bi === void 0 || ai === void 0 || oldVal !== newVal) {
+          changes.push({ column: name, old: oldVal, new: newVal });
+        }
+      }
+      if (changes.length > 0) {
+        changed.push({ key: JSON.parse(key), changes });
+      }
+    }
+    for (let i = pairCount; i < bRows.length; i++) deleted.push(bRows[i]);
+    for (let i = pairCount; i < aRows.length; i++) inserted.push(aRows[i]);
+  }
+  return {
+    inserted,
+    deleted,
+    changed,
+    matchedOn: [...matchOn],
+    matchedOnFullKey,
+    columnsAddedInAfter,
+    columnsRemovedInAfter
+  };
+}
+
+// src/snapshot-run.ts
+init_compact();
+function hasProjection(filter) {
+  return filter?.columns !== void 0 && filter.columns.length > 0;
+}
+async function takeSnapshot(deps, opts) {
+  deps.assertDataPreview(opts.table);
+  const effective = Math.min(opts.maxRowsRequested, deps.maxRows);
+  const requestedTtl = opts.ttlHours ?? deps.ttlCeilingHours;
+  const ttlHours = Math.min(requestedTtl, deps.ttlCeilingHours);
+  const ttlClamped = ttlHours < requestedTtl;
+  const result = await deps.read(opts.table, effective, opts.filter);
+  const now = deps.now?.() ?? /* @__PURE__ */ new Date();
+  const createdAt = now.toISOString();
+  const expiresAt = new Date(now.getTime() + ttlHours * 36e5).toISOString();
+  const columns = result.columns.map((c) => ({ name: c.name, key: c.key === true }));
+  let keyColumns;
+  let keyComplete;
+  if (!hasProjection(opts.filter)) {
+    keyColumns = columns.filter((c) => c.key).map((c) => c.name);
+    keyComplete = keyColumns.length > 0;
+  } else {
+    keyColumns = columns.filter((c) => c.key).map((c) => c.name);
+    keyComplete = false;
+  }
+  const snapshot = {
+    version: 1,
+    id: newSnapshotId(),
+    systemKey: deps.systemKey,
+    createdAt,
+    expiresAt,
+    ttlHours,
+    selection: {
+      table: result.table,
+      max_rows: effective,
+      ...opts.filter !== void 0 && !isEmptyFilter(opts.filter) ? { filter: opts.filter } : {}
+    },
+    columns,
+    rows: result.rows,
+    moreRowsExist: result.moreRowsExist,
+    keyColumns,
+    keyComplete
+  };
+  writeSnapshot(snapshot, { stateDir: deps.stateDir, now });
+  return { snapshot, result, ttlClamped };
+}
+async function diffSnapshot(deps, id) {
+  const before = readSnapshot(id, deps.systemKey, { stateDir: deps.stateDir, now: deps.now?.() });
+  deps.assertDataPreview(before.selection.table);
+  const after = await deps.read(before.selection.table, before.selection.max_rows, before.selection.filter);
+  let matchOn;
+  if (before.keyComplete) {
+    matchOn = before.keyColumns;
+  } else {
+    const afterNames = new Set(after.columns.map((c) => c.name));
+    matchOn = before.columns.map((c) => c.name).filter((name) => afterNames.has(name));
+    if (matchOn.length === 0) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `Snapshot ${before.id} of ${before.selection.table} has no complete key, and the current read shares no column name with it, so the two reads cannot be compared.`,
+        { snapshotId: before.id, table: before.selection.table },
+        "Take a fresh snapshot of the entity in its current shape and diff against that instead."
+      );
+    }
+  }
+  const afterColumns = after.columns.map((c) => ({ name: c.name, key: c.key === true }));
+  const diff = diffSnapshotRows(before, { columns: afterColumns, rows: after.rows }, matchOn);
+  return {
+    before,
+    after,
+    diff,
+    moreRowsExistBefore: before.moreRowsExist,
+    moreRowsExistAfter: after.moreRowsExist
+  };
+}
+function uniqueColumnKeys(names) {
+  const seen = /* @__PURE__ */ new Map();
+  return names.map((raw, i) => {
+    const base = raw === "" ? `col${i + 1}` : raw;
+    const n = seen.get(base) ?? 0;
+    seen.set(base, n + 1);
+    return n === 0 ? base : `${base}#${n + 1}`;
+  });
+}
+function rowsTable(names, rows) {
+  if (rows.length === 0) return "";
+  const keys = uniqueColumnKeys(names);
+  const records = rows.map((cells) => {
+    const rec = {};
+    keys.forEach((k, i) => {
+      rec[k] = cells[i] ?? "";
+    });
+    return rec;
+  });
+  return textTable(records, keys);
+}
+var CHANGED_ROW_COLUMNS = ["key", "column", "old", "new"];
+function changedRowsTable(changed) {
+  const rows = [];
+  for (const row2 of changed) {
+    const key = row2.key.join("/");
+    for (const c of row2.changes) {
+      rows.push({ key, column: c.column, old: c.old, new: c.new });
+    }
+  }
+  return textTable(rows, [...CHANGED_ROW_COLUMNS]);
+}
+function renderWhereCondition(c) {
+  if (c.op === "is_null") return `${c.field} is_null`;
+  if (Array.isArray(c.value)) return `${c.field} ${c.op} (${c.value.join(", ")})`;
+  return `${c.field} ${c.op} ${String(c.value)}`;
+}
+function renderSnapshot(snapshot, result, opts) {
+  const notes = [
+    "Rows were stored for a later `diff`, not shown here \u2014 a snapshot response prints no business rows."
+  ];
+  if (snapshot.selection.max_rows < opts.maxRowsRequested) {
+    notes.push(
+      `CLAMPED: max_rows:${opts.maxRowsRequested} exceeds this server's ${snapshot.selection.max_rows}-row ceiling (ABAP_DATA_PREVIEW_MAX_ROWS), so only ${snapshot.selection.max_rows} row(s) were requested from ${snapshot.selection.table}. The rows beyond that were NOT fetched and are NOT stored. The ceiling is an operator setting \u2014 no argument raises it.`
+    );
+  }
+  if (result.moreRowsExist) {
+    notes.push(
+      `INCOMPLETE: ${snapshot.selection.table} holds more rows than the ${snapshot.rows.length} stored. This snapshot covers only the first N rows in the table's own order, NOT a sample and NOT the whole table \u2014 a later \`diff\` against this snapshot cannot see inserts or deletes beyond that ceiling and will not invent them.`
+    );
+  }
+  if (opts.ttlClamped) {
+    notes.push(
+      `TTL CLAMPED: ttl_hours:${opts.ttlRequested} exceeds this server's ${opts.ttlCeiling}-hour ceiling (ABAP_DATA_SNAPSHOT_TTL_HOURS), so this snapshot expires at ${snapshot.expiresAt} instead. The ceiling is an operator setting \u2014 no argument raises it.`
+    );
+  }
+  if (!snapshot.keyComplete) {
+    notes.push(
+      "INCOMPLETE KEY: " + (snapshot.keyColumns.length > 0 ? `${snapshot.selection.table}'s DDIC key was not fully covered by what was read (columns: ${snapshot.keyColumns.join(", ")}).` : `${snapshot.selection.table} reported no key column at all.`) + " A later `diff` will match on every selected column instead, so an edited row will surface as one deleted row plus one inserted row, not as a change."
+    );
+  }
+  const filter = snapshot.selection.filter;
+  const selectionLines = [`table: ${snapshot.selection.table}`, `max_rows: ${snapshot.selection.max_rows}`];
+  if (filter?.columns?.length) selectionLines.push(`columns: ${filter.columns.join(", ")}`);
+  if (filter?.where?.length) {
+    selectionLines.push(`where: ${filter.where.map(renderWhereCondition).join(" AND ")}`);
+  }
+  if (filter?.orderBy?.length) {
+    selectionLines.push(`order_by: ${filter.orderBy.map((o) => `${o.field} ${o.direction ?? "asc"}`).join(", ")}`);
+  }
+  if (filter?.distinct) selectionLines.push("distinct: true");
+  return buildResponse({
+    header: {
+      snapshot_id: snapshot.id,
+      table: snapshot.selection.table,
+      columns: snapshot.columns.length,
+      rows_stored: snapshot.rows.length,
+      rows_requested: opts.maxRowsRequested,
+      more_rows_exist: result.moreRowsExist,
+      expires_at: snapshot.expiresAt,
+      ttl_hours: snapshot.ttlHours
+    },
+    sections: [
+      { title: "SELECTION", content: selectionLines.join("\n") },
+      {
+        title: "KEY",
+        content: snapshot.keyComplete ? `key columns (complete): ${snapshot.keyColumns.join(", ")}` : snapshot.keyColumns.length > 0 ? `key columns (incomplete): ${snapshot.keyColumns.join(", ")}` : "no key columns reported"
+      }
+    ],
+    notes,
+    maxChars: opts.maxChars
+  });
+}
+function renderDiff(out, maxChars) {
+  const { before, after, diff } = out;
+  const notes = [];
+  if (!diff.matchedOnFullKey) {
+    notes.push(
+      "MATCHED ON SELECTED COLUMNS, NOT A KEY: the snapshot did not have a complete DDIC key, so rows were matched on every selected column instead. An edited row therefore shows up as one DELETED row plus one INSERTED row rather than a CHANGED row \u2014 a structural limit of matching on full-row identity, not a failure."
+    );
+  }
+  if (out.moreRowsExistBefore || out.moreRowsExistAfter) {
+    notes.push(
+      "Both reads stopped at the same row ceiling, so rows past it were never compared on either side and are not reported here as inserted or deleted."
+    );
+  }
+  if (diff.columnsAddedInAfter.length > 0) {
+    notes.push(
+      `COLUMNS ADDED: ${diff.columnsAddedInAfter.join(", ")} are present in the new read but were not in the snapshot, so every matched row shows them as a change \u2014 there is no snapshot-side value to compare against.`
+    );
+  }
+  if (diff.columnsRemovedInAfter.length > 0) {
+    notes.push(
+      `COLUMNS REMOVED: ${diff.columnsRemovedInAfter.join(", ")} were in the snapshot but are no longer in the new read, so every matched row shows them as a change \u2014 there is no new-side value to compare against.`
+    );
+  }
+  if (diff.inserted.length === 0 && diff.deleted.length === 0 && diff.changed.length === 0) {
+    notes.push(
+      'No difference was found within the compared window \u2014 a real "nothing changed" for the rows that were compared. It says nothing about rows beyond the ceiling, if the note above applies.'
+    );
+  }
+  return buildResponse({
+    header: {
+      snapshot_id: before.id,
+      table: before.selection.table,
+      taken_at: before.createdAt,
+      inserted: diff.inserted.length,
+      deleted: diff.deleted.length,
+      changed: diff.changed.length,
+      matched_on_full_key: diff.matchedOnFullKey
+    },
+    sections: [
+      { title: "MATCHED ON", content: diff.matchedOn.join(", ") },
+      { title: "INSERTED", content: rowsTable(after.columns.map((c) => c.name), diff.inserted) },
+      { title: "DELETED", content: rowsTable(before.columns.map((c) => c.name), diff.deleted) },
+      { title: "CHANGED", content: changedRowsTable(diff.changed) }
+    ],
+    notes,
+    maxChars
+  });
+}
+function renderDataChangesSection(results) {
+  const blocks = [];
+  for (const r of results) {
+    if ("refused" in r.outcome) {
+      blocks.push(`snapshot ${r.id}: refused \u2014 ${r.outcome.refused}`);
+      continue;
+    }
+    const out = r.outcome;
+    const line2 = `snapshot ${r.id} on ${out.before.selection.table}: +${out.diff.inserted.length} -${out.diff.deleted.length} ~${out.diff.changed.length}`;
+    const table = changedRowsTable(out.diff.changed);
+    blocks.push(table ? `${line2}
+${table}` : line2);
+  }
+  return blocks.join("\n\n");
+}
+function auditSnapshot(snapshot, log2) {
+  log2(
+    `[abapsmith] audit: abap_data_preview mode=snapshot table=${snapshot.selection.table} rows=${snapshot.rows.length} snapshot_id=${snapshot.id}`
+  );
+}
+function auditDiff(out, log2) {
+  log2(
+    `[abapsmith] audit: abap_data_preview mode=diff table=${out.before.selection.table} inserted=${out.diff.inserted.length} deleted=${out.diff.deleted.length} changed=${out.diff.changed.length}`
+  );
+}
+
+// src/tools/run.ts
 var runRangeSchema = external_exports.object({
   sign: external_exports.enum(["I", "E"]).optional(),
   option: external_exports.enum(["EQ", "NE", "GT", "LT", "GE", "LE", "CP", "NP", "BT", "NB"]).optional(),
@@ -120854,6 +124128,9 @@ var runInputSchema = {
   parameters: external_exports.array(runParameterSchema).optional(),
   auth_trace: external_exports.boolean().optional().describe(
     "Switch on the SAP authorization trace for the connected user, run, then read back and switch it back off. Refused on a read-only server. Default false."
+  ),
+  snapshot_ids: external_exports.array(external_exports.string()).optional().describe(
+    `Snapshot ids from prior abap_data_preview mode="snapshot" calls. After this call finishes, each one is re-read and diffed, and the result is appended as a DATA CHANGES section. The diff obeys the same data-preview policy as the snapshot did \u2014 if it is refused, this call's own result still returns and the section says why.`
   )
 };
 var RunInput = external_exports.object(runInputSchema);
@@ -121056,7 +124333,40 @@ async function abapRun(conn, input, maxChars, gate) {
   });
 }
 var ok3 = (text5) => ({ content: [{ type: "text", text: text5 }] });
+async function runSnapshotDiffs(deps, ids, audit) {
+  if (ids === void 0 || ids.length === 0) return void 0;
+  let runDeps;
+  try {
+    runDeps = {
+      read: (table, maxRows, filter) => deps.pool.withRead(
+        "abap_data_preview",
+        (conn) => previewDdicEntity(conn, { table, maxRows, ...filter && !isEmptyFilter(filter) ? { filter } : {} })
+      ),
+      assertDataPreview: (t) => deps.safety.assertDataPreview(t),
+      systemKey: systemKey(deps.cfg),
+      maxRows: deps.cfg.dataPreviewMaxRows,
+      ttlCeilingHours: deps.cfg.dataSnapshotTtlHours
+    };
+  } catch (e) {
+    return `snapshot diff setup failed: ${isAbapError(e) ? `${e.code}: ${e.message}` : String(e)}`;
+  }
+  const results = [];
+  for (const id of ids) {
+    try {
+      const out = await diffSnapshot(runDeps, id);
+      auditDiff(out, audit);
+      results.push({ id, outcome: out });
+    } catch (e) {
+      results.push({
+        id,
+        outcome: { refused: isAbapError(e) ? `${e.code}: ${e.message}` : String(e) }
+      });
+    }
+  }
+  return renderDataChangesSection(results);
+}
 function registerRunTools(mcp, deps) {
+  const audit = (m) => void process.stderr.write(m + "\n");
   mcp.registerTool(
     "abap_run",
     {
@@ -121073,7 +124383,12 @@ function registerRunTools(mcp, deps) {
           void 0,
           (conn) => abapRun(conn, args, deps.cfg.maxResponseChars, deps.safety)
         );
-        return ok3(res.text);
+        const a = args;
+        const changes = await runSnapshotDiffs(deps, a.snapshot_ids, audit);
+        return ok3(changes ? `${res.text}
+
+DATA CHANGES
+${changes}` : res.text);
       } catch (e) {
         return deps.errorResult(e);
       }
@@ -125819,7 +129134,7 @@ var usageReferencesXml = new XMLParser({
 function asRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value) ? value : void 0;
 }
-function asArray2(value) {
+function asArray3(value) {
   if (Array.isArray(value)) return value;
   return value === void 0 || value === null ? [] : [value];
 }
@@ -125862,7 +129177,7 @@ function parseProperties(value) {
   const rec = asRecord(value);
   if (rec === void 0) return {};
   const result = {};
-  for (const raw of asArray2(rec["entry"])) {
+  for (const raw of asArray3(rec["entry"])) {
     const entryNode = asRecord(raw);
     const key = attr2(entryNode, "key");
     if (key === void 0) continue;
@@ -125871,7 +129186,7 @@ function parseProperties(value) {
   return result;
 }
 function findDocumentation(node2, rel) {
-  for (const raw of asArray2(node2["documentation"])) {
+  for (const raw of asArray3(node2["documentation"])) {
     const docNode = asRecord(raw);
     if (attr2(docNode, "rel") !== rel) continue;
     return elementText(raw) ?? "";
@@ -125884,7 +129199,7 @@ function parseElementInfoNode(raw) {
   const name = attr2(node2, "name");
   const shortText = findDocumentation(node2, "shorttext");
   const abapDoc = findDocumentation(node2, "abapdoc");
-  const children = asArray2(node2["elementInfo"]).map(parseElementInfoNode);
+  const children = asArray3(node2["elementInfo"]).map(parseElementInfoNode);
   return {
     ...type !== void 0 ? { type } : {},
     ...name !== void 0 ? { name } : {},
@@ -126038,7 +129353,7 @@ function parseUsageReferences(xml3, ctx) {
   const referencedObjects = asRecord(root?.["referencedObjects"]);
   if (referencedObjects === void 0) return [];
   const rows = [];
-  for (const raw of asArray2(referencedObjects["referencedObject"])) {
+  for (const raw of asArray3(referencedObjects["referencedObject"])) {
     const row2 = asRecord(raw);
     if (row2 === void 0) continue;
     const adtObject = asRecord(row2["adtObject"]) ?? {};
@@ -129706,8 +133021,8 @@ function flattenDetails(node2, depth, out) {
 }
 function includeNameFromUri(uri) {
   if (!uri) return void 0;
-  const path8 = String(uri).split("#")[0] ?? "";
-  const m = /\/includes\/([^/?#]+)\/?$/.exec(path8);
+  const path9 = String(uri).split("#")[0] ?? "";
+  const m = /\/includes\/([^/?#]+)\/?$/.exec(path9);
   return m ? m[1] : void 0;
 }
 function parseStack(node2) {
@@ -130139,7 +133454,7 @@ function assertLogReadArgsNoWindowConflict(args) {
     until: args["until"]
   });
 }
-function fail3(reason, rows) {
+function fail4(reason, rows) {
   throw new AbapError(
     "FLUID_PROTOCOL_ERROR",
     `log.read ${reason}`,
@@ -130152,12 +133467,12 @@ function isLogRow(r) {
 function isMsgRow(r) {
   return typeof r["lognumber"] === "string" && typeof r["msgnumber"] === "number" && typeof r["msgty"] === "string" && typeof r["msgid"] === "string" && typeof r["msgno"] === "string" && typeof r["msgv1"] === "string" && typeof r["msgv2"] === "string" && typeof r["msgv3"] === "string" && typeof r["msgv4"] === "string" && typeof r["text"] === "string" && typeof r["detlevel"] === "number" && typeof r["probclass"] === "string" && typeof r["context_tabname"] === "string";
 }
-function isSummaryRow(r) {
+function isSummaryRow2(r) {
   return typeof r["logs_returned"] === "number" && typeof r["messages_returned"] === "number" && typeof r["truncated"] === "boolean" && typeof r["detail"] === "string" && typeof r["since"] === "string" && typeof r["until"] === "string" && typeof r["user"] === "string" && typeof r["max"] === "number" && typeof r["server_time"] === "string";
 }
 function mapLogRows(rows) {
   if (!Array.isArray(rows)) {
-    fail3("returned a result that is not an array", rows);
+    fail4("returned a result that is not an array", rows);
   }
   const logs = [];
   let currentLog;
@@ -130165,18 +133480,18 @@ function mapLogRows(rows) {
   for (let i = 0; i < rows.length; i++) {
     const row2 = rows[i];
     if (typeof row2 !== "object" || row2 === null || Array.isArray(row2)) {
-      fail3(`row ${i} is not an object`, rows);
+      fail4(`row ${i} is not an object`, rows);
     }
     const r = row2;
     if (r["kind"] !== "log" && r["kind"] !== "msg" && r["kind"] !== "summary") {
-      fail3(`row ${i} has kind "${String(r["kind"])}", expected "log", "msg" or "summary"`, rows);
+      fail4(`row ${i} has kind "${String(r["kind"])}", expected "log", "msg" or "summary"`, rows);
     }
     if (summary !== void 0) {
-      fail3(`row ${i} follows the trailing summary row`, rows);
+      fail4(`row ${i} follows the trailing summary row`, rows);
     }
     if (r["kind"] === "log") {
       if (!isLogRow(r)) {
-        fail3(`row ${i} is a log row missing or mistyping one of its required fields`, rows);
+        fail4(`row ${i} is a log row missing or mistyping one of its required fields`, rows);
       }
       const entry = {
         lognumber: r.lognumber,
@@ -130204,10 +133519,10 @@ function mapLogRows(rows) {
     }
     if (r["kind"] === "msg") {
       if (currentLog === void 0) {
-        fail3(`row ${i} is a msg row before any log row`, rows);
+        fail4(`row ${i} is a msg row before any log row`, rows);
       }
       if (!isMsgRow(r)) {
-        fail3(`row ${i} is a msg row missing or mistyping one of its required fields`, rows);
+        fail4(`row ${i} is a msg row missing or mistyping one of its required fields`, rows);
       }
       currentLog.messages.push({
         lognumber: r.lognumber,
@@ -130226,11 +133541,11 @@ function mapLogRows(rows) {
       });
       continue;
     }
-    if (!isSummaryRow(r)) {
-      fail3(`row ${i} is a summary row missing or mistyping one of its required fields`, rows);
+    if (!isSummaryRow2(r)) {
+      fail4(`row ${i} is a summary row missing or mistyping one of its required fields`, rows);
     }
     if (i !== rows.length - 1) {
-      fail3("returned a summary row that is not the last element", rows);
+      fail4("returned a summary row that is not the last element", rows);
     }
     summary = {
       logs_returned: r.logs_returned,
@@ -130245,7 +133560,7 @@ function mapLogRows(rows) {
     };
   }
   if (summary === void 0) {
-    fail3("did not return a summary row", rows);
+    fail4("did not return a summary row", rows);
   }
   return { logs, summary };
 }
@@ -130366,6 +133681,9 @@ var testInputSchema = {
   ),
   auth_trace: external_exports.boolean().optional().describe(
     'Switch on the SAP authorization trace for the connected user, run the test, then read back and switch it back off. scope="object" only. Refused on a read-only server. Default false.'
+  ),
+  snapshot_ids: external_exports.array(external_exports.string()).optional().describe(
+    `Snapshot ids from prior abap_data_preview mode="snapshot" calls. After this call finishes, each one is re-read and diffed, and the result is appended as a DATA CHANGES section. The diff obeys the same data-preview policy as the snapshot did \u2014 if it is refused, this call's own result still returns and the section says why.`
   )
 };
 var TestInput = external_exports.object(testInputSchema);
@@ -131074,6 +134392,7 @@ async function abapTest(conn, input, maxChars, gate, journal) {
 }
 var ok7 = (text5) => ({ content: [{ type: "text", text: text5 }] });
 function registerTestTools(mcp, deps) {
+  const audit = (m) => void process.stderr.write(m + "\n");
   mcp.registerTool(
     "abap_test",
     {
@@ -131095,7 +134414,11 @@ function registerTestTools(mcp, deps) {
           void 0,
           (conn) => abapTest(conn, input, deps.cfg.maxResponseChars, deps.safety, deps.journal)
         );
-        return ok7(res.text);
+        const changes = await runSnapshotDiffs(deps, input.snapshot_ids, audit);
+        return ok7(changes ? `${res.text}
+
+DATA CHANGES
+${changes}` : res.text);
       } catch (e) {
         return deps.errorResult(e);
       }
@@ -131439,7 +134762,7 @@ function scanDispatchArgs(q) {
     max_objects: q.maxObjects
   };
 }
-function fail4(reason, result) {
+function fail5(reason, result) {
   throw new AbapError(
     "FLUID_PROTOCOL_ERROR",
     `scan.source ${reason}`,
@@ -131449,30 +134772,30 @@ function fail4(reason, result) {
 function isHitRow(r) {
   return typeof r["obj_type"] === "string" && typeof r["obj_name"] === "string" && typeof r["include"] === "string" && typeof r["line"] === "number" && typeof r["text"] === "string";
 }
-function isSummaryRow2(r) {
+function isSummaryRow3(r) {
   return typeof r["objects_total"] === "number" && typeof r["objects_scanned"] === "number" && typeof r["includes_scanned"] === "number" && typeof r["includes_skipped"] === "number" && typeof r["hits"] === "number" && (r["truncated"] === "" || r["truncated"] === "hits" || r["truncated"] === "objects");
 }
 function mapScanRows(rows) {
   if (!Array.isArray(rows)) {
-    fail4("returned a result that is not an array", rows);
+    fail5("returned a result that is not an array", rows);
   }
   const hits = [];
   let summary;
   for (let i = 0; i < rows.length; i++) {
     const row2 = rows[i];
     if (typeof row2 !== "object" || row2 === null || Array.isArray(row2)) {
-      fail4(`row ${i} is not an object`, rows);
+      fail5(`row ${i} is not an object`, rows);
     }
     const r = row2;
     if (r["kind"] !== "hit" && r["kind"] !== "summary") {
-      fail4(`row ${i} has kind "${String(r["kind"])}", expected "hit" or "summary"`, rows);
+      fail5(`row ${i} has kind "${String(r["kind"])}", expected "hit" or "summary"`, rows);
     }
     if (r["kind"] === "hit") {
       if (!isHitRow(r)) {
-        fail4(`row ${i} is a hit row missing or mistyping one of obj_type/obj_name/include/line/text`, rows);
+        fail5(`row ${i} is a hit row missing or mistyping one of obj_type/obj_name/include/line/text`, rows);
       }
       if (summary !== void 0) {
-        fail4(`row ${i} is a hit row after the summary row`, rows);
+        fail5(`row ${i} is a hit row after the summary row`, rows);
       }
       hits.push({
         objType: r.obj_type,
@@ -131484,13 +134807,13 @@ function mapScanRows(rows) {
       continue;
     }
     if (summary !== void 0) {
-      fail4("returned more than one summary row", rows);
+      fail5("returned more than one summary row", rows);
     }
-    if (!isSummaryRow2(r)) {
-      fail4(`row ${i} is a summary row missing or mistyping one of its required fields`, rows);
+    if (!isSummaryRow3(r)) {
+      fail5(`row ${i} is a summary row missing or mistyping one of its required fields`, rows);
     }
     if (i !== rows.length - 1) {
-      fail4("returned a summary row that is not the last element", rows);
+      fail5("returned a summary row that is not the last element", rows);
     }
     summary = {
       objectsTotal: r.objects_total,
@@ -131502,7 +134825,7 @@ function mapScanRows(rows) {
     };
   }
   if (summary === void 0) {
-    fail4("did not return a summary row", rows);
+    fail5("did not return a summary row", rows);
   }
   return { hits, summary };
 }
@@ -134256,7 +137579,7 @@ init_errors();
 // src/adt/bopf-xml.ts
 init_fxp();
 init_errors();
-import { randomBytes as randomBytes6 } from "node:crypto";
+import { randomBytes as randomBytes7 } from "node:crypto";
 
 // src/adt/bopf-types.ts
 var GUID_ENCODING = {
@@ -134374,7 +137697,7 @@ var QUERY_CHILD_ORDER = ["dataTypeRef", "implementationClassRef", "resultTypeRef
 var ALTERNATIVE_KEY_CHILD_ORDER = ["dataTypeRef", "dataTableTypeRef", "keyElements"];
 
 // src/adt/bopf-xml.ts
-function fail5(message, details = {}) {
+function fail6(message, details = {}) {
   throw new AbapError(
     "BAD_INPUT",
     `BOPF XML: ${message}`,
@@ -134405,15 +137728,15 @@ function decodeEntityAt(xml3, ampIndex) {
   for (const [entity, char] of PREDEFINED_ENTITIES) {
     if (xml3.startsWith(entity, ampIndex)) return { char, next: ampIndex + entity.length };
   }
-  fail5(
+  fail6(
     "unsupported entity reference \u2014 only the five predefined XML entities (&amp; &lt; &gt; &apos; &quot;) are accepted",
     { at: ampIndex }
   );
 }
 function scanModel(xmlText2) {
-  if (!xmlText2.startsWith("<?xml")) fail5("document does not start with an XML declaration (`<?xml ... ?>`)");
+  if (!xmlText2.startsWith("<?xml")) fail6("document does not start with an XML declaration (`<?xml ... ?>`)");
   const declEnd = xmlText2.indexOf("?>", 5);
-  if (declEnd === -1) fail5("unterminated XML declaration");
+  if (declEnd === -1) fail6("unterminated XML declaration");
   const n = xmlText2.length;
   const tokens = [];
   const stack = [];
@@ -134422,7 +137745,7 @@ function scanModel(xmlText2) {
     const c = xmlText2.charAt(i);
     if (c !== "<") {
       if (!WS.test(c)) {
-        fail5(
+        fail6(
           stack.length === 0 ? "unexpected content outside the root element" : "text content is not supported inside BOPF elements (every element here is attribute-only or container-only)",
           { at: i }
         );
@@ -134430,21 +137753,21 @@ function scanModel(xmlText2) {
       i++;
       continue;
     }
-    if (xmlText2.startsWith("<!--", i)) fail5("XML comments are not supported", { at: i });
-    if (xmlText2.startsWith("<![CDATA[", i)) fail5("CDATA sections are not supported", { at: i });
-    if (xmlText2.startsWith("<!DOCTYPE", i)) fail5("a DOCTYPE declaration is not supported", { at: i });
-    if (xmlText2.startsWith("<!", i)) fail5("unrecognized '<!' construct", { at: i });
-    if (xmlText2.startsWith("<?", i)) fail5("a processing instruction after the XML declaration is not supported", { at: i });
+    if (xmlText2.startsWith("<!--", i)) fail6("XML comments are not supported", { at: i });
+    if (xmlText2.startsWith("<![CDATA[", i)) fail6("CDATA sections are not supported", { at: i });
+    if (xmlText2.startsWith("<!DOCTYPE", i)) fail6("a DOCTYPE declaration is not supported", { at: i });
+    if (xmlText2.startsWith("<!", i)) fail6("unrecognized '<!' construct", { at: i });
+    if (xmlText2.startsWith("<?", i)) fail6("a processing instruction after the XML declaration is not supported", { at: i });
     if (xmlText2.startsWith("</", i)) {
       const name2 = matchNameAt(xmlText2, i + 2);
-      if (name2 === void 0) fail5("malformed closing tag", { at: i });
+      if (name2 === void 0) fail6("malformed closing tag", { at: i });
       let j2 = skipWs(xmlText2, i + 2 + name2.length);
-      if (xmlText2.charAt(j2) !== ">") fail5("malformed closing tag: expected '>'", { at: j2 });
+      if (xmlText2.charAt(j2) !== ">") fail6("malformed closing tag: expected '>'", { at: j2 });
       const closeEnd = j2 + 1;
       const top = stack.pop();
-      if (!top) fail5("unexpected closing tag with no matching open element", { at: i, name: name2 });
+      if (!top) fail6("unexpected closing tag with no matching open element", { at: i, name: name2 });
       if (top.name !== name2) {
-        fail5(`mismatched closing tag: expected </${top.name}>, found </${name2}>`, { at: i });
+        fail6(`mismatched closing tag: expected </${top.name}>, found </${name2}>`, { at: i });
       }
       tokens.push({
         kind: "container",
@@ -134460,7 +137783,7 @@ function scanModel(xmlText2) {
       continue;
     }
     const name = matchNameAt(xmlText2, i + 1);
-    if (name === void 0) fail5("malformed tag: expected an element name", { at: i });
+    if (name === void 0) fail6("malformed tag: expected an element name", { at: i });
     let j = i + 1 + name.length;
     const attrStart = j;
     const attrs = /* @__PURE__ */ new Map();
@@ -134477,23 +137800,23 @@ function scanModel(xmlText2) {
         break;
       }
       const attrName = matchNameAt(xmlText2, j);
-      if (attrName === void 0) fail5(`unexpected character inside <${name}>`, { at: j });
+      if (attrName === void 0) fail6(`unexpected character inside <${name}>`, { at: j });
       j += attrName.length;
       j = skipWs(xmlText2, j);
-      if (xmlText2.charAt(j) !== "=") fail5(`expected '=' after attribute "${attrName}"`, { at: j });
+      if (xmlText2.charAt(j) !== "=") fail6(`expected '=' after attribute "${attrName}"`, { at: j });
       j = skipWs(xmlText2, j + 1);
       const quote = xmlText2.charAt(j);
-      if (quote !== '"' && quote !== "'") fail5(`expected a quote to start the value of "${attrName}"`, { at: j });
+      if (quote !== '"' && quote !== "'") fail6(`expected a quote to start the value of "${attrName}"`, { at: j });
       j++;
       let value = "";
       for (; ; ) {
-        if (j >= n) fail5(`unterminated attribute value for "${attrName}"`, { at: j });
+        if (j >= n) fail6(`unterminated attribute value for "${attrName}"`, { at: j });
         const vc = xmlText2.charAt(j);
         if (vc === quote) {
           j++;
           break;
         }
-        if (vc === "<") fail5(`raw '<' is not allowed inside the value of "${attrName}"`, { at: j });
+        if (vc === "<") fail6(`raw '<' is not allowed inside the value of "${attrName}"`, { at: j });
         if (vc === "&") {
           const decoded = decodeEntityAt(xmlText2, j);
           value += decoded.char;
@@ -134503,7 +137826,7 @@ function scanModel(xmlText2) {
         value += vc;
         j++;
       }
-      if (attrs.has(attrName)) fail5(`duplicate attribute "${attrName}"`, { at: j });
+      if (attrs.has(attrName)) fail6(`duplicate attribute "${attrName}"`, { at: j });
       attrs.set(attrName, value);
     }
     if (selfClosing) {
@@ -134522,9 +137845,9 @@ function scanModel(xmlText2) {
     }
     i = j;
   }
-  if (stack.length > 0) fail5(`unclosed element(s): ${stack.map((s) => s.name).join(", ")}`);
+  if (stack.length > 0) fail6(`unclosed element(s): ${stack.map((s) => s.name).join(", ")}`);
   const roots = tokens.filter((t) => t.depth === 0);
-  if (roots.length !== 1) fail5(`document must have exactly one root element (found ${roots.length})`);
+  if (roots.length !== 1) fail6(`document must have exactly one root element (found ${roots.length})`);
   tokens.sort((a, b) => a.openStart - b.openStart);
   return tokens;
 }
@@ -134582,7 +137905,7 @@ var PLURAL_BARE = {
 };
 function insertionPoint(tokens, nodeTok, kind) {
   if (nodeTok.kind !== "container") {
-    fail5("cannot compute an insertion point inside a self-closing element \u2014 open it first", { node: nodeTok.name });
+    fail6("cannot compute an insertion point inside a self-closing element \u2014 open it first", { node: nodeTok.name });
   }
   const targetBare = PLURAL_BARE[kind];
   const targetIdx = NODE_CHILD_ORDER.indexOf(targetBare);
@@ -134598,19 +137921,19 @@ function insertionPoint(tokens, nodeTok, kind) {
   return insertAt;
 }
 function splice(xml3, at, text5) {
-  if (at < 0 || at > xml3.length) fail5("splice offset out of range", { at, length: xml3.length });
+  if (at < 0 || at > xml3.length) fail6("splice offset out of range", { at, length: xml3.length });
   return xml3.slice(0, at) + text5 + xml3.slice(at);
 }
 function spliceOut(xml3, range) {
   if (range.start < 0 || range.end > xml3.length || range.start > range.end) {
-    fail5("splice-out range out of bounds", { range, length: xml3.length });
+    fail6("splice-out range out of bounds", { range, length: xml3.length });
   }
   return xml3.slice(0, range.start) + xml3.slice(range.end);
 }
 function promoteToContainer(xml3, token) {
   if (token.kind === "container") return xml3;
   const tagText = xml3.slice(token.openStart, token.openEnd);
-  if (!tagText.endsWith("/>")) fail5("expected a self-closing tag ending in '/>'", { at: token.openStart });
+  if (!tagText.endsWith("/>")) fail6("expected a self-closing tag ending in '/>'", { at: token.openStart });
   const opened = tagText.slice(0, -2) + ">";
   return xml3.slice(0, token.openStart) + opened + `</${token.name}>` + xml3.slice(token.openEnd);
 }
@@ -134635,7 +137958,7 @@ function patchOpenTagAttrs(xml3, token, attrs) {
 }
 function spliceInsertChild(xml3, tokens, nodeName, kind, fragment, opts) {
   const nodeTok = findNodeToken(tokens, nodeName, opts?.nodeId);
-  if (!nodeTok) fail5(`node "${nodeName}" not found`, { node: nodeName });
+  if (!nodeTok) fail6(`node "${nodeName}" not found`, { node: nodeName });
   if (nodeTok.kind === "empty") {
     const opened = promoteToContainer(xml3, nodeTok);
     const insertAt = nodeTok.openEnd - 1;
@@ -134684,7 +138007,7 @@ function spliceSetElementRef(xml3, tokens, ownerToken, refTag, ref2, childOrder)
 }
 function spliceSetNodeRef(xml3, tokens, nodeName, refKind, ref2, opts) {
   const nodeTok = findNodeToken(tokens, nodeName, opts?.nodeId);
-  if (!nodeTok) fail5(`node "${nodeName}" not found`, { node: nodeName });
+  if (!nodeTok) fail6(`node "${nodeName}" not found`, { node: nodeName });
   return spliceSetElementRef(xml3, tokens, nodeTok, `bo:${refKind}`, ref2, NODE_CHILD_ORDER);
 }
 function escapeAttrValue(v, context) {
@@ -134748,7 +138071,7 @@ function renderRelation(r) {
   return renderLeaf("bo:relations", RELATION_ATTR_ORDER, r);
 }
 function mintGuid(kind) {
-  const bytes = randomBytes6(16);
+  const bytes = randomBytes7(16);
   return GUID_ENCODING[kind] === "base64" ? bytes.toString("base64") : bytes.toString("hex").toUpperCase();
 }
 function renderAssociationElement(f) {
@@ -134874,7 +138197,7 @@ function renderNodeElement(f) {
     refs + groups
   );
 }
-var xmlParser2 = new XMLParser({
+var xmlParser3 = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: "@_",
   removeNSPrefix: true,
@@ -135072,12 +138395,12 @@ function parseNodeXml(n) {
 function parseModel(xmlText2) {
   let parsed;
   try {
-    parsed = xmlParser2.parse(xmlText2) ?? {};
+    parsed = xmlParser3.parse(xmlText2) ?? {};
   } catch (e) {
-    fail5(`could not parse BOPF model XML: ${e instanceof Error ? e.message : String(e)}`);
+    fail6(`could not parse BOPF model XML: ${e instanceof Error ? e.message : String(e)}`);
   }
   const root = xnode2(parsed.businessObject);
-  if (!root) fail5("not a BOPF business object document (no <bo:businessObject> root element)");
+  if (!root) fail6("not a BOPF business object document (no <bo:businessObject> root element)");
   return {
     name: xattr2(root, "name") ?? "",
     type: xattr2(root, "type") ?? "",
@@ -136300,17 +139623,17 @@ function safeJson(v) {
     return String(v);
   }
 }
-function refShapeIssue(path8, value) {
+function refShapeIssue(path9, value) {
   if (typeof value === "string") {
     return {
-      message: `${path8} = ${JSON.stringify(value)} is a bare string, not an object ref. It must be { "name": "...", "type": "..." } \u2014 most likely { "name": ${JSON.stringify(value)}, "type": "..." }.`,
-      detail: { path: path8, value }
+      message: `${path9} = ${JSON.stringify(value)} is a bare string, not an object ref. It must be { "name": "...", "type": "..." } \u2014 most likely { "name": ${JSON.stringify(value)}, "type": "..." }.`,
+      detail: { path: path9, value }
     };
   }
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return {
-      message: `${path8} must be an object ref { "name": "...", "type": "..." }, got ${describeType(value)}.`,
-      detail: { path: path8, value }
+      message: `${path9} must be an object ref { "name": "...", "type": "..." }, got ${describeType(value)}.`,
+      detail: { path: path9, value }
     };
   }
   const o = value;
@@ -136321,42 +139644,42 @@ function refShapeIssue(path8, value) {
     (x) => x !== void 0
   );
   return {
-    message: `${path8} is missing required field(s) ${missing.join(" and ")} \u2014 got ${safeJson(value)}. Required shape: { "name": "...", "type": "..." }.`,
-    detail: { path: path8, value, missing }
+    message: `${path9} is missing required field(s) ${missing.join(" and ")} \u2014 got ${safeJson(value)}. Required shape: { "name": "...", "type": "..." }.`,
+    detail: { path: path9, value, missing }
   };
 }
-function shapeIssue(path8, shape, value) {
+function shapeIssue(path9, shape, value) {
   switch (shape) {
     case "string":
-      return typeof value === "string" ? void 0 : { message: `${path8} must be a string, got ${describeType(value)}.`, detail: { path: path8, value } };
+      return typeof value === "string" ? void 0 : { message: `${path9} must be a string, got ${describeType(value)}.`, detail: { path: path9, value } };
     case "boolean":
-      return typeof value === "boolean" ? void 0 : { message: `${path8} must be a boolean, got ${describeType(value)}.`, detail: { path: path8, value } };
+      return typeof value === "boolean" ? void 0 : { message: `${path9} must be a boolean, got ${describeType(value)}.`, detail: { path: path9, value } };
     case "booleanOrNull":
-      return value === null || typeof value === "boolean" ? void 0 : { message: `${path8} must be a boolean or null, got ${describeType(value)}.`, detail: { path: path8, value } };
+      return value === null || typeof value === "boolean" ? void 0 : { message: `${path9} must be a boolean or null, got ${describeType(value)}.`, detail: { path: path9, value } };
     case "stringOrNull":
-      return value === null || typeof value === "string" ? void 0 : { message: `${path8} must be a string or null, got ${describeType(value)}.`, detail: { path: path8, value } };
+      return value === null || typeof value === "string" ? void 0 : { message: `${path9} must be a string or null, got ${describeType(value)}.`, detail: { path: path9, value } };
     case "ref":
-      return refShapeIssue(path8, value);
+      return refShapeIssue(path9, value);
     case "refOrNull":
-      return value === null ? void 0 : refShapeIssue(path8, value);
+      return value === null ? void 0 : refShapeIssue(path9, value);
     case "stringArray": {
       if (!Array.isArray(value)) {
-        return { message: `${path8} must be an array of strings, got ${describeType(value)}.`, detail: { path: path8, value } };
+        return { message: `${path9} must be an array of strings, got ${describeType(value)}.`, detail: { path: path9, value } };
       }
       if (value.length === 0) {
-        return { message: `${path8} must be a non-empty array of strings.`, detail: { path: path8, value } };
+        return { message: `${path9} must be a non-empty array of strings.`, detail: { path: path9, value } };
       }
       const badIndex = value.findIndex((x) => typeof x !== "string");
       if (badIndex !== -1) {
         return {
-          message: `${path8}[${badIndex}] must be a string, got ${describeType(value[badIndex])}.`,
-          detail: { path: path8, index: badIndex, value: value[badIndex] }
+          message: `${path9}[${badIndex}] must be a string, got ${describeType(value[badIndex])}.`,
+          detail: { path: path9, index: badIndex, value: value[badIndex] }
         };
       }
       return void 0;
     }
     case "objectArray":
-      return Array.isArray(value) ? void 0 : { message: `${path8} must be an array, got ${describeType(value)}.`, detail: { path: path8, value } };
+      return Array.isArray(value) ? void 0 : { message: `${path9} must be an array, got ${describeType(value)}.`, detail: { path: path9, value } };
   }
 }
 function suggestKey(unknownKey, accepted) {
@@ -136411,16 +139734,16 @@ function validateArrayEntries(pathBase, entryLabel, entries, table) {
     if (!entry || typeof entry !== "object" || Array.isArray(entry)) return;
     const obj = entry;
     for (const key of Object.keys(obj)) {
-      const path8 = `${pathBase}[${i}].${key}`;
+      const path9 = `${pathBase}[${i}].${key}`;
       const shape = table[key];
       if (shape === void 0) {
         issues.push({
-          message: `${path8} is not a recognised field on a ${entryLabel} entry. Accepted field(s): ${accepted.join(", ")}.`,
-          detail: { path: path8, key, index: i, accepted }
+          message: `${path9} is not a recognised field on a ${entryLabel} entry. Accepted field(s): ${accepted.join(", ")}.`,
+          detail: { path: path9, key, index: i, accepted }
         });
         continue;
       }
-      const problem = shapeIssue(path8, shape, obj[key]);
+      const problem = shapeIssue(path9, shape, obj[key]);
       if (problem) issues.push(problem);
     }
   });
@@ -138870,7 +142193,7 @@ init_errors();
 
 // src/adt/bopf-runtime.ts
 init_errors();
-import { createHash as createHash9 } from "node:crypto";
+import { createHash as createHash11 } from "node:crypto";
 function constantsInterfaceName(model) {
   const name = model.constantsInterfaceRef?.name;
   if (!name) {
@@ -138916,7 +142239,7 @@ function bopfBridgeClassName(bo) {
   const safe = canon.replace(/[^A-Z0-9_]/g, "_");
   const budget = MAX_NAME - BOPF_BRIDGE_CLASS_PREFIX.length;
   if (safe.length <= budget && safe === canon) return BOPF_BRIDGE_CLASS_PREFIX + safe;
-  const hash2 = createHash9("sha256").update(canon, "utf8").digest("hex").slice(0, HASH_LEN2).toUpperCase();
+  const hash2 = createHash11("sha256").update(canon, "utf8").digest("hex").slice(0, HASH_LEN2).toUpperCase();
   const keep = safe.slice(0, budget - HASH_LEN2 - 1);
   return `${BOPF_BRIDGE_CLASS_PREFIX}${keep}_${hash2}`;
 }
@@ -139359,6 +142682,9 @@ var bopfTestInputSchema = {
   generate_only: external_exports.boolean().optional().describe("Writes/activates the test bridge without running it; writes no data."),
   auth_trace: external_exports.boolean().optional().describe(
     "Switch on the SAP authorization trace for the connected user, run the scenario, then read back and switch it back off. Refused on a read-only server. Default false."
+  ),
+  snapshot_ids: external_exports.array(external_exports.string()).optional().describe(
+    `Snapshot ids from prior abap_data_preview mode="snapshot" calls. After this call finishes, each one is re-read and diffed, and the result is appended as a DATA CHANGES section. The diff obeys the same data-preview policy as the snapshot did \u2014 if it is refused, this call's own result still returns and the section says why.`
   )
 };
 var BopfTestInput = external_exports.object(bopfTestInputSchema);
@@ -139594,16 +142920,23 @@ async function runBopfTest2(deps, args) {
       return { result: result2, refs: refs2, authTraceOutcome: void 0, authTraceSwitchOffError: void 0 };
     }
   );
-  return ok11(
-    buildTestResponse(
-      result,
-      refs,
-      deps.cfg.maxResponseChars,
-      input.bo,
-      authTraceOutcome,
-      authTraceSwitchOffError
-    )
+  const text5 = buildTestResponse(
+    result,
+    refs,
+    deps.cfg.maxResponseChars,
+    input.bo,
+    authTraceOutcome,
+    authTraceSwitchOffError
   );
+  const changes = await runSnapshotDiffs(
+    deps,
+    input.snapshot_ids,
+    (m) => void process.stderr.write(m + "\n")
+  );
+  return ok11(changes ? `${text5}
+
+DATA CHANGES
+${changes}` : text5);
 }
 function registerBopfTestTool(mcp, deps) {
   mcp.registerTool(
@@ -139626,1932 +142959,6 @@ function registerBopfTestTool(mcp, deps) {
 // src/tools/fpm.ts
 init_zod();
 init_errors();
-
-// src/adt/fpm-runtime.ts
-init_errors();
-
-// src/adt/fpm-events.ts
-init_fxp();
-init_truncate();
-function isRecord(v) {
-  return typeof v === "object" && v !== null;
-}
-function splitEventFrames(values) {
-  const raw = {
-    configs: [],
-    fpmEvents: [],
-    fpmEventErrors: [],
-    bopfNodes: [],
-    bopfActions: [],
-    bopfErrors: [],
-    textIds: [],
-    textIdErrors: [],
-    summary: void 0,
-    unrecognised: []
-  };
-  for (const v of values) {
-    if (!isRecord(v) || typeof v["kind"] !== "string") {
-      raw.unrecognised.push(v);
-      continue;
-    }
-    switch (v["kind"]) {
-      case "config":
-        raw.configs.push(v);
-        break;
-      case "fpm_event":
-        raw.fpmEvents.push(v);
-        break;
-      case "fpm_event_error":
-        raw.fpmEventErrors.push(v);
-        break;
-      case "bopf_node":
-        raw.bopfNodes.push(v);
-        break;
-      case "bopf_action":
-        raw.bopfActions.push(v);
-        break;
-      case "bopf_error":
-        raw.bopfErrors.push(v);
-        break;
-      case "text_id":
-        raw.textIds.push(v);
-        break;
-      case "text_id_error":
-        raw.textIdErrors.push(v);
-        break;
-      case "summary":
-        raw.summary = v;
-        break;
-      default:
-        raw.unrecognised.push(v);
-    }
-  }
-  return raw;
-}
-var FEEDER_INTERFACE_BY_COMPONENT = {
-  FPM_LIST_UIBB: "IF_FPM_GUIBB_LIST",
-  FPM_FORM_UIBB: "IF_FPM_GUIBB_FORM",
-  FPM_SEARCH_UIBB: "IF_FPM_GUIBB_SEARCH",
-  FPM_TREE_UIBB: "IF_FPM_GUIBB_LIST"
-};
-var xmlParser3 = new XMLParser({
-  ignoreAttributes: false,
-  attributeNamePrefix: "@_",
-  parseTagValue: false,
-  trimValues: true
-});
-function asArray3(v) {
-  if (v === void 0 || v === null) return [];
-  return Array.isArray(v) ? v : [v];
-}
-function text3(v) {
-  if (v === void 0 || v === null) return "";
-  if (typeof v === "string") return v;
-  if (isRecord(v)) {
-    const t = v["#text"];
-    return typeof t === "string" ? t : "";
-  }
-  return String(v);
-}
-function textTransl(v) {
-  const value = text3(v);
-  const translatable = isRecord(v) && v["@_Transl"] === "true";
-  return { value, translatable };
-}
-function items(node2) {
-  if (!isRecord(node2)) return [];
-  return asArray3(node2["Item"]).filter(isRecord);
-}
-function findAllNodesByName(el, name, acc = []) {
-  if (!isRecord(el)) return acc;
-  for (const node2 of asArray3(el["Node"])) {
-    if (!isRecord(node2)) continue;
-    if (node2["@_Name"] === name) acc.push(node2);
-    findAllNodesByName(node2, name, acc);
-  }
-  for (const item of items(el)) {
-    findAllNodesByName(item, name, acc);
-  }
-  return acc;
-}
-function parseConfigXml(xml3) {
-  if (!xml3.trim()) return void 0;
-  try {
-    const doc = xmlParser3.parse(xml3);
-    if (!isRecord(doc)) return void 0;
-    const root = doc["Component"];
-    return isRecord(root) ? root : void 0;
-  } catch {
-    return void 0;
-  }
-}
-var FPM_BUTTON_TYPE = {
-  BU: "Button",
-  TB: "Toggle Button",
-  BC: "Button Choice",
-  LA: "Link To Action"
-};
-function collectToolbarButtons(root) {
-  const rows = [];
-  const variants = [
-    ["TOOLBAR", "BUTTON", "BUTTON_SUB_ITEM", "toolbar"],
-    ["UIBB_TOOLBAR", "UIBB_BUTTON", "UIBB_BUTTON_SUB_ITEM", "uibb_toolbar"]
-  ];
-  for (const [toolbarName, buttonName, subName, source] of variants) {
-    for (const toolbarNode of findAllNodesByName(root, toolbarName)) {
-      for (const buttonNode of findAllNodesByName(toolbarNode, buttonName)) {
-        for (const buttonItem of items(buttonNode)) {
-          const elementId = text3(buttonItem["ELEMENT_ID"]);
-          const subActionIds = findAllNodesByName(buttonItem, subName).flatMap((n) => items(n)).map((i) => text3(i["ACTION_ID"])).filter((id) => id !== "");
-          const btnText = textTransl(buttonItem["TEXT"]);
-          rows.push({
-            source,
-            elementId,
-            text: btnText.value,
-            textTransl: btnText.translatable,
-            type: text3(buttonItem["TYPE"]),
-            actionIds: subActionIds.length ? subActionIds : elementId ? [elementId] : [],
-            raw: buttonItem
-          });
-        }
-      }
-    }
-  }
-  return rows;
-}
-var FPMGB_DISPLAY_TYPE = {
-  BT: "Button",
-  TB: "Toggle Button",
-  BC: "Button-Choice",
-  SE: "Separator",
-  LA: "Link to Action"
-};
-function collectButtonRows(root) {
-  const rows = [];
-  for (const rowNode of findAllNodesByName(root, "BUTTON_ROW")) {
-    for (const elNode of findAllNodesByName(rowNode, "BUTTON_ROW_ELEMENT")) {
-      for (const elItem of items(elNode)) {
-        const events = findAllNodesByName(elItem, "BUTTON_ACTION").flatMap((n) => items(n)).map((i) => ({ eventId: text3(i["EVENT_ID"]), text: text3(i["TEXT"]) }));
-        const rowText = textTransl(elItem["TEXT"]);
-        rows.push({
-          elementId: text3(elItem["ELEMENT_ID"]),
-          text: rowText.value,
-          textTransl: rowText.translatable,
-          displayType: text3(elItem["DISPLAY_TYPE"]),
-          events,
-          raw: elItem
-        });
-      }
-    }
-  }
-  return rows;
-}
-function collectFbiActions(root) {
-  const rows = [];
-  for (const ctxNode of findAllNodesByName(root, "CONFIGURATION_CONTEXT")) {
-    for (const ctxItem of items(ctxNode)) {
-      for (const actionsNode of findAllNodesByName(ctxItem, "ACTIONS")) {
-        for (const item of items(actionsNode)) {
-          const actionText = textTransl(item["TEXT"]);
-          rows.push({
-            actionId: text3(item["ACTIONID"]),
-            actionImpl: text3(item["ACTION_IMPL"]),
-            actionConf: text3(item["ACTION_CONF"]),
-            text: actionText.value,
-            textTransl: actionText.translatable,
-            tooltip: text3(item["TOOLTIP"]),
-            enabled: text3(item["ENABLED"]),
-            navRole: text3(item["NAV_ROLE"]),
-            raw: item
-          });
-        }
-      }
-    }
-  }
-  return rows;
-}
-function collectActions(root) {
-  const rows = [];
-  for (const actionNode of findAllNodesByName(root, "ACTION")) {
-    for (const item of items(actionNode)) {
-      rows.push({
-        id: text3(item["ID"]),
-        eventId: text3(item["EVENT_ID"]),
-        component: text3(item["COMPONENT"]),
-        configId: text3(item["CONFIG_ID"]),
-        configType: text3(item["CONFIG_TYPE"]),
-        configVar: text3(item["CONFIG_VAR"])
-      });
-    }
-  }
-  return rows;
-}
-function stripCounterSuffix(id) {
-  return id.replace(/_\d+$/, "");
-}
-function findAction(actions, actionId) {
-  return actions.find((a) => a.id === actionId) ?? actions.find((a) => stripCounterSuffix(a.id) === actionId);
-}
-function excerptOf(el) {
-  let raw;
-  try {
-    raw = JSON.stringify(el) ?? String(el);
-  } catch {
-    raw = String(el);
-  }
-  return truncateText(raw, MESSAGE_EXCERPT_MAX);
-}
-function withExcerpt(handler, raw) {
-  return handler.kind === "unresolved" ? { ...handler, excerpt: excerptOf(raw) } : handler;
-}
-function findConfigByBareId(configs, configId) {
-  const norm = configId.trim().toUpperCase();
-  return configs.find((c) => c.configId.trim().toUpperCase() === norm);
-}
-function collectWires(root) {
-  const rows = [];
-  for (const wmNode of findAllNodesByName(root, "WIRE_MODEL")) {
-    for (const wireNode of findAllNodesByName(wmNode, "WIRE")) {
-      for (const item of items(wireNode)) {
-        rows.push({
-          configId: text3(item["CONFIG_ID"]),
-          configType: text3(item["CONFIG_TYPE"]),
-          configVar: text3(item["CONFIG_VAR"]),
-          component: text3(item["COMPONENT"]),
-          srcConfigId: text3(item["SRC_CONFIG_ID"]),
-          srcConfigType: text3(item["SRC_CONFIG_TYPE"]),
-          srcConfigVar: text3(item["SRC_CONFIG_VAR"]),
-          srcComponent: text3(item["SRC_COMPONENT"]),
-          connector: text3(item["CONNECTOR"]),
-          portType: text3(item["PORT_TYPE"]),
-          portIdentifier: text3(item["PORT_IDENTIFIER"]),
-          primaryAttribute: text3(item["FPM_PRIMARY_ATTRIBUTE"])
-        });
-      }
-    }
-  }
-  return rows;
-}
-function collectAppSpecificCC(root) {
-  for (const node2 of findAllNodesByName(root, "APP_SPECIFIC_CC")) {
-    for (const item of items(node2)) {
-      return {
-        component: text3(item["COMPONENT"]),
-        configId: text3(item["CONFIG_ID"]),
-        configType: text3(item["CONFIG_TYPE"]),
-        configVar: text3(item["CONFIG_VAR"])
-      };
-    }
-  }
-  return void 0;
-}
-function collectFeeders(root) {
-  const out = [];
-  const walk = (el) => {
-    if (!isRecord(el)) return;
-    const feeder = text3(el["FEEDER"]);
-    if (feeder) out.push(feeder);
-    for (const node2 of asArray3(el["Node"])) walk(node2);
-    for (const item of items(el)) walk(item);
-  };
-  walk(root);
-  return out;
-}
-function collectBoNames(root) {
-  const out = /* @__PURE__ */ new Set();
-  const walk = (el) => {
-    if (!isRecord(el)) return;
-    const bo = text3(el["BO"]);
-    if (bo) out.add(bo);
-    for (const item of items(el)) {
-      if (text3(item["NAME"]) === "BO") {
-        const value = text3(item["VALUE"]);
-        if (value) out.add(value);
-      }
-      walk(item);
-    }
-    for (const node2 of asArray3(el["Node"])) walk(node2);
-  };
-  walk(root);
-  return [...out];
-}
-function collectBoNodePairs(root) {
-  const out = [];
-  const walk = (el) => {
-    if (!isRecord(el)) return;
-    const literalBo = text3(el["BO"]);
-    if (literalBo) out.push({ bo: literalBo, node: text3(el["NODE"]) || void 0 });
-    const nameValue = /* @__PURE__ */ new Map();
-    for (const item of items(el)) {
-      const name = text3(item["NAME"]);
-      if (name) nameValue.set(name, text3(item["VALUE"]));
-    }
-    const paramBo = nameValue.get("BO");
-    if (paramBo) out.push({ bo: paramBo, node: nameValue.get("NODE") || void 0 });
-    for (const item of items(el)) walk(item);
-    for (const node2 of asArray3(el["Node"])) walk(node2);
-  };
-  walk(root);
-  return out;
-}
-function normKey(configId, configType, configVar) {
-  return `${configId.trim().toUpperCase()}|${(configType || "00").trim().toUpperCase()}|${(configVar ?? "").trim().toUpperCase()}`;
-}
-function parseConfig(frame) {
-  const root = frame.xml ? parseConfigXml(frame.xml) : void 0;
-  if (!root) return void 0;
-  return {
-    configId: frame.config_id,
-    configType: frame.config_type || "00",
-    configVar: frame.config_var,
-    component: frame.component ?? "",
-    root,
-    actions: collectActions(root),
-    toolbarButtons: collectToolbarButtons(root),
-    buttonRows: collectButtonRows(root),
-    fbiActions: collectFbiActions(root),
-    wires: collectWires(root),
-    appSpecificCC: collectAppSpecificCC(root),
-    feeders: collectFeeders(root),
-    boNames: collectBoNames(root),
-    boNodePairs: collectBoNodePairs(root)
-  };
-}
-function buildBopfHandler(bo, nodeCandidate, eventId, ctx) {
-  const call = `abap_bopf {"mode":"show","bo":"${bo}"}`;
-  const nodesForBo = ctx.bopfNodes.filter((n) => n.bo === bo);
-  const actionsForBo = ctx.bopfActions.filter((a) => a.bo === bo);
-  const errorForBo = ctx.bopfErrors.find((e) => e.bo === bo);
-  const catalogueFetched = nodesForBo.length > 0 || actionsForBo.length > 0 || errorForBo !== void 0;
-  const notes = [];
-  if (errorForBo) {
-    notes.push(`the /BOBF/OBM_NODE + /BOBF/ACT_LIST read for BO "${bo}" failed (${errorForBo.text}) \u2014 node/action below are unverified.`);
-  } else if (!catalogueFetched) {
-    notes.push(`node/action were not verified against /BOBF/OBM_NODE or /BOBF/ACT_LIST for BO "${bo}" \u2014 pass resolve=true to fetch that catalogue.`);
-  }
-  const node2 = nodeCandidate || void 0;
-  if (!nodeCandidate) {
-    notes.push(`no NODE is paired with BO "${bo}" anywhere in this button's config \u2014 cannot say which BOPF node this handler acts on.`);
-  } else if (catalogueFetched && !errorForBo && !nodesForBo.some((n) => n.node_name === nodeCandidate)) {
-    notes.push(`node "${nodeCandidate}" was not found in /BOBF/OBM_NODE for BO "${bo}" \u2014 kept as-is rather than dropped, but unverified.`);
-  }
-  const matchedNode = nodeCandidate ? nodesForBo.find((n) => n.node_name === nodeCandidate) : void 0;
-  const candidateActions = matchedNode ? actionsForBo.filter((a) => a.node_key === matchedNode.node_key) : actionsForBo;
-  let action;
-  if (!eventId) {
-    notes.push("no event id was available to try as a BOPF action name.");
-  } else if (catalogueFetched && !errorForBo) {
-    const matchedAction = candidateActions.find((a) => a.act_name === eventId);
-    if (matchedAction) {
-      action = eventId;
-    } else if (eventId.startsWith("FBI_")) {
-      notes.push(
-        `event "${eventId}" is an FBI framework event \u2014 its real BOPF action is mapped internally by the FBI connector and never appears in /BOBF/ACT_LIST or anywhere else in configuration, so it cannot be determined here.`
-      );
-    } else {
-      notes.push(
-        `event "${eventId}" does not name any action in /BOBF/ACT_LIST for BO "${bo}"${matchedNode ? ` node "${nodeCandidate}"` : ""} \u2014 cannot say what action this handler runs.`
-      );
-    }
-  } else if (eventId.startsWith("FBI_")) {
-    notes.push(
-      `event "${eventId}" is an FBI framework event \u2014 its real BOPF action is mapped internally by the FBI connector and never appears in /BOBF/ACT_LIST or anywhere else in configuration, so it would not have been determinable even with resolve=true.`
-    );
-  }
-  return { kind: "bopf", bo, node: node2, action, call, note: notes.length ? notes.join(" ") : void 0 };
-}
-function classifyHandler(eventId, target, ctx) {
-  if (eventId) {
-    const looksStandard = eventId.startsWith("FPM_");
-    if (ctx.standardVerified ? ctx.standardEventIds.has(eventId) : looksStandard) {
-      return { kind: "standard", eventId, verified: ctx.standardVerified && ctx.standardEventIds.has(eventId) };
-    }
-  }
-  if (target?.configId) {
-    const cfg = ctx.configsByKey.get(normKey(target.configId, target.configType, target.configVar));
-    if (cfg) {
-      const bo = cfg.boNames[0];
-      if (bo) {
-        const nodeCandidate = cfg.boNodePairs.find((p) => p.bo === bo)?.node;
-        return buildBopfHandler(bo, nodeCandidate, eventId, ctx);
-      }
-      const feeder = cfg.feeders[0];
-      if (feeder) {
-        const iface = FEEDER_INTERFACE_BY_COMPONENT[cfg.component];
-        const method = iface ? `${iface}~PROCESS_EVENT` : void 0;
-        return {
-          kind: "feeder",
-          feederClass: feeder,
-          configId: target.configId,
-          configType: target.configType || "00",
-          configVar: target.configVar ?? "",
-          method,
-          call: method ? `abap_read {"object":"${feeder}","method":"${method}"}` : void 0
-        };
-      }
-      return {
-        kind: "unresolved",
-        reason: `target config ${target.configId} was read but declares no FEEDER and no BO parameter`
-      };
-    }
-    return {
-      kind: "unresolved",
-      reason: `target config ${target.configId} was not read (skipped by uibb filter, failed to read, or not walked) \u2014 cannot tell feeder from BOPF from app controller`
-    };
-  }
-  if (target?.component) {
-    return { kind: "app_controller", component: target.component };
-  }
-  return {
-    kind: "unresolved",
-    reason: eventId ? `event "${eventId}" is not a standard FPM event and has no ACTION target to follow` : "no ACTION catalogue entry matched this toolbar element's id"
-  };
-}
-function buildTextIndex(frames) {
-  const idx2 = /* @__PURE__ */ new Map();
-  for (const f of frames) {
-    const key = `${normKey(f.config_id, f.config_type, f.config_var)} ${f.text_id}`;
-    let entry = idx2.get(key);
-    if (!entry) {
-      entry = { byLangu: /* @__PURE__ */ new Map(), order: [] };
-      idx2.set(key, entry);
-    }
-    if (!entry.byLangu.has(f.langu)) {
-      entry.byLangu.set(f.langu, f.description);
-      entry.order.push(f.langu);
-    }
-  }
-  return idx2;
-}
-function resolveTextId(idx2, configId, configType, configVar, textId, logonLangu) {
-  const entry = idx2.get(`${normKey(configId, configType, configVar)} ${textId}`);
-  if (!entry) return void 0;
-  if (logonLangu && entry.byLangu.has(logonLangu)) return entry.byLangu.get(logonLangu);
-  if (entry.byLangu.has("E")) return entry.byLangu.get("E");
-  const first = entry.order[0];
-  return first !== void 0 ? entry.byLangu.get(first) : void 0;
-}
-function resolveFpmEvents(raw) {
-  const notes = [];
-  const rootFrame = raw.configs.find((c) => c.role === "root");
-  if (!rootFrame) {
-    throw new Error("resolveFpmEvents: no root config frame present \u2014 splitEventFrames was given an empty/invalid transcript");
-  }
-  const unreadable = raw.configs.filter((c) => c.role === "child" && c.read_error !== void 0).map((c) => ({ configId: c.config_id, configType: c.config_type || "00", configVar: c.config_var, error: c.read_error ?? "" }));
-  const skipped = raw.configs.filter((c) => c.role === "child" && c.skipped !== void 0).map((c) => ({ configId: c.config_id, configType: c.config_type || "00", configVar: c.config_var }));
-  const textIndex = buildTextIndex(raw.textIds);
-  const logonLangu = raw.summary?.logon_langu ?? "";
-  let hadTranslatableText = false;
-  let hadUnresolvedTranslatableText = false;
-  function resolveRowText(cfg, rawValue, translatable) {
-    if (!translatable || !rawValue) return { text: rawValue || void 0, textKey: void 0 };
-    hadTranslatableText = true;
-    const resolved = resolveTextId(textIndex, cfg.configId, cfg.configType, cfg.configVar, rawValue, logonLangu);
-    if (resolved === void 0) hadUnresolvedTranslatableText = true;
-    return { text: resolved ?? rawValue, textKey: rawValue };
-  }
-  const readable = raw.configs.filter((c) => c.xml !== void 0);
-  const parsedConfigs = [];
-  for (const frame of readable) {
-    const parsed = parseConfig(frame);
-    if (parsed) {
-      parsedConfigs.push(parsed);
-    } else if (frame.xml && frame.xml.trim()) {
-      notes.push(`config ${frame.config_id} has XML but it could not be parsed as an fpm/fbi Component document \u2014 skipped for event resolution.`);
-    }
-  }
-  const configsByKey = /* @__PURE__ */ new Map();
-  for (const cfg of parsedConfigs) configsByKey.set(normKey(cfg.configId, cfg.configType, cfg.configVar), cfg);
-  const views = parsedConfigs.map((cfg) => {
-    if (cfg.feeders.length > 1) {
-      notes.push(
-        `config ${cfg.configId} names ${cfg.feeders.length} FEEDER classes (${cfg.feeders.join(", ")}) \u2014 only the first, "${cfg.feeders[0]}", is shown as this view's feeder class.`
-      );
-    }
-    const pair = cfg.boNodePairs[0];
-    return {
-      configId: cfg.configId,
-      configType: cfg.configType,
-      configVar: cfg.configVar,
-      kind: cfg.component,
-      feederClass: cfg.feeders[0],
-      bo: pair ? pair.bo : cfg.boNames[0],
-      node: pair ? pair.node : void 0
-    };
-  });
-  const viewsByKey = /* @__PURE__ */ new Map();
-  for (const v of views) viewsByKey.set(normKey(v.configId, v.configType, v.configVar), v);
-  const standardEventIds = new Set(raw.fpmEvents.map((f) => f.event_id));
-  const standardVerified = raw.fpmEvents.length > 0 || raw.fpmEventErrors.length > 0;
-  if (!standardVerified) {
-    notes.push(
-      'resolve was not requested (or the CL_FPM_EVENT catalogue read produced nothing): "standard" handlers below are a name-prefix guess ("FPM_..." events only), not verified against the actual catalogue. Pass resolve=true for a verified match.'
-    );
-  } else if (raw.fpmEventErrors.length > 0) {
-    notes.push(`the CL_FPM_EVENT catalogue read failed (${raw.fpmEventErrors.map((e) => e.text).join("; ")}) \u2014 "standard" handlers below are a name-prefix guess, not verified.`);
-  }
-  const ctx = {
-    standardEventIds,
-    standardVerified: standardVerified && raw.fpmEventErrors.length === 0,
-    configsByKey,
-    bopfNodes: raw.bopfNodes,
-    bopfActions: raw.bopfActions,
-    bopfErrors: raw.bopfErrors
-  };
-  const wires = [];
-  let appController;
-  for (const cfg of parsedConfigs) {
-    wires.push(...cfg.wires);
-    if (!appController && cfg.appSpecificCC && (cfg.appSpecificCC.component || cfg.appSpecificCC.configId)) {
-      appController = cfg.appSpecificCC;
-    }
-  }
-  const events = [];
-  for (const cfg of parsedConfigs) {
-    const view = viewsByKey.get(normKey(cfg.configId, cfg.configType, cfg.configVar));
-    for (const btn of cfg.toolbarButtons) {
-      const typeLabel = FPM_BUTTON_TYPE[btn.type] ?? (btn.type ? `${btn.type} (code not decoded)` : void 0);
-      const actionIds = btn.actionIds.length ? btn.actionIds : [btn.elementId];
-      for (const actionId of actionIds) {
-        if (!actionId) continue;
-        const action = findAction(cfg.actions, actionId);
-        const eventId = action?.eventId ?? "";
-        const target = action ? { component: action.component, configId: action.configId, configType: action.configType, configVar: action.configVar } : void 0;
-        events.push({
-          configId: cfg.configId,
-          configType: cfg.configType,
-          configVar: cfg.configVar,
-          uibbKind: view?.kind,
-          feederClass: view?.feederClass,
-          source: btn.source,
-          elementId: btn.elementId || actionId,
-          ...resolveRowText(cfg, btn.text, btn.textTransl),
-          elementType: typeLabel,
-          eventId: eventId || void 0,
-          handler: withExcerpt(classifyHandler(eventId, target, ctx), btn.raw)
-        });
-      }
-    }
-    for (const row2 of cfg.buttonRows) {
-      const typeLabel = FPMGB_DISPLAY_TYPE[row2.displayType] ?? (row2.displayType ? `${row2.displayType} (code not decoded)` : void 0);
-      if (row2.events.length === 0) {
-        events.push({
-          configId: cfg.configId,
-          configType: cfg.configType,
-          configVar: cfg.configVar,
-          uibbKind: view?.kind,
-          feederClass: view?.feederClass,
-          source: "button_row",
-          elementId: row2.elementId,
-          ...resolveRowText(cfg, row2.text, row2.textTransl),
-          elementType: typeLabel,
-          handler: {
-            kind: "unresolved",
-            reason: "no BUTTON_ACTION child \u2014 this button row element declares no event",
-            excerpt: excerptOf(row2.raw)
-          }
-        });
-        continue;
-      }
-      for (const ev of row2.events) {
-        const selfTarget = { configId: cfg.configId, configType: cfg.configType, configVar: cfg.configVar };
-        events.push({
-          configId: cfg.configId,
-          configType: cfg.configType,
-          configVar: cfg.configVar,
-          uibbKind: view?.kind,
-          feederClass: view?.feederClass,
-          source: "button_row",
-          elementId: row2.elementId,
-          ...resolveRowText(cfg, row2.text, row2.textTransl),
-          elementType: typeLabel,
-          eventId: ev.eventId || void 0,
-          handler: withExcerpt(classifyHandler(ev.eventId, selfTarget, ctx), row2.raw)
-        });
-      }
-    }
-    for (const action of cfg.fbiActions) {
-      const confTarget = action.actionConf ? findConfigByBareId(parsedConfigs, action.actionConf) : void 0;
-      if (confTarget) {
-        events.push({
-          configId: cfg.configId,
-          configType: cfg.configType,
-          configVar: cfg.configVar,
-          uibbKind: view?.kind,
-          feederClass: view?.feederClass,
-          source: "fbi_action",
-          elementId: action.actionId,
-          ...resolveRowText(cfg, action.text, action.textTransl),
-          handler: withExcerpt(
-            classifyHandler(
-              "",
-              { configId: confTarget.configId, configType: confTarget.configType, configVar: confTarget.configVar },
-              ctx
-            ),
-            action.raw
-          )
-        });
-        continue;
-      }
-      if (action.actionImpl) {
-        events.push({
-          configId: cfg.configId,
-          configType: cfg.configType,
-          configVar: cfg.configVar,
-          uibbKind: view?.kind,
-          feederClass: view?.feederClass,
-          source: "fbi_action",
-          elementId: action.actionId,
-          ...resolveRowText(cfg, action.text, action.textTransl),
-          handler: { kind: "action_impl", implClass: action.actionImpl }
-        });
-        continue;
-      }
-      events.push({
-        configId: cfg.configId,
-        configType: cfg.configType,
-        configVar: cfg.configVar,
-        uibbKind: view?.kind,
-        feederClass: view?.feederClass,
-        source: "fbi_action",
-        elementId: action.actionId,
-        ...resolveRowText(cfg, action.text, action.textTransl),
-        handler: withExcerpt(
-          action.actionConf ? {
-            kind: "unresolved",
-            reason: `ACTION_CONF points to config "${action.actionConf}" \u2014 not followed by the events scan (only CONFIG_ID-bearing references are walked), and there is no ACTION_IMPL to fall back to`
-          } : { kind: "unresolved", reason: "no ACTION_IMPL/ACTION_CONF \u2014 cannot tell what handles this action" },
-          action.raw
-        )
-      });
-    }
-  }
-  const rootParsed = configsByKey.get(normKey(rootFrame.config_id, rootFrame.config_type, rootFrame.config_var));
-  if (!rootParsed && rootFrame.xml && rootFrame.xml.trim()) {
-    notes.push("the root config's own XML could not be parsed as an fpm/fbi Component document \u2014 no toolbar/wire/action extraction was possible for it.");
-  }
-  if (hadTranslatableText) {
-    if (raw.textIdErrors.length > 0) {
-      notes.push(
-        `Toolbar/action texts marked as text keys could not be resolved against WDY_CONFIG_COMPT (read failed: ${raw.textIdErrors.map((e) => e.text).join("; ")}) \u2014 "text" holds the raw numeric key instead of a label; see "textKey".`
-      );
-    } else if (hadUnresolvedTranslatableText) {
-      notes.push(
-        'Some toolbar/action texts are WDY_CONFIG_COMPT text keys with no matching row for this config (logon language, "E", or any language on file) \u2014 for those, "text" falls back to the raw numeric key; see "textKey" for the key on every resolved element too.'
-      );
-    } else {
-      notes.push(
-        'Toolbar/action texts marked Transl="true" are WDY_CONFIG_COMPT text keys \u2014 "text" is resolved to the description for the logon language, falling back to "E" and then to whatever language is on file (WDY_CONFIG_COMPT has no master-language column), and "textKey" carries the original numeric key.'
-      );
-    }
-  }
-  return {
-    root: {
-      configId: rootFrame.config_id,
-      configType: rootFrame.config_type || "00",
-      configVar: rootFrame.config_var,
-      component: rootFrame.component ?? "",
-      devclass: rootFrame.devclass ?? ""
-    },
-    appController,
-    wires,
-    views,
-    events,
-    unreadable,
-    skipped,
-    notes,
-    truncated: raw.summary?.truncated ?? ""
-  };
-}
-
-// src/adt/fpm-runtime.ts
-var CONFIG_VAR_MAX = 6;
-function assertConfigId(value) {
-  const v = assertPlainName(value, "config_id");
-  if (v.length > CONFIG_ID_LEN) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `config_id "${value}" is ${v.length} characters long; WDY_CONFIG_ID is CHAR${CONFIG_ID_LEN}.`,
-      { value }
-    );
-  }
-  return v;
-}
-function assertConfigVar(value) {
-  const v = (value ?? "").trim();
-  if (v === "") return "";
-  if (!/^[A-Za-z0-9_]{1,6}$/.test(v) || v.length > CONFIG_VAR_MAX) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `config_var "${value}" must be up to ${CONFIG_VAR_MAX} letters/digits/underscore.`,
-      { value }
-    );
-  }
-  return v;
-}
-var FPM_TOOLS = /* @__PURE__ */ new Map([
-  [
-    "fpm",
-    {
-      manifest: fpmManifest,
-      origin: "builtin",
-      sources: fpmSources,
-      version: manifestVersion(fpmManifest, fpmSources)
-    }
-  ]
-]);
-function fpmDispatchArgs(query) {
-  switch (query.mode) {
-    case "find":
-      return {
-        config_type: query.configType,
-        ...query.component !== void 0 ? { component: query.component } : {},
-        ...query.queryPattern !== void 0 ? { query: query.queryPattern } : {},
-        ...query.package !== void 0 ? { package: query.package } : {}
-      };
-    case "outline":
-      return { config_id: query.configId, config_type: query.configType, config_var: query.configVar };
-    case "app":
-      return { config_id: query.configId, resolve: query.resolve };
-    case "events":
-      return {
-        config_id: query.configId,
-        config_type: query.configType,
-        config_var: query.configVar,
-        ...query.uibb !== void 0 ? { uibb: query.uibb } : {},
-        resolve: query.resolve
-      };
-  }
-}
-var EMPTY_TRANSCRIPT = {
-  count: void 0,
-  configs: [],
-  outlineXml: void 0,
-  outlineMeta: void 0,
-  appNodes: [],
-  droppedLines: 0
-};
-function outlineNotFoundDiagnostic(e) {
-  if (!isAbapError(e) || e.code !== "FLUID_ACTION_FAILED") return void 0;
-  const frames = e.details["frames"];
-  if (!Array.isArray(frames) || frames.length !== 1) return void 0;
-  const frame = frames[0];
-  if (frame.kind === "subrc" && frame.step === "select" && typeof frame.text === "string") {
-    return `${ERR_LINE_PREFIX}${frame.text}`;
-  }
-  if (frame.kind === "exception" && frame.step === "read_comp_config_from_db" && typeof frame.text === "string") {
-    return `${ERR_LINE_PREFIX}READ_COMP_CONFIG_FROM_DB FAILED ${frame.text}`;
-  }
-  return void 0;
-}
-function isFpmFindRow(v) {
-  if (typeof v !== "object" || v === null) return false;
-  const r = v;
-  return typeof r["config_id"] === "string" && typeof r["config_type"] === "string" && typeof r["config_var"] === "string" && typeof r["component"] === "string" && typeof r["description"] === "string" && typeof r["devclass"] === "string";
-}
-function isFpmOutlineResult(v) {
-  if (typeof v !== "object" || v === null) return false;
-  const r = v;
-  if (typeof r["config_id"] !== "string" || typeof r["config_type"] !== "string" || typeof r["config_var"] !== "string" || typeof r["xml"] !== "string" || typeof r["meta"] !== "object" || r["meta"] === null) {
-    return false;
-  }
-  const m = r["meta"];
-  return typeof m["config_idpar"] === "string" && typeof m["config_typepar"] === "string" && typeof m["config_varpar"] === "string" && typeof m["component"] === "string" && typeof m["devclass"] === "string";
-}
-var FPM_EVENTS_FRAME_KINDS = /* @__PURE__ */ new Set([
-  "config",
-  "fpm_event",
-  "fpm_event_error",
-  "bopf_node",
-  "bopf_action",
-  "bopf_error",
-  "text_id",
-  "text_id_error",
-  "summary"
-]);
-function isFpmEventsFrame(v) {
-  if (typeof v !== "object" || v === null) return false;
-  const kind = v["kind"];
-  return typeof kind === "string" && FPM_EVENTS_FRAME_KINDS.has(kind);
-}
-function isFpmAppNodeResult(v) {
-  if (typeof v !== "object" || v === null) return false;
-  const r = v;
-  return typeof r["node_path"] === "string" && typeof r["parent_path"] === "string" && typeof r["is_top_node"] === "boolean" && typeof r["node_name"] === "string" && typeof r["description"] === "string" && typeof r["component_name"] === "string" && typeof r["interface_view"] === "string" && typeof r["config_id"] === "string" && typeof r["config_type"] === "string" && typeof r["config_var"] === "string" && typeof r["target_config_id"] === "string" && typeof r["is_configurable"] === "boolean" && typeof r["is_customized"] === "boolean" && typeof r["is_enhanced"] === "boolean" && typeof r["is_freestyle_uibb"] === "boolean" && typeof r["is_leaf"] === "boolean";
-}
-async function runFpmRead(conn, query, gate) {
-  const started = Date.now();
-  let res;
-  try {
-    res = await dispatch2(
-      { conn, cfg: conn.cfg, gate, tools: FPM_TOOLS },
-      {
-        tool: "fpm",
-        action: query.mode,
-        args: fpmDispatchArgs(query),
-        // Names the MCP-facing tool/action in a FLUID_API_DISABLED refusal — see FluidRunRequest.caller's doc.
-        caller: { tool: "abap_fpm_read", action: query.mode }
-      }
-    );
-  } catch (e) {
-    if (query.mode === "outline") {
-      const diagnostic = outlineNotFoundDiagnostic(e);
-      if (diagnostic !== void 0) {
-        return {
-          query,
-          bridgeClass: fpmManifest.entry,
-          bridgeRefreshed: false,
-          durationMs: Date.now() - started,
-          transcript: { ...EMPTY_TRANSCRIPT, diagnostics: [diagnostic] },
-          outputComplete: true,
-          bodyBytes: 0
-        };
-      }
-    }
-    throw e;
-  }
-  let transcript;
-  switch (query.mode) {
-    case "find": {
-      if (!Array.isArray(res.result) || !res.result.every(isFpmFindRow)) {
-        throw new AbapError(
-          "FLUID_PROTOCOL_ERROR",
-          "fpm.find returned a result that does not match the declared array-of-row schema.",
-          { tool: "fpm", action: "find", result: res.result }
-        );
-      }
-      const rows = res.result;
-      transcript = {
-        // The fluid body applies the `package` filter inside the same loop
-        // that emits each row (builtin/fpm.ts), so — unlike the legacy
-        // bridge's COUNT, taken before that filter — this count and the
-        // number of emitted rows can never diverge: there is no separate
-        // pre-filter total to report any more.
-        count: rows.length,
-        configs: rows.map((r) => ({
-          configId: r.config_id,
-          configType: r.config_type,
-          configVar: r.config_var,
-          component: r.component,
-          description: r.description,
-          devclass: r.devclass
-        })),
-        outlineXml: void 0,
-        outlineMeta: void 0,
-        appNodes: [],
-        diagnostics: [],
-        droppedLines: 0
-      };
-      break;
-    }
-    case "outline": {
-      if (!isFpmOutlineResult(res.result)) {
-        throw new AbapError(
-          "FLUID_PROTOCOL_ERROR",
-          "fpm.outline returned a result that does not match the declared object schema.",
-          { tool: "fpm", action: "outline", result: res.result }
-        );
-      }
-      const r = res.result;
-      transcript = {
-        count: void 0,
-        configs: [],
-        outlineXml: r.xml,
-        outlineMeta: {
-          configIdPar: r.meta.config_idpar,
-          configTypePar: r.meta.config_typepar,
-          configVarPar: r.meta.config_varpar,
-          component: r.meta.component,
-          devclass: r.meta.devclass
-        },
-        appNodes: [],
-        diagnostics: [],
-        droppedLines: 0
-      };
-      break;
-    }
-    case "app": {
-      if (!Array.isArray(res.result) || !res.result.every(isFpmAppNodeResult)) {
-        throw new AbapError(
-          "FLUID_PROTOCOL_ERROR",
-          "fpm.app returned a result that does not match the declared array-of-node schema.",
-          { tool: "fpm", action: "app", result: res.result }
-        );
-      }
-      const nodes = res.result;
-      const diagnostics = [];
-      const appNodes = nodes.map((n) => {
-        if (n.resolve_error !== void 0) {
-          diagnostics.push(`${ERR_LINE_PREFIX}RESOLVE ${n.node_path} FAILED ${n.resolve_error}`);
-        }
-        return {
-          nodePath: n.node_path,
-          parentPath: n.parent_path,
-          isTopNode: n.is_top_node,
-          nodeName: n.node_name,
-          description: n.description,
-          componentName: n.component_name,
-          interfaceView: n.interface_view,
-          configId: n.config_id,
-          configType: n.config_type,
-          configVar: n.config_var,
-          targetConfigId: n.target_config_id,
-          isConfigurable: n.is_configurable,
-          isCustomized: n.is_customized,
-          isEnhanced: n.is_enhanced,
-          isFreestyleUibb: n.is_freestyle_uibb,
-          isLeaf: n.is_leaf,
-          resolved: n.resolved ? {
-            xmlLen: n.resolved.xml_len,
-            feederHint: n.resolved.feeder_hint,
-            bopfHint: n.resolved.bopf_hint,
-            excerpt: n.resolved.excerpt
-          } : void 0
-        };
-      });
-      transcript = {
-        count: nodes.length,
-        configs: [],
-        outlineXml: void 0,
-        outlineMeta: void 0,
-        appNodes,
-        diagnostics,
-        droppedLines: 0
-      };
-      break;
-    }
-    case "events": {
-      if (!Array.isArray(res.result) || !res.result.every(isFpmEventsFrame)) {
-        throw new AbapError(
-          "FLUID_PROTOCOL_ERROR",
-          "fpm.events returned a result that does not match the declared array-of-frame schema.",
-          { tool: "fpm", action: "events", result: res.result }
-        );
-      }
-      const raw = splitEventFrames(res.result);
-      const events = resolveFpmEvents(raw);
-      transcript = {
-        count: void 0,
-        configs: [],
-        outlineXml: void 0,
-        outlineMeta: void 0,
-        appNodes: [],
-        events,
-        diagnostics: raw.unrecognised.length ? [`${ERR_LINE_PREFIX}EVENTS ${raw.unrecognised.length} unrecognised frame(s) \u2014 protocol drift, see bodyBytes/raw result.`] : [],
-        droppedLines: 0
-      };
-      break;
-    }
-  }
-  return {
-    query,
-    bridgeClass: fpmManifest.entry,
-    bridgeRefreshed: res.deployed,
-    durationMs: Date.now() - started,
-    transcript,
-    outputComplete: !res.truncated,
-    bodyBytes: Buffer.byteLength(JSON.stringify(res.result), "utf8")
-  };
-}
-
-// src/adt/fpm-lock.ts
-init_errors();
-import { createHash as createHash10 } from "node:crypto";
-var CONFIG_TYPE_LEN = 2;
-var CONFIG_VAR_LEN = 6;
-function assertLockConfigType(value) {
-  if (typeof value !== "string" || !/^[0-9]{2}$/.test(value)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `config_type ${JSON.stringify(value)} must be exactly 2 numeric digits (NUMC2) with no surrounding whitespace \u2014 e.g. "00" (component) or "02" (application). It is a lock key field: an absent or malformed value would widen the enqueue into a wildcard lock over every config_type of this config_id.`,
-      { value }
-    );
-  }
-  return value;
-}
-function lockKindForConfigType(configType) {
-  return assertLockConfigType(configType) === "02" ? "application" : "component";
-}
-var LOCK_LINE_PREFIX = "LCK> ";
-var FPM_LOCK_BRIDGE_CLASS_PREFIX = "ZCL_ZMCP_FPMLK_";
-var FPM_LOCK_SCOPE = "1";
-var GARG_LENGTH = 150;
-var GARG_SEGMENTS = {
-  configId: [0, CONFIG_ID_LEN],
-  configType: [CONFIG_ID_LEN, CONFIG_ID_LEN + CONFIG_TYPE_LEN],
-  configVar: [CONFIG_ID_LEN + CONFIG_TYPE_LEN, CONFIG_ID_LEN + CONFIG_TYPE_LEN + CONFIG_VAR_LEN]
-};
-var GARG_TAIL_OFFSET = GARG_SEGMENTS.configVar[1];
-var FPM_LOCK_OBJECTS = {
-  component: {
-    lockObject: "E_WDY_CONFCOMP",
-    enqueueFm: "ENQUEUE_E_WDY_CONFCOMP",
-    dequeueFm: "DEQUEUE_E_WDY_CONFCOMP",
-    gname: "WDY_CONFIG_DATA"
-  },
-  /**
-   * VERIFIED LIVE on A4H (2026-08-11): the FM/lock-object/`GNAME` triple, the 0/32/34
-   * {@link GARG_SEGMENTS} layout, `GUSR` as owner slot, and DEQUEUE release are all confirmed for
-   * this lock object (regression-pinned by test/integration-fpm-lock.test.ts). Still carried over
-   * by analogy, not captured: the full `_SCOPE` release matrix and the X-flag/wildcard-fill
-   * behaviour (only scope 1 / `E_WDY_CONFCOMP` were exercised). See archive for the capture.
-   */
-  application: {
-    lockObject: "E_WDY_CONFAPPL",
-    enqueueFm: "ENQUEUE_E_WDY_CONFAPPL",
-    dequeueFm: "DEQUEUE_E_WDY_CONFAPPL",
-    gname: "WDY_CONFIG_APPL"
-  }
-};
-var MAX_INFERRED_APPL_ROWS = 50;
-var SELF_PROBE_ID_VAR = "lv_lk_selfid";
-var SELF_PROBE_ID_STEM = "ZMCP_LKSELF";
-var SELF_PROBE_ID_ENTROPY_LEN = CONFIG_ID_LEN - SELF_PROBE_ID_STEM.length;
-var SELF_PROBE = {
-  /** Documentation only — never emitted; `configIdExpr` wins. */
-  configId: SELF_PROBE_ID_STEM,
-  configIdExpr: SELF_PROBE_ID_VAR,
-  configType: "99",
-  configVar: "SELFID"
-};
-var ABAP_LEGAL_GARG_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz0123456789_/";
-function padTo(value, len) {
-  return value.length >= len ? value.slice(0, len) : value + " ".repeat(len - value.length);
-}
-var LEGAL_GARG_CHAR = /^[A-Za-z0-9_/ ]*$/;
-function parseGarg(garg) {
-  const padded = padTo(garg, GARG_LENGTH);
-  const seg = (name) => {
-    const [from, to] = GARG_SEGMENTS[name];
-    return padded.slice(from, to);
-  };
-  const configIdSeg = seg("configId");
-  const configTypeSeg = seg("configType");
-  const configVarSeg = seg("configVar");
-  const tailSeg = padded.slice(GARG_TAIL_OFFSET);
-  const wildcardSegments = [];
-  if (!LEGAL_GARG_CHAR.test(configIdSeg)) wildcardSegments.push("configId");
-  if (!LEGAL_GARG_CHAR.test(configTypeSeg)) wildcardSegments.push("configType");
-  if (!LEGAL_GARG_CHAR.test(configVarSeg)) wildcardSegments.push("configVar");
-  if (!LEGAL_GARG_CHAR.test(tailSeg)) wildcardSegments.push("tail");
-  return {
-    raw: garg,
-    configId: configIdSeg.trimEnd(),
-    configType: configTypeSeg.trimEnd(),
-    configVar: configVarSeg.trimEnd(),
-    wildcardSegments,
-    isWildcard: wildcardSegments.length > 0
-  };
-}
-var MAX_BODY_CHARS = 2e4;
-var FORBIDDEN_BODY_TOKENS = [
-  { re: /\bENQUEUE\w*/i, why: "the body must not take or manipulate enqueue locks" },
-  { re: /\bDEQUEUE\w*/i, why: "only the generated protocol may release the lock" },
-  { re: /\bENQUE_\w+/i, why: "ENQUE_DELETE and friends are destructive and gated separately" },
-  { re: /\bRETURN\b/i, why: "an early RETURN would skip the release and the post-body verify" },
-  { re: /\bLEAVE\b/i, why: "LEAVE would abandon the protocol with the lock still held" },
-  { re: /\bEXIT\b/i, why: "EXIT outside a loop leaves the method and skips the release" },
-  { re: /\bSTOP\b/i, why: "STOP ends processing and skips the release" },
-  { re: /\bCHECK\b/i, why: "a failing CHECK exits the processing block and skips the release" },
-  { re: /\bENDMETHOD\b/i, why: "the body must not close the method it is nested in" },
-  { re: /\bENDCLASS\b/i, why: "the body must not close the generated class" },
-  { re: /\bCLASS\s+\w/i, why: "the body must not open a class definition" },
-  { re: /\bSUBMIT\b/i, why: "SUBMIT starts a separate program with its own lock context" },
-  { re: /\bCALL\s+TRANSACTION\b/i, why: "CALL TRANSACTION starts a separate lock context" },
-  { re: /_lk_/i, why: "`_lk_` is the generated protocol's own variable prefix" },
-  { re: /LCK>/, why: "the body must not be able to forge transcript lines" }
-];
-function assertLockBodyIsSafe(body, label) {
-  if (typeof body !== "string") {
-    throw new AbapError("BAD_INPUT", "Locked-operation body must be a string.", { label });
-  }
-  const normalised = body.replace(/\r\n/g, "\n").replace(/[ \t]+$/gm, "");
-  if (normalised.trim() === "") {
-    throw new AbapError(
-      "BAD_INPUT",
-      "Refusing to take an enqueue lock around an empty body \u2014 a lock with nothing to protect is pure contention.",
-      { label }
-    );
-  }
-  if (normalised.length > MAX_BODY_CHARS) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `Locked-operation body is ${normalised.length} characters; the ceiling is ${MAX_BODY_CHARS}.`,
-      { label, length: normalised.length }
-    );
-  }
-  if (/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/.test(normalised)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      "Locked-operation body contains control characters.",
-      { label }
-    );
-  }
-  if (normalised.includes("'") && !/^[^']*('[^']*'[^']*)*$/.test(normalised)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      "Locked-operation body has an unbalanced ABAP string literal \u2014 it would swallow the release statements that follow it.",
-      { label }
-    );
-  }
-  for (const { re, why } of FORBIDDEN_BODY_TOKENS) {
-    const m = re.exec(normalised);
-    if (m) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `Locked-operation body contains "${m[0]}", which is refused: ${why}.`,
-        { label, token: m[0] }
-      );
-    }
-  }
-  return normalised;
-}
-function isInspectQuery(q) {
-  return "mode" in q;
-}
-function validateInspectQuery(q) {
-  const configId = assertConfigId(q.configId).toUpperCase();
-  const configType = q.configType === void 0 ? void 0 : assertLockConfigType(q.configType);
-  const rawVar = assertConfigVar(q.configVar).toUpperCase();
-  const configVar = q.configVar === void 0 || rawVar === "" ? void 0 : rawVar;
-  return { configId, configType, configVar };
-}
-function lockDiscriminator(q) {
-  if (isInspectQuery(q)) {
-    const v = validateInspectQuery(q);
-    return JSON.stringify({
-      mode: "locks",
-      configId: v.configId,
-      configType: v.configType ?? "",
-      configVar: v.configVar ?? ""
-    });
-  }
-  const body = assertLockBodyIsSafe(q.body, q.bodyLabel);
-  const label = assertPlainName(q.bodyLabel, "bodyLabel");
-  return JSON.stringify({
-    mode: "locked-op",
-    configId: q.key.configId,
-    configType: q.key.configType,
-    configVar: q.key.configVar,
-    kind: q.key.kind,
-    label,
-    // Body's own hash: differing ABAP gets a differing bridge class.
-    body: createHash10("sha256").update(body, "utf8").digest("hex")
-  });
-}
-function fpmLockBridgeClassName(q) {
-  const hashHexLen = MAX_NAME - FPM_LOCK_BRIDGE_CLASS_PREFIX.length;
-  const hash2 = createHash10("sha256").update(lockDiscriminator(q), "utf8").digest("hex").slice(0, hashHexLen).toUpperCase();
-  return `${FPM_LOCK_BRIDGE_CLASS_PREFIX}${hash2}`;
-}
-function abapLiteral2(value, what) {
-  if (/['\r\n]/.test(value) || /[\u0000-\u001F]/.test(value)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `${what} contains a character that cannot be embedded in generated ABAP source.`,
-      { value: JSON.stringify(value), what }
-    );
-  }
-  return value;
-}
-var ADT_MAX_SOURCE_LINE_LEN = 255;
-var TEMPLATE_CONTROL_CHAR_RE = new RegExp("[\\u0000-\\u001F]");
-function abapTemplateLiteral(value, what) {
-  if (/[|{}\r\n]/.test(value) || TEMPLATE_CONTROL_CHAR_RE.test(value)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `${what} contains a character that cannot be embedded in an ABAP string template.`,
-      { value: JSON.stringify(value), what }
-    );
-  }
-  return value;
-}
-function wrapAbapTemplateLines(text5, indent, what) {
-  const checked = abapTemplateLiteral(text5, what);
-  const overhead = indent.length + "| | &&".length;
-  const budget = ADT_MAX_SOURCE_LINE_LEN - overhead;
-  if (budget < 20) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `indent (${indent.length} chars) leaves no room to wrap ABAP text under the ${ADT_MAX_SOURCE_LINE_LEN}-character ADT line limit.`,
-      { what, indentLength: indent.length }
-    );
-  }
-  const words = checked.split(" ").filter((w) => w.length > 0);
-  for (const word of words) {
-    if (word.length > budget) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `${what} contains a single word ${word.length} characters long, which cannot be wrapped under the ${ADT_MAX_SOURCE_LINE_LEN}-character ADT line limit (budget ${budget} at this indent) without splitting it mid-word.`,
-        { what, word, budget }
-      );
-    }
-  }
-  const fragments = [];
-  let current = "";
-  for (const word of words) {
-    const candidate = current === "" ? word : `${current} ${word}`;
-    if (candidate.length > budget && current !== "") {
-      fragments.push(current);
-      current = word;
-    } else {
-      current = candidate;
-    }
-  }
-  fragments.push(current);
-  return fragments.map(
-    (frag, idx2) => idx2 === fragments.length - 1 ? `${indent}|${frag}|` : `${indent}|${frag} | &&`
-  );
-}
-function emitWrappedGuardDetail(text5, indent, what) {
-  const wrapped = wrapAbapTemplateLines(text5, indent, what);
-  wrapped[wrapped.length - 1] += " ).";
-  return wrapped;
-}
-function xFlagLines(indent) {
-  return [
-    `${indent}    x_config_id   = 'X'`,
-    `${indent}    x_config_type = 'X'`,
-    `${indent}    x_config_var  = 'X'`
-  ];
-}
-function configIdOperand(key) {
-  return key.configIdExpr ?? `'${abapLiteral2(key.configId, "config_id")}'`;
-}
-function keyLines(indent, key) {
-  return [
-    `${indent}    config_id     = ${configIdOperand(key)}`,
-    `${indent}    config_type   = '${abapLiteral2(key.configType, "config_type")}'`,
-    `${indent}    config_var    = '${abapLiteral2(key.configVar, "config_var")}'`
-  ];
-}
-function enqueueCall(indent, fm, key, subrcVar) {
-  const lines = [];
-  lines.push(`${indent}CALL FUNCTION '${fm}'`);
-  lines.push(`${indent}  EXPORTING`);
-  lines.push(`${indent}    _scope        = '${FPM_LOCK_SCOPE}'`);
-  lines.push(...keyLines(indent, key));
-  lines.push(...xFlagLines(indent));
-  lines.push(`${indent}  EXCEPTIONS`);
-  lines.push(`${indent}    foreign_lock   = 1`);
-  lines.push(`${indent}    system_failure = 2`);
-  lines.push(`${indent}    OTHERS         = 3.`);
-  lines.push(`${indent}${subrcVar} = sy-subrc.`);
-  return lines;
-}
-function dequeueCall(indent, fm, key, subrcVar) {
-  const lines = [];
-  lines.push(`${indent}CALL FUNCTION '${fm}'`);
-  lines.push(`${indent}  EXPORTING`);
-  lines.push(`${indent}    _scope        = '${FPM_LOCK_SCOPE}'`);
-  lines.push(...keyLines(indent, key));
-  lines.push(...xFlagLines(indent));
-  lines.push(`${indent}    .`);
-  lines.push(`${indent}${subrcVar} = sy-subrc.`);
-  return lines;
-}
-function gargBuildLines(indent, target, key) {
-  const [idFrom] = GARG_SEGMENTS.configId;
-  const [typeFrom] = GARG_SEGMENTS.configType;
-  const [varFrom] = GARG_SEGMENTS.configVar;
-  return [
-    `${indent}CLEAR ${target}.`,
-    `${indent}${target}+${idFrom}(${CONFIG_ID_LEN})   = ${configIdOperand(key)}.`,
-    `${indent}${target}+${typeFrom}(${CONFIG_TYPE_LEN})  = '${abapLiteral2(key.configType, "config_type")}'.`,
-    `${indent}${target}+${varFrom}(${CONFIG_VAR_LEN})  = '${abapLiteral2(key.configVar, "config_var")}'.`
-  ];
-}
-function selfIdentifyDataLines(indent) {
-  return [
-    `${indent}DATA lv_lk_self     TYPE seqg3-gusr.`,
-    `${indent}DATA lv_lk_selfone  TYPE seqg3-gusr.`,
-    `${indent}DATA lv_lk_selfok   TYPE c LENGTH 1 VALUE '-'.`,
-    `${indent}DATA lv_lk_selfbad  TYPE c LENGTH 1 VALUE '-'.`,
-    `${indent}DATA lv_lk_selfsub  TYPE sy-subrc.`,
-    `${indent}DATA lv_lk_selfgarg TYPE seqg3-garg.`,
-    `${indent}DATA lv_lk_selfid   TYPE c LENGTH ${CONFIG_ID_LEN}.`,
-    `${indent}DATA lv_lk_selfuid  TYPE c LENGTH 32.`,
-    `${indent}DATA lv_lk_selfleft TYPE i.`,
-    `${indent}DATA lt_lk_self     TYPE tt_enq.`,
-    `${indent}DATA ls_lk_self     TYPE seqg3.`,
-    // Declared here, not inline in CATCH: the block emits once per lock object, so an inline
-    // DATA(..) here would be a duplicate declaration on the second iteration.
-    `${indent}DATA lx_lk_self     TYPE REF TO cx_root.`
-  ];
-}
-function selfIdentifyLines(indent, kinds) {
-  const lines = [];
-  lines.push(`${indent}" ---- self-identify -------------------------------------------------`);
-  lines.push(`${indent}" GUSR is the ONLY discriminator between our lock and a foreign lock`);
-  lines.push(`${indent}" held by the SAME SAP user in another session: GUNAME is identical in`);
-  lines.push(`${indent}" both and GTCODE is empty in both. The only way to learn our own is to`);
-  lines.push(`${indent}" take a throwaway lock on a key that is not, and never will be, a real`);
-  lines.push(`${indent}" configuration, and read the owner id straight back off it.`);
-  lines.push(`${indent}"`);
-  lines.push(`${indent}" The probe key is minted HERE, at runtime, once per execution. A fixed`);
-  lines.push(`${indent}" one is a self-inflicted denial of service: two sessions probing at the`);
-  lines.push(`${indent}" same moment fight over the SAME throwaway lock, and the loser then`);
-  lines.push(`${indent}" refuses every locked operation it was asked to perform. Being minted`);
-  lines.push(`${indent}" on the server it carries no caller input, so there is nothing here to`);
-  lines.push(`${indent}" inject through - the usual quoting rules simply do not apply to it.`);
-  lines.push(`${indent}" Unverified idiom (not covered by the lock spike): if create_uuid_c32_static`);
-  lines.push(`${indent}" is absent here, activation fails loudly rather than silently reusing a`);
-  lines.push(`${indent}" shared key.`);
-  lines.push(`${indent}lv_lk_selfuid = cl_system_uuid=>create_uuid_c32_static( ).`);
-  lines.push(
-    `${indent}CONCATENATE '${SELF_PROBE_ID_STEM}' lv_lk_selfuid(${SELF_PROBE_ID_ENTROPY_LEN}) INTO lv_lk_selfid.`
-  );
-  lines.push(...gargBuildLines(indent, "lv_lk_selfgarg", SELF_PROBE));
-  for (const kind of kinds) {
-    const obj = FPM_LOCK_OBJECTS[kind];
-    lines.push(`${indent}" probe ${obj.lockObject} - one probe per lock object we are about to`);
-    lines.push(`${indent}" read, because "the owner id is the same on every lock object" is an`);
-    lines.push(`${indent}" INFERENCE the spike never tested. Below it is checked instead.`);
-    lines.push(`${indent}CLEAR lv_lk_selfone.`);
-    lines.push(...enqueueCall(indent, obj.enqueueFm, SELF_PROBE, "lv_lk_selfsub"));
-    lines.push(`${indent}IF lv_lk_selfsub = 0.`);
-    lines.push(`${indent}  " We are now HOLDING the probe lock. Everything between here and the`);
-    lines.push(`${indent}  " DEQUEUE below runs inside its own TRY: an exception raised in the`);
-    lines.push(`${indent}  " read-back would otherwise unwind straight to the single TRY in`);
-    lines.push(`${indent}  " main, skipping this release - and the probe block is emitted once`);
-    lines.push(`${indent}  " PER LOCK OBJECT, so it would strand this iteration-s lock and then`);
-    lines.push(`${indent}  " never reach the next one-s either. A stranded lock is not swept up`);
-    lines.push(`${indent}  " when the request ends (09-LOCK-DISCIPLINE-SPIKE-AUDIT.md), so the`);
-    lines.push(`${indent}  " release has to be reached on every path, including this one.`);
-    lines.push(`${indent}  TRY.`);
-    lines.push(
-      `${indent}      read_locks( EXPORTING iv_gname = '${obj.gname}' iv_garg = lv_lk_selfgarg IMPORTING et_enq = lt_lk_self ).`
-    );
-    lines.push(`${indent}      LOOP AT lt_lk_self INTO ls_lk_self.`);
-    lines.push(`${indent}        IF ls_lk_self-garg = lv_lk_selfgarg.`);
-    lines.push(`${indent}          " A BLANK owner id is not an owner id. GUSR is blank on every`);
-    lines.push(`${indent}          " update-task-slot lock, so accepting a blank here would make`);
-    lines.push(`${indent}          " every one of those compare equal to "ours" further down.`);
-    lines.push(`${indent}          IF ls_lk_self-gusr <> space.`);
-    lines.push(`${indent}            lv_lk_selfone = ls_lk_self-gusr.`);
-    lines.push(`${indent}          ENDIF.`);
-    lines.push(`${indent}          EXIT.`);
-    lines.push(`${indent}        ENDIF.`);
-    lines.push(`${indent}      ENDLOOP.`);
-    lines.push(`${indent}      IF lv_lk_selfone <> space.`);
-    lines.push(`${indent}        IF lv_lk_selfok = 'X'.`);
-    lines.push(`${indent}          IF lv_lk_selfone <> lv_lk_self.`);
-    lines.push(`${indent}            " Two lock objects, two different owner ids for one session:`);
-    lines.push(`${indent}            " the portability inference is false here. Fail closed.`);
-    lines.push(`${indent}            lv_lk_selfbad = 'X'.`);
-    lines.push(`${indent}          ENDIF.`);
-    lines.push(`${indent}        ELSE.`);
-    lines.push(`${indent}          lv_lk_self   = lv_lk_selfone.`);
-    lines.push(`${indent}          lv_lk_selfok = 'X'.`);
-    lines.push(`${indent}        ENDIF.`);
-    lines.push(`${indent}      ELSE.`);
-    lines.push(`${indent}        " The probe held the lock but produced NO usable owner id for this`);
-    lines.push(`${indent}        " lock object: either the read-back found no row for the probe GARG`);
-    lines.push(`${indent}        " or GUSR came back blank. Nothing was verified HERE, and an id`);
-    lines.push(`${indent}        " learned from a PREVIOUS lock object's probe must not be reused to`);
-    lines.push(`${indent}        " label this object's rows MINE - that is exactly the untested`);
-    lines.push(`${indent}        " cross-lock-object portability inference (header item (g)). Throw`);
-    lines.push(`${indent}        " the id away: an unverified probe forces UNKNOWN, never MINE.`);
-    lines.push(`${indent}        lv_lk_selfbad = 'X'.`);
-    lines.push(
-      `${indent}        emit_guard( iv_reason = 'self-probe-owner-id-blank' iv_detail = |the throwaway self-probe on ${obj.lockObject} returned no usable GUSR, so no row on this lock object can be proved ours| ).`
-    );
-    lines.push(`${indent}      ENDIF.`);
-    lines.push(`${indent}    CATCH cx_root INTO lx_lk_self.`);
-    lines.push(`${indent}      " Nothing was verified on this lock object, so the learned id is`);
-    lines.push(`${indent}      " discarded exactly as for a failed probe: an unverified probe`);
-    lines.push(`${indent}      " forces UNKNOWN, never MINE. Control falls through to the DEQUEUE.`);
-    lines.push(`${indent}      lv_lk_selfbad = 'X'.`);
-    lines.push(
-      `${indent}      emit_guard( iv_reason = 'self-probe-exception' iv_detail = |the throwaway self-probe on ${obj.lockObject} raised { cl_abap_classdescr=>get_class_name( lx_lk_self ) }: { lx_lk_self->get_text( ) } - the probe lock is released below regardless| ).`
-    );
-    lines.push(`${indent}  ENDTRY.`);
-    lines.push(...dequeueCall(`${indent}  `, obj.dequeueFm, SELF_PROBE, "lv_lk_selfsub"));
-    lines.push(`${indent}  " The dequeue subrc is narration, here as everywhere: it is 0 even`);
-    lines.push(`${indent}  " when nothing was released. Re-read the probe key and say so if it`);
-    lines.push(`${indent}  " survived.`);
-    lines.push(
-      `${indent}  read_locks( EXPORTING iv_gname = '${obj.gname}' iv_garg = lv_lk_selfgarg IMPORTING et_enq = lt_lk_self ).`
-    );
-    lines.push(`${indent}  lv_lk_selfleft = lines( lt_lk_self ).`);
-    lines.push(`${indent}  IF lv_lk_selfleft > 0.`);
-    lines.push(
-      `${indent}    emit_guard( iv_reason = 'self-probe-not-released' iv_detail = |the throwaway self-probe lock on ${obj.lockObject} survived its DEQUEUE, rows={ lv_lk_selfleft }| ).`
-    );
-    lines.push(`${indent}  ENDIF.`);
-    lines.push(`${indent}ELSE.`);
-    lines.push(`${indent}  " The probe's OWN enqueue failed on this lock object. Silently doing`);
-    lines.push(`${indent}  " nothing here was a fail-OPEN bug: lv_lk_selfok would still carry`);
-    lines.push(`${indent}  " 'X' from an earlier lock object's probe, and every row of THIS`);
-    lines.push(`${indent}  " lock object would then be compared against an id that was never`);
-    lines.push(`${indent}  " verified for it - producing MINE on somebody else's lock. A probe`);
-    lines.push(`${indent}  " that did not succeed must force UNKNOWN.`);
-    lines.push(`${indent}  lv_lk_selfbad = 'X'.`);
-    lines.push(
-      `${indent}  emit_guard( iv_reason = 'self-probe-enqueue-failed' iv_detail = |ENQUEUE on ${obj.lockObject} for the throwaway self-probe returned subrc={ lv_lk_selfsub }, so this session-s owner id is unverified here| ).`
-    );
-    lines.push(`${indent}ENDIF.`);
-  }
-  lines.push(`${indent}IF lv_lk_selfbad = 'X'.`);
-  lines.push(`${indent}  CLEAR lv_lk_self.`);
-  lines.push(`${indent}  lv_lk_selfok = '-'.`);
-  lines.push(
-    `${indent}  emit_guard( iv_reason = 'self-owner-id-not-portable' iv_detail = 'a probe either failed, returned no owner id, or disagreed with another lock object-s, so the learned id was discarded and no row can be proved ours' ).`
-  );
-  lines.push(`${indent}ENDIF.`);
-  lines.push(
-    `${indent}mo_out->write( |${LOCK_LINE_PREFIX}SELF owner=[{ lv_lk_self }] ok=[{ lv_lk_selfok }]| ).`
-  );
-  return lines;
-}
-function lockClassSource(className, what, body) {
-  const cls = assertPlainName(className, "Bridge class name").toLowerCase();
-  return `CLASS ${cls} DEFINITION PUBLIC FINAL CREATE PUBLIC.
-  PUBLIC SECTION.
-    INTERFACES if_oo_adt_classrun.
-  PRIVATE SECTION.
-    TYPES tt_enq TYPE STANDARD TABLE OF seqg3 WITH DEFAULT KEY.
-    "! Every character a GARG built from a validated key can legally contain.
-    "! The blank sits in the MIDDLE because ABAP strips TRAILING blanks from a
-    "! text literal \u2014 written at the end it would silently drop out of the set
-    "! and every blank-padded GARG would look like a wildcard.
-    CONSTANTS gc_legal TYPE string VALUE '${ABAP_LEGAL_GARG_CHARS}'.
-    DATA mo_out TYPE REF TO if_oo_adt_classrun_out.
-    "! ENQUEUE_READ with NO owner filter. Its GUNAME parameter DEFAULTS TO
-    "! SY-UNAME and GCLIENT to SY-MANDT, so a naive call is blind to every
-    "! other user's locks \u2014 which is the one thing this whole module exists to
-    "! see. Filters are exact-match; blank means "no filter"; there is no
-    "! prefix matching on GARG (GARGNOWC = 'X' changed nothing when probed).
-    METHODS read_locks
-      IMPORTING iv_gname TYPE seqg3-gname
-                iv_garg  TYPE seqg3-garg
-      EXPORTING et_enq   TYPE tt_enq.
-    "! Comma-joined names of the GARG segments carrying wildcard fill; empty
-    "! when the GARG is precise. REPORTING ONLY - it sweeps for "anything my
-    "! own key charset cannot produce", which is deliberately broader than the
-    "! fill the spike actually captured. Never use it to veto a write: see
-    "! has_wildcard_fill.
-    METHODS wildcard_segments
-      IMPORTING iv_garg           TYPE seqg3-garg
-      RETURNING VALUE(rv_segments) TYPE string.
-    "! TRUE when the text carries the OBSERVED wildcard fill character U+FFFF
-    "! (UTF-8 EF BF BF). This, not the gc_legal sweep, is what may veto a
-    "! write: a FOREIGN config id can legitimately contain a character our own
-    "! key validators would refuse, and reading that as wildcard fill would let
-    "! an unrelated config block every write in the system.
-    "! Unverified idiom (not covered by the lock spike): cl_abap_conv_in_ce is
-    "! how U+FFFF is named without embedding a noncharacter in generated
-    "! source. If it is absent here activation fails loudly.
-    METHODS has_wildcard_fill
-      IMPORTING iv_text        TYPE clike
-      RETURNING VALUE(rv_wild) TYPE abap_bool.
-    "! Narrows a raw ENQUEUE_READ result to the rows that can bear on ONE
-    "! config id, BEFORE anything is written to the transcript: kept are an
-    "! exact config_id-segment match and any row whose config_id segment is
-    "! wildcard-filled (such a lock covers every config_id, ours included).
-    "! Emitting whole unfiltered enqueue tables risks truncating the transcript
-    "! and losing the trailing RELEASE verdict with it - and a report that
-    "! cannot say whether the lock was released is worse than a long one.
-    "! iv_keep_all = abap_true retains everything: see the caller comment about
-    "! the INFERRED WDY_CONFIG_APPL GARG layout.
-    METHODS filter_rows
-      IMPORTING iv_config_id TYPE clike
-                iv_keep_all  TYPE abap_bool
-                it_enq       TYPE tt_enq
-      EXPORTING et_enq       TYPE tt_enq.
-    METHODS emit_rows
-      IMPORTING iv_phase TYPE string
-                it_enq   TYPE tt_enq.
-    METHODS emit_guard
-      IMPORTING iv_reason TYPE string
-                iv_detail TYPE string.
-ENDCLASS.
-
-CLASS ${cls} IMPLEMENTATION.
-
-  METHOD read_locks.
-    DATA lv_lk_number TYPE i.
-    DATA lv_lk_rsubrc TYPE sy-subrc.
-    CLEAR et_enq.
-    CALL FUNCTION 'ENQUEUE_READ'
-      EXPORTING
-        gclient               = space
-        gname                 = iv_gname
-        garg                  = iv_garg
-        guname                = space
-      IMPORTING
-        number                = lv_lk_number
-        subrc                 = lv_lk_rsubrc
-      TABLES
-        enq                   = et_enq
-      EXCEPTIONS
-        communication_failure = 1
-        system_failure        = 2
-        OTHERS                = 3.
-    IF sy-subrc <> 0.
-      CLEAR et_enq.
-      mo_out->write( |${ERR_LINE_PREFIX}ENQUEUE_READ failed subrc={ sy-subrc } gname={ iv_gname }| ).
-    ENDIF.
-  ENDMETHOD.
-
-  METHOD wildcard_segments.
-    DATA lv_lk_g TYPE c LENGTH ${GARG_LENGTH}.
-    lv_lk_g = iv_garg.
-    CLEAR rv_segments.
-*   CN = "contains not only": true as soon as one character falls outside the
-*   legal set. That catches the OBSERVED U+FFFF fill without this class ever
-*   having to name the code point, and catches any other fill too.
-    IF lv_lk_g+${GARG_SEGMENTS.configId[0]}(${CONFIG_ID_LEN}) CN gc_legal.
-      rv_segments = 'configId'.
-    ENDIF.
-    IF lv_lk_g+${GARG_SEGMENTS.configType[0]}(${CONFIG_TYPE_LEN}) CN gc_legal.
-      IF strlen( rv_segments ) > 0.
-        rv_segments = rv_segments && ','.
-      ENDIF.
-      rv_segments = rv_segments && 'configType'.
-    ENDIF.
-    IF lv_lk_g+${GARG_SEGMENTS.configVar[0]}(${CONFIG_VAR_LEN}) CN gc_legal.
-      IF strlen( rv_segments ) > 0.
-        rv_segments = rv_segments && ','.
-      ENDIF.
-      rv_segments = rv_segments && 'configVar'.
-    ENDIF.
-    IF lv_lk_g+${GARG_TAIL_OFFSET} CN gc_legal.
-      IF strlen( rv_segments ) > 0.
-        rv_segments = rv_segments && ','.
-      ENDIF.
-      rv_segments = rv_segments && 'tail'.
-    ENDIF.
-  ENDMETHOD.
-
-  METHOD has_wildcard_fill.
-    DATA lv_lk_fc TYPE c LENGTH 1.
-    rv_wild = abap_false.
-*   U+FFFF, the fill the spike actually captured (EF BF BF in UTF-8) - NOT
-*   0xFF, and NOT "any character I would not have written myself".
-    lv_lk_fc = cl_abap_conv_in_ce=>uccp( 'FFFF' ).
-    IF iv_text CS lv_lk_fc.
-      rv_wild = abap_true.
-    ENDIF.
-  ENDMETHOD.
-
-  METHOD filter_rows.
-    DATA lv_lk_fid TYPE c LENGTH ${CONFIG_ID_LEN}.
-    CLEAR et_enq.
-    LOOP AT it_enq INTO DATA(ls_lk_f).
-      IF iv_keep_all = abap_true.
-        APPEND ls_lk_f TO et_enq.
-        CONTINUE.
-      ENDIF.
-      lv_lk_fid = ls_lk_f-garg+${GARG_SEGMENTS.configId[0]}(${CONFIG_ID_LEN}).
-      IF lv_lk_fid = iv_config_id.
-        APPEND ls_lk_f TO et_enq.
-      ELSEIF has_wildcard_fill( lv_lk_fid ) = abap_true.
-*       A wildcard-filled config_id segment covers every config_id, ours too.
-        APPEND ls_lk_f TO et_enq.
-      ENDIF.
-    ENDLOOP.
-  ENDMETHOD.
-
-  METHOD emit_rows.
-    DATA lv_lk_wc TYPE string.
-    LOOP AT it_enq INTO DATA(ls_lk_e).
-      mo_out->write( |${LOCK_LINE_PREFIX}ROW phase=[{ iv_phase }] gname=[{ ls_lk_e-gname }] | &&
-        |garg=[{ ls_lk_e-garg }] gmode=[{ ls_lk_e-gmode }] guname=[{ ls_lk_e-guname }] | &&
-        |gclient=[{ ls_lk_e-gclient }] gusr=[{ ls_lk_e-gusr }] gusrvb=[{ ls_lk_e-gusrvb }] | &&
-        |guse=[{ ls_lk_e-guse }] gusevb=[{ ls_lk_e-gusevb }] gobj=[{ ls_lk_e-gobj }]| ).
-      lv_lk_wc = wildcard_segments( ls_lk_e-garg ).
-      IF strlen( lv_lk_wc ) > 0.
-*       Emitted as its own line so the TS side never has to depend on a raw
-*       U+FFFF surviving the HTTP/UTF-8 round trip to know a wildcard is there.
-        mo_out->write( |${LOCK_LINE_PREFIX}WILDCARD phase=[{ iv_phase }] garg=[{ ls_lk_e-garg }] segments=[{ lv_lk_wc }]| ).
-      ENDIF.
-    ENDLOOP.
-    mo_out->write( |${LOCK_LINE_PREFIX}COUNT phase=[{ iv_phase }] rows=[{ lines( it_enq ) }]| ).
-  ENDMETHOD.
-
-  METHOD emit_guard.
-    mo_out->write( |${LOCK_LINE_PREFIX}GUARD reason=[{ iv_reason }] detail=[{ iv_detail }]| ).
-  ENDMETHOD.
-
-  METHOD if_oo_adt_classrun~main.
-*   Generated by abapsmith (${what}). Do not edit \u2014 this class is regenerated
-*   from src/adt/fpm-lock.ts whenever its content hash changes.
-    mo_out = out.
-    TRY.
-${body}
-      CATCH cx_root INTO DATA(lx).
-        out->write( |${ERR_LINE_PREFIX}EXCEPTION { cl_abap_classdescr=>get_class_name( lx ) }: { lx->get_text( ) }| ).
-    ENDTRY.
-  ENDMETHOD.
-
-ENDCLASS.
-`;
-}
-function buildLockInspectSource(q, className) {
-  const { configId, configType, configVar } = validateInspectQuery(q);
-  const kinds = configType === void 0 ? ["component", "application"] : [lockKindForConfigType(configType)];
-  const inspectsAppl = kinds.includes("application");
-  const i = "      ";
-  const lines = [];
-  lines.push(...selfIdentifyDataLines(i));
-  lines.push(`${i}DATA lt_lk_all      TYPE tt_enq.`);
-  lines.push(`${i}DATA lt_lk_read     TYPE tt_enq.`);
-  lines.push(`${i}DATA lt_lk_keep     TYPE tt_enq.`);
-  lines.push(`${i}DATA ls_lk_r        TYPE seqg3.`);
-  lines.push(`${i}DATA lv_lk_cfgid    TYPE c LENGTH ${CONFIG_ID_LEN}.`);
-  lines.push(`${i}DATA lv_lk_idseg    TYPE c LENGTH ${CONFIG_ID_LEN}.`);
-  lines.push(`${i}DATA lv_lk_tyseg    TYPE c LENGTH ${CONFIG_TYPE_LEN}.`);
-  lines.push(`${i}DATA lv_lk_vrseg    TYPE c LENGTH ${CONFIG_VAR_LEN}.`);
-  lines.push(`${i}DATA lv_lk_keep     TYPE c LENGTH 1.`);
-  lines.push(`${i}DATA lv_lk_infer    TYPE c LENGTH 1.`);
-  lines.push(`${i}DATA lv_lk_apflg    TYPE c LENGTH 1 VALUE '-'.`);
-  lines.push(`${i}DATA lv_lk_aptr     TYPE c LENGTH 1 VALUE '-'.`);
-  lines.push(`${i}DATA lv_lk_apn      TYPE i.`);
-  lines.push(``);
-  lines.push(...selfIdentifyLines(i, kinds.length > 0 ? kinds : ["component"]));
-  lines.push(``);
-  lines.push(`${i}" ---- read every lock on the governing lock object(s) ---------------`);
-  for (const kind of kinds) {
-    const obj = FPM_LOCK_OBJECTS[kind];
-    lines.push(`${i}CLEAR lt_lk_read.`);
-    lines.push(`${i}read_locks( EXPORTING iv_gname = '${obj.gname}' iv_garg = space IMPORTING et_enq = lt_lk_read ).`);
-    lines.push(`${i}APPEND LINES OF lt_lk_read TO lt_lk_all.`);
-  }
-  lines.push(``);
-  lines.push(`${i}lv_lk_cfgid = '${abapLiteral2(configId, "config_id")}'.`);
-  lines.push(`${i}LOOP AT lt_lk_all INTO ls_lk_r.`);
-  lines.push(`${i}  lv_lk_keep  = '-'.`);
-  lines.push(`${i}  lv_lk_infer = '-'.`);
-  if (inspectsAppl) {
-    lines.push(`${i}  IF ls_lk_r-gname = '${FPM_LOCK_OBJECTS.application.gname}'.`);
-    lines.push(`${i}    " INFERRED / UNTESTED (header item (f)): the 0/32/34/40 GARG layout`);
-    lines.push(`${i}    " was captured for E_WDY_CONFCOMP ONLY. On WDY_CONFIG_APPL EVERY`);
-    lines.push(`${i}    " slice below is an assumption - INCLUDING one that appears to match,`);
-    lines.push(`${i}    " because a matching bytes-0-31 slice under a wrong layout is still a`);
-    lines.push(`${i}    " guess. Marking the row inferred HERE, before the match test, is what`);
-    lines.push(`${i}    " stops the config_type / config_var narrowing further down from`);
-    lines.push(`${i}    " dropping the single most relevant application row in the report.`);
-    lines.push(`${i}    lv_lk_infer = 'X'.`);
-    lines.push(`${i}    " Skipping that narrowing is a real change to what the caller asked`);
-    lines.push(`${i}    " for, so the report says it out loud rather than quietly widening.`);
-    lines.push(`${i}    lv_lk_apflg = 'X'.`);
-    lines.push(`${i}  ENDIF.`);
-  }
-  lines.push(`${i}  lv_lk_idseg = ls_lk_r-garg+${GARG_SEGMENTS.configId[0]}(${CONFIG_ID_LEN}).`);
-  lines.push(`${i}  IF lv_lk_idseg = lv_lk_cfgid.`);
-  lines.push(`${i}    lv_lk_keep = 'X'.`);
-  lines.push(`${i}  ELSEIF has_wildcard_fill( lv_lk_idseg ) = abap_true.`);
-  lines.push(`${i}    " wildcard in the config_id segment: it covers our config_id too.`);
-  lines.push(`${i}    lv_lk_keep = 'X'.`);
-  if (inspectsAppl) {
-    lines.push(`${i}  ELSEIF ls_lk_r-gname = '${FPM_LOCK_OBJECTS.application.gname}'.`);
-    lines.push(`${i}    " INFERRED / UNTESTED: the spike captured a GARG layout for`);
-    lines.push(`${i}    " E_WDY_CONFCOMP only. It never read one back from E_WDY_CONFAPPL,`);
-    lines.push(`${i}    " so the slice just taken may not be this row-s config id at all,`);
-    lines.push(`${i}    " and "did not match" may only mean "different layout".`);
-    lines.push(`${i}    " Dropping it would delete a real lock from a lock report - the one`);
-    lines.push(`${i}    " direction that gets somebody-s work overwritten. Keep it, mark the`);
-    lines.push(`${i}    " report, and let a human see a row we could not parse.`);
-    lines.push(`${i}    " BUT NOT WITHOUT A CEILING: this keep is unbounded in the enqueue`);
-    lines.push(`${i}    " table-s size, and an over-long transcript is truncated from the END,`);
-    lines.push(`${i}    " which silently drops rows and the trailing verdict with them. Cap it`);
-    lines.push(`${i}    " and SAY when the cap bit, rather than trading a silent drop here for`);
-    lines.push(`${i}    " a silent drop one layer up.`);
-    lines.push(`${i}    IF lv_lk_apn < ${MAX_INFERRED_APPL_ROWS}.`);
-    lines.push(`${i}      lv_lk_apn   = lv_lk_apn + 1.`);
-    lines.push(`${i}      lv_lk_keep  = 'X'.`);
-    lines.push(`${i}    ELSE.`);
-    lines.push(`${i}      lv_lk_aptr  = 'X'.`);
-    lines.push(`${i}    ENDIF.`);
-  }
-  lines.push(`${i}  ENDIF.`);
-  if (configType !== void 0) {
-    lines.push(`${i}  IF lv_lk_keep = 'X' AND lv_lk_infer = '-'.`);
-    lines.push(`${i}    lv_lk_tyseg = ls_lk_r-garg+${GARG_SEGMENTS.configType[0]}(${CONFIG_TYPE_LEN}).`);
-    lines.push(
-      `${i}    IF lv_lk_tyseg <> '${abapLiteral2(configType, "config_type")}'`
-    );
-    lines.push(`${i}       AND has_wildcard_fill( lv_lk_tyseg ) = abap_false.`);
-    lines.push(`${i}      lv_lk_keep = '-'.`);
-    lines.push(`${i}    ENDIF.`);
-    lines.push(`${i}  ENDIF.`);
-  }
-  if (configVar !== void 0) {
-    lines.push(`${i}  IF lv_lk_keep = 'X' AND lv_lk_infer = '-'.`);
-    lines.push(`${i}    lv_lk_vrseg = ls_lk_r-garg+${GARG_SEGMENTS.configVar[0]}(${CONFIG_VAR_LEN}).`);
-    lines.push(
-      `${i}    IF lv_lk_vrseg <> '${abapLiteral2(configVar, "config_var")}'`
-    );
-    lines.push(`${i}       AND has_wildcard_fill( lv_lk_vrseg ) = abap_false.`);
-    lines.push(`${i}      lv_lk_keep = '-'.`);
-    lines.push(`${i}    ENDIF.`);
-    lines.push(`${i}  ENDIF.`);
-  }
-  lines.push(`${i}  IF lv_lk_keep = 'X'.`);
-  lines.push(`${i}    APPEND ls_lk_r TO lt_lk_keep.`);
-  lines.push(`${i}  ENDIF.`);
-  lines.push(`${i}ENDLOOP.`);
-  if (inspectsAppl) {
-    lines.push(`${i}IF lv_lk_apflg = 'X'.`);
-    lines.push(`${i}  emit_guard( iv_reason = 'appl-garg-layout-inferred'`);
-    lines.push(`${i}    iv_detail =`);
-    lines.push(
-      ...emitWrappedGuardDetail(
-        "the GARG segment layout of E_WDY_CONFAPPL was never captured by the spike, so EVERY WDY_CONFIG_APPL row here is treated as unparseable: rows whose id segment did not match were RETAINED rather than dropped, and the config_type / config_var narrowing was SKIPPED for all of them - some of the rows below may belong to another config",
-        `${i}      `,
-        "appl-garg-layout-inferred detail"
-      )
-    );
-    lines.push(`${i}ENDIF.`);
-    lines.push(`${i}IF lv_lk_aptr = 'X'.`);
-    lines.push(`${i}  emit_guard( iv_reason = 'appl-rows-truncated'`);
-    lines.push(`${i}    iv_detail =`);
-    lines.push(
-      ...emitWrappedGuardDetail(
-        `more than ${MAX_INFERRED_APPL_ROWS} WDY_CONFIG_APPL rows were kept only because that lock object-s GARG layout is inferred; the rest were dropped from this report, so it is NOT a complete picture of E_WDY_CONFAPPL`,
-        `${i}      `,
-        "appl-rows-truncated detail"
-      )
-    );
-    lines.push(`${i}ENDIF.`);
-  }
-  lines.push(`${i}emit_rows( iv_phase = 'inspect' it_enq = lt_lk_keep ).`);
-  return lockClassSource(className, "abap_fpm_read, mode=locks", lines.join("\n"));
-}
-var flag2 = (v) => v === "X";
-function parseLockTranscript(raw) {
-  const diagnostics = [];
-  const aborts = [];
-  let droppedLines = 0;
-  const rawRows = [];
-  const phaseOrder = [];
-  const reportedRows = /* @__PURE__ */ new Map();
-  let selfOwnerId;
-  let acquire;
-  let preSaveVerify;
-  let saveReached = false;
-  let wildcardDetected = false;
-  let releaseStatus;
-  for (const line2 of raw.replace(/\r\n/g, "\n").split("\n")) {
-    if (line2.startsWith(ERR_LINE_PREFIX)) {
-      diagnostics.push(line2.trim());
-      continue;
-    }
-    if (!line2.startsWith(LOCK_LINE_PREFIX)) {
-      if (line2.trim() !== "") droppedLines++;
-      continue;
-    }
-    const rest = line2.slice(LOCK_LINE_PREFIX.length);
-    const spaceIdx = rest.indexOf(" ");
-    const head = spaceIdx === -1 ? rest : rest.slice(0, spaceIdx);
-    const remainder = spaceIdx === -1 ? "" : rest.slice(spaceIdx + 1);
-    const f = parseBracketFields(remainder);
-    switch (head) {
-      case "SELF":
-        if (flag2(f.ok) && (f.owner ?? "") !== "") selfOwnerId = f.owner;
-        break;
-      case "ENQ": {
-        const subrc = Number(f.subrc ?? "");
-        acquire = {
-          subrc: Number.isNaN(subrc) ? -1 : subrc,
-          foreignLock: f.exc === "foreign_lock",
-          systemFailure: f.exc === "system_failure"
-        };
-        break;
-      }
-      case "ROW": {
-        const phase = f.phase ?? "";
-        if (!phaseOrder.includes(phase)) phaseOrder.push(phase);
-        const garg = f.garg ?? "";
-        rawRows.push({
-          phase,
-          row: {
-            gname: f.gname ?? "",
-            garg,
-            gmode: f.gmode ?? "",
-            guname: f.guname ?? "",
-            gclient: f.gclient ?? "",
-            gusr: f.gusr ?? "",
-            gusrvb: f.gusrvb ?? "",
-            guse: f.guse ?? "",
-            gusevb: f.gusevb ?? "",
-            gobj: f.gobj ?? "",
-            garg_view: parseGarg(garg)
-          }
-        });
-        break;
-      }
-      case "COUNT": {
-        const phase = f.phase ?? "";
-        if (!phaseOrder.includes(phase)) phaseOrder.push(phase);
-        const n = Number(f.rows ?? "");
-        if (!Number.isNaN(n)) reportedRows.set(phase, n);
-        break;
-      }
-      case "WILDCARD":
-        wildcardDetected = true;
-        break;
-      case "VERIFY":
-        if (f.phase === "presave") {
-          preSaveVerify = {
-            held: flag2(f.held),
-            mine: flag2(f.mine),
-            wildcard: flag2(f.wildcard),
-            passed: flag2(f.passed)
-          };
-        }
-        if (flag2(f.wildcard)) wildcardDetected = true;
-        break;
-      case "GUARD":
-        aborts.push(`${f.reason ?? "unknown"}: ${f.detail ?? ""}`.trim());
-        break;
-      case "BODY":
-        if (f.state === "begin") saveReached = true;
-        break;
-      case "DEQ":
-        break;
-      case "RELEASE":
-        releaseStatus = f.status === "released" ? "released" : "still-held";
-        break;
-      default:
-        droppedLines++;
-        break;
-    }
-  }
-  const blank = (v) => v.trim() === "";
-  const classify = (row2) => {
-    if (selfOwnerId === void 0) return "UNKNOWN";
-    if (!blank(row2.gusr)) return row2.gusr === selfOwnerId ? "MINE" : "FOREIGN";
-    if (!blank(row2.gusrvb)) return "FOREIGN";
-    return "UNKNOWN";
-  };
-  const byPhase = /* @__PURE__ */ new Map();
-  for (const p of phaseOrder) byPhase.set(p, []);
-  for (const { phase, row: row2 } of rawRows) {
-    const full = { ...row2, ownership: classify(row2) };
-    if (full.garg_view.isWildcard) wildcardDetected = true;
-    byPhase.get(phase)?.push(full);
-  }
-  const phases = phaseOrder.map((phase) => {
-    const rows = byPhase.get(phase) ?? [];
-    const reported = reportedRows.get(phase);
-    if (reported !== void 0 && reported !== rows.length) {
-      diagnostics.push(
-        `phase ${phase}: ABAP reported ${reported} row(s) but ${rows.length} ROW line(s) were parsed \u2014 output may be truncated`
-      );
-    }
-    return { phase, rows, ...reported === void 0 ? {} : { reportedRows: reported } };
-  });
-  let release;
-  if (releaseStatus === "released") {
-    release = { status: "released" };
-  } else if (releaseStatus === "still-held") {
-    const after = byPhase.get("after-release") ?? [];
-    const mine = after.filter((r) => r.ownership === "MINE");
-    release = { status: "still-held", rows: mine.length > 0 ? mine : after };
-  }
-  return {
-    ...selfOwnerId === void 0 ? {} : { selfOwnerId },
-    ...acquire === void 0 ? {} : { acquire },
-    ...preSaveVerify === void 0 ? {} : { preSaveVerify },
-    saveReached,
-    ...release === void 0 ? {} : { release },
-    phases,
-    wildcardDetected,
-    aborts,
-    diagnostics,
-    droppedLines
-  };
-}
-async function runFpmLockInspect(conn, query, gate) {
-  const started = Date.now();
-  const className = fpmLockBridgeClassName(query);
-  const source = buildLockInspectSource(query, className);
-  const deployed = await deployBridge(conn, gate, {
-    className,
-    source,
-    description: "abapsmith FPM lock inspection bridge",
-    caller: { tool: "abap_fpm_read", action: "locks" },
-    what: "Activation of the generated FPM lock bridge",
-    hint: "The bridge reads the enqueue table via ENQUEUE_READ and takes one throwaway self-lock through ENQUEUE_E_WDY_CONFCOMP/CONFAPPL. A syntax error here most likely means one of those function modules, or a SEQG3 field, is not shaped exactly as the lock-discipline spike recorded (see this module's doc comment for confirmed vs. inferred).",
-    verify: (activation) => verifyBridgeActivation(activation, className, "FPM lock bridge", { mode: "locks" })
-  });
-  const { bridgeRefreshed } = deployed;
-  const run = await executeBridge(conn, gate, deployed);
-  const transcript = parseLockTranscript(run.output);
-  return {
-    query,
-    bridgeClass: className,
-    bridgeRefreshed,
-    durationMs: Date.now() - started,
-    transcript,
-    outputComplete: run.outputComplete,
-    bodyBytes: run.bodyBytes
-  };
-}
-
-// src/tools/fpm.ts
 init_compact();
 var fpmReadInputSchema = {
   mode: external_exports.enum(["find", "outline", "app", "locks", "events"]).describe(
@@ -142370,7 +143777,7 @@ async function readImgShow(conn, q) {
   if (titleResult.rs.records.length === 0) {
     notes.push(`No ${tbl4("imgActivityText")} title for activity "${q.activity}" in language "${q.language}".`);
   }
-  const { path: path8, mountedNodes } = await walkImgPath(conn, ctx, notes, q.activity, title, q.language);
+  const { path: path9, mountedNodes } = await walkImgPath(conn, ctx, notes, q.activity, title, q.language);
   if (docId.trim() !== "") {
     docs.push({ activity: q.activity, docId });
   } else {
@@ -142453,7 +143860,7 @@ async function readImgShow(conn, q) {
       page: null,
       treeId: null,
       activities: [{ activity: q.activity, title, objects: objectRows2.length, nodes: mountedNodes }],
-      path: path8,
+      path: path9,
       nodes: [],
       objects,
       tables,
@@ -142957,7 +144364,7 @@ function resolveActivity(t) {
   const activity = t.activities[0]?.activity ?? t.path[0]?.activity ?? t.docs[0]?.activity ?? "";
   const matches = (a) => activity === "" || a === activity;
   const title = t.activities.find((a) => matches(a.activity))?.title ?? "";
-  const path8 = t.path.filter((p) => matches(p.activity)).slice().sort((a, b) => a.position - b.position).map((p) => ({ node: p.node, title: p.title }));
+  const path9 = t.path.filter((p) => matches(p.activity)).slice().sort((a, b) => a.position - b.position).map((p) => ({ node: p.node, title: p.title }));
   const objects = t.objects.map((o) => buildResolvedObject(o, t));
   const docRow = t.docs.find((d) => matches(d.activity));
   const doc = docRow ? { docId: docRow.docId } : void 0;
@@ -142976,7 +144383,7 @@ function resolveActivity(t) {
       ambiguity = tablesAmbiguity(primary);
     }
   }
-  return { activity, title, path: path8, objects, doc, primary, primaryTable, ambiguity };
+  return { activity, title, path: path9, objects, doc, primary, primaryTable, ambiguity };
 }
 function resolveObject2(t) {
   const obj = t.objects[0];
@@ -145405,7 +146812,7 @@ init_errors();
 
 // src/adt/ui-runtime.ts
 init_errors();
-import { createHash as createHash11 } from "node:crypto";
+import { createHash as createHash12 } from "node:crypto";
 
 // src/adt/ui-fcode.ts
 function isRecord2(v) {
@@ -146147,7 +147554,7 @@ function discriminator(q) {
 function uiBridgeClassName(q) {
   validateQuery(q);
   const hashHexLen = MAX_NAME - UI_BRIDGE_CLASS_PREFIX.length;
-  const hash2 = createHash11("sha256").update(discriminator(q), "utf8").digest("hex").slice(0, hashHexLen).toUpperCase();
+  const hash2 = createHash12("sha256").update(discriminator(q), "utf8").digest("hex").slice(0, hashHexLen).toUpperCase();
   return `${UI_BRIDGE_CLASS_PREFIX}${hash2}`;
 }
 var UI_LINE_PREFIX = "UI> ";
@@ -146836,17 +148243,23 @@ var uiPressFieldSchema = external_exports.object({
   value: external_exports.string().describe("Value to set (BDCDATA-FVAL, max 132 chars).")
 });
 var uiPressScreenSchema = external_exports.object({
-  program: external_exports.string().describe("Program owning this dynpro (from a prior screen call's resolved program)."),
+  program: external_exports.string().describe(
+    "Program owning this dynpro (from a prior screen call's resolved program)."
+  ),
   dynpro: external_exports.string().describe('Screen number, e.g. "100" \u2014 padded to 4 digits automatically.'),
   okcode: external_exports.string().optional().describe('Function code to fire, e.g. "=ENTR" or "/00". Sets BDC_OKCODE.'),
-  cursorField: external_exports.string().optional().describe("Field name to position the cursor on before the okcode fires. Sets BDC_CURSOR."),
+  cursorField: external_exports.string().optional().describe(
+    "Field name to position the cursor on before the okcode fires. Sets BDC_CURSOR."
+  ),
   fields: external_exports.array(uiPressFieldSchema).optional().describe("Field values to set on this screen before the okcode fires.")
 });
 var uiInputSchema = {
   mode: external_exports.enum(["screen", "fcode", "press"]).describe(
     "screen: read one dynpro (discovery, read-only in effect). fcode: static trace of one function code's handling \u2014 reads source, runs nothing, same read-only effect as screen. press: run a batch-input script \u2014 commits, cannot be rolled back. Requires ABAP_MODE=admin, ABAP_ALLOW_UI_PRESS=true, and confirm:true."
   ),
-  tcode: external_exports.string().optional().describe("Transaction code. screen/fcode: alternative to program+dynpro. press: required."),
+  tcode: external_exports.string().optional().describe(
+    "Transaction code. screen/fcode: alternative to program+dynpro. press: required."
+  ),
   program: external_exports.string().optional().describe("screen/fcode only, with dynpro: program name instead of tcode."),
   dynpro: external_exports.string().optional().describe('screen/fcode only, with program: screen number, e.g. "100".'),
   fcode: external_exports.string().optional().describe(
@@ -146860,10 +148273,15 @@ var uiInputSchema = {
   ),
   confirm: external_exports.boolean().optional().describe(
     "press only, REQUIRED (must be exactly true) \u2014 acknowledges the commit. Omitted or false is refused before any network call."
+  ),
+  snapshot_ids: external_exports.array(external_exports.string()).optional().describe(
+    `mode: "press" only \u2014 press is the mode that can change data. Snapshot ids from prior abap_data_preview mode="snapshot" calls. After the press script finishes, each one is re-read and diffed, and the result is appended as a DATA CHANGES section. The diff obeys the same data-preview policy as the snapshot did \u2014 if it is refused, this call's own result still returns and the section says why.`
   )
 };
 var UiInput = external_exports.object(uiInputSchema);
-var ok15 = (text5) => ({ content: [{ type: "text", text: text5 }] });
+var ok15 = (text5) => ({
+  content: [{ type: "text", text: text5 }]
+});
 var FIDELITY_NOTES2 = [
   "Batch input (BDC) replays classic dynpro screens only. Web Dynpro, FPM/FBI (a different mechanism \u2014 see abap_fpm_read), and Fiori/UI5 screens have no dynpro number and cannot be reached by this tool at any effort level.",
   "BDC scripts are brittle by construction, not by defect: they hardcode screen numbers and field names. A script proven against one system's layout can break on a modal dialog, an authorization popup, a transaction variant, a customizing difference, or a support-package UI change on another \u2014 a working sequence is not portable without re-verification."
@@ -146925,7 +148343,9 @@ function buildFcodeQuery(input) {
 function buildPressQuery(input) {
   const tcode = input.tcode?.trim();
   if (!tcode) {
-    throw new AbapError("BAD_INPUT", 'mode:"press" requires tcode.', { mode: "press" });
+    throw new AbapError("BAD_INPUT", 'mode:"press" requires tcode.', {
+      mode: "press"
+    });
   }
   if (!input.screens || input.screens.length === 0) {
     throw new AbapError(
@@ -146939,7 +148359,10 @@ function buildPressQuery(input) {
     dynpro: s.dynpro.trim(),
     okCode: s.okcode?.trim(),
     cursorField: s.cursorField?.trim(),
-    fields: (s.fields ?? []).map((f) => ({ fieldName: f.name.trim(), value: f.value }))
+    fields: (s.fields ?? []).map((f) => ({
+      fieldName: f.name.trim(),
+      value: f.value
+    }))
   }));
   return { mode: "press", tcode: normalizeTcode(tcode), screens };
 }
@@ -146970,12 +148393,20 @@ function assertPressEnabled(cfg) {
   throw new AbapError(
     "SAFETY_DENIED",
     `abap_ui press is disabled. It requires BOTH ABAP_MODE=admin AND ABAP_ALLOW_UI_PRESS=true \u2014 admin mode alone does not enable it, and the flag alone does not either. Batch input executes arbitrary transactions under the connected user's full SAP authority with no dry run. Current: ABAP_MODE=${modeState}, ABAP_ALLOW_UI_PRESS=${flagOn}.`,
-    { operation: "execute", phase: "preflight", abapMode: cfg.abapMode, allowUiPress: flagOn },
+    {
+      operation: "execute",
+      phase: "preflight",
+      abapMode: cfg.abapMode,
+      allowUiPress: flagOn
+    },
     "Set both ABAP_MODE=admin and ABAP_ALLOW_UI_PRESS=true if this call is genuinely intended."
   );
 }
 async function assertBdcApplies(deps, tcode) {
-  const precheckQuery = { mode: "screen", target: { by: "tcode", tcode } };
+  const precheckQuery = {
+    mode: "screen",
+    target: { by: "tcode", tcode }
+  };
   deps.safety.assert(
     "write",
     { name: uiManifest.entry, packageName: FLUID_PACKAGE, type: "CLAS/OC" },
@@ -147023,10 +148454,14 @@ function buildScreenResponse(query, result, maxChars, layout) {
     }
   }
   if (t.droppedLines > 0) {
-    notes.push(`${t.droppedLines} unprefixed line(s) from the bridge output were dropped (framing noise).`);
+    notes.push(
+      `${t.droppedLines} unprefixed line(s) from the bridge output were dropped (framing noise).`
+    );
   }
   if (t.noCua) {
-    notes.push(`No GUI status defined for program ${t.noCua.program} \u2014 this is normal, not an error.`);
+    notes.push(
+      `No GUI status defined for program ${t.noCua.program} \u2014 this is normal, not an error.`
+    );
   }
   if (layout) {
     notes.push(LAYOUT_FIDELITY_NOTE);
@@ -147047,11 +148482,29 @@ function buildScreenResponse(query, result, maxChars, layout) {
       bridgeRefreshed: result.bridgeRefreshed
     },
     sections: [
-      ...layout ? [{ title: "LAYOUT (design-time)", content: renderScreenLayout({ header: t.header, fields: t.fields, fkeys: t.fkeys }) }] : [],
-      { title: "HEADER (RPY_DYNPRO_READ)", content: t.header ? renderRecordRows([t.header]) : "(not read)" },
+      ...layout ? [
+        {
+          title: "LAYOUT (design-time)",
+          content: renderScreenLayout({
+            header: t.header,
+            fields: t.fields,
+            fkeys: t.fkeys
+          })
+        }
+      ] : [],
+      {
+        title: "HEADER (RPY_DYNPRO_READ)",
+        content: t.header ? renderRecordRows([t.header]) : "(not read)"
+      },
       { title: "FLOW LOGIC", content: renderRecordRows(t.flow) },
-      { title: "GUI STATUSES (names)", content: renderRecordRows(t.statusList) },
-      { title: "FUNCTION CODES (program-wide)", content: renderRecordRows(t.functions) },
+      {
+        title: "GUI STATUSES (names)",
+        content: renderRecordRows(t.statusList)
+      },
+      {
+        title: "FUNCTION CODES (program-wide)",
+        content: renderRecordRows(t.functions)
+      },
       { title: "FUNCTION KEYS", content: renderRecordRows(t.fkeys) },
       ...t.diagnostics.length ? [{ title: "DIAGNOSTICS", content: t.diagnostics.join("\n") }] : []
     ],
@@ -147080,7 +148533,9 @@ function renderModuleHit(hit) {
   if (d.kind === "none") {
     lines.push("    dispatch: none (no CASE found in this module)");
   } else if (d.kind === "unresolved") {
-    lines.push(`    dispatch: unresolved \u2014 ${d.reason}${d.expression ? ` (CASE ${d.expression})` : ""}`);
+    lines.push(
+      `    dispatch: unresolved \u2014 ${d.reason}${d.expression ? ` (CASE ${d.expression})` : ""}`
+    );
   } else {
     lines.push(
       `    dispatch: ${d.kind} on ${d.expression}` + (d.kind === "alias" && d.aliasAssignedFrom ? ` (assigned from ${d.aliasAssignedFrom} at line ${d.aliasLine})` : "")
@@ -147094,7 +148549,9 @@ function renderModuleHit(hit) {
       `    WHEN ${b.literals.join(" OR ")} \u2014 lines ${b.lineFrom}-${b.lineTo}` + (b.viaRemap ? ` \u2014 via remap ${b.viaRemap}` : "")
     );
     if (b.calls.length === 0) {
-      lines.push("      (no PERFORM/CALL FUNCTION/CALL METHOD/CALL TRANSACTION/LEAVE TO TRANSACTION/SUBMIT found)");
+      lines.push(
+        "      (no PERFORM/CALL FUNCTION/CALL METHOD/CALL TRANSACTION/LEAVE TO TRANSACTION/SUBMIT found)"
+      );
     }
     for (const c of b.calls) lines.push(renderCall(c));
     lines.push(`      read: ${b.read}`);
@@ -147104,7 +148561,9 @@ function renderModuleHit(hit) {
 }
 function renderFcodeRow(row2) {
   const lines = [];
-  lines.push(`FCODE ${row2.fcode}${row2.text ? ` \u2014 ${row2.text}` : ""} (statuses: ${row2.statuses.join(", ") || "-"})`);
+  lines.push(
+    `FCODE ${row2.fcode}${row2.text ? ` \u2014 ${row2.text}` : ""} (statuses: ${row2.statuses.join(", ") || "-"})`
+  );
   if (row2.modules.length === 0) {
     lines.push("  (no PAI module dispatches on this function code)");
   }
@@ -147123,10 +148582,15 @@ function buildFcodeResponse(query, result, maxChars) {
       {}
     );
   }
-  const unresolvedCount = f.fcodes.reduce((n, row2) => n + row2.unresolved.length, 0);
+  const unresolvedCount = f.fcodes.reduce(
+    (n, row2) => n + row2.unresolved.length,
+    0
+  );
   const notes = [...FCODE_NOTES, ...f.notes];
   if (f.truncated) {
-    notes.push(`Output truncated (${f.truncated}) \u2014 results below are incomplete.`);
+    notes.push(
+      `Output truncated (${f.truncated}) \u2014 results below are incomplete.`
+    );
   }
   const paiRows = f.paiModules.map((m) => ({
     name: m.name,
@@ -147140,7 +148604,12 @@ function buildFcodeResponse(query, result, maxChars) {
     readError: i.readError ?? ""
   }));
   const unresolvedRows = f.fcodes.flatMap(
-    (row2) => row2.unresolved.map((u) => ({ fcode: row2.fcode, module: u.module, include: u.include, reason: u.reason }))
+    (row2) => row2.unresolved.map((u) => ({
+      fcode: row2.fcode,
+      module: u.module,
+      include: u.include,
+      reason: u.reason
+    }))
   );
   return buildResponse({
     header: {
@@ -147156,9 +148625,25 @@ function buildFcodeResponse(query, result, maxChars) {
       bridgeRefreshed: result.bridgeRefreshed
     },
     sections: [
-      { title: "PAI MODULES (flow-logic order)", content: textTable(paiRows, ["name", "include", "atExit", "found"]) },
-      { title: "INCLUDES SCANNED", content: textTable(includeRows, ["name", "lines", "readError"]) },
-      ...unresolvedRows.length ? [{ title: "UNRESOLVED", content: textTable(unresolvedRows, ["fcode", "module", "include", "reason"]) }] : []
+      {
+        title: "PAI MODULES (flow-logic order)",
+        content: textTable(paiRows, ["name", "include", "atExit", "found"])
+      },
+      {
+        title: "INCLUDES SCANNED",
+        content: textTable(includeRows, ["name", "lines", "readError"])
+      },
+      ...unresolvedRows.length ? [
+        {
+          title: "UNRESOLVED",
+          content: textTable(unresolvedRows, [
+            "fcode",
+            "module",
+            "include",
+            "reason"
+          ])
+        }
+      ] : []
     ],
     body: f.fcodes.map(renderFcodeRow).join("\n\n"),
     bodyLabel: "FUNCTION CODES",
@@ -147224,7 +148709,14 @@ async function runScreenTool(deps, input) {
     uiManifest.entry,
     (conn) => runUiBridge(conn, query, deps.safety)
   );
-  return ok15(buildScreenResponse(query, result, deps.cfg.maxResponseChars, input.layout === true));
+  return ok15(
+    buildScreenResponse(
+      query,
+      result,
+      deps.cfg.maxResponseChars,
+      input.layout === true
+    )
+  );
 }
 async function runFcodeTool(deps, input) {
   const query = buildFcodeQuery(input);
@@ -147247,11 +148739,19 @@ async function runPressTool(deps, input) {
   const query = buildPressQuery(input);
   assertNotDenylisted(query.tcode);
   assertPressEnabled(deps.cfg);
-  deps.safety.assert("execute", safetyTarget({ name: query.tcode, type: "TCODE" }), { phase: "preflight" });
+  deps.safety.assert(
+    "execute",
+    safetyTarget({ name: query.tcode, type: "TCODE" }),
+    { phase: "preflight" }
+  );
   await deps.ensureConnected();
   await assertBdcApplies(deps, query.tcode);
   const bridgeClass = uiBridgeClassName(query);
-  deps.safety.assert("write", { name: bridgeClass, packageName: FLUID_PACKAGE, type: "CLAS/OC" }, { phase: "preflight" });
+  deps.safety.assert(
+    "write",
+    { name: bridgeClass, packageName: FLUID_PACKAGE, type: "CLAS/OC" },
+    { phase: "preflight" }
+  );
   const journalled = await withJournalledMutation(
     deps.journal,
     {
@@ -147275,12 +148775,20 @@ async function runPressTool(deps, input) {
         // spelling `src/tools/transport.ts` uses (not the `systemKey(conn.cfg)`
         // spelling used elsewhere, which needs a live connection this closure
         // doesn't have).
-        systemKey: systemKey({ sid: deps.cfg.sid, url: deps.cfg.url, client: deps.cfg.client })
+        systemKey: systemKey({
+          sid: deps.cfg.sid,
+          url: deps.cfg.url,
+          client: deps.cfg.client
+        })
       })
     },
     async (onBeforeImage) => {
       await onBeforeImage(query);
-      return deps.pool.withWrite("abap_ui", bridgeClass, (conn) => runUiBridge(conn, query, deps.safety));
+      return deps.pool.withWrite(
+        "abap_ui",
+        bridgeClass,
+        (conn) => runUiBridge(conn, query, deps.safety)
+      );
     }
   );
   const result = journalled.result;
@@ -147288,11 +148796,28 @@ async function runPressTool(deps, input) {
   await journalled.settle({
     outcome: press && press.subrc === 0 ? "succeeded" : "failed"
   });
-  return ok15(buildPressResponse(query, result, deps.cfg.maxResponseChars));
+  const text5 = buildPressResponse(query, result, deps.cfg.maxResponseChars);
+  const changes = await runSnapshotDiffs(
+    deps,
+    input.snapshot_ids,
+    (m) => void process.stderr.write(m + "\n")
+  );
+  return ok15(changes ? `${text5}
+
+DATA CHANGES
+${changes}` : text5);
 }
 var UI_TOOL_DESCRIPTION = "Drive classic SAP dynpro screens via batch input (BDC): screen reads one dynpro's fields/flow/status; fcode statically traces a function code to the ABAP that handles it (read-only, runs nothing); press runs a scripted transaction (commits, no rollback). Reaches classic dialog dynpros ONLY \u2014 never Web Dynpro/FPM/Fiori.";
 async function runUiTool(deps, args) {
   const input = args;
+  if (input.snapshot_ids !== void 0 && input.mode !== "press") {
+    throw new AbapError(
+      "BAD_INPUT",
+      `snapshot_ids was given with mode="${input.mode}". snapshot_ids applies to mode: "press", the only mode that can change data.`,
+      { mode: input.mode, snapshot_ids: input.snapshot_ids },
+      'Drop snapshot_ids, or set mode: "press" to run a script and diff what it changed.'
+    );
+  }
   if (input.mode === "press") return runPressTool(deps, input);
   if (input.mode === "fcode") return runFcodeTool(deps, input);
   return runScreenTool(deps, input);
@@ -147304,7 +148829,11 @@ function registerUiTools(mcp, deps) {
       title: "Drive classic dynpro screens (batch input)",
       description: UI_TOOL_DESCRIPTION,
       inputSchema: uiInputSchema,
-      annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true }
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        openWorldHint: true
+      }
     },
     async (args) => {
       try {
@@ -149841,18 +151370,26 @@ var dataPreviewInputSchema = {
   ),
   where: external_exports.array(
     external_exports.object({
-      field: external_exports.string().describe("DDIC field name, checked against the entity's own column list before anything is sent."),
+      field: external_exports.string().describe(
+        "DDIC field name, checked against the entity's own column list before anything is sent."
+      ),
       op: external_exports.enum(PREVIEW_OPS).describe(
         "Comparison operator: eq/ne/lt/le/gt/ge compare one typed value; like matches an SQL pattern (% = any run, _ = one character, # = escape character); in matches any of an array of values; is_null takes no value at all."
       ),
-      value: external_exports.union([external_exports.string(), external_exports.number(), external_exports.array(external_exports.union([external_exports.string(), external_exports.number()]))]).optional().describe(
+      value: external_exports.union([
+        external_exports.string(),
+        external_exports.number(),
+        external_exports.array(external_exports.union([external_exports.string(), external_exports.number()]))
+      ]).optional().describe(
         "Required for every op except is_null (which must omit it); an array only for op=in. Always rendered as a typed literal for the field's DDIC type \u2014 never concatenated as text."
       )
     })
   ).optional().describe(
     "Structured filter conditions, ANDed together (no OR, no free text). This does not widen what the technical user may read \u2014 the same S_TABU_* authorisations still apply to every row."
   ),
-  columns: external_exports.array(external_exports.string()).optional().describe("Project only these DDIC fields, in this order, instead of every column on the entity."),
+  columns: external_exports.array(external_exports.string()).optional().describe(
+    "Project only these DDIC fields, in this order, instead of every column on the entity."
+  ),
   order_by: external_exports.array(
     external_exports.object({
       field: external_exports.string().describe("DDIC field name to sort by."),
@@ -149864,6 +151401,15 @@ var dataPreviewInputSchema = {
   distinct: external_exports.boolean().optional().describe(
     "Suppress duplicate rows. Requires every order_by field to also appear in columns \u2014 otherwise the sort key would not be part of what distinctness is computed over."
   ),
+  mode: external_exports.enum(["preview", "snapshot", "diff"]).optional().describe(
+    `Defaults to "preview": read and show rows. "snapshot" reads the same selection and stores the rows locally for a later comparison. "diff" re-reads a stored snapshot's own selection and reports what changed since it was taken.`
+  ),
+  snapshot_id: external_exports.string().optional().describe(
+    'The id returned by a prior mode: "snapshot" call. Required for mode: "diff"; refused in the other two modes.'
+  ),
+  ttl_hours: external_exports.number().int().optional().describe(
+    'mode: "snapshot" only. How long the snapshot survives before it is pruned, clamped DOWN to the operator ceiling ABAP_DATA_SNAPSHOT_TTL_HOURS (the clamp, if any, is reported in the response).'
+  ),
   format: external_exports.enum(["table", "abap_value", "test_double"]).optional().describe(
     "How to render the rows. table (default): the usual text table. abap_value: the rows as one typed VALUE #( ... ) literal for the entity's line type. test_double: that literal wrapped in a ready-to-paste cl_osql_test_environment fixture. Same deny-list, same flag, same row ceiling in every case \u2014 the format is applied after the read, never around the check."
   ),
@@ -149872,8 +151418,10 @@ var dataPreviewInputSchema = {
   )
 };
 var DataPreviewInput = external_exports.object(dataPreviewInputSchema);
-var ok17 = (text5) => ({ content: [{ type: "text", text: text5 }] });
-function uniqueColumnKeys(names) {
+var ok17 = (text5) => ({
+  content: [{ type: "text", text: text5 }]
+});
+function uniqueColumnKeys2(names) {
   const seen = /* @__PURE__ */ new Map();
   return names.map((raw, i) => {
     const base = raw === "" ? `col${i + 1}` : raw;
@@ -149920,7 +151468,10 @@ function previewNotes(result, requested) {
 function previewSections(result) {
   const sections = [];
   if (result.columns.length) {
-    sections.push({ title: "COLUMNS (* = key)", content: columnSummary(result) });
+    sections.push({
+      title: "COLUMNS (* = key)",
+      content: columnSummary(result)
+    });
   }
   if (result.statement !== void 0) {
     const statementLines = [`sent: ${result.statement}`];
@@ -149932,7 +151483,7 @@ function previewSections(result) {
   return sections;
 }
 function renderPreview2(result, requested, maxChars) {
-  const keys = uniqueColumnKeys(result.columns.map((c) => c.name));
+  const keys = uniqueColumnKeys2(result.columns.map((c) => c.name));
   const rows = result.rows.map((cells) => {
     const rec = {};
     keys.forEach((k, i) => {
@@ -149958,6 +151509,63 @@ function renderPreview2(result, requested, maxChars) {
     maxChars
   });
 }
+function resolveTable(a) {
+  const table = (a.table ?? a.object ?? "").trim();
+  if (table === "") {
+    throw new AbapError(
+      "BAD_INPUT",
+      "table (or object) is required.",
+      {},
+      'Pass the DDIC entity name, e.g. { "table": "T000" } or { "object": "T000" }.'
+    );
+  }
+  return table;
+}
+function resolveMaxRowsRequested(a, table, ceiling) {
+  const requested = a.max_rows === void 0 ? ceiling : a.max_rows;
+  if (!Number.isInteger(requested) || requested < 1) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `max_rows must be a whole number of at least 1, got ${String(a.max_rows)}.`,
+      { table, max_rows: a.max_rows },
+      `Ask for 1..${ceiling} rows, or omit max_rows for ${ceiling}. 0 is not "no rows" on this endpoint \u2014 it means unlimited, so it is refused rather than sent.`
+    );
+  }
+  return requested;
+}
+function buildFilter(a) {
+  return {
+    ...a.where === void 0 ? {} : { where: a.where },
+    ...a.columns === void 0 ? {} : { columns: a.columns },
+    ...a.order_by === void 0 ? {} : { orderBy: a.order_by },
+    ...a.distinct === void 0 ? {} : { distinct: a.distinct }
+  };
+}
+function buildSnapshotRunDeps(deps, ceiling) {
+  return {
+    read: (table, maxRows, filter) => deps.pool.withRead(
+      "abap_data_preview",
+      (conn) => previewDdicEntity(conn, {
+        table,
+        maxRows,
+        ...filter && !isEmptyFilter(filter) ? { filter } : {}
+      })
+    ),
+    assertDataPreview: (t) => deps.safety.assertDataPreview(t),
+    systemKey: systemKey(deps.cfg),
+    maxRows: ceiling,
+    ttlCeilingHours: deps.cfg.dataSnapshotTtlHours
+  };
+}
+var DIFF_FORBIDDEN_KEYS = [
+  "table",
+  "object",
+  "where",
+  "columns",
+  "order_by",
+  "distinct",
+  "max_rows"
+];
 function renderFixture(result, requested, maxChars, format, maskedUpper, columnOrder) {
   const fixtureInput = {
     result,
@@ -150003,7 +151611,7 @@ function registerDataPreviewTools(mcp, deps) {
     "abap_data_preview",
     {
       title: "Preview DDIC table data",
-      description: `Read rows from ONE DDIC entity: a table, database/projection view, or parameterless CDS view \u2014 not every DDIC entity kind qualifies. A name plus an optional structured filter (where/columns/order_by/distinct) \u2014 still no JOIN, no aggregate, and no SQL text. Rows clamped to the ceiling (currently ${ceiling}). Deny-listed tables and non-provably-nonproductive systems are refused. format: abap_value / test_double turn the rows into a paste-ready ABAP fixture under the same policy.`,
+      description: `Read rows from ONE DDIC entity: a table, database/projection view, or parameterless CDS view \u2014 not every DDIC entity kind qualifies. A name plus an optional structured filter (where/columns/order_by/distinct) \u2014 still no JOIN, no aggregate, and no SQL text. Rows clamped to the ceiling (currently ${ceiling}). Deny-listed tables and non-provably-nonproductive systems are refused. Three modes: "preview" (default) reads and shows rows; "snapshot" reads the same selection and stores the rows locally under a returned snapshot_id; "diff" re-reads a stored snapshot's own recorded selection and reports what changed since it was taken. format: abap_value / test_double turn the rows into a paste-ready ABAP fixture under the same policy.`,
       inputSchema: dataPreviewInputSchema,
       annotations: {
         readOnlyHint: true,
@@ -150015,33 +151623,96 @@ function registerDataPreviewTools(mcp, deps) {
     async (args) => {
       try {
         const a = args;
-        const table = (a.table ?? a.object ?? "").trim();
-        if (table === "") {
+        const mode = a.mode ?? "preview";
+        if (a.snapshot_id !== void 0 && mode !== "diff") {
           throw new AbapError(
             "BAD_INPUT",
-            "table (or object) is required.",
-            {},
-            'Pass the DDIC entity name, e.g. { "table": "T000" } or { "object": "T000" }.'
+            `snapshot_id is only used with mode: "diff" (got mode: "${mode}").`,
+            { mode, snapshot_id: a.snapshot_id },
+            'Pass mode: "diff" to replay a stored snapshot, or drop snapshot_id for this mode.'
           );
         }
+        if (a.ttl_hours !== void 0 && mode !== "snapshot") {
+          throw new AbapError(
+            "BAD_INPUT",
+            `ttl_hours is only used with mode: "snapshot" (got mode: "${mode}").`,
+            { mode, ttl_hours: a.ttl_hours },
+            'Pass mode: "snapshot" to take a snapshot with a custom ttl_hours, or drop ttl_hours for this mode.'
+          );
+        }
+        if (a.ttl_hours !== void 0 && (!Number.isInteger(a.ttl_hours) || a.ttl_hours < 1)) {
+          throw new AbapError(
+            "BAD_INPUT",
+            `ttl_hours must be a whole number of at least 1, got ${String(a.ttl_hours)}.`,
+            { ttl_hours: a.ttl_hours },
+            `Ask for a whole number of hours, or omit ttl_hours to use the operator ceiling (${deps.cfg.dataSnapshotTtlHours}).`
+          );
+        }
+        if (mode !== "preview" && (a.format !== void 0 || a.mask !== void 0)) {
+          throw new AbapError(
+            "BAD_INPUT",
+            `format / mask only apply to mode: "preview" (got mode: "${mode}").`,
+            {
+              mode,
+              ...a.format === void 0 ? {} : { format: a.format },
+              ...a.mask === void 0 ? {} : { mask: a.mask }
+            },
+            'A snapshot stores the raw rows and a diff reports row changes; neither renders a fixture. Drop format/mask, or use mode: "preview" to render a fixture.'
+          );
+        }
+        if (mode === "diff" && a.snapshot_id === void 0) {
+          throw new AbapError(
+            "BAD_INPUT",
+            'mode: "diff" requires snapshot_id.',
+            { mode },
+            'Pass the id returned by a prior mode: "snapshot" call.'
+          );
+        }
+        if (mode === "diff") {
+          const given = DIFF_FORBIDDEN_KEYS.filter((k) => a[k] !== void 0);
+          if (given.length > 0) {
+            throw new AbapError(
+              "BAD_INPUT",
+              `mode: "diff" replays the snapshot's own recorded selection and cannot also be given ${given.join(", ")}.`,
+              { mode, given },
+              "A diff re-reads exactly the selection the snapshot itself recorded \u2014 passing a different selection would compare two different questions and report the difference as data change. Take a fresh snapshot with the new selection instead."
+            );
+          }
+        }
+        if (mode === "diff") {
+          await deps.ensureConnected();
+          const runDeps = buildSnapshotRunDeps(deps, ceiling);
+          const out = await diffSnapshot(runDeps, a.snapshot_id);
+          const res2 = renderDiff(out, deps.cfg.maxResponseChars);
+          auditDiff(out, audit);
+          return ok17(res2.text);
+        }
+        const table = resolveTable(a);
         await deps.ensureConnected();
-        deps.safety.assertDataPreview(table);
-        const requested = a.max_rows === void 0 ? ceiling : a.max_rows;
-        if (!Number.isInteger(requested) || requested < 1) {
-          throw new AbapError(
-            "BAD_INPUT",
-            `max_rows must be a whole number of at least 1, got ${String(a.max_rows)}.`,
-            { table, max_rows: a.max_rows },
-            `Ask for 1..${ceiling} rows, or omit max_rows for ${ceiling}. 0 is not "no rows" on this endpoint \u2014 it means unlimited, so it is refused rather than sent.`
-          );
+        if (mode === "snapshot") {
+          const requested2 = resolveMaxRowsRequested(a, table, ceiling);
+          const filter2 = buildFilter(a);
+          const runDeps = buildSnapshotRunDeps(deps, ceiling);
+          const { snapshot, result: result2, ttlClamped } = await takeSnapshot(runDeps, {
+            table,
+            maxRowsRequested: requested2,
+            ...isEmptyFilter(filter2) ? {} : { filter: filter2 },
+            ...a.ttl_hours === void 0 ? {} : { ttlHours: a.ttl_hours }
+          });
+          const res2 = renderSnapshot(snapshot, result2, {
+            maxRowsRequested: requested2,
+            ttlClamped,
+            ttlRequested: a.ttl_hours ?? deps.cfg.dataSnapshotTtlHours,
+            ttlCeiling: deps.cfg.dataSnapshotTtlHours,
+            maxChars: deps.cfg.maxResponseChars
+          });
+          auditSnapshot(snapshot, audit);
+          return ok17(res2.text);
         }
+        deps.safety.assertDataPreview(table);
+        const requested = resolveMaxRowsRequested(a, table, ceiling);
         const effective = Math.min(requested, ceiling);
-        const filter = {
-          ...a.where === void 0 ? {} : { where: a.where },
-          ...a.columns === void 0 ? {} : { columns: a.columns },
-          ...a.order_by === void 0 ? {} : { orderBy: a.order_by },
-          ...a.distinct === void 0 ? {} : { distinct: a.distinct }
-        };
+        const filter = buildFilter(a);
         const result = await deps.pool.withRead(
           "abap_data_preview",
           (conn) => previewDdicEntity(conn, {
@@ -150058,13 +151729,19 @@ function registerDataPreviewTools(mcp, deps) {
         } else {
           maskedUpper = normaliseMask(a.mask);
           const knownColumns = result.columns;
-          const knownUpper = new Set(knownColumns.map((c) => c.name.toUpperCase()));
+          const knownUpper = new Set(
+            knownColumns.map((c) => c.name.toUpperCase())
+          );
           const unknown2 = maskedUpper.filter((name) => !knownUpper.has(name));
           if (unknown2.length) {
             throw new AbapError(
               "BAD_INPUT",
               `mask names field(s) not present on ${result.table}: ${unknown2.join(", ")}.`,
-              { table: result.table, mask: unknown2, columns: knownColumns.map((c) => c.name) },
+              {
+                table: result.table,
+                mask: unknown2,
+                columns: knownColumns.map((c) => c.name)
+              },
               `Known columns: ${knownColumns.map((c) => c.name).join(", ") || "(none)"}. A mask field must match a real column, or it would be silently ignored.`
             );
           }
@@ -150169,9 +151846,9 @@ function dumpLinkKind(uri) {
 function stripAdtScheme(uri) {
   return uri.replace(ADT_SCHEME_RE, "");
 }
-function dumpKeyFromDetailPath(path8) {
-  if (!path8.startsWith(DUMP_DETAIL_PATH_PREFIX)) return void 0;
-  const key = path8.slice(DUMP_DETAIL_PATH_PREFIX.length);
+function dumpKeyFromDetailPath(path9) {
+  if (!path9.startsWith(DUMP_DETAIL_PATH_PREFIX)) return void 0;
+  const key = path9.slice(DUMP_DETAIL_PATH_PREFIX.length);
   return key === "" ? void 0 : key;
 }
 function exceptionFromDoc(doc) {
@@ -150336,14 +152013,14 @@ function parseDumpDetail(body) {
   };
 }
 function terminationTarget(uri) {
-  const path8 = stripAdtScheme(uri);
-  if (path8 === "") return void 0;
-  const hash2 = path8.indexOf("#");
-  if (hash2 < 0) return { path: path8 };
-  const start = new URLSearchParams(path8.slice(hash2 + 1)).get("start");
+  const path9 = stripAdtScheme(uri);
+  if (path9 === "") return void 0;
+  const hash2 = path9.indexOf("#");
+  if (hash2 < 0) return { path: path9 };
+  const start = new URLSearchParams(path9.slice(hash2 + 1)).get("start");
   const line2 = start === null ? Number.NaN : Number.parseInt(start, 10);
   return {
-    path: path8.slice(0, hash2),
+    path: path9.slice(0, hash2),
     ...Number.isFinite(line2) ? { line: line2 } : {}
   };
 }
@@ -150700,8 +152377,8 @@ async function fetchDumpFormatted(conn, target) {
 function formattedTarget(target) {
   if (typeof target === "string") return { uri: dumpFormattedPath(target), key: target };
   const link = target.links.find((l) => l.relationToken === FORMATTED_RELATION_TOKEN);
-  const path8 = target.formattedPath ?? link?.uri;
-  if (path8 === void 0) {
+  const path9 = target.formattedPath ?? link?.uri;
+  if (path9 === void 0) {
     throw new AbapError(
       "NOT_FOUND",
       "This dump detail advertises no plain-text rendering.",
@@ -150717,7 +152394,7 @@ function formattedTarget(target) {
       "This resource advertises absolute links (an internal https://host:port URL among them) that are not reachable or trustworthy from this client. Only server-relative paths are followed."
     );
   }
-  return { uri: path8 };
+  return { uri: path9 };
 }
 function selectDumpChapters(detail, formatted, names = TIER1_CHAPTER_NAMES) {
   const requested = [...names];
@@ -152731,8 +154408,8 @@ function parseProposalDeltas(xml3, expectedSourceUri) {
     if (node2 === void 0) continue;
     const ref2 = asRecord4(node2["objectReference"]);
     const uri = attrOrEmpty3(ref2, "uri");
-    const path8 = uriPath(uri);
-    if (path8 !== expectedSourceUri) {
+    const path9 = uriPath(uri);
+    if (path9 !== expectedSourceUri) {
       throw new AbapError(
         "UNSUPPORTED",
         `A quick-fix delta unit targets a different object than the one being fixed.`,
@@ -153596,12 +155273,12 @@ function text4(node2, name) {
   }
   return void 0;
 }
-function assertServiceRuntimePath(path8) {
-  if (SERVICE_METADATA_PATH2.test(path8)) return;
+function assertServiceRuntimePath(path9) {
+  if (SERVICE_METADATA_PATH2.test(path9)) return;
   throw new AbapError(
     "BAD_INPUT",
-    `Refusing to build the service-runtime request '${path8}': abapsmith fetches OData $metadata and nothing else.`,
-    { path: path8 },
+    `Refusing to build the service-runtime request '${path9}': abapsmith fetches OData $metadata and nothing else.`,
+    { path: path9 },
     "The path must be rooted at /sap/opu/odata or /sap/opu/odata4 and end in /$metadata. Reading entity data through an ADT developer session is out of scope by design (parity item P-40) and no setting enables it."
   );
 }
@@ -153783,16 +155460,16 @@ var PUBLISH_JOB_BASE = {
 var PUBLISH_JOB_PATH = /^\/sap\/bc\/adt\/businessservices\/odatav[24]\/(?:un)?publishjobs$/;
 function publishJobPath(action, version2) {
   const suffix = action === "publish" ? "publishjobs" : "unpublishjobs";
-  const path8 = `${PUBLISH_JOB_BASE[version2]}/${suffix}`;
-  if (!PUBLISH_JOB_PATH.test(path8)) {
+  const path9 = `${PUBLISH_JOB_BASE[version2]}/${suffix}`;
+  if (!PUBLISH_JOB_PATH.test(path9)) {
     throw new AbapError(
       "BAD_INPUT",
-      `Built an unexpected publish-job path '${path8}' for action '${action}' / version ${version2}.`,
-      { action, version: version2, path: path8 },
+      `Built an unexpected publish-job path '${path9}' for action '${action}' / version ${version2}.`,
+      { action, version: version2, path: path9 },
       "This should never fire; if it does, PUBLISH_JOB_BASE above was edited to something outside the two paths this module is allowed to POST to."
     );
   }
-  return path8;
+  return path9;
 }
 var STATUS_FIELD_NAMES = ["SEVERITY", "SHORT_TEXT", "LONG_TEXT"];
 var STATUS_SEARCH_MAX_DEPTH = 8;
@@ -155959,6 +157636,317 @@ init_zod();
 init_errors();
 init_compact();
 
+// src/adt/change-docs.ts
+init_errors();
+init_compact();
+var CHANGE_DOCS_TOOL_ID = "core";
+var CHANGE_DOCS_ACTION = "change_docs";
+function assertChangeDocsArgs(args) {
+  const a = typeof args === "object" && args !== null ? args : {};
+  const objectclass = a["objectclass"];
+  if (typeof objectclass !== "string" || objectclass.trim() === "") {
+    throw new AbapError(
+      "BAD_INPUT",
+      "core.change_docs: objectclass is required and must be a non-empty string.",
+      { field: "objectclass" },
+      'Pass the CDHDR object class to read, e.g. { "objectclass": "MATERIAL" }.'
+    );
+  }
+  const since = a["since"];
+  if (since !== void 0) {
+    if (typeof since !== "string" || !/^\d{14}$/.test(since)) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `core.change_docs: since must be 14 digits YYYYMMDDHHMMSS, got ${JSON.stringify(since)}.`,
+        { field: "since" },
+        'Pass server time as YYYYMMDDHHMMSS, e.g. "20260915120000".'
+      );
+    }
+  }
+  const until = a["until"];
+  if (until !== void 0) {
+    if (typeof until !== "string" || !/^\d{14}$/.test(until)) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `core.change_docs: until must be 14 digits YYYYMMDDHHMMSS, got ${JSON.stringify(until)}.`,
+        { field: "until" },
+        'Pass server time as YYYYMMDDHHMMSS, e.g. "20260915120000".'
+      );
+    }
+  }
+  if (typeof since === "string" && typeof until === "string" && /^\d{14}$/.test(since) && /^\d{14}$/.test(until) && since > until) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `core.change_docs: since (${since}) is after until (${until}).`,
+      { field: "since" },
+      "Swap since/until, or drop one so the window is open-ended on that side."
+    );
+  }
+  const max = a["max"];
+  if (max !== void 0) {
+    if (typeof max !== "number" || !Number.isInteger(max) || max < 0) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `core.change_docs: max must be a non-negative whole number, got ${JSON.stringify(max)}.`,
+        { field: "max" },
+        "Omit max for the server's default, or pass a whole number >= 0."
+      );
+    }
+  }
+}
+function fail7(reason, rows) {
+  throw new AbapError(
+    "FLUID_PROTOCOL_ERROR",
+    `change_docs ${reason}`,
+    { tool: CHANGE_DOCS_TOOL_ID, action: CHANGE_DOCS_ACTION, result: rows }
+  );
+}
+function isHeaderRow(r) {
+  return typeof r["objectclas"] === "string" && typeof r["objectid"] === "string" && typeof r["changenr"] === "string" && typeof r["username"] === "string" && typeof r["udate"] === "string" && typeof r["utime"] === "string" && typeof r["tcode"] === "string" && typeof r["change_ind"] === "string";
+}
+function isPosRow(r) {
+  return typeof r["changenr"] === "string" && typeof r["tabname"] === "string" && typeof r["tabkey"] === "string" && typeof r["fname"] === "string" && typeof r["chngind"] === "string" && typeof r["value_old"] === "string" && typeof r["value_new"] === "string";
+}
+function isSummaryRow4(r) {
+  return typeof r["changes_returned"] === "number" && typeof r["positions_returned"] === "number" && typeof r["truncated"] === "boolean" && typeof r["objectclass"] === "string" && typeof r["objectid"] === "string" && typeof r["user"] === "string" && typeof r["tcode"] === "string" && typeof r["since"] === "string" && typeof r["until"] === "string" && typeof r["max"] === "number" && typeof r["server_time"] === "string";
+}
+function mapChangeDocRows(rows) {
+  if (!Array.isArray(rows)) {
+    fail7("returned a result that is not an array", rows);
+  }
+  const changes = [];
+  let currentHeader;
+  let summary;
+  for (let i = 0; i < rows.length; i++) {
+    const row2 = rows[i];
+    if (typeof row2 !== "object" || row2 === null || Array.isArray(row2)) {
+      fail7(`row ${i} is not an object`, rows);
+    }
+    const r = row2;
+    if (r["kind"] !== "header" && r["kind"] !== "pos" && r["kind"] !== "summary") {
+      fail7(`row ${i} has kind "${String(r["kind"])}", expected "header", "pos" or "summary"`, rows);
+    }
+    if (summary !== void 0) {
+      fail7(`row ${i} follows the trailing summary row`, rows);
+    }
+    if (r["kind"] === "header") {
+      if (!isHeaderRow(r)) {
+        fail7(`row ${i} is a header row missing or mistyping one of its required fields`, rows);
+      }
+      const entry = {
+        objectclas: r.objectclas,
+        objectid: r.objectid,
+        changenr: r.changenr,
+        username: r.username,
+        udate: r.udate,
+        utime: r.utime,
+        tcode: r.tcode,
+        change_ind: r.change_ind,
+        positions: []
+      };
+      changes.push(entry);
+      currentHeader = entry;
+      continue;
+    }
+    if (r["kind"] === "pos") {
+      if (currentHeader === void 0) {
+        fail7(`row ${i} is a pos row before any header row`, rows);
+      }
+      if (!isPosRow(r)) {
+        fail7(`row ${i} is a pos row missing or mistyping one of its required fields`, rows);
+      }
+      if (r.changenr !== currentHeader.changenr) {
+        fail7(
+          `row ${i} is a pos row for changenr "${r.changenr}", but the open header is changenr "${currentHeader.changenr}"`,
+          rows
+        );
+      }
+      currentHeader.positions.push({
+        changenr: r.changenr,
+        tabname: r.tabname,
+        tabkey: r.tabkey,
+        fname: r.fname,
+        chngind: r.chngind,
+        value_old: r.value_old,
+        value_new: r.value_new
+      });
+      continue;
+    }
+    if (!isSummaryRow4(r)) {
+      fail7(`row ${i} is a summary row missing or mistyping one of its required fields`, rows);
+    }
+    if (i !== rows.length - 1) {
+      fail7("returned a summary row that is not the last element", rows);
+    }
+    summary = {
+      changes_returned: r.changes_returned,
+      positions_returned: r.positions_returned,
+      truncated: r.truncated,
+      objectclass: r.objectclass,
+      objectid: r.objectid,
+      user: r.user,
+      tcode: r.tcode,
+      since: r.since,
+      until: r.until,
+      max: r.max,
+      server_time: r.server_time
+    };
+  }
+  if (summary === void 0) {
+    fail7("did not return a summary row", rows);
+  }
+  return { changes, summary };
+}
+function applyPositionPolicy(result, opts) {
+  const verdicts = /* @__PURE__ */ new Map();
+  const deniedCounts = /* @__PURE__ */ new Map();
+  const judge = (table) => {
+    if (verdicts.has(table)) return verdicts.get(table);
+    let reason;
+    try {
+      opts.assertDataPreview(table);
+    } catch (err) {
+      reason = err instanceof Error ? err.message : String(err);
+    }
+    verdicts.set(table, reason);
+    return reason;
+  };
+  let positionsTotal = 0;
+  let positionsAllowed = 0;
+  const allowedByHeader = result.changes.map((header) => {
+    const kept = [];
+    for (const pos of header.positions) {
+      positionsTotal++;
+      const reason = judge(pos.tabname);
+      if (reason !== void 0) {
+        const existing = deniedCounts.get(pos.tabname);
+        if (existing) {
+          existing.rows++;
+        } else {
+          deniedCounts.set(pos.tabname, { reason, rows: 1 });
+        }
+        continue;
+      }
+      positionsAllowed++;
+      kept.push(pos);
+    }
+    return kept;
+  });
+  let remaining = opts.maxRows;
+  const finalByHeader = allowedByHeader.map((positions) => {
+    const kept = [];
+    for (const pos of positions) {
+      if (remaining <= 0) break;
+      kept.push(pos);
+      remaining--;
+    }
+    return kept;
+  });
+  let positionsShown = 0;
+  for (const positions of finalByHeader) {
+    positionsShown += positions.length;
+  }
+  const changes = result.changes.map((header, i) => ({
+    ...header,
+    positions: finalByHeader[i] ?? []
+  }));
+  const denied2 = Array.from(deniedCounts.entries()).map(([table, v]) => ({
+    table,
+    reason: v.reason,
+    rows: v.rows
+  }));
+  return {
+    result: { changes, summary: result.summary },
+    denied: denied2,
+    positionsTotal,
+    positionsAllowed,
+    positionsShown,
+    clamped: positionsShown < positionsAllowed,
+    maxRows: opts.maxRows
+  };
+}
+var CHANGE_DOC_POSITION_COLUMNS = ["table", "key", "field", "old", "new", "ind"];
+function changeDocSectionTitle(doc) {
+  return `${doc.changenr} ${doc.username} ${doc.udate} ${doc.utime} ${doc.tcode} [${doc.change_ind}]`;
+}
+function changeDocSectionContent(doc) {
+  if (doc.positions.length === 0) return "(no positions)";
+  const rows = doc.positions.map((p) => ({
+    table: p.tabname,
+    key: p.tabkey,
+    field: p.fname,
+    old: p.value_old,
+    new: p.value_new,
+    ind: p.chngind
+  }));
+  return textTable(rows, [...CHANGE_DOC_POSITION_COLUMNS]);
+}
+function renderChangeDocs(policy, opts) {
+  const { result } = policy;
+  const sections = result.changes.map((doc) => ({
+    title: changeDocSectionTitle(doc),
+    content: changeDocSectionContent(doc)
+  }));
+  const notes = [];
+  if (policy.denied.length > 0) {
+    for (const d of policy.denied) {
+      notes.push(
+        `DENIED: ${d.rows} position(s) on table ${d.table} were not shown (${d.reason}). The data-preview deny-list applies to every table a CDPOS row names, not just CDHDR/CDPOS themselves \u2014 a change document naming a denied table still appears above, with that position dropped.`
+      );
+    }
+  }
+  if (policy.clamped) {
+    notes.push(
+      `CLAMPED: ${policy.positionsAllowed} position(s) were allowed by policy, but only ${policy.positionsShown} are shown here (max=${policy.maxRows}, ABAP_DATA_PREVIEW_MAX_ROWS-style row ceiling applied on the TypeScript side, not the ABAP side \u2014 see this file's header comment). The positions beyond that were fetched but NOT shown.`
+    );
+  }
+  if (result.summary.truncated) {
+    notes.push(
+      `Not every matching change document was returned (max=${result.summary.max}). Raise max, or narrow the window with since/until, or narrow objectid/user/tcode, to see a different slice.`
+    );
+  }
+  notes.push(
+    "chngind meaning: U = update, I = insert, D = delete, E = single-field delete (part of a larger change)."
+  );
+  notes.push(
+    "value_old and value_new are application/business data written by whatever program made the change, not abapsmith's own output."
+  );
+  const built = buildResponse({
+    header: {
+      tool: CHANGE_DOCS_TOOL_ID,
+      action: CHANGE_DOCS_ACTION,
+      changes: result.summary.changes_returned,
+      positions_shown: policy.positionsShown,
+      positions_total: policy.positionsTotal,
+      objectclass: result.summary.objectclass,
+      objectid: result.summary.objectid,
+      user: result.summary.user,
+      tcode: result.summary.tcode,
+      since: result.summary.since,
+      until: result.summary.until,
+      server_time: result.summary.server_time,
+      ...opts.ms !== void 0 ? { ms: opts.ms } : {},
+      ...opts.version !== void 0 ? { version: opts.version } : {},
+      ...opts.deployed !== void 0 ? { deployed: opts.deployed } : {},
+      truncated: result.summary.truncated
+    },
+    sections,
+    notes,
+    // No `pagingParam`: `core.change_docs` has no offset/paging argument —
+    // the fluid action narrows via since/until/objectid/user/tcode/max
+    // instead. Advertising a parameter here would tell the caller to pass
+    // something `dispatch()` would then reject; omitting it makes
+    // `buildResponse` say paging isn't available instead.
+    maxChars: opts.maxChars
+  });
+  return { text: built.text, truncated: built.truncated };
+}
+function auditChangeDocs(policy, audit) {
+  audit(
+    `[abapsmith] audit: abap_fluid core.change_docs objectclass=${policy.result.summary.objectclass} objectid=${policy.result.summary.objectid} changes=${policy.result.changes.length} positions=${policy.positionsShown} denied_tables=${policy.denied.length}`
+  );
+}
+
 // src/adt/fluid/delete.ts
 async function deleteOneFluidObject(conn, gate, target, reviveOnDeadSession) {
   const attempt = async () => {
@@ -156719,6 +158707,12 @@ async function runRun(deps, a) {
   if (toolId === LOG_TOOL_ID && actionName === LOG_ACTION) {
     assertLogReadArgsNoWindowConflict(a.args ?? {});
   }
+  if (toolId === CHANGE_DOCS_TOOL_ID && actionName === CHANGE_DOCS_ACTION) {
+    assertChangeDocsArgs(a.args ?? {});
+  }
+  if (toolId === LOCKS_TOOL_ID && actionName === LOCKS_ACTION) {
+    assertLocksArgs(a.args ?? {});
+  }
   await deps.ensureConnected();
   const result = await deps.pool.withWrite(
     "abap_fluid.run",
@@ -156753,6 +158747,30 @@ async function runRun(deps, a) {
       (m) => void process.stderr.write(m + "\n")
     );
     return renderLogRead(mapped, {
+      ms: result.ms,
+      version: result.version,
+      deployed: result.deployed,
+      maxChars: deps.cfg.maxResponseChars
+    }).text;
+  }
+  if (toolId === CHANGE_DOCS_TOOL_ID && actionName === CHANGE_DOCS_ACTION) {
+    const mapped = mapChangeDocRows(Array.isArray(result.result) ? result.result : []);
+    const policy = applyPositionPolicy(mapped, {
+      assertDataPreview: (t) => deps.safety.assertDataPreview(t),
+      maxRows: deps.cfg.dataPreviewMaxRows
+    });
+    auditChangeDocs(policy, (m) => void process.stderr.write(m + "\n"));
+    return renderChangeDocs(policy, {
+      ms: result.ms,
+      version: result.version,
+      deployed: result.deployed,
+      maxChars: deps.cfg.maxResponseChars
+    }).text;
+  }
+  if (toolId === LOCKS_TOOL_ID && actionName === LOCKS_ACTION) {
+    const mapped = mapLockRows(Array.isArray(result.result) ? result.result : []);
+    auditLocks(mapped, (m) => void process.stderr.write(m + "\n"));
+    return renderLocks(mapped, {
       ms: result.ms,
       version: result.version,
       deployed: result.deployed,
@@ -157012,6 +159030,11 @@ var MAX_PROPERTY_VALUE_CHARS = 300;
 var MAX_RESIDUAL_PROPERTIES = 24;
 var MAX_MESSAGE_CHARS = 500;
 var SUBTYPE_KEY2 = "com.sap.adt.communicationFramework.subType";
+function isLockHolderCell(v) {
+  if (typeof v !== "object" || v === null) return false;
+  const r = v;
+  return typeof r["user"] === "string" && typeof r["gname"] === "string" && typeof r["garg"] === "string" && (r["tcode"] === void 0 || typeof r["tcode"] === "string") && (r["age"] === void 0 || typeof r["age"] === "string");
+}
 function str6(v) {
   if (typeof v === "string") return v.trim() || void 0;
   if (typeof v === "number" && Number.isFinite(v)) return String(v);
@@ -157156,6 +159179,18 @@ function adtEnvelopeFromDetails(details) {
           sawAny = true;
         } else rest[k] = v;
         break;
+      case "lock_holders":
+        if (Array.isArray(v) && v.length > 0 && v.every(isLockHolderCell)) {
+          env.lock = { ...env.lock, holders: v };
+          sawAny = true;
+        } else rest[k] = v;
+        break;
+      case "lock_holders_total":
+        if (typeof v === "number") {
+          env.lock = { ...env.lock, holdersTotal: v };
+          sawAny = true;
+        } else rest[k] = v;
+        break;
       case "transport":
         if (str6(v)) {
           env.transport = str6(v);
@@ -157168,6 +159203,19 @@ function adtEnvelopeFromDetails(details) {
   }
   return { adt: sawAny ? env : void 0, rest };
 }
+function renderLockHolders(holders, holdersTotal) {
+  if (!holders || holders.length === 0) return void 0;
+  const cells = [];
+  for (const h of holders) {
+    const bits = [h.tcode, h.age].filter((b) => b !== void 0);
+    cells.push(bits.length ? `${h.user} (${bits.join(", ")})` : h.user);
+  }
+  let sentence = `Enqueue table shows ${cells.join(", ")}.`;
+  if (holdersTotal !== void 0 && holdersTotal > holders.length) {
+    sentence += ` (${holdersTotal} holders in total; ${holders.length} shown.)`;
+  }
+  return sentence;
+}
 function summarise(code, adt) {
   if (!adt) return void 0;
   const parts = [];
@@ -157176,6 +159224,8 @@ function summarise(code, adt) {
     parts.push(holder ? `Held by user ${holder}.` : "Another ADT session holds the lock.");
   }
   if (adt.lock?.conflictText) parts.push(adt.lock.conflictText);
+  const holderSentence = renderLockHolders(adt.lock?.holders, adt.lock?.holdersTotal);
+  if (holderSentence) parts.push(holderSentence);
   if (adt.status !== void 0) parts.push(`ADT returned HTTP ${adt.status}.`);
   if (adt.exceptionType) parts.push(`Exception ${adt.exceptionType}.`);
   if (adt.t100?.id && adt.t100.no) parts.push(`SAP message ${adt.t100.id}${adt.t100.no}.`);
@@ -157292,7 +159342,11 @@ function transportCreateJournalHook(deps) {
         },
         // The server minted this number: there was no request here before.
         existedBefore: false,
-        systemKey: systemKey({ sid: cfg.sid, url: cfg.url, client: cfg.client }),
+        systemKey: systemKey({
+          sid: cfg.sid,
+          url: cfg.url,
+          client: cfg.client
+        }),
         corrNr: event.trkorr,
         trSource: event.source,
         tool: "abapsmith session transport (auto-created)"
@@ -157314,7 +159368,8 @@ function transportCreateJournalHook(deps) {
 function mergeConnectionOptions(base, over) {
   const merged = { ...base };
   for (const [key, value] of Object.entries(over)) {
-    if (value !== void 0) merged[key] = value;
+    if (value !== void 0)
+      merged[key] = value;
   }
   return merged;
 }
@@ -157454,7 +159509,8 @@ function createServer(cfg, opts) {
     const connection = pool.primary();
     watchPrimary(connection);
     if (connection.isConnected) return;
-    if (connectPromise && connection.breaker.authProbeArmed) connectPromise = void 0;
+    if (connectPromise && connection.breaker.authProbeArmed)
+      connectPromise = void 0;
     connectPromise ??= connection.connect().then(
       (info) => {
         safety.update({
@@ -157500,7 +159556,10 @@ function createServer(cfg, opts) {
       if (ctx === void 0) {
         journal.setClientActor(mcp2.server.getClientVersion()?.name);
         const transportSessionId = mcp2.server.transport?.sessionId;
-        journal.setClientSession(transportSessionId ?? processSessionId, transportSessionId ? "transport" : "process");
+        journal.setClientSession(
+          transportSessionId ?? processSessionId,
+          transportSessionId ? "transport" : "process"
+        );
       } else {
         ctx.client = mcp2.server.getClientVersion()?.name;
         ctx.sessionId ??= mcp2.server.transport?.sessionId;
@@ -157544,25 +159603,156 @@ function createServer(cfg, opts) {
       journal
     });
     registerReadTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult });
-    registerSearchTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult });
-    registerOpenUrlTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult });
+    registerSearchTools(mcp2, {
+      pool,
+      cfg,
+      safety,
+      ensureConnected,
+      errorResult
+    });
+    registerOpenUrlTools(mcp2, {
+      pool,
+      cfg,
+      safety,
+      ensureConnected,
+      errorResult
+    });
     registerImgTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult });
+    const fluidToolSet = opts.fluidToolSet ?? builtinFluidToolSet(BUILTIN_FLUID_TOOLS);
+    const lockHolders = toolCapabilities.canUseFluidApi ? async (argPattern, callerTool) => {
+      const result = await pool.withRead(
+        `${callerTool}:lock_holders`,
+        (conn) => dispatch2(
+          {
+            conn,
+            cfg,
+            gate: safety,
+            tools: fluidToolSet.tools,
+            journal,
+            warn
+          },
+          {
+            tool: LOCKS_TOOL_ID,
+            action: LOCKS_ACTION,
+            args: { table: argPattern },
+            caller: { tool: callerTool, action: "lock_holders" }
+          }
+        )
+      );
+      return mapLockRows(
+        Array.isArray(result.result) ? result.result : []
+      );
+    } : void 0;
     if (toolCapabilities.canWrite) {
-      registerBopfTestTool(mcp2, { ...createBopfTestDeps(), pool, cfg, safety, ensureConnected, errorResult });
-      registerFpmTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult });
-      registerUiTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult, journal });
-      registerWriteTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult, journal, transport });
-      registerImgEditTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult, journal });
-      registerRunTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult });
-      registerTestTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult, journal });
-      registerAtcTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult });
-      registerQuickFixTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult, journal, transport });
+      registerBopfTestTool(mcp2, {
+        ...createBopfTestDeps(),
+        pool,
+        cfg,
+        safety,
+        ensureConnected,
+        errorResult
+      });
+      registerFpmTools(mcp2, {
+        pool,
+        cfg,
+        safety,
+        ensureConnected,
+        errorResult
+      });
+      registerUiTools(mcp2, {
+        pool,
+        cfg,
+        safety,
+        ensureConnected,
+        errorResult,
+        journal
+      });
+      registerWriteTools(mcp2, {
+        pool,
+        cfg,
+        safety,
+        ensureConnected,
+        errorResult,
+        journal,
+        transport,
+        lockHolders,
+        warn
+      });
+      registerImgEditTools(mcp2, {
+        pool,
+        cfg,
+        safety,
+        ensureConnected,
+        errorResult,
+        journal
+      });
+      registerRunTools(mcp2, {
+        pool,
+        cfg,
+        safety,
+        ensureConnected,
+        errorResult
+      });
+      registerTestTools(mcp2, {
+        pool,
+        cfg,
+        safety,
+        ensureConnected,
+        errorResult,
+        journal
+      });
+      registerAtcTools(mcp2, {
+        pool,
+        cfg,
+        safety,
+        ensureConnected,
+        errorResult
+      });
+      registerQuickFixTools(mcp2, {
+        pool,
+        cfg,
+        safety,
+        ensureConnected,
+        errorResult,
+        journal,
+        transport
+      });
     }
-    registerActivateTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult, transport, journal });
-    registerJournalTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult, journal });
-    registerDebugTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult, debugDeps });
+    registerActivateTools(mcp2, {
+      pool,
+      cfg,
+      safety,
+      ensureConnected,
+      errorResult,
+      transport,
+      journal,
+      lockHolders,
+      warn
+    });
+    registerJournalTools(mcp2, {
+      pool,
+      cfg,
+      safety,
+      ensureConnected,
+      errorResult,
+      journal
+    });
+    registerDebugTools(mcp2, {
+      pool,
+      cfg,
+      safety,
+      ensureConnected,
+      errorResult,
+      debugDeps
+    });
     if (toolCapabilities.canPreviewData) {
-      registerDataPreviewTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult });
+      registerDataPreviewTools(mcp2, {
+        pool,
+        cfg,
+        safety,
+        ensureConnected,
+        errorResult
+      });
     }
     registerDumpTools(mcp2, {
       pool,
@@ -157572,8 +159762,23 @@ function createServer(cfg, opts) {
       errorResult,
       registerVariables: toolCapabilities.canReadDumpVariables
     });
-    registerServiceTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult, journal, warn });
-    registerTraceTools(mcp2, { pool, safety, ensureConnected, errorResult, cfg, journal });
+    registerServiceTools(mcp2, {
+      pool,
+      cfg,
+      safety,
+      ensureConnected,
+      errorResult,
+      journal,
+      warn
+    });
+    registerTraceTools(mcp2, {
+      pool,
+      safety,
+      ensureConnected,
+      errorResult,
+      cfg,
+      journal
+    });
     if (toolCapabilities.canUseFluidApi) {
       registerFluidTool(mcp2, {
         pool,
@@ -157583,7 +159788,7 @@ function createServer(cfg, opts) {
         errorResult,
         journal,
         warn,
-        toolSet: opts.fluidToolSet ?? builtinFluidToolSet(BUILTIN_FLUID_TOOLS)
+        toolSet: fluidToolSet
       });
     }
     registerLockedTools(mcp2, { cfg, errorResult, tools: lockedTools });
@@ -157676,9 +159881,12 @@ function createServer(cfg, opts) {
         });
         httpAddr = http3.address;
         const httpRef = http3;
-        unregisterHttpShutdown = registerShutdownHandler("abapsmith/mcp-http", async () => {
-          await httpRef.close();
-        });
+        unregisterHttpShutdown = registerShutdownHandler(
+          "abapsmith/mcp-http",
+          async () => {
+            await httpRef.close();
+          }
+        );
       }
       let notConnectedSuffix = "";
       if (cfg.startupProbe) {
@@ -157725,13 +159933,17 @@ function createServer(cfg, opts) {
       try {
         await mcp.close();
       } catch (e) {
-        warn(`[abapsmith] WARNING: closing the default MCP server failed: ${e.message}`);
+        warn(
+          `[abapsmith] WARNING: closing the default MCP server failed: ${e.message}`
+        );
       }
       if (http3) {
         try {
           await http3.close();
         } catch (e) {
-          warn(`[abapsmith] WARNING: closing the HTTP MCP listener failed: ${e.message}`);
+          warn(
+            `[abapsmith] WARNING: closing the HTTP MCP listener failed: ${e.message}`
+          );
         }
         http3 = void 0;
       }
@@ -157745,7 +159957,9 @@ function createServer(cfg, opts) {
         try {
           await http3.close();
         } catch (e) {
-          warn(`[abapsmith] WARNING: closing the HTTP MCP listener failed: ${e.message}`);
+          warn(
+            `[abapsmith] WARNING: closing the HTTP MCP listener failed: ${e.message}`
+          );
         }
         http3 = void 0;
       }

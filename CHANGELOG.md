@@ -12,6 +12,14 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.7] - 2026-09-15
+
+### Added
+
+- `abap_fluid {"tool":"core","action":"change_docs"}` (#114): change documents (`CDHDR`/`CDPOS`) for one `objectclass`, optionally narrowed by `objectid` (wildcard), `user`, `tcode`, `since`/`until` (`YYYYMMDDHHMMSS`, default the last 24 hours) and `max` documents (default 20), rendered one section per document with its field-level positions. Gated like `abap_data_preview`: `ABAP_ALLOW_DATA_PREVIEW` and the deny-list judge `CDHDR`/`CDPOS` before the ABAP runs, then every table a returned position names is judged again after the read — a position on a denied table is dropped and counted, its document still appears — and the whole set is clamped to `ABAP_DATA_PREVIEW_MAX_ROWS`. Malformed arguments are `BAD_INPUT` before any round trip.
+- `abap_fluid {"tool":"core","action":"locks"}` (#116): enqueue locks via `ENQUEUE_READ`, filtered client-side by `object`, `table` (lock argument) or `user` with `CP` wildcards, `max` rows (default 50). At least one filter is required — an empty call is `BAD_INPUT` before any network call, so the action cannot dump the whole enqueue table — and there is no release path. `GTCODE`/`GTHOST`/`GTDATE`/`GTTIME` are probed at runtime and reported absent when the system's `SEQG3` lacks them. A `LOCKED` refusal from `abap_write`/`abap_activate` that ADT left unattributed now gains `details.lock_holders` from one read-only lookup through this action; when the lookup is unavailable or fails, the refusal is returned unchanged. `abap_fpm_read mode="locks"` stays FPM-config-specific by design (`doc/TOOLS/ui-and-fpm.md`).
+- `abap_data_preview mode="snapshot"` / `mode="diff"` (#117): a snapshot runs the ordinary preview (same gate, deny-list and row ceiling), stores the rows under `ABAP_STATE_DIR/snapshots/<system>/` (mode `0600`, separate from the journal) and returns a `snapshot_id`; a diff re-reads the snapshot's own recorded selection — passing `table`/`where`/`columns`/`order_by`/`distinct`/`max_rows` alongside it is `BAD_INPUT` — re-checks the deny-list, and reports inserted/deleted/changed rows matched on the DDIC primary key (full-row identity when a `columns` projection made the key unprovable, disclosed in the response). `ttl_hours` is clamped down to `ABAP_DATA_SNAPSHOT_TTL_HOURS` (default 24); an expired snapshot is pruned and diffing it is the terminal `SNAPSHOT_EXPIRED`. `format`/`mask` apply to `mode="preview"` only. `abap_run`, `abap_test`, `abap_bopf_test` and `abap_ui mode="press"` take `snapshot_ids`: after the call's own result each id is diffed and a `DATA CHANGES` section is appended; a refused or expired snapshot yields a `refused — …` line there, never a changed call result, and a call that throws propagates unchanged.
+
 ## [0.6.6] - 2026-09-15
 
 ### Added
