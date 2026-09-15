@@ -1,0 +1,25 @@
+{
+  "n": 974,
+  "label": "i105-source-zcl-i105-a",
+  "expect": "the exact source the callees parser must read: a static method call zcl_i105_b=>run( ), a CALL FUNCTION 'RFC_SYSTEM_INFO', a SUBMIT of a report that does not exist, and a method call on another class",
+  "note": "GET source of $TMP probe class ZCL_I105_A (issue 105 call_graph, direction=callees)",
+  "requestMethod": "GET",
+  "requestUrl": "/sap/bc/adt/oo/classes/zcl_i105_a/source/main?sap-client=001",
+  "requestHeaders": {
+    "Accept": "text/plain"
+  },
+  "responseStatus": 200,
+  "responseHeaders": {
+    "content-type": "text/plain; charset=utf-8",
+    "content-length": "337",
+    "sap-authenticated": "true",
+    "etag": "20260915115806001000011",
+    "sap-server": "true"
+  },
+  "byteLength": 337,
+  "zeroByteBody": false,
+  "sha256": "c2bcd0584ad75aeb6c6129bab9b3d73c387892087ff8861001a3f264e2ce4cc1",
+  "utcTimestamp": "2026-09-15T12:01:06.751Z",
+  "durationMs": 236,
+  "sessionName": "LIVE-I105-I106-I107"
+}

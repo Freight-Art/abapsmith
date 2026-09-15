@@ -1,0 +1,25 @@
+{
+  "n": 983,
+  "label": "i107-source-z-i107-footprint",
+  "expect": "one report carrying every statement form the footprint scanner must find: INSERT/UPDATE/MODIFY/DELETE on zdemo_soh, INSERT (gv_tab) with a dynamic table name, CALL FUNCTION ... IN UPDATE TASK and IN BACKGROUND TASK, COMMIT WORK AND WAIT, ROLLBACK WORK, BAPI_TRANSACTION_COMMIT/ROLLBACK, EXPORT ... TO DATABASE indx, CALL TRANSACTION, SUBMIT ... AND RETURN, and two commented-out writes that must not be reported",
+  "note": "GET source of $TMP probe report Z_I107_FOOTPRINT (issue 107 footprint)",
+  "requestMethod": "GET",
+  "requestUrl": "/sap/bc/adt/programs/programs/z_i107_footprint/source/main?sap-client=001",
+  "requestHeaders": {
+    "Accept": "text/plain"
+  },
+  "responseStatus": 200,
+  "responseHeaders": {
+    "content-type": "text/plain; charset=utf-8",
+    "content-length": "1180",
+    "sap-authenticated": "true",
+    "etag": "202609151159590011",
+    "sap-server": "true"
+  },
+  "byteLength": 1180,
+  "zeroByteBody": false,
+  "sha256": "edf41fb9d9886522a6361692cb1c2235fe6cdaa710914159ab57c18dda21b8bf",
+  "utcTimestamp": "2026-09-15T12:01:10.370Z",
+  "durationMs": 144,
+  "sessionName": "LIVE-I105-I106-I107"
+}

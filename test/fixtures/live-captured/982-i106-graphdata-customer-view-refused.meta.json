@@ -1,0 +1,24 @@
+{
+  "n": 982,
+  "label": "i106-graphdata-customer-view-refused",
+  "expect": "the same endpoint answers HTTP 400 NoDependencyGraphDataCalculationPossible for a customer view on A4H, which is why the graphdata route cannot be the only route and the source-parse route is mandatory",
+  "note": "GET the CDS dependency graph for a customer view - the refusal (issue 106)",
+  "requestMethod": "GET",
+  "requestUrl": "/sap/bc/adt/ddic/ddl/dependencies/graphdata?ddlsourceName=ZDEMO_C_SALESORDER_TP_D&sap-client=001",
+  "requestHeaders": {
+    "Accept": "application/*"
+  },
+  "responseStatus": 400,
+  "responseHeaders": {
+    "content-type": "application/xml",
+    "content-length": "632",
+    "sap-authenticated": "true",
+    "sap-server": "true"
+  },
+  "byteLength": 632,
+  "zeroByteBody": false,
+  "sha256": "250bc1541cdf0b46d4e8c5f78bcbb2ef670e1e67eeb4faf8338de7f4df4ed63a",
+  "utcTimestamp": "2026-09-15T12:01:10.123Z",
+  "durationMs": 206,
+  "sessionName": "LIVE-I105-I106-I107"
+}

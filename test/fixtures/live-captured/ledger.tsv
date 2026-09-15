@@ -267,3 +267,16 @@ n	label	method	path	status	byteLength	durationMs
 968	i82-service-binding-v4	GET	/sap/bc/adt/businessservices/bindings/%2fdmo%2fui_travel_o4_cd	200	3458	370
 969	i82-service-catalogue-v4	GET	/sap/bc/adt/businessservices/odatav4/%2FDMO%2FUI_TRAVEL_O4_CD?servicename=%2FDMO%2FUI_TRAVEL_O4_CD&serviceversion=0001&srvdname=%2FDMO%2FUI_TRAVEL_O4_CD	200	2127	228
 970	i82-metadata-v4	GET	/sap/opu/odata4/dmo/ui_travel_o4_cd/srvd/dmo/ui_travel_o4_cd/0001/$metadata	200	52788	481
+971	i105-usage-references-cycle-a	POST	/sap/bc/adt/repository/informationsystem/usageReferences?uri=%2Fsap%2Fbc%2Fadt%2Foo%2Fclasses%2Fzcl_i105_a&sap-client=001	200	3886	3463
+972	i105-usage-references-cycle-b	POST	/sap/bc/adt/repository/informationsystem/usageReferences?uri=%2Fsap%2Fbc%2Fadt%2Foo%2Fclasses%2Fzcl_i105_b&sap-client=001	200	3886	1226
+973	i105-usage-references-leaf	POST	/sap/bc/adt/repository/informationsystem/usageReferences?uri=%2Fsap%2Fbc%2Fadt%2Foo%2Fclasses%2Fzcl_i105_leaf&sap-client=001	200	3924	1010
+974	i105-source-zcl-i105-a	GET	/sap/bc/adt/oo/classes/zcl_i105_a/source/main?sap-client=001	200	337	236
+975	i105-source-zcl-i105-b	GET	/sap/bc/adt/oo/classes/zcl_i105_b/source/main?sap-client=001	200	261	304
+976	i106-ddl-zdemo-c-salesorder-tp-d	GET	/sap/bc/adt/ddic/ddl/sources/zdemo_c_salesorder_tp_d/source/main?sap-client=001	200	1273	250
+977	i106-ddl-zdemo-i-salesorder-tp-d	GET	/sap/bc/adt/ddic/ddl/sources/zdemo_i_salesorder_tp_d/source/main?sap-client=001	200	2510	234
+978	i106-ddl-ars-software-components-scp-vh	GET	/sap/bc/adt/ddic/ddl/sources/ars_software_components_scp_vh/source/main?sap-client=001	200	1121	260
+979	i106-ddl-ars-swc-cust-snapshot-relevant	GET	/sap/bc/adt/ddic/ddl/sources/ars_swc_cust_snapshot_relevant/source/main?sap-client=001	200	1489	252
+980	i106-ddl-ars-v-flp-swc-vh	GET	/sap/bc/adt/ddic/ddl/sources/ars_v_flp_swc_vh/source/main?sap-client=001	200	1019	220
+981	i106-graphdata-ars-v-flp-swc-vh	GET	/sap/bc/adt/ddic/ddl/dependencies/graphdata?ddlsourceName=ARS_V_FLP_SWC_VH&sap-client=001	200	6577	811
+982	i106-graphdata-customer-view-refused	GET	/sap/bc/adt/ddic/ddl/dependencies/graphdata?ddlsourceName=ZDEMO_C_SALESORDER_TP_D&sap-client=001	400	632	206
+983	i107-source-z-i107-footprint	GET	/sap/bc/adt/programs/programs/z_i107_footprint/source/main?sap-client=001	200	1180	144

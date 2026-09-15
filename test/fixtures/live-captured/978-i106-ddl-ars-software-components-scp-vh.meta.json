@@ -1,0 +1,25 @@
+{
+  "n": 978,
+  "label": "i106-ddl-ars-software-components-scp-vh",
+  "expect": "a define view entity with a UNION of two selects over two different CDS views - the union case",
+  "note": "GET DDL source of ARS_SOFTWARE_COMPONENTS_SCP_VH (issue 106 lineage, union)",
+  "requestMethod": "GET",
+  "requestUrl": "/sap/bc/adt/ddic/ddl/sources/ars_software_components_scp_vh/source/main?sap-client=001",
+  "requestHeaders": {
+    "Accept": "text/plain"
+  },
+  "responseStatus": 200,
+  "responseHeaders": {
+    "content-type": "text/plain; charset=utf-8",
+    "content-length": "1121",
+    "sap-authenticated": "true",
+    "etag": "202303311509170011",
+    "sap-server": "true"
+  },
+  "byteLength": 1121,
+  "zeroByteBody": false,
+  "sha256": "137fcf69cd8066d0514bf8bb93196f45675028955e56223e9df4036f12dc9e0d",
+  "utcTimestamp": "2026-09-15T12:01:08.028Z",
+  "durationMs": 260,
+  "sessionName": "LIVE-I105-I106-I107"
+}

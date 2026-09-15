@@ -1,0 +1,25 @@
+//*************************************************
+// The view returns all software components with ABAP language version "ABAP for SAP Cloud Platform" and
+// HOME/LOCAL/CUSTOMER which might not have ABAP LANGUAGE VERSION 5 if they are not excluded via config
+// In SAP Cloud Platform ABAP environment, this applies to all the software components created by a customer.
+// In OnPrem environment, this applies to all the software components with ALV = 5 + Type C + HOME + LOCAL
+//
+// Element Definition:
+// - SOFTWARE_COMPONENT: Software component name w/o installed components and local components
+//*************************************************
+@Metadata.ignorePropagatedAnnotations: true
+@AccessControl.authorizationCheck: #NOT_ALLOWED
+@EndUserText.label: 'Value Help Software Components SCP'
+define view entity ARS_SOFTWARE_COMPONENTS_SCP_VH
+  as select from ARS_SOFTWARE_COMPONENTS_SCP
+{
+  key  software_component
+}
+where
+      is_local_software_component <> 'X'
+  and is_installed_component      <> 'X'
+  
+union select from ARS_SWC_CUST_SNAPSHOT_RELEVANT
+{
+  key  software_component
+} 

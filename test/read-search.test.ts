@@ -192,6 +192,39 @@ describe("abap_read outline says what is actually true", () => {
 // abap_search.
 // ---------------------------------------------------------------------------
 
+/**
+ * Builds a synthetic `usagereferences:` wire answer (the lowercase prefix
+ * A4H actually sends, per `fetchUsageReferences`'s doc comment in
+ * element-info.ts) from the same flat row shape REFS below already used for
+ * the old, now-removed `conn.adt.usageReferences()` stub. Round-tripped
+ * through `parseUsageReferences` this reproduces those exact rows, so it is
+ * the wire-level fake `fetchUsageReferences` needs now that `whereUsed` reads
+ * through `conn.post` instead of the vendor helper.
+ */
+function usageReferencesXml(rows: readonly Record<string, unknown>[]): string {
+  const objects = rows
+    .map((r, i) => {
+      const name = typeof r["adtcore:name"] === "string" ? r["adtcore:name"] : undefined;
+      const type = typeof r["adtcore:type"] === "string" ? r["adtcore:type"] : undefined;
+      const packageRef = r["packageRef"] as Record<string, unknown> | undefined;
+      const pkgName = typeof packageRef?.["adtcore:name"] === "string" ? packageRef["adtcore:name"] : undefined;
+      return (
+        `<usagereferences:referencedObject uri="/generated/${i}">` +
+        `<usagereferences:adtObject${name !== undefined ? ` adtcore:name="${name}"` : ""}` +
+        `${type !== undefined ? ` adtcore:type="${type}"` : ""} xmlns:adtcore="http://www.sap.com/adt/core">` +
+        `<adtcore:packageRef${pkgName !== undefined ? ` adtcore:name="${pkgName}"` : ""}/>` +
+        `</usagereferences:adtObject>` +
+        `</usagereferences:referencedObject>`
+      );
+    })
+    .join("");
+  return (
+    `<?xml version="1.0" encoding="utf-8"?><usagereferences:usageReferenceResult numberOfResults="${rows.length}" ` +
+    `xmlns:usagereferences="http://www.sap.com/adt/ris/usageReferences"><usagereferences:referencedObjects>` +
+    `${objects}</usagereferences:referencedObjects></usagereferences:usageReferenceResult>`
+  );
+}
+
 function searchConn(handlers: {
   searchObject?: (q: string, group?: string, max?: number) => Promise<unknown[]>;
   usageReferences?: () => Promise<unknown[]>;
@@ -200,7 +233,14 @@ function searchConn(handlers: {
     cfg: { sid: "A4H" },
     adt: {
       searchObject: handlers.searchObject ?? (async () => []),
-      usageReferences: handlers.usageReferences ?? (async () => []),
+    },
+    // whereUsed now goes through fetchUsageReferences (element-info.ts),
+    // which is one conn.post, not conn.adt.usageReferences() — see
+    // element-info.ts's fetchUsageReferences doc comment for why the vendor
+    // helper is no longer trustworthy on A4H.
+    post: async () => {
+      const rows = await (handlers.usageReferences ?? (async () => []))();
+      return { body: usageReferencesXml(rows as Record<string, unknown>[]), headers: {} };
     },
   } as unknown as AbapConnection;
 }

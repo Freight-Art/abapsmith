@@ -20,15 +20,16 @@ Read the source, metadata or outline of an ABAP object.
 | `enhancements` | boolean | no | — | Also report enhancement anchors/implementations on this object. |
 | `version` | enum `active` \| `inactive` | no | `active` | Which version to read. |
 | `format` | enum `raw` | no | — | Return unprocessed source instead of the rendered/annotated form. |
-| `view` | enum `history` \| `diff` \| `definition` | no | — | `history`: list the object's version feed (author, date, transport) instead of source/DDIC. `diff`: return unified-diff hunks between two versions — never two full sources. `definition`: element info / go-to-definition for the identifier at `line`/`column` — see ["view=\"definition\": element info and go-to-definition"](#viewdefinition-element-info-and-go-to-definition) below. Omit for a normal source/DDIC read. |
+| `view` | enum `history` \| `diff` \| `definition` \| `lineage` \| `footprint` | no | — | `history`: list the object's version feed (author, date, transport) instead of source/DDIC. `diff`: return unified-diff hunks between two versions — never two full sources. `definition`: element info / go-to-definition for the identifier at `line`/`column` — see ["view=\"definition\": element info and go-to-definition"](#viewdefinition-element-info-and-go-to-definition) below. `lineage`: trace a CDS view's DDL source down to its base tables — see ["view=\"lineage\": CDS view lineage"](#viewlineage-cds-view-lineage) below. `footprint`: scan a PROG/CLAS/FUGR object's own source for database writes and commits — see ["view=\"footprint\": database write footprint"](#viewfootprint-database-write-footprint) below. Omit for a normal source/DDIC read. |
 | `from` | string | `view="diff"` only | released version before `to` | Older side of the diff — a version number (e.g. `"66"`), a transport name, or the literal `"active"` for current source. |
 | `to` | string | `view="diff"` only | newest released version | Newer side of the diff, same forms as `from`. |
 | `context` | number (int, 0–20) | no | `3` | `view="diff"` only — unchanged context lines per hunk. |
 | `line` | number (int, ≥1) | required with `view="definition"`; refused otherwise | — | 1-based source line — same convention as `abap_quick_fix`. Refused with `BAD_INPUT` together with `view="history"`/`"diff"`, and refused with `BAD_INPUT` if given with no `view` at all (it would silently be discarded by an ordinary read). |
 | `column` | number (int, ≥0) | no | `0` | 0-based column — same convention as `abap_quick_fix`. Only meaningful with `view="definition"`; refused otherwise on the same terms as `line`. |
-| `include` | enum `CLASS_INCLUDES` | no | `"main"` | Classes only — which class include to read; applies to the source read and to `view` alike. `"testclasses"` holds ABAP Unit tests; `"main"` never does. Always an explicit, disclosed choice — silently defaulting to `main` would hide changes made in another include. |
+| `include` | enum `CLASS_INCLUDES` | no | `"main"` | Classes only — which class include to read; applies to the source read and to `view` alike. `"testclasses"` holds ABAP Unit tests; `"main"` never does. Always an explicit, disclosed choice — silently defaulting to `main` would hide changes made in another include. Refused with `BAD_INPUT` together with `view="footprint"` — footprint scans every include by design, so naming one is refused rather than silently narrowing the scan. |
 | `types` | string[] | no | — | `DEVC/K` only — filter the package listing to these kind codes, e.g. `["CLAS","DDLS"]`. Refused with `BAD_INPUT` against any other type. |
-| `depth` | number (int, 1–3) | no | `1` | `DEVC/K` only — how many sub-package levels to list. `1` lists only the package itself. Refused with `BAD_INPUT` against any other type. |
+| `depth` | number (int) | no | `1` (`DEVC/K`); `5` (`view="lineage"`) | `DEVC/K`: how many sub-package levels to list, 1-3, `1` lists only the package itself. `view="lineage"`: how many levels of data source/association to walk, 1-10. Both refuse `BAD_INPUT` above their own maximum — refused, not silently clamped down to it — and both refuse `BAD_INPUT` against any other type/view, since the two maxima differ and a shared schema constraint can't express "3 here, 10 there." |
+| `field` | string | no | — | `view="lineage"` only — trace one field back to its base columns instead of rendering the whole data-source/association tree. Refused with `BAD_INPUT` against any other view. |
 
 Notes: response includes an etag (a content hash) — pass it back as
 `abap_write`'s `expect_etag` to detect a concurrent change before writing.
@@ -284,6 +285,241 @@ declaration (entry point (b) above), rather than from a use site:
 }
 ```
 
+### view="lineage": CDS view lineage
+
+`DDLS/DF` only. Traces a CDS view's own DDL source down to the base tables
+and other CDS views it selects from and associates to, by reading and
+parsing DDL text (`src/adt/cds-lineage.ts`) — not from ADT's own
+dependency-graph endpoint, which exists and nests transitively but carries
+no association edges and no field lineage (see below, and
+[doc/LIMITATIONS/cds-lineage.md](../LIMITATIONS/cds-lineage.md) for the
+full finding).
+
+The walk follows two kinds of edge: `from`/`join`/`union` data sources
+(always followed, up to `depth`), and associations — but only an
+association whose name appears somewhere in the field list body is
+followed at all; one that never appears becomes a leaf marked `(not
+selected)` without being read. "Appears somewhere in the field list body"
+is a textual-mention test, not "used as a projected field" — an
+association referenced only inside an expression, such as a `coalesce()`
+call, still counts as followed. Pass `field` to trace one output column
+back to its base columns instead of rendering the whole tree.
+
+**Refusals** (`assertViewCompatible`/`readLineage`, `src/tools/read.ts`):
+
+| Input | Result |
+|---|---|
+| `view="lineage"` against a non-`DDLS/DF` object | `UNSUPPORTED` |
+| `depth` above 10 | `BAD_INPUT` — refused, not clamped: `depth=N exceeds the maximum for view="lineage" (10)`. |
+| `field` given with any other view | `BAD_INPUT` |
+| `depth` given with any view other than `lineage` (and not a `DEVC/K` package read) | `BAD_INPUT` |
+| `offset`/`limit` | `UNSUPPORTED` — the tree (or field chain) is bounded by `depth`/an internal node budget, not paged by line. |
+| `types` | `UNSUPPORTED` — `types` filters a `DEVC/K` package listing; lineage is not a package read. |
+| `line`/`column` | `UNSUPPORTED` — lineage's output is a tree across many objects, not a position in one object's source. |
+| `format="raw"`, `enhancements=true`, `version="inactive"`, `outline=true`, `method=...`, `from`/`to`/`context` | `UNSUPPORTED`, each with its own reason (a dependency tree has no single XML descriptor, no per-node inactive version, no component list of one object, no method to slice, no version-to-version diff). |
+
+**ADT limitations, documented rather than hidden:**
+
+- **ADT's `graphdata` endpoint is not the source, even though it exists and
+  answers with a real tree.** `GET
+  /sap/bc/adt/ddic/ddl/dependencies/graphdata?ddlsourceName=` nests
+  transitively in one call — captured live against `ARS_V_FLP_SWC_VH`
+  (fixture 981, A4H, 2026-09-15) — but its nodes carry no association edges
+  and no field-level lineage, so it cannot answer either half of what this
+  view needs. It also refused every customer view tried: the same endpoint
+  against `ZDEMO_C_SALESORDER_TP_D` answered HTTP 400
+  `NoDependencyGraphDataCalculationPossible` (fixture 982). What separates
+  an accepted view from a refused one was not established from the two
+  views tried.
+- **Every CDS-type node is read and parsed, even a depth-limited leaf.** A
+  non-CDS target becomes an instant "table" leaf without reading anything —
+  its type alone is enough to know the walk stops. A CDS-type target still
+  needs its own DDL source read and parsed before the walk can even decide
+  it's a leaf, since the node's `kind` (needed to detect a non-recursing
+  kind such as `table function` or `abstract entity`) isn't known until
+  then. `table function`, `abstract entity`, `custom entity`, `extend
+  view`, a parameterised view (`with parameters`), and an unparseable
+  source (`kind: "unknown"`) are all leaves the walk does not follow
+  further. `with parameters` and `extend view` have no fixture exercising
+  either shape.
+- **The DDL parser is a line-local heuristic, not a tokenizer.** It
+  recognises the CDS keywords and shapes named above by pattern-matching
+  source lines; a view written in an unrecognised shape degrades to `kind:
+  "unknown"` rather than throwing.
+- **A repeated name renders as `(cycle -> seen above)` on a single global
+  visited set, so a legitimate diamond looks identical to a real cycle.**
+  Fixture 980 (`ARS_V_FLP_SWC_VH`) has two associations, `_session_language`
+  and `_english`, both targeting `cvers_ref` — the second arrival marks as
+  a cycle even though nothing here is self-referential.
+- **`/sap/bc/adt/ddic/ddl/elementmappings` was probed as a field-lineage
+  source during implementation and rejected — no fixture backs this.** Four
+  parameter spellings all answered HTTP 400 with the same static editor
+  metadata, not a per-view mapping. No capture number exists for this
+  probe; treat it as an honest implementation-time finding, not a
+  reproducible live claim.
+
+**Evidence.** The DDL parser and tree builder are exercised offline
+(`tests` in this document set's vocabulary) against five real CDS view
+sources: a customer consumption view over another customer view (fixture
+976), a base-table leaf with field aliases and associations using
+`$projection` (977), a `UNION` of two views (978), a left outer join with a
+multi-line `ON` condition (979), and two unexposed associations referenced
+only inside an expression (980). `live`: the `graphdata` endpoint's own
+shape and its customer-view refusal (fixtures 981/982, A4H, 2026-09-15).
+The assembled `abap_read view="lineage"` MCP call has not been exercised
+end to end against a live server — the reference system runs a previously
+released bundle that predates this feature — so that path is `unverified`,
+and no future live run against it is anticipated in this document.
+
+Example — tracing `ARS_V_FLP_SWC_VH` one level down:
+
+```json
+{
+  "object": "ARS_V_FLP_SWC_VH",
+  "type": "DDLS/DF",
+  "view": "lineage",
+  "depth": 1
+}
+```
+
+```
+view: ARS_V_FLP_SWC_VH
+object: ARS_V_FLP_SWC_VH (DDLS/DF)
+depth: 1
+nodes: 2
+baseTables: 0
+sourceReads: 2
+
+ARS_V_FLP_SWC_VH (view)
+  from ARS_SOFTWARE_COMPONENTS_SCP_VH as swcmp (view entity) (depth limit (1) reached)
+
+Notes:
+- Lineage is derived by parsing CDS DDL source text, not from ADT's dependency-graph endpoint
+  (that endpoint returns no association edges and no field lineage — see this file's top comment).
+- Only associations referenced somewhere in the field list are followed ("(not selected)" marks
+  the rest).
+- A name repeated anywhere earlier in this walk is shown once and marked "(cycle -> seen above)"
+  on later occurrences, even for a legitimate diamond (the same base table reached two different
+  ways) — this is a global visited-set, not a strict cycle check.
+- Depth 1 of max 10; nodes at the limit are leaves even if the underlying view has further data
+  sources.
+```
+
+This rendered output is hand-assembled offline from real `parseDdl` output
+against fixtures 980 (root) and 978 (child), run through the tool's own
+`renderLineage()`, not a live end-to-end capture — the header/body/notes
+text is exactly what the code produces, but no live MCP call produced it.
+At `depth=1`, `ARS_V_FLP_SWC_VH`'s two associations (`_session_language`,
+`_english`, both to `cvers_ref`) would also appear as children; they are
+omitted from this example because their target's resolved object type was
+never captured live.
+
+### view="footprint": database write footprint
+
+`PROG/P`, `CLAS/OC`, `FUGR/F`, `FUGR/FF` only. Scans every include of the
+object's own source for statements that write to the database or commit a
+transaction (`src/adt/footprint.ts`) — a static pattern match over
+statement text, not a compiler or a call graph. See
+[doc/LIMITATIONS/footprint.md](../LIMITATIONS/footprint.md) for the full
+list of blind spots (dynamic targets, the internal-table-vs-database-table
+keyword-position heuristic and its excluded forms, and the statement kinds
+with no live ground truth).
+
+**Refusals** (`assertViewCompatible`/`readFootprint`, `src/tools/read.ts`):
+
+| Input | Result |
+|---|---|
+| `view="footprint"` against a type outside `PROG/P`, `CLAS/OC`, `FUGR/F`, `FUGR/FF` | `UNSUPPORTED` |
+| `include` given with `view="footprint"` | `UNSUPPORTED` — footprint scans every include by design; naming one would hide writes reachable only from the others. |
+| `field` given | `BAD_INPUT` |
+| `depth` given | `BAD_INPUT` |
+| `offset`/`limit` | `UNSUPPORTED` — the occurrence list is grouped by table, not paged by line. |
+| `types` | `UNSUPPORTED` |
+| `line`/`column` | `UNSUPPORTED` — footprint's output is a scan across all includes, not a position in one of them. |
+| `format="raw"`, `enhancements=true`, `version="inactive"`, `outline=true`, `method=...`, `from`/`to`/`context` | `UNSUPPORTED`, each with its own reason (a write scan across every include has no single XML descriptor, no per-include inactive version, no component list, nothing to slice by method, no version-to-version diff). |
+
+**Evidence.** The statement classifier and renderer are exercised offline
+(`tests` in this document set's vocabulary) against fixture 983
+(`Z_I107_FOOTPRINT`), a report built to carry every recognised statement
+form plus two commented-out writes that must not be reported. Running the
+real `scanFootprint`/`renderFootprint` functions against that fixture's
+source reports all fourteen occurrences and neither commented-out line
+(shown below). BOPF modify and `EXEC SQL`/ADBC detection have **no live
+ground truth at all** — fixture 983 contains none of the three, so those
+patterns are written from documented API shapes, not an observed
+occurrence; the tool's own rendered output discloses this for BOPF, and
+[doc/LIMITATIONS/footprint.md](../LIMITATIONS/footprint.md) discloses it
+for all three. The assembled `abap_read view="footprint"` MCP call has not
+been exercised end to end against a live server — the reference system
+runs a previously released bundle that predates this feature — so that
+path is `unverified`, and no future live run against it is anticipated in
+this document.
+
+Example — scanning `Z_I107_FOOTPRINT`:
+
+```json
+{
+  "object": "Z_I107_FOOTPRINT",
+  "type": "PROG/P",
+  "view": "footprint"
+}
+```
+
+```
+object: Z_I107_FOOTPRINT (PROG/P)
+includes: main
+linesScanned: 40
+occurrences: 14
+commitFound: yes
+writesOnlyViaUpdateTask: no
+
+Per-table summary:
+table                  occurrences
+---------------------  -----------
+(unresolved) (GV_TAB)  1
+INDX                   1
+ZDEMO_SOH              4
+(n/a)                  8
+
+Occurrences:
+  INDX:
+    [export to database] main:34  EXPORT gs_soh TO DATABASE indx(zz) ID 'I107'. (indx(zz))
+  ZDEMO_SOH:
+    [insert] main:11  INSERT zdemo_soh FROM gs_soh.
+    [update] main:12  UPDATE zdemo_soh SET changedby = sy-uname WHERE salesorder = '1'.
+    [modify] main:13  MODIFY zdemo_soh FROM TABLE gt_soh.
+    [delete] main:14  DELETE FROM zdemo_soh WHERE salesorder = '2'.
+  (unresolved / non-table):
+    [insert] main:18  INSERT (gv_tab) FROM gs_soh. [unresolved: (GV_TAB)]
+    [update task] main:21  CALL FUNCTION 'RFC_SYSTEM_INFO' IN UPDATE TASK. (RFC_SYSTEM_INFO)
+    [background task] main:22  CALL FUNCTION 'RFC_SYSTEM_INFO' IN BACKGROUND TASK DESTINATION 'NONE'. (RFC_SYSTEM_INFO)
+    [commit] main:26  COMMIT WORK AND WAIT.
+    [rollback] main:27  ROLLBACK WORK.
+    [commit] main:28  CALL FUNCTION 'BAPI_TRANSACTION_COMMIT' EXPORTING wait = 'X'. (BAPI_TRANSACTION_COMMIT)
+    [rollback] main:31  CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'. (BAPI_TRANSACTION_ROLLBACK)
+    [call transaction] main:35  CALL TRANSACTION 'SE16' AND SKIP FIRST SCREEN. (SE16)
+    [submit] main:36  SUBMIT rsusr002 AND RETURN. (RSUSR002)
+
+This object both writes and issues its own COMMIT WORK / BAPI_TRANSACTION_COMMIT — it does not rely
+on a caller to commit its writes.
+
+Notes:
+- Detection is static pattern matching over statement text, not a compiler or a call graph — it can
+  miss a write reached through a macro, dynamic dispatch, or generated code, and it cannot prove a
+  write is unreachable.
+- INSERT/MODIFY/DELETE share syntax between database tables and internal tables; telling a database
+  write from an internal-table operation is a keyword-position heuristic (TABLE/INDEX/TRANSPORTING
+  keyword placement), not type information.
+- CALL TRANSACTION and SUBMIT are reported because the target MAY write — this scanner cannot know
+  whether it actually does without executing it.
+- BOPF modify (/BOBF/IF_TRA_SERVICE_MANAGER->MODIFY) is detected by call-site text pattern only;
+  unlike every other kind here, there is no live-captured fixture confirming it against a real BOPF
+  object.
+```
+
+This is the real output of `scanFootprint`/`renderFootprint` run offline
+against fixture 983's source text — not a live MCP round trip.
+
 ### Package reads (`DEVC/K`)
 
 `abap_read {"object":"ZSD","type":"DEVC/K"}` reads a package: its header,
@@ -432,23 +668,28 @@ Search the ABAP repository by name, find where an object is used, or scan
 source text line by line.
 
 **Availability**: the tool itself is case 2 — always registered,
-unconditional, for all three modes. `mode=objects` and `mode=where_used`
-are pure reads with no further gate. `mode=source` is different: it is
-read-SHAPED (it never changes an object the caller asked about) but it
-deploys and runs a generated ABAP class the same way `abap_fpm_read` does,
-so it needs the fluid API and takes the write slot — it does **not** run
-under `ABAP_MODE=read`, unlike `abap_img`. Concretely, `mode=source` needs
-`ABAP_FLUID_API` on and `ABAP_MODE` not `read`; when either condition
-fails, the tool stays registered and the call refuses at run time with
-`FLUID_API_DISABLED`, naming the gate that is off, rather than the mode
-disappearing from the tool list.
+unconditional, for all four modes. `mode=objects`, `mode=where_used`, and
+`mode=call_graph` are pure reads with no further gate — `call_graph` sits
+in the same tier as `objects`/`where_used` because it is built entirely
+from a `usageReferences` chain (`callers`) or a source read plus a local
+text parse (`callees`), neither of which deploys anything. `mode=source` is
+different: it is read-SHAPED (it never changes an object the caller asked
+about) but it deploys and runs a generated ABAP class the same way
+`abap_fpm_read` does, so it needs the fluid API and takes the write slot —
+it does **not** run under `ABAP_MODE=read`, unlike `abap_img`. Concretely,
+`mode=source` needs `ABAP_FLUID_API` on and `ABAP_MODE` not `read`; when
+either condition fails, the tool stays registered and the call refuses at
+run time with `FLUID_API_DISABLED`, naming the gate that is off, rather
+than the mode disappearing from the tool list.
 
 | Parameter | Type | Required | Default | Meaning |
 |---|---|---|---|---|
-| `query` | string | yes | — | Name pattern (`mode=objects`), target object (`mode=where_used`), or literal/regex text (`mode=source`, max 255 characters). |
-| `mode` | enum `objects` \| `where_used` \| `source` | no | `objects` | Object search, where-used analysis, or a source-text scan. |
-| `type` | string | no | — | `mode=objects`/`where_used` only. Restrict to one ADT type. Refused under `mode=source` — use `types` instead. |
-| `max` | number (int, positive, ≤200) | no | `50` rows (`objects`/`where_used`) or `100` hits (`source`) | Maximum rows/hits to return. |
+| `query` | string | yes | — | Name pattern (`mode=objects`), target object (`mode=where_used`/`call_graph`), or literal/regex text (`mode=source`, max 255 characters). |
+| `mode` | enum `objects` \| `where_used` \| `source` \| `call_graph` | no | `objects` | Object search, where-used analysis, a source-text scan, or a multi-level caller/callee walk — see ["mode=call_graph: caller/callee tree"](#modecall_graph-callercallee-tree) below. |
+| `type` | string | no | — | `mode=objects`/`where_used`/`call_graph` only. Restrict to one ADT type. Refused under `mode=source` — use `types` instead. |
+| `direction` | enum `callers` \| `callees` | no | `callers` | `mode=call_graph` only. `callers`: who calls this (via `usageReferences`, same endpoint as `where_used`). `callees`: what this calls (a static text parse of its own source). Refused with `BAD_INPUT` under any other mode. |
+| `depth` | number (int, positive) | no | `2` | `mode=call_graph` only. Levels to expand. Max 4 — a `depth` above the max is refused with `BAD_INPUT`, never silently clamped down to it. Refused with `BAD_INPUT` under any other mode. |
+| `max` | number (int, positive, ≤200) | no | `50` rows (`objects`/`where_used`), `100` hits (`source`), or `50` children per node (`call_graph`) | Maximum rows/hits/children to return. For `call_graph`, narrowing `query` (not lowering `max`) is what makes a broad call cheaper — see the Evidence paragraph below. |
 | `packages` | array of string | no | — | `mode=source` only. Package scope (TADIR-DEVCLASS). Required unless `objects` narrows the scope instead. |
 | `include_subpackages` | boolean | no | `false` | `mode=source` only. Also scan every package transitively under `packages` (walks TDEVC-PARENTCL). |
 | `objects` | string | no | — | `mode=source` only. Object-name pattern, `*` wildcard (e.g. `"ZCL_MY_*"`). A bare `"*"` does not count as a scope by itself. Alternative to, or combined with, `packages`. |
@@ -551,6 +792,92 @@ path — dispatching through `dispatch()` to a deployed `scan` tool on a
 server running this build. The live MCP server runs the previously
 released bundle, not this worktree's code, so that path is covered by unit
 tests only (`tests` in this document's vocabulary), not by a live capture.
+
+### mode=call_graph: caller/callee tree
+
+Walks multiple levels of callers or callees from one object, instead of the
+single level `mode=where_used` and `mode=source` each answer on their own.
+
+`direction="callers"` (the default) chains `usageReferences` fetches one
+level at a time — the same endpoint and the same `fetchUsageReferences`
+code path `mode=where_used` uses (`src/adt/element-info.ts`), so it
+inherits that path's cost profile and its namespace-prefix workaround; see
+[doc/LIMITATIONS/search.md](../LIMITATIONS/search.md). `direction="callees"`
+answers a different question with a different mechanism: it reads the
+object's own source and pattern-matches call sites
+(`src/adt/call-sites.ts`) — `CALL FUNCTION`, `CALL METHOD`/functional
+method syntax, `PERFORM … IN PROGRAM`, `SUBMIT`, `CALL TRANSACTION` — since
+there is no ADT endpoint that answers "what does this object call." A
+dynamic target (`CALL FUNCTION lv_name`, `PERFORM (lv_form)`, `SUBMIT
+(lv_prog)`, or any `lo_ref->method( )` call through an instance reference,
+whose static type cannot be read off the call site) cannot be resolved to
+a name from source text alone and is reported unresolved rather than as an
+edge.
+
+**Refusals** (`abapSearch`/`assertNoCallGraphOnlyFields`, `src/tools/search.ts`):
+
+| Input | Result |
+|---|---|
+| `depth` above 4 | `BAD_INPUT` — refused, not clamped: `depth=N exceeds the maximum of 4 for mode="call_graph".` |
+| `direction` and/or `depth` given under any mode other than `call_graph` | `BAD_INPUT` — naming the field(s) that would otherwise have been silently discarded. |
+
+**Cost.** A `callers` walk's cost is set by fan-in and depth, not by
+`max` — the children-per-node cap is applied after each node's own
+complete `usageReferences` fetch, the same fetch-then-filter shape
+`mode=where_used` uses, so lowering `max` does not reduce the fetch cost at
+any one node. The only measured cost data point is `CL_ABAP_TYPEDESCR`: about
+5,896 references at roughly 24 seconds wall-clock on A4H — a single node,
+not a whole walk, and the thresholds derived from it
+(`HIGH_FAN_IN_REFERENCES`/`SLOW_FETCH_MS`) are disclosed in
+`element-info.ts`'s own comment as round numbers, not a fitted curve.
+`callees` has no comparable cost concern — one source read plus a
+line-by-line regex pass per node, no server-side fan-out.
+
+**Not proof of absence.** An unresolved dynamic callee is not evidence the
+call target doesn't exist — `mode=source` is the tool to search for its
+literal name instead. Likewise a `FUGR/FF` callee that fails to resolve by
+name is not proof that function module doesn't exist: quickSearch does not
+index every generated function module (captures 850/851, already
+documented in [doc/LIMITATIONS/search.md](../LIMITATIONS/search.md)).
+
+**Evidence.** The `callees` source parser is exercised offline (`tests` in
+this document set's vocabulary) against two real `$TMP` probe classes built
+for this issue: `ZCL_I105_A` (fixture 974 — a static method call, `CALL
+FUNCTION 'RFC_SYSTEM_INFO'`, a `SUBMIT` of a report that does not exist,
+and a method call on another class) and `ZCL_I105_B` (fixture 975 — a
+`PERFORM … IN PROGRAM` call alongside a static method call). The `callers`
+side is exercised offline against real `usageReferences` wire bytes for a
+two-object caller cycle (`ZCL_I105_A`/`ZCL_I105_B`, fixtures 971/972 — what
+the `(cycle -> seen above)` marker must cut) and a one-caller leaf
+(`ZCL_I105_LEAF`, fixture 973). The assembled `abap_search mode=call_graph`
+MCP call has not been exercised end to end against a live server — the
+reference system runs a previously released bundle that predates this
+feature — so that path is `unverified`, and no future live run against it
+is anticipated in this document.
+
+Example — walking two levels of callers from `ZCL_I105_LEAF`:
+
+```json
+{
+  "query": "ZCL_I105_LEAF",
+  "type": "CLAS/OC",
+  "mode": "call_graph",
+  "direction": "callers",
+  "depth": 2
+}
+```
+
+Example — walking what `ZCL_I105_A` calls:
+
+```json
+{
+  "query": "ZCL_I105_A",
+  "type": "CLAS/OC",
+  "mode": "call_graph",
+  "direction": "callees",
+  "depth": 1
+}
+```
 
 ## abap_open_url
 
