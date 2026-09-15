@@ -427,6 +427,22 @@ export function countTestClasses(testIncludeSource: string): number {
 // ---------------------------------------------------------------------------
 
 /**
+ * `classComponents` (via `flattenComponents`) returns every sub-object ADT
+ * tracks, including declarative kinds like a `TYPES` statement — real ADT
+ * type code `CLAS/OT` (confirmed against a live class; see
+ * test/fixtures/live-captured/954-i91-elementinfo-type.xml, which carries
+ * the same code for a local type). `renderOutline` (src/adt/source.ts) never
+ * shows these to a human — it lists only `CLAS/OM`/`INTF/OM`/`CLAS/OA` — so a
+ * private `TYPES` declaration was inflating `hiddenCounts` past what
+ * `abap_read {outline:true}` shows as private (issue #108 defect 6: a class
+ * with one private method and one private `TYPES` line reported "2 private
+ * component(s) not listed" where outline shows exactly one). Excluded here
+ * for the same reason a member with no visibility is excluded below: not
+ * part of the API surface a human reading the digest would recognise.
+ */
+const NON_API_COMPONENT_KINDS = new Set(["CLAS/OT", "INTF/OT"]);
+
+/**
  * Public components become listed rows; private/protected components are
  * counted, not named, per issue #110 — a digest is a bounded page, and a
  * large class's private section is exactly the kind of detail a one-page
@@ -437,6 +453,7 @@ export function summarisePublicApi(members: readonly ClassMember[]): DigestPubli
   const hidden = new Map<string, number>();
 
   for (const m of members) {
+    if (NON_API_COMPONENT_KINDS.has(m.type)) continue;
     const visibility = (m.visibility ?? "").toLowerCase();
     if (visibility === "public") {
       const detailParts = [m.level, m.redefinition ? "redefinition" : undefined].filter(

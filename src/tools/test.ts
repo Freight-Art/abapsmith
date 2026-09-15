@@ -501,9 +501,11 @@ export async function abapTest(
       : [];
 
   // No duration is measured for an ABAP Unit run here (unlike run.ts/bopf-test.ts/ui.ts,
-  // there is nothing in `res` to round up), so this hint must not pretend to a measured
+  // there is nothing in `res` to round up), so this note must not pretend to a measured
   // window — it names the fluid log tool's own default instead and says so plainly.
-  hints.push(
+  // `notes`, not `hints`: hints only render inside a TRUNCATED/WINDOW notice, so this
+  // line must go to `notes` to reach the caller on the normal, non-truncated path.
+  notes.push(
     `Application log (BAL) entries this run may have written: abap_fluid ` +
       `{"tool":"${LOG_TOOL_ID}","action":"${LOG_ACTION}","args":{"last_seconds":${DEFAULT_LOG_WINDOW_SECONDS},"detail":"messages"}} ` +
       `— a default one-hour window; this tool does not measure its own run time, so narrow it ` +

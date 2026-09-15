@@ -134,6 +134,11 @@ CLASS zcl_zmcp_fluid_log IMPLEMENTATION.
       RETURN.
     ENDIF.
 
+    " Backstop only: bal-log.ts's logDispatchArgs already refuses this
+    " combination client-side with zero round trip (BAD_INPUT). This check
+    " stays so a caller that reaches do_read some other way - not through
+    " logDispatchArgs - still gets a clear refusal instead of an undefined
+    " window.
     IF lv_last_seconds > 0 AND ( lv_since IS NOT INITIAL OR lv_until IS NOT INITIAL ).
       zcl_zmcp_fluid_rt=>err( iv_kind = 'input' iv_step = 'read'
         iv_text = 'last_seconds cannot be combined with since or until' ).
@@ -376,7 +381,14 @@ CLASS zcl_zmcp_fluid_log IMPLEMENTATION.
         ELSE.
           LOOP AT lt_hndl INTO DATA(ls_hndl).
             DATA ls_msg TYPE bal_s_msg.
-            DATA lv_txt TYPE string.
+            " Not string: BAL_LOG_MSG_READ is called dynamically below, and
+            " its e_txt_msg formal is TYPE c (generic, fixed-length) - a
+            " dynamic call rejects a generic string actual for a
+            " fixed-length character IMPORTING parameter, the same class of
+            " bug already fixed for core.docu's lv_title. Observed live on
+            " A4H as CX_SY_DYN_CALL_ILLEGAL_TYPE until this was fixed-length
+            " typed. 255 is BAL's own cap on a rendered message text.
+            DATA lv_txt TYPE c LENGTH 255.
             CLEAR: ls_msg, lv_txt.
 
             CALL FUNCTION 'BAL_LOG_MSG_READ'
@@ -397,6 +409,19 @@ CLASS zcl_zmcp_fluid_log IMPLEMENTATION.
             DATA(lv_msgno_s)    = |{ CONV i( ls_hndl-msgnumber ) }|.
             DATA(lv_detlevel_s) = |{ CONV i( ls_msg-detlevel ) }|.
 
+            " lv_txt is a fixed-length C(255) padded with trailing blanks by
+            " BAL's rendering - esc( ) takes a string, and passing the raw
+            " field through would emit every unused trailing byte as a
+            " literal space. strlen( ) on a C field stops at the last
+            " non-blank character, so this trims exactly the padding and
+            " nothing the message text itself contains.
+            DATA lv_txt_s TYPE string.
+            CLEAR lv_txt_s.
+            DATA(lv_txt_len) = strlen( lv_txt ).
+            IF lv_txt_len > 0.
+              lv_txt_s = lv_txt(lv_txt_len).
+            ENDIF.
+
             " ls_msg-context-value (the raw content of an arbitrary application
             " structure attached to the message) is real business data and is
             " never emitted below - only its type name, context_tabname, is.
@@ -410,7 +435,7 @@ CLASS zcl_zmcp_fluid_log IMPLEMENTATION.
               |"msgv2":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_msg-msgv2 ) ) }",| &&
               |"msgv3":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_msg-msgv3 ) ) }",| &&
               |"msgv4":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_msg-msgv4 ) ) }",| &&
-              |"text":"{ zcl_zmcp_fluid_rt=>esc( lv_txt ) }",| &&
+              |"text":"{ zcl_zmcp_fluid_rt=>esc( lv_txt_s ) }",| &&
               |"detlevel":{ lv_detlevel_s },| &&
               |"probclass":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_msg-probclass ) ) }",| &&
               |"context_tabname":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_msg-context-tabname ) ) }"\\}| ).

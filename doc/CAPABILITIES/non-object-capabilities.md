@@ -362,11 +362,13 @@
   neither an absolute nor a relative time window given, the window defaults
   to the last hour (`DEFAULT_LOG_WINDOW_SECONDS = 3600`) rather than
   scanning a table that can span years. `abap_run`, `abap_test`,
-  `abap_bopf_test` and `abap_ui mode="press"` each append a hint pointing
-  back at the `log.read` call most likely to explain what the executed code
-  did — `abap_run`/`abap_bopf_test`/`abap_ui` round their own measured
-  duration up (plus 5s slack); `abap_test` measures no duration of its own,
-  so its hint names the fluid tool's one-hour default instead and says so
+  `abap_bopf_test` and `abap_ui mode="press"` each append a note (not a
+  hint — a hint would only render inside a truncated/windowed response,
+  and this line must reach the caller every time) pointing back at the
+  `log.read` call most likely to explain what the executed code did —
+  `abap_run`/`abap_bopf_test`/`abap_ui` round their own measured duration
+  up (plus 5s slack); `abap_test` measures no duration of its own, so its
+  note names the fluid tool's one-hour default instead and says so
   plainly. Every call writes one stderr audit line naming only what was
   looked at and how much came back — object, subobject, log count, message
   count — mirroring `abap_data_preview`'s own audit line shape, never
@@ -385,13 +387,18 @@
   errors, and driven through `IF_OO_ADT_CLASSRUN` against the real
   `ZCL_ZMCP_FLUID_RT` — a `detail="headers"` call honoured both
   `last_seconds` and `max`, returning five log rows and a summary row with
-  no `ERR` frame. `detail="messages"` was not exercised by that run.
-  `unverified` live: the end-to-end `abap_fluid {"tool":"log","action":"read"}`
-  MCP call path — dispatching through `dispatch()` and rendering the result
-  through `renderLogRead`/`auditLogRead` — through the released server,
-  since the live MCP server available for this verification runs the
-  previously released bundle, not this branch; it is covered only by unit
-  tests against fakes.
+  no `ERR` frame. A later pass on the same day closed the remaining gaps:
+  `detail="messages"` and the end-to-end `abap_fluid
+  {"tool":"log","action":"read"}` MCP call path itself — dispatching
+  through `dispatch()` and rendering the result through
+  `renderLogRead`/`auditLogRead` — were both run live on A4H through an MCP
+  server started from this worktree's `dist/` (this branch's build, not
+  the released bundle); see [diagnostics.md](../TOOLS/diagnostics.md) for
+  the verbatim output. The correlation line itself was also confirmed live
+  that day: `abap_run` on a `$TMP` class renders `NOTE: Application log
+  (BAL) entries this execution may have written: ... "last_seconds":6 ...`
+  on a normal, non-truncated response, and `abap_test` renders its own
+  one-hour-default variant the same way.
 - **SAP documentation reads.** There is no ADT REST endpoint for `DOKHL`/
   `DOKIL`/`DOKTL`, so `view="docu"` (without `method=`) is read through the
   built-in `core` fluid tool's `docu` action, deploying/calling a generated

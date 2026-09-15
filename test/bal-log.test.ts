@@ -13,6 +13,7 @@ import {
   DEFAULT_LOG_MAX,
   DEFAULT_LOG_WINDOW_SECONDS,
   logDispatchArgs,
+  assertLogReadArgsNoWindowConflict,
   mapLogRows,
   renderLogRead,
   auditLogRead,
@@ -258,6 +259,89 @@ describe("logDispatchArgs", () => {
   it("omits detail when not given (no default applied here — that lives on the ABAP side)", () => {
     const args = logDispatchArgs({});
     expect("detail" in args).toBe(false);
+  });
+
+  it("refuses last_seconds combined with since locally, as BAD_INPUT, before any dispatch() call", () => {
+    let thrown: unknown;
+    try {
+      logDispatchArgs({ lastSeconds: 900, since: "20260910083000" });
+    } catch (e) {
+      thrown = e;
+    }
+    expect(thrown).toBeInstanceOf(AbapError);
+    const err = thrown as AbapError;
+    expect(err.code).toBe("BAD_INPUT");
+    expect(err.message).toContain("last_seconds");
+    expect(err.message).toContain("since");
+  });
+
+  it("refuses last_seconds combined with until locally, as BAD_INPUT", () => {
+    let thrown: unknown;
+    try {
+      logDispatchArgs({ lastSeconds: 900, until: "20260910093000" });
+    } catch (e) {
+      thrown = e;
+    }
+    expect(thrown).toBeInstanceOf(AbapError);
+    const err = thrown as AbapError;
+    expect(err.code).toBe("BAD_INPUT");
+    expect(err.message).toContain("last_seconds");
+    expect(err.message).toContain("until");
+  });
+
+  it("refuses last_seconds combined with both since and until locally", () => {
+    expect(() =>
+      logDispatchArgs({ lastSeconds: 900, since: "20260910083000", until: "20260910093000" }),
+    ).toThrow(AbapError);
+  });
+
+  it("does not refuse since and until together without last_seconds", () => {
+    expect(() =>
+      logDispatchArgs({ since: "20260910083000", until: "20260910093000" }),
+    ).not.toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// assertLogReadArgsNoWindowConflict — the raw wire-args validator `runRun`
+// (src/tools/fluid.ts) calls for the generic `abap_fluid run tool:"log"
+// action:"read"` path, which never builds a BalLogQuery and so never went
+// through logDispatchArgs's assertNoWindowConflict call above.
+// ---------------------------------------------------------------------------
+
+describe("assertLogReadArgsNoWindowConflict", () => {
+  it("refuses last_seconds combined with since, under the wire key names, as BAD_INPUT", () => {
+    let thrown: unknown;
+    try {
+      assertLogReadArgsNoWindowConflict({ last_seconds: 60, since: "20260915000000" });
+    } catch (e) {
+      thrown = e;
+    }
+    expect(thrown).toBeInstanceOf(AbapError);
+    const err = thrown as AbapError;
+    expect(err.code).toBe("BAD_INPUT");
+    expect(err.message).toContain("last_seconds");
+    expect(err.message).toContain("since");
+  });
+
+  it("refuses last_seconds combined with until, under the wire key names", () => {
+    expect(() =>
+      assertLogReadArgsNoWindowConflict({ last_seconds: 60, until: "20260915000000" }),
+    ).toThrow(AbapError);
+  });
+
+  it("allows since and until together without last_seconds", () => {
+    expect(() =>
+      assertLogReadArgsNoWindowConflict({ since: "20260915000000", until: "20260915010000" }),
+    ).not.toThrow();
+  });
+
+  it("allows last_seconds alone", () => {
+    expect(() => assertLogReadArgsNoWindowConflict({ last_seconds: 60 })).not.toThrow();
+  });
+
+  it("ignores absent keys entirely (no args at all)", () => {
+    expect(() => assertLogReadArgsNoWindowConflict({})).not.toThrow();
   });
 });
 

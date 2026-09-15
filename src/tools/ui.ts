@@ -442,10 +442,13 @@ function buildPressResponse(query: UiPressQuery, result: UiBridgeResult, maxChar
   // the next whole second and pad it, so a BAL entry written just after
   // durationMs was captured still falls inside the window when queried.
   const logLastSeconds = Math.ceil(result.durationMs / 1000) + 5;
+  // `notes`, not `hints`: hints only render inside a TRUNCATED/WINDOW notice,
+  // so this line must go to `notes` to reach the caller on the normal path.
   const logHint =
     `Application log (BAL) entries this execution may have written: abap_fluid ` +
     `{"tool":"${LOG_TOOL_ID}","action":"${LOG_ACTION}","args":{"last_seconds":${logLastSeconds},"detail":"messages"}} ` +
     `— last_seconds is measured on the server clock, so it covers this run.`;
+  notes.push(logHint);
 
   return buildResponse({
     header: {
@@ -462,7 +465,6 @@ function buildPressResponse(query: UiPressQuery, result: UiBridgeResult, maxChar
     body: messageRows.length ? textTable(messageRows, ["type", "id", "nr", "text"]) : "(no messages)",
     bodyLabel: "MESSAGES",
     notes,
-    hints: [logHint],
     maxChars,
   }).text;
 }

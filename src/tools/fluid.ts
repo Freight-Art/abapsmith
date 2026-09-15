@@ -37,7 +37,7 @@ import {
 import { forgetManifest, readFluidRegistry, type FluidRegistryEntry } from "../adt/fluid/registry.js";
 import { dispatch, type FluidRunResult } from "../adt/fluid/dispatch.js";
 import { LOG_TOOL_ID, LOG_ACTION } from "../adt/fluid/builtin/log.js";
-import { mapLogRows, renderLogRead, auditLogRead } from "../adt/bal-log.js";
+import { mapLogRows, renderLogRead, auditLogRead, assertLogReadArgsNoWindowConflict } from "../adt/bal-log.js";
 import { deleteOneFluidObject, type FluidDeleteTarget } from "../adt/fluid/delete.js";
 import {
   probeRetiredBridges,
@@ -632,6 +632,20 @@ async function runRun(deps: FluidToolDeps, a: FluidInput): Promise<string> {
   if (!actionName) throw badInput("run requires `action`.", "action");
 
   requireFluidEnabled(deps, { op: "run", tool: toolId, action: actionName });
+
+  // `log.read` gets one client-side check before any network happens:
+  // `last_seconds` combined with `since`/`until` is decidable from `a.args`
+  // alone. `logDispatchArgs` (src/adt/bal-log.ts) already does this for
+  // callers that build a `BalLogQuery`, but this generic `run` path hands
+  // the caller's raw `args` straight to `dispatch()` below, so that check
+  // never ran — the caller paid a full round trip to the fluid runtime for
+  // a mistake this function could see on its own. Must run before
+  // `ensureConnected()`, not just before `dispatch()`: connecting is itself
+  // network cost this refusal is supposed to avoid.
+  if (toolId === LOG_TOOL_ID && actionName === LOG_ACTION) {
+    assertLogReadArgsNoWindowConflict(a.args ?? {});
+  }
+
   await deps.ensureConnected();
   // No second check here: `dispatch()` itself re-checks `fluidDisabledReason(cfg, gate)`
   // as its first statement, with the now-connected gate — see the doc comment above.

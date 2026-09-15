@@ -1708,7 +1708,10 @@ function mapDocuRows(rows: unknown): { head: DocuHeadRow; lines: string[] } {
  * for it). `method=` reads ABAP Doc from source instead: a method has no
  * DOKHL entry of its own — ABAP Doc comments ARE its documentation — so this
  * never falls back to the class-level DOKHL text for a method target, which
- * would silently answer a different, wrong question.
+ * would silently answer a different, wrong question. Because that branch is
+ * a pure source scan (`readSource` + `extractAbapDoc`), it never dispatches
+ * `core.docu` and so needs no {@link SafetyGate} at all — `gate` is only
+ * required, and only checked, in the object-based branch below.
  *
  * No `language` input exists on `abap_read` (and none is added here): the
  * ABAP side already tries the logon language, then EN, on its own, and the
@@ -1722,7 +1725,7 @@ async function readDocu(
   baseHeader: Record<string, string | number | undefined>,
   input: ReadInput,
   maxChars: number,
-  gate: SafetyGate,
+  gate: SafetyGate | undefined,
 ): Promise<BuiltResponse & { etag: string }> {
   if (input.method !== undefined) {
     if (obj.kind !== "CLAS") {
@@ -1759,20 +1762,29 @@ async function readDocu(
   // here except MSAG — that case never reaches this function, see the
   // MSAG/SIMG bypass in abapRead just above the resolveObject call, and
   // that branch's own comment for why.
+  //
+  // This is the one branch of readDocu that actually dispatches core.docu
+  // (via renderDocuTarget), so it is also the one place a gate is required —
+  // checked here, not by the caller, so the method= branch above never has
+  // to carry a gate it does not use.
+  const g = requireDocuGate(gate, { type: obj.type, name: obj.name, view: input.view });
   const target = resolveDocuTarget({ type: obj.type, object: obj.name });
-  return await renderDocuTarget(conn, target, baseHeader, maxChars, gate);
+  return await renderDocuTarget(conn, target, baseHeader, maxChars, g);
 }
 
 /**
- * `view="docu"` always runs through `dispatch()` under the hood (see
- * {@link readDocu}'s doc comment) since there is no plain ADT REST endpoint
- * for SAP's documentation store — needed by the ordinary object-based path
- * and by the two paths in `abapRead` that bypass `resolveObject` entirely
- * (MSAG, the `SIMG` pseudo-type), since none of the three has any other way
- * to obtain a {@link SafetyGate} to judge the write `dispatch()` deploys
- * under the hood. `gate` is only ever `undefined` when a caller invokes
- * `abapRead` directly without going through `registerReadTools`'s fluid-write
- * routing (e.g. a test) — there is no sound fallback for that.
+ * Guards the three `view="docu"` paths that actually run through
+ * `dispatch()` under the hood (see {@link readDocu}'s doc comment) since
+ * there is no plain ADT REST endpoint for SAP's documentation store: the
+ * object-based path in {@link readDocu} (no `method=`), and the two paths in
+ * `abapRead` that bypass `resolveObject` entirely (MSAG, the `SIMG`
+ * pseudo-type) — none of the three has any other way to obtain a
+ * {@link SafetyGate} to judge the write `dispatch()` deploys under the hood.
+ * `readDocu`'s `method=` branch is NOT one of these: it is a pure source
+ * scan that never dispatches anything, so it never calls this function and
+ * needs no gate at all. `gate` is only ever `undefined` when a caller
+ * invokes `abapRead` directly without going through `registerReadTools`'s
+ * fluid-write routing (e.g. a test) — there is no sound fallback for that.
  */
 function requireDocuGate(
   gate: SafetyGate | undefined,
@@ -2222,6 +2234,28 @@ export async function abapRead(
     );
   }
 
+  // A bare "FUGR" is genuinely ambiguous between the function group (FUGR/F)
+  // and a single function module (FUGR/FF) — digest.ts's isDigestType
+  // already refuses it bare for exactly that reason (see its doc comment),
+  // but that check never gets a chance to run: resolveObject normalises a
+  // bare "FUGR" to FUGR/F before readDigest ever sees obj.type, so the
+  // ambiguity was silently resolved by then. Caught here instead, against
+  // the caller's raw type, before resolveObject runs — same place and
+  // pattern as the SIMG pseudo-type check just above. Case-insensitive and
+  // whitespace-tolerant like that check's `pseudoType` comparison; only a
+  // BARE "FUGR" is refused — "FUGR/F" and "FUGR/FF" are untouched, and so is
+  // every view other than "digest".
+  if (input.view === "digest" && input.type?.trim().toUpperCase() === "FUGR") {
+    throw new AbapError(
+      "UNSUPPORTED",
+      'type="FUGR" is ambiguous for view="digest": it could mean the whole function group (FUGR/F) ' +
+        "or a single function module (FUGR/FF), and digest needs to know which.",
+      { type: input.type, view: input.view },
+      'Pass type="FUGR/F" to digest the function group, or type="FUGR/FF" to digest one function ' +
+        "module.",
+    );
+  }
+
   // MSAG and SIMG-under-docu both bypass resolveObject entirely, decided
   // here from the caller's raw type/object, before resolveObject ever runs:
   //  - MSAG: a message's identity is class + number ("ZSD 042"), and a
@@ -2270,10 +2304,10 @@ export async function abapRead(
     assertViewCompatible(input, obj);
     if (input.view === "history") return await readHistory(conn, obj, baseHeader, input, maxChars);
     if (input.view === "diff") return await readDiff(conn, obj, baseHeader, input, maxChars);
-    if (input.view === "docu") {
-      const g = requireDocuGate(gate, { type: obj.type, name: obj.name, view: input.view });
-      return await readDocu(conn, obj, baseHeader, input, maxChars, g);
-    }
+    // gate may be undefined here: readDocu's method= branch needs none, and
+    // checks that for itself before the object-based branch (the one that
+    // does need it) calls requireDocuGate.
+    if (input.view === "docu") return await readDocu(conn, obj, baseHeader, input, maxChars, gate);
     if (input.view === "digest") return await readDigest(conn, obj, baseHeader, input, maxChars);
     return await readDefinition(conn, obj, baseHeader, input, maxChars);
   }

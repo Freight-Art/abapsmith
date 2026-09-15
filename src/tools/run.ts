@@ -250,10 +250,14 @@ export async function abapRun(
   // the log query running — a log write that lands after res.durationMs but
   // before the BAL query executes must still fall inside the window.
   const logLastSeconds = Math.ceil(res.durationMs / 1000) + 5;
+  // `notes`, not `hints`: hints only render inside a TRUNCATED/WINDOW notice
+  // (see compact.ts), so a hint here would be silently dropped on the normal
+  // fast path — this line must reach the caller on every response.
   const logHint =
     `Application log (BAL) entries this execution may have written: abap_fluid ` +
     `{"tool":"${LOG_TOOL_ID}","action":"${LOG_ACTION}","args":{"last_seconds":${logLastSeconds},"detail":"messages"}} ` +
     `— last_seconds is measured on the server clock, so it covers this run.`;
+  notes.push(logHint);
 
   return buildResponse({
     header: {
@@ -273,10 +277,7 @@ export async function abapRun(
     body,
     bodyLabel: "OUTPUT",
     notes,
-    hints: [
-      "Have the code print less, or filter inside ABAP, if the output is truncated.",
-      logHint,
-    ],
+    hints: ["Have the code print less, or filter inside ABAP, if the output is truncated."],
     maxChars,
   });
 }

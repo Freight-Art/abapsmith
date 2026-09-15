@@ -233,6 +233,14 @@ With neither an absolute window (`since`/`until`) nor a relative one
 unqualified call would ask BAL to scan a table that can span years on a live
 system.
 
+`last_seconds` combined with `since` or `until` is refused before any
+network call: `bal-log.ts`'s `assertLogReadArgsNoWindowConflict` rejects the
+combination client-side as `BAD_INPUT`, called from `runRun` in
+`src/tools/fluid.ts` before it connects. The ABAP side (`log.ts`'s
+`do_read`) still carries its own `last_seconds cannot be combined with since
+or until` check too, as a backstop for a caller that reaches it some other
+way.
+
 ### Business data warning
 
 `detail="messages"` returns message text and its variables (`msgv1`..`msgv4`)
@@ -319,10 +327,59 @@ rounding `TZNTSTMPL` to `TIMESTAMP` (two call sites). The probe object was
 deleted afterwards.
 
 Not observed by that run: `detail="messages"` was never called live — only
-the `detail="headers"` default path was exercised. Still not observed: the
-`abap_fluid {"tool":"log","action":"read"}` MCP call path through the
-released server — dispatching through `dispatch()` and rendering the
-result through `renderLogRead`/`auditLogRead` — since the live MCP server
-available for this verification runs the previously released bundle, not
-this branch; that path is covered only by unit tests against fakes.
+the `detail="headers"` default path was exercised in that pass. That gap was
+closed on the same day: `detail="messages"` and the `abap_fluid
+{"tool":"log","action":"read"}` MCP call path itself — dispatching through
+`dispatch()` and rendering the result through
+`renderLogRead`/`auditLogRead` — were both exercised live on A4H on
+2026-09-15, through an MCP server started from this worktree's `dist/`
+(this branch's build, not the released bundle).
+
+`detail="messages"` verbatim live output, called through `abap_fluid`
+itself:
+
+```
+$ abap_fluid {"tool":"log","action":"read","args":{"detail":"messages","object":"/UIF/LREP","last_seconds":864000,"max":1}}
+tool: log
+action: read
+logs: 1
+messages: 88
+detail: messages
+since: 20260905111848
+until: 20260915111848
+user: DEVELOPER
+server_time: 20260915111848
+ms: 89
+version: 3a7033a5
+deployed: true
+truncated: true
+
+NOTE: Message text and its variables (msgv1..msgv4) are application data written by the logging program, not abapsmith's own output, and may contain business data.
+NOTE: Not every matching log was returned (max=1). Raise max, or narrow the window with since/until, to see a different slice.
+
+--- LOG 00000000000000020406 /UIF/LREP ---
+extnumber       user       date      time    program   tcode  total  abort  error  warning  info  success
+--------------  ---------  --------  ------  --------  -----  -----  -----  -----  -------  ----  -------
+20260909091224  DEVELOPER  20260909  091224  SAPMSSYC         88     0      0      0        88    0
+
+no  type  message  text                                                       level  context
+--  ----  -------  ---------------------------------------------------------  -----  -------
+1   I     BL001    LRep load consistency check                                1
+2   I     BL001    Start of LRep provider version consistency check           1
+...
+88  I     BL001    End of load consistency check                              1
+```
+
+The `...` above stands for 85 further message rows and is not the tool's
+own truncation marker; the `text` column is also narrower here than in the
+real output, which sizes it to the longest message on that log — both are
+this page's formatting, not something the tool does.
+
+The client-side refusal for a conflicting window was confirmed the same
+day, on the same branch build:
+
+```
+$ abap_fluid {"tool":"log","action":"read","args":{"last_seconds":60,"since":"20260915000000"}}
+{"error":"BAD_INPUT","message":"log.read: last_seconds cannot be combined with since or until.","hint":"Name the window one way: pass last_seconds alone, or since/until alone.","retryable":true,"details":{"lastSeconds":60,"since":"20260915000000"}}
+```
 

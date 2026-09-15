@@ -131,10 +131,54 @@ export interface BalLogQuery {
   readonly detail?: "headers" | "messages";
 }
 
+/**
+ * `last_seconds` combined with `since`/`until` is a caller mistake decidable
+ * from the arguments alone — the ABAP side (`log.ts`'s `do_read`) already
+ * refuses it, but only after a full round trip to the fluid runtime. Catching
+ * it here means the caller gets `BAD_INPUT` for free, with no network call.
+ * The ABAP-side check stays in place as a backstop (e.g. for a caller that
+ * builds `dispatch()` args by some other path than `logDispatchArgs`).
+ */
+function assertNoWindowConflict(q: BalLogQuery): void {
+  if (q.lastSeconds === undefined) return;
+  if (q.since === undefined && q.until === undefined) return;
+  throw new AbapError(
+    "BAD_INPUT",
+    "log.read: last_seconds cannot be combined with since or until.",
+    { lastSeconds: q.lastSeconds, since: q.since, until: q.until },
+    "Name the window one way: pass last_seconds alone, or since/until alone.",
+  );
+}
+
+/**
+ * `logDispatchArgs` only runs for callers that build a `BalLogQuery` first —
+ * `abap_fluid run tool:"log" action:"read"` (`runRun` in `src/tools/fluid.ts`)
+ * is not one of those: it hands the caller's raw `args` record straight to
+ * `dispatch()`, so `assertNoWindowConflict` never saw it and the mistake
+ * went undetected until the ABAP-side backstop caught it — after a full
+ * round trip. This is the same check run against the WIRE record instead of
+ * a `BalLogQuery`: `last_seconds`/`since`/`until` are the key names the
+ * `log.read` action's manifest actually declares (see `do_read` in
+ * `src/adt/fluid/builtin/log.ts`), not the `lastSeconds` TS-side name.
+ * Values are read as-is and handed to `assertNoWindowConflict` without type
+ * narrowing — a present-but-wrong-typed value (e.g. a stringified
+ * `last_seconds`) is still a caller mistake worth refusing locally rather
+ * than forwarding.
+ */
+export function assertLogReadArgsNoWindowConflict(args: Record<string, unknown>): void {
+  assertNoWindowConflict({
+    lastSeconds: args["last_seconds"] as number | undefined,
+    since: args["since"] as string | undefined,
+    until: args["until"] as string | undefined,
+  });
+}
+
 /** Omits undefined/empty-valued keys entirely rather than passing them through to `dispatch()`'s
  * schema validation (mirrors `scanDispatchArgs` in source-scan.ts). Applies `DEFAULT_LOG_MAX`
- * and, when the caller pinned no window at all, `DEFAULT_LOG_WINDOW_SECONDS`. */
+ * and, when the caller pinned no window at all, `DEFAULT_LOG_WINDOW_SECONDS`. Refuses
+ * `last_seconds` combined with `since`/`until` locally — see `assertNoWindowConflict`. */
 export function logDispatchArgs(q: BalLogQuery): Record<string, unknown> {
+  assertNoWindowConflict(q);
   const hasWindow = q.since !== undefined || q.until !== undefined || q.lastSeconds !== undefined;
   return {
     ...(q.object !== undefined && q.object !== "" ? { object: q.object } : {}),

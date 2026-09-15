@@ -283,7 +283,11 @@ is given:
   text — a method's ABAP Doc and its class's SAP documentation answer
   different questions. `method` against a non-`CLAS` object is refused with
   `UNSUPPORTED`. This path reads source directly and never calls
-  `core.docu`.
+  `core.docu` — no fluid tool is dispatched, so it needs no `ABAP_FLUID_API`
+  and no `SafetyGate`, and it works under `ABAP_MODE=read` exactly like an
+  ordinary source read. `view="docu"` **without** `method` is the one that
+  goes through `core.docu` and therefore does need the fluid API — see
+  "Gated as a write, not a read" below.
 
 **Language.** There is no `language` input on `abap_read`: the ABAP side
 tries the logon language, then `EN`, on its own, and the response reports
@@ -317,7 +321,8 @@ specific to `docu` and never reuses `definition`'s or `digest`'s sentences):
 | `method=` against a non-`CLAS` object | `UNSUPPORTED`. |
 
 **Gated as a write, not a read — the one exception.** Every other `view`
-(including `docu` WITH `method=`) stays on `abap_read`'s ordinary
+(including `docu` WITH `method=`, which stays available under
+`ABAP_MODE=read` — see above) stays on `abap_read`'s ordinary
 `pool.withRead` path. `docu` WITHOUT `method=` is routed differently,
 mirroring `abap_search mode="source"` exactly: `core.docu` has no ADT REST
 endpoint, so reaching it means deploying/calling a small generated ABAP
@@ -368,9 +373,13 @@ for `DOKNAME = 'MANDT'` — not a defect); `{"id":"NA","object":"BM019"}` →
 `lines_returned:0`, a clean summary and no dump. The probe object was
 deleted afterwards.
 
-Not observed by that run: the method-ABAP-Doc branch of `view="docu"` — it
-reads class source directly in TypeScript and never touches `core.docu`
-(see above), so this probe exercised nothing on that path either way.
+The method-ABAP-Doc branch of `view="docu"` was confirmed in a later live
+pass, on A4H, 2026-09-15: `abap_read
+{"object":"ZCL_I108_RUNPROBE","type":"CLAS/OC","method":"GREET","view":"docu"}`
+returned the method's three ABAP Doc lines with no gate and no fluid
+dispatch — it had previously failed with `UNSUPPORTED … needs a
+SafetyGate`. The probe class was deleted after the run.
+
 Still not observed: the end-to-end `abap_fluid`/`abap_read view="docu"`
 MCP call path itself — deploying `ZCL_ZMCP_FLUID_CORE`'s `docu` action
 through the released server, dispatching through `dispatch()`, and
@@ -516,13 +525,17 @@ under `ABAP_MODE=read`.
 the same applies here.
 
 **Evidence.** The section-building logic (`buildDigestSections` and the pure
-scan/summary functions it calls) is `tests`-only: covered by unit tests
-against constructed `DigestInput` fixtures, not by a live capture. **Not yet
-verified live**: an end-to-end `abap_read view="digest"` call against a real
-object on a live server — the ADT calls it composes (`listRevisions`,
-`readSource`, `classMembers`) are each independently exercised elsewhere in
-this document's evidence sections, but the digest assembly itself has not
-been run against a live server on this branch.
+scan/summary functions it calls) is covered by unit tests against
+constructed `DigestInput` fixtures. It was also confirmed live on A4H,
+2026-09-15: `abap_read {"object":"STRING_CONVERSIONS","type":"FUGR","view":"digest"}`
+was refused with `UNSUPPORTED`: `type="FUGR" is ambiguous for
+view="digest": it could mean the whole function group (FUGR/F) or a single
+function module (FUGR/FF), and digest needs to know which.` And
+`abap_read {"object":"ZCL_I108_VIS_PROBE","type":"CLAS/OC","view":"digest"}`
+— a class with one public method, one private method and one interface
+implementation — rendered both public rows and `1 private component(s) not
+listed`, matching what `outline=true` shows a human. The probe class was
+deleted after the run.
 
 Example:
 

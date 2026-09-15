@@ -239,6 +239,11 @@ table, the write-back caveat on `BAL_DB_LOAD`, and the correlation hints
 `abap_run`/`abap_test`/`abap_bopf_test`/`abap_ui mode=press` emit pointing
 back at this call.
 
+`last_seconds` cannot be combined with `since`/`until` — passing both is
+refused as `BAD_INPUT` before any network call (`bal-log.ts`'s
+`assertLogReadArgsNoWindowConflict`, called from `runRun` before it
+connects), with the same check kept on the ABAP side as a backstop.
+
 ### repair — writes
 
 Forgets the local registry entry so every object is re-classified fresh
