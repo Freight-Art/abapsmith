@@ -121,7 +121,7 @@ export const transportInputSchema = {
     .optional()
     .describe(
       "Request/task number, e.g. A4HK900123. Required for " +
-        "operation=show/log/addUser/setOwner/delete/removeObject.",
+        "operation=show/addUser/setOwner/delete/removeObject and for operation=log.",
     ),
   user: z
     .string()
