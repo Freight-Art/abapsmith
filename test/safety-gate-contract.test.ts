@@ -206,11 +206,24 @@ describe("safety-gate contract (heuristic, see file header)", () => {
     // BOTH `mode="list"` and `mode="apply"` as a write, because even listing
     // POSTs the whole object source — which is what the one-hop importer
     // clause in the second test matches.
+    // `adt/element-info.ts` added 2026-09 — its two `conn.post(...)`s are the
+    // elementinfo and navigation-target lookups (`fetchElementInfo`,
+    // `findDefinitionTarget`) behind `abap_read view="definition"`; a third
+    // lookup (`findImplementations`) goes through the vendor library's own
+    // `usageReferences`, which this heuristic's `CONN_CALL_RE` does not scan
+    // for at all. All three compute an answer from source posted in the
+    // request body and change no repository object. The module takes no
+    // `SafetyGate` itself. Its only importer, `src/tools/read.ts`, calls
+    // `deps.safety.assert("read")` before ever reaching this module — which is
+    // what the one-hop importer clause in the second test matches; it is
+    // gated as a read, not a write, because none of these three endpoints can
+    // return anything `abap_write` would act on.
     expect(rel).toEqual(
       [
         "adt/activate.ts",
         "adt/atc.ts",
         "adt/bopf.ts",
+        "adt/element-info.ts",
         "adt/enhancement-bridge.ts",
         "adt/enhancement-hook.ts",
         "adt/enhancement-write.ts",

@@ -20,10 +20,12 @@ Read the source, metadata or outline of an ABAP object.
 | `enhancements` | boolean | no | — | Also report enhancement anchors/implementations on this object. |
 | `version` | enum `active` \| `inactive` | no | `active` | Which version to read. |
 | `format` | enum `raw` | no | — | Return unprocessed source instead of the rendered/annotated form. |
-| `view` | enum `history` \| `diff` | no | — | `history`: list the object's version feed (author, date, transport) instead of source/DDIC. `diff`: return unified-diff hunks between two versions — never two full sources. Omit for a normal source/DDIC read. |
+| `view` | enum `history` \| `diff` \| `definition` | no | — | `history`: list the object's version feed (author, date, transport) instead of source/DDIC. `diff`: return unified-diff hunks between two versions — never two full sources. `definition`: element info / go-to-definition for the identifier at `line`/`column` — see ["view=\"definition\": element info and go-to-definition"](#viewdefinition-element-info-and-go-to-definition) below. Omit for a normal source/DDIC read. |
 | `from` | string | `view="diff"` only | released version before `to` | Older side of the diff — a version number (e.g. `"66"`), a transport name, or the literal `"active"` for current source. |
 | `to` | string | `view="diff"` only | newest released version | Newer side of the diff, same forms as `from`. |
 | `context` | number (int, 0–20) | no | `3` | `view="diff"` only — unchanged context lines per hunk. |
+| `line` | number (int, ≥1) | required with `view="definition"`; refused otherwise | — | 1-based source line — same convention as `abap_quick_fix`. Refused with `BAD_INPUT` together with `view="history"`/`"diff"`, and refused with `BAD_INPUT` if given with no `view` at all (it would silently be discarded by an ordinary read). |
+| `column` | number (int, ≥0) | no | `0` | 0-based column — same convention as `abap_quick_fix`. Only meaningful with `view="definition"`; refused otherwise on the same terms as `line`. |
 | `include` | enum `CLASS_INCLUDES` | no | `"main"` | Classes only — which class include to read; applies to the source read and to `view` alike. `"testclasses"` holds ABAP Unit tests; `"main"` never does. Always an explicit, disclosed choice — silently defaulting to `main` would hide changes made in another include. |
 
 Notes: response includes an etag (a content hash) — pass it back as
@@ -39,6 +41,115 @@ module by that name, or asking for the group by hand if the search finds
 nothing at all, which happens for generated function modules (e.g.
 `ENQUEUE_E_TABLE`) that the repository search does not index: say
 `"ENQUEUE_E_TABLE in ETABLE"` or `"ETABLE/ENQUEUE_E_TABLE"`.
+
+### view="definition": element info and go-to-definition
+
+Given `line` (1-based) and `column` (0-based, default 0), `view="definition"`
+answers what the identifier at that position is and where it comes from,
+using three ADT endpoints (`src/adt/element-info.ts`):
+`codecompletion/elementinfo` for the identifier itself,
+`navigation/target?filter=definition` for its declaration site, and — for
+an interface method only — `usageReferences` (where-used) for the classes
+that implement it.
+
+The response can carry up to five parts:
+
+- Header fields: `element` (name), `kind`, `visibility`, `level`,
+  `abapType`.
+- **DEFINITION**: the declaring location as a URI plus line/column, and a
+  literal, copy-pasteable `abap_read {"object":"...","type":"..."}` call
+  for it. Only class and interface targets get the object/type filled in;
+  other target kinds still report the location, without a guessed call.
+- **SIGNATURE** (methods, function modules) or **COMPONENTS** (structured
+  types): a table of parameters or fields.
+- **DOC**: short text and ABAP Doc for the identifier, if any.
+- **IMPLEMENTED BY** (interface methods only): the implementing classes,
+  from a where-used lookup — see below.
+
+**Position convention.** `line` is 1-based and `column` is 0-based — the
+same convention `abap_quick_fix` uses. This differs from `offset`/`limit`
+elsewhere in this table, which page whole lines of a normal read.
+
+**Refusals** (`assertViewCompatible`, `src/tools/read.ts`):
+
+| Input | Result |
+|---|---|
+| `view="definition"` combined with `format="raw"` | `UNSUPPORTED` |
+| `view="definition"` combined with `enhancements=true` | `UNSUPPORTED` |
+| `view="definition"` combined with `version="inactive"` | `UNSUPPORTED` (`version="active"` is allowed — a no-op) |
+| `view="definition"` combined with `outline=true` | `UNSUPPORTED` |
+| `view="definition"` combined with `method=...` | `UNSUPPORTED` |
+| `view="definition"` combined with `from`/`to`/`context` | `UNSUPPORTED` |
+| `view="definition"` with no `line` | `BAD_INPUT` — a definition lookup is position-driven; without a line there is no element to resolve. |
+| `line`/`column` given with `view="history"` or `view="diff"` | `UNSUPPORTED` |
+| `line`/`column` given with no `view` at all | `BAD_INPUT` — an ordinary read would otherwise silently discard them. |
+| `view="definition"` against a non-source object (nothing to resolve a position in) | `UNSUPPORTED` |
+| `line` past the end of the object's source | `BAD_INPUT` |
+
+**Gated as read, not write**, even though `codecompletion/elementinfo`
+takes a POST carrying the whole object source. Every one of the three
+endpoints is ADT's own read-only "what/where is this" surface, and none of
+it returns anything `abap_write` could act on — unlike `abap_quick_fix`,
+whose purpose is to produce an edit `abap_write` applies, and which is
+gated write for exactly that reason. The POST body here is an artefact of
+the wire protocol, not evidence of a side effect.
+
+**ADT limitations, documented rather than hidden:**
+
+- **Function modules resolve to name and type only.** For a `FUGR/FF`
+  target, ADT's element info returns no visibility, no signature and no
+  documentation — verified live against `RFC_PING` (fixture 896). An empty
+  SIGNATURE section for a function module is this limitation, not "no
+  parameters."
+- **A position with nothing resolvable is a successful answer, not an
+  error.** ADT can answer HTTP 200 with an element-info document that names
+  no element at all (fixture 899). abapsmith reports this as "no resolvable
+  element at line L, column C" — a fact about the position, not a lookup
+  failure.
+- **The implementer list is where-used-based, so it is static-analysis
+  only.** `CALL FUNCTION lv_name`, `PERFORM (lv_form)`, `SUBMIT (lv_prog)`
+  and other dynamic dispatch do not appear — the same blind spot
+  `abap_search mode=where_used` has.
+- **The implementer list is capped for display**
+  (`IMPLEMENTATIONS_DISPLAY_MAX = 50` in `src/tools/read.ts`); truncation is
+  marked in the response, never silent. ADT's `usageReferences` endpoint
+  itself ignores every limit parameter, so the complete result set is
+  always fetched before the cap is applied — fixture 900's capture, a
+  two-implementer toy example, still took close to ten seconds; a
+  cost-disclosure note is attached when the fetch is slow or the reference
+  count is large.
+
+**Not on the v2 tool surface.** `abap_read`'s v2 schema
+(`abapReadInputSchema`, `src/tools/v2/schemas.ts`) does not expose
+`view="definition"`, `line`, `column`, or `type` — its `view` values are
+`source | contract | method | diff | metadata | outline | bopf | fpm`. v2's
+own `diff` view is a separate, unimplemented concept, not the same thing as
+v1's `view="diff"`.
+
+**Evidence.** `live` (A4H, 2026-09-12): the three wire endpoints
+themselves — `elementinfo` for an interface method call, an attribute, a
+type, a local variable, a class's own method, and a function-module name
+literal (fixtures 891-896); `navigation/target?filter=definition`
+(fixture 897); the no-resolvable-element answer (fixture 899); and
+`usageReferences` for an interface method's implementers (fixture 900).
+Still not verified live: the full refusal matrix above, and the rendering
+of every response shape into the DEFINITION/SIGNATURE/COMPONENTS/DOC/
+IMPLEMENTED BY sections — both are covered only by
+`test/read-definition.test.ts` and `test/element-info-wire.test.ts`, which
+replay the captured fixtures against a fake connection rather than hitting
+a live server end to end.
+
+Example — resolving what `lo_probe->process( )` is and where it comes from:
+
+```json
+{
+  "object": "ZCL_I91_PROBE",
+  "type": "CLAS/OC",
+  "view": "definition",
+  "line": 35,
+  "column": 25
+}
+```
 
 ## abap_search
 

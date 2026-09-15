@@ -9,6 +9,8 @@
 | Quick fixes | no | yes | yes | no | yes | mixed | Position-driven only, not finding-driven — the ATC route was tried and rejected. Deterministic proposals only; a parameterized one is refused `BAD_INPUT`. Listing is gated as a write because it posts the whole object source. |
 | Runtime dumps | n/a | yes | n/a | no | n/a | live | Read-only feed with a residence window that cannot be widened. The variables chapter is absent from the schema unless an operator enables it. |
 | Object activation | n/a | n/a | n/a | n/a | yes | live | Check-only and activate modes, single and batched. There is no deactivate in ADT, which is why activation can never be undone. |
+| Pretty printer | n/a | yes | yes | n/a | yes | mixed | `abap_activate mode="format"`. Text form (`source`, no `object`) is a stateless reformat — no lock, no write, no journal entry, gated as read, works even in read-only mode. Object form (`object`, no `source`) reads the saved source, reformats it, and writes it back with `activate: true` through the ordinary journalled write path only if the bytes actually changed; an unchanged reformat reports `changed: false` and takes no lock, no PUT and no activation. Reads the server's own pretty-printer setting and never changes it — `setPrettyPrinterSetting` is never called. See the note below. |
+| Element info / definition lookup | n/a | yes | n/a | n/a | n/a | mixed | `abap_read view="definition"`. Given a 1-based line and 0-based column, answers what/where for the identifier there: kind, name, visibility, level, ABAP type, declaring location (with a copy-pasteable `abap_read` call), signature or components, short text and ABAP Doc; for an interface method, the implementing classes via where-used. Gated as read even though every endpoint is a POST, because none of it returns anything `abap_write` could act on. Not exposed on the v2 tool surface. See the note below. |
 | Transport requests | yes | yes | partial | yes | n/a | live | Create, add a user, and set an owner. Delete is admin-gated and requires echoing the request identifier. Objects cannot be added or removed directly, and a locked entry cannot be unlocked. |
 | Transport release | n/a | yes | n/a | n/a | yes | live | Dry run by default, armed only by echoing the request identifier, and gated separately from ordinary write access. Reports four distinct outcomes and never overstates one. |
 | Write journal | yes | yes | no | no | n/a | tests | Entries are written by the tools themselves; the journal is read-only to the user and has no delete. |
@@ -76,6 +78,41 @@
   history rather than trusted from an empty response. One corner is honest
   about itself: the still-inactive verification path is inferred from a
   revision kind and has never been measured live.
+- **Pretty printer.** `POST /sap/bc/adt/abapsource/prettyprinter` is the only
+  endpoint involved — `live` (A4H, 2026-09-12): the request/response shape,
+  keyword-case and layout rewriting, CRLF-to-LF normalisation before the
+  changed-bytes comparison, and the idempotent (`changed: false`) case
+  (fixtures 902, 903). The system's own pretty-printer setting was read once
+  and observed as `indentation=true style=keywordUpper keepIdentifier=true`
+  (fixture 901) — that is one system's configuration, not a guarantee about
+  any other. `unverified` live: the object form's full write-back path
+  (lock, PUT, activate, journal entry) and the entire refusal matrix
+  (`object`+`source` together, neither, `affects`, batch `objects`, `corr_nr`
+  on the text form, a nonexistent object, a properties-shape DDIC type with
+  no ABAP source) — all covered only by `test/activate-format.test.ts`
+  against a fake ADT server, never exercised against a live one.
+- **Element info / definition lookup.** Three ADT endpoints, each grounded
+  in real A4H captures (2026-09-12, `test/fixtures/live-captured/`
+  891-897, 899, 900): `codecompletion/elementinfo` for the identifier at a
+  position, `navigation/target?filter=definition` for where it is declared,
+  and `usageReferences` for an interface method's implementers. Two ADT
+  quirks are `live`-observed, not inferred: a function module (`FUGR/FF`)
+  resolves to name and type only — no visibility, signature or
+  documentation — confirmed against `RFC_PING` (fixture 896), so an empty
+  signature there is that limitation, not "no parameters"; and a position
+  with nothing resolvable answers HTTP 200 naming no element (fixture 899),
+  reported as a fact about the position, not an error. The implementer list
+  is where-used-based, so dynamic dispatch is invisible to it, and it is
+  capped for display (`IMPLEMENTATIONS_DISPLAY_MAX` in `src/tools/read.ts`)
+  with truncation marked; fixture 900's two-implementer capture alone took
+  close to ten seconds, which is why a slow-fetch note is attached above a
+  disclosed threshold rather than assumed fast. `unverified` live: the full
+  refusal matrix in `assertViewCompatible` (`view="definition"` combined
+  with `format="raw"`, `enhancements=true`, `version="inactive"`,
+  `outline=true`, `method=...`, or `from`/`to`/`context`; missing `line`;
+  `line`/`column` against `view="history"`/`"diff"` or with no `view` at
+  all; a non-source object; `line` past the end of the source) — covered
+  only by `test/read-definition.test.ts` against a fake connection.
 - **Journal and undo.** The journal records writes, transport operations,
   activation, enhancement operations, and BOPF writes; it does not record
   FPM reads or BOPF activation. Undo can delete a create, restore an update,

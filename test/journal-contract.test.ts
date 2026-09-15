@@ -644,6 +644,22 @@ const NOT_REPOSITORY_MUTATIONS: ReadonlyMap<string, string> = new Map([
       "source line from the debugger, say), it must journal and this entry must be re-examined.",
   ],
   [
+    "adt/element-info.ts",
+    "Three read-only lookups: `POST /sap/bc/adt/abapsource/codecompletion/elementinfo` (what is " +
+      "the identifier at this position), `POST /sap/bc/adt/navigation/target` (where is it " +
+      "declared), and the vendor library's own `usageReferences` (who implements this interface " +
+      "method). All three are ADT's own read-only element-info/navigation-target/where-used " +
+      "surface. The POST body on the first two carries the object's whole source because that is " +
+      "how the wire protocol asks the question — the server needs the source to resolve a " +
+      "position against — not because anything is written; none of the three creates, changes or " +
+      "deletes a repository object, so no `JournalOperation` value could describe them. Unlike " +
+      "`adt/quickfix.ts` below, there is no hop up that DOES journal a repository change here: " +
+      "`abap_read view=\"definition\"` (`src/tools/read.ts`) writes nothing at all and stays on " +
+      "the `deps.safety.assert(\"read\")` path, gated as a read, not a write. If a future code " +
+      "path in this module ever POSTs something that changes a repository object, it must journal " +
+      "and this entry must be re-examined.",
+  ],
+  [
     "adt/quickfix.ts",
     "Two POSTs, `evaluateQuickFixes` (quick-fix evaluation) and " +
       "`fetchQuickFixDelta` (one proposal's own `uri`), both of which compute a fix from source " +
@@ -670,6 +686,7 @@ describe("journal contract (heuristic, see file header)", () => {
         "adt/activate.ts",
         "adt/atc.ts",
         "adt/bopf.ts",
+        "adt/element-info.ts",
         "adt/enhancement-bridge.ts",
         "adt/enhancement-hook.ts",
         "adt/enhancement-write.ts",

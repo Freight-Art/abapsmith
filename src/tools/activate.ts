@@ -1,5 +1,5 @@
 /**
- * `abap_activate` — syntax check and activation.
+ * `abap_activate` — syntax check, activation and pretty-print.
  *
  * `mode=check`: cheap pre-flight (`POST /checkruns`), no lock, no state
  * change, ~80-250ms, reports the real source line, works on unsaved drafts,
@@ -20,6 +20,29 @@
  * `assertNoErrors`, never returned success-shaped. `source` is optional:
  * omitting it activates the version already saved on the server, no
  * pre-flight check.
+ *
+ * `mode=format`: pretty-prints ABAP source via `POST
+ * /sap/bc/adt/abapsource/prettyprinter` (`prettyPrintSource`,
+ * src/adt/activate.ts) — reformats whitespace, indentation and keyword case
+ * according to whatever the SERVER'S OWN pretty-printer setting already is.
+ * abapsmith reads that setting, never changes it — `setPrettyPrinterSetting`
+ * is never called and no parameter exists to reach it. Two forms, chosen by
+ * which of `object`/`source` is given, never both, never neither
+ * (`BAD_INPUT` either way — there is no non-arbitrary way to pick one):
+ *   - TEXT form (`source`, no `object`): stateless, no lock, no wire
+ *     mutation, no journal entry — available even in read-only mode. Returns
+ *     the formatted text; nothing changes on the server.
+ *   - OBJECT form (`object`, no `source`): reads the object's saved source,
+ *     formats it, and — only if the bytes actually changed — writes it back
+ *     through the ordinary journalled `abap_write` path (gated exactly like
+ *     `mode=activate`, undoable via `abap_journal mode=undo`, activated
+ *     explicitly so an already-active object stays active). A format that
+ *     changes nothing makes no lock, no PUT, no activation and no journal
+ *     entry, and the response says so plainly.
+ * No batch form: `objects` does not combine with `mode=format`. `affects`
+ * (an activation-only field) does not combine with it either. `corr_nr`
+ * combines only with the OBJECT form — the text form writes nothing, so a
+ * transport request is meaningless there.
  *
  * No `package` argument: activation goes through `authorizeMutation`, which
  * asks the server what package the object is actually in and judges that
@@ -50,6 +73,7 @@ import {
   assertNoErrors,
   checkSource,
   MAX_ACTIVATION_BATCH,
+  prettyPrintSource,
   renderBatch,
   renderInactive,
   renderMessages,
@@ -61,6 +85,7 @@ import type {
   AdtMessage,
   InactiveObjectRef,
 } from "../adt/activate.js";
+import { capabilitiesFor } from "../adt/capabilities.js";
 import type { AbapConnection } from "../adt/connection.js";
 import { AbapError } from "../adt/errors.js";
 import type { SessionPool } from "../adt/pool.js";
@@ -70,13 +95,15 @@ import { specForKeyword, specForType } from "../adt/types.js";
 import { toAbapError, type SessionTransport } from "../adt/session-transport.js";
 import {
   authorizeMutation,
+  canonicalEtag,
   enhancementIntentFor,
   resolveWriteTarget,
+  sourceEquals,
   type EnhancedObjectRef,
   type ResolvedTarget,
 } from "../adt/write.js";
 import { buildResponse, type BuiltResponse } from "../compact.js";
-import type { Config } from "../config.js";
+import type { Config, VerifyWritesMode } from "../config.js";
 import {
   journalRef,
   systemKey,
@@ -86,6 +113,12 @@ import {
 import { isEnhancementType, normalizeCorrNr, type SafetyGate } from "../safety.js";
 import { truncateText } from "../truncate.js";
 import { enhancementPreflightIntent, preflight, writeGateKey } from "./preflight.js";
+// `abapWrite` closes a real module cycle (write.ts already imports
+// `renderCoActivated` from this file) — safe here because both sides only
+// call the other's export from INSIDE a function body, never at module
+// top-level, so neither side needs the other's binding before both modules
+// finish initialising.
+import { abapWrite } from "./write.js";
 
 // Shared with the per-entry shape inside `objects` below so both stay in sync.
 const affectsSchema = z.object({
@@ -98,9 +131,15 @@ const affectsSchema = z.object({
 export const activateInputSchema = {
   object: z.string().optional().describe("Object reference."),
   type: z.string().optional().describe("ADT type, e.g. CLAS/OC."),
-  mode: z.enum(["check", "activate"]).optional().describe("Default activate."),
-  source: z.string().optional().describe("Unsaved draft to check/activate."),
-  corr_nr: z.string().optional().describe("Transport request. $TMP needs none."),
+  mode: z
+    .enum(["check", "activate", "format"])
+    .optional()
+    .describe(
+      "Default activate. format pretty-prints ABAP source: `source` alone formats text (no " +
+        "write), `object` alone formats and saves the object if it changed — never both.",
+    ),
+  source: z.string().optional().describe("Unsaved draft to check/activate, or text to format."),
+  corr_nr: z.string().optional().describe("Transport request. $TMP needs none. Not for text format."),
   // Same shape as abap_write's `affects` — REQUIRED to activate an EXISTING
   // ENHO/XH or ENHS/XS (safety.ts); ignored for every other type.
   affects: affectsSchema.optional().describe("Required to activate ENHO/XH or ENHS/XS."),
@@ -331,6 +370,13 @@ export async function abapActivate(
    * nothing recorded passes the DISABLED journal, never `undefined`.
    */
   journal?: Journal,
+  /**
+   * Only consulted by `mode=format`'s object form, which is the one path
+   * here that reaches `abapWrite` — every other mode never writes source, so
+   * never needed this. Threaded through rather than read off `gate`/`conn`
+   * because it is configuration (`ABAP_VERIFY_WRITES`), not a server fact.
+   */
+  verifyWrites?: VerifyWritesMode,
 ): Promise<BuiltResponse> {
   // Hinted parse + explicit `containerName`, as `targetFromInput` does in
   // tools/write.ts — the hintless version bit this tool live for
@@ -362,13 +408,17 @@ export async function abapActivate(
       throw new AbapError(
         "BAD_INPUT",
         "`objects` (batch activation) only supports mode=activate — there is no batch syntax " +
-          "check. Check each object individually with `object` + `mode: \"check\"` first if " +
-          "needed.",
+          "check and no batch format. Check or format objects individually with `object` first " +
+          "if needed.",
         { mode },
-        "Drop `mode` (default is activate) or check objects one at a time with `object`.",
+        "Drop `mode` (default is activate) or check/format objects one at a time with `object`.",
       );
     }
     return abapActivateBatch(conn, input.objects, maxChars, gate, transport, journal);
+  }
+
+  if (mode === "format") {
+    return abapActivateFormat(conn, input, maxChars, gate, transport, journal, verifyWrites);
   }
 
   const objectRef = input.object;
@@ -881,12 +931,310 @@ export async function abapActivateBatch(
   });
 }
 
+/**
+ * `mode=format`'s dispatch, called from `abapActivate` once `objects`/batch
+ * has already been ruled out (batch format does not exist — refused earlier,
+ * by the generic `mode !== "activate"` check in the batch block above, and
+ * again in `registerActivateTools` before `ensureConnected()`).
+ *
+ * Exactly ONE of two forms, never both, never neither:
+ *
+ * - TEXT form (`source`, no `object`): stateless — `prettyPrintSource` and
+ *   hand the result back. No lock, no PUT, no journal entry.
+ * - OBJECT form (`object`, no `source`): read the object's SAVED source,
+ *   format it, and write it back via `abapWrite` — but ONLY if the server
+ *   actually changed something, decided via `sourceEquals` rather than the
+ *   raw `outcome.changed` (see the comment above the `sourceEquals` call
+ *   below for why).
+ *
+ * Both forms together are refused rather than silently preferring one: there
+ * is no non-arbitrary rule for "format this text" vs. "format-and-save that
+ * object" when a caller sends both. Neither given is refused the same way.
+ *
+ * This tool never calls `setPrettyPrinterSetting` — formatting always
+ * follows whatever the server's OWN pretty-printer setting already is
+ * (indentation, keyword case, identifier case, ...). It only ever *reads*
+ * the effect of that setting (via the stateless `prettyprinter` POST,
+ * `prettyPrintSource`), never changes it. (Observed on A4H, fixture 901:
+ * `indentation=true style=keywordUpper keepIdentifier=true` — cited here,
+ * not in any user-facing string, since abapsmith has no lever to change it.)
+ */
+export async function abapActivateFormat(
+  conn: AbapConnection,
+  input: ActivateInput,
+  maxChars: number,
+  gate: SafetyGate,
+  transport?: SessionTransport,
+  journal?: Journal,
+  verifyWrites?: VerifyWritesMode,
+): Promise<BuiltResponse> {
+  if (input.affects !== undefined) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "`affects` names an enhancement's activation target and has no meaning for mode=format — " +
+        "the pretty printer only reformats ABAP source text, it does not activate anything.",
+      {},
+      "Drop `affects`. Use mode=activate with `affects` to activate an ENHO/XH or ENHS/XS.",
+    );
+  }
+
+  if (input.object !== undefined && input.source !== undefined) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "mode=format was given both `object` and `source` — there is no non-arbitrary way to " +
+        "choose between formatting the text in `source` and formatting the object's saved " +
+        "source.",
+      {},
+      "Drop `source` to format-and-save `object`'s saved source, or drop `object` to just " +
+        "format the text in `source` (no write, no object touched).",
+    );
+  }
+
+  if (input.object === undefined && input.source === undefined) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "mode=format needs either `source` (format text, no write) or `object` (format the " +
+        "object's saved source and save it back if it changed) — neither was given.",
+      {},
+      "Pass `source` to format text, or `object` to format a saved object.",
+    );
+  }
+
+  // ---- text form ----------------------------------------------------------
+  if (input.source !== undefined) {
+    if (input.corr_nr !== undefined) {
+      throw new AbapError(
+        "BAD_INPUT",
+        "`corr_nr` was given with the text form of mode=format (`source`, no `object`) — " +
+          "nothing is written here, so a transport request is meaningless.",
+        {},
+        "Drop `corr_nr`, or pass `object` instead of `source` to format-and-save (where a " +
+          "transportable object's `corr_nr` applies).",
+      );
+    }
+    const outcome = await prettyPrintSource(conn, input.source);
+    // Here `outcome.changed` is trusted as-is (unlike the object form
+    // below): `input.source` is the CALLER's text, typed/pasted/generated by
+    // them, not read off the server. `prettyPrintSource` already normalises
+    // the server's CRLF reply to LF before comparing, so a CRLF-vs-LF
+    // difference between the caller's text and the server's reply IS a real,
+    // reportable change here — the caller's own bytes had different line
+    // endings than the formatted result, and nothing is written back to
+    // compare against canonically.
+    return buildResponse({
+      header: {
+        system: conn.cfg.sid,
+        mode: "format",
+        changed: outcome.changed,
+        linesChanged: outcome.linesChanged,
+        lines: outcome.source.split("\n").length,
+      },
+      body: outcome.source,
+      bodyLabel: "FORMATTED",
+      notes: [
+        "Formatting follows the server's own pretty-printer setting (indentation, keyword " +
+          "case, identifier case, ...) — abap_activate reads that setting but never changes it.",
+        outcome.changed
+          ? "This is text only — nothing was written anywhere. Pass it back as `source` to " +
+            "abap_write, or as `object` to abap_activate mode=format, to save it."
+          : "The text was already formatted; the server made no change.",
+      ],
+      maxChars,
+    });
+  }
+
+  // ---- object form ----------------------------------------------------------
+  // `input.object !== undefined` here: the two guards above leave exactly
+  // this case standing (the text-form branch just returned unconditionally).
+  if (input.object === undefined) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "Pass either `source` (format text) or `object` (format and save a saved object).",
+      {},
+      "Add `source` or `object`.",
+    );
+  }
+  const objectRef = input.object;
+
+  const hint = input.type ? (specForType(input.type) ?? specForKeyword(input.type)) : undefined;
+  const parsed = parseObjectRef(objectRef, hint);
+  const type = input.type ?? parsed.spec?.type;
+  const wanted = {
+    name: parsed.name,
+    ...(parsed.parent ? { containerName: parsed.parent } : {}),
+    ...(type ? { type } : {}),
+  };
+
+  // `op: "activate"`, not `"write"`: lets an EXISTING ENHO/XH or ENHS/XS
+  // (`ACTIVATION_ONLY_TYPES`, capabilities.ts) resolve far enough to reach
+  // OUR OWN `supportsSource` refusal below with a format-specific message,
+  // rather than a generic one `resolveWriteTarget` would throw first for
+  // `op: "write"`. Every other type resolves identically under either op.
+  const target = await resolveWriteTarget(conn, wanted, "activate");
+
+  // NOT_FOUND, mirroring `abapActivate`'s own `assertActivatable`: the
+  // request is well-formed, the object simply isn't there. Nothing was read,
+  // locked or changed to get this answer — one metadata GET only.
+  if (!target.exists) {
+    throw new AbapError(
+      "NOT_FOUND",
+      `${target.spec.label} ${target.name} does not exist on ${conn.cfg.sid}, so there is ` +
+        "nothing to format. Nothing was read, locked or changed.",
+      { object: target.name, type: target.type, uri: target.uri, system: conn.cfg.sid },
+      "Correct the name or `type`, or write it first with `abap_write`. To format text that " +
+        "has no object on the server yet, pass `source` instead of `object`.",
+    );
+  }
+
+  // UNSUPPORTED, mirroring abap_write's own `format:true` + properties-shape
+  // refusal (tools/write.ts): a properties-shape type is written as an XML
+  // descriptor whose element order is significant, not as ABAP source — the
+  // pretty printer (an ABAP source formatter) has nothing to format. Checking
+  // BOTH `!supportsSource` (types.ts) and the properties-shape capability
+  // (capabilities.ts) is defensive belt-and-braces: the former is already a
+  // strict superset of the latter today, but the two registries are
+  // maintained independently and could drift.
+  if (!target.spec.supportsSource || capabilitiesFor(target.type)?.write?.shape === "properties") {
+    throw new AbapError(
+      "UNSUPPORTED",
+      `${target.type} has no ABAP source for the pretty printer to format — ${target.spec.label} ` +
+        "objects are written as a properties/XML descriptor, not as ABAP source.",
+      { object: target.name, type: target.type },
+      "mode=format only applies to source-based types (classes, programs, includes, function " +
+        "modules, CDS, ...). Edit this object with abap_write's structured fields instead.",
+    );
+  }
+
+  let current: string;
+  try {
+    current = await conn.adt.getObjectSource(target.sourceUri);
+  } catch (e) {
+    throw translateAdtError(e, {
+      operation: "read saved source for mode=format",
+      uri: target.sourceUri,
+      name: target.name,
+      type: target.type,
+    });
+  }
+
+  const outcome = await prettyPrintSource(conn, current);
+
+  const settingNote =
+    "Formatting follows the server's own pretty-printer setting (indentation, keyword case, " +
+    "identifier case, ...) — abap_activate reads that setting but never changes it.";
+
+  // `outcome.changed` alone is NOT trusted for this decision, unlike the
+  // text form above. `prettyPrintSource` normalises the server's CRLF reply
+  // to LF, then diffs that normalised text against `current` — the RAW bytes
+  // read off the wire, line endings and all (`src/adt/activate.ts`). A saved
+  // source that happens to be CRLF-terminated (this codebase never writes
+  // CRLF itself, but a source saved by another tool can be) then compares as
+  // `changed: true` purely because of \r\n vs \n, even when nothing about
+  // the actual formatting needs to change — which would lock, PUT, activate
+  // and journal an object for no real reason. `sourceEquals` (src/adt/write.ts,
+  // built on `canonicalSource` in src/compact.ts) asks the question this
+  // code actually cares about: does the server consider `current` and
+  // `outcome.source` the SAME source? `canonicalSource` already folds
+  // CRLF into LF (among other normalisations) for exactly this reason — see
+  // its own comment for the full doctrine.
+  const identical = sourceEquals(current, outcome.source);
+
+  if (identical) {
+    // Already formatted, as far as the server is concerned: distinct from
+    // "formatted successfully" below. If `current` and `outcome.source`
+    // differ only in line endings, the object genuinely does not need
+    // writing — the server treats the two as identical (fixture 903 shows
+    // the same idempotence for byte-identical input). NOTHING was locked,
+    // written, activated or journalled. No `abapWrite` call at all.
+    return buildResponse({
+      header: {
+        system: conn.cfg.sid,
+        mode: "format",
+        object: `${target.type} ${target.name}`,
+        uri: target.uri,
+        changed: false,
+        linesChanged: 0,
+      },
+      notes: [
+        settingNote,
+        `${target.spec.label} ${target.name} was already formatted — the server made no ` +
+          "change, so nothing was locked, written or journalled.",
+      ],
+      maxChars,
+    });
+  }
+
+  // Lost-update guard, no new parameter: hash the source AS READ (before
+  // formatting) so `abapWrite` refuses the PUT below if the object changed
+  // on the server between this read and the write — the same read→edit→write
+  // race `abap_quick_fix` closes the same way (see its own comment,
+  // tools/quickfix.ts). `expect_etag` is `abap_write`'s existing field; this
+  // reuses it rather than inventing a parallel one.
+  const expectEtag = canonicalEtag(current);
+
+  // `abapWrite`'s own response text (journal id, activation outcome) becomes
+  // this response's BODY below — `buildResponse` trims a body's TAIL to fit
+  // (compact.ts's keepLines), exactly where that id lives. Reserve room for
+  // THIS call's own header so the outer wrap never has to re-truncate an
+  // already-fitted inner response — same pattern as `abap_quick_fix`
+  // (tools/quickfix.ts's own `OUTER_HEADER_RESERVE`).
+  const OUTER_HEADER_RESERVE = 300;
+  const written = await abapWrite(
+    conn,
+    {
+      object: objectRef,
+      type: target.type,
+      source: outcome.source,
+      expect_etag: expectEtag,
+      // Explicit, not inherited: an already-active object must STAY active
+      // after a format-only write. Deciding this here (rather than leaving
+      // it to `abapWrite`'s own default) means it can't silently drift if
+      // that default ever changes.
+      activate: true,
+      ...(input.corr_nr !== undefined ? { corr_nr: input.corr_nr } : {}),
+      // Never `format: true` here: `outcome.source` is ALREADY the
+      // pretty-printed text — asking `abapWrite` to format it again would be
+      // a pointless second round trip to the same `prettyprinter` endpoint.
+    },
+    Math.max(1000, maxChars - OUTER_HEADER_RESERVE),
+    gate,
+    journal,
+    transport,
+    verifyWrites,
+    "abap_activate",
+  );
+
+  return buildResponse({
+    header: {
+      system: conn.cfg.sid,
+      mode: "format",
+      object: `${target.type} ${target.name}`,
+      uri: target.uri,
+      changed: true,
+      linesChanged: outcome.linesChanged,
+    },
+    body: written.text,
+    bodyLabel: "WRITE",
+    notes: [settingNote],
+    maxChars,
+  });
+}
+
 export interface ActivateToolDeps {
   readonly pool: SessionPool;
   readonly safety: SafetyGate;
   readonly ensureConnected: () => Promise<void>;
   readonly errorResult: (e: unknown) => CallToolResult;
-  readonly cfg: Pick<Config, "maxResponseChars">;
+  // `verifyWrites` added for mode=format's object form, which routes
+  // through `abapWrite` — same posture (`ABAP_VERIFY_WRITES`) any other
+  // write gets, never a format-specific override. OPTIONAL, not required
+  // via `Pick`: `abapActivate`/`abapActivateFormat` already take it as an
+  // optional trailing parameter and `abapWrite` already accepts `undefined`
+  // for it, so a fake that never exercises mode=format's object form has no
+  // opinion to supply and shouldn't have to fabricate one. Production is
+  // unaffected either way — `server.ts` wires up the real `Config`, whose
+  // schema always supplies a value.
+  readonly cfg: Pick<Config, "maxResponseChars"> & { readonly verifyWrites?: VerifyWritesMode };
   readonly transport: SessionTransport;
   /**
    * REQUIRED, not optional: absent from this interface until added,
@@ -909,7 +1257,9 @@ export function registerActivateTools(mcp: McpServer, deps: ActivateToolDeps): v
   mcp.registerTool(
     "abap_activate",
     {
-      description: "mode=check: syntax check, no lock. mode=activate: check then activate.",
+      description:
+        "mode=check: syntax check, no lock. mode=activate: check then activate. mode=format: " +
+        "pretty-print (source=text, or object=format-and-save).",
       inputSchema: activateInputSchema,
       /**
        * `destructiveHint: true` — a judgement call (MCP doesn't formally
@@ -928,6 +1278,7 @@ export function registerActivateTools(mcp: McpServer, deps: ActivateToolDeps): v
           object?: string;
           type?: string;
           mode?: string;
+          source?: string;
           affects?: EnhancedObjectRef;
           objects?: Array<{ object: string; type?: string; affects?: EnhancedObjectRef }>;
         };
@@ -940,10 +1291,10 @@ export function registerActivateTools(mcp: McpServer, deps: ActivateToolDeps): v
             throw new AbapError(
               "BAD_INPUT",
               "`objects` (batch activation) only supports mode=activate — there is no batch " +
-                "syntax check.",
+                "syntax check and no batch format.",
               { mode },
-              "Drop `mode` (default is activate), or check objects one at a time with `object` " +
-                'and `mode: "check"`.',
+              "Drop `mode` (default is activate), or check/format objects one at a time with " +
+                "`object`.",
             );
           }
           // Zero-network preflight, once per object, so a refusal on ANY
@@ -969,6 +1320,87 @@ export function registerActivateTools(mcp: McpServer, deps: ActivateToolDeps): v
           // slot, but doesn't additionally block a concurrent single-object
           // write to one of its members. Accepted as a known gap.
           const res = await deps.pool.withWrite("abap_activate", undefined, run);
+          return ok(res.text);
+        }
+
+        if (mode === "format") {
+          // Zero-network preflight mirroring `abapActivateFormat`'s own
+          // checks (activate.ts) — a malformed format request fails before
+          // `ensureConnected()`, same as the batch-format refusal above.
+          if (a.affects !== undefined) {
+            throw new AbapError(
+              "BAD_INPUT",
+              "`affects` names an enhancement's activation target and has no meaning for " +
+                "mode=format — the pretty printer only reformats ABAP source text.",
+              {},
+              "Drop `affects`. Use mode=activate with `affects` to activate an ENHO/XH or " +
+                "ENHS/XS.",
+            );
+          }
+          if (a.object !== undefined && a.source !== undefined) {
+            throw new AbapError(
+              "BAD_INPUT",
+              "mode=format was given both `object` and `source` — there is no non-arbitrary " +
+                "way to choose between formatting the text in `source` and formatting the " +
+                "object's saved source.",
+              {},
+              "Drop `source` to format-and-save `object`'s saved source, or drop `object` to " +
+                "just format the text in `source` (no write).",
+            );
+          }
+          if (a.object === undefined && a.source === undefined) {
+            throw new AbapError(
+              "BAD_INPUT",
+              "mode=format needs either `source` (format text, no write) or `object` (format " +
+                "and save a saved object) — neither was given.",
+              {},
+              "Pass `source` to format text, or `object` to format a saved object.",
+            );
+          }
+
+          if (a.object === undefined) {
+            // TEXT form: stateless — no lock, no write, no journal entry.
+            // Available even in read-only mode, same as mode=check's syntax
+            // check above; NOT the `a.object === undefined` batch/single
+            // guard below, which must not fire on this legitimately
+            // object-less form.
+            await deps.ensureConnected();
+            deps.safety.assert("read");
+            const run = (conn: AbapConnection) =>
+              abapActivate(
+                conn,
+                args as ActivateInput,
+                deps.cfg.maxResponseChars,
+                deps.safety,
+                deps.transport,
+                deps.journal,
+                deps.cfg.verifyWrites,
+              );
+            const res = await deps.pool.withRead("abap_activate", run);
+            return ok(res.text);
+          }
+
+          // OBJECT form: a real write — it can change what is saved (and
+          // active) on the server — gated the same way `abap_write`'s own
+          // write path is, not the lighter `analyze`/`activate` gate
+          // mode=check/mode=activate use above.
+          const object = a.object;
+          deps.safety.assert("write", preflight({ object, type: a.type }), {
+            phase: "preflight",
+            corr: { kind: "unresolved" },
+          });
+          await deps.ensureConnected();
+          const run = (conn: AbapConnection) =>
+            abapActivate(
+              conn,
+              args as ActivateInput,
+              deps.cfg.maxResponseChars,
+              deps.safety,
+              deps.transport,
+              deps.journal,
+              deps.cfg.verifyWrites,
+            );
+          const res = await deps.pool.withWrite("abap_activate", writeGateKey(object, a.type), run);
           return ok(res.text);
         }
 

@@ -1,0 +1,12 @@
+CLASS zcl_i91_probe DEFINITION PUBLIC FINAL CREATE PUBLIC.
+  PUBLIC SECTION.
+    METHODS run IMPORTING iv_times TYPE i DEFAULT 1 RETURNING VALUE(rv_total) TYPE i.
+ENDCLASS.
+
+CLASS zcl_i91_probe IMPLEMENTATION.
+  METHOD run.
+    DATA lv_x TYPE i.
+    lv_x = 1.
+    rv_total = lv_x * iv_times.
+  ENDMETHOD.
+ENDCLASS.
