@@ -420,8 +420,11 @@ export interface NavigationLookup {
  * Tiers, in order, each corroborating a distinct piece of live evidence (see
  * {@link NAVIGATION_UNDECIDABLE_RE}'s doc comment for both captures in full):
  *   1. `T100KEY-ID: "ED"` + `T100KEY-NO: "263"` on the raw exception — the
- *      live-captured ED263 key, the strongest evidence here and the only
- *      tier that is not prose-matching.
+ *      live-captured ED263 key, the strongest evidence here.
+ *   1b. `T100KEY-ID: "SEDI_ADT"` + `T100KEY-NO: "2"`, or
+ *      `type === "ExceptionMultipleNavigationTargets"` — the live-captured
+ *      shape (A4H, 2026-09-15, HTTP 422) of "more than one implementation"
+ *      at an interface method's own declaration; also not prose-matching.
  *   2. `type === "NavigationFailure"` AND the translated message matches
  *      {@link NAVIGATION_UNDECIDABLE_RE} — the type corroborates the message
  *      when both happen to be available.
@@ -437,6 +440,18 @@ export function noTargetReasonFor(e: unknown, translated: AbapError): NoTargetRe
   const info = adtExceptionInfo(e);
   if (info?.properties["T100KEY-ID"] === "ED" && info.properties["T100KEY-NO"] === "263") {
     return "declaration-itself";
+  }
+  // Live-captured 2026-09-15 against A4H at an interface's own `METHODS run`
+  // declaration with two implementing classes: `err: 422`,
+  // `type: "ExceptionMultipleNavigationTargets"`, `properties:
+  // {"T100KEY-ID": "SEDI_ADT", "T100KEY-NO": "2"}`, message "Navigation
+  // target undecidable: More than one implementation exists". Keyed on the
+  // T100 key, like ED263; the type is corroborating only.
+  if (info?.properties["T100KEY-ID"] === "SEDI_ADT" && info.properties["T100KEY-NO"] === "2") {
+    return "undecidable";
+  }
+  if (info?.type === "ExceptionMultipleNavigationTargets") {
+    return "undecidable";
   }
   if (info?.type === "NavigationFailure" && NAVIGATION_UNDECIDABLE_RE.test(translated.message)) {
     return "undecidable";

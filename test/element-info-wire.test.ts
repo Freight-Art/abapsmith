@@ -477,6 +477,32 @@ describe("noTargetReasonFor classifies why ADT declined to name a navigation tar
     expect(noTargetReasonFor(e, translated)).toBe("declaration-itself");
   });
 
+  it("SEDI_ADT 2 ExceptionMultipleNavigationTargets classifies as undecidable", () => {
+    // Live-captured 2026-09-15 against A4H: `abap_read view=definition` on an
+    // interface's own `METHODS run` declaration with two implementing classes
+    // (`ZCL_V91_PROBE`, `ZCL_V91_PROBE2`, both since deleted) threw
+    // `AdtErrorException` with `err: 422`,
+    // `type: "ExceptionMultipleNavigationTargets"`, `namespace: "com.sap.adt"`,
+    // `properties: {"T100KEY-ID": "SEDI_ADT", "T100KEY-NO": "2"}`, message
+    // "Navigation target undecidable: More than one implementation exists".
+    const e = {
+      err: 422,
+      type: "ExceptionMultipleNavigationTargets",
+      namespace: "com.sap.adt",
+      properties: { "T100KEY-ID": "SEDI_ADT", "T100KEY-NO": "2" },
+      message: "Navigation target undecidable: More than one implementation exists",
+      localizedMessage: "Navigation target undecidable: More than one implementation exists",
+    };
+    const translated = translateAdtError(e, ctx("navigation target"));
+    expect(noTargetReasonFor(e, translated)).toBe("undecidable");
+  });
+
+  it("ExceptionMultipleNavigationTargets without a T100 key still classifies as undecidable", () => {
+    const e = { err: 422, type: "ExceptionMultipleNavigationTargets", message: "More than one implementation exists" };
+    const translated = translateAdtError(e, ctx("navigation target"));
+    expect(noTargetReasonFor(e, translated)).toBe("undecidable");
+  });
+
   it("a navigation-target error saying the target is undecidable classifies as undecidable", () => {
     // The other live-observed "no target" shape (see NAVIGATION_UNDECIDABLE_RE's
     // doc comment in element-info.ts): never captured with its properties, so

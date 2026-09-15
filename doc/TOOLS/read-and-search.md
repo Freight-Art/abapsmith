@@ -122,7 +122,11 @@ the wire protocol, not evidence of a side effect.
   where-used list may be possible" (live-captured against
   `CL_ABAP_TYPEDESCR`'s `data ABSOLUTE_NAME …` line, A4H 2026-09-15);
   more than one implementation exists, so the declaration site is
-  undecidable from this position; or ADT returned a target document that
+  undecidable from this position (HTTP 422,
+  `ExceptionMultipleNavigationTargets`, T100 key `SEDI_ADT`/`2`,
+  "Navigation target undecidable: More than one implementation exists" —
+  live-captured at an interface's own `METHODS` line with two implementing
+  classes, A4H 2026-09-15); or ADT returned a target document that
   names no URI. All three are reported as prose in the DEFINITION section,
   not as an error — the header fields, SIGNATURE/COMPONENTS, DOC and
   IMPLEMENTED BY sections are all still answered from the element-info
