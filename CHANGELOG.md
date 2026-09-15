@@ -12,6 +12,18 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.8] - 2026-09-15
+
+### Added
+
+- **Multi-system configuration** (#93). One server process can now serve several SAP systems. `ABAP_SYSTEMS` names a JSON file (or holds inline JSON) with one entry per alias, or the `.env`-native form `ABAP_SYSTEM_<ALIAS>_<SETTING>` sets one setting of one system at a time; plain `ABAP_*` variables remain process-wide defaults that each entry may override. Secrets never go into the file: `password_env` and `secrets` name environment variables instead, and a literal `password` key is a startup error. All validation problems across all entries are reported together, and the process refuses to start on any of them. With more than one system configured every tool gains an optional `system` parameter (an unknown alias is refused with `UNKNOWN_SYSTEM`, listing the configured aliases), and there is one `abap://{SID}/system` resource per system. Tool registration is the union of every system's capabilities, but the permission decision for a call is always made by the target system's own gate, so a system configured `read` stays read-only even when the default system is `admin`. Each system keeps its own session pool, auth breaker, discovery cache, journal directory and object-gate scope. A single-system deployment is unchanged down to the schema bytes: with no `ABAP_SYSTEMS` and no `ABAP_SYSTEM_*` variable the feature does not engage. Docs: `doc/CONFIGURATION/multi-system.md`, `doc/CONCURRENCY/multi-system-pools.md`, `doc/SAFETY/permission-model.md` ("The mode ladder is per system").
+- **Cross-system diff** (#93). `abap_read view="diff"` accepts `from_system` / `to_system` when more than one system is configured and compares the object's current active source between two systems as unified-diff hunks; combining them with the same-system `from`/`to` version selectors is refused with `BAD_INPUT`, and a missing object is reported as `NOT_FOUND` naming the system that lacks it.
+- **Debugger system guard** (#93). The debugger holds one session per process; a debug call that names a different system than the one the session was started on is refused with `SYSTEM_MISMATCH` instead of stepping the wrong debuggee.
+
+### Changed
+
+- The cross-process object gate now scopes its lock files per system, so `ZCL_FOO` on one system no longer serialises against `ZCL_FOO` on another. The lock file names changed: during a rolling upgrade a process on an older build is not serialised against one on this build for the same object (`doc/CONCURRENCY/object-gate-and-debug-lock.md`).
+
 ## [0.6.7] - 2026-09-15
 
 ### Added

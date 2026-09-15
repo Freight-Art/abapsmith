@@ -171,6 +171,13 @@ over a shared `ABAP_*` default. Between the two configuration *sources*
 the environment-variable form wins — the same rule `.env` file contents
 already lose to a real environment variable.
 
+One family of settings is not per system at all: the MCP transport
+(`ABAP_MCP_TRANSPORT`, `ABAP_MCP_HTTP_HOST`/`_PORT`/`_PATH`/`_TOKEN`, see
+[transport.md](transport.md)) describes the one listener the process
+opens, so it is read from the **default** entry's resolved configuration.
+Set it in the shared environment; putting it into a non-default entry's
+`env` has no effect and is not warned about.
+
 ## Defaulting
 
 Exactly one entry is the default. The file form names it with the
