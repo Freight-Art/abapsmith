@@ -3533,10 +3533,10 @@ var require_lib = __commonJS({
     var Type = (
       /** @class */
       (function() {
-        function Type2(name, is, validate5, encode3) {
+        function Type2(name, is, validate7, encode3) {
           this.name = name;
           this.is = is;
-          this.validate = validate5;
+          this.validate = validate7;
           this.encode = encode3;
           this.decode = this.decode.bind(this);
         }
@@ -4145,8 +4145,8 @@ var require_lib = __commonJS({
       /** @class */
       (function(_super) {
         __extends(LiteralType2, _super);
-        function LiteralType2(name, is, validate5, encode3, value) {
-          var _this = _super.call(this, name, is, validate5, encode3) || this;
+        function LiteralType2(name, is, validate7, encode3, value) {
+          var _this = _super.call(this, name, is, validate7, encode3) || this;
           _this.value = value;
           _this._tag = "LiteralType";
           return _this;
@@ -4171,8 +4171,8 @@ var require_lib = __commonJS({
       /** @class */
       (function(_super) {
         __extends(KeyofType2, _super);
-        function KeyofType2(name, is, validate5, encode3, keys) {
-          var _this = _super.call(this, name, is, validate5, encode3) || this;
+        function KeyofType2(name, is, validate7, encode3, keys) {
+          var _this = _super.call(this, name, is, validate7, encode3) || this;
           _this.keys = keys;
           _this._tag = "KeyofType";
           return _this;
@@ -4199,8 +4199,8 @@ var require_lib = __commonJS({
       /** @class */
       (function(_super) {
         __extends(RefinementType2, _super);
-        function RefinementType2(name, is, validate5, encode3, type2, predicate) {
-          var _this = _super.call(this, name, is, validate5, encode3) || this;
+        function RefinementType2(name, is, validate7, encode3, type2, predicate) {
+          var _this = _super.call(this, name, is, validate7, encode3) || this;
           _this.type = type2;
           _this.predicate = predicate;
           _this._tag = "RefinementType";
@@ -4221,8 +4221,8 @@ var require_lib = __commonJS({
       /** @class */
       (function(_super) {
         __extends(RecursiveType2, _super);
-        function RecursiveType2(name, is, validate5, encode3, runDefinition) {
-          var _this = _super.call(this, name, is, validate5, encode3) || this;
+        function RecursiveType2(name, is, validate7, encode3, runDefinition) {
+          var _this = _super.call(this, name, is, validate7, encode3) || this;
           _this.runDefinition = runDefinition;
           _this._tag = "RecursiveType";
           return _this;
@@ -4261,8 +4261,8 @@ var require_lib = __commonJS({
       /** @class */
       (function(_super) {
         __extends(ArrayType2, _super);
-        function ArrayType2(name, is, validate5, encode3, type2) {
-          var _this = _super.call(this, name, is, validate5, encode3) || this;
+        function ArrayType2(name, is, validate7, encode3, type2) {
+          var _this = _super.call(this, name, is, validate7, encode3) || this;
           _this.type = type2;
           _this._tag = "ArrayType";
           return _this;
@@ -4311,8 +4311,8 @@ var require_lib = __commonJS({
       /** @class */
       (function(_super) {
         __extends(InterfaceType2, _super);
-        function InterfaceType2(name, is, validate5, encode3, props) {
-          var _this = _super.call(this, name, is, validate5, encode3) || this;
+        function InterfaceType2(name, is, validate7, encode3, props) {
+          var _this = _super.call(this, name, is, validate7, encode3) || this;
           _this.props = props;
           _this._tag = "InterfaceType";
           return _this;
@@ -4386,8 +4386,8 @@ var require_lib = __commonJS({
       /** @class */
       (function(_super) {
         __extends(PartialType2, _super);
-        function PartialType2(name, is, validate5, encode3, props) {
-          var _this = _super.call(this, name, is, validate5, encode3) || this;
+        function PartialType2(name, is, validate7, encode3, props) {
+          var _this = _super.call(this, name, is, validate7, encode3) || this;
           _this.props = props;
           _this._tag = "PartialType";
           return _this;
@@ -4462,8 +4462,8 @@ var require_lib = __commonJS({
       /** @class */
       (function(_super) {
         __extends(DictionaryType2, _super);
-        function DictionaryType2(name, is, validate5, encode3, domain2, codomain) {
-          var _this = _super.call(this, name, is, validate5, encode3) || this;
+        function DictionaryType2(name, is, validate7, encode3, domain2, codomain) {
+          var _this = _super.call(this, name, is, validate7, encode3) || this;
           _this.domain = domain2;
           _this.codomain = codomain;
           _this._tag = "DictionaryType";
@@ -4482,8 +4482,8 @@ var require_lib = __commonJS({
       /** @class */
       (function(_super) {
         __extends(UnionType2, _super);
-        function UnionType2(name, is, validate5, encode3, types) {
-          var _this = _super.call(this, name, is, validate5, encode3) || this;
+        function UnionType2(name, is, validate7, encode3, types) {
+          var _this = _super.call(this, name, is, validate7, encode3) || this;
           _this.types = types;
           _this._tag = "UnionType";
           return _this;
@@ -4567,8 +4567,8 @@ var require_lib = __commonJS({
       /** @class */
       (function(_super) {
         __extends(IntersectionType2, _super);
-        function IntersectionType2(name, is, validate5, encode3, types) {
-          var _this = _super.call(this, name, is, validate5, encode3) || this;
+        function IntersectionType2(name, is, validate7, encode3, types) {
+          var _this = _super.call(this, name, is, validate7, encode3) || this;
           _this.types = types;
           _this._tag = "IntersectionType";
           return _this;
@@ -4612,8 +4612,8 @@ var require_lib = __commonJS({
       /** @class */
       (function(_super) {
         __extends(TupleType2, _super);
-        function TupleType2(name, is, validate5, encode3, types) {
-          var _this = _super.call(this, name, is, validate5, encode3) || this;
+        function TupleType2(name, is, validate7, encode3, types) {
+          var _this = _super.call(this, name, is, validate7, encode3) || this;
           _this.types = types;
           _this._tag = "TupleType";
           return _this;
@@ -4669,8 +4669,8 @@ var require_lib = __commonJS({
       /** @class */
       (function(_super) {
         __extends(ReadonlyType2, _super);
-        function ReadonlyType2(name, is, validate5, encode3, type2) {
-          var _this = _super.call(this, name, is, validate5, encode3) || this;
+        function ReadonlyType2(name, is, validate7, encode3, type2) {
+          var _this = _super.call(this, name, is, validate7, encode3) || this;
           _this.type = type2;
           _this._tag = "ReadonlyType";
           return _this;
@@ -4690,8 +4690,8 @@ var require_lib = __commonJS({
       /** @class */
       (function(_super) {
         __extends(ReadonlyArrayType2, _super);
-        function ReadonlyArrayType2(name, is, validate5, encode3, type2) {
-          var _this = _super.call(this, name, is, validate5, encode3) || this;
+        function ReadonlyArrayType2(name, is, validate7, encode3, type2) {
+          var _this = _super.call(this, name, is, validate7, encode3) || this;
           _this.type = type2;
           _this._tag = "ReadonlyArrayType";
           return _this;
@@ -4716,8 +4716,8 @@ var require_lib = __commonJS({
       /** @class */
       (function(_super) {
         __extends(ExactType2, _super);
-        function ExactType2(name, is, validate5, encode3, type2) {
-          var _this = _super.call(this, name, is, validate5, encode3) || this;
+        function ExactType2(name, is, validate7, encode3, type2) {
+          var _this = _super.call(this, name, is, validate7, encode3) || this;
           _this.type = type2;
           _this._tag = "ExactType";
           return _this;
@@ -4835,8 +4835,8 @@ var require_lib = __commonJS({
       /** @class */
       (function(_super) {
         __extends(TaggedUnionType2, _super);
-        function TaggedUnionType2(name, is, validate5, encode3, codecs, tag) {
-          var _this = _super.call(this, name, is, validate5, encode3, codecs) || this;
+        function TaggedUnionType2(name, is, validate7, encode3, codecs, tag) {
+          var _this = _super.call(this, name, is, validate7, encode3, codecs) || this;
           _this.tag = tag;
           return _this;
         }
@@ -4894,8 +4894,8 @@ var require_lib = __commonJS({
       /** @class */
       (function(_super) {
         __extends(StrictType2, _super);
-        function StrictType2(name, is, validate5, encode3, props) {
-          var _this = _super.call(this, name, is, validate5, encode3) || this;
+        function StrictType2(name, is, validate7, encode3, props) {
+          var _this = _super.call(this, name, is, validate7, encode3) || this;
           _this.props = props;
           _this._tag = "StrictType";
           return _this;
@@ -5121,8 +5121,8 @@ var require_commonjs = __commonJS({
           decodeResult = decodeResultByReference;
         } else if (entity[0] === "&" && entity[1] === "#") {
           var decodeSecondChar = entity[2];
-          var decodeCode = decodeSecondChar == "x" || decodeSecondChar == "X" ? parseInt(entity.substr(3), 16) : parseInt(entity.substr(2));
-          decodeResult = decodeCode >= 1114111 ? outOfBoundsChar : decodeCode > 65535 ? (0, surrogate_pairs_js_1.fromCodePoint)(decodeCode) : fromCharCode(numeric_unicode_map_js_1.numericUnicodeMap[decodeCode] || decodeCode);
+          var decodeCode2 = decodeSecondChar == "x" || decodeSecondChar == "X" ? parseInt(entity.substr(3), 16) : parseInt(entity.substr(2));
+          decodeResult = decodeCode2 >= 1114111 ? outOfBoundsChar : decodeCode2 > 65535 ? (0, surrogate_pairs_js_1.fromCodePoint)(decodeCode2) : fromCharCode(numeric_unicode_map_js_1.numericUnicodeMap[decodeCode2] || decodeCode2);
         }
       }
       return decodeResult;
@@ -25157,7 +25157,7 @@ var require_axios = __commonJS({
     var isNumber = typeOfTest("number");
     var isObject2 = (thing) => thing !== null && typeof thing === "object";
     var isBoolean = (thing) => thing === true || thing === false;
-    var isPlainObject6 = (val) => {
+    var isPlainObject7 = (val) => {
       if (!isObject2(val)) {
         return false;
       }
@@ -25272,9 +25272,9 @@ var require_axios = __commonJS({
         }
         const targetKey = caseless && typeof key === "string" && findKey(result, key) || key;
         const existing = hasOwnProperty(result, targetKey) ? result[targetKey] : void 0;
-        if (isPlainObject6(existing) && isPlainObject6(val)) {
+        if (isPlainObject7(existing) && isPlainObject7(val)) {
           result[targetKey] = merge2(existing, val);
-        } else if (isPlainObject6(val)) {
+        } else if (isPlainObject7(val)) {
           result[targetKey] = merge2({}, val);
         } else if (isArray(val)) {
           result[targetKey] = val.slice();
@@ -25539,7 +25539,7 @@ var require_axios = __commonJS({
       isNumber,
       isBoolean,
       isObject: isObject2,
-      isPlainObject: isPlainObject6,
+      isPlainObject: isPlainObject7,
       isEmptyObject,
       isReadableStream,
       isRequest,
@@ -25600,10 +25600,10 @@ var require_axios = __commonJS({
       let key;
       let val;
       let i;
-      rawHeaders && rawHeaders.split("\n").forEach(function parser3(line) {
-        i = line.indexOf(":");
-        key = line.substring(0, i).trim().toLowerCase();
-        val = line.substring(i + 1).trim();
+      rawHeaders && rawHeaders.split("\n").forEach(function parser3(line2) {
+        i = line2.indexOf(":");
+        key = line2.substring(0, i).trim().toLowerCase();
+        val = line2.substring(i + 1).trim();
         const hasKey = utils$1.hasOwnProp(parsed, key);
         if (!key || hasKey && utils$1.hasOwnProp(ignoreDuplicateOf, key)) {
           return;
@@ -30387,8 +30387,8 @@ var require_urlparser = __commonJS({
         return acc;
       }, {});
       const parsePos = (x) => {
-        const [line, column] = x ? x.split(",").map(utilities_1.toInt) : [0, 0];
-        return { line: line || 0, column: column || 0 };
+        const [line2, column] = x ? x.split(",").map(utilities_1.toInt) : [0, 0];
+        return { line: line2 || 0, column: column || 0 };
       };
       const st = parsePos(start);
       const range2 = {
@@ -30910,8 +30910,8 @@ var require_syntax2 = __commonJS({
         };
         const matches = rawUri.match(/([^#]+)#start=([\d]+),([\d]+)/);
         if (matches) {
-          const [uri, line, offset] = matches.slice(1);
-          message = { ...message, uri, line: (0, utilities_1.toInt)(line), offset: (0, utilities_1.toInt)(offset) };
+          const [uri, line2, offset] = matches.slice(1);
+          message = { ...message, uri, line: (0, utilities_1.toInt)(line2), offset: (0, utilities_1.toInt)(offset) };
         }
         messages.push(message);
       });
@@ -30938,8 +30938,8 @@ var require_syntax2 = __commonJS({
       const raw = (0, utilities_1.fullParse)(response.body);
       return parseCheckResults(raw);
     }
-    async function codeCompletion(h, url2, body, line, offset) {
-      const uri = `${url2}#start=${line},${offset}`;
+    async function codeCompletion(h, url2, body, line2, offset) {
+      const uri = `${url2}#start=${line2},${offset}`;
       const qs = { uri, signalCompleteness: true };
       const headers = { "Content-Type": "application/*" };
       const response = await h.request("/sap/bc/adt/abapsource/codecompletion/proposal", { method: "POST", qs, headers, body });
@@ -30950,8 +30950,8 @@ var require_syntax2 = __commonJS({
       }));
       return proposals;
     }
-    async function codeCompletionFull(h, url2, body, line, offset, patternKey) {
-      const uri = `${url2}#start=${line},${offset}`;
+    async function codeCompletionFull(h, url2, body, line2, offset, patternKey) {
+      const uri = `${url2}#start=${line2},${offset}`;
       const qs = { uri, patternKey };
       const headers = { "Content-Type": "application/*" };
       const response = await h.request("/sap/bc/adt/abapsource/codecompletion/insertion", { method: "POST", qs, headers, body });
@@ -30961,8 +30961,8 @@ var require_syntax2 = __commonJS({
       const link = (0, utilities_1.xmlNode)(raw, "abapsource:elementInfo", "atom:link", "@_href") || "";
       return link.replace(/\w+:\/\/[^\/]*/, "");
     }
-    async function codeCompletionElement(h, url2, body, line, offset) {
-      const qs = { uri: `${url2}#start=${line},${offset}` };
+    async function codeCompletionElement(h, url2, body, line2, offset) {
+      const qs = { uri: `${url2}#start=${line2},${offset}` };
       const headers = { "Content-Type": "text/plain", Accept: "application/*" };
       const response = await h.request("/sap/bc/adt/abapsource/codecompletion/elementinfo", { method: "POST", qs, headers, body });
       const raw = (0, utilities_1.fullParse)(response.body);
@@ -30990,10 +30990,10 @@ var require_syntax2 = __commonJS({
         components
       };
     }
-    async function findDefinition(h, url2, body, line, firstof, lastof, implementation, mainProgram) {
+    async function findDefinition(h, url2, body, line2, firstof, lastof, implementation, mainProgram) {
       const ctx = mainProgram ? `?context=${encodeURIComponent(mainProgram)}` : "";
       const qs = {
-        uri: `${url2}${ctx}#start=${line},${firstof};end=${line},${lastof}`,
+        uri: `${url2}${ctx}#start=${line2},${firstof};end=${line2},${lastof}`,
         filter: implementation ? "implementation" : "definition"
       };
       const headers = { "Content-Type": "text/plain", Accept: "application/*" };
@@ -31012,9 +31012,9 @@ var require_syntax2 = __commonJS({
         column: (0, utilities_1.toInt)(match && match[3])
       };
     }
-    async function usageReferences(h, url2, line, column) {
+    async function usageReferences(h, url2, line2, column) {
       const headers = { "Content-Type": "application/*", Accept: "application/*" };
-      const uri = line && column ? `${url2}#start=${line},${column}` : url2;
+      const uri = line2 && column ? `${url2}#start=${line2},${column}` : url2;
       const qs = { uri };
       const body = `<?xml version="1.0" encoding="ASCII"?>
   <usagereferences:usageReferenceRequest xmlns:usagereferences="http://www.sap.com/adt/ris/usageReferences">
@@ -31050,9 +31050,9 @@ var require_syntax2 = __commonJS({
         hash2.split(";").forEach((p) => {
           const [name, value] = p.split("=");
           if (name === "start" || name === "end") {
-            const [line, column] = value.split(",");
-            if (line)
-              uparts[name] = { line: (0, utilities_1.toInt)(line), column: (0, utilities_1.toInt)(column) };
+            const [line2, column] = value.split(",");
+            if (line2)
+              uparts[name] = { line: (0, utilities_1.toInt)(line2), column: (0, utilities_1.toInt)(column) };
           } else if (name === "type" || name === "name")
             uparts[name] = decodeURIComponent(value);
         });
@@ -31124,12 +31124,12 @@ var require_syntax2 = __commonJS({
         qs,
         headers
       });
-      const [sourceUrl, line, column] = (0, utilities_1.parts)(response.body, /([^#]*)#start=([\d]+),([\d]+)/);
+      const [sourceUrl, line2, column] = (0, utilities_1.parts)(response.body, /([^#]*)#start=([\d]+),([\d]+)/);
       if (!column)
         throw (0, AdtException_1.adtException)("Fragment not found");
       const location = {
         uri: sourceUrl,
-        line: (0, utilities_1.toInt)(line),
+        line: (0, utilities_1.toInt)(line2),
         column: (0, utilities_1.toInt)(column)
       };
       return location;
@@ -31157,9 +31157,9 @@ prettyprintersettings:indentation="${indent}" prettyprintersettings:style="${sty
       });
       return (response.body || body).toString();
     }
-    async function typeHierarchy(h, url2, body, line, offset, superTypes = false) {
+    async function typeHierarchy(h, url2, body, line2, offset, superTypes = false) {
       const qs = {
-        uri: `${url2}#start=${line},${offset}`,
+        uri: `${url2}#start=${line2},${offset}`,
         type: superTypes ? "superTypes" : "subTypes"
       };
       const headers = { "Content-Type": "text/plain", Accept: "application/*" };
@@ -33016,8 +33016,8 @@ var require_refactor = __commonJS({
     var AdtException_1 = require_AdtException();
     var utilities_1 = require_utilities();
     var urlparser_1 = require_urlparser();
-    async function fixProposals(h, uri, body, line, column) {
-      const qs = { uri: `${uri}#start=${line},${column}` };
+    async function fixProposals(h, uri, body, line2, column) {
+      const qs = { uri: `${uri}#start=${line2},${column}` };
       const headers = { "Content-Type": "application/*", Accept: "application/*" };
       const response = await h.request("/sap/bc/adt/quickfixes/evaluation", {
         method: "POST",
@@ -33035,7 +33035,7 @@ var require_refactor = __commonJS({
           "adtcore:name": attrs["adtcore:name"],
           "adtcore:description": attrs["adtcore:description"],
           uri,
-          line,
+          line: line2,
           column,
           userContent
         };
@@ -33164,11 +33164,11 @@ var require_refactor = __commonJS({
         userContent
       };
     }
-    async function renameEvaluate(h, uri, line, startColumn, endColumn) {
+    async function renameEvaluate(h, uri, line2, startColumn, endColumn) {
       const qs = {
         step: `evaluate`,
         rel: `http://www.sap.com/adt/relations/refactoring/rename`,
-        uri: `${uri}#start=${line},${startColumn};end=${line},${endColumn}`
+        uri: `${uri}#start=${line2},${startColumn};end=${line2},${endColumn}`
       };
       const headers = { "Content-Type": "application/*", Accept: "application/*" };
       const response = await h.request("/sap/bc/adt/refactorings", {
@@ -33484,13 +33484,13 @@ var require_search = __commonJS({
       const raw = (0, utilities_1.fullParse)(response.body);
       return (0, utilities_1.xmlArray)(raw, "projectexplorer:nodepath", "projectexplorer:objectLinkReferences", "objectLinkReference").map(utilities_1.xmlNodeAttr);
     }
-    async function abapDocumentation(h, objectUri, body, line, column, language = "EN") {
+    async function abapDocumentation(h, objectUri, body, line2, column, language = "EN") {
       (0, AdtException_1.ValidateObjectUrl)(objectUri);
       const headers = {
         "Content-Type": "text/plain",
         Accept: "application/vnd.sap.adt.docu.v1+html,text/html"
       };
-      const uri = `${objectUri}#start=${line},${column}`;
+      const uri = `${objectUri}#start=${line2},${column}`;
       const qs = { uri, language, format: "eclipse" };
       const response = await h.request(`/sap/bc/adt/docu/abap/langu`, {
         method: "POST",
@@ -35308,16 +35308,16 @@ var require_textelements = __commonJS({
       let currentMaxLength;
       let currentDdicReference;
       for (const raw of body.split("\n")) {
-        const line = raw.trim();
-        if (line.startsWith("@MaxLength:")) {
-          const n = parseInt(line.slice("@MaxLength:".length), 10);
+        const line2 = raw.trim();
+        if (line2.startsWith("@MaxLength:")) {
+          const n = parseInt(line2.slice("@MaxLength:".length), 10);
           currentMaxLength = isNaN(n) ? void 0 : n;
-        } else if (line.startsWith("@DDICReference:")) {
-          currentDdicReference = line.slice("@DDICReference:".length);
-        } else if (line.includes("=")) {
-          const eq = line.indexOf("=");
-          const id = line.slice(0, eq).trim();
-          const text4 = line.slice(eq + 1);
+        } else if (line2.startsWith("@DDICReference:")) {
+          currentDdicReference = line2.slice("@DDICReference:".length);
+        } else if (line2.includes("=")) {
+          const eq = line2.indexOf("=");
+          const id = line2.slice(0, eq).trim();
+          const text4 = line2.slice(eq + 1);
           if (id) {
             elements.push({
               id,
@@ -35999,11 +35999,11 @@ var require_AdtClient = __commonJS({
           return (0, api_1.syntaxCheck)(this.h, url2, mainUrl, content, mainProgram, version2);
         }
       }
-      codeCompletion(sourceUrl, source, line, column) {
-        return (0, api_1.codeCompletion)(this.h, sourceUrl, source, line, column);
+      codeCompletion(sourceUrl, source, line2, column) {
+        return (0, api_1.codeCompletion)(this.h, sourceUrl, source, line2, column);
       }
-      codeCompletionFull(sourceUrl, source, line, column, patternKey) {
-        return (0, api_1.codeCompletionFull)(this.h, sourceUrl, source, line, column, patternKey);
+      codeCompletionFull(sourceUrl, source, line2, column, patternKey) {
+        return (0, api_1.codeCompletionFull)(this.h, sourceUrl, source, line2, column, patternKey);
       }
       async runClass(className) {
         const response = await this.h.request("/sap/bc/adt/oo/classrun/" + className.toUpperCase(), {
@@ -36022,20 +36022,20 @@ var require_AdtClient = __commonJS({
        * @returns
        * @memberof ADTClient
        */
-      codeCompletionElement(sourceUrl, source, line, column) {
-        return (0, api_1.codeCompletionElement)(this.h, sourceUrl, source, line, column);
+      codeCompletionElement(sourceUrl, source, line2, column) {
+        return (0, api_1.codeCompletionElement)(this.h, sourceUrl, source, line2, column);
       }
-      findDefinition(url2, source, line, startCol, endCol, implementation = false, mainProgram = "") {
-        return (0, api_1.findDefinition)(this.h, url2, source, line, startCol, endCol, implementation, mainProgram);
+      findDefinition(url2, source, line2, startCol, endCol, implementation = false, mainProgram = "") {
+        return (0, api_1.findDefinition)(this.h, url2, source, line2, startCol, endCol, implementation, mainProgram);
       }
-      usageReferences(url2, line, column) {
-        return (0, api_1.usageReferences)(this.h, url2, line, column);
+      usageReferences(url2, line2, column) {
+        return (0, api_1.usageReferences)(this.h, url2, line2, column);
       }
       usageReferenceSnippets(references) {
         return (0, api_1.usageReferenceSnippets)(this.h, references);
       }
-      fixProposals(url2, source, line, column) {
-        return (0, api_1.fixProposals)(this.h, url2, source, line, column);
+      fixProposals(url2, source, line2, column) {
+        return (0, api_1.fixProposals)(this.h, url2, source, line2, column);
       }
       fixEdits(proposal, source) {
         return (0, api_1.fixEdits)(this.h, proposal, source);
@@ -36067,8 +36067,8 @@ var require_AdtClient = __commonJS({
       prettyPrinter(source) {
         return (0, api_1.prettyPrinter)(this.h, source);
       }
-      typeHierarchy(url2, body, line, offset, superTypes = false) {
-        return (0, api_1.typeHierarchy)(this.h, url2, body, line, offset, superTypes);
+      typeHierarchy(url2, body, line2, offset, superTypes = false) {
+        return (0, api_1.typeHierarchy)(this.h, url2, body, line2, offset, superTypes);
       }
       transportConfigurations() {
         return (0, api_1.transportConfigurations)(this.h);
@@ -36115,8 +36115,8 @@ var require_AdtClient = __commonJS({
       objectEnhancements(sourceMainPath, contextUri, includeSource = false) {
         return (0, api_1.objectEnhancements)(this.h, sourceMainPath, contextUri, includeSource);
       }
-      abapDocumentation(objectUri, body, line, column, language = "EN") {
-        return (0, api_1.abapDocumentation)(this.h, objectUri, body, line, column, language);
+      abapDocumentation(objectUri, body, line2, column, language = "EN") {
+        return (0, api_1.abapDocumentation)(this.h, objectUri, body, line2, column, language);
       }
       packageSearchHelp(type, name = "*") {
         return (0, api_1.packageSearchHelp)(this.h, type, name);
@@ -36243,8 +36243,8 @@ var require_AdtClient = __commonJS({
       changePackageExecute(refactoring) {
         return (0, api_1.changePackageExecute)(this.h, refactoring);
       }
-      renameEvaluate(uri, line, startColumn, endColumn) {
-        return (0, api_1.renameEvaluate)(this.h, uri, line, startColumn, endColumn);
+      renameEvaluate(uri, line2, startColumn, endColumn) {
+        return (0, api_1.renameEvaluate)(this.h, uri, line2, startColumn, endColumn);
       }
       renamePreview(renameRefactoring, transport = "") {
         return (0, api_1.renamePreview)(this.h, renameRefactoring, transport);
@@ -36958,12 +36958,12 @@ function extractDumpShortText(html) {
   const lines = htmlToLines(html);
   const headingIdx = lines.findIndex((l) => /^\d{3}\s+\S/.test(l) || DUMP_PROSE_MARKERS.some((re) => re.test(l)));
   const candidates = headingIdx >= 0 ? lines.slice(headingIdx + 1) : lines;
-  for (const line of candidates) {
-    if (/^\d{3}\s+\S/.test(line)) continue;
-    if (DUMP_PROSE_MARKERS.some((re) => re.test(line))) continue;
-    if (DUMP_NOISE.test(line)) continue;
-    if (line.length < 3 || line.length > 200) continue;
-    return line;
+  for (const line2 of candidates) {
+    if (/^\d{3}\s+\S/.test(line2)) continue;
+    if (DUMP_PROSE_MARKERS.some((re) => re.test(line2))) continue;
+    if (DUMP_NOISE.test(line2)) continue;
+    if (line2.length < 3 || line2.length > 200) continue;
+    return line2;
   }
   return void 0;
 }
@@ -38997,7 +38997,7 @@ var init_util = __esm({
 });
 
 // node_modules/zod/v4/core/errors.js
-function flattenError(error51, mapper = (issue3) => issue3.message) {
+function flattenError(error51, mapper = (issue4) => issue4.message) {
   const fieldErrors = {};
   const formErrors = [];
   for (const sub of error51.issues) {
@@ -39010,20 +39010,20 @@ function flattenError(error51, mapper = (issue3) => issue3.message) {
   }
   return { formErrors, fieldErrors };
 }
-function formatError(error51, mapper = (issue3) => issue3.message) {
+function formatError(error51, mapper = (issue4) => issue4.message) {
   const fieldErrors = { _errors: [] };
   const processError = (error52, path8 = []) => {
-    for (const issue3 of error52.issues) {
-      if (issue3.code === "invalid_union" && issue3.errors.length) {
-        issue3.errors.map((issues) => processError({ issues }, [...path8, ...issue3.path]));
-      } else if (issue3.code === "invalid_key") {
-        processError({ issues: issue3.issues }, [...path8, ...issue3.path]);
-      } else if (issue3.code === "invalid_element") {
-        processError({ issues: issue3.issues }, [...path8, ...issue3.path]);
+    for (const issue4 of error52.issues) {
+      if (issue4.code === "invalid_union" && issue4.errors.length) {
+        issue4.errors.map((issues) => processError({ issues }, [...path8, ...issue4.path]));
+      } else if (issue4.code === "invalid_key") {
+        processError({ issues: issue4.issues }, [...path8, ...issue4.path]);
+      } else if (issue4.code === "invalid_element") {
+        processError({ issues: issue4.issues }, [...path8, ...issue4.path]);
       } else {
-        const fullpath = [...path8, ...issue3.path];
+        const fullpath = [...path8, ...issue4.path];
         if (fullpath.length === 0) {
-          fieldErrors._errors.push(mapper(issue3));
+          fieldErrors._errors.push(mapper(issue4));
         } else {
           let curr = fieldErrors;
           let i = 0;
@@ -39034,7 +39034,7 @@ function formatError(error51, mapper = (issue3) => issue3.message) {
               curr[el] = curr[el] || { _errors: [] };
             } else {
               curr[el] = curr[el] || { _errors: [] };
-              curr[el]._errors.push(mapper(issue3));
+              curr[el]._errors.push(mapper(issue4));
             }
             curr = curr[el];
             i++;
@@ -39046,21 +39046,21 @@ function formatError(error51, mapper = (issue3) => issue3.message) {
   processError(error51);
   return fieldErrors;
 }
-function treeifyError(error51, mapper = (issue3) => issue3.message) {
+function treeifyError(error51, mapper = (issue4) => issue4.message) {
   const result = { errors: [] };
   const processError = (error52, path8 = []) => {
     var _a3, _b;
-    for (const issue3 of error52.issues) {
-      if (issue3.code === "invalid_union" && issue3.errors.length) {
-        issue3.errors.map((issues) => processError({ issues }, [...path8, ...issue3.path]));
-      } else if (issue3.code === "invalid_key") {
-        processError({ issues: issue3.issues }, [...path8, ...issue3.path]);
-      } else if (issue3.code === "invalid_element") {
-        processError({ issues: issue3.issues }, [...path8, ...issue3.path]);
+    for (const issue4 of error52.issues) {
+      if (issue4.code === "invalid_union" && issue4.errors.length) {
+        issue4.errors.map((issues) => processError({ issues }, [...path8, ...issue4.path]));
+      } else if (issue4.code === "invalid_key") {
+        processError({ issues: issue4.issues }, [...path8, ...issue4.path]);
+      } else if (issue4.code === "invalid_element") {
+        processError({ issues: issue4.issues }, [...path8, ...issue4.path]);
       } else {
-        const fullpath = [...path8, ...issue3.path];
+        const fullpath = [...path8, ...issue4.path];
         if (fullpath.length === 0) {
-          result.errors.push(mapper(issue3));
+          result.errors.push(mapper(issue4));
           continue;
         }
         let curr = result;
@@ -39078,7 +39078,7 @@ function treeifyError(error51, mapper = (issue3) => issue3.message) {
             curr = curr.items[el];
           }
           if (terminal) {
-            curr.errors.push(mapper(issue3));
+            curr.errors.push(mapper(issue4));
           }
           i++;
         }
@@ -39109,10 +39109,10 @@ function toDotPath(_path) {
 function prettifyError(error51) {
   const lines = [];
   const issues = [...error51.issues].sort((a, b) => (a.path ?? []).length - (b.path ?? []).length);
-  for (const issue3 of issues) {
-    lines.push(`\u2716 ${issue3.message}`);
-    if (issue3.path?.length)
-      lines.push(`  \u2192 at ${toDotPath(issue3.path)}`);
+  for (const issue4 of issues) {
+    lines.push(`\u2716 ${issue4.message}`);
+    if (issue4.path?.length)
+      lines.push(`  \u2192 at ${toDotPath(issue4.path)}`);
   }
   return lines.join("\n");
 }
@@ -39985,8 +39985,8 @@ var init_doc = __esm({
         const lines = content.split("\n").filter((x) => x);
         const minIndent = Math.min(...lines.map((x) => x.length - x.trimStart().length));
         const dedented = lines.map((x) => x.slice(minIndent)).map((x) => " ".repeat(this.indent * 2) + x);
-        for (const line of dedented) {
-          this.content.push(line);
+        for (const line2 of dedented) {
+          this.content.push(line2);
         }
       }
       compile() {
@@ -42171,58 +42171,58 @@ var init_ar = __esm({
       const TypeDictionary = {
         nan: "NaN"
       };
-      return (issue3) => {
-        switch (issue3.code) {
+      return (issue4) => {
+        switch (issue4.code) {
           case "invalid_type": {
-            const expected = TypeDictionary[issue3.expected] ?? issue3.expected;
-            const receivedType = parsedType(issue3.input);
+            const expected = TypeDictionary[issue4.expected] ?? issue4.expected;
+            const receivedType = parsedType(issue4.input);
             const received = TypeDictionary[receivedType] ?? receivedType;
-            if (/^[A-Z]/.test(issue3.expected)) {
-              return `\u0645\u062F\u062E\u0644\u0627\u062A \u063A\u064A\u0631 \u0645\u0642\u0628\u0648\u0644\u0629: \u064A\u0641\u062A\u0631\u0636 \u0625\u062F\u062E\u0627\u0644 instanceof ${issue3.expected}\u060C \u0648\u0644\u0643\u0646 \u062A\u0645 \u0625\u062F\u062E\u0627\u0644 ${received}`;
+            if (/^[A-Z]/.test(issue4.expected)) {
+              return `\u0645\u062F\u062E\u0644\u0627\u062A \u063A\u064A\u0631 \u0645\u0642\u0628\u0648\u0644\u0629: \u064A\u0641\u062A\u0631\u0636 \u0625\u062F\u062E\u0627\u0644 instanceof ${issue4.expected}\u060C \u0648\u0644\u0643\u0646 \u062A\u0645 \u0625\u062F\u062E\u0627\u0644 ${received}`;
             }
             return `\u0645\u062F\u062E\u0644\u0627\u062A \u063A\u064A\u0631 \u0645\u0642\u0628\u0648\u0644\u0629: \u064A\u0641\u062A\u0631\u0636 \u0625\u062F\u062E\u0627\u0644 ${expected}\u060C \u0648\u0644\u0643\u0646 \u062A\u0645 \u0625\u062F\u062E\u0627\u0644 ${received}`;
           }
           case "invalid_value":
-            if (issue3.values.length === 1)
-              return `\u0645\u062F\u062E\u0644\u0627\u062A \u063A\u064A\u0631 \u0645\u0642\u0628\u0648\u0644\u0629: \u064A\u0641\u062A\u0631\u0636 \u0625\u062F\u062E\u0627\u0644 ${stringifyPrimitive(issue3.values[0])}`;
-            return `\u0627\u062E\u062A\u064A\u0627\u0631 \u063A\u064A\u0631 \u0645\u0642\u0628\u0648\u0644: \u064A\u062A\u0648\u0642\u0639 \u0627\u0646\u062A\u0642\u0627\u0621 \u0623\u062D\u062F \u0647\u0630\u0647 \u0627\u0644\u062E\u064A\u0627\u0631\u0627\u062A: ${joinValues(issue3.values, "|")}`;
+            if (issue4.values.length === 1)
+              return `\u0645\u062F\u062E\u0644\u0627\u062A \u063A\u064A\u0631 \u0645\u0642\u0628\u0648\u0644\u0629: \u064A\u0641\u062A\u0631\u0636 \u0625\u062F\u062E\u0627\u0644 ${stringifyPrimitive(issue4.values[0])}`;
+            return `\u0627\u062E\u062A\u064A\u0627\u0631 \u063A\u064A\u0631 \u0645\u0642\u0628\u0648\u0644: \u064A\u062A\u0648\u0642\u0639 \u0627\u0646\u062A\u0642\u0627\u0621 \u0623\u062D\u062F \u0647\u0630\u0647 \u0627\u0644\u062E\u064A\u0627\u0631\u0627\u062A: ${joinValues(issue4.values, "|")}`;
           case "too_big": {
-            const adj = issue3.inclusive ? "<=" : "<";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? "<=" : "<";
+            const sizing = getSizing(issue4.origin);
             if (sizing)
-              return ` \u0623\u0643\u0628\u0631 \u0645\u0646 \u0627\u0644\u0644\u0627\u0632\u0645: \u064A\u0641\u062A\u0631\u0636 \u0623\u0646 \u062A\u0643\u0648\u0646 ${issue3.origin ?? "\u0627\u0644\u0642\u064A\u0645\u0629"} ${adj} ${issue3.maximum.toString()} ${sizing.unit ?? "\u0639\u0646\u0635\u0631"}`;
-            return `\u0623\u0643\u0628\u0631 \u0645\u0646 \u0627\u0644\u0644\u0627\u0632\u0645: \u064A\u0641\u062A\u0631\u0636 \u0623\u0646 \u062A\u0643\u0648\u0646 ${issue3.origin ?? "\u0627\u0644\u0642\u064A\u0645\u0629"} ${adj} ${issue3.maximum.toString()}`;
+              return ` \u0623\u0643\u0628\u0631 \u0645\u0646 \u0627\u0644\u0644\u0627\u0632\u0645: \u064A\u0641\u062A\u0631\u0636 \u0623\u0646 \u062A\u0643\u0648\u0646 ${issue4.origin ?? "\u0627\u0644\u0642\u064A\u0645\u0629"} ${adj} ${issue4.maximum.toString()} ${sizing.unit ?? "\u0639\u0646\u0635\u0631"}`;
+            return `\u0623\u0643\u0628\u0631 \u0645\u0646 \u0627\u0644\u0644\u0627\u0632\u0645: \u064A\u0641\u062A\u0631\u0636 \u0623\u0646 \u062A\u0643\u0648\u0646 ${issue4.origin ?? "\u0627\u0644\u0642\u064A\u0645\u0629"} ${adj} ${issue4.maximum.toString()}`;
           }
           case "too_small": {
-            const adj = issue3.inclusive ? ">=" : ">";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? ">=" : ">";
+            const sizing = getSizing(issue4.origin);
             if (sizing) {
-              return `\u0623\u0635\u063A\u0631 \u0645\u0646 \u0627\u0644\u0644\u0627\u0632\u0645: \u064A\u0641\u062A\u0631\u0636 \u0644\u0640 ${issue3.origin} \u0623\u0646 \u064A\u0643\u0648\u0646 ${adj} ${issue3.minimum.toString()} ${sizing.unit}`;
+              return `\u0623\u0635\u063A\u0631 \u0645\u0646 \u0627\u0644\u0644\u0627\u0632\u0645: \u064A\u0641\u062A\u0631\u0636 \u0644\u0640 ${issue4.origin} \u0623\u0646 \u064A\u0643\u0648\u0646 ${adj} ${issue4.minimum.toString()} ${sizing.unit}`;
             }
-            return `\u0623\u0635\u063A\u0631 \u0645\u0646 \u0627\u0644\u0644\u0627\u0632\u0645: \u064A\u0641\u062A\u0631\u0636 \u0644\u0640 ${issue3.origin} \u0623\u0646 \u064A\u0643\u0648\u0646 ${adj} ${issue3.minimum.toString()}`;
+            return `\u0623\u0635\u063A\u0631 \u0645\u0646 \u0627\u0644\u0644\u0627\u0632\u0645: \u064A\u0641\u062A\u0631\u0636 \u0644\u0640 ${issue4.origin} \u0623\u0646 \u064A\u0643\u0648\u0646 ${adj} ${issue4.minimum.toString()}`;
           }
           case "invalid_format": {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.format === "starts_with")
-              return `\u0646\u064E\u0635 \u063A\u064A\u0631 \u0645\u0642\u0628\u0648\u0644: \u064A\u062C\u0628 \u0623\u0646 \u064A\u0628\u062F\u0623 \u0628\u0640 "${issue3.prefix}"`;
+              return `\u0646\u064E\u0635 \u063A\u064A\u0631 \u0645\u0642\u0628\u0648\u0644: \u064A\u062C\u0628 \u0623\u0646 \u064A\u0628\u062F\u0623 \u0628\u0640 "${issue4.prefix}"`;
             if (_issue.format === "ends_with")
               return `\u0646\u064E\u0635 \u063A\u064A\u0631 \u0645\u0642\u0628\u0648\u0644: \u064A\u062C\u0628 \u0623\u0646 \u064A\u0646\u062A\u0647\u064A \u0628\u0640 "${_issue.suffix}"`;
             if (_issue.format === "includes")
               return `\u0646\u064E\u0635 \u063A\u064A\u0631 \u0645\u0642\u0628\u0648\u0644: \u064A\u062C\u0628 \u0623\u0646 \u064A\u062A\u0636\u0645\u0651\u064E\u0646 "${_issue.includes}"`;
             if (_issue.format === "regex")
               return `\u0646\u064E\u0635 \u063A\u064A\u0631 \u0645\u0642\u0628\u0648\u0644: \u064A\u062C\u0628 \u0623\u0646 \u064A\u0637\u0627\u0628\u0642 \u0627\u0644\u0646\u0645\u0637 ${_issue.pattern}`;
-            return `${FormatDictionary[_issue.format] ?? issue3.format} \u063A\u064A\u0631 \u0645\u0642\u0628\u0648\u0644`;
+            return `${FormatDictionary[_issue.format] ?? issue4.format} \u063A\u064A\u0631 \u0645\u0642\u0628\u0648\u0644`;
           }
           case "not_multiple_of":
-            return `\u0631\u0642\u0645 \u063A\u064A\u0631 \u0645\u0642\u0628\u0648\u0644: \u064A\u062C\u0628 \u0623\u0646 \u064A\u0643\u0648\u0646 \u0645\u0646 \u0645\u0636\u0627\u0639\u0641\u0627\u062A ${issue3.divisor}`;
+            return `\u0631\u0642\u0645 \u063A\u064A\u0631 \u0645\u0642\u0628\u0648\u0644: \u064A\u062C\u0628 \u0623\u0646 \u064A\u0643\u0648\u0646 \u0645\u0646 \u0645\u0636\u0627\u0639\u0641\u0627\u062A ${issue4.divisor}`;
           case "unrecognized_keys":
-            return `\u0645\u0639\u0631\u0641${issue3.keys.length > 1 ? "\u0627\u062A" : ""} \u063A\u0631\u064A\u0628${issue3.keys.length > 1 ? "\u0629" : ""}: ${joinValues(issue3.keys, "\u060C ")}`;
+            return `\u0645\u0639\u0631\u0641${issue4.keys.length > 1 ? "\u0627\u062A" : ""} \u063A\u0631\u064A\u0628${issue4.keys.length > 1 ? "\u0629" : ""}: ${joinValues(issue4.keys, "\u060C ")}`;
           case "invalid_key":
-            return `\u0645\u0639\u0631\u0641 \u063A\u064A\u0631 \u0645\u0642\u0628\u0648\u0644 \u0641\u064A ${issue3.origin}`;
+            return `\u0645\u0639\u0631\u0641 \u063A\u064A\u0631 \u0645\u0642\u0628\u0648\u0644 \u0641\u064A ${issue4.origin}`;
           case "invalid_union":
             return "\u0645\u062F\u062E\u0644 \u063A\u064A\u0631 \u0645\u0642\u0628\u0648\u0644";
           case "invalid_element":
-            return `\u0645\u062F\u062E\u0644 \u063A\u064A\u0631 \u0645\u0642\u0628\u0648\u0644 \u0641\u064A ${issue3.origin}`;
+            return `\u0645\u062F\u062E\u0644 \u063A\u064A\u0631 \u0645\u0642\u0628\u0648\u0644 \u0641\u064A ${issue4.origin}`;
           default:
             return "\u0645\u062F\u062E\u0644 \u063A\u064A\u0631 \u0645\u0642\u0628\u0648\u0644";
         }
@@ -42284,37 +42284,37 @@ var init_az = __esm({
       const TypeDictionary = {
         nan: "NaN"
       };
-      return (issue3) => {
-        switch (issue3.code) {
+      return (issue4) => {
+        switch (issue4.code) {
           case "invalid_type": {
-            const expected = TypeDictionary[issue3.expected] ?? issue3.expected;
-            const receivedType = parsedType(issue3.input);
+            const expected = TypeDictionary[issue4.expected] ?? issue4.expected;
+            const receivedType = parsedType(issue4.input);
             const received = TypeDictionary[receivedType] ?? receivedType;
-            if (/^[A-Z]/.test(issue3.expected)) {
-              return `Yanl\u0131\u015F d\u0259y\u0259r: g\xF6zl\u0259nil\u0259n instanceof ${issue3.expected}, daxil olan ${received}`;
+            if (/^[A-Z]/.test(issue4.expected)) {
+              return `Yanl\u0131\u015F d\u0259y\u0259r: g\xF6zl\u0259nil\u0259n instanceof ${issue4.expected}, daxil olan ${received}`;
             }
             return `Yanl\u0131\u015F d\u0259y\u0259r: g\xF6zl\u0259nil\u0259n ${expected}, daxil olan ${received}`;
           }
           case "invalid_value":
-            if (issue3.values.length === 1)
-              return `Yanl\u0131\u015F d\u0259y\u0259r: g\xF6zl\u0259nil\u0259n ${stringifyPrimitive(issue3.values[0])}`;
-            return `Yanl\u0131\u015F se\xE7im: a\u015Fa\u011F\u0131dak\u0131lardan biri olmal\u0131d\u0131r: ${joinValues(issue3.values, "|")}`;
+            if (issue4.values.length === 1)
+              return `Yanl\u0131\u015F d\u0259y\u0259r: g\xF6zl\u0259nil\u0259n ${stringifyPrimitive(issue4.values[0])}`;
+            return `Yanl\u0131\u015F se\xE7im: a\u015Fa\u011F\u0131dak\u0131lardan biri olmal\u0131d\u0131r: ${joinValues(issue4.values, "|")}`;
           case "too_big": {
-            const adj = issue3.inclusive ? "<=" : "<";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? "<=" : "<";
+            const sizing = getSizing(issue4.origin);
             if (sizing)
-              return `\xC7ox b\xF6y\xFCk: g\xF6zl\u0259nil\u0259n ${issue3.origin ?? "d\u0259y\u0259r"} ${adj}${issue3.maximum.toString()} ${sizing.unit ?? "element"}`;
-            return `\xC7ox b\xF6y\xFCk: g\xF6zl\u0259nil\u0259n ${issue3.origin ?? "d\u0259y\u0259r"} ${adj}${issue3.maximum.toString()}`;
+              return `\xC7ox b\xF6y\xFCk: g\xF6zl\u0259nil\u0259n ${issue4.origin ?? "d\u0259y\u0259r"} ${adj}${issue4.maximum.toString()} ${sizing.unit ?? "element"}`;
+            return `\xC7ox b\xF6y\xFCk: g\xF6zl\u0259nil\u0259n ${issue4.origin ?? "d\u0259y\u0259r"} ${adj}${issue4.maximum.toString()}`;
           }
           case "too_small": {
-            const adj = issue3.inclusive ? ">=" : ">";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? ">=" : ">";
+            const sizing = getSizing(issue4.origin);
             if (sizing)
-              return `\xC7ox ki\xE7ik: g\xF6zl\u0259nil\u0259n ${issue3.origin} ${adj}${issue3.minimum.toString()} ${sizing.unit}`;
-            return `\xC7ox ki\xE7ik: g\xF6zl\u0259nil\u0259n ${issue3.origin} ${adj}${issue3.minimum.toString()}`;
+              return `\xC7ox ki\xE7ik: g\xF6zl\u0259nil\u0259n ${issue4.origin} ${adj}${issue4.minimum.toString()} ${sizing.unit}`;
+            return `\xC7ox ki\xE7ik: g\xF6zl\u0259nil\u0259n ${issue4.origin} ${adj}${issue4.minimum.toString()}`;
           }
           case "invalid_format": {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.format === "starts_with")
               return `Yanl\u0131\u015F m\u0259tn: "${_issue.prefix}" il\u0259 ba\u015Flamal\u0131d\u0131r`;
             if (_issue.format === "ends_with")
@@ -42323,18 +42323,18 @@ var init_az = __esm({
               return `Yanl\u0131\u015F m\u0259tn: "${_issue.includes}" daxil olmal\u0131d\u0131r`;
             if (_issue.format === "regex")
               return `Yanl\u0131\u015F m\u0259tn: ${_issue.pattern} \u015Fablonuna uy\u011Fun olmal\u0131d\u0131r`;
-            return `Yanl\u0131\u015F ${FormatDictionary[_issue.format] ?? issue3.format}`;
+            return `Yanl\u0131\u015F ${FormatDictionary[_issue.format] ?? issue4.format}`;
           }
           case "not_multiple_of":
-            return `Yanl\u0131\u015F \u0259d\u0259d: ${issue3.divisor} il\u0259 b\xF6l\xFCn\u0259 bil\u0259n olmal\u0131d\u0131r`;
+            return `Yanl\u0131\u015F \u0259d\u0259d: ${issue4.divisor} il\u0259 b\xF6l\xFCn\u0259 bil\u0259n olmal\u0131d\u0131r`;
           case "unrecognized_keys":
-            return `Tan\u0131nmayan a\xE7ar${issue3.keys.length > 1 ? "lar" : ""}: ${joinValues(issue3.keys, ", ")}`;
+            return `Tan\u0131nmayan a\xE7ar${issue4.keys.length > 1 ? "lar" : ""}: ${joinValues(issue4.keys, ", ")}`;
           case "invalid_key":
-            return `${issue3.origin} daxilind\u0259 yanl\u0131\u015F a\xE7ar`;
+            return `${issue4.origin} daxilind\u0259 yanl\u0131\u015F a\xE7ar`;
           case "invalid_union":
             return "Yanl\u0131\u015F d\u0259y\u0259r";
           case "invalid_element":
-            return `${issue3.origin} daxilind\u0259 yanl\u0131\u015F d\u0259y\u0259r`;
+            return `${issue4.origin} daxilind\u0259 yanl\u0131\u015F d\u0259y\u0259r`;
           default:
             return `Yanl\u0131\u015F d\u0259y\u0259r`;
         }
@@ -42441,43 +42441,43 @@ var init_be = __esm({
         number: "\u043B\u0456\u043A",
         array: "\u043C\u0430\u0441\u0456\u045E"
       };
-      return (issue3) => {
-        switch (issue3.code) {
+      return (issue4) => {
+        switch (issue4.code) {
           case "invalid_type": {
-            const expected = TypeDictionary[issue3.expected] ?? issue3.expected;
-            const receivedType = parsedType(issue3.input);
+            const expected = TypeDictionary[issue4.expected] ?? issue4.expected;
+            const receivedType = parsedType(issue4.input);
             const received = TypeDictionary[receivedType] ?? receivedType;
-            if (/^[A-Z]/.test(issue3.expected)) {
-              return `\u041D\u044F\u043F\u0440\u0430\u0432\u0456\u043B\u044C\u043D\u044B \u045E\u0432\u043E\u0434: \u0447\u0430\u043A\u0430\u045E\u0441\u044F instanceof ${issue3.expected}, \u0430\u0442\u0440\u044B\u043C\u0430\u043D\u0430 ${received}`;
+            if (/^[A-Z]/.test(issue4.expected)) {
+              return `\u041D\u044F\u043F\u0440\u0430\u0432\u0456\u043B\u044C\u043D\u044B \u045E\u0432\u043E\u0434: \u0447\u0430\u043A\u0430\u045E\u0441\u044F instanceof ${issue4.expected}, \u0430\u0442\u0440\u044B\u043C\u0430\u043D\u0430 ${received}`;
             }
             return `\u041D\u044F\u043F\u0440\u0430\u0432\u0456\u043B\u044C\u043D\u044B \u045E\u0432\u043E\u0434: \u0447\u0430\u043A\u0430\u045E\u0441\u044F ${expected}, \u0430\u0442\u0440\u044B\u043C\u0430\u043D\u0430 ${received}`;
           }
           case "invalid_value":
-            if (issue3.values.length === 1)
-              return `\u041D\u044F\u043F\u0440\u0430\u0432\u0456\u043B\u044C\u043D\u044B \u045E\u0432\u043E\u0434: \u0447\u0430\u043A\u0430\u043B\u0430\u0441\u044F ${stringifyPrimitive(issue3.values[0])}`;
-            return `\u041D\u044F\u043F\u0440\u0430\u0432\u0456\u043B\u044C\u043D\u044B \u0432\u0430\u0440\u044B\u044F\u043D\u0442: \u0447\u0430\u043A\u0430\u045E\u0441\u044F \u0430\u0434\u0437\u0456\u043D \u0437 ${joinValues(issue3.values, "|")}`;
+            if (issue4.values.length === 1)
+              return `\u041D\u044F\u043F\u0440\u0430\u0432\u0456\u043B\u044C\u043D\u044B \u045E\u0432\u043E\u0434: \u0447\u0430\u043A\u0430\u043B\u0430\u0441\u044F ${stringifyPrimitive(issue4.values[0])}`;
+            return `\u041D\u044F\u043F\u0440\u0430\u0432\u0456\u043B\u044C\u043D\u044B \u0432\u0430\u0440\u044B\u044F\u043D\u0442: \u0447\u0430\u043A\u0430\u045E\u0441\u044F \u0430\u0434\u0437\u0456\u043D \u0437 ${joinValues(issue4.values, "|")}`;
           case "too_big": {
-            const adj = issue3.inclusive ? "<=" : "<";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? "<=" : "<";
+            const sizing = getSizing(issue4.origin);
             if (sizing) {
-              const maxValue = Number(issue3.maximum);
+              const maxValue = Number(issue4.maximum);
               const unit = getBelarusianPlural(maxValue, sizing.unit.one, sizing.unit.few, sizing.unit.many);
-              return `\u0417\u0430\u043D\u0430\u0434\u0442\u0430 \u0432\u044F\u043B\u0456\u043A\u0456: \u0447\u0430\u043A\u0430\u043B\u0430\u0441\u044F, \u0448\u0442\u043E ${issue3.origin ?? "\u0437\u043D\u0430\u0447\u044D\u043D\u043D\u0435"} \u043F\u0430\u0432\u0456\u043D\u043D\u0430 ${sizing.verb} ${adj}${issue3.maximum.toString()} ${unit}`;
+              return `\u0417\u0430\u043D\u0430\u0434\u0442\u0430 \u0432\u044F\u043B\u0456\u043A\u0456: \u0447\u0430\u043A\u0430\u043B\u0430\u0441\u044F, \u0448\u0442\u043E ${issue4.origin ?? "\u0437\u043D\u0430\u0447\u044D\u043D\u043D\u0435"} \u043F\u0430\u0432\u0456\u043D\u043D\u0430 ${sizing.verb} ${adj}${issue4.maximum.toString()} ${unit}`;
             }
-            return `\u0417\u0430\u043D\u0430\u0434\u0442\u0430 \u0432\u044F\u043B\u0456\u043A\u0456: \u0447\u0430\u043A\u0430\u043B\u0430\u0441\u044F, \u0448\u0442\u043E ${issue3.origin ?? "\u0437\u043D\u0430\u0447\u044D\u043D\u043D\u0435"} \u043F\u0430\u0432\u0456\u043D\u043D\u0430 \u0431\u044B\u0446\u044C ${adj}${issue3.maximum.toString()}`;
+            return `\u0417\u0430\u043D\u0430\u0434\u0442\u0430 \u0432\u044F\u043B\u0456\u043A\u0456: \u0447\u0430\u043A\u0430\u043B\u0430\u0441\u044F, \u0448\u0442\u043E ${issue4.origin ?? "\u0437\u043D\u0430\u0447\u044D\u043D\u043D\u0435"} \u043F\u0430\u0432\u0456\u043D\u043D\u0430 \u0431\u044B\u0446\u044C ${adj}${issue4.maximum.toString()}`;
           }
           case "too_small": {
-            const adj = issue3.inclusive ? ">=" : ">";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? ">=" : ">";
+            const sizing = getSizing(issue4.origin);
             if (sizing) {
-              const minValue = Number(issue3.minimum);
+              const minValue = Number(issue4.minimum);
               const unit = getBelarusianPlural(minValue, sizing.unit.one, sizing.unit.few, sizing.unit.many);
-              return `\u0417\u0430\u043D\u0430\u0434\u0442\u0430 \u043C\u0430\u043B\u044B: \u0447\u0430\u043A\u0430\u043B\u0430\u0441\u044F, \u0448\u0442\u043E ${issue3.origin} \u043F\u0430\u0432\u0456\u043D\u043D\u0430 ${sizing.verb} ${adj}${issue3.minimum.toString()} ${unit}`;
+              return `\u0417\u0430\u043D\u0430\u0434\u0442\u0430 \u043C\u0430\u043B\u044B: \u0447\u0430\u043A\u0430\u043B\u0430\u0441\u044F, \u0448\u0442\u043E ${issue4.origin} \u043F\u0430\u0432\u0456\u043D\u043D\u0430 ${sizing.verb} ${adj}${issue4.minimum.toString()} ${unit}`;
             }
-            return `\u0417\u0430\u043D\u0430\u0434\u0442\u0430 \u043C\u0430\u043B\u044B: \u0447\u0430\u043A\u0430\u043B\u0430\u0441\u044F, \u0448\u0442\u043E ${issue3.origin} \u043F\u0430\u0432\u0456\u043D\u043D\u0430 \u0431\u044B\u0446\u044C ${adj}${issue3.minimum.toString()}`;
+            return `\u0417\u0430\u043D\u0430\u0434\u0442\u0430 \u043C\u0430\u043B\u044B: \u0447\u0430\u043A\u0430\u043B\u0430\u0441\u044F, \u0448\u0442\u043E ${issue4.origin} \u043F\u0430\u0432\u0456\u043D\u043D\u0430 \u0431\u044B\u0446\u044C ${adj}${issue4.minimum.toString()}`;
           }
           case "invalid_format": {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.format === "starts_with")
               return `\u041D\u044F\u043F\u0440\u0430\u0432\u0456\u043B\u044C\u043D\u044B \u0440\u0430\u0434\u043E\u043A: \u043F\u0430\u0432\u0456\u043D\u0435\u043D \u043F\u0430\u0447\u044B\u043D\u0430\u0446\u0446\u0430 \u0437 "${_issue.prefix}"`;
             if (_issue.format === "ends_with")
@@ -42486,18 +42486,18 @@ var init_be = __esm({
               return `\u041D\u044F\u043F\u0440\u0430\u0432\u0456\u043B\u044C\u043D\u044B \u0440\u0430\u0434\u043E\u043A: \u043F\u0430\u0432\u0456\u043D\u0435\u043D \u0437\u043C\u044F\u0448\u0447\u0430\u0446\u044C "${_issue.includes}"`;
             if (_issue.format === "regex")
               return `\u041D\u044F\u043F\u0440\u0430\u0432\u0456\u043B\u044C\u043D\u044B \u0440\u0430\u0434\u043E\u043A: \u043F\u0430\u0432\u0456\u043D\u0435\u043D \u0430\u0434\u043F\u0430\u0432\u044F\u0434\u0430\u0446\u044C \u0448\u0430\u0431\u043B\u043E\u043D\u0443 ${_issue.pattern}`;
-            return `\u041D\u044F\u043F\u0440\u0430\u0432\u0456\u043B\u044C\u043D\u044B ${FormatDictionary[_issue.format] ?? issue3.format}`;
+            return `\u041D\u044F\u043F\u0440\u0430\u0432\u0456\u043B\u044C\u043D\u044B ${FormatDictionary[_issue.format] ?? issue4.format}`;
           }
           case "not_multiple_of":
-            return `\u041D\u044F\u043F\u0440\u0430\u0432\u0456\u043B\u044C\u043D\u044B \u043B\u0456\u043A: \u043F\u0430\u0432\u0456\u043D\u0435\u043D \u0431\u044B\u0446\u044C \u043A\u0440\u0430\u0442\u043D\u044B\u043C ${issue3.divisor}`;
+            return `\u041D\u044F\u043F\u0440\u0430\u0432\u0456\u043B\u044C\u043D\u044B \u043B\u0456\u043A: \u043F\u0430\u0432\u0456\u043D\u0435\u043D \u0431\u044B\u0446\u044C \u043A\u0440\u0430\u0442\u043D\u044B\u043C ${issue4.divisor}`;
           case "unrecognized_keys":
-            return `\u041D\u0435\u0440\u0430\u0441\u043F\u0430\u0437\u043D\u0430\u043D\u044B ${issue3.keys.length > 1 ? "\u043A\u043B\u044E\u0447\u044B" : "\u043A\u043B\u044E\u0447"}: ${joinValues(issue3.keys, ", ")}`;
+            return `\u041D\u0435\u0440\u0430\u0441\u043F\u0430\u0437\u043D\u0430\u043D\u044B ${issue4.keys.length > 1 ? "\u043A\u043B\u044E\u0447\u044B" : "\u043A\u043B\u044E\u0447"}: ${joinValues(issue4.keys, ", ")}`;
           case "invalid_key":
-            return `\u041D\u044F\u043F\u0440\u0430\u0432\u0456\u043B\u044C\u043D\u044B \u043A\u043B\u044E\u0447 \u0443 ${issue3.origin}`;
+            return `\u041D\u044F\u043F\u0440\u0430\u0432\u0456\u043B\u044C\u043D\u044B \u043A\u043B\u044E\u0447 \u0443 ${issue4.origin}`;
           case "invalid_union":
             return "\u041D\u044F\u043F\u0440\u0430\u0432\u0456\u043B\u044C\u043D\u044B \u045E\u0432\u043E\u0434";
           case "invalid_element":
-            return `\u041D\u044F\u043F\u0440\u0430\u0432\u0456\u043B\u044C\u043D\u0430\u0435 \u0437\u043D\u0430\u0447\u044D\u043D\u043D\u0435 \u045E ${issue3.origin}`;
+            return `\u041D\u044F\u043F\u0440\u0430\u0432\u0456\u043B\u044C\u043D\u0430\u0435 \u0437\u043D\u0430\u0447\u044D\u043D\u043D\u0435 \u045E ${issue4.origin}`;
           default:
             return `\u041D\u044F\u043F\u0440\u0430\u0432\u0456\u043B\u044C\u043D\u044B \u045E\u0432\u043E\u0434`;
         }
@@ -42561,38 +42561,38 @@ var init_bg = __esm({
         number: "\u0447\u0438\u0441\u043B\u043E",
         array: "\u043C\u0430\u0441\u0438\u0432"
       };
-      return (issue3) => {
-        switch (issue3.code) {
+      return (issue4) => {
+        switch (issue4.code) {
           case "invalid_type": {
-            const expected = TypeDictionary[issue3.expected] ?? issue3.expected;
-            const receivedType = parsedType(issue3.input);
+            const expected = TypeDictionary[issue4.expected] ?? issue4.expected;
+            const receivedType = parsedType(issue4.input);
             const received = TypeDictionary[receivedType] ?? receivedType;
-            if (/^[A-Z]/.test(issue3.expected)) {
-              return `\u041D\u0435\u0432\u0430\u043B\u0438\u0434\u0435\u043D \u0432\u0445\u043E\u0434: \u043E\u0447\u0430\u043A\u0432\u0430\u043D instanceof ${issue3.expected}, \u043F\u043E\u043B\u0443\u0447\u0435\u043D ${received}`;
+            if (/^[A-Z]/.test(issue4.expected)) {
+              return `\u041D\u0435\u0432\u0430\u043B\u0438\u0434\u0435\u043D \u0432\u0445\u043E\u0434: \u043E\u0447\u0430\u043A\u0432\u0430\u043D instanceof ${issue4.expected}, \u043F\u043E\u043B\u0443\u0447\u0435\u043D ${received}`;
             }
             return `\u041D\u0435\u0432\u0430\u043B\u0438\u0434\u0435\u043D \u0432\u0445\u043E\u0434: \u043E\u0447\u0430\u043A\u0432\u0430\u043D ${expected}, \u043F\u043E\u043B\u0443\u0447\u0435\u043D ${received}`;
           }
           case "invalid_value":
-            if (issue3.values.length === 1)
-              return `\u041D\u0435\u0432\u0430\u043B\u0438\u0434\u0435\u043D \u0432\u0445\u043E\u0434: \u043E\u0447\u0430\u043A\u0432\u0430\u043D ${stringifyPrimitive(issue3.values[0])}`;
-            return `\u041D\u0435\u0432\u0430\u043B\u0438\u0434\u043D\u0430 \u043E\u043F\u0446\u0438\u044F: \u043E\u0447\u0430\u043A\u0432\u0430\u043D\u043E \u0435\u0434\u043D\u043E \u043E\u0442 ${joinValues(issue3.values, "|")}`;
+            if (issue4.values.length === 1)
+              return `\u041D\u0435\u0432\u0430\u043B\u0438\u0434\u0435\u043D \u0432\u0445\u043E\u0434: \u043E\u0447\u0430\u043A\u0432\u0430\u043D ${stringifyPrimitive(issue4.values[0])}`;
+            return `\u041D\u0435\u0432\u0430\u043B\u0438\u0434\u043D\u0430 \u043E\u043F\u0446\u0438\u044F: \u043E\u0447\u0430\u043A\u0432\u0430\u043D\u043E \u0435\u0434\u043D\u043E \u043E\u0442 ${joinValues(issue4.values, "|")}`;
           case "too_big": {
-            const adj = issue3.inclusive ? "<=" : "<";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? "<=" : "<";
+            const sizing = getSizing(issue4.origin);
             if (sizing)
-              return `\u0422\u0432\u044A\u0440\u0434\u0435 \u0433\u043E\u043B\u044F\u043C\u043E: \u043E\u0447\u0430\u043A\u0432\u0430 \u0441\u0435 ${issue3.origin ?? "\u0441\u0442\u043E\u0439\u043D\u043E\u0441\u0442"} \u0434\u0430 \u0441\u044A\u0434\u044A\u0440\u0436\u0430 ${adj}${issue3.maximum.toString()} ${sizing.unit ?? "\u0435\u043B\u0435\u043C\u0435\u043D\u0442\u0430"}`;
-            return `\u0422\u0432\u044A\u0440\u0434\u0435 \u0433\u043E\u043B\u044F\u043C\u043E: \u043E\u0447\u0430\u043A\u0432\u0430 \u0441\u0435 ${issue3.origin ?? "\u0441\u0442\u043E\u0439\u043D\u043E\u0441\u0442"} \u0434\u0430 \u0431\u044A\u0434\u0435 ${adj}${issue3.maximum.toString()}`;
+              return `\u0422\u0432\u044A\u0440\u0434\u0435 \u0433\u043E\u043B\u044F\u043C\u043E: \u043E\u0447\u0430\u043A\u0432\u0430 \u0441\u0435 ${issue4.origin ?? "\u0441\u0442\u043E\u0439\u043D\u043E\u0441\u0442"} \u0434\u0430 \u0441\u044A\u0434\u044A\u0440\u0436\u0430 ${adj}${issue4.maximum.toString()} ${sizing.unit ?? "\u0435\u043B\u0435\u043C\u0435\u043D\u0442\u0430"}`;
+            return `\u0422\u0432\u044A\u0440\u0434\u0435 \u0433\u043E\u043B\u044F\u043C\u043E: \u043E\u0447\u0430\u043A\u0432\u0430 \u0441\u0435 ${issue4.origin ?? "\u0441\u0442\u043E\u0439\u043D\u043E\u0441\u0442"} \u0434\u0430 \u0431\u044A\u0434\u0435 ${adj}${issue4.maximum.toString()}`;
           }
           case "too_small": {
-            const adj = issue3.inclusive ? ">=" : ">";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? ">=" : ">";
+            const sizing = getSizing(issue4.origin);
             if (sizing) {
-              return `\u0422\u0432\u044A\u0440\u0434\u0435 \u043C\u0430\u043B\u043A\u043E: \u043E\u0447\u0430\u043A\u0432\u0430 \u0441\u0435 ${issue3.origin} \u0434\u0430 \u0441\u044A\u0434\u044A\u0440\u0436\u0430 ${adj}${issue3.minimum.toString()} ${sizing.unit}`;
+              return `\u0422\u0432\u044A\u0440\u0434\u0435 \u043C\u0430\u043B\u043A\u043E: \u043E\u0447\u0430\u043A\u0432\u0430 \u0441\u0435 ${issue4.origin} \u0434\u0430 \u0441\u044A\u0434\u044A\u0440\u0436\u0430 ${adj}${issue4.minimum.toString()} ${sizing.unit}`;
             }
-            return `\u0422\u0432\u044A\u0440\u0434\u0435 \u043C\u0430\u043B\u043A\u043E: \u043E\u0447\u0430\u043A\u0432\u0430 \u0441\u0435 ${issue3.origin} \u0434\u0430 \u0431\u044A\u0434\u0435 ${adj}${issue3.minimum.toString()}`;
+            return `\u0422\u0432\u044A\u0440\u0434\u0435 \u043C\u0430\u043B\u043A\u043E: \u043E\u0447\u0430\u043A\u0432\u0430 \u0441\u0435 ${issue4.origin} \u0434\u0430 \u0431\u044A\u0434\u0435 ${adj}${issue4.minimum.toString()}`;
           }
           case "invalid_format": {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.format === "starts_with") {
               return `\u041D\u0435\u0432\u0430\u043B\u0438\u0434\u0435\u043D \u043D\u0438\u0437: \u0442\u0440\u044F\u0431\u0432\u0430 \u0434\u0430 \u0437\u0430\u043F\u043E\u0447\u0432\u0430 \u0441 "${_issue.prefix}"`;
             }
@@ -42613,18 +42613,18 @@ var init_bg = __esm({
               invalid_adj = "\u041D\u0435\u0432\u0430\u043B\u0438\u0434\u043D\u043E";
             if (_issue.format === "duration")
               invalid_adj = "\u041D\u0435\u0432\u0430\u043B\u0438\u0434\u043D\u0430";
-            return `${invalid_adj} ${FormatDictionary[_issue.format] ?? issue3.format}`;
+            return `${invalid_adj} ${FormatDictionary[_issue.format] ?? issue4.format}`;
           }
           case "not_multiple_of":
-            return `\u041D\u0435\u0432\u0430\u043B\u0438\u0434\u043D\u043E \u0447\u0438\u0441\u043B\u043E: \u0442\u0440\u044F\u0431\u0432\u0430 \u0434\u0430 \u0431\u044A\u0434\u0435 \u043A\u0440\u0430\u0442\u043D\u043E \u043D\u0430 ${issue3.divisor}`;
+            return `\u041D\u0435\u0432\u0430\u043B\u0438\u0434\u043D\u043E \u0447\u0438\u0441\u043B\u043E: \u0442\u0440\u044F\u0431\u0432\u0430 \u0434\u0430 \u0431\u044A\u0434\u0435 \u043A\u0440\u0430\u0442\u043D\u043E \u043D\u0430 ${issue4.divisor}`;
           case "unrecognized_keys":
-            return `\u041D\u0435\u0440\u0430\u0437\u043F\u043E\u0437\u043D\u0430\u0442${issue3.keys.length > 1 ? "\u0438" : ""} \u043A\u043B\u044E\u0447${issue3.keys.length > 1 ? "\u043E\u0432\u0435" : ""}: ${joinValues(issue3.keys, ", ")}`;
+            return `\u041D\u0435\u0440\u0430\u0437\u043F\u043E\u0437\u043D\u0430\u0442${issue4.keys.length > 1 ? "\u0438" : ""} \u043A\u043B\u044E\u0447${issue4.keys.length > 1 ? "\u043E\u0432\u0435" : ""}: ${joinValues(issue4.keys, ", ")}`;
           case "invalid_key":
-            return `\u041D\u0435\u0432\u0430\u043B\u0438\u0434\u0435\u043D \u043A\u043B\u044E\u0447 \u0432 ${issue3.origin}`;
+            return `\u041D\u0435\u0432\u0430\u043B\u0438\u0434\u0435\u043D \u043A\u043B\u044E\u0447 \u0432 ${issue4.origin}`;
           case "invalid_union":
             return "\u041D\u0435\u0432\u0430\u043B\u0438\u0434\u0435\u043D \u0432\u0445\u043E\u0434";
           case "invalid_element":
-            return `\u041D\u0435\u0432\u0430\u043B\u0438\u0434\u043D\u0430 \u0441\u0442\u043E\u0439\u043D\u043E\u0441\u0442 \u0432 ${issue3.origin}`;
+            return `\u041D\u0435\u0432\u0430\u043B\u0438\u0434\u043D\u0430 \u0441\u0442\u043E\u0439\u043D\u043E\u0441\u0442 \u0432 ${issue4.origin}`;
           default:
             return `\u041D\u0435\u0432\u0430\u043B\u0438\u0434\u0435\u043D \u0432\u0445\u043E\u0434`;
         }
@@ -42686,38 +42686,38 @@ var init_ca = __esm({
       const TypeDictionary = {
         nan: "NaN"
       };
-      return (issue3) => {
-        switch (issue3.code) {
+      return (issue4) => {
+        switch (issue4.code) {
           case "invalid_type": {
-            const expected = TypeDictionary[issue3.expected] ?? issue3.expected;
-            const receivedType = parsedType(issue3.input);
+            const expected = TypeDictionary[issue4.expected] ?? issue4.expected;
+            const receivedType = parsedType(issue4.input);
             const received = TypeDictionary[receivedType] ?? receivedType;
-            if (/^[A-Z]/.test(issue3.expected)) {
-              return `Tipus inv\xE0lid: s'esperava instanceof ${issue3.expected}, s'ha rebut ${received}`;
+            if (/^[A-Z]/.test(issue4.expected)) {
+              return `Tipus inv\xE0lid: s'esperava instanceof ${issue4.expected}, s'ha rebut ${received}`;
             }
             return `Tipus inv\xE0lid: s'esperava ${expected}, s'ha rebut ${received}`;
           }
           case "invalid_value":
-            if (issue3.values.length === 1)
-              return `Valor inv\xE0lid: s'esperava ${stringifyPrimitive(issue3.values[0])}`;
-            return `Opci\xF3 inv\xE0lida: s'esperava una de ${joinValues(issue3.values, " o ")}`;
+            if (issue4.values.length === 1)
+              return `Valor inv\xE0lid: s'esperava ${stringifyPrimitive(issue4.values[0])}`;
+            return `Opci\xF3 inv\xE0lida: s'esperava una de ${joinValues(issue4.values, " o ")}`;
           case "too_big": {
-            const adj = issue3.inclusive ? "com a m\xE0xim" : "menys de";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? "com a m\xE0xim" : "menys de";
+            const sizing = getSizing(issue4.origin);
             if (sizing)
-              return `Massa gran: s'esperava que ${issue3.origin ?? "el valor"} contingu\xE9s ${adj} ${issue3.maximum.toString()} ${sizing.unit ?? "elements"}`;
-            return `Massa gran: s'esperava que ${issue3.origin ?? "el valor"} fos ${adj} ${issue3.maximum.toString()}`;
+              return `Massa gran: s'esperava que ${issue4.origin ?? "el valor"} contingu\xE9s ${adj} ${issue4.maximum.toString()} ${sizing.unit ?? "elements"}`;
+            return `Massa gran: s'esperava que ${issue4.origin ?? "el valor"} fos ${adj} ${issue4.maximum.toString()}`;
           }
           case "too_small": {
-            const adj = issue3.inclusive ? "com a m\xEDnim" : "m\xE9s de";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? "com a m\xEDnim" : "m\xE9s de";
+            const sizing = getSizing(issue4.origin);
             if (sizing) {
-              return `Massa petit: s'esperava que ${issue3.origin} contingu\xE9s ${adj} ${issue3.minimum.toString()} ${sizing.unit}`;
+              return `Massa petit: s'esperava que ${issue4.origin} contingu\xE9s ${adj} ${issue4.minimum.toString()} ${sizing.unit}`;
             }
-            return `Massa petit: s'esperava que ${issue3.origin} fos ${adj} ${issue3.minimum.toString()}`;
+            return `Massa petit: s'esperava que ${issue4.origin} fos ${adj} ${issue4.minimum.toString()}`;
           }
           case "invalid_format": {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.format === "starts_with") {
               return `Format inv\xE0lid: ha de comen\xE7ar amb "${_issue.prefix}"`;
             }
@@ -42727,19 +42727,19 @@ var init_ca = __esm({
               return `Format inv\xE0lid: ha d'incloure "${_issue.includes}"`;
             if (_issue.format === "regex")
               return `Format inv\xE0lid: ha de coincidir amb el patr\xF3 ${_issue.pattern}`;
-            return `Format inv\xE0lid per a ${FormatDictionary[_issue.format] ?? issue3.format}`;
+            return `Format inv\xE0lid per a ${FormatDictionary[_issue.format] ?? issue4.format}`;
           }
           case "not_multiple_of":
-            return `N\xFAmero inv\xE0lid: ha de ser m\xFAltiple de ${issue3.divisor}`;
+            return `N\xFAmero inv\xE0lid: ha de ser m\xFAltiple de ${issue4.divisor}`;
           case "unrecognized_keys":
-            return `Clau${issue3.keys.length > 1 ? "s" : ""} no reconeguda${issue3.keys.length > 1 ? "s" : ""}: ${joinValues(issue3.keys, ", ")}`;
+            return `Clau${issue4.keys.length > 1 ? "s" : ""} no reconeguda${issue4.keys.length > 1 ? "s" : ""}: ${joinValues(issue4.keys, ", ")}`;
           case "invalid_key":
-            return `Clau inv\xE0lida a ${issue3.origin}`;
+            return `Clau inv\xE0lida a ${issue4.origin}`;
           case "invalid_union":
             return "Entrada inv\xE0lida";
           // Could also be "Tipus d'unió invàlid" but "Entrada invàlida" is more general
           case "invalid_element":
-            return `Element inv\xE0lid a ${issue3.origin}`;
+            return `Element inv\xE0lid a ${issue4.origin}`;
           default:
             return `Entrada inv\xE0lida`;
         }
@@ -42805,39 +42805,39 @@ var init_cs = __esm({
         function: "funkce",
         array: "pole"
       };
-      return (issue3) => {
-        switch (issue3.code) {
+      return (issue4) => {
+        switch (issue4.code) {
           case "invalid_type": {
-            const expected = TypeDictionary[issue3.expected] ?? issue3.expected;
-            const receivedType = parsedType(issue3.input);
+            const expected = TypeDictionary[issue4.expected] ?? issue4.expected;
+            const receivedType = parsedType(issue4.input);
             const received = TypeDictionary[receivedType] ?? receivedType;
-            if (/^[A-Z]/.test(issue3.expected)) {
-              return `Neplatn\xFD vstup: o\u010Dek\xE1v\xE1no instanceof ${issue3.expected}, obdr\u017Eeno ${received}`;
+            if (/^[A-Z]/.test(issue4.expected)) {
+              return `Neplatn\xFD vstup: o\u010Dek\xE1v\xE1no instanceof ${issue4.expected}, obdr\u017Eeno ${received}`;
             }
             return `Neplatn\xFD vstup: o\u010Dek\xE1v\xE1no ${expected}, obdr\u017Eeno ${received}`;
           }
           case "invalid_value":
-            if (issue3.values.length === 1)
-              return `Neplatn\xFD vstup: o\u010Dek\xE1v\xE1no ${stringifyPrimitive(issue3.values[0])}`;
-            return `Neplatn\xE1 mo\u017Enost: o\u010Dek\xE1v\xE1na jedna z hodnot ${joinValues(issue3.values, "|")}`;
+            if (issue4.values.length === 1)
+              return `Neplatn\xFD vstup: o\u010Dek\xE1v\xE1no ${stringifyPrimitive(issue4.values[0])}`;
+            return `Neplatn\xE1 mo\u017Enost: o\u010Dek\xE1v\xE1na jedna z hodnot ${joinValues(issue4.values, "|")}`;
           case "too_big": {
-            const adj = issue3.inclusive ? "<=" : "<";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? "<=" : "<";
+            const sizing = getSizing(issue4.origin);
             if (sizing) {
-              return `Hodnota je p\u0159\xEDli\u0161 velk\xE1: ${issue3.origin ?? "hodnota"} mus\xED m\xEDt ${adj}${issue3.maximum.toString()} ${sizing.unit ?? "prvk\u016F"}`;
+              return `Hodnota je p\u0159\xEDli\u0161 velk\xE1: ${issue4.origin ?? "hodnota"} mus\xED m\xEDt ${adj}${issue4.maximum.toString()} ${sizing.unit ?? "prvk\u016F"}`;
             }
-            return `Hodnota je p\u0159\xEDli\u0161 velk\xE1: ${issue3.origin ?? "hodnota"} mus\xED b\xFDt ${adj}${issue3.maximum.toString()}`;
+            return `Hodnota je p\u0159\xEDli\u0161 velk\xE1: ${issue4.origin ?? "hodnota"} mus\xED b\xFDt ${adj}${issue4.maximum.toString()}`;
           }
           case "too_small": {
-            const adj = issue3.inclusive ? ">=" : ">";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? ">=" : ">";
+            const sizing = getSizing(issue4.origin);
             if (sizing) {
-              return `Hodnota je p\u0159\xEDli\u0161 mal\xE1: ${issue3.origin ?? "hodnota"} mus\xED m\xEDt ${adj}${issue3.minimum.toString()} ${sizing.unit ?? "prvk\u016F"}`;
+              return `Hodnota je p\u0159\xEDli\u0161 mal\xE1: ${issue4.origin ?? "hodnota"} mus\xED m\xEDt ${adj}${issue4.minimum.toString()} ${sizing.unit ?? "prvk\u016F"}`;
             }
-            return `Hodnota je p\u0159\xEDli\u0161 mal\xE1: ${issue3.origin ?? "hodnota"} mus\xED b\xFDt ${adj}${issue3.minimum.toString()}`;
+            return `Hodnota je p\u0159\xEDli\u0161 mal\xE1: ${issue4.origin ?? "hodnota"} mus\xED b\xFDt ${adj}${issue4.minimum.toString()}`;
           }
           case "invalid_format": {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.format === "starts_with")
               return `Neplatn\xFD \u0159et\u011Bzec: mus\xED za\u010D\xEDnat na "${_issue.prefix}"`;
             if (_issue.format === "ends_with")
@@ -42846,18 +42846,18 @@ var init_cs = __esm({
               return `Neplatn\xFD \u0159et\u011Bzec: mus\xED obsahovat "${_issue.includes}"`;
             if (_issue.format === "regex")
               return `Neplatn\xFD \u0159et\u011Bzec: mus\xED odpov\xEDdat vzoru ${_issue.pattern}`;
-            return `Neplatn\xFD form\xE1t ${FormatDictionary[_issue.format] ?? issue3.format}`;
+            return `Neplatn\xFD form\xE1t ${FormatDictionary[_issue.format] ?? issue4.format}`;
           }
           case "not_multiple_of":
-            return `Neplatn\xE9 \u010D\xEDslo: mus\xED b\xFDt n\xE1sobkem ${issue3.divisor}`;
+            return `Neplatn\xE9 \u010D\xEDslo: mus\xED b\xFDt n\xE1sobkem ${issue4.divisor}`;
           case "unrecognized_keys":
-            return `Nezn\xE1m\xE9 kl\xED\u010De: ${joinValues(issue3.keys, ", ")}`;
+            return `Nezn\xE1m\xE9 kl\xED\u010De: ${joinValues(issue4.keys, ", ")}`;
           case "invalid_key":
-            return `Neplatn\xFD kl\xED\u010D v ${issue3.origin}`;
+            return `Neplatn\xFD kl\xED\u010D v ${issue4.origin}`;
           case "invalid_union":
             return "Neplatn\xFD vstup";
           case "invalid_element":
-            return `Neplatn\xE1 hodnota v ${issue3.origin}`;
+            return `Neplatn\xE1 hodnota v ${issue4.origin}`;
           default:
             return `Neplatn\xFD vstup`;
         }
@@ -42926,40 +42926,40 @@ var init_da = __esm({
         set: "s\xE6t",
         file: "fil"
       };
-      return (issue3) => {
-        switch (issue3.code) {
+      return (issue4) => {
+        switch (issue4.code) {
           case "invalid_type": {
-            const expected = TypeDictionary[issue3.expected] ?? issue3.expected;
-            const receivedType = parsedType(issue3.input);
+            const expected = TypeDictionary[issue4.expected] ?? issue4.expected;
+            const receivedType = parsedType(issue4.input);
             const received = TypeDictionary[receivedType] ?? receivedType;
-            if (/^[A-Z]/.test(issue3.expected)) {
-              return `Ugyldigt input: forventede instanceof ${issue3.expected}, fik ${received}`;
+            if (/^[A-Z]/.test(issue4.expected)) {
+              return `Ugyldigt input: forventede instanceof ${issue4.expected}, fik ${received}`;
             }
             return `Ugyldigt input: forventede ${expected}, fik ${received}`;
           }
           case "invalid_value":
-            if (issue3.values.length === 1)
-              return `Ugyldig v\xE6rdi: forventede ${stringifyPrimitive(issue3.values[0])}`;
-            return `Ugyldigt valg: forventede en af f\xF8lgende ${joinValues(issue3.values, "|")}`;
+            if (issue4.values.length === 1)
+              return `Ugyldig v\xE6rdi: forventede ${stringifyPrimitive(issue4.values[0])}`;
+            return `Ugyldigt valg: forventede en af f\xF8lgende ${joinValues(issue4.values, "|")}`;
           case "too_big": {
-            const adj = issue3.inclusive ? "<=" : "<";
-            const sizing = getSizing(issue3.origin);
-            const origin = TypeDictionary[issue3.origin] ?? issue3.origin;
+            const adj = issue4.inclusive ? "<=" : "<";
+            const sizing = getSizing(issue4.origin);
+            const origin = TypeDictionary[issue4.origin] ?? issue4.origin;
             if (sizing)
-              return `For stor: forventede ${origin ?? "value"} ${sizing.verb} ${adj} ${issue3.maximum.toString()} ${sizing.unit ?? "elementer"}`;
-            return `For stor: forventede ${origin ?? "value"} havde ${adj} ${issue3.maximum.toString()}`;
+              return `For stor: forventede ${origin ?? "value"} ${sizing.verb} ${adj} ${issue4.maximum.toString()} ${sizing.unit ?? "elementer"}`;
+            return `For stor: forventede ${origin ?? "value"} havde ${adj} ${issue4.maximum.toString()}`;
           }
           case "too_small": {
-            const adj = issue3.inclusive ? ">=" : ">";
-            const sizing = getSizing(issue3.origin);
-            const origin = TypeDictionary[issue3.origin] ?? issue3.origin;
+            const adj = issue4.inclusive ? ">=" : ">";
+            const sizing = getSizing(issue4.origin);
+            const origin = TypeDictionary[issue4.origin] ?? issue4.origin;
             if (sizing) {
-              return `For lille: forventede ${origin} ${sizing.verb} ${adj} ${issue3.minimum.toString()} ${sizing.unit}`;
+              return `For lille: forventede ${origin} ${sizing.verb} ${adj} ${issue4.minimum.toString()} ${sizing.unit}`;
             }
-            return `For lille: forventede ${origin} havde ${adj} ${issue3.minimum.toString()}`;
+            return `For lille: forventede ${origin} havde ${adj} ${issue4.minimum.toString()}`;
           }
           case "invalid_format": {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.format === "starts_with")
               return `Ugyldig streng: skal starte med "${_issue.prefix}"`;
             if (_issue.format === "ends_with")
@@ -42968,18 +42968,18 @@ var init_da = __esm({
               return `Ugyldig streng: skal indeholde "${_issue.includes}"`;
             if (_issue.format === "regex")
               return `Ugyldig streng: skal matche m\xF8nsteret ${_issue.pattern}`;
-            return `Ugyldig ${FormatDictionary[_issue.format] ?? issue3.format}`;
+            return `Ugyldig ${FormatDictionary[_issue.format] ?? issue4.format}`;
           }
           case "not_multiple_of":
-            return `Ugyldigt tal: skal v\xE6re deleligt med ${issue3.divisor}`;
+            return `Ugyldigt tal: skal v\xE6re deleligt med ${issue4.divisor}`;
           case "unrecognized_keys":
-            return `${issue3.keys.length > 1 ? "Ukendte n\xF8gler" : "Ukendt n\xF8gle"}: ${joinValues(issue3.keys, ", ")}`;
+            return `${issue4.keys.length > 1 ? "Ukendte n\xF8gler" : "Ukendt n\xF8gle"}: ${joinValues(issue4.keys, ", ")}`;
           case "invalid_key":
-            return `Ugyldig n\xF8gle i ${issue3.origin}`;
+            return `Ugyldig n\xF8gle i ${issue4.origin}`;
           case "invalid_union":
             return "Ugyldigt input: matcher ingen af de tilladte typer";
           case "invalid_element":
-            return `Ugyldig v\xE6rdi i ${issue3.origin}`;
+            return `Ugyldig v\xE6rdi i ${issue4.origin}`;
           default:
             return `Ugyldigt input`;
         }
@@ -43043,38 +43043,38 @@ var init_de = __esm({
         number: "Zahl",
         array: "Array"
       };
-      return (issue3) => {
-        switch (issue3.code) {
+      return (issue4) => {
+        switch (issue4.code) {
           case "invalid_type": {
-            const expected = TypeDictionary[issue3.expected] ?? issue3.expected;
-            const receivedType = parsedType(issue3.input);
+            const expected = TypeDictionary[issue4.expected] ?? issue4.expected;
+            const receivedType = parsedType(issue4.input);
             const received = TypeDictionary[receivedType] ?? receivedType;
-            if (/^[A-Z]/.test(issue3.expected)) {
-              return `Ung\xFCltige Eingabe: erwartet instanceof ${issue3.expected}, erhalten ${received}`;
+            if (/^[A-Z]/.test(issue4.expected)) {
+              return `Ung\xFCltige Eingabe: erwartet instanceof ${issue4.expected}, erhalten ${received}`;
             }
             return `Ung\xFCltige Eingabe: erwartet ${expected}, erhalten ${received}`;
           }
           case "invalid_value":
-            if (issue3.values.length === 1)
-              return `Ung\xFCltige Eingabe: erwartet ${stringifyPrimitive(issue3.values[0])}`;
-            return `Ung\xFCltige Option: erwartet eine von ${joinValues(issue3.values, "|")}`;
+            if (issue4.values.length === 1)
+              return `Ung\xFCltige Eingabe: erwartet ${stringifyPrimitive(issue4.values[0])}`;
+            return `Ung\xFCltige Option: erwartet eine von ${joinValues(issue4.values, "|")}`;
           case "too_big": {
-            const adj = issue3.inclusive ? "<=" : "<";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? "<=" : "<";
+            const sizing = getSizing(issue4.origin);
             if (sizing)
-              return `Zu gro\xDF: erwartet, dass ${issue3.origin ?? "Wert"} ${adj}${issue3.maximum.toString()} ${sizing.unit ?? "Elemente"} hat`;
-            return `Zu gro\xDF: erwartet, dass ${issue3.origin ?? "Wert"} ${adj}${issue3.maximum.toString()} ist`;
+              return `Zu gro\xDF: erwartet, dass ${issue4.origin ?? "Wert"} ${adj}${issue4.maximum.toString()} ${sizing.unit ?? "Elemente"} hat`;
+            return `Zu gro\xDF: erwartet, dass ${issue4.origin ?? "Wert"} ${adj}${issue4.maximum.toString()} ist`;
           }
           case "too_small": {
-            const adj = issue3.inclusive ? ">=" : ">";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? ">=" : ">";
+            const sizing = getSizing(issue4.origin);
             if (sizing) {
-              return `Zu klein: erwartet, dass ${issue3.origin} ${adj}${issue3.minimum.toString()} ${sizing.unit} hat`;
+              return `Zu klein: erwartet, dass ${issue4.origin} ${adj}${issue4.minimum.toString()} ${sizing.unit} hat`;
             }
-            return `Zu klein: erwartet, dass ${issue3.origin} ${adj}${issue3.minimum.toString()} ist`;
+            return `Zu klein: erwartet, dass ${issue4.origin} ${adj}${issue4.minimum.toString()} ist`;
           }
           case "invalid_format": {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.format === "starts_with")
               return `Ung\xFCltiger String: muss mit "${_issue.prefix}" beginnen`;
             if (_issue.format === "ends_with")
@@ -43083,18 +43083,18 @@ var init_de = __esm({
               return `Ung\xFCltiger String: muss "${_issue.includes}" enthalten`;
             if (_issue.format === "regex")
               return `Ung\xFCltiger String: muss dem Muster ${_issue.pattern} entsprechen`;
-            return `Ung\xFCltig: ${FormatDictionary[_issue.format] ?? issue3.format}`;
+            return `Ung\xFCltig: ${FormatDictionary[_issue.format] ?? issue4.format}`;
           }
           case "not_multiple_of":
-            return `Ung\xFCltige Zahl: muss ein Vielfaches von ${issue3.divisor} sein`;
+            return `Ung\xFCltige Zahl: muss ein Vielfaches von ${issue4.divisor} sein`;
           case "unrecognized_keys":
-            return `${issue3.keys.length > 1 ? "Unbekannte Schl\xFCssel" : "Unbekannter Schl\xFCssel"}: ${joinValues(issue3.keys, ", ")}`;
+            return `${issue4.keys.length > 1 ? "Unbekannte Schl\xFCssel" : "Unbekannter Schl\xFCssel"}: ${joinValues(issue4.keys, ", ")}`;
           case "invalid_key":
-            return `Ung\xFCltiger Schl\xFCssel in ${issue3.origin}`;
+            return `Ung\xFCltiger Schl\xFCssel in ${issue4.origin}`;
           case "invalid_union":
             return "Ung\xFCltige Eingabe";
           case "invalid_element":
-            return `Ung\xFCltiger Wert in ${issue3.origin}`;
+            return `Ung\xFCltiger Wert in ${issue4.origin}`;
           default:
             return `Ung\xFCltige Eingabe`;
         }
@@ -43158,38 +43158,38 @@ var init_el = __esm({
       const TypeDictionary = {
         nan: "NaN"
       };
-      return (issue3) => {
-        switch (issue3.code) {
+      return (issue4) => {
+        switch (issue4.code) {
           case "invalid_type": {
-            const expected = TypeDictionary[issue3.expected] ?? issue3.expected;
-            const receivedType = parsedType(issue3.input);
+            const expected = TypeDictionary[issue4.expected] ?? issue4.expected;
+            const receivedType = parsedType(issue4.input);
             const received = TypeDictionary[receivedType] ?? receivedType;
-            if (typeof issue3.expected === "string" && /^[A-Z]/.test(issue3.expected)) {
-              return `\u039C\u03B7 \u03AD\u03B3\u03BA\u03C5\u03C1\u03B7 \u03B5\u03AF\u03C3\u03BF\u03B4\u03BF\u03C2: \u03B1\u03BD\u03B1\u03BC\u03B5\u03BD\u03CC\u03C4\u03B1\u03BD instanceof ${issue3.expected}, \u03BB\u03AE\u03C6\u03B8\u03B7\u03BA\u03B5 ${received}`;
+            if (typeof issue4.expected === "string" && /^[A-Z]/.test(issue4.expected)) {
+              return `\u039C\u03B7 \u03AD\u03B3\u03BA\u03C5\u03C1\u03B7 \u03B5\u03AF\u03C3\u03BF\u03B4\u03BF\u03C2: \u03B1\u03BD\u03B1\u03BC\u03B5\u03BD\u03CC\u03C4\u03B1\u03BD instanceof ${issue4.expected}, \u03BB\u03AE\u03C6\u03B8\u03B7\u03BA\u03B5 ${received}`;
             }
             return `\u039C\u03B7 \u03AD\u03B3\u03BA\u03C5\u03C1\u03B7 \u03B5\u03AF\u03C3\u03BF\u03B4\u03BF\u03C2: \u03B1\u03BD\u03B1\u03BC\u03B5\u03BD\u03CC\u03C4\u03B1\u03BD ${expected}, \u03BB\u03AE\u03C6\u03B8\u03B7\u03BA\u03B5 ${received}`;
           }
           case "invalid_value":
-            if (issue3.values.length === 1)
-              return `\u039C\u03B7 \u03AD\u03B3\u03BA\u03C5\u03C1\u03B7 \u03B5\u03AF\u03C3\u03BF\u03B4\u03BF\u03C2: \u03B1\u03BD\u03B1\u03BC\u03B5\u03BD\u03CC\u03C4\u03B1\u03BD ${stringifyPrimitive(issue3.values[0])}`;
-            return `\u039C\u03B7 \u03AD\u03B3\u03BA\u03C5\u03C1\u03B7 \u03B5\u03C0\u03B9\u03BB\u03BF\u03B3\u03AE: \u03B1\u03BD\u03B1\u03BC\u03B5\u03BD\u03CC\u03C4\u03B1\u03BD \u03AD\u03BD\u03B1 \u03B1\u03C0\u03CC ${joinValues(issue3.values, "|")}`;
+            if (issue4.values.length === 1)
+              return `\u039C\u03B7 \u03AD\u03B3\u03BA\u03C5\u03C1\u03B7 \u03B5\u03AF\u03C3\u03BF\u03B4\u03BF\u03C2: \u03B1\u03BD\u03B1\u03BC\u03B5\u03BD\u03CC\u03C4\u03B1\u03BD ${stringifyPrimitive(issue4.values[0])}`;
+            return `\u039C\u03B7 \u03AD\u03B3\u03BA\u03C5\u03C1\u03B7 \u03B5\u03C0\u03B9\u03BB\u03BF\u03B3\u03AE: \u03B1\u03BD\u03B1\u03BC\u03B5\u03BD\u03CC\u03C4\u03B1\u03BD \u03AD\u03BD\u03B1 \u03B1\u03C0\u03CC ${joinValues(issue4.values, "|")}`;
           case "too_big": {
-            const adj = issue3.inclusive ? "<=" : "<";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? "<=" : "<";
+            const sizing = getSizing(issue4.origin);
             if (sizing)
-              return `\u03A0\u03BF\u03BB\u03CD \u03BC\u03B5\u03B3\u03AC\u03BB\u03BF: \u03B1\u03BD\u03B1\u03BC\u03B5\u03BD\u03CC\u03C4\u03B1\u03BD ${issue3.origin ?? "\u03C4\u03B9\u03BC\u03AE"} \u03BD\u03B1 \u03AD\u03C7\u03B5\u03B9 ${adj}${issue3.maximum.toString()} ${sizing.unit ?? "\u03C3\u03C4\u03BF\u03B9\u03C7\u03B5\u03AF\u03B1"}`;
-            return `\u03A0\u03BF\u03BB\u03CD \u03BC\u03B5\u03B3\u03AC\u03BB\u03BF: \u03B1\u03BD\u03B1\u03BC\u03B5\u03BD\u03CC\u03C4\u03B1\u03BD ${issue3.origin ?? "\u03C4\u03B9\u03BC\u03AE"} \u03BD\u03B1 \u03B5\u03AF\u03BD\u03B1\u03B9 ${adj}${issue3.maximum.toString()}`;
+              return `\u03A0\u03BF\u03BB\u03CD \u03BC\u03B5\u03B3\u03AC\u03BB\u03BF: \u03B1\u03BD\u03B1\u03BC\u03B5\u03BD\u03CC\u03C4\u03B1\u03BD ${issue4.origin ?? "\u03C4\u03B9\u03BC\u03AE"} \u03BD\u03B1 \u03AD\u03C7\u03B5\u03B9 ${adj}${issue4.maximum.toString()} ${sizing.unit ?? "\u03C3\u03C4\u03BF\u03B9\u03C7\u03B5\u03AF\u03B1"}`;
+            return `\u03A0\u03BF\u03BB\u03CD \u03BC\u03B5\u03B3\u03AC\u03BB\u03BF: \u03B1\u03BD\u03B1\u03BC\u03B5\u03BD\u03CC\u03C4\u03B1\u03BD ${issue4.origin ?? "\u03C4\u03B9\u03BC\u03AE"} \u03BD\u03B1 \u03B5\u03AF\u03BD\u03B1\u03B9 ${adj}${issue4.maximum.toString()}`;
           }
           case "too_small": {
-            const adj = issue3.inclusive ? ">=" : ">";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? ">=" : ">";
+            const sizing = getSizing(issue4.origin);
             if (sizing) {
-              return `\u03A0\u03BF\u03BB\u03CD \u03BC\u03B9\u03BA\u03C1\u03CC: \u03B1\u03BD\u03B1\u03BC\u03B5\u03BD\u03CC\u03C4\u03B1\u03BD ${issue3.origin} \u03BD\u03B1 \u03AD\u03C7\u03B5\u03B9 ${adj}${issue3.minimum.toString()} ${sizing.unit}`;
+              return `\u03A0\u03BF\u03BB\u03CD \u03BC\u03B9\u03BA\u03C1\u03CC: \u03B1\u03BD\u03B1\u03BC\u03B5\u03BD\u03CC\u03C4\u03B1\u03BD ${issue4.origin} \u03BD\u03B1 \u03AD\u03C7\u03B5\u03B9 ${adj}${issue4.minimum.toString()} ${sizing.unit}`;
             }
-            return `\u03A0\u03BF\u03BB\u03CD \u03BC\u03B9\u03BA\u03C1\u03CC: \u03B1\u03BD\u03B1\u03BC\u03B5\u03BD\u03CC\u03C4\u03B1\u03BD ${issue3.origin} \u03BD\u03B1 \u03B5\u03AF\u03BD\u03B1\u03B9 ${adj}${issue3.minimum.toString()}`;
+            return `\u03A0\u03BF\u03BB\u03CD \u03BC\u03B9\u03BA\u03C1\u03CC: \u03B1\u03BD\u03B1\u03BC\u03B5\u03BD\u03CC\u03C4\u03B1\u03BD ${issue4.origin} \u03BD\u03B1 \u03B5\u03AF\u03BD\u03B1\u03B9 ${adj}${issue4.minimum.toString()}`;
           }
           case "invalid_format": {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.format === "starts_with") {
               return `\u039C\u03B7 \u03AD\u03B3\u03BA\u03C5\u03C1\u03B7 \u03C3\u03C5\u03BC\u03B2\u03BF\u03BB\u03BF\u03C3\u03B5\u03B9\u03C1\u03AC: \u03C0\u03C1\u03AD\u03C0\u03B5\u03B9 \u03BD\u03B1 \u03BE\u03B5\u03BA\u03B9\u03BD\u03AC \u03BC\u03B5 "${_issue.prefix}"`;
             }
@@ -43199,18 +43199,18 @@ var init_el = __esm({
               return `\u039C\u03B7 \u03AD\u03B3\u03BA\u03C5\u03C1\u03B7 \u03C3\u03C5\u03BC\u03B2\u03BF\u03BB\u03BF\u03C3\u03B5\u03B9\u03C1\u03AC: \u03C0\u03C1\u03AD\u03C0\u03B5\u03B9 \u03BD\u03B1 \u03C0\u03B5\u03C1\u03B9\u03AD\u03C7\u03B5\u03B9 "${_issue.includes}"`;
             if (_issue.format === "regex")
               return `\u039C\u03B7 \u03AD\u03B3\u03BA\u03C5\u03C1\u03B7 \u03C3\u03C5\u03BC\u03B2\u03BF\u03BB\u03BF\u03C3\u03B5\u03B9\u03C1\u03AC: \u03C0\u03C1\u03AD\u03C0\u03B5\u03B9 \u03BD\u03B1 \u03C4\u03B1\u03B9\u03C1\u03B9\u03AC\u03B6\u03B5\u03B9 \u03BC\u03B5 \u03C4\u03BF \u03BC\u03BF\u03C4\u03AF\u03B2\u03BF ${_issue.pattern}`;
-            return `\u039C\u03B7 \u03AD\u03B3\u03BA\u03C5\u03C1\u03BF: ${FormatDictionary[_issue.format] ?? issue3.format}`;
+            return `\u039C\u03B7 \u03AD\u03B3\u03BA\u03C5\u03C1\u03BF: ${FormatDictionary[_issue.format] ?? issue4.format}`;
           }
           case "not_multiple_of":
-            return `\u039C\u03B7 \u03AD\u03B3\u03BA\u03C5\u03C1\u03BF\u03C2 \u03B1\u03C1\u03B9\u03B8\u03BC\u03CC\u03C2: \u03C0\u03C1\u03AD\u03C0\u03B5\u03B9 \u03BD\u03B1 \u03B5\u03AF\u03BD\u03B1\u03B9 \u03C0\u03BF\u03BB\u03BB\u03B1\u03C0\u03BB\u03AC\u03C3\u03B9\u03BF \u03C4\u03BF\u03C5 ${issue3.divisor}`;
+            return `\u039C\u03B7 \u03AD\u03B3\u03BA\u03C5\u03C1\u03BF\u03C2 \u03B1\u03C1\u03B9\u03B8\u03BC\u03CC\u03C2: \u03C0\u03C1\u03AD\u03C0\u03B5\u03B9 \u03BD\u03B1 \u03B5\u03AF\u03BD\u03B1\u03B9 \u03C0\u03BF\u03BB\u03BB\u03B1\u03C0\u03BB\u03AC\u03C3\u03B9\u03BF \u03C4\u03BF\u03C5 ${issue4.divisor}`;
           case "unrecognized_keys":
-            return `\u0386\u03B3\u03BD\u03C9\u03C3\u03C4${issue3.keys.length > 1 ? "\u03B1" : "\u03BF"} \u03BA\u03BB\u03B5\u03B9\u03B4${issue3.keys.length > 1 ? "\u03B9\u03AC" : "\u03AF"}: ${joinValues(issue3.keys, ", ")}`;
+            return `\u0386\u03B3\u03BD\u03C9\u03C3\u03C4${issue4.keys.length > 1 ? "\u03B1" : "\u03BF"} \u03BA\u03BB\u03B5\u03B9\u03B4${issue4.keys.length > 1 ? "\u03B9\u03AC" : "\u03AF"}: ${joinValues(issue4.keys, ", ")}`;
           case "invalid_key":
-            return `\u039C\u03B7 \u03AD\u03B3\u03BA\u03C5\u03C1\u03BF \u03BA\u03BB\u03B5\u03B9\u03B4\u03AF \u03C3\u03C4\u03BF ${issue3.origin}`;
+            return `\u039C\u03B7 \u03AD\u03B3\u03BA\u03C5\u03C1\u03BF \u03BA\u03BB\u03B5\u03B9\u03B4\u03AF \u03C3\u03C4\u03BF ${issue4.origin}`;
           case "invalid_union":
             return "\u039C\u03B7 \u03AD\u03B3\u03BA\u03C5\u03C1\u03B7 \u03B5\u03AF\u03C3\u03BF\u03B4\u03BF\u03C2";
           case "invalid_element":
-            return `\u039C\u03B7 \u03AD\u03B3\u03BA\u03C5\u03C1\u03B7 \u03C4\u03B9\u03BC\u03AE \u03C3\u03C4\u03BF ${issue3.origin}`;
+            return `\u039C\u03B7 \u03AD\u03B3\u03BA\u03C5\u03C1\u03B7 \u03C4\u03B9\u03BC\u03AE \u03C3\u03C4\u03BF ${issue4.origin}`;
           default:
             return `\u039C\u03B7 \u03AD\u03B3\u03BA\u03C5\u03C1\u03B7 \u03B5\u03AF\u03C3\u03BF\u03B4\u03BF\u03C2`;
         }
@@ -43276,35 +43276,35 @@ var init_en = __esm({
         nan: "NaN"
         // All other type names omitted - they fall back to raw values via ?? operator
       };
-      return (issue3) => {
-        switch (issue3.code) {
+      return (issue4) => {
+        switch (issue4.code) {
           case "invalid_type": {
-            const expected = TypeDictionary[issue3.expected] ?? issue3.expected;
-            const receivedType = parsedType(issue3.input);
+            const expected = TypeDictionary[issue4.expected] ?? issue4.expected;
+            const receivedType = parsedType(issue4.input);
             const received = TypeDictionary[receivedType] ?? receivedType;
             return `Invalid input: expected ${expected}, received ${received}`;
           }
           case "invalid_value":
-            if (issue3.values.length === 1)
-              return `Invalid input: expected ${stringifyPrimitive(issue3.values[0])}`;
-            return `Invalid option: expected one of ${joinValues(issue3.values, "|")}`;
+            if (issue4.values.length === 1)
+              return `Invalid input: expected ${stringifyPrimitive(issue4.values[0])}`;
+            return `Invalid option: expected one of ${joinValues(issue4.values, "|")}`;
           case "too_big": {
-            const adj = issue3.inclusive ? "<=" : "<";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? "<=" : "<";
+            const sizing = getSizing(issue4.origin);
             if (sizing)
-              return `Too big: expected ${issue3.origin ?? "value"} to have ${adj}${issue3.maximum.toString()} ${sizing.unit ?? "elements"}`;
-            return `Too big: expected ${issue3.origin ?? "value"} to be ${adj}${issue3.maximum.toString()}`;
+              return `Too big: expected ${issue4.origin ?? "value"} to have ${adj}${issue4.maximum.toString()} ${sizing.unit ?? "elements"}`;
+            return `Too big: expected ${issue4.origin ?? "value"} to be ${adj}${issue4.maximum.toString()}`;
           }
           case "too_small": {
-            const adj = issue3.inclusive ? ">=" : ">";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? ">=" : ">";
+            const sizing = getSizing(issue4.origin);
             if (sizing) {
-              return `Too small: expected ${issue3.origin} to have ${adj}${issue3.minimum.toString()} ${sizing.unit}`;
+              return `Too small: expected ${issue4.origin} to have ${adj}${issue4.minimum.toString()} ${sizing.unit}`;
             }
-            return `Too small: expected ${issue3.origin} to be ${adj}${issue3.minimum.toString()}`;
+            return `Too small: expected ${issue4.origin} to be ${adj}${issue4.minimum.toString()}`;
           }
           case "invalid_format": {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.format === "starts_with") {
               return `Invalid string: must start with "${_issue.prefix}"`;
             }
@@ -43314,22 +43314,22 @@ var init_en = __esm({
               return `Invalid string: must include "${_issue.includes}"`;
             if (_issue.format === "regex")
               return `Invalid string: must match pattern ${_issue.pattern}`;
-            return `Invalid ${FormatDictionary[_issue.format] ?? issue3.format}`;
+            return `Invalid ${FormatDictionary[_issue.format] ?? issue4.format}`;
           }
           case "not_multiple_of":
-            return `Invalid number: must be a multiple of ${issue3.divisor}`;
+            return `Invalid number: must be a multiple of ${issue4.divisor}`;
           case "unrecognized_keys":
-            return `Unrecognized key${issue3.keys.length > 1 ? "s" : ""}: ${joinValues(issue3.keys, ", ")}`;
+            return `Unrecognized key${issue4.keys.length > 1 ? "s" : ""}: ${joinValues(issue4.keys, ", ")}`;
           case "invalid_key":
-            return `Invalid key in ${issue3.origin}`;
+            return `Invalid key in ${issue4.origin}`;
           case "invalid_union":
-            if (issue3.options && Array.isArray(issue3.options) && issue3.options.length > 0) {
-              const opts = issue3.options.map((o) => `'${o}'`).join(" | ");
+            if (issue4.options && Array.isArray(issue4.options) && issue4.options.length > 0) {
+              const opts = issue4.options.map((o) => `'${o}'`).join(" | ");
               return `Invalid discriminator value. Expected ${opts}`;
             }
             return "Invalid input";
           case "invalid_element":
-            return `Invalid value in ${issue3.origin}`;
+            return `Invalid value in ${issue4.origin}`;
           default:
             return `Invalid input`;
         }
@@ -43394,38 +43394,38 @@ var init_eo = __esm({
         array: "tabelo",
         null: "senvalora"
       };
-      return (issue3) => {
-        switch (issue3.code) {
+      return (issue4) => {
+        switch (issue4.code) {
           case "invalid_type": {
-            const expected = TypeDictionary[issue3.expected] ?? issue3.expected;
-            const receivedType = parsedType(issue3.input);
+            const expected = TypeDictionary[issue4.expected] ?? issue4.expected;
+            const receivedType = parsedType(issue4.input);
             const received = TypeDictionary[receivedType] ?? receivedType;
-            if (/^[A-Z]/.test(issue3.expected)) {
-              return `Nevalida enigo: atendi\u011Dis instanceof ${issue3.expected}, ricevi\u011Dis ${received}`;
+            if (/^[A-Z]/.test(issue4.expected)) {
+              return `Nevalida enigo: atendi\u011Dis instanceof ${issue4.expected}, ricevi\u011Dis ${received}`;
             }
             return `Nevalida enigo: atendi\u011Dis ${expected}, ricevi\u011Dis ${received}`;
           }
           case "invalid_value":
-            if (issue3.values.length === 1)
-              return `Nevalida enigo: atendi\u011Dis ${stringifyPrimitive(issue3.values[0])}`;
-            return `Nevalida opcio: atendi\u011Dis unu el ${joinValues(issue3.values, "|")}`;
+            if (issue4.values.length === 1)
+              return `Nevalida enigo: atendi\u011Dis ${stringifyPrimitive(issue4.values[0])}`;
+            return `Nevalida opcio: atendi\u011Dis unu el ${joinValues(issue4.values, "|")}`;
           case "too_big": {
-            const adj = issue3.inclusive ? "<=" : "<";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? "<=" : "<";
+            const sizing = getSizing(issue4.origin);
             if (sizing)
-              return `Tro granda: atendi\u011Dis ke ${issue3.origin ?? "valoro"} havu ${adj}${issue3.maximum.toString()} ${sizing.unit ?? "elementojn"}`;
-            return `Tro granda: atendi\u011Dis ke ${issue3.origin ?? "valoro"} havu ${adj}${issue3.maximum.toString()}`;
+              return `Tro granda: atendi\u011Dis ke ${issue4.origin ?? "valoro"} havu ${adj}${issue4.maximum.toString()} ${sizing.unit ?? "elementojn"}`;
+            return `Tro granda: atendi\u011Dis ke ${issue4.origin ?? "valoro"} havu ${adj}${issue4.maximum.toString()}`;
           }
           case "too_small": {
-            const adj = issue3.inclusive ? ">=" : ">";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? ">=" : ">";
+            const sizing = getSizing(issue4.origin);
             if (sizing) {
-              return `Tro malgranda: atendi\u011Dis ke ${issue3.origin} havu ${adj}${issue3.minimum.toString()} ${sizing.unit}`;
+              return `Tro malgranda: atendi\u011Dis ke ${issue4.origin} havu ${adj}${issue4.minimum.toString()} ${sizing.unit}`;
             }
-            return `Tro malgranda: atendi\u011Dis ke ${issue3.origin} estu ${adj}${issue3.minimum.toString()}`;
+            return `Tro malgranda: atendi\u011Dis ke ${issue4.origin} estu ${adj}${issue4.minimum.toString()}`;
           }
           case "invalid_format": {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.format === "starts_with")
               return `Nevalida karaktraro: devas komenci\u011Di per "${_issue.prefix}"`;
             if (_issue.format === "ends_with")
@@ -43434,18 +43434,18 @@ var init_eo = __esm({
               return `Nevalida karaktraro: devas inkluzivi "${_issue.includes}"`;
             if (_issue.format === "regex")
               return `Nevalida karaktraro: devas kongrui kun la modelo ${_issue.pattern}`;
-            return `Nevalida ${FormatDictionary[_issue.format] ?? issue3.format}`;
+            return `Nevalida ${FormatDictionary[_issue.format] ?? issue4.format}`;
           }
           case "not_multiple_of":
-            return `Nevalida nombro: devas esti oblo de ${issue3.divisor}`;
+            return `Nevalida nombro: devas esti oblo de ${issue4.divisor}`;
           case "unrecognized_keys":
-            return `Nekonata${issue3.keys.length > 1 ? "j" : ""} \u015Dlosilo${issue3.keys.length > 1 ? "j" : ""}: ${joinValues(issue3.keys, ", ")}`;
+            return `Nekonata${issue4.keys.length > 1 ? "j" : ""} \u015Dlosilo${issue4.keys.length > 1 ? "j" : ""}: ${joinValues(issue4.keys, ", ")}`;
           case "invalid_key":
-            return `Nevalida \u015Dlosilo en ${issue3.origin}`;
+            return `Nevalida \u015Dlosilo en ${issue4.origin}`;
           case "invalid_union":
             return "Nevalida enigo";
           case "invalid_element":
-            return `Nevalida valoro en ${issue3.origin}`;
+            return `Nevalida valoro en ${issue4.origin}`;
           default:
             return `Nevalida enigo`;
         }
@@ -43531,40 +43531,40 @@ var init_es = __esm({
         unknown: "desconocido",
         any: "cualquiera"
       };
-      return (issue3) => {
-        switch (issue3.code) {
+      return (issue4) => {
+        switch (issue4.code) {
           case "invalid_type": {
-            const expected = TypeDictionary[issue3.expected] ?? issue3.expected;
-            const receivedType = parsedType(issue3.input);
+            const expected = TypeDictionary[issue4.expected] ?? issue4.expected;
+            const receivedType = parsedType(issue4.input);
             const received = TypeDictionary[receivedType] ?? receivedType;
-            if (/^[A-Z]/.test(issue3.expected)) {
-              return `Entrada inv\xE1lida: se esperaba instanceof ${issue3.expected}, recibido ${received}`;
+            if (/^[A-Z]/.test(issue4.expected)) {
+              return `Entrada inv\xE1lida: se esperaba instanceof ${issue4.expected}, recibido ${received}`;
             }
             return `Entrada inv\xE1lida: se esperaba ${expected}, recibido ${received}`;
           }
           case "invalid_value":
-            if (issue3.values.length === 1)
-              return `Entrada inv\xE1lida: se esperaba ${stringifyPrimitive(issue3.values[0])}`;
-            return `Opci\xF3n inv\xE1lida: se esperaba una de ${joinValues(issue3.values, "|")}`;
+            if (issue4.values.length === 1)
+              return `Entrada inv\xE1lida: se esperaba ${stringifyPrimitive(issue4.values[0])}`;
+            return `Opci\xF3n inv\xE1lida: se esperaba una de ${joinValues(issue4.values, "|")}`;
           case "too_big": {
-            const adj = issue3.inclusive ? "<=" : "<";
-            const sizing = getSizing(issue3.origin);
-            const origin = TypeDictionary[issue3.origin] ?? issue3.origin;
+            const adj = issue4.inclusive ? "<=" : "<";
+            const sizing = getSizing(issue4.origin);
+            const origin = TypeDictionary[issue4.origin] ?? issue4.origin;
             if (sizing)
-              return `Demasiado grande: se esperaba que ${origin ?? "valor"} tuviera ${adj}${issue3.maximum.toString()} ${sizing.unit ?? "elementos"}`;
-            return `Demasiado grande: se esperaba que ${origin ?? "valor"} fuera ${adj}${issue3.maximum.toString()}`;
+              return `Demasiado grande: se esperaba que ${origin ?? "valor"} tuviera ${adj}${issue4.maximum.toString()} ${sizing.unit ?? "elementos"}`;
+            return `Demasiado grande: se esperaba que ${origin ?? "valor"} fuera ${adj}${issue4.maximum.toString()}`;
           }
           case "too_small": {
-            const adj = issue3.inclusive ? ">=" : ">";
-            const sizing = getSizing(issue3.origin);
-            const origin = TypeDictionary[issue3.origin] ?? issue3.origin;
+            const adj = issue4.inclusive ? ">=" : ">";
+            const sizing = getSizing(issue4.origin);
+            const origin = TypeDictionary[issue4.origin] ?? issue4.origin;
             if (sizing) {
-              return `Demasiado peque\xF1o: se esperaba que ${origin} tuviera ${adj}${issue3.minimum.toString()} ${sizing.unit}`;
+              return `Demasiado peque\xF1o: se esperaba que ${origin} tuviera ${adj}${issue4.minimum.toString()} ${sizing.unit}`;
             }
-            return `Demasiado peque\xF1o: se esperaba que ${origin} fuera ${adj}${issue3.minimum.toString()}`;
+            return `Demasiado peque\xF1o: se esperaba que ${origin} fuera ${adj}${issue4.minimum.toString()}`;
           }
           case "invalid_format": {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.format === "starts_with")
               return `Cadena inv\xE1lida: debe comenzar con "${_issue.prefix}"`;
             if (_issue.format === "ends_with")
@@ -43573,18 +43573,18 @@ var init_es = __esm({
               return `Cadena inv\xE1lida: debe incluir "${_issue.includes}"`;
             if (_issue.format === "regex")
               return `Cadena inv\xE1lida: debe coincidir con el patr\xF3n ${_issue.pattern}`;
-            return `Inv\xE1lido ${FormatDictionary[_issue.format] ?? issue3.format}`;
+            return `Inv\xE1lido ${FormatDictionary[_issue.format] ?? issue4.format}`;
           }
           case "not_multiple_of":
-            return `N\xFAmero inv\xE1lido: debe ser m\xFAltiplo de ${issue3.divisor}`;
+            return `N\xFAmero inv\xE1lido: debe ser m\xFAltiplo de ${issue4.divisor}`;
           case "unrecognized_keys":
-            return `Llave${issue3.keys.length > 1 ? "s" : ""} desconocida${issue3.keys.length > 1 ? "s" : ""}: ${joinValues(issue3.keys, ", ")}`;
+            return `Llave${issue4.keys.length > 1 ? "s" : ""} desconocida${issue4.keys.length > 1 ? "s" : ""}: ${joinValues(issue4.keys, ", ")}`;
           case "invalid_key":
-            return `Llave inv\xE1lida en ${TypeDictionary[issue3.origin] ?? issue3.origin}`;
+            return `Llave inv\xE1lida en ${TypeDictionary[issue4.origin] ?? issue4.origin}`;
           case "invalid_union":
             return "Entrada inv\xE1lida";
           case "invalid_element":
-            return `Valor inv\xE1lido en ${TypeDictionary[issue3.origin] ?? issue3.origin}`;
+            return `Valor inv\xE1lido en ${TypeDictionary[issue4.origin] ?? issue4.origin}`;
           default:
             return `Entrada inv\xE1lida`;
         }
@@ -43648,40 +43648,40 @@ var init_fa = __esm({
         number: "\u0639\u062F\u062F",
         array: "\u0622\u0631\u0627\u06CC\u0647"
       };
-      return (issue3) => {
-        switch (issue3.code) {
+      return (issue4) => {
+        switch (issue4.code) {
           case "invalid_type": {
-            const expected = TypeDictionary[issue3.expected] ?? issue3.expected;
-            const receivedType = parsedType(issue3.input);
+            const expected = TypeDictionary[issue4.expected] ?? issue4.expected;
+            const receivedType = parsedType(issue4.input);
             const received = TypeDictionary[receivedType] ?? receivedType;
-            if (/^[A-Z]/.test(issue3.expected)) {
-              return `\u0648\u0631\u0648\u062F\u06CC \u0646\u0627\u0645\u0639\u062A\u0628\u0631: \u0645\u06CC\u200C\u0628\u0627\u06CC\u0633\u062A instanceof ${issue3.expected} \u0645\u06CC\u200C\u0628\u0648\u062F\u060C ${received} \u062F\u0631\u06CC\u0627\u0641\u062A \u0634\u062F`;
+            if (/^[A-Z]/.test(issue4.expected)) {
+              return `\u0648\u0631\u0648\u062F\u06CC \u0646\u0627\u0645\u0639\u062A\u0628\u0631: \u0645\u06CC\u200C\u0628\u0627\u06CC\u0633\u062A instanceof ${issue4.expected} \u0645\u06CC\u200C\u0628\u0648\u062F\u060C ${received} \u062F\u0631\u06CC\u0627\u0641\u062A \u0634\u062F`;
             }
             return `\u0648\u0631\u0648\u062F\u06CC \u0646\u0627\u0645\u0639\u062A\u0628\u0631: \u0645\u06CC\u200C\u0628\u0627\u06CC\u0633\u062A ${expected} \u0645\u06CC\u200C\u0628\u0648\u062F\u060C ${received} \u062F\u0631\u06CC\u0627\u0641\u062A \u0634\u062F`;
           }
           case "invalid_value":
-            if (issue3.values.length === 1) {
-              return `\u0648\u0631\u0648\u062F\u06CC \u0646\u0627\u0645\u0639\u062A\u0628\u0631: \u0645\u06CC\u200C\u0628\u0627\u06CC\u0633\u062A ${stringifyPrimitive(issue3.values[0])} \u0645\u06CC\u200C\u0628\u0648\u062F`;
+            if (issue4.values.length === 1) {
+              return `\u0648\u0631\u0648\u062F\u06CC \u0646\u0627\u0645\u0639\u062A\u0628\u0631: \u0645\u06CC\u200C\u0628\u0627\u06CC\u0633\u062A ${stringifyPrimitive(issue4.values[0])} \u0645\u06CC\u200C\u0628\u0648\u062F`;
             }
-            return `\u06AF\u0632\u06CC\u0646\u0647 \u0646\u0627\u0645\u0639\u062A\u0628\u0631: \u0645\u06CC\u200C\u0628\u0627\u06CC\u0633\u062A \u06CC\u06A9\u06CC \u0627\u0632 ${joinValues(issue3.values, "|")} \u0645\u06CC\u200C\u0628\u0648\u062F`;
+            return `\u06AF\u0632\u06CC\u0646\u0647 \u0646\u0627\u0645\u0639\u062A\u0628\u0631: \u0645\u06CC\u200C\u0628\u0627\u06CC\u0633\u062A \u06CC\u06A9\u06CC \u0627\u0632 ${joinValues(issue4.values, "|")} \u0645\u06CC\u200C\u0628\u0648\u062F`;
           case "too_big": {
-            const adj = issue3.inclusive ? "<=" : "<";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? "<=" : "<";
+            const sizing = getSizing(issue4.origin);
             if (sizing) {
-              return `\u062E\u06CC\u0644\u06CC \u0628\u0632\u0631\u06AF: ${issue3.origin ?? "\u0645\u0642\u062F\u0627\u0631"} \u0628\u0627\u06CC\u062F ${adj}${issue3.maximum.toString()} ${sizing.unit ?? "\u0639\u0646\u0635\u0631"} \u0628\u0627\u0634\u062F`;
+              return `\u062E\u06CC\u0644\u06CC \u0628\u0632\u0631\u06AF: ${issue4.origin ?? "\u0645\u0642\u062F\u0627\u0631"} \u0628\u0627\u06CC\u062F ${adj}${issue4.maximum.toString()} ${sizing.unit ?? "\u0639\u0646\u0635\u0631"} \u0628\u0627\u0634\u062F`;
             }
-            return `\u062E\u06CC\u0644\u06CC \u0628\u0632\u0631\u06AF: ${issue3.origin ?? "\u0645\u0642\u062F\u0627\u0631"} \u0628\u0627\u06CC\u062F ${adj}${issue3.maximum.toString()} \u0628\u0627\u0634\u062F`;
+            return `\u062E\u06CC\u0644\u06CC \u0628\u0632\u0631\u06AF: ${issue4.origin ?? "\u0645\u0642\u062F\u0627\u0631"} \u0628\u0627\u06CC\u062F ${adj}${issue4.maximum.toString()} \u0628\u0627\u0634\u062F`;
           }
           case "too_small": {
-            const adj = issue3.inclusive ? ">=" : ">";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? ">=" : ">";
+            const sizing = getSizing(issue4.origin);
             if (sizing) {
-              return `\u062E\u06CC\u0644\u06CC \u06A9\u0648\u0686\u06A9: ${issue3.origin} \u0628\u0627\u06CC\u062F ${adj}${issue3.minimum.toString()} ${sizing.unit} \u0628\u0627\u0634\u062F`;
+              return `\u062E\u06CC\u0644\u06CC \u06A9\u0648\u0686\u06A9: ${issue4.origin} \u0628\u0627\u06CC\u062F ${adj}${issue4.minimum.toString()} ${sizing.unit} \u0628\u0627\u0634\u062F`;
             }
-            return `\u062E\u06CC\u0644\u06CC \u06A9\u0648\u0686\u06A9: ${issue3.origin} \u0628\u0627\u06CC\u062F ${adj}${issue3.minimum.toString()} \u0628\u0627\u0634\u062F`;
+            return `\u062E\u06CC\u0644\u06CC \u06A9\u0648\u0686\u06A9: ${issue4.origin} \u0628\u0627\u06CC\u062F ${adj}${issue4.minimum.toString()} \u0628\u0627\u0634\u062F`;
           }
           case "invalid_format": {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.format === "starts_with") {
               return `\u0631\u0634\u062A\u0647 \u0646\u0627\u0645\u0639\u062A\u0628\u0631: \u0628\u0627\u06CC\u062F \u0628\u0627 "${_issue.prefix}" \u0634\u0631\u0648\u0639 \u0634\u0648\u062F`;
             }
@@ -43694,18 +43694,18 @@ var init_fa = __esm({
             if (_issue.format === "regex") {
               return `\u0631\u0634\u062A\u0647 \u0646\u0627\u0645\u0639\u062A\u0628\u0631: \u0628\u0627\u06CC\u062F \u0628\u0627 \u0627\u0644\u06AF\u0648\u06CC ${_issue.pattern} \u0645\u0637\u0627\u0628\u0642\u062A \u062F\u0627\u0634\u062A\u0647 \u0628\u0627\u0634\u062F`;
             }
-            return `${FormatDictionary[_issue.format] ?? issue3.format} \u0646\u0627\u0645\u0639\u062A\u0628\u0631`;
+            return `${FormatDictionary[_issue.format] ?? issue4.format} \u0646\u0627\u0645\u0639\u062A\u0628\u0631`;
           }
           case "not_multiple_of":
-            return `\u0639\u062F\u062F \u0646\u0627\u0645\u0639\u062A\u0628\u0631: \u0628\u0627\u06CC\u062F \u0645\u0636\u0631\u0628 ${issue3.divisor} \u0628\u0627\u0634\u062F`;
+            return `\u0639\u062F\u062F \u0646\u0627\u0645\u0639\u062A\u0628\u0631: \u0628\u0627\u06CC\u062F \u0645\u0636\u0631\u0628 ${issue4.divisor} \u0628\u0627\u0634\u062F`;
           case "unrecognized_keys":
-            return `\u06A9\u0644\u06CC\u062F${issue3.keys.length > 1 ? "\u0647\u0627\u06CC" : ""} \u0646\u0627\u0634\u0646\u0627\u0633: ${joinValues(issue3.keys, ", ")}`;
+            return `\u06A9\u0644\u06CC\u062F${issue4.keys.length > 1 ? "\u0647\u0627\u06CC" : ""} \u0646\u0627\u0634\u0646\u0627\u0633: ${joinValues(issue4.keys, ", ")}`;
           case "invalid_key":
-            return `\u06A9\u0644\u06CC\u062F \u0646\u0627\u0634\u0646\u0627\u0633 \u062F\u0631 ${issue3.origin}`;
+            return `\u06A9\u0644\u06CC\u062F \u0646\u0627\u0634\u0646\u0627\u0633 \u062F\u0631 ${issue4.origin}`;
           case "invalid_union":
             return `\u0648\u0631\u0648\u062F\u06CC \u0646\u0627\u0645\u0639\u062A\u0628\u0631`;
           case "invalid_element":
-            return `\u0645\u0642\u062F\u0627\u0631 \u0646\u0627\u0645\u0639\u062A\u0628\u0631 \u062F\u0631 ${issue3.origin}`;
+            return `\u0645\u0642\u062F\u0627\u0631 \u0646\u0627\u0645\u0639\u062A\u0628\u0631 \u062F\u0631 ${issue4.origin}`;
           default:
             return `\u0648\u0631\u0648\u062F\u06CC \u0646\u0627\u0645\u0639\u062A\u0628\u0631`;
         }
@@ -43771,39 +43771,39 @@ var init_fi = __esm({
       const TypeDictionary = {
         nan: "NaN"
       };
-      return (issue3) => {
-        switch (issue3.code) {
+      return (issue4) => {
+        switch (issue4.code) {
           case "invalid_type": {
-            const expected = TypeDictionary[issue3.expected] ?? issue3.expected;
-            const receivedType = parsedType(issue3.input);
+            const expected = TypeDictionary[issue4.expected] ?? issue4.expected;
+            const receivedType = parsedType(issue4.input);
             const received = TypeDictionary[receivedType] ?? receivedType;
-            if (/^[A-Z]/.test(issue3.expected)) {
-              return `Virheellinen tyyppi: odotettiin instanceof ${issue3.expected}, oli ${received}`;
+            if (/^[A-Z]/.test(issue4.expected)) {
+              return `Virheellinen tyyppi: odotettiin instanceof ${issue4.expected}, oli ${received}`;
             }
             return `Virheellinen tyyppi: odotettiin ${expected}, oli ${received}`;
           }
           case "invalid_value":
-            if (issue3.values.length === 1)
-              return `Virheellinen sy\xF6te: t\xE4ytyy olla ${stringifyPrimitive(issue3.values[0])}`;
-            return `Virheellinen valinta: t\xE4ytyy olla yksi seuraavista: ${joinValues(issue3.values, "|")}`;
+            if (issue4.values.length === 1)
+              return `Virheellinen sy\xF6te: t\xE4ytyy olla ${stringifyPrimitive(issue4.values[0])}`;
+            return `Virheellinen valinta: t\xE4ytyy olla yksi seuraavista: ${joinValues(issue4.values, "|")}`;
           case "too_big": {
-            const adj = issue3.inclusive ? "<=" : "<";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? "<=" : "<";
+            const sizing = getSizing(issue4.origin);
             if (sizing) {
-              return `Liian suuri: ${sizing.subject} t\xE4ytyy olla ${adj}${issue3.maximum.toString()} ${sizing.unit}`.trim();
+              return `Liian suuri: ${sizing.subject} t\xE4ytyy olla ${adj}${issue4.maximum.toString()} ${sizing.unit}`.trim();
             }
-            return `Liian suuri: arvon t\xE4ytyy olla ${adj}${issue3.maximum.toString()}`;
+            return `Liian suuri: arvon t\xE4ytyy olla ${adj}${issue4.maximum.toString()}`;
           }
           case "too_small": {
-            const adj = issue3.inclusive ? ">=" : ">";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? ">=" : ">";
+            const sizing = getSizing(issue4.origin);
             if (sizing) {
-              return `Liian pieni: ${sizing.subject} t\xE4ytyy olla ${adj}${issue3.minimum.toString()} ${sizing.unit}`.trim();
+              return `Liian pieni: ${sizing.subject} t\xE4ytyy olla ${adj}${issue4.minimum.toString()} ${sizing.unit}`.trim();
             }
-            return `Liian pieni: arvon t\xE4ytyy olla ${adj}${issue3.minimum.toString()}`;
+            return `Liian pieni: arvon t\xE4ytyy olla ${adj}${issue4.minimum.toString()}`;
           }
           case "invalid_format": {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.format === "starts_with")
               return `Virheellinen sy\xF6te: t\xE4ytyy alkaa "${_issue.prefix}"`;
             if (_issue.format === "ends_with")
@@ -43813,12 +43813,12 @@ var init_fi = __esm({
             if (_issue.format === "regex") {
               return `Virheellinen sy\xF6te: t\xE4ytyy vastata s\xE4\xE4nn\xF6llist\xE4 lauseketta ${_issue.pattern}`;
             }
-            return `Virheellinen ${FormatDictionary[_issue.format] ?? issue3.format}`;
+            return `Virheellinen ${FormatDictionary[_issue.format] ?? issue4.format}`;
           }
           case "not_multiple_of":
-            return `Virheellinen luku: t\xE4ytyy olla luvun ${issue3.divisor} monikerta`;
+            return `Virheellinen luku: t\xE4ytyy olla luvun ${issue4.divisor} monikerta`;
           case "unrecognized_keys":
-            return `${issue3.keys.length > 1 ? "Tuntemattomat avaimet" : "Tuntematon avain"}: ${joinValues(issue3.keys, ", ")}`;
+            return `${issue4.keys.length > 1 ? "Tuntemattomat avaimet" : "Tuntematon avain"}: ${joinValues(issue4.keys, ", ")}`;
           case "invalid_key":
             return "Virheellinen avain tietueessa";
           case "invalid_union":
@@ -43906,37 +43906,37 @@ var init_fr = __esm({
         nan: "NaN",
         function: "fonction"
       };
-      return (issue3) => {
-        switch (issue3.code) {
+      return (issue4) => {
+        switch (issue4.code) {
           case "invalid_type": {
-            const expected = TypeDictionary[issue3.expected] ?? issue3.expected;
-            const receivedType = parsedType(issue3.input);
+            const expected = TypeDictionary[issue4.expected] ?? issue4.expected;
+            const receivedType = parsedType(issue4.input);
             const received = TypeDictionary[receivedType] ?? receivedType;
-            if (/^[A-Z]/.test(issue3.expected)) {
-              return `Entr\xE9e invalide : instanceof ${issue3.expected} attendu, ${received} re\xE7u`;
+            if (/^[A-Z]/.test(issue4.expected)) {
+              return `Entr\xE9e invalide : instanceof ${issue4.expected} attendu, ${received} re\xE7u`;
             }
             return `Entr\xE9e invalide : ${expected} attendu, ${received} re\xE7u`;
           }
           case "invalid_value":
-            if (issue3.values.length === 1)
-              return `Entr\xE9e invalide : ${stringifyPrimitive(issue3.values[0])} attendu`;
-            return `Option invalide : une valeur parmi ${joinValues(issue3.values, "|")} attendue`;
+            if (issue4.values.length === 1)
+              return `Entr\xE9e invalide : ${stringifyPrimitive(issue4.values[0])} attendu`;
+            return `Option invalide : une valeur parmi ${joinValues(issue4.values, "|")} attendue`;
           case "too_big": {
-            const adj = issue3.inclusive ? "<=" : "<";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? "<=" : "<";
+            const sizing = getSizing(issue4.origin);
             if (sizing)
-              return `Trop grand : ${TypeDictionary[issue3.origin] ?? "valeur"} doit ${sizing.verb} ${adj}${issue3.maximum.toString()} ${sizing.unit ?? "\xE9l\xE9ment(s)"}`;
-            return `Trop grand : ${TypeDictionary[issue3.origin] ?? "valeur"} doit \xEAtre ${adj}${issue3.maximum.toString()}`;
+              return `Trop grand : ${TypeDictionary[issue4.origin] ?? "valeur"} doit ${sizing.verb} ${adj}${issue4.maximum.toString()} ${sizing.unit ?? "\xE9l\xE9ment(s)"}`;
+            return `Trop grand : ${TypeDictionary[issue4.origin] ?? "valeur"} doit \xEAtre ${adj}${issue4.maximum.toString()}`;
           }
           case "too_small": {
-            const adj = issue3.inclusive ? ">=" : ">";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? ">=" : ">";
+            const sizing = getSizing(issue4.origin);
             if (sizing)
-              return `Trop petit : ${TypeDictionary[issue3.origin] ?? "valeur"} doit ${sizing.verb} ${adj}${issue3.minimum.toString()} ${sizing.unit}`;
-            return `Trop petit : ${TypeDictionary[issue3.origin] ?? "valeur"} doit \xEAtre ${adj}${issue3.minimum.toString()}`;
+              return `Trop petit : ${TypeDictionary[issue4.origin] ?? "valeur"} doit ${sizing.verb} ${adj}${issue4.minimum.toString()} ${sizing.unit}`;
+            return `Trop petit : ${TypeDictionary[issue4.origin] ?? "valeur"} doit \xEAtre ${adj}${issue4.minimum.toString()}`;
           }
           case "invalid_format": {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.format === "starts_with")
               return `Cha\xEEne invalide : doit commencer par "${_issue.prefix}"`;
             if (_issue.format === "ends_with")
@@ -43945,18 +43945,18 @@ var init_fr = __esm({
               return `Cha\xEEne invalide : doit inclure "${_issue.includes}"`;
             if (_issue.format === "regex")
               return `Cha\xEEne invalide : doit correspondre au mod\xE8le ${_issue.pattern}`;
-            return `${FormatDictionary[_issue.format] ?? issue3.format} invalide`;
+            return `${FormatDictionary[_issue.format] ?? issue4.format} invalide`;
           }
           case "not_multiple_of":
-            return `Nombre invalide : doit \xEAtre un multiple de ${issue3.divisor}`;
+            return `Nombre invalide : doit \xEAtre un multiple de ${issue4.divisor}`;
           case "unrecognized_keys":
-            return `Cl\xE9${issue3.keys.length > 1 ? "s" : ""} non reconnue${issue3.keys.length > 1 ? "s" : ""} : ${joinValues(issue3.keys, ", ")}`;
+            return `Cl\xE9${issue4.keys.length > 1 ? "s" : ""} non reconnue${issue4.keys.length > 1 ? "s" : ""} : ${joinValues(issue4.keys, ", ")}`;
           case "invalid_key":
-            return `Cl\xE9 invalide dans ${issue3.origin}`;
+            return `Cl\xE9 invalide dans ${issue4.origin}`;
           case "invalid_union":
             return "Entr\xE9e invalide";
           case "invalid_element":
-            return `Valeur invalide dans ${issue3.origin}`;
+            return `Valeur invalide dans ${issue4.origin}`;
           default:
             return `Entr\xE9e invalide`;
         }
@@ -44018,38 +44018,38 @@ var init_fr_CA = __esm({
       const TypeDictionary = {
         nan: "NaN"
       };
-      return (issue3) => {
-        switch (issue3.code) {
+      return (issue4) => {
+        switch (issue4.code) {
           case "invalid_type": {
-            const expected = TypeDictionary[issue3.expected] ?? issue3.expected;
-            const receivedType = parsedType(issue3.input);
+            const expected = TypeDictionary[issue4.expected] ?? issue4.expected;
+            const receivedType = parsedType(issue4.input);
             const received = TypeDictionary[receivedType] ?? receivedType;
-            if (/^[A-Z]/.test(issue3.expected)) {
-              return `Entr\xE9e invalide : attendu instanceof ${issue3.expected}, re\xE7u ${received}`;
+            if (/^[A-Z]/.test(issue4.expected)) {
+              return `Entr\xE9e invalide : attendu instanceof ${issue4.expected}, re\xE7u ${received}`;
             }
             return `Entr\xE9e invalide : attendu ${expected}, re\xE7u ${received}`;
           }
           case "invalid_value":
-            if (issue3.values.length === 1)
-              return `Entr\xE9e invalide : attendu ${stringifyPrimitive(issue3.values[0])}`;
-            return `Option invalide : attendu l'une des valeurs suivantes ${joinValues(issue3.values, "|")}`;
+            if (issue4.values.length === 1)
+              return `Entr\xE9e invalide : attendu ${stringifyPrimitive(issue4.values[0])}`;
+            return `Option invalide : attendu l'une des valeurs suivantes ${joinValues(issue4.values, "|")}`;
           case "too_big": {
-            const adj = issue3.inclusive ? "\u2264" : "<";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? "\u2264" : "<";
+            const sizing = getSizing(issue4.origin);
             if (sizing)
-              return `Trop grand : attendu que ${issue3.origin ?? "la valeur"} ait ${adj}${issue3.maximum.toString()} ${sizing.unit}`;
-            return `Trop grand : attendu que ${issue3.origin ?? "la valeur"} soit ${adj}${issue3.maximum.toString()}`;
+              return `Trop grand : attendu que ${issue4.origin ?? "la valeur"} ait ${adj}${issue4.maximum.toString()} ${sizing.unit}`;
+            return `Trop grand : attendu que ${issue4.origin ?? "la valeur"} soit ${adj}${issue4.maximum.toString()}`;
           }
           case "too_small": {
-            const adj = issue3.inclusive ? "\u2265" : ">";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? "\u2265" : ">";
+            const sizing = getSizing(issue4.origin);
             if (sizing) {
-              return `Trop petit : attendu que ${issue3.origin} ait ${adj}${issue3.minimum.toString()} ${sizing.unit}`;
+              return `Trop petit : attendu que ${issue4.origin} ait ${adj}${issue4.minimum.toString()} ${sizing.unit}`;
             }
-            return `Trop petit : attendu que ${issue3.origin} soit ${adj}${issue3.minimum.toString()}`;
+            return `Trop petit : attendu que ${issue4.origin} soit ${adj}${issue4.minimum.toString()}`;
           }
           case "invalid_format": {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.format === "starts_with") {
               return `Cha\xEEne invalide : doit commencer par "${_issue.prefix}"`;
             }
@@ -44059,18 +44059,18 @@ var init_fr_CA = __esm({
               return `Cha\xEEne invalide : doit inclure "${_issue.includes}"`;
             if (_issue.format === "regex")
               return `Cha\xEEne invalide : doit correspondre au motif ${_issue.pattern}`;
-            return `${FormatDictionary[_issue.format] ?? issue3.format} invalide`;
+            return `${FormatDictionary[_issue.format] ?? issue4.format} invalide`;
           }
           case "not_multiple_of":
-            return `Nombre invalide : doit \xEAtre un multiple de ${issue3.divisor}`;
+            return `Nombre invalide : doit \xEAtre un multiple de ${issue4.divisor}`;
           case "unrecognized_keys":
-            return `Cl\xE9${issue3.keys.length > 1 ? "s" : ""} non reconnue${issue3.keys.length > 1 ? "s" : ""} : ${joinValues(issue3.keys, ", ")}`;
+            return `Cl\xE9${issue4.keys.length > 1 ? "s" : ""} non reconnue${issue4.keys.length > 1 ? "s" : ""} : ${joinValues(issue4.keys, ", ")}`;
           case "invalid_key":
-            return `Cl\xE9 invalide dans ${issue3.origin}`;
+            return `Cl\xE9 invalide dans ${issue4.origin}`;
           case "invalid_union":
             return "Entr\xE9e invalide";
           case "invalid_element":
-            return `Valeur invalide dans ${issue3.origin}`;
+            return `Valeur invalide dans ${issue4.origin}`;
           default:
             return `Entr\xE9e invalide`;
         }
@@ -44171,24 +44171,24 @@ var init_he = __esm({
       const TypeDictionary = {
         nan: "NaN"
       };
-      return (issue3) => {
-        switch (issue3.code) {
+      return (issue4) => {
+        switch (issue4.code) {
           case "invalid_type": {
-            const expectedKey = issue3.expected;
+            const expectedKey = issue4.expected;
             const expected = TypeDictionary[expectedKey ?? ""] ?? typeLabel(expectedKey);
-            const receivedType = parsedType(issue3.input);
+            const receivedType = parsedType(issue4.input);
             const received = TypeDictionary[receivedType] ?? TypeNames[receivedType]?.label ?? receivedType;
-            if (/^[A-Z]/.test(issue3.expected)) {
-              return `\u05E7\u05DC\u05D8 \u05DC\u05D0 \u05EA\u05E7\u05D9\u05DF: \u05E6\u05E8\u05D9\u05DA \u05DC\u05D4\u05D9\u05D5\u05EA instanceof ${issue3.expected}, \u05D4\u05EA\u05E7\u05D1\u05DC ${received}`;
+            if (/^[A-Z]/.test(issue4.expected)) {
+              return `\u05E7\u05DC\u05D8 \u05DC\u05D0 \u05EA\u05E7\u05D9\u05DF: \u05E6\u05E8\u05D9\u05DA \u05DC\u05D4\u05D9\u05D5\u05EA instanceof ${issue4.expected}, \u05D4\u05EA\u05E7\u05D1\u05DC ${received}`;
             }
             return `\u05E7\u05DC\u05D8 \u05DC\u05D0 \u05EA\u05E7\u05D9\u05DF: \u05E6\u05E8\u05D9\u05DA \u05DC\u05D4\u05D9\u05D5\u05EA ${expected}, \u05D4\u05EA\u05E7\u05D1\u05DC ${received}`;
           }
           case "invalid_value": {
-            if (issue3.values.length === 1) {
-              return `\u05E2\u05E8\u05DA \u05DC\u05D0 \u05EA\u05E7\u05D9\u05DF: \u05D4\u05E2\u05E8\u05DA \u05D7\u05D9\u05D9\u05D1 \u05DC\u05D4\u05D9\u05D5\u05EA ${stringifyPrimitive(issue3.values[0])}`;
+            if (issue4.values.length === 1) {
+              return `\u05E2\u05E8\u05DA \u05DC\u05D0 \u05EA\u05E7\u05D9\u05DF: \u05D4\u05E2\u05E8\u05DA \u05D7\u05D9\u05D9\u05D1 \u05DC\u05D4\u05D9\u05D5\u05EA ${stringifyPrimitive(issue4.values[0])}`;
             }
-            const stringified = issue3.values.map((v) => stringifyPrimitive(v));
-            if (issue3.values.length === 2) {
+            const stringified = issue4.values.map((v) => stringifyPrimitive(v));
+            if (issue4.values.length === 2) {
               return `\u05E2\u05E8\u05DA \u05DC\u05D0 \u05EA\u05E7\u05D9\u05DF: \u05D4\u05D0\u05E4\u05E9\u05E8\u05D5\u05D9\u05D5\u05EA \u05D4\u05DE\u05EA\u05D0\u05D9\u05DE\u05D5\u05EA \u05D4\u05DF ${stringified[0]} \u05D0\u05D5 ${stringified[1]}`;
             }
             const lastValue = stringified[stringified.length - 1];
@@ -44196,55 +44196,55 @@ var init_he = __esm({
             return `\u05E2\u05E8\u05DA \u05DC\u05D0 \u05EA\u05E7\u05D9\u05DF: \u05D4\u05D0\u05E4\u05E9\u05E8\u05D5\u05D9\u05D5\u05EA \u05D4\u05DE\u05EA\u05D0\u05D9\u05DE\u05D5\u05EA \u05D4\u05DF ${restValues} \u05D0\u05D5 ${lastValue}`;
           }
           case "too_big": {
-            const sizing = getSizing(issue3.origin);
-            const subject = withDefinite(issue3.origin ?? "value");
-            if (issue3.origin === "string") {
-              return `${sizing?.longLabel ?? "\u05D0\u05E8\u05D5\u05DA"} \u05DE\u05D3\u05D9: ${subject} \u05E6\u05E8\u05D9\u05DB\u05D4 \u05DC\u05D4\u05DB\u05D9\u05DC ${issue3.maximum.toString()} ${sizing?.unit ?? ""} ${issue3.inclusive ? "\u05D0\u05D5 \u05E4\u05D7\u05D5\u05EA" : "\u05DC\u05DB\u05DC \u05D4\u05D9\u05D5\u05EA\u05E8"}`.trim();
+            const sizing = getSizing(issue4.origin);
+            const subject = withDefinite(issue4.origin ?? "value");
+            if (issue4.origin === "string") {
+              return `${sizing?.longLabel ?? "\u05D0\u05E8\u05D5\u05DA"} \u05DE\u05D3\u05D9: ${subject} \u05E6\u05E8\u05D9\u05DB\u05D4 \u05DC\u05D4\u05DB\u05D9\u05DC ${issue4.maximum.toString()} ${sizing?.unit ?? ""} ${issue4.inclusive ? "\u05D0\u05D5 \u05E4\u05D7\u05D5\u05EA" : "\u05DC\u05DB\u05DC \u05D4\u05D9\u05D5\u05EA\u05E8"}`.trim();
             }
-            if (issue3.origin === "number") {
-              const comparison = issue3.inclusive ? `\u05E7\u05D8\u05DF \u05D0\u05D5 \u05E9\u05D5\u05D5\u05D4 \u05DC-${issue3.maximum}` : `\u05E7\u05D8\u05DF \u05DE-${issue3.maximum}`;
+            if (issue4.origin === "number") {
+              const comparison = issue4.inclusive ? `\u05E7\u05D8\u05DF \u05D0\u05D5 \u05E9\u05D5\u05D5\u05D4 \u05DC-${issue4.maximum}` : `\u05E7\u05D8\u05DF \u05DE-${issue4.maximum}`;
               return `\u05D2\u05D3\u05D5\u05DC \u05DE\u05D3\u05D9: ${subject} \u05E6\u05E8\u05D9\u05DA \u05DC\u05D4\u05D9\u05D5\u05EA ${comparison}`;
             }
-            if (issue3.origin === "array" || issue3.origin === "set") {
-              const verb = issue3.origin === "set" ? "\u05E6\u05E8\u05D9\u05DB\u05D4" : "\u05E6\u05E8\u05D9\u05DA";
-              const comparison = issue3.inclusive ? `${issue3.maximum} ${sizing?.unit ?? ""} \u05D0\u05D5 \u05E4\u05D7\u05D5\u05EA` : `\u05E4\u05D7\u05D5\u05EA \u05DE-${issue3.maximum} ${sizing?.unit ?? ""}`;
+            if (issue4.origin === "array" || issue4.origin === "set") {
+              const verb = issue4.origin === "set" ? "\u05E6\u05E8\u05D9\u05DB\u05D4" : "\u05E6\u05E8\u05D9\u05DA";
+              const comparison = issue4.inclusive ? `${issue4.maximum} ${sizing?.unit ?? ""} \u05D0\u05D5 \u05E4\u05D7\u05D5\u05EA` : `\u05E4\u05D7\u05D5\u05EA \u05DE-${issue4.maximum} ${sizing?.unit ?? ""}`;
               return `\u05D2\u05D3\u05D5\u05DC \u05DE\u05D3\u05D9: ${subject} ${verb} \u05DC\u05D4\u05DB\u05D9\u05DC ${comparison}`.trim();
             }
-            const adj = issue3.inclusive ? "<=" : "<";
-            const be = verbFor(issue3.origin ?? "value");
+            const adj = issue4.inclusive ? "<=" : "<";
+            const be = verbFor(issue4.origin ?? "value");
             if (sizing?.unit) {
-              return `${sizing.longLabel} \u05DE\u05D3\u05D9: ${subject} ${be} ${adj}${issue3.maximum.toString()} ${sizing.unit}`;
+              return `${sizing.longLabel} \u05DE\u05D3\u05D9: ${subject} ${be} ${adj}${issue4.maximum.toString()} ${sizing.unit}`;
             }
-            return `${sizing?.longLabel ?? "\u05D2\u05D3\u05D5\u05DC"} \u05DE\u05D3\u05D9: ${subject} ${be} ${adj}${issue3.maximum.toString()}`;
+            return `${sizing?.longLabel ?? "\u05D2\u05D3\u05D5\u05DC"} \u05DE\u05D3\u05D9: ${subject} ${be} ${adj}${issue4.maximum.toString()}`;
           }
           case "too_small": {
-            const sizing = getSizing(issue3.origin);
-            const subject = withDefinite(issue3.origin ?? "value");
-            if (issue3.origin === "string") {
-              return `${sizing?.shortLabel ?? "\u05E7\u05E6\u05E8"} \u05DE\u05D3\u05D9: ${subject} \u05E6\u05E8\u05D9\u05DB\u05D4 \u05DC\u05D4\u05DB\u05D9\u05DC ${issue3.minimum.toString()} ${sizing?.unit ?? ""} ${issue3.inclusive ? "\u05D0\u05D5 \u05D9\u05D5\u05EA\u05E8" : "\u05DC\u05E4\u05D7\u05D5\u05EA"}`.trim();
+            const sizing = getSizing(issue4.origin);
+            const subject = withDefinite(issue4.origin ?? "value");
+            if (issue4.origin === "string") {
+              return `${sizing?.shortLabel ?? "\u05E7\u05E6\u05E8"} \u05DE\u05D3\u05D9: ${subject} \u05E6\u05E8\u05D9\u05DB\u05D4 \u05DC\u05D4\u05DB\u05D9\u05DC ${issue4.minimum.toString()} ${sizing?.unit ?? ""} ${issue4.inclusive ? "\u05D0\u05D5 \u05D9\u05D5\u05EA\u05E8" : "\u05DC\u05E4\u05D7\u05D5\u05EA"}`.trim();
             }
-            if (issue3.origin === "number") {
-              const comparison = issue3.inclusive ? `\u05D2\u05D3\u05D5\u05DC \u05D0\u05D5 \u05E9\u05D5\u05D5\u05D4 \u05DC-${issue3.minimum}` : `\u05D2\u05D3\u05D5\u05DC \u05DE-${issue3.minimum}`;
+            if (issue4.origin === "number") {
+              const comparison = issue4.inclusive ? `\u05D2\u05D3\u05D5\u05DC \u05D0\u05D5 \u05E9\u05D5\u05D5\u05D4 \u05DC-${issue4.minimum}` : `\u05D2\u05D3\u05D5\u05DC \u05DE-${issue4.minimum}`;
               return `\u05E7\u05D8\u05DF \u05DE\u05D3\u05D9: ${subject} \u05E6\u05E8\u05D9\u05DA \u05DC\u05D4\u05D9\u05D5\u05EA ${comparison}`;
             }
-            if (issue3.origin === "array" || issue3.origin === "set") {
-              const verb = issue3.origin === "set" ? "\u05E6\u05E8\u05D9\u05DB\u05D4" : "\u05E6\u05E8\u05D9\u05DA";
-              if (issue3.minimum === 1 && issue3.inclusive) {
-                const singularPhrase = issue3.origin === "set" ? "\u05DC\u05E4\u05D7\u05D5\u05EA \u05E4\u05E8\u05D9\u05D8 \u05D0\u05D7\u05D3" : "\u05DC\u05E4\u05D7\u05D5\u05EA \u05E4\u05E8\u05D9\u05D8 \u05D0\u05D7\u05D3";
+            if (issue4.origin === "array" || issue4.origin === "set") {
+              const verb = issue4.origin === "set" ? "\u05E6\u05E8\u05D9\u05DB\u05D4" : "\u05E6\u05E8\u05D9\u05DA";
+              if (issue4.minimum === 1 && issue4.inclusive) {
+                const singularPhrase = issue4.origin === "set" ? "\u05DC\u05E4\u05D7\u05D5\u05EA \u05E4\u05E8\u05D9\u05D8 \u05D0\u05D7\u05D3" : "\u05DC\u05E4\u05D7\u05D5\u05EA \u05E4\u05E8\u05D9\u05D8 \u05D0\u05D7\u05D3";
                 return `\u05E7\u05D8\u05DF \u05DE\u05D3\u05D9: ${subject} ${verb} \u05DC\u05D4\u05DB\u05D9\u05DC ${singularPhrase}`;
               }
-              const comparison = issue3.inclusive ? `${issue3.minimum} ${sizing?.unit ?? ""} \u05D0\u05D5 \u05D9\u05D5\u05EA\u05E8` : `\u05D9\u05D5\u05EA\u05E8 \u05DE-${issue3.minimum} ${sizing?.unit ?? ""}`;
+              const comparison = issue4.inclusive ? `${issue4.minimum} ${sizing?.unit ?? ""} \u05D0\u05D5 \u05D9\u05D5\u05EA\u05E8` : `\u05D9\u05D5\u05EA\u05E8 \u05DE-${issue4.minimum} ${sizing?.unit ?? ""}`;
               return `\u05E7\u05D8\u05DF \u05DE\u05D3\u05D9: ${subject} ${verb} \u05DC\u05D4\u05DB\u05D9\u05DC ${comparison}`.trim();
             }
-            const adj = issue3.inclusive ? ">=" : ">";
-            const be = verbFor(issue3.origin ?? "value");
+            const adj = issue4.inclusive ? ">=" : ">";
+            const be = verbFor(issue4.origin ?? "value");
             if (sizing?.unit) {
-              return `${sizing.shortLabel} \u05DE\u05D3\u05D9: ${subject} ${be} ${adj}${issue3.minimum.toString()} ${sizing.unit}`;
+              return `${sizing.shortLabel} \u05DE\u05D3\u05D9: ${subject} ${be} ${adj}${issue4.minimum.toString()} ${sizing.unit}`;
             }
-            return `${sizing?.shortLabel ?? "\u05E7\u05D8\u05DF"} \u05DE\u05D3\u05D9: ${subject} ${be} ${adj}${issue3.minimum.toString()}`;
+            return `${sizing?.shortLabel ?? "\u05E7\u05D8\u05DF"} \u05DE\u05D3\u05D9: ${subject} ${be} ${adj}${issue4.minimum.toString()}`;
           }
           case "invalid_format": {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.format === "starts_with")
               return `\u05D4\u05DE\u05D7\u05E8\u05D5\u05D6\u05EA \u05D7\u05D9\u05D9\u05D1\u05EA \u05DC\u05D4\u05EA\u05D7\u05D9\u05DC \u05D1 "${_issue.prefix}"`;
             if (_issue.format === "ends_with")
@@ -44260,16 +44260,16 @@ var init_he = __esm({
             return `${noun} \u05DC\u05D0 ${adjective}`;
           }
           case "not_multiple_of":
-            return `\u05DE\u05E1\u05E4\u05E8 \u05DC\u05D0 \u05EA\u05E7\u05D9\u05DF: \u05D7\u05D9\u05D9\u05D1 \u05DC\u05D4\u05D9\u05D5\u05EA \u05DE\u05DB\u05E4\u05DC\u05D4 \u05E9\u05DC ${issue3.divisor}`;
+            return `\u05DE\u05E1\u05E4\u05E8 \u05DC\u05D0 \u05EA\u05E7\u05D9\u05DF: \u05D7\u05D9\u05D9\u05D1 \u05DC\u05D4\u05D9\u05D5\u05EA \u05DE\u05DB\u05E4\u05DC\u05D4 \u05E9\u05DC ${issue4.divisor}`;
           case "unrecognized_keys":
-            return `\u05DE\u05E4\u05EA\u05D7${issue3.keys.length > 1 ? "\u05D5\u05EA" : ""} \u05DC\u05D0 \u05DE\u05D6\u05D5\u05D4${issue3.keys.length > 1 ? "\u05D9\u05DD" : "\u05D4"}: ${joinValues(issue3.keys, ", ")}`;
+            return `\u05DE\u05E4\u05EA\u05D7${issue4.keys.length > 1 ? "\u05D5\u05EA" : ""} \u05DC\u05D0 \u05DE\u05D6\u05D5\u05D4${issue4.keys.length > 1 ? "\u05D9\u05DD" : "\u05D4"}: ${joinValues(issue4.keys, ", ")}`;
           case "invalid_key": {
             return `\u05E9\u05D3\u05D4 \u05DC\u05D0 \u05EA\u05E7\u05D9\u05DF \u05D1\u05D0\u05D5\u05D1\u05D9\u05D9\u05E7\u05D8`;
           }
           case "invalid_union":
             return "\u05E7\u05DC\u05D8 \u05DC\u05D0 \u05EA\u05E7\u05D9\u05DF";
           case "invalid_element": {
-            const place = withDefinite(issue3.origin ?? "array");
+            const place = withDefinite(issue4.origin ?? "array");
             return `\u05E2\u05E8\u05DA \u05DC\u05D0 \u05EA\u05E7\u05D9\u05DF \u05D1${place}`;
           }
           default:
@@ -44347,40 +44347,40 @@ var init_hr = __esm({
         function: "funkcija",
         map: "mapa"
       };
-      return (issue3) => {
-        switch (issue3.code) {
+      return (issue4) => {
+        switch (issue4.code) {
           case "invalid_type": {
-            const expected = TypeDictionary[issue3.expected] ?? issue3.expected;
-            const receivedType = parsedType(issue3.input);
+            const expected = TypeDictionary[issue4.expected] ?? issue4.expected;
+            const receivedType = parsedType(issue4.input);
             const received = TypeDictionary[receivedType] ?? receivedType;
-            if (/^[A-Z]/.test(issue3.expected)) {
-              return `Neispravan unos: o\u010Dekuje se instanceof ${issue3.expected}, a primljeno je ${received}`;
+            if (/^[A-Z]/.test(issue4.expected)) {
+              return `Neispravan unos: o\u010Dekuje se instanceof ${issue4.expected}, a primljeno je ${received}`;
             }
             return `Neispravan unos: o\u010Dekuje se ${expected}, a primljeno je ${received}`;
           }
           case "invalid_value":
-            if (issue3.values.length === 1)
-              return `Neispravna vrijednost: o\u010Dekivano ${stringifyPrimitive(issue3.values[0])}`;
-            return `Neispravna opcija: o\u010Dekivano jedno od ${joinValues(issue3.values, "|")}`;
+            if (issue4.values.length === 1)
+              return `Neispravna vrijednost: o\u010Dekivano ${stringifyPrimitive(issue4.values[0])}`;
+            return `Neispravna opcija: o\u010Dekivano jedno od ${joinValues(issue4.values, "|")}`;
           case "too_big": {
-            const adj = issue3.inclusive ? "<=" : "<";
-            const sizing = getSizing(issue3.origin);
-            const origin = TypeDictionary[issue3.origin] ?? issue3.origin;
+            const adj = issue4.inclusive ? "<=" : "<";
+            const sizing = getSizing(issue4.origin);
+            const origin = TypeDictionary[issue4.origin] ?? issue4.origin;
             if (sizing)
-              return `Preveliko: o\u010Dekivano da ${origin ?? "vrijednost"} ima ${adj}${issue3.maximum.toString()} ${sizing.unit ?? "elemenata"}`;
-            return `Preveliko: o\u010Dekivano da ${origin ?? "vrijednost"} bude ${adj}${issue3.maximum.toString()}`;
+              return `Preveliko: o\u010Dekivano da ${origin ?? "vrijednost"} ima ${adj}${issue4.maximum.toString()} ${sizing.unit ?? "elemenata"}`;
+            return `Preveliko: o\u010Dekivano da ${origin ?? "vrijednost"} bude ${adj}${issue4.maximum.toString()}`;
           }
           case "too_small": {
-            const adj = issue3.inclusive ? ">=" : ">";
-            const sizing = getSizing(issue3.origin);
-            const origin = TypeDictionary[issue3.origin] ?? issue3.origin;
+            const adj = issue4.inclusive ? ">=" : ">";
+            const sizing = getSizing(issue4.origin);
+            const origin = TypeDictionary[issue4.origin] ?? issue4.origin;
             if (sizing) {
-              return `Premalo: o\u010Dekivano da ${origin} ima ${adj}${issue3.minimum.toString()} ${sizing.unit}`;
+              return `Premalo: o\u010Dekivano da ${origin} ima ${adj}${issue4.minimum.toString()} ${sizing.unit}`;
             }
-            return `Premalo: o\u010Dekivano da ${origin} bude ${adj}${issue3.minimum.toString()}`;
+            return `Premalo: o\u010Dekivano da ${origin} bude ${adj}${issue4.minimum.toString()}`;
           }
           case "invalid_format": {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.format === "starts_with")
               return `Neispravan tekst: mora zapo\u010Dinjati s "${_issue.prefix}"`;
             if (_issue.format === "ends_with")
@@ -44389,18 +44389,18 @@ var init_hr = __esm({
               return `Neispravan tekst: mora sadr\u017Eavati "${_issue.includes}"`;
             if (_issue.format === "regex")
               return `Neispravan tekst: mora odgovarati uzorku ${_issue.pattern}`;
-            return `Neispravna ${FormatDictionary[_issue.format] ?? issue3.format}`;
+            return `Neispravna ${FormatDictionary[_issue.format] ?? issue4.format}`;
           }
           case "not_multiple_of":
-            return `Neispravan broj: mora biti vi\u0161ekratnik od ${issue3.divisor}`;
+            return `Neispravan broj: mora biti vi\u0161ekratnik od ${issue4.divisor}`;
           case "unrecognized_keys":
-            return `Neprepoznat${issue3.keys.length > 1 ? "i klju\u010Devi" : " klju\u010D"}: ${joinValues(issue3.keys, ", ")}`;
+            return `Neprepoznat${issue4.keys.length > 1 ? "i klju\u010Devi" : " klju\u010D"}: ${joinValues(issue4.keys, ", ")}`;
           case "invalid_key":
-            return `Neispravan klju\u010D u ${TypeDictionary[issue3.origin] ?? issue3.origin}`;
+            return `Neispravan klju\u010D u ${TypeDictionary[issue4.origin] ?? issue4.origin}`;
           case "invalid_union":
             return "Neispravan unos";
           case "invalid_element":
-            return `Neispravna vrijednost u ${TypeDictionary[issue3.origin] ?? issue3.origin}`;
+            return `Neispravna vrijednost u ${TypeDictionary[issue4.origin] ?? issue4.origin}`;
           default:
             return `Neispravan unos`;
         }
@@ -44464,38 +44464,38 @@ var init_hu = __esm({
         number: "sz\xE1m",
         array: "t\xF6mb"
       };
-      return (issue3) => {
-        switch (issue3.code) {
+      return (issue4) => {
+        switch (issue4.code) {
           case "invalid_type": {
-            const expected = TypeDictionary[issue3.expected] ?? issue3.expected;
-            const receivedType = parsedType(issue3.input);
+            const expected = TypeDictionary[issue4.expected] ?? issue4.expected;
+            const receivedType = parsedType(issue4.input);
             const received = TypeDictionary[receivedType] ?? receivedType;
-            if (/^[A-Z]/.test(issue3.expected)) {
-              return `\xC9rv\xE9nytelen bemenet: a v\xE1rt \xE9rt\xE9k instanceof ${issue3.expected}, a kapott \xE9rt\xE9k ${received}`;
+            if (/^[A-Z]/.test(issue4.expected)) {
+              return `\xC9rv\xE9nytelen bemenet: a v\xE1rt \xE9rt\xE9k instanceof ${issue4.expected}, a kapott \xE9rt\xE9k ${received}`;
             }
             return `\xC9rv\xE9nytelen bemenet: a v\xE1rt \xE9rt\xE9k ${expected}, a kapott \xE9rt\xE9k ${received}`;
           }
           case "invalid_value":
-            if (issue3.values.length === 1)
-              return `\xC9rv\xE9nytelen bemenet: a v\xE1rt \xE9rt\xE9k ${stringifyPrimitive(issue3.values[0])}`;
-            return `\xC9rv\xE9nytelen opci\xF3: valamelyik \xE9rt\xE9k v\xE1rt ${joinValues(issue3.values, "|")}`;
+            if (issue4.values.length === 1)
+              return `\xC9rv\xE9nytelen bemenet: a v\xE1rt \xE9rt\xE9k ${stringifyPrimitive(issue4.values[0])}`;
+            return `\xC9rv\xE9nytelen opci\xF3: valamelyik \xE9rt\xE9k v\xE1rt ${joinValues(issue4.values, "|")}`;
           case "too_big": {
-            const adj = issue3.inclusive ? "<=" : "<";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? "<=" : "<";
+            const sizing = getSizing(issue4.origin);
             if (sizing)
-              return `T\xFAl nagy: ${issue3.origin ?? "\xE9rt\xE9k"} m\xE9rete t\xFAl nagy ${adj}${issue3.maximum.toString()} ${sizing.unit ?? "elem"}`;
-            return `T\xFAl nagy: a bemeneti \xE9rt\xE9k ${issue3.origin ?? "\xE9rt\xE9k"} t\xFAl nagy: ${adj}${issue3.maximum.toString()}`;
+              return `T\xFAl nagy: ${issue4.origin ?? "\xE9rt\xE9k"} m\xE9rete t\xFAl nagy ${adj}${issue4.maximum.toString()} ${sizing.unit ?? "elem"}`;
+            return `T\xFAl nagy: a bemeneti \xE9rt\xE9k ${issue4.origin ?? "\xE9rt\xE9k"} t\xFAl nagy: ${adj}${issue4.maximum.toString()}`;
           }
           case "too_small": {
-            const adj = issue3.inclusive ? ">=" : ">";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? ">=" : ">";
+            const sizing = getSizing(issue4.origin);
             if (sizing) {
-              return `T\xFAl kicsi: a bemeneti \xE9rt\xE9k ${issue3.origin} m\xE9rete t\xFAl kicsi ${adj}${issue3.minimum.toString()} ${sizing.unit}`;
+              return `T\xFAl kicsi: a bemeneti \xE9rt\xE9k ${issue4.origin} m\xE9rete t\xFAl kicsi ${adj}${issue4.minimum.toString()} ${sizing.unit}`;
             }
-            return `T\xFAl kicsi: a bemeneti \xE9rt\xE9k ${issue3.origin} t\xFAl kicsi ${adj}${issue3.minimum.toString()}`;
+            return `T\xFAl kicsi: a bemeneti \xE9rt\xE9k ${issue4.origin} t\xFAl kicsi ${adj}${issue4.minimum.toString()}`;
           }
           case "invalid_format": {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.format === "starts_with")
               return `\xC9rv\xE9nytelen string: "${_issue.prefix}" \xE9rt\xE9kkel kell kezd\u0151dnie`;
             if (_issue.format === "ends_with")
@@ -44504,18 +44504,18 @@ var init_hu = __esm({
               return `\xC9rv\xE9nytelen string: "${_issue.includes}" \xE9rt\xE9ket kell tartalmaznia`;
             if (_issue.format === "regex")
               return `\xC9rv\xE9nytelen string: ${_issue.pattern} mint\xE1nak kell megfelelnie`;
-            return `\xC9rv\xE9nytelen ${FormatDictionary[_issue.format] ?? issue3.format}`;
+            return `\xC9rv\xE9nytelen ${FormatDictionary[_issue.format] ?? issue4.format}`;
           }
           case "not_multiple_of":
-            return `\xC9rv\xE9nytelen sz\xE1m: ${issue3.divisor} t\xF6bbsz\xF6r\xF6s\xE9nek kell lennie`;
+            return `\xC9rv\xE9nytelen sz\xE1m: ${issue4.divisor} t\xF6bbsz\xF6r\xF6s\xE9nek kell lennie`;
           case "unrecognized_keys":
-            return `Ismeretlen kulcs${issue3.keys.length > 1 ? "s" : ""}: ${joinValues(issue3.keys, ", ")}`;
+            return `Ismeretlen kulcs${issue4.keys.length > 1 ? "s" : ""}: ${joinValues(issue4.keys, ", ")}`;
           case "invalid_key":
-            return `\xC9rv\xE9nytelen kulcs ${issue3.origin}`;
+            return `\xC9rv\xE9nytelen kulcs ${issue4.origin}`;
           case "invalid_union":
             return "\xC9rv\xE9nytelen bemenet";
           case "invalid_element":
-            return `\xC9rv\xE9nytelen \xE9rt\xE9k: ${issue3.origin}`;
+            return `\xC9rv\xE9nytelen \xE9rt\xE9k: ${issue4.origin}`;
           default:
             return `\xC9rv\xE9nytelen bemenet`;
         }
@@ -44613,43 +44613,43 @@ var init_hy = __esm({
         number: "\u0569\u056B\u057E",
         array: "\u0566\u0561\u0576\u0563\u057E\u0561\u056E"
       };
-      return (issue3) => {
-        switch (issue3.code) {
+      return (issue4) => {
+        switch (issue4.code) {
           case "invalid_type": {
-            const expected = TypeDictionary[issue3.expected] ?? issue3.expected;
-            const receivedType = parsedType(issue3.input);
+            const expected = TypeDictionary[issue4.expected] ?? issue4.expected;
+            const receivedType = parsedType(issue4.input);
             const received = TypeDictionary[receivedType] ?? receivedType;
-            if (/^[A-Z]/.test(issue3.expected)) {
-              return `\u054D\u056D\u0561\u056C \u0574\u0578\u0582\u057F\u0584\u0561\u0563\u0580\u0578\u0582\u0574\u2024 \u057D\u057A\u0561\u057D\u057E\u0578\u0582\u0574 \u0567\u0580 instanceof ${issue3.expected}, \u057D\u057F\u0561\u0581\u057E\u0565\u056C \u0567 ${received}`;
+            if (/^[A-Z]/.test(issue4.expected)) {
+              return `\u054D\u056D\u0561\u056C \u0574\u0578\u0582\u057F\u0584\u0561\u0563\u0580\u0578\u0582\u0574\u2024 \u057D\u057A\u0561\u057D\u057E\u0578\u0582\u0574 \u0567\u0580 instanceof ${issue4.expected}, \u057D\u057F\u0561\u0581\u057E\u0565\u056C \u0567 ${received}`;
             }
             return `\u054D\u056D\u0561\u056C \u0574\u0578\u0582\u057F\u0584\u0561\u0563\u0580\u0578\u0582\u0574\u2024 \u057D\u057A\u0561\u057D\u057E\u0578\u0582\u0574 \u0567\u0580 ${expected}, \u057D\u057F\u0561\u0581\u057E\u0565\u056C \u0567 ${received}`;
           }
           case "invalid_value":
-            if (issue3.values.length === 1)
-              return `\u054D\u056D\u0561\u056C \u0574\u0578\u0582\u057F\u0584\u0561\u0563\u0580\u0578\u0582\u0574\u2024 \u057D\u057A\u0561\u057D\u057E\u0578\u0582\u0574 \u0567\u0580 ${stringifyPrimitive(issue3.values[1])}`;
-            return `\u054D\u056D\u0561\u056C \u057F\u0561\u0580\u0562\u0565\u0580\u0561\u056F\u2024 \u057D\u057A\u0561\u057D\u057E\u0578\u0582\u0574 \u0567\u0580 \u0570\u0565\u057F\u0587\u0575\u0561\u056C\u0576\u0565\u0580\u056B\u0581 \u0574\u0565\u056F\u0568\u055D ${joinValues(issue3.values, "|")}`;
+            if (issue4.values.length === 1)
+              return `\u054D\u056D\u0561\u056C \u0574\u0578\u0582\u057F\u0584\u0561\u0563\u0580\u0578\u0582\u0574\u2024 \u057D\u057A\u0561\u057D\u057E\u0578\u0582\u0574 \u0567\u0580 ${stringifyPrimitive(issue4.values[1])}`;
+            return `\u054D\u056D\u0561\u056C \u057F\u0561\u0580\u0562\u0565\u0580\u0561\u056F\u2024 \u057D\u057A\u0561\u057D\u057E\u0578\u0582\u0574 \u0567\u0580 \u0570\u0565\u057F\u0587\u0575\u0561\u056C\u0576\u0565\u0580\u056B\u0581 \u0574\u0565\u056F\u0568\u055D ${joinValues(issue4.values, "|")}`;
           case "too_big": {
-            const adj = issue3.inclusive ? "<=" : "<";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? "<=" : "<";
+            const sizing = getSizing(issue4.origin);
             if (sizing) {
-              const maxValue = Number(issue3.maximum);
+              const maxValue = Number(issue4.maximum);
               const unit = getArmenianPlural(maxValue, sizing.unit.one, sizing.unit.many);
-              return `\u0549\u0561\u0583\u0561\u0566\u0561\u0576\u0581 \u0574\u0565\u056E \u0561\u0580\u056A\u0565\u0584\u2024 \u057D\u057A\u0561\u057D\u057E\u0578\u0582\u0574 \u0567, \u0578\u0580 ${withDefiniteArticle(issue3.origin ?? "\u0561\u0580\u056A\u0565\u0584")} \u056F\u0578\u0582\u0576\u0565\u0576\u0561 ${adj}${issue3.maximum.toString()} ${unit}`;
+              return `\u0549\u0561\u0583\u0561\u0566\u0561\u0576\u0581 \u0574\u0565\u056E \u0561\u0580\u056A\u0565\u0584\u2024 \u057D\u057A\u0561\u057D\u057E\u0578\u0582\u0574 \u0567, \u0578\u0580 ${withDefiniteArticle(issue4.origin ?? "\u0561\u0580\u056A\u0565\u0584")} \u056F\u0578\u0582\u0576\u0565\u0576\u0561 ${adj}${issue4.maximum.toString()} ${unit}`;
             }
-            return `\u0549\u0561\u0583\u0561\u0566\u0561\u0576\u0581 \u0574\u0565\u056E \u0561\u0580\u056A\u0565\u0584\u2024 \u057D\u057A\u0561\u057D\u057E\u0578\u0582\u0574 \u0567, \u0578\u0580 ${withDefiniteArticle(issue3.origin ?? "\u0561\u0580\u056A\u0565\u0584")} \u056C\u056B\u0576\u056B ${adj}${issue3.maximum.toString()}`;
+            return `\u0549\u0561\u0583\u0561\u0566\u0561\u0576\u0581 \u0574\u0565\u056E \u0561\u0580\u056A\u0565\u0584\u2024 \u057D\u057A\u0561\u057D\u057E\u0578\u0582\u0574 \u0567, \u0578\u0580 ${withDefiniteArticle(issue4.origin ?? "\u0561\u0580\u056A\u0565\u0584")} \u056C\u056B\u0576\u056B ${adj}${issue4.maximum.toString()}`;
           }
           case "too_small": {
-            const adj = issue3.inclusive ? ">=" : ">";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? ">=" : ">";
+            const sizing = getSizing(issue4.origin);
             if (sizing) {
-              const minValue = Number(issue3.minimum);
+              const minValue = Number(issue4.minimum);
               const unit = getArmenianPlural(minValue, sizing.unit.one, sizing.unit.many);
-              return `\u0549\u0561\u0583\u0561\u0566\u0561\u0576\u0581 \u0583\u0578\u0584\u0580 \u0561\u0580\u056A\u0565\u0584\u2024 \u057D\u057A\u0561\u057D\u057E\u0578\u0582\u0574 \u0567, \u0578\u0580 ${withDefiniteArticle(issue3.origin)} \u056F\u0578\u0582\u0576\u0565\u0576\u0561 ${adj}${issue3.minimum.toString()} ${unit}`;
+              return `\u0549\u0561\u0583\u0561\u0566\u0561\u0576\u0581 \u0583\u0578\u0584\u0580 \u0561\u0580\u056A\u0565\u0584\u2024 \u057D\u057A\u0561\u057D\u057E\u0578\u0582\u0574 \u0567, \u0578\u0580 ${withDefiniteArticle(issue4.origin)} \u056F\u0578\u0582\u0576\u0565\u0576\u0561 ${adj}${issue4.minimum.toString()} ${unit}`;
             }
-            return `\u0549\u0561\u0583\u0561\u0566\u0561\u0576\u0581 \u0583\u0578\u0584\u0580 \u0561\u0580\u056A\u0565\u0584\u2024 \u057D\u057A\u0561\u057D\u057E\u0578\u0582\u0574 \u0567, \u0578\u0580 ${withDefiniteArticle(issue3.origin)} \u056C\u056B\u0576\u056B ${adj}${issue3.minimum.toString()}`;
+            return `\u0549\u0561\u0583\u0561\u0566\u0561\u0576\u0581 \u0583\u0578\u0584\u0580 \u0561\u0580\u056A\u0565\u0584\u2024 \u057D\u057A\u0561\u057D\u057E\u0578\u0582\u0574 \u0567, \u0578\u0580 ${withDefiniteArticle(issue4.origin)} \u056C\u056B\u0576\u056B ${adj}${issue4.minimum.toString()}`;
           }
           case "invalid_format": {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.format === "starts_with")
               return `\u054D\u056D\u0561\u056C \u057F\u0578\u0572\u2024 \u057A\u0565\u057F\u0584 \u0567 \u057D\u056F\u057D\u057E\u056B "${_issue.prefix}"-\u0578\u057E`;
             if (_issue.format === "ends_with")
@@ -44658,18 +44658,18 @@ var init_hy = __esm({
               return `\u054D\u056D\u0561\u056C \u057F\u0578\u0572\u2024 \u057A\u0565\u057F\u0584 \u0567 \u057A\u0561\u0580\u0578\u0582\u0576\u0561\u056F\u056B "${_issue.includes}"`;
             if (_issue.format === "regex")
               return `\u054D\u056D\u0561\u056C \u057F\u0578\u0572\u2024 \u057A\u0565\u057F\u0584 \u0567 \u0570\u0561\u0574\u0561\u057A\u0561\u057F\u0561\u057D\u056D\u0561\u0576\u056B ${_issue.pattern} \u0571\u0587\u0561\u0579\u0561\u0583\u056B\u0576`;
-            return `\u054D\u056D\u0561\u056C ${FormatDictionary[_issue.format] ?? issue3.format}`;
+            return `\u054D\u056D\u0561\u056C ${FormatDictionary[_issue.format] ?? issue4.format}`;
           }
           case "not_multiple_of":
-            return `\u054D\u056D\u0561\u056C \u0569\u056B\u057E\u2024 \u057A\u0565\u057F\u0584 \u0567 \u0562\u0561\u0566\u0574\u0561\u057A\u0561\u057F\u056B\u056F \u056C\u056B\u0576\u056B ${issue3.divisor}-\u056B`;
+            return `\u054D\u056D\u0561\u056C \u0569\u056B\u057E\u2024 \u057A\u0565\u057F\u0584 \u0567 \u0562\u0561\u0566\u0574\u0561\u057A\u0561\u057F\u056B\u056F \u056C\u056B\u0576\u056B ${issue4.divisor}-\u056B`;
           case "unrecognized_keys":
-            return `\u0549\u0573\u0561\u0576\u0561\u0579\u057E\u0561\u056E \u0562\u0561\u0576\u0561\u056C\u056B${issue3.keys.length > 1 ? "\u0576\u0565\u0580" : ""}. ${joinValues(issue3.keys, ", ")}`;
+            return `\u0549\u0573\u0561\u0576\u0561\u0579\u057E\u0561\u056E \u0562\u0561\u0576\u0561\u056C\u056B${issue4.keys.length > 1 ? "\u0576\u0565\u0580" : ""}. ${joinValues(issue4.keys, ", ")}`;
           case "invalid_key":
-            return `\u054D\u056D\u0561\u056C \u0562\u0561\u0576\u0561\u056C\u056B ${withDefiniteArticle(issue3.origin)}-\u0578\u0582\u0574`;
+            return `\u054D\u056D\u0561\u056C \u0562\u0561\u0576\u0561\u056C\u056B ${withDefiniteArticle(issue4.origin)}-\u0578\u0582\u0574`;
           case "invalid_union":
             return "\u054D\u056D\u0561\u056C \u0574\u0578\u0582\u057F\u0584\u0561\u0563\u0580\u0578\u0582\u0574";
           case "invalid_element":
-            return `\u054D\u056D\u0561\u056C \u0561\u0580\u056A\u0565\u0584 ${withDefiniteArticle(issue3.origin)}-\u0578\u0582\u0574`;
+            return `\u054D\u056D\u0561\u056C \u0561\u0580\u056A\u0565\u0584 ${withDefiniteArticle(issue4.origin)}-\u0578\u0582\u0574`;
           default:
             return `\u054D\u056D\u0561\u056C \u0574\u0578\u0582\u057F\u0584\u0561\u0563\u0580\u0578\u0582\u0574`;
         }
@@ -44731,38 +44731,38 @@ var init_id = __esm({
       const TypeDictionary = {
         nan: "NaN"
       };
-      return (issue3) => {
-        switch (issue3.code) {
+      return (issue4) => {
+        switch (issue4.code) {
           case "invalid_type": {
-            const expected = TypeDictionary[issue3.expected] ?? issue3.expected;
-            const receivedType = parsedType(issue3.input);
+            const expected = TypeDictionary[issue4.expected] ?? issue4.expected;
+            const receivedType = parsedType(issue4.input);
             const received = TypeDictionary[receivedType] ?? receivedType;
-            if (/^[A-Z]/.test(issue3.expected)) {
-              return `Input tidak valid: diharapkan instanceof ${issue3.expected}, diterima ${received}`;
+            if (/^[A-Z]/.test(issue4.expected)) {
+              return `Input tidak valid: diharapkan instanceof ${issue4.expected}, diterima ${received}`;
             }
             return `Input tidak valid: diharapkan ${expected}, diterima ${received}`;
           }
           case "invalid_value":
-            if (issue3.values.length === 1)
-              return `Input tidak valid: diharapkan ${stringifyPrimitive(issue3.values[0])}`;
-            return `Pilihan tidak valid: diharapkan salah satu dari ${joinValues(issue3.values, "|")}`;
+            if (issue4.values.length === 1)
+              return `Input tidak valid: diharapkan ${stringifyPrimitive(issue4.values[0])}`;
+            return `Pilihan tidak valid: diharapkan salah satu dari ${joinValues(issue4.values, "|")}`;
           case "too_big": {
-            const adj = issue3.inclusive ? "<=" : "<";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? "<=" : "<";
+            const sizing = getSizing(issue4.origin);
             if (sizing)
-              return `Terlalu besar: diharapkan ${issue3.origin ?? "value"} memiliki ${adj}${issue3.maximum.toString()} ${sizing.unit ?? "elemen"}`;
-            return `Terlalu besar: diharapkan ${issue3.origin ?? "value"} menjadi ${adj}${issue3.maximum.toString()}`;
+              return `Terlalu besar: diharapkan ${issue4.origin ?? "value"} memiliki ${adj}${issue4.maximum.toString()} ${sizing.unit ?? "elemen"}`;
+            return `Terlalu besar: diharapkan ${issue4.origin ?? "value"} menjadi ${adj}${issue4.maximum.toString()}`;
           }
           case "too_small": {
-            const adj = issue3.inclusive ? ">=" : ">";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? ">=" : ">";
+            const sizing = getSizing(issue4.origin);
             if (sizing) {
-              return `Terlalu kecil: diharapkan ${issue3.origin} memiliki ${adj}${issue3.minimum.toString()} ${sizing.unit}`;
+              return `Terlalu kecil: diharapkan ${issue4.origin} memiliki ${adj}${issue4.minimum.toString()} ${sizing.unit}`;
             }
-            return `Terlalu kecil: diharapkan ${issue3.origin} menjadi ${adj}${issue3.minimum.toString()}`;
+            return `Terlalu kecil: diharapkan ${issue4.origin} menjadi ${adj}${issue4.minimum.toString()}`;
           }
           case "invalid_format": {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.format === "starts_with")
               return `String tidak valid: harus dimulai dengan "${_issue.prefix}"`;
             if (_issue.format === "ends_with")
@@ -44771,18 +44771,18 @@ var init_id = __esm({
               return `String tidak valid: harus menyertakan "${_issue.includes}"`;
             if (_issue.format === "regex")
               return `String tidak valid: harus sesuai pola ${_issue.pattern}`;
-            return `${FormatDictionary[_issue.format] ?? issue3.format} tidak valid`;
+            return `${FormatDictionary[_issue.format] ?? issue4.format} tidak valid`;
           }
           case "not_multiple_of":
-            return `Angka tidak valid: harus kelipatan dari ${issue3.divisor}`;
+            return `Angka tidak valid: harus kelipatan dari ${issue4.divisor}`;
           case "unrecognized_keys":
-            return `Kunci tidak dikenali ${issue3.keys.length > 1 ? "s" : ""}: ${joinValues(issue3.keys, ", ")}`;
+            return `Kunci tidak dikenali ${issue4.keys.length > 1 ? "s" : ""}: ${joinValues(issue4.keys, ", ")}`;
           case "invalid_key":
-            return `Kunci tidak valid di ${issue3.origin}`;
+            return `Kunci tidak valid di ${issue4.origin}`;
           case "invalid_union":
             return "Input tidak valid";
           case "invalid_element":
-            return `Nilai tidak valid di ${issue3.origin}`;
+            return `Nilai tidak valid di ${issue4.origin}`;
           default:
             return `Input tidak valid`;
         }
@@ -44846,38 +44846,38 @@ var init_is = __esm({
         number: "n\xFAmer",
         array: "fylki"
       };
-      return (issue3) => {
-        switch (issue3.code) {
+      return (issue4) => {
+        switch (issue4.code) {
           case "invalid_type": {
-            const expected = TypeDictionary[issue3.expected] ?? issue3.expected;
-            const receivedType = parsedType(issue3.input);
+            const expected = TypeDictionary[issue4.expected] ?? issue4.expected;
+            const receivedType = parsedType(issue4.input);
             const received = TypeDictionary[receivedType] ?? receivedType;
-            if (/^[A-Z]/.test(issue3.expected)) {
-              return `Rangt gildi: \xDE\xFA sl\xF3st inn ${received} \xFEar sem \xE1 a\xF0 vera instanceof ${issue3.expected}`;
+            if (/^[A-Z]/.test(issue4.expected)) {
+              return `Rangt gildi: \xDE\xFA sl\xF3st inn ${received} \xFEar sem \xE1 a\xF0 vera instanceof ${issue4.expected}`;
             }
             return `Rangt gildi: \xDE\xFA sl\xF3st inn ${received} \xFEar sem \xE1 a\xF0 vera ${expected}`;
           }
           case "invalid_value":
-            if (issue3.values.length === 1)
-              return `Rangt gildi: gert r\xE1\xF0 fyrir ${stringifyPrimitive(issue3.values[0])}`;
-            return `\xD3gilt val: m\xE1 vera eitt af eftirfarandi ${joinValues(issue3.values, "|")}`;
+            if (issue4.values.length === 1)
+              return `Rangt gildi: gert r\xE1\xF0 fyrir ${stringifyPrimitive(issue4.values[0])}`;
+            return `\xD3gilt val: m\xE1 vera eitt af eftirfarandi ${joinValues(issue4.values, "|")}`;
           case "too_big": {
-            const adj = issue3.inclusive ? "<=" : "<";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? "<=" : "<";
+            const sizing = getSizing(issue4.origin);
             if (sizing)
-              return `Of st\xF3rt: gert er r\xE1\xF0 fyrir a\xF0 ${issue3.origin ?? "gildi"} hafi ${adj}${issue3.maximum.toString()} ${sizing.unit ?? "hluti"}`;
-            return `Of st\xF3rt: gert er r\xE1\xF0 fyrir a\xF0 ${issue3.origin ?? "gildi"} s\xE9 ${adj}${issue3.maximum.toString()}`;
+              return `Of st\xF3rt: gert er r\xE1\xF0 fyrir a\xF0 ${issue4.origin ?? "gildi"} hafi ${adj}${issue4.maximum.toString()} ${sizing.unit ?? "hluti"}`;
+            return `Of st\xF3rt: gert er r\xE1\xF0 fyrir a\xF0 ${issue4.origin ?? "gildi"} s\xE9 ${adj}${issue4.maximum.toString()}`;
           }
           case "too_small": {
-            const adj = issue3.inclusive ? ">=" : ">";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? ">=" : ">";
+            const sizing = getSizing(issue4.origin);
             if (sizing) {
-              return `Of l\xEDti\xF0: gert er r\xE1\xF0 fyrir a\xF0 ${issue3.origin} hafi ${adj}${issue3.minimum.toString()} ${sizing.unit}`;
+              return `Of l\xEDti\xF0: gert er r\xE1\xF0 fyrir a\xF0 ${issue4.origin} hafi ${adj}${issue4.minimum.toString()} ${sizing.unit}`;
             }
-            return `Of l\xEDti\xF0: gert er r\xE1\xF0 fyrir a\xF0 ${issue3.origin} s\xE9 ${adj}${issue3.minimum.toString()}`;
+            return `Of l\xEDti\xF0: gert er r\xE1\xF0 fyrir a\xF0 ${issue4.origin} s\xE9 ${adj}${issue4.minimum.toString()}`;
           }
           case "invalid_format": {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.format === "starts_with") {
               return `\xD3gildur strengur: ver\xF0ur a\xF0 byrja \xE1 "${_issue.prefix}"`;
             }
@@ -44887,18 +44887,18 @@ var init_is = __esm({
               return `\xD3gildur strengur: ver\xF0ur a\xF0 innihalda "${_issue.includes}"`;
             if (_issue.format === "regex")
               return `\xD3gildur strengur: ver\xF0ur a\xF0 fylgja mynstri ${_issue.pattern}`;
-            return `Rangt ${FormatDictionary[_issue.format] ?? issue3.format}`;
+            return `Rangt ${FormatDictionary[_issue.format] ?? issue4.format}`;
           }
           case "not_multiple_of":
-            return `R\xF6ng tala: ver\xF0ur a\xF0 vera margfeldi af ${issue3.divisor}`;
+            return `R\xF6ng tala: ver\xF0ur a\xF0 vera margfeldi af ${issue4.divisor}`;
           case "unrecognized_keys":
-            return `\xD3\xFEekkt ${issue3.keys.length > 1 ? "ir lyklar" : "ur lykill"}: ${joinValues(issue3.keys, ", ")}`;
+            return `\xD3\xFEekkt ${issue4.keys.length > 1 ? "ir lyklar" : "ur lykill"}: ${joinValues(issue4.keys, ", ")}`;
           case "invalid_key":
-            return `Rangur lykill \xED ${issue3.origin}`;
+            return `Rangur lykill \xED ${issue4.origin}`;
           case "invalid_union":
             return "Rangt gildi";
           case "invalid_element":
-            return `Rangt gildi \xED ${issue3.origin}`;
+            return `Rangt gildi \xED ${issue4.origin}`;
           default:
             return `Rangt gildi`;
         }
@@ -44962,38 +44962,38 @@ var init_it = __esm({
         number: "numero",
         array: "vettore"
       };
-      return (issue3) => {
-        switch (issue3.code) {
+      return (issue4) => {
+        switch (issue4.code) {
           case "invalid_type": {
-            const expected = TypeDictionary[issue3.expected] ?? issue3.expected;
-            const receivedType = parsedType(issue3.input);
+            const expected = TypeDictionary[issue4.expected] ?? issue4.expected;
+            const receivedType = parsedType(issue4.input);
             const received = TypeDictionary[receivedType] ?? receivedType;
-            if (/^[A-Z]/.test(issue3.expected)) {
-              return `Input non valido: atteso instanceof ${issue3.expected}, ricevuto ${received}`;
+            if (/^[A-Z]/.test(issue4.expected)) {
+              return `Input non valido: atteso instanceof ${issue4.expected}, ricevuto ${received}`;
             }
             return `Input non valido: atteso ${expected}, ricevuto ${received}`;
           }
           case "invalid_value":
-            if (issue3.values.length === 1)
-              return `Input non valido: atteso ${stringifyPrimitive(issue3.values[0])}`;
-            return `Opzione non valida: atteso uno tra ${joinValues(issue3.values, "|")}`;
+            if (issue4.values.length === 1)
+              return `Input non valido: atteso ${stringifyPrimitive(issue4.values[0])}`;
+            return `Opzione non valida: atteso uno tra ${joinValues(issue4.values, "|")}`;
           case "too_big": {
-            const adj = issue3.inclusive ? "<=" : "<";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? "<=" : "<";
+            const sizing = getSizing(issue4.origin);
             if (sizing)
-              return `Troppo grande: ${issue3.origin ?? "valore"} deve avere ${adj}${issue3.maximum.toString()} ${sizing.unit ?? "elementi"}`;
-            return `Troppo grande: ${issue3.origin ?? "valore"} deve essere ${adj}${issue3.maximum.toString()}`;
+              return `Troppo grande: ${issue4.origin ?? "valore"} deve avere ${adj}${issue4.maximum.toString()} ${sizing.unit ?? "elementi"}`;
+            return `Troppo grande: ${issue4.origin ?? "valore"} deve essere ${adj}${issue4.maximum.toString()}`;
           }
           case "too_small": {
-            const adj = issue3.inclusive ? ">=" : ">";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? ">=" : ">";
+            const sizing = getSizing(issue4.origin);
             if (sizing) {
-              return `Troppo piccolo: ${issue3.origin} deve avere ${adj}${issue3.minimum.toString()} ${sizing.unit}`;
+              return `Troppo piccolo: ${issue4.origin} deve avere ${adj}${issue4.minimum.toString()} ${sizing.unit}`;
             }
-            return `Troppo piccolo: ${issue3.origin} deve essere ${adj}${issue3.minimum.toString()}`;
+            return `Troppo piccolo: ${issue4.origin} deve essere ${adj}${issue4.minimum.toString()}`;
           }
           case "invalid_format": {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.format === "starts_with")
               return `Stringa non valida: deve iniziare con "${_issue.prefix}"`;
             if (_issue.format === "ends_with")
@@ -45002,18 +45002,18 @@ var init_it = __esm({
               return `Stringa non valida: deve includere "${_issue.includes}"`;
             if (_issue.format === "regex")
               return `Stringa non valida: deve corrispondere al pattern ${_issue.pattern}`;
-            return `Input non valido: ${FormatDictionary[_issue.format] ?? issue3.format}`;
+            return `Input non valido: ${FormatDictionary[_issue.format] ?? issue4.format}`;
           }
           case "not_multiple_of":
-            return `Numero non valido: deve essere un multiplo di ${issue3.divisor}`;
+            return `Numero non valido: deve essere un multiplo di ${issue4.divisor}`;
           case "unrecognized_keys":
-            return `Chiav${issue3.keys.length > 1 ? "i" : "e"} non riconosciut${issue3.keys.length > 1 ? "e" : "a"}: ${joinValues(issue3.keys, ", ")}`;
+            return `Chiav${issue4.keys.length > 1 ? "i" : "e"} non riconosciut${issue4.keys.length > 1 ? "e" : "a"}: ${joinValues(issue4.keys, ", ")}`;
           case "invalid_key":
-            return `Chiave non valida in ${issue3.origin}`;
+            return `Chiave non valida in ${issue4.origin}`;
           case "invalid_union":
             return "Input non valido";
           case "invalid_element":
-            return `Valore non valido in ${issue3.origin}`;
+            return `Valore non valido in ${issue4.origin}`;
           default:
             return `Input non valido`;
         }
@@ -45077,37 +45077,37 @@ var init_ja = __esm({
         number: "\u6570\u5024",
         array: "\u914D\u5217"
       };
-      return (issue3) => {
-        switch (issue3.code) {
+      return (issue4) => {
+        switch (issue4.code) {
           case "invalid_type": {
-            const expected = TypeDictionary[issue3.expected] ?? issue3.expected;
-            const receivedType = parsedType(issue3.input);
+            const expected = TypeDictionary[issue4.expected] ?? issue4.expected;
+            const receivedType = parsedType(issue4.input);
             const received = TypeDictionary[receivedType] ?? receivedType;
-            if (/^[A-Z]/.test(issue3.expected)) {
-              return `\u7121\u52B9\u306A\u5165\u529B: instanceof ${issue3.expected}\u304C\u671F\u5F85\u3055\u308C\u307E\u3057\u305F\u304C\u3001${received}\u304C\u5165\u529B\u3055\u308C\u307E\u3057\u305F`;
+            if (/^[A-Z]/.test(issue4.expected)) {
+              return `\u7121\u52B9\u306A\u5165\u529B: instanceof ${issue4.expected}\u304C\u671F\u5F85\u3055\u308C\u307E\u3057\u305F\u304C\u3001${received}\u304C\u5165\u529B\u3055\u308C\u307E\u3057\u305F`;
             }
             return `\u7121\u52B9\u306A\u5165\u529B: ${expected}\u304C\u671F\u5F85\u3055\u308C\u307E\u3057\u305F\u304C\u3001${received}\u304C\u5165\u529B\u3055\u308C\u307E\u3057\u305F`;
           }
           case "invalid_value":
-            if (issue3.values.length === 1)
-              return `\u7121\u52B9\u306A\u5165\u529B: ${stringifyPrimitive(issue3.values[0])}\u304C\u671F\u5F85\u3055\u308C\u307E\u3057\u305F`;
-            return `\u7121\u52B9\u306A\u9078\u629E: ${joinValues(issue3.values, "\u3001")}\u306E\u3044\u305A\u308C\u304B\u3067\u3042\u308B\u5FC5\u8981\u304C\u3042\u308A\u307E\u3059`;
+            if (issue4.values.length === 1)
+              return `\u7121\u52B9\u306A\u5165\u529B: ${stringifyPrimitive(issue4.values[0])}\u304C\u671F\u5F85\u3055\u308C\u307E\u3057\u305F`;
+            return `\u7121\u52B9\u306A\u9078\u629E: ${joinValues(issue4.values, "\u3001")}\u306E\u3044\u305A\u308C\u304B\u3067\u3042\u308B\u5FC5\u8981\u304C\u3042\u308A\u307E\u3059`;
           case "too_big": {
-            const adj = issue3.inclusive ? "\u4EE5\u4E0B\u3067\u3042\u308B" : "\u3088\u308A\u5C0F\u3055\u3044";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? "\u4EE5\u4E0B\u3067\u3042\u308B" : "\u3088\u308A\u5C0F\u3055\u3044";
+            const sizing = getSizing(issue4.origin);
             if (sizing)
-              return `\u5927\u304D\u3059\u304E\u308B\u5024: ${issue3.origin ?? "\u5024"}\u306F${issue3.maximum.toString()}${sizing.unit ?? "\u8981\u7D20"}${adj}\u5FC5\u8981\u304C\u3042\u308A\u307E\u3059`;
-            return `\u5927\u304D\u3059\u304E\u308B\u5024: ${issue3.origin ?? "\u5024"}\u306F${issue3.maximum.toString()}${adj}\u5FC5\u8981\u304C\u3042\u308A\u307E\u3059`;
+              return `\u5927\u304D\u3059\u304E\u308B\u5024: ${issue4.origin ?? "\u5024"}\u306F${issue4.maximum.toString()}${sizing.unit ?? "\u8981\u7D20"}${adj}\u5FC5\u8981\u304C\u3042\u308A\u307E\u3059`;
+            return `\u5927\u304D\u3059\u304E\u308B\u5024: ${issue4.origin ?? "\u5024"}\u306F${issue4.maximum.toString()}${adj}\u5FC5\u8981\u304C\u3042\u308A\u307E\u3059`;
           }
           case "too_small": {
-            const adj = issue3.inclusive ? "\u4EE5\u4E0A\u3067\u3042\u308B" : "\u3088\u308A\u5927\u304D\u3044";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? "\u4EE5\u4E0A\u3067\u3042\u308B" : "\u3088\u308A\u5927\u304D\u3044";
+            const sizing = getSizing(issue4.origin);
             if (sizing)
-              return `\u5C0F\u3055\u3059\u304E\u308B\u5024: ${issue3.origin}\u306F${issue3.minimum.toString()}${sizing.unit}${adj}\u5FC5\u8981\u304C\u3042\u308A\u307E\u3059`;
-            return `\u5C0F\u3055\u3059\u304E\u308B\u5024: ${issue3.origin}\u306F${issue3.minimum.toString()}${adj}\u5FC5\u8981\u304C\u3042\u308A\u307E\u3059`;
+              return `\u5C0F\u3055\u3059\u304E\u308B\u5024: ${issue4.origin}\u306F${issue4.minimum.toString()}${sizing.unit}${adj}\u5FC5\u8981\u304C\u3042\u308A\u307E\u3059`;
+            return `\u5C0F\u3055\u3059\u304E\u308B\u5024: ${issue4.origin}\u306F${issue4.minimum.toString()}${adj}\u5FC5\u8981\u304C\u3042\u308A\u307E\u3059`;
           }
           case "invalid_format": {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.format === "starts_with")
               return `\u7121\u52B9\u306A\u6587\u5B57\u5217: "${_issue.prefix}"\u3067\u59CB\u307E\u308B\u5FC5\u8981\u304C\u3042\u308A\u307E\u3059`;
             if (_issue.format === "ends_with")
@@ -45116,18 +45116,18 @@ var init_ja = __esm({
               return `\u7121\u52B9\u306A\u6587\u5B57\u5217: "${_issue.includes}"\u3092\u542B\u3080\u5FC5\u8981\u304C\u3042\u308A\u307E\u3059`;
             if (_issue.format === "regex")
               return `\u7121\u52B9\u306A\u6587\u5B57\u5217: \u30D1\u30BF\u30FC\u30F3${_issue.pattern}\u306B\u4E00\u81F4\u3059\u308B\u5FC5\u8981\u304C\u3042\u308A\u307E\u3059`;
-            return `\u7121\u52B9\u306A${FormatDictionary[_issue.format] ?? issue3.format}`;
+            return `\u7121\u52B9\u306A${FormatDictionary[_issue.format] ?? issue4.format}`;
           }
           case "not_multiple_of":
-            return `\u7121\u52B9\u306A\u6570\u5024: ${issue3.divisor}\u306E\u500D\u6570\u3067\u3042\u308B\u5FC5\u8981\u304C\u3042\u308A\u307E\u3059`;
+            return `\u7121\u52B9\u306A\u6570\u5024: ${issue4.divisor}\u306E\u500D\u6570\u3067\u3042\u308B\u5FC5\u8981\u304C\u3042\u308A\u307E\u3059`;
           case "unrecognized_keys":
-            return `\u8A8D\u8B58\u3055\u308C\u3066\u3044\u306A\u3044\u30AD\u30FC${issue3.keys.length > 1 ? "\u7FA4" : ""}: ${joinValues(issue3.keys, "\u3001")}`;
+            return `\u8A8D\u8B58\u3055\u308C\u3066\u3044\u306A\u3044\u30AD\u30FC${issue4.keys.length > 1 ? "\u7FA4" : ""}: ${joinValues(issue4.keys, "\u3001")}`;
           case "invalid_key":
-            return `${issue3.origin}\u5185\u306E\u7121\u52B9\u306A\u30AD\u30FC`;
+            return `${issue4.origin}\u5185\u306E\u7121\u52B9\u306A\u30AD\u30FC`;
           case "invalid_union":
             return "\u7121\u52B9\u306A\u5165\u529B";
           case "invalid_element":
-            return `${issue3.origin}\u5185\u306E\u7121\u52B9\u306A\u5024`;
+            return `${issue4.origin}\u5185\u306E\u7121\u52B9\u306A\u5024`;
           default:
             return `\u7121\u52B9\u306A\u5165\u529B`;
         }
@@ -45194,38 +45194,38 @@ var init_ka = __esm({
         function: "\u10E4\u10E3\u10DC\u10E5\u10EA\u10D8\u10D0",
         array: "\u10DB\u10D0\u10E1\u10D8\u10D5\u10D8"
       };
-      return (issue3) => {
-        switch (issue3.code) {
+      return (issue4) => {
+        switch (issue4.code) {
           case "invalid_type": {
-            const expected = TypeDictionary[issue3.expected] ?? issue3.expected;
-            const receivedType = parsedType(issue3.input);
+            const expected = TypeDictionary[issue4.expected] ?? issue4.expected;
+            const receivedType = parsedType(issue4.input);
             const received = TypeDictionary[receivedType] ?? receivedType;
-            if (/^[A-Z]/.test(issue3.expected)) {
-              return `\u10D0\u10E0\u10D0\u10E1\u10EC\u10DD\u10E0\u10D8 \u10E8\u10D4\u10E7\u10D5\u10D0\u10DC\u10D0: \u10DB\u10DD\u10E1\u10D0\u10DA\u10DD\u10D3\u10DC\u10D4\u10DA\u10D8 instanceof ${issue3.expected}, \u10DB\u10D8\u10E6\u10D4\u10D1\u10E3\u10DA\u10D8 ${received}`;
+            if (/^[A-Z]/.test(issue4.expected)) {
+              return `\u10D0\u10E0\u10D0\u10E1\u10EC\u10DD\u10E0\u10D8 \u10E8\u10D4\u10E7\u10D5\u10D0\u10DC\u10D0: \u10DB\u10DD\u10E1\u10D0\u10DA\u10DD\u10D3\u10DC\u10D4\u10DA\u10D8 instanceof ${issue4.expected}, \u10DB\u10D8\u10E6\u10D4\u10D1\u10E3\u10DA\u10D8 ${received}`;
             }
             return `\u10D0\u10E0\u10D0\u10E1\u10EC\u10DD\u10E0\u10D8 \u10E8\u10D4\u10E7\u10D5\u10D0\u10DC\u10D0: \u10DB\u10DD\u10E1\u10D0\u10DA\u10DD\u10D3\u10DC\u10D4\u10DA\u10D8 ${expected}, \u10DB\u10D8\u10E6\u10D4\u10D1\u10E3\u10DA\u10D8 ${received}`;
           }
           case "invalid_value":
-            if (issue3.values.length === 1)
-              return `\u10D0\u10E0\u10D0\u10E1\u10EC\u10DD\u10E0\u10D8 \u10E8\u10D4\u10E7\u10D5\u10D0\u10DC\u10D0: \u10DB\u10DD\u10E1\u10D0\u10DA\u10DD\u10D3\u10DC\u10D4\u10DA\u10D8 ${stringifyPrimitive(issue3.values[0])}`;
-            return `\u10D0\u10E0\u10D0\u10E1\u10EC\u10DD\u10E0\u10D8 \u10D5\u10D0\u10E0\u10D8\u10D0\u10DC\u10E2\u10D8: \u10DB\u10DD\u10E1\u10D0\u10DA\u10DD\u10D3\u10DC\u10D4\u10DA\u10D8\u10D0 \u10D4\u10E0\u10D7-\u10D4\u10E0\u10D7\u10D8 ${joinValues(issue3.values, "|")}-\u10D3\u10D0\u10DC`;
+            if (issue4.values.length === 1)
+              return `\u10D0\u10E0\u10D0\u10E1\u10EC\u10DD\u10E0\u10D8 \u10E8\u10D4\u10E7\u10D5\u10D0\u10DC\u10D0: \u10DB\u10DD\u10E1\u10D0\u10DA\u10DD\u10D3\u10DC\u10D4\u10DA\u10D8 ${stringifyPrimitive(issue4.values[0])}`;
+            return `\u10D0\u10E0\u10D0\u10E1\u10EC\u10DD\u10E0\u10D8 \u10D5\u10D0\u10E0\u10D8\u10D0\u10DC\u10E2\u10D8: \u10DB\u10DD\u10E1\u10D0\u10DA\u10DD\u10D3\u10DC\u10D4\u10DA\u10D8\u10D0 \u10D4\u10E0\u10D7-\u10D4\u10E0\u10D7\u10D8 ${joinValues(issue4.values, "|")}-\u10D3\u10D0\u10DC`;
           case "too_big": {
-            const adj = issue3.inclusive ? "<=" : "<";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? "<=" : "<";
+            const sizing = getSizing(issue4.origin);
             if (sizing)
-              return `\u10D6\u10D4\u10D3\u10DB\u10D4\u10E2\u10D0\u10D3 \u10D3\u10D8\u10D3\u10D8: \u10DB\u10DD\u10E1\u10D0\u10DA\u10DD\u10D3\u10DC\u10D4\u10DA\u10D8 ${issue3.origin ?? "\u10DB\u10DC\u10D8\u10E8\u10D5\u10DC\u10D4\u10DA\u10DD\u10D1\u10D0"} ${sizing.verb} ${adj}${issue3.maximum.toString()} ${sizing.unit}`;
-            return `\u10D6\u10D4\u10D3\u10DB\u10D4\u10E2\u10D0\u10D3 \u10D3\u10D8\u10D3\u10D8: \u10DB\u10DD\u10E1\u10D0\u10DA\u10DD\u10D3\u10DC\u10D4\u10DA\u10D8 ${issue3.origin ?? "\u10DB\u10DC\u10D8\u10E8\u10D5\u10DC\u10D4\u10DA\u10DD\u10D1\u10D0"} \u10D8\u10E7\u10DD\u10E1 ${adj}${issue3.maximum.toString()}`;
+              return `\u10D6\u10D4\u10D3\u10DB\u10D4\u10E2\u10D0\u10D3 \u10D3\u10D8\u10D3\u10D8: \u10DB\u10DD\u10E1\u10D0\u10DA\u10DD\u10D3\u10DC\u10D4\u10DA\u10D8 ${issue4.origin ?? "\u10DB\u10DC\u10D8\u10E8\u10D5\u10DC\u10D4\u10DA\u10DD\u10D1\u10D0"} ${sizing.verb} ${adj}${issue4.maximum.toString()} ${sizing.unit}`;
+            return `\u10D6\u10D4\u10D3\u10DB\u10D4\u10E2\u10D0\u10D3 \u10D3\u10D8\u10D3\u10D8: \u10DB\u10DD\u10E1\u10D0\u10DA\u10DD\u10D3\u10DC\u10D4\u10DA\u10D8 ${issue4.origin ?? "\u10DB\u10DC\u10D8\u10E8\u10D5\u10DC\u10D4\u10DA\u10DD\u10D1\u10D0"} \u10D8\u10E7\u10DD\u10E1 ${adj}${issue4.maximum.toString()}`;
           }
           case "too_small": {
-            const adj = issue3.inclusive ? ">=" : ">";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? ">=" : ">";
+            const sizing = getSizing(issue4.origin);
             if (sizing) {
-              return `\u10D6\u10D4\u10D3\u10DB\u10D4\u10E2\u10D0\u10D3 \u10DE\u10D0\u10E2\u10D0\u10E0\u10D0: \u10DB\u10DD\u10E1\u10D0\u10DA\u10DD\u10D3\u10DC\u10D4\u10DA\u10D8 ${issue3.origin} ${sizing.verb} ${adj}${issue3.minimum.toString()} ${sizing.unit}`;
+              return `\u10D6\u10D4\u10D3\u10DB\u10D4\u10E2\u10D0\u10D3 \u10DE\u10D0\u10E2\u10D0\u10E0\u10D0: \u10DB\u10DD\u10E1\u10D0\u10DA\u10DD\u10D3\u10DC\u10D4\u10DA\u10D8 ${issue4.origin} ${sizing.verb} ${adj}${issue4.minimum.toString()} ${sizing.unit}`;
             }
-            return `\u10D6\u10D4\u10D3\u10DB\u10D4\u10E2\u10D0\u10D3 \u10DE\u10D0\u10E2\u10D0\u10E0\u10D0: \u10DB\u10DD\u10E1\u10D0\u10DA\u10DD\u10D3\u10DC\u10D4\u10DA\u10D8 ${issue3.origin} \u10D8\u10E7\u10DD\u10E1 ${adj}${issue3.minimum.toString()}`;
+            return `\u10D6\u10D4\u10D3\u10DB\u10D4\u10E2\u10D0\u10D3 \u10DE\u10D0\u10E2\u10D0\u10E0\u10D0: \u10DB\u10DD\u10E1\u10D0\u10DA\u10DD\u10D3\u10DC\u10D4\u10DA\u10D8 ${issue4.origin} \u10D8\u10E7\u10DD\u10E1 ${adj}${issue4.minimum.toString()}`;
           }
           case "invalid_format": {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.format === "starts_with") {
               return `\u10D0\u10E0\u10D0\u10E1\u10EC\u10DD\u10E0\u10D8 \u10D5\u10D4\u10DA\u10D8: \u10E3\u10DC\u10D3\u10D0 \u10D8\u10EC\u10E7\u10D4\u10D1\u10DD\u10D3\u10D4\u10E1 "${_issue.prefix}"-\u10D8\u10D7`;
             }
@@ -45235,18 +45235,18 @@ var init_ka = __esm({
               return `\u10D0\u10E0\u10D0\u10E1\u10EC\u10DD\u10E0\u10D8 \u10D5\u10D4\u10DA\u10D8: \u10E3\u10DC\u10D3\u10D0 \u10E8\u10D4\u10D8\u10EA\u10D0\u10D5\u10D3\u10D4\u10E1 "${_issue.includes}"-\u10E1`;
             if (_issue.format === "regex")
               return `\u10D0\u10E0\u10D0\u10E1\u10EC\u10DD\u10E0\u10D8 \u10D5\u10D4\u10DA\u10D8: \u10E3\u10DC\u10D3\u10D0 \u10E8\u10D4\u10D4\u10E1\u10D0\u10D1\u10D0\u10DB\u10D4\u10D1\u10DD\u10D3\u10D4\u10E1 \u10E8\u10D0\u10D1\u10DA\u10DD\u10DC\u10E1 ${_issue.pattern}`;
-            return `\u10D0\u10E0\u10D0\u10E1\u10EC\u10DD\u10E0\u10D8 ${FormatDictionary[_issue.format] ?? issue3.format}`;
+            return `\u10D0\u10E0\u10D0\u10E1\u10EC\u10DD\u10E0\u10D8 ${FormatDictionary[_issue.format] ?? issue4.format}`;
           }
           case "not_multiple_of":
-            return `\u10D0\u10E0\u10D0\u10E1\u10EC\u10DD\u10E0\u10D8 \u10E0\u10D8\u10EA\u10EE\u10D5\u10D8: \u10E3\u10DC\u10D3\u10D0 \u10D8\u10E7\u10DD\u10E1 ${issue3.divisor}-\u10D8\u10E1 \u10EF\u10D4\u10E0\u10D0\u10D3\u10D8`;
+            return `\u10D0\u10E0\u10D0\u10E1\u10EC\u10DD\u10E0\u10D8 \u10E0\u10D8\u10EA\u10EE\u10D5\u10D8: \u10E3\u10DC\u10D3\u10D0 \u10D8\u10E7\u10DD\u10E1 ${issue4.divisor}-\u10D8\u10E1 \u10EF\u10D4\u10E0\u10D0\u10D3\u10D8`;
           case "unrecognized_keys":
-            return `\u10E3\u10EA\u10DC\u10DD\u10D1\u10D8 \u10D2\u10D0\u10E1\u10D0\u10E6\u10D4\u10D1${issue3.keys.length > 1 ? "\u10D4\u10D1\u10D8" : "\u10D8"}: ${joinValues(issue3.keys, ", ")}`;
+            return `\u10E3\u10EA\u10DC\u10DD\u10D1\u10D8 \u10D2\u10D0\u10E1\u10D0\u10E6\u10D4\u10D1${issue4.keys.length > 1 ? "\u10D4\u10D1\u10D8" : "\u10D8"}: ${joinValues(issue4.keys, ", ")}`;
           case "invalid_key":
-            return `\u10D0\u10E0\u10D0\u10E1\u10EC\u10DD\u10E0\u10D8 \u10D2\u10D0\u10E1\u10D0\u10E6\u10D4\u10D1\u10D8 ${issue3.origin}-\u10E8\u10D8`;
+            return `\u10D0\u10E0\u10D0\u10E1\u10EC\u10DD\u10E0\u10D8 \u10D2\u10D0\u10E1\u10D0\u10E6\u10D4\u10D1\u10D8 ${issue4.origin}-\u10E8\u10D8`;
           case "invalid_union":
             return "\u10D0\u10E0\u10D0\u10E1\u10EC\u10DD\u10E0\u10D8 \u10E8\u10D4\u10E7\u10D5\u10D0\u10DC\u10D0";
           case "invalid_element":
-            return `\u10D0\u10E0\u10D0\u10E1\u10EC\u10DD\u10E0\u10D8 \u10DB\u10DC\u10D8\u10E8\u10D5\u10DC\u10D4\u10DA\u10DD\u10D1\u10D0 ${issue3.origin}-\u10E8\u10D8`;
+            return `\u10D0\u10E0\u10D0\u10E1\u10EC\u10DD\u10E0\u10D8 \u10DB\u10DC\u10D8\u10E8\u10D5\u10DC\u10D4\u10DA\u10DD\u10D1\u10D0 ${issue4.origin}-\u10E8\u10D8`;
           default:
             return `\u10D0\u10E0\u10D0\u10E1\u10EC\u10DD\u10E0\u10D8 \u10E8\u10D4\u10E7\u10D5\u10D0\u10DC\u10D0`;
         }
@@ -45311,38 +45311,38 @@ var init_km = __esm({
         array: "\u17A2\u17B6\u179A\u17C1 (Array)",
         null: "\u1782\u17D2\u1798\u17B6\u1793\u178F\u1798\u17D2\u179B\u17C3 (null)"
       };
-      return (issue3) => {
-        switch (issue3.code) {
+      return (issue4) => {
+        switch (issue4.code) {
           case "invalid_type": {
-            const expected = TypeDictionary[issue3.expected] ?? issue3.expected;
-            const receivedType = parsedType(issue3.input);
+            const expected = TypeDictionary[issue4.expected] ?? issue4.expected;
+            const receivedType = parsedType(issue4.input);
             const received = TypeDictionary[receivedType] ?? receivedType;
-            if (/^[A-Z]/.test(issue3.expected)) {
-              return `\u1791\u17B7\u1793\u17D2\u1793\u1793\u17D0\u1799\u1794\u1789\u17D2\u1785\u17BC\u179B\u1798\u17B7\u1793\u178F\u17D2\u179A\u17B9\u1798\u178F\u17D2\u179A\u17BC\u179C\u17D6 \u178F\u17D2\u179A\u17BC\u179C\u1780\u17B6\u179A instanceof ${issue3.expected} \u1794\u17C9\u17BB\u1793\u17D2\u178F\u17C2\u1791\u1791\u17BD\u179B\u1794\u17B6\u1793 ${received}`;
+            if (/^[A-Z]/.test(issue4.expected)) {
+              return `\u1791\u17B7\u1793\u17D2\u1793\u1793\u17D0\u1799\u1794\u1789\u17D2\u1785\u17BC\u179B\u1798\u17B7\u1793\u178F\u17D2\u179A\u17B9\u1798\u178F\u17D2\u179A\u17BC\u179C\u17D6 \u178F\u17D2\u179A\u17BC\u179C\u1780\u17B6\u179A instanceof ${issue4.expected} \u1794\u17C9\u17BB\u1793\u17D2\u178F\u17C2\u1791\u1791\u17BD\u179B\u1794\u17B6\u1793 ${received}`;
             }
             return `\u1791\u17B7\u1793\u17D2\u1793\u1793\u17D0\u1799\u1794\u1789\u17D2\u1785\u17BC\u179B\u1798\u17B7\u1793\u178F\u17D2\u179A\u17B9\u1798\u178F\u17D2\u179A\u17BC\u179C\u17D6 \u178F\u17D2\u179A\u17BC\u179C\u1780\u17B6\u179A ${expected} \u1794\u17C9\u17BB\u1793\u17D2\u178F\u17C2\u1791\u1791\u17BD\u179B\u1794\u17B6\u1793 ${received}`;
           }
           case "invalid_value":
-            if (issue3.values.length === 1)
-              return `\u1791\u17B7\u1793\u17D2\u1793\u1793\u17D0\u1799\u1794\u1789\u17D2\u1785\u17BC\u179B\u1798\u17B7\u1793\u178F\u17D2\u179A\u17B9\u1798\u178F\u17D2\u179A\u17BC\u179C\u17D6 \u178F\u17D2\u179A\u17BC\u179C\u1780\u17B6\u179A ${stringifyPrimitive(issue3.values[0])}`;
-            return `\u1787\u1798\u17D2\u179A\u17BE\u179F\u1798\u17B7\u1793\u178F\u17D2\u179A\u17B9\u1798\u178F\u17D2\u179A\u17BC\u179C\u17D6 \u178F\u17D2\u179A\u17BC\u179C\u1787\u17B6\u1798\u17BD\u1799\u1780\u17D2\u1793\u17BB\u1784\u1785\u17C6\u178E\u17C4\u1798 ${joinValues(issue3.values, "|")}`;
+            if (issue4.values.length === 1)
+              return `\u1791\u17B7\u1793\u17D2\u1793\u1793\u17D0\u1799\u1794\u1789\u17D2\u1785\u17BC\u179B\u1798\u17B7\u1793\u178F\u17D2\u179A\u17B9\u1798\u178F\u17D2\u179A\u17BC\u179C\u17D6 \u178F\u17D2\u179A\u17BC\u179C\u1780\u17B6\u179A ${stringifyPrimitive(issue4.values[0])}`;
+            return `\u1787\u1798\u17D2\u179A\u17BE\u179F\u1798\u17B7\u1793\u178F\u17D2\u179A\u17B9\u1798\u178F\u17D2\u179A\u17BC\u179C\u17D6 \u178F\u17D2\u179A\u17BC\u179C\u1787\u17B6\u1798\u17BD\u1799\u1780\u17D2\u1793\u17BB\u1784\u1785\u17C6\u178E\u17C4\u1798 ${joinValues(issue4.values, "|")}`;
           case "too_big": {
-            const adj = issue3.inclusive ? "<=" : "<";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? "<=" : "<";
+            const sizing = getSizing(issue4.origin);
             if (sizing)
-              return `\u1792\u17C6\u1796\u17C1\u1780\u17D6 \u178F\u17D2\u179A\u17BC\u179C\u1780\u17B6\u179A ${issue3.origin ?? "\u178F\u1798\u17D2\u179B\u17C3"} ${adj} ${issue3.maximum.toString()} ${sizing.unit ?? "\u1792\u17B6\u178F\u17BB"}`;
-            return `\u1792\u17C6\u1796\u17C1\u1780\u17D6 \u178F\u17D2\u179A\u17BC\u179C\u1780\u17B6\u179A ${issue3.origin ?? "\u178F\u1798\u17D2\u179B\u17C3"} ${adj} ${issue3.maximum.toString()}`;
+              return `\u1792\u17C6\u1796\u17C1\u1780\u17D6 \u178F\u17D2\u179A\u17BC\u179C\u1780\u17B6\u179A ${issue4.origin ?? "\u178F\u1798\u17D2\u179B\u17C3"} ${adj} ${issue4.maximum.toString()} ${sizing.unit ?? "\u1792\u17B6\u178F\u17BB"}`;
+            return `\u1792\u17C6\u1796\u17C1\u1780\u17D6 \u178F\u17D2\u179A\u17BC\u179C\u1780\u17B6\u179A ${issue4.origin ?? "\u178F\u1798\u17D2\u179B\u17C3"} ${adj} ${issue4.maximum.toString()}`;
           }
           case "too_small": {
-            const adj = issue3.inclusive ? ">=" : ">";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? ">=" : ">";
+            const sizing = getSizing(issue4.origin);
             if (sizing) {
-              return `\u178F\u17BC\u1785\u1796\u17C1\u1780\u17D6 \u178F\u17D2\u179A\u17BC\u179C\u1780\u17B6\u179A ${issue3.origin} ${adj} ${issue3.minimum.toString()} ${sizing.unit}`;
+              return `\u178F\u17BC\u1785\u1796\u17C1\u1780\u17D6 \u178F\u17D2\u179A\u17BC\u179C\u1780\u17B6\u179A ${issue4.origin} ${adj} ${issue4.minimum.toString()} ${sizing.unit}`;
             }
-            return `\u178F\u17BC\u1785\u1796\u17C1\u1780\u17D6 \u178F\u17D2\u179A\u17BC\u179C\u1780\u17B6\u179A ${issue3.origin} ${adj} ${issue3.minimum.toString()}`;
+            return `\u178F\u17BC\u1785\u1796\u17C1\u1780\u17D6 \u178F\u17D2\u179A\u17BC\u179C\u1780\u17B6\u179A ${issue4.origin} ${adj} ${issue4.minimum.toString()}`;
           }
           case "invalid_format": {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.format === "starts_with") {
               return `\u1781\u17D2\u179F\u17C2\u17A2\u1780\u17D2\u179F\u179A\u1798\u17B7\u1793\u178F\u17D2\u179A\u17B9\u1798\u178F\u17D2\u179A\u17BC\u179C\u17D6 \u178F\u17D2\u179A\u17BC\u179C\u1785\u17B6\u1794\u17CB\u1795\u17D2\u178F\u17BE\u1798\u178A\u17C4\u1799 "${_issue.prefix}"`;
             }
@@ -45352,18 +45352,18 @@ var init_km = __esm({
               return `\u1781\u17D2\u179F\u17C2\u17A2\u1780\u17D2\u179F\u179A\u1798\u17B7\u1793\u178F\u17D2\u179A\u17B9\u1798\u178F\u17D2\u179A\u17BC\u179C\u17D6 \u178F\u17D2\u179A\u17BC\u179C\u1798\u17B6\u1793 "${_issue.includes}"`;
             if (_issue.format === "regex")
               return `\u1781\u17D2\u179F\u17C2\u17A2\u1780\u17D2\u179F\u179A\u1798\u17B7\u1793\u178F\u17D2\u179A\u17B9\u1798\u178F\u17D2\u179A\u17BC\u179C\u17D6 \u178F\u17D2\u179A\u17BC\u179C\u178F\u17C2\u1795\u17D2\u1782\u17BC\u1795\u17D2\u1782\u1784\u1793\u17B9\u1784\u1791\u1798\u17D2\u179A\u1784\u17CB\u178A\u17C2\u179B\u1794\u17B6\u1793\u1780\u17C6\u178E\u178F\u17CB ${_issue.pattern}`;
-            return `\u1798\u17B7\u1793\u178F\u17D2\u179A\u17B9\u1798\u178F\u17D2\u179A\u17BC\u179C\u17D6 ${FormatDictionary[_issue.format] ?? issue3.format}`;
+            return `\u1798\u17B7\u1793\u178F\u17D2\u179A\u17B9\u1798\u178F\u17D2\u179A\u17BC\u179C\u17D6 ${FormatDictionary[_issue.format] ?? issue4.format}`;
           }
           case "not_multiple_of":
-            return `\u179B\u17C1\u1781\u1798\u17B7\u1793\u178F\u17D2\u179A\u17B9\u1798\u178F\u17D2\u179A\u17BC\u179C\u17D6 \u178F\u17D2\u179A\u17BC\u179C\u178F\u17C2\u1787\u17B6\u1796\u17A0\u17BB\u1782\u17BB\u178E\u1793\u17C3 ${issue3.divisor}`;
+            return `\u179B\u17C1\u1781\u1798\u17B7\u1793\u178F\u17D2\u179A\u17B9\u1798\u178F\u17D2\u179A\u17BC\u179C\u17D6 \u178F\u17D2\u179A\u17BC\u179C\u178F\u17C2\u1787\u17B6\u1796\u17A0\u17BB\u1782\u17BB\u178E\u1793\u17C3 ${issue4.divisor}`;
           case "unrecognized_keys":
-            return `\u179A\u1780\u1783\u17BE\u1789\u179F\u17C4\u1798\u17B7\u1793\u179F\u17D2\u1782\u17B6\u179B\u17CB\u17D6 ${joinValues(issue3.keys, ", ")}`;
+            return `\u179A\u1780\u1783\u17BE\u1789\u179F\u17C4\u1798\u17B7\u1793\u179F\u17D2\u1782\u17B6\u179B\u17CB\u17D6 ${joinValues(issue4.keys, ", ")}`;
           case "invalid_key":
-            return `\u179F\u17C4\u1798\u17B7\u1793\u178F\u17D2\u179A\u17B9\u1798\u178F\u17D2\u179A\u17BC\u179C\u1793\u17C5\u1780\u17D2\u1793\u17BB\u1784 ${issue3.origin}`;
+            return `\u179F\u17C4\u1798\u17B7\u1793\u178F\u17D2\u179A\u17B9\u1798\u178F\u17D2\u179A\u17BC\u179C\u1793\u17C5\u1780\u17D2\u1793\u17BB\u1784 ${issue4.origin}`;
           case "invalid_union":
             return `\u1791\u17B7\u1793\u17D2\u1793\u1793\u17D0\u1799\u1798\u17B7\u1793\u178F\u17D2\u179A\u17B9\u1798\u178F\u17D2\u179A\u17BC\u179C`;
           case "invalid_element":
-            return `\u1791\u17B7\u1793\u17D2\u1793\u1793\u17D0\u1799\u1798\u17B7\u1793\u178F\u17D2\u179A\u17B9\u1798\u178F\u17D2\u179A\u17BC\u179C\u1793\u17C5\u1780\u17D2\u1793\u17BB\u1784 ${issue3.origin}`;
+            return `\u1791\u17B7\u1793\u17D2\u1793\u1793\u17D0\u1799\u1798\u17B7\u1793\u178F\u17D2\u179A\u17B9\u1798\u178F\u17D2\u179A\u17BC\u179C\u1793\u17C5\u1780\u17D2\u1793\u17BB\u1784 ${issue4.origin}`;
           default:
             return `\u1791\u17B7\u1793\u17D2\u1793\u1793\u17D0\u1799\u1798\u17B7\u1793\u178F\u17D2\u179A\u17B9\u1798\u178F\u17D2\u179A\u17BC\u179C`;
         }
@@ -45435,42 +45435,42 @@ var init_ko = __esm({
       const TypeDictionary = {
         nan: "NaN"
       };
-      return (issue3) => {
-        switch (issue3.code) {
+      return (issue4) => {
+        switch (issue4.code) {
           case "invalid_type": {
-            const expected = TypeDictionary[issue3.expected] ?? issue3.expected;
-            const receivedType = parsedType(issue3.input);
+            const expected = TypeDictionary[issue4.expected] ?? issue4.expected;
+            const receivedType = parsedType(issue4.input);
             const received = TypeDictionary[receivedType] ?? receivedType;
-            if (/^[A-Z]/.test(issue3.expected)) {
-              return `\uC798\uBABB\uB41C \uC785\uB825: \uC608\uC0C1 \uD0C0\uC785\uC740 instanceof ${issue3.expected}, \uBC1B\uC740 \uD0C0\uC785\uC740 ${received}\uC785\uB2C8\uB2E4`;
+            if (/^[A-Z]/.test(issue4.expected)) {
+              return `\uC798\uBABB\uB41C \uC785\uB825: \uC608\uC0C1 \uD0C0\uC785\uC740 instanceof ${issue4.expected}, \uBC1B\uC740 \uD0C0\uC785\uC740 ${received}\uC785\uB2C8\uB2E4`;
             }
             return `\uC798\uBABB\uB41C \uC785\uB825: \uC608\uC0C1 \uD0C0\uC785\uC740 ${expected}, \uBC1B\uC740 \uD0C0\uC785\uC740 ${received}\uC785\uB2C8\uB2E4`;
           }
           case "invalid_value":
-            if (issue3.values.length === 1)
-              return `\uC798\uBABB\uB41C \uC785\uB825: \uAC12\uC740 ${stringifyPrimitive(issue3.values[0])} \uC774\uC5B4\uC57C \uD569\uB2C8\uB2E4`;
-            return `\uC798\uBABB\uB41C \uC635\uC158: ${joinValues(issue3.values, "\uB610\uB294 ")} \uC911 \uD558\uB098\uC5EC\uC57C \uD569\uB2C8\uB2E4`;
+            if (issue4.values.length === 1)
+              return `\uC798\uBABB\uB41C \uC785\uB825: \uAC12\uC740 ${stringifyPrimitive(issue4.values[0])} \uC774\uC5B4\uC57C \uD569\uB2C8\uB2E4`;
+            return `\uC798\uBABB\uB41C \uC635\uC158: ${joinValues(issue4.values, "\uB610\uB294 ")} \uC911 \uD558\uB098\uC5EC\uC57C \uD569\uB2C8\uB2E4`;
           case "too_big": {
-            const adj = issue3.inclusive ? "\uC774\uD558" : "\uBBF8\uB9CC";
+            const adj = issue4.inclusive ? "\uC774\uD558" : "\uBBF8\uB9CC";
             const suffix = adj === "\uBBF8\uB9CC" ? "\uC774\uC5B4\uC57C \uD569\uB2C8\uB2E4" : "\uC5EC\uC57C \uD569\uB2C8\uB2E4";
-            const sizing = getSizing(issue3.origin);
+            const sizing = getSizing(issue4.origin);
             const unit = sizing?.unit ?? "\uC694\uC18C";
             if (sizing)
-              return `${issue3.origin ?? "\uAC12"}\uC774 \uB108\uBB34 \uD07D\uB2C8\uB2E4: ${issue3.maximum.toString()}${unit} ${adj}${suffix}`;
-            return `${issue3.origin ?? "\uAC12"}\uC774 \uB108\uBB34 \uD07D\uB2C8\uB2E4: ${issue3.maximum.toString()} ${adj}${suffix}`;
+              return `${issue4.origin ?? "\uAC12"}\uC774 \uB108\uBB34 \uD07D\uB2C8\uB2E4: ${issue4.maximum.toString()}${unit} ${adj}${suffix}`;
+            return `${issue4.origin ?? "\uAC12"}\uC774 \uB108\uBB34 \uD07D\uB2C8\uB2E4: ${issue4.maximum.toString()} ${adj}${suffix}`;
           }
           case "too_small": {
-            const adj = issue3.inclusive ? "\uC774\uC0C1" : "\uCD08\uACFC";
+            const adj = issue4.inclusive ? "\uC774\uC0C1" : "\uCD08\uACFC";
             const suffix = adj === "\uC774\uC0C1" ? "\uC774\uC5B4\uC57C \uD569\uB2C8\uB2E4" : "\uC5EC\uC57C \uD569\uB2C8\uB2E4";
-            const sizing = getSizing(issue3.origin);
+            const sizing = getSizing(issue4.origin);
             const unit = sizing?.unit ?? "\uC694\uC18C";
             if (sizing) {
-              return `${issue3.origin ?? "\uAC12"}\uC774 \uB108\uBB34 \uC791\uC2B5\uB2C8\uB2E4: ${issue3.minimum.toString()}${unit} ${adj}${suffix}`;
+              return `${issue4.origin ?? "\uAC12"}\uC774 \uB108\uBB34 \uC791\uC2B5\uB2C8\uB2E4: ${issue4.minimum.toString()}${unit} ${adj}${suffix}`;
             }
-            return `${issue3.origin ?? "\uAC12"}\uC774 \uB108\uBB34 \uC791\uC2B5\uB2C8\uB2E4: ${issue3.minimum.toString()} ${adj}${suffix}`;
+            return `${issue4.origin ?? "\uAC12"}\uC774 \uB108\uBB34 \uC791\uC2B5\uB2C8\uB2E4: ${issue4.minimum.toString()} ${adj}${suffix}`;
           }
           case "invalid_format": {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.format === "starts_with") {
               return `\uC798\uBABB\uB41C \uBB38\uC790\uC5F4: "${_issue.prefix}"(\uC73C)\uB85C \uC2DC\uC791\uD574\uC57C \uD569\uB2C8\uB2E4`;
             }
@@ -45480,18 +45480,18 @@ var init_ko = __esm({
               return `\uC798\uBABB\uB41C \uBB38\uC790\uC5F4: "${_issue.includes}"\uC744(\uB97C) \uD3EC\uD568\uD574\uC57C \uD569\uB2C8\uB2E4`;
             if (_issue.format === "regex")
               return `\uC798\uBABB\uB41C \uBB38\uC790\uC5F4: \uC815\uADDC\uC2DD ${_issue.pattern} \uD328\uD134\uACFC \uC77C\uCE58\uD574\uC57C \uD569\uB2C8\uB2E4`;
-            return `\uC798\uBABB\uB41C ${FormatDictionary[_issue.format] ?? issue3.format}`;
+            return `\uC798\uBABB\uB41C ${FormatDictionary[_issue.format] ?? issue4.format}`;
           }
           case "not_multiple_of":
-            return `\uC798\uBABB\uB41C \uC22B\uC790: ${issue3.divisor}\uC758 \uBC30\uC218\uC5EC\uC57C \uD569\uB2C8\uB2E4`;
+            return `\uC798\uBABB\uB41C \uC22B\uC790: ${issue4.divisor}\uC758 \uBC30\uC218\uC5EC\uC57C \uD569\uB2C8\uB2E4`;
           case "unrecognized_keys":
-            return `\uC778\uC2DD\uD560 \uC218 \uC5C6\uB294 \uD0A4: ${joinValues(issue3.keys, ", ")}`;
+            return `\uC778\uC2DD\uD560 \uC218 \uC5C6\uB294 \uD0A4: ${joinValues(issue4.keys, ", ")}`;
           case "invalid_key":
-            return `\uC798\uBABB\uB41C \uD0A4: ${issue3.origin}`;
+            return `\uC798\uBABB\uB41C \uD0A4: ${issue4.origin}`;
           case "invalid_union":
             return `\uC798\uBABB\uB41C \uC785\uB825`;
           case "invalid_element":
-            return `\uC798\uBABB\uB41C \uAC12: ${issue3.origin}`;
+            return `\uC798\uBABB\uB41C \uAC12: ${issue4.origin}`;
           default:
             return `\uC798\uBABB\uB41C \uC785\uB825`;
         }
@@ -45646,39 +45646,39 @@ var init_lt = __esm({
         object: "objektas",
         null: "nulin\u0117 reik\u0161m\u0117"
       };
-      return (issue3) => {
-        switch (issue3.code) {
+      return (issue4) => {
+        switch (issue4.code) {
           case "invalid_type": {
-            const expected = TypeDictionary[issue3.expected] ?? issue3.expected;
-            const receivedType = parsedType(issue3.input);
+            const expected = TypeDictionary[issue4.expected] ?? issue4.expected;
+            const receivedType = parsedType(issue4.input);
             const received = TypeDictionary[receivedType] ?? receivedType;
-            if (/^[A-Z]/.test(issue3.expected)) {
-              return `Gautas tipas ${received}, o tik\u0117tasi - instanceof ${issue3.expected}`;
+            if (/^[A-Z]/.test(issue4.expected)) {
+              return `Gautas tipas ${received}, o tik\u0117tasi - instanceof ${issue4.expected}`;
             }
             return `Gautas tipas ${received}, o tik\u0117tasi - ${expected}`;
           }
           case "invalid_value":
-            if (issue3.values.length === 1)
-              return `Privalo b\u016Bti ${stringifyPrimitive(issue3.values[0])}`;
-            return `Privalo b\u016Bti vienas i\u0161 ${joinValues(issue3.values, "|")} pasirinkim\u0173`;
+            if (issue4.values.length === 1)
+              return `Privalo b\u016Bti ${stringifyPrimitive(issue4.values[0])}`;
+            return `Privalo b\u016Bti vienas i\u0161 ${joinValues(issue4.values, "|")} pasirinkim\u0173`;
           case "too_big": {
-            const origin = TypeDictionary[issue3.origin] ?? issue3.origin;
-            const sizing = getSizing(issue3.origin, getUnitTypeFromNumber(Number(issue3.maximum)), issue3.inclusive ?? false, "smaller");
+            const origin = TypeDictionary[issue4.origin] ?? issue4.origin;
+            const sizing = getSizing(issue4.origin, getUnitTypeFromNumber(Number(issue4.maximum)), issue4.inclusive ?? false, "smaller");
             if (sizing?.verb)
-              return `${capitalizeFirstCharacter(origin ?? issue3.origin ?? "reik\u0161m\u0117")} ${sizing.verb} ${issue3.maximum.toString()} ${sizing.unit ?? "element\u0173"}`;
-            const adj = issue3.inclusive ? "ne didesnis kaip" : "ma\u017Eesnis kaip";
-            return `${capitalizeFirstCharacter(origin ?? issue3.origin ?? "reik\u0161m\u0117")} turi b\u016Bti ${adj} ${issue3.maximum.toString()} ${sizing?.unit}`;
+              return `${capitalizeFirstCharacter(origin ?? issue4.origin ?? "reik\u0161m\u0117")} ${sizing.verb} ${issue4.maximum.toString()} ${sizing.unit ?? "element\u0173"}`;
+            const adj = issue4.inclusive ? "ne didesnis kaip" : "ma\u017Eesnis kaip";
+            return `${capitalizeFirstCharacter(origin ?? issue4.origin ?? "reik\u0161m\u0117")} turi b\u016Bti ${adj} ${issue4.maximum.toString()} ${sizing?.unit}`;
           }
           case "too_small": {
-            const origin = TypeDictionary[issue3.origin] ?? issue3.origin;
-            const sizing = getSizing(issue3.origin, getUnitTypeFromNumber(Number(issue3.minimum)), issue3.inclusive ?? false, "bigger");
+            const origin = TypeDictionary[issue4.origin] ?? issue4.origin;
+            const sizing = getSizing(issue4.origin, getUnitTypeFromNumber(Number(issue4.minimum)), issue4.inclusive ?? false, "bigger");
             if (sizing?.verb)
-              return `${capitalizeFirstCharacter(origin ?? issue3.origin ?? "reik\u0161m\u0117")} ${sizing.verb} ${issue3.minimum.toString()} ${sizing.unit ?? "element\u0173"}`;
-            const adj = issue3.inclusive ? "ne ma\u017Eesnis kaip" : "didesnis kaip";
-            return `${capitalizeFirstCharacter(origin ?? issue3.origin ?? "reik\u0161m\u0117")} turi b\u016Bti ${adj} ${issue3.minimum.toString()} ${sizing?.unit}`;
+              return `${capitalizeFirstCharacter(origin ?? issue4.origin ?? "reik\u0161m\u0117")} ${sizing.verb} ${issue4.minimum.toString()} ${sizing.unit ?? "element\u0173"}`;
+            const adj = issue4.inclusive ? "ne ma\u017Eesnis kaip" : "didesnis kaip";
+            return `${capitalizeFirstCharacter(origin ?? issue4.origin ?? "reik\u0161m\u0117")} turi b\u016Bti ${adj} ${issue4.minimum.toString()} ${sizing?.unit}`;
           }
           case "invalid_format": {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.format === "starts_with") {
               return `Eilut\u0117 privalo prasid\u0117ti "${_issue.prefix}"`;
             }
@@ -45688,19 +45688,19 @@ var init_lt = __esm({
               return `Eilut\u0117 privalo \u012Ftraukti "${_issue.includes}"`;
             if (_issue.format === "regex")
               return `Eilut\u0117 privalo atitikti ${_issue.pattern}`;
-            return `Neteisingas ${FormatDictionary[_issue.format] ?? issue3.format}`;
+            return `Neteisingas ${FormatDictionary[_issue.format] ?? issue4.format}`;
           }
           case "not_multiple_of":
-            return `Skai\u010Dius privalo b\u016Bti ${issue3.divisor} kartotinis.`;
+            return `Skai\u010Dius privalo b\u016Bti ${issue4.divisor} kartotinis.`;
           case "unrecognized_keys":
-            return `Neatpa\u017Eint${issue3.keys.length > 1 ? "i" : "as"} rakt${issue3.keys.length > 1 ? "ai" : "as"}: ${joinValues(issue3.keys, ", ")}`;
+            return `Neatpa\u017Eint${issue4.keys.length > 1 ? "i" : "as"} rakt${issue4.keys.length > 1 ? "ai" : "as"}: ${joinValues(issue4.keys, ", ")}`;
           case "invalid_key":
             return "Rastas klaidingas raktas";
           case "invalid_union":
             return "Klaidinga \u012Fvestis";
           case "invalid_element": {
-            const origin = TypeDictionary[issue3.origin] ?? issue3.origin;
-            return `${capitalizeFirstCharacter(origin ?? issue3.origin ?? "reik\u0161m\u0117")} turi klaiding\u0105 \u012Fvest\u012F`;
+            const origin = TypeDictionary[issue4.origin] ?? issue4.origin;
+            return `${capitalizeFirstCharacter(origin ?? issue4.origin ?? "reik\u0161m\u0117")} turi klaiding\u0105 \u012Fvest\u012F`;
           }
           default:
             return "Klaidinga \u012Fvestis";
@@ -45765,38 +45765,38 @@ var init_mk = __esm({
         number: "\u0431\u0440\u043E\u0458",
         array: "\u043D\u0438\u0437\u0430"
       };
-      return (issue3) => {
-        switch (issue3.code) {
+      return (issue4) => {
+        switch (issue4.code) {
           case "invalid_type": {
-            const expected = TypeDictionary[issue3.expected] ?? issue3.expected;
-            const receivedType = parsedType(issue3.input);
+            const expected = TypeDictionary[issue4.expected] ?? issue4.expected;
+            const receivedType = parsedType(issue4.input);
             const received = TypeDictionary[receivedType] ?? receivedType;
-            if (/^[A-Z]/.test(issue3.expected)) {
-              return `\u0413\u0440\u0435\u0448\u0435\u043D \u0432\u043D\u0435\u0441: \u0441\u0435 \u043E\u0447\u0435\u043A\u0443\u0432\u0430 instanceof ${issue3.expected}, \u043F\u0440\u0438\u043C\u0435\u043D\u043E ${received}`;
+            if (/^[A-Z]/.test(issue4.expected)) {
+              return `\u0413\u0440\u0435\u0448\u0435\u043D \u0432\u043D\u0435\u0441: \u0441\u0435 \u043E\u0447\u0435\u043A\u0443\u0432\u0430 instanceof ${issue4.expected}, \u043F\u0440\u0438\u043C\u0435\u043D\u043E ${received}`;
             }
             return `\u0413\u0440\u0435\u0448\u0435\u043D \u0432\u043D\u0435\u0441: \u0441\u0435 \u043E\u0447\u0435\u043A\u0443\u0432\u0430 ${expected}, \u043F\u0440\u0438\u043C\u0435\u043D\u043E ${received}`;
           }
           case "invalid_value":
-            if (issue3.values.length === 1)
-              return `Invalid input: expected ${stringifyPrimitive(issue3.values[0])}`;
-            return `\u0413\u0440\u0435\u0448\u0430\u043D\u0430 \u043E\u043F\u0446\u0438\u0458\u0430: \u0441\u0435 \u043E\u0447\u0435\u043A\u0443\u0432\u0430 \u0435\u0434\u043D\u0430 ${joinValues(issue3.values, "|")}`;
+            if (issue4.values.length === 1)
+              return `Invalid input: expected ${stringifyPrimitive(issue4.values[0])}`;
+            return `\u0413\u0440\u0435\u0448\u0430\u043D\u0430 \u043E\u043F\u0446\u0438\u0458\u0430: \u0441\u0435 \u043E\u0447\u0435\u043A\u0443\u0432\u0430 \u0435\u0434\u043D\u0430 ${joinValues(issue4.values, "|")}`;
           case "too_big": {
-            const adj = issue3.inclusive ? "<=" : "<";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? "<=" : "<";
+            const sizing = getSizing(issue4.origin);
             if (sizing)
-              return `\u041F\u0440\u0435\u043C\u043D\u043E\u0433\u0443 \u0433\u043E\u043B\u0435\u043C: \u0441\u0435 \u043E\u0447\u0435\u043A\u0443\u0432\u0430 ${issue3.origin ?? "\u0432\u0440\u0435\u0434\u043D\u043E\u0441\u0442\u0430"} \u0434\u0430 \u0438\u043C\u0430 ${adj}${issue3.maximum.toString()} ${sizing.unit ?? "\u0435\u043B\u0435\u043C\u0435\u043D\u0442\u0438"}`;
-            return `\u041F\u0440\u0435\u043C\u043D\u043E\u0433\u0443 \u0433\u043E\u043B\u0435\u043C: \u0441\u0435 \u043E\u0447\u0435\u043A\u0443\u0432\u0430 ${issue3.origin ?? "\u0432\u0440\u0435\u0434\u043D\u043E\u0441\u0442\u0430"} \u0434\u0430 \u0431\u0438\u0434\u0435 ${adj}${issue3.maximum.toString()}`;
+              return `\u041F\u0440\u0435\u043C\u043D\u043E\u0433\u0443 \u0433\u043E\u043B\u0435\u043C: \u0441\u0435 \u043E\u0447\u0435\u043A\u0443\u0432\u0430 ${issue4.origin ?? "\u0432\u0440\u0435\u0434\u043D\u043E\u0441\u0442\u0430"} \u0434\u0430 \u0438\u043C\u0430 ${adj}${issue4.maximum.toString()} ${sizing.unit ?? "\u0435\u043B\u0435\u043C\u0435\u043D\u0442\u0438"}`;
+            return `\u041F\u0440\u0435\u043C\u043D\u043E\u0433\u0443 \u0433\u043E\u043B\u0435\u043C: \u0441\u0435 \u043E\u0447\u0435\u043A\u0443\u0432\u0430 ${issue4.origin ?? "\u0432\u0440\u0435\u0434\u043D\u043E\u0441\u0442\u0430"} \u0434\u0430 \u0431\u0438\u0434\u0435 ${adj}${issue4.maximum.toString()}`;
           }
           case "too_small": {
-            const adj = issue3.inclusive ? ">=" : ">";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? ">=" : ">";
+            const sizing = getSizing(issue4.origin);
             if (sizing) {
-              return `\u041F\u0440\u0435\u043C\u043D\u043E\u0433\u0443 \u043C\u0430\u043B: \u0441\u0435 \u043E\u0447\u0435\u043A\u0443\u0432\u0430 ${issue3.origin} \u0434\u0430 \u0438\u043C\u0430 ${adj}${issue3.minimum.toString()} ${sizing.unit}`;
+              return `\u041F\u0440\u0435\u043C\u043D\u043E\u0433\u0443 \u043C\u0430\u043B: \u0441\u0435 \u043E\u0447\u0435\u043A\u0443\u0432\u0430 ${issue4.origin} \u0434\u0430 \u0438\u043C\u0430 ${adj}${issue4.minimum.toString()} ${sizing.unit}`;
             }
-            return `\u041F\u0440\u0435\u043C\u043D\u043E\u0433\u0443 \u043C\u0430\u043B: \u0441\u0435 \u043E\u0447\u0435\u043A\u0443\u0432\u0430 ${issue3.origin} \u0434\u0430 \u0431\u0438\u0434\u0435 ${adj}${issue3.minimum.toString()}`;
+            return `\u041F\u0440\u0435\u043C\u043D\u043E\u0433\u0443 \u043C\u0430\u043B: \u0441\u0435 \u043E\u0447\u0435\u043A\u0443\u0432\u0430 ${issue4.origin} \u0434\u0430 \u0431\u0438\u0434\u0435 ${adj}${issue4.minimum.toString()}`;
           }
           case "invalid_format": {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.format === "starts_with") {
               return `\u041D\u0435\u0432\u0430\u0436\u0435\u0447\u043A\u0430 \u043D\u0438\u0437\u0430: \u043C\u043E\u0440\u0430 \u0434\u0430 \u0437\u0430\u043F\u043E\u0447\u043D\u0443\u0432\u0430 \u0441\u043E "${_issue.prefix}"`;
             }
@@ -45806,18 +45806,18 @@ var init_mk = __esm({
               return `\u041D\u0435\u0432\u0430\u0436\u0435\u0447\u043A\u0430 \u043D\u0438\u0437\u0430: \u043C\u043E\u0440\u0430 \u0434\u0430 \u0432\u043A\u043B\u0443\u0447\u0443\u0432\u0430 "${_issue.includes}"`;
             if (_issue.format === "regex")
               return `\u041D\u0435\u0432\u0430\u0436\u0435\u0447\u043A\u0430 \u043D\u0438\u0437\u0430: \u043C\u043E\u0440\u0430 \u0434\u0430 \u043E\u0434\u0433\u043E\u0430\u0440\u0430 \u043D\u0430 \u043F\u0430\u0442\u0435\u0440\u043D\u043E\u0442 ${_issue.pattern}`;
-            return `Invalid ${FormatDictionary[_issue.format] ?? issue3.format}`;
+            return `Invalid ${FormatDictionary[_issue.format] ?? issue4.format}`;
           }
           case "not_multiple_of":
-            return `\u0413\u0440\u0435\u0448\u0435\u043D \u0431\u0440\u043E\u0458: \u043C\u043E\u0440\u0430 \u0434\u0430 \u0431\u0438\u0434\u0435 \u0434\u0435\u043B\u0438\u0432 \u0441\u043E ${issue3.divisor}`;
+            return `\u0413\u0440\u0435\u0448\u0435\u043D \u0431\u0440\u043E\u0458: \u043C\u043E\u0440\u0430 \u0434\u0430 \u0431\u0438\u0434\u0435 \u0434\u0435\u043B\u0438\u0432 \u0441\u043E ${issue4.divisor}`;
           case "unrecognized_keys":
-            return `${issue3.keys.length > 1 ? "\u041D\u0435\u043F\u0440\u0435\u043F\u043E\u0437\u043D\u0430\u0435\u043D\u0438 \u043A\u043B\u0443\u0447\u0435\u0432\u0438" : "\u041D\u0435\u043F\u0440\u0435\u043F\u043E\u0437\u043D\u0430\u0435\u043D \u043A\u043B\u0443\u0447"}: ${joinValues(issue3.keys, ", ")}`;
+            return `${issue4.keys.length > 1 ? "\u041D\u0435\u043F\u0440\u0435\u043F\u043E\u0437\u043D\u0430\u0435\u043D\u0438 \u043A\u043B\u0443\u0447\u0435\u0432\u0438" : "\u041D\u0435\u043F\u0440\u0435\u043F\u043E\u0437\u043D\u0430\u0435\u043D \u043A\u043B\u0443\u0447"}: ${joinValues(issue4.keys, ", ")}`;
           case "invalid_key":
-            return `\u0413\u0440\u0435\u0448\u0435\u043D \u043A\u043B\u0443\u0447 \u0432\u043E ${issue3.origin}`;
+            return `\u0413\u0440\u0435\u0448\u0435\u043D \u043A\u043B\u0443\u0447 \u0432\u043E ${issue4.origin}`;
           case "invalid_union":
             return "\u0413\u0440\u0435\u0448\u0435\u043D \u0432\u043D\u0435\u0441";
           case "invalid_element":
-            return `\u0413\u0440\u0435\u0448\u043D\u0430 \u0432\u0440\u0435\u0434\u043D\u043E\u0441\u0442 \u0432\u043E ${issue3.origin}`;
+            return `\u0413\u0440\u0435\u0448\u043D\u0430 \u0432\u0440\u0435\u0434\u043D\u043E\u0441\u0442 \u0432\u043E ${issue4.origin}`;
           default:
             return `\u0413\u0440\u0435\u0448\u0435\u043D \u0432\u043D\u0435\u0441`;
         }
@@ -45880,38 +45880,38 @@ var init_ms = __esm({
         nan: "NaN",
         number: "nombor"
       };
-      return (issue3) => {
-        switch (issue3.code) {
+      return (issue4) => {
+        switch (issue4.code) {
           case "invalid_type": {
-            const expected = TypeDictionary[issue3.expected] ?? issue3.expected;
-            const receivedType = parsedType(issue3.input);
+            const expected = TypeDictionary[issue4.expected] ?? issue4.expected;
+            const receivedType = parsedType(issue4.input);
             const received = TypeDictionary[receivedType] ?? receivedType;
-            if (/^[A-Z]/.test(issue3.expected)) {
-              return `Input tidak sah: dijangka instanceof ${issue3.expected}, diterima ${received}`;
+            if (/^[A-Z]/.test(issue4.expected)) {
+              return `Input tidak sah: dijangka instanceof ${issue4.expected}, diterima ${received}`;
             }
             return `Input tidak sah: dijangka ${expected}, diterima ${received}`;
           }
           case "invalid_value":
-            if (issue3.values.length === 1)
-              return `Input tidak sah: dijangka ${stringifyPrimitive(issue3.values[0])}`;
-            return `Pilihan tidak sah: dijangka salah satu daripada ${joinValues(issue3.values, "|")}`;
+            if (issue4.values.length === 1)
+              return `Input tidak sah: dijangka ${stringifyPrimitive(issue4.values[0])}`;
+            return `Pilihan tidak sah: dijangka salah satu daripada ${joinValues(issue4.values, "|")}`;
           case "too_big": {
-            const adj = issue3.inclusive ? "<=" : "<";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? "<=" : "<";
+            const sizing = getSizing(issue4.origin);
             if (sizing)
-              return `Terlalu besar: dijangka ${issue3.origin ?? "nilai"} ${sizing.verb} ${adj}${issue3.maximum.toString()} ${sizing.unit ?? "elemen"}`;
-            return `Terlalu besar: dijangka ${issue3.origin ?? "nilai"} adalah ${adj}${issue3.maximum.toString()}`;
+              return `Terlalu besar: dijangka ${issue4.origin ?? "nilai"} ${sizing.verb} ${adj}${issue4.maximum.toString()} ${sizing.unit ?? "elemen"}`;
+            return `Terlalu besar: dijangka ${issue4.origin ?? "nilai"} adalah ${adj}${issue4.maximum.toString()}`;
           }
           case "too_small": {
-            const adj = issue3.inclusive ? ">=" : ">";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? ">=" : ">";
+            const sizing = getSizing(issue4.origin);
             if (sizing) {
-              return `Terlalu kecil: dijangka ${issue3.origin} ${sizing.verb} ${adj}${issue3.minimum.toString()} ${sizing.unit}`;
+              return `Terlalu kecil: dijangka ${issue4.origin} ${sizing.verb} ${adj}${issue4.minimum.toString()} ${sizing.unit}`;
             }
-            return `Terlalu kecil: dijangka ${issue3.origin} adalah ${adj}${issue3.minimum.toString()}`;
+            return `Terlalu kecil: dijangka ${issue4.origin} adalah ${adj}${issue4.minimum.toString()}`;
           }
           case "invalid_format": {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.format === "starts_with")
               return `String tidak sah: mesti bermula dengan "${_issue.prefix}"`;
             if (_issue.format === "ends_with")
@@ -45920,18 +45920,18 @@ var init_ms = __esm({
               return `String tidak sah: mesti mengandungi "${_issue.includes}"`;
             if (_issue.format === "regex")
               return `String tidak sah: mesti sepadan dengan corak ${_issue.pattern}`;
-            return `${FormatDictionary[_issue.format] ?? issue3.format} tidak sah`;
+            return `${FormatDictionary[_issue.format] ?? issue4.format} tidak sah`;
           }
           case "not_multiple_of":
-            return `Nombor tidak sah: perlu gandaan ${issue3.divisor}`;
+            return `Nombor tidak sah: perlu gandaan ${issue4.divisor}`;
           case "unrecognized_keys":
-            return `Kunci tidak dikenali: ${joinValues(issue3.keys, ", ")}`;
+            return `Kunci tidak dikenali: ${joinValues(issue4.keys, ", ")}`;
           case "invalid_key":
-            return `Kunci tidak sah dalam ${issue3.origin}`;
+            return `Kunci tidak sah dalam ${issue4.origin}`;
           case "invalid_union":
             return "Input tidak sah";
           case "invalid_element":
-            return `Nilai tidak sah dalam ${issue3.origin}`;
+            return `Nilai tidak sah dalam ${issue4.origin}`;
           default:
             return `Input tidak sah`;
         }
@@ -45994,40 +45994,40 @@ var init_nl = __esm({
         nan: "NaN",
         number: "getal"
       };
-      return (issue3) => {
-        switch (issue3.code) {
+      return (issue4) => {
+        switch (issue4.code) {
           case "invalid_type": {
-            const expected = TypeDictionary[issue3.expected] ?? issue3.expected;
-            const receivedType = parsedType(issue3.input);
+            const expected = TypeDictionary[issue4.expected] ?? issue4.expected;
+            const receivedType = parsedType(issue4.input);
             const received = TypeDictionary[receivedType] ?? receivedType;
-            if (/^[A-Z]/.test(issue3.expected)) {
-              return `Ongeldige invoer: verwacht instanceof ${issue3.expected}, ontving ${received}`;
+            if (/^[A-Z]/.test(issue4.expected)) {
+              return `Ongeldige invoer: verwacht instanceof ${issue4.expected}, ontving ${received}`;
             }
             return `Ongeldige invoer: verwacht ${expected}, ontving ${received}`;
           }
           case "invalid_value":
-            if (issue3.values.length === 1)
-              return `Ongeldige invoer: verwacht ${stringifyPrimitive(issue3.values[0])}`;
-            return `Ongeldige optie: verwacht \xE9\xE9n van ${joinValues(issue3.values, "|")}`;
+            if (issue4.values.length === 1)
+              return `Ongeldige invoer: verwacht ${stringifyPrimitive(issue4.values[0])}`;
+            return `Ongeldige optie: verwacht \xE9\xE9n van ${joinValues(issue4.values, "|")}`;
           case "too_big": {
-            const adj = issue3.inclusive ? "<=" : "<";
-            const sizing = getSizing(issue3.origin);
-            const longName = issue3.origin === "date" ? "laat" : issue3.origin === "string" ? "lang" : "groot";
+            const adj = issue4.inclusive ? "<=" : "<";
+            const sizing = getSizing(issue4.origin);
+            const longName = issue4.origin === "date" ? "laat" : issue4.origin === "string" ? "lang" : "groot";
             if (sizing)
-              return `Te ${longName}: verwacht dat ${issue3.origin ?? "waarde"} ${adj}${issue3.maximum.toString()} ${sizing.unit ?? "elementen"} ${sizing.verb}`;
-            return `Te ${longName}: verwacht dat ${issue3.origin ?? "waarde"} ${adj}${issue3.maximum.toString()} is`;
+              return `Te ${longName}: verwacht dat ${issue4.origin ?? "waarde"} ${adj}${issue4.maximum.toString()} ${sizing.unit ?? "elementen"} ${sizing.verb}`;
+            return `Te ${longName}: verwacht dat ${issue4.origin ?? "waarde"} ${adj}${issue4.maximum.toString()} is`;
           }
           case "too_small": {
-            const adj = issue3.inclusive ? ">=" : ">";
-            const sizing = getSizing(issue3.origin);
-            const shortName = issue3.origin === "date" ? "vroeg" : issue3.origin === "string" ? "kort" : "klein";
+            const adj = issue4.inclusive ? ">=" : ">";
+            const sizing = getSizing(issue4.origin);
+            const shortName = issue4.origin === "date" ? "vroeg" : issue4.origin === "string" ? "kort" : "klein";
             if (sizing) {
-              return `Te ${shortName}: verwacht dat ${issue3.origin} ${adj}${issue3.minimum.toString()} ${sizing.unit} ${sizing.verb}`;
+              return `Te ${shortName}: verwacht dat ${issue4.origin} ${adj}${issue4.minimum.toString()} ${sizing.unit} ${sizing.verb}`;
             }
-            return `Te ${shortName}: verwacht dat ${issue3.origin} ${adj}${issue3.minimum.toString()} is`;
+            return `Te ${shortName}: verwacht dat ${issue4.origin} ${adj}${issue4.minimum.toString()} is`;
           }
           case "invalid_format": {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.format === "starts_with") {
               return `Ongeldige tekst: moet met "${_issue.prefix}" beginnen`;
             }
@@ -46037,18 +46037,18 @@ var init_nl = __esm({
               return `Ongeldige tekst: moet "${_issue.includes}" bevatten`;
             if (_issue.format === "regex")
               return `Ongeldige tekst: moet overeenkomen met patroon ${_issue.pattern}`;
-            return `Ongeldig: ${FormatDictionary[_issue.format] ?? issue3.format}`;
+            return `Ongeldig: ${FormatDictionary[_issue.format] ?? issue4.format}`;
           }
           case "not_multiple_of":
-            return `Ongeldig getal: moet een veelvoud van ${issue3.divisor} zijn`;
+            return `Ongeldig getal: moet een veelvoud van ${issue4.divisor} zijn`;
           case "unrecognized_keys":
-            return `Onbekende key${issue3.keys.length > 1 ? "s" : ""}: ${joinValues(issue3.keys, ", ")}`;
+            return `Onbekende key${issue4.keys.length > 1 ? "s" : ""}: ${joinValues(issue4.keys, ", ")}`;
           case "invalid_key":
-            return `Ongeldige key in ${issue3.origin}`;
+            return `Ongeldige key in ${issue4.origin}`;
           case "invalid_union":
             return "Ongeldige invoer";
           case "invalid_element":
-            return `Ongeldige waarde in ${issue3.origin}`;
+            return `Ongeldige waarde in ${issue4.origin}`;
           default:
             return `Ongeldige invoer`;
         }
@@ -46112,38 +46112,38 @@ var init_no = __esm({
         number: "tall",
         array: "liste"
       };
-      return (issue3) => {
-        switch (issue3.code) {
+      return (issue4) => {
+        switch (issue4.code) {
           case "invalid_type": {
-            const expected = TypeDictionary[issue3.expected] ?? issue3.expected;
-            const receivedType = parsedType(issue3.input);
+            const expected = TypeDictionary[issue4.expected] ?? issue4.expected;
+            const receivedType = parsedType(issue4.input);
             const received = TypeDictionary[receivedType] ?? receivedType;
-            if (/^[A-Z]/.test(issue3.expected)) {
-              return `Ugyldig input: forventet instanceof ${issue3.expected}, fikk ${received}`;
+            if (/^[A-Z]/.test(issue4.expected)) {
+              return `Ugyldig input: forventet instanceof ${issue4.expected}, fikk ${received}`;
             }
             return `Ugyldig input: forventet ${expected}, fikk ${received}`;
           }
           case "invalid_value":
-            if (issue3.values.length === 1)
-              return `Ugyldig verdi: forventet ${stringifyPrimitive(issue3.values[0])}`;
-            return `Ugyldig valg: forventet en av ${joinValues(issue3.values, "|")}`;
+            if (issue4.values.length === 1)
+              return `Ugyldig verdi: forventet ${stringifyPrimitive(issue4.values[0])}`;
+            return `Ugyldig valg: forventet en av ${joinValues(issue4.values, "|")}`;
           case "too_big": {
-            const adj = issue3.inclusive ? "<=" : "<";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? "<=" : "<";
+            const sizing = getSizing(issue4.origin);
             if (sizing)
-              return `For stor(t): forventet ${issue3.origin ?? "value"} til \xE5 ha ${adj}${issue3.maximum.toString()} ${sizing.unit ?? "elementer"}`;
-            return `For stor(t): forventet ${issue3.origin ?? "value"} til \xE5 ha ${adj}${issue3.maximum.toString()}`;
+              return `For stor(t): forventet ${issue4.origin ?? "value"} til \xE5 ha ${adj}${issue4.maximum.toString()} ${sizing.unit ?? "elementer"}`;
+            return `For stor(t): forventet ${issue4.origin ?? "value"} til \xE5 ha ${adj}${issue4.maximum.toString()}`;
           }
           case "too_small": {
-            const adj = issue3.inclusive ? ">=" : ">";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? ">=" : ">";
+            const sizing = getSizing(issue4.origin);
             if (sizing) {
-              return `For lite(n): forventet ${issue3.origin} til \xE5 ha ${adj}${issue3.minimum.toString()} ${sizing.unit}`;
+              return `For lite(n): forventet ${issue4.origin} til \xE5 ha ${adj}${issue4.minimum.toString()} ${sizing.unit}`;
             }
-            return `For lite(n): forventet ${issue3.origin} til \xE5 ha ${adj}${issue3.minimum.toString()}`;
+            return `For lite(n): forventet ${issue4.origin} til \xE5 ha ${adj}${issue4.minimum.toString()}`;
           }
           case "invalid_format": {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.format === "starts_with")
               return `Ugyldig streng: m\xE5 starte med "${_issue.prefix}"`;
             if (_issue.format === "ends_with")
@@ -46152,18 +46152,18 @@ var init_no = __esm({
               return `Ugyldig streng: m\xE5 inneholde "${_issue.includes}"`;
             if (_issue.format === "regex")
               return `Ugyldig streng: m\xE5 matche m\xF8nsteret ${_issue.pattern}`;
-            return `Ugyldig ${FormatDictionary[_issue.format] ?? issue3.format}`;
+            return `Ugyldig ${FormatDictionary[_issue.format] ?? issue4.format}`;
           }
           case "not_multiple_of":
-            return `Ugyldig tall: m\xE5 v\xE6re et multiplum av ${issue3.divisor}`;
+            return `Ugyldig tall: m\xE5 v\xE6re et multiplum av ${issue4.divisor}`;
           case "unrecognized_keys":
-            return `${issue3.keys.length > 1 ? "Ukjente n\xF8kler" : "Ukjent n\xF8kkel"}: ${joinValues(issue3.keys, ", ")}`;
+            return `${issue4.keys.length > 1 ? "Ukjente n\xF8kler" : "Ukjent n\xF8kkel"}: ${joinValues(issue4.keys, ", ")}`;
           case "invalid_key":
-            return `Ugyldig n\xF8kkel i ${issue3.origin}`;
+            return `Ugyldig n\xF8kkel i ${issue4.origin}`;
           case "invalid_union":
             return "Ugyldig input";
           case "invalid_element":
-            return `Ugyldig verdi i ${issue3.origin}`;
+            return `Ugyldig verdi i ${issue4.origin}`;
           default:
             return `Ugyldig input`;
         }
@@ -46228,38 +46228,38 @@ var init_ota = __esm({
         array: "saf",
         null: "gayb"
       };
-      return (issue3) => {
-        switch (issue3.code) {
+      return (issue4) => {
+        switch (issue4.code) {
           case "invalid_type": {
-            const expected = TypeDictionary[issue3.expected] ?? issue3.expected;
-            const receivedType = parsedType(issue3.input);
+            const expected = TypeDictionary[issue4.expected] ?? issue4.expected;
+            const receivedType = parsedType(issue4.input);
             const received = TypeDictionary[receivedType] ?? receivedType;
-            if (/^[A-Z]/.test(issue3.expected)) {
-              return `F\xE2sit giren: umulan instanceof ${issue3.expected}, al\u0131nan ${received}`;
+            if (/^[A-Z]/.test(issue4.expected)) {
+              return `F\xE2sit giren: umulan instanceof ${issue4.expected}, al\u0131nan ${received}`;
             }
             return `F\xE2sit giren: umulan ${expected}, al\u0131nan ${received}`;
           }
           case "invalid_value":
-            if (issue3.values.length === 1)
-              return `F\xE2sit giren: umulan ${stringifyPrimitive(issue3.values[0])}`;
-            return `F\xE2sit tercih: m\xFBteberler ${joinValues(issue3.values, "|")}`;
+            if (issue4.values.length === 1)
+              return `F\xE2sit giren: umulan ${stringifyPrimitive(issue4.values[0])}`;
+            return `F\xE2sit tercih: m\xFBteberler ${joinValues(issue4.values, "|")}`;
           case "too_big": {
-            const adj = issue3.inclusive ? "<=" : "<";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? "<=" : "<";
+            const sizing = getSizing(issue4.origin);
             if (sizing)
-              return `Fazla b\xFCy\xFCk: ${issue3.origin ?? "value"}, ${adj}${issue3.maximum.toString()} ${sizing.unit ?? "elements"} sahip olmal\u0131yd\u0131.`;
-            return `Fazla b\xFCy\xFCk: ${issue3.origin ?? "value"}, ${adj}${issue3.maximum.toString()} olmal\u0131yd\u0131.`;
+              return `Fazla b\xFCy\xFCk: ${issue4.origin ?? "value"}, ${adj}${issue4.maximum.toString()} ${sizing.unit ?? "elements"} sahip olmal\u0131yd\u0131.`;
+            return `Fazla b\xFCy\xFCk: ${issue4.origin ?? "value"}, ${adj}${issue4.maximum.toString()} olmal\u0131yd\u0131.`;
           }
           case "too_small": {
-            const adj = issue3.inclusive ? ">=" : ">";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? ">=" : ">";
+            const sizing = getSizing(issue4.origin);
             if (sizing) {
-              return `Fazla k\xFC\xE7\xFCk: ${issue3.origin}, ${adj}${issue3.minimum.toString()} ${sizing.unit} sahip olmal\u0131yd\u0131.`;
+              return `Fazla k\xFC\xE7\xFCk: ${issue4.origin}, ${adj}${issue4.minimum.toString()} ${sizing.unit} sahip olmal\u0131yd\u0131.`;
             }
-            return `Fazla k\xFC\xE7\xFCk: ${issue3.origin}, ${adj}${issue3.minimum.toString()} olmal\u0131yd\u0131.`;
+            return `Fazla k\xFC\xE7\xFCk: ${issue4.origin}, ${adj}${issue4.minimum.toString()} olmal\u0131yd\u0131.`;
           }
           case "invalid_format": {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.format === "starts_with")
               return `F\xE2sit metin: "${_issue.prefix}" ile ba\u015Flamal\u0131.`;
             if (_issue.format === "ends_with")
@@ -46268,18 +46268,18 @@ var init_ota = __esm({
               return `F\xE2sit metin: "${_issue.includes}" ihtiv\xE2 etmeli.`;
             if (_issue.format === "regex")
               return `F\xE2sit metin: ${_issue.pattern} nak\u015F\u0131na uymal\u0131.`;
-            return `F\xE2sit ${FormatDictionary[_issue.format] ?? issue3.format}`;
+            return `F\xE2sit ${FormatDictionary[_issue.format] ?? issue4.format}`;
           }
           case "not_multiple_of":
-            return `F\xE2sit say\u0131: ${issue3.divisor} kat\u0131 olmal\u0131yd\u0131.`;
+            return `F\xE2sit say\u0131: ${issue4.divisor} kat\u0131 olmal\u0131yd\u0131.`;
           case "unrecognized_keys":
-            return `Tan\u0131nmayan anahtar ${issue3.keys.length > 1 ? "s" : ""}: ${joinValues(issue3.keys, ", ")}`;
+            return `Tan\u0131nmayan anahtar ${issue4.keys.length > 1 ? "s" : ""}: ${joinValues(issue4.keys, ", ")}`;
           case "invalid_key":
-            return `${issue3.origin} i\xE7in tan\u0131nmayan anahtar var.`;
+            return `${issue4.origin} i\xE7in tan\u0131nmayan anahtar var.`;
           case "invalid_union":
             return "Giren tan\u0131namad\u0131.";
           case "invalid_element":
-            return `${issue3.origin} i\xE7in tan\u0131nmayan k\u0131ymet var.`;
+            return `${issue4.origin} i\xE7in tan\u0131nmayan k\u0131ymet var.`;
           default:
             return `K\u0131ymet tan\u0131namad\u0131.`;
         }
@@ -46343,40 +46343,40 @@ var init_ps = __esm({
         number: "\u0639\u062F\u062F",
         array: "\u0627\u0631\u06D0"
       };
-      return (issue3) => {
-        switch (issue3.code) {
+      return (issue4) => {
+        switch (issue4.code) {
           case "invalid_type": {
-            const expected = TypeDictionary[issue3.expected] ?? issue3.expected;
-            const receivedType = parsedType(issue3.input);
+            const expected = TypeDictionary[issue4.expected] ?? issue4.expected;
+            const receivedType = parsedType(issue4.input);
             const received = TypeDictionary[receivedType] ?? receivedType;
-            if (/^[A-Z]/.test(issue3.expected)) {
-              return `\u0646\u0627\u0633\u0645 \u0648\u0631\u0648\u062F\u064A: \u0628\u0627\u06CC\u062F instanceof ${issue3.expected} \u0648\u0627\u06CC, \u0645\u06AB\u0631 ${received} \u062A\u0631\u0644\u0627\u0633\u0647 \u0634\u0648`;
+            if (/^[A-Z]/.test(issue4.expected)) {
+              return `\u0646\u0627\u0633\u0645 \u0648\u0631\u0648\u062F\u064A: \u0628\u0627\u06CC\u062F instanceof ${issue4.expected} \u0648\u0627\u06CC, \u0645\u06AB\u0631 ${received} \u062A\u0631\u0644\u0627\u0633\u0647 \u0634\u0648`;
             }
             return `\u0646\u0627\u0633\u0645 \u0648\u0631\u0648\u062F\u064A: \u0628\u0627\u06CC\u062F ${expected} \u0648\u0627\u06CC, \u0645\u06AB\u0631 ${received} \u062A\u0631\u0644\u0627\u0633\u0647 \u0634\u0648`;
           }
           case "invalid_value":
-            if (issue3.values.length === 1) {
-              return `\u0646\u0627\u0633\u0645 \u0648\u0631\u0648\u062F\u064A: \u0628\u0627\u06CC\u062F ${stringifyPrimitive(issue3.values[0])} \u0648\u0627\u06CC`;
+            if (issue4.values.length === 1) {
+              return `\u0646\u0627\u0633\u0645 \u0648\u0631\u0648\u062F\u064A: \u0628\u0627\u06CC\u062F ${stringifyPrimitive(issue4.values[0])} \u0648\u0627\u06CC`;
             }
-            return `\u0646\u0627\u0633\u0645 \u0627\u0646\u062A\u062E\u0627\u0628: \u0628\u0627\u06CC\u062F \u06CC\u0648 \u0644\u0647 ${joinValues(issue3.values, "|")} \u0685\u062E\u0647 \u0648\u0627\u06CC`;
+            return `\u0646\u0627\u0633\u0645 \u0627\u0646\u062A\u062E\u0627\u0628: \u0628\u0627\u06CC\u062F \u06CC\u0648 \u0644\u0647 ${joinValues(issue4.values, "|")} \u0685\u062E\u0647 \u0648\u0627\u06CC`;
           case "too_big": {
-            const adj = issue3.inclusive ? "<=" : "<";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? "<=" : "<";
+            const sizing = getSizing(issue4.origin);
             if (sizing) {
-              return `\u0689\u06CC\u0631 \u0644\u0648\u06CC: ${issue3.origin ?? "\u0627\u0631\u0632\u069A\u062A"} \u0628\u0627\u06CC\u062F ${adj}${issue3.maximum.toString()} ${sizing.unit ?? "\u0639\u0646\u0635\u0631\u0648\u0646\u0647"} \u0648\u0644\u0631\u064A`;
+              return `\u0689\u06CC\u0631 \u0644\u0648\u06CC: ${issue4.origin ?? "\u0627\u0631\u0632\u069A\u062A"} \u0628\u0627\u06CC\u062F ${adj}${issue4.maximum.toString()} ${sizing.unit ?? "\u0639\u0646\u0635\u0631\u0648\u0646\u0647"} \u0648\u0644\u0631\u064A`;
             }
-            return `\u0689\u06CC\u0631 \u0644\u0648\u06CC: ${issue3.origin ?? "\u0627\u0631\u0632\u069A\u062A"} \u0628\u0627\u06CC\u062F ${adj}${issue3.maximum.toString()} \u0648\u064A`;
+            return `\u0689\u06CC\u0631 \u0644\u0648\u06CC: ${issue4.origin ?? "\u0627\u0631\u0632\u069A\u062A"} \u0628\u0627\u06CC\u062F ${adj}${issue4.maximum.toString()} \u0648\u064A`;
           }
           case "too_small": {
-            const adj = issue3.inclusive ? ">=" : ">";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? ">=" : ">";
+            const sizing = getSizing(issue4.origin);
             if (sizing) {
-              return `\u0689\u06CC\u0631 \u06A9\u0648\u0686\u0646\u06CC: ${issue3.origin} \u0628\u0627\u06CC\u062F ${adj}${issue3.minimum.toString()} ${sizing.unit} \u0648\u0644\u0631\u064A`;
+              return `\u0689\u06CC\u0631 \u06A9\u0648\u0686\u0646\u06CC: ${issue4.origin} \u0628\u0627\u06CC\u062F ${adj}${issue4.minimum.toString()} ${sizing.unit} \u0648\u0644\u0631\u064A`;
             }
-            return `\u0689\u06CC\u0631 \u06A9\u0648\u0686\u0646\u06CC: ${issue3.origin} \u0628\u0627\u06CC\u062F ${adj}${issue3.minimum.toString()} \u0648\u064A`;
+            return `\u0689\u06CC\u0631 \u06A9\u0648\u0686\u0646\u06CC: ${issue4.origin} \u0628\u0627\u06CC\u062F ${adj}${issue4.minimum.toString()} \u0648\u064A`;
           }
           case "invalid_format": {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.format === "starts_with") {
               return `\u0646\u0627\u0633\u0645 \u0645\u062A\u0646: \u0628\u0627\u06CC\u062F \u062F "${_issue.prefix}" \u0633\u0631\u0647 \u067E\u06CC\u0644 \u0634\u064A`;
             }
@@ -46389,18 +46389,18 @@ var init_ps = __esm({
             if (_issue.format === "regex") {
               return `\u0646\u0627\u0633\u0645 \u0645\u062A\u0646: \u0628\u0627\u06CC\u062F \u062F ${_issue.pattern} \u0633\u0631\u0647 \u0645\u0637\u0627\u0628\u0642\u062A \u0648\u0644\u0631\u064A`;
             }
-            return `${FormatDictionary[_issue.format] ?? issue3.format} \u0646\u0627\u0633\u0645 \u062F\u06CC`;
+            return `${FormatDictionary[_issue.format] ?? issue4.format} \u0646\u0627\u0633\u0645 \u062F\u06CC`;
           }
           case "not_multiple_of":
-            return `\u0646\u0627\u0633\u0645 \u0639\u062F\u062F: \u0628\u0627\u06CC\u062F \u062F ${issue3.divisor} \u0645\u0636\u0631\u0628 \u0648\u064A`;
+            return `\u0646\u0627\u0633\u0645 \u0639\u062F\u062F: \u0628\u0627\u06CC\u062F \u062F ${issue4.divisor} \u0645\u0636\u0631\u0628 \u0648\u064A`;
           case "unrecognized_keys":
-            return `\u0646\u0627\u0633\u0645 ${issue3.keys.length > 1 ? "\u06A9\u0644\u06CC\u0689\u0648\u0646\u0647" : "\u06A9\u0644\u06CC\u0689"}: ${joinValues(issue3.keys, ", ")}`;
+            return `\u0646\u0627\u0633\u0645 ${issue4.keys.length > 1 ? "\u06A9\u0644\u06CC\u0689\u0648\u0646\u0647" : "\u06A9\u0644\u06CC\u0689"}: ${joinValues(issue4.keys, ", ")}`;
           case "invalid_key":
-            return `\u0646\u0627\u0633\u0645 \u06A9\u0644\u06CC\u0689 \u067E\u0647 ${issue3.origin} \u06A9\u06D0`;
+            return `\u0646\u0627\u0633\u0645 \u06A9\u0644\u06CC\u0689 \u067E\u0647 ${issue4.origin} \u06A9\u06D0`;
           case "invalid_union":
             return `\u0646\u0627\u0633\u0645\u0647 \u0648\u0631\u0648\u062F\u064A`;
           case "invalid_element":
-            return `\u0646\u0627\u0633\u0645 \u0639\u0646\u0635\u0631 \u067E\u0647 ${issue3.origin} \u06A9\u06D0`;
+            return `\u0646\u0627\u0633\u0645 \u0639\u0646\u0635\u0631 \u067E\u0647 ${issue4.origin} \u06A9\u06D0`;
           default:
             return `\u0646\u0627\u0633\u0645\u0647 \u0648\u0631\u0648\u062F\u064A`;
         }
@@ -46464,39 +46464,39 @@ var init_pl = __esm({
         number: "liczba",
         array: "tablica"
       };
-      return (issue3) => {
-        switch (issue3.code) {
+      return (issue4) => {
+        switch (issue4.code) {
           case "invalid_type": {
-            const expected = TypeDictionary[issue3.expected] ?? issue3.expected;
-            const receivedType = parsedType(issue3.input);
+            const expected = TypeDictionary[issue4.expected] ?? issue4.expected;
+            const receivedType = parsedType(issue4.input);
             const received = TypeDictionary[receivedType] ?? receivedType;
-            if (/^[A-Z]/.test(issue3.expected)) {
-              return `Nieprawid\u0142owe dane wej\u015Bciowe: oczekiwano instanceof ${issue3.expected}, otrzymano ${received}`;
+            if (/^[A-Z]/.test(issue4.expected)) {
+              return `Nieprawid\u0142owe dane wej\u015Bciowe: oczekiwano instanceof ${issue4.expected}, otrzymano ${received}`;
             }
             return `Nieprawid\u0142owe dane wej\u015Bciowe: oczekiwano ${expected}, otrzymano ${received}`;
           }
           case "invalid_value":
-            if (issue3.values.length === 1)
-              return `Nieprawid\u0142owe dane wej\u015Bciowe: oczekiwano ${stringifyPrimitive(issue3.values[0])}`;
-            return `Nieprawid\u0142owa opcja: oczekiwano jednej z warto\u015Bci ${joinValues(issue3.values, "|")}`;
+            if (issue4.values.length === 1)
+              return `Nieprawid\u0142owe dane wej\u015Bciowe: oczekiwano ${stringifyPrimitive(issue4.values[0])}`;
+            return `Nieprawid\u0142owa opcja: oczekiwano jednej z warto\u015Bci ${joinValues(issue4.values, "|")}`;
           case "too_big": {
-            const adj = issue3.inclusive ? "<=" : "<";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? "<=" : "<";
+            const sizing = getSizing(issue4.origin);
             if (sizing) {
-              return `Za du\u017Ca warto\u015B\u0107: oczekiwano, \u017Ce ${issue3.origin ?? "warto\u015B\u0107"} b\u0119dzie mie\u0107 ${adj}${issue3.maximum.toString()} ${sizing.unit ?? "element\xF3w"}`;
+              return `Za du\u017Ca warto\u015B\u0107: oczekiwano, \u017Ce ${issue4.origin ?? "warto\u015B\u0107"} b\u0119dzie mie\u0107 ${adj}${issue4.maximum.toString()} ${sizing.unit ?? "element\xF3w"}`;
             }
-            return `Zbyt du\u017C(y/a/e): oczekiwano, \u017Ce ${issue3.origin ?? "warto\u015B\u0107"} b\u0119dzie wynosi\u0107 ${adj}${issue3.maximum.toString()}`;
+            return `Zbyt du\u017C(y/a/e): oczekiwano, \u017Ce ${issue4.origin ?? "warto\u015B\u0107"} b\u0119dzie wynosi\u0107 ${adj}${issue4.maximum.toString()}`;
           }
           case "too_small": {
-            const adj = issue3.inclusive ? ">=" : ">";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? ">=" : ">";
+            const sizing = getSizing(issue4.origin);
             if (sizing) {
-              return `Za ma\u0142a warto\u015B\u0107: oczekiwano, \u017Ce ${issue3.origin ?? "warto\u015B\u0107"} b\u0119dzie mie\u0107 ${adj}${issue3.minimum.toString()} ${sizing.unit ?? "element\xF3w"}`;
+              return `Za ma\u0142a warto\u015B\u0107: oczekiwano, \u017Ce ${issue4.origin ?? "warto\u015B\u0107"} b\u0119dzie mie\u0107 ${adj}${issue4.minimum.toString()} ${sizing.unit ?? "element\xF3w"}`;
             }
-            return `Zbyt ma\u0142(y/a/e): oczekiwano, \u017Ce ${issue3.origin ?? "warto\u015B\u0107"} b\u0119dzie wynosi\u0107 ${adj}${issue3.minimum.toString()}`;
+            return `Zbyt ma\u0142(y/a/e): oczekiwano, \u017Ce ${issue4.origin ?? "warto\u015B\u0107"} b\u0119dzie wynosi\u0107 ${adj}${issue4.minimum.toString()}`;
           }
           case "invalid_format": {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.format === "starts_with")
               return `Nieprawid\u0142owy ci\u0105g znak\xF3w: musi zaczyna\u0107 si\u0119 od "${_issue.prefix}"`;
             if (_issue.format === "ends_with")
@@ -46505,18 +46505,18 @@ var init_pl = __esm({
               return `Nieprawid\u0142owy ci\u0105g znak\xF3w: musi zawiera\u0107 "${_issue.includes}"`;
             if (_issue.format === "regex")
               return `Nieprawid\u0142owy ci\u0105g znak\xF3w: musi odpowiada\u0107 wzorcowi ${_issue.pattern}`;
-            return `Nieprawid\u0142ow(y/a/e) ${FormatDictionary[_issue.format] ?? issue3.format}`;
+            return `Nieprawid\u0142ow(y/a/e) ${FormatDictionary[_issue.format] ?? issue4.format}`;
           }
           case "not_multiple_of":
-            return `Nieprawid\u0142owa liczba: musi by\u0107 wielokrotno\u015Bci\u0105 ${issue3.divisor}`;
+            return `Nieprawid\u0142owa liczba: musi by\u0107 wielokrotno\u015Bci\u0105 ${issue4.divisor}`;
           case "unrecognized_keys":
-            return `Nierozpoznane klucze${issue3.keys.length > 1 ? "s" : ""}: ${joinValues(issue3.keys, ", ")}`;
+            return `Nierozpoznane klucze${issue4.keys.length > 1 ? "s" : ""}: ${joinValues(issue4.keys, ", ")}`;
           case "invalid_key":
-            return `Nieprawid\u0142owy klucz w ${issue3.origin}`;
+            return `Nieprawid\u0142owy klucz w ${issue4.origin}`;
           case "invalid_union":
             return "Nieprawid\u0142owe dane wej\u015Bciowe";
           case "invalid_element":
-            return `Nieprawid\u0142owa warto\u015B\u0107 w ${issue3.origin}`;
+            return `Nieprawid\u0142owa warto\u015B\u0107 w ${issue4.origin}`;
           default:
             return `Nieprawid\u0142owe dane wej\u015Bciowe`;
         }
@@ -46580,38 +46580,38 @@ var init_pt = __esm({
         number: "n\xFAmero",
         null: "nulo"
       };
-      return (issue3) => {
-        switch (issue3.code) {
+      return (issue4) => {
+        switch (issue4.code) {
           case "invalid_type": {
-            const expected = TypeDictionary[issue3.expected] ?? issue3.expected;
-            const receivedType = parsedType(issue3.input);
+            const expected = TypeDictionary[issue4.expected] ?? issue4.expected;
+            const receivedType = parsedType(issue4.input);
             const received = TypeDictionary[receivedType] ?? receivedType;
-            if (/^[A-Z]/.test(issue3.expected)) {
-              return `Tipo inv\xE1lido: esperado instanceof ${issue3.expected}, recebido ${received}`;
+            if (/^[A-Z]/.test(issue4.expected)) {
+              return `Tipo inv\xE1lido: esperado instanceof ${issue4.expected}, recebido ${received}`;
             }
             return `Tipo inv\xE1lido: esperado ${expected}, recebido ${received}`;
           }
           case "invalid_value":
-            if (issue3.values.length === 1)
-              return `Entrada inv\xE1lida: esperado ${stringifyPrimitive(issue3.values[0])}`;
-            return `Op\xE7\xE3o inv\xE1lida: esperada uma das ${joinValues(issue3.values, "|")}`;
+            if (issue4.values.length === 1)
+              return `Entrada inv\xE1lida: esperado ${stringifyPrimitive(issue4.values[0])}`;
+            return `Op\xE7\xE3o inv\xE1lida: esperada uma das ${joinValues(issue4.values, "|")}`;
           case "too_big": {
-            const adj = issue3.inclusive ? "<=" : "<";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? "<=" : "<";
+            const sizing = getSizing(issue4.origin);
             if (sizing)
-              return `Muito grande: esperado que ${issue3.origin ?? "valor"} tivesse ${adj}${issue3.maximum.toString()} ${sizing.unit ?? "elementos"}`;
-            return `Muito grande: esperado que ${issue3.origin ?? "valor"} fosse ${adj}${issue3.maximum.toString()}`;
+              return `Muito grande: esperado que ${issue4.origin ?? "valor"} tivesse ${adj}${issue4.maximum.toString()} ${sizing.unit ?? "elementos"}`;
+            return `Muito grande: esperado que ${issue4.origin ?? "valor"} fosse ${adj}${issue4.maximum.toString()}`;
           }
           case "too_small": {
-            const adj = issue3.inclusive ? ">=" : ">";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? ">=" : ">";
+            const sizing = getSizing(issue4.origin);
             if (sizing) {
-              return `Muito pequeno: esperado que ${issue3.origin} tivesse ${adj}${issue3.minimum.toString()} ${sizing.unit}`;
+              return `Muito pequeno: esperado que ${issue4.origin} tivesse ${adj}${issue4.minimum.toString()} ${sizing.unit}`;
             }
-            return `Muito pequeno: esperado que ${issue3.origin} fosse ${adj}${issue3.minimum.toString()}`;
+            return `Muito pequeno: esperado que ${issue4.origin} fosse ${adj}${issue4.minimum.toString()}`;
           }
           case "invalid_format": {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.format === "starts_with")
               return `Texto inv\xE1lido: deve come\xE7ar com "${_issue.prefix}"`;
             if (_issue.format === "ends_with")
@@ -46620,18 +46620,18 @@ var init_pt = __esm({
               return `Texto inv\xE1lido: deve incluir "${_issue.includes}"`;
             if (_issue.format === "regex")
               return `Texto inv\xE1lido: deve corresponder ao padr\xE3o ${_issue.pattern}`;
-            return `${FormatDictionary[_issue.format] ?? issue3.format} inv\xE1lido`;
+            return `${FormatDictionary[_issue.format] ?? issue4.format} inv\xE1lido`;
           }
           case "not_multiple_of":
-            return `N\xFAmero inv\xE1lido: deve ser m\xFAltiplo de ${issue3.divisor}`;
+            return `N\xFAmero inv\xE1lido: deve ser m\xFAltiplo de ${issue4.divisor}`;
           case "unrecognized_keys":
-            return `Chave${issue3.keys.length > 1 ? "s" : ""} desconhecida${issue3.keys.length > 1 ? "s" : ""}: ${joinValues(issue3.keys, ", ")}`;
+            return `Chave${issue4.keys.length > 1 ? "s" : ""} desconhecida${issue4.keys.length > 1 ? "s" : ""}: ${joinValues(issue4.keys, ", ")}`;
           case "invalid_key":
-            return `Chave inv\xE1lida em ${issue3.origin}`;
+            return `Chave inv\xE1lida em ${issue4.origin}`;
           case "invalid_union":
             return "Entrada inv\xE1lida";
           case "invalid_element":
-            return `Valor inv\xE1lido em ${issue3.origin}`;
+            return `Valor inv\xE1lido em ${issue4.origin}`;
           default:
             return `Campo inv\xE1lido`;
         }
@@ -46708,35 +46708,35 @@ var init_ro = __esm({
         map: "hart\u0103",
         set: "set"
       };
-      return (issue3) => {
-        switch (issue3.code) {
+      return (issue4) => {
+        switch (issue4.code) {
           case "invalid_type": {
-            const expected = TypeDictionary[issue3.expected] ?? issue3.expected;
-            const receivedType = parsedType(issue3.input);
+            const expected = TypeDictionary[issue4.expected] ?? issue4.expected;
+            const receivedType = parsedType(issue4.input);
             const received = TypeDictionary[receivedType] ?? receivedType;
             return `Intrare invalid\u0103: a\u0219teptat ${expected}, primit ${received}`;
           }
           case "invalid_value":
-            if (issue3.values.length === 1)
-              return `Intrare invalid\u0103: a\u0219teptat ${stringifyPrimitive(issue3.values[0])}`;
-            return `Op\u021Biune invalid\u0103: a\u0219teptat una dintre ${joinValues(issue3.values, "|")}`;
+            if (issue4.values.length === 1)
+              return `Intrare invalid\u0103: a\u0219teptat ${stringifyPrimitive(issue4.values[0])}`;
+            return `Op\u021Biune invalid\u0103: a\u0219teptat una dintre ${joinValues(issue4.values, "|")}`;
           case "too_big": {
-            const adj = issue3.inclusive ? "<=" : "<";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? "<=" : "<";
+            const sizing = getSizing(issue4.origin);
             if (sizing)
-              return `Prea mare: a\u0219teptat ca ${issue3.origin ?? "valoarea"} ${sizing.verb} ${adj}${issue3.maximum.toString()} ${sizing.unit ?? "elemente"}`;
-            return `Prea mare: a\u0219teptat ca ${issue3.origin ?? "valoarea"} s\u0103 fie ${adj}${issue3.maximum.toString()}`;
+              return `Prea mare: a\u0219teptat ca ${issue4.origin ?? "valoarea"} ${sizing.verb} ${adj}${issue4.maximum.toString()} ${sizing.unit ?? "elemente"}`;
+            return `Prea mare: a\u0219teptat ca ${issue4.origin ?? "valoarea"} s\u0103 fie ${adj}${issue4.maximum.toString()}`;
           }
           case "too_small": {
-            const adj = issue3.inclusive ? ">=" : ">";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? ">=" : ">";
+            const sizing = getSizing(issue4.origin);
             if (sizing) {
-              return `Prea mic: a\u0219teptat ca ${issue3.origin} ${sizing.verb} ${adj}${issue3.minimum.toString()} ${sizing.unit}`;
+              return `Prea mic: a\u0219teptat ca ${issue4.origin} ${sizing.verb} ${adj}${issue4.minimum.toString()} ${sizing.unit}`;
             }
-            return `Prea mic: a\u0219teptat ca ${issue3.origin} s\u0103 fie ${adj}${issue3.minimum.toString()}`;
+            return `Prea mic: a\u0219teptat ca ${issue4.origin} s\u0103 fie ${adj}${issue4.minimum.toString()}`;
           }
           case "invalid_format": {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.format === "starts_with") {
               return `\u0218ir invalid: trebuie s\u0103 \xEEnceap\u0103 cu "${_issue.prefix}"`;
             }
@@ -46746,18 +46746,18 @@ var init_ro = __esm({
               return `\u0218ir invalid: trebuie s\u0103 includ\u0103 "${_issue.includes}"`;
             if (_issue.format === "regex")
               return `\u0218ir invalid: trebuie s\u0103 se potriveasc\u0103 cu modelul ${_issue.pattern}`;
-            return `Format invalid: ${FormatDictionary[_issue.format] ?? issue3.format}`;
+            return `Format invalid: ${FormatDictionary[_issue.format] ?? issue4.format}`;
           }
           case "not_multiple_of":
-            return `Num\u0103r invalid: trebuie s\u0103 fie multiplu de ${issue3.divisor}`;
+            return `Num\u0103r invalid: trebuie s\u0103 fie multiplu de ${issue4.divisor}`;
           case "unrecognized_keys":
-            return `Chei nerecunoscute: ${joinValues(issue3.keys, ", ")}`;
+            return `Chei nerecunoscute: ${joinValues(issue4.keys, ", ")}`;
           case "invalid_key":
-            return `Cheie invalid\u0103 \xEEn ${issue3.origin}`;
+            return `Cheie invalid\u0103 \xEEn ${issue4.origin}`;
           case "invalid_union":
             return "Intrare invalid\u0103";
           case "invalid_element":
-            return `Valoare invalid\u0103 \xEEn ${issue3.origin}`;
+            return `Valoare invalid\u0103 \xEEn ${issue4.origin}`;
           default:
             return `Intrare invalid\u0103`;
         }
@@ -46864,43 +46864,43 @@ var init_ru = __esm({
         number: "\u0447\u0438\u0441\u043B\u043E",
         array: "\u043C\u0430\u0441\u0441\u0438\u0432"
       };
-      return (issue3) => {
-        switch (issue3.code) {
+      return (issue4) => {
+        switch (issue4.code) {
           case "invalid_type": {
-            const expected = TypeDictionary[issue3.expected] ?? issue3.expected;
-            const receivedType = parsedType(issue3.input);
+            const expected = TypeDictionary[issue4.expected] ?? issue4.expected;
+            const receivedType = parsedType(issue4.input);
             const received = TypeDictionary[receivedType] ?? receivedType;
-            if (/^[A-Z]/.test(issue3.expected)) {
-              return `\u041D\u0435\u0432\u0435\u0440\u043D\u044B\u0439 \u0432\u0432\u043E\u0434: \u043E\u0436\u0438\u0434\u0430\u043B\u043E\u0441\u044C instanceof ${issue3.expected}, \u043F\u043E\u043B\u0443\u0447\u0435\u043D\u043E ${received}`;
+            if (/^[A-Z]/.test(issue4.expected)) {
+              return `\u041D\u0435\u0432\u0435\u0440\u043D\u044B\u0439 \u0432\u0432\u043E\u0434: \u043E\u0436\u0438\u0434\u0430\u043B\u043E\u0441\u044C instanceof ${issue4.expected}, \u043F\u043E\u043B\u0443\u0447\u0435\u043D\u043E ${received}`;
             }
             return `\u041D\u0435\u0432\u0435\u0440\u043D\u044B\u0439 \u0432\u0432\u043E\u0434: \u043E\u0436\u0438\u0434\u0430\u043B\u043E\u0441\u044C ${expected}, \u043F\u043E\u043B\u0443\u0447\u0435\u043D\u043E ${received}`;
           }
           case "invalid_value":
-            if (issue3.values.length === 1)
-              return `\u041D\u0435\u0432\u0435\u0440\u043D\u044B\u0439 \u0432\u0432\u043E\u0434: \u043E\u0436\u0438\u0434\u0430\u043B\u043E\u0441\u044C ${stringifyPrimitive(issue3.values[0])}`;
-            return `\u041D\u0435\u0432\u0435\u0440\u043D\u044B\u0439 \u0432\u0430\u0440\u0438\u0430\u043D\u0442: \u043E\u0436\u0438\u0434\u0430\u043B\u043E\u0441\u044C \u043E\u0434\u043D\u043E \u0438\u0437 ${joinValues(issue3.values, "|")}`;
+            if (issue4.values.length === 1)
+              return `\u041D\u0435\u0432\u0435\u0440\u043D\u044B\u0439 \u0432\u0432\u043E\u0434: \u043E\u0436\u0438\u0434\u0430\u043B\u043E\u0441\u044C ${stringifyPrimitive(issue4.values[0])}`;
+            return `\u041D\u0435\u0432\u0435\u0440\u043D\u044B\u0439 \u0432\u0430\u0440\u0438\u0430\u043D\u0442: \u043E\u0436\u0438\u0434\u0430\u043B\u043E\u0441\u044C \u043E\u0434\u043D\u043E \u0438\u0437 ${joinValues(issue4.values, "|")}`;
           case "too_big": {
-            const adj = issue3.inclusive ? "<=" : "<";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? "<=" : "<";
+            const sizing = getSizing(issue4.origin);
             if (sizing) {
-              const maxValue = Number(issue3.maximum);
+              const maxValue = Number(issue4.maximum);
               const unit = getRussianPlural(maxValue, sizing.unit.one, sizing.unit.few, sizing.unit.many);
-              return `\u0421\u043B\u0438\u0448\u043A\u043E\u043C \u0431\u043E\u043B\u044C\u0448\u043E\u0435 \u0437\u043D\u0430\u0447\u0435\u043D\u0438\u0435: \u043E\u0436\u0438\u0434\u0430\u043B\u043E\u0441\u044C, \u0447\u0442\u043E ${issue3.origin ?? "\u0437\u043D\u0430\u0447\u0435\u043D\u0438\u0435"} \u0431\u0443\u0434\u0435\u0442 \u0438\u043C\u0435\u0442\u044C ${adj}${issue3.maximum.toString()} ${unit}`;
+              return `\u0421\u043B\u0438\u0448\u043A\u043E\u043C \u0431\u043E\u043B\u044C\u0448\u043E\u0435 \u0437\u043D\u0430\u0447\u0435\u043D\u0438\u0435: \u043E\u0436\u0438\u0434\u0430\u043B\u043E\u0441\u044C, \u0447\u0442\u043E ${issue4.origin ?? "\u0437\u043D\u0430\u0447\u0435\u043D\u0438\u0435"} \u0431\u0443\u0434\u0435\u0442 \u0438\u043C\u0435\u0442\u044C ${adj}${issue4.maximum.toString()} ${unit}`;
             }
-            return `\u0421\u043B\u0438\u0448\u043A\u043E\u043C \u0431\u043E\u043B\u044C\u0448\u043E\u0435 \u0437\u043D\u0430\u0447\u0435\u043D\u0438\u0435: \u043E\u0436\u0438\u0434\u0430\u043B\u043E\u0441\u044C, \u0447\u0442\u043E ${issue3.origin ?? "\u0437\u043D\u0430\u0447\u0435\u043D\u0438\u0435"} \u0431\u0443\u0434\u0435\u0442 ${adj}${issue3.maximum.toString()}`;
+            return `\u0421\u043B\u0438\u0448\u043A\u043E\u043C \u0431\u043E\u043B\u044C\u0448\u043E\u0435 \u0437\u043D\u0430\u0447\u0435\u043D\u0438\u0435: \u043E\u0436\u0438\u0434\u0430\u043B\u043E\u0441\u044C, \u0447\u0442\u043E ${issue4.origin ?? "\u0437\u043D\u0430\u0447\u0435\u043D\u0438\u0435"} \u0431\u0443\u0434\u0435\u0442 ${adj}${issue4.maximum.toString()}`;
           }
           case "too_small": {
-            const adj = issue3.inclusive ? ">=" : ">";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? ">=" : ">";
+            const sizing = getSizing(issue4.origin);
             if (sizing) {
-              const minValue = Number(issue3.minimum);
+              const minValue = Number(issue4.minimum);
               const unit = getRussianPlural(minValue, sizing.unit.one, sizing.unit.few, sizing.unit.many);
-              return `\u0421\u043B\u0438\u0448\u043A\u043E\u043C \u043C\u0430\u043B\u0435\u043D\u044C\u043A\u043E\u0435 \u0437\u043D\u0430\u0447\u0435\u043D\u0438\u0435: \u043E\u0436\u0438\u0434\u0430\u043B\u043E\u0441\u044C, \u0447\u0442\u043E ${issue3.origin} \u0431\u0443\u0434\u0435\u0442 \u0438\u043C\u0435\u0442\u044C ${adj}${issue3.minimum.toString()} ${unit}`;
+              return `\u0421\u043B\u0438\u0448\u043A\u043E\u043C \u043C\u0430\u043B\u0435\u043D\u044C\u043A\u043E\u0435 \u0437\u043D\u0430\u0447\u0435\u043D\u0438\u0435: \u043E\u0436\u0438\u0434\u0430\u043B\u043E\u0441\u044C, \u0447\u0442\u043E ${issue4.origin} \u0431\u0443\u0434\u0435\u0442 \u0438\u043C\u0435\u0442\u044C ${adj}${issue4.minimum.toString()} ${unit}`;
             }
-            return `\u0421\u043B\u0438\u0448\u043A\u043E\u043C \u043C\u0430\u043B\u0435\u043D\u044C\u043A\u043E\u0435 \u0437\u043D\u0430\u0447\u0435\u043D\u0438\u0435: \u043E\u0436\u0438\u0434\u0430\u043B\u043E\u0441\u044C, \u0447\u0442\u043E ${issue3.origin} \u0431\u0443\u0434\u0435\u0442 ${adj}${issue3.minimum.toString()}`;
+            return `\u0421\u043B\u0438\u0448\u043A\u043E\u043C \u043C\u0430\u043B\u0435\u043D\u044C\u043A\u043E\u0435 \u0437\u043D\u0430\u0447\u0435\u043D\u0438\u0435: \u043E\u0436\u0438\u0434\u0430\u043B\u043E\u0441\u044C, \u0447\u0442\u043E ${issue4.origin} \u0431\u0443\u0434\u0435\u0442 ${adj}${issue4.minimum.toString()}`;
           }
           case "invalid_format": {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.format === "starts_with")
               return `\u041D\u0435\u0432\u0435\u0440\u043D\u0430\u044F \u0441\u0442\u0440\u043E\u043A\u0430: \u0434\u043E\u043B\u0436\u043D\u0430 \u043D\u0430\u0447\u0438\u043D\u0430\u0442\u044C\u0441\u044F \u0441 "${_issue.prefix}"`;
             if (_issue.format === "ends_with")
@@ -46909,18 +46909,18 @@ var init_ru = __esm({
               return `\u041D\u0435\u0432\u0435\u0440\u043D\u0430\u044F \u0441\u0442\u0440\u043E\u043A\u0430: \u0434\u043E\u043B\u0436\u043D\u0430 \u0441\u043E\u0434\u0435\u0440\u0436\u0430\u0442\u044C "${_issue.includes}"`;
             if (_issue.format === "regex")
               return `\u041D\u0435\u0432\u0435\u0440\u043D\u0430\u044F \u0441\u0442\u0440\u043E\u043A\u0430: \u0434\u043E\u043B\u0436\u043D\u0430 \u0441\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u043E\u0432\u0430\u0442\u044C \u0448\u0430\u0431\u043B\u043E\u043D\u0443 ${_issue.pattern}`;
-            return `\u041D\u0435\u0432\u0435\u0440\u043D\u044B\u0439 ${FormatDictionary[_issue.format] ?? issue3.format}`;
+            return `\u041D\u0435\u0432\u0435\u0440\u043D\u044B\u0439 ${FormatDictionary[_issue.format] ?? issue4.format}`;
           }
           case "not_multiple_of":
-            return `\u041D\u0435\u0432\u0435\u0440\u043D\u043E\u0435 \u0447\u0438\u0441\u043B\u043E: \u0434\u043E\u043B\u0436\u043D\u043E \u0431\u044B\u0442\u044C \u043A\u0440\u0430\u0442\u043D\u044B\u043C ${issue3.divisor}`;
+            return `\u041D\u0435\u0432\u0435\u0440\u043D\u043E\u0435 \u0447\u0438\u0441\u043B\u043E: \u0434\u043E\u043B\u0436\u043D\u043E \u0431\u044B\u0442\u044C \u043A\u0440\u0430\u0442\u043D\u044B\u043C ${issue4.divisor}`;
           case "unrecognized_keys":
-            return `\u041D\u0435\u0440\u0430\u0441\u043F\u043E\u0437\u043D\u0430\u043D\u043D${issue3.keys.length > 1 ? "\u044B\u0435" : "\u044B\u0439"} \u043A\u043B\u044E\u0447${issue3.keys.length > 1 ? "\u0438" : ""}: ${joinValues(issue3.keys, ", ")}`;
+            return `\u041D\u0435\u0440\u0430\u0441\u043F\u043E\u0437\u043D\u0430\u043D\u043D${issue4.keys.length > 1 ? "\u044B\u0435" : "\u044B\u0439"} \u043A\u043B\u044E\u0447${issue4.keys.length > 1 ? "\u0438" : ""}: ${joinValues(issue4.keys, ", ")}`;
           case "invalid_key":
-            return `\u041D\u0435\u0432\u0435\u0440\u043D\u044B\u0439 \u043A\u043B\u044E\u0447 \u0432 ${issue3.origin}`;
+            return `\u041D\u0435\u0432\u0435\u0440\u043D\u044B\u0439 \u043A\u043B\u044E\u0447 \u0432 ${issue4.origin}`;
           case "invalid_union":
             return "\u041D\u0435\u0432\u0435\u0440\u043D\u044B\u0435 \u0432\u0445\u043E\u0434\u043D\u044B\u0435 \u0434\u0430\u043D\u043D\u044B\u0435";
           case "invalid_element":
-            return `\u041D\u0435\u0432\u0435\u0440\u043D\u043E\u0435 \u0437\u043D\u0430\u0447\u0435\u043D\u0438\u0435 \u0432 ${issue3.origin}`;
+            return `\u041D\u0435\u0432\u0435\u0440\u043D\u043E\u0435 \u0437\u043D\u0430\u0447\u0435\u043D\u0438\u0435 \u0432 ${issue4.origin}`;
           default:
             return `\u041D\u0435\u0432\u0435\u0440\u043D\u044B\u0435 \u0432\u0445\u043E\u0434\u043D\u044B\u0435 \u0434\u0430\u043D\u043D\u044B\u0435`;
         }
@@ -46984,38 +46984,38 @@ var init_sl = __esm({
         number: "\u0161tevilo",
         array: "tabela"
       };
-      return (issue3) => {
-        switch (issue3.code) {
+      return (issue4) => {
+        switch (issue4.code) {
           case "invalid_type": {
-            const expected = TypeDictionary[issue3.expected] ?? issue3.expected;
-            const receivedType = parsedType(issue3.input);
+            const expected = TypeDictionary[issue4.expected] ?? issue4.expected;
+            const receivedType = parsedType(issue4.input);
             const received = TypeDictionary[receivedType] ?? receivedType;
-            if (/^[A-Z]/.test(issue3.expected)) {
-              return `Neveljaven vnos: pri\u010Dakovano instanceof ${issue3.expected}, prejeto ${received}`;
+            if (/^[A-Z]/.test(issue4.expected)) {
+              return `Neveljaven vnos: pri\u010Dakovano instanceof ${issue4.expected}, prejeto ${received}`;
             }
             return `Neveljaven vnos: pri\u010Dakovano ${expected}, prejeto ${received}`;
           }
           case "invalid_value":
-            if (issue3.values.length === 1)
-              return `Neveljaven vnos: pri\u010Dakovano ${stringifyPrimitive(issue3.values[0])}`;
-            return `Neveljavna mo\u017Enost: pri\u010Dakovano eno izmed ${joinValues(issue3.values, "|")}`;
+            if (issue4.values.length === 1)
+              return `Neveljaven vnos: pri\u010Dakovano ${stringifyPrimitive(issue4.values[0])}`;
+            return `Neveljavna mo\u017Enost: pri\u010Dakovano eno izmed ${joinValues(issue4.values, "|")}`;
           case "too_big": {
-            const adj = issue3.inclusive ? "<=" : "<";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? "<=" : "<";
+            const sizing = getSizing(issue4.origin);
             if (sizing)
-              return `Preveliko: pri\u010Dakovano, da bo ${issue3.origin ?? "vrednost"} imelo ${adj}${issue3.maximum.toString()} ${sizing.unit ?? "elementov"}`;
-            return `Preveliko: pri\u010Dakovano, da bo ${issue3.origin ?? "vrednost"} ${adj}${issue3.maximum.toString()}`;
+              return `Preveliko: pri\u010Dakovano, da bo ${issue4.origin ?? "vrednost"} imelo ${adj}${issue4.maximum.toString()} ${sizing.unit ?? "elementov"}`;
+            return `Preveliko: pri\u010Dakovano, da bo ${issue4.origin ?? "vrednost"} ${adj}${issue4.maximum.toString()}`;
           }
           case "too_small": {
-            const adj = issue3.inclusive ? ">=" : ">";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? ">=" : ">";
+            const sizing = getSizing(issue4.origin);
             if (sizing) {
-              return `Premajhno: pri\u010Dakovano, da bo ${issue3.origin} imelo ${adj}${issue3.minimum.toString()} ${sizing.unit}`;
+              return `Premajhno: pri\u010Dakovano, da bo ${issue4.origin} imelo ${adj}${issue4.minimum.toString()} ${sizing.unit}`;
             }
-            return `Premajhno: pri\u010Dakovano, da bo ${issue3.origin} ${adj}${issue3.minimum.toString()}`;
+            return `Premajhno: pri\u010Dakovano, da bo ${issue4.origin} ${adj}${issue4.minimum.toString()}`;
           }
           case "invalid_format": {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.format === "starts_with") {
               return `Neveljaven niz: mora se za\u010Deti z "${_issue.prefix}"`;
             }
@@ -47025,18 +47025,18 @@ var init_sl = __esm({
               return `Neveljaven niz: mora vsebovati "${_issue.includes}"`;
             if (_issue.format === "regex")
               return `Neveljaven niz: mora ustrezati vzorcu ${_issue.pattern}`;
-            return `Neveljaven ${FormatDictionary[_issue.format] ?? issue3.format}`;
+            return `Neveljaven ${FormatDictionary[_issue.format] ?? issue4.format}`;
           }
           case "not_multiple_of":
-            return `Neveljavno \u0161tevilo: mora biti ve\u010Dkratnik ${issue3.divisor}`;
+            return `Neveljavno \u0161tevilo: mora biti ve\u010Dkratnik ${issue4.divisor}`;
           case "unrecognized_keys":
-            return `Neprepoznan${issue3.keys.length > 1 ? "i klju\u010Di" : " klju\u010D"}: ${joinValues(issue3.keys, ", ")}`;
+            return `Neprepoznan${issue4.keys.length > 1 ? "i klju\u010Di" : " klju\u010D"}: ${joinValues(issue4.keys, ", ")}`;
           case "invalid_key":
-            return `Neveljaven klju\u010D v ${issue3.origin}`;
+            return `Neveljaven klju\u010D v ${issue4.origin}`;
           case "invalid_union":
             return "Neveljaven vnos";
           case "invalid_element":
-            return `Neveljavna vrednost v ${issue3.origin}`;
+            return `Neveljavna vrednost v ${issue4.origin}`;
           default:
             return "Neveljaven vnos";
         }
@@ -47100,39 +47100,39 @@ var init_sv = __esm({
         number: "antal",
         array: "lista"
       };
-      return (issue3) => {
-        switch (issue3.code) {
+      return (issue4) => {
+        switch (issue4.code) {
           case "invalid_type": {
-            const expected = TypeDictionary[issue3.expected] ?? issue3.expected;
-            const receivedType = parsedType(issue3.input);
+            const expected = TypeDictionary[issue4.expected] ?? issue4.expected;
+            const receivedType = parsedType(issue4.input);
             const received = TypeDictionary[receivedType] ?? receivedType;
-            if (/^[A-Z]/.test(issue3.expected)) {
-              return `Ogiltig inmatning: f\xF6rv\xE4ntat instanceof ${issue3.expected}, fick ${received}`;
+            if (/^[A-Z]/.test(issue4.expected)) {
+              return `Ogiltig inmatning: f\xF6rv\xE4ntat instanceof ${issue4.expected}, fick ${received}`;
             }
             return `Ogiltig inmatning: f\xF6rv\xE4ntat ${expected}, fick ${received}`;
           }
           case "invalid_value":
-            if (issue3.values.length === 1)
-              return `Ogiltig inmatning: f\xF6rv\xE4ntat ${stringifyPrimitive(issue3.values[0])}`;
-            return `Ogiltigt val: f\xF6rv\xE4ntade en av ${joinValues(issue3.values, "|")}`;
+            if (issue4.values.length === 1)
+              return `Ogiltig inmatning: f\xF6rv\xE4ntat ${stringifyPrimitive(issue4.values[0])}`;
+            return `Ogiltigt val: f\xF6rv\xE4ntade en av ${joinValues(issue4.values, "|")}`;
           case "too_big": {
-            const adj = issue3.inclusive ? "<=" : "<";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? "<=" : "<";
+            const sizing = getSizing(issue4.origin);
             if (sizing) {
-              return `F\xF6r stor(t): f\xF6rv\xE4ntade ${issue3.origin ?? "v\xE4rdet"} att ha ${adj}${issue3.maximum.toString()} ${sizing.unit ?? "element"}`;
+              return `F\xF6r stor(t): f\xF6rv\xE4ntade ${issue4.origin ?? "v\xE4rdet"} att ha ${adj}${issue4.maximum.toString()} ${sizing.unit ?? "element"}`;
             }
-            return `F\xF6r stor(t): f\xF6rv\xE4ntat ${issue3.origin ?? "v\xE4rdet"} att ha ${adj}${issue3.maximum.toString()}`;
+            return `F\xF6r stor(t): f\xF6rv\xE4ntat ${issue4.origin ?? "v\xE4rdet"} att ha ${adj}${issue4.maximum.toString()}`;
           }
           case "too_small": {
-            const adj = issue3.inclusive ? ">=" : ">";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? ">=" : ">";
+            const sizing = getSizing(issue4.origin);
             if (sizing) {
-              return `F\xF6r lite(t): f\xF6rv\xE4ntade ${issue3.origin ?? "v\xE4rdet"} att ha ${adj}${issue3.minimum.toString()} ${sizing.unit}`;
+              return `F\xF6r lite(t): f\xF6rv\xE4ntade ${issue4.origin ?? "v\xE4rdet"} att ha ${adj}${issue4.minimum.toString()} ${sizing.unit}`;
             }
-            return `F\xF6r lite(t): f\xF6rv\xE4ntade ${issue3.origin ?? "v\xE4rdet"} att ha ${adj}${issue3.minimum.toString()}`;
+            return `F\xF6r lite(t): f\xF6rv\xE4ntade ${issue4.origin ?? "v\xE4rdet"} att ha ${adj}${issue4.minimum.toString()}`;
           }
           case "invalid_format": {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.format === "starts_with") {
               return `Ogiltig str\xE4ng: m\xE5ste b\xF6rja med "${_issue.prefix}"`;
             }
@@ -47142,18 +47142,18 @@ var init_sv = __esm({
               return `Ogiltig str\xE4ng: m\xE5ste inneh\xE5lla "${_issue.includes}"`;
             if (_issue.format === "regex")
               return `Ogiltig str\xE4ng: m\xE5ste matcha m\xF6nstret "${_issue.pattern}"`;
-            return `Ogiltig(t) ${FormatDictionary[_issue.format] ?? issue3.format}`;
+            return `Ogiltig(t) ${FormatDictionary[_issue.format] ?? issue4.format}`;
           }
           case "not_multiple_of":
-            return `Ogiltigt tal: m\xE5ste vara en multipel av ${issue3.divisor}`;
+            return `Ogiltigt tal: m\xE5ste vara en multipel av ${issue4.divisor}`;
           case "unrecognized_keys":
-            return `${issue3.keys.length > 1 ? "Ok\xE4nda nycklar" : "Ok\xE4nd nyckel"}: ${joinValues(issue3.keys, ", ")}`;
+            return `${issue4.keys.length > 1 ? "Ok\xE4nda nycklar" : "Ok\xE4nd nyckel"}: ${joinValues(issue4.keys, ", ")}`;
           case "invalid_key":
-            return `Ogiltig nyckel i ${issue3.origin ?? "v\xE4rdet"}`;
+            return `Ogiltig nyckel i ${issue4.origin ?? "v\xE4rdet"}`;
           case "invalid_union":
             return "Ogiltig input";
           case "invalid_element":
-            return `Ogiltigt v\xE4rde i ${issue3.origin ?? "v\xE4rdet"}`;
+            return `Ogiltigt v\xE4rde i ${issue4.origin ?? "v\xE4rdet"}`;
           default:
             return `Ogiltig input`;
         }
@@ -47218,39 +47218,39 @@ var init_ta = __esm({
         array: "\u0B85\u0BA3\u0BBF",
         null: "\u0BB5\u0BC6\u0BB1\u0BC1\u0BAE\u0BC8"
       };
-      return (issue3) => {
-        switch (issue3.code) {
+      return (issue4) => {
+        switch (issue4.code) {
           case "invalid_type": {
-            const expected = TypeDictionary[issue3.expected] ?? issue3.expected;
-            const receivedType = parsedType(issue3.input);
+            const expected = TypeDictionary[issue4.expected] ?? issue4.expected;
+            const receivedType = parsedType(issue4.input);
             const received = TypeDictionary[receivedType] ?? receivedType;
-            if (/^[A-Z]/.test(issue3.expected)) {
-              return `\u0BA4\u0BB5\u0BB1\u0BBE\u0BA9 \u0B89\u0BB3\u0BCD\u0BB3\u0BC0\u0B9F\u0BC1: \u0B8E\u0BA4\u0BBF\u0BB0\u0BCD\u0BAA\u0BBE\u0BB0\u0BCD\u0B95\u0BCD\u0B95\u0BAA\u0BCD\u0BAA\u0B9F\u0BCD\u0B9F\u0BA4\u0BC1 instanceof ${issue3.expected}, \u0BAA\u0BC6\u0BB1\u0BAA\u0BCD\u0BAA\u0B9F\u0BCD\u0B9F\u0BA4\u0BC1 ${received}`;
+            if (/^[A-Z]/.test(issue4.expected)) {
+              return `\u0BA4\u0BB5\u0BB1\u0BBE\u0BA9 \u0B89\u0BB3\u0BCD\u0BB3\u0BC0\u0B9F\u0BC1: \u0B8E\u0BA4\u0BBF\u0BB0\u0BCD\u0BAA\u0BBE\u0BB0\u0BCD\u0B95\u0BCD\u0B95\u0BAA\u0BCD\u0BAA\u0B9F\u0BCD\u0B9F\u0BA4\u0BC1 instanceof ${issue4.expected}, \u0BAA\u0BC6\u0BB1\u0BAA\u0BCD\u0BAA\u0B9F\u0BCD\u0B9F\u0BA4\u0BC1 ${received}`;
             }
             return `\u0BA4\u0BB5\u0BB1\u0BBE\u0BA9 \u0B89\u0BB3\u0BCD\u0BB3\u0BC0\u0B9F\u0BC1: \u0B8E\u0BA4\u0BBF\u0BB0\u0BCD\u0BAA\u0BBE\u0BB0\u0BCD\u0B95\u0BCD\u0B95\u0BAA\u0BCD\u0BAA\u0B9F\u0BCD\u0B9F\u0BA4\u0BC1 ${expected}, \u0BAA\u0BC6\u0BB1\u0BAA\u0BCD\u0BAA\u0B9F\u0BCD\u0B9F\u0BA4\u0BC1 ${received}`;
           }
           case "invalid_value":
-            if (issue3.values.length === 1)
-              return `\u0BA4\u0BB5\u0BB1\u0BBE\u0BA9 \u0B89\u0BB3\u0BCD\u0BB3\u0BC0\u0B9F\u0BC1: \u0B8E\u0BA4\u0BBF\u0BB0\u0BCD\u0BAA\u0BBE\u0BB0\u0BCD\u0B95\u0BCD\u0B95\u0BAA\u0BCD\u0BAA\u0B9F\u0BCD\u0B9F\u0BA4\u0BC1 ${stringifyPrimitive(issue3.values[0])}`;
-            return `\u0BA4\u0BB5\u0BB1\u0BBE\u0BA9 \u0BB5\u0BBF\u0BB0\u0BC1\u0BAA\u0BCD\u0BAA\u0BAE\u0BCD: \u0B8E\u0BA4\u0BBF\u0BB0\u0BCD\u0BAA\u0BBE\u0BB0\u0BCD\u0B95\u0BCD\u0B95\u0BAA\u0BCD\u0BAA\u0B9F\u0BCD\u0B9F\u0BA4\u0BC1 ${joinValues(issue3.values, "|")} \u0B87\u0BB2\u0BCD \u0B92\u0BA9\u0BCD\u0BB1\u0BC1`;
+            if (issue4.values.length === 1)
+              return `\u0BA4\u0BB5\u0BB1\u0BBE\u0BA9 \u0B89\u0BB3\u0BCD\u0BB3\u0BC0\u0B9F\u0BC1: \u0B8E\u0BA4\u0BBF\u0BB0\u0BCD\u0BAA\u0BBE\u0BB0\u0BCD\u0B95\u0BCD\u0B95\u0BAA\u0BCD\u0BAA\u0B9F\u0BCD\u0B9F\u0BA4\u0BC1 ${stringifyPrimitive(issue4.values[0])}`;
+            return `\u0BA4\u0BB5\u0BB1\u0BBE\u0BA9 \u0BB5\u0BBF\u0BB0\u0BC1\u0BAA\u0BCD\u0BAA\u0BAE\u0BCD: \u0B8E\u0BA4\u0BBF\u0BB0\u0BCD\u0BAA\u0BBE\u0BB0\u0BCD\u0B95\u0BCD\u0B95\u0BAA\u0BCD\u0BAA\u0B9F\u0BCD\u0B9F\u0BA4\u0BC1 ${joinValues(issue4.values, "|")} \u0B87\u0BB2\u0BCD \u0B92\u0BA9\u0BCD\u0BB1\u0BC1`;
           case "too_big": {
-            const adj = issue3.inclusive ? "<=" : "<";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? "<=" : "<";
+            const sizing = getSizing(issue4.origin);
             if (sizing) {
-              return `\u0BAE\u0BBF\u0B95 \u0BAA\u0BC6\u0BB0\u0BBF\u0BAF\u0BA4\u0BC1: \u0B8E\u0BA4\u0BBF\u0BB0\u0BCD\u0BAA\u0BBE\u0BB0\u0BCD\u0B95\u0BCD\u0B95\u0BAA\u0BCD\u0BAA\u0B9F\u0BCD\u0B9F\u0BA4\u0BC1 ${issue3.origin ?? "\u0BAE\u0BA4\u0BBF\u0BAA\u0BCD\u0BAA\u0BC1"} ${adj}${issue3.maximum.toString()} ${sizing.unit ?? "\u0B89\u0BB1\u0BC1\u0BAA\u0BCD\u0BAA\u0BC1\u0B95\u0BB3\u0BCD"} \u0B86\u0B95 \u0B87\u0BB0\u0BC1\u0B95\u0BCD\u0B95 \u0BB5\u0BC7\u0BA3\u0BCD\u0B9F\u0BC1\u0BAE\u0BCD`;
+              return `\u0BAE\u0BBF\u0B95 \u0BAA\u0BC6\u0BB0\u0BBF\u0BAF\u0BA4\u0BC1: \u0B8E\u0BA4\u0BBF\u0BB0\u0BCD\u0BAA\u0BBE\u0BB0\u0BCD\u0B95\u0BCD\u0B95\u0BAA\u0BCD\u0BAA\u0B9F\u0BCD\u0B9F\u0BA4\u0BC1 ${issue4.origin ?? "\u0BAE\u0BA4\u0BBF\u0BAA\u0BCD\u0BAA\u0BC1"} ${adj}${issue4.maximum.toString()} ${sizing.unit ?? "\u0B89\u0BB1\u0BC1\u0BAA\u0BCD\u0BAA\u0BC1\u0B95\u0BB3\u0BCD"} \u0B86\u0B95 \u0B87\u0BB0\u0BC1\u0B95\u0BCD\u0B95 \u0BB5\u0BC7\u0BA3\u0BCD\u0B9F\u0BC1\u0BAE\u0BCD`;
             }
-            return `\u0BAE\u0BBF\u0B95 \u0BAA\u0BC6\u0BB0\u0BBF\u0BAF\u0BA4\u0BC1: \u0B8E\u0BA4\u0BBF\u0BB0\u0BCD\u0BAA\u0BBE\u0BB0\u0BCD\u0B95\u0BCD\u0B95\u0BAA\u0BCD\u0BAA\u0B9F\u0BCD\u0B9F\u0BA4\u0BC1 ${issue3.origin ?? "\u0BAE\u0BA4\u0BBF\u0BAA\u0BCD\u0BAA\u0BC1"} ${adj}${issue3.maximum.toString()} \u0B86\u0B95 \u0B87\u0BB0\u0BC1\u0B95\u0BCD\u0B95 \u0BB5\u0BC7\u0BA3\u0BCD\u0B9F\u0BC1\u0BAE\u0BCD`;
+            return `\u0BAE\u0BBF\u0B95 \u0BAA\u0BC6\u0BB0\u0BBF\u0BAF\u0BA4\u0BC1: \u0B8E\u0BA4\u0BBF\u0BB0\u0BCD\u0BAA\u0BBE\u0BB0\u0BCD\u0B95\u0BCD\u0B95\u0BAA\u0BCD\u0BAA\u0B9F\u0BCD\u0B9F\u0BA4\u0BC1 ${issue4.origin ?? "\u0BAE\u0BA4\u0BBF\u0BAA\u0BCD\u0BAA\u0BC1"} ${adj}${issue4.maximum.toString()} \u0B86\u0B95 \u0B87\u0BB0\u0BC1\u0B95\u0BCD\u0B95 \u0BB5\u0BC7\u0BA3\u0BCD\u0B9F\u0BC1\u0BAE\u0BCD`;
           }
           case "too_small": {
-            const adj = issue3.inclusive ? ">=" : ">";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? ">=" : ">";
+            const sizing = getSizing(issue4.origin);
             if (sizing) {
-              return `\u0BAE\u0BBF\u0B95\u0B9A\u0BCD \u0B9A\u0BBF\u0BB1\u0BBF\u0BAF\u0BA4\u0BC1: \u0B8E\u0BA4\u0BBF\u0BB0\u0BCD\u0BAA\u0BBE\u0BB0\u0BCD\u0B95\u0BCD\u0B95\u0BAA\u0BCD\u0BAA\u0B9F\u0BCD\u0B9F\u0BA4\u0BC1 ${issue3.origin} ${adj}${issue3.minimum.toString()} ${sizing.unit} \u0B86\u0B95 \u0B87\u0BB0\u0BC1\u0B95\u0BCD\u0B95 \u0BB5\u0BC7\u0BA3\u0BCD\u0B9F\u0BC1\u0BAE\u0BCD`;
+              return `\u0BAE\u0BBF\u0B95\u0B9A\u0BCD \u0B9A\u0BBF\u0BB1\u0BBF\u0BAF\u0BA4\u0BC1: \u0B8E\u0BA4\u0BBF\u0BB0\u0BCD\u0BAA\u0BBE\u0BB0\u0BCD\u0B95\u0BCD\u0B95\u0BAA\u0BCD\u0BAA\u0B9F\u0BCD\u0B9F\u0BA4\u0BC1 ${issue4.origin} ${adj}${issue4.minimum.toString()} ${sizing.unit} \u0B86\u0B95 \u0B87\u0BB0\u0BC1\u0B95\u0BCD\u0B95 \u0BB5\u0BC7\u0BA3\u0BCD\u0B9F\u0BC1\u0BAE\u0BCD`;
             }
-            return `\u0BAE\u0BBF\u0B95\u0B9A\u0BCD \u0B9A\u0BBF\u0BB1\u0BBF\u0BAF\u0BA4\u0BC1: \u0B8E\u0BA4\u0BBF\u0BB0\u0BCD\u0BAA\u0BBE\u0BB0\u0BCD\u0B95\u0BCD\u0B95\u0BAA\u0BCD\u0BAA\u0B9F\u0BCD\u0B9F\u0BA4\u0BC1 ${issue3.origin} ${adj}${issue3.minimum.toString()} \u0B86\u0B95 \u0B87\u0BB0\u0BC1\u0B95\u0BCD\u0B95 \u0BB5\u0BC7\u0BA3\u0BCD\u0B9F\u0BC1\u0BAE\u0BCD`;
+            return `\u0BAE\u0BBF\u0B95\u0B9A\u0BCD \u0B9A\u0BBF\u0BB1\u0BBF\u0BAF\u0BA4\u0BC1: \u0B8E\u0BA4\u0BBF\u0BB0\u0BCD\u0BAA\u0BBE\u0BB0\u0BCD\u0B95\u0BCD\u0B95\u0BAA\u0BCD\u0BAA\u0B9F\u0BCD\u0B9F\u0BA4\u0BC1 ${issue4.origin} ${adj}${issue4.minimum.toString()} \u0B86\u0B95 \u0B87\u0BB0\u0BC1\u0B95\u0BCD\u0B95 \u0BB5\u0BC7\u0BA3\u0BCD\u0B9F\u0BC1\u0BAE\u0BCD`;
           }
           case "invalid_format": {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.format === "starts_with")
               return `\u0BA4\u0BB5\u0BB1\u0BBE\u0BA9 \u0B9A\u0BB0\u0BAE\u0BCD: "${_issue.prefix}" \u0B87\u0BB2\u0BCD \u0BA4\u0BCA\u0B9F\u0B99\u0BCD\u0B95 \u0BB5\u0BC7\u0BA3\u0BCD\u0B9F\u0BC1\u0BAE\u0BCD`;
             if (_issue.format === "ends_with")
@@ -47259,18 +47259,18 @@ var init_ta = __esm({
               return `\u0BA4\u0BB5\u0BB1\u0BBE\u0BA9 \u0B9A\u0BB0\u0BAE\u0BCD: "${_issue.includes}" \u0B90 \u0B89\u0BB3\u0BCD\u0BB3\u0B9F\u0B95\u0BCD\u0B95 \u0BB5\u0BC7\u0BA3\u0BCD\u0B9F\u0BC1\u0BAE\u0BCD`;
             if (_issue.format === "regex")
               return `\u0BA4\u0BB5\u0BB1\u0BBE\u0BA9 \u0B9A\u0BB0\u0BAE\u0BCD: ${_issue.pattern} \u0BAE\u0BC1\u0BB1\u0BC8\u0BAA\u0BBE\u0B9F\u0BCD\u0B9F\u0BC1\u0B9F\u0BA9\u0BCD \u0BAA\u0BCA\u0BB0\u0BC1\u0BA8\u0BCD\u0BA4 \u0BB5\u0BC7\u0BA3\u0BCD\u0B9F\u0BC1\u0BAE\u0BCD`;
-            return `\u0BA4\u0BB5\u0BB1\u0BBE\u0BA9 ${FormatDictionary[_issue.format] ?? issue3.format}`;
+            return `\u0BA4\u0BB5\u0BB1\u0BBE\u0BA9 ${FormatDictionary[_issue.format] ?? issue4.format}`;
           }
           case "not_multiple_of":
-            return `\u0BA4\u0BB5\u0BB1\u0BBE\u0BA9 \u0B8E\u0BA3\u0BCD: ${issue3.divisor} \u0B87\u0BA9\u0BCD \u0BAA\u0BB2\u0BAE\u0BBE\u0B95 \u0B87\u0BB0\u0BC1\u0B95\u0BCD\u0B95 \u0BB5\u0BC7\u0BA3\u0BCD\u0B9F\u0BC1\u0BAE\u0BCD`;
+            return `\u0BA4\u0BB5\u0BB1\u0BBE\u0BA9 \u0B8E\u0BA3\u0BCD: ${issue4.divisor} \u0B87\u0BA9\u0BCD \u0BAA\u0BB2\u0BAE\u0BBE\u0B95 \u0B87\u0BB0\u0BC1\u0B95\u0BCD\u0B95 \u0BB5\u0BC7\u0BA3\u0BCD\u0B9F\u0BC1\u0BAE\u0BCD`;
           case "unrecognized_keys":
-            return `\u0B85\u0B9F\u0BC8\u0BAF\u0BBE\u0BB3\u0BAE\u0BCD \u0BA4\u0BC6\u0BB0\u0BBF\u0BAF\u0BBE\u0BA4 \u0BB5\u0BBF\u0B9A\u0BC8${issue3.keys.length > 1 ? "\u0B95\u0BB3\u0BCD" : ""}: ${joinValues(issue3.keys, ", ")}`;
+            return `\u0B85\u0B9F\u0BC8\u0BAF\u0BBE\u0BB3\u0BAE\u0BCD \u0BA4\u0BC6\u0BB0\u0BBF\u0BAF\u0BBE\u0BA4 \u0BB5\u0BBF\u0B9A\u0BC8${issue4.keys.length > 1 ? "\u0B95\u0BB3\u0BCD" : ""}: ${joinValues(issue4.keys, ", ")}`;
           case "invalid_key":
-            return `${issue3.origin} \u0B87\u0BB2\u0BCD \u0BA4\u0BB5\u0BB1\u0BBE\u0BA9 \u0BB5\u0BBF\u0B9A\u0BC8`;
+            return `${issue4.origin} \u0B87\u0BB2\u0BCD \u0BA4\u0BB5\u0BB1\u0BBE\u0BA9 \u0BB5\u0BBF\u0B9A\u0BC8`;
           case "invalid_union":
             return "\u0BA4\u0BB5\u0BB1\u0BBE\u0BA9 \u0B89\u0BB3\u0BCD\u0BB3\u0BC0\u0B9F\u0BC1";
           case "invalid_element":
-            return `${issue3.origin} \u0B87\u0BB2\u0BCD \u0BA4\u0BB5\u0BB1\u0BBE\u0BA9 \u0BAE\u0BA4\u0BBF\u0BAA\u0BCD\u0BAA\u0BC1`;
+            return `${issue4.origin} \u0B87\u0BB2\u0BCD \u0BA4\u0BB5\u0BB1\u0BBE\u0BA9 \u0BAE\u0BA4\u0BBF\u0BAA\u0BCD\u0BAA\u0BC1`;
           default:
             return `\u0BA4\u0BB5\u0BB1\u0BBE\u0BA9 \u0B89\u0BB3\u0BCD\u0BB3\u0BC0\u0B9F\u0BC1`;
         }
@@ -47335,38 +47335,38 @@ var init_th = __esm({
         array: "\u0E2D\u0E32\u0E23\u0E4C\u0E40\u0E23\u0E22\u0E4C (Array)",
         null: "\u0E44\u0E21\u0E48\u0E21\u0E35\u0E04\u0E48\u0E32 (null)"
       };
-      return (issue3) => {
-        switch (issue3.code) {
+      return (issue4) => {
+        switch (issue4.code) {
           case "invalid_type": {
-            const expected = TypeDictionary[issue3.expected] ?? issue3.expected;
-            const receivedType = parsedType(issue3.input);
+            const expected = TypeDictionary[issue4.expected] ?? issue4.expected;
+            const receivedType = parsedType(issue4.input);
             const received = TypeDictionary[receivedType] ?? receivedType;
-            if (/^[A-Z]/.test(issue3.expected)) {
-              return `\u0E1B\u0E23\u0E30\u0E40\u0E20\u0E17\u0E02\u0E49\u0E2D\u0E21\u0E39\u0E25\u0E44\u0E21\u0E48\u0E16\u0E39\u0E01\u0E15\u0E49\u0E2D\u0E07: \u0E04\u0E27\u0E23\u0E40\u0E1B\u0E47\u0E19 instanceof ${issue3.expected} \u0E41\u0E15\u0E48\u0E44\u0E14\u0E49\u0E23\u0E31\u0E1A ${received}`;
+            if (/^[A-Z]/.test(issue4.expected)) {
+              return `\u0E1B\u0E23\u0E30\u0E40\u0E20\u0E17\u0E02\u0E49\u0E2D\u0E21\u0E39\u0E25\u0E44\u0E21\u0E48\u0E16\u0E39\u0E01\u0E15\u0E49\u0E2D\u0E07: \u0E04\u0E27\u0E23\u0E40\u0E1B\u0E47\u0E19 instanceof ${issue4.expected} \u0E41\u0E15\u0E48\u0E44\u0E14\u0E49\u0E23\u0E31\u0E1A ${received}`;
             }
             return `\u0E1B\u0E23\u0E30\u0E40\u0E20\u0E17\u0E02\u0E49\u0E2D\u0E21\u0E39\u0E25\u0E44\u0E21\u0E48\u0E16\u0E39\u0E01\u0E15\u0E49\u0E2D\u0E07: \u0E04\u0E27\u0E23\u0E40\u0E1B\u0E47\u0E19 ${expected} \u0E41\u0E15\u0E48\u0E44\u0E14\u0E49\u0E23\u0E31\u0E1A ${received}`;
           }
           case "invalid_value":
-            if (issue3.values.length === 1)
-              return `\u0E04\u0E48\u0E32\u0E44\u0E21\u0E48\u0E16\u0E39\u0E01\u0E15\u0E49\u0E2D\u0E07: \u0E04\u0E27\u0E23\u0E40\u0E1B\u0E47\u0E19 ${stringifyPrimitive(issue3.values[0])}`;
-            return `\u0E15\u0E31\u0E27\u0E40\u0E25\u0E37\u0E2D\u0E01\u0E44\u0E21\u0E48\u0E16\u0E39\u0E01\u0E15\u0E49\u0E2D\u0E07: \u0E04\u0E27\u0E23\u0E40\u0E1B\u0E47\u0E19\u0E2B\u0E19\u0E36\u0E48\u0E07\u0E43\u0E19 ${joinValues(issue3.values, "|")}`;
+            if (issue4.values.length === 1)
+              return `\u0E04\u0E48\u0E32\u0E44\u0E21\u0E48\u0E16\u0E39\u0E01\u0E15\u0E49\u0E2D\u0E07: \u0E04\u0E27\u0E23\u0E40\u0E1B\u0E47\u0E19 ${stringifyPrimitive(issue4.values[0])}`;
+            return `\u0E15\u0E31\u0E27\u0E40\u0E25\u0E37\u0E2D\u0E01\u0E44\u0E21\u0E48\u0E16\u0E39\u0E01\u0E15\u0E49\u0E2D\u0E07: \u0E04\u0E27\u0E23\u0E40\u0E1B\u0E47\u0E19\u0E2B\u0E19\u0E36\u0E48\u0E07\u0E43\u0E19 ${joinValues(issue4.values, "|")}`;
           case "too_big": {
-            const adj = issue3.inclusive ? "\u0E44\u0E21\u0E48\u0E40\u0E01\u0E34\u0E19" : "\u0E19\u0E49\u0E2D\u0E22\u0E01\u0E27\u0E48\u0E32";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? "\u0E44\u0E21\u0E48\u0E40\u0E01\u0E34\u0E19" : "\u0E19\u0E49\u0E2D\u0E22\u0E01\u0E27\u0E48\u0E32";
+            const sizing = getSizing(issue4.origin);
             if (sizing)
-              return `\u0E40\u0E01\u0E34\u0E19\u0E01\u0E33\u0E2B\u0E19\u0E14: ${issue3.origin ?? "\u0E04\u0E48\u0E32"} \u0E04\u0E27\u0E23\u0E21\u0E35${adj} ${issue3.maximum.toString()} ${sizing.unit ?? "\u0E23\u0E32\u0E22\u0E01\u0E32\u0E23"}`;
-            return `\u0E40\u0E01\u0E34\u0E19\u0E01\u0E33\u0E2B\u0E19\u0E14: ${issue3.origin ?? "\u0E04\u0E48\u0E32"} \u0E04\u0E27\u0E23\u0E21\u0E35${adj} ${issue3.maximum.toString()}`;
+              return `\u0E40\u0E01\u0E34\u0E19\u0E01\u0E33\u0E2B\u0E19\u0E14: ${issue4.origin ?? "\u0E04\u0E48\u0E32"} \u0E04\u0E27\u0E23\u0E21\u0E35${adj} ${issue4.maximum.toString()} ${sizing.unit ?? "\u0E23\u0E32\u0E22\u0E01\u0E32\u0E23"}`;
+            return `\u0E40\u0E01\u0E34\u0E19\u0E01\u0E33\u0E2B\u0E19\u0E14: ${issue4.origin ?? "\u0E04\u0E48\u0E32"} \u0E04\u0E27\u0E23\u0E21\u0E35${adj} ${issue4.maximum.toString()}`;
           }
           case "too_small": {
-            const adj = issue3.inclusive ? "\u0E2D\u0E22\u0E48\u0E32\u0E07\u0E19\u0E49\u0E2D\u0E22" : "\u0E21\u0E32\u0E01\u0E01\u0E27\u0E48\u0E32";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? "\u0E2D\u0E22\u0E48\u0E32\u0E07\u0E19\u0E49\u0E2D\u0E22" : "\u0E21\u0E32\u0E01\u0E01\u0E27\u0E48\u0E32";
+            const sizing = getSizing(issue4.origin);
             if (sizing) {
-              return `\u0E19\u0E49\u0E2D\u0E22\u0E01\u0E27\u0E48\u0E32\u0E01\u0E33\u0E2B\u0E19\u0E14: ${issue3.origin} \u0E04\u0E27\u0E23\u0E21\u0E35${adj} ${issue3.minimum.toString()} ${sizing.unit}`;
+              return `\u0E19\u0E49\u0E2D\u0E22\u0E01\u0E27\u0E48\u0E32\u0E01\u0E33\u0E2B\u0E19\u0E14: ${issue4.origin} \u0E04\u0E27\u0E23\u0E21\u0E35${adj} ${issue4.minimum.toString()} ${sizing.unit}`;
             }
-            return `\u0E19\u0E49\u0E2D\u0E22\u0E01\u0E27\u0E48\u0E32\u0E01\u0E33\u0E2B\u0E19\u0E14: ${issue3.origin} \u0E04\u0E27\u0E23\u0E21\u0E35${adj} ${issue3.minimum.toString()}`;
+            return `\u0E19\u0E49\u0E2D\u0E22\u0E01\u0E27\u0E48\u0E32\u0E01\u0E33\u0E2B\u0E19\u0E14: ${issue4.origin} \u0E04\u0E27\u0E23\u0E21\u0E35${adj} ${issue4.minimum.toString()}`;
           }
           case "invalid_format": {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.format === "starts_with") {
               return `\u0E23\u0E39\u0E1B\u0E41\u0E1A\u0E1A\u0E44\u0E21\u0E48\u0E16\u0E39\u0E01\u0E15\u0E49\u0E2D\u0E07: \u0E02\u0E49\u0E2D\u0E04\u0E27\u0E32\u0E21\u0E15\u0E49\u0E2D\u0E07\u0E02\u0E36\u0E49\u0E19\u0E15\u0E49\u0E19\u0E14\u0E49\u0E27\u0E22 "${_issue.prefix}"`;
             }
@@ -47376,18 +47376,18 @@ var init_th = __esm({
               return `\u0E23\u0E39\u0E1B\u0E41\u0E1A\u0E1A\u0E44\u0E21\u0E48\u0E16\u0E39\u0E01\u0E15\u0E49\u0E2D\u0E07: \u0E02\u0E49\u0E2D\u0E04\u0E27\u0E32\u0E21\u0E15\u0E49\u0E2D\u0E07\u0E21\u0E35 "${_issue.includes}" \u0E2D\u0E22\u0E39\u0E48\u0E43\u0E19\u0E02\u0E49\u0E2D\u0E04\u0E27\u0E32\u0E21`;
             if (_issue.format === "regex")
               return `\u0E23\u0E39\u0E1B\u0E41\u0E1A\u0E1A\u0E44\u0E21\u0E48\u0E16\u0E39\u0E01\u0E15\u0E49\u0E2D\u0E07: \u0E15\u0E49\u0E2D\u0E07\u0E15\u0E23\u0E07\u0E01\u0E31\u0E1A\u0E23\u0E39\u0E1B\u0E41\u0E1A\u0E1A\u0E17\u0E35\u0E48\u0E01\u0E33\u0E2B\u0E19\u0E14 ${_issue.pattern}`;
-            return `\u0E23\u0E39\u0E1B\u0E41\u0E1A\u0E1A\u0E44\u0E21\u0E48\u0E16\u0E39\u0E01\u0E15\u0E49\u0E2D\u0E07: ${FormatDictionary[_issue.format] ?? issue3.format}`;
+            return `\u0E23\u0E39\u0E1B\u0E41\u0E1A\u0E1A\u0E44\u0E21\u0E48\u0E16\u0E39\u0E01\u0E15\u0E49\u0E2D\u0E07: ${FormatDictionary[_issue.format] ?? issue4.format}`;
           }
           case "not_multiple_of":
-            return `\u0E15\u0E31\u0E27\u0E40\u0E25\u0E02\u0E44\u0E21\u0E48\u0E16\u0E39\u0E01\u0E15\u0E49\u0E2D\u0E07: \u0E15\u0E49\u0E2D\u0E07\u0E40\u0E1B\u0E47\u0E19\u0E08\u0E33\u0E19\u0E27\u0E19\u0E17\u0E35\u0E48\u0E2B\u0E32\u0E23\u0E14\u0E49\u0E27\u0E22 ${issue3.divisor} \u0E44\u0E14\u0E49\u0E25\u0E07\u0E15\u0E31\u0E27`;
+            return `\u0E15\u0E31\u0E27\u0E40\u0E25\u0E02\u0E44\u0E21\u0E48\u0E16\u0E39\u0E01\u0E15\u0E49\u0E2D\u0E07: \u0E15\u0E49\u0E2D\u0E07\u0E40\u0E1B\u0E47\u0E19\u0E08\u0E33\u0E19\u0E27\u0E19\u0E17\u0E35\u0E48\u0E2B\u0E32\u0E23\u0E14\u0E49\u0E27\u0E22 ${issue4.divisor} \u0E44\u0E14\u0E49\u0E25\u0E07\u0E15\u0E31\u0E27`;
           case "unrecognized_keys":
-            return `\u0E1E\u0E1A\u0E04\u0E35\u0E22\u0E4C\u0E17\u0E35\u0E48\u0E44\u0E21\u0E48\u0E23\u0E39\u0E49\u0E08\u0E31\u0E01: ${joinValues(issue3.keys, ", ")}`;
+            return `\u0E1E\u0E1A\u0E04\u0E35\u0E22\u0E4C\u0E17\u0E35\u0E48\u0E44\u0E21\u0E48\u0E23\u0E39\u0E49\u0E08\u0E31\u0E01: ${joinValues(issue4.keys, ", ")}`;
           case "invalid_key":
-            return `\u0E04\u0E35\u0E22\u0E4C\u0E44\u0E21\u0E48\u0E16\u0E39\u0E01\u0E15\u0E49\u0E2D\u0E07\u0E43\u0E19 ${issue3.origin}`;
+            return `\u0E04\u0E35\u0E22\u0E4C\u0E44\u0E21\u0E48\u0E16\u0E39\u0E01\u0E15\u0E49\u0E2D\u0E07\u0E43\u0E19 ${issue4.origin}`;
           case "invalid_union":
             return "\u0E02\u0E49\u0E2D\u0E21\u0E39\u0E25\u0E44\u0E21\u0E48\u0E16\u0E39\u0E01\u0E15\u0E49\u0E2D\u0E07: \u0E44\u0E21\u0E48\u0E15\u0E23\u0E07\u0E01\u0E31\u0E1A\u0E23\u0E39\u0E1B\u0E41\u0E1A\u0E1A\u0E22\u0E39\u0E40\u0E19\u0E35\u0E22\u0E19\u0E17\u0E35\u0E48\u0E01\u0E33\u0E2B\u0E19\u0E14\u0E44\u0E27\u0E49";
           case "invalid_element":
-            return `\u0E02\u0E49\u0E2D\u0E21\u0E39\u0E25\u0E44\u0E21\u0E48\u0E16\u0E39\u0E01\u0E15\u0E49\u0E2D\u0E07\u0E43\u0E19 ${issue3.origin}`;
+            return `\u0E02\u0E49\u0E2D\u0E21\u0E39\u0E25\u0E44\u0E21\u0E48\u0E16\u0E39\u0E01\u0E15\u0E49\u0E2D\u0E07\u0E43\u0E19 ${issue4.origin}`;
           default:
             return `\u0E02\u0E49\u0E2D\u0E21\u0E39\u0E25\u0E44\u0E21\u0E48\u0E16\u0E39\u0E01\u0E15\u0E49\u0E2D\u0E07`;
         }
@@ -47449,37 +47449,37 @@ var init_tr = __esm({
       const TypeDictionary = {
         nan: "NaN"
       };
-      return (issue3) => {
-        switch (issue3.code) {
+      return (issue4) => {
+        switch (issue4.code) {
           case "invalid_type": {
-            const expected = TypeDictionary[issue3.expected] ?? issue3.expected;
-            const receivedType = parsedType(issue3.input);
+            const expected = TypeDictionary[issue4.expected] ?? issue4.expected;
+            const receivedType = parsedType(issue4.input);
             const received = TypeDictionary[receivedType] ?? receivedType;
-            if (/^[A-Z]/.test(issue3.expected)) {
-              return `Ge\xE7ersiz de\u011Fer: beklenen instanceof ${issue3.expected}, al\u0131nan ${received}`;
+            if (/^[A-Z]/.test(issue4.expected)) {
+              return `Ge\xE7ersiz de\u011Fer: beklenen instanceof ${issue4.expected}, al\u0131nan ${received}`;
             }
             return `Ge\xE7ersiz de\u011Fer: beklenen ${expected}, al\u0131nan ${received}`;
           }
           case "invalid_value":
-            if (issue3.values.length === 1)
-              return `Ge\xE7ersiz de\u011Fer: beklenen ${stringifyPrimitive(issue3.values[0])}`;
-            return `Ge\xE7ersiz se\xE7enek: a\u015Fa\u011F\u0131dakilerden biri olmal\u0131: ${joinValues(issue3.values, "|")}`;
+            if (issue4.values.length === 1)
+              return `Ge\xE7ersiz de\u011Fer: beklenen ${stringifyPrimitive(issue4.values[0])}`;
+            return `Ge\xE7ersiz se\xE7enek: a\u015Fa\u011F\u0131dakilerden biri olmal\u0131: ${joinValues(issue4.values, "|")}`;
           case "too_big": {
-            const adj = issue3.inclusive ? "<=" : "<";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? "<=" : "<";
+            const sizing = getSizing(issue4.origin);
             if (sizing)
-              return `\xC7ok b\xFCy\xFCk: beklenen ${issue3.origin ?? "de\u011Fer"} ${adj}${issue3.maximum.toString()} ${sizing.unit ?? "\xF6\u011Fe"}`;
-            return `\xC7ok b\xFCy\xFCk: beklenen ${issue3.origin ?? "de\u011Fer"} ${adj}${issue3.maximum.toString()}`;
+              return `\xC7ok b\xFCy\xFCk: beklenen ${issue4.origin ?? "de\u011Fer"} ${adj}${issue4.maximum.toString()} ${sizing.unit ?? "\xF6\u011Fe"}`;
+            return `\xC7ok b\xFCy\xFCk: beklenen ${issue4.origin ?? "de\u011Fer"} ${adj}${issue4.maximum.toString()}`;
           }
           case "too_small": {
-            const adj = issue3.inclusive ? ">=" : ">";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? ">=" : ">";
+            const sizing = getSizing(issue4.origin);
             if (sizing)
-              return `\xC7ok k\xFC\xE7\xFCk: beklenen ${issue3.origin} ${adj}${issue3.minimum.toString()} ${sizing.unit}`;
-            return `\xC7ok k\xFC\xE7\xFCk: beklenen ${issue3.origin} ${adj}${issue3.minimum.toString()}`;
+              return `\xC7ok k\xFC\xE7\xFCk: beklenen ${issue4.origin} ${adj}${issue4.minimum.toString()} ${sizing.unit}`;
+            return `\xC7ok k\xFC\xE7\xFCk: beklenen ${issue4.origin} ${adj}${issue4.minimum.toString()}`;
           }
           case "invalid_format": {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.format === "starts_with")
               return `Ge\xE7ersiz metin: "${_issue.prefix}" ile ba\u015Flamal\u0131`;
             if (_issue.format === "ends_with")
@@ -47488,18 +47488,18 @@ var init_tr = __esm({
               return `Ge\xE7ersiz metin: "${_issue.includes}" i\xE7ermeli`;
             if (_issue.format === "regex")
               return `Ge\xE7ersiz metin: ${_issue.pattern} desenine uymal\u0131`;
-            return `Ge\xE7ersiz ${FormatDictionary[_issue.format] ?? issue3.format}`;
+            return `Ge\xE7ersiz ${FormatDictionary[_issue.format] ?? issue4.format}`;
           }
           case "not_multiple_of":
-            return `Ge\xE7ersiz say\u0131: ${issue3.divisor} ile tam b\xF6l\xFCnebilmeli`;
+            return `Ge\xE7ersiz say\u0131: ${issue4.divisor} ile tam b\xF6l\xFCnebilmeli`;
           case "unrecognized_keys":
-            return `Tan\u0131nmayan anahtar${issue3.keys.length > 1 ? "lar" : ""}: ${joinValues(issue3.keys, ", ")}`;
+            return `Tan\u0131nmayan anahtar${issue4.keys.length > 1 ? "lar" : ""}: ${joinValues(issue4.keys, ", ")}`;
           case "invalid_key":
-            return `${issue3.origin} i\xE7inde ge\xE7ersiz anahtar`;
+            return `${issue4.origin} i\xE7inde ge\xE7ersiz anahtar`;
           case "invalid_union":
             return "Ge\xE7ersiz de\u011Fer";
           case "invalid_element":
-            return `${issue3.origin} i\xE7inde ge\xE7ersiz de\u011Fer`;
+            return `${issue4.origin} i\xE7inde ge\xE7ersiz de\u011Fer`;
           default:
             return `Ge\xE7ersiz de\u011Fer`;
         }
@@ -47563,38 +47563,38 @@ var init_uk = __esm({
         number: "\u0447\u0438\u0441\u043B\u043E",
         array: "\u043C\u0430\u0441\u0438\u0432"
       };
-      return (issue3) => {
-        switch (issue3.code) {
+      return (issue4) => {
+        switch (issue4.code) {
           case "invalid_type": {
-            const expected = TypeDictionary[issue3.expected] ?? issue3.expected;
-            const receivedType = parsedType(issue3.input);
+            const expected = TypeDictionary[issue4.expected] ?? issue4.expected;
+            const receivedType = parsedType(issue4.input);
             const received = TypeDictionary[receivedType] ?? receivedType;
-            if (/^[A-Z]/.test(issue3.expected)) {
-              return `\u041D\u0435\u043F\u0440\u0430\u0432\u0438\u043B\u044C\u043D\u0456 \u0432\u0445\u0456\u0434\u043D\u0456 \u0434\u0430\u043D\u0456: \u043E\u0447\u0456\u043A\u0443\u0454\u0442\u044C\u0441\u044F instanceof ${issue3.expected}, \u043E\u0442\u0440\u0438\u043C\u0430\u043D\u043E ${received}`;
+            if (/^[A-Z]/.test(issue4.expected)) {
+              return `\u041D\u0435\u043F\u0440\u0430\u0432\u0438\u043B\u044C\u043D\u0456 \u0432\u0445\u0456\u0434\u043D\u0456 \u0434\u0430\u043D\u0456: \u043E\u0447\u0456\u043A\u0443\u0454\u0442\u044C\u0441\u044F instanceof ${issue4.expected}, \u043E\u0442\u0440\u0438\u043C\u0430\u043D\u043E ${received}`;
             }
             return `\u041D\u0435\u043F\u0440\u0430\u0432\u0438\u043B\u044C\u043D\u0456 \u0432\u0445\u0456\u0434\u043D\u0456 \u0434\u0430\u043D\u0456: \u043E\u0447\u0456\u043A\u0443\u0454\u0442\u044C\u0441\u044F ${expected}, \u043E\u0442\u0440\u0438\u043C\u0430\u043D\u043E ${received}`;
           }
           case "invalid_value":
-            if (issue3.values.length === 1)
-              return `\u041D\u0435\u043F\u0440\u0430\u0432\u0438\u043B\u044C\u043D\u0456 \u0432\u0445\u0456\u0434\u043D\u0456 \u0434\u0430\u043D\u0456: \u043E\u0447\u0456\u043A\u0443\u0454\u0442\u044C\u0441\u044F ${stringifyPrimitive(issue3.values[0])}`;
-            return `\u041D\u0435\u043F\u0440\u0430\u0432\u0438\u043B\u044C\u043D\u0430 \u043E\u043F\u0446\u0456\u044F: \u043E\u0447\u0456\u043A\u0443\u0454\u0442\u044C\u0441\u044F \u043E\u0434\u043D\u0435 \u0437 ${joinValues(issue3.values, "|")}`;
+            if (issue4.values.length === 1)
+              return `\u041D\u0435\u043F\u0440\u0430\u0432\u0438\u043B\u044C\u043D\u0456 \u0432\u0445\u0456\u0434\u043D\u0456 \u0434\u0430\u043D\u0456: \u043E\u0447\u0456\u043A\u0443\u0454\u0442\u044C\u0441\u044F ${stringifyPrimitive(issue4.values[0])}`;
+            return `\u041D\u0435\u043F\u0440\u0430\u0432\u0438\u043B\u044C\u043D\u0430 \u043E\u043F\u0446\u0456\u044F: \u043E\u0447\u0456\u043A\u0443\u0454\u0442\u044C\u0441\u044F \u043E\u0434\u043D\u0435 \u0437 ${joinValues(issue4.values, "|")}`;
           case "too_big": {
-            const adj = issue3.inclusive ? "<=" : "<";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? "<=" : "<";
+            const sizing = getSizing(issue4.origin);
             if (sizing)
-              return `\u0417\u0430\u043D\u0430\u0434\u0442\u043E \u0432\u0435\u043B\u0438\u043A\u0435: \u043E\u0447\u0456\u043A\u0443\u0454\u0442\u044C\u0441\u044F, \u0449\u043E ${issue3.origin ?? "\u0437\u043D\u0430\u0447\u0435\u043D\u043D\u044F"} ${sizing.verb} ${adj}${issue3.maximum.toString()} ${sizing.unit ?? "\u0435\u043B\u0435\u043C\u0435\u043D\u0442\u0456\u0432"}`;
-            return `\u0417\u0430\u043D\u0430\u0434\u0442\u043E \u0432\u0435\u043B\u0438\u043A\u0435: \u043E\u0447\u0456\u043A\u0443\u0454\u0442\u044C\u0441\u044F, \u0449\u043E ${issue3.origin ?? "\u0437\u043D\u0430\u0447\u0435\u043D\u043D\u044F"} \u0431\u0443\u0434\u0435 ${adj}${issue3.maximum.toString()}`;
+              return `\u0417\u0430\u043D\u0430\u0434\u0442\u043E \u0432\u0435\u043B\u0438\u043A\u0435: \u043E\u0447\u0456\u043A\u0443\u0454\u0442\u044C\u0441\u044F, \u0449\u043E ${issue4.origin ?? "\u0437\u043D\u0430\u0447\u0435\u043D\u043D\u044F"} ${sizing.verb} ${adj}${issue4.maximum.toString()} ${sizing.unit ?? "\u0435\u043B\u0435\u043C\u0435\u043D\u0442\u0456\u0432"}`;
+            return `\u0417\u0430\u043D\u0430\u0434\u0442\u043E \u0432\u0435\u043B\u0438\u043A\u0435: \u043E\u0447\u0456\u043A\u0443\u0454\u0442\u044C\u0441\u044F, \u0449\u043E ${issue4.origin ?? "\u0437\u043D\u0430\u0447\u0435\u043D\u043D\u044F"} \u0431\u0443\u0434\u0435 ${adj}${issue4.maximum.toString()}`;
           }
           case "too_small": {
-            const adj = issue3.inclusive ? ">=" : ">";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? ">=" : ">";
+            const sizing = getSizing(issue4.origin);
             if (sizing) {
-              return `\u0417\u0430\u043D\u0430\u0434\u0442\u043E \u043C\u0430\u043B\u0435: \u043E\u0447\u0456\u043A\u0443\u0454\u0442\u044C\u0441\u044F, \u0449\u043E ${issue3.origin} ${sizing.verb} ${adj}${issue3.minimum.toString()} ${sizing.unit}`;
+              return `\u0417\u0430\u043D\u0430\u0434\u0442\u043E \u043C\u0430\u043B\u0435: \u043E\u0447\u0456\u043A\u0443\u0454\u0442\u044C\u0441\u044F, \u0449\u043E ${issue4.origin} ${sizing.verb} ${adj}${issue4.minimum.toString()} ${sizing.unit}`;
             }
-            return `\u0417\u0430\u043D\u0430\u0434\u0442\u043E \u043C\u0430\u043B\u0435: \u043E\u0447\u0456\u043A\u0443\u0454\u0442\u044C\u0441\u044F, \u0449\u043E ${issue3.origin} \u0431\u0443\u0434\u0435 ${adj}${issue3.minimum.toString()}`;
+            return `\u0417\u0430\u043D\u0430\u0434\u0442\u043E \u043C\u0430\u043B\u0435: \u043E\u0447\u0456\u043A\u0443\u0454\u0442\u044C\u0441\u044F, \u0449\u043E ${issue4.origin} \u0431\u0443\u0434\u0435 ${adj}${issue4.minimum.toString()}`;
           }
           case "invalid_format": {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.format === "starts_with")
               return `\u041D\u0435\u043F\u0440\u0430\u0432\u0438\u043B\u044C\u043D\u0438\u0439 \u0440\u044F\u0434\u043E\u043A: \u043F\u043E\u0432\u0438\u043D\u0435\u043D \u043F\u043E\u0447\u0438\u043D\u0430\u0442\u0438\u0441\u044F \u0437 "${_issue.prefix}"`;
             if (_issue.format === "ends_with")
@@ -47603,18 +47603,18 @@ var init_uk = __esm({
               return `\u041D\u0435\u043F\u0440\u0430\u0432\u0438\u043B\u044C\u043D\u0438\u0439 \u0440\u044F\u0434\u043E\u043A: \u043F\u043E\u0432\u0438\u043D\u0435\u043D \u043C\u0456\u0441\u0442\u0438\u0442\u0438 "${_issue.includes}"`;
             if (_issue.format === "regex")
               return `\u041D\u0435\u043F\u0440\u0430\u0432\u0438\u043B\u044C\u043D\u0438\u0439 \u0440\u044F\u0434\u043E\u043A: \u043F\u043E\u0432\u0438\u043D\u0435\u043D \u0432\u0456\u0434\u043F\u043E\u0432\u0456\u0434\u0430\u0442\u0438 \u0448\u0430\u0431\u043B\u043E\u043D\u0443 ${_issue.pattern}`;
-            return `\u041D\u0435\u043F\u0440\u0430\u0432\u0438\u043B\u044C\u043D\u0438\u0439 ${FormatDictionary[_issue.format] ?? issue3.format}`;
+            return `\u041D\u0435\u043F\u0440\u0430\u0432\u0438\u043B\u044C\u043D\u0438\u0439 ${FormatDictionary[_issue.format] ?? issue4.format}`;
           }
           case "not_multiple_of":
-            return `\u041D\u0435\u043F\u0440\u0430\u0432\u0438\u043B\u044C\u043D\u0435 \u0447\u0438\u0441\u043B\u043E: \u043F\u043E\u0432\u0438\u043D\u043D\u043E \u0431\u0443\u0442\u0438 \u043A\u0440\u0430\u0442\u043D\u0438\u043C ${issue3.divisor}`;
+            return `\u041D\u0435\u043F\u0440\u0430\u0432\u0438\u043B\u044C\u043D\u0435 \u0447\u0438\u0441\u043B\u043E: \u043F\u043E\u0432\u0438\u043D\u043D\u043E \u0431\u0443\u0442\u0438 \u043A\u0440\u0430\u0442\u043D\u0438\u043C ${issue4.divisor}`;
           case "unrecognized_keys":
-            return `\u041D\u0435\u0440\u043E\u0437\u043F\u0456\u0437\u043D\u0430\u043D\u0438\u0439 \u043A\u043B\u044E\u0447${issue3.keys.length > 1 ? "\u0456" : ""}: ${joinValues(issue3.keys, ", ")}`;
+            return `\u041D\u0435\u0440\u043E\u0437\u043F\u0456\u0437\u043D\u0430\u043D\u0438\u0439 \u043A\u043B\u044E\u0447${issue4.keys.length > 1 ? "\u0456" : ""}: ${joinValues(issue4.keys, ", ")}`;
           case "invalid_key":
-            return `\u041D\u0435\u043F\u0440\u0430\u0432\u0438\u043B\u044C\u043D\u0438\u0439 \u043A\u043B\u044E\u0447 \u0443 ${issue3.origin}`;
+            return `\u041D\u0435\u043F\u0440\u0430\u0432\u0438\u043B\u044C\u043D\u0438\u0439 \u043A\u043B\u044E\u0447 \u0443 ${issue4.origin}`;
           case "invalid_union":
             return "\u041D\u0435\u043F\u0440\u0430\u0432\u0438\u043B\u044C\u043D\u0456 \u0432\u0445\u0456\u0434\u043D\u0456 \u0434\u0430\u043D\u0456";
           case "invalid_element":
-            return `\u041D\u0435\u043F\u0440\u0430\u0432\u0438\u043B\u044C\u043D\u0435 \u0437\u043D\u0430\u0447\u0435\u043D\u043D\u044F \u0443 ${issue3.origin}`;
+            return `\u041D\u0435\u043F\u0440\u0430\u0432\u0438\u043B\u044C\u043D\u0435 \u0437\u043D\u0430\u0447\u0435\u043D\u043D\u044F \u0443 ${issue4.origin}`;
           default:
             return `\u041D\u0435\u043F\u0440\u0430\u0432\u0438\u043B\u044C\u043D\u0456 \u0432\u0445\u0456\u0434\u043D\u0456 \u0434\u0430\u043D\u0456`;
         }
@@ -47689,38 +47689,38 @@ var init_ur = __esm({
         array: "\u0622\u0631\u06D2",
         null: "\u0646\u0644"
       };
-      return (issue3) => {
-        switch (issue3.code) {
+      return (issue4) => {
+        switch (issue4.code) {
           case "invalid_type": {
-            const expected = TypeDictionary[issue3.expected] ?? issue3.expected;
-            const receivedType = parsedType(issue3.input);
+            const expected = TypeDictionary[issue4.expected] ?? issue4.expected;
+            const receivedType = parsedType(issue4.input);
             const received = TypeDictionary[receivedType] ?? receivedType;
-            if (/^[A-Z]/.test(issue3.expected)) {
-              return `\u063A\u0644\u0637 \u0627\u0646 \u067E\u0679: instanceof ${issue3.expected} \u0645\u062A\u0648\u0642\u0639 \u062A\u06BE\u0627\u060C ${received} \u0645\u0648\u0635\u0648\u0644 \u06C1\u0648\u0627`;
+            if (/^[A-Z]/.test(issue4.expected)) {
+              return `\u063A\u0644\u0637 \u0627\u0646 \u067E\u0679: instanceof ${issue4.expected} \u0645\u062A\u0648\u0642\u0639 \u062A\u06BE\u0627\u060C ${received} \u0645\u0648\u0635\u0648\u0644 \u06C1\u0648\u0627`;
             }
             return `\u063A\u0644\u0637 \u0627\u0646 \u067E\u0679: ${expected} \u0645\u062A\u0648\u0642\u0639 \u062A\u06BE\u0627\u060C ${received} \u0645\u0648\u0635\u0648\u0644 \u06C1\u0648\u0627`;
           }
           case "invalid_value":
-            if (issue3.values.length === 1)
-              return `\u063A\u0644\u0637 \u0627\u0646 \u067E\u0679: ${stringifyPrimitive(issue3.values[0])} \u0645\u062A\u0648\u0642\u0639 \u062A\u06BE\u0627`;
-            return `\u063A\u0644\u0637 \u0622\u067E\u0634\u0646: ${joinValues(issue3.values, "|")} \u0645\u06CC\u06BA \u0633\u06D2 \u0627\u06CC\u06A9 \u0645\u062A\u0648\u0642\u0639 \u062A\u06BE\u0627`;
+            if (issue4.values.length === 1)
+              return `\u063A\u0644\u0637 \u0627\u0646 \u067E\u0679: ${stringifyPrimitive(issue4.values[0])} \u0645\u062A\u0648\u0642\u0639 \u062A\u06BE\u0627`;
+            return `\u063A\u0644\u0637 \u0622\u067E\u0634\u0646: ${joinValues(issue4.values, "|")} \u0645\u06CC\u06BA \u0633\u06D2 \u0627\u06CC\u06A9 \u0645\u062A\u0648\u0642\u0639 \u062A\u06BE\u0627`;
           case "too_big": {
-            const adj = issue3.inclusive ? "<=" : "<";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? "<=" : "<";
+            const sizing = getSizing(issue4.origin);
             if (sizing)
-              return `\u0628\u06C1\u062A \u0628\u0691\u0627: ${issue3.origin ?? "\u0648\u06CC\u0644\u06CC\u0648"} \u06A9\u06D2 ${adj}${issue3.maximum.toString()} ${sizing.unit ?? "\u0639\u0646\u0627\u0635\u0631"} \u06C1\u0648\u0646\u06D2 \u0645\u062A\u0648\u0642\u0639 \u062A\u06BE\u06D2`;
-            return `\u0628\u06C1\u062A \u0628\u0691\u0627: ${issue3.origin ?? "\u0648\u06CC\u0644\u06CC\u0648"} \u06A9\u0627 ${adj}${issue3.maximum.toString()} \u06C1\u0648\u0646\u0627 \u0645\u062A\u0648\u0642\u0639 \u062A\u06BE\u0627`;
+              return `\u0628\u06C1\u062A \u0628\u0691\u0627: ${issue4.origin ?? "\u0648\u06CC\u0644\u06CC\u0648"} \u06A9\u06D2 ${adj}${issue4.maximum.toString()} ${sizing.unit ?? "\u0639\u0646\u0627\u0635\u0631"} \u06C1\u0648\u0646\u06D2 \u0645\u062A\u0648\u0642\u0639 \u062A\u06BE\u06D2`;
+            return `\u0628\u06C1\u062A \u0628\u0691\u0627: ${issue4.origin ?? "\u0648\u06CC\u0644\u06CC\u0648"} \u06A9\u0627 ${adj}${issue4.maximum.toString()} \u06C1\u0648\u0646\u0627 \u0645\u062A\u0648\u0642\u0639 \u062A\u06BE\u0627`;
           }
           case "too_small": {
-            const adj = issue3.inclusive ? ">=" : ">";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? ">=" : ">";
+            const sizing = getSizing(issue4.origin);
             if (sizing) {
-              return `\u0628\u06C1\u062A \u0686\u06BE\u0648\u0679\u0627: ${issue3.origin} \u06A9\u06D2 ${adj}${issue3.minimum.toString()} ${sizing.unit} \u06C1\u0648\u0646\u06D2 \u0645\u062A\u0648\u0642\u0639 \u062A\u06BE\u06D2`;
+              return `\u0628\u06C1\u062A \u0686\u06BE\u0648\u0679\u0627: ${issue4.origin} \u06A9\u06D2 ${adj}${issue4.minimum.toString()} ${sizing.unit} \u06C1\u0648\u0646\u06D2 \u0645\u062A\u0648\u0642\u0639 \u062A\u06BE\u06D2`;
             }
-            return `\u0628\u06C1\u062A \u0686\u06BE\u0648\u0679\u0627: ${issue3.origin} \u06A9\u0627 ${adj}${issue3.minimum.toString()} \u06C1\u0648\u0646\u0627 \u0645\u062A\u0648\u0642\u0639 \u062A\u06BE\u0627`;
+            return `\u0628\u06C1\u062A \u0686\u06BE\u0648\u0679\u0627: ${issue4.origin} \u06A9\u0627 ${adj}${issue4.minimum.toString()} \u06C1\u0648\u0646\u0627 \u0645\u062A\u0648\u0642\u0639 \u062A\u06BE\u0627`;
           }
           case "invalid_format": {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.format === "starts_with") {
               return `\u063A\u0644\u0637 \u0633\u0679\u0631\u0646\u06AF: "${_issue.prefix}" \u0633\u06D2 \u0634\u0631\u0648\u0639 \u06C1\u0648\u0646\u0627 \u0686\u0627\u06C1\u06CC\u06D2`;
             }
@@ -47730,18 +47730,18 @@ var init_ur = __esm({
               return `\u063A\u0644\u0637 \u0633\u0679\u0631\u0646\u06AF: "${_issue.includes}" \u0634\u0627\u0645\u0644 \u06C1\u0648\u0646\u0627 \u0686\u0627\u06C1\u06CC\u06D2`;
             if (_issue.format === "regex")
               return `\u063A\u0644\u0637 \u0633\u0679\u0631\u0646\u06AF: \u067E\u06CC\u0679\u0631\u0646 ${_issue.pattern} \u0633\u06D2 \u0645\u06CC\u0686 \u06C1\u0648\u0646\u0627 \u0686\u0627\u06C1\u06CC\u06D2`;
-            return `\u063A\u0644\u0637 ${FormatDictionary[_issue.format] ?? issue3.format}`;
+            return `\u063A\u0644\u0637 ${FormatDictionary[_issue.format] ?? issue4.format}`;
           }
           case "not_multiple_of":
-            return `\u063A\u0644\u0637 \u0646\u0645\u0628\u0631: ${issue3.divisor} \u06A9\u0627 \u0645\u0636\u0627\u0639\u0641 \u06C1\u0648\u0646\u0627 \u0686\u0627\u06C1\u06CC\u06D2`;
+            return `\u063A\u0644\u0637 \u0646\u0645\u0628\u0631: ${issue4.divisor} \u06A9\u0627 \u0645\u0636\u0627\u0639\u0641 \u06C1\u0648\u0646\u0627 \u0686\u0627\u06C1\u06CC\u06D2`;
           case "unrecognized_keys":
-            return `\u063A\u06CC\u0631 \u062A\u0633\u0644\u06CC\u0645 \u0634\u062F\u06C1 \u06A9\u06CC${issue3.keys.length > 1 ? "\u0632" : ""}: ${joinValues(issue3.keys, "\u060C ")}`;
+            return `\u063A\u06CC\u0631 \u062A\u0633\u0644\u06CC\u0645 \u0634\u062F\u06C1 \u06A9\u06CC${issue4.keys.length > 1 ? "\u0632" : ""}: ${joinValues(issue4.keys, "\u060C ")}`;
           case "invalid_key":
-            return `${issue3.origin} \u0645\u06CC\u06BA \u063A\u0644\u0637 \u06A9\u06CC`;
+            return `${issue4.origin} \u0645\u06CC\u06BA \u063A\u0644\u0637 \u06A9\u06CC`;
           case "invalid_union":
             return "\u063A\u0644\u0637 \u0627\u0646 \u067E\u0679";
           case "invalid_element":
-            return `${issue3.origin} \u0645\u06CC\u06BA \u063A\u0644\u0637 \u0648\u06CC\u0644\u06CC\u0648`;
+            return `${issue4.origin} \u0645\u06CC\u06BA \u063A\u0644\u0637 \u0648\u06CC\u0644\u06CC\u0648`;
           default:
             return `\u063A\u0644\u0637 \u0627\u0646 \u067E\u0679`;
         }
@@ -47807,38 +47807,38 @@ var init_uz = __esm({
         number: "raqam",
         array: "massiv"
       };
-      return (issue3) => {
-        switch (issue3.code) {
+      return (issue4) => {
+        switch (issue4.code) {
           case "invalid_type": {
-            const expected = TypeDictionary[issue3.expected] ?? issue3.expected;
-            const receivedType = parsedType(issue3.input);
+            const expected = TypeDictionary[issue4.expected] ?? issue4.expected;
+            const receivedType = parsedType(issue4.input);
             const received = TypeDictionary[receivedType] ?? receivedType;
-            if (/^[A-Z]/.test(issue3.expected)) {
-              return `Noto\u2018g\u2018ri kirish: kutilgan instanceof ${issue3.expected}, qabul qilingan ${received}`;
+            if (/^[A-Z]/.test(issue4.expected)) {
+              return `Noto\u2018g\u2018ri kirish: kutilgan instanceof ${issue4.expected}, qabul qilingan ${received}`;
             }
             return `Noto\u2018g\u2018ri kirish: kutilgan ${expected}, qabul qilingan ${received}`;
           }
           case "invalid_value":
-            if (issue3.values.length === 1)
-              return `Noto\u2018g\u2018ri kirish: kutilgan ${stringifyPrimitive(issue3.values[0])}`;
-            return `Noto\u2018g\u2018ri variant: quyidagilardan biri kutilgan ${joinValues(issue3.values, "|")}`;
+            if (issue4.values.length === 1)
+              return `Noto\u2018g\u2018ri kirish: kutilgan ${stringifyPrimitive(issue4.values[0])}`;
+            return `Noto\u2018g\u2018ri variant: quyidagilardan biri kutilgan ${joinValues(issue4.values, "|")}`;
           case "too_big": {
-            const adj = issue3.inclusive ? "<=" : "<";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? "<=" : "<";
+            const sizing = getSizing(issue4.origin);
             if (sizing)
-              return `Juda katta: kutilgan ${issue3.origin ?? "qiymat"} ${adj}${issue3.maximum.toString()} ${sizing.unit} ${sizing.verb}`;
-            return `Juda katta: kutilgan ${issue3.origin ?? "qiymat"} ${adj}${issue3.maximum.toString()}`;
+              return `Juda katta: kutilgan ${issue4.origin ?? "qiymat"} ${adj}${issue4.maximum.toString()} ${sizing.unit} ${sizing.verb}`;
+            return `Juda katta: kutilgan ${issue4.origin ?? "qiymat"} ${adj}${issue4.maximum.toString()}`;
           }
           case "too_small": {
-            const adj = issue3.inclusive ? ">=" : ">";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? ">=" : ">";
+            const sizing = getSizing(issue4.origin);
             if (sizing) {
-              return `Juda kichik: kutilgan ${issue3.origin} ${adj}${issue3.minimum.toString()} ${sizing.unit} ${sizing.verb}`;
+              return `Juda kichik: kutilgan ${issue4.origin} ${adj}${issue4.minimum.toString()} ${sizing.unit} ${sizing.verb}`;
             }
-            return `Juda kichik: kutilgan ${issue3.origin} ${adj}${issue3.minimum.toString()}`;
+            return `Juda kichik: kutilgan ${issue4.origin} ${adj}${issue4.minimum.toString()}`;
           }
           case "invalid_format": {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.format === "starts_with")
               return `Noto\u2018g\u2018ri satr: "${_issue.prefix}" bilan boshlanishi kerak`;
             if (_issue.format === "ends_with")
@@ -47847,18 +47847,18 @@ var init_uz = __esm({
               return `Noto\u2018g\u2018ri satr: "${_issue.includes}" ni o\u2018z ichiga olishi kerak`;
             if (_issue.format === "regex")
               return `Noto\u2018g\u2018ri satr: ${_issue.pattern} shabloniga mos kelishi kerak`;
-            return `Noto\u2018g\u2018ri ${FormatDictionary[_issue.format] ?? issue3.format}`;
+            return `Noto\u2018g\u2018ri ${FormatDictionary[_issue.format] ?? issue4.format}`;
           }
           case "not_multiple_of":
-            return `Noto\u2018g\u2018ri raqam: ${issue3.divisor} ning karralisi bo\u2018lishi kerak`;
+            return `Noto\u2018g\u2018ri raqam: ${issue4.divisor} ning karralisi bo\u2018lishi kerak`;
           case "unrecognized_keys":
-            return `Noma\u2019lum kalit${issue3.keys.length > 1 ? "lar" : ""}: ${joinValues(issue3.keys, ", ")}`;
+            return `Noma\u2019lum kalit${issue4.keys.length > 1 ? "lar" : ""}: ${joinValues(issue4.keys, ", ")}`;
           case "invalid_key":
-            return `${issue3.origin} dagi kalit noto\u2018g\u2018ri`;
+            return `${issue4.origin} dagi kalit noto\u2018g\u2018ri`;
           case "invalid_union":
             return "Noto\u2018g\u2018ri kirish";
           case "invalid_element":
-            return `${issue3.origin} da noto\u2018g\u2018ri qiymat`;
+            return `${issue4.origin} da noto\u2018g\u2018ri qiymat`;
           default:
             return `Noto\u2018g\u2018ri kirish`;
         }
@@ -47922,38 +47922,38 @@ var init_vi = __esm({
         number: "s\u1ED1",
         array: "m\u1EA3ng"
       };
-      return (issue3) => {
-        switch (issue3.code) {
+      return (issue4) => {
+        switch (issue4.code) {
           case "invalid_type": {
-            const expected = TypeDictionary[issue3.expected] ?? issue3.expected;
-            const receivedType = parsedType(issue3.input);
+            const expected = TypeDictionary[issue4.expected] ?? issue4.expected;
+            const receivedType = parsedType(issue4.input);
             const received = TypeDictionary[receivedType] ?? receivedType;
-            if (/^[A-Z]/.test(issue3.expected)) {
-              return `\u0110\u1EA7u v\xE0o kh\xF4ng h\u1EE3p l\u1EC7: mong \u0111\u1EE3i instanceof ${issue3.expected}, nh\u1EADn \u0111\u01B0\u1EE3c ${received}`;
+            if (/^[A-Z]/.test(issue4.expected)) {
+              return `\u0110\u1EA7u v\xE0o kh\xF4ng h\u1EE3p l\u1EC7: mong \u0111\u1EE3i instanceof ${issue4.expected}, nh\u1EADn \u0111\u01B0\u1EE3c ${received}`;
             }
             return `\u0110\u1EA7u v\xE0o kh\xF4ng h\u1EE3p l\u1EC7: mong \u0111\u1EE3i ${expected}, nh\u1EADn \u0111\u01B0\u1EE3c ${received}`;
           }
           case "invalid_value":
-            if (issue3.values.length === 1)
-              return `\u0110\u1EA7u v\xE0o kh\xF4ng h\u1EE3p l\u1EC7: mong \u0111\u1EE3i ${stringifyPrimitive(issue3.values[0])}`;
-            return `T\xF9y ch\u1ECDn kh\xF4ng h\u1EE3p l\u1EC7: mong \u0111\u1EE3i m\u1ED9t trong c\xE1c gi\xE1 tr\u1ECB ${joinValues(issue3.values, "|")}`;
+            if (issue4.values.length === 1)
+              return `\u0110\u1EA7u v\xE0o kh\xF4ng h\u1EE3p l\u1EC7: mong \u0111\u1EE3i ${stringifyPrimitive(issue4.values[0])}`;
+            return `T\xF9y ch\u1ECDn kh\xF4ng h\u1EE3p l\u1EC7: mong \u0111\u1EE3i m\u1ED9t trong c\xE1c gi\xE1 tr\u1ECB ${joinValues(issue4.values, "|")}`;
           case "too_big": {
-            const adj = issue3.inclusive ? "<=" : "<";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? "<=" : "<";
+            const sizing = getSizing(issue4.origin);
             if (sizing)
-              return `Qu\xE1 l\u1EDBn: mong \u0111\u1EE3i ${issue3.origin ?? "gi\xE1 tr\u1ECB"} ${sizing.verb} ${adj}${issue3.maximum.toString()} ${sizing.unit ?? "ph\u1EA7n t\u1EED"}`;
-            return `Qu\xE1 l\u1EDBn: mong \u0111\u1EE3i ${issue3.origin ?? "gi\xE1 tr\u1ECB"} ${adj}${issue3.maximum.toString()}`;
+              return `Qu\xE1 l\u1EDBn: mong \u0111\u1EE3i ${issue4.origin ?? "gi\xE1 tr\u1ECB"} ${sizing.verb} ${adj}${issue4.maximum.toString()} ${sizing.unit ?? "ph\u1EA7n t\u1EED"}`;
+            return `Qu\xE1 l\u1EDBn: mong \u0111\u1EE3i ${issue4.origin ?? "gi\xE1 tr\u1ECB"} ${adj}${issue4.maximum.toString()}`;
           }
           case "too_small": {
-            const adj = issue3.inclusive ? ">=" : ">";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? ">=" : ">";
+            const sizing = getSizing(issue4.origin);
             if (sizing) {
-              return `Qu\xE1 nh\u1ECF: mong \u0111\u1EE3i ${issue3.origin} ${sizing.verb} ${adj}${issue3.minimum.toString()} ${sizing.unit}`;
+              return `Qu\xE1 nh\u1ECF: mong \u0111\u1EE3i ${issue4.origin} ${sizing.verb} ${adj}${issue4.minimum.toString()} ${sizing.unit}`;
             }
-            return `Qu\xE1 nh\u1ECF: mong \u0111\u1EE3i ${issue3.origin} ${adj}${issue3.minimum.toString()}`;
+            return `Qu\xE1 nh\u1ECF: mong \u0111\u1EE3i ${issue4.origin} ${adj}${issue4.minimum.toString()}`;
           }
           case "invalid_format": {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.format === "starts_with")
               return `Chu\u1ED7i kh\xF4ng h\u1EE3p l\u1EC7: ph\u1EA3i b\u1EAFt \u0111\u1EA7u b\u1EB1ng "${_issue.prefix}"`;
             if (_issue.format === "ends_with")
@@ -47962,18 +47962,18 @@ var init_vi = __esm({
               return `Chu\u1ED7i kh\xF4ng h\u1EE3p l\u1EC7: ph\u1EA3i bao g\u1ED3m "${_issue.includes}"`;
             if (_issue.format === "regex")
               return `Chu\u1ED7i kh\xF4ng h\u1EE3p l\u1EC7: ph\u1EA3i kh\u1EDBp v\u1EDBi m\u1EABu ${_issue.pattern}`;
-            return `${FormatDictionary[_issue.format] ?? issue3.format} kh\xF4ng h\u1EE3p l\u1EC7`;
+            return `${FormatDictionary[_issue.format] ?? issue4.format} kh\xF4ng h\u1EE3p l\u1EC7`;
           }
           case "not_multiple_of":
-            return `S\u1ED1 kh\xF4ng h\u1EE3p l\u1EC7: ph\u1EA3i l\xE0 b\u1ED9i s\u1ED1 c\u1EE7a ${issue3.divisor}`;
+            return `S\u1ED1 kh\xF4ng h\u1EE3p l\u1EC7: ph\u1EA3i l\xE0 b\u1ED9i s\u1ED1 c\u1EE7a ${issue4.divisor}`;
           case "unrecognized_keys":
-            return `Kh\xF3a kh\xF4ng \u0111\u01B0\u1EE3c nh\u1EADn d\u1EA1ng: ${joinValues(issue3.keys, ", ")}`;
+            return `Kh\xF3a kh\xF4ng \u0111\u01B0\u1EE3c nh\u1EADn d\u1EA1ng: ${joinValues(issue4.keys, ", ")}`;
           case "invalid_key":
-            return `Kh\xF3a kh\xF4ng h\u1EE3p l\u1EC7 trong ${issue3.origin}`;
+            return `Kh\xF3a kh\xF4ng h\u1EE3p l\u1EC7 trong ${issue4.origin}`;
           case "invalid_union":
             return "\u0110\u1EA7u v\xE0o kh\xF4ng h\u1EE3p l\u1EC7";
           case "invalid_element":
-            return `Gi\xE1 tr\u1ECB kh\xF4ng h\u1EE3p l\u1EC7 trong ${issue3.origin}`;
+            return `Gi\xE1 tr\u1ECB kh\xF4ng h\u1EE3p l\u1EC7 trong ${issue4.origin}`;
           default:
             return `\u0110\u1EA7u v\xE0o kh\xF4ng h\u1EE3p l\u1EC7`;
         }
@@ -48038,38 +48038,38 @@ var init_zh_CN = __esm({
         array: "\u6570\u7EC4",
         null: "\u7A7A\u503C(null)"
       };
-      return (issue3) => {
-        switch (issue3.code) {
+      return (issue4) => {
+        switch (issue4.code) {
           case "invalid_type": {
-            const expected = TypeDictionary[issue3.expected] ?? issue3.expected;
-            const receivedType = parsedType(issue3.input);
+            const expected = TypeDictionary[issue4.expected] ?? issue4.expected;
+            const receivedType = parsedType(issue4.input);
             const received = TypeDictionary[receivedType] ?? receivedType;
-            if (/^[A-Z]/.test(issue3.expected)) {
-              return `\u65E0\u6548\u8F93\u5165\uFF1A\u671F\u671B instanceof ${issue3.expected}\uFF0C\u5B9E\u9645\u63A5\u6536 ${received}`;
+            if (/^[A-Z]/.test(issue4.expected)) {
+              return `\u65E0\u6548\u8F93\u5165\uFF1A\u671F\u671B instanceof ${issue4.expected}\uFF0C\u5B9E\u9645\u63A5\u6536 ${received}`;
             }
             return `\u65E0\u6548\u8F93\u5165\uFF1A\u671F\u671B ${expected}\uFF0C\u5B9E\u9645\u63A5\u6536 ${received}`;
           }
           case "invalid_value":
-            if (issue3.values.length === 1)
-              return `\u65E0\u6548\u8F93\u5165\uFF1A\u671F\u671B ${stringifyPrimitive(issue3.values[0])}`;
-            return `\u65E0\u6548\u9009\u9879\uFF1A\u671F\u671B\u4EE5\u4E0B\u4E4B\u4E00 ${joinValues(issue3.values, "|")}`;
+            if (issue4.values.length === 1)
+              return `\u65E0\u6548\u8F93\u5165\uFF1A\u671F\u671B ${stringifyPrimitive(issue4.values[0])}`;
+            return `\u65E0\u6548\u9009\u9879\uFF1A\u671F\u671B\u4EE5\u4E0B\u4E4B\u4E00 ${joinValues(issue4.values, "|")}`;
           case "too_big": {
-            const adj = issue3.inclusive ? "<=" : "<";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? "<=" : "<";
+            const sizing = getSizing(issue4.origin);
             if (sizing)
-              return `\u6570\u503C\u8FC7\u5927\uFF1A\u671F\u671B ${issue3.origin ?? "\u503C"} ${adj}${issue3.maximum.toString()} ${sizing.unit ?? "\u4E2A\u5143\u7D20"}`;
-            return `\u6570\u503C\u8FC7\u5927\uFF1A\u671F\u671B ${issue3.origin ?? "\u503C"} ${adj}${issue3.maximum.toString()}`;
+              return `\u6570\u503C\u8FC7\u5927\uFF1A\u671F\u671B ${issue4.origin ?? "\u503C"} ${adj}${issue4.maximum.toString()} ${sizing.unit ?? "\u4E2A\u5143\u7D20"}`;
+            return `\u6570\u503C\u8FC7\u5927\uFF1A\u671F\u671B ${issue4.origin ?? "\u503C"} ${adj}${issue4.maximum.toString()}`;
           }
           case "too_small": {
-            const adj = issue3.inclusive ? ">=" : ">";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? ">=" : ">";
+            const sizing = getSizing(issue4.origin);
             if (sizing) {
-              return `\u6570\u503C\u8FC7\u5C0F\uFF1A\u671F\u671B ${issue3.origin} ${adj}${issue3.minimum.toString()} ${sizing.unit}`;
+              return `\u6570\u503C\u8FC7\u5C0F\uFF1A\u671F\u671B ${issue4.origin} ${adj}${issue4.minimum.toString()} ${sizing.unit}`;
             }
-            return `\u6570\u503C\u8FC7\u5C0F\uFF1A\u671F\u671B ${issue3.origin} ${adj}${issue3.minimum.toString()}`;
+            return `\u6570\u503C\u8FC7\u5C0F\uFF1A\u671F\u671B ${issue4.origin} ${adj}${issue4.minimum.toString()}`;
           }
           case "invalid_format": {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.format === "starts_with")
               return `\u65E0\u6548\u5B57\u7B26\u4E32\uFF1A\u5FC5\u987B\u4EE5 "${_issue.prefix}" \u5F00\u5934`;
             if (_issue.format === "ends_with")
@@ -48078,18 +48078,18 @@ var init_zh_CN = __esm({
               return `\u65E0\u6548\u5B57\u7B26\u4E32\uFF1A\u5FC5\u987B\u5305\u542B "${_issue.includes}"`;
             if (_issue.format === "regex")
               return `\u65E0\u6548\u5B57\u7B26\u4E32\uFF1A\u5FC5\u987B\u6EE1\u8DB3\u6B63\u5219\u8868\u8FBE\u5F0F ${_issue.pattern}`;
-            return `\u65E0\u6548${FormatDictionary[_issue.format] ?? issue3.format}`;
+            return `\u65E0\u6548${FormatDictionary[_issue.format] ?? issue4.format}`;
           }
           case "not_multiple_of":
-            return `\u65E0\u6548\u6570\u5B57\uFF1A\u5FC5\u987B\u662F ${issue3.divisor} \u7684\u500D\u6570`;
+            return `\u65E0\u6548\u6570\u5B57\uFF1A\u5FC5\u987B\u662F ${issue4.divisor} \u7684\u500D\u6570`;
           case "unrecognized_keys":
-            return `\u51FA\u73B0\u672A\u77E5\u7684\u952E(key): ${joinValues(issue3.keys, ", ")}`;
+            return `\u51FA\u73B0\u672A\u77E5\u7684\u952E(key): ${joinValues(issue4.keys, ", ")}`;
           case "invalid_key":
-            return `${issue3.origin} \u4E2D\u7684\u952E(key)\u65E0\u6548`;
+            return `${issue4.origin} \u4E2D\u7684\u952E(key)\u65E0\u6548`;
           case "invalid_union":
             return "\u65E0\u6548\u8F93\u5165";
           case "invalid_element":
-            return `${issue3.origin} \u4E2D\u5305\u542B\u65E0\u6548\u503C(value)`;
+            return `${issue4.origin} \u4E2D\u5305\u542B\u65E0\u6548\u503C(value)`;
           default:
             return `\u65E0\u6548\u8F93\u5165`;
         }
@@ -48151,38 +48151,38 @@ var init_zh_TW = __esm({
       const TypeDictionary = {
         nan: "NaN"
       };
-      return (issue3) => {
-        switch (issue3.code) {
+      return (issue4) => {
+        switch (issue4.code) {
           case "invalid_type": {
-            const expected = TypeDictionary[issue3.expected] ?? issue3.expected;
-            const receivedType = parsedType(issue3.input);
+            const expected = TypeDictionary[issue4.expected] ?? issue4.expected;
+            const receivedType = parsedType(issue4.input);
             const received = TypeDictionary[receivedType] ?? receivedType;
-            if (/^[A-Z]/.test(issue3.expected)) {
-              return `\u7121\u6548\u7684\u8F38\u5165\u503C\uFF1A\u9810\u671F\u70BA instanceof ${issue3.expected}\uFF0C\u4F46\u6536\u5230 ${received}`;
+            if (/^[A-Z]/.test(issue4.expected)) {
+              return `\u7121\u6548\u7684\u8F38\u5165\u503C\uFF1A\u9810\u671F\u70BA instanceof ${issue4.expected}\uFF0C\u4F46\u6536\u5230 ${received}`;
             }
             return `\u7121\u6548\u7684\u8F38\u5165\u503C\uFF1A\u9810\u671F\u70BA ${expected}\uFF0C\u4F46\u6536\u5230 ${received}`;
           }
           case "invalid_value":
-            if (issue3.values.length === 1)
-              return `\u7121\u6548\u7684\u8F38\u5165\u503C\uFF1A\u9810\u671F\u70BA ${stringifyPrimitive(issue3.values[0])}`;
-            return `\u7121\u6548\u7684\u9078\u9805\uFF1A\u9810\u671F\u70BA\u4EE5\u4E0B\u5176\u4E2D\u4E4B\u4E00 ${joinValues(issue3.values, "|")}`;
+            if (issue4.values.length === 1)
+              return `\u7121\u6548\u7684\u8F38\u5165\u503C\uFF1A\u9810\u671F\u70BA ${stringifyPrimitive(issue4.values[0])}`;
+            return `\u7121\u6548\u7684\u9078\u9805\uFF1A\u9810\u671F\u70BA\u4EE5\u4E0B\u5176\u4E2D\u4E4B\u4E00 ${joinValues(issue4.values, "|")}`;
           case "too_big": {
-            const adj = issue3.inclusive ? "<=" : "<";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? "<=" : "<";
+            const sizing = getSizing(issue4.origin);
             if (sizing)
-              return `\u6578\u503C\u904E\u5927\uFF1A\u9810\u671F ${issue3.origin ?? "\u503C"} \u61C9\u70BA ${adj}${issue3.maximum.toString()} ${sizing.unit ?? "\u500B\u5143\u7D20"}`;
-            return `\u6578\u503C\u904E\u5927\uFF1A\u9810\u671F ${issue3.origin ?? "\u503C"} \u61C9\u70BA ${adj}${issue3.maximum.toString()}`;
+              return `\u6578\u503C\u904E\u5927\uFF1A\u9810\u671F ${issue4.origin ?? "\u503C"} \u61C9\u70BA ${adj}${issue4.maximum.toString()} ${sizing.unit ?? "\u500B\u5143\u7D20"}`;
+            return `\u6578\u503C\u904E\u5927\uFF1A\u9810\u671F ${issue4.origin ?? "\u503C"} \u61C9\u70BA ${adj}${issue4.maximum.toString()}`;
           }
           case "too_small": {
-            const adj = issue3.inclusive ? ">=" : ">";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? ">=" : ">";
+            const sizing = getSizing(issue4.origin);
             if (sizing) {
-              return `\u6578\u503C\u904E\u5C0F\uFF1A\u9810\u671F ${issue3.origin} \u61C9\u70BA ${adj}${issue3.minimum.toString()} ${sizing.unit}`;
+              return `\u6578\u503C\u904E\u5C0F\uFF1A\u9810\u671F ${issue4.origin} \u61C9\u70BA ${adj}${issue4.minimum.toString()} ${sizing.unit}`;
             }
-            return `\u6578\u503C\u904E\u5C0F\uFF1A\u9810\u671F ${issue3.origin} \u61C9\u70BA ${adj}${issue3.minimum.toString()}`;
+            return `\u6578\u503C\u904E\u5C0F\uFF1A\u9810\u671F ${issue4.origin} \u61C9\u70BA ${adj}${issue4.minimum.toString()}`;
           }
           case "invalid_format": {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.format === "starts_with") {
               return `\u7121\u6548\u7684\u5B57\u4E32\uFF1A\u5FC5\u9808\u4EE5 "${_issue.prefix}" \u958B\u982D`;
             }
@@ -48192,18 +48192,18 @@ var init_zh_TW = __esm({
               return `\u7121\u6548\u7684\u5B57\u4E32\uFF1A\u5FC5\u9808\u5305\u542B "${_issue.includes}"`;
             if (_issue.format === "regex")
               return `\u7121\u6548\u7684\u5B57\u4E32\uFF1A\u5FC5\u9808\u7B26\u5408\u683C\u5F0F ${_issue.pattern}`;
-            return `\u7121\u6548\u7684 ${FormatDictionary[_issue.format] ?? issue3.format}`;
+            return `\u7121\u6548\u7684 ${FormatDictionary[_issue.format] ?? issue4.format}`;
           }
           case "not_multiple_of":
-            return `\u7121\u6548\u7684\u6578\u5B57\uFF1A\u5FC5\u9808\u70BA ${issue3.divisor} \u7684\u500D\u6578`;
+            return `\u7121\u6548\u7684\u6578\u5B57\uFF1A\u5FC5\u9808\u70BA ${issue4.divisor} \u7684\u500D\u6578`;
           case "unrecognized_keys":
-            return `\u7121\u6CD5\u8B58\u5225\u7684\u9375\u503C${issue3.keys.length > 1 ? "\u5011" : ""}\uFF1A${joinValues(issue3.keys, "\u3001")}`;
+            return `\u7121\u6CD5\u8B58\u5225\u7684\u9375\u503C${issue4.keys.length > 1 ? "\u5011" : ""}\uFF1A${joinValues(issue4.keys, "\u3001")}`;
           case "invalid_key":
-            return `${issue3.origin} \u4E2D\u6709\u7121\u6548\u7684\u9375\u503C`;
+            return `${issue4.origin} \u4E2D\u6709\u7121\u6548\u7684\u9375\u503C`;
           case "invalid_union":
             return "\u7121\u6548\u7684\u8F38\u5165\u503C";
           case "invalid_element":
-            return `${issue3.origin} \u4E2D\u6709\u7121\u6548\u7684\u503C`;
+            return `${issue4.origin} \u4E2D\u6709\u7121\u6548\u7684\u503C`;
           default:
             return `\u7121\u6548\u7684\u8F38\u5165\u503C`;
         }
@@ -48267,37 +48267,37 @@ var init_yo = __esm({
         number: "n\u1ECD\u0301mb\xE0",
         array: "akop\u1ECD"
       };
-      return (issue3) => {
-        switch (issue3.code) {
+      return (issue4) => {
+        switch (issue4.code) {
           case "invalid_type": {
-            const expected = TypeDictionary[issue3.expected] ?? issue3.expected;
-            const receivedType = parsedType(issue3.input);
+            const expected = TypeDictionary[issue4.expected] ?? issue4.expected;
+            const receivedType = parsedType(issue4.input);
             const received = TypeDictionary[receivedType] ?? receivedType;
-            if (/^[A-Z]/.test(issue3.expected)) {
-              return `\xCCb\xE1w\u1ECDl\xE9 a\u1E63\xEC\u1E63e: a n\xED l\xE1ti fi instanceof ${issue3.expected}, \xE0m\u1ECD\u0300 a r\xED ${received}`;
+            if (/^[A-Z]/.test(issue4.expected)) {
+              return `\xCCb\xE1w\u1ECDl\xE9 a\u1E63\xEC\u1E63e: a n\xED l\xE1ti fi instanceof ${issue4.expected}, \xE0m\u1ECD\u0300 a r\xED ${received}`;
             }
             return `\xCCb\xE1w\u1ECDl\xE9 a\u1E63\xEC\u1E63e: a n\xED l\xE1ti fi ${expected}, \xE0m\u1ECD\u0300 a r\xED ${received}`;
           }
           case "invalid_value":
-            if (issue3.values.length === 1)
-              return `\xCCb\xE1w\u1ECDl\xE9 a\u1E63\xEC\u1E63e: a n\xED l\xE1ti fi ${stringifyPrimitive(issue3.values[0])}`;
-            return `\xC0\u1E63\xE0y\xE0n a\u1E63\xEC\u1E63e: yan \u1ECD\u0300kan l\xE1ra ${joinValues(issue3.values, "|")}`;
+            if (issue4.values.length === 1)
+              return `\xCCb\xE1w\u1ECDl\xE9 a\u1E63\xEC\u1E63e: a n\xED l\xE1ti fi ${stringifyPrimitive(issue4.values[0])}`;
+            return `\xC0\u1E63\xE0y\xE0n a\u1E63\xEC\u1E63e: yan \u1ECD\u0300kan l\xE1ra ${joinValues(issue4.values, "|")}`;
           case "too_big": {
-            const adj = issue3.inclusive ? "<=" : "<";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? "<=" : "<";
+            const sizing = getSizing(issue4.origin);
             if (sizing)
-              return `T\xF3 p\u1ECD\u0300 j\xF9: a n\xED l\xE1ti j\u1EB9\u0301 p\xE9 ${issue3.origin ?? "iye"} ${sizing.verb} ${adj}${issue3.maximum} ${sizing.unit}`;
-            return `T\xF3 p\u1ECD\u0300 j\xF9: a n\xED l\xE1ti j\u1EB9\u0301 ${adj}${issue3.maximum}`;
+              return `T\xF3 p\u1ECD\u0300 j\xF9: a n\xED l\xE1ti j\u1EB9\u0301 p\xE9 ${issue4.origin ?? "iye"} ${sizing.verb} ${adj}${issue4.maximum} ${sizing.unit}`;
+            return `T\xF3 p\u1ECD\u0300 j\xF9: a n\xED l\xE1ti j\u1EB9\u0301 ${adj}${issue4.maximum}`;
           }
           case "too_small": {
-            const adj = issue3.inclusive ? ">=" : ">";
-            const sizing = getSizing(issue3.origin);
+            const adj = issue4.inclusive ? ">=" : ">";
+            const sizing = getSizing(issue4.origin);
             if (sizing)
-              return `K\xE9r\xE9 ju: a n\xED l\xE1ti j\u1EB9\u0301 p\xE9 ${issue3.origin} ${sizing.verb} ${adj}${issue3.minimum} ${sizing.unit}`;
-            return `K\xE9r\xE9 ju: a n\xED l\xE1ti j\u1EB9\u0301 ${adj}${issue3.minimum}`;
+              return `K\xE9r\xE9 ju: a n\xED l\xE1ti j\u1EB9\u0301 p\xE9 ${issue4.origin} ${sizing.verb} ${adj}${issue4.minimum} ${sizing.unit}`;
+            return `K\xE9r\xE9 ju: a n\xED l\xE1ti j\u1EB9\u0301 ${adj}${issue4.minimum}`;
           }
           case "invalid_format": {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.format === "starts_with")
               return `\u1ECC\u0300r\u1ECD\u0300 a\u1E63\xEC\u1E63e: gb\u1ECD\u0301d\u1ECD\u0300 b\u1EB9\u0300r\u1EB9\u0300 p\u1EB9\u0300l\xFA "${_issue.prefix}"`;
             if (_issue.format === "ends_with")
@@ -48306,18 +48306,18 @@ var init_yo = __esm({
               return `\u1ECC\u0300r\u1ECD\u0300 a\u1E63\xEC\u1E63e: gb\u1ECD\u0301d\u1ECD\u0300 n\xED "${_issue.includes}"`;
             if (_issue.format === "regex")
               return `\u1ECC\u0300r\u1ECD\u0300 a\u1E63\xEC\u1E63e: gb\u1ECD\u0301d\u1ECD\u0300 b\xE1 \xE0p\u1EB9\u1EB9r\u1EB9 mu ${_issue.pattern}`;
-            return `A\u1E63\xEC\u1E63e: ${FormatDictionary[_issue.format] ?? issue3.format}`;
+            return `A\u1E63\xEC\u1E63e: ${FormatDictionary[_issue.format] ?? issue4.format}`;
           }
           case "not_multiple_of":
-            return `N\u1ECD\u0301mb\xE0 a\u1E63\xEC\u1E63e: gb\u1ECD\u0301d\u1ECD\u0300 j\u1EB9\u0301 \xE8y\xE0 p\xEDp\xEDn ti ${issue3.divisor}`;
+            return `N\u1ECD\u0301mb\xE0 a\u1E63\xEC\u1E63e: gb\u1ECD\u0301d\u1ECD\u0300 j\u1EB9\u0301 \xE8y\xE0 p\xEDp\xEDn ti ${issue4.divisor}`;
           case "unrecognized_keys":
-            return `B\u1ECDt\xECn\xEC \xE0\xECm\u1ECD\u0300: ${joinValues(issue3.keys, ", ")}`;
+            return `B\u1ECDt\xECn\xEC \xE0\xECm\u1ECD\u0300: ${joinValues(issue4.keys, ", ")}`;
           case "invalid_key":
-            return `B\u1ECDt\xECn\xEC a\u1E63\xEC\u1E63e n\xEDn\xFA ${issue3.origin}`;
+            return `B\u1ECDt\xECn\xEC a\u1E63\xEC\u1E63e n\xEDn\xFA ${issue4.origin}`;
           case "invalid_union":
             return "\xCCb\xE1w\u1ECDl\xE9 a\u1E63\xEC\u1E63e";
           case "invalid_element":
-            return `Iye a\u1E63\xEC\u1E63e n\xEDn\xFA ${issue3.origin}`;
+            return `Iye a\u1E63\xEC\u1E63e n\xEDn\xFA ${issue4.origin}`;
           default:
             return "\xCCb\xE1w\u1ECDl\xE9 a\u1E63\xEC\u1E63e";
         }
@@ -49403,11 +49403,11 @@ function _refine(Class2, fn, _params) {
 // @__NO_SIDE_EFFECTS__
 function _superRefine(fn, params) {
   const ch = /* @__PURE__ */ _check((payload) => {
-    payload.addIssue = (issue3) => {
-      if (typeof issue3 === "string") {
-        payload.issues.push(issue(issue3, payload.value, ch._zod.def));
+    payload.addIssue = (issue4) => {
+      if (typeof issue4 === "string") {
+        payload.issues.push(issue(issue4, payload.value, ch._zod.def));
       } else {
-        const _issue = issue3;
+        const _issue = issue4;
         if (_issue.fatal)
           _issue.continue = false;
         _issue.code ?? (_issue.code = "custom");
@@ -50952,8 +50952,8 @@ var init_errors3 = __esm({
           // enumerable: false,
         },
         addIssue: {
-          value: (issue3) => {
-            inst.issues.push(issue3);
+          value: (issue4) => {
+            inst.issues.push(issue4);
             inst.message = JSON.stringify(inst.issues, jsonStringifyReplacer, 2);
           }
           // enumerable: false,
@@ -52333,11 +52333,11 @@ var init_schemas2 = __esm({
         if (_ctx.direction === "backward") {
           throw new $ZodEncodeError(inst.constructor.name);
         }
-        payload.addIssue = (issue3) => {
-          if (typeof issue3 === "string") {
-            payload.issues.push(util_exports.issue(issue3, payload.value, def));
+        payload.addIssue = (issue4) => {
+          if (typeof issue4 === "string") {
+            payload.issues.push(util_exports.issue(issue4, payload.value, def));
           } else {
-            const _issue = issue3;
+            const _issue = issue4;
             if (_issue.fatal)
               _issue.continue = false;
             _issue.code ?? (_issue.code = "custom");
@@ -53314,7 +53314,7 @@ function stripPartialEtag(etag) {
   return isPartialEtag(e) ? e.substring(PARTIAL_ETAG_PREFIX.length) : etag;
 }
 function canonicalSource(s) {
-  return s.replace(/\r\n/g, "\n").split("\n").map((line) => line.replace(/[ \t]+$/, "")).join("\n").replace(/\n+$/, "");
+  return s.replace(/\r\n/g, "\n").split("\n").map((line2) => line2.replace(/[ \t]+$/, "")).join("\n").replace(/\n+$/, "");
 }
 function renderHeader(header) {
   if (!header) return "";
@@ -53341,10 +53341,10 @@ function keepLines(text4, budget) {
   if (budget <= 0) return { kept: "", cutChars: text4.length };
   const out = [];
   let left = budget;
-  for (const line of text4.split("\n")) {
-    if (left - (line.length + 1) < 0) break;
-    out.push(line);
-    left -= line.length + 1;
+  for (const line2 of text4.split("\n")) {
+    if (left - (line2.length + 1) < 0) break;
+    out.push(line2);
+    left -= line2.length + 1;
   }
   const kept = out.join("\n");
   return { kept, cutChars: text4.length - kept.length };
@@ -53462,8 +53462,8 @@ function textTable(rows, columns) {
   const widths = columns.map(
     (c) => Math.max(c.length, ...rows.map((r) => (r[c] ?? "").length))
   );
-  const line = (cells) => cells.map((c, i) => c.padEnd(widths[i] ?? 0)).join("  ").trimEnd();
-  return [line(columns), line(widths.map((w) => "-".repeat(w))), ...rows.map((r) => line(columns.map((c) => r[c] ?? "")))].join("\n");
+  const line2 = (cells) => cells.map((c, i) => c.padEnd(widths[i] ?? 0)).join("  ").trimEnd();
+  return [line2(columns), line2(widths.map((w) => "-".repeat(w))), ...rows.map((r) => line2(columns.map((c) => r[c] ?? "")))].join("\n");
 }
 var CHARS_PER_TOKEN, DEFAULT_MAX_TOKENS, DEFAULT_MAX_CHARS, PARTIAL_ETAG_PREFIX, canonicalEtag, BODY_RESERVE_SHARE;
 var init_compact = __esm({
@@ -63451,2076 +63451,22 @@ var init_mode = __esm({
   }
 });
 
-// src/adt/enhancement-templates.ts
-function assertEnhIdentifier(value, what, opts = {}) {
-  if (typeof value !== "string" || !isValidAbapIdentifier(value, opts)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `${what} ${JSON.stringify(value)} is not a valid ABAP object name (a letter, then letters, digits and underscores only, max ${opts.maxLength ?? 30} characters${opts.allowNamespace ? "; a leading /NAMESPACE/ is allowed" : ""}${opts.allowLocal ? "; a leading $ is allowed" : ""}).`,
-      { what, value },
-      "This value is substituted verbatim into generated ABAP source that is then activated and executed \u2014 a period, a quote, or a newline is refused outright, not escaped or stripped."
-    );
-  }
-  return value;
-}
-function assertEnhTypeRef(value, what) {
-  const parts = typeof value === "string" ? value.split("-") : [];
-  const [head, component, ...extra] = parts;
-  const valid = typeof value === "string" && extra.length === 0 && isValidAbapIdentifier(head ?? "", { allowNamespace: true, maxLength: 30 }) && (component === void 0 || isValidAbapIdentifier(component, { maxLength: 30 }));
-  if (!valid) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `${what} ${JSON.stringify(value)} is not a valid ABAP type reference (a plain or /NAMESPACE/-qualified type name, max 30 characters per part, optionally followed by exactly one -COMPONENT suffix, e.g. "STRING", "/DMO/S_FLIGHT-CARRID").`,
-      { what, value },
-      "This value is substituted verbatim into generated ABAP source that is then activated and executed \u2014 a period, a quote, or a newline is refused outright, not escaped or stripped."
-    );
-  }
-  return value;
-}
-function assertAbapText(value, what, maxLen = 60) {
-  if (typeof value !== "string") {
-    throw new AbapError("BAD_INPUT", `${what} must be a string.`, { what });
-  }
-  if (value.length > maxLen) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `${what} is ${value.length} characters, longer than the ${maxLen}-character limit.`,
-      { what, length: value.length, maxLen }
-    );
-  }
-  if (CONTROL_CHAR_RE.test(value)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `${what} contains a control character (newline, carriage return, or similar) \u2014 refused, not stripped.`,
-      { what }
-    );
-  }
-  return value;
-}
-function abapLiteral(value) {
-  return `'${value.replace(/'/g, "''")}'`;
-}
-function exerciseFragment(p) {
-  const badiName = assertEnhIdentifier(p.badiName, "badiName");
-  const methodName = assertEnhIdentifier(p.methodName, "methodName", { maxLength: 30 });
-  const params = p.params.map((param, i) => {
-    const label = `params[${i}]`;
-    const rawKind = param.kind ?? "importing";
-    if (rawKind !== "importing" && rawKind !== "changing" && rawKind !== "exporting" && rawKind !== "receiving") {
-      throw new AbapError(
-        "BAD_INPUT",
-        `${label}.kind ${JSON.stringify(param.kind)} must be one of "importing", "changing", "exporting", "receiving" (or omitted, which defaults to "importing").`,
-        { what: `${label}.kind`, value: param.kind }
-      );
-    }
-    const kind = rawKind;
-    const name = assertEnhIdentifier(param.name, `${label}.name`, { maxLength: 30 });
-    const needsLocal = kind !== "importing";
-    const needsValue = kind === "importing" || kind === "changing";
-    if (needsValue) {
-      if (typeof param.value !== "string") {
-        throw new AbapError(
-          "BAD_INPUT",
-          `${label} (kind "${kind}") requires a string "value" to seed it with \u2014 "${kind}" parameters are readable by the caller-supplied literal before the call.`,
-          { what: `${label}.value`, kind }
-        );
-      }
-    } else if (param.value !== void 0) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `${label} (kind "${kind}") must not supply "value" \u2014 the callee fully determines this parameter's value; a caller-supplied seed would be silently discarded, so this refuses it instead of accepting input that has no effect.`,
-        { what: `${label}.value`, kind }
-      );
-    }
-    if (needsLocal) {
-      if (typeof param.type !== "string" || param.type.length === 0) {
-        throw new AbapError(
-          "BAD_INPUT",
-          `${label} (kind "${kind}") requires an explicit "type" naming the ABAP type of the formal parameter (e.g. "STRING", "ZDE_MY_TYPE") \u2014 this tool cannot look up a BAdI interface method's signature, so it cannot infer the type on its own, and a wrong guess would fail to compile rather than fail loudly. State the type explicitly.`,
-          { what: `${label}.type`, kind }
-        );
-      }
-    } else if (param.type !== void 0) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `${label} (kind "importing") must not supply "type" \u2014 importing parameters are passed as a literal directly; no local variable is declared for them, so there is nothing to type.`,
-        { what: `${label}.type`, kind }
-      );
-    }
-    return {
-      name,
-      kind,
-      value: needsValue ? assertAbapText(param.value, `${label}.value`, 255) : void 0,
-      type: needsLocal ? assertEnhTypeRef(param.type, `${label}.type`) : void 0
-    };
-  });
-  const seenNames = /* @__PURE__ */ new Set();
-  for (const param of params) {
-    const key = param.name.toUpperCase();
-    if (seenNames.has(key)) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `params[].name ${JSON.stringify(param.name)} is supplied more than once (ABAP identifiers are case-insensitive) \u2014 each formal parameter can be assigned at most once in a single CALL BADI.`,
-        { what: "params[].name", value: param.name }
-      );
-    }
-    seenNames.add(key);
-  }
-  const receivingParams = params.filter((param) => param.kind === "receiving");
-  if (receivingParams.length > 1) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `at most one params[] entry may use kind "receiving" \u2014 a method has at most one RETURNING parameter, so CALL BADI's RECEIVING clause can only ever target one. Got ${receivingParams.length}: ${receivingParams.map((param) => param.name).join(", ")}.`,
-      { what: "params[].kind", count: receivingParams.length }
-    );
-  }
-  const lines = [`DATA lo_badi TYPE REF TO ${badiName}.`];
-  const hasFilterName = p.filterName !== void 0;
-  const hasFilterValue = p.filterValue !== void 0;
-  if (hasFilterName !== hasFilterValue) {
-    throw new AbapError(
-      "BAD_INPUT",
-      "exercise: filterName and filterValue must be given together (both or neither) \u2014 a filter value with no filter field name has nothing to substitute into `GET BADI ... FILTERS`.",
-      { filterName: p.filterName, filterValue: p.filterValue }
-    );
-  }
-  if (hasFilterName && hasFilterValue) {
-    const filterName = assertEnhIdentifier(p.filterName, "filterName", { maxLength: 30 });
-    const filterValue = assertAbapText(p.filterValue, "filterValue", 255);
-    lines.push(`GET BADI lo_badi FILTERS ${filterName} = ${abapLiteral(filterValue)}.`);
-  } else {
-    lines.push("GET BADI lo_badi.");
-  }
-  const localVar = (name) => `lv_${name.toLowerCase()}`;
-  for (const param of params) {
-    if (!param.type) continue;
-    lines.push(`DATA ${localVar(param.name)} TYPE ${param.type}.`);
-  }
-  for (const param of params) {
-    if (param.kind !== "changing") continue;
-    lines.push(`${localVar(param.name)} = ${abapLiteral(param.value)}.`);
-  }
-  const asLiteralArg = (param) => `${param.name} = ${abapLiteral(param.value)}`;
-  const asVarArg = (param) => `${param.name} = ${localVar(param.name)}`;
-  const importingArgs = params.filter((param) => param.kind === "importing").map(asLiteralArg);
-  const exportingArgs = params.filter((param) => param.kind === "exporting").map(asVarArg);
-  const changingArgs = params.filter((param) => param.kind === "changing").map(asVarArg);
-  const firstReceivingParam = receivingParams[0];
-  const receivingArg = firstReceivingParam ? asVarArg(firstReceivingParam) : void 0;
-  const callParts = [];
-  if (importingArgs.length > 0) callParts.push(`EXPORTING ${importingArgs.join(" ")}`);
-  if (exportingArgs.length > 0) callParts.push(`IMPORTING ${exportingArgs.join(" ")}`);
-  if (changingArgs.length > 0) callParts.push(`CHANGING ${changingArgs.join(" ")}`);
-  if (receivingArg) callParts.push(`RECEIVING ${receivingArg}`);
-  const call = callParts.length > 0 ? `CALL BADI lo_badi->${methodName} ${callParts.join(" ")}.` : `CALL BADI lo_badi->${methodName}.`;
-  const bodyLines = [`  ${call}`, "  out->write( 'EXERCISED' )."];
-  for (const param of params) {
-    if (!param.type) continue;
-    bodyLines.push(`  out->write( |RESULT>${param.name}={ ${localVar(param.name)} }| ).`);
-  }
-  lines.push("IF lo_badi IS BOUND.", ...bodyLines, "ELSE.", "  out->write( 'NOT-BOUND' ).", "ENDIF.");
-  return lines;
-}
-function markerInterfaceSource(interfaceName) {
-  const name = assertEnhIdentifier(interfaceName, "interfaceName");
-  return [
-    `INTERFACE ${name} PUBLIC.`,
-    "  INTERFACES if_badi_interface.",
-    "ENDINTERFACE."
-  ].join("\n");
-}
-var CONTROL_CHAR_CODES, CONTROL_CHAR_RE;
-var init_enhancement_templates = __esm({
-  "src/adt/enhancement-templates.ts"() {
-    "use strict";
-    init_errors();
-    init_safety();
-    CONTROL_CHAR_CODES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 127];
-    CONTROL_CHAR_RE = new RegExp(
-      "[" + CONTROL_CHAR_CODES.map((c) => String.fromCharCode(c)).join("") + "]"
-    );
-  }
-});
-
-// src/adt/datapreview-filter.ts
-function isEmptyFilter(filter) {
-  if (filter === void 0) return true;
-  const noWhere = filter.where === void 0 || filter.where.length === 0;
-  const noColumns = filter.columns === void 0 || filter.columns.length === 0;
-  const noOrderBy = filter.orderBy === void 0 || filter.orderBy.length === 0;
-  return noWhere && noColumns && noOrderBy && filter.distinct !== true;
-}
-function isFiniteNumber(v) {
-  return typeof v === "number" && Number.isFinite(v);
-}
-function isPreviewValue(v) {
-  return typeof v === "string" || isFiniteNumber(v);
-}
-function assertNoBannedWord(value, what) {
-  const hit = FREESTYLE_BANNED_WORD_RE.exec(value);
-  if (hit) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `${what} contains the word "${hit[0]}", which the freestyle endpoint's own banned-keyword guard refuses anywhere in the statement, even inside a quoted literal. Refusing here with a clearer message than that guard's.`,
-      { what, value, word: hit[0] }
-    );
-  }
-}
-function assertCondition(cond, index) {
-  const label = `where[${index}]`;
-  if (typeof cond.field !== "string" || cond.field.trim() === "") {
-    throw new AbapError("BAD_INPUT", `${label}.field must be a non-empty string.`, { what: `${label}.field`, value: cond.field });
-  }
-  if (!PREVIEW_OPS.includes(cond.op)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `${label}.op "${String(cond.op)}" is not a recognised operator \u2014 accepted values are: ${PREVIEW_OPS_LIST}.`,
-      { what: `${label}.op`, value: cond.op }
-    );
-  }
-  if (cond.op === "is_null") {
-    if (cond.value !== void 0) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `${label} has op "is_null" but also supplies a "value" \u2014 is_null takes no value; refusing rather than silently ignoring it.`,
-        { what: `${label}.value`, value: cond.value }
-      );
-    }
-    return;
-  }
-  if (cond.op === "in") {
-    if (!Array.isArray(cond.value) || cond.value.length === 0) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `${label} has op "in" but "value" is not a non-empty array.`,
-        { what: `${label}.value`, value: cond.value }
-      );
-    }
-    if (cond.value.length > MAX_IN_VALUES) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `${label} has ${cond.value.length} values in its "in" list, over the ${MAX_IN_VALUES}-value cap per condition.`,
-        { what: `${label}.value`, count: cond.value.length, cap: MAX_IN_VALUES }
-      );
-    }
-    cond.value.forEach((v) => assertScalarValue(v, cond.field));
-    return;
-  }
-  if (cond.value === void 0) {
-    throw new AbapError("BAD_INPUT", `${label} (op "${cond.op}") requires a "value".`, { what: `${label}.value`, op: cond.op });
-  }
-  if (Array.isArray(cond.value)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `${label} (op "${cond.op}") must not supply an array "value" \u2014 only "in" takes a list.`,
-      { what: `${label}.value`, op: cond.op }
-    );
-  }
-  assertScalarValue(cond.value, cond.field);
-}
-function assertScalarValue(v, field) {
-  const what = `where value for ${field}`;
-  if (!isPreviewValue(v)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `${what} must be a string or a finite number, got ${JSON.stringify(v)}.`,
-      { field, value: v }
-    );
-  }
-  if (typeof v === "string") {
-    const checked = assertAbapText(v, what, MAX_VALUE_LENGTH);
-    assertNoBannedWord(checked, what);
-  }
-}
-function assertOrder(order, index) {
-  const label = `order_by[${index}]`;
-  if (typeof order.field !== "string" || order.field.trim() === "") {
-    throw new AbapError("BAD_INPUT", `${label}.field must be a non-empty string.`, { what: `${label}.field`, value: order.field });
-  }
-  if (order.direction !== void 0 && order.direction !== "asc" && order.direction !== "desc") {
-    throw new AbapError(
-      "BAD_INPUT",
-      `${label}.direction "${String(order.direction)}" must be "asc" or "desc" (or omitted).`,
-      { what: `${label}.direction`, value: order.direction }
-    );
-  }
-}
-function assertFilterShape(filter) {
-  const where2 = filter.where ?? [];
-  if (where2.length > MAX_WHERE_CONDITIONS) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `"where" has ${where2.length} conditions, over the ${MAX_WHERE_CONDITIONS}-condition cap.`,
-      { count: where2.length, cap: MAX_WHERE_CONDITIONS }
-    );
-  }
-  where2.forEach((cond, i) => assertCondition(cond, i));
-  const columns = filter.columns ?? [];
-  if (columns.length > MAX_COLUMNS) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `"columns" has ${columns.length} entries, over the ${MAX_COLUMNS}-column cap.`,
-      { count: columns.length, cap: MAX_COLUMNS }
-    );
-  }
-  columns.forEach((c, i) => {
-    if (typeof c !== "string" || c.trim() === "") {
-      throw new AbapError("BAD_INPUT", `columns[${i}] must be a non-empty string.`, { what: `columns[${i}]`, value: c });
-    }
-  });
-  const seenColumns = /* @__PURE__ */ new Set();
-  for (const c of columns) {
-    const key = c.toUpperCase();
-    if (seenColumns.has(key)) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `"columns" names "${c}" more than once (case-insensitive) \u2014 a projection lists each column at most once.`,
-        { what: "columns", value: c }
-      );
-    }
-    seenColumns.add(key);
-  }
-  const orderBy = filter.orderBy ?? [];
-  if (orderBy.length > MAX_ORDER_BY) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `"order_by" has ${orderBy.length} entries, over the ${MAX_ORDER_BY}-entry cap.`,
-      { count: orderBy.length, cap: MAX_ORDER_BY }
-    );
-  }
-  orderBy.forEach((o, i) => assertOrder(o, i));
-}
-function renderLiteral(value, column, what) {
-  const type = column.type;
-  const asString = String(value);
-  if (INTEGER_TYPE_CODES.has(type)) {
-    if (!INTEGER_SHAPE_RE.test(asString)) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `${what}: "${asString}" is not a valid value for ${column.name} (type "${type}") \u2014 expected an integer, e.g. "300".`,
-        { what, value, field: column.name, type }
-      );
-    }
-    return asString;
-  }
-  if (DECIMAL_TYPE_CODES.has(type)) {
-    if (!DECIMAL_SHAPE_RE.test(asString)) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `${what}: "${asString}" is not a valid value for ${column.name} (type "${type}") \u2014 expected a decimal, e.g. "422.94". Rendered as a quoted literal \u2014 an unquoted decimal is a syntax error on this endpoint.`,
-        { what, value, field: column.name, type }
-      );
-    }
-    return abapLiteral(asString);
-  }
-  if (type === "D") {
-    const m = DATE_SHAPE_RE.exec(asString);
-    if (!m) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `${what}: "${asString}" is not a valid value for ${column.name} (type "D") \u2014 expected YYYYMMDD or YYYY-MM-DD.`,
-        { what, value, field: column.name, type }
-      );
-    }
-    return abapLiteral(`${m[1]}${m[2]}${m[3]}`);
-  }
-  if (type === "T") {
-    const m = TIME_SHAPE_RE.exec(asString);
-    if (!m) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `${what}: "${asString}" is not a valid value for ${column.name} (type "T") \u2014 expected HHMMSS or HH:MM:SS.`,
-        { what, value, field: column.name, type }
-      );
-    }
-    return abapLiteral(`${m[1]}${m[2]}${m[3]}`);
-  }
-  return abapLiteral(asString);
-}
-function resolveField(field, byUpper, what) {
-  const col = byUpper.get(field.toUpperCase());
-  if (!col) {
-    const known = [...byUpper.values()].map((c) => c.name).join(", ");
-    throw new AbapError(
-      "BAD_INPUT",
-      `${what} "${field}" is not a column of this entity. Known columns: ${known}.`,
-      { what, value: field, known: [...byUpper.values()].map((c) => c.name) }
-    );
-  }
-  return { name: col.name, column: col };
-}
-function renderCondition(cond, byUpper, index, clientFieldName) {
-  const label = `where[${index}]`;
-  const { name, column } = resolveField(cond.field, byUpper, `${label}.field`);
-  if (clientFieldName !== void 0 && name.toUpperCase() === clientFieldName.toUpperCase()) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `where[${index}] refers to the client field "${name}" \u2014 the compiler refuses that: 'The client field "${name}" cannot be specified in the WHERE condition. Client handling is performed by the compiler.'`,
-      { what: `${label}.field`, field: name },
-      "The read is already scoped to the logon client \u2014 drop this condition."
-    );
-  }
-  if (cond.op === "is_null") {
-    return `${name} IS NULL`;
-  }
-  if (cond.op === "like") {
-    if (NUMERIC_TYPE_CODES.has(column.type)) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `where[${index}] uses "like" on ${name}, a numeric field (type "${column.type}") \u2014 'A LIKE condition can only be used with character-like fields.'`,
-        { what: `${label}.op`, field: name, type: column.type },
-        "Use eq/ne/lt/le/gt/ge on a numeric field instead of like."
-      );
-    }
-    const pattern = assertAbapText(String(cond.value), `${label}.value`, MAX_VALUE_LENGTH);
-    const escaped = pattern.replace(/'/g, "''");
-    return `${name} LIKE '${escaped}' ESCAPE '#'`;
-  }
-  if (cond.op === "in") {
-    const values = cond.value;
-    const literals = values.map((v, i) => renderLiteral(v, column, `${label}.value[${i}]`));
-    return inPredicate(name, literals);
-  }
-  const literal2 = renderLiteral(cond.value, column, `${label}.value`);
-  return `${name} ${OP_SYMBOL[cond.op]} ${literal2}`;
-}
-function inPredicate(column, literals) {
-  if (literals.length <= IN_LIST_ITEMS_PER_LINE) {
-    return `${column} IN (${literals.join(", ")})`;
-  }
-  const lines = [`${column} IN (`];
-  for (let i = 0; i < literals.length; i += IN_LIST_ITEMS_PER_LINE) {
-    const chunk3 = literals.slice(i, i + IN_LIST_ITEMS_PER_LINE).join(", ");
-    const isLast = i + IN_LIST_ITEMS_PER_LINE >= literals.length;
-    lines.push(`  ${chunk3}${isLast ? "" : ","}`);
-  }
-  lines.push(")");
-  return lines.join("\n");
-}
-function renderPreviewSelect(table, filter, columns) {
-  assertFilterShape(filter);
-  const byUpper = /* @__PURE__ */ new Map();
-  for (const c of columns) byUpper.set(c.name.toUpperCase(), c);
-  const first = columns[0];
-  const clientFieldName = first && first.type === "C" && (first.name.toUpperCase() === "MANDT" || first.name.toUpperCase() === "CLIENT") ? first.name : void 0;
-  const where2 = filter.where ?? [];
-  const whereParts = where2.map((cond, i) => renderCondition(cond, byUpper, i, clientFieldName));
-  const rawColumns = filter.columns ?? [];
-  const resolvedColumns = rawColumns.map((c, i) => resolveField(c, byUpper, `columns[${i}]`));
-  const projected = resolvedColumns.map((r) => r.name);
-  const orderBy = filter.orderBy ?? [];
-  const resolvedOrder = orderBy.map((o, i) => ({
-    ...resolveField(o.field, byUpper, `order_by[${i}].field`),
-    direction: o.direction ?? "asc"
-  }));
-  if (filter.distinct === true && projected.length > 0 && resolvedOrder.length > 0) {
-    const projectedUpper = new Set(projected.map((p) => p.toUpperCase()));
-    resolvedOrder.forEach((o, i) => {
-      if (!projectedUpper.has(o.name.toUpperCase())) {
-        throw new AbapError(
-          "BAD_INPUT",
-          `order_by[${i}] names "${o.name}", which is not in "columns" \u2014 with distinct: true, 'The field "${o.name}" from the ORDER BY clause is missing in the SELECT list.'`,
-          { what: `order_by[${i}].field`, field: o.name },
-          "With distinct, every order_by field must also appear in columns."
-        );
-      }
-    });
-  }
-  const selectKeyword = filter.distinct === true ? "SELECT DISTINCT" : "SELECT";
-  const selectLines = projected.length === 0 ? [`${selectKeyword} *`] : [selectKeyword, ...projected.map((name, i) => `  ${name}${i === projected.length - 1 ? "" : ","}`)];
-  const lines = [...selectLines, `FROM ${table}`];
-  whereParts.forEach((part, i) => {
-    const partLines = part.split("\n");
-    partLines.forEach((pl, j) => {
-      if (j === 0) lines.push(`${i === 0 ? "WHERE" : "  AND"} ${pl}`);
-      else lines.push(pl);
-    });
-  });
-  if (resolvedOrder.length > 0) {
-    const orderByClause = resolvedOrder.map((o) => `${o.name} ${o.direction === "desc" ? "DESCENDING" : "ASCENDING"}`).join(", ");
-    lines.push(`ORDER BY ${orderByClause}`);
-  }
-  const statement = lines.join("\n");
-  statement.split("\n").forEach((line, i) => {
-    if (line.length > PREVIEW_SQL_LINE_MAX) {
-      throw new AbapError(
-        "CHECK_FAILED",
-        `Generated preview query line ${i + 1} is ${line.length} chars, over the freestyle endpoint's ${PREVIEW_SQL_LINE_MAX}-char request-body line limit \u2014 the request body wraps at that width, so a longer line would be corrupted on the wire.`,
-        { line: i + 1, length: line.length }
-      );
-    }
-  });
-  return statement;
-}
-var PREVIEW_OPS, MAX_WHERE_CONDITIONS, MAX_ORDER_BY, MAX_COLUMNS, MAX_IN_VALUES, MAX_VALUE_LENGTH, PREVIEW_SQL_LINE_MAX, PREVIEW_OPS_LIST, FREESTYLE_BANNED_WORD_RE, NUMERIC_TYPE_CODES, INTEGER_TYPE_CODES, DECIMAL_TYPE_CODES, INTEGER_SHAPE_RE, DECIMAL_SHAPE_RE, DATE_SHAPE_RE, TIME_SHAPE_RE, OP_SYMBOL, IN_LIST_ITEMS_PER_LINE;
-var init_datapreview_filter = __esm({
-  "src/adt/datapreview-filter.ts"() {
-    "use strict";
-    init_errors();
-    init_enhancement_templates();
-    init_connection();
-    PREVIEW_OPS = ["eq", "ne", "lt", "le", "gt", "ge", "like", "in", "is_null"];
-    MAX_WHERE_CONDITIONS = 20;
-    MAX_ORDER_BY = 10;
-    MAX_COLUMNS = 100;
-    MAX_IN_VALUES = 50;
-    MAX_VALUE_LENGTH = 255;
-    PREVIEW_SQL_LINE_MAX = 255;
-    PREVIEW_OPS_LIST = PREVIEW_OPS.join(", ");
-    FREESTYLE_BANNED_WORD_RE = new RegExp(`\\b(?:${FREESTYLE_BANNED_KEYWORDS.join("|")})\\b`, "i");
-    NUMERIC_TYPE_CODES = /* @__PURE__ */ new Set(["P", "I", "b", "s", "8", "F", "a", "e"]);
-    INTEGER_TYPE_CODES = /* @__PURE__ */ new Set(["I", "b", "s", "8"]);
-    DECIMAL_TYPE_CODES = /* @__PURE__ */ new Set(["P", "F", "a", "e"]);
-    INTEGER_SHAPE_RE = /^-?\d+$/;
-    DECIMAL_SHAPE_RE = /^-?\d+(\.\d+)?$/;
-    DATE_SHAPE_RE = /^(\d{4})-?(\d{2})-?(\d{2})$/;
-    TIME_SHAPE_RE = /^(\d{2}):?(\d{2}):?(\d{2})$/;
-    OP_SYMBOL = {
-      eq: "=",
-      ne: "<>",
-      lt: "<",
-      le: "<=",
-      gt: ">",
-      ge: ">="
-    };
-    IN_LIST_ITEMS_PER_LINE = 5;
-  }
-});
-
-// src/adt/datapreview.ts
-function isValidDdicEntityName(name) {
-  if (name.length > MAX_ENTITY_NAME_LENGTH) return false;
-  return PLAIN_NAME_RE.test(name) || NAMESPACED_NAME_RE.test(name);
-}
-function normaliseEntityName(name) {
-  return String(name ?? "").trim().toUpperCase();
-}
-function parsePreviewBody(body) {
-  const doc = previewXml.parse(body);
-  const table = doc.tableData ?? {};
-  const raw = Array.isArray(table.columns) ? table.columns : [];
-  const messages = [];
-  for (const m of Array.isArray(table.message) ? table.message : []) {
-    const meta3 = m;
-    const text4 = attrString(meta3, "text");
-    const severity = attrString(meta3, "severity");
-    if (text4 === void 0 && severity === void 0) continue;
-    messages.push({ text: text4 ?? "", severity: severity ?? "" });
-  }
-  const columns = [];
-  const values = [];
-  for (const col of raw) {
-    const meta3 = col.metadata;
-    const name = attrString(meta3, "name") ?? "";
-    const length = attrString(meta3, "length");
-    const description = attrString(meta3, "description");
-    const parsedLength = length === void 0 ? Number.NaN : Number.parseInt(length, 10);
-    columns.push({
-      name,
-      type: attrString(meta3, "type") ?? "",
-      ...Number.isFinite(parsedLength) ? { length: parsedLength } : {},
-      ...description === void 0 ? {} : { description },
-      key: isAbapTrue(attrString(meta3, "keyAttribute"))
-    });
-    const ds = col.dataSet;
-    const cells = typeof ds === "object" && ds !== null && Array.isArray(ds.data) ? ds.data : [];
-    values.push(cells.map((c) => c === void 0 || c === null ? "" : String(c)));
-  }
-  const rowCount = values.reduce((n, v) => Math.max(n, v.length), 0);
-  const rows = [];
-  for (let r = 0; r < rowCount; r++) {
-    rows.push(values.map((v) => v[r] ?? ""));
-  }
-  let totalRows;
-  const totalRowsRaw = table.totalRows;
-  if (typeof totalRowsRaw === "string" && totalRowsRaw.trim() !== "") {
-    const parsed = Number.parseInt(totalRowsRaw, 10);
-    if (Number.isFinite(parsed)) totalRows = parsed;
-  }
-  const executedQueryStringRaw = table.executedQueryString;
-  const executedQueryString = typeof executedQueryStringRaw === "string" && executedQueryStringRaw.trim() !== "" ? executedQueryStringRaw : void 0;
-  return {
-    columns,
-    rows,
-    messages,
-    ...totalRows === void 0 ? {} : { totalRows },
-    ...executedQueryString === void 0 ? {} : { executedQueryString }
-  };
-}
-function classifyPreviewFailure(e, ctx) {
-  const err = translateAdtError(e, ctx);
-  if (err.code !== "ADT_ERROR") return err;
-  const status = typeof err.details.status === "number" ? err.details.status : void 0;
-  const target = ctx.name ?? ctx.uri ?? "the entity";
-  if (status === 401 || status === 403) {
-    return new AbapError(
-      "AUTH_FAILED",
-      `Not authorised (HTTP ${status}) to read data from ${target}. The logon succeeded; the user lacks table-display authorisation for it.`,
-      { ...err.details, status },
-      "The user is authenticated but not authorised (typically S_TABU_DIS / S_TABU_NAM). The name is not in question \u2014 do not retry with a different name."
-    );
-  }
-  if (status === 400 && /not found|does not exist|unknown|not exist/i.test(err.message)) {
-    return new AbapError(
-      "NOT_FOUND",
-      `No DDIC table or view named ${target} exists on this system.`,
-      { ...err.details, status },
-      "Check the spelling, or look the object up first \u2014 this endpoint reports a missing entity as HTTP 400, not 404."
-    );
-  }
-  return err;
-}
-function classifyFilteredPreviewFailure(e, ctx, sql) {
-  const err = classifyPreviewFailure(e, ctx);
-  if (err.code !== "ADT_ERROR") {
-    return new AbapError(err.code, err.message, { ...err.details, sql }, err.hint, { retryable: err.retryable });
-  }
-  const message = err.message;
-  if (/client field .* cannot be specified in the where condition/i.test(message)) {
-    return new AbapError(
-      "BAD_INPUT",
-      message,
-      { ...err.details, sql },
-      "The read is already scoped to the logon client \u2014 drop the where condition on the client field."
-    );
-  }
-  if (/like condition can only be used with character-like fields/i.test(message)) {
-    return new AbapError(
-      "BAD_INPUT",
-      message,
-      { ...err.details, sql },
-      "Use eq/ne/lt/le/gt/ge on a numeric field instead of like."
-    );
-  }
-  if (/from the order by clause is missing in the select list/i.test(message)) {
-    return new AbapError(
-      "BAD_INPUT",
-      message,
-      { ...err.details, sql },
-      "With distinct, every order_by field must also appear in columns."
-    );
-  }
-  return new AbapError(err.code, err.message, { ...err.details, sql }, err.hint, { retryable: err.retryable });
-}
-async function previewDdicEntity(conn, input) {
-  const table = normaliseEntityName(input.table);
-  if (!isValidDdicEntityName(table)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `'${String(input.table)}' is not a valid DDIC table or view name.`,
-      { table: String(input.table) },
-      "Pass a bare name such as T000, DD02L or /ACME/TAB. This tool previews one named entity; narrow it with the structured where/columns/order_by parameters, never with SQL text."
-    );
-  }
-  const { maxRows } = input;
-  if (!Number.isInteger(maxRows) || maxRows < 1) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `max_rows must be a positive integer, got ${String(maxRows)}.`,
-      { maxRows },
-      "Ask for at least one row. 0 is not 'no rows' on this endpoint \u2014 it means unlimited, and is refused rather than sent."
-    );
-  }
-  const ctx = { operation: "read", name: table, type: "TABL/DT" };
-  if (isEmptyFilter(input.filter)) {
-    let body2;
-    try {
-      const resp = await conn.dataPreviewDdic(table, maxRows);
-      body2 = resp.body;
-    } catch (e) {
-      throw classifyPreviewFailure(e, ctx);
-    }
-    const { columns: columns2, rows: rows2, messages: messages2 } = parsePreviewBody(body2);
-    const moreRowsExist2 = rows2.length > maxRows;
-    return {
-      table,
-      columns: columns2,
-      rows: moreRowsExist2 ? rows2.slice(0, maxRows) : rows2,
-      rowsRequested: maxRows,
-      moreRowsExist: moreRowsExist2,
-      messages: messages2
-    };
-  }
-  const filter = input.filter;
-  assertFilterShape(filter);
-  let probeBody;
-  try {
-    const probeResp = await conn.dataPreviewDdic(table, 1);
-    probeBody = probeResp.body;
-  } catch (e) {
-    throw classifyPreviewFailure(e, ctx);
-  }
-  const probe3 = parsePreviewBody(probeBody);
-  if (probe3.columns.length === 0) {
-    const firstMessage = probe3.messages[0];
-    if (firstMessage) {
-      throw new AbapError(
-        "ADT_ERROR",
-        `${table} answered with no columns: "${firstMessage.text}" (severity ${firstMessage.severity || "unstated"}).`,
-        { table, messages: probe3.messages },
-        "This entity does not support a filtered preview the way a plain table does \u2014 see the server's own message above."
-      );
-    }
-    throw new AbapError(
-      "NOT_FOUND",
-      `No DDIC table or view named ${table} exists on this system, or it has no columns to filter.`,
-      { table },
-      "Check the spelling, or look the object up first."
-    );
-  }
-  const sql = renderPreviewSelect(table, filter, probe3.columns);
-  let body;
-  try {
-    const resp = await conn.dataPreviewFreestyle(sql, maxRows);
-    body = resp.body;
-  } catch (e) {
-    throw classifyFilteredPreviewFailure(e, ctx, sql);
-  }
-  const { columns, rows, messages, totalRows, executedQueryString } = parsePreviewBody(body);
-  const moreRowsExist = totalRows !== void 0 ? totalRows > rows.length : rows.length > maxRows;
-  return {
-    table,
-    columns,
-    rows,
-    rowsRequested: maxRows,
-    moreRowsExist,
-    messages,
-    statement: sql,
-    ...executedQueryString === void 0 ? {} : { executedQueryString },
-    ...totalRows === void 0 ? {} : { totalRows }
-  };
-}
-var PLAIN_NAME_RE, NAMESPACED_NAME_RE, MAX_ENTITY_NAME_LENGTH, previewXml, attrString;
-var init_datapreview = __esm({
-  "src/adt/datapreview.ts"() {
-    "use strict";
-    init_fxp();
-    init_connection();
-    init_errors();
-    init_session();
-    init_datapreview_filter();
-    PLAIN_NAME_RE = /^[A-Z][A-Z0-9_]{0,29}$/;
-    NAMESPACED_NAME_RE = /^\/[A-Z0-9_]{1,10}\/[A-Z0-9_]{1,30}$/;
-    MAX_ENTITY_NAME_LENGTH = 30;
-    previewXml = new XMLParser({
-      ignoreAttributes: false,
-      attributeNamePrefix: "@_",
-      removeNSPrefix: true,
-      parseAttributeValue: false,
-      parseTagValue: false,
-      trimValues: true,
-      isArray: (_name, jpath) => jpath === "tableData.columns" || jpath === "tableData.columns.dataSet.data" || jpath === "tableData.message"
-    });
-    attrString = (meta3, key) => {
-      const v = meta3?.[`@_${key}`];
-      return typeof v === "string" && v !== "" ? v : void 0;
-    };
-  }
-});
-
-// src/adt/catalog-select.ts
-var catalog_select_exports = {};
-__export(catalog_select_exports, {
-  CATALOG_MAX_IN_LIST: () => CATALOG_MAX_IN_LIST,
-  CATALOG_SQL_LINE_MAX: () => CATALOG_SQL_LINE_MAX,
-  assertCatalogValue: () => assertCatalogValue,
-  buildCatalogSelect: () => buildCatalogSelect,
-  catalogInList: () => catalogInList,
-  catalogLiteral: () => catalogLiteral,
-  requireCatalogColumn: () => requireCatalogColumn,
-  runCatalogSelect: () => runCatalogSelect
-});
-function catalogLiteral(value) {
-  return `'${value.replace(/'/g, "''")}'`;
-}
-function assertCatalogValue(value, what, maxLen) {
-  if (typeof value !== "string") {
-    throw new AbapError("BAD_INPUT", `${what} must be a string.`, { what });
-  }
-  if (value.trim() === "") {
-    throw new AbapError("BAD_INPUT", `${what} must not be empty or blank.`, { what });
-  }
-  if (value.includes("'")) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `${what} "${value}" contains a single quote \u2014 refused, not escaped. A quote is never a valid character in this value.`,
-      { what, value }
-    );
-  }
-  if (value.includes(";")) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `${what} "${value}" contains a semicolon \u2014 refused. Only one statement is ever built from this value.`,
-      { what, value }
-    );
-  }
-  if (CONTROL_CHAR_RE2.test(value)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `${what} "${value}" contains a newline or other control character \u2014 refused, not stripped.`,
-      { what, value }
-    );
-  }
-  if (value.length > maxLen) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `${what} "${value}" is ${value.length} characters, over the ${maxLen}-character declared width of the target column. The endpoint answers an over-wide literal with HTTP 400 ("... is not a valid value for C(${maxLen},0)"), not an empty result (observed on A4H 2026-09-12) \u2014 this value is refused here instead of being sent. Shorten it or check the name.`,
-      { what, value, length: value.length, maxLen }
-    );
-  }
-  return value;
-}
-function catalogInList(values, what, maxLen) {
-  if (values.length === 0) {
-    throw new AbapError("BAD_INPUT", `${what} must not be empty \u2014 "IN ()" is not valid SQL.`, { what });
-  }
-  if (values.length > CATALOG_MAX_IN_LIST) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `${what} has ${values.length} values, over the ${CATALOG_MAX_IN_LIST}-value cap per statement \u2014 chunk the caller's list into multiple queries.`,
-      { what, count: values.length, cap: CATALOG_MAX_IN_LIST }
-    );
-  }
-  const literals = values.map((v) => catalogLiteral(assertCatalogValue(v, what, maxLen)));
-  return `IN ( ${literals.join(", ")} )`;
-}
-function buildCatalogSelect(select, from, whereParts, orderBy) {
-  const lines = [`SELECT ${select}`, `FROM ${from}`];
-  whereParts.forEach((part, i) => {
-    lines.push(`${i === 0 ? "WHERE" : "  AND"} ${part}`);
-  });
-  if (orderBy !== void 0) lines.push(`ORDER BY ${orderBy}`);
-  const statement = lines.join("\n");
-  statement.split("\n").forEach((line, i) => {
-    if (line.length > CATALOG_SQL_LINE_MAX) {
-      throw new AbapError(
-        "CHECK_FAILED",
-        `Generated catalog query line ${i + 1} is ${line.length} chars, over the ${CATALOG_SQL_LINE_MAX}-char line cap: ${line}`,
-        { line: i + 1, length: line.length }
-      );
-    }
-  });
-  return statement;
-}
-async function runCatalogSelect(conn, sql, rowNumber) {
-  const resp = await conn.dataPreviewFreestyle(sql, rowNumber);
-  const { columns, rows, messages, totalRows } = parsePreviewBody(resp.body);
-  const names = columns.map((c) => c.name.toUpperCase());
-  const mappedRows = rows.map((row2) => {
-    const rec = {};
-    names.forEach((name, i) => {
-      rec[name] = row2[i] ?? "";
-    });
-    return rec;
-  });
-  return { columns: names, rows: mappedRows, totalRows, messages };
-}
-function requireCatalogColumn(result, column) {
-  const upper = column.toUpperCase();
-  if (!result.columns.includes(upper)) {
-    throw new AbapError(
-      "ADT_ERROR",
-      `expected column "${column}" is missing from the catalog preview response (columns present: ${result.columns.length > 0 ? result.columns.join(", ") : "none"}).`,
-      { column, present: result.columns }
-    );
-  }
-}
-var CONTROL_CHAR_RE2, CATALOG_MAX_IN_LIST, CATALOG_SQL_LINE_MAX;
-var init_catalog_select = __esm({
-  "src/adt/catalog-select.ts"() {
-    "use strict";
-    init_errors();
-    init_datapreview();
-    CONTROL_CHAR_RE2 = /[\x00-\x1f\x7f]/;
-    CATALOG_MAX_IN_LIST = 50;
-    CATALOG_SQL_LINE_MAX = 200;
-  }
-});
-
-// src/adt/index-read.ts
-function loadCatalogSelect() {
-  return catalogSelectModule ??= Promise.resolve().then(() => (init_catalog_select(), catalog_select_exports));
-}
-function tbl(key) {
-  return INDEX_CATALOG[key].table;
-}
-function fld(key, field) {
-  const fields = INDEX_CATALOG[key].fields;
-  return fields[field];
-}
-function isValidIndexIdentifier(name, maxLength) {
-  if (typeof name !== "string") return false;
-  if (name.length === 0 || name.length > maxLength) return false;
-  return /^[A-Za-z][A-Za-z0-9_]*$/.test(name);
-}
-function assertIndexIdentifier(value, what, maxLength) {
-  if (typeof value !== "string" || !isValidIndexIdentifier(value, maxLength)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `${what} ${JSON.stringify(value)} is not a valid ABAP object name (a letter, then letters, digits and underscores only, max ${maxLength} characters).`,
-      { what, value },
-      "This value is substituted into a catalog SELECT's WHERE literal \u2014 an over-long or malformed name is refused client-side, before any SQL literal is built, rather than sent to the freestyle endpoint, which answers HTTP 400 (not an empty result) for a literal wider than the target column's declared DDIC width."
-    );
-  }
-  return value;
-}
-function assertIndexTableName(value) {
-  return assertIndexIdentifier(value, "table", INDEX_TABLE_NAME_MAX);
-}
-function assertIndexIdValue(value) {
-  return assertIndexIdentifier(value, "indexId", INDEX_ID_MAX);
-}
-function serverNotes(result) {
-  return result.messages.map((m) => `[server] ${m.text}${m.severity ? ` (${m.severity})` : ""}`);
-}
-function noteIfCut(result, cap, what, notes) {
-  if (result.totalRows !== void 0 && result.totalRows > result.rows.length) {
-    notes.push(
-      `${what} reports ${result.totalRows} total rows but only ${result.rows.length} were fetched (row cap ${cap}) \u2014 the remainder was cut, not silently dropped.`
-    );
-  }
-}
-function activationLabel(activation) {
-  switch (activation) {
-    case "A":
-      return "active";
-    case "N":
-      return "inactive (revised, not activated)";
-    case "":
-      return "unknown (blank AS4LOCAL)";
-    default:
-      return `unrecognized (AS4LOCAL = ${JSON.stringify(activation)})`;
-  }
-}
-async function readTableIndexes(conn, table, opts) {
-  const { buildCatalogSelect: buildCatalogSelect2, catalogLiteral: catalogLiteral2, requireCatalogColumn: requireCatalogColumn2, runCatalogSelect: runCatalogSelect2 } = await loadCatalogSelect();
-  const notes = [];
-  const t = assertIndexTableName(table.trim().toUpperCase());
-  const language = (opts?.language ?? DEFAULT_LANGUAGE).trim().toUpperCase() || DEFAULT_LANGUAGE;
-  const TABLE_F = fld("indexHeader", "table");
-  const INDEX_F = fld("indexHeader", "index");
-  const headerSql = buildCatalogSelect2(
-    [TABLE_F, INDEX_F, fld("indexHeader", "language"), fld("indexHeader", "unique"), fld("indexHeader", "activation"), fld("indexHeader", "dbState"), fld("indexHeader", "description")].join(", "),
-    tbl("indexHeader"),
-    [`${TABLE_F} = ${catalogLiteral2(t)}`],
-    INDEX_F
-  );
-  const headerResult = await runCatalogSelect2(conn, headerSql, INDEX_ROW_CAP);
-  notes.push(...serverNotes(headerResult));
-  noteIfCut(headerResult, INDEX_ROW_CAP, `${tbl("indexHeader")} lookup for "${t}"`, notes);
-  if (headerResult.rows.length > 0) requireCatalogColumn2(headerResult, INDEX_F);
-  const byIndex = /* @__PURE__ */ new Map();
-  let dedupedAny = false;
-  for (const row2 of headerResult.rows) {
-    const id = row2[INDEX_F] ?? "";
-    if (id === "") continue;
-    const existing = byIndex.get(id);
-    if (existing === void 0) {
-      byIndex.set(id, row2);
-      continue;
-    }
-    dedupedAny = true;
-    const rowLanguage = (row2[fld("indexHeader", "language")] ?? "").trim().toUpperCase();
-    if (rowLanguage === language) byIndex.set(id, row2);
-  }
-  if (dedupedAny) {
-    notes.push(
-      `${tbl("indexHeader")} carried more than one row per index (language-dependent \u2014 see INDEX_CATALOG note): reduced to one row per index, preferring DDLANGUAGE = "${language}".`
-    );
-  }
-  const FTABLE_F = fld("indexField", "table");
-  const FINDEX_F = fld("indexField", "index");
-  const fieldSql = buildCatalogSelect2(
-    [FTABLE_F, FINDEX_F, fld("indexField", "position"), fld("indexField", "field")].join(", "),
-    tbl("indexField"),
-    [`${FTABLE_F} = ${catalogLiteral2(t)}`],
-    FINDEX_F
-  );
-  const fieldResult = await runCatalogSelect2(conn, fieldSql, INDEX_ROW_CAP);
-  notes.push(...serverNotes(fieldResult));
-  noteIfCut(fieldResult, INDEX_ROW_CAP, `${tbl("indexField")} lookup for "${t}"`, notes);
-  if (fieldResult.rows.length > 0) requireCatalogColumn2(fieldResult, FINDEX_F);
-  const fieldsByIndex = /* @__PURE__ */ new Map();
-  for (const row2 of fieldResult.rows) {
-    const id = row2[FINDEX_F] ?? "";
-    if (id === "") continue;
-    const position = Number(row2[fld("indexField", "position")] ?? "0");
-    const field = row2[fld("indexField", "field")] ?? "";
-    const list5 = fieldsByIndex.get(id);
-    const entry = { position: Number.isNaN(position) ? 0 : position, field };
-    if (list5) list5.push(entry);
-    else fieldsByIndex.set(id, [entry]);
-  }
-  for (const list5 of fieldsByIndex.values()) list5.sort((a, b) => a.position - b.position);
-  const indexes = [...byIndex.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([id, row2]) => {
-    const activation = row2[fld("indexHeader", "activation")] ?? "";
-    return {
-      id,
-      table: t,
-      description: row2[fld("indexHeader", "description")] ?? "",
-      unique: (row2[fld("indexHeader", "unique")] ?? "").trim() !== "",
-      activation,
-      activationLabel: activationLabel(activation),
-      dbState: row2[fld("indexHeader", "dbState")] ?? "",
-      fields: (fieldsByIndex.get(id) ?? []).map((f) => f.field)
-    };
-  });
-  return { indexes, notes };
-}
-async function readSecondaryIndex(conn, table, indexId, opts) {
-  const id = assertIndexIdValue(indexId.trim().toUpperCase());
-  const { indexes, notes } = await readTableIndexes(conn, table, opts);
-  const index = indexes.find((i) => i.id === id);
-  return { index, notes };
-}
-async function verifySecondaryIndex(conn, table, indexId, expect) {
-  try {
-    const id = assertIndexIdValue(indexId.trim().toUpperCase());
-    const t = assertIndexTableName(table.trim().toUpperCase());
-    const { index } = await readSecondaryIndex(conn, t, id);
-    if (index === void 0) {
-      const mismatch2 = expect === "present" ? " \u2014 expected present, but the catalog shows no such row." : "";
-      return {
-        verified: true,
-        present: false,
-        active: false,
-        statement: `index ${id} on ${t} is absent from DD12V${mismatch2}`
-      };
-    }
-    const active = index.activation === "A";
-    const fieldsClause = index.fields.length > 0 ? `, with fields ${index.fields.join(", ")}` : ", with no fields on record";
-    const mismatch = expect === "absent" ? " \u2014 expected absent, but the catalog still shows it." : "";
-    const statement = `index ${id} on ${t} is present and ${active ? "active" : `inactive (${index.activationLabel})`} (DD12V-AS4LOCAL = '${index.activation}')${fieldsClause}${mismatch}`;
-    return { verified: true, present: true, active, statement, index };
-  } catch (e) {
-    const reason = e instanceof Error ? e.message : String(e);
-    return {
-      verified: false,
-      present: false,
-      active: false,
-      statement: `could not verify index ${indexId} on ${table}: the DD12V/DD17S re-read itself failed (${reason}).`,
-      reason
-    };
-  }
-}
-function renderIndexSection(indexes) {
-  const title = "SECONDARY INDEXES";
-  if (indexes.length === 0) {
-    return {
-      title,
-      content: "This table has no secondary index \u2014 a DD12V read for this table returned zero rows (a definitive empty result, see capture 860), not an unread or failed check."
-    };
-  }
-  const content = textTable(
-    indexes.map((i) => ({
-      index: i.id,
-      unique: i.unique ? "UNIQUE" : "",
-      status: i.activationLabel,
-      "db status": i.dbState,
-      fields: i.fields.join(", "),
-      description: i.description
-    })),
-    ["index", "unique", "status", "db status", "fields", "description"]
-  );
-  return { title, content };
-}
-function renderSecondaryIndex(index) {
-  const ddl = [
-    `define index ${index.id.toLowerCase()} on ${index.table.toLowerCase()} {`,
-    ...index.fields.map((f) => `  ${f.toLowerCase()};`),
-    `}`
-  ].join("\n");
-  const sections = [
-    {
-      title: "INDEX HEADER",
-      content: textTable(
-        [
-          {
-            table: index.table,
-            index: index.id,
-            unique: index.unique ? "UNIQUE" : "",
-            status: index.activationLabel,
-            "db status": index.dbState,
-            description: index.description
-          }
-        ],
-        ["table", "index", "unique", "status", "db status", "description"]
-      )
-    }
-  ];
-  const hashInput = [
-    index.table,
-    index.id,
-    index.description,
-    index.unique ? "UNIQUE" : "",
-    index.activation,
-    index.dbState,
-    ...index.fields
-  ].join("|");
-  return {
-    ddl,
-    sections,
-    meta: {
-      table: index.table,
-      index: index.id,
-      unique: index.unique ? "true" : "false",
-      activation: index.activation,
-      db_status: index.dbState,
-      fields: index.fields.length
-    },
-    notes: [],
-    hashInput
-  };
-}
-var catalogSelectModule, INDEX_CATALOG, INDEX_TABLE_NAME_MAX, INDEX_ID_MAX, INDEX_ROW_CAP, DEFAULT_LANGUAGE;
-var init_index_read = __esm({
-  "src/adt/index-read.ts"() {
-    "use strict";
-    init_compact();
-    init_errors();
-    INDEX_CATALOG = Object.freeze({
-      indexHeader: Object.freeze({
-        table: "DD12V",
-        fields: Object.freeze({
-          table: "SQLTAB",
-          index: "INDEXNAME",
-          language: "DDLANGUAGE",
-          unique: "UNIQUEFLAG",
-          activation: "AS4LOCAL",
-          dbState: "DBSTATE",
-          description: "DDTEXT"
-        }),
-        confidence: "high",
-        note: "capture 858: language-dependent (DDLANGUAGE) \u2014 one row per maintained language per index, must be deduped by INDEXNAME. capture 860: a table with no secondary index answers 200 with totalRows 0, a definitive absence, not an error."
-      }),
-      indexField: Object.freeze({
-        table: "DD17S",
-        fields: Object.freeze({
-          table: "SQLTAB",
-          index: "INDEXNAME",
-          position: "POSITION",
-          field: "FIELDNAME"
-        }),
-        confidence: "high",
-        note: 'capture 859: not language-dependent. POSITION is a zero-padded numeric string (e.g. "0001") \u2014 parse with Number(), never string-sort it.'
-      })
-    });
-    INDEX_TABLE_NAME_MAX = 30;
-    INDEX_ID_MAX = 3;
-    INDEX_ROW_CAP = 200;
-    DEFAULT_LANGUAGE = "E";
-  }
-});
-
-// src/adt/ddic.ts
-function parseDdl(source) {
-  const text4 = source.replace(/\r\n/g, "\n");
-  const annotations = text4.split("\n").filter((l) => /^\s*@/.test(l) && !/^\s*@AbapCatalog\.foreignKey/.test(l)).map((l) => l.trim());
-  const entity = /define\s+(?:table|structure|abstract\s+entity|view\s+entity)\s+([\w/]+)/i.exec(
-    text4
-  )?.[1];
-  const fields = [];
-  const includes = [];
-  const open = text4.indexOf("{");
-  const close = text4.lastIndexOf("}");
-  const body = open >= 0 && close > open ? text4.slice(open + 1, close) : text4;
-  for (const rawStmt of body.split(";")) {
-    const stmt = rawStmt.replace(/^\s*@[^\n]*$/gm, "").trim();
-    if (!stmt) continue;
-    const inc = /^include\s+([\w/]+)/i.exec(stmt);
-    if (inc) {
-      includes.push(inc[1].toUpperCase());
-      continue;
-    }
-    const m = /^(key\s+)?([\w/]+)\s*:\s*([\s\S]+)$/i.exec(stmt);
-    if (!m) continue;
-    const rest = m[3].trim();
-    const namedInclude = /^include\s+([\w/]+)/i.exec(rest);
-    const fkMatch = /with\s+foreign\s+key\s+(?:\[[^\]]*\]\s*)?([\w/]+)/i.exec(rest);
-    const typePart = rest.split(/\bwith\s+foreign\s+key\b/i)[0].replace(/\bnot\s+null\b/i, "").trim();
-    fields.push({
-      name: m[2].toUpperCase(),
-      type: namedInclude ? `INCLUDE ${namedInclude[1].toUpperCase()}` : typePart,
-      key: Boolean(m[1]),
-      notNull: /\bnot\s+null\b/i.test(rest),
-      foreignKey: fkMatch?.[1]?.toUpperCase()
-    });
-  }
-  return { entity, annotations, fields, includes };
-}
-function renderDdlDigest(parsed) {
-  const keys = parsed.fields.filter((f) => f.key);
-  const fks = parsed.fields.filter((f) => f.foreignKey);
-  const sections = [];
-  if (parsed.fields.length) {
-    sections.push({
-      title: "FIELD DIGEST",
-      content: textTable(
-        parsed.fields.map((f) => ({
-          key: f.key ? "KEY" : "",
-          field: f.name,
-          type: f.type,
-          "foreign key": f.foreignKey ?? ""
-        })),
-        ["key", "field", "type", "foreign key"]
-      )
-    });
-  }
-  if (parsed.includes.length) {
-    sections.push({ title: "INCLUDES", content: parsed.includes.join("\n") });
-  }
-  return {
-    sections,
-    meta: {
-      fields: parsed.fields.length || void 0,
-      keyFields: keys.length ? keys.map((k) => k.name).join(", ") : void 0,
-      foreignKeys: fks.length ? fks.map((f) => `${f.name}\u2192${f.foreignKey}`).join(", ") : void 0
-    }
-  };
-}
-function renderTableXmlFallback(body, name, why) {
-  const doc = xml2.parse(body);
-  const fields = [];
-  const visit = (key, node2) => {
-    if (!node2 || typeof node2 !== "object") return;
-    if (Array.isArray(node2)) {
-      for (const item of node2) visit(key, item);
-      return;
-    }
-    const attrs = node2;
-    const fname = attrs["@_name"] ?? attrs["@_fieldName"];
-    if (/^(column|field|element|component)$/i.test(key) && typeof fname === "string") {
-      fields.push({
-        key: String(attrs["@_isKey"] ?? attrs["@_keyFlag"] ?? "").toLowerCase() === "true" ? "KEY" : "",
-        field: String(fname).toUpperCase(),
-        type: String(
-          attrs["@_dataElement"] ?? attrs["@_type"] ?? attrs["@_dataType"] ?? ""
-        ).toUpperCase(),
-        length: String(attrs["@_length"] ?? "")
-      });
-    }
-    for (const [childKey, value] of Object.entries(attrs)) {
-      if (childKey.startsWith("@_")) continue;
-      visit(childKey, value);
-    }
-  };
-  visit("", doc);
-  const ddl = fields.length ? `define table ${name.toLowerCase()} {
-` + fields.map((f) => `  ${f.key ? "key " : ""}${f.field.toLowerCase()} : ${f.type || "?"};`).join("\n") + `
-}` : `-- ${name}: no field information could be extracted from the ADT XML on this release.`;
-  return {
-    ddl,
-    sections: fields.length ? [{ title: "FIELD DIGEST", content: textTable(fields, ["key", "field", "type", "length"]) }] : [],
-    meta: { fields: fields.length || void 0 },
-    notes: [
-      // Caller passes the reason it actually observed, not a release-wide guess.
-      `${why ?? `${name}: rendered from ADT XML`}. The DDL above is reconstructed and may omit foreign keys, technical settings and appends.`
-    ],
-    hashInput: body
-  };
-}
-function renderTableType(body, name) {
-  const doc = xml2.parse(body);
-  const tt = doc.tableType ?? {};
-  const row2 = tt.rowType ?? {};
-  const typeKind = xmlText(row2.typeKind) ?? "";
-  const typeName = xmlText(row2.typeName) ?? "";
-  const builtIn = row2.builtInType ?? {};
-  const builtInType = xmlText(builtIn.dataType) ?? "";
-  const builtInLen = xmlNum(builtIn.length) ?? 0;
-  const access2 = xmlText(tt.accessType) || "standard";
-  const pk = tt.primaryKey ?? {};
-  const pkKind = xmlText(pk.kind) ?? "";
-  const pkDef = xmlText(pk.definition) ?? "";
-  const comps = pk.components?.component;
-  const compNames = (Array.isArray(comps) ? comps : comps ? [comps] : []).map((c) => String(c["@_name"] ?? "")).filter(Boolean);
-  const rowTypeText = typeKind === "predefinedAbapType" ? `abap.${builtInType.toLowerCase()}(${builtInLen})` : typeName || builtInType || "?";
-  const keyText = pkDef === "keyComponents" && compNames.length ? `${pkKind} key (${compNames.join(", ")})` : pkDef === "standard" ? `${pkKind || "non-unique"} default key` : pkDef || "not specified";
-  const ddl = [
-    `define table type ${name.toLowerCase()} {`,
-    `  row type   : ${rowTypeText};`,
-    `  table kind : ${access2};`,
-    `  key        : ${keyText};`,
-    `}`
-  ].join("\n");
-  return {
-    ddl,
-    sections: [],
-    meta: {
-      description: String(tt["@_description"] ?? "") || void 0,
-      rowType: rowTypeText,
-      accessType: access2
-    },
-    notes: [],
-    // Hash the raw resource bytes, not a derived rendering — see resourceEtag in src/tools/read.ts.
-    hashInput: body
-  };
-}
-function renderDataElement(view, domain2, domainFailure) {
-  const isDomainTyped = Boolean(view.typeName);
-  const typeLine = isDomainTyped ? `  domain     : ${view.typeName};` : `  type       : abap.${view.dataType.toLowerCase()}(${view.length}${view.decimals ? `,${view.decimals}` : ""});`;
-  const ddl = [
-    `define data element ${view.name.toLowerCase()} {`,
-    typeLine,
-    `  built-in   : ${view.dataType} length ${view.length}${view.decimals ? ` decimals ${view.decimals}` : ""};`,
-    ...domain2?.valueTable ? [`  value table: ${domain2.valueTable};`] : [],
-    ...view.searchHelp ? [
-      `  search help: ${view.searchHelp}${view.searchHelpParameter ? ` (${view.searchHelpParameter})` : ""};`
-    ] : [],
-    `}`
-  ].join("\n");
-  const sections = [];
-  const labels = Object.entries(view.labels).filter(([, v]) => v);
-  if (labels.length) {
-    sections.push({
-      title: "FIELD LABELS",
-      content: labels.map(([k, v]) => {
-        const n = view.labelLengths?.[k];
-        return n === void 0 ? `${k.padEnd(8)} ${v}` : `${k.padEnd(8)} ${v} (length ${n})`;
-      }).join("\n")
-    });
-  }
-  if (domain2?.fixedValues?.length) {
-    sections.push({
-      title: `FIXED VALUES (domain ${domain2.name})`,
-      content: renderFixedValues(domain2.fixedValues)
-    });
-  }
-  const notes = [];
-  if (isDomainTyped && !domain2) {
-    notes.push(
-      `Domain ${view.typeName} could NOT be read${domainFailure ? `: ${domainFailure}` : ""}. Its value table and fixed values are UNKNOWN here \u2014 this is a failed lookup, NOT evidence that the domain constrains nothing.`
-    );
-  }
-  if (domain2 && !domain2.valueTable && !domain2.fixedValues?.length) {
-    notes.push(`Domain ${domain2.name} has no value table and no fixed values.`);
-  }
-  if (domain2?.fixedValues?.length) {
-    const charNote = characterLiteralNote(domain2);
-    if (charNote) notes.push(charNote);
-  }
-  if (!isDomainTyped) {
-    notes.push("Data element is typed directly (predefined type), not via a domain.");
-  }
-  return { ddl, sections, meta: { description: view.description, package: view.packageName }, notes, hashInput: ddl };
-}
-function renderFixedValues(values) {
-  return textTable(
-    values.map((v) => ({
-      value: v.low === "" || v.low === void 0 || v.low === null ? "''" : String(v.low),
-      to: v.high === void 0 || v.high === null ? "" : String(v.high),
-      text: v.text === void 0 || v.text === null ? "" : String(v.text)
-    })),
-    ["value", "to", "text"]
-  );
-}
-function characterLiteralNote(view) {
-  if (!CHARACTER_DDIC_TYPES.has(view.dataType.toUpperCase())) return void 0;
-  const prefix = `${view.dataType.toUpperCase()}(${view.length})`;
-  const padded = view.fixedValues?.find((v) => v.low && /^0\d/.test(v.low));
-  if (padded) {
-    const stripped = padded.low.replace(/^0+(?=.)/, "");
-    return `Fixed values on this ${prefix} domain are character literals, not numbers: '${padded.low}' is ${padded.low.length} characters and compares equal only to '${padded.low}' \u2014 IF x = ${stripped} and IF x = '${stripped}' both silently never match. The table above shows the stored characters exactly as the system returned them.`;
-  }
-  const digitLeading = view.fixedValues?.find((v) => v.low && /^\d/.test(v.low));
-  if (digitLeading) {
-    return `Fixed values on this ${prefix} domain are character literals, not numbers: '${digitLeading.low}' must be compared quoted \u2014 IF x = '${digitLeading.low}', not IF x = ${digitLeading.low}. The table above shows the stored characters exactly as the system returned them.`;
-  }
-  return void 0;
-}
-function renderDomain(view) {
-  const ddl = [
-    `define domain ${view.name.toLowerCase()} {`,
-    `  type        : ${view.dataType} length ${view.length}${view.decimals ? ` decimals ${view.decimals}` : ""};`,
-    ...view.outputLength !== void 0 ? [`  output len  : ${view.outputLength};`] : [],
-    ...view.conversionExit ? [`  conv exit   : ${view.conversionExit};`] : [],
-    ...view.lowercase ? [`  lowercase   : true;`] : [],
-    ...view.signExists ? [`  sign        : true;`] : [],
-    ...view.valueTable ? [`  value table : ${view.valueTable};`] : [],
-    ...view.fixedValues?.length ? [`  fixed values: ${view.fixedValues.length};`] : [],
-    `}`
-  ].join("\n");
-  const sections = [];
-  if (view.fixedValues?.length) {
-    sections.push({ title: "FIXED VALUES", content: renderFixedValues(view.fixedValues) });
-  }
-  const notes = [];
-  if (!view.valueTable && !view.fixedValues?.length) {
-    notes.push("No value table and no fixed values \u2014 this domain constrains type only.");
-  }
-  if (view.fixedValues?.length) {
-    const charNote = characterLiteralNote(view);
-    if (charNote) notes.push(charNote);
-    const withoutText = view.fixedValues.filter((v) => !v.text);
-    if (withoutText.length === view.fixedValues.length) {
-      notes.push(
-        `All ${view.fixedValues.length} fixed value(s) have no text. If descriptions were sent for them, this domain was likely written before adtcore:masterLanguage was present on the payload's root element, independent of whether <doma:text> carries its own language attribute. Re-write this domain with adtcore:masterLanguage="EN" on the root to repair it in place, then re-read to confirm.`
-      );
-    } else if (withoutText.length > 0) {
-      const sample = withoutText.slice(0, 5).map((v) => v.low === "" ? "''" : v.low).join(", ");
-      notes.push(
-        `${withoutText.length} of ${view.fixedValues.length} fixed value(s) have no text` + (sample ? ` (${sample}${withoutText.length > 5 ? ", \u2026" : ""})` : "") + `. If descriptions were intended for these, this domain was likely written before adtcore:masterLanguage was present on the payload's root element. Re-write it with adtcore:masterLanguage="EN" on the root to repair it in place, then re-read to confirm.`
-      );
-    }
-    const withTextNoLang = view.fixedValues.filter((v) => v.text && !v.textLanguage);
-    if (withTextNoLang.length > 0) {
-      notes.push(
-        `${withTextNoLang.length} fixed value(s) have text with no language attribute observed on the <doma:text> element that produced it. This is not itself a sign of trouble \u2014 real SAP-delivered domains (e.g. XFELD, BOOLE) return their genuine text this exact way, with no language attribute at all \u2014 but it does mean this text's provenance is not distinguishable, from a read alone, from an object written before this module's parsing fix. Informational only.`
-      );
-    }
-  }
-  return {
-    ddl,
-    sections,
-    meta: { description: view.description, package: view.packageName },
-    notes,
-    hashInput: ddl
-  };
-}
+// src/adt/ddic-strategy.ts
 function ddicStrategy(kind) {
   const k = kind.toUpperCase();
   if (DDIC_SOURCE_BASED.includes(k)) return "source";
   if (DDIC_XML_ONLY.includes(k)) return "xml";
+  if (DDIC_CATALOG_BASED.includes(k)) return "catalog";
   if (k === "DEVC") return "package";
   return "unsupported";
 }
-function classifyDdicFailure(e, ctx) {
-  const err = translateAdtError(e, ctx);
-  if (err.code !== "ADT_ERROR") return err;
-  const status = typeof err.details.status === "number" ? err.details.status : void 0;
-  if (status === 401 || status === 403) {
-    return new AbapError(
-      "AUTH_FAILED",
-      status === 401 ? `Authentication failed (HTTP 401) while reading ${ctx.type ?? "object"} ${ctx.name ?? ctx.uri}.` : `Not authorised (HTTP 403) to read ${ctx.type ?? "object"} ${ctx.name ?? ctx.uri}. The logon succeeded; the user lacks the authorisation for this object.`,
-      { ...err.details, status },
-      status === 401 ? "Fix ABAP_USER / ABAP_PASSWORD. This is not a naming problem and the object was never inspected." : "The user is authenticated but not authorised (typically S_DEVELOP / table display). This is NOT evidence that the object is empty or has no source \u2014 nothing about its content was returned."
-    );
-  }
-  return err;
-}
-async function fetchDdicXml(conn, target, operation, accept = "application/*") {
-  try {
-    const { body } = await conn.get(target.uri, { headers: { Accept: accept } });
-    return body;
-  } catch (e) {
-    throw classifyDdicFailure(e, { operation, uri: target.uri, name: target.name, type: target.type });
-  }
-}
-function xmlAttr(node2, attr11) {
-  if (node2 && typeof node2 === "object" && !Array.isArray(node2)) {
-    const v = node2[`@_${attr11}`];
-    return typeof v === "string" && v !== "" ? v : void 0;
-  }
-  return void 0;
-}
-function xmlText(node2) {
-  if (node2 === void 0 || node2 === null) return void 0;
-  if (typeof node2 === "object" && !Array.isArray(node2)) {
-    const t = node2["#text"];
-    return t === void 0 || t === null ? void 0 : String(t);
-  }
-  return String(node2);
-}
-function xmlBool(node2) {
-  const t = xmlText(node2)?.trim().toLowerCase();
-  return t === "true" || t === "x";
-}
-function xmlNum(node2) {
-  const t = xmlText(node2);
-  if (t === void 0 || t === "") return void 0;
-  const n = Number(t);
-  return Number.isFinite(n) ? n : void 0;
-}
-function parseDomainXml(body, fallbackName) {
-  const doc = xml2.parse(body);
-  const root = doc.domain ?? {};
-  const content = root.content ?? {};
-  const ti = content.typeInformation ?? {};
-  const oi = content.outputInformation ?? {};
-  const vi = content.valueInformation;
-  const fixRaw = vi?.fixValues?.fixValue;
-  const fixList = Array.isArray(fixRaw) ? fixRaw : fixRaw ? [fixRaw] : [];
-  const fixedValues = fixList.map((f) => {
-    const low = xmlText(f?.low) ?? "";
-    const high = xmlText(f?.high);
-    const text4 = xmlText(f?.text);
-    return {
-      low,
-      high: high === "" ? void 0 : high,
-      text: text4 === "" ? void 0 : text4,
-      textLanguage: xmlAttr(f?.text, "language")
-    };
-  });
-  return {
-    name: String(root["@_name"] ?? fallbackName),
-    description: root["@_description"] ? String(root["@_description"]) : void 0,
-    dataType: xmlText(ti.datatype) ?? "",
-    length: xmlNum(ti.length) ?? 0,
-    decimals: xmlNum(ti.decimals) || void 0,
-    outputLength: xmlNum(oi.length),
-    conversionExit: xmlText(oi.conversionExit) || void 0,
-    lowercase: xmlBool(oi.lowercase),
-    signExists: xmlBool(oi.signExists),
-    valueTable: xmlAttr(vi?.valueTableRef, "name"),
-    fixedValues: fixedValues.length ? fixedValues : void 0,
-    packageName: xmlAttr(root.packageRef, "name")
-  };
-}
-function parseDataElementXml(body, fallbackName) {
-  const doc = xml2.parse(body);
-  const root = doc.wbobj ?? doc.dataElement ?? {};
-  const de = root.dataElement ?? {};
-  return {
-    name: String(root["@_name"] ?? fallbackName),
-    description: root["@_description"] ? String(root["@_description"]) : void 0,
-    packageName: xmlAttr(root.packageRef, "name"),
-    typeName: xmlText(de.typeName) ?? "",
-    dataType: xmlText(de.dataType) ?? "",
-    dataTypeLength: xmlNum(de.dataTypeLength) ?? 0,
-    dataTypeDecimals: xmlNum(de.dataTypeDecimals) ?? 0,
-    labels: {
-      short: xmlText(de.shortFieldLabel) ?? "",
-      medium: xmlText(de.mediumFieldLabel) ?? "",
-      long: xmlText(de.longFieldLabel) ?? "",
-      heading: xmlText(de.headingFieldLabel) ?? ""
-    },
-    // A missing *FieldLength stays missing, never 0 — a rendered "length 0"
-    // would claim a value the descriptor never sent.
-    labelLengths: Object.fromEntries(
-      [
-        ["short", xmlNum(de.shortFieldLength)],
-        ["medium", xmlNum(de.mediumFieldLength)],
-        ["long", xmlNum(de.longFieldLength)],
-        ["heading", xmlNum(de.headingFieldLength)]
-      ].filter((e) => e[1] !== void 0)
-    ),
-    searchHelp: xmlText(de.searchHelp) || void 0,
-    searchHelpParameter: xmlText(de.searchHelpParameter) || void 0
-  };
-}
-async function readDdic(conn, obj, opts = {}) {
-  switch (ddicStrategy(obj.kind)) {
-    case "source":
-      return readTableLike(conn, obj);
-    case "package":
-      return readPackage(conn, obj, opts);
-    case "xml":
-      switch (obj.kind.toUpperCase()) {
-        case "DTEL":
-          return readDataElement(conn, obj);
-        case "DOMA":
-          return readDomain(conn, obj);
-        default:
-          return readTableType(conn, obj);
-      }
-    default:
-      throw new AbapError(
-        "UNSUPPORTED",
-        `${obj.type} is not a DDIC type abap_read can render.`,
-        { type: obj.type, renderable: [...DDIC_SOURCE_BASED, ...DDIC_XML_ONLY, "DEVC"] }
-      );
-  }
-}
-async function readTableLike(conn, obj) {
-  const ctx = {
-    operation: "read DDIC object",
-    uri: obj.uri,
-    name: obj.name,
-    type: obj.type
-  };
-  let sourceFailure;
-  try {
-    const { body } = await conn.get(`${obj.uri}/source/main`, {
-      headers: { Accept: "text/plain" }
-    });
-    const parsed = parseDdl(body);
-    const digest = renderDdlDigest(parsed);
-    const sections = [...digest.sections];
-    const meta3 = { ...digest.meta };
-    const notes = [];
-    if (obj.kind === "TABL") {
-      try {
-        const { indexes, notes: indexNotes } = await readTableIndexes(conn, obj.name);
-        sections.push(renderIndexSection(indexes));
-        notes.push(...indexNotes);
-        meta3.indexes = indexes.length;
-      } catch (e) {
-        const reason = e instanceof Error ? e.message : String(e);
-        notes.push(
-          `Secondary index catalog (DD12V/DD17S) could not be read for ${obj.name} (${reason}). This is NOT evidence the table has no secondary index \u2014 it means the index section is simply missing from this response, not that "none" was confirmed.`
-        );
-      }
-    }
-    return {
-      ddl: body.replace(/\r\n/g, "\n").trimEnd(),
-      sections,
-      meta: meta3,
-      notes,
-      hashInput: body
-    };
-  } catch (e) {
-    if (!isNotFoundError(e)) throw classifyDdicFailure(e, ctx);
-    sourceFailure = `${obj.type} ${obj.name} has no /source/main on this system (HTTP 404); the definition below was reconstructed from the ADT XML`;
-  }
-  try {
-    const { body } = await conn.get(obj.uri, { headers: { Accept: "application/*" } });
-    return renderTableXmlFallback(body, obj.name, sourceFailure);
-  } catch (e) {
-    throw classifyDdicFailure(e, ctx);
-  }
-}
-function parsePackageHeaderXml(body) {
-  const doc = xml2.parse(body);
-  const root = doc.package ?? {};
-  const attrs = root.attributes ?? {};
-  const appComp = root.applicationComponent ?? {};
-  const transport = root.transport ?? {};
-  return {
-    description: xmlAttr(root, "description"),
-    responsible: xmlAttr(root, "responsible"),
-    masterLanguage: xmlAttr(root, "masterLanguage"),
-    changedAt: xmlAttr(root, "changedAt"),
-    packageType: xmlAttr(attrs, "packageType"),
-    // <pak:superPackage/> on a customer package (857) is present but carries
-    // NO attributes at all — fast-xml-parser renders an attribute-free
-    // self-closing element as "" (a string), and xmlAttr's typeof-object
-    // guard already returns undefined for a non-object node. That IS "no
-    // super package", not a parse failure — do not special-case it further.
-    superPackage: xmlAttr(root.superPackage, "name"),
-    // Name is legitimately "" when no application component is assigned
-    // (857: pak:name="" pak:description="No application component
-    // assigned"). Falling back to the description avoids rendering a blank
-    // field that looks like a missed parse.
-    applicationComponent: xmlAttr(appComp, "name") || xmlAttr(appComp, "description"),
-    softwareComponent: xmlAttr(transport.softwareComponent, "name"),
-    transportLayer: xmlAttr(transport.transportLayer, "name")
-  };
-}
-async function fetchPackageHeader(conn, ctx) {
-  let body;
-  try {
-    ({ body } = await conn.get(ctx.uri, { headers: { Accept: "*/*" } }));
-  } catch (e) {
-    const err = classifyDdicFailure(e, ctx);
-    return { failure: `${err.code} \u2014 ${err.message}` };
-  }
-  try {
-    return { header: parsePackageHeaderXml(body) };
-  } catch (e) {
-    return {
-      failure: `header response did not parse as expected (${e instanceof Error ? e.message : String(e)})`
-    };
-  }
-}
-async function fetchPackageNodes(conn, packageName, ctx) {
-  try {
-    const result = await conn.adt.nodeContents("DEVC/K", packageName);
-    return result?.nodes ?? [];
-  } catch (e) {
-    const classified = classifyDdicFailure(e, ctx);
-    if (typeof classified.details.status === "number") throw classified;
-    return [];
-  }
-}
-async function fetchPackageDescriptionsForOne(conn, packageName, query, maxResults) {
-  let body;
-  try {
-    ({ body } = await conn.get("/sap/bc/adt/repository/informationsystem/search", {
-      headers: { Accept: "application/xml" },
-      qs: {
-        operation: "quickSearch",
-        query,
-        packageName,
-        maxResults: String(maxResults)
-      }
-    }));
-  } catch (e) {
-    const ctx = {
-      operation: "read package",
-      uri: "/sap/bc/adt/repository/informationsystem/search",
-      name: packageName,
-      type: "DEVC/K"
-    };
-    const err = classifyDdicFailure(e, ctx);
-    return { entries: [], failure: `${err.code} \u2014 ${err.message}`, hitCap: false };
-  }
-  try {
-    const doc = xml2.parse(body);
-    const root = doc.objectReferences ?? {};
-    const raw = root.objectReference;
-    const list5 = Array.isArray(raw) ? raw : raw ? [raw] : [];
-    const entries = list5.map((n) => ({
-      type: xmlAttr(n, "type") ?? "",
-      name: xmlAttr(n, "name") ?? "",
-      description: xmlAttr(n, "description") ?? ""
-    })).filter((e) => e.type && e.name);
-    return { entries, hitCap: entries.length >= maxResults };
-  } catch (e) {
-    return {
-      entries: [],
-      failure: `search response did not parse as expected (${e instanceof Error ? e.message : String(e)})`,
-      hitCap: false
-    };
-  }
-}
-function groupNamesByFirstChar(names) {
-  const groups = /* @__PURE__ */ new Map();
-  for (const name of names) {
-    if (!name) continue;
-    const char = name.charAt(0);
-    const group = groups.get(char);
-    if (group) group.push(name);
-    else groups.set(char, [name]);
-  }
-  return groups;
-}
-async function mapWithConcurrency(items, limit, fn) {
-  const results = new Array(items.length);
-  let next = 0;
-  const worker = async () => {
-    while (next < items.length) {
-      const index = next++;
-      results[index] = await fn(items[index], index);
-    }
-  };
-  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => worker()));
-  return results;
-}
-function buildDescriptionLookupTasks(packageName, names) {
-  const groups = groupNamesByFirstChar(names);
-  if (groups.size === 0) return [];
-  if (groups.size > PACKAGE_DESCRIPTION_GROUP_CAP) {
-    return [
-      {
-        packageName,
-        query: "*",
-        maxResults: PACKAGE_DESCRIPTION_FALLBACK_LOOKUP_CAP,
-        char: "*",
-        fellBack: true
-      }
-    ];
-  }
-  return [...groups.keys()].map((char) => ({
-    packageName,
-    query: `${char}*`,
-    maxResults: PACKAGE_DESCRIPTION_PREFIX_LOOKUP_CAP,
-    char,
-    fellBack: false
-  }));
-}
-async function fetchPackageDescriptions(conn, namesByPackage) {
-  const tasks = [...namesByPackage.entries()].flatMap(
-    ([packageName, names]) => buildDescriptionLookupTasks(packageName, names)
-  );
-  const results = await mapWithConcurrency(tasks, DESCRIPTION_LOOKUP_CONCURRENCY, async (task) => ({
-    task,
-    ...await fetchPackageDescriptionsForOne(conn, task.packageName, task.query, task.maxResults)
-  }));
-  const map2 = /* @__PURE__ */ new Map();
-  const failures = [];
-  const capped = [];
-  const fellBackSet = /* @__PURE__ */ new Set();
-  const failedGroups = /* @__PURE__ */ new Set();
-  for (const r of results) {
-    const { packageName, char, fellBack } = r.task;
-    if (fellBack) fellBackSet.add(packageName);
-    if (r.failure) {
-      failures.push(
-        fellBack ? `${packageName} (fallback query, ${r.failure})` : `${packageName}/"${char}*" (${r.failure})`
-      );
-      failedGroups.add(`${packageName} ${char}`);
-      continue;
-    }
-    if (r.hitCap) capped.push(fellBack ? `${packageName} (fallback query)` : `${packageName}/"${char}*"`);
-    for (const e of r.entries) map2.set(`${e.type}|${e.name}`, e.description);
-  }
-  return { map: map2, failures, capped, fellBack: [...fellBackSet], failedGroups };
-}
-function normalizedTypeFilters(types) {
-  return (types ?? []).map((t) => t.trim().toUpperCase()).filter(Boolean);
-}
-function rowMatchesTypeFilters(rowType, filters) {
-  if (!filters.length) return true;
-  const full = rowType.toUpperCase();
-  const prefix = full.split("/")[0] ?? full;
-  return filters.some((f) => f === full || f === prefix);
-}
-async function readPackage(conn, obj, opts) {
-  const ctx = {
-    operation: "read package",
-    uri: obj.uri,
-    name: obj.name,
-    type: obj.type
-  };
-  const depth = opts.depth ?? 1;
-  if (!Number.isInteger(depth) || depth < 1 || depth > MAX_PACKAGE_DEPTH) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `depth must be an integer between 1 and ${MAX_PACKAGE_DEPTH}, got ${JSON.stringify(opts.depth)}. Each level beyond the first costs one nodestructure round trip per sub-package found at the level above, so depth is capped rather than left open-ended.`,
-      { depth: opts.depth, maxDepth: MAX_PACKAGE_DEPTH },
-      `Use a depth between 1 and ${MAX_PACKAGE_DEPTH}, or read a sub-package directly: abap_read {"object":"<SUBPACKAGE>","type":"DEVC/K"}.`
-    );
-  }
-  const typeFilters = normalizedTypeFilters(opts.types);
-  const allRows = [];
-  const emptyPackages = [];
-  const notExpanded = [];
-  let directSubPackages = [];
-  let expansions = 0;
-  let frontier = [obj.name];
-  for (let level = 1; level <= depth && frontier.length > 0; level++) {
-    const nextFrontier = [];
-    for (const packageName of frontier) {
-      if (level > 1) {
-        if (expansions >= MAX_PACKAGE_EXPANSIONS) {
-          notExpanded.push(packageName);
-          continue;
-        }
-        expansions++;
-      }
-      const nodeCtx = {
-        operation: "read package",
-        uri: `/sap/bc/adt/packages/${packageName.toLowerCase()}`,
-        name: packageName,
-        type: "DEVC/K"
-      };
-      const nodes = await fetchPackageNodes(conn, packageName, nodeCtx);
-      if (nodes.length === 0) emptyPackages.push(packageName);
-      const rows = nodes.filter((n) => n.OBJECT_NAME).map((n) => ({
-        packageName,
-        type: n.OBJECT_TYPE ?? "",
-        name: n.OBJECT_NAME ?? "",
-        description: ""
-      }));
-      allRows.push(...rows);
-      const subs = rows.filter((r) => r.type.toUpperCase() === "DEVC/K");
-      if (packageName === obj.name) {
-        directSubPackages = subs.map((s) => ({ name: s.name, description: "" }));
-      }
-      for (const s of subs) nextFrontier.push(s.name);
-    }
-    frontier = nextFrontier;
-  }
-  const unexpandedSubPackages = frontier;
-  const matchedFilters = new Set(
-    typeFilters.filter((f) => allRows.some((r) => rowMatchesTypeFilters(r.type, [f])))
-  );
-  const unmatchedFilters = typeFilters.filter((f) => !matchedFilters.has(f));
-  const filteredRows = typeFilters.length ? allRows.filter((r) => rowMatchesTypeFilters(r.type, typeFilters)) : allRows;
-  const sortedRows = [...filteredRows].sort(
-    (a, b) => a.type.localeCompare(b.type) || a.name.localeCompare(b.name)
-  );
-  const byType = /* @__PURE__ */ new Map();
-  for (const r of sortedRows) byType.set(r.type, (byType.get(r.type) ?? 0) + 1);
-  const namesByPackage = /* @__PURE__ */ new Map();
-  for (const r of sortedRows) {
-    const list5 = namesByPackage.get(r.packageName);
-    if (list5) list5.push(r.name);
-    else namesByPackage.set(r.packageName, [r.name]);
-  }
-  if (directSubPackages.length) {
-    const list5 = namesByPackage.get(obj.name) ?? [];
-    for (const s of directSubPackages) if (!list5.includes(s.name)) list5.push(s.name);
-    namesByPackage.set(obj.name, list5);
-  }
-  const { header, failure: headerFailure } = await fetchPackageHeader(conn, ctx);
-  const {
-    map: descriptions,
-    failures: descriptionFailures,
-    capped: descriptionCapped,
-    fellBack: descriptionFellBack,
-    failedGroups
-  } = namesByPackage.size ? await fetchPackageDescriptions(conn, namesByPackage) : {
-    map: /* @__PURE__ */ new Map(),
-    failures: [],
-    capped: [],
-    fellBack: [],
-    failedGroups: /* @__PURE__ */ new Set()
-  };
-  const rowGroupFailed = (packageName, name) => failedGroups.has(`${packageName} *`) || failedGroups.has(`${packageName} ${name.charAt(0)}`);
-  let unresolvedCount = 0;
-  for (const r of sortedRows) {
-    const key = `${r.type}|${r.name}`;
-    if (descriptions.has(key)) {
-      r.description = descriptions.get(key) ?? "";
-    } else {
-      r.description = "";
-      if (!rowGroupFailed(r.packageName, r.name)) unresolvedCount++;
-    }
-  }
-  for (const s of directSubPackages) {
-    const key = `DEVC/K|${s.name}`;
-    if (descriptions.has(key)) {
-      s.description = descriptions.get(key) ?? "";
-    } else if (!rowGroupFailed(obj.name, s.name)) {
-      unresolvedCount++;
-    }
-  }
-  const columns = depth > 1 ? ["package", "type", "name", "description"] : ["type", "name", "description"];
-  const ddl = sortedRows.length ? textTable(
-    sortedRows.map((r) => ({
-      package: r.packageName,
-      type: r.type,
-      name: r.name,
-      description: r.description
-    })),
-    columns
-  ) : `-- package ${obj.name}: the ADT node structure returned no objects` + (typeFilters.length ? ` matching types ${typeFilters.join(", ")}` : "") + `. This is what the server sent, not a rendering failure.`;
-  const sections = [];
-  if (byType.size) {
-    sections.push({
-      title: "OBJECTS BY TYPE",
-      content: textTable(
-        [...byType.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([type, objects]) => ({ type, objects: String(objects) })),
-        ["type", "objects"]
-      )
-    });
-  }
-  if (directSubPackages.length) {
-    sections.push({
-      title: "SUB-PACKAGES",
-      content: textTable(directSubPackages, ["name", "description"])
-    });
-  }
-  const notes = [];
-  if (emptyPackages.length) {
-    notes.push(
-      (emptyPackages.length === 1 && emptyPackages[0] === obj.name ? `Package ${obj.name} has no contents` : `${emptyPackages.length} package(s) had no contents (${emptyPackages.join(", ")})`) + ` \u2014 the ADT node structure endpoint answers HTTP 200 with a ZERO-BYTE body for this, not a 404 or an empty document (live-verified). This is a genuinely empty package, not a truncated or failed read.`
-    );
-  }
-  if (headerFailure) {
-    notes.push(
-      `Package header could not be read (${headerFailure}). package_type, description, super_package, software_component, transport_layer, application_component and responsible are UNKNOWN here, NOT confirmed absent \u2014 the node listing below is otherwise unaffected.`
-    );
-  }
-  if (unmatchedFilters.length) {
-    notes.push(
-      `types filter matched zero rows for: ${unmatchedFilters.join(", ")}. This does NOT mean the package has none of these \u2014 it may equally mean the type code was mistyped. Compare against an unfiltered read of this package, or abap_search, before concluding either way.`
-    );
-  }
-  if (notExpanded.length) {
-    notes.push(
-      `Reached MAX_PACKAGE_EXPANSIONS (${MAX_PACKAGE_EXPANSIONS}) nodestructure round trips before depth ${depth} finished expanding every sub-package. NOT expanded: ` + notExpanded.map((n) => `${n} (abap_read {"object":"${n}","type":"DEVC/K"})`).join(", ") + `.`
-    );
-  }
-  if (unexpandedSubPackages.length) {
-    const shown = unexpandedSubPackages.slice(0, 5);
-    const remaining = unexpandedSubPackages.length - shown.length;
-    notes.push(
-      `${unexpandedSubPackages.length} sub-package(s) are listed but NOT expanded: ` + shown.map((n) => `${n} (abap_read {"object":"${n}","type":"DEVC/K"})`).join(", ") + (remaining > 0 ? `, and ${remaining} more` : "") + `. OBJECTS below has a row for each of these sub-packages themselves, not their contents \u2014 depth ${depth} did not reach inside them. Use a higher depth (up to ${MAX_PACKAGE_DEPTH}) to expand them, or read one directly: abap_read {"object":"<name>","type":"DEVC/K"}.`
-    );
-  }
-  if (descriptionFailures.length) {
-    notes.push(
-      `Description lookup failed for: ${descriptionFailures.join("; ")}. Affected rows render with an EMPTY description rather than a guessed or positional value \u2014 the listing itself (type, name, package) is otherwise unaffected, and other name-groups within the same package are unaffected too (each group's lookup is independent).`
-    );
-  }
-  if (descriptionFellBack.length) {
-    notes.push(
-      `Description lookup for package(s) ${descriptionFellBack.join(", ")} used a single broader query instead of grouping by starting character, because rendered names there spanned more than ${PACKAGE_DESCRIPTION_GROUP_CAP} distinct starting characters \u2014 see PACKAGE_DESCRIPTION_GROUP_CAP. That request's own result cap is reported separately below if it was hit.`
-    );
-  }
-  if (descriptionCapped.length) {
-    notes.push(
-      `Description lookup hit its per-request result cap for: ${descriptionCapped.join(", ")} \u2014 coverage there may be incomplete. Rows whose description could not be resolved render empty rather than a guess.`
-    );
-  }
-  if (unresolvedCount) {
-    notes.push(
-      `${unresolvedCount} row(s) render with an empty description because informationsystem/search did not return a match for that exact (type, name) \u2014 this may mean the object genuinely has no description, or that it fell outside the lookup's coverage; it is never filled with the node structure's own (positionally unreliable) DESCRIPTION value.`
-    );
-  }
-  notes.push(
-    `A package is not a DDIC object: OBJECTS below is its node contents (expanded up to depth ${depth}), not pseudo-DDL.`
-  );
-  notes.push(
-    `Open a row with abap_read {"object":"<name>","type":"<type>"}. PARENT_NAME is empty on every row at package level, so none of these need parenting to open. A FUGR/F row is a function group; one of its modules is read as abap_read {"object":"<GROUP>/<MODULE>","type":"FUGR/FF"}. This is naming guidance, not a claim about what shape a function group takes at package level \u2014 none of the committed nodestructure captures (test/fixtures/live-captured/852, 853, 855) contain a FUGR row of either kind, so that shape is not itself evidenced here.`
-  );
-  return {
-    ddl,
-    sections,
-    bodyLabel: "OBJECTS",
-    meta: {
-      package_type: header?.packageType,
-      description: header?.description,
-      super_package: header?.superPackage,
-      software_component: header?.softwareComponent,
-      transport_layer: header?.transportLayer,
-      application_component: header?.applicationComponent,
-      responsible: header?.responsible,
-      objects: sortedRows.length,
-      objects_before_filter: typeFilters.length ? allRows.length : void 0,
-      sub_packages: directSubPackages.length || void 0,
-      types: typeFilters.length ? typeFilters.join(", ") : void 0,
-      depth
-    },
-    notes,
-    hashInput: ddl
-  };
-}
-async function readDataElement(conn, obj) {
-  const body = await fetchDdicXml(conn, obj, "read data element");
-  const p = parseDataElementXml(body, obj.name);
-  const view = {
-    name: p.name || obj.name,
-    description: p.description,
-    typeName: p.typeName,
-    dataType: p.dataType,
-    length: p.dataTypeLength,
-    decimals: p.dataTypeDecimals || void 0,
-    labels: p.labels,
-    labelLengths: p.labelLengths,
-    searchHelp: p.searchHelp,
-    searchHelpParameter: p.searchHelpParameter,
-    packageName: p.packageName
-  };
-  const domain2 = p.typeName ? await tryReadDomain(conn, p.typeName) : {};
-  return { ...renderDataElement(view, domain2.view, domain2.failure), hashInput: body };
-}
-async function tryReadDomain(conn, name) {
-  const uri = `/sap/bc/adt/ddic/domains/${encodeURIComponent(name.toLowerCase())}`;
-  try {
-    const body = await fetchDdicXml(conn, { uri, name, type: "DOMA/DD" }, "read domain of data element");
-    return { view: parseDomainXml(body, name) };
-  } catch (e) {
-    const err = e;
-    return { failure: `${err.code} \u2014 ${err.message}` };
-  }
-}
-async function readDomain(conn, obj) {
-  const body = await fetchDdicXml(conn, obj, "read domain");
-  return { ...renderDomain(parseDomainXml(body, obj.name)), hashInput: body };
-}
-async function readTableType(conn, obj) {
-  const body = await fetchDdicXml(conn, obj, "read table type");
-  return renderTableType(body, obj.name);
-}
-var xml2, CHARACTER_DDIC_TYPES, DDIC_SOURCE_BASED, DDIC_XML_ONLY, MAX_PACKAGE_DEPTH, MAX_PACKAGE_EXPANSIONS, PACKAGE_DESCRIPTION_PREFIX_LOOKUP_CAP, PACKAGE_DESCRIPTION_GROUP_CAP, PACKAGE_DESCRIPTION_FALLBACK_LOOKUP_CAP, DESCRIPTION_LOOKUP_CONCURRENCY;
-var init_ddic = __esm({
-  "src/adt/ddic.ts"() {
+var DDIC_SOURCE_BASED, DDIC_XML_ONLY, DDIC_CATALOG_BASED;
+var init_ddic_strategy = __esm({
+  "src/adt/ddic-strategy.ts"() {
     "use strict";
-    init_fxp();
-    init_errors();
-    init_session();
-    init_compact();
-    init_index_read();
-    xml2 = new XMLParser({
-      ignoreAttributes: false,
-      attributeNamePrefix: "@_",
-      removeNSPrefix: true,
-      parseAttributeValue: false,
-      parseTagValue: false,
-      trimValues: true
-    });
-    CHARACTER_DDIC_TYPES = /* @__PURE__ */ new Set(["CHAR", "NUMC", "CUKY", "UNIT", "LANG", "CLNT", "ACCP"]);
     DDIC_SOURCE_BASED = ["TABL", "STRU"];
     DDIC_XML_ONLY = ["DTEL", "DOMA", "TTYP"];
-    MAX_PACKAGE_DEPTH = 3;
-    MAX_PACKAGE_EXPANSIONS = 25;
-    PACKAGE_DESCRIPTION_PREFIX_LOOKUP_CAP = 2e3;
-    PACKAGE_DESCRIPTION_GROUP_CAP = 30;
-    PACKAGE_DESCRIPTION_FALLBACK_LOOKUP_CAP = 6e3;
-    DESCRIPTION_LOOKUP_CONCURRENCY = 2;
+    DDIC_CATALOG_BASED = ["SHLP", "VIEW", "TRAN"];
   }
 });
 
@@ -65932,6 +63878,79 @@ var init_types = __esm({
         supportsSource: false,
         keywords: ["package", "devc", "development class"]
       },
+      // ---- catalog-based DDIC reads: no source, no XML descriptor, no
+      // discoverable ADT collection either — see capabilities.ts's SHLP/DH and
+      // VIEW/DV entries. `path` below is kept for URI identity/round-tripping
+      // (buildUri/specFromUri) only; the actual read never fetches it. It goes
+      // through plain-text catalog SELECTs on the freestyle data-preview
+      // endpoint instead (src/adt/catalog-query.ts + catalog-read.ts), the same
+      // mechanism img-query.ts/img-read.ts use for IMG customizing reads. That
+      // route was chosen over the obvious DDIF_SHLP_GET / DDIF_VIEW_GET /
+      // RPY_TRANSACTION_READ function modules because those need the
+      // generated-ABAP "fluid" bridge, and fluid is unconditionally disabled
+      // when ABAP_MODE=read (see fluidDisabledReason in src/adt/fluid/
+      // enabled.ts) — exactly the mode a read is expected to work in. Catalog
+      // SELECTs work in every ABAP_MODE, and for TRAN/T return strictly more
+      // than RPY_TRANSACTION_READ does (TSTCP call parameters, TSTCA
+      // authorisation checks, AGR_TCODES role membership).
+      //
+      // Honest caveat, updated: this used to be necessary but not sufficient —
+      // resolve.ts's `resolveObject` refused SHLP/DH (capabilities.ts marked it
+      // `unsupported`) and VIEW/DV/TRAN/T (marked `bridgeCreate` with no
+      // `create`, so `isBridgeOnlyCreateType` was true) with UNSUPPORTED
+      // whenever a caller passed an explicit `type` hint, before `readDdic` (and
+      // therefore this module's `readCatalogObject`) was ever reached, no matter
+      // what this file declared. `resolveObject`'s bridge-only-create check now
+      // asks `ddicStrategy(spec.kind)` (via `specForType`, i.e. exactly the
+      // `mode: "ddic"` entries below) whether a real read exists before refusing
+      // — so these three entries are now sufficient on their own to make
+      // SHLP/DH, VIEW/DV and TRAN/T resolvable and readable with an explicit
+      // `type` hint. SHLP/DH also no longer carries an `unsupported` marker in
+      // capabilities.ts's REGISTRY at all. `TABL/DI` has no entry in this file
+      // (so `specForType` returns `undefined` for it) and stays refused by that
+      // same check — adding one here, alone, would be enough to unblock it too.
+      {
+        type: "SHLP/DH",
+        kind: "SHLP",
+        label: "Search help",
+        // Every verb 404s on this collection (verified, see capabilities.ts) —
+        // kept only so buildUri/specFromUri have a stable shape to round-trip.
+        path: "/sap/bc/adt/ddic/searchhelps/{name}",
+        mode: "ddic",
+        supportsSource: false,
+        keywords: ["search help", "shlp", "value help", "f4 help", "elementary search help", "collective search help"]
+      },
+      {
+        type: "VIEW/DV",
+        kind: "VIEW",
+        label: "Classic view",
+        // GET-only per capabilities.ts, and there is still no writable collection
+        // and no collection to resolve a URI against — this path is kept for URI
+        // identity only, and the catalog route never fetches it. But this
+        // `TypeSpec` is exactly what makes abap_search resolve VIEW/DV at all:
+        // the read itself goes through catalog-read.ts's plain-text catalog
+        // SELECTs, not this REST collection. Confirmed live on A4H (NetWeaver
+        // 7.54, client 001) on 2026-09-15: abap_search "H_T000" returns both
+        // SHLP/DH H_T000 (STRM) and VIEW/DV H_T000 (STRM_DB); abap_search "SM30"
+        // returns TRAN/T SM30 (SVIM).
+        path: "/sap/bc/adt/ddic/views/{name}",
+        mode: "ddic",
+        supportsSource: false,
+        keywords: ["view", "database view", "classic view", "dv"]
+      },
+      {
+        type: "TRAN/T",
+        kind: "TRAN",
+        label: "Transaction",
+        // The one real ADT route for a transaction: the generic VIT bridge,
+        // read-only (405 on every mutating verb) — matches vitBridgeUri("trant",
+        // name) in write-verify.ts. Not used by the catalog route below; kept
+        // for URI identity only.
+        path: "/sap/bc/adt/vit/wb/object_type/trant/object_name/{name}",
+        mode: "ddic",
+        supportsSource: false,
+        keywords: ["transaction", "tcode", "tran"]
+      },
       // RAP service binding: one XML doc at the object's own URI (no
       // /source/main; GET .../content 404s) — unlike DDLS/DDLX/SRVD/BDEF above.
       // A provenance conflict over whether SRVB exists on A4H at all was
@@ -66114,7 +64133,7 @@ var REGISTRY, CODES, WRITABLE_TYPES, CREATE_ONLY_TYPES, CREATABLE_TYPES, BRIDGE_
 var init_capabilities = __esm({
   "src/adt/capabilities.ts"() {
     "use strict";
-    init_ddic();
+    init_ddic_strategy();
     init_types();
     REGISTRY = {
       // CLAS/INTF/PROG delete: true live-verified 2026-08-19: create →
@@ -66721,35 +64740,48 @@ var init_capabilities = __esm({
       // Not in types.ts — see the module doc.
       "SHLP/DH": {
         label: "Search help",
-        unsupported: {
-          reason: "Search helps are not reachable over ADT on this release \u2014 every read and write attempt against /sap/bc/adt/ddic/searchhelps/... 404s, verified by recon.",
-          alternative: "There is no ADT-reachable substitute for a classic search help. If the goal is value-help logic, consider a CDS view (DDLS/DF, writable here) with a value-help annotation instead."
+        bridgeCreate: {
+          adtRest: "Search helps are not reachable over ADT's mutating REST surface on this release \u2014 every write attempt against /sap/bc/adt/ddic/searchhelps/... 404s, verified by recon. That is why abapsmith goes around ADT for this type with a generated classrun bridge, not a reason it cannot write one: SE11's own search-help editor does not use REST either. A GET of the same collection also 404s, but that no longer means abapsmith cannot read a search help at all \u2014 see src/adt/catalog-read.ts, which reads DD30L/DD30T/DD31S/DD32S/DD33S through plain-text catalog SELECTs instead of the REST collection.",
+          via: "DDIF_SHLP_PUT then DDIF_SHLP_ACTIVATE (function group SDIC \u2014 the same primitives SE11's search-help editor drives), preceded by RS_CORR_INSERT for transport/TADIR registration, called from a generated IF_OO_ADT_CLASSRUN bridge. See src/adt/shlp-create.ts and src/adt/ddic-bridge.ts.",
+          limits: "The bridge builds either an elementary search help (one interface, DD31V/DD32P/DD33V) or a collective one (DD31S includes of other search helps) \u2014 both directions are now proven live, not just elementary. Validated zero-network before dispatch: an elementary help needs at least one import AND one export interface field, a selection method of type T/V is checked against DD02L/DD25L (and its field against DD03L/DD27S), and any other selection-method type gets a `ZMCP-DDIC-NOTE>` instead of a hard check. `elementary: false` with an empty `includes` used to be refused zero-network (\"has nothing to collect\") \u2014 removed: it activates fine on a real system. `update_search_help` REPLACES the whole definition the same way `DDIF_VIEW_PUT` does for a view: any field, include, or assignment not passed in the update call is removed. Root cause of DH109 found and closed: `DDIF_SHLP_PUT` succeeds and `DDIF_SHLP_ACTIVATE` then returns rc = 8 / message DH109 (\"search help & was not activated\") whenever the definition contains a dangling reference, leaving the search help as an INACTIVE-ONLY object (a DD30L row with AS4LOCAL = 'N', no active row, plus a TADIR entry) \u2014 reproduced live for three shapes: a DD31V include naming a search help that does not exist, a DD33V assignment whose SUBFIELD is not an interface parameter of the included help, and a DD33V assignment whose FIELDNAME is not an interface parameter of the help being built. Four refusals now prevent that stranding: two zero-network, in src/adt/shlp-create.ts (every `assignments[i].field` must be one of this call's own `fields[].name`; every `assignments[i].includedHelp` must be one of this call's own `includes[].name`, both case-insensitive), and two server-side, generated into the ABAP itself (src/adt/fluid/builtin/classic/abap-shlp.ts) and run BEFORE RS_CORR_INSERT so nothing is registered when they fire: every DD31V-SUBSHLP must exist as an active DD30L row, and every DD33V-SUBFIELD must exist as an active DD32S row of its SUBSHLP (a self-referencing assignment, SUBSHLP = SHLPNAME, skips this lookup \u2014 the definition is not in DD32S yet). The server-side pair surfaces as CHECK_FAILED. rc = 4 / DH108 (\"activated with warnings\") is a SUCCESS, not a refusal \u2014 a collective help with a selection method, one with no includes, and one with no fields/assignments each activate that way \u2014 and now emits a `ZMCP-DDIC-NOTE>` line instead of passing silently. Proven live on A4H (NetWeaver 7.54, client 001), 2026-09-12 and 2026-09-15, in $TMP only: an elementary help and a collective help including it both created, read back, updated and deleted through abapsmith's own tool surface (markers SHLP-REGISTERED / SHLP-PUT / SHLP-ACTIVATED); each of the three DH109 shapes was reproduced (a temporary $TMP probe class, outside abapsmith's own bridge) and left the DD30L/TADIR footprint described above; each of the four refusals fired correctly against a payload built to trip it, before any object was registered. The transportable (non-$TMP) path runs the identical FM sequence with a real korrnum but has NOT itself been run against a live system. A LOCAL ($-prefixed) package refuses a corr_nr (BAD_INPUT) and registers with korrnum = space; a transportable package requires one (TRANSPORT_ERROR without one) \u2014 same pairing rule as VIEW/DV and TRAN/T. NOT proven: search-help exits (SELMEXIT), text tables, hot keys, AUTOSUGGEST/FUZZY_SEARCH fields \u2014 the bridge does not set them. See src/adt/shlp-create.ts.",
+          // Both elementary and collective create, full cycle, proven live on
+          // A4H 2026-09-12/2026-09-15 — see `limits` above for the run detail.
+          verified: true
+        },
+        bridgeDelete: {
+          adtRest: "Same finding as bridgeCreate: the search-help REST collection 404s on every mutating verb \u2014 there is no REST delete route either.",
+          via: "DD_OBJ_DEL (object_type='SHLP', del_state='A' then 'N') clears DD30L, then TR_TADIR_INTERFACE (wi_delete_tadir_entry='X', wi_test_modus=space) clears the TADIR row \u2014 both called from a generated IF_OO_ADT_CLASSRUN bridge. See src/adt/shlp-delete.ts and src/adt/ddic-bridge.ts.",
+          limits: "Guarded by a where-used check the other two bridge deletes do not have: a search help attached to a data element (DD04L), to an individual table/view field (DD35L), or included by a collective search help (DD31S) refuses the delete unless the caller passes confirm_in_use \u2014 all three checked live on A4H 2026-09-12. Same open-transport-request-lock caveat as VIEW/DV's bridgeDelete: TR_TADIR_INTERFACE's TADIR delete fails under a lock this path does not attempt to clear, and no corr_nr is accepted (src/tools/write.ts refuses one outright). Now also reaches an INACTIVE-ONLY leftover (the DH109 stranding bridgeCreate.limits describes above): the catalogue queries in src/adt/catalog-query.ts take a state argument ('A'/'N') instead of hard-pinning AS4LOCAL = 'A', and readSearchHelp (src/adt/catalog-read.ts) gained an `{ includeInactive }` option that falls back to the 'N' version and reports `meta.versionState`; the delete path in src/tools/write.ts probes with that option, so a failed create's leftover can be deleted instead of being refused NOT_FOUND. The create/update \"already exists\" probe deliberately stays active-only, and so does `abap_read` \u2014 an inactive-only search help still reads as NOT_FOUND; only the delete path looks at both states. Proven live on A4H 2026-09-12, in $TMP only: DD_OBJ_DEL returned sy-subrc = 0 with message DH051 clearing the active version, TR_TADIR_INTERFACE removed the TADIR row, and a post-delete re-read proved absence, emitting SHLP-DELETED / SHLP-GONE. Proven live again on A4H 2026-09-15 for the inactive-only case: a leftover forced via a temporary $TMP probe class (DDIF_SHLP_PUT + DDIF_SHLP_ACTIVATE against a collective with a dangling include, rc = 8 / DH109, DD30L showing AS4LOCAL = 'N' only plus one TADIR row) read back as NOT_FOUND through abap_read, then deleted cleanly (SHLP-DELETED / SHLP-GONE) with a note explaining it had no active version, and a follow-up DD30L check found zero rows in either state. `abap_journal mode: \"undo\"` still refuses a SHLP/DH write as irreversible, by design \u2014 not exercised by this round.",
+          // Both the confirm_in_use-guarded active-version delete and the
+          // inactive-only-leftover delete, proven live on A4H 2026-09-12/
+          // 2026-09-15 — see `limits` above for the run detail.
+          verified: true
         }
       },
       "VIEW/DV": {
         label: "Classic view",
         bridgeCreate: {
-          adtRest: "ADT's REST surface is GET-only for classic (non-CDS) views: /sap/bc/adt/ddic/views/... returns 405 ExceptionMethodNotSupported on every mutating verb, and the discovery collection advertises an empty <app:accept>. That GET is not a route a caller can take from here: with no collection there is nothing to resolve a name against, and abap_search rejects VIEW/DV as an unrecognised type, so there is no way to read a classic view through abapsmith either. Four independent recons agree. This entry previously read 'not reachable over ADT, every read and write 404s' and concluded the type was unwritable \u2014 the REST finding is right, the conclusion was not: SE11 does not use REST either.",
+          adtRest: `ADT's REST surface is GET-only for classic (non-CDS) views: /sap/bc/adt/ddic/views/... returns 405 ExceptionMethodNotSupported on every mutating verb, and the discovery collection advertises an empty <app:accept>. That GET is not a route a caller can take from here: there is no REST collection to resolve a name against. That no longer strands VIEW/DV, though: src/adt/types.ts gives it a TypeSpec, so abap_search resolves it directly (confirmed live on A4H 2026-09-15: abap_search "H_T000" returns VIEW/DV H_T000 (STRM_DB) alongside its SHLP/DH match), and src/adt/catalog-read.ts reads DD25L/DD25T/DD26S/DD27S/TVDIR through plain-text catalog SELECTs instead of the REST collection, so a classic view is both searchable and readable through abapsmith despite the closed REST GET route. Four independent recons agree on the REST finding. This entry previously read 'not reachable over ADT, every read and write 404s' and concluded the type was unwritable \u2014 the REST finding is right, the conclusion was not: SE11 does not use REST either.`,
           via: "DDIF_VIEW_PUT then DDIF_VIEW_ACTIVATE (function group SDIC \u2014 the same DD_VIEW_EXPAND/DD_VIEW_PUT/DD_VIEW_ACT primitives SE11's view editor drives), called from a generated IF_OO_ADT_CLASSRUN bridge. See src/adt/view-create.ts and src/adt/ddic-bridge.ts.",
-          limits: "The bridge builds a database view (DD25V view class 'D') projecting fields of exactly ONE base table. Multi-table joins (DD28J), selection conditions (DD28V) and search-help attachments (DD35V/DD36M) are not exposed. NO SE54 table-maintenance dialog is generated: VIEW_MAINTENANCE_GENERATE is a SET PARAMETER + CALL TRANSACTION 'SE55' wrapper around an interactive wizard with no headless equivalent, so a view created here has no maintenance view/dialog and SM30 will not open it. The bridge creates and deletes only \u2014 changing an existing view is not supported. Whether DDIF_VIEW_PUT would behave as an upsert against a view that already exists is inferred, not live-verified: no create-over-an-existing-view call has ever been attempted here. The create is proven live on A4H: 2026-09-04, into the TRANSPORTABLE a transportable package with a corr_nr, produced VIEW-REGISTERED / VIEW-PUT / VIEW-ACTIVATED, the view read back with its fields (not through abap_read \u2014 that path stays closed, see adtRest above), and a TADIR row; 2026-09-05, RS_CORR_INSERT called for a LOCAL (`$`-prefixed) package with korrnum = space and the 44-character DICT object key returned sy-subrc 0 and wrote a TADIR row under that package's `$` devclass, and the created view was then removed cleanly by the delete bridge (see bridgeDelete below). A TRANSPORTABLE package resolves a transport request the same way a DEVC/K create does: preflightPackageCorr (src/adt/write.ts) hands off to SessionTransport.resolveForNewTransportable, honouring the caller's corr_nr when given or else picking or creating one under the ABAP_ALLOW_TRANSPORTS policy (a pinned TRKORR from the list, or a fresh request when the policy is `*`/AUTO), gate-judged before the bridge runs. The resolver's own refusals surface as TRANSPORT_ERROR (policy disabled, or no usable request), TRANSPORT_LOCKED (a request pinned elsewhere), or BAD_INPUT (a malformed number). A LOCAL package still refuses a corr_nr (BAD_INPUT). Registering the view in TADIR either way \u2014 with the caller's corr_nr or with korrnum = space \u2014 is what makes the created view deletable afterwards. See src/adt/view-create.ts. The create is otherwise irreversible in the sense that abapsmith cannot read the view back to verify it: success is proven by the transcript markers, not by a read-back."
+          limits: "The bridge builds a database view (DD25V view class 'D') projecting fields of exactly ONE base table. Multi-table joins (DD28J), selection conditions (DD28V) and search-help attachments (DD35V/DD36M) are not exposed. NO SE54 table-maintenance dialog is generated: VIEW_MAINTENANCE_GENERATE is a SET PARAMETER + CALL TRANSACTION 'SE55' wrapper around an interactive wizard with no headless equivalent, so a view created here has no maintenance view/dialog and SM30 will not open it. Changing an EXISTING view is now supported too, over src/adt/view-update.ts's updateClassicView: it dispatches the fluid classic tool's update_view action, which pre-checks the view exists, then runs the identical RS_CORR_INSERT / DDIF_VIEW_PUT / COMMIT WORK / DDIF_VIEW_ACTIVATE / COMMIT WORK sequence as create. DDIF_VIEW_PUT REPLACES the whole definition: any joined field not passed in the update call is removed \u2014 abap-view.ts's update_view method emits a ZMCP-DDIC-NOTE> line saying so. Proven live on A4H (NetWeaver 7.54, client 001) 2026-09-12, in $TMP only: DDIF_VIEW_PUT returned message D0322, activation returned sy-subrc = 0, and a read-back (through the catalog route) showed the field count going from 2 to 3. The transportable (non-$TMP) path runs the identical FM sequence with a real korrnum but has NOT itself been run against a live system. The create is proven live on A4H: 2026-09-04, into the TRANSPORTABLE a transportable package with a corr_nr, produced VIEW-REGISTERED / VIEW-PUT / VIEW-ACTIVATED, the view read back with its fields (through the catalog route now \u2014 see adtRest above), and a TADIR row; 2026-09-05, RS_CORR_INSERT called for a LOCAL (`$`-prefixed) package with korrnum = space and the 44-character DICT object key returned sy-subrc 0 and wrote a TADIR row under that package's `$` devclass, and the created view was then removed cleanly by the delete bridge (see bridgeDelete below). A TRANSPORTABLE package resolves a transport request the same way a DEVC/K create does: preflightPackageCorr (src/adt/write.ts) hands off to SessionTransport.resolveForNewTransportable, honouring the caller's corr_nr when given or else picking or creating one under the ABAP_ALLOW_TRANSPORTS policy (a pinned TRKORR from the list, or a fresh request when the policy is `*`/AUTO), gate-judged before the bridge runs. The resolver's own refusals surface as TRANSPORT_ERROR (policy disabled, or no usable request), TRANSPORT_LOCKED (a request pinned elsewhere), or BAD_INPUT (a malformed number). A LOCAL package still refuses a corr_nr (BAD_INPUT). Registering the view in TADIR either way \u2014 with the caller's corr_nr or with korrnum = space \u2014 is what makes the created view deletable afterwards. See src/adt/view-create.ts and src/adt/view-update.ts."
         },
         bridgeDelete: {
           adtRest: "Same finding as bridgeCreate: ADT's REST surface is GET-only for classic views, 405 ExceptionMethodNotSupported on every mutating verb \u2014 there is no REST delete route either.",
           via: "DD_OBJ_DEL (object_type='VIEW', del_state='A' then 'N') clears DD25L, then TR_TADIR_INTERFACE (wi_delete_tadir_entry='X', wi_test_modus=space) clears the TADIR row \u2014 both called from a generated IF_OO_ADT_CLASSRUN bridge. Success is proven by re-reading DD25L and TADIR after COMMIT WORK, not by a clean FM return alone. See src/adt/view-delete.ts and src/adt/ddic-bridge.ts.",
-          limits: "DDIF_VIEW_DELETE, the route this bridge used before, was live-disproven on A4H 2026-09-04: the function does not exist on this system (CHECK_FAILED). The DD_OBJ_DEL route is measured, not exhaustively verified \u2014 RS_DD_DELETE_OBJ, the obvious alternative, opens a CTS dialog and short-dumps headless, so it is deliberately not used. The TADIR row is removed by a SEPARATE call from the DD25L delete: under an open transport-request lock on the object, TR_TADIR_INTERFACE's TADIR delete fails sy-subrc=1 / TR022, and this delete path itself does not attempt to clear that lock. The separate route, abap_transport operation=removeObject, does call TRINT_READ_REQUEST / TR_DELETE_COMM_OBJECT_KEYS to clear it: it clears the entry when the request holds exactly one E071 row for the object, and CTS refuses when two or more rows share PGMID+OBJECT+OBJ_NAME (typically a create and a delete of the same object recorded under one request), which leaves the entry, its lock, and this view's TADIR row in place, and the holding request undeletable through abapsmith \u2014 so a locked view loses its DD25L rows but keeps its TADIR row. No corrNr is accepted (src/tools/write.ts refuses one outright), so this path cannot fully remove a view sitting on an open transport request. abapsmith's own create now registers every view in TADIR, including one in a `$` package, so the delete path acts on views abapsmith created \u2014 proven live on A4H 2026-09-05, where a bridge-created view in a LOCAL package was deleted with VIEW-DELETED / VIEW-GONE."
+          limits: "Guarded by a where-used check: a view with a generated SE54 maintenance dialog (TVDIR, keyed by TABNAME \u2014 views share the table's row) refuses the delete unless the caller passes confirm_maintenance_dialog, since deleting the view out from under that dialog leaves it broken; abap-view.ts's delete_view method emits a ZMCP-DDIC-NOTE> line when the caller overrides it. DDIF_VIEW_DELETE, the route this bridge used before, was live-disproven on A4H 2026-09-04: the function does not exist on this system (CHECK_FAILED). The DD_OBJ_DEL route is measured, not exhaustively verified \u2014 RS_DD_DELETE_OBJ, the obvious alternative, opens a CTS dialog and short-dumps headless, so it is deliberately not used. The TADIR row is removed by a SEPARATE call from the DD25L delete: under an open transport-request lock on the object, TR_TADIR_INTERFACE's TADIR delete fails sy-subrc=1 / TR022, and this delete path itself does not attempt to clear that lock. The separate route, abap_transport operation=removeObject, does call TRINT_READ_REQUEST / TR_DELETE_COMM_OBJECT_KEYS to clear it: it clears the entry when the request holds exactly one E071 row for the object, and CTS refuses when two or more rows share PGMID+OBJECT+OBJ_NAME (typically a create and a delete of the same object recorded under one request), which leaves the entry, its lock, and this view's TADIR row in place, and the holding request undeletable through abapsmith \u2014 so a locked view loses its DD25L rows but keeps its TADIR row. No corrNr is accepted (src/tools/write.ts refuses one outright), so this path cannot fully remove a view sitting on an open transport request. abapsmith's own create now registers every view in TADIR, including one in a `$` package, so the delete path acts on views abapsmith created \u2014 proven live on A4H 2026-09-05, where a bridge-created view in a LOCAL package was deleted with VIEW-DELETED / VIEW-GONE."
         }
       },
       "TRAN/T": {
         label: "Transaction",
         bridgeCreate: {
-          adtRest: "ADT exposes a transaction read-only through the generic VIT bridge and returns 405 ExceptionMethodNotSupported on every mutating verb; there is no writable ADT collection for TRAN/T. (The ADT type code is TRAN/T, not TSTC \u2014 TSTC is the underlying database table, not an ADT object type.)",
+          adtRest: "ADT exposes a transaction read-only through the generic VIT bridge and returns 405 ExceptionMethodNotSupported on every mutating verb; there is no writable ADT collection for TRAN/T. (The ADT type code is TRAN/T, not TSTC \u2014 TSTC is the underlying database table, not an ADT object type.) src/adt/catalog-read.ts also reads TSTC/TSTCT/TSTCP/TSTCA/AGR_TCODES through plain-text catalog SELECTs, which return strictly more than the VIT bridge's read (call parameters, authorisation checks, role-menu membership) and work in every ABAP_MODE, unlike the fluid bridge the writes below depend on.",
           via: "RPY_TRANSACTION_INSERT (function group SEUA) \u2014 SE93's own backend: it collision-checks TSTC, runs RS_ACCESS_PERMISSION, fires the SWBM_C_OP_CREATE BAdI check, calls RS_CORR_INSERT for transport/TADIR registration, then inserts TSTC/TSTCT/TSTCC. Called from a generated IF_OO_ADT_CLASSRUN bridge \u2014 see src/adt/tran-create.ts.",
-          limits: "Creates a REPORT transaction (dynpro 1000) that starts an EXISTING program the caller names; the program is not created or checked for existence here. Dialog, parameter, variant and OO transactions, and a caller-chosen dynpro number, are not exposed. Changing an existing transaction is still not supported: abapsmith implements no update route for TRAN/T \u2014 the bridge implements create and delete only. Whether function group SEUA offers any change FM at all \u2014 and whether SE93's own edit path uses one \u2014 is unknown; that has never been investigated here, so this is a statement about what abapsmith implements, not a claim that the backend itself would refuse a change: unverified. Deleting one is attempted through a bridge whose delete FM parameter set is inferred (live-verified once for a $ package) \u2014 see this type's bridgeDelete entry below. A transportable package requires corr_nr (TRANSPORT_ERROR without one); a $ package refuses one (BAD_INPUT) and registers with korrnum = space. RPY_TRANSACTION_INSERT's signature was read live on A4H 2026-09-05: transport_number is optional and is forwarded verbatim to RS_CORR_INSERT as korrnum, and suppress_corr_insert defaults to space, so the transport/TADIR registration always runs. No live create with a transport has been run yet."
+          limits: "Creates a REPORT transaction (dynpro 1000) that starts an EXISTING program the caller names; the program is not created or checked for existence here. Dialog, parameter, variant and OO transactions, and a caller-chosen dynpro number, are not exposed. Retargeting an EXISTING transaction to a different program is now supported over src/adt/tran-update.ts's updateTransaction: it dispatches the fluid classic tool's update_transaction action, which checks TSTC existence, refuses the retarget unless the caller passes confirm_in_role_menu when the tcode is already assigned to one or more roles' menus (AGR_TCODES) \u2014 an SM01 transaction lock is NOT checked either way, by explicit design choice, see abap-tran.ts's own honesty note \u2014 registers the change via RS_CORR_INSERT, calls RPY_TRANSACTION_DELETE (function group SEUA) with suppress_corr_insert/suppress_corr_check both 'X' since the registration above already covers CTS, then re-RPY_TRANSACTION_INSERTs against the new program, then re-reads TSTC to prove PGMNA actually changed. RPY_TRANSACTION_DELETE's signature was captured live on A4H (NetWeaver 7.54, client 001) 2026-09-12 \u2014 not inferred, as this entry previously read: IN TRANSACTION TSTC-TCODE (required), TRANSPORT_NUMBER RGLIF-TRKORR, SUPPRESS_AUTHORITY_CHECK CHAR1, SUPPRESS_CORR_INSERT CHAR1, SUPPRESS_CORR_CHECK CHAR1; exceptions NOT_EXCECUTED (SAP's own misspelling, not a typo introduced here) and OBJECT_NOT_FOUND. Proven live on A4H 2026-09-12, in $TMP only: the delete step returned message EU075, and the read-back showed the new program. The transportable (non-$TMP) path runs the identical FM sequence with a real korrnum but has NOT itself been run against a live system \u2014 see this type's bridgeDelete entry below for the same caveat on plain deletion. A transportable package requires corr_nr (TRANSPORT_ERROR without one); a $ package refuses one (BAD_INPUT) and registers with korrnum = space. RPY_TRANSACTION_INSERT's signature was read live on A4H 2026-09-05: transport_number is optional and is forwarded verbatim to RS_CORR_INSERT as korrnum, and suppress_corr_insert defaults to space, so the transport/TADIR registration always runs. No live create with a transport has been run yet."
         },
         bridgeDelete: {
           adtRest: "Read-only through the generic VIT bridge, same as bridgeCreate: 405 ExceptionMethodNotSupported on every mutating verb, no writable ADT collection.",
           via: "RPY_TRANSACTION_DELETE (function group SEUA \u2014 SE93's own backend), called from a generated IF_OO_ADT_CLASSRUN bridge. Success is proven by re-reading TSTC, not by a clean FM return alone. See src/adt/tran-delete.ts and src/adt/ddic-bridge.ts.",
-          limits: "RPY_TRANSACTION_DELETE's parameter set is inferred from RPY_TRANSACTION_INSERT's `transaction` parameter name, not transcribed from a capture of the delete FM itself. Live-verified once, 2026-09-05: a $ package transaction was created and then deleted with TRAN-DELETED / TRAN-GONE and a post-delete re-read proving absence. This bridgeCreate entry's own `via` already records that RPY_TRANSACTION_INSERT calls RS_CORR_INSERT for transport/TADIR registration; whether RPY_TRANSACTION_DELETE does the same is unknown, so deleting a transaction out of a TRANSPORTABLE package may plausibly hit a headless-dynpro failure the way VIEW/DV create originally did, before suppress_dialog fixed it there. No transport handling is attempted here either way."
+          limits: "RPY_TRANSACTION_DELETE's parameter set was captured live on A4H (NetWeaver 7.54, client 001) 2026-09-12 \u2014 not inferred from RPY_TRANSACTION_INSERT's `transaction` parameter name, as this entry previously read: IN TRANSACTION TSTC-TCODE (required), TRANSPORT_NUMBER RGLIF-TRKORR, SUPPRESS_AUTHORITY_CHECK CHAR1, SUPPRESS_CORR_INSERT CHAR1, SUPPRESS_CORR_CHECK CHAR1; exceptions NOT_EXCECUTED (SAP's own misspelling) and OBJECT_NOT_FOUND \u2014 see this type's bridgeCreate entry above, where the same signature backs the retarget route. Guarded by the same where-used check as retargeting: a tcode already assigned to one or more roles' menus (AGR_TCODES) refuses the delete unless the caller passes confirm_in_role_menu; an SM01 transaction lock is NOT checked either way. Live-verified once, 2026-09-05: a $ package transaction was created and then deleted with TRAN-DELETED / TRAN-GONE and a post-delete re-read proving absence. This bridgeCreate entry's own `via` already records that RPY_TRANSACTION_INSERT calls RS_CORR_INSERT for transport/TADIR registration; whether RPY_TRANSACTION_DELETE does the same is unknown, so deleting a transaction out of a TRANSPORTABLE package may plausibly hit a headless-dynpro failure the way VIEW/DV create originally did, before suppress_dialog fixed it there. No transport handling is attempted here either way."
         }
       },
       // Not in types.ts — see the module doc. Program subobjects (not standalone
@@ -66811,7 +64843,7 @@ var init_capabilities = __esm({
         bridgeCreate: {
           adtRest: `Probed live on A4H 2026-09-05: GET /sap/bc/adt/ddic/tables/t000/indexes 404s, and PUT /sap/bc/adt/ddic/tables/t000/indexes/z01 404s for any body and any content type \u2014 there is no writable (or even readable) index collection under a table. The table XML itself (application/vnd.sap.adt.tables.v2+xml) carries exactly one index-related link, rel="http://www.sap.com/adt/relations/indexes" pointing at /sap/bc/adt/vit/wb/object_type/tabldt/object_name/<TABLE>#view=INDX with type="application/vnd.sap.sapgui" \u2014 a GUI handoff (SE11's Indexes tab), not a REST resource. No discovery collection mentions indexes either.`,
           via: "DD_INDEX_INTERFACE (function group SDBT, package SDIC), ACTION='I', called from the fluid `classic` tool's `create_index` action, body class ZCL_ZMCP_FLUID_CLASSIC. Success is proven by re-reading DD12V (AS4LOCAL='A') and DD17S after COMMIT WORK, not by ACTFAILED alone \u2014 the same read-back-after-commit discipline VIEW/DV and TRAN/T use in place of an ADT read. See src/adt/index-create.ts and src/adt/ddic-bridge.ts. Proven live on A4H 2026-09-05, local $TMP package: a NON-UNIQUE single-field index created through this bridge came back INDEX-CREATED / INDEX-ACTIVE / INDEX-FIELDS from that genuine post-commit DD12V/DD17S re-read. Round 3 (same date) re-ran both creates \u2014 non-unique Z01 and unique Z02 with MANDT \u2014 and each again returned all three markers; the round-3 delete-path defect below never touched create.",
-          limits: "Changing or updating an existing index is not supported: the bridge creates and deletes only, the same as VIEW/DV and TRAN/T \u2014 drop the index (bridgeDelete) and recreate it instead. There is no abap_read route for TABL/DI, per adtRest above. A unique create over two non-client fields of a client-dependent table returned ACTFAILED='X' live on A4H 2026-09-05; the client-field cause, then only suspected, is now CONFIRMED live (A4H, second round, 2026-09-05): a unique create that included the base table's client field (MANDT) returned INDEX-CREATED / INDEX-ACTIVE / INDEX-FIELDS, and the identical create omitting MANDT was refused BAD_INPUT by the DD03L (DATATYPE='CLNT') guard before DD_INDEX_INTERFACE was ever called \u2014 raw line \"unique index Z02 on ZTMD_I28_T omits the client field MANDT\", hint \"Add ZTMD_I28_T's client field to index_fields, or create Z02 without index_unique.\" The package is not the caller's to choose: an index is DDIC content of its base table and belongs to the base table's package, so abap_write reads the base table's own ADT resource and gates on THAT package \u2014 a caller-supplied `package` is only ever checked for agreement, never trusted. The transport pairing itself mirrors VIEW/DV's: a `$` package sets NO_TRANSP_REQUEST='X' and refuses a caller-supplied corr_nr, a transportable package REQUIRES corr_nr, passed through as TRANSPORT_NUMBER \u2014 unexercised live in either direction. The create is not journalled \u2014 there is no ADT resource to capture a before-image from, and none existed before this create by definition \u2014 so reversal is `mode: \"delete\"`, not undo."
+          limits: "Changing or updating an existing index is not supported: the bridge creates and deletes only, unlike VIEW/DV and TRAN/T, which now have a working update route (src/adt/view-update.ts, src/adt/tran-update.ts) \u2014 drop the index (bridgeDelete) and recreate it instead. There is no abap_read route for TABL/DI, per adtRest above. A unique create over two non-client fields of a client-dependent table returned ACTFAILED='X' live on A4H 2026-09-05; the client-field cause, then only suspected, is now CONFIRMED live (A4H, second round, 2026-09-05): a unique create that included the base table's client field (MANDT) returned INDEX-CREATED / INDEX-ACTIVE / INDEX-FIELDS, and the identical create omitting MANDT was refused BAD_INPUT by the DD03L (DATATYPE='CLNT') guard before DD_INDEX_INTERFACE was ever called \u2014 raw line \"unique index Z02 on ZTMD_I28_T omits the client field MANDT\", hint \"Add ZTMD_I28_T's client field to index_fields, or create Z02 without index_unique.\" The package is not the caller's to choose: an index is DDIC content of its base table and belongs to the base table's package, so abap_write reads the base table's own ADT resource and gates on THAT package \u2014 a caller-supplied `package` is only ever checked for agreement, never trusted. The transport pairing itself mirrors VIEW/DV's: a `$` package sets NO_TRANSP_REQUEST='X' and refuses a caller-supplied corr_nr, a transportable package REQUIRES corr_nr, passed through as TRANSPORT_NUMBER \u2014 unexercised live in either direction. The create is not journalled \u2014 there is no ADT resource to capture a before-image from, and none existed before this create by definition \u2014 so reversal is `mode: \"delete\"`, not undo."
         },
         bridgeDelete: {
           adtRest: "Same finding as bridgeCreate: no writable or readable index collection exists under a table.",
@@ -66847,7 +64879,10 @@ var init_capabilities = __esm({
     );
     NON_READABLE_TYPES = codesWith(
       (c) => c.catalogRead === void 0 && (c.unsupported !== void 0 || c.bridgeCreate !== void 0 && c.create === void 0)
-    );
+    ).filter((code) => {
+      const spec = TYPES.find((t) => t.type === code);
+      return !(spec?.mode === "ddic" && ddicStrategy(spec.kind) !== "unsupported");
+    });
     NON_WRITABLE_TYPES = codesWith(
       (c) => c.create === void 0 && c.bridgeCreate === void 0 && c.write === void 0 && c.activate !== true
     );
@@ -68297,7 +66332,7 @@ function loadConfig(opts = {}) {
   const authMethod = resolvedMethod?.method ?? "password";
   let clientCert;
   if (resolvedMethod?.method === "certificate" && clientCertPath !== void 0) {
-    const { material, issue: issue3 } = loadClientCertMaterial(
+    const { material, issue: issue4 } = loadClientCertMaterial(
       {
         certPath: clientCertPath,
         ...clientKeyPath !== void 0 ? { keyPath: clientKeyPath } : {},
@@ -68305,7 +66340,7 @@ function loadConfig(opts = {}) {
       },
       readFile2
     );
-    if (issue3 !== void 0) credentialIssue = issue3;
+    if (issue4 !== void 0) credentialIssue = issue4;
     else clientCert = material;
   }
   let oauth;
@@ -68315,9 +66350,9 @@ function loadConfig(opts = {}) {
     } else if (serviceKeyPath !== void 0) {
       try {
         const raw = readFile2(serviceKeyPath).toString("utf8");
-        const { settings, issue: issue3 } = parseServiceKey(serviceKeyPath, raw);
-        if (issue3 !== void 0) {
-          credentialIssue = issue3;
+        const { settings, issue: issue4 } = parseServiceKey(serviceKeyPath, raw);
+        if (issue4 !== void 0) {
+          credentialIssue = issue4;
         } else if (settings !== void 0) {
           oauth = oauthScope !== void 0 ? { ...settings, scope: oauthScope } : settings;
         }
@@ -68356,9 +66391,9 @@ function loadConfig(opts = {}) {
   const caCertPath = nonBlank(env.ABAP_CA_CERT);
   let caCert;
   if (caCertPath !== void 0) {
-    const { bundle, issue: issue3 } = loadCaBundle(caCertPath, readFile2);
-    if (issue3 !== void 0) {
-      credentialIssue = credentialIssue !== void 0 ? `${credentialIssue}; ${issue3}` : issue3;
+    const { bundle, issue: issue4 } = loadCaBundle(caCertPath, readFile2);
+    if (issue4 !== void 0) {
+      credentialIssue = credentialIssue !== void 0 ? `${credentialIssue}; ${issue4}` : issue4;
     } else {
       caCert = bundle;
     }
@@ -69617,13 +67652,13 @@ var require_scope = __commonJS({
       }
     };
     exports2.ValueScopeName = ValueScopeName;
-    var line = (0, code_1._)`\n`;
+    var line2 = (0, code_1._)`\n`;
     var ValueScope = class extends Scope {
       constructor(opts) {
         super(opts);
         this._values = {};
         this._scope = opts.scope;
-        this.opts = { ...opts, _n: opts.lines ? line : code_1.nil };
+        this.opts = { ...opts, _n: opts.lines ? line2 : code_1.nil };
       }
       get() {
         return this._scope;
@@ -71241,8 +69276,8 @@ var require_keyword = __commonJS({
       var _a3;
       const { gen, keyword, schema, parentSchema, $data, it } = cxt;
       checkAsyncKeyword(it, def);
-      const validate5 = !$data && def.compile ? def.compile.call(it.self, schema, parentSchema, it) : def.validate;
-      const validateRef = useKeyword(gen, keyword, validate5);
+      const validate7 = !$data && def.compile ? def.compile.call(it.self, schema, parentSchema, it) : def.validate;
+      const validateRef = useKeyword(gen, keyword, validate7);
       const valid = gen.let("valid");
       cxt.block$data(valid, validateKeyword);
       cxt.ok((_a3 = def.valid) !== null && _a3 !== void 0 ? _a3 : valid);
@@ -72315,28 +70350,28 @@ var require_compile = __commonJS({
         if (this.opts.code.process)
           sourceCode = this.opts.code.process(sourceCode, sch);
         const makeValidate = new Function(`${names_1.default.self}`, `${names_1.default.scope}`, sourceCode);
-        const validate5 = makeValidate(this, this.scope.get());
-        this.scope.value(validateName, { ref: validate5 });
-        validate5.errors = null;
-        validate5.schema = sch.schema;
-        validate5.schemaEnv = sch;
+        const validate7 = makeValidate(this, this.scope.get());
+        this.scope.value(validateName, { ref: validate7 });
+        validate7.errors = null;
+        validate7.schema = sch.schema;
+        validate7.schemaEnv = sch;
         if (sch.$async)
-          validate5.$async = true;
+          validate7.$async = true;
         if (this.opts.code.source === true) {
-          validate5.source = { validateName, validateCode, scopeValues: gen._values };
+          validate7.source = { validateName, validateCode, scopeValues: gen._values };
         }
         if (this.opts.unevaluated) {
           const { props, items } = schemaCxt;
-          validate5.evaluated = {
+          validate7.evaluated = {
             props: props instanceof codegen_1.Name ? void 0 : props,
             items: items instanceof codegen_1.Name ? void 0 : items,
             dynamicProps: props instanceof codegen_1.Name,
             dynamicItems: items instanceof codegen_1.Name
           };
-          if (validate5.source)
-            validate5.source.evaluated = (0, codegen_1.stringify)(validate5.evaluated);
+          if (validate7.source)
+            validate7.source.evaluated = (0, codegen_1.stringify)(validate7.evaluated);
         }
-        sch.validate = validate5;
+        sch.validate = validate7;
         return sch;
       } catch (e) {
         delete sch.validate;
@@ -74785,7 +72820,7 @@ var require_contains = __commonJS({
           const count = gen.let("count", 0);
           validateItems(schValid, () => gen.if(schValid, () => checkLimits(count)));
         }
-        function validateItems(_valid, block) {
+        function validateItems(_valid, block2) {
           gen.forRange("i", 0, len, (i) => {
             cxt.subschema({
               keyword: "contains",
@@ -74793,7 +72828,7 @@ var require_contains = __commonJS({
               dataPropType: util_1.Type.Num,
               compositeRule: true
             }, _valid);
-            block();
+            block2();
           });
         }
         function checkLimits(count) {
@@ -75955,8 +73990,8 @@ var require_formats = __commonJS({
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.formatNames = exports2.fastFormats = exports2.fullFormats = void 0;
-    function fmtDef(validate5, compare) {
-      return { validate: validate5, compare };
+    function fmtDef(validate7, compare) {
+      return { validate: validate7, compare };
     }
     exports2.fullFormats = {
       // date: http://tools.ietf.org/html/rfc3339#section-5.6
@@ -76263,6 +74298,892 @@ var require_dist2 = __commonJS({
     module.exports = exports2 = formatsPlugin;
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.default = formatsPlugin;
+  }
+});
+
+// src/adt/enhancement-templates.ts
+function assertEnhIdentifier(value, what, opts = {}) {
+  if (typeof value !== "string" || !isValidAbapIdentifier(value, opts)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${what} ${JSON.stringify(value)} is not a valid ABAP object name (a letter, then letters, digits and underscores only, max ${opts.maxLength ?? 30} characters${opts.allowNamespace ? "; a leading /NAMESPACE/ is allowed" : ""}${opts.allowLocal ? "; a leading $ is allowed" : ""}).`,
+      { what, value },
+      "This value is substituted verbatim into generated ABAP source that is then activated and executed \u2014 a period, a quote, or a newline is refused outright, not escaped or stripped."
+    );
+  }
+  return value;
+}
+function assertEnhTypeRef(value, what) {
+  const parts = typeof value === "string" ? value.split("-") : [];
+  const [head, component, ...extra] = parts;
+  const valid = typeof value === "string" && extra.length === 0 && isValidAbapIdentifier(head ?? "", { allowNamespace: true, maxLength: 30 }) && (component === void 0 || isValidAbapIdentifier(component, { maxLength: 30 }));
+  if (!valid) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${what} ${JSON.stringify(value)} is not a valid ABAP type reference (a plain or /NAMESPACE/-qualified type name, max 30 characters per part, optionally followed by exactly one -COMPONENT suffix, e.g. "STRING", "/DMO/S_FLIGHT-CARRID").`,
+      { what, value },
+      "This value is substituted verbatim into generated ABAP source that is then activated and executed \u2014 a period, a quote, or a newline is refused outright, not escaped or stripped."
+    );
+  }
+  return value;
+}
+function assertAbapText(value, what, maxLen = 60) {
+  if (typeof value !== "string") {
+    throw new AbapError("BAD_INPUT", `${what} must be a string.`, { what });
+  }
+  if (value.length > maxLen) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${what} is ${value.length} characters, longer than the ${maxLen}-character limit.`,
+      { what, length: value.length, maxLen }
+    );
+  }
+  if (CONTROL_CHAR_RE.test(value)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${what} contains a control character (newline, carriage return, or similar) \u2014 refused, not stripped.`,
+      { what }
+    );
+  }
+  return value;
+}
+function abapLiteral(value) {
+  return `'${value.replace(/'/g, "''")}'`;
+}
+function exerciseFragment(p) {
+  const badiName = assertEnhIdentifier(p.badiName, "badiName");
+  const methodName = assertEnhIdentifier(p.methodName, "methodName", { maxLength: 30 });
+  const params = p.params.map((param, i) => {
+    const label = `params[${i}]`;
+    const rawKind = param.kind ?? "importing";
+    if (rawKind !== "importing" && rawKind !== "changing" && rawKind !== "exporting" && rawKind !== "receiving") {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${label}.kind ${JSON.stringify(param.kind)} must be one of "importing", "changing", "exporting", "receiving" (or omitted, which defaults to "importing").`,
+        { what: `${label}.kind`, value: param.kind }
+      );
+    }
+    const kind = rawKind;
+    const name = assertEnhIdentifier(param.name, `${label}.name`, { maxLength: 30 });
+    const needsLocal = kind !== "importing";
+    const needsValue = kind === "importing" || kind === "changing";
+    if (needsValue) {
+      if (typeof param.value !== "string") {
+        throw new AbapError(
+          "BAD_INPUT",
+          `${label} (kind "${kind}") requires a string "value" to seed it with \u2014 "${kind}" parameters are readable by the caller-supplied literal before the call.`,
+          { what: `${label}.value`, kind }
+        );
+      }
+    } else if (param.value !== void 0) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${label} (kind "${kind}") must not supply "value" \u2014 the callee fully determines this parameter's value; a caller-supplied seed would be silently discarded, so this refuses it instead of accepting input that has no effect.`,
+        { what: `${label}.value`, kind }
+      );
+    }
+    if (needsLocal) {
+      if (typeof param.type !== "string" || param.type.length === 0) {
+        throw new AbapError(
+          "BAD_INPUT",
+          `${label} (kind "${kind}") requires an explicit "type" naming the ABAP type of the formal parameter (e.g. "STRING", "ZDE_MY_TYPE") \u2014 this tool cannot look up a BAdI interface method's signature, so it cannot infer the type on its own, and a wrong guess would fail to compile rather than fail loudly. State the type explicitly.`,
+          { what: `${label}.type`, kind }
+        );
+      }
+    } else if (param.type !== void 0) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${label} (kind "importing") must not supply "type" \u2014 importing parameters are passed as a literal directly; no local variable is declared for them, so there is nothing to type.`,
+        { what: `${label}.type`, kind }
+      );
+    }
+    return {
+      name,
+      kind,
+      value: needsValue ? assertAbapText(param.value, `${label}.value`, 255) : void 0,
+      type: needsLocal ? assertEnhTypeRef(param.type, `${label}.type`) : void 0
+    };
+  });
+  const seenNames = /* @__PURE__ */ new Set();
+  for (const param of params) {
+    const key = param.name.toUpperCase();
+    if (seenNames.has(key)) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `params[].name ${JSON.stringify(param.name)} is supplied more than once (ABAP identifiers are case-insensitive) \u2014 each formal parameter can be assigned at most once in a single CALL BADI.`,
+        { what: "params[].name", value: param.name }
+      );
+    }
+    seenNames.add(key);
+  }
+  const receivingParams = params.filter((param) => param.kind === "receiving");
+  if (receivingParams.length > 1) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `at most one params[] entry may use kind "receiving" \u2014 a method has at most one RETURNING parameter, so CALL BADI's RECEIVING clause can only ever target one. Got ${receivingParams.length}: ${receivingParams.map((param) => param.name).join(", ")}.`,
+      { what: "params[].kind", count: receivingParams.length }
+    );
+  }
+  const lines = [`DATA lo_badi TYPE REF TO ${badiName}.`];
+  const hasFilterName = p.filterName !== void 0;
+  const hasFilterValue = p.filterValue !== void 0;
+  if (hasFilterName !== hasFilterValue) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "exercise: filterName and filterValue must be given together (both or neither) \u2014 a filter value with no filter field name has nothing to substitute into `GET BADI ... FILTERS`.",
+      { filterName: p.filterName, filterValue: p.filterValue }
+    );
+  }
+  if (hasFilterName && hasFilterValue) {
+    const filterName = assertEnhIdentifier(p.filterName, "filterName", { maxLength: 30 });
+    const filterValue = assertAbapText(p.filterValue, "filterValue", 255);
+    lines.push(`GET BADI lo_badi FILTERS ${filterName} = ${abapLiteral(filterValue)}.`);
+  } else {
+    lines.push("GET BADI lo_badi.");
+  }
+  const localVar = (name) => `lv_${name.toLowerCase()}`;
+  for (const param of params) {
+    if (!param.type) continue;
+    lines.push(`DATA ${localVar(param.name)} TYPE ${param.type}.`);
+  }
+  for (const param of params) {
+    if (param.kind !== "changing") continue;
+    lines.push(`${localVar(param.name)} = ${abapLiteral(param.value)}.`);
+  }
+  const asLiteralArg = (param) => `${param.name} = ${abapLiteral(param.value)}`;
+  const asVarArg = (param) => `${param.name} = ${localVar(param.name)}`;
+  const importingArgs = params.filter((param) => param.kind === "importing").map(asLiteralArg);
+  const exportingArgs = params.filter((param) => param.kind === "exporting").map(asVarArg);
+  const changingArgs = params.filter((param) => param.kind === "changing").map(asVarArg);
+  const firstReceivingParam = receivingParams[0];
+  const receivingArg = firstReceivingParam ? asVarArg(firstReceivingParam) : void 0;
+  const callParts = [];
+  if (importingArgs.length > 0) callParts.push(`EXPORTING ${importingArgs.join(" ")}`);
+  if (exportingArgs.length > 0) callParts.push(`IMPORTING ${exportingArgs.join(" ")}`);
+  if (changingArgs.length > 0) callParts.push(`CHANGING ${changingArgs.join(" ")}`);
+  if (receivingArg) callParts.push(`RECEIVING ${receivingArg}`);
+  const call = callParts.length > 0 ? `CALL BADI lo_badi->${methodName} ${callParts.join(" ")}.` : `CALL BADI lo_badi->${methodName}.`;
+  const bodyLines = [`  ${call}`, "  out->write( 'EXERCISED' )."];
+  for (const param of params) {
+    if (!param.type) continue;
+    bodyLines.push(`  out->write( |RESULT>${param.name}={ ${localVar(param.name)} }| ).`);
+  }
+  lines.push("IF lo_badi IS BOUND.", ...bodyLines, "ELSE.", "  out->write( 'NOT-BOUND' ).", "ENDIF.");
+  return lines;
+}
+function markerInterfaceSource(interfaceName) {
+  const name = assertEnhIdentifier(interfaceName, "interfaceName");
+  return [
+    `INTERFACE ${name} PUBLIC.`,
+    "  INTERFACES if_badi_interface.",
+    "ENDINTERFACE."
+  ].join("\n");
+}
+var CONTROL_CHAR_CODES, CONTROL_CHAR_RE;
+var init_enhancement_templates = __esm({
+  "src/adt/enhancement-templates.ts"() {
+    "use strict";
+    init_errors();
+    init_safety();
+    CONTROL_CHAR_CODES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 127];
+    CONTROL_CHAR_RE = new RegExp(
+      "[" + CONTROL_CHAR_CODES.map((c) => String.fromCharCode(c)).join("") + "]"
+    );
+  }
+});
+
+// src/adt/datapreview-filter.ts
+function isEmptyFilter(filter) {
+  if (filter === void 0) return true;
+  const noWhere = filter.where === void 0 || filter.where.length === 0;
+  const noColumns = filter.columns === void 0 || filter.columns.length === 0;
+  const noOrderBy = filter.orderBy === void 0 || filter.orderBy.length === 0;
+  return noWhere && noColumns && noOrderBy && filter.distinct !== true;
+}
+function isFiniteNumber(v) {
+  return typeof v === "number" && Number.isFinite(v);
+}
+function isPreviewValue(v) {
+  return typeof v === "string" || isFiniteNumber(v);
+}
+function assertNoBannedWord(value, what) {
+  const hit = FREESTYLE_BANNED_WORD_RE.exec(value);
+  if (hit) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${what} contains the word "${hit[0]}", which the freestyle endpoint's own banned-keyword guard refuses anywhere in the statement, even inside a quoted literal. Refusing here with a clearer message than that guard's.`,
+      { what, value, word: hit[0] }
+    );
+  }
+}
+function assertCondition(cond, index) {
+  const label = `where[${index}]`;
+  if (typeof cond.field !== "string" || cond.field.trim() === "") {
+    throw new AbapError("BAD_INPUT", `${label}.field must be a non-empty string.`, { what: `${label}.field`, value: cond.field });
+  }
+  if (!PREVIEW_OPS.includes(cond.op)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${label}.op "${String(cond.op)}" is not a recognised operator \u2014 accepted values are: ${PREVIEW_OPS_LIST}.`,
+      { what: `${label}.op`, value: cond.op }
+    );
+  }
+  if (cond.op === "is_null") {
+    if (cond.value !== void 0) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${label} has op "is_null" but also supplies a "value" \u2014 is_null takes no value; refusing rather than silently ignoring it.`,
+        { what: `${label}.value`, value: cond.value }
+      );
+    }
+    return;
+  }
+  if (cond.op === "in") {
+    if (!Array.isArray(cond.value) || cond.value.length === 0) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${label} has op "in" but "value" is not a non-empty array.`,
+        { what: `${label}.value`, value: cond.value }
+      );
+    }
+    if (cond.value.length > MAX_IN_VALUES) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${label} has ${cond.value.length} values in its "in" list, over the ${MAX_IN_VALUES}-value cap per condition.`,
+        { what: `${label}.value`, count: cond.value.length, cap: MAX_IN_VALUES }
+      );
+    }
+    cond.value.forEach((v) => assertScalarValue(v, cond.field));
+    return;
+  }
+  if (cond.value === void 0) {
+    throw new AbapError("BAD_INPUT", `${label} (op "${cond.op}") requires a "value".`, { what: `${label}.value`, op: cond.op });
+  }
+  if (Array.isArray(cond.value)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${label} (op "${cond.op}") must not supply an array "value" \u2014 only "in" takes a list.`,
+      { what: `${label}.value`, op: cond.op }
+    );
+  }
+  assertScalarValue(cond.value, cond.field);
+}
+function assertScalarValue(v, field) {
+  const what = `where value for ${field}`;
+  if (!isPreviewValue(v)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${what} must be a string or a finite number, got ${JSON.stringify(v)}.`,
+      { field, value: v }
+    );
+  }
+  if (typeof v === "string") {
+    const checked = assertAbapText(v, what, MAX_VALUE_LENGTH);
+    assertNoBannedWord(checked, what);
+  }
+}
+function assertOrder(order, index) {
+  const label = `order_by[${index}]`;
+  if (typeof order.field !== "string" || order.field.trim() === "") {
+    throw new AbapError("BAD_INPUT", `${label}.field must be a non-empty string.`, { what: `${label}.field`, value: order.field });
+  }
+  if (order.direction !== void 0 && order.direction !== "asc" && order.direction !== "desc") {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${label}.direction "${String(order.direction)}" must be "asc" or "desc" (or omitted).`,
+      { what: `${label}.direction`, value: order.direction }
+    );
+  }
+}
+function assertFilterShape(filter) {
+  const where2 = filter.where ?? [];
+  if (where2.length > MAX_WHERE_CONDITIONS) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `"where" has ${where2.length} conditions, over the ${MAX_WHERE_CONDITIONS}-condition cap.`,
+      { count: where2.length, cap: MAX_WHERE_CONDITIONS }
+    );
+  }
+  where2.forEach((cond, i) => assertCondition(cond, i));
+  const columns = filter.columns ?? [];
+  if (columns.length > MAX_COLUMNS) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `"columns" has ${columns.length} entries, over the ${MAX_COLUMNS}-column cap.`,
+      { count: columns.length, cap: MAX_COLUMNS }
+    );
+  }
+  columns.forEach((c, i) => {
+    if (typeof c !== "string" || c.trim() === "") {
+      throw new AbapError("BAD_INPUT", `columns[${i}] must be a non-empty string.`, { what: `columns[${i}]`, value: c });
+    }
+  });
+  const seenColumns = /* @__PURE__ */ new Set();
+  for (const c of columns) {
+    const key = c.toUpperCase();
+    if (seenColumns.has(key)) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `"columns" names "${c}" more than once (case-insensitive) \u2014 a projection lists each column at most once.`,
+        { what: "columns", value: c }
+      );
+    }
+    seenColumns.add(key);
+  }
+  const orderBy = filter.orderBy ?? [];
+  if (orderBy.length > MAX_ORDER_BY) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `"order_by" has ${orderBy.length} entries, over the ${MAX_ORDER_BY}-entry cap.`,
+      { count: orderBy.length, cap: MAX_ORDER_BY }
+    );
+  }
+  orderBy.forEach((o, i) => assertOrder(o, i));
+}
+function renderLiteral(value, column, what) {
+  const type = column.type;
+  const asString = String(value);
+  if (INTEGER_TYPE_CODES.has(type)) {
+    if (!INTEGER_SHAPE_RE.test(asString)) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${what}: "${asString}" is not a valid value for ${column.name} (type "${type}") \u2014 expected an integer, e.g. "300".`,
+        { what, value, field: column.name, type }
+      );
+    }
+    return asString;
+  }
+  if (DECIMAL_TYPE_CODES.has(type)) {
+    if (!DECIMAL_SHAPE_RE.test(asString)) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${what}: "${asString}" is not a valid value for ${column.name} (type "${type}") \u2014 expected a decimal, e.g. "422.94". Rendered as a quoted literal \u2014 an unquoted decimal is a syntax error on this endpoint.`,
+        { what, value, field: column.name, type }
+      );
+    }
+    return abapLiteral(asString);
+  }
+  if (type === "D") {
+    const m = DATE_SHAPE_RE.exec(asString);
+    if (!m) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${what}: "${asString}" is not a valid value for ${column.name} (type "D") \u2014 expected YYYYMMDD or YYYY-MM-DD.`,
+        { what, value, field: column.name, type }
+      );
+    }
+    return abapLiteral(`${m[1]}${m[2]}${m[3]}`);
+  }
+  if (type === "T") {
+    const m = TIME_SHAPE_RE.exec(asString);
+    if (!m) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${what}: "${asString}" is not a valid value for ${column.name} (type "T") \u2014 expected HHMMSS or HH:MM:SS.`,
+        { what, value, field: column.name, type }
+      );
+    }
+    return abapLiteral(`${m[1]}${m[2]}${m[3]}`);
+  }
+  return abapLiteral(asString);
+}
+function resolveField(field, byUpper, what) {
+  const col = byUpper.get(field.toUpperCase());
+  if (!col) {
+    const known = [...byUpper.values()].map((c) => c.name).join(", ");
+    throw new AbapError(
+      "BAD_INPUT",
+      `${what} "${field}" is not a column of this entity. Known columns: ${known}.`,
+      { what, value: field, known: [...byUpper.values()].map((c) => c.name) }
+    );
+  }
+  return { name: col.name, column: col };
+}
+function renderCondition(cond, byUpper, index, clientFieldName) {
+  const label = `where[${index}]`;
+  const { name, column } = resolveField(cond.field, byUpper, `${label}.field`);
+  if (clientFieldName !== void 0 && name.toUpperCase() === clientFieldName.toUpperCase()) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `where[${index}] refers to the client field "${name}" \u2014 the compiler refuses that: 'The client field "${name}" cannot be specified in the WHERE condition. Client handling is performed by the compiler.'`,
+      { what: `${label}.field`, field: name },
+      "The read is already scoped to the logon client \u2014 drop this condition."
+    );
+  }
+  if (cond.op === "is_null") {
+    return `${name} IS NULL`;
+  }
+  if (cond.op === "like") {
+    if (NUMERIC_TYPE_CODES.has(column.type)) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `where[${index}] uses "like" on ${name}, a numeric field (type "${column.type}") \u2014 'A LIKE condition can only be used with character-like fields.'`,
+        { what: `${label}.op`, field: name, type: column.type },
+        "Use eq/ne/lt/le/gt/ge on a numeric field instead of like."
+      );
+    }
+    const pattern = assertAbapText(String(cond.value), `${label}.value`, MAX_VALUE_LENGTH);
+    const escaped = pattern.replace(/'/g, "''");
+    return `${name} LIKE '${escaped}' ESCAPE '#'`;
+  }
+  if (cond.op === "in") {
+    const values = cond.value;
+    const literals = values.map((v, i) => renderLiteral(v, column, `${label}.value[${i}]`));
+    return inPredicate(name, literals);
+  }
+  const literal2 = renderLiteral(cond.value, column, `${label}.value`);
+  return `${name} ${OP_SYMBOL[cond.op]} ${literal2}`;
+}
+function inPredicate(column, literals) {
+  if (literals.length <= IN_LIST_ITEMS_PER_LINE) {
+    return `${column} IN (${literals.join(", ")})`;
+  }
+  const lines = [`${column} IN (`];
+  for (let i = 0; i < literals.length; i += IN_LIST_ITEMS_PER_LINE) {
+    const chunk3 = literals.slice(i, i + IN_LIST_ITEMS_PER_LINE).join(", ");
+    const isLast = i + IN_LIST_ITEMS_PER_LINE >= literals.length;
+    lines.push(`  ${chunk3}${isLast ? "" : ","}`);
+  }
+  lines.push(")");
+  return lines.join("\n");
+}
+function renderPreviewSelect(table, filter, columns) {
+  assertFilterShape(filter);
+  const byUpper = /* @__PURE__ */ new Map();
+  for (const c of columns) byUpper.set(c.name.toUpperCase(), c);
+  const first = columns[0];
+  const clientFieldName = first && first.type === "C" && (first.name.toUpperCase() === "MANDT" || first.name.toUpperCase() === "CLIENT") ? first.name : void 0;
+  const where2 = filter.where ?? [];
+  const whereParts = where2.map((cond, i) => renderCondition(cond, byUpper, i, clientFieldName));
+  const rawColumns = filter.columns ?? [];
+  const resolvedColumns = rawColumns.map((c, i) => resolveField(c, byUpper, `columns[${i}]`));
+  const projected = resolvedColumns.map((r) => r.name);
+  const orderBy = filter.orderBy ?? [];
+  const resolvedOrder = orderBy.map((o, i) => ({
+    ...resolveField(o.field, byUpper, `order_by[${i}].field`),
+    direction: o.direction ?? "asc"
+  }));
+  if (filter.distinct === true && projected.length > 0 && resolvedOrder.length > 0) {
+    const projectedUpper = new Set(projected.map((p) => p.toUpperCase()));
+    resolvedOrder.forEach((o, i) => {
+      if (!projectedUpper.has(o.name.toUpperCase())) {
+        throw new AbapError(
+          "BAD_INPUT",
+          `order_by[${i}] names "${o.name}", which is not in "columns" \u2014 with distinct: true, 'The field "${o.name}" from the ORDER BY clause is missing in the SELECT list.'`,
+          { what: `order_by[${i}].field`, field: o.name },
+          "With distinct, every order_by field must also appear in columns."
+        );
+      }
+    });
+  }
+  const selectKeyword = filter.distinct === true ? "SELECT DISTINCT" : "SELECT";
+  const selectLines = projected.length === 0 ? [`${selectKeyword} *`] : [selectKeyword, ...projected.map((name, i) => `  ${name}${i === projected.length - 1 ? "" : ","}`)];
+  const lines = [...selectLines, `FROM ${table}`];
+  whereParts.forEach((part, i) => {
+    const partLines = part.split("\n");
+    partLines.forEach((pl, j) => {
+      if (j === 0) lines.push(`${i === 0 ? "WHERE" : "  AND"} ${pl}`);
+      else lines.push(pl);
+    });
+  });
+  if (resolvedOrder.length > 0) {
+    const orderByClause = resolvedOrder.map((o) => `${o.name} ${o.direction === "desc" ? "DESCENDING" : "ASCENDING"}`).join(", ");
+    lines.push(`ORDER BY ${orderByClause}`);
+  }
+  const statement = lines.join("\n");
+  statement.split("\n").forEach((line2, i) => {
+    if (line2.length > PREVIEW_SQL_LINE_MAX) {
+      throw new AbapError(
+        "CHECK_FAILED",
+        `Generated preview query line ${i + 1} is ${line2.length} chars, over the freestyle endpoint's ${PREVIEW_SQL_LINE_MAX}-char request-body line limit \u2014 the request body wraps at that width, so a longer line would be corrupted on the wire.`,
+        { line: i + 1, length: line2.length }
+      );
+    }
+  });
+  return statement;
+}
+var PREVIEW_OPS, MAX_WHERE_CONDITIONS, MAX_ORDER_BY, MAX_COLUMNS, MAX_IN_VALUES, MAX_VALUE_LENGTH, PREVIEW_SQL_LINE_MAX, PREVIEW_OPS_LIST, FREESTYLE_BANNED_WORD_RE, NUMERIC_TYPE_CODES, INTEGER_TYPE_CODES, DECIMAL_TYPE_CODES, INTEGER_SHAPE_RE, DECIMAL_SHAPE_RE, DATE_SHAPE_RE, TIME_SHAPE_RE, OP_SYMBOL, IN_LIST_ITEMS_PER_LINE;
+var init_datapreview_filter = __esm({
+  "src/adt/datapreview-filter.ts"() {
+    "use strict";
+    init_errors();
+    init_enhancement_templates();
+    init_connection();
+    PREVIEW_OPS = ["eq", "ne", "lt", "le", "gt", "ge", "like", "in", "is_null"];
+    MAX_WHERE_CONDITIONS = 20;
+    MAX_ORDER_BY = 10;
+    MAX_COLUMNS = 100;
+    MAX_IN_VALUES = 50;
+    MAX_VALUE_LENGTH = 255;
+    PREVIEW_SQL_LINE_MAX = 255;
+    PREVIEW_OPS_LIST = PREVIEW_OPS.join(", ");
+    FREESTYLE_BANNED_WORD_RE = new RegExp(`\\b(?:${FREESTYLE_BANNED_KEYWORDS.join("|")})\\b`, "i");
+    NUMERIC_TYPE_CODES = /* @__PURE__ */ new Set(["P", "I", "b", "s", "8", "F", "a", "e"]);
+    INTEGER_TYPE_CODES = /* @__PURE__ */ new Set(["I", "b", "s", "8"]);
+    DECIMAL_TYPE_CODES = /* @__PURE__ */ new Set(["P", "F", "a", "e"]);
+    INTEGER_SHAPE_RE = /^-?\d+$/;
+    DECIMAL_SHAPE_RE = /^-?\d+(\.\d+)?$/;
+    DATE_SHAPE_RE = /^(\d{4})-?(\d{2})-?(\d{2})$/;
+    TIME_SHAPE_RE = /^(\d{2}):?(\d{2}):?(\d{2})$/;
+    OP_SYMBOL = {
+      eq: "=",
+      ne: "<>",
+      lt: "<",
+      le: "<=",
+      gt: ">",
+      ge: ">="
+    };
+    IN_LIST_ITEMS_PER_LINE = 5;
+  }
+});
+
+// src/adt/datapreview.ts
+function isValidDdicEntityName(name) {
+  if (name.length > MAX_ENTITY_NAME_LENGTH) return false;
+  return PLAIN_NAME_RE.test(name) || NAMESPACED_NAME_RE.test(name);
+}
+function normaliseEntityName(name) {
+  return String(name ?? "").trim().toUpperCase();
+}
+function parsePreviewBody(body) {
+  const doc = previewXml.parse(body);
+  const table = doc.tableData ?? {};
+  const raw = Array.isArray(table.columns) ? table.columns : [];
+  const messages = [];
+  for (const m of Array.isArray(table.message) ? table.message : []) {
+    const meta3 = m;
+    const text4 = attrString(meta3, "text");
+    const severity = attrString(meta3, "severity");
+    if (text4 === void 0 && severity === void 0) continue;
+    messages.push({ text: text4 ?? "", severity: severity ?? "" });
+  }
+  const columns = [];
+  const values = [];
+  for (const col of raw) {
+    const meta3 = col.metadata;
+    const name = attrString(meta3, "name") ?? "";
+    const length = attrString(meta3, "length");
+    const description = attrString(meta3, "description");
+    const parsedLength = length === void 0 ? Number.NaN : Number.parseInt(length, 10);
+    columns.push({
+      name,
+      type: attrString(meta3, "type") ?? "",
+      ...Number.isFinite(parsedLength) ? { length: parsedLength } : {},
+      ...description === void 0 ? {} : { description },
+      key: isAbapTrue(attrString(meta3, "keyAttribute"))
+    });
+    const ds = col.dataSet;
+    const cells = typeof ds === "object" && ds !== null && Array.isArray(ds.data) ? ds.data : [];
+    values.push(cells.map((c) => c === void 0 || c === null ? "" : String(c)));
+  }
+  const rowCount = values.reduce((n, v) => Math.max(n, v.length), 0);
+  const rows = [];
+  for (let r = 0; r < rowCount; r++) {
+    rows.push(values.map((v) => v[r] ?? ""));
+  }
+  let totalRows;
+  const totalRowsRaw = table.totalRows;
+  if (typeof totalRowsRaw === "string" && totalRowsRaw.trim() !== "") {
+    const parsed = Number.parseInt(totalRowsRaw, 10);
+    if (Number.isFinite(parsed)) totalRows = parsed;
+  }
+  const executedQueryStringRaw = table.executedQueryString;
+  const executedQueryString = typeof executedQueryStringRaw === "string" && executedQueryStringRaw.trim() !== "" ? executedQueryStringRaw : void 0;
+  return {
+    columns,
+    rows,
+    messages,
+    ...totalRows === void 0 ? {} : { totalRows },
+    ...executedQueryString === void 0 ? {} : { executedQueryString }
+  };
+}
+function classifyPreviewFailure(e, ctx) {
+  const err = translateAdtError(e, ctx);
+  if (err.code !== "ADT_ERROR") return err;
+  const status = typeof err.details.status === "number" ? err.details.status : void 0;
+  const target = ctx.name ?? ctx.uri ?? "the entity";
+  if (status === 401 || status === 403) {
+    return new AbapError(
+      "AUTH_FAILED",
+      `Not authorised (HTTP ${status}) to read data from ${target}. The logon succeeded; the user lacks table-display authorisation for it.`,
+      { ...err.details, status },
+      "The user is authenticated but not authorised (typically S_TABU_DIS / S_TABU_NAM). The name is not in question \u2014 do not retry with a different name."
+    );
+  }
+  if (status === 400 && /not found|does not exist|unknown|not exist/i.test(err.message)) {
+    return new AbapError(
+      "NOT_FOUND",
+      `No DDIC table or view named ${target} exists on this system.`,
+      { ...err.details, status },
+      "Check the spelling, or look the object up first \u2014 this endpoint reports a missing entity as HTTP 400, not 404."
+    );
+  }
+  return err;
+}
+function classifyFilteredPreviewFailure(e, ctx, sql) {
+  const err = classifyPreviewFailure(e, ctx);
+  if (err.code !== "ADT_ERROR") {
+    return new AbapError(err.code, err.message, { ...err.details, sql }, err.hint, { retryable: err.retryable });
+  }
+  const message = err.message;
+  if (/client field .* cannot be specified in the where condition/i.test(message)) {
+    return new AbapError(
+      "BAD_INPUT",
+      message,
+      { ...err.details, sql },
+      "The read is already scoped to the logon client \u2014 drop the where condition on the client field."
+    );
+  }
+  if (/like condition can only be used with character-like fields/i.test(message)) {
+    return new AbapError(
+      "BAD_INPUT",
+      message,
+      { ...err.details, sql },
+      "Use eq/ne/lt/le/gt/ge on a numeric field instead of like."
+    );
+  }
+  if (/from the order by clause is missing in the select list/i.test(message)) {
+    return new AbapError(
+      "BAD_INPUT",
+      message,
+      { ...err.details, sql },
+      "With distinct, every order_by field must also appear in columns."
+    );
+  }
+  return new AbapError(err.code, err.message, { ...err.details, sql }, err.hint, { retryable: err.retryable });
+}
+async function previewDdicEntity(conn, input) {
+  const table = normaliseEntityName(input.table);
+  if (!isValidDdicEntityName(table)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `'${String(input.table)}' is not a valid DDIC table or view name.`,
+      { table: String(input.table) },
+      "Pass a bare name such as T000, DD02L or /ACME/TAB. This tool previews one named entity; narrow it with the structured where/columns/order_by parameters, never with SQL text."
+    );
+  }
+  const { maxRows } = input;
+  if (!Number.isInteger(maxRows) || maxRows < 1) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `max_rows must be a positive integer, got ${String(maxRows)}.`,
+      { maxRows },
+      "Ask for at least one row. 0 is not 'no rows' on this endpoint \u2014 it means unlimited, and is refused rather than sent."
+    );
+  }
+  const ctx = { operation: "read", name: table, type: "TABL/DT" };
+  if (isEmptyFilter(input.filter)) {
+    let body2;
+    try {
+      const resp = await conn.dataPreviewDdic(table, maxRows);
+      body2 = resp.body;
+    } catch (e) {
+      throw classifyPreviewFailure(e, ctx);
+    }
+    const { columns: columns2, rows: rows2, messages: messages2 } = parsePreviewBody(body2);
+    const moreRowsExist2 = rows2.length > maxRows;
+    return {
+      table,
+      columns: columns2,
+      rows: moreRowsExist2 ? rows2.slice(0, maxRows) : rows2,
+      rowsRequested: maxRows,
+      moreRowsExist: moreRowsExist2,
+      messages: messages2
+    };
+  }
+  const filter = input.filter;
+  assertFilterShape(filter);
+  let probeBody;
+  try {
+    const probeResp = await conn.dataPreviewDdic(table, 1);
+    probeBody = probeResp.body;
+  } catch (e) {
+    throw classifyPreviewFailure(e, ctx);
+  }
+  const probe3 = parsePreviewBody(probeBody);
+  if (probe3.columns.length === 0) {
+    const firstMessage = probe3.messages[0];
+    if (firstMessage) {
+      throw new AbapError(
+        "ADT_ERROR",
+        `${table} answered with no columns: "${firstMessage.text}" (severity ${firstMessage.severity || "unstated"}).`,
+        { table, messages: probe3.messages },
+        "This entity does not support a filtered preview the way a plain table does \u2014 see the server's own message above."
+      );
+    }
+    throw new AbapError(
+      "NOT_FOUND",
+      `No DDIC table or view named ${table} exists on this system, or it has no columns to filter.`,
+      { table },
+      "Check the spelling, or look the object up first."
+    );
+  }
+  const sql = renderPreviewSelect(table, filter, probe3.columns);
+  let body;
+  try {
+    const resp = await conn.dataPreviewFreestyle(sql, maxRows);
+    body = resp.body;
+  } catch (e) {
+    throw classifyFilteredPreviewFailure(e, ctx, sql);
+  }
+  const { columns, rows, messages, totalRows, executedQueryString } = parsePreviewBody(body);
+  const moreRowsExist = totalRows !== void 0 ? totalRows > rows.length : rows.length > maxRows;
+  return {
+    table,
+    columns,
+    rows,
+    rowsRequested: maxRows,
+    moreRowsExist,
+    messages,
+    statement: sql,
+    ...executedQueryString === void 0 ? {} : { executedQueryString },
+    ...totalRows === void 0 ? {} : { totalRows }
+  };
+}
+var PLAIN_NAME_RE, NAMESPACED_NAME_RE, MAX_ENTITY_NAME_LENGTH, previewXml, attrString;
+var init_datapreview = __esm({
+  "src/adt/datapreview.ts"() {
+    "use strict";
+    init_fxp();
+    init_connection();
+    init_errors();
+    init_session();
+    init_datapreview_filter();
+    PLAIN_NAME_RE = /^[A-Z][A-Z0-9_]{0,29}$/;
+    NAMESPACED_NAME_RE = /^\/[A-Z0-9_]{1,10}\/[A-Z0-9_]{1,30}$/;
+    MAX_ENTITY_NAME_LENGTH = 30;
+    previewXml = new XMLParser({
+      ignoreAttributes: false,
+      attributeNamePrefix: "@_",
+      removeNSPrefix: true,
+      parseAttributeValue: false,
+      parseTagValue: false,
+      trimValues: true,
+      isArray: (_name, jpath) => jpath === "tableData.columns" || jpath === "tableData.columns.dataSet.data" || jpath === "tableData.message"
+    });
+    attrString = (meta3, key) => {
+      const v = meta3?.[`@_${key}`];
+      return typeof v === "string" && v !== "" ? v : void 0;
+    };
+  }
+});
+
+// src/adt/catalog-select.ts
+var catalog_select_exports = {};
+__export(catalog_select_exports, {
+  CATALOG_MAX_IN_LIST: () => CATALOG_MAX_IN_LIST,
+  CATALOG_SQL_LINE_MAX: () => CATALOG_SQL_LINE_MAX,
+  assertCatalogValue: () => assertCatalogValue,
+  buildCatalogSelect: () => buildCatalogSelect,
+  catalogInList: () => catalogInList,
+  catalogLiteral: () => catalogLiteral,
+  requireCatalogColumn: () => requireCatalogColumn,
+  runCatalogSelect: () => runCatalogSelect
+});
+function catalogLiteral(value) {
+  return `'${value.replace(/'/g, "''")}'`;
+}
+function assertCatalogValue(value, what, maxLen) {
+  if (typeof value !== "string") {
+    throw new AbapError("BAD_INPUT", `${what} must be a string.`, { what });
+  }
+  if (value.trim() === "") {
+    throw new AbapError("BAD_INPUT", `${what} must not be empty or blank.`, { what });
+  }
+  if (value.includes("'")) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${what} "${value}" contains a single quote \u2014 refused, not escaped. A quote is never a valid character in this value.`,
+      { what, value }
+    );
+  }
+  if (value.includes(";")) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${what} "${value}" contains a semicolon \u2014 refused. Only one statement is ever built from this value.`,
+      { what, value }
+    );
+  }
+  if (CONTROL_CHAR_RE2.test(value)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${what} "${value}" contains a newline or other control character \u2014 refused, not stripped.`,
+      { what, value }
+    );
+  }
+  if (value.length > maxLen) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${what} "${value}" is ${value.length} characters, over the ${maxLen}-character declared width of the target column. The endpoint answers an over-wide literal with HTTP 400 ("... is not a valid value for C(${maxLen},0)"), not an empty result (observed on A4H 2026-09-12) \u2014 this value is refused here instead of being sent. Shorten it or check the name.`,
+      { what, value, length: value.length, maxLen }
+    );
+  }
+  return value;
+}
+function catalogInList(values, what, maxLen) {
+  if (values.length === 0) {
+    throw new AbapError("BAD_INPUT", `${what} must not be empty \u2014 "IN ()" is not valid SQL.`, { what });
+  }
+  if (values.length > CATALOG_MAX_IN_LIST) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${what} has ${values.length} values, over the ${CATALOG_MAX_IN_LIST}-value cap per statement \u2014 chunk the caller's list into multiple queries.`,
+      { what, count: values.length, cap: CATALOG_MAX_IN_LIST }
+    );
+  }
+  const literals = values.map((v) => catalogLiteral(assertCatalogValue(v, what, maxLen)));
+  return `IN ( ${literals.join(", ")} )`;
+}
+function buildCatalogSelect(select, from, whereParts, orderBy) {
+  const lines = [`SELECT ${select}`, `FROM ${from}`];
+  whereParts.forEach((part, i) => {
+    lines.push(`${i === 0 ? "WHERE" : "  AND"} ${part}`);
+  });
+  if (orderBy !== void 0) lines.push(`ORDER BY ${orderBy}`);
+  const statement = lines.join("\n");
+  statement.split("\n").forEach((line2, i) => {
+    if (line2.length > CATALOG_SQL_LINE_MAX) {
+      throw new AbapError(
+        "CHECK_FAILED",
+        `Generated catalog query line ${i + 1} is ${line2.length} chars, over the ${CATALOG_SQL_LINE_MAX}-char line cap: ${line2}`,
+        { line: i + 1, length: line2.length }
+      );
+    }
+  });
+  return statement;
+}
+async function runCatalogSelect(conn, sql, rowNumber) {
+  const resp = await conn.dataPreviewFreestyle(sql, rowNumber);
+  const { columns, rows, messages, totalRows } = parsePreviewBody(resp.body);
+  const names = columns.map((c) => c.name.toUpperCase());
+  const mappedRows = rows.map((row2) => {
+    const rec = {};
+    names.forEach((name, i) => {
+      rec[name] = row2[i] ?? "";
+    });
+    return rec;
+  });
+  return { columns: names, rows: mappedRows, totalRows, messages };
+}
+function requireCatalogColumn(result, column) {
+  const upper = column.toUpperCase();
+  if (!result.columns.includes(upper)) {
+    throw new AbapError(
+      "ADT_ERROR",
+      `expected column "${column}" is missing from the catalog preview response (columns present: ${result.columns.length > 0 ? result.columns.join(", ") : "none"}).`,
+      { column, present: result.columns }
+    );
+  }
+}
+var CONTROL_CHAR_RE2, CATALOG_MAX_IN_LIST, CATALOG_SQL_LINE_MAX;
+var init_catalog_select = __esm({
+  "src/adt/catalog-select.ts"() {
+    "use strict";
+    init_errors();
+    init_datapreview();
+    CONTROL_CHAR_RE2 = /[\x00-\x1f\x7f]/;
+    CATALOG_MAX_IN_LIST = 50;
+    CATALOG_SQL_LINE_MAX = 200;
   }
 });
 
@@ -77117,7 +76038,9 @@ var FluidManifestObjectSchema = external_exports.object({
   entry: external_exports.string().min(1),
   actions: external_exports.array(FluidActionSpecSchema).min(1),
   // Additive: absent/false means routable, so contract stays "1.0".
-  internal: external_exports.boolean().optional()
+  internal: external_exports.boolean().optional(),
+  // Additive: absent/false means the tool gets plain nested JSON args.
+  flatArgs: external_exports.boolean().optional()
 });
 var FluidManifestSchema = FluidManifestObjectSchema.superRefine(
   (manifest, ctx) => {
@@ -77697,6 +76620,8 @@ var DDIC_TAGS = [
   "VIEW-PUT",
   "VIEW-REGISTERED",
   "VIEW-ACTIVATED",
+  // view-update bridge (DDIF_VIEW_PUT/ACTIVATE, same activation pair as create):
+  "VIEW-UPDATED",
   "TRAN-CREATED",
   "PKG-CREATED",
   "PKG-PARENT-SET",
@@ -77710,6 +76635,9 @@ var DDIC_TAGS = [
   "VIEW-GONE",
   "TRAN-DELETED",
   "TRAN-GONE",
+  // transaction-update (retarget) bridge: delete+insert inside one RS_CORR_INSERT registration:
+  "TRAN-REGISTERED",
+  "TRAN-RETARGETED",
   // transport-entry-remove bridge:
   "TREN-REMOVED",
   "TREN-GONE",
@@ -77720,13 +76648,19 @@ var DDIC_TAGS = [
   "INDEX-DELETED",
   "INDEX-GONE",
   // FM reported ACTFAILED on delete but the post-commit DD12V/DD17S read-back found the index gone anyway — live 2026-09-05.
-  "INDEX-DELETED-ACTFAILED"
+  "INDEX-DELETED-ACTFAILED",
+  // search-help create/update/delete bridge (DDIF_SHLP_PUT/ACTIVATE, DD_OBJ_DEL) - proven live on A4H 2026-09-12:
+  "SHLP-REGISTERED",
+  "SHLP-PUT",
+  "SHLP-ACTIVATED",
+  "SHLP-DELETED",
+  "SHLP-GONE"
 ];
 function parseDdicTranscript(raw) {
   const tags = [];
   let errorLine;
-  for (const line of raw.split("\n")) {
-    const trimmed = line.trim();
+  for (const line2 of raw.split("\n")) {
+    const trimmed = line2.trim();
     if (trimmed.startsWith(DDIC_ERR_PREFIX)) {
       errorLine = trimmed.slice(DDIC_ERR_PREFIX.length).trim();
       continue;
@@ -77947,7 +76881,22 @@ var CORE_METHODS = `  METHOD run.
 
   METHOD n.
     DATA lv_pattern TYPE string.
+    DATA lv_exact   TYPE string.
     CLEAR rv_count.
+    " A plain string array (abap-view.ts's / abap-index.ts's fields)
+    " produces one path/{i} row per element and nothing at the bare path,
+    " so it is counted by the wildcard loop below. A pre-flattened array of
+    " objects produces several path/{i}/{prop} rows per element, which the
+    " wildcard loop would overcount by the property count, so that shape
+    " states its own element count as a plain number at the bare path
+    " instead. Prefer that exact count when it looks like a genuine
+    " digits-only number, so a stray non-numeric value at the bare path can
+    " never reach an integer assignment and dump.
+    lv_exact = s( iv_path ).
+    IF lv_exact IS NOT INITIAL AND lv_exact CO '0123456789'.
+      rv_count = lv_exact.
+      RETURN.
+    ENDIF.
     lv_pattern = |{ iv_path }/*|.
     LOOP AT gt_arg TRANSPORTING NO FIELDS WHERE path CP lv_pattern.
       rv_count = rv_count + 1.
@@ -78031,13 +76980,13 @@ ${bodies}
 
 ENDCLASS.
 `;
-  source.split("\n").forEach((line, i) => {
-    if (line.length > ABAP_SOURCE_LINE_MAX) {
-      const excerpt = truncateForDisplay(line, ECHO_LINE_MAX);
+  source.split("\n").forEach((line2, i) => {
+    if (line2.length > ABAP_SOURCE_LINE_MAX) {
+      const excerpt = truncateForDisplay(line2, ECHO_LINE_MAX);
       throw new AbapError(
         "CHECK_FAILED",
-        `Generated classic body source line ${i + 1} is ${line.length} chars, over ABAP's ${ABAP_SOURCE_LINE_MAX}-char class-source limit: ${excerpt}`,
-        { line: i + 1, length: line.length, excerpt }
+        `Generated classic body source line ${i + 1} is ${line2.length} chars, over ABAP's ${ABAP_SOURCE_LINE_MAX}-char class-source limit: ${excerpt}`,
+        { line: i + 1, length: line2.length, excerpt }
       );
     }
   });
@@ -78177,6 +77126,23 @@ var SOURCE = `  METHOD create_view.
         |TADIR row remains - finishing the TADIR cleanup only, not repeating DD_OBJ_DEL| ).
     ENDIF.
 
+    " Step 1b (issue #83): a view can have a generated maintenance dialog
+    " (SE54 / TVDIR) sitting on top of it; deleting the view out from under
+    " that dialog leaves it broken. TVDIR is keyed by TABNAME (views share
+    " the same key space as tables there) - proven live on A4H 2026-09-12.
+    DATA ls_tvdir TYPE tvdir.
+    SELECT SINGLE * FROM tvdir INTO @ls_tvdir WHERE tabname = @lv_view.
+    IF sy-subrc = 0.
+      IF b( 'confirm_maintenance_dialog' ) = abap_false.
+        fail( |view { lv_view } has a generated maintenance dialog (TVDIR: function group area { ls_tvdir-area }, | &&
+          |package { ls_tvdir-devclass }, type { ls_tvdir-type }, screen { ls_tvdir-liste }). | &&
+          |Deleting the view leaves that dialog broken. Pass confirm_maintenance_dialog to delete it anyway| ).
+        RETURN.
+      ENDIF.
+      line( |ZMCP-DDIC-NOTE> deleting { lv_view } despite a generated maintenance dialog on it (TVDIR area | &&
+        |{ ls_tvdir-area }) - that dialog is left behind and will be broken| ).
+    ENDIF.
+
     " Steps 2-3 (skipped when DD25L is already gone - resuming a half-
     " finished delete): delete the active version, then any inactive one
     " (no inactive row is normal). Each CALL FUNCTION is wrapped in its own
@@ -78286,8 +77252,129 @@ var SOURCE = `  METHOD create_view.
       RETURN.
     ENDIF.
     line( 'VIEW-GONE' ).
+  ENDMETHOD.
+
+  METHOD update_view.
+    DATA lv_view TYPE dd25l-viewname.
+    lv_view = s( 'view_name' ).
+    DATA(lv_table) = s( 'base_table' ).
+    DATA(lv_desc) = s( 'description' ).
+    DATA lv_package TYPE devclass.
+    lv_package = s( 'package_name' ).
+    DATA(lv_corr) = s( 'corr_nr' ).
+    DATA(lv_local) = boolc( to_upper( lv_package ) CP '$*' ).
+    DATA(lv_object) = |VIEW{ lv_view WIDTH = 40 ALIGN = LEFT }|.
+
+    DATA ls_dd25v TYPE dd25v.
+    DATA ls_dd26v TYPE dd26v.
+    DATA lt_dd26v TYPE STANDARD TABLE OF dd26v.
+    DATA ls_dd27p TYPE dd27p.
+    DATA lt_dd27p TYPE STANDARD TABLE OF dd27p.
+    DATA lv_rc TYPE sy-subrc.
+    DATA lv_n TYPE i.
+    DATA lv_i TYPE i.
+    DATA lv_field TYPE string.
+    DATA lv_korrnum TYPE trkorr.
+    DATA lv_exists_count TYPE i.
+
+    " Pre-check (issue #83): update_view mirrors create_view's fill/PUT/
+    " ACTIVATE sequence exactly, but only makes sense against a view that
+    " already exists - create_view already refuses a name that DDIF_VIEW_PUT
+    " would otherwise happily (re-)create.
+    SELECT COUNT( * ) FROM dd25l INTO @lv_exists_count WHERE viewname = @lv_view AND as4local = 'A'.
+    IF lv_exists_count = 0.
+      fail( |view { lv_view } does not exist| ).
+      RETURN.
+    ENDIF.
+    line( |ZMCP-DDIC-NOTE> DDIF_VIEW_PUT replaces the whole definition: every joined table and | &&
+      |field not passed in this call is removed| ).
+
+    IF lv_local = abap_true.
+      lv_korrnum = space.
+    ELSE.
+      lv_korrnum = lv_corr.
+    ENDIF.
+
+    CALL FUNCTION 'RS_CORR_INSERT'
+      EXPORTING object = lv_object
+                object_class = 'DICT'
+                devclass = lv_package
+                master_language = sy-langu
+                mode = 'INSERT'
+                global_lock = 'X'
+                korrnum = lv_korrnum
+                suppress_dialog = 'X'
+      EXCEPTIONS cancelled = 1 permission_failure = 2 unknown_objectclass = 3 OTHERS = 4.
+    IF sy-subrc <> 0.
+      fail( |RS_CORR_INSERT failed, sy-subrc={ sy-subrc }, { sy-msgid }{ sy-msgno }| ).
+      RETURN.
+    ENDIF.
+    line( 'VIEW-REGISTERED' ).
+
+    CLEAR ls_dd25v.
+    ls_dd25v-viewname   = lv_view.
+    ls_dd25v-aggtype    = 'V'.
+    ls_dd25v-roottab    = lv_table.
+    ls_dd25v-viewclass  = 'D'.
+    ls_dd25v-viewgrant  = 'R'.
+    ls_dd25v-ddlanguage = sy-langu.
+    ls_dd25v-ddtext     = lv_desc.
+
+    CLEAR lt_dd26v.
+    CLEAR ls_dd26v.
+    ls_dd26v-viewname = lv_view.
+    ls_dd26v-tabname  = lv_table.
+    ls_dd26v-tabpos   = '0001'.
+    APPEND ls_dd26v TO lt_dd26v.
+
+    CLEAR lt_dd27p.
+    lv_n = n( 'fields' ).
+    DO lv_n TIMES.
+      lv_i = sy-index.
+      lv_field = s( |fields/{ lv_i - 1 }| ).
+      CLEAR ls_dd27p.
+      ls_dd27p-viewname  = lv_view.
+      ls_dd27p-objpos    = |{ lv_i WIDTH = 4 PAD = '0' ALIGN = RIGHT }|.
+      ls_dd27p-viewfield = lv_field.
+      ls_dd27p-tabname   = lv_table.
+      ls_dd27p-fieldname = lv_field.
+      APPEND ls_dd27p TO lt_dd27p.
+    ENDDO.
+
+    CALL FUNCTION 'DDIF_VIEW_PUT'
+      EXPORTING name = lv_view
+                dd25v_wa = ls_dd25v
+      TABLES    dd26v_tab = lt_dd26v
+                dd27p_tab = lt_dd27p
+      EXCEPTIONS view_not_found = 1 name_inconsistent = 2 view_inconsistent = 3
+                 put_failure = 4 put_refused = 5 OTHERS = 6.
+    IF sy-subrc <> 0.
+      fail( |DDIF_VIEW_PUT failed, sy-subrc={ sy-subrc }, { sy-msgid }{ sy-msgno }| ).
+      RETURN.
+    ENDIF.
+    line( 'VIEW-UPDATED' ).
+
+    COMMIT WORK.
+
+    CALL FUNCTION 'DDIF_VIEW_ACTIVATE'
+      EXPORTING name = lv_view
+      IMPORTING rc = lv_rc
+      EXCEPTIONS not_found = 1 put_failure = 2 OTHERS = 3.
+    IF sy-subrc = 0 AND lv_rc > 4.
+      sy-subrc = lv_rc.
+    ENDIF.
+    IF sy-subrc <> 0.
+      fail( |DDIF_VIEW_ACTIVATE failed, sy-subrc={ sy-subrc }, { sy-msgid }{ sy-msgno }| ).
+      RETURN.
+    ENDIF.
+    line( 'VIEW-ACTIVATED' ).
+
+    COMMIT WORK.
   ENDMETHOD.`;
-var viewPart = { methods: ["create_view", "delete_view"], source: SOURCE };
+var viewPart = {
+  methods: ["create_view", "delete_view", "update_view"],
+  source: SOURCE
+};
 
 // src/adt/fluid/builtin/classic/abap-tran.ts
 var SOURCE2 = `  METHOD create_transaction.
@@ -78329,6 +77416,142 @@ var SOURCE2 = `  METHOD create_transaction.
     COMMIT WORK.
   ENDMETHOD.
 
+  METHOD update_transaction.
+    DATA ls_tstc TYPE tstc.
+    DATA lv_tcode TYPE tstc-tcode.
+    lv_tcode = s( 'tcode' ).
+    DATA lv_program TYPE tstc-pgmna.
+    lv_program = s( 'program' ).
+    DATA lv_description TYPE tstct-ttext.
+    lv_description = s( 'description' ).
+    DATA lv_package TYPE devclass.
+    lv_package = s( 'package_name' ).
+    DATA(lv_corr_nr) = s( 'corr_nr' ).
+    DATA(lv_local) = boolc( to_upper( lv_package ) CP '$*' ).
+    DATA lv_korrnum TYPE trkorr.
+    IF lv_local = abap_true.
+      lv_korrnum = space.
+    ELSE.
+      lv_korrnum = lv_corr_nr.
+    ENDIF.
+
+    " Step 1: confirm the transaction exists - update_transaction retargets
+    " an existing transaction, it does not create one (create_transaction
+    " already covers that case and refuses a tcode that already exists).
+    SELECT SINGLE * FROM tstc INTO @ls_tstc WHERE tcode = @lv_tcode.
+    IF sy-subrc <> 0.
+      fail( |transaction { lv_tcode } does not exist| ).
+      RETURN.
+    ENDIF.
+
+    " Step 2 (issue #83): role-menu guard. Retargeting a transaction that is
+    " already assigned to one or more roles' menus (AGR_TCODES, keyed by
+    " AGR_NAME/TCODE - proven live on A4H 2026-09-12) changes what those
+    " roles' menu entries launch, without touching the roles themselves.
+    " Honesty note: an SM01 transaction lock is NOT checked anywhere in this
+    " method - if { lv_tcode } is locked in SM01, RPY_TRANSACTION_DELETE and
+    " RPY_TRANSACTION_INSERT below still run and TSTC is still updated; SM01
+    " only affects whether end users can start the transaction, not whether
+    " this bridge can redefine it.
+    DATA lt_agr_tcodes TYPE STANDARD TABLE OF agr_tcodes WITH DEFAULT KEY.
+    DATA ls_agr_tcodes TYPE agr_tcodes.
+    DATA lv_agr_count TYPE i.
+    DATA lv_agr_list TYPE string.
+    " No caps of any kind: this project forbids silent truncation in
+    " generated ABAP, so every matching role is selected and lv_agr_list
+    " below is the complete membership, not a sample of it.
+    SELECT * FROM agr_tcodes INTO TABLE @lt_agr_tcodes WHERE tcode = @lv_tcode.
+    lv_agr_count = lines( lt_agr_tcodes ).
+    IF lv_agr_count <> 0.
+      CLEAR lv_agr_list.
+      LOOP AT lt_agr_tcodes INTO ls_agr_tcodes.
+        IF lv_agr_list IS INITIAL.
+          lv_agr_list = ls_agr_tcodes-agr_name.
+        ELSE.
+          lv_agr_list = |{ lv_agr_list }, { ls_agr_tcodes-agr_name }|.
+        ENDIF.
+      ENDLOOP.
+      IF b( 'confirm_in_role_menu' ) = abap_false.
+        fail( |transaction { lv_tcode } is in { lv_agr_count } role menu(s) ({ lv_agr_list }); | &&
+          |retargeting it changes what those menu entries launch. An SM01 lock is not checked either way. | &&
+          |Pass confirm_in_role_menu to proceed anyway| ).
+        RETURN.
+      ENDIF.
+      line( |ZMCP-DDIC-NOTE> retargeting { lv_tcode } despite it being in { lv_agr_count } role menu(s) | &&
+        |({ lv_agr_list }) - an SM01 transaction lock is not checked here either| ).
+    ENDIF.
+
+    " Step 3: register the change once, up front, so both the delete and the
+    " re-insert below happen inside the same transport request.
+    DATA(lv_object) = lv_tcode.
+    CALL FUNCTION 'RS_CORR_INSERT'
+      EXPORTING object = lv_object
+                object_class = 'TRAN'
+                devclass = lv_package
+                master_language = sy-langu
+                mode = 'INSERT'
+                global_lock = 'X'
+                korrnum = lv_korrnum
+                suppress_dialog = 'X'
+      EXCEPTIONS cancelled = 1 permission_failure = 2 unknown_objectclass = 3 OTHERS = 4.
+    IF sy-subrc <> 0.
+      fail( |RS_CORR_INSERT failed, sy-subrc={ sy-subrc }, { sy-msgid }{ sy-msgno }| ).
+      RETURN.
+    ENDIF.
+    line( 'TRAN-REGISTERED' ).
+
+    " Step 4: RPY_TRANSACTION_DELETE's real signature (proven live on A4H
+    " 2026-09-12) also exports SUPPRESS_CORR_INSERT and SUPPRESS_CORR_CHECK
+    " (both 'X' here: RS_CORR_INSERT already registered the object above -
+    " leaving these off makes the FM insert its own transport-request
+    " prompt, which a headless classrun cannot answer). Its "nothing to
+    " delete" exception is named NOT_EXCECUTED in the FM itself (that
+    " spelling is the FM's, not a typo introduced here).
+    CALL FUNCTION 'RPY_TRANSACTION_DELETE'
+      EXPORTING transaction          = lv_tcode
+                suppress_corr_insert = 'X'
+                suppress_corr_check  = 'X'
+      EXCEPTIONS not_exececuted = 1
+                 OTHERS         = 2.
+    IF sy-subrc <> 0.
+      fail( |RPY_TRANSACTION_DELETE failed, sy-subrc={ sy-subrc }, { sy-msgid }{ sy-msgno }| ).
+      RETURN.
+    ENDIF.
+
+    " Step 5: re-insert against the new program. dynpro is hardcoded to
+    " '1000' here for the same reason create_transaction hardcodes it: it is
+    " ignored by RPY_TRANSACTION_INSERT when transaction_type = 'R' (a
+    " report transaction has no dynpro of its own to start on).
+    CALL FUNCTION 'RPY_TRANSACTION_INSERT'
+      EXPORTING transaction       = lv_tcode
+                program           = lv_program
+                dynpro            = '1000'
+                language          = sy-langu
+                development_class = lv_package
+                transport_number  = lv_korrnum
+                transaction_type  = 'R'
+                shorttext         = lv_description
+      EXCEPTIONS cancelled = 1 already_exist = 2 permission_error = 3
+                 name_not_allowed = 4 name_conflict = 5 illegal_type = 6
+                 object_inconsistent = 7 db_access_error = 8 OTHERS = 9.
+    IF sy-subrc <> 0.
+      fail( |RPY_TRANSACTION_INSERT failed, sy-subrc={ sy-subrc }, { sy-msgid }{ sy-msgno }| ).
+      RETURN.
+    ENDIF.
+
+    COMMIT WORK.
+
+    " Step 6: prove it, rather than trust either FM's own success signal -
+    " re-read TSTC and check PGMNA actually points at the new program.
+    SELECT SINGLE * FROM tstc INTO @ls_tstc WHERE tcode = @lv_tcode.
+    IF sy-subrc <> 0 OR ls_tstc-pgmna <> lv_program.
+      fail( |retarget of { lv_tcode } reported no error but TSTC-PGMNA is | &&
+        |{ ls_tstc-pgmna }, not { lv_program }| ).
+      RETURN.
+    ENDIF.
+    line( 'TRAN-RETARGETED' ).
+  ENDMETHOD.
+
   METHOD delete_transaction.
     DATA ls_tstc TYPE tstc.
     DATA lv_tcode TYPE tstc-tcode.
@@ -78339,6 +77562,39 @@ var SOURCE2 = `  METHOD create_transaction.
     IF sy-subrc <> 0.
       fail( |transaction { lv_tcode } does not exist| ).
       RETURN.
+    ENDIF.
+
+    " Step 1b (issue #83): role-menu guard - same check and same honest
+    " SM01-not-checked note as update_transaction's Step 2; deleting a
+    " transaction that is in one or more roles' menus removes it from those
+    " menus too (a role menu entry pointing at a deleted transaction fails
+    " when a user tries to launch it).
+    DATA lt_agr_tcodes TYPE STANDARD TABLE OF agr_tcodes WITH DEFAULT KEY.
+    DATA ls_agr_tcodes TYPE agr_tcodes.
+    DATA lv_agr_count TYPE i.
+    DATA lv_agr_list TYPE string.
+    " No caps of any kind: this project forbids silent truncation in
+    " generated ABAP, so every matching role is selected and lv_agr_list
+    " below is the complete membership, not a sample of it.
+    SELECT * FROM agr_tcodes INTO TABLE @lt_agr_tcodes WHERE tcode = @lv_tcode.
+    lv_agr_count = lines( lt_agr_tcodes ).
+    IF lv_agr_count <> 0.
+      CLEAR lv_agr_list.
+      LOOP AT lt_agr_tcodes INTO ls_agr_tcodes.
+        IF lv_agr_list IS INITIAL.
+          lv_agr_list = ls_agr_tcodes-agr_name.
+        ELSE.
+          lv_agr_list = |{ lv_agr_list }, { ls_agr_tcodes-agr_name }|.
+        ENDIF.
+      ENDLOOP.
+      IF b( 'confirm_in_role_menu' ) = abap_false.
+        fail( |transaction { lv_tcode } is in { lv_agr_count } role menu(s) ({ lv_agr_list }); | &&
+          |deleting it removes it from those role menus. An SM01 lock is not checked either way. | &&
+          |Pass confirm_in_role_menu to proceed anyway| ).
+        RETURN.
+      ENDIF.
+      line( |ZMCP-DDIC-NOTE> deleting { lv_tcode } despite it being in { lv_agr_count } role menu(s) | &&
+        |({ lv_agr_list }) - an SM01 transaction lock is not checked here either| ).
     ENDIF.
 
     " Step 2: delete via RPY_TRANSACTION_DELETE.
@@ -78362,7 +77618,472 @@ var SOURCE2 = `  METHOD create_transaction.
     ENDIF.
     line( 'TRAN-GONE' ).
   ENDMETHOD.`;
-var tranPart = { methods: ["create_transaction", "delete_transaction"], source: SOURCE2 };
+var tranPart = {
+  methods: ["create_transaction", "update_transaction", "delete_transaction"],
+  source: SOURCE2
+};
+
+// src/adt/fluid/builtin/classic/abap-shlp.ts
+var PUT_LOCALS = `    DATA lv_shlp TYPE dd30l-shlpname.
+    lv_shlp = s( 'shlp_name' ).
+    DATA(lv_description) = s( 'description' ).
+    DATA lv_package TYPE devclass.
+    lv_package = s( 'package_name' ).
+    DATA(lv_corr) = s( 'corr_nr' ).
+    DATA(lv_selmethod) = s( 'selection_method' ).
+    DATA(lv_selmtype) = s( 'selection_method_type' ).
+    DATA(lv_dialogtype) = s( 'dialog_type' ).
+    DATA(lv_texttab) = s( 'text_table' ).
+    DATA(lv_hotkey) = s( 'hot_key' ).
+    DATA(lv_elementary) = b( 'elementary' ).
+    IF lv_dialogtype IS INITIAL.
+      lv_dialogtype = 'D'.
+    ENDIF.
+    DATA(lv_local) = boolc( to_upper( lv_package ) CP '$*' ).
+    DATA lv_korrnum TYPE trkorr.
+    IF lv_local = abap_true.
+      lv_korrnum = space.
+    ELSE.
+      lv_korrnum = lv_corr.
+    ENDIF.
+
+    DATA lv_field_count TYPE i.
+    DATA lv_inc_count TYPE i.
+    DATA lv_assign_count TYPE i.
+    DATA lv_i TYPE i.
+    DATA lv_field TYPE string.
+    DATA lv_import_any TYPE abap_bool.
+    DATA lv_export_any TYPE abap_bool.
+    DATA lv_selmethod_count TYPE i.
+    DATA lv_fld_count TYPE i.
+    DATA lv_ref_count TYPE i.
+    DATA lv_rc TYPE sy-subrc.
+
+    " --- validation, before anything is registered (RS_CORR_INSERT) ---
+
+    lv_field_count = n( 'fields' ).
+    IF lv_elementary = abap_true.
+      DO lv_field_count TIMES.
+        lv_i = sy-index.
+        IF b( |fields/{ lv_i - 1 }/import| ) = abap_true.
+          lv_import_any = abap_true.
+        ENDIF.
+        IF b( |fields/{ lv_i - 1 }/export| ) = abap_true.
+          lv_export_any = abap_true.
+        ENDIF.
+      ENDDO.
+      IF lv_import_any = abap_false OR lv_export_any = abap_false.
+        fail( 'a search help needs at least one import and one export parameter' ).
+        RETURN.
+      ENDIF.
+    ENDIF.
+
+    " A collective search help has no selection method (DD30V-SELMETHOD blank) - and, per the
+    " five standard SAP elementary helps measured live on A4H 2026-09-15 (e.g. /UI2/GROUPS_SH,
+    " /UI5/PURPOSE), plenty of elementary helps have a blank one too, driven by a search-help
+    " exit instead. Neither the method's own existence nor its interface fields mean anything
+    " to check against the catalogue in that case, so both checks below are skipped entirely.
+    IF lv_selmethod IS INITIAL.
+      line( |ZMCP-DDIC-NOTE> no selection method was given (a collective search help, or an | &&
+        |elementary one driven by a search-help exit) - neither the method nor the interface | &&
+        |fields are checked against the catalogue| ).
+    ELSE.
+      CASE lv_selmtype.
+        WHEN 'T'.
+          SELECT COUNT( * ) FROM dd02l INTO @lv_selmethod_count WHERE tabname = @lv_selmethod AND as4local = 'A'.
+        WHEN 'V'.
+          SELECT COUNT( * ) FROM dd25l INTO @lv_selmethod_count WHERE viewname = @lv_selmethod AND as4local = 'A'.
+        WHEN OTHERS.
+          line( |ZMCP-DDIC-NOTE> selection method type { lv_selmtype } is not checked| ).
+          lv_selmethod_count = 1.
+      ENDCASE.
+      IF lv_selmethod_count = 0.
+        fail( |selection method { lv_selmethod } does not exist as a { lv_selmtype }| ).
+        RETURN.
+      ENDIF.
+
+      IF lv_selmtype = 'T' OR lv_selmtype = 'V'.
+        DO lv_field_count TIMES.
+          lv_i = sy-index.
+          lv_field = s( |fields/{ lv_i - 1 }/name| ).
+          CASE lv_selmtype.
+            WHEN 'T'.
+              SELECT COUNT( * ) FROM dd03l INTO @lv_fld_count
+                WHERE tabname = @lv_selmethod AND fieldname = @lv_field AND as4local = 'A'.
+            WHEN 'V'.
+              SELECT COUNT( * ) FROM dd27s INTO @lv_fld_count
+                WHERE viewname = @lv_selmethod AND viewfield = @lv_field AND as4local = 'A'.
+          ENDCASE.
+          IF lv_fld_count = 0.
+            fail( |field { lv_field } is not a field of selection method { lv_selmethod }| ).
+            RETURN.
+          ENDIF.
+        ENDDO.
+      ENDIF.
+    ENDIF.
+
+    " --- fill DD30V/DD31V/DD32P/DD33V ---
+
+    DATA ls_dd30v TYPE dd30v.
+    CLEAR ls_dd30v.
+    ls_dd30v-shlpname   = lv_shlp.
+    ls_dd30v-ddlanguage = sy-langu.
+    ls_dd30v-ddtext     = lv_description.
+    IF lv_elementary = abap_true.
+      ls_dd30v-issimple = 'X'.
+    ELSE.
+      ls_dd30v-issimple = space.
+    ENDIF.
+    ls_dd30v-selmethod  = lv_selmethod.
+    ls_dd30v-selmtype   = lv_selmtype.
+    ls_dd30v-texttab    = lv_texttab.
+    ls_dd30v-hotkey     = lv_hotkey.
+    ls_dd30v-dialogtype = lv_dialogtype.
+
+    TYPES tt_dd31v TYPE STANDARD TABLE OF dd31v WITH DEFAULT KEY.
+    DATA lt_dd31v TYPE tt_dd31v.
+    DATA ls_dd31v TYPE dd31v.
+    lv_inc_count = n( 'includes' ).
+    DO lv_inc_count TIMES.
+      lv_i = sy-index.
+      CLEAR ls_dd31v.
+      ls_dd31v-shlpname   = lv_shlp.
+      ls_dd31v-subshlp    = s( |includes/{ lv_i - 1 }/name| ).
+      ls_dd31v-shposition = |{ lv_i WIDTH = 4 PAD = '0' ALIGN = RIGHT }|.
+      ls_dd31v-viashlp    = lv_shlp.
+      APPEND ls_dd31v TO lt_dd31v.
+    ENDDO.
+
+    TYPES tt_dd32p TYPE STANDARD TABLE OF dd32p WITH DEFAULT KEY.
+    DATA lt_dd32p TYPE tt_dd32p.
+    DATA ls_dd32p TYPE dd32p.
+    DO lv_field_count TIMES.
+      lv_i = sy-index.
+      CLEAR ls_dd32p.
+      ls_dd32p-shlpname   = lv_shlp.
+      ls_dd32p-fieldname  = s( |fields/{ lv_i - 1 }/name| ).
+      ls_dd32p-flposition = |{ lv_i WIDTH = 4 PAD = '0' ALIGN = RIGHT }|.
+      ls_dd32p-rollname   = s( |fields/{ lv_i - 1 }/data_element| ).
+      IF b( |fields/{ lv_i - 1 }/import| ) = abap_true.
+        ls_dd32p-shlpinput = 'X'.
+      ENDIF.
+      IF b( |fields/{ lv_i - 1 }/export| ) = abap_true.
+        ls_dd32p-shlpoutput = 'X'.
+      ENDIF.
+      " every field is both selectable and listed, at its own position - proven live 2026-09-12,
+      " read-back showed sel/list positions 01, 02, 03 for a 3-field interface.
+      ls_dd32p-shlpselpos = |{ lv_i WIDTH = 4 PAD = '0' ALIGN = RIGHT }|.
+      ls_dd32p-shlplispos = |{ lv_i WIDTH = 4 PAD = '0' ALIGN = RIGHT }|.
+      ls_dd32p-defaultval = s( |fields/{ lv_i - 1 }/default_value| ).
+      APPEND ls_dd32p TO lt_dd32p.
+    ENDDO.
+
+    TYPES tt_dd33v TYPE STANDARD TABLE OF dd33v WITH DEFAULT KEY.
+    DATA lt_dd33v TYPE tt_dd33v.
+    DATA ls_dd33v TYPE dd33v.
+    lv_assign_count = n( 'assignments' ).
+    DO lv_assign_count TIMES.
+      lv_i = sy-index.
+      CLEAR ls_dd33v.
+      ls_dd33v-shlpname   = lv_shlp.
+      ls_dd33v-fieldname  = s( |assignments/{ lv_i - 1 }/field| ).
+      ls_dd33v-subshlp    = s( |assignments/{ lv_i - 1 }/included_help| ).
+      ls_dd33v-subfield   = s( |assignments/{ lv_i - 1 }/included_field| ).
+      ls_dd33v-valuedirec = s( |assignments/{ lv_i - 1 }/direction| ).
+      APPEND ls_dd33v TO lt_dd33v.
+    ENDDO.
+
+    " Check include references (issue #83) - DDIF_SHLP_PUT succeeds even when an include names a
+    " search help that does not exist; DDIF_SHLP_ACTIVATE then fails with rc = 8, message DH109,
+    " and the failed create leaves this search help as an inactive-only object (DD30L-AS4LOCAL =
+    " 'N', no 'A' row) - reproduced live on A4H, 2026-09-15. Caught here, before RS_CORR_INSERT,
+    " so a bad payload registers nothing in CTS.
+    LOOP AT lt_dd31v INTO ls_dd31v.
+      SELECT COUNT( * ) FROM dd30l INTO @lv_ref_count WHERE shlpname = @ls_dd31v-subshlp AND as4local = 'A'.
+      IF lv_ref_count = 0.
+        fail( |include { ls_dd31v-subshlp } of search help { lv_shlp } does not exist - | &&
+          |activation would fail with DH109 and leave { lv_shlp } as an inactive-only object| ).
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+
+    " Check assignment references (issue #83) - same discipline: DDIF_SHLP_PUT succeeds even when
+    " an assignment's SUBFIELD is not actually an interface parameter of its own SUBSHLP;
+    " DDIF_SHLP_ACTIVATE then fails the same way, rc = 8 / DH109. An assignment whose SUBSHLP is
+    " this search help itself is skipped: it refers to a field of the very definition being built
+    " here, not yet present in DD32S, so a live catalogue lookup would either find nothing (create)
+    " or a stale previous definition (update) - DD32S only means something when SUBSHLP names a
+    " DIFFERENT search help (whether or not it is itself one of the declared includes - that
+    " "must be a declared include" rule is a local check, not this one, and lives elsewhere).
+    LOOP AT lt_dd33v INTO ls_dd33v.
+      IF ls_dd33v-subshlp = lv_shlp.
+        CONTINUE.
+      ENDIF.
+      SELECT COUNT( * ) FROM dd32s INTO @lv_ref_count
+        WHERE shlpname = @ls_dd33v-subshlp AND fieldname = @ls_dd33v-subfield AND as4local = 'A'.
+      IF lv_ref_count = 0.
+        fail( |assignment { ls_dd33v-fieldname }: field { ls_dd33v-subfield } is not an interface | &&
+          |parameter of include { ls_dd33v-subshlp } - activation would fail with DH109 and leave | &&
+          |{ lv_shlp } as an inactive-only object| ).
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+
+    DATA(lv_object) = |SHLP{ lv_shlp WIDTH = 40 ALIGN = LEFT }|.
+    CALL FUNCTION 'RS_CORR_INSERT'
+      EXPORTING object = lv_object
+                object_class = 'DICT'
+                devclass = lv_package
+                master_language = sy-langu
+                mode = 'INSERT'
+                global_lock = 'X'
+                korrnum = lv_korrnum
+                suppress_dialog = 'X'
+      EXCEPTIONS cancelled = 1 permission_failure = 2 unknown_objectclass = 3 OTHERS = 4.
+    IF sy-subrc <> 0.
+      fail( |RS_CORR_INSERT failed, sy-subrc={ sy-subrc }, { sy-msgid }{ sy-msgno }| ).
+      RETURN.
+    ENDIF.
+    line( 'SHLP-REGISTERED' ).
+`;
+var PUT_ACTIVATE = `    CALL FUNCTION 'DDIF_SHLP_PUT'
+      EXPORTING name = lv_shlp
+                dd30v_wa = ls_dd30v
+      TABLES    dd31v_tab = lt_dd31v
+                dd32p_tab = lt_dd32p
+                dd33v_tab = lt_dd33v
+      EXCEPTIONS shlp_not_found = 1 name_inconsistent = 2 shlp_inconsistent = 3
+                 put_failure = 4 put_refused = 5 OTHERS = 6.
+    IF sy-subrc <> 0.
+      fail( |DDIF_SHLP_PUT failed, sy-subrc={ sy-subrc }, { sy-msgid }{ sy-msgno }| ).
+      RETURN.
+    ENDIF.
+    line( 'SHLP-PUT' ).
+
+    COMMIT WORK.
+
+    CALL FUNCTION 'DDIF_SHLP_ACTIVATE'
+      EXPORTING name = lv_shlp
+      IMPORTING rc = lv_rc
+      EXCEPTIONS not_found = 1 put_failure = 2 OTHERS = 3.
+    IF sy-subrc = 0 AND lv_rc > 4.
+      sy-subrc = lv_rc.
+    ENDIF.
+    IF sy-subrc <> 0.
+      fail( |DDIF_SHLP_ACTIVATE failed, sy-subrc={ sy-subrc }, { sy-msgid }{ sy-msgno }| ).
+      RETURN.
+    ENDIF.
+    " rc = 4 (DH108) is still a genuine activation - only rc > 4 was escalated to a failure above -
+    " but "activated with warnings" is a real, if non-fatal, finding that used to be discarded
+    " silently; report it instead of hiding it from the caller.
+    IF lv_rc = 4.
+      line( |ZMCP-DDIC-NOTE> DDIF_SHLP_ACTIVATE returned rc=4, { sy-msgid }{ sy-msgno } - { lv_shlp } | &&
+        |activated with warnings| ).
+    ENDIF.
+    line( 'SHLP-ACTIVATED' ).
+
+    COMMIT WORK.
+  ENDMETHOD.`;
+var CREATE_SEARCH_HELP = `  METHOD create_search_help.
+    DATA lv_shlp_probe TYPE dd30l-shlpname.
+    lv_shlp_probe = s( 'shlp_name' ).
+    DATA lv_exists_count TYPE i.
+    SELECT COUNT( * ) FROM dd30l INTO @lv_exists_count WHERE shlpname = @lv_shlp_probe AND as4local = 'A'.
+    IF lv_exists_count <> 0.
+      fail( |search help { lv_shlp_probe } already exists| ).
+      RETURN.
+    ENDIF.
+
+${PUT_LOCALS}
+${PUT_ACTIVATE}`;
+var UPDATE_SEARCH_HELP = `  METHOD update_search_help.
+    DATA lv_shlp_probe TYPE dd30l-shlpname.
+    lv_shlp_probe = s( 'shlp_name' ).
+    DATA lv_exists_count TYPE i.
+    SELECT COUNT( * ) FROM dd30l INTO @lv_exists_count WHERE shlpname = @lv_shlp_probe AND as4local = 'A'.
+    IF lv_exists_count = 0.
+      fail( |search help { lv_shlp_probe } does not exist| ).
+      RETURN.
+    ENDIF.
+
+${PUT_LOCALS}
+    line( |ZMCP-DDIC-NOTE> DDIF_SHLP_PUT replaces the whole definition: every interface parameter, | &&
+      |include and assignment not passed in this call is removed| ).
+
+${PUT_ACTIVATE}`;
+var DELETE_SEARCH_HELP = `  METHOD delete_search_help.
+    DATA lv_shlp TYPE dd30l-shlpname.
+    lv_shlp = s( 'shlp_name' ).
+
+    DATA ls_dd30l TYPE dd30l.
+    DATA lv_dd30l_exists TYPE abap_bool.
+    DATA lv_dd30l_count TYPE i.
+    DATA lv_tadir_count TYPE i.
+    DATA lv_dtel_count TYPE i.
+    DATA lv_att_count TYPE i.
+    DATA lv_inc_count TYPE i.
+    DATA lv_active_count TYPE i.
+    DATA lv_inactive_count TYPE i.
+
+    " Step 1: confirm there is something left to delete - same resume-tolerant
+    " probe as delete_view: a DD30L row is the normal case; also tolerate DD30L
+    " already gone but a TADIR row still present, so a retry can finish a
+    " previous delete that crashed between DD_OBJ_DEL and TR_TADIR_INTERFACE.
+    SELECT SINGLE * FROM dd30l INTO @ls_dd30l WHERE shlpname = @lv_shlp.
+    lv_dd30l_exists = xsdbool( sy-subrc = 0 ).
+    IF lv_dd30l_exists = abap_false.
+      SELECT COUNT( * ) FROM tadir INTO @lv_tadir_count
+        WHERE pgmid = 'R3TR' AND object = 'SHLP' AND obj_name = @lv_shlp.
+      IF lv_tadir_count = 0.
+        fail( |search help { lv_shlp } does not exist| ).
+        RETURN.
+      ENDIF.
+      line( |ZMCP-DDIC-NOTE> resuming a partial delete of { lv_shlp }: DD30L is already gone, | &&
+        |TADIR row remains - finishing the TADIR cleanup only, not repeating DD_OBJ_DEL| ).
+    ENDIF.
+
+    " Step 1b: DD30L's active and inactive rows are counted separately - a
+    " create that PUT but failed to activate leaves DD30L with an
+    " AS4LOCAL = 'N' row and no 'A' row (diagnosed live on A4H, 2026-09-15);
+    " the del_state = 'A' delete below has no active version to find in
+    " that case, and its failure is tolerated rather than treated as an
+    " error - see the check right before that call.
+    SELECT COUNT( * ) FROM dd30l INTO @lv_active_count WHERE shlpname = @lv_shlp AND as4local = 'A'.
+    SELECT COUNT( * ) FROM dd30l INTO @lv_inactive_count WHERE shlpname = @lv_shlp AND as4local <> 'A'.
+    IF lv_active_count = 0 AND lv_inactive_count > 0.
+      line( |ZMCP-DDIC-NOTE> { lv_shlp } exists only as an inactive version (DD30L-AS4LOCAL = 'N') - | &&
+        |this is what a create that PUT but failed to activate leaves behind; the active-state | &&
+        |delete step below is expected to find nothing| ).
+    ENDIF.
+
+    " Step 2: where-used guard (issue #83) - a search help can be attached to
+    " data elements (DD04L), to individual table/view fields (DD35L), and be
+    " included by a collective search help (DD31S, keyed by SUBSHLP). All
+    " three tables and their AS4LOCAL = 'A' filter are live-proven live on
+    " A4H 2026-09-12 as the right place to look.
+    SELECT COUNT( * ) FROM dd04l INTO @lv_dtel_count WHERE shlpname = @lv_shlp AND as4local = 'A'.
+    SELECT COUNT( * ) FROM dd35l INTO @lv_att_count WHERE shlpname = @lv_shlp AND as4local = 'A'.
+    " SAP itself writes a DD31S "self-row" for an elementary search help - SUBSHLP = SHLPNAME
+    " at SHPOSITION 0001 - representing the help's own interface, not a real "included by"
+    " relationship. Measured live on A4H 2026-09-15: five standard SAP elementary helps
+    " (/UI2/GROUPS_SH, /AIF/MESSAGE_CLID_SHLP, /UI5/PURPOSE, /BA1/F4_FX_RATETYPE,
+    " /AIF/FILEDIALOG) each returned exactly one DD31S row, SUBSHLP = SHLPNAME. Without the
+    " SHLPNAME <> exclusion below, every elementary help this bridge creates would count its
+    " own self-row here and be reported "in use" - hence undeletable - forever.
+    SELECT COUNT( * ) FROM dd31s INTO @lv_inc_count WHERE subshlp = @lv_shlp AND shlpname <> @lv_shlp AND as4local = 'A'.
+    IF lv_dtel_count + lv_att_count + lv_inc_count <> 0.
+      IF b( 'confirm_in_use' ) = abap_false.
+        fail( |search help { lv_shlp } is in use: { lv_dtel_count } data element(s), | &&
+          |{ lv_att_count } field attachment(s), { lv_inc_count } collective search help(s). | &&
+          |Pass confirm_in_use to delete it anyway| ).
+        RETURN.
+      ENDIF.
+      line( |ZMCP-DDIC-NOTE> deleting { lv_shlp } despite being in use: { lv_dtel_count } data element(s), | &&
+        |{ lv_att_count } field attachment(s), { lv_inc_count } collective search help(s)| ).
+    ENDIF.
+
+    " Steps 3-4 (skipped when DD30L is already gone - resuming a half-finished
+    " delete): delete the active version, then any inactive one. Each CALL
+    " FUNCTION wrapped in its own TRY/CATCH cx_root, labelled, same discipline
+    " as delete_view - del_state = 'A' returned message DH051 live on
+    " 2026-09-12; both calls use prid = -1, same as delete_view.
+    IF lv_dd30l_exists = abap_true.
+      TRY.
+          CALL FUNCTION 'DD_OBJ_DEL'
+            EXPORTING
+              object_name = lv_shlp
+              object_type = 'SHLP'
+              del_state   = 'A'
+              prid        = -1
+            EXCEPTIONS
+              OTHERS      = 1.
+        CATCH cx_root INTO DATA(lx_del_a).
+          fail( |delete_search_help/dd_obj_del_A raised { lx_del_a->get_text( ) }| ).
+          RETURN.
+      ENDTRY.
+      IF sy-subrc <> 0.
+        " A non-zero sy-subrc here is only a real error if there was an active
+        " version to delete in the first place - an inactive-only object (a
+        " create that PUT but failed to activate, diagnosed live on A4H
+        " 2026-09-15) has nothing for del_state = 'A' to find, and DD_OBJ_DEL
+        " can report exactly that as a non-zero sy-subrc without raising.
+        IF lv_active_count > 0.
+          fail( |DD_OBJ_DEL failed, sy-subrc={ sy-subrc }, { sy-msgid }{ sy-msgno }| ).
+          RETURN.
+        ENDIF.
+        line( |ZMCP-DDIC-NOTE> DD_OBJ_DEL del_state = 'A' returned sy-subrc={ sy-subrc }, | &&
+          |{ sy-msgid }{ sy-msgno } for { lv_shlp } - not treated as an error, since it had no | &&
+          |active version (DD30L-AS4LOCAL = 'A') to delete| ).
+      ENDIF.
+
+      TRY.
+          CALL FUNCTION 'DD_OBJ_DEL'
+            EXPORTING
+              object_name = lv_shlp
+              object_type = 'SHLP'
+              del_state   = 'N'
+              prid        = -1
+            EXCEPTIONS
+              OTHERS      = 1.
+        CATCH cx_root INTO DATA(lx_del_n).
+          fail( |delete_search_help/dd_obj_del_N raised { lx_del_n->get_text( ) }| ).
+          RETURN.
+      ENDTRY.
+    ENDIF.
+    line( 'SHLP-DELETED' ).
+
+    " Step 5: remove the TADIR row - same typed-local truncation guard as
+    " delete_view, for the same reason: a generic-typed FM parameter rejected
+    " a differently-typed local live, and the fix is a local typed from the
+    " parameter's own field, checked for truncation before use.
+    DATA lv_tadir_obj TYPE tadir-obj_name.
+    lv_tadir_obj = lv_shlp.
+    IF lv_tadir_obj <> lv_shlp.
+      fail( |delete_search_help/tadir_obj_name_guard: { lv_shlp } does not fit tadir-obj_name without | &&
+        |truncation - refusing to risk deleting the wrong TADIR row| ).
+      RETURN.
+    ENDIF.
+
+    TRY.
+        CALL FUNCTION 'TR_TADIR_INTERFACE'
+          EXPORTING
+            wi_test_modus         = space
+            wi_tadir_pgmid        = 'R3TR'
+            wi_tadir_object       = 'SHLP'
+            wi_tadir_obj_name     = lv_tadir_obj
+            wi_delete_tadir_entry = 'X'
+          EXCEPTIONS
+            OTHERS                = 1.
+      CATCH cx_root INTO DATA(lx_tadir).
+        fail( |delete_search_help/tr_tadir_interface raised { lx_tadir->get_text( ) }| ).
+        RETURN.
+    ENDTRY.
+
+    COMMIT WORK.
+
+    " Step 6: prove absence before declaring the search help gone.
+    SELECT COUNT( * ) FROM dd30l INTO @lv_dd30l_count WHERE shlpname = @lv_shlp.
+    IF lv_dd30l_count <> 0.
+      fail( |delete of { lv_shlp } reported no error but DD30L still has a row| ).
+      RETURN.
+    ENDIF.
+    SELECT COUNT( * ) FROM tadir INTO @lv_tadir_count
+      WHERE pgmid = 'R3TR' AND object = 'SHLP' AND obj_name = @lv_shlp.
+    IF lv_tadir_count <> 0.
+      fail( |{ lv_shlp }'s DD30L rows are gone but its TADIR row remains; | &&
+        |the DD30L delete worked; likely cause is an object lock from an open transport request (TR022)| ).
+      RETURN.
+    ENDIF.
+    line( 'SHLP-GONE' ).
+  ENDMETHOD.`;
+var shlpPart = {
+  methods: ["create_search_help", "update_search_help", "delete_search_help"],
+  source: `${CREATE_SEARCH_HELP}
+
+${UPDATE_SEARCH_HELP}
+
+${DELETE_SEARCH_HELP}`
+};
 
 // src/adt/fluid/builtin/classic/abap-index.ts
 var CREATE_INDEX = `  METHOD create_index.
@@ -79037,12 +78758,27 @@ var RUNTIME_OBJECT = fluidRuntimeManifest.objects.find((o) => o.name === FLUID_R
 if (RUNTIME_OBJECT === void 0) {
   throw new Error(`fluidRuntimeManifest has no entry for ${FLUID_RUNTIME_CLASS}`);
 }
-var CLASSIC_SOURCE = classicBodySource([viewPart, tranPart, indexPart, packagePart, transportPart, existsPart]);
+var CLASSIC_SOURCE = classicBodySource([
+  viewPart,
+  tranPart,
+  shlpPart,
+  indexPart,
+  packagePart,
+  transportPart,
+  existsPart
+]);
 var classicManifest = {
   contract: FLUID_CONTRACT,
   id: CLASSIC_TOOL_ID,
   title: "Classic DDIC/CTS bridge",
-  description: "Classic-UI DDIC and CTS mutations (view, transaction, index, package, transport entry).",
+  description: "Classic-UI DDIC and CTS mutations (view, transaction, search help, index, package, transport entry).",
+  // This tool's ABAP reads args with the flat, single-pass `scan()`
+  // (`./classic/abap-core.ts`) — see `FluidManifest.flatArgs` — so the
+  // dispatcher flattens nested arrays-of-objects/objects (e.g. `shlp`'s
+  // `fields`/`includes`/`assignments`) before serialising. The declared
+  // schemas below stay the honest, caller-facing nested shape; validation
+  // still runs against them before flattening.
+  flatArgs: true,
   objects: [
     {
       name: FLUID_RUNTIME_CLASS,
@@ -79054,7 +78790,7 @@ var classicManifest = {
     {
       name: CLASSIC_BODY_CLASS,
       type: "CLAS/OC",
-      description: "fluid: classic DDIC/CTS mutations (view/tran/index/pkg)",
+      description: "fluid: classic DDIC/CTS mutations (view/tran/shlp/index/pkg)",
       source: { text: CLASSIC_SOURCE }
     }
   ],
@@ -79096,11 +78832,42 @@ var classicManifest = {
         required: ["view_name", "package_name"],
         properties: {
           view_name: { type: "string", maxLength: 30, description: "The view name to delete." },
-          package_name: { type: "string", maxLength: 30, description: "The view's current package, for the gate." }
+          package_name: { type: "string", maxLength: 30, description: "The view's current package, for the gate." },
+          confirm_maintenance_dialog: {
+            type: "boolean",
+            description: "Required (true) if the view has a generated maintenance dialog (TVDIR) \u2014 deleting the view leaves that dialog broken."
+          }
         }
       },
       output: { type: "array", items: { type: "string" }, description: "One transcript line per element." },
       targets: { object: "/view_name", package: "/package_name", corr: "local" }
+    },
+    {
+      name: "update_view",
+      category: "mutate",
+      description: "Replaces and re-activates an existing database view's definition.",
+      input: {
+        type: "object",
+        required: ["view_name", "base_table", "fields", "description", "package_name", "corr_nr"],
+        properties: {
+          view_name: { type: "string", maxLength: 30, description: "The existing view name (DD25L-VIEWNAME)." },
+          base_table: { type: "string", maxLength: 30, description: "The single base table the view projects." },
+          fields: {
+            type: "array",
+            items: { type: "string", maxLength: 30 },
+            description: "Field names to project from the base table, in order. Replaces the whole field list."
+          },
+          description: { type: "string", maxLength: 60, description: "Short text (DD25V-DDTEXT)." },
+          package_name: { type: "string", maxLength: 30, description: "Target package (devclass)." },
+          corr_nr: {
+            type: "string",
+            maxLength: 10,
+            description: "Transport request. Empty string for a $ (local) package."
+          }
+        }
+      },
+      output: { type: "array", items: { type: "string" }, description: "One transcript line per element." },
+      targets: { object: "/view_name", package: "/package_name", transport: "/corr_nr" }
     },
     {
       name: "create_transaction",
@@ -79125,6 +78892,32 @@ var classicManifest = {
       targets: { object: "/tcode", package: "/package_name", transport: "/corr_nr" }
     },
     {
+      name: "update_transaction",
+      category: "mutate",
+      description: "Retargets an existing dialog transaction code to a different report.",
+      input: {
+        type: "object",
+        required: ["tcode", "program", "description", "package_name", "corr_nr"],
+        properties: {
+          tcode: { type: "string", maxLength: 20, description: "The existing transaction code to retarget." },
+          program: { type: "string", maxLength: 40, description: "The new report the tcode starts." },
+          description: { type: "string", maxLength: 60, description: "Short text." },
+          package_name: { type: "string", maxLength: 30, description: "Target package (devclass)." },
+          corr_nr: {
+            type: "string",
+            maxLength: 10,
+            description: "Transport request. Empty string for a $ (local) package."
+          },
+          confirm_in_role_menu: {
+            type: "boolean",
+            description: "Required (true) if the tcode is already assigned to one or more roles' menus (AGR_TCODES) \u2014 retargeting it changes what those menu entries launch. An SM01 transaction lock is not checked."
+          }
+        }
+      },
+      output: { type: "array", items: { type: "string" }, description: "One transcript line per element." },
+      targets: { object: "/tcode", package: "/package_name", transport: "/corr_nr" }
+    },
+    {
       name: "delete_transaction",
       category: "mutate",
       description: "Deletes a dialog transaction code and confirms the TSTC row is gone.",
@@ -79133,7 +78926,11 @@ var classicManifest = {
         required: ["tcode", "package_name"],
         properties: {
           tcode: { type: "string", maxLength: 20, description: "The transaction code to delete." },
-          package_name: { type: "string", maxLength: 30, description: "The tcode's current package, for the gate." }
+          package_name: { type: "string", maxLength: 30, description: "The tcode's current package, for the gate." },
+          confirm_in_role_menu: {
+            type: "boolean",
+            description: "Required (true) if the tcode is already assigned to one or more roles' menus (AGR_TCODES) \u2014 deleting it removes it from those role menus. An SM01 transaction lock is not checked."
+          }
         }
       },
       output: { type: "array", items: { type: "string" }, description: "One transcript line per element." },
@@ -79237,6 +79034,211 @@ var classicManifest = {
       },
       output: { type: "array", items: { type: "string" }, description: "One transcript line per element." },
       targets: { object: "/package_name", package: "/package_name", transport: "/corr_nr" }
+    },
+    {
+      name: "create_search_help",
+      category: "mutate",
+      description: "Creates and activates an elementary or collective search help.",
+      input: {
+        type: "object",
+        required: [
+          "shlp_name",
+          "description",
+          "package_name",
+          "corr_nr",
+          "fields",
+          "elementary"
+        ],
+        properties: {
+          shlp_name: { type: "string", maxLength: 30, description: "The search help name (DD30L-SHLPNAME)." },
+          description: { type: "string", maxLength: 60, description: "Short text (DD30V-DDTEXT)." },
+          package_name: { type: "string", maxLength: 30, description: "Target package (devclass)." },
+          corr_nr: {
+            type: "string",
+            maxLength: 10,
+            description: "Transport request. Empty string for a $ (local) package."
+          },
+          selection_method: {
+            type: "string",
+            maxLength: 30,
+            description: "Table or view the search help selects from (DD30V-SELMETHOD). Empty string (the default) means none: a collective search help, or an elementary one driven by a search-help exit instead of a table/view."
+          },
+          selection_method_type: {
+            type: "string",
+            maxLength: 1,
+            description: 'Selection method type: "T" (table) or "V" (view); others are not checked here. Only meaningful alongside a non-empty selection_method; leave empty (the default) when selection_method is empty too.'
+          },
+          dialog_type: {
+            type: "string",
+            maxLength: 1,
+            description: 'DD30V-DIALOGTYPE. Defaults to "D" (dialog only if needed) when omitted.'
+          },
+          text_table: { type: "string", maxLength: 30, description: "Optional text table (DD30V-TEXTTAB)." },
+          hot_key: { type: "string", maxLength: 1, description: "Optional single-character hotkey." },
+          elementary: {
+            type: "boolean",
+            description: "Whether this is an elementary search help (DD30V-ISSIMPLE). If true, at least one field must be marked import and at least one export."
+          },
+          fields: {
+            type: "array",
+            description: "Interface fields (DD32P), in order.",
+            items: {
+              type: "object",
+              required: ["name", "data_element"],
+              properties: {
+                name: { type: "string", maxLength: 30, description: "Field name." },
+                data_element: { type: "string", maxLength: 30, description: "Data element (DD32P-ROLLNAME)." },
+                import: { type: "boolean", description: "Whether this field is an import parameter." },
+                export: { type: "boolean", description: "Whether this field is an export parameter." },
+                default_value: { type: "string", description: "Optional default value." }
+              }
+            }
+          },
+          includes: {
+            type: "array",
+            description: "Other search helps included by this one (DD31V), in order.",
+            items: {
+              type: "object",
+              required: ["name"],
+              properties: { name: { type: "string", maxLength: 30, description: "Included search help name." } }
+            }
+          },
+          assignments: {
+            type: "array",
+            description: "Field assignments between an included search help and this one's interface (DD33V).",
+            items: {
+              type: "object",
+              required: ["field", "included_help", "included_field", "direction"],
+              properties: {
+                field: { type: "string", maxLength: 30, description: "This search help's field (DD33V-FIELDNAME)." },
+                included_help: { type: "string", maxLength: 30, description: "The included search help's name." },
+                included_field: { type: "string", maxLength: 30, description: "The included search help's field." },
+                direction: {
+                  type: "string",
+                  maxLength: 1,
+                  description: "DD33V-VALUEDIREC ('I' import into, 'E' export from the included help)."
+                }
+              }
+            }
+          }
+        }
+      },
+      output: { type: "array", items: { type: "string" }, description: "One transcript line per element." },
+      targets: { object: "/shlp_name", package: "/package_name", transport: "/corr_nr" }
+    },
+    {
+      name: "update_search_help",
+      category: "mutate",
+      description: "Replaces and re-activates an existing search help's definition.",
+      input: {
+        type: "object",
+        required: [
+          "shlp_name",
+          "description",
+          "package_name",
+          "corr_nr",
+          "fields",
+          "elementary"
+        ],
+        properties: {
+          shlp_name: { type: "string", maxLength: 30, description: "The existing search help name." },
+          description: { type: "string", maxLength: 60, description: "Short text (DD30V-DDTEXT)." },
+          package_name: { type: "string", maxLength: 30, description: "Target package (devclass)." },
+          corr_nr: {
+            type: "string",
+            maxLength: 10,
+            description: "Transport request. Empty string for a $ (local) package."
+          },
+          selection_method: {
+            type: "string",
+            maxLength: 30,
+            description: "Table or view the search help selects from (DD30V-SELMETHOD). Empty string (the default) means none: a collective search help, or an elementary one driven by a search-help exit instead of a table/view."
+          },
+          selection_method_type: {
+            type: "string",
+            maxLength: 1,
+            description: 'Selection method type: "T" (table) or "V" (view); others are not checked here. Only meaningful alongside a non-empty selection_method; leave empty (the default) when selection_method is empty too.'
+          },
+          dialog_type: {
+            type: "string",
+            maxLength: 1,
+            description: 'DD30V-DIALOGTYPE. Defaults to "D" (dialog only if needed) when omitted.'
+          },
+          text_table: { type: "string", maxLength: 30, description: "Optional text table (DD30V-TEXTTAB)." },
+          hot_key: { type: "string", maxLength: 1, description: "Optional single-character hotkey." },
+          elementary: {
+            type: "boolean",
+            description: "Whether this is an elementary search help (DD30V-ISSIMPLE). If true, at least one field must be marked import and at least one export."
+          },
+          fields: {
+            type: "array",
+            description: "Interface fields (DD32P), in order. Replaces the whole interface.",
+            items: {
+              type: "object",
+              required: ["name", "data_element"],
+              properties: {
+                name: { type: "string", maxLength: 30, description: "Field name." },
+                data_element: { type: "string", maxLength: 30, description: "Data element (DD32P-ROLLNAME)." },
+                import: { type: "boolean", description: "Whether this field is an import parameter." },
+                export: { type: "boolean", description: "Whether this field is an export parameter." },
+                default_value: { type: "string", description: "Optional default value." }
+              }
+            }
+          },
+          includes: {
+            type: "array",
+            description: "Other search helps included by this one (DD31V), in order. Replaces the whole list.",
+            items: {
+              type: "object",
+              required: ["name"],
+              properties: { name: { type: "string", maxLength: 30, description: "Included search help name." } }
+            }
+          },
+          assignments: {
+            type: "array",
+            description: "Field assignments between an included search help and this one's interface (DD33V). Replaces the whole list.",
+            items: {
+              type: "object",
+              required: ["field", "included_help", "included_field", "direction"],
+              properties: {
+                field: { type: "string", maxLength: 30, description: "This search help's field (DD33V-FIELDNAME)." },
+                included_help: { type: "string", maxLength: 30, description: "The included search help's name." },
+                included_field: { type: "string", maxLength: 30, description: "The included search help's field." },
+                direction: {
+                  type: "string",
+                  maxLength: 1,
+                  description: "DD33V-VALUEDIREC ('I' import into, 'E' export from the included help)."
+                }
+              }
+            }
+          }
+        }
+      },
+      output: { type: "array", items: { type: "string" }, description: "One transcript line per element." },
+      targets: { object: "/shlp_name", package: "/package_name", transport: "/corr_nr" }
+    },
+    {
+      name: "delete_search_help",
+      category: "mutate",
+      description: "Deletes a search help, active and inactive versions, and its TADIR row.",
+      input: {
+        type: "object",
+        required: ["shlp_name", "package_name"],
+        properties: {
+          shlp_name: { type: "string", maxLength: 30, description: "The search help name to delete." },
+          package_name: {
+            type: "string",
+            maxLength: 30,
+            description: "The search help's current package, for the gate."
+          },
+          confirm_in_use: {
+            type: "boolean",
+            description: "Required (true) if the search help is still attached to a data element, a table/view field, or included by a collective search help."
+          }
+        }
+      },
+      output: { type: "array", items: { type: "string" }, description: "One transcript line per element." },
+      targets: { object: "/shlp_name", package: "/package_name", corr: "local" }
     },
     {
       name: "remove_transport_entry",
@@ -79743,13 +79745,13 @@ ${bodies}
 
 ENDCLASS.
 `;
-  source.split("\n").forEach((line, i) => {
-    if (line.length > ABAP_SOURCE_LINE_MAX) {
-      const excerpt = truncateForDisplay(line, ECHO_LINE_MAX);
+  source.split("\n").forEach((line2, i) => {
+    if (line2.length > ABAP_SOURCE_LINE_MAX) {
+      const excerpt = truncateForDisplay(line2, ECHO_LINE_MAX);
       throw new AbapError(
         "CHECK_FAILED",
-        `Generated core body source line ${i + 1} is ${line.length} chars, over ABAP's ${ABAP_SOURCE_LINE_MAX}-char class-source limit: ${excerpt}`,
-        { line: i + 1, length: line.length, excerpt }
+        `Generated core body source line ${i + 1} is ${line2.length} chars, over ABAP's ${ABAP_SOURCE_LINE_MAX}-char class-source limit: ${excerpt}`,
+        { line: i + 1, length: line2.length, excerpt }
       );
     }
   });
@@ -84032,8 +84034,8 @@ function buildPhraseRule(phrase) {
   const re = new RegExp(leading + pattern + trailing, "i");
   return { name: `extra:${phrase}`, test: (s) => re.test(s) };
 }
-function blankCommentLine(line) {
-  return line.startsWith("*") ? "" : line;
+function blankCommentLine(line2) {
+  return line2.startsWith("*") ? "" : line2;
 }
 function splitStatements(blankedLines) {
   const joined = blankedLines.join("\n");
@@ -84169,13 +84171,13 @@ function scanFluidCapabilities(objectName, source) {
 function reviewFluidAbap(objectName, source, extraProhibitions) {
   const lines = source.split(/\r\n|\r|\n/);
   const findings = [];
-  lines.forEach((line, idx) => {
-    if (line.length > FLUID_ABAP_LINE_MAX) {
+  lines.forEach((line2, idx) => {
+    if (line2.length > FLUID_ABAP_LINE_MAX) {
       findings.push({
         object: objectName,
         line: idx + 1,
         rule: "line-length",
-        text: truncateText(line.trim(), ECHO_LINE_MAX)
+        text: truncateText(line2.trim(), ECHO_LINE_MAX)
       });
     }
   });
@@ -84670,14 +84672,14 @@ function assertValidTerminalId(id, label = "terminalId") {
 function assertValidIdeId(id, label = "ideId") {
   assertValidTerminalId(id, label);
 }
-function startFragment(line) {
-  if (!Number.isInteger(line) || line < 1) {
-    throw new Error(`startFragment: line must be a positive integer, got ${line}.`);
+function startFragment(line2) {
+  if (!Number.isInteger(line2) || line2 < 1) {
+    throw new Error(`startFragment: line must be a positive integer, got ${line2}.`);
   }
-  return `#start=${line}`;
+  return `#start=${line2}`;
 }
-function withStartFragment(uri, line) {
-  return `${uri}${startFragment(line)}`;
+function withStartFragment(uri, line2) {
+  return `${uri}${startFragment(line2)}`;
 }
 var ROOT_VARIABLE_ID = "@ROOT";
 var CANARY_VARIABLE_ID = "SY-SUBRC";
@@ -85675,12 +85677,12 @@ function splitHeadBody(msg) {
   if (!m) return { head: msg, body: "" };
   return { head: msg.slice(0, m.index), body: msg.slice(m.index + m[0].length) };
 }
-function parseHeaderBlock(block) {
+function parseHeaderBlock(block2) {
   const headers = {};
-  for (const line of block.split(/\r?\n/)) {
-    const idx = line.indexOf(":");
+  for (const line2 of block2.split(/\r?\n/)) {
+    const idx = line2.indexOf(":");
     if (idx < 0) continue;
-    headers[line.slice(0, idx).trim().toLowerCase()] = line.slice(idx + 1).trim();
+    headers[line2.slice(0, idx).trim().toLowerCase()] = line2.slice(idx + 1).trim();
   }
   return headers;
 }
@@ -87560,7 +87562,7 @@ var DebugSession = class {
     const isNotFound = (e) => isAbapError(e) && e.code === "NOT_FOUND";
     for (const bp of owned) {
       const op = `deleting this session's breakpoint ${bp.id}`;
-      const issue3 = () => this.client.deleteBreakpoint({
+      const issue4 = () => this.client.deleteBreakpoint({
         id: bp.id,
         scope: "external",
         debuggingMode: this.context.debuggingMode,
@@ -87571,7 +87573,7 @@ var DebugSession = class {
       const attempt = async () => {
         let started;
         try {
-          started = issue3();
+          started = issue4();
         } catch (e) {
           started = Promise.reject(e);
         }
@@ -88077,8 +88079,8 @@ var DebugSession = class {
   }
   // --- Step --------------------------------------------------------------------
   /** Records one visit to `(program, stackPosition, line)`, returns the running count (1 = first visit). Pure bookkeeping; the caller decides what a revisit means. */
-  recordVisit(program, stackPosition, line) {
-    const key = `${program}::${stackPosition}::${line}`;
+  recordVisit(program, stackPosition, line2) {
+    const key = `${program}::${stackPosition}::${line2}`;
     const count = (this.visitedPositions.get(key) ?? 0) + 1;
     this.visitedPositions.set(key, count);
     return count;
@@ -88619,31 +88621,31 @@ var ZodError2 = class _ZodError extends Error {
     this.issues = issues;
   }
   format(_mapper) {
-    const mapper = _mapper || function(issue3) {
-      return issue3.message;
+    const mapper = _mapper || function(issue4) {
+      return issue4.message;
     };
     const fieldErrors = { _errors: [] };
     const processError = (error51) => {
-      for (const issue3 of error51.issues) {
-        if (issue3.code === "invalid_union") {
-          issue3.unionErrors.map(processError);
-        } else if (issue3.code === "invalid_return_type") {
-          processError(issue3.returnTypeError);
-        } else if (issue3.code === "invalid_arguments") {
-          processError(issue3.argumentsError);
-        } else if (issue3.path.length === 0) {
-          fieldErrors._errors.push(mapper(issue3));
+      for (const issue4 of error51.issues) {
+        if (issue4.code === "invalid_union") {
+          issue4.unionErrors.map(processError);
+        } else if (issue4.code === "invalid_return_type") {
+          processError(issue4.returnTypeError);
+        } else if (issue4.code === "invalid_arguments") {
+          processError(issue4.argumentsError);
+        } else if (issue4.path.length === 0) {
+          fieldErrors._errors.push(mapper(issue4));
         } else {
           let curr = fieldErrors;
           let i = 0;
-          while (i < issue3.path.length) {
-            const el = issue3.path[i];
-            const terminal = i === issue3.path.length - 1;
+          while (i < issue4.path.length) {
+            const el = issue4.path[i];
+            const terminal = i === issue4.path.length - 1;
             if (!terminal) {
               curr[el] = curr[el] || { _errors: [] };
             } else {
               curr[el] = curr[el] || { _errors: [] };
-              curr[el]._errors.push(mapper(issue3));
+              curr[el]._errors.push(mapper(issue4));
             }
             curr = curr[el];
             i++;
@@ -88668,7 +88670,7 @@ var ZodError2 = class _ZodError extends Error {
   get isEmpty() {
     return this.issues.length === 0;
   }
-  flatten(mapper = (issue3) => issue3.message) {
+  flatten(mapper = (issue4) => issue4.message) {
     const fieldErrors = /* @__PURE__ */ Object.create(null);
     const formErrors = [];
     for (const sub of this.issues) {
@@ -88692,30 +88694,30 @@ ZodError2.create = (issues) => {
 };
 
 // node_modules/zod/v3/locales/en.js
-var errorMap = (issue3, _ctx) => {
+var errorMap = (issue4, _ctx) => {
   let message;
-  switch (issue3.code) {
+  switch (issue4.code) {
     case ZodIssueCode2.invalid_type:
-      if (issue3.received === ZodParsedType.undefined) {
+      if (issue4.received === ZodParsedType.undefined) {
         message = "Required";
       } else {
-        message = `Expected ${issue3.expected}, received ${issue3.received}`;
+        message = `Expected ${issue4.expected}, received ${issue4.received}`;
       }
       break;
     case ZodIssueCode2.invalid_literal:
-      message = `Invalid literal value, expected ${JSON.stringify(issue3.expected, util.jsonStringifyReplacer)}`;
+      message = `Invalid literal value, expected ${JSON.stringify(issue4.expected, util.jsonStringifyReplacer)}`;
       break;
     case ZodIssueCode2.unrecognized_keys:
-      message = `Unrecognized key(s) in object: ${util.joinValues(issue3.keys, ", ")}`;
+      message = `Unrecognized key(s) in object: ${util.joinValues(issue4.keys, ", ")}`;
       break;
     case ZodIssueCode2.invalid_union:
       message = `Invalid input`;
       break;
     case ZodIssueCode2.invalid_union_discriminator:
-      message = `Invalid discriminator value. Expected ${util.joinValues(issue3.options)}`;
+      message = `Invalid discriminator value. Expected ${util.joinValues(issue4.options)}`;
       break;
     case ZodIssueCode2.invalid_enum_value:
-      message = `Invalid enum value. Expected ${util.joinValues(issue3.options)}, received '${issue3.received}'`;
+      message = `Invalid enum value. Expected ${util.joinValues(issue4.options)}, received '${issue4.received}'`;
       break;
     case ZodIssueCode2.invalid_arguments:
       message = `Invalid function arguments`;
@@ -88727,50 +88729,50 @@ var errorMap = (issue3, _ctx) => {
       message = `Invalid date`;
       break;
     case ZodIssueCode2.invalid_string:
-      if (typeof issue3.validation === "object") {
-        if ("includes" in issue3.validation) {
-          message = `Invalid input: must include "${issue3.validation.includes}"`;
-          if (typeof issue3.validation.position === "number") {
-            message = `${message} at one or more positions greater than or equal to ${issue3.validation.position}`;
+      if (typeof issue4.validation === "object") {
+        if ("includes" in issue4.validation) {
+          message = `Invalid input: must include "${issue4.validation.includes}"`;
+          if (typeof issue4.validation.position === "number") {
+            message = `${message} at one or more positions greater than or equal to ${issue4.validation.position}`;
           }
-        } else if ("startsWith" in issue3.validation) {
-          message = `Invalid input: must start with "${issue3.validation.startsWith}"`;
-        } else if ("endsWith" in issue3.validation) {
-          message = `Invalid input: must end with "${issue3.validation.endsWith}"`;
+        } else if ("startsWith" in issue4.validation) {
+          message = `Invalid input: must start with "${issue4.validation.startsWith}"`;
+        } else if ("endsWith" in issue4.validation) {
+          message = `Invalid input: must end with "${issue4.validation.endsWith}"`;
         } else {
-          util.assertNever(issue3.validation);
+          util.assertNever(issue4.validation);
         }
-      } else if (issue3.validation !== "regex") {
-        message = `Invalid ${issue3.validation}`;
+      } else if (issue4.validation !== "regex") {
+        message = `Invalid ${issue4.validation}`;
       } else {
         message = "Invalid";
       }
       break;
     case ZodIssueCode2.too_small:
-      if (issue3.type === "array")
-        message = `Array must contain ${issue3.exact ? "exactly" : issue3.inclusive ? `at least` : `more than`} ${issue3.minimum} element(s)`;
-      else if (issue3.type === "string")
-        message = `String must contain ${issue3.exact ? "exactly" : issue3.inclusive ? `at least` : `over`} ${issue3.minimum} character(s)`;
-      else if (issue3.type === "number")
-        message = `Number must be ${issue3.exact ? `exactly equal to ` : issue3.inclusive ? `greater than or equal to ` : `greater than `}${issue3.minimum}`;
-      else if (issue3.type === "bigint")
-        message = `Number must be ${issue3.exact ? `exactly equal to ` : issue3.inclusive ? `greater than or equal to ` : `greater than `}${issue3.minimum}`;
-      else if (issue3.type === "date")
-        message = `Date must be ${issue3.exact ? `exactly equal to ` : issue3.inclusive ? `greater than or equal to ` : `greater than `}${new Date(Number(issue3.minimum))}`;
+      if (issue4.type === "array")
+        message = `Array must contain ${issue4.exact ? "exactly" : issue4.inclusive ? `at least` : `more than`} ${issue4.minimum} element(s)`;
+      else if (issue4.type === "string")
+        message = `String must contain ${issue4.exact ? "exactly" : issue4.inclusive ? `at least` : `over`} ${issue4.minimum} character(s)`;
+      else if (issue4.type === "number")
+        message = `Number must be ${issue4.exact ? `exactly equal to ` : issue4.inclusive ? `greater than or equal to ` : `greater than `}${issue4.minimum}`;
+      else if (issue4.type === "bigint")
+        message = `Number must be ${issue4.exact ? `exactly equal to ` : issue4.inclusive ? `greater than or equal to ` : `greater than `}${issue4.minimum}`;
+      else if (issue4.type === "date")
+        message = `Date must be ${issue4.exact ? `exactly equal to ` : issue4.inclusive ? `greater than or equal to ` : `greater than `}${new Date(Number(issue4.minimum))}`;
       else
         message = "Invalid input";
       break;
     case ZodIssueCode2.too_big:
-      if (issue3.type === "array")
-        message = `Array must contain ${issue3.exact ? `exactly` : issue3.inclusive ? `at most` : `less than`} ${issue3.maximum} element(s)`;
-      else if (issue3.type === "string")
-        message = `String must contain ${issue3.exact ? `exactly` : issue3.inclusive ? `at most` : `under`} ${issue3.maximum} character(s)`;
-      else if (issue3.type === "number")
-        message = `Number must be ${issue3.exact ? `exactly` : issue3.inclusive ? `less than or equal to` : `less than`} ${issue3.maximum}`;
-      else if (issue3.type === "bigint")
-        message = `BigInt must be ${issue3.exact ? `exactly` : issue3.inclusive ? `less than or equal to` : `less than`} ${issue3.maximum}`;
-      else if (issue3.type === "date")
-        message = `Date must be ${issue3.exact ? `exactly` : issue3.inclusive ? `smaller than or equal to` : `smaller than`} ${new Date(Number(issue3.maximum))}`;
+      if (issue4.type === "array")
+        message = `Array must contain ${issue4.exact ? `exactly` : issue4.inclusive ? `at most` : `less than`} ${issue4.maximum} element(s)`;
+      else if (issue4.type === "string")
+        message = `String must contain ${issue4.exact ? `exactly` : issue4.inclusive ? `at most` : `under`} ${issue4.maximum} character(s)`;
+      else if (issue4.type === "number")
+        message = `Number must be ${issue4.exact ? `exactly` : issue4.inclusive ? `less than or equal to` : `less than`} ${issue4.maximum}`;
+      else if (issue4.type === "bigint")
+        message = `BigInt must be ${issue4.exact ? `exactly` : issue4.inclusive ? `less than or equal to` : `less than`} ${issue4.maximum}`;
+      else if (issue4.type === "date")
+        message = `Date must be ${issue4.exact ? `exactly` : issue4.inclusive ? `smaller than or equal to` : `smaller than`} ${new Date(Number(issue4.maximum))}`;
       else
         message = "Invalid input";
       break;
@@ -88781,14 +88783,14 @@ var errorMap = (issue3, _ctx) => {
       message = `Intersection results could not be merged`;
       break;
     case ZodIssueCode2.not_multiple_of:
-      message = `Number must be a multiple of ${issue3.multipleOf}`;
+      message = `Number must be a multiple of ${issue4.multipleOf}`;
       break;
     case ZodIssueCode2.not_finite:
       message = "Number must be finite";
       break;
     default:
       message = _ctx.defaultError;
-      util.assertNever(issue3);
+      util.assertNever(issue4);
   }
   return { message };
 };
@@ -88828,7 +88830,7 @@ var makeIssue = (params) => {
 };
 function addIssueToContext(ctx, issueData) {
   const overrideMap = getErrorMap2();
-  const issue3 = makeIssue({
+  const issue4 = makeIssue({
     issueData,
     data: ctx.data,
     path: ctx.path,
@@ -88843,7 +88845,7 @@ function addIssueToContext(ctx, issueData) {
       // then global default map
     ].filter((x) => !!x)
   });
-  ctx.common.issues.push(issue3);
+  ctx.common.issues.push(issue4);
 }
 var ParseStatus = class _ParseStatus {
   constructor() {
@@ -90801,9 +90803,9 @@ var ZodObject2 = class _ZodObject extends ZodType2 {
       ...this._def,
       unknownKeys: "strict",
       ...message !== void 0 ? {
-        errorMap: (issue3, ctx) => {
-          const defaultError = this._def.errorMap?.(issue3, ctx).message ?? ctx.defaultError;
-          if (issue3.code === "unrecognized_keys")
+        errorMap: (issue4, ctx) => {
+          const defaultError = this._def.errorMap?.(issue4, ctx).message ?? ctx.defaultError;
+          if (issue4.code === "unrecognized_keys")
             return {
               message: errorUtil.errToObj(message).message ?? defaultError
             };
@@ -97945,16 +97947,16 @@ var ReadBuffer = class {
     if (index === -1) {
       return null;
     }
-    const line = this._buffer.toString("utf8", 0, index).replace(/\r$/, "");
+    const line2 = this._buffer.toString("utf8", 0, index).replace(/\r$/, "");
     this._buffer = this._buffer.subarray(index + 1);
-    return deserializeMessage(line);
+    return deserializeMessage(line2);
   }
   clear() {
     this._buffer = void 0;
   }
 };
-function deserializeMessage(line) {
-  return JSONRPCMessageSchema.parse(JSON.parse(line));
+function deserializeMessage(line2) {
+  return JSONRPCMessageSchema.parse(JSON.parse(line2));
 }
 function serializeMessage(message) {
   return JSON.stringify(message) + "\n";
@@ -98692,8 +98694,8 @@ function safeSegment(sid) {
   return cleaned.length ? cleaned.toUpperCase() : "UNKNOWN";
 }
 function journalConfigFromEnv(env, sid, cwd) {
-  const flag2 = env.ABAP_JOURNAL?.trim().toLowerCase();
-  const enabled = !(flag2 !== void 0 && OFF_VALUES.has(flag2));
+  const flag3 = env.ABAP_JOURNAL?.trim().toLowerCase();
+  const enabled = !(flag3 !== void 0 && OFF_VALUES.has(flag3));
   const base = cwd ?? process.cwd();
   const root = env.ABAP_JOURNAL_DIR?.trim() ? path5.resolve(base, env.ABAP_JOURNAL_DIR.trim()) : path5.resolve(base, ".abapsmith", "journal");
   const actor = env.ABAP_ACTOR?.trim() || void 0;
@@ -98849,8 +98851,8 @@ var Journal = class _Journal {
       throw e;
     }
     const merged = /* @__PURE__ */ new Map();
-    for (const line of text4.split("\n")) {
-      const trimmed = line.trim();
+    for (const line2 of text4.split("\n")) {
+      const trimmed = line2.trim();
       if (!trimmed) continue;
       let rec;
       try {
@@ -99001,10 +99003,10 @@ var Journal = class _Journal {
     }
   }
   append(record2) {
-    const line = JSON.stringify(record2) + "\n";
+    const line2 = JSON.stringify(record2) + "\n";
     return this.runExclusive(
       () => this.withIndexLock(async () => {
-        await fs3.appendFile(this.indexPath, line, "utf8");
+        await fs3.appendFile(this.indexPath, line2, "utf8");
         if (this.lineCount !== void 0) this.lineCount += 1;
       })
     );
@@ -99760,8 +99762,8 @@ function degradedLine(e, fullLine, stateId) {
   const v = e.variable;
   if (isComplex(v.metaType)) return void 0;
   const fullLen = v.length > 0 ? v.length : v.value.length;
-  const line = `${v.name}: ${elide("chars", fullLen, buildRetrievalCall(v.name, void 0, stateId))}`;
-  return line.length < fullLine.length ? line : void 0;
+  const line2 = `${v.name}: ${elide("chars", fullLen, buildRetrievalCall(v.name, void 0, stateId))}`;
+  return line2.length < fullLine.length ? line2 : void 0;
 }
 function renderSurvey(entries, opts) {
   const maxChars = opts?.maxChars ?? DEBUG_MAX_CHARS;
@@ -99988,23 +99990,23 @@ function renderNode(node2, depth, maxDepth, path8, stateId) {
   if (!isComplex(v.metaType)) {
     return [`${indent}${v.name}: ${renderScalar(v)}`];
   }
-  const line = `${indent}${v.name}: ${describeComplex(v, node2.children?.length)}`;
+  const line2 = `${indent}${v.name}: ${describeComplex(v, node2.children?.length)}`;
   if (depth >= maxDepth) {
     if (node2.children && node2.children.length > 0) {
       return [
-        line,
+        line2,
         `${indent}  ${elide("children", node2.children.length, buildRetrievalCall(path8, void 0, stateId))}`
       ];
     }
-    return [line];
+    return [line2];
   }
   if (!node2.children) {
-    return [line, `${indent}  (not expanded \u2014 ${buildRetrievalCall(path8, void 0, stateId)})`];
+    return [line2, `${indent}  (not expanded \u2014 ${buildRetrievalCall(path8, void 0, stateId)})`];
   }
   const childLines = node2.children.flatMap(
     (c) => renderNode(c, depth + 1, maxDepth, `${path8}-${c.variable.name}`, stateId)
   );
-  return [line, ...childLines];
+  return [line2, ...childLines];
 }
 function renderTableWithinBudget(v, rows, window2, path8, maxChars, stateId) {
   const parts = buildTableRowsRender(v, rows, window2, path8, stateId);
@@ -100025,7 +100027,7 @@ function renderTableWithinBudget(v, rows, window2, path8, maxChars, stateId) {
     buildRetrievalCall(path8, retrievalWindow(parts.window.start, parts.window.end), stateId)
   )}`;
   const overhead = [parts.header, ...parts.leading, ...parts.trailing, worstDrop].reduce(
-    (n, line) => n + line.length + 1,
+    (n, line2) => n + line2.length + 1,
     0
   );
   const kept = [];
@@ -100058,10 +100060,10 @@ function renderDrill(node2, path8, opts) {
   if (text4.length > maxChars) {
     const kept = [];
     let used = 0;
-    for (const line of lines) {
-      if (used + line.length + 1 > maxChars) break;
-      kept.push(line);
-      used += line.length + 1;
+    for (const line2 of lines) {
+      if (used + line2.length + 1 > maxChars) break;
+      kept.push(line2);
+      used += line2.length + 1;
     }
     if (kept.length === 0 && lines.length > 0) kept.push(lines[0]);
     const remaining = lines.length - kept.length;
@@ -100368,9 +100370,9 @@ function parseStartFragment(href) {
   if (!href) return void 0;
   const m = /#start=(\d+)(?:,(\d+))?/.exec(String(href));
   if (!m) return void 0;
-  const line = Number(m[1]);
-  if (!Number.isFinite(line) || line <= 0) return void 0;
-  return { line, col: m[2] ? Number(m[2]) : 0 };
+  const line2 = Number(m[1]);
+  if (!Number.isFinite(line2) || line2 <= 0) return void 0;
+  return { line: line2, col: m[2] ? Number(m[2]) : 0 };
 }
 function tally(messages) {
   let errors = 0;
@@ -101073,6 +101075,7 @@ init_errors();
 // src/adt/resolve.ts
 init_safety();
 init_capabilities();
+init_ddic_strategy();
 init_errors();
 
 // src/adt/search-descriptions.ts
@@ -101159,31 +101162,31 @@ function parseObjectRef(input, hint) {
   if (/^https?:\/\//i.test(raw) || raw.startsWith("/sap/bc/adt/")) {
     const hit = specFromUri(raw);
     if (!hit) {
-      const issue3 = classifyUnmatchedAdtPath(raw);
-      if (issue3?.kind === "sub-object") {
-        const noun = SUB_OBJECT_NOUNS[issue3.segment] ?? issue3.segment;
+      const issue4 = classifyUnmatchedAdtPath(raw);
+      if (issue4?.kind === "sub-object") {
+        const noun = SUB_OBJECT_NOUNS[issue4.segment] ?? issue4.segment;
         const article = /^[aeiou]/i.test(noun) ? "an" : "a";
-        const target = issue3.subName ? `${noun} ${issue3.subName}` : `${article} ${noun}`;
-        const parentLabel = issue3.spec.label.toLowerCase();
+        const target = issue4.subName ? `${noun} ${issue4.subName}` : `${article} ${noun}`;
+        const parentLabel = issue4.spec.label.toLowerCase();
         throw new AbapError(
           "UNSUPPORTED",
-          `${noun[0].toUpperCase()}${noun.slice(1)} sub-objects are not readable: ${raw} addresses ${target} inside ${parentLabel} ${issue3.name}.`,
+          `${noun[0].toUpperCase()}${noun.slice(1)} sub-objects are not readable: ${raw} addresses ${target} inside ${parentLabel} ${issue4.name}.`,
           {
             uri: raw,
-            type: issue3.spec.type,
-            object: issue3.name,
-            subObject: issue3.segment,
-            ...issue3.subName ? { subName: issue3.subName } : {}
+            type: issue4.spec.type,
+            object: issue4.name,
+            subObject: issue4.segment,
+            ...issue4.subName ? { subName: issue4.subName } : {}
           },
-          `abapsmith addresses whole objects. Pass the ${parentLabel} itself: "${issue3.name}" or ${buildUri(issue3.spec, issue3.name, issue3.parent)}.`
+          `abapsmith addresses whole objects. Pass the ${parentLabel} itself: "${issue4.name}" or ${buildUri(issue4.spec, issue4.name, issue4.parent)}.`
         );
       }
-      if (issue3?.kind === "not-an-object") {
+      if (issue4?.kind === "not-an-object") {
         throw new AbapError(
           "BAD_INPUT",
-          `${raw} addresses a ${issue3.what}, not an ABAP repository object.`,
+          `${raw} addresses a ${issue4.what}, not an ABAP repository object.`,
           { uri: raw },
-          issue3.what === "transport request" ? "Use abap_transport to work with transport requests." : void 0
+          issue4.what === "transport request" ? "Use abap_transport to work with transport requests." : void 0
         );
       }
       throw new AbapError(
@@ -101309,21 +101312,25 @@ async function resolveObject(conn, input, opts = {}) {
       );
     }
     if (cap?.bridgeCreate && isBridgeOnlyCreateType(opts.type)) {
-      throw new AbapError(
-        "UNSUPPORTED",
-        `${cap.label} (${code}) has no ADT-readable collection to resolve a URI against. ${cap.bridgeCreate.adtRest} ${TERMINAL_REFUSAL_NOTE}`,
-        { type: code },
-        // Same catalogRead redirect as above — TABL/DI has no ADT resource
-        // either, but abap_read's explicit-type dispatch renders it from
-        // catalog tables before resolveObject is reached.
-        cap.catalogRead ? `abap_read {"object":"<name>","type":"${code}"} renders it read-only from the catalog (${cap.catalogRead.from}) \u2014 name it as ${cap.catalogRead.nameForm}.` : (
-          // Registry-sourced when the create is refused, so this hint cannot
-          // send a caller to `abap_write` for a create `abap_write` will refuse.
-          cap.bridgeCreate.createRefused ?? "abapsmith can create this type through a generated classrun bridge (see abap_write), but cannot read one back."
-        ),
-        { retryable: false }
-        // matches UNSUPPORTED's own default; reaffirmed for readability at the throw site
-      );
+      const spec2 = specForType(opts.type);
+      const readable = spec2?.mode === "ddic" && ddicStrategy(spec2.kind) !== "unsupported";
+      if (!readable) {
+        throw new AbapError(
+          "UNSUPPORTED",
+          `${cap.label} (${code}) has no ADT-readable collection to resolve a URI against. ${cap.bridgeCreate.adtRest} ${TERMINAL_REFUSAL_NOTE}`,
+          { type: code },
+          // Same catalogRead redirect as above — TABL/DI has no ADT resource
+          // either, but abap_read's explicit-type dispatch renders it from
+          // catalog tables before resolveObject is reached.
+          cap.catalogRead ? `abap_read {"object":"<name>","type":"${code}"} renders it read-only from the catalog (${cap.catalogRead.from}) \u2014 name it as ${cap.catalogRead.nameForm}.` : (
+            // Registry-sourced when the create is refused, so this hint cannot
+            // send a caller to `abap_write` for a create `abap_write` will refuse.
+            cap.bridgeCreate.createRefused ?? "abapsmith can create this type through a generated classrun bridge (see abap_write), but cannot read one back."
+          ),
+          { retryable: false }
+          // matches UNSUPPORTED's own default; reaffirmed for readability at the throw site
+        );
+      }
     }
   }
   const forced = opts.type ? specForType(opts.type) : void 0;
@@ -101925,16 +101932,16 @@ function parseFragmentRange(href) {
   const document2 = href.slice(0, href.indexOf("#"));
   return { startLine, endLine, ...document2 ? { document: document2 } : {} };
 }
-function abapCodeOf(line) {
-  if (/^\*/.test(line)) return "";
+function abapCodeOf(line2) {
+  if (/^\*/.test(line2)) return "";
   let out = "";
   let quote;
   let i = 0;
-  while (i < line.length) {
-    const ch = line[i];
+  while (i < line2.length) {
+    const ch = line2[i];
     if (quote !== void 0) {
       if (ch === quote) {
-        if (line[i + 1] === quote) {
+        if (line2[i + 1] === quote) {
           out += "  ";
           i += 2;
           continue;
@@ -101996,8 +102003,8 @@ function countMethodKeywordLines(source) {
   const lines = source.replace(/\r\n/g, "\n").split("\n");
   let method = 0;
   let endmethod = 0;
-  for (const line of lines) {
-    const code = abapCodeOf(line);
+  for (const line2 of lines) {
+    const code = abapCodeOf(line2);
     if (METHOD_OPEN_RE.test(code)) method += 1;
     else if (ENDMETHOD_RE.test(code)) endmethod += 1;
   }
@@ -102168,7 +102175,7 @@ function classifyEnhancementRefusal(e) {
 }
 function missingEnhancementWrapperError(target, source, serverMessage, check4) {
   if (target.type !== "ENHO/XHH") return void 0;
-  const hasWrapper = source.split(/\r?\n/).some((line) => /\bENDENHANCEMENT\b/i.test(abapCodeOf(line)));
+  const hasWrapper = source.split(/\r?\n/).some((line2) => /\bENDENHANCEMENT\b/i.test(abapCodeOf(line2)));
   if (hasWrapper) return void 0;
   return new AbapError(
     "CHECK_FAILED",
@@ -103005,7 +103012,7 @@ function marshalSelectionTable(inputs) {
 }
 function parseSelectionScreen(source) {
   if (typeof source !== "string" || source.length === 0) return [];
-  const noLineComments = source.split(/\r\n|\r|\n/).map((line) => /^\s*\*/.test(line) ? "" : line).join("\n");
+  const noLineComments = source.split(/\r\n|\r|\n/).map((line2) => /^\s*\*/.test(line2) ? "" : line2).join("\n");
   const noComments = noLineComments.replace(/"[^\n]*/g, "");
   const statements = noComments.split(/\.(?=\s|$)/);
   const fields = [];
@@ -103217,10 +103224,10 @@ ${seltabFill}    ${submitStmt}
 ENDCLASS.
 `;
 }
-var isRuleLine = (line) => /^-{20,}$/.test(line.trim());
+var isRuleLine = (line2) => /^-{20,}$/.test(line2.trim());
 var LIST_HEADER_DATE_AT_START = /^\s*\d{2}\.\d{2}\.\d{4}\b/;
 var LIST_HEADER_PAGE_NO = /\s\d+$/;
-var looksLikeListPageHeader = (line) => LIST_HEADER_DATE_AT_START.test(line) && LIST_HEADER_PAGE_NO.test(line);
+var looksLikeListPageHeader = (line2) => LIST_HEADER_DATE_AT_START.test(line2) && LIST_HEADER_PAGE_NO.test(line2);
 function stripListHeader(lines) {
   const out = lines.map((l) => l.replace(/[ \t\r ]+$/, ""));
   while (out.length > 0 && out[out.length - 1] === "") out.pop();
@@ -103233,13 +103240,13 @@ function splitBridgeOutput(raw) {
   const list5 = [];
   const diagnostics = [];
   let droppedLines = 0;
-  for (const line of raw.replace(/\r\n/g, "\n").split("\n")) {
-    if (line.startsWith(LIST_LINE_PREFIX)) {
-      list5.push(line.slice(LIST_LINE_PREFIX.length));
-    } else if (line.replace(/\s+$/, "") === LIST_LINE_PREFIX.trimEnd()) {
+  for (const line2 of raw.replace(/\r\n/g, "\n").split("\n")) {
+    if (line2.startsWith(LIST_LINE_PREFIX)) {
+      list5.push(line2.slice(LIST_LINE_PREFIX.length));
+    } else if (line2.replace(/\s+$/, "") === LIST_LINE_PREFIX.trimEnd()) {
       list5.push("");
-    } else if (line.startsWith(ERR_LINE_PREFIX)) {
-      diagnostics.push(line.trim());
+    } else if (line2.startsWith(ERR_LINE_PREFIX)) {
+      diagnostics.push(line2.trim());
     } else {
       droppedLines++;
     }
@@ -104151,19 +104158,19 @@ function parseErr(payload, lineNumber, lineText) {
     ...msgv !== void 0 ? { msgv } : {}
   };
 }
-function splitFrame(line, lineNumber) {
-  const rest = line.slice(FLUID_FRAME_PREFIX.length);
+function splitFrame(line2, lineNumber) {
+  const rest = line2.slice(FLUID_FRAME_PREFIX.length);
   const spaceIdx = rest.indexOf(" ");
   if (spaceIdx === -1) {
-    return { name: rest, payload: "", lineNumber, lineText: line };
+    return { name: rest, payload: "", lineNumber, lineText: line2 };
   }
-  return { name: rest.slice(0, spaceIdx), payload: rest.slice(spaceIdx + 1), lineNumber, lineText: line };
+  return { name: rest.slice(0, spaceIdx), payload: rest.slice(spaceIdx + 1), lineNumber, lineText: line2 };
 }
 function hasErrFrame(rawLines) {
   for (const raw of rawLines) {
-    const line = raw.endsWith("\r") ? raw.slice(0, -1) : raw;
-    if (!line.startsWith(FLUID_FRAME_PREFIX)) continue;
-    if (splitFrame(line, 0).name === "ERR") return true;
+    const line2 = raw.endsWith("\r") ? raw.slice(0, -1) : raw;
+    if (!line2.startsWith(FLUID_FRAME_PREFIX)) continue;
+    if (splitFrame(line2, 0).name === "ERR") return true;
   }
   return false;
 }
@@ -104180,32 +104187,32 @@ function parseFluidConsole(consoleText) {
   let openAt;
   for (let i = 0; i < rawLines.length; i++) {
     const raw = rawLines[i] ?? "";
-    const line = raw.endsWith("\r") ? raw.slice(0, -1) : raw;
+    const line2 = raw.endsWith("\r") ? raw.slice(0, -1) : raw;
     const lineNumber = i + 1;
-    if (!line.startsWith(FLUID_FRAME_PREFIX)) {
-      if (line.trim() === "") continue;
-      stray.push(line);
+    if (!line2.startsWith(FLUID_FRAME_PREFIX)) {
+      if (line2.trim() === "") continue;
+      stray.push(line2);
       continue;
     }
-    const frame = splitFrame(line, lineNumber);
+    const frame = splitFrame(line2, lineNumber);
     if (!FRAME_NAMES.has(frame.name)) {
-      throw protocolError(`Unknown fluid frame name "${frame.name}"`, lineNumber, line);
+      throw protocolError(`Unknown fluid frame name "${frame.name}"`, lineNumber, line2);
     }
     if (end !== void 0 && frame.name !== "ERR") {
-      throw protocolError(`A ${frame.name} frame arrived after END`, lineNumber, line);
+      throw protocolError(`A ${frame.name} frame arrived after END`, lineNumber, line2);
     }
     if (frame.name !== "BEGIN" && begin === void 0) {
-      throw protocolError(`A ${frame.name} frame arrived before BEGIN`, lineNumber, line);
+      throw protocolError(`A ${frame.name} frame arrived before BEGIN`, lineNumber, line2);
     }
     if (frame.name === "BEGIN" && begin !== void 0) {
-      throw protocolError("A second BEGIN frame arrived", lineNumber, line);
+      throw protocolError("A second BEGIN frame arrived", lineNumber, line2);
     }
     switch (frame.name) {
       case "BEGIN":
-        begin = parseBegin(frame.payload, lineNumber, line);
+        begin = parseBegin(frame.payload, lineNumber, line2);
         break;
       case "OUT":
-        values.push(parseJsonPayload(frame.payload, "OUT", lineNumber, line));
+        values.push(parseJsonPayload(frame.payload, "OUT", lineNumber, line2));
         break;
       case "OUTC":
         if (openFragments === void 0) {
@@ -104217,13 +104224,13 @@ function parseFluidConsole(consoleText) {
         break;
       case "OUTE": {
         if (openFragments === void 0) {
-          throw protocolError("OUTE frame with no open OUTC to close", lineNumber, line);
+          throw protocolError("OUTE frame with no open OUTC to close", lineNumber, line2);
         }
         openFragments.push(frame.payload);
         const reassembled = openFragments.join("");
         const startAt = openAt;
         try {
-          values.push(parseJsonPayload(reassembled, "Reassembled OUTC/OUTE", lineNumber, line));
+          values.push(parseJsonPayload(reassembled, "Reassembled OUTC/OUTE", lineNumber, line2));
         } catch (e) {
           if (!hasErr) throw e;
           dropped.push({ raw: reassembled, lineNumber: startAt ? startAt.lineNumber : lineNumber });
@@ -104233,10 +104240,10 @@ function parseFluidConsole(consoleText) {
         break;
       }
       case "ERR":
-        errors.push(parseErr(frame.payload, lineNumber, line));
+        errors.push(parseErr(frame.payload, lineNumber, line2));
         break;
       case "END":
-        end = parseEnd(frame.payload, lineNumber, line);
+        end = parseEnd(frame.payload, lineNumber, line2);
         break;
     }
   }
@@ -104398,6 +104405,44 @@ function assertAbapLineLengths(source) {
   }
 }
 
+// src/adt/fluid/flat-args.ts
+function isPlainObject6(v) {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+function flattenOne(prefix, v, out) {
+  if (v === void 0 || typeof v === "function" || typeof v === "symbol") {
+    return;
+  }
+  if (Array.isArray(v)) {
+    const elements = v;
+    if (elements.every((el) => typeof el === "string")) {
+      out[prefix] = elements;
+      return;
+    }
+    out[prefix] = elements.length;
+    elements.forEach((el, i) => flattenOne(`${prefix}/${i}`, el, out));
+    return;
+  }
+  if (isPlainObject6(v)) {
+    for (const [key, value] of Object.entries(v)) {
+      flattenOne(`${prefix}/${key}`, value, out);
+    }
+    return;
+  }
+  out[prefix] = v;
+}
+function flattenScanArgs(args) {
+  if (!isPlainObject6(args)) {
+    return args;
+  }
+  const out = {};
+  for (const [key, value] of Object.entries(args)) {
+    if (value === void 0) continue;
+    flattenOne(key, value, out);
+  }
+  return out;
+}
+
 // src/adt/fluid/dispatch.ts
 init_truncate();
 function callerAttribution(req) {
@@ -104547,8 +104592,8 @@ async function forceInvokerRegeneration(deps, invokerClassName) {
 }
 function buildWarnings(transcript) {
   const warnings = [];
-  for (const line of transcript.stray) {
-    warnings.push(`stray console output: ${line}`);
+  for (const line2 of transcript.stray) {
+    warnings.push(`stray console output: ${line2}`);
   }
   for (const d of transcript.dropped) {
     warnings.push(`a value starting at line ${d.lineNumber} could not be parsed and was dropped: ${d.raw}`);
@@ -104646,8 +104691,9 @@ async function dispatch2(deps, req) {
   assertTargetsAgainstGate(deps.gate, action, req.args, tool.origin);
   await ensureFluidPackage(deps.conn, deps.gate);
   const sysKey = systemKey(deps.conn.cfg);
+  const wireArgs = tool.manifest.flatArgs === true ? flattenScanArgs(req.args) : req.args;
   const contract = tool.manifest.contract;
-  const invokerClassName = invokerName(req.tool, req.action, req.args, contract);
+  const invokerClassName = invokerName(req.tool, req.action, wireArgs, contract);
   const runDeployAndExecute = async () => {
     await ensureFluidRuntimeFor(deps.conn, deps.gate, deps.cfg, tool, {
       tool: req.tool,
@@ -104660,7 +104706,7 @@ async function dispatch2(deps, req) {
       op: "run"
     });
     const name = invokerClassName;
-    const argsJson = canonicalArgsJson(req.args);
+    const argsJson = canonicalArgsJson(wireArgs);
     const source = invokerSource({
       name,
       entry: tool.manifest.entry,
@@ -104821,8 +104867,8 @@ function assertOptionalCorrNr(value) {
 var PKG_CONTENT_PREFIX = "ZMCP-PKG-CONTENT>";
 function parsePackageContents(raw) {
   const contents = [];
-  for (const line of raw.split("\n")) {
-    const trimmed = line.trim();
+  for (const line2 of raw.split("\n")) {
+    const trimmed = line2.trim();
     if (!trimmed.startsWith(PKG_CONTENT_PREFIX)) continue;
     const rest = trimmed.slice(PKG_CONTENT_PREFIX.length).trim();
     const fields = {};
@@ -105077,14 +105123,14 @@ function injectEmptyFixValues(t, xml3) {
 }
 var FUGR_INCLUDE_STATEMENT_RE = /\bINCLUDE\s+([A-Za-z0-9_/]+)/gi;
 var FUGR_IMPLEMENTATION_INCLUDE_RE = /(?:UXX|U\d+)$/;
-function stripAbapEolComment(line) {
+function stripAbapEolComment(line2) {
   let inString = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
+  for (let i = 0; i < line2.length; i++) {
+    const ch = line2[i];
     if (ch === "'") inString = !inString;
-    else if (ch === '"' && !inString) return line.slice(0, i);
+    else if (ch === '"' && !inString) return line2.slice(0, i);
   }
-  return line;
+  return line2;
 }
 function assertFunctionGroupImplementationInclude(t, source) {
   if (t.type !== "FUGR/F") return;
@@ -106707,7 +106753,276 @@ init_truncate();
 // src/adt/index-create.ts
 init_errors();
 init_enhancement_templates();
-init_index_read();
+
+// src/adt/index-read.ts
+init_compact();
+init_errors();
+var catalogSelectModule;
+function loadCatalogSelect() {
+  return catalogSelectModule ??= Promise.resolve().then(() => (init_catalog_select(), catalog_select_exports));
+}
+var INDEX_CATALOG = Object.freeze({
+  indexHeader: Object.freeze({
+    table: "DD12V",
+    fields: Object.freeze({
+      table: "SQLTAB",
+      index: "INDEXNAME",
+      language: "DDLANGUAGE",
+      unique: "UNIQUEFLAG",
+      activation: "AS4LOCAL",
+      dbState: "DBSTATE",
+      description: "DDTEXT"
+    }),
+    confidence: "high",
+    note: "capture 858: language-dependent (DDLANGUAGE) \u2014 one row per maintained language per index, must be deduped by INDEXNAME. capture 860: a table with no secondary index answers 200 with totalRows 0, a definitive absence, not an error."
+  }),
+  indexField: Object.freeze({
+    table: "DD17S",
+    fields: Object.freeze({
+      table: "SQLTAB",
+      index: "INDEXNAME",
+      position: "POSITION",
+      field: "FIELDNAME"
+    }),
+    confidence: "high",
+    note: 'capture 859: not language-dependent. POSITION is a zero-padded numeric string (e.g. "0001") \u2014 parse with Number(), never string-sort it.'
+  })
+});
+function tbl(key) {
+  return INDEX_CATALOG[key].table;
+}
+function fld(key, field) {
+  const fields = INDEX_CATALOG[key].fields;
+  return fields[field];
+}
+var INDEX_TABLE_NAME_MAX = 30;
+var INDEX_ID_MAX = 3;
+var INDEX_ROW_CAP = 200;
+var DEFAULT_LANGUAGE = "E";
+function isValidIndexIdentifier(name, maxLength) {
+  if (typeof name !== "string") return false;
+  if (name.length === 0 || name.length > maxLength) return false;
+  return /^[A-Za-z][A-Za-z0-9_]*$/.test(name);
+}
+function assertIndexIdentifier(value, what, maxLength) {
+  if (typeof value !== "string" || !isValidIndexIdentifier(value, maxLength)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${what} ${JSON.stringify(value)} is not a valid ABAP object name (a letter, then letters, digits and underscores only, max ${maxLength} characters).`,
+      { what, value },
+      "This value is substituted into a catalog SELECT's WHERE literal \u2014 an over-long or malformed name is refused client-side, before any SQL literal is built, rather than sent to the freestyle endpoint, which answers HTTP 400 (not an empty result) for a literal wider than the target column's declared DDIC width."
+    );
+  }
+  return value;
+}
+function assertIndexTableName(value) {
+  return assertIndexIdentifier(value, "table", INDEX_TABLE_NAME_MAX);
+}
+function assertIndexIdValue(value) {
+  return assertIndexIdentifier(value, "indexId", INDEX_ID_MAX);
+}
+function serverNotes(result) {
+  return result.messages.map((m) => `[server] ${m.text}${m.severity ? ` (${m.severity})` : ""}`);
+}
+function noteIfCut(result, cap, what, notes) {
+  if (result.totalRows !== void 0 && result.totalRows > result.rows.length) {
+    notes.push(
+      `${what} reports ${result.totalRows} total rows but only ${result.rows.length} were fetched (row cap ${cap}) \u2014 the remainder was cut, not silently dropped.`
+    );
+  }
+}
+function activationLabel(activation) {
+  switch (activation) {
+    case "A":
+      return "active";
+    case "N":
+      return "inactive (revised, not activated)";
+    case "":
+      return "unknown (blank AS4LOCAL)";
+    default:
+      return `unrecognized (AS4LOCAL = ${JSON.stringify(activation)})`;
+  }
+}
+async function readTableIndexes(conn, table, opts) {
+  const { buildCatalogSelect: buildCatalogSelect2, catalogLiteral: catalogLiteral2, requireCatalogColumn: requireCatalogColumn2, runCatalogSelect: runCatalogSelect2 } = await loadCatalogSelect();
+  const notes = [];
+  const t = assertIndexTableName(table.trim().toUpperCase());
+  const language = (opts?.language ?? DEFAULT_LANGUAGE).trim().toUpperCase() || DEFAULT_LANGUAGE;
+  const TABLE_F = fld("indexHeader", "table");
+  const INDEX_F = fld("indexHeader", "index");
+  const headerSql = buildCatalogSelect2(
+    [TABLE_F, INDEX_F, fld("indexHeader", "language"), fld("indexHeader", "unique"), fld("indexHeader", "activation"), fld("indexHeader", "dbState"), fld("indexHeader", "description")].join(", "),
+    tbl("indexHeader"),
+    [`${TABLE_F} = ${catalogLiteral2(t)}`],
+    INDEX_F
+  );
+  const headerResult = await runCatalogSelect2(conn, headerSql, INDEX_ROW_CAP);
+  notes.push(...serverNotes(headerResult));
+  noteIfCut(headerResult, INDEX_ROW_CAP, `${tbl("indexHeader")} lookup for "${t}"`, notes);
+  if (headerResult.rows.length > 0) requireCatalogColumn2(headerResult, INDEX_F);
+  const byIndex = /* @__PURE__ */ new Map();
+  let dedupedAny = false;
+  for (const row2 of headerResult.rows) {
+    const id = row2[INDEX_F] ?? "";
+    if (id === "") continue;
+    const existing = byIndex.get(id);
+    if (existing === void 0) {
+      byIndex.set(id, row2);
+      continue;
+    }
+    dedupedAny = true;
+    const rowLanguage = (row2[fld("indexHeader", "language")] ?? "").trim().toUpperCase();
+    if (rowLanguage === language) byIndex.set(id, row2);
+  }
+  if (dedupedAny) {
+    notes.push(
+      `${tbl("indexHeader")} carried more than one row per index (language-dependent \u2014 see INDEX_CATALOG note): reduced to one row per index, preferring DDLANGUAGE = "${language}".`
+    );
+  }
+  const FTABLE_F = fld("indexField", "table");
+  const FINDEX_F = fld("indexField", "index");
+  const fieldSql = buildCatalogSelect2(
+    [FTABLE_F, FINDEX_F, fld("indexField", "position"), fld("indexField", "field")].join(", "),
+    tbl("indexField"),
+    [`${FTABLE_F} = ${catalogLiteral2(t)}`],
+    FINDEX_F
+  );
+  const fieldResult = await runCatalogSelect2(conn, fieldSql, INDEX_ROW_CAP);
+  notes.push(...serverNotes(fieldResult));
+  noteIfCut(fieldResult, INDEX_ROW_CAP, `${tbl("indexField")} lookup for "${t}"`, notes);
+  if (fieldResult.rows.length > 0) requireCatalogColumn2(fieldResult, FINDEX_F);
+  const fieldsByIndex = /* @__PURE__ */ new Map();
+  for (const row2 of fieldResult.rows) {
+    const id = row2[FINDEX_F] ?? "";
+    if (id === "") continue;
+    const position = Number(row2[fld("indexField", "position")] ?? "0");
+    const field = row2[fld("indexField", "field")] ?? "";
+    const list5 = fieldsByIndex.get(id);
+    const entry = { position: Number.isNaN(position) ? 0 : position, field };
+    if (list5) list5.push(entry);
+    else fieldsByIndex.set(id, [entry]);
+  }
+  for (const list5 of fieldsByIndex.values()) list5.sort((a, b) => a.position - b.position);
+  const indexes = [...byIndex.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([id, row2]) => {
+    const activation = row2[fld("indexHeader", "activation")] ?? "";
+    return {
+      id,
+      table: t,
+      description: row2[fld("indexHeader", "description")] ?? "",
+      unique: (row2[fld("indexHeader", "unique")] ?? "").trim() !== "",
+      activation,
+      activationLabel: activationLabel(activation),
+      dbState: row2[fld("indexHeader", "dbState")] ?? "",
+      fields: (fieldsByIndex.get(id) ?? []).map((f) => f.field)
+    };
+  });
+  return { indexes, notes };
+}
+async function readSecondaryIndex(conn, table, indexId, opts) {
+  const id = assertIndexIdValue(indexId.trim().toUpperCase());
+  const { indexes, notes } = await readTableIndexes(conn, table, opts);
+  const index = indexes.find((i) => i.id === id);
+  return { index, notes };
+}
+async function verifySecondaryIndex(conn, table, indexId, expect) {
+  try {
+    const id = assertIndexIdValue(indexId.trim().toUpperCase());
+    const t = assertIndexTableName(table.trim().toUpperCase());
+    const { index } = await readSecondaryIndex(conn, t, id);
+    if (index === void 0) {
+      const mismatch2 = expect === "present" ? " \u2014 expected present, but the catalog shows no such row." : "";
+      return {
+        verified: true,
+        present: false,
+        active: false,
+        statement: `index ${id} on ${t} is absent from DD12V${mismatch2}`
+      };
+    }
+    const active = index.activation === "A";
+    const fieldsClause = index.fields.length > 0 ? `, with fields ${index.fields.join(", ")}` : ", with no fields on record";
+    const mismatch = expect === "absent" ? " \u2014 expected absent, but the catalog still shows it." : "";
+    const statement = `index ${id} on ${t} is present and ${active ? "active" : `inactive (${index.activationLabel})`} (DD12V-AS4LOCAL = '${index.activation}')${fieldsClause}${mismatch}`;
+    return { verified: true, present: true, active, statement, index };
+  } catch (e) {
+    const reason = e instanceof Error ? e.message : String(e);
+    return {
+      verified: false,
+      present: false,
+      active: false,
+      statement: `could not verify index ${indexId} on ${table}: the DD12V/DD17S re-read itself failed (${reason}).`,
+      reason
+    };
+  }
+}
+function renderIndexSection(indexes) {
+  const title = "SECONDARY INDEXES";
+  if (indexes.length === 0) {
+    return {
+      title,
+      content: "This table has no secondary index \u2014 a DD12V read for this table returned zero rows (a definitive empty result, see capture 860), not an unread or failed check."
+    };
+  }
+  const content = textTable(
+    indexes.map((i) => ({
+      index: i.id,
+      unique: i.unique ? "UNIQUE" : "",
+      status: i.activationLabel,
+      "db status": i.dbState,
+      fields: i.fields.join(", "),
+      description: i.description
+    })),
+    ["index", "unique", "status", "db status", "fields", "description"]
+  );
+  return { title, content };
+}
+function renderSecondaryIndex(index) {
+  const ddl = [
+    `define index ${index.id.toLowerCase()} on ${index.table.toLowerCase()} {`,
+    ...index.fields.map((f) => `  ${f.toLowerCase()};`),
+    `}`
+  ].join("\n");
+  const sections = [
+    {
+      title: "INDEX HEADER",
+      content: textTable(
+        [
+          {
+            table: index.table,
+            index: index.id,
+            unique: index.unique ? "UNIQUE" : "",
+            status: index.activationLabel,
+            "db status": index.dbState,
+            description: index.description
+          }
+        ],
+        ["table", "index", "unique", "status", "db status", "description"]
+      )
+    }
+  ];
+  const hashInput = [
+    index.table,
+    index.id,
+    index.description,
+    index.unique ? "UNIQUE" : "",
+    index.activation,
+    index.dbState,
+    ...index.fields
+  ].join("|");
+  return {
+    ddl,
+    sections,
+    meta: {
+      table: index.table,
+      index: index.id,
+      unique: index.unique ? "true" : "false",
+      activation: index.activation,
+      db_status: index.dbState,
+      fields: index.fields.length
+    },
+    notes: [],
+    hashInput
+  };
+}
 
 // src/adt/resolved-package.ts
 init_errors();
@@ -106965,24 +107280,24 @@ function indexBridgeErrorHook(what, indexName, baseTable) {
   const fmWhat = what === "insert" ? CREATE_FM_WHAT : DELETE_FM_WHAT;
   const subrcRe = new RegExp(`^${fmWhat} failed, sy-subrc=(\\d+),`);
   return (transcript) => {
-    const line = transcript.errorLine;
-    if (!line) return;
-    if (line.includes(`${indexName} on ${baseTable} does not exist`)) {
+    const line2 = transcript.errorLine;
+    if (!line2) return;
+    if (line2.includes(`${indexName} on ${baseTable} does not exist`)) {
       throw new AbapError(
         "NOT_FOUND",
-        `Index ${indexName} on ${baseTable} does not exist, so there is nothing to delete. Raw ABAP-side detail: ${line}`,
+        `Index ${indexName} on ${baseTable} does not exist, so there is nothing to delete. Raw ABAP-side detail: ${line2}`,
         { indexName, baseTable, raw: transcript.raw }
       );
     }
-    if (line.includes(`unique index ${indexName} on ${baseTable} omits the client field`)) {
+    if (line2.includes(`unique index ${indexName} on ${baseTable} omits the client field`)) {
       throw new AbapError(
         "BAD_INPUT",
-        `Index ${indexName} was not created: a unique secondary index on client-dependent base table ${baseTable} must include that table's client field. Raw ABAP-side detail: ${line}`,
+        `Index ${indexName} was not created: a unique secondary index on client-dependent base table ${baseTable} must include that table's client field. Raw ABAP-side detail: ${line2}`,
         { indexName, baseTable, raw: transcript.raw },
         `Add ${baseTable}'s client field to index_fields, or create ${indexName} without index_unique.`
       );
     }
-    const m = subrcRe.exec(line);
+    const m = subrcRe.exec(line2);
     if (!m) return;
     const subrc = Number(m[1]);
     const entry = DD_INDEX_EXCEPTIONS.find((e) => e.subrc === subrc);
@@ -107134,9 +107449,6 @@ function discardedDescriptorValues(sent, stored) {
   return out;
 }
 
-// src/tools/write.ts
-init_index_read();
-
 // src/adt/package-create.ts
 init_errors();
 init_enhancement_templates();
@@ -107182,8 +107494,8 @@ function assertPackageType(value) {
 }
 var PKG_TDEVC_PREFIX = "ZMCP-PKG-TDEVC>";
 function parseTdevcLine(raw) {
-  for (const line of raw.split("\n")) {
-    const trimmed = line.trim();
+  for (const line2 of raw.split("\n")) {
+    const trimmed = line2.trim();
     if (!trimmed.startsWith(PKG_TDEVC_PREFIX)) continue;
     const rest = trimmed.slice(PKG_TDEVC_PREFIX.length).trim();
     const fields = {};
@@ -107387,9 +107699,94 @@ async function deleteTransactionViaBridge(conn, gate, params) {
   };
   return runClassicAction(conn, gate, {
     action: "delete_transaction",
-    args: { tcode, package_name: packageName },
+    args: {
+      tcode,
+      package_name: packageName,
+      ...params.confirmInRoleMenu !== void 0 ? { confirm_in_role_menu: params.confirmInRoleMenu } : {}
+    },
     what: `Deleting transaction ${tcode}`,
     expectTags: ["TRAN-DELETED", "TRAN-GONE"],
+    beforeAssert
+  });
+}
+
+// src/adt/tran-update.ts
+init_errors();
+init_enhancement_templates();
+init_transports();
+var TTEXT_MAX_LENGTH2 = 37;
+var PROGRAM_MAX_LENGTH2 = 40;
+var PACKAGE_MAX_LENGTH5 = 30;
+function assertCorrNr4(value) {
+  if (!isTrkorr(value)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `corr_nr ${JSON.stringify(value)} is not a transport request/task number this system would issue (e.g. A4HK900121). This module never acquires a request on its own \u2014 the caller must hand it one that has already been judged by the safety gate.`,
+      { what: "corrNr", value }
+    );
+  }
+  return value;
+}
+function assertTransactionUpdateTarget(packageName, corrNr) {
+  const validated = assertEnhIdentifier(packageName, "packageName", {
+    maxLength: PACKAGE_MAX_LENGTH5,
+    allowLocal: true
+  });
+  const local = isLocalPackageName(validated);
+  if (local && corrNr !== void 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `corr_nr ${JSON.stringify(corrNr)} was supplied for local package ${JSON.stringify(validated)}, but a local ($-prefixed) transaction is registered with korrnum = space rather than on a transport request, so there is nothing here for one to attach to.`,
+      { packageName: validated, corrNr }
+    );
+  }
+  if (!local && corrNr === void 0) {
+    throw new AbapError(
+      "TRANSPORT_ERROR",
+      `packageName ${JSON.stringify(validated)} is not local ($-prefixed), so this retarget must be registered in CTS via RS_CORR_INSERT, which requires a transport request \u2014 pass corr_nr (an ALREADY gate-judged TRKORR, e.g. A4HK900121).`,
+      { packageName: validated },
+      "Via abap_write, pass corr_nr with the TRKORR the safety gate already judged for this write (see the abapsmith-put-work-on-a-transport skill)."
+    );
+  }
+  if (corrNr !== void 0) assertCorrNr4(corrNr);
+  return validated;
+}
+async function updateTransaction(conn, gate, params) {
+  assertServerPackage(params.packageName, `transaction ${params.tcode}`);
+  const tcode = assertTransactionCode(params.tcode);
+  const program = assertEnhIdentifier(params.program, "program", { maxLength: PROGRAM_MAX_LENGTH2 });
+  const description = assertAbapText(params.description, "description", TTEXT_MAX_LENGTH2);
+  const packageName = assertTransactionUpdateTarget(params.packageName.name, params.corrNr);
+  const local = isLocalPackageName(packageName);
+  const corrNr = local ? void 0 : params.corrNr;
+  const corr = local ? void 0 : { kind: "transport", corrNr, source: params.corrSource ?? "named" };
+  assertBridgeMutation(
+    gate,
+    { type: "TRAN/T", name: tcode, packageName },
+    { activate: false, ...corr !== void 0 ? { corr } : {} }
+  );
+  const beforeAssert = (transcript) => {
+    if (transcript.errorLine?.includes("does not exist")) {
+      throw new AbapError(
+        "CHECK_FAILED",
+        `Transaction ${tcode} does not exist, so there is nothing to retarget. Raw ABAP-side detail: ${transcript.errorLine}`,
+        { tcode, raw: transcript.raw }
+      );
+    }
+  };
+  const expectTags = ["TRAN-REGISTERED", "TRAN-RETARGETED"];
+  return runClassicAction(conn, gate, {
+    action: "update_transaction",
+    args: {
+      tcode,
+      program,
+      description,
+      package_name: packageName,
+      corr_nr: corrNr ?? "",
+      ...params.confirmInRoleMenu !== void 0 ? { confirm_in_role_menu: params.confirmInRoleMenu } : {}
+    },
+    what: `Retargeting transaction ${tcode}`,
+    expectTags,
     beforeAssert
   });
 }
@@ -107408,7 +107805,7 @@ function classicViewUri(viewName) {
   return `/sap/bc/adt/ddic/views/${viewName.trim().toLowerCase()}`;
 }
 var PACKAGE_RULES3 = { maxLength: VIEW_NAME_MAX, allowLocal: true };
-function assertCorrNr4(value) {
+function assertCorrNr5(value) {
   if (!isTrkorr(value)) {
     throw new AbapError(
       "BAD_INPUT",
@@ -107428,7 +107825,7 @@ function assertClassicViewCreateTarget(packageName, corrNr) {
       { packageName: validated, corrNr }
     );
   }
-  if (corrNr !== void 0) assertCorrNr4(corrNr);
+  if (corrNr !== void 0) assertCorrNr5(corrNr);
   return validated;
 }
 function validate3(p) {
@@ -107530,11 +107927,1957 @@ async function deleteClassicViewViaBridge(conn, gate, params) {
   };
   return runClassicAction(conn, gate, {
     action: "delete_view",
-    args: { view_name: viewName, package_name: packageName },
+    args: {
+      view_name: viewName,
+      package_name: packageName,
+      ...params.confirmMaintenanceDialog !== void 0 ? { confirm_maintenance_dialog: params.confirmMaintenanceDialog } : {}
+    },
     what: `Deleting classic view ${viewName}`,
     expectTags: ["VIEW-DELETED", "VIEW-GONE"],
     beforeAssert
   });
+}
+
+// src/adt/view-update.ts
+init_errors();
+init_enhancement_templates();
+init_transports();
+async function updateClassicView(conn, gate, params) {
+  const viewName = assertEnhIdentifier(params.viewName, "viewName", { maxLength: VIEW_NAME_MAX });
+  const baseTable = assertEnhIdentifier(params.baseTable, "baseTable", { maxLength: VIEW_NAME_MAX });
+  if (!Array.isArray(params.fields) || params.fields.length === 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "fields must be a non-empty list of base-table field names \u2014 an update replaces the whole field list, and DDIF_VIEW_PUT would not accept a view projecting no field at all.",
+      { viewName, baseTable }
+    );
+  }
+  if (params.fields.length > MAX_VIEW_FIELDS) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `fields has ${params.fields.length} entries, more than the ${MAX_VIEW_FIELDS} this bridge generates. DD27P-OBJPOS is a 4-character numeric position and this bridge fills it by zero-padding a 1-based index, so every generated position must stay inside 0001-9999.`,
+      { viewName, count: params.fields.length, max: MAX_VIEW_FIELDS }
+    );
+  }
+  const fields = params.fields.map(
+    (f, i) => assertEnhIdentifier(f, `fields[${i}]`, { maxLength: VIEW_NAME_MAX })
+  );
+  const description = assertAbapText(params.description, "description", VIEW_TEXT_MAX);
+  const packageName = assertClassicViewCreateTarget(params.packageName, params.corrNr);
+  const local = isLocalPackageName(packageName);
+  if (!local && params.corrNr === void 0) {
+    throw new AbapError(
+      "TRANSPORT_ERROR",
+      `packageName ${JSON.stringify(packageName)} is not local ($-prefixed), so this view update must be registered in CTS via RS_CORR_INSERT, which requires a transport request \u2014 pass corr_nr (an ALREADY gate-judged TRKORR, e.g. A4HK900121).`,
+      { packageName },
+      "Via abap_write, pass corr_nr with the TRKORR the safety gate already judged for this write (see the abapsmith-put-work-on-a-transport skill)."
+    );
+  }
+  const corrNr = local ? void 0 : params.corrNr;
+  const corr = local ? void 0 : { kind: "transport", corrNr, source: params.corrSource ?? "named" };
+  assertBridgeMutation(
+    gate,
+    { type: "VIEW/DV", name: viewName, packageName },
+    { activate: true, ...corr !== void 0 ? { corr } : {} }
+  );
+  const beforeAssert = (transcript) => {
+    if (transcript.errorLine?.includes(`${viewName} does not exist`)) {
+      throw new AbapError(
+        "CHECK_FAILED",
+        `View ${viewName} does not exist, so there is nothing to update. Raw ABAP-side detail: ${transcript.errorLine}`,
+        { viewName, raw: transcript.raw }
+      );
+    }
+  };
+  const expectTags = ["VIEW-REGISTERED", "VIEW-UPDATED", "VIEW-ACTIVATED"];
+  return runClassicAction(conn, gate, {
+    action: "update_view",
+    args: {
+      view_name: viewName,
+      base_table: baseTable,
+      fields,
+      description,
+      package_name: packageName,
+      corr_nr: corrNr ?? ""
+    },
+    what: `Updating classic view ${viewName}`,
+    expectTags,
+    beforeAssert
+  });
+}
+
+// src/adt/shlp-create.ts
+init_errors();
+init_enhancement_templates();
+init_transports();
+var SHLP_NAME_MAX = 30;
+var SHLP_TEXT_MAX = 60;
+var DEFAULT_VALUE_MAX = 132;
+var SELECTION_METHOD_TYPES = /* @__PURE__ */ new Set(["T", "V", "M"]);
+var ASSIGNMENT_DIRECTIONS = /* @__PURE__ */ new Set(["I", "E"]);
+var PACKAGE_RULES4 = { maxLength: SHLP_NAME_MAX, allowLocal: true };
+function assertCorrNr6(value) {
+  if (!isTrkorr(value)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `corr_nr ${JSON.stringify(value)} is not a transport request/task number this system would issue (e.g. A4HK900121). This module never acquires a request on its own \u2014 the caller must hand it one that has already been judged by the safety gate.`,
+      { what: "corrNr", value }
+    );
+  }
+  return value;
+}
+function assertSearchHelpTarget(packageName, corrNr) {
+  const validated = assertEnhIdentifier(packageName, "packageName", PACKAGE_RULES4);
+  const local = isLocalPackageName(validated);
+  if (local && corrNr !== void 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `corr_nr ${JSON.stringify(corrNr)} was supplied for local package ${JSON.stringify(validated)}, but a local ($-prefixed) search help is registered with korrnum = space rather than on a transport request, so there is nothing here for one to attach to.`,
+      { packageName: validated, corrNr }
+    );
+  }
+  if (corrNr !== void 0) assertCorrNr6(corrNr);
+  return validated;
+}
+function validate5(packageNameStr, p) {
+  const shlpName = assertEnhIdentifier(p.shlpName, "shlpName", { maxLength: SHLP_NAME_MAX });
+  const description = assertAbapText(p.description, "description", SHLP_TEXT_MAX);
+  const packageName = assertSearchHelpTarget(packageNameStr, p.corrNr);
+  const local = isLocalPackageName(packageName);
+  if (!local && p.corrNr === void 0) {
+    throw new AbapError(
+      "TRANSPORT_ERROR",
+      `packageName ${JSON.stringify(packageName)} is not local ($-prefixed), so this search help must be registered in CTS via RS_CORR_INSERT, which requires a transport request \u2014 pass corr_nr (an ALREADY gate-judged TRKORR, e.g. A4HK900121).`,
+      { packageName },
+      "Via abap_write, pass corr_nr with the TRKORR the safety gate already judged for this write (see the abapsmith-put-work-on-a-transport skill)."
+    );
+  }
+  const corrNr = local ? void 0 : p.corrNr;
+  const selectionMethodGiven = p.selectionMethod !== void 0 && p.selectionMethod !== "";
+  const selectionMethod = selectionMethodGiven ? assertEnhIdentifier(p.selectionMethod, "selectionMethod", { maxLength: SHLP_NAME_MAX }) : "";
+  let selectionMethodType;
+  if (!selectionMethodGiven) {
+    if (p.selectionMethodType !== void 0 && p.selectionMethodType !== "") {
+      throw new AbapError(
+        "BAD_INPUT",
+        `selectionMethodType ${JSON.stringify(p.selectionMethodType)} was given but selectionMethod was not \u2014 DD30V-SELMTYPE only means something alongside a selection method; leave both blank for a collective search help, or an elementary one driven by a search-help exit.`,
+        { what: "selectionMethodType", value: p.selectionMethodType }
+      );
+    }
+    selectionMethodType = "";
+  } else {
+    if (typeof p.selectionMethodType !== "string" || !SELECTION_METHOD_TYPES.has(p.selectionMethodType)) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `selectionMethodType ${JSON.stringify(p.selectionMethodType)} must be one of ${[...SELECTION_METHOD_TYPES].join(", ")} \u2014 abap-shlp.ts only special-cases "T" (table) and "V" (view) existence checks, and does not check anything else against the server.`,
+        { what: "selectionMethodType", value: p.selectionMethodType }
+      );
+    }
+    selectionMethodType = p.selectionMethodType;
+  }
+  const dialogType = p.dialogType === void 0 ? void 0 : assertAbapText(p.dialogType, "dialogType", 1);
+  const textTable2 = p.textTable === void 0 ? void 0 : assertEnhIdentifier(p.textTable, "textTable", { maxLength: SHLP_NAME_MAX });
+  const hotKey = p.hotKey === void 0 ? void 0 : assertAbapText(p.hotKey, "hotKey", 1);
+  if (typeof p.elementary !== "boolean") {
+    throw new AbapError("BAD_INPUT", "elementary must be a boolean.", { what: "elementary" });
+  }
+  if (!Array.isArray(p.fields)) {
+    throw new AbapError("BAD_INPUT", "fields must be an array.", { what: "fields" });
+  }
+  const fields = p.fields.map((f, i) => {
+    const name = assertEnhIdentifier(f.name, `fields[${i}].name`, { maxLength: SHLP_NAME_MAX });
+    const dataElement = assertEnhIdentifier(f.dataElement, `fields[${i}].dataElement`, { maxLength: SHLP_NAME_MAX });
+    const defaultValue = f.defaultValue === void 0 ? void 0 : assertAbapText(f.defaultValue, `fields[${i}].defaultValue`, DEFAULT_VALUE_MAX);
+    return {
+      name,
+      dataElement,
+      import: f.import === true,
+      export: f.export === true,
+      ...defaultValue !== void 0 ? { defaultValue } : {}
+    };
+  });
+  if (p.elementary) {
+    if (fields.length === 0) {
+      throw new AbapError(
+        "BAD_INPUT",
+        "fields must be non-empty for an elementary search help (DD30V-ISSIMPLE = 'X') \u2014 DDIF_SHLP_PUT needs at least one import and one export parameter.",
+        { shlpName }
+      );
+    }
+    if (!fields.some((f) => f.import) || !fields.some((f) => f.export)) {
+      throw new AbapError(
+        "BAD_INPUT",
+        "an elementary search help needs at least one field marked import and at least one marked export \u2014 abap-shlp.ts refuses this at runtime too, but this fails before any network call.",
+        { shlpName, fields }
+      );
+    }
+  }
+  const includes = (p.includes ?? []).map((inc, i) => ({
+    name: assertEnhIdentifier(inc.name, `includes[${i}].name`, { maxLength: SHLP_NAME_MAX })
+  }));
+  const assignments = (p.assignments ?? []).map((a, i) => {
+    const field = assertEnhIdentifier(a.field, `assignments[${i}].field`, { maxLength: SHLP_NAME_MAX });
+    const includedHelp = assertEnhIdentifier(a.includedHelp, `assignments[${i}].includedHelp`, { maxLength: SHLP_NAME_MAX });
+    const includedField = assertEnhIdentifier(a.includedField, `assignments[${i}].includedField`, { maxLength: SHLP_NAME_MAX });
+    if (typeof a.direction !== "string" || !ASSIGNMENT_DIRECTIONS.has(a.direction)) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `assignments[${i}].direction ${JSON.stringify(a.direction)} must be one of ${[...ASSIGNMENT_DIRECTIONS].join(", ")} (DD33V-VALUEDIREC).`,
+        { what: `assignments[${i}].direction`, value: a.direction }
+      );
+    }
+    return { field, includedHelp, includedField, direction: a.direction };
+  });
+  const fieldNames = new Set(fields.map((f) => f.name.toUpperCase()));
+  const includeNames = new Set(includes.map((inc) => inc.name.toUpperCase()));
+  assignments.forEach((a, i) => {
+    if (!fieldNames.has(a.field.toUpperCase())) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `assignments[${i}].field ${JSON.stringify(a.field)} is not one of this search help's own interface parameters (fields[].name) \u2014 DDIF_SHLP_ACTIVATE would otherwise fail with rc = 8 / DH109 ("search help & was not activated") after DDIF_SHLP_PUT had already succeeded, leaving the search help stranded as an inactive-only object (a DD30L row with AS4LOCAL = 'N', no active row, plus a TADIR entry) \u2014 measured live on A4H 2026-09-15.`,
+        { what: `assignments[${i}].field`, value: a.field, fields: fields.map((f) => f.name) }
+      );
+    }
+    if (!includeNames.has(a.includedHelp.toUpperCase())) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `assignments[${i}].includedHelp ${JSON.stringify(a.includedHelp)} names a search help this definition does not include (includes[].name) \u2014 the same DH109 activation failure applies as for assignments[].field above: DDIF_SHLP_ACTIVATE returns rc = 8 for a DD33V row whose SUBSHLP is not among this search help's own DD31V includes, after DDIF_SHLP_PUT has already succeeded, stranding the search help as an inactive-only object.`,
+        { what: `assignments[${i}].includedHelp`, value: a.includedHelp, includes: includes.map((inc) => inc.name) }
+      );
+    }
+  });
+  return {
+    shlpName,
+    description,
+    packageName,
+    corrNr,
+    corrSource: p.corrSource,
+    selectionMethod,
+    selectionMethodType,
+    dialogType,
+    textTable: textTable2,
+    hotKey,
+    elementary: p.elementary,
+    fields,
+    includes,
+    assignments
+  };
+}
+function buildArgs(v) {
+  return {
+    shlp_name: v.shlpName,
+    description: v.description,
+    package_name: v.packageName,
+    corr_nr: v.corrNr ?? "",
+    selection_method: v.selectionMethod,
+    selection_method_type: v.selectionMethodType,
+    ...v.dialogType !== void 0 ? { dialog_type: v.dialogType } : {},
+    ...v.textTable !== void 0 ? { text_table: v.textTable } : {},
+    ...v.hotKey !== void 0 ? { hot_key: v.hotKey } : {},
+    elementary: v.elementary,
+    fields: v.fields.map((f) => ({
+      name: f.name,
+      data_element: f.dataElement,
+      import: f.import ?? false,
+      export: f.export ?? false,
+      ...f.defaultValue !== void 0 ? { default_value: f.defaultValue } : {}
+    })),
+    includes: v.includes.map((inc) => ({ name: inc.name })),
+    assignments: v.assignments.map((a) => ({
+      field: a.field,
+      included_help: a.includedHelp,
+      included_field: a.includedField,
+      direction: a.direction
+    }))
+  };
+}
+var SHLP_EXPECT_TAGS = ["SHLP-REGISTERED", "SHLP-PUT", "SHLP-ACTIVATED"];
+function corrOf(local, corrNr, corrSource) {
+  return local ? void 0 : { kind: "transport", corrNr, source: corrSource ?? "named" };
+}
+async function createSearchHelp(conn, gate, params) {
+  assertServerPackage(params.packageName, `search help ${params.shlpName}`);
+  const v = validate5(params.packageName.name, params);
+  const local = isLocalPackageName(v.packageName);
+  assertBridgeMutation(
+    gate,
+    { type: "SHLP/DH", name: v.shlpName, packageName: v.packageName },
+    { activate: true, ...corrOf(local, v.corrNr, v.corrSource) !== void 0 ? { corr: corrOf(local, v.corrNr, v.corrSource) } : {} }
+  );
+  return runClassicAction(conn, gate, {
+    action: "create_search_help",
+    args: buildArgs(v),
+    what: `Creating search help ${v.shlpName}`,
+    expectTags: SHLP_EXPECT_TAGS
+  });
+}
+async function updateSearchHelp(conn, gate, params) {
+  assertServerPackage(params.packageName, `search help ${params.shlpName}`);
+  const v = validate5(params.packageName.name, params);
+  const local = isLocalPackageName(v.packageName);
+  assertBridgeMutation(
+    gate,
+    { type: "SHLP/DH", name: v.shlpName, packageName: v.packageName },
+    { activate: true, ...corrOf(local, v.corrNr, v.corrSource) !== void 0 ? { corr: corrOf(local, v.corrNr, v.corrSource) } : {} }
+  );
+  return runClassicAction(conn, gate, {
+    action: "update_search_help",
+    args: buildArgs(v),
+    what: `Updating search help ${v.shlpName}`,
+    expectTags: SHLP_EXPECT_TAGS
+  });
+}
+
+// src/adt/shlp-delete.ts
+init_errors();
+init_enhancement_templates();
+var SHLP_NAME_MAX2 = 30;
+function validate6(p) {
+  const shlpName = assertEnhIdentifier(p.shlpName, "shlpName", { maxLength: SHLP_NAME_MAX2 });
+  return { shlpName };
+}
+async function deleteSearchHelpViaBridge(conn, gate, params) {
+  assertServerPackage(params.packageName, `search help ${params.shlpName}`);
+  const { shlpName } = validate6(params);
+  const packageName = params.packageName.name;
+  assertBridgeMutation(
+    gate,
+    { type: "SHLP/DH", name: shlpName, packageName },
+    { activate: false, op: "delete", corr: { kind: "local" } }
+  );
+  const beforeAssert = (transcript) => {
+    if (transcript.errorLine?.includes(`${shlpName} does not exist`)) {
+      throw new AbapError(
+        "CHECK_FAILED",
+        `Search help ${shlpName} does not exist, so there is nothing to delete. Raw ABAP-side detail: ${transcript.errorLine}`,
+        { shlpName, raw: transcript.raw }
+      );
+    }
+  };
+  return runClassicAction(conn, gate, {
+    action: "delete_search_help",
+    args: {
+      shlp_name: shlpName,
+      package_name: packageName,
+      ...params.confirmInUse !== void 0 ? { confirm_in_use: params.confirmInUse } : {}
+    },
+    what: `Deleting search help ${shlpName}`,
+    expectTags: ["SHLP-DELETED", "SHLP-GONE"],
+    beforeAssert
+  });
+}
+
+// src/adt/catalog-read.ts
+init_datapreview();
+init_errors();
+
+// src/adt/img-query.ts
+init_errors();
+
+// src/adt/img-catalog.ts
+var MEASURED_NOTE = "measured 2026-09-05";
+var MEASURED_NOTE_CHECKS = "measured 2026-09-12";
+var IMG_CATALOG = Object.freeze({
+  ddicTable: Object.freeze({
+    table: "DD02L",
+    fields: Object.freeze({
+      table: "TABNAME",
+      tableClass: "TABCLASS",
+      clientDependent: "CLIDEP",
+      deliveryClass: "CONTFLAG",
+      maintenance: "MAINFLAG",
+      activeState: "AS4LOCAL"
+    }),
+    confidence: "high",
+    note: MEASURED_NOTE + ": CONTFLAG=delivery class, CLIDEP=client dependence"
+  }),
+  ddicTableText: Object.freeze({
+    table: "DD02T",
+    fields: Object.freeze({
+      table: "TABNAME",
+      language: "DDLANGUAGE",
+      text: "DDTEXT",
+      activeState: "AS4LOCAL"
+    }),
+    confidence: "high"
+  }),
+  ddicField: Object.freeze({
+    table: "DD03L",
+    fields: Object.freeze({
+      table: "TABNAME",
+      field: "FIELDNAME",
+      position: "POSITION",
+      keyFlag: "KEYFLAG",
+      dataElement: "ROLLNAME",
+      dataType: "DATATYPE",
+      length: "LENG",
+      activeState: "AS4LOCAL",
+      checkTable: "CHECKTABLE",
+      domainName: "DOMNAME"
+    }),
+    confidence: "high"
+  }),
+  viewHeader: Object.freeze({
+    table: "DD25L",
+    fields: Object.freeze({
+      view: "VIEWNAME",
+      aggregateType: "AGGTYPE",
+      rootTable: "ROOTTAB",
+      activeState: "AS4LOCAL",
+      viewClass: "VIEWCLASS",
+      readOnly: "READONLY",
+      viewGrant: "VIEWGRANT",
+      globalFlag: "GLOBALFLAG",
+      applicationClass: "APPLCLASS",
+      masterLanguage: "MASTERLANG"
+    }),
+    confidence: "high",
+    note: MEASURED_NOTE_CHECKS
+  }),
+  viewText: Object.freeze({
+    table: "DD25T",
+    fields: Object.freeze({
+      view: "VIEWNAME",
+      language: "DDLANGUAGE",
+      text: "DDTEXT",
+      activeState: "AS4LOCAL"
+    }),
+    confidence: "high"
+  }),
+  viewBaseTable: Object.freeze({
+    table: "DD26S",
+    fields: Object.freeze({
+      view: "VIEWNAME",
+      table: "TABNAME",
+      position: "TABPOS",
+      activeState: "AS4LOCAL",
+      foreignTable: "FORTABNAME",
+      foreignField: "FORFIELD",
+      foreignDirection: "FORDIR"
+    }),
+    confidence: "high",
+    note: MEASURED_NOTE_CHECKS
+  }),
+  viewField: Object.freeze({
+    table: "DD27S",
+    fields: Object.freeze({
+      view: "VIEWNAME",
+      viewField: "VIEWFIELD",
+      table: "TABNAME",
+      field: "FIELDNAME",
+      position: "OBJPOS",
+      activeState: "AS4LOCAL",
+      keyFlag: "KEYFLAG",
+      dataElement: "ROLLNAME",
+      readOnly: "RDONLY",
+      enqueueMode: "ENQMODE"
+    }),
+    confidence: "high",
+    note: MEASURED_NOTE_CHECKS
+  }),
+  transaction: Object.freeze({
+    table: "TSTC",
+    fields: Object.freeze({
+      transaction: "TCODE",
+      program: "PGMNA",
+      dynpro: "DYPNO",
+      classInfo: "CINFO",
+      messageArea: "ARBGB"
+    }),
+    confidence: "high",
+    note: MEASURED_NOTE_CHECKS
+  }),
+  transactionText: Object.freeze({
+    table: "TSTCT",
+    fields: Object.freeze({
+      transaction: "TCODE",
+      language: "SPRSL",
+      text: "TTEXT"
+    }),
+    confidence: "high"
+  }),
+  viewDirectory: Object.freeze({
+    table: "TVDIR",
+    fields: Object.freeze({
+      view: "TABNAME",
+      area: "AREA",
+      type: "TYPE",
+      baseTable: "BASTAB",
+      generated: "FLAG",
+      package: "DEVCLASS",
+      screen: "LISTE"
+    }),
+    confidence: "high",
+    note: MEASURED_NOTE + `; package/screen added, ${MEASURED_NOTE_CHECKS}`
+  }),
+  viewCluster: Object.freeze({
+    table: "VCLDIR",
+    fields: Object.freeze({
+      cluster: "VCLNAME"
+    }),
+    confidence: "high",
+    note: MEASURED_NOTE
+  }),
+  viewClusterText: Object.freeze({
+    table: "VCLDIRT",
+    fields: Object.freeze({
+      cluster: "VCLNAME",
+      language: "SPRAS",
+      text: "TEXT"
+    }),
+    confidence: "high",
+    note: MEASURED_NOTE
+  }),
+  viewClusterMember: Object.freeze({
+    table: "VCLSTRUC",
+    fields: Object.freeze({
+      cluster: "VCLNAME",
+      object: "OBJECT",
+      objPos: "OBJPOS",
+      objLevel: "OBJLEVEL"
+    }),
+    confidence: "high",
+    note: MEASURED_NOTE
+  }),
+  cusObjectHeader: Object.freeze({
+    table: "OBJH",
+    fields: Object.freeze({
+      object: "OBJECTNAME",
+      objectType: "OBJECTTYPE"
+    }),
+    confidence: "high",
+    // OBJH/OBJS OBJECTTYPE is C/S/V — a different vocabulary from CUS_ACTOBJ's D/S.
+    note: MEASURED_NOTE
+  }),
+  cusObjectTable: Object.freeze({
+    table: "OBJS",
+    fields: Object.freeze({
+      object: "OBJECTNAME",
+      objectType: "OBJECTTYPE",
+      table: "TABNAME"
+    }),
+    confidence: "high",
+    note: MEASURED_NOTE + "; OBJSL maps object->transport object (TOBJ), not object->table"
+  }),
+  imgActivity: Object.freeze({
+    table: "CUS_IMGACH",
+    fields: Object.freeze({
+      activity: "ACTIVITY",
+      attributes: "ATTRIBUTES",
+      docId: "DOCU_ID",
+      cActivity: "C_ACTIVITY"
+    }),
+    confidence: "high",
+    note: MEASURED_NOTE + "; one doc field (DOCU_ID), not a class/name pair"
+  }),
+  imgActivityText: Object.freeze({
+    table: "CUS_IMGACT",
+    fields: Object.freeze({
+      activity: "ACTIVITY",
+      language: "SPRAS",
+      text: "TEXT"
+    }),
+    confidence: "high",
+    note: MEASURED_NOTE
+  }),
+  imgActivityObject: Object.freeze({
+    table: "CUS_ACTOBJ",
+    fields: Object.freeze({
+      actId: "ACT_ID",
+      objectType: "OBJECTTYPE",
+      object: "OBJECTNAME",
+      tcode: "TCODE",
+      subObjName: "SUBOBJNAME"
+    }),
+    confidence: "high",
+    // no ACTIVITY field here; joins via ACT_ID -> CUS_ACTH -> CUS_IMGACH.C_ACTIVITY.
+    // OBJECTTYPE values are D/S — a different vocabulary from OBJH/OBJS's C/S/V.
+    note: MEASURED_NOTE
+  }),
+  cusActivityHeader: Object.freeze({
+    table: "CUS_ACTH",
+    fields: Object.freeze({
+      actId: "ACT_ID"
+    }),
+    confidence: "high",
+    note: MEASURED_NOTE + "; link: CUS_IMGACH.C_ACTIVITY -> CUS_ACTH.ACT_ID -> CUS_ACTOBJ.ACT_ID"
+  }),
+  imgNodeText: Object.freeze({
+    table: "TTREET",
+    fields: Object.freeze({
+      node: "ID",
+      language: "SPRAS",
+      text: "TEXT"
+    }),
+    confidence: "high",
+    note: MEASURED_NOTE
+  }),
+  cusObjectText: Object.freeze({
+    table: "OBJT",
+    fields: Object.freeze({
+      language: "LANGUAGE",
+      object: "OBJECTNAME",
+      objectType: "OBJECTTYPE",
+      text: "DDTEXT"
+    }),
+    confidence: "high",
+    note: MEASURED_NOTE + "; not wired into img-read.ts yet"
+  }),
+  // SIMGH is a transaction (TRAN/T), not a table; TNODEIMGR (below) is the
+  // real activity-to-node link, found on the second discovery pass.
+  imgTreeNode: Object.freeze({
+    table: "TNODEIMG",
+    fields: Object.freeze({
+      treeId: "TREE_ID",
+      extension: "EXTENSION",
+      nodeId: "NODE_ID",
+      extKey: "EXT_KEY",
+      parentId: "PARENT_ID",
+      brotherId: "BROTHER_ID",
+      refNodeId: "REFNODE_ID",
+      refTreeId: "REFTREE_ID",
+      nodeType: "NODE_TYPE"
+    }),
+    confidence: "high",
+    note: MEASURED_NOTE + ": key is TREE_ID+EXTENSION+NODE_ID+EXT_KEY (include HIER_NODEK); no CHILD_ID \u2014 children are found by selecting on PARENT_ID. BROTHER_ID names a node's PREVIOUS sibling, not its next one: the child whose own BROTHER_ID is blank is the FIRST child, and walking forward means repeatedly finding the sibling whose BROTHER_ID equals the id you are currently on, stopping when no such sibling exists. This was derived from the run's row-level BROTHER_ID chains, cross-checked against the titles those chains spell out, and against the reference IMG root: of its thirty depth-1 children exactly one has a blank BROTHER_ID, and that node is an activity leaf (NODE_TYPE IMG) carrying no chapter text \u2014 consistent with a first child being an activity rather than a chapter (the run recorded no title for that node, and none is claimed here). The discovery run's own summary prose states the BROTHER_ID direction the other way round (calls it 'next sibling') and is wrong. The chain is also not guaranteed to be a clean linked list on a live system: rows have been seen where more than one sibling under the same parent carries the same BROTHER_ID value, and where a sibling's BROTHER_ID names a node that is not among that parent's children at all \u2014 a walker must tolerate a branched or broken chain, not assume a perfect list. TNODEIMG also has a W_SUBNODES field (include HIER_NODED), but it is a CHAR 1 yes/no flag, not a child count, and it was found blank on every sampled row including chapter nodes that provably have children \u2014 on this system it carries no usable information, so it is deliberately left out of `fields` above; a caller that needs a child count must count PARENT_ID matches instead."
+  }),
+  imgTreeNodeText: Object.freeze({
+    table: "TNODEIMGT",
+    fields: Object.freeze({
+      language: "SPRAS",
+      treeId: "TREE_ID",
+      extension: "EXTENSION",
+      branch: "BRANCH",
+      nodeId: "NODE_ID",
+      extKey: "EXT_KEY",
+      text: "TEXT"
+    }),
+    confidence: "high",
+    note: MEASURED_NOTE + ": an activity leaf (NODE_TYPE IMG) often has no row here \u2014 its title comes from CUS_IMGACT.TEXT via the node's COBJ reference in TNODEIMGR"
+  }),
+  imgTreeNodeRef: Object.freeze({
+    table: "TNODEIMGR",
+    fields: Object.freeze({
+      nodeId: "NODE_ID",
+      extKey: "EXT_KEY",
+      refType: "REF_TYPE",
+      refObject: "REF_OBJECT"
+    }),
+    confidence: "high",
+    // no TREE_ID column (include HIER_REFK) — unlike TNODEIMG/TNODEIMGT, a
+    // join to this table cannot be scoped by tree, only by NODE_ID.
+    note: MEASURED_NOTE + ": REF_TYPE COBJ joins CUS_IMGACH.ACTIVITY / CUS_ACTOBJ.ACT_ID"
+  }),
+  // TTREE is a tree directory, not a node table (an earlier, wrong guess at
+  // a node table over the same name has since been removed).
+  treeDirectory: Object.freeze({
+    table: "TTREE",
+    fields: Object.freeze({
+      id: "ID",
+      treeType: "TYPE",
+      rootNodeId: "NODE_ID"
+    }),
+    confidence: "high",
+    note: MEASURED_NOTE + ": ID is the tree's GUID, not a mnemonic \u2014 WHERE id IN ('SIMG','SIMG_ALL','IMG','CUST') returned 0 rows (TTREET has no text rows for those ids either), so the reference IMG has to be found by title text in TNODEIMGT rather than by a well-known id. TTREE's own column literally named TREE_ID is blank on every row seen (filtering on tree_id IN (...) with real tree ids returned 0 rows; filtering the same tree by id = '<guid>' found it immediately, with TREE_ID blank in the returned row) \u2014 a tree's identity lives in TTREE.ID, and TREE_ID must never be used as a join key or lookup column."
+  }),
+  domainValue: Object.freeze({
+    table: "DD07L",
+    fields: Object.freeze({
+      domain: "DOMNAME",
+      position: "VALPOS",
+      valueLow: "DOMVALUE_L",
+      valueHigh: "DOMVALUE_H",
+      appendValue: "APPVAL",
+      activeState: "AS4LOCAL"
+    }),
+    confidence: "high",
+    note: MEASURED_NOTE_CHECKS + ": a domain with no fixed values simply has no rows here \u2014 that is not an error condition. A non-blank DOMVALUE_H means the row describes a RANGE of values, not a single fixed value, and must not be compared against a written value the same way a single-value row is."
+  }),
+  domainValueText: Object.freeze({
+    table: "DD07T",
+    fields: Object.freeze({
+      domain: "DOMNAME",
+      position: "VALPOS",
+      valueLow: "DOMVALUE_L",
+      language: "DDLANGUAGE",
+      text: "DDTEXT",
+      activeState: "AS4LOCAL"
+    }),
+    confidence: "high",
+    note: MEASURED_NOTE_CHECKS
+  }),
+  viewMaintenanceEvent: Object.freeze({
+    table: "TVIMF",
+    fields: Object.freeze({
+      view: "TABNAME",
+      event: "EVENT",
+      formName: "FORMNAME"
+    }),
+    confidence: "high",
+    note: MEASURED_NOTE_CHECKS + ": TVIMF has only these three columns \u2014 no client column and no AS4LOCAL column, so a query over it must not filter on an active-version flag the way most other catalog tables here do. TABNAME holds the maintenance view name (e.g. V_TB003), not the base table it maintains. EVENT is drawn from domain MAINTEVENT (see MAINTENANCE_EVENT_DOMAIN below)."
+  }),
+  searchHelpHeader: Object.freeze({
+    table: "DD30L",
+    fields: Object.freeze({
+      searchHelp: "SHLPNAME",
+      activeState: "AS4LOCAL",
+      elementary: "ISSIMPLE",
+      includesExist: "ELEMEXI",
+      attachmentsExist: "ATTACHEXI",
+      selectionMethod: "SELMETHOD",
+      selectionMethodType: "SELMTYPE",
+      textTable: "TEXTTAB",
+      selectionExit: "SELMEXIT",
+      hotKey: "HOTKEY",
+      dialogType: "DIALOGTYPE"
+    }),
+    confidence: "high",
+    note: MEASURED_NOTE_CHECKS
+  }),
+  searchHelpText: Object.freeze({
+    table: "DD30T",
+    fields: Object.freeze({
+      searchHelp: "SHLPNAME",
+      language: "DDLANGUAGE",
+      activeState: "AS4LOCAL",
+      text: "DDTEXT"
+    }),
+    confidence: "high",
+    note: MEASURED_NOTE_CHECKS
+  }),
+  searchHelpInclude: Object.freeze({
+    table: "DD31S",
+    fields: Object.freeze({
+      searchHelp: "SHLPNAME",
+      includedHelp: "SUBSHLP",
+      activeState: "AS4LOCAL",
+      position: "SHPOSITION",
+      viaHelp: "VIASHLP",
+      hidden: "HIDEFLAG"
+    }),
+    confidence: "high",
+    note: MEASURED_NOTE_CHECKS
+  }),
+  searchHelpParam: Object.freeze({
+    table: "DD32S",
+    fields: Object.freeze({
+      searchHelp: "SHLPNAME",
+      field: "FIELDNAME",
+      activeState: "AS4LOCAL",
+      position: "FLPOSITION",
+      dataElement: "ROLLNAME",
+      importFlag: "SHLPINPUT",
+      exportFlag: "SHLPOUTPUT",
+      selectionPosition: "SHLPSELPOS",
+      listPosition: "SHLPLISPOS",
+      defaultValue: "DEFAULTVAL",
+      defaultType: "DEFAULTTYP",
+      dataType: "DATATYPE",
+      length: "LENG"
+    }),
+    confidence: "high",
+    note: MEASURED_NOTE_CHECKS
+  }),
+  searchHelpAssign: Object.freeze({
+    table: "DD33S",
+    fields: Object.freeze({
+      searchHelp: "SHLPNAME",
+      field: "FIELDNAME",
+      includedHelp: "SUBSHLP",
+      includedField: "SUBFIELD",
+      activeState: "AS4LOCAL",
+      defaultValue: "DEFAULTVAL",
+      defaultType: "DEFAULTTYP",
+      valueDirection: "VALUEDIREC"
+    }),
+    confidence: "high",
+    note: MEASURED_NOTE_CHECKS
+  }),
+  dataElementHeader: Object.freeze({
+    table: "DD04L",
+    fields: Object.freeze({
+      dataElement: "ROLLNAME",
+      activeState: "AS4LOCAL",
+      searchHelp: "SHLPNAME",
+      searchHelpField: "SHLPFIELD"
+    }),
+    confidence: "high",
+    note: MEASURED_NOTE_CHECKS
+  }),
+  transactionParam: Object.freeze({
+    table: "TSTCP",
+    fields: Object.freeze({
+      transaction: "TCODE",
+      parameters: "PARAM"
+    }),
+    confidence: "high",
+    note: MEASURED_NOTE_CHECKS
+  }),
+  transactionAuth: Object.freeze({
+    table: "TSTCA",
+    fields: Object.freeze({
+      transaction: "TCODE",
+      authObject: "OBJCT",
+      authField: "FIELD",
+      authValue: "VALUE"
+    }),
+    confidence: "high",
+    note: MEASURED_NOTE_CHECKS
+  }),
+  roleTransaction: Object.freeze({
+    table: "AGR_TCODES",
+    fields: Object.freeze({
+      role: "AGR_NAME",
+      transaction: "TCODE"
+    }),
+    confidence: "high",
+    note: MEASURED_NOTE_CHECKS
+  })
+});
+var IMG_CATALOG_VERIFIED = true;
+function lowConfidenceTables() {
+  const tables = Object.values(IMG_CATALOG);
+  return tables.filter((t) => t.confidence === "low").map((t) => t.table).sort();
+}
+var IMG_ACTIVITY_REF_TYPE = "COBJ";
+var IMG_TREE_TEXT_PROBE = "SAP Customizing Implementation";
+var IMG_NODE_TYPES = Object.freeze(["IMG0", "IMG", "REF"]);
+var MAINTENANCE_EVENT_DOMAIN = "MAINTEVENT";
+
+// src/adt/img-query.ts
+init_enhancement_templates();
+init_datapreview();
+init_truncate();
+function sqlLiteral(value) {
+  return abapLiteral(value);
+}
+function assertSqlValue(value, what, maxLen = 60) {
+  return assertAbapText(value, what, maxLen);
+}
+function tbl2(key) {
+  return IMG_CATALOG[key].table;
+}
+function fld2(key, field) {
+  const fields = IMG_CATALOG[key].fields;
+  return fields[field];
+}
+var ID_CHARSET_RE = /^[A-Za-z0-9_./-]+$/;
+function assertActivityId(value, what = "activity") {
+  const v = assertSqlValue(value, what, 20);
+  if (v.trim() === "" || !ID_CHARSET_RE.test(v)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${what} "${value}" must be 1-20 characters of letters, digits, "_", ".", "/" or "-".`,
+      { what, value }
+    );
+  }
+  return v;
+}
+function assertActId(value, what = "actId") {
+  const v = assertSqlValue(value, what, 30);
+  if (v.trim() === "" || !ID_CHARSET_RE.test(v)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${what} "${value}" must be 1-30 characters of letters, digits, "_", ".", "/" or "-".`,
+      { what, value }
+    );
+  }
+  return v;
+}
+function assertEntityName(value, what = "name") {
+  const raw = assertSqlValue(value, what, 30);
+  const v = raw.trim().toUpperCase();
+  if (!isValidDdicEntityName(v)) {
+    throw new AbapError("BAD_INPUT", `${what} "${value}" is not a valid DDIC table/view/object name.`, { what, value });
+  }
+  return v;
+}
+var IMG_DEFAULT_LANGUAGE = "E";
+var IMG_LANGUAGE_RE = /^[A-Za-z]$/;
+function assertImgLanguage(value) {
+  const v = value.trim();
+  if (!IMG_LANGUAGE_RE.test(v)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `language "${value}" must be a single-character SAP language key (SPRAS), not an ISO code \u2014 use "E" for English, "D" for German. SAP rejects a two-character value on these catalog columns with 'EN' is not a valid value for C(1,0).`,
+      { value }
+    );
+  }
+  return assertSqlValue(v.toUpperCase(), "language", 1);
+}
+function assertTransactionCode2(value, what = "tcode") {
+  const v = assertSqlValue(value, what, 20).trim().toUpperCase();
+  if (v === "" || !ID_CHARSET_RE.test(v)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${what} "${value}" must be 1-20 characters of letters, digits, "_", ".", "/" or "-".`,
+      { what, value }
+    );
+  }
+  return v;
+}
+function assertTreeKeyValue(value, what) {
+  return assertSqlValue(value, what, 32);
+}
+function imgLikePattern(raw) {
+  const trimmed = raw.trim();
+  if (trimmed === "" || !/^[A-Za-z0-9_/*.\-# ]{1,40}$/.test(trimmed)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `text "${raw}" may only contain letters, digits, underscore, "/", "*" (wildcard), ".", "-", "#" or space, 1-40 chars.`,
+      { value: raw }
+    );
+  }
+  const escapeChar = "#";
+  const hasWildcard = trimmed.includes("*");
+  const escaped = trimmed.replace(/#/g, "##").replace(/_/g, "#_").replace(/\*/g, "%");
+  const literal2 = hasWildcard ? escaped : `%${escaped}%`;
+  return { literal: literal2.replace(/'/g, "''"), escapeChar };
+}
+var MAX_IN_LIST = 50;
+function assertInList(values, what) {
+  if (values.length === 0) {
+    throw new AbapError("BAD_INPUT", `${what} must not be empty \u2014 "IN ()" is not valid SQL.`, { what });
+  }
+  if (values.length > MAX_IN_LIST) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${what} has ${values.length} values, over the ${MAX_IN_LIST}-value cap per statement \u2014 chunk the caller's list into multiple queries.`,
+      { what, count: values.length, cap: MAX_IN_LIST }
+    );
+  }
+  return values;
+}
+var IN_LIST_ITEMS_PER_LINE2 = 5;
+function inPredicate2(column, literals) {
+  if (literals.length <= IN_LIST_ITEMS_PER_LINE2) {
+    return `${column} IN (${literals.join(", ")})`;
+  }
+  const lines = [`${column} IN (`];
+  for (let i = 0; i < literals.length; i += IN_LIST_ITEMS_PER_LINE2) {
+    const chunk3 = literals.slice(i, i + IN_LIST_ITEMS_PER_LINE2).join(", ");
+    const isLast = i + IN_LIST_ITEMS_PER_LINE2 >= literals.length;
+    lines.push(`  ${chunk3}${isLast ? "" : ","}`);
+  }
+  lines.push(")");
+  return lines.join("\n");
+}
+function inClause(column, values, what, assertValue) {
+  const checked = assertInList(values, what);
+  const literals = checked.map((v) => sqlLiteral(assertValue(v, what)));
+  return inPredicate2(column, literals);
+}
+function afterPredicate(column, after, assertValue) {
+  if (after === void 0) return void 0;
+  return `${column} > ${sqlLiteral(assertValue(after, "after"))}`;
+}
+var IMG_SQL_LINE_MAX = 255;
+function buildSelect(select, from, whereParts, orderBy) {
+  const lines = [`SELECT ${select}`, `FROM ${from}`];
+  whereParts.forEach((part, i) => {
+    lines.push(`${i === 0 ? "WHERE" : "  AND"} ${part}`);
+  });
+  if (orderBy !== void 0) lines.push(`ORDER BY ${orderBy}`);
+  const statement = lines.join("\n");
+  statement.split("\n").forEach((line2, i) => {
+    if (line2.length > IMG_SQL_LINE_MAX) {
+      const excerpt = truncateForDisplay(line2, ECHO_LINE_MAX);
+      throw new AbapError(
+        "CHECK_FAILED",
+        `Generated IMG query line ${i + 1} is ${line2.length} chars, over the freestyle endpoint's ${IMG_SQL_LINE_MAX}-char request-body line limit: ${excerpt}`,
+        { line: i + 1, length: line2.length, excerpt }
+      );
+    }
+  });
+  return statement;
+}
+function buildActivityIdSearchQuery(pattern, after) {
+  const activity = fld2("imgActivity", "activity");
+  const { literal: literal2, escapeChar } = imgLikePattern(pattern);
+  const where2 = [`${activity} LIKE '${literal2}' ESCAPE '${escapeChar}'`];
+  const afterPred = afterPredicate(activity, after, assertActivityId);
+  if (afterPred !== void 0) where2.push(afterPred);
+  return buildSelect(activity, tbl2("imgActivity"), where2, activity);
+}
+function buildActivityTitleSearchQuery(pattern, language, after) {
+  const activity = fld2("imgActivityText", "activity");
+  const lang = fld2("imgActivityText", "language");
+  const text4 = fld2("imgActivityText", "text");
+  const { literal: literal2, escapeChar } = imgLikePattern(pattern);
+  const where2 = [`${lang} = ${sqlLiteral(assertImgLanguage(language))}`, `${text4} LIKE '${literal2}' ESCAPE '${escapeChar}'`];
+  const afterPred = afterPredicate(activity, after, assertActivityId);
+  if (afterPred !== void 0) where2.push(afterPred);
+  return buildSelect(`${activity}, ${text4}`, tbl2("imgActivityText"), where2, activity);
+}
+function buildActivityHeaderQuery(activity) {
+  const a = assertActivityId(activity, "activity");
+  const cols = ["activity", "cActivity", "docId", "attributes"].map((c) => fld2("imgActivity", c));
+  return buildSelect(cols.join(", "), tbl2("imgActivity"), [`${fld2("imgActivity", "activity")} = ${sqlLiteral(a)}`]);
+}
+function buildActivityTitlesQuery(activities, language) {
+  const activity = fld2("imgActivityText", "activity");
+  const lang = fld2("imgActivityText", "language");
+  const text4 = fld2("imgActivityText", "text");
+  const where2 = [
+    `${lang} = ${sqlLiteral(assertImgLanguage(language))}`,
+    inClause(activity, activities, "activities", assertActivityId)
+  ];
+  return buildSelect(`${activity}, ${text4}`, tbl2("imgActivityText"), where2);
+}
+function buildActivityHeadersByIdQuery(actIds) {
+  const actId = fld2("cusActivityHeader", "actId");
+  return buildSelect(actId, tbl2("cusActivityHeader"), [inClause(actId, actIds, "actIds", assertActId)]);
+}
+function buildActivityObjectsQuery(actIds) {
+  const actId = fld2("imgActivityObject", "actId");
+  const cols = ["actId", "objectType", "object", "tcode", "subObjName"].map((c) => fld2("imgActivityObject", c));
+  return buildSelect(cols.join(", "), tbl2("imgActivityObject"), [inClause(actId, actIds, "actIds", assertActId)]);
+}
+function buildObjectHeadersQuery(objectNames) {
+  const object3 = fld2("cusObjectHeader", "object");
+  const objectType2 = fld2("cusObjectHeader", "objectType");
+  return buildSelect(`${object3}, ${objectType2}`, tbl2("cusObjectHeader"), [
+    inClause(object3, objectNames, "objectNames", assertEntityName)
+  ]);
+}
+function buildObjectTablesQuery(objectNames) {
+  const object3 = fld2("cusObjectTable", "object");
+  const objectType2 = fld2("cusObjectTable", "objectType");
+  const table = fld2("cusObjectTable", "table");
+  return buildSelect(`${object3}, ${objectType2}, ${table}`, tbl2("cusObjectTable"), [
+    inClause(object3, objectNames, "objectNames", assertEntityName)
+  ]);
+}
+function buildObjectTextsQuery(objectNames, language) {
+  const object3 = fld2("cusObjectText", "object");
+  const objectType2 = fld2("cusObjectText", "objectType");
+  const lang = fld2("cusObjectText", "language");
+  const text4 = fld2("cusObjectText", "text");
+  const where2 = [
+    `${lang} = ${sqlLiteral(assertImgLanguage(language))}`,
+    inClause(object3, objectNames, "objectNames", assertEntityName)
+  ];
+  return buildSelect(`${object3}, ${objectType2}, ${text4}`, tbl2("cusObjectText"), where2);
+}
+function buildTableDeliveryClassQuery(tableNames) {
+  const table = fld2("ddicTable", "table");
+  const deliveryClass = fld2("ddicTable", "deliveryClass");
+  const clientDependent = fld2("ddicTable", "clientDependent");
+  const activeState = fld2("ddicTable", "activeState");
+  const where2 = [`${activeState} = ${sqlLiteral("A")}`, inClause(table, tableNames, "tableNames", assertEntityName)];
+  return buildSelect(`${table}, ${deliveryClass}, ${clientDependent}`, tbl2("ddicTable"), where2);
+}
+function buildViewClusterQuery(clusterNames) {
+  const cluster = fld2("viewCluster", "cluster");
+  return buildSelect(cluster, tbl2("viewCluster"), [inClause(cluster, clusterNames, "clusterNames", assertEntityName)]);
+}
+function buildViewClusterTextQuery(clusterNames, language) {
+  const cluster = fld2("viewClusterText", "cluster");
+  const lang = fld2("viewClusterText", "language");
+  const text4 = fld2("viewClusterText", "text");
+  const where2 = [
+    `${lang} = ${sqlLiteral(assertImgLanguage(language))}`,
+    inClause(cluster, clusterNames, "clusterNames", assertEntityName)
+  ];
+  return buildSelect(`${cluster}, ${text4}`, tbl2("viewClusterText"), where2);
+}
+function buildViewClusterMembersQuery(clusterNames) {
+  const cluster = fld2("viewClusterMember", "cluster");
+  const object3 = fld2("viewClusterMember", "object");
+  const objPos = fld2("viewClusterMember", "objPos");
+  const objLevel = fld2("viewClusterMember", "objLevel");
+  const where2 = [inClause(cluster, clusterNames, "clusterNames", assertEntityName)];
+  return buildSelect(`${cluster}, ${object3}, ${objPos}, ${objLevel}`, tbl2("viewClusterMember"), where2, `${cluster}, ${objPos}`);
+}
+function buildTableFieldsQuery(tableNames) {
+  const table = fld2("ddicField", "table");
+  const activeState = fld2("ddicField", "activeState");
+  const cols = ["table", "field", "position", "keyFlag", "dataType", "length", "dataElement"].map(
+    (c) => fld2("ddicField", c)
+  );
+  const where2 = [`${activeState} = ${sqlLiteral("A")}`, inClause(table, tableNames, "tableNames", assertEntityName)];
+  return buildSelect(cols.join(", "), tbl2("ddicField"), where2, `${table}, ${fld2("ddicField", "position")}`);
+}
+function buildTableFieldChecksQuery(tableNames) {
+  const table = fld2("ddicField", "table");
+  const activeState = fld2("ddicField", "activeState");
+  const cols = ["table", "field", "position", "checkTable", "domainName"].map((c) => fld2("ddicField", c));
+  const where2 = [`${activeState} = ${sqlLiteral("A")}`, inClause(table, tableNames, "tableNames", assertEntityName)];
+  return buildSelect(cols.join(", "), tbl2("ddicField"), where2, `${table}, ${fld2("ddicField", "position")}`);
+}
+function buildTableTextsQuery(tableNames, language) {
+  const table = fld2("ddicTableText", "table");
+  const activeState = fld2("ddicTableText", "activeState");
+  const lang = fld2("ddicTableText", "language");
+  const text4 = fld2("ddicTableText", "text");
+  const where2 = [
+    `${activeState} = ${sqlLiteral("A")}`,
+    `${lang} = ${sqlLiteral(assertImgLanguage(language))}`,
+    inClause(table, tableNames, "tableNames", assertEntityName)
+  ];
+  return buildSelect(`${table}, ${text4}`, tbl2("ddicTableText"), where2);
+}
+function buildViewHeaderQuery(viewNames) {
+  const view = fld2("viewHeader", "view");
+  const activeState = fld2("viewHeader", "activeState");
+  const cols = ["view", "aggregateType", "rootTable"].map((c) => fld2("viewHeader", c));
+  const where2 = [`${activeState} = ${sqlLiteral("A")}`, inClause(view, viewNames, "viewNames", assertEntityName)];
+  return buildSelect(cols.join(", "), tbl2("viewHeader"), where2);
+}
+function buildViewTextQuery(viewNames, language) {
+  const view = fld2("viewText", "view");
+  const activeState = fld2("viewText", "activeState");
+  const lang = fld2("viewText", "language");
+  const text4 = fld2("viewText", "text");
+  const where2 = [
+    `${activeState} = ${sqlLiteral("A")}`,
+    `${lang} = ${sqlLiteral(assertImgLanguage(language))}`,
+    inClause(view, viewNames, "viewNames", assertEntityName)
+  ];
+  return buildSelect(`${view}, ${text4}`, tbl2("viewText"), where2);
+}
+function buildViewBaseTablesQuery(viewNames) {
+  const view = fld2("viewBaseTable", "view");
+  const activeState = fld2("viewBaseTable", "activeState");
+  const table = fld2("viewBaseTable", "table");
+  const position = fld2("viewBaseTable", "position");
+  const where2 = [`${activeState} = ${sqlLiteral("A")}`, inClause(view, viewNames, "viewNames", assertEntityName)];
+  return buildSelect(`${view}, ${table}, ${position}`, tbl2("viewBaseTable"), where2, `${view}, ${position}`);
+}
+function buildViewsOverTableQuery(tableNames) {
+  const view = fld2("viewBaseTable", "view");
+  const activeState = fld2("viewBaseTable", "activeState");
+  const table = fld2("viewBaseTable", "table");
+  const position = fld2("viewBaseTable", "position");
+  const where2 = [
+    `${activeState} = ${sqlLiteral("A")}`,
+    `${position} = ${sqlLiteral("0001")}`,
+    inClause(table, tableNames, "tableNames", assertEntityName)
+  ];
+  return buildSelect(`${view}, ${table}, ${position}`, tbl2("viewBaseTable"), where2, view);
+}
+function buildViewFieldsQuery(viewNames) {
+  const view = fld2("viewField", "view");
+  const activeState = fld2("viewField", "activeState");
+  const cols = ["view", "viewField", "table", "field", "position"].map((c) => fld2("viewField", c));
+  const where2 = [`${activeState} = ${sqlLiteral("A")}`, inClause(view, viewNames, "viewNames", assertEntityName)];
+  return buildSelect(cols.join(", "), tbl2("viewField"), where2, `${view}, ${fld2("viewField", "position")}`);
+}
+function buildTransactionsQuery(tcodes) {
+  const tcode = fld2("transaction", "transaction");
+  const cols = ["transaction", "program", "dynpro"].map((c) => fld2("transaction", c));
+  return buildSelect(cols.join(", "), tbl2("transaction"), [inClause(tcode, tcodes, "tcodes", assertTransactionCode2)]);
+}
+function buildTransactionTextsQuery(tcodes, language) {
+  const tcode = fld2("transactionText", "transaction");
+  const lang = fld2("transactionText", "language");
+  const text4 = fld2("transactionText", "text");
+  const where2 = [
+    `${lang} = ${sqlLiteral(assertImgLanguage(language))}`,
+    inClause(tcode, tcodes, "tcodes", assertTransactionCode2)
+  ];
+  return buildSelect(`${tcode}, ${text4}`, tbl2("transactionText"), where2);
+}
+function buildViewMaintenanceEventsQuery(viewNames) {
+  const view = fld2("viewMaintenanceEvent", "view");
+  const event = fld2("viewMaintenanceEvent", "event");
+  const formName = fld2("viewMaintenanceEvent", "formName");
+  const where2 = [inClause(view, viewNames, "viewNames", assertEntityName)];
+  return buildSelect(`${view}, ${event}, ${formName}`, tbl2("viewMaintenanceEvent"), where2, `${view}, ${event}`);
+}
+function buildDomainFixedValuesQuery(domainNames) {
+  const domain2 = fld2("domainValue", "domain");
+  const activeState = fld2("domainValue", "activeState");
+  const cols = ["domain", "position", "valueLow", "valueHigh", "appendValue"].map((c) => fld2("domainValue", c));
+  const where2 = [`${activeState} = ${sqlLiteral("A")}`, inClause(domain2, domainNames, "domainNames", assertEntityName)];
+  return buildSelect(cols.join(", "), tbl2("domainValue"), where2, `${domain2}, ${fld2("domainValue", "position")}`);
+}
+function buildDomainValueTextsQuery(domainNames, language) {
+  const domain2 = fld2("domainValueText", "domain");
+  const activeState = fld2("domainValueText", "activeState");
+  const lang = fld2("domainValueText", "language");
+  const valueLow = fld2("domainValueText", "valueLow");
+  const text4 = fld2("domainValueText", "text");
+  const where2 = [
+    `${activeState} = ${sqlLiteral("A")}`,
+    `${lang} = ${sqlLiteral(assertImgLanguage(language))}`,
+    inClause(domain2, domainNames, "domainNames", assertEntityName)
+  ];
+  return buildSelect(`${domain2}, ${valueLow}, ${text4}`, tbl2("domainValueText"), where2, `${domain2}, ${valueLow}`);
+}
+function buildTreeRootProbeQuery(language) {
+  const treeId = fld2("imgTreeNodeText", "treeId");
+  const nodeId = fld2("imgTreeNodeText", "nodeId");
+  const lang = fld2("imgTreeNodeText", "language");
+  const text4 = fld2("imgTreeNodeText", "text");
+  const { literal: literal2, escapeChar } = imgLikePattern(`${IMG_TREE_TEXT_PROBE}*`);
+  const where2 = [`${lang} = ${sqlLiteral(assertImgLanguage(language))}`, `${text4} LIKE '${literal2}' ESCAPE '${escapeChar}'`];
+  return buildSelect(`${treeId}, ${nodeId}, ${lang}, ${text4}`, tbl2("imgTreeNodeText"), where2);
+}
+function buildTreeChildrenQuery(treeId, parentId2, language, after) {
+  const node2 = tbl2("imgTreeNode");
+  const nodeText = tbl2("imgTreeNodeText");
+  const treeIdF = fld2("imgTreeNode", "treeId");
+  const nodeIdF = fld2("imgTreeNode", "nodeId");
+  const parentIdF = fld2("imgTreeNode", "parentId");
+  const nodeTypeF = fld2("imgTreeNode", "nodeType");
+  const brotherIdF = fld2("imgTreeNode", "brotherId");
+  const refTreeIdF = fld2("imgTreeNode", "refTreeId");
+  const refNodeIdF = fld2("imgTreeNode", "refNodeId");
+  const textLangF = fld2("imgTreeNodeText", "language");
+  const textNodeIdF = fld2("imgTreeNodeText", "nodeId");
+  const textTreeIdF = fld2("imgTreeNodeText", "treeId");
+  const textF = fld2("imgTreeNodeText", "text");
+  const select = [
+    `n~${nodeIdF}`,
+    `n~${nodeTypeF}`,
+    `n~${parentIdF}`,
+    `n~${brotherIdF}`,
+    `n~${refTreeIdF}`,
+    `n~${refNodeIdF}`,
+    `t~${textF}`
+  ].join(", ");
+  const from = `${node2} AS n
+LEFT OUTER JOIN ${nodeText} AS t ON t~${textTreeIdF} = n~${treeIdF}
+  AND t~${textNodeIdF} = n~${nodeIdF} AND t~${textLangF} = ${sqlLiteral(assertImgLanguage(language))}`;
+  const where2 = [
+    `n~${treeIdF} = ${sqlLiteral(assertTreeKeyValue(treeId, "treeId"))}`,
+    `n~${parentIdF} = ${sqlLiteral(assertTreeKeyValue(parentId2, "parentId"))}`
+  ];
+  const afterPred = afterPredicate(`n~${nodeIdF}`, after, assertTreeKeyValue);
+  if (afterPred !== void 0) where2.push(afterPred);
+  return buildSelect(select, from, where2, `n~${nodeIdF}`);
+}
+function buildTreeNodeQuery(treeId, nodeId, language) {
+  const node2 = tbl2("imgTreeNode");
+  const nodeText = tbl2("imgTreeNodeText");
+  const treeIdF = fld2("imgTreeNode", "treeId");
+  const nodeIdF = fld2("imgTreeNode", "nodeId");
+  const parentIdF = fld2("imgTreeNode", "parentId");
+  const nodeTypeF = fld2("imgTreeNode", "nodeType");
+  const brotherIdF = fld2("imgTreeNode", "brotherId");
+  const refTreeIdF = fld2("imgTreeNode", "refTreeId");
+  const refNodeIdF = fld2("imgTreeNode", "refNodeId");
+  const textLangF = fld2("imgTreeNodeText", "language");
+  const textNodeIdF = fld2("imgTreeNodeText", "nodeId");
+  const textTreeIdF = fld2("imgTreeNodeText", "treeId");
+  const textF = fld2("imgTreeNodeText", "text");
+  const select = [
+    `n~${nodeIdF}`,
+    `n~${nodeTypeF}`,
+    `n~${parentIdF}`,
+    `n~${brotherIdF}`,
+    `n~${refTreeIdF}`,
+    `n~${refNodeIdF}`,
+    `t~${textF}`
+  ].join(", ");
+  const from = `${node2} AS n
+LEFT OUTER JOIN ${nodeText} AS t ON t~${textTreeIdF} = n~${treeIdF}
+  AND t~${textNodeIdF} = n~${nodeIdF} AND t~${textLangF} = ${sqlLiteral(assertImgLanguage(language))}`;
+  const where2 = [
+    `n~${treeIdF} = ${sqlLiteral(assertTreeKeyValue(treeId, "treeId"))}`,
+    `n~${nodeIdF} = ${sqlLiteral(assertTreeKeyValue(nodeId, "nodeId"))}`
+  ];
+  return buildSelect(select, from, where2);
+}
+function buildNodeRefsQuery(nodeIds) {
+  const nodeIdF = fld2("imgTreeNodeRef", "nodeId");
+  const extKeyF = fld2("imgTreeNodeRef", "extKey");
+  const refTypeF = fld2("imgTreeNodeRef", "refType");
+  const refObjectF = fld2("imgTreeNodeRef", "refObject");
+  const where2 = [
+    `${refTypeF} = ${sqlLiteral(IMG_ACTIVITY_REF_TYPE)}`,
+    inClause(nodeIdF, nodeIds, "nodeIds", assertTreeKeyValue)
+  ];
+  return buildSelect(`${nodeIdF}, ${extKeyF}, ${refTypeF}, ${refObjectF}`, tbl2("imgTreeNodeRef"), where2);
+}
+function buildNodesByRefObjectQuery(refObject, refType) {
+  const nodeIdF = fld2("imgTreeNodeRef", "nodeId");
+  const refTypeF = fld2("imgTreeNodeRef", "refType");
+  const refObjectF = fld2("imgTreeNodeRef", "refObject");
+  const where2 = [
+    `${refObjectF} = ${sqlLiteral(assertActivityId(refObject, "refObject"))}`,
+    `${refTypeF} = ${sqlLiteral(assertSqlValue(refType, "refType", 10))}`
+  ];
+  return buildSelect(`${nodeIdF}, ${refTypeF}, ${refObjectF}`, tbl2("imgTreeNodeRef"), where2, nodeIdF);
+}
+function buildTreeNodeByIdQuery(nodeId, language) {
+  const node2 = tbl2("imgTreeNode");
+  const nodeText = tbl2("imgTreeNodeText");
+  const treeIdF = fld2("imgTreeNode", "treeId");
+  const nodeIdF = fld2("imgTreeNode", "nodeId");
+  const parentIdF = fld2("imgTreeNode", "parentId");
+  const nodeTypeF = fld2("imgTreeNode", "nodeType");
+  const brotherIdF = fld2("imgTreeNode", "brotherId");
+  const refTreeIdF = fld2("imgTreeNode", "refTreeId");
+  const refNodeIdF = fld2("imgTreeNode", "refNodeId");
+  const textLangF = fld2("imgTreeNodeText", "language");
+  const textNodeIdF = fld2("imgTreeNodeText", "nodeId");
+  const textTreeIdF = fld2("imgTreeNodeText", "treeId");
+  const textF = fld2("imgTreeNodeText", "text");
+  const select = [
+    `n~${treeIdF}`,
+    `n~${nodeIdF}`,
+    `n~${nodeTypeF}`,
+    `n~${parentIdF}`,
+    `n~${brotherIdF}`,
+    `n~${refTreeIdF}`,
+    `n~${refNodeIdF}`,
+    `t~${textF}`
+  ].join(", ");
+  const from = `${node2} AS n
+LEFT OUTER JOIN ${nodeText} AS t ON t~${textTreeIdF} = n~${treeIdF}
+  AND t~${textNodeIdF} = n~${nodeIdF} AND t~${textLangF} = ${sqlLiteral(assertImgLanguage(language))}`;
+  const where2 = [`n~${nodeIdF} = ${sqlLiteral(assertTreeKeyValue(nodeId, "nodeId"))}`];
+  return buildSelect(select, from, where2, `n~${treeIdF}`);
+}
+function buildTreeDirectoryQuery(treeIds) {
+  const idF = fld2("treeDirectory", "id");
+  const typeF = fld2("treeDirectory", "treeType");
+  const rootNodeIdF = fld2("treeDirectory", "rootNodeId");
+  const where2 = [inClause(idF, treeIds, "treeIds", assertTreeKeyValue)];
+  return buildSelect(`${idF}, ${typeF}, ${rootNodeIdF}`, tbl2("treeDirectory"), where2);
+}
+function toRecordSet(body) {
+  const { columns, rows, messages } = parsePreviewBody(body);
+  const names = columns.map((c) => c.name);
+  const records = rows.map((row2) => {
+    const rec = {};
+    names.forEach((name, i) => {
+      rec[name] = row2[i] ?? "";
+    });
+    return rec;
+  });
+  return { columns: names, records, messages };
+}
+function requireColumn(record2, column) {
+  const v = record2[column];
+  if (v === void 0) {
+    const present = Object.keys(record2);
+    throw new AbapError(
+      "ADT_ERROR",
+      `expected column "${column}" is missing from the preview response (columns present: ${present.length > 0 ? present.join(", ") : "none"}).`,
+      { column, present }
+    );
+  }
+  return v;
+}
+
+// src/adt/catalog-query.ts
+function buildSearchHelpHeaderQuery(name, state = "A") {
+  const searchHelp = fld2("searchHelpHeader", "searchHelp");
+  const activeState = fld2("searchHelpHeader", "activeState");
+  const cols = [
+    "searchHelp",
+    "activeState",
+    "elementary",
+    "includesExist",
+    "attachmentsExist",
+    "selectionMethod",
+    "selectionMethodType",
+    "textTable",
+    "selectionExit",
+    "hotKey",
+    "dialogType"
+  ].map((c) => fld2("searchHelpHeader", c));
+  const where2 = [inClause(searchHelp, [name], "name", assertEntityName), `${activeState} = ${sqlLiteral(state)}`];
+  return buildSelect(cols.join(", "), tbl2("searchHelpHeader"), where2);
+}
+function buildSearchHelpTextQuery(name, language, state = "A") {
+  const searchHelp = fld2("searchHelpText", "searchHelp");
+  const lang = fld2("searchHelpText", "language");
+  const activeState = fld2("searchHelpText", "activeState");
+  const text4 = fld2("searchHelpText", "text");
+  const where2 = [
+    inClause(searchHelp, [name], "name", assertEntityName),
+    `${lang} = ${sqlLiteral(assertImgLanguage(language))}`,
+    `${activeState} = ${sqlLiteral(state)}`
+  ];
+  return buildSelect(`${searchHelp}, ${text4}`, tbl2("searchHelpText"), where2);
+}
+function buildSearchHelpIncludesQuery(name, state = "A") {
+  const searchHelp = fld2("searchHelpInclude", "searchHelp");
+  const activeState = fld2("searchHelpInclude", "activeState");
+  const position = fld2("searchHelpInclude", "position");
+  const cols = ["searchHelp", "includedHelp", "position", "viaHelp", "hidden"].map(
+    (c) => fld2("searchHelpInclude", c)
+  );
+  const where2 = [inClause(searchHelp, [name], "name", assertEntityName), `${activeState} = ${sqlLiteral(state)}`];
+  return buildSelect(cols.join(", "), tbl2("searchHelpInclude"), where2, position);
+}
+function buildSearchHelpParamsQuery(name, state = "A") {
+  const searchHelp = fld2("searchHelpParam", "searchHelp");
+  const activeState = fld2("searchHelpParam", "activeState");
+  const position = fld2("searchHelpParam", "position");
+  const cols = [
+    "searchHelp",
+    "field",
+    "position",
+    "dataElement",
+    "importFlag",
+    "exportFlag",
+    "selectionPosition",
+    "listPosition",
+    "defaultValue",
+    "defaultType",
+    "dataType",
+    "length"
+  ].map((c) => fld2("searchHelpParam", c));
+  const where2 = [inClause(searchHelp, [name], "name", assertEntityName), `${activeState} = ${sqlLiteral(state)}`];
+  return buildSelect(cols.join(", "), tbl2("searchHelpParam"), where2, position);
+}
+function buildSearchHelpAssignmentsQuery(name, state = "A") {
+  const searchHelp = fld2("searchHelpAssign", "searchHelp");
+  const activeState = fld2("searchHelpAssign", "activeState");
+  const field = fld2("searchHelpAssign", "field");
+  const cols = ["searchHelp", "field", "includedHelp", "includedField", "defaultValue", "defaultType", "valueDirection"].map((c) => fld2("searchHelpAssign", c));
+  const where2 = [inClause(searchHelp, [name], "name", assertEntityName), `${activeState} = ${sqlLiteral(state)}`];
+  return buildSelect(cols.join(", "), tbl2("searchHelpAssign"), where2, field);
+}
+function buildSearchHelpUsingDataElementsQuery(name) {
+  const searchHelp = fld2("dataElementHeader", "searchHelp");
+  const activeState = fld2("dataElementHeader", "activeState");
+  const dataElement = fld2("dataElementHeader", "dataElement");
+  const cols = ["dataElement", "searchHelp", "searchHelpField"].map((c) => fld2("dataElementHeader", c));
+  const where2 = [inClause(searchHelp, [name], "name", assertEntityName), `${activeState} = ${sqlLiteral("A")}`];
+  return buildSelect(cols.join(", "), tbl2("dataElementHeader"), where2, dataElement);
+}
+function buildSearchHelpParentsQuery(name) {
+  const includedHelp = fld2("searchHelpInclude", "includedHelp");
+  const activeState = fld2("searchHelpInclude", "activeState");
+  const searchHelp = fld2("searchHelpInclude", "searchHelp");
+  const cols = ["searchHelp", "includedHelp", "position", "viaHelp", "hidden"].map(
+    (c) => fld2("searchHelpInclude", c)
+  );
+  const where2 = [inClause(includedHelp, [name], "name", assertEntityName), `${activeState} = ${sqlLiteral("A")}`];
+  return buildSelect(cols.join(", "), tbl2("searchHelpInclude"), where2, searchHelp);
+}
+function buildViewHeaderDetailQuery(name) {
+  const view = fld2("viewHeader", "view");
+  const activeState = fld2("viewHeader", "activeState");
+  const cols = [
+    "view",
+    "aggregateType",
+    "rootTable",
+    "viewClass",
+    "readOnly",
+    "viewGrant",
+    "globalFlag",
+    "applicationClass",
+    "masterLanguage"
+  ].map((c) => fld2("viewHeader", c));
+  const where2 = [inClause(view, [name], "name", assertEntityName), `${activeState} = ${sqlLiteral("A")}`];
+  return buildSelect(cols.join(", "), tbl2("viewHeader"), where2);
+}
+function buildViewTextDetailQuery(name, language) {
+  const view = fld2("viewText", "view");
+  const lang = fld2("viewText", "language");
+  const activeState = fld2("viewText", "activeState");
+  const text4 = fld2("viewText", "text");
+  const where2 = [
+    inClause(view, [name], "name", assertEntityName),
+    `${lang} = ${sqlLiteral(assertImgLanguage(language))}`,
+    `${activeState} = ${sqlLiteral("A")}`
+  ];
+  return buildSelect(`${view}, ${text4}`, tbl2("viewText"), where2);
+}
+function buildViewBaseTablesDetailQuery(name) {
+  const view = fld2("viewBaseTable", "view");
+  const activeState = fld2("viewBaseTable", "activeState");
+  const position = fld2("viewBaseTable", "position");
+  const cols = ["view", "table", "position", "foreignTable", "foreignField", "foreignDirection"].map(
+    (c) => fld2("viewBaseTable", c)
+  );
+  const where2 = [inClause(view, [name], "name", assertEntityName), `${activeState} = ${sqlLiteral("A")}`];
+  return buildSelect(cols.join(", "), tbl2("viewBaseTable"), where2, position);
+}
+function buildViewFieldsDetailQuery(name) {
+  const view = fld2("viewField", "view");
+  const activeState = fld2("viewField", "activeState");
+  const position = fld2("viewField", "position");
+  const cols = ["view", "viewField", "table", "field", "position", "keyFlag", "dataElement", "readOnly", "enqueueMode"].map((c) => fld2("viewField", c));
+  const where2 = [inClause(view, [name], "name", assertEntityName), `${activeState} = ${sqlLiteral("A")}`];
+  return buildSelect(cols.join(", "), tbl2("viewField"), where2, position);
+}
+function buildViewDirectoryDetailQuery(name) {
+  const view = fld2("viewDirectory", "view");
+  const cols = ["view", "area", "type", "baseTable", "generated", "package", "screen"].map(
+    (c) => fld2("viewDirectory", c)
+  );
+  const where2 = [inClause(view, [name], "name", assertEntityName)];
+  return buildSelect(cols.join(", "), tbl2("viewDirectory"), where2);
+}
+function buildTransactionDetailQuery(tcode) {
+  const transaction = fld2("transaction", "transaction");
+  const cols = ["transaction", "program", "dynpro", "classInfo", "messageArea"].map(
+    (c) => fld2("transaction", c)
+  );
+  const where2 = [inClause(transaction, [tcode], "tcode", assertTransactionCode2)];
+  return buildSelect(cols.join(", "), tbl2("transaction"), where2);
+}
+function buildTransactionTextDetailQuery(tcode, language) {
+  const transaction = fld2("transactionText", "transaction");
+  const lang = fld2("transactionText", "language");
+  const text4 = fld2("transactionText", "text");
+  const where2 = [
+    inClause(transaction, [tcode], "tcode", assertTransactionCode2),
+    `${lang} = ${sqlLiteral(assertImgLanguage(language))}`
+  ];
+  return buildSelect(`${transaction}, ${text4}`, tbl2("transactionText"), where2);
+}
+function buildTransactionParamQuery(tcode) {
+  const transaction = fld2("transactionParam", "transaction");
+  const cols = ["transaction", "parameters"].map((c) => fld2("transactionParam", c));
+  const where2 = [inClause(transaction, [tcode], "tcode", assertTransactionCode2)];
+  return buildSelect(cols.join(", "), tbl2("transactionParam"), where2);
+}
+function buildTransactionAuthQuery(tcode) {
+  const transaction = fld2("transactionAuth", "transaction");
+  const authObject = fld2("transactionAuth", "authObject");
+  const authField = fld2("transactionAuth", "authField");
+  const cols = ["transaction", "authObject", "authField", "authValue"].map(
+    (c) => fld2("transactionAuth", c)
+  );
+  const where2 = [inClause(transaction, [tcode], "tcode", assertTransactionCode2)];
+  return buildSelect(cols.join(", "), tbl2("transactionAuth"), where2, `${authObject}, ${authField}`);
+}
+function buildTransactionRolesQuery(tcode) {
+  const transaction = fld2("roleTransaction", "transaction");
+  const role = fld2("roleTransaction", "role");
+  const cols = ["role", "transaction"].map((c) => fld2("roleTransaction", c));
+  const where2 = [inClause(transaction, [tcode], "tcode", assertTransactionCode2)];
+  return buildSelect(cols.join(", "), tbl2("roleTransaction"), where2, role);
+}
+function parseTransactionParameters(param) {
+  const trimmed = param.trim();
+  const parameterMatch = /^\/\*(\S+)\s+(.*)$/.exec(trimmed);
+  if (parameterMatch) {
+    const target = parameterMatch[1];
+    const rest = parameterMatch[2];
+    const assignments = [];
+    for (const part of rest.split(";")) {
+      const piece = part.trim();
+      if (piece === "") continue;
+      const eq = piece.indexOf("=");
+      if (eq === -1) continue;
+      const name = piece.slice(0, eq).trim();
+      const value = piece.slice(eq + 1).trim();
+      if (name === "") continue;
+      assignments.push({ name, value });
+    }
+    return { kind: "parameter", target, assignments };
+  }
+  const switchMatch = /^\/N(\S+)$/i.exec(trimmed);
+  if (switchMatch) {
+    return { kind: "other", target: switchMatch[1].toUpperCase(), assignments: [] };
+  }
+  return { kind: "other", assignments: [] };
+}
+
+// src/adt/catalog-read.ts
+var CAP_ONE = 1;
+var CAP_TEXT = 50;
+var CAP_LIST = 200;
+async function issue2(conn, sql, rowNumber) {
+  const resp = await conn.dataPreviewFreestyle(sql, rowNumber);
+  return { rs: toRecordSet(resp.body) };
+}
+function serverNotes2(rs) {
+  return rs.messages.map((m) => `[server] ${m.text}${m.severity ? ` (${m.severity})` : ""}`);
+}
+function truncationNote(what, cap, rs) {
+  return rs.records.length >= cap ? [`${what} is capped at ${cap} row(s) and may be truncated \u2014 this is not necessarily the full list.`] : [];
+}
+function nonEmpty(v) {
+  const t = (v ?? "").trim();
+  return t === "" ? void 0 : t;
+}
+function flag(v) {
+  const t = (v ?? "").trim().toUpperCase();
+  return t === "X" || t === "A" || t === "1";
+}
+function line(label, value) {
+  if (value === void 0 || value === "") return "";
+  return `  ${label}: ${String(value)}`;
+}
+function block(title, rows) {
+  const body = rows.filter((r) => r !== "");
+  if (body.length === 0) return "";
+  return `
+  ${title}
+${body.map((r) => `    ${r}`).join("\n")}`;
+}
+var SELMTYPE_DECODE = {
+  T: "table",
+  V: "view",
+  M: "method/exit"
+};
+var DIALOGTYPE_DECODE = {
+  A: "dialog depends on set of values",
+  C: "dialog with value restriction",
+  D: "display values immediately"
+};
+var AGGTYPE_DECODE = {
+  V: "database view",
+  S: "structure view",
+  P: "projection view"
+};
+var VIEWCLASS_DECODE = {
+  D: "database view",
+  C: "help view",
+  P: "projection view",
+  M: "maintenance view",
+  E: "entity view"
+};
+var VIEWGRANT_DECODE = {
+  R: "read-only",
+  U: "read and change",
+  D: "read, change and delete",
+  X: "no restriction"
+};
+var VALUEDIREC_DECODE = {
+  I: "import into the included search help or selection method",
+  C: "both import and export",
+  E: "export from the included search help or selection method"
+};
+function decodeCode(table, raw) {
+  const code = nonEmpty(raw);
+  if (code === void 0) return void 0;
+  const label = table[code];
+  return label ? `${label} (${code})` : code;
+}
+async function readSearchHelpImpl(conn, name, language, opts) {
+  const ctx = { operation: "read search help", name, type: "SHLP/DH" };
+  const notes = [];
+  let header;
+  try {
+    header = await issue2(conn, buildSearchHelpHeaderQuery(name), CAP_ONE);
+  } catch (e) {
+    throw classifyPreviewFailure(e, ctx);
+  }
+  notes.push(...serverNotes2(header.rs));
+  let headerRow = header.rs.records[0];
+  let state = "A";
+  if (!headerRow && opts.includeInactive) {
+    let inactiveHeader;
+    try {
+      inactiveHeader = await issue2(conn, buildSearchHelpHeaderQuery(name, "N"), CAP_ONE);
+    } catch (e) {
+      throw classifyPreviewFailure(e, ctx);
+    }
+    notes.push(...serverNotes2(inactiveHeader.rs));
+    headerRow = inactiveHeader.rs.records[0];
+    if (headerRow) {
+      state = "N";
+    }
+  }
+  if (!headerRow) {
+    throw new AbapError(
+      "NOT_FOUND",
+      `No active search help named ${name} was found (DD30L returned no row).`,
+      { name, type: "SHLP/DH" }
+    );
+  }
+  if (state === "N") {
+    notes.push(
+      "This search help has no ACTIVE version \u2014 the definition below was read from the INACTIVE (DD30L-AS4LOCAL='N') version. That is what a search help left behind by a create that put but failed to activate looks like."
+    );
+  }
+  let text4;
+  let includes;
+  let params;
+  let assigns;
+  let usedBy;
+  let parents;
+  try {
+    text4 = await issue2(conn, buildSearchHelpTextQuery(name, language, state), CAP_TEXT);
+    includes = await issue2(conn, buildSearchHelpIncludesQuery(name, state), CAP_LIST);
+    params = await issue2(conn, buildSearchHelpParamsQuery(name, state), CAP_LIST);
+    assigns = await issue2(conn, buildSearchHelpAssignmentsQuery(name, state), CAP_LIST);
+    usedBy = await issue2(conn, buildSearchHelpUsingDataElementsQuery(name), CAP_LIST);
+    parents = await issue2(conn, buildSearchHelpParentsQuery(name), CAP_LIST);
+  } catch (e) {
+    throw classifyPreviewFailure(e, ctx);
+  }
+  for (const rs of [text4.rs, includes.rs, params.rs, assigns.rs, usedBy.rs, parents.rs]) {
+    notes.push(...serverNotes2(rs));
+  }
+  const normalizedName = name.trim().toUpperCase();
+  const norm3 = (v) => (v ?? "").trim().toUpperCase();
+  const isSelfShlpRow = (r) => norm3(r[fld2("searchHelpInclude", "searchHelp")]) === normalizedName && norm3(r[fld2("searchHelpInclude", "includedHelp")]) === normalizedName;
+  const includeSelfFound = includes.rs.records.some(isSelfShlpRow);
+  const parentSelfFound = parents.rs.records.some(isSelfShlpRow);
+  const includesRs = { ...includes.rs, records: includes.rs.records.filter((r) => !isSelfShlpRow(r)) };
+  const parentsRs = { ...parents.rs, records: parents.rs.records.filter((r) => !isSelfShlpRow(r)) };
+  notes.push(...truncationNote("PARAMETERS", CAP_LIST, params.rs));
+  notes.push(...truncationNote("INCLUDES", CAP_LIST, includesRs));
+  notes.push(...truncationNote("ASSIGNMENTS", CAP_LIST, assigns.rs));
+  notes.push(...truncationNote("USED BY DATA ELEMENTS", CAP_LIST, usedBy.rs));
+  notes.push(...truncationNote("INCLUDED BY", CAP_LIST, parentsRs));
+  if (includeSelfFound || parentSelfFound) {
+    notes.push(
+      "A DD31S row with SUBSHLP = SHLPNAME (this search help pointing at its own interface) was found and left out of INCLUDES, INCLUDED BY and includeCount \u2014 DDIC records an elementary search help's own interface that way, it is not an include relationship. Measured live on A4H 2026-09-15 (ZSH_I83_EL) and confirmed as DDIC's general pattern via DD31S for five standard SAP elementary search helps (/UI2/GROUPS_SH, /AIF/MESSAGE_CLID_SHLP, /UI5/PURPOSE, /BA1/F4_FX_RATETYPE, /AIF/FILEDIALOG)."
+    );
+  }
+  const elementary = flag(headerRow[fld2("searchHelpHeader", "elementary")]);
+  const description = nonEmpty(text4.rs.records[0]?.[fld2("searchHelpText", "text")]);
+  const paramLines = params.rs.records.map((r) => {
+    const imp = flag(r[fld2("searchHelpParam", "importFlag")]) ? "IMPORT" : "";
+    const exp = flag(r[fld2("searchHelpParam", "exportFlag")]) ? "EXPORT" : "";
+    const dir = [imp, exp].filter(Boolean).join("/") || "-";
+    return `${r[fld2("searchHelpParam", "field")] ?? ""} : ${r[fld2("searchHelpParam", "dataElement")] ?? ""} (${dir}) POS ${r[fld2("searchHelpParam", "position")] ?? ""}`;
+  });
+  const includeLines = includesRs.records.map((r) => {
+    const hidden = flag(r[fld2("searchHelpInclude", "hidden")]) ? " HIDDEN" : "";
+    return `${r[fld2("searchHelpInclude", "includedHelp")] ?? ""} POS ${r[fld2("searchHelpInclude", "position")] ?? ""}${hidden}`;
+  });
+  const unknownValueDirections = /* @__PURE__ */ new Set();
+  const assignLines = assigns.rs.records.map((r) => {
+    const valueDirection = nonEmpty(r[fld2("searchHelpAssign", "valueDirection")]);
+    let dirSuffix = "";
+    if (valueDirection !== void 0) {
+      const decoded = VALUEDIREC_DECODE[valueDirection];
+      if (decoded) {
+        dirSuffix = ` DIR ${valueDirection} (${decoded})`;
+      } else {
+        unknownValueDirections.add(valueDirection);
+        dirSuffix = ` DIR ${valueDirection}`;
+      }
+    }
+    return `${r[fld2("searchHelpAssign", "field")] ?? ""} = ${r[fld2("searchHelpAssign", "includedHelp")] ?? ""}.${r[fld2("searchHelpAssign", "includedField")] ?? ""}${dirSuffix}`;
+  });
+  if (assigns.rs.records.length > 0) {
+    notes.push(
+      "DD33S-VALUEDIREC is decoded from the fixed values of domain VALUEDIREC, read live from DD07V on A4H 2026-09-15: I = import into the included search help or selection method, C = both import and export, E = export from it."
+    );
+  }
+  for (const code of unknownValueDirections) {
+    notes.push(
+      `DD33S-VALUEDIREC held "${code}" on at least one assignment row, which is not one of domain VALUEDIREC's fixed values (I, C, E) \u2014 printed as-is with no decoded meaning.`
+    );
+  }
+  const usedByLines = usedBy.rs.records.map((r) => {
+    return `${r[fld2("dataElementHeader", "dataElement")] ?? ""} FIELD ${r[fld2("dataElementHeader", "searchHelpField")] ?? ""}`;
+  });
+  const parentLines = parentsRs.records.map((r) => {
+    return `${r[fld2("searchHelpInclude", "searchHelp")] ?? ""}`;
+  });
+  const ddl = `SEARCH HELP ${name}.
+` + (description ? `  "${description}"
+` : "") + `
+  KIND: ${elementary ? "ELEMENTARY" : "COLLECTIVE"}
+` + [
+    line("SELECTION METHOD", nonEmpty(headerRow[fld2("searchHelpHeader", "selectionMethod")])),
+    line(
+      "SELECTION METHOD TYPE",
+      decodeCode(SELMTYPE_DECODE, headerRow[fld2("searchHelpHeader", "selectionMethodType")])
+    ),
+    line("TEXT TABLE", nonEmpty(headerRow[fld2("searchHelpHeader", "textTable")])),
+    line("SELECTION EXIT", nonEmpty(headerRow[fld2("searchHelpHeader", "selectionExit")])),
+    line("HOT KEY", nonEmpty(headerRow[fld2("searchHelpHeader", "hotKey")])),
+    line("DIALOG TYPE", decodeCode(DIALOGTYPE_DECODE, headerRow[fld2("searchHelpHeader", "dialogType")]))
+  ].filter(Boolean).join("\n") + block("PARAMETERS", paramLines) + block("INCLUDES", includeLines) + block("ASSIGNMENTS", assignLines) + block("USED BY DATA ELEMENTS", usedByLines) + block("INCLUDED BY", parentLines);
+  return {
+    ddl,
+    sections: [
+      { title: "PARAMETERS", content: paramLines.join("\n") },
+      { title: "INCLUDES", content: includeLines.join("\n") },
+      { title: "ASSIGNMENTS", content: assignLines.join("\n") }
+    ].filter((s) => s.content !== ""),
+    meta: {
+      searchHelp: name,
+      elementary: elementary ? "true" : "false",
+      selectionMethod: nonEmpty(headerRow[fld2("searchHelpHeader", "selectionMethod")]),
+      textTable: nonEmpty(headerRow[fld2("searchHelpHeader", "textTable")]),
+      parameterCount: params.rs.records.length,
+      includeCount: includesRs.records.length,
+      versionState: state === "N" ? "inactive" : "active"
+    },
+    notes,
+    hashInput: ddl
+  };
+}
+async function readSearchHelp(conn, name, language = IMG_DEFAULT_LANGUAGE, opts = {}) {
+  return readSearchHelpImpl(conn, name, language, opts);
+}
+async function readClassicViewImpl(conn, name, language) {
+  const ctx = { operation: "read classic view", name, type: "VIEW/DV" };
+  const notes = [];
+  let header;
+  try {
+    header = await issue2(conn, buildViewHeaderDetailQuery(name), CAP_ONE);
+  } catch (e) {
+    throw classifyPreviewFailure(e, ctx);
+  }
+  notes.push(...serverNotes2(header.rs));
+  const headerRow = header.rs.records[0];
+  if (!headerRow) {
+    throw new AbapError(
+      "NOT_FOUND",
+      `No active classic view named ${name} was found (DD25L returned no row).`,
+      { name, type: "VIEW/DV" }
+    );
+  }
+  let text4;
+  let baseTables;
+  let fields;
+  let directory;
+  try {
+    text4 = await issue2(conn, buildViewTextDetailQuery(name, language), CAP_TEXT);
+    baseTables = await issue2(conn, buildViewBaseTablesDetailQuery(name), CAP_LIST);
+    fields = await issue2(conn, buildViewFieldsDetailQuery(name), CAP_LIST);
+    directory = await issue2(conn, buildViewDirectoryDetailQuery(name), CAP_ONE);
+  } catch (e) {
+    throw classifyPreviewFailure(e, ctx);
+  }
+  for (const rs of [text4.rs, baseTables.rs, fields.rs, directory.rs]) notes.push(...serverNotes2(rs));
+  notes.push(...truncationNote("BASE TABLES", CAP_LIST, baseTables.rs));
+  notes.push(...truncationNote("FIELDS", CAP_LIST, fields.rs));
+  const description = nonEmpty(text4.rs.records[0]?.[fld2("viewText", "text")]);
+  const dirRow = directory.rs.records[0];
+  const baseTableLines = baseTables.rs.records.map((r) => {
+    const fk = nonEmpty(r[fld2("viewBaseTable", "foreignTable")]);
+    const fkText = fk ? ` (FK -> ${fk}.${r[fld2("viewBaseTable", "foreignField")] ?? ""} ${r[fld2("viewBaseTable", "foreignDirection")] ?? ""})` : "";
+    return `${r[fld2("viewBaseTable", "table")] ?? ""}${fkText}`;
+  });
+  const fieldLines = fields.rs.records.map((r) => {
+    const key = flag(r[fld2("viewField", "keyFlag")]) ? " KEY" : "";
+    const ro = flag(r[fld2("viewField", "readOnly")]) ? " READONLY" : "";
+    return `${r[fld2("viewField", "viewField")] ?? ""} : ${r[fld2("viewField", "dataElement")] ?? ""} (${r[fld2("viewField", "table")] ?? ""}.${r[fld2("viewField", "field")] ?? ""})${key}${ro}`;
+  });
+  const ddl = `VIEW ${name}.
+` + (description ? `  "${description}"
+` : "") + `
+` + [
+    line("ROOT TABLE", nonEmpty(headerRow[fld2("viewHeader", "rootTable")])),
+    line("AGGREGATE TYPE", decodeCode(AGGTYPE_DECODE, headerRow[fld2("viewHeader", "aggregateType")])),
+    line("VIEW CLASS", decodeCode(VIEWCLASS_DECODE, headerRow[fld2("viewHeader", "viewClass")])),
+    line("READ ONLY", flag(headerRow[fld2("viewHeader", "readOnly")])),
+    line("VIEW GRANT", decodeCode(VIEWGRANT_DECODE, headerRow[fld2("viewHeader", "viewGrant")])),
+    line("APPLICATION CLASS", nonEmpty(headerRow[fld2("viewHeader", "applicationClass")])),
+    line("MASTER LANGUAGE", nonEmpty(headerRow[fld2("viewHeader", "masterLanguage")])),
+    dirRow ? line("PACKAGE", nonEmpty(dirRow[fld2("viewDirectory", "package")])) : "",
+    dirRow ? line("SCREEN", nonEmpty(dirRow[fld2("viewDirectory", "screen")])) : ""
+  ].filter(Boolean).join("\n") + block("BASE TABLES", baseTableLines) + block("FIELDS", fieldLines);
+  return {
+    ddl,
+    sections: [
+      { title: "BASE TABLES", content: baseTableLines.join("\n") },
+      { title: "FIELDS", content: fieldLines.join("\n") }
+    ].filter((s) => s.content !== ""),
+    meta: {
+      view: name,
+      rootTable: nonEmpty(headerRow[fld2("viewHeader", "rootTable")]),
+      viewClass: nonEmpty(headerRow[fld2("viewHeader", "viewClass")]),
+      package: dirRow ? nonEmpty(dirRow[fld2("viewDirectory", "package")]) : void 0,
+      baseTableCount: baseTables.rs.records.length,
+      fieldCount: fields.rs.records.length
+    },
+    notes,
+    hashInput: ddl
+  };
+}
+async function readClassicView(conn, name, language = IMG_DEFAULT_LANGUAGE) {
+  return readClassicViewImpl(conn, name, language);
+}
+async function readTransactionImpl(conn, tcode, language) {
+  const ctx = { operation: "read transaction", name: tcode, type: "TRAN/T" };
+  const notes = [];
+  let header;
+  try {
+    header = await issue2(conn, buildTransactionDetailQuery(tcode), CAP_ONE);
+  } catch (e) {
+    throw classifyPreviewFailure(e, ctx);
+  }
+  notes.push(...serverNotes2(header.rs));
+  const headerRow = header.rs.records[0];
+  if (!headerRow) {
+    throw new AbapError(
+      "NOT_FOUND",
+      `No transaction named ${tcode} was found (TSTC returned no row).`,
+      { name: tcode, type: "TRAN/T" }
+    );
+  }
+  let text4;
+  let param;
+  let auth;
+  let roles;
+  try {
+    text4 = await issue2(conn, buildTransactionTextDetailQuery(tcode, language), CAP_TEXT);
+    param = await issue2(conn, buildTransactionParamQuery(tcode), CAP_ONE);
+    auth = await issue2(conn, buildTransactionAuthQuery(tcode), CAP_LIST);
+    roles = await issue2(conn, buildTransactionRolesQuery(tcode), CAP_LIST);
+  } catch (e) {
+    throw classifyPreviewFailure(e, ctx);
+  }
+  for (const rs of [text4.rs, param.rs, auth.rs, roles.rs]) notes.push(...serverNotes2(rs));
+  notes.push(...truncationNote("AUTHORIZATION", CAP_LIST, auth.rs));
+  notes.push(...truncationNote("ASSIGNED TO ROLES", CAP_LIST, roles.rs));
+  const description = nonEmpty(text4.rs.records[0]?.[fld2("transactionText", "text")]);
+  const rawParam = nonEmpty(param.rs.records[0]?.[fld2("transactionParam", "parameters")]);
+  const parsed = rawParam !== void 0 ? parseTransactionParameters(rawParam) : void 0;
+  const authLines = auth.rs.records.map((r) => {
+    return `${r[fld2("transactionAuth", "authObject")] ?? ""} ${r[fld2("transactionAuth", "authField")] ?? ""} = ${r[fld2("transactionAuth", "authValue")] ?? ""}`;
+  });
+  const roleLines = roles.rs.records.map((r) => {
+    return `${r[fld2("roleTransaction", "role")] ?? ""}`;
+  });
+  const paramLines = [];
+  if (rawParam !== void 0 && parsed) {
+    paramLines.push(`RAW: ${rawParam}`);
+    if (parsed.kind === "parameter") {
+      paramLines.push(`STARTS: ${parsed.target ?? "(unknown)"}`);
+      for (const a of parsed.assignments) paramLines.push(`  ${a.name} = ${a.value}`);
+    } else if (parsed.target) {
+      paramLines.push(`SWITCHES TO: ${parsed.target}`);
+    }
+  }
+  const ddl = `TRANSACTION ${tcode}.
+` + (description ? `  "${description}"
+` : "") + `
+` + [
+    line("PROGRAM", nonEmpty(headerRow[fld2("transaction", "program")])),
+    line("SCREEN", nonEmpty(headerRow[fld2("transaction", "dynpro")])),
+    line("CLASS INFO", nonEmpty(headerRow[fld2("transaction", "classInfo")])),
+    line("MESSAGE AREA", nonEmpty(headerRow[fld2("transaction", "messageArea")]))
+  ].filter(Boolean).join("\n") + block("PARAMETERS", paramLines) + block("AUTHORIZATION", authLines) + block("ASSIGNED TO ROLES", roleLines);
+  return {
+    ddl,
+    sections: [
+      { title: "AUTHORIZATION", content: authLines.join("\n") },
+      { title: "ASSIGNED TO ROLES", content: roleLines.join("\n") }
+    ].filter((s) => s.content !== ""),
+    meta: {
+      transaction: tcode,
+      program: nonEmpty(headerRow[fld2("transaction", "program")]),
+      screen: nonEmpty(headerRow[fld2("transaction", "dynpro")]),
+      parameterKind: parsed?.kind,
+      parameterTarget: parsed?.target,
+      authCheckCount: auth.rs.records.length,
+      roleCount: roles.rs.records.length
+    },
+    notes,
+    hashInput: ddl
+  };
+}
+async function readTransaction(conn, tcode, language = IMG_DEFAULT_LANGUAGE) {
+  return readTransactionImpl(conn, tcode, language);
+}
+async function readCatalogObject(conn, obj) {
+  switch (obj.kind.toUpperCase()) {
+    case "SHLP":
+      return readSearchHelp(conn, obj.name);
+    case "VIEW":
+      return readClassicView(conn, obj.name);
+    case "TRAN":
+      return readTransaction(conn, obj.name);
+    default:
+      throw new AbapError(
+        "UNSUPPORTED",
+        `${obj.type} is not a catalog-based DDIC type readCatalogObject can render.`,
+        { type: obj.type, renderable: ["SHLP/DH", "VIEW/DV", "TRAN/T"] }
+      );
+  }
 }
 
 // src/adt/ddic-payload.ts
@@ -107680,7 +110023,9 @@ var DTEL_FIELDS = /* @__PURE__ */ new Set([
   "longLabel",
   "longLength",
   "headingLabel",
-  "headingLength"
+  "headingLength",
+  "searchHelp",
+  "searchHelpParameter"
 ]);
 var TTYP_FIELDS = /* @__PURE__ */ new Set(["typeKind", "typeName", "dataType", "length", "decimals"]);
 var STRUCTURED_FIELDS_BY_TYPE = {
@@ -107706,6 +110051,20 @@ var DTEL_MAX_LENGTH = {
   long: 40,
   heading: 55
 };
+var SHLP_NAME_MAX_LEN = 30;
+function normalizeShlpIdentifier(value, field, type, name) {
+  const column = field === "searchHelp" ? "DD04L-SHLPNAME" : "DD04L-SHLPFIELD";
+  const normalized = value.trim().toUpperCase();
+  if (normalized.length > SHLP_NAME_MAX_LEN) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `ddic.${field} "${value}" is ${normalized.length} characters, longer than ${column}'s ${SHLP_NAME_MAX_LEN}-character limit.`,
+      { name, type, field, value, length: normalized.length, maxLength: SHLP_NAME_MAX_LEN },
+      `Shorten ddic.${field} to ${SHLP_NAME_MAX_LEN} characters or fewer.`
+    );
+  }
+  return normalized;
+}
 function rejectStrayFields(type, name, fields, allowed) {
   const stray = Object.keys(fields).filter(
     (k) => fields[k] !== void 0 && !allowed.has(k)
@@ -107750,7 +110109,17 @@ function buildDtel(name, description, packageName, f) {
   const longLength = f.longLength ?? 40;
   const headingLabel = f.headingLabel ?? "Bench";
   const headingLength = f.headingLength ?? 55;
-  return `${XML_DECL}<blue:wbobj xmlns:blue="http://www.sap.com/wbobj/dictionary/dtel" xmlns:adtcore="${ADTCORE_NS2}" adtcore:name="${escapeXmlAttr3(name)}" adtcore:type="DTEL/DE" adtcore:description="${escapeXmlAttr3(description)}"><adtcore:packageRef adtcore:name="${escapeXmlAttr3(packageName)}"/><dtel:dataElement xmlns:dtel="${DATAELEMENT_NS}">${elem("dtel:typeKind", typeKind)}${elem("dtel:typeName", typeName)}${elem("dtel:dataType", dataType)}${elem("dtel:dataTypeLength", numPadded(length, 6))}${elem("dtel:dataTypeDecimals", numPadded(decimals, 6))}${elem("dtel:shortFieldLabel", shortLabel)}${elem("dtel:shortFieldLength", num2(shortLength))}${elem("dtel:shortFieldMaxLength", num2(DTEL_MAX_LENGTH.short))}${elem("dtel:mediumFieldLabel", mediumLabel)}${elem("dtel:mediumFieldLength", num2(mediumLength))}${elem("dtel:mediumFieldMaxLength", num2(DTEL_MAX_LENGTH.medium))}${elem("dtel:longFieldLabel", longLabel)}${elem("dtel:longFieldLength", num2(longLength))}${elem("dtel:longFieldMaxLength", num2(DTEL_MAX_LENGTH.long))}${elem("dtel:headingFieldLabel", headingLabel)}${elem("dtel:headingFieldLength", num2(headingLength))}${elem("dtel:headingFieldMaxLength", num2(DTEL_MAX_LENGTH.heading))}${elem("dtel:searchHelp", "")}${elem("dtel:searchHelpParameter", "")}${elem("dtel:setGetParameter", "")}${elem("dtel:defaultComponentName", "")}${elem("dtel:deactivateInputHistory", "false")}${elem("dtel:changeDocument", "false")}${elem("dtel:leftToRightDirection", "false")}${elem("dtel:deactivateBIDIFiltering", "false")}</dtel:dataElement></blue:wbobj>`;
+  if (f.searchHelpParameter !== void 0 && f.searchHelp === void 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `ddic.searchHelpParameter was given without ddic.searchHelp for DTEL/DE ${name} \u2014 a parameter with no search help to belong to is meaningless: DD04L-SHLPFIELD has nothing to attach to without DD04L-SHLPNAME, and the server would accept the write while silently dropping it.`,
+      { name, type: "DTEL/DE", searchHelpParameter: f.searchHelpParameter },
+      "Add `ddic.searchHelp` (the search help name this parameter belongs to), or drop `ddic.searchHelpParameter`."
+    );
+  }
+  const searchHelp = f.searchHelp !== void 0 ? normalizeShlpIdentifier(f.searchHelp, "searchHelp", "DTEL/DE", name) : "";
+  const searchHelpParameter = f.searchHelpParameter !== void 0 ? normalizeShlpIdentifier(f.searchHelpParameter, "searchHelpParameter", "DTEL/DE", name) : "";
+  return `${XML_DECL}<blue:wbobj xmlns:blue="http://www.sap.com/wbobj/dictionary/dtel" xmlns:adtcore="${ADTCORE_NS2}" adtcore:name="${escapeXmlAttr3(name)}" adtcore:type="DTEL/DE" adtcore:description="${escapeXmlAttr3(description)}"><adtcore:packageRef adtcore:name="${escapeXmlAttr3(packageName)}"/><dtel:dataElement xmlns:dtel="${DATAELEMENT_NS}">${elem("dtel:typeKind", typeKind)}${elem("dtel:typeName", typeName)}${elem("dtel:dataType", dataType)}${elem("dtel:dataTypeLength", numPadded(length, 6))}${elem("dtel:dataTypeDecimals", numPadded(decimals, 6))}${elem("dtel:shortFieldLabel", shortLabel)}${elem("dtel:shortFieldLength", num2(shortLength))}${elem("dtel:shortFieldMaxLength", num2(DTEL_MAX_LENGTH.short))}${elem("dtel:mediumFieldLabel", mediumLabel)}${elem("dtel:mediumFieldLength", num2(mediumLength))}${elem("dtel:mediumFieldMaxLength", num2(DTEL_MAX_LENGTH.medium))}${elem("dtel:longFieldLabel", longLabel)}${elem("dtel:longFieldLength", num2(longLength))}${elem("dtel:longFieldMaxLength", num2(DTEL_MAX_LENGTH.long))}${elem("dtel:headingFieldLabel", headingLabel)}${elem("dtel:headingFieldLength", num2(headingLength))}${elem("dtel:headingFieldMaxLength", num2(DTEL_MAX_LENGTH.heading))}${elem("dtel:searchHelp", searchHelp)}${elem("dtel:searchHelpParameter", searchHelpParameter)}${elem("dtel:setGetParameter", "")}${elem("dtel:defaultComponentName", "")}${elem("dtel:deactivateInputHistory", "false")}${elem("dtel:changeDocument", "false")}${elem("dtel:leftToRightDirection", "false")}${elem("dtel:deactivateBIDIFiltering", "false")}</dtel:dataElement></blue:wbobj>`;
 }
 function buildTtyp(name, description, packageName, f) {
   const typeKind = f.typeKind ?? "dictionaryType";
@@ -108255,10 +110624,67 @@ var writeInputSchema = {
     longLabel: external_exports.string().optional(),
     longLength: external_exports.number().optional(),
     headingLabel: external_exports.string().optional(),
-    headingLength: external_exports.number().optional()
+    headingLength: external_exports.number().optional(),
+    searchHelp: external_exports.string().optional().describe(
+      "DTEL/DE only: search help attached to this data element (DD04L-SHLPNAME). Must name an existing, active SHLP/DH \u2014 not checked before send. Uppercased, max 30 chars."
+    ),
+    searchHelpParameter: external_exports.string().optional().describe(
+      "DTEL/DE only: the search help's own interface parameter this data element binds to (DD04L-SHLPFIELD, e.g. DD32P-FIELDNAME on the search help itself) \u2014 not the data element's own name. Refused without `searchHelp`. Uppercased, max 30 chars."
+    )
   }).strict().optional().describe("DOMA/DD, DTEL/DE, TTYP/DA: alt to `source`, never both."),
+  // SHLP/DH create/update, required: DD30V/DD32P/DD31V/DD33V fields no
+  // existing field can carry. Mirrors `ddic` above's structured-field
+  // convention rather than a flat SHLP_* field explosion. Builder is
+  // `SearchHelpParams` (src/adt/shlp-create.ts); this schema only lists the
+  // fields that shape accepts. `update_search_help` REPLACES the whole
+  // interface/includes/assignments list, same as a DDIF_VIEW_PUT view
+  // update — nothing carried over here from what already exists.
+  shlp: external_exports.object({
+    selectionMethod: external_exports.string().optional().describe(
+      "DD30V-SELMETHOD: table or view the search help selects from. Omit for a collective search help, or an elementary one driven by a search-help exit instead of a table/view \u2014 both are normal and have no selection method at all."
+    ),
+    selectionMethodType: external_exports.enum(["T", "V", "M"]).optional().describe(
+      "DD30V-SELMTYPE. Only meaningful alongside selectionMethod; omit when selectionMethod is omitted too."
+    ),
+    dialogType: external_exports.string().optional().describe('DD30V-DIALOGTYPE. Defaults to "D" when omitted.'),
+    textTable: external_exports.string().optional().describe("DD30V-TEXTTAB."),
+    hotKey: external_exports.string().optional().describe("DD30V-HOTKEY, one character."),
+    elementary: external_exports.boolean().describe("DD30V-ISSIMPLE. If true, `fields` must carry at least one import and one export parameter."),
+    fields: external_exports.array(
+      external_exports.object({
+        name: external_exports.string().describe("DD32P-FIELDNAME."),
+        dataElement: external_exports.string().describe("DD32P-ROLLNAME."),
+        import: external_exports.boolean().optional().describe("DD32P-SHLPINPUT."),
+        export: external_exports.boolean().optional().describe("DD32P-SHLPOUTPUT."),
+        defaultValue: external_exports.string().optional().describe("DD32P-DEFAULTVAL.")
+      })
+    ).describe("Interface fields (DD32P), in order."),
+    includes: external_exports.array(external_exports.object({ name: external_exports.string().describe("DD31V-SUBSHLP.") })).optional().describe(
+      "Other search helps included by this one (DD31V), in order. Optional \u2014 empty or omitted is fine, including for elementary: false. Each name must exist as an ACTIVE search help (DD30L); refused before registration otherwise (CHECK_FAILED), rather than passing DDIF_SHLP_PUT and stranding this help as inactive-only when DDIF_SHLP_ACTIVATE then fails (DH109)."
+    ),
+    assignments: external_exports.array(
+      external_exports.object({
+        field: external_exports.string().describe(
+          "DD33V-FIELDNAME, this search help's field. Must match one of this call's own `fields[].name` (case-insensitive); refused before send otherwise (BAD_INPUT)."
+        ),
+        includedHelp: external_exports.string().describe(
+          "DD33V-SUBSHLP. Must match one of this call's own `includes[].name` (case-insensitive); refused before send otherwise (BAD_INPUT)."
+        ),
+        includedField: external_exports.string().describe(
+          "DD33V-SUBFIELD. Must be an ACTIVE interface parameter (DD32S) of `includedHelp`; checked server-side before RS_CORR_INSERT and refused otherwise (CHECK_FAILED) \u2014 this needs that other search help's own DD32P/DD32S, so it is not checked zero-network."
+        ),
+        direction: external_exports.enum(["I", "E"]).describe(
+          'DD33V-VALUEDIREC: I=import into, E=export from the included help. DDIC may normalise the stored value to C ("both import and export") on read-back when the target parameter is both import and export.'
+        )
+      })
+    ).optional().describe(
+      "Field assignments (DD33V) between an included search help and this one's interface. A `field`/`includedHelp` not found in this call's own `fields`/`includes`, or an `includedField` that is not an active parameter of `includedHelp`, would otherwise pass DDIF_SHLP_PUT and fail DDIF_SHLP_ACTIVATE (DH109) \u2014 all three are refused first instead; see each field below."
+    )
+  }).strict().optional().describe("SHLP/DH create/update, required: search help definition. See SearchHelpParams in src/adt/shlp-create.ts."),
   expect_etag: external_exports.string().optional().describe("Etag from abap_read; fails if changed."),
-  mode: external_exports.enum(["write", "delete"]).optional().describe("Default write."),
+  mode: external_exports.enum(["write", "delete", "update"]).optional().describe(
+    'Default write (create for most types). "update" retargets/replaces an EXISTING VIEW/DV, TRAN/T or SHLP/DH in place (DDIF_VIEW_PUT / RPY_TRANSACTION_DELETE+INSERT / DDIF_SHLP_PUT replace the whole definition/target) \u2014 refused zero-network for every other type.'
+  ),
   activate: external_exports.boolean().optional().describe("Default true."),
   verify: external_exports.boolean().optional().describe("Force verified mode; reads back after write."),
   format: external_exports.boolean().optional().describe("Pretty-print source before writing."),
@@ -108290,6 +110716,15 @@ var writeInputSchema = {
   // program exists first, and RPY_TRANSACTION_INSERT only wires a
   // report/SUBMIT transaction, never a dialog one.
   program: external_exports.string().optional().describe("TRAN/T, required: existing SUBMIT-only report."),
+  confirm_in_use: external_exports.boolean().optional().describe(
+    "SHLP/DH delete only: required true when the search help is still attached to a data element, a table/view field, or included by a collective search help (DD04L/DD35L/DD31S). Refused zero-network for any other type/mode combination."
+  ),
+  confirm_maintenance_dialog: external_exports.boolean().optional().describe(
+    "VIEW/DV delete: overrides the bridge's refusal when the view still has a generated SE54 maintenance dialog (TVDIR) \u2014 deleting the view leaves that dialog broken. The bridge's refusal names the specific dialog (function group area, package, type, screen) so a caller can read it and decide before passing this. Refused zero-network for any other type/mode combination."
+  ),
+  confirm_in_role_menu: external_exports.boolean().optional().describe(
+    `TRAN/T mode="delete" or mode="update" (retarget): overrides the bridge's refusal when the tcode is already assigned to one or more roles' menus (AGR_TCODES). Deleting it removes it from those role menus; retargeting it changes what those menu entries launch. The bridge's refusal names the specific roles so a caller can read it and decide before passing this. An SM01 transaction lock is not checked either way. Refused zero-network for any other type/mode combination.`
+  ),
   // Same shape/wording as abap_enh's `affects` field (src/tools/enh.ts), so
   // callers share one vocabulary. Required for an enhancement-type write
   // (ENHO/XHH): the gate can't judge one from name/package/URI alone.
@@ -108517,7 +110952,7 @@ function spliceMethodBlock(args) {
       "The implementation may live in a class include or another object. Read the object first and use `edit` to splice the exact text you can see, or write the full source."
     );
   }
-  let block = candidates[0];
+  let block2 = candidates[0];
   if (candidates.length > 1) {
     const pinned = range ? candidates.filter((b) => b.startLine <= range.startLine && range.startLine <= b.endLine) : [];
     if (pinned.length !== 1) {
@@ -108528,13 +110963,13 @@ function spliceMethodBlock(args) {
         "Name the method with its full interface prefix, e.g. ZIF_FOO~BAR."
       );
     }
-    block = pinned[0];
+    block2 = pinned[0];
   }
   const lines = current.replace(/\r\n/g, "\n").split("\n");
   const spliced = [
-    ...lines.slice(0, block.startLine - 1),
+    ...lines.slice(0, block2.startLine - 1),
     replacement,
-    ...lines.slice(block.endLine)
+    ...lines.slice(block2.endLine)
   ].join("\n");
   const before = countMethodKeywordLines(current);
   const after = countMethodKeywordLines(spliced);
@@ -108542,7 +110977,7 @@ function spliceMethodBlock(args) {
     throw new AbapError(
       "UNSUPPORTED",
       `Internal check failed: replacing ${requested} in ${object3} changed the object's METHOD/ENDMETHOD balance (before ${before.method}/${before.endmethod}, after ${after.method}/${after.endmethod}), which cannot be valid ABAP. Nothing was written.`,
-      { ...details, before, after, block: `${block.startLine}-${block.endLine}` },
+      { ...details, before, after, block: `${block2.startLine}-${block2.endLine}` },
       "This is an abapsmith bug, not a problem with your code \u2014 the source on the server is untouched. Rewrite the whole object with `source` alone, and please report the object shape."
     );
   }
@@ -108553,16 +110988,16 @@ function assertNotOrphanMethodBlock(source, object3, type) {
   if (type !== void 0 && INCLUDE_TYPES.has(type.toUpperCase())) return;
   const scan = scanMethodBlocks(source);
   if (scan.malformed || scan.blocks.length !== 1) return;
-  const block = scan.blocks[0];
+  const block2 = scan.blocks[0];
   const lines = source.replace(/\r\n/g, "\n").split("\n");
   const firstCode = lines.findIndex((l) => l.trim() !== "") + 1;
   let lastCode = lines.length;
   while (lastCode > 0 && (lines[lastCode - 1] ?? "").trim() === "") lastCode -= 1;
-  if (block.startLine !== firstCode || block.endLine !== lastCode) return;
+  if (block2.startLine !== firstCode || block2.endLine !== lastCode) return;
   throw new AbapError(
     "BAD_INPUT",
-    `The source given for ${object3} is a single "METHOD ${block.name} ... ENDMETHOD." block, not a complete object source. Writing it would REPLACE the whole object with that one method, and the result cannot compile \u2014 no ABAP object's full source is a bare METHOD block.`,
-    { object: object3, method: block.name, lines: `${block.startLine}-${block.endLine}` },
+    `The source given for ${object3} is a single "METHOD ${block2.name} ... ENDMETHOD." block, not a complete object source. Writing it would REPLACE the whole object with that one method, and the result cannot compile \u2014 no ABAP object's full source is a bare METHOD block.`,
+    { object: object3, method: block2.name, lines: `${block2.startLine}-${block2.endLine}` },
     'To replace one method, pass `method` alongside `source`: {object, method: "MY_METHOD", source: "METHOD my_method. ... ENDMETHOD."}. If the `method` field is being dropped before it reaches abapsmith, the tool schema in use does not declare it. To rewrite the whole object, send its complete source including the CLASS/REPORT scaffolding.'
   );
 }
@@ -108852,6 +111287,12 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
   if (isBridgeOnlyCreateType(input.type)) {
     if (input.dry_run) throw dryRunNotSupported("bridge", input.type);
     return await abapBridgeCrud(conn, target, input, maxChars, gate, journal, transport);
+  }
+  if ((input.mode ?? "write") === "update") {
+    const requestedType = (input.type ?? "").trim().toUpperCase();
+    if (!isBridgeUpdateType(requestedType)) {
+      throw bridgeUpdateNotSupported(requestedType, target.name);
+    }
   }
   const corrNr = normalizeCorrNr(input.corr_nr);
   const trOpts = transport ? { transport, gate, ...corrNr ? { corrNr } : {}, ...input.affects ? { affects: input.affects } : {} } : { ...corrNr ? { corrNr } : {}, ...input.affects ? { affects: input.affects } : {} };
@@ -109881,12 +112322,60 @@ async function abapCreatePackage(conn, target, input, maxChars, gate, trOpts, jo
     maxChars
   });
 }
+function assertGuardFlagsApplicable(type, input) {
+  const mode = input.mode ?? "write";
+  const inapplicable = (field, message) => {
+    throw new AbapError("BAD_INPUT", message, { type, mode, field });
+  };
+  if (input.confirm_in_use !== void 0 && !(type === "SHLP/DH" && mode === "delete")) {
+    inapplicable(
+      "confirm_in_use",
+      `\`confirm_in_use\` only applies to a SHLP/DH delete (DD04L/DD35L/DD31S where-used guard). Omit it for ${type || "this type"} mode="${mode}".`
+    );
+  }
+  if (input.confirm_maintenance_dialog !== void 0 && !(type === "VIEW/DV" && mode === "delete")) {
+    inapplicable(
+      "confirm_maintenance_dialog",
+      `\`confirm_maintenance_dialog\` only applies to a VIEW/DV delete (TVDIR maintenance-dialog guard). Omit it for ${type || "this type"} mode="${mode}".`
+    );
+  }
+  if (input.confirm_in_role_menu !== void 0) {
+    if (type !== "TRAN/T") {
+      inapplicable(
+        "confirm_in_role_menu",
+        `\`confirm_in_role_menu\` only applies to TRAN/T. Omit it for ${type || "this type"}.`
+      );
+    }
+    if (mode !== "delete" && mode !== "update") {
+      inapplicable(
+        "confirm_in_role_menu",
+        `\`confirm_in_role_menu\` only applies to TRAN/T mode="delete" or mode="update". Omit it for mode="${mode}".`
+      );
+    }
+  }
+}
 async function abapBridgeCrud(conn, target, input, maxChars, gate, journal, transport) {
   const type = (input.type ?? "").trim().toUpperCase();
+  assertGuardFlagsApplicable(type, input);
+  const mode = input.mode ?? "write";
   if (type === "TABL/DI") {
-    return (input.mode ?? "write") === "delete" ? abapDeleteIndexViaBridge(conn, target, input, maxChars, gate) : abapCreateIndexViaBridge(conn, target, input, maxChars, gate);
+    if (mode === "update") {
+      throw new AbapError(
+        "BAD_INPUT",
+        "A TABL/DI (secondary index) has no update route: DD_INDEX_INTERFACE creates or drops one, it does not retarget an existing index's fields in place.",
+        { type, mode },
+        'Delete the index (mode="delete") and create a new one with the desired `index_fields`.'
+      );
+    }
+    return mode === "delete" ? abapDeleteIndexViaBridge(conn, target, input, maxChars, gate) : abapCreateIndexViaBridge(conn, target, input, maxChars, gate);
   }
-  return (input.mode ?? "write") === "delete" ? abapDeleteViaBridge(conn, target, input, maxChars, gate) : abapCreateViaBridge(conn, target, input, maxChars, gate, journal, transport);
+  if (mode === "update") {
+    return abapUpdateViaBridge(conn, target, input, maxChars, gate, journal);
+  }
+  if (type === "SHLP/DH") {
+    return mode === "delete" ? abapDeleteSearchHelpViaBridge(conn, target, input, maxChars, gate, journal) : abapCreateSearchHelpViaBridge(conn, target, input, maxChars, gate, journal);
+  }
+  return mode === "delete" ? abapDeleteViaBridge(conn, target, input, maxChars, gate) : abapCreateViaBridge(conn, target, input, maxChars, gate, journal, transport);
 }
 async function journalBridgeCreate(journal, conn, ref2, beforeCapture, corrNr, mutate) {
   const { result, entryId, settle } = await withJournalledMutation(
@@ -110231,10 +112720,18 @@ async function abapDeleteViaBridge(conn, target, input, maxChars, gate) {
   let bridgeClass;
   if (type === "VIEW/DV") {
     bridgeClass = CLASSIC_BODY_CLASS;
-    deleted = await deleteClassicViewViaBridge(conn, gate, { viewName: target.name, packageName: resolved });
+    deleted = await deleteClassicViewViaBridge(conn, gate, {
+      viewName: target.name,
+      packageName: resolved,
+      confirmMaintenanceDialog: input.confirm_maintenance_dialog
+    });
   } else {
     bridgeClass = CLASSIC_BODY_CLASS;
-    deleted = await deleteTransactionViaBridge(conn, gate, { tcode: target.name, packageName: resolved });
+    deleted = await deleteTransactionViaBridge(conn, gate, {
+      tcode: target.name,
+      packageName: resolved,
+      confirmInRoleMenu: input.confirm_in_role_menu
+    });
   }
   const outcome = await verifyObjectDeleted(conn, {
     uri: vitBridgeUri(vitType, target.name),
@@ -110274,6 +112771,674 @@ async function abapDeleteViaBridge(conn, target, input, maxChars, gate) {
       verifyNote,
       "NOT journalled: a bridge delete captures no before-image, so abap_journal mode=undo cannot restore this object. To bring it back, create it again with a fresh abap_write call.",
       isLocalPackageName(packageName) ? "" : bridgeDeleteTransportEntryNote(label, target.name, packageName)
+    ].filter((n) => n !== ""),
+    maxChars
+  });
+}
+async function catalogProbe(read) {
+  try {
+    return await read();
+  } catch (e) {
+    if (isAbapError(e) && e.code === "NOT_FOUND") return void 0;
+    throw e;
+  }
+}
+async function probeSearchHelp(conn, name) {
+  return catalogProbe(() => readSearchHelp(conn, name));
+}
+async function probeSearchHelpAnyState(conn, name) {
+  return catalogProbe(() => readSearchHelp(conn, name, void 0, { includeInactive: true }));
+}
+async function resolveShlpPackage(conn, packageNameStr) {
+  const trimmed = packageNameStr.trim().toUpperCase();
+  const mint = (uri) => {
+    const resolved = serverPackage({ status: "confirmed", uri, via: "repository-search", packageName: trimmed });
+    if (resolved === void 0) {
+      throw new AbapError(
+        "SAFETY_DENIED",
+        `abapsmith could not resolve package ${trimmed} for this search help \u2014 this should be unreachable.`,
+        { reason: "PACKAGE_UNKNOWN", packageName: trimmed }
+      );
+    }
+    return resolved;
+  };
+  if (isLocalPackageName(trimmed)) {
+    return mint(`urn:abapsmith:local-package:${trimmed}`);
+  }
+  const pkgTarget = await resolveWriteTarget(conn, { type: "DEVC/K", name: trimmed });
+  if (!pkgTarget.exists) {
+    throw new AbapError(
+      "NOT_FOUND",
+      `Package ${trimmed} does not exist on ${conn.cfg.sid}, so a search help cannot be placed in it.`,
+      { packageName: trimmed },
+      'Create the package first with abap_write (type="DEVC/K"), or correct the `package` argument if this was a typo.'
+    );
+  }
+  return mint(pkgTarget.uri);
+}
+async function resolveBridgeUpdateTarget(conn, vitType, name, type, label, requestedPackage) {
+  const found = await verifyViaVitBridge(conn, vitType, name, type);
+  if (found.status === "confirmed-absent") {
+    throw new AbapError(
+      "NOT_FOUND",
+      `${label} ${name} does not exist, so there is nothing to update.`,
+      { object: name, type, uri: found.uri }
+    );
+  }
+  if (found.status === "indeterminate") {
+    throw new AbapError(
+      "SAFETY_DENIED",
+      `abapsmith could not confirm ${label} ${name}'s existence or its package before an update, so it refuses the operation (${found.reason})`,
+      { reason: "PACKAGE_UNKNOWN", object: name, type, uri: found.uri, cause: found.reason },
+      "Every update is judged against the object's real package. Rather than guess, abapsmith stops here. Check the object exists and this connection can read it, then retry.",
+      { retryable: true }
+      // existence could not be confirmed, not denied — a healthy connection resolves it
+    );
+  }
+  const resolved = serverPackage(found);
+  if (resolved === void 0) {
+    throw new AbapError(
+      "SAFETY_DENIED",
+      `abapsmith could not determine which package ${label} ${name} belongs to, so it refuses the update: the VIT bridge read answered but carried no <adtcore:packageRef> element.`,
+      { reason: "PACKAGE_UNKNOWN", object: name, type, uri: found.uri },
+      "Every update is judged against the object's real package. Rather than assume the caller's `package` argument, abapsmith stops here. This matches the known orphan outcome: the object is active but unregistered in TADIR, so no package can be established for it. Removing/reregistering it needs SE11/SE14 by hand."
+    );
+  }
+  const requested = requestedPackage?.trim().toUpperCase();
+  if (requested && requested !== resolved.name) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${label} ${name} is in package ${resolved.name}, but the request asked for ${requested}. abapsmith does not move objects between packages, and will not update against the wrong one.`,
+      { object: name, type, serverPackage: resolved.name, requestedPackage: requested },
+      "Drop the `package` argument to update the object where it actually is, or correct it if this named the wrong object."
+    );
+  }
+  return resolved;
+}
+async function abapCreateSearchHelpViaBridge(conn, target, input, maxChars, gate, journal) {
+  const type = "SHLP/DH";
+  const cap = capabilitiesFor(type);
+  const label = cap?.label ?? type;
+  const bad = (message, hint) => {
+    throw new AbapError("BAD_INPUT", message, { object: target.name, type }, hint);
+  };
+  if (input.source !== void 0 || input.edit !== void 0 || input.method !== void 0) {
+    bad(
+      `A ${label} (${type}) has no source: it is created from its definition, not from ABAP text. Omit \`source\`, \`edit\` and \`method\`.`
+    );
+  }
+  if (input.format) bad(`A ${label} (${type}) has no source; \`format\` does not apply.`);
+  if (input.include !== void 0) {
+    bad(`\`include\` is a CLAS/OC field; a ${label} (${type}) has no class includes.`);
+  }
+  if (input.expect_etag !== void 0) {
+    bad(`\`expect_etag\` does not apply to a ${label} create \u2014 there is no prior version to compare.`);
+  }
+  if (input.software_component !== void 0 || input.package_type !== void 0 || input.transport_layer !== void 0) {
+    bad("`software_component`, `package_type` and `transport_layer` are DEVC/K fields only.");
+  }
+  if (input.base_table !== void 0 || input.view_fields !== void 0) {
+    bad("`base_table` and `view_fields` are VIEW/DV fields; a search help has neither.");
+  }
+  if (input.program !== void 0) bad("`program` is a TRAN/T field; a search help does not start a program.");
+  if (input.activate === false) {
+    bad(
+      "A search help cannot be created without activating it: DDIF_SHLP_ACTIVATE runs inside the same bridge execution as DDIF_SHLP_PUT. Omit `activate`."
+    );
+  }
+  if (!input.shlp) {
+    bad(
+      `\`shlp\` is required to create a ${label} (${type}): its DD30V/DD32P/DD31V/DD33V definition. See SearchHelpParams in src/adt/shlp-create.ts.`
+    );
+  }
+  const shlp = input.shlp;
+  const description = input.description?.trim();
+  if (!description) {
+    bad(
+      `\`description\` is required to create a ${label} (${type}) \u2014 it is the object's short text (DD30V-DDTEXT), and the API has no default for it.`
+    );
+  }
+  const packageNameStr = target.packageName?.trim() || "$TMP";
+  const corrNr = normalizeCorrNr(input.corr_nr);
+  assertSearchHelpTarget(packageNameStr, corrNr);
+  const packageName = await resolveShlpPackage(conn, packageNameStr);
+  const local = isLocalPackageName(packageName.name);
+  const corrSource = local ? void 0 : "named";
+  let beforeCapture = "failed";
+  if (journal) {
+    const existing = await probeSearchHelp(conn, target.name);
+    if (existing !== void 0) {
+      throw new AbapError(
+        "CHECK_FAILED",
+        `${label} ${target.name} already exists. abap_write mode="write" creates a NEW ${label}; it does not overwrite one that is already there.`,
+        { object: target.name, type },
+        `Delete the existing ${label} first (abap_write mode="delete"), pick a different name, or use mode="update" to replace its definition in place.`
+      );
+    }
+    beforeCapture = "confirmed-absent";
+  }
+  const params = {
+    shlpName: target.name,
+    description,
+    packageName,
+    corrNr,
+    corrSource,
+    selectionMethod: shlp.selectionMethod,
+    selectionMethodType: shlp.selectionMethodType,
+    dialogType: shlp.dialogType,
+    textTable: shlp.textTable,
+    hotKey: shlp.hotKey,
+    elementary: shlp.elementary,
+    fields: shlp.fields,
+    includes: shlp.includes,
+    assignments: shlp.assignments
+  };
+  const { result: created, entryId, settle } = await withJournalledMutation(
+    journal,
+    {
+      begin: () => ({
+        operation: "create",
+        object: journalRef({
+          name: target.name,
+          type,
+          uri: `urn:abapsmith:shlp:${target.name}`,
+          packageName: packageName.name,
+          description
+        }),
+        existedBefore: false,
+        beforeCapture,
+        systemKey: systemKey(conn.cfg),
+        tool: "abap_write",
+        irreversible: true,
+        ...corrNr ? { corrNr } : {}
+      })
+    },
+    async (onBeforeImage) => {
+      await onBeforeImage(void 0);
+      return await createSearchHelp(conn, gate, params);
+    }
+  );
+  await settle({ outcome: "succeeded", activation: { attempted: false } });
+  const after = await probeSearchHelp(conn, target.name);
+  let verified;
+  let verifyNote;
+  if (after === void 0) {
+    verified = false;
+    verifyNote = "NOT independently confirmed present: a follow-up catalog read (src/adt/catalog-read.ts) did not find it. abapsmith still reports created:true here, trusting the classrun transcript (the markers above) \u2014 SHLP/DH has no VIT-bridge stub to read back through the way VIEW/DV and TRAN/T do, so this is a weaker confirmation than either of those types gets. Confirm by hand in SE11 before relying on it.";
+  } else {
+    verified = true;
+    verifyNote = "Read back and confirmed present via a catalog read (src/adt/catalog-read.ts) after create.";
+  }
+  return buildResponse({
+    header: {
+      system: conn.cfg.sid,
+      object: `${type} ${target.name}`,
+      package: packageName.name,
+      mode: "create-bridge",
+      created: true,
+      verified,
+      detail: `${shlp.elementary ? "elementary" : "collective"} search help`,
+      bridge_class: CLASSIC_BODY_CLASS,
+      markers: created.transcript.tags.join(" "),
+      journal: entryId ?? "off (not journalled \u2014 see notes)"
+    },
+    notes: [
+      `Created by running the classic fluid tool's body class ${CLASSIC_BODY_CLASS}, not over ADT REST: ${cap?.bridgeCreate?.via ?? "see src/adt/classic-call.ts"}`,
+      cap?.bridgeCreate?.limits ?? "",
+      verifyNote,
+      entryId !== void 0 ? `Journalled as ${entryId}, but marked irreversible: SHLP/DH has no VIT-bridge type for abap_journal mode=undo to resolve it through (src/adt/undo.ts's vitTypeFor only covers VIEW/DV and TRAN/T), so undo refuses this entry rather than crash. Reverse by hand with abap_write { mode: "delete", type: "SHLP/DH" }.` : 'Not journalled (no journal was open). Reverse by hand with abap_write { mode: "delete", type: "SHLP/DH" }.',
+      "abapsmith could only confirm the NAMED package is real (via DEVC/K, or trusted zero-network for a local $-prefixed name) \u2014 unlike VIEW/DV and TRAN/T, there is no VIT-bridge stub or TADIR column in the catalog read for SHLP/DH to confirm the object's OWN registered package after create; see resolveShlpPackage's doc comment."
+    ].filter((n) => n !== ""),
+    maxChars
+  });
+}
+async function abapDeleteSearchHelpViaBridge(conn, target, input, maxChars, gate, journal) {
+  const type = "SHLP/DH";
+  const cap = capabilitiesFor(type);
+  const label = cap?.label ?? type;
+  const bad = (message, hint) => {
+    throw new AbapError("BAD_INPUT", message, { object: target.name, type }, hint);
+  };
+  if (input.source !== void 0 || input.edit !== void 0 || input.method !== void 0 || input.include !== void 0) {
+    bad(
+      `A ${label} (${type}) delete has no source to touch: omit \`source\`, \`edit\`, \`method\` and \`include\`.`
+    );
+  }
+  if (input.format) bad(`A ${label} (${type}) has no source; \`format\` does not apply to a delete.`);
+  if (input.expect_etag !== void 0) {
+    bad(`\`expect_etag\` does not apply to a ${label} delete \u2014 the classrun bridge has no etag to compare.`);
+  }
+  if (input.description !== void 0) {
+    bad("`description` is a create/update field; a delete does not rename anything.");
+  }
+  if (input.activate !== void 0) bad("`activate` is a create-only field; a delete has nothing to activate.");
+  if (input.base_table !== void 0 || input.view_fields !== void 0) {
+    bad("`base_table` and `view_fields` are VIEW/DV create fields; a delete needs neither.");
+  }
+  if (input.program !== void 0) bad("`program` is a TRAN/T create field; a delete needs no program.");
+  if (input.shlp !== void 0) bad("`shlp` is a create/update field; a delete does not redefine anything.");
+  if (input.software_component !== void 0 || input.package_type !== void 0 || input.transport_layer !== void 0) {
+    bad("`software_component`, `package_type` and `transport_layer` are DEVC/K create fields only.");
+  }
+  if (normalizeCorrNr(input.corr_nr) !== void 0) {
+    bad(
+      `\`corr_nr\` cannot be honoured for a ${label} delete: the delete bridge takes no transport parameter (src/adt/shlp-delete.ts). None is needed either \u2014 the delete registers nothing in CTS, so it is judged as a local mutation and no transport allowlist blocks it.`,
+      "Retry without `corr_nr`."
+    );
+  }
+  const existing = await probeSearchHelpAnyState(conn, target.name);
+  if (existing === void 0) {
+    throw new AbapError(
+      "NOT_FOUND",
+      `${label} ${target.name} does not exist, so there is nothing to delete.`,
+      { object: target.name, type }
+    );
+  }
+  const inactiveOnly = existing.meta.versionState === "inactive";
+  const packageNameStr = target.packageName?.trim() || "$TMP";
+  const resolvedPackage = await resolveShlpPackage(conn, packageNameStr);
+  const { result: deleted, entryId, settle } = await withJournalledMutation(
+    journal,
+    {
+      begin: () => ({
+        operation: "delete",
+        object: journalRef({
+          name: target.name,
+          type,
+          uri: `urn:abapsmith:shlp:${target.name}`,
+          packageName: resolvedPackage.name
+        }),
+        existedBefore: true,
+        beforeCapture: "captured",
+        beforeSource: existing.ddl,
+        systemKey: systemKey(conn.cfg),
+        tool: "abap_write",
+        irreversible: true
+      })
+    },
+    async (onBeforeImage) => {
+      await onBeforeImage(void 0);
+      return await deleteSearchHelpViaBridge(conn, gate, {
+        shlpName: target.name,
+        packageName: resolvedPackage,
+        confirmInUse: input.confirm_in_use
+      });
+    }
+  );
+  await settle({ outcome: "succeeded", activation: { attempted: false } });
+  const after = await probeSearchHelpAnyState(conn, target.name);
+  if (after !== void 0) {
+    throw new AbapError(
+      "CHECK_FAILED",
+      `${CLASSIC_BODY_CLASS} reported success (the transcript carries ${deleted.transcript.tags.join(", ")}) but ${target.name} is STILL confirmed present via a catalog read (src/adt/catalog-read.ts) after delete. abapsmith will not report a delete as successful when it can prove the object is still there.` + (entryId !== void 0 ? ` This was already journalled as ${entryId}; whether there is anything left to act on is unresolved \u2014 the object may still exist.` : ""),
+      { object: target.name, type, markers: deleted.transcript.tags.join(" ") }
+    );
+  }
+  const verified = true;
+  const verifyNote = "Read back and confirmed absent via a catalog read (src/adt/catalog-read.ts) after delete.";
+  return buildResponse({
+    header: {
+      system: conn.cfg.sid,
+      object: `${type} ${target.name}`,
+      package: resolvedPackage.name,
+      mode: "delete-bridge",
+      deleted: true,
+      verified,
+      bridge_class: CLASSIC_BODY_CLASS,
+      markers: deleted.transcript.tags.join(" "),
+      journal: entryId ?? "off (not journalled \u2014 see notes)"
+    },
+    notes: [
+      `Deleted by running the classic fluid tool's body class ${CLASSIC_BODY_CLASS}, not over ADT REST \u2014 ${type} has no writable ADT collection at all (see this type's REGISTRY entry in src/adt/capabilities.ts).`,
+      inactiveOnly ? `${target.name} had no ACTIVE version \u2014 only an inactive one (DD30L-AS4LOCAL='N'), the state a create that PUT but failed to activate leaves behind. abapsmith deleted it anyway: the bridge's delete_search_help removes both DDIC states and the TADIR entry, whichever is (or isn't) active. The before-image captured for this journal entry (and quoted below) is that INACTIVE definition \u2014 there was never an active one to read instead.` : "",
+      verifyNote,
+      entryId !== void 0 ? `Journalled as ${entryId}, but marked irreversible: the stored before-image is rendered pseudo-DDL (src/adt/catalog-read.ts), not a DDIF_SHLP_PUT payload, so nothing can mechanically replay it back into existence, and SHLP/DH has no VIT-bridge type for abap_journal mode=undo to resolve it through either way (src/adt/undo.ts's vitTypeFor only covers VIEW/DV and TRAN/T). The entry is kept for audit and manual reconstruction only \u2014 THIS DELETE CANNOT BE UNDONE with abap_journal. To bring the search help back, recreate it by hand with abap_write { mode: "write", type: "SHLP/DH" }, using the pre-delete definition recorded in this journal entry${inactiveOnly ? " (which is the INACTIVE definition \u2014 there was no active one)" : ""}.` : 'Not journalled (no journal was open), so abapsmith kept no copy of the definition either \u2014 this deletion is IRREVERSIBLE from here. To bring the search help back, recreate it by hand with abap_write { mode: "write", type: "SHLP/DH" }.',
+      "abapsmith could only confirm the NAMED package is real, not that it is the search help's OWN current package \u2014 unlike VIEW/DV's and TRAN/T's delete, there is no VIT-bridge read here to gate on the server's own answer instead of the caller's. See resolveShlpPackage's doc comment in src/tools/write.ts.",
+      isLocalPackageName(resolvedPackage.name) ? "" : bridgeDeleteTransportEntryNote(label, target.name, resolvedPackage.name)
+    ].filter((n) => n !== ""),
+    maxChars
+  });
+}
+var BRIDGE_UPDATE_TYPES = ["VIEW/DV", "TRAN/T", "SHLP/DH"];
+function isBridgeUpdateType(type) {
+  return BRIDGE_UPDATE_TYPES.includes(type);
+}
+function bridgeUpdateNotSupported(type, objectName) {
+  return new AbapError(
+    "BAD_INPUT",
+    `${type || "This type"} has no update route: mode="update" is only wired for VIEW/DV, TRAN/T and SHLP/DH.`,
+    { object: objectName, type, mode: "update" },
+    'Use mode="write" to create, or (for most other types) an ordinary abap_write with `source`/`edit` to change an existing object\'s definition in place.'
+  );
+}
+async function abapUpdateViaBridge(conn, target, input, maxChars, gate, journal) {
+  const type = (input.type ?? "").trim().toUpperCase();
+  const cap = capabilitiesFor(type);
+  const label = cap?.label ?? type;
+  const bad = (message, hint) => {
+    throw new AbapError("BAD_INPUT", message, { object: target.name, type, mode: "update" }, hint);
+  };
+  if (!isBridgeUpdateType(type)) {
+    throw bridgeUpdateNotSupported(type, target.name);
+  }
+  if (input.source !== void 0 || input.edit !== void 0 || input.method !== void 0) {
+    bad(`A ${label} (${type}) has no source: omit \`source\`, \`edit\` and \`method\`.`);
+  }
+  if (input.format) bad(`A ${label} (${type}) has no source; \`format\` does not apply.`);
+  if (input.include !== void 0) bad(`\`include\` is a CLAS/OC field; a ${label} (${type}) has no class includes.`);
+  if (input.expect_etag !== void 0) {
+    bad(`\`expect_etag\` does not apply to a ${label} update \u2014 there is no ADT resource to hold one.`);
+  }
+  if (input.software_component !== void 0 || input.package_type !== void 0 || input.transport_layer !== void 0) {
+    bad("`software_component`, `package_type` and `transport_layer` are DEVC/K fields only.");
+  }
+  const requestedPackage = target.packageName?.trim();
+  const corrNr = normalizeCorrNr(input.corr_nr);
+  const description = input.description?.trim();
+  if (type === "VIEW/DV") {
+    if (input.program !== void 0) bad("`program` is a TRAN/T field; a view does not start a program.");
+    if (input.shlp !== void 0) bad("`shlp` is a SHLP/DH field; a view has no search-help definition.");
+    if (input.confirm_in_use !== void 0 || input.confirm_in_role_menu !== void 0) {
+      bad(`Neither confirm_in_use nor confirm_in_role_menu applies to ${type}; omit them.`);
+    }
+    if (input.activate === false) {
+      bad(
+        "A classic view update cannot skip activation: DDIF_VIEW_ACTIVATE runs inside the same bridge execution as DDIF_VIEW_PUT. Omit `activate`."
+      );
+    }
+    if (!input.base_table?.trim()) {
+      bad("`base_table` is required to update a classic view (VIEW/DV): the single table it projects.");
+    }
+    if (!input.view_fields || input.view_fields.length === 0) {
+      bad(
+        "`view_fields` is required to update a classic view (VIEW/DV) \u2014 an update replaces the whole field list, and DDIF_VIEW_PUT would not accept a view projecting no field at all."
+      );
+    }
+    if (!description) {
+      bad(
+        `\`description\` is required to update a ${label} (${type}) \u2014 DDIF_VIEW_PUT replaces the whole definition, including the text, every time.`
+      );
+    }
+    const baseTable = input.base_table;
+    const viewFields = input.view_fields;
+    const resolvedPackage2 = await resolveBridgeUpdateTarget(
+      conn,
+      "viewdv",
+      target.name,
+      type,
+      label,
+      requestedPackage
+    );
+    const before2 = await catalogProbe(() => readClassicView(conn, target.name));
+    if (before2 === void 0) {
+      throw new AbapError(
+        "NOT_FOUND",
+        `View ${target.name} does not exist, so there is nothing to update.`,
+        { object: target.name, type }
+      );
+    }
+    const local2 = isLocalPackageName(resolvedPackage2.name);
+    const corrSource2 = local2 ? void 0 : "named";
+    const { result: updated2, entryId: entryId2, settle: settle2 } = await withJournalledMutation(
+      journal,
+      {
+        begin: () => ({
+          operation: "update",
+          object: journalRef({
+            name: target.name,
+            type,
+            uri: vitBridgeUri("viewdv", target.name),
+            packageName: resolvedPackage2.name,
+            description
+          }),
+          existedBefore: true,
+          beforeCapture: "captured",
+          beforeSource: before2.ddl,
+          systemKey: systemKey(conn.cfg),
+          tool: "abap_write",
+          irreversible: true,
+          ...corrNr ? { corrNr } : {}
+        })
+      },
+      async (onBeforeImage) => {
+        await onBeforeImage(void 0);
+        return await updateClassicView(conn, gate, {
+          viewName: target.name,
+          baseTable,
+          fields: viewFields,
+          description,
+          packageName: resolvedPackage2.name,
+          corrNr,
+          corrSource: corrSource2
+        });
+      }
+    );
+    await settle2({ outcome: "succeeded", activation: { attempted: false } });
+    const after2 = await catalogProbe(() => readClassicView(conn, target.name));
+    const verified2 = after2 !== void 0;
+    const verifyNote2 = verified2 ? "Read back and confirmed present via a catalog read (src/adt/catalog-read.ts) after update." : "NOT independently confirmed present after update: a follow-up catalog read did not find it. abapsmith still reports this update as done, trusting the classrun transcript (the markers above) \u2014 but that is not the same confidence as a live read-back.";
+    return buildResponse({
+      header: {
+        system: conn.cfg.sid,
+        object: `${type} ${target.name}`,
+        package: resolvedPackage2.name,
+        mode: "update-bridge",
+        updated: true,
+        verified: verified2,
+        bridge_class: CLASSIC_BODY_CLASS,
+        markers: updated2.transcript.tags.join(" "),
+        journal: entryId2 ?? "off (not journalled \u2014 see notes)"
+      },
+      notes: [
+        `Updated by running the classic fluid tool's body class ${CLASSIC_BODY_CLASS}, not over ADT REST: ${cap?.bridgeCreate?.via ?? "see src/adt/classic-call.ts"}`,
+        cap?.bridgeCreate?.limits ?? "",
+        verifyNote2,
+        "DDIF_VIEW_PUT replaces the whole definition: any joined table or field not passed in this call was removed.",
+        entryId2 !== void 0 ? `Journalled as ${entryId2}, but marked irreversible: neither DDIF_VIEW_PUT nor any other primitive this bridge calls can put the OLD definition back, so there is nothing for abap_journal mode=undo to replay even with the before-image captured above. Reverse by hand with another mode="update" call carrying the old field list.` : "Not journalled (no journal was open)."
+      ].filter((n) => n !== ""),
+      maxChars
+    });
+  }
+  if (type === "TRAN/T") {
+    if (input.base_table !== void 0 || input.view_fields !== void 0) {
+      bad("`base_table` and `view_fields` are VIEW/DV fields; a transaction has no base table.");
+    }
+    if (input.shlp !== void 0) bad("`shlp` is a SHLP/DH field; a transaction has no search-help definition.");
+    if (input.activate === true) bad("A transaction has no activation step; omit `activate`.");
+    if (input.confirm_in_use !== void 0) bad("`confirm_in_use` does not apply to TRAN/T; omit it.");
+    if (!input.program || !input.program.trim()) {
+      bad(
+        "`program` is required to update a transaction (TRAN/T): the EXISTING report program it should start after the retarget."
+      );
+    }
+    if (!description) {
+      bad(
+        `\`description\` is required to update a ${label} (${type}) \u2014 RPY_TRANSACTION_INSERT replaces the whole definition, including the text, every time.`
+      );
+    }
+    const program = input.program.trim().toUpperCase();
+    const programTarget = await resolveWriteTarget(conn, { type: "PROG/P", name: program });
+    if (!programTarget.exists) {
+      throw new AbapError(
+        "NOT_FOUND",
+        `Program ${program} does not exist on ${conn.cfg.sid}, so a transaction cannot be retargeted to start it.`,
+        { object: target.name, type, program },
+        `Create the program first with abap_write (type="PROG/P"), or correct \`program\` if this was a typo.`
+      );
+    }
+    const resolvedPackage2 = await resolveBridgeUpdateTarget(
+      conn,
+      "trant",
+      target.name,
+      type,
+      label,
+      requestedPackage
+    );
+    const before2 = await catalogProbe(() => readTransaction(conn, target.name));
+    if (before2 === void 0) {
+      throw new AbapError(
+        "NOT_FOUND",
+        `Transaction ${target.name} does not exist, so there is nothing to retarget.`,
+        { object: target.name, type }
+      );
+    }
+    const { result: updated2, entryId: entryId2, settle: settle2 } = await withJournalledMutation(
+      journal,
+      {
+        begin: () => ({
+          operation: "update",
+          object: journalRef({
+            name: target.name,
+            type,
+            uri: vitBridgeUri("trant", target.name),
+            packageName: resolvedPackage2.name,
+            description
+          }),
+          existedBefore: true,
+          beforeCapture: "captured",
+          beforeSource: before2.ddl,
+          systemKey: systemKey(conn.cfg),
+          tool: "abap_write",
+          irreversible: true,
+          ...corrNr ? { corrNr } : {}
+        })
+      },
+      async (onBeforeImage) => {
+        await onBeforeImage(void 0);
+        return await updateTransaction(conn, gate, {
+          tcode: target.name,
+          program,
+          description,
+          packageName: resolvedPackage2,
+          corrNr,
+          corrSource: corrNr !== void 0 ? "named" : void 0,
+          confirmInRoleMenu: input.confirm_in_role_menu
+        });
+      }
+    );
+    await settle2({ outcome: "succeeded", activation: { attempted: false } });
+    const after2 = await catalogProbe(() => readTransaction(conn, target.name));
+    const verified2 = after2 !== void 0 && after2.meta.program === program;
+    const verifyNote2 = verified2 ? "Read back and confirmed present, retargeted to the new program, via a catalog read (src/adt/catalog-read.ts) after update." : "NOT independently confirmed retargeted: a follow-up catalog read either did not find the transaction or still showed the old program. abapsmith still reports this update as done, trusting the classrun transcript (the markers above) \u2014 but that is not the same confidence as a live read-back.";
+    return buildResponse({
+      header: {
+        system: conn.cfg.sid,
+        object: `${type} ${target.name}`,
+        package: resolvedPackage2.name,
+        mode: "update-bridge",
+        updated: true,
+        verified: verified2,
+        bridge_class: CLASSIC_BODY_CLASS,
+        markers: updated2.transcript.tags.join(" "),
+        journal: entryId2 ?? "off (not journalled \u2014 see notes)"
+      },
+      notes: [
+        `Updated by running the classic fluid tool's body class ${CLASSIC_BODY_CLASS}, not over ADT REST: ${cap?.bridgeCreate?.via ?? "see src/adt/classic-call.ts"}`,
+        cap?.bridgeCreate?.limits ?? "",
+        verifyNote2,
+        entryId2 !== void 0 ? `Journalled as ${entryId2}, but marked irreversible: RPY_TRANSACTION_DELETE has no companion that restores a deleted transaction's prior TSTC row, so there is nothing for abap_journal mode=undo to replay even with the before-image captured above. Reverse by hand with another mode="update" call carrying the old program.` : "Not journalled (no journal was open)."
+      ].filter((n) => n !== ""),
+      maxChars
+    });
+  }
+  if (input.base_table !== void 0 || input.view_fields !== void 0) {
+    bad("`base_table` and `view_fields` are VIEW/DV fields; a search help has neither.");
+  }
+  if (input.program !== void 0) bad("`program` is a TRAN/T field; a search help does not start a program.");
+  if (input.confirm_in_role_menu !== void 0) bad("`confirm_in_role_menu` does not apply to SHLP/DH; omit it.");
+  if (input.activate === false) {
+    bad(
+      "A search help update cannot skip activation: DDIF_SHLP_ACTIVATE runs inside the same bridge execution as DDIF_SHLP_PUT. Omit `activate`."
+    );
+  }
+  if (!input.shlp) {
+    bad(
+      `\`shlp\` is required to update a ${label} (${type}): its full DD30V/DD32P/DD31V/DD33V definition \u2014 update_search_help REPLACES the whole thing, so every field, include and assignment to keep must be passed again.`
+    );
+  }
+  const shlp = input.shlp;
+  if (!description) {
+    bad(
+      `\`description\` is required to update a ${label} (${type}) \u2014 DDIF_SHLP_PUT replaces the whole definition, including the text, every time.`
+    );
+  }
+  const packageNameStr = requestedPackage || "$TMP";
+  const resolvedPackage = await resolveShlpPackage(conn, packageNameStr);
+  const before = await probeSearchHelp(conn, target.name);
+  if (before === void 0) {
+    throw new AbapError(
+      "NOT_FOUND",
+      `Search help ${target.name} does not exist, so there is nothing to update.`,
+      { object: target.name, type }
+    );
+  }
+  const local = isLocalPackageName(resolvedPackage.name);
+  const corrSource = local ? void 0 : "named";
+  const params = {
+    shlpName: target.name,
+    description,
+    packageName: resolvedPackage,
+    corrNr,
+    corrSource,
+    selectionMethod: shlp.selectionMethod,
+    selectionMethodType: shlp.selectionMethodType,
+    dialogType: shlp.dialogType,
+    textTable: shlp.textTable,
+    hotKey: shlp.hotKey,
+    elementary: shlp.elementary,
+    fields: shlp.fields,
+    includes: shlp.includes,
+    assignments: shlp.assignments
+  };
+  const { result: updated, entryId, settle } = await withJournalledMutation(
+    journal,
+    {
+      begin: () => ({
+        operation: "update",
+        object: journalRef({
+          name: target.name,
+          type,
+          uri: `urn:abapsmith:shlp:${target.name}`,
+          packageName: resolvedPackage.name,
+          description
+        }),
+        existedBefore: true,
+        beforeCapture: "captured",
+        beforeSource: before.ddl,
+        systemKey: systemKey(conn.cfg),
+        tool: "abap_write",
+        irreversible: true,
+        ...corrNr ? { corrNr } : {}
+      })
+    },
+    async (onBeforeImage) => {
+      await onBeforeImage(void 0);
+      return await updateSearchHelp(conn, gate, params);
+    }
+  );
+  await settle({ outcome: "succeeded", activation: { attempted: false } });
+  const after = await probeSearchHelp(conn, target.name);
+  const verified = after !== void 0;
+  const verifyNote = verified ? "Read back and confirmed present via a catalog read (src/adt/catalog-read.ts) after update." : "NOT independently confirmed present after update: a follow-up catalog read did not find it. abapsmith still reports this update as done, trusting the classrun transcript (the markers above) \u2014 SHLP/DH has no VIT-bridge stub to read back through the way VIEW/DV and TRAN/T do.";
+  return buildResponse({
+    header: {
+      system: conn.cfg.sid,
+      object: `${type} ${target.name}`,
+      package: resolvedPackage.name,
+      mode: "update-bridge",
+      updated: true,
+      verified,
+      bridge_class: CLASSIC_BODY_CLASS,
+      markers: updated.transcript.tags.join(" "),
+      journal: entryId ?? "off (not journalled \u2014 see notes)"
+    },
+    notes: [
+      `Updated by running the classic fluid tool's body class ${CLASSIC_BODY_CLASS}, not over ADT REST: ${cap?.bridgeCreate?.via ?? "see src/adt/classic-call.ts"}`,
+      cap?.bridgeCreate?.limits ?? "",
+      verifyNote,
+      "DDIF_SHLP_PUT replaces the whole definition: any field, include or assignment not passed in this call was removed.",
+      "abapsmith could only confirm the NAMED package is real, not that it is the search help's OWN current package \u2014 see resolveShlpPackage's doc comment.",
+      entryId !== void 0 ? `Journalled as ${entryId}, but marked irreversible: DDIF_SHLP_PUT has no companion that restores a search help's prior definition, and SHLP/DH has no VIT-bridge type for abap_journal mode=undo to resolve it through either way. Reverse by hand with another mode="update" call carrying the old definition.` : "Not journalled (no journal was open)."
     ].filter((n) => n !== ""),
     maxChars
   });
@@ -113902,14 +117067,14 @@ function parseBreakpoints(specs) {
     if (!/^\d+$/.test(lineText)) {
       badEntry(index, raw, `expected an integer line number after the last ':', got "${lineText}".`);
     }
-    const line = Number(lineText);
-    if (line < 1 || line > MAX_LINE) {
+    const line2 = Number(lineText);
+    if (line2 < 1 || line2 > MAX_LINE) {
       badEntry(index, raw, `line out of range (1..${MAX_LINE}).`);
     }
     breakpoints.push({
       kind: "line",
       object: object3,
-      line,
+      line: line2,
       ...condition !== void 0 ? { condition } : {},
       ...skipCount !== void 0 ? { skipCount } : {}
     });
@@ -115745,7 +118910,911 @@ function registerOpenUrlTools(mcp, deps) {
 
 // src/tools/read.ts
 init_zod();
-init_ddic();
+
+// src/adt/ddic.ts
+init_fxp();
+init_errors();
+init_session();
+init_compact();
+init_ddic_strategy();
+init_ddic_strategy();
+var xml2 = new XMLParser({
+  ignoreAttributes: false,
+  attributeNamePrefix: "@_",
+  removeNSPrefix: true,
+  parseAttributeValue: false,
+  parseTagValue: false,
+  trimValues: true
+});
+function parseDdl(source) {
+  const text4 = source.replace(/\r\n/g, "\n");
+  const annotations = text4.split("\n").filter((l) => /^\s*@/.test(l) && !/^\s*@AbapCatalog\.foreignKey/.test(l)).map((l) => l.trim());
+  const entity = /define\s+(?:table|structure|abstract\s+entity|view\s+entity)\s+([\w/]+)/i.exec(
+    text4
+  )?.[1];
+  const fields = [];
+  const includes = [];
+  const open = text4.indexOf("{");
+  const close = text4.lastIndexOf("}");
+  const body = open >= 0 && close > open ? text4.slice(open + 1, close) : text4;
+  for (const rawStmt of body.split(";")) {
+    const stmt = rawStmt.replace(/^\s*@[^\n]*$/gm, "").trim();
+    if (!stmt) continue;
+    const inc = /^include\s+([\w/]+)/i.exec(stmt);
+    if (inc) {
+      includes.push(inc[1].toUpperCase());
+      continue;
+    }
+    const m = /^(key\s+)?([\w/]+)\s*:\s*([\s\S]+)$/i.exec(stmt);
+    if (!m) continue;
+    const rest = m[3].trim();
+    const namedInclude = /^include\s+([\w/]+)/i.exec(rest);
+    const fkMatch = /with\s+foreign\s+key\s+(?:\[[^\]]*\]\s*)?([\w/]+)/i.exec(rest);
+    const typePart = rest.split(/\bwith\s+foreign\s+key\b/i)[0].replace(/\bnot\s+null\b/i, "").trim();
+    fields.push({
+      name: m[2].toUpperCase(),
+      type: namedInclude ? `INCLUDE ${namedInclude[1].toUpperCase()}` : typePart,
+      key: Boolean(m[1]),
+      notNull: /\bnot\s+null\b/i.test(rest),
+      foreignKey: fkMatch?.[1]?.toUpperCase()
+    });
+  }
+  return { entity, annotations, fields, includes };
+}
+function renderDdlDigest(parsed) {
+  const keys = parsed.fields.filter((f) => f.key);
+  const fks = parsed.fields.filter((f) => f.foreignKey);
+  const sections = [];
+  if (parsed.fields.length) {
+    sections.push({
+      title: "FIELD DIGEST",
+      content: textTable(
+        parsed.fields.map((f) => ({
+          key: f.key ? "KEY" : "",
+          field: f.name,
+          type: f.type,
+          "foreign key": f.foreignKey ?? ""
+        })),
+        ["key", "field", "type", "foreign key"]
+      )
+    });
+  }
+  if (parsed.includes.length) {
+    sections.push({ title: "INCLUDES", content: parsed.includes.join("\n") });
+  }
+  return {
+    sections,
+    meta: {
+      fields: parsed.fields.length || void 0,
+      keyFields: keys.length ? keys.map((k) => k.name).join(", ") : void 0,
+      foreignKeys: fks.length ? fks.map((f) => `${f.name}\u2192${f.foreignKey}`).join(", ") : void 0
+    }
+  };
+}
+function renderTableXmlFallback(body, name, why) {
+  const doc = xml2.parse(body);
+  const fields = [];
+  const visit = (key, node2) => {
+    if (!node2 || typeof node2 !== "object") return;
+    if (Array.isArray(node2)) {
+      for (const item of node2) visit(key, item);
+      return;
+    }
+    const attrs = node2;
+    const fname = attrs["@_name"] ?? attrs["@_fieldName"];
+    if (/^(column|field|element|component)$/i.test(key) && typeof fname === "string") {
+      fields.push({
+        key: String(attrs["@_isKey"] ?? attrs["@_keyFlag"] ?? "").toLowerCase() === "true" ? "KEY" : "",
+        field: String(fname).toUpperCase(),
+        type: String(
+          attrs["@_dataElement"] ?? attrs["@_type"] ?? attrs["@_dataType"] ?? ""
+        ).toUpperCase(),
+        length: String(attrs["@_length"] ?? "")
+      });
+    }
+    for (const [childKey, value] of Object.entries(attrs)) {
+      if (childKey.startsWith("@_")) continue;
+      visit(childKey, value);
+    }
+  };
+  visit("", doc);
+  const ddl = fields.length ? `define table ${name.toLowerCase()} {
+` + fields.map((f) => `  ${f.key ? "key " : ""}${f.field.toLowerCase()} : ${f.type || "?"};`).join("\n") + `
+}` : `-- ${name}: no field information could be extracted from the ADT XML on this release.`;
+  return {
+    ddl,
+    sections: fields.length ? [{ title: "FIELD DIGEST", content: textTable(fields, ["key", "field", "type", "length"]) }] : [],
+    meta: { fields: fields.length || void 0 },
+    notes: [
+      // Caller passes the reason it actually observed, not a release-wide guess.
+      `${why ?? `${name}: rendered from ADT XML`}. The DDL above is reconstructed and may omit foreign keys, technical settings and appends.`
+    ],
+    hashInput: body
+  };
+}
+function renderTableType(body, name) {
+  const doc = xml2.parse(body);
+  const tt = doc.tableType ?? {};
+  const row2 = tt.rowType ?? {};
+  const typeKind = xmlText(row2.typeKind) ?? "";
+  const typeName = xmlText(row2.typeName) ?? "";
+  const builtIn = row2.builtInType ?? {};
+  const builtInType = xmlText(builtIn.dataType) ?? "";
+  const builtInLen = xmlNum(builtIn.length) ?? 0;
+  const access2 = xmlText(tt.accessType) || "standard";
+  const pk = tt.primaryKey ?? {};
+  const pkKind = xmlText(pk.kind) ?? "";
+  const pkDef = xmlText(pk.definition) ?? "";
+  const comps = pk.components?.component;
+  const compNames = (Array.isArray(comps) ? comps : comps ? [comps] : []).map((c) => String(c["@_name"] ?? "")).filter(Boolean);
+  const rowTypeText = typeKind === "predefinedAbapType" ? `abap.${builtInType.toLowerCase()}(${builtInLen})` : typeName || builtInType || "?";
+  const keyText = pkDef === "keyComponents" && compNames.length ? `${pkKind} key (${compNames.join(", ")})` : pkDef === "standard" ? `${pkKind || "non-unique"} default key` : pkDef || "not specified";
+  const ddl = [
+    `define table type ${name.toLowerCase()} {`,
+    `  row type   : ${rowTypeText};`,
+    `  table kind : ${access2};`,
+    `  key        : ${keyText};`,
+    `}`
+  ].join("\n");
+  return {
+    ddl,
+    sections: [],
+    meta: {
+      description: String(tt["@_description"] ?? "") || void 0,
+      rowType: rowTypeText,
+      accessType: access2
+    },
+    notes: [],
+    // Hash the raw resource bytes, not a derived rendering — see resourceEtag in src/tools/read.ts.
+    hashInput: body
+  };
+}
+function renderDataElement(view, domain2, domainFailure) {
+  const isDomainTyped = Boolean(view.typeName);
+  const typeLine = isDomainTyped ? `  domain     : ${view.typeName};` : `  type       : abap.${view.dataType.toLowerCase()}(${view.length}${view.decimals ? `,${view.decimals}` : ""});`;
+  const ddl = [
+    `define data element ${view.name.toLowerCase()} {`,
+    typeLine,
+    `  built-in   : ${view.dataType} length ${view.length}${view.decimals ? ` decimals ${view.decimals}` : ""};`,
+    ...domain2?.valueTable ? [`  value table: ${domain2.valueTable};`] : [],
+    ...view.searchHelp ? [
+      `  search help: ${view.searchHelp}${view.searchHelpParameter ? ` (${view.searchHelpParameter})` : ""};`
+    ] : [],
+    `}`
+  ].join("\n");
+  const sections = [];
+  const labels = Object.entries(view.labels).filter(([, v]) => v);
+  if (labels.length) {
+    sections.push({
+      title: "FIELD LABELS",
+      content: labels.map(([k, v]) => {
+        const n = view.labelLengths?.[k];
+        return n === void 0 ? `${k.padEnd(8)} ${v}` : `${k.padEnd(8)} ${v} (length ${n})`;
+      }).join("\n")
+    });
+  }
+  if (domain2?.fixedValues?.length) {
+    sections.push({
+      title: `FIXED VALUES (domain ${domain2.name})`,
+      content: renderFixedValues(domain2.fixedValues)
+    });
+  }
+  const notes = [];
+  if (isDomainTyped && !domain2) {
+    notes.push(
+      `Domain ${view.typeName} could NOT be read${domainFailure ? `: ${domainFailure}` : ""}. Its value table and fixed values are UNKNOWN here \u2014 this is a failed lookup, NOT evidence that the domain constrains nothing.`
+    );
+  }
+  if (domain2 && !domain2.valueTable && !domain2.fixedValues?.length) {
+    notes.push(`Domain ${domain2.name} has no value table and no fixed values.`);
+  }
+  if (domain2?.fixedValues?.length) {
+    const charNote = characterLiteralNote(domain2);
+    if (charNote) notes.push(charNote);
+  }
+  if (!isDomainTyped) {
+    notes.push("Data element is typed directly (predefined type), not via a domain.");
+  }
+  return { ddl, sections, meta: { description: view.description, package: view.packageName }, notes, hashInput: ddl };
+}
+function renderFixedValues(values) {
+  return textTable(
+    values.map((v) => ({
+      value: v.low === "" || v.low === void 0 || v.low === null ? "''" : String(v.low),
+      to: v.high === void 0 || v.high === null ? "" : String(v.high),
+      text: v.text === void 0 || v.text === null ? "" : String(v.text)
+    })),
+    ["value", "to", "text"]
+  );
+}
+var CHARACTER_DDIC_TYPES = /* @__PURE__ */ new Set(["CHAR", "NUMC", "CUKY", "UNIT", "LANG", "CLNT", "ACCP"]);
+function characterLiteralNote(view) {
+  if (!CHARACTER_DDIC_TYPES.has(view.dataType.toUpperCase())) return void 0;
+  const prefix = `${view.dataType.toUpperCase()}(${view.length})`;
+  const padded = view.fixedValues?.find((v) => v.low && /^0\d/.test(v.low));
+  if (padded) {
+    const stripped = padded.low.replace(/^0+(?=.)/, "");
+    return `Fixed values on this ${prefix} domain are character literals, not numbers: '${padded.low}' is ${padded.low.length} characters and compares equal only to '${padded.low}' \u2014 IF x = ${stripped} and IF x = '${stripped}' both silently never match. The table above shows the stored characters exactly as the system returned them.`;
+  }
+  const digitLeading = view.fixedValues?.find((v) => v.low && /^\d/.test(v.low));
+  if (digitLeading) {
+    return `Fixed values on this ${prefix} domain are character literals, not numbers: '${digitLeading.low}' must be compared quoted \u2014 IF x = '${digitLeading.low}', not IF x = ${digitLeading.low}. The table above shows the stored characters exactly as the system returned them.`;
+  }
+  return void 0;
+}
+function renderDomain(view) {
+  const ddl = [
+    `define domain ${view.name.toLowerCase()} {`,
+    `  type        : ${view.dataType} length ${view.length}${view.decimals ? ` decimals ${view.decimals}` : ""};`,
+    ...view.outputLength !== void 0 ? [`  output len  : ${view.outputLength};`] : [],
+    ...view.conversionExit ? [`  conv exit   : ${view.conversionExit};`] : [],
+    ...view.lowercase ? [`  lowercase   : true;`] : [],
+    ...view.signExists ? [`  sign        : true;`] : [],
+    ...view.valueTable ? [`  value table : ${view.valueTable};`] : [],
+    ...view.fixedValues?.length ? [`  fixed values: ${view.fixedValues.length};`] : [],
+    `}`
+  ].join("\n");
+  const sections = [];
+  if (view.fixedValues?.length) {
+    sections.push({ title: "FIXED VALUES", content: renderFixedValues(view.fixedValues) });
+  }
+  const notes = [];
+  if (!view.valueTable && !view.fixedValues?.length) {
+    notes.push("No value table and no fixed values \u2014 this domain constrains type only.");
+  }
+  if (view.fixedValues?.length) {
+    const charNote = characterLiteralNote(view);
+    if (charNote) notes.push(charNote);
+    const withoutText = view.fixedValues.filter((v) => !v.text);
+    if (withoutText.length === view.fixedValues.length) {
+      notes.push(
+        `All ${view.fixedValues.length} fixed value(s) have no text. If descriptions were sent for them, this domain was likely written before adtcore:masterLanguage was present on the payload's root element, independent of whether <doma:text> carries its own language attribute. Re-write this domain with adtcore:masterLanguage="EN" on the root to repair it in place, then re-read to confirm.`
+      );
+    } else if (withoutText.length > 0) {
+      const sample = withoutText.slice(0, 5).map((v) => v.low === "" ? "''" : v.low).join(", ");
+      notes.push(
+        `${withoutText.length} of ${view.fixedValues.length} fixed value(s) have no text` + (sample ? ` (${sample}${withoutText.length > 5 ? ", \u2026" : ""})` : "") + `. If descriptions were intended for these, this domain was likely written before adtcore:masterLanguage was present on the payload's root element. Re-write it with adtcore:masterLanguage="EN" on the root to repair it in place, then re-read to confirm.`
+      );
+    }
+    const withTextNoLang = view.fixedValues.filter((v) => v.text && !v.textLanguage);
+    if (withTextNoLang.length > 0) {
+      notes.push(
+        `${withTextNoLang.length} fixed value(s) have text with no language attribute observed on the <doma:text> element that produced it. This is not itself a sign of trouble \u2014 real SAP-delivered domains (e.g. XFELD, BOOLE) return their genuine text this exact way, with no language attribute at all \u2014 but it does mean this text's provenance is not distinguishable, from a read alone, from an object written before this module's parsing fix. Informational only.`
+      );
+    }
+  }
+  return {
+    ddl,
+    sections,
+    meta: { description: view.description, package: view.packageName },
+    notes,
+    hashInput: ddl
+  };
+}
+function classifyDdicFailure(e, ctx) {
+  const err = translateAdtError(e, ctx);
+  if (err.code !== "ADT_ERROR") return err;
+  const status = typeof err.details.status === "number" ? err.details.status : void 0;
+  if (status === 401 || status === 403) {
+    return new AbapError(
+      "AUTH_FAILED",
+      status === 401 ? `Authentication failed (HTTP 401) while reading ${ctx.type ?? "object"} ${ctx.name ?? ctx.uri}.` : `Not authorised (HTTP 403) to read ${ctx.type ?? "object"} ${ctx.name ?? ctx.uri}. The logon succeeded; the user lacks the authorisation for this object.`,
+      { ...err.details, status },
+      status === 401 ? "Fix ABAP_USER / ABAP_PASSWORD. This is not a naming problem and the object was never inspected." : "The user is authenticated but not authorised (typically S_DEVELOP / table display). This is NOT evidence that the object is empty or has no source \u2014 nothing about its content was returned."
+    );
+  }
+  return err;
+}
+async function fetchDdicXml(conn, target, operation, accept = "application/*") {
+  try {
+    const { body } = await conn.get(target.uri, { headers: { Accept: accept } });
+    return body;
+  } catch (e) {
+    throw classifyDdicFailure(e, { operation, uri: target.uri, name: target.name, type: target.type });
+  }
+}
+function xmlAttr(node2, attr11) {
+  if (node2 && typeof node2 === "object" && !Array.isArray(node2)) {
+    const v = node2[`@_${attr11}`];
+    return typeof v === "string" && v !== "" ? v : void 0;
+  }
+  return void 0;
+}
+function xmlText(node2) {
+  if (node2 === void 0 || node2 === null) return void 0;
+  if (typeof node2 === "object" && !Array.isArray(node2)) {
+    const t = node2["#text"];
+    return t === void 0 || t === null ? void 0 : String(t);
+  }
+  return String(node2);
+}
+function xmlBool(node2) {
+  const t = xmlText(node2)?.trim().toLowerCase();
+  return t === "true" || t === "x";
+}
+function xmlNum(node2) {
+  const t = xmlText(node2);
+  if (t === void 0 || t === "") return void 0;
+  const n = Number(t);
+  return Number.isFinite(n) ? n : void 0;
+}
+function parseDomainXml(body, fallbackName) {
+  const doc = xml2.parse(body);
+  const root = doc.domain ?? {};
+  const content = root.content ?? {};
+  const ti = content.typeInformation ?? {};
+  const oi = content.outputInformation ?? {};
+  const vi = content.valueInformation;
+  const fixRaw = vi?.fixValues?.fixValue;
+  const fixList = Array.isArray(fixRaw) ? fixRaw : fixRaw ? [fixRaw] : [];
+  const fixedValues = fixList.map((f) => {
+    const low = xmlText(f?.low) ?? "";
+    const high = xmlText(f?.high);
+    const text4 = xmlText(f?.text);
+    return {
+      low,
+      high: high === "" ? void 0 : high,
+      text: text4 === "" ? void 0 : text4,
+      textLanguage: xmlAttr(f?.text, "language")
+    };
+  });
+  return {
+    name: String(root["@_name"] ?? fallbackName),
+    description: root["@_description"] ? String(root["@_description"]) : void 0,
+    dataType: xmlText(ti.datatype) ?? "",
+    length: xmlNum(ti.length) ?? 0,
+    decimals: xmlNum(ti.decimals) || void 0,
+    outputLength: xmlNum(oi.length),
+    conversionExit: xmlText(oi.conversionExit) || void 0,
+    lowercase: xmlBool(oi.lowercase),
+    signExists: xmlBool(oi.signExists),
+    valueTable: xmlAttr(vi?.valueTableRef, "name"),
+    fixedValues: fixedValues.length ? fixedValues : void 0,
+    packageName: xmlAttr(root.packageRef, "name")
+  };
+}
+function parseDataElementXml(body, fallbackName) {
+  const doc = xml2.parse(body);
+  const root = doc.wbobj ?? doc.dataElement ?? {};
+  const de = root.dataElement ?? {};
+  return {
+    name: String(root["@_name"] ?? fallbackName),
+    description: root["@_description"] ? String(root["@_description"]) : void 0,
+    packageName: xmlAttr(root.packageRef, "name"),
+    typeName: xmlText(de.typeName) ?? "",
+    dataType: xmlText(de.dataType) ?? "",
+    dataTypeLength: xmlNum(de.dataTypeLength) ?? 0,
+    dataTypeDecimals: xmlNum(de.dataTypeDecimals) ?? 0,
+    labels: {
+      short: xmlText(de.shortFieldLabel) ?? "",
+      medium: xmlText(de.mediumFieldLabel) ?? "",
+      long: xmlText(de.longFieldLabel) ?? "",
+      heading: xmlText(de.headingFieldLabel) ?? ""
+    },
+    // A missing *FieldLength stays missing, never 0 — a rendered "length 0"
+    // would claim a value the descriptor never sent.
+    labelLengths: Object.fromEntries(
+      [
+        ["short", xmlNum(de.shortFieldLength)],
+        ["medium", xmlNum(de.mediumFieldLength)],
+        ["long", xmlNum(de.longFieldLength)],
+        ["heading", xmlNum(de.headingFieldLength)]
+      ].filter((e) => e[1] !== void 0)
+    ),
+    searchHelp: xmlText(de.searchHelp) || void 0,
+    searchHelpParameter: xmlText(de.searchHelpParameter) || void 0
+  };
+}
+async function readDdic(conn, obj, opts = {}) {
+  switch (ddicStrategy(obj.kind)) {
+    case "source":
+      return readTableLike(conn, obj);
+    case "package":
+      return readPackage(conn, obj, opts);
+    case "xml":
+      switch (obj.kind.toUpperCase()) {
+        case "DTEL":
+          return readDataElement(conn, obj);
+        case "DOMA":
+          return readDomain(conn, obj);
+        default:
+          return readTableType(conn, obj);
+      }
+    case "catalog":
+      return readCatalogObject(conn, obj);
+    default:
+      throw new AbapError(
+        "UNSUPPORTED",
+        `${obj.type} is not a DDIC type abap_read can render.`,
+        {
+          type: obj.type,
+          renderable: [...DDIC_SOURCE_BASED, ...DDIC_XML_ONLY, ...DDIC_CATALOG_BASED, "DEVC"]
+        }
+      );
+  }
+}
+async function readTableLike(conn, obj) {
+  const ctx = {
+    operation: "read DDIC object",
+    uri: obj.uri,
+    name: obj.name,
+    type: obj.type
+  };
+  let sourceFailure;
+  try {
+    const { body } = await conn.get(`${obj.uri}/source/main`, {
+      headers: { Accept: "text/plain" }
+    });
+    const parsed = parseDdl(body);
+    const digest = renderDdlDigest(parsed);
+    const sections = [...digest.sections];
+    const meta3 = { ...digest.meta };
+    const notes = [];
+    if (obj.kind === "TABL") {
+      try {
+        const { indexes, notes: indexNotes } = await readTableIndexes(conn, obj.name);
+        sections.push(renderIndexSection(indexes));
+        notes.push(...indexNotes);
+        meta3.indexes = indexes.length;
+      } catch (e) {
+        const reason = e instanceof Error ? e.message : String(e);
+        notes.push(
+          `Secondary index catalog (DD12V/DD17S) could not be read for ${obj.name} (${reason}). This is NOT evidence the table has no secondary index \u2014 it means the index section is simply missing from this response, not that "none" was confirmed.`
+        );
+      }
+    }
+    return {
+      ddl: body.replace(/\r\n/g, "\n").trimEnd(),
+      sections,
+      meta: meta3,
+      notes,
+      hashInput: body
+    };
+  } catch (e) {
+    if (!isNotFoundError(e)) throw classifyDdicFailure(e, ctx);
+    sourceFailure = `${obj.type} ${obj.name} has no /source/main on this system (HTTP 404); the definition below was reconstructed from the ADT XML`;
+  }
+  try {
+    const { body } = await conn.get(obj.uri, { headers: { Accept: "application/*" } });
+    return renderTableXmlFallback(body, obj.name, sourceFailure);
+  } catch (e) {
+    throw classifyDdicFailure(e, ctx);
+  }
+}
+var MAX_PACKAGE_DEPTH = 3;
+var MAX_PACKAGE_EXPANSIONS = 25;
+var PACKAGE_DESCRIPTION_PREFIX_LOOKUP_CAP = 2e3;
+var PACKAGE_DESCRIPTION_GROUP_CAP = 30;
+var PACKAGE_DESCRIPTION_FALLBACK_LOOKUP_CAP = 6e3;
+function parsePackageHeaderXml(body) {
+  const doc = xml2.parse(body);
+  const root = doc.package ?? {};
+  const attrs = root.attributes ?? {};
+  const appComp = root.applicationComponent ?? {};
+  const transport = root.transport ?? {};
+  return {
+    description: xmlAttr(root, "description"),
+    responsible: xmlAttr(root, "responsible"),
+    masterLanguage: xmlAttr(root, "masterLanguage"),
+    changedAt: xmlAttr(root, "changedAt"),
+    packageType: xmlAttr(attrs, "packageType"),
+    // <pak:superPackage/> on a customer package (857) is present but carries
+    // NO attributes at all — fast-xml-parser renders an attribute-free
+    // self-closing element as "" (a string), and xmlAttr's typeof-object
+    // guard already returns undefined for a non-object node. That IS "no
+    // super package", not a parse failure — do not special-case it further.
+    superPackage: xmlAttr(root.superPackage, "name"),
+    // Name is legitimately "" when no application component is assigned
+    // (857: pak:name="" pak:description="No application component
+    // assigned"). Falling back to the description avoids rendering a blank
+    // field that looks like a missed parse.
+    applicationComponent: xmlAttr(appComp, "name") || xmlAttr(appComp, "description"),
+    softwareComponent: xmlAttr(transport.softwareComponent, "name"),
+    transportLayer: xmlAttr(transport.transportLayer, "name")
+  };
+}
+async function fetchPackageHeader(conn, ctx) {
+  let body;
+  try {
+    ({ body } = await conn.get(ctx.uri, { headers: { Accept: "*/*" } }));
+  } catch (e) {
+    const err = classifyDdicFailure(e, ctx);
+    return { failure: `${err.code} \u2014 ${err.message}` };
+  }
+  try {
+    return { header: parsePackageHeaderXml(body) };
+  } catch (e) {
+    return {
+      failure: `header response did not parse as expected (${e instanceof Error ? e.message : String(e)})`
+    };
+  }
+}
+async function fetchPackageNodes(conn, packageName, ctx) {
+  try {
+    const result = await conn.adt.nodeContents("DEVC/K", packageName);
+    return result?.nodes ?? [];
+  } catch (e) {
+    const classified = classifyDdicFailure(e, ctx);
+    if (typeof classified.details.status === "number") throw classified;
+    return [];
+  }
+}
+async function fetchPackageDescriptionsForOne(conn, packageName, query, maxResults) {
+  let body;
+  try {
+    ({ body } = await conn.get("/sap/bc/adt/repository/informationsystem/search", {
+      headers: { Accept: "application/xml" },
+      qs: {
+        operation: "quickSearch",
+        query,
+        packageName,
+        maxResults: String(maxResults)
+      }
+    }));
+  } catch (e) {
+    const ctx = {
+      operation: "read package",
+      uri: "/sap/bc/adt/repository/informationsystem/search",
+      name: packageName,
+      type: "DEVC/K"
+    };
+    const err = classifyDdicFailure(e, ctx);
+    return { entries: [], failure: `${err.code} \u2014 ${err.message}`, hitCap: false };
+  }
+  try {
+    const doc = xml2.parse(body);
+    const root = doc.objectReferences ?? {};
+    const raw = root.objectReference;
+    const list5 = Array.isArray(raw) ? raw : raw ? [raw] : [];
+    const entries = list5.map((n) => ({
+      type: xmlAttr(n, "type") ?? "",
+      name: xmlAttr(n, "name") ?? "",
+      description: xmlAttr(n, "description") ?? ""
+    })).filter((e) => e.type && e.name);
+    return { entries, hitCap: entries.length >= maxResults };
+  } catch (e) {
+    return {
+      entries: [],
+      failure: `search response did not parse as expected (${e instanceof Error ? e.message : String(e)})`,
+      hitCap: false
+    };
+  }
+}
+function groupNamesByFirstChar(names) {
+  const groups = /* @__PURE__ */ new Map();
+  for (const name of names) {
+    if (!name) continue;
+    const char = name.charAt(0);
+    const group = groups.get(char);
+    if (group) group.push(name);
+    else groups.set(char, [name]);
+  }
+  return groups;
+}
+async function mapWithConcurrency(items, limit, fn) {
+  const results = new Array(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const index = next++;
+      results[index] = await fn(items[index], index);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => worker()));
+  return results;
+}
+var DESCRIPTION_LOOKUP_CONCURRENCY = 2;
+function buildDescriptionLookupTasks(packageName, names) {
+  const groups = groupNamesByFirstChar(names);
+  if (groups.size === 0) return [];
+  if (groups.size > PACKAGE_DESCRIPTION_GROUP_CAP) {
+    return [
+      {
+        packageName,
+        query: "*",
+        maxResults: PACKAGE_DESCRIPTION_FALLBACK_LOOKUP_CAP,
+        char: "*",
+        fellBack: true
+      }
+    ];
+  }
+  return [...groups.keys()].map((char) => ({
+    packageName,
+    query: `${char}*`,
+    maxResults: PACKAGE_DESCRIPTION_PREFIX_LOOKUP_CAP,
+    char,
+    fellBack: false
+  }));
+}
+async function fetchPackageDescriptions(conn, namesByPackage) {
+  const tasks = [...namesByPackage.entries()].flatMap(
+    ([packageName, names]) => buildDescriptionLookupTasks(packageName, names)
+  );
+  const results = await mapWithConcurrency(tasks, DESCRIPTION_LOOKUP_CONCURRENCY, async (task) => ({
+    task,
+    ...await fetchPackageDescriptionsForOne(conn, task.packageName, task.query, task.maxResults)
+  }));
+  const map2 = /* @__PURE__ */ new Map();
+  const failures = [];
+  const capped = [];
+  const fellBackSet = /* @__PURE__ */ new Set();
+  const failedGroups = /* @__PURE__ */ new Set();
+  for (const r of results) {
+    const { packageName, char, fellBack } = r.task;
+    if (fellBack) fellBackSet.add(packageName);
+    if (r.failure) {
+      failures.push(
+        fellBack ? `${packageName} (fallback query, ${r.failure})` : `${packageName}/"${char}*" (${r.failure})`
+      );
+      failedGroups.add(`${packageName} ${char}`);
+      continue;
+    }
+    if (r.hitCap) capped.push(fellBack ? `${packageName} (fallback query)` : `${packageName}/"${char}*"`);
+    for (const e of r.entries) map2.set(`${e.type}|${e.name}`, e.description);
+  }
+  return { map: map2, failures, capped, fellBack: [...fellBackSet], failedGroups };
+}
+function normalizedTypeFilters(types) {
+  return (types ?? []).map((t) => t.trim().toUpperCase()).filter(Boolean);
+}
+function rowMatchesTypeFilters(rowType, filters) {
+  if (!filters.length) return true;
+  const full = rowType.toUpperCase();
+  const prefix = full.split("/")[0] ?? full;
+  return filters.some((f) => f === full || f === prefix);
+}
+async function readPackage(conn, obj, opts) {
+  const ctx = {
+    operation: "read package",
+    uri: obj.uri,
+    name: obj.name,
+    type: obj.type
+  };
+  const depth = opts.depth ?? 1;
+  if (!Number.isInteger(depth) || depth < 1 || depth > MAX_PACKAGE_DEPTH) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `depth must be an integer between 1 and ${MAX_PACKAGE_DEPTH}, got ${JSON.stringify(opts.depth)}. Each level beyond the first costs one nodestructure round trip per sub-package found at the level above, so depth is capped rather than left open-ended.`,
+      { depth: opts.depth, maxDepth: MAX_PACKAGE_DEPTH },
+      `Use a depth between 1 and ${MAX_PACKAGE_DEPTH}, or read a sub-package directly: abap_read {"object":"<SUBPACKAGE>","type":"DEVC/K"}.`
+    );
+  }
+  const typeFilters = normalizedTypeFilters(opts.types);
+  const allRows = [];
+  const emptyPackages = [];
+  const notExpanded = [];
+  let directSubPackages = [];
+  let expansions = 0;
+  let frontier = [obj.name];
+  for (let level = 1; level <= depth && frontier.length > 0; level++) {
+    const nextFrontier = [];
+    for (const packageName of frontier) {
+      if (level > 1) {
+        if (expansions >= MAX_PACKAGE_EXPANSIONS) {
+          notExpanded.push(packageName);
+          continue;
+        }
+        expansions++;
+      }
+      const nodeCtx = {
+        operation: "read package",
+        uri: `/sap/bc/adt/packages/${packageName.toLowerCase()}`,
+        name: packageName,
+        type: "DEVC/K"
+      };
+      const nodes = await fetchPackageNodes(conn, packageName, nodeCtx);
+      if (nodes.length === 0) emptyPackages.push(packageName);
+      const rows = nodes.filter((n) => n.OBJECT_NAME).map((n) => ({
+        packageName,
+        type: n.OBJECT_TYPE ?? "",
+        name: n.OBJECT_NAME ?? "",
+        description: ""
+      }));
+      allRows.push(...rows);
+      const subs = rows.filter((r) => r.type.toUpperCase() === "DEVC/K");
+      if (packageName === obj.name) {
+        directSubPackages = subs.map((s) => ({ name: s.name, description: "" }));
+      }
+      for (const s of subs) nextFrontier.push(s.name);
+    }
+    frontier = nextFrontier;
+  }
+  const unexpandedSubPackages = frontier;
+  const matchedFilters = new Set(
+    typeFilters.filter((f) => allRows.some((r) => rowMatchesTypeFilters(r.type, [f])))
+  );
+  const unmatchedFilters = typeFilters.filter((f) => !matchedFilters.has(f));
+  const filteredRows = typeFilters.length ? allRows.filter((r) => rowMatchesTypeFilters(r.type, typeFilters)) : allRows;
+  const sortedRows = [...filteredRows].sort(
+    (a, b) => a.type.localeCompare(b.type) || a.name.localeCompare(b.name)
+  );
+  const byType = /* @__PURE__ */ new Map();
+  for (const r of sortedRows) byType.set(r.type, (byType.get(r.type) ?? 0) + 1);
+  const namesByPackage = /* @__PURE__ */ new Map();
+  for (const r of sortedRows) {
+    const list5 = namesByPackage.get(r.packageName);
+    if (list5) list5.push(r.name);
+    else namesByPackage.set(r.packageName, [r.name]);
+  }
+  if (directSubPackages.length) {
+    const list5 = namesByPackage.get(obj.name) ?? [];
+    for (const s of directSubPackages) if (!list5.includes(s.name)) list5.push(s.name);
+    namesByPackage.set(obj.name, list5);
+  }
+  const { header, failure: headerFailure } = await fetchPackageHeader(conn, ctx);
+  const {
+    map: descriptions,
+    failures: descriptionFailures,
+    capped: descriptionCapped,
+    fellBack: descriptionFellBack,
+    failedGroups
+  } = namesByPackage.size ? await fetchPackageDescriptions(conn, namesByPackage) : {
+    map: /* @__PURE__ */ new Map(),
+    failures: [],
+    capped: [],
+    fellBack: [],
+    failedGroups: /* @__PURE__ */ new Set()
+  };
+  const rowGroupFailed = (packageName, name) => failedGroups.has(`${packageName} *`) || failedGroups.has(`${packageName} ${name.charAt(0)}`);
+  let unresolvedCount = 0;
+  for (const r of sortedRows) {
+    const key = `${r.type}|${r.name}`;
+    if (descriptions.has(key)) {
+      r.description = descriptions.get(key) ?? "";
+    } else {
+      r.description = "";
+      if (!rowGroupFailed(r.packageName, r.name)) unresolvedCount++;
+    }
+  }
+  for (const s of directSubPackages) {
+    const key = `DEVC/K|${s.name}`;
+    if (descriptions.has(key)) {
+      s.description = descriptions.get(key) ?? "";
+    } else if (!rowGroupFailed(obj.name, s.name)) {
+      unresolvedCount++;
+    }
+  }
+  const columns = depth > 1 ? ["package", "type", "name", "description"] : ["type", "name", "description"];
+  const ddl = sortedRows.length ? textTable(
+    sortedRows.map((r) => ({
+      package: r.packageName,
+      type: r.type,
+      name: r.name,
+      description: r.description
+    })),
+    columns
+  ) : `-- package ${obj.name}: the ADT node structure returned no objects` + (typeFilters.length ? ` matching types ${typeFilters.join(", ")}` : "") + `. This is what the server sent, not a rendering failure.`;
+  const sections = [];
+  if (byType.size) {
+    sections.push({
+      title: "OBJECTS BY TYPE",
+      content: textTable(
+        [...byType.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([type, objects]) => ({ type, objects: String(objects) })),
+        ["type", "objects"]
+      )
+    });
+  }
+  if (directSubPackages.length) {
+    sections.push({
+      title: "SUB-PACKAGES",
+      content: textTable(directSubPackages, ["name", "description"])
+    });
+  }
+  const notes = [];
+  if (emptyPackages.length) {
+    notes.push(
+      (emptyPackages.length === 1 && emptyPackages[0] === obj.name ? `Package ${obj.name} has no contents` : `${emptyPackages.length} package(s) had no contents (${emptyPackages.join(", ")})`) + ` \u2014 the ADT node structure endpoint answers HTTP 200 with a ZERO-BYTE body for this, not a 404 or an empty document (live-verified). This is a genuinely empty package, not a truncated or failed read.`
+    );
+  }
+  if (headerFailure) {
+    notes.push(
+      `Package header could not be read (${headerFailure}). package_type, description, super_package, software_component, transport_layer, application_component and responsible are UNKNOWN here, NOT confirmed absent \u2014 the node listing below is otherwise unaffected.`
+    );
+  }
+  if (unmatchedFilters.length) {
+    notes.push(
+      `types filter matched zero rows for: ${unmatchedFilters.join(", ")}. This does NOT mean the package has none of these \u2014 it may equally mean the type code was mistyped. Compare against an unfiltered read of this package, or abap_search, before concluding either way.`
+    );
+  }
+  if (notExpanded.length) {
+    notes.push(
+      `Reached MAX_PACKAGE_EXPANSIONS (${MAX_PACKAGE_EXPANSIONS}) nodestructure round trips before depth ${depth} finished expanding every sub-package. NOT expanded: ` + notExpanded.map((n) => `${n} (abap_read {"object":"${n}","type":"DEVC/K"})`).join(", ") + `.`
+    );
+  }
+  if (unexpandedSubPackages.length) {
+    const shown = unexpandedSubPackages.slice(0, 5);
+    const remaining = unexpandedSubPackages.length - shown.length;
+    notes.push(
+      `${unexpandedSubPackages.length} sub-package(s) are listed but NOT expanded: ` + shown.map((n) => `${n} (abap_read {"object":"${n}","type":"DEVC/K"})`).join(", ") + (remaining > 0 ? `, and ${remaining} more` : "") + `. OBJECTS below has a row for each of these sub-packages themselves, not their contents \u2014 depth ${depth} did not reach inside them. Use a higher depth (up to ${MAX_PACKAGE_DEPTH}) to expand them, or read one directly: abap_read {"object":"<name>","type":"DEVC/K"}.`
+    );
+  }
+  if (descriptionFailures.length) {
+    notes.push(
+      `Description lookup failed for: ${descriptionFailures.join("; ")}. Affected rows render with an EMPTY description rather than a guessed or positional value \u2014 the listing itself (type, name, package) is otherwise unaffected, and other name-groups within the same package are unaffected too (each group's lookup is independent).`
+    );
+  }
+  if (descriptionFellBack.length) {
+    notes.push(
+      `Description lookup for package(s) ${descriptionFellBack.join(", ")} used a single broader query instead of grouping by starting character, because rendered names there spanned more than ${PACKAGE_DESCRIPTION_GROUP_CAP} distinct starting characters \u2014 see PACKAGE_DESCRIPTION_GROUP_CAP. That request's own result cap is reported separately below if it was hit.`
+    );
+  }
+  if (descriptionCapped.length) {
+    notes.push(
+      `Description lookup hit its per-request result cap for: ${descriptionCapped.join(", ")} \u2014 coverage there may be incomplete. Rows whose description could not be resolved render empty rather than a guess.`
+    );
+  }
+  if (unresolvedCount) {
+    notes.push(
+      `${unresolvedCount} row(s) render with an empty description because informationsystem/search did not return a match for that exact (type, name) \u2014 this may mean the object genuinely has no description, or that it fell outside the lookup's coverage; it is never filled with the node structure's own (positionally unreliable) DESCRIPTION value.`
+    );
+  }
+  notes.push(
+    `A package is not a DDIC object: OBJECTS below is its node contents (expanded up to depth ${depth}), not pseudo-DDL.`
+  );
+  notes.push(
+    `Open a row with abap_read {"object":"<name>","type":"<type>"}. PARENT_NAME is empty on every row at package level, so none of these need parenting to open. A FUGR/F row is a function group; one of its modules is read as abap_read {"object":"<GROUP>/<MODULE>","type":"FUGR/FF"}. This is naming guidance, not a claim about what shape a function group takes at package level \u2014 none of the committed nodestructure captures (test/fixtures/live-captured/852, 853, 855) contain a FUGR row of either kind, so that shape is not itself evidenced here.`
+  );
+  return {
+    ddl,
+    sections,
+    bodyLabel: "OBJECTS",
+    meta: {
+      package_type: header?.packageType,
+      description: header?.description,
+      super_package: header?.superPackage,
+      software_component: header?.softwareComponent,
+      transport_layer: header?.transportLayer,
+      application_component: header?.applicationComponent,
+      responsible: header?.responsible,
+      objects: sortedRows.length,
+      objects_before_filter: typeFilters.length ? allRows.length : void 0,
+      sub_packages: directSubPackages.length || void 0,
+      types: typeFilters.length ? typeFilters.join(", ") : void 0,
+      depth
+    },
+    notes,
+    hashInput: ddl
+  };
+}
+async function readDataElement(conn, obj) {
+  const body = await fetchDdicXml(conn, obj, "read data element");
+  const p = parseDataElementXml(body, obj.name);
+  const view = {
+    name: p.name || obj.name,
+    description: p.description,
+    typeName: p.typeName,
+    dataType: p.dataType,
+    length: p.dataTypeLength,
+    decimals: p.dataTypeDecimals || void 0,
+    labels: p.labels,
+    labelLengths: p.labelLengths,
+    searchHelp: p.searchHelp,
+    searchHelpParameter: p.searchHelpParameter,
+    packageName: p.packageName
+  };
+  const domain2 = p.typeName ? await tryReadDomain(conn, p.typeName) : {};
+  return { ...renderDataElement(view, domain2.view, domain2.failure), hashInput: body };
+}
+async function tryReadDomain(conn, name) {
+  const uri = `/sap/bc/adt/ddic/domains/${encodeURIComponent(name.toLowerCase())}`;
+  try {
+    const body = await fetchDdicXml(conn, { uri, name, type: "DOMA/DD" }, "read domain of data element");
+    return { view: parseDomainXml(body, name) };
+  } catch (e) {
+    const err = e;
+    return { failure: `${err.code} \u2014 ${err.message}` };
+  }
+}
+async function readDomain(conn, obj) {
+  const body = await fetchDdicXml(conn, obj, "read domain");
+  return { ...renderDomain(parseDomainXml(body, obj.name)), hashInput: body };
+}
+async function readTableType(conn, obj) {
+  const body = await fetchDdicXml(conn, obj, "read table type");
+  return renderTableType(body, obj.name);
+}
+
+// src/tools/read.ts
 init_capabilities();
 init_errors();
 
@@ -115852,10 +119921,10 @@ var SUSO_CATALOG = Object.freeze({
     note: "capture 873: DD07V has NO AS4LOCAL column \u2014 adding that predicate is HTTP 400, not a filter. Rows come back unordered; sort by VALPOS client-side."
   })
 });
-function tbl2(key) {
+function tbl3(key) {
   return SUSO_CATALOG[key].table;
 }
-function fld2(key, field) {
+function fld3(key, field) {
   const fields = SUSO_CATALOG[key].fields;
   return fields[field];
 }
@@ -115868,7 +119937,7 @@ function chunk(values, size) {
   for (let i = 0; i < values.length; i += size) out.push(values.slice(i, i + size));
   return out;
 }
-function serverNotes2(result) {
+function serverNotes3(result) {
   return result.messages.map((m) => `[server] ${m.text}${m.severity ? ` (${m.severity})` : ""}`);
 }
 function noteIfCut2(result, cap, what, notes) {
@@ -115882,115 +119951,115 @@ async function readAuthorizationObject(conn, name, opts) {
   const notes = [];
   const language = opts?.language ?? DEFAULT_LANGUAGE2;
   const objectName = assertCatalogValue(name.trim().toUpperCase(), "authorization object name", SUSO_OBJECT_NAME_MAX);
-  const OBJCT = fld2("object", "object");
-  const objSql = buildCatalogSelect("*", tbl2("object"), [`${OBJCT} = ${catalogLiteral(objectName)}`]);
+  const OBJCT = fld3("object", "object");
+  const objSql = buildCatalogSelect("*", tbl3("object"), [`${OBJCT} = ${catalogLiteral(objectName)}`]);
   const objResult = await runCatalogSelect(conn, objSql, 1);
-  notes.push(...serverNotes2(objResult));
+  notes.push(...serverNotes3(objResult));
   const objRow = objResult.rows[0];
   if (objRow === void 0) {
     throw new AbapError(
       "NOT_FOUND",
-      `Authorization object "${objectName}" has no ${tbl2("object")} row on this system \u2014 this is a definitive empty result (HTTP 200, 0 rows), not a refused read.`,
+      `Authorization object "${objectName}" has no ${tbl3("object")} row on this system \u2014 this is a definitive empty result (HTTP 200, 0 rows), not a refused read.`,
       { name: objectName }
     );
   }
-  const objectClass = objRow[fld2("object", "objectClass")] ?? "";
-  const fieldSlots = ["field1", "field2", "field3", "field4", "field5", "field6", "field7", "field8", "field9", "field0"].map((slot) => fld2("object", slot));
+  const objectClass = objRow[fld3("object", "objectClass")] ?? "";
+  const fieldSlots = ["field1", "field2", "field3", "field4", "field5", "field6", "field7", "field8", "field9", "field0"].map((slot) => fld3("object", slot));
   const fieldNames = fieldSlots.map((col) => objRow[col] ?? "").filter((v) => v.trim() !== "");
   const objTextSql = buildCatalogSelect(
     "*",
-    tbl2("objectText"),
+    tbl3("objectText"),
     [
-      `${fld2("objectText", "object")} = ${catalogLiteral(objectName)}`,
-      `${fld2("objectText", "language")} = ${catalogLiteral(assertCatalogValue(language, "language", 1))}`
+      `${fld3("objectText", "object")} = ${catalogLiteral(objectName)}`,
+      `${fld3("objectText", "language")} = ${catalogLiteral(assertCatalogValue(language, "language", 1))}`
     ]
   );
   const objTextResult = await runCatalogSelect(conn, objTextSql, 1);
-  notes.push(...serverNotes2(objTextResult));
-  const description = objTextResult.rows[0]?.[fld2("objectText", "text")] ?? "";
+  notes.push(...serverNotes3(objTextResult));
+  const description = objTextResult.rows[0]?.[fld3("objectText", "text")] ?? "";
   if (objTextResult.rows.length === 0) {
-    notes.push(`No ${tbl2("objectText")} text for "${objectName}" in language "${language}".`);
+    notes.push(`No ${tbl3("objectText")} text for "${objectName}" in language "${language}".`);
   }
   let objectClassText = "";
   if (objectClass.trim() !== "") {
     const classTextSql = buildCatalogSelect(
       "*",
-      tbl2("objectClassText"),
+      tbl3("objectClassText"),
       [
-        `${fld2("objectClassText", "objectClass")} = ${catalogLiteral(objectClass)}`,
-        `${fld2("objectClassText", "language")} = ${catalogLiteral(language)}`
+        `${fld3("objectClassText", "objectClass")} = ${catalogLiteral(objectClass)}`,
+        `${fld3("objectClassText", "language")} = ${catalogLiteral(language)}`
       ]
     );
     const classTextResult = await runCatalogSelect(conn, classTextSql, 1);
-    notes.push(...serverNotes2(classTextResult));
-    objectClassText = classTextResult.rows[0]?.[fld2("objectClassText", "text")] ?? "";
+    notes.push(...serverNotes3(classTextResult));
+    objectClassText = classTextResult.rows[0]?.[fld3("objectClassText", "text")] ?? "";
     if (classTextResult.rows.length === 0) {
-      notes.push(`No ${tbl2("objectClassText")} text for object class "${objectClass}" in language "${language}".`);
+      notes.push(`No ${tbl3("objectClassText")} text for object class "${objectClass}" in language "${language}".`);
     }
   } else {
-    notes.push(`Object "${objectName}" has no ${fld2("object", "objectClass")} value \u2014 object class is unknown.`);
+    notes.push(`Object "${objectName}" has no ${fld3("object", "objectClass")} value \u2014 object class is unknown.`);
   }
   const authxByField = /* @__PURE__ */ new Map();
   if (fieldNames.length > 0) {
     for (const group of chunk(fieldNames, 50)) {
-      const authxSql = buildCatalogSelect("*", tbl2("fieldMeta"), [
-        `${fld2("fieldMeta", "fieldName")} ${catalogInList(group, "field names", 30)}`
+      const authxSql = buildCatalogSelect("*", tbl3("fieldMeta"), [
+        `${fld3("fieldMeta", "fieldName")} ${catalogInList(group, "field names", 30)}`
       ]);
       const authxResult = await runCatalogSelect(conn, authxSql, SUSO_ROW_CAP);
-      notes.push(...serverNotes2(authxResult));
-      noteIfCut2(authxResult, SUSO_ROW_CAP, `${tbl2("fieldMeta")} lookup for "${objectName}"`, notes);
+      notes.push(...serverNotes3(authxResult));
+      noteIfCut2(authxResult, SUSO_ROW_CAP, `${tbl3("fieldMeta")} lookup for "${objectName}"`, notes);
       for (const row2 of authxResult.rows) {
-        requireCatalogColumn(authxResult, fld2("fieldMeta", "fieldName"));
-        authxByField.set(row2[fld2("fieldMeta", "fieldName")] ?? "", row2);
+        requireCatalogColumn(authxResult, fld3("fieldMeta", "fieldName"));
+        authxByField.set(row2[fld3("fieldMeta", "fieldName")] ?? "", row2);
       }
     }
     for (const f of fieldNames) {
       if (!authxByField.has(f)) {
-        notes.push(`No ${tbl2("fieldMeta")} row for field "${f}" of object "${objectName}" \u2014 no data element or check table known.`);
+        notes.push(`No ${tbl3("fieldMeta")} row for field "${f}" of object "${objectName}" \u2014 no data element or check table known.`);
       }
     }
   }
-  const rollnames = [...new Set([...authxByField.values()].map((r) => r[fld2("fieldMeta", "rollname")] ?? "").filter((v) => v.trim() !== ""))];
+  const rollnames = [...new Set([...authxByField.values()].map((r) => r[fld3("fieldMeta", "rollname")] ?? "").filter((v) => v.trim() !== ""))];
   const dd04lByRollname = /* @__PURE__ */ new Map();
   if (rollnames.length > 0) {
     for (const group of chunk(rollnames, 50)) {
-      const dd04lSql = buildCatalogSelect("*", tbl2("dataElement"), [
-        `${fld2("dataElement", "rollname")} ${catalogInList(group, "data elements", 30)}`
+      const dd04lSql = buildCatalogSelect("*", tbl3("dataElement"), [
+        `${fld3("dataElement", "rollname")} ${catalogInList(group, "data elements", 30)}`
       ]);
       const dd04lResult = await runCatalogSelect(conn, dd04lSql, SUSO_ROW_CAP);
-      notes.push(...serverNotes2(dd04lResult));
-      noteIfCut2(dd04lResult, SUSO_ROW_CAP, `${tbl2("dataElement")} lookup for "${objectName}"`, notes);
+      notes.push(...serverNotes3(dd04lResult));
+      noteIfCut2(dd04lResult, SUSO_ROW_CAP, `${tbl3("dataElement")} lookup for "${objectName}"`, notes);
       for (const row2 of dd04lResult.rows) {
-        dd04lByRollname.set(row2[fld2("dataElement", "rollname")] ?? "", row2);
+        dd04lByRollname.set(row2[fld3("dataElement", "rollname")] ?? "", row2);
       }
     }
     for (const rn of rollnames) {
       if (!dd04lByRollname.has(rn)) {
-        notes.push(`No ${tbl2("dataElement")} row for data element "${rn}" \u2014 not an error, just tolerated as missing.`);
+        notes.push(`No ${tbl3("dataElement")} row for data element "${rn}" \u2014 not an error, just tolerated as missing.`);
       }
     }
   }
-  const domains = [...new Set([...dd04lByRollname.values()].map((r) => r[fld2("dataElement", "domname")] ?? "").filter((v) => v.trim() !== ""))];
+  const domains = [...new Set([...dd04lByRollname.values()].map((r) => r[fld3("dataElement", "domname")] ?? "").filter((v) => v.trim() !== ""))];
   const fixedValuesByDomain = /* @__PURE__ */ new Map();
   if (domains.length > 0) {
     for (const group of chunk(domains, 50)) {
       const dd07vSql = buildCatalogSelect(
         "*",
-        tbl2("domainValue"),
+        tbl3("domainValue"),
         [
-          `${fld2("domainValue", "domname")} ${catalogInList(group, "domains", 30)}`,
-          `${fld2("domainValue", "ddlanguage")} = ${catalogLiteral(language)}`
+          `${fld3("domainValue", "domname")} ${catalogInList(group, "domains", 30)}`,
+          `${fld3("domainValue", "ddlanguage")} = ${catalogLiteral(language)}`
         ]
       );
       const dd07vResult = await runCatalogSelect(conn, dd07vSql, SUSO_ROW_CAP);
-      notes.push(...serverNotes2(dd07vResult));
-      noteIfCut2(dd07vResult, SUSO_ROW_CAP, `${tbl2("domainValue")} lookup for "${objectName}"`, notes);
+      notes.push(...serverNotes3(dd07vResult));
+      noteIfCut2(dd07vResult, SUSO_ROW_CAP, `${tbl3("domainValue")} lookup for "${objectName}"`, notes);
       for (const row2 of dd07vResult.rows) {
-        const domname = row2[fld2("domainValue", "domname")] ?? "";
-        const valueLow = row2[fld2("domainValue", "valueLow")] ?? "";
-        const valueHigh = row2[fld2("domainValue", "valueHigh")] ?? "";
-        const text4 = row2[fld2("domainValue", "text")] ?? "";
-        const valpos = Number.parseInt(row2[fld2("domainValue", "valpos")] ?? "", 10);
+        const domname = row2[fld3("domainValue", "domname")] ?? "";
+        const valueLow = row2[fld3("domainValue", "valueLow")] ?? "";
+        const valueHigh = row2[fld3("domainValue", "valueHigh")] ?? "";
+        const text4 = row2[fld3("domainValue", "text")] ?? "";
+        const valpos = Number.parseInt(row2[fld3("domainValue", "valpos")] ?? "", 10);
         const value = valueHigh.trim() === "" ? valueLow : `${valueLow}..${valueHigh}`;
         const list5 = fixedValuesByDomain.get(domname);
         const entry = { value, text: text4, valpos: Number.isNaN(valpos) ? 0 : valpos };
@@ -116002,47 +120071,47 @@ async function readAuthorizationObject(conn, name, opts) {
       list5.sort((a, b) => a.valpos - b.valpos);
     }
   }
-  const tactzSql = buildCatalogSelect("*", tbl2("activity"), [`${fld2("activity", "object")} = ${catalogLiteral(objectName)}`]);
+  const tactzSql = buildCatalogSelect("*", tbl3("activity"), [`${fld3("activity", "object")} = ${catalogLiteral(objectName)}`]);
   const tactzResult = await runCatalogSelect(conn, tactzSql, SUSO_ROW_CAP);
-  notes.push(...serverNotes2(tactzResult));
-  noteIfCut2(tactzResult, SUSO_ROW_CAP, `${tbl2("activity")} lookup for "${objectName}"`, notes);
-  const activityCodes = [...new Set(tactzResult.rows.map((r) => r[fld2("activity", "activity")] ?? "").filter((v) => v.trim() !== ""))];
+  notes.push(...serverNotes3(tactzResult));
+  noteIfCut2(tactzResult, SUSO_ROW_CAP, `${tbl3("activity")} lookup for "${objectName}"`, notes);
+  const activityCodes = [...new Set(tactzResult.rows.map((r) => r[fld3("activity", "activity")] ?? "").filter((v) => v.trim() !== ""))];
   const activityTextByCode = /* @__PURE__ */ new Map();
   if (activityCodes.length > 0) {
     for (const group of chunk(activityCodes, 50)) {
       const tacttSql = buildCatalogSelect(
         "*",
-        tbl2("activityText"),
+        tbl3("activityText"),
         [
-          `${fld2("activityText", "activity")} ${catalogInList(group, "activity codes", 2)}`,
-          `${fld2("activityText", "language")} = ${catalogLiteral(language)}`
+          `${fld3("activityText", "activity")} ${catalogInList(group, "activity codes", 2)}`,
+          `${fld3("activityText", "language")} = ${catalogLiteral(language)}`
         ]
       );
       const tacttResult = await runCatalogSelect(conn, tacttSql, SUSO_ROW_CAP);
-      notes.push(...serverNotes2(tacttResult));
+      notes.push(...serverNotes3(tacttResult));
       for (const row2 of tacttResult.rows) {
-        activityTextByCode.set(row2[fld2("activityText", "activity")] ?? "", row2[fld2("activityText", "text")] ?? "");
+        activityTextByCode.set(row2[fld3("activityText", "activity")] ?? "", row2[fld3("activityText", "text")] ?? "");
       }
     }
   }
   const activities = activityCodes.map((code) => {
     const text4 = activityTextByCode.get(code);
     if (text4 === void 0) {
-      notes.push(`No ${tbl2("activityText")} text for activity "${code}" of object "${objectName}" in language "${language}" \u2014 listed with an empty text.`);
+      notes.push(`No ${tbl3("activityText")} text for activity "${code}" of object "${objectName}" in language "${language}" \u2014 listed with an empty text.`);
     }
     return { code, text: text4 ?? "" };
   });
   const fields = fieldNames.map((f) => {
     const authx = authxByField.get(f);
-    const rollname = authx?.[fld2("fieldMeta", "rollname")]?.trim() || void 0;
+    const rollname = authx?.[fld3("fieldMeta", "rollname")]?.trim() || void 0;
     const dd04l = rollname ? dd04lByRollname.get(rollname) : void 0;
-    const domain2 = dd04l?.[fld2("dataElement", "domname")]?.trim() || void 0;
+    const domain2 = dd04l?.[fld3("dataElement", "domname")]?.trim() || void 0;
     const fixedValues = (domain2 ? fixedValuesByDomain.get(domain2) : void 0) ?? [];
     return {
       name: f,
       dataElement: rollname,
-      checkTable: authx?.[fld2("fieldMeta", "checkTable")]?.trim() || void 0,
-      isActivityField: (authx?.[fld2("fieldMeta", "actvtFlag")] ?? "").trim() !== "",
+      checkTable: authx?.[fld3("fieldMeta", "checkTable")]?.trim() || void 0,
+      isActivityField: (authx?.[fld3("fieldMeta", "actvtFlag")] ?? "").trim() !== "",
       domain: domain2,
       fixedValues: fixedValues.map(({ value, text: text4 }) => ({ value, text: text4 }))
     };
@@ -116103,9 +120172,6 @@ function renderAuthorizationObject(obj) {
     hashInput: ddl
   };
 }
-
-// src/tools/read.ts
-init_index_read();
 
 // src/adt/element-info.ts
 init_fxp();
@@ -117091,27 +121157,27 @@ var CALLABLE_ELEMENT_TYPES = /* @__PURE__ */ new Set(["INTF/IO", "CLAS/OM", "FUG
 async function readDefinition(conn, obj, baseHeader, input, maxChars) {
   const include = viewInclude(input, obj);
   const { source, sourceUri } = await readSource(conn, obj, include, input.version);
-  const line = input.line;
+  const line2 = input.line;
   const column = input.column ?? 0;
   const totalLines = countLines(source);
-  if (line > totalLines) {
+  if (line2 > totalLines) {
     throw new AbapError(
       "BAD_INPUT",
-      `line=${line} is past the end of ${obj.type} ${obj.name}'s source (${include ? `include "${include}", ` : ""}${totalLines} line(s)).`,
-      { type: obj.type, name: obj.name, line, totalLines, include },
+      `line=${line2} is past the end of ${obj.type} ${obj.name}'s source (${include ? `include "${include}", ` : ""}${totalLines} line(s)).`,
+      { type: obj.type, name: obj.name, line: line2, totalLines, include },
       `Pick a line between 1 and ${totalLines}, or re-read without offset/limit to see the source first.`
     );
   }
-  const pos = { line, column };
+  const pos = { line: line2, column };
   const token = identifierAt(source, pos);
   const info = await fetchElementInfo(conn, sourceUri, pos, source);
-  const lineText = source.replace(/\r\n/g, "\n").split("\n")[line - 1] ?? "";
+  const lineText = source.replace(/\r\n/g, "\n").split("\n")[line2 - 1] ?? "";
   const header = {
     ...baseHeader,
     mode: "definition",
     ...include ? { include } : {},
     ...include && include !== "main" ? { uri: sourceUri } : {},
-    line,
+    line: line2,
     column
   };
   const notes = [...includeNote(include)];
@@ -117121,8 +121187,8 @@ async function readDefinition(conn, obj, baseHeader, input, maxChars) {
       sections: [
         {
           title: "DEFINITION",
-          content: `No resolvable element at line ${line}, column ${column} of ${obj.type} ${obj.name}.
-${line}: ${lineText}`
+          content: `No resolvable element at line ${line2}, column ${column} of ${obj.type} ${obj.name}.
+${line2}: ${lineText}`
         }
       ],
       notes: [
@@ -117140,10 +121206,10 @@ ${line}: ${lineText}`
   header.visibility = props.visibility;
   header.level = props.level;
   header.abapType = props.abapType;
-  const lookup = token ? await findDefinitionTarget(conn, sourceUri, { line, startColumn: token.startColumn, endColumn: token.endColumn }, source) : void 0;
+  const lookup = token ? await findDefinitionTarget(conn, sourceUri, { line: line2, startColumn: token.startColumn, endColumn: token.endColumn }, source) : void 0;
   const target = lookup?.target;
   const targetRef = target ? objectRefFromUri(target.uri) : void 0;
-  const defLines = [`${line}: ${lineText}`];
+  const defLines = [`${line2}: ${lineText}`];
   if (target === void 0) {
     defLines.push(
       token === void 0 ? "This position is not on an identifier \u2014 ADT still resolved an element here (below), but there is no source range to ask the navigation-target endpoint for a declaration site." : lookup?.noTargetReason === "declaration-itself" ? "This position is the declaration itself \u2014 ADT reports the definition location is here (SAP message ED263)." : lookup?.noTargetReason === "undecidable" ? "ADT named no navigation target: more than one implementation exists, so the declaration site is undecidable from this position." : "ADT named no navigation target for this identifier."
@@ -117238,7 +121304,7 @@ var CATALOG_READ_IRRELEVANT_PARAMS = [
   "depth",
   "format"
 ];
-async function readCatalogObject(conn, input, catalogRead, label, maxChars) {
+async function readCatalogObject2(conn, input, catalogRead, label, maxChars) {
   const code = input.type.trim().toUpperCase();
   for (const param of CATALOG_READ_IRRELEVANT_PARAMS) {
     if (input[param] !== void 0) {
@@ -117301,7 +121367,7 @@ async function abapRead(conn, input, maxChars) {
   if (input.include !== void 0) assertClassInclude(input.include, input.object);
   const catalogCap = input.type ? capabilitiesFor(input.type) : void 0;
   if (catalogCap?.catalogRead) {
-    return readCatalogObject(conn, input, catalogCap.catalogRead, catalogCap.label, maxChars);
+    return readCatalogObject2(conn, input, catalogCap.catalogRead, catalogCap.label, maxChars);
   }
   const obj = await resolveObject(conn, input.object, input.type ? { type: input.type } : {});
   const baseHeader = {
@@ -118609,7 +122675,7 @@ async function searchObjects(conn, query, type, max, maxChars) {
   }));
   const hasGroup = rows.some((r) => r.group !== "");
   const columns = hasGroup ? ["type", "name", "group", "package", "description"] : ["type", "name", "package", "description"];
-  const body = rows.length ? [textTable(rows, columns), capLine, windowLine].filter((line) => line !== void 0).join("\n") : droppedByFilter > 0 ? windowFull ? `(no ${wanted} matches among the ${results.length} hit(s) the server returned at max=${fetchMax} \u2014 see the note above; this is NOT proof that none exist)` : `(no ${wanted} matches among the ${results.length} hit(s) the server returned for "${query}" \u2014 the fetch window (max=${fetchMax}) was not full, so that is every object of any type matching this pattern)` : "(no matches)";
+  const body = rows.length ? [textTable(rows, columns), capLine, windowLine].filter((line2) => line2 !== void 0).join("\n") : droppedByFilter > 0 ? windowFull ? `(no ${wanted} matches among the ${results.length} hit(s) the server returned at max=${fetchMax} \u2014 see the note above; this is NOT proof that none exist)` : `(no ${wanted} matches among the ${results.length} hit(s) the server returned for "${query}" \u2014 the fetch window (max=${fetchMax}) was not full, so that is every object of any type matching this pattern)` : "(no matches)";
   return buildResponse({
     header: {
       system: conn.cfg.sid,
@@ -118993,8 +123059,8 @@ async function removeTransportEntryViaBridge(conn, gate, params, proof) {
   });
   let holder = trkorr;
   const removed = [];
-  for (const line of transcript.raw.split("\n")) {
-    const trimmed = line.trim();
+  for (const line2 of transcript.raw.split("\n")) {
+    const trimmed = line2.trim();
     const holderMatch = trimmed.match(/^ZMCP-TREN-HOLDER (\S+)/);
     if (holderMatch) {
       holder = holderMatch[1];
@@ -119009,7 +123075,7 @@ function removalTouchedNothing(e) {
   if (!(e instanceof AbapError)) return false;
   const raw = e.details.raw;
   if (typeof raw !== "string") return false;
-  return !raw.split("\n").some((line) => TREN_ROW_RE.test(line.trim()));
+  return !raw.split("\n").some((line2) => TREN_ROW_RE.test(line2.trim()));
 }
 
 // src/tools/transport.ts
@@ -123965,21 +128031,21 @@ function patchNodeFlags(xml3, tokens, sel, spec) {
     openTag = openTag.replace(nameRe, ` bo:name="${escapeAttrValue(spec.name, "bo:nodes/@bo:name")}"`);
     currentName = spec.name;
   }
-  for (const flag2 of NODE_FLAG_NAMES) {
-    if (!(flag2 in spec)) continue;
-    const value = spec[flag2];
-    const attrRe = new RegExp(`\\s+bo:${flag2}="[^"]*"`);
+  for (const flag3 of NODE_FLAG_NAMES) {
+    if (!(flag3 in spec)) continue;
+    const value = spec[flag3];
+    const attrRe = new RegExp(`\\s+bo:${flag3}="[^"]*"`);
     if (value === null) {
       openTag = openTag.replace(attrRe, "");
       continue;
     }
     if (typeof value !== "boolean") {
-      throw new AbapError("BAD_INPUT", `set_node_flags: "${flag2}" must be a boolean or null, got ${typeof value}.`, {
-        flag: flag2,
+      throw new AbapError("BAD_INPUT", `set_node_flags: "${flag3}" must be a boolean or null, got ${typeof value}.`, {
+        flag: flag3,
         value
       });
     }
-    const rendered = ` bo:${flag2}="${value}"`;
+    const rendered = ` bo:${flag3}="${value}"`;
     if (attrRe.test(openTag)) {
       openTag = openTag.replace(attrRe, rendered);
     } else {
@@ -124404,13 +128470,13 @@ function describeFlagValue(v) {
 }
 function nodeFlagMismatches(node2, spec) {
   const out = [];
-  for (const flag2 of NODE_FLAG_NAMES) {
-    if (!(flag2 in spec)) continue;
-    const sent = spec[flag2];
+  for (const flag3 of NODE_FLAG_NAMES) {
+    if (!(flag3 in spec)) continue;
+    const sent = spec[flag3];
     if (sent !== null && typeof sent !== "boolean") continue;
     const expected = sent === null ? false : sent;
-    const readBack = node2[flag2];
-    if (readBack !== expected) out.push({ field: flag2, sent, readBack });
+    const readBack = node2[flag3];
+    if (readBack !== expected) out.push({ field: flag3, sent, readBack });
   }
   for (const kind of NODE_REF_KINDS) {
     if (!(kind in spec)) continue;
@@ -125607,13 +129673,13 @@ function parseBopfTranscript(raw) {
   const transcript = [];
   const diagnostics = [];
   let droppedLines = 0;
-  for (const line of raw.replace(/\r\n/g, "\n").split("\n")) {
-    if (line.startsWith(BOPF_LINE_PREFIX)) {
-      transcript.push(line.slice(BOPF_LINE_PREFIX.length));
-    } else if (line.replace(/\s+$/, "") === BOPF_LINE_PREFIX.trimEnd()) {
+  for (const line2 of raw.replace(/\r\n/g, "\n").split("\n")) {
+    if (line2.startsWith(BOPF_LINE_PREFIX)) {
+      transcript.push(line2.slice(BOPF_LINE_PREFIX.length));
+    } else if (line2.replace(/\s+$/, "") === BOPF_LINE_PREFIX.trimEnd()) {
       transcript.push("");
-    } else if (line.startsWith(ERR_LINE_PREFIX)) {
-      diagnostics.push(line.trim());
+    } else if (line2.startsWith(ERR_LINE_PREFIX)) {
+      diagnostics.push(line2.trim());
     } else {
       droppedLines++;
     }
@@ -125628,18 +129694,18 @@ function parseBopfTranscript(raw) {
   const KEY_LINE = /^KEY (\S+)=(\S+)$/;
   const REJECTED_LINE = /ev_rejected=(.*)$/;
   const PAIR = /(\S+)=(\S*)/g;
-  for (const line of transcript) {
-    const msgEmpty = MSG_EMPTY.exec(line);
+  for (const line2 of transcript) {
+    const msgEmpty = MSG_EMPTY.exec(line2);
     if (msgEmpty) {
       messages.push({ stage: msgEmpty[1] });
       continue;
     }
-    const msgFull = MSG_FULL.exec(line);
+    const msgFull = MSG_FULL.exec(line2);
     if (msgFull) {
       messages.push({ stage: msgFull[1], severity: msgFull[2], text: msgFull[3] });
       continue;
     }
-    const dataLine = DATA_LINE.exec(line);
+    const dataLine = DATA_LINE.exec(line2);
     if (dataLine) {
       const fields = {};
       PAIR.lastIndex = 0;
@@ -125648,12 +129714,12 @@ function parseBopfTranscript(raw) {
       data.push({ ...splitNodeToken(dataLine[1]), fields });
       continue;
     }
-    const keyLine = KEY_LINE.exec(line);
+    const keyLine = KEY_LINE.exec(line2);
     if (keyLine) {
       keys.push({ ...splitNodeToken(keyLine[1]), key: keyLine[2] });
       continue;
     }
-    const rej = REJECTED_LINE.exec(line);
+    const rej = REJECTED_LINE.exec(line2);
     if (rej) {
       rejected = rej[1] === "X";
       continue;
@@ -126927,7 +130993,7 @@ function buildLockInspectSource(q, className) {
   lines.push(`${i}emit_rows( iv_phase = 'inspect' it_enq = lt_lk_keep ).`);
   return lockClassSource(className, "abap_fpm_read, mode=locks", lines.join("\n"));
 }
-var flag = (v) => v === "X";
+var flag2 = (v) => v === "X";
 function parseLockTranscript(raw) {
   const diagnostics = [];
   const aborts = [];
@@ -126941,23 +131007,23 @@ function parseLockTranscript(raw) {
   let saveReached = false;
   let wildcardDetected = false;
   let releaseStatus;
-  for (const line of raw.replace(/\r\n/g, "\n").split("\n")) {
-    if (line.startsWith(ERR_LINE_PREFIX)) {
-      diagnostics.push(line.trim());
+  for (const line2 of raw.replace(/\r\n/g, "\n").split("\n")) {
+    if (line2.startsWith(ERR_LINE_PREFIX)) {
+      diagnostics.push(line2.trim());
       continue;
     }
-    if (!line.startsWith(LOCK_LINE_PREFIX)) {
-      if (line.trim() !== "") droppedLines++;
+    if (!line2.startsWith(LOCK_LINE_PREFIX)) {
+      if (line2.trim() !== "") droppedLines++;
       continue;
     }
-    const rest = line.slice(LOCK_LINE_PREFIX.length);
+    const rest = line2.slice(LOCK_LINE_PREFIX.length);
     const spaceIdx = rest.indexOf(" ");
     const head = spaceIdx === -1 ? rest : rest.slice(0, spaceIdx);
     const remainder = spaceIdx === -1 ? "" : rest.slice(spaceIdx + 1);
     const f = parseBracketFields(remainder);
     switch (head) {
       case "SELF":
-        if (flag(f.ok) && (f.owner ?? "") !== "") selfOwnerId = f.owner;
+        if (flag2(f.ok) && (f.owner ?? "") !== "") selfOwnerId = f.owner;
         break;
       case "ENQ": {
         const subrc = Number(f.subrc ?? "");
@@ -127003,13 +131069,13 @@ function parseLockTranscript(raw) {
       case "VERIFY":
         if (f.phase === "presave") {
           preSaveVerify = {
-            held: flag(f.held),
-            mine: flag(f.mine),
-            wildcard: flag(f.wildcard),
-            passed: flag(f.passed)
+            held: flag2(f.held),
+            mine: flag2(f.mine),
+            wildcard: flag2(f.wildcard),
+            passed: flag2(f.passed)
           };
         }
-        if (flag(f.wildcard)) wildcardDetected = true;
+        if (flag2(f.wildcard)) wildcardDetected = true;
         break;
       case "GUARD":
         aborts.push(`${f.reason ?? "unknown"}: ${f.detail ?? ""}`.trim());
@@ -127530,860 +131596,6 @@ function registerFpmTools(mcp, deps) {
 init_zod();
 init_errors();
 
-// src/adt/img-query.ts
-init_errors();
-
-// src/adt/img-catalog.ts
-var MEASURED_NOTE = "measured 2026-09-05";
-var MEASURED_NOTE_CHECKS = "measured 2026-09-12";
-var IMG_CATALOG = Object.freeze({
-  ddicTable: Object.freeze({
-    table: "DD02L",
-    fields: Object.freeze({
-      table: "TABNAME",
-      tableClass: "TABCLASS",
-      clientDependent: "CLIDEP",
-      deliveryClass: "CONTFLAG",
-      maintenance: "MAINFLAG",
-      activeState: "AS4LOCAL"
-    }),
-    confidence: "high",
-    note: MEASURED_NOTE + ": CONTFLAG=delivery class, CLIDEP=client dependence"
-  }),
-  ddicTableText: Object.freeze({
-    table: "DD02T",
-    fields: Object.freeze({
-      table: "TABNAME",
-      language: "DDLANGUAGE",
-      text: "DDTEXT",
-      activeState: "AS4LOCAL"
-    }),
-    confidence: "high"
-  }),
-  ddicField: Object.freeze({
-    table: "DD03L",
-    fields: Object.freeze({
-      table: "TABNAME",
-      field: "FIELDNAME",
-      position: "POSITION",
-      keyFlag: "KEYFLAG",
-      dataElement: "ROLLNAME",
-      dataType: "DATATYPE",
-      length: "LENG",
-      activeState: "AS4LOCAL",
-      checkTable: "CHECKTABLE",
-      domainName: "DOMNAME"
-    }),
-    confidence: "high"
-  }),
-  viewHeader: Object.freeze({
-    table: "DD25L",
-    fields: Object.freeze({
-      view: "VIEWNAME",
-      aggregateType: "AGGTYPE",
-      rootTable: "ROOTTAB",
-      activeState: "AS4LOCAL"
-    }),
-    confidence: "high"
-  }),
-  viewText: Object.freeze({
-    table: "DD25T",
-    fields: Object.freeze({
-      view: "VIEWNAME",
-      language: "DDLANGUAGE",
-      text: "DDTEXT",
-      activeState: "AS4LOCAL"
-    }),
-    confidence: "high"
-  }),
-  viewBaseTable: Object.freeze({
-    table: "DD26S",
-    fields: Object.freeze({
-      view: "VIEWNAME",
-      table: "TABNAME",
-      position: "TABPOS",
-      activeState: "AS4LOCAL"
-    }),
-    confidence: "high"
-  }),
-  viewField: Object.freeze({
-    table: "DD27S",
-    fields: Object.freeze({
-      view: "VIEWNAME",
-      viewField: "VIEWFIELD",
-      table: "TABNAME",
-      field: "FIELDNAME",
-      position: "OBJPOS",
-      activeState: "AS4LOCAL"
-    }),
-    confidence: "high"
-  }),
-  transaction: Object.freeze({
-    table: "TSTC",
-    fields: Object.freeze({
-      transaction: "TCODE",
-      program: "PGMNA",
-      dynpro: "DYPNO"
-    }),
-    confidence: "high"
-  }),
-  transactionText: Object.freeze({
-    table: "TSTCT",
-    fields: Object.freeze({
-      transaction: "TCODE",
-      language: "SPRSL",
-      text: "TTEXT"
-    }),
-    confidence: "high"
-  }),
-  viewDirectory: Object.freeze({
-    table: "TVDIR",
-    fields: Object.freeze({
-      view: "TABNAME",
-      area: "AREA",
-      type: "TYPE",
-      baseTable: "BASTAB",
-      generated: "FLAG"
-    }),
-    confidence: "high",
-    note: MEASURED_NOTE
-  }),
-  viewCluster: Object.freeze({
-    table: "VCLDIR",
-    fields: Object.freeze({
-      cluster: "VCLNAME"
-    }),
-    confidence: "high",
-    note: MEASURED_NOTE
-  }),
-  viewClusterText: Object.freeze({
-    table: "VCLDIRT",
-    fields: Object.freeze({
-      cluster: "VCLNAME",
-      language: "SPRAS",
-      text: "TEXT"
-    }),
-    confidence: "high",
-    note: MEASURED_NOTE
-  }),
-  viewClusterMember: Object.freeze({
-    table: "VCLSTRUC",
-    fields: Object.freeze({
-      cluster: "VCLNAME",
-      object: "OBJECT",
-      objPos: "OBJPOS",
-      objLevel: "OBJLEVEL"
-    }),
-    confidence: "high",
-    note: MEASURED_NOTE
-  }),
-  cusObjectHeader: Object.freeze({
-    table: "OBJH",
-    fields: Object.freeze({
-      object: "OBJECTNAME",
-      objectType: "OBJECTTYPE"
-    }),
-    confidence: "high",
-    // OBJH/OBJS OBJECTTYPE is C/S/V — a different vocabulary from CUS_ACTOBJ's D/S.
-    note: MEASURED_NOTE
-  }),
-  cusObjectTable: Object.freeze({
-    table: "OBJS",
-    fields: Object.freeze({
-      object: "OBJECTNAME",
-      objectType: "OBJECTTYPE",
-      table: "TABNAME"
-    }),
-    confidence: "high",
-    note: MEASURED_NOTE + "; OBJSL maps object->transport object (TOBJ), not object->table"
-  }),
-  imgActivity: Object.freeze({
-    table: "CUS_IMGACH",
-    fields: Object.freeze({
-      activity: "ACTIVITY",
-      attributes: "ATTRIBUTES",
-      docId: "DOCU_ID",
-      cActivity: "C_ACTIVITY"
-    }),
-    confidence: "high",
-    note: MEASURED_NOTE + "; one doc field (DOCU_ID), not a class/name pair"
-  }),
-  imgActivityText: Object.freeze({
-    table: "CUS_IMGACT",
-    fields: Object.freeze({
-      activity: "ACTIVITY",
-      language: "SPRAS",
-      text: "TEXT"
-    }),
-    confidence: "high",
-    note: MEASURED_NOTE
-  }),
-  imgActivityObject: Object.freeze({
-    table: "CUS_ACTOBJ",
-    fields: Object.freeze({
-      actId: "ACT_ID",
-      objectType: "OBJECTTYPE",
-      object: "OBJECTNAME",
-      tcode: "TCODE",
-      subObjName: "SUBOBJNAME"
-    }),
-    confidence: "high",
-    // no ACTIVITY field here; joins via ACT_ID -> CUS_ACTH -> CUS_IMGACH.C_ACTIVITY.
-    // OBJECTTYPE values are D/S — a different vocabulary from OBJH/OBJS's C/S/V.
-    note: MEASURED_NOTE
-  }),
-  cusActivityHeader: Object.freeze({
-    table: "CUS_ACTH",
-    fields: Object.freeze({
-      actId: "ACT_ID"
-    }),
-    confidence: "high",
-    note: MEASURED_NOTE + "; link: CUS_IMGACH.C_ACTIVITY -> CUS_ACTH.ACT_ID -> CUS_ACTOBJ.ACT_ID"
-  }),
-  imgNodeText: Object.freeze({
-    table: "TTREET",
-    fields: Object.freeze({
-      node: "ID",
-      language: "SPRAS",
-      text: "TEXT"
-    }),
-    confidence: "high",
-    note: MEASURED_NOTE
-  }),
-  cusObjectText: Object.freeze({
-    table: "OBJT",
-    fields: Object.freeze({
-      language: "LANGUAGE",
-      object: "OBJECTNAME",
-      objectType: "OBJECTTYPE",
-      text: "DDTEXT"
-    }),
-    confidence: "high",
-    note: MEASURED_NOTE + "; not wired into img-read.ts yet"
-  }),
-  // SIMGH is a transaction (TRAN/T), not a table; TNODEIMGR (below) is the
-  // real activity-to-node link, found on the second discovery pass.
-  imgTreeNode: Object.freeze({
-    table: "TNODEIMG",
-    fields: Object.freeze({
-      treeId: "TREE_ID",
-      extension: "EXTENSION",
-      nodeId: "NODE_ID",
-      extKey: "EXT_KEY",
-      parentId: "PARENT_ID",
-      brotherId: "BROTHER_ID",
-      refNodeId: "REFNODE_ID",
-      refTreeId: "REFTREE_ID",
-      nodeType: "NODE_TYPE"
-    }),
-    confidence: "high",
-    note: MEASURED_NOTE + ": key is TREE_ID+EXTENSION+NODE_ID+EXT_KEY (include HIER_NODEK); no CHILD_ID \u2014 children are found by selecting on PARENT_ID. BROTHER_ID names a node's PREVIOUS sibling, not its next one: the child whose own BROTHER_ID is blank is the FIRST child, and walking forward means repeatedly finding the sibling whose BROTHER_ID equals the id you are currently on, stopping when no such sibling exists. This was derived from the run's row-level BROTHER_ID chains, cross-checked against the titles those chains spell out, and against the reference IMG root: of its thirty depth-1 children exactly one has a blank BROTHER_ID, and that node is an activity leaf (NODE_TYPE IMG) carrying no chapter text \u2014 consistent with a first child being an activity rather than a chapter (the run recorded no title for that node, and none is claimed here). The discovery run's own summary prose states the BROTHER_ID direction the other way round (calls it 'next sibling') and is wrong. The chain is also not guaranteed to be a clean linked list on a live system: rows have been seen where more than one sibling under the same parent carries the same BROTHER_ID value, and where a sibling's BROTHER_ID names a node that is not among that parent's children at all \u2014 a walker must tolerate a branched or broken chain, not assume a perfect list. TNODEIMG also has a W_SUBNODES field (include HIER_NODED), but it is a CHAR 1 yes/no flag, not a child count, and it was found blank on every sampled row including chapter nodes that provably have children \u2014 on this system it carries no usable information, so it is deliberately left out of `fields` above; a caller that needs a child count must count PARENT_ID matches instead."
-  }),
-  imgTreeNodeText: Object.freeze({
-    table: "TNODEIMGT",
-    fields: Object.freeze({
-      language: "SPRAS",
-      treeId: "TREE_ID",
-      extension: "EXTENSION",
-      branch: "BRANCH",
-      nodeId: "NODE_ID",
-      extKey: "EXT_KEY",
-      text: "TEXT"
-    }),
-    confidence: "high",
-    note: MEASURED_NOTE + ": an activity leaf (NODE_TYPE IMG) often has no row here \u2014 its title comes from CUS_IMGACT.TEXT via the node's COBJ reference in TNODEIMGR"
-  }),
-  imgTreeNodeRef: Object.freeze({
-    table: "TNODEIMGR",
-    fields: Object.freeze({
-      nodeId: "NODE_ID",
-      extKey: "EXT_KEY",
-      refType: "REF_TYPE",
-      refObject: "REF_OBJECT"
-    }),
-    confidence: "high",
-    // no TREE_ID column (include HIER_REFK) — unlike TNODEIMG/TNODEIMGT, a
-    // join to this table cannot be scoped by tree, only by NODE_ID.
-    note: MEASURED_NOTE + ": REF_TYPE COBJ joins CUS_IMGACH.ACTIVITY / CUS_ACTOBJ.ACT_ID"
-  }),
-  // TTREE is a tree directory, not a node table (an earlier, wrong guess at
-  // a node table over the same name has since been removed).
-  treeDirectory: Object.freeze({
-    table: "TTREE",
-    fields: Object.freeze({
-      id: "ID",
-      treeType: "TYPE",
-      rootNodeId: "NODE_ID"
-    }),
-    confidence: "high",
-    note: MEASURED_NOTE + ": ID is the tree's GUID, not a mnemonic \u2014 WHERE id IN ('SIMG','SIMG_ALL','IMG','CUST') returned 0 rows (TTREET has no text rows for those ids either), so the reference IMG has to be found by title text in TNODEIMGT rather than by a well-known id. TTREE's own column literally named TREE_ID is blank on every row seen (filtering on tree_id IN (...) with real tree ids returned 0 rows; filtering the same tree by id = '<guid>' found it immediately, with TREE_ID blank in the returned row) \u2014 a tree's identity lives in TTREE.ID, and TREE_ID must never be used as a join key or lookup column."
-  }),
-  domainValue: Object.freeze({
-    table: "DD07L",
-    fields: Object.freeze({
-      domain: "DOMNAME",
-      position: "VALPOS",
-      valueLow: "DOMVALUE_L",
-      valueHigh: "DOMVALUE_H",
-      appendValue: "APPVAL",
-      activeState: "AS4LOCAL"
-    }),
-    confidence: "high",
-    note: MEASURED_NOTE_CHECKS + ": a domain with no fixed values simply has no rows here \u2014 that is not an error condition. A non-blank DOMVALUE_H means the row describes a RANGE of values, not a single fixed value, and must not be compared against a written value the same way a single-value row is."
-  }),
-  domainValueText: Object.freeze({
-    table: "DD07T",
-    fields: Object.freeze({
-      domain: "DOMNAME",
-      position: "VALPOS",
-      valueLow: "DOMVALUE_L",
-      language: "DDLANGUAGE",
-      text: "DDTEXT",
-      activeState: "AS4LOCAL"
-    }),
-    confidence: "high",
-    note: MEASURED_NOTE_CHECKS
-  }),
-  viewMaintenanceEvent: Object.freeze({
-    table: "TVIMF",
-    fields: Object.freeze({
-      view: "TABNAME",
-      event: "EVENT",
-      formName: "FORMNAME"
-    }),
-    confidence: "high",
-    note: MEASURED_NOTE_CHECKS + ": TVIMF has only these three columns \u2014 no client column and no AS4LOCAL column, so a query over it must not filter on an active-version flag the way most other catalog tables here do. TABNAME holds the maintenance view name (e.g. V_TB003), not the base table it maintains. EVENT is drawn from domain MAINTEVENT (see MAINTENANCE_EVENT_DOMAIN below)."
-  })
-});
-var IMG_CATALOG_VERIFIED = true;
-function lowConfidenceTables() {
-  const tables = Object.values(IMG_CATALOG);
-  return tables.filter((t) => t.confidence === "low").map((t) => t.table).sort();
-}
-var IMG_ACTIVITY_REF_TYPE = "COBJ";
-var IMG_TREE_TEXT_PROBE = "SAP Customizing Implementation";
-var IMG_NODE_TYPES = Object.freeze(["IMG0", "IMG", "REF"]);
-var MAINTENANCE_EVENT_DOMAIN = "MAINTEVENT";
-
-// src/adt/img-query.ts
-init_enhancement_templates();
-init_datapreview();
-init_truncate();
-function sqlLiteral(value) {
-  return abapLiteral(value);
-}
-function assertSqlValue(value, what, maxLen = 60) {
-  return assertAbapText(value, what, maxLen);
-}
-function tbl3(key) {
-  return IMG_CATALOG[key].table;
-}
-function fld3(key, field) {
-  const fields = IMG_CATALOG[key].fields;
-  return fields[field];
-}
-var ID_CHARSET_RE = /^[A-Za-z0-9_./-]+$/;
-function assertActivityId(value, what = "activity") {
-  const v = assertSqlValue(value, what, 20);
-  if (v.trim() === "" || !ID_CHARSET_RE.test(v)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `${what} "${value}" must be 1-20 characters of letters, digits, "_", ".", "/" or "-".`,
-      { what, value }
-    );
-  }
-  return v;
-}
-function assertActId(value, what = "actId") {
-  const v = assertSqlValue(value, what, 30);
-  if (v.trim() === "" || !ID_CHARSET_RE.test(v)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `${what} "${value}" must be 1-30 characters of letters, digits, "_", ".", "/" or "-".`,
-      { what, value }
-    );
-  }
-  return v;
-}
-function assertEntityName(value, what = "name") {
-  const raw = assertSqlValue(value, what, 30);
-  const v = raw.trim().toUpperCase();
-  if (!isValidDdicEntityName(v)) {
-    throw new AbapError("BAD_INPUT", `${what} "${value}" is not a valid DDIC table/view/object name.`, { what, value });
-  }
-  return v;
-}
-var IMG_DEFAULT_LANGUAGE = "E";
-var IMG_LANGUAGE_RE = /^[A-Za-z]$/;
-function assertImgLanguage(value) {
-  const v = value.trim();
-  if (!IMG_LANGUAGE_RE.test(v)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `language "${value}" must be a single-character SAP language key (SPRAS), not an ISO code \u2014 use "E" for English, "D" for German. SAP rejects a two-character value on these catalog columns with 'EN' is not a valid value for C(1,0).`,
-      { value }
-    );
-  }
-  return assertSqlValue(v.toUpperCase(), "language", 1);
-}
-function assertTransactionCode2(value, what = "tcode") {
-  const v = assertSqlValue(value, what, 20).trim().toUpperCase();
-  if (v === "" || !ID_CHARSET_RE.test(v)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `${what} "${value}" must be 1-20 characters of letters, digits, "_", ".", "/" or "-".`,
-      { what, value }
-    );
-  }
-  return v;
-}
-function assertTreeKeyValue(value, what) {
-  return assertSqlValue(value, what, 32);
-}
-function imgLikePattern(raw) {
-  const trimmed = raw.trim();
-  if (trimmed === "" || !/^[A-Za-z0-9_/*.\-# ]{1,40}$/.test(trimmed)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `text "${raw}" may only contain letters, digits, underscore, "/", "*" (wildcard), ".", "-", "#" or space, 1-40 chars.`,
-      { value: raw }
-    );
-  }
-  const escapeChar = "#";
-  const hasWildcard = trimmed.includes("*");
-  const escaped = trimmed.replace(/#/g, "##").replace(/_/g, "#_").replace(/\*/g, "%");
-  const literal2 = hasWildcard ? escaped : `%${escaped}%`;
-  return { literal: literal2.replace(/'/g, "''"), escapeChar };
-}
-var MAX_IN_LIST = 50;
-function assertInList(values, what) {
-  if (values.length === 0) {
-    throw new AbapError("BAD_INPUT", `${what} must not be empty \u2014 "IN ()" is not valid SQL.`, { what });
-  }
-  if (values.length > MAX_IN_LIST) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `${what} has ${values.length} values, over the ${MAX_IN_LIST}-value cap per statement \u2014 chunk the caller's list into multiple queries.`,
-      { what, count: values.length, cap: MAX_IN_LIST }
-    );
-  }
-  return values;
-}
-var IN_LIST_ITEMS_PER_LINE2 = 5;
-function inPredicate2(column, literals) {
-  if (literals.length <= IN_LIST_ITEMS_PER_LINE2) {
-    return `${column} IN (${literals.join(", ")})`;
-  }
-  const lines = [`${column} IN (`];
-  for (let i = 0; i < literals.length; i += IN_LIST_ITEMS_PER_LINE2) {
-    const chunk3 = literals.slice(i, i + IN_LIST_ITEMS_PER_LINE2).join(", ");
-    const isLast = i + IN_LIST_ITEMS_PER_LINE2 >= literals.length;
-    lines.push(`  ${chunk3}${isLast ? "" : ","}`);
-  }
-  lines.push(")");
-  return lines.join("\n");
-}
-function inClause(column, values, what, assertValue) {
-  const checked = assertInList(values, what);
-  const literals = checked.map((v) => sqlLiteral(assertValue(v, what)));
-  return inPredicate2(column, literals);
-}
-function afterPredicate(column, after, assertValue) {
-  if (after === void 0) return void 0;
-  return `${column} > ${sqlLiteral(assertValue(after, "after"))}`;
-}
-var IMG_SQL_LINE_MAX = 255;
-function buildSelect(select, from, whereParts, orderBy) {
-  const lines = [`SELECT ${select}`, `FROM ${from}`];
-  whereParts.forEach((part, i) => {
-    lines.push(`${i === 0 ? "WHERE" : "  AND"} ${part}`);
-  });
-  if (orderBy !== void 0) lines.push(`ORDER BY ${orderBy}`);
-  const statement = lines.join("\n");
-  statement.split("\n").forEach((line, i) => {
-    if (line.length > IMG_SQL_LINE_MAX) {
-      const excerpt = truncateForDisplay(line, ECHO_LINE_MAX);
-      throw new AbapError(
-        "CHECK_FAILED",
-        `Generated IMG query line ${i + 1} is ${line.length} chars, over the freestyle endpoint's ${IMG_SQL_LINE_MAX}-char request-body line limit: ${excerpt}`,
-        { line: i + 1, length: line.length, excerpt }
-      );
-    }
-  });
-  return statement;
-}
-function buildActivityIdSearchQuery(pattern, after) {
-  const activity = fld3("imgActivity", "activity");
-  const { literal: literal2, escapeChar } = imgLikePattern(pattern);
-  const where2 = [`${activity} LIKE '${literal2}' ESCAPE '${escapeChar}'`];
-  const afterPred = afterPredicate(activity, after, assertActivityId);
-  if (afterPred !== void 0) where2.push(afterPred);
-  return buildSelect(activity, tbl3("imgActivity"), where2, activity);
-}
-function buildActivityTitleSearchQuery(pattern, language, after) {
-  const activity = fld3("imgActivityText", "activity");
-  const lang = fld3("imgActivityText", "language");
-  const text4 = fld3("imgActivityText", "text");
-  const { literal: literal2, escapeChar } = imgLikePattern(pattern);
-  const where2 = [`${lang} = ${sqlLiteral(assertImgLanguage(language))}`, `${text4} LIKE '${literal2}' ESCAPE '${escapeChar}'`];
-  const afterPred = afterPredicate(activity, after, assertActivityId);
-  if (afterPred !== void 0) where2.push(afterPred);
-  return buildSelect(`${activity}, ${text4}`, tbl3("imgActivityText"), where2, activity);
-}
-function buildActivityHeaderQuery(activity) {
-  const a = assertActivityId(activity, "activity");
-  const cols = ["activity", "cActivity", "docId", "attributes"].map((c) => fld3("imgActivity", c));
-  return buildSelect(cols.join(", "), tbl3("imgActivity"), [`${fld3("imgActivity", "activity")} = ${sqlLiteral(a)}`]);
-}
-function buildActivityTitlesQuery(activities, language) {
-  const activity = fld3("imgActivityText", "activity");
-  const lang = fld3("imgActivityText", "language");
-  const text4 = fld3("imgActivityText", "text");
-  const where2 = [
-    `${lang} = ${sqlLiteral(assertImgLanguage(language))}`,
-    inClause(activity, activities, "activities", assertActivityId)
-  ];
-  return buildSelect(`${activity}, ${text4}`, tbl3("imgActivityText"), where2);
-}
-function buildActivityHeadersByIdQuery(actIds) {
-  const actId = fld3("cusActivityHeader", "actId");
-  return buildSelect(actId, tbl3("cusActivityHeader"), [inClause(actId, actIds, "actIds", assertActId)]);
-}
-function buildActivityObjectsQuery(actIds) {
-  const actId = fld3("imgActivityObject", "actId");
-  const cols = ["actId", "objectType", "object", "tcode", "subObjName"].map((c) => fld3("imgActivityObject", c));
-  return buildSelect(cols.join(", "), tbl3("imgActivityObject"), [inClause(actId, actIds, "actIds", assertActId)]);
-}
-function buildObjectHeadersQuery(objectNames) {
-  const object3 = fld3("cusObjectHeader", "object");
-  const objectType2 = fld3("cusObjectHeader", "objectType");
-  return buildSelect(`${object3}, ${objectType2}`, tbl3("cusObjectHeader"), [
-    inClause(object3, objectNames, "objectNames", assertEntityName)
-  ]);
-}
-function buildObjectTablesQuery(objectNames) {
-  const object3 = fld3("cusObjectTable", "object");
-  const objectType2 = fld3("cusObjectTable", "objectType");
-  const table = fld3("cusObjectTable", "table");
-  return buildSelect(`${object3}, ${objectType2}, ${table}`, tbl3("cusObjectTable"), [
-    inClause(object3, objectNames, "objectNames", assertEntityName)
-  ]);
-}
-function buildObjectTextsQuery(objectNames, language) {
-  const object3 = fld3("cusObjectText", "object");
-  const objectType2 = fld3("cusObjectText", "objectType");
-  const lang = fld3("cusObjectText", "language");
-  const text4 = fld3("cusObjectText", "text");
-  const where2 = [
-    `${lang} = ${sqlLiteral(assertImgLanguage(language))}`,
-    inClause(object3, objectNames, "objectNames", assertEntityName)
-  ];
-  return buildSelect(`${object3}, ${objectType2}, ${text4}`, tbl3("cusObjectText"), where2);
-}
-function buildTableDeliveryClassQuery(tableNames) {
-  const table = fld3("ddicTable", "table");
-  const deliveryClass = fld3("ddicTable", "deliveryClass");
-  const clientDependent = fld3("ddicTable", "clientDependent");
-  const activeState = fld3("ddicTable", "activeState");
-  const where2 = [`${activeState} = ${sqlLiteral("A")}`, inClause(table, tableNames, "tableNames", assertEntityName)];
-  return buildSelect(`${table}, ${deliveryClass}, ${clientDependent}`, tbl3("ddicTable"), where2);
-}
-function buildViewClusterQuery(clusterNames) {
-  const cluster = fld3("viewCluster", "cluster");
-  return buildSelect(cluster, tbl3("viewCluster"), [inClause(cluster, clusterNames, "clusterNames", assertEntityName)]);
-}
-function buildViewClusterTextQuery(clusterNames, language) {
-  const cluster = fld3("viewClusterText", "cluster");
-  const lang = fld3("viewClusterText", "language");
-  const text4 = fld3("viewClusterText", "text");
-  const where2 = [
-    `${lang} = ${sqlLiteral(assertImgLanguage(language))}`,
-    inClause(cluster, clusterNames, "clusterNames", assertEntityName)
-  ];
-  return buildSelect(`${cluster}, ${text4}`, tbl3("viewClusterText"), where2);
-}
-function buildViewClusterMembersQuery(clusterNames) {
-  const cluster = fld3("viewClusterMember", "cluster");
-  const object3 = fld3("viewClusterMember", "object");
-  const objPos = fld3("viewClusterMember", "objPos");
-  const objLevel = fld3("viewClusterMember", "objLevel");
-  const where2 = [inClause(cluster, clusterNames, "clusterNames", assertEntityName)];
-  return buildSelect(`${cluster}, ${object3}, ${objPos}, ${objLevel}`, tbl3("viewClusterMember"), where2, `${cluster}, ${objPos}`);
-}
-function buildTableFieldsQuery(tableNames) {
-  const table = fld3("ddicField", "table");
-  const activeState = fld3("ddicField", "activeState");
-  const cols = ["table", "field", "position", "keyFlag", "dataType", "length", "dataElement"].map(
-    (c) => fld3("ddicField", c)
-  );
-  const where2 = [`${activeState} = ${sqlLiteral("A")}`, inClause(table, tableNames, "tableNames", assertEntityName)];
-  return buildSelect(cols.join(", "), tbl3("ddicField"), where2, `${table}, ${fld3("ddicField", "position")}`);
-}
-function buildTableFieldChecksQuery(tableNames) {
-  const table = fld3("ddicField", "table");
-  const activeState = fld3("ddicField", "activeState");
-  const cols = ["table", "field", "position", "checkTable", "domainName"].map((c) => fld3("ddicField", c));
-  const where2 = [`${activeState} = ${sqlLiteral("A")}`, inClause(table, tableNames, "tableNames", assertEntityName)];
-  return buildSelect(cols.join(", "), tbl3("ddicField"), where2, `${table}, ${fld3("ddicField", "position")}`);
-}
-function buildTableTextsQuery(tableNames, language) {
-  const table = fld3("ddicTableText", "table");
-  const activeState = fld3("ddicTableText", "activeState");
-  const lang = fld3("ddicTableText", "language");
-  const text4 = fld3("ddicTableText", "text");
-  const where2 = [
-    `${activeState} = ${sqlLiteral("A")}`,
-    `${lang} = ${sqlLiteral(assertImgLanguage(language))}`,
-    inClause(table, tableNames, "tableNames", assertEntityName)
-  ];
-  return buildSelect(`${table}, ${text4}`, tbl3("ddicTableText"), where2);
-}
-function buildViewHeaderQuery(viewNames) {
-  const view = fld3("viewHeader", "view");
-  const activeState = fld3("viewHeader", "activeState");
-  const cols = ["view", "aggregateType", "rootTable"].map((c) => fld3("viewHeader", c));
-  const where2 = [`${activeState} = ${sqlLiteral("A")}`, inClause(view, viewNames, "viewNames", assertEntityName)];
-  return buildSelect(cols.join(", "), tbl3("viewHeader"), where2);
-}
-function buildViewTextQuery(viewNames, language) {
-  const view = fld3("viewText", "view");
-  const activeState = fld3("viewText", "activeState");
-  const lang = fld3("viewText", "language");
-  const text4 = fld3("viewText", "text");
-  const where2 = [
-    `${activeState} = ${sqlLiteral("A")}`,
-    `${lang} = ${sqlLiteral(assertImgLanguage(language))}`,
-    inClause(view, viewNames, "viewNames", assertEntityName)
-  ];
-  return buildSelect(`${view}, ${text4}`, tbl3("viewText"), where2);
-}
-function buildViewBaseTablesQuery(viewNames) {
-  const view = fld3("viewBaseTable", "view");
-  const activeState = fld3("viewBaseTable", "activeState");
-  const table = fld3("viewBaseTable", "table");
-  const position = fld3("viewBaseTable", "position");
-  const where2 = [`${activeState} = ${sqlLiteral("A")}`, inClause(view, viewNames, "viewNames", assertEntityName)];
-  return buildSelect(`${view}, ${table}, ${position}`, tbl3("viewBaseTable"), where2, `${view}, ${position}`);
-}
-function buildViewsOverTableQuery(tableNames) {
-  const view = fld3("viewBaseTable", "view");
-  const activeState = fld3("viewBaseTable", "activeState");
-  const table = fld3("viewBaseTable", "table");
-  const position = fld3("viewBaseTable", "position");
-  const where2 = [
-    `${activeState} = ${sqlLiteral("A")}`,
-    `${position} = ${sqlLiteral("0001")}`,
-    inClause(table, tableNames, "tableNames", assertEntityName)
-  ];
-  return buildSelect(`${view}, ${table}, ${position}`, tbl3("viewBaseTable"), where2, view);
-}
-function buildViewFieldsQuery(viewNames) {
-  const view = fld3("viewField", "view");
-  const activeState = fld3("viewField", "activeState");
-  const cols = ["view", "viewField", "table", "field", "position"].map((c) => fld3("viewField", c));
-  const where2 = [`${activeState} = ${sqlLiteral("A")}`, inClause(view, viewNames, "viewNames", assertEntityName)];
-  return buildSelect(cols.join(", "), tbl3("viewField"), where2, `${view}, ${fld3("viewField", "position")}`);
-}
-function buildTransactionsQuery(tcodes) {
-  const tcode = fld3("transaction", "transaction");
-  const cols = ["transaction", "program", "dynpro"].map((c) => fld3("transaction", c));
-  return buildSelect(cols.join(", "), tbl3("transaction"), [inClause(tcode, tcodes, "tcodes", assertTransactionCode2)]);
-}
-function buildTransactionTextsQuery(tcodes, language) {
-  const tcode = fld3("transactionText", "transaction");
-  const lang = fld3("transactionText", "language");
-  const text4 = fld3("transactionText", "text");
-  const where2 = [
-    `${lang} = ${sqlLiteral(assertImgLanguage(language))}`,
-    inClause(tcode, tcodes, "tcodes", assertTransactionCode2)
-  ];
-  return buildSelect(`${tcode}, ${text4}`, tbl3("transactionText"), where2);
-}
-function buildViewMaintenanceEventsQuery(viewNames) {
-  const view = fld3("viewMaintenanceEvent", "view");
-  const event = fld3("viewMaintenanceEvent", "event");
-  const formName = fld3("viewMaintenanceEvent", "formName");
-  const where2 = [inClause(view, viewNames, "viewNames", assertEntityName)];
-  return buildSelect(`${view}, ${event}, ${formName}`, tbl3("viewMaintenanceEvent"), where2, `${view}, ${event}`);
-}
-function buildDomainFixedValuesQuery(domainNames) {
-  const domain2 = fld3("domainValue", "domain");
-  const activeState = fld3("domainValue", "activeState");
-  const cols = ["domain", "position", "valueLow", "valueHigh", "appendValue"].map((c) => fld3("domainValue", c));
-  const where2 = [`${activeState} = ${sqlLiteral("A")}`, inClause(domain2, domainNames, "domainNames", assertEntityName)];
-  return buildSelect(cols.join(", "), tbl3("domainValue"), where2, `${domain2}, ${fld3("domainValue", "position")}`);
-}
-function buildDomainValueTextsQuery(domainNames, language) {
-  const domain2 = fld3("domainValueText", "domain");
-  const activeState = fld3("domainValueText", "activeState");
-  const lang = fld3("domainValueText", "language");
-  const valueLow = fld3("domainValueText", "valueLow");
-  const text4 = fld3("domainValueText", "text");
-  const where2 = [
-    `${activeState} = ${sqlLiteral("A")}`,
-    `${lang} = ${sqlLiteral(assertImgLanguage(language))}`,
-    inClause(domain2, domainNames, "domainNames", assertEntityName)
-  ];
-  return buildSelect(`${domain2}, ${valueLow}, ${text4}`, tbl3("domainValueText"), where2, `${domain2}, ${valueLow}`);
-}
-function buildTreeRootProbeQuery(language) {
-  const treeId = fld3("imgTreeNodeText", "treeId");
-  const nodeId = fld3("imgTreeNodeText", "nodeId");
-  const lang = fld3("imgTreeNodeText", "language");
-  const text4 = fld3("imgTreeNodeText", "text");
-  const { literal: literal2, escapeChar } = imgLikePattern(`${IMG_TREE_TEXT_PROBE}*`);
-  const where2 = [`${lang} = ${sqlLiteral(assertImgLanguage(language))}`, `${text4} LIKE '${literal2}' ESCAPE '${escapeChar}'`];
-  return buildSelect(`${treeId}, ${nodeId}, ${lang}, ${text4}`, tbl3("imgTreeNodeText"), where2);
-}
-function buildTreeChildrenQuery(treeId, parentId2, language, after) {
-  const node2 = tbl3("imgTreeNode");
-  const nodeText = tbl3("imgTreeNodeText");
-  const treeIdF = fld3("imgTreeNode", "treeId");
-  const nodeIdF = fld3("imgTreeNode", "nodeId");
-  const parentIdF = fld3("imgTreeNode", "parentId");
-  const nodeTypeF = fld3("imgTreeNode", "nodeType");
-  const brotherIdF = fld3("imgTreeNode", "brotherId");
-  const refTreeIdF = fld3("imgTreeNode", "refTreeId");
-  const refNodeIdF = fld3("imgTreeNode", "refNodeId");
-  const textLangF = fld3("imgTreeNodeText", "language");
-  const textNodeIdF = fld3("imgTreeNodeText", "nodeId");
-  const textTreeIdF = fld3("imgTreeNodeText", "treeId");
-  const textF = fld3("imgTreeNodeText", "text");
-  const select = [
-    `n~${nodeIdF}`,
-    `n~${nodeTypeF}`,
-    `n~${parentIdF}`,
-    `n~${brotherIdF}`,
-    `n~${refTreeIdF}`,
-    `n~${refNodeIdF}`,
-    `t~${textF}`
-  ].join(", ");
-  const from = `${node2} AS n
-LEFT OUTER JOIN ${nodeText} AS t ON t~${textTreeIdF} = n~${treeIdF}
-  AND t~${textNodeIdF} = n~${nodeIdF} AND t~${textLangF} = ${sqlLiteral(assertImgLanguage(language))}`;
-  const where2 = [
-    `n~${treeIdF} = ${sqlLiteral(assertTreeKeyValue(treeId, "treeId"))}`,
-    `n~${parentIdF} = ${sqlLiteral(assertTreeKeyValue(parentId2, "parentId"))}`
-  ];
-  const afterPred = afterPredicate(`n~${nodeIdF}`, after, assertTreeKeyValue);
-  if (afterPred !== void 0) where2.push(afterPred);
-  return buildSelect(select, from, where2, `n~${nodeIdF}`);
-}
-function buildTreeNodeQuery(treeId, nodeId, language) {
-  const node2 = tbl3("imgTreeNode");
-  const nodeText = tbl3("imgTreeNodeText");
-  const treeIdF = fld3("imgTreeNode", "treeId");
-  const nodeIdF = fld3("imgTreeNode", "nodeId");
-  const parentIdF = fld3("imgTreeNode", "parentId");
-  const nodeTypeF = fld3("imgTreeNode", "nodeType");
-  const brotherIdF = fld3("imgTreeNode", "brotherId");
-  const refTreeIdF = fld3("imgTreeNode", "refTreeId");
-  const refNodeIdF = fld3("imgTreeNode", "refNodeId");
-  const textLangF = fld3("imgTreeNodeText", "language");
-  const textNodeIdF = fld3("imgTreeNodeText", "nodeId");
-  const textTreeIdF = fld3("imgTreeNodeText", "treeId");
-  const textF = fld3("imgTreeNodeText", "text");
-  const select = [
-    `n~${nodeIdF}`,
-    `n~${nodeTypeF}`,
-    `n~${parentIdF}`,
-    `n~${brotherIdF}`,
-    `n~${refTreeIdF}`,
-    `n~${refNodeIdF}`,
-    `t~${textF}`
-  ].join(", ");
-  const from = `${node2} AS n
-LEFT OUTER JOIN ${nodeText} AS t ON t~${textTreeIdF} = n~${treeIdF}
-  AND t~${textNodeIdF} = n~${nodeIdF} AND t~${textLangF} = ${sqlLiteral(assertImgLanguage(language))}`;
-  const where2 = [
-    `n~${treeIdF} = ${sqlLiteral(assertTreeKeyValue(treeId, "treeId"))}`,
-    `n~${nodeIdF} = ${sqlLiteral(assertTreeKeyValue(nodeId, "nodeId"))}`
-  ];
-  return buildSelect(select, from, where2);
-}
-function buildNodeRefsQuery(nodeIds) {
-  const nodeIdF = fld3("imgTreeNodeRef", "nodeId");
-  const extKeyF = fld3("imgTreeNodeRef", "extKey");
-  const refTypeF = fld3("imgTreeNodeRef", "refType");
-  const refObjectF = fld3("imgTreeNodeRef", "refObject");
-  const where2 = [
-    `${refTypeF} = ${sqlLiteral(IMG_ACTIVITY_REF_TYPE)}`,
-    inClause(nodeIdF, nodeIds, "nodeIds", assertTreeKeyValue)
-  ];
-  return buildSelect(`${nodeIdF}, ${extKeyF}, ${refTypeF}, ${refObjectF}`, tbl3("imgTreeNodeRef"), where2);
-}
-function buildNodesByRefObjectQuery(refObject, refType) {
-  const nodeIdF = fld3("imgTreeNodeRef", "nodeId");
-  const refTypeF = fld3("imgTreeNodeRef", "refType");
-  const refObjectF = fld3("imgTreeNodeRef", "refObject");
-  const where2 = [
-    `${refObjectF} = ${sqlLiteral(assertActivityId(refObject, "refObject"))}`,
-    `${refTypeF} = ${sqlLiteral(assertSqlValue(refType, "refType", 10))}`
-  ];
-  return buildSelect(`${nodeIdF}, ${refTypeF}, ${refObjectF}`, tbl3("imgTreeNodeRef"), where2, nodeIdF);
-}
-function buildTreeNodeByIdQuery(nodeId, language) {
-  const node2 = tbl3("imgTreeNode");
-  const nodeText = tbl3("imgTreeNodeText");
-  const treeIdF = fld3("imgTreeNode", "treeId");
-  const nodeIdF = fld3("imgTreeNode", "nodeId");
-  const parentIdF = fld3("imgTreeNode", "parentId");
-  const nodeTypeF = fld3("imgTreeNode", "nodeType");
-  const brotherIdF = fld3("imgTreeNode", "brotherId");
-  const refTreeIdF = fld3("imgTreeNode", "refTreeId");
-  const refNodeIdF = fld3("imgTreeNode", "refNodeId");
-  const textLangF = fld3("imgTreeNodeText", "language");
-  const textNodeIdF = fld3("imgTreeNodeText", "nodeId");
-  const textTreeIdF = fld3("imgTreeNodeText", "treeId");
-  const textF = fld3("imgTreeNodeText", "text");
-  const select = [
-    `n~${treeIdF}`,
-    `n~${nodeIdF}`,
-    `n~${nodeTypeF}`,
-    `n~${parentIdF}`,
-    `n~${brotherIdF}`,
-    `n~${refTreeIdF}`,
-    `n~${refNodeIdF}`,
-    `t~${textF}`
-  ].join(", ");
-  const from = `${node2} AS n
-LEFT OUTER JOIN ${nodeText} AS t ON t~${textTreeIdF} = n~${treeIdF}
-  AND t~${textNodeIdF} = n~${nodeIdF} AND t~${textLangF} = ${sqlLiteral(assertImgLanguage(language))}`;
-  const where2 = [`n~${nodeIdF} = ${sqlLiteral(assertTreeKeyValue(nodeId, "nodeId"))}`];
-  return buildSelect(select, from, where2, `n~${treeIdF}`);
-}
-function buildTreeDirectoryQuery(treeIds) {
-  const idF = fld3("treeDirectory", "id");
-  const typeF = fld3("treeDirectory", "treeType");
-  const rootNodeIdF = fld3("treeDirectory", "rootNodeId");
-  const where2 = [inClause(idF, treeIds, "treeIds", assertTreeKeyValue)];
-  return buildSelect(`${idF}, ${typeF}, ${rootNodeIdF}`, tbl3("treeDirectory"), where2);
-}
-function toRecordSet(body) {
-  const { columns, rows, messages } = parsePreviewBody(body);
-  const names = columns.map((c) => c.name);
-  const records = rows.map((row2) => {
-    const rec = {};
-    names.forEach((name, i) => {
-      rec[name] = row2[i] ?? "";
-    });
-    return rec;
-  });
-  return { columns: names, records, messages };
-}
-function requireColumn(record2, column) {
-  const v = record2[column];
-  if (v === void 0) {
-    const present = Object.keys(record2);
-    throw new AbapError(
-      "ADT_ERROR",
-      `expected column "${column}" is missing from the preview response (columns present: ${present.length > 0 ? present.join(", ") : "none"}).`,
-      { column, present }
-    );
-  }
-  return v;
-}
-
 // src/adt/img-read.ts
 init_errors();
 init_datapreview();
@@ -128413,7 +131625,7 @@ function fld4(key, field) {
 function newCtx() {
   return { statementsIssued: 0, tablesQueried: /* @__PURE__ */ new Set(), rawParts: [] };
 }
-async function issue2(conn, ctx, sql, rowNumber, tables) {
+async function issue3(conn, ctx, sql, rowNumber, tables) {
   const resp = await conn.dataPreviewFreestyle(sql, rowNumber);
   ctx.statementsIssued++;
   ctx.rawParts.push(resp.body);
@@ -128422,7 +131634,7 @@ async function issue2(conn, ctx, sql, rowNumber, tables) {
   const { totalRows } = parsePreviewBody(resp.body);
   return { rs, totalRows };
 }
-function serverNotes3(rs) {
+function serverNotes4(rs) {
   return rs.messages.map((m) => `[server] ${m.text}${m.severity ? ` (${m.severity})` : ""}`);
 }
 async function readImgSearch(conn, q) {
@@ -128433,17 +131645,17 @@ async function readImgSearch(conn, q) {
   const ACT = fld4("imgActivity", "activity");
   const TACT = fld4("imgActivityText", "activity");
   const TTEXT = fld4("imgActivityText", "text");
-  const idResult = await issue2(conn, ctx, buildActivityIdSearchQuery(q.text, q.after), limit + 1, tbl4("imgActivity"));
-  notes.push(...serverNotes3(idResult.rs));
+  const idResult = await issue3(conn, ctx, buildActivityIdSearchQuery(q.text, q.after), limit + 1, tbl4("imgActivity"));
+  notes.push(...serverNotes4(idResult.rs));
   const idIds = idResult.rs.records.map((r) => requireColumn(r, ACT));
-  const titleResult = await issue2(
+  const titleResult = await issue3(
     conn,
     ctx,
     buildActivityTitleSearchQuery(q.text, q.language, q.after),
     limit + 1,
     tbl4("imgActivityText")
   );
-  notes.push(...serverNotes3(titleResult.rs));
+  notes.push(...serverNotes4(titleResult.rs));
   const titleIds = titleResult.rs.records.map((r) => requireColumn(r, TACT));
   const merged = [.../* @__PURE__ */ new Set([...idIds, ...titleIds])].sort();
   const more = merged.length > limit;
@@ -128456,8 +131668,8 @@ async function readImgSearch(conn, q) {
   const missingTitles = page.filter((a) => !titleByActivity.has(a));
   if (missingTitles.length > 0) {
     for (const group of chunk2(missingTitles, MAX_IN_LIST)) {
-      const titlesResult = await issue2(conn, ctx, buildActivityTitlesQuery(group, q.language), group.length, tbl4("imgActivityText"));
-      notes.push(...serverNotes3(titlesResult.rs));
+      const titlesResult = await issue3(conn, ctx, buildActivityTitlesQuery(group, q.language), group.length, tbl4("imgActivityText"));
+      notes.push(...serverNotes4(titlesResult.rs));
       for (const r of titlesResult.rs.records) {
         titleByActivity.set(requireColumn(r, TACT), requireColumn(r, TTEXT));
       }
@@ -128492,14 +131704,14 @@ async function readImgSearch(conn, q) {
   };
 }
 async function walkImgPath(conn, ctx, notes, activity, activityTitle, language) {
-  const refsResult = await issue2(
+  const refsResult = await issue3(
     conn,
     ctx,
     buildNodesByRefObjectQuery(activity, IMG_ACTIVITY_REF_TYPE),
     IMG_READ_ROW_CAP,
     tbl4("imgTreeNodeRef")
   );
-  notes.push(...serverNotes3(refsResult.rs));
+  notes.push(...serverNotes4(refsResult.rs));
   const nodeIds = [...new Set(refsResult.rs.records.map((r) => requireColumn(r, fld4("imgTreeNodeRef", "nodeId"))))].sort();
   if (nodeIds.length === 0) {
     notes.push(
@@ -128513,8 +131725,8 @@ async function walkImgPath(conn, ctx, notes, activity, activityTitle, language) 
     );
   }
   const leafNodeId = nodeIds[0];
-  const rootResult = await issue2(conn, ctx, buildTreeNodeByIdQuery(leafNodeId, language), 1, [tbl4("imgTreeNode"), tbl4("imgTreeNodeText")]);
-  notes.push(...serverNotes3(rootResult.rs));
+  const rootResult = await issue3(conn, ctx, buildTreeNodeByIdQuery(leafNodeId, language), 1, [tbl4("imgTreeNode"), tbl4("imgTreeNodeText")]);
+  notes.push(...serverNotes4(rootResult.rs));
   if (rootResult.rs.records.length === 0) {
     notes.push(
       `Node "${leafNodeId}" is referenced by ${tbl4("imgTreeNodeRef")} for activity "${activity}" but has no ${tbl4("imgTreeNode")} row \u2014 cannot walk its ancestors.`
@@ -128540,8 +131752,8 @@ async function walkImgPath(conn, ctx, notes, activity, activityTitle, language) 
       );
       break;
     }
-    const nodeResult = await issue2(conn, ctx, buildTreeNodeQuery(treeId, parentId2, language), 1, [tbl4("imgTreeNode"), tbl4("imgTreeNodeText")]);
-    notes.push(...serverNotes3(nodeResult.rs));
+    const nodeResult = await issue3(conn, ctx, buildTreeNodeQuery(treeId, parentId2, language), 1, [tbl4("imgTreeNode"), tbl4("imgTreeNodeText")]);
+    notes.push(...serverNotes4(nodeResult.rs));
     if (nodeResult.rs.records.length === 0) {
       notes.push(
         `Ancestor node "${parentId2}" of activity "${activity}"'s mount has no ${tbl4("imgTreeNode")} row in tree "${treeId}" \u2014 the returned path stops here, not at the true root.`
@@ -128570,16 +131782,16 @@ async function readImgShow(conn, q) {
     cActivity: fld4("imgActivity", "cActivity"),
     docId: fld4("imgActivity", "docId")
   };
-  const headerResult = await issue2(conn, ctx, buildActivityHeaderQuery(q.activity), 1, tbl4("imgActivity"));
-  notes.push(...serverNotes3(headerResult.rs));
+  const headerResult = await issue3(conn, ctx, buildActivityHeaderQuery(q.activity), 1, tbl4("imgActivity"));
+  notes.push(...serverNotes4(headerResult.rs));
   if (headerResult.rs.records.length === 0) {
     throw new AbapError("NOT_FOUND", `No ${tbl4("imgActivity")} row for activity "${q.activity}".`, { activity: q.activity });
   }
   const header = headerResult.rs.records[0];
   const cActivity = requireColumn(header, H.cActivity);
   const docId = requireColumn(header, H.docId);
-  const titleResult = await issue2(conn, ctx, buildActivityTitlesQuery([q.activity], q.language), 1, tbl4("imgActivityText"));
-  notes.push(...serverNotes3(titleResult.rs));
+  const titleResult = await issue3(conn, ctx, buildActivityTitlesQuery([q.activity], q.language), 1, tbl4("imgActivityText"));
+  notes.push(...serverNotes4(titleResult.rs));
   const title = titleResult.rs.records[0] ? requireColumn(titleResult.rs.records[0], fld4("imgActivityText", "text")) : "";
   if (titleResult.rs.records.length === 0) {
     notes.push(`No ${tbl4("imgActivityText")} title for activity "${q.activity}" in language "${q.language}".`);
@@ -128594,13 +131806,13 @@ async function readImgShow(conn, q) {
   if (cActivity.trim() === "") {
     notes.push(`Activity "${q.activity}" has no ${H.cActivity} value \u2014 cannot resolve its customizing objects.`);
   } else {
-    const actHeaderResult = await issue2(conn, ctx, buildActivityHeadersByIdQuery([cActivity]), 1, tbl4("cusActivityHeader"));
-    notes.push(...serverNotes3(actHeaderResult.rs));
+    const actHeaderResult = await issue3(conn, ctx, buildActivityHeadersByIdQuery([cActivity]), 1, tbl4("cusActivityHeader"));
+    notes.push(...serverNotes4(actHeaderResult.rs));
     if (actHeaderResult.rs.records.length === 0) {
       notes.push(`No ${tbl4("cusActivityHeader")} row for ACT_ID "${cActivity}" \u2014 cannot resolve this activity's customizing objects.`);
     } else {
-      const objResult = await issue2(conn, ctx, buildActivityObjectsQuery([cActivity]), IMG_READ_ROW_CAP, tbl4("imgActivityObject"));
-      notes.push(...serverNotes3(objResult.rs));
+      const objResult = await issue3(conn, ctx, buildActivityObjectsQuery([cActivity]), IMG_READ_ROW_CAP, tbl4("imgActivityObject"));
+      notes.push(...serverNotes4(objResult.rs));
       objectRows2 = objResult.rs.records;
     }
   }
@@ -128619,8 +131831,8 @@ async function readImgShow(conn, q) {
     };
     const objTableRows = [];
     for (const group of chunk2(uniqueObjNames, MAX_IN_LIST)) {
-      const objTablesResult = await issue2(conn, ctx, buildObjectTablesQuery(group), IMG_READ_ROW_CAP, tbl4("cusObjectTable"));
-      notes.push(...serverNotes3(objTablesResult.rs));
+      const objTablesResult = await issue3(conn, ctx, buildObjectTablesQuery(group), IMG_READ_ROW_CAP, tbl4("cusObjectTable"));
+      notes.push(...serverNotes4(objTablesResult.rs));
       objTableRows.push(...objTablesResult.rs.records);
     }
     const tableNames = [...new Set(objTableRows.map((r) => requireColumn(r, OT.table)))];
@@ -128631,8 +131843,8 @@ async function readImgShow(conn, q) {
       deliveryClass: fld4("ddicTable", "deliveryClass")
     };
     for (const group of chunk2(tableNames, MAX_IN_LIST)) {
-      const dcResult = await issue2(conn, ctx, buildTableDeliveryClassQuery(group), group.length, tbl4("ddicTable"));
-      notes.push(...serverNotes3(dcResult.rs));
+      const dcResult = await issue3(conn, ctx, buildTableDeliveryClassQuery(group), group.length, tbl4("ddicTable"));
+      notes.push(...serverNotes4(dcResult.rs));
       for (const r of dcResult.rs.records) {
         dcByTable.set(requireColumn(r, DT.table), {
           clientDependent: requireColumn(r, DT.clientDependent) === "X",
@@ -128724,11 +131936,11 @@ function toTreeSibling(r) {
   };
 }
 async function resolveRefMount(conn, ctx, notes, loc, language) {
-  const nodeResult = await issue2(conn, ctx, buildTreeNodeQuery(loc.treeId, loc.parentId, language), 1, [
+  const nodeResult = await issue3(conn, ctx, buildTreeNodeQuery(loc.treeId, loc.parentId, language), 1, [
     tbl4("imgTreeNode"),
     tbl4("imgTreeNodeText")
   ]);
-  notes.push(...serverNotes3(nodeResult.rs));
+  notes.push(...serverNotes4(nodeResult.rs));
   if (nodeResult.rs.records.length === 0) {
     return loc;
   }
@@ -128740,8 +131952,8 @@ async function resolveRefMount(conn, ctx, notes, loc, language) {
   if (refNodeId.trim() !== "") {
     return { treeId: refTreeId, parentId: refNodeId };
   }
-  const dirResult = await issue2(conn, ctx, buildTreeDirectoryQuery([refTreeId]), 1, tbl4("treeDirectory"));
-  notes.push(...serverNotes3(dirResult.rs));
+  const dirResult = await issue3(conn, ctx, buildTreeDirectoryQuery([refTreeId]), 1, tbl4("treeDirectory"));
+  notes.push(...serverNotes4(dirResult.rs));
   if (dirResult.rs.records.length === 0) {
     throw new AbapError("NOT_FOUND", `REF node "${loc.parentId}" mounts tree "${refTreeId}", which has no ${tbl4("treeDirectory")} entry.`, {
       node: loc.parentId,
@@ -128785,8 +131997,8 @@ async function readImgTree(conn, q) {
   let treeId = q.treeId;
   let parentId2 = q.node;
   if (treeId === void 0) {
-    const probeResult = await issue2(conn, ctx, buildTreeRootProbeQuery(q.language), 5, tbl4("imgTreeNodeText"));
-    notes.push(...serverNotes3(probeResult.rs));
+    const probeResult = await issue3(conn, ctx, buildTreeRootProbeQuery(q.language), 5, tbl4("imgTreeNodeText"));
+    notes.push(...serverNotes4(probeResult.rs));
     if (probeResult.rs.records.length === 0) {
       notes.push(
         `No reference-IMG root found by title probe in language "${q.language}". The probe matches ${tbl4("imgTreeNodeText")}.${fld4("imgTreeNodeText", "text")} against the English phrase "SAP Customizing Implementation*" regardless of the requested language, so a system whose customizing texts are not installed in English will never match here \u2014 this is an explained empty result, not a failure. Pass an explicit treeId to bypass the probe.`
@@ -128798,8 +132010,8 @@ async function readImgTree(conn, q) {
     if (parentId2 === void 0) parentId2 = requireColumn(rec, fld4("imgTreeNodeText", "nodeId"));
   }
   if (parentId2 === void 0) {
-    const dirResult = await issue2(conn, ctx, buildTreeDirectoryQuery([treeId]), 1, tbl4("treeDirectory"));
-    notes.push(...serverNotes3(dirResult.rs));
+    const dirResult = await issue3(conn, ctx, buildTreeDirectoryQuery([treeId]), 1, tbl4("treeDirectory"));
+    notes.push(...serverNotes4(dirResult.rs));
     if (dirResult.rs.records.length === 0) {
       throw new AbapError("NOT_FOUND", `No ${tbl4("treeDirectory")} entry for tree "${treeId}".`, { treeId });
     }
@@ -128809,11 +132021,11 @@ async function readImgTree(conn, q) {
     treeId = resolved.treeId;
     parentId2 = resolved.parentId;
   }
-  const childrenResult = await issue2(conn, ctx, buildTreeChildrenQuery(treeId, parentId2, q.language), TREE_CHILDREN_FETCH_CAP, [
+  const childrenResult = await issue3(conn, ctx, buildTreeChildrenQuery(treeId, parentId2, q.language), TREE_CHILDREN_FETCH_CAP, [
     tbl4("imgTreeNode"),
     tbl4("imgTreeNodeText")
   ]);
-  notes.push(...serverNotes3(childrenResult.rs));
+  notes.push(...serverNotes4(childrenResult.rs));
   const rawSiblings = childrenResult.rs.records.map(toTreeSibling);
   if (childrenResult.totalRows !== void 0 && childrenResult.totalRows > rawSiblings.length) {
     notes.push(
@@ -128845,8 +132057,8 @@ async function readImgTree(conn, q) {
       refObject: fld4("imgTreeNodeRef", "refObject")
     };
     for (const group of chunk2(leafNodeIds, MAX_IN_LIST)) {
-      const refsResult = await issue2(conn, ctx, buildNodeRefsQuery(group), IMG_READ_ROW_CAP, tbl4("imgTreeNodeRef"));
-      notes.push(...serverNotes3(refsResult.rs));
+      const refsResult = await issue3(conn, ctx, buildNodeRefsQuery(group), IMG_READ_ROW_CAP, tbl4("imgTreeNodeRef"));
+      notes.push(...serverNotes4(refsResult.rs));
       for (const r of refsResult.rs.records) {
         if (requireColumn(r, RF.refType) !== IMG_ACTIVITY_REF_TYPE) continue;
         activityByNode.set(requireColumn(r, RF.nodeId), requireColumn(r, RF.refObject));
@@ -128854,8 +132066,8 @@ async function readImgTree(conn, q) {
     }
     const activities = [...new Set(activityByNode.values())];
     for (const group of chunk2(activities, MAX_IN_LIST)) {
-      const titlesResult = await issue2(conn, ctx, buildActivityTitlesQuery(group, q.language), group.length, tbl4("imgActivityText"));
-      notes.push(...serverNotes3(titlesResult.rs));
+      const titlesResult = await issue3(conn, ctx, buildActivityTitlesQuery(group, q.language), group.length, tbl4("imgActivityText"));
+      notes.push(...serverNotes4(titlesResult.rs));
       for (const r of titlesResult.rs.records) {
         titleByActivity.set(requireColumn(r, fld4("imgActivityText", "activity")), requireColumn(r, fld4("imgActivityText", "text")));
       }
@@ -128890,8 +132102,8 @@ async function readImgTree(conn, q) {
   };
 }
 async function fillTable(conn, ctx, notes, object3, language) {
-  const dcResult = await issue2(conn, ctx, buildTableDeliveryClassQuery([object3]), 1, tbl4("ddicTable"));
-  notes.push(...serverNotes3(dcResult.rs));
+  const dcResult = await issue3(conn, ctx, buildTableDeliveryClassQuery([object3]), 1, tbl4("ddicTable"));
+  notes.push(...serverNotes4(dcResult.rs));
   const dcRow = dcResult.rs.records[0];
   if (dcRow === void 0) return void 0;
   const DT = {
@@ -128900,12 +132112,12 @@ async function fillTable(conn, ctx, notes, object3, language) {
   };
   const clientDependent = requireColumn(dcRow, DT.clientDependent) === "X";
   const deliveryClass = requireColumn(dcRow, DT.deliveryClass);
-  const textResult = await issue2(conn, ctx, buildTableTextsQuery([object3], language), 1, tbl4("ddicTableText"));
-  notes.push(...serverNotes3(textResult.rs));
+  const textResult = await issue3(conn, ctx, buildTableTextsQuery([object3], language), 1, tbl4("ddicTableText"));
+  notes.push(...serverNotes4(textResult.rs));
   const title = textResult.rs.records[0] ? requireColumn(textResult.rs.records[0], fld4("ddicTableText", "text")) : "";
   if (textResult.rs.records.length === 0) notes.push(`No ${tbl4("ddicTableText")} title for table "${object3}" in language "${language}".`);
-  const fieldsResult = await issue2(conn, ctx, buildTableFieldsQuery([object3]), IMG_READ_ROW_CAP, tbl4("ddicField"));
-  notes.push(...serverNotes3(fieldsResult.rs));
+  const fieldsResult = await issue3(conn, ctx, buildTableFieldsQuery([object3]), IMG_READ_ROW_CAP, tbl4("ddicField"));
+  notes.push(...serverNotes4(fieldsResult.rs));
   const FF = {
     table: fld4("ddicField", "table"),
     field: fld4("ddicField", "field"),
@@ -128938,21 +132150,21 @@ async function fillTable(conn, ctx, notes, object3, language) {
   };
 }
 async function fillView(conn, ctx, notes, object3, language) {
-  const headerResult = await issue2(conn, ctx, buildViewHeaderQuery([object3]), 1, tbl4("viewHeader"));
-  notes.push(...serverNotes3(headerResult.rs));
+  const headerResult = await issue3(conn, ctx, buildViewHeaderQuery([object3]), 1, tbl4("viewHeader"));
+  notes.push(...serverNotes4(headerResult.rs));
   if (headerResult.rs.records.length === 0) return void 0;
-  const textResult = await issue2(conn, ctx, buildViewTextQuery([object3], language), 1, tbl4("viewText"));
-  notes.push(...serverNotes3(textResult.rs));
+  const textResult = await issue3(conn, ctx, buildViewTextQuery([object3], language), 1, tbl4("viewText"));
+  notes.push(...serverNotes4(textResult.rs));
   const title = textResult.rs.records[0] ? requireColumn(textResult.rs.records[0], fld4("viewText", "text")) : "";
-  const baseTablesResult = await issue2(conn, ctx, buildViewBaseTablesQuery([object3]), IMG_READ_ROW_CAP, tbl4("viewBaseTable"));
-  notes.push(...serverNotes3(baseTablesResult.rs));
+  const baseTablesResult = await issue3(conn, ctx, buildViewBaseTablesQuery([object3]), IMG_READ_ROW_CAP, tbl4("viewBaseTable"));
+  notes.push(...serverNotes4(baseTablesResult.rs));
   const baseTableNames = baseTablesResult.rs.records.map((r) => requireColumn(r, fld4("viewBaseTable", "table")));
   const tables = [];
   if (baseTableNames.length > 0) {
     const dcByTable = /* @__PURE__ */ new Map();
     for (const group of chunk2([...new Set(baseTableNames)], MAX_IN_LIST)) {
-      const dcResult = await issue2(conn, ctx, buildTableDeliveryClassQuery(group), group.length, tbl4("ddicTable"));
-      notes.push(...serverNotes3(dcResult.rs));
+      const dcResult = await issue3(conn, ctx, buildTableDeliveryClassQuery(group), group.length, tbl4("ddicTable"));
+      notes.push(...serverNotes4(dcResult.rs));
       for (const r of dcResult.rs.records) {
         dcByTable.set(requireColumn(r, fld4("ddicTable", "table")), {
           clientDependent: requireColumn(r, fld4("ddicTable", "clientDependent")) === "X",
@@ -128970,8 +132182,8 @@ async function fillView(conn, ctx, notes, object3, language) {
       tables.push({ object: object3, table, clientDependent: dc?.clientDependent ?? false, deliveryClass: dc?.deliveryClass ?? "", via: tbl4("ddicTable"), title: "" });
     }
   }
-  const fieldsResult = await issue2(conn, ctx, buildViewFieldsQuery([object3]), IMG_READ_ROW_CAP, tbl4("viewField"));
-  notes.push(...serverNotes3(fieldsResult.rs));
+  const fieldsResult = await issue3(conn, ctx, buildViewFieldsQuery([object3]), IMG_READ_ROW_CAP, tbl4("viewField"));
+  notes.push(...serverNotes4(fieldsResult.rs));
   const VF = {
     table: fld4("viewField", "table"),
     field: fld4("viewField", "field"),
@@ -128989,14 +132201,14 @@ async function fillView(conn, ctx, notes, object3, language) {
   return { objects: [{ kind: "view", objectType: "", name: object3, title }], tables, fields };
 }
 async function fillCluster(conn, ctx, notes, object3, language) {
-  const headerResult = await issue2(conn, ctx, buildViewClusterQuery([object3]), 1, tbl4("viewCluster"));
-  notes.push(...serverNotes3(headerResult.rs));
+  const headerResult = await issue3(conn, ctx, buildViewClusterQuery([object3]), 1, tbl4("viewCluster"));
+  notes.push(...serverNotes4(headerResult.rs));
   if (headerResult.rs.records.length === 0) return void 0;
-  const textResult = await issue2(conn, ctx, buildViewClusterTextQuery([object3], language), 1, tbl4("viewClusterText"));
-  notes.push(...serverNotes3(textResult.rs));
+  const textResult = await issue3(conn, ctx, buildViewClusterTextQuery([object3], language), 1, tbl4("viewClusterText"));
+  notes.push(...serverNotes4(textResult.rs));
   const title = textResult.rs.records[0] ? requireColumn(textResult.rs.records[0], fld4("viewClusterText", "text")) : "";
-  const membersResult = await issue2(conn, ctx, buildViewClusterMembersQuery([object3]), IMG_READ_ROW_CAP, tbl4("viewClusterMember"));
-  notes.push(...serverNotes3(membersResult.rs));
+  const membersResult = await issue3(conn, ctx, buildViewClusterMembersQuery([object3]), IMG_READ_ROW_CAP, tbl4("viewClusterMember"));
+  notes.push(...serverNotes4(membersResult.rs));
   const objects = [{ kind: "cluster", objectType: "", name: object3, title }];
   for (const r of membersResult.rs.records) {
     objects.push({ kind: "cluster", objectType: "", name: requireColumn(r, fld4("viewClusterMember", "object")), title: "" });
@@ -129004,32 +132216,32 @@ async function fillCluster(conn, ctx, notes, object3, language) {
   return { objects, tables: [], fields: [] };
 }
 async function fillTransaction(conn, ctx, notes, object3, language) {
-  const headerResult = await issue2(conn, ctx, buildTransactionsQuery([object3]), 1, tbl4("transaction"));
-  notes.push(...serverNotes3(headerResult.rs));
+  const headerResult = await issue3(conn, ctx, buildTransactionsQuery([object3]), 1, tbl4("transaction"));
+  notes.push(...serverNotes4(headerResult.rs));
   if (headerResult.rs.records.length === 0) return void 0;
-  const textResult = await issue2(conn, ctx, buildTransactionTextsQuery([object3], language), 1, tbl4("transactionText"));
-  notes.push(...serverNotes3(textResult.rs));
+  const textResult = await issue3(conn, ctx, buildTransactionTextsQuery([object3], language), 1, tbl4("transactionText"));
+  notes.push(...serverNotes4(textResult.rs));
   const title = textResult.rs.records[0] ? requireColumn(textResult.rs.records[0], fld4("transactionText", "text")) : "";
   return { objects: [{ kind: "transaction", objectType: "", name: object3, title }], tables: [], fields: [] };
 }
 async function fillCustomizingObject(conn, ctx, notes, object3, language) {
-  const headerResult = await issue2(conn, ctx, buildObjectHeadersQuery([object3]), 1, tbl4("cusObjectHeader"));
-  notes.push(...serverNotes3(headerResult.rs));
+  const headerResult = await issue3(conn, ctx, buildObjectHeadersQuery([object3]), 1, tbl4("cusObjectHeader"));
+  notes.push(...serverNotes4(headerResult.rs));
   const headerRow = headerResult.rs.records[0];
   if (headerRow === void 0) return void 0;
   const objectType2 = requireColumn(headerRow, fld4("cusObjectHeader", "objectType"));
-  const textResult = await issue2(conn, ctx, buildObjectTextsQuery([object3], language), 1, tbl4("cusObjectText"));
-  notes.push(...serverNotes3(textResult.rs));
+  const textResult = await issue3(conn, ctx, buildObjectTextsQuery([object3], language), 1, tbl4("cusObjectText"));
+  notes.push(...serverNotes4(textResult.rs));
   const title = textResult.rs.records[0] ? requireColumn(textResult.rs.records[0], fld4("cusObjectText", "text")) : "";
-  const tablesResult = await issue2(conn, ctx, buildObjectTablesQuery([object3]), IMG_READ_ROW_CAP, tbl4("cusObjectTable"));
-  notes.push(...serverNotes3(tablesResult.rs));
+  const tablesResult = await issue3(conn, ctx, buildObjectTablesQuery([object3]), IMG_READ_ROW_CAP, tbl4("cusObjectTable"));
+  notes.push(...serverNotes4(tablesResult.rs));
   const tableNames = tablesResult.rs.records.map((r) => requireColumn(r, fld4("cusObjectTable", "table")));
   const tables = [];
   if (tableNames.length > 0) {
     const dcByTable = /* @__PURE__ */ new Map();
     for (const group of chunk2([...new Set(tableNames)], MAX_IN_LIST)) {
-      const dcResult = await issue2(conn, ctx, buildTableDeliveryClassQuery(group), group.length, tbl4("ddicTable"));
-      notes.push(...serverNotes3(dcResult.rs));
+      const dcResult = await issue3(conn, ctx, buildTableDeliveryClassQuery(group), group.length, tbl4("ddicTable"));
+      notes.push(...serverNotes4(dcResult.rs));
       for (const r of dcResult.rs.records) {
         dcByTable.set(requireColumn(r, fld4("ddicTable", "table")), {
           clientDependent: requireColumn(r, fld4("ddicTable", "clientDependent")) === "X",
@@ -129749,9 +132961,9 @@ function parseImgWriteTranscript(text4) {
     applied: null,
     raw: text4
   };
-  for (const line of text4.replace(/\r\n/g, "\n").split("\n")) {
-    if (line.startsWith(IMGW_LINE_PREFIX)) {
-      const rest = line.slice(IMGW_LINE_PREFIX.length);
+  for (const line2 of text4.replace(/\r\n/g, "\n").split("\n")) {
+    if (line2.startsWith(IMGW_LINE_PREFIX)) {
+      const rest = line2.slice(IMGW_LINE_PREFIX.length);
       const spaceIdx = rest.indexOf(" ");
       const head = spaceIdx === -1 ? rest : rest.slice(0, spaceIdx);
       const remainder = spaceIdx === -1 ? "" : rest.slice(spaceIdx + 1);
@@ -129902,11 +133114,11 @@ function parseImgWriteTranscript(text4) {
         default:
           result.droppedLines++;
       }
-    } else if (line.startsWith(DDIC_ERR_PREFIX)) {
-      result.errors.push(line.slice(DDIC_ERR_PREFIX.length).trim());
-    } else if (line.startsWith(ERR_LINE_PREFIX)) {
-      result.errors.push(line.slice(ERR_LINE_PREFIX.length).trim());
-    } else if (line.trim() === "") {
+    } else if (line2.startsWith(DDIC_ERR_PREFIX)) {
+      result.errors.push(line2.slice(DDIC_ERR_PREFIX.length).trim());
+    } else if (line2.startsWith(ERR_LINE_PREFIX)) {
+      result.errors.push(line2.slice(ERR_LINE_PREFIX.length).trim());
+    } else if (line2.trim() === "") {
     } else {
       result.droppedLines++;
     }
@@ -129981,9 +133193,9 @@ var CUSTREQ_ERR_RE = /^exception=\[([A-Za-z0-9_]{1,30})\] len=\[(\d+)\] value=\[
 var CUSTREQ_WARN_RE = /^code=\[([A-Za-z0-9_]{1,30})\] len=\[(\d+)\] value=\[/;
 function parseCustomizingRequestTranscript(text4) {
   const result = { errors: [], warnings: [] };
-  for (const line of text4.replace(/\r\n/g, "\n").split("\n")) {
-    if (line.startsWith(CUSTREQ_LINE_PREFIX)) {
-      const rest = line.slice(CUSTREQ_LINE_PREFIX.length);
+  for (const line2 of text4.replace(/\r\n/g, "\n").split("\n")) {
+    if (line2.startsWith(CUSTREQ_LINE_PREFIX)) {
+      const rest = line2.slice(CUSTREQ_LINE_PREFIX.length);
       const spaceIdx = rest.indexOf(" ");
       const head = spaceIdx === -1 ? rest : rest.slice(0, spaceIdx);
       const remainder = spaceIdx === -1 ? "" : rest.slice(spaceIdx + 1);
@@ -130022,10 +133234,10 @@ function parseCustomizingRequestTranscript(text4) {
         default:
           break;
       }
-    } else if (line.startsWith(DDIC_ERR_PREFIX)) {
-      result.errors.push(line.slice(DDIC_ERR_PREFIX.length).trim());
-    } else if (line.startsWith(ERR_LINE_PREFIX)) {
-      result.errors.push(line.slice(ERR_LINE_PREFIX.length).trim());
+    } else if (line2.startsWith(DDIC_ERR_PREFIX)) {
+      result.errors.push(line2.slice(DDIC_ERR_PREFIX.length).trim());
+    } else if (line2.startsWith(ERR_LINE_PREFIX)) {
+      result.errors.push(line2.slice(ERR_LINE_PREFIX.length).trim());
     }
   }
   return result;
@@ -130055,7 +133267,7 @@ async function runImgProbe(conn, gate, plan, cfg, callerAction) {
       caller: { tool: "abap_img_edit", action: callerAction }
     }
   );
-  if (!Array.isArray(res.result) || res.result.some((line) => typeof line !== "string")) {
+  if (!Array.isArray(res.result) || res.result.some((line2) => typeof line2 !== "string")) {
     throw new AbapError(
       "FLUID_PROTOCOL_ERROR",
       "img.preview returned a result that is not an array of strings.",
@@ -130097,7 +133309,7 @@ async function runImgApply(conn, gate, plan, cfg, callerAction) {
       caller: { tool: "abap_img_edit", action: callerAction }
     }
   );
-  if (!Array.isArray(res.result) || res.result.some((line) => typeof line !== "string")) {
+  if (!Array.isArray(res.result) || res.result.some((line2) => typeof line2 !== "string")) {
     throw new AbapError(
       "FLUID_PROTOCOL_ERROR",
       "img.apply returned a result that is not an array of strings.",
@@ -130128,7 +133340,7 @@ async function runCreateCustomizingRequest(conn, gate, plan, cfg) {
       caller: { tool: "abap_img_edit", action: "create_request" }
     }
   );
-  if (!Array.isArray(res.result) || res.result.some((line) => typeof line !== "string")) {
+  if (!Array.isArray(res.result) || res.result.some((line2) => typeof line2 !== "string")) {
     throw new AbapError(
       "FLUID_PROTOCOL_ERROR",
       "img.create_request returned a result that is not an array of strings.",
@@ -130329,7 +133541,7 @@ async function runQuery(conn, ctx, sql) {
   ctx.statementsIssued++;
   return toRecordSet(resp.body);
 }
-function serverNotes4(rs) {
+function serverNotes5(rs) {
   return rs.messages.map((m) => `[server] ${m.text}${m.severity ? ` (${m.severity})` : ""}`);
 }
 function mapRows(rs, queryLabel, notes, fn) {
@@ -130394,7 +133606,7 @@ async function readImgChecks(conn, q) {
   const notes = [];
   const { writtenFields, valueFields } = collectWrittenFields(q.rows, q.clientField, q.checkValues);
   const viewsRs = await runQuery(conn, ctx, buildViewsOverTableQuery([q.table]));
-  notes.push(...serverNotes4(viewsRs));
+  notes.push(...serverNotes5(viewsRs));
   const candidateViews = mapRows(viewsRs, tbl5("viewBaseTable"), notes, (r) => r[fld5("viewBaseTable", "view")]);
   const lookupOrder = [q.view, q.table, ...candidateViews];
   const seen = /* @__PURE__ */ new Set();
@@ -130415,7 +133627,7 @@ async function readImgChecks(conn, q) {
   let events = [];
   if (views.length > 0) {
     const eventsRs = await runQuery(conn, ctx, buildViewMaintenanceEventsQuery(views));
-    notes.push(...serverNotes4(eventsRs));
+    notes.push(...serverNotes5(eventsRs));
     events = mapRows(eventsRs, tbl5("viewMaintenanceEvent"), notes, (r) => {
       const view = r[fld5("viewMaintenanceEvent", "view")];
       const event = r[fld5("viewMaintenanceEvent", "event")];
@@ -130427,7 +133639,7 @@ async function readImgChecks(conn, q) {
   if (events.length > 0) {
     const codeToText = /* @__PURE__ */ new Map();
     const textsRs = await runQuery(conn, ctx, buildDomainValueTextsQuery([MAINTENANCE_EVENT_DOMAIN], q.language));
-    notes.push(...serverNotes4(textsRs));
+    notes.push(...serverNotes5(textsRs));
     mapRows(textsRs, tbl5("domainValueText"), notes, (r) => {
       const code = r[fld5("domainValueText", "valueLow")];
       const text4 = r[fld5("domainValueText", "text")];
@@ -130448,7 +133660,7 @@ async function readImgChecks(conn, q) {
   const checkTables = [];
   const domainByField = /* @__PURE__ */ new Map();
   const fieldChecksRs = await runQuery(conn, ctx, buildTableFieldChecksQuery([q.table]));
-  notes.push(...serverNotes4(fieldChecksRs));
+  notes.push(...serverNotes5(fieldChecksRs));
   const fieldInfo = /* @__PURE__ */ new Map();
   mapRows(fieldChecksRs, tbl5("ddicField"), notes, (r) => {
     const field = r[fld5("ddicField", "field")];
@@ -130470,7 +133682,7 @@ async function readImgChecks(conn, q) {
     const domains = [...new Set(valueFieldsWithDomain.map((f) => domainByField.get(f)))];
     const domainRowsMap = /* @__PURE__ */ new Map();
     const domainValuesRs = await runQuery(conn, ctx, buildDomainFixedValuesQuery(domains));
-    notes.push(...serverNotes4(domainValuesRs));
+    notes.push(...serverNotes5(domainValuesRs));
     mapRows(domainValuesRs, tbl5("domainValue"), notes, (r) => {
       const domain2 = r[fld5("domainValue", "domain")];
       const valueLow = r[fld5("domainValue", "valueLow")];
@@ -131899,12 +135111,12 @@ function parseUiTranscript(raw) {
   const diagnostics = [];
   let droppedLines = 0;
   const tagged = [];
-  for (const line of raw.replace(/\r\n/g, "\n").split("\n")) {
-    if (line.startsWith(UI_LINE_PREFIX)) {
-      tagged.push(line.slice(UI_LINE_PREFIX.length));
-    } else if (line.startsWith(ERR_LINE_PREFIX)) {
-      diagnostics.push(line.trim());
-    } else if (line.trim() === "") {
+  for (const line2 of raw.replace(/\r\n/g, "\n").split("\n")) {
+    if (line2.startsWith(UI_LINE_PREFIX)) {
+      tagged.push(line2.slice(UI_LINE_PREFIX.length));
+    } else if (line2.startsWith(ERR_LINE_PREFIX)) {
+      diagnostics.push(line2.trim());
+    } else if (line2.trim() === "") {
     } else {
       droppedLines++;
     }
@@ -131921,10 +135133,10 @@ function parseUiTranscript(raw) {
   const messages = [];
   let subrc;
   let rowCount;
-  for (const line of tagged) {
-    const spaceIdx = line.indexOf(" ");
-    const head = spaceIdx === -1 ? line : line.slice(0, spaceIdx);
-    const remainder = spaceIdx === -1 ? "" : line.slice(spaceIdx + 1);
+  for (const line2 of tagged) {
+    const spaceIdx = line2.indexOf(" ");
+    const head = spaceIdx === -1 ? line2 : line2.slice(0, spaceIdx);
+    const remainder = spaceIdx === -1 ? "" : line2.slice(spaceIdx + 1);
     const fields = parseBracketFields(remainder);
     switch (head) {
       case "TCODE": {
@@ -133218,8 +136430,8 @@ var ENH_TAGS = [
 function parseEnhancementTranscript(raw) {
   const tags = [];
   let errorLine;
-  for (const line of raw.split("\n")) {
-    const trimmed = line.trim();
+  for (const line2 of raw.split("\n")) {
+    const trimmed = line2.trim();
     if (trimmed.startsWith("ZMCP-ENH-ERR>")) {
       errorLine = trimmed.slice("ZMCP-ENH-ERR>".length).trim();
       continue;
@@ -135120,8 +138332,8 @@ function parseDumpDetail(body) {
   for (const raw of asArray3(asRecord2(dump.chapters)?.chapter)) {
     const node2 = asRecord2(raw);
     const name = attrOrEmpty(node2, "name");
-    const line = intAttr(node2, "line");
-    if (line === void 0) {
+    const line2 = intAttr(node2, "line");
+    if (line2 === void 0) {
       throw new AbapError(
         "BAD_INPUT",
         `Dump chapter '${name}' has no usable line offset (line=${String(attr5(node2, "line"))}).`,
@@ -135133,7 +138345,7 @@ function parseDumpDetail(body) {
       name,
       title: attrOrEmpty(node2, "title"),
       category: attrOrEmpty(node2, "category"),
-      line,
+      line: line2,
       chapterOrder: intAttr(node2, "chapterOrder") ?? 0,
       categoryOrder: intAttr(node2, "categoryOrder") ?? 0
     });
@@ -135163,10 +138375,10 @@ function terminationTarget(uri) {
   const hash2 = path8.indexOf("#");
   if (hash2 < 0) return { path: path8 };
   const start = new URLSearchParams(path8.slice(hash2 + 1)).get("start");
-  const line = start === null ? Number.NaN : Number.parseInt(start, 10);
+  const line2 = start === null ? Number.NaN : Number.parseInt(start, 10);
   return {
     path: path8.slice(0, hash2),
-    ...Number.isFinite(line) ? { line } : {}
+    ...Number.isFinite(line2) ? { line: line2 } : {}
   };
 }
 var TIER1_CHAPTER_NAMES = ["kap7", "kap8", "kap9", "kap11"];
@@ -136016,10 +139228,10 @@ function parseAtcLocation(location) {
     const [key, value] = part.split("=", 2);
     if (key !== "start" || value === void 0) continue;
     const [lineText, colText] = value.split(",", 2);
-    const line = Number.parseInt(lineText ?? "", 10);
-    if (!Number.isFinite(line)) break;
+    const line2 = Number.parseInt(lineText ?? "", 10);
+    if (!Number.isFinite(line2)) break;
     const column = Number.parseInt(colText ?? "", 10);
-    return Number.isFinite(column) ? { uri, line, column } : { uri, line };
+    return Number.isFinite(column) ? { uri, line: line2, column } : { uri, line: line2 };
   }
   return { uri };
 }
@@ -137315,19 +140527,19 @@ function resolvePosition(lines, pos, endpoint, editIndex) {
       ...editIndex !== void 0 ? { editIndex } : {}
     };
   }
-  const line = lines[pos.line - 1];
-  if (!Number.isInteger(pos.column) || pos.column < 0 || pos.column > line.length) {
+  const line2 = lines[pos.line - 1];
+  if (!Number.isInteger(pos.column) || pos.column < 0 || pos.column > line2.length) {
     return {
       ok: false,
       kind: "out-of-bounds-column",
       endpoint,
       line: pos.line,
       column: pos.column,
-      lineLength: line.length,
+      lineLength: line2.length,
       ...editIndex !== void 0 ? { editIndex } : {}
     };
   }
-  return { ok: true, offset: line.start + pos.column };
+  return { ok: true, offset: line2.start + pos.column };
 }
 function resolveEdit(lines, edit, editIndex) {
   const start = resolvePosition(lines, edit.range.start, "start", editIndex);
@@ -138127,10 +141339,10 @@ function v4Capabilities(annotations) {
 function indexV4ExternalAnnotations(schemas) {
   const idx = /* @__PURE__ */ new Map();
   for (const s of schemas) {
-    for (const block of list(s, "Annotations")) {
-      const target = attr8(block, "Target");
+    for (const block2 of list(s, "Annotations")) {
+      const target = attr8(block2, "Target");
       if (!target) continue;
-      const anns = v4AnnotationsOf(block);
+      const anns = v4AnnotationsOf(block2);
       if (anns.length === 0) continue;
       idx.set(target, [...idx.get(target) ?? [], ...anns]);
       const slash = target.indexOf("/");
@@ -138836,15 +142048,15 @@ function rejectUnknownArgs4(args) {
 }
 function capsOf(c) {
   const out = [];
-  const flag2 = (label, v) => {
+  const flag3 = (label, v) => {
     if (v === true) out.push(label);
     else if (v === false) out.push(`-${label}`);
   };
-  flag2("C", c.creatable);
-  flag2("U", c.updatable);
-  flag2("D", c.deletable);
-  flag2("search", c.searchable);
-  flag2("page", c.pageable);
+  flag3("C", c.creatable);
+  flag3("U", c.updatable);
+  flag3("D", c.deletable);
+  flag3("search", c.searchable);
+  flag3("page", c.pageable);
   if (c.requiresFilter === true) out.push("needs-filter");
   return out.join(" ");
 }
@@ -143821,7 +147033,26 @@ async function handleAbapWrite(args, deps) {
       );
     }
     const objectName = a.object;
-    const writeMode = a.mode === "delete" ? "delete" : "write";
+    let writeMode;
+    if (a.mode === void 0 || a.mode === "write") {
+      writeMode = "write";
+    } else if (a.mode === "delete") {
+      writeMode = "delete";
+    } else if (a.mode === "update") {
+      throw new AbapError(
+        "BAD_INPUT",
+        'mode:"update" is a v1-only route on this surface today \u2014 its redefine payload fields (`shlp`, `view_fields`, `program`) are not carried by v2\'s schema.',
+        { object: a.object },
+        'This is the v2 surface. The v1 `abap_write` tool (the default \u2014 reached by unsetting ABAP_TOOL_SURFACE) carries mode:"update".'
+      );
+    } else {
+      throw new AbapError(
+        "BAD_INPUT",
+        `Unrecognised mode "${a.mode}".`,
+        { object: a.object },
+        'Pass mode:"write" (default) or mode:"delete".'
+      );
+    }
     const include = a.include === void 0 ? void 0 : assertClassInclude(a.include);
     const ddic = a.ddic === void 0 ? void 0 : { ...a.ddic, typeKind: a.ddic.typeKind === void 0 ? void 0 : assertDdicTypeKind(a.ddic.typeKind) };
     deps.safety.assert(writeMode, preflight({ object: objectName, type: a.type, package: a.package }), {
@@ -143944,10 +147175,15 @@ var abapWriteInputSchema = {
     longLabel: external_exports.string().optional(),
     longLength: external_exports.number().optional(),
     headingLabel: external_exports.string().optional(),
-    headingLength: external_exports.number().optional()
+    headingLength: external_exports.number().optional(),
+    searchHelp: external_exports.string().optional().describe("DTEL/DE only: search help attached (DD04L-SHLPNAME)."),
+    searchHelpParameter: external_exports.string().optional().describe("DTEL/DE only: the search help's own interface parameter this data element binds to (DD04L-SHLPFIELD). Refused without `searchHelp`.")
   }).strict().optional().describe(
     "Structured create for DOMA/DD, DTEL/DE, TTYP/DA only \u2014 alternative to `source`, never both. Unverified: this path has never itself been sent to a live system."
-  )
+  ),
+  confirm_in_use: external_exports.boolean().optional().describe("SHLP/DH delete only: required true when the search help is still attached elsewhere. Refused zero-network otherwise."),
+  confirm_maintenance_dialog: external_exports.boolean().optional().describe("VIEW/DV delete only: overrides refusal when the view still has a generated maintenance dialog (TVDIR)."),
+  confirm_in_role_menu: external_exports.boolean().optional().describe("TRAN/T delete or update (retarget) only: overrides refusal when the tcode is assigned to a role menu (AGR_TCODES).")
 };
 var abapDoInputSchema = {
   action: external_exports.string().optional().describe("Action name. Unknown values return UNKNOWN_ACTION with nearest matches."),
