@@ -245,6 +245,29 @@
  * deleted (and the ceiling dropped) if the suite ever stops connecting for
  * real.
  *
+ * ### Ceiling bump: the cross-system diff registrar suite
+ *
+ * `read-cross-system-diff.test.ts` joined as a TWENTY-FIFTH entry. Like
+ * `object-gate-config-equivalence.test.ts` / `fluid-describe.test.ts` above, it
+ * is a DIFFERENT permanent shape from the live suites: not a live suite with no
+ * fake, but a suite that is structurally incapable of ever reaching the probe in
+ * the first place. It is a registrar-level harness for `abap_read`'s
+ * cross-system `view="diff"` (`from_system`/`to_system`, issue #93): it calls
+ * `registerReadTools(mcp, deps)` directly against an `McpServer` wired to an
+ * `InMemoryTransport`, never `createServer()`, and never constructs an
+ * `AbapConnection`. `resolveObject`/`readSource` are `vi.mock`ed so no ADT
+ * request is ever issued, and its `SafetyGate`s are `{ assert: vi.fn() }` spies
+ * constructed inline to prove the correct PER-ALIAS gate object is consulted
+ * for each side of the diff — no assertion in the file reads a system-role
+ * verdict. It is flagged only because it must import `src/tools/read.js`,
+ * `src/server.js`, `src/adt/pool.js`, `src/safety.js` and the MCP SDK to drive
+ * the registrar directly — imports past what the mechanical config-only
+ * exemption allows — the same reason the two entries above sit on this list
+ * despite also never opening a connection. `ALLOWLIST_SIZE_AT_LANDING` still
+ * stays **8**; `ALLOWLIST_CEILING` is now **25**. This entry must be deleted
+ * (and the ceiling dropped) if the file is ever restructured to fit inside the
+ * config-only predicate instead.
+ *
  * ## The config-only exemption (separate from the allow-list)
  *
  * A suite whose SUBJECT is config resolution — env string in, resolved value
@@ -282,7 +305,7 @@ const CONFIG_BUILDERS_AT_LANDING = 17;
  * accommodate unrepaired debt — that is what `PROBE_ALLOWLIST.length <=
  * builders.length` and the shrink-to-THREE target below still guard against.
  */
-const ALLOWLIST_CEILING = ALLOWLIST_SIZE_AT_LANDING + 16; // +1 integration-fpm-lock, +1 integration-class-includes, +1 object-gate-config-equivalence, +1 pool-cross-process-object-gate, +1 integration-lock-handle, +1 integration-fluid-runtime, +1 integration-fluid-run, +1 integration-fluid-tool, +1 integration-fluid-img, +1 integration-fluid-classic, +1 integration-fluid-core, +1 integration-fluid-ui, +1 integration-fluid-fpm, +1 integration-fluid-enh, +1 fluid-describe, +1 integration-fluid-plugin
+const ALLOWLIST_CEILING = ALLOWLIST_SIZE_AT_LANDING + 17; // +1 integration-fpm-lock, +1 integration-class-includes, +1 object-gate-config-equivalence, +1 pool-cross-process-object-gate, +1 integration-lock-handle, +1 integration-fluid-runtime, +1 integration-fluid-run, +1 integration-fluid-tool, +1 integration-fluid-img, +1 integration-fluid-classic, +1 integration-fluid-core, +1 integration-fluid-ui, +1 integration-fluid-fpm, +1 integration-fluid-enh, +1 fluid-describe, +1 integration-fluid-plugin, +1 read-cross-system-diff
 
 // ---------------------------------------------------------------------------
 // The scan
@@ -746,6 +769,28 @@ const PROBE_ALLOWLIST: { file: string; why: string }[] = [
       "manifest (the loader's namespace guard forbids it) via ensureFluidRuntimeFor(), rather " +
       "than dumping, and confirms an independent ADT read-back shows the class present " +
       "afterward. There is no fake to route.",
+  },
+  {
+    file: "read-cross-system-diff.test.ts",
+    why:
+      "Registrar-level harness for abap_read's cross-system view=\"diff\" (issue #93): it calls " +
+      "registerReadTools(mcp, deps) directly against an McpServer wired to an InMemoryTransport, " +
+      "never createServer(), and never constructs an AbapConnection. resolveObject " +
+      "(src/adt/resolve.js) and readSource (src/adt/source.js) are vi.mocked, so no ADT request " +
+      "is ever issued; its fake SessionPool.withRead just hands a { __alias } identity object to " +
+      "the callback. Its SafetyGates are { assert: vi.fn() } spies constructed inline, so no " +
+      "assertion in the file reads a system-role verdict — the point of those spies is to prove " +
+      "the correct PER-ALIAS gate object is consulted for each side of a cross-system diff. It " +
+      "calls ConfigSchema.parse() (via its cfg() helper) purely to give each fake side a " +
+      "realistic sid/client for the rendered diff header, and it deliberately decouples " +
+      "deps.multiSystem from deps.systems to exercise resolveCrossSystemSides's 'only one " +
+      "system configured' BAD_INPUT branch, which is unreachable through a real createServer() " +
+      "build. It is flagged only because its import surface (src/tools/read.js, src/server.js, " +
+      "src/adt/pool.js, src/safety.js, the MCP SDK) is wider than the mechanical config-only " +
+      "predicate allows — the same reason object-gate-config-equivalence.test.ts and " +
+      "fluid-describe.test.ts sit on this list despite also never opening a connection. This " +
+      "entry must be deleted (and the ceiling dropped) if the file is ever restructured to fit " +
+      "inside the config-only predicate.",
   },
 ];
 
