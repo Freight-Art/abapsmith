@@ -55,6 +55,7 @@ import { buildResponse, textTable } from "../compact.js";
 import { safetyTarget, type SafetyGate } from "../safety.js";
 import { withJournalledMutation, systemKey, type Journal } from "../journal.js";
 import { FLUID_PACKAGE } from "../adt/fluid/package.js";
+import { renderScreenLayout, LAYOUT_FIDELITY_NOTE } from "./ui-layout.js";
 
 // ---------------------------------------------------------------------------
 // Input schema
@@ -100,6 +101,14 @@ export const uiInputSchema = {
       "press only, required: ordered batch-input script, one entry per dynpro the transaction " +
         "will show in sequence. Build it incrementally using the screen call's own field/status " +
         "output and the 00/344 stall this tool reports when a script runs out.",
+    ),
+  layout: z
+    .boolean()
+    .optional()
+    .describe(
+      "screen only, default false: also render a monospace picture of the screen from the field " +
+        "rows already read. No extra ABAP and no extra round trip. Design-time layout, not a " +
+        "runtime screenshot. Ignored by press.",
     ),
   confirm: z
     .boolean()
@@ -355,7 +364,12 @@ function renderRecordRows(rows: readonly Record<string, string>[]): string {
     .join("\n");
 }
 
-function buildScreenResponse(query: UiScreenQuery, result: UiBridgeResult, maxChars: number): string {
+function buildScreenResponse(
+  query: UiScreenQuery,
+  result: UiBridgeResult,
+  maxChars: number,
+  layout: boolean,
+): string {
   const t = result.transcript;
   const notes = [...FIDELITY_NOTES];
 
@@ -378,6 +392,10 @@ function buildScreenResponse(query: UiScreenQuery, result: UiBridgeResult, maxCh
   if (t.noCua) {
     notes.push(`No GUI status defined for program ${t.noCua.program} — this is normal, not an error.`);
   }
+  // layout:true costs nothing extra on the wire — it re-lays-out fields/fkeys this call already fetched.
+  if (layout) {
+    notes.push(LAYOUT_FIDELITY_NOTE);
+  }
   return buildResponse({
     header: {
       mode: "screen",
@@ -394,6 +412,9 @@ function buildScreenResponse(query: UiScreenQuery, result: UiBridgeResult, maxCh
       bridgeRefreshed: result.bridgeRefreshed,
     },
     sections: [
+      ...(layout
+        ? [{ title: "LAYOUT (design-time)", content: renderScreenLayout({ header: t.header, fields: t.fields, fkeys: t.fkeys }) }]
+        : []),
       { title: "HEADER (RPY_DYNPRO_READ)", content: t.header ? renderRecordRows([t.header]) : "(not read)" },
       { title: "FLOW LOGIC", content: renderRecordRows(t.flow) },
       { title: "GUI STATUSES (names)", content: renderRecordRows(t.statusList) },
@@ -476,11 +497,13 @@ async function runScreenTool(deps: UiToolDeps, input: UiInput): Promise<CallTool
   const result = await deps.pool.withWrite("abap_ui", uiManifest.entry, (conn) =>
     runUiBridge(conn, query, deps.safety),
   );
-  return ok(buildScreenResponse(query, result, deps.cfg.maxResponseChars));
+  return ok(buildScreenResponse(query, result, deps.cfg.maxResponseChars, input.layout === true));
 }
 
 async function runPressTool(deps: UiToolDeps, input: UiInput): Promise<CallToolResult> {
   // Order: cheapest / most tool-specific refusals first — same discipline as abap_enh's delete gate.
+  // input.layout is screen-only (see uiInputSchema) and intentionally ignored here — press has no
+  // field grid to render, only CALL TRANSACTION messages (see buildPressResponse).
   assertPressConfirmed(input);
   const query = buildPressQuery(input);
   assertNotDenylisted(query.tcode);
