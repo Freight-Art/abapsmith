@@ -27,18 +27,29 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { AbapError } from "../src/adt/errors.js";
 import type { AbapConnection } from "../src/adt/connection.js";
 import type { SessionPool } from "../src/adt/pool.js";
-import { previewDdicEntity, type PreviewResult } from "../src/adt/datapreview.js";
+import {
+  previewDdicEntity,
+  type PreviewResult,
+} from "../src/adt/datapreview.js";
 import type { PreviewFilter } from "../src/adt/datapreview-filter.js";
 import { SafetyGate } from "../src/safety.js";
 import { errorResult } from "../src/tool-errors.js";
-import { takeSnapshot, diffSnapshot, type SnapshotRunDeps } from "../src/snapshot-run.js";
-import { registerDataPreviewTools, type DataPreviewToolDeps } from "../src/tools/data-preview.js";
+import {
+  takeSnapshot,
+  diffSnapshot,
+  type SnapshotRunDeps,
+} from "../src/snapshot-run.js";
+import {
+  registerDataPreviewTools,
+  type DataPreviewToolDeps,
+} from "../src/tools/data-preview.js";
 
 // `previewDdicEntity` is the network. Mocked (same pattern as
 // test/data-preview-gates.test.ts) so the tool-level tests below can control
 // exactly what a read returns, with no wire ever touched.
 vi.mock("../src/adt/datapreview.js", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../src/adt/datapreview.js")>();
+  const actual =
+    await importOriginal<typeof import("../src/adt/datapreview.js")>();
   return { ...actual, previewDdicEntity: vi.fn() };
 });
 const previewMock = vi.mocked(previewDdicEntity);
@@ -95,15 +106,22 @@ describe("takeSnapshot", () => {
     });
     const deps = baseDeps({ read, assertDataPreview });
 
-    await expect(takeSnapshot(deps, { table: "T000", maxRowsRequested: 10 })).rejects.toThrow();
+    await expect(
+      takeSnapshot(deps, { table: "T000", maxRowsRequested: 10 }),
+    ).rejects.toThrow();
     expect(read).not.toHaveBeenCalled();
   });
 
   it("clamps maxRowsRequested down to deps.maxRows, and the clamp is reflected in selection.max_rows", async () => {
-    const read = vi.fn(async (table: string, maxRows: number) => previewResult({ table, rowsRequested: maxRows }));
+    const read = vi.fn(async (table: string, maxRows: number) =>
+      previewResult({ table, rowsRequested: maxRows }),
+    );
     const deps = baseDeps({ maxRows: 5, read });
 
-    const { snapshot } = await takeSnapshot(deps, { table: "T000", maxRowsRequested: 100 });
+    const { snapshot } = await takeSnapshot(deps, {
+      table: "T000",
+      maxRowsRequested: 100,
+    });
 
     expect(read).toHaveBeenCalledWith("T000", 5, undefined);
     expect(snapshot.selection.max_rows).toBe(5);
@@ -147,14 +165,19 @@ describe("takeSnapshot", () => {
     );
     const deps = baseDeps({ read });
 
-    const { snapshot } = await takeSnapshot(deps, { table: "T000", maxRowsRequested: 10 });
+    const { snapshot } = await takeSnapshot(deps, {
+      table: "T000",
+      maxRowsRequested: 10,
+    });
 
     expect(snapshot.keyComplete).toBe(true);
     expect(snapshot.keyColumns).toEqual(["MANDT"]);
   });
 
   it("keyComplete is false unconditionally when a columns projection was given, even one covering the full key", async () => {
-    const read = vi.fn(async () => previewResult({ columns: [{ name: "MANDT", type: "C", key: true }] }));
+    const read = vi.fn(async () =>
+      previewResult({ columns: [{ name: "MANDT", type: "C", key: true }] }),
+    );
     const deps = baseDeps({ read });
 
     const { snapshot } = await takeSnapshot(deps, {
@@ -176,12 +199,18 @@ describe("diffSnapshot", () => {
     let calls = 0;
     const assertDataPreview = vi.fn(() => {
       calls += 1;
-      if (calls === 2) throw new AbapError("SAFETY_DENIED", "now denied", {}, undefined);
+      if (calls === 2)
+        throw new AbapError("SAFETY_DENIED", "now denied", {}, undefined);
     });
-    const read = vi.fn(async (table: string, maxRows: number) => previewResult({ table, rowsRequested: maxRows }));
+    const read = vi.fn(async (table: string, maxRows: number) =>
+      previewResult({ table, rowsRequested: maxRows }),
+    );
     const deps = baseDeps({ assertDataPreview, read });
 
-    const { snapshot } = await takeSnapshot(deps, { table: "T000", maxRowsRequested: 10 });
+    const { snapshot } = await takeSnapshot(deps, {
+      table: "T000",
+      maxRowsRequested: 10,
+    });
     read.mockClear();
 
     await expect(diffSnapshot(deps, snapshot.id)).rejects.toThrow(/now denied/);
@@ -190,17 +219,29 @@ describe("diffSnapshot", () => {
   });
 
   it("replays the snapshot's own recorded selection (table, clamped max_rows, filter) rather than anything fresh", async () => {
-    const filter: PreviewFilter = { where: [{ field: "MANDT", op: "eq", value: "100" }] };
-    const read = vi.fn(async (table: string, maxRows: number) => previewResult({ table, rowsRequested: maxRows }));
+    const filter: PreviewFilter = {
+      where: [{ field: "MANDT", op: "eq", value: "100" }],
+    };
+    const read = vi.fn(async (table: string, maxRows: number) =>
+      previewResult({ table, rowsRequested: maxRows }),
+    );
     const deps = baseDeps({ maxRows: 50, read });
 
-    const { snapshot } = await takeSnapshot(deps, { table: "T000", maxRowsRequested: 10, filter });
+    const { snapshot } = await takeSnapshot(deps, {
+      table: "T000",
+      maxRowsRequested: 10,
+      filter,
+    });
     read.mockClear();
 
     await diffSnapshot(deps, snapshot.id);
 
     expect(read).toHaveBeenCalledTimes(1);
-    expect(read).toHaveBeenCalledWith(snapshot.selection.table, snapshot.selection.max_rows, snapshot.selection.filter);
+    expect(read).toHaveBeenCalledWith(
+      snapshot.selection.table,
+      snapshot.selection.max_rows,
+      snapshot.selection.filter,
+    );
     expect(snapshot.selection.max_rows).toBe(10);
     expect(snapshot.selection.filter).toEqual(filter);
   });
@@ -214,9 +255,16 @@ function fakeMcp(): {
   mcp: McpServer;
   tools: Map<string, { handler: (args: unknown) => Promise<CallToolResult> }>;
 } {
-  const tools = new Map<string, { handler: (args: unknown) => Promise<CallToolResult> }>();
+  const tools = new Map<
+    string,
+    { handler: (args: unknown) => Promise<CallToolResult> }
+  >();
   const mcp = {
-    registerTool: (name: string, _config: Record<string, unknown>, handler: (args: unknown) => Promise<CallToolResult>) => {
+    registerTool: (
+      name: string,
+      _config: Record<string, unknown>,
+      handler: (args: unknown) => Promise<CallToolResult>,
+    ) => {
       tools.set(name, { handler });
       return {} as unknown;
     },
@@ -233,7 +281,7 @@ function toolHarness(opts: { ensureConnected?: () => Promise<void> } = {}): {
 } {
   const withReadCalls: string[] = [];
   const pool = {
-    withRead: <T,>(op: string, fn: (c: AbapConnection) => Promise<T>) => {
+    withRead: <T>(op: string, fn: (c: AbapConnection) => Promise<T>) => {
       withReadCalls.push(op);
       return fn(FAKE_CONN);
     },
@@ -243,7 +291,11 @@ function toolHarness(opts: { ensureConnected?: () => Promise<void> } = {}): {
 
   const deps: DataPreviewToolDeps = {
     pool,
-    safety: new SafetyGate({ readOnly: true, allowPackages: [], writesLockedOut: false }),
+    safety: new SafetyGate({
+      readOnly: true,
+      allowPackages: [],
+      writesLockedOut: false,
+    }),
     ensureConnected,
     errorResult,
     cfg: {
@@ -277,28 +329,69 @@ function parseErrorPayload(res: CallToolResult): BadInputPayload {
 describe("argument cross-checks — all BAD_INPUT, all refused before any connection is opened", () => {
   it("refuses snapshot_id with a non-diff mode", async () => {
     const { invoke, ensureConnected } = toolHarness();
-    const res = await invoke({ table: "T000", mode: "preview", snapshot_id: "snap_x" });
+    const res = await invoke({
+      table: "T000",
+      mode: "preview",
+      snapshot_id: "snap_x",
+    });
     const payload = parseErrorPayload(res);
     expect(payload.error).toBe("BAD_INPUT");
-    expect(payload.message).toContain('snapshot_id is only used with mode: "diff"');
+    expect(payload.message).toContain(
+      'snapshot_id is only used with mode: "diff"',
+    );
     expect(ensureConnected).not.toHaveBeenCalled();
   });
+
+  it.each([
+    [
+      "format with mode: snapshot",
+      { table: "T000", mode: "snapshot", format: "abap_value" },
+    ],
+    [
+      "mask with mode: snapshot",
+      { table: "T000", mode: "snapshot", mask: ["MANDT"] },
+    ],
+    [
+      "format with mode: diff",
+      { mode: "diff", snapshot_id: "snap_x", format: "test_double" },
+    ],
+  ])(
+    'refuses %s — a fixture render (#115) only applies to mode: "preview"',
+    async (_label, args) => {
+      const { invoke, ensureConnected } = toolHarness();
+      const res = await invoke(args);
+      const payload = parseErrorPayload(res);
+      expect(payload.error).toBe("BAD_INPUT");
+      expect(payload.message).toContain(
+        'format / mask only apply to mode: "preview"',
+      );
+      expect(ensureConnected).not.toHaveBeenCalled();
+    },
+  );
 
   it("refuses ttl_hours with a non-snapshot mode", async () => {
     const { invoke, ensureConnected } = toolHarness();
     const res = await invoke({ table: "T000", mode: "preview", ttl_hours: 5 });
     const payload = parseErrorPayload(res);
     expect(payload.error).toBe("BAD_INPUT");
-    expect(payload.message).toContain('ttl_hours is only used with mode: "snapshot"');
+    expect(payload.message).toContain(
+      'ttl_hours is only used with mode: "snapshot"',
+    );
     expect(ensureConnected).not.toHaveBeenCalled();
   });
 
   it("refuses a non-integer ttl_hours", async () => {
     const { invoke, ensureConnected } = toolHarness();
-    const res = await invoke({ table: "T000", mode: "snapshot", ttl_hours: 1.5 });
+    const res = await invoke({
+      table: "T000",
+      mode: "snapshot",
+      ttl_hours: 1.5,
+    });
     const payload = parseErrorPayload(res);
     expect(payload.error).toBe("BAD_INPUT");
-    expect(payload.message).toContain("ttl_hours must be a whole number of at least 1");
+    expect(payload.message).toContain(
+      "ttl_hours must be a whole number of at least 1",
+    );
     expect(ensureConnected).not.toHaveBeenCalled();
   });
 
@@ -307,7 +400,9 @@ describe("argument cross-checks — all BAD_INPUT, all refused before any connec
     const res = await invoke({ table: "T000", mode: "snapshot", ttl_hours: 0 });
     const payload = parseErrorPayload(res);
     expect(payload.error).toBe("BAD_INPUT");
-    expect(payload.message).toContain("ttl_hours must be a whole number of at least 1");
+    expect(payload.message).toContain(
+      "ttl_hours must be a whole number of at least 1",
+    );
     expect(ensureConnected).not.toHaveBeenCalled();
   });
 
@@ -335,7 +430,11 @@ describe("argument cross-checks — all BAD_INPUT, all refused before any connec
   for (const [key, value] of Object.entries(FORBIDDEN)) {
     it(`refuses mode: "diff" given the forbidden selection key "${key}"`, async () => {
       const { invoke, ensureConnected } = toolHarness();
-      const res = await invoke({ mode: "diff", snapshot_id: "snap_x", [key]: value });
+      const res = await invoke({
+        mode: "diff",
+        snapshot_id: "snap_x",
+        [key]: value,
+      });
       const payload = parseErrorPayload(res);
       expect(payload.error).toBe("BAD_INPUT");
       expect(payload.message).toContain("cannot also be given");
@@ -345,7 +444,7 @@ describe("argument cross-checks — all BAD_INPUT, all refused before any connec
   }
 });
 
-describe("mode omitted vs mode: \"preview\" — byte-identical", () => {
+describe('mode omitted vs mode: "preview" — byte-identical', () => {
   it("neither writes a snapshot file nor changes the rendered text", async () => {
     // Guard against ANY accidental filesystem write escaping this test: if
     // something on the preview path ever called resolveStateDir() (it must
@@ -356,10 +455,15 @@ describe("mode omitted vs mode: \"preview\" — byte-identical", () => {
       previewMock.mockResolvedValue(previewResult());
 
       const omitted = await toolHarness().invoke({ table: "T000" });
-      const explicit = await toolHarness().invoke({ table: "T000", mode: "preview" });
+      const explicit = await toolHarness().invoke({
+        table: "T000",
+        mode: "preview",
+      });
 
       expect(omitted.isError).toBeFalsy();
-      expect((omitted.content[0] as { text: string }).text).toBe((explicit.content[0] as { text: string }).text);
+      expect((omitted.content[0] as { text: string }).text).toBe(
+        (explicit.content[0] as { text: string }).text,
+      );
       expect(existsSync(join(tmpRoot, ".abapsmith", "snapshots"))).toBe(false);
     } finally {
       cwdSpy.mockRestore();
