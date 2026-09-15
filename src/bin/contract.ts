@@ -1,14 +1,18 @@
 #!/usr/bin/env node
 /**
- * `abap-contract` — subprocess entry point for `abap_read view:"contract"`.
- * Uses `@abaplint/core` to parse ABAP source and build a definition-only
- * "contract" view (class/interface signatures, method bodies stripped).
+ * `abap-contract` — subprocess entry point that used to back
+ * `abap_read view:"contract"`. Uses `@abaplint/core` to parse ABAP source
+ * and build a definition-only "contract" view (class/interface signatures,
+ * method bodies stripped).
  *
- * Runs as a CHILD PROCESS, not imported by the main server: this project
- * ships five runtime deps total, and `@abaplint/core` alone is ~4MB
- * unpacked. `src/tools/v2/handlers/read.ts` spawns the compiled
- * `dist/bin/contract.js` rather than importing this module directly, so
- * the dependency stays quarantined to a short-lived process.
+ * Issue #76 removed `abap_read view:"contract"`, so no shipped tool spawns
+ * this binary any more. It is still built as a second entry point by
+ * `scripts/bundle.mjs` and exercised directly by `test/contract.test.ts`;
+ * whether to keep it is an open follow-up. Runs as a CHILD PROCESS, not
+ * imported by the main server: this project ships five runtime deps total,
+ * and `@abaplint/core` alone is ~4MB unpacked, so quarantining it to a
+ * short-lived process (rather than importing this module directly) kept it
+ * off the server's own dependency graph.
  *
  * Parser only: calls `Registry.parse()`, never `Registry.findIssues()`
  * (abaplint's lint engine — that's ATC's job, not this module's).

@@ -115,7 +115,7 @@ import type { Config, VerifyWritesMode } from "../config.js";
 import type { BeforeImageCapture, Journal } from "../journal.js";
 import { journalRef, systemKey, withJournalledMutation } from "../journal.js";
 import { normalizeCorrNr, type AuthorizedTarget, type MutatingOperation, type SafetyGate } from "../safety.js";
-import { applyEdit, describeEditFailure, EditInputError } from "./v2/edit.js";
+import { applyEdit, describeEditFailure, EditInputError } from "./edit.js";
 import { buildDeleteDryRunResponse, buildWriteDryRunResponse, dryRunNotSupported } from "./write-dry-run.js";
 import { enhancementPreflightIntent, preflight, writeGateKey } from "./preflight.js";
 
@@ -823,7 +823,7 @@ function bridgeDeleteTransportEntryNote(label: string, name: string, packageName
   );
 }
 
-/** `abap_write`'s `edit` form (v2). */
+/** `abap_write`'s `edit` form. */
 export interface WriteEdit {
   old_string: string;
   new_string: string;
@@ -1270,9 +1270,9 @@ export function rethrowWithDdicSkeletonHint(e: unknown, type?: string, name?: st
  *    `assertNotToolResponseEcho` below and, when an etag is supplied,
  *    `writeObject`'s `assertNotPartialReadSource` (src/adt/write.ts).
  *
- * `handlers/write.ts` (v2) already rejects `edit`+`source`/`edit`+`method`
- * together; the checks here are a defensive re-statement for other callers
- * (tests, `abapWrite` driven directly), not the primary gate.
+ * The `edit`+`source`/`method`-requires-`source` checks below are the only
+ * gate for these three forms — callers (the registered tool, tests,
+ * `abapWrite` driven directly) all funnel through here.
  */
 export async function resolveWriteSource(
   conn: AbapConnection,
@@ -1416,7 +1416,7 @@ export async function resolveWriteSource(
     assertNotToolResponseEcho(input.source, t.name, t.type);
     // `partial:` marker passed through UNSTRIPPED (unlike `edit` above) —
     // `writeObject` (src/adt/write.ts) refuses it there where `current` is
-    // already in hand, covering v1 and v2 in one place.
+    // already in hand.
     return { source: input.source, ...(input.expect_etag ? { expectEtag: input.expect_etag } : {}) };
   }
 

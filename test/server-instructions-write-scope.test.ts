@@ -42,8 +42,6 @@ class ForbiddenClient implements Partial<HttpClient> {
   }
 }
 
-const TOOL_SURFACES = ["v1", "v2"] as const;
-
 /**
  * The claim under test: whichever branch of `packageScopeSentence` a
  * config resolves to, its sentence mentions all THREE states, not just the
@@ -98,53 +96,47 @@ describe("instructionsFor: end-to-end over a real MCP handshake (edit mode, pack
   });
 });
 
-describe("instructionsFor: tri-state coverage over ABAP_ALLOW_PACKAGES, both tool surfaces", () => {
-  for (const toolSurface of TOOL_SURFACES) {
-    describe(`toolSurface=${toolSurface}`, () => {
-      it("unset ABAP_ALLOW_PACKAGES describes every customer package as writable, and mentions the other two states", () => {
-        const cfg = load({ ABAP_MODE: "edit" });
-        const text = instructionsFor(toolSurface, cfg.abapMode, cfg.readOnly, cfg.allowPackages);
-        expect(text).toMatch(/every customer package/i);
-        assertMentionsAllThreeStates(text);
-      });
+describe("instructionsFor: tri-state coverage over ABAP_ALLOW_PACKAGES", () => {
+  it("unset ABAP_ALLOW_PACKAGES describes every customer package as writable, and mentions the other two states", () => {
+    const cfg = load({ ABAP_MODE: "edit" });
+    const text = instructionsFor(cfg.abapMode, cfg.readOnly, cfg.allowPackages);
+    expect(text).toMatch(/every customer package/i);
+    assertMentionsAllThreeStates(text);
+  });
 
-      it("ABAP_ALLOW_PACKAGES=$TMP,ZFOO names both packages and says only those are writable", () => {
-        const cfg = load({ ABAP_MODE: "edit", ABAP_ALLOW_PACKAGES: "$TMP,ZFOO" });
-        expect(cfg.allowPackages).toEqual(["$TMP", "ZFOO"]);
-        const text = instructionsFor(toolSurface, cfg.abapMode, cfg.readOnly, cfg.allowPackages);
-        expect(text).toContain("$TMP");
-        expect(text).toContain("ZFOO");
-        expect(text).toMatch(/only those/i);
-        assertMentionsAllThreeStates(text);
-      });
+  it("ABAP_ALLOW_PACKAGES=$TMP,ZFOO names both packages and says only those are writable", () => {
+    const cfg = load({ ABAP_MODE: "edit", ABAP_ALLOW_PACKAGES: "$TMP,ZFOO" });
+    expect(cfg.allowPackages).toEqual(["$TMP", "ZFOO"]);
+    const text = instructionsFor(cfg.abapMode, cfg.readOnly, cfg.allowPackages);
+    expect(text).toContain("$TMP");
+    expect(text).toContain("ZFOO");
+    expect(text).toMatch(/only those/i);
+    assertMentionsAllThreeStates(text);
+  });
 
-      it("ABAP_ALLOW_PACKAGES= (explicitly empty) says every write is refused, and mentions the other two states", () => {
-        const cfg = load({ ABAP_MODE: "edit", ABAP_ALLOW_PACKAGES: "" });
-        expect(cfg.allowPackages).toEqual([]);
-        const text = instructionsFor(toolSurface, cfg.abapMode, cfg.readOnly, cfg.allowPackages);
-        expect(text).toMatch(/every write is refused/i);
-        assertMentionsAllThreeStates(text);
-      });
-    });
-  }
+  it("ABAP_ALLOW_PACKAGES= (explicitly empty) says every write is refused, and mentions the other two states", () => {
+    const cfg = load({ ABAP_MODE: "edit", ABAP_ALLOW_PACKAGES: "" });
+    expect(cfg.allowPackages).toEqual([]);
+    const text = instructionsFor(cfg.abapMode, cfg.readOnly, cfg.allowPackages);
+    expect(text).toMatch(/every write is refused/i);
+    assertMentionsAllThreeStates(text);
+  });
 });
 
 describe("instructionsFor: read mode does not blame the allowlist for its own refusal", () => {
-  for (const toolSurface of TOOL_SURFACES) {
-    it(`toolSurface=${toolSurface}: ABAP_MODE=read does not say the allowlist is empty`, () => {
-      const cfg = load({ ABAP_MODE: "read" });
-      expect(cfg.readOnly).toBe(true);
-      expect(cfg.allowPackages).toEqual([]);
-      const text = instructionsFor(toolSurface, cfg.abapMode, cfg.readOnly, cfg.allowPackages);
-      expect(text).not.toContain("is empty here");
-      // It's the MODE refusing, not the allowlist — say so.
-      expect(text).toMatch(/ABAP_MODE is edit or admin/);
-    });
-  }
+  it("ABAP_MODE=read does not say the allowlist is empty", () => {
+    const cfg = load({ ABAP_MODE: "read" });
+    expect(cfg.readOnly).toBe(true);
+    expect(cfg.allowPackages).toEqual([]);
+    const text = instructionsFor(cfg.abapMode, cfg.readOnly, cfg.allowPackages);
+    expect(text).not.toContain("is empty here");
+    // It's the MODE refusing, not the allowlist — say so.
+    expect(text).toMatch(/ABAP_MODE is edit or admin/);
+  });
 });
 
 describe("instructionsFor: regression pin for the write-scope clause", () => {
-  it('never claims the write allowlist "default $TMP", in any configuration or tool surface', () => {
+  it('never claims the write allowlist "default $TMP", in any configuration', () => {
     const configs = [
       load({ ABAP_MODE: "edit" }),
       load({ ABAP_MODE: "edit", ABAP_ALLOW_PACKAGES: "$TMP,ZFOO" }),
@@ -155,10 +147,8 @@ describe("instructionsFor: regression pin for the write-scope clause", () => {
       load(),
     ];
     for (const cfg of configs) {
-      for (const toolSurface of TOOL_SURFACES) {
-        const text = instructionsFor(toolSurface, cfg.abapMode, cfg.readOnly, cfg.allowPackages);
-        expect(text).not.toContain("default $TMP");
-      }
+      const text = instructionsFor(cfg.abapMode, cfg.readOnly, cfg.allowPackages);
+      expect(text).not.toContain("default $TMP");
     }
   });
 });

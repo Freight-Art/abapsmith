@@ -553,8 +553,8 @@ export async function writeEnhancementDescription(
 
   // ---- 6. Before-image hook, pre-lock (the journal seam) ------------------
   // Required at the type level (wired via withJournalledMutation in
-  // src/tools/enh.ts and src/tools/v2/handlers/do/enhancements.ts); this
-  // runtime guard covers callers test/ isn't type-checked against.
+  // src/tools/enh.ts); this runtime guard covers callers test/ isn't
+  // type-checked against.
   if (opts.onBeforeImage) {
     await opts.onBeforeImage({
       xml: current.xml,

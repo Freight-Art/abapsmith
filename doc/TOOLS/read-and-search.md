@@ -231,13 +231,6 @@ the wire protocol, not evidence of a side effect.
   cost-disclosure note is attached when the fetch is slow or the reference
   count is large.
 
-**Not on the v2 tool surface.** `abap_read`'s v2 schema
-(`abapReadInputSchema`, `src/tools/v2/schemas.ts`) does not expose
-`view="definition"`, `line`, `column`, or `type` — its `view` values are
-`source | contract | method | diff | metadata | outline | bopf | fpm`. v2's
-own `diff` view is a separate, unimplemented concept, not the same thing as
-v1's `view="diff"`.
-
 **Evidence.** `live` (A4H, 2026-09-12): the three wire endpoints
 themselves — `elementinfo` for an interface method call, an attribute, a
 type, a local variable, a class's own method, and a function-module name

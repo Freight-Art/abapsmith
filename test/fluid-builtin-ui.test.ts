@@ -116,37 +116,107 @@ describe("uiManifest / uiSources", () => {
     const body = bodySource();
     expect(body).not.toMatch(/FIND\s+REGEX/i);
 
-    const screenAction = uiManifest.actions.find((a) => a.name === "screen");
-    expect(screenAction).toBeDefined();
-    const props = Object.keys(screenAction?.input.properties ?? {});
-    expect(props.length).toBeGreaterThan(0);
-    for (const prop of props) {
-      const needle = `zcl_zmcp_fluid_rt=>s( '${prop}' )`;
-      expect(body.includes(needle), `body does not read declared input property "${prop}" via s()`).toBe(
-        true,
-      );
+    for (const actionName of ["screen", "fcode"]) {
+      const action = uiManifest.actions.find((a) => a.name === actionName);
+      expect(action, `no manifest action named "${actionName}"`).toBeDefined();
+      const props = Object.keys(action?.input.properties ?? {});
+      expect(props.length).toBeGreaterThan(0);
+      for (const prop of props) {
+        const needle = `zcl_zmcp_fluid_rt=>s( '${prop}' )`;
+        expect(
+          body.includes(needle),
+          `body does not read "${actionName}" action's declared input property "${prop}" via s()`,
+        ).toBe(true);
+      }
     }
   });
 
-  it("every end(1) is reachable only alongside an err() call, and the CATCH cx_root arm calls err() before end(1)", () => {
+  it("fcode is a distinct manifest action, dispatched from METHOD run, with array output", () => {
+    const fcodeAction = uiManifest.actions.find((a) => a.name === "fcode");
+    expect(fcodeAction).toBeDefined();
+    // dispatch() treats "array" output as "hand back every OUT frame", unlike screen's "object"
+    // output ("hand back the one required OUT frame verbatim") — ui-fcode-tool.test.ts and
+    // test/helpers/fluid-ui-fake.ts's uiFcodeConsole both depend on this being "array".
+    expect(fcodeAction?.output.type).toBe("array");
+    expect(fcodeAction?.category).toBe("read");
+
     const body = bodySource();
-    const end1Count = (body.match(/zcl_zmcp_fluid_rt=>end\( 1 \)/g) ?? []).length;
+    const runIdx = body.indexOf("METHOD run.");
+    expect(runIdx).toBeGreaterThan(-1);
+    const runEndIdx = body.indexOf("ENDMETHOD.", runIdx);
+    const runBody = body.slice(runIdx, runEndIdx);
+    // CASE iv_action dispatches "screen" and "fcode" to same-named private methods, and falls
+    // through anything else to err() rather than silently doing nothing.
+    expect(runBody).toContain("WHEN 'screen'.");
+    expect(runBody).toContain("WHEN 'fcode'.");
+    expect(runBody).toContain("fcode( ).");
+    expect(runBody).toContain("WHEN OTHERS.");
+    expect(runBody).toContain("unknown action");
+  });
+
+  it("the ABAP body never runs CALL TRANSACTION / LEAVE TO TRANSACTION / BDCDATA itself", () => {
+    // fcode only reads flow logic, CUA, and includes - it must never execute a transaction, unlike
+    // the separate `press` bridge (src/adt/ui-runtime.ts's runUiPressBridge), which is a real BDC
+    // CALL TRANSACTION ... USING run. This only inspects this class's own ABAP body text - it does
+    // not (and cannot, offline) prove that the *read* source of some other program never contains
+    // these words; the fixtures under test/fixtures/ui-fcode/ genuinely do contain "CALL
+    // TRANSACTION" as plain data, which is fine because that text is only ever read and reported
+    // on, never re-executed by this class.
+    const body = bodySource();
+    expect(body).not.toContain("CALL TRANSACTION");
+    expect(body).not.toContain("LEAVE TO TRANSACTION");
+    expect(body).not.toContain("BDCDATA");
+  });
+
+  it("every end(1) is reachable only alongside an err() call, and METHOD run's outermost CATCH cx_root always calls err() so the post-TRY failed() gate reaches it", () => {
+    const body = bodySource();
+    // Named-parameter ABAP call style (`end( iv_rc = 1 )`), not positional `end( 1 )` - the body
+    // switched to named parameters at some point after this check was first written; the
+    // regex tracks that style rather than the older positional one.
+    const end1Count = (body.match(/zcl_zmcp_fluid_rt=>end\( iv_rc = 1 \)/g) ?? []).length;
     const errCount = (body.match(/zcl_zmcp_fluid_rt=>err\(/g) ?? []).length;
     expect(end1Count).toBeGreaterThan(0);
     // Structural, not flow-sensitive: proves err() appears at least as often as end(1) in the
-    // source text, and that the exception-handling arm specifically pairs the two. It does NOT
-    // prove every individual end(1) call site is textually preceded by its own err() call, nor
-    // does it execute the ABAP to confirm run time behaviour.
+    // source text. It does NOT prove every individual end(1) call site is reached only when
+    // err() ran, nor does it execute the ABAP to confirm run time behaviour.
     expect(errCount).toBeGreaterThanOrEqual(end1Count);
 
+    // Unlike an earlier body revision, end(1) is no longer called directly inside a CATCH block:
+    // every CATCH arm now just calls err(), and METHOD run gates a single end(1)/end(0) choice on
+    // failed() once, after its outermost TRY/ENDTRY. This checks that shape - CATCH cx_root calls
+    // err(), and the failed()-gate that follows the matching ENDTRY does call end(1) - without
+    // (and this cannot, statically) proving failed() actually evaluates true whenever err() ran.
     const catchIdx = body.indexOf("CATCH cx_root");
     expect(catchIdx).toBeGreaterThan(-1);
     const endTryIdx = body.indexOf("ENDTRY.", catchIdx);
     expect(endTryIdx).toBeGreaterThan(catchIdx);
     const catchBlock = body.slice(catchIdx, endTryIdx);
     expect(catchBlock).toContain("zcl_zmcp_fluid_rt=>err(");
-    expect(catchBlock).toContain("zcl_zmcp_fluid_rt=>end( 1 )");
+    expect(catchBlock).not.toContain("zcl_zmcp_fluid_rt=>end(");
+
+    const gateIdx = body.indexOf("failed( ) = abap_true", endTryIdx);
+    expect(gateIdx).toBeGreaterThan(endTryIdx);
+    const gateEndIdx = body.indexOf("ENDIF.", gateIdx);
+    expect(gateEndIdx).toBeGreaterThan(gateIdx);
+    expect(body.slice(gateIdx, gateEndIdx)).toContain("zcl_zmcp_fluid_rt=>end( iv_rc = 1 )");
   });
+
+  // fcode's flow/include/module/src frames interpolate a handful of bare, non-text values
+  // directly (loop indices, line numbers, sy-subrc, a fixed 'true'/'false' literal, and a
+  // pre-built JSON fragment returned by cua_json(), which already escapes its own text fields).
+  // None of these can carry a stray quote or backslash, so esc() would be a no-op for them.
+  // Listed by exact expression text so a *new* bare interpolation of an actual text variable
+  // still fails this check - only these specific, already-verified-safe expressions are exempt.
+  const KNOWN_SAFE_NON_TEXT_INTERPOLATIONS = new Set([
+    "lv_flow_idx",
+    "lv_cua",
+    "sy-subrc",
+    "lv_lines",
+    "lv_mod_from",
+    "lv_lno",
+    "lv_last",
+    "lv_j",
+  ]);
 
   it("every out() call escapes every raw interpolation it makes directly", () => {
     const body = bodySource();
@@ -163,7 +233,7 @@ describe("uiManifest / uiSources", () => {
         while ((interp = interpRe.exec(args)) !== null) {
           const inner = interp[1]?.trim() ?? "";
           expect(
-            inner.includes("=>esc(") || inner.startsWith("esc("),
+            inner.includes("=>esc(") || inner.startsWith("esc(") || KNOWN_SAFE_NON_TEXT_INTERPOLATIONS.has(inner),
             `out() call interpolates "${inner}" without esc(): ${args}`,
           ).toBe(true);
         }
@@ -223,6 +293,45 @@ describe("uiManifest / uiSources", () => {
     });
 
     const schemaErrors = validateAgainstSchema(result, screenAction.output, "result");
+    expect(schemaErrors).toEqual([]);
+  });
+
+  it("round-trips a representative fcode transcript through parseFluidConsole and the declared output schema", () => {
+    const fcodeAction = uiManifest.actions.find((a) => a.name === "fcode");
+    expect(fcodeAction).toBeDefined();
+    if (!fcodeAction) return;
+
+    // One frame of each kind METHOD fcode/scan_modules/emit_src ever emit (src/adt/fluid/builtin/ui.ts).
+    const frames: readonly unknown[] = [
+      { kind: "target", program: "SAPMSVMA", dynpro: "0100", fcode_filter: "" },
+      { kind: "flow", index: 1, line: "PROCESS AFTER INPUT." },
+      { kind: "pai_module", index: 1, name: "EXIT_COMMAND", at_exit: true, flow_line: 2 },
+      { kind: "cua" },
+      { kind: "include", name: "SAPMSVMA", lines: 220 },
+      { kind: "module", name: "EXIT_COMMAND", include: "SAPMSVMA", line_from: 453, line_to: 458 },
+      // emit_src's ABAP emits "line" quoted (`"line":"{ lv_j }"`), same as every other frame's
+      // "line" field, so this fixture uses a string here to match the real wire shape.
+      { kind: "src", include: "SAPMSVMA", line: "454", text: "set screen 0." },
+      { kind: "summary", program: "SAPMSVMA", dynpro: "0100", includes: 1, includes_failed: 0, modules: 1, pai_modules: 1, src_lines: 1, truncated: "" },
+    ];
+
+    const beginPayload = JSON.stringify({ id: "ui", ver: "abcd1234", action: "fcode", contract: "1.0" });
+    const outLines = frames.map((f) => `ZMCP-H>OUT ${JSON.stringify(f)}`);
+    const endPayload = JSON.stringify({ rc: 0, outBytes: 0, truncated: false, ms: 3 });
+    const transcriptText = [`ZMCP-H>BEGIN ${beginPayload}`, ...outLines, `ZMCP-H>END ${endPayload}`].join("\n");
+
+    const transcript = parseFluidConsole(transcriptText);
+    expect(transcript.errors).toEqual([]);
+    expect(transcript.stray).toEqual([]);
+    expect(transcript.dropped).toEqual([]);
+    expect(transcript.begin?.action).toBe("fcode");
+    expect(transcript.values.length).toBe(frames.length);
+    expect(transcript.values).toEqual(frames);
+
+    const schemaErrors = validateAgainstSchema(transcript.values, fcodeAction.output, "result");
+    // Every frame kind validates cleanly against fcodeAction.output.items, including "src":
+    // emit_src now quotes "line" the same way every other frame does, so the declared
+    // `{ type: "string" }` schema and the real wire format agree.
     expect(schemaErrors).toEqual([]);
   });
 });

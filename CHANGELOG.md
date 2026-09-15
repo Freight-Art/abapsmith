@@ -12,6 +12,35 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-09-15
+
+### Added
+
+- `abap_fpm_read mode=events` (#101): resolves the toolbar events of a UIBB or application configuration to the code that handles them. The response carries a `VIEWS` section (config ID, kind, feeder class, BO and node per UIBB), an `EVENTS` section (toolbar element with its `Transl` text resolved from WDY_CONFIG_COMPT, event ID, and a handler classified as `bopf`, `feeder`, `app_controller`, `standard`, `action_impl` or `unresolved`, each with the exact follow-up `abap_bopf` or `abap_read` call) and a `WIRES` section (source UIBB, target UIBB, connector class). `uibb` narrows the views and names what was skipped; every response discloses the coverage limits (app-controller override, personalisation, CBA/deltas, nothing executed). Proven live on `/BOFU/TEST_FBI_SALES_ORDER_OVP` and `/BOFU/TEST_CUSTOMER_OIF`.
+- `abap_ui mode=fcode` (#102): from a GUI-status function code to the PAI module and `CASE` branch that handles it, by `tcode` or `program`+`dynpro`, for one `fcode` or all of them. Follows ok_code aliases, several top-level `CASE`s and one remap hop (rendered as its own `via remap … at line N` row), flags `AT EXIT-COMMAND` modules, labels `CALL TRANSACTION`/`LEAVE TO TRANSACTION`, and reports modules without an ok_code `CASE` as `unresolved`. Read-only: never asks for `confirm` and does not need `ABAP_ALLOW_UI_PRESS`. Proven live on `SM30`/`UPD` (`SAPMSVMA` 0100, remap `UPD -> UPDL`) and `SE16`/`BACK`.
+- Skill `abapsmith-research-code` (#103): Procedure A (find usages: objects search → where-used → source-text search → element info → report) and Procedure B (button → code: classify the UI, then `mode=fcode` for dynpros, `mode=events` for FPM, the debugger or `abap_ui mode=press` as the last resort with the gates named). Routed from `abapsmith-orient` and listed in the plugin manifest.
+
+### Changed
+
+- The fluid FPM builtin's `read_config` not-found errors now name the configuration key (`config … type … var …`).
+
+## [0.6.0] - 2026-09-15
+
+### Removed
+
+- The experimental `v2` tool surface (`ABAP_TOOL_SURFACE=v2`: the six consolidated tools `abap_find`, `abap_read`, `abap_write`, `abap_do`, `abap_debug`, `abap_adt`) is gone, as announced in 0.5.10 (issue #76). `src/tools/v2/` and its fourteen test files were deleted; the single remaining surface is always registered and `toolSurface` is no longer a config field. Startup now classifies `ABAP_TOOL_SURFACE`: `v2` and any unrecognised value fail with "Invalid abapsmith configuration" (naming `CHANGELOG.md` and the design note), `v1` starts with one deprecation warning, unset is silent. The one v2-path file with a live caller, `src/tools/v2/edit.ts`, moved to `src/tools/edit.ts`. The reasoning (what the A/B measured, why it never reached v1 reliability, what a future consolidation must prove first) is in the new `doc/DESIGN-NOTES/tool-surface-v2.md`; every doc, skill and test sentence that qualified behaviour by surface was rewritten. All four startup outcomes and the 28-tool `tools/list` were proven on the built server.
+
+## [0.5.21] - 2026-09-15
+
+### Added
+
+- `abap_test scope="impacted"` (issue #111): instead of one named object, select and run the test carriers a changed set puts at risk. The changed set comes from an explicit `changed` list, from the local write journal for this system and session, or from the journal since an ISO timestamp (`since`); each changed object is a candidate carrier itself (`changed directly`) and its where-used consumers (CLAS/PROG/FUGR, at most 20 per object, at most 10 carriers in total) are probed for a test class (`uses <object>`). `SELECTION` and `RESULTS` are reported separately, capped consumers are named on a `--- TRUNCATED ---` line, and two distinct not-a-pass outcomes exist: `NO CHANGED OBJECTS` and `NO IMPACTED TESTS FOUND`. `object`, `coverage`, `coverage_for`, `auth_trace` and `changed`+`since` are refused with `BAD_INPUT` in this scope (`src/adt/impacted.ts`, `src/journal.ts` `since`/`systemKey` filters).
+- `auth_trace: true` on `abap_run`, `abap_test` and `abap_bopf_test` (issue #112): switches SAP's authorization trace on for the connected user around the run, reads back failed authority checks (kernel trace first, SU53 buffer as fallback, each line tagged `[trace]` or `[SU53 fallback]`) and switches it off again on every path, including a dump. The header always carries `auth_trace: no failed checks` / `N failed check(s)` / `unavailable: <reason>`; failed checks render as a `FAILED AUTH CHECKS` section (object, field=value, rc, program, line). Implemented as the built-in fluid tool `authtrace` (`ZCL_ZMCP_FLUID_AUTHTRACE`); refused in read mode. Live-verified on A4H via the SU53 fallback; the kernel-trace read returned no rows on the appliance and is unverified.
+
+### Fixed
+
+- The v2 `abap_do` activation handler no longer asserts a non-optional `object` (a crash path for `scope="impacted"`).
+
 ## [0.5.20] - 2026-09-15
 
 ### Added

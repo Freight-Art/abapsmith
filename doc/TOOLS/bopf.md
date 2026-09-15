@@ -443,6 +443,7 @@ reaching SAP.
 | `scenario.nodes` | array (min 1) of `{node, parentNode?, fields}` | yes | — | `nodes[0]` must be the root node (no `parentNode`); every other entry needs `parentNode` set to an earlier entry's node name. `fields` is a string-to-string map. |
 | `scenario.cleanup` | boolean | no | `false` | Delete the created rows and save again, right after create+retrieve. |
 | `generate_only` | boolean | no | — | Write and activate the generated test-bridge class without running it; use to set a debugger breakpoint first, then trigger via `abap_debug`. |
+| `auth_trace` | boolean | no | `false` | Switch on the SAP authorization trace for the executing user around this run and read back failed authority checks afterward. See [execute-and-test.md](execute-and-test.md#authorization-trace-auth_trace) for the full contract (kernel trace vs. SU53 fallback, the `auth_trace` header field, `FAILED AUTH CHECKS` rendering). Never runs in read mode. |
 
 Notes: **writes real rows by default** — save is not optional, because
 determinations and validations only fire on save. There is no ADT runtime

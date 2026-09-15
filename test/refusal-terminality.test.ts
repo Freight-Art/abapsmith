@@ -3,9 +3,9 @@
  * `retryable` field defaults from its taxonomy code via `RETRYABILITY`
  * (`src/adt/errors.ts`) — `terminal` codes claim `false`, `retryable` codes
  * claim `true`, `conditional` codes claim nothing — and that default holds
- * from construction through every serialised envelope (`errorResult`,
- * `v2Error` + `renderV2`). A per-site `{ retryable: ... }` option still
- * overrides the code's default in either direction. `RETRYABILITY` itself is
+ * from construction through every serialised envelope (`errorResult`). A
+ * per-site `{ retryable: ... }` option still overrides the code's default in
+ * either direction. `RETRYABILITY` itself is
  * proven exhaustive against the real `AbapErrorCode` union (extracted from
  * source, not hand-transcribed), so a new code cannot go unclassified. Also
  * covers the pre-existing capability-registry-derived terminal claims
@@ -20,8 +20,6 @@ import ts from "typescript";
 import { describe, expect, it } from "vitest";
 import { AbapError, RETRYABILITY } from "../src/adt/errors.js";
 import { buildErrorPayload, errorResult } from "../src/tool-errors.js";
-import { v2Error } from "../src/tools/v2/runtime.js";
-import { renderV2 } from "../src/tools/v2/envelope.js";
 import {
   REGISTRY,
   TERMINAL_REFUSAL_NOTE,
@@ -114,28 +112,18 @@ describe("retryable on the error envelope", () => {
     expect(parsed.retryable).toBe(false);
   });
 
-  it("v2Error forwards retryable, and renderV2 prints it as a `retryable: false` line", () => {
-    const e = new AbapError("UNSUPPORTED", "cannot be read", {}, undefined, { retryable: false });
-    const res = v2Error("abap_read", e, []);
-    const rendered = renderV2(res);
-    expect(rendered.split("\n")).toContain("retryable: false");
-  });
-
   it("a code with no options set claims false when its code is terminal (UNSUPPORTED)", () => {
     const e = new AbapError("UNSUPPORTED", "cannot be read");
     expect(e.retryable).toBe(false);
     expect(buildErrorPayload(e).retryable).toBe(false);
     const jsonText = (errorResult(e).content[0] as { type: "text"; text: string }).text;
     expect((JSON.parse(jsonText) as Record<string, unknown>).retryable).toBe(false);
-    const rendered = renderV2(v2Error("abap_read", e, []));
-    expect(rendered.split("\n")).toContain("retryable: false");
   });
 
   it("a code with no options set claims true when its code is retryable (BAD_INPUT) — a length limit is retryable with a shorter argument", () => {
     const e = new AbapError("BAD_INPUT", "value too long");
     expect(e.retryable).toBe(true);
-    const rendered = renderV2(v2Error("abap_read", e, []));
-    expect(rendered.split("\n")).toContain("retryable: true");
+    expect(buildErrorPayload(e).retryable).toBe(true);
   });
 
   it("conditional codes (SESSION_DEAD, ADT_ERROR) render no retryable key at all", () => {
@@ -143,8 +131,6 @@ describe("retryable on the error envelope", () => {
       const e = new AbapError(code, "something happened");
       expect(e.retryable, code).toBeUndefined();
       expect(Object.prototype.hasOwnProperty.call(buildErrorPayload(e), "retryable"), code).toBe(false);
-      const rendered = renderV2(v2Error("abap_read", e, []));
-      expect(rendered.includes("retryable:"), `${code}: ${rendered}`).toBe(false);
     }
   });
 

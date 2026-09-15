@@ -139,19 +139,11 @@ A diagnosis is proven by a value read at a stop (`abap_debug_value`, or the
 inference from the short text alone. The ICF short text and the ST22 dump can
 be the only two records of the same failure, and the first is much poorer.
 
-## v1 vs v2 — verified, not assumed
+## Tool set
 
-**On v1**, the variable tools are standalone: `abap_debug_vars` and
-`abap_debug_value` are separate tools, and `abap_debug`'s own action set is
-`start | step | stack | frame | keepalive | stop | status` — `frame` included.
-
-**On v2**, `abap_debug` absorbs `vars` and `value` as actions of the one
-tool — its action set (`src/tools/v2/handlers/debug.ts`) is
-`start | step | stack | frame | vars | value | keepalive | stop | status`.
-`frame` is present on **both** surfaces, ungated (read-only) on both — do not
-assume otherwise. Check `tools/list` rather than assuming, since the two
-surfaces' action sets are not identical and drift here is easy to get wrong.
-`ABAP_TOOL_SURFACE=v2` is deprecated and removed in 0.6.0.
+`abap_debug_vars` and `abap_debug_value` are separate tools from
+`abap_debug`. `abap_debug`'s own action set is
+`start | step | stack | frame | keepalive | stop | status`.
 
 ## Not this skill
 
