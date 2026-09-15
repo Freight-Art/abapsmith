@@ -475,13 +475,16 @@ describe("control 2: the row ceiling", () => {
       cfg: { maxResponseChars: 60_000, dataPreviewMaxRows: 100 },
     });
     const schema = tools.get("abap_data_preview")!.config.inputSchema as Record<string, unknown>;
-    // Issue #73 genuinely added four schema keys (the structured filter), so
-    // this exact set legitimately grew — kept as an exact list, not a subset
-    // check, since its job is to catch an accidental `default:` or a
-    // silently added parameter.
+    // Issue #73 genuinely added four schema keys (the structured filter) and
+    // issue #115 two more (`format`, `mask` — fixture rendering and column
+    // masking), so this exact set legitimately grew — kept as an exact list,
+    // not a subset check, since its job is to catch an accidental `default:`
+    // or a silently added parameter.
     expect(Object.keys(schema).sort()).toEqual([
       "columns",
       "distinct",
+      "format",
+      "mask",
       "max_rows",
       "object",
       "order_by",
