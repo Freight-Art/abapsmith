@@ -138,6 +138,22 @@ describe("abap_test coverage", () => {
     expect(res.text).not.toContain("COVERAGE");
   });
 
+  // Defect 4: the BAL correlation line was pushed onto `hints`, which
+  // compact.ts only renders inside a TRUNCATED/WINDOW notice — on this
+  // ordinary, well-under-budget response it never reached the caller. It
+  // must now show up in the rendered text every time, not just when
+  // truncated.
+  it("always shows the BAL correlation line, not only when the response is truncated", async () => {
+    const { conn } = fakeConn(() => ({ body: ALLPASS_XML }));
+    stub.object = resolved();
+    const res = await abapTest(conn, { object: "ZCL_I75_PROBE" }, 50_000, gate());
+    expect(res.truncated).toBe(false);
+    expect(res.text).toContain("Application log (BAL) entries this run may have written");
+    expect(res.text).toContain(
+      '{"tool":"log","action":"read","args":{"last_seconds":3600,"detail":"messages"}}',
+    );
+  });
+
   it("asks for coverage and reports per-class and per-method percentages from live-captured bytes", async () => {
     const { conn, calls } = fakeConn(coverageHandler());
     stub.object = resolved();

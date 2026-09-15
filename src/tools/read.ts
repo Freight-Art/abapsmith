@@ -80,6 +80,35 @@ import { canonicalEtag } from "../adt/write.js";
 import type { SessionPool } from "../adt/pool.js";
 import type { Config } from "../config.js";
 import type { SafetyGate } from "../safety.js";
+import {
+  resolveDocuTarget,
+  imgDocuTarget,
+  extractAbapDoc,
+  DOCU_FLATTEN_NOTE,
+  docuEmptyText,
+  type DocuTarget,
+} from "../adt/docu.js";
+import {
+  DIGEST_TYPES,
+  isDigestType,
+  scanDependencies,
+  scanProgramInterface,
+  scanFunctionSignature,
+  scanCdsFields,
+  countTestClasses,
+  summarisePublicApi,
+  buildDigestSections,
+  DIGEST_MAX_ROWS_PER_SECTION,
+  type DigestInput,
+  type DigestPublicApi,
+  type DigestHistoryEntry,
+  type DigestTests,
+} from "../adt/digest.js";
+import { dispatch, dispatchDisabledError } from "../adt/fluid/dispatch.js";
+import { fluidDisabledReason } from "../adt/fluid/enabled.js";
+import { FLUID_PACKAGE } from "../adt/fluid/package.js";
+import { coreTool, CORE_TOOL_ID, CORE_BODY_CLASS } from "../adt/fluid/builtin/core.js";
+import type { LoadedFluidTool } from "../adt/fluid/manifest.js";
 
 export const readInputSchema = {
   object: z.string().describe('Name, "class X", "table Y", or ADT URI.'),
@@ -126,9 +155,13 @@ export const readInputSchema = {
   // than silently falling through to an ordinary source read. Named `view`,
   // not `mode` — `mode` is already a response header key and `ResolvedObject.mode`.
   view: z
-    .enum(["history", "diff", "definition"])
+    .enum(["history", "diff", "definition", "docu", "digest"])
     .optional()
-    .describe('history: versions. diff: hunks. definition: element at line/column. Omit for normal read.'),
+    .describe(
+      "history: versions. diff: hunks. definition: element at line/column. docu: SAP documentation " +
+        '(flattened ITF; type="SIMG" + object=<abap_img activity id> for an IMG activity\'s docu). ' +
+        "digest: one-page object overview. Omit for normal read.",
+    ),
   from: z.string().optional().describe('diff: older side — version, transport, or "active".'),
   to: z.string().optional().describe("diff: newer side, same forms as `from`."),
   context: z.number().int().min(0).max(20).optional().describe("diff: context lines per hunk. Default 3."),
@@ -720,6 +753,14 @@ async function readEnhancementObject(
  */
 const NO_ETAG = "";
 
+/**
+ * The fluid tool map `docu`'s `dispatch()` call needs — mirrors
+ * `SCAN_TOOLS` in `source-scan.ts`, but built from `core.ts`'s
+ * already-fully-assembled `coreTool` rather than re-assembling one, since
+ * `core.ts` exports one ready to use.
+ */
+const CORE_TOOLS: ReadonlyMap<string, LoadedFluidTool> = new Map([[CORE_TOOL_ID, coreTool]]);
+
 /** Hunk ceiling for one diff response. Excess is reported, never dropped silently. */
 const DIFF_MAX_HUNKS = 200;
 
@@ -740,8 +781,15 @@ function assertViewCompatible(input: ReadInput, obj: ResolvedObject): void {
   // "definition" sits on a different axis from "history"/"diff" (position in
   // the CURRENT source vs. a version feed), so most of the clashes below
   // need one message for the version-feed views and a different, honest one
-  // for definition — never the same wording stretched to cover both.
+  // for definition — never the same wording stretched to cover both. "docu"
+  // and "digest" are two further axes again (a documentation object has no
+  // version feed, no position axis and no XML descriptor; a digest is a
+  // fixed six-section overview, not a source read), so each of those needs
+  // its own wording too — never the same sentence stretched to cover all
+  // four.
   const isDefinition = input.view === "definition";
+  const isDocu = input.view === "docu";
+  const isDigest = input.view === "digest";
 
   if (input.format) {
     clash(
@@ -749,10 +797,18 @@ function assertViewCompatible(input: ReadInput, obj: ResolvedObject): void {
       isDefinition
         ? "raw returns the XML descriptor of a properties-shape type; there is no source text to " +
           "resolve a line/column position in."
-        : "raw returns the current XML descriptor, which has no version feed behind it.",
+        : isDocu
+          ? "docu reads SAP's own documentation store (DOKHL/DOKTL), not this object's own wire " +
+            "document — there is no XML descriptor of a documentation object to return."
+          : isDigest
+            ? "a digest is a rendered six-section overview built from several separate reads, not " +
+              "this object's own current XML descriptor."
+            : "raw returns the current XML descriptor, which has no version feed behind it.",
       isDefinition
         ? "Drop format — a definition lookup only makes sense against source text."
-        : "Drop one of the two: view for history/diff, format for the current wire document.",
+        : isDocu || isDigest
+          ? "Drop format, or drop view."
+          : "Drop one of the two: view for history/diff, format for the current wire document.",
     );
   }
   if (input.enhancements) {
@@ -761,7 +817,13 @@ function assertViewCompatible(input: ReadInput, obj: ResolvedObject): void {
       isDefinition
         ? "the enhancement decoders read a structured ENHO/ENHS document, not the source text a " +
           "position lookup resolves against."
-        : "the enhancement decoders read the current definition only.",
+        : isDocu
+          ? "the enhancement decoders read an ENHO/ENHS document; docu reads the DOKHL/DOKTL " +
+            "documentation store instead — the two never apply to the same request."
+          : isDigest
+            ? "the enhancement decoders read an ENHO/ENHS document; a digest summarises an ordinary " +
+              "repository object instead — the two never apply to the same request."
+            : "the enhancement decoders read the current definition only.",
       "Drop enhancements, or drop view.",
     );
   }
@@ -777,11 +839,20 @@ function assertViewCompatible(input: ReadInput, obj: ResolvedObject): void {
         ? "the elementinfo and navigation-target POSTs always carry the source abap_read itself " +
           "read; asking about the inactive version while posting the active source would answer a " +
           "question about a version that was never sent."
-        : 'the active/inactive pair is a different axis from the version FEED; "inactive" is not a ' +
-          "feed entry and has no history row.",
+        : isDocu
+          ? "SAP's documentation store (DOKHL/DOKTL) is not version-controlled the way ABAP source " +
+            "is — there is no active/inactive pair to select between."
+          : isDigest
+            ? "a digest always summarises the CURRENT active state (falling back to the newest " +
+              "inactive version only the way an ordinary read would); the active/inactive selector " +
+              "is not a thing a fixed overview can apply per section."
+            : 'the active/inactive pair is a different axis from the version FEED; "inactive" is not a ' +
+              "feed entry and has no history row.",
       isDefinition
         ? "Activate the object first and read the active source, or drop version."
-        : 'Use from/to to name feed versions (list them with view="history").',
+        : isDocu || isDigest
+          ? "Drop version."
+          : 'Use from/to to name feed versions (list them with view="history").',
     );
   }
   if (input.outline) {
@@ -790,11 +861,20 @@ function assertViewCompatible(input: ReadInput, obj: ResolvedObject): void {
       isDefinition
         ? "outline lists the whole component structure, not source text — there is no line/column " +
           "position in a component list to resolve."
-        : "the outline lists the CURRENT component structure; ADT serves no per-version outline.",
-      'Read the outline separately, without view.',
+        : isDocu
+          ? "outline lists the component structure of a CLASS or INTERFACE object; docu reads a " +
+            "documentation object, which has no component structure of its own."
+          : isDigest
+            ? "a digest already includes its own PUBLIC API section, built the same way outline=true " +
+              "is — asking for outline=true too would run that pass twice for no new information."
+            : "the outline lists the CURRENT component structure; ADT serves no per-version outline.",
+      isDocu || isDigest ? "Drop outline." : 'Read the outline separately, without view.',
     );
   }
-  if (input.method) {
+  // `method` is the one param docu ACCEPTS: for a CLAS target it selects
+  // which method's ABAP Doc comment to read (readDocu below), the same way
+  // an ordinary read's method= selects source. Every other view refuses it.
+  if (input.method && !isDocu) {
     clash(
       `method="${input.method}"`,
       isDefinition
@@ -802,11 +882,37 @@ function assertViewCompatible(input: ReadInput, obj: ResolvedObject): void {
           "a line/column that identifies a position in the FULL source would silently land on " +
           "whatever happens to sit at that line number inside the renumbered excerpt instead of the " +
           "position you meant."
-        : "ADT versions whole objects (or whole class includes), not individual methods, so there is " +
-          "no per-method feed to read or diff.",
+        : isDigest
+          ? "a digest is a fixed six-section overview of the object as a whole; narrowing it to one " +
+            "method would answer a smaller, different question than the digest is for — the PUBLIC " +
+            "API section already lists every public method."
+          : "ADT versions whole objects (or whole class includes), not individual methods, so there is " +
+            "no per-method feed to read or diff.",
       isDefinition
         ? "Drop method and read the definition against the full source (optionally with include)."
-        : "Drop method — the diff hunks already carry line numbers you can map back to a method.",
+        : isDigest
+          ? "Drop method — read that one method directly without view, or find it in the digest's " +
+            "PUBLIC API section."
+          : "Drop method — the diff hunks already carry line numbers you can map back to a method.",
+    );
+  }
+  // `include` selects a class's documented section (main/definitions/…);
+  // neither axis below has a "which document" question to answer — docu
+  // reads a completely separate DOKHL/DOKTL store, and a digest always
+  // summarises the class's own main source plus its testclasses include,
+  // never a caller-picked one — so both refuse it outright, unconditionally,
+  // rather than only when obj.kind disagrees (the check the ordinary read
+  // path applies below).
+  if (input.include && (isDocu || isDigest)) {
+    clash(
+      `include="${input.include}"`,
+      isDocu
+        ? "docu resolves its own documentation target from the object's type and name; there is no " +
+          "class-include axis on a documentation read."
+        : "a digest always reads the class's own main source (plus its testclasses include, to " +
+          "count FOR TESTING classes) — there is no caller-selectable include axis on a fixed " +
+          "six-section overview.",
+      "Drop include.",
     );
   }
   if (input.include && obj.kind !== "CLAS") {
@@ -856,7 +962,26 @@ function assertViewCompatible(input: ReadInput, obj: ResolvedObject): void {
       }
     }
   }
-  if (input.view === "history" || input.view === "diff") {
+  if (isDocu || isDigest) {
+    for (const [param, value] of [
+      ["from", input.from],
+      ["to", input.to],
+      ["context", input.context],
+    ] as const) {
+      if (value !== undefined) {
+        clash(
+          param,
+          isDocu
+            ? "they parameterise a diff between two source versions; a documentation object has no " +
+              "version feed to diff."
+            : "they parameterise a diff between two source versions; a digest summarises the CURRENT " +
+              "state only, not a comparison between versions.",
+          `Drop ${param}${isDocu ? "" : ', or use view="diff" to compare versions instead'}.`,
+        );
+      }
+    }
+  }
+  if (input.view === "history" || input.view === "diff" || isDocu || isDigest) {
     for (const [param, value] of [
       ["line", input.line],
       ["column", input.column],
@@ -864,8 +989,14 @@ function assertViewCompatible(input: ReadInput, obj: ResolvedObject): void {
       if (value !== undefined) {
         clash(
           param,
-          "it selects a position in the CURRENT source; history and diff are about versions, not " +
-            "positions.",
+          isDocu
+            ? "it selects a position in ABAP source; docu returns flattened documentation text, " +
+              "which has no line/column axis of its own to resolve a position in."
+            : isDigest
+              ? "it selects a position in ABAP source; a digest is a fixed six-section overview, not " +
+                "a position lookup."
+              : "it selects a position in the CURRENT source; history and diff are about versions, not " +
+                "positions.",
           'Use view="definition" for a position lookup, or drop it.',
         );
       }
@@ -1473,6 +1604,552 @@ async function readDefinition(
   return { ...built, etag: NO_ETAG };
 }
 
+/** `core.docu`'s decoded head row — see `../adt/fluid/builtin/core/abap-docu.ts` for the exact JSON it emits. */
+interface DocuHeadRow {
+  readonly found: boolean;
+  readonly language: string;
+  readonly requestedLanguage: string;
+  readonly fallbackUsed: boolean;
+  readonly title: string;
+  readonly doktyp: string;
+  readonly dokstate: string;
+  readonly available: readonly string[];
+}
+
+function failDocu(reason: string, result: unknown): never {
+  throw new AbapError("FLUID_PROTOCOL_ERROR", `core.docu ${reason}`, {
+    tool: CORE_TOOL_ID,
+    action: "docu",
+    result,
+  });
+}
+
+/**
+ * Rebuilds a typed result from `core.docu`'s row array, the same way
+ * `mapScanRows` (`../adt/source-scan.ts`) does for `scan.source` — `dispatch()`
+ * only checks the manifest's declared output schema (array of objects), so
+ * this is the one place that turns "the schema matched" into "this specific
+ * row is well-formed", against the exact field names `do_docu` emits.
+ */
+function mapDocuRows(rows: unknown): { head: DocuHeadRow; lines: string[] } {
+  if (!Array.isArray(rows) || rows.length === 0) {
+    failDocu("returned a result that is not a non-empty array", rows);
+  }
+  const arr = rows as unknown[];
+  const first = arr[0];
+  if (typeof first !== "object" || first === null || Array.isArray(first)) {
+    failDocu("row 0 is not an object", rows);
+  }
+  const h = first as Record<string, unknown>;
+  if (h["kind"] !== "docu") {
+    failDocu(`row 0 has kind "${String(h["kind"])}", expected "docu" (the head row)`, rows);
+  }
+  if (
+    typeof h["found"] !== "boolean" ||
+    typeof h["language"] !== "string" ||
+    typeof h["requested_language"] !== "string" ||
+    typeof h["fallback_used"] !== "boolean" ||
+    typeof h["title"] !== "string" ||
+    typeof h["doktyp"] !== "string" ||
+    typeof h["dokstate"] !== "string" ||
+    !Array.isArray(h["available"])
+  ) {
+    failDocu("head row is missing or mistyping one of its required fields", rows);
+  }
+  const head: DocuHeadRow = {
+    found: h["found"] as boolean,
+    language: h["language"] as string,
+    requestedLanguage: h["requested_language"] as string,
+    fallbackUsed: h["fallback_used"] as boolean,
+    title: h["title"] as string,
+    doktyp: h["doktyp"] as string,
+    dokstate: h["dokstate"] as string,
+    available: (h["available"] as unknown[]).map((v) => String(v)),
+  };
+
+  const lines: string[] = [];
+  let sawSummary = false;
+  for (let i = 1; i < arr.length; i++) {
+    const row = arr[i];
+    if (typeof row !== "object" || row === null || Array.isArray(row)) {
+      failDocu(`row ${i} is not an object`, rows);
+    }
+    const r = row as Record<string, unknown>;
+    if (r["kind"] === "line") {
+      if (sawSummary) failDocu(`row ${i} is a line row after the summary row`, rows);
+      if (typeof r["text"] !== "string") {
+        failDocu(`row ${i} is a line row missing or mistyping "text"`, rows);
+      }
+      lines.push(r["text"] as string);
+      continue;
+    }
+    if (r["kind"] === "summary") {
+      if (sawSummary) failDocu("returned more than one summary row", rows);
+      if (typeof r["lines_returned"] !== "number") {
+        failDocu(`row ${i} is a summary row missing or mistyping "lines_returned"`, rows);
+      }
+      if (i !== arr.length - 1) {
+        failDocu("returned a summary row that is not the last element", rows);
+      }
+      sawSummary = true;
+      continue;
+    }
+    failDocu(`row ${i} has kind "${String(r["kind"])}", expected "line" or "summary"`, rows);
+  }
+  if (!sawSummary) failDocu("did not return a summary row", rows);
+
+  return { head, lines };
+}
+
+/**
+ * `view="docu"` — SAP's own documentation (DOKHL/DOKTL), read through the
+ * fluid `core.docu` action (see `../adt/docu.ts`'s module comment: no ADT
+ * REST endpoint reads this store directly, so there is no plain-read path
+ * for it). `method=` reads ABAP Doc from source instead: a method has no
+ * DOKHL entry of its own — ABAP Doc comments ARE its documentation — so this
+ * never falls back to the class-level DOKHL text for a method target, which
+ * would silently answer a different, wrong question. Because that branch is
+ * a pure source scan (`readSource` + `extractAbapDoc`), it never dispatches
+ * `core.docu` and so needs no {@link SafetyGate} at all — `gate` is only
+ * required, and only checked, in the object-based branch below.
+ *
+ * No `language` input exists on `abap_read` (and none is added here): the
+ * ABAP side already tries the logon language, then EN, on its own, and the
+ * response states which language actually came back (`language`) and
+ * whether that was a fallback (`fallback_used`), so a caller never has to
+ * guess or ask twice.
+ */
+async function readDocu(
+  conn: AbapConnection,
+  obj: ResolvedObject,
+  baseHeader: Record<string, string | number | undefined>,
+  input: ReadInput,
+  maxChars: number,
+  gate: SafetyGate | undefined,
+): Promise<BuiltResponse & { etag: string }> {
+  if (input.method !== undefined) {
+    if (obj.kind !== "CLAS") {
+      throw new AbapError(
+        "UNSUPPORTED",
+        `method="${input.method}" is only meaningful for a class: ABAP Doc lives on a method's ` +
+          `own declaration in source, and ${obj.type} ${obj.name} is not a class.`,
+        { type: obj.type, name: obj.name, method: input.method },
+        "Drop method to read this object's own SAP documentation instead.",
+      );
+    }
+    const { source } = await readSource(conn, obj, undefined, undefined);
+    const doc = extractAbapDoc(source, input.method);
+    const built = buildReadResponse({
+      header: { ...baseHeader, view: "docu", docu: `method ${input.method}` },
+      body:
+        doc.length > 0
+          ? doc.join("\n")
+          : `(${obj.type} ${obj.name} method ${input.method} carries no ABAP Doc comment.)`,
+      bodyLabel: "DOCUMENTATION",
+      notes: [
+        'ABAP Doc: the "!-prefixed comment block immediately above the method\'s ' +
+          "METHODS/CLASS-METHODS declaration — the only documentation a method itself carries. " +
+          'This never falls back to the class-level DOKHL text (view="docu" without method= reads ' +
+          "that instead) — a method's own doc and its class's doc answer different questions.",
+      ],
+      maxChars,
+    });
+    return { ...built, etag: NO_ETAG };
+  }
+
+  // Object-based path: obj.name is the RESOLVED name (a real ADT object),
+  // which is exactly what resolveDocuTarget wants for every type it accepts
+  // here except MSAG — that case never reaches this function, see the
+  // MSAG/SIMG bypass in abapRead just above the resolveObject call, and
+  // that branch's own comment for why.
+  //
+  // This is the one branch of readDocu that actually dispatches core.docu
+  // (via renderDocuTarget), so it is also the one place a gate is required —
+  // checked here, not by the caller, so the method= branch above never has
+  // to carry a gate it does not use.
+  const g = requireDocuGate(gate, { type: obj.type, name: obj.name, view: input.view });
+  const target = resolveDocuTarget({ type: obj.type, object: obj.name });
+  return await renderDocuTarget(conn, target, baseHeader, maxChars, g);
+}
+
+/**
+ * Guards the three `view="docu"` paths that actually run through
+ * `dispatch()` under the hood (see {@link readDocu}'s doc comment) since
+ * there is no plain ADT REST endpoint for SAP's documentation store: the
+ * object-based path in {@link readDocu} (no `method=`), and the two paths in
+ * `abapRead` that bypass `resolveObject` entirely (MSAG, the `SIMG`
+ * pseudo-type) — none of the three has any other way to obtain a
+ * {@link SafetyGate} to judge the write `dispatch()` deploys under the hood.
+ * `readDocu`'s `method=` branch is NOT one of these: it is a pure source
+ * scan that never dispatches anything, so it never calls this function and
+ * needs no gate at all. `gate` is only ever `undefined` when a caller
+ * invokes `abapRead` directly without going through `registerReadTools`'s
+ * fluid-write routing (e.g. a test) — there is no sound fallback for that.
+ */
+function requireDocuGate(
+  gate: SafetyGate | undefined,
+  ctx: Record<string, string | number | undefined>,
+): SafetyGate {
+  if (gate === undefined) {
+    throw new AbapError(
+      "UNSUPPORTED",
+      'view="docu" reads through a deployed fluid tool, which needs a SafetyGate to judge; ' +
+        "none was supplied to this call.",
+      ctx,
+    );
+  }
+  return gate;
+}
+
+/**
+ * The dispatch-and-render tail every `view="docu"` path shares, once the
+ * caller-specific work of producing a {@link DocuTarget} and a `baseHeader`
+ * is done: the object-based path in {@link readDocu} (built from a real
+ * `ResolvedObject`), and `abapRead`'s MSAG and `SIMG`-pseudo-type bypasses
+ * (built by hand — neither has a `ResolvedObject` to draw one from).
+ */
+async function renderDocuTarget(
+  conn: AbapConnection,
+  target: DocuTarget,
+  baseHeader: Record<string, string | number | undefined>,
+  maxChars: number,
+  gate: SafetyGate,
+): Promise<BuiltResponse & { etag: string }> {
+  const res = await dispatch(
+    { conn, cfg: conn.cfg, gate, tools: CORE_TOOLS },
+    {
+      tool: CORE_TOOL_ID,
+      action: "docu",
+      args: { id: target.id, object: target.object },
+      caller: { tool: "abap_read", action: "docu" },
+    },
+  );
+  const { head, lines } = mapDocuRows(res.result);
+
+  const header: Record<string, string | number | undefined> = {
+    ...baseHeader,
+    view: "docu",
+    docu: `${target.id} ${target.object}`,
+    language: head.found ? head.language : undefined,
+    title: head.found ? head.title : undefined,
+  };
+
+  const notes: string[] = [DOCU_FLATTEN_NOTE];
+  if (head.found && head.fallbackUsed) {
+    notes.push(
+      `Requested language "${head.requestedLanguage}" has no documentation for this ${target.kind}; ` +
+        `SAP returned it in "${head.language}" instead.`,
+    );
+  }
+  if (head.available.length > 0) {
+    notes.push(
+      `DOKIL lists documentation entries for: ${head.available.join(", ")} (langu:typ:dokstate) — ` +
+        "informational only; it is not what core.docu used to pick a language (see abap-docu.ts).",
+    );
+  }
+
+  // The only candidate the TS layer can actually name: `requested_language`
+  // is the FIRST language `do_docu` tried (the logon language, since no
+  // `language` input is ever sent — see readDocu's doc comment); EN was
+  // also tried whenever that first candidate wasn't already EN itself.
+  const tried = head.requestedLanguage === "EN" ? [head.requestedLanguage] : [head.requestedLanguage, "EN"];
+
+  const built = buildReadResponse({
+    header,
+    body: head.found && lines.length > 0 ? lines.join("\n") : docuEmptyText(tried),
+    bodyLabel: "DOCUMENTATION",
+    notes,
+    maxChars,
+  });
+  return { ...built, etag: NO_ETAG };
+}
+
+/**
+ * Same refusals {@link assertViewCompatible} makes for the object-based
+ * `view="docu"` path, for the two targets that bypass `resolveObject`
+ * entirely and so have no `ResolvedObject` for that function to check
+ * against. `method` is refused unconditionally here (unlike the object
+ * path, which accepts it for a CLAS): a message class and an IMG activity
+ * are never a CLAS, so there is no ABAP Doc comment `method=` could select.
+ */
+function assertDocuBypassCompatible(input: ReadInput, kind: string): void {
+  const clash = (param: string): never => {
+    throw new AbapError(
+      "UNSUPPORTED",
+      `${param} cannot be combined with view="docu" for a ${kind}: only object and type are ` +
+        "meaningful for this documentation lookup.",
+      { view: "docu", kind, param },
+      `Drop ${param}.`,
+    );
+  };
+  if (input.method !== undefined) clash("method");
+  if (input.format !== undefined) clash('format="raw"');
+  if (input.enhancements) clash("enhancements=true");
+  if (input.version !== undefined) clash(`version="${input.version}"`);
+  if (input.outline) clash("outline=true");
+  if (input.include !== undefined) clash(`include="${input.include}"`);
+  if (input.from !== undefined) clash("from");
+  if (input.to !== undefined) clash("to");
+  if (input.context !== undefined) clash("context");
+  if (input.line !== undefined) clash("line");
+  if (input.column !== undefined) clash("column");
+}
+
+/**
+ * `view="digest"` — a one-page, bounded overview (issue #110). Everything
+ * that decides WHAT the sections say lives in `../adt/digest.ts`
+ * (`buildDigestSections`, `scanDependencies`, `scanProgramInterface`,
+ * `countTestClasses`, `summarisePublicApi`) — this function's only job is
+ * fetching the ADT facts those pure functions need and shaping them into a
+ * `DigestInput`. Read-only throughout: no fluid, no extra gate, the same
+ * `pool.withRead` path as an ordinary read, so it stays available under
+ * `ABAP_MODE=read`.
+ *
+ * Where-used is deliberately never fetched — see `digest.ts`'s module
+ * comment; `buildDigestSections` itself names the `abap_search
+ * {"mode":"where_used"}` call in its own notes.
+ */
+async function readDigest(
+  conn: AbapConnection,
+  obj: ResolvedObject,
+  baseHeader: Record<string, string | number | undefined>,
+  input: ReadInput,
+  maxChars: number,
+): Promise<BuiltResponse & { etag: string }> {
+  if (!isDigestType(obj.type)) {
+    throw new AbapError(
+      "UNSUPPORTED",
+      `view="digest" supports ${DIGEST_TYPES.join(", ")}; ${obj.type} ${obj.name} is not one of ` +
+        "those.",
+      { type: obj.type, name: obj.name, supported: DIGEST_TYPES },
+      "Drop view for an ordinary read, or point digest at a CLAS/OC, INTF/OI, PROG/P, FUGR/F, " +
+        "FUGR/FF or DDLS/DF object.",
+    );
+  }
+
+  // ---- version feed: last-changed fact + recent history rows -------------
+  const entries = await listRevisions(conn, obj, undefined);
+  const released = releasedVersions(entries);
+  const lastChangedSource: "released" | "active" = released.length > 0 ? "released" : "active";
+  const latest = released[0] ?? entries[0];
+  const lastChanged = latest
+    ? [latest.date, latest.author ? `by ${latest.author}` : undefined, `(version ${latest.versionId || "?"})`]
+        .filter((p): p is string => Boolean(p))
+        .join(" ")
+    : undefined;
+  const history: DigestHistoryEntry[] = entries.map((e) => ({
+    version: e.versionId || "?",
+    date: e.date || undefined,
+    author: e.author || undefined,
+    note: e.description || undefined,
+  }));
+
+  // ---- source: dependency scan, PROG/P interface scan -------------------
+  const { source } = await readSource(conn, obj, undefined, undefined);
+  const dependencies = scanDependencies(source, { selfName: obj.name });
+
+  // ---- public API -----------------------------------------------------
+  const extraNotes: string[] = [];
+  let publicApi: DigestPublicApi;
+  if (OUTLINE_KINDS.has(obj.kind)) {
+    const members = await classMembers(conn, obj);
+    publicApi = {
+      ...summarisePublicApi(members),
+      // Outline really is the source of these rows for CLAS/INTF —
+      // outline=true genuinely returns more when this section is
+      // truncated, and "no rows" here really does mean the outline scan
+      // found nothing public.
+      fullCallLine: `abap_read {"object":"${obj.name}","outline":true}`,
+      emptyText: "(no public components found by the outline scan)",
+    };
+  } else if (obj.type === "PROG/P") {
+    const pi = scanProgramInterface(source);
+    publicApi = {
+      rows: [
+        ...pi.parameters.map((name) => ({ name, kind: "parameter" })),
+        ...pi.selectOptions.map((name) => ({ name, kind: "select-option" })),
+        ...pi.forms.map((name) => ({ name, kind: "form" })),
+      ],
+      hiddenCounts: [],
+      // outline=true is refused for PROG/P (OUTLINE_KINDS is CLAS/INTF
+      // only) — the rows above came from a static scan of the source
+      // itself, so re-reading that source is what actually has the rest.
+      fullCallLine: `abap_read {"object":"${obj.name}","type":"PROG/P"}`,
+      emptyText: "(no parameters, select-options or forms found by the source scan)",
+    };
+    if (pi.hasStartOfSelection) extraNotes.push("START-OF-SELECTION is present in this program's source.");
+  } else if (obj.type === "FUGR/FF") {
+    // The function module's own signature IS its public API — scanned from
+    // the source already fetched above for the dependency scan (see
+    // digest.ts's module comment). `scanFunctionSignature` tries the NATIVE
+    // `FUNCTION <name> IMPORTING ... .` signature statement first — issue
+    // #108's live verifier found that is what ADT actually serves on a real
+    // system (A4H), keywords upper- or lowercase — and falls back to the
+    // LEGACY ADT-generated `*"*"Local Interface:` comment block only when
+    // the native parse finds nothing. `optional` has no separate column of
+    // its own: it is folded into `detail` (spelling: "<typing> (optional)",
+    // or bare "(optional)" for a DEFAULT/OPTIONAL exception/RAISING line,
+    // which carries no typing) so the row shape stays the same
+    // {name, kind, detail} every other branch uses.
+    const { form, parameters: params } = scanFunctionSignature(source);
+    publicApi = {
+      rows: params.map((p) => {
+        const detail = [p.typing || undefined, p.optional ? "(optional)" : undefined]
+          .filter((s): s is string => s !== undefined)
+          .join(" ");
+        return { name: p.name, kind: p.kind, detail: detail || undefined };
+      }),
+      // A function module's interface has no private/protected half to hide
+      // counts for — everything IMPORTING/EXPORTING/CHANGING/TABLES/
+      // EXCEPTIONS/RAISING declares is already the whole public signature.
+      hiddenCounts: [],
+      // outline=true is refused for FUGR/FF ("has no ADT component
+      // structure to list") — the rows above came from the source scan
+      // above, so re-reading that source (with `type` to disambiguate from
+      // FUGR/F, the function group) is what actually has the rest.
+      fullCallLine: `abap_read {"object":"${obj.name}","type":"FUGR/FF"}`,
+      emptyText: "(no parameters found by the source scan)",
+    };
+    if (params.length === 0) {
+      if (form === "native") {
+        // issue #108 defect: the native FUNCTION statement WAS found and
+        // walked — this is not a failed scan, the module genuinely
+        // declares no parameters (e.g. RFC_PING). The note used to be the
+        // both-forms-tried one below regardless, which was simply false
+        // for this case.
+        extraNotes.push(
+          `PUBLIC API is empty for ${obj.name}: its native "FUNCTION ${obj.name} ... ." statement was ` +
+            "found and parsed, and it declares no IMPORTING, EXPORTING, CHANGING, TABLES, EXCEPTIONS or " +
+            "RAISING clause at all — this module takes nothing, returns nothing and raises no exception. " +
+            "That is its real signature, not a limitation of this scan.",
+        );
+      } else {
+        extraNotes.push(
+          `PUBLIC API is empty for ${obj.name}: its source carries neither a parseable native ` +
+            '"FUNCTION … IMPORTING/EXPORTING/… ." signature statement (the form ADT serves on this system) ' +
+            'nor the legacy generated "Local Interface:" comment block — a real outcome (the source is ' +
+            "malformed, hand-edited, or shaped in a way this scan does not recognise), not a limitation of " +
+            "this tool.",
+        );
+      }
+    }
+  } else if (obj.type === "DDLS/DF") {
+    // The projected field list IS the view's public API. `scanCdsFields`
+    // deliberately returns [] for the whole view rather than a partial list
+    // when it meets anything it isn't confident about (see its doc comment
+    // in digest.ts) — an empty result here means "could not parse
+    // confidently", not "this view has no fields".
+    const fields = scanCdsFields(source);
+    publicApi = {
+      rows: fields.map((name) => ({ name, kind: "field" })),
+      hiddenCounts: [],
+      // outline=true is refused for DDLS/DF ("has no ADT component
+      // structure to list") — the rows above came from the source scan
+      // above, so re-reading that source (with `type` for symmetry with
+      // the other non-outline branches) is what actually has the rest.
+      fullCallLine: `abap_read {"object":"${obj.name}","type":"DDLS/DF"}`,
+      emptyText: "(no fields found by the source scan)",
+    };
+    if (fields.length === 0) {
+      extraNotes.push(
+        `PUBLIC API is empty for ${obj.name}: its select list could not be parsed confidently — e.g. ` +
+          "no recognisable `select from { ... }` projection block, a bare (non-navigated) association " +
+          "exposed in the list, or an entry that is a cast, function call, sub-select or otherwise not " +
+          "a plain field reference. This is not a statement that the view projects no fields.",
+      );
+    }
+  } else {
+    // FUGR/F only reaches here: listing a function group's function modules
+    // needs a search call (there is no /objectstructure-style listing for a
+    // FUGR/F group), and this view deliberately never makes one — see this
+    // function's module comment on where-used for the same reasoning.
+    publicApi = {
+      rows: [],
+      hiddenCounts: [],
+      // Never truncated (rows is always []), but still named accurately:
+      // no outline scan runs here at all, so outline=true would be as much
+      // a dead end as it is for the other non-outline types.
+      fullCallLine: `abap_search {"query":"${obj.name}"}`,
+      emptyText: "(FUGR/F lists no modules directly — see note below)",
+    };
+    extraNotes.push(
+      `PUBLIC API is empty for ${obj.type}: listing a function group's modules needs a search call, ` +
+        'which this view does not make — use abap_search to list FUGR/F\'s modules, or point digest ' +
+        "at one of them directly (FUGR/FF).",
+    );
+  }
+
+  // ---- tests: testclasses include, CLAS only -----------------------------
+  let tests: DigestTests;
+  if (obj.kind === "CLAS") {
+    let testSource = "";
+    let hasInclude = true;
+    try {
+      const r = await readSource(conn, obj, "testclasses", undefined);
+      testSource = r.source;
+    } catch (e) {
+      if (e instanceof AbapError && e.code === "NOT_FOUND") {
+        hasInclude = false;
+      } else {
+        throw e;
+      }
+    }
+    tests = {
+      hasTestInclude: hasInclude && testSource.trim() !== "",
+      testClassCount: hasInclude ? countTestClasses(testSource) : 0,
+      testCall: `abap_test {"object":"${obj.name}"}`,
+      atcCall: `abap_atc {"object":"${obj.name}"}`,
+    };
+  } else {
+    tests = {
+      hasTestInclude: false,
+      testClassCount: 0,
+      testCall: `abap_test {"object":"${obj.name}"}`,
+      atcCall: `abap_atc {"object":"${obj.name}"}`,
+    };
+  }
+
+  const nextSteps: string[] = [
+    `Read the full source: abap_read {"object":"${obj.name}"}`,
+    ...(OUTLINE_KINDS.has(obj.kind)
+      ? [`See the full component list: abap_read {"object":"${obj.name}","outline":true}`]
+      : []),
+    `See the full version history: abap_read {"object":"${obj.name}","view":"history"}`,
+  ];
+
+  const digestInput: DigestInput = {
+    header: {
+      type: obj.type,
+      name: obj.name,
+      packageName: obj.packageName,
+      description: obj.description,
+      // No source for `responsible` in this codebase's existing read
+      // machinery (ResolvedObject carries none) — left undefined (optional
+      // on DigestHeader) rather than fabricated.
+      lastChanged,
+      lastChangedSource,
+      activationState: obj.activation,
+    },
+    publicApi,
+    dependencies,
+    tests,
+    history,
+    nextSteps,
+  };
+
+  const { sections, notes } = buildDigestSections(digestInput, {
+    maxRowsPerSection: DIGEST_MAX_ROWS_PER_SECTION,
+  });
+
+  const built = buildResponse({
+    header: { ...baseHeader, view: "digest" },
+    sections,
+    notes: [...notes, ...extraNotes],
+    maxChars,
+  });
+  return { ...built, etag: NO_ETAG };
+}
+
 /**
  * Every parameter that means nothing for a `catalogRead` type: there is no
  * ADT resource, so no source/outline/history/raw-XML axis exists to apply
@@ -1579,6 +2256,7 @@ export async function abapRead(
   conn: AbapConnection,
   input: ReadInput,
   maxChars: number,
+  gate?: SafetyGate,
 ): Promise<BuiltResponse & { etag: string }> {
   // Decidable from the argument alone, before resolveObject's first request,
   // so it must not cost a round trip. Enforced here too, not just by the v1
@@ -1593,6 +2271,74 @@ export async function abapRead(
   const catalogCap = input.type ? capabilitiesFor(input.type) : undefined;
   if (catalogCap?.catalogRead) {
     return readCatalogObject(conn, input, catalogCap.catalogRead, catalogCap.label, maxChars);
+  }
+
+  // `SIMG` (see the `type` schema's doc comment) addresses an IMG activity,
+  // never a real ADT object — it exists only to spell a docu request, so
+  // any other view is refused here, loudly, rather than falling through to
+  // resolveObject and mis-resolving as "no ABAP object named SIMG... found".
+  const pseudoType = input.type?.split("/")[0]?.toUpperCase();
+  if (pseudoType === "SIMG" && input.view !== "docu") {
+    throw new AbapError(
+      "UNSUPPORTED",
+      'type="SIMG" only addresses an IMG activity\'s documentation, which needs view="docu" — there ' +
+        "is no ADT object of type SIMG to read any other way.",
+      { type: input.type, view: input.view },
+      'Add view="docu", or drop type="SIMG" and pass the real ADT type of what you meant to read.',
+    );
+  }
+
+  // A bare "FUGR" is genuinely ambiguous between the function group (FUGR/F)
+  // and a single function module (FUGR/FF) — digest.ts's isDigestType
+  // already refuses it bare for exactly that reason (see its doc comment),
+  // but that check never gets a chance to run: resolveObject normalises a
+  // bare "FUGR" to FUGR/F before readDigest ever sees obj.type, so the
+  // ambiguity was silently resolved by then. Caught here instead, against
+  // the caller's raw type, before resolveObject runs — same place and
+  // pattern as the SIMG pseudo-type check just above. Case-insensitive and
+  // whitespace-tolerant like that check's `pseudoType` comparison; only a
+  // BARE "FUGR" is refused — "FUGR/F" and "FUGR/FF" are untouched, and so is
+  // every view other than "digest".
+  if (input.view === "digest" && input.type?.trim().toUpperCase() === "FUGR") {
+    throw new AbapError(
+      "UNSUPPORTED",
+      'type="FUGR" is ambiguous for view="digest": it could mean the whole function group (FUGR/F) ' +
+        "or a single function module (FUGR/FF), and digest needs to know which.",
+      { type: input.type, view: input.view },
+      'Pass type="FUGR/F" to digest the function group, or type="FUGR/FF" to digest one function ' +
+        "module.",
+    );
+  }
+
+  // MSAG and SIMG-under-docu both bypass resolveObject entirely, decided
+  // here from the caller's raw type/object, before resolveObject ever runs:
+  //  - MSAG: a message's identity is class + number ("ZSD 042"), and a
+  //    number exists nowhere but the caller's own input — resolveObject
+  //    resolves ADT OBJECTS, and "ZSD 042" is not a valid ADT object name at
+  //    all (the space alone makes resolveObject's parser reject it outright,
+  //    BAD_INPUT, before it would ever get a chance to return an object with
+  //    the number silently dropped). Passing obj.name here instead of
+  //    input.object would therefore not even paper over the bug — readDocu
+  //    would simply never be reached.
+  //  - SIMG: an IMG activity has no ADT object type of its own for
+  //    resolveObject to resolve against at all (see docu.ts's
+  //    imgDocuTarget doc comment) — there is no ResolvedObject to build a
+  //    target or header from, ever, by construction.
+  // Every OTHER type keeps going through resolveObject and obj.name below,
+  // in readDocu — only these two lack a real ADT object to resolve.
+  if (input.view === "docu" && (pseudoType === "MSAG" || pseudoType === "SIMG")) {
+    const kind = pseudoType === "MSAG" ? "message class" : "IMG activity";
+    assertDocuBypassCompatible(input, kind);
+    const g = requireDocuGate(gate, { type: input.type, object: input.object, view: input.view });
+    const target =
+      pseudoType === "MSAG"
+        ? resolveDocuTarget({ type: "MSAG", object: input.object })
+        : imgDocuTarget(input.object);
+    const baseHeader: Record<string, string | number | undefined> = {
+      system: conn.cfg.sid,
+      object: `${pseudoType} ${input.object}`,
+    };
+    return await renderDocuTarget(conn, target, baseHeader, maxChars, g);
   }
 
   const obj = await resolveObject(conn, input.object, input.type ? { type: input.type } : {});
@@ -1612,6 +2358,11 @@ export async function abapRead(
     assertViewCompatible(input, obj);
     if (input.view === "history") return await readHistory(conn, obj, baseHeader, input, maxChars);
     if (input.view === "diff") return await readDiff(conn, obj, baseHeader, input, maxChars);
+    // gate may be undefined here: readDocu's method= branch needs none, and
+    // checks that for itself before the object-based branch (the one that
+    // does need it) calls requireDocuGate.
+    if (input.view === "docu") return await readDocu(conn, obj, baseHeader, input, maxChars, gate);
+    if (input.view === "digest") return await readDigest(conn, obj, baseHeader, input, maxChars);
     return await readDefinition(conn, obj, baseHeader, input, maxChars);
   }
   // from/to/context only parameterise `view`; silently ignoring them would
@@ -1994,7 +2745,11 @@ export interface ReadToolDeps {
   readonly safety: SafetyGate;
   readonly ensureConnected: () => Promise<void>;
   readonly errorResult: (e: unknown) => CallToolResult;
-  readonly cfg: Pick<Config, "maxResponseChars">;
+  // Widened from `Pick<Config, "maxResponseChars">`: `view="docu"` routes
+  // through `dispatchDisabledError`/`fluidDisabledReason` (see
+  // `registerReadTools` below), both of which need the full `Config`, not
+  // just the response-size field every other view uses.
+  readonly cfg: Config;
 }
 
 /**
@@ -2039,6 +2794,23 @@ const okRead = (res: BuiltResponse & { etag: string }): CallToolResult => ({
  * the wire protocol, not evidence of a side effect — so the tool's own
  * read/write classification tracks what the call CAN do to the system, not
  * which HTTP verb happens to carry the request.
+ *
+ * `view="digest"` ({@link readDigest}) is likewise plain `pool.withRead` —
+ * it only reads source/outline/history through machinery this file already
+ * uses elsewhere, so it needs nothing this function's existing read path
+ * doesn't already provide.
+ *
+ * `view="docu"` ({@link readDocu}, without `method=`) is the one exception:
+ * SAP's documentation store (DOKHL/DOKIL/DOKTL) has no ADT REST endpoint, so
+ * it is read through the fluid `core.docu` action, which deploys/calls a
+ * small generated ABAP class the same way `abap_search`'s `mode="source"`
+ * deploys `ZCL_ZMCP_FLUID_SCAN` (see `src/tools/search.ts`). That needs the
+ * fluid API and a write-capable session/pool slot even though the caller is
+ * only asking to read — routed here through the exact same
+ * fluid-disabled-check-then-`pool.withWrite` shape `abap_search` uses,
+ * before falling through to the ordinary `pool.withRead` path every other
+ * view (including `docu` WITH `method=`, which reads ABAP Doc from source
+ * and needs no fluid tool at all) takes.
  */
 export function registerReadTools(mcp: McpServer, deps: ReadToolDeps): void {
   mcp.registerTool(
@@ -2047,13 +2819,49 @@ export function registerReadTools(mcp: McpServer, deps: ReadToolDeps): void {
       title: "Read ABAP object",
       description:
         "Read an ABAP object: source, pseudo-DDL, a DEVC/K package listing (types/depth filter it), " +
-        "or (SUSO/B, TABL/DI) a read-only catalog render. Returns an etag. Capped ~15k tokens — " +
-        "use outline/method/offset for large objects. Example: {\"object\":\"ZCL_FOO\",\"type\":\"CLAS/OC\"}.",
+        "or (SUSO/B, TABL/DI) a read-only catalog render. view=\"docu\" reads SAP's own documentation " +
+        "(or, with method=, a method's ABAP Doc); view=\"digest\" gives a one-page overview " +
+        "(CLAS/INTF/PROG/FUGR/DDLS) with public API, dependencies, tests and recent history. " +
+        "Returns an etag. Capped ~15k tokens — use outline/method/offset for large objects. " +
+        "Example: {\"object\":\"ZCL_FOO\",\"type\":\"CLAS/OC\"}.",
       inputSchema: readInputSchema,
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
     async (args) => {
       try {
+        const input = args as ReadInput;
+
+        // `view="docu"` without `method=` is the only branch that needs a
+        // fluid write slot (see this function's JSDoc); every other input,
+        // `docu` WITH `method=` included, stays on the ordinary read path
+        // below. Mirrors `abap_search`'s `mode="source"` routing in
+        // `src/tools/search.ts` exactly: fluid-disabled check first (a more
+        // specific reason than a generic write-denied would give on a
+        // read-only connection), then a preflight write-target assert, then
+        // `pool.withWrite`.
+        if (input.view === "docu" && input.method === undefined) {
+          await deps.ensureConnected();
+          deps.safety.assert("read");
+          const disabled = fluidDisabledReason(deps.cfg, deps.safety);
+          if (disabled) {
+            throw dispatchDisabledError(disabled, deps.cfg, {
+              tool: CORE_TOOL_ID,
+              action: "docu",
+              args: { object: input.object, type: input.type },
+              caller: { tool: "abap_read", action: "docu" },
+            });
+          }
+          deps.safety.assert(
+            "write",
+            { name: CORE_BODY_CLASS, packageName: FLUID_PACKAGE, type: "CLAS/OC" },
+            { phase: "preflight" },
+          );
+          const res = await deps.pool.withWrite("abap_read", CORE_BODY_CLASS, (conn) =>
+            abapRead(conn, input, deps.cfg.maxResponseChars, deps.safety),
+          );
+          return okRead(res);
+        }
+
         await deps.ensureConnected();
         deps.safety.assert("read");
         // `args as ReadInput`, never `as never`: the MCP SDK hands the
@@ -2063,7 +2871,7 @@ export function registerReadTools(mcp: McpServer, deps: ReadToolDeps): void {
         // cost two shipped defects in abap_write before this fix. Load-
         // bearing in all ten tool registrations — do not weaken to `never`.
         const res = await deps.pool.withRead("abap_read", (conn) =>
-          abapRead(conn, args as ReadInput, deps.cfg.maxResponseChars),
+          abapRead(conn, input, deps.cfg.maxResponseChars),
         );
         return okRead(res);
       } catch (e) {

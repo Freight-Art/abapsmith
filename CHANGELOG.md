@@ -12,6 +12,14 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-09-15
+
+### Added
+
+- Application log reader `abap_fluid {"tool":"log","action":"read"}` (#108): the tenth built-in fluid tool reads SLG1/BAL log headers filtered by object, subobject, extnumber, user, tcode, program and a time window (`last_seconds` or `since`/`until`, defaulting to the last hour), and with `detail="messages"` the rendered messages of each log through the documented `BAL_DB_SEARCH` → `BAL_DB_LOAD` → `BAL_LOG_MSG_READ` pipeline. Every response carries a business-data warning, the resolved window and a truncation flag, and the server writes an audit line naming only object and counts. `abap_run`, `abap_test`, `abap_bopf_test` and `abap_ui mode=press` now append a correlation hint pointing at the `log.read` call that covers the run they just made.
+- `abap_read view="docu"` (#109): SAP long texts (`DOKHL`/`DOKTL`, via the `core` fluid tool's new `docu` action and `DOCU_GET` + `CONVERT_ITF_TO_ASCII`) for classes, interfaces, programs, function modules, data elements, tables, messages (`BM 019` or `BM019`) and IMG activities (`type="SIMG"`); with `method=` on a class it returns that method's ABAP Doc comment without any fluid call. Unsupported view combinations (`format="raw"`, `enhancements`, `version`, `outline`, `include`) are refused with `UNSUPPORTED`.
+- `abap_read view="digest"` (#110): a bounded one-page overview of a `CLAS/OC`, `INTF/OI`, `PROG/P`, `FUGR/F`, `FUGR/FF` or `DDLS/DF` object in six fixed sections (HEADER, PUBLIC API, DIRECT DEPENDENCIES, TESTS AND CHECKS, RECENT HISTORY, WHERE TO GO NEXT), each capped at 25 rows with a `--- TRUNCATED ---` line naming the exact follow-up call. Function-module signatures are parsed from the native `FUNCTION … IMPORTING … EXPORTING … TABLES … CHANGING … EXCEPTIONS … RAISING … .` statement (the legacy `Local Interface:` comment block is a fallback), and a parameterless module says so explicitly. A bare `FUGR` is refused as ambiguous. Proven live on A4H against `CL_ABAP_TSTMP`, `RSPARAM`, `BAL_LOG_MSG_READ`, `BAPI_USER_GET_DETAIL` and a customer class with a local test class.
+
 ## [0.6.1] - 2026-09-15
 
 ### Added

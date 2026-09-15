@@ -31,6 +31,9 @@
 | UI automation | n/a | yes | n/a | n/a | yes | mixed | Classic dynpro only, driven by generated batch input. Pressing commits immediately with no dry run and no rollback. |
 | Service and OData exposure | no | yes | no | no | n/a | tests | Metadata introspection only. Publication and business data are structurally refused. |
 | Object read | n/a | yes | n/a | n/a | n/a | live | Source, outline, method slice, raw properties, enhancements, version history, and diff. |
+| Application log (BAL) reads | n/a | yes | n/a | n/a | n/a | mixed | `abap_fluid {"tool":"log","action":"read"}`. Header search plus, on request, message detail, via `BAL_GLB_MEMORY_REFRESH`/`BAL_DB_SEARCH`/`BAL_DB_LOAD`/`BAL_LOG_MSG_READ` — not the nonexistent `BAL_LOG_READ` the requesting issue named. `detail="messages"` can itself write to the database (`BAL_DB_LOAD` converts an old-format log in place via `BAL_DB_SAVE_OLD_VERSIONS`), so it is not provably side-effect-free even though this is a "read" action; message text is application data and may carry business data, so it is disclosed as such, never assumed safe to log. See the note below. |
+| SAP documentation reads | n/a | yes | n/a | n/a | n/a | mixed | `abap_read view="docu"` (or, with `method=`, a method's own ABAP Doc). Reads `DOKHL`/`DOKIL`/`DOKTL` through the built-in `core` fluid tool's `docu` action — there is no ADT REST endpoint for this store. Flattened to plain text (`CONVERT_ITF_TO_ASCII`), not the verbatim ITF source. Deliberately excluded from `core`'s data-preview policy: it reads SAP's own documentation text, not application table data. See the note below. |
+| Object digest (one-page overview) | n/a | partial | n/a | n/a | n/a | mixed | `abap_read view="digest"`, for `CLAS/OC`, `INTF/OI`, `PROG/P`, `FUGR/F`, `FUGR/FF`, `DDLS/DF` only. Six fixed sections built from existing read/outline/history calls, capped at 25 rows per section. `partial`: PUBLIC API renders a real function-module signature for `FUGR/FF` and, when the select list is parseable with confidence, a CDS field list for `DDLS/DF`; only `FUGR/F` (the group itself) still renders an empty PUBLIC API, since listing a group's modules needs a search call this view deliberately does not make. Where-used is deliberately never fetched (unbounded ADT endpoint); the digest names the `abap_search mode="where_used"` call instead of running it. See the note below. |
 
 - **ABAP Unit outcome grading — this is the whole point of the evidence
   column, so it is not smoothed over here.** The run reports one of four
@@ -429,3 +432,141 @@
   called by this tool. On that release, SQL access is read through the
   `sql_trace`-fed `db` view of the ABAP trace itself, which reports
   statement kind, table, counts and time, never full SQL statement text.
+- **Application log (BAL) reads.** BAL has no single "read everything"
+  function module — the issue that requested this tool named
+  `BAL_LOG_READ`, which does not exist under that name on a current system.
+  `log.read` instead drives the documented search/load/read pipeline:
+  `BAL_GLB_MEMORY_REFRESH` clears session BAL memory first (a log read
+  earlier in the same session could otherwise come back with zero
+  messages), `BAL_DB_SEARCH` finds headers matching the filter,
+  `BAL_DB_LOAD` (`detail="messages"` only, `i_lock_handling = 0`, no
+  enqueue — "a read action has no business taking a lock") loads a found
+  log's messages, and `BAL_LOG_MSG_READ` renders each message's text. With
+  neither an absolute nor a relative time window given, the window defaults
+  to the last hour (`DEFAULT_LOG_WINDOW_SECONDS = 3600`) rather than
+  scanning a table that can span years. `abap_run`, `abap_test`,
+  `abap_bopf_test` and `abap_ui mode="press"` each append a note (not a
+  hint — a hint would only render inside a truncated/windowed response,
+  and this line must reach the caller every time) pointing back at the
+  `log.read` call most likely to explain what the executed code did —
+  `abap_run`/`abap_bopf_test`/`abap_ui` round their own measured duration
+  up (plus 5s slack); `abap_test` measures no duration of its own, so its
+  note names the fluid tool's one-hour default instead and says so
+  plainly. Every call writes one stderr audit line naming only what was
+  looked at and how much came back — object, subobject, log count, message
+  count — mirroring `abap_data_preview`'s own audit line shape, never
+  message text. `detail="messages"` returns message text and its
+  `msgv1`..`msgv4` variables verbatim: application data written by the
+  logging program, not abapsmith's own output, and disclosed as possibly
+  carrying business data. `live` (A4H, probe class `ZCL_I108_PROBE`,
+  2026-09-15): every IMPORTING/EXPORTING/TABLES/EXCEPTIONS parameter these
+  four function modules rely on — `BAL_DB_SEARCH` returned 5 headers for a
+  90-day window, `BAL_DB_LOAD` with `i_lock_handling = 0` against one of
+  those headers returned 440 message handles, `BAL_LOG_MSG_READ` given one
+  of those handles returned `e_s_msg` plus the rendered `e_txt_msg`.
+  Beyond that FM-level probe, the `log` fluid tool's own generated ABAP body
+  was itself run live on A4H (client 001, user DEVELOPER, 2026-09-15):
+  deployed to `$TMP` as `ZCL_I108_FLUID_LOG`, activated with zero syntax
+  errors, and driven through `IF_OO_ADT_CLASSRUN` against the real
+  `ZCL_ZMCP_FLUID_RT` — a `detail="headers"` call honoured both
+  `last_seconds` and `max`, returning five log rows and a summary row with
+  no `ERR` frame. A later pass on the same day closed the remaining gaps:
+  `detail="messages"` and the end-to-end `abap_fluid
+  {"tool":"log","action":"read"}` MCP call path itself — dispatching
+  through `dispatch()` and rendering the result through
+  `renderLogRead`/`auditLogRead` — were both run live on A4H through an MCP
+  server started from this worktree's `dist/` (this branch's build, not
+  the released bundle); see [diagnostics.md](../TOOLS/diagnostics.md) for
+  the verbatim output. The correlation line itself was also confirmed live
+  that day: `abap_run` on a `$TMP` class renders `NOTE: Application log
+  (BAL) entries this execution may have written: ... "last_seconds":6 ...`
+  on a normal, non-truncated response, and `abap_test` renders its own
+  one-hour-default variant the same way.
+- **SAP documentation reads.** There is no ADT REST endpoint for `DOKHL`/
+  `DOKIL`/`DOKTL`, so `view="docu"` (without `method=`) is read through the
+  built-in `core` fluid tool's `docu` action, deploying/calling a generated
+  ABAP class the same way `abap_search mode="source"` deploys its own
+  fluid tool — needing the fluid API and a write-capable pool slot even
+  though the caller is only asking to read. `method=` against a `CLAS`
+  object is the one exception: it reads a method's ABAP Doc straight from
+  source (the contiguous `"!`-prefixed comment block above its
+  `METHODS`/`CLASS-METHODS` declaration) and never touches the fluid path
+  or the class's own DOKHL text — a method's own doc and its class's doc
+  answer different questions. `core.docu` is deliberately excluded from
+  `guardCoreAction`'s data-preview policy (`src/adt/fluid/builtin/core.ts`):
+  neither `assertDataPreview` nor `ABAP_ALLOW_DATA_PREVIEW` applies, since
+  it reads SAP's own documentation text out of `DOKTL`, not application
+  table data. The object type/kind is mapped to a `(id, object)` DOKHL key
+  (data element, domain, table, class, interface, function module/group,
+  program, message class); a message reference is parsed into DOKHL's
+  merged `<id><number>` form (`"ZSD 042"`, `"ZSD042"` and `"ZSD 42"` all
+  resolve the same way); there is no `language` input — the ABAP side tries
+  the logon language, then EN, on its own, and reports which language and
+  whether it fell back. An IMG activity is addressed the same way: since it
+  has no ADT object type of its own to resolve through the ordinary path,
+  `type: "SIMG"` bypasses object resolution and builds the documentation
+  target by hand via `imgDocuTarget` (`src/adt/docu.ts`, mapping to `id:
+  "HY", object: "SIMG" + <activity>`, verified live against
+  `TDCLD`/`DOCU_GET_LANGU_FOR_DISPLAY`) — `abap_read
+  {"type":"SIMG","object":"<activity id>","view":"docu"}`; `type: "SIMG"`
+  with any other view is refused. The text returned is SAP ITF
+  documentation flattened to plain lines
+  by `CONVERT_ITF_TO_ASCII`, not the verbatim ITF source. `live` (A4H,
+  probe class `ZCL_I109_PROBE`, 2026-09-15): every `DOCU_GET`/
+  `CONVERT_ITF_TO_ASCII` parameter relied on, including the CHAR2/CHAR40
+  truncation handling on `DOKHL-ID`/`DOKHL-OBJECT`, `DOCU_GET`'s
+  `sy-subrc = 4` no-fallback-of-its-own behaviour, `typ = 'E'` accepted
+  even when `DOKIL` lists the object as type `T`, and a 6-line ITF
+  `BAL_DB_SEARCH` documentation expanding to 36 ASCII lines. Beyond that
+  FM-level probe, `core.docu`'s own generated ABAP body was itself run
+  live on A4H (client 001, user DEVELOPER, 2026-09-15): deployed to `$TMP`
+  as `ZCL_I109_FLUID_CORE` and activated with zero syntax errors after
+  fixing one runtime defect (`lv_title` needed `DOKTITLE`'s DDIC type, not
+  `string`, for the dynamic `DOCU_GET` call). Four live calls through
+  `IF_OO_ADT_CLASSRUN` against `ZCL_ZMCP_FLUID_RT` all returned clean, no
+  `ERR` frame, including the live confirmation of the `HY`/`SIMG`+name
+  IMG-activity naming rule (39 lines for `SIMGCRM_PRI_GRUKONKONTR`) and a
+  clean not-found result for a nonexistent object. `unverified` live: the
+  end-to-end `abap_fluid`/`abap_read view="docu"` MCP call path itself —
+  through the released server, not this branch — has not been exercised;
+  it is covered only by unit tests against fakes.
+- **Object digest.** All section-building logic (`scanDependencies`,
+  `scanProgramInterface`, `countTestClasses`, `summarisePublicApi`,
+  `buildDigestSections` in `src/adt/digest.ts`) is pure and I/O-free;
+  `readDigest` (`src/tools/read.ts`) only fetches the ADT facts those
+  functions need — version history, source, and (CLAS/INTF only) the
+  outline — through the same machinery an ordinary read already uses, so
+  it stays on `pool.withRead` under `ABAP_MODE=read`, unlike `view="docu"`.
+  Where-used is deliberately never fetched: `abap_search mode="where_used"`
+  walks ADT's unbounded `usageReferences` endpoint (no limit, no paging,
+  20+ seconds on a wide fan-in), so the digest names that call in a note
+  instead of running it. The issue that requested this feature also named
+  `abap_read view="footprint"` and `abap_search mode="call_graph"`; neither
+  exists in this codebase and neither is ever named in a digest's output.
+  PUBLIC API renders a real signature for `FUGR/FF`: parsed first from the
+  NATIVE `FUNCTION <name> IMPORTING ... .` signature statement — a live
+  system (A4H) was found to serve every function module this way,
+  keywords upper- or lowercase — with the older ADT-generated
+  `*"*"Local Interface:` comment block parsed as a fallback for sources
+  that carry only that form. Either way it yields parameter name, section
+  keyword, typing, and an `(optional)` marker. A function module whose
+  native `FUNCTION` statement was found and walked but genuinely declares
+  no parameters at all (e.g. `RFC_PING`) also renders an empty section, but
+  with its own note stating this is the module's real, parameterless
+  signature, not a failed scan; the section renders empty with a note
+  naming both forms tried only when neither shape is present at all. It
+  also renders PUBLIC API, when the select list can be parsed with confidence,
+  for `DDLS/DF` (the projected field list) — falling back to an empty
+  section with an explicit note when it can't (a cast, function call,
+  sub-select, or bare association in the select list makes it give up on
+  the whole view rather than return a partial list).
+  Only `FUGR/F` (the function group itself) still always renders an empty
+  PUBLIC API, with an explicit note: listing a group's modules needs a
+  search call this view deliberately does not make.
+  `tests`-only: the section-building logic is covered by unit tests against
+  constructed fixtures, not live captures. `mixed` overall because the
+  individual ADT calls `readDigest` composes (`listRevisions`, `readSource`,
+  `classMembers`) are each independently live-verified elsewhere in this
+  document (see the Object read and Element info rows); what has not been
+  exercised live is the digest assembly and rendering itself, or the
+  end-to-end `abap_read view="digest"` call path.
