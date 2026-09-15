@@ -36,6 +36,10 @@ recently scheduled job with this name), `log_lines` (default 200, `0`
 means all), `log_head` (return the first `log_lines` lines instead of
 the last).
 
+A job that has never started (status `P`, or `S` before the scheduler picks
+it up) has no job log yet; `show` then returns the header and steps with an
+empty `log`.
+
 Returns the job header (same fields as a `list` row), `step_count` and
 `steps` (one row per TBTCP step: `step`, `program`, `variant`,
 `exec_user`, `status`, `language`, `spool_id` — empty when the step

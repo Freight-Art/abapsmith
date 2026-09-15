@@ -392,18 +392,28 @@ CLASS zcl_zmcp_x_jobs IMPLEMENTATION.
     ENDIF.
     lv_log_head = zcl_zmcp_fluid_rt=>b( 'log_head' ).
 
-    CALL FUNCTION 'BP_JOBLOG_READ'
-      EXPORTING
-        client   = sy-mandt
-        jobname  = lv_jobname
-        jobcount = lv_jobcount
-      TABLES
-        joblogtbl = lt_log
-      EXCEPTIONS
-        joblog_does_not_exist = 1
-        joblog_is_empty       = 2
-        OTHERS                = 3.
-    lv_subrc = sy-subrc.
+    " A job that has never started (scheduled, held, released but not yet
+    " picked up) has no TemSe log yet: TBTCO-JOBLOG is empty and
+    " BP_JOBLOG_READ raises OTHERS ("job does not exist", BT 450) rather
+    " than JOBLOG_DOES_NOT_EXIST. The header and steps are still readable,
+    " so skip the log read instead of failing the whole action.
+    IF ls_tbtco-joblog IS INITIAL.
+      CLEAR lt_log.
+      lv_subrc = 0.
+    ELSE.
+      CALL FUNCTION 'BP_JOBLOG_READ'
+        EXPORTING
+          client   = sy-mandt
+          jobname  = lv_jobname
+          jobcount = lv_jobcount
+        TABLES
+          joblogtbl = lt_log
+        EXCEPTIONS
+          joblog_does_not_exist = 1
+          joblog_is_empty       = 2
+          OTHERS                = 3.
+      lv_subrc = sy-subrc.
+    ENDIF.
     CASE lv_subrc.
       WHEN 1. lv_exc = 'JOBLOG_DOES_NOT_EXIST'.
       WHEN 2. lv_exc = 'JOBLOG_IS_EMPTY'.
