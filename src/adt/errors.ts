@@ -350,6 +350,11 @@ export type AbapErrorCode =
    */
   | "FLUID_PLUGIN_MUTATE_DISABLED"
   /**
+   * `core.eval` was called but `ABAP_ALLOW_FLUID_EVAL` is off. Builtin only —
+   * there is no plugin equivalent of running caller-supplied ABAP verbatim.
+   */
+  | "FLUID_EVAL_DISABLED"
+  /**
    * The target ABAP object is owned by something outside this fluid run:
    * it already exists and isn't owned by this fluid run, or its provenance
    * marker names an abapsmith version strictly newer than this build's
@@ -435,6 +440,7 @@ export const RETRYABILITY: Record<AbapErrorCode, Retryability> = {
   FLUID_API_DISABLED: "terminal", // the flag is off or the system refuses writes; no argument changes either
   FLUID_PLUGINS_DISABLED: "terminal", // the flag is off; no argument enables it
   FLUID_PLUGIN_MUTATE_DISABLED: "terminal", // the flag is off; no argument enables it
+  FLUID_EVAL_DISABLED: "terminal", // the flag is off; no argument enables it
   FLUID_OBJECT_CONFLICT: "terminal", // the ABAP name is owned by something else; retrying rewrites nothing
   FLUID_MANIFEST_INVALID: "terminal", // the manifest on disk is wrong; the call's arguments cannot fix it
   FLUID_ACTION_FAILED: "terminal", // the ABAP action itself reported the failure; abapsmith cannot judge a retry's safety

@@ -159,6 +159,23 @@ A `mutate` action gets `COMMIT WORK AND WAIT` on success and `ROLLBACK
 WORK` on error from the framework wrapper. Author code never issues its
 own commit or rollback.
 
+### `core.eval`'s invoker is different
+
+Every other action's invoker carries an argument JSON payload and calls
+the body class's `run( )`, which dispatches by `iv_action`. `core.eval`
+does not go through that shape at all: its invoker carries no argument
+JSON payload and does not call `run( )`. Instead, the generated method's
+body is the caller's `lines` verbatim, followed by one
+`/UI2/CL_JSON=>SERIALIZE` block per `out` name, each block emitting one
+`out( )` frame carrying that name's `{"name":..., "value":...}` (or, on a
+serialisation failure, `{"name":..., "error":...}`). The `SERIALIZE` call
+itself is made dynamically — through `CALL METHOD (lv_class)=>(lv_method)`
+resolved at runtime, not a static reference — specifically so the
+generated invoker class still compiles on a system that has no
+`/UI2/CL_JSON` at all. On such a system the dynamic call fails at
+runtime instead of the class failing to activate, and each `out` name
+comes back as an `error` entry rather than a `value`.
+
 ## The call order `dispatch()` follows
 
 Every caller — the `abap_fluid` MCP tool and any dedicated tool that

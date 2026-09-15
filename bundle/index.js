@@ -5263,8 +5263,8 @@ var require_utilities = __commonJS({
       if ((0, exports2.isArray)(xml3))
         return xml3.reduce((arr, x) => [...arr, ...xmlFlatArray(x, ...path8)], []);
       if ((0, exports2.isObject)(xml3)) {
-        const [idx, ...rest] = path8;
-        return xmlFlatArray(xml3[idx], ...rest);
+        const [idx2, ...rest] = path8;
+        return xmlFlatArray(xml3[idx2], ...rest);
       }
       return [];
     }
@@ -6000,7 +6000,7 @@ var require_Ord = __commonJS({
       };
     };
     exports2.max = max;
-    var clamp = function(O) {
+    var clamp2 = function(O) {
       var minO = (0, exports2.min)(O);
       var maxO = (0, exports2.max)(O);
       return function(low, hi) {
@@ -6009,7 +6009,7 @@ var require_Ord = __commonJS({
         };
       };
     };
-    exports2.clamp = clamp;
+    exports2.clamp = clamp2;
     var between = function(O) {
       var ltO = (0, exports2.lt)(O);
       var gtO = (0, exports2.gt)(O);
@@ -13101,7 +13101,7 @@ var require_AdtException = __commonJS({
       const root = raw["exc:exception"];
       if (!root && response.status === 401)
         return simpleError(response);
-      const getf = (base, idx) => base ? base[idx] : "";
+      const getf = (base, idx2) => base ? base[idx2] : "";
       const properties = {};
       (0, utilities_1.xmlArray)(root, "properties", "entry").forEach((p) => {
         properties[p["@_key"]] = `${p["#text"]}`.replace(/^\s+/, "").replace(/\s+$/, "");
@@ -21996,11 +21996,11 @@ var require_mime_types = __commonJS({
       }
       return false;
     }
-    function contentType2(str6) {
-      if (!str6 || typeof str6 !== "string") {
+    function contentType2(str7) {
+      if (!str7 || typeof str7 !== "string") {
         return false;
       }
-      var mime = str6.indexOf("/") === -1 ? exports2.lookup(str6) : str6;
+      var mime = str7.indexOf("/") === -1 ? exports2.lookup(str7) : str7;
       if (!mime) {
         return false;
       }
@@ -22563,14 +22563,14 @@ var require_implementation = __commonJS({
       return arr;
     };
     var joiny = function(arr, joiner) {
-      var str6 = "";
+      var str7 = "";
       for (var i = 0; i < arr.length; i += 1) {
-        str6 += arr[i];
+        str7 += arr[i];
         if (i + 1 < arr.length) {
-          str6 += joiner;
+          str7 += joiner;
         }
       }
-      return str6;
+      return str7;
     };
     module.exports = function bind(that) {
       var target = this;
@@ -23142,8 +23142,8 @@ var require_form_data = __commonJS({
     var setToStringTag = require_es_set_tostringtag();
     var hasOwn = require_hasown();
     var populate = require_populate();
-    function escapeHeaderParam(str6) {
-      return String(str6).replace(/\r/g, "%0D").replace(/\n/g, "%0A").replace(/"/g, "%22");
+    function escapeHeaderParam(str7) {
+      return String(str7).replace(/\r/g, "%0D").replace(/\n/g, "%0A").replace(/"/g, "%22");
     }
     function FormData2(options) {
       if (!(this instanceof FormData2)) {
@@ -23467,13 +23467,13 @@ var require_ms = __commonJS({
         "val is not a non-empty string or a valid number. val=" + JSON.stringify(val)
       );
     };
-    function parse4(str6) {
-      str6 = String(str6);
-      if (str6.length > 100) {
+    function parse4(str7) {
+      str7 = String(str7);
+      if (str7.length > 100) {
         return;
       }
       var match = /^(-?(?:\d+)?\.?\d+) *(milliseconds?|msecs?|ms|seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h|days?|d|weeks?|w|years?|yrs?|y)?$/i.exec(
-        str6
+        str7
       );
       if (!match) {
         return;
@@ -24074,7 +24074,7 @@ var require_node = __commonJS({
     var { formatters } = module.exports;
     formatters.o = function(v) {
       this.inspectOpts.colors = this.useColors;
-      return util2.inspect(v, this.inspectOpts).split("\n").map((str6) => str6.trim()).join(" ");
+      return util2.inspect(v, this.inspectOpts).split("\n").map((str7) => str7.trim()).join(" ");
     };
     formatters.O = function(v) {
       this.inspectOpts.colors = this.useColors;
@@ -25127,8 +25127,8 @@ var require_axios = __commonJS({
     };
     var getSafeProp = (obj, prop) => obj != null && hasOwnInPrototypeChain(obj, prop) ? obj[prop] : void 0;
     var kindOf3 = /* @__PURE__ */ ((cache) => (thing) => {
-      const str6 = toString.call(thing);
-      return cache[str6] || (cache[str6] = str6.slice(8, -1).toLowerCase());
+      const str7 = toString.call(thing);
+      return cache[str7] || (cache[str7] = str7.slice(8, -1).toLowerCase());
     })(/* @__PURE__ */ Object.create(null));
     var kindOfTest = (type) => {
       type = type.toLowerCase();
@@ -25208,8 +25208,8 @@ var require_axios = __commonJS({
     };
     var isURLSearchParams = kindOfTest("URLSearchParams");
     var [isReadableStream, isRequest, isResponse, isHeaders] = ["ReadableStream", "Request", "Response", "Headers"].map(kindOfTest);
-    var trim = (str6) => {
-      return str6.trim ? str6.trim() : str6.replace(/^[\s\uFEFF\xA0]+|[\s\uFEFF\xA0]+$/g, "");
+    var trim = (str7) => {
+      return str7.trim ? str7.trim() : str7.replace(/^[\s\uFEFF\xA0]+|[\s\uFEFF\xA0]+$/g, "");
     };
     function forEach(obj, fn, {
       allOwnKeys = false
@@ -25371,13 +25371,13 @@ var require_axios = __commonJS({
       } while (sourceObj && (!filter || filter(sourceObj, destObj)) && sourceObj !== Object.prototype);
       return destObj;
     };
-    var endsWith = (str6, searchString, position) => {
-      str6 = String(str6);
-      if (position === void 0 || position > str6.length) {
-        position = str6.length;
+    var endsWith = (str7, searchString, position) => {
+      str7 = String(str7);
+      if (position === void 0 || position > str7.length) {
+        position = str7.length;
       }
       position -= searchString.length;
-      const lastIndex = str6.indexOf(searchString, position);
+      const lastIndex = str7.indexOf(searchString, position);
       return lastIndex !== -1 && lastIndex === position;
     };
     var toArray2 = (thing) => {
@@ -25405,17 +25405,17 @@ var require_axios = __commonJS({
         fn.call(obj, pair[0], pair[1]);
       }
     };
-    var matchAll = (regExp, str6) => {
+    var matchAll = (regExp, str7) => {
       let matches;
       const arr = [];
-      while ((matches = regExp.exec(str6)) !== null) {
+      while ((matches = regExp.exec(str7)) !== null) {
         arr.push(matches);
       }
       return arr;
     };
     var isHTMLForm = kindOfTest("HTMLFormElement");
-    var toCamelCase = (str6) => {
-      return str6.toLowerCase().replace(/[-_\s]([a-z\d])(\w*)/g, function replacer(m, p1, p2) {
+    var toCamelCase = (str7) => {
+      return str7.toLowerCase().replace(/[-_\s]([a-z\d])(\w*)/g, function replacer(m, p1, p2) {
         return p1.toUpperCase() + p2;
       });
     };
@@ -25620,24 +25620,24 @@ var require_axios = __commonJS({
       });
       return parsed;
     };
-    function trimSPorHTAB(str6) {
+    function trimSPorHTAB(str7) {
       let start = 0;
-      let end = str6.length;
+      let end = str7.length;
       while (start < end) {
-        const code = str6.charCodeAt(start);
+        const code = str7.charCodeAt(start);
         if (code !== 9 && code !== 32) {
           break;
         }
         start += 1;
       }
       while (end > start) {
-        const code = str6.charCodeAt(end - 1);
+        const code = str7.charCodeAt(end - 1);
         if (code !== 9 && code !== 32) {
           break;
         }
         end -= 1;
       }
-      return start === 0 && end === str6.length ? str6 : str6.slice(start, end);
+      return start === 0 && end === str7.length ? str7 : str7.slice(start, end);
     }
     var INVALID_UNICODE_HEADER_VALUE_CHARS = new RegExp("[\\u0000-\\u0008\\u000a-\\u001f\\u007f]+", "g");
     var INVALID_BYTE_STRING_HEADER_VALUE_CHARS = new RegExp("[^\\u0009\\u0020-\\u007e\\u0080-\\u00ff]+", "g");
@@ -25666,11 +25666,11 @@ var require_axios = __commonJS({
       }
       return utils$1.isArray(value) ? value.map(normalizeValue) : sanitizeHeaderValue(String(value));
     }
-    function parseTokens(str6) {
+    function parseTokens(str7) {
       const tokens = /* @__PURE__ */ Object.create(null);
       const tokensRE = /([^\s,;=]+)\s*(?:=\s*([^,;]+))?/g;
       let match;
-      while (match = tokensRE.exec(str6)) {
+      while (match = tokensRE.exec(str7)) {
         tokens[match[1]] = match[2];
       }
       return tokens;
@@ -25718,12 +25718,12 @@ var require_axios = __commonJS({
     }
     function parseParameters(value) {
       const parameters = /* @__PURE__ */ Object.create(null);
-      const str6 = String(value);
+      const str7 = String(value);
       let start = 0;
-      let quoted2 = false;
+      let quoted3 = false;
       let escaped = false;
       function parseParameter(end) {
-        const part = trimOWS(str6.slice(start, end));
+        const part = trimOWS(str7.slice(start, end));
         const equals = part.indexOf("=");
         if (equals < 1) {
           return;
@@ -25739,27 +25739,27 @@ var require_axios = __commonJS({
         const parameterValue = trimOWS(part.slice(equals + 1));
         parameters[normalizedName] = decodeQuotedString(parameterValue);
       }
-      for (let i = 0; i < str6.length; i++) {
-        const code = str6.charCodeAt(i);
-        if (quoted2) {
+      for (let i = 0; i < str7.length; i++) {
+        const code = str7.charCodeAt(i);
+        if (quoted3) {
           if (escaped) {
             escaped = false;
           } else if (code === 92) {
             escaped = true;
           } else if (code === 34) {
-            quoted2 = false;
+            quoted3 = false;
           }
         } else if (code === 34) {
-          quoted2 = true;
+          quoted3 = true;
         } else if (code === 44 || code === 59) {
           parseParameter(i);
           start = i + 1;
         }
       }
-      parseParameter(str6.length);
+      parseParameter(str7.length);
       return parameters;
     }
-    var isValidHeaderName = (str6) => /^[-_a-zA-Z0-9^`|~,!#$%&'*+.]+$/.test(str6.trim());
+    var isValidHeaderName = (str7) => /^[-_a-zA-Z0-9^`|~,!#$%&'*+.]+$/.test(str7.trim());
     function matchHeaderValue(context, value, header, filter, isHeaderNameFilter) {
       if (utils$1.isFunction(filter)) {
         return filter.call(this, value, header);
@@ -25776,8 +25776,8 @@ var require_axios = __commonJS({
       }
     }
     function formatHeader(header) {
-      return header.trim().toLowerCase().replace(/([a-z\d])(\w*)/g, (w, char, str6) => {
-        return char.toUpperCase() + str6;
+      return header.trim().toLowerCase().replace(/([a-z\d])(\w*)/g, (w, char, str7) => {
+        return char.toUpperCase() + str7;
       });
     }
     function buildAccessors(obj, header) {
@@ -26289,7 +26289,7 @@ var require_axios = __commonJS({
       build(obj);
       return formData;
     }
-    function encode$1(str6) {
+    function encode$1(str7) {
       const charMap = {
         "!": "%21",
         "'": "%27",
@@ -26298,7 +26298,7 @@ var require_axios = __commonJS({
         "~": "%7E",
         "%20": "+"
       };
-      return encodeURIComponent(str6).replace(/[!'()~]|%20/g, function replacer(match) {
+      return encodeURIComponent(str7).replace(/[!'()~]|%20/g, function replacer(match) {
         return charMap[match];
       });
     }
@@ -26423,16 +26423,16 @@ var require_axios = __commonJS({
       ALPHA_DIGIT: ALPHA + ALPHA.toUpperCase() + DIGIT
     };
     var generateString = (size = 16, alphabet = ALPHABET.ALPHA_DIGIT) => {
-      let str6 = "";
+      let str7 = "";
       const {
         length
       } = alphabet;
       const randomValues = new Uint32Array(size);
       crypto.randomFillSync(randomValues);
       for (let i = 0; i < size; i++) {
-        str6 += alphabet[randomValues[i] % length];
+        str7 += alphabet[randomValues[i] % length];
       }
-      return str6;
+      return str7;
     };
     var platform$1 = {
       isNode: true,
@@ -27314,10 +27314,10 @@ var require_axios = __commonJS({
       if (typeof host !== "string" || host.indexOf(":") === -1) return host;
       const dotted = host.match(IPV4_MAPPED_DOTTED_RE);
       if (dotted) return dotted[1];
-      const hex3 = host.match(IPV4_MAPPED_HEX_RE);
-      if (hex3) {
-        const high = parseInt(hex3[1], 16);
-        const low = parseInt(hex3[2], 16);
+      const hex4 = host.match(IPV4_MAPPED_HEX_RE);
+      if (hex4) {
+        const high = parseInt(hex4[1], 16);
+        const low = parseInt(hex4[2], 16);
         return `${high >> 8}.${high & 255}.${low >> 8}.${low & 255}`;
       }
       return host;
@@ -27478,7 +27478,7 @@ var require_axios = __commonJS({
     };
     var asyncDecorator = (fn, scheduler = utils$1.asap) => (...args) => scheduler(() => fn(...args));
     var isHexDigit = (charCode) => charCode >= 48 && charCode <= 57 || charCode >= 65 && charCode <= 70 || charCode >= 97 && charCode <= 102;
-    var isPercentEncodedByte = (str6, i, len) => i + 2 < len && isHexDigit(str6.charCodeAt(i + 1)) && isHexDigit(str6.charCodeAt(i + 2));
+    var isPercentEncodedByte = (str7, i, len) => i + 2 < len && isHexDigit(str7.charCodeAt(i + 1)) && isHexDigit(str7.charCodeAt(i + 2));
     var hexValue = (charCode) => charCode <= 57 ? charCode - 48 : (charCode & 223) - 55;
     var isBase64Char = (charCode) => charCode >= 65 && charCode <= 90 || // A-Z
     charCode >= 97 && charCode <= 122 || // a-z
@@ -28616,7 +28616,7 @@ var require_axios = __commonJS({
       }
       return config3;
     }
-    var encodeUTF8$1 = (str6) => encodeURIComponent(str6).replace(/%([0-9A-F]{2})/gi, (_, hex3) => String.fromCharCode(parseInt(hex3, 16)));
+    var encodeUTF8$1 = (str7) => encodeURIComponent(str7).replace(/%([0-9A-F]{2})/gi, (_, hex4) => String.fromCharCode(parseInt(hex4, 16)));
     function resolveConfig(config2) {
       const newConfig = mergeConfig({}, config2);
       const own2 = (key) => utils$1.hasOwnProp(newConfig, key) ? newConfig[key] : void 0;
@@ -28924,7 +28924,7 @@ var require_axios = __commonJS({
     var {
       isFunction
     } = utils$1;
-    var encodeUTF8 = (str6) => encodeURIComponent(str6).replace(/%([0-9A-F]{2})/gi, (_, hex3) => String.fromCharCode(parseInt(hex3, 16)));
+    var encodeUTF8 = (str7) => encodeURIComponent(str7).replace(/%([0-9A-F]{2})/gi, (_, hex4) => String.fromCharCode(parseInt(hex4, 16)));
     var decodeURIComponentSafe = (value) => {
       if (!utils$1.isString(value)) {
         return value;
@@ -28974,7 +28974,7 @@ var require_axios = __commonJS({
         return false;
       }
       const isReadableStreamSupported = isFetchSupported && isFunction(ReadableStream2);
-      const encodeText = isFetchSupported && (typeof TextEncoder2 === "function" ? /* @__PURE__ */ ((encoder) => (str6) => encoder.encode(str6))(new TextEncoder2()) : async (str6) => new Uint8Array(await new Request(str6).arrayBuffer()));
+      const encodeText = isFetchSupported && (typeof TextEncoder2 === "function" ? /* @__PURE__ */ ((encoder) => (str7) => encoder.encode(str7))(new TextEncoder2()) : async (str7) => new Uint8Array(await new Request(str7).arrayBuffer()));
       const supportsRequestStream = isRequestSupported && isReadableStreamSupported && test(() => {
         let duplexAccessed = false;
         const request = new Request(platform.origin, {
@@ -31260,13 +31260,13 @@ var require_cds = __commonJS({
         const match = key.match(/annotation(Key|Value).([0-9]+)/);
         if (match && match.groups) {
           const mtype = match.groups[1];
-          const idx = (0, utilities_1.toInt)(match.groups[2]);
-          const anno = annotations[idx] || { key: "", value: "" };
+          const idx2 = (0, utilities_1.toInt)(match.groups[2]);
+          const anno = annotations[idx2] || { key: "", value: "" };
           if (mtype === "Key")
             anno.key = rawanno[key];
           else
             anno.value = rawanno[key];
-          annotations[idx] = anno;
+          annotations[idx2] = anno;
         }
       }
       return {
@@ -32971,9 +32971,9 @@ var require_revisions = __commonJS({
         return (0, utilities_1.xmlNode)(base, "@_adtcore:name") || "";
     };
     async function revisions(h, objectUrl, includeName) {
-      const str6 = (0, utilities_1.isString)(objectUrl) ? await (0, objectstructure_1.objectStructure)(h, objectUrl) : objectUrl;
-      const name = str6.metaData["adtcore:name"];
-      const revisionUrl = getRevisionLink(str6, includeName);
+      const str7 = (0, utilities_1.isString)(objectUrl) ? await (0, objectstructure_1.objectStructure)(h, objectUrl) : objectUrl;
+      const name = str7.metaData["adtcore:name"];
+      const revisionUrl = getRevisionLink(str7, includeName);
       if (!revisionUrl)
         throw (0, AdtException_1.adtException)(`Revision URL not found for object ${name}`);
       const headers = { Accept: "application/atom+xml;type=feed" };
@@ -36656,6 +36656,8 @@ var init_errors = __esm({
       // the flag is off; no argument enables it
       FLUID_PLUGIN_MUTATE_DISABLED: "terminal",
       // the flag is off; no argument enables it
+      FLUID_EVAL_DISABLED: "terminal",
+      // the flag is off; no argument enables it
       FLUID_OBJECT_CONFLICT: "terminal",
       // the ABAP name is owned by something else; retrying rewrites nothing
       FLUID_MANIFEST_INVALID: "terminal",
@@ -38478,14 +38480,14 @@ function promiseAllObject(promisesObj) {
 }
 function randomString(length = 10) {
   const chars = "abcdefghijklmnopqrstuvwxyz";
-  let str6 = "";
+  let str7 = "";
   for (let i = 0; i < length; i++) {
-    str6 += chars[Math.floor(Math.random() * chars.length)];
+    str7 += chars[Math.floor(Math.random() * chars.length)];
   }
-  return str6;
+  return str7;
 }
-function esc(str6) {
-  return JSON.stringify(str6);
+function esc(str7) {
+  return JSON.stringify(str7);
 }
 function slugify(input) {
   return input.toLowerCase().trim().replace(/[^\w\s-]/g, "").replace(/[\s_-]+/g, "-").replace(/^-+|-+$/g, "");
@@ -38529,8 +38531,8 @@ function numKeys(data) {
   }
   return keyCount;
 }
-function escapeRegex(str6) {
-  return str6.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function escapeRegex(str7) {
+  return str7.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 function clone(inst, def, params) {
   const cl = new inst._zod.constr(def ?? inst._zod.def);
@@ -38889,8 +38891,8 @@ function base64urlToUint8Array(base64url3) {
 function uint8ArrayToBase64url(bytes) {
   return uint8ArrayToBase64(bytes).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
 }
-function hexToUint8Array(hex3) {
-  const cleanHex = hex3.replace(/^0x/, "");
+function hexToUint8Array(hex4) {
+  const cleanHex = hex4.replace(/^0x/, "");
   if (cleanHex.length % 2 !== 0) {
     throw new Error("Invalid hex string length");
   }
@@ -54462,29 +54464,29 @@ var init_EntityDecoder = __esm({
        * @param {string} str
        * @returns {string}
        */
-      decode(str6) {
-        if (typeof str6 !== "string" || str6.length === 0) return str6;
-        if (str6.indexOf("&") === -1) return str6;
-        const original = str6;
+      decode(str7) {
+        if (typeof str7 !== "string" || str7.length === 0) return str7;
+        if (str7.indexOf("&") === -1) return str7;
+        const original = str7;
         const chunks = [];
-        const len = str6.length;
+        const len = str7.length;
         let last = 0;
         let i = 0;
         const limitExpansions = this._maxTotalExpansions > 0;
         const limitLength = this._maxExpandedLength > 0;
         const checkLimits = limitExpansions || limitLength;
         while (i < len) {
-          if (str6.charCodeAt(i) !== 38) {
+          if (str7.charCodeAt(i) !== 38) {
             i++;
             continue;
           }
           let j = i + 1;
-          while (j < len && str6.charCodeAt(j) !== 59 && j - i <= 32) j++;
-          if (j >= len || str6.charCodeAt(j) !== 59) {
+          while (j < len && str7.charCodeAt(j) !== 59 && j - i <= 32) j++;
+          if (j >= len || str7.charCodeAt(j) !== 59) {
             i++;
             continue;
           }
-          const token = str6.slice(i + 1, j);
+          const token = str7.slice(i + 1, j);
           if (token.length === 0) {
             i++;
             continue;
@@ -54516,7 +54518,7 @@ var init_EntityDecoder = __esm({
             i++;
             continue;
           }
-          if (i > last) chunks.push(str6.slice(last, i));
+          if (i > last) chunks.push(str7.slice(last, i));
           chunks.push(replacement);
           last = j + 1;
           i = last;
@@ -54542,8 +54544,8 @@ var init_EntityDecoder = __esm({
             }
           }
         }
-        if (last < len) chunks.push(str6.slice(last));
-        const result = chunks.length === 0 ? str6 : chunks.join("");
+        if (last < len) chunks.push(str7.slice(last));
+        const result = chunks.length === 0 ? str7 : chunks.join("");
         return this._postCheck(result, original);
       }
       // -------------------------------------------------------------------------
@@ -54877,7 +54879,7 @@ var init_src2 = __esm({
       if (asciiOnly) return regexesAscii;
       return xmlVersion === "1.1" ? regexes11 : regexes10;
     };
-    qName = (str6, { xmlVersion = "1.0", asciiOnly = false } = {}) => getRegexes(xmlVersion, asciiOnly).qName.test(str6);
+    qName = (str7, { xmlVersion = "1.0", asciiOnly = false } = {}) => getRegexes(xmlVersion, asciiOnly).qName.test(str7);
   }
 });
 
@@ -55323,13 +55325,13 @@ var init_digitTable = __esm({
 });
 
 // node_modules/anynum/anynum.js
-function anynum(str6) {
-  if (typeof str6 !== "string") return str6;
-  const len = str6.length;
-  if (len === 0) return str6;
+function anynum(str7) {
+  if (typeof str7 !== "string") return str7;
+  const len = str7.length;
+  if (len === 0) return str7;
   let firstHit = -1;
   for (let i = 0; i < len; i++) {
-    const cc = str6.charCodeAt(i);
+    const cc = str7.charCodeAt(i);
     if (cc >= CHAR_0 && cc <= CHAR_9 || cc === CHAR_MINUS) continue;
     if (cc < TABLE_OFFSET) {
       if (MINUS_SET.has(cc)) {
@@ -55340,7 +55342,7 @@ function anynum(str6) {
     }
     if (cc >= 55296 && cc <= 56319) {
       if (i + 1 < len) {
-        const low = str6.charCodeAt(i + 1);
+        const low = str7.charCodeAt(i + 1);
         if (low >= 56320 && low <= 57343) {
           const cp = 65536 + (cc - 55296 << 10) + (low - 56320);
           if (HIGH_MAP.has(cp)) {
@@ -55356,22 +55358,22 @@ function anynum(str6) {
       break;
     }
   }
-  if (firstHit === -1) return str6;
+  if (firstHit === -1) return str7;
   const chars = [];
-  if (firstHit > 0) chars.push(str6.slice(0, firstHit));
+  if (firstHit > 0) chars.push(str7.slice(0, firstHit));
   for (let i = firstHit; i < len; i++) {
-    const cc = str6.charCodeAt(i);
+    const cc = str7.charCodeAt(i);
     if (cc >= CHAR_0 && cc <= CHAR_9 || cc === CHAR_MINUS) {
-      chars.push(str6[i]);
+      chars.push(str7[i]);
       continue;
     }
     if (cc < TABLE_OFFSET) {
-      chars.push(MINUS_SET.has(cc) ? "-" : str6[i]);
+      chars.push(MINUS_SET.has(cc) ? "-" : str7[i]);
       continue;
     }
     if (cc >= 55296 && cc <= 56319) {
       if (i + 1 < len) {
-        const low = str6.charCodeAt(i + 1);
+        const low = str7.charCodeAt(i + 1);
         if (low >= 56320 && low <= 57343) {
           const cp = 65536 + (cc - 55296 << 10) + (low - 56320);
           const d2 = HIGH_MAP.get(cp);
@@ -55382,7 +55384,7 @@ function anynum(str6) {
           }
         }
       }
-      chars.push(str6[i]);
+      chars.push(str7[i]);
       continue;
     }
     if (MINUS_SET.has(cc)) {
@@ -55390,7 +55392,7 @@ function anynum(str6) {
       continue;
     }
     const d = TABLE[cc - TABLE_OFFSET];
-    chars.push(d !== NOT_DIGIT ? String.fromCharCode(d + 48) : str6[i]);
+    chars.push(d !== NOT_DIGIT ? String.fromCharCode(d + 48) : str7[i]);
   }
   return chars.join("");
 }
@@ -55408,12 +55410,12 @@ var init_anynum = __esm({
 });
 
 // node_modules/strnum/strnum.js
-function toNumber(str6, options = {}) {
+function toNumber(str7, options = {}) {
   options = Object.assign({}, consider, options);
-  if (!str6 || typeof str6 !== "string") return str6;
-  let trimmedStr = str6.trim();
-  if (trimmedStr.length === 0) return str6;
-  else if (options.skipLike !== void 0 && options.skipLike.test(trimmedStr)) return str6;
+  if (!str7 || typeof str7 !== "string") return str7;
+  let trimmedStr = str7.trim();
+  if (trimmedStr.length === 0) return str7;
+  else if (options.skipLike !== void 0 && options.skipLike.test(trimmedStr)) return str7;
   else if (trimmedStr === "0") return 0;
   if (options.unicode) {
     trimmedStr = anynum_default(trimmedStr);
@@ -55426,9 +55428,9 @@ function toNumber(str6, options = {}) {
   } else if (options.octal && octRegex.test(trimmedStr)) {
     return parse_int(trimmedStr, 8);
   } else if (!isFinite(trimmedStr)) {
-    return handleInfinity(str6, Number(trimmedStr), options);
+    return handleInfinity(str7, Number(trimmedStr), options);
   } else if (trimmedStr.includes("e") || trimmedStr.includes("E")) {
-    return resolveEnotation(str6, trimmedStr, options);
+    return resolveEnotation(str7, trimmedStr, options);
   } else {
     const match = numRegex.exec(trimmedStr);
     if (match) {
@@ -55437,37 +55439,37 @@ function toNumber(str6, options = {}) {
       let numTrimmedByZeros = trimZeros(match[3]);
       const decimalAdjacentToLeadingZeros = sign ? (
         // 0., -00., 000.
-        str6[leadingZeros.length + 1] === "."
-      ) : str6[leadingZeros.length] === ".";
+        str7[leadingZeros.length + 1] === "."
+      ) : str7[leadingZeros.length] === ".";
       if (!options.leadingZeros && (leadingZeros.length > 1 || leadingZeros.length === 1 && !decimalAdjacentToLeadingZeros)) {
-        return str6;
+        return str7;
       } else {
         const num4 = Number(trimmedStr);
         const parsedStr = String(num4);
         if (num4 === 0) return num4;
         if (parsedStr.search(/[eE]/) !== -1) {
           if (options.eNotation) return num4;
-          else return str6;
+          else return str7;
         } else if (trimmedStr.indexOf(".") !== -1) {
           if (parsedStr === "0") return num4;
           else if (parsedStr === numTrimmedByZeros) return num4;
           else if (parsedStr === `${sign}${numTrimmedByZeros}`) return num4;
-          else return str6;
+          else return str7;
         }
         let n = leadingZeros ? numTrimmedByZeros : trimmedStr;
         if (leadingZeros) {
-          return n === parsedStr || sign + n === parsedStr ? num4 : str6;
+          return n === parsedStr || sign + n === parsedStr ? num4 : str7;
         } else {
-          return n === parsedStr || n === sign + parsedStr ? num4 : str6;
+          return n === parsedStr || n === sign + parsedStr ? num4 : str7;
         }
       }
     } else {
-      return str6;
+      return str7;
     }
   }
 }
-function resolveEnotation(str6, trimmedStr, options) {
-  if (!options.eNotation) return str6;
+function resolveEnotation(str7, trimmedStr, options) {
+  if (!options.eNotation) return str7;
   const notation = trimmedStr.match(eNotationRegx);
   if (notation) {
     let sign = notation[1] || "";
@@ -55475,21 +55477,21 @@ function resolveEnotation(str6, trimmedStr, options) {
     const leadingZeros = notation[2];
     const eAdjacentToLeadingZeros = sign ? (
       // 0E.
-      str6[leadingZeros.length + 1] === eChar
-    ) : str6[leadingZeros.length] === eChar;
-    if (leadingZeros.length > 1 && eAdjacentToLeadingZeros) return str6;
+      str7[leadingZeros.length + 1] === eChar
+    ) : str7[leadingZeros.length] === eChar;
+    if (leadingZeros.length > 1 && eAdjacentToLeadingZeros) return str7;
     else if (leadingZeros.length === 1 && (notation[3].startsWith(`.${eChar}`) || notation[3][0] === eChar)) {
       return Number(trimmedStr);
     } else if (leadingZeros.length > 0) {
       if (options.leadingZeros && !eAdjacentToLeadingZeros) {
         trimmedStr = (notation[1] || "") + notation[3];
         return Number(trimmedStr);
-      } else return str6;
+      } else return str7;
     } else {
       return Number(trimmedStr);
     }
   } else {
-    return str6;
+    return str7;
   }
 }
 function trimZeros(numStr) {
@@ -55503,14 +55505,14 @@ function trimZeros(numStr) {
   return numStr;
 }
 function parse_int(numStr, base) {
-  const str6 = numStr.trim();
-  if (base === 2 || base === 8) numStr = str6.substring(2);
+  const str7 = numStr.trim();
+  if (base === 2 || base === 8) numStr = str7.substring(2);
   if (parseInt) return parseInt(numStr, base);
   else if (Number.parseInt) return Number.parseInt(numStr, base);
   else if (window && window.parseInt) return window.parseInt(numStr, base);
   else throw new Error("parseInt, Number.parseInt, window.parseInt are not supported");
 }
-function handleInfinity(str6, num4, options) {
+function handleInfinity(str7, num4, options) {
   const isPositive = num4 === Infinity;
   switch (options.infinity.toLowerCase()) {
     case "null":
@@ -55522,7 +55524,7 @@ function handleInfinity(str6, num4, options) {
       return isPositive ? "Infinity" : "-Infinity";
     case "original":
     default:
-      return str6;
+      return str7;
   }
 }
 var hexRegex, binRegex, octRegex, numRegex, consider, eNotationRegx;
@@ -57438,12 +57440,12 @@ function tagExpWithClosingIndex(xmlData, i, closingChar = ">") {
     }
   }
 }
-function findClosingIndex(xmlData, str6, i, errMsg) {
-  const closingIndex = xmlData.indexOf(str6, i);
+function findClosingIndex(xmlData, str7, i, errMsg) {
+  const closingIndex = xmlData.indexOf(str7, i);
   if (closingIndex === -1) {
     throw new Error(errMsg);
   } else {
-    return closingIndex + str6.length - 1;
+    return closingIndex + str7.length - 1;
   }
 }
 function findClosingChar(xmlData, char, i, errMsg) {
@@ -66283,8 +66285,8 @@ function loadConfig(opts = {}) {
     if (legalValues.includes(rawEnhanceTargets)) {
       enhanceTargetsOverride = rawEnhanceTargets;
     } else {
-      const quoted2 = ENHANCE_TARGETS_VALUES.map((v) => JSON.stringify(v));
-      enhanceTargetsIssue = `ABAP_ENHANCE_TARGETS=${JSON.stringify(rawEnhanceTargets)} is not a recognised value. Valid values are ${quoted2.slice(0, -1).join(", ")}, or ${quoted2[quoted2.length - 1]}.`;
+      const quoted3 = ENHANCE_TARGETS_VALUES.map((v) => JSON.stringify(v));
+      enhanceTargetsIssue = `ABAP_ENHANCE_TARGETS=${JSON.stringify(rawEnhanceTargets)} is not a recognised value. Valid values are ${quoted3.slice(0, -1).join(", ")}, or ${quoted3[quoted3.length - 1]}.`;
     }
   }
   const passwordIsSet = env.ABAP_PASSWORD !== void 0 && env.ABAP_PASSWORD.trim() !== "";
@@ -66418,6 +66420,7 @@ function loadConfig(opts = {}) {
   const allowFluidPlugins = boolFromEnv(env.ABAP_ALLOW_FLUID_PLUGINS);
   const allowFluidPluginMutate = boolFromEnv(env.ABAP_ALLOW_FLUID_PLUGIN_MUTATE);
   const allowFluidCallFm = boolFromEnv(env.ABAP_ALLOW_FLUID_CALL_FM);
+  const allowFluidEval = boolFromEnv(env.ABAP_ALLOW_FLUID_EVAL);
   const modeOverrides = {
     ...env.ABAP_ALLOW_PACKAGES !== void 0 ? { allowPackages: configuredPackages } : {},
     ...env.ABAP_ALLOW_NAME_PREFIXES !== void 0 ? { allowNamePrefixes: namePrefixes } : {},
@@ -66505,6 +66508,9 @@ function loadConfig(opts = {}) {
     allowFluidPlugins,
     allowFluidPluginMutate,
     allowFluidCallFm,
+    // Deliberately not part of `modeOverrides`/`modeGrants`/`modeBoolOverrides` above — see the
+    // doc comment on `allowFluidEval` in `ConfigSchema`: `ABAP_MODE=admin` must not turn this on.
+    allowFluidEval,
     dataPreviewDenyTables,
     // Bare fields below: each has a zod `.default()`/`.max()` that is the
     // single source of truth, so out-of-range/invalid input reaches the
@@ -66800,6 +66806,7 @@ function redactConfigSecrets(cfg) {
     allowFluidPlugins: cfg.allowFluidPlugins,
     allowFluidPluginMutate: cfg.allowFluidPluginMutate,
     allowFluidCallFm: cfg.allowFluidCallFm,
+    allowFluidEval: cfg.allowFluidEval,
     originSystems: cfg.originSystems,
     maxResponseChars: cfg.maxResponseChars,
     stateDir: cfg.stateDir,
@@ -67399,7 +67406,15 @@ var init_config = __esm({
       /** Ceiling for a loaded fluid plugin mutating state. NOT implied by `allowFluidPlugins`. Off by default. */
       allowFluidPluginMutate: external_exports.boolean().default(false),
       /** Ceiling for a fluid plugin calling a remote-enabled function module. Off by default. */
-      allowFluidCallFm: external_exports.boolean().default(false)
+      allowFluidCallFm: external_exports.boolean().default(false),
+      /**
+       * Ceiling for `core.eval` — running caller-supplied ABAP statements verbatim inside a
+       * generated method body. Off by default, and NOT force-enabled by any `ABAP_MODE`
+       * (see `modeOverrides` below): every other fluid flag widens per mode because it still
+       * only reaches ABAP the manifest/static-review already shaped, but eval's ABAP is
+       * whatever the caller wrote, so the only honest gate is an explicit, separate opt-in.
+       */
+      allowFluidEval: external_exports.boolean().default(false)
     });
     RECOGNISED_ABAP_ALLOW_ENV_VARS = Object.freeze([
       "ABAP_ALLOW_CASCADE_DELETE",
@@ -67409,6 +67424,7 @@ var init_config = __esm({
       "ABAP_ALLOW_ENHANCEMENTS",
       "ABAP_ALLOW_ENHANCEMENT_DELETE",
       "ABAP_ALLOW_FLUID_CALL_FM",
+      "ABAP_ALLOW_FLUID_EVAL",
       "ABAP_ALLOW_FLUID_PLUGINS",
       "ABAP_ALLOW_FLUID_PLUGIN_MUTATE",
       "ABAP_ALLOW_NAME_PREFIXES",
@@ -67493,7 +67509,7 @@ var require_code = __commonJS({
     }
     exports2._ = _;
     var plus = new _Code("+");
-    function str6(strs, ...args) {
+    function str7(strs, ...args) {
       const expr = [safeStringify(strs[0])];
       let i = 0;
       while (i < args.length) {
@@ -67504,7 +67520,7 @@ var require_code = __commonJS({
       optimize(expr);
       return new _Code(expr);
     }
-    exports2.str = str6;
+    exports2.str = str7;
     function addCodeArg(code, arg) {
       if (arg instanceof _Code)
         code.push(...arg._items);
@@ -67547,7 +67563,7 @@ var require_code = __commonJS({
       return;
     }
     function strConcat(c1, c2) {
-      return c2.emptyStr() ? c1 : c1.emptyStr() ? c2 : str6`${c1}${c2}`;
+      return c2.emptyStr() ? c1 : c1.emptyStr() ? c2 : str7`${c1}${c2}`;
     }
     exports2.strConcat = strConcat;
     function interpolate(x) {
@@ -68509,22 +68525,22 @@ var require_util = __commonJS({
       return (0, codegen_1._)`${topSchemaRef}${schemaPath}${(0, codegen_1.getProperty)(keyword)}`;
     }
     exports2.schemaRefOrVal = schemaRefOrVal;
-    function unescapeFragment(str6) {
-      return unescapeJsonPointer(decodeURIComponent(str6));
+    function unescapeFragment(str7) {
+      return unescapeJsonPointer(decodeURIComponent(str7));
     }
     exports2.unescapeFragment = unescapeFragment;
-    function escapeFragment(str6) {
-      return encodeURIComponent(escapeJsonPointer(str6));
+    function escapeFragment(str7) {
+      return encodeURIComponent(escapeJsonPointer(str7));
     }
     exports2.escapeFragment = escapeFragment;
-    function escapeJsonPointer(str6) {
-      if (typeof str6 == "number")
-        return `${str6}`;
-      return str6.replace(/~/g, "~0").replace(/\//g, "~1");
+    function escapeJsonPointer(str7) {
+      if (typeof str7 == "number")
+        return `${str7}`;
+      return str7.replace(/~/g, "~0").replace(/\//g, "~1");
     }
     exports2.escapeJsonPointer = escapeJsonPointer;
-    function unescapeJsonPointer(str6) {
-      return str6.replace(/~1/g, "/").replace(/~0/g, "~");
+    function unescapeJsonPointer(str7) {
+      return str7.replace(/~1/g, "/").replace(/~0/g, "~");
     }
     exports2.unescapeJsonPointer = unescapeJsonPointer;
     function eachItem(xs, f) {
@@ -69549,8 +69565,8 @@ var require_json_schema_traverse = __commonJS({
         post(schema, jsonPtr, rootSchema, parentJsonPtr, parentKeyword, parentSchema, keyIndex);
       }
     }
-    function escapeJsonPtr(str6) {
-      return str6.replace(/~/g, "~0").replace(/\//g, "~1");
+    function escapeJsonPtr(str7) {
+      return str7.replace(/~/g, "~0").replace(/\//g, "~1");
     }
   }
 });
@@ -70535,9 +70551,9 @@ var require_utils2 = __commonJS({
     }
     function consumeHextets(buffer, address, output) {
       if (buffer.length) {
-        const hex3 = stringArrayToHexStripped(buffer);
-        if (hex3 !== "") {
-          address.push(hex3);
+        const hex4 = stringArrayToHexStripped(buffer);
+        if (hex4 !== "") {
+          address.push(hex4);
         } else {
           output.error = true;
           return false;
@@ -70614,10 +70630,10 @@ var require_utils2 = __commonJS({
         return { host, isIPV6: false };
       }
     }
-    function findToken(str6, token) {
+    function findToken(str7, token) {
       let ind = 0;
-      for (let i = 0; i < str6.length; i++) {
-        if (str6[i] === token) ind++;
+      for (let i = 0; i < str7.length; i++) {
+        if (str7[i] === token) ind++;
       }
       return ind;
     }
@@ -70711,9 +70727,9 @@ var require_utils2 = __commonJS({
       let output = "";
       for (let i = 0; i < input.length; i++) {
         if (input[i] === "%" && i + 2 < input.length) {
-          const hex3 = input.slice(i + 1, i + 3);
-          if (isHexPair(hex3)) {
-            const normalizedHex = hex3.toUpperCase();
+          const hex4 = input.slice(i + 1, i + 3);
+          if (isHexPair(hex4)) {
+            const normalizedHex = hex4.toUpperCase();
             const decoded = String.fromCharCode(parseInt(normalizedHex, 16));
             if (decodeUnreserved && isUnreserved(decoded)) {
               output += decoded;
@@ -70732,9 +70748,9 @@ var require_utils2 = __commonJS({
       let output = "";
       for (let i = 0; i < input.length; i++) {
         if (input[i] === "%" && i + 2 < input.length) {
-          const hex3 = input.slice(i + 1, i + 3);
-          if (isHexPair(hex3)) {
-            const normalizedHex = hex3.toUpperCase();
+          const hex4 = input.slice(i + 1, i + 3);
+          if (isHexPair(hex4)) {
+            const normalizedHex = hex4.toUpperCase();
             const decoded = String.fromCharCode(parseInt(normalizedHex, 16));
             if (decoded !== "." && isUnreserved(decoded)) {
               output += decoded;
@@ -70757,9 +70773,9 @@ var require_utils2 = __commonJS({
       let output = "";
       for (let i = 0; i < input.length; i++) {
         if (input[i] === "%" && i + 2 < input.length) {
-          const hex3 = input.slice(i + 1, i + 3);
-          if (isHexPair(hex3)) {
-            output += "%" + hex3.toUpperCase();
+          const hex4 = input.slice(i + 1, i + 3);
+          if (isHexPair(hex4)) {
+            output += "%" + hex4.toUpperCase();
             i += 2;
             continue;
           }
@@ -71360,7 +71376,7 @@ var require_core = __commonJS({
     var util_1 = require_util();
     var $dataRefSchema = require_data();
     var uri_1 = require_uri2();
-    var defaultRegExp = (str6, flags) => new RegExp(str6, flags);
+    var defaultRegExp = (str7, flags) => new RegExp(str7, flags);
     defaultRegExp.code = "new RegExp";
     var META_IGNORE_OPTIONS = ["removeAdditional", "useDefaults", "coerceTypes"];
     var EXT_SCOPE_NAMES = /* @__PURE__ */ new Set([
@@ -72155,16 +72171,16 @@ var require_ucs2length = __commonJS({
   "node_modules/ajv/dist/runtime/ucs2length.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
-    function ucs2length(str6) {
-      const len = str6.length;
+    function ucs2length(str7) {
+      const len = str7.length;
       let length = 0;
       let pos = 0;
       let value;
       while (pos < len) {
         length++;
-        value = str6.charCodeAt(pos++);
+        value = str7.charCodeAt(pos++);
         if (value >= 55296 && value <= 56319 && pos < len) {
-          value = str6.charCodeAt(pos);
+          value = str7.charCodeAt(pos);
           if ((value & 64512) === 56320)
             pos++;
         }
@@ -74047,8 +74063,8 @@ var require_formats = __commonJS({
     }
     var DATE = /^(\d\d\d\d)-(\d\d)-(\d\d)$/;
     var DAYS = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-    function date5(str6) {
-      const matches = DATE.exec(str6);
+    function date5(str7) {
+      const matches = DATE.exec(str7);
       if (!matches)
         return false;
       const year = +matches[1];
@@ -74067,8 +74083,8 @@ var require_formats = __commonJS({
     }
     var TIME = /^(\d\d):(\d\d):(\d\d(?:\.\d+)?)(z|([+-])(\d\d)(?::?(\d\d))?)?$/i;
     function getTime(strictTimeZone) {
-      return function time3(str6) {
-        const matches = TIME.exec(str6);
+      return function time3(str7) {
+        const matches = TIME.exec(str7);
         if (!matches)
           return false;
         const hr = +matches[1];
@@ -74114,8 +74130,8 @@ var require_formats = __commonJS({
     var DATE_TIME_SEPARATOR = /t|\s/i;
     function getDateTime(strictTimeZone) {
       const time3 = getTime(strictTimeZone);
-      return function date_time(str6) {
-        const dateTime = str6.split(DATE_TIME_SEPARATOR);
+      return function date_time(str7) {
+        const dateTime = str7.split(DATE_TIME_SEPARATOR);
         return dateTime.length === 2 && date5(dateTime[0]) && time3(dateTime[1]);
       };
     }
@@ -74140,13 +74156,13 @@ var require_formats = __commonJS({
     }
     var NOT_URI_FRAGMENT = /\/|:/;
     var URI = /^(?:[a-z][a-z0-9+\-.]*:)(?:\/?\/(?:(?:[a-z0-9\-._~!$&'()*+,;=:]|%[0-9a-f]{2})*@)?(?:\[(?:(?:(?:(?:[0-9a-f]{1,4}:){6}|::(?:[0-9a-f]{1,4}:){5}|(?:[0-9a-f]{1,4})?::(?:[0-9a-f]{1,4}:){4}|(?:(?:[0-9a-f]{1,4}:){0,1}[0-9a-f]{1,4})?::(?:[0-9a-f]{1,4}:){3}|(?:(?:[0-9a-f]{1,4}:){0,2}[0-9a-f]{1,4})?::(?:[0-9a-f]{1,4}:){2}|(?:(?:[0-9a-f]{1,4}:){0,3}[0-9a-f]{1,4})?::[0-9a-f]{1,4}:|(?:(?:[0-9a-f]{1,4}:){0,4}[0-9a-f]{1,4})?::)(?:[0-9a-f]{1,4}:[0-9a-f]{1,4}|(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?))|(?:(?:[0-9a-f]{1,4}:){0,5}[0-9a-f]{1,4})?::[0-9a-f]{1,4}|(?:(?:[0-9a-f]{1,4}:){0,6}[0-9a-f]{1,4})?::)|[Vv][0-9a-f]+\.[a-z0-9\-._~!$&'()*+,;=:]+)\]|(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)|(?:[a-z0-9\-._~!$&'()*+,;=]|%[0-9a-f]{2})*)(?::\d*)?(?:\/(?:[a-z0-9\-._~!$&'()*+,;=:@]|%[0-9a-f]{2})*)*|\/(?:(?:[a-z0-9\-._~!$&'()*+,;=:@]|%[0-9a-f]{2})+(?:\/(?:[a-z0-9\-._~!$&'()*+,;=:@]|%[0-9a-f]{2})*)*)?|(?:[a-z0-9\-._~!$&'()*+,;=:@]|%[0-9a-f]{2})+(?:\/(?:[a-z0-9\-._~!$&'()*+,;=:@]|%[0-9a-f]{2})*)*)(?:\?(?:[a-z0-9\-._~!$&'()*+,;=:@/?]|%[0-9a-f]{2})*)?(?:#(?:[a-z0-9\-._~!$&'()*+,;=:@/?]|%[0-9a-f]{2})*)?$/i;
-    function uri(str6) {
-      return NOT_URI_FRAGMENT.test(str6) && URI.test(str6);
+    function uri(str7) {
+      return NOT_URI_FRAGMENT.test(str7) && URI.test(str7);
     }
     var BYTE = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/gm;
-    function byte(str6) {
+    function byte(str7) {
       BYTE.lastIndex = 0;
-      return BYTE.test(str6);
+      return BYTE.test(str7);
     }
     var MIN_INT32 = -(2 ** 31);
     var MAX_INT32 = 2 ** 31 - 1;
@@ -74160,11 +74176,11 @@ var require_formats = __commonJS({
       return true;
     }
     var Z_ANCHOR = /[^\\]\\Z/;
-    function regex(str6) {
-      if (Z_ANCHOR.test(str6))
+    function regex(str7) {
+      if (Z_ANCHOR.test(str7))
         return false;
       try {
-        new RegExp(str6);
+        new RegExp(str7);
         return true;
       } catch (e) {
         return false;
@@ -77207,7 +77223,13 @@ var DDIC_TAGS = [
   "SHLP-PUT",
   "SHLP-ACTIVATED",
   "SHLP-DELETED",
-  "SHLP-GONE"
+  "SHLP-GONE",
+  "TRLG-READ",
+  // transport-log bridge
+  "TRQU-READ",
+  // import-queue bridge
+  "TRTC-CREATED"
+  // transport-of-copies bridge
 ];
 function parseDdicTranscript(raw) {
   const tags = [];
@@ -79143,7 +79165,7 @@ var packagePart = {
 
 // src/adt/fluid/builtin/classic/abap-transport.ts
 var transportPart = {
-  methods: ["remove_transport_entry"],
+  methods: ["remove_transport_entry", "read_transport_log", "read_import_queue", "create_transport_of_copies"],
   source: `  METHOD remove_transport_entry.
     DATA lv_trkorr TYPE trkorr.
     lv_trkorr = s( 'trkorr' ).
@@ -79255,6 +79277,370 @@ var transportPart = {
       RETURN.
     ENDIF.
     line( 'TREN-GONE' ).
+  ENDMETHOD.
+
+  METHOD read_transport_log.
+    DATA lv_trkorr TYPE trkorr.
+    lv_trkorr = s( 'trkorr' ).
+    DATA: ls_e070          TYPE e070,
+          lt_ovw           TYPE scts_log_overviews,
+          ls_ovw           TYPE scts_log_overview,
+          lt_log           TYPE trlogs,
+          ls_log           TYPE trlog,
+          lv_i             TYPE i,
+          lv_sev           TYPE string,
+          lv_cls           TYPE string,
+          lv_num           TYPE string,
+          lv_rc            TYPE string,
+          lv_with_targets  TYPE flag VALUE 'X',
+          lv_logsys        TYPE tmssysnam.
+
+    " Step 1: TRINT_GET_LOG_OVERVIEW answers with sy-subrc 0 even for a
+    " request number that does not exist at all - proven live 2026-09-15 on
+    " A4H with A4HK999999, which came back with the SAME "not yet flagged
+    " for import" row a real, un-imported request gets. Without checking
+    " E070 first, a typo'd request number would silently produce a
+    " confident but meaningless answer instead of a refusal.
+    SELECT SINGLE * FROM e070 INTO @ls_e070 WHERE trkorr = @lv_trkorr.
+    IF sy-subrc <> 0.
+      fail( |no such request { lv_trkorr }| ).
+      RETURN.
+    ENDIF.
+
+    " Step 2.
+    line( |ZMCP-TRLG-REQ { lv_trkorr } { ls_e070-trfunction } { ls_e070-trstatus }| ).
+
+    " Step 3: one row per system this request was, or will be, imported to.
+    " IV_WITH_TRANSPORT_TARGETS is carried in a typed FLAG local (its own
+    " default is already 'X') rather than the bare literal 'X' - this
+    " method never dumped live, but every actual in this class is a typed
+    " local under one uniform rule, so this one follows suit too.
+    CALL FUNCTION 'TRINT_GET_LOG_OVERVIEW'
+      EXPORTING
+        iv_request                = lv_trkorr
+        iv_with_transport_targets = lv_with_targets
+      IMPORTING
+        et_log_overview           = lt_ovw.
+
+    LOOP AT lt_ovw INTO ls_ovw.
+      " A row with no SYSNAM names nothing to read a log for.
+      IF ls_ovw-sysnam IS INITIAL.
+        CONTINUE.
+      ENDIF.
+      lv_i = lv_i + 1.
+      " Live on A4H 2026-09-15: every overview row came back with RC EMPTY
+      " ("not yet flagged for import"), so a raw { ls_ovw-rc } would leave
+      " two consecutive spaces in the fixed-token line below and drop a
+      " token the TS regex requires - same "-" placeholder fix as
+      " SEVERITY/CLASS/NUMBER below.
+      IF ls_ovw-rc IS INITIAL.
+        lv_rc = '-'.
+      ELSE.
+        lv_rc = ls_ovw-rc.
+      ENDIF.
+      " Fixed-token line: only space-free fields. SYSTXT/RCTXT carry free
+      " text that can itself contain spaces, so each gets its own trailing-
+      " text line instead of a slot on this one. DATE/TIME = RAW: a plain
+      " { ls_ovw-moddate }/{ ls_ovw-modtime } embed is converted to the
+      " CURRENT USER's date/time format (e.g. "15.09.2026", "10:37:44"),
+      " not the wire form "20260915"/"103744" the TS side parses - the
+      " wire protocol must not depend on whose user profile is running.
+      line( |ZMCP-TRLG-SYS { lv_i } { ls_ovw-sysnam } { lv_rc } | &&
+            |{ ls_ovw-moddate DATE = RAW } { ls_ovw-modtime TIME = RAW } { ls_ovw-sortidx }| ).
+      line( |ZMCP-TRLG-SYSTXT { lv_i } { ls_ovw-systxt }| ).
+      line( |ZMCP-TRLG-RCTXT { lv_i } { ls_ovw-rctxt }| ).
+
+      " Step 4: TRINT_GET_LOG_FILE has already fetched every log line this
+      " system returned into lt_log before this LOOP ever runs, so every
+      " line is emitted here - no cap. compact.ts is the single layer that
+      " discloses truncation; capping here would only destroy rows a step
+      " before the layer that would have reported the cut.
+      CLEAR lt_log.
+      " IV_SYSTEM is TMSSYSNAM on this FM's own signature - carried in
+      " lv_logsys rather than passing ls_ovw-sysnam straight through, so
+      " every CALL FUNCTION actual in this class is a local typed with the
+      " FM's own parameter type, not a struct field of unverified type.
+      lv_logsys = ls_ovw-sysnam.
+      CALL FUNCTION 'TRINT_GET_LOG_FILE'
+        EXPORTING
+          iv_request  = lv_trkorr
+          iv_system   = lv_logsys
+        IMPORTING
+          et_log_file = lt_log.
+
+      LOOP AT lt_log INTO ls_log.
+        " SEVERITY/CLASS/NUMBER are space-free; LINE is the trailing free
+        " text. A "-" placeholder stands in for an initial SEVERITY or
+        " CLASS so the token count never varies - the TS regex depends on
+        " always finding the same number of tokens before the free text.
+        IF ls_log-severity IS INITIAL.
+          lv_sev = '-'.
+        ELSE.
+          lv_sev = ls_log-severity.
+        ENDIF.
+        IF ls_log-class IS INITIAL.
+          lv_cls = '-'.
+        ELSE.
+          lv_cls = ls_log-class.
+        ENDIF.
+        IF ls_log-number IS INITIAL.
+          lv_num = '-'.
+        ELSE.
+          lv_num = ls_log-number.
+        ENDIF.
+        line( |ZMCP-TRLG-LINE { lv_i } { lv_sev } { lv_cls } { lv_num } { ls_log-line }| ).
+      ENDLOOP.
+    ENDLOOP.
+
+    " Step 5: read-only throughout - no COMMIT, no ROLLBACK.
+    line( |ZMCP-TRLG-COUNT { lv_i }| ).
+    line( 'TRLG-READ' ).
+  ENDMETHOD.
+
+  METHOD read_import_queue.
+    DATA: lv_system TYPE tmscsys-sysnam,
+          lv_domain TYPE tmscsys-domnam.
+    lv_system = s( 'system' ).
+    TRANSLATE lv_system TO UPPER CASE.
+    lv_domain = s( 'domain' ).
+    TRANSLATE lv_domain TO UPPER CASE.
+
+    " Step 1.
+    IF lv_system IS INITIAL.
+      fail( |system is required| ).
+      RETURN.
+    ENDIF.
+
+    DATA: lt_buf       TYPE STANDARD TABLE OF tmsbuffer WITH EMPTY KEY,
+          ls_buf       TYPE tmsbuffer,
+          lv_date      TYPE sy-datum,
+          lv_time      TYPE sy-uzeit,
+          lv_flag      TYPE stms_flag,
+          lv_off       TYPE stms_flag,
+          ls_exception TYPE stmscalert,
+          lv_subrc     TYPE sy-subrc,
+          lv_domout    TYPE string,
+          lv_flagout   TYPE string,
+          lv_bufpos    TYPE string,
+          lv_rowtrkorr TYPE string,
+          lv_impflg    TYPE string,
+          lv_maxrc     TYPE string,
+          lv_trfunc    TYPE string,
+          lv_owner     TYPE string,
+          lv_tarcli    TYPE string.
+
+    " Step 2: IV_CLEAR_LOCKS, IV_UPDATE_CACHE and IV_MONITOR all default to
+    " 'X' in this FM's OWN signature and are not reads - clearing TMS locks
+    " and rewriting the TMS cache are side effects an operation documented
+    " as read-only must not perform, so all six are forced to SPACE here.
+    " LV_OFF is declared TYPE stms_flag and never assigned, so its initial
+    " value (SPACE) is what travels. The live hit on A4H 2026-09-15 was an
+    " untyped ABAP string (from s(...)) bound to one of these typed
+    " STMS_FLAG formals - exactly what CX_SY_DYN_CALL_ILLEGAL_TYPE punishes
+    " in CALL FUNCTION - so every actual here, including this SPACE-valued
+    " one, is a typed local under the same rule.
+    CALL FUNCTION 'TMS_MGR_READ_TRANSPORT_QUEUE'
+      EXPORTING
+        iv_system           = lv_system
+        iv_domain           = lv_domain
+        iv_collect_data     = lv_off
+        iv_read_locks       = lv_off
+        iv_clear_locks      = lv_off
+        iv_update_cache     = lv_off
+        iv_monitor          = lv_off
+        iv_verbose          = lv_off
+      IMPORTING
+        ev_collect_date     = lv_date
+        ev_collect_time     = lv_time
+        ev_collect_flag     = lv_flag
+        es_exception        = ls_exception
+      TABLES
+        tt_buffer           = lt_buf
+      EXCEPTIONS
+        read_config_failed  = 1
+        OTHERS              = 2.
+    lv_subrc = sy-subrc.
+
+    " Step 3: the live READ_CONFIG_FAILED on this box came back with an
+    " EMPTY ES_EXCEPTION, so this message must still read sensibly blank.
+    IF lv_subrc <> 0.
+      fail( |cannot read the import queue of { lv_system }: subrc={ lv_subrc } | &&
+            |msg={ sy-msgid } { sy-msgno } v1={ sy-msgv1 } | &&
+            |exc-msg={ ls_exception-msgid } { ls_exception-msgno } v1={ ls_exception-msgv1 }| ).
+      RETURN.
+    ENDIF.
+
+    " Step 4: a blank domain/flag is emitted as "-" so the token count
+    " never varies.
+    IF lv_domain IS INITIAL.
+      lv_domout = '-'.
+    ELSE.
+      " Plain assignment (c TYPE -> string) keeps the fixed-length field's
+      " trailing blanks verbatim, which would leave extra spaces inside the
+      " fixed-token ZMCP-TRQU-HEAD line below; routing it through a string
+      " template embed instead trims them, same as every other char-typed
+      " field emitted on this line.
+      lv_domout = |{ lv_domain }|.
+    ENDIF.
+    IF lv_flag IS INITIAL.
+      lv_flagout = '-'.
+    ELSE.
+      lv_flagout = lv_flag.
+    ENDIF.
+    " DATE/TIME = RAW: see the matching comment in read_transport_log - a
+    " plain { lv_date }/{ lv_time } embed is user-profile-formatted, not
+    " the wire form "00000000"/"000000" the TS side checks for "never
+    " collected".
+    line( |ZMCP-TRQU-HEAD { lv_system } { lv_domout } { lv_date DATE = RAW } { lv_time TIME = RAW } | &&
+          |{ lv_flagout } { lines( lt_buf ) }| ).
+
+    " Step 5: one pair of lines per buffer row - TMS_MGR_READ_TRANSPORT_QUEUE
+    " has already fetched every row into lt_buf before this LOOP runs, so no
+    " cap here; compact.ts is the layer that discloses truncation. Every
+    " space-free token that can legitimately come back initial is
+    " substituted with "-" for the same fixed-token-count reason as above.
+    LOOP AT lt_buf INTO ls_buf.
+      IF ls_buf-bufpos IS INITIAL.
+        lv_bufpos = '-'.
+      ELSE.
+        lv_bufpos = ls_buf-bufpos.
+      ENDIF.
+      IF ls_buf-trkorr IS INITIAL.
+        lv_rowtrkorr = '-'.
+      ELSE.
+        lv_rowtrkorr = ls_buf-trkorr.
+      ENDIF.
+      IF ls_buf-impflg IS INITIAL.
+        lv_impflg = '-'.
+      ELSE.
+        lv_impflg = ls_buf-impflg.
+      ENDIF.
+      IF ls_buf-maxrc IS INITIAL.
+        lv_maxrc = '-'.
+      ELSE.
+        lv_maxrc = ls_buf-maxrc.
+      ENDIF.
+      IF ls_buf-trfunc IS INITIAL.
+        lv_trfunc = '-'.
+      ELSE.
+        lv_trfunc = ls_buf-trfunc.
+      ENDIF.
+      IF ls_buf-owner IS INITIAL.
+        lv_owner = '-'.
+      ELSE.
+        lv_owner = ls_buf-owner.
+      ENDIF.
+      IF ls_buf-tarcli IS INITIAL.
+        lv_tarcli = '-'.
+      ELSE.
+        lv_tarcli = ls_buf-tarcli.
+      ENDIF.
+      line( |ZMCP-TRQU-ROW { lv_bufpos } { lv_rowtrkorr } { lv_impflg } { lv_maxrc } { lv_trfunc } { lv_owner } { lv_tarcli }| ).
+      line( |ZMCP-TRQU-TEXT { lv_bufpos } { ls_buf-text }| ).
+    ENDLOOP.
+
+    " Step 6: read-only - no COMMIT.
+    line( 'TRQU-READ' ).
+  ENDMETHOD.
+
+  METHOD create_transport_of_copies.
+    DATA: lv_type        TYPE trfunction VALUE 'T',
+          lv_description TYPE as4text,
+          lv_owner       TYPE as4user,
+          lv_target      TYPE tr_target,
+          lv_devclass    TYPE devclass.
+    lv_description = s( 'description' ).
+    lv_target = s( 'target' ).
+    TRANSLATE lv_target TO UPPER CASE.
+    lv_devclass = s( 'devclass' ).
+    TRANSLATE lv_devclass TO UPPER CASE.
+    lv_owner = sy-uname.
+
+    " Step 1: a transport of copies created with no target system can never
+    " be imported anywhere, so abapsmith refuses to create one at all
+    " rather than leaving an orphaned request behind for a human to find.
+    IF lv_description IS INITIAL.
+      fail( |description is required| ).
+      RETURN.
+    ENDIF.
+    IF lv_target IS INITIAL.
+      fail( |target is required - a transport of copies with no target system can never be imported| ).
+      RETURN.
+    ENDIF.
+    IF lv_devclass IS INITIAL.
+      fail( |devclass is required| ).
+      RETURN.
+    ENDIF.
+
+    DATA: ls_header    TYPE trwbo_request_header,
+          lt_tasks     TYPE trwbo_request_headers,
+          lv_subrc     TYPE sy-subrc,
+          ls_e070      TYPE e070,
+          lv_tarsystem TYPE string.
+
+    " Step 2: IT_USERS and ET_TASK_HEADERS are ORDINARY parameters on this
+    " FM, not TABLES parameters - calling them with a TABLES clause
+    " short-dumps with "Type conflict during a function module call" (hit
+    " live 2026-09-15); neither is passed here at all, since this bridge
+    " needs no extra users and reads the tasks back from ET_TASK_HEADERS.
+    " Every actual below is a local typed with the FM's OWN parameter type
+    " (TRFUNCTION/AS4TEXT/AS4USER/TR_TARGET/DEVCLASS), never the bare result
+    " of s(...) - an inline declaration that infers string, bound straight
+    " to one of these fixed-length typed formals, is what raised
+    " CX_SY_DYN_CALL_ILLEGAL_TYPE live on A4H 2026-09-15.
+    CALL FUNCTION 'TR_INSERT_REQUEST_WITH_TASKS'
+      EXPORTING
+        iv_type           = lv_type
+        iv_text           = lv_description
+        iv_owner          = lv_owner
+        iv_target         = lv_target
+        iv_devclass       = lv_devclass
+      IMPORTING
+        es_request_header = ls_header
+        et_task_headers   = lt_tasks
+      EXCEPTIONS
+        insert_failed     = 1
+        enqueue_failed    = 2
+        OTHERS            = 3.
+    lv_subrc = sy-subrc.
+    IF lv_subrc <> 0.
+      fail( |TR_INSERT_REQUEST_WITH_TASKS failed, sy-subrc={ lv_subrc }, | &&
+            |msg={ sy-msgid } { sy-msgno } v1={ sy-msgv1 } v2={ sy-msgv2 } v3={ sy-msgv3 } v4={ sy-msgv4 }| ).
+      RETURN.
+    ENDIF.
+
+    " Step 3: mirrors the type-W defect in doc/CAPABILITIES/non-object-capabilities.md
+    " row 27 - a reported success with no allocated number is not a no-op,
+    " it is CTS lying about what it did.
+    IF ls_header-trkorr IS INITIAL.
+      fail( |CTS reported success but allocated no request number| ).
+      RETURN.
+    ENDIF.
+
+    " Step 4.
+    COMMIT WORK AND WAIT.
+
+    " Step 5: a tag alone is not proof - re-read E070 for the allocated
+    " number to prove it is really there rather than trusting the FM's own
+    " success report alone. If the re-read finds nothing, the caller still
+    " learns the number that was allocated, even though the operation as a
+    " whole failed.
+    SELECT SINGLE * FROM e070 INTO @ls_e070 WHERE trkorr = @ls_header-trkorr.
+    IF sy-subrc <> 0.
+      fail( |TR_INSERT_REQUEST_WITH_TASKS allocated { ls_header-trkorr } but E070 has no row for it| ).
+      RETURN.
+    ENDIF.
+    IF ls_e070-tarsystem IS INITIAL.
+      lv_tarsystem = '-'.
+    ELSE.
+      lv_tarsystem = ls_e070-tarsystem.
+    ENDIF.
+    " Live on A4H 2026-09-15: TRFUNCTION='T', TRSTATUS='D', TARSYSTEM='A4H',
+    " ZERO task headers - a transport of copies has no tasks.
+    line( |ZMCP-TRTC-CREATED { ls_e070-trkorr } { ls_e070-trfunction } { ls_e070-trstatus } { lv_tarsystem } { ls_e070-as4user } { lines( lt_tasks ) }| ).
+
+    " Step 6.
+    line( 'TRTC-CREATED' ).
   ENDMETHOD.`
 };
 
@@ -79324,7 +79710,7 @@ var classicManifest = {
   contract: FLUID_CONTRACT,
   id: CLASSIC_TOOL_ID,
   title: "Classic DDIC/CTS bridge",
-  description: "Classic-UI DDIC and CTS mutations (view, transaction, search help, index, package, transport entry).",
+  description: "Classic-UI DDIC and CTS mutations (view, transaction, search help, index, package, transport entry, transport of copies) plus read-only transport log and import queue lookups.",
   // This tool's ABAP reads args with the flat, single-pass `scan()`
   // (`./classic/abap-core.ts`) — see `FluidManifest.flatArgs` — so the
   // dispatcher flattens nested arrays-of-objects/objects (e.g. `shlp`'s
@@ -79343,7 +79729,7 @@ var classicManifest = {
     {
       name: CLASSIC_BODY_CLASS,
       type: "CLAS/OC",
-      description: "fluid: classic DDIC/CTS mutations (view/tran/shlp/index/pkg)",
+      description: "fluid: classic DDIC/CTS (view/tran/shlp/idx/pkg/trkorr)",
       source: { text: CLASSIC_SOURCE }
     }
   ],
@@ -79826,6 +80212,58 @@ var classicManifest = {
       },
       output: { type: "array", items: { type: "string" }, description: "One transcript line per element." },
       targets: { object: "/name" }
+    },
+    {
+      name: "read_transport_log",
+      category: "read",
+      description: "Reads a transport request's per-target-system import log overview and log file lines.",
+      input: {
+        type: "object",
+        required: ["trkorr"],
+        properties: {
+          trkorr: { type: "string", maxLength: 10, description: "The transport request to read the log of." }
+        }
+      },
+      output: { type: "array", items: { type: "string" }, description: "One transcript line per element." }
+    },
+    {
+      name: "read_import_queue",
+      category: "read",
+      description: "Reads a TMS system's import queue (buffer) without collecting, locking or caching side effects.",
+      input: {
+        type: "object",
+        required: ["system"],
+        properties: {
+          system: { type: "string", maxLength: 8, description: "The TMS system id whose queue is read." },
+          domain: {
+            type: "string",
+            maxLength: 32,
+            description: "TMS transport domain, e.g. DOMAIN_A4H; empty lets TMS resolve the local domain."
+          }
+        }
+      },
+      output: { type: "array", items: { type: "string" }, description: "One transcript line per element." }
+    },
+    {
+      name: "create_transport_of_copies",
+      category: "mutate",
+      description: "Creates a transport of copies (TRFUNCTION 'T') targeting one system.",
+      // No `targets`: the caller-facing wrapper (`../../transport-copies.ts`) requires a
+      // pre-minted `AuthorizedTarget<"transport", ...>` and does its own runtime name-match
+      // backstop before dispatch, the same idiom `trCreate` (`../../transports.ts`) uses —
+      // `devclass` here is only an attribute recorded on the request header
+      // (TR_INSERT_REQUEST_WITH_TASKS's IV_DEVCLASS), not a package being written into, so a
+      // `package:`-pointer declaration here would misrepresent what the call actually does.
+      input: {
+        type: "object",
+        required: ["description", "target", "devclass"],
+        properties: {
+          description: { type: "string", maxLength: 60, description: "Short text (E070/AS4TEXT, CHAR60)." },
+          target: { type: "string", maxLength: 10, description: "Target system (E070-TARSYSTEM)." },
+          devclass: { type: "string", maxLength: 30, description: "Package recorded on the request header." }
+        }
+      },
+      output: { type: "array", items: { type: "string" }, description: "One transcript line per element." }
     }
   ]
 };
@@ -79842,6 +80280,216 @@ var classicTool = {
 
 // src/adt/fluid/builtin/core.ts
 init_errors();
+
+// src/adt/fluid/static-review.ts
+init_truncate();
+var FLUID_ABAP_LINE_MAX = 255;
+var CALL_SYSTEM_RE = /\bCALL\s+'SYSTEM'/i;
+var EXEC_SQL_RE = /\bEXEC\s+SQL\b/i;
+var INSERT_REPORT_RE = /\bINSERT\s+REPORT\b/i;
+var GENERATE_SUBROUTINE_POOL_RE = /\bGENERATE\s+SUBROUTINE\s+POOL\b/i;
+var CALL_FUNCTION_RE = /\bCALL\s+FUNCTION\b/i;
+var DESTINATION_RE = /\bDESTINATION\b/i;
+var SUBMIT_RE = /\bSUBMIT\b/i;
+var VIA_JOB_RE = /\bVIA\s+JOB\b/i;
+var CALL_METHOD_RE = /\bCALL\s+METHOD\b/i;
+var CALL_METHOD_DIRECT_DYNAMIC_RE = /\bCALL\s+METHOD\s*\(/i;
+var ARROW_PAREN_RE = /(?:->|=>)\s*\(/;
+var SHIPPED_RULES = [
+  { name: "call-system", test: (s) => CALL_SYSTEM_RE.test(s) },
+  { name: "exec-sql", test: (s) => EXEC_SQL_RE.test(s) },
+  { name: "insert-report", test: (s) => INSERT_REPORT_RE.test(s) },
+  { name: "generate-subroutine-pool", test: (s) => GENERATE_SUBROUTINE_POOL_RE.test(s) },
+  {
+    name: "call-function-destination",
+    test: (s) => CALL_FUNCTION_RE.test(s) && DESTINATION_RE.test(s)
+  },
+  { name: "submit-via-job", test: (s) => SUBMIT_RE.test(s) && VIA_JOB_RE.test(s) },
+  {
+    name: "dynamic-call-method",
+    test: (s) => CALL_METHOD_RE.test(s) && (CALL_METHOD_DIRECT_DYNAMIC_RE.test(s) || ARROW_PAREN_RE.test(s))
+  }
+];
+var FLUID_SHIPPED_PROHIBITIONS = SHIPPED_RULES.map((r) => r.name);
+function escapeRegExpLiteral(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function buildPhraseRule(phrase) {
+  const segments = phrase.split(/(\s+)/);
+  const pattern = segments.map((seg) => /^\s+$/.test(seg) ? "\\s+" : escapeRegExpLiteral(seg)).join("");
+  const leading = /^\w/.test(phrase) ? "\\b" : "";
+  const trailing = /\w$/.test(phrase) ? "\\b" : "";
+  const re = new RegExp(leading + pattern + trailing, "i");
+  return { name: `extra:${phrase}`, test: (s) => re.test(s) };
+}
+function blankCommentLine(line2) {
+  return line2.startsWith("*") ? "" : line2;
+}
+function splitStatements(blankedLines) {
+  const joined = blankedLines.join("\n");
+  const lineStarts2 = [];
+  let acc = 0;
+  for (const l of blankedLines) {
+    lineStarts2.push(acc);
+    acc += l.length + 1;
+  }
+  const cleaned = [];
+  const raws = [];
+  let state = "normal";
+  let stmtStart = 0;
+  for (let i = 0; i < joined.length; i++) {
+    const ch = joined.charAt(i);
+    if (state === "comment") {
+      cleaned.push(ch === "\n" ? ch : " ");
+      if (ch === "\n") state = "normal";
+      continue;
+    }
+    if (state === "string") {
+      cleaned.push(ch);
+      if (ch === "'") {
+        if (joined.charAt(i + 1) === "'") {
+          i++;
+          cleaned.push(joined.charAt(i));
+          continue;
+        }
+        state = "normal";
+      }
+      continue;
+    }
+    if (state === "template") {
+      cleaned.push(ch);
+      if (ch === "\\") {
+        const next = joined.charAt(i + 1);
+        if (next !== "") {
+          i++;
+          cleaned.push(next);
+        }
+        continue;
+      }
+      if (ch === "|") state = "normal";
+      continue;
+    }
+    if (ch === "'") {
+      state = "string";
+      cleaned.push(ch);
+      continue;
+    }
+    if (ch === "|") {
+      state = "template";
+      cleaned.push(ch);
+      continue;
+    }
+    if (ch === '"') {
+      state = "comment";
+      cleaned.push(" ");
+      continue;
+    }
+    if (ch === ".") {
+      raws.push({ raw: cleaned.slice(stmtStart, i).join(""), startOffset: stmtStart });
+      stmtStart = i + 1;
+    }
+    cleaned.push(ch);
+  }
+  const tail = cleaned.slice(stmtStart).join("");
+  if (tail.trim().length > 0) {
+    raws.push({ raw: tail, startOffset: stmtStart });
+  }
+  const statements = [];
+  let lineCursor = 0;
+  for (const { raw, startOffset } of raws) {
+    const firstNonWs = raw.search(/\S/);
+    if (firstNonWs < 0) continue;
+    const normalized = raw.replace(/\s+/g, " ").trim();
+    if (normalized.length === 0) continue;
+    const target = startOffset + firstNonWs;
+    while (lineCursor + 1 < lineStarts2.length && (lineStarts2[lineCursor + 1] ?? Infinity) <= target) {
+      lineCursor++;
+    }
+    statements.push({ normalized, startLine: lineCursor + 1 });
+  }
+  return statements;
+}
+var ITAB_NAME_RE = /^(lt_|it_|gt_|ct_|mt_)/i;
+var COMMIT_ROLLBACK_RE = /^(COMMIT|ROLLBACK)\s+WORK\b/i;
+var UPDATE_STMT_RE = /^UPDATE\s+\S/i;
+var DELETE_FROM_RE = /^DELETE\s+FROM\s+\S/i;
+var INSERT_NATIVE_SQL_RE = /^INSERT\s+INTO\s+\S+\s+VALUES\b/i;
+var INSERT_INTO_ITAB_RE = /\bINTO\s+(?:TABLE\s+)?\S+/i;
+var INSERT_DB_FROM_RE = /^INSERT\s+\S+\s+FROM\b/i;
+var MODIFY_SCREEN_RE = /^MODIFY\s+SCREEN\b/i;
+var MODIFY_TARGET_RE = /^MODIFY\s+(?:TABLE\s+)?(\S+)/i;
+function classifiesAsDbWrite(statement) {
+  if (UPDATE_STMT_RE.test(statement)) return true;
+  if (DELETE_FROM_RE.test(statement)) return true;
+  if (INSERT_NATIVE_SQL_RE.test(statement)) return true;
+  if (INSERT_INTO_ITAB_RE.test(statement)) return false;
+  if (INSERT_DB_FROM_RE.test(statement)) return true;
+  if (MODIFY_SCREEN_RE.test(statement)) return false;
+  const modifyTarget = MODIFY_TARGET_RE.exec(statement);
+  if (modifyTarget) {
+    const target = modifyTarget[1];
+    return target !== void 0 && !ITAB_NAME_RE.test(target);
+  }
+  return false;
+}
+function scanFluidCapabilities(objectName, source) {
+  const blankedLines = source.split(/\r\n|\r|\n/).map(blankCommentLine);
+  const statements = splitStatements(blankedLines);
+  const findings = [];
+  for (const stmt of statements) {
+    let capability;
+    if (classifiesAsDbWrite(stmt.normalized)) {
+      capability = "db-write";
+    } else if (COMMIT_ROLLBACK_RE.test(stmt.normalized)) {
+      capability = "commit-rollback";
+    } else if (CALL_FUNCTION_RE.test(stmt.normalized)) {
+      capability = "call-function";
+    }
+    if (capability !== void 0) {
+      findings.push({
+        object: objectName,
+        line: stmt.startLine,
+        capability,
+        text: truncateText(stmt.normalized, ECHO_LINE_MAX)
+      });
+    }
+  }
+  return findings;
+}
+function reviewFluidAbap(objectName, source, extraProhibitions) {
+  const lines = source.split(/\r\n|\r|\n/);
+  const findings = [];
+  lines.forEach((line2, idx2) => {
+    if (line2.length > FLUID_ABAP_LINE_MAX) {
+      findings.push({
+        object: objectName,
+        line: idx2 + 1,
+        rule: "line-length",
+        text: truncateText(line2.trim(), ECHO_LINE_MAX)
+      });
+    }
+  });
+  const blankedLines = lines.map(blankCommentLine);
+  const statements = splitStatements(blankedLines);
+  const rules = [
+    ...SHIPPED_RULES,
+    ...(extraProhibitions ?? []).map(buildPhraseRule)
+  ];
+  for (const stmt of statements) {
+    for (const rule of rules) {
+      if (rule.test(stmt.normalized)) {
+        findings.push({
+          object: objectName,
+          line: stmt.startLine,
+          rule: rule.name,
+          text: truncateText(stmt.normalized, ECHO_LINE_MAX)
+        });
+      }
+    }
+  }
+  findings.sort((a, b) => a.line - b.line);
+  return findings;
+}
 
 // src/adt/fluid/builtin/core/abap-core.ts
 init_errors();
@@ -80844,6 +81492,9 @@ var docuPart = {
 // src/adt/fluid/builtin/core.ts
 var CORE_TOOL_ID = "core";
 var CORE_BODY_CLASS = "ZCL_ZMCP_FLUID_CORE";
+var CORE_EVAL_ACTION = "eval";
+var CORE_EVAL_CONFIRM = "core.eval";
+var EVAL_OUT_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]{0,29}$/;
 var RUNTIME_SOURCE3 = fluidRuntimeSources.get(FLUID_RUNTIME_CLASS);
 if (RUNTIME_SOURCE3 === void 0) {
   throw new Error(`fluidRuntimeSources has no entry for ${FLUID_RUNTIME_CLASS}`);
@@ -80988,6 +81639,39 @@ var coreManifest = {
         items: { type: "object" },
         description: "One returned parameter per element: name, kind, value."
       }
+    },
+    {
+      name: CORE_EVAL_ACTION,
+      // Not "mutate": `invokerSource` appends a COMMIT WORK footer for `category: "mutate"` (see
+      // its doc comment) and a mutate action is journalled through `journalFluidMutate`, whose
+      // `JOURNAL_ARGS_MAX`-truncated description is exactly the "cannot see what actually ran"
+      // failure eval exists to avoid — eval gets its own untruncated journal path
+      // (`journalFluidEval`, dispatch.ts) instead.
+      category: "execute",
+      description: "Run the supplied ABAP statements as the body of one method and return the named locals as JSON. Off unless ABAP_ALLOW_FLUID_EVAL is set. This is a lint-not-sandbox control: the static review and the capability scan reject a handful of named statements, they do not confine the code. The real boundary is the SAP user's authorisations, and ABAP_ALLOW_FLUID_EVAL is consent to run model-authored code inside that boundary, nothing narrower.",
+      input: {
+        type: "object",
+        required: ["lines"],
+        properties: {
+          lines: {
+            type: "array",
+            items: { type: "string", maxLength: FLUID_ABAP_LINE_MAX },
+            description: `ABAP statements, one per array element, run verbatim inside one TRY block. Each element is one source line: no CR/LF, at most ${FLUID_ABAP_LINE_MAX} characters.`
+          },
+          out: {
+            type: "array",
+            items: { type: "string", maxLength: 30 },
+            description: `Names of local data objects declared in "lines" to serialise back as JSON, in order. Each must match ${EVAL_OUT_NAME_RE}.`
+          }
+        }
+      },
+      output: {
+        type: "array",
+        items: { type: "object" },
+        description: 'One element per "out" name, in order: {name, value} when serialisation succeeded, {name, error} otherwise.'
+      }
+      // No `targets`: unlike `select`/`describe_fm`, there is no single object this action
+      // touches — the caller's own `lines` decide that, not a declared object/package/transport.
     }
   ]
 };
@@ -81042,6 +81726,115 @@ async function guardCoreAction(deps, req) {
     }
     return;
   }
+  if (req.action === CORE_EVAL_ACTION) {
+    if (!deps.cfg.allowFluidEval) {
+      throw new AbapError(
+        "FLUID_EVAL_DISABLED",
+        "core.eval is off; set ABAP_ALLOW_FLUID_EVAL=1 to enable it",
+        { tool: req.tool, action: req.action, rule: "ABAP_ALLOW_FLUID_EVAL" }
+      );
+    }
+    if (req.confirm !== CORE_EVAL_CONFIRM) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `core.eval requires confirm: ${JSON.stringify(CORE_EVAL_CONFIRM)} (got ${req.confirm === void 0 ? "nothing" : JSON.stringify(req.confirm)}).`,
+        { field: "confirm", expected: CORE_EVAL_CONFIRM, got: req.confirm }
+      );
+    }
+    const rawArgs = evalArgsRecord(req.args);
+    const rawLines = rawArgs["lines"];
+    if (!Array.isArray(rawLines) || rawLines.length === 0 || !rawLines.every((l) => typeof l === "string")) {
+      throw new AbapError(
+        "BAD_INPUT",
+        'core.eval requires "lines": a non-empty array of ABAP statement strings.',
+        { field: "lines" }
+      );
+    }
+    const lines = rawLines;
+    for (let i = 0; i < lines.length; i++) {
+      const line2 = lines[i];
+      const lineNo = i + 1;
+      if (/[\r\n]/.test(line2)) {
+        throw new AbapError(
+          "BAD_INPUT",
+          `core.eval "lines"[${i}] (line ${lineNo}) must not contain a CR or LF \u2014 one array element is one ABAP source line.`,
+          { field: "lines", line: lineNo }
+        );
+      }
+      if (line2.length > FLUID_ABAP_LINE_MAX) {
+        throw new AbapError(
+          "BAD_INPUT",
+          `core.eval "lines"[${i}] (line ${lineNo}) is ${line2.length} characters long; ABAP source lines are capped at ${FLUID_ABAP_LINE_MAX}.`,
+          { field: "lines", line: lineNo, length: line2.length }
+        );
+      }
+    }
+    const rawOut = rawArgs["out"];
+    let out = [];
+    if (rawOut !== void 0) {
+      if (!Array.isArray(rawOut) || !rawOut.every((o) => typeof o === "string")) {
+        throw new AbapError("BAD_INPUT", 'core.eval "out", when given, must be an array of strings.', {
+          field: "out"
+        });
+      }
+      for (const name of rawOut) {
+        if (!EVAL_OUT_NAME_RE.test(name)) {
+          throw new AbapError(
+            "BAD_INPUT",
+            `core.eval "out" name ${JSON.stringify(name)} must match ${EVAL_OUT_NAME_RE}.`,
+            { field: "out", value: name }
+          );
+        }
+      }
+      const seen = /* @__PURE__ */ new Set();
+      out = rawOut.filter((name) => {
+        if (seen.has(name)) return false;
+        seen.add(name);
+        return true;
+      });
+    }
+    const findings = reviewFluidAbap(CORE_EVAL_CONFIRM, lines.join("\n"));
+    const firstFinding = findings[0];
+    if (firstFinding !== void 0) {
+      throw new AbapError(
+        "FLUID_MANIFEST_INVALID",
+        `static review refused core.eval at line ${firstFinding.line}, rule "${firstFinding.rule}": ${firstFinding.text}`,
+        { tool: req.tool, action: req.action, line: firstFinding.line, rule: firstFinding.rule }
+      );
+    }
+    const caps = scanFluidCapabilities(CORE_EVAL_CONFIRM, lines.join("\n"));
+    const mutateHit = caps.find((c) => c.capability === "db-write" || c.capability === "commit-rollback");
+    if (mutateHit !== void 0 && !deps.cfg.allowFluidPluginMutate) {
+      throw new AbapError(
+        "FLUID_PLUGIN_MUTATE_DISABLED",
+        `core.eval line ${mutateHit.line} (${JSON.stringify(mutateHit.text)}) contains a database write or COMMIT WORK/ROLLBACK WORK statement; ABAP_ALLOW_FLUID_PLUGIN_MUTATE is off`,
+        { tool: req.tool, action: req.action, line: mutateHit.line, rule: "ABAP_ALLOW_FLUID_PLUGIN_MUTATE" }
+      );
+    }
+    const callFmHit = caps.find((c) => c.capability === "call-function");
+    if (callFmHit !== void 0 && !deps.cfg.allowFluidCallFm) {
+      throw new AbapError(
+        "SAFETY_DENIED",
+        `core.eval line ${callFmHit.line} (${JSON.stringify(callFmHit.text)}) contains CALL FUNCTION; ABAP_ALLOW_FLUID_CALL_FM is off`,
+        { tool: req.tool, action: req.action, line: callFmHit.line, rule: "ABAP_ALLOW_FLUID_CALL_FM" }
+      );
+    }
+    return;
+  }
+}
+function evalArgsRecord(args) {
+  return typeof args === "object" && args !== null && !Array.isArray(args) ? args : {};
+}
+function parseEvalArgs(args) {
+  const lines = Array.isArray(args["lines"]) ? args["lines"].filter((l) => typeof l === "string") : [];
+  const rawOut = Array.isArray(args["out"]) ? args["out"].filter((o) => typeof o === "string") : [];
+  const seen = /* @__PURE__ */ new Set();
+  const out = rawOut.filter((name) => {
+    if (seen.has(name)) return false;
+    seen.add(name);
+    return true;
+  });
+  return { lines, out };
 }
 
 // src/adt/fluid/builtin/enh.ts
@@ -86384,218 +87177,6 @@ var BUILTIN_FLUID_TOOLS = [
 // src/adt/fluid/plugin-loader.ts
 import * as fs2 from "node:fs/promises";
 import * as path3 from "node:path";
-
-// src/adt/fluid/static-review.ts
-init_truncate();
-var FLUID_ABAP_LINE_MAX = 255;
-var CALL_SYSTEM_RE = /\bCALL\s+'SYSTEM'/i;
-var EXEC_SQL_RE = /\bEXEC\s+SQL\b/i;
-var INSERT_REPORT_RE = /\bINSERT\s+REPORT\b/i;
-var GENERATE_SUBROUTINE_POOL_RE = /\bGENERATE\s+SUBROUTINE\s+POOL\b/i;
-var CALL_FUNCTION_RE = /\bCALL\s+FUNCTION\b/i;
-var DESTINATION_RE = /\bDESTINATION\b/i;
-var SUBMIT_RE = /\bSUBMIT\b/i;
-var VIA_JOB_RE = /\bVIA\s+JOB\b/i;
-var CALL_METHOD_RE = /\bCALL\s+METHOD\b/i;
-var CALL_METHOD_DIRECT_DYNAMIC_RE = /\bCALL\s+METHOD\s*\(/i;
-var ARROW_PAREN_RE = /(?:->|=>)\s*\(/;
-var SHIPPED_RULES = [
-  { name: "call-system", test: (s) => CALL_SYSTEM_RE.test(s) },
-  { name: "exec-sql", test: (s) => EXEC_SQL_RE.test(s) },
-  { name: "insert-report", test: (s) => INSERT_REPORT_RE.test(s) },
-  { name: "generate-subroutine-pool", test: (s) => GENERATE_SUBROUTINE_POOL_RE.test(s) },
-  {
-    name: "call-function-destination",
-    test: (s) => CALL_FUNCTION_RE.test(s) && DESTINATION_RE.test(s)
-  },
-  { name: "submit-via-job", test: (s) => SUBMIT_RE.test(s) && VIA_JOB_RE.test(s) },
-  {
-    name: "dynamic-call-method",
-    test: (s) => CALL_METHOD_RE.test(s) && (CALL_METHOD_DIRECT_DYNAMIC_RE.test(s) || ARROW_PAREN_RE.test(s))
-  }
-];
-var FLUID_SHIPPED_PROHIBITIONS = SHIPPED_RULES.map((r) => r.name);
-function escapeRegExpLiteral(s) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-function buildPhraseRule(phrase) {
-  const segments = phrase.split(/(\s+)/);
-  const pattern = segments.map((seg) => /^\s+$/.test(seg) ? "\\s+" : escapeRegExpLiteral(seg)).join("");
-  const leading = /^\w/.test(phrase) ? "\\b" : "";
-  const trailing = /\w$/.test(phrase) ? "\\b" : "";
-  const re = new RegExp(leading + pattern + trailing, "i");
-  return { name: `extra:${phrase}`, test: (s) => re.test(s) };
-}
-function blankCommentLine(line2) {
-  return line2.startsWith("*") ? "" : line2;
-}
-function splitStatements(blankedLines) {
-  const joined = blankedLines.join("\n");
-  const lineStarts2 = [];
-  let acc = 0;
-  for (const l of blankedLines) {
-    lineStarts2.push(acc);
-    acc += l.length + 1;
-  }
-  const cleaned = [];
-  const raws = [];
-  let state = "normal";
-  let stmtStart = 0;
-  for (let i = 0; i < joined.length; i++) {
-    const ch = joined.charAt(i);
-    if (state === "comment") {
-      cleaned.push(ch === "\n" ? ch : " ");
-      if (ch === "\n") state = "normal";
-      continue;
-    }
-    if (state === "string") {
-      cleaned.push(ch);
-      if (ch === "'") {
-        if (joined.charAt(i + 1) === "'") {
-          i++;
-          cleaned.push(joined.charAt(i));
-          continue;
-        }
-        state = "normal";
-      }
-      continue;
-    }
-    if (state === "template") {
-      cleaned.push(ch);
-      if (ch === "\\") {
-        const next = joined.charAt(i + 1);
-        if (next !== "") {
-          i++;
-          cleaned.push(next);
-        }
-        continue;
-      }
-      if (ch === "|") state = "normal";
-      continue;
-    }
-    if (ch === "'") {
-      state = "string";
-      cleaned.push(ch);
-      continue;
-    }
-    if (ch === "|") {
-      state = "template";
-      cleaned.push(ch);
-      continue;
-    }
-    if (ch === '"') {
-      state = "comment";
-      cleaned.push(" ");
-      continue;
-    }
-    if (ch === ".") {
-      raws.push({ raw: cleaned.slice(stmtStart, i).join(""), startOffset: stmtStart });
-      stmtStart = i + 1;
-    }
-    cleaned.push(ch);
-  }
-  const tail = cleaned.slice(stmtStart).join("");
-  if (tail.trim().length > 0) {
-    raws.push({ raw: tail, startOffset: stmtStart });
-  }
-  const statements = [];
-  let lineCursor = 0;
-  for (const { raw, startOffset } of raws) {
-    const firstNonWs = raw.search(/\S/);
-    if (firstNonWs < 0) continue;
-    const normalized = raw.replace(/\s+/g, " ").trim();
-    if (normalized.length === 0) continue;
-    const target = startOffset + firstNonWs;
-    while (lineCursor + 1 < lineStarts2.length && (lineStarts2[lineCursor + 1] ?? Infinity) <= target) {
-      lineCursor++;
-    }
-    statements.push({ normalized, startLine: lineCursor + 1 });
-  }
-  return statements;
-}
-var ITAB_NAME_RE = /^(lt_|it_|gt_|ct_|mt_)/i;
-var COMMIT_ROLLBACK_RE = /^(COMMIT|ROLLBACK)\s+WORK\b/i;
-var UPDATE_STMT_RE = /^UPDATE\s+\S/i;
-var DELETE_FROM_RE = /^DELETE\s+FROM\s+\S/i;
-var INSERT_NATIVE_SQL_RE = /^INSERT\s+INTO\s+\S+\s+VALUES\b/i;
-var INSERT_INTO_ITAB_RE = /\bINTO\s+(?:TABLE\s+)?\S+/i;
-var INSERT_DB_FROM_RE = /^INSERT\s+\S+\s+FROM\b/i;
-var MODIFY_SCREEN_RE = /^MODIFY\s+SCREEN\b/i;
-var MODIFY_TARGET_RE = /^MODIFY\s+(?:TABLE\s+)?(\S+)/i;
-function classifiesAsDbWrite(statement) {
-  if (UPDATE_STMT_RE.test(statement)) return true;
-  if (DELETE_FROM_RE.test(statement)) return true;
-  if (INSERT_NATIVE_SQL_RE.test(statement)) return true;
-  if (INSERT_INTO_ITAB_RE.test(statement)) return false;
-  if (INSERT_DB_FROM_RE.test(statement)) return true;
-  if (MODIFY_SCREEN_RE.test(statement)) return false;
-  const modifyTarget = MODIFY_TARGET_RE.exec(statement);
-  if (modifyTarget) {
-    const target = modifyTarget[1];
-    return target !== void 0 && !ITAB_NAME_RE.test(target);
-  }
-  return false;
-}
-function scanFluidCapabilities(objectName, source) {
-  const blankedLines = source.split(/\r\n|\r|\n/).map(blankCommentLine);
-  const statements = splitStatements(blankedLines);
-  const findings = [];
-  for (const stmt of statements) {
-    let capability;
-    if (classifiesAsDbWrite(stmt.normalized)) {
-      capability = "db-write";
-    } else if (COMMIT_ROLLBACK_RE.test(stmt.normalized)) {
-      capability = "commit-rollback";
-    } else if (CALL_FUNCTION_RE.test(stmt.normalized)) {
-      capability = "call-function";
-    }
-    if (capability !== void 0) {
-      findings.push({
-        object: objectName,
-        line: stmt.startLine,
-        capability,
-        text: truncateText(stmt.normalized, ECHO_LINE_MAX)
-      });
-    }
-  }
-  return findings;
-}
-function reviewFluidAbap(objectName, source, extraProhibitions) {
-  const lines = source.split(/\r\n|\r|\n/);
-  const findings = [];
-  lines.forEach((line2, idx) => {
-    if (line2.length > FLUID_ABAP_LINE_MAX) {
-      findings.push({
-        object: objectName,
-        line: idx + 1,
-        rule: "line-length",
-        text: truncateText(line2.trim(), ECHO_LINE_MAX)
-      });
-    }
-  });
-  const blankedLines = lines.map(blankCommentLine);
-  const statements = splitStatements(blankedLines);
-  const rules = [
-    ...SHIPPED_RULES,
-    ...(extraProhibitions ?? []).map(buildPhraseRule)
-  ];
-  for (const stmt of statements) {
-    for (const rule of rules) {
-      if (rule.test(stmt.normalized)) {
-        findings.push({
-          object: objectName,
-          line: stmt.startLine,
-          rule: rule.name,
-          text: truncateText(stmt.normalized, ECHO_LINE_MAX)
-        });
-      }
-    }
-  }
-  findings.sort((a, b) => a.line - b.line);
-  return findings;
-}
-
-// src/adt/fluid/plugin-loader.ts
 var MANIFEST_FILE = "fluid-plugin.json";
 function namespaceRe(pluginId) {
   const id = pluginId.toUpperCase();
@@ -88072,9 +88653,9 @@ function splitHeadBody(msg) {
 function parseHeaderBlock(block2) {
   const headers = {};
   for (const line2 of block2.split(/\r?\n/)) {
-    const idx = line2.indexOf(":");
-    if (idx < 0) continue;
-    headers[line2.slice(0, idx).trim().toLowerCase()] = line2.slice(idx + 1).trim();
+    const idx2 = line2.indexOf(":");
+    if (idx2 < 0) continue;
+    headers[line2.slice(0, idx2).trim().toLowerCase()] = line2.slice(idx2 + 1).trim();
   }
   return headers;
 }
@@ -88125,9 +88706,9 @@ function resolveTerminalId(opts) {
     assertValidTerminalId(explicit, "resolveTerminalId's explicit override");
     return explicit;
   }
-  const hex3 = createHash4("sha256").update(opts.seed, "utf8").digest("hex").slice(0, TERMINAL_ID_LENGTH).toUpperCase();
-  assertValidTerminalId(hex3, "resolveTerminalId's derived id");
-  return hex3;
+  const hex4 = createHash4("sha256").update(opts.seed, "utf8").digest("hex").slice(0, TERMINAL_ID_LENGTH).toUpperCase();
+  assertValidTerminalId(hex4, "resolveTerminalId's derived id");
+  return hex4;
 }
 function looksLikeExceptionEnvelope(body) {
   return /<exc:exception[\s>]/i.test(body) || /<exception[\s>]/i.test(body);
@@ -89893,8 +90474,8 @@ var DebugSession = class {
    */
   async removeBreakpoint(stateId, id) {
     return this.runStateful(stateId, async () => {
-      const idx = this.ownedBreakpoints.findIndex((bp) => bp.id === id);
-      if (idx === -1) {
+      const idx2 = this.ownedBreakpoints.findIndex((bp) => bp.id === id);
+      if (idx2 === -1) {
         throw new AbapError(
           "BAD_INPUT",
           `removeBreakpoint: this session does not own a breakpoint with id "${id}". Ids owned by this session: ${this.ownedBreakpoints.length > 0 ? this.ownedBreakpoints.map((bp) => bp.id).join(", ") : "(none)"}.`,
@@ -89914,7 +90495,7 @@ var DebugSession = class {
       } catch (e) {
         if (!(isAbapError(e) && e.code === "NOT_FOUND")) throw e;
       }
-      this.ownedBreakpoints.splice(idx, 1);
+      this.ownedBreakpoints.splice(idx2, 1);
       await this.notifyDebuggeeOfOwnedBreakpoints(`removeBreakpoint ${id}`);
     });
   }
@@ -90050,8 +90631,8 @@ var DebugSession = class {
    */
   async removeWatchpoint(stateId, id) {
     return this.runStateful(stateId, async () => {
-      const idx = this.ownedWatchpoints.indexOf(id);
-      if (idx === -1) {
+      const idx2 = this.ownedWatchpoints.indexOf(id);
+      if (idx2 === -1) {
         throw new AbapError(
           "BAD_INPUT",
           `removeWatchpoint: this session does not own a watchpoint with id "${id}". Ids owned by this session: ${this.ownedWatchpoints.length > 0 ? this.ownedWatchpoints.join(", ") : "(none)"}.`,
@@ -90064,7 +90645,7 @@ var DebugSession = class {
       } catch (e) {
         if (!(isAbapError(e) && e.code === "NOT_FOUND")) throw e;
       }
-      this.ownedWatchpoints.splice(idx, 1);
+      this.ownedWatchpoints.splice(idx2, 1);
     });
   }
   /**
@@ -101627,9 +102208,9 @@ var Journal = class _Journal {
         await this.ensureDirs();
         const parts = (existing.parts ?? []).map((p) => ({ ...p }));
         for (const [idxStr, source] of Object.entries(patch.partsAfterSource)) {
-          const idx = Number(idxStr);
-          if (!Number.isInteger(idx) || idx < 0 || idx >= parts.length) continue;
-          parts[idx] = { ...parts[idx], after: await this.writeImage(id, "after", source, void 0, idx) };
+          const idx2 = Number(idxStr);
+          if (!Number.isInteger(idx2) || idx2 < 0 || idx2 >= parts.length) continue;
+          parts[idx2] = { ...parts[idx2], after: await this.writeImage(id, "after", source, void 0, idx2) };
         }
         record2.parts = parts;
       }
@@ -102785,9 +103366,9 @@ function defaultNewer(released, active, ctx) {
 }
 function predecessorOf(released, newer) {
   if (newer.kind !== "released") return released[0];
-  const idx = released.findIndex((e) => e.uri === newer.uri);
-  if (idx === -1) return released[0];
-  return released[idx + 1];
+  const idx2 = released.findIndex((e) => e.uri === newer.uri);
+  if (idx2 === -1) return released[0];
+  return released[idx2 + 1];
 }
 
 // src/adt/activate.ts
@@ -106706,8 +107287,8 @@ function canonicalArgsJson(value) {
 }
 function invokerName(toolId, action, args, contract) {
   const joined = [toolId, action, contract, canonicalArgsJson(args)].map(hashPart).join("");
-  const hex3 = contentHash(joined).replace(/^sha256:/, "").slice(0, 8).toUpperCase();
-  return `ZCL_ZMCP_I_${hex3}`;
+  const hex4 = contentHash(joined).replace(/^sha256:/, "").slice(0, 8).toUpperCase();
+  return `ZCL_ZMCP_I_${hex4}`;
 }
 var ARG_CHUNK_RAW = 90;
 var HIGH_SURROGATE_MIN = 55296;
@@ -106744,6 +107325,44 @@ function assertNoQuoteOrNewline(value, field) {
   }
   return value;
 }
+var EVAL_OUT_NAME_RE2 = /^[A-Za-z_][A-Za-z0-9_]{0,29}$/;
+function evalOutEmitter(name) {
+  if (!EVAL_OUT_NAME_RE2.test(name)) {
+    throw new AbapError("BAD_INPUT", `eval out name "${name}" must match ${EVAL_OUT_NAME_RE2}.`, {
+      field: "out",
+      value: name
+    });
+  }
+  return `        CLEAR lv_zmcp_out.
+        TRY.
+            CALL METHOD ('/UI2/CL_JSON')=>('SERIALIZE') EXPORTING data = ${name} RECEIVING r_json = lv_zmcp_out.
+            zcl_zmcp_fluid_rt=>out( |\\{"name":"${name}","value":| && lv_zmcp_out && |\\}| ).
+          CATCH cx_root INTO lx_zmcp_ser.
+            zcl_zmcp_fluid_rt=>out( |\\{"name":"${name}","error":"{ zcl_zmcp_fluid_rt=>esc( lx_zmcp_ser->get_text( ) ) }"\\}| ).
+        ENDTRY.`;
+}
+function evalMethodBody(toolId, action, version2, contract, body) {
+  const callerLines = body.lines.join("\n");
+  const outLines = body.out.map(evalOutEmitter).join("\n");
+  const tryBody = [callerLines, outLines].filter((s) => s.length > 0).join("\n");
+  return `  METHOD if_oo_adt_classrun~main.
+*   Generated by abapsmith for fluid tool '${toolId}', action '${action}'. Do not edit.
+*   The body below is the caller's own statements, run verbatim. See doc/FLUID-API/safety.md.
+    DATA lv_zmcp_out TYPE string.
+*   Declared here, not inline, so more than one \`out\` name does not redeclare it.
+    DATA lx_zmcp_ser TYPE REF TO cx_root.
+    zcl_zmcp_fluid_rt=>attach( io_out = out iv_ver = '${version2}' iv_contract = '${contract}' ).
+    zcl_zmcp_fluid_rt=>begin( iv_id = '${toolId}' iv_action = '${action}' ).
+
+    TRY.
+${tryBody}
+      CATCH cx_root INTO DATA(lx_err).
+        zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = '${action}' iv_text = lx_err->get_text( ) ).
+        zcl_zmcp_fluid_rt=>end( 8 ).
+    ENDTRY.
+    zcl_zmcp_fluid_rt=>end( 0 ).
+  ENDMETHOD.`;
+}
 function invokerSource(args) {
   const plainName = assertPlainName(args.name, "invoker class name");
   if (!INVOKER_NAME_RE.test(plainName)) {
@@ -106770,6 +107389,27 @@ function invokerSource(args) {
   }
   const cls = plainName.toLowerCase();
   const entryLower = entry.toLowerCase();
+  if (args.evalBody) {
+    const source2 = `CLASS ${cls} DEFINITION
+  PUBLIC FINAL
+  CREATE PUBLIC.
+
+  PUBLIC SECTION.
+    INTERFACES if_oo_adt_classrun.
+  PROTECTED SECTION.
+  PRIVATE SECTION.
+ENDCLASS.
+
+
+CLASS ${cls} IMPLEMENTATION.
+
+${evalMethodBody(toolId, action, args.version, args.contract, args.evalBody)}
+
+ENDCLASS.
+`;
+    assertAbapLineLengths(source2);
+    return source2;
+  }
   const jsonLines = [
     "    CLEAR lv_json.",
     ...abapArgumentChunks(args.argsJson).map(
@@ -107001,6 +107641,62 @@ async function journalFluidMutate(deps, req, sysKey, origin) {
     );
   }
 }
+function isCoreEval(req) {
+  return req.tool === CORE_TOOL_ID && req.action === CORE_EVAL_ACTION;
+}
+async function journalFluidEval(deps, req, sysKey) {
+  const journal = deps.journal;
+  if (!journal) return;
+  const { lines } = parseEvalArgs(req.args ?? {});
+  const object3 = {
+    name: `${req.tool}.${req.action}`,
+    type: "FLUID",
+    uri: "",
+    package: FLUID_PACKAGE,
+    // Full snippet, never `truncateText`'d — see this function's own doc comment.
+    description: `fluid core eval: core.eval lines=
+${lines.join("\n")}`
+  };
+  const beginInput2 = {
+    // No dedicated `JournalOperation` exists for "ran caller code" — `"update"` is the closest of
+    // the shipped values (mirrors `journalFluidMutate`'s own choice for the same reason: this is
+    // a change to server-side state, not a create/delete/activate/transport/service action).
+    operation: "update",
+    object: object3,
+    existedBefore: true,
+    // No before-image exists for whatever ABAP-side state the caller's own statements touched —
+    // this framework never reads one, so "captured"/"failed" would both overstate what is known.
+    beforeCapture: "unknown",
+    // No generic undo exists for arbitrary caller-supplied ABAP — there is nothing to replay it
+    // against.
+    irreversible: true,
+    systemKey: sysKey,
+    trSource: "caller",
+    tool: req.tool
+  };
+  let entry;
+  try {
+    entry = await journal.begin(beginInput2);
+  } catch (e) {
+    deps.warn?.(
+      `[abapsmith] WARNING: core.eval \u2014 the eval DID run but could NOT be journalled: ${e.message}.`
+    );
+    return;
+  }
+  if (!entry) return;
+  try {
+    const settled = await journal.settle(entry.id, { outcome: "succeeded" });
+    if (!settled.settled) {
+      deps.warn?.(
+        `[abapsmith] WARNING: core.eval \u2014 journal entry ${entry.id} could not be settled (${settled.reason}).`
+      );
+    }
+  } catch (e) {
+    deps.warn?.(
+      `[abapsmith] WARNING: core.eval \u2014 journal entry ${entry.id} could not be settled (${e.message}).`
+    );
+  }
+}
 async function forceInvokerRegeneration(deps, invokerClassName) {
   let authorized;
   try {
@@ -107143,7 +107839,12 @@ async function dispatch2(deps, req) {
       argsJson,
       version: tool.version,
       contract,
-      commit: action.category === "mutate"
+      commit: action.category === "mutate",
+      // `invokerClassName` above is already `invokerName(req.tool, req.action, wireArgs, contract)`
+      // — wireArgs includes `lines`/`out`, so two different eval snippets hash to two different
+      // class names on their own. Nothing extra is needed here for cache correctness; this just
+      // supplies the body that name's contents actually deploy.
+      ...isCoreEval(req) ? { evalBody: parseEvalArgs(req.args ?? {}) } : {}
     });
     const deployedBridge2 = await deployBridge(deps.conn, deps.gate, {
       className: name,
@@ -107195,6 +107896,8 @@ async function dispatch2(deps, req) {
   }
   if (action.category === "mutate" && deps.journal) {
     await journalFluidMutate(deps, req, sysKey, tool.origin);
+  } else if (isCoreEval(req) && deps.journal) {
+    await journalFluidEval(deps, req, sysKey);
   }
   let result;
   if (action.output.type === "array") {
@@ -112582,10 +113285,10 @@ function findAll(haystack, needle) {
   const offsets = [];
   let from = 0;
   for (; ; ) {
-    const idx = haystack.indexOf(needle, from);
-    if (idx === -1) break;
-    offsets.push(idx);
-    from = idx + needle.length;
+    const idx2 = haystack.indexOf(needle, from);
+    if (idx2 === -1) break;
+    offsets.push(idx2);
+    from = idx2 + needle.length;
   }
   return offsets;
 }
@@ -112705,15 +113408,15 @@ function hirschberg(a, b, out) {
   }
   if (a.length === 1) {
     const only = a[0];
-    const idx = b.indexOf(only);
-    if (idx === -1) {
+    const idx2 = b.indexOf(only);
+    if (idx2 === -1) {
       out.push({ kind: "del", text: only });
       for (const text5 of b) out.push({ kind: "ins", text: text5 });
       return;
     }
-    for (let j = 0; j < idx; j++) out.push({ kind: "ins", text: b[j] });
+    for (let j = 0; j < idx2; j++) out.push({ kind: "ins", text: b[j] });
     out.push({ kind: "eq", text: only });
-    for (let j = idx + 1; j < b.length; j++) out.push({ kind: "ins", text: b[j] });
+    for (let j = idx2 + 1; j < b.length; j++) out.push({ kind: "ins", text: b[j] });
     return;
   }
   const mid = a.length >> 1;
@@ -125665,8 +126368,8 @@ var IMPACTED_CONSUMER_KINDS = ["CLAS", "PROG", "FUGR"];
 var PER_OBJECT_CONSUMER_CAP = 20;
 var SELECTED_CARRIER_CAP = 10;
 function kindOf2(type) {
-  const idx = type.indexOf("/");
-  return (idx >= 0 ? type.slice(0, idx) : type).trim().toUpperCase();
+  const idx2 = type.indexOf("/");
+  return (idx2 >= 0 ? type.slice(0, idx2) : type).trim().toUpperCase();
 }
 async function selectImpacted(changed, deps) {
   const changedNamesUpper = new Set(changed.map((c) => c.name.toUpperCase()));
@@ -127365,22 +128068,318 @@ function removalTouchedNothing(e) {
   return !raw.split("\n").some((line2) => TREN_ROW_RE.test(line2.trim()));
 }
 
+// src/adt/transport-log.ts
+init_errors();
+init_transports();
+var TRLG_REQ_RE = /^ZMCP-TRLG-REQ (\S+) (\S+) (\S+)/;
+var TRLG_SYS_RE = /^ZMCP-TRLG-SYS (\d+) (\S+) (\S+) (\S+) (\S+) (\S+)/;
+var TRLG_SYSTXT_RE = /^ZMCP-TRLG-SYSTXT (\d+) ?(.*)$/;
+var TRLG_RCTXT_RE = /^ZMCP-TRLG-RCTXT (\d+) ?(.*)$/;
+var TRLG_LINE_RE = /^ZMCP-TRLG-LINE (\d+) (\S+) (\S+) (\S+) ?(.*)$/;
+function unplaceholder(value) {
+  return value === "-" ? "" : value;
+}
+async function readTransportLogViaBridge(conn, gate, params) {
+  const trkorr = assertTrkorr(params.trkorr, "readTransportLog");
+  const beforeAssert = (transcript2) => {
+    if (transcript2.errorLine?.startsWith("no such request")) {
+      throw new AbapError(
+        "NOT_FOUND",
+        `No such transport request ${trkorr}. Raw ABAP-side detail: ${transcript2.errorLine}`,
+        { trkorr, raw: transcript2.raw },
+        "TRINT_GET_LOG_OVERVIEW answers with sy-subrc 0 even for a request number that does not exist at all, so abapsmith checks E070 first and refuses here rather than reporting a plausible-looking but meaningless log."
+      );
+    }
+  };
+  const { run, transcript } = await runClassicAction(conn, gate, {
+    action: "read_transport_log",
+    args: { trkorr },
+    what: `Reading the import log of ${trkorr}`,
+    expectTags: ["TRLG-READ"],
+    beforeAssert
+  });
+  let trFunction = "";
+  let trStatus = "";
+  let reqFound = false;
+  const systemsByIndex = /* @__PURE__ */ new Map();
+  const order = [];
+  for (const line2 of transcript.raw.split("\n")) {
+    const trimmed = line2.trim();
+    const reqMatch = TRLG_REQ_RE.exec(trimmed);
+    if (reqMatch) {
+      reqFound = true;
+      trFunction = reqMatch[2];
+      trStatus = reqMatch[3];
+      continue;
+    }
+    const sysMatch = TRLG_SYS_RE.exec(trimmed);
+    if (sysMatch) {
+      const idx2 = sysMatch[1];
+      const sys = {
+        system: sysMatch[2],
+        systemText: "",
+        rc: unplaceholder(sysMatch[3]),
+        rcText: "",
+        date: sysMatch[4],
+        time: sysMatch[5],
+        sortIndex: Number(sysMatch[6]),
+        lines: []
+      };
+      systemsByIndex.set(idx2, sys);
+      order.push(idx2);
+      continue;
+    }
+    const systxtMatch = TRLG_SYSTXT_RE.exec(trimmed);
+    if (systxtMatch) {
+      const sys = systemsByIndex.get(systxtMatch[1]);
+      if (sys) sys.systemText = systxtMatch[2] ?? "";
+      continue;
+    }
+    const rctxtMatch = TRLG_RCTXT_RE.exec(trimmed);
+    if (rctxtMatch) {
+      const sys = systemsByIndex.get(rctxtMatch[1]);
+      if (sys) sys.rcText = rctxtMatch[2] ?? "";
+      continue;
+    }
+    const lineMatch = TRLG_LINE_RE.exec(trimmed);
+    if (lineMatch) {
+      const sys = systemsByIndex.get(lineMatch[1]);
+      if (sys) {
+        sys.lines.push({
+          severity: unplaceholder(lineMatch[2]),
+          msgClass: unplaceholder(lineMatch[3]),
+          msgNumber: unplaceholder(lineMatch[4]),
+          text: lineMatch[5] ?? ""
+        });
+      }
+      continue;
+    }
+  }
+  if (!reqFound) {
+    throw new AbapError(
+      "CHECK_FAILED",
+      `readTransportLog reported success for ${trkorr} but the transcript carried no ZMCP-TRLG-REQ line \u2014 the ABAP-side and TS-side parsers have drifted apart.`,
+      { trkorr, raw: transcript.raw }
+    );
+  }
+  const systems = order.map((idx2) => systemsByIndex.get(idx2));
+  return { run, transcript, trkorr, trFunction, trStatus, systems };
+}
+
+// src/adt/transport-queue.ts
+init_errors();
+var TRQU_HEAD_RE = /^ZMCP-TRQU-HEAD (\S+) (\S+) (\S+) (\S+) (\S+) (\d+)/;
+var TRQU_ROW_RE = /^ZMCP-TRQU-ROW (\S+) (\S+) (\S+) (\S+) (\S+) (\S+) (\S+)/;
+var TRQU_TEXT_RE = /^ZMCP-TRQU-TEXT (\S+) ?(.*)$/;
+function unplaceholder2(value) {
+  return value === "-" ? "" : value;
+}
+async function readImportQueueViaBridge(conn, gate, params) {
+  const system = (params.system ?? "").trim().toUpperCase();
+  if (system === "") {
+    throw new AbapError("BAD_INPUT", "system is required", { params });
+  }
+  const domain2 = (params.domain ?? "").trim().toUpperCase();
+  const beforeAssert = (transcript2) => {
+    if (transcript2.errorLine?.startsWith("cannot read the import queue of")) {
+      throw new AbapError(
+        "NOT_FOUND",
+        `Cannot read the import queue of ${system}: it is not a system this TMS domain knows about, or the domain controller could not be reached. Raw ABAP-side detail: ${transcript2.errorLine}`,
+        { system, domain: domain2, raw: transcript2.raw },
+        "TMS_MGR_READ_TRANSPORT_QUEUE raised READ_CONFIG_FAILED \u2014 check the system id (and domain, if the box's TMS domain names more than one) against STMS's system overview (TMSCSYS/TCESYST)."
+      );
+    }
+  };
+  const { run, transcript } = await runClassicAction(conn, gate, {
+    action: "read_import_queue",
+    args: { system, domain: domain2 },
+    what: `Reading the import queue of ${system}`,
+    expectTags: ["TRQU-READ"],
+    beforeAssert
+  });
+  let head;
+  const entries = [];
+  let pendingRow;
+  for (const line2 of transcript.raw.split("\n")) {
+    const trimmed = line2.trim();
+    const headMatch = TRQU_HEAD_RE.exec(trimmed);
+    if (headMatch) {
+      head = {
+        system: headMatch[1],
+        domain: unplaceholder2(headMatch[2]),
+        date: headMatch[3],
+        time: headMatch[4],
+        flag: unplaceholder2(headMatch[5])
+      };
+      continue;
+    }
+    const rowMatch = TRQU_ROW_RE.exec(trimmed);
+    if (rowMatch) {
+      if (pendingRow) entries.push(pendingRow);
+      pendingRow = {
+        position: unplaceholder2(rowMatch[1]),
+        trkorr: unplaceholder2(rowMatch[2]),
+        importFlag: unplaceholder2(rowMatch[3]),
+        maxRc: unplaceholder2(rowMatch[4]),
+        trFunction: unplaceholder2(rowMatch[5]),
+        owner: unplaceholder2(rowMatch[6]),
+        targetClient: unplaceholder2(rowMatch[7]),
+        description: ""
+      };
+      continue;
+    }
+    const textMatch = TRQU_TEXT_RE.exec(trimmed);
+    if (textMatch && pendingRow) {
+      pendingRow.description = textMatch[2] ?? "";
+      entries.push(pendingRow);
+      pendingRow = void 0;
+      continue;
+    }
+  }
+  if (pendingRow) entries.push(pendingRow);
+  if (!head) {
+    throw new AbapError(
+      "CHECK_FAILED",
+      `readImportQueue reported success for ${system} but the transcript carried no ZMCP-TRQU-HEAD line \u2014 the ABAP-side and TS-side parsers have drifted apart.`,
+      { system, domain: domain2, raw: transcript.raw }
+    );
+  }
+  return {
+    run,
+    transcript,
+    system: head.system,
+    domain: head.domain,
+    collectedDate: head.date,
+    collectedTime: head.time,
+    collectFlag: head.flag,
+    entries
+  };
+}
+
+// src/adt/transport-copies.ts
+init_errors();
+var TRTC_CREATED_RE = /^ZMCP-TRTC-CREATED (\S+) (\S+) (\S+) (\S+) (\S+) (\d+)/;
+function unplaceholder3(value) {
+  return value === "-" ? "" : value;
+}
+async function createTransportOfCopiesViaBridge(conn, gate, params, authorized) {
+  const authName = authorized.target.name.trim().toUpperCase();
+  const actualName = params.devClass.trim().toUpperCase();
+  if (authName !== actualName) {
+    throw new AbapError(
+      "SAFETY_DENIED",
+      `Internal wiring error in createTransportOfCopiesViaBridge: the AuthorizedTarget names "${authorized.target.name}", but the transport of copies is about to be created for package "${params.devClass}". An AuthorizedTarget minted for one package must never be threaded into a call that creates a request for a different one.`,
+      { authorizedName: authorized.target.name, actualName: params.devClass },
+      "This indicates a bug in the caller \u2014 mint a fresh AuthorizedTarget for the actual devClass."
+    );
+  }
+  const description = (params.description ?? "").trim();
+  if (description === "") {
+    throw new AbapError("BAD_INPUT", "description is required", { params });
+  }
+  const target = (params.target ?? "").trim().toUpperCase();
+  if (target === "") {
+    throw new AbapError(
+      "BAD_INPUT",
+      "target is required \u2014 a transport of copies with no target system can never be imported",
+      { params }
+    );
+  }
+  const devClass = (params.devClass ?? "").trim().toUpperCase();
+  if (devClass === "") {
+    throw new AbapError("BAD_INPUT", "devClass is required", { params });
+  }
+  const beforeAssert = (transcript2) => {
+    if (transcript2.errorLine?.startsWith("CTS reported success but allocated no request number")) {
+      throw new AbapError(
+        "CHECK_FAILED",
+        `TR_INSERT_REQUEST_WITH_TASKS reported success creating a transport of copies for ${devClass} \u2192 ${target} but allocated no request number. Raw ABAP-side detail: ${transcript2.errorLine}`,
+        { devClass, target, description, raw: transcript2.raw }
+      );
+    }
+    if (transcript2.errorLine?.includes("but E070 has no row for it")) {
+      throw new AbapError(
+        "CHECK_FAILED",
+        `TR_INSERT_REQUEST_WITH_TASKS allocated a request for ${devClass} \u2192 ${target} but a re-read of E070 found no row for it. Raw ABAP-side detail: ${transcript2.errorLine}`,
+        { devClass, target, description, raw: transcript2.raw }
+      );
+    }
+  };
+  const { run, transcript } = await runClassicAction(conn, gate, {
+    action: "create_transport_of_copies",
+    args: { description, target, devclass: devClass },
+    what: `Creating a transport of copies for ${devClass} targeting ${target}`,
+    expectTags: ["TRTC-CREATED"],
+    beforeAssert
+  });
+  let created;
+  for (const line2 of transcript.raw.split("\n")) {
+    const trimmed = line2.trim();
+    const match = TRTC_CREATED_RE.exec(trimmed);
+    if (match) {
+      created = {
+        run,
+        transcript,
+        trkorr: match[1],
+        trFunction: match[2],
+        trStatus: match[3],
+        target: unplaceholder3(match[4]),
+        owner: match[5],
+        tasks: Number(match[6])
+      };
+      break;
+    }
+  }
+  if (!created) {
+    throw new AbapError(
+      "CHECK_FAILED",
+      `createTransportOfCopies reported success for ${devClass} \u2192 ${target} but the transcript carried no ZMCP-TRTC-CREATED line \u2014 the ABAP-side and TS-side parsers have drifted apart.`,
+      { devClass, target, description, raw: transcript.raw }
+    );
+  }
+  return created;
+}
+
 // src/tools/transport.ts
 var transportInputSchema = {
-  operation: external_exports.enum(["list", "show", "check", "users", "create", "addUser", "setOwner", "delete", "removeObject"]).describe(
-    "What to do. create/addUser/setOwner need write access (ABAP_MODE=edit or admin, or legacy ABAP_ALLOW_WRITE=true when ABAP_MODE is unset); delete additionally needs the admin-only transport-delete ceiling (ABAP_MODE=admin \u2014 no legacy flag grants it) and confirm; removeObject (drop one E071 entry and its CTS lock, e.g. for an object already deleted from the system, so its request can then be deleted \u2014 if the object still exists, its lock goes too; CTS refuses this when the request holds 2 or more E071 rows for that object (same PGMID+OBJECT+OBJ_NAME \u2014 legal but not reliably reproducible; cause unconfirmed), leaving the request undeletable through abapsmith) needs that same admin-only transport-delete ceiling and confirm. Required args: list/users none; show transport; check object; create package+description; addUser/setOwner transport+user; delete transport+confirm; removeObject transport+object+confirm."
+  operation: external_exports.enum([
+    "list",
+    "show",
+    "check",
+    "users",
+    "log",
+    "queue",
+    "create",
+    "addUser",
+    "setOwner",
+    "delete",
+    "removeObject"
+  ]).describe(
+    `What to do. list/show/check/users/log/queue are plain reads, always allowed. log reads a transport's own export/import log (per target system); queue reads a target system's import queue/buffer. create/addUser/setOwner need write access (ABAP_MODE=edit or admin, or legacy ABAP_ALLOW_WRITE=true when ABAP_MODE is unset); create with kind="copies" (a transport of copies) needs the same write access as an ordinary create \u2014 no extra ceiling. delete additionally needs the admin-only transport-delete ceiling (ABAP_MODE=admin \u2014 no legacy flag grants it) and confirm; removeObject (drop one E071 entry and its CTS lock, e.g. for an object already deleted from the system, so its request can then be deleted \u2014 if the object still exists, its lock goes too; CTS refuses this when the request holds 2 or more E071 rows for that object (same PGMID+OBJECT+OBJ_NAME \u2014 legal but not reliably reproducible; cause unconfirmed), leaving the request undeletable through abapsmith) needs that same admin-only transport-delete ceiling and confirm. Required args: list/users none; show transport; check object; log transport; queue system; create package+description (plus target when kind="copies"); addUser/setOwner transport+user; delete transport+confirm; removeObject transport+object+confirm.`
   ),
   transport: external_exports.string().optional().describe(
-    "Request/task number, e.g. A4HK900123. Required for operation=show/addUser/setOwner/delete/removeObject."
+    "Request/task number, e.g. A4HK900123. Required for operation=show/addUser/setOwner/delete/removeObject and for operation=log."
   ),
   user: external_exports.string().optional().describe(
     "User: filter for list, new member/owner otherwise. Required for operation=addUser/setOwner."
   ),
   object: external_exports.string().optional().describe(
-    "Object name. Required for operation=check, and for operation=removeObject (the entry to remove). Optional anchor for create."
+    'Object name. Required for operation=check, and for operation=removeObject (the entry to remove). Optional anchor for create with kind="workbench" (the default); not accepted for create with kind="copies" \u2014 a transport of copies is created empty.'
   ),
   package: external_exports.string().optional().describe("Development package (devclass). Required for operation=create."),
   description: external_exports.string().optional().describe("Short text for the new request, max 60 chars. Required for operation=create."),
+  kind: external_exports.enum(["workbench", "copies"]).optional().describe(
+    'Which kind of request operation="create" should create. "workbench" (the default) is a normal transportable change request created through ADT. "copies" is a transport of copies, which carries a snapshot of objects to a target system while leaving the originals modifiable in this system and their original request untouched. kind="copies" requires target.'
+  ),
+  target: external_exports.string().optional().describe(
+    'Target system for operation="create" with kind="copies", e.g. A4H. A transport of copies with no target cannot be imported anywhere, so abapsmith refuses to create one.'
+  ),
+  system: external_exports.string().optional().describe(
+    'Target system whose import queue to read, e.g. QAS. Required for operation="queue".'
+  ),
+  domain: external_exports.string().optional().describe(
+    "TMS transport domain of system, e.g. DOMAIN_A4H. Optional; TMS resolves the local domain when omitted."
+  ),
   confirm: external_exports.string().optional().describe("Echo the request number to arm delete or removeObject.")
 };
 var TransportInput = external_exports.object(transportInputSchema);
@@ -127392,7 +128391,7 @@ var transportReleaseInputSchema = {
   )
 };
 var TransportReleaseInput = external_exports.object(transportReleaseInputSchema);
-var TRANSPORT_TOOL_DESCRIPTION = "Inspect and manage CTS transport requests: list, show, check (does an object need a transport?), users, create, addUser, setOwner, delete, removeObject (drop one E071 entry and its CTS lock so its request can then be deleted \u2014 if the object still exists, its lock goes too, and CTS refuses this for some entries, leaving the request undeletable). Reads are always allowed; mutating operations obey the write allowlists. Release is a separate tool, abap_transport_release.";
+var TRANSPORT_TOOL_DESCRIPTION = `Inspect and manage CTS transport requests: list, show, check (does an object need a transport?), users, log (a transport's own export/import log, per target system \u2014 a request that has never been exported legitimately has zero log lines; that is not a failure), queue (a target system's import queue/buffer \u2014 the requests waiting to be imported there; an already-imported request has left the buffer, so absence alone does not prove a change never arrived), create (kind="workbench", the default, or kind="copies" for a transport of copies \u2014 a snapshot sent to a target system that leaves the originals and their own request untouched; requires target), addUser, setOwner, delete, removeObject (drop one E071 entry and its CTS lock so its request can then be deleted \u2014 if the object still exists, its lock goes too, and CTS refuses this for some entries, leaving the request undeletable). list/show/check/users/log/queue are plain reads, always allowed; create/addUser/setOwner need write access; delete/removeObject additionally need the admin-only transport-delete ceiling. Release is a separate tool, abap_transport_release.`;
 var TRANSPORT_RELEASE_TOOL_DESCRIPTION = "Release one CTS transport request \u2014 irreversible. Gated by a release ceiling separate from ordinary write access; see abapsmith-orient. A request this session did not create is refused unless confirm_unowned is also passed.";
 function fmtTarget(h) {
   const t = (h.target ?? "").trim();
@@ -127647,12 +128646,12 @@ async function recordMutation(j, spec, verdict) {
 }
 async function abapTransport(conn, input, maxChars, gate, journal, ownership) {
   switch (input.operation) {
-    // `show`/`check`/`users` are reads — journalling those would stop the
-    // journal from being a record of what changed. `list` is almost a read
-    // too: `opList` may create a search configuration (a real write) to see
-    // Modifiable requests, but that isn't a TRKORR-identified object, so it's
-    // never routed through `recordMutation` — it's surfaced in the response's
-    // `notes` instead.
+    // `show`/`check`/`users`/`log`/`queue` are reads — journalling those
+    // would stop the journal from being a record of what changed. `list` is
+    // almost a read too: `opList` may create a search configuration (a real
+    // write) to see Modifiable requests, but that isn't a TRKORR-identified
+    // object, so it's never routed through `recordMutation` — it's surfaced
+    // in the response's `notes` instead.
     case "list":
       return await opList(conn, input, maxChars, gate, journal);
     case "show":
@@ -127661,6 +128660,10 @@ async function abapTransport(conn, input, maxChars, gate, journal, ownership) {
       return await opCheck(conn, input, maxChars);
     case "users":
       return await opUsers(conn, maxChars);
+    case "log":
+      return await opLog(conn, gate, input, maxChars);
+    case "queue":
+      return await opQueue(conn, gate, input, maxChars);
     case "create":
       return await opCreate(conn, input, maxChars, gate, journal, ownership);
     case "addUser":
@@ -127915,6 +128918,145 @@ async function opCheck(conn, input, maxChars) {
     maxChars
   });
 }
+function requireTransportArg(value, operation) {
+  const raw = (value ?? "").trim().toUpperCase();
+  if (raw === "") {
+    throw new AbapError(
+      "BAD_INPUT",
+      `Operation "${operation}" needs "transport" (a request/task number, e.g. A4HK900123).`,
+      { operation, arg: "transport" }
+    );
+  }
+  return raw;
+}
+var TRFUNCTION_LABELS = {
+  K: "workbench request",
+  W: "customizing request",
+  T: "transport of copies",
+  C: "relocation of objects without package change",
+  O: "relocation of objects with package change",
+  E: "relocation of a complete package",
+  S: "development/correction task",
+  R: "repair task",
+  X: "unclassified task",
+  Q: "customizing task",
+  G: "piece list (CTS project)",
+  D: "piece list (upgrade)"
+};
+var TRSTATUS_LABELS = {
+  D: "modifiable",
+  L: "modifiable, protected",
+  O: "release started",
+  R: "released",
+  N: "released, with import protection for repaired objects"
+};
+function fmtCodeWithLabel(raw, labels) {
+  const code = raw.trim();
+  if (code === "") return "(empty)";
+  const label = labels[code.toUpperCase()];
+  return label ? `${label} (${code})` : code;
+}
+function fmtTrFunction(raw) {
+  return fmtCodeWithLabel(raw, TRFUNCTION_LABELS);
+}
+function fmtTrStatus(raw) {
+  return fmtCodeWithLabel(raw, TRSTATUS_LABELS);
+}
+async function opLog(conn, gate, input, maxChars) {
+  const trkorr = requireTransportArg(input.transport, "log");
+  const result = await readTransportLogViaBridge(conn, gate, { trkorr });
+  const sections = [];
+  for (const sys of result.systems) {
+    const date5 = (sys.date ?? "").trim();
+    const collected = date5 === "" || date5 === "00000000" ? "never imported" : `${date5} ${sys.time}`;
+    const rc = (sys.rc ?? "").trim();
+    const rcLine = rc === "" ? "no return code yet" : rc + (sys.rcText ? ` (${sys.rcText})` : "");
+    const head = [
+      `System: ${sys.system}${sys.systemText ? ` \u2014 ${sys.systemText}` : ""}`,
+      `Return code: ${rcLine}`,
+      `Collected: ${collected}`
+    ].join("\n");
+    let body;
+    if (sys.lines.length === 0) {
+      body = head + "\n\nNo log lines recorded for this system. That is the normal answer, not a failure, for a request that has not been exported yet: the log file is written by tp at export time, so a modifiable or never-exported request legitimately has an overview row and zero log lines (observed live on A4H on 2026-09-15, for every request tried).";
+    } else {
+      body = head + "\n\n" + textTable(
+        sys.lines.map((l) => ({
+          severity: l.severity,
+          class: l.msgClass,
+          number: l.msgNumber,
+          text: l.text
+        })),
+        ["severity", "class", "number", "text"]
+      );
+    }
+    sections.push({ title: `SYSTEM ${sys.system}`, content: body });
+  }
+  const notes = [];
+  if (result.systems.length === 0) {
+    notes.push(`${result.trkorr} reports no log systems at all \u2014 it may have no log overview yet.`);
+  }
+  return buildResponse({
+    header: {
+      operation: "log",
+      transport: result.trkorr,
+      trFunction: fmtTrFunction(result.trFunction),
+      trStatus: fmtTrStatus(result.trStatus),
+      systems: result.systems.length
+    },
+    sections,
+    notes,
+    maxChars
+  });
+}
+async function opQueue(conn, gate, input, maxChars) {
+  const system = required2(input.system, "system", "queue").toUpperCase();
+  const domain2 = (input.domain ?? "").trim();
+  const result = await readImportQueueViaBridge(conn, gate, {
+    system,
+    ...domain2 === "" ? {} : { domain: domain2 }
+  });
+  const sections = [];
+  if (result.entries.length > 0) {
+    sections.push({
+      title: "QUEUE",
+      content: textTable(
+        result.entries.map((e) => ({
+          position: e.position,
+          request: e.trkorr,
+          importFlag: e.importFlag,
+          maxRc: e.maxRc,
+          function: e.trFunction,
+          owner: e.owner,
+          client: e.targetClient,
+          description: e.description
+        })),
+        ["position", "request", "importFlag", "maxRc", "function", "owner", "client", "description"]
+      )
+    });
+  }
+  const notes = [];
+  if (result.entries.length === 0) {
+    notes.push(
+      `The import queue for ${result.system} is EMPTY \u2014 no requests are waiting to be imported. This is the current state of the target system's buffer, not an error and not a failed read.`
+    );
+  }
+  notes.push(
+    `The queue IS the import buffer, not a history: a request that has already been imported has left the buffer, so its absence here does not by itself prove the change never reached ${result.system} \u2014 check the request's own log (operation "log") for that.`
+  );
+  return buildResponse({
+    header: {
+      operation: "queue",
+      system: result.system,
+      domain: result.domain.trim() === "" ? "(local domain)" : result.domain,
+      collected: `${result.collectedDate} ${result.collectedTime}`.trim(),
+      entries: result.entries.length
+    },
+    sections,
+    notes,
+    maxChars
+  });
+}
 async function recoverPossiblyCreated(conn, description) {
   try {
     const user = (conn.cfg.user ?? "").trim();
@@ -127970,6 +129112,19 @@ async function opCreate(conn, input, maxChars, gate, journal, ownership) {
     { name: devClass, packageName: devClass },
     { corr: { kind: "unresolved" } }
   );
+  if (input.kind === "copies") {
+    return await createCopies(
+      conn,
+      gate,
+      maxChars,
+      journal,
+      ownership,
+      input,
+      devClass,
+      description,
+      authorized
+    );
+  }
   const anchor = (input.object ?? "").trim();
   const objSourceUrl = anchor === "" ? `/sap/bc/adt/packages/${encodeURIComponent(devClass.toLowerCase())}` : (await resolveObject(conn, anchor)).uri;
   let created;
@@ -128023,6 +129178,131 @@ async function opCreate(conn, input, maxChars, gate, journal, ownership) {
       reference: objSourceUrl
     },
     notes,
+    maxChars
+  });
+}
+async function recoverPossiblyCreatedCopies(conn, description, target) {
+  try {
+    const user = (conn.cfg.user ?? "").trim();
+    const res = await trList(conn, user ? { user } : {});
+    return res.workbench.filter((r) => r.kind === "transport-of-copies" && r.status === "modifiable").filter((r) => r.description === description && (r.target ?? "").toUpperCase() === target).map((r) => r.trkorr);
+  } catch {
+    return [];
+  }
+}
+async function createCopies(conn, gate, maxChars, journal, ownership, input, devClass, description, authorized) {
+  const target = (input.target ?? "").trim().toUpperCase();
+  if (target === "") {
+    throw new AbapError(
+      "BAD_INPUT",
+      'Operation "create" with kind "copies" needs "target": a transport of copies with no target cannot be imported anywhere, so abapsmith refuses to create one.',
+      { operation: "create", kind: "copies", arg: "target" }
+    );
+  }
+  const anchor = (input.object ?? "").trim();
+  if (anchor !== "") {
+    throw new AbapError(
+      "BAD_INPUT",
+      'Operation "create" with kind "copies" does not take "object": a transport of copies is created empty and objects are added to it afterwards, so the anchor object a workbench create uses does not apply here.',
+      { operation: "create", kind: "copies", arg: "object" }
+    );
+  }
+  let copies;
+  try {
+    copies = await createTransportOfCopiesViaBridge(
+      conn,
+      gate,
+      { description, target, devClass },
+      authorized
+    );
+  } catch (e) {
+    const candidates = await recoverPossiblyCreatedCopies(conn, description, target);
+    if (candidates.length === 1) {
+      const candidate = candidates[0];
+      ownership?.noteCreated(candidate);
+      await recordMutation(
+        journal,
+        {
+          operation: "transport-create",
+          trkorr: candidate,
+          description,
+          package: devClass,
+          existedBefore: false,
+          tool: "abap_transport create kind=copies"
+        },
+        {
+          kind: "unproven",
+          reason: `createTransportOfCopiesViaBridge failed (${e instanceof Error ? e.message : String(e)}), but a modifiable transport of copies matching this call's description and target already exists on ${conn.cfg.sid}: ${candidate}.`
+        }
+      );
+    }
+    const originalDetails = e instanceof AbapError ? e.details : {};
+    const code = e instanceof AbapError ? e.code : "TRANSPORT_ERROR";
+    const cause = e instanceof Error ? e.message : String(e);
+    const sid = conn.cfg.sid;
+    const n = candidates.length;
+    if (n === 0) {
+      throw new AbapError(
+        code,
+        `Creating a transport of copies for ${devClass} \u2192 ${target} failed: ${cause}`,
+        {
+          ...originalDetails,
+          operation: "create",
+          kind: "copies",
+          package: devClass,
+          target,
+          description
+        }
+      );
+    }
+    const list3 = candidates.join(", ");
+    const first = candidates[0];
+    throw new AbapError(
+      code,
+      `Creating a transport of copies for ${devClass} \u2192 ${target} failed, but ${n === 1 ? "a modifiable transport of copies that matches this create already exists" : `${n} modifiable transports of copies that match this create already exist`} on ${sid}: ${list3}. abapsmith cannot prove ${n === 1 ? "it came" : "they came"} from this call \u2014 but a create that fails AFTER the server has already acted looks exactly like this, so do NOT treat this as "nothing happened". The original failure was: ${cause}`,
+      {
+        ...originalDetails,
+        possiblyCreated: candidates,
+        operation: "create",
+        kind: "copies",
+        package: devClass,
+        target,
+        description
+      },
+      `Check before creating another: abap_transport operation="show" transport="${first}" tells you what ${first} actually is.`
+    );
+  }
+  ownership?.noteCreated(copies.trkorr);
+  await recordMutation(
+    journal,
+    {
+      operation: "transport-create",
+      trkorr: copies.trkorr,
+      description,
+      package: devClass,
+      existedBefore: false,
+      tool: "abap_transport create kind=copies"
+    },
+    { kind: "succeeded" }
+  );
+  return buildResponse({
+    header: {
+      operation: "create",
+      kind: categoryTitle("transportOfCopies"),
+      transport: copies.trkorr,
+      trFunction: fmtTrFunction(copies.trFunction),
+      trStatus: fmtTrStatus(copies.trStatus),
+      package: devClass,
+      description,
+      target: copies.target,
+      owner: copies.owner,
+      tasks: copies.tasks
+    },
+    notes: [
+      `Created ${copies.trkorr}, a TRANSPORT OF COPIES targeting ${copies.target}. It was created empty; add objects to it the same way as any other request, then pass it as the transport on writes whose changes should be copied there.`,
+      "The objects' original request is untouched and they stay modifiable in this system \u2014 a transport of copies carries a snapshot to the target; it does not move or freeze the originals.",
+      "A transport of copies has no tasks (observed live on A4H on 2026-09-15: zero task headers)."
+    ],
     maxChars
   });
 }
@@ -129257,8 +130537,8 @@ var ELEMENT_TAG = {
   alternativeKey: "bo:alternativeKeys"
 };
 function bareName(qualifiedName) {
-  const idx = qualifiedName.indexOf(":");
-  return idx === -1 ? qualifiedName : qualifiedName.slice(idx + 1);
+  const idx2 = qualifiedName.indexOf(":");
+  return idx2 === -1 ? qualifiedName : qualifiedName.slice(idx2 + 1);
 }
 function findNodeToken(tokens, name, nodeId) {
   return tokens.find(
@@ -129309,9 +130589,9 @@ function insertionPoint(tokens, nodeTok, kind) {
   for (const t of tokens) {
     if (t.depth !== nodeTok.depth + 1) continue;
     if (t.openStart <= nodeTok.openStart || t.openStart >= nodeTok.closeEnd) continue;
-    const idx = NODE_CHILD_ORDER.indexOf(bareName(t.name));
-    if (idx === -1) continue;
-    if (idx <= targetIdx) insertAt = t.closeEnd;
+    const idx2 = NODE_CHILD_ORDER.indexOf(bareName(t.name));
+    if (idx2 === -1) continue;
+    if (idx2 <= targetIdx) insertAt = t.closeEnd;
     else break;
   }
   return insertAt;
@@ -129394,9 +130674,9 @@ function spliceSetElementRef(xml3, tokens, ownerToken, refTag, ref2, childOrder)
   for (const t of tokens) {
     if (t.depth !== ownerToken.depth + 1) continue;
     if (t.openStart <= ownerToken.openStart || t.openStart >= ownerToken.closeEnd) continue;
-    const idx = childOrder.indexOf(bareName(t.name));
-    if (idx === -1) continue;
-    if (idx <= targetIdx) insertAt = t.closeEnd;
+    const idx2 = childOrder.indexOf(bareName(t.name));
+    if (idx2 === -1) continue;
+    if (idx2 <= targetIdx) insertAt = t.closeEnd;
     else break;
   }
   return splice(xml3, insertAt, fragment);
@@ -134787,23 +136067,23 @@ function classifyHandler(eventId, target, ctx) {
   };
 }
 function buildTextIndex(frames) {
-  const idx = /* @__PURE__ */ new Map();
+  const idx2 = /* @__PURE__ */ new Map();
   for (const f of frames) {
     const key = `${normKey(f.config_id, f.config_type, f.config_var)} ${f.text_id}`;
-    let entry = idx.get(key);
+    let entry = idx2.get(key);
     if (!entry) {
       entry = { byLangu: /* @__PURE__ */ new Map(), order: [] };
-      idx.set(key, entry);
+      idx2.set(key, entry);
     }
     if (!entry.byLangu.has(f.langu)) {
       entry.byLangu.set(f.langu, f.description);
       entry.order.push(f.langu);
     }
   }
-  return idx;
+  return idx2;
 }
-function resolveTextId(idx, configId, configType, configVar, textId, logonLangu) {
-  const entry = idx.get(`${normKey(configId, configType, configVar)} ${textId}`);
+function resolveTextId(idx2, configId, configType, configVar, textId, logonLangu) {
+  const entry = idx2.get(`${normKey(configId, configType, configVar)} ${textId}`);
   if (!entry) return void 0;
   if (logonLangu && entry.byLangu.has(logonLangu)) return entry.byLangu.get(logonLangu);
   if (entry.byLangu.has("E")) return entry.byLangu.get("E");
@@ -135579,7 +136859,7 @@ function wrapAbapTemplateLines(text5, indent, what) {
   }
   fragments.push(current);
   return fragments.map(
-    (frag, idx) => idx === fragments.length - 1 ? `${indent}|${frag}|` : `${indent}|${frag} | &&`
+    (frag, idx2) => idx2 === fragments.length - 1 ? `${indent}|${frag}|` : `${indent}|${frag} | &&`
   );
 }
 function emitWrappedGuardDetail(text5, indent, what) {
@@ -137328,14 +138608,14 @@ async function readImgTree(conn, q) {
   const ordered = orderImgTreeSiblings(rawSiblings);
   let startIdx = 0;
   if (q.after !== void 0) {
-    const idx = ordered.findIndex((s) => s.nodeId === q.after);
-    if (idx === -1) {
+    const idx2 = ordered.findIndex((s) => s.nodeId === q.after);
+    if (idx2 === -1) {
       throw new AbapError("BAD_INPUT", `after cursor "${q.after}" is not one of parent "${parentId2}"'s children.`, {
         after: q.after,
         parentId: parentId2
       });
     }
-    startIdx = idx + 1;
+    startIdx = idx2 + 1;
   }
   const pageSiblings = ordered.slice(startIdx, startIdx + limit);
   const more = startIdx + limit < ordered.length;
@@ -140443,8 +141723,8 @@ function buildRead(object3, program, lineFrom, lineTo) {
 }
 function parseWhenLiterals(whenNorm) {
   const body = whenNorm.replace(/^when\s+/i, "");
-  const quoted2 = [...body.matchAll(/'([^']*)'/g)].map((m) => m[1] ?? "");
-  if (quoted2.length > 0) return quoted2;
+  const quoted3 = [...body.matchAll(/'([^']*)'/g)].map((m) => m[1] ?? "");
+  if (quoted3.length > 0) return quoted3;
   if (/^others\b/i.test(body.trim())) return ["OTHERS"];
   return [];
 }
@@ -141277,6 +142557,279 @@ async function runUiPressBridge(conn, query, gate) {
 // src/tools/ui.ts
 init_compact();
 init_safety();
+
+// src/tools/ui-layout.ts
+var LAYOUT_FIDELITY_NOTE = "this is the DESIGN-TIME layout from RPY_DYNPRO_READ, not a runtime screenshot. Text filled at PBO, dynamic MODIFY SCREEN attributes, table-control column widths, and subscreen/step-loop heights are not in D021S. Positions are approximate: overlapping elements are shifted right to keep them visible.";
+var HEX_RE = /^[0-9A-Fa-f]{1,4}$/;
+var DEC_RE = /^\d{1,4}$/;
+function hex3(row2, key) {
+  const v = row2[key];
+  if (v === void 0 || !HEX_RE.test(v)) return 0;
+  return parseInt(v, 16);
+}
+function dec2(v) {
+  if (v === void 0 || !DEC_RE.test(v)) return void 0;
+  return parseInt(v, 10);
+}
+function str5(row2, key) {
+  return row2[key] ?? "";
+}
+function idx(oneBased) {
+  return oneBased === 0 ? 0 : oneBased - 1;
+}
+function clamp(v, lo, hi) {
+  return Math.min(hi, Math.max(lo, v));
+}
+function decodeStxt(raw) {
+  let s = raw;
+  if (s.startsWith("@")) {
+    const closing = s.indexOf("@", 1);
+    if (closing !== -1) s = s.slice(closing + 1);
+  }
+  s = s.replace(/_+$/, "");
+  s = s.replace(/_/g, " ");
+  return s.trimEnd();
+}
+function buildGrid(width, height) {
+  return Array.from({ length: Math.max(0, height) }, () => new Array(width).fill(" "));
+}
+function writeSpan(grid, row2, col, text5, width) {
+  if (row2 < 0 || row2 >= grid.length) return;
+  const line2 = grid[row2];
+  if (!line2) return;
+  let c = col;
+  for (let i = 0; i < text5.length; i++) {
+    if (c >= width) {
+      const last = width - 1;
+      if (last >= 0 && last < line2.length) line2[last] = ">";
+      return;
+    }
+    if (c >= 0) line2[c] = text5[i] ?? " ";
+    c++;
+  }
+}
+function markOccupied(occ, col, len, width) {
+  for (let c = Math.max(0, col); c < col + len && c < width; c++) occ.add(c);
+}
+function renderEmptyFill(row2, fnam) {
+  const stxt = str5(row2, "stxt");
+  const flg1 = hex3(row2, "flg1");
+  if ((flg1 & 128) === 0) {
+    return decodeStxt(stxt) || `?${fnam}?`;
+  }
+  const grp3 = str5(row2, "grp3");
+  if (grp3 === "TXT" || grp3 === "COM" || grp3 === "TOT") {
+    return decodeStxt(stxt) || `?${fnam}?`;
+  }
+  if (stxt !== "" && /^_+$/.test(stxt)) {
+    const width = Math.max(hex3(row2, "leng"), 1);
+    const ch = (flg1 & 33) === 1 ? "." : "_";
+    return ch.repeat(width);
+  }
+  return decodeStxt(stxt) || `?${fnam}?`;
+}
+function renderNonEmptyFill(row2, fnam, fill) {
+  switch (fill) {
+    case "C": {
+      const t = decodeStxt(str5(row2, "stxt"));
+      return `[ ] ${t || fnam}`;
+    }
+    case "A": {
+      const t = decodeStxt(str5(row2, "stxt"));
+      return `( ) ${t || fnam}`;
+    }
+    case "P": {
+      const t = decodeStxt(str5(row2, "stxt"));
+      return `[ ${t || fnam} ]`;
+    }
+    case "I":
+      return `[tabstrip: ${fnam}]`;
+    default:
+      return `?${fnam}?`;
+  }
+}
+function frameTopEdge(width, title) {
+  if (title === "") return "+" + "-".repeat(Math.max(0, width - 2)) + "+";
+  const prefix = `+- ${title} `;
+  const dashes = "-".repeat(Math.max(0, width - prefix.length - 1));
+  return prefix + dashes + "+";
+}
+function frameBox(row2, bottomLine) {
+  const topLine = hex3(row2, "line");
+  const colHex = hex3(row2, "coln");
+  const width = hex3(row2, "leng");
+  const col = idx(colHex);
+  const fnam = str5(row2, "fnam");
+  const title = decodeStxt(str5(row2, "stxt")) || fnam;
+  const rows = [{ line: idx(topLine), col, text: frameTopEdge(width, title) }];
+  for (let l = topLine + 1; l < bottomLine; l++) {
+    rows.push({ line: idx(l), col, text: "|" });
+    rows.push({ line: idx(l), col: col + width - 1, text: "|" });
+  }
+  rows.push({ line: idx(bottomLine), col, text: "+" + "-".repeat(Math.max(0, width - 2)) + "+" });
+  return rows;
+}
+function resolveFrameBottom(topLine, allFrameLines, maxDrawnLine) {
+  let next = Infinity;
+  for (const l of allFrameLines) {
+    if (l > topLine && l < next) next = l;
+  }
+  const bottom = Number.isFinite(next) ? next - 1 : maxDrawnLine;
+  return Math.max(bottom, topLine + 1);
+}
+function tableControlBox(anchor, members) {
+  const fnam = str5(anchor, "fnam");
+  const line2 = idx(hex3(anchor, "line"));
+  const col = idx(hex3(anchor, "coln"));
+  const width = Math.max(hex3(anchor, "leng"), 12);
+  const titleMember = members.find((m) => str5(m, "fnam").startsWith("%") && hex3(m, "fmb2") === 64);
+  const title = titleMember ? decodeStxt(str5(titleMember, "stxt")) : "";
+  const headers = members.filter((m) => str5(m, "fnam").startsWith("%") && hex3(m, "fmb2") === 128).slice().sort((a, b) => hex3(a, "coln") - hex3(b, "coln")).map((m) => decodeStxt(str5(m, "stxt")));
+  const row1Body = `+- table control: ${fnam}` + (title ? ` "${title}"` : "") + " ";
+  const row1 = row1Body + "-".repeat(Math.max(0, width - row1Body.length - 1)) + "+";
+  const row2Body = "| " + headers.join(" | ");
+  const row2 = row2Body + " ".repeat(Math.max(0, width - row2Body.length - 1)) + "|";
+  const row3 = "|" + " ".repeat(Math.max(0, width - 2)) + "|";
+  const row4 = "+" + "-".repeat(Math.max(0, width - 2)) + "+";
+  return [row1, row2, row3, row4].map((text5, i) => ({ line: line2 + i, col, text: text5 }));
+}
+function subscreenBox(row2) {
+  const fnam = str5(row2, "fnam");
+  const line2 = idx(hex3(row2, "line"));
+  const col = idx(hex3(row2, "coln"));
+  const lengHex = hex3(row2, "leng");
+  const width = Math.max(lengHex, 20);
+  const row1Body = `+- subscreen: ${fnam} (${lengHex} cols) `;
+  const row1 = row1Body + "-".repeat(Math.max(0, width - row1Body.length - 1)) + "+";
+  const row22 = "|" + " ".repeat(Math.max(0, width - 2)) + "|";
+  const row3 = "+" + "-".repeat(Math.max(0, width - 2)) + "+";
+  return [row1, row22, row3].map((text5, i) => ({ line: line2 + i, col, text: text5 }));
+}
+function compareDrawItems(a, b) {
+  if (a.lineHex !== b.lineHex) return a.lineHex - b.lineHex;
+  if (a.colHex !== b.colHex) return a.colHex - b.colHex;
+  return a.fnam < b.fnam ? -1 : a.fnam > b.fnam ? 1 : 0;
+}
+function isTableMember(row2, anchorLanfs) {
+  const lanf = hex3(row2, "lanf");
+  if (lanf === 0) return false;
+  if (str5(row2, "fill") === "T") return false;
+  return anchorLanfs.has(lanf);
+}
+function buildDrawItems(topLevel, drawable, anchorLanfs) {
+  const items2 = [];
+  for (const row2 of topLevel) {
+    const fill = str5(row2, "fill");
+    if (fill === "R") continue;
+    const fnam = str5(row2, "fnam");
+    const lineHex = hex3(row2, "line");
+    const colHex = hex3(row2, "coln");
+    if (fill === "T") {
+      const lanf = hex3(row2, "lanf");
+      const members = drawable.filter((r) => isTableMember(r, anchorLanfs) && hex3(r, "lanf") === lanf);
+      items2.push({ kind: "box", lineHex, colHex, fnam, rows: tableControlBox(row2, members) });
+      continue;
+    }
+    if (fill === "B") {
+      items2.push({ kind: "box", lineHex, colHex, fnam, rows: subscreenBox(row2) });
+      continue;
+    }
+    const text5 = fill === "" ? renderEmptyFill(row2, fnam) : renderNonEmptyFill(row2, fnam, fill);
+    items2.push({ kind: "line", lineHex, colHex, col: idx(colHex), fnam, text: text5 });
+  }
+  return items2;
+}
+function placeDrawItems(grid, items2, width) {
+  const occupiedByLine = /* @__PURE__ */ new Map();
+  const occFor = (line2) => {
+    let occ = occupiedByLine.get(line2);
+    if (!occ) {
+      occ = /* @__PURE__ */ new Set();
+      occupiedByLine.set(line2, occ);
+    }
+    return occ;
+  };
+  for (const item of items2) {
+    if (item.kind === "line") {
+      const rowIdx = idx(item.lineHex);
+      const occ = occFor(rowIdx);
+      let c = item.col;
+      while (occ.has(c)) c++;
+      writeSpan(grid, rowIdx, c, item.text, width);
+      markOccupied(occ, c, item.text.length, width);
+    } else {
+      for (const r of item.rows) {
+        writeSpan(grid, r.line, r.col, r.text, width);
+        markOccupied(occFor(r.line), r.col, r.text.length, width);
+      }
+    }
+  }
+}
+var GRID_MAX_ROWS = 300;
+function buildGridLines(header, fields) {
+  const width = clamp(dec2(header?.columns) ?? 132, 40, 255);
+  const drawable = fields.filter((r) => hex3(r, "line") !== 255);
+  const anchorLanfs = new Set(
+    drawable.filter((r) => str5(r, "fill") === "T").map((r) => hex3(r, "lanf"))
+  );
+  const topLevel = drawable.filter((r) => !isTableMember(r, anchorLanfs));
+  const maxDrawnLine = topLevel.reduce((m, r) => Math.max(m, hex3(r, "line")), 0);
+  const headerLines = dec2(header?.lines);
+  const rawHeight = headerLines === void 0 || headerLines === 0 ? maxDrawnLine : headerLines;
+  const height = Math.min(rawHeight, GRID_MAX_ROWS);
+  const cutNote = headerLines !== void 0 && headerLines > GRID_MAX_ROWS ? `(grid cut to ${GRID_MAX_ROWS} rows; RPY_DYHEAD reports ${headerLines})` : void 0;
+  const grid = buildGrid(width, height);
+  const frameRows = topLevel.filter((r) => str5(r, "fill") === "R").slice().sort((a, b) => hex3(a, "line") - hex3(b, "line") || hex3(a, "coln") - hex3(b, "coln"));
+  const frameLines = frameRows.map((r) => hex3(r, "line"));
+  for (const frame of frameRows) {
+    const topLine = hex3(frame, "line");
+    const bottom = resolveFrameBottom(topLine, frameLines, maxDrawnLine);
+    for (const r of frameBox(frame, bottom)) writeSpan(grid, r.line, r.col, r.text, width);
+  }
+  const items2 = buildDrawItems(topLevel, drawable, anchorLanfs).sort(compareDrawItems);
+  placeDrawItems(grid, items2, width);
+  const lines = grid.map((row2) => row2.join("").replace(/[ \t]+$/, ""));
+  while (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
+  return cutNote ? [...lines, cutNote] : lines;
+}
+function renderButtons(fkeys) {
+  const statusOrder = [];
+  const byStatus = /* @__PURE__ */ new Map();
+  for (const row2 of fkeys) {
+    const code = str5(row2, "code");
+    if (code === "") continue;
+    const status = str5(row2, "status");
+    let codes = byStatus.get(status);
+    if (!codes) {
+      codes = /* @__PURE__ */ new Map();
+      byStatus.set(status, codes);
+      statusOrder.push(status);
+    }
+    if (!codes.has(code)) codes.set(code, str5(row2, "text"));
+  }
+  if (statusOrder.length === 0) return "Buttons: (no GUI status buttons)";
+  return statusOrder.map((status) => {
+    const codes = byStatus.get(status);
+    const parts = codes ? Array.from(codes.entries()).map(([code, text5]) => text5 ? `${text5} (${code})` : `(${code})`) : [];
+    return `Buttons (${status}): ${parts.join(", ")}`;
+  }).join("\n");
+}
+function renderScreenLayoutInner(input) {
+  const gridLines = buildGridLines(input.header, input.fields ?? []);
+  const buttons = renderButtons(input.fkeys ?? []);
+  return [...gridLines, "", buttons, "", `NOTE: ${LAYOUT_FIDELITY_NOTE}`].join("\n");
+}
+function renderScreenLayout(input) {
+  try {
+    return renderScreenLayoutInner(input);
+  } catch {
+    return `(layout render failed on malformed input)
+
+NOTE: ${LAYOUT_FIDELITY_NOTE}`;
+  }
+}
+
+// src/tools/ui.ts
 var uiPressFieldSchema = external_exports.object({
   name: external_exports.string().describe("Screen field name (D021S-FNAM), e.g. BKPF-BLDAT."),
   value: external_exports.string().describe("Value to set (BDCDATA-FVAL, max 132 chars).")
@@ -141300,6 +142853,9 @@ var uiInputSchema = {
   ),
   screens: external_exports.array(uiPressScreenSchema).optional().describe(
     "press only, required: ordered batch-input script, one entry per dynpro the transaction will show in sequence. Build it incrementally using the screen call's own field/status output and the 00/344 stall this tool reports when a script runs out."
+  ),
+  layout: external_exports.boolean().optional().describe(
+    "screen only, default false: also render a monospace picture of the screen from the field rows already read. No extra ABAP and no extra round trip. Design-time layout, not a runtime screenshot. Ignored by press."
   ),
   confirm: external_exports.boolean().optional().describe(
     "press only, REQUIRED (must be exactly true) \u2014 acknowledges the commit. Omitted or false is refused before any network call."
@@ -141451,7 +143007,7 @@ function renderRecordRows(rows) {
     (row2) => Object.entries(row2).map(([k, v]) => `${k}=[${v}]`).join(" ")
   ).join("\n");
 }
-function buildScreenResponse(query, result, maxChars) {
+function buildScreenResponse(query, result, maxChars, layout) {
   const t = result.transcript;
   const notes = [...FIDELITY_NOTES2];
   if (t.tcode) {
@@ -141471,6 +143027,9 @@ function buildScreenResponse(query, result, maxChars) {
   if (t.noCua) {
     notes.push(`No GUI status defined for program ${t.noCua.program} \u2014 this is normal, not an error.`);
   }
+  if (layout) {
+    notes.push(LAYOUT_FIDELITY_NOTE);
+  }
   return buildResponse({
     header: {
       mode: "screen",
@@ -141487,6 +143046,7 @@ function buildScreenResponse(query, result, maxChars) {
       bridgeRefreshed: result.bridgeRefreshed
     },
     sections: [
+      ...layout ? [{ title: "LAYOUT (design-time)", content: renderScreenLayout({ header: t.header, fields: t.fields, fkeys: t.fkeys }) }] : [],
       { title: "HEADER (RPY_DYNPRO_READ)", content: t.header ? renderRecordRows([t.header]) : "(not read)" },
       { title: "FLOW LOGIC", content: renderRecordRows(t.flow) },
       { title: "GUI STATUSES (names)", content: renderRecordRows(t.statusList) },
@@ -141663,7 +143223,7 @@ async function runScreenTool(deps, input) {
     uiManifest.entry,
     (conn) => runUiBridge(conn, query, deps.safety)
   );
-  return ok15(buildScreenResponse(query, result, deps.cfg.maxResponseChars));
+  return ok15(buildScreenResponse(query, result, deps.cfg.maxResponseChars, input.layout === true));
 }
 async function runFcodeTool(deps, input) {
   const query = buildFcodeQuery(input);
@@ -144015,6 +145575,260 @@ init_datapreview();
 init_datapreview_filter();
 init_compact();
 init_truncate();
+
+// src/tools/preview-fixture.ts
+var ABAP_LINE_MAX = 255;
+var MASK_TEXT = "MASKED";
+var SHARED_NOTE = "A fixture is a copy of production rows. The same deny-list, the same ABAP_ALLOW_DATA_PREVIEW flag and the same row ceiling that govern a plain preview governed this read \u2014 format is applied to rows already fetched, never as a separate path around the check.";
+var TEST_DOUBLE_NOTE = "cl_osql_test_environment doubles an Open SQL entity (transparent table, database view, CDS view) \u2014 which is the only kind abap_data_preview can read. For a structure or a table type there is nothing to double: use the VALUE literal alone. cl_abap_testdouble doubles a class or an interface, not a table.";
+var INT_TYPES = /* @__PURE__ */ new Set(["I", "INT1", "INT2", "INT4", "INT8", "B", "S"]);
+var DEC_TYPES = /* @__PURE__ */ new Set(["P", "DEC", "CURR", "QUAN", "F", "FLTP"]);
+var HEX_TYPES = /* @__PURE__ */ new Set(["X", "RAW", "RAWSTRING"]);
+function columnGroup(type) {
+  if (type === "D") return "date";
+  if (type === "T") return "time";
+  if (INT_TYPES.has(type)) return "int";
+  if (DEC_TYPES.has(type)) return "dec";
+  if (HEX_TYPES.has(type)) return "hex";
+  return "char";
+}
+function escapeAbapLiteral3(cell) {
+  return cell.replace(/'/g, "''");
+}
+function quoted2(cell) {
+  return `'${escapeAbapLiteral3(cell)}'`;
+}
+function normaliseTrailingSign(trimmed) {
+  const m = /^(\d+(?:\.\d+)?)-$/.exec(trimmed);
+  return m ? `-${m[1] ?? ""}` : trimmed;
+}
+function abapLiteralFor(column, cell) {
+  const type = (column.type || "").toUpperCase();
+  const group = columnGroup(type);
+  const trimmed = cell.trim();
+  switch (group) {
+    case "date": {
+      const digits = cell.replace(/\D/g, "");
+      return digits.length === 8 ? `'${digits}'` : quoted2(cell);
+    }
+    case "time": {
+      const digits = cell.replace(/\D/g, "");
+      return digits.length === 6 ? `'${digits}'` : quoted2(cell);
+    }
+    case "int": {
+      const signed = normaliseTrailingSign(trimmed);
+      return /^-?\d+$/.test(signed) ? signed : quoted2(cell);
+    }
+    case "dec": {
+      const signed = normaliseTrailingSign(trimmed);
+      return /^-?\d+(\.\d+)?$/.test(signed) ? `'${signed}'` : quoted2(cell);
+    }
+    case "hex":
+      return quoted2(cell);
+    case "char":
+    default:
+      return quoted2(cell);
+  }
+}
+function maskedInitialLiteral(group) {
+  switch (group) {
+    case "int":
+    case "dec":
+      return "0";
+    case "date":
+      return "'00000000'";
+    case "time":
+      return "'000000'";
+    case "hex":
+    default:
+      return "''";
+  }
+}
+function resolveColumns(result, columnOrder) {
+  if (columnOrder === void 0 || columnOrder.length === 0) {
+    return result.columns.map((column, index) => ({ column, index }));
+  }
+  const byUpperName = /* @__PURE__ */ new Map();
+  result.columns.forEach((column, index) => {
+    byUpperName.set(column.name.toUpperCase(), { column, index });
+  });
+  const out = [];
+  for (const name of columnOrder) {
+    const hit = byUpperName.get(name.toUpperCase());
+    if (hit) out.push(hit);
+  }
+  return out;
+}
+function buildRowFields(columns, cells, maskedUpper) {
+  const fields = [];
+  let omitted = false;
+  for (const { column, index } of columns) {
+    const name = column.name.toLowerCase();
+    const group = columnGroup((column.type || "").toUpperCase());
+    if (maskedUpper.has(column.name.toUpperCase())) {
+      const literal2 = group === "char" ? `'${MASK_TEXT}'` : maskedInitialLiteral(group);
+      fields.push({ name, literal: literal2 });
+      continue;
+    }
+    const cell = cells[index] ?? "";
+    if (cell.trim() === "" && !column.key) {
+      omitted = true;
+      continue;
+    }
+    fields.push({ name, literal: abapLiteralFor(column, cell) });
+  }
+  return { fields, omitted };
+}
+function renderRowGroup(fields, indent, longFieldNotes, longFieldNoted) {
+  const pairs = fields.map((f) => ({ name: f.name, text: `${f.name} = ${f.literal}` }));
+  const singleLine = `${indent}( ${pairs.map((p) => p.text).join(" ")} )`;
+  if (singleLine.length <= ABAP_LINE_MAX) return singleLine;
+  const contIndent = `${indent}  `;
+  const lines = [`${indent}(`];
+  let current = [];
+  let currentLen = 0;
+  const flush = () => {
+    if (current.length) {
+      lines.push(`${contIndent}${current.join(" ")}`);
+      current = [];
+      currentLen = 0;
+    }
+  };
+  for (const p of pairs) {
+    const soloLen = contIndent.length + p.text.length;
+    if (soloLen > ABAP_LINE_MAX) {
+      flush();
+      lines.push(`${contIndent}${p.text}`);
+      if (!longFieldNoted.has(p.name)) {
+        longFieldNoted.add(p.name);
+        longFieldNotes.push(
+          `Field ${p.name} produces an ABAP literal longer than 255 characters on its own; the emitted line exceeds ABAP's source line limit and must be shortened by hand.`
+        );
+      }
+      continue;
+    }
+    const addedLen = current.length ? currentLen + 1 + p.text.length : p.text.length;
+    if (contIndent.length + addedLen > ABAP_LINE_MAX) {
+      flush();
+      current = [p.text];
+      currentLen = p.text.length;
+    } else {
+      current.push(p.text);
+      currentLen = addedLen;
+    }
+  }
+  flush();
+  lines.push(`${indent})`);
+  return lines.join("\n");
+}
+function buildValueLiteralLines(entity, columns, rows, maskedUpper, indent, longFieldNotes, longFieldNoted) {
+  const typeLine = `${indent}TYPES ty_rows TYPE STANDARD TABLE OF ${entity} WITH EMPTY KEY.`;
+  if (rows.length === 0) {
+    return {
+      lines: [typeLine, `${indent}DATA(lt_rows) = VALUE ty_rows( ).`],
+      anyOmitted: false
+    };
+  }
+  let anyOmitted = false;
+  const groupIndent = `${indent}  `;
+  const groupLines = [];
+  for (const cells of rows) {
+    const { fields, omitted } = buildRowFields(columns, cells, maskedUpper);
+    if (omitted) anyOmitted = true;
+    groupLines.push(renderRowGroup(fields, groupIndent, longFieldNotes, longFieldNoted));
+  }
+  return {
+    lines: [typeLine, `${indent}DATA(lt_rows) = VALUE ty_rows(`, ...groupLines, `${indent}).`],
+    anyOmitted
+  };
+}
+var EMPTY_CELLS_OMITTED_NOTE = "Empty cells are omitted from the VALUE literal (ABAP fills them with the type's initial value); key fields are always emitted.";
+var KEY_METADATA_UNRELIABLE_NOTE = "The ADT data preview reports no key attribute for most entities, so few or no fields qualify as keys here: an omitted cell is an initial value in the fixture, which is not always the same as the row's real state.";
+function normaliseMaskUpper(maskedFields) {
+  return new Set(maskedFields.map((f) => f.toUpperCase()));
+}
+function renderAbapValue(input) {
+  const { result, maskedFields, columnOrder } = input;
+  const notes = [SHARED_NOTE];
+  const maskedUpper = normaliseMaskUpper(maskedFields);
+  const columns = resolveColumns(result, columnOrder);
+  const entity = result.table.toLowerCase();
+  if (result.rows.length === 0) {
+    notes.push("The preview returned no rows, so the VALUE literal below is empty.");
+    return {
+      text: [
+        `TYPES ty_rows TYPE STANDARD TABLE OF ${entity} WITH EMPTY KEY.`,
+        "DATA(lt_rows) = VALUE ty_rows( )."
+      ].join("\n"),
+      notes,
+      fixtureKind: "literal_only"
+    };
+  }
+  const longFieldNotes = [];
+  const longFieldNoted = /* @__PURE__ */ new Set();
+  const { lines, anyOmitted } = buildValueLiteralLines(
+    entity,
+    columns,
+    result.rows,
+    maskedUpper,
+    "",
+    longFieldNotes,
+    longFieldNoted
+  );
+  if (anyOmitted) notes.push(EMPTY_CELLS_OMITTED_NOTE, KEY_METADATA_UNRELIABLE_NOTE);
+  notes.push(...longFieldNotes);
+  return { text: lines.join("\n"), notes, fixtureKind: "literal_only" };
+}
+function renderTestDouble(input) {
+  const { result, maskedFields, columnOrder } = input;
+  const notes = [SHARED_NOTE, TEST_DOUBLE_NOTE];
+  const maskedUpper = normaliseMaskUpper(maskedFields);
+  const columns = resolveColumns(result, columnOrder);
+  const entity = result.table.toLowerCase();
+  const entityUpper = result.table.toUpperCase();
+  let literalLines;
+  let anyOmitted = false;
+  const longFieldNotes = [];
+  const longFieldNoted = /* @__PURE__ */ new Set();
+  if (result.rows.length === 0) {
+    literalLines = [
+      `  TYPES ty_rows TYPE STANDARD TABLE OF ${entity} WITH EMPTY KEY.`,
+      "  DATA(lt_rows) = VALUE ty_rows( )."
+    ];
+    notes.push("The preview returned no rows, so the VALUE literal inside the fixture is empty.");
+  } else {
+    const built = buildValueLiteralLines(
+      entity,
+      columns,
+      result.rows,
+      maskedUpper,
+      "  ",
+      longFieldNotes,
+      longFieldNoted
+    );
+    literalLines = built.lines;
+    anyOmitted = built.anyOmitted;
+  }
+  if (anyOmitted) notes.push(EMPTY_CELLS_OMITTED_NOTE, KEY_METADATA_UNRELIABLE_NOTE);
+  notes.push(...longFieldNotes);
+  const text5 = [
+    '" Paste into your test class. Requires CLASS ... FOR TESTING RISK LEVEL HARMLESS.',
+    "CLASS-DATA go_osql TYPE REF TO if_osql_test_environment.",
+    "",
+    "METHOD class_setup.",
+    `  go_osql = cl_osql_test_environment=>create( VALUE #( ( '${entityUpper}' ) ) ).`,
+    ...literalLines,
+    "  go_osql->insert_test_data( lt_rows ).",
+    "ENDMETHOD.",
+    "",
+    "METHOD class_teardown.",
+    "  go_osql->destroy( ).",
+    "ENDMETHOD."
+  ].join("\n");
+  return { text: text5, notes, fixtureKind: "osql_test_environment" };
+}
+
+// src/tools/data-preview.ts
 var CELL_DISPLAY_WIDTH = 60;
 var dataPreviewInputSchema = {
   table: external_exports.string().optional().describe(
@@ -144048,6 +145862,12 @@ var dataPreviewInputSchema = {
   ),
   distinct: external_exports.boolean().optional().describe(
     "Suppress duplicate rows. Requires every order_by field to also appear in columns \u2014 otherwise the sort key would not be part of what distinctness is computed over."
+  ),
+  format: external_exports.enum(["table", "abap_value", "test_double"]).optional().describe(
+    "How to render the rows. table (default): the usual text table. abap_value: the rows as one typed VALUE #( ... ) literal for the entity's line type. test_double: that literal wrapped in a ready-to-paste cl_osql_test_environment fixture. Same deny-list, same flag, same row ceiling in every case \u2014 the format is applied after the read, never around the check."
+  ),
+  mask: external_exports.array(external_exports.string()).optional().describe(
+    "Field names to blank in the OUTPUT only, applied at render time after the read. Character-like fields become 'MASKED'; other types become their initial value. The response lists which fields were masked."
   )
 };
 var DataPreviewInput = external_exports.object(dataPreviewInputSchema);
@@ -144066,15 +145886,7 @@ function columnSummary(result) {
     (c) => `${c.name || "?"}:${c.type || "?"}` + (c.length === void 0 ? "" : `(${c.length})`) + (c.key ? "*" : "")
   ).join(" ");
 }
-function renderPreview2(result, requested, maxChars) {
-  const keys = uniqueColumnKeys(result.columns.map((c) => c.name));
-  const rows = result.rows.map((cells) => {
-    const rec = {};
-    keys.forEach((k, i) => {
-      rec[k] = truncateForDisplay(cells[i] ?? "", CELL_DISPLAY_WIDTH);
-    });
-    return rec;
-  });
+function previewNotes(result, requested) {
   const filtered = result.statement !== void 0;
   const notes = [];
   if (result.rowsRequested < requested) {
@@ -144102,17 +145914,32 @@ function renderPreview2(result, requested, maxChars) {
       ) : filtered ? `EMPTY: no row in ${result.table} matched the where filter. That is NOT evidence ${result.table} itself is empty \u2014 only that nothing satisfied the condition(s). The rendered statement is in STATEMENT above.` : `EMPTY: ${result.table} exists and was read successfully, but returned no rows. That is a genuinely empty result, not a failure and not a truncation.`
     );
   }
+  return notes;
+}
+function previewSections(result) {
   const sections = [];
   if (result.columns.length) {
     sections.push({ title: "COLUMNS (* = key)", content: columnSummary(result) });
   }
-  if (filtered) {
+  if (result.statement !== void 0) {
     const statementLines = [`sent: ${result.statement}`];
     if (result.executedQueryString !== void 0) {
       statementLines.push(`server compiled: ${result.executedQueryString}`);
     }
     sections.push({ title: "STATEMENT", content: statementLines.join("\n") });
   }
+  return sections;
+}
+function renderPreview2(result, requested, maxChars) {
+  const keys = uniqueColumnKeys(result.columns.map((c) => c.name));
+  const rows = result.rows.map((cells) => {
+    const rec = {};
+    keys.forEach((k, i) => {
+      rec[k] = truncateForDisplay(cells[i] ?? "", CELL_DISPLAY_WIDTH);
+    });
+    return rec;
+  });
+  const filtered = result.statement !== void 0;
   return buildResponse({
     header: {
       table: result.table,
@@ -144123,12 +145950,50 @@ function renderPreview2(result, requested, maxChars) {
       filtered,
       total_rows: result.totalRows
     },
-    sections,
+    sections: previewSections(result),
     body: rows.length ? textTable(rows, keys) : "(no rows)",
     bodyLabel: "ROWS",
-    notes,
+    notes: previewNotes(result, requested),
     maxChars
   });
+}
+function renderFixture(result, requested, maxChars, format, maskedUpper, columnOrder) {
+  const fixtureInput = {
+    result,
+    maskedFields: maskedUpper,
+    columnOrder
+  };
+  const render = format === "abap_value" ? renderAbapValue(fixtureInput) : renderTestDouble(fixtureInput);
+  return buildResponse({
+    header: {
+      table: result.table,
+      columns: result.columns.length,
+      rows_shown: result.rows.length,
+      rows_requested: result.rowsRequested,
+      more_rows_exist: result.moreRowsExist,
+      filtered: result.statement !== void 0,
+      total_rows: result.totalRows,
+      format,
+      masked: maskedUpper.length ? maskedUpper.join(",") : void 0
+    },
+    sections: previewSections(result),
+    body: render.text,
+    bodyLabel: format === "abap_value" ? "ABAP_VALUE" : "TEST_DOUBLE",
+    notes: [...previewNotes(result, requested), ...render.notes],
+    maxChars
+  });
+}
+function normaliseMask(mask) {
+  if (mask === void 0) return [];
+  const seen = /* @__PURE__ */ new Set();
+  const out = [];
+  for (const raw of mask) {
+    const name = raw.trim().toUpperCase();
+    if (name === "" || seen.has(name)) continue;
+    seen.add(name);
+    out.push(name);
+  }
+  return out;
 }
 function registerDataPreviewTools(mcp, deps) {
   const audit = deps.log ?? ((m) => void process.stderr.write(m + "\n"));
@@ -144137,7 +146002,7 @@ function registerDataPreviewTools(mcp, deps) {
     "abap_data_preview",
     {
       title: "Preview DDIC table data",
-      description: `Read rows from ONE DDIC entity: a table, database/projection view, or parameterless CDS view \u2014 not every DDIC entity kind qualifies. A name plus an optional structured filter (where/columns/order_by/distinct) \u2014 still no JOIN, no aggregate, and no SQL text. Rows clamped to the ceiling (currently ${ceiling}). Deny-listed tables and non-provably-nonproductive systems are refused.`,
+      description: `Read rows from ONE DDIC entity: a table, database/projection view, or parameterless CDS view \u2014 not every DDIC entity kind qualifies. A name plus an optional structured filter (where/columns/order_by/distinct) \u2014 still no JOIN, no aggregate, and no SQL text. Rows clamped to the ceiling (currently ${ceiling}). Deny-listed tables and non-provably-nonproductive systems are refused. format: abap_value / test_double turn the rows into a paste-ready ABAP fixture under the same policy.`,
       inputSchema: dataPreviewInputSchema,
       annotations: {
         readOnlyHint: true,
@@ -144184,9 +146049,35 @@ function registerDataPreviewTools(mcp, deps) {
             ...isEmptyFilter(filter) ? {} : { filter }
           })
         );
-        const res = renderPreview2(result, requested, deps.cfg.maxResponseChars);
+        const requestedFormat = a.format ?? "table";
+        let res;
+        let maskedUpper = [];
+        if (requestedFormat === "table") {
+          res = renderPreview2(result, requested, deps.cfg.maxResponseChars);
+        } else {
+          maskedUpper = normaliseMask(a.mask);
+          const knownColumns = result.columns;
+          const knownUpper = new Set(knownColumns.map((c) => c.name.toUpperCase()));
+          const unknown2 = maskedUpper.filter((name) => !knownUpper.has(name));
+          if (unknown2.length) {
+            throw new AbapError(
+              "BAD_INPUT",
+              `mask names field(s) not present on ${result.table}: ${unknown2.join(", ")}.`,
+              { table: result.table, mask: unknown2, columns: knownColumns.map((c) => c.name) },
+              `Known columns: ${knownColumns.map((c) => c.name).join(", ") || "(none)"}. A mask field must match a real column, or it would be silently ignored.`
+            );
+          }
+          res = renderFixture(
+            result,
+            requested,
+            deps.cfg.maxResponseChars,
+            requestedFormat,
+            maskedUpper,
+            a.columns
+          );
+        }
         audit(
-          `[abapsmith] audit: abap_data_preview table=${result.table} rows=${result.rows.length} requested=${requested} effective=${effective} more_rows_exist=${result.moreRowsExist} filtered=${result.statement !== void 0}` + (result.totalRows === void 0 ? "" : ` total_rows=${result.totalRows}`)
+          `[abapsmith] audit: abap_data_preview table=${result.table} rows=${result.rows.length} requested=${requested} effective=${effective} more_rows_exist=${result.moreRowsExist} filtered=${result.statement !== void 0}` + (result.totalRows === void 0 ? "" : ` total_rows=${result.totalRows}`) + ` format=${requestedFormat} masked=${maskedUpper.length}`
         );
         return ok17(res.text);
       } catch (e) {
@@ -144459,11 +146350,11 @@ var TIER1_CHAPTER_NAMES = ["kap7", "kap8", "kap9", "kap11"];
 var VARIABLES_CHAPTER_NAME = "kap10";
 function dumpChapterExtents(chapters, totalLines) {
   const sorted = [...chapters].sort((a, b) => a.line - b.line || a.chapterOrder - b.chapterOrder);
-  const clamp = (n) => Math.min(Math.max(n, 0), Math.max(totalLines, 0));
+  const clamp2 = (n) => Math.min(Math.max(n, 0), Math.max(totalLines, 0));
   return sorted.map((chapter, i) => {
     const next = sorted[i + 1];
-    const start = clamp(chapter.line - 1);
-    const end = clamp(next === void 0 ? totalLines : next.line - 1);
+    const start = clamp2(chapter.line - 1);
+    const end = clamp2(next === void 0 ? totalLines : next.line - 1);
     return { chapter, start, end: Math.max(start, end) };
   });
 }
@@ -147260,7 +149151,7 @@ function detectVersion2(edmx, schemas) {
   );
 }
 function indexAssociations(schemas) {
-  const idx = /* @__PURE__ */ new Map();
+  const idx2 = /* @__PURE__ */ new Map();
   for (const s of schemas) {
     const ns = attr8(s, "Namespace");
     for (const a of list(s, "Association")) {
@@ -147274,11 +149165,11 @@ function indexAssociations(schemas) {
         const mult = attr8(e, "Multiplicity");
         ends.set(role, { type, ...mult === void 0 ? {} : { multiplicity: mult } });
       }
-      idx.set(name, ends);
-      if (ns) idx.set(`${ns}.${name}`, ends);
+      idx2.set(name, ends);
+      if (ns) idx2.set(`${ns}.${name}`, ends);
     }
   }
-  return idx;
+  return idx2;
 }
 function v2Navigation(typeNode, assoc) {
   const out = [];
@@ -147411,21 +149302,21 @@ function v4Capabilities(annotations) {
   };
 }
 function indexV4ExternalAnnotations(schemas) {
-  const idx = /* @__PURE__ */ new Map();
+  const idx2 = /* @__PURE__ */ new Map();
   for (const s of schemas) {
     for (const block2 of list(s, "Annotations")) {
       const target = attr8(block2, "Target");
       if (!target) continue;
       const anns = v4AnnotationsOf(block2);
       if (anns.length === 0) continue;
-      idx.set(target, [...idx.get(target) ?? [], ...anns]);
+      idx2.set(target, [...idx2.get(target) ?? [], ...anns]);
       const slash = target.indexOf("/");
       const cut = slash === -1 ? target.lastIndexOf(".") : target.lastIndexOf(".", slash);
       const short = cut === -1 ? target : target.slice(cut + 1);
-      if (short !== target) idx.set(short, [...idx.get(short) ?? [], ...anns]);
+      if (short !== target) idx2.set(short, [...idx2.get(short) ?? [], ...anns]);
     }
   }
-  return idx;
+  return idx2;
 }
 function v4Navigation(typeNode) {
   const out = [];
@@ -149532,8 +151423,8 @@ function resolveExecutions(raw) {
   return raw;
 }
 function shortId2(fullId) {
-  const idx = fullId.lastIndexOf("/");
-  return idx === -1 ? fullId : fullId.slice(idx + 1);
+  const idx2 = fullId.lastIndexOf("/");
+  return idx2 === -1 ? fullId : fullId.slice(idx2 + 1);
 }
 var msFromUs = (us) => String(Math.round(us / 1e3));
 var pct = (p) => `${p.toFixed(1)}%`;
@@ -150458,6 +152349,20 @@ function buildFluidInfoBlock(deps) {
 }
 
 // src/tools/fluid.ts
+function catalogueToolSet(toolSet, cfg) {
+  if (cfg.allowFluidEval) return toolSet;
+  const core = toolSet.tools.get(CORE_TOOL_ID);
+  if (!core || !core.manifest.actions.some((a) => a.name === CORE_EVAL_ACTION)) return toolSet;
+  const tools = new Map(toolSet.tools);
+  tools.set(CORE_TOOL_ID, {
+    ...core,
+    manifest: {
+      ...core.manifest,
+      actions: core.manifest.actions.filter((a) => a.name !== CORE_EVAL_ACTION)
+    }
+  });
+  return { ...toolSet, tools };
+}
 var FLUID_OPS = ["list", "describe", "status", "verify", "run", "repair", "remove"];
 var fluidInputSchema = {
   op: external_exports.enum(FLUID_OPS).optional().describe(
@@ -150539,7 +152444,7 @@ function refusedSection(toolSet) {
   return [{ title: "REFUSED PLUGINS", content: textTable(rows, ["path", "id", "code", "reason"]) }];
 }
 function renderInfoBlock(deps) {
-  const info = buildFluidInfoBlock(deps);
+  const info = buildFluidInfoBlock({ ...deps, toolSet: catalogueToolSet(deps.toolSet, deps.cfg) });
   const rows = info.tools.map((t) => ({
     id: t.id,
     origin: t.origin,
@@ -151039,7 +152944,7 @@ function builtinFluidToolSet(builtins) {
   return { tools, refused: [], warnings: [] };
 }
 function registerFluidTool(mcp, deps) {
-  const description = buildFluidDescription(deps.toolSet);
+  const description = buildFluidDescription(catalogueToolSet(deps.toolSet, deps.cfg)) + "\ncore.eval runs model-authored ABAP under ABAP_ALLOW_FLUID_EVAL: a lint-not-sandbox control whose real boundary is the SAP user's authorisations.";
   mcp.registerTool(
     "abap_fluid",
     {
@@ -151069,7 +152974,13 @@ function registerFluidTool(mcp, deps) {
             requireFluidEnabled(deps, { op, tool: a.tool });
             const toolId = a.tool ? a.tool : void 0;
             if (toolId !== void 0) mustGetTool(deps.toolSet, toolId);
-            return ok23(renderDescribe(deps, buildFluidDescribe(deps.toolSet, toolId), toolId));
+            return ok23(
+              renderDescribe(
+                deps,
+                buildFluidDescribe(catalogueToolSet(deps.toolSet, deps.cfg), toolId),
+                toolId
+              )
+            );
           }
           case "status":
             requireFluidEnabled(deps, { op });
@@ -151100,7 +153011,7 @@ var MAX_PROPERTY_VALUE_CHARS = 300;
 var MAX_RESIDUAL_PROPERTIES = 24;
 var MAX_MESSAGE_CHARS = 500;
 var SUBTYPE_KEY2 = "com.sap.adt.communicationFramework.subType";
-function str5(v) {
+function str6(v) {
   if (typeof v === "string") return v.trim() || void 0;
   if (typeof v === "number" && Number.isFinite(v)) return String(v);
   return void 0;
@@ -151202,9 +153113,9 @@ function adtEnvelopeFromThrown(e) {
   const env = envelopeFromProperties(info.properties);
   if (info.status !== void 0) env.status = info.status;
   env.exceptionType ??= info.type;
-  env.namespace ??= str5(any2.namespace);
-  env.code ??= str5(any2.code);
-  const localized = str5(any2.localizedMessage);
+  env.namespace ??= str6(any2.namespace);
+  env.code ??= str6(any2.code);
+  const localized = str6(any2.localizedMessage);
   if (localized && localized !== info.message) env.localizedMessage = localized;
   return env;
 }
@@ -151221,8 +153132,8 @@ function adtEnvelopeFromDetails(details) {
         } else rest[k] = v;
         break;
       case "adtExceptionType":
-        if (str5(v)) {
-          env.exceptionType = str5(v);
+        if (str6(v)) {
+          env.exceptionType = str6(v);
           sawAny = true;
         } else rest[k] = v;
         break;
@@ -151239,14 +153150,14 @@ function adtEnvelopeFromDetails(details) {
         } else rest[k] = v;
         break;
       case "blockingUser":
-        if (str5(v)) {
-          env.lock = { ...env.lock, blockingUser: str5(v) };
+        if (str6(v)) {
+          env.lock = { ...env.lock, blockingUser: str6(v) };
           sawAny = true;
         } else rest[k] = v;
         break;
       case "transport":
-        if (str5(v)) {
-          env.transport = str5(v);
+        if (str6(v)) {
+          env.transport = str6(v);
           sawAny = true;
         } else rest[k] = v;
         break;

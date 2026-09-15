@@ -1,17 +1,27 @@
 /**
- * Built-in "classic" fluid tool: fourteen classic DDIC/CTS mutations
+ * Built-in "classic" fluid tool: fifteen classic DDIC/CTS mutations
  * (view/transaction/index/package/search-help create+delete, view/
- * transaction update, transport-entry-remove) plus a read-only `exists`
- * probe, all dispatched through one static `ZCL_ZMCP_FLUID_CLASSIC` body
- * class instead of a generated per-operation `IF_OO_ADT_CLASSRUN` class.
- * `ZCL_ZMCP_FLUID_RT` is deployed alongside it (first in `objects`, so it
- * exists before `ZCL_ZMCP_FLUID_CLASSIC` is activated) — its source is the
- * exact one the `rt` tool deploys, not a copy.
+ * transaction update, transport-entry-remove, transport-of-copies create)
+ * plus three read-only probes (`exists`, `read_transport_log`,
+ * `read_import_queue`), all dispatched through one static
+ * `ZCL_ZMCP_FLUID_CLASSIC` body class instead of a generated per-operation
+ * `IF_OO_ADT_CLASSRUN` class. `ZCL_ZMCP_FLUID_RT` is deployed alongside it
+ * (first in `objects`, so it exists before `ZCL_ZMCP_FLUID_CLASSIC` is
+ * activated) — its source is the exact one the `rt` tool deploys, not a
+ * copy.
  *
  * Note (issue #83): `exists` does NOT cover search helps — its `kind` enum
  * is deliberately left as `["view", "transaction", "package", "index"]`.
  * Extending it (and `abap-exists.ts`) was out of scope for this change; see
  * the accompanying report for why.
+ *
+ * Note (issue #88): `read_transport_log`, `read_import_queue` and
+ * `create_transport_of_copies` were added here for the same reason
+ * `remove_transport_entry` was — CTS has no ADT-documented equivalent, so
+ * they reach the classic RFC-enabled function modules instead. See
+ * `../../transport-log.ts`, `../../transport-queue.ts` and
+ * `../../transport-copies.ts` for the "why not ADT" rationale and the
+ * live-verified (A4H, client 001, 2026-09-15) facts each bridge encodes.
  */
 import type { FluidManifest, LoadedFluidTool } from "../manifest.js";
 import { FLUID_CONTRACT, manifestVersion } from "../manifest.js";
@@ -52,7 +62,9 @@ export const classicManifest: FluidManifest = {
   contract: FLUID_CONTRACT,
   id: CLASSIC_TOOL_ID,
   title: "Classic DDIC/CTS bridge",
-  description: "Classic-UI DDIC and CTS mutations (view, transaction, search help, index, package, transport entry).",
+  description:
+    "Classic-UI DDIC and CTS mutations (view, transaction, search help, index, package, transport entry, " +
+    "transport of copies) plus read-only transport log and import queue lookups.",
   // This tool's ABAP reads args with the flat, single-pass `scan()`
   // (`./classic/abap-core.ts`) — see `FluidManifest.flatArgs` — so the
   // dispatcher flattens nested arrays-of-objects/objects (e.g. `shlp`'s
@@ -71,7 +83,7 @@ export const classicManifest: FluidManifest = {
     {
       name: CLASSIC_BODY_CLASS,
       type: "CLAS/OC",
-      description: "fluid: classic DDIC/CTS mutations (view/tran/shlp/index/pkg)",
+      description: "fluid: classic DDIC/CTS (view/tran/shlp/idx/pkg/trkorr)",
       source: { text: CLASSIC_SOURCE },
     },
   ],
@@ -580,6 +592,58 @@ export const classicManifest: FluidManifest = {
       },
       output: { type: "array", items: { type: "string" }, description: "One transcript line per element." },
       targets: { object: "/name" },
+    },
+    {
+      name: "read_transport_log",
+      category: "read",
+      description: "Reads a transport request's per-target-system import log overview and log file lines.",
+      input: {
+        type: "object",
+        required: ["trkorr"],
+        properties: {
+          trkorr: { type: "string", maxLength: 10, description: "The transport request to read the log of." },
+        },
+      },
+      output: { type: "array", items: { type: "string" }, description: "One transcript line per element." },
+    },
+    {
+      name: "read_import_queue",
+      category: "read",
+      description: "Reads a TMS system's import queue (buffer) without collecting, locking or caching side effects.",
+      input: {
+        type: "object",
+        required: ["system"],
+        properties: {
+          system: { type: "string", maxLength: 8, description: "The TMS system id whose queue is read." },
+          domain: {
+            type: "string",
+            maxLength: 32,
+            description: "TMS transport domain, e.g. DOMAIN_A4H; empty lets TMS resolve the local domain.",
+          },
+        },
+      },
+      output: { type: "array", items: { type: "string" }, description: "One transcript line per element." },
+    },
+    {
+      name: "create_transport_of_copies",
+      category: "mutate",
+      description: "Creates a transport of copies (TRFUNCTION 'T') targeting one system.",
+      // No `targets`: the caller-facing wrapper (`../../transport-copies.ts`) requires a
+      // pre-minted `AuthorizedTarget<"transport", ...>` and does its own runtime name-match
+      // backstop before dispatch, the same idiom `trCreate` (`../../transports.ts`) uses —
+      // `devclass` here is only an attribute recorded on the request header
+      // (TR_INSERT_REQUEST_WITH_TASKS's IV_DEVCLASS), not a package being written into, so a
+      // `package:`-pointer declaration here would misrepresent what the call actually does.
+      input: {
+        type: "object",
+        required: ["description", "target", "devclass"],
+        properties: {
+          description: { type: "string", maxLength: 60, description: "Short text (E070/AS4TEXT, CHAR60)." },
+          target: { type: "string", maxLength: 10, description: "Target system (E070-TARSYSTEM)." },
+          devclass: { type: "string", maxLength: 30, description: "Package recorded on the request header." },
+        },
+      },
+      output: { type: "array", items: { type: "string" }, description: "One transcript line per element." },
     },
   ],
 };
