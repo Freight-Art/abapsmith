@@ -21,9 +21,11 @@ Read the source, metadata or outline of an ABAP object.
 | `version` | enum `active` \| `inactive` | no | `active` | Which version to read. |
 | `format` | enum `raw` | no | — | Return unprocessed source instead of the rendered/annotated form. |
 | `view` | enum `history` \| `diff` \| `definition` \| `docu` \| `digest` | no | — | `history`: list the object's version feed (author, date, transport) instead of source/DDIC. `diff`: return unified-diff hunks between two versions — never two full sources. `definition`: element info / go-to-definition for the identifier at `line`/`column` — see ["view=\"definition\": element info and go-to-definition"](#viewdefinition-element-info-and-go-to-definition) below. `docu`: SAP's own documentation for the object (or, with `method=`, one method's ABAP Doc) — see ["view=\"docu\": SAP documentation"](#viewdocu-sap-documentation) below. `digest`: a fixed six-section overview — see ["view=\"digest\": one-page object overview"](#viewdigest-one-page-object-overview) below. Omit for a normal source/DDIC read. |
-| `from` | string | `view="diff"` only | released version before `to` | Older side of the diff — a version number (e.g. `"66"`), a transport name, or the literal `"active"` for current source. |
-| `to` | string | `view="diff"` only | newest released version | Newer side of the diff, same forms as `from`. |
-| `context` | number (int, 0–20) | no | `3` | `view="diff"` only — unchanged context lines per hunk. |
+| `from` | string | `view="diff"` only | released version before `to` | Older side of the diff — a version number (e.g. `"66"`), a transport name, or the literal `"active"` for current source. Refused together with `from_system`/`to_system` — see below. |
+| `to` | string | `view="diff"` only | newest released version | Newer side of the diff, same forms as `from`. Refused together with `from_system`/`to_system` — see below. |
+| `context` | number (int, 0–20) | no | `3` | `view="diff"` only — unchanged context lines per hunk. Also honoured by a cross-system diff. |
+| `from_system` | string | `view="diff"` only, and only with [more than one system configured](../CONFIGURATION/multi-system.md) | the called system | Cross-system diff: compare the object as it is on this system. See [`view="diff"`: same-system versions and cross-system comparison](#viewdiff-same-system-versions-and-cross-system-comparison) below. |
+| `to_system` | string | `view="diff"` only, and only with more than one system configured | — | Cross-system diff: the other side of the comparison, e.g. `{"object":"ZCL_FOO","view":"diff","to_system":"QAS"}`. Giving either `from_system` or `to_system` switches the whole request into cross-system mode. |
 | `line` | number (int, ≥1) | required with `view="definition"`; refused otherwise | — | 1-based source line — same convention as `abap_quick_fix`. Refused with `UNSUPPORTED` together with `view="history"`/`"diff"`/`"docu"`/`"digest"`, and refused with `BAD_INPUT` if given with no `view` at all (it would silently be discarded by an ordinary read). |
 | `column` | number (int, ≥0) | no | `0` | 0-based column — same convention as `abap_quick_fix`. Only meaningful with `view="definition"`; refused otherwise on the same terms as `line`. |
 | `include` | enum `CLASS_INCLUDES` | no | `"main"` | Classes only — which class include to read; applies to the source read and to `view` alike. `"testclasses"` holds ABAP Unit tests; `"main"` never does. Always an explicit, disclosed choice — silently defaulting to `main` would hide changes made in another include. Refused with `UNSUPPORTED` together with `view="docu"` or `view="digest"` — `docu` resolves its own documentation target from the object's type and name and has no class-include axis; a digest always reads the class's own main source plus its testclasses include, never a caller-picked one. |
@@ -117,6 +119,77 @@ exercised against a live MCP server, because the server this project talks
 to runs a previously released bundle, not this working tree. Treat the read
 side as implemented against live-captured data, not live-verified end to
 end.
+
+### view="diff": same-system versions and cross-system comparison
+
+`view="diff"` answers one of two different questions, depending on which
+parameters are given. Giving `from`/`to` (or neither) diffs two VERSIONS of
+one object on one system — see the parameter table above for what `from`
+and `to` accept. Giving `from_system` and/or `to_system` instead diffs the
+CURRENT ACTIVE source of the same object across two different SAP systems.
+The two forms are mutually exclusive: `from`/`to` select a point on one
+system's version feed, and two independent SAP systems share no such feed
+for either to select from — combining them is refused with `BAD_INPUT`,
+naming which parameter to drop.
+
+**Cross-system diff is only offered when [more than one system is
+configured](../CONFIGURATION/multi-system.md)** — on a single-system
+server, `from_system`/`to_system` are not in the tool's schema at all, and
+a hand-crafted call carrying them anyway is refused with `BAD_INPUT`
+naming the server's one configured system. Giving either `from_system` or
+`to_system` (both are optional individually) switches the request into
+cross-system mode; `from_system` defaults to the system the call itself was
+routed to (the `system` parameter, or the default system when that too is
+omitted), so `{"object":"ZCL_FOO","view":"diff","to_system":"QAS"}` alone
+is a complete cross-system request — the default system vs. QAS.
+
+What a cross-system diff does NOT do:
+
+- **No shared version feed.** Only current active source is compared —
+  never a specific version, a transport, or history — because two
+  independent SAP systems have no common version numbering for either side
+  of `from`/`to` to name. Those two parameters are refused outright when
+  combined with `from_system`/`to_system`.
+- **No component-narrowing parameters.** `method`, `outline`, `line`,
+  `column`, `types` and `depth` are all refused together with
+  `from_system`/`to_system` — a cross-system diff always compares the
+  whole object's current source, never a single method, a source position,
+  or a package listing. `include` (class-includes) is the one exception:
+  it is honoured on both sides exactly like an ordinary read honours it,
+  since comparing e.g. `testclasses` between two systems is a legitimate
+  question.
+- **No comparing a system against itself.** `from_system` and `to_system`
+  resolving to the same alias is refused with `BAD_INPUT` — current active
+  source compared against itself would always report no differences, so
+  this is treated as a caller mistake rather than answered literally.
+
+**Each side is fetched under its own system's permission and connection.**
+A cross-system diff opens a connection to both `from_system` and
+`to_system` (in parallel) and asserts a `read` capability against each
+side's OWN `SafetyGate` — a `read`-mode system still allows being read as
+one side of a diff even when the default system is `admin`; see
+[SAFETY/permission-model.md](../SAFETY/permission-model.md#the-mode-ladder-is-per-system).
+If the object does not exist on one side, the refusal names which system
+it was missing from rather than a bare "not found" — ambiguous the moment
+two systems are being compared in one call.
+
+**Header format.** The `from`/`to` fields in a cross-system response read
+`ALIAS (SID/client)` for each side, e.g. `QAS (QAS/100)`, rather than the
+version label a same-system diff uses — there is no version number to show
+in its place.
+
+**TYPE DIFFERS / PACKAGE DIFFERS are findings, not errors.** If the object
+resolves to a different ADT type, or a different package, on the two
+systems, the response still returns a diff (of whatever source each side
+resolved to) and adds a note calling out the mismatch, rather than
+refusing outright — the object may legitimately have been recreated under
+a different type or moved to a different package on one side, and that is
+exactly the kind of drift a cross-system diff exists to surface.
+
+Beyond this, a cross-system diff renders through the same hunk/paging/
+truncation machinery as a same-system diff (`DIFF_MAX_HUNKS`, `context`,
+`offset`/`limit`), so everything about reading a large diff a page at a
+time applies identically to both forms.
 
 ### view="definition": element info and go-to-definition
 

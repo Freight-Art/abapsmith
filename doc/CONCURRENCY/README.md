@@ -12,3 +12,4 @@ variables that tune the values discussed here.
 | [object-gate-and-debug-lock.md](object-gate-and-debug-lock.md) | The two sibling cross-process locks: same-object write serialisation and the debug-listener arm lock |
 | [etag-race-and-auth-breaker.md](etag-race-and-auth-breaker.md) | The pre-activation etag re-read that narrows the lock-release-to-activate race, and the 401 circuit breaker that protects against account lockout |
 | [several-agents-one-sandbox.md](several-agents-one-sandbox.md) | The cross-process hazard when more than one abapsmith process shares an appliance, an incident writeup, and how to check your own footprint |
+| [multi-system-pools.md](multi-system-pools.md) | What is isolated per configured system (pools, breakers, discovery cache, the object gate) versus the one debugger lane shared by the whole process |

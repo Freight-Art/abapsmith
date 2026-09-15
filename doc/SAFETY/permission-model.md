@@ -79,6 +79,45 @@ gates `abap_service` `op="publish"`/`op="unpublish"` — the same tier as
 per-call `confirm` echo of the binding name. See
 [CONFIGURATION/permissions-and-allowlists.md](../CONFIGURATION/permissions-and-allowlists.md) for the per-variable defaults.
 
+## The mode ladder is per system
+
+Everything in [Modes](#modes) above describes ONE system's ladder. With
+[more than one system configured](../CONFIGURATION/multi-system.md), each
+system carries its own `ABAP_MODE` and its own allowlists, and each
+system's own `SafetyGate` is the only thing that ever decides whether a
+given call against that system is permitted — there is no process-wide
+mode that overrides a stricter per-system one.
+
+Tool **registration** stays process-wide: whether `abap_write` is
+registered at all, or which fields `abap_dumps` advertises, is decided
+once at startup from the UNION of every configured system's capabilities —
+a fleet with one `admin` system and two `read` systems still registers
+every mutating tool, because at least one configured target can use it.
+See
+[TOOLS/availability-and-capabilities.md](../TOOLS/availability-and-capabilities.md)
+for the registration-vs-permission distinction this relies on; nothing
+about it changes here.
+
+Tool **permission**, in contrast, is decided per call, by the target
+system's own gate: a write aimed at a `read`-mode system is refused even
+when the default system is `admin`. Configuring `DEV` as `admin` and `QAS`
+as `read` does not make QAS writable by calling through DEV's process, and
+it does not make DEV read-only because QAS is stricter — each call is
+authorized against the `system` it actually names (or the default system,
+when `system` is omitted), and that system's mode, allowlists and
+out-of-band flags are the only ones consulted. A caller cannot widen one
+system's ceiling by aiming a call at a different, more permissive one:
+`abap_write {"object":"ZCL_FOO","system":"QAS"}` against a `read`-mode QAS
+is refused exactly like a single-system read-only deployment refuses it,
+regardless of what DEV is configured to allow.
+
+This follows directly from `AuthorizedTarget<Op>` being produced by a
+specific `SafetyGate.authorize()` call (see [Authorisation is carried in
+the type system](#authorisation-is-carried-in-the-type-system) below):
+there is one gate instance per configured system, not one shared instance
+for the process, so there is no code path where a call routed at one
+system's gate can be authorized by another system's mode.
+
 ## Out-of-band flags
 
 Three flags sit outside the mode ladder and are off in every mode, including

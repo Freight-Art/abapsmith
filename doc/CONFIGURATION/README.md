@@ -11,3 +11,4 @@ resource allowlists, concurrency tuning, and the journal.
 | [permissions-and-allowlists.md](permissions-and-allowlists.md) | `ABAP_MODE`, the capability override booleans, and the package/name/transport allowlists |
 | [concurrency-and-activation.md](concurrency-and-activation.md) | Session pool sizing, lane concurrency, and batch-activation chunk limits |
 | [journal-diagnostics-and-tooling.md](journal-diagnostics-and-tooling.md) | The change journal, debugger identity, response diagnostics, write verification, and the tool-surface switch |
+| [multi-system.md](multi-system.md) | Configuring more than one SAP system in one process: `ABAP_SYSTEMS`, `ABAP_SYSTEM_<ALIAS>_*`, secrets, and the `system` tool parameter |

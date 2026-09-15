@@ -3,7 +3,12 @@
 One debug session lane is active per process by default; `ABAP_DEBUG_SESSIONS`
 raises how many lanes one process may hold concurrently, but SAP itself still
 allows only one active debug listener per SAP user on a system regardless of
-that setting — see [`ABAP_DEBUG_SESSIONS`](#abap_debug_sessions) below.
+that setting — see [`ABAP_DEBUG_SESSIONS`](#abap_debug_sessions) below. With
+[more than one system configured](../CONFIGURATION/multi-system.md), this
+lane pool is still process-wide, not one copy per system — see
+[`SYSTEM_MISMATCH`](#system_mismatch-one-debug-session-for-the-whole-process)
+below for what that means for a debug call routed at a different system than
+the one currently being debugged.
 
 ## abap_debug
 
@@ -325,6 +330,39 @@ from this client (`DEBUG_ALL_LEASES_BUSY`, at the configured limit) to SAP
 itself (the `409` above), once that second lane's listener is actually
 armed. A second lane only has a chance of working when it authenticates as a
 different `ABAP_USER` (a second abapsmith process with its own SAP user).
+
+### `SYSTEM_MISMATCH`: one debug session for the whole process
+
+With [more than one system configured](../CONFIGURATION/multi-system.md),
+the debugger is the one part of this server that is NOT duplicated per
+system (see
+[CONCURRENCY/multi-system-pools.md](../CONCURRENCY/multi-system-pools.md#the-exception-one-debugger-lane-for-the-whole-process)):
+its lane pool, sized by `ABAP_DEBUG_SESSIONS` above, is one pool for the
+whole process, shared across every configured system rather than given one
+copy per alias. Starting a debug session against `QAS` does not leave DEV
+free to start its own, independent session at the same time — it competes
+for the same lanes, the same way two debug sessions against one system
+would.
+
+Once a session is active, every subsequent `abap_debug`, `abap_debug_vars`
+or `abap_debug_value` call is checked against the system the active
+session actually belongs to (the system named when `action="start"` was
+called, or the default system if `system` was omitted then). A call
+naming a DIFFERENT system than that is refused with `SYSTEM_MISMATCH`
+rather than being allowed to step, inspect or stop a session that belongs
+to another system — there being only one debuggee, one call stack and one
+set of variables active at a time makes silently redirecting one of these
+calls to the wrong system's debuggee actively dangerous, not merely
+confusing. The check is skipped only for `action="start"`, since starting
+a fresh session is what RECORDS the lane's system going forward, not a
+call that could disagree with one.
+
+The refusal names both systems and points at the fix directly: re-issue
+the call with `system` set to the session's own system, or stop the
+session first (`abap_debug action="stop"`) to free the lane for a
+different system. On a single-system server this check can never fire —
+there is only one system for `currentSystemAlias()` to ever resolve to, so
+nothing can disagree with the active session's system.
 
 Notes: a session mid-execution is single-flight — only one caller drives it.
 `frame` only moves the read cursor; it never affects what the next `step`

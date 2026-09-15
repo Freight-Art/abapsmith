@@ -987,6 +987,28 @@ describe("JournalOperation coverage", () => {
  * (the describes above are the guard for that); a tool registered from somewhere
  * other than `src/server.ts`; and a deps type that reaches the journal under some
  * name other than `journal`.
+ *
+ * ---------------------------------------------------------------------------
+ * THE `routed` INDIRECTION (issue #93)
+ * ---------------------------------------------------------------------------
+ *
+ * Every call site used to pass a `{ pool, cfg, safety, journal, … }` object
+ * literal, so grepping the call arguments for the literal word `journal` was
+ * enough. Issue #93 replaced that with ONE `const routed = { get pool() {…},
+ * get journal() {…}, … }` object of getters, built once in `createServer` and
+ * passed either bare (`registerXTools(mcp, routed)`) or as the base of
+ * `withDeps(routed, { …extra })` when a registrar needs a field `routed`
+ * doesn't carry. A call site that receives `routed` inherits every field IT
+ * declares — including `journal` — without naming it again, so the literal
+ * text `journal` no longer appears at most call sites even though the
+ * dependency is very much wired. `passesJournal` below accounts for this: it
+ * is true if `journal` is named directly in the call's own extras, OR the
+ * call receives `routed` (bare or via `withDeps`) and `routed` itself
+ * provides a `journal` field. That second half is resolved by parsing the
+ * `const routed = { … }` object literal out of `src/server.ts` — not by
+ * hardcoding the list of fields it provides — so a future field added to, or
+ * removed from, `routed` (`journal` itself included) changes what this file
+ * checks without anyone having to remember to update a list here.
  */
 const SERVER_FILE = join(SRC, "server.ts");
 
@@ -1043,6 +1065,70 @@ function depsDeclareJournal(typeName: string, seen = new Set<string>()): Journal
   return "none";
 }
 
+/**
+ * The property names the `const routed = { … }` object literal in
+ * `src/server.ts` provides — parsed from source, not hardcoded, so a field
+ * added to or removed from `routed` (see the "THE `routed` INDIRECTION"
+ * section above) changes what this test expects without anyone having to
+ * remember to update a list here. Returns `undefined` if `const routed = {`
+ * can't be found at all (a renamed variable, a restructured composition
+ * root) — that is the parse-broke case the "not a vacuous pass" guard below
+ * must fail loudly on, not silently treat as "provides nothing".
+ */
+function parseRoutedFields(): Set<string> | undefined {
+  const server = contents.get(SERVER_FILE)!;
+  const decl = /\bconst\s+routed\s*=\s*\{/.exec(server);
+  if (!decl) return undefined;
+  const open = decl.index + decl[0].length - 1;
+  let depth = 0;
+  let close = -1;
+  for (let i = open; i < server.length; i += 1) {
+    if (server[i] === "{") depth += 1;
+    else if (server[i] === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        close = i;
+        break;
+      }
+    }
+  }
+  if (close === -1) return undefined;
+  const body = server.slice(open + 1, close);
+
+  // Walk the object literal's top-level entries one at a time: each is either
+  // `get name(): T { … },`, `name: value,`, or the shorthand `name,` — in every
+  // case the first identifier of an entry is its property name. After reading
+  // that name, skip forward to the entry's own top-level comma (tracking
+  // `{}`/`()`/`[]` depth so a comma inside a getter body, e.g. inside
+  // `registry.current()`, doesn't end the entry early).
+  const fields = new Set<string>();
+  let i = 0;
+  while (i < body.length) {
+    while (i < body.length && /[\s,]/.test(body[i])) i += 1;
+    if (i >= body.length) break;
+    if (body.startsWith("get ", i)) i += 4;
+    while (i < body.length && /\s/.test(body[i])) i += 1;
+    const id = /^[A-Za-z_$][\w$]*/.exec(body.slice(i));
+    if (!id) break; // Unrecognised shape — stop rather than guess; caller sees a partial set.
+    fields.add(id[0]);
+    i += id[0].length;
+    let bracketDepth = 0;
+    while (i < body.length) {
+      const c = body[i];
+      if (c === "{" || c === "(" || c === "[") bracketDepth += 1;
+      else if (c === "}" || c === ")" || c === "]") bracketDepth -= 1;
+      else if (c === "," && bracketDepth === 0) {
+        i += 1;
+        break;
+      }
+      i += 1;
+    }
+  }
+  return fields;
+}
+
+const ROUTED_FIELDS = parseRoutedFields();
+
 interface Registration {
   readonly registrar: string;
   readonly depsType: string | undefined;
@@ -1075,11 +1161,16 @@ function collectRegistrations(): Registration[] {
       depsType = /deps\s*:\s*([\w.]+)/.exec(params)?.[1];
       break;
     }
+    // `journal` is passed either directly in the call's own extras (rare —
+    // see the doc comment above) or inherited by receiving `routed` (bare,
+    // or as the base object of `withDeps(routed, { … })`) when `routed`
+    // itself provides a `journal` field.
+    const receivesRoutedJournal = /\brouted\b/.test(args) && (ROUTED_FIELDS?.has("journal") ?? false);
     out.push({
       registrar,
       depsType,
       declaresJournal: depsType === undefined ? undefined : depsDeclareJournal(depsType),
-      passesJournal: /\bjournal\b/.test(args),
+      passesJournal: /\bjournal\b/.test(args) || receivesRoutedJournal,
     });
   }
   return out;
@@ -1095,6 +1186,24 @@ describe("composition root wiring (src/server.ts)", () => {
     // — it fails in the check below if the tool can journal and was not given one.
     expect(registrations.length, "no registerXTools(mcp, …) call sites found in src/server.ts").
       toBeGreaterThanOrEqual(15);
+    // Most call sites inherit `journal` from `routed` rather than naming it
+    // (see "THE `routed` INDIRECTION" above) — `passesJournal` only sees that
+    // if `parseRoutedFields()` can find `const routed = { … }` and it still
+    // provides a `journal` field. If either goes missing, every one of those
+    // call sites would silently read as "no journal" and the check below
+    // would pass for the wrong reason — a hole exactly as bad as the one this
+    // whole file exists to catch. Fail loudly here instead.
+    expect(
+      ROUTED_FIELDS,
+      "could not find `const routed = { … }` in src/server.ts — parseRoutedFields() needs " +
+        "updating for the new shape of the composition root.",
+    ).toBeTruthy();
+    expect(
+      ROUTED_FIELDS?.has("journal"),
+      "`routed` in src/server.ts no longer has a `journal` field. Every registrar that relies " +
+        "on inheriting one from `routed` is now unwired for real — go fix src/server.ts, don't " +
+        "just clear this expectation.",
+    ).toBe(true);
     const names = registrations.map((r) => r.registrar);
     expect(names).toContain("registerWriteTools");
     expect(names).toContain("registerActivateTools");
@@ -1117,6 +1226,13 @@ describe("composition root wiring (src/server.ts)", () => {
   });
 
   it("every registrar whose deps declare a journal is registered with one", () => {
+    // A registrar counts as "registered with one" if `journal` is in its own
+    // inline extras OR it receives `routed` (bare, or via `withDeps(routed,
+    // { … })`) and `routed` itself provides `journal` — see `passesJournal`
+    // in collectRegistrations() and "THE `routed` INDIRECTION" above. So an
+    // entry below means the registrar's call site neither names `journal`
+    // itself nor receives it through `routed` — the dependency really is
+    // missing, not just spelled differently.
     const unwired = registrations
       .filter((r) => (r.declaresJournal === "required" || r.declaresJournal === "optional") && !r.passesJournal)
       .map((r) => `${r.registrar} (deps: ${r.depsType})`)
@@ -1124,11 +1240,13 @@ describe("composition root wiring (src/server.ts)", () => {
     expect(
       unwired,
       `registrar(s) whose deps type declares a \`journal\` field, registered in src/server.ts ` +
-        `WITHOUT one: ${unwired.join(", ")}. The tool's journalling code is dead in the running ` +
-        `server: it takes the optional dep, finds it undefined, and mutates the system with no ` +
-        `record. tsc cannot see this while the field is optional — that is why this test exists ` +
-        `(it is the exact failure mode BOPF's journalling fix shipped with). Pass \`journal\` at the call site, and ` +
-        `consider making the field required so the compiler enforces it next time.`,
+        `WITHOUT one — neither inline nor inherited from \`routed\`: ${unwired.join(", ")}. The ` +
+        `tool's journalling code is dead in the running server: it takes the optional dep, finds ` +
+        `it undefined, and mutates the system with no record. tsc cannot see this while the field ` +
+        `is optional — that is why this test exists (it is the exact failure mode BOPF's ` +
+        `journalling fix shipped with). Pass \`journal\` at the call site (directly, or by making ` +
+        `sure the registrar receives \`routed\`, which provides it), and consider making the field ` +
+        `required so the compiler enforces it next time.`,
     ).toEqual([]);
   });
 
