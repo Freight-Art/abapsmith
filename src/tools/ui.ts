@@ -57,6 +57,7 @@ import {
 } from "../adt/ui-runtime.js";
 import type { UiFcodeModuleHit, UiFcodeResult, UiFcodeRow } from "../adt/ui-fcode.js";
 import { uiManifest } from "../adt/fluid/builtin/ui.js";
+import { LOG_TOOL_ID, LOG_ACTION } from "../adt/fluid/builtin/log.js";
 import type { SessionPool } from "../adt/pool.js";
 import type { Config } from "../config.js";
 import { buildResponse, textTable } from "../compact.js";
@@ -596,6 +597,18 @@ function buildPressResponse(query: UiPressQuery, result: UiBridgeResult, maxChar
     nr: m.msgNumber,
     text: m.text,
   }));
+
+  // Same slack rule as run.ts: round this run's own measured duration up to
+  // the next whole second and pad it, so a BAL entry written just after
+  // durationMs was captured still falls inside the window when queried.
+  const logLastSeconds = Math.ceil(result.durationMs / 1000) + 5;
+  // `notes`, not `hints`: hints only render inside a TRUNCATED/WINDOW notice,
+  // so this line must go to `notes` to reach the caller on the normal path.
+  const logHint =
+    `Application log (BAL) entries this execution may have written: abap_fluid ` +
+    `{"tool":"${LOG_TOOL_ID}","action":"${LOG_ACTION}","args":{"last_seconds":${logLastSeconds},"detail":"messages"}} ` +
+    `— last_seconds is measured on the server clock, so it covers this run.`;
+  notes.push(logHint);
 
   return buildResponse({
     header: {

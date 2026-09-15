@@ -25,9 +25,9 @@ describe("coreManifest — schema", () => {
 });
 
 describe("coreManifest — action ids", () => {
-  it("has exactly call_fm, describe_fm, select, sorted", () => {
+  it("has exactly call_fm, describe_fm, docu, select, sorted", () => {
     const names = coreManifest.actions.map((a) => a.name).sort();
-    expect(names).toEqual(["call_fm", "describe_fm", "select"]);
+    expect(names).toEqual(["call_fm", "describe_fm", "docu", "select"]);
   });
 
   // `submit` was deliberately cut from this slice: `core` reads and calls

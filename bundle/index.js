@@ -80668,6 +80668,179 @@ var fmPart = {
   ENDMETHOD.`
 };
 
+// src/adt/fluid/builtin/core/abap-docu.ts
+var docuPart = {
+  actions: [{ action: "docu", method: "do_docu" }],
+  source: `  METHOD do_docu.
+    DATA lv_id_in       TYPE string.
+    DATA lv_object_in   TYPE string.
+    DATA lv_langu_in    TYPE string.
+    DATA lv_id          TYPE dokhl-id.
+    DATA lv_object      TYPE dokhl-object.
+    DATA lv_try         TYPE dokil-langu.
+    DATA lv_req_langu   TYPE dokil-langu.
+    DATA lv_langu_used  TYPE dokil-langu.
+    DATA lt_cand        TYPE STANDARD TABLE OF dokil-langu WITH DEFAULT KEY.
+    DATA lv_found       TYPE abap_bool.
+    DATA lv_state       TYPE dokhl-dokstate.
+    " DDIC-typed (LIKE dsyst-doktitle, CHAR 60 via data element DOKU_TITLE),
+    " not string: DOCU_GET is called dynamically below, and a dynamic call
+    " rejects a generic string actual for a fixed-length character
+    " IMPORTING parameter - observed live on A4H as
+    " CX_SY_DYN_CALL_ILLEGAL_TYPE until this was DDIC-typed.
+    DATA lv_title       TYPE dsyst-doktitle.
+    DATA lv_typ         TYPE dokhl-typ.
+    DATA ls_head        TYPE thead.
+    DATA lt_line        TYPE TABLE OF tline.
+    DATA lt_ascii       TYPE tdtab_c132.
+    DATA lv_avail       TYPE string.
+    DATA lv_avail_item  TYPE string.
+    DATA lv_afirst      TYPE abap_bool.
+    DATA lv_found_lit   TYPE string.
+    DATA lv_fallback_lit TYPE string.
+    DATA lv_json        TYPE string.
+    DATA lv_text        TYPE string.
+    DATA lv_lines       TYPE i.
+
+    lv_id_in = to_upper( s( 'id' ) ).
+    " Doc object names for the kinds core.docu supports (data elements,
+    " domains, tables, classes, interfaces, function groups, programs,
+    " message classes, IMG activities) are stored upper case in
+    " DOKHL-OBJECT, so upper-casing the caller's input matches SAP's own
+    " convention rather than silently missing a lower-case match.
+    lv_object_in = to_upper( s( 'object' ) ).
+    lv_langu_in  = to_upper( s( 'language' ) ).
+    IF lv_id_in IS INITIAL OR lv_object_in IS INITIAL.
+      fail( 'id and object are required' ).
+      RETURN.
+    ENDIF.
+    " DDIC-typed, not string: see this file's header comment on why a
+    " longer literal moved straight into DOCU_GET's ID would dump.
+    lv_id     = lv_id_in.
+    lv_object = lv_object_in.
+
+    SELECT langu, typ, dokstate FROM dokil
+      INTO TABLE @DATA(lt_avail)
+      WHERE id = @lv_id AND object = @lv_object
+      ORDER BY langu, typ.
+
+    IF lv_langu_in IS NOT INITIAL.
+      lv_try = lv_langu_in.
+      APPEND lv_try TO lt_cand.
+    ENDIF.
+    lv_try = sy-langu.
+    READ TABLE lt_cand TRANSPORTING NO FIELDS WITH KEY table_line = lv_try.
+    IF sy-subrc <> 0.
+      APPEND lv_try TO lt_cand.
+    ENDIF.
+    lv_try = 'E'.
+    READ TABLE lt_cand TRANSPORTING NO FIELDS WITH KEY table_line = lv_try.
+    IF sy-subrc <> 0.
+      APPEND lv_try TO lt_cand.
+    ENDIF.
+    READ TABLE lt_cand INTO lv_req_langu INDEX 1.
+
+    " lt_avail (DOKIL) only feeds the "available" report field below - it is
+    " never consulted to pick which candidate to try, because DOKIL can be
+    " stale and DOCU_GET already reports a language miss cheaply and
+    " reliably via sy-subrc = 4 (ret_code). Trying every candidate through
+    " DOCU_GET and keeping the first hit covers both the case where DOKIL
+    " is accurate and the case where it is not.
+    CLEAR lv_langu_used.
+    lv_found = abap_false.
+    LOOP AT lt_cand INTO lv_try.
+      CLEAR lt_line.
+      CALL FUNCTION 'DOCU_GET'
+        EXPORTING  id                = lv_id
+                   langu             = lv_try
+                   object            = lv_object
+                   typ               = 'E'
+        IMPORTING  dokstate          = lv_state
+                   doktitle          = lv_title
+                   head              = ls_head
+                   doktyp            = lv_typ
+        TABLES     line              = lt_line
+        EXCEPTIONS no_docu_on_screen = 1
+                   no_docu_self_def  = 2
+                   no_docu_temp      = 3
+                   ret_code          = 4
+                   OTHERS            = 5.
+      IF sy-subrc = 0 AND lines( lt_line ) > 0.
+        lv_langu_used = lv_try.
+        lv_found = abap_true.
+        EXIT.
+      ENDIF.
+    ENDLOOP.
+
+    IF lv_found = abap_true.
+      " CONVERT_ITF_TO_ASCII is what DOCU_GET_WITH_CONVERT itself calls to
+      " flatten ITF to plain text; see this file's header comment for what
+      " was observed live. core.docu never caps the number of lines here -
+      " any truncation of the result is the TypeScript caller's job in
+      " buildResponse, not this ABAP.
+      CALL FUNCTION 'CONVERT_ITF_TO_ASCII'
+        EXPORTING  formatwidth      = 100
+                   language         = ls_head-tdspras
+                   replace_symbols  = 'X'
+                   replace_sapchars = 'X'
+        IMPORTING  c_datatab        = lt_ascii
+        TABLES     itf_lines        = lt_line
+        EXCEPTIONS OTHERS           = 0.
+    ENDIF.
+
+    lv_avail = ''.
+    lv_afirst = abap_true.
+    LOOP AT lt_avail INTO DATA(ls_avail).
+      IF lv_afirst = abap_false.
+        lv_avail = lv_avail && ','.
+      ENDIF.
+      lv_afirst = abap_false.
+      lv_avail_item = |{ ls_avail-langu }:{ ls_avail-typ }:{ ls_avail-dokstate }|.
+      lv_avail = lv_avail && |"{ zcl_zmcp_fluid_rt=>esc( lv_avail_item ) }"|.
+    ENDLOOP.
+
+    IF lv_found = abap_true.
+      lv_found_lit = 'true'.
+    ELSE.
+      lv_found_lit = 'false'.
+    ENDIF.
+    IF lv_found = abap_true AND lv_langu_used <> lv_req_langu.
+      lv_fallback_lit = 'true'.
+    ELSE.
+      lv_fallback_lit = 'false'.
+    ENDIF.
+
+    " esc( ) is declared IMPORTING iv_text TYPE string; a DDIC C(n) actual
+    " (lv_id and the other DDIC-typed locals below) is not assignable to a
+    " string formal in a functional call, so each one is CONV-wrapped first.
+    lv_json = |\\{"kind":"docu","id":"{ zcl_zmcp_fluid_rt=>esc( CONV string( lv_id ) ) }",|.
+    lv_json = lv_json && |"object":"{ zcl_zmcp_fluid_rt=>esc( CONV string( lv_object ) ) }",|.
+    lv_json = lv_json && |"found":{ lv_found_lit },|.
+    lv_json = lv_json && |"language":"{ zcl_zmcp_fluid_rt=>esc( CONV string( lv_langu_used ) ) }",|.
+    lv_json = lv_json && |"requested_language":"{ zcl_zmcp_fluid_rt=>esc( CONV string( lv_req_langu ) ) }",|.
+    lv_json = lv_json && |"fallback_used":{ lv_fallback_lit },|.
+    lv_json = lv_json && |"title":"{ zcl_zmcp_fluid_rt=>esc( CONV string( lv_title ) ) }",|.
+    lv_json = lv_json && |"doktyp":"{ zcl_zmcp_fluid_rt=>esc( CONV string( lv_typ ) ) }",|.
+    lv_json = lv_json && |"dokstate":"{ zcl_zmcp_fluid_rt=>esc( CONV string( lv_state ) ) }",|.
+    lv_json = lv_json && |"flattened":true,|.
+    lv_json = lv_json && |"available":[{ lv_avail }]\\}|.
+    zcl_zmcp_fluid_rt=>out( lv_json ).
+
+    lv_lines = 0.
+    IF lv_found = abap_true.
+      LOOP AT lt_ascii INTO DATA(lv_ascii).
+        lv_text = lv_ascii.
+        lv_json = |\\{"kind":"line","text":"{ zcl_zmcp_fluid_rt=>esc( lv_text ) }"\\}|.
+        zcl_zmcp_fluid_rt=>out( lv_json ).
+        lv_lines = lv_lines + 1.
+      ENDLOOP.
+    ENDIF.
+
+    lv_json = |\\{"kind":"summary","lines_returned":{ lv_lines }\\}|.
+    zcl_zmcp_fluid_rt=>out( lv_json ).
+  ENDMETHOD.`
+};
+
 // src/adt/fluid/builtin/core.ts
 var CORE_TOOL_ID = "core";
 var CORE_BODY_CLASS = "ZCL_ZMCP_FLUID_CORE";
@@ -80679,12 +80852,12 @@ var RUNTIME_OBJECT3 = fluidRuntimeManifest.objects.find((o) => o.name === FLUID_
 if (RUNTIME_OBJECT3 === void 0) {
   throw new Error(`fluidRuntimeManifest has no entry for ${FLUID_RUNTIME_CLASS}`);
 }
-var CORE_SOURCE = coreBodySource([selectPart, fmPart]);
+var CORE_SOURCE = coreBodySource([selectPart, fmPart, docuPart]);
 var coreManifest = {
   contract: FLUID_CONTRACT,
   id: CORE_TOOL_ID,
   title: "Core read/execute bridge",
-  description: "Table select, function-module interface description, and function-module call.",
+  description: "Table select, function-module interface description and call, and SAP documentation reads.",
   objects: [
     {
       name: FLUID_RUNTIME_CLASS,
@@ -80696,7 +80869,7 @@ var coreManifest = {
     {
       name: CORE_BODY_CLASS,
       type: "CLAS/OC",
-      description: "fluid: table select, FM describe and FM call",
+      description: "fluid: table select, FM describe/call, documentation",
       source: { text: CORE_SOURCE }
     }
   ],
@@ -80756,6 +80929,40 @@ var coreManifest = {
         }
       },
       targets: { object: "/name" }
+    },
+    {
+      name: "docu",
+      category: "read",
+      description: "Reads SAP documentation (DOKHL/DOKTL) for one documentation object and returns it flattened to plain text.",
+      input: {
+        type: "object",
+        required: ["id", "object"],
+        properties: {
+          id: {
+            type: "string",
+            maxLength: 2,
+            description: "Documentation id, e.g. DE, DO, TB, CL, IF, FU, RE, NA, HY."
+          },
+          object: {
+            type: "string",
+            maxLength: 60,
+            description: "Documentation object name, already in its stored form."
+          },
+          language: {
+            type: "string",
+            maxLength: 2,
+            description: "Language to try first. Falls back to the logon language, then EN."
+          }
+        }
+      },
+      output: {
+        type: "array",
+        items: { type: "object" },
+        description: "One head row, one row per flattened text line, one trailing summary row."
+      }
+      // No `targets`: this reads documentation, not an object the write gate can name — there
+      // is nothing here for `deps.gate` to judge as a write target the way `select`'s table or
+      // `describe_fm`'s function module name are.
     },
     {
       name: "call_fm",
@@ -83801,13 +84008,562 @@ var imgSources = /* @__PURE__ */ new Map([
   ["ZCL_ZMCP_FLUID_IMG", IMG_SOURCE]
 ]);
 
-// src/adt/fluid/builtin/run.ts
+// src/adt/fluid/builtin/log.ts
+var LOG_TOOL_ID = "log";
+var LOG_ACTION = "read";
+var LOG_ENTRY_CLASS = "ZCL_ZMCP_FLUID_LOG";
 var RUNTIME_SOURCE7 = fluidRuntimeSources.get(FLUID_RUNTIME_CLASS);
 if (RUNTIME_SOURCE7 === void 0) {
   throw new Error(`fluidRuntimeSources has no entry for ${FLUID_RUNTIME_CLASS}`);
 }
 var RUNTIME_OBJECT7 = fluidRuntimeManifest.objects.find((o) => o.name === FLUID_RUNTIME_CLASS);
 if (RUNTIME_OBJECT7 === void 0) {
+  throw new Error(`fluidRuntimeManifest has no entry for ${FLUID_RUNTIME_CLASS}`);
+}
+var LOG_SOURCE = `CLASS zcl_zmcp_fluid_log DEFINITION
+  PUBLIC
+  FINAL
+  CREATE PUBLIC.
+
+  PUBLIC SECTION.
+    CLASS-METHODS run
+      IMPORTING
+        iv_action TYPE string
+        iv_json   TYPE string.
+
+  PRIVATE SECTION.
+    CLASS-DATA gv_trunc TYPE abap_bool.
+
+    CLASS-METHODS do_read.
+    " ZCL_ZMCP_FLUID_RT=>n( iv_path ) counts array/object elements addressed
+    " as <path>/0, <path>/1, ... - it is not a scalar number reader and
+    " returns 0 for a plain scalar like {"max":5}. Read the scalar as a
+    " string via s( ) and convert it here instead.
+    CLASS-METHODS num
+      IMPORTING iv_path        TYPE string
+      RETURNING VALUE(rv_value) TYPE i.
+
+ENDCLASS.
+
+
+CLASS zcl_zmcp_fluid_log IMPLEMENTATION.
+
+  METHOD run.
+    zcl_zmcp_fluid_rt=>begin( iv_id = 'log' iv_action = iv_action ).
+
+    TRY.
+        zcl_zmcp_fluid_rt=>scan( iv_json ).
+        CASE iv_action.
+          WHEN 'read'.
+            do_read( ).
+          WHEN OTHERS.
+            zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'dispatch'
+              iv_text = |unknown action "{ iv_action }"| ).
+        ENDCASE.
+      CATCH cx_root INTO DATA(lx_err).
+        zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = iv_action iv_text = lx_err->get_text( ) ).
+    ENDTRY.
+
+    IF zcl_zmcp_fluid_rt=>failed( ) = abap_true.
+      zcl_zmcp_fluid_rt=>end( iv_rc = 1 ).
+    ELSE.
+      zcl_zmcp_fluid_rt=>end( iv_rc = 0 iv_truncated = boolc( gv_trunc IS NOT INITIAL ) ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD num.
+    DATA lv_raw TYPE string.
+    CLEAR rv_value.
+    lv_raw = zcl_zmcp_fluid_rt=>s( iv_path ).
+    IF lv_raw IS INITIAL.
+      RETURN.
+    ENDIF.
+    TRY.
+        rv_value = lv_raw.
+      CATCH cx_root.
+        CLEAR rv_value.
+    ENDTRY.
+  ENDMETHOD.
+
+  METHOD do_read.
+    CLEAR gv_trunc.
+
+    DATA(lv_object)       = to_upper( zcl_zmcp_fluid_rt=>s( 'object' ) ).
+    DATA(lv_subobject)    = to_upper( zcl_zmcp_fluid_rt=>s( 'subobject' ) ).
+    DATA(lv_extnumber)    = zcl_zmcp_fluid_rt=>s( 'extnumber' ).
+    DATA(lv_user)         = zcl_zmcp_fluid_rt=>s( 'user' ).
+    DATA(lv_since)        = zcl_zmcp_fluid_rt=>s( 'since' ).
+    DATA(lv_until)        = zcl_zmcp_fluid_rt=>s( 'until' ).
+    DATA(lv_tcode)        = to_upper( zcl_zmcp_fluid_rt=>s( 'tcode' ) ).
+    DATA(lv_program)      = to_upper( zcl_zmcp_fluid_rt=>s( 'program' ) ).
+    DATA(lv_max)          = num( 'max' ).
+    DATA(lv_last_seconds) = num( 'last_seconds' ).
+    DATA(lv_detail)       = zcl_zmcp_fluid_rt=>s( 'detail' ).
+
+    IF lv_detail IS INITIAL.
+      lv_detail = 'headers'.
+    ENDIF.
+    IF lv_detail <> 'headers' AND lv_detail <> 'messages'.
+      zcl_zmcp_fluid_rt=>err( iv_kind = 'input' iv_step = 'read'
+        iv_text = |unknown detail "{ lv_detail }" - expected headers or messages| ).
+      RETURN.
+    ENDIF.
+
+    " Backstop only: bal-log.ts's logDispatchArgs already refuses this
+    " combination client-side with zero round trip (BAD_INPUT). This check
+    " stays so a caller that reaches do_read some other way - not through
+    " logDispatchArgs - still gets a clear refusal instead of an undefined
+    " window.
+    IF lv_last_seconds > 0 AND ( lv_since IS NOT INITIAL OR lv_until IS NOT INITIAL ).
+      zcl_zmcp_fluid_rt=>err( iv_kind = 'input' iv_step = 'read'
+        iv_text = 'last_seconds cannot be combined with since or until' ).
+      RETURN.
+    ENDIF.
+
+    IF lv_user IS INITIAL.
+      lv_user = sy-uname.
+    ENDIF.
+
+    " One server-time snapshot for both the default window and the summary's
+    " server_time, so the two never disagree about "now".
+    GET TIME.
+    DATA(lv_now_d) = sy-datum.
+    DATA(lv_now_t) = sy-uzeit.
+
+    DATA lv_from_d TYPE d.
+    DATA lv_from_t TYPE t.
+    DATA lv_to_d   TYPE d.
+    DATA lv_to_t   TYPE t.
+    CLEAR: lv_from_d, lv_from_t, lv_to_d, lv_to_t.
+
+    IF lv_last_seconds > 0.
+      lv_to_d = lv_now_d.
+      lv_to_t = lv_now_t.
+      DATA lv_ts TYPE timestamp.
+      CLEAR lv_ts.
+      CONVERT DATE lv_now_d TIME lv_now_t INTO TIME STAMP lv_ts TIME ZONE sy-zonlo.
+      lv_ts = cl_abap_tstmp=>subtractsecs( tstmp = lv_ts secs = lv_last_seconds ).
+      CONVERT TIME STAMP lv_ts TIME ZONE sy-zonlo INTO DATE lv_from_d TIME lv_from_t.
+    ELSEIF lv_since IS INITIAL AND lv_until IS INITIAL.
+      " No window given at all: default to the last hour, ending now.
+      lv_to_d = lv_now_d.
+      lv_to_t = lv_now_t.
+      DATA lv_ts_default TYPE timestamp.
+      CLEAR lv_ts_default.
+      CONVERT DATE lv_now_d TIME lv_now_t INTO TIME STAMP lv_ts_default TIME ZONE sy-zonlo.
+      lv_ts_default = cl_abap_tstmp=>subtractsecs( tstmp = lv_ts_default secs = 3600 ).
+      CONVERT TIME STAMP lv_ts_default TIME ZONE sy-zonlo INTO DATE lv_from_d TIME lv_from_t.
+    ELSE.
+      IF lv_since IS NOT INITIAL.
+        IF strlen( lv_since ) <> 14 OR lv_since CN '0123456789'.
+          zcl_zmcp_fluid_rt=>err( iv_kind = 'input' iv_step = 'read'
+            iv_text = |since must be 14 digits YYYYMMDDHHMMSS, got "{ lv_since }"| ).
+          RETURN.
+        ENDIF.
+        lv_from_d = lv_since(8).
+        lv_from_t = lv_since+8(6).
+      ENDIF.
+      " until omitted while since is given: no upper bound but "now", so the
+      " window still closes rather than reaching into the future.
+      IF lv_until IS NOT INITIAL.
+        IF strlen( lv_until ) <> 14 OR lv_until CN '0123456789'.
+          zcl_zmcp_fluid_rt=>err( iv_kind = 'input' iv_step = 'read'
+            iv_text = |until must be 14 digits YYYYMMDDHHMMSS, got "{ lv_until }"| ).
+          RETURN.
+        ENDIF.
+        lv_to_d = lv_until(8).
+        lv_to_t = lv_until+8(6).
+      ELSE.
+        lv_to_d = lv_now_d.
+        lv_to_t = lv_now_t.
+      ENDIF.
+    ENDIF.
+
+    DATA ls_filter TYPE bal_s_lfil.
+    CLEAR ls_filter.
+
+    DATA lt_obj_r  TYPE bal_r_obj.
+    DATA lt_sub_r  TYPE bal_r_sub.
+    DATA lt_extn_r TYPE bal_r_extn.
+    DATA lt_user_r TYPE bal_r_user.
+    DATA lt_tcde_r TYPE bal_r_tcde.
+    DATA lt_prog_r TYPE bal_r_prog.
+    CLEAR: lt_obj_r, lt_sub_r, lt_extn_r, lt_user_r, lt_tcde_r, lt_prog_r.
+
+    IF lv_object IS NOT INITIAL.
+      IF lv_object CA '*+'.
+        APPEND VALUE #( sign = 'I' option = 'CP' low = lv_object ) TO lt_obj_r.
+      ELSE.
+        APPEND VALUE #( sign = 'I' option = 'EQ' low = lv_object ) TO lt_obj_r.
+      ENDIF.
+    ENDIF.
+    IF lv_subobject IS NOT INITIAL.
+      IF lv_subobject CA '*+'.
+        APPEND VALUE #( sign = 'I' option = 'CP' low = lv_subobject ) TO lt_sub_r.
+      ELSE.
+        APPEND VALUE #( sign = 'I' option = 'EQ' low = lv_subobject ) TO lt_sub_r.
+      ENDIF.
+    ENDIF.
+    IF lv_extnumber IS NOT INITIAL.
+      IF lv_extnumber CA '*+'.
+        APPEND VALUE #( sign = 'I' option = 'CP' low = lv_extnumber ) TO lt_extn_r.
+      ELSE.
+        APPEND VALUE #( sign = 'I' option = 'EQ' low = lv_extnumber ) TO lt_extn_r.
+      ENDIF.
+    ENDIF.
+    IF lv_tcode IS NOT INITIAL.
+      IF lv_tcode CA '*+'.
+        APPEND VALUE #( sign = 'I' option = 'CP' low = lv_tcode ) TO lt_tcde_r.
+      ELSE.
+        APPEND VALUE #( sign = 'I' option = 'EQ' low = lv_tcode ) TO lt_tcde_r.
+      ENDIF.
+    ENDIF.
+    IF lv_program IS NOT INITIAL.
+      IF lv_program CA '*+'.
+        APPEND VALUE #( sign = 'I' option = 'CP' low = lv_program ) TO lt_prog_r.
+      ELSE.
+        APPEND VALUE #( sign = 'I' option = 'EQ' low = lv_program ) TO lt_prog_r.
+      ENDIF.
+    ENDIF.
+    " '*' means every user: no ALUSER range line at all, matching the plain
+    " "omitted" case rather than a pattern match on the literal '*'.
+    IF lv_user <> '*'.
+      APPEND VALUE #( sign = 'I' option = 'EQ' low = lv_user ) TO lt_user_r.
+    ENDIF.
+
+    ls_filter-object    = lt_obj_r.
+    ls_filter-subobject = lt_sub_r.
+    ls_filter-extnumber = lt_extn_r.
+    ls_filter-aluser    = lt_user_r.
+    ls_filter-altcode   = lt_tcde_r.
+    ls_filter-alprog    = lt_prog_r.
+    ls_filter-date_time-date_from = lv_from_d.
+    ls_filter-date_time-time_from = lv_from_t.
+    ls_filter-date_time-date_to   = lv_to_d.
+    ls_filter-date_time-time_to   = lv_to_t.
+
+    " Ask for one more than the caller's ceiling so truncation is detected
+    " without ever silently dropping rows the caller didn't ask to cap.
+    DATA(lv_req) = 0.
+    IF lv_max > 0.
+      lv_req = lv_max + 1.
+    ENDIF.
+    ls_filter-max_nr_logs = lv_req.
+
+    " BAL_DB_LOAD silently skips a log already held in this session's BAL
+    " memory, so that memory is cleared first - otherwise a log read earlier
+    " in the same session (e.g. by a prior call in this same work process)
+    " could come back with zero messages instead of its real ones.
+    CALL FUNCTION 'BAL_GLB_MEMORY_REFRESH'
+      EXCEPTIONS
+        OTHERS = 0.
+
+    DATA lt_hdr TYPE balhdr_t.
+    CLEAR lt_hdr.
+    CALL FUNCTION 'BAL_DB_SEARCH'
+      EXPORTING
+        i_s_log_filter     = ls_filter
+      IMPORTING
+        e_t_log_header     = lt_hdr
+      EXCEPTIONS
+        log_not_found      = 1
+        no_filter_criteria = 2
+        OTHERS             = 3.
+    DATA(lv_search_subrc) = sy-subrc.
+    " subrc = 1 (log_not_found) is not an error - it means zero logs matched;
+    " fall through so the trailing summary row still goes out.
+    IF lv_search_subrc = 2 OR lv_search_subrc = 3.
+      zcl_zmcp_fluid_rt=>err( iv_kind = 'subrc' iv_step = 'search' iv_subrc = lv_search_subrc
+        iv_text = 'BAL_DB_SEARCH failed' ).
+      RETURN.
+    ENDIF.
+
+    IF lv_max > 0 AND lines( lt_hdr ) > lv_max.
+      gv_trunc = abap_true.
+      " DELETE ... FROM requires a data object, not an arithmetic expression.
+      DATA(lv_cut_from) = lv_max + 1.
+      DELETE lt_hdr FROM lv_cut_from.
+    ENDIF.
+
+    DATA(lv_logs_returned)     = 0.
+    DATA(lv_messages_returned) = 0.
+
+    LOOP AT lt_hdr INTO DATA(ls_hdr).
+      lv_logs_returned = lv_logs_returned + 1.
+      DATA(lv_lognr_s) = |{ ls_hdr-lognumber }|.
+
+      DATA(lv_msg_total_s)   = |{ CONV i( ls_hdr-msg_cnt_al ) }|.
+      DATA(lv_msg_abort_s)   = |{ CONV i( ls_hdr-msg_cnt_a ) }|.
+      DATA(lv_msg_error_s)   = |{ CONV i( ls_hdr-msg_cnt_e ) }|.
+      DATA(lv_msg_warning_s) = |{ CONV i( ls_hdr-msg_cnt_w ) }|.
+      DATA(lv_msg_info_s)    = |{ CONV i( ls_hdr-msg_cnt_i ) }|.
+      DATA(lv_msg_success_s) = |{ CONV i( ls_hdr-msg_cnt_s ) }|.
+      DATA(lv_aldate_s)      = |{ ls_hdr-aldate DATE = RAW }|.
+      DATA(lv_altime_s)      = |{ ls_hdr-altime TIME = RAW }|.
+
+      zcl_zmcp_fluid_rt=>out(
+        |\\{"kind":"log","lognumber":"{ zcl_zmcp_fluid_rt=>esc( lv_lognr_s ) }",| &&
+        " esc( ) is declared IMPORTING iv_text TYPE string; a DDIC C(n)
+        " actual (ls_hdr's components below) is not assignable to a string
+        " formal in a functional call, so each one is CONV-wrapped first.
+        |"object":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_hdr-object ) ) }",| &&
+        |"subobject":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_hdr-subobject ) ) }",| &&
+        |"extnumber":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_hdr-extnumber ) ) }",| &&
+        |"aldate":"{ zcl_zmcp_fluid_rt=>esc( lv_aldate_s ) }",| &&
+        |"altime":"{ zcl_zmcp_fluid_rt=>esc( lv_altime_s ) }",| &&
+        |"aluser":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_hdr-aluser ) ) }",| &&
+        |"alprog":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_hdr-alprog ) ) }",| &&
+        |"altcode":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_hdr-altcode ) ) }",| &&
+        |"almode":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_hdr-almode ) ) }",| &&
+        |"probclass":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_hdr-probclass ) ) }",| &&
+        |"msg_total":{ lv_msg_total_s },"msg_abort":{ lv_msg_abort_s },| &&
+        |"msg_error":{ lv_msg_error_s },"msg_warning":{ lv_msg_warning_s },| &&
+        |"msg_info":{ lv_msg_info_s },"msg_success":{ lv_msg_success_s }\\}| ).
+
+      IF lv_detail = 'messages'.
+        DATA lt_one TYPE balhdr_t.
+        CLEAR lt_one.
+        APPEND ls_hdr TO lt_one.
+
+        DATA lt_hndl TYPE bal_t_msgh.
+        CLEAR lt_hndl.
+
+        " i_lock_handling = 0 means no enqueue at all for this load (verified
+        " live by reading LSBAL_DBF11 form READ_BALDAT) - a read action has
+        " no business taking a lock. See the header comment above for the
+        " one way this call can still write to the database.
+        CALL FUNCTION 'BAL_DB_LOAD'
+          EXPORTING
+            i_t_log_header         = lt_one
+            i_do_not_load_messages = space
+            i_lock_handling        = 0
+          IMPORTING
+            e_t_msg_handle         = lt_hndl
+          EXCEPTIONS
+            no_logs_specified      = 1
+            log_not_found          = 2
+            log_already_loaded     = 3
+            OTHERS                 = 4.
+        DATA(lv_load_subrc) = sy-subrc.
+
+        IF lv_load_subrc = 2 OR lv_load_subrc = 3.
+          " This one log's messages could not be loaded; its header row
+          " already went out, so the read continues with the next log.
+        ELSEIF lv_load_subrc <> 0.
+          zcl_zmcp_fluid_rt=>err( iv_kind = 'subrc' iv_step = 'load' iv_subrc = lv_load_subrc
+            iv_text = 'BAL_DB_LOAD failed' ).
+          RETURN.
+        ELSE.
+          LOOP AT lt_hndl INTO DATA(ls_hndl).
+            DATA ls_msg TYPE bal_s_msg.
+            " Not string: BAL_LOG_MSG_READ is called dynamically below, and
+            " its e_txt_msg formal is TYPE c (generic, fixed-length) - a
+            " dynamic call rejects a generic string actual for a
+            " fixed-length character IMPORTING parameter, the same class of
+            " bug already fixed for core.docu's lv_title. Observed live on
+            " A4H as CX_SY_DYN_CALL_ILLEGAL_TYPE until this was fixed-length
+            " typed. 255 is BAL's own cap on a rendered message text.
+            DATA lv_txt TYPE c LENGTH 255.
+            CLEAR: ls_msg, lv_txt.
+
+            CALL FUNCTION 'BAL_LOG_MSG_READ'
+              EXPORTING
+                i_s_msg_handle = ls_hndl
+              IMPORTING
+                e_s_msg        = ls_msg
+                e_txt_msg      = lv_txt
+              EXCEPTIONS
+                log_not_found  = 1
+                msg_not_found  = 2
+                OTHERS         = 3.
+            IF sy-subrc <> 0.
+              CONTINUE.
+            ENDIF.
+
+            lv_messages_returned = lv_messages_returned + 1.
+            DATA(lv_msgno_s)    = |{ CONV i( ls_hndl-msgnumber ) }|.
+            DATA(lv_detlevel_s) = |{ CONV i( ls_msg-detlevel ) }|.
+
+            " lv_txt is a fixed-length C(255) padded with trailing blanks by
+            " BAL's rendering - esc( ) takes a string, and passing the raw
+            " field through would emit every unused trailing byte as a
+            " literal space. strlen( ) on a C field stops at the last
+            " non-blank character, so this trims exactly the padding and
+            " nothing the message text itself contains.
+            DATA lv_txt_s TYPE string.
+            CLEAR lv_txt_s.
+            DATA(lv_txt_len) = strlen( lv_txt ).
+            IF lv_txt_len > 0.
+              lv_txt_s = lv_txt(lv_txt_len).
+            ENDIF.
+
+            " ls_msg-context-value (the raw content of an arbitrary application
+            " structure attached to the message) is real business data and is
+            " never emitted below - only its type name, context_tabname, is.
+            zcl_zmcp_fluid_rt=>out(
+              |\\{"kind":"msg","lognumber":"{ zcl_zmcp_fluid_rt=>esc( lv_lognr_s ) }",| &&
+              |"msgnumber":{ lv_msgno_s },| &&
+              |"msgty":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_msg-msgty ) ) }",| &&
+              |"msgid":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_msg-msgid ) ) }",| &&
+              |"msgno":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_msg-msgno ) ) }",| &&
+              |"msgv1":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_msg-msgv1 ) ) }",| &&
+              |"msgv2":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_msg-msgv2 ) ) }",| &&
+              |"msgv3":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_msg-msgv3 ) ) }",| &&
+              |"msgv4":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_msg-msgv4 ) ) }",| &&
+              |"text":"{ zcl_zmcp_fluid_rt=>esc( lv_txt_s ) }",| &&
+              |"detlevel":{ lv_detlevel_s },| &&
+              |"probclass":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_msg-probclass ) ) }",| &&
+              |"context_tabname":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_msg-context-tabname ) ) }"\\}| ).
+          ENDLOOP.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+
+    DATA(lv_since_resolved) = |{ lv_from_d DATE = RAW }{ lv_from_t TIME = RAW }|.
+    DATA(lv_until_resolved) = |{ lv_to_d DATE = RAW }{ lv_to_t TIME = RAW }|.
+    DATA(lv_server_time)    = |{ lv_now_d DATE = RAW }{ lv_now_t TIME = RAW }|.
+
+    " Report the filter as actually applied - '*' collapses back to "no
+    " user filter" so the caller can tell the two cases apart.
+    DATA(lv_user_applied) = lv_user.
+    IF lv_user_applied = '*'.
+      CLEAR lv_user_applied.
+    ENDIF.
+
+    DATA(lv_trunc_json) = 'false'.
+    IF gv_trunc = abap_true.
+      lv_trunc_json = 'true'.
+    ENDIF.
+
+    DATA(lv_logs_returned_s)     = |{ lv_logs_returned }|.
+    DATA(lv_messages_returned_s) = |{ lv_messages_returned }|.
+    DATA(lv_max_s)               = |{ lv_max }|.
+
+    zcl_zmcp_fluid_rt=>out(
+      |\\{"kind":"summary","logs_returned":{ lv_logs_returned_s },| &&
+      |"messages_returned":{ lv_messages_returned_s },| &&
+      |"truncated":{ lv_trunc_json },| &&
+      |"detail":"{ zcl_zmcp_fluid_rt=>esc( lv_detail ) }",| &&
+      |"since":"{ zcl_zmcp_fluid_rt=>esc( lv_since_resolved ) }",| &&
+      |"until":"{ zcl_zmcp_fluid_rt=>esc( lv_until_resolved ) }",| &&
+      |"user":"{ zcl_zmcp_fluid_rt=>esc( lv_user_applied ) }",| &&
+      |"max":{ lv_max_s },| &&
+      |"server_time":"{ zcl_zmcp_fluid_rt=>esc( lv_server_time ) }"\\}| ).
+  ENDMETHOD.
+
+ENDCLASS.
+`;
+var logManifest = {
+  contract: FLUID_CONTRACT,
+  id: LOG_TOOL_ID,
+  title: "Application log reader",
+  description: "Reads application log (BAL/SLG1) headers and messages.",
+  objects: [
+    {
+      name: FLUID_RUNTIME_CLASS,
+      type: "CLAS/OC",
+      description: RUNTIME_OBJECT7.description,
+      source: { text: RUNTIME_SOURCE7 }
+    },
+    {
+      name: LOG_ENTRY_CLASS,
+      type: "CLAS/OC",
+      description: "fluid: application log (BAL) reader",
+      source: { text: LOG_SOURCE }
+    }
+  ],
+  entry: LOG_ENTRY_CLASS,
+  actions: [
+    {
+      name: LOG_ACTION,
+      category: "read",
+      description: "Reads application log (BAL/SLG1) headers, and with detail=messages the message texts. Message text and its variables are application data and may contain business data - request detail=messages only when you need it.",
+      input: {
+        type: "object",
+        properties: {
+          object: {
+            type: "string",
+            maxLength: 20,
+            description: "BALHDR-OBJECT. `*` and `+` make it a pattern."
+          },
+          subobject: {
+            type: "string",
+            maxLength: 20,
+            description: "BALHDR-SUBOBJECT. `*` and `+` make it a pattern."
+          },
+          extnumber: {
+            type: "string",
+            maxLength: 100,
+            description: "External number, pattern allowed."
+          },
+          user: {
+            type: "string",
+            maxLength: 12,
+            description: "Defaults to the connected user. Pass `*` for every user."
+          },
+          since: {
+            type: "string",
+            maxLength: 14,
+            description: "Server-time lower bound, YYYYMMDDHHMMSS."
+          },
+          until: {
+            type: "string",
+            maxLength: 14,
+            description: "Server-time upper bound, YYYYMMDDHHMMSS."
+          },
+          last_seconds: {
+            type: "integer",
+            minimum: 0,
+            description: "Window ending now, computed on the server. Mutually exclusive with since/until."
+          },
+          tcode: {
+            type: "string",
+            maxLength: 20,
+            description: "Transaction code, pattern allowed."
+          },
+          program: {
+            type: "string",
+            maxLength: 40,
+            description: "Program name, pattern allowed."
+          },
+          max: {
+            type: "integer",
+            minimum: 0,
+            description: "Log limit. Omitted or 0 means no limit; abapsmith's caller applies the default and marks truncation."
+          },
+          detail: {
+            type: "string",
+            enum: ["headers", "messages"],
+            description: "`headers` (default) or `messages`."
+          }
+        }
+      },
+      output: {
+        type: "array",
+        description: "One row per log header, per message, and one trailing summary row.",
+        items: { type: "object" }
+      }
+    }
+  ]
+};
+var logSources = /* @__PURE__ */ new Map([
+  [FLUID_RUNTIME_CLASS, RUNTIME_SOURCE7],
+  [LOG_ENTRY_CLASS, LOG_SOURCE]
+]);
+var logTool = {
+  manifest: logManifest,
+  origin: "builtin",
+  sources: logSources,
+  version: manifestVersion(logManifest, logSources)
+};
+
+// src/adt/fluid/builtin/run.ts
+var RUNTIME_SOURCE8 = fluidRuntimeSources.get(FLUID_RUNTIME_CLASS);
+if (RUNTIME_SOURCE8 === void 0) {
+  throw new Error(`fluidRuntimeSources has no entry for ${FLUID_RUNTIME_CLASS}`);
+}
+var RUNTIME_OBJECT8 = fluidRuntimeManifest.objects.find((o) => o.name === FLUID_RUNTIME_CLASS);
+if (RUNTIME_OBJECT8 === void 0) {
   throw new Error(`fluidRuntimeManifest has no entry for ${FLUID_RUNTIME_CLASS}`);
 }
 var RUN_SOURCE = `CLASS zcl_zmcp_fluid_run DEFINITION
@@ -83923,8 +84679,8 @@ var runManifest = {
       name: FLUID_RUNTIME_CLASS,
       type: "CLAS/OC",
       // same live object as the rt tool's; derived so the two descriptions can't drift apart
-      description: RUNTIME_OBJECT7.description,
-      source: { text: RUNTIME_SOURCE7 }
+      description: RUNTIME_OBJECT8.description,
+      source: { text: RUNTIME_SOURCE8 }
     },
     {
       name: "ZCL_ZMCP_FLUID_RUN",
@@ -83956,7 +84712,7 @@ var runManifest = {
   ]
 };
 var runSources = /* @__PURE__ */ new Map([
-  [FLUID_RUNTIME_CLASS, RUNTIME_SOURCE7],
+  [FLUID_RUNTIME_CLASS, RUNTIME_SOURCE8],
   ["ZCL_ZMCP_FLUID_RUN", RUN_SOURCE]
 ]);
 
@@ -83964,12 +84720,12 @@ var runSources = /* @__PURE__ */ new Map([
 var SCAN_TOOL_ID = "scan";
 var SCAN_ACTION = "source";
 var SCAN_ENTRY_CLASS = "ZCL_ZMCP_FLUID_SCAN";
-var RUNTIME_SOURCE8 = fluidRuntimeSources.get(FLUID_RUNTIME_CLASS);
-if (RUNTIME_SOURCE8 === void 0) {
+var RUNTIME_SOURCE9 = fluidRuntimeSources.get(FLUID_RUNTIME_CLASS);
+if (RUNTIME_SOURCE9 === void 0) {
   throw new Error(`fluidRuntimeSources has no entry for ${FLUID_RUNTIME_CLASS}`);
 }
-var RUNTIME_OBJECT8 = fluidRuntimeManifest.objects.find((o) => o.name === FLUID_RUNTIME_CLASS);
-if (RUNTIME_OBJECT8 === void 0) {
+var RUNTIME_OBJECT9 = fluidRuntimeManifest.objects.find((o) => o.name === FLUID_RUNTIME_CLASS);
+if (RUNTIME_OBJECT9 === void 0) {
   throw new Error(`fluidRuntimeManifest has no entry for ${FLUID_RUNTIME_CLASS}`);
 }
 var SCAN_SOURCE = `CLASS zcl_zmcp_fluid_scan DEFINITION
@@ -84523,8 +85279,8 @@ var scanManifest = {
     {
       name: FLUID_RUNTIME_CLASS,
       type: "CLAS/OC",
-      description: RUNTIME_OBJECT8.description,
-      source: { text: RUNTIME_SOURCE8 }
+      description: RUNTIME_OBJECT9.description,
+      source: { text: RUNTIME_SOURCE9 }
     },
     {
       name: SCAN_ENTRY_CLASS,
@@ -84608,17 +85364,17 @@ var scanManifest = {
   ]
 };
 var scanSources = /* @__PURE__ */ new Map([
-  [FLUID_RUNTIME_CLASS, RUNTIME_SOURCE8],
+  [FLUID_RUNTIME_CLASS, RUNTIME_SOURCE9],
   [SCAN_ENTRY_CLASS, SCAN_SOURCE]
 ]);
 
 // src/adt/fluid/builtin/ui.ts
-var RUNTIME_SOURCE9 = fluidRuntimeSources.get(FLUID_RUNTIME_CLASS);
-if (RUNTIME_SOURCE9 === void 0) {
+var RUNTIME_SOURCE10 = fluidRuntimeSources.get(FLUID_RUNTIME_CLASS);
+if (RUNTIME_SOURCE10 === void 0) {
   throw new Error(`fluidRuntimeSources has no entry for ${FLUID_RUNTIME_CLASS}`);
 }
-var RUNTIME_OBJECT9 = fluidRuntimeManifest.objects.find((o) => o.name === FLUID_RUNTIME_CLASS);
-if (RUNTIME_OBJECT9 === void 0) {
+var RUNTIME_OBJECT10 = fluidRuntimeManifest.objects.find((o) => o.name === FLUID_RUNTIME_CLASS);
+if (RUNTIME_OBJECT10 === void 0) {
   throw new Error(`fluidRuntimeManifest has no entry for ${FLUID_RUNTIME_CLASS}`);
 }
 var UI_SOURCE = `CLASS zcl_zmcp_fluid_ui DEFINITION
@@ -85396,8 +86152,8 @@ var uiManifest = {
       name: FLUID_RUNTIME_CLASS,
       type: "CLAS/OC",
       // same live object as the rt tool's; derived so the two descriptions can't drift apart
-      description: RUNTIME_OBJECT9.description,
-      source: { text: RUNTIME_SOURCE9 }
+      description: RUNTIME_OBJECT10.description,
+      source: { text: RUNTIME_SOURCE10 }
     },
     {
       name: "ZCL_ZMCP_FLUID_UI",
@@ -85606,7 +86362,7 @@ var uiManifest = {
   ]
 };
 var uiSources = /* @__PURE__ */ new Map([
-  [FLUID_RUNTIME_CLASS, RUNTIME_SOURCE9],
+  [FLUID_RUNTIME_CLASS, RUNTIME_SOURCE10],
   ["ZCL_ZMCP_FLUID_UI", UI_SOURCE]
 ]);
 
@@ -85618,6 +86374,7 @@ var BUILTIN_FLUID_TOOLS = [
   { manifest: enhManifest, sources: enhSources },
   { manifest: fpmManifest, sources: fpmSources },
   { manifest: imgManifest, sources: imgSources },
+  { manifest: logManifest, sources: logSources },
   { manifest: fluidRuntimeManifest, sources: fluidRuntimeSources },
   { manifest: runManifest, sources: runSources },
   { manifest: scanManifest, sources: scanSources },
@@ -104127,19 +104884,19 @@ function parseFqlQuery(text5) {
   let i = 0;
   const peek = () => tokens[i];
   let failure;
-  const fail5 = (message, token) => {
+  const fail6 = (message, token) => {
     failure ??= token ? `${message} at offset ${token.pos}` : message;
     return void 0;
   };
   const parseNode = (depth) => {
-    if (depth > 64) return fail5("the query nests too deeply to parse");
+    if (depth > 64) return fail6("the query nests too deeply to parse");
     const head = peek();
-    if (!head) return fail5("unexpected end of query; expected an operator or `and`/`or`");
-    if (head.kind !== "word") return fail5(`unexpected '${head.kind}'`, head);
+    if (!head) return fail6("unexpected end of query; expected an operator or `and`/`or`");
+    if (head.kind !== "word") return fail6(`unexpected '${head.kind}'`, head);
     i += 1;
     const open = peek();
     if (!open || open.kind !== "(") {
-      return fail5(`expected '(' after '${head.text}'`, open ?? head);
+      return fail6(`expected '(' after '${head.text}'`, open ?? head);
     }
     i += 1;
     const lower = head.text.toLowerCase();
@@ -104155,7 +104912,7 @@ function parseFqlQuery(text5) {
         if (!child4) return void 0;
         children.push(child4);
         const next = peek();
-        if (!next) return fail5(`unclosed '${head.text} (' \u2014 expected ')'`);
+        if (!next) return fail6(`unclosed '${head.text} (' \u2014 expected ')'`);
         if (next.kind === ",") {
           i += 1;
           continue;
@@ -104164,23 +104921,23 @@ function parseFqlQuery(text5) {
           i += 1;
           return { kind: "junction", junction: lower, children };
         }
-        return fail5(`expected ',' or ')'`, next);
+        return fail6(`expected ',' or ')'`, next);
       }
     }
     const attrToken = peek();
     if (!attrToken || attrToken.kind !== "word") {
-      return fail5(`expected an attribute name after '${head.text} ('`, attrToken);
+      return fail6(`expected an attribute name after '${head.text} ('`, attrToken);
     }
     i += 1;
     const operands = [];
     for (; ; ) {
       const next = peek();
-      if (!next) return fail5(`unclosed '${head.text} (' \u2014 expected ')'`);
+      if (!next) return fail6(`unclosed '${head.text} (' \u2014 expected ')'`);
       if (next.kind === ")") {
         i += 1;
         break;
       }
-      if (next.kind !== ",") return fail5(`expected ',' or ')'`, next);
+      if (next.kind !== ",") return fail6(`expected ',' or ')'`, next);
       i += 1;
       const parts = [];
       for (; ; ) {
@@ -117189,6 +117946,9 @@ async function abapRun(conn, input, maxChars, gate) {
   }
   const genuinelyEmpty = res.lines === 0 && droppedLines === 0 && !hasDiagnostics;
   const body = res.output.trim() ? res.output : genuinelyEmpty ? "(no output)" : "(nothing shown here \u2014 but this run is NOT confirmed empty: see the NOTE(s) above about diagnostics, dropped lines, and/or incomplete output. Do not read this as a clean, silent, successful run.)";
+  const logLastSeconds = Math.ceil(res.durationMs / 1e3) + 5;
+  const logHint = `Application log (BAL) entries this execution may have written: abap_fluid {"tool":"${LOG_TOOL_ID}","action":"${LOG_ACTION}","args":{"last_seconds":${logLastSeconds},"detail":"messages"}} \u2014 last_seconds is measured on the server clock, so it covers this run.`;
+  notes.push(logHint);
   const authTraceSectionValue = authTraceOutcome ? authTraceSection(authTraceOutcome) : void 0;
   const sections = [];
   if (hasDiagnostics) sections.push({ title: "DIAGNOSTICS", content: res.diagnostics.join("\n") });
@@ -122283,6 +123043,623 @@ async function findImplementations(conn, interfaceSourceUri, pos, interfaceName,
 // src/tools/read.ts
 init_types();
 init_compact();
+
+// src/adt/docu.ts
+init_errors();
+var DOCU_ID_BY_TYPE = /* @__PURE__ */ new Map([
+  ["DTEL", "DE"],
+  ["DOMA", "DO"],
+  ["TABL", "TB"],
+  ["CLAS", "CL"],
+  ["INTF", "IF"],
+  ["FUNC", "FU"],
+  ["FUGR", "FU"],
+  ["PROG", "RE"],
+  ["MSAG", "NA"]
+]);
+var DOCU_KIND_BY_TYPE = /* @__PURE__ */ new Map([
+  ["DTEL", "data element"],
+  ["DOMA", "domain"],
+  ["TABL", "table"],
+  ["CLAS", "class"],
+  ["INTF", "interface"],
+  ["FUNC", "function module"],
+  ["FUGR", "function group"],
+  ["PROG", "program"],
+  ["MSAG", "message class"]
+]);
+var MERGED_MESSAGE_RE = /^(\S+?)(\d{3})$/;
+var SPACED_MESSAGE_RE = /^(\S+)\s+(\d{1,3})$/;
+function parseMessageObject(object3) {
+  const trimmed = object3.trim();
+  const spaced = SPACED_MESSAGE_RE.exec(trimmed);
+  if (spaced) {
+    const id = spaced[1];
+    const num4 = spaced[2];
+    return `${id.toUpperCase()}${num4.padStart(3, "0")}`;
+  }
+  const merged = MERGED_MESSAGE_RE.exec(trimmed);
+  if (merged) {
+    return trimmed.toUpperCase();
+  }
+  throw new AbapError(
+    "BAD_INPUT",
+    `"${object3}" is not a recognisable message reference; expected "<message id> <number>" (e.g. "ZSD 042") or the already-merged form (e.g. "ZSD042").`,
+    { object: object3 }
+  );
+}
+function imgDocuTarget(activity) {
+  return { id: "HY", object: `SIMG${activity}`, kind: "IMG activity" };
+}
+function resolveDocuTarget(input) {
+  const rawType = input.type?.split("/")[0]?.toUpperCase();
+  if (rawType === "MSAG") {
+    return { id: "NA", object: parseMessageObject(input.object), kind: "message" };
+  }
+  if (rawType !== void 0) {
+    const id = DOCU_ID_BY_TYPE.get(rawType);
+    if (id !== void 0) {
+      const kind = DOCU_KIND_BY_TYPE.get(rawType) ?? rawType.toLowerCase();
+      return { id, object: input.object.toUpperCase(), kind };
+    }
+  }
+  const supported = [...DOCU_ID_BY_TYPE.keys()].join(", ");
+  throw new AbapError(
+    "BAD_INPUT",
+    `no documentation mapping for type ${input.type ?? "(none)"}; supported types are ${supported}.`,
+    { type: input.type }
+  );
+}
+function escapeRegExp4(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function extractAbapDoc(source, member) {
+  const lines = source.split(/\r\n|\r|\n/);
+  const declRe = new RegExp(`^\\s*(?:CLASS-)?METHODS\\s+${escapeRegExp4(member)}\\b`, "i");
+  let declIndex = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (declRe.test(abapCodeOf(lines[i] ?? ""))) {
+      declIndex = i;
+      break;
+    }
+  }
+  if (declIndex < 0) return [];
+  const collected = [];
+  for (let i = declIndex - 1; i >= 0; i--) {
+    const trimmed = (lines[i] ?? "").trim();
+    if (!trimmed.startsWith('"!')) break;
+    const withoutMarker = trimmed.slice(2);
+    collected.push(withoutMarker.startsWith(" ") ? withoutMarker.slice(1) : withoutMarker);
+  }
+  return collected.reverse();
+}
+var DOCU_FLATTEN_NOTE = "Documentation is SAP ITF text flattened to plain lines by CONVERT_ITF_TO_ASCII (symbols resolved, formatting tags removed, /: INCLUDE directives expanded). It is not the verbatim ITF source.";
+function docuEmptyText(tried) {
+  return `(no documentation in ${tried.join(" or ")})`;
+}
+
+// src/adt/digest.ts
+init_compact();
+var DIGEST_TYPES = [
+  "CLAS/OC",
+  "INTF/OI",
+  "PROG/P",
+  "FUGR/F",
+  "FUGR/FF",
+  "DDLS/DF"
+];
+function isDigestType(type) {
+  const t = type.trim().toUpperCase();
+  if (!t) return false;
+  if (DIGEST_TYPES.includes(t)) return true;
+  if (t.includes("/")) return false;
+  const matches = DIGEST_TYPES.filter((d) => d.split("/")[0] === t);
+  return matches.length === 1;
+}
+var BUILTIN_TYPES = /* @__PURE__ */ new Set([
+  "i",
+  "f",
+  "p",
+  "c",
+  "n",
+  "d",
+  "t",
+  "x",
+  "string",
+  "xstring",
+  "abap_bool",
+  "int1",
+  "int2",
+  "int4",
+  "int8",
+  "decfloat16",
+  "decfloat34",
+  "utclong",
+  "any",
+  "data",
+  "sy",
+  "ref",
+  "standard",
+  "sorted",
+  "hashed",
+  "table",
+  "line",
+  "of"
+]);
+var LOCAL_PREFIXES = ["lt_", "ls_", "lv_", "lo_", "lr_", "gt_", "gs_", "gv_", "go_", "ty_", "t_"];
+function looksLikeLocalName(name) {
+  const n = name.toLowerCase();
+  if (n === "begin" || n === "end") return true;
+  return LOCAL_PREFIXES.some((p) => n.startsWith(p));
+}
+var GLOBAL_NAME_RE = /^(?:\/\w+\/)?[A-Za-z_][A-Za-z0-9_]*$/;
+function isCandidateGlobalName(name) {
+  if (!GLOBAL_NAME_RE.test(name)) return false;
+  if (BUILTIN_TYPES.has(name.toLowerCase())) return false;
+  if (looksLikeLocalName(name)) return false;
+  return true;
+}
+function readCallFor(name, via) {
+  if (via === "function module") return `abap_read {"object":"${name}","type":"FUGR/FF"}`;
+  if (via === "transaction") return `abap_search {"query":"${name}"}`;
+  if (via === "SELECT FROM") return `abap_read {"object":"${name}","type":"TABL/DT"}`;
+  if (via === "INCLUDE") return `abap_read {"object":"${name}","type":"PROG/I"}`;
+  return `abap_read {"object":"${name}"}`;
+}
+function looksLikeCdsSource(source) {
+  return source.replace(/\r\n/g, "\n").split("\n").some((raw) => /^\s*define\s+view\b/i.test(abapCodeOf(raw)));
+}
+function scanDependencies(source, opts) {
+  const lines = source.replace(/\r\n/g, "\n").split("\n");
+  const found = [];
+  const add = (name, via) => {
+    if (!name) return;
+    found.push({ name: name.toUpperCase(), via });
+  };
+  const namesFromCommaList = (rest) => rest.split(",").map((seg) => /^\s*([/\w]+)/.exec(seg)?.[1]).filter((n) => Boolean(n));
+  const isCds = looksLikeCdsSource(source);
+  let inSelect = false;
+  for (const raw of lines) {
+    const code = abapCodeOf(raw);
+    if (!code.trim()) continue;
+    const inheriting = /\binheriting\s+from\s+([/\w]+)/i.exec(code);
+    if (inheriting?.[1]) add(inheriting[1], "superclass");
+    const interfaces = /\binterfaces\s*:?\s*(.+)/i.exec(code);
+    if (interfaces?.[1]) {
+      for (const n of namesFromCommaList(interfaces[1])) add(n, "interface");
+    }
+    const typeRefRe = /\btype\s+ref\s+to\s+([/\w]+)/gi;
+    let m;
+    while (m = typeRefRe.exec(code)) {
+      if (m[1] && isCandidateGlobalName(m[1])) add(m[1], "type");
+    }
+    const typeRe = /\btype\s+(?!ref\s+to\b)([/\w]+)/gi;
+    while (m = typeRe.exec(code)) {
+      if (m[1] && isCandidateGlobalName(m[1])) add(m[1], "type");
+    }
+    if (/\bcall\s+function\b/i.test(code)) {
+      const lit = /\bcall\s+function\s+'([^']+)'/i.exec(raw);
+      if (lit?.[1]) add(lit[1], "function module");
+    }
+    if (/\bcall\s+transaction\b/i.test(code)) {
+      const lit = /\bcall\s+transaction\s+'([^']+)'/i.exec(raw);
+      if (lit?.[1]) add(lit[1], "transaction");
+    }
+    const submit = /\bsubmit\s+([/\w]+)/i.exec(code);
+    if (submit?.[1]) add(submit[1], "submit");
+    const staticRe = /\b((?:\/\w+\/)?[A-Za-z_][A-Za-z0-9_]*)\s*=>/g;
+    while (m = staticRe.exec(code)) {
+      const name = m[1];
+      if (!name) continue;
+      const lower = name.toLowerCase();
+      if (lower === "me" || lower === "super") continue;
+      if (isCandidateGlobalName(name)) add(name, "class");
+    }
+    const include = /^\s*include\s+([/\w]+)/i.exec(code);
+    if (include?.[1] && isCandidateGlobalName(include[1])) add(include[1], "INCLUDE");
+    if (!isCds) {
+      if (/\bselect\b(?!-)/i.test(code)) inSelect = true;
+      if (inSelect) {
+        const fromRe = /\bfrom\s+(@?[/\w]+)/gi;
+        while (m = fromRe.exec(code)) {
+          if (m[1] && isCandidateGlobalName(m[1])) add(m[1], "SELECT FROM");
+        }
+        const joinRe = /\bjoin\s+([/\w]+)/gi;
+        while (m = joinRe.exec(code)) {
+          if (m[1] && isCandidateGlobalName(m[1])) add(m[1], "SELECT FROM");
+        }
+      }
+      if (code.includes(".")) inSelect = false;
+    }
+  }
+  const selfUpper = opts?.selfName?.toUpperCase();
+  const byName = /* @__PURE__ */ new Map();
+  for (const f of found) {
+    if (selfUpper && f.name === selfUpper) continue;
+    if (!byName.has(f.name)) byName.set(f.name, f.via);
+  }
+  return [...byName.entries()].map(([name, via]) => ({ name, via, readCall: readCallFor(name, via) })).sort((a, b) => a.via === b.via ? a.name.localeCompare(b.name) : a.via.localeCompare(b.via));
+}
+function scanProgramInterface(source) {
+  const lines = source.replace(/\r\n/g, "\n").split("\n");
+  const parameters = [];
+  const selectOptions = [];
+  const forms = [];
+  let hasStartOfSelection = false;
+  const namesFrom = (rest) => rest.split(",").map((seg) => /^\s*([/\w]+)/.exec(seg)?.[1]).filter((n) => Boolean(n));
+  for (const raw of lines) {
+    const code = abapCodeOf(raw);
+    if (!code.trim()) continue;
+    const p = /^\s*parameters\s*:?\s*(.+)/i.exec(code);
+    if (p?.[1]) parameters.push(...namesFrom(p[1]));
+    const s = /^\s*select-options\s*:?\s*(.+)/i.exec(code);
+    if (s?.[1]) selectOptions.push(...namesFrom(s[1]));
+    const f = /^\s*form\s+([/\w]+)/i.exec(code);
+    if (f?.[1]) forms.push(f[1]);
+    if (/^\s*start-of-selection\b/i.test(code)) hasStartOfSelection = true;
+  }
+  return { parameters, selectOptions, forms, hasStartOfSelection };
+}
+function splitStatements2(source) {
+  const joined = source.replace(/\r\n/g, "\n").split("\n").map(abapCodeOf).join("\n");
+  return joined.split(".").map((s) => s.replace(/\s+/g, " ").trim()).filter(Boolean);
+}
+var CLASS_DEFINITION_FOR_TESTING_RE = /\bclass\s+[/\w]+\s+definition\b[\s\S]*\bfor\s+testing\b/i;
+function countTestClasses(testIncludeSource) {
+  return splitStatements2(testIncludeSource).filter((s) => CLASS_DEFINITION_FOR_TESTING_RE.test(s)).length;
+}
+var NON_API_COMPONENT_KINDS = /* @__PURE__ */ new Set(["CLAS/OT", "INTF/OT"]);
+function summarisePublicApi(members) {
+  const rows = [];
+  const hidden = /* @__PURE__ */ new Map();
+  for (const m of members) {
+    if (NON_API_COMPONENT_KINDS.has(m.type)) continue;
+    const visibility = (m.visibility ?? "").toLowerCase();
+    if (visibility === "public") {
+      const detailParts = [m.level, m.redefinition ? "redefinition" : void 0].filter(
+        (v) => Boolean(v)
+      );
+      rows.push({
+        name: m.name,
+        kind: m.type,
+        ...detailParts.length ? { detail: detailParts.join(" ") } : {}
+      });
+    } else if (visibility) {
+      hidden.set(visibility, (hidden.get(visibility) ?? 0) + 1);
+    }
+  }
+  return {
+    rows,
+    hiddenCounts: [...hidden.entries()].map(([visibility, count]) => ({ visibility, count }))
+  };
+}
+var FM_SECTION_KEYWORD_RE = /^(IMPORTING|EXPORTING|CHANGING|TABLES|EXCEPTIONS|RAISING)\b\s*(.*)$/i;
+var FM_INTERFACE_HEADER_RE = /^\*"(?:\*")?\s*local\s+interface\s*:?\s*$/i;
+var FM_RULE_RE = /^-+$/;
+var FM_NATIVE_OPEN_RE = /^function\s+([\w/]+)\s*(\.)?\s*$/i;
+var FM_CONTINUATION_RE = /^(type|like|structure|default|optional)\b/i;
+function parseFmParamLine(content) {
+  const wrapped = /^(?:VALUE|REFERENCE)\(([^)]+)\)\s*(.*)$/i.exec(content);
+  const bare = wrapped ? void 0 : /^([/\w]+)\s*(.*)$/.exec(content);
+  const name = (wrapped?.[1] ?? bare?.[1])?.trim();
+  const rest = wrapped?.[2] ?? bare?.[2] ?? "";
+  if (!name) return void 0;
+  const optional3 = /\b(default|optional)\b/i.test(rest);
+  const typing = rest.replace(/\bdefault\b.*$/i, "").replace(/\boptional\b.*$/i, "").replace(/\s+/g, " ").trim();
+  return { name, typing, optional: optional3 };
+}
+function scanFunctionInterfaceLegacyComment(source) {
+  const lines = source.replace(/\r\n/g, "\n").split("\n");
+  const startIdx = lines.findIndex((l) => FM_INTERFACE_HEADER_RE.test(l.trim()));
+  if (startIdx === -1) return [];
+  const params = [];
+  let currentKind;
+  for (let i = startIdx + 1; i < lines.length; i++) {
+    const line2 = lines[i] ?? "";
+    if (!line2.startsWith('*"')) break;
+    const content = line2.slice(2).trim();
+    if (FM_RULE_RE.test(content)) break;
+    const kindMatch = FM_SECTION_KEYWORD_RE.exec(content);
+    if (kindMatch) {
+      currentKind = kindMatch[1].toUpperCase();
+      continue;
+    }
+    if (!content || !currentKind) continue;
+    const parsed = parseFmParamLine(content);
+    if (!parsed) continue;
+    params.push({ kind: currentKind, name: parsed.name, typing: parsed.typing, optional: parsed.optional });
+  }
+  return params;
+}
+function collectNativeFunctionStatementBody(lines) {
+  const startIdx = lines.findIndex((l) => FM_NATIVE_OPEN_RE.test(l.trim()));
+  if (startIdx === -1) return void 0;
+  const open = FM_NATIVE_OPEN_RE.exec(lines[startIdx].trim());
+  const body = [];
+  let terminated = !!open[2];
+  for (let i = startIdx + 1; i < lines.length && !terminated; i++) {
+    const raw = (lines[i] ?? "").trim();
+    if (raw === "" || raw.startsWith("*") || raw.startsWith('"')) continue;
+    let content = raw.replace(/\s*##[A-Za-z0-9_]+/g, "").replace(/\s+".*$/, "").trimEnd();
+    if (content === "") continue;
+    const dotIdx = content.indexOf(".");
+    if (dotIdx !== -1) {
+      content = content.slice(0, dotIdx).trimEnd();
+      terminated = true;
+    }
+    if (content) body.push(content);
+  }
+  return body;
+}
+function parseNativeFunctionBody(body) {
+  const params = [];
+  let currentKind;
+  let chunk3;
+  const finalizeChunk = () => {
+    if (chunk3 !== void 0 && currentKind) {
+      const parsed = parseFmParamLine(chunk3.replace(/,\s*$/, "").trim());
+      if (parsed) params.push({ kind: currentKind, name: parsed.name, typing: parsed.typing, optional: parsed.optional });
+    }
+    chunk3 = void 0;
+  };
+  for (const line2 of body) {
+    const sectionMatch = FM_SECTION_KEYWORD_RE.exec(line2);
+    if (sectionMatch) {
+      finalizeChunk();
+      currentKind = sectionMatch[1].toUpperCase();
+      chunk3 = sectionMatch[2]?.trim() || void 0;
+      continue;
+    }
+    if (!currentKind) continue;
+    if (chunk3 !== void 0 && FM_CONTINUATION_RE.test(line2)) {
+      chunk3 = `${chunk3} ${line2}`;
+      continue;
+    }
+    finalizeChunk();
+    chunk3 = line2;
+  }
+  finalizeChunk();
+  return params;
+}
+function scanFunctionSignature(source) {
+  const lines = source.replace(/\r\n/g, "\n").split("\n");
+  const nativeBody = collectNativeFunctionStatementBody(lines);
+  const nativeParams = nativeBody ? parseNativeFunctionBody(nativeBody) : [];
+  if (nativeParams.length > 0) return { form: "native", parameters: nativeParams };
+  const legacyHeaderFound = lines.some((l) => FM_INTERFACE_HEADER_RE.test(l.trim()));
+  if (legacyHeaderFound) return { form: "legacy", parameters: scanFunctionInterfaceLegacyComment(source) };
+  if (nativeBody !== void 0) return { form: "native", parameters: [] };
+  return { form: "none", parameters: [] };
+}
+function stripCdsEntryPrefixes(entry) {
+  let e = entry.trim();
+  for (; ; ) {
+    const ann = /^@[\w.]+\s*:\s*(?:'[^']*'|[^\s]+)\s*/i.exec(e);
+    if (ann) {
+      e = e.slice(ann[0].length).trim();
+      continue;
+    }
+    const key = /^key\b\s*/i.exec(e);
+    if (key) {
+      e = e.slice(key[0].length).trim();
+      continue;
+    }
+    return e;
+  }
+}
+function stripCdsLineComments(source) {
+  return source.replace(/\r\n/g, "\n").split("\n").map((line2) => {
+    let out = "";
+    let inString = false;
+    for (let i = 0; i < line2.length; i++) {
+      const ch = line2[i];
+      if (inString) {
+        out += ch;
+        if (ch === "'") inString = false;
+        continue;
+      }
+      if (ch === "'") {
+        inString = true;
+        out += ch;
+        continue;
+      }
+      if (ch === "-" && line2[i + 1] === "-") break;
+      out += ch;
+    }
+    return out;
+  }).join("\n");
+}
+var CDS_FIELD_ENTRY_RE = /^([A-Za-z_]\w*)(?:\.([A-Za-z_]\w*))?(?:\s+as\s+([A-Za-z_]\w*))?$/i;
+function scanCdsFields(source) {
+  const cleaned = stripCdsLineComments(source);
+  const fromIdx = cleaned.search(/\bfrom\b/i);
+  if (fromIdx === -1) return [];
+  const braceStart = cleaned.indexOf("{", fromIdx);
+  if (braceStart === -1) return [];
+  let depth = 0;
+  let braceEnd = -1;
+  for (let i = braceStart; i < cleaned.length; i++) {
+    const ch = cleaned[i];
+    if (ch === "{") depth++;
+    else if (ch === "}") {
+      depth--;
+      if (depth === 0) {
+        braceEnd = i;
+        break;
+      }
+    }
+  }
+  if (braceEnd === -1) return [];
+  const body = cleaned.slice(braceStart + 1, braceEnd);
+  const entries = [];
+  let cur = "";
+  let braceDepth = 0;
+  let parenDepth = 0;
+  let bracketDepth = 0;
+  for (const ch of body) {
+    if (ch === "{") braceDepth++;
+    else if (ch === "}") braceDepth--;
+    else if (ch === "(") parenDepth++;
+    else if (ch === ")") parenDepth--;
+    else if (ch === "[") bracketDepth++;
+    else if (ch === "]") bracketDepth--;
+    if (ch === "," && braceDepth === 0 && parenDepth === 0 && bracketDepth === 0) {
+      entries.push(cur);
+      cur = "";
+    } else {
+      cur += ch;
+    }
+  }
+  if (cur.trim()) entries.push(cur);
+  const fields = [];
+  for (const raw of entries) {
+    const normalised = raw.replace(/\s+/g, " ").trim();
+    if (!normalised) continue;
+    const stripped = stripCdsEntryPrefixes(normalised);
+    if (!stripped) return [];
+    const m = CDS_FIELD_ENTRY_RE.exec(stripped);
+    if (!m) return [];
+    const base = m[1] ?? "";
+    if (base.startsWith("_")) return [];
+    const qualified = m[2];
+    const alias = m[3];
+    fields.push((alias ?? qualified ?? base).toUpperCase());
+  }
+  return fields;
+}
+var DIGEST_MAX_ROWS_PER_SECTION = 25;
+var SECTION_TITLES = {
+  header: "HEADER",
+  publicApi: "PUBLIC API",
+  dependencies: "DIRECT DEPENDENCIES",
+  tests: "TESTS AND CHECKS",
+  history: "RECENT HISTORY",
+  nextSteps: "WHERE TO GO NEXT"
+};
+function renderTable(rows, columns, opts) {
+  if (rows.length === 0) return { content: opts.emptyText };
+  if (rows.length <= opts.maxRows) return { content: textTable(rows, columns) };
+  const shown = rows.slice(0, opts.maxRows);
+  const marker = `--- TRUNCATED --- ${opts.sectionTitle} cut after ${opts.maxRows} of ${rows.length} rows; ` + opts.fullCallLine;
+  return {
+    content: `${textTable(shown, columns)}
+${marker}`,
+    truncation: { shown: opts.maxRows, total: rows.length }
+  };
+}
+function dedupeConsecutiveVersions(history) {
+  const out = [];
+  for (const h of history) {
+    const prev = out[out.length - 1];
+    if (prev && prev.version === h.version) continue;
+    out.push(h);
+  }
+  return out;
+}
+function buildDigestSections(input, opts) {
+  const notes = [];
+  const name = input.header.name;
+  const headerLines = [
+    `type: ${input.header.type}`,
+    `name: ${input.header.name}`,
+    input.header.packageName !== void 0 ? `package: ${input.header.packageName}` : void 0,
+    input.header.description !== void 0 ? `description: ${input.header.description}` : void 0,
+    input.header.responsible !== void 0 ? `responsible: ${input.header.responsible}` : void 0,
+    input.header.lastChanged !== void 0 ? `last changed: ${input.header.lastChanged} (source: ${input.header.lastChangedSource})` : void 0,
+    input.header.activationState !== void 0 ? `activation: ${input.header.activationState}` : void 0
+  ].filter((l) => l !== void 0);
+  if (input.header.lastChangedSource === "active") {
+    notes.push(`${input.header.type} ${input.header.name} ${NO_RELEASED_HISTORY_EXPLANATION}`);
+  }
+  const apiRows = input.publicApi.rows.map((r) => ({
+    name: r.name,
+    kind: r.kind,
+    detail: r.detail ?? ""
+  }));
+  const apiFullCallLine = input.publicApi.fullCallLine ?? `abap_read {"object":"${name}","outline":true}`;
+  const apiEmptyText = input.publicApi.emptyText ?? "(no public components found by the outline scan)";
+  const apiRendered = renderTable(apiRows, ["name", "kind", "detail"], {
+    maxRows: opts.maxRowsPerSection,
+    sectionTitle: SECTION_TITLES.publicApi,
+    fullCallLine: apiFullCallLine,
+    emptyText: apiEmptyText
+  });
+  const hiddenLines = input.publicApi.hiddenCounts.map(
+    (h) => `${h.count} ${h.visibility} component(s) not listed`
+  );
+  const apiContent = [apiRendered.content, ...hiddenLines].filter(Boolean).join("\n");
+  if (apiRendered.truncation) {
+    notes.push(
+      `${SECTION_TITLES.publicApi}: showed ${apiRendered.truncation.shown} of ${apiRendered.truncation.total} public rows; ${apiFullCallLine} has the rest.`
+    );
+  }
+  if (input.publicApi.truncatedRows) {
+    notes.push(
+      `${SECTION_TITLES.publicApi}: ${input.publicApi.truncatedRows} row(s) were already dropped before this digest was built.`
+    );
+  }
+  const depRows = input.dependencies.map((d) => ({
+    name: d.name,
+    via: d.via,
+    "read call": d.readCall
+  }));
+  const depRendered = renderTable(depRows, ["name", "via", "read call"], {
+    maxRows: opts.maxRowsPerSection,
+    sectionTitle: SECTION_TITLES.dependencies,
+    // No single call returns the full dependency list — it is derived here
+    // by a static scan, not served by any ADT endpoint. Naming the object's
+    // own source read is the closest thing to "get the rest".
+    fullCallLine: `no single call returns the full list; abap_read {"object":"${name}"} reads the full source to check the rest by hand`,
+    emptyText: "(no direct dependencies found by the static scan)"
+  });
+  if (depRendered.truncation) {
+    notes.push(
+      `${SECTION_TITLES.dependencies}: showed ${depRendered.truncation.shown} of ${depRendered.truncation.total} rows; no single call returns the rest \u2014 read the full source with abap_read {"object":"${name}"}.`
+    );
+  }
+  const testsLines = [
+    `test include: ${input.tests.hasTestInclude ? "present" : "absent"}`,
+    `FOR TESTING classes declared: ${input.tests.testClassCount}`,
+    "Tests are not run in this session.",
+    `run tests: ${input.tests.testCall}`,
+    `run ATC checks: ${input.tests.atcCall}`
+  ];
+  const dedupedHistory = dedupeConsecutiveVersions(input.history).slice(0, 3);
+  const histRows = dedupedHistory.map((h) => ({
+    version: h.version,
+    date: h.date ?? "",
+    author: h.author ?? "",
+    note: h.note ?? ""
+  }));
+  const histRendered = renderTable(histRows, ["version", "date", "author", "note"], {
+    maxRows: opts.maxRowsPerSection,
+    sectionTitle: SECTION_TITLES.history,
+    fullCallLine: `abap_read {"object":"${name}","view":"history"}`,
+    emptyText: "(no history entries)"
+  });
+  if (histRendered.truncation) {
+    notes.push(
+      `${SECTION_TITLES.history}: showed ${histRendered.truncation.shown} of ${histRendered.truncation.total} rows; abap_read {"object":"${name}","view":"history"} has the rest.`
+    );
+  }
+  const nextStepsContent = input.nextSteps.map((s) => `- ${s}`).join("\n");
+  notes.push(
+    `Where-used is not fetched: ADT's usageReferences endpoint is unbounded and can take 20+ seconds on wide fan-in. Run it explicitly with abap_search {"query":"${name}","mode":"where_used"}.`
+  );
+  return {
+    sections: [
+      { title: SECTION_TITLES.header, content: headerLines.join("\n") },
+      { title: SECTION_TITLES.publicApi, content: apiContent },
+      { title: SECTION_TITLES.dependencies, content: depRendered.content },
+      { title: SECTION_TITLES.tests, content: testsLines.join("\n") },
+      { title: SECTION_TITLES.history, content: histRendered.content },
+      { title: SECTION_TITLES.nextSteps, content: nextStepsContent }
+    ],
+    notes
+  };
+}
+
+// src/tools/read.ts
 var readInputSchema = {
   object: external_exports.string().describe('Name, "class X", "table Y", or ADT URI.'),
   type: external_exports.string().optional().describe(
@@ -122304,7 +123681,9 @@ var readInputSchema = {
   // Enum for the same reason as version/format (G-08): reject a typo rather
   // than silently falling through to an ordinary source read. Named `view`,
   // not `mode` — `mode` is already a response header key and `ResolvedObject.mode`.
-  view: external_exports.enum(["history", "diff", "definition"]).optional().describe("history: versions. diff: hunks. definition: element at line/column. Omit for normal read."),
+  view: external_exports.enum(["history", "diff", "definition", "docu", "digest"]).optional().describe(
+    `history: versions. diff: hunks. definition: element at line/column. docu: SAP documentation (flattened ITF; type="SIMG" + object=<abap_img activity id> for an IMG activity's docu). digest: one-page object overview. Omit for normal read.`
+  ),
   from: external_exports.string().optional().describe('diff: older side \u2014 version, transport, or "active".'),
   to: external_exports.string().optional().describe("diff: newer side, same forms as `from`."),
   context: external_exports.number().int().min(0).max(20).optional().describe("diff: context lines per hunk. Default 3."),
@@ -122589,6 +123968,7 @@ async function readEnhancementObject(conn, obj, baseHeader, input, maxChars) {
   return { ...built, etag };
 }
 var NO_ETAG = "";
+var CORE_TOOLS = /* @__PURE__ */ new Map([[CORE_TOOL_ID, coreTool]]);
 var DIFF_MAX_HUNKS = 200;
 function assertViewCompatible(input, obj) {
   const clash = (param, why, hint) => {
@@ -122600,39 +123980,48 @@ function assertViewCompatible(input, obj) {
     );
   };
   const isDefinition = input.view === "definition";
+  const isDocu = input.view === "docu";
+  const isDigest = input.view === "digest";
   if (input.format) {
     clash(
       'format="raw"',
-      isDefinition ? "raw returns the XML descriptor of a properties-shape type; there is no source text to resolve a line/column position in." : "raw returns the current XML descriptor, which has no version feed behind it.",
-      isDefinition ? "Drop format \u2014 a definition lookup only makes sense against source text." : "Drop one of the two: view for history/diff, format for the current wire document."
+      isDefinition ? "raw returns the XML descriptor of a properties-shape type; there is no source text to resolve a line/column position in." : isDocu ? "docu reads SAP's own documentation store (DOKHL/DOKTL), not this object's own wire document \u2014 there is no XML descriptor of a documentation object to return." : isDigest ? "a digest is a rendered six-section overview built from several separate reads, not this object's own current XML descriptor." : "raw returns the current XML descriptor, which has no version feed behind it.",
+      isDefinition ? "Drop format \u2014 a definition lookup only makes sense against source text." : isDocu || isDigest ? "Drop format, or drop view." : "Drop one of the two: view for history/diff, format for the current wire document."
     );
   }
   if (input.enhancements) {
     clash(
       "enhancements=true",
-      isDefinition ? "the enhancement decoders read a structured ENHO/ENHS document, not the source text a position lookup resolves against." : "the enhancement decoders read the current definition only.",
+      isDefinition ? "the enhancement decoders read a structured ENHO/ENHS document, not the source text a position lookup resolves against." : isDocu ? "the enhancement decoders read an ENHO/ENHS document; docu reads the DOKHL/DOKTL documentation store instead \u2014 the two never apply to the same request." : isDigest ? "the enhancement decoders read an ENHO/ENHS document; a digest summarises an ordinary repository object instead \u2014 the two never apply to the same request." : "the enhancement decoders read the current definition only.",
       "Drop enhancements, or drop view."
     );
   }
   if (input.version && (!isDefinition || input.version === "inactive")) {
     clash(
       `version="${input.version}"`,
-      isDefinition ? "the elementinfo and navigation-target POSTs always carry the source abap_read itself read; asking about the inactive version while posting the active source would answer a question about a version that was never sent." : 'the active/inactive pair is a different axis from the version FEED; "inactive" is not a feed entry and has no history row.',
-      isDefinition ? "Activate the object first and read the active source, or drop version." : 'Use from/to to name feed versions (list them with view="history").'
+      isDefinition ? "the elementinfo and navigation-target POSTs always carry the source abap_read itself read; asking about the inactive version while posting the active source would answer a question about a version that was never sent." : isDocu ? "SAP's documentation store (DOKHL/DOKTL) is not version-controlled the way ABAP source is \u2014 there is no active/inactive pair to select between." : isDigest ? "a digest always summarises the CURRENT active state (falling back to the newest inactive version only the way an ordinary read would); the active/inactive selector is not a thing a fixed overview can apply per section." : 'the active/inactive pair is a different axis from the version FEED; "inactive" is not a feed entry and has no history row.',
+      isDefinition ? "Activate the object first and read the active source, or drop version." : isDocu || isDigest ? "Drop version." : 'Use from/to to name feed versions (list them with view="history").'
     );
   }
   if (input.outline) {
     clash(
       "outline=true",
-      isDefinition ? "outline lists the whole component structure, not source text \u2014 there is no line/column position in a component list to resolve." : "the outline lists the CURRENT component structure; ADT serves no per-version outline.",
-      "Read the outline separately, without view."
+      isDefinition ? "outline lists the whole component structure, not source text \u2014 there is no line/column position in a component list to resolve." : isDocu ? "outline lists the component structure of a CLASS or INTERFACE object; docu reads a documentation object, which has no component structure of its own." : isDigest ? "a digest already includes its own PUBLIC API section, built the same way outline=true is \u2014 asking for outline=true too would run that pass twice for no new information." : "the outline lists the CURRENT component structure; ADT serves no per-version outline.",
+      isDocu || isDigest ? "Drop outline." : "Read the outline separately, without view."
     );
   }
-  if (input.method) {
+  if (input.method && !isDocu) {
     clash(
       `method="${input.method}"`,
-      isDefinition ? "method slices the source down to one component's block and renumbers its lines from 1; a line/column that identifies a position in the FULL source would silently land on whatever happens to sit at that line number inside the renumbered excerpt instead of the position you meant." : "ADT versions whole objects (or whole class includes), not individual methods, so there is no per-method feed to read or diff.",
-      isDefinition ? "Drop method and read the definition against the full source (optionally with include)." : "Drop method \u2014 the diff hunks already carry line numbers you can map back to a method."
+      isDefinition ? "method slices the source down to one component's block and renumbers its lines from 1; a line/column that identifies a position in the FULL source would silently land on whatever happens to sit at that line number inside the renumbered excerpt instead of the position you meant." : isDigest ? "a digest is a fixed six-section overview of the object as a whole; narrowing it to one method would answer a smaller, different question than the digest is for \u2014 the PUBLIC API section already lists every public method." : "ADT versions whole objects (or whole class includes), not individual methods, so there is no per-method feed to read or diff.",
+      isDefinition ? "Drop method and read the definition against the full source (optionally with include)." : isDigest ? "Drop method \u2014 read that one method directly without view, or find it in the digest's PUBLIC API section." : "Drop method \u2014 the diff hunks already carry line numbers you can map back to a method."
+    );
+  }
+  if (input.include && (isDocu || isDigest)) {
+    clash(
+      `include="${input.include}"`,
+      isDocu ? "docu resolves its own documentation target from the object's type and name; there is no class-include axis on a documentation read." : "a digest always reads the class's own main source (plus its testclasses include, to count FOR TESTING classes) \u2014 there is no caller-selectable include axis on a fixed six-section overview.",
+      "Drop include."
     );
   }
   if (input.include && obj.kind !== "CLAS") {
@@ -122679,7 +124068,22 @@ function assertViewCompatible(input, obj) {
       }
     }
   }
-  if (input.view === "history" || input.view === "diff") {
+  if (isDocu || isDigest) {
+    for (const [param, value] of [
+      ["from", input.from],
+      ["to", input.to],
+      ["context", input.context]
+    ]) {
+      if (value !== void 0) {
+        clash(
+          param,
+          isDocu ? "they parameterise a diff between two source versions; a documentation object has no version feed to diff." : "they parameterise a diff between two source versions; a digest summarises the CURRENT state only, not a comparison between versions.",
+          `Drop ${param}${isDocu ? "" : ', or use view="diff" to compare versions instead'}.`
+        );
+      }
+    }
+  }
+  if (input.view === "history" || input.view === "diff" || isDocu || isDigest) {
     for (const [param, value] of [
       ["line", input.line],
       ["column", input.column]
@@ -122687,7 +124091,7 @@ function assertViewCompatible(input, obj) {
       if (value !== void 0) {
         clash(
           param,
-          "it selects a position in the CURRENT source; history and diff are about versions, not positions.",
+          isDocu ? "it selects a position in ABAP source; docu returns flattened documentation text, which has no line/column axis of its own to resolve a position in." : isDigest ? "it selects a position in ABAP source; a digest is a fixed six-section overview, not a position lookup." : "it selects a position in the CURRENT source; history and diff are about versions, not positions.",
           'Use view="definition" for a position lookup, or drop it.'
         );
       }
@@ -123064,6 +124468,342 @@ ${line2}: ${lineText}`
   });
   return { ...built, etag: NO_ETAG };
 }
+function failDocu(reason, result) {
+  throw new AbapError("FLUID_PROTOCOL_ERROR", `core.docu ${reason}`, {
+    tool: CORE_TOOL_ID,
+    action: "docu",
+    result
+  });
+}
+function mapDocuRows(rows) {
+  if (!Array.isArray(rows) || rows.length === 0) {
+    failDocu("returned a result that is not a non-empty array", rows);
+  }
+  const arr = rows;
+  const first = arr[0];
+  if (typeof first !== "object" || first === null || Array.isArray(first)) {
+    failDocu("row 0 is not an object", rows);
+  }
+  const h = first;
+  if (h["kind"] !== "docu") {
+    failDocu(`row 0 has kind "${String(h["kind"])}", expected "docu" (the head row)`, rows);
+  }
+  if (typeof h["found"] !== "boolean" || typeof h["language"] !== "string" || typeof h["requested_language"] !== "string" || typeof h["fallback_used"] !== "boolean" || typeof h["title"] !== "string" || typeof h["doktyp"] !== "string" || typeof h["dokstate"] !== "string" || !Array.isArray(h["available"])) {
+    failDocu("head row is missing or mistyping one of its required fields", rows);
+  }
+  const head = {
+    found: h["found"],
+    language: h["language"],
+    requestedLanguage: h["requested_language"],
+    fallbackUsed: h["fallback_used"],
+    title: h["title"],
+    doktyp: h["doktyp"],
+    dokstate: h["dokstate"],
+    available: h["available"].map((v) => String(v))
+  };
+  const lines = [];
+  let sawSummary = false;
+  for (let i = 1; i < arr.length; i++) {
+    const row2 = arr[i];
+    if (typeof row2 !== "object" || row2 === null || Array.isArray(row2)) {
+      failDocu(`row ${i} is not an object`, rows);
+    }
+    const r = row2;
+    if (r["kind"] === "line") {
+      if (sawSummary) failDocu(`row ${i} is a line row after the summary row`, rows);
+      if (typeof r["text"] !== "string") {
+        failDocu(`row ${i} is a line row missing or mistyping "text"`, rows);
+      }
+      lines.push(r["text"]);
+      continue;
+    }
+    if (r["kind"] === "summary") {
+      if (sawSummary) failDocu("returned more than one summary row", rows);
+      if (typeof r["lines_returned"] !== "number") {
+        failDocu(`row ${i} is a summary row missing or mistyping "lines_returned"`, rows);
+      }
+      if (i !== arr.length - 1) {
+        failDocu("returned a summary row that is not the last element", rows);
+      }
+      sawSummary = true;
+      continue;
+    }
+    failDocu(`row ${i} has kind "${String(r["kind"])}", expected "line" or "summary"`, rows);
+  }
+  if (!sawSummary) failDocu("did not return a summary row", rows);
+  return { head, lines };
+}
+async function readDocu(conn, obj, baseHeader, input, maxChars, gate) {
+  if (input.method !== void 0) {
+    if (obj.kind !== "CLAS") {
+      throw new AbapError(
+        "UNSUPPORTED",
+        `method="${input.method}" is only meaningful for a class: ABAP Doc lives on a method's own declaration in source, and ${obj.type} ${obj.name} is not a class.`,
+        { type: obj.type, name: obj.name, method: input.method },
+        "Drop method to read this object's own SAP documentation instead."
+      );
+    }
+    const { source } = await readSource(conn, obj, void 0, void 0);
+    const doc = extractAbapDoc(source, input.method);
+    const built = buildReadResponse({
+      header: { ...baseHeader, view: "docu", docu: `method ${input.method}` },
+      body: doc.length > 0 ? doc.join("\n") : `(${obj.type} ${obj.name} method ${input.method} carries no ABAP Doc comment.)`,
+      bodyLabel: "DOCUMENTATION",
+      notes: [
+        `ABAP Doc: the "!-prefixed comment block immediately above the method's METHODS/CLASS-METHODS declaration \u2014 the only documentation a method itself carries. This never falls back to the class-level DOKHL text (view="docu" without method= reads that instead) \u2014 a method's own doc and its class's doc answer different questions.`
+      ],
+      maxChars
+    });
+    return { ...built, etag: NO_ETAG };
+  }
+  const g = requireDocuGate(gate, { type: obj.type, name: obj.name, view: input.view });
+  const target = resolveDocuTarget({ type: obj.type, object: obj.name });
+  return await renderDocuTarget(conn, target, baseHeader, maxChars, g);
+}
+function requireDocuGate(gate, ctx) {
+  if (gate === void 0) {
+    throw new AbapError(
+      "UNSUPPORTED",
+      'view="docu" reads through a deployed fluid tool, which needs a SafetyGate to judge; none was supplied to this call.',
+      ctx
+    );
+  }
+  return gate;
+}
+async function renderDocuTarget(conn, target, baseHeader, maxChars, gate) {
+  const res = await dispatch2(
+    { conn, cfg: conn.cfg, gate, tools: CORE_TOOLS },
+    {
+      tool: CORE_TOOL_ID,
+      action: "docu",
+      args: { id: target.id, object: target.object },
+      caller: { tool: "abap_read", action: "docu" }
+    }
+  );
+  const { head, lines } = mapDocuRows(res.result);
+  const header = {
+    ...baseHeader,
+    view: "docu",
+    docu: `${target.id} ${target.object}`,
+    language: head.found ? head.language : void 0,
+    title: head.found ? head.title : void 0
+  };
+  const notes = [DOCU_FLATTEN_NOTE];
+  if (head.found && head.fallbackUsed) {
+    notes.push(
+      `Requested language "${head.requestedLanguage}" has no documentation for this ${target.kind}; SAP returned it in "${head.language}" instead.`
+    );
+  }
+  if (head.available.length > 0) {
+    notes.push(
+      `DOKIL lists documentation entries for: ${head.available.join(", ")} (langu:typ:dokstate) \u2014 informational only; it is not what core.docu used to pick a language (see abap-docu.ts).`
+    );
+  }
+  const tried = head.requestedLanguage === "EN" ? [head.requestedLanguage] : [head.requestedLanguage, "EN"];
+  const built = buildReadResponse({
+    header,
+    body: head.found && lines.length > 0 ? lines.join("\n") : docuEmptyText(tried),
+    bodyLabel: "DOCUMENTATION",
+    notes,
+    maxChars
+  });
+  return { ...built, etag: NO_ETAG };
+}
+function assertDocuBypassCompatible(input, kind) {
+  const clash = (param) => {
+    throw new AbapError(
+      "UNSUPPORTED",
+      `${param} cannot be combined with view="docu" for a ${kind}: only object and type are meaningful for this documentation lookup.`,
+      { view: "docu", kind, param },
+      `Drop ${param}.`
+    );
+  };
+  if (input.method !== void 0) clash("method");
+  if (input.format !== void 0) clash('format="raw"');
+  if (input.enhancements) clash("enhancements=true");
+  if (input.version !== void 0) clash(`version="${input.version}"`);
+  if (input.outline) clash("outline=true");
+  if (input.include !== void 0) clash(`include="${input.include}"`);
+  if (input.from !== void 0) clash("from");
+  if (input.to !== void 0) clash("to");
+  if (input.context !== void 0) clash("context");
+  if (input.line !== void 0) clash("line");
+  if (input.column !== void 0) clash("column");
+}
+async function readDigest(conn, obj, baseHeader, input, maxChars) {
+  if (!isDigestType(obj.type)) {
+    throw new AbapError(
+      "UNSUPPORTED",
+      `view="digest" supports ${DIGEST_TYPES.join(", ")}; ${obj.type} ${obj.name} is not one of those.`,
+      { type: obj.type, name: obj.name, supported: DIGEST_TYPES },
+      "Drop view for an ordinary read, or point digest at a CLAS/OC, INTF/OI, PROG/P, FUGR/F, FUGR/FF or DDLS/DF object."
+    );
+  }
+  const entries = await listRevisions(conn, obj, void 0);
+  const released = releasedVersions(entries);
+  const lastChangedSource = released.length > 0 ? "released" : "active";
+  const latest = released[0] ?? entries[0];
+  const lastChanged = latest ? [latest.date, latest.author ? `by ${latest.author}` : void 0, `(version ${latest.versionId || "?"})`].filter((p) => Boolean(p)).join(" ") : void 0;
+  const history = entries.map((e) => ({
+    version: e.versionId || "?",
+    date: e.date || void 0,
+    author: e.author || void 0,
+    note: e.description || void 0
+  }));
+  const { source } = await readSource(conn, obj, void 0, void 0);
+  const dependencies = scanDependencies(source, { selfName: obj.name });
+  const extraNotes = [];
+  let publicApi;
+  if (OUTLINE_KINDS.has(obj.kind)) {
+    const members = await classMembers(conn, obj);
+    publicApi = {
+      ...summarisePublicApi(members),
+      // Outline really is the source of these rows for CLAS/INTF —
+      // outline=true genuinely returns more when this section is
+      // truncated, and "no rows" here really does mean the outline scan
+      // found nothing public.
+      fullCallLine: `abap_read {"object":"${obj.name}","outline":true}`,
+      emptyText: "(no public components found by the outline scan)"
+    };
+  } else if (obj.type === "PROG/P") {
+    const pi = scanProgramInterface(source);
+    publicApi = {
+      rows: [
+        ...pi.parameters.map((name) => ({ name, kind: "parameter" })),
+        ...pi.selectOptions.map((name) => ({ name, kind: "select-option" })),
+        ...pi.forms.map((name) => ({ name, kind: "form" }))
+      ],
+      hiddenCounts: [],
+      // outline=true is refused for PROG/P (OUTLINE_KINDS is CLAS/INTF
+      // only) — the rows above came from a static scan of the source
+      // itself, so re-reading that source is what actually has the rest.
+      fullCallLine: `abap_read {"object":"${obj.name}","type":"PROG/P"}`,
+      emptyText: "(no parameters, select-options or forms found by the source scan)"
+    };
+    if (pi.hasStartOfSelection) extraNotes.push("START-OF-SELECTION is present in this program's source.");
+  } else if (obj.type === "FUGR/FF") {
+    const { form, parameters: params } = scanFunctionSignature(source);
+    publicApi = {
+      rows: params.map((p) => {
+        const detail = [p.typing || void 0, p.optional ? "(optional)" : void 0].filter((s) => s !== void 0).join(" ");
+        return { name: p.name, kind: p.kind, detail: detail || void 0 };
+      }),
+      // A function module's interface has no private/protected half to hide
+      // counts for — everything IMPORTING/EXPORTING/CHANGING/TABLES/
+      // EXCEPTIONS/RAISING declares is already the whole public signature.
+      hiddenCounts: [],
+      // outline=true is refused for FUGR/FF ("has no ADT component
+      // structure to list") — the rows above came from the source scan
+      // above, so re-reading that source (with `type` to disambiguate from
+      // FUGR/F, the function group) is what actually has the rest.
+      fullCallLine: `abap_read {"object":"${obj.name}","type":"FUGR/FF"}`,
+      emptyText: "(no parameters found by the source scan)"
+    };
+    if (params.length === 0) {
+      if (form === "native") {
+        extraNotes.push(
+          `PUBLIC API is empty for ${obj.name}: its native "FUNCTION ${obj.name} ... ." statement was found and parsed, and it declares no IMPORTING, EXPORTING, CHANGING, TABLES, EXCEPTIONS or RAISING clause at all \u2014 this module takes nothing, returns nothing and raises no exception. That is its real signature, not a limitation of this scan.`
+        );
+      } else {
+        extraNotes.push(
+          `PUBLIC API is empty for ${obj.name}: its source carries neither a parseable native "FUNCTION \u2026 IMPORTING/EXPORTING/\u2026 ." signature statement (the form ADT serves on this system) nor the legacy generated "Local Interface:" comment block \u2014 a real outcome (the source is malformed, hand-edited, or shaped in a way this scan does not recognise), not a limitation of this tool.`
+        );
+      }
+    }
+  } else if (obj.type === "DDLS/DF") {
+    const fields = scanCdsFields(source);
+    publicApi = {
+      rows: fields.map((name) => ({ name, kind: "field" })),
+      hiddenCounts: [],
+      // outline=true is refused for DDLS/DF ("has no ADT component
+      // structure to list") — the rows above came from the source scan
+      // above, so re-reading that source (with `type` for symmetry with
+      // the other non-outline branches) is what actually has the rest.
+      fullCallLine: `abap_read {"object":"${obj.name}","type":"DDLS/DF"}`,
+      emptyText: "(no fields found by the source scan)"
+    };
+    if (fields.length === 0) {
+      extraNotes.push(
+        `PUBLIC API is empty for ${obj.name}: its select list could not be parsed confidently \u2014 e.g. no recognisable \`select from { ... }\` projection block, a bare (non-navigated) association exposed in the list, or an entry that is a cast, function call, sub-select or otherwise not a plain field reference. This is not a statement that the view projects no fields.`
+      );
+    }
+  } else {
+    publicApi = {
+      rows: [],
+      hiddenCounts: [],
+      // Never truncated (rows is always []), but still named accurately:
+      // no outline scan runs here at all, so outline=true would be as much
+      // a dead end as it is for the other non-outline types.
+      fullCallLine: `abap_search {"query":"${obj.name}"}`,
+      emptyText: "(FUGR/F lists no modules directly \u2014 see note below)"
+    };
+    extraNotes.push(
+      `PUBLIC API is empty for ${obj.type}: listing a function group's modules needs a search call, which this view does not make \u2014 use abap_search to list FUGR/F's modules, or point digest at one of them directly (FUGR/FF).`
+    );
+  }
+  let tests;
+  if (obj.kind === "CLAS") {
+    let testSource = "";
+    let hasInclude = true;
+    try {
+      const r = await readSource(conn, obj, "testclasses", void 0);
+      testSource = r.source;
+    } catch (e) {
+      if (e instanceof AbapError && e.code === "NOT_FOUND") {
+        hasInclude = false;
+      } else {
+        throw e;
+      }
+    }
+    tests = {
+      hasTestInclude: hasInclude && testSource.trim() !== "",
+      testClassCount: hasInclude ? countTestClasses(testSource) : 0,
+      testCall: `abap_test {"object":"${obj.name}"}`,
+      atcCall: `abap_atc {"object":"${obj.name}"}`
+    };
+  } else {
+    tests = {
+      hasTestInclude: false,
+      testClassCount: 0,
+      testCall: `abap_test {"object":"${obj.name}"}`,
+      atcCall: `abap_atc {"object":"${obj.name}"}`
+    };
+  }
+  const nextSteps = [
+    `Read the full source: abap_read {"object":"${obj.name}"}`,
+    ...OUTLINE_KINDS.has(obj.kind) ? [`See the full component list: abap_read {"object":"${obj.name}","outline":true}`] : [],
+    `See the full version history: abap_read {"object":"${obj.name}","view":"history"}`
+  ];
+  const digestInput = {
+    header: {
+      type: obj.type,
+      name: obj.name,
+      packageName: obj.packageName,
+      description: obj.description,
+      // No source for `responsible` in this codebase's existing read
+      // machinery (ResolvedObject carries none) — left undefined (optional
+      // on DigestHeader) rather than fabricated.
+      lastChanged,
+      lastChangedSource,
+      activationState: obj.activation
+    },
+    publicApi,
+    dependencies,
+    tests,
+    history,
+    nextSteps
+  };
+  const { sections, notes } = buildDigestSections(digestInput, {
+    maxRowsPerSection: DIGEST_MAX_ROWS_PER_SECTION
+  });
+  const built = buildResponse({
+    header: { ...baseHeader, view: "digest" },
+    sections,
+    notes: [...notes, ...extraNotes],
+    maxChars
+  });
+  return { ...built, etag: NO_ETAG };
+}
 var CATALOG_READ_IRRELEVANT_PARAMS = [
   "method",
   "outline",
@@ -123137,11 +124877,39 @@ async function readCatalogObject2(conn, input, catalogRead, label, maxChars) {
     maxChars
   );
 }
-async function abapRead(conn, input, maxChars) {
+async function abapRead(conn, input, maxChars, gate) {
   if (input.include !== void 0) assertClassInclude(input.include, input.object);
   const catalogCap = input.type ? capabilitiesFor(input.type) : void 0;
   if (catalogCap?.catalogRead) {
     return readCatalogObject2(conn, input, catalogCap.catalogRead, catalogCap.label, maxChars);
+  }
+  const pseudoType = input.type?.split("/")[0]?.toUpperCase();
+  if (pseudoType === "SIMG" && input.view !== "docu") {
+    throw new AbapError(
+      "UNSUPPORTED",
+      `type="SIMG" only addresses an IMG activity's documentation, which needs view="docu" \u2014 there is no ADT object of type SIMG to read any other way.`,
+      { type: input.type, view: input.view },
+      'Add view="docu", or drop type="SIMG" and pass the real ADT type of what you meant to read.'
+    );
+  }
+  if (input.view === "digest" && input.type?.trim().toUpperCase() === "FUGR") {
+    throw new AbapError(
+      "UNSUPPORTED",
+      'type="FUGR" is ambiguous for view="digest": it could mean the whole function group (FUGR/F) or a single function module (FUGR/FF), and digest needs to know which.',
+      { type: input.type, view: input.view },
+      'Pass type="FUGR/F" to digest the function group, or type="FUGR/FF" to digest one function module.'
+    );
+  }
+  if (input.view === "docu" && (pseudoType === "MSAG" || pseudoType === "SIMG")) {
+    const kind = pseudoType === "MSAG" ? "message class" : "IMG activity";
+    assertDocuBypassCompatible(input, kind);
+    const g = requireDocuGate(gate, { type: input.type, object: input.object, view: input.view });
+    const target = pseudoType === "MSAG" ? resolveDocuTarget({ type: "MSAG", object: input.object }) : imgDocuTarget(input.object);
+    const baseHeader2 = {
+      system: conn.cfg.sid,
+      object: `${pseudoType} ${input.object}`
+    };
+    return await renderDocuTarget(conn, target, baseHeader2, maxChars, g);
   }
   const obj = await resolveObject(conn, input.object, input.type ? { type: input.type } : {});
   const baseHeader = {
@@ -123155,6 +124923,8 @@ async function abapRead(conn, input, maxChars) {
     assertViewCompatible(input, obj);
     if (input.view === "history") return await readHistory(conn, obj, baseHeader, input, maxChars);
     if (input.view === "diff") return await readDiff(conn, obj, baseHeader, input, maxChars);
+    if (input.view === "docu") return await readDocu(conn, obj, baseHeader, input, maxChars, gate);
+    if (input.view === "digest") return await readDigest(conn, obj, baseHeader, input, maxChars);
     return await readDefinition(conn, obj, baseHeader, input, maxChars);
   }
   for (const [param, value] of [
@@ -123411,17 +125181,42 @@ function registerReadTools(mcp, deps) {
     "abap_read",
     {
       title: "Read ABAP object",
-      description: 'Read an ABAP object: source, pseudo-DDL, a DEVC/K package listing (types/depth filter it), or (SUSO/B, TABL/DI) a read-only catalog render. Returns an etag. Capped ~15k tokens \u2014 use outline/method/offset for large objects. Example: {"object":"ZCL_FOO","type":"CLAS/OC"}.',
+      description: `Read an ABAP object: source, pseudo-DDL, a DEVC/K package listing (types/depth filter it), or (SUSO/B, TABL/DI) a read-only catalog render. view="docu" reads SAP's own documentation (or, with method=, a method's ABAP Doc); view="digest" gives a one-page overview (CLAS/INTF/PROG/FUGR/DDLS) with public API, dependencies, tests and recent history. Returns an etag. Capped ~15k tokens \u2014 use outline/method/offset for large objects. Example: {"object":"ZCL_FOO","type":"CLAS/OC"}.`,
       inputSchema: readInputSchema,
       annotations: { readOnlyHint: true, openWorldHint: true }
     },
     async (args) => {
       try {
+        const input = args;
+        if (input.view === "docu" && input.method === void 0) {
+          await deps.ensureConnected();
+          deps.safety.assert("read");
+          const disabled = fluidDisabledReason(deps.cfg, deps.safety);
+          if (disabled) {
+            throw dispatchDisabledError(disabled, deps.cfg, {
+              tool: CORE_TOOL_ID,
+              action: "docu",
+              args: { object: input.object, type: input.type },
+              caller: { tool: "abap_read", action: "docu" }
+            });
+          }
+          deps.safety.assert(
+            "write",
+            { name: CORE_BODY_CLASS, packageName: FLUID_PACKAGE, type: "CLAS/OC" },
+            { phase: "preflight" }
+          );
+          const res2 = await deps.pool.withWrite(
+            "abap_read",
+            CORE_BODY_CLASS,
+            (conn) => abapRead(conn, input, deps.cfg.maxResponseChars, deps.safety)
+          );
+          return okRead(res2);
+        }
         await deps.ensureConnected();
         deps.safety.assert("read");
         const res = await deps.pool.withRead(
           "abap_read",
-          (conn) => abapRead(conn, args, deps.cfg.maxResponseChars)
+          (conn) => abapRead(conn, input, deps.cfg.maxResponseChars)
         );
         return okRead(res);
       } catch (e) {
@@ -123952,6 +125747,236 @@ async function selectImpacted(changed, deps) {
 
 // src/tools/test.ts
 init_compact();
+
+// src/adt/bal-log.ts
+init_errors();
+init_compact();
+var DEFAULT_LOG_WINDOW_SECONDS = 3600;
+function assertNoWindowConflict(q) {
+  if (q.lastSeconds === void 0) return;
+  if (q.since === void 0 && q.until === void 0) return;
+  throw new AbapError(
+    "BAD_INPUT",
+    "log.read: last_seconds cannot be combined with since or until.",
+    { lastSeconds: q.lastSeconds, since: q.since, until: q.until },
+    "Name the window one way: pass last_seconds alone, or since/until alone."
+  );
+}
+function assertLogReadArgsNoWindowConflict(args) {
+  assertNoWindowConflict({
+    lastSeconds: args["last_seconds"],
+    since: args["since"],
+    until: args["until"]
+  });
+}
+function fail3(reason, rows) {
+  throw new AbapError(
+    "FLUID_PROTOCOL_ERROR",
+    `log.read ${reason}`,
+    { tool: LOG_TOOL_ID, action: LOG_ACTION, result: rows }
+  );
+}
+function isLogRow(r) {
+  return typeof r["lognumber"] === "string" && typeof r["object"] === "string" && typeof r["subobject"] === "string" && typeof r["extnumber"] === "string" && typeof r["aldate"] === "string" && typeof r["altime"] === "string" && typeof r["aluser"] === "string" && typeof r["alprog"] === "string" && typeof r["altcode"] === "string" && typeof r["almode"] === "string" && typeof r["probclass"] === "string" && typeof r["msg_total"] === "number" && typeof r["msg_error"] === "number" && typeof r["msg_abort"] === "number" && typeof r["msg_warning"] === "number" && typeof r["msg_info"] === "number" && typeof r["msg_success"] === "number";
+}
+function isMsgRow(r) {
+  return typeof r["lognumber"] === "string" && typeof r["msgnumber"] === "number" && typeof r["msgty"] === "string" && typeof r["msgid"] === "string" && typeof r["msgno"] === "string" && typeof r["msgv1"] === "string" && typeof r["msgv2"] === "string" && typeof r["msgv3"] === "string" && typeof r["msgv4"] === "string" && typeof r["text"] === "string" && typeof r["detlevel"] === "number" && typeof r["probclass"] === "string" && typeof r["context_tabname"] === "string";
+}
+function isSummaryRow(r) {
+  return typeof r["logs_returned"] === "number" && typeof r["messages_returned"] === "number" && typeof r["truncated"] === "boolean" && typeof r["detail"] === "string" && typeof r["since"] === "string" && typeof r["until"] === "string" && typeof r["user"] === "string" && typeof r["max"] === "number" && typeof r["server_time"] === "string";
+}
+function mapLogRows(rows) {
+  if (!Array.isArray(rows)) {
+    fail3("returned a result that is not an array", rows);
+  }
+  const logs = [];
+  let currentLog;
+  let summary;
+  for (let i = 0; i < rows.length; i++) {
+    const row2 = rows[i];
+    if (typeof row2 !== "object" || row2 === null || Array.isArray(row2)) {
+      fail3(`row ${i} is not an object`, rows);
+    }
+    const r = row2;
+    if (r["kind"] !== "log" && r["kind"] !== "msg" && r["kind"] !== "summary") {
+      fail3(`row ${i} has kind "${String(r["kind"])}", expected "log", "msg" or "summary"`, rows);
+    }
+    if (summary !== void 0) {
+      fail3(`row ${i} follows the trailing summary row`, rows);
+    }
+    if (r["kind"] === "log") {
+      if (!isLogRow(r)) {
+        fail3(`row ${i} is a log row missing or mistyping one of its required fields`, rows);
+      }
+      const entry = {
+        lognumber: r.lognumber,
+        object: r.object,
+        subobject: r.subobject,
+        extnumber: r.extnumber,
+        aldate: r.aldate,
+        altime: r.altime,
+        aluser: r.aluser,
+        alprog: r.alprog,
+        altcode: r.altcode,
+        almode: r.almode,
+        probclass: r.probclass,
+        msg_total: r.msg_total,
+        msg_error: r.msg_error,
+        msg_abort: r.msg_abort,
+        msg_warning: r.msg_warning,
+        msg_info: r.msg_info,
+        msg_success: r.msg_success,
+        messages: []
+      };
+      logs.push(entry);
+      currentLog = entry;
+      continue;
+    }
+    if (r["kind"] === "msg") {
+      if (currentLog === void 0) {
+        fail3(`row ${i} is a msg row before any log row`, rows);
+      }
+      if (!isMsgRow(r)) {
+        fail3(`row ${i} is a msg row missing or mistyping one of its required fields`, rows);
+      }
+      currentLog.messages.push({
+        lognumber: r.lognumber,
+        msgnumber: r.msgnumber,
+        msgty: r.msgty,
+        msgid: r.msgid,
+        msgno: r.msgno,
+        msgv1: r.msgv1,
+        msgv2: r.msgv2,
+        msgv3: r.msgv3,
+        msgv4: r.msgv4,
+        text: r.text,
+        detlevel: r.detlevel,
+        probclass: r.probclass,
+        context_tabname: r.context_tabname
+      });
+      continue;
+    }
+    if (!isSummaryRow(r)) {
+      fail3(`row ${i} is a summary row missing or mistyping one of its required fields`, rows);
+    }
+    if (i !== rows.length - 1) {
+      fail3("returned a summary row that is not the last element", rows);
+    }
+    summary = {
+      logs_returned: r.logs_returned,
+      messages_returned: r.messages_returned,
+      truncated: r.truncated,
+      detail: r.detail,
+      since: r.since,
+      until: r.until,
+      user: r.user,
+      max: r.max,
+      server_time: r.server_time
+    };
+  }
+  if (summary === void 0) {
+    fail3("did not return a summary row", rows);
+  }
+  return { logs, summary };
+}
+var LOG_HEADER_COLUMNS = [
+  "extnumber",
+  "user",
+  "date",
+  "time",
+  "program",
+  "tcode",
+  "total",
+  "abort",
+  "error",
+  "warning",
+  "info",
+  "success"
+];
+var LOG_MESSAGE_COLUMNS = ["no", "type", "message", "text", "level", "context"];
+function logSectionTitle(log2) {
+  return log2.subobject ? `LOG ${log2.lognumber} ${log2.object}/${log2.subobject}` : `LOG ${log2.lognumber} ${log2.object}`;
+}
+function logSectionContent(log2) {
+  const headerRow = {
+    extnumber: log2.extnumber,
+    user: log2.aluser,
+    date: log2.aldate,
+    time: log2.altime,
+    program: log2.alprog,
+    tcode: log2.altcode,
+    total: String(log2.msg_total),
+    abort: String(log2.msg_abort),
+    error: String(log2.msg_error),
+    warning: String(log2.msg_warning),
+    info: String(log2.msg_info),
+    success: String(log2.msg_success)
+  };
+  const headerTable = textTable([headerRow], [...LOG_HEADER_COLUMNS]);
+  if (log2.messages.length === 0) return headerTable;
+  const messageRows2 = log2.messages.map((m) => ({
+    no: String(m.msgnumber),
+    type: m.msgty,
+    message: m.msgid !== "" && m.msgno !== "" ? `${m.msgid}${m.msgno}` : "",
+    text: m.text,
+    level: String(m.detlevel),
+    context: m.context_tabname
+  }));
+  const messageTable = textTable(messageRows2, [...LOG_MESSAGE_COLUMNS]);
+  return `${headerTable}
+
+${messageTable}`;
+}
+function renderLogRead(result, opts) {
+  const sections = result.logs.map((log2) => ({
+    title: logSectionTitle(log2),
+    content: logSectionContent(log2)
+  }));
+  const notes = [];
+  if (result.summary.detail === "messages") {
+    notes.push(
+      "Message text and its variables (msgv1..msgv4) are application data written by the logging program, not abapsmith's own output, and may contain business data."
+    );
+  }
+  if (result.summary.truncated) {
+    notes.push(
+      `Not every matching log was returned (max=${result.summary.max}). Raise max, or narrow the window with since/until, to see a different slice.`
+    );
+  }
+  const built = buildResponse({
+    header: {
+      tool: "log",
+      action: "read",
+      logs: result.summary.logs_returned,
+      messages: result.summary.messages_returned,
+      detail: result.summary.detail,
+      since: result.summary.since,
+      until: result.summary.until,
+      user: result.summary.user,
+      server_time: result.summary.server_time,
+      ...opts.ms !== void 0 ? { ms: opts.ms } : {},
+      ...opts.version !== void 0 ? { version: opts.version } : {},
+      ...opts.deployed !== void 0 ? { deployed: opts.deployed } : {},
+      truncated: result.summary.truncated
+    },
+    sections,
+    notes,
+    // No `pagingParam`: `log.read` has no offset/paging argument — the
+    // fluid action narrows via since/until/max instead. Advertising a
+    // parameter here would tell the caller to pass something `dispatch()`
+    // would then reject; omitting it makes `buildResponse` say paging isn't
+    // available instead.
+    maxChars: opts.maxChars
+  });
+  return { text: built.text, truncated: built.truncated };
+}
+function auditLogRead(result, q, audit) {
+  audit(
+    `[abapsmith] audit: abap_fluid log.read object=${q.object ?? "*"} subobject=${q.subobject ?? "*"} logs=${result.summary.logs_returned} messages=${result.summary.messages_returned}`
+  );
+}
+
+// src/tools/test.ts
 var testInputSchema = {
   object: external_exports.string().optional().describe('Class, program or package to test. Required unless scope is "impacted".'),
   type: external_exports.string().optional().describe("ADT type, e.g. CLAS/OC."),
@@ -124295,6 +126320,9 @@ async function abapTestObject(conn, input, maxChars, gate) {
   const hints = res.outcome === "failed" ? [
     "Line numbers are positions in the named INCLUDE (usually testclasses), not in the class main source. Read that include with abap_read."
   ] : [];
+  notes.push(
+    `Application log (BAL) entries this run may have written: abap_fluid {"tool":"${LOG_TOOL_ID}","action":"${LOG_ACTION}","args":{"last_seconds":${DEFAULT_LOG_WINDOW_SECONDS},"detail":"messages"}} \u2014 a default one-hour window; this tool does not measure its own run time, so narrow it yourself if the system is busy.`
+  );
   let coverageBody;
   let coverageHeader;
   if (input.coverage) {
@@ -124741,7 +126769,7 @@ function scanDispatchArgs(q) {
     max_objects: q.maxObjects
   };
 }
-function fail3(reason, result) {
+function fail4(reason, result) {
   throw new AbapError(
     "FLUID_PROTOCOL_ERROR",
     `scan.source ${reason}`,
@@ -124751,30 +126779,30 @@ function fail3(reason, result) {
 function isHitRow(r) {
   return typeof r["obj_type"] === "string" && typeof r["obj_name"] === "string" && typeof r["include"] === "string" && typeof r["line"] === "number" && typeof r["text"] === "string";
 }
-function isSummaryRow(r) {
+function isSummaryRow2(r) {
   return typeof r["objects_total"] === "number" && typeof r["objects_scanned"] === "number" && typeof r["includes_scanned"] === "number" && typeof r["includes_skipped"] === "number" && typeof r["hits"] === "number" && (r["truncated"] === "" || r["truncated"] === "hits" || r["truncated"] === "objects");
 }
 function mapScanRows(rows) {
   if (!Array.isArray(rows)) {
-    fail3("returned a result that is not an array", rows);
+    fail4("returned a result that is not an array", rows);
   }
   const hits = [];
   let summary;
   for (let i = 0; i < rows.length; i++) {
     const row2 = rows[i];
     if (typeof row2 !== "object" || row2 === null || Array.isArray(row2)) {
-      fail3(`row ${i} is not an object`, rows);
+      fail4(`row ${i} is not an object`, rows);
     }
     const r = row2;
     if (r["kind"] !== "hit" && r["kind"] !== "summary") {
-      fail3(`row ${i} has kind "${String(r["kind"])}", expected "hit" or "summary"`, rows);
+      fail4(`row ${i} has kind "${String(r["kind"])}", expected "hit" or "summary"`, rows);
     }
     if (r["kind"] === "hit") {
       if (!isHitRow(r)) {
-        fail3(`row ${i} is a hit row missing or mistyping one of obj_type/obj_name/include/line/text`, rows);
+        fail4(`row ${i} is a hit row missing or mistyping one of obj_type/obj_name/include/line/text`, rows);
       }
       if (summary !== void 0) {
-        fail3(`row ${i} is a hit row after the summary row`, rows);
+        fail4(`row ${i} is a hit row after the summary row`, rows);
       }
       hits.push({
         objType: r.obj_type,
@@ -124786,13 +126814,13 @@ function mapScanRows(rows) {
       continue;
     }
     if (summary !== void 0) {
-      fail3("returned more than one summary row", rows);
+      fail4("returned more than one summary row", rows);
     }
-    if (!isSummaryRow(r)) {
-      fail3(`row ${i} is a summary row missing or mistyping one of its required fields`, rows);
+    if (!isSummaryRow2(r)) {
+      fail4(`row ${i} is a summary row missing or mistyping one of its required fields`, rows);
     }
     if (i !== rows.length - 1) {
-      fail3("returned a summary row that is not the last element", rows);
+      fail4("returned a summary row that is not the last element", rows);
     }
     summary = {
       objectsTotal: r.objects_total,
@@ -124804,7 +126832,7 @@ function mapScanRows(rows) {
     };
   }
   if (summary === void 0) {
-    fail3("did not return a summary row", rows);
+    fail4("did not return a summary row", rows);
   }
   return { hits, summary };
 }
@@ -127065,7 +129093,7 @@ var QUERY_CHILD_ORDER = ["dataTypeRef", "implementationClassRef", "resultTypeRef
 var ALTERNATIVE_KEY_CHILD_ORDER = ["dataTypeRef", "dataTableTypeRef", "keyElements"];
 
 // src/adt/bopf-xml.ts
-function fail4(message, details = {}) {
+function fail5(message, details = {}) {
   throw new AbapError(
     "BAD_INPUT",
     `BOPF XML: ${message}`,
@@ -127096,15 +129124,15 @@ function decodeEntityAt(xml3, ampIndex) {
   for (const [entity, char] of PREDEFINED_ENTITIES) {
     if (xml3.startsWith(entity, ampIndex)) return { char, next: ampIndex + entity.length };
   }
-  fail4(
+  fail5(
     "unsupported entity reference \u2014 only the five predefined XML entities (&amp; &lt; &gt; &apos; &quot;) are accepted",
     { at: ampIndex }
   );
 }
 function scanModel(xmlText2) {
-  if (!xmlText2.startsWith("<?xml")) fail4("document does not start with an XML declaration (`<?xml ... ?>`)");
+  if (!xmlText2.startsWith("<?xml")) fail5("document does not start with an XML declaration (`<?xml ... ?>`)");
   const declEnd = xmlText2.indexOf("?>", 5);
-  if (declEnd === -1) fail4("unterminated XML declaration");
+  if (declEnd === -1) fail5("unterminated XML declaration");
   const n = xmlText2.length;
   const tokens = [];
   const stack = [];
@@ -127113,7 +129141,7 @@ function scanModel(xmlText2) {
     const c = xmlText2.charAt(i);
     if (c !== "<") {
       if (!WS.test(c)) {
-        fail4(
+        fail5(
           stack.length === 0 ? "unexpected content outside the root element" : "text content is not supported inside BOPF elements (every element here is attribute-only or container-only)",
           { at: i }
         );
@@ -127121,21 +129149,21 @@ function scanModel(xmlText2) {
       i++;
       continue;
     }
-    if (xmlText2.startsWith("<!--", i)) fail4("XML comments are not supported", { at: i });
-    if (xmlText2.startsWith("<![CDATA[", i)) fail4("CDATA sections are not supported", { at: i });
-    if (xmlText2.startsWith("<!DOCTYPE", i)) fail4("a DOCTYPE declaration is not supported", { at: i });
-    if (xmlText2.startsWith("<!", i)) fail4("unrecognized '<!' construct", { at: i });
-    if (xmlText2.startsWith("<?", i)) fail4("a processing instruction after the XML declaration is not supported", { at: i });
+    if (xmlText2.startsWith("<!--", i)) fail5("XML comments are not supported", { at: i });
+    if (xmlText2.startsWith("<![CDATA[", i)) fail5("CDATA sections are not supported", { at: i });
+    if (xmlText2.startsWith("<!DOCTYPE", i)) fail5("a DOCTYPE declaration is not supported", { at: i });
+    if (xmlText2.startsWith("<!", i)) fail5("unrecognized '<!' construct", { at: i });
+    if (xmlText2.startsWith("<?", i)) fail5("a processing instruction after the XML declaration is not supported", { at: i });
     if (xmlText2.startsWith("</", i)) {
       const name2 = matchNameAt(xmlText2, i + 2);
-      if (name2 === void 0) fail4("malformed closing tag", { at: i });
+      if (name2 === void 0) fail5("malformed closing tag", { at: i });
       let j2 = skipWs(xmlText2, i + 2 + name2.length);
-      if (xmlText2.charAt(j2) !== ">") fail4("malformed closing tag: expected '>'", { at: j2 });
+      if (xmlText2.charAt(j2) !== ">") fail5("malformed closing tag: expected '>'", { at: j2 });
       const closeEnd = j2 + 1;
       const top = stack.pop();
-      if (!top) fail4("unexpected closing tag with no matching open element", { at: i, name: name2 });
+      if (!top) fail5("unexpected closing tag with no matching open element", { at: i, name: name2 });
       if (top.name !== name2) {
-        fail4(`mismatched closing tag: expected </${top.name}>, found </${name2}>`, { at: i });
+        fail5(`mismatched closing tag: expected </${top.name}>, found </${name2}>`, { at: i });
       }
       tokens.push({
         kind: "container",
@@ -127151,7 +129179,7 @@ function scanModel(xmlText2) {
       continue;
     }
     const name = matchNameAt(xmlText2, i + 1);
-    if (name === void 0) fail4("malformed tag: expected an element name", { at: i });
+    if (name === void 0) fail5("malformed tag: expected an element name", { at: i });
     let j = i + 1 + name.length;
     const attrStart = j;
     const attrs = /* @__PURE__ */ new Map();
@@ -127168,23 +129196,23 @@ function scanModel(xmlText2) {
         break;
       }
       const attrName = matchNameAt(xmlText2, j);
-      if (attrName === void 0) fail4(`unexpected character inside <${name}>`, { at: j });
+      if (attrName === void 0) fail5(`unexpected character inside <${name}>`, { at: j });
       j += attrName.length;
       j = skipWs(xmlText2, j);
-      if (xmlText2.charAt(j) !== "=") fail4(`expected '=' after attribute "${attrName}"`, { at: j });
+      if (xmlText2.charAt(j) !== "=") fail5(`expected '=' after attribute "${attrName}"`, { at: j });
       j = skipWs(xmlText2, j + 1);
       const quote = xmlText2.charAt(j);
-      if (quote !== '"' && quote !== "'") fail4(`expected a quote to start the value of "${attrName}"`, { at: j });
+      if (quote !== '"' && quote !== "'") fail5(`expected a quote to start the value of "${attrName}"`, { at: j });
       j++;
       let value = "";
       for (; ; ) {
-        if (j >= n) fail4(`unterminated attribute value for "${attrName}"`, { at: j });
+        if (j >= n) fail5(`unterminated attribute value for "${attrName}"`, { at: j });
         const vc = xmlText2.charAt(j);
         if (vc === quote) {
           j++;
           break;
         }
-        if (vc === "<") fail4(`raw '<' is not allowed inside the value of "${attrName}"`, { at: j });
+        if (vc === "<") fail5(`raw '<' is not allowed inside the value of "${attrName}"`, { at: j });
         if (vc === "&") {
           const decoded = decodeEntityAt(xmlText2, j);
           value += decoded.char;
@@ -127194,7 +129222,7 @@ function scanModel(xmlText2) {
         value += vc;
         j++;
       }
-      if (attrs.has(attrName)) fail4(`duplicate attribute "${attrName}"`, { at: j });
+      if (attrs.has(attrName)) fail5(`duplicate attribute "${attrName}"`, { at: j });
       attrs.set(attrName, value);
     }
     if (selfClosing) {
@@ -127213,9 +129241,9 @@ function scanModel(xmlText2) {
     }
     i = j;
   }
-  if (stack.length > 0) fail4(`unclosed element(s): ${stack.map((s) => s.name).join(", ")}`);
+  if (stack.length > 0) fail5(`unclosed element(s): ${stack.map((s) => s.name).join(", ")}`);
   const roots = tokens.filter((t) => t.depth === 0);
-  if (roots.length !== 1) fail4(`document must have exactly one root element (found ${roots.length})`);
+  if (roots.length !== 1) fail5(`document must have exactly one root element (found ${roots.length})`);
   tokens.sort((a, b) => a.openStart - b.openStart);
   return tokens;
 }
@@ -127273,7 +129301,7 @@ var PLURAL_BARE = {
 };
 function insertionPoint(tokens, nodeTok, kind) {
   if (nodeTok.kind !== "container") {
-    fail4("cannot compute an insertion point inside a self-closing element \u2014 open it first", { node: nodeTok.name });
+    fail5("cannot compute an insertion point inside a self-closing element \u2014 open it first", { node: nodeTok.name });
   }
   const targetBare = PLURAL_BARE[kind];
   const targetIdx = NODE_CHILD_ORDER.indexOf(targetBare);
@@ -127289,19 +129317,19 @@ function insertionPoint(tokens, nodeTok, kind) {
   return insertAt;
 }
 function splice(xml3, at, text5) {
-  if (at < 0 || at > xml3.length) fail4("splice offset out of range", { at, length: xml3.length });
+  if (at < 0 || at > xml3.length) fail5("splice offset out of range", { at, length: xml3.length });
   return xml3.slice(0, at) + text5 + xml3.slice(at);
 }
 function spliceOut(xml3, range) {
   if (range.start < 0 || range.end > xml3.length || range.start > range.end) {
-    fail4("splice-out range out of bounds", { range, length: xml3.length });
+    fail5("splice-out range out of bounds", { range, length: xml3.length });
   }
   return xml3.slice(0, range.start) + xml3.slice(range.end);
 }
 function promoteToContainer(xml3, token) {
   if (token.kind === "container") return xml3;
   const tagText = xml3.slice(token.openStart, token.openEnd);
-  if (!tagText.endsWith("/>")) fail4("expected a self-closing tag ending in '/>'", { at: token.openStart });
+  if (!tagText.endsWith("/>")) fail5("expected a self-closing tag ending in '/>'", { at: token.openStart });
   const opened = tagText.slice(0, -2) + ">";
   return xml3.slice(0, token.openStart) + opened + `</${token.name}>` + xml3.slice(token.openEnd);
 }
@@ -127326,7 +129354,7 @@ function patchOpenTagAttrs(xml3, token, attrs) {
 }
 function spliceInsertChild(xml3, tokens, nodeName, kind, fragment, opts) {
   const nodeTok = findNodeToken(tokens, nodeName, opts?.nodeId);
-  if (!nodeTok) fail4(`node "${nodeName}" not found`, { node: nodeName });
+  if (!nodeTok) fail5(`node "${nodeName}" not found`, { node: nodeName });
   if (nodeTok.kind === "empty") {
     const opened = promoteToContainer(xml3, nodeTok);
     const insertAt = nodeTok.openEnd - 1;
@@ -127375,7 +129403,7 @@ function spliceSetElementRef(xml3, tokens, ownerToken, refTag, ref2, childOrder)
 }
 function spliceSetNodeRef(xml3, tokens, nodeName, refKind, ref2, opts) {
   const nodeTok = findNodeToken(tokens, nodeName, opts?.nodeId);
-  if (!nodeTok) fail4(`node "${nodeName}" not found`, { node: nodeName });
+  if (!nodeTok) fail5(`node "${nodeName}" not found`, { node: nodeName });
   return spliceSetElementRef(xml3, tokens, nodeTok, `bo:${refKind}`, ref2, NODE_CHILD_ORDER);
 }
 function escapeAttrValue(v, context) {
@@ -127765,10 +129793,10 @@ function parseModel(xmlText2) {
   try {
     parsed = xmlParser2.parse(xmlText2) ?? {};
   } catch (e) {
-    fail4(`could not parse BOPF model XML: ${e instanceof Error ? e.message : String(e)}`);
+    fail5(`could not parse BOPF model XML: ${e instanceof Error ? e.message : String(e)}`);
   }
   const root = xnode2(parsed.businessObject);
-  if (!root) fail4("not a BOPF business object document (no <bo:businessObject> root element)");
+  if (!root) fail5("not a BOPF business object document (no <bo:businessObject> root element)");
   return {
     name: xattr2(root, "name") ?? "",
     type: xattr2(root, "type") ?? "",
@@ -132182,6 +134210,9 @@ function buildTestResponse(result, refs, maxChars, requestedBo, authTraceOutcome
   }
   const authTraceSectionValue = authTraceOutcome ? authTraceSection3(authTraceOutcome) : void 0;
   if (authTraceSectionValue) sections.push(authTraceSectionValue);
+  const logLastSeconds = Math.ceil(result.durationMs / 1e3) + 5;
+  const logHint = `Application log (BAL) entries this execution may have written: abap_fluid {"tool":"${LOG_TOOL_ID}","action":"${LOG_ACTION}","args":{"last_seconds":${logLastSeconds},"detail":"messages"}} \u2014 last_seconds is measured on the server clock, so it covers this run.`;
+  notes.push(logHint);
   return buildResponse({
     header: {
       bo: result.bo || requestedBo,
@@ -138246,7 +140277,7 @@ function stripAbapComment(line2) {
   }
   return line2;
 }
-function splitStatements2(lines) {
+function splitStatements3(lines) {
   const stmts = [];
   let buf = "";
   let startLine = null;
@@ -138542,7 +140573,7 @@ function analyzeFcodes(raw, opts) {
         if (t !== void 0) lines.push({ line: ln, text: t });
       }
     }
-    const stmts = splitStatements2(lines);
+    const stmts = splitStatements3(lines);
     const analysis = analyzeModuleBody(pai.name, frame.include, program, frame.lineFrom, frame.lineTo, stmts);
     for (const n of analysis.remapNotes) notes.push(n);
     resolved.push({ pai, frame, analysis });
@@ -139597,6 +141628,9 @@ function buildPressResponse(query, result, maxChars) {
     nr: m.msgNumber,
     text: m.text
   }));
+  const logLastSeconds = Math.ceil(result.durationMs / 1e3) + 5;
+  const logHint = `Application log (BAL) entries this execution may have written: abap_fluid {"tool":"${LOG_TOOL_ID}","action":"${LOG_ACTION}","args":{"last_seconds":${logLastSeconds},"detail":"messages"}} \u2014 last_seconds is measured on the server clock, so it covers this run.`;
+  notes.push(logHint);
   return buildResponse({
     header: {
       mode: "press",
@@ -148776,6 +150810,9 @@ async function runRun(deps, a) {
   if (!toolId) throw badInput("run requires `tool`.", "tool");
   if (!actionName) throw badInput("run requires `action`.", "action");
   requireFluidEnabled(deps, { op: "run", tool: toolId, action: actionName });
+  if (toolId === LOG_TOOL_ID && actionName === LOG_ACTION) {
+    assertLogReadArgsNoWindowConflict(a.args ?? {});
+  }
   await deps.ensureConnected();
   const result = await deps.pool.withWrite(
     "abap_fluid.run",
@@ -148798,6 +150835,24 @@ async function runRun(deps, a) {
       }
     )
   );
+  if (toolId === LOG_TOOL_ID && actionName === LOG_ACTION) {
+    const mapped = mapLogRows(Array.isArray(result.result) ? result.result : []);
+    const args = a.args ?? {};
+    auditLogRead(
+      mapped,
+      {
+        ...typeof args["object"] === "string" ? { object: args["object"] } : {},
+        ...typeof args["subobject"] === "string" ? { subobject: args["subobject"] } : {}
+      },
+      (m) => void process.stderr.write(m + "\n")
+    );
+    return renderLogRead(mapped, {
+      ms: result.ms,
+      version: result.version,
+      deployed: result.deployed,
+      maxChars: deps.cfg.maxResponseChars
+    }).text;
+  }
   return buildResponse({
     header: {
       tool: result.tool,

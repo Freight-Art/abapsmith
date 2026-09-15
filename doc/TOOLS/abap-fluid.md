@@ -207,6 +207,43 @@ The result carries the action's own result plus the tool id, action,
 manifest version, whether anything was deployed on this call, elapsed
 milliseconds, and whether the console output was truncated.
 
+**`log.read`** is one built-in worth calling out here: unlike every other
+built-in action, its result is not returned as the generic JSON dump above —
+`src/tools/fluid.ts`'s `runRun` recognizes `tool: "log", action: "read"` and
+renders it instead as one text table per matched log (header fields, then —
+with `detail: "messages"` — a message table), via `renderLogRead` in
+`src/adt/bal-log.ts`. It also writes a stderr audit line naming only what was
+asked for and how much came back, never message text:
+
+```
+[abapsmith] audit: abap_fluid log.read object=ZFOO subobject=* logs=3 messages=0
+```
+
+Arguments (all optional; defaults in parentheses): `object`, `subobject`,
+`extnumber` (each `*`/`+` pattern-capable), `user` (connected user; pass `*`
+for every user), `since`/`until` (`YYYYMMDDHHMMSS`, server time),
+`last_seconds` (mutually exclusive with `since`/`until`), `tcode`, `program`,
+`max` (20), and `detail` (`headers` or `messages`). With neither an absolute
+nor a relative window given, the window defaults to the last hour
+(`DEFAULT_LOG_WINDOW_SECONDS = 3600`).
+
+```json
+{ "tool": "log", "action": "read", "args": { "object": "ZFOO", "last_seconds": 3600, "detail": "messages" } }
+```
+
+`detail: "messages"` note: message text and its `msgv1`..`msgv4` variables
+are application data written by the logging program, not abapsmith's own
+output, and may contain business data — see
+[diagnostics.md](diagnostics.md)'s `log` section for the full parameter
+table, the write-back caveat on `BAL_DB_LOAD`, and the correlation hints
+`abap_run`/`abap_test`/`abap_bopf_test`/`abap_ui mode=press` emit pointing
+back at this call.
+
+`last_seconds` cannot be combined with `since`/`until` — passing both is
+refused as `BAD_INPUT` before any network call (`bal-log.ts`'s
+`assertLogReadArgsNoWindowConflict`, called from `runRun` before it
+connects), with the same check kept on the ABAP side as a backstop.
+
 ### repair — writes
 
 Forgets the local registry entry so every object is re-classified fresh
