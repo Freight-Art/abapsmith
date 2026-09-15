@@ -28,8 +28,10 @@ one of four cases:
    depending on capability. `abap_read`, `abap_search`, `abap_open_url`,
    `abap_transport` (list/show/check/users are unconditional; create/addUser/
    setOwner/delete need write), `abap_bopf` (pure read), `abap_activate`
-   (`mode=check` is unconditional; `mode=activate` needs write),
-   `abap_journal` (list/show are unconditional local reads; undo needs
+   (`mode=check` is unconditional; `mode=activate` needs write; `mode=format`
+   splits in two — the text form, `{source}` with no `object`, is
+   unconditional like `mode=check`; the object form, `{object}` with no
+   `source`, needs write like `mode=activate`), `abap_journal` (list/show are unconditional local reads; undo needs
    write), `abap_enh` (`discover_hook_anchors` is a pure read with no gate
    call; every other operation is gated, and `delete` additionally needs
    `ABAP_ALLOW_ENHANCEMENT_DELETE`), `abap_debug`/`abap_debug_vars`/

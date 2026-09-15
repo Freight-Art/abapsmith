@@ -309,20 +309,27 @@ Example:
 
 `mode=check`: syntax check of saved or unsaved source, no lock.
 `mode=activate`: check then activate. Inactive objects do not run.
+`mode=format`: run the server's own pretty printer over source, either
+standalone text or a saved object — see
+["mode=format: the pretty printer"](#modeformat-the-pretty-printer) below.
 
 **Availability**: case 2 — always registered. `mode=check` is unconditional
 (no lock, works under `ABAP_MODE=read`); `mode=activate` needs `canWrite`
 and is refused at call time otherwise, despite the tool being listed.
+`mode=format` splits by form: the text form (`source`, no `object`) is
+unconditional like `mode=check`; the object form (`object`, no `source`)
+needs `canWrite` like `mode=activate`. See
+[availability-and-capabilities.md](availability-and-capabilities.md).
 
 | Parameter | Type | Required | Default | Meaning |
 |---|---|---|---|---|
-| `object` | string | yes, unless `objects` is used | — | Object reference. |
+| `object` | string | yes, unless `objects` is used or `mode=format` with `source` | — | Object reference. |
 | `type` | string | no | — | ADT type hint. |
-| `mode` | enum `check` \| `activate` | no | `activate` | Check only, or check then activate. |
-| `source` | string | no | — | Draft to check. Omitted for `mode=check`, the saved server version is fetched and checked instead — refused with `BAD_INPUT` only when there's genuinely nothing saved to check (object doesn't exist yet, or its type has no `/source/main`). Omitted for `mode=activate`, the saved server version is activated with no pre-flight check. |
-| `corr_nr` | string | no | — | Transport request to activate into. |
-| `affects` | object | no (required to activate an existing `ENHO/XH`/`ENHS/XS`) | — | The object the enhancement binds to. |
-| `objects` | array of `{object, type?, affects?}`, 1–50 entries | no | — | Batch form: activate several objects through ADT's multi-object activation endpoint instead of one call each. Mutually exclusive with `object`/`type`/`affects`/`corr_nr`/`source`, and `mode=activate` only (no batch syntax check). |
+| `mode` | enum `check` \| `activate` \| `format` | no | `activate` | Check only, check then activate, or pretty-print. |
+| `source` | string | no | — | For `mode=check`/`mode=activate`: draft to check. Omitted for `mode=check`, the saved server version is fetched and checked instead — refused with `BAD_INPUT` only when there's genuinely nothing saved to check (object doesn't exist yet, or its type has no `/source/main`). Omitted for `mode=activate`, the saved server version is activated with no pre-flight check. For `mode=format`: text to format directly (mutually exclusive with `object` — exactly one of the two, never both, never neither). |
+| `corr_nr` | string | no | — | Transport request to activate into (`mode=activate`) or to write into if the reformatted object changed (`mode=format`, object form only — refused with `BAD_INPUT` on the text form, which writes nothing). |
+| `affects` | object | no (required to activate an existing `ENHO/XH`/`ENHS/XS`) | — | The object the enhancement binds to. Refused with `BAD_INPUT` for `mode=format`. |
+| `objects` | array of `{object, type?, affects?}`, 1–50 entries | no | — | Batch form: activate several objects through ADT's multi-object activation endpoint instead of one call each. Mutually exclusive with `object`/`type`/`affects`/`corr_nr`/`source`, and `mode=activate` only (no batch syntax check, and refused with `BAD_INPUT` for `mode=format`). |
 
 **Batch activation (`objects`)**: sends the object list to ADT's own
 multi-object activation endpoint, rather than one `abap_activate` call per
@@ -362,4 +369,87 @@ uses. Re-read the object to see its state, then settle the entry by hand with
 `abap_journal mode=reconcile` once its outcome is established. An
 object in a chunk that was never sent at all, because an earlier chunk
 failed first, settles `failed`, with an error saying so.
+
+### mode=format: the pretty printer
+
+`abap_activate mode="format"` runs `POST /sap/bc/adt/abapsource/prettyprinter`
+— the server's own pretty printer. It formats layout and keyword case
+according to the server's own pretty-printer setting (readable, not writable
+here, at `GET /sap/bc/adt/abapsource/prettyprinter/settings`); abapsmith
+reads that setting implicitly (the server applies it when asked to format)
+and never changes it — `setPrettyPrinterSetting` is never called, and no
+parameter in this tool reaches it. Observed live on A4H:
+`indentation=true style=keywordUpper keepIdentifier=true` (fixture 962) —
+this is one system's configuration, not a guarantee about any other; a
+differently configured system will format differently.
+
+Two mutually exclusive forms, selected by which of `object`/`source` is
+given:
+
+- **Text form** — `{mode:"format", source}`, no `object`. Stateless: the
+  given text is posted to the pretty printer and the formatted text comes
+  back. No object is resolved, nothing is locked, nothing is written,
+  nothing is activated, and no journal entry is made. Gated as read and
+  works even when the server is read-only (`ABAP_MODE=read`). Refuses
+  `corr_nr` with `BAD_INPUT`, since there is nothing to write into.
+- **Object form** — `{mode:"format", object, type?}`, no `source`. Reads
+  the object's saved source, runs it through the same endpoint, and
+  compares the result byte-for-byte against what was read. If the
+  formatted text is identical, the response reports `changed: false` and
+  stops there — no lock, no PUT, no activation, no journal entry, a pure
+  read. If the bytes differ, abapsmith computes an etag from the source as
+  read and writes the formatted text back through the ordinary
+  `abap_write` path with `expect_etag` set to that etag and
+  `activate: true` — the same lock, PUT, activate, journal sequence any
+  other write goes through. Setting `expect_etag` from the source as read
+  closes the read-format-write race: if the object changed on the server
+  between the read and the write, the write is rejected with
+  `ETAG_CONFLICT` instead of silently overwriting someone else's edit. A
+  successful object-form format is journalled and undoable through
+  `abap_journal mode=undo`, exactly like any other write.
+
+CRLF line endings in the pretty printer's own response are normalised to LF
+before the changed-bytes comparison (fixtures 963 and 964 were both
+captured with a CRLF response body) — this is an artefact of the wire
+format, not a claim about the object's own line endings.
+
+**Refusals** (`abapActivateFormat`, `src/tools/activate.ts`):
+
+| Input | Result |
+|---|---|
+| Both `object` and `source` given | `BAD_INPUT` — exactly one, never both. |
+| Neither `object` nor `source` given | `BAD_INPUT` — exactly one, never neither. |
+| `affects` given | `BAD_INPUT` — not applicable to formatting. |
+| `objects` (batch) given | `BAD_INPUT` — no batch form for `mode=format`. |
+| `corr_nr` given with the text form | `BAD_INPUT` — the text form writes nothing. |
+| `object` does not exist | `NOT_FOUND`. |
+| `object` resolves to a properties-shape DDIC type with no ABAP source | `UNSUPPORTED` — there is no source to pretty-print. |
+
+**Evidence.** `live` (A4H, 2026-09-12): the wire protocol itself — the
+format request/response shape, keyword-case and layout rewriting, and the
+idempotent `changed: false` case (fixtures 963, 964), plus the
+system-wide setting read (fixture 962). Still not verified live: the object
+form's full write-back path (lock, PUT, activate, journal entry) and the
+entire refusal matrix above — both are covered only by
+`test/activate-format.test.ts` against an in-process fake ADT server, never
+exercised end-to-end against a live system.
+
+Example (text form):
+
+```json
+{
+  "mode": "format",
+  "source": "CLASS zcl_demo DEFINITION PUBLIC FINAL CREATE PUBLIC.\n  PUBLIC SECTION.\n    METHODS run.\nENDCLASS.\nCLASS zcl_demo IMPLEMENTATION.\n  METHOD run.\n  data lv_x type i. lv_x = 1.\n  ENDMETHOD.\nENDCLASS."
+}
+```
+
+Example (object form):
+
+```json
+{
+  "mode": "format",
+  "object": "ZCL_DEMO_ORDER",
+  "type": "CLAS/OC"
+}
+```
 

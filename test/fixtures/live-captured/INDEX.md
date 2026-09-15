@@ -815,19 +815,56 @@ object (`PROG Z_TMP_DEL`) captured elsewhere under the system default variant
 `ZABAP_CLOUD_DEVELOPMENT`: 5 findings here versus 7 there. The variant genuinely changes the result
 set; it is not a cosmetic label on an otherwise identical check run.
 
-`891` and `892` both settle that ATC worklists cannot be cleaned up once created. `891` is a `DELETE`
+`952` and `953` both settle that ATC worklists cannot be cleaned up once created. `952` is a `DELETE`
 on the worklist resource, answering **405** `ExceptionMethodNotSupported` — "Resource controller
 does not support method DELETE" (`T100KEY-ID SADT_RESOURCE`, `T100KEY-NO 010`, `T100KEY-V1 DELETE`).
-A `PUT` on the same resource also answers 405 but was not captured. `892` is a `POST` with
+A `PUT` on the same resource also answers 405 but was not captured. `953` is a `POST` with
 `?action=deleteFindings`, the action ADT discovery advertises as
 `rel="http://www.sap.com/adt/atc/relations/actions/deleteFindings"`: it answers **200 with a
 zero-byte body**, and the worklist's findings are unchanged afterward. The reason is visible in the
 server source: `CL_SATC_ADT_RES_WORKLIST->post` returns immediately when the URI carries a worklist
 id, and the `lcl_handler_delete_findings` implementation in its CCIMP include is commented out in
-its entirety — the advertised action is a no-op, not a working cleanup path. Together, `891` and
-`892` mean every ATC run made against this release leaves server-side worklist state behind with no
+its entirety — the advertised action is a no-op, not a working cleanup path. Together, `952` and
+`953` mean every ATC run made against this release leaves server-side worklist state behind with no
 supported way to remove it.
 
-`893` is `GET /sap/bc/adt/atc/customizing`: the document's `systemCheckVariant` property reads
+`954` is `GET /sap/bc/adt/atc/customizing`: the document's `systemCheckVariant` property reads
 `ZABAP_CLOUD_DEVELOPMENT` on this system. This is the first captured customizing document; the
 existing parser tests for this shape were previously synthetic.
+
+## 2026-09-12 — element info, go-to-definition, where-used implementers, pretty printer (952-964)
+
+Same A4H appliance, client `001`, user `DEVELOPER`, issue #91 (captured as 891-903 on the branch,
+renumbered at merge; 959 is unused — the corresponding probe, a blank-line element-info request,
+answered a zero-byte 200 body, so there were no bytes to pin). Twelve captures back `abap_read`
+`view="definition"` and `abap_activate` `mode="format"`: `codecompletion/elementinfo` for a method,
+attribute, structured type, local variable, own method, and function-module name literal
+(952-957); `navigation/target?filter=definition` (958); the well-formed "no element here" answer
+(960); the `usageReferences` POST for an interface method's implementers, whose response uses the
+lowercase `usagereferences:` prefix that the vendor `abap-adt-api` parser does not read (961); and
+the pretty printer's settings GET plus two format POSTs, one changing the source and one idempotent
+(962-964). The probes (`ZCL_I91_PROBE`, `ZIF_I91_PROBE`, `$TMP`) were deleted afterwards.
+
+`952` — `POST /sap/bc/adt/abapsource/codecompletion/elementinfo` → 200: interface method call lo_probe->process( ) at 35,25. elementinfo at an interface-method call resolves to INTF/IO PROCESS with visibility, level, ABAP Doc and one nested elementInfo per parameter
+
+`953` — `POST /sap/bc/adt/abapsource/codecompletion/elementinfo` → 200: private instance attribute mv_count at 35,4. elementinfo at an attribute resolves to CLAS/OA with visibility, level and abapType
+
+`954` — `POST /sap/bc/adt/abapsource/codecompletion/elementinfo` → 200: class-local structured type ty_row at 25,21. elementinfo at a class-local structured type resolves to CLAS/OT whose own abapType is empty and whose components are nested elementInfo children
+
+`955` — `POST /sap/bc/adt/abapsource/codecompletion/elementinfo` → 200: local data ref lo_probe at 35,15. elementinfo at a local data reference resolves to CLAS/OOV with visibility=local and no documentation
+
+`956` — `POST /sap/bc/adt/abapsource/codecompletion/elementinfo` → 200: own method RUN at its declaration 18,12. elementinfo at a method declaration resolves to CLAS/OM; an optional parameter carries paramDefaultValue
+
+`957` — `POST /sap/bc/adt/abapsource/codecompletion/elementinfo` → 200: CALL FUNCTION 'RFC_PING' name literal at 37,19. elementinfo at a CALL FUNCTION name literal resolves to FUGR/FF with an empty properties element — no visibility, no signature, no doc
+
+`958` — `POST /sap/bc/adt/navigation/target` → 200: go-to-definition for lo_probe->process at 35,25-32, filter=definition. navigation/target filter=definition answers with adtcore:objectReference whose adtcore:uri carries #start=line,column
+
+`960` — `POST /sap/bc/adt/abapsource/codecompletion/elementinfo` → 200: position on the ENDMETHOD keyword at 39,4 — no resolvable element. elementinfo at a position with no resolvable element answers 200 with an elementInfo element that has no adtcore:name
+
+`961` — `POST /sap/bc/adt/repository/informationsystem/usageReferences` → 200: where-used for ZIF_I91_PROBE~PROCESS at its declaration 8,10 — implementing classes. where-used on an interface method lists the implementing classes as CLAS/OM entries named <INTERFACE>~<METHOD>
+
+`962` — `GET /sap/bc/adt/abapsource/prettyprinter/settings` → 200: GET the system-wide pretty-printer setting (read only, never written). the system-wide pretty-printer setting is readable; A4H answers indentation=true style=keywordUpper keepIdentifier=true
+
+`963` — `POST /sap/bc/adt/abapsource/prettyprinter` → 200: POST unformatted source to the pretty printer; response is the formatted text only. the pretty printer rewrites layout and keyword case from the server setting and returns text/plain only — response body uses CRLF line endings; prettyPrintSource normalises them to LF before comparing
+
+`964` — `POST /sap/bc/adt/abapsource/prettyprinter` → 200: POST already-formatted source; the response is byte-identical to the request (changed:false). pretty-printing already-formatted source returns it byte-identical, which is what changed:false is derived from — response body uses CRLF line endings; prettyPrintSource normalises them to LF before comparing

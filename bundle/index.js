@@ -31302,12 +31302,12 @@ var require_cds = __commonJS({
       const raw = (0, utilities_1.fullParse)(response.body);
       const records = raw["adtcore:objectReferences"] ? (0, utilities_1.xmlArray)(raw, "adtcore:objectReferences", "adtcore:objectReference") : (0, utilities_1.xmlArray)(raw, "ddl:ddlObjectReferences", "ddl:ddlObjectReference");
       return records.map((r) => {
-        const attr9 = (0, utilities_1.xmlNodeAttr)(r);
+        const attr10 = (0, utilities_1.xmlNodeAttr)(r);
         return {
-          uri: attr9["adtcore:uri"] || "",
-          type: attr9["adtcore:type"] || "",
-          name: attr9["adtcore:name"] || "",
-          path: attr9["ddl:path"] || ""
+          uri: attr10["adtcore:uri"] || "",
+          type: attr10["adtcore:type"] || "",
+          name: attr10["adtcore:name"] || "",
+          path: attr10["ddl:path"] || ""
         };
       });
     }
@@ -32443,20 +32443,20 @@ var require_objectstructure = __commonJS({
       return void 0;
     }
     function parseStructureElement(el) {
-      const attr9 = (0, utilities_1.xmlNodeAttr)(el);
+      const attr10 = (0, utilities_1.xmlNodeAttr)(el);
       const links = (0, utilities_1.xmlArray)(el, "atom:link").map(utilities_1.xmlNodeAttr);
       const children = (0, utilities_1.xmlArray)(el, "abapsource:objectStructureElement").map(parseStructureElement);
       return {
-        name: attr9["adtcore:name"] || "",
-        type: attr9["adtcore:type"] || "",
-        description: attr9["adtcore:description"],
-        visibility: attr9.visibility,
-        level: attr9.level,
-        constant: parseBool(attr9.constant),
-        constructor: parseBool(attr9.constructor),
-        testmethod: parseBool(attr9.testmethod),
-        redefinition: parseBool(attr9.redefinition),
-        final: parseBool(attr9.final),
+        name: attr10["adtcore:name"] || "",
+        type: attr10["adtcore:type"] || "",
+        description: attr10["adtcore:description"],
+        visibility: attr10.visibility,
+        level: attr10.level,
+        constant: parseBool(attr10.constant),
+        constructor: parseBool(attr10.constructor),
+        testmethod: parseBool(attr10.testmethod),
+        redefinition: parseBool(attr10.redefinition),
+        final: parseBool(attr10.final),
         links,
         children
       };
@@ -32488,11 +32488,11 @@ var require_objectstructure = __commonJS({
       const response = await h.request(objectUrl, { qs });
       const res = (0, utilities_1.fullParse)(response.body);
       const root = (0, utilities_1.xmlRoot)(res);
-      const attr9 = (0, utilities_1.xmlNodeAttr)(root);
-      attr9["adtcore:changedAt"] = Date.parse(attr9["adtcore:changedAt"]) || 0;
-      attr9["adtcore:createdAt"] = Date.parse(attr9["adtcore:createdAt"]) || 0;
+      const attr10 = (0, utilities_1.xmlNodeAttr)(root);
+      attr10["adtcore:changedAt"] = Date.parse(attr10["adtcore:changedAt"]) || 0;
+      attr10["adtcore:createdAt"] = Date.parse(attr10["adtcore:createdAt"]) || 0;
       const links = (0, utilities_1.xmlArray)(root, "atom:link").map(utilities_1.xmlNodeAttr);
-      const metaData = attr9;
+      const metaData = attr10;
       let result;
       if (isClassMetaData(metaData)) {
         const includes = (0, utilities_1.xmlArray)(root, "class:include").map(convertIncludes);
@@ -32761,15 +32761,15 @@ var require_objectcontents = __commonJS({
       const response = await h.request(domainUrl, { qs });
       const res = (0, utilities_1.fullParse)(response.body);
       const root = (0, utilities_1.xmlRoot)(res);
-      const attr9 = (0, utilities_1.xmlNodeAttr)(root) || {};
+      const attr10 = (0, utilities_1.xmlNodeAttr)(root) || {};
       const packageAttr = (0, utilities_1.xmlNodeAttr)((0, utilities_1.xmlNode)(root, "adtcore:packageRef")) || {};
       const metaData = {
-        name: attr9["adtcore:name"],
-        description: attr9["adtcore:description"] || "",
-        language: attr9["adtcore:language"],
-        masterLanguage: attr9["adtcore:masterLanguage"] || "",
-        masterSystem: attr9["adtcore:masterSystem"] || "",
-        responsible: attr9["adtcore:responsible"],
+        name: attr10["adtcore:name"],
+        description: attr10["adtcore:description"] || "",
+        language: attr10["adtcore:language"],
+        masterLanguage: attr10["adtcore:masterLanguage"] || "",
+        masterSystem: attr10["adtcore:masterSystem"] || "",
+        responsible: attr10["adtcore:responsible"],
         packageName: packageAttr["adtcore:name"] || "",
         packageDescription: packageAttr["adtcore:description"],
         packageUri: packageAttr["adtcore:uri"]
@@ -32891,15 +32891,15 @@ var require_objectcontents = __commonJS({
       const response = await h.request(dataElementUrl, { qs });
       const res = (0, utilities_1.fullParse)(response.body);
       const root = (0, utilities_1.xmlRoot)(res);
-      const attr9 = (0, utilities_1.xmlNodeAttr)(root);
+      const attr10 = (0, utilities_1.xmlNodeAttr)(root);
       const packageAttr = (0, utilities_1.xmlNodeAttr)((0, utilities_1.xmlNode)(root, "adtcore:packageRef")) || {};
       const metaData = {
-        name: attr9["adtcore:name"],
-        description: attr9["adtcore:description"] || "",
-        language: attr9["adtcore:language"],
-        masterLanguage: attr9["adtcore:masterLanguage"] || "",
-        masterSystem: attr9["adtcore:masterSystem"] || "",
-        responsible: attr9["adtcore:responsible"],
+        name: attr10["adtcore:name"],
+        description: attr10["adtcore:description"] || "",
+        language: attr10["adtcore:language"],
+        masterLanguage: attr10["adtcore:masterLanguage"] || "",
+        masterSystem: attr10["adtcore:masterSystem"] || "",
+        responsible: attr10["adtcore:responsible"],
         packageName: packageAttr["adtcore:name"] || "",
         packageDescription: packageAttr["adtcore:description"],
         packageUri: packageAttr["adtcore:uri"]
@@ -33061,14 +33061,14 @@ var require_refactor = __commonJS({
       });
       const raw = (0, utilities_1.fullParse)(response.body);
       const parseDelta = (d) => {
-        const attr9 = (0, utilities_1.xmlNodeAttr)((0, utilities_1.xmlNode)(d, "adtcore:objectReference"));
+        const attr10 = (0, utilities_1.xmlNodeAttr)((0, utilities_1.xmlNode)(d, "adtcore:objectReference"));
         const content = d.content;
-        const { uri, range } = (0, urlparser_1.parseUri)(attr9["adtcore:uri"]);
+        const { uri, range } = (0, urlparser_1.parseUri)(attr10["adtcore:uri"]);
         return {
           uri,
           range,
-          name: attr9["adtcore:name"],
-          type: attr9["adtcore:type"],
+          name: attr10["adtcore:name"],
+          type: attr10["adtcore:type"],
           content
         };
       };
@@ -35477,15 +35477,15 @@ var require_rapgenerator = __commonJS({
       let m;
       while ((m = re.exec(body)) !== null) {
         const attrs = m[1];
-        const attr9 = (n) => {
+        const attr10 = (n) => {
           const match = attrs.match(new RegExp(`(?:\\w+:)?${n}\\s*=\\s*"([^"]*)"`));
           return (match === null || match === void 0 ? void 0 : match[1]) || "";
         };
         out.push({
-          uri: attr9("uri"),
-          type: attr9("type"),
-          name: attr9("name"),
-          description: attr9("description")
+          uri: attr10("uri"),
+          type: attr10("type"),
+          name: attr10("name"),
+          description: attr10("description")
         });
       }
       return out;
@@ -60931,9 +60931,9 @@ async function escalateIfAtoSaysProductive(probes, detection) {
   if (detection.role === "productive") return detection;
   try {
     const { body } = await probes.getAtoSettings(ATO_SETTINGS, { headers: { Accept: "application/*" } });
-    const attr9 = (name) => new RegExp(`${name}="([^"]*)"`, "i").exec(body)?.[1];
-    const isProduction = attr9("isProductionSystem") ?? attr9("productionSystem");
-    const operationsType = attr9("operationsType")?.trim().toUpperCase();
+    const attr10 = (name) => new RegExp(`${name}="([^"]*)"`, "i").exec(body)?.[1];
+    const isProduction = attr10("isProductionSystem") ?? attr10("productionSystem");
+    const operationsType = attr10("operationsType")?.trim().toUpperCase();
     const tenantKind = operationsType === "C" ? "cloud" : operationsType === "H" ? "on-premise" : "unknown";
     if (isAbapTrue(isProduction)) {
       return {
@@ -64033,9 +64033,9 @@ async function fetchDdicXml(conn, target, operation, accept = "application/*") {
     throw classifyDdicFailure(e, { operation, uri: target.uri, name: target.name, type: target.type });
   }
 }
-function xmlAttr(node2, attr9) {
+function xmlAttr(node2, attr10) {
   if (node2 && typeof node2 === "object" && !Array.isArray(node2)) {
-    const v = node2[`@_${attr9}`];
+    const v = node2[`@_${attr10}`];
     return typeof v === "string" && v !== "" ? v : void 0;
   }
   return void 0;
@@ -100278,6 +100278,7 @@ function translateActivationError(e, target) {
 }
 
 // src/tools/activate.ts
+init_capabilities();
 init_errors();
 
 // src/adt/resolve.ts
@@ -100762,8 +100763,8 @@ function parsePackageRef(xml3) {
   const seen = /* @__PURE__ */ new Set();
   PACKAGE_REF_TAG_RE.lastIndex = 0;
   for (let tag = PACKAGE_REF_TAG_RE.exec(doc); tag; tag = PACKAGE_REF_TAG_RE.exec(doc)) {
-    const attr9 = PACKAGE_REF_NAME_RE.exec(tag[1] ?? "");
-    const value = (attr9?.[1] ?? attr9?.[2] ?? "").trim();
+    const attr10 = PACKAGE_REF_NAME_RE.exec(tag[1] ?? "");
+    const value = (attr10?.[1] ?? attr10?.[2] ?? "").trim();
     if (!value) continue;
     seen.add(value.toUpperCase());
     first ??= value;
@@ -100809,7 +100810,7 @@ function vitStubShowsRegistration(body) {
 }
 function vitStubShowsExistence(body) {
   if (vitStubShowsRegistration(body)) return true;
-  return VIT_EXISTENCE_ATTRS.some((attr9) => new RegExp(`adtcore:${attr9}\\s*=`, "i").test(body));
+  return VIT_EXISTENCE_ATTRS.some((attr10) => new RegExp(`adtcore:${attr10}\\s*=`, "i").test(body));
 }
 function echoesTarget(body, expectType, expectName) {
   const typeRe = new RegExp(`adtcore:type\\s*=\\s*"${escapeForRegex(expectType)}"`, "i");
@@ -106293,2834 +106294,80 @@ function enhancementPreflightIntent(pf) {
   return enhancementIntentFor({ name: pf.name, type: pf.type ?? "", packageName: "" }, pf.affects);
 }
 
-// src/tools/activate.ts
-var affectsSchema = external_exports.object({
-  name: external_exports.string(),
-  packageName: external_exports.string(),
-  masterSystem: external_exports.string().optional(),
-  spotName: external_exports.string().optional()
-});
-var activateInputSchema = {
-  object: external_exports.string().optional().describe("Object reference."),
-  type: external_exports.string().optional().describe("ADT type, e.g. CLAS/OC."),
-  mode: external_exports.enum(["check", "activate"]).optional().describe("Default activate."),
-  source: external_exports.string().optional().describe("Unsaved draft to check/activate."),
-  corr_nr: external_exports.string().optional().describe("Transport request. $TMP needs none."),
-  // Same shape as abap_write's `affects` — REQUIRED to activate an EXISTING
-  // ENHO/XH or ENHS/XS (safety.ts); ignored for every other type.
-  affects: affectsSchema.optional().describe("Required to activate ENHO/XH or ENHS/XS."),
-  // The batch form. ADT accepts many objects in ONE
-  // `POST /sap/bc/adt/activation` request (`activateObjects`, src/adt/activate.ts)
-  // with the server resolving dependency order. Every object is resolved AND
-  // authorised BEFORE any is activated — one refusal refuses the whole set.
-  // Mutually exclusive with `object` and the top-level `type`/`affects`/
-  // `corr_nr`/`source` (doc/TOOLS/write-and-activate.md §abap_activate). mode=activate only;
-  // there is no batch syntax check.
-  objects: external_exports.array(
-    external_exports.object({
-      object: external_exports.string().describe("Object to activate. Same spelling `object` accepts."),
-      type: external_exports.string().optional().describe("ADT type, e.g. DTEL/DE."),
-      affects: affectsSchema.optional().describe("Required to activate ENHO/XH or ENHS/XS.")
-    })
-  ).min(1).max(MAX_ACTIVATION_BATCH).optional().describe("Batch activate, 2+ objects; omit `object`. mode=activate only.")
-};
-var ActivateInput = external_exports.object(activateInputSchema);
-async function journalActivations(journal, conn, items, run2, onThrow) {
-  const ids = [];
-  const settleAll = async (patchFor) => {
-    if (!journal) return;
-    for (let i = 0; i < ids.length; i++) {
-      const p = patchFor(i);
-      if (p) await journal.finish(ids[i], p);
-    }
-  };
-  if (journal) {
-    try {
-      for (const item of items) {
-        const entry = await journal.begin({
-          operation: "activate",
-          object: {
-            ...journalRef(item.target),
-            // Set only for an enhancement object, so undo's/abap_journal's
-            // messages can name the SAP object it affects, not just itself.
-            ...item.affects ? { affects: item.affects } : {}
-          },
-          existedBefore: true,
-          beforeCapture: "unknown",
-          systemKey: systemKey(conn.cfg),
-          ...item.corrNr !== void 0 ? { corrNr: item.corrNr } : {},
-          irreversible: true,
-          // Also recorded for `abap_do action=activate`, which is a facade
-          // that reshapes its args into `ActivateInput` and calls this
-          // function — the tool that actually ran, not the caller's dialect.
-          tool: "abap_activate"
-        });
-        if (entry) ids.push(entry.id);
-      }
-    } catch (e) {
-      await settleAll(() => ({
-        outcome: "failed",
-        error: `activation abandoned: the journal entry for a later object in the same call could not be written (${String(e)}). No activation request was sent.`
-      }));
-      throw e;
-    }
-  }
-  let result;
-  try {
-    result = await run2();
-  } catch (e) {
-    await settleAll((i) => onThrow ? onThrow(e, i) : { outcome: "failed", error: String(e) });
-    throw e;
-  }
-  return { result, settle: settleAll };
-}
-var JOURNAL_MESSAGES_MAX = 2e3;
-function journalMessages(messages) {
-  const text3 = renderMessages([...messages]).trim();
-  if (!text3) return void 0;
-  return truncateText(text3, JOURNAL_MESSAGES_MAX);
-}
-function activationThrowPatch(disposition, name, e) {
-  switch (disposition) {
-    case "activated":
-      return { outcome: "succeeded", activation: { attempted: true, activated: true } };
-    case "unknown":
-      process.stderr.write(
-        `[abapsmith] WARNING: the journal entry for ${name} stays \`pending\` on purpose: the activation request naming it did not answer, so whether it activated was never observed. Re-read the object to see its state.
-`
-      );
-      return null;
-    case "not-sent":
-      return {
-        outcome: "failed",
-        error: `no activation request naming ${name} was sent: an earlier chunk of the same batch failed first (${String(e)}).`
-      };
-    case "not-activated":
-      return { outcome: "failed", error: String(e) };
-  }
-}
-function renderCoActivated(preaudit) {
-  const named = preaudit.filter((o) => !(o.name === "(unknown)" && o.type === "(unknown)"));
-  const skipped = preaudit.length - named.length;
-  const lines = [];
-  if (named.length > 0) {
-    lines.push(
-      `Activated together with the request, because SAP's preaudit required ${named.length === 1 ? "it" : "them"}:`,
-      ...named.map((o) => `  ${o.name} (${o.type})`)
-    );
-  }
-  if (skipped > 0) {
-    lines.push(
-      `${skipped} more co-activated object${skipped === 1 ? "" : "s"} had no name/type in SAP's reply and ${skipped === 1 ? "is" : "are"} omitted above.`
-    );
-  }
-  return lines.join("\n");
-}
-async function abapActivate(conn, input, maxChars, gate, transport, journal) {
-  const mode = input.mode ?? "activate";
-  if (input.objects !== void 0) {
-    const stray = ["object", "type", "affects", "corr_nr", "source"].filter(
-      (k) => input[k] !== void 0
-    );
-    if (stray.length) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `\`objects\` is the batch form and does not combine with top-level ${stray.map((k) => `\`${k}\``).join(", ")} \u2014 each entry in \`objects\` carries its own \`object\`/\`type\`/\`affects\`.`,
-        { stray },
-        "Drop the top-level field(s) named above, or activate that one object by itself with `object` instead of `objects`."
-      );
-    }
-    if (mode !== "activate") {
-      throw new AbapError(
-        "BAD_INPUT",
-        '`objects` (batch activation) only supports mode=activate \u2014 there is no batch syntax check. Check each object individually with `object` + `mode: "check"` first if needed.',
-        { mode },
-        "Drop `mode` (default is activate) or check objects one at a time with `object`."
-      );
-    }
-    return abapActivateBatch(conn, input.objects, maxChars, gate, transport, journal);
-  }
-  const objectRef = input.object;
-  if (objectRef === void 0) {
-    throw new AbapError(
-      "BAD_INPUT",
-      "Pass either `object` (single object) or `objects` (batch \u2014 2 or more objects in one activation request).",
-      {},
-      'Add `object: "<name>"` to activate one object, or `objects: [...]` to activate several.'
-    );
-  }
-  const hint = input.type ? specForType(input.type) ?? specForKeyword(input.type) : void 0;
-  const parsed = parseObjectRef(objectRef, hint);
-  const type = input.type ?? parsed.spec?.type;
-  const wanted = {
-    name: parsed.name,
-    ...parsed.parent ? { containerName: parsed.parent } : {},
-    ...type ? { type } : {},
-    // Carried through so `authorizeMutation` below can build an
-    // `EnhancementIntent` for an ENHO/XH or ENHS/XS target — see the schema's
-    // `affects` doc comment. Ignored by `resolveWriteTarget` for every other
-    // type; harmless to pass unconditionally.
-    ...input.affects ? { affects: input.affects } : {}
-  };
-  const resolved = await resolveWriteTarget(conn, wanted, "activate");
-  const assertActivatable = (t) => {
-    if (t.exists) return;
-    throw new AbapError(
-      "NOT_FOUND",
-      `${t.spec.label} ${t.name} does not exist on ${conn.cfg.sid}, so there is nothing to activate. Nothing was checked, locked or changed.`,
-      { object: t.name, type: t.type, uri: t.uri, system: conn.cfg.sid, mode },
-      "Write it first with `abap_write` (that creates AND activates it), or correct the name / `type` if you meant an object that is already there. To syntax-check a draft that has no object on the server yet, use `mode=check` with `source`."
-    );
-  };
-  if (mode === "activate") assertActivatable(resolved);
-  const authorized = mode === "activate" ? await authorizeMutation(conn, gate, "activate", wanted) : void 0;
-  const target = authorized ? authorized.target : resolved;
-  if (mode === "activate") assertActivatable(target);
-  const activateIntent = mode === "activate" && isEnhancementType(target.type) && input.affects ? enhancementIntentFor(target, input.affects) : void 0;
-  let source = input.source;
-  let checkedSavedSource = false;
-  if (source === void 0 && mode === "check") {
-    if (!target.exists || !target.spec.supportsSource) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `mode=check was given no \`source\`, and there is no saved source to check instead: ` + (target.exists ? `${target.spec.label} objects (${target.type}) have no retrievable \`/source/main\` \u2014 only source-based types get an automatic saved-source check.` : `${target.spec.label} ${target.name} does not exist on ${conn.cfg.sid} yet, so nothing has been saved to check.`),
-        { object: target.name, type: target.type, mode, exists: target.exists },
-        "Pass `source` with the text to check, or drop `mode` (default is activate) to activate what is already saved on the server."
-      );
-    }
-    try {
-      source = await conn.adt.getObjectSource(target.sourceUri);
-    } catch (e) {
-      throw translateAdtError(e, {
-        operation: "read saved source for mode=check (no `source` was supplied)",
-        uri: target.sourceUri,
-        name: target.name,
-        type: target.type
-      });
-    }
-    checkedSavedSource = true;
-  }
-  const check4 = source !== void 0 ? await checkSource(conn, target, source) : void 0;
-  let activation;
-  let corrNr;
-  if (mode === "activate" && (check4 === void 0 || check4.ok)) {
-    if (transport) {
-      const res = await transport.resolve(
-        conn,
-        {
-          uri: target.sourceUri,
-          devclass: target.packageName,
-          name: target.name,
-          type: target.type
-        },
-        "U",
-        // Blank-normalised: `""` means "named nothing", not "a request
-        // whose name is the empty string" — same reading as abap_write's.
-        normalizeCorrNr(input.corr_nr) === void 0 ? {} : { corrNr: normalizeCorrNr(input.corr_nr) }
-      );
-      const denial = toAbapError(res);
-      if (denial) throw denial;
-      corrNr = res.outcome === "transport" ? res.corrNr : void 0;
-      gate.assert(
-        "activate",
-        { name: target.name, packageName: target.packageName, type: target.type },
-        {
-          phase: "final",
-          intent: activateIntent,
-          corr: res.outcome === "transport" ? {
-            kind: "transport",
-            corrNr: res.corrNr,
-            source: res.source === "config-pin" || res.source === "caller" ? "named" : "auto"
-          } : { kind: "local" }
-        }
-      );
-    }
-    const journalled2 = await journalActivations(
-      journal,
-      conn,
-      [
-        {
-          target,
-          // Keyed off `activateIntent`, not a re-test of `isEnhancementType`,
-          // so the journal ref can't drift from what the gate was told.
-          ...activateIntent !== void 0 && input.affects ? { affects: input.affects } : {},
-          ...corrNr !== void 0 ? { corrNr } : {}
-        }
-      ],
-      async () => {
-        const outcome = await activateObject(conn, target);
-        assertNoErrors(outcome, {
-          what: "Activation",
-          name: target.name,
-          ...input.source ? { source: input.source } : {}
-        });
-        return outcome;
-      }
-    );
-    activation = journalled2.result;
-    const settledMessages = journalMessages(journalled2.result.messages);
-    await journalled2.settle(() => ({
-      outcome: "succeeded",
-      activation: {
-        attempted: true,
-        activated: journalled2.result.activated,
-        ...settledMessages !== void 0 ? { messages: settledMessages } : {}
-      }
-    }));
-  }
-  const blocks = [];
-  if (check4) {
-    const checkText = renderMessages(check4.messages, source);
-    blocks.push(`# SYNTAX CHECK
-${checkText.trim() || "(no messages)"}`);
-  }
-  if (activation) {
-    const actText = renderMessages(activation.messages, input.source);
-    if (actText.trim()) blocks.push(`# ACTIVATION
-${actText}`);
-    if (activation.preaudit?.length) {
-      blocks.push(`# CO-ACTIVATED
-${renderCoActivated(activation.preaudit)}`);
-    }
-    if (activation.inactive.length) {
-      blocks.push(`# INACTIVE DEPENDENTS
-${renderInactive(activation.inactive)}`);
-    }
-  }
-  const notes = [];
-  if (corrNr !== void 0) {
-    notes.push(
-      `This object is transportable and was activated under transport ${corrNr}. abap_activate never releases a transport \u2014 releasing is a separate tool, abap_transport_release, which stays off unless ` + // Names the lever actually in force (ABAP_MODE vs. the legacy flag).
-      // Optional-chained: this is a NOTE, not a gate — test stubs hand in a
-      // minimal SafetyGate, and a cosmetic sentence must never throw.
-      (gate.config?.abapMode !== void 0 ? "ABAP_MODE=admin (ABAP_ALLOW_TRANSPORT_RELEASE is not read while ABAP_MODE is set)." : "ABAP_ALLOW_TRANSPORT_RELEASE is set.")
-    );
-  }
-  if (mode === "activate" && check4 !== void 0 && !check4.ok) {
-    notes.push("Activation was SKIPPED: the syntax check reported errors. Nothing changed.");
-  }
-  if (input.source) {
-    if (mode === "check") {
-      notes.push("Checked the supplied draft, not the version stored on the server.");
-    }
-  } else if (checkedSavedSource) {
-    notes.push(
-      "No `source` was supplied, so the version already saved on the server was fetched and checked instead (one extra ADT read). Pass `source` explicitly to check an unsaved draft instead of what's on the server."
-    );
-  } else {
-    notes.push(
-      "No `source` was supplied, so no pre-flight syntax check ran. Activation acted directly on the version already stored on the server; any activation messages above are the only check that actually ran."
-    );
-  }
-  return buildResponse({
-    header: {
-      system: conn.cfg.sid,
-      object: `${target.type} ${target.name}`,
-      uri: target.uri,
-      package: target.packageName,
-      // "server" = read off adtcore:packageRef (what the gate judged);
-      // "requested" = object doesn't exist yet, nothing to confirm.
-      package_source: target.packageSource,
-      mode,
-      result: check4 ? check4.ok ? "clean" : `${check4.errors} error(s), ${check4.warnings} warning(s)` : activation ? activation.ok ? "clean (no pre-flight check ran)" : `${activation.errors} error(s), ${activation.warnings} warning(s)` : "not checked",
-      activated: activation ? activation.activated : mode === "activate" ? false : "n/a",
-      ...corrNr === void 0 ? {} : { transport: corrNr }
-    },
-    body: blocks.join("\n\n"),
-    bodyLabel: "MESSAGES",
-    notes,
-    hints: [
-      "Line numbers come from the check run and refer to the source that was checked."
-    ],
-    maxChars
-  });
-}
-async function abapActivateBatch(conn, entries, maxChars, gate, transport, journal) {
-  const wanted = entries.map((e) => {
-    const hint = e.type ? specForType(e.type) ?? specForKeyword(e.type) : void 0;
-    const parsed = parseObjectRef(e.object, hint);
-    const type = e.type ?? parsed.spec?.type;
-    return {
-      name: parsed.name,
-      ...parsed.parent ? { containerName: parsed.parent } : {},
-      ...type ? { type } : {},
-      ...e.affects ? { affects: e.affects } : {},
-      affectsRef: e.affects
-    };
-  });
-  const authorized = [];
-  for (const w of wanted) {
-    const a = await authorizeMutation(conn, gate, "activate", w);
-    authorized.push({ target: a.target, affects: w.affectsRef });
-  }
-  const targets = [];
-  const journalItems = [];
-  const corrNrs = /* @__PURE__ */ new Set();
-  for (const { target, affects } of authorized) {
-    let corrNr;
-    if (transport) {
-      const activateIntent = isEnhancementType(target.type) && affects ? enhancementIntentFor(target, affects) : void 0;
-      const res = await transport.resolve(
-        conn,
-        { uri: target.sourceUri, devclass: target.packageName, name: target.name, type: target.type },
-        "U",
-        {}
-      );
-      const denial = toAbapError(res);
-      if (denial) throw denial;
-      if (res.outcome === "transport") {
-        corrNrs.add(res.corrNr);
-        corrNr = res.corrNr;
-      }
-      gate.assert(
-        "activate",
-        { name: target.name, packageName: target.packageName, type: target.type },
-        {
-          phase: "final",
-          intent: activateIntent,
-          corr: res.outcome === "transport" ? {
-            kind: "transport",
-            corrNr: res.corrNr,
-            source: res.source === "config-pin" || res.source === "caller" ? "named" : "auto"
-          } : { kind: "local" }
-        }
-      );
-    }
-    targets.push(target);
-    journalItems.push({
-      target,
-      // `affects` only meaningful for an enhancement type — same predicate as
-      // `activateIntent` above.
-      ...isEnhancementType(target.type) && affects ? { affects } : {},
-      ...corrNr !== void 0 ? { corrNr } : {}
-    });
-  }
-  let dispositions = targets.map(() => "not-sent");
-  const journalled2 = await journalActivations(
-    journal,
-    conn,
-    journalItems,
-    async () => {
-      const o = await activateObjects(conn, targets, {
-        onDisposition: (d) => {
-          dispositions = d;
-        }
-      });
-      assertBatchActivated(o, { what: "Activation" });
-      return o;
-    },
-    (e, i) => activationThrowPatch(dispositions[i] ?? "unknown", targets[i]?.name ?? `object ${i + 1}`, e)
-  );
-  const outcome = journalled2.result;
-  await journalled2.settle((i) => {
-    const per = outcome.perObject[i];
-    const messages = per ? journalMessages(per.messages) : void 0;
-    return {
-      outcome: "succeeded",
-      activation: {
-        attempted: true,
-        // `perObject[i].activated`, not the batch's own `outcome.activated`:
-        // they agree today, but this stays honest if partial success is ever added.
-        activated: per ? per.activated : outcome.activated,
-        ...messages !== void 0 ? { messages } : {}
-      }
-    };
-  });
-  return buildResponse({
-    header: {
-      system: conn.cfg.sid,
-      objects: targets.map((t) => t.name).join(", "),
-      count: targets.length,
-      mode: "activate",
-      result: outcome.warnings > 0 ? `clean, ${outcome.warnings} warning(s)` : "clean",
-      activated: outcome.activated,
-      ...corrNrs.size ? { transport: [...corrNrs].join(", ") } : {}
-    },
-    body: [
-      renderBatch(outcome),
-      ...outcome.preaudit?.length ? [`## CO-ACTIVATED
-${renderCoActivated(outcome.preaudit)}`] : []
-    ].filter((s) => s.trim()).join("\n\n"),
-    bodyLabel: "MESSAGES",
-    notes: [
-      ...corrNrs.size ? [
-        `Transportable object(s) activated under transport ${[...corrNrs].join(", ")}. abap_activate never releases a transport \u2014 see abap_transport_release.`
-      ] : [],
-      "No `source` was supplied for any object \u2014 batch activation acts directly on the version already saved on the server for each one; the messages above are the only check that ran."
-    ],
-    hints: [
-      "Each object's own section above is what the server tied to it; the (unattributed) section, if present, could not be tied to any one object and still counts against the batch."
-    ],
-    maxChars
-  });
-}
-var ok = (text3) => ({ content: [{ type: "text", text: text3 }] });
-function registerActivateTools(mcp, deps) {
-  mcp.registerTool(
-    "abap_activate",
-    {
-      description: "mode=check: syntax check, no lock. mode=activate: check then activate.",
-      inputSchema: activateInputSchema,
-      /**
-       * `destructiveHint: true` — a judgement call (MCP doesn't formally
-       * define the hint as "irreversible"). Evidence: `undoBlocker`
-       * (src/adt/undo.ts) refuses every `activate` entry outright, and
-       * activating REPLACES the active version with no earlier state to
-       * return to. `abap_write` gets `destructiveHint: true` despite being
-       * MORE reversible (journalled, undo-able) — leaving this at `false`
-       * would invert that signal. See archive for full citations.
-       */
-      annotations: { readOnlyHint: false, destructiveHint: true }
-    },
-    async (args) => {
-      try {
-        const a = args;
-        const mode = a.mode ?? "activate";
-        if (a.objects !== void 0) {
-          if (mode !== "activate") {
-            throw new AbapError(
-              "BAD_INPUT",
-              "`objects` (batch activation) only supports mode=activate \u2014 there is no batch syntax check.",
-              { mode },
-              'Drop `mode` (default is activate), or check objects one at a time with `object` and `mode: "check"`.'
-            );
-          }
-          for (const entry of a.objects) {
-            const pf = preflight(entry);
-            deps.safety.assert("activate", pf, {
-              phase: "preflight",
-              corr: { kind: "unresolved" },
-              intent: enhancementPreflightIntent({
-                name: pf.name,
-                type: pf.type,
-                affects: entry.affects
-              })
-            });
-          }
-          await deps.ensureConnected();
-          const run3 = (conn) => abapActivate(conn, args, deps.cfg.maxResponseChars, deps.safety, deps.transport, deps.journal);
-          const res2 = await deps.pool.withWrite("abap_activate", void 0, run3);
-          return ok(res2.text);
-        }
-        if (a.object === void 0) {
-          throw new AbapError(
-            "BAD_INPUT",
-            "Pass either `object` (single object) or `objects` (batch \u2014 2 or more objects in one activation request).",
-            {},
-            'Add `object: "<name>"` to activate one object, or `objects: [...]` to activate several.'
-          );
-        }
-        const object3 = a.object;
-        if (mode === "activate") {
-          const pf = preflight({ object: object3, type: a.type });
-          deps.safety.assert("activate", pf, {
-            phase: "preflight",
-            corr: { kind: "unresolved" },
-            intent: enhancementPreflightIntent({ name: pf.name, type: pf.type, affects: a.affects })
-          });
-        } else {
-          deps.safety.assert("analyze", preflight({ object: object3, type: a.type }), { phase: "preflight" });
-        }
-        await deps.ensureConnected();
-        const run2 = (conn) => abapActivate(conn, args, deps.cfg.maxResponseChars, deps.safety, deps.transport, deps.journal);
-        const res = mode === "activate" ? await deps.pool.withWrite("abap_activate", writeGateKey(object3, a.type), run2) : await deps.pool.withRead("abap_activate", run2);
-        return ok(res.text);
-      } catch (e) {
-        return deps.errorResult(e);
-      }
-    }
-  );
-}
-
-// src/tools/debug.ts
+// src/tools/write.ts
 init_zod();
-init_errors();
-init_compact();
+init_capabilities();
 
-// src/debug/identity.ts
-function resolveDebugIdentity(cfg) {
-  const terminalId = resolveTerminalId({
-    explicit: cfg.terminalId,
-    seed: `${cfg.sid}:${cfg.user}:terminalId`
-  });
-  const ideId = resolveTerminalId({
-    explicit: cfg.ideId,
-    seed: `${cfg.sid}:${cfg.user}:ideId`
-  });
-  return {
-    terminalId,
-    ideId,
-    terminalIdSource: cfg.terminalId?.trim() ? "config" : "derived",
-    ideIdSource: cfg.ideId?.trim() ? "config" : "derived"
+// src/adt/descriptor-fidelity.ts
+var XML_NOISE = /<\?xml[^?]*\?>|<!--[\s\S]*?-->/g;
+var START_TAG = /<([A-Za-z_][\w.-]*(?::[\w.-]+)?)((?:"[^"]*"|'[^']*'|[^>"'])*?)(\/?)>/g;
+var END_TAG = /<\/([A-Za-z_][\w.-]*(?::[\w.-]+)?)\s*>/g;
+function leafTexts(xml3) {
+  const clean = xml3.replace(XML_NOISE, "");
+  const out = /* @__PURE__ */ new Map();
+  const push = (name, text3) => {
+    const trimmed = text3.trim();
+    if (!trimmed) return;
+    let list5 = out.get(name);
+    if (!list5) {
+      list5 = [];
+      out.set(name, list5);
+    }
+    list5.push(trimmed);
   };
-}
-var warned = false;
-function warnIfDerivedIdentity(id, warn) {
-  if (warned) return false;
-  const derivedParts = [];
-  if (id.terminalIdSource === "derived") derivedParts.push("terminalId");
-  if (id.ideIdSource === "derived") derivedParts.push("ideId");
-  if (derivedParts.length === 0) return false;
-  warned = true;
-  warn(
-    `[abapsmith] WARNING: debug identity's ${derivedParts.join(" and ")} ${derivedParts.length > 1 ? "were" : "was"} derived from SID+user (not explicitly configured). A second MCP server process for the same SAP user derives the IDENTICAL pair and SAP cannot tell the two apart. Only explicitly-configured ABAP_TERMINAL_ID / ABAP_IDE_ID are provably multi-process-safe \u2014 set them to distinct 32-uppercase-hex values per terminal.`
-  );
-  return true;
-}
-
-// src/debug/arm-lock.ts
-init_errors();
-init_state_dir();
-import { createHash as createHash7 } from "node:crypto";
-import * as path7 from "node:path";
-var NoopDebugArmLock = class {
-  async acquire() {
-  }
-  release() {
-  }
-};
-function resolveDebugLockWaitMs(env = process.env) {
-  const DEFAULT_MS = 1500;
-  const MIN_MS = 200;
-  const MAX_MS = 3e4;
-  const raw = env.ABAP_DEBUG_LOCK_WAIT_MS;
-  if (raw === void 0 || raw.trim() === "") return DEFAULT_MS;
-  const n = Number(raw.trim());
-  if (!Number.isFinite(n) || n < 0) return DEFAULT_MS;
-  const ms = Math.floor(n);
-  if (ms < MIN_MS || ms > MAX_MS) return DEFAULT_MS;
-  return ms;
-}
-function resolveCrossProcessDebugLock(env = process.env) {
-  const raw = env.ABAP_CROSS_PROCESS_DEBUG_LOCK;
-  if (raw === void 0) return true;
-  const v = raw.trim().toLowerCase();
-  if (v === "") return true;
-  return !["false", "0", "no", "off"].includes(v);
-}
-var DEBUG_ARM_LOCK_HARD_STALE_MS = 36e5;
-var LOCK_HASH_HEX_LEN2 = 20;
-function debugArmLockKey(cfg) {
-  return `${cfg.url.trim()}|${(cfg.client ?? "").trim()}|${cfg.user.trim().toUpperCase()}`;
-}
-function debugArmLockPath(stateDir, cfg) {
-  const hash2 = createHash7("sha256").update(debugArmLockKey(cfg)).digest("hex").slice(0, LOCK_HASH_HEX_LEN2);
-  return path7.join(stateDir, "locks", "debug", `${hash2}.lock`);
-}
-function toDebugLockBusyError(e, key, lockPath) {
-  const holder = fileLockHolderOf(e);
-  const held = holder ? `held by pid ${holder.pid} on ${holder.hostname} since ${holder.startedAt || "an unknown time"}` : "the holder is unknown \u2014 the lock file could not be read, or was written by another version";
-  return new AbapError(
-    "DEBUG_SESSION_LOCKED_CROSS_PROCESS",
-    `Cannot start a debug session: another abapsmith process is already holding the debugger slot for this system/client/user (${held}). SAP allows one debug listener per user on a system, so arming a second one would silently reassign or wedge the other session.`,
-    { key, lockPath, holder, cause: describeUnknownError(e) },
-    `Stop the other debug session (abap_debug with action "stop") and retry. If no other abapsmith process is actually running, this is a stale leftover and you can delete ${lockPath} by hand \u2014 a holder whose process has died is normally collected automatically within a few seconds. Set ABAP_CROSS_PROCESS_DEBUG_LOCK=false to disable this guard entirely (at the cost of the protection it provides).`
-  );
-}
-function deferred() {
-  let resolve5;
-  let reject;
-  const promise2 = new Promise((res, rej) => {
-    resolve5 = res;
-    reject = rej;
-  });
-  return { promise: promise2, resolve: resolve5, reject };
-}
-var FileLockDebugArmLock = class {
-  lockPath;
-  key;
-  waitMs;
-  /** How many callers currently hold this lock. Released at 0. */
-  holds = 0;
-  /** Resolved by {@link release} to end the `withFileLock` scope. */
-  hold;
-  /** In flight while an acquisition is racing, so concurrent callers await it. */
-  acquiring;
-  constructor(opts) {
-    this.lockPath = debugArmLockPath(opts.stateDir, opts.cfg);
-    this.key = debugArmLockKey(opts.cfg);
-    this.waitMs = opts.waitMs ?? resolveDebugLockWaitMs();
-  }
-  /** The file this instance contends on. For diagnostics and tests. */
-  get path() {
-    return this.lockPath;
-  }
-  /** Whether this process currently holds the lock. For tests and diagnostics. */
-  get held() {
-    return this.holds > 0;
-  }
-  async acquire() {
-    if (this.holds > 0) {
-      this.holds += 1;
-      return;
-    }
-    if (this.acquiring !== void 0) {
-      await this.acquiring;
-      this.holds += 1;
-      return;
-    }
-    const attempt = this.run();
-    this.acquiring = attempt;
-    try {
-      await attempt;
-    } finally {
-      this.acquiring = void 0;
-    }
-    this.holds = 1;
-  }
-  release() {
-    if (this.holds === 0) return;
-    this.holds -= 1;
-    if (this.holds > 0) return;
-    const hold = this.hold;
-    this.hold = void 0;
-    hold?.resolve();
-  }
-  /**
-   * Opens the `withFileLock` scope and resolves once the lock is GRANTED,
-   * leaving the scope running until {@link release}.
-   */
-  async run() {
-    const granted2 = deferred();
-    const hold = deferred();
-    const scope = withFileLock(
-      this.lockPath,
-      async () => {
-        granted2.resolve();
-        await hold.promise;
-      },
-      { waitMs: this.waitMs, hardStaleMs: DEBUG_ARM_LOCK_HARD_STALE_MS }
-    );
-    let failure;
-    const settled = scope.then(
-      () => void 0,
-      (e) => {
-        failure = e;
-        this.hold = void 0;
-        return void 0;
-      }
-    );
-    await Promise.race([granted2.promise, settled]);
-    if (failure !== void 0) {
-      if (isFileLockAcquisitionFailure(failure, this.lockPath)) {
-        throw toDebugLockBusyError(failure, this.key, this.lockPath);
-      }
-      throw failure;
-    }
-    this.hold = hold;
-  }
-};
-function createDebugArmLock(opts) {
-  const enabled = opts.enabled ?? resolveCrossProcessDebugLock(opts.env ?? process.env);
-  if (!enabled) return new NoopDebugArmLock();
-  return new FileLockDebugArmLock({ stateDir: opts.stateDir, cfg: opts.cfg, waitMs: opts.waitMs });
-}
-
-// src/tools/debug.ts
-init_state_dir();
-
-// src/adt/enhancement.ts
-init_session();
-init_errors();
-
-// src/adt/enhancement-xml.ts
-init_errors();
-init_fxp();
-var xmlParser = new XMLParser({
-  ignoreAttributes: false,
-  attributeNamePrefix: "@_",
-  removeNSPrefix: true,
-  parseAttributeValue: false,
-  parseTagValue: false,
-  trimValues: true
-});
-function xnode(value) {
-  if (value === void 0 || value === null) return void 0;
-  if (Array.isArray(value)) return void 0;
-  if (typeof value !== "object") return void 0;
-  return value;
-}
-function xmany(value) {
-  if (value === void 0 || value === null) return [];
-  if (Array.isArray(value)) {
-    return value.filter((v) => typeof v === "object" && v !== null);
-  }
-  if (typeof value === "object") return [value];
-  return [];
-}
-function xattr(n, name) {
-  if (!n) return void 0;
-  const v = n["@_" + name];
-  if (v === void 0 || v === null) return void 0;
-  return String(v);
-}
-function xbool(n, name) {
-  const v = xattr(n, name);
-  if (v === void 0) return void 0;
-  return v === "true";
-}
-function fail(message, details = {}) {
-  throw new AbapError(
-    "BAD_INPUT",
-    `enhancement XML: ${message}`,
-    details,
-    "The decoder refuses to guess at malformed or unsupported input \u2014 fix or re-capture the source document rather than relying on a silent fallback."
-  );
-}
-function parseXml2(xmlText2, context) {
-  let parsed;
-  try {
-    parsed = xmlParser.parse(xmlText2) ?? {};
-  } catch (e) {
-    fail(`could not parse ${context} XML: ${e instanceof Error ? e.message : String(e)}`);
-  }
-  return parsed;
-}
-function xref(n) {
-  if (!n) return void 0;
-  const type = xattr(n, "type");
-  const name = xattr(n, "name");
-  if (!type || !name) return void 0;
-  return { uri: xattr(n, "uri"), type, name };
-}
-function parseCommon(root) {
-  const pkgNode = xnode(root.packageRef);
-  const packageRef = pkgNode ? {
-    uri: xattr(pkgNode, "uri"),
-    type: xattr(pkgNode, "type") ?? "",
-    name: xattr(pkgNode, "name") ?? "",
-    description: xattr(pkgNode, "description")
-  } : void 0;
-  return {
-    name: xattr(root, "name") ?? "",
-    type: xattr(root, "type") ?? "",
-    description: xattr(root, "description"),
-    packageRef,
-    responsible: xattr(root, "responsible"),
-    masterLanguage: xattr(root, "masterLanguage"),
-    masterSystem: xattr(root, "masterSystem"),
-    activationStatus: xattr(root, "version"),
-    language: xattr(root, "language"),
-    createdAt: xattr(root, "createdAt"),
-    createdBy: xattr(root, "createdBy"),
-    changedAt: xattr(root, "changedAt"),
-    changedBy: xattr(root, "changedBy")
-  };
-}
-function parseFilterCondition(n) {
-  return {
-    filterName: xattr(n, "filterName"),
-    filterType: xattr(n, "filterType"),
-    comparator1: xattr(n, "comparator1"),
-    value1: xattr(n, "value1"),
-    comparator2: xattr(n, "comparator2"),
-    value2: xattr(n, "value2")
-  };
-}
-function parseFilterTreeChildren(n) {
-  const out = [];
-  for (const andNode of xmany(n.and)) {
-    out.push({ kind: "and", children: parseFilterTreeChildren(andNode) });
-  }
-  for (const orNode of xmany(n.or)) {
-    out.push({ kind: "or", children: parseFilterTreeChildren(orNode) });
-  }
-  for (const filterNode of xmany(n.filter)) {
-    out.push({ kind: "filter", condition: parseFilterCondition(filterNode) });
+  START_TAG.lastIndex = 0;
+  let m;
+  while ((m = START_TAG.exec(clean)) !== null) {
+    const name = m[1];
+    const selfClosed = m[3] === "/";
+    if (selfClosed) continue;
+    const afterStart = START_TAG.lastIndex;
+    END_TAG.lastIndex = afterStart;
+    const end = END_TAG.exec(clean);
+    if (!end || end[1] !== name) continue;
+    const inner = clean.slice(afterStart, end.index);
+    if (inner.includes("<")) continue;
+    push(name, inner);
+    START_TAG.lastIndex = END_TAG.lastIndex;
   }
   return out;
 }
-function parseFilterTree(n) {
-  if (!n) return void 0;
-  const children = parseFilterTreeChildren(n);
-  if (children.length === 0) return void 0;
-  if (children.length === 1) return children[0];
-  return { kind: "or", children };
-}
-function parseBadiImplementationEntry(n) {
-  return {
-    name: xattr(n, "name") ?? "",
-    shortText: xattr(n, "shortText"),
-    isExample: xbool(n, "isExample"),
-    isDefault: xbool(n, "isDefault"),
-    isActive: xbool(n, "isActive"),
-    isCustomizingSupported: xbool(n, "isCustomizingSupported"),
-    runtimeBehaviorShorttext: xattr(n, "runtimeBehaviorShorttext"),
-    enhancementSpot: xref(xnode(n.enhancementSpot)),
-    badiDefinition: xref(xnode(n.badiDefinition)),
-    implementingClass: xref(xnode(n.implementingClass)),
-    filterTree: parseFilterTree(xnode(n.filterTree))
-  };
-}
-function parseBadiImplementation(xmlText2) {
-  const parsed = parseXml2(xmlText2, "enhoxh (BAdI implementation)");
-  const root = xnode(parsed.objectData);
-  if (!root) fail("not an ENHO/XH BAdI implementation document (no <enho:objectData> root element)");
-  const common = parseCommon(root);
-  const contentCommon = xnode(root.contentCommon);
-  const contentSpecific = xnode(root.contentSpecific);
-  const badiTech = xnode(contentSpecific?.badiTechnology);
-  const implsNode = xnode(badiTech?.badiImplementations);
-  const implNodes = implsNode ? xmany(implsNode.badiImplementation) : [];
-  return {
-    ...common,
-    toolType: xattr(contentCommon, "toolType"),
-    adjustmentStatus: xattr(contentCommon, "adjustmentStatus"),
-    upgradeFlag: xbool(contentCommon, "upgradeFlag"),
-    implementations: implNodes.map(parseBadiImplementationEntry)
-  };
-}
-function parseUsageRef(n) {
-  return {
-    programId: xattr(n, "program_id"),
-    elementUsage: xattr(n, "element_usage"),
-    upgrade: xbool(n, "upgrade"),
-    automaticTransport: xbool(n, "automatic_transport"),
-    parent: xattr(n, "parent"),
-    objectReference: xref(xnode(n.objectReference)),
-    mainObjectReference: xref(xnode(n.mainObjectReference))
-  };
-}
-function parseEnclosureLink(n) {
-  for (const linkNode of xmany(n.link)) {
-    if (xattr(linkNode, "rel") === "enclosure") return xattr(linkNode, "href");
-  }
-  return void 0;
-}
-function parseHookImplementation(n) {
-  return {
-    id: xattr(n, "id"),
-    spotName: xattr(n, "spotname"),
-    programName: xattr(n, "programname"),
-    overwrite: xattr(n, "overwrite"),
-    method: xattr(n, "method"),
-    enhMode: xattr(n, "enhmode"),
-    fullName: xattr(n, "full_name") ?? xattr(n, "fullname"),
-    fullDescription: xattr(n, "full_description"),
-    enclosureUri: parseEnclosureLink(n)
-  };
-}
-function parseSourceCodePlugin(xmlText2) {
-  const parsed = parseXml2(xmlText2, "enhoxhh (source-code plugin)");
-  const root = xnode(parsed.enhancement);
-  if (!root) fail("not an ENHO/XHH source-code plugin document (no <enho:enhancement> root element)");
-  const common = parseCommon(root);
-  const contentCommon = xnode(root.contentCommon);
-  const switchNode = xnode(contentCommon?.switch);
-  const usagesNode = xnode(contentCommon?.usages);
-  const usageNodes = usagesNode ? xmany(usagesNode.referencedObject) : [];
-  const contentSpecific = xnode(root.contentSpecific);
-  const hookTech = xnode(contentSpecific?.hookTechnology);
-  const hookImplNodes = hookTech ? xmany(hookTech.hookImplementation) : [];
-  return {
-    ...common,
-    sourceUri: xattr(root, "sourceUri"),
-    fixPointArithmetic: xbool(root, "fixPointArithmetic"),
-    activeUnicodeCheck: xbool(root, "activeUnicodeCheck"),
-    toolType: xattr(contentCommon, "toolType"),
-    adjustmentStatus: xattr(contentCommon, "adjustmentStatus"),
-    switchState: xattr(switchNode, "state"),
-    switchReference: xref(xnode(switchNode?.reference)),
-    usages: usageNodes.map(parseUsageRef),
-    enhancedObject: xref(xnode(hookTech?.enhancedObject)),
-    nextId: xattr(hookTech, "nextId"),
-    hookImplementations: hookImplNodes.map(parseHookImplementation)
-  };
-}
-function parseBadiFilterDeclaration(n) {
-  return {
-    filterName: xattr(n, "filterName"),
-    filterType: xattr(n, "filterType"),
-    shorttext: xattr(n, "shorttext"),
-    onlyConstantFilterValues: xbool(n, "onlyConstantFilterValues")
-  };
-}
-function parseBadiDefinitionEntry(n) {
-  const filtersNode = xnode(n.filters);
-  const filterNodes = filtersNode ? xmany(filtersNode.filter) : [];
-  return {
-    name: xattr(n, "name") ?? "",
-    shorttext: xattr(n, "shorttext"),
-    singleUse: xbool(n, "singleUse"),
-    useFallbackClass: xbool(n, "useFallbackClass"),
-    filterLimitation: xbool(n, "filterLimitation"),
-    documentationId: xattr(n, "documentationId"),
-    interfaceRef: xref(xnode(n.interface)),
-    filters: filterNodes.map(parseBadiFilterDeclaration)
-  };
-}
-function parseEnhancementSpot(xmlText2) {
-  const parsed = parseXml2(xmlText2, "enhsxs (enhancement spot)");
-  const root = xnode(parsed.objectData);
-  if (!root) fail("not an ENHS/XS enhancement spot document (no <enhs:objectData> root element)");
-  const common = parseCommon(root);
-  const contentCommon = xnode(root.contentCommon);
-  const contentSpecific = xnode(root.contentSpecific);
-  const badiTech = xnode(contentSpecific?.badiTechnology);
-  const defsNode = xnode(badiTech?.badiDefinitions);
-  const defNodes = defsNode ? xmany(defsNode.badiDefinition) : [];
-  return {
-    ...common,
-    toolType: xattr(contentCommon, "toolType"),
-    internal: xbool(contentCommon, "internal"),
-    badiDefinitions: defNodes.map(parseBadiDefinitionEntry)
-  };
-}
-function escapeXmlAttr3(value) {
-  return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-var ROOT_TAG_RE = /^(\s*<\?xml[^>]*\?>\s*)(<[A-Za-z_][\w.-]*:[A-Za-z_][\w.-]*\b)([^>]*?)(\/?)>/;
-function patchEnhancementRootAttribute(xmlText2, attribute, value) {
-  const m = ROOT_TAG_RE.exec(xmlText2);
-  if (!m) {
-    fail("could not locate a root element to patch (no recognisable opening tag at the start of the document)", {
-      attribute
-    });
-    throw new Error("unreachable \u2014 fail() always throws");
-  }
-  const whole = m[0];
-  const prolog = m[1];
-  const tagOpen = m[2];
-  const attrs = m[3];
-  const selfClose = m[4];
-  const localName2 = tagOpen.replace(/^<[A-Za-z_][\w.-]*:/, "<");
-  if (localName2 !== "<objectData" && localName2 !== "<enhancement") {
-    fail(`unrecognised enhancement document root element "${tagOpen.slice(1)}" \u2014 refusing to patch it`, {
-      attribute,
-      rootTag: tagOpen.slice(1)
-    });
-  }
-  const escaped = escapeXmlAttr3(value);
-  const attrRe = /(?:^|\s)(adtcore:)?description\s*=\s*(?:"[^"]*"|'[^']*')/;
-  const existing = attrRe.exec(attrs);
-  let newAttrs;
-  if (existing) {
-    const prefix = existing[1] ?? "";
-    newAttrs = attrs.slice(0, existing.index) + (existing[0].startsWith(" ") ? " " : "") + `${prefix}${attribute}="${escaped}"` + attrs.slice(existing.index + existing[0].length);
-  } else {
-    newAttrs = `${attrs} adtcore:${attribute}="${escaped}"`;
-  }
-  const newTagOpen = `${prolog}${tagOpen}${newAttrs}${selfClose}>`;
-  return xmlText2.slice(0, m.index) + newTagOpen + xmlText2.slice(m.index + whole.length);
-}
-var ROOT_DESCRIPTION_VALUE_RE = /(?:^|\s)(?:adtcore:)?description\s*=\s*(?:"([^"]*)"|'([^']*)')/;
-function hasEnhancementRootDescription(xmlText2) {
-  const m = ROOT_TAG_RE.exec(xmlText2);
-  if (!m) return false;
-  const attrs = m[3] ?? "";
-  const valueMatch = ROOT_DESCRIPTION_VALUE_RE.exec(attrs);
-  if (!valueMatch) return false;
-  const raw = valueMatch[1] ?? valueMatch[2] ?? "";
-  return raw.length > 0;
-}
-var BADI_IMPL_TAG_RE = /<enho:badiImplementation\b([^>]*?)(\/?)>/g;
-function escapeRegExp3(s) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-function patchBadiImplementationActive(xmlText2, implName, active) {
-  const nameAttrRe = new RegExp(`(?:^|\\s)enho:name\\s*=\\s*"${escapeRegExp3(escapeXmlAttr3(implName))}"`);
-  BADI_IMPL_TAG_RE.lastIndex = 0;
-  let found;
-  let m;
-  while ((m = BADI_IMPL_TAG_RE.exec(xmlText2)) !== null) {
-    const attrs = m[1] ?? "";
-    if (nameAttrRe.test(attrs)) {
-      found = { full: m[0], attrs, selfClose: m[2] ?? "", index: m.index };
-      break;
+function discardedDescriptorValues(sent, stored) {
+  const sentTexts = leafTexts(sent);
+  const storedTexts = leafTexts(stored);
+  const out = [];
+  for (const [element, sentValues] of sentTexts) {
+    const storedValues = storedTexts.get(element) ?? [];
+    if (sentValues.length > storedValues.length) {
+      out.push({ element, sent: sentValues, stored: storedValues });
     }
   }
-  if (!found) {
-    fail(`could not locate a <enho:badiImplementation> entry named "${implName}" to patch`, { implName });
-    throw new Error("unreachable \u2014 fail() always throws");
-  }
-  const valueStr = active ? "true" : "false";
-  const attrRe = /(?:^|\s)(enho:)?isActive\s*=\s*(?:"[^"]*"|'[^']*')/;
-  const existing = attrRe.exec(found.attrs);
-  let newAttrs;
-  if (existing) {
-    const prefix = existing[1] ?? "";
-    newAttrs = found.attrs.slice(0, existing.index) + (existing[0].startsWith(" ") ? " " : "") + `${prefix}isActive="${valueStr}"` + found.attrs.slice(existing.index + existing[0].length);
-  } else {
-    newAttrs = `${found.attrs} enho:isActive="${valueStr}"`;
-  }
-  const newTag = `<enho:badiImplementation${newAttrs}${found.selfClose}>`;
-  return xmlText2.slice(0, found.index) + newTag + xmlText2.slice(found.index + found.full.length);
+  return out;
 }
 
-// src/adt/enhancement.ts
-var ENHOXH_COLLECTION = "/sap/bc/adt/enhancements/enhoxh";
-var ENHOXHH_COLLECTION = "/sap/bc/adt/enhancements/enhoxhh";
-var ENHSXS_COLLECTION = "/sap/bc/adt/enhancements/enhsxs";
-var ENHOXH_ACCEPT = "application/vnd.sap.adt.enh.enho.v1+xml";
-var ENHOXHH_ACCEPT = "application/vnd.sap.adt.enh.enhoxhh.v2+xml";
-var ENHSXS_ACCEPT = "application/vnd.sap.adt.enh.enhs.v1+xml";
-var ENHOXH_TYPE = "ENHO/XH";
-var ENHOXHH_TYPE = "ENHO/XHH";
-var ENHSXS_TYPE = "ENHS/XS";
-function buildEnhancementUri(collection, name) {
-  const trimmedName = name.trim();
-  if (!trimmedName) {
-    throw new AbapError(
-      "BAD_INPUT",
-      "Enhancement object name must not be empty.",
-      { collection },
-      "Pass the object name, e.g. the BAdI implementation's technical name."
-    );
-  }
-  const uri = `${collection}/${encodeURIComponent(trimmedName)}`;
-  if (/\/sap\/bc\/adt\/sap\/bc\/adt\//i.test(uri)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `Refused to build a doubled-prefix enhancement URI: ${uri}`,
-      { collection, name: trimmedName, uri },
-      "This system's /sap/bc/adt/discovery document is known to carry a doubled /sap/bc/adt/sap/bc/adt/ prefix on 29/239 templateLink/@template values, including the entire Enhancements workspace. Resolve the collection path from app:collection/@href, never from templateLink/@template."
-    );
-  }
-  return uri;
-}
-function firstHeader(headers, name) {
-  const lower = name.toLowerCase();
-  for (const k of Object.keys(headers)) {
-    if (k.toLowerCase() === lower) {
-      const v = headers[k];
-      if (Array.isArray(v)) return v.length ? String(v[0]) : void 0;
-      return v === void 0 || v === null ? void 0 : String(v);
-    }
-  }
-  return void 0;
-}
-async function readBadiImplementation(conn, name) {
-  conn.discovery.assertSupported("enhancements", "BAdI implementations (ENHO/XH)");
-  const uri = buildEnhancementUri(ENHOXH_COLLECTION, name);
-  try {
-    const resp = await conn.get(uri, { headers: { Accept: ENHOXH_ACCEPT } });
-    const etag = firstHeader(resp.headers, "etag");
-    return { xml: resp.body, data: parseBadiImplementation(resp.body), ...etag ? { etag } : {} };
-  } catch (e) {
-    if (isAbapError(e)) throw e;
-    throw translateAdtError(e, { operation: "read", uri, name, type: ENHOXH_TYPE });
-  }
-}
-async function readSourceCodePlugin(conn, name) {
-  conn.discovery.assertSupported("enhancements", "source-code plug-ins (ENHO/XHH)");
-  const uri = buildEnhancementUri(ENHOXHH_COLLECTION, name);
-  try {
-    const resp = await conn.get(uri, { headers: { Accept: ENHOXHH_ACCEPT } });
-    const etag = firstHeader(resp.headers, "etag");
-    return { xml: resp.body, data: parseSourceCodePlugin(resp.body), ...etag ? { etag } : {} };
-  } catch (e) {
-    if (isAbapError(e)) throw e;
-    throw translateAdtError(e, { operation: "read", uri, name, type: ENHOXHH_TYPE });
-  }
-}
-async function readEnhancementSpot(conn, name) {
-  conn.discovery.assertSupported("enhancements", "enhancement spots (ENHS/XS)");
-  const uri = buildEnhancementUri(ENHSXS_COLLECTION, name);
-  try {
-    const resp = await conn.get(uri, { headers: { Accept: ENHSXS_ACCEPT } });
-    const etag = firstHeader(resp.headers, "etag");
-    return { xml: resp.body, data: parseEnhancementSpot(resp.body), ...etag ? { etag } : {} };
-  } catch (e) {
-    if (isAbapError(e)) throw e;
-    throw translateAdtError(e, { operation: "read", uri, name, type: ENHSXS_TYPE });
-  }
-}
+// src/tools/write.ts
+init_index_read();
 
-// src/tools/run.ts
-init_zod();
-init_errors();
-init_compact();
-var runRangeSchema = external_exports.object({
-  sign: external_exports.enum(["I", "E"]).optional(),
-  option: external_exports.enum(["EQ", "NE", "GT", "LT", "GE", "LE", "CP", "NP", "BT", "NB"]).optional(),
-  low: external_exports.string(),
-  high: external_exports.string().optional()
-});
-var runParameterSchema = external_exports.object({
-  name: external_exports.string(),
-  type: external_exports.enum(["char", "int", "packed", "date"]).optional(),
-  value: external_exports.string().optional(),
-  ranges: external_exports.array(runRangeSchema).optional().describe("SELECT-OPTIONS rows; must be non-empty.")
-});
-var runInputSchema = {
-  object: external_exports.string().describe("Class or report to execute."),
-  mode: external_exports.enum(["class", "report", "auto"]).optional().describe("Default auto."),
-  // Report mode only: fills PARAMETERS/SELECT-OPTIONS — see ../adt/run-parameters.ts.
-  parameters: external_exports.array(runParameterSchema).optional()
-};
-var RunInput = external_exports.object(runInputSchema);
-async function abapRun(conn, input, maxChars, gate) {
-  const requested = input.mode ?? "auto";
-  const obj = await resolveObject(conn, input.object);
-  let mode;
-  if (requested === "auto") {
-    if (obj.kind === "CLAS") mode = "class";
-    else if (obj.kind === "PROG") mode = "report";
-    else {
-      throw new AbapError(
-        "UNSUPPORTED",
-        `${obj.type} ${obj.name} is not executable: only classes implementing IF_OO_ADT_CLASSRUN and reports (PROG) can be run.`,
-        { object: obj.name, type: obj.type },
-        "Wrap the logic in a small IF_OO_ADT_CLASSRUN class and run that."
-      );
-    }
-  } else {
-    if (requested === "class" && obj.kind !== "CLAS") {
-      throw new AbapError(
-        "BAD_INPUT",
-        `mode "class" was requested for ${obj.name}, but it resolved to ${obj.type} (kind ${obj.kind}), not a class.`,
-        { object: obj.name, requestedMode: requested, resolvedType: obj.type, resolvedKind: obj.kind },
-        'Use mode "report" (or omit mode / use "auto") for PROG objects.'
-      );
-    }
-    if (requested === "report" && obj.kind !== "PROG") {
-      throw new AbapError(
-        "BAD_INPUT",
-        `mode "report" was requested for ${obj.name}, but it resolved to ${obj.type} (kind ${obj.kind}), not a report.`,
-        { object: obj.name, requestedMode: requested, resolvedType: obj.type, resolvedKind: obj.kind },
-        'Use mode "class" (or omit mode / use "auto") for CLAS objects.'
-      );
-    }
-    mode = requested;
-  }
-  const parameters = input.parameters ?? [];
-  if (parameters.length > 0 && mode !== "report") {
-    throw new AbapError(
-      "BAD_INPUT",
-      `"parameters" was supplied but mode is "${mode}", not "report" \u2014 selection-screen values only apply to classic reports.`,
-      { object: obj.name, mode }
-    );
-  }
-  const executeAuthorization = gate.authorize("execute", {
-    name: obj.name,
-    packageName: obj.packageName,
-    type: obj.type
-  });
-  let res;
-  if (mode === "class") {
-    res = await runClass(conn, executeAuthorization.target.name);
-  } else {
-    gate.assert("write", {
-      name: bridgeClassName(obj.name),
-      packageName: FLUID_PACKAGE,
-      type: "CLAS/OC"
-    });
-    res = await runReport(conn, obj.name, gate, parameters);
-  }
-  const notes = [];
-  if (res.mode === "report") {
-    notes.push(
-      `Output was captured through a generated IF_OO_ADT_CLASSRUN bridge class (${res.bridgeClass ?? "n/a"}) that SUBMITs the report EXPORTING LIST TO MEMORY` + (parameters.length > 0 ? ` WITH SELECTION-TABLE (${parameters.length} field(s) supplied \u2014 see "parameters").` : `. PARAMETERS/SELECT-OPTIONS values can be supplied via the "parameters" input; omitted fields run with the report's own defaults.`) + " The bridge is a real object created in the write allowlist."
-    );
-    notes.push(
-      'Interactive rendering (an ALV grid/list DISPLAY(), classic interactive list events, or any other dynpro) is NOT supported and cannot be made to work over this execution surface: classrun is headless (no window system), and calling e.g. CL_SALV_TABLE->DISPLAY() here raises CX_SY_SEND_DYNPRO_NO_RECEIVER ("No window system type specified") \u2014 confirmed live, not a guess. To verify such logic, run headless and inspect the underlying data (the internal table/data provider) instead of calling DISPLAY(), or add a WRITE-based fallback path for use under this tool.'
-    );
-    if (parameters.length > 0) {
-      try {
-        const src = await readSource(conn, obj);
-        const parsed = parseSelectionScreen(src.source);
-        notes.push(...selectionScreenNotes(parsed, parameters));
-      } catch (e) {
-        notes.push(
-          `Selection-screen source could not be re-read for cross-checking parameter names (${isAbapError(e) ? e.message : "unexpected error"}) \u2014 the run itself was not affected.`
-        );
-      }
-    }
-  }
-  let activation;
-  try {
-    activation = await checkActivation(conn, obj);
-  } catch {
-    activation = "unknown";
-  }
-  notes.push(
-    activation === "active-is-current" ? "Executed in a fresh session, so the code that ran is the code currently active \u2014 not a cached copy." : activation === "newer-inactive-exists" ? "Executed in a fresh session, but a NEWER INACTIVE version exists on the server: what ran is the older ACTIVE code, not your latest edit." : "Executed in a fresh session (no cached copy). Whether the active version is the newest was NOT checked."
-  );
-  if (res.mode === "report" && res.bridgeActivationVerified !== true) {
-    notes.push(
-      "Additionally, activation of the generated bridge class itself was NOT positively verified before it ran \u2014 a separate concern from the target object's activation state noted above."
-    );
-  }
-  const hasDiagnostics = Boolean(res.diagnostics?.length);
-  if (hasDiagnostics) {
-    notes.push(
-      `The ABAP bridge driver reported ${res.diagnostics.length} diagnostic line(s) \u2014 see the DIAGNOSTICS section below. This usually means the capture step itself failed (e.g. no list in ABAP memory), NOT merely that the report printed nothing.`
-    );
-  }
-  const droppedLines = res.droppedLines ?? 0;
-  if (droppedLines > 0) {
-    notes.push(
-      `${droppedLines} line(s) of captured output were dropped and are not shown below.`
-    );
-  }
-  if (res.outputComplete === false) {
-    notes.push(
-      "ABAP-side width truncation was detected: one or more output lines may have been cut short by the classic list width before this tool ever saw them. The output below is not guaranteed complete."
-    );
-  }
-  const genuinelyEmpty = res.lines === 0 && droppedLines === 0 && !hasDiagnostics;
-  const body = res.output.trim() ? res.output : genuinelyEmpty ? "(no output)" : "(nothing shown here \u2014 but this run is NOT confirmed empty: see the NOTE(s) above about diagnostics, dropped lines, and/or incomplete output. Do not read this as a clean, silent, successful run.)";
-  return buildResponse({
-    header: {
-      system: conn.cfg.sid,
-      object: `${obj.type} ${obj.name}`,
-      mode: res.mode,
-      lines: res.lines,
-      durationMs: res.durationMs,
-      bridgeClass: res.bridgeClass,
-      bridgeRefreshed: res.bridgeRefreshed,
-      droppedLines: droppedLines > 0 ? droppedLines : void 0,
-      outputComplete: res.outputComplete === false ? false : void 0
-    },
-    sections: hasDiagnostics ? [{ title: "DIAGNOSTICS", content: res.diagnostics.join("\n") }] : void 0,
-    body,
-    bodyLabel: "OUTPUT",
-    notes,
-    hints: ["Have the code print less, or filter inside ABAP, if the output is truncated."],
-    maxChars
-  });
-}
-var ok2 = (text3) => ({ content: [{ type: "text", text: text3 }] });
-function registerRunTools(mcp, deps) {
-  mcp.registerTool(
-    "abap_run",
-    {
-      description: "Execute an IF_OO_ADT_CLASSRUN class or report; returns output. `parameters` (report mode) fills PARAMETERS/SELECT-OPTIONS. Headless \u2014 no interactive list/ALV grid. Executed ABAP runs with the connected user's full SAP authorisations and is not constrained by this server's package, name or transport allowlists.",
-      inputSchema: runInputSchema,
-      annotations: { readOnlyHint: false, destructiveHint: true }
-    },
-    async (args) => {
-      try {
-        deps.safety.assert("execute", preflight(args), { phase: "preflight" });
-        await deps.ensureConnected();
-        const res = await deps.pool.withWrite(
-          "abap_run",
-          void 0,
-          (conn) => abapRun(conn, args, deps.cfg.maxResponseChars, deps.safety)
-        );
-        return ok2(res.text);
-      } catch (e) {
-        return deps.errorResult(e);
-      }
-    }
-  );
-}
-
-// src/tools/debug.ts
-function createLiveDebugToolDeps(params) {
-  const armLock = createDebugArmLock({
-    stateDir: resolveStateDir(process.env),
-    cfg: params.cfg,
-    enabled: params.cfg.crossProcessDebugLock,
-    waitMs: params.cfg.debugLockWaitMs
-  });
-  return {
-    createSession(conn, safety, opts) {
-      const client = createDebugClientForConnection(conn, {
-        safety,
-        target: opts?.target
-      });
-      const identity = resolveDebugIdentity(params.cfg);
-      warnIfDerivedIdentity(identity, opts?.log ?? params.log);
-      const sessionOpts = {
-        client,
-        context: {
-          debuggingMode: "user",
-          requestUser: params.cfg.user,
-          terminalId: identity.terminalId,
-          ideId: identity.ideId
-        },
-        log: opts?.log ?? params.log,
-        sessionLease: opts?.sessionLease,
-        armLock
-      };
-      return new DebugSession(sessionOpts);
-    },
-    async createTriggerConnection() {
-      const c = params.pool.createUnpooledConnection("debug-trigger");
-      await c.connect();
-      c.dispose();
-      return c;
-    },
-    resolveObject(conn, ref2) {
-      return resolveObject(conn, ref2);
-    },
-    triggerRun(conn, input, maxChars, gate) {
-      return abapRun(conn, input, maxChars, gate);
-    },
-    log: params.log,
-    reserveDebugSession: (op) => params.pool.reserveDebug(op),
-    allowJumpToLine: params.cfg.allowDebugJumpToLine,
-    async releaseOrphanListener(conn) {
-      const identity = resolveDebugIdentity(params.cfg);
-      const client = createDebugClientForConnection(conn, { safety: params.gate });
-      const context = {
-        debuggingMode: "user",
-        requestUser: params.cfg.user,
-        terminalId: identity.terminalId,
-        ideId: identity.ideId
-      };
-      const probe3 = await client.getListener(context);
-      if (probe3.kind === "absent") return { kind: "absent" };
-      if (probe3.kind === "conflict") {
-        return { kind: "conflict", detail: probe3.conflict.conflictText };
-      }
-      await client.stopListener(context);
-      return { kind: "released" };
-    },
-    async releaseOrphanDebuggee(conn) {
-      const client = createDebugClientForConnection(conn, { safety: params.gate });
-      const identity = resolveDebugIdentity(params.cfg);
-      const probe3 = new DebugSession({
-        client,
-        context: {
-          debuggingMode: "user",
-          requestUser: params.cfg.user,
-          terminalId: identity.terminalId,
-          ideId: identity.ideId
-        },
-        log: params.log,
-        listenerTimeoutSeconds: 5,
-        registrationPollTimeoutMs: 3e3,
-        // The probe arms a REAL listener at this identity, so it contends for
-        // the same debugger slot and must take the same lock — a no-op if
-        // THIS process already holds it, a refusal if another one does.
-        armLock
-      });
-      try {
-        await probe3.armListener();
-        const caught = await probe3.waitForDebuggee();
-        if (caught.kind !== "debuggee") {
-          return { kind: "absent" };
-        }
-        await probe3.attach(caught.debuggee.id);
-        await probe3.terminate("terminated_by_caller", "force-cleared orphaned debuggee (abap_debug stop force:true)");
-        return { kind: "released" };
-      } catch (e) {
-        try {
-          await probe3.terminate("terminated_by_caller", "cleanup after failed orphan-debuggee force-clear");
-        } catch {
-        }
-        if (isAbapError(e) && e.code === "NOT_CONNECTED") {
-          return { kind: "absent" };
-        }
-        return { kind: "unknown", detail: describeUnknownError(e) };
-      }
-    }
-  };
-}
-var currentRun;
-function assertDebugWrite(gate, target, phase = "final") {
-  return gate.authorize("execute", target, { phase });
-}
-function assertSessionWrite(gate, run2) {
-  return assertDebugWrite(gate, run2.gateTarget.target, run2.gateTarget.phase);
-}
-function shutdownDebugTools() {
-  const run2 = currentRun;
-  currentRun = void 0;
-  run2?.closeTriggerConn();
-}
-var TIMED_OUT = /* @__PURE__ */ Symbol("debug.timed-out");
-function raceDeadline(p, ms) {
-  let timer;
-  const deadline2 = new Promise((resolve5) => {
-    timer = setTimeout(() => resolve5(TIMED_OUT), ms);
-    if (typeof timer.unref === "function") timer.unref();
-  });
-  return Promise.race([p, deadline2]).finally(() => {
-    if (timer !== void 0) clearTimeout(timer);
-  });
-}
-var START_FAILURE_TRIGGER_WAIT_MS = 2e3;
-var START_FAILURE_CLEANUP_WAIT_MS = 5e3;
-var STOP_WAIT_MS = 5e3;
-var FORCE_CLEAR_WAIT_MS = 15e3;
-function makeTriggerConnCloser(triggerConn, log2) {
-  let closed = false;
-  return () => {
-    if (closed) return;
-    closed = true;
-    try {
-      void triggerConn.shutdown("debug-trigger-done").catch((e) => {
-        log2?.(`abap_debug: trigger connection shutdown failed: ${describeUnknownError(e)}`);
-      }).finally(() => triggerConn.dispose());
-    } catch (e) {
-      log2?.(`abap_debug: trigger connection shutdown threw: ${describeUnknownError(e)}`);
-      triggerConn.dispose();
-    }
-  };
-}
-function renderTriggerOutcome(settled, waitedMs) {
-  if (settled === TIMED_OUT) {
-    return `(the trigger run had NOT returned after ${waitedMs} ms, so no program output is available \u2014 it may still be blocked inside the debuggee)`;
-  }
-  return settled.ok ? settled.text : `(trigger did not complete normally: ${settled.error})`;
-}
-function triggerOutcomeHeader(settled) {
-  if (settled === TIMED_OUT) return "trigger_not_returned";
-  if (settled.ok) return "ran_to_completion";
-  return settled.code === "RUNTIME_DUMP" ? "short_dumped" : "trigger_failed";
-}
-function clampMaxChars(maxChars) {
-  return Math.min(maxChars, DEBUG_MAX_CHARS);
-}
-var breakpointConditionFields = {
-  condition: external_exports.string().trim().min(1).max(255).optional(),
-  skipCount: external_exports.number().int().nonnegative().max(1e6).optional()
-};
-var lineBreakpointSchema = external_exports.object({
-  ...breakpointConditionFields,
-  kind: external_exports.literal("line"),
-  object: external_exports.string().describe("Class or report to break in \u2014 any form abap_read/abap_run accept."),
-  line: external_exports.number().int().min(1).max(999999).describe(
-    "1-based; SAP may snap it to the nearest executable statement (the start response reports the correction)."
-  )
-});
-var exceptionBreakpointSchema = external_exports.object({
-  ...breakpointConditionFields,
-  kind: external_exports.literal("exception"),
-  exceptionClass: external_exports.string().describe("Exception class to break on, e.g. CX_SY_ZERODIVIDE.")
-});
-var debugInputSchema = {
-  action: external_exports.enum(["start", "step", "stack", "frame", "keepalive", "stop", "status"]).describe(
-    "start needs breakpoints+run. step needs stateId+step. stack needs stateId. frame needs stateId+frame. keepalive/stop/status need nothing."
-  ),
-  breakpoints: external_exports.array(external_exports.discriminatedUnion("kind", [lineBreakpointSchema, exceptionBreakpointSchema])).optional().describe(
-    '\u22651 entry, required for action="start"; kinds may mix and are validated against SAP before arming. Both kinds take optional condition (ABAP expression, suspend only when true) and skipCount (sent to SAP, NOT enforced \u2014 use step:"continue").'
-  ),
-  run: external_exports.object({
-    object: external_exports.string().describe("Class or report to execute \u2014 same resolution rules as abap_run."),
-    mode: external_exports.enum(["class", "report", "auto"]).optional().describe("Default auto.")
-  }).optional().describe(
-    'The program to trigger (action="start").'
-  ),
-  step: external_exports.enum(["into", "over", "return", "continue", "runToLine", "jumpToLine"]).optional().describe(
-    'continue may end the session (status="dead" plus captured output). runToLine/jumpToLine need toLine; jumpToLine also needs server ABAP_ALLOW_DEBUG_JUMP_TO_LINE=true and confirm:"jumpToLine".'
-  ),
-  toLine: external_exports.number().int().min(1).max(999999).optional().describe(
-    `Required for step="runToLine"/"jumpToLine". 1-based line in the current frame's source.`
-  ),
-  stateId: external_exports.string().optional().describe(
-    "From the most recent start/step/stack/frame response; a stale id is refused."
-  ),
-  frame: external_exports.number().int().min(1).describe(
-    "1-based stackPosition from the last STACK section. Read-only."
-  ).optional(),
-  confirm: external_exports.string().optional().describe(
-    'Required for step="jumpToLine": echo "jumpToLine". Ignored otherwise.'
-  ),
-  // "Uncleanly-exited process" = crash/kill-9/container respawn; NOT
-  // automatic (unlike listener release) because terminating a SUSPENDED
-  // debuggee ends real work; identity-scoped so it can only reach a debuggee
-  // this server armed. See `releaseOrphanDebuggee` above; full prose moved to
-  // doc/TOOLS/debugger.md.
-  force: external_exports.boolean().optional().describe(
-    `stop only \u2014 force-terminates a debuggee left attached by an unclean exit (the "Debuggee already attached" error's escape hatch).`
-  )
-};
-var DebugInput = external_exports.object(debugInputSchema);
-function stepKindOf(step) {
-  switch (step) {
-    case "into":
-      return "stepInto";
-    case "over":
-      return "stepOver";
-    case "return":
-      return "stepReturn";
-    case "continue":
-      return "stepContinue";
-    case "runToLine":
-      return "stepRunToLine";
-    case "jumpToLine":
-      return "stepJumpToLine";
-  }
-}
-var LINE_TARGETED_STEPS = /* @__PURE__ */ new Set([
-  "stepRunToLine",
-  "stepJumpToLine"
-]);
-function lineStepUri(stack, toLine) {
-  const frame = stack?.frames.find((f) => !f.systemProgram && f.uri) ?? stack?.frames.find((f) => f.uri);
-  if (!frame?.uri) {
-    throw new AbapError(
-      "UNSUPPORTED",
-      `step:"runToLine"/"jumpToLine" needs the current frame's source URI, and the last stack reported none (system frames often have no resolvable source). Use step:"over"/"into" instead, or set a line breakpoint and step:"continue" to it.`,
-      { toLine }
-    );
-  }
-  return withStartFragment(frame.uri.split("#")[0], toLine);
-}
-async function composeStopOutput(run2, action, stack, stateId, maxChars, extraNotes = []) {
-  const root = await run2.session.getRootVariables(stateId);
-  const entries = root.variables.variables.map((variable) => ({ variable }));
-  const survey = renderSurvey(entries, { maxChars: DEBUG_MAX_CHARS, stateId });
-  const stackText = renderStackSection(stack, stateId);
-  const visibleFrames = stack.frames.filter((f) => !f.systemProgram);
-  const top = visibleFrames[0] ?? stack.frames[0];
-  return buildResponse({
-    header: {
-      action,
-      status: run2.session.snapshot.status,
-      program: top?.programName,
-      include: top?.includeName,
-      line: top?.line,
-      stateId
-    },
-    sections: [{ title: "STACK", content: stackText }],
-    body: survey.text,
-    bodyLabel: "VARIABLES",
-    notes: [
-      ...extraNotes,
-      ...survey.degraded.length ? [`${survey.degraded.length} value(s) shortened to fit budget \u2014 each still names its own retrieval call.`] : []
-    ],
-    maxChars: clampMaxChars(maxChars)
-  });
-}
-function isGenericFallbackEvidence(tr) {
-  if (!tr) return false;
-  if (tr.kind !== "exception" && tr.kind !== "session_ended") return false;
-  return tr.bodyExcerpt !== void 0 && tr.bodyExcerpt === tr.detail;
-}
-function renderTerminationEvidence(tr) {
-  if (!tr) return [];
-  const showBodyExcerpt = !isGenericFallbackEvidence(tr);
-  switch (tr.kind) {
-    case "exception":
-      return [
-        `Termination evidence: the debuggee ended via an ABAP exception \u2014 ${tr.exceptionClassNames.join(", ")}.` + (tr.bodyExcerpt && showBodyExcerpt ? ` Raw evidence: ${tr.bodyExcerpt}` : "")
-      ];
-    case "session_ended":
-      return [
-        "Termination evidence: the debug session ended (SAP reported the session/debuggee is gone), but the response carried no exception class name \u2014 this is NOT confirmed to be an exception; it is only confirmed to be a session-gone condition." + (tr.bodyExcerpt && showBodyExcerpt ? ` Raw evidence: ${tr.bodyExcerpt}` : "")
-      ];
-    case "idle_timeout":
-      return [`Termination evidence: idle timeout \u2014 no debugger activity for ${tr.thresholdMs}ms.`];
-    case "terminated_by_caller":
-      return [`Termination evidence: stopped by explicit caller request (abap_debug action:"stop").`];
-    case "finished":
-      return [
-        "Termination evidence: the debuggee itself reported stepping/termination as no longer possible (a clean finish \u2014 no exception, no timeout, no caller-requested stop)."
-      ];
-  }
-}
-async function composeDeathOutput(run2, action, maxChars, cause) {
-  const settled = await raceDeadline(run2.triggerSettled, STOP_WAIT_MS);
-  const outputSection = {
-    title: "PROGRAM OUTPUT",
-    content: renderTriggerOutcome(settled, STOP_WAIT_MS)
-  };
-  run2.closeTriggerConn();
-  const snapshot = run2.session.snapshot;
-  const showDeathDetail = !isGenericFallbackEvidence(snapshot.terminationResult);
-  const notes = [
-    showDeathDetail ? snapshot.deathDetail : void 0,
-    snapshot.deathDetail === void 0 && cause instanceof Error ? cause.message : void 0,
-    ...renderTerminationEvidence(snapshot.terminationResult)
-  ].filter((n) => Boolean(n));
-  if (settled === TIMED_OUT) {
-    notes.push("Program output is incomplete: the trigger run had not returned when the wait expired.");
-  }
-  const triggerOutcome = triggerOutcomeHeader(settled);
-  if (triggerOutcome === "short_dumped" || triggerOutcome === "trigger_failed") {
-    notes.push(
-      `triggerOutcome ("${triggerOutcome}") comes from the trigger run used to reach the breakpoint, not from the debug session's own termination evidence above \u2014 the two are independent signals and can disagree. See PROGRAM OUTPUT for the trigger run's own error text.`
-    );
-  }
-  return buildResponse({
-    header: {
-      action,
-      status: snapshot.status,
-      deathReason: snapshot.deathReason,
-      terminationKind: snapshot.terminationResult?.kind,
-      triggerOutcome
-    },
-    sections: [outputSection],
-    notes,
-    maxChars: clampMaxChars(maxChars)
-  });
-}
-var ENHANCEMENT_DEBUG_TYPES = /* @__PURE__ */ new Set(["ENHO/XH", "ENHO/XHH", "ENHS/XS"]);
-async function refuseEnhancementDebugTarget(conn, bpObject, resolved) {
-  const name = resolved.name;
-  let advice;
-  switch (resolved.type) {
-    case "ENHO/XH": {
-      let classNames = [];
-      try {
-        const doc = await readBadiImplementation(conn, name);
-        classNames = doc.data.implementations.map((impl) => impl.implementingClass?.name).filter((n) => Boolean(n));
-      } catch {
-      }
-      advice = classNames.length > 0 ? `Set the breakpoint in its implementing class instead: ${classNames.join(", ")}.` : "Set the breakpoint in its implementing class instead \u2014 read this BAdI implementation with abap_read to find the class name.";
-      break;
-    }
-    case "ENHO/XHH": {
-      let enhancedObject;
-      try {
-        const doc = await readSourceCodePlugin(conn, name);
-        enhancedObject = doc.data.enhancedObject?.name;
-      } catch {
-      }
-      advice = enhancedObject ? `Set the breakpoint in the object it enhances instead: ${enhancedObject}.` : "Set the breakpoint in the object it enhances instead \u2014 read this enhancement plug-in with abap_read to find that object.";
-      break;
-    }
-    case "ENHS/XS": {
-      let badiNames = [];
-      try {
-        const doc = await readEnhancementSpot(conn, name);
-        badiNames = doc.data.badiDefinitions.map((d) => d.name).filter(Boolean);
-      } catch {
-      }
-      advice = badiNames.length > 0 ? `Set the breakpoint in an implementation of one of its BAdI definitions instead: ${badiNames.join(", ")}.` : "Set the breakpoint in an implementation of one of its BAdI definitions instead \u2014 read this enhancement spot with abap_read to find them.";
-      break;
-    }
-    default:
-      advice = "Set the breakpoint in its implementation instead.";
-  }
-  throw new AbapError(
-    "UNSUPPORTED",
-    `${bpObject} is ${resolved.spec.label} (${resolved.type}), which has no debuggable source of its own. ${advice}`,
-    { object: bpObject, type: resolved.type }
-  );
-}
-async function handleStart(conn, input, maxChars, deps, gate) {
-  const live = listActiveDebugSessions();
-  if (live.length > 0) {
-    const status = live[0].snapshot.status;
-    const tracked = currentRun !== void 0 && live.includes(currentRun.session);
-    throw new AbapError(
-      "UNSUPPORTED",
-      tracked ? `A debug session is already "${status}" (one session per process) \u2014 stop it first: abap_debug({action:"stop"}).` : `A debug session from an earlier, unsuccessful start attempt is still registered (status "${status}") even though it never became this process's active session (one session per process) \u2014 clear it first: abap_debug({action:"stop"}); if that reports the cleanup is still running, retry, or use abap_debug({action:"stop", force:true}) to force it out of tracking.`,
-      { status, tracked },
-      void 0,
-      { retryable: true }
-      // transient occupancy, not an unimplemented capability — a stop clears it
-    );
-  }
-  if (!input.breakpoints || input.breakpoints.length === 0) {
-    throw new AbapError(
-      "BAD_INPUT",
-      'abap_debug({action:"start"}) requires a non-empty "breakpoints" array.',
-      {}
-    );
-  }
-  if (!input.run) {
-    throw new AbapError(
-      "BAD_INPUT",
-      'abap_debug({action:"start"}) requires a "run" object naming the program to trigger.',
-      {}
-    );
-  }
-  const runTarget = { name: parseObjectRef(input.run.object).name };
-  assertDebugWrite(gate, runTarget, "preflight");
-  const sessionTarget = { ...runTarget };
-  let gateTarget = { target: sessionTarget, phase: "preflight" };
-  const slot = await deps.reserveDebugSession?.("debugger/listeners");
-  let session;
-  try {
-    session = deps.createSession(slot?.conn ?? conn, gate, {
-      target: sessionTarget,
-      sessionLease: slot
-    });
-  } catch (e) {
-    slot?.release();
-    throw e;
-  }
-  let attachedStack;
-  let attachedStateId;
-  let triggerConn;
-  let triggerSettled;
-  const skipCountWarnings = [];
-  let closeTriggerConn = () => {
-  };
-  try {
-    const resolvedCache = /* @__PURE__ */ new Map();
-    const breakpoints = [];
-    for (const bp of input.breakpoints) {
-      if (bp.skipCount !== void 0 && bp.skipCount > 0) {
-        const where2 = bp.kind === "line" ? `${bp.object}:${bp.line}` : bp.exceptionClass;
-        skipCountWarnings.push(
-          `skipCount:${bp.skipCount} on ${where2} was sent to SAP but is NOT enforced by this ADT debugger backend (live-verified on A4H) \u2014 expect a suspend on EVERY hit, not just the Nth. Use abap_debug({action:"step", step:"continue"}) to advance past hits you want to skip.`
-        );
-      }
-      if (bp.kind === "line") {
-        const key = bp.object.toUpperCase();
-        let resolved = resolvedCache.get(key);
-        if (!resolved) {
-          try {
-            resolved = await deps.resolveObject(conn, bp.object);
-          } catch (e) {
-            if (e instanceof AbapError && e.code === "UNSUPPORTED" && Array.isArray(e.details.types) && e.details.types.includes("BOBF")) {
-              throw new AbapError(
-                "UNSUPPORTED",
-                `${bp.object} is a BOPF business object, which has no source. Set the breakpoint in its implementation class instead.`,
-                { object: bp.object },
-                'Run abap_bopf mode:"show" to list them.'
-              );
-            }
-            throw e;
-          }
-          resolvedCache.set(key, resolved);
-        }
-        if (ENHANCEMENT_DEBUG_TYPES.has(resolved.type)) {
-          await refuseEnhancementDebugTarget(conn, bp.object, resolved);
-        }
-        const baseUri = resolved.sourceUri ?? resolved.uri;
-        if (!baseUri) {
-          throw new AbapError(
-            "UNSUPPORTED",
-            `${bp.object} has no source URI to attach a line breakpoint to.`,
-            { object: bp.object }
-          );
-        }
-        const bpTarget = {
-          name: resolved.name,
-          packageName: resolved.packageName,
-          type: resolved.type
-        };
-        assertDebugWrite(gate, bpTarget);
-        if (gateTarget.phase === "preflight") {
-          Object.assign(sessionTarget, bpTarget);
-          gateTarget = { target: sessionTarget, phase: "final" };
-        }
-        breakpoints.push({
-          kind: "line",
-          uri: `${baseUri}#start=${bp.line}`,
-          // D5: forward what the caller asked for instead of dropping it.
-          ...bp.condition !== void 0 ? { condition: bp.condition } : {},
-          ...bp.skipCount !== void 0 ? { skipCount: bp.skipCount } : {}
-        });
-      } else {
-        breakpoints.push({
-          kind: "exception",
-          exceptionClass: bp.exceptionClass,
-          ...bp.condition !== void 0 ? { condition: bp.condition } : {},
-          ...bp.skipCount !== void 0 ? { skipCount: bp.skipCount } : {}
-        });
-      }
-    }
-    await session.prepareBreakpoints(breakpoints);
-    await session.armListener();
-    triggerConn = await deps.createTriggerConnection();
-    closeTriggerConn = makeTriggerConnCloser(triggerConn, deps.log);
-    triggerSettled = deps.triggerRun(triggerConn, input.run, maxChars, gate).then(
-      (res) => ({ ok: true, text: res.text }),
-      // Preserve the structured AbapError.code alongside the flattened
-      // message — see `DebugTriggerOutcome`'s doc comment.
-      (e) => ({ ok: false, error: describeUnknownError(e), code: isAbapError(e) ? e.code : void 0 })
-    );
-    void triggerSettled.finally(closeTriggerConn).catch(() => {
-    });
-    const listenResult = await session.waitForDebuggee();
-    if (listenResult.kind !== "debuggee") {
-      if (listenResult.kind === "conflict") {
-        throw new AbapError(
-          "ADT_ERROR",
-          `abap_debug start: another listener already holds this session (${listenResult.conflict.conflictText}${listenResult.conflict.ideUser ? `, ideUser=${listenResult.conflict.ideUser}` : ""}).`,
-          { conflict: listenResult.conflict },
-          "Retrying will not clear this: a 409 here means a DIFFERENT (terminalId, ideId) identity already holds the global-scope listener for this SAP user. Stop that listener, or give this process a stable ABAP_TERMINAL_ID/ABAP_IDE_ID pair that matches it."
-        );
-      }
-      throw new AbapError(
-        "ADT_ERROR",
-        `abap_debug start: timed out waiting for the debuggee to hit a breakpoint (kind="${listenResult.kind}").`,
-        { kind: listenResult.kind }
-      );
-    }
-    const attached = await session.attach(listenResult.debuggee.id);
-    attachedStack = attached.stack;
-    attachedStateId = attached.stateId;
-  } catch (e) {
-    await raceDeadline(
-      session.cleanup().catch(() => void 0),
-      START_FAILURE_CLEANUP_WAIT_MS
-    );
-    let triggerNote;
-    if (triggerSettled) {
-      const settled = await raceDeadline(triggerSettled, START_FAILURE_TRIGGER_WAIT_MS);
-      if (settled === TIMED_OUT) {
-        triggerNote = `The trigger run had NOT returned after ${START_FAILURE_TRIGGER_WAIT_MS} ms, so no program output is available to explain this.`;
-      } else if (!settled.ok) {
-        triggerNote = `The trigger run itself failed: ${settled.error}`;
-      } else {
-        const text3 = settled.text.trim();
-        triggerNote = text3 ? `PROGRAM OUTPUT from the trigger run:
-${text3}` : "The trigger run completed and produced no output.";
-      }
-    }
-    closeTriggerConn();
-    if (triggerNote) {
-      if (e instanceof Error) {
-        e.message = `${e.message}
-
-${triggerNote}`;
-        throw e;
-      }
-      throw new AbapError("ADT_ERROR", `${describeUnknownError(e)}
-
-${triggerNote}`, {});
-    }
-    throw e;
-  }
-  currentRun = {
-    session,
-    triggerConn,
-    triggerSettled,
-    closeTriggerConn,
-    gateTarget,
-    lastStack: attachedStack
-  };
-  return await composeStopOutput(currentRun, "start", attachedStack, attachedStateId, maxChars, skipCountWarnings);
-}
-async function handleStep(input, maxChars, gate, deps) {
-  if (!currentRun) {
-    throw new AbapError(
-      "BAD_INPUT",
-      'No active debug session. Start one with abap_debug({action:"start", ...}).'
-    );
-  }
-  if (!input.stateId) {
-    throw new AbapError("BAD_INPUT", 'abap_debug({action:"step"}) requires "stateId".');
-  }
-  if (!input.step) {
-    throw new AbapError("BAD_INPUT", 'abap_debug({action:"step"}) requires "step".');
-  }
-  const run2 = currentRun;
-  assertSessionWrite(gate, run2);
-  const kind = stepKindOf(input.step);
-  if (kind === "stepJumpToLine") {
-    if (deps.allowJumpToLine !== true) {
-      throw new AbapError(
-        "DEBUG_JUMP_DISABLED",
-        'step:"jumpToLine" is disabled on this server. Set ABAP_ALLOW_DEBUG_JUMP_TO_LINE=true to enable it \u2014 this is deliberately separate from ABAP_ALLOW_WRITE, because jumpToLine can skip statements (and any authorization/validation checks they would have run) instead of executing them in order. Use step:"runToLine" instead if the code in between is safe to run.',
-        { step: input.step }
-      );
-    }
-    if (input.confirm !== "jumpToLine") {
-      throw new AbapError(
-        "BAD_INPUT",
-        'step:"jumpToLine" requires confirm:"jumpToLine" on the SAME call, even though ABAP_ALLOW_DEBUG_JUMP_TO_LINE is enabled \u2014 this step can skip code (and any checks it would have run) rather than executing it in order. Reissue the call with confirm:"jumpToLine" once you are sure this is the right target line.',
-        { step: input.step }
-      );
-    }
-  }
-  let uri;
-  if (LINE_TARGETED_STEPS.has(kind)) {
-    if (input.toLine === void 0) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `abap_debug({action:"step", step:"${input.step}"}) requires "toLine" \u2014 the line in the current program to run to. Without it there is no target and the step would be a no-op.`,
-        { step: input.step }
-      );
-    }
-    uri = lineStepUri(run2.lastStack, input.toLine);
-  }
-  let result;
-  try {
-    result = await run2.session.step(input.stateId, kind, uri);
-  } catch (e) {
-    if (run2.session.snapshot.status === "dead") {
-      const out = await composeDeathOutput(run2, "step", maxChars, e);
-      currentRun = void 0;
-      return out;
-    }
-    throw e;
-  }
-  if (run2.session.snapshot.status === "dead") {
-    const out = await composeDeathOutput(run2, "step", maxChars);
-    currentRun = void 0;
-    return out;
-  }
-  run2.lastStack = result.stack;
-  const revisitNotes = result.positionVisitCount > 1 ? [
-    `Position revisited: this exact program/line/stack-level has now been reached ${result.positionVisitCount} times by stepping in this session. If you are stepping through a loop body, "step over"/"step into" can under-report how many iterations actually ran between visits \u2014 this only proves you returned to this line, not how many times the loop body executed in between. For a reliable per-iteration count, set a breakpoint at the loop body's start (abap_debug action:"start" or a line breakpoint) and use step:"continue" repeatedly instead of stepping through \u2014 each hit is a real, separately counted stop.`
-  ] : [];
-  return composeStopOutput(run2, "step", result.stack, result.stateId, maxChars, revisitNotes);
-}
-async function handleStack(input, maxChars) {
-  if (!currentRun) {
-    throw new AbapError(
-      "BAD_INPUT",
-      'No active debug session. Start one with abap_debug({action:"start", ...}).'
-    );
-  }
-  if (!input.stateId) {
-    throw new AbapError("BAD_INPUT", 'abap_debug({action:"stack"}) requires "stateId".');
-  }
-  const stack = await currentRun.session.getStack(input.stateId);
-  currentRun.lastStack = stack;
-  const stackText = renderStackSection(stack, input.stateId);
-  const visibleFrames = stack.frames.filter((f) => !f.systemProgram);
-  const top = visibleFrames[0] ?? stack.frames[0];
-  return buildResponse({
-    header: {
-      action: "stack",
-      status: currentRun.session.snapshot.status,
-      program: top?.programName,
-      include: top?.includeName,
-      line: top?.line,
-      stateId: input.stateId
-    },
-    sections: [{ title: "STACK", content: stackText }],
-    maxChars: clampMaxChars(maxChars)
-  });
-}
-async function handleFrame(input, maxChars) {
-  if (!currentRun) {
-    throw new AbapError(
-      "BAD_INPUT",
-      'No active debug session. Start one with abap_debug({action:"start", ...}).'
-    );
-  }
-  if (!input.stateId) {
-    throw new AbapError("BAD_INPUT", 'abap_debug({action:"frame"}) requires "stateId".');
-  }
-  if (input.frame === void 0) {
-    throw new AbapError(
-      "BAD_INPUT",
-      'abap_debug({action:"frame"}) requires "frame" \u2014 the 1-based stackPosition of the frame to move the read cursor to.'
-    );
-  }
-  const run2 = currentRun;
-  const lastStack = run2.lastStack;
-  const target = lastStack?.frames.find((f) => f.stackPosition === input.frame);
-  if (!lastStack || !target) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `abap_debug({action:"frame", frame:${input.frame}}) does not match any frame in the most recently known stack. Call abap_debug({action:"stack", stateId:"${input.stateId}"}) first to see the current stackPosition values.`,
-      { frame: input.frame }
-    );
-  }
-  await run2.session.setStackPosition(input.stateId, { stackPosition: input.frame, stackType: "ABAP" });
-  const root = await run2.session.getRootVariables(input.stateId);
-  const entries = root.variables.variables.map((variable) => ({ variable }));
-  const survey = renderSurvey(entries, { maxChars: DEBUG_MAX_CHARS, stateId: input.stateId });
-  const stackText = renderStackSection(lastStack, input.stateId);
-  return buildResponse({
-    header: {
-      action: "frame",
-      status: run2.session.snapshot.status,
-      program: target.programName,
-      include: target.includeName,
-      line: target.line,
-      frame: target.stackPosition,
-      stateId: input.stateId
-    },
-    sections: [{ title: "STACK", content: stackText }],
-    body: survey.text,
-    bodyLabel: "VARIABLES",
-    notes: [
-      `Read cursor switched to frame #${target.stackPosition} \u2014 this does not change what runs next. The next step resumes from the live top frame regardless (live-verified).`,
-      ...survey.degraded.length ? [`${survey.degraded.length} value(s) shortened to fit budget \u2014 each still names its own retrieval call.`] : []
-    ],
-    maxChars: clampMaxChars(maxChars)
-  });
-}
-async function handleKeepalive(maxChars, gate) {
-  if (!currentRun) {
-    throw new AbapError(
-      "BAD_INPUT",
-      'No active debug session. Start one with abap_debug({action:"start", ...}).'
-    );
-  }
-  assertSessionWrite(gate, currentRun);
-  currentRun.session.keepalive();
-  const snapshot = currentRun.session.snapshot;
-  return buildResponse({
-    header: {
-      action: "keepalive",
-      status: snapshot.status,
-      stateId: snapshot.stateId,
-      debugSessionId: snapshot.debugSessionId
-    },
-    maxChars: clampMaxChars(maxChars)
-  });
-}
-async function clearLeakedSessions(force) {
-  const leaked = listActiveDebugSessions().filter((s) => s !== currentRun?.session);
-  if (leaked.length === 0) return { found: 0, notes: [] };
-  const notes = [];
-  await Promise.all(
-    leaked.map(async (session) => {
-      const before = session.snapshot.status;
-      const outcome = await raceDeadline(
-        session.terminate("terminated_by_caller").catch((e) => {
-          notes.push(`Leaked debug session cleanup reported an error: ${describeUnknownError(e)}`);
-        }),
-        STOP_WAIT_MS
-      );
-      if (outcome === TIMED_OUT) {
-        if (force) {
-          forceDropDebugSession(session);
-          notes.push(
-            `A leaked debug session (was "${before}") had not finished terminate() after ${STOP_WAIT_MS} ms \u2014 force-dropped from tracking so start is unblocked; its own cleanup continues in the background.`
-          );
-        } else {
-          notes.push(
-            `A leaked debug session (still "${before}") had not finished terminate() after ${STOP_WAIT_MS} ms \u2014 it continues in the background; retry stop, or use stop({force:true}) to unblock start now.`
-          );
-        }
-        return;
-      }
-      notes.push(
-        `Cleared a leaked debug session (no in-process trigger/gate bookkeeping \u2014 most likely left behind by a start that constructed it and then failed) that was "${before}"; it is now "${session.snapshot.status}".`
-      );
-    })
-  );
-  return { found: leaked.length, notes };
-}
-function formatAbandonedCleanupNote(steps) {
-  return `Cleanup timed out on: ${steps.join(", ")} \u2014 may still be armed on the server (e.g. a breakpoint); a later session could hit it.`;
-}
-async function handleStop(conn, maxChars, deps, gate, force = false) {
-  if (!currentRun) {
-    const leaked = await clearLeakedSessions(force);
-    let orphanNote;
-    if (deps.releaseOrphanListener) {
-      try {
-        const result = await raceDeadline(deps.releaseOrphanListener(conn), STOP_WAIT_MS);
-        if (result === TIMED_OUT) {
-          orphanNote = "Checked for a listener orphaned by an earlier process instance, but the check had not returned in time \u2014 nothing more to report.";
-        } else if (result.kind === "released") {
-          orphanNote = "Released a debug listener armed at this server's identity with no in-process session tracking it \u2014 most likely left behind by an earlier, uncleanly-exited process instance.";
-        } else if (result.kind === "conflict") {
-          orphanNote = `Found something at this server's listener identity but could not confirm release: ${result.detail}`;
-        }
-      } catch (e) {
-        orphanNote = `Orphaned-listener check failed: ${describeUnknownError(e)}`;
-      }
-    }
-    let debuggeeNote;
-    if (force && deps.releaseOrphanDebuggee) {
-      try {
-        const result = await raceDeadline(deps.releaseOrphanDebuggee(conn), FORCE_CLEAR_WAIT_MS);
-        if (result === TIMED_OUT) {
-          debuggeeNote = "Force-clear of an orphaned debuggee was requested, but the check had not returned in time \u2014 nothing more to report.";
-        } else if (result.kind === "released") {
-          debuggeeNote = "Force-terminated a debuggee attached at this server's identity with no in-process session tracking it \u2014 most likely left behind by an earlier, uncleanly-exited process instance (crash, kill -9, container respawn).";
-        } else if (result.kind === "unknown") {
-          debuggeeNote = `Force-clear of an orphaned debuggee did not confirm success: ${result.detail}`;
-        }
-      } catch (e) {
-        debuggeeNote = `Force-clear of an orphaned debuggee failed: ${describeUnknownError(e)}`;
-      }
-    }
-    return buildResponse({
-      header: { action: "stop", status: leaked.found > 0 ? "dead" : "idle" },
-      notes: [
-        leaked.found > 0 ? `Cleared ${leaked.found} leaked debug session(s) (constructed by an earlier start that never completed, with no in-process tracking of its own).` : "No active debug session (nothing to stop).",
-        ...leaked.notes,
-        ...orphanNote ? [orphanNote] : [],
-        ...debuggeeNote ? [debuggeeNote] : []
-      ],
-      maxChars: clampMaxChars(maxChars)
-    });
-  }
-  const run2 = currentRun;
-  assertSessionWrite(gate, run2);
-  const notes = [];
-  try {
-    const terminated = await raceDeadline(
-      run2.session.terminate("terminated_by_caller").catch((e) => {
-        notes.push(`Session terminate reported an error: ${describeUnknownError(e)}`);
-      }),
-      STOP_WAIT_MS
-    );
-    if (terminated === TIMED_OUT) {
-      notes.push(
-        `Session terminate had not returned after ${STOP_WAIT_MS} ms \u2014 it continues in the background; the session was dropped here anyway.`
-      );
-    }
-    const settled = await raceDeadline(run2.triggerSettled, STOP_WAIT_MS);
-    if (settled === TIMED_OUT) {
-      notes.push(
-        "Program output is incomplete: the trigger run had not returned when stop gave up waiting."
-      );
-    }
-    const finalSnapshot = run2.session.snapshot;
-    if (finalSnapshot.abandonedCleanupSteps?.length) {
-      notes.push(formatAbandonedCleanupNote(finalSnapshot.abandonedCleanupSteps));
-    }
-    return buildResponse({
-      header: { action: "stop", status: finalSnapshot.status, deathReason: finalSnapshot.deathReason },
-      sections: [{ title: "PROGRAM OUTPUT", content: renderTriggerOutcome(settled, STOP_WAIT_MS) }],
-      notes,
-      maxChars: clampMaxChars(maxChars)
-    });
-  } finally {
-    run2.closeTriggerConn();
-    currentRun = void 0;
-  }
-}
-async function handleStatus(maxChars) {
-  if (!currentRun) {
-    const leaked = listActiveDebugSessions()[0];
-    if (!leaked) {
-      return buildResponse({
-        header: { action: "status", status: "idle", note: "no active debug session" },
-        maxChars: clampMaxChars(maxChars)
-      });
-    }
-    const snapshot2 = leaked.snapshot;
-    return buildResponse({
-      header: {
-        action: "status",
-        status: snapshot2.status,
-        stateId: snapshot2.stateId,
-        debugSessionId: snapshot2.debugSessionId,
-        debuggeeId: snapshot2.debuggeeId,
-        deathReason: snapshot2.deathReason,
-        deathDetail: snapshot2.deathDetail
-      },
-      notes: [
-        'This session has no in-process trigger/gate bookkeeping (most likely an earlier start that constructed it and then failed before completing) \u2014 abap_debug({action:"stop"}) will clear it.'
-      ],
-      maxChars: clampMaxChars(maxChars)
-    });
-  }
-  const snapshot = currentRun.session.snapshot;
-  const notes = [];
-  if (snapshot.status === "dead") {
-    notes.push("Session is dead \u2014 check PROGRAM OUTPUT via a step/stop response for the captured trigger output.");
-  }
-  return buildResponse({
-    header: {
-      action: "status",
-      status: snapshot.status,
-      stateId: snapshot.stateId,
-      debugSessionId: snapshot.debugSessionId,
-      debuggeeId: snapshot.debuggeeId,
-      deathReason: snapshot.deathReason,
-      deathDetail: snapshot.deathDetail
-    },
-    notes,
-    maxChars: clampMaxChars(maxChars)
-  });
-}
-async function abapDebug(conn, input, maxChars, deps, gate) {
-  switch (input.action) {
-    case "start":
-      return handleStart(conn, input, maxChars, deps, gate);
-    case "step":
-      return handleStep(input, maxChars, gate, deps);
-    case "stack":
-      return handleStack(input, maxChars);
-    case "frame":
-      return handleFrame(input, maxChars);
-    case "keepalive":
-      return handleKeepalive(maxChars, gate);
-    case "stop":
-      return handleStop(conn, maxChars, deps, gate, input.force === true);
-    case "status":
-      return handleStatus(maxChars);
-  }
-}
-var debugVarsInputSchema = {
-  stateId: external_exports.string().describe("From the most recent start/step/stack/frame response."),
-  scope: external_exports.enum(["all", "locals", "parameters", "globals"]).optional().describe("Default all."),
-  filter: external_exports.string().optional().describe("Substring match on name.")
-};
-var DebugVarsInput = external_exports.object(debugVarsInputSchema);
-var SCOPE_ID_BY_NAME = {
-  locals: "@LOCALS",
-  parameters: "@PARAMETERS",
-  globals: "@GLOBALS"
-};
-async function abapDebugVars(input, maxChars) {
-  if (!currentRun) {
-    throw new AbapError("BAD_INPUT", "No active debug session.");
-  }
-  if (!input.stateId) {
-    throw new AbapError("BAD_INPUT", 'abap_debug_vars requires "stateId".');
-  }
-  const root = await currentRun.session.getRootVariables(input.stateId);
-  const scopeOf = /* @__PURE__ */ new Map();
-  for (const h of root.variables.hierarchies) {
-    scopeOf.set(h.childId, h.parentId);
-  }
-  let filtered = root.variables.variables;
-  if (input.scope && input.scope !== "all") {
-    const wantScopeId = SCOPE_ID_BY_NAME[input.scope];
-    filtered = filtered.filter((v) => scopeOf.get(v.id) === wantScopeId);
-  }
-  if (input.filter) {
-    const needle = input.filter.toLowerCase();
-    filtered = filtered.filter((v) => v.name.toLowerCase().includes(needle));
-  }
-  const survey = renderSurvey(
-    filtered.map((variable) => ({ variable })),
-    {
-      maxChars: DEBUG_MAX_CHARS,
-      scopeLabel: input.scope && input.scope !== "all" ? input.scope.toUpperCase() : void 0,
-      // D6 — real stateId, not `STATE_ID_PLACEHOLDER`.
-      stateId: input.stateId
-    }
-  );
-  return buildResponse({
-    header: { stateId: input.stateId, scope: input.scope ?? "all", count: filtered.length },
-    body: survey.text,
-    bodyLabel: "VARIABLES",
-    notes: survey.degraded.length ? [`${survey.degraded.length} value(s) shortened to fit budget \u2014 each still names its own retrieval call.`] : [],
-    maxChars: clampMaxChars(maxChars)
-  });
-}
-var DEFAULT_TABLE_ROWS = 20;
-var MAX_TABLE_ROWS = 200;
-var MAX_LISTED_IDS = 25;
-function listIds(ids) {
-  if (ids.length <= MAX_LISTED_IDS) return ids.join(", ");
-  const shown = ids.slice(0, MAX_LISTED_IDS);
-  return `${shown.join(", ")} \u2026 [TRUNCATED: ${shown.length} of ${ids.length} id(s) listed, ${ids.length - shown.length} cut]`;
-}
-function describeOmissions(requestedIds, align, ctx) {
-  const notes = [];
-  if (align.missing.length > 0) {
-    notes.push(
-      `OMITTED: the debugger returned ${align.resolved.length} of the ${requestedIds.length} variable id(s) requested for ${ctx.subject} \u2014 ${listIds(align.missing)} came back with NO row at all and are NOT shown. A requested id with no row is UNRESOLVED at this stop (unknown name, out-of-range index, or not visible in this frame); it is NOT an empty value, and re-requesting it returns the same nothing. Confirm the id exists here with abap_debug_vars({stateId:"${ctx.stateId}"}).`
-    );
-  }
-  if (align.unexpected.length > 0) {
-    const ids = align.unexpected.map((v) => v.id);
-    notes.push(
-      `UNREQUESTED: the debugger also returned ${align.unexpected.length} row(s) whose id was NOT requested \u2014 ${listIds(ids)}. Their values are NOT shown, because a row nobody asked for, rendered under ${ctx.subject}, is a wrong answer wearing the right label \u2014 the exact mis-attribution that hid this defect. Read one on purpose with abap_debug_value({stateId:"${ctx.stateId}", path:"${ids[0]}"}).`
-    );
-  }
-  return notes;
-}
-var debugValueInputSchema = {
-  stateId: external_exports.string().describe("From the most recent start/step/stack/frame response."),
-  path: external_exports.string().describe(
-    "Variable path, e.g. LT_ITEMS[42]-MATNR. Field symbols keep their angle brackets, e.g. <LS_ITEM>. Unknown paths return empty, not NOT_FOUND."
-  ),
-  from: external_exports.number().int().min(1).max(999999).optional().describe("First row \u2014 tables only. Default 1."),
-  count: external_exports.number().int().positive().max(MAX_TABLE_ROWS).optional().describe(`Tables only. Default ${DEFAULT_TABLE_ROWS}, max ${MAX_TABLE_ROWS}. Page with "from".`),
-  depth: external_exports.number().int().min(1).max(999999).optional().describe("Max nesting depth. Default 3.")
-};
-var DebugValueInput = external_exports.object(debugValueInputSchema);
-async function abapDebugValue(input, maxChars) {
-  if (!currentRun) {
-    throw new AbapError("BAD_INPUT", "No active debug session.");
-  }
-  if (!input.stateId) {
-    throw new AbapError("BAD_INPUT", 'abap_debug_value requires "stateId".');
-  }
-  const run2 = currentRun;
-  const validation = validatePath(input.path);
-  if (!validation.ok) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `Malformed path at "${validation.segment}": ${validation.message}`,
-      { path: input.path, segment: validation.segment }
-    );
-  }
-  const canonicalPath = formatPath(validation.path);
-  const clampedMaxChars = clampMaxChars(maxChars);
-  let rootVars;
-  try {
-    rootVars = await run2.session.getVariables(input.stateId, [canonicalPath]);
-  } catch (e) {
-    if (e instanceof DebugXmlParseError) {
-      return buildResponse({
-        header: { stateId: input.stateId, path: canonicalPath },
-        body: renderEmptyBodyTrap({ path: canonicalPath }),
-        bodyLabel: "VALUE",
-        maxChars: clampedMaxChars
-      });
-    }
-    throw e;
-  }
-  const rootAlign = alignRequestedVariables([canonicalPath], rootVars);
-  const rootNotes = describeOmissions([canonicalPath], rootAlign, {
-    subject: canonicalPath,
-    stateId: input.stateId
-  });
-  const rootVar = rootAlign.resolved[0];
-  if (!rootVar) {
-    return buildResponse({
-      header: { stateId: input.stateId, path: canonicalPath },
-      // The empty-body trap claims "0 bytes", which is only true when the
-      // debugger really sent nothing. Rows for OTHER ids is a different fact and
-      // gets its own words rather than a convenient lie.
-      body: rootVars.length > 0 ? rootNotes.join("\n\n") : renderEmptyBodyTrap({ path: canonicalPath }),
-      bodyLabel: "VALUE",
-      maxChars: clampedMaxChars
-    });
-  }
-  if (!isComplex(rootVar.metaType)) {
-    const node3 = { variable: rootVar };
-    const { text: text4 } = renderDrill(node3, canonicalPath, {
-      depth: input.depth,
-      maxChars: clampedMaxChars,
-      stateId: input.stateId
-    });
-    return buildResponse({
-      header: { stateId: input.stateId, path: canonicalPath },
-      body: text4,
-      bodyLabel: "VALUE",
-      notes: rootNotes,
-      maxChars: clampedMaxChars
-    });
-  }
-  if (rootVar.metaType === "table") {
-    const total = rootVar.tableLines;
-    const from = input.from ?? 1;
-    const requestedCount = input.count ?? DEFAULT_TABLE_ROWS;
-    const count = Math.min(requestedCount, MAX_TABLE_ROWS);
-    const countWasClamped = count < requestedCount;
-    if (total !== void 0 && total > 0 && from > total) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `${canonicalPath} has ${total} row(s) \u2014 "from" (${from}) is past the end. Ask for a row in 1..${total}.`,
-        { path: canonicalPath, from, tableLines: total }
-      );
-    }
-    const tableNotes = [...rootNotes];
-    if (countWasClamped) {
-      tableNotes.push(
-        `TRUNCATED: count:${requestedCount} exceeds the ${MAX_TABLE_ROWS}-row maximum, so only ${count} row(s) were requested from ${canonicalPath} \u2014 rows ${from + count} onward were NOT fetched and are NOT shown. Continue with abap_debug_value({stateId:"${input.stateId}", path:"${canonicalPath}", from:${from + count}, count:${MAX_TABLE_ROWS}}).`
-      );
-    }
-    if (total === 0) {
-      tableNotes.push(`${canonicalPath} is empty: 0 rows.`);
-    } else if (total === void 0) {
-      tableNotes.push(
-        `Row count is unavailable \u2014 the debugger did not report TABLE_LINES for ${canonicalPath}. This is NOT the same as an empty table. "from" could not be range-checked. To settle it, probe the first row: abap_debug_value({stateId:"${input.stateId}", path:"${canonicalPath}[1]"}) \u2014 a row comes back only if data is actually present.`
-      );
-      if (input.from !== void 0 && input.from > 1) {
-        tableNotes.push(
-          `"from" (${input.from}) could not be range-checked because the row count is unavailable.`
-        );
-      }
-    }
-    const clampedFrom = total !== void 0 && total > 0 ? Math.min(Math.max(1, from), total) : total === 0 ? 1 : from;
-    const clampedTo = total !== void 0 && total > 0 ? Math.min(clampedFrom + count - 1, total) : total === 0 ? 0 : from + count - 1;
-    let rowNodes = [];
-    if (total === void 0 || total > 0 && clampedTo >= clampedFrom) {
-      const ids = Array.from({ length: clampedTo - clampedFrom + 1 }, (_, i) => `${canonicalPath}[${clampedFrom + i}]`);
-      let rowCount = 0;
-      try {
-        const rowVars = await run2.session.getVariables(input.stateId, ids);
-        rowCount = rowVars.length;
-        const rowAlign = alignRequestedVariables(ids, rowVars);
-        rowNodes = rowAlign.resolved.map((variable) => ({ variable }));
-        tableNotes.push(
-          ...describeOmissions(ids, rowAlign, { subject: canonicalPath, stateId: input.stateId })
-        );
-      } catch (e) {
-        if (e instanceof DebugXmlParseError) {
-          return buildResponse({
-            header: { stateId: input.stateId, path: canonicalPath },
-            body: renderEmptyBodyTrap({ path: canonicalPath, tableLines: total }),
-            bodyLabel: "VALUE",
-            notes: tableNotes,
-            maxChars: clampedMaxChars
-          });
-        }
-        throw e;
-      }
-      if (ids.length > 0 && rowCount === 0) {
-        return buildResponse({
-          header: { stateId: input.stateId, path: canonicalPath },
-          body: renderEmptyBodyTrap({ path: canonicalPath, tableLines: total }),
-          bodyLabel: "VALUE",
-          notes: tableNotes,
-          maxChars: clampedMaxChars
-        });
-      }
-    }
-    const node3 = { variable: rootVar, children: rowNodes };
-    const { text: text4 } = renderDrill(node3, canonicalPath, {
-      rows: { start: clampedFrom, end: clampedTo || clampedFrom },
-      maxChars: clampedMaxChars,
-      stateId: input.stateId
-    });
-    return buildResponse({
-      header: { stateId: input.stateId, path: canonicalPath },
-      body: text4,
-      bodyLabel: "VALUE",
-      notes: tableNotes,
-      maxChars: clampedMaxChars
-    });
-  }
-  let childResult;
-  try {
-    childResult = await run2.session.getChildVariables(input.stateId, [canonicalPath]);
-  } catch (e) {
-    if (e instanceof DebugXmlParseError) {
-      childResult = { hierarchies: [], variables: [] };
-    } else {
-      throw e;
-    }
-  }
-  const node2 = withChildren(rootVar, childResult);
-  const { text: text3 } = renderDrill(node2, canonicalPath, {
-    depth: input.depth,
-    maxChars: clampedMaxChars,
-    stateId: input.stateId
-  });
-  return buildResponse({
-    header: { stateId: input.stateId, path: canonicalPath },
-    body: text3,
-    bodyLabel: "VALUE",
-    // The `getChildVariables` hop below returns CHILDREN of `canonicalPath`, whose
-    // ids are by definition not the id that was requested, so it has no requested-id
-    // alignment to do. `rootNotes` still travels: it describes the root read.
-    notes: rootNotes,
-    maxChars: clampedMaxChars
-  });
-}
-
-// src/tools/debug-register.ts
-init_errors();
-
-// src/tools/v2/breakpoints.ts
-init_errors();
-var TRAILING_SKIPCOUNT_LOOKALIKE = /#\d+$/;
-var SKIPCOUNT_SUFFIX = /#(\d+)$/;
-var MAX_SKIPCOUNT = 1e6;
-var MAX_CONDITION_LENGTH = 255;
-var MAX_LINE = 999999;
-function badEntry(index, raw, reason) {
-  throw new AbapError(
-    "BAD_INPUT",
-    `Malformed breakpoint at breakpoints[${index}] ("${raw}"): ${reason}`,
-    { index, raw, reason },
-    'Grammar: target(#skipCount)?(?condition)?, target = "exception:CLASSNAME" or "OBJECT:LINE".'
-  );
-}
-function parseBreakpoints(specs) {
-  const breakpoints = [];
-  const notes = [];
-  for (let index = 0; index < specs.length; index++) {
-    const raw = specs[index];
-    if (raw.trim().length === 0) {
-      badEntry(index, raw, "empty entry.");
-    }
-    const qIdx = raw.indexOf("?");
-    const prefix = qIdx === -1 ? raw : raw.slice(0, qIdx);
-    let condition;
-    if (qIdx !== -1) {
-      const rawCondition = raw.slice(qIdx + 1).trim();
-      if (rawCondition.length === 0) {
-        badEntry(index, raw, "empty condition after '?'.");
-      }
-      if (rawCondition.length > MAX_CONDITION_LENGTH) {
-        badEntry(index, raw, `condition exceeds ${MAX_CONDITION_LENGTH} characters.`);
-      }
-      condition = rawCondition;
-      if (TRAILING_SKIPCOUNT_LOOKALIKE.test(rawCondition)) {
-        notes.push(
-          `breakpoints[${index}]: condition "${rawCondition}" ends with what looks like a misplaced #skipCount \u2014 skipCount must appear BEFORE '?condition', not after. The entire text after '?' was treated as the condition, verbatim.`
-        );
-      }
-    }
-    let targetText = prefix;
-    let skipCount;
-    const skipMatch = SKIPCOUNT_SUFFIX.exec(prefix);
-    if (skipMatch) {
-      const hashIdx = skipMatch.index;
-      targetText = prefix.slice(0, hashIdx);
-      skipCount = Number(skipMatch[1]);
-      if (!Number.isSafeInteger(skipCount) || skipCount < 0 || skipCount > MAX_SKIPCOUNT) {
-        badEntry(index, raw, `skipCount out of range (0..${MAX_SKIPCOUNT}).`);
-      }
-    }
-    if (targetText.trim().length === 0) {
-      badEntry(index, raw, "missing target before the skipCount/condition suffix.");
-    }
-    if (/^exception:/i.test(targetText)) {
-      const exceptionClass = targetText.slice("exception:".length).trim();
-      if (exceptionClass.length === 0) {
-        badEntry(index, raw, "empty exception class after 'exception:'.");
-      }
-      breakpoints.push({
-        kind: "exception",
-        exceptionClass,
-        ...condition !== void 0 ? { condition } : {},
-        ...skipCount !== void 0 ? { skipCount } : {}
-      });
-      continue;
-    }
-    const lastColonIdx = targetText.lastIndexOf(":");
-    if (lastColonIdx === -1) {
-      badEntry(index, raw, 'expected "OBJECT:LINE" or "exception:CLASSNAME".');
-    }
-    const object3 = targetText.slice(0, lastColonIdx).trim();
-    const lineText = targetText.slice(lastColonIdx + 1).trim();
-    if (object3.length === 0) {
-      badEntry(index, raw, "empty object before the last ':'.");
-    }
-    if (!/^\d+$/.test(lineText)) {
-      badEntry(index, raw, `expected an integer line number after the last ':', got "${lineText}".`);
-    }
-    const line = Number(lineText);
-    if (line < 1 || line > MAX_LINE) {
-      badEntry(index, raw, `line out of range (1..${MAX_LINE}).`);
-    }
-    breakpoints.push({
-      kind: "line",
-      object: object3,
-      line,
-      ...condition !== void 0 ? { condition } : {},
-      ...skipCount !== void 0 ? { skipCount } : {}
-    });
-  }
-  return { breakpoints, notes };
-}
-
-// src/tools/debug-register.ts
-var DEBUG_UNGATED_ACTIONS = /* @__PURE__ */ new Set(["stack", "frame", "status", "keepalive", "stop"]);
-function stateIdOfResponse(text3) {
-  return /^stateId: (.+)$/m.exec(text3)?.[1]?.trim();
-}
-var ok3 = (text3) => ({ content: [{ type: "text", text: text3 }] });
-function registerDebugTools(mcp, deps) {
-  const debugSessionObjects = /* @__PURE__ */ new Map();
-  mcp.registerTool(
-    "abap_debug",
-    {
-      description: "ABAP debugger driver: arm breakpoints, run a program, step, inspect the stack. One session at a time; variables read-only, frames observe-only.",
-      inputSchema: debugInputSchema,
-      annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true }
-    },
-    async (args) => {
-      try {
-        const a = args;
-        if (!DEBUG_UNGATED_ACTIONS.has(a.action ?? "")) {
-          const object3 = a.action === "step" ? a.stateId ? debugSessionObjects.get(a.stateId) : void 0 : a.run?.object;
-          deps.safety.assert("execute", object3 ? preflight({ object: object3 }) : void 0, {
-            phase: "preflight"
-          });
-        }
-        await deps.ensureConnected();
-        const primary = deps.pool.primary();
-        const res = await abapDebug(primary, args, deps.cfg.maxResponseChars, deps.debugDeps, deps.safety);
-        const nextStateId = stateIdOfResponse(res.text);
-        if (a.action === "start" && a.run?.object && nextStateId) {
-          debugSessionObjects.set(nextStateId, a.run.object);
-        } else if (a.action === "step" && a.stateId) {
-          const carried = debugSessionObjects.get(a.stateId);
-          debugSessionObjects.delete(a.stateId);
-          if (carried && nextStateId) debugSessionObjects.set(nextStateId, carried);
-        }
-        if (a.action === "stop" || /^status: dead$/m.test(res.text)) debugSessionObjects.clear();
-        return ok3(res.text);
-      } catch (e) {
-        return deps.errorResult(e);
-      }
-    }
-  );
-  mcp.registerTool(
-    "abap_debug_vars",
-    {
-      description: "Survey of every variable in scope at a debugger stop; complex values come back as abap_debug_value stubs.",
-      inputSchema: debugVarsInputSchema,
-      annotations: { readOnlyHint: true, openWorldHint: true }
-    },
-    async (args) => {
-      try {
-        deps.safety.assert("read");
-        const res = await abapDebugVars(args, deps.cfg.maxResponseChars);
-        return ok3(res.text);
-      } catch (e) {
-        return deps.errorResult(e);
-      }
-    }
-  );
-  mcp.registerTool(
-    "abap_debug_value",
-    {
-      description: "Tier-2 drill-in: render one variable path in detail, with a row window for tables.",
-      inputSchema: debugValueInputSchema,
-      annotations: { readOnlyHint: true, openWorldHint: true }
-    },
-    async (args) => {
-      try {
-        deps.safety.assert("read");
-        const res = await abapDebugValue(args, deps.cfg.maxResponseChars);
-        return ok3(res.text);
-      } catch (e) {
-        return deps.errorResult(e);
-      }
-    }
-  );
-}
-var CORE_ACTIONS = ["start", "step", "stack", "frame", "keepalive", "stop", "status"];
-function isCoreAction(v) {
-  return CORE_ACTIONS.includes(v);
-}
-var STEP_KINDS = ["into", "over", "return", "continue", "runToLine", "jumpToLine"];
-function isStepKind(v) {
-  return STEP_KINDS.includes(v);
-}
-var SCOPE_KINDS = ["all", "locals", "parameters", "globals"];
-function isScopeKind(v) {
-  return SCOPE_KINDS.includes(v);
-}
-function createDebugRunner(deps) {
-  const debugSessionObjects = /* @__PURE__ */ new Map();
-  async function run2(rawArgs) {
-    const a = rawArgs ?? {};
-    const action = a.action ?? "";
-    if (action === "vars" || action === "value") {
-      deps.safety.assert("read");
-      if (action === "vars") {
-        if (a.stateId === void 0) {
-          throw new AbapError("BAD_INPUT", 'action="vars" requires stateId.');
-        }
-        let scopeKind;
-        if (a.scope !== void 0) {
-          if (!isScopeKind(a.scope)) {
-            throw new AbapError(
-              "BAD_INPUT",
-              `Unknown scope "${a.scope}" \u2014 expected all, locals, parameters, or globals.`
-            );
-          }
-          scopeKind = a.scope;
-        }
-        const res3 = await abapDebugVars(
-          {
-            stateId: a.stateId,
-            ...scopeKind !== void 0 ? { scope: scopeKind } : {},
-            ...a.filter !== void 0 ? { filter: a.filter } : {}
-          },
-          deps.cfg.maxResponseChars
-        );
-        return { text: res3.text, notes: [], stateId: a.stateId, dead: false };
-      }
-      if (a.stateId === void 0 || a.path === void 0) {
-        throw new AbapError("BAD_INPUT", 'action="value" requires stateId and path.');
-      }
-      const res2 = await abapDebugValue(
-        {
-          stateId: a.stateId,
-          path: a.path,
-          ...a.from !== void 0 ? { from: a.from } : {},
-          ...a.count !== void 0 ? { count: a.count } : {},
-          ...a.depth !== void 0 ? { depth: a.depth } : {}
-        },
-        deps.cfg.maxResponseChars
-      );
-      return { text: res2.text, notes: [], stateId: a.stateId, dead: false };
-    }
-    if (!isCoreAction(action)) {
-      throw new AbapError("BAD_INPUT", `Unknown abap_debug action "${action}".`);
-    }
-    let stepKind;
-    if (action === "step" && a.step !== void 0) {
-      if (!isStepKind(a.step)) {
-        throw new AbapError(
-          "BAD_INPUT",
-          `Unknown step "${a.step}" \u2014 expected into, over, return, continue, runToLine, or jumpToLine.`
-        );
-      }
-      stepKind = a.step;
-    }
-    let notes = [];
-    let breakpoints;
-    if (action === "start" && a.breakpoints !== void 0) {
-      const parsed = parseBreakpoints(a.breakpoints);
-      breakpoints = parsed.breakpoints;
-      notes = parsed.notes;
-    }
-    if (!DEBUG_UNGATED_ACTIONS.has(action)) {
-      const object3 = action === "step" ? a.stateId ? debugSessionObjects.get(a.stateId) : void 0 : a.run;
-      deps.safety.assert("execute", object3 ? preflight({ object: object3 }) : void 0, { phase: "preflight" });
-    }
-    await deps.ensureConnected();
-    const primary = deps.pool.primary();
-    const input = {
-      action,
-      ...a.stateId !== void 0 ? { stateId: a.stateId } : {},
-      ...breakpoints !== void 0 ? { breakpoints } : {},
-      ...action === "start" && a.run !== void 0 ? { run: { object: a.run } } : {},
-      ...stepKind !== void 0 ? { step: stepKind } : {},
-      ...a.toLine !== void 0 ? { toLine: a.toLine } : {},
-      ...action === "frame" && a.frame !== void 0 ? { frame: a.frame } : {},
-      ...a.confirm !== void 0 ? { confirm: a.confirm } : {}
-    };
-    const res = await abapDebug(primary, input, deps.cfg.maxResponseChars, deps.debugDeps, deps.safety);
-    const nextStateId = stateIdOfResponse(res.text);
-    if (action === "start" && a.run !== void 0 && nextStateId) {
-      debugSessionObjects.set(nextStateId, a.run);
-    } else if (action === "step" && a.stateId) {
-      const carried = debugSessionObjects.get(a.stateId);
-      debugSessionObjects.delete(a.stateId);
-      if (carried && nextStateId) debugSessionObjects.set(nextStateId, carried);
-    }
-    const dead = action === "stop" || /^status: dead$/m.test(res.text);
-    if (dead) debugSessionObjects.clear();
-    return { text: res.text, notes, ...nextStateId !== void 0 ? { stateId: nextStateId } : {}, dead };
-  }
-  return { run: run2 };
-}
-
-// src/tools/journal.ts
-init_zod();
-init_errors();
-
-// src/adt/undo.ts
-init_compact();
-init_errors();
-init_session();
-init_types();
-init_capabilities();
-
-// src/adt/view-delete.ts
-init_errors();
-init_enhancement_templates();
-var VIEW_NAME_MAX = 30;
-function validate3(p) {
-  const viewName = assertEnhIdentifier(p.viewName, "viewName", { maxLength: VIEW_NAME_MAX });
-  return { viewName };
-}
-async function deleteClassicViewViaBridge(conn, gate, params) {
-  assertServerPackage(params.packageName, `view ${params.viewName}`);
-  const { viewName } = validate3(params);
-  const packageName = params.packageName.name;
-  assertBridgeMutation(
-    gate,
-    { type: "VIEW/DV", name: viewName, packageName },
-    { activate: false, op: "delete", corr: { kind: "local" } }
-  );
-  const beforeAssert = (transcript) => {
-    if (transcript.errorLine?.includes(`${viewName} does not exist`)) {
-      throw new AbapError(
-        "CHECK_FAILED",
-        `View ${viewName} does not exist, so there is nothing to delete. Raw ABAP-side detail: ${transcript.errorLine}`,
-        { viewName, raw: transcript.raw }
-      );
-    }
-  };
-  return runClassicAction(conn, gate, {
-    action: "delete_view",
-    args: { view_name: viewName, package_name: packageName },
-    what: `Deleting classic view ${viewName}`,
-    expectTags: ["VIEW-DELETED", "VIEW-GONE"],
-    beforeAssert
-  });
-}
-
-// src/adt/tran-delete.ts
-init_errors();
-init_enhancement_templates();
-
-// src/adt/tran-create.ts
+// src/adt/package-create.ts
 init_errors();
 init_enhancement_templates();
 init_transports();
-var TCODE_MAX_LENGTH = 20;
-var TTEXT_MAX_LENGTH = 37;
-var PROGRAM_MAX_LENGTH = 40;
 var PACKAGE_MAX_LENGTH2 = 30;
-function assertTransactionCode(value, what = "tcode") {
-  if (typeof value !== "string" || !new RegExp(`^[A-Za-z][A-Za-z0-9_]{0,${TCODE_MAX_LENGTH - 1}}$`).test(value)) {
+var CTEXT_MAX_LENGTH = 60;
+function assertSoftwareComponent(value, what = "softwareComponent") {
+  if (typeof value !== "string" || !/^[A-Z][A-Z0-9_]{0,29}$/.test(value)) {
     throw new AbapError(
       "BAD_INPUT",
-      `${what} ${JSON.stringify(value)} is not a valid transaction code for this bridge (a letter, then letters, digits and underscores only, max ${TCODE_MAX_LENGTH} characters).`,
-      { what, value, maxLength: TCODE_MAX_LENGTH },
-      "A quote, a period or a newline is refused outright, not escaped or stripped. SAP itself allows '/' and '-' in customer transaction codes; this bridge does not, because no run in this codebase has established that they are safe in that position."
+      `${what} ${JSON.stringify(value)} is not a valid software component for this bridge (a letter, then letters, digits and underscores only, max 30 characters, already upper-cased and trimmed by the caller).`,
+      { what, value }
+    );
+  }
+  if (value === "LOCAL") {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${what} "LOCAL" is refused by this bridge \u2014 a local ($TMP-style) package is created over ordinary ADT REST, not via this classrun bridge, which exists precisely because transportable package creation is unreachable there.`,
+      { what, value },
+      `Use ADT REST for a local package: abap_write type=DEVC/K software_component="LOCAL" (there is no mode=create \u2014 abap_write's mode is write/delete, and a create is a write to a name that does not exist yet).`
     );
   }
   return value;
@@ -109135,9 +106382,147 @@ function assertCorrNr2(value) {
   }
   return value;
 }
+function assertPackageType(value) {
+  if (value === void 0 || value === "development") return;
+  throw new AbapError(
+    "BAD_INPUT",
+    `package_type ${JSON.stringify(value)} is not supported \u2014 only "development" (SCOMPKDTLN-PACKTYPE = 'D') is exposed by this bridge today.`,
+    { what: "packageType", value },
+    "Structure packages, main packages and other PACKTYPE values are not implemented \u2014 this is a deliberate scope limitation, not an oversight; extend assertPackageType (src/adt/package-create.ts) if one of them is needed."
+  );
+}
+var PKG_TDEVC_PREFIX = "ZMCP-PKG-TDEVC>";
+function parseTdevcLine(raw) {
+  for (const line of raw.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith(PKG_TDEVC_PREFIX)) continue;
+    const rest = trimmed.slice(PKG_TDEVC_PREFIX.length).trim();
+    const fields = {};
+    for (const part of rest.split(" ")) {
+      const eq = part.indexOf("=");
+      if (eq === -1) continue;
+      fields[part.slice(0, eq)] = part.slice(eq + 1).trim();
+    }
+    const devclass = fields["DEVCLASS"];
+    const parentcl = fields["PARENTCL"];
+    const dlvunit = fields["DLVUNIT"];
+    const korrflag = fields["KORRFLAG"];
+    if (devclass === void 0 || parentcl === void 0 || dlvunit === void 0 || korrflag === void 0) {
+      return void 0;
+    }
+    return { devclass, parentcl, dlvunit, korrflag };
+  }
+  return void 0;
+}
+function tdevcDiscrepancies(row2, expect) {
+  if (row2 === void 0) {
+    return [
+      `The bridge wrote no ${PKG_TDEVC_PREFIX} evidence line, so the TDEVC row could not be compared against what was requested. This is not evidence of failure \u2014 the PKG-CONFIRMED tag is only written after the row was read back successfully \u2014 but it is not confirmation of the row's contents either.`
+    ];
+  }
+  const out = [];
+  if (row2.dlvunit !== expect.softwareComponent) {
+    out.push(
+      `TDEVC-DLVUNIT is ${JSON.stringify(row2.dlvunit)}, not the requested software component ${JSON.stringify(expect.softwareComponent)}. The package exists; check it in SE21 before writing into it, or delete it with abap_write mode=delete while it is still empty.`
+    );
+  }
+  if (row2.korrflag !== "X") {
+    out.push(
+      `TDEVC-KORRFLAG is ${JSON.stringify(row2.korrflag)}, not the "X" the create set on SCOMPKDTLN. Whether TDEVC stores that flag back verbatim for a transportable package has not been independently confirmed by this codebase, so this may be normal \u2014 but if the package turns out not to demand a transport when written into, this is the first thing to look at.`
+    );
+  }
+  const wantParent = expect.superPackage;
+  if (wantParent !== void 0 && row2.parentcl !== wantParent) {
+    out.push(
+      `TDEVC-PARENTCL is ${JSON.stringify(row2.parentcl)}, not the requested parent ${JSON.stringify(wantParent)} \u2014 the second (LOAD_PACKAGE / SET_SUPER_PACKAGE_NAME) step did not take effect. The package itself exists as a ROOT package; attach the parent by hand in SE21, or delete it with abap_write mode=delete while it is still empty and recreate it with the right parent.`
+    );
+  }
+  return out;
+}
+async function createPackageViaBridge(conn, gate, params) {
+  const packageName = assertEnhIdentifier(params.packageName, "packageName", {
+    maxLength: PACKAGE_MAX_LENGTH2
+  });
+  const description = assertAbapText(params.description, "description", CTEXT_MAX_LENGTH);
+  const softwareComponent = assertSoftwareComponent(params.softwareComponent);
+  const corrNr = assertCorrNr2(params.corrNr);
+  assertPackageType(params.packageType);
+  const superPackage = params.superPackage === void 0 ? void 0 : assertEnhIdentifier(params.superPackage, "superPackage", { maxLength: PACKAGE_MAX_LENGTH2 });
+  const corr = { kind: "transport", corrNr, source: params.corrSource ?? "auto" };
+  assertBridgeMutation(
+    gate,
+    {
+      type: "DEVC/K",
+      name: packageName,
+      // A package create's allowlist question is answered by the SUPERPACKAGE,
+      // not by the package's own not-yet-existing name — see src/safety.ts and
+      // the identical construction in preflightCorr (src/adt/write.ts).
+      packageName: superPackage ?? packageName,
+      ...superPackage !== void 0 ? { superPackage } : {},
+      exists: params.exists ?? false
+    },
+    { activate: false, corr }
+  );
+  const expectTags = superPackage !== void 0 ? ["PKG-CREATED", "PKG-PARENT-SET", "PKG-CONFIRMED"] : ["PKG-CREATED", "PKG-CONFIRMED"];
+  const { run: run2, transcript } = await runClassicAction(conn, gate, {
+    action: "create_package",
+    args: {
+      package_name: packageName,
+      description,
+      software_component: softwareComponent,
+      corr_nr: corrNr,
+      super_package: superPackage ?? "",
+      package_type: params.packageType ?? ""
+    },
+    what: `Creating package ${packageName}`,
+    expectTags,
+    completed: {
+      "PKG-CREATED": `package ${packageName} was created and saved on ${conn.cfg.sid} \u2014 it exists, it is NOT attached to a super package, and abapsmith did not delete it`,
+      ...superPackage !== void 0 ? {
+        "PKG-PARENT-SET": `package ${packageName} was then attached to super package ${superPackage} and saved on ${conn.cfg.sid}`
+      } : {}
+    },
+    partialHint: "SAP may also have created a transport request and a task to hold the new package's lock. abapsmith did not create them and cannot see them from this response \u2014 abap_transport operation=list shows the requests owned by this user."
+  });
+  const tdevc = parseTdevcLine(transcript.raw);
+  return { run: run2, transcript, tdevc };
+}
+
+// src/tools/write.ts
+init_transports();
+
+// src/adt/tran-create.ts
+init_errors();
+init_enhancement_templates();
+init_transports();
+var TCODE_MAX_LENGTH = 20;
+var TTEXT_MAX_LENGTH = 37;
+var PROGRAM_MAX_LENGTH = 40;
+var PACKAGE_MAX_LENGTH3 = 30;
+function assertTransactionCode(value, what = "tcode") {
+  if (typeof value !== "string" || !new RegExp(`^[A-Za-z][A-Za-z0-9_]{0,${TCODE_MAX_LENGTH - 1}}$`).test(value)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${what} ${JSON.stringify(value)} is not a valid transaction code for this bridge (a letter, then letters, digits and underscores only, max ${TCODE_MAX_LENGTH} characters).`,
+      { what, value, maxLength: TCODE_MAX_LENGTH },
+      "A quote, a period or a newline is refused outright, not escaped or stripped. SAP itself allows '/' and '-' in customer transaction codes; this bridge does not, because no run in this codebase has established that they are safe in that position."
+    );
+  }
+  return value;
+}
+function assertCorrNr3(value) {
+  if (!isTrkorr(value)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `corr_nr ${JSON.stringify(value)} is not a transport request/task number this system would issue (e.g. A4HK900121). This module never acquires a request on its own \u2014 the caller must hand it one that has already been judged by the safety gate.`,
+      { what: "corrNr", value }
+    );
+  }
+  return value;
+}
 function assertTransactionCreateTarget(packageName, corrNr) {
   const validated = assertEnhIdentifier(packageName, "packageName", {
-    maxLength: PACKAGE_MAX_LENGTH2,
+    maxLength: PACKAGE_MAX_LENGTH3,
     allowLocal: true
   });
   const local = isLocalPackageName(validated);
@@ -109156,7 +106541,7 @@ function assertTransactionCreateTarget(packageName, corrNr) {
       "Via abap_write, pass corr_nr with the TRKORR the safety gate already judged for this write (see the abapsmith-put-work-on-a-transport skill)."
     );
   }
-  if (corrNr !== void 0) assertCorrNr2(corrNr);
+  if (corrNr !== void 0) assertCorrNr3(corrNr);
   return validated;
 }
 async function createTransaction(conn, gate, params) {
@@ -109187,12 +106572,14 @@ async function createTransaction(conn, gate, params) {
 }
 
 // src/adt/tran-delete.ts
-var PACKAGE_MAX_LENGTH3 = 30;
+init_errors();
+init_enhancement_templates();
+var PACKAGE_MAX_LENGTH4 = 30;
 async function deleteTransactionViaBridge(conn, gate, params) {
   assertServerPackage(params.packageName, `transaction ${params.tcode}`);
   const tcode = assertTransactionCode(params.tcode);
   const packageName = assertEnhIdentifier(params.packageName.name, "packageName", {
-    maxLength: PACKAGE_MAX_LENGTH3,
+    maxLength: PACKAGE_MAX_LENGTH4,
     allowLocal: true
   });
   assertBridgeMutation(
@@ -109218,1980 +106605,486 @@ async function deleteTransactionViaBridge(conn, gate, params) {
   });
 }
 
-// src/adt/undo.ts
-function describeDeleteVerification(v) {
-  const detail = v.status === "indeterminate" ? v.reason : `via ${v.via}`;
-  return `${v.uri} (${detail})`;
+// src/adt/view-create.ts
+init_errors();
+init_enhancement_templates();
+init_transports();
+var VIEW_NAME_MAX = 30;
+var VIEW_TEXT_MAX = 60;
+var MAX_VIEW_FIELDS = 249;
+function isLocalPackage2(packageName) {
+  return isLocalPackageName(packageName);
 }
-var ENHANCEMENT_TYPES = /* @__PURE__ */ new Set(["ENHO/XH", "ENHO/XHH", "ENHS/XS"]);
-function isEnhancementType2(type) {
-  return ENHANCEMENT_TYPES.has(type);
+function classicViewUri(viewName) {
+  return `/sap/bc/adt/ddic/views/${viewName.trim().toLowerCase()}`;
 }
-function enhancementUndoBlocked(type, op, name) {
-  if (!isEnhancementType2(type)) return void 0;
-  if (op === "delete" && type === "ENHO/XH") {
-    return `Undoing this entry would DELETE the BAdI implementation ${name} (undo-of-create). abapsmith has no local record of whether this implementation is currently active \u2014 the journal does not carry \`enho:isActive\`, and this refusal is decided without spending a request to go find out, like every other refusal here. If it IS active, something may already depend on the behaviour it adds, and deleting it would silently switch that off with no error and no log \u2014 a source restore is the wrong tool to express "deactivate" regardless. This is refused even when the implementation turns out to be inactive: see the general enhancement-undo refusal for why deleting ANY enhancement object was found to be unsafe on the live A4H session. There is no override. Remove it deliberately through the ABAP enhancement UI (SE19) with ${name}'s current activation state in view.`;
-  }
-  return `Undo of enhancement objects is refused outright \u2014 ${type} ${name} will not be touched. Three things the live A4H session found make this unsafe even in principle, not merely as a policy choice: a create attempt the server cleanly REFUSED still left a permanently undeletable phantom object behind ("ExceptionResourceDeletionFailure ... cannot be created without a package", no TADIR entry, unreadable via the ABAP API either); a delete the server reported as succeeded (ADT 200) still left TADIR and E071 rows behind indefinitely, so a 404 afterwards is never proof of removal; and on a landscape with \`tp\` misconfigured, a transportable create could not be deleted through ADT at all \u2014 the request and the package were both permanently stuck. Given that, "undo" for an enhancement \u2014 recreating one that was deleted, or deleting one that was created \u2014 is not an operation abapsmith can perform and then trust the result of. Reverse this deliberately through the ABAP enhancement UI (SE18/SE19/SE80), with the residue risk above in view.`;
-}
-function entryClassInclude(entry) {
-  return classIncludeFromSourceUri(entry.object.sourceUri);
-}
-function classIncludeFromSourceUri(uri) {
-  if (uri === void 0) return void 0;
-  const inc = specFromUri(uri)?.include;
-  return inc !== void 0 && inc !== "main" ? inc : void 0;
-}
-function classIncludeActionBlocker(entry, action) {
-  const include = entryClassInclude(entry);
-  if (!include) return void 0;
-  if (action !== "delete" && action !== "recreate") return void 0;
-  const verb = action === "delete" ? "DELETE" : "RE-CREATE";
-  return `Undoing this entry would ${verb} the ${include} include of class ${entry.object.name}, and ADT has no operation that deletes or re-creates one include of a class on its own \u2014 deleteObject sends DELETE {classUri}, which would destroy ${entry.object.name}'s main source and all of its other includes too, not just this one. That is refused rather than attempted. Nothing was changed. To empty a class include, write a single comment line to it (e.g. \`*"* no local test classes\`) \u2014 abapsmith does not send an empty document, and there is no ADT verb that deletes an include on its own. Do that with abap_write include="${include}". This refusal cannot be overridden with force=true.`;
-}
-function packageRecreateBlocker(entry) {
-  if (entry.operation !== "delete" || !isPackageType(entry.object.type)) return void 0;
-  const name = entry.object.name;
-  return `Undoing this entry would RE-CREATE package ${name}, and abapsmith does not re-create packages from a journal entry. The before-image is the package's metadata document (a package has no source), and abapsmith restores a before-image by writing it through the ordinary write path, which would PUT that XML at a URI that has no source document. That is refused rather than attempted. Nothing was changed. Re-create the package deliberately with abap_write type="DEVC/K" (abap_journal mode=show entry=<id> prints the recorded metadata), then move its contents back. This refusal cannot be overridden with force=true.`;
-}
-function undoBlocker(entry) {
-  if (entry.operation === "transport-release") {
-    return "a released transport cannot be recalled; create a corrective transport instead";
-  }
-  if (entry.operation.startsWith("transport-")) {
-    return "transport requests are not undone automatically; use abap_transport to reverse this manually";
-  }
-  if (entry.operation === "activate") {
-    return "This entry records an activation, not a source change. ADT has no deactivate operation, so there is nothing to reverse. Undo the WRITE entry for this object instead (abap_journal mode=list object=\u2026).";
-  }
-  if (entry.outcome === "pending") {
-    return "This entry is still `pending` \u2014 the server outcome was never recorded, which usually means the process died mid-write. The before-image is intact, but abapsmith cannot tell whether the write landed. Read the object first (abap_read) and compare it with the recorded images (abap_journal mode=show), then undo with force=true if you are sure.";
-  }
-  if (isEnhancementType2(entry.object.type)) {
-    return enhancementUndoBlocked(
-      entry.object.type,
-      plannedAction(entry) === "delete" ? "delete" : "write",
-      entry.object.name
-    );
-  }
-  if (entry.irreversible) {
-    return "This entry is marked irreversible \u2014 recorded for history only. No mechanism can undo it, not even with force=true.";
-  }
-  return void 0;
-}
-function captureExplanation(capture) {
-  switch (capture) {
-    case "failed":
-      return "The before-image probe did not yield usable evidence \u2014 it may never have completed (timeout, 401, 403, 500 \u2026), or it may have answered without confirming absence \u2014 so `existedBefore: false` is a GUESS, not an observation of an absent object.";
-    case "unknown":
-      return "The entry does not record how `existedBefore` was established \u2014 it predates provenance recording, or the recorded value was not one abapsmith understands. Either way nothing here proves the object was absent.";
-    case "captured":
-      return "The entry claims BOTH that the previous source was captured and that the object did not exist. Those cannot both be true, so the entry contradicts itself and none of it can be trusted to authorise a delete.";
-    case "confirmed-absent":
-      return "The absence was positively confirmed.";
-  }
-}
-function deleteEvidenceBlocker(entry) {
-  if (entry.operation === "delete" || entry.existedBefore) return void 0;
-  if (entry.beforeCapture === "confirmed-absent") return void 0;
-  const name = entry.object.name;
-  return `Undoing this entry would DELETE ${name} from the server, and the journal does not have positive evidence that ${name} was absent before abapsmith wrote it. The recorded provenance is beforeCapture="${entry.beforeCapture}"; only "confirmed-absent" is positive evidence. ${captureExplanation(entry.beforeCapture)} ${name} may well have existed, in which case this undo would destroy source that abapsmith never recorded and therefore cannot put back. This refusal cannot be overridden \u2014 force=true overrides DRIFT, it does not manufacture evidence that was never captured. If you have read ${name} (abap_read) and you do want it gone, delete it deliberately with abap_write mode=delete, which records a real before-image first.`;
-}
-function liveSystem(conn, journal) {
-  return {
-    key: systemKey({ sid: conn.cfg.sid, url: conn.cfg.url, client: conn.cfg.client }),
-    sid: conn.cfg.sid,
-    journalSystem: journal.system
-  };
-}
-function systemMismatchBlocker(entry, live) {
-  if (entry.systemKey) {
-    if (entry.systemKey === live.key) return void 0;
-    return `This journal entry was recorded against a DIFFERENT system. Recorded: ${entry.systemKey} (SID+host+client). Connected: ${live.key}. Replaying it here would write ${entry.object.name}'s source from one system onto another system's object \u2014 the names match, the objects do not. Point abapsmith at the system the entry came from (ABAP_URL / ABAP_CLIENT / ABAP_SID) and undo it there. This refusal cannot be overridden.`;
-  }
-  const recorded = entry.system?.trim().toUpperCase() ?? "";
-  const connected = live.sid.trim().toUpperCase();
-  if (recorded === connected) return void 0;
-  return `This journal entry was recorded on SID ${entry.system || "(none)"} but abapsmith is connected to SID ${live.sid} (journal directory's system: ${live.journalSystem}). The entry predates system-key recording, so this is the WEAKER, SID-only check \u2014 it cannot even tell two hosts apart that share a SID, and it still says these are not the same system. Replaying the entry here would write one system's source onto another's object. This refusal cannot be overridden.`;
-}
-var CLASS_SUB_INCLUDES2 = CLASS_INCLUDES.filter((i) => i !== "main");
-var INCLUDE_LABELS = {
-  definitions: "definitions (CCDEF \u2014 local class/type definitions)",
-  implementations: "implementations (CCIMP \u2014 local class implementations)",
-  macros: "macros (CCMAC)",
-  testclasses: "testclasses (CCAU \u2014 local test classes)"
-};
-var describeIncludes = () => CLASS_SUB_INCLUDES2.map((i) => INCLUDE_LABELS[i] ?? i).join(", ");
-var describeSome = (incs) => incs.map((i) => INCLUDE_LABELS[i] ?? i).join(", ");
-function isClassEntry(entry) {
-  return specForType(entry.object.type)?.kind === "CLAS";
-}
-function recordedClassIncludes(entry) {
-  const recorded = (entry.parts ?? []).filter((p) => p.beforeCapture === "captured" || p.beforeCapture === "confirmed-absent").map((p) => classIncludeFromSourceUri(p.object.sourceUri)).filter((i) => i !== void 0);
-  return new Set(recorded);
-}
-function partialClassRestore(entry, action) {
-  if (action !== "restore" && action !== "recreate") return void 0;
-  if (!isClassEntry(entry)) return void 0;
-  if (entryClassInclude(entry)) return void 0;
-  const recorded = recordedClassIncludes(entry);
-  const unrestored = CLASS_SUB_INCLUDES2.filter((i) => !recorded.has(i));
-  if (unrestored.length === 0) return void 0;
-  const allMissing = unrestored.length === CLASS_SUB_INCLUDES2.length;
-  return {
-    unrestored,
-    reason: action === "recreate" ? allMissing ? `Only the main include of class ${entry.object.name} was ever recorded, so only the main include is recreated. NOT restored: ${describeIncludes()}. The class that comes back is not the class that was deleted.` : `${entry.object.name}'s main include plus its ${describeSome([...recorded])} ${recorded.size === 1 ? "is" : "are"} recorded and will be recreated. Its ${describeSome(unrestored)} ${unrestored.length === 1 ? "was" : "were"} not \u2014 the read that would have captured ${unrestored.length === 1 ? "it" : "them"} failed, so recreating it now would leave that gap silently.` : `Only the main include of class ${entry.object.name} is covered by this undo. Its ${describeIncludes()} were never recorded, are not restored, and are not checked for drift \u2014 changes made there by anybody are invisible to abapsmith.`
-  };
-}
-function classRecreateBlocker(entry, partial2) {
-  const recorded = CLASS_SUB_INCLUDES2.length - partial2.unrestored.length;
-  return `${entry.object.name} is a CLASS. ` + (recorded > 0 ? `abapsmith recorded its main include and ${recorded} of its ${CLASS_SUB_INCLUDES2.length} local includes when it was deleted, but the read for its ${describeSome(partial2.unrestored)} ${partial2.unrestored.length === 1 ? "did" : "each did"} not resolve` : "abapsmith only ever recorded its MAIN include (/oo/classes/\u2026/source/main)") + ". Recreating it from the journal would produce a class that LOOKS intact and is not: its " + describeSome(partial2.unrestored) + ` would come back EMPTY \u2014 any local helper or unit test held only there would be silently missing. Unrestored includes: ${partial2.unrestored.join(", ")}. If a partial restore is genuinely what you want, repeat with force=true; the result will be reported as PARTIAL and you will have to put the missing includes back by hand.`;
-}
-function plannedAction(entry) {
-  if (entry.operation === "delete") return "recreate";
-  if (!entry.existedBefore) return "delete";
-  return "restore";
-}
-function targetFromEntry(entry) {
-  if (isEnhancementType2(entry.object.type)) {
+var PACKAGE_RULES3 = { maxLength: VIEW_NAME_MAX, allowLocal: true };
+function assertCorrNr4(value) {
+  if (!isTrkorr(value)) {
     throw new AbapError(
       "BAD_INPUT",
-      `targetFromEntry refuses to build an undo target for ${entry.object.type} ${entry.object.name}. This function's fallback guesses a /source/main sourceUri when the entry does not carry one, and that guess is wrong for enhancement objects on this release \u2014 undo of an enhancement entry must already be refused before a target is needed at all (see undoBlocker).`,
-      { type: entry.object.type, name: entry.object.name },
-      "This is an internal invariant, not a user-facing refusal \u2014 reaching it means a caller is using targetFromEntry outside planUndo's refused-plan path. Use refusedEnhancementTarget() for an already-blocked enhancement entry instead.",
-      { retryable: false }
-      // internal invariant violation, not a caller-fixable argument
+      `corr_nr ${JSON.stringify(value)} is not a transport request/task number this system would issue (e.g. A4HK900121). This module never acquires a request on its own \u2014 the caller must hand it one that has already been judged by the safety gate.`,
+      { what: "corrNr", value }
     );
   }
-  const spec = specForType(entry.object.type) ?? {
-    type: entry.object.type,
-    kind: entry.object.type,
-    label: entry.object.type,
-    path: entry.object.uri,
-    mode: "source",
-    supportsSource: entry.object.sourceUri !== void 0,
-    keywords: []
-  };
-  return {
-    spec,
-    type: entry.object.type,
-    name: entry.object.name,
-    uri: entry.object.uri,
-    sourceUri: entry.object.sourceUri ?? `${entry.object.uri}/source/main`,
-    packageName: entry.object.package,
-    description: entry.object.description ?? "",
-    exists: false,
-    packageSource: "requested"
-  };
+  return value;
 }
-function refusedEnhancementTarget(entry) {
-  const spec = specForType(entry.object.type);
-  if (!spec) {
+function assertClassicViewCreateTarget(packageName, corrNr) {
+  const validated = assertEnhIdentifier(packageName, "packageName", PACKAGE_RULES3);
+  const local = isLocalPackage2(validated);
+  if (local && corrNr !== void 0) {
     throw new AbapError(
       "BAD_INPUT",
-      `enhancement type ${entry.object.type} has no TypeSpec in src/adt/types.ts \u2014 ENHANCEMENT_TYPES in undo.ts and the registry have gone out of sync.`,
-      { type: entry.object.type },
-      "Add the missing TypeSpec row, or remove the type from undo.ts's ENHANCEMENT_TYPES."
+      `corr_nr ${JSON.stringify(corrNr)} was supplied for local package ${JSON.stringify(validated)}, but a local ($-prefixed) view is registered with korrnum = space rather than on a transport request, so there is nothing here for one to attach to.`,
+      { packageName: validated, corrNr }
     );
   }
-  return {
-    spec,
-    type: entry.object.type,
-    name: entry.object.name,
-    uri: entry.object.uri,
-    sourceUri: entry.object.sourceUri ?? entry.object.uri,
-    packageName: entry.object.package,
-    description: entry.object.description ?? "",
-    exists: false,
-    packageSource: "requested"
-  };
+  if (corrNr !== void 0) assertCorrNr4(corrNr);
+  return validated;
 }
-async function probePackage(conn, t) {
-  const outcome = await verifyViaRepositorySearch(conn, t.name, t.type);
-  if (outcome.status === "confirmed") return { exists: true };
-  if (outcome.status === "confirmed-absent") return { exists: false };
-  return { exists: false, indeterminate: outcome.reason };
-}
-async function probe2(conn, t) {
-  if (isPackageType(t.type)) return probePackage(conn, t);
-  try {
-    const resp = await conn.get(contentUri(t), { headers: { Accept: contentAccept(t) } });
-    const etag = resp.headers["etag"] ?? resp.headers["ETag"];
-    return {
-      source: resp.body,
-      serverEtag: typeof etag === "string" ? etag : void 0,
-      exists: true
-    };
-  } catch (e) {
-    if (isNotFoundError(e)) return { exists: false };
-    throw e;
+function validate3(p) {
+  const viewName = assertEnhIdentifier(p.viewName, "viewName", { maxLength: VIEW_NAME_MAX });
+  const baseTable = assertEnhIdentifier(p.baseTable, "baseTable", { maxLength: VIEW_NAME_MAX });
+  if (!Array.isArray(p.fields) || p.fields.length === 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "fields must be a non-empty list of base-table field names \u2014 a classic view projecting no field at all is not a view SE11 or DDIF_VIEW_PUT would accept.",
+      { viewName, baseTable }
+    );
   }
-}
-function vitTypeFor(type) {
-  if (type === "VIEW/DV") return "viewdv";
-  if (type === "TRAN/T") return "trant";
-  throw new AbapError(
-    "SAFETY_DENIED",
-    `INTERNAL INVARIANT VIOLATED: no VIT-bridge path segment known for type "${type}". Nothing was read or changed.`,
-    { type },
-    "This is a bug in abapsmith's undo planning, not something to retry \u2014 please report it."
+  if (p.fields.length > MAX_VIEW_FIELDS) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `fields has ${p.fields.length} entries, more than the ${MAX_VIEW_FIELDS} this bridge generates. DD27P-OBJPOS is a 4-character numeric position and this bridge fills it by zero-padding a 1-based index, so every generated position must stay inside 0001-9999.`,
+      { viewName, count: p.fields.length, max: MAX_VIEW_FIELDS }
+    );
+  }
+  const fields = p.fields.map(
+    (f, i) => assertEnhIdentifier(f, `fields[${i}]`, { maxLength: VIEW_NAME_MAX })
   );
-}
-async function resolveBridgeCreateUndo(conn, entry) {
-  const type = entry.object.type;
-  const found = await verifyViaVitBridge(conn, vitTypeFor(type), entry.object.name, type);
-  const spec = specForType(type) ?? {
-    type,
-    kind: type,
-    label: type,
-    path: entry.object.uri,
-    mode: "source",
-    supportsSource: false,
-    keywords: []
-  };
-  if (found.status === "confirmed-absent") {
-    return {
-      target: {
-        spec,
-        type,
-        name: entry.object.name,
-        uri: found.uri,
-        sourceUri: found.uri,
-        packageName: entry.object.package,
-        description: entry.object.description ?? "",
-        exists: false,
-        packageSource: "requested"
-      },
-      now: { exists: false },
-      verify: found
-    };
-  }
-  if (found.status === "confirmed") {
-    const resolved = serverPackage(found);
-    if (resolved) {
-      return {
-        target: {
-          spec,
-          type,
-          name: entry.object.name,
-          uri: found.uri,
-          sourceUri: found.uri,
-          packageName: resolved.name,
-          description: entry.object.description ?? "",
-          exists: true,
-          packageSource: "server"
-        },
-        now: { exists: true },
-        verify: found
-      };
-    }
-    return {
-      target: targetFromEntry(entry),
-      now: {
-        exists: false,
-        indeterminate: `${entry.object.name} was found via the VIT bridge, but the read carried no <adtcore:packageRef> element.`
-      },
-      verify: found
-    };
-  }
-  return { target: targetFromEntry(entry), now: { exists: false, indeterminate: found.reason }, verify: found };
-}
-async function releasedTransportWarning(journal, entry) {
-  if (!entry.corrNr) return void 0;
-  const releases = await journal.list({ object: entry.corrNr, operation: "transport-release" });
-  if (releases.length === 0) return void 0;
-  return `This write was recorded against transport ${entry.corrNr}, which has ALREADY BEEN RELEASED (journal entry ${releases[0].id}). Undoing it will change the object on the server, but it CANNOT remove the original change from ${entry.corrNr} \u2014 that request has already left the system and may already be moving downstream. This is only HALF an undo: the server will show the reverted source, but the released transport still carries the original change. Create a corrective transport for the downstream systems if this needs to be reversed there too.`;
-}
-async function planUndo(conn, journal, entry) {
-  const action = plannedAction(entry);
-  const restoreSource = action === "delete" ? void 0 : await journal.beforeImage(entry);
-  const transportWarning = await releasedTransportWarning(journal, entry);
-  const include = entryClassInclude(entry);
-  const localBlocker = systemMismatchBlocker(entry, liveSystem(conn, journal)) ?? undoBlocker(entry) ?? classIncludeActionBlocker(entry, action) ?? packageRecreateBlocker(entry) ?? deleteEvidenceBlocker(entry);
-  if (localBlocker) {
-    return {
-      entry,
-      // undoBlocker refuses every enhancement type unconditionally, so this
-      // branch is always taken for one — never targetFromEntry, which throws
-      // for these types instead.
-      target: isEnhancementType2(entry.object.type) ? refusedEnhancementTarget(entry) : targetFromEntry(entry),
-      action,
-      undoable: false,
-      blocker: localBlocker,
-      drift: { drifted: false, reason: "not evaluated \u2014 the entry is not undoable" },
-      ...restoreSource !== void 0 ? { restoreSource } : {},
-      currentlyExists: false,
-      ...transportWarning ? { releasedTransportWarning: transportWarning } : {}
-    };
-  }
-  const bridgeCreate = isBridgeOnlyCreateType(entry.object.type);
-  let target;
-  let bridgeNow;
-  let bridgeCreateVerify;
-  if (bridgeCreate) {
-    const resolved = await resolveBridgeCreateUndo(conn, entry);
-    target = resolved.target;
-    bridgeNow = resolved.now;
-    bridgeCreateVerify = resolved.verify;
-  } else {
-    target = await resolveWriteTarget(conn, {
-      name: entry.object.name,
-      type: entry.object.type,
-      packageName: entry.object.package,
-      ...entry.object.description ? { description: entry.object.description } : {},
-      ...include ? { include } : {}
-    });
-  }
-  if (action !== "delete" && restoreSource === void 0) {
-    const neverCaptured = entry.beforeCapture === "failed" || entry.before !== void 0 && !entry.before.blob;
-    return {
-      entry,
-      target,
-      action,
-      undoable: false,
-      blocker: neverCaptured ? `The journal has no before-image for ${entry.object.name}: one was never captured. The entry records that the object existed (beforeCapture="${entry.beforeCapture}") but its source read did not produce any bytes \u2014 a failed read, or an object with no readable source. Nothing was pruned; there is simply nothing to restore, and abapsmith will not guess. Recover the previous version from SAP's own version management (SE38/SE24 \u2192 Utilities \u2192 Versions).` : `The journal has no before-image for ${entry.object.name}. Its blob is missing (pruned by the retention policy, or the journal directory was cleaned). There is nothing to restore and abapsmith will not guess.`,
-      drift: { drifted: false, reason: "not evaluated \u2014 no before-image" },
-      currentlyExists: false,
-      ...transportWarning ? { releasedTransportWarning: transportWarning } : {}
-    };
-  }
-  const now = bridgeNow ?? await probe2(conn, target);
-  if (now.indeterminate) {
-    const howToCheck = bridgeCreate ? `abap_search mode=objects type="${entry.object.type}", or the relevant SE-transaction` : 'abap_search mode=objects type="DEVC/K", or SE21';
-    return {
-      entry,
-      target,
-      action,
-      undoable: false,
-      blocker: `Whether ${entry.object.name} still exists on the server could not be determined: ${now.indeterminate} abapsmith will not guess either way before a delete-shaped undo. Confirm the object's state by hand (${howToCheck}) and retry once you know which way this goes. This refusal cannot be overridden with force=true \u2014 force overrides DRIFT once both states are known; it does not manufacture an existence check that never settled.`,
-      drift: { drifted: false, reason: "not evaluated \u2014 package existence could not be determined" },
-      ...restoreSource !== void 0 ? { restoreSource } : {},
-      currentlyExists: false,
-      ...transportWarning ? { releasedTransportWarning: transportWarning } : {}
-    };
-  }
-  const drift = detectDrift(entry, action, now);
-  let effective = action;
-  if (!drift.drifted) {
-    if (action === "restore" && now.source !== void 0 && restoreSource !== void 0) {
-      if (sourceFingerprint(now.source) === sourceFingerprint(restoreSource)) effective = "noop";
-    }
-    if (action === "delete" && !now.exists) effective = "noop";
-    if (action === "recreate" && now.exists) effective = "noop";
-  }
-  const partial2 = partialClassRestore(entry, effective);
-  let blocker;
-  let blockerForceable = false;
-  if (drift.drifted) {
-    blocker = drift.reason;
-  } else if (partial2 && effective === "recreate") {
-    blocker = classRecreateBlocker(entry, partial2);
-    blockerForceable = true;
-  }
-  return {
-    entry,
-    target,
-    action: effective,
-    undoable: !blocker,
-    ...blocker ? { blocker } : {},
-    ...blockerForceable ? { blockerForceable } : {},
-    ...partial2 ? { partial: partial2 } : {},
-    drift,
-    ...restoreSource !== void 0 ? { restoreSource } : {},
-    ...now.source !== void 0 ? { currentSource: now.source } : {},
-    currentlyExists: now.exists,
-    ...transportWarning ? { releasedTransportWarning: transportWarning } : {},
-    ...bridgeCreateVerify ? { bridgeCreateVerify } : {}
-  };
-}
-function detectDrift(entry, action, now) {
-  const base = {
-    ...entry.after?.fingerprint ? { expectedFingerprint: entry.after.fingerprint } : {},
-    ...now.source !== void 0 ? { actualFingerprint: sourceFingerprint(now.source) } : {},
-    ...entry.after?.etag ? { expectedEtag: entry.after.etag } : {},
-    ...now.source !== void 0 ? { actualEtag: contentHash(now.source) } : {},
-    ...entry.after?.serverEtag ? { serverEtagAtWrite: entry.after.serverEtag } : {},
-    ...now.serverEtag ? { serverEtagNow: now.serverEtag } : {}
-  };
-  const name = entry.object.name;
-  if (action === "delete" && !now.exists) {
-    return {
-      ...base,
-      drifted: false,
-      reason: `${name} is already absent from the server \u2014 which is exactly what undoing its creation would achieve. Whether abapsmith, a colleague in Eclipse or a transport removed it, the result is the state you asked for, so nothing needs to be sent.`
-    };
-  }
-  if (action === "delete" && (isPackageType(entry.object.type) || isBridgeOnlyCreateType(entry.object.type))) {
-    return {
-      ...base,
-      drifted: false,
-      reason: `${name} still exists on the server, as expected before deleting it.`
-    };
-  }
-  if (action === "recreate") {
-    if (now.exists) {
-      return {
-        ...base,
-        drifted: true,
-        reason: `${name} was deleted by abapsmith, but it EXISTS on the server again. Somebody (or something) recreated it after that delete. Recreating it from the journal's before-image would overwrite whatever they put there.`
-      };
-    }
-    return { ...base, drifted: false, reason: `${name} is still absent, as recorded.` };
-  }
-  if (!now.exists) {
-    return {
-      ...base,
-      drifted: true,
-      reason: `${name} no longer exists on the server. It was deleted after abapsmith ` + (action === "delete" ? "created it \u2014 so there is nothing left to delete." : "wrote it, by something other than abapsmith.")
-    };
-  }
-  const expected = entry.after?.fingerprint;
-  if (!expected) {
-    return {
-      ...base,
-      drifted: true,
-      reason: `The journal never recorded what abapsmith left on the server for ${name} (the entry has no after-image), so drift cannot be ruled out.`
-    };
-  }
-  const actual = sourceFingerprint(now.source ?? "");
-  if (actual === expected) {
-    return { ...base, drifted: false, reason: `${name} is byte-for-byte what abapsmith left.` };
-  }
-  if (entry.before?.fingerprint && actual === entry.before.fingerprint) {
-    return {
-      ...base,
-      drifted: false,
-      reason: `${name} already matches the recorded before-image \u2014 the change has already been reverted. Nothing to do.`
-    };
-  }
-  return {
-    ...base,
-    drifted: true,
-    reason: `${name} has CHANGED on the server since abapsmith wrote it. Expected content ${expected}, found ${actual}. Somebody else edited this object (Eclipse, SE38, another agent) after our write. ` + // `action === "delete"` means undo-of-CREATE — nothing is "restored",
-    // so state the actual action instead of the (false) restore wording
-    // used for every other action.
-    (action === "delete" ? "Deleting it now would silently destroy their change." : "Restoring the before-image now would silently destroy their change.")
-  };
-}
-async function performBridgeCreateUndo(conn, gate, plan, onBeforeImage) {
-  const pkg = plan.bridgeCreateVerify && serverPackage(plan.bridgeCreateVerify);
-  if (!pkg) {
+  const description = assertAbapText(p.description, "description", VIEW_TEXT_MAX);
+  const packageName = assertClassicViewCreateTarget(p.packageName, p.corrNr);
+  const local = isLocalPackage2(packageName);
+  if (!local && p.corrNr === void 0) {
     throw new AbapError(
-      "SAFETY_DENIED",
-      `INTERNAL INVARIANT VIOLATED: about to delete ${plan.target.type} ${plan.target.name} for undo, but no server-confirmed package was carried from planning. Nothing was deleted.`,
-      { object: plan.target.name, type: plan.target.type },
-      "This is a bug in abapsmith's undo planning, not something to retry \u2014 please report it."
+      "TRANSPORT_ERROR",
+      `packageName ${JSON.stringify(packageName)} is not local ($-prefixed), so this view must be registered in CTS via RS_CORR_INSERT, which requires a transport request \u2014 pass corr_nr (an ALREADY gate-judged TRKORR, e.g. A4HK900121).`,
+      { packageName },
+      "Via abap_write, pass corr_nr with the TRKORR the safety gate already judged for this write (see the abapsmith-put-work-on-a-transport skill)."
     );
   }
-  await onBeforeImage({ source: void 0, existed: true, sourceReadable: true, target: plan.target });
-  const type = plan.target.type;
-  if (type === "VIEW/DV") {
-    await deleteClassicViewViaBridge(conn, gate, { viewName: plan.target.name, packageName: pkg });
-  } else if (type === "TRAN/T") {
-    await deleteTransactionViaBridge(conn, gate, { tcode: plan.target.name, packageName: pkg });
-  } else {
-    throw new AbapError(
-      "SAFETY_DENIED",
-      `INTERNAL INVARIANT VIOLATED: no bridge-delete function known for type "${type}". Nothing was deleted.`,
-      { object: plan.target.name, type },
-      "This is a bug in abapsmith's undo planning, not something to retry \u2014 please report it."
-    );
-  }
-  const outcome = await verifyObjectDeleted(conn, {
-    uri: vitBridgeUri(vitTypeFor(type), plan.target.name),
-    accept: VIT_STUB_ACCEPT,
-    objectName: plan.target.name,
-    expectType: type
-  });
-  if (outcome.status === "confirmed") return { deleted: false, verification: outcome };
-  if (outcome.status === "confirmed-absent") return { deleted: true, verification: outcome };
-  return { deleted: "unverified", verification: outcome };
+  const corrNr = local ? void 0 : p.corrNr;
+  return { viewName, baseTable, fields, description, packageName, corrNr, corrSource: p.corrSource };
 }
-function discloseUndoActivationFailure(e, target, entry, undoEntryId) {
-  if (!isAbapError(e)) return e;
-  const residueHint = `The restore itself already landed: ${target.name}'s before-image is saved on the server as the INACTIVE version, but activation failed, so the ACTIVE version is still the newer one this undo was trying to replace. This undo's own journal entry` + (undoEntryId ? ` (${undoEntryId})` : "") + ` is left \`pending\` on purpose \u2014 the outcome is not proven either way \u2014 and the original entry (${entry.id}) was NOT marked undone. Do not undo again blindly: re-read the object and activate it deliberately instead.`;
-  const disclosed = new AbapError(
-    e.code,
-    e.message,
-    {
-      ...e.details,
-      name: target.name,
-      type: target.type,
-      uri: target.uri,
-      operation: "undo",
-      phase: "post-restore-activation",
-      written: true,
-      activated: false,
-      entry: entry.id,
-      ...undoEntryId !== void 0 ? { journal: undoEntryId } : {}
+function viewCreatePartialSuccess(viewName) {
+  return {
+    completed: {
+      "VIEW-REGISTERED": `RS_CORR_INSERT registered ${viewName} in TADIR \u2014 on the transport request for a transportable package, with korrnum = space for a local one \u2014 before any dictionary write; no view was created by it.`,
+      "VIEW-PUT": `DDIF_VIEW_PUT wrote ${viewName}, and the COMMIT WORK that follows it committed it, inactive.`
     },
-    e.hint ? `${e.hint} ${residueHint}` : residueHint
-  );
-  disclosed.stack = e.stack;
-  disclosed.cause = e.cause;
-  return disclosed;
-}
-async function performUndo(conn, journal, entry, opts) {
-  if (typeof opts?.assertAllowed !== "function") {
-    throw new AbapError(
-      "SAFETY_DENIED",
-      "performUndo was called without an authorisation callback. An undo is a write \u2014 for an undo-of-create it is a DELETE \u2014 so it must be checked against the safety gate like any other write. Nothing was read and nothing was changed.",
-      { entry: entry.id, object: entry.object.name, operation: entry.operation },
-      "Pass opts.assertAllowed, e.g. { assertAllowed: (action, target) => gate.assert(action, target) }. If this call site really has no gate, pass an explicit no-op so the decision is visible in the source."
-    );
-  }
-  const plan = await planUndo(conn, journal, entry);
-  if (plan.blocker && !plan.drift.drifted && !(plan.blockerForceable && opts.force)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      plan.blocker,
-      {
-        entry: entry.id,
-        object: entry.object.name,
-        operation: entry.operation,
-        plannedAction: plan.action,
-        beforeCapture: entry.beforeCapture,
-        existedBefore: entry.existedBefore,
-        forceable: Boolean(plan.blockerForceable),
-        ...plan.partial ? { unrestored: plan.partial.unrestored } : {}
-      },
-      plan.blockerForceable ? "Nothing was changed on the server. Repeat with force=true to accept the partial restore described above." : "Nothing was changed on the server, and force=true will not change that."
-    );
-  }
-  if (plan.drift.drifted && !opts.force) {
-    throw new AbapError(
-      "ETAG_CONFLICT",
-      plan.drift.reason,
-      {
-        entry: entry.id,
-        object: entry.object.name,
-        type: entry.object.type,
-        uri: plan.target.uri,
-        expectedFingerprint: plan.drift.expectedFingerprint,
-        actualFingerprint: plan.drift.actualFingerprint,
-        serverEtagAtWrite: plan.drift.serverEtagAtWrite,
-        serverEtagNow: plan.drift.serverEtagNow
-      },
-      "Nothing was changed on the server. Read the object (abap_read) and the recorded images (abap_journal mode=show) and decide deliberately. Pass force=true to overwrite the other change anyway."
-    );
-  }
-  if (plan.action === "noop") {
-    return { plan, performed: false, forced: Boolean(opts.force) };
-  }
-  const expectedOp = plan.action === "delete" ? "delete" : "write";
-  const authorized = opts.assertAllowed(plan.action, plan.target);
-  if (authorized.op !== expectedOp) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `INTERNAL INVARIANT VIOLATED: assertAllowed authorised "${authorized.op}" for an undo action ("${plan.action}") that requires "${expectedOp}". Nothing was changed.`,
-      { entry: entry.id, object: entry.object.name, action: plan.action, authorizedOp: authorized.op },
-      "This is a bug in the undo authorisation callback, not something to retry \u2014 please report it.",
-      { retryable: false }
-      // internal invariant violation, not a caller-fixable argument
-    );
-  }
-  const objectRef = journalRef(plan.target);
-  let undoEntryId;
-  let activation;
-  let check4;
-  let checkUnavailable;
-  let deleteUnverified;
-  const restoredIncludes = [];
-  const skippedIncludes = [];
-  const liveKey = liveSystem(conn, journal).key;
-  const captureFor = (img) => {
-    if (img.source !== void 0) return "captured";
-    if (!plan.currentlyExists) return "confirmed-absent";
-    return "failed";
+    hint: `If VIEW-PUT fired, ${viewName} exists AND is registered \u2014 abap_write mode="delete" type="VIEW/DV" can remove it. If only VIEW-REGISTERED fired, no view was written and only the TADIR entry exists \u2014 for a transportable package, remove it from the request in SE09/SE10, or reuse it by re-running the create into the same request; for a local package (korrnum = space) it is registered but not on any request.`
   };
-  if (plan.action === "delete") {
-    if (entry.beforeCapture !== "confirmed-absent") {
-      throw new AbapError(
-        "BAD_INPUT",
-        `INTERNAL INVARIANT VIOLATED: about to DELETE ${entry.object.name} for a journal entry whose before-image provenance is "${entry.beforeCapture}", not "confirmed-absent". Undo may only delete an object it positively knows was absent beforehand. Nothing was deleted.`,
-        {
-          entry: entry.id,
-          object: entry.object.name,
-          beforeCapture: entry.beforeCapture,
-          existedBefore: entry.existedBefore
-        },
-        "This is a bug in abapsmith's undo gating, not something to retry \u2014 please report it.",
-        { retryable: false }
-        // internal invariant violation, not a caller-fixable argument
-      );
-    }
-    const { result: res, entryId, settle } = await withJournalledMutation(
-      journal,
-      {
-        begin: (img) => ({
-          operation: "delete",
-          object: objectRef,
-          existedBefore: img.existed,
-          beforeCapture: captureFor(img),
-          systemKey: liveKey,
-          ...img.source !== void 0 ? { beforeSource: img.source } : {},
-          ...img.sourceKind !== void 0 ? { beforeKind: img.sourceKind } : {},
-          undoOf: entry.id,
-          tool: "abap_journal undo"
-        }),
-        onError: "leave-pending"
-      },
-      (onBeforeImage) => isBridgeOnlyCreateType(entry.object.type) ? performBridgeCreateUndo(conn, opts.gate, plan, onBeforeImage) : deleteObject(conn, authorized, { onBeforeImage, bridgeGate: opts.gate })
-    );
-    undoEntryId = entryId;
-    if (res.deleted === false) {
-      await settle({ outcome: "failed", activation: { attempted: false } });
+}
+async function createClassicView(conn, gate, params) {
+  const validated = validate3(params);
+  const { viewName, baseTable, fields, description, packageName, corrNr, corrSource } = validated;
+  const corr = isLocalPackage2(packageName) ? void 0 : { kind: "transport", corrNr, source: corrSource ?? "named" };
+  assertBridgeMutation(
+    gate,
+    { type: "VIEW/DV", name: viewName, packageName },
+    { activate: true, ...corr !== void 0 ? { corr } : {} }
+  );
+  const expectTags = ["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"];
+  const partial2 = viewCreatePartialSuccess(viewName);
+  return runClassicAction(conn, gate, {
+    action: "create_view",
+    args: {
+      view_name: viewName,
+      base_table: baseTable,
+      fields,
+      description,
+      package_name: packageName,
+      corr_nr: corrNr ?? ""
+    },
+    what: `Creating classic view ${viewName}`,
+    expectTags,
+    completed: partial2.completed,
+    partialHint: partial2.hint
+  });
+}
+
+// src/adt/view-delete.ts
+init_errors();
+init_enhancement_templates();
+var VIEW_NAME_MAX2 = 30;
+function validate4(p) {
+  const viewName = assertEnhIdentifier(p.viewName, "viewName", { maxLength: VIEW_NAME_MAX2 });
+  return { viewName };
+}
+async function deleteClassicViewViaBridge(conn, gate, params) {
+  assertServerPackage(params.packageName, `view ${params.viewName}`);
+  const { viewName } = validate4(params);
+  const packageName = params.packageName.name;
+  assertBridgeMutation(
+    gate,
+    { type: "VIEW/DV", name: viewName, packageName },
+    { activate: false, op: "delete", corr: { kind: "local" } }
+  );
+  const beforeAssert = (transcript) => {
+    if (transcript.errorLine?.includes(`${viewName} does not exist`)) {
       throw new AbapError(
         "CHECK_FAILED",
-        `abap_journal mode=undo of entry ${entry.id}: the DELETE of ${entry.object.type} ${entry.object.name} was accepted, but a read-back and an independent repository search both still find the object (${describeDeleteVerification(res.verification)}) \u2014 abapsmith will not mark the original entry undone while the object it was supposed to remove is demonstrably still there.`,
-        {
-          reason: "DELETE_NOT_CONFIRMED",
-          entry: entry.id,
-          object: entry.object.name,
-          type: entry.object.type,
-          deleted: false,
-          verification: res.verification,
-          ...undoEntryId !== void 0 ? { undoEntryId } : {}
-        },
-        "Re-read the object with abap_read to see its current state before retrying the undo."
+        `View ${viewName} does not exist, so there is nothing to delete. Raw ABAP-side detail: ${transcript.errorLine}`,
+        { viewName, raw: transcript.raw }
       );
     }
-    if (res.deleted === "unverified") {
-      deleteUnverified = `abap_journal mode=undo's DELETE of ${entry.object.type} ${entry.object.name} was sent and accepted, but abapsmith could not confirm the object is actually gone (${describeDeleteVerification(res.verification)}). Check for yourself with abap_read on the object (a NOT_FOUND confirms it is gone) or abap_search for "${entry.object.name}".`;
-    }
-    await settle({
-      outcome: "succeeded",
-      activation: { attempted: false }
-    });
-  } else {
-    const source = plan.restoreSource;
-    if (source === void 0) {
-      throw new AbapError("BAD_INPUT", "No before-image to restore.", { entry: entry.id });
-    }
-    if (opts.check ?? true) {
-      check4 = await checkSource(conn, plan.target, source).catch((e) => {
-        checkUnavailable = `the syntax check could not be run (${e instanceof Error ? e.message : String(e)}), so the before-image was restored WITHOUT being checked`;
-        return void 0;
-      });
-    } else {
-      checkUnavailable = "the syntax check was disabled for this undo (check=false)";
-    }
-    const { result: written, entryId, settle } = await withJournalledMutation(
-      journal,
-      {
-        begin: (img) => ({
-          // Recreating a deleted object IS a create, and journalling it as one
-          // is what makes undo-of-undo-of-delete come out as a delete again.
-          operation: img.existed ? "update" : "create",
-          object: objectRef,
-          existedBefore: img.existed,
-          beforeCapture: captureFor(img),
-          systemKey: liveKey,
-          ...img.source !== void 0 ? { beforeSource: img.source } : {},
-          afterSource: source,
-          undoOf: entry.id,
-          tool: "abap_journal undo"
-        }),
-        onError: "leave-pending"
-      },
-      (onBeforeImage) => writeObject(conn, authorized, { source, onBeforeImage })
-    );
-    undoEntryId = entryId;
-    if (written.changed && (opts.activate ?? true)) {
-      const observed = await readCurrentSource(conn, { ...written.target, exists: true });
-      const observedEtag = observed === void 0 ? null : canonicalEtag(observed);
-      if (observedEtag !== written.etag) {
-        throw new AbapError(
-          "ETAG_CONFLICT",
-          `${plan.target.name} changed between abapsmith's restore and its activation, so it was NOT activated. The before-image abapsmith restored IS saved on ${conn.cfg.sid} as the INACTIVE version, but the inactive version now on the server is somebody else's: activating would have published THEIR source as the result of this undo.`,
-          {
-            name: written.target.name,
-            type: written.target.type,
-            uri: written.target.uri,
-            operation: "undo",
-            phase: "pre-activation",
-            written: true,
-            activated: false,
-            entry: entry.id,
-            expectedEtag: written.etag,
-            actualEtag: observedEtag,
-            // an id exists iff a real entry landed (journal off ⇒ undefined)
-            ...undoEntryId !== void 0 ? { journal: undoEntryId } : {}
-          },
-          "Another writer changed this object between abapsmith's PUT and its activation \u2014 the object lock does NOT span activation, and activation cannot be pinned to a version on this protocol. DO NOT simply undo again: the before-image already landed and was then overwritten, so a blind retry re-runs the same race and silently discards the other writer's work. Read the object (abap_read) to see what is actually there now, merge the two changes deliberately, and write the merged source. The last ACTIVE version is untouched and still what callers run."
-        );
-      }
-      try {
-        activation = await activateObject(conn, written.target);
-      } catch (e) {
-        throw discloseUndoActivationFailure(e, written.target, entry, undoEntryId);
-      }
-    }
-    const includeParts = (entry.parts ?? []).filter(
-      (p) => classIncludeFromSourceUri(p.object.sourceUri) !== void 0
-    );
-    for (const part of includeParts) {
-      const inc = classIncludeFromSourceUri(part.object.sourceUri);
-      if (part.beforeCapture === "confirmed-absent") {
-        continue;
-      }
-      if (part.beforeCapture !== "captured") {
-        skippedIncludes.push({
-          include: inc,
-          reason: `its before-image was never captured (beforeCapture="${part.beforeCapture}")`
-        });
-        continue;
-      }
-      const incSource = await journal.beforeImage({ ...entry, before: part.before });
-      if (incSource === void 0) {
-        skippedIncludes.push({
-          include: inc,
-          reason: "its recorded before-image blob is missing on disk (pruned by the retention policy, or the journal directory was cleaned)"
-        });
-        continue;
-      }
-      try {
-        const incTarget = await resolveWriteTarget(conn, {
-          name: entry.object.name,
-          type: entry.object.type,
-          packageName: entry.object.package,
-          ...entry.object.description ? { description: entry.object.description } : {},
-          include: inc
-        });
-        const incAuthorized = opts.assertAllowed(plan.action, incTarget);
-        await writeObject(conn, incAuthorized, {
-          source: incSource,
-          onBeforeImage: NO_JOURNAL,
-          ...written.transport.corrNr ? { corrNr: written.transport.corrNr } : {}
-        });
-        restoredIncludes.push(inc);
-      } catch (e) {
-        await settle({
-          outcome: "succeeded",
-          ...written.normalisedSource ? { afterSource: written.normalisedSource } : {},
-          ...written.transport.corrNr ? { corrNr: written.transport.corrNr } : {},
-          activation: {
-            attempted: Boolean(activation),
-            ...activation ? { activated: activation.activated } : {}
-          }
-        });
-        const notAttempted = includeParts.slice(includeParts.indexOf(part) + 1).map((p) => classIncludeFromSourceUri(p.object.sourceUri)).filter((i) => i !== void 0);
-        throw new AbapError(
-          "CHECK_FAILED",
-          `abap_journal mode=undo of entry ${entry.id}: ${entry.object.name}'s main source WAS restored${activation ? activation.activated ? " and activated" : ", but activation did not complete" : ""}, but writing its recorded ${INCLUDE_LABELS[inc] ?? inc} back failed: ${e instanceof Error ? e.message : String(e)}. ${restoredIncludes.length ? `Already restored: ${restoredIncludes.join(", ")}. ` : "Nothing else was restored yet. "}Not attempted: ${notAttempted.length ? notAttempted.join(", ") : "none"}.`,
-          {
-            entry: entry.id,
-            object: entry.object.name,
-            restoredIncludes: [...restoredIncludes],
-            failedInclude: inc,
-            notAttempted,
-            ...undoEntryId !== void 0 ? { undoEntryId } : {}
-          },
-          "This undo's own journal entry is marked done \u2014 the class's main body is back. Write the failed include (and any listed as not attempted) by hand with abap_write, using the source shown by abap_journal mode=show for this entry."
-        );
-      }
-    }
-    if (restoredIncludes.length > 0 && (opts.activate ?? true)) {
-      try {
-        activation = await activateObject(conn, written.target);
-      } catch (e) {
-        throw discloseUndoActivationFailure(e, written.target, entry, undoEntryId);
-      }
-    }
-    await settle({
-      outcome: "succeeded",
-      ...written.normalisedSource ? { afterSource: written.normalisedSource } : {},
-      // The transport the restore ACTUALLY landed in (not guessed from
-      // entry.corrNr) — only known here because the lock/transport is taken
-      // after `onBeforeImage` already recorded the entry (WP-E: "undoing a
-      // write needs a transport too").
-      ...written.transport.corrNr ? { corrNr: written.transport.corrNr } : {},
-      activation: {
-        attempted: Boolean(activation),
-        ...activation ? { activated: activation.activated } : {}
-      }
-    });
-  }
-  if (undoEntryId) await journal.markUndone(entry.id, undoEntryId);
-  return {
-    plan,
-    ...undoEntryId ? { undoEntryId } : {},
-    // Only on a performed undo: a no-op restored nothing, so it left nothing
-    // unrestored either, and warning about includes there would be noise.
-    ...plan.partial ? { partial: plan.partial } : {},
-    performed: true,
-    ...check4 ? { check: check4 } : {},
-    ...checkUnavailable ? { checkUnavailable } : {},
-    ...deleteUnverified ? { deleteUnverified } : {},
-    ...activation ? { activation } : {},
-    ...restoredIncludes.length ? { restoredIncludes } : {},
-    ...skippedIncludes.length ? { skippedIncludes } : {},
-    forced: Boolean(opts.force)
   };
+  return runClassicAction(conn, gate, {
+    action: "delete_view",
+    args: { view_name: viewName, package_name: packageName },
+    what: `Deleting classic view ${viewName}`,
+    expectTags: ["VIEW-DELETED", "VIEW-GONE"],
+    beforeAssert
+  });
 }
 
-// src/tools/journal.ts
-init_types();
-init_compact();
-init_compact();
-var journalInputSchema = {
-  mode: external_exports.enum(["list", "show", "undo", "reconcile"]).optional().describe(
-    "list (default): recent writes. show: one entry incl. its before-image. undo: revert one entry. reconcile: close a stranded pending entry with an outcome you establish and a stated reason."
-  ),
-  entry: external_exports.string().optional().describe("Journal entry id from mode=list. Required for show and undo unless `object` is given."),
-  object: external_exports.string().optional().describe("Filter by object name; for undo, targets that object's most recent undoable entry."),
-  limit: external_exports.number().min(1).max(999999).optional().describe("mode=list: entries to return. Default 20."),
-  session: external_exports.string().optional().describe(
-    "mode=list: filter to one session's entries. \"current\" resolves to this running server's own session id (see the echoed `session` in the response header)."
-  ),
-  force: external_exports.boolean().optional().describe(
-    "mode=undo: proceed even though the object changed on the server after abapsmith wrote it. This OVERWRITES whatever that other change was. Read the object first."
-  ),
-  activate: external_exports.boolean().optional().describe("mode=undo: re-activate after restoring. Default true."),
-  outcome: external_exports.enum(["succeeded", "failed"]).optional().describe(
-    "mode=reconcile: the outcome you are asserting for a `pending` entry. Required. `pending` is the state being left, so it is not offered."
-  ),
-  reason: external_exports.string().optional().describe(
-    "mode=reconcile: how you established that outcome. Required, recorded verbatim on the entry, and the only evidence it will ever carry for the asserted outcome."
-  )
+// src/adt/ddic-payload.ts
+init_errors();
+var DATAELEMENT_NS = "http://www.sap.com/adt/dictionary/dataelements";
+var DOMA_SKELETON = '<?xml version="1.0" encoding="utf-8"?><doma:domain xmlns:doma="http://www.sap.com/dictionary/domain" xmlns:adtcore="http://www.sap.com/adt/core" adtcore:name="NAME" adtcore:type="DOMA/DD" adtcore:description="TODO one-line description" adtcore:masterLanguage="EN" adtcore:language="EN"><adtcore:packageRef adtcore:name="$TMP"/><doma:content><doma:typeInformation><doma:datatype>CHAR</doma:datatype><doma:length>000010</doma:length><doma:decimals>000000</doma:decimals></doma:typeInformation><doma:outputInformation><doma:length>000010</doma:length><doma:style>00</doma:style><doma:conversionExit/><doma:signExists>false</doma:signExists><doma:lowercase>false</doma:lowercase><doma:ampmFormat>false</doma:ampmFormat></doma:outputInformation><doma:valueInformation><doma:valueTableRef/><doma:appendExists>false</doma:appendExists><doma:fixValues/></doma:valueInformation></doma:content></doma:domain>';
+var DTEL_SKELETON = '<?xml version="1.0" encoding="utf-8"?><blue:wbobj xmlns:blue="http://www.sap.com/wbobj/dictionary/dtel" xmlns:adtcore="http://www.sap.com/adt/core" adtcore:name="NAME" adtcore:type="DTEL/DE" adtcore:description="TODO one-line description" adtcore:masterLanguage="EN" adtcore:language="EN"><adtcore:packageRef adtcore:name="$TMP"/><dtel:dataElement xmlns:dtel="http://www.sap.com/adt/dictionary/dataelements"><dtel:typeKind>domain</dtel:typeKind><dtel:typeName>ZDOM_EXAMPLE</dtel:typeName><dtel:dataType>CHAR</dtel:dataType><dtel:dataTypeLength>000010</dtel:dataTypeLength><dtel:dataTypeDecimals>000000</dtel:dataTypeDecimals><dtel:shortFieldLabel>Short</dtel:shortFieldLabel><dtel:shortFieldLength>05</dtel:shortFieldLength><dtel:shortFieldMaxLength>10</dtel:shortFieldMaxLength><dtel:mediumFieldLabel>Medium label</dtel:mediumFieldLabel><dtel:mediumFieldLength>12</dtel:mediumFieldLength><dtel:mediumFieldMaxLength>20</dtel:mediumFieldMaxLength><dtel:longFieldLabel>Long label</dtel:longFieldLabel><dtel:longFieldLength>10</dtel:longFieldLength><dtel:longFieldMaxLength>40</dtel:longFieldMaxLength><dtel:headingFieldLabel>Heading</dtel:headingFieldLabel><dtel:headingFieldLength>07</dtel:headingFieldLength><dtel:headingFieldMaxLength>55</dtel:headingFieldMaxLength><dtel:searchHelp/><dtel:searchHelpParameter/><dtel:setGetParameter/><dtel:defaultComponentName/><dtel:deactivateInputHistory>false</dtel:deactivateInputHistory><dtel:changeDocument>false</dtel:changeDocument><dtel:leftToRightDirection>false</dtel:leftToRightDirection><dtel:deactivateBIDIFiltering>false</dtel:deactivateBIDIFiltering></dtel:dataElement></blue:wbobj>';
+var TTYP_SKELETON = '<?xml version="1.0" encoding="utf-8"?><ttyp:tableType xmlns:ttyp="http://www.sap.com/dictionary/tabletype" xmlns:adtcore="http://www.sap.com/adt/core" adtcore:name="NAME" adtcore:type="TTYP/DA" adtcore:description="TODO one-line description" adtcore:masterLanguage="EN" adtcore:language="EN"><adtcore:packageRef adtcore:name="$TMP"/><ttyp:rowType><ttyp:typeKind>dictionaryType</ttyp:typeKind><ttyp:typeName>ZS_EXAMPLE</ttyp:typeName><ttyp:builtInType><ttyp:dataType>STRU</ttyp:dataType><ttyp:length>000000</ttyp:length><ttyp:decimals>000000</ttyp:decimals></ttyp:builtInType><ttyp:rangeType/></ttyp:rowType><ttyp:initialRowCount>00000</ttyp:initialRowCount><ttyp:accessType>standard</ttyp:accessType><ttyp:primaryKey ttyp:isVisible="true" ttyp:isEditable="true"><ttyp:definition>standard</ttyp:definition><ttyp:kind>nonUnique</ttyp:kind><ttyp:components ttyp:isVisible="false"/><ttyp:alias/></ttyp:primaryKey></ttyp:tableType>';
+var DDIC_SHAPES = {
+  "DOMA/DD": {
+    localName: "domain",
+    namespace: "http://www.sap.com/dictionary/domain",
+    skeleton: DOMA_SKELETON
+  },
+  "DTEL/DE": {
+    localName: "wbobj",
+    namespace: "http://www.sap.com/wbobj/dictionary/dtel",
+    skeleton: DTEL_SKELETON
+  },
+  "TTYP/DA": {
+    localName: "tableType",
+    namespace: "http://www.sap.com/dictionary/tabletype",
+    skeleton: TTYP_SKELETON
+  }
 };
-var JournalInput = external_exports.object(journalInputSchema);
-var shortId = (id) => id;
-function row(e) {
-  const flags = [e.undoneBy ? "undone" : e.undoOf ? "is-undo" : void 0, e.reconciled ? "reconciled" : void 0].filter(Boolean).join(" ");
-  return {
-    id: shortId(e.id),
-    when: e.ts.replace("T", " ").replace(/\.\d+Z$/, "Z"),
-    op: e.operation,
-    object: `${e.object.type} ${e.object.name}`,
-    existed: e.existedBefore ? "yes" : "no",
-    // undo only ever deletes when beforeCapture is "confirmed-absent".
-    capture: e.beforeCapture,
-    outcome: e.outcome,
-    actor: e.actor ?? "",
-    flags
-  };
+function escapeXmlAttr3(s) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
 }
-var LIST_COLUMNS = ["id", "when", "op", "object", "existed", "capture", "outcome", "flags"];
-var LIST_COLUMNS_WITH_ACTOR = LIST_COLUMNS.flatMap((c) => c === "flags" ? ["actor", "flags"] : c);
-function includeFromSourceUri(uri) {
-  if (uri === void 0) return void 0;
-  const inc = specFromUri(uri)?.include;
-  return inc !== void 0 && inc !== "main" ? inc : void 0;
+function renderSkeleton(shape, name) {
+  return shape.skeleton.replace('adtcore:name="NAME"', () => `adtcore:name="${escapeXmlAttr3(name)}"`);
 }
-function entrySubInclude(e) {
-  return includeFromSourceUri(e.object.sourceUri);
+function ddicDescriptorSkeleton(type, name) {
+  const shape = DDIC_SHAPES[type];
+  if (!shape) return void 0;
+  return renderSkeleton(shape, name);
 }
-function partRow(p) {
-  return {
-    object: `${p.object.type} ${p.object.name}`,
-    package: p.object.package,
-    // A class-delete's four parts are all the same object/type/package — without
-    // naming the include, the ALSO TOUCHED rows are indistinguishable from each other.
-    include: includeFromSourceUri(p.object.sourceUri) ?? "-",
-    existed: p.existedBefore ? "yes" : "no",
-    capture: p.beforeCapture,
-    bytes: p.before?.bytes !== void 0 ? String(p.before.bytes) : "-"
-  };
+var XML_COMMENT_RE2 = /<!--[\s\S]*?-->/g;
+var ROOT_TAG_RE = /<([A-Za-z_][\w.-]*)(?::([A-Za-z_][\w.-]*))?\b[^>]*>/;
+var DATA_ELEMENT_TAG_RE = /<(?:([A-Za-z_][\w.-]*):)?dataElement\b[^>]*>/;
+var XMLNS_ATTR_RE = /(?:^|\s)xmlns(?::([A-Za-z_][\w.-]*))?\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
+function collectXmlns(tagText) {
+  const map2 = {};
+  XMLNS_ATTR_RE.lastIndex = 0;
+  let m;
+  while ((m = XMLNS_ATTR_RE.exec(tagText)) !== null) {
+    map2[m[1] ?? ""] = m[2] ?? m[3] ?? "";
+  }
+  return map2;
 }
-var PART_COLUMNS = ["object", "include", "existed", "capture", "bytes"];
-var PART_COLUMNS_WITH_PACKAGE = PART_COLUMNS.flatMap((c) => c === "object" ? ["object", "package"] : c);
-function undoHint(e) {
-  if (e.operation === "transport-release") {
-    return "RELEASED TRANSPORT \u2014 refused: a released transport cannot be recalled; create a corrective transport instead";
-  }
-  if (e.operation.startsWith("transport-")) {
-    return "refused: transport requests are not undone automatically; use abap_transport to reverse this manually";
-  }
-  if (e.operation === "activate") return "activation \u2014 nothing to reverse";
-  if (e.undoneBy) return `already undone by ${e.undoneBy}`;
-  if (e.irreversible) {
-    return "IRREVERSIBLE \u2014 refused: recorded for history only, no mechanism can undo it";
-  }
-  const action = plannedAction(e);
-  if (action === "delete") {
-    const includeRefusal = classIncludeActionBlocker(e, action);
-    if (includeRefusal) return `undo would DELETE this object, and WILL BE REFUSED: ${includeRefusal}`;
-    const refusal = deleteEvidenceBlocker(e);
-    return refusal ? `undo would DELETE this object, and WILL BE REFUSED: ${refusal}` : "undo would DELETE this object (abapsmith created it, and confirmed it was absent first)";
-  }
-  if (action === "recreate") {
-    const includeRefusal = classIncludeActionBlocker(e, action);
-    if (includeRefusal) return `undo would RE-CREATE this object, and WILL BE REFUSED: ${includeRefusal}`;
-    const refusal = packageRecreateBlocker(e);
-    return refusal ? `undo would RE-CREATE this object, and WILL BE REFUSED: ${refusal}` : "undo would RE-CREATE this object from the before-image";
-  }
-  return "undo would restore the previous source";
+function resolvePrefix(prefix, map2) {
+  return map2[prefix ?? ""];
 }
-function classWarning(e) {
-  const include = entrySubInclude(e);
-  if (include) {
-    return `This entry is about class ${e.object.name}'s ${include} include ONLY, not the whole class: its main body and its other local includes are each tracked (when abapsmith wrote them) by their own separate journal entries, and undoing THIS entry touches only this one document.`;
-  }
-  if (!/^CLAS/i.test(e.object.type)) return void 0;
-  if (e.parts?.length) {
-    const recorded = e.parts.filter((p) => p.beforeCapture === "captured" || p.beforeCapture === "confirmed-absent").map((p) => includeFromSourceUri(p.object.sourceUri)).filter((i) => i !== void 0);
-    const unrecorded = e.parts.filter((p) => p.beforeCapture !== "captured" && p.beforeCapture !== "confirmed-absent").map((p) => includeFromSourceUri(p.object.sourceUri)).filter((i) => i !== void 0);
-    return `${e.object.name} is a CLASS. abapsmith recorded its main include` + (recorded.length ? ` plus its ${recorded.join(", ")} include(s)` : "") + " when it was deleted. Undoing that delete recreates every include recorded here, not just the main body." + (unrecorded.length ? ` Its ${unrecorded.join(", ")} include(s) could NOT be recorded (the read at delete time failed) and will NOT come back \u2014 recreating anyway is refused unless you pass force=true, and the result is reported PARTIAL.` : "");
-  }
-  return `${e.object.name} is a CLASS and abapsmith records only its MAIN include. Its local definitions (CCDEF), local implementations (CCIMP), macros (CCMAC) and local test classes (CCAU) are NOT in this journal entry: they are not restored by an undo and changes to them are not detected as drift. Undoing a class DELETE therefore brings back a class without its local helpers or its unit tests, and is refused unless you pass force=true.`;
+function throwRootMismatch(type, name, expected, foundLocalName, foundNamespace) {
+  const skeleton = renderSkeleton(expected, name);
+  const foundNsText = foundNamespace !== void 0 ? `"${foundNamespace}"` : "(no namespace could be resolved for its prefix)";
+  throw new AbapError(
+    "BAD_INPUT",
+    `The XML for ${type} ${name} has root element <${foundLocalName}> bound to namespace ${foundNsText}, but a ${type} descriptor's root must be <${expected.localName}> bound to namespace "${expected.namespace}".`,
+    {
+      name,
+      type,
+      foundLocalName,
+      ...foundNamespace !== void 0 ? { foundNamespace } : {},
+      expectedLocalName: expected.localName,
+      expectedNamespace: expected.namespace,
+      ddicSkeleton: skeleton
+    },
+    `No write was sent and no lock was taken \u2014 the object is untouched. SAP's PUT handler names only the next missing element per rejection, so guessing the root element/namespace one round trip at a time can take many attempts. Start from this known-accepted skeleton instead:
+${skeleton}`
+  );
 }
-function requireJournal(journal) {
-  if (!journal || !journal.enabled) {
-    throw new AbapError(
-      "UNSUPPORTED",
-      "The write journal is disabled, so there is no history and no undo.",
-      { enabled: false },
-      "Unset ABAP_JOURNAL=off (or set ABAP_JOURNAL_DIR to a writable path) and restart the server. Only writes made *after* the journal is on can be undone."
-    );
-  }
-  return journal;
+function throwDataElementNamespaceMismatch(expected, name, foundNamespace) {
+  const skeleton = renderSkeleton(expected, name);
+  throw new AbapError(
+    "BAD_INPUT",
+    `The XML for DTEL/DE ${name} binds its inner <dataElement> element to namespace "${foundNamespace}" instead of "${DATAELEMENT_NS}".`,
+    {
+      name,
+      type: "DTEL/DE",
+      foundInnerNamespace: foundNamespace,
+      expectedInnerNamespace: DATAELEMENT_NS,
+      ddicSkeleton: skeleton
+    },
+    `No write was sent and no lock was taken \u2014 the object is untouched. This is not a shape SAP's PUT handler rejects \u2014 it is ACCEPTED (ok:true, created:true, activated:true) and produces a data element with no type at all (abap.(0), length 0), with nothing to signal the corruption until a later read-back. That is why abapsmith refuses this locally rather than sending it. A common cause is reusing the root <blue:wbobj> element's own namespace ("http://www.sap.com/wbobj/dictionary/dtel") on the inner element instead of its own, distinct namespace. Bind <dataElement> to "${DATAELEMENT_NS}", as in this known-accepted skeleton:
+${skeleton}`
+  );
 }
-async function pickEntry(journal, input, mode) {
-  if (input.entry) {
-    const e = await journal.get(input.entry);
-    if (!e) {
-      throw new AbapError(
-        "NOT_FOUND",
-        `No journal entry ${input.entry}.`,
-        { entry: input.entry },
-        "Run abap_journal mode=list to see the ids that exist. Ids are dropped by the retention policy, so an old one may simply have aged out."
-      );
-    }
-    return e;
+function assertDdicDescriptorShape(type, name, xml3) {
+  const expected = DDIC_SHAPES[type];
+  if (!expected) return;
+  const stripped = xml3.replace(XML_COMMENT_RE2, "");
+  const rootMatch = ROOT_TAG_RE.exec(stripped);
+  if (!rootMatch) return;
+  const rootTag = rootMatch[0];
+  if (rootMatch[1] === void 0) return;
+  const rootPrefix = rootMatch[2] !== void 0 ? rootMatch[1] : void 0;
+  const rootLocalName = rootMatch[2] !== void 0 ? rootMatch[2] : rootMatch[1];
+  const rootNsMap = collectXmlns(rootTag);
+  if (rootLocalName !== expected.localName) {
+    throwRootMismatch(type, name, expected, rootLocalName, resolvePrefix(rootPrefix, rootNsMap));
   }
-  if (!input.object) {
+  const rootNs = resolvePrefix(rootPrefix, rootNsMap);
+  if (rootNs === void 0) return;
+  if (rootNs !== expected.namespace) {
+    throwRootMismatch(type, name, expected, rootLocalName, rootNs);
+  }
+  if (type !== "DTEL/DE") return;
+  const deMatch = DATA_ELEMENT_TAG_RE.exec(stripped);
+  if (!deMatch) return;
+  const deTag = deMatch[0];
+  const dePrefix = deMatch[1];
+  const extendedMap = { ...rootNsMap, ...collectXmlns(deTag) };
+  const deNs = resolvePrefix(dePrefix, extendedMap);
+  if (deNs === void 0) return;
+  if (deNs !== DATAELEMENT_NS) throwDataElementNamespaceMismatch(expected, name, deNs);
+}
+var ADTCORE_NS2 = "http://www.sap.com/adt/core";
+var XML_DECL = '<?xml version="1.0" encoding="UTF-8"?>';
+var DDIC_TYPE_KINDS = ["domain", "predefinedAbapType", "dictionaryType"];
+function isDdicTypeKind(s) {
+  return DDIC_TYPE_KINDS.includes(s);
+}
+function assertDdicTypeKind(requested) {
+  if (isDdicTypeKind(requested)) return requested;
+  throw new AbapError(
+    "BAD_INPUT",
+    `ddic.typeKind "${requested}" is not one of the accepted values.`,
+    { requested, allowed: [...DDIC_TYPE_KINDS] },
+    `Use one of: ${DDIC_TYPE_KINDS.join(", ")}.`
+  );
+}
+var DOMA_FIELDS = /* @__PURE__ */ new Set(["dataType", "length", "decimals", "outputLength", "lowercase", "signExists"]);
+var DTEL_FIELDS = /* @__PURE__ */ new Set([
+  "typeKind",
+  "typeName",
+  "dataType",
+  "length",
+  "decimals",
+  "shortLabel",
+  "shortLength",
+  "mediumLabel",
+  "mediumLength",
+  "longLabel",
+  "longLength",
+  "headingLabel",
+  "headingLength"
+]);
+var TTYP_FIELDS = /* @__PURE__ */ new Set(["typeKind", "typeName", "dataType", "length", "decimals"]);
+var STRUCTURED_FIELDS_BY_TYPE = {
+  "DOMA/DD": DOMA_FIELDS,
+  "DTEL/DE": DTEL_FIELDS,
+  "TTYP/DA": TTYP_FIELDS
+};
+function escapeXmlText(s) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+function elem(tag, value) {
+  return value === "" ? `<${tag}/>` : `<${tag}>${escapeXmlText(value)}</${tag}>`;
+}
+function num2(n) {
+  return String(Math.trunc(n));
+}
+function numPadded(n, width) {
+  return String(Math.trunc(n)).padStart(width, "0");
+}
+var DTEL_MAX_LENGTH = {
+  short: 10,
+  medium: 20,
+  long: 40,
+  heading: 55
+};
+function rejectStrayFields(type, name, fields, allowed) {
+  const stray = Object.keys(fields).filter(
+    (k) => fields[k] !== void 0 && !allowed.has(k)
+  );
+  if (stray.length > 0) {
     throw new AbapError(
       "BAD_INPUT",
-      `mode=${mode} needs \`entry\` (from mode=list) or \`object\`.`,
-      {},
-      "abap_journal mode=list shows the ids."
+      `ddic.${stray[0]} does not apply to ${type} \u2014 either no accepted PUT body has ever used it, or it belongs to a different DDIC type.`,
+      { name, type, strayFields: stray, allowedFields: [...allowed] },
+      "Drop this field, or if you need it, compose raw XML via `source` instead \u2014 `ddic` only covers the element set proven to be accepted on a live system."
     );
   }
-  const candidates = await journal.list({ object: input.object, limit: 50 });
-  const usable = candidates.find(
-    (e) => e.operation !== "activate" && !e.operation.startsWith("transport-") && !e.undoneBy
-  );
-  if (!usable) {
+}
+function buildDoma(name, description, packageName, f) {
+  const dataType = f.dataType ?? "CHAR";
+  const length = f.length ?? 10;
+  const decimals = f.decimals ?? 0;
+  const outputLength = f.outputLength ?? length;
+  const lowercase2 = f.lowercase ?? false;
+  const signExists = f.signExists ?? false;
+  return `${XML_DECL}<doma:domain xmlns:doma="http://www.sap.com/dictionary/domain" xmlns:adtcore="${ADTCORE_NS2}" adtcore:name="${escapeXmlAttr3(name)}" adtcore:type="DOMA/DD" adtcore:description="${escapeXmlAttr3(description)}"><adtcore:packageRef adtcore:name="${escapeXmlAttr3(packageName)}"/><doma:content><doma:typeInformation>${elem("doma:datatype", dataType)}${elem("doma:length", num2(length))}${elem("doma:decimals", num2(decimals))}</doma:typeInformation><doma:outputInformation>${elem("doma:length", num2(outputLength))}${elem("doma:lowercase", String(lowercase2))}${elem("doma:signExists", String(signExists))}</doma:outputInformation></doma:content></doma:domain>`;
+}
+function buildDtel(name, description, packageName, f) {
+  const typeKind = f.typeKind ?? "predefinedAbapType";
+  if (typeKind !== "domain" && typeKind !== "predefinedAbapType") {
     throw new AbapError(
-      "NOT_FOUND",
-      candidates.length ? `Every journalled change to ${input.object.toUpperCase()} has already been undone, or records only an activation.` : `abapsmith has no journal entry for ${input.object.toUpperCase()} \u2014 it never wrote this object (or the entry aged out of the retention window).`,
-      { object: input.object, seen: candidates.length },
-      // Never say "restored" for an object the journal never saw — fabrication.
-      "Objects abapsmith did not write cannot be undone: there is no before-image to restore and abapsmith will not reconstruct one. Use SAP's own version management (SE38 \u2192 Utilities \u2192 Versions) for changes made outside this server."
+      "BAD_INPUT",
+      `ddic.typeKind "${typeKind}" is not valid for DTEL/DE \u2014 only "domain" or "predefinedAbapType" is grounded.`,
+      { name, type: "DTEL/DE", typeKind },
+      'Use "domain" or "predefinedAbapType", or compose raw XML via `source`.'
     );
   }
-  return usable;
+  const typeName = f.typeName ?? "";
+  const dataType = f.dataType ?? "CHAR";
+  const length = f.length ?? 10;
+  const decimals = f.decimals ?? 0;
+  const shortLabel = f.shortLabel ?? "Bench";
+  const shortLength = f.shortLength ?? 10;
+  const mediumLabel = f.mediumLabel ?? "Bench";
+  const mediumLength = f.mediumLength ?? 20;
+  const longLabel = f.longLabel ?? "Bench";
+  const longLength = f.longLength ?? 40;
+  const headingLabel = f.headingLabel ?? "Bench";
+  const headingLength = f.headingLength ?? 55;
+  return `${XML_DECL}<blue:wbobj xmlns:blue="http://www.sap.com/wbobj/dictionary/dtel" xmlns:adtcore="${ADTCORE_NS2}" adtcore:name="${escapeXmlAttr3(name)}" adtcore:type="DTEL/DE" adtcore:description="${escapeXmlAttr3(description)}"><adtcore:packageRef adtcore:name="${escapeXmlAttr3(packageName)}"/><dtel:dataElement xmlns:dtel="${DATAELEMENT_NS}">${elem("dtel:typeKind", typeKind)}${elem("dtel:typeName", typeName)}${elem("dtel:dataType", dataType)}${elem("dtel:dataTypeLength", numPadded(length, 6))}${elem("dtel:dataTypeDecimals", numPadded(decimals, 6))}${elem("dtel:shortFieldLabel", shortLabel)}${elem("dtel:shortFieldLength", num2(shortLength))}${elem("dtel:shortFieldMaxLength", num2(DTEL_MAX_LENGTH.short))}${elem("dtel:mediumFieldLabel", mediumLabel)}${elem("dtel:mediumFieldLength", num2(mediumLength))}${elem("dtel:mediumFieldMaxLength", num2(DTEL_MAX_LENGTH.medium))}${elem("dtel:longFieldLabel", longLabel)}${elem("dtel:longFieldLength", num2(longLength))}${elem("dtel:longFieldMaxLength", num2(DTEL_MAX_LENGTH.long))}${elem("dtel:headingFieldLabel", headingLabel)}${elem("dtel:headingFieldLength", num2(headingLength))}${elem("dtel:headingFieldMaxLength", num2(DTEL_MAX_LENGTH.heading))}${elem("dtel:searchHelp", "")}${elem("dtel:searchHelpParameter", "")}${elem("dtel:setGetParameter", "")}${elem("dtel:defaultComponentName", "")}${elem("dtel:deactivateInputHistory", "false")}${elem("dtel:changeDocument", "false")}${elem("dtel:leftToRightDirection", "false")}${elem("dtel:deactivateBIDIFiltering", "false")}</dtel:dataElement></blue:wbobj>`;
 }
-async function abapJournal(conn, input, maxChars, journal, gate) {
-  const mode = input.mode ?? "list";
-  const j = requireJournal(journal);
-  if (mode === "list") {
-    let sessionFilter = input.session;
-    if (sessionFilter === "current") {
-      sessionFilter = j.sessionId;
-      if (!sessionFilter) {
-        throw new AbapError(
-          "BAD_INPUT",
-          'session="current" was requested, but this server process has no session id yet.',
-          {},
-          "This can only happen before the MCP initialize handshake has completed. Retry once the client is connected."
-        );
-      }
-    }
-    const entries = await j.list({
-      limit: input.limit ?? 20,
-      ...input.object ? { object: input.object } : {},
-      ...sessionFilter ? { sessionId: sessionFilter } : {}
-    });
-    const pendingAll = await j.listPending();
-    const pendingStale = await j.listPending({ staleAfterMs: STALE_PENDING_MS });
-    const staleIds = new Set(pendingStale.map((e) => e.id));
-    const pendingFresh = pendingAll.filter((e) => !staleIds.has(e.id));
-    const notes2 = [];
-    if (pendingStale.length) {
-      notes2.push(
-        `STRANDED: ${pendingStale.length} journal entr${pendingStale.length === 1 ? "y is" : "ies are"} still \`pending\` after more than ${Math.round(STALE_PENDING_MS / 6e4)} minutes \u2014 ${pendingStale.map((e) => `${e.id} (${e.operation} ${e.object.name})`).join(", ")}. The before-image was written and the outcome never was, which is what a crash mid-write looks like: nobody knows whether those writes landed. They are NOT usable undos \u2014 abapsmith refuses to undo a pending entry, because it cannot tell what to undo. Read each object (abap_read), compare it against abap_journal mode=show, and resolve it deliberately. Once you have established what actually happened to one of them, close it with abap_journal mode=reconcile entry=<id> outcome=succeeded|failed reason="\u2026" \u2014 that records your finding on the entry and deletes nothing. Entries whose live source settles the question can be classified in bulk by bin/abap-journal-reconcile.`
-      );
-    }
-    if (pendingFresh.length) {
-      notes2.push(
-        `${pendingFresh.length} entr${pendingFresh.length === 1 ? "y" : "ies"} began less than ${Math.round(STALE_PENDING_MS / 6e4)} minutes ago and ${pendingFresh.length === 1 ? "is" : "are"} still \`pending\` \u2014 most likely a write that is in flight right now. Re-run mode=list in a moment; if it is still pending it is stranded, not in flight.`
-      );
-    }
-    if (entries.some((e) => e.beforeCapture !== "captured" && e.beforeCapture !== "confirmed-absent")) {
-      notes2.push(
-        "`capture` is how each entry established whether the object existed beforehand. `captured` = the previous source was read; `confirmed-absent` = the object was positively confirmed missing; `failed` = the read didn't establish absence; `unknown` = not recorded. An undo that would DELETE is refused for anything but `confirmed-absent`, and that refusal is not overridable."
-      );
-    }
-    notes2.push(`Journal: ${j.dir} (retention: ${j.config.maxEntries} entries / ${j.config.maxAgeDays} days).`);
-    return buildResponse({
-      header: {
-        system: conn.cfg.sid,
-        mode: "list",
-        entries: entries.length,
-        filter: input.object?.toUpperCase(),
-        session: sessionFilter
-      },
-      body: entries.length ? textTable(entries.map(row), entries.some((e) => e.actor) ? LIST_COLUMNS_WITH_ACTOR : LIST_COLUMNS) : "(no journalled writes)",
-      bodyLabel: "WRITES (newest first)",
-      notes: notes2,
-      hints: ["abap_journal mode=show entry=<id> for the recorded source images."],
-      maxChars
-    });
-  }
-  if (mode === "reconcile") {
-    if (!input.entry) {
-      throw new AbapError(
-        "BAD_INPUT",
-        "mode=reconcile needs `entry` \u2014 the id of the pending entry you are closing.",
-        {},
-        "abap_journal mode=list shows the ids, and names the stranded ones. There is no `object` fallback here: closing the wrong entry writes a false outcome into the audit trail, so reconcile insists on the exact id."
-      );
-    }
-    if (!input.outcome) {
-      throw new AbapError(
-        "BAD_INPUT",
-        'mode=reconcile needs `outcome`: "succeeded" or "failed". `pending` is the state being left, so it is not offered as something to arrive at.',
-        { entry: input.entry },
-        'Pass outcome: "succeeded" or "failed".'
-      );
-    }
-    const reason = input.reason?.trim() ?? "";
-    if (!reason) {
-      throw new AbapError(
-        "BAD_INPUT",
-        "mode=reconcile needs a non-empty `reason`: abapsmith did not observe this entry's outcome, so the reason is all a later reader will ever have as evidence for it.",
-        { entry: input.entry },
-        "Pass reason describing how the outcome was established."
-      );
-    }
-    const target = await j.get(input.entry);
-    if (!target) {
-      throw new AbapError(
-        "NOT_FOUND",
-        `No journal entry ${input.entry}.`,
-        { entry: input.entry },
-        "Run abap_journal mode=list to see the ids that exist. Ids are dropped by the retention policy, so an old one may simply have aged out."
-      );
-    }
-    if (target.outcome !== "pending") {
-      throw new AbapError(
-        "BAD_INPUT",
-        `${input.entry} already reads \`${target.outcome}\` \u2014 reconcile only closes an entry whose outcome was never recorded. Overwriting an observed outcome would destroy the only observed fact this entry carries.`,
-        { entry: target.id, outcome: target.outcome },
-        "Nothing to do here: the entry already has a real outcome."
-      );
-    }
-    const res2 = await j.reconcile(target.id, { outcome: input.outcome, reason });
-    if (!res2.reconciled) {
-      if (res2.reason === "disabled") {
-        throw new AbapError(
-          "UNSUPPORTED",
-          "The write journal is disabled, so there is nothing to reconcile.",
-          { entry: target.id }
-        );
-      }
-      if (res2.reason === "unknown-entry") {
-        throw new AbapError(
-          "NOT_FOUND",
-          `${target.id} aged out of the retention window between being read and being reconciled.`,
-          { entry: target.id },
-          "Run abap_journal mode=list to see what still exists."
-        );
-      }
-      if (res2.reason === "already-settled") {
-        throw new AbapError(
-          "BAD_INPUT",
-          `${target.id} settled for real (outcome=${res2.entry?.outcome}) between being read and being reconciled \u2014 the observed outcome wins over the asserted one.`,
-          { entry: target.id, outcome: res2.entry?.outcome },
-          `Run abap_journal mode=show entry=${target.id} to see what it now says.`
-        );
-      }
-      throw new AbapError(
-        "ADT_ERROR",
-        `Could not write the reconciliation for ${target.id}: ${res2.error}. Nothing was written \u2014 the entry still reads \`pending\`.`,
-        { entry: target.id, error: res2.error },
-        "Retry mode=reconcile with the same outcome and reason."
-      );
-    }
-    const notes2 = [`Recorded reason: ${reason}`];
-    notes2.push(
-      "This changed the LOCAL journal only \u2014 nothing was sent to the system, no SAP object and no transport request was touched, and nothing was deleted: the before-image and every earlier line for this entry are still on disk."
-    );
-    notes2.push(
-      "The outcome is now recorded as an ASSERTION, not an observation: the entry carries `reconciled` with the reason and (when known) who stated it, so a later reader can tell it apart from an outcome abapsmith itself watched happen."
-    );
-    if (res2.entry.outcome === "succeeded") {
-      notes2.push(
-        "The entry is now terminal, so mode=undo will no longer refuse it for being `pending` \u2014 undo replays the before-image, so only assert `succeeded` when it is established that the write landed."
-      );
-    }
-    return buildResponse({
-      header: {
-        system: conn.cfg.sid,
-        mode: "reconcile",
-        entry: res2.entry.id,
-        operation: res2.entry.operation,
-        object: `${res2.entry.object.type} ${res2.entry.object.name}`,
-        was: "pending",
-        outcome: res2.entry.outcome,
-        by: res2.entry.reconciled?.by,
-        at: res2.entry.reconciled?.at
-      },
-      notes: notes2,
-      hints: [`abap_journal mode=show entry=${res2.entry.id}`],
-      maxChars
-    });
-  }
-  const entry = await pickEntry(j, input, mode);
-  if (mode === "show") {
-    const before = await j.beforeImage(entry);
-    const sections = [];
-    if (before !== void 0) {
-      const win = sliceLines(before, 1);
-      const label = entry.beforeKind === "package-metadata" ? "package metadata, " : "";
-      sections.push({ title: `BEFORE-IMAGE (${label}${entry.before?.bytes ?? 0} bytes)`, content: win.text });
-    } else {
-      sections.push({
-        title: "BEFORE-IMAGE",
-        content: entry.existedBefore ? entry.beforeCapture === "failed" ? "(none was ever captured \u2014 the entry says the object existed but its source read never resolved, whether it didn't complete or came back inconclusive. Not a retention problem; there is nothing to restore.)" : "(recorded, but the blob is gone \u2014 pruned or the journal dir was cleaned)" : `(none \u2014 the entry records that the object did not exist before this operation, so undo would mean DELETE; provenance: beforeCapture="${entry.beforeCapture}")`
-      });
-    }
-    if (entry.parts?.length) {
-      const columns = entry.parts.some((p) => p.object.package) ? PART_COLUMNS_WITH_PACKAGE : PART_COLUMNS;
-      sections.push({ title: `ALSO TOUCHED (${entry.parts.length})`, content: textTable(entry.parts.map(partRow), columns) });
-    }
-    const notes2 = [];
-    if (entry.outcome === "pending") {
-      notes2.push(
-        "THIS IS NOT A USABLE UNDO. The entry is still `pending`: abapsmith wrote the before-image and then never recorded an outcome, so it does not know whether the write reached the server at all. Undo refuses pending entries rather than guess which state to put the object back into. Read the object (abap_read) and compare it with the images above to find out what actually happened."
-      );
-    }
-    if (entry.reconciled) {
-      notes2.push(
-        `This entry's outcome was RECONCILED BY HAND (at ${entry.reconciled.at}` + (entry.reconciled.by ? `, by ${entry.reconciled.by}` : "") + `), because: ${entry.reconciled.reason}. abapsmith did not observe that outcome; it is a stated finding, and the entry stayed \`pending\` until someone stated it.`
-      );
-    }
-    notes2.push(
-      `Before-image provenance: beforeCapture="${entry.beforeCapture}" \u2014 ` + (entry.beforeCapture === "captured" ? entry.beforeKind === "package-metadata" ? "the captured image is the package's metadata document, not source \u2014 undo will not re-create the package." : "the previous source was read successfully." : entry.beforeCapture === "confirmed-absent" ? "the object was positively confirmed absent beforehand." : entry.beforeCapture === "failed" ? "the before-image probe never completed or came back inconclusive, so `existedBefore` is a guess." : "not recorded (the entry predates provenance tracking), so `existedBefore` is unverified.")
-    );
-    notes2.push(undoHint(entry));
-    const cls = classWarning(entry);
-    if (cls) notes2.push(cls);
-    if (entry.irreversible) {
-      notes2.push(
-        "IRREVERSIBLE: this entry can never be undone by any mechanism, not even force=true."
-      );
-    }
-    return buildResponse({
-      header: {
-        system: entry.system,
-        systemKey: entry.systemKey,
-        entry: entry.id,
-        when: entry.ts,
-        operation: entry.operation,
-        object: `${entry.object.type} ${entry.object.name}`,
-        // Present only for an entry ABOUT one class sub-include (not the
-        // main body) — see `entrySubInclude`. Absent for every other entry,
-        // including a class-delete entry whose `parts` recorded includes
-        // alongside the main body (those are listed in ALSO TOUCHED below).
-        include: entrySubInclude(entry),
-        uri: entry.object.uri,
-        package: entry.object.package,
-        existedBefore: entry.existedBefore,
-        beforeCapture: entry.beforeCapture,
-        beforeKind: entry.beforeKind,
-        outcome: entry.outcome,
-        reconciled: entry.reconciled?.at,
-        error: entry.error,
-        beforeEtag: entry.before?.etag,
-        beforeServerEtag: entry.before?.serverEtag,
-        afterEtag: entry.after?.etag,
-        activated: entry.activation?.activated,
-        undoOf: entry.undoOf,
-        undoneBy: entry.undoneBy,
-        tool: entry.tool,
-        actor: entry.actor,
-        sessionId: entry.sessionId,
-        sessionIdSource: entry.sessionIdSource,
-        corrNr: entry.corrNr,
-        irreversible: entry.irreversible || void 0
-      },
-      sections,
-      notes: notes2,
-      hints: [`abap_journal mode=undo entry=${entry.id}`],
-      maxChars
-    });
-  }
-  if (!gate) {
+function buildTtyp(name, description, packageName, f) {
+  const typeKind = f.typeKind ?? "dictionaryType";
+  if (typeKind !== "dictionaryType") {
     throw new AbapError(
-      "SAFETY_DENIED",
-      "abap_journal mode=undo was called without a safety gate. An undo writes to the system \u2014 for an undo of a create it deletes an object \u2014 so it cannot run unchecked. Nothing was changed.",
-      { entry: entry.id, object: entry.object.name, operation: entry.operation },
-      "This is a wiring bug, not a user error: the caller must pass the SafetyGate it enforces every other write with."
+      "BAD_INPUT",
+      `ddic.typeKind "${typeKind}" is not valid for TTYP/DA \u2014 only "dictionaryType" is grounded. A live activation rejected "rangeTypeOnDataelement" rather than accepting it.`,
+      { name, type: "TTYP/DA", typeKind },
+      'Use "dictionaryType", or compose raw XML via `source`.'
     );
   }
-  const res = await performUndo(conn, j, entry, {
-    ...input.force ? { force: true } : {},
-    ...input.activate !== void 0 ? { activate: input.activate } : {},
-    // A DEVC/K undo deletes through the classrun bridge, which gates itself.
-    gate,
-    // Re-authorise on the resolved object: only here is delete vs. write known.
-    // gate.authorize both checks and mints the AuthorizedTarget proof that
-    // writeObject/deleteObject require to run at all (Layer 2, src/mode.ts) —
-    // pass the FULL target, not a name/type/packageName subset, since they
-    // also need uri/sourceUri/spec.
-    assertAllowed: (action, target) => gate.authorize(action === "delete" ? "delete" : "write", target)
-  });
-  const notes = [];
-  if (res.plan.releasedTransportWarning) notes.push(res.plan.releasedTransportWarning);
-  if (!res.performed) {
-    notes.push(
-      plannedAction(entry) === "delete" ? `DONE \u2014 nothing was sent. ${res.plan.drift.reason} No DELETE was issued: abapsmith does not send a destructive request that the observed state does not justify. Nothing is left to clean up. The journal entry stays as it is, because no undo was performed to record \u2014 running this again will simply say the same thing.` : "Nothing was written: the server already matches the recorded before-image. " + res.plan.drift.reason
-    );
-  }
-  if (res.check && !res.check.ok) {
-    notes.push(
-      `The restored version has ${res.check.errors} syntax error(s) and ${res.check.warnings} warning(s). The undo was performed anyway: getting back to a known state is the point, even when that state was broken. The object is saved` + (res.activation ? " but activation will have failed" : " and INACTIVE") + " \u2014 fix it forward from here."
-    );
-  }
-  if (res.performed && res.checkUnavailable) {
-    notes.push(
-      `No syntax check result: ${res.checkUnavailable}. The restore itself succeeded; run abap_check or abap_activate if you need to know whether what came back compiles.`
-    );
-  }
-  if (res.performed && res.deleteUnverified) {
-    notes.push(
-      `${res.deleteUnverified} The undo itself succeeded (the DELETE was accepted); this is only about whether abapsmith can prove it.`
-    );
-  }
-  if (res.forced && res.plan.drift.drifted) {
-    notes.push(
-      "force=true OVERRODE a drift refusal \u2014 a change made outside abapsmith has just been overwritten. What was there is preserved as the before-image of journal " + (res.undoEntryId ? `entry ${res.undoEntryId}, so it can be put back.` : "\u2014 NOTHING: this undo was not journalled (see below), so the overwritten version is GONE.")
-    );
-  }
-  if (res.performed && res.partial) {
-    notes.push(
-      `PARTIAL \u2014 this object was NOT fully ${res.plan.action === "recreate" ? "recreated" : "restored"}. ${res.partial.reason} Unrestored includes: ${res.partial.unrestored.join(", ")}. ` + (res.plan.action === "recreate" ? `${entry.object.name} is NOT the object that was deleted: what came back is its main include${res.restoredIncludes?.length ? ` plus its ${res.restoredIncludes.join(", ")} include(s)` : ""}, not the ${res.partial.unrestored.join(", ")} include(s) \u2014 those were never recorded and are not restored. Restore them from SAP's own version management (SE24 \u2192 Utilities \u2192 Versions) before trusting it, and do not run its unit tests expecting them to exist unless testclasses is among what came back.` : "Drift in those includes was neither detected nor reverted.")
-    );
-  }
-  if (res.performed && res.restoredIncludes?.length) {
-    notes.push(
-      `Also restored: its ${res.restoredIncludes.join(", ")} include(s) \u2014 recorded alongside the main body when the class was deleted, written back and activated together with it.`
-    );
-  }
-  if (res.performed && res.skippedIncludes?.length) {
-    notes.push(
-      `NOT restored: ${res.skippedIncludes.map((s) => `its ${s.include} include (${s.reason})`).join("; ")}.`
-    );
-  }
-  if (res.undoEntryId) {
-    notes.push("The undo is itself journalled, so it can be undone.");
-  } else {
-    notes.push(
-      "This undo was NOT journalled \u2014 the write journal is disabled, so no before-image of what it overwrote exists and THIS UNDO CANNOT BE UNDONE. Whatever was on the server a moment ago is only recoverable from SAP's own version management."
-    );
-  }
-  const body = [];
-  if (res.activation) {
-    const msgs = renderMessages(res.activation.messages, res.plan.restoreSource ?? "");
-    if (msgs.trim()) body.push(`# ACTIVATION
-${msgs}`);
-  }
-  return buildResponse({
-    header: {
-      system: conn.cfg.sid,
-      mode: "undo",
-      undid: entry.id,
-      object: `${entry.object.type} ${entry.object.name}`,
-      uri: res.plan.target.uri,
-      action: res.plan.action,
-      performed: res.performed,
-      partial: res.partial ? `yes \u2014 ${res.partial.unrestored.join(", ")} NOT restored` : void 0,
-      restoredIncludes: res.restoredIncludes?.length ? res.restoredIncludes.join(", ") : void 0,
-      skippedIncludes: res.skippedIncludes?.length ? res.skippedIncludes.map((s) => s.include).join(", ") : void 0,
-      forced: res.forced || void 0,
-      driftDetected: res.plan.drift.drifted || void 0,
-      newEntry: res.undoEntryId ?? (res.performed ? "NOT JOURNALLED" : void 0),
-      activated: res.activation ? res.activation.activated : "n/a"
-    },
-    body: body.join("\n\n"),
-    bodyLabel: "MESSAGES",
-    notes,
-    hints: [
-      res.undoEntryId ? `abap_journal mode=undo entry=${res.undoEntryId} undoes this undo.` : "There is no entry id for this undo and no way to undo it \u2014 the journal is off."
-    ],
-    maxChars
-  });
+  const typeName = f.typeName ?? "SYST";
+  const dataType = f.dataType ?? "STRU";
+  const length = f.length ?? 0;
+  const decimals = f.decimals ?? 0;
+  return `${XML_DECL}<ttyp:tableType xmlns:ttyp="http://www.sap.com/dictionary/tabletype" xmlns:adtcore="${ADTCORE_NS2}" adtcore:name="${escapeXmlAttr3(name)}" adtcore:type="TTYP/DA" adtcore:description="${escapeXmlAttr3(description)}"><adtcore:packageRef adtcore:name="${escapeXmlAttr3(packageName)}"/><ttyp:rowType>${elem("ttyp:typeKind", typeKind)}${elem("ttyp:typeName", typeName)}<ttyp:builtInType>${elem("ttyp:dataType", dataType)}${elem("ttyp:length", numPadded(length, 6))}${elem("ttyp:decimals", numPadded(decimals, 6))}</ttyp:builtInType><ttyp:rangeType/></ttyp:rowType></ttyp:tableType>`;
 }
-async function undoPreflightTarget(journal, input) {
-  if ((input.mode ?? "list") !== "undo") return void 0;
-  if (!journal || !journal.enabled) return void 0;
-  let entry;
-  if (input.entry) entry = await journal.get(input.entry);
-  else if (input.object) {
-    const list5 = await journal.list({ object: input.object, limit: 50 });
-    entry = list5.find((e) => e.operation !== "activate" && !e.undoneBy);
+function buildStructuredDdicDescriptor(type, name, description, packageName, fields) {
+  const allowed = STRUCTURED_FIELDS_BY_TYPE[type];
+  if (!allowed) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `\`ddic\` structured input only covers DOMA/DD, DTEL/DE, TTYP/DA \u2014 not ${type}.`,
+      { name, type },
+      "Drop `ddic` and compose raw XML via `source` for this type."
+    );
   }
-  if (!entry) return void 0;
-  return {
-    op: plannedAction(entry) === "delete" ? "delete" : "write",
-    name: entry.object.name,
-    packageName: entry.object.package,
-    type: entry.object.type
-  };
-}
-var ok4 = (text3) => ({ content: [{ type: "text", text: text3 }] });
-function registerJournalTools(mcp, deps) {
-  mcp.registerTool(
-    "abap_journal",
-    {
-      description: "History and undo for writes abapsmith made. mode=list: recent writes with entry ids. mode=show: one entry with its before-image. mode=undo: revert it \u2014 refuses on drift, delete-gate, or an enhancement object; see abapsmith-recover-a-bad-write for details. mode=reconcile: close a stranded `pending` entry with a stated outcome and reason \u2014 journal bookkeeping only, nothing is sent to SAP.",
-      inputSchema: journalInputSchema,
-      annotations: { readOnlyHint: false, destructiveHint: true }
-    },
-    async (args) => {
-      try {
-        const a = args;
-        const isUndo = (a.mode ?? "list") === "undo";
-        let undoGateKey;
-        if (isUndo) {
-          const t = await undoPreflightTarget(deps.journal, a);
-          undoGateKey = t?.name ? t.name.trim().toUpperCase() : void 0;
-          const blocked = t ? enhancementUndoBlocked(t.type ?? "", t.op, t.name) : void 0;
-          if (blocked) {
-            throw new AbapError(
-              "UNSUPPORTED",
-              blocked,
-              { entry: a.entry, object: t?.name ?? a.object },
-              "There is no override for this refusal. Reverse the change deliberately through the ABAP enhancement UI instead."
-            );
-          }
-          deps.safety.assert(t?.op ?? "write", t ? { name: t.name, packageName: t.packageName, type: t.type } : { name: a.object ?? "" }, {
-            phase: t ? "final" : "preflight"
-          });
-        }
-        if (isUndo) await deps.ensureConnected();
-        const run2 = (conn) => abapJournal(conn, args, deps.cfg.maxResponseChars, deps.journal, deps.safety);
-        const res = isUndo ? await deps.pool.withWrite("abap_journal", undoGateKey, run2) : await run2(deps.pool.primary());
-        return ok4(res.text);
-      } catch (e) {
-        return deps.errorResult(e);
-      }
-    }
-  );
+  rejectStrayFields(type, name, fields, allowed);
+  if (type === "DOMA/DD") return buildDoma(name, description, packageName, fields);
+  if (type === "DTEL/DE") return buildDtel(name, description, packageName, fields);
+  return buildTtyp(name, description, packageName, fields);
 }
 
-// src/tools/locked.ts
+// src/tools/write.ts
 init_errors();
-init_mode();
-var MODE_LOCKED_TOOLS = [
-  {
-    name: "abap_write",
-    needs: ["allowWrite"],
-    summary: "Create, change or delete an ABAP object: save/check/activate."
-  },
-  {
-    name: "abap_run",
-    needs: ["allowWrite"],
-    summary: "Execute an IF_OO_ADT_CLASSRUN class or report and capture its output."
-  },
-  {
-    name: "abap_test",
-    needs: ["allowWrite"],
-    summary: "Run ABAP Unit tests and report each method's verdict."
-  },
-  {
-    name: "abap_atc",
-    needs: ["allowWrite"],
-    summary: "Run ABAP Test Cockpit static analysis on an object."
-  },
-  {
-    name: "abap_quick_fix",
-    needs: ["allowWrite"],
-    summary: "List and apply ADT quick fixes at one source position."
-  },
-  {
-    name: "abap_ui",
-    needs: ["allowWrite"],
-    summary: "Drive classic SAP dynpro screens via batch input: read one screen, or run a scripted transaction."
-  },
-  {
-    name: "abap_fpm_read",
-    needs: ["allowWrite"],
-    summary: "Read SAP FPM/FBI screen configurations; every call deploys a throwaway bridge class."
-  },
-  {
-    name: "abap_img_edit",
-    needs: ["allowWrite"],
-    summary: "Preview and write IMG/customizing table rows."
-  },
-  {
-    name: "abap_bopf_test",
-    needs: ["allowWrite"],
-    summary: "Run a BOPF business object end to end, writing real rows."
-  },
-  {
-    name: "abap_bopf_edit",
-    needs: ["allowWrite"],
-    summary: "Make one design-time edit to a BOPF business object, or create one."
-  },
-  {
-    name: "abap_bopf_delete",
-    needs: ["allowWrite"],
-    summary: "Delete a BOPF business object."
-  },
-  {
-    name: "abap_transport_release",
-    needs: ["allowWrite", "allowTransportRelease"],
-    summary: "Release one CTS transport request \u2014 irreversible."
-  },
-  {
-    name: "abap_fluid",
-    needs: ["allowWrite"],
-    summary: "Deploy and run small generated ABAP tools inside $ABAPSMITH_FLUID_API.",
-    // Mirrors `resolveStaticCapabilities`'s `canUseFluidApi` gate
-    // (`cfg.fluidApi && !cfg.readOnly && cfg.abapMode !== "read"`) for the
-    // `fluidApi` slice of it: `Config["fluidApi"]` (via `boolishRejectDefaultTrue`
-    // in src/config.ts) is always a resolved `boolean`, defaulting to `true`,
-    // never `undefined` — so the precondition is a plain truthiness check,
-    // not an `undefined` check.
-    availableWhen: (cfg) => cfg.fluidApi
-  }
-];
-function lockedToolsFor(cfg) {
-  if (cfg.toolSurface !== "v1" || cfg.readOnly !== true) return [];
-  return MODE_LOCKED_TOOLS.filter((tool) => tool.availableWhen === void 0 || tool.availableWhen(cfg));
-}
-function lockedToolRequiresMode(tool) {
-  return lowestModeSatisfying(
-    (caps) => tool.needs.every((c) => capabilityGranted(caps, c))
-  );
-}
-function lockedToolExplanation(tool, abapMode) {
-  if (tool.needs.length === 1) {
-    const need = tool.needs[0];
-    if (need === void 0) {
-      throw new AbapError("INTERNAL_GATE_MISUSE", `${tool.name} declares no capability needs.`, {
-        tool: tool.name
-      });
-    }
-    const { cause, remediation } = explainDeniedCapability(need, abapMode);
-    return { cause, remediation };
-  }
-  return explainDeniedCapabilities(tool.needs, abapMode);
-}
-function lockedToolRefusal(tool, abapMode) {
-  const { cause, remediation } = lockedToolExplanation(tool, abapMode);
-  const message = `${tool.name} is registered but locked at this permission level. ${cause} Nothing was sent to the SAP system.`;
-  return new AbapError(
-    "READ_ONLY",
-    message,
-    {
-      tool: tool.name,
-      locked: true,
-      abapMode: abapMode ?? null,
-      requiresMode: lockedToolRequiresMode(tool) ?? null,
-      capabilities: [...tool.needs]
-    },
-    remediation
-  );
-}
-function lockedToolDescription(tool, abapMode) {
-  const { cause, remediation } = lockedToolExplanation(tool, abapMode);
-  return `${tool.summary} LOCKED on this server: ${cause} ${remediation} Calling it returns a refusal and sends nothing to the SAP system.`;
-}
-function registerLockedTools(mcp, deps) {
-  for (const tool of deps.tools) {
-    mcp.registerTool(
-      tool.name,
-      {
-        description: lockedToolDescription(tool, deps.cfg.abapMode),
-        annotations: {
-          readOnlyHint: true,
-          destructiveHint: false,
-          idempotentHint: true,
-          openWorldHint: false
-        }
-      },
-      async () => deps.errorResult(lockedToolRefusal(tool, deps.cfg.abapMode))
-    );
-  }
-}
+init_types();
+init_compact();
+init_safety();
 
-// src/tools/open-url.ts
-init_zod();
-init_errors();
-var HTML_UNSUPPORTED_KINDS = /* @__PURE__ */ new Set(["DTEL", "DOMA", "TTYP"]);
-var openUrlInputSchema = {
-  object: external_exports.string().optional().describe("Object to open, fuzzy like `abap_read`'s `object`."),
-  type: external_exports.string().optional().describe("ADT type. Only with `object`."),
-  line: external_exports.number().int().positive().optional().describe("Deep-link line. Only with `object`."),
-  keyword: external_exports.string().regex(/^[A-Za-z0-9_]{1,80}$/, "keyword must match ^[A-Za-z0-9_]{1,80}$ (reject, never escape)").optional().describe('ABAP keyword, e.g. "SELECT".'),
-  webdynpro: external_exports.string().regex(/^[A-Za-z0-9_/]{1,80}$/, "webdynpro must match ^[A-Za-z0-9_/]{1,80}$ (reject, never escape)").optional().describe("Web Dynpro application name.")
+// src/tools/v2/edit.ts
+var EditInputError = class extends Error {
 };
-var OpenUrlInput = external_exports.object(openUrlInputSchema).refine(
-  (v) => {
-    const modes = [v.object, v.keyword, v.webdynpro].filter((s) => typeof s === "string" && s.length > 0);
-    return modes.length === 1;
-  },
-  { message: "Exactly one of object, keyword, or webdynpro is required." }
-).refine(
-  (v) => v.type === void 0 && v.line === void 0 || typeof v.object === "string" && v.object.length > 0,
-  { message: "type/line are only valid alongside object." }
-);
-var ok5 = (text3) => ({ content: [{ type: "text", text: text3 }] });
-async function resolveOpenUrl(input, deps) {
-  if (input.keyword) {
-    const keyword = input.keyword.toUpperCase();
-    return {
-      route: "abap-docu",
-      // Live-verified: not every keyword has a single-page doc entry (e.g.
-      // LOOP 200s with an "Invalid document" placeholder) — searchUrl is a
-      // working fallback. Details: the git history
-      url: `${deps.cfg.url}/sap/public/bc/abap/docu?object=ABAP${encodeURIComponent(keyword)}`,
-      searchUrl: `${deps.cfg.url}/sap/public/bc/abap/docu?query=${encodeURIComponent(keyword)}`,
-      keyword,
-      note: "no authentication required to view either page; if url renders 'Invalid document' (happens for compound keywords with no single-page entry, e.g. LOOP), use searchUrl instead"
-    };
+var toLf = (s) => s.replace(/\r\n/g, "\n");
+function findAll(haystack, needle) {
+  const offsets = [];
+  let from = 0;
+  for (; ; ) {
+    const idx = haystack.indexOf(needle, from);
+    if (idx === -1) break;
+    offsets.push(idx);
+    from = idx + needle.length;
   }
-  if (input.webdynpro) {
-    return {
-      route: "web-dynpro",
-      url: `${deps.cfg.url}/sap/bc/webdynpro/sap/${input.webdynpro}`,
-      app: input.webdynpro,
-      note: "requires Basic auth and a browser User-Agent to render \u2014 a request without a browser User-Agent has been observed to both 500 and 200-with-a-zero-length-body depending on the app; neither status code alone is a success signal, only real body content is"
-    };
+  return offsets;
+}
+function lineStarts(s) {
+  const starts = [0];
+  for (let i = 0; i < s.length; i++) {
+    if (s.charCodeAt(i) === 10) starts.push(i + 1);
   }
-  const objectRef = input.object;
-  if (!objectRef) {
-    throw new AbapError("BAD_INPUT", "Exactly one of object, keyword, or webdynpro is required.", {});
+  return starts;
+}
+function lineAt(starts, offset) {
+  let lo = 0;
+  let hi = starts.length - 1;
+  while (lo < hi) {
+    const mid = lo + hi + 1 >> 1;
+    if (starts[mid] <= offset) lo = mid;
+    else hi = mid - 1;
   }
-  deps.safety.assert("read");
-  const resolved = await deps.pool.withRead(
-    "abap_open_url",
-    (conn) => resolveObject(conn, objectRef, input.type ? { type: input.type } : {})
-  );
-  const fragment = input.line ? `#start=${input.line},0` : "";
-  const url2 = `${deps.cfg.url}${resolved.uri}/source/main${fragment}`;
-  const notes = [];
-  let adtUrl;
-  if (deps.cfg.sid !== "UNKNOWN") {
-    adtUrl = `adt://${deps.cfg.sid}${resolved.uri}${fragment}`;
-  } else {
-    notes.push("adt:// link unavailable: ABAP_SID is not configured");
-  }
-  if (HTML_UNSUPPORTED_KINDS.has(resolved.kind)) {
-    notes.push(
-      "metadata objects of this kind do not render as HTML \u2014 the ADT endpoint stays vendor XML regardless of Accept header"
+  return lo + 1;
+}
+function applyEdit(source, oldString, newString, replaceAll) {
+  if (oldString === "") {
+    throw new EditInputError(
+      "old_string must not be empty \u2014 an empty needle matches everywhere, which is never the intent."
     );
   }
-  return {
-    route: "adt-source-html",
-    url: url2,
-    ...adtUrl ? { adtUrl } : {},
-    object: resolved.name,
-    type: resolved.type,
-    ...notes.length ? { note: notes.join(" ") } : {}
-  };
-}
-function registerOpenUrlTools(mcp, deps) {
-  mcp.registerTool(
-    "abap_open_url",
-    {
-      title: "Get a browser-openable URL for an ABAP object, keyword, or Web Dynpro app",
-      description: "Browser-openable URL: ADT source/HTML (object=, type=/line=), keyword doc (keyword=), or Web Dynpro URL (webdynpro=). Exactly one required. Does not open a browser.",
-      inputSchema: openUrlInputSchema,
-      annotations: { readOnlyHint: true, openWorldHint: true }
-    },
-    async (args) => {
-      try {
-        const parsed = OpenUrlInput.safeParse(args);
-        if (!parsed.success) {
-          throw new AbapError(
-            "BAD_INPUT",
-            parsed.error.issues.map((i) => i.message).join("; "),
-            { issues: parsed.error.issues }
-          );
-        }
-        const input = parsed.data;
-        if (input.object) {
-          await deps.ensureConnected();
-        }
-        const result = await resolveOpenUrl(input, deps);
-        return ok5(JSON.stringify(result, null, 2));
-      } catch (e) {
-        return deps.errorResult(e);
+  if (oldString === newString) {
+    throw new EditInputError("old_string and new_string are identical \u2014 this edit would change nothing.");
+  }
+  const normSource = toLf(source);
+  const normOld = toLf(oldString);
+  const normNew = toLf(newString);
+  const offsets = findAll(normSource, normOld);
+  if (offsets.length === 0) {
+    const firstLine = normOld.split("\n")[0] ?? "";
+    let firstLineOccurrences;
+    if (firstLine !== "") {
+      const hits = findAll(normSource, firstLine);
+      if (hits.length > 0) {
+        const starts = lineStarts(normSource);
+        firstLineOccurrences = hits.map((o) => lineAt(starts, o));
       }
     }
-  );
+    return { ok: false, kind: "no-match", ...firstLineOccurrences ? { firstLineOccurrences } : {} };
+  }
+  if (offsets.length > 1 && !replaceAll) {
+    const starts = lineStarts(normSource);
+    return { ok: false, kind: "ambiguous", matchLines: offsets.map((o) => lineAt(starts, o)) };
+  }
+  let result = "";
+  let cursor = 0;
+  for (const o of offsets) {
+    result += normSource.slice(cursor, o) + normNew;
+    cursor = o + normOld.length;
+  }
+  result += normSource.slice(cursor);
+  return { ok: true, result };
+}
+function describeEditFailure(r) {
+  if (r.kind === "ambiguous") {
+    return `old_string appears ${r.matchLines.length} times (lines ${r.matchLines.join(", ")}) \u2014 pass replace_all:true to replace every occurrence, or narrow old_string (e.g. include a neighbouring line) so it matches exactly once.`;
+  }
+  if (r.firstLineOccurrences && r.firstLineOccurrences.length > 0) {
+    return `old_string was not found (0 matches), but its first line alone appears at line(s) ${r.firstLineOccurrences.join(", ")} \u2014 the rest of old_string has likely drifted from the current source (stale read, prior edit, or a whitespace mismatch). Re-read the object and copy old_string verbatim from the current source.`;
+  }
+  return "old_string was not found (0 matches), and not even its first line appears anywhere in the current source. Re-read the object to confirm old_string against what is actually there.";
 }
 
-// src/tools/read.ts
-init_zod();
-init_ddic();
-init_capabilities();
-init_errors();
-
-// src/adt/suso-read.ts
+// src/tools/write-dry-run.ts
+init_transports();
 init_errors();
 init_compact();
-init_catalog_select();
-var SUSO_CATALOG = Object.freeze({
-  object: Object.freeze({
-    table: "TOBJ",
-    fields: Object.freeze({
-      object: "OBJCT",
-      objectClass: "OCLSS",
-      bname: "BNAME",
-      fblock: "FBLOCK",
-      conversion: "CONVERSION",
-      field1: "FIEL1",
-      field2: "FIEL2",
-      field3: "FIEL3",
-      field4: "FIEL4",
-      field5: "FIEL5",
-      field6: "FIEL6",
-      field7: "FIEL7",
-      field8: "FIEL8",
-      field9: "FIEL9",
-      field0: "FIEL0"
-    }),
-    confidence: "high",
-    note: "capture 861 (A4H 2026-09-12): key column is OBJCT, not OBJECT. Field slots are FIEL1..FIEL9 then FIEL0 \u2014 there is no FIEL10. OBJCT is C(10): a literal over 10 chars gets HTTP 400, not an empty result."
-  }),
-  objectText: Object.freeze({
-    table: "TOBJT",
-    fields: Object.freeze({
-      object: "OBJECT",
-      language: "LANGU",
-      text: "TTEXT"
-    }),
-    confidence: "high",
-    note: "capture 861: key column here is OBJECT (unlike TOBJ's OBJCT). Language-dependent."
-  }),
-  objectClassText: Object.freeze({
-    table: "TOBCT",
-    fields: Object.freeze({
-      language: "LANGU",
-      objectClass: "OCLSS",
-      text: "CTEXT"
-    }),
-    confidence: "high",
-    note: "capture 861."
-  }),
-  activity: Object.freeze({
-    table: "TACTZ",
-    fields: Object.freeze({
-      object: "BROBJ",
-      activity: "ACTVT"
-    }),
-    confidence: "high",
-    note: "capture 862: no text column here \u2014 see TACTT."
-  }),
-  activityText: Object.freeze({
-    table: "TACTT",
-    fields: Object.freeze({
-      language: "SPRAS",
-      activity: "ACTVT",
-      text: "LTEXT"
-    }),
-    confidence: "high",
-    note: "capture 862: issue #87 names this table TACT; the activity texts actually live in TACTT."
-  }),
-  fieldMeta: Object.freeze({
-    table: "AUTHX",
-    fields: Object.freeze({
-      fieldName: "FIELDNAME",
-      rollname: "ROLLNAME",
-      checkTable: "CHECKTABLE",
-      exitFb: "EXIT_FB",
-      actvtFlag: "ACTVT_FLAG"
-    }),
-    confidence: "high",
-    note: "capture 862: a field's data element and check table come from here, not from TOBJ."
-  }),
-  dataElement: Object.freeze({
-    table: "DD04L",
-    fields: Object.freeze({
-      rollname: "ROLLNAME",
-      domname: "DOMNAME",
-      datatype: "DATATYPE",
-      leng: "LENG"
-    }),
-    confidence: "high",
-    note: "capture 873: a ROLLNAME from AUTHX is not guaranteed to have a DD04L row \u2014 a missing one is tolerated, not an error."
-  }),
-  domainValue: Object.freeze({
-    table: "DD07V",
-    fields: Object.freeze({
-      domname: "DOMNAME",
-      valpos: "VALPOS",
-      ddlanguage: "DDLANGUAGE",
-      valueLow: "DOMVALUE_L",
-      valueHigh: "DOMVALUE_H",
-      text: "DDTEXT"
-    }),
-    confidence: "high",
-    note: "capture 873: DD07V has NO AS4LOCAL column \u2014 adding that predicate is HTTP 400, not a filter. Rows come back unordered; sort by VALPOS client-side."
-  })
-});
-function tbl2(key) {
-  return SUSO_CATALOG[key].table;
-}
-function fld2(key, field) {
-  const fields = SUSO_CATALOG[key].fields;
-  return fields[field];
-}
-var SUSO_OBJECT_NAME_MAX = 10;
-var SUSO_ROW_CAP = 200;
-var DEFAULT_LANGUAGE2 = "E";
-var SUSO_WHERE_USED_NOTE = "Finding the ABAP that runs AUTHORITY-CHECK OBJECT for this authorization object needs a source-text search, which abapsmith does not have yet \u2014 that is the subject of a separate open issue, not a search this call performed.";
-function chunk(values, size) {
-  const out = [];
-  for (let i = 0; i < values.length; i += size) out.push(values.slice(i, i + size));
-  return out;
-}
-function serverNotes2(result) {
-  return result.messages.map((m) => `[server] ${m.text}${m.severity ? ` (${m.severity})` : ""}`);
-}
-function noteIfCut2(result, cap, what, notes) {
-  if (result.totalRows !== void 0 && result.totalRows > result.rows.length) {
-    notes.push(
-      `${what} reports ${result.totalRows} total rows but only ${result.rows.length} were fetched (row cap ${cap}) \u2014 the remainder was cut, not silently dropped.`
-    );
-  }
-}
-async function readAuthorizationObject(conn, name, opts) {
-  const notes = [];
-  const language = opts?.language ?? DEFAULT_LANGUAGE2;
-  const objectName = assertCatalogValue(name.trim().toUpperCase(), "authorization object name", SUSO_OBJECT_NAME_MAX);
-  const OBJCT = fld2("object", "object");
-  const objSql = buildCatalogSelect("*", tbl2("object"), [`${OBJCT} = ${catalogLiteral(objectName)}`]);
-  const objResult = await runCatalogSelect(conn, objSql, 1);
-  notes.push(...serverNotes2(objResult));
-  const objRow = objResult.rows[0];
-  if (objRow === void 0) {
-    throw new AbapError(
-      "NOT_FOUND",
-      `Authorization object "${objectName}" has no ${tbl2("object")} row on this system \u2014 this is a definitive empty result (HTTP 200, 0 rows), not a refused read.`,
-      { name: objectName }
-    );
-  }
-  const objectClass = objRow[fld2("object", "objectClass")] ?? "";
-  const fieldSlots = ["field1", "field2", "field3", "field4", "field5", "field6", "field7", "field8", "field9", "field0"].map((slot) => fld2("object", slot));
-  const fieldNames = fieldSlots.map((col) => objRow[col] ?? "").filter((v) => v.trim() !== "");
-  const objTextSql = buildCatalogSelect(
-    "*",
-    tbl2("objectText"),
-    [
-      `${fld2("objectText", "object")} = ${catalogLiteral(objectName)}`,
-      `${fld2("objectText", "language")} = ${catalogLiteral(assertCatalogValue(language, "language", 1))}`
-    ]
-  );
-  const objTextResult = await runCatalogSelect(conn, objTextSql, 1);
-  notes.push(...serverNotes2(objTextResult));
-  const description = objTextResult.rows[0]?.[fld2("objectText", "text")] ?? "";
-  if (objTextResult.rows.length === 0) {
-    notes.push(`No ${tbl2("objectText")} text for "${objectName}" in language "${language}".`);
-  }
-  let objectClassText = "";
-  if (objectClass.trim() !== "") {
-    const classTextSql = buildCatalogSelect(
-      "*",
-      tbl2("objectClassText"),
-      [
-        `${fld2("objectClassText", "objectClass")} = ${catalogLiteral(objectClass)}`,
-        `${fld2("objectClassText", "language")} = ${catalogLiteral(language)}`
-      ]
-    );
-    const classTextResult = await runCatalogSelect(conn, classTextSql, 1);
-    notes.push(...serverNotes2(classTextResult));
-    objectClassText = classTextResult.rows[0]?.[fld2("objectClassText", "text")] ?? "";
-    if (classTextResult.rows.length === 0) {
-      notes.push(`No ${tbl2("objectClassText")} text for object class "${objectClass}" in language "${language}".`);
-    }
-  } else {
-    notes.push(`Object "${objectName}" has no ${fld2("object", "objectClass")} value \u2014 object class is unknown.`);
-  }
-  const authxByField = /* @__PURE__ */ new Map();
-  if (fieldNames.length > 0) {
-    for (const group of chunk(fieldNames, 50)) {
-      const authxSql = buildCatalogSelect("*", tbl2("fieldMeta"), [
-        `${fld2("fieldMeta", "fieldName")} ${catalogInList(group, "field names", 30)}`
-      ]);
-      const authxResult = await runCatalogSelect(conn, authxSql, SUSO_ROW_CAP);
-      notes.push(...serverNotes2(authxResult));
-      noteIfCut2(authxResult, SUSO_ROW_CAP, `${tbl2("fieldMeta")} lookup for "${objectName}"`, notes);
-      for (const row2 of authxResult.rows) {
-        requireCatalogColumn(authxResult, fld2("fieldMeta", "fieldName"));
-        authxByField.set(row2[fld2("fieldMeta", "fieldName")] ?? "", row2);
-      }
-    }
-    for (const f of fieldNames) {
-      if (!authxByField.has(f)) {
-        notes.push(`No ${tbl2("fieldMeta")} row for field "${f}" of object "${objectName}" \u2014 no data element or check table known.`);
-      }
-    }
-  }
-  const rollnames = [...new Set([...authxByField.values()].map((r) => r[fld2("fieldMeta", "rollname")] ?? "").filter((v) => v.trim() !== ""))];
-  const dd04lByRollname = /* @__PURE__ */ new Map();
-  if (rollnames.length > 0) {
-    for (const group of chunk(rollnames, 50)) {
-      const dd04lSql = buildCatalogSelect("*", tbl2("dataElement"), [
-        `${fld2("dataElement", "rollname")} ${catalogInList(group, "data elements", 30)}`
-      ]);
-      const dd04lResult = await runCatalogSelect(conn, dd04lSql, SUSO_ROW_CAP);
-      notes.push(...serverNotes2(dd04lResult));
-      noteIfCut2(dd04lResult, SUSO_ROW_CAP, `${tbl2("dataElement")} lookup for "${objectName}"`, notes);
-      for (const row2 of dd04lResult.rows) {
-        dd04lByRollname.set(row2[fld2("dataElement", "rollname")] ?? "", row2);
-      }
-    }
-    for (const rn of rollnames) {
-      if (!dd04lByRollname.has(rn)) {
-        notes.push(`No ${tbl2("dataElement")} row for data element "${rn}" \u2014 not an error, just tolerated as missing.`);
-      }
-    }
-  }
-  const domains = [...new Set([...dd04lByRollname.values()].map((r) => r[fld2("dataElement", "domname")] ?? "").filter((v) => v.trim() !== ""))];
-  const fixedValuesByDomain = /* @__PURE__ */ new Map();
-  if (domains.length > 0) {
-    for (const group of chunk(domains, 50)) {
-      const dd07vSql = buildCatalogSelect(
-        "*",
-        tbl2("domainValue"),
-        [
-          `${fld2("domainValue", "domname")} ${catalogInList(group, "domains", 30)}`,
-          `${fld2("domainValue", "ddlanguage")} = ${catalogLiteral(language)}`
-        ]
-      );
-      const dd07vResult = await runCatalogSelect(conn, dd07vSql, SUSO_ROW_CAP);
-      notes.push(...serverNotes2(dd07vResult));
-      noteIfCut2(dd07vResult, SUSO_ROW_CAP, `${tbl2("domainValue")} lookup for "${objectName}"`, notes);
-      for (const row2 of dd07vResult.rows) {
-        const domname = row2[fld2("domainValue", "domname")] ?? "";
-        const valueLow = row2[fld2("domainValue", "valueLow")] ?? "";
-        const valueHigh = row2[fld2("domainValue", "valueHigh")] ?? "";
-        const text3 = row2[fld2("domainValue", "text")] ?? "";
-        const valpos = Number.parseInt(row2[fld2("domainValue", "valpos")] ?? "", 10);
-        const value = valueHigh.trim() === "" ? valueLow : `${valueLow}..${valueHigh}`;
-        const list5 = fixedValuesByDomain.get(domname);
-        const entry = { value, text: text3, valpos: Number.isNaN(valpos) ? 0 : valpos };
-        if (list5) list5.push(entry);
-        else fixedValuesByDomain.set(domname, [entry]);
-      }
-    }
-    for (const [, list5] of fixedValuesByDomain) {
-      list5.sort((a, b) => a.valpos - b.valpos);
-    }
-  }
-  const tactzSql = buildCatalogSelect("*", tbl2("activity"), [`${fld2("activity", "object")} = ${catalogLiteral(objectName)}`]);
-  const tactzResult = await runCatalogSelect(conn, tactzSql, SUSO_ROW_CAP);
-  notes.push(...serverNotes2(tactzResult));
-  noteIfCut2(tactzResult, SUSO_ROW_CAP, `${tbl2("activity")} lookup for "${objectName}"`, notes);
-  const activityCodes = [...new Set(tactzResult.rows.map((r) => r[fld2("activity", "activity")] ?? "").filter((v) => v.trim() !== ""))];
-  const activityTextByCode = /* @__PURE__ */ new Map();
-  if (activityCodes.length > 0) {
-    for (const group of chunk(activityCodes, 50)) {
-      const tacttSql = buildCatalogSelect(
-        "*",
-        tbl2("activityText"),
-        [
-          `${fld2("activityText", "activity")} ${catalogInList(group, "activity codes", 2)}`,
-          `${fld2("activityText", "language")} = ${catalogLiteral(language)}`
-        ]
-      );
-      const tacttResult = await runCatalogSelect(conn, tacttSql, SUSO_ROW_CAP);
-      notes.push(...serverNotes2(tacttResult));
-      for (const row2 of tacttResult.rows) {
-        activityTextByCode.set(row2[fld2("activityText", "activity")] ?? "", row2[fld2("activityText", "text")] ?? "");
-      }
-    }
-  }
-  const activities = activityCodes.map((code) => {
-    const text3 = activityTextByCode.get(code);
-    if (text3 === void 0) {
-      notes.push(`No ${tbl2("activityText")} text for activity "${code}" of object "${objectName}" in language "${language}" \u2014 listed with an empty text.`);
-    }
-    return { code, text: text3 ?? "" };
-  });
-  const fields = fieldNames.map((f) => {
-    const authx = authxByField.get(f);
-    const rollname = authx?.[fld2("fieldMeta", "rollname")]?.trim() || void 0;
-    const dd04l = rollname ? dd04lByRollname.get(rollname) : void 0;
-    const domain2 = dd04l?.[fld2("dataElement", "domname")]?.trim() || void 0;
-    const fixedValues = (domain2 ? fixedValuesByDomain.get(domain2) : void 0) ?? [];
-    return {
-      name: f,
-      dataElement: rollname,
-      checkTable: authx?.[fld2("fieldMeta", "checkTable")]?.trim() || void 0,
-      isActivityField: (authx?.[fld2("fieldMeta", "actvtFlag")] ?? "").trim() !== "",
-      domain: domain2,
-      fixedValues: fixedValues.map(({ value, text: text3 }) => ({ value, text: text3 }))
-    };
-  });
-  return {
-    name: objectName,
-    objectClass,
-    objectClassText,
-    description,
-    fields,
-    activities,
-    notes
-  };
-}
-function renderAuthorizationObject(obj) {
-  const ddl = textTable(
-    obj.fields.map((f) => ({
-      field: f.name,
-      "data element": f.dataElement ?? "",
-      "check table": f.checkTable ?? "",
-      activity: f.isActivityField ? "X" : ""
-    })),
-    ["field", "data element", "check table", "activity"]
-  );
-  const sections = [];
-  sections.push({
-    title: "ACTIVITIES",
-    content: textTable(
-      obj.activities.map((a) => ({ code: a.code, text: a.text })),
-      ["code", "text"]
-    )
-  });
-  for (const f of obj.fields) {
-    if (f.fixedValues.length === 0) continue;
-    sections.push({
-      title: `FIXED VALUES \u2014 ${f.name}`,
-      content: textTable(
-        f.fixedValues.map((v) => ({ value: v.value, text: v.text })),
-        ["value", "text"]
-      )
-    });
-  }
-  const boundaryNote = "This is the DEFINITION of the authorization object \u2014 its class, text, fields and permitted activities. It is not a list of who holds it: no AGR_* (role) or UST* (user authorization) table was read. SUSO/B cannot be written by abapsmith; SU21 is the only way to edit one.";
-  const notes = [...obj.notes, boundaryNote];
-  return {
-    ddl,
-    sections,
-    meta: {
-      object_class: obj.objectClass,
-      object_class_text: obj.objectClassText,
-      fields: obj.fields.length,
-      activities: obj.activities.length
-    },
-    notes,
-    // `ddic.ts`'s own assembled (non-raw-XML) renders — renderDataElement,
-    // renderDomain — hash just `ddl`, not the extra sections; this follows
-    // that same convention rather than inventing a wider one.
-    hashInput: ddl
-  };
-}
-
-// src/tools/read.ts
-init_index_read();
-init_types();
 
 // src/diff.ts
 init_truncate();
@@ -111389,2900 +107282,7 @@ function renderHunks(hunks) {
   }).join("\n");
 }
 
-// src/tools/read.ts
-init_compact();
-var readInputSchema = {
-  object: external_exports.string().describe('Name, "class X", "table Y", or ADT URI.'),
-  type: external_exports.string().optional().describe(
-    `ADT type to disambiguate. DEVC/K: package listing (types/depth filter it). SUSO/B: renders the object's DEFINITION (fields, permitted activities) from the catalog \u2014 NOT who holds it, no AGR_*/UST* table is read. TABL/DI: <TABLE>/<INDEX> catalog render. Not readable: ${NON_READABLE_TYPES.join(" ")}.`
-  ),
-  method: external_exports.string().optional().describe("Only this method/component."),
-  outline: external_exports.boolean().optional().describe("Component list with line ranges."),
-  offset: external_exports.number().int().min(1).max(999999).optional().describe("1-based first line (chars if format=raw)."),
-  limit: external_exports.number().int().min(1).max(999999).optional().describe("Max lines (chars if format=raw)."),
-  enhancements: external_exports.boolean().optional().describe("BAdI/plug-in/enhancement-spot decode (ENHO/XH,XHH,ENHS), not source."),
-  // G-08: closed enum so the SDK rejects a typo (e.g. "Active") before the
-  // handler runs, instead of zod silently stripping it and falling through
-  // to whatever ADT reports as current. Never silently normalise.
-  version: external_exports.enum(["active", "inactive"]).optional().describe("Default: current (active or newest inactive)."),
-  // Closes a gap: the properties-shape types write a full XML descriptor PUT,
-  // but the default read only produced lossy pseudo-DDL (or UNSUPPORTED).
-  // Gated by capabilitiesFor, not a type list — additive only.
-  format: external_exports.enum(["raw"]).optional().describe(`raw: XML, not pseudo-DDL (${PROPERTIES_SHAPE_TYPES.join(" ")} only).`),
-  // Enum for the same reason as version/format (G-08): reject a typo rather
-  // than silently falling through to an ordinary source read. Named `view`,
-  // not `mode` — `mode` is already a response header key and `ResolvedObject.mode`.
-  view: external_exports.enum(["history", "diff"]).optional().describe("history: versions. diff: hunks. Omit for normal read."),
-  from: external_exports.string().optional().describe('diff: older side \u2014 version, transport, or "active".'),
-  to: external_exports.string().optional().describe("diff: newer side, same forms as `from`."),
-  context: external_exports.number().int().min(0).max(20).optional().describe("diff: context lines per hunk. Default 3."),
-  // C-6: ADT versions each class include (main/definitions/
-  // implementations/macros/testclasses) as its own document, so silently
-  // defaulting to `main` hides changes made in e.g. testclasses. Selectable
-  // on both the source-read and `view` paths, always disclosed.
-  include: external_exports.enum(CLASS_INCLUDES).optional().describe('Class include. "testclasses"=Unit tests. Default "main".'),
-  types: external_exports.array(external_exports.string()).optional().describe('DEVC/K only: filter package contents to these kind codes, e.g. ["CLAS","DDLS"].'),
-  depth: external_exports.number().int().min(1).max(3).optional().describe("DEVC/K only: subpackage nesting depth to list. Default 1.")
-};
-var ReadInput = external_exports.object(readInputSchema);
-var OUTLINE_KINDS = /* @__PURE__ */ new Set(["CLAS", "INTF"]);
-var ENHANCEMENT_KINDS = /* @__PURE__ */ new Set(["ENHO/XH", "ENHO/XHH", "ENHS"]);
-function renderRef(ref2) {
-  if (!ref2?.name) return "(none)";
-  return ref2.type ? `${ref2.type} ${ref2.name}` : ref2.name;
-}
-function renderFilterTree(node2, indent) {
-  if (node2.kind === "filter") {
-    const c = node2.condition;
-    const range = c.value2 ? ` .. ${c.comparator2 ?? ""} ${c.value2}` : "";
-    return `${indent}${c.filterName ?? "?"} ${c.comparator1 ?? "="} ${c.value1 ?? ""}${range}`;
-  }
-  const children = node2.children.map((child4) => renderFilterTree(child4, indent + "  ")).join("\n");
-  return `${indent}${node2.kind.toUpperCase()}(
-${children}
-${indent})`;
-}
-function renderBadiImplementation(data) {
-  const notes = [];
-  if (data.activationStatus === "inactive" && data.implementations.some((impl) => impl.isActive === true)) {
-    notes.push(
-      `DESIGN-TIME VERSION IS INACTIVE (adtcore:version, see activationStatus above) even though at least one implementation below has isActive=true. These are independent switches \u2014 isActive is only the runtime dispatch flag, not repository activation \u2014 and this object will not dispatch reliably until adtcore:version is also active. Activate it directly, e.g. abap_activate(object:"${data.name}", type:"ENHO/XH").`
-    );
-  }
-  if (data.implementations.length > 1) {
-    notes.push(
-      "This document carries more than one <badiImplementation> element. Every capture T1 was built against showed exactly one \u2014 multiplicity above 1 is UNVERIFIED shape here."
-    );
-  }
-  let sawFilterTree = false;
-  const blocks = data.implementations.map((impl) => {
-    if (impl.filterTree) sawFilterTree = true;
-    const classLine = impl.implementingClass?.name ? `  implementing class: ${impl.implementingClass.name}  -> paste into abap_debug as object: "class ${impl.implementingClass.name}"` : "  implementing class: (none)";
-    return [
-      `IMPLEMENTATION: ${impl.name}`,
-      impl.shortText ? `  short text: ${impl.shortText}` : void 0,
-      `  active: ${impl.isActive ? "yes" : "no"}  default: ${impl.isDefault ? "yes" : "no"}  customizing: ${impl.isCustomizingSupported ? "yes" : "no"}`,
-      impl.enhancementSpot ? `  enhancement spot: ${renderRef(impl.enhancementSpot)}` : void 0,
-      impl.badiDefinition ? `  BAdI definition: ${renderRef(impl.badiDefinition)}` : void 0,
-      classLine,
-      impl.filterTree ? `  filter tree:
-${renderFilterTree(impl.filterTree, "    ")}` : void 0
-    ].filter((l) => l !== void 0).join("\n");
-  });
-  if (sawFilterTree) {
-    notes.push(
-      "filter tree: DERIVED for display, not a write target (see enhancement-xml.ts). Its grammar was inferred from a single sample \u2014 whether a level can mix and/or/filter siblings, and this decoder's ordering of them if so, is UNVERIFIED."
-    );
-  }
-  const implClassNames = [
-    ...new Set(
-      data.implementations.map((impl) => impl.implementingClass?.name).filter((n) => !!n)
-    )
-  ];
-  if (implClassNames.length > 0) {
-    notes.push(
-      `implementing class ${implClassNames.length > 1 ? "names" : "name"} above (${implClassNames.join(", ")}) ${implClassNames.length > 1 ? "are" : "is"} what this enhancement document records \u2014 abapsmith has not verified the class exists. A BAdI implementation can name a class that was never created. abap_read(object:"<name>", type:"CLAS/OC") settles it.`
-    );
-  }
-  return {
-    body: blocks.join("\n\n") || "(this document has no <badiImplementation> elements)",
-    notes
-  };
-}
-function renderSourceCodePlugin(data) {
-  const notes = [];
-  if (data.switchState) {
-    notes.push(
-      `Switch-BC-Set gate present (state="${data.switchState}"${data.switchReference ? `, ${renderRef(data.switchReference)}` : ""}). This field was observed on exactly one capture \u2014 whether "off" is the only possible state, or whether the reference can be absent while the switch is present, is UNVERIFIED.`
-    );
-  }
-  const usageRows = data.usages.length ? textTable(
-    data.usages.map((u) => ({
-      programId: u.programId ?? "",
-      usage: u.elementUsage ?? "",
-      object: renderRef(u.objectReference)
-    })),
-    ["programId", "usage", "object"]
-  ) : "(none)";
-  const hookBlocks = data.hookImplementations.map(
-    (h) => [
-      `HOOK: ${h.id ?? "(no id)"}`,
-      h.spotName ? `  spot: ${h.spotName}` : void 0,
-      h.programName ? `  program: ${h.programName}` : void 0,
-      h.method ? `  method: ${h.method}` : void 0,
-      h.overwrite ? `  overwrite: ${h.overwrite}` : void 0,
-      // Only `full_name` has been observed on the wire; `fullname` is untested.
-      h.fullName ? `  anchor: ${h.fullName}` : void 0,
-      h.enclosureUri ? `  enclosure: ${h.enclosureUri}` : void 0
-    ].filter((l) => l !== void 0).join("\n")
-  );
-  const body = [
-    data.enhancedObject ? `enhanced object: ${renderRef(data.enhancedObject)}` : void 0,
-    data.sourceUri ? `source: ${data.sourceUri}` : void 0,
-    "",
-    "USAGES:",
-    usageRows,
-    "",
-    "HOOK IMPLEMENTATIONS:",
-    hookBlocks.join("\n\n") || "(none)"
-  ].filter((l) => l !== void 0).join("\n");
-  return { body, notes };
-}
-function renderEnhancementSpot(data) {
-  const notes = [];
-  if (data.badiDefinitions.length === 0) {
-    notes.push(
-      "No <badiDefinition> element in this document. This may be a genuinely empty spot, OR a hook-flavoured spot \u2014 this decoder's handling of a hook-flavoured enhsxs document is UNVERIFIED (the one live attempt returned HTTP 500, not 200)."
-    );
-  }
-  const blocks = data.badiDefinitions.map((def) => {
-    const filterRows = def.filters.length ? textTable(
-      def.filters.map((f) => ({
-        name: f.filterName ?? "",
-        type: f.filterType ?? "",
-        text: f.shorttext ?? ""
-      })),
-      ["name", "type", "text"]
-    ).split("\n").map((l) => "    " + l).join("\n") : "    (none declared)";
-    return [
-      `BADI DEFINITION: ${def.name}`,
-      def.shorttext ? `  short text: ${def.shorttext}` : void 0,
-      `  single use: ${def.singleUse ? "yes" : "no"}  fallback class: ${def.useFallbackClass ? "yes" : "no"}  filter limitation: ${def.filterLimitation ? "yes" : "no"}`,
-      def.interfaceRef ? `  interface: ${renderRef(def.interfaceRef)}` : void 0,
-      "  filters:",
-      filterRows
-    ].filter((l) => l !== void 0).join("\n");
-  });
-  return {
-    body: blocks.join("\n\n") || "(this document has no <badiDefinition> elements)",
-    notes
-  };
-}
-function resourceEtag(canonicalBytes) {
-  return canonicalEtag(canonicalBytes);
-}
-function buildDdicLikeResponse(rendered, header, offset, limit, hints, maxChars) {
-  const etag = resourceEtag(rendered.hashInput);
-  const window2 = sliceLines(rendered.ddl, offset ?? 1, limit);
-  const built = buildReadResponse({
-    header: { ...header, ...rendered.meta, etag, totalLines: window2.total },
-    sections: rendered.sections,
-    body: window2.text,
-    bodyLabel: rendered.bodyLabel ?? "PSEUDO-DDL",
-    bodyOffset: window2.offset,
-    bodyTotalLines: window2.total,
-    notes: rendered.notes,
-    hints,
-    pagingParam: "offset",
-    maxChars
-  });
-  return { ...built, etag };
-}
-var TRUNCATED_SOURCE_NOTE = "INCOMPLETE \u2014 NOT the whole text (counts in TRUNCATED, below). The etag is marked `partial:`: abap_write REFUSES a full-source rewrite presenting it, since that would delete everything past the cut. Splice with edit={old_string,new_string}, or page it all in with offset/limit.";
-var EMPTY_SOURCE_NOTE = "Source is empty (0 bytes) \u2014 that is the whole body, not a truncated read; there is no SOURCE section below because there is nothing to show.";
-function buildSourceResponse(parts, etag, forceIncomplete = false) {
-  const first = buildReadResponse(parts);
-  if (!first.truncated && !forceIncomplete) return { ...first, etag };
-  const partialEtag = markEtagPartial(etag);
-  const second = buildResponse({
-    ...parts,
-    header: { ...parts.header, etag: partialEtag },
-    notes: [TRUNCATED_SOURCE_NOTE, ...parts.notes ?? []]
-  });
-  return { ...second, truncated: true, etag: partialEtag };
-}
-function buildReadResponse(parts) {
-  const first = buildResponse(parts);
-  if (first.truncated) return first;
-  const facts = [
-    "truncated=false",
-    ...first.hasMore === void 0 ? [] : [`hasMore=${first.hasMore}`],
-    ...first.returnedLines === void 0 ? [] : [`returnedLines=${first.returnedLines}`],
-    ...first.totalLines === void 0 ? [] : [`totalLines=${first.totalLines}`],
-    `estimatedTokens=~${first.estimatedTokens}`
-  ].join(" ");
-  const withFacts = buildResponse({
-    ...parts,
-    header: { ...parts.header, response: `complete (${facts})` }
-  });
-  return withFacts.truncated ? first : withFacts;
-}
-async function fetchRawDescriptor(conn, obj) {
-  return fetchDdicXml(conn, obj, "read raw XML descriptor", capabilitiesFor(obj.type)?.mediaType);
-}
-function renderAdjustmentStatus(value) {
-  if (value === void 0) return void 0;
-  return value === "" ? "(empty)" : value;
-}
-function renderEnhancementDescription(value) {
-  return value ? value : "(empty)";
-}
-function enhancementDescriptionRequiredNote(ctx) {
-  return `${ctx.type} ${ctx.name}: this document's own root adtcore:description is empty. SAP's enhancement PUT handler refuses EVERY write or activation against this object until it is set \u2014 HTTP 400 ExceptionInvalidData, SWB_TOOL19/scr_prop_no_decr, "The description is missing" (ENHANCEMENT_DESCRIPTION_REQUIRED) \u2014 including set_impl_active and any write that has nothing to do with the description itself (enhancement-write.ts's assertDescriptionWillBePresent/putEnhancementDocument). Nothing is broken yet, but the next write or abap_activate call on this object will refuse. Call abap_enh operation:"write_description" (name:"${ctx.name}", type:"${ctx.type}") to give it one.`;
-}
-async function readEnhancementObject(conn, obj, baseHeader, input, maxChars) {
-  let doc;
-  let rendered;
-  let extraHeader;
-  let documentDescription;
-  if (obj.kind === "ENHO/XH") {
-    const d = await readBadiImplementation(conn, obj.name);
-    doc = d;
-    rendered = renderBadiImplementation(d.data);
-    documentDescription = d.data.description;
-    extraHeader = {
-      toolType: d.data.toolType,
-      activationStatus: d.data.activationStatus,
-      masterSystem: d.data.masterSystem,
-      responsible: d.data.responsible,
-      adjustmentStatus: renderAdjustmentStatus(d.data.adjustmentStatus)
-    };
-  } else if (obj.kind === "ENHO/XHH") {
-    const d = await readSourceCodePlugin(conn, obj.name);
-    doc = d;
-    rendered = renderSourceCodePlugin(d.data);
-    documentDescription = d.data.description;
-    extraHeader = {
-      toolType: d.data.toolType,
-      activationStatus: d.data.activationStatus,
-      masterSystem: d.data.masterSystem,
-      responsible: d.data.responsible,
-      adjustmentStatus: renderAdjustmentStatus(d.data.adjustmentStatus)
-    };
-  } else {
-    const d = await readEnhancementSpot(conn, obj.name);
-    doc = d;
-    rendered = renderEnhancementSpot(d.data);
-    documentDescription = d.data.description;
-    extraHeader = {
-      toolType: d.data.toolType,
-      activationStatus: d.data.activationStatus,
-      masterSystem: d.data.masterSystem,
-      responsible: d.data.responsible
-    };
-  }
-  extraHeader.description = renderEnhancementDescription(documentDescription);
-  if (obj.description && obj.description !== documentDescription) {
-    extraHeader.searchIndexDescription = obj.description;
-    rendered.notes.push(
-      `The ADT search index reports a different description ("${obj.description}", shown above as searchIndexDescription) than this document's own root adtcore:description (shown above as description). Only the document's own value governs writes and activations (ENHANCEMENT_DESCRIPTION_REQUIRED) \u2014 the search index value is informational only, shown here so it isn't silently dropped.`
-    );
-  }
-  if (!documentDescription) {
-    rendered.notes.push(enhancementDescriptionRequiredNote({ type: obj.type, name: obj.name }));
-  }
-  const etag = resourceEtag(doc.xml);
-  const window2 = sliceLines(rendered.body, input.offset ?? 1, input.limit);
-  const built = buildReadResponse({
-    header: { ...baseHeader, mode: "enhancement", etag, ...extraHeader, totalLines: window2.total },
-    body: window2.text,
-    bodyLabel: "ENHANCEMENT",
-    bodyOffset: window2.offset,
-    bodyTotalLines: window2.total,
-    notes: rendered.notes,
-    hints: [
-      `For a BAdI implementation, paste "implementing class" straight into abap_debug's breakpoint object field to set a breakpoint there.`
-    ],
-    pagingParam: "offset",
-    maxChars
-  });
-  return { ...built, etag };
-}
-var NO_ETAG = "";
-var DIFF_MAX_HUNKS = 200;
-function assertViewCompatible(input, obj) {
-  const clash = (param, why, hint) => {
-    throw new AbapError(
-      "UNSUPPORTED",
-      `${param} cannot be combined with view="${input.view}" for ${obj.type} ${obj.name}: ${why}`,
-      { type: obj.type, name: obj.name, view: input.view, param },
-      hint
-    );
-  };
-  if (input.format) {
-    clash(
-      'format="raw"',
-      "raw returns the current XML descriptor, which has no version feed behind it.",
-      "Drop one of the two: view for history/diff, format for the current wire document."
-    );
-  }
-  if (input.enhancements) {
-    clash(
-      "enhancements=true",
-      "the enhancement decoders read the current definition only.",
-      "Drop enhancements, or drop view."
-    );
-  }
-  if (input.version) {
-    clash(
-      `version="${input.version}"`,
-      'the active/inactive pair is a different axis from the version FEED; "inactive" is not a feed entry and has no history row.',
-      'Use from/to to name feed versions (list them with view="history").'
-    );
-  }
-  if (input.outline) {
-    clash(
-      "outline=true",
-      "the outline lists the CURRENT component structure; ADT serves no per-version outline.",
-      "Read the outline separately, without view."
-    );
-  }
-  if (input.method) {
-    clash(
-      `method="${input.method}"`,
-      "ADT versions whole objects (or whole class includes), not individual methods, so there is no per-method feed to read or diff.",
-      "Drop method \u2014 the diff hunks already carry line numbers you can map back to a method."
-    );
-  }
-  if (input.include && obj.kind !== "CLAS") {
-    clash(
-      `include="${input.include}"`,
-      `only a class has includes, and ${obj.type} ${obj.name} is not one.`,
-      "Drop include \u2014 this object has a single version feed."
-    );
-  }
-  if (input.include && obj.include && input.include !== obj.include) {
-    clash(
-      `include="${input.include}"`,
-      `the object reference already named include "${obj.include}". Two different includes were asked for and there is no non-arbitrary way to pick one.`,
-      `Drop one of them: either include="${input.include}" or the /includes/${obj.include} suffix on the object reference.`
-    );
-  }
-  if (input.view === "history") {
-    for (const [param, value] of [
-      ["from", input.from],
-      ["to", input.to],
-      ["context", input.context]
-    ]) {
-      if (value !== void 0) {
-        clash(
-          param,
-          "it selects or formats a diff, and history only lists versions.",
-          `Use view="diff" with ${param}, or drop ${param}.`
-        );
-      }
-    }
-  }
-}
-function viewInclude(input, obj) {
-  if (obj.kind !== "CLAS") return void 0;
-  return input.include ?? obj.include ?? "main";
-}
-function includeNote(include) {
-  if (!include) return [];
-  const others = CLASS_INCLUDES.filter((i) => i !== include);
-  return [
-    `This covers class include "${include}" ONLY. ADT versions each include separately, so a change made in ${others.join(", ")} does not appear here \u2014 re-run with include="\u2026" to see those.`
-  ];
-}
-function assertIncludeCompatible(input, obj) {
-  if (input.include && obj.include && input.include !== obj.include) {
-    throw new AbapError(
-      "UNSUPPORTED",
-      `include="${input.include}" contradicts the object reference, which already named include "${obj.include}". Two different includes were asked for and there is no non-arbitrary way to pick one.`,
-      { type: obj.type, name: obj.name, requested: input.include, fromUri: obj.include },
-      `Drop one of them: either include="${input.include}" or the /includes/${obj.include} suffix on the object reference.`
-    );
-  }
-  const include = input.include ?? obj.include;
-  if (!include) return void 0;
-  if (obj.kind !== "CLAS") {
-    throw new AbapError(
-      "UNSUPPORTED",
-      `${obj.type} ${obj.name} has no "${include}" include \u2014 class includes (${CLASS_INCLUDES.join(", ")}) exist only for classes.`,
-      { type: obj.type, name: obj.name, requested: include },
-      "Drop include. This object has a single source document, and it was NOT silently returned in place of the include you asked for."
-    );
-  }
-  if (include === "main") return include;
-  const clash = (param, why, hint) => {
-    throw new AbapError(
-      "UNSUPPORTED",
-      `${param} cannot be combined with include="${include}" for ${obj.type} ${obj.name}: ${why}`,
-      { type: obj.type, name: obj.name, include, param },
-      hint
-    );
-  };
-  if (input.format) {
-    clash(
-      'format="raw"',
-      `raw returns an object's whole XML descriptor, which exists only for the properties-shape types (${PROPERTIES_SHAPE_TYPES.join(", ")}) \u2014 a class has none, and a class include is source.`,
-      "Drop format \u2014 an include read already returns exactly the source bytes a write of that include replaces."
-    );
-  }
-  if (input.enhancements) {
-    clash(
-      "enhancements=true",
-      "the enhancement decoders read an ENHO/ENHS document, not a class include.",
-      "Drop one of the two."
-    );
-  }
-  if (input.outline) {
-    clash(
-      "outline=true",
-      `the ADT component structure describes the GLOBAL class and reports its line ranges against the class's main document, so an outline of "${include}" is not a thing ADT serves \u2014 the rows would be main's, with main's line numbers.`,
-      `Read include="${include}" in full (offset/limit page it), or drop include to outline the global class.`
-    );
-  }
-  const method = input.method ?? obj.member;
-  if (method) {
-    clash(
-      `method="${method}"`,
-      "the method's line range comes from the ADT component structure, which numbers lines in the class's main document. Cutting those lines out of a different include would return whatever happens to sit at them \u2014 not that method.",
-      `Read include="${include}" in full and locate the method in it, or drop include to read ${method} from the class body.`
-    );
-  }
-  return include;
-}
-async function readHistory(conn, obj, baseHeader, input, maxChars) {
-  const include = viewInclude(input, obj);
-  const entries = await listRevisions(conn, obj, include);
-  const released = releasedVersions(entries);
-  const table = textTable(
-    entries.map((e) => ({
-      version: e.versionId || "?",
-      kind: e.kind === "released" ? "" : e.kind.toUpperCase(),
-      transport: e.transport,
-      author: e.author,
-      changed: e.date,
-      description: e.description
-    })),
-    ["version", "kind", "transport", "author", "changed", "description"]
-  );
-  const window2 = sliceLines(table, input.offset ?? 1, input.limit);
-  const notes = [
-    "Sorted newest-first \u2014 pseudo-versions first, then released versions by version NUMBER, which is monotonic where atom:updated is often absent \u2014 and DE-DUPLICATED by version number. The raw feed is neither: one captured A4H feed returned 68 entries of which ~60 were the same ACTIVE row, most carrying no date at all.",
-    "00000 is the ACTIVE pseudo-version \u2014 it serves the object's CURRENT source, not a snapshot \u2014 and 99999 is INACTIVE. Neither is history. An empty transport/author/date is the feed's own silence, not a lookup failure.",
-    `The "description" column is the entry's atom:title, which is the TRANSPORT description in free prose. It is not a version label; the version number is the first column.`,
-    ...includeNote(include)
-  ];
-  if (entries.length > 0 && released.length === 0) {
-    notes.unshift(
-      `${obj.type} ${obj.name} ${NO_RELEASED_HISTORY_EXPLANATION} The row below is that ACTIVE entry \u2014 it is the object as it stands now, not a record of a change.`
-    );
-  }
-  const built = buildReadResponse({
-    header: {
-      ...baseHeader,
-      view: "history",
-      ...include ? { include } : {},
-      versions: entries.length,
-      released: released.length
-    },
-    body: entries.length ? window2.text : `(${obj.type} ${obj.name} has a version feed, but ADT returned no entries in it.)`,
-    bodyLabel: "VERSION HISTORY",
-    bodyOffset: entries.length ? window2.offset : void 0,
-    bodyTotalLines: entries.length ? window2.total : void 0,
-    notes,
-    hints: released.length >= 2 ? [
-      'Diff the last released change with view="diff" and no other parameters. Diff any pair with view="diff" from="00063" to="00067".'
-    ] : released.length === 1 ? [
-      'view="diff" with no other parameters compares the one released version against the current source.'
-    ] : [
-      "There is nothing to diff here. Read the current source with a plain abap_read (omit view)."
-    ],
-    pagingParam: "offset",
-    maxChars
-  });
-  return { ...built, etag: NO_ETAG };
-}
-async function readDiff(conn, obj, baseHeader, input, maxChars) {
-  const include = viewInclude(input, obj);
-  const entries = await listRevisions(conn, obj, include);
-  const pair = resolveDiffPair(entries, input.from, input.to, { name: obj.name, type: obj.type });
-  const ctx = { name: obj.name, type: obj.type };
-  const [oldSource, newSource] = await Promise.all([
-    revisionSource(conn, pair.older, ctx),
-    revisionSource(conn, pair.newer, ctx)
-  ]);
-  const result = diffSources(oldSource, newSource, {
-    context: input.context ?? DEFAULT_CONTEXT_LINES,
-    maxHunks: DIFF_MAX_HUNKS
-  });
-  const rendered = renderHunks(result.hunks);
-  const window2 = sliceLines(rendered, input.offset ?? 1, input.limit);
-  const side = (e) => `${e.author || "author not recorded"}, ${e.date || "date not recorded"}${e.transport ? `, ${e.transport}` : ", no transport recorded"}${e.description ? ` \u2014 "${e.description}"` : ""}`;
-  const notes = [
-    `from ${describeEntry(pair.older)} \u2014 ${side(pair.older)}` + (pair.olderDefaulted ? " (defaulted: the released version before the newer side)" : ""),
-    `to   ${describeEntry(pair.newer)} \u2014 ${side(pair.newer)}` + (pair.newerDefaulted ? " (defaulted: the newest released version)" : ""),
-    ...includeNote(include)
-  ];
-  if (pair.newerIsActive) {
-    notes.push(
-      `The NEWER side is the ACTIVE pseudo-version 00000, i.e. the object's CURRENT source, not a released snapshot. So this answers "what has changed since the last release", and it includes any local activation that was never transported.`
-    );
-  }
-  if (result.coarse) {
-    notes.push(
-      "COARSE DIFF: the two versions share almost no leading or trailing lines, so the exact line-matching pass was skipped and the whole changed region is reported as one delete-then-insert block. The diff is correct but not minimal."
-    );
-  }
-  if (result.droppedHunks > 0) {
-    notes.push(
-      `TRUNCATED: showing ${result.hunks.length} of ${result.totalHunks} hunks; ${result.droppedHunks} were withheld to stay inside the response budget. Narrow the comparison (an adjacent pair changes less) or read the versions separately.`
-    );
-  }
-  const built = buildReadResponse({
-    header: {
-      ...baseHeader,
-      view: "diff",
-      ...include ? { include } : {},
-      from: describeEntry(pair.older),
-      to: describeEntry(pair.newer),
-      added: result.added,
-      removed: result.removed,
-      hunks: result.totalHunks
-    },
-    body: result.identical ? `(no differences: ${describeEntry(pair.older)} and ${describeEntry(pair.newer)} of ${obj.type} ${obj.name} are line-for-line identical.)` : window2.text,
-    bodyLabel: "DIFF",
-    bodyOffset: result.identical ? void 0 : window2.offset,
-    bodyTotalLines: result.identical ? void 0 : window2.total,
-    notes,
-    hints: [
-      "Unified-diff hunks only \u2014 the unchanged bulk of both versions was never fetched into this response. Read a version in full with a plain abap_read if you need it.",
-      'List the versions with view="history".'
-    ],
-    pagingParam: "offset",
-    maxChars
-  });
-  return { ...built, etag: NO_ETAG };
-}
-var CATALOG_READ_IRRELEVANT_PARAMS = [
-  "method",
-  "outline",
-  "enhancements",
-  "version",
-  "view",
-  "from",
-  "to",
-  "context",
-  "include",
-  "types",
-  "depth",
-  "format"
-];
-async function readCatalogObject(conn, input, catalogRead, label, maxChars) {
-  const code = input.type.trim().toUpperCase();
-  for (const param of CATALOG_READ_IRRELEVANT_PARAMS) {
-    if (input[param] !== void 0) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `${param} is not supported for ${label} (${code}): this type has no ADT resource, so abap_read renders it directly from the catalog (${catalogRead.from}) with no source, outline, history or raw-XML axis to apply it to.`,
-        { type: code, param },
-        `Drop ${param}.`
-      );
-    }
-  }
-  const header = {
-    system: conn.cfg.sid,
-    mode: "catalog"
-  };
-  if (code === "SUSO/B") {
-    const obj = await readAuthorizationObject(conn, input.object);
-    const rendered2 = renderAuthorizationObject(obj);
-    return buildDdicLikeResponse(
-      rendered2,
-      { ...header, object: `${code} ${obj.name}` },
-      input.offset,
-      input.limit,
-      [SUSO_WHERE_USED_NOTE],
-      maxChars
-    );
-  }
-  const parts = input.object.split("/");
-  if (parts.length !== 2 || parts[0].trim() === "" || parts[1].trim() === "") {
-    throw new AbapError(
-      "BAD_INPUT",
-      `"${input.object}" is not a valid ${code} name: expected ${catalogRead.nameForm}.`,
-      { object: input.object, type: code },
-      `Name it as <TABLE>/<INDEX>, e.g. "ZTAB/Z01". Not sure of the index id? abap_read {"object":"<TABLE>","type":"TABL/DT"} shows the table's own structure.`
-    );
-  }
-  const [table, indexId] = parts;
-  const hint = `abap_read {"object":"${table.trim().toUpperCase()}","type":"TABL/DT"} to see the table's own structure.`;
-  const { index, notes } = await readSecondaryIndex(conn, table, indexId);
-  if (index === void 0) {
-    throw new AbapError(
-      "NOT_FOUND",
-      `Table ${table.trim().toUpperCase()} has no secondary index ${indexId.trim().toUpperCase()} in DD12V on this system \u2014 this is a definitive empty result (HTTP 200, 0 rows), not a refused read.`,
-      { table: table.trim().toUpperCase(), index: indexId.trim().toUpperCase() },
-      hint
-    );
-  }
-  const rendered = renderSecondaryIndex(index);
-  rendered.notes.push(...notes);
-  return buildDdicLikeResponse(
-    rendered,
-    { ...header, object: `${code} ${index.table}/${index.id}` },
-    input.offset,
-    input.limit,
-    [hint],
-    maxChars
-  );
-}
-async function abapRead(conn, input, maxChars) {
-  if (input.include !== void 0) assertClassInclude(input.include, input.object);
-  const catalogCap = input.type ? capabilitiesFor(input.type) : void 0;
-  if (catalogCap?.catalogRead) {
-    return readCatalogObject(conn, input, catalogCap.catalogRead, catalogCap.label, maxChars);
-  }
-  const obj = await resolveObject(conn, input.object, input.type ? { type: input.type } : {});
-  const baseHeader = {
-    system: obj.system,
-    object: `${obj.type} ${obj.name}`,
-    uri: obj.uri,
-    package: obj.packageName,
-    description: obj.description
-  };
-  if (input.view !== void 0) {
-    assertViewCompatible(input, obj);
-    return input.view === "history" ? await readHistory(conn, obj, baseHeader, input, maxChars) : await readDiff(conn, obj, baseHeader, input, maxChars);
-  }
-  for (const [param, value] of [
-    ["from", input.from],
-    ["to", input.to],
-    ["context", input.context]
-  ]) {
-    if (value !== void 0) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `${param} is only meaningful with view="diff"; no view was requested, so this would have been an ordinary source read with your parameter discarded.`,
-        { type: obj.type, name: obj.name, param },
-        `Add view="diff", or drop ${param}.`
-      );
-    }
-  }
-  for (const [param, value] of [
-    ["types", input.types],
-    ["depth", input.depth]
-  ]) {
-    if (value !== void 0 && obj.type !== "DEVC/K") {
-      throw new AbapError(
-        "BAD_INPUT",
-        `${param} is only meaningful for a DEVC/K package read; ${obj.type} ${obj.name} is not a package, so this would have been an ordinary read with your parameter discarded.`,
-        { type: obj.type, name: obj.name, param },
-        `Drop ${param}, or read a package instead.`
-      );
-    }
-  }
-  const include = assertIncludeCompatible(input, obj);
-  if (input.format === "raw") {
-    if (input.version) {
-      throw new AbapError(
-        "UNSUPPORTED",
-        `version="${input.version}" is not supported with format="raw": the raw XML descriptor always reflects the current definition, the same as a plain GET would.`,
-        { type: obj.type, name: obj.name, requested: input.version },
-        "Omit version. version is only meaningful for source-mode reads (CLAS, INTF, PROG, \u2026)."
-      );
-    }
-    if (capabilitiesFor(obj.type)?.write?.shape !== "properties") {
-      throw new AbapError(
-        "UNSUPPORTED",
-        `format="raw" is only defined for the properties-shape types (${PROPERTIES_SHAPE_TYPES.join(", ")}); ${obj.type} ${obj.name} is not one of those.`,
-        { type: obj.type, name: obj.name },
-        `Omit format \u2014 the default read already returns ${obj.mode === "ddic" ? "a rendered definition" : "raw source"} for ${obj.type}, which is what a "source" shape write for this type needs anyway.`
-      );
-    }
-    const body = await fetchRawDescriptor(conn, obj);
-    const etag2 = resourceEtag(body);
-    const charTotal = body.length;
-    const charOffset = Math.min(Math.max(0, (input.offset ?? 1) - 1), charTotal);
-    const defaultWindowChars = Math.max(1e3, maxChars - 6e3);
-    const requestedLimit = input.limit;
-    const windowChars = Math.min(requestedLimit ?? defaultWindowChars, defaultWindowChars);
-    const windowText = body.slice(charOffset, charOffset + windowChars);
-    const nextOffset = charOffset + windowText.length + 1;
-    const hasMore = charOffset + windowText.length < charTotal;
-    const built = buildSourceResponse(
-      {
-        header: { ...baseHeader, mode: "raw", etag: etag2, totalChars: charTotal },
-        body: windowText,
-        bodyLabel: "XML DESCRIPTOR",
-        notes: [
-          "This is the exact ADT XML document \u2014 the same shape a properties-shape write must PUT back to this object's own URI (not /source/main, which does not exist for this type). It is NOT the pseudo-DDL abap_read renders by default; round-trip fidelity is exact (this document, edited in place, is a valid PUT body) except for server-managed fields documented as such (e.g. a domain fixed value's position is assigned by the server, never sent by the client).",
-          hasMore ? `offset/limit address CHARACTERS in format="raw" (this document is one line): showing ${charOffset + 1}-${charOffset + windowText.length} of ${charTotal}. Fetch the rest with offset=${nextOffset}.` : `Full descriptor shown (${charTotal} characters).`,
-          ...requestedLimit && requestedLimit > defaultWindowChars ? [`limit=${requestedLimit} was clamped to ${defaultWindowChars} characters to stay under the response budget.`] : []
-        ],
-        hints: [
-          "Element order can be significant (e.g. TTYP/DA's <ttyp:builtInType>/<ttyp:rangeType> must both be present, even empty, inside <ttyp:rowType> \u2014 see skills/ddic/SKILL.md)."
-        ],
-        maxChars
-      },
-      etag2,
-      windowText.length < charTotal
-    );
-    return built;
-  }
-  if (input.enhancements) {
-    if (!ENHANCEMENT_KINDS.has(obj.kind)) {
-      throw new AbapError(
-        "UNSUPPORTED",
-        `enhancements=true is only meaningful for a BAdI implementation (ENHO/XH), source-code plug-in (ENHO/XHH) or enhancement spot (ENHS); ${obj.type} ${obj.name} resolved to kind ${obj.kind}.`,
-        { type: obj.type, name: obj.name, kind: obj.kind },
-        "Omit enhancements, or point it at a BAdI implementation, source-code plug-in or enhancement spot."
-      );
-    }
-    return readEnhancementObject(conn, obj, baseHeader, input, maxChars);
-  }
-  if (obj.mode === "ddic") {
-    if (input.version === "inactive") {
-      throw new AbapError(
-        "UNSUPPORTED",
-        `version="inactive" is not supported for ${obj.type} ${obj.name}: DDIC reads (TABL, DTEL, DOMA, TTYP) always render the current definition.`,
-        { type: obj.type, name: obj.name, requested: input.version },
-        'Omit version for DDIC objects. Omitting it and passing version="active" return the same bytes.'
-      );
-    }
-    let rendered;
-    try {
-      rendered = await readDdic(conn, obj, { types: input.types, depth: input.depth });
-    } catch (e) {
-      if (e instanceof AbapError && e.code === "UNSUPPORTED" && capabilitiesFor(obj.type)?.write?.shape === "properties") {
-        throw new AbapError(
-          e.code,
-          e.message,
-          e.details,
-          `Use abap_read {object, type, format: "raw"} instead \u2014 ${obj.type} writes a full XML descriptor (not source), and format:"raw" returns that exact document, which is the shape to imitate for the write.`
-        );
-      }
-      throw e;
-    }
-    if (input.version === "active") {
-      rendered.notes.push(
-        'version="active" had no effect here: a DDIC read always renders the current definition, which is what active names. Omit it \u2014 the bytes are identical either way.'
-      );
-    }
-    return buildDdicLikeResponse(
-      rendered,
-      { ...baseHeader, mode: "ddic" },
-      input.offset,
-      input.limit,
-      ["Use abap_search with mode=where_used to find consumers of this object."],
-      maxChars
-    );
-  }
-  const {
-    source,
-    serverEtag,
-    sourceUri: readUri
-  } = await readSource(conn, obj, include, input.version);
-  const etag = resourceEtag(source);
-  const header = {
-    ...baseHeader,
-    mode: "source",
-    ...include ? { include } : {},
-    ...include && include !== "main" ? { uri: readUri } : {},
-    etag,
-    serverEtag
-  };
-  const includeNotes = include && include !== "main" ? [
-    `These bytes are class include "${include}" (${readUri}) ONLY \u2014 not ${obj.name}'s main source. ADT stores each include as its own document; ${CLASS_INCLUDES.filter(
-      (i) => i !== include
-    ).join(", ")} are elsewhere and are not shown here. The etag above covers this include alone.`,
-    ...input.version ? [
-      `version="${input.version}" was sent as the query parameter on this include's own GET, exactly as it is for a main-source read \u2014 it was NOT applied by reading main instead. Whether ADT honours the active/inactive selector per include is UNVERIFIED here; if the returned bytes look active when you asked for inactive, treat that as the server ignoring the parameter, and use view="history" on this include to see what versions it actually has.`
-    ] : []
-  ] : [];
-  const sourceHints = include && include !== "main" ? [
-    "offset/limit page this include. method= and outline=true are refused alongside a non-main include \u2014 both describe the class body, which is a different document."
-  ] : [
-    'Read a single method with method="<NAME>".',
-    "Get the component list first with outline=true.",
-    ...obj.kind === "CLAS" ? [
-      'Local and test classes are NOT in this source: read them with include="testclasses" (ABAP Unit), "definitions", "implementations" or "macros".'
-    ] : []
-  ];
-  if (input.outline) {
-    if (!OUTLINE_KINDS.has(obj.kind)) {
-      const built2 = buildReadResponse({
-        header: { ...header, totalLines: countLines(source) },
-        body: `(outline is NOT SUPPORTED for ${obj.type} \u2014 it is implemented for classes and interfaces only, via the ADT component structure. This is a tool limitation, NOT a statement that ${obj.name} has no components.)`,
-        bodyLabel: "OUTLINE",
-        notes: [
-          `outline=true was ignored: ${obj.type} has no ADT component structure to list. Re-read without outline (optionally with offset/limit) to see the source.`
-        ],
-        hints: ["Re-read without outline=true, using offset/limit to page the source."],
-        maxChars
-      });
-      return { ...built2, etag };
-    }
-    const members = await classMembers(conn, obj);
-    const outline = renderOutline(members);
-    const window3 = sliceLines(outline, input.offset ?? 1, input.limit);
-    const built = buildReadResponse({
-      header: {
-        ...header,
-        components: members.length,
-        totalLines: countLines(source)
-      },
-      body: outline ? window3.text : `(${obj.type} ${obj.name} really has no methods, attributes or events \u2014 the component structure came back empty.)`,
-      bodyLabel: "OUTLINE",
-      bodyOffset: outline ? window3.offset : void 0,
-      bodyTotalLines: outline ? window3.total : void 0,
-      hints: ['Read one component with method="<NAME>".'],
-      pagingParam: "offset",
-      maxChars
-    });
-    return { ...built, etag };
-  }
-  const method = input.method ?? obj.member;
-  if (method) {
-    const m = await readMethod(conn, obj, source, method);
-    const parts = [m.declaration, m.implementation].filter(Boolean).join("\n\n");
-    const window3 = sliceLines(parts, input.offset ?? 1, input.limit);
-    return buildSourceResponse(
-      {
-        header: {
-          ...header,
-          method: m.member.name,
-          visibility: m.member.visibility,
-          // Absolute position in the object, for orientation only — never used as
-          // the paging frame.
-          sourceLines: m.implementationRange ? `${m.implementationRange.startLine}-${m.implementationRange.endLine}` : void 0,
-          blockLines: parts ? window3.total : void 0
-        },
-        body: parts ? window3.text : "(no source found for this component)",
-        bodyLabel: "METHOD SOURCE",
-        bodyOffset: parts ? window3.offset : void 0,
-        bodyTotalLines: parts ? window3.total : void 0,
-        hints: [
-          "`offset` here is relative to this method block (line 1 = first line shown above), not to the object's source lines.",
-          "Omit `method` to read the whole object, or use outline=true for the component list."
-        ],
-        pagingParam: "offset",
-        maxChars
-      },
-      etag
-    );
-  }
-  const window2 = sliceLines(source, input.offset ?? 1, input.limit);
-  return buildSourceResponse(
-    {
-      header: { ...header, totalLines: window2.total },
-      body: window2.text,
-      bodyLabel: "SOURCE",
-      bodyOffset: window2.offset,
-      bodyTotalLines: window2.total,
-      notes: source === "" ? [...includeNotes, EMPTY_SOURCE_NOTE] : includeNotes,
-      hints: sourceHints,
-      pagingParam: "offset",
-      maxChars
-    },
-    etag
-  );
-}
-var okRead = (res) => ({
-  content: [{ type: "text", text: res.text }]
-});
-function registerReadTools(mcp, deps) {
-  mcp.registerTool(
-    "abap_read",
-    {
-      title: "Read ABAP object",
-      description: 'Read an ABAP object: source, pseudo-DDL, a DEVC/K package listing (types/depth filter it), or (SUSO/B, TABL/DI) a read-only catalog render. Returns an etag. Capped ~15k tokens \u2014 use outline/method/offset for large objects. Example: {"object":"ZCL_FOO","type":"CLAS/OC"}.',
-      inputSchema: readInputSchema,
-      annotations: { readOnlyHint: true, openWorldHint: true }
-    },
-    async (args) => {
-      try {
-        await deps.ensureConnected();
-        deps.safety.assert("read");
-        const res = await deps.pool.withRead(
-          "abap_read",
-          (conn) => abapRead(conn, args, deps.cfg.maxResponseChars)
-        );
-        return okRead(res);
-      } catch (e) {
-        return deps.errorResult(e);
-      }
-    }
-  );
-}
-
-// src/tools/test.ts
-init_zod();
-
-// src/adt/aunit.ts
-init_fxp();
-init_errors();
-init_truncate();
-var AUNIT_TESTRUNS_URL = "/sap/bc/adt/abapunit/testruns";
-var COVERAGE_MEASUREMENT_PREFIX = "/sap/bc/adt/runtime/traces/coverage/measurements/";
-var RISK_LEVELS = ["harmless", "dangerous", "critical"];
-function buildRunConfiguration(objectUri, risk = "harmless", opts = {}) {
-  const on = (level) => RISK_LEVELS.indexOf(level) <= RISK_LEVELS.indexOf(risk) ? "true" : "false";
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<aunit:runConfiguration xmlns:aunit="http://www.sap.com/adt/aunit">
-  <external>
-    <coverage active="${opts.coverage ? "true" : "false"}"/>
-  </external>
-  <options>
-    <uriType value="semantic"/>
-    <testDeterminationStrategy sameProgram="true" assignedTests="false"/>
-    <testRiskLevels harmless="${on("harmless")}" dangerous="${on("dangerous")}" critical="${on("critical")}"/>
-    <testDurations short="true" medium="true" long="true"/>
-    <withNavigationUri enabled="true"/>
-  </options>
-  <adtcore:objectSets xmlns:adtcore="http://www.sap.com/adt/core">
-    <objectSet kind="inclusive">
-      <adtcore:objectReferences>
-        <adtcore:objectReference adtcore:uri="${escapeXmlAttribute(objectUri)}"/>
-      </adtcore:objectReferences>
-    </objectSet>
-  </adtcore:objectSets>
-</aunit:runConfiguration>`;
-}
-function escapeXmlAttribute(value) {
-  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-}
-var parser2 = new XMLParser({
-  ignoreAttributes: false,
-  attributeNamePrefix: "@_",
-  removeNSPrefix: true,
-  parseAttributeValue: false,
-  parseTagValue: false,
-  trimValues: true
-});
-function isNode(v) {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
-}
-function many2(v) {
-  if (v === void 0 || v === null) return [];
-  if (Array.isArray(v)) return v.filter(isNode);
-  return isNode(v) ? [v] : [];
-}
-function attr2(node2, name) {
-  const v = node2[`@_${name}`];
-  if (typeof v !== "string") return void 0;
-  const t = v.trim();
-  return t.length ? t : void 0;
-}
-function childNames(node2) {
-  if (!isNode(node2)) return [];
-  return Object.keys(node2).filter((k) => !k.startsWith("@_"));
-}
-function attributeNames(node2) {
-  if (!isNode(node2)) return [];
-  return Object.keys(node2).filter((k) => k.startsWith("@_")).map((k) => k.slice(2));
-}
-var KNOWN_TEST_METHOD_CHILDREN = /* @__PURE__ */ new Set(["alerts"]);
-var KNOWN_TEST_METHOD_ATTRIBUTES = /* @__PURE__ */ new Set([
-  "uri",
-  "type",
-  "name",
-  "executionTime",
-  "uriType",
-  "navigationUri",
-  "unit"
-]);
-var SEVERITY_FAILS = /* @__PURE__ */ new Set(["critical"]);
-var SEVERITY_PASSES = /* @__PURE__ */ new Set();
-function verdictForMethodNode(node2) {
-  const unrecognised = [];
-  for (const child4 of childNames(node2)) {
-    if (child4 === "#text") unrecognised.push("text content");
-    else if (!KNOWN_TEST_METHOD_CHILDREN.has(child4)) unrecognised.push(`<${child4}>`);
-  }
-  for (const a of attributeNames(node2)) {
-    if (!KNOWN_TEST_METHOD_ATTRIBUTES.has(a)) unrecognised.push(`@${a}`);
-  }
-  if (unrecognised.length > 0) return { verdict: "unknown", unrecognised };
-  if (!childNames(node2).includes("alerts")) return { verdict: "passed", unrecognised: [] };
-  const severities = many2(node2.alerts).flatMap((container) => many2(container.alert)).map((a) => attr2(a, "severity"));
-  if (severities.some((s) => s !== void 0 && SEVERITY_FAILS.has(s))) {
-    return { verdict: "failed", unrecognised: [] };
-  }
-  const ungraded = severities.filter((s) => s === void 0 || !SEVERITY_PASSES.has(s));
-  if (ungraded.length === 0) return { verdict: "passed", unrecognised: [] };
-  return {
-    verdict: "unknown",
-    unrecognised: ungraded.map((s) => s === void 0 ? "alert with no @severity" : `severity="${s}"`)
-  };
-}
-function flattenDetails(node2, depth, out) {
-  if (!isNode(node2)) return;
-  for (const detail of many2(node2.detail)) {
-    const text3 = attr2(detail, "text");
-    if (text3) out.push("  ".repeat(depth) + truncateText(text3, ECHO_LINE_MAX));
-    flattenDetails(detail.details, depth + 1, out);
-  }
-}
-function includeNameFromUri(uri) {
-  if (!uri) return void 0;
-  const path8 = String(uri).split("#")[0] ?? "";
-  const m = /\/includes\/([^/?#]+)\/?$/.exec(path8);
-  return m ? m[1] : void 0;
-}
-function parseStack(node2) {
-  if (!isNode(node2)) return [];
-  return many2(node2.stackEntry).map((e) => {
-    const uri = attr2(e, "uri");
-    const at = parseStartFragment(uri);
-    const includeName = includeNameFromUri(uri);
-    return {
-      ...uri ? { uri } : {},
-      ...at ? { line: at.line, col: at.col } : {},
-      ...includeName ? { includeName } : {},
-      ...attr2(e, "type") ? { type: attr2(e, "type") } : {},
-      ...attr2(e, "name") ? { name: attr2(e, "name") } : {},
-      ...attr2(e, "description") ? { description: truncateText(attr2(e, "description"), ECHO_LINE_MAX) } : {}
-    };
-  });
-}
-function parseAlerts(container) {
-  if (!isNode(container)) return [];
-  return many2(container.alert).map((a) => {
-    const details = [];
-    flattenDetails(a.details, 0, details);
-    const title = typeof a.title === "string" ? a.title.trim() : void 0;
-    return {
-      ...attr2(a, "kind") ? { kind: attr2(a, "kind") } : {},
-      ...attr2(a, "severity") ? { severity: attr2(a, "severity") } : {},
-      ...title ? { title: truncateText(title, MESSAGE_EXCERPT_MAX) } : {},
-      details,
-      stack: parseStack(a.stack)
-    };
-  });
-}
-var NO_TEST_CLASSES_KIND = "noTestClasses";
-function parseRunResult(xml3) {
-  let doc;
-  try {
-    doc = parser2.parse(xml3);
-  } catch (e) {
-    throw new AbapError(
-      "ADT_ERROR",
-      `ABAP Unit run result is not parseable XML: ${e.message}`,
-      { excerpt: truncateText(xml3, MESSAGE_EXCERPT_MAX) }
-    );
-  }
-  const docNode = isNode(doc) ? doc : void 0;
-  const hasRunResult = docNode !== void 0 && "runResult" in docNode;
-  const root = hasRunResult && isNode(docNode.runResult) ? docNode.runResult : {};
-  if (!hasRunResult) {
-    throw new AbapError(
-      "ADT_ERROR",
-      "ABAP Unit answered 200 but the body carries no <aunit:runResult> element.",
-      { excerpt: truncateText(xml3, MESSAGE_EXCERPT_MAX) },
-      "This is a wire-shape change, not a test failure. Do not read it as a passing run."
-    );
-  }
-  const externalNode = many2(root.external)[0];
-  const coverageNode = externalNode && isNode(externalNode.coverage) ? externalNode.coverage : void 0;
-  const coverageUriRaw = coverageNode ? attr2(coverageNode, "uri") : void 0;
-  const coverageUri = coverageUriRaw && coverageUriRaw.startsWith(COVERAGE_MEASUREMENT_PREFIX) ? coverageUriRaw : void 0;
-  const otherAlerts = [];
-  for (const a of parseAlerts(root.alerts)) otherAlerts.push({ ...a, scope: "run" });
-  const programs = [];
-  let total = 0;
-  let passed = 0;
-  let failed = 0;
-  let unknown2 = 0;
-  for (const prog of many2(root.program)) {
-    const programName = attr2(prog, "name") ?? "(unnamed program)";
-    for (const a of parseAlerts(prog.alerts)) {
-      otherAlerts.push({ ...a, scope: `program ${programName}` });
-    }
-    const classes = [];
-    for (const tcContainer of many2(prog.testClasses)) {
-      for (const tc of many2(tcContainer.testClass)) {
-        const className = attr2(tc, "name") ?? "(unnamed test class)";
-        for (const a of parseAlerts(tc.alerts)) {
-          otherAlerts.push({ ...a, scope: `test class ${className}` });
-        }
-        const methods = [];
-        for (const tmContainer of many2(tc.testMethods)) {
-          for (const tm of many2(tmContainer.testMethod)) {
-            const { verdict, unrecognised } = verdictForMethodNode(tm);
-            total++;
-            if (verdict === "passed") passed++;
-            else if (verdict === "failed") failed++;
-            else unknown2++;
-            methods.push({
-              name: attr2(tm, "name") ?? "(unnamed method)",
-              className,
-              verdict,
-              ...attr2(tm, "executionTime") ? { executionTime: attr2(tm, "executionTime") } : {},
-              ...attr2(tm, "unit") ? { unit: attr2(tm, "unit") } : {},
-              alerts: parseAlerts(tm.alerts),
-              unrecognised
-            });
-          }
-        }
-        classes.push({
-          name: className,
-          ...attr2(tc, "riskLevel") ? { riskLevel: attr2(tc, "riskLevel") } : {},
-          ...attr2(tc, "durationCategory") ? { durationCategory: attr2(tc, "durationCategory") } : {},
-          methods
-        });
-      }
-    }
-    programs.push({
-      name: programName,
-      ...attr2(prog, "type") ? { type: attr2(prog, "type") } : {},
-      classes
-    });
-  }
-  if (total === 0) {
-    const noTests = otherAlerts.find((a) => a.kind === NO_TEST_CLASSES_KIND);
-    if (noTests) {
-      return {
-        outcome: "no-tests",
-        programs,
-        otherAlerts,
-        total,
-        passed,
-        failed,
-        unknown: unknown2,
-        reason: noTests.title ?? 'ADT reported kind="noTestClasses": the object has no ABAP Unit test classes.',
-        ...coverageUri ? { coverageUri } : {}
-      };
-    }
-    return {
-      outcome: "unknown",
-      programs,
-      otherAlerts,
-      total,
-      passed,
-      failed,
-      unknown: unknown2,
-      reason: "The run result contained no test methods and no noTestClasses alert, so it is not known whether anything ran. This is NOT a passing run.",
-      ...coverageUri ? { coverageUri } : {}
-    };
-  }
-  if (failed > 0) {
-    return {
-      outcome: "failed",
-      programs,
-      otherAlerts,
-      total,
-      passed,
-      failed,
-      unknown: unknown2,
-      ...coverageUri ? { coverageUri } : {}
-    };
-  }
-  if (unknown2 > 0) {
-    return {
-      outcome: "unknown",
-      programs,
-      otherAlerts,
-      total,
-      passed,
-      failed,
-      unknown: unknown2,
-      reason: `${unknown2} of ${total} test method(s) carried XML this server does not recognise, so their verdict is unknown. Treat the run as UNVERIFIED, not as passing.`,
-      ...coverageUri ? { coverageUri } : {}
-    };
-  }
-  return {
-    outcome: "passed",
-    programs,
-    otherAlerts,
-    total,
-    passed,
-    failed,
-    unknown: unknown2,
-    ...coverageUri ? { coverageUri } : {}
-  };
-}
-function coveredObjectsUrl(measurementUri) {
-  return `${measurementUri}/coveredobjects`;
-}
-function buildCoveredObjectsScope() {
-  return '<?xml version="1.0" encoding="UTF-8"?>\n<cov:scope xmlns:cov="http://www.sap.com/adt/cov">\n  <adtcore:objectSets xmlns:adtcore="http://www.sap.com/adt/core"/>\n  <cov:objectSelection/>\n</cov:scope>';
-}
-function parseCoveredObjects(xml3) {
-  let doc;
-  try {
-    doc = parser2.parse(xml3);
-  } catch (e) {
-    throw new AbapError(
-      "ADT_ERROR",
-      `Coverage scope is not parseable XML: ${e.message}`,
-      { excerpt: truncateText(xml3, MESSAGE_EXCERPT_MAX) }
-    );
-  }
-  const docNode = isNode(doc) ? doc : void 0;
-  const hasScope = docNode !== void 0 && "scope" in docNode;
-  if (!hasScope) {
-    throw new AbapError(
-      "ADT_ERROR",
-      "ADT answered 200 but the body carries no <cov:scope> element.",
-      { excerpt: truncateText(xml3, MESSAGE_EXCERPT_MAX) }
-    );
-  }
-  const root = isNode(docNode.scope) ? docNode.scope : {};
-  const out = [];
-  for (const container of many2(root.coveredObjects)) {
-    for (const co of many2(container.coveredObject)) {
-      const ref2 = isNode(co.objectReference) ? co.objectReference : void 0;
-      if (!ref2) continue;
-      out.push({
-        name: attr2(ref2, "name") ?? "(unnamed object)",
-        ...attr2(ref2, "type") ? { type: attr2(ref2, "type") } : {},
-        ...attr2(ref2, "uri") ? { uri: attr2(ref2, "uri") } : {},
-        ...attr2(ref2, "packageName") ? { packageName: attr2(ref2, "packageName") } : {}
-      });
-    }
-  }
-  return out;
-}
-function buildCoverageQuery(objectUris) {
-  if (objectUris.length === 0) {
-    throw new AbapError(
-      "BAD_INPUT",
-      "buildCoverageQuery needs at least one object URI: an empty list would query the whole measurement, not the object the caller asked about."
-    );
-  }
-  const refs = objectUris.map((uri) => `        <adtcore:objectReference adtcore:uri="${escapeXmlAttribute(uri)}"/>
-`).join("");
-  return '<?xml version="1.0" encoding="UTF-8"?>\n<cov:query xmlns:cov="http://www.sap.com/adt/cov">\n  <adtcore:objectSets xmlns:adtcore="http://www.sap.com/adt/core">\n    <objectSet kind="inclusive">\n      <adtcore:objectReferences>\n' + refs + "      </adtcore:objectReferences>\n    </objectSet>\n  </adtcore:objectSets>\n</cov:query>";
-}
-var KNOWN_COVERAGE_TYPES = /* @__PURE__ */ new Set(["statement", "branch", "procedure"]);
-function parseCount(raw) {
-  if (raw === void 0 || !/^\d+$/.test(raw)) return void 0;
-  return parseInt(raw, 10);
-}
-function parseCoverageNode(node2) {
-  const ref2 = isNode(node2.objectReference) ? node2.objectReference : void 0;
-  const name = (ref2 ? attr2(ref2, "name") : void 0) ?? "(unnamed node)";
-  const unrecognised = [];
-  let statement;
-  let branch;
-  let procedure;
-  const coveragesContainer = isNode(node2.coverages) ? node2.coverages : void 0;
-  for (const cov of many2(coveragesContainer?.coverage)) {
-    const type = attr2(cov, "type");
-    if (type === void 0 || !KNOWN_COVERAGE_TYPES.has(type)) {
-      unrecognised.push(type ?? "coverage with no @type");
-      continue;
-    }
-    const totalRaw = attr2(cov, "total");
-    const executedRaw = attr2(cov, "executed");
-    const total = parseCount(totalRaw);
-    if (total === void 0) {
-      unrecognised.push(`${type} (unparseable total="${totalRaw ?? ""}")`);
-      continue;
-    }
-    const executed = parseCount(executedRaw);
-    if (executed === void 0) {
-      unrecognised.push(`${type} (unparseable executed="${executedRaw ?? ""}")`);
-      continue;
-    }
-    const ratio = { total, executed };
-    if (type === "statement") statement = ratio;
-    else if (type === "branch") branch = ratio;
-    else procedure = ratio;
-  }
-  const children = [];
-  const childContainer = isNode(node2.nodes) ? node2.nodes : void 0;
-  for (const child4 of many2(childContainer?.node)) children.push(parseCoverageNode(child4));
-  return {
-    name,
-    ...ref2 && attr2(ref2, "type") ? { type: attr2(ref2, "type") } : {},
-    ...ref2 && attr2(ref2, "uri") ? { uri: attr2(ref2, "uri") } : {},
-    ...ref2 && attr2(ref2, "description") ? { description: attr2(ref2, "description") } : {},
-    ...statement ? { statement } : {},
-    ...branch ? { branch } : {},
-    ...procedure ? { procedure } : {},
-    unrecognised,
-    children
-  };
-}
-function parseCoverageResult(xml3) {
-  let doc;
-  try {
-    doc = parser2.parse(xml3);
-  } catch (e) {
-    throw new AbapError(
-      "ADT_ERROR",
-      `Coverage result is not parseable XML: ${e.message}`,
-      { excerpt: truncateText(xml3, MESSAGE_EXCERPT_MAX) }
-    );
-  }
-  const docNode = isNode(doc) ? doc : void 0;
-  const hasResult = docNode !== void 0 && "result" in docNode;
-  if (!hasResult) {
-    throw new AbapError(
-      "ADT_ERROR",
-      "ADT answered 200 but the body carries no <cov:result> element.",
-      { excerpt: truncateText(xml3, MESSAGE_EXCERPT_MAX) }
-    );
-  }
-  const root = isNode(docNode.result) ? docNode.result : {};
-  const topContainer = isNode(root.nodes) ? root.nodes : void 0;
-  const nodes = many2(topContainer?.node).map(parseCoverageNode);
-  return { measured: nodes.length > 0, nodes };
-}
-function findCoverageNode(result, name) {
-  const wantExact = name.toLowerCase();
-  const wantPrefix = `${wantExact} (`;
-  let exactMatch;
-  let prefixMatch;
-  const visit = (node2) => {
-    const lower = node2.name.toLowerCase();
-    if (exactMatch === void 0 && lower === wantExact) exactMatch = node2;
-    else if (prefixMatch === void 0 && lower.startsWith(wantPrefix)) prefixMatch = node2;
-    for (const child4 of node2.children) visit(child4);
-  };
-  for (const node2 of result.nodes) visit(node2);
-  return exactMatch ?? prefixMatch;
-}
-
-// src/tools/test.ts
-init_errors();
-init_compact();
-var testInputSchema = {
-  object: external_exports.string().describe("Class, program or package to test."),
-  type: external_exports.string().optional().describe("ADT type, e.g. CLAS/OC."),
-  risk_level: external_exports.enum(["harmless", "dangerous", "critical"]).optional().describe("Highest risk to run, cumulative from harmless. Default harmless."),
-  coverage: external_exports.boolean().optional().describe("Also measure statement/branch/procedure coverage and report it per class and per method."),
-  coverage_for: external_exports.array(external_exports.string()).optional().describe(
-    "Objects to report coverage for. Default: the objects under test. Use this to report an object the tests exercise indirectly. Ignored unless coverage is true."
-  )
-};
-var TestInput = external_exports.object(testInputSchema);
-function renderStack(alert) {
-  return alert.stack.map((e) => {
-    const where2 = e.line !== void 0 ? e.includeName ? `include ${e.includeName} line ${e.line}` : `line ${e.line} (source unnamed \u2014 see URI)` : e.includeName ? `include ${e.includeName}` : "location not reported";
-    const extra = e.description ? ` \u2014 ${e.description}` : e.uri ? ` \u2014 ${e.uri}` : "";
-    return `    at ${where2}${extra}`;
-  });
-}
-function renderMethod(m) {
-  const label = m.verdict === "failed" ? "FAILED " : "UNKNOWN";
-  const timing = m.executionTime !== void 0 ? ` (${m.executionTime}${m.unit ?? ""})` : "";
-  const out = [`${label} ${m.className}->${m.name}${timing}`];
-  if (m.verdict === "unknown") {
-    out.push(
-      `    NOT GRADED: this server does not recognise ${m.unrecognised.join(", ")} on this test method, so its result is unknown. Do not read it as a pass.`
-    );
-  }
-  for (const a of m.alerts) {
-    const kind = [a.severity, a.kind].filter(Boolean).join(" ");
-    out.push(`    ${kind || "alert"}: ${a.title ?? "(no title)"}`);
-    for (const d of a.details) out.push(`      ${d}`);
-    out.push(...renderStack(a));
-  }
-  return out;
-}
-function renderBody(res) {
-  const lines = [];
-  const bad = res.programs.flatMap((p) => p.classes).flatMap((c) => c.methods).filter((m) => m.verdict !== "passed");
-  for (const m of bad) {
-    lines.push(...renderMethod(m));
-    lines.push("");
-  }
-  for (const p of res.programs) {
-    for (const c of p.classes) {
-      const passed = c.methods.filter((m) => m.verdict === "passed").map((m) => m.name);
-      if (passed.length === 0) continue;
-      const risk = c.riskLevel ? ` [risk ${c.riskLevel}]` : "";
-      lines.push(`PASSED  ${c.name}${risk}: ${passed.join(", ")}`);
-    }
-  }
-  for (const a of res.otherAlerts) {
-    const kind = [a.severity, a.kind].filter(Boolean).join(" ");
-    lines.push(`ALERT   (${a.scope}) ${kind || "alert"}: ${a.title ?? "(no title)"}`);
-    for (const d of a.details) lines.push(`      ${d}`);
-  }
-  return lines.join("\n").trim() || "(the run result contained no test methods and no alerts)";
-}
-var COVERAGE_FOCUS_CAP = 10;
-var ALSO_TOUCHED_SHOWN = 15;
-function formatRatio(label, r) {
-  if (!r) return `${label} not reported`;
-  if (r.total === 0) return `${label} n/a`;
-  return `${label} ${r.executed}/${r.total} (${Math.round(r.executed / r.total * 100)}%)`;
-}
-function renderCoverageRatios(node2) {
-  return [
-    formatRatio("statement", node2.statement),
-    formatRatio("branch", node2.branch),
-    formatRatio("procedure", node2.procedure)
-  ].join("  ");
-}
-function renderCoverageNodeLine(node2, indent) {
-  const unrecognised = node2.unrecognised.length ? `  [unrecognised coverage types: ${node2.unrecognised.join(", ")}]` : "";
-  return `${indent}${node2.name}  ${renderCoverageRatios(node2)}${unrecognised}`;
-}
-function addRatio(sum, r) {
-  if (!r) return;
-  sum.total += r.total;
-  sum.executed += r.executed;
-  sum.seen = true;
-}
-function formatRatioSum(label, s) {
-  if (!s.seen) return `${label} not reported`;
-  if (s.total === 0) return `${label} n/a`;
-  return `${label} ${s.executed}/${s.total} (${Math.round(s.executed / s.total * 100)}%)`;
-}
-async function buildCoverageSection(conn, res, obj, input, notes, hints) {
-  if (res.coverageUri === void 0) {
-    notes.push(
-      "Coverage was requested but the run result carried no measurement reference, so no coverage is reported. The PASSED/FAILED verdicts above are unaffected."
-    );
-    return void 0;
-  }
-  const coveredResp = await conn.post(coveredObjectsUrl(res.coverageUri), {
-    headers: { "Content-Type": "application/*", Accept: "application/*" },
-    body: buildCoveredObjectsScope()
-  });
-  if (coveredResp.status !== 200) {
-    throw new AbapError(
-      "ADT_ERROR",
-      `Coverage covered-objects query for ${obj.name} answered HTTP ${coveredResp.status}.`,
-      { object: obj.name, status: coveredResp.status, url: coveredObjectsUrl(res.coverageUri) }
-    );
-  }
-  const roster = parseCoveredObjects(coveredResp.body);
-  const coverageForList = input.coverage_for ?? [];
-  const explicitScope = coverageForList.length > 0;
-  const requestedNames = explicitScope ? coverageForList : res.programs.map((p) => p.name);
-  let matches = [];
-  let notTouched = [];
-  for (const name of requestedNames) {
-    const entry = roster.find((o) => o.name.toLowerCase() === name.toLowerCase());
-    if (entry) matches.push({ requestedName: name, object: entry });
-    else notTouched.push(name);
-  }
-  if (!explicitScope && matches.length === 0) {
-    const entry = roster.find((o) => o.name.toLowerCase() === obj.name.toLowerCase());
-    matches = [{ requestedName: obj.name, object: entry ?? { name: obj.name, uri: obj.uri } }];
-    notTouched = [];
-  }
-  const toQuery = matches.slice(0, COVERAGE_FOCUS_CAP);
-  const skipped = matches.slice(COVERAGE_FOCUS_CAP);
-  if (skipped.length > 0) {
-    notes.push(
-      `Coverage focus was capped at ${COVERAGE_FOCUS_CAP} objects \u2014 querying the whole covered-objects roster timed out live against a real system. Not queried: ${skipped.map((m) => m.requestedName).join(", ")}.`
-    );
-  }
-  const queryable = toQuery.filter((m) => m.object.uri !== void 0);
-  const noUri = toQuery.filter((m) => m.object.uri === void 0);
-  let coverage;
-  if (queryable.length > 0) {
-    const focusUris = queryable.map((m) => m.object.uri).filter((u) => u !== void 0);
-    const queryResp = await conn.post(res.coverageUri, {
-      headers: { "Content-Type": "application/*", Accept: "application/*" },
-      body: buildCoverageQuery(focusUris)
-    });
-    if (queryResp.status !== 200) {
-      throw new AbapError(
-        "ADT_ERROR",
-        `Coverage measurement query for ${obj.name} answered HTTP ${queryResp.status}.`,
-        { object: obj.name, status: queryResp.status, url: res.coverageUri }
-      );
-    }
-    coverage = parseCoverageResult(queryResp.body);
-  } else if (toQuery.length > 0) {
-    notes.push(
-      `Coverage could not be queried for ${toQuery.map((m) => m.requestedName).join(", ")}: the covered-objects roster carried no URI for them.`
-    );
-  }
-  const lines = [];
-  const uncovered = [];
-  const notReported = [];
-  let anyAbsent = false;
-  const sums = {
-    statement: { total: 0, executed: 0, seen: false },
-    branch: { total: 0, executed: 0, seen: false },
-    procedure: { total: 0, executed: 0, seen: false }
-  };
-  for (const m of matches) {
-    if (skipped.includes(m)) {
-      lines.push(`${m.requestedName}  not queried (coverage focus capped at ${COVERAGE_FOCUS_CAP} objects)`);
-      continue;
-    }
-    if (noUri.includes(m)) {
-      lines.push(`${m.requestedName}  not queried (no object URI on the covered-objects roster)`);
-      continue;
-    }
-    const node2 = coverage ? findCoverageNode(coverage, m.requestedName) : void 0;
-    if (coverage?.measured && node2) {
-      lines.push(renderCoverageNodeLine(node2, ""));
-      for (const child4 of node2.children) {
-        lines.push(renderCoverageNodeLine(child4, "  "));
-        if (child4.statement) {
-          if (child4.statement.total > 0 && child4.statement.executed === 0) {
-            uncovered.push(
-              `${node2.name}->${child4.name}  (${child4.statement.executed}/${child4.statement.total} statements)`
-            );
-          }
-        } else {
-          notReported.push(`${node2.name}->${child4.name}`);
-        }
-      }
-      addRatio(sums.statement, node2.statement);
-      addRatio(sums.branch, node2.branch);
-      addRatio(sums.procedure, node2.procedure);
-    } else {
-      lines.push(`${m.requestedName}  not measured by this run`);
-      anyAbsent = true;
-    }
-  }
-  for (const name of notTouched) {
-    lines.push(`${name}  not touched by this run`);
-    anyAbsent = true;
-  }
-  if (anyAbsent) {
-    notes.push(
-      'Absence of measurement is not zero coverage: an object or method reported "not measured by this run" or "not touched by this run" was never observed by the coverage trace, which is different from having been observed and found uncovered.'
-    );
-  }
-  if (uncovered.length > 0) {
-    lines.push("", "UNCOVERED METHODS (0 of their statements ran):");
-    for (const u of uncovered) lines.push(`  ${u}`);
-    hints.push(
-      "An uncovered method ran zero of its statements. Read it with `abap_read method=\u2026` and add a test for it \u2014 the abapsmith-write-abap-unit-tests skill covers writing ABAP Unit tests."
-    );
-  }
-  if (notReported.length > 0) {
-    lines.push("", "COVERAGE NOT REPORTED FOR:");
-    for (const n of notReported) lines.push(`  ${n}`);
-  }
-  const focusNames = /* @__PURE__ */ new Set([...matches.map((m) => m.requestedName.toLowerCase()), ...notTouched.map((n) => n.toLowerCase())]);
-  const others = roster.filter((o) => !focusNames.has(o.name.toLowerCase()));
-  if (others.length > 0) {
-    lines.push("", "ALSO TOUCHED (not reported on \u2014 name one in coverage_for to measure it):");
-    for (const o of others.slice(0, ALSO_TOUCHED_SHOWN)) {
-      lines.push(`  ${o.name} (${o.type ?? "?"}, ${o.packageName ?? "?"})`);
-    }
-    if (others.length > ALSO_TOUCHED_SHOWN) {
-      lines.push(`  \u2026 and ${others.length - ALSO_TOUCHED_SHOWN} more (truncated)`);
-    }
-  }
-  const header = sums.statement.seen || sums.branch.seen || sums.procedure.seen ? [
-    formatRatioSum("statement", sums.statement),
-    formatRatioSum("branch", sums.branch),
-    formatRatioSum("procedure", sums.procedure)
-  ].join(", ") : void 0;
-  return { body: lines.join("\n"), ...header !== void 0 ? { header } : {} };
-}
-async function abapTest(conn, input, maxChars, gate) {
-  if (input.coverage_for !== void 0 && !input.coverage) {
-    throw new AbapError(
-      "BAD_INPUT",
-      "`coverage_for` was given without `coverage: true`. Coverage is only measured and reported when `coverage` is true; naming objects in `coverage_for` on their own would silently run with no coverage measured at all.",
-      { coverage: input.coverage ?? false, coverage_for: input.coverage_for },
-      "Set `coverage: true` alongside `coverage_for`."
-    );
-  }
-  const obj = await resolveObject(conn, input.object, { type: input.type });
-  gate.authorize("execute", { name: obj.name, packageName: obj.packageName, type: obj.type });
-  const risk = input.risk_level ?? "harmless";
-  const requestBody = buildRunConfiguration(
-    obj.uri,
-    risk,
-    input.coverage ? { coverage: true } : {}
-  );
-  const resp = await conn.post(AUNIT_TESTRUNS_URL, {
-    headers: { "Content-Type": "application/*", Accept: "application/*" },
-    body: requestBody
-  });
-  if (resp.status !== 200) {
-    throw new AbapError(
-      "ADT_ERROR",
-      `ABAP Unit test run for ${obj.name} answered HTTP ${resp.status}.`,
-      { object: obj.name, status: resp.status, url: AUNIT_TESTRUNS_URL },
-      "The run did not complete. This is not a test failure and not a pass."
-    );
-  }
-  const res = parseRunResult(resp.body);
-  const notes = [];
-  if (res.outcome === "no-tests") {
-    notes.push(
-      `NO TESTS RAN. ${res.reason ?? ""} This is NOT a pass \u2014 nothing about ${obj.name} was verified. Tests above risk level "${risk}" were excluded from this run; if the tests exist but are declared DANGEROUS or CRITICAL, re-run with a higher risk_level.`
-    );
-  } else if (res.outcome === "unknown") {
-    notes.push(
-      `RESULT NOT GRADED. ${res.reason ?? ""} Treat this run as unverified, not as passing.`
-    );
-  }
-  if (res.outcome !== "no-tests" && res.unknown > 0 && res.failed > 0) {
-    notes.push(
-      `${res.unknown} further method(s) could not be graded and are shown as UNKNOWN; the failure count below does not include them.`
-    );
-  }
-  if (risk !== "critical") {
-    notes.push(
-      `Only tests up to risk level "${risk}" ran. Higher-risk tests, if any exist, were not executed and their absence is not a pass.`
-    );
-  }
-  for (const a of res.otherAlerts) {
-    if (res.outcome === "no-tests") continue;
-    notes.push(`Run-level alert (${a.scope}): ${a.title ?? a.kind ?? "unnamed alert"}.`);
-  }
-  const outcomeLabel = res.outcome === "passed" ? "PASSED" : res.outcome === "failed" ? "FAILED" : res.outcome === "no-tests" ? "NO TESTS RAN (not a pass)" : "UNKNOWN (not a pass)";
-  const hints = res.outcome === "failed" ? [
-    "Line numbers are positions in the named INCLUDE (usually testclasses), not in the class main source. Read that include with abap_read."
-  ] : [];
-  let coverageBody;
-  let coverageHeader;
-  if (input.coverage) {
-    notes.push(
-      "Coverage was requested: this instruments the whole ABAP Unit session and runs slower than a plain test run."
-    );
-    try {
-      const section = await buildCoverageSection(conn, res, obj, input, notes, hints);
-      if (section) {
-        coverageBody = section.body;
-        coverageHeader = section.header;
-      }
-    } catch (e) {
-      notes.push(
-        `Coverage could not be retrieved: ${e instanceof Error ? e.message : String(e)}. The test result above is unaffected and still reflects the full run.`
-      );
-    }
-  }
-  const body = coverageBody !== void 0 ? `${renderBody(res)}
-
-COVERAGE
-${coverageBody}` : renderBody(res);
-  return buildResponse({
-    header: {
-      system: conn.cfg.sid,
-      object: `${obj.type} ${obj.name}`,
-      outcome: outcomeLabel,
-      riskLevel: risk,
-      tests: res.total,
-      passed: res.passed,
-      failed: res.failed,
-      // Surfaced only when non-zero — an ungraded method must never be missed.
-      unknown: res.unknown > 0 ? res.unknown : void 0,
-      coverage: coverageHeader
-    },
-    body,
-    bodyLabel: "RESULTS",
-    notes,
-    hints,
-    maxChars
-  });
-}
-var ok6 = (text3) => ({ content: [{ type: "text", text: text3 }] });
-function registerTestTools(mcp, deps) {
-  mcp.registerTool(
-    "abap_test",
-    {
-      description: "Run ABAP Unit tests; reports each method's verdict. PASSED/FAILED/NO TESTS RAN/UNKNOWN \u2014 only PASSED is a pass. Needs write access, allowlisted package. Defaults to harmless-risk tests. Opt-in coverage: coverage=true, optionally scoped with coverage_for.",
-      inputSchema: testInputSchema,
-      annotations: { readOnlyHint: false, destructiveHint: true }
-    },
-    async (args) => {
-      try {
-        deps.safety.assert("execute", preflight(args), {
-          phase: "preflight"
-        });
-        await deps.ensureConnected();
-        const res = await deps.pool.withWrite(
-          "abap_test",
-          void 0,
-          (conn) => abapTest(conn, args, deps.cfg.maxResponseChars, deps.safety)
-        );
-        return ok6(res.text);
-      } catch (e) {
-        return deps.errorResult(e);
-      }
-    }
-  );
-}
-
-// src/tools/search.ts
-init_zod();
-init_errors();
-init_compact();
-init_types();
-init_truncate();
-
-// src/adt/source-scan.ts
-init_errors();
-var SOURCE_SCAN_TYPES = ["PROG", "CLAS", "INTF", "FUGR", "DDLS"];
-var SOURCE_SCAN_OBJECT_CEILING = 200;
-var SCAN_TOOLS = /* @__PURE__ */ new Map([
-  [
-    SCAN_TOOL_ID,
-    {
-      manifest: scanManifest,
-      origin: "builtin",
-      sources: scanSources,
-      version: manifestVersion(scanManifest, scanSources)
-    }
-  ]
-]);
-function scanDispatchArgs(q) {
-  return {
-    query: q.query,
-    regex: q.regex,
-    case_sensitive: q.caseSensitive,
-    include_comments: q.includeComments,
-    ...q.packages.length > 0 ? { packages: q.packages } : {},
-    include_subpackages: q.includeSubpackages,
-    ...q.objects !== void 0 && q.objects !== "" ? { objects: q.objects } : {},
-    ...q.types.length > 0 ? { types: q.types } : {},
-    max_hits: q.maxHits,
-    max_objects: q.maxObjects
-  };
-}
-function fail2(reason, result) {
-  throw new AbapError(
-    "FLUID_PROTOCOL_ERROR",
-    `scan.source ${reason}`,
-    { tool: SCAN_TOOL_ID, action: SCAN_ACTION, result }
-  );
-}
-function isHitRow(r) {
-  return typeof r["obj_type"] === "string" && typeof r["obj_name"] === "string" && typeof r["include"] === "string" && typeof r["line"] === "number" && typeof r["text"] === "string";
-}
-function isSummaryRow(r) {
-  return typeof r["objects_total"] === "number" && typeof r["objects_scanned"] === "number" && typeof r["includes_scanned"] === "number" && typeof r["includes_skipped"] === "number" && typeof r["hits"] === "number" && (r["truncated"] === "" || r["truncated"] === "hits" || r["truncated"] === "objects");
-}
-function mapScanRows(rows) {
-  if (!Array.isArray(rows)) {
-    fail2("returned a result that is not an array", rows);
-  }
-  const hits = [];
-  let summary;
-  for (let i = 0; i < rows.length; i++) {
-    const row2 = rows[i];
-    if (typeof row2 !== "object" || row2 === null || Array.isArray(row2)) {
-      fail2(`row ${i} is not an object`, rows);
-    }
-    const r = row2;
-    if (r["kind"] !== "hit" && r["kind"] !== "summary") {
-      fail2(`row ${i} has kind "${String(r["kind"])}", expected "hit" or "summary"`, rows);
-    }
-    if (r["kind"] === "hit") {
-      if (!isHitRow(r)) {
-        fail2(`row ${i} is a hit row missing or mistyping one of obj_type/obj_name/include/line/text`, rows);
-      }
-      if (summary !== void 0) {
-        fail2(`row ${i} is a hit row after the summary row`, rows);
-      }
-      hits.push({
-        objType: r.obj_type,
-        objName: r.obj_name,
-        include: r.include,
-        line: r.line,
-        text: r.text
-      });
-      continue;
-    }
-    if (summary !== void 0) {
-      fail2("returned more than one summary row", rows);
-    }
-    if (!isSummaryRow(r)) {
-      fail2(`row ${i} is a summary row missing or mistyping one of its required fields`, rows);
-    }
-    if (i !== rows.length - 1) {
-      fail2("returned a summary row that is not the last element", rows);
-    }
-    summary = {
-      objectsTotal: r.objects_total,
-      objectsScanned: r.objects_scanned,
-      includesScanned: r.includes_scanned,
-      includesSkipped: r.includes_skipped,
-      hits: r.hits,
-      truncated: r.truncated
-    };
-  }
-  if (summary === void 0) {
-    fail2("did not return a summary row", rows);
-  }
-  return { hits, summary };
-}
-async function runSourceScan(conn, q, gate) {
-  const started = Date.now();
-  const res = await dispatch2(
-    { conn, cfg: conn.cfg, gate, tools: SCAN_TOOLS },
-    {
-      tool: SCAN_TOOL_ID,
-      action: SCAN_ACTION,
-      args: scanDispatchArgs(q),
-      // Names the MCP-facing tool/action in a FLUID_API_DISABLED refusal — see FluidRunRequest.caller's doc.
-      caller: { tool: "abap_search", action: "source" }
-    }
-  );
-  return {
-    sid: conn.cfg.sid,
-    ...mapScanRows(res.result),
-    ms: Date.now() - started,
-    truncated: res.truncated
-  };
-}
-
-// src/tools/search.ts
-var DESCRIPTION_COL_WIDE = 70;
-var DESCRIPTION_COL_NARROW = 60;
-function groupFromUri(uri) {
-  if (!uri) return "";
-  try {
-    return specFromUri(uri)?.parent ?? "";
-  } catch {
-    return "";
-  }
-}
-var KNOWN_TYPES = [...new Set(TYPES.flatMap((t) => [t.kind, t.type]))].sort();
-var KNOWN_TYPE_GROUPS = new Set(TYPES.map((t) => t.type.split("/")[0]));
-function assertKnownType(type) {
-  const value = type.trim();
-  if (!value) return;
-  if (specForType(value) ?? specForKeyword(value)) return;
-  if (value.includes("/") && KNOWN_TYPE_GROUPS.has(value.split("/")[0].toUpperCase())) return;
-  throw new AbapError(
-    "BAD_INPUT",
-    `type "${type}" is not a recognised object type for abap_search. Allowed: ${KNOWN_TYPES.map((t) => `"${t}"`).join(", ")}.`,
-    { type, allowed: KNOWN_TYPES },
-    'A "<GROUP>/<SUBTYPE>" code whose group is one of those values is accepted too (e.g. "ENHS/XB"), as is a plain object-type word such as "class". Omit `type` to search every type.'
-  );
-}
-var searchInputSchema = {
-  query: external_exports.string().describe("Name pattern (mode=objects), target object (mode=where_used), or literal/regex text (mode=source)."),
-  mode: external_exports.enum(["objects", "where_used", "source"]).optional().describe(
-    'Default "objects". "source" scans raw source text (literal/regex, any line) and needs the fluid API; prefer "where_used" when you want real static references to one object, since a text scan also matches strings, comments and dead code.'
-  ),
-  type: external_exports.string().optional().describe(
-    `ADT type filter (mode=objects/where_used only). One of: ${[...KNOWN_TYPE_GROUPS].sort().join(" ")}; or a full code, e.g. "CLAS/OC".`
-  ),
-  max: external_exports.number().int().positive().max(200).optional().describe(
-    "Default 50 rows (mode=objects/where_used) or 100 hits (mode=source); narrowing `query` (not lowering `max`) is what makes a broad call cheaper."
-  ),
-  packages: external_exports.array(external_exports.string()).max(20).optional().describe("mode=source: package scope (TADIR-DEVCLASS). Required unless `objects` is given."),
-  include_subpackages: external_exports.boolean().optional().describe("mode=source: also scan every package transitively under `packages` (TDEVC-PARENTCL)."),
-  objects: external_exports.string().optional().describe('mode=source: object-name pattern (wildcards `*`), e.g. "ZCL_MY_*". Alternative/addition to `packages`.'),
-  types: external_exports.array(external_exports.string()).max(10).optional().describe(`mode=source: object types to scan. One of: ${SOURCE_SCAN_TYPES.join(" ")}. Default: all five.`),
-  regex: external_exports.boolean().optional().describe("mode=source: treat `query` as a PCRE pattern instead of literal text."),
-  case_sensitive: external_exports.boolean().optional().describe("mode=source: default false."),
-  include_comments: external_exports.boolean().optional().describe("mode=source: also match inside comments (heuristic, line-local). Default false.")
-};
-var SearchInput = external_exports.object(searchInputSchema);
-async function abapSearch(conn, input, maxChars) {
-  const max = input.max ?? 50;
-  if (input.type) assertKnownType(input.type);
-  if ((input.mode ?? "objects") === "where_used") {
-    return whereUsed(conn, input.query, input.type, max, maxChars);
-  }
-  return searchObjects(conn, input.query, input.type, max, maxChars);
-}
-var TYPED_FETCH_MULTIPLIER = 10;
-var TYPED_FETCH_CAP = 1e3;
-async function searchObjects(conn, query, type, max, maxChars) {
-  const spec = type ? specForType(type) ?? specForKeyword(type) : void 0;
-  const wanted = type ? spec?.type ?? type.toUpperCase().trim() : void 0;
-  const fetchMax = type ? Math.min(TYPED_FETCH_CAP, max * TYPED_FETCH_MULTIPLIER) : max;
-  const rawResults = await conn.adt.searchObject(query, void 0, fetchMax);
-  const { refs: results, repairedGroups, suspectGroups } = repairSearchDescriptions(rawResults);
-  const filtered = wanted ? results.filter((r) => {
-    const rowType = (r["adtcore:type"] ?? "").toUpperCase();
-    return wanted.includes("/") ? rowType === wanted : rowType.split("/")[0] === wanted;
-  }) : results;
-  const droppedByFilter = results.length - filtered.length;
-  const windowFull = results.length >= fetchMax;
-  const capped = filtered.slice(0, max);
-  const droppedByCap = filtered.length - capped.length;
-  const capLine = droppedByCap > 0 ? `--- TRUNCATED --- ${droppedByCap} of ${filtered.length} matching row(s) not shown (display cap max=${max}). Raise \`max\` (<=200) to see them.` : void 0;
-  const notes = [];
-  if (repairedGroups.length > 0) {
-    notes.push(
-      `DESCRIPTIONS RE-PAIRED: the server sent type group(s) ${repairedGroups.join(", ")} carrying other rows' descriptions \u2014 a server-side defect \u2014 and this tool re-paired them. The response carries no key tying a description to its row, so the fix is reconstructed from ordering and confirmed against per-object reads, not proven by the payload; confirm with abap_read if a description is load-bearing.`
-    );
-  }
-  if (suspectGroups.length > 0) {
-    notes.push(
-      `DESCRIPTIONS MAY BE MIS-PAIRED: type group(s) ${suspectGroups.join(", ")} span several sub-types and show the same shape as the server-side description-pairing defect, which is only wire-confirmed for TABL and PROG. At least one such group (FUGR) was tested and arrives correct, so unverified groups are left exactly as the server sent them rather than repaired. Their descriptions may belong to another row in the same group \u2014 confirm with abap_read.`
-    );
-  }
-  if (droppedByFilter > 0) {
-    notes.push(
-      `UNDER-REPORTED: the fetch window was deliberately widened to ${fetchMax} row(s) of mixed type for "${query}" \u2014 your max=${max} bounds only what is shown, not what is fetched, because the server's own type filter is not trusted and type is filtered here instead. The server returned ${results.length} hit(s) of mixed type; ${droppedByFilter} were dropped here because their type is not ${wanted}. ${filtered.length} row(s) matched. ` + (windowFull ? `More ${wanted} objects may exist beyond this window \u2014 raise max (<=200) or narrow the query pattern.` : `The window was not full, so this is every hit the server has for "${query}" \u2014 no other ${wanted} object matches this pattern.`)
-    );
-  }
-  if (droppedByCap > 0) {
-    notes.push(
-      `DISPLAY CAP: ${filtered.length} ${wanted} row(s) matched within this fetch window; only the first max=${max} are shown. ${droppedByCap} matching row(s) are NOT listed \u2014 raise max (<=200) to see them.`
-    );
-  }
-  if (windowFull) {
-    notes.push(
-      `The server returned its full page of ${results.length} hit(s) at max=${fetchMax}; there are probably more matches it did not send.`
-    );
-  }
-  const windowLine = windowFull ? `--- TRUNCATED --- the fetch window (max=${fetchMax}) was full for "${query}"; the list above may be incomplete beyond this window, and there is no count of what was left unsent. Raise \`max\` (<=200) or narrow the query pattern to see more.` : void 0;
-  const rows = capped.map((r) => ({
-    type: r["adtcore:type"] ?? "",
-    name: r["adtcore:name"] ?? "",
-    group: groupFromUri(r["adtcore:uri"]),
-    package: r["adtcore:packageName"] ?? "",
-    description: truncateForDisplay(r["adtcore:description"] ?? "", DESCRIPTION_COL_WIDE)
-  }));
-  const hasGroup = rows.some((r) => r.group !== "");
-  const columns = hasGroup ? ["type", "name", "group", "package", "description"] : ["type", "name", "package", "description"];
-  const body = rows.length ? [textTable(rows, columns), capLine, windowLine].filter((line) => line !== void 0).join("\n") : droppedByFilter > 0 ? windowFull ? `(no ${wanted} matches among the ${results.length} hit(s) the server returned at max=${fetchMax} \u2014 see the note above; this is NOT proof that none exist)` : `(no ${wanted} matches among the ${results.length} hit(s) the server returned for "${query}" \u2014 the fetch window (max=${fetchMax}) was not full, so that is every object of any type matching this pattern)` : "(no matches)";
-  return buildResponse({
-    header: {
-      system: conn.cfg.sid,
-      mode: "objects",
-      query,
-      type: wanted,
-      matches: rows.length,
-      matchedTotal: droppedByCap > 0 ? filtered.length : void 0,
-      serverHits: results.length,
-      droppedByTypeFilter: droppedByFilter || void 0,
-      droppedByDisplayCap: droppedByCap || void 0,
-      fetchMax: type ? fetchMax : void 0,
-      descriptionsRepaired: repairedGroups.length ? repairedGroups.join(", ") : void 0,
-      descriptionsSuspect: suspectGroups.length ? suspectGroups.join(", ") : void 0
-    },
-    body,
-    bodyLabel: "RESULTS",
-    notes,
-    // abap_search has no offset/paging parameter — `max` is the only lever, so
-    // the hint must not promise one.
-    hints: [
-      "Narrow the pattern or set `type` to reduce the result set, or raise `max` (<=200).",
-      ...hasGroup ? [
-        "`group` is the function group a FUGR row lives in \u2014 `package` is the module's own package, not its group."
-      ] : []
-    ],
-    maxChars
-  });
-}
-var HIGH_FAN_IN_REFERENCES = 500;
-var SLOW_FETCH_MS = 5e3;
-async function whereUsed(conn, target, type, max, maxChars) {
-  const obj = await resolveObject(conn, target, type ? { type } : {});
-  const fetchStart = Date.now();
-  const refs = await conn.adt.usageReferences(obj.uri);
-  const fetchMs = Date.now() - fetchStart;
-  const named = refs.filter((r) => r["adtcore:name"]);
-  const totalReferences = named.length;
-  const expensive = totalReferences >= HIGH_FAN_IN_REFERENCES || fetchMs >= SLOW_FETCH_MS;
-  const kept = named.slice(0, max);
-  const omitted = totalReferences - kept.length;
-  const capLine = omitted > 0 ? `--- TRUNCATED --- ${omitted} of ${totalReferences} reference(s) not shown (display cap max=${max}). Re-run with max=${Math.min(200, totalReferences)}.` : void 0;
-  const capped = omitted > 0;
-  const rows = kept.map((r) => ({
-    type: r["adtcore:type"] ?? "",
-    name: r["adtcore:name"] ?? "",
-    package: r.packageRef?.["adtcore:name"] ?? "",
-    description: truncateForDisplay(r["adtcore:description"] ?? "", DESCRIPTION_COL_NARROW)
-  }));
-  return buildResponse({
-    header: {
-      system: conn.cfg.sid,
-      mode: "where_used",
-      object: `${obj.type} ${obj.name}`,
-      uri: obj.uri,
-      // Both numbers, always: "references: 50" alone reads as the true total.
-      referencesShown: rows.length,
-      referencesTotal: totalReferences,
-      // Wall-clock, varies run to run — surfaced only where it is load-bearing.
-      fetchMs: expensive ? fetchMs : void 0
-    },
-    body: rows.length ? textTable(rows, ["type", "name", "package", "description"]) + (capLine ? `
-${capLine}` : "") : "(no references found)",
-    bodyLabel: "USED BY",
-    notes: [
-      ...expensive ? [
-        `FETCH COST: this call took ${(fetchMs / 1e3).toFixed(1)}s and returned ${totalReferences} reference(s). ADT's usageReferences endpoint has no server-side limit, so the entire set is enumerated and transferred before max is applied. The cost is set by the target's fan-in, not by max \u2014 lowering max would not have made this call cheaper. If cost matters, ask about a narrower or less widely-referenced object instead.`
-      ] : [],
-      // The cap used to be applied silently.
-      ...capped ? [
-        `CAPPED: ADT returned ${totalReferences} reference(s); only the first ${max} are shown (max=${max}). ${totalReferences - max} reference(s) are NOT listed \u2014 this is a display cap, not the end of the list. Raise max (<=200) to see more.`,
-        `This cap is applied AFTER the full fetch: ADT's usageReferences endpoint has no server-side limit (wire-verified \u2014 see source comment), so all ${totalReferences} reference(s) were already retrieved and held in memory before max=${max} was applied. On a widely-referenced object this call can take several seconds and several megabytes regardless of max; raising or lowering max changes what you see, not the cost of asking.`
-      ] : [],
-      "Where-used is static. Dynamic calls (CALL FUNCTION lv_name, PERFORM (lv_form), SUBMIT (lv_prog)) do not appear here \u2014 these are static-analysis blind spots."
-    ],
-    // No offset/paging parameter on abap_search: `max` is the only lever.
-    hints: ["Raise `max` (<=200) for more rows."],
-    maxChars
-  });
-}
-var DEFAULT_SOURCE_MAX_HITS = 100;
-var SOURCE_ONLY_FIELDS = [
-  "packages",
-  "include_subpackages",
-  "objects",
-  "types",
-  "regex",
-  "case_sensitive",
-  "include_comments"
-];
-function assertNoSourceOnlyFields(input, mode) {
-  const passed = SOURCE_ONLY_FIELDS.filter((f) => {
-    const v = input[f];
-    return v !== void 0 && !(Array.isArray(v) && v.length === 0);
-  });
-  if (passed.length > 0) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `mode="${mode}" does not use ${passed.map((f) => `\`${f}\``).join(", ")} \u2014 those parameters only apply to mode="source".`,
-      { mode, fields: passed },
-      'Omit them, or set mode="source" to run a source-text scan.'
-    );
-  }
-}
-var PATTERN_CHARS = /^[A-Za-z0-9_$*/]+$/;
-function assertValidPattern(value, field) {
-  if (!PATTERN_CHARS.test(value)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `\`${field}\` "${value}" is not a valid pattern \u2014 only letters, digits, "_", "$", "/" and the "*" wildcard are meaningful here.`,
-      { field, value }
-    );
-  }
-}
-function buildSourceScanQuery(input) {
-  if (input.type !== void 0) {
-    throw new AbapError(
-      "BAD_INPUT",
-      'mode="source" does not use `type` \u2014 pass `types` instead (any of PROG, CLAS, INTF, FUGR, DDLS).',
-      { type: input.type }
-    );
-  }
-  const query = input.query.trim();
-  if (!query) {
-    throw new AbapError("BAD_INPUT", 'mode="source" requires a non-empty `query`.', {});
-  }
-  if (query.length > 255) {
-    throw new AbapError("BAD_INPUT", `\`query\` is ${query.length} characters; mode="source" allows at most 255.`, {
-      length: query.length
-    });
-  }
-  const packages = (input.packages ?? []).map((p) => p.trim()).filter((p) => p !== "");
-  packages.forEach((p) => assertValidPattern(p, "packages"));
-  const objectsRaw = input.objects?.trim();
-  const objects = objectsRaw === "" ? void 0 : objectsRaw;
-  if (objects !== void 0) assertValidPattern(objects, "objects");
-  if (packages.length === 0 && (objects === void 0 || objects === "*")) {
-    throw new AbapError(
-      "BAD_INPUT",
-      'mode="source" needs a scope: pass `packages` (one or more), `objects` (a name pattern narrower than "*"), or both.',
-      {},
-      'Try packages: ["Z_MY_PACKAGE"], or objects: "ZCL_MY_*".'
-    );
-  }
-  const typesRaw = input.types ?? [];
-  const types = [...new Set(typesRaw.map((t) => t.trim().toUpperCase()).filter((t) => t !== ""))];
-  for (const t of types) {
-    if (!SOURCE_SCAN_TYPES.includes(t)) {
-      throw new AbapError("BAD_INPUT", `\`types\` entry "${t}" is not one of: ${SOURCE_SCAN_TYPES.join(", ")}.`, {
-        type: t,
-        allowed: SOURCE_SCAN_TYPES
-      });
-    }
-  }
-  return {
-    query,
-    regex: input.regex ?? false,
-    caseSensitive: input.case_sensitive ?? false,
-    includeComments: input.include_comments ?? false,
-    packages,
-    includeSubpackages: input.include_subpackages ?? false,
-    objects,
-    types,
-    maxHits: input.max ?? DEFAULT_SOURCE_MAX_HITS,
-    maxObjects: SOURCE_SCAN_OBJECT_CEILING
-  };
-}
-var CLAS_INCLUDE_SUFFIX = [
-  ["CCDEF", "definitions"],
-  ["CCIMP", "implementations"],
-  ["CCMAC", "macros"],
-  ["CCAU", "testclasses"]
-];
-var READ_WINDOW_MARGIN = 10;
-var READ_WINDOW_LIMIT = 40;
-function readHint(hit) {
-  const off = Math.max(1, hit.line - READ_WINDOW_MARGIN);
-  switch (hit.objType) {
-    case "PROG":
-    case "FUGR":
-      return `abap_read object="${hit.include}" offset=${off} limit=${READ_WINDOW_LIMIT} \u2014 read around line ${hit.line}.`;
-    case "DDLS":
-      return `abap_read object="${hit.objName}" offset=${off} limit=${READ_WINDOW_LIMIT} \u2014 read around line ${hit.line}.`;
-    case "INTF":
-      return `abap_read object="${hit.objName}" \u2014 interface source is a single document, no offset needed.`;
-    case "CLAS": {
-      const mapped = CLAS_INCLUDE_SUFFIX.find(([suffix]) => hit.include.endsWith(suffix));
-      if (mapped) {
-        const [, include] = mapped;
-        return `abap_read object="${hit.objName}" include="${include}" offset=${off} limit=${READ_WINDOW_LIMIT} \u2014 read around line ${hit.line}.`;
-      }
-      return `abap_read object="${hit.objName}" \u2014 the match was in include "${hit.include}" (a method or the main class source); the reported line number is include-local and does NOT transfer to an offset on the class as a whole. Use \`method="<name>"\` to narrow, or read the class outline first.`;
-    }
-    default:
-      return `abap_read object="${hit.objName}" offset=${off} limit=${READ_WINDOW_LIMIT} \u2014 read around line ${hit.line}.`;
-  }
-}
-function scopeLabel(q) {
-  const parts = [];
-  if (q.packages.length) parts.push(`packages=${q.packages.join(",")}`);
-  if (q.objects) parts.push(`objects=${q.objects}`);
-  return parts.join(" ");
-}
-function buildSourceResponse2(q, result, maxChars) {
-  const { hits, summary } = result;
-  const rows = hits.map((h) => ({
-    type: h.objType,
-    name: h.objName,
-    include: h.include,
-    line: String(h.line),
-    text: truncateForDisplay(h.text, 120)
-  }));
-  const objectsNotScanned = summary.objectsTotal - summary.objectsScanned;
-  const truncLine = summary.truncated === "hits" ? `--- TRUNCATED --- the hit cap (max=${q.maxHits}) was reached; more matches may exist beyond the last one shown. Raise \`max\` (<=200) or narrow \`query\`/scope.` : summary.truncated === "objects" ? `--- TRUNCATED --- ${objectsNotScanned} of ${summary.objectsTotal} object(s) in scope were not scanned (object ceiling ${q.maxObjects}). Narrow \`packages\`/\`objects\`/\`types\`.` : void 0;
-  const body = [rows.length ? textTable(rows, ["type", "name", "include", "line", "text"]) : "(no matches)", truncLine].filter((s) => s !== void 0).join("\n");
-  const exampleHints = (() => {
-    const seen = /* @__PURE__ */ new Set();
-    const out = [];
-    for (const h of hits) {
-      if (seen.has(h.objType)) continue;
-      seen.add(h.objType);
-      out.push(readHint(h));
-      if (out.length >= 3) break;
-    }
-    return out;
-  })();
-  return buildResponse({
-    header: {
-      system: result.sid,
-      mode: "source",
-      query: q.query,
-      regex: q.regex || void 0,
-      case_sensitive: q.caseSensitive || void 0,
-      include_comments: q.includeComments || void 0,
-      scope: scopeLabel(q) || void 0,
-      include_subpackages: q.includeSubpackages || void 0,
-      types: q.types.length ? q.types.join(",") : void 0,
-      hits: summary.hits,
-      objectsScanned: summary.objectsScanned,
-      objectsTotal: summary.objectsTotal,
-      includesScanned: summary.includesScanned,
-      includesSkipped: summary.includesSkipped || void 0,
-      truncated: summary.truncated || void 0
-    },
-    body,
-    bodyLabel: "MATCHES",
-    notes: [
-      // `notes` are ALWAYS shown (unlike `hints`, which `compact.ts`'s
-      // `buildResponse` only renders when the response is incomplete) — the
-      // concrete abap_read follow-up has to survive a response that fits
-      // fully, so it lives here, not in `hints`.
-      ...exampleHints.length > 0 ? ["Read around a hit with abap_read:", ...exampleHints] : [],
-      "Line numbers are include-local: for CLAS/FUGR hits, `line` counts from the top of the matching include (a method's own program, not the class as a whole), not from the object.",
-      ...summary.includesSkipped > 0 ? [
-        `${summary.includesSkipped} include(s) could not be read (e.g. a generated or inconsistent include) and are NOT represented in the results above \u2014 this is a gap, not proof those includes have no match.`
-      ] : [],
-      "include_comments=false strips comments with a per-line heuristic (`code_part()`), which can misjudge a line whose quote/comment state depends on the previous line. DDLS/CDS sources have no ABAP comment syntax, so they are always matched in full text regardless of include_comments.",
-      'This is a text scan, not a call graph: it finds literal/regex matches wherever they sit (strings, comments, dead code). Use mode="where_used" instead when what you actually want is real static references to one object.'
-    ],
-    hints: [
-      "Raise `max` (<=200) for more hits, or narrow `query`/`packages`/`objects`/`types` instead of widening scope."
-    ],
-    maxChars
-  });
-}
-var ok7 = (text3) => ({ content: [{ type: "text", text: text3 }] });
-function registerSearchTools(mcp, deps) {
-  mcp.registerTool(
-    "abap_search",
-    {
-      title: "Search ABAP repository",
-      description: "Find objects by name pattern (mode=objects, wildcards *), list consumers (mode=where_used; 20+ seconds on wide fan-in \u2014 narrow by type/query first), or scan source text line by line (mode=source, needs the fluid API and a package/objects scope).",
-      inputSchema: searchInputSchema,
-      annotations: { readOnlyHint: true, openWorldHint: true }
-    },
-    async (args) => {
-      try {
-        const input = args;
-        const mode = input.mode ?? "objects";
-        if (mode === "source") {
-          const q = buildSourceScanQuery(input);
-          await deps.ensureConnected();
-          deps.safety.assert("read");
-          const disabled = fluidDisabledReason(deps.cfg, deps.safety);
-          if (disabled) {
-            throw dispatchDisabledError(disabled, deps.cfg, {
-              tool: SCAN_TOOL_ID,
-              action: SCAN_ACTION,
-              args: scanDispatchArgs(q),
-              caller: { tool: "abap_search", action: "source" }
-            });
-          }
-          deps.safety.assert(
-            "write",
-            {
-              name: SCAN_ENTRY_CLASS,
-              packageName: FLUID_PACKAGE,
-              type: "CLAS/OC"
-            },
-            { phase: "preflight" }
-          );
-          const res2 = await deps.pool.withWrite(
-            "abap_search",
-            SCAN_ENTRY_CLASS,
-            (conn) => runSourceScan(conn, q, deps.safety)
-          );
-          return ok7(buildSourceResponse2(q, res2, deps.cfg.maxResponseChars).text);
-        }
-        assertNoSourceOnlyFields(input, mode);
-        await deps.ensureConnected();
-        deps.safety.assert("read");
-        const res = await deps.pool.withRead(
-          "abap_search",
-          (conn) => abapSearch(conn, input, deps.cfg.maxResponseChars)
-        );
-        return ok7(res.text);
-      } catch (e) {
-        return deps.errorResult(e);
-      }
-    }
-  );
-}
-
-// src/tools/write.ts
-init_zod();
-init_capabilities();
-
-// src/adt/descriptor-fidelity.ts
-var XML_NOISE = /<\?xml[^?]*\?>|<!--[\s\S]*?-->/g;
-var START_TAG = /<([A-Za-z_][\w.-]*(?::[\w.-]+)?)((?:"[^"]*"|'[^']*'|[^>"'])*?)(\/?)>/g;
-var END_TAG = /<\/([A-Za-z_][\w.-]*(?::[\w.-]+)?)\s*>/g;
-function leafTexts(xml3) {
-  const clean = xml3.replace(XML_NOISE, "");
-  const out = /* @__PURE__ */ new Map();
-  const push = (name, text3) => {
-    const trimmed = text3.trim();
-    if (!trimmed) return;
-    let list5 = out.get(name);
-    if (!list5) {
-      list5 = [];
-      out.set(name, list5);
-    }
-    list5.push(trimmed);
-  };
-  START_TAG.lastIndex = 0;
-  let m;
-  while ((m = START_TAG.exec(clean)) !== null) {
-    const name = m[1];
-    const selfClosed = m[3] === "/";
-    if (selfClosed) continue;
-    const afterStart = START_TAG.lastIndex;
-    END_TAG.lastIndex = afterStart;
-    const end = END_TAG.exec(clean);
-    if (!end || end[1] !== name) continue;
-    const inner = clean.slice(afterStart, end.index);
-    if (inner.includes("<")) continue;
-    push(name, inner);
-    START_TAG.lastIndex = END_TAG.lastIndex;
-  }
-  return out;
-}
-function discardedDescriptorValues(sent, stored) {
-  const sentTexts = leafTexts(sent);
-  const storedTexts = leafTexts(stored);
-  const out = [];
-  for (const [element, sentValues] of sentTexts) {
-    const storedValues = storedTexts.get(element) ?? [];
-    if (sentValues.length > storedValues.length) {
-      out.push({ element, sent: sentValues, stored: storedValues });
-    }
-  }
-  return out;
-}
-
-// src/tools/write.ts
-init_index_read();
-
-// src/adt/package-create.ts
-init_errors();
-init_enhancement_templates();
-init_transports();
-var PACKAGE_MAX_LENGTH4 = 30;
-var CTEXT_MAX_LENGTH = 60;
-function assertSoftwareComponent(value, what = "softwareComponent") {
-  if (typeof value !== "string" || !/^[A-Z][A-Z0-9_]{0,29}$/.test(value)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `${what} ${JSON.stringify(value)} is not a valid software component for this bridge (a letter, then letters, digits and underscores only, max 30 characters, already upper-cased and trimmed by the caller).`,
-      { what, value }
-    );
-  }
-  if (value === "LOCAL") {
-    throw new AbapError(
-      "BAD_INPUT",
-      `${what} "LOCAL" is refused by this bridge \u2014 a local ($TMP-style) package is created over ordinary ADT REST, not via this classrun bridge, which exists precisely because transportable package creation is unreachable there.`,
-      { what, value },
-      `Use ADT REST for a local package: abap_write type=DEVC/K software_component="LOCAL" (there is no mode=create \u2014 abap_write's mode is write/delete, and a create is a write to a name that does not exist yet).`
-    );
-  }
-  return value;
-}
-function assertCorrNr3(value) {
-  if (!isTrkorr(value)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `corr_nr ${JSON.stringify(value)} is not a transport request/task number this system would issue (e.g. A4HK900121). This module never acquires a request on its own \u2014 the caller must hand it one that has already been judged by the safety gate.`,
-      { what: "corrNr", value }
-    );
-  }
-  return value;
-}
-function assertPackageType(value) {
-  if (value === void 0 || value === "development") return;
-  throw new AbapError(
-    "BAD_INPUT",
-    `package_type ${JSON.stringify(value)} is not supported \u2014 only "development" (SCOMPKDTLN-PACKTYPE = 'D') is exposed by this bridge today.`,
-    { what: "packageType", value },
-    "Structure packages, main packages and other PACKTYPE values are not implemented \u2014 this is a deliberate scope limitation, not an oversight; extend assertPackageType (src/adt/package-create.ts) if one of them is needed."
-  );
-}
-var PKG_TDEVC_PREFIX = "ZMCP-PKG-TDEVC>";
-function parseTdevcLine(raw) {
-  for (const line of raw.split("\n")) {
-    const trimmed = line.trim();
-    if (!trimmed.startsWith(PKG_TDEVC_PREFIX)) continue;
-    const rest = trimmed.slice(PKG_TDEVC_PREFIX.length).trim();
-    const fields = {};
-    for (const part of rest.split(" ")) {
-      const eq = part.indexOf("=");
-      if (eq === -1) continue;
-      fields[part.slice(0, eq)] = part.slice(eq + 1).trim();
-    }
-    const devclass = fields["DEVCLASS"];
-    const parentcl = fields["PARENTCL"];
-    const dlvunit = fields["DLVUNIT"];
-    const korrflag = fields["KORRFLAG"];
-    if (devclass === void 0 || parentcl === void 0 || dlvunit === void 0 || korrflag === void 0) {
-      return void 0;
-    }
-    return { devclass, parentcl, dlvunit, korrflag };
-  }
-  return void 0;
-}
-function tdevcDiscrepancies(row2, expect) {
-  if (row2 === void 0) {
-    return [
-      `The bridge wrote no ${PKG_TDEVC_PREFIX} evidence line, so the TDEVC row could not be compared against what was requested. This is not evidence of failure \u2014 the PKG-CONFIRMED tag is only written after the row was read back successfully \u2014 but it is not confirmation of the row's contents either.`
-    ];
-  }
-  const out = [];
-  if (row2.dlvunit !== expect.softwareComponent) {
-    out.push(
-      `TDEVC-DLVUNIT is ${JSON.stringify(row2.dlvunit)}, not the requested software component ${JSON.stringify(expect.softwareComponent)}. The package exists; check it in SE21 before writing into it, or delete it with abap_write mode=delete while it is still empty.`
-    );
-  }
-  if (row2.korrflag !== "X") {
-    out.push(
-      `TDEVC-KORRFLAG is ${JSON.stringify(row2.korrflag)}, not the "X" the create set on SCOMPKDTLN. Whether TDEVC stores that flag back verbatim for a transportable package has not been independently confirmed by this codebase, so this may be normal \u2014 but if the package turns out not to demand a transport when written into, this is the first thing to look at.`
-    );
-  }
-  const wantParent = expect.superPackage;
-  if (wantParent !== void 0 && row2.parentcl !== wantParent) {
-    out.push(
-      `TDEVC-PARENTCL is ${JSON.stringify(row2.parentcl)}, not the requested parent ${JSON.stringify(wantParent)} \u2014 the second (LOAD_PACKAGE / SET_SUPER_PACKAGE_NAME) step did not take effect. The package itself exists as a ROOT package; attach the parent by hand in SE21, or delete it with abap_write mode=delete while it is still empty and recreate it with the right parent.`
-    );
-  }
-  return out;
-}
-async function createPackageViaBridge(conn, gate, params) {
-  const packageName = assertEnhIdentifier(params.packageName, "packageName", {
-    maxLength: PACKAGE_MAX_LENGTH4
-  });
-  const description = assertAbapText(params.description, "description", CTEXT_MAX_LENGTH);
-  const softwareComponent = assertSoftwareComponent(params.softwareComponent);
-  const corrNr = assertCorrNr3(params.corrNr);
-  assertPackageType(params.packageType);
-  const superPackage = params.superPackage === void 0 ? void 0 : assertEnhIdentifier(params.superPackage, "superPackage", { maxLength: PACKAGE_MAX_LENGTH4 });
-  const corr = { kind: "transport", corrNr, source: params.corrSource ?? "auto" };
-  assertBridgeMutation(
-    gate,
-    {
-      type: "DEVC/K",
-      name: packageName,
-      // A package create's allowlist question is answered by the SUPERPACKAGE,
-      // not by the package's own not-yet-existing name — see src/safety.ts and
-      // the identical construction in preflightCorr (src/adt/write.ts).
-      packageName: superPackage ?? packageName,
-      ...superPackage !== void 0 ? { superPackage } : {},
-      exists: params.exists ?? false
-    },
-    { activate: false, corr }
-  );
-  const expectTags = superPackage !== void 0 ? ["PKG-CREATED", "PKG-PARENT-SET", "PKG-CONFIRMED"] : ["PKG-CREATED", "PKG-CONFIRMED"];
-  const { run: run2, transcript } = await runClassicAction(conn, gate, {
-    action: "create_package",
-    args: {
-      package_name: packageName,
-      description,
-      software_component: softwareComponent,
-      corr_nr: corrNr,
-      super_package: superPackage ?? "",
-      package_type: params.packageType ?? ""
-    },
-    what: `Creating package ${packageName}`,
-    expectTags,
-    completed: {
-      "PKG-CREATED": `package ${packageName} was created and saved on ${conn.cfg.sid} \u2014 it exists, it is NOT attached to a super package, and abapsmith did not delete it`,
-      ...superPackage !== void 0 ? {
-        "PKG-PARENT-SET": `package ${packageName} was then attached to super package ${superPackage} and saved on ${conn.cfg.sid}`
-      } : {}
-    },
-    partialHint: "SAP may also have created a transport request and a task to hold the new package's lock. abapsmith did not create them and cannot see them from this response \u2014 abap_transport operation=list shows the requests owned by this user."
-  });
-  const tdevc = parseTdevcLine(transcript.raw);
-  return { run: run2, transcript, tdevc };
-}
-
-// src/tools/write.ts
-init_transports();
-
-// src/adt/view-create.ts
-init_errors();
-init_enhancement_templates();
-init_transports();
-var VIEW_NAME_MAX2 = 30;
-var VIEW_TEXT_MAX = 60;
-var MAX_VIEW_FIELDS = 249;
-function isLocalPackage2(packageName) {
-  return isLocalPackageName(packageName);
-}
-function classicViewUri(viewName) {
-  return `/sap/bc/adt/ddic/views/${viewName.trim().toLowerCase()}`;
-}
-var PACKAGE_RULES3 = { maxLength: VIEW_NAME_MAX2, allowLocal: true };
-function assertCorrNr4(value) {
-  if (!isTrkorr(value)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `corr_nr ${JSON.stringify(value)} is not a transport request/task number this system would issue (e.g. A4HK900121). This module never acquires a request on its own \u2014 the caller must hand it one that has already been judged by the safety gate.`,
-      { what: "corrNr", value }
-    );
-  }
-  return value;
-}
-function assertClassicViewCreateTarget(packageName, corrNr) {
-  const validated = assertEnhIdentifier(packageName, "packageName", PACKAGE_RULES3);
-  const local = isLocalPackage2(validated);
-  if (local && corrNr !== void 0) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `corr_nr ${JSON.stringify(corrNr)} was supplied for local package ${JSON.stringify(validated)}, but a local ($-prefixed) view is registered with korrnum = space rather than on a transport request, so there is nothing here for one to attach to.`,
-      { packageName: validated, corrNr }
-    );
-  }
-  if (corrNr !== void 0) assertCorrNr4(corrNr);
-  return validated;
-}
-function validate4(p) {
-  const viewName = assertEnhIdentifier(p.viewName, "viewName", { maxLength: VIEW_NAME_MAX2 });
-  const baseTable = assertEnhIdentifier(p.baseTable, "baseTable", { maxLength: VIEW_NAME_MAX2 });
-  if (!Array.isArray(p.fields) || p.fields.length === 0) {
-    throw new AbapError(
-      "BAD_INPUT",
-      "fields must be a non-empty list of base-table field names \u2014 a classic view projecting no field at all is not a view SE11 or DDIF_VIEW_PUT would accept.",
-      { viewName, baseTable }
-    );
-  }
-  if (p.fields.length > MAX_VIEW_FIELDS) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `fields has ${p.fields.length} entries, more than the ${MAX_VIEW_FIELDS} this bridge generates. DD27P-OBJPOS is a 4-character numeric position and this bridge fills it by zero-padding a 1-based index, so every generated position must stay inside 0001-9999.`,
-      { viewName, count: p.fields.length, max: MAX_VIEW_FIELDS }
-    );
-  }
-  const fields = p.fields.map(
-    (f, i) => assertEnhIdentifier(f, `fields[${i}]`, { maxLength: VIEW_NAME_MAX2 })
-  );
-  const description = assertAbapText(p.description, "description", VIEW_TEXT_MAX);
-  const packageName = assertClassicViewCreateTarget(p.packageName, p.corrNr);
-  const local = isLocalPackage2(packageName);
-  if (!local && p.corrNr === void 0) {
-    throw new AbapError(
-      "TRANSPORT_ERROR",
-      `packageName ${JSON.stringify(packageName)} is not local ($-prefixed), so this view must be registered in CTS via RS_CORR_INSERT, which requires a transport request \u2014 pass corr_nr (an ALREADY gate-judged TRKORR, e.g. A4HK900121).`,
-      { packageName },
-      "Via abap_write, pass corr_nr with the TRKORR the safety gate already judged for this write (see the abapsmith-put-work-on-a-transport skill)."
-    );
-  }
-  const corrNr = local ? void 0 : p.corrNr;
-  return { viewName, baseTable, fields, description, packageName, corrNr, corrSource: p.corrSource };
-}
-function viewCreatePartialSuccess(viewName) {
-  return {
-    completed: {
-      "VIEW-REGISTERED": `RS_CORR_INSERT registered ${viewName} in TADIR \u2014 on the transport request for a transportable package, with korrnum = space for a local one \u2014 before any dictionary write; no view was created by it.`,
-      "VIEW-PUT": `DDIF_VIEW_PUT wrote ${viewName}, and the COMMIT WORK that follows it committed it, inactive.`
-    },
-    hint: `If VIEW-PUT fired, ${viewName} exists AND is registered \u2014 abap_write mode="delete" type="VIEW/DV" can remove it. If only VIEW-REGISTERED fired, no view was written and only the TADIR entry exists \u2014 for a transportable package, remove it from the request in SE09/SE10, or reuse it by re-running the create into the same request; for a local package (korrnum = space) it is registered but not on any request.`
-  };
-}
-async function createClassicView(conn, gate, params) {
-  const validated = validate4(params);
-  const { viewName, baseTable, fields, description, packageName, corrNr, corrSource } = validated;
-  const corr = isLocalPackage2(packageName) ? void 0 : { kind: "transport", corrNr, source: corrSource ?? "named" };
-  assertBridgeMutation(
-    gate,
-    { type: "VIEW/DV", name: viewName, packageName },
-    { activate: true, ...corr !== void 0 ? { corr } : {} }
-  );
-  const expectTags = ["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"];
-  const partial2 = viewCreatePartialSuccess(viewName);
-  return runClassicAction(conn, gate, {
-    action: "create_view",
-    args: {
-      view_name: viewName,
-      base_table: baseTable,
-      fields,
-      description,
-      package_name: packageName,
-      corr_nr: corrNr ?? ""
-    },
-    what: `Creating classic view ${viewName}`,
-    expectTags,
-    completed: partial2.completed,
-    partialHint: partial2.hint
-  });
-}
-
-// src/adt/ddic-payload.ts
-init_errors();
-var DATAELEMENT_NS = "http://www.sap.com/adt/dictionary/dataelements";
-var DOMA_SKELETON = '<?xml version="1.0" encoding="utf-8"?><doma:domain xmlns:doma="http://www.sap.com/dictionary/domain" xmlns:adtcore="http://www.sap.com/adt/core" adtcore:name="NAME" adtcore:type="DOMA/DD" adtcore:description="TODO one-line description" adtcore:masterLanguage="EN" adtcore:language="EN"><adtcore:packageRef adtcore:name="$TMP"/><doma:content><doma:typeInformation><doma:datatype>CHAR</doma:datatype><doma:length>000010</doma:length><doma:decimals>000000</doma:decimals></doma:typeInformation><doma:outputInformation><doma:length>000010</doma:length><doma:style>00</doma:style><doma:conversionExit/><doma:signExists>false</doma:signExists><doma:lowercase>false</doma:lowercase><doma:ampmFormat>false</doma:ampmFormat></doma:outputInformation><doma:valueInformation><doma:valueTableRef/><doma:appendExists>false</doma:appendExists><doma:fixValues/></doma:valueInformation></doma:content></doma:domain>';
-var DTEL_SKELETON = '<?xml version="1.0" encoding="utf-8"?><blue:wbobj xmlns:blue="http://www.sap.com/wbobj/dictionary/dtel" xmlns:adtcore="http://www.sap.com/adt/core" adtcore:name="NAME" adtcore:type="DTEL/DE" adtcore:description="TODO one-line description" adtcore:masterLanguage="EN" adtcore:language="EN"><adtcore:packageRef adtcore:name="$TMP"/><dtel:dataElement xmlns:dtel="http://www.sap.com/adt/dictionary/dataelements"><dtel:typeKind>domain</dtel:typeKind><dtel:typeName>ZDOM_EXAMPLE</dtel:typeName><dtel:dataType>CHAR</dtel:dataType><dtel:dataTypeLength>000010</dtel:dataTypeLength><dtel:dataTypeDecimals>000000</dtel:dataTypeDecimals><dtel:shortFieldLabel>Short</dtel:shortFieldLabel><dtel:shortFieldLength>05</dtel:shortFieldLength><dtel:shortFieldMaxLength>10</dtel:shortFieldMaxLength><dtel:mediumFieldLabel>Medium label</dtel:mediumFieldLabel><dtel:mediumFieldLength>12</dtel:mediumFieldLength><dtel:mediumFieldMaxLength>20</dtel:mediumFieldMaxLength><dtel:longFieldLabel>Long label</dtel:longFieldLabel><dtel:longFieldLength>10</dtel:longFieldLength><dtel:longFieldMaxLength>40</dtel:longFieldMaxLength><dtel:headingFieldLabel>Heading</dtel:headingFieldLabel><dtel:headingFieldLength>07</dtel:headingFieldLength><dtel:headingFieldMaxLength>55</dtel:headingFieldMaxLength><dtel:searchHelp/><dtel:searchHelpParameter/><dtel:setGetParameter/><dtel:defaultComponentName/><dtel:deactivateInputHistory>false</dtel:deactivateInputHistory><dtel:changeDocument>false</dtel:changeDocument><dtel:leftToRightDirection>false</dtel:leftToRightDirection><dtel:deactivateBIDIFiltering>false</dtel:deactivateBIDIFiltering></dtel:dataElement></blue:wbobj>';
-var TTYP_SKELETON = '<?xml version="1.0" encoding="utf-8"?><ttyp:tableType xmlns:ttyp="http://www.sap.com/dictionary/tabletype" xmlns:adtcore="http://www.sap.com/adt/core" adtcore:name="NAME" adtcore:type="TTYP/DA" adtcore:description="TODO one-line description" adtcore:masterLanguage="EN" adtcore:language="EN"><adtcore:packageRef adtcore:name="$TMP"/><ttyp:rowType><ttyp:typeKind>dictionaryType</ttyp:typeKind><ttyp:typeName>ZS_EXAMPLE</ttyp:typeName><ttyp:builtInType><ttyp:dataType>STRU</ttyp:dataType><ttyp:length>000000</ttyp:length><ttyp:decimals>000000</ttyp:decimals></ttyp:builtInType><ttyp:rangeType/></ttyp:rowType><ttyp:initialRowCount>00000</ttyp:initialRowCount><ttyp:accessType>standard</ttyp:accessType><ttyp:primaryKey ttyp:isVisible="true" ttyp:isEditable="true"><ttyp:definition>standard</ttyp:definition><ttyp:kind>nonUnique</ttyp:kind><ttyp:components ttyp:isVisible="false"/><ttyp:alias/></ttyp:primaryKey></ttyp:tableType>';
-var DDIC_SHAPES = {
-  "DOMA/DD": {
-    localName: "domain",
-    namespace: "http://www.sap.com/dictionary/domain",
-    skeleton: DOMA_SKELETON
-  },
-  "DTEL/DE": {
-    localName: "wbobj",
-    namespace: "http://www.sap.com/wbobj/dictionary/dtel",
-    skeleton: DTEL_SKELETON
-  },
-  "TTYP/DA": {
-    localName: "tableType",
-    namespace: "http://www.sap.com/dictionary/tabletype",
-    skeleton: TTYP_SKELETON
-  }
-};
-function escapeXmlAttr4(s) {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
-}
-function renderSkeleton(shape, name) {
-  return shape.skeleton.replace('adtcore:name="NAME"', () => `adtcore:name="${escapeXmlAttr4(name)}"`);
-}
-function ddicDescriptorSkeleton(type, name) {
-  const shape = DDIC_SHAPES[type];
-  if (!shape) return void 0;
-  return renderSkeleton(shape, name);
-}
-var XML_COMMENT_RE2 = /<!--[\s\S]*?-->/g;
-var ROOT_TAG_RE2 = /<([A-Za-z_][\w.-]*)(?::([A-Za-z_][\w.-]*))?\b[^>]*>/;
-var DATA_ELEMENT_TAG_RE = /<(?:([A-Za-z_][\w.-]*):)?dataElement\b[^>]*>/;
-var XMLNS_ATTR_RE = /(?:^|\s)xmlns(?::([A-Za-z_][\w.-]*))?\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
-function collectXmlns(tagText) {
-  const map2 = {};
-  XMLNS_ATTR_RE.lastIndex = 0;
-  let m;
-  while ((m = XMLNS_ATTR_RE.exec(tagText)) !== null) {
-    map2[m[1] ?? ""] = m[2] ?? m[3] ?? "";
-  }
-  return map2;
-}
-function resolvePrefix(prefix, map2) {
-  return map2[prefix ?? ""];
-}
-function throwRootMismatch(type, name, expected, foundLocalName, foundNamespace) {
-  const skeleton = renderSkeleton(expected, name);
-  const foundNsText = foundNamespace !== void 0 ? `"${foundNamespace}"` : "(no namespace could be resolved for its prefix)";
-  throw new AbapError(
-    "BAD_INPUT",
-    `The XML for ${type} ${name} has root element <${foundLocalName}> bound to namespace ${foundNsText}, but a ${type} descriptor's root must be <${expected.localName}> bound to namespace "${expected.namespace}".`,
-    {
-      name,
-      type,
-      foundLocalName,
-      ...foundNamespace !== void 0 ? { foundNamespace } : {},
-      expectedLocalName: expected.localName,
-      expectedNamespace: expected.namespace,
-      ddicSkeleton: skeleton
-    },
-    `No write was sent and no lock was taken \u2014 the object is untouched. SAP's PUT handler names only the next missing element per rejection, so guessing the root element/namespace one round trip at a time can take many attempts. Start from this known-accepted skeleton instead:
-${skeleton}`
-  );
-}
-function throwDataElementNamespaceMismatch(expected, name, foundNamespace) {
-  const skeleton = renderSkeleton(expected, name);
-  throw new AbapError(
-    "BAD_INPUT",
-    `The XML for DTEL/DE ${name} binds its inner <dataElement> element to namespace "${foundNamespace}" instead of "${DATAELEMENT_NS}".`,
-    {
-      name,
-      type: "DTEL/DE",
-      foundInnerNamespace: foundNamespace,
-      expectedInnerNamespace: DATAELEMENT_NS,
-      ddicSkeleton: skeleton
-    },
-    `No write was sent and no lock was taken \u2014 the object is untouched. This is not a shape SAP's PUT handler rejects \u2014 it is ACCEPTED (ok:true, created:true, activated:true) and produces a data element with no type at all (abap.(0), length 0), with nothing to signal the corruption until a later read-back. That is why abapsmith refuses this locally rather than sending it. A common cause is reusing the root <blue:wbobj> element's own namespace ("http://www.sap.com/wbobj/dictionary/dtel") on the inner element instead of its own, distinct namespace. Bind <dataElement> to "${DATAELEMENT_NS}", as in this known-accepted skeleton:
-${skeleton}`
-  );
-}
-function assertDdicDescriptorShape(type, name, xml3) {
-  const expected = DDIC_SHAPES[type];
-  if (!expected) return;
-  const stripped = xml3.replace(XML_COMMENT_RE2, "");
-  const rootMatch = ROOT_TAG_RE2.exec(stripped);
-  if (!rootMatch) return;
-  const rootTag = rootMatch[0];
-  if (rootMatch[1] === void 0) return;
-  const rootPrefix = rootMatch[2] !== void 0 ? rootMatch[1] : void 0;
-  const rootLocalName = rootMatch[2] !== void 0 ? rootMatch[2] : rootMatch[1];
-  const rootNsMap = collectXmlns(rootTag);
-  if (rootLocalName !== expected.localName) {
-    throwRootMismatch(type, name, expected, rootLocalName, resolvePrefix(rootPrefix, rootNsMap));
-  }
-  const rootNs = resolvePrefix(rootPrefix, rootNsMap);
-  if (rootNs === void 0) return;
-  if (rootNs !== expected.namespace) {
-    throwRootMismatch(type, name, expected, rootLocalName, rootNs);
-  }
-  if (type !== "DTEL/DE") return;
-  const deMatch = DATA_ELEMENT_TAG_RE.exec(stripped);
-  if (!deMatch) return;
-  const deTag = deMatch[0];
-  const dePrefix = deMatch[1];
-  const extendedMap = { ...rootNsMap, ...collectXmlns(deTag) };
-  const deNs = resolvePrefix(dePrefix, extendedMap);
-  if (deNs === void 0) return;
-  if (deNs !== DATAELEMENT_NS) throwDataElementNamespaceMismatch(expected, name, deNs);
-}
-var ADTCORE_NS2 = "http://www.sap.com/adt/core";
-var XML_DECL = '<?xml version="1.0" encoding="UTF-8"?>';
-var DDIC_TYPE_KINDS = ["domain", "predefinedAbapType", "dictionaryType"];
-function isDdicTypeKind(s) {
-  return DDIC_TYPE_KINDS.includes(s);
-}
-function assertDdicTypeKind(requested) {
-  if (isDdicTypeKind(requested)) return requested;
-  throw new AbapError(
-    "BAD_INPUT",
-    `ddic.typeKind "${requested}" is not one of the accepted values.`,
-    { requested, allowed: [...DDIC_TYPE_KINDS] },
-    `Use one of: ${DDIC_TYPE_KINDS.join(", ")}.`
-  );
-}
-var DOMA_FIELDS = /* @__PURE__ */ new Set(["dataType", "length", "decimals", "outputLength", "lowercase", "signExists"]);
-var DTEL_FIELDS = /* @__PURE__ */ new Set([
-  "typeKind",
-  "typeName",
-  "dataType",
-  "length",
-  "decimals",
-  "shortLabel",
-  "shortLength",
-  "mediumLabel",
-  "mediumLength",
-  "longLabel",
-  "longLength",
-  "headingLabel",
-  "headingLength"
-]);
-var TTYP_FIELDS = /* @__PURE__ */ new Set(["typeKind", "typeName", "dataType", "length", "decimals"]);
-var STRUCTURED_FIELDS_BY_TYPE = {
-  "DOMA/DD": DOMA_FIELDS,
-  "DTEL/DE": DTEL_FIELDS,
-  "TTYP/DA": TTYP_FIELDS
-};
-function escapeXmlText(s) {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-function elem(tag, value) {
-  return value === "" ? `<${tag}/>` : `<${tag}>${escapeXmlText(value)}</${tag}>`;
-}
-function num2(n) {
-  return String(Math.trunc(n));
-}
-function numPadded(n, width) {
-  return String(Math.trunc(n)).padStart(width, "0");
-}
-var DTEL_MAX_LENGTH = {
-  short: 10,
-  medium: 20,
-  long: 40,
-  heading: 55
-};
-function rejectStrayFields(type, name, fields, allowed) {
-  const stray = Object.keys(fields).filter(
-    (k) => fields[k] !== void 0 && !allowed.has(k)
-  );
-  if (stray.length > 0) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `ddic.${stray[0]} does not apply to ${type} \u2014 either no accepted PUT body has ever used it, or it belongs to a different DDIC type.`,
-      { name, type, strayFields: stray, allowedFields: [...allowed] },
-      "Drop this field, or if you need it, compose raw XML via `source` instead \u2014 `ddic` only covers the element set proven to be accepted on a live system."
-    );
-  }
-}
-function buildDoma(name, description, packageName, f) {
-  const dataType = f.dataType ?? "CHAR";
-  const length = f.length ?? 10;
-  const decimals = f.decimals ?? 0;
-  const outputLength = f.outputLength ?? length;
-  const lowercase2 = f.lowercase ?? false;
-  const signExists = f.signExists ?? false;
-  return `${XML_DECL}<doma:domain xmlns:doma="http://www.sap.com/dictionary/domain" xmlns:adtcore="${ADTCORE_NS2}" adtcore:name="${escapeXmlAttr4(name)}" adtcore:type="DOMA/DD" adtcore:description="${escapeXmlAttr4(description)}"><adtcore:packageRef adtcore:name="${escapeXmlAttr4(packageName)}"/><doma:content><doma:typeInformation>${elem("doma:datatype", dataType)}${elem("doma:length", num2(length))}${elem("doma:decimals", num2(decimals))}</doma:typeInformation><doma:outputInformation>${elem("doma:length", num2(outputLength))}${elem("doma:lowercase", String(lowercase2))}${elem("doma:signExists", String(signExists))}</doma:outputInformation></doma:content></doma:domain>`;
-}
-function buildDtel(name, description, packageName, f) {
-  const typeKind = f.typeKind ?? "predefinedAbapType";
-  if (typeKind !== "domain" && typeKind !== "predefinedAbapType") {
-    throw new AbapError(
-      "BAD_INPUT",
-      `ddic.typeKind "${typeKind}" is not valid for DTEL/DE \u2014 only "domain" or "predefinedAbapType" is grounded.`,
-      { name, type: "DTEL/DE", typeKind },
-      'Use "domain" or "predefinedAbapType", or compose raw XML via `source`.'
-    );
-  }
-  const typeName = f.typeName ?? "";
-  const dataType = f.dataType ?? "CHAR";
-  const length = f.length ?? 10;
-  const decimals = f.decimals ?? 0;
-  const shortLabel = f.shortLabel ?? "Bench";
-  const shortLength = f.shortLength ?? 10;
-  const mediumLabel = f.mediumLabel ?? "Bench";
-  const mediumLength = f.mediumLength ?? 20;
-  const longLabel = f.longLabel ?? "Bench";
-  const longLength = f.longLength ?? 40;
-  const headingLabel = f.headingLabel ?? "Bench";
-  const headingLength = f.headingLength ?? 55;
-  return `${XML_DECL}<blue:wbobj xmlns:blue="http://www.sap.com/wbobj/dictionary/dtel" xmlns:adtcore="${ADTCORE_NS2}" adtcore:name="${escapeXmlAttr4(name)}" adtcore:type="DTEL/DE" adtcore:description="${escapeXmlAttr4(description)}"><adtcore:packageRef adtcore:name="${escapeXmlAttr4(packageName)}"/><dtel:dataElement xmlns:dtel="${DATAELEMENT_NS}">${elem("dtel:typeKind", typeKind)}${elem("dtel:typeName", typeName)}${elem("dtel:dataType", dataType)}${elem("dtel:dataTypeLength", numPadded(length, 6))}${elem("dtel:dataTypeDecimals", numPadded(decimals, 6))}${elem("dtel:shortFieldLabel", shortLabel)}${elem("dtel:shortFieldLength", num2(shortLength))}${elem("dtel:shortFieldMaxLength", num2(DTEL_MAX_LENGTH.short))}${elem("dtel:mediumFieldLabel", mediumLabel)}${elem("dtel:mediumFieldLength", num2(mediumLength))}${elem("dtel:mediumFieldMaxLength", num2(DTEL_MAX_LENGTH.medium))}${elem("dtel:longFieldLabel", longLabel)}${elem("dtel:longFieldLength", num2(longLength))}${elem("dtel:longFieldMaxLength", num2(DTEL_MAX_LENGTH.long))}${elem("dtel:headingFieldLabel", headingLabel)}${elem("dtel:headingFieldLength", num2(headingLength))}${elem("dtel:headingFieldMaxLength", num2(DTEL_MAX_LENGTH.heading))}${elem("dtel:searchHelp", "")}${elem("dtel:searchHelpParameter", "")}${elem("dtel:setGetParameter", "")}${elem("dtel:defaultComponentName", "")}${elem("dtel:deactivateInputHistory", "false")}${elem("dtel:changeDocument", "false")}${elem("dtel:leftToRightDirection", "false")}${elem("dtel:deactivateBIDIFiltering", "false")}</dtel:dataElement></blue:wbobj>`;
-}
-function buildTtyp(name, description, packageName, f) {
-  const typeKind = f.typeKind ?? "dictionaryType";
-  if (typeKind !== "dictionaryType") {
-    throw new AbapError(
-      "BAD_INPUT",
-      `ddic.typeKind "${typeKind}" is not valid for TTYP/DA \u2014 only "dictionaryType" is grounded. A live activation rejected "rangeTypeOnDataelement" rather than accepting it.`,
-      { name, type: "TTYP/DA", typeKind },
-      'Use "dictionaryType", or compose raw XML via `source`.'
-    );
-  }
-  const typeName = f.typeName ?? "SYST";
-  const dataType = f.dataType ?? "STRU";
-  const length = f.length ?? 0;
-  const decimals = f.decimals ?? 0;
-  return `${XML_DECL}<ttyp:tableType xmlns:ttyp="http://www.sap.com/dictionary/tabletype" xmlns:adtcore="${ADTCORE_NS2}" adtcore:name="${escapeXmlAttr4(name)}" adtcore:type="TTYP/DA" adtcore:description="${escapeXmlAttr4(description)}"><adtcore:packageRef adtcore:name="${escapeXmlAttr4(packageName)}"/><ttyp:rowType>${elem("ttyp:typeKind", typeKind)}${elem("ttyp:typeName", typeName)}<ttyp:builtInType>${elem("ttyp:dataType", dataType)}${elem("ttyp:length", numPadded(length, 6))}${elem("ttyp:decimals", numPadded(decimals, 6))}</ttyp:builtInType><ttyp:rangeType/></ttyp:rowType></ttyp:tableType>`;
-}
-function buildStructuredDdicDescriptor(type, name, description, packageName, fields) {
-  const allowed = STRUCTURED_FIELDS_BY_TYPE[type];
-  if (!allowed) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `\`ddic\` structured input only covers DOMA/DD, DTEL/DE, TTYP/DA \u2014 not ${type}.`,
-      { name, type },
-      "Drop `ddic` and compose raw XML via `source` for this type."
-    );
-  }
-  rejectStrayFields(type, name, fields, allowed);
-  if (type === "DOMA/DD") return buildDoma(name, description, packageName, fields);
-  if (type === "DTEL/DE") return buildDtel(name, description, packageName, fields);
-  return buildTtyp(name, description, packageName, fields);
-}
-
-// src/tools/write.ts
-init_errors();
-init_types();
-init_compact();
-init_safety();
-
-// src/tools/v2/edit.ts
-var EditInputError = class extends Error {
-};
-var toLf = (s) => s.replace(/\r\n/g, "\n");
-function findAll(haystack, needle) {
-  const offsets = [];
-  let from = 0;
-  for (; ; ) {
-    const idx = haystack.indexOf(needle, from);
-    if (idx === -1) break;
-    offsets.push(idx);
-    from = idx + needle.length;
-  }
-  return offsets;
-}
-function lineStarts(s) {
-  const starts = [0];
-  for (let i = 0; i < s.length; i++) {
-    if (s.charCodeAt(i) === 10) starts.push(i + 1);
-  }
-  return starts;
-}
-function lineAt(starts, offset) {
-  let lo = 0;
-  let hi = starts.length - 1;
-  while (lo < hi) {
-    const mid = lo + hi + 1 >> 1;
-    if (starts[mid] <= offset) lo = mid;
-    else hi = mid - 1;
-  }
-  return lo + 1;
-}
-function applyEdit(source, oldString, newString, replaceAll) {
-  if (oldString === "") {
-    throw new EditInputError(
-      "old_string must not be empty \u2014 an empty needle matches everywhere, which is never the intent."
-    );
-  }
-  if (oldString === newString) {
-    throw new EditInputError("old_string and new_string are identical \u2014 this edit would change nothing.");
-  }
-  const normSource = toLf(source);
-  const normOld = toLf(oldString);
-  const normNew = toLf(newString);
-  const offsets = findAll(normSource, normOld);
-  if (offsets.length === 0) {
-    const firstLine = normOld.split("\n")[0] ?? "";
-    let firstLineOccurrences;
-    if (firstLine !== "") {
-      const hits = findAll(normSource, firstLine);
-      if (hits.length > 0) {
-        const starts = lineStarts(normSource);
-        firstLineOccurrences = hits.map((o) => lineAt(starts, o));
-      }
-    }
-    return { ok: false, kind: "no-match", ...firstLineOccurrences ? { firstLineOccurrences } : {} };
-  }
-  if (offsets.length > 1 && !replaceAll) {
-    const starts = lineStarts(normSource);
-    return { ok: false, kind: "ambiguous", matchLines: offsets.map((o) => lineAt(starts, o)) };
-  }
-  let result = "";
-  let cursor = 0;
-  for (const o of offsets) {
-    result += normSource.slice(cursor, o) + normNew;
-    cursor = o + normOld.length;
-  }
-  result += normSource.slice(cursor);
-  return { ok: true, result };
-}
-function describeEditFailure(r) {
-  if (r.kind === "ambiguous") {
-    return `old_string appears ${r.matchLines.length} times (lines ${r.matchLines.join(", ")}) \u2014 pass replace_all:true to replace every occurrence, or narrow old_string (e.g. include a neighbouring line) so it matches exactly once.`;
-  }
-  if (r.firstLineOccurrences && r.firstLineOccurrences.length > 0) {
-    return `old_string was not found (0 matches), but its first line alone appears at line(s) ${r.firstLineOccurrences.join(", ")} \u2014 the rest of old_string has likely drifted from the current source (stale read, prior edit, or a whitespace mismatch). Re-read the object and copy old_string verbatim from the current source.`;
-  }
-  return "old_string was not found (0 matches), and not even its first line appears anywhere in the current source. Re-read the object to confirm old_string against what is actually there.";
-}
-
 // src/tools/write-dry-run.ts
-init_transports();
-init_errors();
-init_compact();
 var WRITE_DRY_RUN_MAX_HUNKS = 200;
 function dryRunNotSupported(route, detail) {
   if (route === "objects") {
@@ -116669,7 +109669,7 @@ async function abapDeleteIndexViaBridge(conn, target, input, maxChars, gate) {
     maxChars
   });
 }
-var ok8 = (text3) => ({ content: [{ type: "text", text: text3 }] });
+var ok = (text3) => ({ content: [{ type: "text", text: text3 }] });
 function registerWriteTools(mcp, deps) {
   mcp.registerTool(
     "abap_write",
@@ -116713,7 +109713,7 @@ function registerWriteTools(mcp, deps) {
             deps.cfg.verifyWrites
           );
           const res2 = await deps.pool.withWrite("abap_write", void 0, run2);
-          return ok8(res2.text);
+          return ok(res2.text);
         }
         if (a.object === void 0) {
           throw new AbapError(
@@ -116743,6 +109743,7799 @@ function registerWriteTools(mcp, deps) {
             deps.transport,
             deps.cfg.verifyWrites
           )
+        );
+        return ok(res.text);
+      } catch (e) {
+        return deps.errorResult(e);
+      }
+    }
+  );
+}
+
+// src/tools/activate.ts
+var affectsSchema = external_exports.object({
+  name: external_exports.string(),
+  packageName: external_exports.string(),
+  masterSystem: external_exports.string().optional(),
+  spotName: external_exports.string().optional()
+});
+var activateInputSchema = {
+  object: external_exports.string().optional().describe("Object reference."),
+  type: external_exports.string().optional().describe("ADT type, e.g. CLAS/OC."),
+  mode: external_exports.enum(["check", "activate", "format"]).optional().describe(
+    "Default activate. format pretty-prints ABAP source: `source` alone formats text (no write), `object` alone formats and saves the object if it changed \u2014 never both."
+  ),
+  source: external_exports.string().optional().describe("Unsaved draft to check/activate, or text to format."),
+  corr_nr: external_exports.string().optional().describe("Transport request. $TMP needs none. Not for text format."),
+  // Same shape as abap_write's `affects` — REQUIRED to activate an EXISTING
+  // ENHO/XH or ENHS/XS (safety.ts); ignored for every other type.
+  affects: affectsSchema.optional().describe("Required to activate ENHO/XH or ENHS/XS."),
+  // The batch form. ADT accepts many objects in ONE
+  // `POST /sap/bc/adt/activation` request (`activateObjects`, src/adt/activate.ts)
+  // with the server resolving dependency order. Every object is resolved AND
+  // authorised BEFORE any is activated — one refusal refuses the whole set.
+  // Mutually exclusive with `object` and the top-level `type`/`affects`/
+  // `corr_nr`/`source` (doc/TOOLS/write-and-activate.md §abap_activate). mode=activate only;
+  // there is no batch syntax check.
+  objects: external_exports.array(
+    external_exports.object({
+      object: external_exports.string().describe("Object to activate. Same spelling `object` accepts."),
+      type: external_exports.string().optional().describe("ADT type, e.g. DTEL/DE."),
+      affects: affectsSchema.optional().describe("Required to activate ENHO/XH or ENHS/XS.")
+    })
+  ).min(1).max(MAX_ACTIVATION_BATCH).optional().describe("Batch activate, 2+ objects; omit `object`. mode=activate only.")
+};
+var ActivateInput = external_exports.object(activateInputSchema);
+async function journalActivations(journal, conn, items, run2, onThrow) {
+  const ids = [];
+  const settleAll = async (patchFor) => {
+    if (!journal) return;
+    for (let i = 0; i < ids.length; i++) {
+      const p = patchFor(i);
+      if (p) await journal.finish(ids[i], p);
+    }
+  };
+  if (journal) {
+    try {
+      for (const item of items) {
+        const entry = await journal.begin({
+          operation: "activate",
+          object: {
+            ...journalRef(item.target),
+            // Set only for an enhancement object, so undo's/abap_journal's
+            // messages can name the SAP object it affects, not just itself.
+            ...item.affects ? { affects: item.affects } : {}
+          },
+          existedBefore: true,
+          beforeCapture: "unknown",
+          systemKey: systemKey(conn.cfg),
+          ...item.corrNr !== void 0 ? { corrNr: item.corrNr } : {},
+          irreversible: true,
+          // Also recorded for `abap_do action=activate`, which is a facade
+          // that reshapes its args into `ActivateInput` and calls this
+          // function — the tool that actually ran, not the caller's dialect.
+          tool: "abap_activate"
+        });
+        if (entry) ids.push(entry.id);
+      }
+    } catch (e) {
+      await settleAll(() => ({
+        outcome: "failed",
+        error: `activation abandoned: the journal entry for a later object in the same call could not be written (${String(e)}). No activation request was sent.`
+      }));
+      throw e;
+    }
+  }
+  let result;
+  try {
+    result = await run2();
+  } catch (e) {
+    await settleAll((i) => onThrow ? onThrow(e, i) : { outcome: "failed", error: String(e) });
+    throw e;
+  }
+  return { result, settle: settleAll };
+}
+var JOURNAL_MESSAGES_MAX = 2e3;
+function journalMessages(messages) {
+  const text3 = renderMessages([...messages]).trim();
+  if (!text3) return void 0;
+  return truncateText(text3, JOURNAL_MESSAGES_MAX);
+}
+function activationThrowPatch(disposition, name, e) {
+  switch (disposition) {
+    case "activated":
+      return { outcome: "succeeded", activation: { attempted: true, activated: true } };
+    case "unknown":
+      process.stderr.write(
+        `[abapsmith] WARNING: the journal entry for ${name} stays \`pending\` on purpose: the activation request naming it did not answer, so whether it activated was never observed. Re-read the object to see its state.
+`
+      );
+      return null;
+    case "not-sent":
+      return {
+        outcome: "failed",
+        error: `no activation request naming ${name} was sent: an earlier chunk of the same batch failed first (${String(e)}).`
+      };
+    case "not-activated":
+      return { outcome: "failed", error: String(e) };
+  }
+}
+function renderCoActivated(preaudit) {
+  const named = preaudit.filter((o) => !(o.name === "(unknown)" && o.type === "(unknown)"));
+  const skipped = preaudit.length - named.length;
+  const lines = [];
+  if (named.length > 0) {
+    lines.push(
+      `Activated together with the request, because SAP's preaudit required ${named.length === 1 ? "it" : "them"}:`,
+      ...named.map((o) => `  ${o.name} (${o.type})`)
+    );
+  }
+  if (skipped > 0) {
+    lines.push(
+      `${skipped} more co-activated object${skipped === 1 ? "" : "s"} had no name/type in SAP's reply and ${skipped === 1 ? "is" : "are"} omitted above.`
+    );
+  }
+  return lines.join("\n");
+}
+async function abapActivate(conn, input, maxChars, gate, transport, journal, verifyWrites) {
+  const mode = input.mode ?? "activate";
+  if (input.objects !== void 0) {
+    const stray = ["object", "type", "affects", "corr_nr", "source"].filter(
+      (k) => input[k] !== void 0
+    );
+    if (stray.length) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `\`objects\` is the batch form and does not combine with top-level ${stray.map((k) => `\`${k}\``).join(", ")} \u2014 each entry in \`objects\` carries its own \`object\`/\`type\`/\`affects\`.`,
+        { stray },
+        "Drop the top-level field(s) named above, or activate that one object by itself with `object` instead of `objects`."
+      );
+    }
+    if (mode !== "activate") {
+      throw new AbapError(
+        "BAD_INPUT",
+        "`objects` (batch activation) only supports mode=activate \u2014 there is no batch syntax check and no batch format. Check or format objects individually with `object` first if needed.",
+        { mode },
+        "Drop `mode` (default is activate) or check/format objects one at a time with `object`."
+      );
+    }
+    return abapActivateBatch(conn, input.objects, maxChars, gate, transport, journal);
+  }
+  if (mode === "format") {
+    return abapActivateFormat(conn, input, maxChars, gate, transport, journal, verifyWrites);
+  }
+  const objectRef = input.object;
+  if (objectRef === void 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "Pass either `object` (single object) or `objects` (batch \u2014 2 or more objects in one activation request).",
+      {},
+      'Add `object: "<name>"` to activate one object, or `objects: [...]` to activate several.'
+    );
+  }
+  const hint = input.type ? specForType(input.type) ?? specForKeyword(input.type) : void 0;
+  const parsed = parseObjectRef(objectRef, hint);
+  const type = input.type ?? parsed.spec?.type;
+  const wanted = {
+    name: parsed.name,
+    ...parsed.parent ? { containerName: parsed.parent } : {},
+    ...type ? { type } : {},
+    // Carried through so `authorizeMutation` below can build an
+    // `EnhancementIntent` for an ENHO/XH or ENHS/XS target — see the schema's
+    // `affects` doc comment. Ignored by `resolveWriteTarget` for every other
+    // type; harmless to pass unconditionally.
+    ...input.affects ? { affects: input.affects } : {}
+  };
+  const resolved = await resolveWriteTarget(conn, wanted, "activate");
+  const assertActivatable = (t) => {
+    if (t.exists) return;
+    throw new AbapError(
+      "NOT_FOUND",
+      `${t.spec.label} ${t.name} does not exist on ${conn.cfg.sid}, so there is nothing to activate. Nothing was checked, locked or changed.`,
+      { object: t.name, type: t.type, uri: t.uri, system: conn.cfg.sid, mode },
+      "Write it first with `abap_write` (that creates AND activates it), or correct the name / `type` if you meant an object that is already there. To syntax-check a draft that has no object on the server yet, use `mode=check` with `source`."
+    );
+  };
+  if (mode === "activate") assertActivatable(resolved);
+  const authorized = mode === "activate" ? await authorizeMutation(conn, gate, "activate", wanted) : void 0;
+  const target = authorized ? authorized.target : resolved;
+  if (mode === "activate") assertActivatable(target);
+  const activateIntent = mode === "activate" && isEnhancementType(target.type) && input.affects ? enhancementIntentFor(target, input.affects) : void 0;
+  let source = input.source;
+  let checkedSavedSource = false;
+  if (source === void 0 && mode === "check") {
+    if (!target.exists || !target.spec.supportsSource) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `mode=check was given no \`source\`, and there is no saved source to check instead: ` + (target.exists ? `${target.spec.label} objects (${target.type}) have no retrievable \`/source/main\` \u2014 only source-based types get an automatic saved-source check.` : `${target.spec.label} ${target.name} does not exist on ${conn.cfg.sid} yet, so nothing has been saved to check.`),
+        { object: target.name, type: target.type, mode, exists: target.exists },
+        "Pass `source` with the text to check, or drop `mode` (default is activate) to activate what is already saved on the server."
+      );
+    }
+    try {
+      source = await conn.adt.getObjectSource(target.sourceUri);
+    } catch (e) {
+      throw translateAdtError(e, {
+        operation: "read saved source for mode=check (no `source` was supplied)",
+        uri: target.sourceUri,
+        name: target.name,
+        type: target.type
+      });
+    }
+    checkedSavedSource = true;
+  }
+  const check4 = source !== void 0 ? await checkSource(conn, target, source) : void 0;
+  let activation;
+  let corrNr;
+  if (mode === "activate" && (check4 === void 0 || check4.ok)) {
+    if (transport) {
+      const res = await transport.resolve(
+        conn,
+        {
+          uri: target.sourceUri,
+          devclass: target.packageName,
+          name: target.name,
+          type: target.type
+        },
+        "U",
+        // Blank-normalised: `""` means "named nothing", not "a request
+        // whose name is the empty string" — same reading as abap_write's.
+        normalizeCorrNr(input.corr_nr) === void 0 ? {} : { corrNr: normalizeCorrNr(input.corr_nr) }
+      );
+      const denial = toAbapError(res);
+      if (denial) throw denial;
+      corrNr = res.outcome === "transport" ? res.corrNr : void 0;
+      gate.assert(
+        "activate",
+        { name: target.name, packageName: target.packageName, type: target.type },
+        {
+          phase: "final",
+          intent: activateIntent,
+          corr: res.outcome === "transport" ? {
+            kind: "transport",
+            corrNr: res.corrNr,
+            source: res.source === "config-pin" || res.source === "caller" ? "named" : "auto"
+          } : { kind: "local" }
+        }
+      );
+    }
+    const journalled2 = await journalActivations(
+      journal,
+      conn,
+      [
+        {
+          target,
+          // Keyed off `activateIntent`, not a re-test of `isEnhancementType`,
+          // so the journal ref can't drift from what the gate was told.
+          ...activateIntent !== void 0 && input.affects ? { affects: input.affects } : {},
+          ...corrNr !== void 0 ? { corrNr } : {}
+        }
+      ],
+      async () => {
+        const outcome = await activateObject(conn, target);
+        assertNoErrors(outcome, {
+          what: "Activation",
+          name: target.name,
+          ...input.source ? { source: input.source } : {}
+        });
+        return outcome;
+      }
+    );
+    activation = journalled2.result;
+    const settledMessages = journalMessages(journalled2.result.messages);
+    await journalled2.settle(() => ({
+      outcome: "succeeded",
+      activation: {
+        attempted: true,
+        activated: journalled2.result.activated,
+        ...settledMessages !== void 0 ? { messages: settledMessages } : {}
+      }
+    }));
+  }
+  const blocks = [];
+  if (check4) {
+    const checkText = renderMessages(check4.messages, source);
+    blocks.push(`# SYNTAX CHECK
+${checkText.trim() || "(no messages)"}`);
+  }
+  if (activation) {
+    const actText = renderMessages(activation.messages, input.source);
+    if (actText.trim()) blocks.push(`# ACTIVATION
+${actText}`);
+    if (activation.preaudit?.length) {
+      blocks.push(`# CO-ACTIVATED
+${renderCoActivated(activation.preaudit)}`);
+    }
+    if (activation.inactive.length) {
+      blocks.push(`# INACTIVE DEPENDENTS
+${renderInactive(activation.inactive)}`);
+    }
+  }
+  const notes = [];
+  if (corrNr !== void 0) {
+    notes.push(
+      `This object is transportable and was activated under transport ${corrNr}. abap_activate never releases a transport \u2014 releasing is a separate tool, abap_transport_release, which stays off unless ` + // Names the lever actually in force (ABAP_MODE vs. the legacy flag).
+      // Optional-chained: this is a NOTE, not a gate — test stubs hand in a
+      // minimal SafetyGate, and a cosmetic sentence must never throw.
+      (gate.config?.abapMode !== void 0 ? "ABAP_MODE=admin (ABAP_ALLOW_TRANSPORT_RELEASE is not read while ABAP_MODE is set)." : "ABAP_ALLOW_TRANSPORT_RELEASE is set.")
+    );
+  }
+  if (mode === "activate" && check4 !== void 0 && !check4.ok) {
+    notes.push("Activation was SKIPPED: the syntax check reported errors. Nothing changed.");
+  }
+  if (input.source) {
+    if (mode === "check") {
+      notes.push("Checked the supplied draft, not the version stored on the server.");
+    }
+  } else if (checkedSavedSource) {
+    notes.push(
+      "No `source` was supplied, so the version already saved on the server was fetched and checked instead (one extra ADT read). Pass `source` explicitly to check an unsaved draft instead of what's on the server."
+    );
+  } else {
+    notes.push(
+      "No `source` was supplied, so no pre-flight syntax check ran. Activation acted directly on the version already stored on the server; any activation messages above are the only check that actually ran."
+    );
+  }
+  return buildResponse({
+    header: {
+      system: conn.cfg.sid,
+      object: `${target.type} ${target.name}`,
+      uri: target.uri,
+      package: target.packageName,
+      // "server" = read off adtcore:packageRef (what the gate judged);
+      // "requested" = object doesn't exist yet, nothing to confirm.
+      package_source: target.packageSource,
+      mode,
+      result: check4 ? check4.ok ? "clean" : `${check4.errors} error(s), ${check4.warnings} warning(s)` : activation ? activation.ok ? "clean (no pre-flight check ran)" : `${activation.errors} error(s), ${activation.warnings} warning(s)` : "not checked",
+      activated: activation ? activation.activated : mode === "activate" ? false : "n/a",
+      ...corrNr === void 0 ? {} : { transport: corrNr }
+    },
+    body: blocks.join("\n\n"),
+    bodyLabel: "MESSAGES",
+    notes,
+    hints: [
+      "Line numbers come from the check run and refer to the source that was checked."
+    ],
+    maxChars
+  });
+}
+async function abapActivateBatch(conn, entries, maxChars, gate, transport, journal) {
+  const wanted = entries.map((e) => {
+    const hint = e.type ? specForType(e.type) ?? specForKeyword(e.type) : void 0;
+    const parsed = parseObjectRef(e.object, hint);
+    const type = e.type ?? parsed.spec?.type;
+    return {
+      name: parsed.name,
+      ...parsed.parent ? { containerName: parsed.parent } : {},
+      ...type ? { type } : {},
+      ...e.affects ? { affects: e.affects } : {},
+      affectsRef: e.affects
+    };
+  });
+  const authorized = [];
+  for (const w of wanted) {
+    const a = await authorizeMutation(conn, gate, "activate", w);
+    authorized.push({ target: a.target, affects: w.affectsRef });
+  }
+  const targets = [];
+  const journalItems = [];
+  const corrNrs = /* @__PURE__ */ new Set();
+  for (const { target, affects } of authorized) {
+    let corrNr;
+    if (transport) {
+      const activateIntent = isEnhancementType(target.type) && affects ? enhancementIntentFor(target, affects) : void 0;
+      const res = await transport.resolve(
+        conn,
+        { uri: target.sourceUri, devclass: target.packageName, name: target.name, type: target.type },
+        "U",
+        {}
+      );
+      const denial = toAbapError(res);
+      if (denial) throw denial;
+      if (res.outcome === "transport") {
+        corrNrs.add(res.corrNr);
+        corrNr = res.corrNr;
+      }
+      gate.assert(
+        "activate",
+        { name: target.name, packageName: target.packageName, type: target.type },
+        {
+          phase: "final",
+          intent: activateIntent,
+          corr: res.outcome === "transport" ? {
+            kind: "transport",
+            corrNr: res.corrNr,
+            source: res.source === "config-pin" || res.source === "caller" ? "named" : "auto"
+          } : { kind: "local" }
+        }
+      );
+    }
+    targets.push(target);
+    journalItems.push({
+      target,
+      // `affects` only meaningful for an enhancement type — same predicate as
+      // `activateIntent` above.
+      ...isEnhancementType(target.type) && affects ? { affects } : {},
+      ...corrNr !== void 0 ? { corrNr } : {}
+    });
+  }
+  let dispositions = targets.map(() => "not-sent");
+  const journalled2 = await journalActivations(
+    journal,
+    conn,
+    journalItems,
+    async () => {
+      const o = await activateObjects(conn, targets, {
+        onDisposition: (d) => {
+          dispositions = d;
+        }
+      });
+      assertBatchActivated(o, { what: "Activation" });
+      return o;
+    },
+    (e, i) => activationThrowPatch(dispositions[i] ?? "unknown", targets[i]?.name ?? `object ${i + 1}`, e)
+  );
+  const outcome = journalled2.result;
+  await journalled2.settle((i) => {
+    const per = outcome.perObject[i];
+    const messages = per ? journalMessages(per.messages) : void 0;
+    return {
+      outcome: "succeeded",
+      activation: {
+        attempted: true,
+        // `perObject[i].activated`, not the batch's own `outcome.activated`:
+        // they agree today, but this stays honest if partial success is ever added.
+        activated: per ? per.activated : outcome.activated,
+        ...messages !== void 0 ? { messages } : {}
+      }
+    };
+  });
+  return buildResponse({
+    header: {
+      system: conn.cfg.sid,
+      objects: targets.map((t) => t.name).join(", "),
+      count: targets.length,
+      mode: "activate",
+      result: outcome.warnings > 0 ? `clean, ${outcome.warnings} warning(s)` : "clean",
+      activated: outcome.activated,
+      ...corrNrs.size ? { transport: [...corrNrs].join(", ") } : {}
+    },
+    body: [
+      renderBatch(outcome),
+      ...outcome.preaudit?.length ? [`## CO-ACTIVATED
+${renderCoActivated(outcome.preaudit)}`] : []
+    ].filter((s) => s.trim()).join("\n\n"),
+    bodyLabel: "MESSAGES",
+    notes: [
+      ...corrNrs.size ? [
+        `Transportable object(s) activated under transport ${[...corrNrs].join(", ")}. abap_activate never releases a transport \u2014 see abap_transport_release.`
+      ] : [],
+      "No `source` was supplied for any object \u2014 batch activation acts directly on the version already saved on the server for each one; the messages above are the only check that ran."
+    ],
+    hints: [
+      "Each object's own section above is what the server tied to it; the (unattributed) section, if present, could not be tied to any one object and still counts against the batch."
+    ],
+    maxChars
+  });
+}
+async function abapActivateFormat(conn, input, maxChars, gate, transport, journal, verifyWrites) {
+  if (input.affects !== void 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "`affects` names an enhancement's activation target and has no meaning for mode=format \u2014 the pretty printer only reformats ABAP source text, it does not activate anything.",
+      {},
+      "Drop `affects`. Use mode=activate with `affects` to activate an ENHO/XH or ENHS/XS."
+    );
+  }
+  if (input.object !== void 0 && input.source !== void 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "mode=format was given both `object` and `source` \u2014 there is no non-arbitrary way to choose between formatting the text in `source` and formatting the object's saved source.",
+      {},
+      "Drop `source` to format-and-save `object`'s saved source, or drop `object` to just format the text in `source` (no write, no object touched)."
+    );
+  }
+  if (input.object === void 0 && input.source === void 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "mode=format needs either `source` (format text, no write) or `object` (format the object's saved source and save it back if it changed) \u2014 neither was given.",
+      {},
+      "Pass `source` to format text, or `object` to format a saved object."
+    );
+  }
+  if (input.source !== void 0) {
+    if (input.corr_nr !== void 0) {
+      throw new AbapError(
+        "BAD_INPUT",
+        "`corr_nr` was given with the text form of mode=format (`source`, no `object`) \u2014 nothing is written here, so a transport request is meaningless.",
+        {},
+        "Drop `corr_nr`, or pass `object` instead of `source` to format-and-save (where a transportable object's `corr_nr` applies)."
+      );
+    }
+    const outcome2 = await prettyPrintSource(conn, input.source);
+    return buildResponse({
+      header: {
+        system: conn.cfg.sid,
+        mode: "format",
+        changed: outcome2.changed,
+        linesChanged: outcome2.linesChanged,
+        lines: outcome2.source.split("\n").length
+      },
+      body: outcome2.source,
+      bodyLabel: "FORMATTED",
+      notes: [
+        "Formatting follows the server's own pretty-printer setting (indentation, keyword case, identifier case, ...) \u2014 abap_activate reads that setting but never changes it.",
+        outcome2.changed ? "This is text only \u2014 nothing was written anywhere. Pass it back as `source` to abap_write, or as `object` to abap_activate mode=format, to save it." : "The text was already formatted; the server made no change."
+      ],
+      maxChars
+    });
+  }
+  if (input.object === void 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "Pass either `source` (format text) or `object` (format and save a saved object).",
+      {},
+      "Add `source` or `object`."
+    );
+  }
+  const objectRef = input.object;
+  const hint = input.type ? specForType(input.type) ?? specForKeyword(input.type) : void 0;
+  const parsed = parseObjectRef(objectRef, hint);
+  const type = input.type ?? parsed.spec?.type;
+  const wanted = {
+    name: parsed.name,
+    ...parsed.parent ? { containerName: parsed.parent } : {},
+    ...type ? { type } : {}
+  };
+  const target = await resolveWriteTarget(conn, wanted, "activate");
+  if (!target.exists) {
+    throw new AbapError(
+      "NOT_FOUND",
+      `${target.spec.label} ${target.name} does not exist on ${conn.cfg.sid}, so there is nothing to format. Nothing was read, locked or changed.`,
+      { object: target.name, type: target.type, uri: target.uri, system: conn.cfg.sid },
+      "Correct the name or `type`, or write it first with `abap_write`. To format text that has no object on the server yet, pass `source` instead of `object`."
+    );
+  }
+  if (!target.spec.supportsSource || capabilitiesFor(target.type)?.write?.shape === "properties") {
+    throw new AbapError(
+      "UNSUPPORTED",
+      `${target.type} has no ABAP source for the pretty printer to format \u2014 ${target.spec.label} objects are written as a properties/XML descriptor, not as ABAP source.`,
+      { object: target.name, type: target.type },
+      "mode=format only applies to source-based types (classes, programs, includes, function modules, CDS, ...). Edit this object with abap_write's structured fields instead."
+    );
+  }
+  let current;
+  try {
+    current = await conn.adt.getObjectSource(target.sourceUri);
+  } catch (e) {
+    throw translateAdtError(e, {
+      operation: "read saved source for mode=format",
+      uri: target.sourceUri,
+      name: target.name,
+      type: target.type
+    });
+  }
+  const outcome = await prettyPrintSource(conn, current);
+  const settingNote = "Formatting follows the server's own pretty-printer setting (indentation, keyword case, identifier case, ...) \u2014 abap_activate reads that setting but never changes it.";
+  const identical = sourceEquals(current, outcome.source);
+  if (identical) {
+    return buildResponse({
+      header: {
+        system: conn.cfg.sid,
+        mode: "format",
+        object: `${target.type} ${target.name}`,
+        uri: target.uri,
+        changed: false,
+        linesChanged: 0
+      },
+      notes: [
+        settingNote,
+        `${target.spec.label} ${target.name} was already formatted \u2014 the server made no change, so nothing was locked, written or journalled.`
+      ],
+      maxChars
+    });
+  }
+  const expectEtag = canonicalEtag(current);
+  const OUTER_HEADER_RESERVE = 300;
+  const written = await abapWrite(
+    conn,
+    {
+      object: objectRef,
+      type: target.type,
+      source: outcome.source,
+      expect_etag: expectEtag,
+      // Explicit, not inherited: an already-active object must STAY active
+      // after a format-only write. Deciding this here (rather than leaving
+      // it to `abapWrite`'s own default) means it can't silently drift if
+      // that default ever changes.
+      activate: true,
+      ...input.corr_nr !== void 0 ? { corr_nr: input.corr_nr } : {}
+      // Never `format: true` here: `outcome.source` is ALREADY the
+      // pretty-printed text — asking `abapWrite` to format it again would be
+      // a pointless second round trip to the same `prettyprinter` endpoint.
+    },
+    Math.max(1e3, maxChars - OUTER_HEADER_RESERVE),
+    gate,
+    journal,
+    transport,
+    verifyWrites,
+    "abap_activate"
+  );
+  return buildResponse({
+    header: {
+      system: conn.cfg.sid,
+      mode: "format",
+      object: `${target.type} ${target.name}`,
+      uri: target.uri,
+      changed: true,
+      linesChanged: outcome.linesChanged
+    },
+    body: written.text,
+    bodyLabel: "WRITE",
+    notes: [settingNote],
+    maxChars
+  });
+}
+var ok2 = (text3) => ({ content: [{ type: "text", text: text3 }] });
+function registerActivateTools(mcp, deps) {
+  mcp.registerTool(
+    "abap_activate",
+    {
+      description: "mode=check: syntax check, no lock. mode=activate: check then activate. mode=format: pretty-print (source=text, or object=format-and-save).",
+      inputSchema: activateInputSchema,
+      /**
+       * `destructiveHint: true` — a judgement call (MCP doesn't formally
+       * define the hint as "irreversible"). Evidence: `undoBlocker`
+       * (src/adt/undo.ts) refuses every `activate` entry outright, and
+       * activating REPLACES the active version with no earlier state to
+       * return to. `abap_write` gets `destructiveHint: true` despite being
+       * MORE reversible (journalled, undo-able) — leaving this at `false`
+       * would invert that signal. See archive for full citations.
+       */
+      annotations: { readOnlyHint: false, destructiveHint: true }
+    },
+    async (args) => {
+      try {
+        const a = args;
+        const mode = a.mode ?? "activate";
+        if (a.objects !== void 0) {
+          if (mode !== "activate") {
+            throw new AbapError(
+              "BAD_INPUT",
+              "`objects` (batch activation) only supports mode=activate \u2014 there is no batch syntax check and no batch format.",
+              { mode },
+              "Drop `mode` (default is activate), or check/format objects one at a time with `object`."
+            );
+          }
+          for (const entry of a.objects) {
+            const pf = preflight(entry);
+            deps.safety.assert("activate", pf, {
+              phase: "preflight",
+              corr: { kind: "unresolved" },
+              intent: enhancementPreflightIntent({
+                name: pf.name,
+                type: pf.type,
+                affects: entry.affects
+              })
+            });
+          }
+          await deps.ensureConnected();
+          const run3 = (conn) => abapActivate(conn, args, deps.cfg.maxResponseChars, deps.safety, deps.transport, deps.journal);
+          const res2 = await deps.pool.withWrite("abap_activate", void 0, run3);
+          return ok2(res2.text);
+        }
+        if (mode === "format") {
+          if (a.affects !== void 0) {
+            throw new AbapError(
+              "BAD_INPUT",
+              "`affects` names an enhancement's activation target and has no meaning for mode=format \u2014 the pretty printer only reformats ABAP source text.",
+              {},
+              "Drop `affects`. Use mode=activate with `affects` to activate an ENHO/XH or ENHS/XS."
+            );
+          }
+          if (a.object !== void 0 && a.source !== void 0) {
+            throw new AbapError(
+              "BAD_INPUT",
+              "mode=format was given both `object` and `source` \u2014 there is no non-arbitrary way to choose between formatting the text in `source` and formatting the object's saved source.",
+              {},
+              "Drop `source` to format-and-save `object`'s saved source, or drop `object` to just format the text in `source` (no write)."
+            );
+          }
+          if (a.object === void 0 && a.source === void 0) {
+            throw new AbapError(
+              "BAD_INPUT",
+              "mode=format needs either `source` (format text, no write) or `object` (format and save a saved object) \u2014 neither was given.",
+              {},
+              "Pass `source` to format text, or `object` to format a saved object."
+            );
+          }
+          if (a.object === void 0) {
+            await deps.ensureConnected();
+            deps.safety.assert("read");
+            const run4 = (conn) => abapActivate(
+              conn,
+              args,
+              deps.cfg.maxResponseChars,
+              deps.safety,
+              deps.transport,
+              deps.journal,
+              deps.cfg.verifyWrites
+            );
+            const res3 = await deps.pool.withRead("abap_activate", run4);
+            return ok2(res3.text);
+          }
+          const object4 = a.object;
+          deps.safety.assert("write", preflight({ object: object4, type: a.type }), {
+            phase: "preflight",
+            corr: { kind: "unresolved" }
+          });
+          await deps.ensureConnected();
+          const run3 = (conn) => abapActivate(
+            conn,
+            args,
+            deps.cfg.maxResponseChars,
+            deps.safety,
+            deps.transport,
+            deps.journal,
+            deps.cfg.verifyWrites
+          );
+          const res2 = await deps.pool.withWrite("abap_activate", writeGateKey(object4, a.type), run3);
+          return ok2(res2.text);
+        }
+        if (a.object === void 0) {
+          throw new AbapError(
+            "BAD_INPUT",
+            "Pass either `object` (single object) or `objects` (batch \u2014 2 or more objects in one activation request).",
+            {},
+            'Add `object: "<name>"` to activate one object, or `objects: [...]` to activate several.'
+          );
+        }
+        const object3 = a.object;
+        if (mode === "activate") {
+          const pf = preflight({ object: object3, type: a.type });
+          deps.safety.assert("activate", pf, {
+            phase: "preflight",
+            corr: { kind: "unresolved" },
+            intent: enhancementPreflightIntent({ name: pf.name, type: pf.type, affects: a.affects })
+          });
+        } else {
+          deps.safety.assert("analyze", preflight({ object: object3, type: a.type }), { phase: "preflight" });
+        }
+        await deps.ensureConnected();
+        const run2 = (conn) => abapActivate(conn, args, deps.cfg.maxResponseChars, deps.safety, deps.transport, deps.journal);
+        const res = mode === "activate" ? await deps.pool.withWrite("abap_activate", writeGateKey(object3, a.type), run2) : await deps.pool.withRead("abap_activate", run2);
+        return ok2(res.text);
+      } catch (e) {
+        return deps.errorResult(e);
+      }
+    }
+  );
+}
+
+// src/tools/debug.ts
+init_zod();
+init_errors();
+init_compact();
+
+// src/debug/identity.ts
+function resolveDebugIdentity(cfg) {
+  const terminalId = resolveTerminalId({
+    explicit: cfg.terminalId,
+    seed: `${cfg.sid}:${cfg.user}:terminalId`
+  });
+  const ideId = resolveTerminalId({
+    explicit: cfg.ideId,
+    seed: `${cfg.sid}:${cfg.user}:ideId`
+  });
+  return {
+    terminalId,
+    ideId,
+    terminalIdSource: cfg.terminalId?.trim() ? "config" : "derived",
+    ideIdSource: cfg.ideId?.trim() ? "config" : "derived"
+  };
+}
+var warned = false;
+function warnIfDerivedIdentity(id, warn) {
+  if (warned) return false;
+  const derivedParts = [];
+  if (id.terminalIdSource === "derived") derivedParts.push("terminalId");
+  if (id.ideIdSource === "derived") derivedParts.push("ideId");
+  if (derivedParts.length === 0) return false;
+  warned = true;
+  warn(
+    `[abapsmith] WARNING: debug identity's ${derivedParts.join(" and ")} ${derivedParts.length > 1 ? "were" : "was"} derived from SID+user (not explicitly configured). A second MCP server process for the same SAP user derives the IDENTICAL pair and SAP cannot tell the two apart. Only explicitly-configured ABAP_TERMINAL_ID / ABAP_IDE_ID are provably multi-process-safe \u2014 set them to distinct 32-uppercase-hex values per terminal.`
+  );
+  return true;
+}
+
+// src/debug/arm-lock.ts
+init_errors();
+init_state_dir();
+import { createHash as createHash7 } from "node:crypto";
+import * as path7 from "node:path";
+var NoopDebugArmLock = class {
+  async acquire() {
+  }
+  release() {
+  }
+};
+function resolveDebugLockWaitMs(env = process.env) {
+  const DEFAULT_MS = 1500;
+  const MIN_MS = 200;
+  const MAX_MS = 3e4;
+  const raw = env.ABAP_DEBUG_LOCK_WAIT_MS;
+  if (raw === void 0 || raw.trim() === "") return DEFAULT_MS;
+  const n = Number(raw.trim());
+  if (!Number.isFinite(n) || n < 0) return DEFAULT_MS;
+  const ms = Math.floor(n);
+  if (ms < MIN_MS || ms > MAX_MS) return DEFAULT_MS;
+  return ms;
+}
+function resolveCrossProcessDebugLock(env = process.env) {
+  const raw = env.ABAP_CROSS_PROCESS_DEBUG_LOCK;
+  if (raw === void 0) return true;
+  const v = raw.trim().toLowerCase();
+  if (v === "") return true;
+  return !["false", "0", "no", "off"].includes(v);
+}
+var DEBUG_ARM_LOCK_HARD_STALE_MS = 36e5;
+var LOCK_HASH_HEX_LEN2 = 20;
+function debugArmLockKey(cfg) {
+  return `${cfg.url.trim()}|${(cfg.client ?? "").trim()}|${cfg.user.trim().toUpperCase()}`;
+}
+function debugArmLockPath(stateDir, cfg) {
+  const hash2 = createHash7("sha256").update(debugArmLockKey(cfg)).digest("hex").slice(0, LOCK_HASH_HEX_LEN2);
+  return path7.join(stateDir, "locks", "debug", `${hash2}.lock`);
+}
+function toDebugLockBusyError(e, key, lockPath) {
+  const holder = fileLockHolderOf(e);
+  const held = holder ? `held by pid ${holder.pid} on ${holder.hostname} since ${holder.startedAt || "an unknown time"}` : "the holder is unknown \u2014 the lock file could not be read, or was written by another version";
+  return new AbapError(
+    "DEBUG_SESSION_LOCKED_CROSS_PROCESS",
+    `Cannot start a debug session: another abapsmith process is already holding the debugger slot for this system/client/user (${held}). SAP allows one debug listener per user on a system, so arming a second one would silently reassign or wedge the other session.`,
+    { key, lockPath, holder, cause: describeUnknownError(e) },
+    `Stop the other debug session (abap_debug with action "stop") and retry. If no other abapsmith process is actually running, this is a stale leftover and you can delete ${lockPath} by hand \u2014 a holder whose process has died is normally collected automatically within a few seconds. Set ABAP_CROSS_PROCESS_DEBUG_LOCK=false to disable this guard entirely (at the cost of the protection it provides).`
+  );
+}
+function deferred() {
+  let resolve5;
+  let reject;
+  const promise2 = new Promise((res, rej) => {
+    resolve5 = res;
+    reject = rej;
+  });
+  return { promise: promise2, resolve: resolve5, reject };
+}
+var FileLockDebugArmLock = class {
+  lockPath;
+  key;
+  waitMs;
+  /** How many callers currently hold this lock. Released at 0. */
+  holds = 0;
+  /** Resolved by {@link release} to end the `withFileLock` scope. */
+  hold;
+  /** In flight while an acquisition is racing, so concurrent callers await it. */
+  acquiring;
+  constructor(opts) {
+    this.lockPath = debugArmLockPath(opts.stateDir, opts.cfg);
+    this.key = debugArmLockKey(opts.cfg);
+    this.waitMs = opts.waitMs ?? resolveDebugLockWaitMs();
+  }
+  /** The file this instance contends on. For diagnostics and tests. */
+  get path() {
+    return this.lockPath;
+  }
+  /** Whether this process currently holds the lock. For tests and diagnostics. */
+  get held() {
+    return this.holds > 0;
+  }
+  async acquire() {
+    if (this.holds > 0) {
+      this.holds += 1;
+      return;
+    }
+    if (this.acquiring !== void 0) {
+      await this.acquiring;
+      this.holds += 1;
+      return;
+    }
+    const attempt = this.run();
+    this.acquiring = attempt;
+    try {
+      await attempt;
+    } finally {
+      this.acquiring = void 0;
+    }
+    this.holds = 1;
+  }
+  release() {
+    if (this.holds === 0) return;
+    this.holds -= 1;
+    if (this.holds > 0) return;
+    const hold = this.hold;
+    this.hold = void 0;
+    hold?.resolve();
+  }
+  /**
+   * Opens the `withFileLock` scope and resolves once the lock is GRANTED,
+   * leaving the scope running until {@link release}.
+   */
+  async run() {
+    const granted2 = deferred();
+    const hold = deferred();
+    const scope = withFileLock(
+      this.lockPath,
+      async () => {
+        granted2.resolve();
+        await hold.promise;
+      },
+      { waitMs: this.waitMs, hardStaleMs: DEBUG_ARM_LOCK_HARD_STALE_MS }
+    );
+    let failure;
+    const settled = scope.then(
+      () => void 0,
+      (e) => {
+        failure = e;
+        this.hold = void 0;
+        return void 0;
+      }
+    );
+    await Promise.race([granted2.promise, settled]);
+    if (failure !== void 0) {
+      if (isFileLockAcquisitionFailure(failure, this.lockPath)) {
+        throw toDebugLockBusyError(failure, this.key, this.lockPath);
+      }
+      throw failure;
+    }
+    this.hold = hold;
+  }
+};
+function createDebugArmLock(opts) {
+  const enabled = opts.enabled ?? resolveCrossProcessDebugLock(opts.env ?? process.env);
+  if (!enabled) return new NoopDebugArmLock();
+  return new FileLockDebugArmLock({ stateDir: opts.stateDir, cfg: opts.cfg, waitMs: opts.waitMs });
+}
+
+// src/tools/debug.ts
+init_state_dir();
+
+// src/adt/enhancement.ts
+init_session();
+init_errors();
+
+// src/adt/enhancement-xml.ts
+init_errors();
+init_fxp();
+var xmlParser = new XMLParser({
+  ignoreAttributes: false,
+  attributeNamePrefix: "@_",
+  removeNSPrefix: true,
+  parseAttributeValue: false,
+  parseTagValue: false,
+  trimValues: true
+});
+function xnode(value) {
+  if (value === void 0 || value === null) return void 0;
+  if (Array.isArray(value)) return void 0;
+  if (typeof value !== "object") return void 0;
+  return value;
+}
+function xmany(value) {
+  if (value === void 0 || value === null) return [];
+  if (Array.isArray(value)) {
+    return value.filter((v) => typeof v === "object" && v !== null);
+  }
+  if (typeof value === "object") return [value];
+  return [];
+}
+function xattr(n, name) {
+  if (!n) return void 0;
+  const v = n["@_" + name];
+  if (v === void 0 || v === null) return void 0;
+  return String(v);
+}
+function xbool(n, name) {
+  const v = xattr(n, name);
+  if (v === void 0) return void 0;
+  return v === "true";
+}
+function fail(message, details = {}) {
+  throw new AbapError(
+    "BAD_INPUT",
+    `enhancement XML: ${message}`,
+    details,
+    "The decoder refuses to guess at malformed or unsupported input \u2014 fix or re-capture the source document rather than relying on a silent fallback."
+  );
+}
+function parseXml2(xmlText2, context) {
+  let parsed;
+  try {
+    parsed = xmlParser.parse(xmlText2) ?? {};
+  } catch (e) {
+    fail(`could not parse ${context} XML: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  return parsed;
+}
+function xref(n) {
+  if (!n) return void 0;
+  const type = xattr(n, "type");
+  const name = xattr(n, "name");
+  if (!type || !name) return void 0;
+  return { uri: xattr(n, "uri"), type, name };
+}
+function parseCommon(root) {
+  const pkgNode = xnode(root.packageRef);
+  const packageRef = pkgNode ? {
+    uri: xattr(pkgNode, "uri"),
+    type: xattr(pkgNode, "type") ?? "",
+    name: xattr(pkgNode, "name") ?? "",
+    description: xattr(pkgNode, "description")
+  } : void 0;
+  return {
+    name: xattr(root, "name") ?? "",
+    type: xattr(root, "type") ?? "",
+    description: xattr(root, "description"),
+    packageRef,
+    responsible: xattr(root, "responsible"),
+    masterLanguage: xattr(root, "masterLanguage"),
+    masterSystem: xattr(root, "masterSystem"),
+    activationStatus: xattr(root, "version"),
+    language: xattr(root, "language"),
+    createdAt: xattr(root, "createdAt"),
+    createdBy: xattr(root, "createdBy"),
+    changedAt: xattr(root, "changedAt"),
+    changedBy: xattr(root, "changedBy")
+  };
+}
+function parseFilterCondition(n) {
+  return {
+    filterName: xattr(n, "filterName"),
+    filterType: xattr(n, "filterType"),
+    comparator1: xattr(n, "comparator1"),
+    value1: xattr(n, "value1"),
+    comparator2: xattr(n, "comparator2"),
+    value2: xattr(n, "value2")
+  };
+}
+function parseFilterTreeChildren(n) {
+  const out = [];
+  for (const andNode of xmany(n.and)) {
+    out.push({ kind: "and", children: parseFilterTreeChildren(andNode) });
+  }
+  for (const orNode of xmany(n.or)) {
+    out.push({ kind: "or", children: parseFilterTreeChildren(orNode) });
+  }
+  for (const filterNode of xmany(n.filter)) {
+    out.push({ kind: "filter", condition: parseFilterCondition(filterNode) });
+  }
+  return out;
+}
+function parseFilterTree(n) {
+  if (!n) return void 0;
+  const children = parseFilterTreeChildren(n);
+  if (children.length === 0) return void 0;
+  if (children.length === 1) return children[0];
+  return { kind: "or", children };
+}
+function parseBadiImplementationEntry(n) {
+  return {
+    name: xattr(n, "name") ?? "",
+    shortText: xattr(n, "shortText"),
+    isExample: xbool(n, "isExample"),
+    isDefault: xbool(n, "isDefault"),
+    isActive: xbool(n, "isActive"),
+    isCustomizingSupported: xbool(n, "isCustomizingSupported"),
+    runtimeBehaviorShorttext: xattr(n, "runtimeBehaviorShorttext"),
+    enhancementSpot: xref(xnode(n.enhancementSpot)),
+    badiDefinition: xref(xnode(n.badiDefinition)),
+    implementingClass: xref(xnode(n.implementingClass)),
+    filterTree: parseFilterTree(xnode(n.filterTree))
+  };
+}
+function parseBadiImplementation(xmlText2) {
+  const parsed = parseXml2(xmlText2, "enhoxh (BAdI implementation)");
+  const root = xnode(parsed.objectData);
+  if (!root) fail("not an ENHO/XH BAdI implementation document (no <enho:objectData> root element)");
+  const common = parseCommon(root);
+  const contentCommon = xnode(root.contentCommon);
+  const contentSpecific = xnode(root.contentSpecific);
+  const badiTech = xnode(contentSpecific?.badiTechnology);
+  const implsNode = xnode(badiTech?.badiImplementations);
+  const implNodes = implsNode ? xmany(implsNode.badiImplementation) : [];
+  return {
+    ...common,
+    toolType: xattr(contentCommon, "toolType"),
+    adjustmentStatus: xattr(contentCommon, "adjustmentStatus"),
+    upgradeFlag: xbool(contentCommon, "upgradeFlag"),
+    implementations: implNodes.map(parseBadiImplementationEntry)
+  };
+}
+function parseUsageRef(n) {
+  return {
+    programId: xattr(n, "program_id"),
+    elementUsage: xattr(n, "element_usage"),
+    upgrade: xbool(n, "upgrade"),
+    automaticTransport: xbool(n, "automatic_transport"),
+    parent: xattr(n, "parent"),
+    objectReference: xref(xnode(n.objectReference)),
+    mainObjectReference: xref(xnode(n.mainObjectReference))
+  };
+}
+function parseEnclosureLink(n) {
+  for (const linkNode of xmany(n.link)) {
+    if (xattr(linkNode, "rel") === "enclosure") return xattr(linkNode, "href");
+  }
+  return void 0;
+}
+function parseHookImplementation(n) {
+  return {
+    id: xattr(n, "id"),
+    spotName: xattr(n, "spotname"),
+    programName: xattr(n, "programname"),
+    overwrite: xattr(n, "overwrite"),
+    method: xattr(n, "method"),
+    enhMode: xattr(n, "enhmode"),
+    fullName: xattr(n, "full_name") ?? xattr(n, "fullname"),
+    fullDescription: xattr(n, "full_description"),
+    enclosureUri: parseEnclosureLink(n)
+  };
+}
+function parseSourceCodePlugin(xmlText2) {
+  const parsed = parseXml2(xmlText2, "enhoxhh (source-code plugin)");
+  const root = xnode(parsed.enhancement);
+  if (!root) fail("not an ENHO/XHH source-code plugin document (no <enho:enhancement> root element)");
+  const common = parseCommon(root);
+  const contentCommon = xnode(root.contentCommon);
+  const switchNode = xnode(contentCommon?.switch);
+  const usagesNode = xnode(contentCommon?.usages);
+  const usageNodes = usagesNode ? xmany(usagesNode.referencedObject) : [];
+  const contentSpecific = xnode(root.contentSpecific);
+  const hookTech = xnode(contentSpecific?.hookTechnology);
+  const hookImplNodes = hookTech ? xmany(hookTech.hookImplementation) : [];
+  return {
+    ...common,
+    sourceUri: xattr(root, "sourceUri"),
+    fixPointArithmetic: xbool(root, "fixPointArithmetic"),
+    activeUnicodeCheck: xbool(root, "activeUnicodeCheck"),
+    toolType: xattr(contentCommon, "toolType"),
+    adjustmentStatus: xattr(contentCommon, "adjustmentStatus"),
+    switchState: xattr(switchNode, "state"),
+    switchReference: xref(xnode(switchNode?.reference)),
+    usages: usageNodes.map(parseUsageRef),
+    enhancedObject: xref(xnode(hookTech?.enhancedObject)),
+    nextId: xattr(hookTech, "nextId"),
+    hookImplementations: hookImplNodes.map(parseHookImplementation)
+  };
+}
+function parseBadiFilterDeclaration(n) {
+  return {
+    filterName: xattr(n, "filterName"),
+    filterType: xattr(n, "filterType"),
+    shorttext: xattr(n, "shorttext"),
+    onlyConstantFilterValues: xbool(n, "onlyConstantFilterValues")
+  };
+}
+function parseBadiDefinitionEntry(n) {
+  const filtersNode = xnode(n.filters);
+  const filterNodes = filtersNode ? xmany(filtersNode.filter) : [];
+  return {
+    name: xattr(n, "name") ?? "",
+    shorttext: xattr(n, "shorttext"),
+    singleUse: xbool(n, "singleUse"),
+    useFallbackClass: xbool(n, "useFallbackClass"),
+    filterLimitation: xbool(n, "filterLimitation"),
+    documentationId: xattr(n, "documentationId"),
+    interfaceRef: xref(xnode(n.interface)),
+    filters: filterNodes.map(parseBadiFilterDeclaration)
+  };
+}
+function parseEnhancementSpot(xmlText2) {
+  const parsed = parseXml2(xmlText2, "enhsxs (enhancement spot)");
+  const root = xnode(parsed.objectData);
+  if (!root) fail("not an ENHS/XS enhancement spot document (no <enhs:objectData> root element)");
+  const common = parseCommon(root);
+  const contentCommon = xnode(root.contentCommon);
+  const contentSpecific = xnode(root.contentSpecific);
+  const badiTech = xnode(contentSpecific?.badiTechnology);
+  const defsNode = xnode(badiTech?.badiDefinitions);
+  const defNodes = defsNode ? xmany(defsNode.badiDefinition) : [];
+  return {
+    ...common,
+    toolType: xattr(contentCommon, "toolType"),
+    internal: xbool(contentCommon, "internal"),
+    badiDefinitions: defNodes.map(parseBadiDefinitionEntry)
+  };
+}
+function escapeXmlAttr4(value) {
+  return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+var ROOT_TAG_RE2 = /^(\s*<\?xml[^>]*\?>\s*)(<[A-Za-z_][\w.-]*:[A-Za-z_][\w.-]*\b)([^>]*?)(\/?)>/;
+function patchEnhancementRootAttribute(xmlText2, attribute, value) {
+  const m = ROOT_TAG_RE2.exec(xmlText2);
+  if (!m) {
+    fail("could not locate a root element to patch (no recognisable opening tag at the start of the document)", {
+      attribute
+    });
+    throw new Error("unreachable \u2014 fail() always throws");
+  }
+  const whole = m[0];
+  const prolog = m[1];
+  const tagOpen = m[2];
+  const attrs = m[3];
+  const selfClose = m[4];
+  const localName2 = tagOpen.replace(/^<[A-Za-z_][\w.-]*:/, "<");
+  if (localName2 !== "<objectData" && localName2 !== "<enhancement") {
+    fail(`unrecognised enhancement document root element "${tagOpen.slice(1)}" \u2014 refusing to patch it`, {
+      attribute,
+      rootTag: tagOpen.slice(1)
+    });
+  }
+  const escaped = escapeXmlAttr4(value);
+  const attrRe = /(?:^|\s)(adtcore:)?description\s*=\s*(?:"[^"]*"|'[^']*')/;
+  const existing = attrRe.exec(attrs);
+  let newAttrs;
+  if (existing) {
+    const prefix = existing[1] ?? "";
+    newAttrs = attrs.slice(0, existing.index) + (existing[0].startsWith(" ") ? " " : "") + `${prefix}${attribute}="${escaped}"` + attrs.slice(existing.index + existing[0].length);
+  } else {
+    newAttrs = `${attrs} adtcore:${attribute}="${escaped}"`;
+  }
+  const newTagOpen = `${prolog}${tagOpen}${newAttrs}${selfClose}>`;
+  return xmlText2.slice(0, m.index) + newTagOpen + xmlText2.slice(m.index + whole.length);
+}
+var ROOT_DESCRIPTION_VALUE_RE = /(?:^|\s)(?:adtcore:)?description\s*=\s*(?:"([^"]*)"|'([^']*)')/;
+function hasEnhancementRootDescription(xmlText2) {
+  const m = ROOT_TAG_RE2.exec(xmlText2);
+  if (!m) return false;
+  const attrs = m[3] ?? "";
+  const valueMatch = ROOT_DESCRIPTION_VALUE_RE.exec(attrs);
+  if (!valueMatch) return false;
+  const raw = valueMatch[1] ?? valueMatch[2] ?? "";
+  return raw.length > 0;
+}
+var BADI_IMPL_TAG_RE = /<enho:badiImplementation\b([^>]*?)(\/?)>/g;
+function escapeRegExp3(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function patchBadiImplementationActive(xmlText2, implName, active) {
+  const nameAttrRe = new RegExp(`(?:^|\\s)enho:name\\s*=\\s*"${escapeRegExp3(escapeXmlAttr4(implName))}"`);
+  BADI_IMPL_TAG_RE.lastIndex = 0;
+  let found;
+  let m;
+  while ((m = BADI_IMPL_TAG_RE.exec(xmlText2)) !== null) {
+    const attrs = m[1] ?? "";
+    if (nameAttrRe.test(attrs)) {
+      found = { full: m[0], attrs, selfClose: m[2] ?? "", index: m.index };
+      break;
+    }
+  }
+  if (!found) {
+    fail(`could not locate a <enho:badiImplementation> entry named "${implName}" to patch`, { implName });
+    throw new Error("unreachable \u2014 fail() always throws");
+  }
+  const valueStr = active ? "true" : "false";
+  const attrRe = /(?:^|\s)(enho:)?isActive\s*=\s*(?:"[^"]*"|'[^']*')/;
+  const existing = attrRe.exec(found.attrs);
+  let newAttrs;
+  if (existing) {
+    const prefix = existing[1] ?? "";
+    newAttrs = found.attrs.slice(0, existing.index) + (existing[0].startsWith(" ") ? " " : "") + `${prefix}isActive="${valueStr}"` + found.attrs.slice(existing.index + existing[0].length);
+  } else {
+    newAttrs = `${found.attrs} enho:isActive="${valueStr}"`;
+  }
+  const newTag = `<enho:badiImplementation${newAttrs}${found.selfClose}>`;
+  return xmlText2.slice(0, found.index) + newTag + xmlText2.slice(found.index + found.full.length);
+}
+
+// src/adt/enhancement.ts
+var ENHOXH_COLLECTION = "/sap/bc/adt/enhancements/enhoxh";
+var ENHOXHH_COLLECTION = "/sap/bc/adt/enhancements/enhoxhh";
+var ENHSXS_COLLECTION = "/sap/bc/adt/enhancements/enhsxs";
+var ENHOXH_ACCEPT = "application/vnd.sap.adt.enh.enho.v1+xml";
+var ENHOXHH_ACCEPT = "application/vnd.sap.adt.enh.enhoxhh.v2+xml";
+var ENHSXS_ACCEPT = "application/vnd.sap.adt.enh.enhs.v1+xml";
+var ENHOXH_TYPE = "ENHO/XH";
+var ENHOXHH_TYPE = "ENHO/XHH";
+var ENHSXS_TYPE = "ENHS/XS";
+function buildEnhancementUri(collection, name) {
+  const trimmedName = name.trim();
+  if (!trimmedName) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "Enhancement object name must not be empty.",
+      { collection },
+      "Pass the object name, e.g. the BAdI implementation's technical name."
+    );
+  }
+  const uri = `${collection}/${encodeURIComponent(trimmedName)}`;
+  if (/\/sap\/bc\/adt\/sap\/bc\/adt\//i.test(uri)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `Refused to build a doubled-prefix enhancement URI: ${uri}`,
+      { collection, name: trimmedName, uri },
+      "This system's /sap/bc/adt/discovery document is known to carry a doubled /sap/bc/adt/sap/bc/adt/ prefix on 29/239 templateLink/@template values, including the entire Enhancements workspace. Resolve the collection path from app:collection/@href, never from templateLink/@template."
+    );
+  }
+  return uri;
+}
+function firstHeader(headers, name) {
+  const lower = name.toLowerCase();
+  for (const k of Object.keys(headers)) {
+    if (k.toLowerCase() === lower) {
+      const v = headers[k];
+      if (Array.isArray(v)) return v.length ? String(v[0]) : void 0;
+      return v === void 0 || v === null ? void 0 : String(v);
+    }
+  }
+  return void 0;
+}
+async function readBadiImplementation(conn, name) {
+  conn.discovery.assertSupported("enhancements", "BAdI implementations (ENHO/XH)");
+  const uri = buildEnhancementUri(ENHOXH_COLLECTION, name);
+  try {
+    const resp = await conn.get(uri, { headers: { Accept: ENHOXH_ACCEPT } });
+    const etag = firstHeader(resp.headers, "etag");
+    return { xml: resp.body, data: parseBadiImplementation(resp.body), ...etag ? { etag } : {} };
+  } catch (e) {
+    if (isAbapError(e)) throw e;
+    throw translateAdtError(e, { operation: "read", uri, name, type: ENHOXH_TYPE });
+  }
+}
+async function readSourceCodePlugin(conn, name) {
+  conn.discovery.assertSupported("enhancements", "source-code plug-ins (ENHO/XHH)");
+  const uri = buildEnhancementUri(ENHOXHH_COLLECTION, name);
+  try {
+    const resp = await conn.get(uri, { headers: { Accept: ENHOXHH_ACCEPT } });
+    const etag = firstHeader(resp.headers, "etag");
+    return { xml: resp.body, data: parseSourceCodePlugin(resp.body), ...etag ? { etag } : {} };
+  } catch (e) {
+    if (isAbapError(e)) throw e;
+    throw translateAdtError(e, { operation: "read", uri, name, type: ENHOXHH_TYPE });
+  }
+}
+async function readEnhancementSpot(conn, name) {
+  conn.discovery.assertSupported("enhancements", "enhancement spots (ENHS/XS)");
+  const uri = buildEnhancementUri(ENHSXS_COLLECTION, name);
+  try {
+    const resp = await conn.get(uri, { headers: { Accept: ENHSXS_ACCEPT } });
+    const etag = firstHeader(resp.headers, "etag");
+    return { xml: resp.body, data: parseEnhancementSpot(resp.body), ...etag ? { etag } : {} };
+  } catch (e) {
+    if (isAbapError(e)) throw e;
+    throw translateAdtError(e, { operation: "read", uri, name, type: ENHSXS_TYPE });
+  }
+}
+
+// src/tools/run.ts
+init_zod();
+init_errors();
+init_compact();
+var runRangeSchema = external_exports.object({
+  sign: external_exports.enum(["I", "E"]).optional(),
+  option: external_exports.enum(["EQ", "NE", "GT", "LT", "GE", "LE", "CP", "NP", "BT", "NB"]).optional(),
+  low: external_exports.string(),
+  high: external_exports.string().optional()
+});
+var runParameterSchema = external_exports.object({
+  name: external_exports.string(),
+  type: external_exports.enum(["char", "int", "packed", "date"]).optional(),
+  value: external_exports.string().optional(),
+  ranges: external_exports.array(runRangeSchema).optional().describe("SELECT-OPTIONS rows; must be non-empty.")
+});
+var runInputSchema = {
+  object: external_exports.string().describe("Class or report to execute."),
+  mode: external_exports.enum(["class", "report", "auto"]).optional().describe("Default auto."),
+  // Report mode only: fills PARAMETERS/SELECT-OPTIONS — see ../adt/run-parameters.ts.
+  parameters: external_exports.array(runParameterSchema).optional()
+};
+var RunInput = external_exports.object(runInputSchema);
+async function abapRun(conn, input, maxChars, gate) {
+  const requested = input.mode ?? "auto";
+  const obj = await resolveObject(conn, input.object);
+  let mode;
+  if (requested === "auto") {
+    if (obj.kind === "CLAS") mode = "class";
+    else if (obj.kind === "PROG") mode = "report";
+    else {
+      throw new AbapError(
+        "UNSUPPORTED",
+        `${obj.type} ${obj.name} is not executable: only classes implementing IF_OO_ADT_CLASSRUN and reports (PROG) can be run.`,
+        { object: obj.name, type: obj.type },
+        "Wrap the logic in a small IF_OO_ADT_CLASSRUN class and run that."
+      );
+    }
+  } else {
+    if (requested === "class" && obj.kind !== "CLAS") {
+      throw new AbapError(
+        "BAD_INPUT",
+        `mode "class" was requested for ${obj.name}, but it resolved to ${obj.type} (kind ${obj.kind}), not a class.`,
+        { object: obj.name, requestedMode: requested, resolvedType: obj.type, resolvedKind: obj.kind },
+        'Use mode "report" (or omit mode / use "auto") for PROG objects.'
+      );
+    }
+    if (requested === "report" && obj.kind !== "PROG") {
+      throw new AbapError(
+        "BAD_INPUT",
+        `mode "report" was requested for ${obj.name}, but it resolved to ${obj.type} (kind ${obj.kind}), not a report.`,
+        { object: obj.name, requestedMode: requested, resolvedType: obj.type, resolvedKind: obj.kind },
+        'Use mode "class" (or omit mode / use "auto") for CLAS objects.'
+      );
+    }
+    mode = requested;
+  }
+  const parameters = input.parameters ?? [];
+  if (parameters.length > 0 && mode !== "report") {
+    throw new AbapError(
+      "BAD_INPUT",
+      `"parameters" was supplied but mode is "${mode}", not "report" \u2014 selection-screen values only apply to classic reports.`,
+      { object: obj.name, mode }
+    );
+  }
+  const executeAuthorization = gate.authorize("execute", {
+    name: obj.name,
+    packageName: obj.packageName,
+    type: obj.type
+  });
+  let res;
+  if (mode === "class") {
+    res = await runClass(conn, executeAuthorization.target.name);
+  } else {
+    gate.assert("write", {
+      name: bridgeClassName(obj.name),
+      packageName: FLUID_PACKAGE,
+      type: "CLAS/OC"
+    });
+    res = await runReport(conn, obj.name, gate, parameters);
+  }
+  const notes = [];
+  if (res.mode === "report") {
+    notes.push(
+      `Output was captured through a generated IF_OO_ADT_CLASSRUN bridge class (${res.bridgeClass ?? "n/a"}) that SUBMITs the report EXPORTING LIST TO MEMORY` + (parameters.length > 0 ? ` WITH SELECTION-TABLE (${parameters.length} field(s) supplied \u2014 see "parameters").` : `. PARAMETERS/SELECT-OPTIONS values can be supplied via the "parameters" input; omitted fields run with the report's own defaults.`) + " The bridge is a real object created in the write allowlist."
+    );
+    notes.push(
+      'Interactive rendering (an ALV grid/list DISPLAY(), classic interactive list events, or any other dynpro) is NOT supported and cannot be made to work over this execution surface: classrun is headless (no window system), and calling e.g. CL_SALV_TABLE->DISPLAY() here raises CX_SY_SEND_DYNPRO_NO_RECEIVER ("No window system type specified") \u2014 confirmed live, not a guess. To verify such logic, run headless and inspect the underlying data (the internal table/data provider) instead of calling DISPLAY(), or add a WRITE-based fallback path for use under this tool.'
+    );
+    if (parameters.length > 0) {
+      try {
+        const src = await readSource(conn, obj);
+        const parsed = parseSelectionScreen(src.source);
+        notes.push(...selectionScreenNotes(parsed, parameters));
+      } catch (e) {
+        notes.push(
+          `Selection-screen source could not be re-read for cross-checking parameter names (${isAbapError(e) ? e.message : "unexpected error"}) \u2014 the run itself was not affected.`
+        );
+      }
+    }
+  }
+  let activation;
+  try {
+    activation = await checkActivation(conn, obj);
+  } catch {
+    activation = "unknown";
+  }
+  notes.push(
+    activation === "active-is-current" ? "Executed in a fresh session, so the code that ran is the code currently active \u2014 not a cached copy." : activation === "newer-inactive-exists" ? "Executed in a fresh session, but a NEWER INACTIVE version exists on the server: what ran is the older ACTIVE code, not your latest edit." : "Executed in a fresh session (no cached copy). Whether the active version is the newest was NOT checked."
+  );
+  if (res.mode === "report" && res.bridgeActivationVerified !== true) {
+    notes.push(
+      "Additionally, activation of the generated bridge class itself was NOT positively verified before it ran \u2014 a separate concern from the target object's activation state noted above."
+    );
+  }
+  const hasDiagnostics = Boolean(res.diagnostics?.length);
+  if (hasDiagnostics) {
+    notes.push(
+      `The ABAP bridge driver reported ${res.diagnostics.length} diagnostic line(s) \u2014 see the DIAGNOSTICS section below. This usually means the capture step itself failed (e.g. no list in ABAP memory), NOT merely that the report printed nothing.`
+    );
+  }
+  const droppedLines = res.droppedLines ?? 0;
+  if (droppedLines > 0) {
+    notes.push(
+      `${droppedLines} line(s) of captured output were dropped and are not shown below.`
+    );
+  }
+  if (res.outputComplete === false) {
+    notes.push(
+      "ABAP-side width truncation was detected: one or more output lines may have been cut short by the classic list width before this tool ever saw them. The output below is not guaranteed complete."
+    );
+  }
+  const genuinelyEmpty = res.lines === 0 && droppedLines === 0 && !hasDiagnostics;
+  const body = res.output.trim() ? res.output : genuinelyEmpty ? "(no output)" : "(nothing shown here \u2014 but this run is NOT confirmed empty: see the NOTE(s) above about diagnostics, dropped lines, and/or incomplete output. Do not read this as a clean, silent, successful run.)";
+  return buildResponse({
+    header: {
+      system: conn.cfg.sid,
+      object: `${obj.type} ${obj.name}`,
+      mode: res.mode,
+      lines: res.lines,
+      durationMs: res.durationMs,
+      bridgeClass: res.bridgeClass,
+      bridgeRefreshed: res.bridgeRefreshed,
+      droppedLines: droppedLines > 0 ? droppedLines : void 0,
+      outputComplete: res.outputComplete === false ? false : void 0
+    },
+    sections: hasDiagnostics ? [{ title: "DIAGNOSTICS", content: res.diagnostics.join("\n") }] : void 0,
+    body,
+    bodyLabel: "OUTPUT",
+    notes,
+    hints: ["Have the code print less, or filter inside ABAP, if the output is truncated."],
+    maxChars
+  });
+}
+var ok3 = (text3) => ({ content: [{ type: "text", text: text3 }] });
+function registerRunTools(mcp, deps) {
+  mcp.registerTool(
+    "abap_run",
+    {
+      description: "Execute an IF_OO_ADT_CLASSRUN class or report; returns output. `parameters` (report mode) fills PARAMETERS/SELECT-OPTIONS. Headless \u2014 no interactive list/ALV grid. Executed ABAP runs with the connected user's full SAP authorisations and is not constrained by this server's package, name or transport allowlists.",
+      inputSchema: runInputSchema,
+      annotations: { readOnlyHint: false, destructiveHint: true }
+    },
+    async (args) => {
+      try {
+        deps.safety.assert("execute", preflight(args), { phase: "preflight" });
+        await deps.ensureConnected();
+        const res = await deps.pool.withWrite(
+          "abap_run",
+          void 0,
+          (conn) => abapRun(conn, args, deps.cfg.maxResponseChars, deps.safety)
+        );
+        return ok3(res.text);
+      } catch (e) {
+        return deps.errorResult(e);
+      }
+    }
+  );
+}
+
+// src/tools/debug.ts
+function createLiveDebugToolDeps(params) {
+  const armLock = createDebugArmLock({
+    stateDir: resolveStateDir(process.env),
+    cfg: params.cfg,
+    enabled: params.cfg.crossProcessDebugLock,
+    waitMs: params.cfg.debugLockWaitMs
+  });
+  return {
+    createSession(conn, safety, opts) {
+      const client = createDebugClientForConnection(conn, {
+        safety,
+        target: opts?.target
+      });
+      const identity = resolveDebugIdentity(params.cfg);
+      warnIfDerivedIdentity(identity, opts?.log ?? params.log);
+      const sessionOpts = {
+        client,
+        context: {
+          debuggingMode: "user",
+          requestUser: params.cfg.user,
+          terminalId: identity.terminalId,
+          ideId: identity.ideId
+        },
+        log: opts?.log ?? params.log,
+        sessionLease: opts?.sessionLease,
+        armLock
+      };
+      return new DebugSession(sessionOpts);
+    },
+    async createTriggerConnection() {
+      const c = params.pool.createUnpooledConnection("debug-trigger");
+      await c.connect();
+      c.dispose();
+      return c;
+    },
+    resolveObject(conn, ref2) {
+      return resolveObject(conn, ref2);
+    },
+    triggerRun(conn, input, maxChars, gate) {
+      return abapRun(conn, input, maxChars, gate);
+    },
+    log: params.log,
+    reserveDebugSession: (op) => params.pool.reserveDebug(op),
+    allowJumpToLine: params.cfg.allowDebugJumpToLine,
+    async releaseOrphanListener(conn) {
+      const identity = resolveDebugIdentity(params.cfg);
+      const client = createDebugClientForConnection(conn, { safety: params.gate });
+      const context = {
+        debuggingMode: "user",
+        requestUser: params.cfg.user,
+        terminalId: identity.terminalId,
+        ideId: identity.ideId
+      };
+      const probe3 = await client.getListener(context);
+      if (probe3.kind === "absent") return { kind: "absent" };
+      if (probe3.kind === "conflict") {
+        return { kind: "conflict", detail: probe3.conflict.conflictText };
+      }
+      await client.stopListener(context);
+      return { kind: "released" };
+    },
+    async releaseOrphanDebuggee(conn) {
+      const client = createDebugClientForConnection(conn, { safety: params.gate });
+      const identity = resolveDebugIdentity(params.cfg);
+      const probe3 = new DebugSession({
+        client,
+        context: {
+          debuggingMode: "user",
+          requestUser: params.cfg.user,
+          terminalId: identity.terminalId,
+          ideId: identity.ideId
+        },
+        log: params.log,
+        listenerTimeoutSeconds: 5,
+        registrationPollTimeoutMs: 3e3,
+        // The probe arms a REAL listener at this identity, so it contends for
+        // the same debugger slot and must take the same lock — a no-op if
+        // THIS process already holds it, a refusal if another one does.
+        armLock
+      });
+      try {
+        await probe3.armListener();
+        const caught = await probe3.waitForDebuggee();
+        if (caught.kind !== "debuggee") {
+          return { kind: "absent" };
+        }
+        await probe3.attach(caught.debuggee.id);
+        await probe3.terminate("terminated_by_caller", "force-cleared orphaned debuggee (abap_debug stop force:true)");
+        return { kind: "released" };
+      } catch (e) {
+        try {
+          await probe3.terminate("terminated_by_caller", "cleanup after failed orphan-debuggee force-clear");
+        } catch {
+        }
+        if (isAbapError(e) && e.code === "NOT_CONNECTED") {
+          return { kind: "absent" };
+        }
+        return { kind: "unknown", detail: describeUnknownError(e) };
+      }
+    }
+  };
+}
+var currentRun;
+function assertDebugWrite(gate, target, phase = "final") {
+  return gate.authorize("execute", target, { phase });
+}
+function assertSessionWrite(gate, run2) {
+  return assertDebugWrite(gate, run2.gateTarget.target, run2.gateTarget.phase);
+}
+function shutdownDebugTools() {
+  const run2 = currentRun;
+  currentRun = void 0;
+  run2?.closeTriggerConn();
+}
+var TIMED_OUT = /* @__PURE__ */ Symbol("debug.timed-out");
+function raceDeadline(p, ms) {
+  let timer;
+  const deadline2 = new Promise((resolve5) => {
+    timer = setTimeout(() => resolve5(TIMED_OUT), ms);
+    if (typeof timer.unref === "function") timer.unref();
+  });
+  return Promise.race([p, deadline2]).finally(() => {
+    if (timer !== void 0) clearTimeout(timer);
+  });
+}
+var START_FAILURE_TRIGGER_WAIT_MS = 2e3;
+var START_FAILURE_CLEANUP_WAIT_MS = 5e3;
+var STOP_WAIT_MS = 5e3;
+var FORCE_CLEAR_WAIT_MS = 15e3;
+function makeTriggerConnCloser(triggerConn, log2) {
+  let closed = false;
+  return () => {
+    if (closed) return;
+    closed = true;
+    try {
+      void triggerConn.shutdown("debug-trigger-done").catch((e) => {
+        log2?.(`abap_debug: trigger connection shutdown failed: ${describeUnknownError(e)}`);
+      }).finally(() => triggerConn.dispose());
+    } catch (e) {
+      log2?.(`abap_debug: trigger connection shutdown threw: ${describeUnknownError(e)}`);
+      triggerConn.dispose();
+    }
+  };
+}
+function renderTriggerOutcome(settled, waitedMs) {
+  if (settled === TIMED_OUT) {
+    return `(the trigger run had NOT returned after ${waitedMs} ms, so no program output is available \u2014 it may still be blocked inside the debuggee)`;
+  }
+  return settled.ok ? settled.text : `(trigger did not complete normally: ${settled.error})`;
+}
+function triggerOutcomeHeader(settled) {
+  if (settled === TIMED_OUT) return "trigger_not_returned";
+  if (settled.ok) return "ran_to_completion";
+  return settled.code === "RUNTIME_DUMP" ? "short_dumped" : "trigger_failed";
+}
+function clampMaxChars(maxChars) {
+  return Math.min(maxChars, DEBUG_MAX_CHARS);
+}
+var breakpointConditionFields = {
+  condition: external_exports.string().trim().min(1).max(255).optional(),
+  skipCount: external_exports.number().int().nonnegative().max(1e6).optional()
+};
+var lineBreakpointSchema = external_exports.object({
+  ...breakpointConditionFields,
+  kind: external_exports.literal("line"),
+  object: external_exports.string().describe("Class or report to break in \u2014 any form abap_read/abap_run accept."),
+  line: external_exports.number().int().min(1).max(999999).describe(
+    "1-based; SAP may snap it to the nearest executable statement (the start response reports the correction)."
+  )
+});
+var exceptionBreakpointSchema = external_exports.object({
+  ...breakpointConditionFields,
+  kind: external_exports.literal("exception"),
+  exceptionClass: external_exports.string().describe("Exception class to break on, e.g. CX_SY_ZERODIVIDE.")
+});
+var debugInputSchema = {
+  action: external_exports.enum(["start", "step", "stack", "frame", "keepalive", "stop", "status"]).describe(
+    "start needs breakpoints+run. step needs stateId+step. stack needs stateId. frame needs stateId+frame. keepalive/stop/status need nothing."
+  ),
+  breakpoints: external_exports.array(external_exports.discriminatedUnion("kind", [lineBreakpointSchema, exceptionBreakpointSchema])).optional().describe(
+    '\u22651 entry, required for action="start"; kinds may mix and are validated against SAP before arming. Both kinds take optional condition (ABAP expression, suspend only when true) and skipCount (sent to SAP, NOT enforced \u2014 use step:"continue").'
+  ),
+  run: external_exports.object({
+    object: external_exports.string().describe("Class or report to execute \u2014 same resolution rules as abap_run."),
+    mode: external_exports.enum(["class", "report", "auto"]).optional().describe("Default auto.")
+  }).optional().describe(
+    'The program to trigger (action="start").'
+  ),
+  step: external_exports.enum(["into", "over", "return", "continue", "runToLine", "jumpToLine"]).optional().describe(
+    'continue may end the session (status="dead" plus captured output). runToLine/jumpToLine need toLine; jumpToLine also needs server ABAP_ALLOW_DEBUG_JUMP_TO_LINE=true and confirm:"jumpToLine".'
+  ),
+  toLine: external_exports.number().int().min(1).max(999999).optional().describe(
+    `Required for step="runToLine"/"jumpToLine". 1-based line in the current frame's source.`
+  ),
+  stateId: external_exports.string().optional().describe(
+    "From the most recent start/step/stack/frame response; a stale id is refused."
+  ),
+  frame: external_exports.number().int().min(1).describe(
+    "1-based stackPosition from the last STACK section. Read-only."
+  ).optional(),
+  confirm: external_exports.string().optional().describe(
+    'Required for step="jumpToLine": echo "jumpToLine". Ignored otherwise.'
+  ),
+  // "Uncleanly-exited process" = crash/kill-9/container respawn; NOT
+  // automatic (unlike listener release) because terminating a SUSPENDED
+  // debuggee ends real work; identity-scoped so it can only reach a debuggee
+  // this server armed. See `releaseOrphanDebuggee` above; full prose moved to
+  // doc/TOOLS/debugger.md.
+  force: external_exports.boolean().optional().describe(
+    `stop only \u2014 force-terminates a debuggee left attached by an unclean exit (the "Debuggee already attached" error's escape hatch).`
+  )
+};
+var DebugInput = external_exports.object(debugInputSchema);
+function stepKindOf(step) {
+  switch (step) {
+    case "into":
+      return "stepInto";
+    case "over":
+      return "stepOver";
+    case "return":
+      return "stepReturn";
+    case "continue":
+      return "stepContinue";
+    case "runToLine":
+      return "stepRunToLine";
+    case "jumpToLine":
+      return "stepJumpToLine";
+  }
+}
+var LINE_TARGETED_STEPS = /* @__PURE__ */ new Set([
+  "stepRunToLine",
+  "stepJumpToLine"
+]);
+function lineStepUri(stack, toLine) {
+  const frame = stack?.frames.find((f) => !f.systemProgram && f.uri) ?? stack?.frames.find((f) => f.uri);
+  if (!frame?.uri) {
+    throw new AbapError(
+      "UNSUPPORTED",
+      `step:"runToLine"/"jumpToLine" needs the current frame's source URI, and the last stack reported none (system frames often have no resolvable source). Use step:"over"/"into" instead, or set a line breakpoint and step:"continue" to it.`,
+      { toLine }
+    );
+  }
+  return withStartFragment(frame.uri.split("#")[0], toLine);
+}
+async function composeStopOutput(run2, action, stack, stateId, maxChars, extraNotes = []) {
+  const root = await run2.session.getRootVariables(stateId);
+  const entries = root.variables.variables.map((variable) => ({ variable }));
+  const survey = renderSurvey(entries, { maxChars: DEBUG_MAX_CHARS, stateId });
+  const stackText = renderStackSection(stack, stateId);
+  const visibleFrames = stack.frames.filter((f) => !f.systemProgram);
+  const top = visibleFrames[0] ?? stack.frames[0];
+  return buildResponse({
+    header: {
+      action,
+      status: run2.session.snapshot.status,
+      program: top?.programName,
+      include: top?.includeName,
+      line: top?.line,
+      stateId
+    },
+    sections: [{ title: "STACK", content: stackText }],
+    body: survey.text,
+    bodyLabel: "VARIABLES",
+    notes: [
+      ...extraNotes,
+      ...survey.degraded.length ? [`${survey.degraded.length} value(s) shortened to fit budget \u2014 each still names its own retrieval call.`] : []
+    ],
+    maxChars: clampMaxChars(maxChars)
+  });
+}
+function isGenericFallbackEvidence(tr) {
+  if (!tr) return false;
+  if (tr.kind !== "exception" && tr.kind !== "session_ended") return false;
+  return tr.bodyExcerpt !== void 0 && tr.bodyExcerpt === tr.detail;
+}
+function renderTerminationEvidence(tr) {
+  if (!tr) return [];
+  const showBodyExcerpt = !isGenericFallbackEvidence(tr);
+  switch (tr.kind) {
+    case "exception":
+      return [
+        `Termination evidence: the debuggee ended via an ABAP exception \u2014 ${tr.exceptionClassNames.join(", ")}.` + (tr.bodyExcerpt && showBodyExcerpt ? ` Raw evidence: ${tr.bodyExcerpt}` : "")
+      ];
+    case "session_ended":
+      return [
+        "Termination evidence: the debug session ended (SAP reported the session/debuggee is gone), but the response carried no exception class name \u2014 this is NOT confirmed to be an exception; it is only confirmed to be a session-gone condition." + (tr.bodyExcerpt && showBodyExcerpt ? ` Raw evidence: ${tr.bodyExcerpt}` : "")
+      ];
+    case "idle_timeout":
+      return [`Termination evidence: idle timeout \u2014 no debugger activity for ${tr.thresholdMs}ms.`];
+    case "terminated_by_caller":
+      return [`Termination evidence: stopped by explicit caller request (abap_debug action:"stop").`];
+    case "finished":
+      return [
+        "Termination evidence: the debuggee itself reported stepping/termination as no longer possible (a clean finish \u2014 no exception, no timeout, no caller-requested stop)."
+      ];
+  }
+}
+async function composeDeathOutput(run2, action, maxChars, cause) {
+  const settled = await raceDeadline(run2.triggerSettled, STOP_WAIT_MS);
+  const outputSection = {
+    title: "PROGRAM OUTPUT",
+    content: renderTriggerOutcome(settled, STOP_WAIT_MS)
+  };
+  run2.closeTriggerConn();
+  const snapshot = run2.session.snapshot;
+  const showDeathDetail = !isGenericFallbackEvidence(snapshot.terminationResult);
+  const notes = [
+    showDeathDetail ? snapshot.deathDetail : void 0,
+    snapshot.deathDetail === void 0 && cause instanceof Error ? cause.message : void 0,
+    ...renderTerminationEvidence(snapshot.terminationResult)
+  ].filter((n) => Boolean(n));
+  if (settled === TIMED_OUT) {
+    notes.push("Program output is incomplete: the trigger run had not returned when the wait expired.");
+  }
+  const triggerOutcome = triggerOutcomeHeader(settled);
+  if (triggerOutcome === "short_dumped" || triggerOutcome === "trigger_failed") {
+    notes.push(
+      `triggerOutcome ("${triggerOutcome}") comes from the trigger run used to reach the breakpoint, not from the debug session's own termination evidence above \u2014 the two are independent signals and can disagree. See PROGRAM OUTPUT for the trigger run's own error text.`
+    );
+  }
+  return buildResponse({
+    header: {
+      action,
+      status: snapshot.status,
+      deathReason: snapshot.deathReason,
+      terminationKind: snapshot.terminationResult?.kind,
+      triggerOutcome
+    },
+    sections: [outputSection],
+    notes,
+    maxChars: clampMaxChars(maxChars)
+  });
+}
+var ENHANCEMENT_DEBUG_TYPES = /* @__PURE__ */ new Set(["ENHO/XH", "ENHO/XHH", "ENHS/XS"]);
+async function refuseEnhancementDebugTarget(conn, bpObject, resolved) {
+  const name = resolved.name;
+  let advice;
+  switch (resolved.type) {
+    case "ENHO/XH": {
+      let classNames = [];
+      try {
+        const doc = await readBadiImplementation(conn, name);
+        classNames = doc.data.implementations.map((impl) => impl.implementingClass?.name).filter((n) => Boolean(n));
+      } catch {
+      }
+      advice = classNames.length > 0 ? `Set the breakpoint in its implementing class instead: ${classNames.join(", ")}.` : "Set the breakpoint in its implementing class instead \u2014 read this BAdI implementation with abap_read to find the class name.";
+      break;
+    }
+    case "ENHO/XHH": {
+      let enhancedObject;
+      try {
+        const doc = await readSourceCodePlugin(conn, name);
+        enhancedObject = doc.data.enhancedObject?.name;
+      } catch {
+      }
+      advice = enhancedObject ? `Set the breakpoint in the object it enhances instead: ${enhancedObject}.` : "Set the breakpoint in the object it enhances instead \u2014 read this enhancement plug-in with abap_read to find that object.";
+      break;
+    }
+    case "ENHS/XS": {
+      let badiNames = [];
+      try {
+        const doc = await readEnhancementSpot(conn, name);
+        badiNames = doc.data.badiDefinitions.map((d) => d.name).filter(Boolean);
+      } catch {
+      }
+      advice = badiNames.length > 0 ? `Set the breakpoint in an implementation of one of its BAdI definitions instead: ${badiNames.join(", ")}.` : "Set the breakpoint in an implementation of one of its BAdI definitions instead \u2014 read this enhancement spot with abap_read to find them.";
+      break;
+    }
+    default:
+      advice = "Set the breakpoint in its implementation instead.";
+  }
+  throw new AbapError(
+    "UNSUPPORTED",
+    `${bpObject} is ${resolved.spec.label} (${resolved.type}), which has no debuggable source of its own. ${advice}`,
+    { object: bpObject, type: resolved.type }
+  );
+}
+async function handleStart(conn, input, maxChars, deps, gate) {
+  const live = listActiveDebugSessions();
+  if (live.length > 0) {
+    const status = live[0].snapshot.status;
+    const tracked = currentRun !== void 0 && live.includes(currentRun.session);
+    throw new AbapError(
+      "UNSUPPORTED",
+      tracked ? `A debug session is already "${status}" (one session per process) \u2014 stop it first: abap_debug({action:"stop"}).` : `A debug session from an earlier, unsuccessful start attempt is still registered (status "${status}") even though it never became this process's active session (one session per process) \u2014 clear it first: abap_debug({action:"stop"}); if that reports the cleanup is still running, retry, or use abap_debug({action:"stop", force:true}) to force it out of tracking.`,
+      { status, tracked },
+      void 0,
+      { retryable: true }
+      // transient occupancy, not an unimplemented capability — a stop clears it
+    );
+  }
+  if (!input.breakpoints || input.breakpoints.length === 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      'abap_debug({action:"start"}) requires a non-empty "breakpoints" array.',
+      {}
+    );
+  }
+  if (!input.run) {
+    throw new AbapError(
+      "BAD_INPUT",
+      'abap_debug({action:"start"}) requires a "run" object naming the program to trigger.',
+      {}
+    );
+  }
+  const runTarget = { name: parseObjectRef(input.run.object).name };
+  assertDebugWrite(gate, runTarget, "preflight");
+  const sessionTarget = { ...runTarget };
+  let gateTarget = { target: sessionTarget, phase: "preflight" };
+  const slot = await deps.reserveDebugSession?.("debugger/listeners");
+  let session;
+  try {
+    session = deps.createSession(slot?.conn ?? conn, gate, {
+      target: sessionTarget,
+      sessionLease: slot
+    });
+  } catch (e) {
+    slot?.release();
+    throw e;
+  }
+  let attachedStack;
+  let attachedStateId;
+  let triggerConn;
+  let triggerSettled;
+  const skipCountWarnings = [];
+  let closeTriggerConn = () => {
+  };
+  try {
+    const resolvedCache = /* @__PURE__ */ new Map();
+    const breakpoints = [];
+    for (const bp of input.breakpoints) {
+      if (bp.skipCount !== void 0 && bp.skipCount > 0) {
+        const where2 = bp.kind === "line" ? `${bp.object}:${bp.line}` : bp.exceptionClass;
+        skipCountWarnings.push(
+          `skipCount:${bp.skipCount} on ${where2} was sent to SAP but is NOT enforced by this ADT debugger backend (live-verified on A4H) \u2014 expect a suspend on EVERY hit, not just the Nth. Use abap_debug({action:"step", step:"continue"}) to advance past hits you want to skip.`
+        );
+      }
+      if (bp.kind === "line") {
+        const key = bp.object.toUpperCase();
+        let resolved = resolvedCache.get(key);
+        if (!resolved) {
+          try {
+            resolved = await deps.resolveObject(conn, bp.object);
+          } catch (e) {
+            if (e instanceof AbapError && e.code === "UNSUPPORTED" && Array.isArray(e.details.types) && e.details.types.includes("BOBF")) {
+              throw new AbapError(
+                "UNSUPPORTED",
+                `${bp.object} is a BOPF business object, which has no source. Set the breakpoint in its implementation class instead.`,
+                { object: bp.object },
+                'Run abap_bopf mode:"show" to list them.'
+              );
+            }
+            throw e;
+          }
+          resolvedCache.set(key, resolved);
+        }
+        if (ENHANCEMENT_DEBUG_TYPES.has(resolved.type)) {
+          await refuseEnhancementDebugTarget(conn, bp.object, resolved);
+        }
+        const baseUri = resolved.sourceUri ?? resolved.uri;
+        if (!baseUri) {
+          throw new AbapError(
+            "UNSUPPORTED",
+            `${bp.object} has no source URI to attach a line breakpoint to.`,
+            { object: bp.object }
+          );
+        }
+        const bpTarget = {
+          name: resolved.name,
+          packageName: resolved.packageName,
+          type: resolved.type
+        };
+        assertDebugWrite(gate, bpTarget);
+        if (gateTarget.phase === "preflight") {
+          Object.assign(sessionTarget, bpTarget);
+          gateTarget = { target: sessionTarget, phase: "final" };
+        }
+        breakpoints.push({
+          kind: "line",
+          uri: `${baseUri}#start=${bp.line}`,
+          // D5: forward what the caller asked for instead of dropping it.
+          ...bp.condition !== void 0 ? { condition: bp.condition } : {},
+          ...bp.skipCount !== void 0 ? { skipCount: bp.skipCount } : {}
+        });
+      } else {
+        breakpoints.push({
+          kind: "exception",
+          exceptionClass: bp.exceptionClass,
+          ...bp.condition !== void 0 ? { condition: bp.condition } : {},
+          ...bp.skipCount !== void 0 ? { skipCount: bp.skipCount } : {}
+        });
+      }
+    }
+    await session.prepareBreakpoints(breakpoints);
+    await session.armListener();
+    triggerConn = await deps.createTriggerConnection();
+    closeTriggerConn = makeTriggerConnCloser(triggerConn, deps.log);
+    triggerSettled = deps.triggerRun(triggerConn, input.run, maxChars, gate).then(
+      (res) => ({ ok: true, text: res.text }),
+      // Preserve the structured AbapError.code alongside the flattened
+      // message — see `DebugTriggerOutcome`'s doc comment.
+      (e) => ({ ok: false, error: describeUnknownError(e), code: isAbapError(e) ? e.code : void 0 })
+    );
+    void triggerSettled.finally(closeTriggerConn).catch(() => {
+    });
+    const listenResult = await session.waitForDebuggee();
+    if (listenResult.kind !== "debuggee") {
+      if (listenResult.kind === "conflict") {
+        throw new AbapError(
+          "ADT_ERROR",
+          `abap_debug start: another listener already holds this session (${listenResult.conflict.conflictText}${listenResult.conflict.ideUser ? `, ideUser=${listenResult.conflict.ideUser}` : ""}).`,
+          { conflict: listenResult.conflict },
+          "Retrying will not clear this: a 409 here means a DIFFERENT (terminalId, ideId) identity already holds the global-scope listener for this SAP user. Stop that listener, or give this process a stable ABAP_TERMINAL_ID/ABAP_IDE_ID pair that matches it."
+        );
+      }
+      throw new AbapError(
+        "ADT_ERROR",
+        `abap_debug start: timed out waiting for the debuggee to hit a breakpoint (kind="${listenResult.kind}").`,
+        { kind: listenResult.kind }
+      );
+    }
+    const attached = await session.attach(listenResult.debuggee.id);
+    attachedStack = attached.stack;
+    attachedStateId = attached.stateId;
+  } catch (e) {
+    await raceDeadline(
+      session.cleanup().catch(() => void 0),
+      START_FAILURE_CLEANUP_WAIT_MS
+    );
+    let triggerNote;
+    if (triggerSettled) {
+      const settled = await raceDeadline(triggerSettled, START_FAILURE_TRIGGER_WAIT_MS);
+      if (settled === TIMED_OUT) {
+        triggerNote = `The trigger run had NOT returned after ${START_FAILURE_TRIGGER_WAIT_MS} ms, so no program output is available to explain this.`;
+      } else if (!settled.ok) {
+        triggerNote = `The trigger run itself failed: ${settled.error}`;
+      } else {
+        const text3 = settled.text.trim();
+        triggerNote = text3 ? `PROGRAM OUTPUT from the trigger run:
+${text3}` : "The trigger run completed and produced no output.";
+      }
+    }
+    closeTriggerConn();
+    if (triggerNote) {
+      if (e instanceof Error) {
+        e.message = `${e.message}
+
+${triggerNote}`;
+        throw e;
+      }
+      throw new AbapError("ADT_ERROR", `${describeUnknownError(e)}
+
+${triggerNote}`, {});
+    }
+    throw e;
+  }
+  currentRun = {
+    session,
+    triggerConn,
+    triggerSettled,
+    closeTriggerConn,
+    gateTarget,
+    lastStack: attachedStack
+  };
+  return await composeStopOutput(currentRun, "start", attachedStack, attachedStateId, maxChars, skipCountWarnings);
+}
+async function handleStep(input, maxChars, gate, deps) {
+  if (!currentRun) {
+    throw new AbapError(
+      "BAD_INPUT",
+      'No active debug session. Start one with abap_debug({action:"start", ...}).'
+    );
+  }
+  if (!input.stateId) {
+    throw new AbapError("BAD_INPUT", 'abap_debug({action:"step"}) requires "stateId".');
+  }
+  if (!input.step) {
+    throw new AbapError("BAD_INPUT", 'abap_debug({action:"step"}) requires "step".');
+  }
+  const run2 = currentRun;
+  assertSessionWrite(gate, run2);
+  const kind = stepKindOf(input.step);
+  if (kind === "stepJumpToLine") {
+    if (deps.allowJumpToLine !== true) {
+      throw new AbapError(
+        "DEBUG_JUMP_DISABLED",
+        'step:"jumpToLine" is disabled on this server. Set ABAP_ALLOW_DEBUG_JUMP_TO_LINE=true to enable it \u2014 this is deliberately separate from ABAP_ALLOW_WRITE, because jumpToLine can skip statements (and any authorization/validation checks they would have run) instead of executing them in order. Use step:"runToLine" instead if the code in between is safe to run.',
+        { step: input.step }
+      );
+    }
+    if (input.confirm !== "jumpToLine") {
+      throw new AbapError(
+        "BAD_INPUT",
+        'step:"jumpToLine" requires confirm:"jumpToLine" on the SAME call, even though ABAP_ALLOW_DEBUG_JUMP_TO_LINE is enabled \u2014 this step can skip code (and any checks it would have run) rather than executing it in order. Reissue the call with confirm:"jumpToLine" once you are sure this is the right target line.',
+        { step: input.step }
+      );
+    }
+  }
+  let uri;
+  if (LINE_TARGETED_STEPS.has(kind)) {
+    if (input.toLine === void 0) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `abap_debug({action:"step", step:"${input.step}"}) requires "toLine" \u2014 the line in the current program to run to. Without it there is no target and the step would be a no-op.`,
+        { step: input.step }
+      );
+    }
+    uri = lineStepUri(run2.lastStack, input.toLine);
+  }
+  let result;
+  try {
+    result = await run2.session.step(input.stateId, kind, uri);
+  } catch (e) {
+    if (run2.session.snapshot.status === "dead") {
+      const out = await composeDeathOutput(run2, "step", maxChars, e);
+      currentRun = void 0;
+      return out;
+    }
+    throw e;
+  }
+  if (run2.session.snapshot.status === "dead") {
+    const out = await composeDeathOutput(run2, "step", maxChars);
+    currentRun = void 0;
+    return out;
+  }
+  run2.lastStack = result.stack;
+  const revisitNotes = result.positionVisitCount > 1 ? [
+    `Position revisited: this exact program/line/stack-level has now been reached ${result.positionVisitCount} times by stepping in this session. If you are stepping through a loop body, "step over"/"step into" can under-report how many iterations actually ran between visits \u2014 this only proves you returned to this line, not how many times the loop body executed in between. For a reliable per-iteration count, set a breakpoint at the loop body's start (abap_debug action:"start" or a line breakpoint) and use step:"continue" repeatedly instead of stepping through \u2014 each hit is a real, separately counted stop.`
+  ] : [];
+  return composeStopOutput(run2, "step", result.stack, result.stateId, maxChars, revisitNotes);
+}
+async function handleStack(input, maxChars) {
+  if (!currentRun) {
+    throw new AbapError(
+      "BAD_INPUT",
+      'No active debug session. Start one with abap_debug({action:"start", ...}).'
+    );
+  }
+  if (!input.stateId) {
+    throw new AbapError("BAD_INPUT", 'abap_debug({action:"stack"}) requires "stateId".');
+  }
+  const stack = await currentRun.session.getStack(input.stateId);
+  currentRun.lastStack = stack;
+  const stackText = renderStackSection(stack, input.stateId);
+  const visibleFrames = stack.frames.filter((f) => !f.systemProgram);
+  const top = visibleFrames[0] ?? stack.frames[0];
+  return buildResponse({
+    header: {
+      action: "stack",
+      status: currentRun.session.snapshot.status,
+      program: top?.programName,
+      include: top?.includeName,
+      line: top?.line,
+      stateId: input.stateId
+    },
+    sections: [{ title: "STACK", content: stackText }],
+    maxChars: clampMaxChars(maxChars)
+  });
+}
+async function handleFrame(input, maxChars) {
+  if (!currentRun) {
+    throw new AbapError(
+      "BAD_INPUT",
+      'No active debug session. Start one with abap_debug({action:"start", ...}).'
+    );
+  }
+  if (!input.stateId) {
+    throw new AbapError("BAD_INPUT", 'abap_debug({action:"frame"}) requires "stateId".');
+  }
+  if (input.frame === void 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      'abap_debug({action:"frame"}) requires "frame" \u2014 the 1-based stackPosition of the frame to move the read cursor to.'
+    );
+  }
+  const run2 = currentRun;
+  const lastStack = run2.lastStack;
+  const target = lastStack?.frames.find((f) => f.stackPosition === input.frame);
+  if (!lastStack || !target) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `abap_debug({action:"frame", frame:${input.frame}}) does not match any frame in the most recently known stack. Call abap_debug({action:"stack", stateId:"${input.stateId}"}) first to see the current stackPosition values.`,
+      { frame: input.frame }
+    );
+  }
+  await run2.session.setStackPosition(input.stateId, { stackPosition: input.frame, stackType: "ABAP" });
+  const root = await run2.session.getRootVariables(input.stateId);
+  const entries = root.variables.variables.map((variable) => ({ variable }));
+  const survey = renderSurvey(entries, { maxChars: DEBUG_MAX_CHARS, stateId: input.stateId });
+  const stackText = renderStackSection(lastStack, input.stateId);
+  return buildResponse({
+    header: {
+      action: "frame",
+      status: run2.session.snapshot.status,
+      program: target.programName,
+      include: target.includeName,
+      line: target.line,
+      frame: target.stackPosition,
+      stateId: input.stateId
+    },
+    sections: [{ title: "STACK", content: stackText }],
+    body: survey.text,
+    bodyLabel: "VARIABLES",
+    notes: [
+      `Read cursor switched to frame #${target.stackPosition} \u2014 this does not change what runs next. The next step resumes from the live top frame regardless (live-verified).`,
+      ...survey.degraded.length ? [`${survey.degraded.length} value(s) shortened to fit budget \u2014 each still names its own retrieval call.`] : []
+    ],
+    maxChars: clampMaxChars(maxChars)
+  });
+}
+async function handleKeepalive(maxChars, gate) {
+  if (!currentRun) {
+    throw new AbapError(
+      "BAD_INPUT",
+      'No active debug session. Start one with abap_debug({action:"start", ...}).'
+    );
+  }
+  assertSessionWrite(gate, currentRun);
+  currentRun.session.keepalive();
+  const snapshot = currentRun.session.snapshot;
+  return buildResponse({
+    header: {
+      action: "keepalive",
+      status: snapshot.status,
+      stateId: snapshot.stateId,
+      debugSessionId: snapshot.debugSessionId
+    },
+    maxChars: clampMaxChars(maxChars)
+  });
+}
+async function clearLeakedSessions(force) {
+  const leaked = listActiveDebugSessions().filter((s) => s !== currentRun?.session);
+  if (leaked.length === 0) return { found: 0, notes: [] };
+  const notes = [];
+  await Promise.all(
+    leaked.map(async (session) => {
+      const before = session.snapshot.status;
+      const outcome = await raceDeadline(
+        session.terminate("terminated_by_caller").catch((e) => {
+          notes.push(`Leaked debug session cleanup reported an error: ${describeUnknownError(e)}`);
+        }),
+        STOP_WAIT_MS
+      );
+      if (outcome === TIMED_OUT) {
+        if (force) {
+          forceDropDebugSession(session);
+          notes.push(
+            `A leaked debug session (was "${before}") had not finished terminate() after ${STOP_WAIT_MS} ms \u2014 force-dropped from tracking so start is unblocked; its own cleanup continues in the background.`
+          );
+        } else {
+          notes.push(
+            `A leaked debug session (still "${before}") had not finished terminate() after ${STOP_WAIT_MS} ms \u2014 it continues in the background; retry stop, or use stop({force:true}) to unblock start now.`
+          );
+        }
+        return;
+      }
+      notes.push(
+        `Cleared a leaked debug session (no in-process trigger/gate bookkeeping \u2014 most likely left behind by a start that constructed it and then failed) that was "${before}"; it is now "${session.snapshot.status}".`
+      );
+    })
+  );
+  return { found: leaked.length, notes };
+}
+function formatAbandonedCleanupNote(steps) {
+  return `Cleanup timed out on: ${steps.join(", ")} \u2014 may still be armed on the server (e.g. a breakpoint); a later session could hit it.`;
+}
+async function handleStop(conn, maxChars, deps, gate, force = false) {
+  if (!currentRun) {
+    const leaked = await clearLeakedSessions(force);
+    let orphanNote;
+    if (deps.releaseOrphanListener) {
+      try {
+        const result = await raceDeadline(deps.releaseOrphanListener(conn), STOP_WAIT_MS);
+        if (result === TIMED_OUT) {
+          orphanNote = "Checked for a listener orphaned by an earlier process instance, but the check had not returned in time \u2014 nothing more to report.";
+        } else if (result.kind === "released") {
+          orphanNote = "Released a debug listener armed at this server's identity with no in-process session tracking it \u2014 most likely left behind by an earlier, uncleanly-exited process instance.";
+        } else if (result.kind === "conflict") {
+          orphanNote = `Found something at this server's listener identity but could not confirm release: ${result.detail}`;
+        }
+      } catch (e) {
+        orphanNote = `Orphaned-listener check failed: ${describeUnknownError(e)}`;
+      }
+    }
+    let debuggeeNote;
+    if (force && deps.releaseOrphanDebuggee) {
+      try {
+        const result = await raceDeadline(deps.releaseOrphanDebuggee(conn), FORCE_CLEAR_WAIT_MS);
+        if (result === TIMED_OUT) {
+          debuggeeNote = "Force-clear of an orphaned debuggee was requested, but the check had not returned in time \u2014 nothing more to report.";
+        } else if (result.kind === "released") {
+          debuggeeNote = "Force-terminated a debuggee attached at this server's identity with no in-process session tracking it \u2014 most likely left behind by an earlier, uncleanly-exited process instance (crash, kill -9, container respawn).";
+        } else if (result.kind === "unknown") {
+          debuggeeNote = `Force-clear of an orphaned debuggee did not confirm success: ${result.detail}`;
+        }
+      } catch (e) {
+        debuggeeNote = `Force-clear of an orphaned debuggee failed: ${describeUnknownError(e)}`;
+      }
+    }
+    return buildResponse({
+      header: { action: "stop", status: leaked.found > 0 ? "dead" : "idle" },
+      notes: [
+        leaked.found > 0 ? `Cleared ${leaked.found} leaked debug session(s) (constructed by an earlier start that never completed, with no in-process tracking of its own).` : "No active debug session (nothing to stop).",
+        ...leaked.notes,
+        ...orphanNote ? [orphanNote] : [],
+        ...debuggeeNote ? [debuggeeNote] : []
+      ],
+      maxChars: clampMaxChars(maxChars)
+    });
+  }
+  const run2 = currentRun;
+  assertSessionWrite(gate, run2);
+  const notes = [];
+  try {
+    const terminated = await raceDeadline(
+      run2.session.terminate("terminated_by_caller").catch((e) => {
+        notes.push(`Session terminate reported an error: ${describeUnknownError(e)}`);
+      }),
+      STOP_WAIT_MS
+    );
+    if (terminated === TIMED_OUT) {
+      notes.push(
+        `Session terminate had not returned after ${STOP_WAIT_MS} ms \u2014 it continues in the background; the session was dropped here anyway.`
+      );
+    }
+    const settled = await raceDeadline(run2.triggerSettled, STOP_WAIT_MS);
+    if (settled === TIMED_OUT) {
+      notes.push(
+        "Program output is incomplete: the trigger run had not returned when stop gave up waiting."
+      );
+    }
+    const finalSnapshot = run2.session.snapshot;
+    if (finalSnapshot.abandonedCleanupSteps?.length) {
+      notes.push(formatAbandonedCleanupNote(finalSnapshot.abandonedCleanupSteps));
+    }
+    return buildResponse({
+      header: { action: "stop", status: finalSnapshot.status, deathReason: finalSnapshot.deathReason },
+      sections: [{ title: "PROGRAM OUTPUT", content: renderTriggerOutcome(settled, STOP_WAIT_MS) }],
+      notes,
+      maxChars: clampMaxChars(maxChars)
+    });
+  } finally {
+    run2.closeTriggerConn();
+    currentRun = void 0;
+  }
+}
+async function handleStatus(maxChars) {
+  if (!currentRun) {
+    const leaked = listActiveDebugSessions()[0];
+    if (!leaked) {
+      return buildResponse({
+        header: { action: "status", status: "idle", note: "no active debug session" },
+        maxChars: clampMaxChars(maxChars)
+      });
+    }
+    const snapshot2 = leaked.snapshot;
+    return buildResponse({
+      header: {
+        action: "status",
+        status: snapshot2.status,
+        stateId: snapshot2.stateId,
+        debugSessionId: snapshot2.debugSessionId,
+        debuggeeId: snapshot2.debuggeeId,
+        deathReason: snapshot2.deathReason,
+        deathDetail: snapshot2.deathDetail
+      },
+      notes: [
+        'This session has no in-process trigger/gate bookkeeping (most likely an earlier start that constructed it and then failed before completing) \u2014 abap_debug({action:"stop"}) will clear it.'
+      ],
+      maxChars: clampMaxChars(maxChars)
+    });
+  }
+  const snapshot = currentRun.session.snapshot;
+  const notes = [];
+  if (snapshot.status === "dead") {
+    notes.push("Session is dead \u2014 check PROGRAM OUTPUT via a step/stop response for the captured trigger output.");
+  }
+  return buildResponse({
+    header: {
+      action: "status",
+      status: snapshot.status,
+      stateId: snapshot.stateId,
+      debugSessionId: snapshot.debugSessionId,
+      debuggeeId: snapshot.debuggeeId,
+      deathReason: snapshot.deathReason,
+      deathDetail: snapshot.deathDetail
+    },
+    notes,
+    maxChars: clampMaxChars(maxChars)
+  });
+}
+async function abapDebug(conn, input, maxChars, deps, gate) {
+  switch (input.action) {
+    case "start":
+      return handleStart(conn, input, maxChars, deps, gate);
+    case "step":
+      return handleStep(input, maxChars, gate, deps);
+    case "stack":
+      return handleStack(input, maxChars);
+    case "frame":
+      return handleFrame(input, maxChars);
+    case "keepalive":
+      return handleKeepalive(maxChars, gate);
+    case "stop":
+      return handleStop(conn, maxChars, deps, gate, input.force === true);
+    case "status":
+      return handleStatus(maxChars);
+  }
+}
+var debugVarsInputSchema = {
+  stateId: external_exports.string().describe("From the most recent start/step/stack/frame response."),
+  scope: external_exports.enum(["all", "locals", "parameters", "globals"]).optional().describe("Default all."),
+  filter: external_exports.string().optional().describe("Substring match on name.")
+};
+var DebugVarsInput = external_exports.object(debugVarsInputSchema);
+var SCOPE_ID_BY_NAME = {
+  locals: "@LOCALS",
+  parameters: "@PARAMETERS",
+  globals: "@GLOBALS"
+};
+async function abapDebugVars(input, maxChars) {
+  if (!currentRun) {
+    throw new AbapError("BAD_INPUT", "No active debug session.");
+  }
+  if (!input.stateId) {
+    throw new AbapError("BAD_INPUT", 'abap_debug_vars requires "stateId".');
+  }
+  const root = await currentRun.session.getRootVariables(input.stateId);
+  const scopeOf = /* @__PURE__ */ new Map();
+  for (const h of root.variables.hierarchies) {
+    scopeOf.set(h.childId, h.parentId);
+  }
+  let filtered = root.variables.variables;
+  if (input.scope && input.scope !== "all") {
+    const wantScopeId = SCOPE_ID_BY_NAME[input.scope];
+    filtered = filtered.filter((v) => scopeOf.get(v.id) === wantScopeId);
+  }
+  if (input.filter) {
+    const needle = input.filter.toLowerCase();
+    filtered = filtered.filter((v) => v.name.toLowerCase().includes(needle));
+  }
+  const survey = renderSurvey(
+    filtered.map((variable) => ({ variable })),
+    {
+      maxChars: DEBUG_MAX_CHARS,
+      scopeLabel: input.scope && input.scope !== "all" ? input.scope.toUpperCase() : void 0,
+      // D6 — real stateId, not `STATE_ID_PLACEHOLDER`.
+      stateId: input.stateId
+    }
+  );
+  return buildResponse({
+    header: { stateId: input.stateId, scope: input.scope ?? "all", count: filtered.length },
+    body: survey.text,
+    bodyLabel: "VARIABLES",
+    notes: survey.degraded.length ? [`${survey.degraded.length} value(s) shortened to fit budget \u2014 each still names its own retrieval call.`] : [],
+    maxChars: clampMaxChars(maxChars)
+  });
+}
+var DEFAULT_TABLE_ROWS = 20;
+var MAX_TABLE_ROWS = 200;
+var MAX_LISTED_IDS = 25;
+function listIds(ids) {
+  if (ids.length <= MAX_LISTED_IDS) return ids.join(", ");
+  const shown = ids.slice(0, MAX_LISTED_IDS);
+  return `${shown.join(", ")} \u2026 [TRUNCATED: ${shown.length} of ${ids.length} id(s) listed, ${ids.length - shown.length} cut]`;
+}
+function describeOmissions(requestedIds, align, ctx) {
+  const notes = [];
+  if (align.missing.length > 0) {
+    notes.push(
+      `OMITTED: the debugger returned ${align.resolved.length} of the ${requestedIds.length} variable id(s) requested for ${ctx.subject} \u2014 ${listIds(align.missing)} came back with NO row at all and are NOT shown. A requested id with no row is UNRESOLVED at this stop (unknown name, out-of-range index, or not visible in this frame); it is NOT an empty value, and re-requesting it returns the same nothing. Confirm the id exists here with abap_debug_vars({stateId:"${ctx.stateId}"}).`
+    );
+  }
+  if (align.unexpected.length > 0) {
+    const ids = align.unexpected.map((v) => v.id);
+    notes.push(
+      `UNREQUESTED: the debugger also returned ${align.unexpected.length} row(s) whose id was NOT requested \u2014 ${listIds(ids)}. Their values are NOT shown, because a row nobody asked for, rendered under ${ctx.subject}, is a wrong answer wearing the right label \u2014 the exact mis-attribution that hid this defect. Read one on purpose with abap_debug_value({stateId:"${ctx.stateId}", path:"${ids[0]}"}).`
+    );
+  }
+  return notes;
+}
+var debugValueInputSchema = {
+  stateId: external_exports.string().describe("From the most recent start/step/stack/frame response."),
+  path: external_exports.string().describe(
+    "Variable path, e.g. LT_ITEMS[42]-MATNR. Field symbols keep their angle brackets, e.g. <LS_ITEM>. Unknown paths return empty, not NOT_FOUND."
+  ),
+  from: external_exports.number().int().min(1).max(999999).optional().describe("First row \u2014 tables only. Default 1."),
+  count: external_exports.number().int().positive().max(MAX_TABLE_ROWS).optional().describe(`Tables only. Default ${DEFAULT_TABLE_ROWS}, max ${MAX_TABLE_ROWS}. Page with "from".`),
+  depth: external_exports.number().int().min(1).max(999999).optional().describe("Max nesting depth. Default 3.")
+};
+var DebugValueInput = external_exports.object(debugValueInputSchema);
+async function abapDebugValue(input, maxChars) {
+  if (!currentRun) {
+    throw new AbapError("BAD_INPUT", "No active debug session.");
+  }
+  if (!input.stateId) {
+    throw new AbapError("BAD_INPUT", 'abap_debug_value requires "stateId".');
+  }
+  const run2 = currentRun;
+  const validation = validatePath(input.path);
+  if (!validation.ok) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `Malformed path at "${validation.segment}": ${validation.message}`,
+      { path: input.path, segment: validation.segment }
+    );
+  }
+  const canonicalPath = formatPath(validation.path);
+  const clampedMaxChars = clampMaxChars(maxChars);
+  let rootVars;
+  try {
+    rootVars = await run2.session.getVariables(input.stateId, [canonicalPath]);
+  } catch (e) {
+    if (e instanceof DebugXmlParseError) {
+      return buildResponse({
+        header: { stateId: input.stateId, path: canonicalPath },
+        body: renderEmptyBodyTrap({ path: canonicalPath }),
+        bodyLabel: "VALUE",
+        maxChars: clampedMaxChars
+      });
+    }
+    throw e;
+  }
+  const rootAlign = alignRequestedVariables([canonicalPath], rootVars);
+  const rootNotes = describeOmissions([canonicalPath], rootAlign, {
+    subject: canonicalPath,
+    stateId: input.stateId
+  });
+  const rootVar = rootAlign.resolved[0];
+  if (!rootVar) {
+    return buildResponse({
+      header: { stateId: input.stateId, path: canonicalPath },
+      // The empty-body trap claims "0 bytes", which is only true when the
+      // debugger really sent nothing. Rows for OTHER ids is a different fact and
+      // gets its own words rather than a convenient lie.
+      body: rootVars.length > 0 ? rootNotes.join("\n\n") : renderEmptyBodyTrap({ path: canonicalPath }),
+      bodyLabel: "VALUE",
+      maxChars: clampedMaxChars
+    });
+  }
+  if (!isComplex(rootVar.metaType)) {
+    const node3 = { variable: rootVar };
+    const { text: text4 } = renderDrill(node3, canonicalPath, {
+      depth: input.depth,
+      maxChars: clampedMaxChars,
+      stateId: input.stateId
+    });
+    return buildResponse({
+      header: { stateId: input.stateId, path: canonicalPath },
+      body: text4,
+      bodyLabel: "VALUE",
+      notes: rootNotes,
+      maxChars: clampedMaxChars
+    });
+  }
+  if (rootVar.metaType === "table") {
+    const total = rootVar.tableLines;
+    const from = input.from ?? 1;
+    const requestedCount = input.count ?? DEFAULT_TABLE_ROWS;
+    const count = Math.min(requestedCount, MAX_TABLE_ROWS);
+    const countWasClamped = count < requestedCount;
+    if (total !== void 0 && total > 0 && from > total) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${canonicalPath} has ${total} row(s) \u2014 "from" (${from}) is past the end. Ask for a row in 1..${total}.`,
+        { path: canonicalPath, from, tableLines: total }
+      );
+    }
+    const tableNotes = [...rootNotes];
+    if (countWasClamped) {
+      tableNotes.push(
+        `TRUNCATED: count:${requestedCount} exceeds the ${MAX_TABLE_ROWS}-row maximum, so only ${count} row(s) were requested from ${canonicalPath} \u2014 rows ${from + count} onward were NOT fetched and are NOT shown. Continue with abap_debug_value({stateId:"${input.stateId}", path:"${canonicalPath}", from:${from + count}, count:${MAX_TABLE_ROWS}}).`
+      );
+    }
+    if (total === 0) {
+      tableNotes.push(`${canonicalPath} is empty: 0 rows.`);
+    } else if (total === void 0) {
+      tableNotes.push(
+        `Row count is unavailable \u2014 the debugger did not report TABLE_LINES for ${canonicalPath}. This is NOT the same as an empty table. "from" could not be range-checked. To settle it, probe the first row: abap_debug_value({stateId:"${input.stateId}", path:"${canonicalPath}[1]"}) \u2014 a row comes back only if data is actually present.`
+      );
+      if (input.from !== void 0 && input.from > 1) {
+        tableNotes.push(
+          `"from" (${input.from}) could not be range-checked because the row count is unavailable.`
+        );
+      }
+    }
+    const clampedFrom = total !== void 0 && total > 0 ? Math.min(Math.max(1, from), total) : total === 0 ? 1 : from;
+    const clampedTo = total !== void 0 && total > 0 ? Math.min(clampedFrom + count - 1, total) : total === 0 ? 0 : from + count - 1;
+    let rowNodes = [];
+    if (total === void 0 || total > 0 && clampedTo >= clampedFrom) {
+      const ids = Array.from({ length: clampedTo - clampedFrom + 1 }, (_, i) => `${canonicalPath}[${clampedFrom + i}]`);
+      let rowCount = 0;
+      try {
+        const rowVars = await run2.session.getVariables(input.stateId, ids);
+        rowCount = rowVars.length;
+        const rowAlign = alignRequestedVariables(ids, rowVars);
+        rowNodes = rowAlign.resolved.map((variable) => ({ variable }));
+        tableNotes.push(
+          ...describeOmissions(ids, rowAlign, { subject: canonicalPath, stateId: input.stateId })
+        );
+      } catch (e) {
+        if (e instanceof DebugXmlParseError) {
+          return buildResponse({
+            header: { stateId: input.stateId, path: canonicalPath },
+            body: renderEmptyBodyTrap({ path: canonicalPath, tableLines: total }),
+            bodyLabel: "VALUE",
+            notes: tableNotes,
+            maxChars: clampedMaxChars
+          });
+        }
+        throw e;
+      }
+      if (ids.length > 0 && rowCount === 0) {
+        return buildResponse({
+          header: { stateId: input.stateId, path: canonicalPath },
+          body: renderEmptyBodyTrap({ path: canonicalPath, tableLines: total }),
+          bodyLabel: "VALUE",
+          notes: tableNotes,
+          maxChars: clampedMaxChars
+        });
+      }
+    }
+    const node3 = { variable: rootVar, children: rowNodes };
+    const { text: text4 } = renderDrill(node3, canonicalPath, {
+      rows: { start: clampedFrom, end: clampedTo || clampedFrom },
+      maxChars: clampedMaxChars,
+      stateId: input.stateId
+    });
+    return buildResponse({
+      header: { stateId: input.stateId, path: canonicalPath },
+      body: text4,
+      bodyLabel: "VALUE",
+      notes: tableNotes,
+      maxChars: clampedMaxChars
+    });
+  }
+  let childResult;
+  try {
+    childResult = await run2.session.getChildVariables(input.stateId, [canonicalPath]);
+  } catch (e) {
+    if (e instanceof DebugXmlParseError) {
+      childResult = { hierarchies: [], variables: [] };
+    } else {
+      throw e;
+    }
+  }
+  const node2 = withChildren(rootVar, childResult);
+  const { text: text3 } = renderDrill(node2, canonicalPath, {
+    depth: input.depth,
+    maxChars: clampedMaxChars,
+    stateId: input.stateId
+  });
+  return buildResponse({
+    header: { stateId: input.stateId, path: canonicalPath },
+    body: text3,
+    bodyLabel: "VALUE",
+    // The `getChildVariables` hop below returns CHILDREN of `canonicalPath`, whose
+    // ids are by definition not the id that was requested, so it has no requested-id
+    // alignment to do. `rootNotes` still travels: it describes the root read.
+    notes: rootNotes,
+    maxChars: clampedMaxChars
+  });
+}
+
+// src/tools/debug-register.ts
+init_errors();
+
+// src/tools/v2/breakpoints.ts
+init_errors();
+var TRAILING_SKIPCOUNT_LOOKALIKE = /#\d+$/;
+var SKIPCOUNT_SUFFIX = /#(\d+)$/;
+var MAX_SKIPCOUNT = 1e6;
+var MAX_CONDITION_LENGTH = 255;
+var MAX_LINE = 999999;
+function badEntry(index, raw, reason) {
+  throw new AbapError(
+    "BAD_INPUT",
+    `Malformed breakpoint at breakpoints[${index}] ("${raw}"): ${reason}`,
+    { index, raw, reason },
+    'Grammar: target(#skipCount)?(?condition)?, target = "exception:CLASSNAME" or "OBJECT:LINE".'
+  );
+}
+function parseBreakpoints(specs) {
+  const breakpoints = [];
+  const notes = [];
+  for (let index = 0; index < specs.length; index++) {
+    const raw = specs[index];
+    if (raw.trim().length === 0) {
+      badEntry(index, raw, "empty entry.");
+    }
+    const qIdx = raw.indexOf("?");
+    const prefix = qIdx === -1 ? raw : raw.slice(0, qIdx);
+    let condition;
+    if (qIdx !== -1) {
+      const rawCondition = raw.slice(qIdx + 1).trim();
+      if (rawCondition.length === 0) {
+        badEntry(index, raw, "empty condition after '?'.");
+      }
+      if (rawCondition.length > MAX_CONDITION_LENGTH) {
+        badEntry(index, raw, `condition exceeds ${MAX_CONDITION_LENGTH} characters.`);
+      }
+      condition = rawCondition;
+      if (TRAILING_SKIPCOUNT_LOOKALIKE.test(rawCondition)) {
+        notes.push(
+          `breakpoints[${index}]: condition "${rawCondition}" ends with what looks like a misplaced #skipCount \u2014 skipCount must appear BEFORE '?condition', not after. The entire text after '?' was treated as the condition, verbatim.`
+        );
+      }
+    }
+    let targetText = prefix;
+    let skipCount;
+    const skipMatch = SKIPCOUNT_SUFFIX.exec(prefix);
+    if (skipMatch) {
+      const hashIdx = skipMatch.index;
+      targetText = prefix.slice(0, hashIdx);
+      skipCount = Number(skipMatch[1]);
+      if (!Number.isSafeInteger(skipCount) || skipCount < 0 || skipCount > MAX_SKIPCOUNT) {
+        badEntry(index, raw, `skipCount out of range (0..${MAX_SKIPCOUNT}).`);
+      }
+    }
+    if (targetText.trim().length === 0) {
+      badEntry(index, raw, "missing target before the skipCount/condition suffix.");
+    }
+    if (/^exception:/i.test(targetText)) {
+      const exceptionClass = targetText.slice("exception:".length).trim();
+      if (exceptionClass.length === 0) {
+        badEntry(index, raw, "empty exception class after 'exception:'.");
+      }
+      breakpoints.push({
+        kind: "exception",
+        exceptionClass,
+        ...condition !== void 0 ? { condition } : {},
+        ...skipCount !== void 0 ? { skipCount } : {}
+      });
+      continue;
+    }
+    const lastColonIdx = targetText.lastIndexOf(":");
+    if (lastColonIdx === -1) {
+      badEntry(index, raw, 'expected "OBJECT:LINE" or "exception:CLASSNAME".');
+    }
+    const object3 = targetText.slice(0, lastColonIdx).trim();
+    const lineText = targetText.slice(lastColonIdx + 1).trim();
+    if (object3.length === 0) {
+      badEntry(index, raw, "empty object before the last ':'.");
+    }
+    if (!/^\d+$/.test(lineText)) {
+      badEntry(index, raw, `expected an integer line number after the last ':', got "${lineText}".`);
+    }
+    const line = Number(lineText);
+    if (line < 1 || line > MAX_LINE) {
+      badEntry(index, raw, `line out of range (1..${MAX_LINE}).`);
+    }
+    breakpoints.push({
+      kind: "line",
+      object: object3,
+      line,
+      ...condition !== void 0 ? { condition } : {},
+      ...skipCount !== void 0 ? { skipCount } : {}
+    });
+  }
+  return { breakpoints, notes };
+}
+
+// src/tools/debug-register.ts
+var DEBUG_UNGATED_ACTIONS = /* @__PURE__ */ new Set(["stack", "frame", "status", "keepalive", "stop"]);
+function stateIdOfResponse(text3) {
+  return /^stateId: (.+)$/m.exec(text3)?.[1]?.trim();
+}
+var ok4 = (text3) => ({ content: [{ type: "text", text: text3 }] });
+function registerDebugTools(mcp, deps) {
+  const debugSessionObjects = /* @__PURE__ */ new Map();
+  mcp.registerTool(
+    "abap_debug",
+    {
+      description: "ABAP debugger driver: arm breakpoints, run a program, step, inspect the stack. One session at a time; variables read-only, frames observe-only.",
+      inputSchema: debugInputSchema,
+      annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true }
+    },
+    async (args) => {
+      try {
+        const a = args;
+        if (!DEBUG_UNGATED_ACTIONS.has(a.action ?? "")) {
+          const object3 = a.action === "step" ? a.stateId ? debugSessionObjects.get(a.stateId) : void 0 : a.run?.object;
+          deps.safety.assert("execute", object3 ? preflight({ object: object3 }) : void 0, {
+            phase: "preflight"
+          });
+        }
+        await deps.ensureConnected();
+        const primary = deps.pool.primary();
+        const res = await abapDebug(primary, args, deps.cfg.maxResponseChars, deps.debugDeps, deps.safety);
+        const nextStateId = stateIdOfResponse(res.text);
+        if (a.action === "start" && a.run?.object && nextStateId) {
+          debugSessionObjects.set(nextStateId, a.run.object);
+        } else if (a.action === "step" && a.stateId) {
+          const carried = debugSessionObjects.get(a.stateId);
+          debugSessionObjects.delete(a.stateId);
+          if (carried && nextStateId) debugSessionObjects.set(nextStateId, carried);
+        }
+        if (a.action === "stop" || /^status: dead$/m.test(res.text)) debugSessionObjects.clear();
+        return ok4(res.text);
+      } catch (e) {
+        return deps.errorResult(e);
+      }
+    }
+  );
+  mcp.registerTool(
+    "abap_debug_vars",
+    {
+      description: "Survey of every variable in scope at a debugger stop; complex values come back as abap_debug_value stubs.",
+      inputSchema: debugVarsInputSchema,
+      annotations: { readOnlyHint: true, openWorldHint: true }
+    },
+    async (args) => {
+      try {
+        deps.safety.assert("read");
+        const res = await abapDebugVars(args, deps.cfg.maxResponseChars);
+        return ok4(res.text);
+      } catch (e) {
+        return deps.errorResult(e);
+      }
+    }
+  );
+  mcp.registerTool(
+    "abap_debug_value",
+    {
+      description: "Tier-2 drill-in: render one variable path in detail, with a row window for tables.",
+      inputSchema: debugValueInputSchema,
+      annotations: { readOnlyHint: true, openWorldHint: true }
+    },
+    async (args) => {
+      try {
+        deps.safety.assert("read");
+        const res = await abapDebugValue(args, deps.cfg.maxResponseChars);
+        return ok4(res.text);
+      } catch (e) {
+        return deps.errorResult(e);
+      }
+    }
+  );
+}
+var CORE_ACTIONS = ["start", "step", "stack", "frame", "keepalive", "stop", "status"];
+function isCoreAction(v) {
+  return CORE_ACTIONS.includes(v);
+}
+var STEP_KINDS = ["into", "over", "return", "continue", "runToLine", "jumpToLine"];
+function isStepKind(v) {
+  return STEP_KINDS.includes(v);
+}
+var SCOPE_KINDS = ["all", "locals", "parameters", "globals"];
+function isScopeKind(v) {
+  return SCOPE_KINDS.includes(v);
+}
+function createDebugRunner(deps) {
+  const debugSessionObjects = /* @__PURE__ */ new Map();
+  async function run2(rawArgs) {
+    const a = rawArgs ?? {};
+    const action = a.action ?? "";
+    if (action === "vars" || action === "value") {
+      deps.safety.assert("read");
+      if (action === "vars") {
+        if (a.stateId === void 0) {
+          throw new AbapError("BAD_INPUT", 'action="vars" requires stateId.');
+        }
+        let scopeKind;
+        if (a.scope !== void 0) {
+          if (!isScopeKind(a.scope)) {
+            throw new AbapError(
+              "BAD_INPUT",
+              `Unknown scope "${a.scope}" \u2014 expected all, locals, parameters, or globals.`
+            );
+          }
+          scopeKind = a.scope;
+        }
+        const res3 = await abapDebugVars(
+          {
+            stateId: a.stateId,
+            ...scopeKind !== void 0 ? { scope: scopeKind } : {},
+            ...a.filter !== void 0 ? { filter: a.filter } : {}
+          },
+          deps.cfg.maxResponseChars
+        );
+        return { text: res3.text, notes: [], stateId: a.stateId, dead: false };
+      }
+      if (a.stateId === void 0 || a.path === void 0) {
+        throw new AbapError("BAD_INPUT", 'action="value" requires stateId and path.');
+      }
+      const res2 = await abapDebugValue(
+        {
+          stateId: a.stateId,
+          path: a.path,
+          ...a.from !== void 0 ? { from: a.from } : {},
+          ...a.count !== void 0 ? { count: a.count } : {},
+          ...a.depth !== void 0 ? { depth: a.depth } : {}
+        },
+        deps.cfg.maxResponseChars
+      );
+      return { text: res2.text, notes: [], stateId: a.stateId, dead: false };
+    }
+    if (!isCoreAction(action)) {
+      throw new AbapError("BAD_INPUT", `Unknown abap_debug action "${action}".`);
+    }
+    let stepKind;
+    if (action === "step" && a.step !== void 0) {
+      if (!isStepKind(a.step)) {
+        throw new AbapError(
+          "BAD_INPUT",
+          `Unknown step "${a.step}" \u2014 expected into, over, return, continue, runToLine, or jumpToLine.`
+        );
+      }
+      stepKind = a.step;
+    }
+    let notes = [];
+    let breakpoints;
+    if (action === "start" && a.breakpoints !== void 0) {
+      const parsed = parseBreakpoints(a.breakpoints);
+      breakpoints = parsed.breakpoints;
+      notes = parsed.notes;
+    }
+    if (!DEBUG_UNGATED_ACTIONS.has(action)) {
+      const object3 = action === "step" ? a.stateId ? debugSessionObjects.get(a.stateId) : void 0 : a.run;
+      deps.safety.assert("execute", object3 ? preflight({ object: object3 }) : void 0, { phase: "preflight" });
+    }
+    await deps.ensureConnected();
+    const primary = deps.pool.primary();
+    const input = {
+      action,
+      ...a.stateId !== void 0 ? { stateId: a.stateId } : {},
+      ...breakpoints !== void 0 ? { breakpoints } : {},
+      ...action === "start" && a.run !== void 0 ? { run: { object: a.run } } : {},
+      ...stepKind !== void 0 ? { step: stepKind } : {},
+      ...a.toLine !== void 0 ? { toLine: a.toLine } : {},
+      ...action === "frame" && a.frame !== void 0 ? { frame: a.frame } : {},
+      ...a.confirm !== void 0 ? { confirm: a.confirm } : {}
+    };
+    const res = await abapDebug(primary, input, deps.cfg.maxResponseChars, deps.debugDeps, deps.safety);
+    const nextStateId = stateIdOfResponse(res.text);
+    if (action === "start" && a.run !== void 0 && nextStateId) {
+      debugSessionObjects.set(nextStateId, a.run);
+    } else if (action === "step" && a.stateId) {
+      const carried = debugSessionObjects.get(a.stateId);
+      debugSessionObjects.delete(a.stateId);
+      if (carried && nextStateId) debugSessionObjects.set(nextStateId, carried);
+    }
+    const dead = action === "stop" || /^status: dead$/m.test(res.text);
+    if (dead) debugSessionObjects.clear();
+    return { text: res.text, notes, ...nextStateId !== void 0 ? { stateId: nextStateId } : {}, dead };
+  }
+  return { run: run2 };
+}
+
+// src/tools/journal.ts
+init_zod();
+init_errors();
+
+// src/adt/undo.ts
+init_compact();
+init_errors();
+init_session();
+init_types();
+init_capabilities();
+function describeDeleteVerification(v) {
+  const detail = v.status === "indeterminate" ? v.reason : `via ${v.via}`;
+  return `${v.uri} (${detail})`;
+}
+var ENHANCEMENT_TYPES = /* @__PURE__ */ new Set(["ENHO/XH", "ENHO/XHH", "ENHS/XS"]);
+function isEnhancementType2(type) {
+  return ENHANCEMENT_TYPES.has(type);
+}
+function enhancementUndoBlocked(type, op, name) {
+  if (!isEnhancementType2(type)) return void 0;
+  if (op === "delete" && type === "ENHO/XH") {
+    return `Undoing this entry would DELETE the BAdI implementation ${name} (undo-of-create). abapsmith has no local record of whether this implementation is currently active \u2014 the journal does not carry \`enho:isActive\`, and this refusal is decided without spending a request to go find out, like every other refusal here. If it IS active, something may already depend on the behaviour it adds, and deleting it would silently switch that off with no error and no log \u2014 a source restore is the wrong tool to express "deactivate" regardless. This is refused even when the implementation turns out to be inactive: see the general enhancement-undo refusal for why deleting ANY enhancement object was found to be unsafe on the live A4H session. There is no override. Remove it deliberately through the ABAP enhancement UI (SE19) with ${name}'s current activation state in view.`;
+  }
+  return `Undo of enhancement objects is refused outright \u2014 ${type} ${name} will not be touched. Three things the live A4H session found make this unsafe even in principle, not merely as a policy choice: a create attempt the server cleanly REFUSED still left a permanently undeletable phantom object behind ("ExceptionResourceDeletionFailure ... cannot be created without a package", no TADIR entry, unreadable via the ABAP API either); a delete the server reported as succeeded (ADT 200) still left TADIR and E071 rows behind indefinitely, so a 404 afterwards is never proof of removal; and on a landscape with \`tp\` misconfigured, a transportable create could not be deleted through ADT at all \u2014 the request and the package were both permanently stuck. Given that, "undo" for an enhancement \u2014 recreating one that was deleted, or deleting one that was created \u2014 is not an operation abapsmith can perform and then trust the result of. Reverse this deliberately through the ABAP enhancement UI (SE18/SE19/SE80), with the residue risk above in view.`;
+}
+function entryClassInclude(entry) {
+  return classIncludeFromSourceUri(entry.object.sourceUri);
+}
+function classIncludeFromSourceUri(uri) {
+  if (uri === void 0) return void 0;
+  const inc = specFromUri(uri)?.include;
+  return inc !== void 0 && inc !== "main" ? inc : void 0;
+}
+function classIncludeActionBlocker(entry, action) {
+  const include = entryClassInclude(entry);
+  if (!include) return void 0;
+  if (action !== "delete" && action !== "recreate") return void 0;
+  const verb = action === "delete" ? "DELETE" : "RE-CREATE";
+  return `Undoing this entry would ${verb} the ${include} include of class ${entry.object.name}, and ADT has no operation that deletes or re-creates one include of a class on its own \u2014 deleteObject sends DELETE {classUri}, which would destroy ${entry.object.name}'s main source and all of its other includes too, not just this one. That is refused rather than attempted. Nothing was changed. To empty a class include, write a single comment line to it (e.g. \`*"* no local test classes\`) \u2014 abapsmith does not send an empty document, and there is no ADT verb that deletes an include on its own. Do that with abap_write include="${include}". This refusal cannot be overridden with force=true.`;
+}
+function packageRecreateBlocker(entry) {
+  if (entry.operation !== "delete" || !isPackageType(entry.object.type)) return void 0;
+  const name = entry.object.name;
+  return `Undoing this entry would RE-CREATE package ${name}, and abapsmith does not re-create packages from a journal entry. The before-image is the package's metadata document (a package has no source), and abapsmith restores a before-image by writing it through the ordinary write path, which would PUT that XML at a URI that has no source document. That is refused rather than attempted. Nothing was changed. Re-create the package deliberately with abap_write type="DEVC/K" (abap_journal mode=show entry=<id> prints the recorded metadata), then move its contents back. This refusal cannot be overridden with force=true.`;
+}
+function undoBlocker(entry) {
+  if (entry.operation === "transport-release") {
+    return "a released transport cannot be recalled; create a corrective transport instead";
+  }
+  if (entry.operation.startsWith("transport-")) {
+    return "transport requests are not undone automatically; use abap_transport to reverse this manually";
+  }
+  if (entry.operation === "activate") {
+    return "This entry records an activation, not a source change. ADT has no deactivate operation, so there is nothing to reverse. Undo the WRITE entry for this object instead (abap_journal mode=list object=\u2026).";
+  }
+  if (entry.outcome === "pending") {
+    return "This entry is still `pending` \u2014 the server outcome was never recorded, which usually means the process died mid-write. The before-image is intact, but abapsmith cannot tell whether the write landed. Read the object first (abap_read) and compare it with the recorded images (abap_journal mode=show), then undo with force=true if you are sure.";
+  }
+  if (isEnhancementType2(entry.object.type)) {
+    return enhancementUndoBlocked(
+      entry.object.type,
+      plannedAction(entry) === "delete" ? "delete" : "write",
+      entry.object.name
+    );
+  }
+  if (entry.irreversible) {
+    return "This entry is marked irreversible \u2014 recorded for history only. No mechanism can undo it, not even with force=true.";
+  }
+  return void 0;
+}
+function captureExplanation(capture) {
+  switch (capture) {
+    case "failed":
+      return "The before-image probe did not yield usable evidence \u2014 it may never have completed (timeout, 401, 403, 500 \u2026), or it may have answered without confirming absence \u2014 so `existedBefore: false` is a GUESS, not an observation of an absent object.";
+    case "unknown":
+      return "The entry does not record how `existedBefore` was established \u2014 it predates provenance recording, or the recorded value was not one abapsmith understands. Either way nothing here proves the object was absent.";
+    case "captured":
+      return "The entry claims BOTH that the previous source was captured and that the object did not exist. Those cannot both be true, so the entry contradicts itself and none of it can be trusted to authorise a delete.";
+    case "confirmed-absent":
+      return "The absence was positively confirmed.";
+  }
+}
+function deleteEvidenceBlocker(entry) {
+  if (entry.operation === "delete" || entry.existedBefore) return void 0;
+  if (entry.beforeCapture === "confirmed-absent") return void 0;
+  const name = entry.object.name;
+  return `Undoing this entry would DELETE ${name} from the server, and the journal does not have positive evidence that ${name} was absent before abapsmith wrote it. The recorded provenance is beforeCapture="${entry.beforeCapture}"; only "confirmed-absent" is positive evidence. ${captureExplanation(entry.beforeCapture)} ${name} may well have existed, in which case this undo would destroy source that abapsmith never recorded and therefore cannot put back. This refusal cannot be overridden \u2014 force=true overrides DRIFT, it does not manufacture evidence that was never captured. If you have read ${name} (abap_read) and you do want it gone, delete it deliberately with abap_write mode=delete, which records a real before-image first.`;
+}
+function liveSystem(conn, journal) {
+  return {
+    key: systemKey({ sid: conn.cfg.sid, url: conn.cfg.url, client: conn.cfg.client }),
+    sid: conn.cfg.sid,
+    journalSystem: journal.system
+  };
+}
+function systemMismatchBlocker(entry, live) {
+  if (entry.systemKey) {
+    if (entry.systemKey === live.key) return void 0;
+    return `This journal entry was recorded against a DIFFERENT system. Recorded: ${entry.systemKey} (SID+host+client). Connected: ${live.key}. Replaying it here would write ${entry.object.name}'s source from one system onto another system's object \u2014 the names match, the objects do not. Point abapsmith at the system the entry came from (ABAP_URL / ABAP_CLIENT / ABAP_SID) and undo it there. This refusal cannot be overridden.`;
+  }
+  const recorded = entry.system?.trim().toUpperCase() ?? "";
+  const connected = live.sid.trim().toUpperCase();
+  if (recorded === connected) return void 0;
+  return `This journal entry was recorded on SID ${entry.system || "(none)"} but abapsmith is connected to SID ${live.sid} (journal directory's system: ${live.journalSystem}). The entry predates system-key recording, so this is the WEAKER, SID-only check \u2014 it cannot even tell two hosts apart that share a SID, and it still says these are not the same system. Replaying the entry here would write one system's source onto another's object. This refusal cannot be overridden.`;
+}
+var CLASS_SUB_INCLUDES2 = CLASS_INCLUDES.filter((i) => i !== "main");
+var INCLUDE_LABELS = {
+  definitions: "definitions (CCDEF \u2014 local class/type definitions)",
+  implementations: "implementations (CCIMP \u2014 local class implementations)",
+  macros: "macros (CCMAC)",
+  testclasses: "testclasses (CCAU \u2014 local test classes)"
+};
+var describeIncludes = () => CLASS_SUB_INCLUDES2.map((i) => INCLUDE_LABELS[i] ?? i).join(", ");
+var describeSome = (incs) => incs.map((i) => INCLUDE_LABELS[i] ?? i).join(", ");
+function isClassEntry(entry) {
+  return specForType(entry.object.type)?.kind === "CLAS";
+}
+function recordedClassIncludes(entry) {
+  const recorded = (entry.parts ?? []).filter((p) => p.beforeCapture === "captured" || p.beforeCapture === "confirmed-absent").map((p) => classIncludeFromSourceUri(p.object.sourceUri)).filter((i) => i !== void 0);
+  return new Set(recorded);
+}
+function partialClassRestore(entry, action) {
+  if (action !== "restore" && action !== "recreate") return void 0;
+  if (!isClassEntry(entry)) return void 0;
+  if (entryClassInclude(entry)) return void 0;
+  const recorded = recordedClassIncludes(entry);
+  const unrestored = CLASS_SUB_INCLUDES2.filter((i) => !recorded.has(i));
+  if (unrestored.length === 0) return void 0;
+  const allMissing = unrestored.length === CLASS_SUB_INCLUDES2.length;
+  return {
+    unrestored,
+    reason: action === "recreate" ? allMissing ? `Only the main include of class ${entry.object.name} was ever recorded, so only the main include is recreated. NOT restored: ${describeIncludes()}. The class that comes back is not the class that was deleted.` : `${entry.object.name}'s main include plus its ${describeSome([...recorded])} ${recorded.size === 1 ? "is" : "are"} recorded and will be recreated. Its ${describeSome(unrestored)} ${unrestored.length === 1 ? "was" : "were"} not \u2014 the read that would have captured ${unrestored.length === 1 ? "it" : "them"} failed, so recreating it now would leave that gap silently.` : `Only the main include of class ${entry.object.name} is covered by this undo. Its ${describeIncludes()} were never recorded, are not restored, and are not checked for drift \u2014 changes made there by anybody are invisible to abapsmith.`
+  };
+}
+function classRecreateBlocker(entry, partial2) {
+  const recorded = CLASS_SUB_INCLUDES2.length - partial2.unrestored.length;
+  return `${entry.object.name} is a CLASS. ` + (recorded > 0 ? `abapsmith recorded its main include and ${recorded} of its ${CLASS_SUB_INCLUDES2.length} local includes when it was deleted, but the read for its ${describeSome(partial2.unrestored)} ${partial2.unrestored.length === 1 ? "did" : "each did"} not resolve` : "abapsmith only ever recorded its MAIN include (/oo/classes/\u2026/source/main)") + ". Recreating it from the journal would produce a class that LOOKS intact and is not: its " + describeSome(partial2.unrestored) + ` would come back EMPTY \u2014 any local helper or unit test held only there would be silently missing. Unrestored includes: ${partial2.unrestored.join(", ")}. If a partial restore is genuinely what you want, repeat with force=true; the result will be reported as PARTIAL and you will have to put the missing includes back by hand.`;
+}
+function plannedAction(entry) {
+  if (entry.operation === "delete") return "recreate";
+  if (!entry.existedBefore) return "delete";
+  return "restore";
+}
+function targetFromEntry(entry) {
+  if (isEnhancementType2(entry.object.type)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `targetFromEntry refuses to build an undo target for ${entry.object.type} ${entry.object.name}. This function's fallback guesses a /source/main sourceUri when the entry does not carry one, and that guess is wrong for enhancement objects on this release \u2014 undo of an enhancement entry must already be refused before a target is needed at all (see undoBlocker).`,
+      { type: entry.object.type, name: entry.object.name },
+      "This is an internal invariant, not a user-facing refusal \u2014 reaching it means a caller is using targetFromEntry outside planUndo's refused-plan path. Use refusedEnhancementTarget() for an already-blocked enhancement entry instead.",
+      { retryable: false }
+      // internal invariant violation, not a caller-fixable argument
+    );
+  }
+  const spec = specForType(entry.object.type) ?? {
+    type: entry.object.type,
+    kind: entry.object.type,
+    label: entry.object.type,
+    path: entry.object.uri,
+    mode: "source",
+    supportsSource: entry.object.sourceUri !== void 0,
+    keywords: []
+  };
+  return {
+    spec,
+    type: entry.object.type,
+    name: entry.object.name,
+    uri: entry.object.uri,
+    sourceUri: entry.object.sourceUri ?? `${entry.object.uri}/source/main`,
+    packageName: entry.object.package,
+    description: entry.object.description ?? "",
+    exists: false,
+    packageSource: "requested"
+  };
+}
+function refusedEnhancementTarget(entry) {
+  const spec = specForType(entry.object.type);
+  if (!spec) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `enhancement type ${entry.object.type} has no TypeSpec in src/adt/types.ts \u2014 ENHANCEMENT_TYPES in undo.ts and the registry have gone out of sync.`,
+      { type: entry.object.type },
+      "Add the missing TypeSpec row, or remove the type from undo.ts's ENHANCEMENT_TYPES."
+    );
+  }
+  return {
+    spec,
+    type: entry.object.type,
+    name: entry.object.name,
+    uri: entry.object.uri,
+    sourceUri: entry.object.sourceUri ?? entry.object.uri,
+    packageName: entry.object.package,
+    description: entry.object.description ?? "",
+    exists: false,
+    packageSource: "requested"
+  };
+}
+async function probePackage(conn, t) {
+  const outcome = await verifyViaRepositorySearch(conn, t.name, t.type);
+  if (outcome.status === "confirmed") return { exists: true };
+  if (outcome.status === "confirmed-absent") return { exists: false };
+  return { exists: false, indeterminate: outcome.reason };
+}
+async function probe2(conn, t) {
+  if (isPackageType(t.type)) return probePackage(conn, t);
+  try {
+    const resp = await conn.get(contentUri(t), { headers: { Accept: contentAccept(t) } });
+    const etag = resp.headers["etag"] ?? resp.headers["ETag"];
+    return {
+      source: resp.body,
+      serverEtag: typeof etag === "string" ? etag : void 0,
+      exists: true
+    };
+  } catch (e) {
+    if (isNotFoundError(e)) return { exists: false };
+    throw e;
+  }
+}
+function vitTypeFor(type) {
+  if (type === "VIEW/DV") return "viewdv";
+  if (type === "TRAN/T") return "trant";
+  throw new AbapError(
+    "SAFETY_DENIED",
+    `INTERNAL INVARIANT VIOLATED: no VIT-bridge path segment known for type "${type}". Nothing was read or changed.`,
+    { type },
+    "This is a bug in abapsmith's undo planning, not something to retry \u2014 please report it."
+  );
+}
+async function resolveBridgeCreateUndo(conn, entry) {
+  const type = entry.object.type;
+  const found = await verifyViaVitBridge(conn, vitTypeFor(type), entry.object.name, type);
+  const spec = specForType(type) ?? {
+    type,
+    kind: type,
+    label: type,
+    path: entry.object.uri,
+    mode: "source",
+    supportsSource: false,
+    keywords: []
+  };
+  if (found.status === "confirmed-absent") {
+    return {
+      target: {
+        spec,
+        type,
+        name: entry.object.name,
+        uri: found.uri,
+        sourceUri: found.uri,
+        packageName: entry.object.package,
+        description: entry.object.description ?? "",
+        exists: false,
+        packageSource: "requested"
+      },
+      now: { exists: false },
+      verify: found
+    };
+  }
+  if (found.status === "confirmed") {
+    const resolved = serverPackage(found);
+    if (resolved) {
+      return {
+        target: {
+          spec,
+          type,
+          name: entry.object.name,
+          uri: found.uri,
+          sourceUri: found.uri,
+          packageName: resolved.name,
+          description: entry.object.description ?? "",
+          exists: true,
+          packageSource: "server"
+        },
+        now: { exists: true },
+        verify: found
+      };
+    }
+    return {
+      target: targetFromEntry(entry),
+      now: {
+        exists: false,
+        indeterminate: `${entry.object.name} was found via the VIT bridge, but the read carried no <adtcore:packageRef> element.`
+      },
+      verify: found
+    };
+  }
+  return { target: targetFromEntry(entry), now: { exists: false, indeterminate: found.reason }, verify: found };
+}
+async function releasedTransportWarning(journal, entry) {
+  if (!entry.corrNr) return void 0;
+  const releases = await journal.list({ object: entry.corrNr, operation: "transport-release" });
+  if (releases.length === 0) return void 0;
+  return `This write was recorded against transport ${entry.corrNr}, which has ALREADY BEEN RELEASED (journal entry ${releases[0].id}). Undoing it will change the object on the server, but it CANNOT remove the original change from ${entry.corrNr} \u2014 that request has already left the system and may already be moving downstream. This is only HALF an undo: the server will show the reverted source, but the released transport still carries the original change. Create a corrective transport for the downstream systems if this needs to be reversed there too.`;
+}
+async function planUndo(conn, journal, entry) {
+  const action = plannedAction(entry);
+  const restoreSource = action === "delete" ? void 0 : await journal.beforeImage(entry);
+  const transportWarning = await releasedTransportWarning(journal, entry);
+  const include = entryClassInclude(entry);
+  const localBlocker = systemMismatchBlocker(entry, liveSystem(conn, journal)) ?? undoBlocker(entry) ?? classIncludeActionBlocker(entry, action) ?? packageRecreateBlocker(entry) ?? deleteEvidenceBlocker(entry);
+  if (localBlocker) {
+    return {
+      entry,
+      // undoBlocker refuses every enhancement type unconditionally, so this
+      // branch is always taken for one — never targetFromEntry, which throws
+      // for these types instead.
+      target: isEnhancementType2(entry.object.type) ? refusedEnhancementTarget(entry) : targetFromEntry(entry),
+      action,
+      undoable: false,
+      blocker: localBlocker,
+      drift: { drifted: false, reason: "not evaluated \u2014 the entry is not undoable" },
+      ...restoreSource !== void 0 ? { restoreSource } : {},
+      currentlyExists: false,
+      ...transportWarning ? { releasedTransportWarning: transportWarning } : {}
+    };
+  }
+  const bridgeCreate = isBridgeOnlyCreateType(entry.object.type);
+  let target;
+  let bridgeNow;
+  let bridgeCreateVerify;
+  if (bridgeCreate) {
+    const resolved = await resolveBridgeCreateUndo(conn, entry);
+    target = resolved.target;
+    bridgeNow = resolved.now;
+    bridgeCreateVerify = resolved.verify;
+  } else {
+    target = await resolveWriteTarget(conn, {
+      name: entry.object.name,
+      type: entry.object.type,
+      packageName: entry.object.package,
+      ...entry.object.description ? { description: entry.object.description } : {},
+      ...include ? { include } : {}
+    });
+  }
+  if (action !== "delete" && restoreSource === void 0) {
+    const neverCaptured = entry.beforeCapture === "failed" || entry.before !== void 0 && !entry.before.blob;
+    return {
+      entry,
+      target,
+      action,
+      undoable: false,
+      blocker: neverCaptured ? `The journal has no before-image for ${entry.object.name}: one was never captured. The entry records that the object existed (beforeCapture="${entry.beforeCapture}") but its source read did not produce any bytes \u2014 a failed read, or an object with no readable source. Nothing was pruned; there is simply nothing to restore, and abapsmith will not guess. Recover the previous version from SAP's own version management (SE38/SE24 \u2192 Utilities \u2192 Versions).` : `The journal has no before-image for ${entry.object.name}. Its blob is missing (pruned by the retention policy, or the journal directory was cleaned). There is nothing to restore and abapsmith will not guess.`,
+      drift: { drifted: false, reason: "not evaluated \u2014 no before-image" },
+      currentlyExists: false,
+      ...transportWarning ? { releasedTransportWarning: transportWarning } : {}
+    };
+  }
+  const now = bridgeNow ?? await probe2(conn, target);
+  if (now.indeterminate) {
+    const howToCheck = bridgeCreate ? `abap_search mode=objects type="${entry.object.type}", or the relevant SE-transaction` : 'abap_search mode=objects type="DEVC/K", or SE21';
+    return {
+      entry,
+      target,
+      action,
+      undoable: false,
+      blocker: `Whether ${entry.object.name} still exists on the server could not be determined: ${now.indeterminate} abapsmith will not guess either way before a delete-shaped undo. Confirm the object's state by hand (${howToCheck}) and retry once you know which way this goes. This refusal cannot be overridden with force=true \u2014 force overrides DRIFT once both states are known; it does not manufacture an existence check that never settled.`,
+      drift: { drifted: false, reason: "not evaluated \u2014 package existence could not be determined" },
+      ...restoreSource !== void 0 ? { restoreSource } : {},
+      currentlyExists: false,
+      ...transportWarning ? { releasedTransportWarning: transportWarning } : {}
+    };
+  }
+  const drift = detectDrift(entry, action, now);
+  let effective = action;
+  if (!drift.drifted) {
+    if (action === "restore" && now.source !== void 0 && restoreSource !== void 0) {
+      if (sourceFingerprint(now.source) === sourceFingerprint(restoreSource)) effective = "noop";
+    }
+    if (action === "delete" && !now.exists) effective = "noop";
+    if (action === "recreate" && now.exists) effective = "noop";
+  }
+  const partial2 = partialClassRestore(entry, effective);
+  let blocker;
+  let blockerForceable = false;
+  if (drift.drifted) {
+    blocker = drift.reason;
+  } else if (partial2 && effective === "recreate") {
+    blocker = classRecreateBlocker(entry, partial2);
+    blockerForceable = true;
+  }
+  return {
+    entry,
+    target,
+    action: effective,
+    undoable: !blocker,
+    ...blocker ? { blocker } : {},
+    ...blockerForceable ? { blockerForceable } : {},
+    ...partial2 ? { partial: partial2 } : {},
+    drift,
+    ...restoreSource !== void 0 ? { restoreSource } : {},
+    ...now.source !== void 0 ? { currentSource: now.source } : {},
+    currentlyExists: now.exists,
+    ...transportWarning ? { releasedTransportWarning: transportWarning } : {},
+    ...bridgeCreateVerify ? { bridgeCreateVerify } : {}
+  };
+}
+function detectDrift(entry, action, now) {
+  const base = {
+    ...entry.after?.fingerprint ? { expectedFingerprint: entry.after.fingerprint } : {},
+    ...now.source !== void 0 ? { actualFingerprint: sourceFingerprint(now.source) } : {},
+    ...entry.after?.etag ? { expectedEtag: entry.after.etag } : {},
+    ...now.source !== void 0 ? { actualEtag: contentHash(now.source) } : {},
+    ...entry.after?.serverEtag ? { serverEtagAtWrite: entry.after.serverEtag } : {},
+    ...now.serverEtag ? { serverEtagNow: now.serverEtag } : {}
+  };
+  const name = entry.object.name;
+  if (action === "delete" && !now.exists) {
+    return {
+      ...base,
+      drifted: false,
+      reason: `${name} is already absent from the server \u2014 which is exactly what undoing its creation would achieve. Whether abapsmith, a colleague in Eclipse or a transport removed it, the result is the state you asked for, so nothing needs to be sent.`
+    };
+  }
+  if (action === "delete" && (isPackageType(entry.object.type) || isBridgeOnlyCreateType(entry.object.type))) {
+    return {
+      ...base,
+      drifted: false,
+      reason: `${name} still exists on the server, as expected before deleting it.`
+    };
+  }
+  if (action === "recreate") {
+    if (now.exists) {
+      return {
+        ...base,
+        drifted: true,
+        reason: `${name} was deleted by abapsmith, but it EXISTS on the server again. Somebody (or something) recreated it after that delete. Recreating it from the journal's before-image would overwrite whatever they put there.`
+      };
+    }
+    return { ...base, drifted: false, reason: `${name} is still absent, as recorded.` };
+  }
+  if (!now.exists) {
+    return {
+      ...base,
+      drifted: true,
+      reason: `${name} no longer exists on the server. It was deleted after abapsmith ` + (action === "delete" ? "created it \u2014 so there is nothing left to delete." : "wrote it, by something other than abapsmith.")
+    };
+  }
+  const expected = entry.after?.fingerprint;
+  if (!expected) {
+    return {
+      ...base,
+      drifted: true,
+      reason: `The journal never recorded what abapsmith left on the server for ${name} (the entry has no after-image), so drift cannot be ruled out.`
+    };
+  }
+  const actual = sourceFingerprint(now.source ?? "");
+  if (actual === expected) {
+    return { ...base, drifted: false, reason: `${name} is byte-for-byte what abapsmith left.` };
+  }
+  if (entry.before?.fingerprint && actual === entry.before.fingerprint) {
+    return {
+      ...base,
+      drifted: false,
+      reason: `${name} already matches the recorded before-image \u2014 the change has already been reverted. Nothing to do.`
+    };
+  }
+  return {
+    ...base,
+    drifted: true,
+    reason: `${name} has CHANGED on the server since abapsmith wrote it. Expected content ${expected}, found ${actual}. Somebody else edited this object (Eclipse, SE38, another agent) after our write. ` + // `action === "delete"` means undo-of-CREATE — nothing is "restored",
+    // so state the actual action instead of the (false) restore wording
+    // used for every other action.
+    (action === "delete" ? "Deleting it now would silently destroy their change." : "Restoring the before-image now would silently destroy their change.")
+  };
+}
+async function performBridgeCreateUndo(conn, gate, plan, onBeforeImage) {
+  const pkg = plan.bridgeCreateVerify && serverPackage(plan.bridgeCreateVerify);
+  if (!pkg) {
+    throw new AbapError(
+      "SAFETY_DENIED",
+      `INTERNAL INVARIANT VIOLATED: about to delete ${plan.target.type} ${plan.target.name} for undo, but no server-confirmed package was carried from planning. Nothing was deleted.`,
+      { object: plan.target.name, type: plan.target.type },
+      "This is a bug in abapsmith's undo planning, not something to retry \u2014 please report it."
+    );
+  }
+  await onBeforeImage({ source: void 0, existed: true, sourceReadable: true, target: plan.target });
+  const type = plan.target.type;
+  if (type === "VIEW/DV") {
+    await deleteClassicViewViaBridge(conn, gate, { viewName: plan.target.name, packageName: pkg });
+  } else if (type === "TRAN/T") {
+    await deleteTransactionViaBridge(conn, gate, { tcode: plan.target.name, packageName: pkg });
+  } else {
+    throw new AbapError(
+      "SAFETY_DENIED",
+      `INTERNAL INVARIANT VIOLATED: no bridge-delete function known for type "${type}". Nothing was deleted.`,
+      { object: plan.target.name, type },
+      "This is a bug in abapsmith's undo planning, not something to retry \u2014 please report it."
+    );
+  }
+  const outcome = await verifyObjectDeleted(conn, {
+    uri: vitBridgeUri(vitTypeFor(type), plan.target.name),
+    accept: VIT_STUB_ACCEPT,
+    objectName: plan.target.name,
+    expectType: type
+  });
+  if (outcome.status === "confirmed") return { deleted: false, verification: outcome };
+  if (outcome.status === "confirmed-absent") return { deleted: true, verification: outcome };
+  return { deleted: "unverified", verification: outcome };
+}
+function discloseUndoActivationFailure(e, target, entry, undoEntryId) {
+  if (!isAbapError(e)) return e;
+  const residueHint = `The restore itself already landed: ${target.name}'s before-image is saved on the server as the INACTIVE version, but activation failed, so the ACTIVE version is still the newer one this undo was trying to replace. This undo's own journal entry` + (undoEntryId ? ` (${undoEntryId})` : "") + ` is left \`pending\` on purpose \u2014 the outcome is not proven either way \u2014 and the original entry (${entry.id}) was NOT marked undone. Do not undo again blindly: re-read the object and activate it deliberately instead.`;
+  const disclosed = new AbapError(
+    e.code,
+    e.message,
+    {
+      ...e.details,
+      name: target.name,
+      type: target.type,
+      uri: target.uri,
+      operation: "undo",
+      phase: "post-restore-activation",
+      written: true,
+      activated: false,
+      entry: entry.id,
+      ...undoEntryId !== void 0 ? { journal: undoEntryId } : {}
+    },
+    e.hint ? `${e.hint} ${residueHint}` : residueHint
+  );
+  disclosed.stack = e.stack;
+  disclosed.cause = e.cause;
+  return disclosed;
+}
+async function performUndo(conn, journal, entry, opts) {
+  if (typeof opts?.assertAllowed !== "function") {
+    throw new AbapError(
+      "SAFETY_DENIED",
+      "performUndo was called without an authorisation callback. An undo is a write \u2014 for an undo-of-create it is a DELETE \u2014 so it must be checked against the safety gate like any other write. Nothing was read and nothing was changed.",
+      { entry: entry.id, object: entry.object.name, operation: entry.operation },
+      "Pass opts.assertAllowed, e.g. { assertAllowed: (action, target) => gate.assert(action, target) }. If this call site really has no gate, pass an explicit no-op so the decision is visible in the source."
+    );
+  }
+  const plan = await planUndo(conn, journal, entry);
+  if (plan.blocker && !plan.drift.drifted && !(plan.blockerForceable && opts.force)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      plan.blocker,
+      {
+        entry: entry.id,
+        object: entry.object.name,
+        operation: entry.operation,
+        plannedAction: plan.action,
+        beforeCapture: entry.beforeCapture,
+        existedBefore: entry.existedBefore,
+        forceable: Boolean(plan.blockerForceable),
+        ...plan.partial ? { unrestored: plan.partial.unrestored } : {}
+      },
+      plan.blockerForceable ? "Nothing was changed on the server. Repeat with force=true to accept the partial restore described above." : "Nothing was changed on the server, and force=true will not change that."
+    );
+  }
+  if (plan.drift.drifted && !opts.force) {
+    throw new AbapError(
+      "ETAG_CONFLICT",
+      plan.drift.reason,
+      {
+        entry: entry.id,
+        object: entry.object.name,
+        type: entry.object.type,
+        uri: plan.target.uri,
+        expectedFingerprint: plan.drift.expectedFingerprint,
+        actualFingerprint: plan.drift.actualFingerprint,
+        serverEtagAtWrite: plan.drift.serverEtagAtWrite,
+        serverEtagNow: plan.drift.serverEtagNow
+      },
+      "Nothing was changed on the server. Read the object (abap_read) and the recorded images (abap_journal mode=show) and decide deliberately. Pass force=true to overwrite the other change anyway."
+    );
+  }
+  if (plan.action === "noop") {
+    return { plan, performed: false, forced: Boolean(opts.force) };
+  }
+  const expectedOp = plan.action === "delete" ? "delete" : "write";
+  const authorized = opts.assertAllowed(plan.action, plan.target);
+  if (authorized.op !== expectedOp) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `INTERNAL INVARIANT VIOLATED: assertAllowed authorised "${authorized.op}" for an undo action ("${plan.action}") that requires "${expectedOp}". Nothing was changed.`,
+      { entry: entry.id, object: entry.object.name, action: plan.action, authorizedOp: authorized.op },
+      "This is a bug in the undo authorisation callback, not something to retry \u2014 please report it.",
+      { retryable: false }
+      // internal invariant violation, not a caller-fixable argument
+    );
+  }
+  const objectRef = journalRef(plan.target);
+  let undoEntryId;
+  let activation;
+  let check4;
+  let checkUnavailable;
+  let deleteUnverified;
+  const restoredIncludes = [];
+  const skippedIncludes = [];
+  const liveKey = liveSystem(conn, journal).key;
+  const captureFor = (img) => {
+    if (img.source !== void 0) return "captured";
+    if (!plan.currentlyExists) return "confirmed-absent";
+    return "failed";
+  };
+  if (plan.action === "delete") {
+    if (entry.beforeCapture !== "confirmed-absent") {
+      throw new AbapError(
+        "BAD_INPUT",
+        `INTERNAL INVARIANT VIOLATED: about to DELETE ${entry.object.name} for a journal entry whose before-image provenance is "${entry.beforeCapture}", not "confirmed-absent". Undo may only delete an object it positively knows was absent beforehand. Nothing was deleted.`,
+        {
+          entry: entry.id,
+          object: entry.object.name,
+          beforeCapture: entry.beforeCapture,
+          existedBefore: entry.existedBefore
+        },
+        "This is a bug in abapsmith's undo gating, not something to retry \u2014 please report it.",
+        { retryable: false }
+        // internal invariant violation, not a caller-fixable argument
+      );
+    }
+    const { result: res, entryId, settle } = await withJournalledMutation(
+      journal,
+      {
+        begin: (img) => ({
+          operation: "delete",
+          object: objectRef,
+          existedBefore: img.existed,
+          beforeCapture: captureFor(img),
+          systemKey: liveKey,
+          ...img.source !== void 0 ? { beforeSource: img.source } : {},
+          ...img.sourceKind !== void 0 ? { beforeKind: img.sourceKind } : {},
+          undoOf: entry.id,
+          tool: "abap_journal undo"
+        }),
+        onError: "leave-pending"
+      },
+      (onBeforeImage) => isBridgeOnlyCreateType(entry.object.type) ? performBridgeCreateUndo(conn, opts.gate, plan, onBeforeImage) : deleteObject(conn, authorized, { onBeforeImage, bridgeGate: opts.gate })
+    );
+    undoEntryId = entryId;
+    if (res.deleted === false) {
+      await settle({ outcome: "failed", activation: { attempted: false } });
+      throw new AbapError(
+        "CHECK_FAILED",
+        `abap_journal mode=undo of entry ${entry.id}: the DELETE of ${entry.object.type} ${entry.object.name} was accepted, but a read-back and an independent repository search both still find the object (${describeDeleteVerification(res.verification)}) \u2014 abapsmith will not mark the original entry undone while the object it was supposed to remove is demonstrably still there.`,
+        {
+          reason: "DELETE_NOT_CONFIRMED",
+          entry: entry.id,
+          object: entry.object.name,
+          type: entry.object.type,
+          deleted: false,
+          verification: res.verification,
+          ...undoEntryId !== void 0 ? { undoEntryId } : {}
+        },
+        "Re-read the object with abap_read to see its current state before retrying the undo."
+      );
+    }
+    if (res.deleted === "unverified") {
+      deleteUnverified = `abap_journal mode=undo's DELETE of ${entry.object.type} ${entry.object.name} was sent and accepted, but abapsmith could not confirm the object is actually gone (${describeDeleteVerification(res.verification)}). Check for yourself with abap_read on the object (a NOT_FOUND confirms it is gone) or abap_search for "${entry.object.name}".`;
+    }
+    await settle({
+      outcome: "succeeded",
+      activation: { attempted: false }
+    });
+  } else {
+    const source = plan.restoreSource;
+    if (source === void 0) {
+      throw new AbapError("BAD_INPUT", "No before-image to restore.", { entry: entry.id });
+    }
+    if (opts.check ?? true) {
+      check4 = await checkSource(conn, plan.target, source).catch((e) => {
+        checkUnavailable = `the syntax check could not be run (${e instanceof Error ? e.message : String(e)}), so the before-image was restored WITHOUT being checked`;
+        return void 0;
+      });
+    } else {
+      checkUnavailable = "the syntax check was disabled for this undo (check=false)";
+    }
+    const { result: written, entryId, settle } = await withJournalledMutation(
+      journal,
+      {
+        begin: (img) => ({
+          // Recreating a deleted object IS a create, and journalling it as one
+          // is what makes undo-of-undo-of-delete come out as a delete again.
+          operation: img.existed ? "update" : "create",
+          object: objectRef,
+          existedBefore: img.existed,
+          beforeCapture: captureFor(img),
+          systemKey: liveKey,
+          ...img.source !== void 0 ? { beforeSource: img.source } : {},
+          afterSource: source,
+          undoOf: entry.id,
+          tool: "abap_journal undo"
+        }),
+        onError: "leave-pending"
+      },
+      (onBeforeImage) => writeObject(conn, authorized, { source, onBeforeImage })
+    );
+    undoEntryId = entryId;
+    if (written.changed && (opts.activate ?? true)) {
+      const observed = await readCurrentSource(conn, { ...written.target, exists: true });
+      const observedEtag = observed === void 0 ? null : canonicalEtag(observed);
+      if (observedEtag !== written.etag) {
+        throw new AbapError(
+          "ETAG_CONFLICT",
+          `${plan.target.name} changed between abapsmith's restore and its activation, so it was NOT activated. The before-image abapsmith restored IS saved on ${conn.cfg.sid} as the INACTIVE version, but the inactive version now on the server is somebody else's: activating would have published THEIR source as the result of this undo.`,
+          {
+            name: written.target.name,
+            type: written.target.type,
+            uri: written.target.uri,
+            operation: "undo",
+            phase: "pre-activation",
+            written: true,
+            activated: false,
+            entry: entry.id,
+            expectedEtag: written.etag,
+            actualEtag: observedEtag,
+            // an id exists iff a real entry landed (journal off ⇒ undefined)
+            ...undoEntryId !== void 0 ? { journal: undoEntryId } : {}
+          },
+          "Another writer changed this object between abapsmith's PUT and its activation \u2014 the object lock does NOT span activation, and activation cannot be pinned to a version on this protocol. DO NOT simply undo again: the before-image already landed and was then overwritten, so a blind retry re-runs the same race and silently discards the other writer's work. Read the object (abap_read) to see what is actually there now, merge the two changes deliberately, and write the merged source. The last ACTIVE version is untouched and still what callers run."
+        );
+      }
+      try {
+        activation = await activateObject(conn, written.target);
+      } catch (e) {
+        throw discloseUndoActivationFailure(e, written.target, entry, undoEntryId);
+      }
+    }
+    const includeParts = (entry.parts ?? []).filter(
+      (p) => classIncludeFromSourceUri(p.object.sourceUri) !== void 0
+    );
+    for (const part of includeParts) {
+      const inc = classIncludeFromSourceUri(part.object.sourceUri);
+      if (part.beforeCapture === "confirmed-absent") {
+        continue;
+      }
+      if (part.beforeCapture !== "captured") {
+        skippedIncludes.push({
+          include: inc,
+          reason: `its before-image was never captured (beforeCapture="${part.beforeCapture}")`
+        });
+        continue;
+      }
+      const incSource = await journal.beforeImage({ ...entry, before: part.before });
+      if (incSource === void 0) {
+        skippedIncludes.push({
+          include: inc,
+          reason: "its recorded before-image blob is missing on disk (pruned by the retention policy, or the journal directory was cleaned)"
+        });
+        continue;
+      }
+      try {
+        const incTarget = await resolveWriteTarget(conn, {
+          name: entry.object.name,
+          type: entry.object.type,
+          packageName: entry.object.package,
+          ...entry.object.description ? { description: entry.object.description } : {},
+          include: inc
+        });
+        const incAuthorized = opts.assertAllowed(plan.action, incTarget);
+        await writeObject(conn, incAuthorized, {
+          source: incSource,
+          onBeforeImage: NO_JOURNAL,
+          ...written.transport.corrNr ? { corrNr: written.transport.corrNr } : {}
+        });
+        restoredIncludes.push(inc);
+      } catch (e) {
+        await settle({
+          outcome: "succeeded",
+          ...written.normalisedSource ? { afterSource: written.normalisedSource } : {},
+          ...written.transport.corrNr ? { corrNr: written.transport.corrNr } : {},
+          activation: {
+            attempted: Boolean(activation),
+            ...activation ? { activated: activation.activated } : {}
+          }
+        });
+        const notAttempted = includeParts.slice(includeParts.indexOf(part) + 1).map((p) => classIncludeFromSourceUri(p.object.sourceUri)).filter((i) => i !== void 0);
+        throw new AbapError(
+          "CHECK_FAILED",
+          `abap_journal mode=undo of entry ${entry.id}: ${entry.object.name}'s main source WAS restored${activation ? activation.activated ? " and activated" : ", but activation did not complete" : ""}, but writing its recorded ${INCLUDE_LABELS[inc] ?? inc} back failed: ${e instanceof Error ? e.message : String(e)}. ${restoredIncludes.length ? `Already restored: ${restoredIncludes.join(", ")}. ` : "Nothing else was restored yet. "}Not attempted: ${notAttempted.length ? notAttempted.join(", ") : "none"}.`,
+          {
+            entry: entry.id,
+            object: entry.object.name,
+            restoredIncludes: [...restoredIncludes],
+            failedInclude: inc,
+            notAttempted,
+            ...undoEntryId !== void 0 ? { undoEntryId } : {}
+          },
+          "This undo's own journal entry is marked done \u2014 the class's main body is back. Write the failed include (and any listed as not attempted) by hand with abap_write, using the source shown by abap_journal mode=show for this entry."
+        );
+      }
+    }
+    if (restoredIncludes.length > 0 && (opts.activate ?? true)) {
+      try {
+        activation = await activateObject(conn, written.target);
+      } catch (e) {
+        throw discloseUndoActivationFailure(e, written.target, entry, undoEntryId);
+      }
+    }
+    await settle({
+      outcome: "succeeded",
+      ...written.normalisedSource ? { afterSource: written.normalisedSource } : {},
+      // The transport the restore ACTUALLY landed in (not guessed from
+      // entry.corrNr) — only known here because the lock/transport is taken
+      // after `onBeforeImage` already recorded the entry (WP-E: "undoing a
+      // write needs a transport too").
+      ...written.transport.corrNr ? { corrNr: written.transport.corrNr } : {},
+      activation: {
+        attempted: Boolean(activation),
+        ...activation ? { activated: activation.activated } : {}
+      }
+    });
+  }
+  if (undoEntryId) await journal.markUndone(entry.id, undoEntryId);
+  return {
+    plan,
+    ...undoEntryId ? { undoEntryId } : {},
+    // Only on a performed undo: a no-op restored nothing, so it left nothing
+    // unrestored either, and warning about includes there would be noise.
+    ...plan.partial ? { partial: plan.partial } : {},
+    performed: true,
+    ...check4 ? { check: check4 } : {},
+    ...checkUnavailable ? { checkUnavailable } : {},
+    ...deleteUnverified ? { deleteUnverified } : {},
+    ...activation ? { activation } : {},
+    ...restoredIncludes.length ? { restoredIncludes } : {},
+    ...skippedIncludes.length ? { skippedIncludes } : {},
+    forced: Boolean(opts.force)
+  };
+}
+
+// src/tools/journal.ts
+init_types();
+init_compact();
+init_compact();
+var journalInputSchema = {
+  mode: external_exports.enum(["list", "show", "undo", "reconcile"]).optional().describe(
+    "list (default): recent writes. show: one entry incl. its before-image. undo: revert one entry. reconcile: close a stranded pending entry with an outcome you establish and a stated reason."
+  ),
+  entry: external_exports.string().optional().describe("Journal entry id from mode=list. Required for show and undo unless `object` is given."),
+  object: external_exports.string().optional().describe("Filter by object name; for undo, targets that object's most recent undoable entry."),
+  limit: external_exports.number().min(1).max(999999).optional().describe("mode=list: entries to return. Default 20."),
+  session: external_exports.string().optional().describe(
+    "mode=list: filter to one session's entries. \"current\" resolves to this running server's own session id (see the echoed `session` in the response header)."
+  ),
+  force: external_exports.boolean().optional().describe(
+    "mode=undo: proceed even though the object changed on the server after abapsmith wrote it. This OVERWRITES whatever that other change was. Read the object first."
+  ),
+  activate: external_exports.boolean().optional().describe("mode=undo: re-activate after restoring. Default true."),
+  outcome: external_exports.enum(["succeeded", "failed"]).optional().describe(
+    "mode=reconcile: the outcome you are asserting for a `pending` entry. Required. `pending` is the state being left, so it is not offered."
+  ),
+  reason: external_exports.string().optional().describe(
+    "mode=reconcile: how you established that outcome. Required, recorded verbatim on the entry, and the only evidence it will ever carry for the asserted outcome."
+  )
+};
+var JournalInput = external_exports.object(journalInputSchema);
+var shortId = (id) => id;
+function row(e) {
+  const flags = [e.undoneBy ? "undone" : e.undoOf ? "is-undo" : void 0, e.reconciled ? "reconciled" : void 0].filter(Boolean).join(" ");
+  return {
+    id: shortId(e.id),
+    when: e.ts.replace("T", " ").replace(/\.\d+Z$/, "Z"),
+    op: e.operation,
+    object: `${e.object.type} ${e.object.name}`,
+    existed: e.existedBefore ? "yes" : "no",
+    // undo only ever deletes when beforeCapture is "confirmed-absent".
+    capture: e.beforeCapture,
+    outcome: e.outcome,
+    actor: e.actor ?? "",
+    flags
+  };
+}
+var LIST_COLUMNS = ["id", "when", "op", "object", "existed", "capture", "outcome", "flags"];
+var LIST_COLUMNS_WITH_ACTOR = LIST_COLUMNS.flatMap((c) => c === "flags" ? ["actor", "flags"] : c);
+function includeFromSourceUri(uri) {
+  if (uri === void 0) return void 0;
+  const inc = specFromUri(uri)?.include;
+  return inc !== void 0 && inc !== "main" ? inc : void 0;
+}
+function entrySubInclude(e) {
+  return includeFromSourceUri(e.object.sourceUri);
+}
+function partRow(p) {
+  return {
+    object: `${p.object.type} ${p.object.name}`,
+    package: p.object.package,
+    // A class-delete's four parts are all the same object/type/package — without
+    // naming the include, the ALSO TOUCHED rows are indistinguishable from each other.
+    include: includeFromSourceUri(p.object.sourceUri) ?? "-",
+    existed: p.existedBefore ? "yes" : "no",
+    capture: p.beforeCapture,
+    bytes: p.before?.bytes !== void 0 ? String(p.before.bytes) : "-"
+  };
+}
+var PART_COLUMNS = ["object", "include", "existed", "capture", "bytes"];
+var PART_COLUMNS_WITH_PACKAGE = PART_COLUMNS.flatMap((c) => c === "object" ? ["object", "package"] : c);
+function undoHint(e) {
+  if (e.operation === "transport-release") {
+    return "RELEASED TRANSPORT \u2014 refused: a released transport cannot be recalled; create a corrective transport instead";
+  }
+  if (e.operation.startsWith("transport-")) {
+    return "refused: transport requests are not undone automatically; use abap_transport to reverse this manually";
+  }
+  if (e.operation === "activate") return "activation \u2014 nothing to reverse";
+  if (e.undoneBy) return `already undone by ${e.undoneBy}`;
+  if (e.irreversible) {
+    return "IRREVERSIBLE \u2014 refused: recorded for history only, no mechanism can undo it";
+  }
+  const action = plannedAction(e);
+  if (action === "delete") {
+    const includeRefusal = classIncludeActionBlocker(e, action);
+    if (includeRefusal) return `undo would DELETE this object, and WILL BE REFUSED: ${includeRefusal}`;
+    const refusal = deleteEvidenceBlocker(e);
+    return refusal ? `undo would DELETE this object, and WILL BE REFUSED: ${refusal}` : "undo would DELETE this object (abapsmith created it, and confirmed it was absent first)";
+  }
+  if (action === "recreate") {
+    const includeRefusal = classIncludeActionBlocker(e, action);
+    if (includeRefusal) return `undo would RE-CREATE this object, and WILL BE REFUSED: ${includeRefusal}`;
+    const refusal = packageRecreateBlocker(e);
+    return refusal ? `undo would RE-CREATE this object, and WILL BE REFUSED: ${refusal}` : "undo would RE-CREATE this object from the before-image";
+  }
+  return "undo would restore the previous source";
+}
+function classWarning(e) {
+  const include = entrySubInclude(e);
+  if (include) {
+    return `This entry is about class ${e.object.name}'s ${include} include ONLY, not the whole class: its main body and its other local includes are each tracked (when abapsmith wrote them) by their own separate journal entries, and undoing THIS entry touches only this one document.`;
+  }
+  if (!/^CLAS/i.test(e.object.type)) return void 0;
+  if (e.parts?.length) {
+    const recorded = e.parts.filter((p) => p.beforeCapture === "captured" || p.beforeCapture === "confirmed-absent").map((p) => includeFromSourceUri(p.object.sourceUri)).filter((i) => i !== void 0);
+    const unrecorded = e.parts.filter((p) => p.beforeCapture !== "captured" && p.beforeCapture !== "confirmed-absent").map((p) => includeFromSourceUri(p.object.sourceUri)).filter((i) => i !== void 0);
+    return `${e.object.name} is a CLASS. abapsmith recorded its main include` + (recorded.length ? ` plus its ${recorded.join(", ")} include(s)` : "") + " when it was deleted. Undoing that delete recreates every include recorded here, not just the main body." + (unrecorded.length ? ` Its ${unrecorded.join(", ")} include(s) could NOT be recorded (the read at delete time failed) and will NOT come back \u2014 recreating anyway is refused unless you pass force=true, and the result is reported PARTIAL.` : "");
+  }
+  return `${e.object.name} is a CLASS and abapsmith records only its MAIN include. Its local definitions (CCDEF), local implementations (CCIMP), macros (CCMAC) and local test classes (CCAU) are NOT in this journal entry: they are not restored by an undo and changes to them are not detected as drift. Undoing a class DELETE therefore brings back a class without its local helpers or its unit tests, and is refused unless you pass force=true.`;
+}
+function requireJournal(journal) {
+  if (!journal || !journal.enabled) {
+    throw new AbapError(
+      "UNSUPPORTED",
+      "The write journal is disabled, so there is no history and no undo.",
+      { enabled: false },
+      "Unset ABAP_JOURNAL=off (or set ABAP_JOURNAL_DIR to a writable path) and restart the server. Only writes made *after* the journal is on can be undone."
+    );
+  }
+  return journal;
+}
+async function pickEntry(journal, input, mode) {
+  if (input.entry) {
+    const e = await journal.get(input.entry);
+    if (!e) {
+      throw new AbapError(
+        "NOT_FOUND",
+        `No journal entry ${input.entry}.`,
+        { entry: input.entry },
+        "Run abap_journal mode=list to see the ids that exist. Ids are dropped by the retention policy, so an old one may simply have aged out."
+      );
+    }
+    return e;
+  }
+  if (!input.object) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `mode=${mode} needs \`entry\` (from mode=list) or \`object\`.`,
+      {},
+      "abap_journal mode=list shows the ids."
+    );
+  }
+  const candidates = await journal.list({ object: input.object, limit: 50 });
+  const usable = candidates.find(
+    (e) => e.operation !== "activate" && !e.operation.startsWith("transport-") && !e.undoneBy
+  );
+  if (!usable) {
+    throw new AbapError(
+      "NOT_FOUND",
+      candidates.length ? `Every journalled change to ${input.object.toUpperCase()} has already been undone, or records only an activation.` : `abapsmith has no journal entry for ${input.object.toUpperCase()} \u2014 it never wrote this object (or the entry aged out of the retention window).`,
+      { object: input.object, seen: candidates.length },
+      // Never say "restored" for an object the journal never saw — fabrication.
+      "Objects abapsmith did not write cannot be undone: there is no before-image to restore and abapsmith will not reconstruct one. Use SAP's own version management (SE38 \u2192 Utilities \u2192 Versions) for changes made outside this server."
+    );
+  }
+  return usable;
+}
+async function abapJournal(conn, input, maxChars, journal, gate) {
+  const mode = input.mode ?? "list";
+  const j = requireJournal(journal);
+  if (mode === "list") {
+    let sessionFilter = input.session;
+    if (sessionFilter === "current") {
+      sessionFilter = j.sessionId;
+      if (!sessionFilter) {
+        throw new AbapError(
+          "BAD_INPUT",
+          'session="current" was requested, but this server process has no session id yet.',
+          {},
+          "This can only happen before the MCP initialize handshake has completed. Retry once the client is connected."
+        );
+      }
+    }
+    const entries = await j.list({
+      limit: input.limit ?? 20,
+      ...input.object ? { object: input.object } : {},
+      ...sessionFilter ? { sessionId: sessionFilter } : {}
+    });
+    const pendingAll = await j.listPending();
+    const pendingStale = await j.listPending({ staleAfterMs: STALE_PENDING_MS });
+    const staleIds = new Set(pendingStale.map((e) => e.id));
+    const pendingFresh = pendingAll.filter((e) => !staleIds.has(e.id));
+    const notes2 = [];
+    if (pendingStale.length) {
+      notes2.push(
+        `STRANDED: ${pendingStale.length} journal entr${pendingStale.length === 1 ? "y is" : "ies are"} still \`pending\` after more than ${Math.round(STALE_PENDING_MS / 6e4)} minutes \u2014 ${pendingStale.map((e) => `${e.id} (${e.operation} ${e.object.name})`).join(", ")}. The before-image was written and the outcome never was, which is what a crash mid-write looks like: nobody knows whether those writes landed. They are NOT usable undos \u2014 abapsmith refuses to undo a pending entry, because it cannot tell what to undo. Read each object (abap_read), compare it against abap_journal mode=show, and resolve it deliberately. Once you have established what actually happened to one of them, close it with abap_journal mode=reconcile entry=<id> outcome=succeeded|failed reason="\u2026" \u2014 that records your finding on the entry and deletes nothing. Entries whose live source settles the question can be classified in bulk by bin/abap-journal-reconcile.`
+      );
+    }
+    if (pendingFresh.length) {
+      notes2.push(
+        `${pendingFresh.length} entr${pendingFresh.length === 1 ? "y" : "ies"} began less than ${Math.round(STALE_PENDING_MS / 6e4)} minutes ago and ${pendingFresh.length === 1 ? "is" : "are"} still \`pending\` \u2014 most likely a write that is in flight right now. Re-run mode=list in a moment; if it is still pending it is stranded, not in flight.`
+      );
+    }
+    if (entries.some((e) => e.beforeCapture !== "captured" && e.beforeCapture !== "confirmed-absent")) {
+      notes2.push(
+        "`capture` is how each entry established whether the object existed beforehand. `captured` = the previous source was read; `confirmed-absent` = the object was positively confirmed missing; `failed` = the read didn't establish absence; `unknown` = not recorded. An undo that would DELETE is refused for anything but `confirmed-absent`, and that refusal is not overridable."
+      );
+    }
+    notes2.push(`Journal: ${j.dir} (retention: ${j.config.maxEntries} entries / ${j.config.maxAgeDays} days).`);
+    return buildResponse({
+      header: {
+        system: conn.cfg.sid,
+        mode: "list",
+        entries: entries.length,
+        filter: input.object?.toUpperCase(),
+        session: sessionFilter
+      },
+      body: entries.length ? textTable(entries.map(row), entries.some((e) => e.actor) ? LIST_COLUMNS_WITH_ACTOR : LIST_COLUMNS) : "(no journalled writes)",
+      bodyLabel: "WRITES (newest first)",
+      notes: notes2,
+      hints: ["abap_journal mode=show entry=<id> for the recorded source images."],
+      maxChars
+    });
+  }
+  if (mode === "reconcile") {
+    if (!input.entry) {
+      throw new AbapError(
+        "BAD_INPUT",
+        "mode=reconcile needs `entry` \u2014 the id of the pending entry you are closing.",
+        {},
+        "abap_journal mode=list shows the ids, and names the stranded ones. There is no `object` fallback here: closing the wrong entry writes a false outcome into the audit trail, so reconcile insists on the exact id."
+      );
+    }
+    if (!input.outcome) {
+      throw new AbapError(
+        "BAD_INPUT",
+        'mode=reconcile needs `outcome`: "succeeded" or "failed". `pending` is the state being left, so it is not offered as something to arrive at.',
+        { entry: input.entry },
+        'Pass outcome: "succeeded" or "failed".'
+      );
+    }
+    const reason = input.reason?.trim() ?? "";
+    if (!reason) {
+      throw new AbapError(
+        "BAD_INPUT",
+        "mode=reconcile needs a non-empty `reason`: abapsmith did not observe this entry's outcome, so the reason is all a later reader will ever have as evidence for it.",
+        { entry: input.entry },
+        "Pass reason describing how the outcome was established."
+      );
+    }
+    const target = await j.get(input.entry);
+    if (!target) {
+      throw new AbapError(
+        "NOT_FOUND",
+        `No journal entry ${input.entry}.`,
+        { entry: input.entry },
+        "Run abap_journal mode=list to see the ids that exist. Ids are dropped by the retention policy, so an old one may simply have aged out."
+      );
+    }
+    if (target.outcome !== "pending") {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${input.entry} already reads \`${target.outcome}\` \u2014 reconcile only closes an entry whose outcome was never recorded. Overwriting an observed outcome would destroy the only observed fact this entry carries.`,
+        { entry: target.id, outcome: target.outcome },
+        "Nothing to do here: the entry already has a real outcome."
+      );
+    }
+    const res2 = await j.reconcile(target.id, { outcome: input.outcome, reason });
+    if (!res2.reconciled) {
+      if (res2.reason === "disabled") {
+        throw new AbapError(
+          "UNSUPPORTED",
+          "The write journal is disabled, so there is nothing to reconcile.",
+          { entry: target.id }
+        );
+      }
+      if (res2.reason === "unknown-entry") {
+        throw new AbapError(
+          "NOT_FOUND",
+          `${target.id} aged out of the retention window between being read and being reconciled.`,
+          { entry: target.id },
+          "Run abap_journal mode=list to see what still exists."
+        );
+      }
+      if (res2.reason === "already-settled") {
+        throw new AbapError(
+          "BAD_INPUT",
+          `${target.id} settled for real (outcome=${res2.entry?.outcome}) between being read and being reconciled \u2014 the observed outcome wins over the asserted one.`,
+          { entry: target.id, outcome: res2.entry?.outcome },
+          `Run abap_journal mode=show entry=${target.id} to see what it now says.`
+        );
+      }
+      throw new AbapError(
+        "ADT_ERROR",
+        `Could not write the reconciliation for ${target.id}: ${res2.error}. Nothing was written \u2014 the entry still reads \`pending\`.`,
+        { entry: target.id, error: res2.error },
+        "Retry mode=reconcile with the same outcome and reason."
+      );
+    }
+    const notes2 = [`Recorded reason: ${reason}`];
+    notes2.push(
+      "This changed the LOCAL journal only \u2014 nothing was sent to the system, no SAP object and no transport request was touched, and nothing was deleted: the before-image and every earlier line for this entry are still on disk."
+    );
+    notes2.push(
+      "The outcome is now recorded as an ASSERTION, not an observation: the entry carries `reconciled` with the reason and (when known) who stated it, so a later reader can tell it apart from an outcome abapsmith itself watched happen."
+    );
+    if (res2.entry.outcome === "succeeded") {
+      notes2.push(
+        "The entry is now terminal, so mode=undo will no longer refuse it for being `pending` \u2014 undo replays the before-image, so only assert `succeeded` when it is established that the write landed."
+      );
+    }
+    return buildResponse({
+      header: {
+        system: conn.cfg.sid,
+        mode: "reconcile",
+        entry: res2.entry.id,
+        operation: res2.entry.operation,
+        object: `${res2.entry.object.type} ${res2.entry.object.name}`,
+        was: "pending",
+        outcome: res2.entry.outcome,
+        by: res2.entry.reconciled?.by,
+        at: res2.entry.reconciled?.at
+      },
+      notes: notes2,
+      hints: [`abap_journal mode=show entry=${res2.entry.id}`],
+      maxChars
+    });
+  }
+  const entry = await pickEntry(j, input, mode);
+  if (mode === "show") {
+    const before = await j.beforeImage(entry);
+    const sections = [];
+    if (before !== void 0) {
+      const win = sliceLines(before, 1);
+      const label = entry.beforeKind === "package-metadata" ? "package metadata, " : "";
+      sections.push({ title: `BEFORE-IMAGE (${label}${entry.before?.bytes ?? 0} bytes)`, content: win.text });
+    } else {
+      sections.push({
+        title: "BEFORE-IMAGE",
+        content: entry.existedBefore ? entry.beforeCapture === "failed" ? "(none was ever captured \u2014 the entry says the object existed but its source read never resolved, whether it didn't complete or came back inconclusive. Not a retention problem; there is nothing to restore.)" : "(recorded, but the blob is gone \u2014 pruned or the journal dir was cleaned)" : `(none \u2014 the entry records that the object did not exist before this operation, so undo would mean DELETE; provenance: beforeCapture="${entry.beforeCapture}")`
+      });
+    }
+    if (entry.parts?.length) {
+      const columns = entry.parts.some((p) => p.object.package) ? PART_COLUMNS_WITH_PACKAGE : PART_COLUMNS;
+      sections.push({ title: `ALSO TOUCHED (${entry.parts.length})`, content: textTable(entry.parts.map(partRow), columns) });
+    }
+    const notes2 = [];
+    if (entry.outcome === "pending") {
+      notes2.push(
+        "THIS IS NOT A USABLE UNDO. The entry is still `pending`: abapsmith wrote the before-image and then never recorded an outcome, so it does not know whether the write reached the server at all. Undo refuses pending entries rather than guess which state to put the object back into. Read the object (abap_read) and compare it with the images above to find out what actually happened."
+      );
+    }
+    if (entry.reconciled) {
+      notes2.push(
+        `This entry's outcome was RECONCILED BY HAND (at ${entry.reconciled.at}` + (entry.reconciled.by ? `, by ${entry.reconciled.by}` : "") + `), because: ${entry.reconciled.reason}. abapsmith did not observe that outcome; it is a stated finding, and the entry stayed \`pending\` until someone stated it.`
+      );
+    }
+    notes2.push(
+      `Before-image provenance: beforeCapture="${entry.beforeCapture}" \u2014 ` + (entry.beforeCapture === "captured" ? entry.beforeKind === "package-metadata" ? "the captured image is the package's metadata document, not source \u2014 undo will not re-create the package." : "the previous source was read successfully." : entry.beforeCapture === "confirmed-absent" ? "the object was positively confirmed absent beforehand." : entry.beforeCapture === "failed" ? "the before-image probe never completed or came back inconclusive, so `existedBefore` is a guess." : "not recorded (the entry predates provenance tracking), so `existedBefore` is unverified.")
+    );
+    notes2.push(undoHint(entry));
+    const cls = classWarning(entry);
+    if (cls) notes2.push(cls);
+    if (entry.irreversible) {
+      notes2.push(
+        "IRREVERSIBLE: this entry can never be undone by any mechanism, not even force=true."
+      );
+    }
+    return buildResponse({
+      header: {
+        system: entry.system,
+        systemKey: entry.systemKey,
+        entry: entry.id,
+        when: entry.ts,
+        operation: entry.operation,
+        object: `${entry.object.type} ${entry.object.name}`,
+        // Present only for an entry ABOUT one class sub-include (not the
+        // main body) — see `entrySubInclude`. Absent for every other entry,
+        // including a class-delete entry whose `parts` recorded includes
+        // alongside the main body (those are listed in ALSO TOUCHED below).
+        include: entrySubInclude(entry),
+        uri: entry.object.uri,
+        package: entry.object.package,
+        existedBefore: entry.existedBefore,
+        beforeCapture: entry.beforeCapture,
+        beforeKind: entry.beforeKind,
+        outcome: entry.outcome,
+        reconciled: entry.reconciled?.at,
+        error: entry.error,
+        beforeEtag: entry.before?.etag,
+        beforeServerEtag: entry.before?.serverEtag,
+        afterEtag: entry.after?.etag,
+        activated: entry.activation?.activated,
+        undoOf: entry.undoOf,
+        undoneBy: entry.undoneBy,
+        tool: entry.tool,
+        actor: entry.actor,
+        sessionId: entry.sessionId,
+        sessionIdSource: entry.sessionIdSource,
+        corrNr: entry.corrNr,
+        irreversible: entry.irreversible || void 0
+      },
+      sections,
+      notes: notes2,
+      hints: [`abap_journal mode=undo entry=${entry.id}`],
+      maxChars
+    });
+  }
+  if (!gate) {
+    throw new AbapError(
+      "SAFETY_DENIED",
+      "abap_journal mode=undo was called without a safety gate. An undo writes to the system \u2014 for an undo of a create it deletes an object \u2014 so it cannot run unchecked. Nothing was changed.",
+      { entry: entry.id, object: entry.object.name, operation: entry.operation },
+      "This is a wiring bug, not a user error: the caller must pass the SafetyGate it enforces every other write with."
+    );
+  }
+  const res = await performUndo(conn, j, entry, {
+    ...input.force ? { force: true } : {},
+    ...input.activate !== void 0 ? { activate: input.activate } : {},
+    // A DEVC/K undo deletes through the classrun bridge, which gates itself.
+    gate,
+    // Re-authorise on the resolved object: only here is delete vs. write known.
+    // gate.authorize both checks and mints the AuthorizedTarget proof that
+    // writeObject/deleteObject require to run at all (Layer 2, src/mode.ts) —
+    // pass the FULL target, not a name/type/packageName subset, since they
+    // also need uri/sourceUri/spec.
+    assertAllowed: (action, target) => gate.authorize(action === "delete" ? "delete" : "write", target)
+  });
+  const notes = [];
+  if (res.plan.releasedTransportWarning) notes.push(res.plan.releasedTransportWarning);
+  if (!res.performed) {
+    notes.push(
+      plannedAction(entry) === "delete" ? `DONE \u2014 nothing was sent. ${res.plan.drift.reason} No DELETE was issued: abapsmith does not send a destructive request that the observed state does not justify. Nothing is left to clean up. The journal entry stays as it is, because no undo was performed to record \u2014 running this again will simply say the same thing.` : "Nothing was written: the server already matches the recorded before-image. " + res.plan.drift.reason
+    );
+  }
+  if (res.check && !res.check.ok) {
+    notes.push(
+      `The restored version has ${res.check.errors} syntax error(s) and ${res.check.warnings} warning(s). The undo was performed anyway: getting back to a known state is the point, even when that state was broken. The object is saved` + (res.activation ? " but activation will have failed" : " and INACTIVE") + " \u2014 fix it forward from here."
+    );
+  }
+  if (res.performed && res.checkUnavailable) {
+    notes.push(
+      `No syntax check result: ${res.checkUnavailable}. The restore itself succeeded; run abap_check or abap_activate if you need to know whether what came back compiles.`
+    );
+  }
+  if (res.performed && res.deleteUnverified) {
+    notes.push(
+      `${res.deleteUnverified} The undo itself succeeded (the DELETE was accepted); this is only about whether abapsmith can prove it.`
+    );
+  }
+  if (res.forced && res.plan.drift.drifted) {
+    notes.push(
+      "force=true OVERRODE a drift refusal \u2014 a change made outside abapsmith has just been overwritten. What was there is preserved as the before-image of journal " + (res.undoEntryId ? `entry ${res.undoEntryId}, so it can be put back.` : "\u2014 NOTHING: this undo was not journalled (see below), so the overwritten version is GONE.")
+    );
+  }
+  if (res.performed && res.partial) {
+    notes.push(
+      `PARTIAL \u2014 this object was NOT fully ${res.plan.action === "recreate" ? "recreated" : "restored"}. ${res.partial.reason} Unrestored includes: ${res.partial.unrestored.join(", ")}. ` + (res.plan.action === "recreate" ? `${entry.object.name} is NOT the object that was deleted: what came back is its main include${res.restoredIncludes?.length ? ` plus its ${res.restoredIncludes.join(", ")} include(s)` : ""}, not the ${res.partial.unrestored.join(", ")} include(s) \u2014 those were never recorded and are not restored. Restore them from SAP's own version management (SE24 \u2192 Utilities \u2192 Versions) before trusting it, and do not run its unit tests expecting them to exist unless testclasses is among what came back.` : "Drift in those includes was neither detected nor reverted.")
+    );
+  }
+  if (res.performed && res.restoredIncludes?.length) {
+    notes.push(
+      `Also restored: its ${res.restoredIncludes.join(", ")} include(s) \u2014 recorded alongside the main body when the class was deleted, written back and activated together with it.`
+    );
+  }
+  if (res.performed && res.skippedIncludes?.length) {
+    notes.push(
+      `NOT restored: ${res.skippedIncludes.map((s) => `its ${s.include} include (${s.reason})`).join("; ")}.`
+    );
+  }
+  if (res.undoEntryId) {
+    notes.push("The undo is itself journalled, so it can be undone.");
+  } else {
+    notes.push(
+      "This undo was NOT journalled \u2014 the write journal is disabled, so no before-image of what it overwrote exists and THIS UNDO CANNOT BE UNDONE. Whatever was on the server a moment ago is only recoverable from SAP's own version management."
+    );
+  }
+  const body = [];
+  if (res.activation) {
+    const msgs = renderMessages(res.activation.messages, res.plan.restoreSource ?? "");
+    if (msgs.trim()) body.push(`# ACTIVATION
+${msgs}`);
+  }
+  return buildResponse({
+    header: {
+      system: conn.cfg.sid,
+      mode: "undo",
+      undid: entry.id,
+      object: `${entry.object.type} ${entry.object.name}`,
+      uri: res.plan.target.uri,
+      action: res.plan.action,
+      performed: res.performed,
+      partial: res.partial ? `yes \u2014 ${res.partial.unrestored.join(", ")} NOT restored` : void 0,
+      restoredIncludes: res.restoredIncludes?.length ? res.restoredIncludes.join(", ") : void 0,
+      skippedIncludes: res.skippedIncludes?.length ? res.skippedIncludes.map((s) => s.include).join(", ") : void 0,
+      forced: res.forced || void 0,
+      driftDetected: res.plan.drift.drifted || void 0,
+      newEntry: res.undoEntryId ?? (res.performed ? "NOT JOURNALLED" : void 0),
+      activated: res.activation ? res.activation.activated : "n/a"
+    },
+    body: body.join("\n\n"),
+    bodyLabel: "MESSAGES",
+    notes,
+    hints: [
+      res.undoEntryId ? `abap_journal mode=undo entry=${res.undoEntryId} undoes this undo.` : "There is no entry id for this undo and no way to undo it \u2014 the journal is off."
+    ],
+    maxChars
+  });
+}
+async function undoPreflightTarget(journal, input) {
+  if ((input.mode ?? "list") !== "undo") return void 0;
+  if (!journal || !journal.enabled) return void 0;
+  let entry;
+  if (input.entry) entry = await journal.get(input.entry);
+  else if (input.object) {
+    const list5 = await journal.list({ object: input.object, limit: 50 });
+    entry = list5.find((e) => e.operation !== "activate" && !e.undoneBy);
+  }
+  if (!entry) return void 0;
+  return {
+    op: plannedAction(entry) === "delete" ? "delete" : "write",
+    name: entry.object.name,
+    packageName: entry.object.package,
+    type: entry.object.type
+  };
+}
+var ok5 = (text3) => ({ content: [{ type: "text", text: text3 }] });
+function registerJournalTools(mcp, deps) {
+  mcp.registerTool(
+    "abap_journal",
+    {
+      description: "History and undo for writes abapsmith made. mode=list: recent writes with entry ids. mode=show: one entry with its before-image. mode=undo: revert it \u2014 refuses on drift, delete-gate, or an enhancement object; see abapsmith-recover-a-bad-write for details. mode=reconcile: close a stranded `pending` entry with a stated outcome and reason \u2014 journal bookkeeping only, nothing is sent to SAP.",
+      inputSchema: journalInputSchema,
+      annotations: { readOnlyHint: false, destructiveHint: true }
+    },
+    async (args) => {
+      try {
+        const a = args;
+        const isUndo = (a.mode ?? "list") === "undo";
+        let undoGateKey;
+        if (isUndo) {
+          const t = await undoPreflightTarget(deps.journal, a);
+          undoGateKey = t?.name ? t.name.trim().toUpperCase() : void 0;
+          const blocked = t ? enhancementUndoBlocked(t.type ?? "", t.op, t.name) : void 0;
+          if (blocked) {
+            throw new AbapError(
+              "UNSUPPORTED",
+              blocked,
+              { entry: a.entry, object: t?.name ?? a.object },
+              "There is no override for this refusal. Reverse the change deliberately through the ABAP enhancement UI instead."
+            );
+          }
+          deps.safety.assert(t?.op ?? "write", t ? { name: t.name, packageName: t.packageName, type: t.type } : { name: a.object ?? "" }, {
+            phase: t ? "final" : "preflight"
+          });
+        }
+        if (isUndo) await deps.ensureConnected();
+        const run2 = (conn) => abapJournal(conn, args, deps.cfg.maxResponseChars, deps.journal, deps.safety);
+        const res = isUndo ? await deps.pool.withWrite("abap_journal", undoGateKey, run2) : await run2(deps.pool.primary());
+        return ok5(res.text);
+      } catch (e) {
+        return deps.errorResult(e);
+      }
+    }
+  );
+}
+
+// src/tools/locked.ts
+init_errors();
+init_mode();
+var MODE_LOCKED_TOOLS = [
+  {
+    name: "abap_write",
+    needs: ["allowWrite"],
+    summary: "Create, change or delete an ABAP object: save/check/activate."
+  },
+  {
+    name: "abap_run",
+    needs: ["allowWrite"],
+    summary: "Execute an IF_OO_ADT_CLASSRUN class or report and capture its output."
+  },
+  {
+    name: "abap_test",
+    needs: ["allowWrite"],
+    summary: "Run ABAP Unit tests and report each method's verdict."
+  },
+  {
+    name: "abap_atc",
+    needs: ["allowWrite"],
+    summary: "Run ABAP Test Cockpit static analysis on an object."
+  },
+  {
+    name: "abap_quick_fix",
+    needs: ["allowWrite"],
+    summary: "List and apply ADT quick fixes at one source position."
+  },
+  {
+    name: "abap_ui",
+    needs: ["allowWrite"],
+    summary: "Drive classic SAP dynpro screens via batch input: read one screen, or run a scripted transaction."
+  },
+  {
+    name: "abap_fpm_read",
+    needs: ["allowWrite"],
+    summary: "Read SAP FPM/FBI screen configurations; every call deploys a throwaway bridge class."
+  },
+  {
+    name: "abap_img_edit",
+    needs: ["allowWrite"],
+    summary: "Preview and write IMG/customizing table rows."
+  },
+  {
+    name: "abap_bopf_test",
+    needs: ["allowWrite"],
+    summary: "Run a BOPF business object end to end, writing real rows."
+  },
+  {
+    name: "abap_bopf_edit",
+    needs: ["allowWrite"],
+    summary: "Make one design-time edit to a BOPF business object, or create one."
+  },
+  {
+    name: "abap_bopf_delete",
+    needs: ["allowWrite"],
+    summary: "Delete a BOPF business object."
+  },
+  {
+    name: "abap_transport_release",
+    needs: ["allowWrite", "allowTransportRelease"],
+    summary: "Release one CTS transport request \u2014 irreversible."
+  },
+  {
+    name: "abap_fluid",
+    needs: ["allowWrite"],
+    summary: "Deploy and run small generated ABAP tools inside $ABAPSMITH_FLUID_API.",
+    // Mirrors `resolveStaticCapabilities`'s `canUseFluidApi` gate
+    // (`cfg.fluidApi && !cfg.readOnly && cfg.abapMode !== "read"`) for the
+    // `fluidApi` slice of it: `Config["fluidApi"]` (via `boolishRejectDefaultTrue`
+    // in src/config.ts) is always a resolved `boolean`, defaulting to `true`,
+    // never `undefined` — so the precondition is a plain truthiness check,
+    // not an `undefined` check.
+    availableWhen: (cfg) => cfg.fluidApi
+  }
+];
+function lockedToolsFor(cfg) {
+  if (cfg.toolSurface !== "v1" || cfg.readOnly !== true) return [];
+  return MODE_LOCKED_TOOLS.filter((tool) => tool.availableWhen === void 0 || tool.availableWhen(cfg));
+}
+function lockedToolRequiresMode(tool) {
+  return lowestModeSatisfying(
+    (caps) => tool.needs.every((c) => capabilityGranted(caps, c))
+  );
+}
+function lockedToolExplanation(tool, abapMode) {
+  if (tool.needs.length === 1) {
+    const need = tool.needs[0];
+    if (need === void 0) {
+      throw new AbapError("INTERNAL_GATE_MISUSE", `${tool.name} declares no capability needs.`, {
+        tool: tool.name
+      });
+    }
+    const { cause, remediation } = explainDeniedCapability(need, abapMode);
+    return { cause, remediation };
+  }
+  return explainDeniedCapabilities(tool.needs, abapMode);
+}
+function lockedToolRefusal(tool, abapMode) {
+  const { cause, remediation } = lockedToolExplanation(tool, abapMode);
+  const message = `${tool.name} is registered but locked at this permission level. ${cause} Nothing was sent to the SAP system.`;
+  return new AbapError(
+    "READ_ONLY",
+    message,
+    {
+      tool: tool.name,
+      locked: true,
+      abapMode: abapMode ?? null,
+      requiresMode: lockedToolRequiresMode(tool) ?? null,
+      capabilities: [...tool.needs]
+    },
+    remediation
+  );
+}
+function lockedToolDescription(tool, abapMode) {
+  const { cause, remediation } = lockedToolExplanation(tool, abapMode);
+  return `${tool.summary} LOCKED on this server: ${cause} ${remediation} Calling it returns a refusal and sends nothing to the SAP system.`;
+}
+function registerLockedTools(mcp, deps) {
+  for (const tool of deps.tools) {
+    mcp.registerTool(
+      tool.name,
+      {
+        description: lockedToolDescription(tool, deps.cfg.abapMode),
+        annotations: {
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: false
+        }
+      },
+      async () => deps.errorResult(lockedToolRefusal(tool, deps.cfg.abapMode))
+    );
+  }
+}
+
+// src/tools/open-url.ts
+init_zod();
+init_errors();
+var HTML_UNSUPPORTED_KINDS = /* @__PURE__ */ new Set(["DTEL", "DOMA", "TTYP"]);
+var openUrlInputSchema = {
+  object: external_exports.string().optional().describe("Object to open, fuzzy like `abap_read`'s `object`."),
+  type: external_exports.string().optional().describe("ADT type. Only with `object`."),
+  line: external_exports.number().int().positive().optional().describe("Deep-link line. Only with `object`."),
+  keyword: external_exports.string().regex(/^[A-Za-z0-9_]{1,80}$/, "keyword must match ^[A-Za-z0-9_]{1,80}$ (reject, never escape)").optional().describe('ABAP keyword, e.g. "SELECT".'),
+  webdynpro: external_exports.string().regex(/^[A-Za-z0-9_/]{1,80}$/, "webdynpro must match ^[A-Za-z0-9_/]{1,80}$ (reject, never escape)").optional().describe("Web Dynpro application name.")
+};
+var OpenUrlInput = external_exports.object(openUrlInputSchema).refine(
+  (v) => {
+    const modes = [v.object, v.keyword, v.webdynpro].filter((s) => typeof s === "string" && s.length > 0);
+    return modes.length === 1;
+  },
+  { message: "Exactly one of object, keyword, or webdynpro is required." }
+).refine(
+  (v) => v.type === void 0 && v.line === void 0 || typeof v.object === "string" && v.object.length > 0,
+  { message: "type/line are only valid alongside object." }
+);
+var ok6 = (text3) => ({ content: [{ type: "text", text: text3 }] });
+async function resolveOpenUrl(input, deps) {
+  if (input.keyword) {
+    const keyword = input.keyword.toUpperCase();
+    return {
+      route: "abap-docu",
+      // Live-verified: not every keyword has a single-page doc entry (e.g.
+      // LOOP 200s with an "Invalid document" placeholder) — searchUrl is a
+      // working fallback. Details: the git history
+      url: `${deps.cfg.url}/sap/public/bc/abap/docu?object=ABAP${encodeURIComponent(keyword)}`,
+      searchUrl: `${deps.cfg.url}/sap/public/bc/abap/docu?query=${encodeURIComponent(keyword)}`,
+      keyword,
+      note: "no authentication required to view either page; if url renders 'Invalid document' (happens for compound keywords with no single-page entry, e.g. LOOP), use searchUrl instead"
+    };
+  }
+  if (input.webdynpro) {
+    return {
+      route: "web-dynpro",
+      url: `${deps.cfg.url}/sap/bc/webdynpro/sap/${input.webdynpro}`,
+      app: input.webdynpro,
+      note: "requires Basic auth and a browser User-Agent to render \u2014 a request without a browser User-Agent has been observed to both 500 and 200-with-a-zero-length-body depending on the app; neither status code alone is a success signal, only real body content is"
+    };
+  }
+  const objectRef = input.object;
+  if (!objectRef) {
+    throw new AbapError("BAD_INPUT", "Exactly one of object, keyword, or webdynpro is required.", {});
+  }
+  deps.safety.assert("read");
+  const resolved = await deps.pool.withRead(
+    "abap_open_url",
+    (conn) => resolveObject(conn, objectRef, input.type ? { type: input.type } : {})
+  );
+  const fragment = input.line ? `#start=${input.line},0` : "";
+  const url2 = `${deps.cfg.url}${resolved.uri}/source/main${fragment}`;
+  const notes = [];
+  let adtUrl;
+  if (deps.cfg.sid !== "UNKNOWN") {
+    adtUrl = `adt://${deps.cfg.sid}${resolved.uri}${fragment}`;
+  } else {
+    notes.push("adt:// link unavailable: ABAP_SID is not configured");
+  }
+  if (HTML_UNSUPPORTED_KINDS.has(resolved.kind)) {
+    notes.push(
+      "metadata objects of this kind do not render as HTML \u2014 the ADT endpoint stays vendor XML regardless of Accept header"
+    );
+  }
+  return {
+    route: "adt-source-html",
+    url: url2,
+    ...adtUrl ? { adtUrl } : {},
+    object: resolved.name,
+    type: resolved.type,
+    ...notes.length ? { note: notes.join(" ") } : {}
+  };
+}
+function registerOpenUrlTools(mcp, deps) {
+  mcp.registerTool(
+    "abap_open_url",
+    {
+      title: "Get a browser-openable URL for an ABAP object, keyword, or Web Dynpro app",
+      description: "Browser-openable URL: ADT source/HTML (object=, type=/line=), keyword doc (keyword=), or Web Dynpro URL (webdynpro=). Exactly one required. Does not open a browser.",
+      inputSchema: openUrlInputSchema,
+      annotations: { readOnlyHint: true, openWorldHint: true }
+    },
+    async (args) => {
+      try {
+        const parsed = OpenUrlInput.safeParse(args);
+        if (!parsed.success) {
+          throw new AbapError(
+            "BAD_INPUT",
+            parsed.error.issues.map((i) => i.message).join("; "),
+            { issues: parsed.error.issues }
+          );
+        }
+        const input = parsed.data;
+        if (input.object) {
+          await deps.ensureConnected();
+        }
+        const result = await resolveOpenUrl(input, deps);
+        return ok6(JSON.stringify(result, null, 2));
+      } catch (e) {
+        return deps.errorResult(e);
+      }
+    }
+  );
+}
+
+// src/tools/read.ts
+init_zod();
+init_ddic();
+init_capabilities();
+init_errors();
+
+// src/adt/suso-read.ts
+init_errors();
+init_compact();
+init_catalog_select();
+var SUSO_CATALOG = Object.freeze({
+  object: Object.freeze({
+    table: "TOBJ",
+    fields: Object.freeze({
+      object: "OBJCT",
+      objectClass: "OCLSS",
+      bname: "BNAME",
+      fblock: "FBLOCK",
+      conversion: "CONVERSION",
+      field1: "FIEL1",
+      field2: "FIEL2",
+      field3: "FIEL3",
+      field4: "FIEL4",
+      field5: "FIEL5",
+      field6: "FIEL6",
+      field7: "FIEL7",
+      field8: "FIEL8",
+      field9: "FIEL9",
+      field0: "FIEL0"
+    }),
+    confidence: "high",
+    note: "capture 861 (A4H 2026-09-12): key column is OBJCT, not OBJECT. Field slots are FIEL1..FIEL9 then FIEL0 \u2014 there is no FIEL10. OBJCT is C(10): a literal over 10 chars gets HTTP 400, not an empty result."
+  }),
+  objectText: Object.freeze({
+    table: "TOBJT",
+    fields: Object.freeze({
+      object: "OBJECT",
+      language: "LANGU",
+      text: "TTEXT"
+    }),
+    confidence: "high",
+    note: "capture 861: key column here is OBJECT (unlike TOBJ's OBJCT). Language-dependent."
+  }),
+  objectClassText: Object.freeze({
+    table: "TOBCT",
+    fields: Object.freeze({
+      language: "LANGU",
+      objectClass: "OCLSS",
+      text: "CTEXT"
+    }),
+    confidence: "high",
+    note: "capture 861."
+  }),
+  activity: Object.freeze({
+    table: "TACTZ",
+    fields: Object.freeze({
+      object: "BROBJ",
+      activity: "ACTVT"
+    }),
+    confidence: "high",
+    note: "capture 862: no text column here \u2014 see TACTT."
+  }),
+  activityText: Object.freeze({
+    table: "TACTT",
+    fields: Object.freeze({
+      language: "SPRAS",
+      activity: "ACTVT",
+      text: "LTEXT"
+    }),
+    confidence: "high",
+    note: "capture 862: issue #87 names this table TACT; the activity texts actually live in TACTT."
+  }),
+  fieldMeta: Object.freeze({
+    table: "AUTHX",
+    fields: Object.freeze({
+      fieldName: "FIELDNAME",
+      rollname: "ROLLNAME",
+      checkTable: "CHECKTABLE",
+      exitFb: "EXIT_FB",
+      actvtFlag: "ACTVT_FLAG"
+    }),
+    confidence: "high",
+    note: "capture 862: a field's data element and check table come from here, not from TOBJ."
+  }),
+  dataElement: Object.freeze({
+    table: "DD04L",
+    fields: Object.freeze({
+      rollname: "ROLLNAME",
+      domname: "DOMNAME",
+      datatype: "DATATYPE",
+      leng: "LENG"
+    }),
+    confidence: "high",
+    note: "capture 873: a ROLLNAME from AUTHX is not guaranteed to have a DD04L row \u2014 a missing one is tolerated, not an error."
+  }),
+  domainValue: Object.freeze({
+    table: "DD07V",
+    fields: Object.freeze({
+      domname: "DOMNAME",
+      valpos: "VALPOS",
+      ddlanguage: "DDLANGUAGE",
+      valueLow: "DOMVALUE_L",
+      valueHigh: "DOMVALUE_H",
+      text: "DDTEXT"
+    }),
+    confidence: "high",
+    note: "capture 873: DD07V has NO AS4LOCAL column \u2014 adding that predicate is HTTP 400, not a filter. Rows come back unordered; sort by VALPOS client-side."
+  })
+});
+function tbl2(key) {
+  return SUSO_CATALOG[key].table;
+}
+function fld2(key, field) {
+  const fields = SUSO_CATALOG[key].fields;
+  return fields[field];
+}
+var SUSO_OBJECT_NAME_MAX = 10;
+var SUSO_ROW_CAP = 200;
+var DEFAULT_LANGUAGE2 = "E";
+var SUSO_WHERE_USED_NOTE = "Finding the ABAP that runs AUTHORITY-CHECK OBJECT for this authorization object needs a source-text search, which abapsmith does not have yet \u2014 that is the subject of a separate open issue, not a search this call performed.";
+function chunk(values, size) {
+  const out = [];
+  for (let i = 0; i < values.length; i += size) out.push(values.slice(i, i + size));
+  return out;
+}
+function serverNotes2(result) {
+  return result.messages.map((m) => `[server] ${m.text}${m.severity ? ` (${m.severity})` : ""}`);
+}
+function noteIfCut2(result, cap, what, notes) {
+  if (result.totalRows !== void 0 && result.totalRows > result.rows.length) {
+    notes.push(
+      `${what} reports ${result.totalRows} total rows but only ${result.rows.length} were fetched (row cap ${cap}) \u2014 the remainder was cut, not silently dropped.`
+    );
+  }
+}
+async function readAuthorizationObject(conn, name, opts) {
+  const notes = [];
+  const language = opts?.language ?? DEFAULT_LANGUAGE2;
+  const objectName = assertCatalogValue(name.trim().toUpperCase(), "authorization object name", SUSO_OBJECT_NAME_MAX);
+  const OBJCT = fld2("object", "object");
+  const objSql = buildCatalogSelect("*", tbl2("object"), [`${OBJCT} = ${catalogLiteral(objectName)}`]);
+  const objResult = await runCatalogSelect(conn, objSql, 1);
+  notes.push(...serverNotes2(objResult));
+  const objRow = objResult.rows[0];
+  if (objRow === void 0) {
+    throw new AbapError(
+      "NOT_FOUND",
+      `Authorization object "${objectName}" has no ${tbl2("object")} row on this system \u2014 this is a definitive empty result (HTTP 200, 0 rows), not a refused read.`,
+      { name: objectName }
+    );
+  }
+  const objectClass = objRow[fld2("object", "objectClass")] ?? "";
+  const fieldSlots = ["field1", "field2", "field3", "field4", "field5", "field6", "field7", "field8", "field9", "field0"].map((slot) => fld2("object", slot));
+  const fieldNames = fieldSlots.map((col) => objRow[col] ?? "").filter((v) => v.trim() !== "");
+  const objTextSql = buildCatalogSelect(
+    "*",
+    tbl2("objectText"),
+    [
+      `${fld2("objectText", "object")} = ${catalogLiteral(objectName)}`,
+      `${fld2("objectText", "language")} = ${catalogLiteral(assertCatalogValue(language, "language", 1))}`
+    ]
+  );
+  const objTextResult = await runCatalogSelect(conn, objTextSql, 1);
+  notes.push(...serverNotes2(objTextResult));
+  const description = objTextResult.rows[0]?.[fld2("objectText", "text")] ?? "";
+  if (objTextResult.rows.length === 0) {
+    notes.push(`No ${tbl2("objectText")} text for "${objectName}" in language "${language}".`);
+  }
+  let objectClassText = "";
+  if (objectClass.trim() !== "") {
+    const classTextSql = buildCatalogSelect(
+      "*",
+      tbl2("objectClassText"),
+      [
+        `${fld2("objectClassText", "objectClass")} = ${catalogLiteral(objectClass)}`,
+        `${fld2("objectClassText", "language")} = ${catalogLiteral(language)}`
+      ]
+    );
+    const classTextResult = await runCatalogSelect(conn, classTextSql, 1);
+    notes.push(...serverNotes2(classTextResult));
+    objectClassText = classTextResult.rows[0]?.[fld2("objectClassText", "text")] ?? "";
+    if (classTextResult.rows.length === 0) {
+      notes.push(`No ${tbl2("objectClassText")} text for object class "${objectClass}" in language "${language}".`);
+    }
+  } else {
+    notes.push(`Object "${objectName}" has no ${fld2("object", "objectClass")} value \u2014 object class is unknown.`);
+  }
+  const authxByField = /* @__PURE__ */ new Map();
+  if (fieldNames.length > 0) {
+    for (const group of chunk(fieldNames, 50)) {
+      const authxSql = buildCatalogSelect("*", tbl2("fieldMeta"), [
+        `${fld2("fieldMeta", "fieldName")} ${catalogInList(group, "field names", 30)}`
+      ]);
+      const authxResult = await runCatalogSelect(conn, authxSql, SUSO_ROW_CAP);
+      notes.push(...serverNotes2(authxResult));
+      noteIfCut2(authxResult, SUSO_ROW_CAP, `${tbl2("fieldMeta")} lookup for "${objectName}"`, notes);
+      for (const row2 of authxResult.rows) {
+        requireCatalogColumn(authxResult, fld2("fieldMeta", "fieldName"));
+        authxByField.set(row2[fld2("fieldMeta", "fieldName")] ?? "", row2);
+      }
+    }
+    for (const f of fieldNames) {
+      if (!authxByField.has(f)) {
+        notes.push(`No ${tbl2("fieldMeta")} row for field "${f}" of object "${objectName}" \u2014 no data element or check table known.`);
+      }
+    }
+  }
+  const rollnames = [...new Set([...authxByField.values()].map((r) => r[fld2("fieldMeta", "rollname")] ?? "").filter((v) => v.trim() !== ""))];
+  const dd04lByRollname = /* @__PURE__ */ new Map();
+  if (rollnames.length > 0) {
+    for (const group of chunk(rollnames, 50)) {
+      const dd04lSql = buildCatalogSelect("*", tbl2("dataElement"), [
+        `${fld2("dataElement", "rollname")} ${catalogInList(group, "data elements", 30)}`
+      ]);
+      const dd04lResult = await runCatalogSelect(conn, dd04lSql, SUSO_ROW_CAP);
+      notes.push(...serverNotes2(dd04lResult));
+      noteIfCut2(dd04lResult, SUSO_ROW_CAP, `${tbl2("dataElement")} lookup for "${objectName}"`, notes);
+      for (const row2 of dd04lResult.rows) {
+        dd04lByRollname.set(row2[fld2("dataElement", "rollname")] ?? "", row2);
+      }
+    }
+    for (const rn of rollnames) {
+      if (!dd04lByRollname.has(rn)) {
+        notes.push(`No ${tbl2("dataElement")} row for data element "${rn}" \u2014 not an error, just tolerated as missing.`);
+      }
+    }
+  }
+  const domains = [...new Set([...dd04lByRollname.values()].map((r) => r[fld2("dataElement", "domname")] ?? "").filter((v) => v.trim() !== ""))];
+  const fixedValuesByDomain = /* @__PURE__ */ new Map();
+  if (domains.length > 0) {
+    for (const group of chunk(domains, 50)) {
+      const dd07vSql = buildCatalogSelect(
+        "*",
+        tbl2("domainValue"),
+        [
+          `${fld2("domainValue", "domname")} ${catalogInList(group, "domains", 30)}`,
+          `${fld2("domainValue", "ddlanguage")} = ${catalogLiteral(language)}`
+        ]
+      );
+      const dd07vResult = await runCatalogSelect(conn, dd07vSql, SUSO_ROW_CAP);
+      notes.push(...serverNotes2(dd07vResult));
+      noteIfCut2(dd07vResult, SUSO_ROW_CAP, `${tbl2("domainValue")} lookup for "${objectName}"`, notes);
+      for (const row2 of dd07vResult.rows) {
+        const domname = row2[fld2("domainValue", "domname")] ?? "";
+        const valueLow = row2[fld2("domainValue", "valueLow")] ?? "";
+        const valueHigh = row2[fld2("domainValue", "valueHigh")] ?? "";
+        const text3 = row2[fld2("domainValue", "text")] ?? "";
+        const valpos = Number.parseInt(row2[fld2("domainValue", "valpos")] ?? "", 10);
+        const value = valueHigh.trim() === "" ? valueLow : `${valueLow}..${valueHigh}`;
+        const list5 = fixedValuesByDomain.get(domname);
+        const entry = { value, text: text3, valpos: Number.isNaN(valpos) ? 0 : valpos };
+        if (list5) list5.push(entry);
+        else fixedValuesByDomain.set(domname, [entry]);
+      }
+    }
+    for (const [, list5] of fixedValuesByDomain) {
+      list5.sort((a, b) => a.valpos - b.valpos);
+    }
+  }
+  const tactzSql = buildCatalogSelect("*", tbl2("activity"), [`${fld2("activity", "object")} = ${catalogLiteral(objectName)}`]);
+  const tactzResult = await runCatalogSelect(conn, tactzSql, SUSO_ROW_CAP);
+  notes.push(...serverNotes2(tactzResult));
+  noteIfCut2(tactzResult, SUSO_ROW_CAP, `${tbl2("activity")} lookup for "${objectName}"`, notes);
+  const activityCodes = [...new Set(tactzResult.rows.map((r) => r[fld2("activity", "activity")] ?? "").filter((v) => v.trim() !== ""))];
+  const activityTextByCode = /* @__PURE__ */ new Map();
+  if (activityCodes.length > 0) {
+    for (const group of chunk(activityCodes, 50)) {
+      const tacttSql = buildCatalogSelect(
+        "*",
+        tbl2("activityText"),
+        [
+          `${fld2("activityText", "activity")} ${catalogInList(group, "activity codes", 2)}`,
+          `${fld2("activityText", "language")} = ${catalogLiteral(language)}`
+        ]
+      );
+      const tacttResult = await runCatalogSelect(conn, tacttSql, SUSO_ROW_CAP);
+      notes.push(...serverNotes2(tacttResult));
+      for (const row2 of tacttResult.rows) {
+        activityTextByCode.set(row2[fld2("activityText", "activity")] ?? "", row2[fld2("activityText", "text")] ?? "");
+      }
+    }
+  }
+  const activities = activityCodes.map((code) => {
+    const text3 = activityTextByCode.get(code);
+    if (text3 === void 0) {
+      notes.push(`No ${tbl2("activityText")} text for activity "${code}" of object "${objectName}" in language "${language}" \u2014 listed with an empty text.`);
+    }
+    return { code, text: text3 ?? "" };
+  });
+  const fields = fieldNames.map((f) => {
+    const authx = authxByField.get(f);
+    const rollname = authx?.[fld2("fieldMeta", "rollname")]?.trim() || void 0;
+    const dd04l = rollname ? dd04lByRollname.get(rollname) : void 0;
+    const domain2 = dd04l?.[fld2("dataElement", "domname")]?.trim() || void 0;
+    const fixedValues = (domain2 ? fixedValuesByDomain.get(domain2) : void 0) ?? [];
+    return {
+      name: f,
+      dataElement: rollname,
+      checkTable: authx?.[fld2("fieldMeta", "checkTable")]?.trim() || void 0,
+      isActivityField: (authx?.[fld2("fieldMeta", "actvtFlag")] ?? "").trim() !== "",
+      domain: domain2,
+      fixedValues: fixedValues.map(({ value, text: text3 }) => ({ value, text: text3 }))
+    };
+  });
+  return {
+    name: objectName,
+    objectClass,
+    objectClassText,
+    description,
+    fields,
+    activities,
+    notes
+  };
+}
+function renderAuthorizationObject(obj) {
+  const ddl = textTable(
+    obj.fields.map((f) => ({
+      field: f.name,
+      "data element": f.dataElement ?? "",
+      "check table": f.checkTable ?? "",
+      activity: f.isActivityField ? "X" : ""
+    })),
+    ["field", "data element", "check table", "activity"]
+  );
+  const sections = [];
+  sections.push({
+    title: "ACTIVITIES",
+    content: textTable(
+      obj.activities.map((a) => ({ code: a.code, text: a.text })),
+      ["code", "text"]
+    )
+  });
+  for (const f of obj.fields) {
+    if (f.fixedValues.length === 0) continue;
+    sections.push({
+      title: `FIXED VALUES \u2014 ${f.name}`,
+      content: textTable(
+        f.fixedValues.map((v) => ({ value: v.value, text: v.text })),
+        ["value", "text"]
+      )
+    });
+  }
+  const boundaryNote = "This is the DEFINITION of the authorization object \u2014 its class, text, fields and permitted activities. It is not a list of who holds it: no AGR_* (role) or UST* (user authorization) table was read. SUSO/B cannot be written by abapsmith; SU21 is the only way to edit one.";
+  const notes = [...obj.notes, boundaryNote];
+  return {
+    ddl,
+    sections,
+    meta: {
+      object_class: obj.objectClass,
+      object_class_text: obj.objectClassText,
+      fields: obj.fields.length,
+      activities: obj.activities.length
+    },
+    notes,
+    // `ddic.ts`'s own assembled (non-raw-XML) renders — renderDataElement,
+    // renderDomain — hash just `ddl`, not the extra sections; this follows
+    // that same convention rather than inventing a wider one.
+    hashInput: ddl
+  };
+}
+
+// src/tools/read.ts
+init_index_read();
+
+// src/adt/element-info.ts
+init_fxp();
+init_errors();
+init_session();
+init_truncate();
+var ELEMENT_INFO_URL = "/sap/bc/adt/abapsource/codecompletion/elementinfo";
+var NAVIGATION_TARGET_URL = "/sap/bc/adt/navigation/target";
+var USAGE_REFERENCES_URL = "/sap/bc/adt/repository/informationsystem/usageReferences";
+var ELEMENT_INFO_MEDIA_TYPE = "application/*";
+var CONTENT_TYPE_TEXT_PLAIN = "text/plain";
+var elementInfoXml = new XMLParser({
+  ignoreAttributes: false,
+  attributeNamePrefix: "@_",
+  removeNSPrefix: true,
+  parseAttributeValue: false,
+  parseTagValue: false,
+  trimValues: false,
+  isArray: (_name, jpath, _isLeaf, isAttribute) => !isAttribute && typeof jpath === "string" && (jpath.endsWith("properties.entry") || jpath.endsWith("elementInfo.documentation") || jpath.endsWith("elementInfo.elementInfo"))
+});
+var usageReferencesXml = new XMLParser({
+  ignoreAttributes: false,
+  attributeNamePrefix: "@_",
+  removeNSPrefix: true,
+  parseAttributeValue: false,
+  parseTagValue: false,
+  trimValues: false,
+  isArray: (_name, jpath, _isLeaf, isAttribute) => !isAttribute && typeof jpath === "string" && jpath.endsWith("referencedObjects.referencedObject")
+});
+function asRecord(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value) ? value : void 0;
+}
+function asArray2(value) {
+  if (Array.isArray(value)) return value;
+  return value === void 0 || value === null ? [] : [value];
+}
+function attr2(node2, name) {
+  const value = node2?.[`@_${name}`];
+  return typeof value === "string" ? value : void 0;
+}
+function elementText(value) {
+  if (typeof value === "string") return value;
+  if (value === void 0 || value === null) return void 0;
+  const rec = asRecord(value);
+  if (rec === void 0) return void 0;
+  const text3 = rec["#text"];
+  return typeof text3 === "string" ? text3 : "";
+}
+function parseXmlDocument(body, what, ctx, parser3 = elementInfoXml) {
+  let parsed;
+  try {
+    parsed = parser3.parse(body);
+  } catch (e) {
+    throw new AbapError(
+      "ADT_ERROR",
+      `The ${what} response could not be parsed as XML.`,
+      { operation: ctx.operation, uri: ctx.uri, what, detail: e instanceof Error ? e.message : String(e) },
+      "The server answered with something other than the expected document."
+    );
+  }
+  const rec = asRecord(parsed);
+  if (rec === void 0) {
+    throw new AbapError(
+      "ADT_ERROR",
+      `The ${what} response was empty or not a document.`,
+      { operation: ctx.operation, uri: ctx.uri, what, length: body.length },
+      "The server answered with something other than the expected document."
+    );
+  }
+  return rec;
+}
+function parseProperties(value) {
+  const rec = asRecord(value);
+  if (rec === void 0) return {};
+  const result = {};
+  for (const raw of asArray2(rec["entry"])) {
+    const entryNode = asRecord(raw);
+    const key = attr2(entryNode, "key");
+    if (key === void 0) continue;
+    result[key] = elementText(raw) ?? "";
+  }
+  return result;
+}
+function findDocumentation(node2, rel) {
+  for (const raw of asArray2(node2["documentation"])) {
+    const docNode = asRecord(raw);
+    if (attr2(docNode, "rel") !== rel) continue;
+    return elementText(raw) ?? "";
+  }
+  return void 0;
+}
+function parseElementInfoNode(raw) {
+  const node2 = asRecord(raw) ?? {};
+  const type = attr2(node2, "type");
+  const name = attr2(node2, "name");
+  const shortText = findDocumentation(node2, "shorttext");
+  const abapDoc = findDocumentation(node2, "abapdoc");
+  const children = asArray2(node2["elementInfo"]).map(parseElementInfoNode);
+  return {
+    ...type !== void 0 ? { type } : {},
+    ...name !== void 0 ? { name } : {},
+    properties: parseProperties(node2["properties"]),
+    ...shortText !== void 0 ? { shortText } : {},
+    ...abapDoc !== void 0 ? { abapDoc } : {},
+    children
+  };
+}
+function elementInfoFragmentUri(sourceUri, pos) {
+  return `${sourceUri}#start=${pos.line},${pos.column}`;
+}
+var UNRESOLVED_ELEMENT_INFO = { properties: {}, children: [] };
+function hasNoElementAtAll(body, doc) {
+  if (body.trim() === "") return true;
+  return Object.keys(doc).every((key) => {
+    if (key === "?xml") return true;
+    if (key === "#text") return typeof doc[key] !== "string" || doc[key].trim() === "";
+    return false;
+  });
+}
+function parseElementInfo(xml3, ctx) {
+  const doc = parseXmlDocument(xml3, "element info", ctx);
+  const rootValue = doc["elementInfo"];
+  if (rootValue === void 0) {
+    if (hasNoElementAtAll(xml3, doc)) return UNRESOLVED_ELEMENT_INFO;
+    throw new AbapError(
+      "ADT_ERROR",
+      `The element info response has no <abapsource:elementInfo> element.`,
+      { operation: ctx.operation, uri: ctx.uri, preview: truncateText(xml3, PARSE_EXCERPT_MAX) },
+      "This ADT release may answer element info differently from what this client expects."
+    );
+  }
+  return parseElementInfoNode(rootValue);
+}
+function isUnresolved(info) {
+  return info.name === void 0;
+}
+async function fetchElementInfo(conn, sourceUri, pos, source) {
+  const ctx = { operation: "element info", uri: sourceUri };
+  let body;
+  try {
+    ({ body } = await conn.post(ELEMENT_INFO_URL, {
+      headers: { "Content-Type": CONTENT_TYPE_TEXT_PLAIN, Accept: ELEMENT_INFO_MEDIA_TYPE },
+      qs: { uri: elementInfoFragmentUri(sourceUri, pos) },
+      body: source
+    }));
+  } catch (e) {
+    throw translateAdtError(e, ctx);
+  }
+  return parseElementInfo(body, ctx);
+}
+var FRAGMENT_RE = /^(.*)#start=(\d+),(\d+)(?:;end=\d+,\d+)?$/;
+function splitFragmentUri(uri) {
+  const m = FRAGMENT_RE.exec(uri);
+  if (!m) return { uri };
+  return { uri: m[1], line: Number(m[2]), column: Number(m[3]) };
+}
+function parseNavigationTarget(xml3, ctx) {
+  const doc = parseXmlDocument(xml3, "navigation target", ctx);
+  const rootValue = doc["objectReference"];
+  if (rootValue === void 0) {
+    throw new AbapError(
+      "ADT_ERROR",
+      `The navigation target response has no <adtcore:objectReference> element.`,
+      { operation: ctx.operation, uri: ctx.uri, preview: truncateText(xml3, PARSE_EXCERPT_MAX) },
+      "This ADT release may answer navigation targets differently from what this client expects."
+    );
+  }
+  const uri = attr2(asRecord(rootValue), "uri");
+  return uri === void 0 ? void 0 : splitFragmentUri(uri);
+}
+var NAVIGATION_UNDECIDABLE_RE = /undecidable/i;
+function noTargetReasonFor(e, translated) {
+  const info = adtExceptionInfo(e);
+  if (info?.properties["T100KEY-ID"] === "ED" && info.properties["T100KEY-NO"] === "263") {
+    return "declaration-itself";
+  }
+  if (info?.properties["T100KEY-ID"] === "SEDI_ADT" && info.properties["T100KEY-NO"] === "2") {
+    return "undecidable";
+  }
+  if (info?.type === "ExceptionMultipleNavigationTargets") {
+    return "undecidable";
+  }
+  if (info?.type === "NavigationFailure" && NAVIGATION_UNDECIDABLE_RE.test(translated.message)) {
+    return "undecidable";
+  }
+  if (info?.type === void 0 && NAVIGATION_UNDECIDABLE_RE.test(translated.message)) {
+    return "undecidable";
+  }
+  return void 0;
+}
+async function findDefinitionTarget(conn, sourceUri, range, source) {
+  const ctx = { operation: "navigation target", uri: sourceUri };
+  const fragment = `${sourceUri}#start=${range.line},${range.startColumn};end=${range.line},${range.endColumn}`;
+  let body;
+  try {
+    ({ body } = await conn.post(NAVIGATION_TARGET_URL, {
+      headers: { "Content-Type": CONTENT_TYPE_TEXT_PLAIN, Accept: ELEMENT_INFO_MEDIA_TYPE },
+      qs: { uri: fragment, filter: "definition" },
+      body: source
+    }));
+  } catch (e) {
+    const translated = translateAdtError(e, ctx);
+    const noTargetReason = noTargetReasonFor(e, translated);
+    if (noTargetReason !== void 0) return { noTargetReason };
+    throw translated;
+  }
+  const target = parseNavigationTarget(body, ctx);
+  return target !== void 0 ? { target } : { noTargetReason: "unnamed" };
+}
+var ABAP_IDENTIFIER_CHAR = /[A-Za-z0-9_/~]/;
+function identifierAt(source, pos) {
+  if (!Number.isInteger(pos.line) || pos.line < 1) return void 0;
+  const lineText = source.split(/\r\n|\n/)[pos.line - 1];
+  if (lineText === void 0) return void 0;
+  if (!Number.isInteger(pos.column) || pos.column < 0 || pos.column >= lineText.length) return void 0;
+  if (!ABAP_IDENTIFIER_CHAR.test(lineText[pos.column])) return void 0;
+  let start = pos.column;
+  while (start > 0 && ABAP_IDENTIFIER_CHAR.test(lineText[start - 1])) start--;
+  let end = pos.column + 1;
+  while (end < lineText.length && ABAP_IDENTIFIER_CHAR.test(lineText[end])) end++;
+  return { text: lineText.slice(start, end), startColumn: start, endColumn: end };
+}
+function recordString(rec, key) {
+  const value = rec[key];
+  return typeof value === "string" ? value : void 0;
+}
+function classNameFromUri(uri) {
+  if (uri === void 0) return void 0;
+  const segments = uri.split("/").filter((s) => s.length > 0);
+  const last = segments[segments.length - 1];
+  return last ? last.toUpperCase() : void 0;
+}
+var USAGE_REFERENCES_REQUEST_BODY = `<?xml version="1.0" encoding="ASCII"?>
+  <usagereferences:usageReferenceRequest xmlns:usagereferences="http://www.sap.com/adt/ris/usageReferences">
+    <usagereferences:affectedObjects/>
+  </usagereferences:usageReferenceRequest>`;
+function parseUsageReferences(xml3, ctx) {
+  const doc = parseXmlDocument(xml3, "usage references", ctx, usageReferencesXml);
+  const rootValue = doc["usageReferenceResult"];
+  if (rootValue === void 0) {
+    throw new AbapError(
+      "ADT_ERROR",
+      `The usage references response has no <usagereferences:usageReferenceResult> element.`,
+      { operation: ctx.operation, uri: ctx.uri, preview: truncateText(xml3, PARSE_EXCERPT_MAX) },
+      "This ADT release may answer where-used differently from what this client expects."
+    );
+  }
+  const root = asRecord(rootValue);
+  const referencedObjects = asRecord(root?.["referencedObjects"]);
+  if (referencedObjects === void 0) return [];
+  const rows = [];
+  for (const raw of asArray2(referencedObjects["referencedObject"])) {
+    const row2 = asRecord(raw);
+    if (row2 === void 0) continue;
+    const adtObject = asRecord(row2["adtObject"]) ?? {};
+    const packageRefNode = asRecord(adtObject["packageRef"]);
+    const packageRef = {};
+    const packageName = attr2(packageRefNode, "name");
+    const packageUri = attr2(packageRefNode, "uri");
+    const packageType = attr2(packageRefNode, "type");
+    if (packageName !== void 0) packageRef["adtcore:name"] = packageName;
+    if (packageUri !== void 0) packageRef["adtcore:uri"] = packageUri;
+    if (packageType !== void 0) packageRef["adtcore:type"] = packageType;
+    const rowUri = attr2(row2, "uri");
+    const parentUri = attr2(row2, "parentUri");
+    const adtName = attr2(adtObject, "name");
+    const adtType = attr2(adtObject, "type");
+    rows.push({
+      ...rowUri !== void 0 ? { uri: rowUri } : {},
+      ...parentUri !== void 0 ? { parentUri } : {},
+      ...adtName !== void 0 ? { "adtcore:name": adtName } : {},
+      ...adtType !== void 0 ? { "adtcore:type": adtType } : {},
+      packageRef,
+      objectIdentifier: elementText(row2["objectIdentifier"]) ?? ""
+    });
+  }
+  return rows;
+}
+function implementationsFrom(refs, interfaceName, methodName) {
+  const wanted = `${interfaceName}~${methodName}`.toUpperCase();
+  const nameByUri = /* @__PURE__ */ new Map();
+  for (const ref2 of refs) {
+    const uri = recordString(ref2, "uri");
+    const name = recordString(ref2, "adtcore:name");
+    if (uri !== void 0 && name !== void 0) nameByUri.set(uri, name);
+  }
+  const results = [];
+  for (const ref2 of refs) {
+    const name = recordString(ref2, "adtcore:name");
+    if (name === void 0 || name.toUpperCase() !== wanted) continue;
+    const uri = recordString(ref2, "uri");
+    if (uri === void 0) continue;
+    const parentUri = recordString(ref2, "parentUri");
+    const className = (parentUri !== void 0 ? nameByUri.get(parentUri) : void 0) ?? classNameFromUri(parentUri);
+    if (className === void 0) continue;
+    const packageRefValue = ref2["packageRef"];
+    const packageRef = asRecord(packageRefValue);
+    const packageName = packageRef !== void 0 ? recordString(packageRef, "adtcore:name") : void 0;
+    results.push({
+      className,
+      methodName: name,
+      uri,
+      ...packageName !== void 0 ? { packageName } : {}
+    });
+  }
+  return results;
+}
+async function findImplementations(conn, interfaceSourceUri, pos, interfaceName, methodName) {
+  const ctx = {
+    operation: "usage references",
+    uri: interfaceSourceUri,
+    name: `${interfaceName}~${methodName}`
+  };
+  const fragment = pos !== void 0 ? `${interfaceSourceUri}#start=${pos.line},${pos.column}` : interfaceSourceUri;
+  const startedAt = Date.now();
+  let body;
+  try {
+    ({ body } = await conn.post(USAGE_REFERENCES_URL, {
+      headers: { "Content-Type": "application/*", Accept: "application/*" },
+      qs: { uri: fragment },
+      body: USAGE_REFERENCES_REQUEST_BODY
+    }));
+  } catch (e) {
+    throw translateAdtError(e, ctx);
+  }
+  const fetchMs = Date.now() - startedAt;
+  const refs = parseUsageReferences(body, ctx);
+  return {
+    implementations: implementationsFrom(refs, interfaceName, methodName),
+    fetchMs,
+    totalReferences: refs.length
+  };
+}
+
+// src/tools/read.ts
+init_types();
+init_compact();
+var readInputSchema = {
+  object: external_exports.string().describe('Name, "class X", "table Y", or ADT URI.'),
+  type: external_exports.string().optional().describe(
+    `ADT type to disambiguate. DEVC/K: package listing (types/depth filter it). SUSO/B: renders the object's DEFINITION (fields, permitted activities) from the catalog \u2014 NOT who holds it, no AGR_*/UST* table is read. TABL/DI: <TABLE>/<INDEX> catalog render. Not readable: ${NON_READABLE_TYPES.join(" ")}.`
+  ),
+  method: external_exports.string().optional().describe("Only this method/component."),
+  outline: external_exports.boolean().optional().describe("Component list with line ranges."),
+  offset: external_exports.number().int().min(1).max(999999).optional().describe("1-based first line (chars if format=raw)."),
+  limit: external_exports.number().int().min(1).max(999999).optional().describe("Max lines (chars if format=raw)."),
+  enhancements: external_exports.boolean().optional().describe("BAdI/plug-in/enhancement-spot decode (ENHO/XH,XHH,ENHS), not source."),
+  // G-08: closed enum so the SDK rejects a typo (e.g. "Active") before the
+  // handler runs, instead of zod silently stripping it and falling through
+  // to whatever ADT reports as current. Never silently normalise.
+  version: external_exports.enum(["active", "inactive"]).optional().describe("Default: current (active or newest inactive)."),
+  // Closes a gap: the properties-shape types write a full XML descriptor PUT,
+  // but the default read only produced lossy pseudo-DDL (or UNSUPPORTED).
+  // Gated by capabilitiesFor, not a type list — additive only.
+  format: external_exports.enum(["raw"]).optional().describe(`raw: XML, not pseudo-DDL (${PROPERTIES_SHAPE_TYPES.join(" ")} only).`),
+  // Enum for the same reason as version/format (G-08): reject a typo rather
+  // than silently falling through to an ordinary source read. Named `view`,
+  // not `mode` — `mode` is already a response header key and `ResolvedObject.mode`.
+  view: external_exports.enum(["history", "diff", "definition"]).optional().describe("history: versions. diff: hunks. definition: element at line/column. Omit for normal read."),
+  from: external_exports.string().optional().describe('diff: older side \u2014 version, transport, or "active".'),
+  to: external_exports.string().optional().describe("diff: newer side, same forms as `from`."),
+  context: external_exports.number().int().min(0).max(20).optional().describe("diff: context lines per hunk. Default 3."),
+  // Same names/bounds/semantics as abap_quick_fix's line/column (quickfix.ts)
+  // — deliberately, so a caller who has already learned one learns both.
+  // No `.default(0)` on column: unlike quick-fix (which always needs a
+  // position), a default here would make "column was omitted" and "column=0
+  // was passed with no view" indistinguishable, and the refusal below needs
+  // that distinction.
+  line: external_exports.number().int().min(1).optional().describe('1-based source line. Required with view="definition"; refused otherwise.'),
+  column: external_exports.number().int().min(0).optional().describe('0-based column. Default 0. Only meaningful with view="definition"; refused otherwise.'),
+  // C-6: ADT versions each class include (main/definitions/
+  // implementations/macros/testclasses) as its own document, so silently
+  // defaulting to `main` hides changes made in e.g. testclasses. Selectable
+  // on both the source-read and `view` paths, always disclosed.
+  include: external_exports.enum(CLASS_INCLUDES).optional().describe('Class include. "testclasses"=Unit tests. Default "main".'),
+  types: external_exports.array(external_exports.string()).optional().describe('DEVC/K only: filter package contents to these kind codes, e.g. ["CLAS","DDLS"].'),
+  depth: external_exports.number().int().min(1).max(3).optional().describe("DEVC/K only: subpackage nesting depth to list. Default 1.")
+};
+var ReadInput = external_exports.object(readInputSchema);
+var OUTLINE_KINDS = /* @__PURE__ */ new Set(["CLAS", "INTF"]);
+var ENHANCEMENT_KINDS = /* @__PURE__ */ new Set(["ENHO/XH", "ENHO/XHH", "ENHS"]);
+function renderRef(ref2) {
+  if (!ref2?.name) return "(none)";
+  return ref2.type ? `${ref2.type} ${ref2.name}` : ref2.name;
+}
+function renderFilterTree(node2, indent) {
+  if (node2.kind === "filter") {
+    const c = node2.condition;
+    const range = c.value2 ? ` .. ${c.comparator2 ?? ""} ${c.value2}` : "";
+    return `${indent}${c.filterName ?? "?"} ${c.comparator1 ?? "="} ${c.value1 ?? ""}${range}`;
+  }
+  const children = node2.children.map((child4) => renderFilterTree(child4, indent + "  ")).join("\n");
+  return `${indent}${node2.kind.toUpperCase()}(
+${children}
+${indent})`;
+}
+function renderBadiImplementation(data) {
+  const notes = [];
+  if (data.activationStatus === "inactive" && data.implementations.some((impl) => impl.isActive === true)) {
+    notes.push(
+      `DESIGN-TIME VERSION IS INACTIVE (adtcore:version, see activationStatus above) even though at least one implementation below has isActive=true. These are independent switches \u2014 isActive is only the runtime dispatch flag, not repository activation \u2014 and this object will not dispatch reliably until adtcore:version is also active. Activate it directly, e.g. abap_activate(object:"${data.name}", type:"ENHO/XH").`
+    );
+  }
+  if (data.implementations.length > 1) {
+    notes.push(
+      "This document carries more than one <badiImplementation> element. Every capture T1 was built against showed exactly one \u2014 multiplicity above 1 is UNVERIFIED shape here."
+    );
+  }
+  let sawFilterTree = false;
+  const blocks = data.implementations.map((impl) => {
+    if (impl.filterTree) sawFilterTree = true;
+    const classLine = impl.implementingClass?.name ? `  implementing class: ${impl.implementingClass.name}  -> paste into abap_debug as object: "class ${impl.implementingClass.name}"` : "  implementing class: (none)";
+    return [
+      `IMPLEMENTATION: ${impl.name}`,
+      impl.shortText ? `  short text: ${impl.shortText}` : void 0,
+      `  active: ${impl.isActive ? "yes" : "no"}  default: ${impl.isDefault ? "yes" : "no"}  customizing: ${impl.isCustomizingSupported ? "yes" : "no"}`,
+      impl.enhancementSpot ? `  enhancement spot: ${renderRef(impl.enhancementSpot)}` : void 0,
+      impl.badiDefinition ? `  BAdI definition: ${renderRef(impl.badiDefinition)}` : void 0,
+      classLine,
+      impl.filterTree ? `  filter tree:
+${renderFilterTree(impl.filterTree, "    ")}` : void 0
+    ].filter((l) => l !== void 0).join("\n");
+  });
+  if (sawFilterTree) {
+    notes.push(
+      "filter tree: DERIVED for display, not a write target (see enhancement-xml.ts). Its grammar was inferred from a single sample \u2014 whether a level can mix and/or/filter siblings, and this decoder's ordering of them if so, is UNVERIFIED."
+    );
+  }
+  const implClassNames = [
+    ...new Set(
+      data.implementations.map((impl) => impl.implementingClass?.name).filter((n) => !!n)
+    )
+  ];
+  if (implClassNames.length > 0) {
+    notes.push(
+      `implementing class ${implClassNames.length > 1 ? "names" : "name"} above (${implClassNames.join(", ")}) ${implClassNames.length > 1 ? "are" : "is"} what this enhancement document records \u2014 abapsmith has not verified the class exists. A BAdI implementation can name a class that was never created. abap_read(object:"<name>", type:"CLAS/OC") settles it.`
+    );
+  }
+  return {
+    body: blocks.join("\n\n") || "(this document has no <badiImplementation> elements)",
+    notes
+  };
+}
+function renderSourceCodePlugin(data) {
+  const notes = [];
+  if (data.switchState) {
+    notes.push(
+      `Switch-BC-Set gate present (state="${data.switchState}"${data.switchReference ? `, ${renderRef(data.switchReference)}` : ""}). This field was observed on exactly one capture \u2014 whether "off" is the only possible state, or whether the reference can be absent while the switch is present, is UNVERIFIED.`
+    );
+  }
+  const usageRows = data.usages.length ? textTable(
+    data.usages.map((u) => ({
+      programId: u.programId ?? "",
+      usage: u.elementUsage ?? "",
+      object: renderRef(u.objectReference)
+    })),
+    ["programId", "usage", "object"]
+  ) : "(none)";
+  const hookBlocks = data.hookImplementations.map(
+    (h) => [
+      `HOOK: ${h.id ?? "(no id)"}`,
+      h.spotName ? `  spot: ${h.spotName}` : void 0,
+      h.programName ? `  program: ${h.programName}` : void 0,
+      h.method ? `  method: ${h.method}` : void 0,
+      h.overwrite ? `  overwrite: ${h.overwrite}` : void 0,
+      // Only `full_name` has been observed on the wire; `fullname` is untested.
+      h.fullName ? `  anchor: ${h.fullName}` : void 0,
+      h.enclosureUri ? `  enclosure: ${h.enclosureUri}` : void 0
+    ].filter((l) => l !== void 0).join("\n")
+  );
+  const body = [
+    data.enhancedObject ? `enhanced object: ${renderRef(data.enhancedObject)}` : void 0,
+    data.sourceUri ? `source: ${data.sourceUri}` : void 0,
+    "",
+    "USAGES:",
+    usageRows,
+    "",
+    "HOOK IMPLEMENTATIONS:",
+    hookBlocks.join("\n\n") || "(none)"
+  ].filter((l) => l !== void 0).join("\n");
+  return { body, notes };
+}
+function renderEnhancementSpot(data) {
+  const notes = [];
+  if (data.badiDefinitions.length === 0) {
+    notes.push(
+      "No <badiDefinition> element in this document. This may be a genuinely empty spot, OR a hook-flavoured spot \u2014 this decoder's handling of a hook-flavoured enhsxs document is UNVERIFIED (the one live attempt returned HTTP 500, not 200)."
+    );
+  }
+  const blocks = data.badiDefinitions.map((def) => {
+    const filterRows = def.filters.length ? textTable(
+      def.filters.map((f) => ({
+        name: f.filterName ?? "",
+        type: f.filterType ?? "",
+        text: f.shorttext ?? ""
+      })),
+      ["name", "type", "text"]
+    ).split("\n").map((l) => "    " + l).join("\n") : "    (none declared)";
+    return [
+      `BADI DEFINITION: ${def.name}`,
+      def.shorttext ? `  short text: ${def.shorttext}` : void 0,
+      `  single use: ${def.singleUse ? "yes" : "no"}  fallback class: ${def.useFallbackClass ? "yes" : "no"}  filter limitation: ${def.filterLimitation ? "yes" : "no"}`,
+      def.interfaceRef ? `  interface: ${renderRef(def.interfaceRef)}` : void 0,
+      "  filters:",
+      filterRows
+    ].filter((l) => l !== void 0).join("\n");
+  });
+  return {
+    body: blocks.join("\n\n") || "(this document has no <badiDefinition> elements)",
+    notes
+  };
+}
+function resourceEtag(canonicalBytes) {
+  return canonicalEtag(canonicalBytes);
+}
+function buildDdicLikeResponse(rendered, header, offset, limit, hints, maxChars) {
+  const etag = resourceEtag(rendered.hashInput);
+  const window2 = sliceLines(rendered.ddl, offset ?? 1, limit);
+  const built = buildReadResponse({
+    header: { ...header, ...rendered.meta, etag, totalLines: window2.total },
+    sections: rendered.sections,
+    body: window2.text,
+    bodyLabel: rendered.bodyLabel ?? "PSEUDO-DDL",
+    bodyOffset: window2.offset,
+    bodyTotalLines: window2.total,
+    notes: rendered.notes,
+    hints,
+    pagingParam: "offset",
+    maxChars
+  });
+  return { ...built, etag };
+}
+var TRUNCATED_SOURCE_NOTE = "INCOMPLETE \u2014 NOT the whole text (counts in TRUNCATED, below). The etag is marked `partial:`: abap_write REFUSES a full-source rewrite presenting it, since that would delete everything past the cut. Splice with edit={old_string,new_string}, or page it all in with offset/limit.";
+var EMPTY_SOURCE_NOTE = "Source is empty (0 bytes) \u2014 that is the whole body, not a truncated read; there is no SOURCE section below because there is nothing to show.";
+function buildSourceResponse(parts, etag, forceIncomplete = false) {
+  const first = buildReadResponse(parts);
+  if (!first.truncated && !forceIncomplete) return { ...first, etag };
+  const partialEtag = markEtagPartial(etag);
+  const second = buildResponse({
+    ...parts,
+    header: { ...parts.header, etag: partialEtag },
+    notes: [TRUNCATED_SOURCE_NOTE, ...parts.notes ?? []]
+  });
+  return { ...second, truncated: true, etag: partialEtag };
+}
+function buildReadResponse(parts) {
+  const first = buildResponse(parts);
+  if (first.truncated) return first;
+  const facts = [
+    "truncated=false",
+    ...first.hasMore === void 0 ? [] : [`hasMore=${first.hasMore}`],
+    ...first.returnedLines === void 0 ? [] : [`returnedLines=${first.returnedLines}`],
+    ...first.totalLines === void 0 ? [] : [`totalLines=${first.totalLines}`],
+    `estimatedTokens=~${first.estimatedTokens}`
+  ].join(" ");
+  const withFacts = buildResponse({
+    ...parts,
+    header: { ...parts.header, response: `complete (${facts})` }
+  });
+  return withFacts.truncated ? first : withFacts;
+}
+async function fetchRawDescriptor(conn, obj) {
+  return fetchDdicXml(conn, obj, "read raw XML descriptor", capabilitiesFor(obj.type)?.mediaType);
+}
+function renderAdjustmentStatus(value) {
+  if (value === void 0) return void 0;
+  return value === "" ? "(empty)" : value;
+}
+function renderEnhancementDescription(value) {
+  return value ? value : "(empty)";
+}
+function enhancementDescriptionRequiredNote(ctx) {
+  return `${ctx.type} ${ctx.name}: this document's own root adtcore:description is empty. SAP's enhancement PUT handler refuses EVERY write or activation against this object until it is set \u2014 HTTP 400 ExceptionInvalidData, SWB_TOOL19/scr_prop_no_decr, "The description is missing" (ENHANCEMENT_DESCRIPTION_REQUIRED) \u2014 including set_impl_active and any write that has nothing to do with the description itself (enhancement-write.ts's assertDescriptionWillBePresent/putEnhancementDocument). Nothing is broken yet, but the next write or abap_activate call on this object will refuse. Call abap_enh operation:"write_description" (name:"${ctx.name}", type:"${ctx.type}") to give it one.`;
+}
+async function readEnhancementObject(conn, obj, baseHeader, input, maxChars) {
+  let doc;
+  let rendered;
+  let extraHeader;
+  let documentDescription;
+  if (obj.kind === "ENHO/XH") {
+    const d = await readBadiImplementation(conn, obj.name);
+    doc = d;
+    rendered = renderBadiImplementation(d.data);
+    documentDescription = d.data.description;
+    extraHeader = {
+      toolType: d.data.toolType,
+      activationStatus: d.data.activationStatus,
+      masterSystem: d.data.masterSystem,
+      responsible: d.data.responsible,
+      adjustmentStatus: renderAdjustmentStatus(d.data.adjustmentStatus)
+    };
+  } else if (obj.kind === "ENHO/XHH") {
+    const d = await readSourceCodePlugin(conn, obj.name);
+    doc = d;
+    rendered = renderSourceCodePlugin(d.data);
+    documentDescription = d.data.description;
+    extraHeader = {
+      toolType: d.data.toolType,
+      activationStatus: d.data.activationStatus,
+      masterSystem: d.data.masterSystem,
+      responsible: d.data.responsible,
+      adjustmentStatus: renderAdjustmentStatus(d.data.adjustmentStatus)
+    };
+  } else {
+    const d = await readEnhancementSpot(conn, obj.name);
+    doc = d;
+    rendered = renderEnhancementSpot(d.data);
+    documentDescription = d.data.description;
+    extraHeader = {
+      toolType: d.data.toolType,
+      activationStatus: d.data.activationStatus,
+      masterSystem: d.data.masterSystem,
+      responsible: d.data.responsible
+    };
+  }
+  extraHeader.description = renderEnhancementDescription(documentDescription);
+  if (obj.description && obj.description !== documentDescription) {
+    extraHeader.searchIndexDescription = obj.description;
+    rendered.notes.push(
+      `The ADT search index reports a different description ("${obj.description}", shown above as searchIndexDescription) than this document's own root adtcore:description (shown above as description). Only the document's own value governs writes and activations (ENHANCEMENT_DESCRIPTION_REQUIRED) \u2014 the search index value is informational only, shown here so it isn't silently dropped.`
+    );
+  }
+  if (!documentDescription) {
+    rendered.notes.push(enhancementDescriptionRequiredNote({ type: obj.type, name: obj.name }));
+  }
+  const etag = resourceEtag(doc.xml);
+  const window2 = sliceLines(rendered.body, input.offset ?? 1, input.limit);
+  const built = buildReadResponse({
+    header: { ...baseHeader, mode: "enhancement", etag, ...extraHeader, totalLines: window2.total },
+    body: window2.text,
+    bodyLabel: "ENHANCEMENT",
+    bodyOffset: window2.offset,
+    bodyTotalLines: window2.total,
+    notes: rendered.notes,
+    hints: [
+      `For a BAdI implementation, paste "implementing class" straight into abap_debug's breakpoint object field to set a breakpoint there.`
+    ],
+    pagingParam: "offset",
+    maxChars
+  });
+  return { ...built, etag };
+}
+var NO_ETAG = "";
+var DIFF_MAX_HUNKS = 200;
+function assertViewCompatible(input, obj) {
+  const clash = (param, why, hint) => {
+    throw new AbapError(
+      "UNSUPPORTED",
+      `${param} cannot be combined with view="${input.view}" for ${obj.type} ${obj.name}: ${why}`,
+      { type: obj.type, name: obj.name, view: input.view, param },
+      hint
+    );
+  };
+  const isDefinition = input.view === "definition";
+  if (input.format) {
+    clash(
+      'format="raw"',
+      isDefinition ? "raw returns the XML descriptor of a properties-shape type; there is no source text to resolve a line/column position in." : "raw returns the current XML descriptor, which has no version feed behind it.",
+      isDefinition ? "Drop format \u2014 a definition lookup only makes sense against source text." : "Drop one of the two: view for history/diff, format for the current wire document."
+    );
+  }
+  if (input.enhancements) {
+    clash(
+      "enhancements=true",
+      isDefinition ? "the enhancement decoders read a structured ENHO/ENHS document, not the source text a position lookup resolves against." : "the enhancement decoders read the current definition only.",
+      "Drop enhancements, or drop view."
+    );
+  }
+  if (input.version && (!isDefinition || input.version === "inactive")) {
+    clash(
+      `version="${input.version}"`,
+      isDefinition ? "the elementinfo and navigation-target POSTs always carry the source abap_read itself read; asking about the inactive version while posting the active source would answer a question about a version that was never sent." : 'the active/inactive pair is a different axis from the version FEED; "inactive" is not a feed entry and has no history row.',
+      isDefinition ? "Activate the object first and read the active source, or drop version." : 'Use from/to to name feed versions (list them with view="history").'
+    );
+  }
+  if (input.outline) {
+    clash(
+      "outline=true",
+      isDefinition ? "outline lists the whole component structure, not source text \u2014 there is no line/column position in a component list to resolve." : "the outline lists the CURRENT component structure; ADT serves no per-version outline.",
+      "Read the outline separately, without view."
+    );
+  }
+  if (input.method) {
+    clash(
+      `method="${input.method}"`,
+      isDefinition ? "method slices the source down to one component's block and renumbers its lines from 1; a line/column that identifies a position in the FULL source would silently land on whatever happens to sit at that line number inside the renumbered excerpt instead of the position you meant." : "ADT versions whole objects (or whole class includes), not individual methods, so there is no per-method feed to read or diff.",
+      isDefinition ? "Drop method and read the definition against the full source (optionally with include)." : "Drop method \u2014 the diff hunks already carry line numbers you can map back to a method."
+    );
+  }
+  if (input.include && obj.kind !== "CLAS") {
+    clash(
+      `include="${input.include}"`,
+      `only a class has includes, and ${obj.type} ${obj.name} is not one.`,
+      "Drop include."
+    );
+  }
+  if (input.include && obj.include && input.include !== obj.include) {
+    clash(
+      `include="${input.include}"`,
+      `the object reference already named include "${obj.include}". Two different includes were asked for and there is no non-arbitrary way to pick one.`,
+      `Drop one of them: either include="${input.include}" or the /includes/${obj.include} suffix on the object reference.`
+    );
+  }
+  if (input.view === "history") {
+    for (const [param, value] of [
+      ["from", input.from],
+      ["to", input.to],
+      ["context", input.context]
+    ]) {
+      if (value !== void 0) {
+        clash(
+          param,
+          "it selects or formats a diff, and history only lists versions.",
+          `Use view="diff" with ${param}, or drop ${param}.`
+        );
+      }
+    }
+  }
+  if (isDefinition) {
+    for (const [param, value] of [
+      ["from", input.from],
+      ["to", input.to],
+      ["context", input.context]
+    ]) {
+      if (value !== void 0) {
+        clash(
+          param,
+          "they parameterise a diff between two versions; definition resolves a position in the current source, not a comparison between versions.",
+          `Drop ${param}, or use view="diff" to compare versions instead.`
+        );
+      }
+    }
+  }
+  if (input.view === "history" || input.view === "diff") {
+    for (const [param, value] of [
+      ["line", input.line],
+      ["column", input.column]
+    ]) {
+      if (value !== void 0) {
+        clash(
+          param,
+          "it selects a position in the CURRENT source; history and diff are about versions, not positions.",
+          'Use view="definition" for a position lookup, or drop it.'
+        );
+      }
+    }
+  }
+  if (isDefinition && input.line === void 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      'view="definition" requires line: a definition lookup is position-driven; without a line there is no element to resolve.',
+      { type: obj.type, name: obj.name },
+      "Add line (1-based); column (0-based) defaults to 0 if omitted."
+    );
+  }
+  if (isDefinition && (obj.mode === "ddic" || !obj.sourceUri)) {
+    throw new AbapError(
+      "UNSUPPORTED",
+      `view="definition" is not supported for ${obj.type} ${obj.name}: element info is a source-position lookup, and this object has no ABAP source to resolve a position in.`,
+      { type: obj.type, name: obj.name, mode: obj.mode },
+      "Omit view, or point this at a source-based object (CLAS, INTF, PROG, FUGR, DDLS, DDLX, BDEF, SRVD, XSLT)."
+    );
+  }
+}
+function viewInclude(input, obj) {
+  if (obj.kind !== "CLAS") return void 0;
+  return input.include ?? obj.include ?? "main";
+}
+function includeNote(include) {
+  if (!include) return [];
+  const others = CLASS_INCLUDES.filter((i) => i !== include);
+  return [
+    `This covers class include "${include}" ONLY. ADT versions each include separately, so a change made in ${others.join(", ")} does not appear here \u2014 re-run with include="\u2026" to see those.`
+  ];
+}
+function assertIncludeCompatible(input, obj) {
+  if (input.include && obj.include && input.include !== obj.include) {
+    throw new AbapError(
+      "UNSUPPORTED",
+      `include="${input.include}" contradicts the object reference, which already named include "${obj.include}". Two different includes were asked for and there is no non-arbitrary way to pick one.`,
+      { type: obj.type, name: obj.name, requested: input.include, fromUri: obj.include },
+      `Drop one of them: either include="${input.include}" or the /includes/${obj.include} suffix on the object reference.`
+    );
+  }
+  const include = input.include ?? obj.include;
+  if (!include) return void 0;
+  if (obj.kind !== "CLAS") {
+    throw new AbapError(
+      "UNSUPPORTED",
+      `${obj.type} ${obj.name} has no "${include}" include \u2014 class includes (${CLASS_INCLUDES.join(", ")}) exist only for classes.`,
+      { type: obj.type, name: obj.name, requested: include },
+      "Drop include. This object has a single source document, and it was NOT silently returned in place of the include you asked for."
+    );
+  }
+  if (include === "main") return include;
+  const clash = (param, why, hint) => {
+    throw new AbapError(
+      "UNSUPPORTED",
+      `${param} cannot be combined with include="${include}" for ${obj.type} ${obj.name}: ${why}`,
+      { type: obj.type, name: obj.name, include, param },
+      hint
+    );
+  };
+  if (input.format) {
+    clash(
+      'format="raw"',
+      `raw returns an object's whole XML descriptor, which exists only for the properties-shape types (${PROPERTIES_SHAPE_TYPES.join(", ")}) \u2014 a class has none, and a class include is source.`,
+      "Drop format \u2014 an include read already returns exactly the source bytes a write of that include replaces."
+    );
+  }
+  if (input.enhancements) {
+    clash(
+      "enhancements=true",
+      "the enhancement decoders read an ENHO/ENHS document, not a class include.",
+      "Drop one of the two."
+    );
+  }
+  if (input.outline) {
+    clash(
+      "outline=true",
+      `the ADT component structure describes the GLOBAL class and reports its line ranges against the class's main document, so an outline of "${include}" is not a thing ADT serves \u2014 the rows would be main's, with main's line numbers.`,
+      `Read include="${include}" in full (offset/limit page it), or drop include to outline the global class.`
+    );
+  }
+  const method = input.method ?? obj.member;
+  if (method) {
+    clash(
+      `method="${method}"`,
+      "the method's line range comes from the ADT component structure, which numbers lines in the class's main document. Cutting those lines out of a different include would return whatever happens to sit at them \u2014 not that method.",
+      `Read include="${include}" in full and locate the method in it, or drop include to read ${method} from the class body.`
+    );
+  }
+  return include;
+}
+async function readHistory(conn, obj, baseHeader, input, maxChars) {
+  const include = viewInclude(input, obj);
+  const entries = await listRevisions(conn, obj, include);
+  const released = releasedVersions(entries);
+  const table = textTable(
+    entries.map((e) => ({
+      version: e.versionId || "?",
+      kind: e.kind === "released" ? "" : e.kind.toUpperCase(),
+      transport: e.transport,
+      author: e.author,
+      changed: e.date,
+      description: e.description
+    })),
+    ["version", "kind", "transport", "author", "changed", "description"]
+  );
+  const window2 = sliceLines(table, input.offset ?? 1, input.limit);
+  const notes = [
+    "Sorted newest-first \u2014 pseudo-versions first, then released versions by version NUMBER, which is monotonic where atom:updated is often absent \u2014 and DE-DUPLICATED by version number. The raw feed is neither: one captured A4H feed returned 68 entries of which ~60 were the same ACTIVE row, most carrying no date at all.",
+    "00000 is the ACTIVE pseudo-version \u2014 it serves the object's CURRENT source, not a snapshot \u2014 and 99999 is INACTIVE. Neither is history. An empty transport/author/date is the feed's own silence, not a lookup failure.",
+    `The "description" column is the entry's atom:title, which is the TRANSPORT description in free prose. It is not a version label; the version number is the first column.`,
+    ...includeNote(include)
+  ];
+  if (entries.length > 0 && released.length === 0) {
+    notes.unshift(
+      `${obj.type} ${obj.name} ${NO_RELEASED_HISTORY_EXPLANATION} The row below is that ACTIVE entry \u2014 it is the object as it stands now, not a record of a change.`
+    );
+  }
+  const built = buildReadResponse({
+    header: {
+      ...baseHeader,
+      view: "history",
+      ...include ? { include } : {},
+      versions: entries.length,
+      released: released.length
+    },
+    body: entries.length ? window2.text : `(${obj.type} ${obj.name} has a version feed, but ADT returned no entries in it.)`,
+    bodyLabel: "VERSION HISTORY",
+    bodyOffset: entries.length ? window2.offset : void 0,
+    bodyTotalLines: entries.length ? window2.total : void 0,
+    notes,
+    hints: released.length >= 2 ? [
+      'Diff the last released change with view="diff" and no other parameters. Diff any pair with view="diff" from="00063" to="00067".'
+    ] : released.length === 1 ? [
+      'view="diff" with no other parameters compares the one released version against the current source.'
+    ] : [
+      "There is nothing to diff here. Read the current source with a plain abap_read (omit view)."
+    ],
+    pagingParam: "offset",
+    maxChars
+  });
+  return { ...built, etag: NO_ETAG };
+}
+async function readDiff(conn, obj, baseHeader, input, maxChars) {
+  const include = viewInclude(input, obj);
+  const entries = await listRevisions(conn, obj, include);
+  const pair = resolveDiffPair(entries, input.from, input.to, { name: obj.name, type: obj.type });
+  const ctx = { name: obj.name, type: obj.type };
+  const [oldSource, newSource] = await Promise.all([
+    revisionSource(conn, pair.older, ctx),
+    revisionSource(conn, pair.newer, ctx)
+  ]);
+  const result = diffSources(oldSource, newSource, {
+    context: input.context ?? DEFAULT_CONTEXT_LINES,
+    maxHunks: DIFF_MAX_HUNKS
+  });
+  const rendered = renderHunks(result.hunks);
+  const window2 = sliceLines(rendered, input.offset ?? 1, input.limit);
+  const side = (e) => `${e.author || "author not recorded"}, ${e.date || "date not recorded"}${e.transport ? `, ${e.transport}` : ", no transport recorded"}${e.description ? ` \u2014 "${e.description}"` : ""}`;
+  const notes = [
+    `from ${describeEntry(pair.older)} \u2014 ${side(pair.older)}` + (pair.olderDefaulted ? " (defaulted: the released version before the newer side)" : ""),
+    `to   ${describeEntry(pair.newer)} \u2014 ${side(pair.newer)}` + (pair.newerDefaulted ? " (defaulted: the newest released version)" : ""),
+    ...includeNote(include)
+  ];
+  if (pair.newerIsActive) {
+    notes.push(
+      `The NEWER side is the ACTIVE pseudo-version 00000, i.e. the object's CURRENT source, not a released snapshot. So this answers "what has changed since the last release", and it includes any local activation that was never transported.`
+    );
+  }
+  if (result.coarse) {
+    notes.push(
+      "COARSE DIFF: the two versions share almost no leading or trailing lines, so the exact line-matching pass was skipped and the whole changed region is reported as one delete-then-insert block. The diff is correct but not minimal."
+    );
+  }
+  if (result.droppedHunks > 0) {
+    notes.push(
+      `TRUNCATED: showing ${result.hunks.length} of ${result.totalHunks} hunks; ${result.droppedHunks} were withheld to stay inside the response budget. Narrow the comparison (an adjacent pair changes less) or read the versions separately.`
+    );
+  }
+  const built = buildReadResponse({
+    header: {
+      ...baseHeader,
+      view: "diff",
+      ...include ? { include } : {},
+      from: describeEntry(pair.older),
+      to: describeEntry(pair.newer),
+      added: result.added,
+      removed: result.removed,
+      hunks: result.totalHunks
+    },
+    body: result.identical ? `(no differences: ${describeEntry(pair.older)} and ${describeEntry(pair.newer)} of ${obj.type} ${obj.name} are line-for-line identical.)` : window2.text,
+    bodyLabel: "DIFF",
+    bodyOffset: result.identical ? void 0 : window2.offset,
+    bodyTotalLines: result.identical ? void 0 : window2.total,
+    notes,
+    hints: [
+      "Unified-diff hunks only \u2014 the unchanged bulk of both versions was never fetched into this response. Read a version in full with a plain abap_read if you need it.",
+      'List the versions with view="history".'
+    ],
+    pagingParam: "offset",
+    maxChars
+  });
+  return { ...built, etag: NO_ETAG };
+}
+var IMPLEMENTATIONS_DISPLAY_MAX = 50;
+var SLOW_IMPLEMENTATIONS_FETCH_MS = 5e3;
+function stripAbapDocHtml(s) {
+  return s.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").replace(/\s+([.,;:!?])/g, "$1").trim();
+}
+var OBJECT_URI_KIND = [
+  { re: /\/oo\/classes\/([^/]+)(?:\/|$)/i, type: "CLAS/OC" },
+  { re: /\/oo\/interfaces\/([^/]+)(?:\/|$)/i, type: "INTF/OI" }
+];
+function objectRefFromUri(uri) {
+  for (const { re, type } of OBJECT_URI_KIND) {
+    const m = re.exec(uri);
+    if (m?.[1]) return { name: m[1].toUpperCase(), type };
+  }
+  return {};
+}
+function renderAbapReadCall(name, type) {
+  if (!name) return "(no navigation target \u2014 nothing to open)";
+  return type ? `abap_read {"object":"${name}","type":"${type}"}` : `abap_read {"object":"${name}"}`;
+}
+function renderChildrenTable(children, candidates) {
+  if (children.length === 0) return "";
+  const field = (c, key) => key === "name" ? c.name : key === "shortText" ? c.shortText : c.properties[key];
+  const present = candidates.filter((key) => children.some((c) => field(c, key) !== void 0));
+  if (present.length === 0) return "";
+  const rows = children.map((c) => {
+    const row2 = {};
+    for (const key of present) row2[key] = field(c, key) ?? "";
+    return row2;
+  });
+  return textTable(rows, [...present]);
+}
+var SIGNATURE_COLUMNS = ["name", "paramType", "abapType", "optional", "byValue", "paramDefaultValue", "shortText"];
+var COMPONENT_COLUMNS = ["name", "abapType"];
+var CALLABLE_ELEMENT_TYPES = /* @__PURE__ */ new Set(["INTF/IO", "CLAS/OM", "FUGR/FF"]);
+async function readDefinition(conn, obj, baseHeader, input, maxChars) {
+  const include = viewInclude(input, obj);
+  const { source, sourceUri } = await readSource(conn, obj, include, input.version);
+  const line = input.line;
+  const column = input.column ?? 0;
+  const totalLines = countLines(source);
+  if (line > totalLines) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `line=${line} is past the end of ${obj.type} ${obj.name}'s source (${include ? `include "${include}", ` : ""}${totalLines} line(s)).`,
+      { type: obj.type, name: obj.name, line, totalLines, include },
+      `Pick a line between 1 and ${totalLines}, or re-read without offset/limit to see the source first.`
+    );
+  }
+  const pos = { line, column };
+  const token = identifierAt(source, pos);
+  const info = await fetchElementInfo(conn, sourceUri, pos, source);
+  const lineText = source.replace(/\r\n/g, "\n").split("\n")[line - 1] ?? "";
+  const header = {
+    ...baseHeader,
+    mode: "definition",
+    ...include ? { include } : {},
+    ...include && include !== "main" ? { uri: sourceUri } : {},
+    line,
+    column
+  };
+  const notes = [...includeNote(include)];
+  if (isUnresolved(info)) {
+    const built2 = buildReadResponse({
+      header,
+      sections: [
+        {
+          title: "DEFINITION",
+          content: `No resolvable element at line ${line}, column ${column} of ${obj.type} ${obj.name}.
+${line}: ${lineText}`
+        }
+      ],
+      notes: [
+        "ADT answered HTTP 200 with an element-info document that names no element at this position \u2014 this is a fact about the position, not a lookup failure.",
+        ...notes
+      ],
+      hints: ["Pick a position on an identifier \u2014 a variable, method call, or type name."],
+      maxChars
+    });
+    return { ...built2, etag: NO_ETAG };
+  }
+  const props = info.properties;
+  header.element = `${info.type ?? "?"} ${info.name ?? "?"}`;
+  header.kind = props.kind;
+  header.visibility = props.visibility;
+  header.level = props.level;
+  header.abapType = props.abapType;
+  const lookup = token ? await findDefinitionTarget(conn, sourceUri, { line, startColumn: token.startColumn, endColumn: token.endColumn }, source) : void 0;
+  const target = lookup?.target;
+  const targetRef = target ? objectRefFromUri(target.uri) : void 0;
+  const defLines = [`${line}: ${lineText}`];
+  if (target === void 0) {
+    defLines.push(
+      token === void 0 ? "This position is not on an identifier \u2014 ADT still resolved an element here (below), but there is no source range to ask the navigation-target endpoint for a declaration site." : lookup?.noTargetReason === "declaration-itself" ? "This position is the declaration itself \u2014 ADT reports the definition location is here (SAP message ED263)." : lookup?.noTargetReason === "undecidable" ? "ADT named no navigation target: more than one implementation exists, so the declaration site is undecidable from this position." : "ADT named no navigation target for this identifier."
+    );
+  } else {
+    defLines.push(
+      `declared at: ${target.uri}` + (target.line !== void 0 ? ` (line ${target.line}, column ${target.column})` : "")
+    );
+    defLines.push(`open with: ${renderAbapReadCall(targetRef?.name, targetRef?.type)}`);
+  }
+  const sections = [{ title: "DEFINITION", content: defLines.join("\n") }];
+  const signature = renderChildrenTable(info.children, SIGNATURE_COLUMNS);
+  const components = signature ? "" : renderChildrenTable(info.children, COMPONENT_COLUMNS);
+  if (signature) {
+    sections.push({ title: "SIGNATURE", content: signature });
+  } else if (components) {
+    sections.push({ title: "COMPONENTS", content: components });
+  } else if (info.type !== void 0 && CALLABLE_ELEMENT_TYPES.has(info.type)) {
+    sections.push({ title: "SIGNATURE", content: "(none)" });
+  }
+  const docLines = [];
+  if (info.shortText) docLines.push(`short text: ${info.shortText}`);
+  if (info.abapDoc) {
+    const stripped = stripAbapDocHtml(info.abapDoc);
+    if (stripped) docLines.push(`ABAP Doc: ${stripped}`);
+  }
+  if (docLines.length > 0) sections.push({ title: "DOC", content: docLines.join("\n") });
+  if (info.type === "FUGR/FF") {
+    notes.push(
+      "Function modules resolve to name and type only \u2014 ADT's element info returns no visibility, no signature and no documentation for FUGR/FF (verified live against RFC_PING). The empty SIGNATURE section above is that fact, not a rendering gap."
+    );
+  }
+  let implInterfaceUri;
+  let implInterfaceName;
+  let implPos;
+  if (info.type === "INTF/IO" && info.name) {
+    if (target !== void 0 && /\/oo\/interfaces\//i.test(target.uri) && targetRef?.name) {
+      implInterfaceUri = target.uri;
+      implInterfaceName = targetRef.name;
+      implPos = target.line !== void 0 && target.column !== void 0 ? { line: target.line, column: target.column } : void 0;
+    } else if (obj.type === "INTF/OI") {
+      implInterfaceUri = sourceUri;
+      implInterfaceName = obj.name;
+      implPos = pos;
+    }
+  }
+  if (implInterfaceUri && implInterfaceName && info.name) {
+    const { implementations, fetchMs, totalReferences } = await findImplementations(
+      conn,
+      implInterfaceUri,
+      implPos,
+      implInterfaceName,
+      info.name
+    );
+    const kept = implementations.slice(0, IMPLEMENTATIONS_DISPLAY_MAX);
+    const omitted = implementations.length - kept.length;
+    const rows = kept.map((i) => ({ class: i.className, method: i.methodName, package: i.packageName ?? "" }));
+    const capLine = omitted > 0 ? `
+--- TRUNCATED --- ${omitted} of ${implementations.length} implementer(s) not shown (display cap ${IMPLEMENTATIONS_DISPLAY_MAX}).` : "";
+    sections.push({
+      title: "IMPLEMENTED BY",
+      content: (implementations.length ? textTable(rows, ["class", "method", "package"]) : "(no implementing classes found)") + capLine
+    });
+    if (fetchMs >= SLOW_IMPLEMENTATIONS_FETCH_MS || totalReferences >= 500) {
+      notes.push(
+        `FETCH COST: listing implementers took ${(fetchMs / 1e3).toFixed(1)}s over ${totalReferences} where-used reference(s) \u2014 ADT's usageReferences endpoint has no server-side limit, so the whole set was fetched and filtered to implementers client-side.`
+      );
+    }
+    notes.push(
+      "Where-used is static. Dynamic calls (CALL FUNCTION lv_name, PERFORM (lv_form), SUBMIT (lv_prog)) do not appear here \u2014 these are static-analysis blind spots."
+    );
+  }
+  const built = buildReadResponse({
+    header,
+    sections,
+    notes,
+    maxChars
+  });
+  return { ...built, etag: NO_ETAG };
+}
+var CATALOG_READ_IRRELEVANT_PARAMS = [
+  "method",
+  "outline",
+  "enhancements",
+  "version",
+  "view",
+  "from",
+  "to",
+  "context",
+  "include",
+  "types",
+  "depth",
+  "format"
+];
+async function readCatalogObject(conn, input, catalogRead, label, maxChars) {
+  const code = input.type.trim().toUpperCase();
+  for (const param of CATALOG_READ_IRRELEVANT_PARAMS) {
+    if (input[param] !== void 0) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${param} is not supported for ${label} (${code}): this type has no ADT resource, so abap_read renders it directly from the catalog (${catalogRead.from}) with no source, outline, history or raw-XML axis to apply it to.`,
+        { type: code, param },
+        `Drop ${param}.`
+      );
+    }
+  }
+  const header = {
+    system: conn.cfg.sid,
+    mode: "catalog"
+  };
+  if (code === "SUSO/B") {
+    const obj = await readAuthorizationObject(conn, input.object);
+    const rendered2 = renderAuthorizationObject(obj);
+    return buildDdicLikeResponse(
+      rendered2,
+      { ...header, object: `${code} ${obj.name}` },
+      input.offset,
+      input.limit,
+      [SUSO_WHERE_USED_NOTE],
+      maxChars
+    );
+  }
+  const parts = input.object.split("/");
+  if (parts.length !== 2 || parts[0].trim() === "" || parts[1].trim() === "") {
+    throw new AbapError(
+      "BAD_INPUT",
+      `"${input.object}" is not a valid ${code} name: expected ${catalogRead.nameForm}.`,
+      { object: input.object, type: code },
+      `Name it as <TABLE>/<INDEX>, e.g. "ZTAB/Z01". Not sure of the index id? abap_read {"object":"<TABLE>","type":"TABL/DT"} shows the table's own structure.`
+    );
+  }
+  const [table, indexId] = parts;
+  const hint = `abap_read {"object":"${table.trim().toUpperCase()}","type":"TABL/DT"} to see the table's own structure.`;
+  const { index, notes } = await readSecondaryIndex(conn, table, indexId);
+  if (index === void 0) {
+    throw new AbapError(
+      "NOT_FOUND",
+      `Table ${table.trim().toUpperCase()} has no secondary index ${indexId.trim().toUpperCase()} in DD12V on this system \u2014 this is a definitive empty result (HTTP 200, 0 rows), not a refused read.`,
+      { table: table.trim().toUpperCase(), index: indexId.trim().toUpperCase() },
+      hint
+    );
+  }
+  const rendered = renderSecondaryIndex(index);
+  rendered.notes.push(...notes);
+  return buildDdicLikeResponse(
+    rendered,
+    { ...header, object: `${code} ${index.table}/${index.id}` },
+    input.offset,
+    input.limit,
+    [hint],
+    maxChars
+  );
+}
+async function abapRead(conn, input, maxChars) {
+  if (input.include !== void 0) assertClassInclude(input.include, input.object);
+  const catalogCap = input.type ? capabilitiesFor(input.type) : void 0;
+  if (catalogCap?.catalogRead) {
+    return readCatalogObject(conn, input, catalogCap.catalogRead, catalogCap.label, maxChars);
+  }
+  const obj = await resolveObject(conn, input.object, input.type ? { type: input.type } : {});
+  const baseHeader = {
+    system: obj.system,
+    object: `${obj.type} ${obj.name}`,
+    uri: obj.uri,
+    package: obj.packageName,
+    description: obj.description
+  };
+  if (input.view !== void 0) {
+    assertViewCompatible(input, obj);
+    if (input.view === "history") return await readHistory(conn, obj, baseHeader, input, maxChars);
+    if (input.view === "diff") return await readDiff(conn, obj, baseHeader, input, maxChars);
+    return await readDefinition(conn, obj, baseHeader, input, maxChars);
+  }
+  for (const [param, value] of [
+    ["from", input.from],
+    ["to", input.to],
+    ["context", input.context]
+  ]) {
+    if (value !== void 0) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${param} is only meaningful with view="diff"; no view was requested, so this would have been an ordinary source read with your parameter discarded.`,
+        { type: obj.type, name: obj.name, param },
+        `Add view="diff", or drop ${param}.`
+      );
+    }
+  }
+  for (const [param, value] of [
+    ["line", input.line],
+    ["column", input.column]
+  ]) {
+    if (value !== void 0) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${param} is only meaningful with view="definition"; no view was requested, so this would have been an ordinary source read with your parameter discarded.`,
+        { type: obj.type, name: obj.name, param },
+        `Add view="definition", or drop ${param}.`
+      );
+    }
+  }
+  for (const [param, value] of [
+    ["types", input.types],
+    ["depth", input.depth]
+  ]) {
+    if (value !== void 0 && obj.type !== "DEVC/K") {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${param} is only meaningful for a DEVC/K package read; ${obj.type} ${obj.name} is not a package, so this would have been an ordinary read with your parameter discarded.`,
+        { type: obj.type, name: obj.name, param },
+        `Drop ${param}, or read a package instead.`
+      );
+    }
+  }
+  const include = assertIncludeCompatible(input, obj);
+  if (input.format === "raw") {
+    if (input.version) {
+      throw new AbapError(
+        "UNSUPPORTED",
+        `version="${input.version}" is not supported with format="raw": the raw XML descriptor always reflects the current definition, the same as a plain GET would.`,
+        { type: obj.type, name: obj.name, requested: input.version },
+        "Omit version. version is only meaningful for source-mode reads (CLAS, INTF, PROG, \u2026)."
+      );
+    }
+    if (capabilitiesFor(obj.type)?.write?.shape !== "properties") {
+      throw new AbapError(
+        "UNSUPPORTED",
+        `format="raw" is only defined for the properties-shape types (${PROPERTIES_SHAPE_TYPES.join(", ")}); ${obj.type} ${obj.name} is not one of those.`,
+        { type: obj.type, name: obj.name },
+        `Omit format \u2014 the default read already returns ${obj.mode === "ddic" ? "a rendered definition" : "raw source"} for ${obj.type}, which is what a "source" shape write for this type needs anyway.`
+      );
+    }
+    const body = await fetchRawDescriptor(conn, obj);
+    const etag2 = resourceEtag(body);
+    const charTotal = body.length;
+    const charOffset = Math.min(Math.max(0, (input.offset ?? 1) - 1), charTotal);
+    const defaultWindowChars = Math.max(1e3, maxChars - 6e3);
+    const requestedLimit = input.limit;
+    const windowChars = Math.min(requestedLimit ?? defaultWindowChars, defaultWindowChars);
+    const windowText = body.slice(charOffset, charOffset + windowChars);
+    const nextOffset = charOffset + windowText.length + 1;
+    const hasMore = charOffset + windowText.length < charTotal;
+    const built = buildSourceResponse(
+      {
+        header: { ...baseHeader, mode: "raw", etag: etag2, totalChars: charTotal },
+        body: windowText,
+        bodyLabel: "XML DESCRIPTOR",
+        notes: [
+          "This is the exact ADT XML document \u2014 the same shape a properties-shape write must PUT back to this object's own URI (not /source/main, which does not exist for this type). It is NOT the pseudo-DDL abap_read renders by default; round-trip fidelity is exact (this document, edited in place, is a valid PUT body) except for server-managed fields documented as such (e.g. a domain fixed value's position is assigned by the server, never sent by the client).",
+          hasMore ? `offset/limit address CHARACTERS in format="raw" (this document is one line): showing ${charOffset + 1}-${charOffset + windowText.length} of ${charTotal}. Fetch the rest with offset=${nextOffset}.` : `Full descriptor shown (${charTotal} characters).`,
+          ...requestedLimit && requestedLimit > defaultWindowChars ? [`limit=${requestedLimit} was clamped to ${defaultWindowChars} characters to stay under the response budget.`] : []
+        ],
+        hints: [
+          "Element order can be significant (e.g. TTYP/DA's <ttyp:builtInType>/<ttyp:rangeType> must both be present, even empty, inside <ttyp:rowType> \u2014 see skills/ddic/SKILL.md)."
+        ],
+        maxChars
+      },
+      etag2,
+      windowText.length < charTotal
+    );
+    return built;
+  }
+  if (input.enhancements) {
+    if (!ENHANCEMENT_KINDS.has(obj.kind)) {
+      throw new AbapError(
+        "UNSUPPORTED",
+        `enhancements=true is only meaningful for a BAdI implementation (ENHO/XH), source-code plug-in (ENHO/XHH) or enhancement spot (ENHS); ${obj.type} ${obj.name} resolved to kind ${obj.kind}.`,
+        { type: obj.type, name: obj.name, kind: obj.kind },
+        "Omit enhancements, or point it at a BAdI implementation, source-code plug-in or enhancement spot."
+      );
+    }
+    return readEnhancementObject(conn, obj, baseHeader, input, maxChars);
+  }
+  if (obj.mode === "ddic") {
+    if (input.version === "inactive") {
+      throw new AbapError(
+        "UNSUPPORTED",
+        `version="inactive" is not supported for ${obj.type} ${obj.name}: DDIC reads (TABL, DTEL, DOMA, TTYP) always render the current definition.`,
+        { type: obj.type, name: obj.name, requested: input.version },
+        'Omit version for DDIC objects. Omitting it and passing version="active" return the same bytes.'
+      );
+    }
+    let rendered;
+    try {
+      rendered = await readDdic(conn, obj, { types: input.types, depth: input.depth });
+    } catch (e) {
+      if (e instanceof AbapError && e.code === "UNSUPPORTED" && capabilitiesFor(obj.type)?.write?.shape === "properties") {
+        throw new AbapError(
+          e.code,
+          e.message,
+          e.details,
+          `Use abap_read {object, type, format: "raw"} instead \u2014 ${obj.type} writes a full XML descriptor (not source), and format:"raw" returns that exact document, which is the shape to imitate for the write.`
+        );
+      }
+      throw e;
+    }
+    if (input.version === "active") {
+      rendered.notes.push(
+        'version="active" had no effect here: a DDIC read always renders the current definition, which is what active names. Omit it \u2014 the bytes are identical either way.'
+      );
+    }
+    return buildDdicLikeResponse(
+      rendered,
+      { ...baseHeader, mode: "ddic" },
+      input.offset,
+      input.limit,
+      ["Use abap_search with mode=where_used to find consumers of this object."],
+      maxChars
+    );
+  }
+  const {
+    source,
+    serverEtag,
+    sourceUri: readUri
+  } = await readSource(conn, obj, include, input.version);
+  const etag = resourceEtag(source);
+  const header = {
+    ...baseHeader,
+    mode: "source",
+    ...include ? { include } : {},
+    ...include && include !== "main" ? { uri: readUri } : {},
+    etag,
+    serverEtag
+  };
+  const includeNotes = include && include !== "main" ? [
+    `These bytes are class include "${include}" (${readUri}) ONLY \u2014 not ${obj.name}'s main source. ADT stores each include as its own document; ${CLASS_INCLUDES.filter(
+      (i) => i !== include
+    ).join(", ")} are elsewhere and are not shown here. The etag above covers this include alone.`,
+    ...input.version ? [
+      `version="${input.version}" was sent as the query parameter on this include's own GET, exactly as it is for a main-source read \u2014 it was NOT applied by reading main instead. Whether ADT honours the active/inactive selector per include is UNVERIFIED here; if the returned bytes look active when you asked for inactive, treat that as the server ignoring the parameter, and use view="history" on this include to see what versions it actually has.`
+    ] : []
+  ] : [];
+  const sourceHints = include && include !== "main" ? [
+    "offset/limit page this include. method= and outline=true are refused alongside a non-main include \u2014 both describe the class body, which is a different document."
+  ] : [
+    'Read a single method with method="<NAME>".',
+    "Get the component list first with outline=true.",
+    ...obj.kind === "CLAS" ? [
+      'Local and test classes are NOT in this source: read them with include="testclasses" (ABAP Unit), "definitions", "implementations" or "macros".'
+    ] : []
+  ];
+  if (input.outline) {
+    if (!OUTLINE_KINDS.has(obj.kind)) {
+      const built2 = buildReadResponse({
+        header: { ...header, totalLines: countLines(source) },
+        body: `(outline is NOT SUPPORTED for ${obj.type} \u2014 it is implemented for classes and interfaces only, via the ADT component structure. This is a tool limitation, NOT a statement that ${obj.name} has no components.)`,
+        bodyLabel: "OUTLINE",
+        notes: [
+          `outline=true was ignored: ${obj.type} has no ADT component structure to list. Re-read without outline (optionally with offset/limit) to see the source.`
+        ],
+        hints: ["Re-read without outline=true, using offset/limit to page the source."],
+        maxChars
+      });
+      return { ...built2, etag };
+    }
+    const members = await classMembers(conn, obj);
+    const outline = renderOutline(members);
+    const window3 = sliceLines(outline, input.offset ?? 1, input.limit);
+    const built = buildReadResponse({
+      header: {
+        ...header,
+        components: members.length,
+        totalLines: countLines(source)
+      },
+      body: outline ? window3.text : `(${obj.type} ${obj.name} really has no methods, attributes or events \u2014 the component structure came back empty.)`,
+      bodyLabel: "OUTLINE",
+      bodyOffset: outline ? window3.offset : void 0,
+      bodyTotalLines: outline ? window3.total : void 0,
+      hints: ['Read one component with method="<NAME>".'],
+      pagingParam: "offset",
+      maxChars
+    });
+    return { ...built, etag };
+  }
+  const method = input.method ?? obj.member;
+  if (method) {
+    const m = await readMethod(conn, obj, source, method);
+    const parts = [m.declaration, m.implementation].filter(Boolean).join("\n\n");
+    const window3 = sliceLines(parts, input.offset ?? 1, input.limit);
+    return buildSourceResponse(
+      {
+        header: {
+          ...header,
+          method: m.member.name,
+          visibility: m.member.visibility,
+          // Absolute position in the object, for orientation only — never used as
+          // the paging frame.
+          sourceLines: m.implementationRange ? `${m.implementationRange.startLine}-${m.implementationRange.endLine}` : void 0,
+          blockLines: parts ? window3.total : void 0
+        },
+        body: parts ? window3.text : "(no source found for this component)",
+        bodyLabel: "METHOD SOURCE",
+        bodyOffset: parts ? window3.offset : void 0,
+        bodyTotalLines: parts ? window3.total : void 0,
+        hints: [
+          "`offset` here is relative to this method block (line 1 = first line shown above), not to the object's source lines.",
+          "Omit `method` to read the whole object, or use outline=true for the component list."
+        ],
+        pagingParam: "offset",
+        maxChars
+      },
+      etag
+    );
+  }
+  const window2 = sliceLines(source, input.offset ?? 1, input.limit);
+  return buildSourceResponse(
+    {
+      header: { ...header, totalLines: window2.total },
+      body: window2.text,
+      bodyLabel: "SOURCE",
+      bodyOffset: window2.offset,
+      bodyTotalLines: window2.total,
+      notes: source === "" ? [...includeNotes, EMPTY_SOURCE_NOTE] : includeNotes,
+      hints: sourceHints,
+      pagingParam: "offset",
+      maxChars
+    },
+    etag
+  );
+}
+var okRead = (res) => ({
+  content: [{ type: "text", text: res.text }]
+});
+function registerReadTools(mcp, deps) {
+  mcp.registerTool(
+    "abap_read",
+    {
+      title: "Read ABAP object",
+      description: 'Read an ABAP object: source, pseudo-DDL, a DEVC/K package listing (types/depth filter it), or (SUSO/B, TABL/DI) a read-only catalog render. Returns an etag. Capped ~15k tokens \u2014 use outline/method/offset for large objects. Example: {"object":"ZCL_FOO","type":"CLAS/OC"}.',
+      inputSchema: readInputSchema,
+      annotations: { readOnlyHint: true, openWorldHint: true }
+    },
+    async (args) => {
+      try {
+        await deps.ensureConnected();
+        deps.safety.assert("read");
+        const res = await deps.pool.withRead(
+          "abap_read",
+          (conn) => abapRead(conn, args, deps.cfg.maxResponseChars)
+        );
+        return okRead(res);
+      } catch (e) {
+        return deps.errorResult(e);
+      }
+    }
+  );
+}
+
+// src/tools/test.ts
+init_zod();
+
+// src/adt/aunit.ts
+init_fxp();
+init_errors();
+init_truncate();
+var AUNIT_TESTRUNS_URL = "/sap/bc/adt/abapunit/testruns";
+var COVERAGE_MEASUREMENT_PREFIX = "/sap/bc/adt/runtime/traces/coverage/measurements/";
+var RISK_LEVELS = ["harmless", "dangerous", "critical"];
+function buildRunConfiguration(objectUri, risk = "harmless", opts = {}) {
+  const on = (level) => RISK_LEVELS.indexOf(level) <= RISK_LEVELS.indexOf(risk) ? "true" : "false";
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<aunit:runConfiguration xmlns:aunit="http://www.sap.com/adt/aunit">
+  <external>
+    <coverage active="${opts.coverage ? "true" : "false"}"/>
+  </external>
+  <options>
+    <uriType value="semantic"/>
+    <testDeterminationStrategy sameProgram="true" assignedTests="false"/>
+    <testRiskLevels harmless="${on("harmless")}" dangerous="${on("dangerous")}" critical="${on("critical")}"/>
+    <testDurations short="true" medium="true" long="true"/>
+    <withNavigationUri enabled="true"/>
+  </options>
+  <adtcore:objectSets xmlns:adtcore="http://www.sap.com/adt/core">
+    <objectSet kind="inclusive">
+      <adtcore:objectReferences>
+        <adtcore:objectReference adtcore:uri="${escapeXmlAttribute(objectUri)}"/>
+      </adtcore:objectReferences>
+    </objectSet>
+  </adtcore:objectSets>
+</aunit:runConfiguration>`;
+}
+function escapeXmlAttribute(value) {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+var parser2 = new XMLParser({
+  ignoreAttributes: false,
+  attributeNamePrefix: "@_",
+  removeNSPrefix: true,
+  parseAttributeValue: false,
+  parseTagValue: false,
+  trimValues: true
+});
+function isNode(v) {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+function many2(v) {
+  if (v === void 0 || v === null) return [];
+  if (Array.isArray(v)) return v.filter(isNode);
+  return isNode(v) ? [v] : [];
+}
+function attr3(node2, name) {
+  const v = node2[`@_${name}`];
+  if (typeof v !== "string") return void 0;
+  const t = v.trim();
+  return t.length ? t : void 0;
+}
+function childNames(node2) {
+  if (!isNode(node2)) return [];
+  return Object.keys(node2).filter((k) => !k.startsWith("@_"));
+}
+function attributeNames(node2) {
+  if (!isNode(node2)) return [];
+  return Object.keys(node2).filter((k) => k.startsWith("@_")).map((k) => k.slice(2));
+}
+var KNOWN_TEST_METHOD_CHILDREN = /* @__PURE__ */ new Set(["alerts"]);
+var KNOWN_TEST_METHOD_ATTRIBUTES = /* @__PURE__ */ new Set([
+  "uri",
+  "type",
+  "name",
+  "executionTime",
+  "uriType",
+  "navigationUri",
+  "unit"
+]);
+var SEVERITY_FAILS = /* @__PURE__ */ new Set(["critical"]);
+var SEVERITY_PASSES = /* @__PURE__ */ new Set();
+function verdictForMethodNode(node2) {
+  const unrecognised = [];
+  for (const child4 of childNames(node2)) {
+    if (child4 === "#text") unrecognised.push("text content");
+    else if (!KNOWN_TEST_METHOD_CHILDREN.has(child4)) unrecognised.push(`<${child4}>`);
+  }
+  for (const a of attributeNames(node2)) {
+    if (!KNOWN_TEST_METHOD_ATTRIBUTES.has(a)) unrecognised.push(`@${a}`);
+  }
+  if (unrecognised.length > 0) return { verdict: "unknown", unrecognised };
+  if (!childNames(node2).includes("alerts")) return { verdict: "passed", unrecognised: [] };
+  const severities = many2(node2.alerts).flatMap((container) => many2(container.alert)).map((a) => attr3(a, "severity"));
+  if (severities.some((s) => s !== void 0 && SEVERITY_FAILS.has(s))) {
+    return { verdict: "failed", unrecognised: [] };
+  }
+  const ungraded = severities.filter((s) => s === void 0 || !SEVERITY_PASSES.has(s));
+  if (ungraded.length === 0) return { verdict: "passed", unrecognised: [] };
+  return {
+    verdict: "unknown",
+    unrecognised: ungraded.map((s) => s === void 0 ? "alert with no @severity" : `severity="${s}"`)
+  };
+}
+function flattenDetails(node2, depth, out) {
+  if (!isNode(node2)) return;
+  for (const detail of many2(node2.detail)) {
+    const text3 = attr3(detail, "text");
+    if (text3) out.push("  ".repeat(depth) + truncateText(text3, ECHO_LINE_MAX));
+    flattenDetails(detail.details, depth + 1, out);
+  }
+}
+function includeNameFromUri(uri) {
+  if (!uri) return void 0;
+  const path8 = String(uri).split("#")[0] ?? "";
+  const m = /\/includes\/([^/?#]+)\/?$/.exec(path8);
+  return m ? m[1] : void 0;
+}
+function parseStack(node2) {
+  if (!isNode(node2)) return [];
+  return many2(node2.stackEntry).map((e) => {
+    const uri = attr3(e, "uri");
+    const at = parseStartFragment(uri);
+    const includeName = includeNameFromUri(uri);
+    return {
+      ...uri ? { uri } : {},
+      ...at ? { line: at.line, col: at.col } : {},
+      ...includeName ? { includeName } : {},
+      ...attr3(e, "type") ? { type: attr3(e, "type") } : {},
+      ...attr3(e, "name") ? { name: attr3(e, "name") } : {},
+      ...attr3(e, "description") ? { description: truncateText(attr3(e, "description"), ECHO_LINE_MAX) } : {}
+    };
+  });
+}
+function parseAlerts(container) {
+  if (!isNode(container)) return [];
+  return many2(container.alert).map((a) => {
+    const details = [];
+    flattenDetails(a.details, 0, details);
+    const title = typeof a.title === "string" ? a.title.trim() : void 0;
+    return {
+      ...attr3(a, "kind") ? { kind: attr3(a, "kind") } : {},
+      ...attr3(a, "severity") ? { severity: attr3(a, "severity") } : {},
+      ...title ? { title: truncateText(title, MESSAGE_EXCERPT_MAX) } : {},
+      details,
+      stack: parseStack(a.stack)
+    };
+  });
+}
+var NO_TEST_CLASSES_KIND = "noTestClasses";
+function parseRunResult(xml3) {
+  let doc;
+  try {
+    doc = parser2.parse(xml3);
+  } catch (e) {
+    throw new AbapError(
+      "ADT_ERROR",
+      `ABAP Unit run result is not parseable XML: ${e.message}`,
+      { excerpt: truncateText(xml3, MESSAGE_EXCERPT_MAX) }
+    );
+  }
+  const docNode = isNode(doc) ? doc : void 0;
+  const hasRunResult = docNode !== void 0 && "runResult" in docNode;
+  const root = hasRunResult && isNode(docNode.runResult) ? docNode.runResult : {};
+  if (!hasRunResult) {
+    throw new AbapError(
+      "ADT_ERROR",
+      "ABAP Unit answered 200 but the body carries no <aunit:runResult> element.",
+      { excerpt: truncateText(xml3, MESSAGE_EXCERPT_MAX) },
+      "This is a wire-shape change, not a test failure. Do not read it as a passing run."
+    );
+  }
+  const externalNode = many2(root.external)[0];
+  const coverageNode = externalNode && isNode(externalNode.coverage) ? externalNode.coverage : void 0;
+  const coverageUriRaw = coverageNode ? attr3(coverageNode, "uri") : void 0;
+  const coverageUri = coverageUriRaw && coverageUriRaw.startsWith(COVERAGE_MEASUREMENT_PREFIX) ? coverageUriRaw : void 0;
+  const otherAlerts = [];
+  for (const a of parseAlerts(root.alerts)) otherAlerts.push({ ...a, scope: "run" });
+  const programs = [];
+  let total = 0;
+  let passed = 0;
+  let failed = 0;
+  let unknown2 = 0;
+  for (const prog of many2(root.program)) {
+    const programName = attr3(prog, "name") ?? "(unnamed program)";
+    for (const a of parseAlerts(prog.alerts)) {
+      otherAlerts.push({ ...a, scope: `program ${programName}` });
+    }
+    const classes = [];
+    for (const tcContainer of many2(prog.testClasses)) {
+      for (const tc of many2(tcContainer.testClass)) {
+        const className = attr3(tc, "name") ?? "(unnamed test class)";
+        for (const a of parseAlerts(tc.alerts)) {
+          otherAlerts.push({ ...a, scope: `test class ${className}` });
+        }
+        const methods = [];
+        for (const tmContainer of many2(tc.testMethods)) {
+          for (const tm of many2(tmContainer.testMethod)) {
+            const { verdict, unrecognised } = verdictForMethodNode(tm);
+            total++;
+            if (verdict === "passed") passed++;
+            else if (verdict === "failed") failed++;
+            else unknown2++;
+            methods.push({
+              name: attr3(tm, "name") ?? "(unnamed method)",
+              className,
+              verdict,
+              ...attr3(tm, "executionTime") ? { executionTime: attr3(tm, "executionTime") } : {},
+              ...attr3(tm, "unit") ? { unit: attr3(tm, "unit") } : {},
+              alerts: parseAlerts(tm.alerts),
+              unrecognised
+            });
+          }
+        }
+        classes.push({
+          name: className,
+          ...attr3(tc, "riskLevel") ? { riskLevel: attr3(tc, "riskLevel") } : {},
+          ...attr3(tc, "durationCategory") ? { durationCategory: attr3(tc, "durationCategory") } : {},
+          methods
+        });
+      }
+    }
+    programs.push({
+      name: programName,
+      ...attr3(prog, "type") ? { type: attr3(prog, "type") } : {},
+      classes
+    });
+  }
+  if (total === 0) {
+    const noTests = otherAlerts.find((a) => a.kind === NO_TEST_CLASSES_KIND);
+    if (noTests) {
+      return {
+        outcome: "no-tests",
+        programs,
+        otherAlerts,
+        total,
+        passed,
+        failed,
+        unknown: unknown2,
+        reason: noTests.title ?? 'ADT reported kind="noTestClasses": the object has no ABAP Unit test classes.',
+        ...coverageUri ? { coverageUri } : {}
+      };
+    }
+    return {
+      outcome: "unknown",
+      programs,
+      otherAlerts,
+      total,
+      passed,
+      failed,
+      unknown: unknown2,
+      reason: "The run result contained no test methods and no noTestClasses alert, so it is not known whether anything ran. This is NOT a passing run.",
+      ...coverageUri ? { coverageUri } : {}
+    };
+  }
+  if (failed > 0) {
+    return {
+      outcome: "failed",
+      programs,
+      otherAlerts,
+      total,
+      passed,
+      failed,
+      unknown: unknown2,
+      ...coverageUri ? { coverageUri } : {}
+    };
+  }
+  if (unknown2 > 0) {
+    return {
+      outcome: "unknown",
+      programs,
+      otherAlerts,
+      total,
+      passed,
+      failed,
+      unknown: unknown2,
+      reason: `${unknown2} of ${total} test method(s) carried XML this server does not recognise, so their verdict is unknown. Treat the run as UNVERIFIED, not as passing.`,
+      ...coverageUri ? { coverageUri } : {}
+    };
+  }
+  return {
+    outcome: "passed",
+    programs,
+    otherAlerts,
+    total,
+    passed,
+    failed,
+    unknown: unknown2,
+    ...coverageUri ? { coverageUri } : {}
+  };
+}
+function coveredObjectsUrl(measurementUri) {
+  return `${measurementUri}/coveredobjects`;
+}
+function buildCoveredObjectsScope() {
+  return '<?xml version="1.0" encoding="UTF-8"?>\n<cov:scope xmlns:cov="http://www.sap.com/adt/cov">\n  <adtcore:objectSets xmlns:adtcore="http://www.sap.com/adt/core"/>\n  <cov:objectSelection/>\n</cov:scope>';
+}
+function parseCoveredObjects(xml3) {
+  let doc;
+  try {
+    doc = parser2.parse(xml3);
+  } catch (e) {
+    throw new AbapError(
+      "ADT_ERROR",
+      `Coverage scope is not parseable XML: ${e.message}`,
+      { excerpt: truncateText(xml3, MESSAGE_EXCERPT_MAX) }
+    );
+  }
+  const docNode = isNode(doc) ? doc : void 0;
+  const hasScope = docNode !== void 0 && "scope" in docNode;
+  if (!hasScope) {
+    throw new AbapError(
+      "ADT_ERROR",
+      "ADT answered 200 but the body carries no <cov:scope> element.",
+      { excerpt: truncateText(xml3, MESSAGE_EXCERPT_MAX) }
+    );
+  }
+  const root = isNode(docNode.scope) ? docNode.scope : {};
+  const out = [];
+  for (const container of many2(root.coveredObjects)) {
+    for (const co of many2(container.coveredObject)) {
+      const ref2 = isNode(co.objectReference) ? co.objectReference : void 0;
+      if (!ref2) continue;
+      out.push({
+        name: attr3(ref2, "name") ?? "(unnamed object)",
+        ...attr3(ref2, "type") ? { type: attr3(ref2, "type") } : {},
+        ...attr3(ref2, "uri") ? { uri: attr3(ref2, "uri") } : {},
+        ...attr3(ref2, "packageName") ? { packageName: attr3(ref2, "packageName") } : {}
+      });
+    }
+  }
+  return out;
+}
+function buildCoverageQuery(objectUris) {
+  if (objectUris.length === 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "buildCoverageQuery needs at least one object URI: an empty list would query the whole measurement, not the object the caller asked about."
+    );
+  }
+  const refs = objectUris.map((uri) => `        <adtcore:objectReference adtcore:uri="${escapeXmlAttribute(uri)}"/>
+`).join("");
+  return '<?xml version="1.0" encoding="UTF-8"?>\n<cov:query xmlns:cov="http://www.sap.com/adt/cov">\n  <adtcore:objectSets xmlns:adtcore="http://www.sap.com/adt/core">\n    <objectSet kind="inclusive">\n      <adtcore:objectReferences>\n' + refs + "      </adtcore:objectReferences>\n    </objectSet>\n  </adtcore:objectSets>\n</cov:query>";
+}
+var KNOWN_COVERAGE_TYPES = /* @__PURE__ */ new Set(["statement", "branch", "procedure"]);
+function parseCount(raw) {
+  if (raw === void 0 || !/^\d+$/.test(raw)) return void 0;
+  return parseInt(raw, 10);
+}
+function parseCoverageNode(node2) {
+  const ref2 = isNode(node2.objectReference) ? node2.objectReference : void 0;
+  const name = (ref2 ? attr3(ref2, "name") : void 0) ?? "(unnamed node)";
+  const unrecognised = [];
+  let statement;
+  let branch;
+  let procedure;
+  const coveragesContainer = isNode(node2.coverages) ? node2.coverages : void 0;
+  for (const cov of many2(coveragesContainer?.coverage)) {
+    const type = attr3(cov, "type");
+    if (type === void 0 || !KNOWN_COVERAGE_TYPES.has(type)) {
+      unrecognised.push(type ?? "coverage with no @type");
+      continue;
+    }
+    const totalRaw = attr3(cov, "total");
+    const executedRaw = attr3(cov, "executed");
+    const total = parseCount(totalRaw);
+    if (total === void 0) {
+      unrecognised.push(`${type} (unparseable total="${totalRaw ?? ""}")`);
+      continue;
+    }
+    const executed = parseCount(executedRaw);
+    if (executed === void 0) {
+      unrecognised.push(`${type} (unparseable executed="${executedRaw ?? ""}")`);
+      continue;
+    }
+    const ratio = { total, executed };
+    if (type === "statement") statement = ratio;
+    else if (type === "branch") branch = ratio;
+    else procedure = ratio;
+  }
+  const children = [];
+  const childContainer = isNode(node2.nodes) ? node2.nodes : void 0;
+  for (const child4 of many2(childContainer?.node)) children.push(parseCoverageNode(child4));
+  return {
+    name,
+    ...ref2 && attr3(ref2, "type") ? { type: attr3(ref2, "type") } : {},
+    ...ref2 && attr3(ref2, "uri") ? { uri: attr3(ref2, "uri") } : {},
+    ...ref2 && attr3(ref2, "description") ? { description: attr3(ref2, "description") } : {},
+    ...statement ? { statement } : {},
+    ...branch ? { branch } : {},
+    ...procedure ? { procedure } : {},
+    unrecognised,
+    children
+  };
+}
+function parseCoverageResult(xml3) {
+  let doc;
+  try {
+    doc = parser2.parse(xml3);
+  } catch (e) {
+    throw new AbapError(
+      "ADT_ERROR",
+      `Coverage result is not parseable XML: ${e.message}`,
+      { excerpt: truncateText(xml3, MESSAGE_EXCERPT_MAX) }
+    );
+  }
+  const docNode = isNode(doc) ? doc : void 0;
+  const hasResult = docNode !== void 0 && "result" in docNode;
+  if (!hasResult) {
+    throw new AbapError(
+      "ADT_ERROR",
+      "ADT answered 200 but the body carries no <cov:result> element.",
+      { excerpt: truncateText(xml3, MESSAGE_EXCERPT_MAX) }
+    );
+  }
+  const root = isNode(docNode.result) ? docNode.result : {};
+  const topContainer = isNode(root.nodes) ? root.nodes : void 0;
+  const nodes = many2(topContainer?.node).map(parseCoverageNode);
+  return { measured: nodes.length > 0, nodes };
+}
+function findCoverageNode(result, name) {
+  const wantExact = name.toLowerCase();
+  const wantPrefix = `${wantExact} (`;
+  let exactMatch;
+  let prefixMatch;
+  const visit = (node2) => {
+    const lower = node2.name.toLowerCase();
+    if (exactMatch === void 0 && lower === wantExact) exactMatch = node2;
+    else if (prefixMatch === void 0 && lower.startsWith(wantPrefix)) prefixMatch = node2;
+    for (const child4 of node2.children) visit(child4);
+  };
+  for (const node2 of result.nodes) visit(node2);
+  return exactMatch ?? prefixMatch;
+}
+
+// src/tools/test.ts
+init_errors();
+init_compact();
+var testInputSchema = {
+  object: external_exports.string().describe("Class, program or package to test."),
+  type: external_exports.string().optional().describe("ADT type, e.g. CLAS/OC."),
+  risk_level: external_exports.enum(["harmless", "dangerous", "critical"]).optional().describe("Highest risk to run, cumulative from harmless. Default harmless."),
+  coverage: external_exports.boolean().optional().describe("Also measure statement/branch/procedure coverage and report it per class and per method."),
+  coverage_for: external_exports.array(external_exports.string()).optional().describe(
+    "Objects to report coverage for. Default: the objects under test. Use this to report an object the tests exercise indirectly. Ignored unless coverage is true."
+  )
+};
+var TestInput = external_exports.object(testInputSchema);
+function renderStack(alert) {
+  return alert.stack.map((e) => {
+    const where2 = e.line !== void 0 ? e.includeName ? `include ${e.includeName} line ${e.line}` : `line ${e.line} (source unnamed \u2014 see URI)` : e.includeName ? `include ${e.includeName}` : "location not reported";
+    const extra = e.description ? ` \u2014 ${e.description}` : e.uri ? ` \u2014 ${e.uri}` : "";
+    return `    at ${where2}${extra}`;
+  });
+}
+function renderMethod(m) {
+  const label = m.verdict === "failed" ? "FAILED " : "UNKNOWN";
+  const timing = m.executionTime !== void 0 ? ` (${m.executionTime}${m.unit ?? ""})` : "";
+  const out = [`${label} ${m.className}->${m.name}${timing}`];
+  if (m.verdict === "unknown") {
+    out.push(
+      `    NOT GRADED: this server does not recognise ${m.unrecognised.join(", ")} on this test method, so its result is unknown. Do not read it as a pass.`
+    );
+  }
+  for (const a of m.alerts) {
+    const kind = [a.severity, a.kind].filter(Boolean).join(" ");
+    out.push(`    ${kind || "alert"}: ${a.title ?? "(no title)"}`);
+    for (const d of a.details) out.push(`      ${d}`);
+    out.push(...renderStack(a));
+  }
+  return out;
+}
+function renderBody(res) {
+  const lines = [];
+  const bad = res.programs.flatMap((p) => p.classes).flatMap((c) => c.methods).filter((m) => m.verdict !== "passed");
+  for (const m of bad) {
+    lines.push(...renderMethod(m));
+    lines.push("");
+  }
+  for (const p of res.programs) {
+    for (const c of p.classes) {
+      const passed = c.methods.filter((m) => m.verdict === "passed").map((m) => m.name);
+      if (passed.length === 0) continue;
+      const risk = c.riskLevel ? ` [risk ${c.riskLevel}]` : "";
+      lines.push(`PASSED  ${c.name}${risk}: ${passed.join(", ")}`);
+    }
+  }
+  for (const a of res.otherAlerts) {
+    const kind = [a.severity, a.kind].filter(Boolean).join(" ");
+    lines.push(`ALERT   (${a.scope}) ${kind || "alert"}: ${a.title ?? "(no title)"}`);
+    for (const d of a.details) lines.push(`      ${d}`);
+  }
+  return lines.join("\n").trim() || "(the run result contained no test methods and no alerts)";
+}
+var COVERAGE_FOCUS_CAP = 10;
+var ALSO_TOUCHED_SHOWN = 15;
+function formatRatio(label, r) {
+  if (!r) return `${label} not reported`;
+  if (r.total === 0) return `${label} n/a`;
+  return `${label} ${r.executed}/${r.total} (${Math.round(r.executed / r.total * 100)}%)`;
+}
+function renderCoverageRatios(node2) {
+  return [
+    formatRatio("statement", node2.statement),
+    formatRatio("branch", node2.branch),
+    formatRatio("procedure", node2.procedure)
+  ].join("  ");
+}
+function renderCoverageNodeLine(node2, indent) {
+  const unrecognised = node2.unrecognised.length ? `  [unrecognised coverage types: ${node2.unrecognised.join(", ")}]` : "";
+  return `${indent}${node2.name}  ${renderCoverageRatios(node2)}${unrecognised}`;
+}
+function addRatio(sum, r) {
+  if (!r) return;
+  sum.total += r.total;
+  sum.executed += r.executed;
+  sum.seen = true;
+}
+function formatRatioSum(label, s) {
+  if (!s.seen) return `${label} not reported`;
+  if (s.total === 0) return `${label} n/a`;
+  return `${label} ${s.executed}/${s.total} (${Math.round(s.executed / s.total * 100)}%)`;
+}
+async function buildCoverageSection(conn, res, obj, input, notes, hints) {
+  if (res.coverageUri === void 0) {
+    notes.push(
+      "Coverage was requested but the run result carried no measurement reference, so no coverage is reported. The PASSED/FAILED verdicts above are unaffected."
+    );
+    return void 0;
+  }
+  const coveredResp = await conn.post(coveredObjectsUrl(res.coverageUri), {
+    headers: { "Content-Type": "application/*", Accept: "application/*" },
+    body: buildCoveredObjectsScope()
+  });
+  if (coveredResp.status !== 200) {
+    throw new AbapError(
+      "ADT_ERROR",
+      `Coverage covered-objects query for ${obj.name} answered HTTP ${coveredResp.status}.`,
+      { object: obj.name, status: coveredResp.status, url: coveredObjectsUrl(res.coverageUri) }
+    );
+  }
+  const roster = parseCoveredObjects(coveredResp.body);
+  const coverageForList = input.coverage_for ?? [];
+  const explicitScope = coverageForList.length > 0;
+  const requestedNames = explicitScope ? coverageForList : res.programs.map((p) => p.name);
+  let matches = [];
+  let notTouched = [];
+  for (const name of requestedNames) {
+    const entry = roster.find((o) => o.name.toLowerCase() === name.toLowerCase());
+    if (entry) matches.push({ requestedName: name, object: entry });
+    else notTouched.push(name);
+  }
+  if (!explicitScope && matches.length === 0) {
+    const entry = roster.find((o) => o.name.toLowerCase() === obj.name.toLowerCase());
+    matches = [{ requestedName: obj.name, object: entry ?? { name: obj.name, uri: obj.uri } }];
+    notTouched = [];
+  }
+  const toQuery = matches.slice(0, COVERAGE_FOCUS_CAP);
+  const skipped = matches.slice(COVERAGE_FOCUS_CAP);
+  if (skipped.length > 0) {
+    notes.push(
+      `Coverage focus was capped at ${COVERAGE_FOCUS_CAP} objects \u2014 querying the whole covered-objects roster timed out live against a real system. Not queried: ${skipped.map((m) => m.requestedName).join(", ")}.`
+    );
+  }
+  const queryable = toQuery.filter((m) => m.object.uri !== void 0);
+  const noUri = toQuery.filter((m) => m.object.uri === void 0);
+  let coverage;
+  if (queryable.length > 0) {
+    const focusUris = queryable.map((m) => m.object.uri).filter((u) => u !== void 0);
+    const queryResp = await conn.post(res.coverageUri, {
+      headers: { "Content-Type": "application/*", Accept: "application/*" },
+      body: buildCoverageQuery(focusUris)
+    });
+    if (queryResp.status !== 200) {
+      throw new AbapError(
+        "ADT_ERROR",
+        `Coverage measurement query for ${obj.name} answered HTTP ${queryResp.status}.`,
+        { object: obj.name, status: queryResp.status, url: res.coverageUri }
+      );
+    }
+    coverage = parseCoverageResult(queryResp.body);
+  } else if (toQuery.length > 0) {
+    notes.push(
+      `Coverage could not be queried for ${toQuery.map((m) => m.requestedName).join(", ")}: the covered-objects roster carried no URI for them.`
+    );
+  }
+  const lines = [];
+  const uncovered = [];
+  const notReported = [];
+  let anyAbsent = false;
+  const sums = {
+    statement: { total: 0, executed: 0, seen: false },
+    branch: { total: 0, executed: 0, seen: false },
+    procedure: { total: 0, executed: 0, seen: false }
+  };
+  for (const m of matches) {
+    if (skipped.includes(m)) {
+      lines.push(`${m.requestedName}  not queried (coverage focus capped at ${COVERAGE_FOCUS_CAP} objects)`);
+      continue;
+    }
+    if (noUri.includes(m)) {
+      lines.push(`${m.requestedName}  not queried (no object URI on the covered-objects roster)`);
+      continue;
+    }
+    const node2 = coverage ? findCoverageNode(coverage, m.requestedName) : void 0;
+    if (coverage?.measured && node2) {
+      lines.push(renderCoverageNodeLine(node2, ""));
+      for (const child4 of node2.children) {
+        lines.push(renderCoverageNodeLine(child4, "  "));
+        if (child4.statement) {
+          if (child4.statement.total > 0 && child4.statement.executed === 0) {
+            uncovered.push(
+              `${node2.name}->${child4.name}  (${child4.statement.executed}/${child4.statement.total} statements)`
+            );
+          }
+        } else {
+          notReported.push(`${node2.name}->${child4.name}`);
+        }
+      }
+      addRatio(sums.statement, node2.statement);
+      addRatio(sums.branch, node2.branch);
+      addRatio(sums.procedure, node2.procedure);
+    } else {
+      lines.push(`${m.requestedName}  not measured by this run`);
+      anyAbsent = true;
+    }
+  }
+  for (const name of notTouched) {
+    lines.push(`${name}  not touched by this run`);
+    anyAbsent = true;
+  }
+  if (anyAbsent) {
+    notes.push(
+      'Absence of measurement is not zero coverage: an object or method reported "not measured by this run" or "not touched by this run" was never observed by the coverage trace, which is different from having been observed and found uncovered.'
+    );
+  }
+  if (uncovered.length > 0) {
+    lines.push("", "UNCOVERED METHODS (0 of their statements ran):");
+    for (const u of uncovered) lines.push(`  ${u}`);
+    hints.push(
+      "An uncovered method ran zero of its statements. Read it with `abap_read method=\u2026` and add a test for it \u2014 the abapsmith-write-abap-unit-tests skill covers writing ABAP Unit tests."
+    );
+  }
+  if (notReported.length > 0) {
+    lines.push("", "COVERAGE NOT REPORTED FOR:");
+    for (const n of notReported) lines.push(`  ${n}`);
+  }
+  const focusNames = /* @__PURE__ */ new Set([...matches.map((m) => m.requestedName.toLowerCase()), ...notTouched.map((n) => n.toLowerCase())]);
+  const others = roster.filter((o) => !focusNames.has(o.name.toLowerCase()));
+  if (others.length > 0) {
+    lines.push("", "ALSO TOUCHED (not reported on \u2014 name one in coverage_for to measure it):");
+    for (const o of others.slice(0, ALSO_TOUCHED_SHOWN)) {
+      lines.push(`  ${o.name} (${o.type ?? "?"}, ${o.packageName ?? "?"})`);
+    }
+    if (others.length > ALSO_TOUCHED_SHOWN) {
+      lines.push(`  \u2026 and ${others.length - ALSO_TOUCHED_SHOWN} more (truncated)`);
+    }
+  }
+  const header = sums.statement.seen || sums.branch.seen || sums.procedure.seen ? [
+    formatRatioSum("statement", sums.statement),
+    formatRatioSum("branch", sums.branch),
+    formatRatioSum("procedure", sums.procedure)
+  ].join(", ") : void 0;
+  return { body: lines.join("\n"), ...header !== void 0 ? { header } : {} };
+}
+async function abapTest(conn, input, maxChars, gate) {
+  if (input.coverage_for !== void 0 && !input.coverage) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "`coverage_for` was given without `coverage: true`. Coverage is only measured and reported when `coverage` is true; naming objects in `coverage_for` on their own would silently run with no coverage measured at all.",
+      { coverage: input.coverage ?? false, coverage_for: input.coverage_for },
+      "Set `coverage: true` alongside `coverage_for`."
+    );
+  }
+  const obj = await resolveObject(conn, input.object, { type: input.type });
+  gate.authorize("execute", { name: obj.name, packageName: obj.packageName, type: obj.type });
+  const risk = input.risk_level ?? "harmless";
+  const requestBody = buildRunConfiguration(
+    obj.uri,
+    risk,
+    input.coverage ? { coverage: true } : {}
+  );
+  const resp = await conn.post(AUNIT_TESTRUNS_URL, {
+    headers: { "Content-Type": "application/*", Accept: "application/*" },
+    body: requestBody
+  });
+  if (resp.status !== 200) {
+    throw new AbapError(
+      "ADT_ERROR",
+      `ABAP Unit test run for ${obj.name} answered HTTP ${resp.status}.`,
+      { object: obj.name, status: resp.status, url: AUNIT_TESTRUNS_URL },
+      "The run did not complete. This is not a test failure and not a pass."
+    );
+  }
+  const res = parseRunResult(resp.body);
+  const notes = [];
+  if (res.outcome === "no-tests") {
+    notes.push(
+      `NO TESTS RAN. ${res.reason ?? ""} This is NOT a pass \u2014 nothing about ${obj.name} was verified. Tests above risk level "${risk}" were excluded from this run; if the tests exist but are declared DANGEROUS or CRITICAL, re-run with a higher risk_level.`
+    );
+  } else if (res.outcome === "unknown") {
+    notes.push(
+      `RESULT NOT GRADED. ${res.reason ?? ""} Treat this run as unverified, not as passing.`
+    );
+  }
+  if (res.outcome !== "no-tests" && res.unknown > 0 && res.failed > 0) {
+    notes.push(
+      `${res.unknown} further method(s) could not be graded and are shown as UNKNOWN; the failure count below does not include them.`
+    );
+  }
+  if (risk !== "critical") {
+    notes.push(
+      `Only tests up to risk level "${risk}" ran. Higher-risk tests, if any exist, were not executed and their absence is not a pass.`
+    );
+  }
+  for (const a of res.otherAlerts) {
+    if (res.outcome === "no-tests") continue;
+    notes.push(`Run-level alert (${a.scope}): ${a.title ?? a.kind ?? "unnamed alert"}.`);
+  }
+  const outcomeLabel = res.outcome === "passed" ? "PASSED" : res.outcome === "failed" ? "FAILED" : res.outcome === "no-tests" ? "NO TESTS RAN (not a pass)" : "UNKNOWN (not a pass)";
+  const hints = res.outcome === "failed" ? [
+    "Line numbers are positions in the named INCLUDE (usually testclasses), not in the class main source. Read that include with abap_read."
+  ] : [];
+  let coverageBody;
+  let coverageHeader;
+  if (input.coverage) {
+    notes.push(
+      "Coverage was requested: this instruments the whole ABAP Unit session and runs slower than a plain test run."
+    );
+    try {
+      const section = await buildCoverageSection(conn, res, obj, input, notes, hints);
+      if (section) {
+        coverageBody = section.body;
+        coverageHeader = section.header;
+      }
+    } catch (e) {
+      notes.push(
+        `Coverage could not be retrieved: ${e instanceof Error ? e.message : String(e)}. The test result above is unaffected and still reflects the full run.`
+      );
+    }
+  }
+  const body = coverageBody !== void 0 ? `${renderBody(res)}
+
+COVERAGE
+${coverageBody}` : renderBody(res);
+  return buildResponse({
+    header: {
+      system: conn.cfg.sid,
+      object: `${obj.type} ${obj.name}`,
+      outcome: outcomeLabel,
+      riskLevel: risk,
+      tests: res.total,
+      passed: res.passed,
+      failed: res.failed,
+      // Surfaced only when non-zero — an ungraded method must never be missed.
+      unknown: res.unknown > 0 ? res.unknown : void 0,
+      coverage: coverageHeader
+    },
+    body,
+    bodyLabel: "RESULTS",
+    notes,
+    hints,
+    maxChars
+  });
+}
+var ok7 = (text3) => ({ content: [{ type: "text", text: text3 }] });
+function registerTestTools(mcp, deps) {
+  mcp.registerTool(
+    "abap_test",
+    {
+      description: "Run ABAP Unit tests; reports each method's verdict. PASSED/FAILED/NO TESTS RAN/UNKNOWN \u2014 only PASSED is a pass. Needs write access, allowlisted package. Defaults to harmless-risk tests. Opt-in coverage: coverage=true, optionally scoped with coverage_for.",
+      inputSchema: testInputSchema,
+      annotations: { readOnlyHint: false, destructiveHint: true }
+    },
+    async (args) => {
+      try {
+        deps.safety.assert("execute", preflight(args), {
+          phase: "preflight"
+        });
+        await deps.ensureConnected();
+        const res = await deps.pool.withWrite(
+          "abap_test",
+          void 0,
+          (conn) => abapTest(conn, args, deps.cfg.maxResponseChars, deps.safety)
+        );
+        return ok7(res.text);
+      } catch (e) {
+        return deps.errorResult(e);
+      }
+    }
+  );
+}
+
+// src/tools/search.ts
+init_zod();
+init_errors();
+init_compact();
+init_types();
+init_truncate();
+
+// src/adt/source-scan.ts
+init_errors();
+var SOURCE_SCAN_TYPES = ["PROG", "CLAS", "INTF", "FUGR", "DDLS"];
+var SOURCE_SCAN_OBJECT_CEILING = 200;
+var SCAN_TOOLS = /* @__PURE__ */ new Map([
+  [
+    SCAN_TOOL_ID,
+    {
+      manifest: scanManifest,
+      origin: "builtin",
+      sources: scanSources,
+      version: manifestVersion(scanManifest, scanSources)
+    }
+  ]
+]);
+function scanDispatchArgs(q) {
+  return {
+    query: q.query,
+    regex: q.regex,
+    case_sensitive: q.caseSensitive,
+    include_comments: q.includeComments,
+    ...q.packages.length > 0 ? { packages: q.packages } : {},
+    include_subpackages: q.includeSubpackages,
+    ...q.objects !== void 0 && q.objects !== "" ? { objects: q.objects } : {},
+    ...q.types.length > 0 ? { types: q.types } : {},
+    max_hits: q.maxHits,
+    max_objects: q.maxObjects
+  };
+}
+function fail2(reason, result) {
+  throw new AbapError(
+    "FLUID_PROTOCOL_ERROR",
+    `scan.source ${reason}`,
+    { tool: SCAN_TOOL_ID, action: SCAN_ACTION, result }
+  );
+}
+function isHitRow(r) {
+  return typeof r["obj_type"] === "string" && typeof r["obj_name"] === "string" && typeof r["include"] === "string" && typeof r["line"] === "number" && typeof r["text"] === "string";
+}
+function isSummaryRow(r) {
+  return typeof r["objects_total"] === "number" && typeof r["objects_scanned"] === "number" && typeof r["includes_scanned"] === "number" && typeof r["includes_skipped"] === "number" && typeof r["hits"] === "number" && (r["truncated"] === "" || r["truncated"] === "hits" || r["truncated"] === "objects");
+}
+function mapScanRows(rows) {
+  if (!Array.isArray(rows)) {
+    fail2("returned a result that is not an array", rows);
+  }
+  const hits = [];
+  let summary;
+  for (let i = 0; i < rows.length; i++) {
+    const row2 = rows[i];
+    if (typeof row2 !== "object" || row2 === null || Array.isArray(row2)) {
+      fail2(`row ${i} is not an object`, rows);
+    }
+    const r = row2;
+    if (r["kind"] !== "hit" && r["kind"] !== "summary") {
+      fail2(`row ${i} has kind "${String(r["kind"])}", expected "hit" or "summary"`, rows);
+    }
+    if (r["kind"] === "hit") {
+      if (!isHitRow(r)) {
+        fail2(`row ${i} is a hit row missing or mistyping one of obj_type/obj_name/include/line/text`, rows);
+      }
+      if (summary !== void 0) {
+        fail2(`row ${i} is a hit row after the summary row`, rows);
+      }
+      hits.push({
+        objType: r.obj_type,
+        objName: r.obj_name,
+        include: r.include,
+        line: r.line,
+        text: r.text
+      });
+      continue;
+    }
+    if (summary !== void 0) {
+      fail2("returned more than one summary row", rows);
+    }
+    if (!isSummaryRow(r)) {
+      fail2(`row ${i} is a summary row missing or mistyping one of its required fields`, rows);
+    }
+    if (i !== rows.length - 1) {
+      fail2("returned a summary row that is not the last element", rows);
+    }
+    summary = {
+      objectsTotal: r.objects_total,
+      objectsScanned: r.objects_scanned,
+      includesScanned: r.includes_scanned,
+      includesSkipped: r.includes_skipped,
+      hits: r.hits,
+      truncated: r.truncated
+    };
+  }
+  if (summary === void 0) {
+    fail2("did not return a summary row", rows);
+  }
+  return { hits, summary };
+}
+async function runSourceScan(conn, q, gate) {
+  const started = Date.now();
+  const res = await dispatch2(
+    { conn, cfg: conn.cfg, gate, tools: SCAN_TOOLS },
+    {
+      tool: SCAN_TOOL_ID,
+      action: SCAN_ACTION,
+      args: scanDispatchArgs(q),
+      // Names the MCP-facing tool/action in a FLUID_API_DISABLED refusal — see FluidRunRequest.caller's doc.
+      caller: { tool: "abap_search", action: "source" }
+    }
+  );
+  return {
+    sid: conn.cfg.sid,
+    ...mapScanRows(res.result),
+    ms: Date.now() - started,
+    truncated: res.truncated
+  };
+}
+
+// src/tools/search.ts
+var DESCRIPTION_COL_WIDE = 70;
+var DESCRIPTION_COL_NARROW = 60;
+function groupFromUri(uri) {
+  if (!uri) return "";
+  try {
+    return specFromUri(uri)?.parent ?? "";
+  } catch {
+    return "";
+  }
+}
+var KNOWN_TYPES = [...new Set(TYPES.flatMap((t) => [t.kind, t.type]))].sort();
+var KNOWN_TYPE_GROUPS = new Set(TYPES.map((t) => t.type.split("/")[0]));
+function assertKnownType(type) {
+  const value = type.trim();
+  if (!value) return;
+  if (specForType(value) ?? specForKeyword(value)) return;
+  if (value.includes("/") && KNOWN_TYPE_GROUPS.has(value.split("/")[0].toUpperCase())) return;
+  throw new AbapError(
+    "BAD_INPUT",
+    `type "${type}" is not a recognised object type for abap_search. Allowed: ${KNOWN_TYPES.map((t) => `"${t}"`).join(", ")}.`,
+    { type, allowed: KNOWN_TYPES },
+    'A "<GROUP>/<SUBTYPE>" code whose group is one of those values is accepted too (e.g. "ENHS/XB"), as is a plain object-type word such as "class". Omit `type` to search every type.'
+  );
+}
+var searchInputSchema = {
+  query: external_exports.string().describe("Name pattern (mode=objects), target object (mode=where_used), or literal/regex text (mode=source)."),
+  mode: external_exports.enum(["objects", "where_used", "source"]).optional().describe(
+    'Default "objects". "source" scans raw source text (literal/regex, any line) and needs the fluid API; prefer "where_used" when you want real static references to one object, since a text scan also matches strings, comments and dead code.'
+  ),
+  type: external_exports.string().optional().describe(
+    `ADT type filter (mode=objects/where_used only). One of: ${[...KNOWN_TYPE_GROUPS].sort().join(" ")}; or a full code, e.g. "CLAS/OC".`
+  ),
+  max: external_exports.number().int().positive().max(200).optional().describe(
+    "Default 50 rows (mode=objects/where_used) or 100 hits (mode=source); narrowing `query` (not lowering `max`) is what makes a broad call cheaper."
+  ),
+  packages: external_exports.array(external_exports.string()).max(20).optional().describe("mode=source: package scope (TADIR-DEVCLASS). Required unless `objects` is given."),
+  include_subpackages: external_exports.boolean().optional().describe("mode=source: also scan every package transitively under `packages` (TDEVC-PARENTCL)."),
+  objects: external_exports.string().optional().describe('mode=source: object-name pattern (wildcards `*`), e.g. "ZCL_MY_*". Alternative/addition to `packages`.'),
+  types: external_exports.array(external_exports.string()).max(10).optional().describe(`mode=source: object types to scan. One of: ${SOURCE_SCAN_TYPES.join(" ")}. Default: all five.`),
+  regex: external_exports.boolean().optional().describe("mode=source: treat `query` as a PCRE pattern instead of literal text."),
+  case_sensitive: external_exports.boolean().optional().describe("mode=source: default false."),
+  include_comments: external_exports.boolean().optional().describe("mode=source: also match inside comments (heuristic, line-local). Default false.")
+};
+var SearchInput = external_exports.object(searchInputSchema);
+async function abapSearch(conn, input, maxChars) {
+  const max = input.max ?? 50;
+  if (input.type) assertKnownType(input.type);
+  if ((input.mode ?? "objects") === "where_used") {
+    return whereUsed(conn, input.query, input.type, max, maxChars);
+  }
+  return searchObjects(conn, input.query, input.type, max, maxChars);
+}
+var TYPED_FETCH_MULTIPLIER = 10;
+var TYPED_FETCH_CAP = 1e3;
+async function searchObjects(conn, query, type, max, maxChars) {
+  const spec = type ? specForType(type) ?? specForKeyword(type) : void 0;
+  const wanted = type ? spec?.type ?? type.toUpperCase().trim() : void 0;
+  const fetchMax = type ? Math.min(TYPED_FETCH_CAP, max * TYPED_FETCH_MULTIPLIER) : max;
+  const rawResults = await conn.adt.searchObject(query, void 0, fetchMax);
+  const { refs: results, repairedGroups, suspectGroups } = repairSearchDescriptions(rawResults);
+  const filtered = wanted ? results.filter((r) => {
+    const rowType = (r["adtcore:type"] ?? "").toUpperCase();
+    return wanted.includes("/") ? rowType === wanted : rowType.split("/")[0] === wanted;
+  }) : results;
+  const droppedByFilter = results.length - filtered.length;
+  const windowFull = results.length >= fetchMax;
+  const capped = filtered.slice(0, max);
+  const droppedByCap = filtered.length - capped.length;
+  const capLine = droppedByCap > 0 ? `--- TRUNCATED --- ${droppedByCap} of ${filtered.length} matching row(s) not shown (display cap max=${max}). Raise \`max\` (<=200) to see them.` : void 0;
+  const notes = [];
+  if (repairedGroups.length > 0) {
+    notes.push(
+      `DESCRIPTIONS RE-PAIRED: the server sent type group(s) ${repairedGroups.join(", ")} carrying other rows' descriptions \u2014 a server-side defect \u2014 and this tool re-paired them. The response carries no key tying a description to its row, so the fix is reconstructed from ordering and confirmed against per-object reads, not proven by the payload; confirm with abap_read if a description is load-bearing.`
+    );
+  }
+  if (suspectGroups.length > 0) {
+    notes.push(
+      `DESCRIPTIONS MAY BE MIS-PAIRED: type group(s) ${suspectGroups.join(", ")} span several sub-types and show the same shape as the server-side description-pairing defect, which is only wire-confirmed for TABL and PROG. At least one such group (FUGR) was tested and arrives correct, so unverified groups are left exactly as the server sent them rather than repaired. Their descriptions may belong to another row in the same group \u2014 confirm with abap_read.`
+    );
+  }
+  if (droppedByFilter > 0) {
+    notes.push(
+      `UNDER-REPORTED: the fetch window was deliberately widened to ${fetchMax} row(s) of mixed type for "${query}" \u2014 your max=${max} bounds only what is shown, not what is fetched, because the server's own type filter is not trusted and type is filtered here instead. The server returned ${results.length} hit(s) of mixed type; ${droppedByFilter} were dropped here because their type is not ${wanted}. ${filtered.length} row(s) matched. ` + (windowFull ? `More ${wanted} objects may exist beyond this window \u2014 raise max (<=200) or narrow the query pattern.` : `The window was not full, so this is every hit the server has for "${query}" \u2014 no other ${wanted} object matches this pattern.`)
+    );
+  }
+  if (droppedByCap > 0) {
+    notes.push(
+      `DISPLAY CAP: ${filtered.length} ${wanted} row(s) matched within this fetch window; only the first max=${max} are shown. ${droppedByCap} matching row(s) are NOT listed \u2014 raise max (<=200) to see them.`
+    );
+  }
+  if (windowFull) {
+    notes.push(
+      `The server returned its full page of ${results.length} hit(s) at max=${fetchMax}; there are probably more matches it did not send.`
+    );
+  }
+  const windowLine = windowFull ? `--- TRUNCATED --- the fetch window (max=${fetchMax}) was full for "${query}"; the list above may be incomplete beyond this window, and there is no count of what was left unsent. Raise \`max\` (<=200) or narrow the query pattern to see more.` : void 0;
+  const rows = capped.map((r) => ({
+    type: r["adtcore:type"] ?? "",
+    name: r["adtcore:name"] ?? "",
+    group: groupFromUri(r["adtcore:uri"]),
+    package: r["adtcore:packageName"] ?? "",
+    description: truncateForDisplay(r["adtcore:description"] ?? "", DESCRIPTION_COL_WIDE)
+  }));
+  const hasGroup = rows.some((r) => r.group !== "");
+  const columns = hasGroup ? ["type", "name", "group", "package", "description"] : ["type", "name", "package", "description"];
+  const body = rows.length ? [textTable(rows, columns), capLine, windowLine].filter((line) => line !== void 0).join("\n") : droppedByFilter > 0 ? windowFull ? `(no ${wanted} matches among the ${results.length} hit(s) the server returned at max=${fetchMax} \u2014 see the note above; this is NOT proof that none exist)` : `(no ${wanted} matches among the ${results.length} hit(s) the server returned for "${query}" \u2014 the fetch window (max=${fetchMax}) was not full, so that is every object of any type matching this pattern)` : "(no matches)";
+  return buildResponse({
+    header: {
+      system: conn.cfg.sid,
+      mode: "objects",
+      query,
+      type: wanted,
+      matches: rows.length,
+      matchedTotal: droppedByCap > 0 ? filtered.length : void 0,
+      serverHits: results.length,
+      droppedByTypeFilter: droppedByFilter || void 0,
+      droppedByDisplayCap: droppedByCap || void 0,
+      fetchMax: type ? fetchMax : void 0,
+      descriptionsRepaired: repairedGroups.length ? repairedGroups.join(", ") : void 0,
+      descriptionsSuspect: suspectGroups.length ? suspectGroups.join(", ") : void 0
+    },
+    body,
+    bodyLabel: "RESULTS",
+    notes,
+    // abap_search has no offset/paging parameter — `max` is the only lever, so
+    // the hint must not promise one.
+    hints: [
+      "Narrow the pattern or set `type` to reduce the result set, or raise `max` (<=200).",
+      ...hasGroup ? [
+        "`group` is the function group a FUGR row lives in \u2014 `package` is the module's own package, not its group."
+      ] : []
+    ],
+    maxChars
+  });
+}
+var HIGH_FAN_IN_REFERENCES = 500;
+var SLOW_FETCH_MS = 5e3;
+async function whereUsed(conn, target, type, max, maxChars) {
+  const obj = await resolveObject(conn, target, type ? { type } : {});
+  const fetchStart = Date.now();
+  const refs = await conn.adt.usageReferences(obj.uri);
+  const fetchMs = Date.now() - fetchStart;
+  const named = refs.filter((r) => r["adtcore:name"]);
+  const totalReferences = named.length;
+  const expensive = totalReferences >= HIGH_FAN_IN_REFERENCES || fetchMs >= SLOW_FETCH_MS;
+  const kept = named.slice(0, max);
+  const omitted = totalReferences - kept.length;
+  const capLine = omitted > 0 ? `--- TRUNCATED --- ${omitted} of ${totalReferences} reference(s) not shown (display cap max=${max}). Re-run with max=${Math.min(200, totalReferences)}.` : void 0;
+  const capped = omitted > 0;
+  const rows = kept.map((r) => ({
+    type: r["adtcore:type"] ?? "",
+    name: r["adtcore:name"] ?? "",
+    package: r.packageRef?.["adtcore:name"] ?? "",
+    description: truncateForDisplay(r["adtcore:description"] ?? "", DESCRIPTION_COL_NARROW)
+  }));
+  return buildResponse({
+    header: {
+      system: conn.cfg.sid,
+      mode: "where_used",
+      object: `${obj.type} ${obj.name}`,
+      uri: obj.uri,
+      // Both numbers, always: "references: 50" alone reads as the true total.
+      referencesShown: rows.length,
+      referencesTotal: totalReferences,
+      // Wall-clock, varies run to run — surfaced only where it is load-bearing.
+      fetchMs: expensive ? fetchMs : void 0
+    },
+    body: rows.length ? textTable(rows, ["type", "name", "package", "description"]) + (capLine ? `
+${capLine}` : "") : "(no references found)",
+    bodyLabel: "USED BY",
+    notes: [
+      ...expensive ? [
+        `FETCH COST: this call took ${(fetchMs / 1e3).toFixed(1)}s and returned ${totalReferences} reference(s). ADT's usageReferences endpoint has no server-side limit, so the entire set is enumerated and transferred before max is applied. The cost is set by the target's fan-in, not by max \u2014 lowering max would not have made this call cheaper. If cost matters, ask about a narrower or less widely-referenced object instead.`
+      ] : [],
+      // The cap used to be applied silently.
+      ...capped ? [
+        `CAPPED: ADT returned ${totalReferences} reference(s); only the first ${max} are shown (max=${max}). ${totalReferences - max} reference(s) are NOT listed \u2014 this is a display cap, not the end of the list. Raise max (<=200) to see more.`,
+        `This cap is applied AFTER the full fetch: ADT's usageReferences endpoint has no server-side limit (wire-verified \u2014 see source comment), so all ${totalReferences} reference(s) were already retrieved and held in memory before max=${max} was applied. On a widely-referenced object this call can take several seconds and several megabytes regardless of max; raising or lowering max changes what you see, not the cost of asking.`
+      ] : [],
+      "Where-used is static. Dynamic calls (CALL FUNCTION lv_name, PERFORM (lv_form), SUBMIT (lv_prog)) do not appear here \u2014 these are static-analysis blind spots."
+    ],
+    // No offset/paging parameter on abap_search: `max` is the only lever.
+    hints: ["Raise `max` (<=200) for more rows."],
+    maxChars
+  });
+}
+var DEFAULT_SOURCE_MAX_HITS = 100;
+var SOURCE_ONLY_FIELDS = [
+  "packages",
+  "include_subpackages",
+  "objects",
+  "types",
+  "regex",
+  "case_sensitive",
+  "include_comments"
+];
+function assertNoSourceOnlyFields(input, mode) {
+  const passed = SOURCE_ONLY_FIELDS.filter((f) => {
+    const v = input[f];
+    return v !== void 0 && !(Array.isArray(v) && v.length === 0);
+  });
+  if (passed.length > 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `mode="${mode}" does not use ${passed.map((f) => `\`${f}\``).join(", ")} \u2014 those parameters only apply to mode="source".`,
+      { mode, fields: passed },
+      'Omit them, or set mode="source" to run a source-text scan.'
+    );
+  }
+}
+var PATTERN_CHARS = /^[A-Za-z0-9_$*/]+$/;
+function assertValidPattern(value, field) {
+  if (!PATTERN_CHARS.test(value)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `\`${field}\` "${value}" is not a valid pattern \u2014 only letters, digits, "_", "$", "/" and the "*" wildcard are meaningful here.`,
+      { field, value }
+    );
+  }
+}
+function buildSourceScanQuery(input) {
+  if (input.type !== void 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      'mode="source" does not use `type` \u2014 pass `types` instead (any of PROG, CLAS, INTF, FUGR, DDLS).',
+      { type: input.type }
+    );
+  }
+  const query = input.query.trim();
+  if (!query) {
+    throw new AbapError("BAD_INPUT", 'mode="source" requires a non-empty `query`.', {});
+  }
+  if (query.length > 255) {
+    throw new AbapError("BAD_INPUT", `\`query\` is ${query.length} characters; mode="source" allows at most 255.`, {
+      length: query.length
+    });
+  }
+  const packages = (input.packages ?? []).map((p) => p.trim()).filter((p) => p !== "");
+  packages.forEach((p) => assertValidPattern(p, "packages"));
+  const objectsRaw = input.objects?.trim();
+  const objects = objectsRaw === "" ? void 0 : objectsRaw;
+  if (objects !== void 0) assertValidPattern(objects, "objects");
+  if (packages.length === 0 && (objects === void 0 || objects === "*")) {
+    throw new AbapError(
+      "BAD_INPUT",
+      'mode="source" needs a scope: pass `packages` (one or more), `objects` (a name pattern narrower than "*"), or both.',
+      {},
+      'Try packages: ["Z_MY_PACKAGE"], or objects: "ZCL_MY_*".'
+    );
+  }
+  const typesRaw = input.types ?? [];
+  const types = [...new Set(typesRaw.map((t) => t.trim().toUpperCase()).filter((t) => t !== ""))];
+  for (const t of types) {
+    if (!SOURCE_SCAN_TYPES.includes(t)) {
+      throw new AbapError("BAD_INPUT", `\`types\` entry "${t}" is not one of: ${SOURCE_SCAN_TYPES.join(", ")}.`, {
+        type: t,
+        allowed: SOURCE_SCAN_TYPES
+      });
+    }
+  }
+  return {
+    query,
+    regex: input.regex ?? false,
+    caseSensitive: input.case_sensitive ?? false,
+    includeComments: input.include_comments ?? false,
+    packages,
+    includeSubpackages: input.include_subpackages ?? false,
+    objects,
+    types,
+    maxHits: input.max ?? DEFAULT_SOURCE_MAX_HITS,
+    maxObjects: SOURCE_SCAN_OBJECT_CEILING
+  };
+}
+var CLAS_INCLUDE_SUFFIX = [
+  ["CCDEF", "definitions"],
+  ["CCIMP", "implementations"],
+  ["CCMAC", "macros"],
+  ["CCAU", "testclasses"]
+];
+var READ_WINDOW_MARGIN = 10;
+var READ_WINDOW_LIMIT = 40;
+function readHint(hit) {
+  const off = Math.max(1, hit.line - READ_WINDOW_MARGIN);
+  switch (hit.objType) {
+    case "PROG":
+    case "FUGR":
+      return `abap_read object="${hit.include}" offset=${off} limit=${READ_WINDOW_LIMIT} \u2014 read around line ${hit.line}.`;
+    case "DDLS":
+      return `abap_read object="${hit.objName}" offset=${off} limit=${READ_WINDOW_LIMIT} \u2014 read around line ${hit.line}.`;
+    case "INTF":
+      return `abap_read object="${hit.objName}" \u2014 interface source is a single document, no offset needed.`;
+    case "CLAS": {
+      const mapped = CLAS_INCLUDE_SUFFIX.find(([suffix]) => hit.include.endsWith(suffix));
+      if (mapped) {
+        const [, include] = mapped;
+        return `abap_read object="${hit.objName}" include="${include}" offset=${off} limit=${READ_WINDOW_LIMIT} \u2014 read around line ${hit.line}.`;
+      }
+      return `abap_read object="${hit.objName}" \u2014 the match was in include "${hit.include}" (a method or the main class source); the reported line number is include-local and does NOT transfer to an offset on the class as a whole. Use \`method="<name>"\` to narrow, or read the class outline first.`;
+    }
+    default:
+      return `abap_read object="${hit.objName}" offset=${off} limit=${READ_WINDOW_LIMIT} \u2014 read around line ${hit.line}.`;
+  }
+}
+function scopeLabel(q) {
+  const parts = [];
+  if (q.packages.length) parts.push(`packages=${q.packages.join(",")}`);
+  if (q.objects) parts.push(`objects=${q.objects}`);
+  return parts.join(" ");
+}
+function buildSourceResponse2(q, result, maxChars) {
+  const { hits, summary } = result;
+  const rows = hits.map((h) => ({
+    type: h.objType,
+    name: h.objName,
+    include: h.include,
+    line: String(h.line),
+    text: truncateForDisplay(h.text, 120)
+  }));
+  const objectsNotScanned = summary.objectsTotal - summary.objectsScanned;
+  const truncLine = summary.truncated === "hits" ? `--- TRUNCATED --- the hit cap (max=${q.maxHits}) was reached; more matches may exist beyond the last one shown. Raise \`max\` (<=200) or narrow \`query\`/scope.` : summary.truncated === "objects" ? `--- TRUNCATED --- ${objectsNotScanned} of ${summary.objectsTotal} object(s) in scope were not scanned (object ceiling ${q.maxObjects}). Narrow \`packages\`/\`objects\`/\`types\`.` : void 0;
+  const body = [rows.length ? textTable(rows, ["type", "name", "include", "line", "text"]) : "(no matches)", truncLine].filter((s) => s !== void 0).join("\n");
+  const exampleHints = (() => {
+    const seen = /* @__PURE__ */ new Set();
+    const out = [];
+    for (const h of hits) {
+      if (seen.has(h.objType)) continue;
+      seen.add(h.objType);
+      out.push(readHint(h));
+      if (out.length >= 3) break;
+    }
+    return out;
+  })();
+  return buildResponse({
+    header: {
+      system: result.sid,
+      mode: "source",
+      query: q.query,
+      regex: q.regex || void 0,
+      case_sensitive: q.caseSensitive || void 0,
+      include_comments: q.includeComments || void 0,
+      scope: scopeLabel(q) || void 0,
+      include_subpackages: q.includeSubpackages || void 0,
+      types: q.types.length ? q.types.join(",") : void 0,
+      hits: summary.hits,
+      objectsScanned: summary.objectsScanned,
+      objectsTotal: summary.objectsTotal,
+      includesScanned: summary.includesScanned,
+      includesSkipped: summary.includesSkipped || void 0,
+      truncated: summary.truncated || void 0
+    },
+    body,
+    bodyLabel: "MATCHES",
+    notes: [
+      // `notes` are ALWAYS shown (unlike `hints`, which `compact.ts`'s
+      // `buildResponse` only renders when the response is incomplete) — the
+      // concrete abap_read follow-up has to survive a response that fits
+      // fully, so it lives here, not in `hints`.
+      ...exampleHints.length > 0 ? ["Read around a hit with abap_read:", ...exampleHints] : [],
+      "Line numbers are include-local: for CLAS/FUGR hits, `line` counts from the top of the matching include (a method's own program, not the class as a whole), not from the object.",
+      ...summary.includesSkipped > 0 ? [
+        `${summary.includesSkipped} include(s) could not be read (e.g. a generated or inconsistent include) and are NOT represented in the results above \u2014 this is a gap, not proof those includes have no match.`
+      ] : [],
+      "include_comments=false strips comments with a per-line heuristic (`code_part()`), which can misjudge a line whose quote/comment state depends on the previous line. DDLS/CDS sources have no ABAP comment syntax, so they are always matched in full text regardless of include_comments.",
+      'This is a text scan, not a call graph: it finds literal/regex matches wherever they sit (strings, comments, dead code). Use mode="where_used" instead when what you actually want is real static references to one object.'
+    ],
+    hints: [
+      "Raise `max` (<=200) for more hits, or narrow `query`/`packages`/`objects`/`types` instead of widening scope."
+    ],
+    maxChars
+  });
+}
+var ok8 = (text3) => ({ content: [{ type: "text", text: text3 }] });
+function registerSearchTools(mcp, deps) {
+  mcp.registerTool(
+    "abap_search",
+    {
+      title: "Search ABAP repository",
+      description: "Find objects by name pattern (mode=objects, wildcards *), list consumers (mode=where_used; 20+ seconds on wide fan-in \u2014 narrow by type/query first), or scan source text line by line (mode=source, needs the fluid API and a package/objects scope).",
+      inputSchema: searchInputSchema,
+      annotations: { readOnlyHint: true, openWorldHint: true }
+    },
+    async (args) => {
+      try {
+        const input = args;
+        const mode = input.mode ?? "objects";
+        if (mode === "source") {
+          const q = buildSourceScanQuery(input);
+          await deps.ensureConnected();
+          deps.safety.assert("read");
+          const disabled = fluidDisabledReason(deps.cfg, deps.safety);
+          if (disabled) {
+            throw dispatchDisabledError(disabled, deps.cfg, {
+              tool: SCAN_TOOL_ID,
+              action: SCAN_ACTION,
+              args: scanDispatchArgs(q),
+              caller: { tool: "abap_search", action: "source" }
+            });
+          }
+          deps.safety.assert(
+            "write",
+            {
+              name: SCAN_ENTRY_CLASS,
+              packageName: FLUID_PACKAGE,
+              type: "CLAS/OC"
+            },
+            { phase: "preflight" }
+          );
+          const res2 = await deps.pool.withWrite(
+            "abap_search",
+            SCAN_ENTRY_CLASS,
+            (conn) => runSourceScan(conn, q, deps.safety)
+          );
+          return ok8(buildSourceResponse2(q, res2, deps.cfg.maxResponseChars).text);
+        }
+        assertNoSourceOnlyFields(input, mode);
+        await deps.ensureConnected();
+        deps.safety.assert("read");
+        const res = await deps.pool.withRead(
+          "abap_search",
+          (conn) => abapSearch(conn, input, deps.cfg.maxResponseChars)
         );
         return ok8(res.text);
       } catch (e) {
@@ -120015,16 +120808,16 @@ function parseSearchResults(xml3) {
   let m;
   while (m = re.exec(xml3)) {
     const tag = m[0];
-    const uri = attr3(tag, "uri");
-    const type = attr3(tag, "type");
-    const name = attr3(tag, "name");
+    const uri = attr4(tag, "uri");
+    const type = attr4(tag, "type");
+    const name = attr4(tag, "name");
     if (name && type) {
       out.push({ ...uri ? { uri } : {}, type, name });
     }
   }
   return out;
 }
-function attr3(tag, name) {
+function attr4(tag, name) {
   const re = new RegExp(`[\\w:]*:${name}="([^"]*)"`);
   const m = re.exec(tag);
   if (m && m[1] !== void 0) return xmlUnescape(m[1]);
@@ -132765,23 +133558,23 @@ var REPEATABLE_JPATHS = /* @__PURE__ */ new Set([
   "feed.entry.extendedData.attributes.attribute.operators.operator",
   "feed.entry.extendedData.queryVariants.queryVariant"
 ]);
-function asRecord(value) {
+function asRecord2(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value) ? value : void 0;
 }
-function asArray2(value) {
+function asArray3(value) {
   if (Array.isArray(value)) return value;
   return value === void 0 || value === null ? [] : [value];
 }
-function attr4(node2, name) {
+function attr5(node2, name) {
   const value = node2?.[`@_${name}`];
   return typeof value === "string" ? value : void 0;
 }
 function attrOrEmpty(node2, name) {
-  return attr4(node2, name) ?? "";
+  return attr5(node2, name) ?? "";
 }
-function elementText(value) {
+function elementText2(value) {
   if (typeof value === "string") return value;
-  const rec = asRecord(value);
+  const rec = asRecord2(value);
   const text3 = rec?.["#text"];
   return typeof text3 === "string" ? text3 : void 0;
 }
@@ -132789,7 +133582,7 @@ function isXmlTrue(value) {
   return value === "true";
 }
 function intAttr(node2, name) {
-  const raw = attr4(node2, name);
+  const raw = attr5(node2, name);
   if (raw === void 0 || raw === "") return void 0;
   const n = Number.parseInt(raw, 10);
   return Number.isFinite(n) ? n : void 0;
@@ -132816,12 +133609,12 @@ function dumpKeyFromDetailPath(path8) {
   return key === "" ? void 0 : key;
 }
 function exceptionFromDoc(doc) {
-  const exc = asRecord(doc.exception);
+  const exc = asRecord2(doc.exception);
   if (exc === void 0) return void 0;
   return {
-    namespace: attrOrEmpty(asRecord(exc.namespace), "id"),
-    type: attrOrEmpty(asRecord(exc.type), "id"),
-    message: elementText(exc.message) ?? ""
+    namespace: attrOrEmpty(asRecord2(exc.namespace), "id"),
+    type: attrOrEmpty(asRecord2(exc.type), "id"),
+    message: elementText2(exc.message) ?? ""
   };
 }
 function refuseExceptionEnvelope(doc, what) {
@@ -132837,16 +133630,16 @@ function refuseExceptionEnvelope(doc, what) {
 var CATEGORY_LABEL_RUNTIME_ERROR = "ABAP runtime error";
 var CATEGORY_LABEL_TERMINATED_PROGRAM = "Terminated ABAP program";
 function categoryTerm(categories, label) {
-  for (const raw of asArray2(categories)) {
-    const cat = asRecord(raw);
-    if (attr4(cat, "label") === label) return attrOrEmpty(cat, "term");
+  for (const raw of asArray3(categories)) {
+    const cat = asRecord2(raw);
+    if (attr5(cat, "label") === label) return attrOrEmpty(cat, "term");
   }
   return "";
 }
 function linkHref(links, rel) {
-  for (const raw of asArray2(links)) {
-    const link = asRecord(raw);
-    if (attr4(link, "rel") === rel) return attr4(link, "href");
+  for (const raw of asArray3(links)) {
+    const link = asRecord2(raw);
+    if (attr5(link, "rel") === rel) return attr5(link, "href");
   }
   return void 0;
 }
@@ -132861,12 +133654,12 @@ function parseDumpFeed(body) {
       "This parser reads /sap/bc/adt/runtime/dumps responses."
     );
   }
-  const feed = asRecord(doc.feed) ?? {};
+  const feed = asRecord2(doc.feed) ?? {};
   const selfHref = linkHref(feed.link, "self");
   const nextHref = linkHref(feed.link, "next");
   const entries = [];
-  for (const raw of asArray2(feed.entry)) {
-    const entry = asRecord(raw);
+  for (const raw of asArray3(feed.entry)) {
+    const entry = asRecord2(raw);
     if (entry === void 0) continue;
     const detailPath = stripAdtScheme(linkHref(entry.link, "self") ?? "");
     const key = dumpKeyFromDetailPath(detailPath);
@@ -132875,15 +133668,15 @@ function parseDumpFeed(body) {
     entries.push({
       key,
       detailPath,
-      user: elementText(asRecord(entry.author)?.name) ?? "",
+      user: elementText2(asRecord2(entry.author)?.name) ?? "",
       // By @label, never by position: the two categories are order-stable in
       // the capture but nothing in Atom says they must be.
       runtimeError: categoryTerm(entry.category, CATEGORY_LABEL_RUNTIME_ERROR),
       terminatedProgram: categoryTerm(entry.category, CATEGORY_LABEL_TERMINATED_PROGRAM),
-      title: elementText(entry.title) ?? "",
-      published: elementText(entry.published) ?? "",
-      updated: elementText(entry.updated) ?? "",
-      guiPath: elementText(entry.id) ?? "",
+      title: elementText2(entry.title) ?? "",
+      published: elementText2(entry.published) ?? "",
+      updated: elementText2(entry.updated) ?? "",
+      guiPath: elementText2(entry.id) ?? "",
       ...alternate === void 0 ? {} : { sapGuiUri: alternate }
       // entry.summary is deliberately not read: ~13 KB of escaped HTML per
       // entry, 91% of the feed's bytes, and a duplicate of the detail.
@@ -132892,9 +133685,9 @@ function parseDumpFeed(body) {
   const newest = hrefParam(selfHref, "from");
   const oldest = hrefParam(nextHref, "to");
   return {
-    systemId: elementText(asRecord(feed.contributor)?.name) ?? "",
-    title: elementText(feed.title) ?? "",
-    updated: elementText(feed.updated) ?? "",
+    systemId: elementText2(asRecord2(feed.contributor)?.name) ?? "",
+    title: elementText2(feed.title) ?? "",
+    updated: elementText2(feed.updated) ?? "",
     ...selfHref === void 0 ? {} : { selfHref },
     ...nextHref === void 0 ? {} : { nextHref },
     ...newest === void 0 ? {} : { newestTimestamp: newest },
@@ -132913,7 +133706,7 @@ function findDumpLink(links, token) {
 function parseDumpDetail(body) {
   const doc = dumpsXml.parse(body);
   refuseExceptionEnvelope(doc, "an ABAP dump detail");
-  const dump = asRecord(doc.dump);
+  const dump = asRecord2(doc.dump);
   if (dump === void 0) {
     throw new AbapError(
       "BAD_INPUT",
@@ -132923,8 +133716,8 @@ function parseDumpDetail(body) {
     );
   }
   const links = [];
-  for (const raw of asArray2(asRecord(dump.links)?.link)) {
-    const node2 = asRecord(raw);
+  for (const raw of asArray3(asRecord2(dump.links)?.link)) {
+    const node2 = asRecord2(raw);
     const relation = attrOrEmpty(node2, "relation");
     const uri = attrOrEmpty(node2, "uri");
     links.push({
@@ -132936,14 +133729,14 @@ function parseDumpDetail(body) {
     });
   }
   const chapters = [];
-  for (const raw of asArray2(asRecord(dump.chapters)?.chapter)) {
-    const node2 = asRecord(raw);
+  for (const raw of asArray3(asRecord2(dump.chapters)?.chapter)) {
+    const node2 = asRecord2(raw);
     const name = attrOrEmpty(node2, "name");
     const line = intAttr(node2, "line");
     if (line === void 0) {
       throw new AbapError(
         "BAD_INPUT",
-        `Dump chapter '${name}' has no usable line offset (line=${String(attr4(node2, "line"))}).`,
+        `Dump chapter '${name}' has no usable line offset (line=${String(attr5(node2, "line"))}).`,
         { chapter: name },
         "The line attribute is the 1-based offset of the chapter's banner in the /formatted body; without it the chapter cannot be located."
       );
@@ -133013,65 +133806,65 @@ function sliceDumpChapters(chapters, formatted, names) {
 }
 function operatorRefIds(container) {
   const ids = [];
-  for (const raw of asArray2(asRecord(container)?.operator)) {
-    const id = attr4(asRecord(raw), "id");
+  for (const raw of asArray3(asRecord2(container)?.operator)) {
+    const id = attr5(asRecord2(raw), "id");
     if (id !== void 0 && id !== "") ids.push(id);
   }
   return ids;
 }
 function parseExtendedData(node2) {
-  const intervalNode = asRecord(asRecord(node2.refresh)?.interval);
+  const intervalNode = asRecord2(asRecord2(node2.refresh)?.interval);
   const intervalValue = intAttr(intervalNode, "value");
-  const intervalUnit = attr4(intervalNode, "unit");
-  const pageSize = intAttr(asRecord(node2.paging), "size");
-  const queryDepthText = elementText(node2.queryDepth);
+  const intervalUnit = attr5(intervalNode, "unit");
+  const pageSize = intAttr(asRecord2(node2.paging), "size");
+  const queryDepthText = elementText2(node2.queryDepth);
   const queryDepth = queryDepthText === void 0 ? Number.NaN : Number.parseInt(queryDepthText, 10);
   const operators = [];
-  for (const raw of asArray2(asRecord(node2.operators)?.operator)) {
-    const op = asRecord(raw);
+  for (const raw of asArray3(asRecord2(node2.operators)?.operator)) {
+    const op = asRecord2(raw);
     operators.push({
       id: attrOrEmpty(op, "id"),
       numberOfOperands: intAttr(op, "numberOfOperands") ?? 0,
       kind: attrOrEmpty(op, "kind"),
-      label: elementText(op?.label) ?? ""
+      label: elementText2(op?.label) ?? ""
     });
   }
   const dataTypes = [];
-  for (const raw of asArray2(asRecord(node2.dataTypes)?.dataType)) {
-    const dt = asRecord(raw);
+  for (const raw of asArray3(asRecord2(node2.dataTypes)?.dataType)) {
+    const dt = asRecord2(raw);
     dataTypes.push({
       id: attrOrEmpty(dt, "id"),
-      label: elementText(dt?.label) ?? "",
+      label: elementText2(dt?.label) ?? "",
       operatorIds: operatorRefIds(dt?.operators)
     });
   }
   const attributes = [];
-  for (const raw of asArray2(asRecord(node2.attributes)?.attribute)) {
-    const at = asRecord(raw);
+  for (const raw of asArray3(asRecord2(node2.attributes)?.attribute)) {
+    const at = asRecord2(raw);
     attributes.push({
       id: attrOrEmpty(at, "id"),
-      dataTypeId: attrOrEmpty(asRecord(at?.dataType), "id"),
-      label: elementText(at?.label) ?? "",
+      dataTypeId: attrOrEmpty(asRecord2(at?.dataType), "id"),
+      label: elementText2(at?.label) ?? "",
       operatorIds: operatorRefIds(at?.operators)
     });
   }
   const queryVariants = [];
-  for (const raw of asArray2(asRecord(node2.queryVariants)?.queryVariant)) {
-    const qv = asRecord(raw);
+  for (const raw of asArray3(asRecord2(node2.queryVariants)?.queryVariant)) {
+    const qv = asRecord2(raw);
     queryVariants.push({
       queryString: attrOrEmpty(qv, "queryString"),
       title: attrOrEmpty(qv, "title"),
-      isDefault: isXmlTrue(attr4(qv, "isDefault"))
+      isDefault: isXmlTrue(attr5(qv, "isDefault"))
     });
   }
   return {
     ...intervalValue === void 0 ? {} : { refresh: { value: intervalValue, unit: intervalUnit ?? "" } },
     ...pageSize === void 0 ? {} : { pageSize },
-    notificationEnabled: isXmlTrue(attr4(asRecord(node2.notification), "isEnabled")),
+    notificationEnabled: isXmlTrue(attr5(asRecord2(node2.notification), "isEnabled")),
     operators,
     dataTypes,
     attributes,
-    queryIsObligatory: isXmlTrue(elementText(node2.queryIsObligatory)),
+    queryIsObligatory: isXmlTrue(elementText2(node2.queryIsObligatory)),
     ...Number.isFinite(queryDepth) ? { queryDepth } : {},
     queryVariants
   };
@@ -133079,28 +133872,28 @@ function parseExtendedData(node2) {
 function parseFeedsCatalog(body) {
   const doc = dumpsXml.parse(body);
   refuseExceptionEnvelope(doc, "the ADT feeds catalog");
-  const feed = asRecord(doc.feed) ?? {};
+  const feed = asRecord2(doc.feed) ?? {};
   const entries = [];
-  for (const raw of asArray2(feed.entry)) {
-    const entry = asRecord(raw);
+  for (const raw of asArray3(feed.entry)) {
+    const entry = asRecord2(raw);
     if (entry === void 0) continue;
-    const contentSrc = attr4(asRecord(entry.content), "src");
+    const contentSrc = attr5(asRecord2(entry.content), "src");
     const alternateHref = linkHref(entry.link, "alternate");
-    const ed = asRecord(entry.extendedData);
+    const ed = asRecord2(entry.extendedData);
     entries.push({
-      id: elementText(entry.id) ?? "",
-      title: elementText(entry.title) ?? "",
+      id: elementText2(entry.id) ?? "",
+      title: elementText2(entry.title) ?? "",
       ...contentSrc === void 0 ? {} : { contentSrc },
       ...alternateHref === void 0 ? {} : { alternateHref },
-      published: elementText(entry.published) ?? "",
-      updated: elementText(entry.updated) ?? "",
+      published: elementText2(entry.published) ?? "",
+      updated: elementText2(entry.updated) ?? "",
       ...ed === void 0 ? {} : { extendedData: parseExtendedData(ed) }
     });
   }
   return {
-    systemId: elementText(asRecord(feed.contributor)?.name) ?? "",
-    title: elementText(feed.title) ?? "",
-    updated: elementText(feed.updated) ?? "",
+    systemId: elementText2(asRecord2(feed.contributor)?.name) ?? "",
+    title: elementText2(feed.title) ?? "",
+    updated: elementText2(feed.updated) ?? "",
     entries
   };
 }
@@ -133882,23 +134675,23 @@ var REPEATABLE_JPATHS2 = /* @__PURE__ */ new Set([
   // check-variant list (a repository quickSearch result, not a worklist)
   "objectReferences.objectReference"
 ]);
-function asRecord2(value) {
+function asRecord3(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value) ? value : void 0;
 }
-function asArray3(value) {
+function asArray4(value) {
   if (Array.isArray(value)) return value;
   return value === void 0 || value === null ? [] : [value];
 }
-function attr5(node2, name) {
+function attr6(node2, name) {
   const value = node2?.[`@_${name}`];
   return typeof value === "string" ? value : void 0;
 }
 function attrOrEmpty2(node2, name) {
-  return attr5(node2, name) ?? "";
+  return attr6(node2, name) ?? "";
 }
-function elementText2(value) {
+function elementText3(value) {
   if (typeof value === "string") return value;
-  const rec = asRecord2(value);
+  const rec = asRecord3(value);
   const text3 = rec?.["#text"];
   return typeof text3 === "string" ? text3 : void 0;
 }
@@ -133917,7 +134710,7 @@ function parseDocument(body, what) {
       "The server answered with something other than the expected ATC document."
     );
   }
-  const rec = asRecord2(parsed);
+  const rec = asRecord3(parsed);
   if (rec === void 0) {
     throw new AbapError(
       "ADT_ERROR",
@@ -133939,25 +134732,25 @@ function missingRoot(what, root, body) {
 }
 function parseAtcCustomizing(body) {
   const doc = parseDocument(body, "customizing");
-  const root = asRecord2(doc["customizing"]);
+  const root = asRecord3(doc["customizing"]);
   if (root === void 0) throw missingRoot("customizing", "customizing", body);
   const properties = [];
-  for (const raw of asArray3(asRecord2(root["properties"])?.["property"])) {
-    const node2 = asRecord2(raw);
-    const name = attr5(node2, "name");
+  for (const raw of asArray4(asRecord3(root["properties"])?.["property"])) {
+    const node2 = asRecord3(raw);
+    const name = attr6(node2, "name");
     if (name === void 0 || name === "") continue;
     properties.push({ name, value: attrOrEmpty2(node2, "value") });
   }
   const exemptionReasons = [];
-  const reasons = asRecord2(asRecord2(root["exemption"])?.["reasons"])?.["reason"];
-  for (const raw of asArray3(reasons)) {
-    const node2 = asRecord2(raw);
-    const id = attr5(node2, "id");
+  const reasons = asRecord3(asRecord3(root["exemption"])?.["reasons"])?.["reason"];
+  for (const raw of asArray4(reasons)) {
+    const node2 = asRecord3(raw);
+    const id = attr6(node2, "id");
     if (id === void 0 || id === "") continue;
     exemptionReasons.push({
       id,
       title: attrOrEmpty2(node2, "title"),
-      justificationMandatory: isXmlTrue2(attr5(node2, "justificationMandatory"))
+      justificationMandatory: isXmlTrue2(attr6(node2, "justificationMandatory"))
     });
   }
   return { properties, exemptionReasons };
@@ -133969,15 +134762,15 @@ function systemCheckVariant(customizing, property) {
 }
 function parseAtcRunAck(body) {
   const doc = parseDocument(body, "run");
-  const root = asRecord2(doc["worklistRun"]);
+  const root = asRecord3(doc["worklistRun"]);
   if (root === void 0) throw missingRoot("run", "worklistRun", body);
-  const worklistId = elementText2(root["worklistId"])?.trim() ?? "";
-  const timestamp = elementText2(root["worklistTimestamp"])?.trim();
+  const worklistId = elementText3(root["worklistId"])?.trim() ?? "";
+  const timestamp = elementText3(root["worklistTimestamp"])?.trim();
   const infos = [];
-  for (const raw of asArray3(asRecord2(root["infos"])?.["info"])) {
-    const node2 = asRecord2(raw);
-    const type = elementText2(node2?.["type"]) ?? attr5(node2, "type") ?? "";
-    const description = elementText2(node2?.["description"]) ?? attr5(node2, "description") ?? elementText2(raw) ?? "";
+  for (const raw of asArray4(asRecord3(root["infos"])?.["info"])) {
+    const node2 = asRecord3(raw);
+    const type = elementText3(node2?.["type"]) ?? attr6(node2, "type") ?? "";
+    const description = elementText3(node2?.["description"]) ?? attr6(node2, "description") ?? elementText3(raw) ?? "";
     if (type === "" && description === "") continue;
     infos.push({ type, description });
   }
@@ -133990,14 +134783,14 @@ function parseAtcRunAck(body) {
 var DOCUMENTATION_LINK_REL = "http://www.sap.com/adt/relations/documentation";
 function parseAtcWorklist(body) {
   const doc = parseDocument(body, "worklist");
-  const root = asRecord2(doc["worklist"]);
+  const root = asRecord3(doc["worklist"]);
   if (root === void 0) throw missingRoot("worklist", "worklist", body);
   const objectSets = [];
-  for (const raw of asArray3(asRecord2(root["objectSets"])?.["objectSet"])) {
-    const node2 = asRecord2(raw);
-    const name = attr5(node2, "name");
+  for (const raw of asArray4(asRecord3(root["objectSets"])?.["objectSet"])) {
+    const node2 = asRecord3(raw);
+    const name = attr6(node2, "name");
     if (name === void 0) continue;
-    const title = attr5(node2, "title");
+    const title = attr6(node2, "title");
     objectSets.push({
       name,
       kind: attrOrEmpty2(node2, "kind"),
@@ -134005,33 +134798,33 @@ function parseAtcWorklist(body) {
     });
   }
   const objects = [];
-  for (const raw of asArray3(asRecord2(root["objects"])?.["object"])) {
-    const node2 = asRecord2(raw);
+  for (const raw of asArray4(asRecord3(root["objects"])?.["object"])) {
+    const node2 = asRecord3(raw);
     if (node2 === void 0) continue;
     objects.push(parseObject(node2));
   }
-  const timestamp = attr5(root, "timestamp");
-  const usedObjectSet = attr5(root, "usedObjectSet");
+  const timestamp = attr6(root, "timestamp");
+  const usedObjectSet = attr6(root, "usedObjectSet");
   return {
     id: attrOrEmpty2(root, "id"),
     ...timestamp === void 0 || timestamp === "" ? {} : { timestamp },
     ...usedObjectSet === void 0 || usedObjectSet === "" ? {} : { usedObjectSet },
     // Absent means complete — else every release that omits it looks truncated.
-    objectSetIsComplete: attr5(root, "objectSetIsComplete") === void 0 ? true : isXmlTrue2(attr5(root, "objectSetIsComplete")),
+    objectSetIsComplete: attr6(root, "objectSetIsComplete") === void 0 ? true : isXmlTrue2(attr6(root, "objectSetIsComplete")),
     objectSets,
     objects
   };
 }
 function parseObject(node2) {
   const findings = [];
-  for (const raw of asArray3(asRecord2(node2["findings"])?.["finding"])) {
-    const f = asRecord2(raw);
+  for (const raw of asArray4(asRecord3(node2["findings"])?.["finding"])) {
+    const f = asRecord3(raw);
     if (f === void 0) continue;
     findings.push(parseFinding(f));
   }
-  const packageName = attr5(node2, "packageName");
-  const author = attr5(node2, "author");
-  const objectTypeId = attr5(node2, "objectTypeId");
+  const packageName = attr6(node2, "packageName");
+  const author = attr6(node2, "author");
+  const objectTypeId = attr6(node2, "objectTypeId");
   return {
     uri: attrOrEmpty2(node2, "uri"),
     name: attrOrEmpty2(node2, "name"),
@@ -134043,14 +134836,14 @@ function parseObject(node2) {
   };
 }
 function parseFinding(node2) {
-  const quickfixInfo = attr5(node2, "quickfixInfo");
+  const quickfixInfo = attr6(node2, "quickfixInfo");
   const documentationUri = findDocumentationUri(node2);
-  const quickFixes = parseQuickFixFlags(asRecord2(node2["quickfixes"]));
+  const quickFixes = parseQuickFixFlags(asRecord3(node2["quickfixes"]));
   return {
     uri: attrOrEmpty2(node2, "uri"),
-    location: parseAtcLocation(attr5(node2, "location")),
+    location: parseAtcLocation(attr6(node2, "location")),
     // Absent/unparseable becomes 0, rendered as `prio 0`, not mislabelled an error.
-    priority: parsePriority(attr5(node2, "priority")),
+    priority: parsePriority(attr6(node2, "priority")),
     checkId: attrOrEmpty2(node2, "checkId"),
     checkTitle: attrOrEmpty2(node2, "checkTitle"),
     messageId: attrOrEmpty2(node2, "messageId"),
@@ -134063,21 +134856,21 @@ function parseFinding(node2) {
   };
 }
 function findDocumentationUri(node2) {
-  for (const raw of asArray3(node2["link"])) {
-    const link = asRecord2(raw);
-    if (attr5(link, "rel") !== DOCUMENTATION_LINK_REL) continue;
-    const href = attr5(link, "href");
+  for (const raw of asArray4(node2["link"])) {
+    const link = asRecord3(raw);
+    if (attr6(link, "rel") !== DOCUMENTATION_LINK_REL) continue;
+    const href = attr6(link, "href");
     if (href !== void 0 && href !== "") return href;
   }
   return void 0;
 }
 function parseQuickFixFlags(node2) {
   if (node2 === void 0) return void 0;
-  const manual = isXmlTrue2(attr5(node2, "manual"));
-  const automatic = isXmlTrue2(attr5(node2, "automatic"));
-  const pseudo = isXmlTrue2(attr5(node2, "pseudo"));
-  const aiBased = isXmlTrue2(attr5(node2, "aiBasedQF"));
-  const aiEnabled = isXmlTrue2(attr5(node2, "ai_enabled"));
+  const manual = isXmlTrue2(attr6(node2, "manual"));
+  const automatic = isXmlTrue2(attr6(node2, "automatic"));
+  const pseudo = isXmlTrue2(attr6(node2, "pseudo"));
+  const aiBased = isXmlTrue2(attr6(node2, "aiBasedQF"));
+  const aiEnabled = isXmlTrue2(attr6(node2, "ai_enabled"));
   return {
     manual,
     automatic,
@@ -134141,16 +134934,16 @@ function parseCheckVariantList(body) {
   if (rawRoot === void 0) {
     throw missingRoot("check variant list", "objectReferences", body);
   }
-  const root = asRecord2(rawRoot);
+  const root = asRecord3(rawRoot);
   const variants = [];
-  for (const raw of asArray3(root?.["objectReference"])) {
-    const node2 = asRecord2(raw);
+  for (const raw of asArray4(root?.["objectReference"])) {
+    const node2 = asRecord3(raw);
     const type = attrOrEmpty2(node2, "type");
     if (!type.startsWith("CHKV")) continue;
-    const name = attr5(node2, "name");
+    const name = attr6(node2, "name");
     if (name === void 0 || name === "") continue;
-    const description = attr5(node2, "description");
-    const packageName = attr5(node2, "packageName");
+    const description = attr6(node2, "description");
+    const packageName = attr6(node2, "packageName");
     variants.push({
       name,
       uri: attrOrEmpty2(node2, "uri"),
@@ -135243,29 +136036,29 @@ var quickfixXml = new XMLParser({
   trimValues: false,
   isArray: (_name, jpath, _isLeaf, isAttribute) => !isAttribute && typeof jpath === "string" && (jpath === "evaluationResults.evaluationResult" || jpath === "proposalResult.deltas.unit")
 });
-function asRecord3(value) {
+function asRecord4(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value) ? value : void 0;
 }
-function asArray4(value) {
+function asArray5(value) {
   if (Array.isArray(value)) return value;
   return value === void 0 || value === null ? [] : [value];
 }
-function attr6(node2, name) {
+function attr7(node2, name) {
   const value = node2?.[`@_${name}`];
   return typeof value === "string" ? value : void 0;
 }
 function attrOrEmpty3(node2, name) {
-  return attr6(node2, name) ?? "";
+  return attr7(node2, name) ?? "";
 }
-function elementText3(value) {
+function elementText4(value) {
   if (typeof value === "string") return value;
   if (value === void 0 || value === null) return void 0;
-  const rec = asRecord3(value);
+  const rec = asRecord4(value);
   if (rec === void 0) return void 0;
   const text3 = rec["#text"];
   return typeof text3 === "string" ? text3 : "";
 }
-function parseXmlDocument(body, what) {
+function parseXmlDocument2(body, what) {
   let parsed;
   try {
     parsed = quickfixXml.parse(body);
@@ -135277,7 +136070,7 @@ function parseXmlDocument(body, what) {
       "The server answered with something other than the expected quick-fix document."
     );
   }
-  const rec = asRecord3(parsed);
+  const rec = asRecord4(parsed);
   if (rec === void 0) {
     throw new AbapError(
       "ADT_ERROR",
@@ -135312,21 +136105,21 @@ function deriveParameter(type, userContent) {
   return INTERACTIVE_QUICKFIX_PARAMETER_LABELS[type];
 }
 function parseEvaluationResults(xml3) {
-  const doc = parseXmlDocument(xml3, "quick-fix evaluation");
+  const doc = parseXmlDocument2(xml3, "quick-fix evaluation");
   const rootValue = doc["evaluationResults"];
   if (rootValue === void 0) throw missingRoot2("quick-fix evaluation", "qf:evaluationResults", xml3);
-  const root = asRecord3(rootValue) ?? {};
+  const root = asRecord4(rootValue) ?? {};
   const results = [];
-  for (const raw of asArray4(root["evaluationResult"])) {
-    const node2 = asRecord3(raw);
+  for (const raw of asArray5(root["evaluationResult"])) {
+    const node2 = asRecord4(raw);
     if (node2 === void 0) continue;
-    const ref2 = asRecord3(node2["objectReference"]);
+    const ref2 = asRecord4(node2["objectReference"]);
     const uri = attrOrEmpty3(ref2, "uri");
     if (uri === "") continue;
     const type = attrOrEmpty3(ref2, "type");
     const title = attrOrEmpty3(ref2, "name");
     const description = stripHtml(attrOrEmpty3(ref2, "description"));
-    const rawUserContent = elementText3(node2["userContent"]);
+    const rawUserContent = elementText4(node2["userContent"]);
     const userContent = rawUserContent !== void 0 && rawUserContent.trim() !== "" ? rawUserContent : void 0;
     const parameterized = userContent !== void 0 || INTERACTIVE_QUICKFIX_TYPES.has(type);
     const parameter = deriveParameter(type, userContent);
@@ -135363,14 +136156,14 @@ function uriPath(uri) {
   return i === -1 ? uri : uri.slice(0, i);
 }
 function parseProposalDeltas(xml3, expectedSourceUri) {
-  const doc = parseXmlDocument(xml3, "quick-fix proposal");
-  const root = asRecord3(doc["proposalResult"]);
+  const doc = parseXmlDocument2(xml3, "quick-fix proposal");
+  const root = asRecord4(doc["proposalResult"]);
   if (root === void 0) throw missingRoot2("quick-fix proposal", "qf:proposalResult", xml3);
   const edits = [];
-  for (const raw of asArray4(asRecord3(root["deltas"])?.["unit"])) {
-    const node2 = asRecord3(raw);
+  for (const raw of asArray5(asRecord4(root["deltas"])?.["unit"])) {
+    const node2 = asRecord4(raw);
     if (node2 === void 0) continue;
-    const ref2 = asRecord3(node2["objectReference"]);
+    const ref2 = asRecord4(node2["objectReference"]);
     const uri = attrOrEmpty3(ref2, "uri");
     const path8 = uriPath(uri);
     if (path8 !== expectedSourceUri) {
@@ -135381,7 +136174,7 @@ function parseProposalDeltas(xml3, expectedSourceUri) {
         "This fix edits more than one document. Applying it as a single-object write would silently drop the edit to the other document, so the whole fix was refused instead."
       );
     }
-    const content = elementText3(node2["content"]) ?? "";
+    const content = elementText4(node2["content"]) ?? "";
     edits.push({ range: parseDeltaFragment(uri), content });
   }
   return edits;
@@ -135740,7 +136533,7 @@ function child2(node2, name) {
   const v = isRec(node2) ? node2[name] : void 0;
   return isRec(v) ? v : void 0;
 }
-function attr7(node2, name) {
+function attr8(node2, name) {
   if (!isRec(node2)) return void 0;
   const v = node2[`@_${name}`];
   if (v === void 0 || v === null) return void 0;
@@ -135748,7 +136541,7 @@ function attr7(node2, name) {
   return s === "" ? void 0 : s;
 }
 function boolAttr(node2, name) {
-  const raw = attr7(node2, name);
+  const raw = attr8(node2, name);
   if (raw === void 0) return void 0;
   const v = raw.toLowerCase();
   if (v === "true") return true;
@@ -135764,11 +136557,11 @@ function localName(qualified) {
   return cut === -1 ? qualified : qualified.slice(cut + 1);
 }
 function detectVersion2(edmx, schemas) {
-  const v = attr7(edmx, "Version");
+  const v = attr8(edmx, "Version");
   if (v === "4.0") return { version: "V4", evidence: "edmx-version-attribute" };
   if (v === "1.0") return { version: "V2", evidence: "edmx-version-attribute" };
   const ds = child2(edmx, "DataServices");
-  const dsv = attr7(ds, "DataServiceVersion");
+  const dsv = attr8(ds, "DataServiceVersion");
   if (dsv?.startsWith("2")) return { version: "V2", evidence: "dataservice-version-attribute" };
   if (dsv?.startsWith("4")) return { version: "V4", evidence: "dataservice-version-attribute" };
   for (const s of schemas) {
@@ -135779,7 +136572,7 @@ function detectVersion2(edmx, schemas) {
   for (const s of schemas) {
     for (const t of list(s, "EntityType")) {
       for (const n of list(t, "NavigationProperty")) {
-        if (attr7(n, "Type") !== void 0) {
+        if (attr8(n, "Type") !== void 0) {
           return { version: "V4", evidence: "structural-navigation-type" };
         }
       }
@@ -135795,16 +136588,16 @@ function detectVersion2(edmx, schemas) {
 function indexAssociations(schemas) {
   const idx = /* @__PURE__ */ new Map();
   for (const s of schemas) {
-    const ns = attr7(s, "Namespace");
+    const ns = attr8(s, "Namespace");
     for (const a of list(s, "Association")) {
-      const name = attr7(a, "Name");
+      const name = attr8(a, "Name");
       if (!name) continue;
       const ends = /* @__PURE__ */ new Map();
       for (const e of list(a, "End")) {
-        const role = attr7(e, "Role");
-        const type = attr7(e, "Type");
+        const role = attr8(e, "Role");
+        const type = attr8(e, "Type");
         if (!role || !type) continue;
-        const mult = attr7(e, "Multiplicity");
+        const mult = attr8(e, "Multiplicity");
         ends.set(role, { type, ...mult === void 0 ? {} : { multiplicity: mult } });
       }
       idx.set(name, ends);
@@ -135816,10 +136609,10 @@ function indexAssociations(schemas) {
 function v2Navigation(typeNode, assoc) {
   const out = [];
   for (const n of list(typeNode, "NavigationProperty")) {
-    const name = attr7(n, "Name");
+    const name = attr8(n, "Name");
     if (!name) continue;
-    const rel = attr7(n, "Relationship");
-    const toRole = attr7(n, "ToRole");
+    const rel = attr8(n, "Relationship");
+    const toRole = attr8(n, "ToRole");
     const end = rel !== void 0 && toRole !== void 0 ? assoc.get(rel)?.get(toRole) : void 0;
     if (!end) {
       out.push({
@@ -135838,23 +136631,23 @@ function v2Navigation(typeNode, assoc) {
   return out;
 }
 function v2Property(p) {
-  const name = attr7(p, "Name");
+  const name = attr8(p, "Name");
   if (!name) return void 0;
   return {
     name,
-    type: attr7(p, "Type") ?? "(untyped)",
+    type: attr8(p, "Type") ?? "(untyped)",
     ...opt("nullable", boolAttr(p, "Nullable")),
-    ...opt("maxLength", attr7(p, "MaxLength")),
-    ...opt("precision", attr7(p, "Precision")),
-    ...opt("scale", attr7(p, "Scale")),
-    ...opt("label", attr7(p, "label")),
+    ...opt("maxLength", attr8(p, "MaxLength")),
+    ...opt("precision", attr8(p, "Precision")),
+    ...opt("scale", attr8(p, "Scale")),
+    ...opt("label", attr8(p, "label")),
     ...opt("creatable", boolAttr(p, "creatable")),
     ...opt("updatable", boolAttr(p, "updatable")),
     ...opt("sortable", boolAttr(p, "sortable")),
     ...opt("filterable", boolAttr(p, "filterable")),
     ...opt("requiredInFilter", boolAttr(p, "required-in-filter")),
-    ...opt("unit", attr7(p, "unit")),
-    ...opt("text", attr7(p, "text"))
+    ...opt("unit", attr8(p, "unit")),
+    ...opt("text", attr8(p, "text"))
   };
 }
 function opt(key, value) {
@@ -135875,7 +136668,7 @@ function v2Capabilities(set2) {
 function v4RecordFlag(ann, property) {
   for (const rec of list(ann, "Record")) {
     for (const pv of list(rec, "PropertyValue")) {
-      if (attr7(pv, "Property") === property) return boolAttr(pv, "Bool");
+      if (attr8(pv, "Property") === property) return boolAttr(pv, "Bool");
     }
   }
   return void 0;
@@ -135888,7 +136681,7 @@ function v4Label(node2) {
 }
 function v4LabelOf(annotations) {
   for (const a of annotations) {
-    if (localName(attr7(a, "Term") ?? "") === "Label") return attr7(a, "String");
+    if (localName(attr8(a, "Term") ?? "") === "Label") return attr8(a, "String");
   }
   return void 0;
 }
@@ -135901,7 +136694,7 @@ function v4Capabilities(annotations) {
   let pageable;
   let requiresFilter;
   for (const a of annotations) {
-    const term = localName(attr7(a, "Term") ?? "");
+    const term = localName(attr8(a, "Term") ?? "");
     switch (term) {
       case "InsertRestrictions":
         creatable = v4RecordFlag(a, "Insertable") ?? creatable;
@@ -135947,7 +136740,7 @@ function indexV4ExternalAnnotations(schemas) {
   const idx = /* @__PURE__ */ new Map();
   for (const s of schemas) {
     for (const block of list(s, "Annotations")) {
-      const target = attr7(block, "Target");
+      const target = attr8(block, "Target");
       if (!target) continue;
       const anns = v4AnnotationsOf(block);
       if (anns.length === 0) continue;
@@ -135963,9 +136756,9 @@ function indexV4ExternalAnnotations(schemas) {
 function v4Navigation(typeNode) {
   const out = [];
   for (const n of list(typeNode, "NavigationProperty")) {
-    const name = attr7(n, "Name");
+    const name = attr8(n, "Name");
     if (!name) continue;
-    const raw = attr7(n, "Type");
+    const raw = attr8(n, "Type");
     if (raw === void 0) {
       out.push({ name, target: "(unresolved)", unresolved: true });
       continue;
@@ -135977,27 +136770,27 @@ function v4Navigation(typeNode) {
   return out;
 }
 function v4Property(p) {
-  const name = attr7(p, "Name");
+  const name = attr8(p, "Name");
   if (!name) return void 0;
   return {
     name,
-    type: attr7(p, "Type") ?? "(untyped)",
+    type: attr8(p, "Type") ?? "(untyped)",
     ...opt("nullable", boolAttr(p, "Nullable")),
-    ...opt("maxLength", attr7(p, "MaxLength")),
-    ...opt("precision", attr7(p, "Precision")),
-    ...opt("scale", attr7(p, "Scale")),
+    ...opt("maxLength", attr8(p, "MaxLength")),
+    ...opt("precision", attr8(p, "Precision")),
+    ...opt("scale", attr8(p, "Scale")),
     ...opt("label", v4Label(p))
   };
 }
 function paramsOf(node2) {
   const out = [];
   for (const p of list(node2, "Parameter")) {
-    const name = attr7(p, "Name");
+    const name = attr8(p, "Name");
     if (!name) continue;
     out.push({
       name,
-      type: attr7(p, "Type") ?? "(untyped)",
-      ...opt("mode", attr7(p, "Mode"))
+      type: attr8(p, "Type") ?? "(untyped)",
+      ...opt("mode", attr8(p, "Mode"))
     });
   }
   return out;
@@ -136005,14 +136798,14 @@ function paramsOf(node2) {
 function v2Operations(container) {
   const out = [];
   for (const f of list(container, "FunctionImport")) {
-    const name = attr7(f, "Name");
+    const name = attr8(f, "Name");
     if (!name) continue;
-    const method = attr7(f, "HttpMethod");
+    const method = attr8(f, "HttpMethod");
     out.push({
       name,
       kind: method !== void 0 && method.toUpperCase() !== "GET" ? "action" : "function",
       ...opt("httpMethod", method),
-      ...opt("returnType", attr7(f, "ReturnType")),
+      ...opt("returnType", attr8(f, "ReturnType")),
       parameters: paramsOf(f)
     });
   }
@@ -136021,13 +136814,13 @@ function v2Operations(container) {
 function v4Operations(schemas, container) {
   const defs = /* @__PURE__ */ new Map();
   for (const s of schemas) {
-    const ns = attr7(s, "Namespace");
+    const ns = attr8(s, "Namespace");
     for (const [tag, kind] of [
       ["Action", "action"],
       ["Function", "function"]
     ]) {
       for (const node2 of list(s, tag)) {
-        const name = attr7(node2, "Name");
+        const name = attr8(node2, "Name");
         if (!name) continue;
         defs.set(name, { kind, node: node2 });
         if (ns) defs.set(`${ns}.${name}`, { kind, node: node2 });
@@ -136041,15 +136834,15 @@ function v4Operations(schemas, container) {
     ["FunctionImport", "Function"]
   ]) {
     for (const imp of list(container, tag)) {
-      const name = attr7(imp, "Name");
+      const name = attr8(imp, "Name");
       if (!name) continue;
-      const targetRef = attr7(imp, attrName);
+      const targetRef = attr8(imp, attrName);
       const def = targetRef === void 0 ? void 0 : defs.get(targetRef);
       seen.add(targetRef ?? name);
       out.push({
         name,
         kind: tag === "ActionImport" ? "action" : "function",
-        ...opt("returnType", attr7(child2(def?.node, "ReturnType"), "Type")),
+        ...opt("returnType", attr8(child2(def?.node, "ReturnType"), "Type")),
         parameters: def ? paramsOf(def.node) : []
       });
     }
@@ -136060,13 +136853,13 @@ function v4Operations(schemas, container) {
       ["Function", "function"]
     ]) {
       for (const node2 of list(s, tag)) {
-        const name = attr7(node2, "Name");
+        const name = attr8(node2, "Name");
         if (!name || seen.has(name)) continue;
         if (boolAttr(node2, "IsBound") !== true) continue;
         out.push({
           name,
           kind,
-          ...opt("returnType", attr7(child2(node2, "ReturnType"), "Type")),
+          ...opt("returnType", attr8(child2(node2, "ReturnType"), "Type")),
           parameters: paramsOf(node2)
         });
       }
@@ -136106,11 +136899,11 @@ function parseEdmx(body) {
   const entityTypes = [];
   for (const s of schemas) {
     for (const t of list(s, "EntityType")) {
-      const name = attr7(t, "Name");
+      const name = attr8(t, "Name");
       if (!name) continue;
       const keys = [];
       for (const ref2 of list(child2(t, "Key"), "PropertyRef")) {
-        const k = attr7(ref2, "Name");
+        const k = attr8(ref2, "Name");
         if (k) keys.push(k);
       }
       const properties = [];
@@ -136120,24 +136913,24 @@ function parseEdmx(body) {
       }
       entityTypes.push({
         name,
-        ...opt("label", version2 === "V2" ? attr7(t, "label") : v4Label(t)),
+        ...opt("label", version2 === "V2" ? attr8(t, "label") : v4Label(t)),
         keys,
         properties,
         navigation: version2 === "V2" ? v2Navigation(t, assoc ?? /* @__PURE__ */ new Map()) : v4Navigation(t)
       });
     }
   }
-  const containerName = attr7(container, "Name");
+  const containerName = attr8(container, "Name");
   const entitySets = [];
   for (const set2 of list(container, "EntitySet")) {
-    const name = attr7(set2, "Name");
+    const name = attr8(set2, "Name");
     if (!name) continue;
-    const entityType = attr7(set2, "EntityType") ?? "(untyped)";
+    const entityType = attr8(set2, "EntityType") ?? "(untyped)";
     if (version2 === "V2") {
       entitySets.push({
         name,
         entityType,
-        ...opt("label", attr7(set2, "label")),
+        ...opt("label", attr8(set2, "label")),
         capabilities: v2Capabilities(set2)
       });
     } else {
@@ -136145,7 +136938,7 @@ function parseEdmx(body) {
       const external = [
         ...externalAnnotations?.get(`${containerName ?? ""}/${name}`) ?? [],
         ...containerSchema ? externalAnnotations?.get(
-          `${attr7(containerSchema, "Namespace") ?? ""}.${containerName ?? ""}/${name}`
+          `${attr8(containerSchema, "Namespace") ?? ""}.${containerName ?? ""}/${name}`
         ) ?? [] : []
       ];
       const all = [...inline, ...external];
@@ -136160,7 +136953,7 @@ function parseEdmx(body) {
   return {
     version: version2,
     versionEvidence: evidence,
-    ...opt("namespace", attr7(schemas[0], "Namespace")),
+    ...opt("namespace", attr8(schemas[0], "Namespace")),
     ...opt("entityContainer", containerName),
     entitySets,
     entityTypes,
@@ -136210,7 +137003,7 @@ function list2(node2, name) {
 function child3(node2, name) {
   return list2(node2, name)[0];
 }
-function attr8(node2, name) {
+function attr9(node2, name) {
   if (!isRec2(node2)) return void 0;
   const v = node2[`@_${name}`];
   if (v === void 0 || v === null) return void 0;
@@ -136218,7 +137011,7 @@ function attr8(node2, name) {
   return s === "" ? void 0 : s;
 }
 function boolAttr2(node2, name) {
-  const raw = attr8(node2, name)?.toLowerCase();
+  const raw = attr9(node2, name)?.toLowerCase();
   if (raw === "true" || raw === "x") return true;
   if (raw === "false" || raw === "") return false;
   return void 0;
@@ -136289,22 +137082,22 @@ async function readServiceBinding(conn, bindingName) {
   let catalogueUrl;
   let catalogueRel;
   for (const l of list2(sb, "link")) {
-    const rel = attr8(l, "rel");
+    const rel = attr9(l, "rel");
     if (rel !== LINK_REL_V2 && rel !== LINK_REL_V4) continue;
-    catalogueUrl = attr8(l, "href");
+    catalogueUrl = attr9(l, "href");
     catalogueRel = rel;
     break;
   }
   return {
     name,
-    ...opt2("bindingType", attr8(binding, "type")),
-    ...opt2("bindingVersion", attr8(binding, "version")),
-    ...opt2("category", attr8(binding, "category")),
+    ...opt2("bindingType", attr9(binding, "type")),
+    ...opt2("bindingVersion", attr9(binding, "version")),
+    ...opt2("category", attr9(binding, "category")),
     ...opt2("published", boolAttr2(sb, "published")),
-    ...opt2("serviceName", attr8(services, "name")),
-    ...opt2("serviceVersion", attr8(content, "version")),
-    ...opt2("srvdName", attr8(child3(content, "serviceDefinition"), "name")),
-    ...opt2("packageName", attr8(child3(sb, "packageRef"), "name")),
+    ...opt2("serviceName", attr9(services, "name")),
+    ...opt2("serviceVersion", attr9(content, "version")),
+    ...opt2("srvdName", attr9(child3(content, "serviceDefinition"), "name")),
+    ...opt2("packageName", attr9(child3(sb, "packageRef"), "name")),
     ...opt2("catalogueUrl", catalogueUrl),
     ...opt2("catalogueRel", catalogueRel)
   };
@@ -136353,15 +137146,15 @@ async function readServiceRuntimeInfo(conn, binding) {
     );
   }
   const information = child3(service, "serviceInformation");
-  const rawUrl = attr8(service, "serviceUrl") ?? attr8(information, "url");
+  const rawUrl = attr9(service, "serviceUrl") ?? attr9(information, "url");
   const collections = [];
   for (const c of list2(information, "collection")) {
-    const n = attr8(c, "name");
+    const n = attr9(c, "name");
     if (n) collections.push(n);
   }
   return {
-    ...opt2("serviceId", attr8(service, "serviceId")),
-    ...opt2("serviceVersion", attr8(service, "serviceVersion") ?? attr8(information, "version")),
+    ...opt2("serviceId", attr9(service, "serviceId")),
+    ...opt2("serviceVersion", attr9(service, "serviceVersion") ?? attr9(information, "version")),
     ...opt2("servicePath", rawUrl === void 0 ? void 0 : pathOfServiceUrl(rawUrl)),
     ...opt2("published", boolAttr2(service, "published")),
     collections
