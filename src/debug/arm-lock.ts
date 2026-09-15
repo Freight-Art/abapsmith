@@ -165,18 +165,31 @@ export function debugArmLockKey(cfg: { url: string; client?: string; user: strin
 }
 
 /**
- * `<stateDir>/locks/debug/<sha256(key)-20hex>.lock` — a sibling of
+ * `<stateDir>/locks/debug/<sha256(key[|lane])-20hex>.lock` — a sibling of
  * `locks/objects/`, not nested inside it, so an operator can tell at a
  * glance whether a write or a debug session is wedged. The key is hashed
  * because it contains a URL, which is not a legal filename component.
+ *
+ * `lane` (default `0`, see `resolveDebugSessionLimit` in src/adt/pool.ts)
+ * selects one of up to `cfg.debugSessions` independent lock files for the
+ * same `debugArmLockKey`. Lane 0's path is byte-identical to before lanes
+ * existed — the hash input is `debugArmLockKey(cfg)` with nothing appended
+ * — so an old process (lane-unaware) and a new one (lane 0) still contend on
+ * the same file. Lane > 0 appends `|lane${lane}` to the hash input, not to
+ * `debugArmLockKey`'s own return value: the key's meaning ("which SAP
+ * user/system/client this is") is unrelated to which lane a session picked,
+ * and folding lane into the key itself would blur that distinction for
+ * every other reader of `debugArmLockKey`.
  *
  * Exported for tests to assert on and pre-create.
  */
 export function debugArmLockPath(
   stateDir: string,
   cfg: { url: string; client?: string; user: string },
+  lane = 0,
 ): string {
-  const hash = createHash("sha256").update(debugArmLockKey(cfg)).digest("hex").slice(0, LOCK_HASH_HEX_LEN);
+  const hashInput = lane === 0 ? debugArmLockKey(cfg) : `${debugArmLockKey(cfg)}|lane${lane}`;
+  const hash = createHash("sha256").update(hashInput).digest("hex").slice(0, LOCK_HASH_HEX_LEN);
   return path.join(stateDir, "locks", "debug", `${hash}.lock`);
 }
 
@@ -266,8 +279,10 @@ export class FileLockDebugArmLock implements DebugArmLock {
     stateDir: string;
     cfg: { url: string; client?: string; user: string };
     waitMs?: number;
+    /** Which debug lane this lock guards (default `0`, see `debugArmLockPath`). */
+    lane?: number;
   }) {
-    this.lockPath = debugArmLockPath(opts.stateDir, opts.cfg);
+    this.lockPath = debugArmLockPath(opts.stateDir, opts.cfg, opts.lane ?? 0);
     this.key = debugArmLockKey(opts.cfg);
     this.waitMs = opts.waitMs ?? resolveDebugLockWaitMs();
   }
@@ -384,8 +399,38 @@ export function createDebugArmLock(opts: {
   env?: NodeJS.ProcessEnv;
   waitMs?: number;
   enabled?: boolean;
+  /** Which debug lane this lock guards (default `0`, byte-identical to pre-lane behaviour). */
+  lane?: number;
 }): DebugArmLock {
   const enabled = opts.enabled ?? resolveCrossProcessDebugLock(opts.env ?? process.env);
   if (!enabled) return new NoopDebugArmLock();
-  return new FileLockDebugArmLock({ stateDir: opts.stateDir, cfg: opts.cfg, waitMs: opts.waitMs });
+  return new FileLockDebugArmLock({ stateDir: opts.stateDir, cfg: opts.cfg, waitMs: opts.waitMs, lane: opts.lane });
+}
+
+/**
+ * One {@link DebugArmLock} per lane, `0..lanes-1` — what the tool layer needs
+ * to give each concurrent debug lane (`resolveDebugSessionLimit`,
+ * src/adt/pool.ts) its own cross-process exclusion, without that layer
+ * having to know how a lane number becomes a lock path. Lane SELECTION
+ * (which lane a given session uses) is the tool layer's job, not this
+ * module's — this only builds the array.
+ *
+ * `lanes` would normally be `resolveDebugSessionLimit(cfg)`; `lanes <= 0` is
+ * treated as `1` so a caller can never end up with a zero-length array (no
+ * lock at all) from a bad computed value.
+ */
+export function createDebugArmLocks(opts: {
+  lanes: number;
+  stateDir: string;
+  cfg: { url: string; client?: string; user: string };
+  env?: NodeJS.ProcessEnv;
+  waitMs?: number;
+  enabled?: boolean;
+}): DebugArmLock[] {
+  const lanes = Number.isInteger(opts.lanes) && opts.lanes > 0 ? opts.lanes : 1;
+  const locks: DebugArmLock[] = [];
+  for (let lane = 0; lane < lanes; lane++) {
+    locks.push(createDebugArmLock({ ...opts, lane }));
+  }
+  return locks;
 }

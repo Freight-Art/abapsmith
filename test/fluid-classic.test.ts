@@ -689,13 +689,23 @@ describe("classic tool — ddic-bridge exports S4 depends on", () => {
 });
 
 describe("classic tool — REST-only DDIC pin", () => {
+  // SHLP/DH joined the bridge-creatable set alongside VIEW/DV and TRAN/T
+  // when it dropped its `unsupported` registry entry for `bridgeCreate`
+  // (RS_CORR_INSERT -> DDIF_SHLP_PUT -> DDIF_SHLP_ACTIVATE), so it now
+  // belongs in BRIDGE_CREATABLE_TYPES with the other three. The pin's point
+  // is unchanged: the six REST-writable DDIC types below (TABL/DT, TABL/DS,
+  // DTEL/DE, DOMA/DD, TTYP/DA, DDLS/DF) must never silently move to the
+  // bridge — they still create/write over ordinary ADT REST, so a caller
+  // that gained the SHLP/DH bridge route must not gain one for any of these.
   it("TABL/DT, TABL/DS, DTEL/DE, DOMA/DD, TTYP/DA and DDLS/DF are never bridge-creatable", () => {
     const restOnly = ["TABL/DT", "TABL/DS", "DTEL/DE", "DOMA/DD", "TTYP/DA", "DDLS/DF"];
     for (const type of restOnly) {
       expect(isBridgeCreatableType(type)).toBe(false);
       expect(isBridgeOnlyCreateType(type)).toBe(false);
     }
-    expect(new Set(BRIDGE_CREATABLE_TYPES)).toEqual(new Set(["VIEW/DV", "TRAN/T", "TABL/DI", "DEVC/K"]));
+    expect(new Set(BRIDGE_CREATABLE_TYPES)).toEqual(
+      new Set(["SHLP/DH", "VIEW/DV", "TRAN/T", "TABL/DI", "DEVC/K"]),
+    );
   });
 
   // dispatch's only route to the server is the classrun endpoint / the

@@ -261,6 +261,12 @@ function scanForHandRolledTruncation(): Offense[] {
 
 const ALLOWED_LINES: { file: string; contains: string; reason: string }[] = [
   {
+    file: "src/adt/impacted.ts",
+    contains: "kept.slice(0, PER_OBJECT_CONSUMER_CAP)",
+    reason:
+      "Per-object consumer cap for scope=\"impacted\" (issue #111). The complement `kept.slice(toProbe.length)` is computed on the next line and every consumer it drops is passed to addCap, which names them on the response's `--- TRUNCATED ---` line, so the cap and the dropped objects are disclosed to the caller.",
+  },
+  {
     file: "src/adt/atc.ts",
     contains: "names.slice(0, ATC_NAME_DISPLAY_MAX)",
     reason:
@@ -367,6 +373,24 @@ const ALLOWED_LINES: { file: string; contains: string; reason: string }[] = [
     contains: "all.slice(0, MAX_FCODES)",
     reason:
       "MAX_FCODES caps the enumerated function-code list; the cap is disclosed — analyzeFcodes pushes a note naming the total and the cap, and adds \"fcodes\" to the response's truncated field.",
+  },
+  {
+    file: "src/tools/trace.ts",
+    contains: "entries.slice(0, top)",
+    reason:
+      "renderHitList caps the abap_trace hit-list rows to 'top'. 'top' is caller-supplied — it defaults to 20 and is capped at 100 by resolveTop in src/adt/traces-query.ts — so the caller controls the size of the cut, and the cut is disclosed anyway: renderHitList returns a note reading `showing top <shown> of <total> hit-list entries` whenever entries.length exceeds top, and that note reaches the caller through renderRead's `notes` argument to buildResponse.",
+  },
+  {
+    file: "src/tools/trace.ts",
+    contains: "db.accesses.slice(0, top)",
+    reason:
+      "renderDbAccesses caps the abap_trace DB-access rows to 'top'. 'top' is caller-supplied — it defaults to 20 and is capped at 100 by resolveTop in src/adt/traces-query.ts — so the caller controls the size of the cut, and the cut is disclosed anyway: renderDbAccesses returns a note reading `showing top <shown> of <total> DB-access entries` whenever db.accesses.length exceeds top, and that note reaches the caller through renderRead's `notes` argument to buildResponse.",
+  },
+  {
+    file: "src/tools/trace.ts",
+    contains: "flattened.slice(0, top)",
+    reason:
+      "renderRead's tree branch caps the abap_trace call-tree rows to 'top'. 'top' is caller-supplied — it defaults to 20 and is capped at 100 by resolveTop in src/adt/traces-query.ts — so the caller controls the size of this cut, and it is disclosed anyway: when flattened.length exceeds top, renderRead pushes a note reading `showing top <shown> of <total> call-tree entries at depth <= <depth> (...)` into buildResponse's notes. The SECOND cut in this same branch — filtering statements to callLevel <= depth before the slice — is a separate concern and is disclosed by its own separate note (added alongside this entry) whenever stmt.statements.length exceeds flattened.length, naming the depth and both counts. Neither cut is silent.",
   },
 ];
 

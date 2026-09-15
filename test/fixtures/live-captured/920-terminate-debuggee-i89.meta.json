@@ -1,0 +1,38 @@
+{
+  "n": 920,
+  "label": "terminate-debuggee-i89",
+  "expect": null,
+  "note": null,
+  "requestMethod": "POST",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/debugger?method=terminateDebuggee&sap-client=001",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted: 4 cookies>",
+    "X-sap-adt-sessiontype": "stateful",
+    "X-CSRF-Token": "Ls6asF_TTkrN_WJbzm64EA==",
+    "Accept": "application/xml"
+  },
+  "requestBody": null,
+  "responseStatus": 500,
+  "responseStatusText": "Internal Server Error",
+  "responseHeaders": {
+    "connection": "close",
+    "content-encoding": "gzip",
+    "content-length": "458",
+    "content-type": "application/xml",
+    "sap-authenticated": "true",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "85366.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 1301,
+  "zeroByteBody": false,
+  "sha256": "01d04ea22fb785a4aa2dfd6bbf1f0ddca4c644a2961bc666f6618a99b116df7b",
+  "utcTimestamp": "2026-09-12T17:49:41.014Z",
+  "durationMs": 138,
+  "sessionName": "A",
+  "transportError": null,
+  "redactions": "appliance host -> 203.0.113.10:50000 (RFC 5737); the application-server hostname was replaced with a4hsandbox (same placeholder as the 011-051 captures); Authorization/Cookie/set-cookie stripped. sha256/byteLength are over the redacted body as stored here."
+}

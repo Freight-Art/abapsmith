@@ -17,8 +17,22 @@
   it. The server won't set `enho:adjustmentStatus` itself to force the write
   through — that would assert an adjustment nobody performed. SE19 is the
   remedy, and SE19 is SAPGUI.
-- **No search-help (SHLP/DH) write.** No dedicated ADT collection exists — not
-  gated, not broken, simply absent from the server's own routing table.
+- **No dedicated ADT collection for search-help (`SHLP/DH`).** Not gated,
+  not broken, simply absent from the server's own routing table — same as
+  `VIEW/DV` and `TRAN/T` below. abapsmith reaches all three through a
+  plain-text catalog read (`src/adt/catalog-query.ts`, `src/adt/catalog-read.ts`)
+  and a classic fluid bridge for create/update/delete
+  (`src/adt/fluid/builtin/classic/abap-shlp.ts`, `abap-view.ts`, `abap-tran.ts`);
+  see the entry below for what each route actually covers.
+- **A V2 `abap_service op="publish"` leaves behind an `IWVB` object
+  abapsmith cannot delete.** Confirmed live on A4H, 2026-09-15: publishing a
+  V2 service binding (`ZV82_SB`) auto-generated a vocabulary-annotation
+  object, `IWVB ZV82_SB_VAN` (version 0001), in `$TMP`. It survives both
+  `op="unpublish"` and deletion of the binding itself. `IWVB` is not a
+  writable type, so `abap_write` cannot delete it; `abap_read` reports
+  `NOT_FOUND` for it even though `abap_search` still lists it. Removing it
+  needs SAPGUI/SE80, outside abapsmith's own tool surface. The V4 publish
+  path (`ZV82_SB4`) left no such object behind.
 - **`abap_img_edit` still writes past the maintenance view's own check
   logic, but now says what it wrote past.** A customizing row is applied
   with a plain `MODIFY`/`DELETE` on the resolved base table, not through
@@ -35,38 +49,188 @@
   arming the call, not what the tool will do. It still never refuses a row
   on the grounds it lists, and it still does not run the view's
   maintenance function module or `VIEW_MAINTENANCE_CALL`.
-- **`VIEW/DV` cannot be read back or changed once created; a package is
-  deletable, but only while empty.** `VIEW/DV` (classic/DDIC view) is
-  created through a generated `IF_OO_ADT_CLASSRUN` bridge (`RS_CORR_INSERT`
-  then `DDIF_VIEW_PUT` then `DDIF_VIEW_ACTIVATE`, see
-  `src/adt/view-create.ts`). A transportable package resolves a transport
-  request the same way a `DEVC/K` create does — the caller's `corr_nr` if
-  given, or else one picked or created under `ABAP_ALLOW_TRANSPORTS`; a
-  `$` package (`$TMP` included) still refuses a `corr_nr` and registers
-  with `korrnum = space` instead — proven live on A4H, 2026-09-04
-  (a transportable package, with `corr_nr`) and 2026-09-05 (a
-  `$`-prefixed package: `RS_CORR_INSERT` registered the view with
-  `korrnum = space`, then the delete bridge removed it). `TRAN/T`'s create
-  still requires an explicit `corr_nr` for a transportable package:
-  `RPY_TRANSACTION_INSERT`'s signature was read live on
-  A4H 2026-09-05 and forwards `transport_number` verbatim to
-  `RS_CORR_INSERT` as `korrnum`, but no create into a transportable
-  package has been run. What does not change: there is no
-  ADT-readable collection for a classic view, so a view just created cannot
-  be read back by abapsmith, ever — SE11/SE14 is the only way to inspect
-  one. There is no update route either: only delete and recreate.
+- **`SHLP/DH`, `VIEW/DV` and `TRAN/T` are read as rendered pseudo-DDL,
+  created and updated through a classic fluid bridge, and deleted through
+  the same bridge; none of the three has an ADT-native read or write
+  collection.** Reading goes through a different route than writing:
+  `abap_read` issues plain-text `SELECT`s against the underlying catalog
+  tables over the ADT freestyle data-preview endpoint
+  (`src/adt/catalog-query.ts`, `src/adt/catalog-read.ts`) and renders the
+  result as pseudo-DDL — `SHLP/DH` from `DD30L`/`DD30T`/`DD31S`/`DD32S`/
+  `DD33S` (plus `DD04L` for where-used), `VIEW/DV` from
+  `DD25L`/`DD25T`/`DD26S`/`DD27S`/`TVDIR`, `TRAN/T` from
+  `TSTC`/`TSTCT`/`TSTCP`/`TSTCA`/`AGR_TCODES`. This route needs no fluid
+  bridge, so it works under `ABAP_MODE=read`, and each detail list is
+  capped (200 rows for parameter/field/authorization/role lists, 50 for
+  description texts) with a truncation note whenever a cap is hit — see
+  `doc/TOOLS/read-and-search.md`. `DD33S-VALUEDIREC` is rendered as its raw
+  code; abapsmith has not decoded its value set.
+  Writing goes through the generated `IF_OO_ADT_CLASSRUN` bridge instead
+  (`RS_CORR_INSERT` then `DDIF_SHLP_PUT`/`DDIF_VIEW_PUT`/
+  `RPY_TRANSACTION_INSERT`, then activation where one exists — a
+  transaction has none), because none of the three has a writable ADT
+  collection either. A transportable package resolves a transport request
+  the same way a `DEVC/K` create does — the caller's `corr_nr` if given,
+  or else one picked or created under `ABAP_ALLOW_TRANSPORTS` for
+  `VIEW/DV`; `TRAN/T` and `SHLP/DH` both require an explicit `corr_nr` for
+  a transportable package, and refuse the create/update otherwise. A `$`
+  package (`$TMP` included) refuses a `corr_nr` for all three and
+  registers with `korrnum = space` instead — proven live on A4H,
+  2026-09-04 (`VIEW/DV`, a transportable package, with `corr_nr`) and
+  2026-09-05 (`VIEW/DV`, a `$`-prefixed package: `RS_CORR_INSERT`
+  registered the view with `korrnum = space`, then the delete bridge
+  removed it).
+  `mode="update"` (`update_view` / `update_transaction` / `SHLP/DH`'s own
+  update path) replaces the WHOLE definition, not a field at a time: for
+  `VIEW/DV`, `DDIF_VIEW_PUT` re-registers the full field list and text;
+  for `TRAN/T`, `updateTransaction` calls `RPY_TRANSACTION_DELETE` then
+  re-`RPY_TRANSACTION_INSERT`s against the new program, inside one
+  `RS_CORR_INSERT` registration; for `SHLP/DH`, `updateSearchHelp` re-PUTs
+  the whole parameter/include/assignment set. `RPY_TRANSACTION_DELETE`'s
+  parameter set was captured live on A4H (NetWeaver 7.54, client 001)
+  2026-09-12 — earlier documentation here called it inferred from the
+  create FM's `transaction` parameter; that is no longer the case:
+  `IN TRANSACTION TSTC-TCODE` (required), `TRANSPORT_NUMBER RGLIF-TRKORR`,
+  `SUPPRESS_AUTHORITY_CHECK`/`SUPPRESS_CORR_INSERT`/`SUPPRESS_CORR_CHECK`
+  (all `CHAR1`), exceptions `NOT_EXCECUTED` (SAP's own misspelling, not a
+  typo introduced here) and `OBJECT_NOT_FOUND`.
+  Delete is guarded against breaking something that still points at the
+  object, overridable per call: `SHLP/DH` delete refuses if
+  `DD04L`/`DD35L`/`DD31S` show it still in use, unless `confirm_in_use`;
+  `VIEW/DV` delete refuses if `TVDIR` holds a generated maintenance dialog
+  for it (the dialog is named in the refusal), unless
+  `confirm_maintenance_dialog`; `TRAN/T` delete and retarget
+  (`mode="update"`) refuse if `AGR_TCODES` lists the transaction in a
+  role's menu (the roles are named in the refusal), unless
+  `confirm_in_role_menu`. None of the three checks an SM01 transaction
+  lock either way — abapsmith has not verified where this release records
+  one, and makes no guess.
+  All three update routes journal the pre-update rendered pseudo-DDL as a
+  before-image (`beforeSource`, `src/tools/write.ts`), but the journal
+  entry is written `irreversible: true`: it is kept for audit and manual
+  comparison only, not automatic undo — `abap_journal mode=undo` refuses
+  an irreversible entry outright, even with `force=true`
+  (`src/tools/journal.ts`), because the stored form is rendered text, not
+  a payload `DDIF_VIEW_PUT`/`DDIF_SHLP_PUT`/`RPY_TRANSACTION_INSERT` could
+  replay.
+  Create and delete journal differently by type. A `VIEW/DV` or `TRAN/T`
+  **create** is journalled the same way an ordinary create is (no
+  `irreversible` flag), reachable by `abap_journal mode=undo` only when
+  the pre-create read positively confirmed the object absent beforehand
+  and the create's own read-back found it registered in a package. A
+  `VIEW/DV` or `TRAN/T` **delete** is NOT journalled at all: the delete
+  bridge captures no before-image. A `SHLP/DH` **create** is journalled
+  `irreversible: true`, the same as an update. A `SHLP/DH` **delete**,
+  unlike `VIEW/DV`'s and `TRAN/T`'s, IS journalled with a real
+  before-image — the pre-delete existence read doubles as it, so the
+  entry's `beforeSource` is the rendered pseudo-DDL — but it is still
+  `irreversible: true`: that stored form is not a `DDIF_SHLP_PUT`
+  payload, so undo has nothing to replay, and `src/adt/undo.ts`'s
+  `vitTypeFor()` has no `SHLP/DH` case regardless. Deleting an
+  INACTIVE-ONLY search help (see below) journals the same way — the
+  pre-delete existence check falls back to the inactive (`AS4LOCAL = 'N'`)
+  version, so `beforeSource`/`existed`/`capture` are still captured from
+  that read, and the entry is still `irreversible: true`. Reversal for any
+  irreversible entry is a fresh `abap_write` call, never
+  `abap_journal mode=undo`. See `doc/TOOLS/write-and-activate.md` for the
+  full picture stated in one place.
+  Live verification for all three types stayed inside `$TMP` on A4H,
+  2026-09-12: a search-help elementary create (`DDIF_SHLP_ACTIVATE` rc0,
+  message `DH107`), a text-and-field update (read-back showed the added
+  field), a collective search help (`ZSH_I83_COLL`, a `DD31S` include row
+  plus a `DD33S` assignment row), a where-used check reading `dd04l=0`/
+  `dd35l=0`/`dd31s=2`, and a delete (`DD_OBJ_DEL` state `A`, message
+  `DH051`, then state `N`, then `TR_TADIR_INTERFACE`; `DD30L`/TADIR empty
+  afterwards); a classic view (`ZV_I83_PROBE` over `T000`) taken through
+  create, read-back, update, read-back and delete (the update's
+  `DDIF_VIEW_PUT` returned `D0322`, activation `rc0`, field count went
+  2→3, text v1→v2; delete returned `MC691`, `DD25L`/TADIR empty
+  afterwards; a live `TVDIR` read found `V_T006I` with a
+  maintenance-dialog row — function group area `0SME`, package `SZME`,
+  screen `0100` — while `ZV_I83_PROBE` had none, which is what the
+  maintenance-dialog guard checks for); and a transaction (`ZI83_TC`)
+  taken through create, retarget and delete (the retarget's
+  `RPY_TRANSACTION_DELETE` returned message `EU075`, and the read-back
+  showed the new program; separately, for `transaction_type='R'` the
+  `dynpro` parameter is ignored — `0390` was passed in but `TSTC-DYPNO`
+  came back `1000`, and no `TSTCP` row was created for the report
+  transaction; a live `AGR_TCODES` read found 9 rows for `SM30` and none
+  for `ZI83_TC`).
+  Follow-up live round on A4H, 2026-09-15, closing out issue #83's DH109
+  investigation: `DDIF_SHLP_PUT` succeeds and `DDIF_SHLP_ACTIVATE` then
+  returns `rc = 8` / message `DH109` ("search help & was not activated")
+  whenever the definition contains a dangling reference — a `DD31V`
+  include naming a search help that does not exist, a `DD33V` assignment
+  whose `SUBFIELD` is not an interface parameter of the included help, or a
+  `DD33V` assignment whose `FIELDNAME` is not an interface parameter of the
+  help being built — and each of the three shapes was reproduced live,
+  each leaving the search help stranded as an INACTIVE-ONLY object (a
+  `DD30L` row with `AS4LOCAL = 'N'`, no active row, plus a `TADIR` entry).
+  The collective payload shape the bridge builds was NOT itself at fault:
+  variants with `DIALOGTYPE` blank vs `'D'`, with `SHLPSELPOS`/
+  `SHLPLISPOS` filled vs blank, and with direction `I`/`E` vs `C`/`E` all
+  activated with `rc = 0` / `DH107`. `rc = 4` / `DH108` ("activated with
+  warnings") is a SUCCESS, not a refusal, and must not be treated as one —
+  a collective help carrying a selection method, one with no includes, and
+  one with no fields/assignments each activate that way, and now emit a
+  `ZMCP-DDIC-NOTE>` line instead of passing silently. Four refusals now
+  stop a caller from creating the DH109 leftover: two zero-network, in
+  `src/adt/shlp-create.ts` (every `assignments[i].field` must be one of
+  the call's own `fields[].name`; every `assignments[i].includedHelp` must
+  be one of the call's own `includes[].name`); two server-side, generated
+  into the ABAP before `RS_CORR_INSERT` runs, in
+  `src/adt/fluid/builtin/classic/abap-shlp.ts` (every `DD31V-SUBSHLP` must
+  exist as an active `DD30L` row; every `DD33V-SUBFIELD` must exist as an
+  active `DD32S` row of its `SUBSHLP`, except a self-referencing
+  assignment, `SUBSHLP = SHLPNAME`, which skips that lookup because the
+  definition is not in `DD32S` yet) — these surface as `CHECK_FAILED`.
+  The superseded zero-network refusal on `elementary: false` with an empty
+  `includes` ("has nothing to collect") was removed: it activates fine on
+  a real system. `mode="delete"` now also reaches an INACTIVE-ONLY
+  leftover: the catalogue queries (`src/adt/catalog-query.ts`) took a hard
+  `AS4LOCAL = 'A'` predicate before this round and now take a state
+  argument, and `readSearchHelp` (`src/adt/catalog-read.ts`) gained an
+  `{ includeInactive }` option that falls back to the `'N'` version and
+  reports `meta.versionState`; the delete path in `src/tools/write.ts`
+  probes with that option, so a failed create's leftover can be deleted
+  instead of being refused `NOT_FOUND`. The create/update "already exists"
+  probe deliberately stays active-only, and so does `abap_read` — an
+  inactive-only search help still reads back `NOT_FOUND`; only the delete
+  path looks at both states. All of the above was exercised live in
+  `$TMP` only: an elementary help and a collective help including it were
+  each created, read back, updated and deleted through abapsmith's own
+  tool surface; each of the three DH109 shapes was reproduced (through a
+  temporary `$TMP` probe class, outside abapsmith's own bridge) and left
+  the described DD30L/TADIR footprint; each of the four refusals fired
+  correctly, before any object was registered, against a payload built to
+  trip it; and the inactive-only leftover forced by the probe class read
+  back `NOT_FOUND` through `abap_read`, then deleted cleanly
+  (`SHLP-DELETED` / `SHLP-GONE`) with a note explaining it had no active
+  version, and a follow-up `DD30L` check found zero rows in either state.
+  NOT proven by this round, and still open: the transportable (non-`$TMP`)
+  path for SHLP/DH; `abap_journal mode="undo"` for SHLP/DH, still refused
+  as irreversible, by design; and search-help exits (`SELMEXIT`), text
+  tables, hot keys, and `AUTOSUGGEST`/`FUZZY_SEARCH` fields, which the
+  bridge does not set.
+  What was NOT run live: a write into a transportable
+  (non-`$TMP`) package, for any of the three types, in any mode — the
+  `corr_nr`/transport-request path is implemented and unit-tested, not
+  live-verified. Issues #83, #84 and #85 each asked for a
+  transportable-package run; none was done. Reads were exercised as raw
+  catalog `SELECT`s against A4H (real column lists and sample rows feed
+  the fixtures), but the assembled `abap_read` code path itself could not
+  be run live in this working tree — the MCP server this project talks to
+  runs a released bundle, not this tree — so treat the read side as
+  implemented against live-captured data, not live-verified end to end.
   `VIEW/DV` and `TRAN/T` do each have a bridge delete
   endpoint (`src/adt/view-delete.ts`, `src/adt/tran-delete.ts`), so
-  `resolveWriteTarget` can reach one with a delete. `VIEW/DV`'s round-trip is
-  live-exercised: abapsmith's own create registers every view in TADIR, and a
-  view that `RS_CORR_INSERT` registered in a `$`-prefixed package was deleted
-  cleanly on A4H 2026-09-05 (VIEW-DELETED / VIEW-GONE). `TRAN/T`'s
-  `RPY_TRANSACTION_DELETE` parameter set is inferred from the create FM's
-  `transaction` parameter rather than transcribed from a capture of the
-  delete FM itself, so it is not live-verified. Neither type can be
-  updated at all: the bridge implements create and delete only, with no
-  update route for either. Neither delete bridge issues an `RS_CORR_INSERT`
-  or passes a transport request, so a delete of either type registers
+  `resolveWriteTarget` can reach one with a delete. `VIEW/DV`'s create
+  round-trip is also live-exercised outside the 2026-09-12 run above:
+  abapsmith's own create registers every view in TADIR, and a view that
+  `RS_CORR_INSERT` registered in a `$`-prefixed package was deleted
+  cleanly on A4H 2026-09-05 (`VIEW-DELETED` / `VIEW-GONE`).
+  Neither delete bridge issues an `RS_CORR_INSERT`
+  or passes a transport request, so a delete of any of the three registers
   nothing in CTS: whatever entry the object already had on a request
   (typically from its create) survives the delete and must be removed
   separately with `abap_transport` operation `"removeObject"`, which needs
@@ -75,9 +239,8 @@
   what reliably produces that duplication (see
   `doc/LIMITATIONS/not-implemented-and-unproven.md`), leaving the entry, its
   lock, and (for `VIEW/DV`) its TADIR row in place. That is also why the
-  safety gate judges these two
-  deletes as local mutations rather than against `ABAP_ALLOW_TRANSPORTS` —
-  see `doc/SAFETY/safety-gate.md`.
+  safety gate judges these deletes as local mutations rather than against
+  `ABAP_ALLOW_TRANSPORTS` — see `doc/SAFETY/safety-gate.md`.
   `DEVC/K` (package) is different:
   `abap_write mode=delete` (or `abap_journal mode=undo` on the create entry)
   loads the package via `CL_PACKAGE_FACTORY=>LOAD_PACKAGE` and calls

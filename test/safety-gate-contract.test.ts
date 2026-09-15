@@ -206,6 +206,14 @@ describe("safety-gate contract (heuristic, see file header)", () => {
     // BOTH `mode="list"` and `mode="apply"` as a write, because even listing
     // POSTs the whole object source — which is what the one-hop importer
     // clause in the second test matches.
+    // `adt/traces.ts` added 2026-09 — it POSTs twice (trace parameters, trace
+    // request) and DELETEs twice (trace request, trace run). It is NOT routed
+    // around the read-only ceiling the way `dataPreviewDdic` is: a trace
+    // request is persistent server-side state, so leaving one behind is
+    // exactly what a read-only deployment has said it will not do. Its only
+    // importer, `src/tools/trace.ts`, calls `gate.evaluate("execute", ...)`/
+    // `safety.assert("execute", ...)` before any of the four, which is what
+    // the heuristic below matches.
     // `adt/element-info.ts` added 2026-09 — its three `conn.post(...)`s are
     // the elementinfo and navigation-target lookups (`fetchElementInfo`,
     // `findDefinitionTarget`) behind `abap_read view="definition"`, plus a
@@ -221,6 +229,16 @@ describe("safety-gate contract (heuristic, see file header)", () => {
     // what the one-hop importer clause in the second test matches; it is
     // gated as a read, not a write, because none of these three endpoints can
     // return anything `abap_write` would act on.
+    // `adt/odata.ts` added 2026-09 — `runPublishJob`'s single `conn.post(...)`
+    // is the ADT business-services publish/unpublish job (one call site, the
+    // path and query differ by op and OData version). It registers or removes
+    // an ICF service node — persistent server-side state — so it is NOT
+    // routed around the read-only ceiling. The module takes no `SafetyGate`
+    // itself; its only importer, `src/tools/service.ts`, calls
+    // `gate.evaluate("write", ...)`/`gate.authorize("write", ...)` against the
+    // binding's package before the POST, which is what the one-hop importer
+    // clause in the second test matches. `op="read"`'s three GETs are not
+    // `CONN_CALL_RE` matches and stay ungated.
     expect(rel).toEqual(
       [
         "adt/activate.ts",
@@ -230,7 +248,9 @@ describe("safety-gate contract (heuristic, see file header)", () => {
         "adt/enhancement-bridge.ts",
         "adt/enhancement-hook.ts",
         "adt/enhancement-write.ts",
+        "adt/odata.ts",
         "adt/quickfix.ts",
+        "adt/traces.ts",
         "adt/transports.ts",
         "adt/write.ts",
         "debug/transport.ts",

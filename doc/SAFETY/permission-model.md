@@ -45,14 +45,11 @@ to end:
   tool was absent. Only what a read-only server can *tell* a caller about
   these tools changed; what it can *do* did not. Before this
   (`src/tools/locked.ts`, issue #63), calling one of these on a read-only
-  v1 server got `MCP error -32602: Tool <name> not found` —
+  server got `MCP error -32602: Tool <name> not found` —
   indistinguishable from a typo'd name, with no hint that raising
   `ABAP_MODE` was the fix. `abap_data_preview` is deliberately excluded
   from this mechanism: its gate is the out-of-band `ABAP_ALLOW_DATA_PREVIEW`
-  flag, not a mode ceiling, so it stays in the bullet above instead. The v2
-  surface has no equivalent of this bullet: `abap_do`'s `minMode` already
-  answers "what would unlock this" structurally per action, and `abap_write`
-  stays genuinely absent from v2's `tools/list` under `read` mode.
+  flag, not a mode ceiling, so it stays in the bullet above instead.
 - **Registered, gated per call.** A tool with a genuinely ungated read mode is
   always listed, and its mutating modes are refused at the point of use:
   `abap_transport` (list/show/check/users are reads), `abap_bopf` (pure read),
@@ -68,14 +65,18 @@ prompt-injected into. The advertisement is not the permission — the handler
 checks on every request that asks for that chapter by either route, so a
 hand-crafted call against a schema the client never read is still refused.
 
-Seven capabilities are two-way overrides rather than a strict ladder:
+Eight capabilities are two-way overrides rather than a strict ladder:
 `ABAP_ALLOW_TRANSPORT_RELEASE`, `ABAP_ALLOW_TRANSPORT_DELETE`,
-`ABAP_ALLOW_CASCADE_DELETE`, `ABAP_ALLOW_ENHANCEMENTS`,
-`ABAP_ALLOW_SOURCE_PLUGINS`, `ABAP_ALLOW_ENHANCEMENT_DELETE` and
-`ABAP_ALLOW_RAW_ADT_WRITES` (the last has no `abap_*` tool yet). Left unset,
-each falls back to its mode's default from the table above; set explicitly, it
-wins in either direction — an operator can grant `ABAP_ALLOW_ENHANCEMENT_DELETE`
-under `edit` or withhold `ABAP_ALLOW_TRANSPORT_RELEASE` under `admin`. See
+`ABAP_ALLOW_CASCADE_DELETE`, `ABAP_ALLOW_SERVICE_PUBLISH`,
+`ABAP_ALLOW_ENHANCEMENTS`, `ABAP_ALLOW_SOURCE_PLUGINS`,
+`ABAP_ALLOW_ENHANCEMENT_DELETE` and `ABAP_ALLOW_RAW_ADT_WRITES` (the last has
+no `abap_*` tool yet). Left unset, each falls back to its mode's default from
+the table above; set explicitly, it wins in either direction — an operator
+can grant `ABAP_ALLOW_ENHANCEMENT_DELETE` under `edit` or withhold
+`ABAP_ALLOW_TRANSPORT_RELEASE` under `admin`. `ABAP_ALLOW_SERVICE_PUBLISH`
+gates `abap_service` `op="publish"`/`op="unpublish"` — the same tier as
+`ABAP_ALLOW_TRANSPORT_RELEASE`, and each call additionally needs a matching
+per-call `confirm` echo of the binding name. See
 [CONFIGURATION/permissions-and-allowlists.md](../CONFIGURATION/permissions-and-allowlists.md) for the per-variable defaults.
 
 ## Out-of-band flags

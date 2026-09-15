@@ -3,9 +3,9 @@
  * `retryable` field defaults from its taxonomy code via `RETRYABILITY`
  * (`src/adt/errors.ts`) — `terminal` codes claim `false`, `retryable` codes
  * claim `true`, `conditional` codes claim nothing — and that default holds
- * from construction through every serialised envelope (`errorResult`,
- * `v2Error` + `renderV2`). A per-site `{ retryable: ... }` option still
- * overrides the code's default in either direction. `RETRYABILITY` itself is
+ * from construction through every serialised envelope (`errorResult`). A
+ * per-site `{ retryable: ... }` option still overrides the code's default in
+ * either direction. `RETRYABILITY` itself is
  * proven exhaustive against the real `AbapErrorCode` union (extracted from
  * source, not hand-transcribed), so a new code cannot go unclassified. Also
  * covers the pre-existing capability-registry-derived terminal claims
@@ -20,8 +20,6 @@ import ts from "typescript";
 import { describe, expect, it } from "vitest";
 import { AbapError, RETRYABILITY } from "../src/adt/errors.js";
 import { buildErrorPayload, errorResult } from "../src/tool-errors.js";
-import { v2Error } from "../src/tools/v2/runtime.js";
-import { renderV2 } from "../src/tools/v2/envelope.js";
 import {
   REGISTRY,
   TERMINAL_REFUSAL_NOTE,
@@ -34,6 +32,8 @@ import {
 } from "../src/adt/capabilities.js";
 import { resolveObject } from "../src/adt/resolve.js";
 import { resolveWriteTarget } from "../src/adt/write.js";
+import { specForType } from "../src/adt/types.js";
+import { ddicStrategy } from "../src/adt/ddic-strategy.js";
 import type { AbapConnection } from "../src/adt/connection.js";
 import { assertClassicViewCreateTarget, createClassicView, type ClassicViewParams } from "../src/adt/view-create.js";
 import { SafetyGate } from "../src/safety.js";
@@ -112,28 +112,18 @@ describe("retryable on the error envelope", () => {
     expect(parsed.retryable).toBe(false);
   });
 
-  it("v2Error forwards retryable, and renderV2 prints it as a `retryable: false` line", () => {
-    const e = new AbapError("UNSUPPORTED", "cannot be read", {}, undefined, { retryable: false });
-    const res = v2Error("abap_read", e, []);
-    const rendered = renderV2(res);
-    expect(rendered.split("\n")).toContain("retryable: false");
-  });
-
   it("a code with no options set claims false when its code is terminal (UNSUPPORTED)", () => {
     const e = new AbapError("UNSUPPORTED", "cannot be read");
     expect(e.retryable).toBe(false);
     expect(buildErrorPayload(e).retryable).toBe(false);
     const jsonText = (errorResult(e).content[0] as { type: "text"; text: string }).text;
     expect((JSON.parse(jsonText) as Record<string, unknown>).retryable).toBe(false);
-    const rendered = renderV2(v2Error("abap_read", e, []));
-    expect(rendered.split("\n")).toContain("retryable: false");
   });
 
   it("a code with no options set claims true when its code is retryable (BAD_INPUT) — a length limit is retryable with a shorter argument", () => {
     const e = new AbapError("BAD_INPUT", "value too long");
     expect(e.retryable).toBe(true);
-    const rendered = renderV2(v2Error("abap_read", e, []));
-    expect(rendered.split("\n")).toContain("retryable: true");
+    expect(buildErrorPayload(e).retryable).toBe(true);
   });
 
   it("conditional codes (SESSION_DEAD, ADT_ERROR) render no retryable key at all", () => {
@@ -141,8 +131,6 @@ describe("retryable on the error envelope", () => {
       const e = new AbapError(code, "something happened");
       expect(e.retryable, code).toBeUndefined();
       expect(Object.prototype.hasOwnProperty.call(buildErrorPayload(e), "retryable"), code).toBe(false);
-      const rendered = renderV2(v2Error("abap_read", e, []));
-      expect(rendered.includes("retryable:"), `${code}: ${rendered}`).toBe(false);
     }
   });
 
@@ -255,7 +243,19 @@ describe("terminality is derived from the capability registry", () => {
     const fakeConn = makeDeadConn();
     for (const code of Object.keys(REGISTRY) as TypeCode[]) {
       const cap = REGISTRY[code];
-      const expectTerminal = cap.unsupported !== undefined || isBridgeOnlyCreateType(code);
+      // A bridge-only-create type (SHLP/DH, VIEW/DV, TRAN/T) no longer
+      // refuses a read outright: resolveObject's own bridge-only-create
+      // branch (src/adt/resolve.ts) only throws when the type is NOT
+      // `readable` — `spec?.mode === "ddic" && ddicStrategy(spec.kind) !==
+      // "unsupported"`. All three now carry a `mode: "ddic"` TypeSpec backed
+      // by a working ("catalog") ddicStrategy, so they fall through to the
+      // ordinary resolution path instead of throwing, and this predicate has
+      // to mirror that same `readable` check or it claims a terminal refusal
+      // for a type that no longer produces one. TABL/DI has no `types.ts`
+      // entry at all, so it stays terminal.
+      const spec = specForType(code);
+      const readable = spec?.mode === "ddic" && ddicStrategy(spec.kind) !== "unsupported";
+      const expectTerminal = !readable && (cap.unsupported !== undefined || isBridgeOnlyCreateType(code));
       let caught: unknown;
       try {
         await resolveObject(fakeConn, "ZTERM_PROBE", { type: code });
@@ -440,12 +440,24 @@ describe("terminality overrides are deliberate and explained", () => {
   // from the code. The reroute deleted the bridge deploy and with it that
   // re-wrap, so every remaining site is a genuine per-site override — which is
   // why the "and 1 is a re-wrap" clause is gone rather than merely renumbered.
-  it("exactly 21 call sites pass a 5th argument to `new AbapError(...)` — 2 in adt/resolve.ts, 8 in adt/write.ts, 2 in adt/datapreview.ts (re-wraps that carry the classified retryability through unchanged), 1 in adt/resolved-package.ts, 1 in adt/index-create.ts, 3 in adt/undo.ts, 1 in tools/write.ts, 1 in tools/debug.ts, 1 in tools/ui.ts and 1 in debug/session.ts: all 21 are per-site overrides of RETRYABILITY's default (terminal-by-code UNSUPPORTED/SAFETY_DENIED sites whose own prose promises a working retry, plus BAD_INPUT sites whose own prose forbids a retry); most terminal codes still get retryable:false automatically from RETRYABILITY with no 5th argument at all", () => {
+  // It went to 22 with the SHLP/DH bridge-update package resolution path
+  // (`packageForBridgeUpdate` in tools/write.ts): an `indeterminate`
+  // existence/package check there throws `SAFETY_DENIED` with a `{
+  // retryable: true }` override, on the same reasoning as the sibling site
+  // already in this file — existence could not be confirmed, not denied, so
+  // a healthy connection resolves it on retry — bringing tools/write.ts from
+  // 1 site to 2.
+  // 21 became 24 with issue #89: tools/debug.ts now refuses a busy or
+  // leaked debug lane at four sites (limit-1 tracked/untracked, multi-lane
+  // leaked/all-busy), each terminal-by-code (UNSUPPORTED or
+  // DEBUG_ALL_LEASES_BUSY) but honestly retryable once a stop frees a lane.
+  // Both additions land in the same merge, so the total is 25.
+  it("exactly 25 call sites pass a 5th argument to `new AbapError(...)` — 2 in adt/resolve.ts, 8 in adt/write.ts, 2 in adt/datapreview.ts (re-wraps that carry the classified retryability through unchanged), 1 in adt/resolved-package.ts, 1 in adt/index-create.ts, 3 in adt/undo.ts, 2 in tools/write.ts, 4 in tools/debug.ts, 1 in tools/ui.ts and 1 in debug/session.ts: all 25 are per-site overrides of RETRYABILITY's default (terminal-by-code UNSUPPORTED/SAFETY_DENIED sites whose own prose promises a working retry, plus BAD_INPUT sites whose own prose forbids a retry); most terminal codes still get retryable:false automatically from RETRYABILITY with no 5th argument at all", () => {
     const { calls } = scanSrc();
     expect(
       calls.length,
       `found: ${calls.map((c) => `${c.file}:${c.line}`).join(", ")}`,
-    ).toBe(21);
+    ).toBe(25);
   });
 });
 

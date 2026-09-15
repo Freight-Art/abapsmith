@@ -1,0 +1,28 @@
+{
+  "n": 969,
+  "label": "i82-service-catalogue-v4",
+  "expect": "the V4 catalogue answers with an odatav4:serviceGroup root carrying published=\"true\" directly on the root element, not a serviceList with per-service published attributes \u2014 the shape the parser used to miss; odatav4:serviceUrl is also relative (\"/sap/opu/odata4/dmo/ui_travel_o4_cd/srvd/dmo/ui_travel_o4_cd/0001/\")",
+  "note": "GET the ADT OData V4 catalogue lookup for /DMO/UI_TRAVEL_O4_CD",
+  "requestMethod": "GET",
+  "requestUrl": "/sap/bc/adt/businessservices/odatav4/%2FDMO%2FUI_TRAVEL_O4_CD?servicename=%2FDMO%2FUI_TRAVEL_O4_CD&serviceversion=0001&srvdname=%2FDMO%2FUI_TRAVEL_O4_CD",
+  "requestHeaders": {
+    "Accept": "application/*"
+  },
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-type": "application/vnd.sap.adt.businessservices.odatav4.v2+xml; charset=utf-8",
+    "content-length": "2127",
+    "sap-authenticated": "true",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "138811.000000"
+  },
+  "byteLength": 2127,
+  "zeroByteBody": false,
+  "sha256": "7abd27658219e9f6a14e787bf5df69fd25aa77eec9e64b6f2d5c243062c4082a",
+  "utcTimestamp": "2026-09-15T03:53:40.000Z",
+  "durationMs": 228,
+  "sessionName": "LIVE-I82"
+}

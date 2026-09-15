@@ -2,11 +2,16 @@
  * `extractContract` — the pure text transform
  * `src/bin/contract.ts` runs inside the isolated `abap-contract` subprocess.
  *
+ * Issue #76 removed `abap_read view:"contract"`, this binary's only caller,
+ * so `src/bin/contract.ts` currently has no in-server caller at all — it
+ * survives as a standalone entry point (see that file's header for the
+ * dependency-quarantine rationale) and this suite is its only remaining
+ * coverage.
+ *
  * These tests import {@link extractContract} directly (not the CLI): the
  * module's `invokedAsProgram()` gate keeps `main()` from running on import,
  * exactly like `src/index.ts`'s own pattern (see that file's header). No ADT
- * connection, no subprocess spawn — `src/tools/v2/handlers/read.ts` (not
- * exercised here) owns the spawn plumbing.
+ * connection, no subprocess spawn.
  */
 import { describe, expect, it } from "vitest";
 import { extractContract } from "../src/bin/contract.js";

@@ -1,0 +1,37 @@
+{
+  "n": 902,
+  "label": "bp-set-message-accepted",
+  "expect": null,
+  "note": "message breakpoint SY 530 E, additive",
+  "requestMethod": "POST",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/debugger/breakpoints?sap-client=001",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted: 4 cookies>",
+    "X-sap-adt-sessiontype": "stateful",
+    "X-CSRF-Token": "Ls6asF_TTkrN_WJbzm64EA==",
+    "Accept": "application/xml",
+    "Content-Type": "application/xml"
+  },
+  "requestBody": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><dbg:breakpoints xmlns:dbg=\"http://www.sap.com/adt/debugger\" scope=\"external\" debuggingMode=\"user\" requestUser=\"DEVELOPER\" terminalId=\"ZMCPCAPTURE000000000000000000089\" ideId=\"ZMCPCAPTUREIDE00000000000000089\" systemDebugging=\"false\" deactivated=\"false\"><breakpoint xmlns:adtcore=\"http://www.sap.com/adt/core\" kind=\"message\" clientId=\"msg1\" skipCount=\"0\" msgId=\"SY\" msgNo=\"530\" msgTy=\"E\"/></dbg:breakpoints>",
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-length": "234",
+    "content-type": "application/xml; charset=utf-8",
+    "sap-authenticated": "true",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "286024.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 234,
+  "zeroByteBody": false,
+  "sha256": "22aa269cb06e38b12529a3b7ba0eadf7d4c55ed1d0d80695eca0e1b3567b21c3",
+  "utcTimestamp": "2026-09-12T17:49:31.254Z",
+  "durationMs": 450,
+  "sessionName": "A",
+  "transportError": null,
+  "redactions": "appliance host -> 203.0.113.10:50000 (RFC 5737); the application-server hostname was replaced with a4hsandbox (same placeholder as the 011-051 captures); Authorization/Cookie/set-cookie stripped. sha256/byteLength are over the redacted body as stored here."
+}

@@ -46,7 +46,9 @@ export type JournalOperation =
   | "transport-set-owner"
   | "transport-delete"
   | "transport-remove-object"
-  | "transport-release";
+  | "transport-release"
+  | "service-publish"
+  | "service-unpublish";
 export type JournalOutcome = "pending" | "succeeded" | "failed";
 
 /**
@@ -324,14 +326,13 @@ export interface JournalEntry {
   trSource?: JournalTrSource;
   /**
    * Marks an entry that can never be undone by ANY mechanism. Absent (not
-   * `false`) for everything else. Five producers, each recording something
+   * `false`) for everything else. Seven producers, each recording something
    * abapsmith positively refuses to reverse:
    *
    *  - `transport-release` (src/tools/transport.ts): ADT has no "un-release".
    *  - Activation entries (src/tools/activate.ts): `operation: "activate"`
    *    is refused by name — ADT has no deactivate operation either.
-   *  - Enhancement create/update/delete (src/tools/enh.ts and its v2 twin,
-   *    src/tools/v2/handlers/do/enhancements.ts): `undoBlocker()`
+   *  - Enhancement create/update/delete (src/tools/enh.ts): `undoBlocker()`
    *    (src/adt/undo.ts) refuses `ENHO/XH`, `ENHO/XHH` and `ENHS/XS`
    *    unconditionally.
    *  - BOPF writes (src/tools/bopf.ts): no BOPF-specific check in
@@ -341,6 +342,12 @@ export interface JournalEntry {
    *    delete/undo path, so its create no longer sets this flag.
    *  - `abap_ui` press entries (src/tools/ui.ts): BDCDATA script runs have
    *    no undo path; falls through to the same generic catch-all as BOPF.
+   *  - `service-publish`/`service-unpublish` (src/tools/service.ts):
+   *    `undoBlocker()` (src/adt/undo.ts) refuses both unconditionally —
+   *    publishing changes the system's runtime surface, not an object's
+   *    source, so there is no before-image to write back; the compensating
+   *    action (`unpublish` for `publish`, and vice versa) is a deliberate,
+   *    separately confirmed call, not an automatic undo.
    *
    * The entry is still written — the before-image is worth having even when
    * undo is refused. Full rationale (including the phantom-object and
@@ -881,17 +888,60 @@ export class Journal {
    * Newest first. `object` filters on object name (case-insensitive, exact).
    * `sessionId` filters on `JournalEntry.sessionId` (exact — it's an opaque
    * id, not a human-typed name, so no case-folding).
+   *
+   * `since` keeps entries with `ts >= since` (both parsed with `Date.parse`).
+   * An entry whose own `ts` fails to parse is dropped — it cannot be placed
+   * in time, so keeping it would be a guess. `since` itself failing to parse
+   * is the caller's mistake, not something to swallow: it throws
+   * `AbapError("BAD_INPUT", …)` naming the value, since silently treating an
+   * unparseable `since` as "no filter" would return entries the caller
+   * explicitly tried to exclude.
+   *
+   * `systemKey` keeps only entries whose `JournalEntry.systemKey` exactly
+   * equals the given value. An entry with NO `systemKey` recorded is dropped
+   * by this filter, not kept — an entry that never states which system it
+   * belongs to must never be assumed to belong to the one currently
+   * connected.
    */
   async list(
-    opts: { object?: string; limit?: number; operation?: JournalOperation; sessionId?: string } = {},
+    opts: {
+      object?: string;
+      limit?: number;
+      operation?: JournalOperation;
+      sessionId?: string;
+      since?: string;
+      systemKey?: string;
+    } = {},
   ): Promise<JournalEntry[]> {
     if (!this.enabled) return [];
     const wanted = opts.object?.trim().toUpperCase();
     const wantedSession = opts.sessionId?.trim();
+    let sinceMs: number | undefined;
+    if (opts.since !== undefined) {
+      sinceMs = Date.parse(opts.since);
+      if (Number.isNaN(sinceMs)) {
+        throw new AbapError(
+          "BAD_INPUT",
+          `\`since\` "${opts.since}" is not a timestamp \`Date.parse\` can read.`,
+          { since: opts.since },
+          "Pass an ISO-8601 timestamp, e.g. the `ts` field a journal entry already carries.",
+        );
+      }
+    }
     let entries = [...(await this.readAll()).values()];
     if (wanted) entries = entries.filter((e) => (e.object?.name ?? "").toUpperCase() === wanted);
     if (opts.operation) entries = entries.filter((e) => e.operation === opts.operation);
     if (wantedSession) entries = entries.filter((e) => e.sessionId === wantedSession);
+    if (sinceMs !== undefined) {
+      const floor = sinceMs;
+      entries = entries.filter((e) => {
+        const t = Date.parse(e.ts);
+        return !Number.isNaN(t) && t >= floor;
+      });
+    }
+    if (opts.systemKey !== undefined) {
+      entries = entries.filter((e) => e.systemKey !== undefined && e.systemKey === opts.systemKey);
+    }
     entries = Journal.sortNewestFirst(entries);
     return opts.limit !== undefined && opts.limit >= 0 ? entries.slice(0, opts.limit) : entries;
   }

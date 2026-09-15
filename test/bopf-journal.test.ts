@@ -26,13 +26,11 @@
  *    carry the id on an INTERNAL `BopfCallResult.journalEntryId` field
  *    instead, which their `mcp.registerTool` callbacks strip via
  *    `toMcpResult` before the result reaches this file's `invoke()` (which
- *    calls those same registered callbacks) — so it is what
- *    `src/tools/v2/handlers/do/bopf.ts`'s `journalled()` gates `journalNext()`
- *    on internally (`test/tools-v2-do-bopf.test.ts` covers that gate itself,
- *    upstream of the strip), while the id still reaches the caller of THIS
- *    file's `invoke()` in the rendered text — a `journalEntryId: <id>` header
- *    line `buildEditResponse`/`buildDeleteResultResponse` emit exactly when
- *    (and only when) an entry was actually written;
+ *    calls those same registered callbacks), while the id still reaches the
+ *    caller of THIS file's `invoke()` in the rendered text — a
+ *    `journalEntryId: <id>` header line `buildEditResponse`/
+ *    `buildDeleteResultResponse` emit exactly when (and only when) an entry
+ *    was actually written;
  *  - the safety mechanism `irreversible: true` documents: `undoBlocker()`'s
  *    generic catch-all (`src/adt/undo.ts`, the same one the `DEVC/K`
  *    package-create refusal uses) refuses a BOPF entry before `planUndo`
@@ -274,9 +272,9 @@ describe("abap_bopf_edit create_bo — the write journal", () => {
     expect(journalEntryIdInText(result)).toBeUndefined();
   });
 
-  // Raw-bytes proof (the sibling of test/write-system-key.test.ts
-  // and test/v2-enh-write-systemkey.test.ts): read `index.jsonl` directly
-  // rather than through `journal.list()`, so a site that set `systemKey: ""`
+  // Raw-bytes proof (the sibling of test/write-system-key.test.ts):
+  // read `index.jsonl` directly rather than through `journal.list()`, so a
+  // site that set `systemKey: ""`
   // — silently dropped by src/journal.ts's `...(input.systemKey ? {...} : {})`
   // truthy check — cannot hide behind a higher-level accessor. Covers the
   // create_bo call site directly; the update/putModel and delete call sites in

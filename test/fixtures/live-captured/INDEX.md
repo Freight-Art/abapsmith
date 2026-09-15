@@ -868,3 +868,117 @@ the pretty printer's settings GET plus two format POSTs, one changing the source
 `963` — `POST /sap/bc/adt/abapsource/prettyprinter` → 200: POST unformatted source to the pretty printer; response is the formatted text only. the pretty printer rewrites layout and keyword case from the server setting and returns text/plain only — response body uses CRLF line endings; prettyPrintSource normalises them to LF before comparing
 
 `964` — `POST /sap/bc/adt/abapsource/prettyprinter` → 200: POST already-formatted source; the response is byte-identical to the request (changed:false). pretty-printing already-formatted source returns it byte-identical, which is what changed:false is derived from — response body uses CRLF line endings; prettyPrintSource normalises them to LF before comparing
+
+## 2026-09-15 — OData service-contract chain, V2 and V4 (965-970)
+
+Same A4H appliance, client `001`, user `DEVELOPER`, issue #82: the `$metadata` fixtures under
+`test/fixtures/odata/` were all hand-written, and `test/fixtures/odata/README.md` claimed the
+appliance was down and unreachable for OData work, and that A4H "has no OData V4 binding type at
+all." Neither claim held by the time of this run — the appliance answered every request below, and
+a real V4 binding answered too. This run drives the full binding → catalogue → `$metadata` chain for
+one V2 service (`/DMO/UI_TRAVEL_U_V2`) and one V4 service (`/DMO/UI_TRAVEL_O4_CD`), six captures.
+
+`965` — `GET /sap/bc/adt/businessservices/bindings/%2fdmo%2fui_travel_u_v2` → 200: the ADT service
+binding document for the V2 service, fetched with the corrected two-part
+`servicebinding.v2+xml, servicebinding.v1+xml` Accept header. A v1-only Accept on this same resource
+answers 406 `ExceptionResourceNotAcceptable` — the v2 media type is not optional, it is the only one
+this release actually serves.
+
+`966` — `GET /sap/bc/adt/businessservices/odatav2/%2FDMO%2FUI_TRAVEL_U_V2?servicename=…` → 200: the
+ADT OData V2 catalogue lookup. `odatav2:serviceUrl` is relative, not absolute, and the catalogue
+reports `published="true" allowedAction="UNPUBLISH"` — disagreeing with `965`'s own
+`srvb:allowedAction="PUBLISH"` for the same service. The two endpoints disagree with each other, so
+`allowedAction` is evidence from one endpoint, not a verdict that holds across both.
+
+`967` — `GET /sap/opu/odata/DMO/UI_TRAVEL_U_V2/$metadata` → 200: the real V2 EDMX, 124245 bytes —
+fetchable end to end, not merely theorized from the vendor's own shape.
+
+`968` — `GET /sap/bc/adt/businessservices/bindings/%2fdmo%2fui_travel_o4_cd` → 200: the ADT service
+binding document for a V4 service, same corrected Accept header as `965`. `srvb:binding
+srvb:version="V4"` exists and is readable on this A4H release. This, with `969` and `970`, directly
+contradicts the older claim in `test/fixtures/odata/README.md` that A4H has no OData V4 binding type
+at all: this appliance has at least three V4 bindings — `/DMO/API_TRAVEL_U_V4`,
+`/DMO/UI_TRAVEL_D_D_O4`, `/DMO/UI_TRAVEL_O4_CD` — of which the last is the one captured here.
+
+`969` — `GET /sap/bc/adt/businessservices/odatav4/%2FDMO%2FUI_TRAVEL_O4_CD?servicename=…` → 200: the
+ADT OData V4 catalogue lookup. The root element is `odatav4:serviceGroup`, carrying
+`published="true"` directly as a root attribute — not a `serviceList` with per-service `published`
+attributes, which is the shape a parser built only from the V2 catalogue's layout would miss.
+
+`970` — `GET /sap/opu/odata4/dmo/ui_travel_o4_cd/srvd/dmo/ui_travel_o4_cd/0001/$metadata` → 200: the
+real V4 EDMX, 52788 bytes of genuine CSDL (`edmx:Edmx Version="4.0"`, inline and external
+`Annotations` blocks, `NavigationProperty Type="Collection(…)"`, bound and unbound actions) —
+fetchable end to end, not an inference from the OASIS OData 4.0 CSDL specification.
+
+**Not covered by this run:** no publish or unpublish POST was executed against the appliance — the
+session was not authorized to change its runtime surface — so the publish/unpublish job's own
+request and response bytes remain unverified; whatever handles that path is built from the ADT
+discovery document and the catalogue's own `publishjobs`/`unpublishjobs` links (both visible in
+`969`), not from a live publish response.
+## 2026-09-12 — debugger watchpoints, statement/message breakpoints, live breakpoint edit (900-951)
+
+Same A4H appliance, client `001`, user `DEVELOPER`, issue #89. Two capture runs (900-925, then
+930-951 — there is no `946`, the DELETE loop that produced `947`-`949` started at `947`) driving the
+full ADT debugger choreography for watchpoints and for statement/message/exception breakpoints,
+plus arming and removing a breakpoint while a debuggee is already suspended. The debug target was
+`$TMP` class `ZCL_I89_PROBE` (`CLAS/OC`), driven via `POST /sap/bc/adt/oo/classrun/ZCL_I89_PROBE`;
+it has since been deleted from the appliance.
+
+Breakpoint ids encode the kind numerically: line `KIND=0`, statement `KIND=1`, exception `KIND=5`,
+message `KIND=12`. A line breakpoint posted as `…/oo/classes/zcl_i89_probe/source/main#start=11`
+(and, in the `bp-add-while-stopped` capture, `#start=21`) came back resolved to
+`INCLUDE=ZCL_I89_PROBE=================CM001.LINE_NR=5` (or `LINE_NR=15`) — the server rewrites a
+class-main line into the method include's own numbering, so the id cannot be predicted
+client-side from the requested line.
+
+Arming a breakpoint with no `<syncScope>` element works while a debuggee is suspended (`916`) and
+does not disturb the already-armed set. `GET /sap/bc/adt/debugger/breakpoints` answers `200` with a
+**zero-byte** body (`917`, and again at `925` after cleanup): there is no server-side read of the
+armed external breakpoint set, so any "list breakpoints" feature has to track its own client-side
+record of what it armed. `DELETE /sap/bc/adt/debugger/breakpoints/{id}` answers `200` with a
+zero-byte body, and works both while suspended (`918`) and after the debuggee is gone (`921`-`924`,
+`951`).
+
+`POST /sap/bc/adt/debugger/watchpoints?variableName=…` takes its parameters in the query string
+with an empty body and answers with the `<dbg:watchpoints>` **list** root containing the one new
+`<watchpoint>`; its `id` is a small integer, and the response's own `adtcomp:templateLink` for
+`Modify` is `/sap/bc/adt/debugger/watchpoints/{id}{?condition,active}`. The watchpoint row carries
+`kind="local"`, `procedure="IF_OO_ADT_CLASSRUN~MAIN"`, and internal handles in
+`<oldVariable>`/`<currentVariable>` (`{A:nn*\KERNEL_WATCHPOINT_CLONE}`,
+`{A:nn*\KERNEL_WATCHPOINT_WPREF}`). `oldValue`/`currentValue` keep the ABAP `I`-type trailing sign
+column (`"0 "`, `"1 "`).
+
+A watchpoint hit is reported **inside the step response** as `<reachedWatchpoints>`, in a reduced
+row shape (`id`, `expired`, `variableName`, `<currentValue>` only — no `oldValue`); the old value
+has to be read back from `GET /debugger/watchpoints` afterwards. `POST /debugger/watchpoints` with
+no `variableName` answers `400` `ExceptionParameterNotFound` with T100 key `SADT_RESOURCE 017`.
+
+`POST /sap/bc/adt/debugger?method=terminateDebuggee` answered `500` `AdiFailed` from
+`CL_TPDAPI_SESSION` in both runs (`920`, `950`) because the debuggee had already ended when the
+trigger request dumped — i.e. that `500` is the "already gone" case, not a protocol error. The
+listener response's `<TERMINAL_ID>` and `<IDE_ID>` came back **empty** even though the listener
+registration passed both (`906`) — worth noting as a caveat for anyone trying to correlate a
+debuggee back to the listener identity that caught it.
+
+The second run (`930`-`951`) adds finer detail on watchpoint lifecycle. A create response echoes
+only the newly created watchpoint, never the session's full list: `937` (`variableName=LV_ZERO`,
+watchpoint 1 already armed on `LV_TOTAL`) comes back with exactly one row, `id="2"`, while `938`
+(`GET /debugger/watchpoints` at the same moment) shows both rows. `PUT
+/debugger/watchpoints/{id}?condition=…&active=…` answers `200` with the `<dbg:watchpoints>` list
+root carrying one row — and that row's `id` is **not** the id addressed in the PUT path: a `PUT` on
+id `1` (`940`, `condition=LV_TOTAL > 3`) returned id `3`, the following list (`941`) held ids `2`
+and `3`, and a later create (`942`) re-used the now-freed id `1`. Watchpoint ids are therefore small
+reused integers whose validity ends at the next modify of that watchpoint, not stable handles. A
+condition is stored verbatim and comes back XML-escaped in the row (`<condition>LV_TOTAL &gt;
+3</condition>`). Creating a second watchpoint on a variable that already has one is accepted, not
+refused (`942`, a second `LV_TOTAL` watchpoint). `GET /debugger/watchpoints/{unknown id}` answers
+`404` with `type id="AdtFailed"` (not a more specific not-found type) and T100 key `TPDA_ADT 013`
+(`943`, id `99`).
+
+In run 2 the conditional watchpoint did not decide the stop: `stepContinue` (`944`) halted on the
+unconditional watchpoint on `LV_TOTAL` (reported as `<reachedWatchpoints>` with id `1`,
+`<currentValue>1 </currentValue>`), while the conditional one (`LV_TOTAL > 3`) was still unhit,
+reading `oldValue`/`currentValue` of `1 `/`1 ` in the list afterwards (`945`). The condition was
+accepted and stored, but a condition-gated hit was never isolated in these captures — this run does
+not establish that a `condition` actually gates a watchpoint stop, only that the server accepts and
+persists one.

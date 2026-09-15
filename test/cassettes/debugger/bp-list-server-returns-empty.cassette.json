@@ -1,0 +1,40 @@
+{
+  "id": "bp-list-server-returns-empty",
+  "recordedAt": "2026-09-12T17:49:40.720Z",
+  "recordedDurationMs": 128,
+  "appliance": {
+    "sid": "A4H",
+    "client": "001",
+    "server": "a4hsandbox_A4H_00"
+  },
+  "source": {
+    "type": "live-capture-raw",
+    "citation": "test/fixtures/live-captured/917-bp-list-while-stopped.meta.json",
+    "notes": "GET /sap/bc/adt/debugger/breakpoints answers 200 with a genuinely zero-byte body, captured while the debuggee was suspended with multiple external breakpoints armed (statement, message, exception, plus the line breakpoint from bp-add-while-stopped). This is load-bearing: ADT offers no server-side listing of the armed external breakpoint set — any \"list breakpoints\" feature has to track its own client-side record of what it armed, it cannot ask the server to enumerate them. The same empty-body behaviour recurs at capture 925 (GET after cleanup, not itself turned into a cassette here), so this is not an artifact of the specific suspended state. Redactions performed by the capture harness before this file was written: appliance host -> 203.0.113.10:50000 (RFC 5737), application-server hostname -> a4hsandbox, Authorization/Cookie/set-cookie header values stripped. sha256/byteLength in the source .meta.json are computed over the redacted body as stored."
+  },
+  "request": {
+    "method": "GET",
+    "path": "/sap/bc/adt/debugger/breakpoints?sap-client=001",
+    "headers": {
+      "Authorization": "<redacted>",
+      "Cookie": "<redacted: 4 cookies>",
+      "X-sap-adt-sessiontype": "stateful",
+      "X-CSRF-Token": "Ls6asF_TTkrN_WJbzm64EA==",
+      "Accept": "application/xml"
+    },
+    "body": null
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-length": "0",
+      "sap-authenticated": "true",
+      "sap-cache-control": "+0",
+      "sap-isc-uagent": "0",
+      "sap-perf-fesrec": "12606.000000",
+      "sap-server": "true",
+      "set-cookie": "<redacted>"
+    },
+    "body": null
+  }
+}

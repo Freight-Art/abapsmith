@@ -423,6 +423,29 @@ const JOURNALLED_BY: ReadonlyMap<string, string> = new Map([
   // above still lands before the first POST, hence before the second too, so
   // the ordering guarantee is unaffected.
   ["adt/bopf.ts", "tools/bopf.ts"],
+  // `runPublishJob`'s single `conn.post` to the ADT business-services
+  // publish/unpublish job. Journalled by `abapServicePublish` (`tools/service.ts`)
+  // — same layering as `adt/activate.ts` -> `tools/activate.ts` above: the wire
+  // call sits in `adt/`, the journal entry is written one layer up, before the
+  // POST fires and NOT wrapped in try/catch (see that function's algorithm
+  // comment, step 7), one `operation: "service-publish"`/`"service-unpublish"`
+  // entry per call, `irreversible: true` — `src/adt/undo.ts` refuses to undo
+  // either regardless, so an unrecorded irreversible mutation is the one
+  // outcome worse than refusing the call.
+  ["adt/odata.ts", "tools/service.ts"],
+  // The trace-request create (`createTraceRequest`) and the two delete verbs
+  // (`deleteTraceRequest`, `deleteTraceRun`) are journalled by
+  // `src/tools/trace.ts` via `withJournalledMutation`, as `operation:
+  // "create"` / `operation: "delete"` entries, `irreversible: true`
+  // throughout. There is no new `JournalOperation` value for any of the
+  // three: the union is closed, and `undoBlocker()`'s `irreversible`
+  // catch-all (`adt/undo.ts` — the same branch the `abap_ui` press and the
+  // BOPF writes above already hit) already refuses undo, so nothing needs a
+  // trace-specific case. `createTraceParameters`'s POST is a precondition of
+  // `createTraceRequest` (the parameters set it returns is required input to
+  // the request create) and is covered by that same journal entry, not a
+  // separate one.
+  ["adt/traces.ts", "tools/trace.ts"],
 ]);
 
 /**
@@ -560,6 +583,28 @@ const PINNED_MUTATION_CENSUS: ReadonlyMap<string, { calls: number; note: string 
         "which of these are deliberately NOT given their own entry.",
     },
   ],
+  [
+    "adt/odata.ts",
+    {
+      calls: 1,
+      note:
+        "runPublishJob's single conn.post to the ADT business-services publish/unpublish job " +
+        "(the path and query string differ by op and OData version, but it is one call site). " +
+        "Journalled via abapServicePublish's journal.begin (tools/service.ts), before the POST, " +
+        "one operation:\"service-publish\"|\"service-unpublish\" entry per call.",
+    },
+  ],
+  [
+    "adt/traces.ts",
+    {
+      calls: 4,
+      note:
+        "createTraceParameters (conn.post, the parameters set), createTraceRequest (conn.post, " +
+        "the trace request itself), deleteTraceRequest (conn.del) and deleteTraceRun (conn.del). " +
+        "All four journalled via src/tools/trace.ts's withJournalledMutation — see the " +
+        "JOURNALLED_BY entry above for which of these share a single journal entry.",
+    },
+  ],
 ]);
 
 interface KnownGap {
@@ -629,9 +674,9 @@ const NOT_REPOSITORY_MUTATIONS: ReadonlyMap<string, string> = new Map([
     "tools/test.ts",
     "The ABAP Unit POST to /sap/bc/adt/abapunit/testruns runs existing tests. It creates, " +
       "changes and deletes no repository object, so no `JournalOperation` describes it — the " +
-      "same reason `abap_run` does not journal, which the v2 handler states in as many words " +
-      "(\"abap_run does not journal, but a preceding activate/write does\"). A test run whose " +
-      "ABAP code writes to the database is the tested code's doing, not a repository change. " +
+      "same reason `abap_run` does not journal: it runs existing code rather than mutating the " +
+      "repository, though a preceding activate/write does journal. A test run whose ABAP code " +
+      "writes to the database is the tested code's doing, not a repository change. " +
       "NOTE this file passed the audit's draft only by laundering (src/server.ts imports it " +
       "and journals); it is here on its merits instead.",
   ],
@@ -688,6 +733,8 @@ describe("journal contract (heuristic, see file header)", () => {
     // surface is subject to BOTH contracts. If you are updating this list,
     // update that one too, and say which of the two lists below the new module
     // belongs in — or journal it, which is the outcome this file is asking for.
+    // `adt/traces.ts` must stay identical to the entry of the same name in
+    // that other file's pinned list.
     expect(mutationSites.map(rel).sort()).toEqual(
       [
         "adt/activate.ts",
@@ -697,7 +744,9 @@ describe("journal contract (heuristic, see file header)", () => {
         "adt/enhancement-bridge.ts",
         "adt/enhancement-hook.ts",
         "adt/enhancement-write.ts",
+        "adt/odata.ts",
         "adt/quickfix.ts",
+        "adt/traces.ts",
         "adt/transports.ts",
         "adt/write.ts",
         "debug/transport.ts",
@@ -869,6 +918,8 @@ const JOURNAL_OPERATIONS = [
   "transport-delete",
   "transport-remove-object",
   "transport-release",
+  "service-publish",
+  "service-unpublish",
 ] as const;
 
 describe("JournalOperation coverage", () => {
@@ -928,7 +979,7 @@ describe("JournalOperation coverage", () => {
  * THE BETTER FIX, where it is available, is to declare the field REQUIRED
  * (`readonly journal: Journal`) — then tsc catches the omission and this test is
  * belt-and-braces. `ActivateToolDeps` (required once the activate gap was
- * fixed) and `V2ToolDeps` are required for
+ * fixed) and `WriteToolDeps` are required for
  * exactly that reason. Optional stays legitimate for deps types shared with call
  * sites that genuinely have no journal, which is why this check exists at all.
  *

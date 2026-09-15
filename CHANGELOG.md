@@ -12,6 +12,74 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-09-15
+
+### Removed
+
+- The experimental `v2` tool surface (`ABAP_TOOL_SURFACE=v2`: the six consolidated tools `abap_find`, `abap_read`, `abap_write`, `abap_do`, `abap_debug`, `abap_adt`) is gone, as announced in 0.5.10 (issue #76). `src/tools/v2/` and its fourteen test files were deleted; the single remaining surface is always registered and `toolSurface` is no longer a config field. Startup now classifies `ABAP_TOOL_SURFACE`: `v2` and any unrecognised value fail with "Invalid abapsmith configuration" (naming `CHANGELOG.md` and the design note), `v1` starts with one deprecation warning, unset is silent. The one v2-path file with a live caller, `src/tools/v2/edit.ts`, moved to `src/tools/edit.ts`. The reasoning (what the A/B measured, why it never reached v1 reliability, what a future consolidation must prove first) is in the new `doc/DESIGN-NOTES/tool-surface-v2.md`; every doc, skill and test sentence that qualified behaviour by surface was rewritten. All four startup outcomes and the 28-tool `tools/list` were proven on the built server.
+
+## [0.5.21] - 2026-09-15
+
+### Added
+
+- `abap_test scope="impacted"` (issue #111): instead of one named object, select and run the test carriers a changed set puts at risk. The changed set comes from an explicit `changed` list, from the local write journal for this system and session, or from the journal since an ISO timestamp (`since`); each changed object is a candidate carrier itself (`changed directly`) and its where-used consumers (CLAS/PROG/FUGR, at most 20 per object, at most 10 carriers in total) are probed for a test class (`uses <object>`). `SELECTION` and `RESULTS` are reported separately, capped consumers are named on a `--- TRUNCATED ---` line, and two distinct not-a-pass outcomes exist: `NO CHANGED OBJECTS` and `NO IMPACTED TESTS FOUND`. `object`, `coverage`, `coverage_for`, `auth_trace` and `changed`+`since` are refused with `BAD_INPUT` in this scope (`src/adt/impacted.ts`, `src/journal.ts` `since`/`systemKey` filters).
+- `auth_trace: true` on `abap_run`, `abap_test` and `abap_bopf_test` (issue #112): switches SAP's authorization trace on for the connected user around the run, reads back failed authority checks (kernel trace first, SU53 buffer as fallback, each line tagged `[trace]` or `[SU53 fallback]`) and switches it off again on every path, including a dump. The header always carries `auth_trace: no failed checks` / `N failed check(s)` / `unavailable: <reason>`; failed checks render as a `FAILED AUTH CHECKS` section (object, field=value, rc, program, line). Implemented as the built-in fluid tool `authtrace` (`ZCL_ZMCP_FLUID_AUTHTRACE`); refused in read mode. Live-verified on A4H via the SU53 fallback; the kernel-trace read returned no rows on the appliance and is unverified.
+
+### Fixed
+
+- The v2 `abap_do` activation handler no longer asserts a non-optional `object` (a crash path for `scope="impacted"`).
+
+## [0.5.20] - 2026-09-15
+
+### Added
+
+- `SHLP/DH` (search help) is now readable, searchable and fully writable (issue #83): `abap_search` resolves it, `abap_read` renders a pseudo-DDL read (header, parameters, assignments, USED BY DATA ELEMENTS, INCLUDES/INCLUDED BY) from a plain-text catalog `SELECT` (`src/adt/catalog-query.ts`, `src/adt/catalog-read.ts`) that also works under `ABAP_MODE=read`, and `abap_write` creates, replaces (`mode="update"`) and deletes one through the classic fluid bridge (`RS_CORR_INSERT` → `DDIF_SHLP_PUT` → `DDIF_SHLP_ACTIVATE`) with a new `shlp` argument. Delete refuses with `CHECK_FAILED` while the help is still attached to a data element, table/view field or collective help unless `confirm_in_use: true`; it is journalled with a before-image but stays irreversible.
+- `VIEW/DV` (classic database view) read-back and `mode="update"` (issue #84): `abap_read` renders base tables and fields from the catalog; an update replaces the whole projection (`base_table` + `view_fields`); delete refuses while a generated SE54 maintenance dialog (`TVDIR`) exists unless `confirm_maintenance_dialog: true`.
+- `TRAN/T` (transaction) read and `mode="update"` (issue #85): `abap_read` renders the started program, authorization checks and role assignments; an update retargets an existing transaction to another existing program (`RPY_TRANSACTION_DELETE` + `RPY_TRANSACTION_INSERT` under one `RS_CORR_INSERT`) and, like delete, refuses while the tcode sits in a role menu (`AGR_TCODES`) unless `confirm_in_role_menu: true`. All three types are proven live on A4H; a transportable (non-`$TMP`) create is still unverified.
+- `SHLP/DH` create and update now cover collective search helps, not just elementary ones, through the same classic fluid bridge (`RS_CORR_INSERT` → `DDIF_SHLP_PUT` → `DDIF_SHLP_ACTIVATE`); both shapes are proven live on A4H (issue #83).
+- Four refusals stop a search-help write from creating an inactive-only leftover after a `DH109` activation failure ("search help & was not activated", caused by a dangling `DD31V` include or `DD33V` assignment reference): two zero-network `BAD_INPUT` checks in `src/adt/shlp-create.ts` (`assignments[i].field` must be one of the call's own `fields[].name`; `assignments[i].includedHelp` must be one of the call's own `includes[].name`), and two server-side `CHECK_FAILED` checks generated into the ABAP that runs before `RS_CORR_INSERT` in `src/adt/fluid/builtin/classic/abap-shlp.ts` (every `DD31V-SUBSHLP` must exist as an active search help; every `DD33V-SUBFIELD` must be an interface parameter of its included help, except a self-referencing assignment). `rc = 4` / `DH108` ("activated with warnings") is now recognized as a success and reported with a `ZMCP-DDIC-NOTE` line instead of passing silently (issue #83).
+- `SHLP/DH` `mode="delete"` now also reaches an inactive-only search help (one left behind by a `DH109` failure or stranded by any other means): `readSearchHelp` (`src/adt/catalog-read.ts`) gained an `{ includeInactive }` option, and the catalogue query builders (`src/adt/catalog-query.ts`) take a version-state argument instead of a hard-pinned active predicate. The create/update "already exists" probe and `abap_read` deliberately stay active-only (issue #83).
+
+### Removed
+
+- The zero-network refusal on `SHLP/DH` create/update for `elementary: false` with an empty `includes` ("has nothing to collect") was removed: a collective search help with no includes activates fine on a real system (issue #83).
+
+### Fixed
+
+- `mode="update"` on a type without a bridge update route is refused zero-network with `BAD_INPUT` instead of falling through to a misleading "`source` is required" error (issue #83).
+- The classic fluid bridge sent nested objects that its single-pass ABAP argument reader could not parse; bridge arguments are now flattened in one place (`src/adt/fluid/flat-args.ts`), which is what made search-help fields, includes and assignments reach the server at all (issue #83).
+- An elementary search help's own DD31S self-row no longer counts as a collective help including it, so elementary helps are no longer permanently "in use" for delete (issue #83).
+- `DD33S-VALUEDIREC` is now decoded on read instead of rendered as the raw stored code, and a `DD31S` self-row (a search help reading back its own include of itself) is suppressed instead of being listed as an include (issue #83).
+
+## [0.5.19] - 2026-09-15
+
+### Added
+
+- `abap_debug action="breakpoints"` (`op="list"|"add"|"remove"`) and `action="watch"` (`op="add"|"list"|"remove"`, optional ABAP-expression `condition`) edit breakpoints and watchpoints while a debuggee is suspended, without ending the session (issue #89). Breakpoint kinds `exception`, `statement` and `message` join `line`, mixable in one `start` call; a `start` that lands in SAP framework code on a statement breakpoint auto-continues up to 10 times and lists the skipped frames in a note. Live captures 900–951.
+
+### Fixed
+
+- Each debug session now holds its own unpooled ADT connection, released on `stop`, on a force-clear and on a failed `start`, so a clean stop no longer leaves a stale attachment that makes the next `start` fail with "Debuggee already attached" (issue #89). Six consecutive start/stop cycles in one process were verified live on A4H.
+- Breakpoints added or removed while suspended took effect one stop-cycle late: SAP's notify chain replaces the debuggee's runtime breakpoint set with exactly the POSTed body, so the delta POST silently wiped already-armed breakpoints. `add`/`remove` now POST the full owned set (issue #89).
+- A second `start` while a session holds the only lane is refused with `DEBUG_ALL_LEASES_BUSY` (naming `ABAP_DEBUG_SESSIONS`) at every lane count, not `UNSUPPORTED` (issue #89).
+- `doc/TOOLS/debugger.md` gains a "Connection hygiene" section, statement-breakpoint scope notes (`RAISE` vs `RAISE EXCEPTION TYPE`) and moves conditional watchpoints out of "Not verified" (issue #89).
+
+## [0.5.18] - 2026-09-15
+
+### Added
+
+- `abap_service op="publish"` and `op="unpublish"` for OData V2 and V4 service bindings (issue #82): `runPublishJob` drives the ADT `businessservices/odatav{2,4}/(un)publishjobs` endpoints and raises `SERVICE_PUBLISH_FAILED` on a non-success job status. Publishing needs `ABAP_ALLOW_SERVICE_PUBLISH`, the `confirm` echo and a customer-namespace binding in an allowed package; it is journalled as an irreversible `service-publish`/`service-unpublish` entry written before the POST. V4 bindings resolve their `<odatav4:serviceGroup>` and the SRVB read uses media type v2. Verified live on A4H for a V2 and a V4 binding, publish and unpublish each confirmed by a follow-up read; the docs now carry that evidence instead of the earlier "unverified" wording.
+
+### Fixed
+
+- `doc/LIMITATIONS/editing.md` documents that a V2 publish leaves behind an `IWVB <binding>_VAN` vocabulary-annotation object which abapsmith cannot delete (issue #82).
+
+## [0.5.17] - 2026-09-15
+
+### Added
+
+- `abap_trace`, a runtime tracing/profiling tool over the ADT trace APIs (issue #77): `op="start"` creates a trace request for a program, class method or transaction and executes it, `op="list"` shows the trace runs of the current user, `op="read"` returns a run as `view="hitlist"` (aggregated statement hit list), `view="tree"` (call tree, with `depth` and a `root` anchor that re-roots the tree at the first matching statement, reporting the absolute level in a note) or `view="dbaccess"`, and `op="delete"` removes a run. Tracing is gated as `execute` because a trace request is persistent server-side state. Unknown argument keys are refused with `BAD_INPUT`, and `depth`/`root` under any view other than `tree` are refused instead of being silently ignored. Verified live on A4H against a report and a class method.
+
 ## [0.5.16] - 2026-09-15
 
 ### Added

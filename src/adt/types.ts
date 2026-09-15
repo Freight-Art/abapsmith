@@ -359,6 +359,79 @@ export const TYPES: TypeSpec[] = [
     supportsSource: false,
     keywords: ["package", "devc", "development class"],
   },
+  // ---- catalog-based DDIC reads: no source, no XML descriptor, no
+  // discoverable ADT collection either — see capabilities.ts's SHLP/DH and
+  // VIEW/DV entries. `path` below is kept for URI identity/round-tripping
+  // (buildUri/specFromUri) only; the actual read never fetches it. It goes
+  // through plain-text catalog SELECTs on the freestyle data-preview
+  // endpoint instead (src/adt/catalog-query.ts + catalog-read.ts), the same
+  // mechanism img-query.ts/img-read.ts use for IMG customizing reads. That
+  // route was chosen over the obvious DDIF_SHLP_GET / DDIF_VIEW_GET /
+  // RPY_TRANSACTION_READ function modules because those need the
+  // generated-ABAP "fluid" bridge, and fluid is unconditionally disabled
+  // when ABAP_MODE=read (see fluidDisabledReason in src/adt/fluid/
+  // enabled.ts) — exactly the mode a read is expected to work in. Catalog
+  // SELECTs work in every ABAP_MODE, and for TRAN/T return strictly more
+  // than RPY_TRANSACTION_READ does (TSTCP call parameters, TSTCA
+  // authorisation checks, AGR_TCODES role membership).
+  //
+  // Honest caveat, updated: this used to be necessary but not sufficient —
+  // resolve.ts's `resolveObject` refused SHLP/DH (capabilities.ts marked it
+  // `unsupported`) and VIEW/DV/TRAN/T (marked `bridgeCreate` with no
+  // `create`, so `isBridgeOnlyCreateType` was true) with UNSUPPORTED
+  // whenever a caller passed an explicit `type` hint, before `readDdic` (and
+  // therefore this module's `readCatalogObject`) was ever reached, no matter
+  // what this file declared. `resolveObject`'s bridge-only-create check now
+  // asks `ddicStrategy(spec.kind)` (via `specForType`, i.e. exactly the
+  // `mode: "ddic"` entries below) whether a real read exists before refusing
+  // — so these three entries are now sufficient on their own to make
+  // SHLP/DH, VIEW/DV and TRAN/T resolvable and readable with an explicit
+  // `type` hint. SHLP/DH also no longer carries an `unsupported` marker in
+  // capabilities.ts's REGISTRY at all. `TABL/DI` has no entry in this file
+  // (so `specForType` returns `undefined` for it) and stays refused by that
+  // same check — adding one here, alone, would be enough to unblock it too.
+  {
+    type: "SHLP/DH",
+    kind: "SHLP",
+    label: "Search help",
+    // Every verb 404s on this collection (verified, see capabilities.ts) —
+    // kept only so buildUri/specFromUri have a stable shape to round-trip.
+    path: "/sap/bc/adt/ddic/searchhelps/{name}",
+    mode: "ddic",
+    supportsSource: false,
+    keywords: ["search help", "shlp", "value help", "f4 help", "elementary search help", "collective search help"],
+  },
+  {
+    type: "VIEW/DV",
+    kind: "VIEW",
+    label: "Classic view",
+    // GET-only per capabilities.ts, and there is still no writable collection
+    // and no collection to resolve a URI against — this path is kept for URI
+    // identity only, and the catalog route never fetches it. But this
+    // `TypeSpec` is exactly what makes abap_search resolve VIEW/DV at all:
+    // the read itself goes through catalog-read.ts's plain-text catalog
+    // SELECTs, not this REST collection. Confirmed live on A4H (NetWeaver
+    // 7.54, client 001) on 2026-09-15: abap_search "H_T000" returns both
+    // SHLP/DH H_T000 (STRM) and VIEW/DV H_T000 (STRM_DB); abap_search "SM30"
+    // returns TRAN/T SM30 (SVIM).
+    path: "/sap/bc/adt/ddic/views/{name}",
+    mode: "ddic",
+    supportsSource: false,
+    keywords: ["view", "database view", "classic view", "dv"],
+  },
+  {
+    type: "TRAN/T",
+    kind: "TRAN",
+    label: "Transaction",
+    // The one real ADT route for a transaction: the generic VIT bridge,
+    // read-only (405 on every mutating verb) — matches vitBridgeUri("trant",
+    // name) in write-verify.ts. Not used by the catalog route below; kept
+    // for URI identity only.
+    path: "/sap/bc/adt/vit/wb/object_type/trant/object_name/{name}",
+    mode: "ddic",
+    supportsSource: false,
+    keywords: ["transaction", "tcode", "tran"],
+  },
   // RAP service binding: one XML doc at the object's own URI (no
   // /source/main; GET .../content 404s) — unlike DDLS/DDLX/SRVD/BDEF above.
   // A provenance conflict over whether SRVB exists on A4H at all was

@@ -26,6 +26,7 @@ import {
 import { guardCoreAction } from "./builtin/core.js";
 import { parseFluidConsole, type FluidBeginFrame, type FluidEndFrame, type FluidTranscript } from "./protocol.js";
 import { canonicalArgsJson, invokerName, invokerSource } from "./invoke.js";
+import { flattenScanArgs } from "./flat-args.js";
 import {
   validateAgainstSchema,
   type FluidActionSpec,
@@ -223,6 +224,9 @@ async function journalFluidMutate(
   const journal = deps.journal;
   if (!journal) return;
 
+  // Deliberately the ORIGINAL nested args, not the flattened wire shape a
+  // `flatArgs` manifest sends over the wire: this is what the caller passed
+  // and what a reader of the journal wants to see.
   const argsText = truncateText(canonicalArgsJson(req.args), JOURNAL_ARGS_MAX);
 
   const object: JournalObjectRef = {
@@ -462,13 +466,22 @@ export async function dispatch(deps: FluidDeps, req: FluidRunRequest): Promise<F
   await ensureFluidPackage(deps.conn, deps.gate);
   const sysKey = systemKey(deps.conn.cfg);
 
+  // A `flatArgs` manifest's ABAP reads its arguments with the flat
+  // single-pass `scan()` (see `./flat-args.js`'s header) — never plain
+  // nested JSON — so the wire args are computed once, here, and reused for
+  // BOTH the invoker name below and `canonicalArgsJson` further down: they
+  // must come from the same value or the invoker name would stop
+  // identifying the source it names.
+  const wireArgs = tool.manifest.flatArgs === true ? flattenScanArgs(req.args) : req.args;
+
   // Pure and stable for the whole call, including across the one retry below:
-  // no input it depends on (req.tool/action/args, the manifest's contract,
-  // entry, version) changes between the first attempt and the recovery
-  // retry, so both `runDeployAndExecute` and `forceInvokerRegeneration`
-  // (below) must name the exact same generated class.
+  // no input it depends on (req.tool/action/wireArgs, the manifest's
+  // contract, entry, version) changes between the first attempt and the
+  // recovery retry, so both `runDeployAndExecute` and
+  // `forceInvokerRegeneration` (below) must name the exact same generated
+  // class.
   const contract = tool.manifest.contract;
-  const invokerClassName = invokerName(req.tool, req.action, req.args, contract);
+  const invokerClassName = invokerName(req.tool, req.action, wireArgs, contract);
 
   // Everything the on-disk registry's cached "deployed: true" answer can lie
   // about lives inside this one function: `ensureFluidTool`'s fast path can
@@ -510,7 +523,7 @@ export async function dispatch(deps: FluidDeps, req: FluidRunRequest): Promise<F
     });
 
     const name = invokerClassName;
-    const argsJson = canonicalArgsJson(req.args);
+    const argsJson = canonicalArgsJson(wireArgs);
     const source = invokerSource({
       name,
       entry: tool.manifest.entry,

@@ -27,6 +27,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { AbapError, isAbapError } from "../src/adt/errors.js";
 import {
   createDebugArmLock,
+  createDebugArmLocks,
   debugArmLockKey,
   debugArmLockPath,
   FileLockDebugArmLock,
@@ -137,6 +138,64 @@ describe("key and path derivation", () => {
   it("treats a missing client the same as an empty one, and trims", () => {
     expect(debugArmLockKey({ url: "u", user: "U" })).toBe("u||U");
     expect(debugArmLockKey({ url: " u ", client: " ", user: " u " })).toBe("u||U");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// a2. Lanes — resolveDebugSessionLimit's per-lane lock paths
+// ---------------------------------------------------------------------------
+
+describe("lanes", () => {
+  it("lane 0 (default, omitted) is byte-identical to the pre-lane path", () => {
+    // No third argument at all — the call every existing caller makes.
+    const implicit = debugArmLockPath("/state", CFG);
+    const explicitZero = debugArmLockPath("/state", CFG, 0);
+    expect(explicitZero).toBe(implicit);
+  });
+
+  it("debugArmLockKey is unaffected by lane — lane is folded into the path's hash input only", () => {
+    // debugArmLockKey has no lane parameter at all; this pins that its
+    // return value (the thing that names WHICH SAP user/system/client) does
+    // not change shape because lanes exist.
+    expect(debugArmLockKey(CFG)).toBe("https://a4h.example:44300|001|DEVELOPER");
+  });
+
+  it("different lanes produce different lock paths for the same key", () => {
+    const lane0 = debugArmLockPath("/state", CFG, 0);
+    const lane1 = debugArmLockPath("/state", CFG, 1);
+    const lane2 = debugArmLockPath("/state", CFG, 2);
+    expect(new Set([lane0, lane1, lane2]).size).toBe(3);
+  });
+
+  it("lane paths are deterministic for the same key+lane", () => {
+    expect(debugArmLockPath("/state", CFG, 1)).toBe(debugArmLockPath("/state", CFG, 1));
+  });
+
+  it("lane paths still live in locks/debug under a hashed name", () => {
+    const p = debugArmLockPath("/state", CFG, 1);
+    expect(p.startsWith(join("/state", "locks", "debug"))).toBe(true);
+    expect(p).toMatch(/[0-9a-f]{20}\.lock$/);
+  });
+
+  it("createDebugArmLocks builds one lock per lane, 0..lanes-1", () => {
+    const locks = createDebugArmLocks({ lanes: 3, stateDir: "/state", cfg: CFG, enabled: true });
+    expect(locks).toHaveLength(3);
+    for (const lock of locks) expect(lock).toBeInstanceOf(FileLockDebugArmLock);
+    const paths = locks.map((l) => (l as FileLockDebugArmLock).path);
+    expect(paths[0]).toBe(debugArmLockPath("/state", CFG, 0));
+    expect(paths[1]).toBe(debugArmLockPath("/state", CFG, 1));
+    expect(paths[2]).toBe(debugArmLockPath("/state", CFG, 2));
+  });
+
+  it("createDebugArmLocks with lanes: 1 matches createDebugArmLock's lane-0 output", () => {
+    const [lock] = createDebugArmLocks({ lanes: 1, stateDir: "/state", cfg: CFG, enabled: true });
+    expect((lock as FileLockDebugArmLock).path).toBe(debugArmLockPath("/state", CFG));
+  });
+
+  it("createDebugArmLocks respects enabled: false, returning noop locks for every lane", () => {
+    const locks = createDebugArmLocks({ lanes: 2, stateDir: "/state", cfg: CFG, enabled: false });
+    expect(locks).toHaveLength(2);
+    for (const lock of locks) expect(lock).toBeInstanceOf(NoopDebugArmLock);
   });
 });
 
@@ -263,6 +322,50 @@ describe("cross-process refusal", () => {
       await gone(debugArmLockPath(stateDir, other));
     }
     mine.release();
+    await gone(debugArmLockPath(stateDir, CFG));
+  });
+
+  it("two locks on the SAME lane still exclude each other, standing in for two processes on the same lane", async () => {
+    const stateDir = mkStateDir();
+    const a = new FileLockDebugArmLock({ stateDir, cfg: CFG, waitMs: 200, lane: 1 });
+    const b = new FileLockDebugArmLock({ stateDir, cfg: CFG, waitMs: 200, lane: 1 });
+
+    await a.acquire();
+    const err: unknown = await b.acquire().catch((e: unknown) => e);
+    expect(isAbapError(err)).toBe(true);
+    expect((err as AbapError).code).toBe("DEBUG_SESSION_LOCKED_CROSS_PROCESS");
+    expect(b.held).toBe(false);
+
+    a.release();
+    await gone(debugArmLockPath(stateDir, CFG, 1));
+  });
+
+  it("locks on DIFFERENT lanes do not exclude each other, even for the same key", async () => {
+    const stateDir = mkStateDir();
+    const lane1 = new FileLockDebugArmLock({ stateDir, cfg: CFG, waitMs: 200, lane: 1 });
+    const lane2 = new FileLockDebugArmLock({ stateDir, cfg: CFG, waitMs: 200, lane: 2 });
+
+    await lane1.acquire();
+    // Must NOT throw: a different lane is a different lock file entirely.
+    await expect(lane2.acquire()).resolves.toBeUndefined();
+
+    lane1.release();
+    lane2.release();
+    await gone(debugArmLockPath(stateDir, CFG, 1));
+    await gone(debugArmLockPath(stateDir, CFG, 2));
+  });
+
+  it("lane 0 (the default) still contends against an explicit lane-0 instance, unaffected by other lanes existing", async () => {
+    const stateDir = mkStateDir();
+    const implicitLane0 = new FileLockDebugArmLock({ stateDir, cfg: CFG, waitMs: 200 });
+    const explicitLane0 = new FileLockDebugArmLock({ stateDir, cfg: CFG, waitMs: 200, lane: 0 });
+
+    await implicitLane0.acquire();
+    const err: unknown = await explicitLane0.acquire().catch((e: unknown) => e);
+    expect(isAbapError(err)).toBe(true);
+    expect((err as AbapError).code).toBe("DEBUG_SESSION_LOCKED_CROSS_PROCESS");
+
+    implicitLane0.release();
     await gone(debugArmLockPath(stateDir, CFG));
   });
 });

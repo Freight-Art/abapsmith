@@ -862,30 +862,36 @@ describe("capabilities.ts registry (write-support-for-missing-DDIC-types)", () =
   });
 
   /**
-   * SHLP/DH and VIEW/DV are real ADT concepts that abapsmith deliberately does
-   * not support: both 404 on every ADT request on this release (recon —
-   * see capabilities.ts's module doc). TRAN/T (transaction) is a different
-   * kind of refusal: TSTC is NOT the ADT-writable type code for a
-   * transaction, so this also pins that abapsmith does not fall for the
-   * TSTC-looks-like-a-table-name trap. PROG/PS (screen/dynpro), PROG/PC
-   * (GUI status/CUA status) and PROG/PT (GUI title/titlebar) are program
-   * subobjects with no ADT discovery collection and no
-   * informationsystem/objecttypes registration — read-only as a content-free
-   * VIT-bridge stub (for PROG/PT, not even key-validated: the bridge returns
-   * 200 for a made-up title id or a nonexistent program), 405 on every write
-   * verb, verified live. SUSO/B (authorization object) is the newest member,
-   * added: IS a registered ADT object type (unlike the PROG
-   * subobjects), but has no discovery collection and no writable route
-   * either — the VIT bridge answers with a basic-properties stub only, live
-   * recon via a manual probe script (not shipped in this release). None of
-   * the seven are in `types.ts`'s `TYPES` array, so this exercises the
-   * dedicated registry-sourced short-circuit in `resolveWriteTarget`, not
-   * the ordinary `specForType`/`specForKeyword` lookup — and it must fire
-   * before any network call, exactly like the DTEL/DE and ENHO/XH refusals
-   * above.
+   * VIEW/DV is a real ADT concept that abapsmith deliberately does not
+   * support over PUT-source write: it 404s/405s on every mutating ADT
+   * request on this release (recon — see capabilities.ts's module doc).
+   * TRAN/T (transaction) is a different kind of refusal: TSTC is NOT the
+   * ADT-writable type code for a transaction, so this also pins that
+   * abapsmith does not fall for the TSTC-looks-like-a-table-name trap.
+   * PROG/PS (screen/dynpro), PROG/PC (GUI status/CUA status) and PROG/PT
+   * (GUI title/titlebar) are program subobjects with no ADT discovery
+   * collection and no informationsystem/objecttypes registration —
+   * read-only as a content-free VIT-bridge stub (for PROG/PT, not even
+   * key-validated: the bridge returns 200 for a made-up title id or a
+   * nonexistent program), 405 on every write verb, verified live. SUSO/B
+   * (authorization object) is the newest member, added: IS a registered ADT
+   * object type (unlike the PROG subobjects), but has no discovery
+   * collection and no writable route either — the VIT bridge answers with a
+   * basic-properties stub only, live recon via a manual probe script (not
+   * shipped in this release). None of the six are in `types.ts`'s `TYPES`
+   * array, so this exercises the dedicated registry-sourced short-circuit
+   * in `resolveWriteTarget`, not the ordinary `specForType`/`specForKeyword`
+   * lookup — and it must fire before any network call, exactly like the
+   * DTEL/DE and ENHO/XH refusals above.
+   *
+   * SHLP/DH used to be a fifth row here (search help, also 404 on every ADT
+   * request). It dropped its `unsupported` registry entry for `bridgeCreate`
+   * when the classrun-bridge create/catalog-read work landed, so it no
+   * longer says "cannot be written by abapsmith" at all — see the dedicated
+   * SHLP/DH test below, next to VIEW/DV and TRAN/T's, which pins what it
+   * says instead.
    */
   it.each([
-    ["SHLP/DH", "search help"],
     ["PROG/PS", "screen"],
     ["PROG/PC", "GUI status"],
     ["PROG/PT", "GUI title"],
@@ -927,6 +933,32 @@ describe("capabilities.ts registry (write-support-for-missing-DDIC-types)", () =
       expect(String(e.hint ?? "")).toMatch(new RegExp(type.replace("/", "\\/")));
     },
   );
+
+  /**
+   * SHLP/DH joined VIEW/DV and TRAN/T's family (bridgeCreate, writable only
+   * through the classrun bridge) rather than the `it.each` above's: it used
+   * to say "cannot be written by abapsmith" via a dedicated `unsupported`
+   * registry entry, and that entry is gone. It is NOT merged into the
+   * VIEW/DV-and-TRAN/T `it.each` above because its REST finding is a
+   * different shape: search helps 404 across every mutating verb (there is
+   * no writable OR readable REST collection at all), where VIEW/DV and
+   * TRAN/T's collections are GET-only (405 on write, 200 on read) — so the
+   * shared `/405|GET-only/` assertion above does not hold for SHLP/DH and a
+   * separate test is more honest than stretching that regex to fit. What
+   * carries over unchanged: `resolveWriteTarget` — the SOURCE-write path —
+   * still refuses it, UNSUPPORTED rather than the generic "Unknown object
+   * type" BAD_INPUT, naming the bridge as the route that does work.
+   */
+  it("refuses SHLP/DH on the SOURCE-write path with UNSUPPORTED, offline, and names the bridge route that does work", async () => {
+    const e = await catchErr(resolveWriteTarget(offline, { type: "SHLP/DH", name: "ZX" }));
+    expect(e.code).toBe("UNSUPPORTED");
+    expect(String(e.message)).toMatch(/no writable ADT collection/i);
+    expect(String(e.message)).toMatch(/as source/i);
+    expect(String(e.message)).toMatch(/404/);
+    expect(String(e.hint ?? "")).toMatch(/abap_write/);
+    expect(String(e.hint ?? "")).toMatch(/no update route/);
+    expect(String(e.hint ?? "")).toMatch(/SHLP\/DH/);
+  });
 
   /**
    * The two types no longer diverge on the create half: neither REGISTRY
@@ -4858,16 +4890,21 @@ describe("XSLT/VT — skeleton create carries rootAttributes", () => {
  * What makes it worth its own describe block: it is the ONE properties-shape
  * type where a generic `Accept: application/*` is documented to fail with
  * 406, so `capabilities.ts` pins the exact vendor type
- * (`application/vnd.sap.adt.businessservices.servicebinding.v1+xml`) rather
- * than gambling on the wildcard. These tests pin that the header actually
- * goes out on every request that touches the object URI (resolution GET,
- * create POST, content PUT), and pin the exact create-body XML documented in
- * the session scratchpad's "SRVB inner body" template — see
- * `src/adt/capabilities.ts`'s `SRVB/SVB` REGISTRY entry for the full story.
+ * (`application/vnd.sap.adt.businessservices.servicebinding.v2+xml`) rather
+ * than gambling on the wildcard. Pinned at `v2`, not `v1`: live-verified on
+ * A4H on 2026-09-15 by direct curl and reproduced end-to-end through
+ * `abap_read` — the binding resource answers `200` for `v2` and `406
+ * ExceptionResourceNotAcceptable` for `v1` on this release, so every raw
+ * SRVB/SVB read was broken until this test's expected value moved from `v1`
+ * to `v2` to match. These tests pin that the header actually goes out on
+ * every request that touches the object URI (resolution GET, create POST,
+ * content PUT), and pin the exact create-body XML documented in the session
+ * scratchpad's "SRVB inner body" template — see `src/adt/capabilities.ts`'s
+ * `SRVB/SVB` REGISTRY entry for the full story.
  */
 describe("SRVB/SVB service binding (properties shape, vendor media type)", () => {
   const SRVB_URI = "/sap/bc/adt/businessservices/bindings/zpropw_svb";
-  const SRVB_MEDIA_TYPE = "application/vnd.sap.adt.businessservices.servicebinding.v1+xml";
+  const SRVB_MEDIA_TYPE = "application/vnd.sap.adt.businessservices.servicebinding.v2+xml";
 
   /**
    * SYNTHETIC — hand-written to match a documented/scratchpad-recorded
@@ -5475,6 +5512,14 @@ describe("invariant: no REGISTRY type may declare `bridgeCreate` without a routi
     // one for agreement, never requires it. `corr_nr` is excluded for the
     // same reason as DEVC/K's: judged by package policy, not presence.
     "TABL/DI": ["object", "type", "description", "base_table", "index_fields"],
+    // SHLP/DH: same `object`/`type`/`description`/`package` convention as
+    // VIEW/DV and TRAN/T (`package` defaults to $TMP rather than being
+    // refused when absent, exactly like theirs — listed here as the field
+    // that selects the create's target package, not as a hard BAD_INPUT
+    // gate). `shlp` is the type-specific field abapCreateSearchHelpViaBridge
+    // (src/tools/write.ts) refuses the create without — its DD30V/DD32P/
+    // DD31V/DD33V definition.
+    "SHLP/DH": ["object", "type", "description", "package", "shlp"],
   };
 
   /** The walk. Deliberately over the real REGISTRY, not over BRIDGE_CREATABLE_TYPES. */
@@ -6004,6 +6049,41 @@ describe("abap_write → bridge creation (VIEW/DV, TRAN/T): routing and zero-net
     );
     expect(e.code).toBe("BAD_INPUT");
     expect(String(e.message)).toMatch(/description/);
+  });
+});
+
+/**
+ * Issue #83: `mode: "update"` on a type with no bridge update route used to fall through
+ * PAST the dispatch entirely — `isBridgeOnlyCreateType` is false for an ordinary REST type
+ * like CLAS/OC, so `abapUpdateViaBridge`'s own type check (only reached for VIEW/DV, TRAN/T,
+ * SHLP/DH) never ran, and the call landed in the generic write path's "`source` is required
+ * for mode=write" refusal instead — silently implying `mode:"update"` had been accepted and
+ * downgraded to a create. `abapWrite` now gates `mode:"update"` zero-network, offline, for
+ * every type outside `BRIDGE_UPDATE_TYPES`, using the exact wording `abapUpdateViaBridge`
+ * itself throws for the same situation (see `bridgeUpdateNotSupported`/`isBridgeUpdateType`
+ * in src/tools/write.ts) — one message, not two variants depending on which gate caught it.
+ */
+describe("abap_write: mode='update' on a non-bridge type is refused BAD_INPUT, offline, before the generic write path can misread it (issue #83)", () => {
+  const offline = null as unknown as AbapConnection;
+  const gate = new SafetyGate({ readOnly: false, allowPackages: ["*"] });
+  const MAX = 20_000;
+
+  it.each([
+    ["CLAS/OC", "ZCL_FOO"],
+    ["DTEL/DE", "ZPROPW_DTEL"],
+  ])("refuses %s mode='update' with BAD_INPUT naming VIEW/DV, TRAN/T and SHLP/DH — not the misleading 'source is required'", async (type, object) => {
+    const e = await catchErr(abapWrite(offline, { object, type, mode: "update" }, MAX, gate));
+    expect(e.code).toBe("BAD_INPUT");
+    expect(String(e.message)).toMatch(/VIEW\/DV/);
+    expect(String(e.message)).toMatch(/TRAN\/T/);
+    expect(String(e.message)).toMatch(/SHLP\/DH/);
+    // The exact regression this closes: mode="update" must never be treated as an
+    // accepted-but-incomplete create.
+    expect(String(e.message)).not.toMatch(/`source` is required/);
+    // `offline` is `null` cast to `AbapConnection` (same mechanism as every other
+    // zero-network BAD_INPUT test in this file) — any attempt to reach the network
+    // would dereference a property of `null` and throw a plain TypeError, not an
+    // `AbapError`, before ever reaching `catchErr`'s `isAbapError` assertion above.
   });
 });
 
@@ -6941,6 +7021,47 @@ function batchDeleteRoute(
   };
 }
 
+describe("abapWrite's registered schema: `shlp.selectionMethod`/`selectionMethodType` are optional (issue #83)", () => {
+  it("accepts a `shlp` payload with no selectionMethod/selectionMethodType — the collective-search-help shape", () => {
+    // A collective search help has no selection method at all (DD30V-SELMETHOD
+    // blank), and plenty of standard SAP elementary helps have a blank one too
+    // — see shlp-create.test.ts and shlp-bridge-abap.test.ts for the runtime
+    // and generated-ABAP sides of this same fact. This is the schema-level
+    // guarantee those depend on: the registered tool schema itself must not
+    // refuse the omission before either module ever runs.
+    const schema = z.object(writeInputSchema);
+    const result = schema.safeParse({
+      object: "ZTM_SH_CARRIER",
+      type: "SHLP/DH",
+      package: "$TMP",
+      mode: "write",
+      shlp: {
+        elementary: false,
+        fields: [],
+        includes: [{ name: "ZTM_SH_SUB" }],
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("still refuses a selectionMethodType outside T/V/M when one is given", () => {
+    const schema = z.object(writeInputSchema);
+    const result = schema.safeParse({
+      object: "ZTM_SH_CARRIER",
+      type: "SHLP/DH",
+      package: "$TMP",
+      mode: "write",
+      shlp: {
+        selectionMethod: "ZTM_CARRIERS",
+        selectionMethodType: "X",
+        elementary: true,
+        fields: [],
+      },
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
 describe("abapWrite — `objects` (batch delete), schema/dispatch level", () => {
   it("`object` AND `objects` together — BAD_INPUT, no request", async () => {
     const { conn, adt } = await connected(() => undefined);
@@ -7759,5 +7880,220 @@ describe("registerWriteTools: batch delete — isError on the envelope, not just
     expect(isError).toBeFalsy();
     expect(text).toContain("deleted: 3");
     expect(text).toContain("failed: 0");
+  });
+});
+
+/**
+ * `SHLP/DH` delete's existence probe (`abapDeleteSearchHelpViaBridge`, `src/tools/write.ts`)
+ * used to go through `probeSearchHelp` — ACTIVE-only, via `readSearchHelp(conn, name)` with
+ * no `includeInactive` option. A search help left behind by a create that PUT but never
+ * activated has DD30L rows with `AS4LOCAL='N'` only (no active row at all): the active-only
+ * probe sees that exactly like "does not exist" and refused the delete with NOT_FOUND,
+ * even though the bridge's own `delete_search_help` (`src/adt/shlp-delete.ts`) removes both
+ * DDIC states and the TADIR entry regardless of which one is active. Issue #83.
+ *
+ * `probeSearchHelpAnyState` (`src/tools/write.ts`) is the fix: `readSearchHelp(conn, name,
+ * undefined, { includeInactive: true })`, used ONLY by the delete path (pre-delete existence
+ * check and post-delete "still there?" check) — the create path's "already exists" probe and
+ * the update path's existence probe both keep `probeSearchHelp`, unchanged.
+ *
+ * Wire fakes follow `test/shlp-journal.test.ts`'s idiom for this same function: a real
+ * `AbapConnection` over a fake `HttpClient`, `readSearchHelpImpl`'s `/datapreview/freestyle`
+ * calls answered BY ORDER (the first is always `conn.connect()`'s one-time system-role
+ * probe), and the real fluid `classic`-tool deploy/classrun fake
+ * (`test/helpers/fluid-classic-fake.ts`) for the bridge classrun itself. Nothing here touches
+ * a real SAP system. `connected()`/`baseRoute` above answer EVERY freestyle call with the
+ * connect-time fixture unconditionally, which would swallow every DD30L query these tests
+ * need to answer differently — so this section builds its own minimal connection helper
+ * instead of reusing that one.
+ */
+describe("SHLP/DH delete: inactive-only leftover (issue #83)", () => {
+  const SHLP_NAME = "ZMCP_TEST_SHLP_I83";
+
+  const shlpGate = (): SafetyGate =>
+    new SafetyGate({
+      readOnly: false,
+      allowPackages: ["*"],
+      allowNamePrefixes: ["*"],
+      allowTransports: ["*"],
+      writesLockedOut: false,
+    });
+
+  /**
+   * Minimal base routing for `conn.connect()`: `/compatibility/graph`, `/discovery`,
+   * `/ato/settings` — everything BUT the one-time system-role `/datapreview/freestyle`
+   * probe, which `shlpConnected` below answers itself, gated on a `duringConnect` flag so
+   * it never shadows a test's OWN freestyle fixtures once `connect()` has returned.
+   */
+  function shlpConnectRoute(r: Recorded): HttpClientResponse | undefined {
+    if (r.url.includes("/compatibility/graph")) return resp(200, "<graph/>", LOGIN_HEADERS);
+    if (r.url.endsWith("/discovery")) return resp(200, "<service/>", OK_XML);
+    if (r.url.includes("/ato/settings")) return resp(200, "<settings/>", OK_XML);
+    return undefined;
+  }
+
+  async function shlpConnected(route: Route): Promise<{ conn: AbapConnection; adt: FakeAdt }> {
+    let duringConnect = true;
+    const adt = new FakeAdt((r) => {
+      if (duringConnect && r.url.includes("/datapreview/freestyle")) {
+        return resp(200, T000_NONPRODUCTIVE, DATAPREVIEW_XML);
+      }
+      return shlpConnectRoute(r) ?? route(r);
+    });
+    const conn = new AbapConnection(cfg(), {
+      httpClient: adt,
+      log: () => {},
+      breaker: new AuthCircuitBreaker(),
+    });
+    await conn.connect();
+    duringConnect = false;
+    adt.calls.length = 0;
+    return { conn, adt };
+  }
+
+  /** One column's `<dataPreview:columns>` block — same wire shape `test/img-read.test.ts` and `test/shlp-journal.test.ts` use. */
+  function columnXml(name: string, values: readonly string[]): string {
+    const data = values.map((v) => `<dataPreview:data>${v}</dataPreview:data>`).join("");
+    return (
+      `<dataPreview:columns><dataPreview:metadata dataPreview:name="${name}" dataPreview:type="C" dataPreview:keyAttribute="false"/>` +
+      `<dataPreview:dataSet>${data}</dataPreview:dataSet></dataPreview:columns>`
+    );
+  }
+
+  /** One structural stand-in row: a single unread column, just to make a header query find `records.length === 1`. */
+  function oneStandInRow(): string {
+    return (
+      '<?xml version="1.0" encoding="utf-8"?><dataPreview:tableData xmlns:dataPreview="http://www.sap.com/adt/dataPreview">' +
+      `${columnXml("STANDIN_COL", ["x"])}</dataPreview:tableData>`
+    );
+  }
+
+  /** No rows — `readSearchHelpImpl` treats this as "no header row" for a header query, and as "nothing" for every detail query. */
+  function emptyResult(): string {
+    return '<?xml version="1.0" encoding="utf-8"?><dataPreview:tableData xmlns:dataPreview="http://www.sap.com/adt/dataPreview"></dataPreview:tableData>';
+  }
+
+  /**
+   * Routes `/datapreview/freestyle` calls by ORDER, `shlpConnected`'s connect-time probe
+   * already consumed by the time a test's own route runs (see `shlpConnected`'s
+   * `adt.calls.length = 0` reset) — so here every freestyle call maps straight into
+   * `bodies`, in order, with no +1 offset for a probe.
+   */
+  function freestyleQueueRoute(bodies: readonly string[]): Route {
+    let n = 0;
+    return (r) => {
+      if (!r.url.includes("/datapreview/freestyle")) return undefined;
+      const entry = bodies[n];
+      n++;
+      if (entry === undefined) {
+        throw new Error(`freestyleQueueRoute: no fixture queued for SHLP-side call #${n}`);
+      }
+      return resp(200, entry, DATAPREVIEW_XML);
+    };
+  }
+
+  /** No ACTIVE row (empty), then no INACTIVE row either — genuinely absent, in EITHER state. */
+  const ABSENT_ANY_STATE_BODIES: readonly string[] = [emptyResult(), emptyResult()];
+
+  /**
+   * No ACTIVE row, but an INACTIVE one IS found — the exact "create that PUT but never
+   * activated" shape (DD30L-AS4LOCAL='N', no active row at all): active header (empty),
+   * inactive header (found), then the 6 detail queries `readSearchHelpImpl` always issues
+   * once a header row is in hand (text, includes, params, assigns, usedBy, parents).
+   */
+  const INACTIVE_ONLY_FOUND_BODIES: readonly string[] = [
+    emptyResult(),
+    oneStandInRow(),
+    emptyResult(),
+    emptyResult(),
+    emptyResult(),
+    emptyResult(),
+    emptyResult(),
+    emptyResult(),
+  ];
+
+  async function withShlpJournal(fn: (journal: Journal) => Promise<void>): Promise<void> {
+    const dir = await mkdtemp(join(tmpdir(), "abapsmith-shlp-i83-"));
+    try {
+      await fn(new Journal({ dir, enabled: true, maxEntries: 200, maxAgeDays: 30 }, "A4H"));
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  }
+
+  it("(a) proceeds with the delete of an inactive-only search help instead of refusing NOT_FOUND, and the response carries the inactive-only note", async () => {
+    await withShlpJournal(async (journal) => {
+      const classic = classicFake({ action: "delete_search_help", lines: () => ["SHLP-DELETED", "SHLP-GONE"] });
+      const shlp = freestyleQueueRoute([...INACTIVE_ONLY_FOUND_BODIES, ...ABSENT_ANY_STATE_BODIES]);
+      const { conn } = await shlpConnected((r) => classic.route(r) ?? shlp(r));
+
+      const result = await abapWrite(
+        conn,
+        { object: SHLP_NAME, type: "SHLP/DH", mode: "delete" },
+        20_000,
+        shlpGate(),
+        journal,
+      );
+      expect(result.text).toMatch(/deleted:\s*true/);
+      expect(result.text).toMatch(/NOTE:.*no ACTIVE version/);
+      expect(result.text).toMatch(/AS4LOCAL='N'/);
+      expect(result.text).toMatch(/delete_search_help removes both DDIC states/);
+      expect(result.text).toMatch(/INACTIVE definition/);
+
+      const entries = await journal.list();
+      const entry = entries[0];
+      if (!entry) throw new Error("test fixture bug: no journal entry was recorded for the delete");
+      expect(entry.beforeCapture).toBe("captured");
+      expect(entry.existedBefore).toBe(true);
+      expect(entry.irreversible).toBe(true);
+    });
+  });
+
+  it("(b) delete of a genuinely absent search help (no active AND no inactive row) still throws NOT_FOUND with the unchanged message", async () => {
+    await withShlpJournal(async (journal) => {
+      const shlp = freestyleQueueRoute(ABSENT_ANY_STATE_BODIES);
+      const { conn } = await shlpConnected(shlp);
+
+      const e = await catchErr(
+        abapWrite(conn, { object: SHLP_NAME, type: "SHLP/DH", mode: "delete" }, 20_000, shlpGate(), journal),
+      );
+      expect(e.code).toBe("NOT_FOUND");
+      expect(e.message).toBe(`Search help ${SHLP_NAME} does not exist, so there is nothing to delete.`);
+      expect(await journal.list()).toEqual([]);
+    });
+  });
+
+  it("(c) create's 'already exists' probe stays active-only: an active-empty search help is treated as absent without ever probing the inactive version", async () => {
+    await withShlpJournal(async (journal) => {
+      const classic = classicFake({
+        action: "create_search_help",
+        lines: () => ["SHLP-REGISTERED", "SHLP-PUT", "SHLP-ACTIVATED"],
+      });
+      // Exactly ONE body for the pre-create probe's active-only header query, and exactly
+      // ONE more for the post-create verification read's own active-only header query. If
+      // the pre-create probe regressed to ALSO try the inactive header query (2 calls
+      // instead of 1), it would consume the post-create body for itself, and the real
+      // post-create read would then find no fixture queued and throw — failing this test
+      // instead of silently passing.
+      const shlp = freestyleQueueRoute([emptyResult(), emptyResult()]);
+      const { conn } = await shlpConnected((r) => classic.route(r) ?? shlp(r));
+
+      const result = await abapWrite(
+        conn,
+        {
+          object: SHLP_NAME,
+          type: "SHLP/DH",
+          mode: "write",
+          package: "$TMP",
+          description: "Issue #83 standin",
+          shlp: { elementary: false, fields: [], includes: [{ name: "ZMCP_SH_SUB_I83" }] },
+        },
+        20_000,
+        shlpGate(),
+        journal,
+      );
+      expect(result.text).toMatch(/created:\s*true/);
+      expect(result.text).not.toMatch(/already exists/);
+    });
   });
 });

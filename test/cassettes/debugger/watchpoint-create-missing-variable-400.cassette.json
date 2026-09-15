@@ -1,0 +1,41 @@
+{
+  "id": "watchpoint-create-missing-variable-400",
+  "recordedAt": "2026-09-12T17:49:35.755Z",
+  "recordedDurationMs": 1949,
+  "appliance": {
+    "sid": "A4H",
+    "client": "001",
+    "server": "a4hsandbox_A4H_00"
+  },
+  "source": {
+    "type": "live-capture-raw",
+    "citation": "test/fixtures/live-captured/910-watchpoint-create-missing-variable-400.meta.json + test/fixtures/live-captured/910-watchpoint-create-missing-variable-400.xml",
+    "notes": "Same POST /sap/bc/adt/debugger/watchpoints endpoint called with no query parameters at all (no variableName). Answers 400 with exc:exception type=\"ExceptionParameterNotFound\", message \"Parameter variableName could not be found.\", and T100 key SADT_RESOURCE/017 with V1=\"variableName\". Redactions performed by the capture harness before this file was written: appliance host -> 203.0.113.10:50000 (RFC 5737), application-server hostname -> a4hsandbox, Authorization/Cookie/set-cookie header values stripped. sha256/byteLength in the source .meta.json are computed over the redacted body as stored."
+  },
+  "request": {
+    "method": "POST",
+    "path": "/sap/bc/adt/debugger/watchpoints?sap-client=001",
+    "headers": {
+      "Authorization": "<redacted>",
+      "Cookie": "<redacted: 4 cookies>",
+      "X-sap-adt-sessiontype": "stateful",
+      "X-CSRF-Token": "Ls6asF_TTkrN_WJbzm64EA==",
+      "Accept": "application/xml"
+    },
+    "body": null
+  },
+  "response": {
+    "status": 400,
+    "headers": {
+      "content-length": "514",
+      "content-type": "application/xml",
+      "sap-authenticated": "true",
+      "sap-cache-control": "+0",
+      "sap-isc-uagent": "0",
+      "sap-perf-fesrec": "1900232.000000",
+      "sap-server": "true",
+      "set-cookie": "<redacted>"
+    },
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><exc:exception xmlns:exc=\"http://www.sap.com/abapxml/types/communicationframework\"><namespace id=\"com.sap.adt\"/><type id=\"ExceptionParameterNotFound\"/><message lang=\"EN\">Parameter variableName could not be found.</message><localizedMessage lang=\"EN\">Parameter variableName could not be found.</localizedMessage><properties><entry key=\"T100KEY-ID\">SADT_RESOURCE</entry><entry key=\"T100KEY-NO\">017</entry><entry key=\"T100KEY-V1\">variableName</entry></properties></exc:exception>"
+  }
+}

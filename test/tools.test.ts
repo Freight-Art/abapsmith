@@ -1905,6 +1905,7 @@ describe("tool surface", () => {
       "abap_search",
       "abap_service",
       "abap_test",
+      "abap_trace",
       "abap_transport",
       "abap_transport_release",
       "abap_ui",
@@ -2063,9 +2064,17 @@ describe("tool surface", () => {
       | undefined;
     const desc = schema?.properties?.type?.description ?? "";
     for (const code of NON_READABLE_TYPES) expect(desc).toContain(code);
-    expect(desc).toContain("VIEW/DV");
-    expect(desc).toContain("TRAN/T");
     expect(desc).toContain("PROG/PT");
+    // SHLP/DH, VIEW/DV and TRAN/T are bridge-only-create too but ARE
+    // readable — through a plain-text catalog SELECT
+    // (src/adt/catalog-read.ts), not the ADT REST collection this list is
+    // about — so NON_READABLE_TYPES excludes them and this description must
+    // not name them as refused. Regression guard for the bug where
+    // NON_READABLE_TYPES still listed all three after the catalog-based read
+    // route was added.
+    expect(desc).not.toContain("SHLP/DH");
+    expect(desc).not.toContain("VIEW/DV");
+    expect(desc).not.toContain("TRAN/T");
   });
 
   it("gives abap_read's tool description a copy-pasteable example call", async () => {
@@ -2271,6 +2280,7 @@ describe("tool surface", () => {
       "run.ts",
       "search.ts",
       "test.ts",
+      "trace.ts",
       "write.ts",
     ];
     const offenders: string[] = [];
@@ -2353,6 +2363,10 @@ describe("tool surface", () => {
       "abap_debug_vars",
       "abap_debug_value",
       "abap_activate",
+      // Registered unconditionally: `op="list"` and `op="read"` are reads,
+      // while `start`/`run`/`delete` are gated per-op inside the handler —
+      // the same shape as `abap_transport` just below.
+      "abap_trace",
       "abap_transport",
       "abap_journal",
       "abap_enh",

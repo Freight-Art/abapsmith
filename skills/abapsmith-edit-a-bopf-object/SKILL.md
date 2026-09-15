@@ -8,9 +8,7 @@ description: Creates and edits BOPF business objects — nodes, associations, ac
 The highest error rate on this server. Every trap below is a **200 that means
 failure**.
 
-Every step below is an `operation` of **`abap_bopf_edit`** on the default v1
-surface. On v2 the same operations are actions of **`abap_do`** — same names, same
-shapes, one tool instead of four. Check `tools/list` before assuming which.
+Every step below is an `operation` of **`abap_bopf_edit`**.
 
 ## Sequence
 

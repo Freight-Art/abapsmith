@@ -4,8 +4,9 @@
  * sub-schema leaves a client guessing whether the array holds strings,
  * numbers, or objects.
  *
- * Harness copied from `test/tools-v2-budget.test.ts` (real MCP `Client` +
- * `InMemoryTransport` + `createServer()`).
+ * Harness: a real MCP `Client` talking to `createServer()` over an
+ * `InMemoryTransport`, so the schema under test is exactly what a real
+ * client sees from `tools/list` — never the zod source directly.
  */
 import { describe, expect, it } from "vitest";
 import type { HttpClient, HttpClientOptions, HttpClientResponse } from "abap-adt-api/build/AdtHTTP.js";
@@ -14,7 +15,6 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { ConfigSchema, type Config } from "../src/config.js";
 import { createServer, type AbapsmithServer } from "../src/server.js";
 import { AuthCircuitBreaker } from "../src/adt/circuit-breaker.js";
-import type { AbapMode } from "../src/mode.js";
 import { routeSystemRoleProbe } from "./helpers/system-role-fake.js";
 
 class ForbiddenClient implements HttpClient {
@@ -23,7 +23,7 @@ class ForbiddenClient implements HttpClient {
   }
 }
 
-function fullyOpenV1Config(): Config {
+function fullyOpenConfig(): Config {
   return {
     ...ConfigSchema.parse({
       url: "http://sap.invalid:50000",
@@ -31,25 +31,10 @@ function fullyOpenV1Config(): Config {
       password: "secret",
       sid: "TST",
       client: "001",
-      toolSurface: "v1",
       readOnly: false,
       allowPackages: ["*"],
       allowNamePrefixes: ["Z", "Y"],
     }),
-  };
-}
-
-function v2Config(abapMode: AbapMode): Config {
-  return {
-    ...ConfigSchema.parse({
-      url: "http://sap.invalid:50000",
-      user: "TESTUSER",
-      password: "secret",
-      sid: "TST",
-      client: "001",
-      toolSurface: "v2",
-    }),
-    abapMode,
   };
 }
 
@@ -89,62 +74,61 @@ function expectTypedArray(schema: JsonSchema, field: string, toolName: string): 
 }
 
 describe("tool schema — array parameters declare item types", () => {
-  it("v1 abap_debug: breakpoints is an array of typed items", async () => {
-    const h = await harness(fullyOpenV1Config());
+  it("abap_debug: breakpoints is an array of typed items", async () => {
+    const h = await harness(fullyOpenConfig());
     const schema = await schemaOf(h, "abap_debug");
-    expectTypedArray(schema, "breakpoints", "abap_debug (v1)");
+    expectTypedArray(schema, "breakpoints", "abap_debug");
   });
 
-  it("v1 abap_write: view_fields and objects are arrays of typed items", async () => {
-    const h = await harness(fullyOpenV1Config());
+  it("abap_write: view_fields and objects are arrays of typed items", async () => {
+    const h = await harness(fullyOpenConfig());
     const schema = await schemaOf(h, "abap_write");
-    expectTypedArray(schema, "view_fields", "abap_write (v1)");
-    expect(schema.properties.view_fields.items.type, "abap_write (v1) view_fields items").toBe("string");
+    expectTypedArray(schema, "view_fields", "abap_write");
+    expect(schema.properties.view_fields.items.type, "abap_write view_fields items").toBe("string");
 
-    expectTypedArray(schema, "objects", "abap_write (v1)");
-    expect(schema.properties.objects.items.type, "abap_write (v1) objects items").toBe("object");
-  });
-
-  it("v2 abap_debug: breakpoints is an array of typed items", async () => {
-    const h = await harness(v2Config("admin"));
-    const schema = await schemaOf(h, "abap_debug");
-    expectTypedArray(schema, "breakpoints", "abap_debug (v2)");
-    expect(schema.properties.breakpoints.items.type, "abap_debug (v2) breakpoints items").toBe("string");
+    expectTypedArray(schema, "objects", "abap_write");
+    expect(schema.properties.objects.items.type, "abap_write objects items").toBe("object");
   });
 });
 
 /**
- * `z.discriminatedUnion` lowers to a two-branch `oneOf` with no `$ref` dedup,
- * so every shared field between the branches is serialized twice per session
- * of every client. This guards the wire size of `abap_debug`'s `breakpoints`
- * property against that regressing, and separately guards that trimming
- * descriptions to fix it never trims an enforced validator.
+ * `z.discriminatedUnion` lowers to a multi-branch `oneOf` with no `$ref`
+ * dedup, so every shared field between the branches is serialized once per
+ * branch per session of every client — four times since issue #89 added the
+ * `statement` and `message` kinds. This guards the wire size of
+ * `abap_debug`'s `breakpoints` property against that regressing, and
+ * separately guards that trimming descriptions to fix it never trims an
+ * enforced validator.
  */
 describe("tool schema — abap_debug breakpoints stays small without losing validators", () => {
-  it("v1 abap_debug: breakpoints property serializes under the byte ceiling", async () => {
-    const h = await harness(fullyOpenV1Config());
+  it("abap_debug: breakpoints property serializes under the byte ceiling", async () => {
+    const h = await harness(fullyOpenConfig());
     const schema = await schemaOf(h, "abap_debug");
     const bytes = Buffer.byteLength(JSON.stringify(schema.properties.breakpoints), "utf8");
     expect(
       bytes,
-      `abap_debug breakpoints serialized to ${bytes} bytes, over the 1250 ceiling. ` +
-        "z.discriminatedUnion inlines both the line and exception branches with no $ref " +
-        "dedup, so anything written into condition/skipCount is paid TWICE per session by " +
-        "every client — shared-field guidance belongs in the array-level description, not " +
-        "on condition/skipCount themselves.",
-    ).toBeLessThanOrEqual(1250);
+      `abap_debug breakpoints serialized to ${bytes} bytes, over the 2100 ceiling. ` +
+        "z.discriminatedUnion inlines all four kind branches (line/exception/statement/" +
+        "message) with no $ref dedup, so anything written into condition/skipCount is paid " +
+        "FOUR times per session by every client — shared-field guidance belongs in the " +
+        "array-level description, not on condition/skipCount themselves.",
+    ).toBeLessThanOrEqual(2100);
   });
 
-  it("v1 abap_debug: breakpoints branches keep every validator after the description trim", async () => {
-    const h = await harness(fullyOpenV1Config());
+  it("abap_debug: breakpoints branches keep every validator after the description trim", async () => {
+    const h = await harness(fullyOpenConfig());
     const schema = await schemaOf(h, "abap_debug");
     const oneOf = schema.properties.breakpoints.items.oneOf as JsonSchema[];
-    expect(oneOf, "abap_debug breakpoints items should be a 2-branch oneOf").toHaveLength(2);
+    expect(oneOf, "abap_debug breakpoints items should be a 4-branch oneOf").toHaveLength(4);
 
     const lineBranch = oneOf.find((b) => b.properties?.kind?.const === "line");
     const exceptionBranch = oneOf.find((b) => b.properties?.kind?.const === "exception");
+    const statementBranch = oneOf.find((b) => b.properties?.kind?.const === "statement");
+    const messageBranch = oneOf.find((b) => b.properties?.kind?.const === "message");
     expect(lineBranch, "no breakpoints branch with kind.const === \"line\"").toBeDefined();
     expect(exceptionBranch, "no breakpoints branch with kind.const === \"exception\"").toBeDefined();
+    expect(statementBranch, "no breakpoints branch with kind.const === \"statement\"").toBeDefined();
+    expect(messageBranch, "no breakpoints branch with kind.const === \"message\"").toBeDefined();
 
     expect(lineBranch!.required, "line branch required fields").toEqual(
       expect.arrayContaining(["kind", "object", "line"]),
@@ -152,10 +136,18 @@ describe("tool schema — abap_debug breakpoints stays small without losing vali
     expect(exceptionBranch!.required, "exception branch required fields").toEqual(
       expect.arrayContaining(["kind", "exceptionClass"]),
     );
+    expect(statementBranch!.required, "statement branch required fields").toEqual(
+      expect.arrayContaining(["kind", "statement"]),
+    );
+    expect(messageBranch!.required, "message branch required fields").toEqual(
+      expect.arrayContaining(["kind", "msgId", "msgNo", "msgTy"]),
+    );
 
     for (const [name, branch] of [
       ["line", lineBranch!],
       ["exception", exceptionBranch!],
+      ["statement", statementBranch!],
+      ["message", messageBranch!],
     ] as const) {
       expect(branch.properties.condition, `${name} branch condition schema`).toMatchObject({
         type: "string",

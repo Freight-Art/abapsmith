@@ -1,7 +1,7 @@
 /**
  * Invariant 2: "a failure must always set the MCP `isError` flag."
- * `test/iserror-envelope-contract.test.ts` drives `errorResult`/`v2Result`
- * directly across the whole error taxonomy; it cannot see (A) a stray
+ * `test/iserror-envelope-contract.test.ts` drives `errorResult` directly
+ * across the whole error taxonomy; it cannot see (A) a stray
  * `isError` assignment anywhere else in `src/`, or (B) a real failing tool
  * call that never reaches either constructor. This file covers both.
  */
@@ -129,8 +129,8 @@ const rel = (f: string) => relative(SRC, f).split("\\").join("/");
 
 /**
  * Every `isError:` assignment site (object-literal key or type field), with
- * its RHS text. `.isError` property READS (e.g. `if (res.isError)` in
- * src/tools/v2/unknown.ts) have no colon after them and never match.
+ * its RHS text. `.isError` property READS (e.g. `if (res.isError)`
+ * elsewhere in src/) have no colon after them and never match.
  */
 const assignments = files.flatMap((f) =>
   [...contents.get(f)!.matchAll(/isError\s*:\s*([^\n,};]+)/g)].map((m) => ({
@@ -158,7 +158,7 @@ describe("invariant 2 — src/ never sets isError to anything but true", () => {
       "the set of files assigning `isError` changed. If this is a deliberate new envelope " +
         "constructor, add it here on purpose and confirm it only ever sets isError:true for a " +
         "failure — do not edit this list just to turn a red run green.",
-    ).toEqual(["tool-errors.ts", "tools/v2/envelope.ts"]);
+    ).toEqual(["tool-errors.ts"]);
   });
 
   it("the scan itself is non-vacuous", () => {

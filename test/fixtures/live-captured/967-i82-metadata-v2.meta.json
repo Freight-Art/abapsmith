@@ -1,0 +1,30 @@
+{
+  "n": 967,
+  "label": "i82-metadata-v2",
+  "expect": "the real V2 $metadata EDMX is fetchable end to end and is 124245 bytes of genuine SAP vocabulary Reference/Include declarations, EntityType/Association navigation and sap: capability attributes \u2014 the shape src/adt/edmx.ts's V2 branch parses, not an invention",
+  "note": "GET the OData V2 $metadata EDMX for /DMO/UI_TRAVEL_U_V2",
+  "requestMethod": "GET",
+  "requestUrl": "/sap/opu/odata/DMO/UI_TRAVEL_U_V2/$metadata",
+  "requestHeaders": {
+    "Accept": "application/xml"
+  },
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-type": "application/xml",
+    "content-length": "124245",
+    "sap-authenticated": "true",
+    "last-modified": "Tue, 02 Jun 2026 13:13:12 GMT",
+    "cache-control": "max-age=0",
+    "dataserviceversion": "2.0",
+    "sap-processing-info": "ODataBEP=,crp=,RAL=,st=,MedCacheHub=Table,codeployed=X,softstate=",
+    "sap-server": "true",
+    "sap-perf-fesrec": "557935.000000"
+  },
+  "byteLength": 124245,
+  "zeroByteBody": false,
+  "sha256": "3a1431ef084dce281bae3fde9b7ae09ad2244cab4f76b7cbbc51e24d0875ce5d",
+  "utcTimestamp": "2026-09-15T03:53:31.707Z",
+  "durationMs": 794,
+  "sessionName": "LIVE-I82"
+}

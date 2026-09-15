@@ -93,9 +93,9 @@ inputs to this derivation rather than registry fields:
 | `ENQU/DL` | Lock object | yes | partial | yes | yes | yes | live |
 | `DEVC/K` | Package | yes | yes | no | partial | no | live |
 | `SRVB/SVB` | Service binding | yes | partial | yes | yes | yes | live |
-| `SHLP/DH` | Search help | no | no | no | no | no | tests |
-| `VIEW/DV` | Classic view | partial | no | no | partial | no | unverified |
-| `TRAN/T` | Transaction | partial | no | no | partial | no | unverified |
+| `SHLP/DH` | Search help | partial | yes | no | partial | no | live |
+| `VIEW/DV` | Classic view | partial | yes | no | partial | no | unverified |
+| `TRAN/T` | Transaction | partial | yes | no | partial | no | unverified |
 | `PROG/PS` | Screen (dynpro) | no | no | no | no | no | tests |
 | `PROG/PC` | GUI status (CUA status) | no | no | no | no | no | tests |
 | `PROG/PT` | GUI title (titlebar) | no | no | no | no | no | tests |
@@ -154,46 +154,75 @@ The `Object` column values are the registry `label` fields, unreworded.
   change target for one. The REST (LOCAL) create is live-verified,
   2026-09-04 on A4H: a root package created over ADT REST landed live, was
   read back, was searchable, and was deleted through abapsmith.
-- `VIEW/DV` and `TRAN/T` — create and delete only, both through a generated
-  `IF_OO_ADT_CLASSRUN` bridge class. There is no `TypeSpec` for either, so
-  `abap_read` cannot build a URI and there is no read-back at all: after
-  creating one you cannot ask abapsmith what it looks like. There is no
-  source write either, so an existing one cannot be changed — only deleted
-  and recreated. Their `bridgeCreate.limits` text states this, and a test
-  requires it to. For `TRAN/T`, a transportable package requires `corr_nr`
-  for the create, and a `$` package (`$TMP` included) refuses one and
-  registers with `korrnum = space` instead. For `VIEW/DV`, a transportable
-  package resolves a transport request the same way a `DEVC/K` create
-  does — the caller's `corr_nr` if given, or else one picked or created
-  under `ABAP_ALLOW_TRANSPORTS`; a `$` package (`$TMP` included) still
-  refuses a `corr_nr` and registers with `korrnum = space` instead.
-  The created view lands in TADIR either way, so the delete
+- `SHLP/DH`, `VIEW/DV` and `TRAN/T` — create, update and delete through a
+  generated `IF_OO_ADT_CLASSRUN` bridge class; read through a plain-text
+  catalog `SELECT` instead (`src/adt/catalog-query.ts`,
+  `src/adt/catalog-read.ts`), not through ADT REST or the bridge. There is
+  no `TypeSpec.write` for any of the three, so `abap_write`'s `mode="write"`
+  (create) and `mode="delete"` reach them through `bridgeCreate`/
+  `bridgeDelete` instead of the registry's normal `write` field — that is
+  why the Update column above is `no` even though `mode="update"` exists
+  for all three: the derivation keys on `TypeSpec.write`, which none of the
+  three has, and `mode="update"` for `SHLP/DH`/`VIEW/DV`/`TRAN/T` REPLACES
+  the whole definition (every field/include/assignment not passed is
+  dropped) rather than patching it the way a `write`-field type's PUT does.
+  `SHLP/DH` delete refuses when the search help is still attached to a data
+  element (`DD04L`), an individual field (`DD35L`), or included by a
+  collective search help (`DD31S`), unless `confirm_in_use`. `VIEW/DV`
+  delete refuses when `TVDIR` shows a generated SE54 maintenance dialog for
+  it, unless `confirm_maintenance_dialog`. `TRAN/T` delete and retarget
+  (`mode="update"`) refuse when `AGR_TCODES` lists the tcode in a role's
+  menu, unless `confirm_in_role_menu`. None of the three checks an SM01
+  transaction lock either way. For `TRAN/T`, a transportable package
+  requires `corr_nr` for the create or retarget, and a `$` package (`$TMP`
+  included) refuses one and registers with `korrnum = space` instead. For
+  `VIEW/DV`, a transportable package resolves a transport request the same
+  way a `DEVC/K` create does — the caller's `corr_nr` if given, or else one
+  picked or created under `ABAP_ALLOW_TRANSPORTS`; a `$` package (`$TMP`
+  included) still refuses a `corr_nr` and registers with `korrnum = space`
+  instead. `SHLP/DH` follows the same local/transportable pairing rule as
+  the other two. The created view lands in TADIR either way, so the delete
   bridge can remove it afterwards — proven live on A4H, 2026-09-04
   (a transportable package, with `corr_nr`) and 2026-09-05 (a
   `$`-prefixed package: view registered with `korrnum = space`, then deleted,
-  VIEW-DELETED / VIEW-GONE). For `TRAN/T`, only `RPY_TRANSACTION_INSERT`'s
+  VIEW-DELETED / VIEW-GONE). For `TRAN/T`, `RPY_TRANSACTION_INSERT`'s
   signature was read live on A4H 2026-09-05 — `transport_number` is optional
   and forwarded verbatim to `RS_CORR_INSERT` as `korrnum`, and
-  `suppress_corr_insert` defaults to space so registration always runs. No
-  create into a transportable package has been run; a `$`-package transaction
-  was created and deleted live on 2026-09-05 (TRAN-DELETED / TRAN-GONE).
-  Because neither delete bridge issues an `RS_CORR_INSERT`, the delete records
+  `suppress_corr_insert` defaults to space so registration always runs; and
+  `RPY_TRANSACTION_DELETE`'s signature was captured live on A4H 2026-09-12
+  (used by both plain delete and retarget) — `IN TRANSACTION TSTC-TCODE`
+  (required), `TRANSPORT_NUMBER RGLIF-TRKORR`,
+  `SUPPRESS_AUTHORITY_CHECK`/`SUPPRESS_CORR_INSERT`/`SUPPRESS_CORR_CHECK`
+  (all `CHAR1`), exceptions `NOT_EXCECUTED` (SAP's own misspelling) and
+  `OBJECT_NOT_FOUND` — this entry previously called it inferred; it is not.
+  No create into a transportable package has been run for any of the three;
+  a `$`-package transaction was created and deleted live on 2026-09-05
+  (TRAN-DELETED / TRAN-GONE), and a `$TMP` search help, view and transaction
+  were each taken through create/update/delete (search help also through a
+  collective-help create and a where-used check) live on 2026-09-12 — see
+  `doc/LIMITATIONS/editing.md` for the message numbers and counts. Because
+  neither delete bridge issues an `RS_CORR_INSERT`, the delete records
   nothing in CTS: any entry the object already had on a transport request
   (typically from its create) survives the delete, and the safety gate judges
   the delete itself as a local mutation rather than against
-  `ABAP_ALLOW_TRANSPORTS`.
-  `TABL/DI` (a table's secondary index) is a third bridge-only type — ADT
-  REST still has no index collection at all, so creation and deletion go
-  through `DD_INDEX_INTERFACE` — but it is no longer read-blind: `catalogRead`
-  sends `abap_read {"object": "<TABLE>/<INDEX>", "type": "TABL/DI"}` to a
-  render built from `DD12V`/`DD17S`, the same two catalog tables the create
-  and delete bridges now re-read after every write to confirm `verified`. A
-  `TABL/DT` read also grew an `indexes` section listing every secondary
-  index found this way. As with `SUSO/B` above, the Read column reads `yes`
-  for `TABL/DI` even though there is no `TypeSpec` and no ADT REST URI:
-  `catalogRead` is what makes it readable despite that. The `DD12V`/`DD17S`
-  reads behind this render were captured live against A4H, 2026-09-12
-  (`test/fixtures/live-captured/INDEX.md`, captures 858-860); the
+  `ABAP_ALLOW_TRANSPORTS`. Both update routes journal the pre-update
+  rendered pseudo-DDL as a before-image, but the entry is `irreversible:
+  true`: it is for audit and manual comparison only, not automatic undo —
+  `abap_journal mode=undo` refuses it outright.
+  `TABL/DI` (a table's secondary index) is a bridge-only type distinct from
+  the three above: ADT REST has no index collection at all, so creation and
+  deletion go through `DD_INDEX_INTERFACE`, and it is readable through a
+  DIFFERENT route than `SHLP/DH`/`VIEW/DV`/`TRAN/T` — not the `mode: "ddic"`
+  catalog SELECTs of `src/adt/catalog-read.ts`, but a `catalogRead` registry
+  entry that sends `abap_read {"object": "<TABLE>/<INDEX>", "type":
+  "TABL/DI"}` to a render built from `DD12V`/`DD17S`, the same two catalog
+  tables the create and delete bridges now re-read after every write to
+  confirm `verified`. A `TABL/DT` read also grew an `indexes` section listing
+  every secondary index found this way. As with `SUSO/B` below, the Read
+  column reads `yes` for `TABL/DI` even though there is no `TypeSpec` and no
+  ADT REST URI: `catalogRead` is what makes it readable despite that. The
+  `DD12V`/`DD17S` reads behind this render were captured live against A4H,
+  2026-09-12 (`test/fixtures/live-captured/INDEX.md`, captures 858-860); the
   `abap_read` route itself has not been exercised end to end against a live
   system on this branch. A non-unique, one-field create in `$TMP`
   was proven live on A4H 2026-09-05, confirmed by a post-COMMIT re-read of
@@ -247,14 +276,18 @@ The `Object` column values are the registry `label` fields, unreworded.
   equality. Hook anchors on a class are discoverable, but creating a hook
   implementation on one is refused; a function group would be refused the
   same way.
-- `SHLP/DH`, `PROG/PS`, `PROG/PC`, `PROG/PT` — carry an `unsupported` entry:
-  no read, no write, no URI. Each states a reason established by live
+- `PROG/PS`, `PROG/PC`, `PROG/PT` — carry an `unsupported` entry: no read,
+  no write, no URI. Each states a reason established by live
   reconnaissance — 404s on every collection, 405s on every write verb,
   content-free VIT stubs — so the `tests` in their Evidence column grades the
-  refusal the tests pin, not the recon behind it.
+  refusal the tests pin, not the recon behind it. `SHLP/DH` no longer
+  belongs on this list: it has `bridgeCreate` and `bridgeDelete` entries
+  instead of `unsupported`, and its Evidence column is `unverified` (a write
+  route is claimed), not `tests` — see the `SHLP/DH`, `VIEW/DV` and `TRAN/T`
+  entry above.
 - `SUSO/B` — also carries an `unsupported` entry (no URI, no write; `SU21`,
   a SAPGUI transaction outside abapsmith's reach, is the only way to edit an
-  authorization object), but unlike the other four it is not read-blind:
+  authorization object), but unlike the three above it is not read-blind:
   `catalogRead` sends `abap_read {"object": "<NAME>", "type": "SUSO/B"}`
   (e.g. `S_TABU_NAM`) to a render built from eight DDIC catalog tables
   (`TOBJ`, `TOBJT`, `TOBCT`, `TACTZ`, `TACTT`, `AUTHX`, `DD04L`, `DD07V`),

@@ -47,12 +47,17 @@ import {
 import { readTableIndexes, type SecondaryIndexInfo } from "../adt/index-read.js";
 import { createPackageViaBridge, tdevcDiscrepancies } from "../adt/package-create.js";
 import type { RunResult } from "../adt/run.js";
-import { serverPackage } from "../adt/resolved-package.js";
+import { serverPackage, type ServerPackage } from "../adt/resolved-package.js";
 import { isLocalPackageName } from "../adt/transports.js";
 import { assertTransactionCreateTarget, createTransaction } from "../adt/tran-create.js";
 import { deleteTransactionViaBridge } from "../adt/tran-delete.js";
+import { assertTransactionUpdateTarget, updateTransaction } from "../adt/tran-update.js";
 import { assertClassicViewCreateTarget, classicViewUri, createClassicView } from "../adt/view-create.js";
 import { deleteClassicViewViaBridge } from "../adt/view-delete.js";
+import { updateClassicView } from "../adt/view-update.js";
+import { assertSearchHelpTarget, createSearchHelp, updateSearchHelp, type SearchHelpParams } from "../adt/shlp-create.js";
+import { deleteSearchHelpViaBridge } from "../adt/shlp-delete.js";
+import { readClassicView, readSearchHelp, readTransaction } from "../adt/catalog-read.js";
 import {
   verifyObjectCreated,
   verifyObjectDeleted,
@@ -77,6 +82,7 @@ import {
 } from "../adt/source.js";
 import type { MethodBlock, SourceRange } from "../adt/source.js";
 import { CLASS_INCLUDES, specForKeyword, specForType } from "../adt/types.js";
+import type { DdicRender } from "../adt/ddic.js";
 import {
   activationFromBody,
   assertNoDuplicateDeleteTargets,
@@ -109,7 +115,7 @@ import type { Config, VerifyWritesMode } from "../config.js";
 import type { BeforeImageCapture, Journal } from "../journal.js";
 import { journalRef, systemKey, withJournalledMutation } from "../journal.js";
 import { normalizeCorrNr, type AuthorizedTarget, type MutatingOperation, type SafetyGate } from "../safety.js";
-import { applyEdit, describeEditFailure, EditInputError } from "./v2/edit.js";
+import { applyEdit, describeEditFailure, EditInputError } from "./edit.js";
 import { buildDeleteDryRunResponse, buildWriteDryRunResponse, dryRunNotSupported } from "./write-dry-run.js";
 import { enhancementPreflightIntent, preflight, writeGateKey } from "./preflight.js";
 
@@ -195,12 +201,130 @@ export const writeInputSchema = {
       longLength: z.number().optional(),
       headingLabel: z.string().optional(),
       headingLength: z.number().optional(),
+      searchHelp: z
+        .string()
+        .optional()
+        .describe(
+          "DTEL/DE only: search help attached to this data element (DD04L-SHLPNAME). Must name an " +
+            "existing, active SHLP/DH — not checked before send. Uppercased, max 30 chars.",
+        ),
+      searchHelpParameter: z
+        .string()
+        .optional()
+        .describe(
+          "DTEL/DE only: the search help's own interface parameter this data element binds to " +
+            "(DD04L-SHLPFIELD, e.g. DD32P-FIELDNAME on the search help itself) — not the data " +
+            "element's own name. Refused without `searchHelp`. Uppercased, max 30 chars.",
+        ),
     })
     .strict()
     .optional()
     .describe("DOMA/DD, DTEL/DE, TTYP/DA: alt to `source`, never both."),
+  // SHLP/DH create/update, required: DD30V/DD32P/DD31V/DD33V fields no
+  // existing field can carry. Mirrors `ddic` above's structured-field
+  // convention rather than a flat SHLP_* field explosion. Builder is
+  // `SearchHelpParams` (src/adt/shlp-create.ts); this schema only lists the
+  // fields that shape accepts. `update_search_help` REPLACES the whole
+  // interface/includes/assignments list, same as a DDIF_VIEW_PUT view
+  // update — nothing carried over here from what already exists.
+  shlp: z
+    .object({
+      selectionMethod: z
+        .string()
+        .optional()
+        .describe(
+          "DD30V-SELMETHOD: table or view the search help selects from. Omit for a collective search " +
+            "help, or an elementary one driven by a search-help exit instead of a table/view — both " +
+            "are normal and have no selection method at all.",
+        ),
+      selectionMethodType: z
+        .enum(["T", "V", "M"])
+        .optional()
+        .describe(
+          "DD30V-SELMTYPE. Only meaningful alongside selectionMethod; omit when selectionMethod is " +
+            "omitted too.",
+        ),
+      dialogType: z.string().optional().describe("DD30V-DIALOGTYPE. Defaults to \"D\" when omitted."),
+      textTable: z.string().optional().describe("DD30V-TEXTTAB."),
+      hotKey: z.string().optional().describe("DD30V-HOTKEY, one character."),
+      elementary: z
+        .boolean()
+        .describe("DD30V-ISSIMPLE. If true, `fields` must carry at least one import and one export parameter."),
+      fields: z
+        .array(
+          z.object({
+            name: z.string().describe("DD32P-FIELDNAME."),
+            dataElement: z.string().describe("DD32P-ROLLNAME."),
+            import: z.boolean().optional().describe("DD32P-SHLPINPUT."),
+            export: z.boolean().optional().describe("DD32P-SHLPOUTPUT."),
+            defaultValue: z.string().optional().describe("DD32P-DEFAULTVAL."),
+          }),
+        )
+        .describe("Interface fields (DD32P), in order."),
+      includes: z
+        .array(z.object({ name: z.string().describe("DD31V-SUBSHLP.") }))
+        .optional()
+        .describe(
+          "Other search helps included by this one (DD31V), in order. Optional — empty or omitted is " +
+            "fine, including for elementary: false. Each name must exist as an ACTIVE search help " +
+            "(DD30L); refused before registration otherwise (CHECK_FAILED), rather than passing " +
+            "DDIF_SHLP_PUT and stranding this help as inactive-only when DDIF_SHLP_ACTIVATE then fails " +
+            "(DH109).",
+        ),
+      assignments: z
+        .array(
+          z.object({
+            field: z
+              .string()
+              .describe(
+                "DD33V-FIELDNAME, this search help's field. Must match one of this call's own " +
+                  "`fields[].name` (case-insensitive); refused before send otherwise (BAD_INPUT).",
+              ),
+            includedHelp: z
+              .string()
+              .describe(
+                "DD33V-SUBSHLP. Must match one of this call's own `includes[].name` " +
+                  "(case-insensitive); refused before send otherwise (BAD_INPUT).",
+              ),
+            includedField: z
+              .string()
+              .describe(
+                "DD33V-SUBFIELD. Must be an ACTIVE interface parameter (DD32S) of `includedHelp`; " +
+                  "checked server-side before RS_CORR_INSERT and refused otherwise (CHECK_FAILED) — " +
+                  "this needs that other search help's own DD32P/DD32S, so it is not checked " +
+                  "zero-network.",
+              ),
+            direction: z
+              .enum(["I", "E"])
+              .describe(
+                "DD33V-VALUEDIREC: I=import into, E=export from the included help. DDIC may normalise " +
+                  'the stored value to C ("both import and export") on read-back when the target ' +
+                  "parameter is both import and export.",
+              ),
+          }),
+        )
+        .optional()
+        .describe(
+          "Field assignments (DD33V) between an included search help and this one's interface. A " +
+            "`field`/`includedHelp` not found in this call's own `fields`/`includes`, or an " +
+            "`includedField` that is not an active parameter of `includedHelp`, would otherwise pass " +
+            "DDIF_SHLP_PUT and fail DDIF_SHLP_ACTIVATE (DH109) — all three are refused first instead; " +
+            "see each field below.",
+        ),
+    })
+    .strict()
+    .optional()
+    .describe("SHLP/DH create/update, required: search help definition. See SearchHelpParams in src/adt/shlp-create.ts."),
   expect_etag: z.string().optional().describe("Etag from abap_read; fails if changed."),
-  mode: z.enum(["write", "delete"]).optional().describe("Default write."),
+  mode: z
+    .enum(["write", "delete", "update"])
+    .optional()
+    .describe(
+      "Default write (create for most types). \"update\" retargets/replaces an EXISTING " +
+        "VIEW/DV, TRAN/T or SHLP/DH in place (DDIF_VIEW_PUT / RPY_TRANSACTION_DELETE+INSERT / " +
+        "DDIF_SHLP_PUT replace the whole definition/target) — refused zero-network for every " +
+        "other type.",
+    ),
   activate: z.boolean().optional().describe("Default true."),
   verify: z.boolean().optional().describe("Force verified mode; reads back after write."),
   format: z.boolean().optional().describe("Pretty-print source before writing."),
@@ -265,6 +389,35 @@ export const writeInputSchema = {
     .string()
     .optional()
     .describe("TRAN/T, required: existing SUBMIT-only report."),
+  confirm_in_use: z
+    .boolean()
+    .optional()
+    .describe(
+      "SHLP/DH delete only: required true when the search help is still attached to a data " +
+        "element, a table/view field, or included by a collective search help (DD04L/DD35L/" +
+        "DD31S). Refused zero-network for any other type/mode combination.",
+    ),
+  confirm_maintenance_dialog: z
+    .boolean()
+    .optional()
+    .describe(
+      "VIEW/DV delete: overrides the bridge's refusal when the view still has a generated " +
+        "SE54 maintenance dialog (TVDIR) — deleting the view leaves that dialog broken. The " +
+        "bridge's refusal names the specific dialog (function group area, package, type, screen) " +
+        "so a caller can read it and decide before passing this. Refused zero-network for any " +
+        "other type/mode combination.",
+    ),
+  confirm_in_role_menu: z
+    .boolean()
+    .optional()
+    .describe(
+      "TRAN/T mode=\"delete\" or mode=\"update\" (retarget): overrides the bridge's refusal " +
+        "when the tcode is already assigned to one or more roles' menus (AGR_TCODES). Deleting " +
+        "it removes it from those role menus; retargeting it changes what those menu entries " +
+        "launch. The bridge's refusal names the specific roles so a caller can read it and " +
+        "decide before passing this. An SM01 transaction lock is not checked either way. " +
+        "Refused zero-network for any other type/mode combination.",
+    ),
   // Same shape/wording as abap_enh's `affects` field (src/tools/enh.ts), so
   // callers share one vocabulary. Required for an enhancement-type write
   // (ENHO/XHH): the gate can't judge one from name/package/URI alone.
@@ -670,7 +823,7 @@ function bridgeDeleteTransportEntryNote(label: string, name: string, packageName
   );
 }
 
-/** `abap_write`'s `edit` form (v2). */
+/** `abap_write`'s `edit` form. */
 export interface WriteEdit {
   old_string: string;
   new_string: string;
@@ -1117,9 +1270,9 @@ export function rethrowWithDdicSkeletonHint(e: unknown, type?: string, name?: st
  *    `assertNotToolResponseEcho` below and, when an etag is supplied,
  *    `writeObject`'s `assertNotPartialReadSource` (src/adt/write.ts).
  *
- * `handlers/write.ts` (v2) already rejects `edit`+`source`/`edit`+`method`
- * together; the checks here are a defensive re-statement for other callers
- * (tests, `abapWrite` driven directly), not the primary gate.
+ * The `edit`+`source`/`method`-requires-`source` checks below are the only
+ * gate for these three forms — callers (the registered tool, tests,
+ * `abapWrite` driven directly) all funnel through here.
  */
 export async function resolveWriteSource(
   conn: AbapConnection,
@@ -1263,7 +1416,7 @@ export async function resolveWriteSource(
     assertNotToolResponseEcho(input.source, t.name, t.type);
     // `partial:` marker passed through UNSTRIPPED (unlike `edit` above) —
     // `writeObject` (src/adt/write.ts) refuses it there where `current` is
-    // already in hand, covering v1 and v2 in one place.
+    // already in hand.
     return { source: input.source, ...(input.expect_etag ? { expectEtag: input.expect_etag } : {}) };
   }
 
@@ -1422,6 +1575,23 @@ export async function abapWrite(
   if (isBridgeOnlyCreateType(input.type)) {
     if (input.dry_run) throw dryRunNotSupported("bridge", input.type);
     return await abapBridgeCrud(conn, target, input, maxChars, gate, journal, transport);
+  }
+
+  // Zero-network refusal for `mode="update"` on any type that isn't one of the three
+  // bridge update routes (VIEW/DV, TRAN/T, SHLP/DH — see `isBridgeUpdateType` /
+  // `BRIDGE_UPDATE_TYPES` near `abapUpdateViaBridge`). Every type with a real update
+  // route is `isBridgeOnlyCreateType` and already returned above, dispatched into
+  // `abapBridgeCrud` → `abapUpdateViaBridge`, whose OWN type check re-derives the same
+  // answer from the same list — so this and that can never disagree. Without this gate,
+  // a type like CLAS/OC falls through to the generic write path below, which has no idea
+  // `mode="update"` was ever requested and misreports the failure as a missing `source`
+  // (issue #83) — so this must fire before `authorizeMutation` or any other network use
+  // below, not just before the misleading message.
+  if ((input.mode ?? "write") === "update") {
+    const requestedType = (input.type ?? "").trim().toUpperCase();
+    if (!isBridgeUpdateType(requestedType)) {
+      throw bridgeUpdateNotSupported(requestedType, target.name);
+    }
   }
 
   /** Transport plumbing, spread into both mutation calls so write/delete can't drift apart on it. */
@@ -3251,15 +3421,68 @@ async function abapCreatePackage(
 }
 
 /**
- * `VIEW/DV` / `TRAN/T` / `TABL/DI` — both create and delete, through the classrun bridge.
- * `resolveWriteTarget` refuses these types outright for ANY op (see the
+ * Zero-network refusal for the three where-used/impact guard flags
+ * (`confirm_in_use`, `confirm_maintenance_dialog`, `confirm_in_role_menu`):
+ * each means something for exactly one type+mode combination (or, for
+ * `confirm_in_role_menu`, two — TRAN/T delete and TRAN/T mode="update"),
+ * never a silent no-op for any other. All three are threaded through to the
+ * classrun bridge that actually enforces the guard: `confirm_in_use` by
+ * `deleteSearchHelpViaBridge` (`src/adt/shlp-delete.ts`),
+ * `confirm_maintenance_dialog` by `deleteClassicViewViaBridge`
+ * (`src/adt/view-delete.ts`), and `confirm_in_role_menu` by
+ * `deleteTransactionViaBridge` (`src/adt/tran-delete.ts`) and
+ * `updateTransaction` (`src/adt/tran-update.ts`).
+ */
+function assertGuardFlagsApplicable(type: string, input: WriteInput): void {
+  const mode = input.mode ?? "write";
+  const inapplicable = (field: string, message: string): never => {
+    throw new AbapError("BAD_INPUT", message, { type, mode, field });
+  };
+
+  if (input.confirm_in_use !== undefined && !(type === "SHLP/DH" && mode === "delete")) {
+    inapplicable(
+      "confirm_in_use",
+      "`confirm_in_use` only applies to a SHLP/DH delete (DD04L/DD35L/DD31S where-used guard). " +
+        `Omit it for ${type || "this type"} mode="${mode}".`,
+    );
+  }
+  if (input.confirm_maintenance_dialog !== undefined && !(type === "VIEW/DV" && mode === "delete")) {
+    inapplicable(
+      "confirm_maintenance_dialog",
+      "`confirm_maintenance_dialog` only applies to a VIEW/DV delete (TVDIR maintenance-dialog " +
+        `guard). Omit it for ${type || "this type"} mode="${mode}".`,
+    );
+  }
+  if (input.confirm_in_role_menu !== undefined) {
+    if (type !== "TRAN/T") {
+      inapplicable(
+        "confirm_in_role_menu",
+        `\`confirm_in_role_menu\` only applies to TRAN/T. Omit it for ${type || "this type"}.`,
+      );
+    }
+    if (mode !== "delete" && mode !== "update") {
+      inapplicable(
+        "confirm_in_role_menu",
+        `\`confirm_in_role_menu\` only applies to TRAN/T mode="delete" or mode="update". Omit it for mode="${mode}".`,
+      );
+    }
+  }
+}
+
+/**
+ * `VIEW/DV` / `TRAN/T` / `SHLP/DH` / `TABL/DI` — create, update and delete, through the
+ * classrun bridge. `resolveWriteTarget` refuses these types outright for ANY op (see the
  * `isBridgeOnlyCreateType` refusal in `src/adt/write.ts`) — there is no writable ADT
  * collection to resolve a URI against — so this is the ONLY place any of them is gated.
- * `TABL/DI` is dispatched to its own pair of functions first: the `vitType` ternary
+ * `TABL/DI` is dispatched to its own pair of functions first (no `update`: an index has
+ * no in-place retarget, only re-create-after-delete): the `vitType` ternary
  * `abapCreateViaBridge`/`abapDeleteViaBridge` use below has no VIT bridge object type for
  * a secondary index (it has no ADT resource at all, VIT or otherwise), so a third type
- * cannot be folded into that pair without breaking it. Dispatches on `mode` before any
- * sibling below is reached.
+ * cannot be folded into that pair without breaking it. `SHLP/DH` has no VIT bridge type
+ * either (ADT 404s on it too, and there is no VIT stub for search helps) — its create and
+ * delete are their own functions below, verified through `readSearchHelp`
+ * (`src/adt/catalog-read.ts`) instead. `mode: "update"` is dispatched before any create/
+ * delete sibling is reached — it never applies to `TABL/DI`.
  */
 async function abapBridgeCrud(
   conn: AbapConnection,
@@ -3271,12 +3494,31 @@ async function abapBridgeCrud(
   transport?: SessionTransport,
 ): Promise<BuiltResponse> {
   const type = (input.type ?? "").trim().toUpperCase();
+  assertGuardFlagsApplicable(type, input);
+  const mode = input.mode ?? "write";
   if (type === "TABL/DI") {
-    return (input.mode ?? "write") === "delete"
+    if (mode === "update") {
+      throw new AbapError(
+        "BAD_INPUT",
+        'A TABL/DI (secondary index) has no update route: DD_INDEX_INTERFACE creates or drops one, ' +
+          "it does not retarget an existing index's fields in place.",
+        { type, mode },
+        'Delete the index (mode="delete") and create a new one with the desired `index_fields`.',
+      );
+    }
+    return mode === "delete"
       ? abapDeleteIndexViaBridge(conn, target, input, maxChars, gate)
       : abapCreateIndexViaBridge(conn, target, input, maxChars, gate);
   }
-  return (input.mode ?? "write") === "delete"
+  if (mode === "update") {
+    return abapUpdateViaBridge(conn, target, input, maxChars, gate, journal);
+  }
+  if (type === "SHLP/DH") {
+    return mode === "delete"
+      ? abapDeleteSearchHelpViaBridge(conn, target, input, maxChars, gate, journal)
+      : abapCreateSearchHelpViaBridge(conn, target, input, maxChars, gate, journal);
+  }
+  return mode === "delete"
     ? abapDeleteViaBridge(conn, target, input, maxChars, gate)
     : abapCreateViaBridge(conn, target, input, maxChars, gate, journal, transport);
 }
@@ -3915,10 +4157,18 @@ async function abapDeleteViaBridge(
     // `resolved`, not `packageName`: both bridges now require the branded `ServerPackage`
     // (src/adt/resolved-package.ts) so the compiler, not just this function, refuses a
     // caller-supplied or re-derived string at this boundary.
-    deleted = await deleteClassicViewViaBridge(conn, gate, { viewName: target.name, packageName: resolved });
+    deleted = await deleteClassicViewViaBridge(conn, gate, {
+      viewName: target.name,
+      packageName: resolved,
+      confirmMaintenanceDialog: input.confirm_maintenance_dialog,
+    });
   } else {
     bridgeClass = CLASSIC_BODY_CLASS;
-    deleted = await deleteTransactionViaBridge(conn, gate, { tcode: target.name, packageName: resolved });
+    deleted = await deleteTransactionViaBridge(conn, gate, {
+      tcode: target.name,
+      packageName: resolved,
+      confirmInRoleMenu: input.confirm_in_role_menu,
+    });
   }
 
   const outcome = await verifyObjectDeleted(conn, {
@@ -3973,6 +4223,1064 @@ async function abapDeleteViaBridge(
       "NOT journalled: a bridge delete captures no before-image, so abap_journal mode=undo cannot " +
         "restore this object. To bring it back, create it again with a fresh abap_write call.",
       isLocalPackageName(packageName) ? "" : bridgeDeleteTransportEntryNote(label, target.name, packageName),
+    ].filter((n) => n !== ""),
+    maxChars,
+  });
+}
+
+/**
+ * Runs a catalog read (`src/adt/catalog-read.ts`), returning `undefined` for a
+ * "not found" `AbapError` rather than throwing — the SHLP/DH (and, inside
+ * {@link abapUpdateViaBridge}, VIEW/DV and TRAN/T) analogue of
+ * `verifyViaVitBridge`'s `confirmed-absent`, for the one type with no VIT bridge to
+ * ask instead. Any OTHER `AbapError` (a connection failure, a malformed query) is
+ * rethrown rather than swallowed into a false absence.
+ */
+async function catalogProbe<T>(read: () => Promise<T>): Promise<T | undefined> {
+  try {
+    return await read();
+  } catch (e) {
+    if (isAbapError(e) && e.code === "NOT_FOUND") return undefined;
+    throw e;
+  }
+}
+
+/** {@link catalogProbe} over `readSearchHelp` — used by SHLP/DH's create, delete and update. */
+async function probeSearchHelp(conn: AbapConnection, name: string): Promise<DdicRender | undefined> {
+  return catalogProbe(() => readSearchHelp(conn, name));
+}
+
+/**
+ * {@link catalogProbe} over `readSearchHelp` with `includeInactive: true` — the
+ * DELETE-only sibling of {@link probeSearchHelp} above. A search help left behind by a
+ * create that PUT but never activated has a DD30L row with `AS4LOCAL='N'` (inactive)
+ * and no active row at all; `probeSearchHelp`'s active-only read sees that as absent
+ * and would refuse the delete with NOT_FOUND even though `delete_search_help`
+ * (`src/adt/shlp-delete.ts`'s bridge) happily removes both DDIC states and the TADIR
+ * entry. `abapDeleteSearchHelpViaBridge` is the ONLY caller: the create path's
+ * "already exists" probe and the update path's existence probe both keep using
+ * `probeSearchHelp` above, deliberately unchanged — an inactive leftover should still
+ * block a create (the name is taken) and an update has its own definition to replace,
+ * not delete. When the result resolves, check `meta.versionState` ("active" or
+ * "inactive") to tell which case was hit.
+ */
+async function probeSearchHelpAnyState(conn: AbapConnection, name: string): Promise<DdicRender | undefined> {
+  return catalogProbe(() => readSearchHelp(conn, name, undefined, { includeInactive: true }));
+}
+
+/**
+ * Resolves a caller-named package string for a SHLP/DH create/update/delete into a
+ * {@link ServerPackage} — the branded type every search-help mutation site
+ * (`src/adt/shlp-create.ts`, `src/adt/shlp-delete.ts`) requires and cannot verify
+ * itself.
+ *
+ * A materially weaker guarantee than {@link resolveBridgeUpdateTarget}'s (VIEW/DV,
+ * TRAN/T): there is no VIT-bridge object type for a search help (ADT 404s on it, and
+ * there is no VIT stub either — see `src/adt/capabilities.ts`), and `readSearchHelp`'s
+ * catalog query (`src/adt/catalog-read.ts`) surfaces no TADIR/package column at all —
+ * unlike `readClassicView`'s, which does. So this can only ever confirm the NAMED
+ * package is a REAL package on the system (a DEVC/K read, for a transportable name) or
+ * trust a local (`$`-prefixed) name zero-network — it can never confirm an EXISTING
+ * search help's ACTUAL current package the way the VIEW/DV/TRAN/T helper below can. A
+ * caller could in principle name a real but wrong package for an update or delete and
+ * this has no way to catch that; {@link abapDeleteSearchHelpViaBridge} and
+ * {@link abapUpdateViaBridge}'s SHLP/DH branch both call this out in their own response
+ * notes rather than claim the same guarantee the other two types get.
+ */
+async function resolveShlpPackage(conn: AbapConnection, packageNameStr: string): Promise<ServerPackage> {
+  const trimmed = packageNameStr.trim().toUpperCase();
+  const mint = (uri: string): ServerPackage => {
+    const resolved = serverPackage({ status: "confirmed", uri, via: "repository-search", packageName: trimmed });
+    if (resolved === undefined) {
+      // Unreachable: `trimmed` is non-empty by construction below (the default is
+      // "$TMP", never ""), so `serverPackage` always mints a value here.
+      throw new AbapError(
+        "SAFETY_DENIED",
+        `abapsmith could not resolve package ${trimmed} for this search help — this should be ` +
+          "unreachable.",
+        { reason: "PACKAGE_UNKNOWN", packageName: trimmed },
+      );
+    }
+    return resolved;
+  };
+  if (isLocalPackageName(trimmed)) {
+    // Local packages are never asked for on the server for any other bridge type
+    // either (VIEW/DV's and TRAN/T's create default to "$TMP" the same zero-network
+    // way) — a $-prefixed name is trusted to exist without a read.
+    return mint(`urn:abapsmith:local-package:${trimmed}`);
+  }
+  const pkgTarget = await resolveWriteTarget(conn, { type: "DEVC/K", name: trimmed });
+  if (!pkgTarget.exists) {
+    throw new AbapError(
+      "NOT_FOUND",
+      `Package ${trimmed} does not exist on ${conn.cfg.sid}, so a search help cannot be placed in it.`,
+      { packageName: trimmed },
+      'Create the package first with abap_write (type="DEVC/K"), or correct the `package` argument ' +
+        "if this was a typo.",
+    );
+  }
+  return mint(pkgTarget.uri);
+}
+
+/**
+ * Resolves an EXISTING VIEW/DV or TRAN/T's real current package through the VIT
+ * bridge, for {@link abapUpdateViaBridge} — a deliberate duplicate of
+ * {@link abapDeleteViaBridge}'s own anti-bypass package-resolution block above, not an
+ * extraction shared with it: reusing that already-correct, test-covered delete path
+ * as a shared helper would risk a regression there for the sake of an update path
+ * that did not exist when it was written. Same reasoning as that block: neither
+ * bridge can look its own object's package up, so a caller-supplied `package` is only
+ * ever checked for AGREEMENT, never trusted or substituted.
+ */
+async function resolveBridgeUpdateTarget(
+  conn: AbapConnection,
+  vitType: string,
+  name: string,
+  type: string,
+  label: string,
+  requestedPackage: string | undefined,
+): Promise<ServerPackage> {
+  const found = await verifyViaVitBridge(conn, vitType, name, type);
+  if (found.status === "confirmed-absent") {
+    throw new AbapError(
+      "NOT_FOUND",
+      `${label} ${name} does not exist, so there is nothing to update.`,
+      { object: name, type, uri: found.uri },
+    );
+  }
+  if (found.status === "indeterminate") {
+    throw new AbapError(
+      "SAFETY_DENIED",
+      `abapsmith could not confirm ${label} ${name}'s existence or its package before an update, ` +
+        `so it refuses the operation (${found.reason})`,
+      { reason: "PACKAGE_UNKNOWN", object: name, type, uri: found.uri, cause: found.reason },
+      "Every update is judged against the object's real package. Rather than guess, abapsmith " +
+        "stops here. Check the object exists and this connection can read it, then retry.",
+      { retryable: true }, // existence could not be confirmed, not denied — a healthy connection resolves it
+    );
+  }
+  const resolved = serverPackage(found);
+  if (resolved === undefined) {
+    throw new AbapError(
+      "SAFETY_DENIED",
+      `abapsmith could not determine which package ${label} ${name} belongs to, so it refuses the ` +
+        "update: the VIT bridge read answered but carried no <adtcore:packageRef> element.",
+      { reason: "PACKAGE_UNKNOWN", object: name, type, uri: found.uri },
+      "Every update is judged against the object's real package. Rather than assume the caller's " +
+        "`package` argument, abapsmith stops here. This matches the known orphan outcome: the " +
+        "object is active but unregistered in TADIR, so no package can be established for it. " +
+        "Removing/reregistering it needs SE11/SE14 by hand.",
+    );
+  }
+  const requested = requestedPackage?.trim().toUpperCase();
+  if (requested && requested !== resolved.name) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${label} ${name} is in package ${resolved.name}, but the request asked for ${requested}. ` +
+        "abapsmith does not move objects between packages, and will not update against the wrong one.",
+      { object: name, type, serverPackage: resolved.name, requestedPackage: requested },
+      "Drop the `package` argument to update the object where it actually is, or correct it if this " +
+        "named the wrong object.",
+    );
+  }
+  return resolved;
+}
+
+/**
+ * `SHLP/DH` create. Sibling of {@link abapCreateViaBridge}, but not folded into it —
+ * `abapBridgeCrud`'s doc comment explains why SHLP/DH is dispatched on its own rather
+ * than joining that function's `vitType` ternary: there is no VIT bridge object type
+ * for a search help. Verification here goes through {@link probeSearchHelp}
+ * (`readSearchHelp`, `src/adt/catalog-read.ts`) instead of `verifyObjectCreated`, and
+ * package resolution goes through {@link resolveShlpPackage} instead of a VIT-bridge
+ * read — see that helper's own doc comment for the weaker guarantee that implies.
+ *
+ * Journalled through a BESPOKE inline `withJournalledMutation` call, deliberately NOT
+ * the shared {@link journalBridgeCreate} VIEW/DV and TRAN/T use: this entry is marked
+ * `irreversible: true` unconditionally. `src/adt/undo.ts`'s `vitTypeFor()` throws an
+ * internal-invariant `SAFETY_DENIED` for any type it has no VIT-bridge segment for,
+ * and has no case for SHLP/DH — `resolveBridgeCreateUndo` would reach that throw for
+ * an ordinary (non-irreversible) `isBridgeOnlyCreateType` entry, which SHLP/DH has
+ * been ever since `capabilities.ts` started declaring a `bridgeCreate` for it (this
+ * change). Marking the entry irreversible makes `undo.ts`'s `undoBlocker()` refuse
+ * cleanly ("This entry is marked irreversible...") before `planUndo` ever reaches the
+ * crashing branch, while still recording the create for the audit trail. Reversal is
+ * `abap_write { mode: "delete", type: "SHLP/DH" }`, never undo.
+ */
+async function abapCreateSearchHelpViaBridge(
+  conn: AbapConnection,
+  target: WriteTarget,
+  input: WriteInput,
+  maxChars: number,
+  gate: SafetyGate,
+  journal?: Journal,
+): Promise<BuiltResponse> {
+  const type = "SHLP/DH";
+  const cap = capabilitiesFor(type);
+  const label = cap?.label ?? type;
+  const bad = (message: string, hint?: string): never => {
+    throw new AbapError("BAD_INPUT", message, { object: target.name, type }, hint);
+  };
+
+  if (input.source !== undefined || input.edit !== undefined || input.method !== undefined) {
+    bad(
+      `A ${label} (${type}) has no source: it is created from its definition, not from ABAP text. ` +
+        "Omit `source`, `edit` and `method`.",
+    );
+  }
+  if (input.format) bad(`A ${label} (${type}) has no source; \`format\` does not apply.`);
+  if (input.include !== undefined) {
+    bad(`\`include\` is a CLAS/OC field; a ${label} (${type}) has no class includes.`);
+  }
+  if (input.expect_etag !== undefined) {
+    bad(`\`expect_etag\` does not apply to a ${label} create — there is no prior version to compare.`);
+  }
+  if (input.software_component !== undefined || input.package_type !== undefined || input.transport_layer !== undefined) {
+    bad("`software_component`, `package_type` and `transport_layer` are DEVC/K fields only.");
+  }
+  if (input.base_table !== undefined || input.view_fields !== undefined) {
+    bad("`base_table` and `view_fields` are VIEW/DV fields; a search help has neither.");
+  }
+  if (input.program !== undefined) bad("`program` is a TRAN/T field; a search help does not start a program.");
+  if (input.activate === false) {
+    bad(
+      "A search help cannot be created without activating it: DDIF_SHLP_ACTIVATE runs inside the " +
+        "same bridge execution as DDIF_SHLP_PUT. Omit `activate`.",
+    );
+  }
+  if (!input.shlp) {
+    bad(
+      `\`shlp\` is required to create a ${label} (${type}): its DD30V/DD32P/DD31V/DD33V definition. ` +
+        "See SearchHelpParams in src/adt/shlp-create.ts.",
+    );
+  }
+  // `bad()` always throws, but TS's never-return narrowing doesn't follow a call
+  // through a local `const` arrow function value — same cast `abapCreateViaBridge`
+  // uses for `base_table`/`program` above.
+  const shlp = input.shlp as NonNullable<WriteInput["shlp"]>;
+  const description = input.description?.trim();
+  if (!description) {
+    bad(
+      `\`description\` is required to create a ${label} (${type}) — it is the object's short text ` +
+        "(DD30V-DDTEXT), and the API has no default for it.",
+    );
+  }
+
+  const packageNameStr = target.packageName?.trim() || "$TMP";
+  const corrNr = normalizeCorrNr(input.corr_nr);
+  // Zero-network local+corr_nr pairing check, same "a bad combination costs no
+  // request" discipline as abapCreateViaBridge — the other pairing direction
+  // (transportable without corr_nr) is enforced inside createSearchHelp's own
+  // validate() a few lines down, at the cost of the pre-create read below already
+  // having run by then.
+  assertSearchHelpTarget(packageNameStr, corrNr);
+
+  const packageName = await resolveShlpPackage(conn, packageNameStr);
+  const local = isLocalPackageName(packageName.name);
+  const corrSource: "named" | "auto" | undefined = local ? undefined : "named";
+
+  // Positive absence evidence, read BEFORE the create — same "confirmed-absent"
+  // discipline as abapCreateViaBridge's own pre-check, skipped entirely when the
+  // journal is off: create_search_help's own ABAP-side probe already refuses an
+  // existing name either way (abap-shlp.ts's create_search_help method), so nothing
+  // downstream needs this read when there is no journal to feed it.
+  let beforeCapture: BeforeImageCapture = "failed";
+  if (journal) {
+    const existing = await probeSearchHelp(conn, target.name);
+    if (existing !== undefined) {
+      throw new AbapError(
+        "CHECK_FAILED",
+        `${label} ${target.name} already exists. abap_write mode="write" creates a NEW ${label}; it ` +
+          "does not overwrite one that is already there.",
+        { object: target.name, type },
+        `Delete the existing ${label} first (abap_write mode="delete"), pick a different name, or ` +
+          'use mode="update" to replace its definition in place.',
+      );
+    }
+    beforeCapture = "confirmed-absent";
+  }
+
+  const params: SearchHelpParams = {
+    shlpName: target.name,
+    description: description as string,
+    packageName,
+    corrNr,
+    corrSource,
+    selectionMethod: shlp.selectionMethod,
+    selectionMethodType: shlp.selectionMethodType,
+    dialogType: shlp.dialogType,
+    textTable: shlp.textTable,
+    hotKey: shlp.hotKey,
+    elementary: shlp.elementary,
+    fields: shlp.fields,
+    includes: shlp.includes,
+    assignments: shlp.assignments,
+  };
+
+  const { result: created, entryId, settle } = await withJournalledMutation<undefined, { run: RunResult; transcript: DdicTranscript }>(
+    journal,
+    {
+      begin: () => ({
+        operation: "create",
+        object: journalRef({
+          name: target.name,
+          type,
+          uri: `urn:abapsmith:shlp:${target.name}`,
+          packageName: packageName.name,
+          description: description as string,
+        }),
+        existedBefore: false,
+        beforeCapture,
+        systemKey: systemKey(conn.cfg),
+        tool: "abap_write",
+        irreversible: true,
+        ...(corrNr ? { corrNr } : {}),
+      }),
+    },
+    async (onBeforeImage) => {
+      await onBeforeImage(undefined);
+      return await createSearchHelp(conn, gate, params);
+    },
+  );
+  await settle({ outcome: "succeeded", activation: { attempted: false } });
+
+  const after = await probeSearchHelp(conn, target.name);
+  let verified: boolean;
+  let verifyNote: string;
+  if (after === undefined) {
+    verified = false;
+    verifyNote =
+      "NOT independently confirmed present: a follow-up catalog read (src/adt/catalog-read.ts) did " +
+      "not find it. abapsmith still reports created:true here, trusting the classrun transcript " +
+      "(the markers above) — SHLP/DH has no VIT-bridge stub to read back through the way VIEW/DV " +
+      "and TRAN/T do, so this is a weaker confirmation than either of those types gets. Confirm by " +
+      "hand in SE11 before relying on it.";
+  } else {
+    verified = true;
+    verifyNote = "Read back and confirmed present via a catalog read (src/adt/catalog-read.ts) after create.";
+  }
+
+  return buildResponse({
+    header: {
+      system: conn.cfg.sid,
+      object: `${type} ${target.name}`,
+      package: packageName.name,
+      mode: "create-bridge",
+      created: true,
+      verified,
+      detail: `${shlp.elementary ? "elementary" : "collective"} search help`,
+      bridge_class: CLASSIC_BODY_CLASS,
+      markers: created.transcript.tags.join(" "),
+      journal: entryId ?? "off (not journalled — see notes)",
+    },
+    notes: [
+      `Created by running the classic fluid tool's body class ${CLASSIC_BODY_CLASS}, not over ADT ` +
+        `REST: ${cap?.bridgeCreate?.via ?? "see src/adt/classic-call.ts"}`,
+      cap?.bridgeCreate?.limits ?? "",
+      verifyNote,
+      entryId !== undefined
+        ? `Journalled as ${entryId}, but marked irreversible: SHLP/DH has no VIT-bridge type for ` +
+          "abap_journal mode=undo to resolve it through (src/adt/undo.ts's vitTypeFor only covers " +
+          'VIEW/DV and TRAN/T), so undo refuses this entry rather than crash. Reverse by hand with ' +
+          'abap_write { mode: "delete", type: "SHLP/DH" }.'
+        : 'Not journalled (no journal was open). Reverse by hand with abap_write { mode: "delete", ' +
+          'type: "SHLP/DH" }.',
+      "abapsmith could only confirm the NAMED package is real (via DEVC/K, or trusted zero-network " +
+        "for a local $-prefixed name) — unlike VIEW/DV and TRAN/T, there is no VIT-bridge stub or " +
+        "TADIR column in the catalog read for SHLP/DH to confirm the object's OWN registered " +
+        "package after create; see resolveShlpPackage's doc comment.",
+    ].filter((n) => n !== ""),
+    maxChars,
+  });
+}
+
+/**
+ * `SHLP/DH` delete. Sibling of {@link abapDeleteViaBridge}, but not folded into it:
+ * SHLP/DH has no VIT bridge type to read through, so existence/package resolution
+ * goes through {@link probeSearchHelpAnyState}/{@link resolveShlpPackage} instead — see
+ * `resolveShlpPackage`'s doc comment for the weaker guarantee that implies here:
+ * unlike VIEW/DV's and TRAN/T's delete, this cannot confirm the search help's OWN
+ * current package, only that the NAMED package is real.
+ *
+ * Journalled through a BESPOKE inline `withJournalledMutation` call, the same shape
+ * {@link abapCreateSearchHelpViaBridge} above and this function's own update sibling
+ * below use. The pre-delete {@link probeSearchHelpAnyState} read a few lines down —
+ * needed anyway to confirm the object exists before deleting it — IS the before-image:
+ * its rendered pseudo-DDL (`existing.ddl`, rendered by `readSearchHelpImpl` in
+ * `src/adt/catalog-read.ts`, which follows the same pseudo-DDL convention as
+ * `src/adt/ddic.ts`) becomes the entry's `beforeSource`.
+ * `beforeCapture` is always `"captured"` here, never `"confirmed-absent"`: the
+ * NOT_FOUND throw a few lines below already refused an absent object before any
+ * journal entry is opened, so by the time one is, `existing` is always defined — a
+ * genuine absence, not a swallowed error, since `catalogProbe` (`probeSearchHelpAnyState`'s
+ * base, `src/adt/write.ts`'s neighbour `catalogProbe` helper above) returns
+ * `undefined` only on a server NOT_FOUND and rethrows everything else. `existing` is not
+ * always an ACTIVE definition, though: `probeSearchHelpAnyState` also resolves an
+ * inactive-only search help (`existing.meta.versionState === "inactive"` — a create that
+ * PUT but never activated, DD30L-AS4LOCAL='N', no active row at all), and this function
+ * proceeds with the delete in that case rather than refusing NOT_FOUND, since the
+ * bridge's `delete_search_help` removes both DDIC states and the TADIR entry either
+ * way. The response and journal note both say so, so `beforeSource`/`existing.ddl` is
+ * never mistaken for an active definition when it is actually the inactive one.
+ *
+ * `irreversible: true` unconditionally, for two independent reasons. Mechanically: the
+ * stored before-image is rendered pseudo-DDL, not a `DDIF_SHLP_PUT` payload, so there
+ * is nothing for undo to replay even if it tried — the entry exists for audit and
+ * manual reconstruction only. Safety-critically: `src/adt/undo.ts`'s `vitTypeFor()` has
+ * no case for SHLP/DH regardless (same reasoning as {@link abapCreateSearchHelpViaBridge}'s
+ * own doc comment above), so marking it irreversible makes `undo.ts`'s `undoBlocker()`
+ * refuse cleanly before `planUndo` ever reaches that gap. Reversal is a fresh
+ * `abap_write { mode: "write", type: "SHLP/DH" }` recreating the definition by hand,
+ * never `abap_journal mode=undo`.
+ */
+async function abapDeleteSearchHelpViaBridge(
+  conn: AbapConnection,
+  target: WriteTarget,
+  input: WriteInput,
+  maxChars: number,
+  gate: SafetyGate,
+  journal?: Journal,
+): Promise<BuiltResponse> {
+  const type = "SHLP/DH";
+  const cap = capabilitiesFor(type);
+  const label = cap?.label ?? type;
+  const bad = (message: string, hint?: string): never => {
+    throw new AbapError("BAD_INPUT", message, { object: target.name, type }, hint);
+  };
+
+  if (
+    input.source !== undefined ||
+    input.edit !== undefined ||
+    input.method !== undefined ||
+    input.include !== undefined
+  ) {
+    bad(
+      `A ${label} (${type}) delete has no source to touch: omit \`source\`, \`edit\`, \`method\` ` +
+        "and `include`.",
+    );
+  }
+  if (input.format) bad(`A ${label} (${type}) has no source; \`format\` does not apply to a delete.`);
+  if (input.expect_etag !== undefined) {
+    bad(`\`expect_etag\` does not apply to a ${label} delete — the classrun bridge has no etag to compare.`);
+  }
+  if (input.description !== undefined) {
+    bad("`description` is a create/update field; a delete does not rename anything.");
+  }
+  if (input.activate !== undefined) bad("`activate` is a create-only field; a delete has nothing to activate.");
+  if (input.base_table !== undefined || input.view_fields !== undefined) {
+    bad("`base_table` and `view_fields` are VIEW/DV create fields; a delete needs neither.");
+  }
+  if (input.program !== undefined) bad("`program` is a TRAN/T create field; a delete needs no program.");
+  if (input.shlp !== undefined) bad("`shlp` is a create/update field; a delete does not redefine anything.");
+  if (
+    input.software_component !== undefined ||
+    input.package_type !== undefined ||
+    input.transport_layer !== undefined
+  ) {
+    bad("`software_component`, `package_type` and `transport_layer` are DEVC/K create fields only.");
+  }
+  if (normalizeCorrNr(input.corr_nr) !== undefined) {
+    bad(
+      `\`corr_nr\` cannot be honoured for a ${label} delete: the delete bridge takes no transport ` +
+        "parameter (src/adt/shlp-delete.ts). None is needed either — the delete registers nothing " +
+        "in CTS, so it is judged as a local mutation and no transport allowlist blocks it.",
+      "Retry without `corr_nr`.",
+    );
+  }
+
+  const existing = await probeSearchHelpAnyState(conn, target.name);
+  if (existing === undefined) {
+    throw new AbapError(
+      "NOT_FOUND",
+      `${label} ${target.name} does not exist, so there is nothing to delete.`,
+      { object: target.name, type },
+    );
+  }
+  // Inactive-only leftover — a create that PUT but never activated (DD30L-AS4LOCAL='N',
+  // no active row at all). `probeSearchHelpAnyState`'s doc comment explains why the
+  // delete proceeds here instead of refusing NOT_FOUND: the bridge's `delete_search_help`
+  // removes both DDIC states and the TADIR entry regardless of which one is active.
+  const inactiveOnly = existing.meta.versionState === "inactive";
+
+  const packageNameStr = target.packageName?.trim() || "$TMP";
+  const resolvedPackage = await resolveShlpPackage(conn, packageNameStr);
+
+  // `existing` (read above to confirm the object is there to delete) doubles as the
+  // journal's before-image — see this function's doc comment for why `beforeCapture`
+  // is always "captured" at this point and why the entry is unconditionally irreversible.
+  // When `inactiveOnly`, `existing.ddl` is the INACTIVE definition (no active version
+  // ever existed to read instead) — the note below and the journal entry's own note say
+  // so, so `beforeSource` is never mistaken for an active definition on restore.
+  const { result: deleted, entryId, settle } = await withJournalledMutation<
+    undefined,
+    { run: RunResult; transcript: DdicTranscript }
+  >(
+    journal,
+    {
+      begin: () => ({
+        operation: "delete",
+        object: journalRef({
+          name: target.name,
+          type,
+          uri: `urn:abapsmith:shlp:${target.name}`,
+          packageName: resolvedPackage.name,
+        }),
+        existedBefore: true,
+        beforeCapture: "captured",
+        beforeSource: existing.ddl,
+        systemKey: systemKey(conn.cfg),
+        tool: "abap_write",
+        irreversible: true,
+      }),
+    },
+    async (onBeforeImage) => {
+      await onBeforeImage(undefined);
+      return await deleteSearchHelpViaBridge(conn, gate, {
+        shlpName: target.name,
+        packageName: resolvedPackage,
+        confirmInUse: input.confirm_in_use,
+      });
+    },
+  );
+  await settle({ outcome: "succeeded", activation: { attempted: false } });
+
+  // Any-state here too, not just active-only: the bridge is expected to remove BOTH
+  // DDIC states, so a leftover inactive row after a claimed success must still fail
+  // this check the same way a leftover active row would.
+  const after = await probeSearchHelpAnyState(conn, target.name);
+  if (after !== undefined) {
+    throw new AbapError(
+      "CHECK_FAILED",
+      `${CLASSIC_BODY_CLASS} reported success (the transcript carries ` +
+        `${deleted.transcript.tags.join(", ")}) but ${target.name} is STILL confirmed present via a ` +
+        "catalog read (src/adt/catalog-read.ts) after delete. abapsmith will not report a delete as " +
+        "successful when it can prove the object is still there." +
+        (entryId !== undefined
+          ? ` This was already journalled as ${entryId}; whether there is anything left to act on is ` +
+            "unresolved — the object may still exist."
+          : ""),
+      { object: target.name, type, markers: deleted.transcript.tags.join(" ") },
+    );
+  }
+  const verified = true;
+  const verifyNote = "Read back and confirmed absent via a catalog read (src/adt/catalog-read.ts) after delete.";
+
+  return buildResponse({
+    header: {
+      system: conn.cfg.sid,
+      object: `${type} ${target.name}`,
+      package: resolvedPackage.name,
+      mode: "delete-bridge",
+      deleted: true,
+      verified,
+      bridge_class: CLASSIC_BODY_CLASS,
+      markers: deleted.transcript.tags.join(" "),
+      journal: entryId ?? "off (not journalled — see notes)",
+    },
+    notes: [
+      `Deleted by running the classic fluid tool's body class ${CLASSIC_BODY_CLASS}, not over ADT ` +
+        `REST — ${type} has no writable ADT collection at all (see this type's REGISTRY entry in ` +
+        "src/adt/capabilities.ts).",
+      inactiveOnly
+        ? `${target.name} had no ACTIVE version — only an inactive one (DD30L-AS4LOCAL='N'), the ` +
+          "state a create that PUT but failed to activate leaves behind. abapsmith deleted it anyway: " +
+          "the bridge's delete_search_help removes both DDIC states and the TADIR entry, whichever " +
+          "is (or isn't) active. The before-image captured for this journal entry (and quoted below) " +
+          "is that INACTIVE definition — there was never an active one to read instead."
+        : "",
+      verifyNote,
+      entryId !== undefined
+        ? `Journalled as ${entryId}, but marked irreversible: the stored before-image is rendered ` +
+          "pseudo-DDL (src/adt/catalog-read.ts), not a DDIF_SHLP_PUT payload, so nothing can mechanically " +
+          "replay it back into existence, and SHLP/DH has no VIT-bridge type for abap_journal " +
+          "mode=undo to resolve it through either way (src/adt/undo.ts's vitTypeFor only covers " +
+          "VIEW/DV and TRAN/T). The entry is kept for audit and manual reconstruction only — THIS " +
+          'DELETE CANNOT BE UNDONE with abap_journal. To bring the search help back, recreate it by ' +
+          'hand with abap_write { mode: "write", type: "SHLP/DH" }, using the pre-delete definition ' +
+          `recorded in this journal entry${inactiveOnly ? " (which is the INACTIVE definition — there was no active one)" : ""}.`
+        : 'Not journalled (no journal was open), so abapsmith kept no copy of the definition either — ' +
+          "this deletion is IRREVERSIBLE from here. To bring the search help back, recreate it by " +
+          'hand with abap_write { mode: "write", type: "SHLP/DH" }.',
+      "abapsmith could only confirm the NAMED package is real, not that it is the search help's OWN " +
+        "current package — unlike VIEW/DV's and TRAN/T's delete, there is no VIT-bridge read here to " +
+        "gate on the server's own answer instead of the caller's. See resolveShlpPackage's doc " +
+        "comment in src/tools/write.ts.",
+      isLocalPackageName(resolvedPackage.name)
+        ? ""
+        : bridgeDeleteTransportEntryNote(label, target.name, resolvedPackage.name),
+    ].filter((n) => n !== ""),
+    maxChars,
+  });
+}
+
+/**
+ * `VIEW/DV` / `TRAN/T` / `SHLP/DH` update (`mode: "update"`), dispatched from
+ * `abapBridgeCrud` before any create/delete sibling is reached. Unlike create, where
+ * absence is proof enough to proceed, an update needs a REAL current object to
+ * retarget/replace — so this always resolves the object's package the anti-bypass
+ * way (via a fresh server read: {@link resolveBridgeUpdateTarget} for VIEW/DV and
+ * TRAN/T, {@link resolveShlpPackage} for SHLP/DH — a caller's `package` argument is
+ * only ever checked for agreement, never substituted, the same discipline
+ * {@link abapDeleteViaBridge} uses), then captures a real before-image via the
+ * matching catalog read (`src/adt/catalog-read.ts`) before dispatching the update.
+ *
+ * Every update-mode journal entry is marked `irreversible: true` — deliberately, for
+ * two independent reasons. Semantically: none of the three DDIC bridge FMs
+ * (`DDIF_VIEW_PUT`, `DDIF_SHLP_PUT`, `RPY_TRANSACTION_DELETE`+`RPY_TRANSACTION_INSERT`)
+ * has a real "put the old definition back" primitive, so there is nothing for undo to
+ * replay even with a captured before-image. Safety-critically: `src/adt/undo.ts`'s
+ * bridge-create-undo path (`resolveBridgeCreateUndo`/`vitTypeFor`) is the only branch
+ * `planUndo` has for an `isBridgeOnlyCreateType` entry regardless of its `operation`,
+ * `vitTypeFor` has no SHLP/DH case and throws an internal-invariant `SAFETY_DENIED`
+ * for it — so an update entry left reversible would crash `abap_journal mode=undo`
+ * for SHLP/DH exactly the way an ordinary create entry would. `irreversible: true`
+ * makes `undo.ts`'s `undoBlocker()` refuse cleanly before `planUndo` ever reaches that
+ * branch, for all three types uniformly (VIEW/DV and TRAN/T included, even though
+ * `vitTypeFor` does support them — an update has nothing to undo TO either way).
+ */
+
+/**
+ * Single source of truth for "which types have a real `mode=\"update\"` route" —
+ * consulted both by `abapUpdateViaBridge` below (reached only for a type
+ * `isBridgeOnlyCreateType` already routed here) and by `abapWrite`'s own zero-network
+ * gate (reached for every OTHER type, which never gets near `isBridgeOnlyCreateType`'s
+ * dispatch at all). One list, so the two refusals can never drift apart.
+ */
+const BRIDGE_UPDATE_TYPES: readonly string[] = ["VIEW/DV", "TRAN/T", "SHLP/DH"];
+
+function isBridgeUpdateType(type: string): boolean {
+  return BRIDGE_UPDATE_TYPES.includes(type);
+}
+
+/**
+ * The one "no update route" refusal both call sites above throw for a type outside
+ * {@link BRIDGE_UPDATE_TYPES} — built in one place so a caller sees a single wording,
+ * never two variants depending on which of the two gates happened to catch it.
+ */
+function bridgeUpdateNotSupported(type: string, objectName: string): AbapError {
+  return new AbapError(
+    "BAD_INPUT",
+    `${type || "This type"} has no update route: mode="update" is only wired for VIEW/DV, TRAN/T ` +
+      "and SHLP/DH.",
+    { object: objectName, type, mode: "update" },
+    'Use mode="write" to create, or (for most other types) an ordinary abap_write with `source`/' +
+      '`edit` to change an existing object\'s definition in place.',
+  );
+}
+
+async function abapUpdateViaBridge(
+  conn: AbapConnection,
+  target: WriteTarget,
+  input: WriteInput,
+  maxChars: number,
+  gate: SafetyGate,
+  journal?: Journal,
+): Promise<BuiltResponse> {
+  const type = (input.type ?? "").trim().toUpperCase();
+  const cap = capabilitiesFor(type);
+  const label = cap?.label ?? type;
+  const bad = (message: string, hint?: string): never => {
+    throw new AbapError("BAD_INPUT", message, { object: target.name, type, mode: "update" }, hint);
+  };
+
+  if (!isBridgeUpdateType(type)) {
+    throw bridgeUpdateNotSupported(type, target.name);
+  }
+  if (input.source !== undefined || input.edit !== undefined || input.method !== undefined) {
+    bad(`A ${label} (${type}) has no source: omit \`source\`, \`edit\` and \`method\`.`);
+  }
+  if (input.format) bad(`A ${label} (${type}) has no source; \`format\` does not apply.`);
+  if (input.include !== undefined) bad(`\`include\` is a CLAS/OC field; a ${label} (${type}) has no class includes.`);
+  if (input.expect_etag !== undefined) {
+    bad(`\`expect_etag\` does not apply to a ${label} update — there is no ADT resource to hold one.`);
+  }
+  if (input.software_component !== undefined || input.package_type !== undefined || input.transport_layer !== undefined) {
+    bad("`software_component`, `package_type` and `transport_layer` are DEVC/K fields only.");
+  }
+
+  const requestedPackage = target.packageName?.trim();
+  const corrNr = normalizeCorrNr(input.corr_nr);
+  const description = input.description?.trim();
+
+  if (type === "VIEW/DV") {
+    if (input.program !== undefined) bad("`program` is a TRAN/T field; a view does not start a program.");
+    if (input.shlp !== undefined) bad("`shlp` is a SHLP/DH field; a view has no search-help definition.");
+    if (input.confirm_in_use !== undefined || input.confirm_in_role_menu !== undefined) {
+      bad(`Neither confirm_in_use nor confirm_in_role_menu applies to ${type}; omit them.`);
+    }
+    if (input.activate === false) {
+      bad(
+        "A classic view update cannot skip activation: DDIF_VIEW_ACTIVATE runs inside the same " +
+          "bridge execution as DDIF_VIEW_PUT. Omit `activate`.",
+      );
+    }
+    if (!input.base_table?.trim()) {
+      bad("`base_table` is required to update a classic view (VIEW/DV): the single table it projects.");
+    }
+    if (!input.view_fields || input.view_fields.length === 0) {
+      bad(
+        "`view_fields` is required to update a classic view (VIEW/DV) — an update replaces the " +
+          "whole field list, and DDIF_VIEW_PUT would not accept a view projecting no field at all.",
+      );
+    }
+    if (!description) {
+      bad(
+        `\`description\` is required to update a ${label} (${type}) — DDIF_VIEW_PUT replaces the ` +
+          "whole definition, including the text, every time.",
+      );
+    }
+    const baseTable = input.base_table as string;
+    const viewFields = input.view_fields as string[];
+
+    const resolvedPackage = await resolveBridgeUpdateTarget(
+      conn,
+      "viewdv",
+      target.name,
+      type,
+      label,
+      requestedPackage,
+    );
+    const before = await catalogProbe(() => readClassicView(conn, target.name));
+    if (before === undefined) {
+      throw new AbapError(
+        "NOT_FOUND",
+        `View ${target.name} does not exist, so there is nothing to update.`,
+        { object: target.name, type },
+      );
+    }
+    const local = isLocalPackageName(resolvedPackage.name);
+    const corrSource: "named" | "auto" | undefined = local ? undefined : "named";
+
+    const { result: updated, entryId, settle } = await withJournalledMutation<
+      undefined,
+      { run: RunResult; transcript: DdicTranscript }
+    >(
+      journal,
+      {
+        begin: () => ({
+          operation: "update",
+          object: journalRef({
+            name: target.name,
+            type,
+            uri: vitBridgeUri("viewdv", target.name),
+            packageName: resolvedPackage.name,
+            description: description as string,
+          }),
+          existedBefore: true,
+          beforeCapture: "captured",
+          beforeSource: before.ddl,
+          systemKey: systemKey(conn.cfg),
+          tool: "abap_write",
+          irreversible: true,
+          ...(corrNr ? { corrNr } : {}),
+        }),
+      },
+      async (onBeforeImage) => {
+        await onBeforeImage(undefined);
+        return await updateClassicView(conn, gate, {
+          viewName: target.name,
+          baseTable,
+          fields: viewFields,
+          description: description as string,
+          packageName: resolvedPackage.name,
+          corrNr,
+          corrSource,
+        });
+      },
+    );
+    await settle({ outcome: "succeeded", activation: { attempted: false } });
+
+    const after = await catalogProbe(() => readClassicView(conn, target.name));
+    const verified = after !== undefined;
+    const verifyNote = verified
+      ? "Read back and confirmed present via a catalog read (src/adt/catalog-read.ts) after update."
+      : "NOT independently confirmed present after update: a follow-up catalog read did not find " +
+        "it. abapsmith still reports this update as done, trusting the classrun transcript (the " +
+        "markers above) — but that is not the same confidence as a live read-back.";
+
+    return buildResponse({
+      header: {
+        system: conn.cfg.sid,
+        object: `${type} ${target.name}`,
+        package: resolvedPackage.name,
+        mode: "update-bridge",
+        updated: true,
+        verified,
+        bridge_class: CLASSIC_BODY_CLASS,
+        markers: updated.transcript.tags.join(" "),
+        journal: entryId ?? "off (not journalled — see notes)",
+      },
+      notes: [
+        `Updated by running the classic fluid tool's body class ${CLASSIC_BODY_CLASS}, not over ADT ` +
+          `REST: ${cap?.bridgeCreate?.via ?? "see src/adt/classic-call.ts"}`,
+        cap?.bridgeCreate?.limits ?? "",
+        verifyNote,
+        "DDIF_VIEW_PUT replaces the whole definition: any joined table or field not passed in this " +
+          "call was removed.",
+        entryId !== undefined
+          ? `Journalled as ${entryId}, but marked irreversible: neither DDIF_VIEW_PUT nor any other ` +
+            "primitive this bridge calls can put the OLD definition back, so there is nothing for " +
+            "abap_journal mode=undo to replay even with the before-image captured above. Reverse by " +
+            "hand with another mode=\"update\" call carrying the old field list."
+          : "Not journalled (no journal was open).",
+      ].filter((n) => n !== ""),
+      maxChars,
+    });
+  }
+
+  if (type === "TRAN/T") {
+    if (input.base_table !== undefined || input.view_fields !== undefined) {
+      bad("`base_table` and `view_fields` are VIEW/DV fields; a transaction has no base table.");
+    }
+    if (input.shlp !== undefined) bad("`shlp` is a SHLP/DH field; a transaction has no search-help definition.");
+    if (input.activate === true) bad("A transaction has no activation step; omit `activate`.");
+    if (input.confirm_in_use !== undefined) bad("`confirm_in_use` does not apply to TRAN/T; omit it.");
+    if (!input.program || !input.program.trim()) {
+      bad(
+        "`program` is required to update a transaction (TRAN/T): the EXISTING report program it " +
+          "should start after the retarget.",
+      );
+    }
+    if (!description) {
+      bad(
+        `\`description\` is required to update a ${label} (${type}) — RPY_TRANSACTION_INSERT ` +
+          "replaces the whole definition, including the text, every time.",
+      );
+    }
+    const program = (input.program as string).trim().toUpperCase();
+
+    // Same closed defect as abapCreateViaBridge's TRAN/T branch: check the program
+    // exists before pointing a transaction at it, rather than creating a
+    // working-looking retarget to nothing.
+    const programTarget = await resolveWriteTarget(conn, { type: "PROG/P", name: program });
+    if (!programTarget.exists) {
+      throw new AbapError(
+        "NOT_FOUND",
+        `Program ${program} does not exist on ${conn.cfg.sid}, so a transaction cannot be retargeted ` +
+          "to start it.",
+        { object: target.name, type, program },
+        `Create the program first with abap_write (type="PROG/P"), or correct `+
+          "\`program\` if this was a typo.",
+      );
+    }
+
+    const resolvedPackage = await resolveBridgeUpdateTarget(
+      conn,
+      "trant",
+      target.name,
+      type,
+      label,
+      requestedPackage,
+    );
+    const before = await catalogProbe(() => readTransaction(conn, target.name));
+    if (before === undefined) {
+      throw new AbapError(
+        "NOT_FOUND",
+        `Transaction ${target.name} does not exist, so there is nothing to retarget.`,
+        { object: target.name, type },
+      );
+    }
+
+    const { result: updated, entryId, settle } = await withJournalledMutation<
+      undefined,
+      { run: RunResult; transcript: DdicTranscript }
+    >(
+      journal,
+      {
+        begin: () => ({
+          operation: "update",
+          object: journalRef({
+            name: target.name,
+            type,
+            uri: vitBridgeUri("trant", target.name),
+            packageName: resolvedPackage.name,
+            description: description as string,
+          }),
+          existedBefore: true,
+          beforeCapture: "captured",
+          beforeSource: before.ddl,
+          systemKey: systemKey(conn.cfg),
+          tool: "abap_write",
+          irreversible: true,
+          ...(corrNr ? { corrNr } : {}),
+        }),
+      },
+      async (onBeforeImage) => {
+        await onBeforeImage(undefined);
+        return await updateTransaction(conn, gate, {
+          tcode: target.name,
+          program,
+          description: description as string,
+          packageName: resolvedPackage,
+          corrNr,
+          corrSource: corrNr !== undefined ? "named" : undefined,
+          confirmInRoleMenu: input.confirm_in_role_menu,
+        });
+      },
+    );
+    await settle({ outcome: "succeeded", activation: { attempted: false } });
+
+    const after = await catalogProbe(() => readTransaction(conn, target.name));
+    const verified = after !== undefined && after.meta.program === program;
+    const verifyNote = verified
+      ? "Read back and confirmed present, retargeted to the new program, via a catalog read " +
+        "(src/adt/catalog-read.ts) after update."
+      : "NOT independently confirmed retargeted: a follow-up catalog read either did not find the " +
+        "transaction or still showed the old program. abapsmith still reports this update as done, " +
+        "trusting the classrun transcript (the markers above) — but that is not the same confidence " +
+        "as a live read-back.";
+
+    return buildResponse({
+      header: {
+        system: conn.cfg.sid,
+        object: `${type} ${target.name}`,
+        package: resolvedPackage.name,
+        mode: "update-bridge",
+        updated: true,
+        verified,
+        bridge_class: CLASSIC_BODY_CLASS,
+        markers: updated.transcript.tags.join(" "),
+        journal: entryId ?? "off (not journalled — see notes)",
+      },
+      notes: [
+        `Updated by running the classic fluid tool's body class ${CLASSIC_BODY_CLASS}, not over ADT ` +
+          `REST: ${cap?.bridgeCreate?.via ?? "see src/adt/classic-call.ts"}`,
+        cap?.bridgeCreate?.limits ?? "",
+        verifyNote,
+        entryId !== undefined
+          ? `Journalled as ${entryId}, but marked irreversible: RPY_TRANSACTION_DELETE has no ` +
+            "companion that restores a deleted transaction's prior TSTC row, so there is nothing " +
+            "for abap_journal mode=undo to replay even with the before-image captured above. " +
+            'Reverse by hand with another mode="update" call carrying the old program.'
+          : "Not journalled (no journal was open).",
+      ].filter((n) => n !== ""),
+      maxChars,
+    });
+  }
+
+  // type === "SHLP/DH"
+  if (input.base_table !== undefined || input.view_fields !== undefined) {
+    bad("`base_table` and `view_fields` are VIEW/DV fields; a search help has neither.");
+  }
+  if (input.program !== undefined) bad("`program` is a TRAN/T field; a search help does not start a program.");
+  if (input.confirm_in_role_menu !== undefined) bad("`confirm_in_role_menu` does not apply to SHLP/DH; omit it.");
+  if (input.activate === false) {
+    bad(
+      "A search help update cannot skip activation: DDIF_SHLP_ACTIVATE runs inside the same bridge " +
+        "execution as DDIF_SHLP_PUT. Omit `activate`.",
+    );
+  }
+  if (!input.shlp) {
+    bad(
+      `\`shlp\` is required to update a ${label} (${type}): its full DD30V/DD32P/DD31V/DD33V ` +
+        "definition — update_search_help REPLACES the whole thing, so every field, include and " +
+        "assignment to keep must be passed again.",
+    );
+  }
+  const shlp = input.shlp as NonNullable<WriteInput["shlp"]>;
+  if (!description) {
+    bad(
+      `\`description\` is required to update a ${label} (${type}) — DDIF_SHLP_PUT replaces the ` +
+        "whole definition, including the text, every time.",
+    );
+  }
+
+  const packageNameStr = requestedPackage || "$TMP";
+  const resolvedPackage = await resolveShlpPackage(conn, packageNameStr);
+  const before = await probeSearchHelp(conn, target.name);
+  if (before === undefined) {
+    throw new AbapError(
+      "NOT_FOUND",
+      `Search help ${target.name} does not exist, so there is nothing to update.`,
+      { object: target.name, type },
+    );
+  }
+  const local = isLocalPackageName(resolvedPackage.name);
+  const corrSource: "named" | "auto" | undefined = local ? undefined : "named";
+
+  const params: SearchHelpParams = {
+    shlpName: target.name,
+    description: description as string,
+    packageName: resolvedPackage,
+    corrNr,
+    corrSource,
+    selectionMethod: shlp.selectionMethod,
+    selectionMethodType: shlp.selectionMethodType,
+    dialogType: shlp.dialogType,
+    textTable: shlp.textTable,
+    hotKey: shlp.hotKey,
+    elementary: shlp.elementary,
+    fields: shlp.fields,
+    includes: shlp.includes,
+    assignments: shlp.assignments,
+  };
+
+  const { result: updated, entryId, settle } = await withJournalledMutation<
+    undefined,
+    { run: RunResult; transcript: DdicTranscript }
+  >(
+    journal,
+    {
+      begin: () => ({
+        operation: "update",
+        object: journalRef({
+          name: target.name,
+          type,
+          uri: `urn:abapsmith:shlp:${target.name}`,
+          packageName: resolvedPackage.name,
+          description: description as string,
+        }),
+        existedBefore: true,
+        beforeCapture: "captured",
+        beforeSource: before.ddl,
+        systemKey: systemKey(conn.cfg),
+        tool: "abap_write",
+        irreversible: true,
+        ...(corrNr ? { corrNr } : {}),
+      }),
+    },
+    async (onBeforeImage) => {
+      await onBeforeImage(undefined);
+      return await updateSearchHelp(conn, gate, params);
+    },
+  );
+  await settle({ outcome: "succeeded", activation: { attempted: false } });
+
+  const after = await probeSearchHelp(conn, target.name);
+  const verified = after !== undefined;
+  const verifyNote = verified
+    ? "Read back and confirmed present via a catalog read (src/adt/catalog-read.ts) after update."
+    : "NOT independently confirmed present after update: a follow-up catalog read did not find it. " +
+      "abapsmith still reports this update as done, trusting the classrun transcript (the markers " +
+      "above) — SHLP/DH has no VIT-bridge stub to read back through the way VIEW/DV and TRAN/T do.";
+
+  return buildResponse({
+    header: {
+      system: conn.cfg.sid,
+      object: `${type} ${target.name}`,
+      package: resolvedPackage.name,
+      mode: "update-bridge",
+      updated: true,
+      verified,
+      bridge_class: CLASSIC_BODY_CLASS,
+      markers: updated.transcript.tags.join(" "),
+      journal: entryId ?? "off (not journalled — see notes)",
+    },
+    notes: [
+      `Updated by running the classic fluid tool's body class ${CLASSIC_BODY_CLASS}, not over ADT ` +
+        `REST: ${cap?.bridgeCreate?.via ?? "see src/adt/classic-call.ts"}`,
+      cap?.bridgeCreate?.limits ?? "",
+      verifyNote,
+      "DDIF_SHLP_PUT replaces the whole definition: any field, include or assignment not passed in " +
+        "this call was removed.",
+      "abapsmith could only confirm the NAMED package is real, not that it is the search help's OWN " +
+        "current package — see resolveShlpPackage's doc comment.",
+      entryId !== undefined
+        ? `Journalled as ${entryId}, but marked irreversible: DDIF_SHLP_PUT has no companion that ` +
+          "restores a search help's prior definition, and SHLP/DH has no VIT-bridge type for " +
+          "abap_journal mode=undo to resolve it through either way. Reverse by hand with another " +
+          'mode="update" call carrying the old definition.'
+        : "Not journalled (no journal was open).",
     ].filter((n) => n !== ""),
     maxChars,
   });

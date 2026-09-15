@@ -2,7 +2,20 @@
 
 ## Not implemented
 
-No runtime tracing, no profiling, and no package tree navigation.
+No package tree navigation.
+
+`abap_trace` now covers ABAP runtime tracing (SAT) and, on the reference
+release, SQL tracing folded into it as the `sql_trace` flag rather than as
+a standalone resource — see [doc/TOOLS/abap-trace.md](../TOOLS/abap-trace.md).
+What remains genuinely unproven: the standalone ADT SQL-trace collection at
+`/sap/bc/adt/runtime/traces/sqltraces` does not exist as a resource on the
+reference release (a GET answers "does not exist," and ADT discovery there
+does not advertise `traces.sqltraces`), so the code path for it is exercised
+only against fakes and is never called by this tool — do not read
+`sql_trace` as proof that the standalone collection works anywhere. There is
+also no profiling beyond what a trace's hit list, database-access view and
+call tree already give: no sampling profiler, no aggregate-across-runs view,
+and no way to compare two traces against each other.
 
 `abap_search mode=source` now scans source text line by line — see
 [doc/TOOLS/read-and-search.md](../TOOLS/read-and-search.md) — but it is
@@ -154,6 +167,23 @@ exist and may work, but have not been exercised against a real system.
   target-system errors — is untested.
 - **`abap_transport` `addUser` and `setOwner`** have unit tests but no captured
   wire behaviour from a live system.
+- **`abap_service` `op="publish"` and `op="unpublish"`** are no longer in
+  this category: both were executed against A4H (client 001,
+  `ABAP_MODE=admin`, 2026-09-15) for a V2 binding and a V4 binding, each
+  followed by a read confirming the resulting live/not-published state. The
+  V2 publish's first attempt timed out at the ADT layer (60000 ms,
+  `ADT_ERROR`); the `service-publish` journal entry had already been
+  written as pending (fail-closed, before the POST), and a re-read showed
+  the binding still unpublished, so the timed-out POST had not landed — the
+  immediate retry succeeded. See
+  [doc/TOOLS/abap-service.md](../TOOLS/abap-service.md) for the full
+  account, including the V4 run (no timeout) and the reserved-namespace
+  refusal observed on `/DMO/UI_TRAVEL_U_V2`. (The OData metadata read
+  itself was already live-verified for both V2 and V4.) The compensating
+  action recorded for a publish is an explicit `abap_service op="unpublish"`
+  call, not an undo: `abap_journal mode=undo` refuses a
+  `service-publish`/`service-unpublish` entry outright (`irreversible:
+  true`) and names that call instead of attempting to reverse it.
 - **`abap_atc` is now proven well beyond the single-object case, not just
   "partially proven."** The original live run against A4H (`$TMP` PROG
   `ZMCP_ATC_PROBE2`, captured 2026-08-01, kept as
@@ -200,5 +230,34 @@ exist and may work, but have not been exercised against a real system.
   live — HTTP 200 with an empty worklist, not an ADT error. Still unproven:
   behaviour on a function group target, or an authorization failure
   mid-run.
-- **The debugger is single-session.** One reserved debug lease, one live
-  session. Concurrent debugging from two agents is not supported and not tested.
+- **The debugger's own concurrency cap is now configurable, but SAP's
+  per-user exclusivity is not something abapsmith can raise.**
+  `ABAP_DEBUG_SESSIONS` (default 1, hard-fails outside `1..4`) lets one
+  `abapsmith` process hold more than one concurrent debug lease locally,
+  capped from below by `ABAP_DEBUG_DIA_BUDGET` — see
+  [doc/CONFIGURATION](../CONFIGURATION/concurrency-and-activation.md). That
+  only widens this client's own ceiling. SAP allows exactly one active debug
+  listener per SAP user on a system: a second `POST
+  .../debugger/listeners` for the same user is refused with
+  `409`/`conflictDetected` (T100 `SY 530`, "Another session already exists
+  with global debugging scope for user X"), even when the refused request
+  carries a different `terminalId` from the holder's — verified live against
+  A4H, `test/cassettes/debugger/listener-conflict-409.cassette.json`. So
+  raising `ABAP_DEBUG_SESSIONS` above 1 for a single-`ABAP_USER` deployment
+  does not enable two concurrent debug sessions; it only moves the refusal
+  from this client (a local `SessionBusyError`) to SAP itself (the `409`
+  above) once the second lane's listener actually arms. A second lane only
+  has a chance of working when it authenticates as a genuinely different
+  `ABAP_USER` (two `abapsmith` processes, two different users), which has
+  not been demonstrated on this appliance; or once a terminal-scoped
+  debugging mode (`debuggingMode: "terminal"`) is proven functional — that
+  mode is modelled in this repo but has never been shown to work. Concurrent
+  debugging from two agents sharing one SAP user is therefore still not
+  possible today, regardless of client-side configuration.
+- **`abap_trace`'s standalone SQL-trace path.** The dedicated ADT SQL-trace
+  collection (`/sap/bc/adt/runtime/traces/sqltraces`) has code behind it in
+  this codebase but has never been run against a real system: the reference
+  release does not serve that resource at all (a GET answers "does not
+  exist," and its ADT discovery document does not advertise
+  `traces.sqltraces`). Only `sql_trace` inside the ABAP-trace parameters,
+  which feeds the `db` view of an ordinary trace, is verified live.

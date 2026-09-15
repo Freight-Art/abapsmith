@@ -17,6 +17,7 @@ decision from opposite directions.
 | `ABAP_ALLOW_SOURCE_PLUGINS` | `false` | Creating `enhoxhh` source-code-plugin hooks. Legacy lever when `ABAP_MODE` is unset; under `ABAP_MODE` it's a live two-way override — defaults on from `edit` upward (not admin-only), but an explicit value wins either direction. |
 | `ABAP_ALLOW_ENHANCEMENT_DELETE` | `false` | Deleting an existing enhancement object outright. Legacy lever when `ABAP_MODE` is unset; under `ABAP_MODE` it's a live two-way override — defaults to admin-only, but an explicit value wins either direction. |
 | `ABAP_ALLOW_TRANSPORT_DELETE` | `false` | Deleting a transport request outright (distinct from releasing one). New variable — previously this capability was reachable only via `ABAP_MODE=admin`, with no legacy lever at all. Now works standalone when `ABAP_MODE` is unset; under `ABAP_MODE` it's a live two-way override — defaults to admin-only, but an explicit value wins either direction. |
+| `ABAP_ALLOW_SERVICE_PUBLISH` | `false` | `abap_service` `op="publish"`/`op="unpublish"` — registering or removing the ICF node behind a RAP service binding. Legacy lever when `ABAP_MODE` is unset; under `ABAP_MODE` it's a live two-way override — defaults to admin-only, but an explicit value wins either direction. Ordinary write access (`ABAP_MODE=edit`) does not imply it, the same tier as `ABAP_ALLOW_TRANSPORT_RELEASE`. Each call additionally needs a matching per-call `confirm` echo of the binding name; without it the call is a dry run. |
 | `ABAP_ALLOW_CASCADE_DELETE` | `false` | The BOPF cascading DDIC delete sweep. New variable — previously this capability was reachable only via `ABAP_MODE=admin`, with no legacy lever at all. Now works standalone when `ABAP_MODE` is unset; under `ABAP_MODE` it's a live two-way override — defaults to admin-only, but an explicit value wins either direction. |
 | `ABAP_ALLOW_DEBUG_JUMP_TO_LINE` | `false` | Debugger `jumpToLine`: a forced jump that skips statements (and any checks they would have run). Not governed by `ABAP_MODE` — no mode, including `admin`, grants it; this variable is the only lever, in every mode. |
 | `ABAP_ALLOW_DATA_PREVIEW` | `false` | Registers `abap_data_preview` at all. Off means the tool does not exist in `tools/list`. Not governed by `ABAP_MODE` — on in every mode when set, including `read`. |
@@ -28,23 +29,25 @@ decision from opposite directions.
 
 Only one legacy variable goes fully dead once `ABAP_MODE` is set:
 `ABAP_ALLOW_WRITE`. It is then ignored with a startup warning — `ABAP_MODE`
-alone decides writes-at-all. The other six booleans in the table above
+alone decides writes-at-all. The other seven booleans in the table above
 (`ABAP_ALLOW_TRANSPORT_RELEASE`, `ABAP_ALLOW_TRANSPORT_DELETE`,
-`ABAP_ALLOW_CASCADE_DELETE`, `ABAP_ALLOW_ENHANCEMENTS`,
-`ABAP_ALLOW_SOURCE_PLUGINS`, `ABAP_ALLOW_ENHANCEMENT_DELETE`), plus
-`ABAP_ENHANCE_TARGETS` (enum-shaped rather than boolean, but the same
-philosophy), stay live overrides under `ABAP_MODE`: unset takes the mode's
-own default, but an explicit value wins in *either* direction — it can grant
-a capability the mode would otherwise withhold, or withdraw one the mode
-would otherwise grant. `ABAP_ALLOW_TRANSPORT_DELETE` and
-`ABAP_ALLOW_CASCADE_DELETE` are new variable names — before this, both
-capabilities were reachable only via `ABAP_MODE=admin`, with no way to reach
-either outside a mode at all. `ABAP_ENHANCE_TARGETS` was the last capability
-this override machinery could not reach, until support was added — it used to be
-silently ignored (with a startup warning) once `ABAP_MODE` was set, the same
-way `ABAP_ALLOW_WRITE` still is.
+`ABAP_ALLOW_CASCADE_DELETE`, `ABAP_ALLOW_SERVICE_PUBLISH`,
+`ABAP_ALLOW_ENHANCEMENTS`, `ABAP_ALLOW_SOURCE_PLUGINS`,
+`ABAP_ALLOW_ENHANCEMENT_DELETE`), plus `ABAP_ENHANCE_TARGETS` (enum-shaped
+rather than boolean, but the same philosophy), stay live overrides under
+`ABAP_MODE`: unset takes the mode's own default, but an explicit value wins
+in *either* direction — it can grant a capability the mode would otherwise
+withhold, or withdraw one the mode would otherwise grant.
+`ABAP_ALLOW_TRANSPORT_DELETE` and `ABAP_ALLOW_CASCADE_DELETE` are new
+variable names — before this, both capabilities were reachable only via
+`ABAP_MODE=admin`, with no way to reach either outside a mode at all.
+`ABAP_ALLOW_SERVICE_PUBLISH` is likewise new, gating the publish/unpublish
+operations added to `abap_service`. `ABAP_ENHANCE_TARGETS` was the last
+capability this override machinery could not reach, until support was
+added — it used to be silently ignored (with a startup warning) once
+`ABAP_MODE` was set, the same way `ABAP_ALLOW_WRITE` still is.
 
-A seventh boolean, `ABAP_ALLOW_RAW_ADT_WRITES`, follows the same two-way-override
+An eighth boolean, `ABAP_ALLOW_RAW_ADT_WRITES`, follows the same two-way-override
 shape (default admin-only) but has no `Config` field and no consumer yet — the
 `abap_adt` tool it will gate does not exist in this codebase. It is omitted
 from the table above because setting it currently does nothing observable;
@@ -170,15 +173,16 @@ where an empty value is folded into the unset `*` default on both the
 "refuse every write" is already expressed by `ABAP_ALLOW_PACKAGES=` or
 `ABAP_MODE=read`, so an empty prefix list has nothing distinct to fold to.
 
-A pinned `ABAP_ALLOW_TRANSPORTS` does not block a `VIEW/DV`/`TRAN/T` bridge
-delete (`src/adt/view-delete.ts`, `src/adt/tran-delete.ts`): the delete
-bridges pass no transport request and issue no `RS_CORR_INSERT` of their
-own, so abapsmith names no request for the allowlist to judge and the
-safety gate treats the delete as a local mutation. An explicitly empty
-`ABAP_ALLOW_TRANSPORTS=` still refuses both deletes, since that deny-all
-check runs first. Because the delete records nothing in CTS, whatever entry
-the object already had on a transport request (typically from its create)
-survives the delete; remove it separately with `abap_transport` operation
+A pinned `ABAP_ALLOW_TRANSPORTS` does not block a `VIEW/DV`/`TRAN/T`/
+`SHLP/DH` bridge delete (`src/adt/view-delete.ts`, `src/adt/tran-delete.ts`,
+`src/adt/shlp-delete.ts`): the delete bridges pass no transport request and
+issue no `RS_CORR_INSERT` of their own, so abapsmith names no request for
+the allowlist to judge and the safety gate treats the delete as a local
+mutation. An explicitly empty `ABAP_ALLOW_TRANSPORTS=` still refuses all
+three deletes, since that deny-all check runs first. Because the delete
+records nothing in CTS, whatever entry the object already had on a
+transport request (typically from its create) survives the delete; remove
+it separately with `abap_transport` operation
 `"removeObject"` — but that operation is itself gated by the admin-only
 transport-delete ceiling, so it needs `ABAP_MODE=admin`.
 

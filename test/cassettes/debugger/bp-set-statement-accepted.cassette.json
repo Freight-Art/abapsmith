@@ -1,0 +1,42 @@
+{
+  "id": "bp-set-statement-accepted",
+  "recordedAt": "2026-09-12T17:49:30.585Z",
+  "recordedDurationMs": 668,
+  "appliance": {
+    "sid": "A4H",
+    "client": "001",
+    "server": "a4hsandbox_A4H_00"
+  },
+  "source": {
+    "type": "live-capture-raw",
+    "citation": "test/fixtures/live-captured/901-bp-set-statement-accepted.meta.json + test/fixtures/live-captured/901-bp-set-statement-accepted.xml",
+    "notes": "Statement breakpoint (kind=\"statement\" statement=\"CATCH\") armed additively against $TMP class ZCL_I89_PROBE's debug session — the request carries no <syncScope> element, so this is an incremental add rather than a full replace. Server assigns id KIND=1.STATEMENT=CATCH. Redactions performed by the capture harness before this file was written: appliance host -> 203.0.113.10:50000 (RFC 5737), application-server hostname -> a4hsandbox, Authorization/Cookie/set-cookie header values stripped. sha256/byteLength in the source .meta.json are computed over the redacted body as stored."
+  },
+  "request": {
+    "method": "POST",
+    "path": "/sap/bc/adt/debugger/breakpoints?sap-client=001",
+    "headers": {
+      "Authorization": "<redacted>",
+      "Cookie": "<redacted: 4 cookies>",
+      "X-sap-adt-sessiontype": "stateful",
+      "X-CSRF-Token": "Ls6asF_TTkrN_WJbzm64EA==",
+      "Accept": "application/xml",
+      "Content-Type": "application/xml"
+    },
+    "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><dbg:breakpoints xmlns:dbg=\"http://www.sap.com/adt/debugger\" scope=\"external\" debuggingMode=\"user\" requestUser=\"DEVELOPER\" terminalId=\"ZMCPCAPTURE000000000000000000089\" ideId=\"ZMCPCAPTUREIDE00000000000000089\" systemDebugging=\"false\" deactivated=\"false\"><breakpoint xmlns:adtcore=\"http://www.sap.com/adt/core\" kind=\"statement\" clientId=\"stmt1\" skipCount=\"0\" statement=\"CATCH\"/></dbg:breakpoints>"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-length": "210",
+      "content-type": "application/xml; charset=utf-8",
+      "sap-authenticated": "true",
+      "sap-cache-control": "+0",
+      "sap-isc-uagent": "0",
+      "sap-perf-fesrec": "621244.000000",
+      "sap-server": "true",
+      "set-cookie": "<redacted>"
+    },
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><dbg:breakpoints xmlns:dbg=\"http://www.sap.com/adt/debugger\"><breakpoint kind=\"statement\" clientId=\"stmt1\" id=\"KIND=1.STATEMENT=CATCH\" statement=\"CATCH\"/></dbg:breakpoints>"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "n": 968,
+  "label": "i82-service-binding-v4",
+  "expect": "srvb:binding srvb:version=\"V4\" exists and is readable on this A4H release, contradicting the earlier claim that A4H has no OData V4 binding type at all; the v2/v1 Accept-header list is required here too (a v1-only Accept answers 406 ExceptionResourceNotAcceptable), and srvb:allowedAction=\"UNPUBLISH\" shows allowedAction tracks each binding's own publish state rather than a fixed default",
+  "note": "GET the ADT service binding document for /DMO/UI_TRAVEL_O4_CD, OData V4, with the corrected two-part v2/v1 Accept header",
+  "requestMethod": "GET",
+  "requestUrl": "/sap/bc/adt/businessservices/bindings/%2fdmo%2fui_travel_o4_cd",
+  "requestHeaders": {
+    "Accept": "application/vnd.sap.adt.businessservices.servicebinding.v2+xml, application/vnd.sap.adt.businessservices.servicebinding.v1+xml"
+  },
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-type": "application/vnd.sap.adt.businessservices.servicebinding.v2+xml; charset=utf-8",
+    "content-length": "3458",
+    "sap-authenticated": "true",
+    "etag": "20260331114534001application/vnd.sap.adt.businessservices.servicebinding.v2+xmlN6HGsxaM8KXqbXCcWPo9QncnmnI=",
+    "last-modified": "Tue, 31 Mar 2026 11:45:34 GMT",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "265356.000000"
+  },
+  "byteLength": 3458,
+  "zeroByteBody": false,
+  "sha256": "e020db1cbdc4716d0845b5bcfc616d4d21a555b512cfa7a5e8f0180adb5b23a5",
+  "utcTimestamp": "2026-09-15T03:53:39.000Z",
+  "durationMs": 370,
+  "sessionName": "LIVE-I82"
+}

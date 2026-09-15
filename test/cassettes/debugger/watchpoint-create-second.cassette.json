@@ -1,0 +1,42 @@
+{
+  "id": "watchpoint-create-second",
+  "recordedAt": "2026-09-12T17:56:17.816Z",
+  "recordedDurationMs": 66,
+  "appliance": {
+    "sid": "A4H",
+    "client": "001",
+    "server": "a4hsandbox_A4H_00"
+  },
+  "source": {
+    "type": "live-capture-raw",
+    "citation": "test/fixtures/live-captured/937-watchpoint-create-second.meta.json + test/fixtures/live-captured/937-watchpoint-create-second.xml",
+    "notes": "POST /sap/bc/adt/debugger/watchpoints?variableName=LV_ZERO, issued while watchpoint 1 (LV_TOTAL) was already armed. Answers 200 with the <dbg:watchpoints> list root containing exactly ONE row — the newly created watchpoint id=\"2\", variableName=\"LV_ZERO\" — not both watchpoints. This establishes that a create response is a per-call echo of the thing just created, never the session's full watchpoint set; the companion capture 938 (GET /debugger/watchpoints, not turned into a cassette here because it shares its method+path with watchpoint-list-after-hit and would collide in the fake-route matcher) shows the same moment in time with BOTH rows present. Captured against the $TMP probe class ZCL_I89_PROBE, suspended in IF_OO_ADT_CLASSRUN~MAIN. Redactions performed by the capture harness before this file was written: appliance host -> 203.0.113.10:50000 (RFC 5737), application-server hostname -> a4hsandbox, Authorization/Cookie/set-cookie header values stripped. sha256/byteLength in the source .meta.json are computed over the redacted body as stored."
+  },
+  "request": {
+    "method": "POST",
+    "path": "/sap/bc/adt/debugger/watchpoints?variableName=LV_ZERO&sap-client=001",
+    "headers": {
+      "Authorization": "<redacted>",
+      "Cookie": "<redacted: 4 cookies>",
+      "X-sap-adt-sessiontype": "stateful",
+      "X-CSRF-Token": "qIDViU4xLYoK1XUrqSdTZg==",
+      "Accept": "application/xml"
+    },
+    "body": null
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-encoding": "gzip",
+      "content-length": "477",
+      "content-type": "application/xml; charset=utf-8",
+      "sap-authenticated": "true",
+      "sap-cache-control": "+0",
+      "sap-isc-uagent": "0",
+      "sap-perf-fesrec": "19290.000000",
+      "sap-server": "true",
+      "set-cookie": "<redacted>"
+    },
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><dbg:watchpoints xmlns:dbg=\"http://www.sap.com/adt/debugger\"><watchpoint id=\"2\" variableName=\"LV_ZERO\" kind=\"local\" active=\"true\" expired=\"false\" procedure=\"IF_OO_ADT_CLASSRUN~MAIN\"><condition/><oldVariable>{A:12*\\KERNEL_WATCHPOINT_CLONE}</oldVariable><currentVariable>{A:10*\\KERNEL_WATCHPOINT_WPREF}</currentVariable><oldValue>0 </oldValue><currentValue>0 </currentValue><atom:link href=\"/sap/bc/adt/debugger/watchpoints/2\" rel=\"self\" type=\"application/xml\" title=\"Watchpoint for LV_ZERO\" xmlns:atom=\"http://www.w3.org/2005/Atom\"/><adtcomp:templateLinks xmlns:adtcomp=\"http://www.sap.com/adt/compatibility\"><adtcomp:templateLink title=\"Self\" rel=\"self\" template=\"/sap/bc/adt/debugger/watchpoints/2\"/><adtcomp:templateLink title=\"Modify\" rel=\"http://www.sap.com/adt/debugger/relations/modify\" template=\"/sap/bc/adt/debugger/watchpoints/2{?condition,active}\"/><adtcomp:templateLink title=\"Delete\" rel=\"http://www.sap.com/adt/debugger/relations/delete\" template=\"/sap/bc/adt/debugger/watchpoints/2\"/></adtcomp:templateLinks></watchpoint></dbg:watchpoints>"
+  }
+}

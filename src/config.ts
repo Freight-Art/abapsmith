@@ -10,6 +10,15 @@ import { config as loadDotenv } from "dotenv";
 import { z } from "zod";
 
 import { isTrkorr } from "./adt/transports.js";
+// Value import, not just a type — used below to size the startup warning's
+// debug-lease reservation to the actual configured lane count. Safe despite
+// `src/adt/pool.ts` importing `Config` back from here (via `type Config` at
+// its top, and transitively via `./connection.js`'s `stripUrlCredentials`
+// import): `resolveDebugSessionLimit` is only called inside `loadConfig()`'s
+// body, never at either module's top level, so by the time it runs the
+// whole module graph has already finished evaluating — a standard, safe ESM
+// circular-import shape. Verified with a built `dist/config.js` import.
+import { resolveDebugSessionLimit } from "./adt/pool.js";
 import {
   loadCaBundle,
   loadClientCertMaterial,
@@ -413,6 +422,13 @@ export const ConfigSchema = z.object({
    */
   allowTransportDelete: z.boolean().default(false),
   /**
+   * Ceiling for publishing or unpublishing a service binding's OData
+   * service — registers/removes an ICF node under `/sap/opu/odata*`. NOT
+   * implied by `allowWrite`. `ABAP_ALLOW_SERVICE_PUBLISH` is the
+   * legacy/override lever; admin-only by default otherwise.
+   */
+  allowServicePublish: z.boolean().default(false),
+  /**
    * Ceiling for the BOPF DDIC cascade-delete sweep (`deleteBusinessObject`,
    * `src/adt/bopf.ts`) — deleting the tables/structures/constants-interface a
    * BOPF business object's own delete leaves behind. NOT implied by
@@ -539,32 +555,6 @@ export const ConfigSchema = z.object({
    * `enhanceTargetPackages`.
    */
   originSystems: z.array(z.string()).default([]),
-  /**
-   * Which MCP tool surface this server registers (`ABAP_TOOL_SURFACE`).
-   * `"v1"` (default) is today's 13 registrar modules, unchanged. `"v2"`
-   * registers only six consolidated tools (`src/tools/v2/register.ts`) and
-   * skips every v1 registrar. Opt-in only.
-   *
-   * Do not default this to v2 or drop v1 — a live paired A/B measured v2 at
-   * +6.6% more expensive and +142% more tool errors than v1 for
-   * statistically identical successful work, despite a genuine −87.6%
-   * schema-size cut. Full measurement, reasoning, and the bar for
-   * revisiting this default: see the git history.
-   *
-   * As of this release, `"v2"` is DEPRECATED and scheduled for removal in
-   * 0.6.0 (issue #76; keep in sync with `V2_REMOVAL_RELEASE` in
-   * src/server.ts). The surface is frozen: no new tool routes and no defect
-   * fixes land on it. Setting `ABAP_TOOL_SURFACE=v2` logs a deprecation
-   * warning at startup and puts the same sentence in the server
-   * `instructions` (both driven by `V2_DEPRECATION_SENTENCE` in
-   * src/server.ts, so the operator-facing and model-facing wording cannot
-   * drift apart).
-   *
-   * Deliberately no `"both"` value: v2 reuses v1's tool names verbatim, so
-   * registering both surfaces throws "Tool abap_read is already registered"
-   * at startup.
-   */
-  toolSurface: z.enum(["v1", "v2"]).default("v1"),
   /**
    * How hard abapsmith works to prove a write landed (`ABAP_VERIFY_WRITES`).
    * `"speculative"` (default): a create/activate that returned without error
@@ -699,12 +689,44 @@ export const ConfigSchema = z.object({
    * read; exhaustion at the ceiling was never induced/measured).
    *
    * `0`/`1` disables debugging outright (the kill switch — hence
-   * `.nonnegative()` not `.positive()`). A FLOOR CHECK, not a multiplier:
-   * raising it does NOT enable a second concurrent debug session (see
-   * `DEBUG_CONCURRENCY` in `src/adt/pool.ts` — parallel debugging is
-   * closed). Deliberately no `.max()`: `7` is A4H-specific.
+   * `.nonnegative()` not `.positive()`). Raising this ALONE does not enable
+   * a second concurrent debug session: the actual concurrency cap is
+   * `resolveDebugSessionLimit(cfg)` in `src/adt/pool.ts`, which takes the
+   * smaller of `debugSessions` (below) and `floor(debugDiaBudget /
+   * DIA_COST_PER_DEBUG_SESSION)` — this field only ever raises the ceiling
+   * that `debugSessions` is capped against, it never raises the cap by
+   * itself. Deliberately no `.max()`: `7` is A4H-specific.
    */
   debugDiaBudget: z.coerce.number().int().nonnegative().default(2),
+  /**
+   * How many concurrent debug leases to grant, before the `debugDiaBudget`
+   * ceiling above is applied — see `resolveDebugSessionLimit` in
+   * `src/adt/pool.ts` for the exact formula. Default `1`, matching every
+   * abapsmith release before this setting existed (`DEBUG_CONCURRENCY` in
+   * `src/adt/pool.ts`), so leaving `ABAP_DEBUG_SESSIONS` unset reproduces
+   * today's behaviour bit-for-bit.
+   *
+   * Raising this past `1` only raises the CLIENT-side cap. It does not, by
+   * itself, make a second concurrent debug session possible: measured wire
+   * evidence (`test/cassettes/debugger/listener-conflict-409.cassette.json`)
+   * shows SAP refusing a second `POST .../debugger/listeners` for the same
+   * SAP user with `409`/`conflictDetected` (T100 `SY 530`, "Another session
+   * already exists with global debugging scope for user X") even when the
+   * refused request carried a different `terminalId` from the holder's —
+   * SAP's exclusivity at this scope is per SAP USER, not per identity. A
+   * second lane only has a chance of working when it authenticates as a
+   * DIFFERENT SAP user (a second abapsmith process with a different
+   * `ABAP_USER`), or once a terminal-scoped debugging mode
+   * (`debuggingMode: "terminal"`) is proven functional — it is modelled in
+   * this repo but has never been demonstrated to work.
+   *
+   * Hard-fails (does not clamp) outside `1..4`, mirroring `debugDiaBudget`'s
+   * validation style: a value this consequential should be loud when wrong,
+   * not silently coerced into something the operator didn't ask for.
+   * `.max(4)` is an arbitrary sanity ceiling — nothing enforces that more
+   * than a handful of debug lanes could ever be useful on one process.
+   */
+  debugSessions: z.coerce.number().int().min(1).max(4).default(1),
   /**
    * Whether the live debug deps install the cross-process debug arm lock
    * (`FileLockDebugArmLock`, `src/debug/arm-lock.ts`) or its no-op stand-in.
@@ -797,8 +819,9 @@ export type Config = z.infer<typeof ConfigSchema> & {
    * (`readOnly`, `allowPackages`, `allowNamePrefixes`, `allowTransports`,
    * `allowTransportRelease`, `allowEnhancements`, `enhanceTargets`,
    * `enhanceTargetPackages`, `allowSourcePlugins`, `originSystems`,
-   * `allowTransportDelete`, `allowCascadeDelete`) — they're the flat
-   * projection of `capabilities` below, not independently derived.
+   * `allowTransportDelete`, `allowServicePublish`, `allowCascadeDelete`) —
+   * they're the flat projection of `capabilities` below, not independently
+   * derived.
    * `allowDataPreview` is the one exception: a non-mutating grant fed INTO
    * `capabilitiesForMode`, so it holds the same value in every mode.
    */
@@ -887,6 +910,7 @@ export const RECOGNISED_ABAP_ALLOW_ENV_VARS: readonly string[] = Object.freeze([
   "ABAP_ALLOW_NAME_PREFIXES",
   "ABAP_ALLOW_PACKAGES",
   "ABAP_ALLOW_RAW_ADT_WRITES",
+  "ABAP_ALLOW_SERVICE_PUBLISH",
   "ABAP_ALLOW_SOURCE_PLUGINS",
   "ABAP_ALLOW_TRANSPORTS",
   "ABAP_ALLOW_TRANSPORT_DELETE",
@@ -930,6 +954,30 @@ export function loadConfig(opts: LoadConfigOptions = {}): Config {
       abapMode = parseAbapMode(rawAbapMode);
     } catch (e) {
       abapModeIssue = e instanceof Error ? e.message : String(e);
+    }
+  }
+
+  // ABAP_TOOL_SURFACE (issue #76; doc/DESIGN-NOTES/tool-surface-v2.md): the
+  // v2 consolidated-tool surface was removed and the surface that used to be
+  // called v1 is now the only one, always registered. This cannot be
+  // silently ignored: an operator whose MCP config still sets
+  // ABAP_TOOL_SURFACE=v2 would otherwise get a different tool surface than
+  // they believe they configured, with no signal anything changed. "v1" is
+  // still the name of the surface that survived, so it is accepted (with a
+  // warning, below) rather than rejected like every other stale value.
+  const rawToolSurface = env.ABAP_TOOL_SURFACE;
+  const toolSurfaceTrimmed = rawToolSurface !== undefined ? rawToolSurface.trim() : undefined;
+  let toolSurfaceIssue: string | undefined;
+  if (toolSurfaceTrimmed !== undefined && toolSurfaceTrimmed !== "") {
+    if (toolSurfaceTrimmed === "v2") {
+      toolSurfaceIssue =
+        "ABAP_TOOL_SURFACE=v2 was removed — the six consolidated v2 tools no longer exist. " +
+        "Unset ABAP_TOOL_SURFACE: the former v1 surface is the only one and is always " +
+        "registered. See the Removed entry in CHANGELOG.md and doc/DESIGN-NOTES/tool-surface-v2.md.";
+    } else if (toolSurfaceTrimmed !== "v1") {
+      toolSurfaceIssue =
+        `ABAP_TOOL_SURFACE=${toolSurfaceTrimmed} is not a value this server ever accepted. ` +
+        "ABAP_TOOL_SURFACE is obsolete — unset it. See doc/DESIGN-NOTES/tool-surface-v2.md.";
     }
   }
 
@@ -1235,6 +1283,7 @@ export function loadConfig(opts: LoadConfigOptions = {}): Config {
   const modeBoolOverrides: AbapModeBooleanOverrides = {
     allowTransportRelease: boolOverrideFromEnv(env.ABAP_ALLOW_TRANSPORT_RELEASE),
     allowTransportDelete: boolOverrideFromEnv(env.ABAP_ALLOW_TRANSPORT_DELETE),
+    allowServicePublish: boolOverrideFromEnv(env.ABAP_ALLOW_SERVICE_PUBLISH),
     allowCascadeDelete: boolOverrideFromEnv(env.ABAP_ALLOW_CASCADE_DELETE),
     allowRawAdtWrites: boolOverrideFromEnv(env.ABAP_ALLOW_RAW_ADT_WRITES),
     allowEnhancements: boolOverrideFromEnv(env.ABAP_ALLOW_ENHANCEMENTS),
@@ -1313,6 +1362,9 @@ export function loadConfig(opts: LoadConfigOptions = {}): Config {
     allowTransportDelete: modeCapabilities
       ? modeCapabilities.allowTransportDelete
       : boolFromEnv(env.ABAP_ALLOW_TRANSPORT_DELETE),
+    allowServicePublish: modeCapabilities
+      ? modeCapabilities.allowServicePublish
+      : boolFromEnv(env.ABAP_ALLOW_SERVICE_PUBLISH),
     allowCascadeDelete: modeCapabilities
       ? modeCapabilities.allowCascadeDelete
       : boolFromEnv(env.ABAP_ALLOW_CASCADE_DELETE),
@@ -1347,11 +1399,8 @@ export function loadConfig(opts: LoadConfigOptions = {}): Config {
     // single source of truth, so out-of-range/invalid input reaches the
     // startup error list rather than being papered over here.
     dataPreviewMaxRows: env.ABAP_DATA_PREVIEW_MAX_ROWS,
-    // Not mode-derived — tool surface is orthogonal to the ABAP_MODE
-    // permission ceiling.
-    toolSurface: env.ABAP_TOOL_SURFACE,
     // Not mode-derived — verification posture is orthogonal to the ABAP_MODE
-    // permission ceiling, exactly like toolSurface above.
+    // permission ceiling.
     verifyWrites: env.ABAP_VERIFY_WRITES,
     maxSessions: env.ABAP_MAX_SESSIONS,
     readConcurrency: env.ABAP_READ_CONCURRENCY,
@@ -1364,6 +1413,7 @@ export function loadConfig(opts: LoadConfigOptions = {}): Config {
     sessionIdleMs: env.ABAP_SESSION_IDLE_MS ?? 300_000,
     sessionWaitMs: env.ABAP_SESSION_WAIT_MS ?? 10_000,
     debugDiaBudget: env.ABAP_DEBUG_DIA_BUDGET,
+    debugSessions: env.ABAP_DEBUG_SESSIONS,
     crossProcessDebugLock: env.ABAP_CROSS_PROCESS_DEBUG_LOCK,
     debugLockWaitMs: env.ABAP_DEBUG_LOCK_WAIT_MS,
     // Must stay byte-for-byte identical to
@@ -1379,11 +1429,12 @@ export function loadConfig(opts: LoadConfigOptions = {}): Config {
     !parsed.success ||
     abapModeIssue !== undefined ||
     enhanceTargetsIssue !== undefined ||
-    credentialIssue !== undefined
+    credentialIssue !== undefined ||
+    toolSurfaceIssue !== undefined
   ) {
-    // Combined so an invalid ABAP_MODE/ABAP_ENHANCE_TARGETS/credential setup
-    // reports in the SAME issue list as every other bad env var, in one
-    // startup error.
+    // Combined so an invalid ABAP_MODE/ABAP_ENHANCE_TARGETS/credential/
+    // ABAP_TOOL_SURFACE setup reports in the SAME issue list as every other
+    // bad env var, in one startup error.
     const zodIssues = parsed.success
       ? []
       : parsed.error.issues.map((i) => `  - ${i.path.join(".") || "(root)"}: ${i.message}`);
@@ -1392,8 +1443,10 @@ export function loadConfig(opts: LoadConfigOptions = {}): Config {
       enhanceTargetsIssue !== undefined ? [`  - enhanceTargets: ${enhanceTargetsIssue}`] : [];
     const credentialIssues =
       credentialIssue !== undefined ? [`  - credential: ${credentialIssue}`] : [];
+    const toolSurfaceIssues =
+      toolSurfaceIssue !== undefined ? [`  - toolSurface: ${toolSurfaceIssue}`] : [];
     throw new Error(
-      `Invalid abapsmith configuration:\n${[...zodIssues, ...modeIssues, ...enhanceTargetsIssues, ...credentialIssues].join("\n")}`,
+      `Invalid abapsmith configuration:\n${[...zodIssues, ...modeIssues, ...enhanceTargetsIssues, ...credentialIssues, ...toolSurfaceIssues].join("\n")}`,
     );
   }
 
@@ -1433,6 +1486,13 @@ export function loadConfig(opts: LoadConfigOptions = {}): Config {
     warn(
       "[abapsmith] NOTE: Configured via legacy per-flag env vars. Consider migrating to a " +
         "single ABAP_MODE=read|edit|admin — see README.",
+    );
+  }
+
+  if (toolSurfaceTrimmed === "v1") {
+    warn(
+      "[abapsmith] WARNING: ABAP_TOOL_SURFACE is obsolete and ignored — there is only one tool " +
+        "surface now and it is always registered. Unset it. See doc/DESIGN-NOTES/tool-surface-v2.md.",
     );
   }
 
@@ -1742,18 +1802,28 @@ export function loadConfig(opts: LoadConfigOptions = {}): Config {
         "listeners for one SAP user at once.",
     );
   }
-  // Not a hard failure: lane limits aren't clamped to pool size, so
+  // The debug-lease reservation below must be the number of concurrent debug
+  // LEASES this pool's "debug" role can actually hand out —
+  // `resolveDebugSessionLimit(cfg)`, the same lane count `src/tools/debug.ts`
+  // sizes its lane array from — not `DIA_COST_PER_DEBUG_SESSION`
+  // (`src/adt/pool.ts`). Those are different resources: `DIA_COST_PER_DEBUG_SESSION`
+  // counts dialog work processes pinned on the SAP appliance per session,
+  // while `maxSessions`/`readConcurrency`/`writeConcurrency` here all count
+  // THIS client's own ADT session pool slots — a debug lane consumes one of
+  // those slots, not a DIA process, so the lane count is the right unit to
+  // add. Not a hard failure: lane limits aren't clamped to pool size, so
   // over-subscription just degrades to queuing for the smaller number of
   // slots — a startup refine() would turn a survivable misconfiguration into
   // an outage over something that still runs correctly, just slower.
-  if (cfg.readConcurrency + cfg.writeConcurrency + 1 > cfg.maxSessions) {
+  const debugLaneCount = resolveDebugSessionLimit(cfg);
+  if (cfg.readConcurrency + cfg.writeConcurrency + debugLaneCount > cfg.maxSessions) {
     warn(
       `[abapsmith] WARNING: readConcurrency (${cfg.readConcurrency}) + writeConcurrency ` +
-        `(${cfg.writeConcurrency}) + 1 reserved debug lease slot exceeds maxSessions ` +
-        `(${cfg.maxSessions}). The lane limits are not clamped to the pool size, so the ` +
-        "lanes simply contend for the smaller number of actual slots — the excess lane " +
-        "capacity configured above is unreachable. Accepted as written; the server starts " +
-        "normally.",
+        `(${cfg.writeConcurrency}) + ${debugLaneCount} reserved debug lease slot` +
+        `${debugLaneCount === 1 ? "" : "s"} exceeds maxSessions (${cfg.maxSessions}). ` +
+        "The lane limits are not clamped to the pool size, so the lanes simply contend for " +
+        "the smaller number of actual slots — the excess lane capacity configured above is " +
+        "unreachable. Accepted as written; the server starts normally.",
     );
   }
   if (cfg.serialiseSameObjectWrites === false) {
@@ -1925,7 +1995,6 @@ export function redactConfigSecrets(cfg: Config): Record<string, unknown> {
     // (ABAP_MODE unset), not a redaction.
     abapMode: cfg.abapMode ?? "(unset — legacy per-flag config)",
     capabilities: cfg.capabilities,
-    toolSurface: cfg.toolSurface,
     verifyWrites: cfg.verifyWrites,
     readOnly: cfg.readOnly,
     allowPackages: cfg.allowPackages,
@@ -1959,6 +2028,7 @@ export function redactConfigSecrets(cfg: Config): Record<string, unknown> {
     sessionIdleMs: cfg.sessionIdleMs,
     sessionWaitMs: cfg.sessionWaitMs,
     debugDiaBudget: cfg.debugDiaBudget,
+    debugSessions: cfg.debugSessions,
     crossProcessDebugLock: cfg.crossProcessDebugLock,
     debugLockWaitMs: cfg.debugLockWaitMs,
     // Neither a secret; reported unmasked so an operator can see at a glance

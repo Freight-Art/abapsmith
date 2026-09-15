@@ -1,0 +1,37 @@
+{
+  "n": 944,
+  "label": "step-continue-conditional-watchpoint",
+  "expect": null,
+  "note": "condition LV_TOTAL > 3 armed on watchpoint 1",
+  "requestMethod": "POST",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/debugger?method=stepContinue&sap-client=001",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted: 4 cookies>",
+    "X-sap-adt-sessiontype": "stateful",
+    "X-CSRF-Token": "qIDViU4xLYoK1XUrqSdTZg==",
+    "Accept": "application/xml"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-encoding": "gzip",
+    "content-length": "840",
+    "content-type": "application/xml; charset=utf-8",
+    "sap-authenticated": "true",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "17170.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 2464,
+  "zeroByteBody": false,
+  "sha256": "edf1d6ac87a975f10aca13e334f67ddfdfb51900bfa473620451ea1deca38911",
+  "utcTimestamp": "2026-09-12T17:56:18.522Z",
+  "durationMs": 117,
+  "sessionName": "A",
+  "transportError": null,
+  "redactions": "appliance host -> 203.0.113.10:50000 (RFC 5737); the application-server hostname was replaced with a4hsandbox (same placeholder as the 011-051 captures); Authorization/Cookie/set-cookie stripped. sha256/byteLength are over the redacted body as stored here."
+}

@@ -59,25 +59,46 @@ unlock → syntax-check → pre-activation GET → activate, each leg bounded by
 
 ## The debug arm lock
 
-The `DEBUG_CONCURRENCY = 1` lease (see [session-pool-and-cost.md](session-pool-and-cost.md#session-pool))
-is a **per-process counter**: it
-refuses a second debug session inside one `abapsmith` process and knows
-nothing about any other process. `DebugSession.armListener()`'s own guards
-(`status !== "idle"`, `sessionBlockedBy`) are in-process for the same reason
-— so before this lock existed, writes were protected across processes and the
-debugger was not: two terminals could both arm a listener against the same
-SAP user and silently interleave or reassign each other's debug session.
+The debug lease (see [session-pool-and-cost.md](session-pool-and-cost.md#session-pool))
+is a **per-process counter**, sized by `resolveDebugSessionLimit(cfg)`
+(`src/adt/pool.ts`) — `min(ABAP_DEBUG_SESSIONS, floor(ABAP_DEBUG_DIA_BUDGET / 2))`,
+floored at 1, default 1 (byte-identical to the fixed `DEBUG_CONCURRENCY = 1`
+this replaced). It refuses a debug session past that count inside one
+`abapsmith` process and knows nothing about any other process.
+`DebugSession.armListener()`'s own guards (`status !== "idle"`,
+`sessionBlockedBy`) are in-process for the same reason — so before this lock
+existed, writes were protected across processes and the debugger was not: two
+terminals could both arm a listener against the same SAP user and silently
+interleave or reassign each other's debug session.
 
 `armListener()` therefore also takes a cross-process advisory lock
 (`src/debug/arm-lock.ts`), on the same `withFileLock` primitive the object
 gate uses, over `<stateDir>/locks/debug/<sha256(key)-20hex>.lock`.
+
+**One lock file per lane.** Each concurrent debug session inside a process
+occupies a numbered lane (`0..resolveDebugSessionLimit(cfg)-1`); lane 0 hashes
+the same path as before lanes existed (`sha256(key)`), so an old,
+lane-unaware process and a new one at lane 0 still contend on the same file.
+Lane `N > 0` hashes `key|laneN` instead, giving each lane its own lock file.
+Lane selection lives in the tool layer, not here — this module only turns a
+lane number into a path.
 
 **The key is `(ABAP_URL, client, user)`** — user upper-cased, client verbatim
 (an empty client and a set one are different logons), URL trimmed. There is
 no per-object dimension, since a debug listener is not scoped to an object.
 It is *not* keyed on `(terminalId, ideId)`: SAP enforces debug exclusivity per
 **user** on a system, so two processes with distinct terminal/IDE ids still
-contend for the one slot, and keying on them would lock nothing.
+contend for the one slot, and keying on them would lock nothing — confirmed
+live against A4H (`test/cassettes/debugger/listener-conflict-409.cassette.json`):
+a second `POST .../debugger/listeners` for the same SAP user is refused with
+`409`/`conflictDetected` (T100 `SY 530`) even when it carries a different
+`terminalId` from the holder's. Consequently, giving a process more lanes
+(`ABAP_DEBUG_SESSIONS > 1`) only raises how many debug sessions this process
+itself may hold locally — it does not create a second slot SAP will honor for
+the same SAP user. A second lane only has a chance of actually attaching a
+debuggee when it authenticates as a **different** `ABAP_USER`, or once a
+terminal-scoped debugging mode (`debuggingMode: "terminal"`) is proven
+functional — modelled in this repo but never demonstrated to work.
 
 This is a **sibling** of `ObjectGate` above, not a reuse of it with a synthetic key:
 the object gate canonicalises its key as an object URI (which would mangle a

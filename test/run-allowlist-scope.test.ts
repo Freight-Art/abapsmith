@@ -14,7 +14,6 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { loadConfig } from "../src/config.js";
 import { createServer } from "../src/server.js";
 import { AuthCircuitBreaker } from "../src/adt/circuit-breaker.js";
-import { ABAP_DO_ACTIONS } from "../src/tools/v2/catalogue.js";
 import { routeSystemRoleProbe } from "./helpers/system-role-fake.js";
 
 const DOC_PATH = join(
@@ -79,15 +78,6 @@ describe("abap_run allowlist-scope disclosure: v1 tool description", () => {
     expect(description).toMatch(/transport/i);
 
     await client.close();
-  });
-});
-
-describe("abap_run allowlist-scope disclosure: v2 catalogue", () => {
-  // Already covered by src/tools/v2/catalogue.ts's `action: "run"` summary before this change.
-  it("the abap_do catalogue's run entry carries the same disclosure", () => {
-    const runEntry = ABAP_DO_ACTIONS.find((e) => e.action === "run");
-    expect(runEntry).toBeDefined();
-    assertNotConstrainedClaim(runEntry!.summary);
   });
 });
 

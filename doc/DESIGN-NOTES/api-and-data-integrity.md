@@ -106,8 +106,10 @@ breakdown on every run, so growth is visible rather than discovered later, and
 new prose must still answer "does a model make a worse call without this?"
 rather than "is this nice to have?".
 
-See [doc/TOOL-SURFACE-V2](../TOOL-SURFACE-V2/README.md) for the consolidated surface and
-why it is still opt-in.
+A consolidated, six-tool alternative surface built on this same schema-size
+argument was tried as an opt-in and later removed; see [Why the v2 tool
+surface was removed](tool-surface-v2.md) for what it measured and why the
+schema saving was not enough on its own.
 
 ## Drift is detected by content fingerprint, not by the server's etag
 

@@ -1,0 +1,41 @@
+{
+  "id": "watchpoint-get-unknown-id-404",
+  "recordedAt": "2026-09-12T17:56:18.201Z",
+  "recordedDurationMs": 321,
+  "appliance": {
+    "sid": "A4H",
+    "client": "001",
+    "server": "a4hsandbox_A4H_00"
+  },
+  "source": {
+    "type": "live-capture-raw",
+    "citation": "test/fixtures/live-captured/943-watchpoint-get-unknown-id.meta.json + test/fixtures/live-captured/943-watchpoint-get-unknown-id.xml",
+    "notes": "GET /sap/bc/adt/debugger/watchpoints/99 (an id never assigned in this session). Answers 404 with exc:exception type id=\"AdtFailed\" — not a more specific \"not found\" exception type — message \"Cannot retrieve watchpoint data: Watchpoint not found\", and T100 key TPDA_ADT/013. Worth flagging because AdtFailed is the same generic exception type family used elsewhere in this run for genuine server errors, so error-handling code that branches on exception type name alone cannot distinguish \"unknown watchpoint id\" from other AdtFailed conditions without also checking the T100 key. Redactions performed by the capture harness before this file was written: appliance host -> 203.0.113.10:50000 (RFC 5737), application-server hostname -> a4hsandbox, Authorization/Cookie/set-cookie header values stripped. sha256/byteLength in the source .meta.json are computed over the redacted body as stored."
+  },
+  "request": {
+    "method": "GET",
+    "path": "/sap/bc/adt/debugger/watchpoints/99?sap-client=001",
+    "headers": {
+      "Authorization": "<redacted>",
+      "Cookie": "<redacted: 4 cookies>",
+      "X-sap-adt-sessiontype": "stateful",
+      "X-CSRF-Token": "qIDViU4xLYoK1XUrqSdTZg==",
+      "Accept": "application/xml"
+    },
+    "body": null
+  },
+  "response": {
+    "status": 404,
+    "headers": {
+      "content-length": "522",
+      "content-type": "application/xml",
+      "sap-authenticated": "true",
+      "sap-cache-control": "+0",
+      "sap-isc-uagent": "0",
+      "sap-perf-fesrec": "268047.000000",
+      "sap-server": "true",
+      "set-cookie": "<redacted>"
+    },
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><exc:exception xmlns:exc=\"http://www.sap.com/abapxml/types/communicationframework\"><namespace id=\"com.sap.adt\"/><type id=\"AdtFailed\"/><message lang=\"EN\">Cannot retrieve watchpoint data: Watchpoint not found</message><localizedMessage lang=\"EN\">Cannot retrieve watchpoint data: Watchpoint not found</localizedMessage><properties><entry key=\"T100KEY-ID\">TPDA_ADT</entry><entry key=\"T100KEY-NO\">013</entry><entry key=\"T100KEY-V1\">Watchpoint not found</entry></properties></exc:exception>"
+  }
+}
