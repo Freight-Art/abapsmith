@@ -50,6 +50,8 @@ under `read`).
 | `columns` | array of string | no | every column | Restrict the projection to these fields. |
 | `order_by` | array of `{field, direction}` | no | none | `direction` is `asc` (default) or `desc`. |
 | `distinct` | boolean | no | `false` | Adds `SELECT DISTINCT`. |
+| `format` | enum `table` \| `abap_value` \| `test_double` | no | `table` | How the fetched rows are rendered. |
+| `mask` | array of string | no | none | Field names to blank in the output only, applied at render time after the read. |
 
 This tool still takes no SQL text from a caller. `where`/`columns`/`order_by`
 are a structured filter, built from field names and typed values, not a
@@ -138,6 +140,115 @@ supplies one, the server's own `executedQueryString`. On the filtered path
 only, the response also carries the server's `totalRows` — the true number
 of matching rows, independent of the `max_rows` cap.
 
+### format
+
+`format` chooses how the rows already fetched are rendered. It runs after
+the read completes — it never changes what is fetched, how it is filtered,
+or how many rows come back.
+
+- **`table`** (default) — unchanged: the usual text table.
+- **`abap_value`** — the rows as one typed ABAP literal for the entity's
+  line type, preceded by the `TYPES` line:
+
+  ```abap
+  TYPES ty_rows TYPE STANDARD TABLE OF t000 WITH EMPTY KEY.
+  DATA(lt_rows) = VALUE ty_rows(
+    ( mandt = '000' mtext = 'SAP AG' )
+    ( mandt = '001' mtext = 'A''s client' )
+  ).
+  ```
+
+  One row per `( ... )` group, with every field named explicitly. Fields
+  appear in the `columns` order when `columns` was given, DDIC order
+  otherwise. Character-like types (`C`, `N`, `STRING`, `CLNT`, `LANG`,
+  `UNIT`, `CUKY`) are quoted, with an embedded `'` doubled. `D` and `T`
+  render as `'YYYYMMDD'` / `'HHMMSS'`. `NUMC` is kept as a quoted string,
+  never converted to a number — its leading zeros are significant, and they
+  are not always present on the wire: live, `DD02L-AS4VERS` came back
+  `0000` but `SEOCLASSDF-VERSION` came back `1`. Integers are bare. Packed
+  and float values render in ABAP literal form (`'12.50'`). ADT's data
+  preview renders a negative numeric with a *trailing* minus rather than a
+  leading one — live `TCURR-UKURS` came back as `0.94000-` — and the
+  renderer moves the sign to the front so the emitted literal is valid ABAP:
+  `'-0.94000'`. An empty cell is omitted from the group unless the field is
+  a key field, but in practice this exception rarely fires: every live
+  capture had ADT report `keyAttribute="false"` for every column, including
+  genuine primary keys (`DD02L-TABNAME`, `TCURR-MANDT`), so the preview
+  metadata on this system does not mark key fields and a caller should not
+  rely on the key exception to guarantee a field is emitted. The response
+  carries a note saying so whenever a cell was omitted. Every emitted line
+  stays at or under 255 characters; a row group too long for one line wraps
+  across lines rather than being cut.
+
+  Verified live on A4H (client 001, user DEVELOPER, 2026-09-15) via
+  `abap_data_preview`: `C` and `N` (DD02L), `D` and `T` (DD02L
+  AS4DATE/AS4TIME), `P` (TCURR UKURS/FFACT/TFACT, including the negative
+  trailing-sign case above), and INT1 — which arrives on the wire as a
+  lower-case `b` (SEOCLASSDF DURATION_TYPE/RISK_LEVEL). **Unverified**:
+  `I`/`INT4`/`INT8` and the hexadecimal family `X`/`RAW`/`RAWSTRING` — no
+  readable basis table on A4H exposed a column of those types, so those
+  literal paths are covered by unit tests over synthesised column metadata
+  only, not by a live capture.
+
+- **`test_double`** — the same literal, wrapped in a paste-ready fixture
+  snippet. This is a *partial* snippet, not a complete test class: it emits
+  a leading comment saying exactly that, then the `CLASS-DATA` declaration
+  and the `class_setup`/`class_teardown` method bodies, for the caller to
+  paste into an existing `CLASS ltc_... DEFINITION ... FOR TESTING RISK
+  LEVEL HARMLESS` class — it does not emit the `CLASS ... DEFINITION` /
+  `IMPLEMENTATION` wrapper itself:
+
+  ```abap
+  " Paste into your test class. Requires CLASS ... FOR TESTING RISK LEVEL HARMLESS.
+  CLASS-DATA go_osql TYPE REF TO if_osql_test_environment.
+
+  METHOD class_setup.
+    go_osql = cl_osql_test_environment=>create( VALUE #( ( 'T000' ) ) ).
+    TYPES ty_rows TYPE STANDARD TABLE OF t000 WITH EMPTY KEY.
+    DATA(lt_rows) = VALUE ty_rows(
+      ( mandt = '000' mtext = 'SAP AG' )
+    ).
+    go_osql->insert_test_data( lt_rows ).
+  ENDMETHOD.
+
+  METHOD class_teardown.
+    go_osql->destroy( ).
+  ENDMETHOD.
+  ```
+
+  `abap_data_preview` only ever reads an Open SQL entity — a transparent
+  table, a database view, or a CDS view — so that is always the fixture
+  kind it emits: `cl_osql_test_environment` doubles a database entity. For
+  a structure or a table type there is no Open SQL entity behind the read,
+  so there is nothing to double and the literal stands alone with no
+  fixture wrapper — `cl_abap_testdouble` doubles a class or an interface,
+  not a table.
+
+### mask
+
+`mask` names fields to blank in the output only, applied at render time
+after the read — the row is fetched in full first, so a `where` or
+`order_by` condition on a masked field still works normally; only the
+rendered output is redacted. Character-like fields become the constant
+`'MASKED'`; every other type becomes its initial value. The response lists
+which fields were actually masked.
+
+A name in `mask` that does not match a column of the entity is refused with
+`BAD_INPUT` rather than silently ignored — a mask that quietly does nothing
+is a data leak, not a no-op.
+
+### Policy
+
+A fixture built with `format: "test_double"` (or the plain literal from
+`format: "abap_value"`) is a copy of production rows, so its governing
+policy is exactly `abap_data_preview`'s own — there is no separate path
+around it. `ABAP_ALLOW_DATA_PREVIEW` decides whether the tool is registered
+at all; `safety.assertDataPreview` runs against the deny-list before the
+read, unaffected by `format` or `mask`; the row ceiling
+(`ABAP_DATA_PREVIEW_MAX_ROWS`) applies unchanged. `format` is applied to
+rows already fetched, so a deny-listed table yields no rows in any format —
+there is no rendering path that reaches data the read itself refused.
+
 ### Worked examples
 
 ```json
@@ -182,6 +293,9 @@ structures, CDS table functions, abstract entities, and parameterised CDS
 views (any CDS view that declares parameters) are refused, with the refusal
 message naming the actual kind at call time.
 
+`format: "abap_value"`/`"test_double"` reproduces values, not the DDIC
+type: a field whose ABAP literal form abapsmith cannot determine is emitted
+as a quoted string and may need a cast by hand.
 ## abap_fluid log.read
 
 Read application log (BAL/SLG1) headers and, on request, their messages.

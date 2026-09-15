@@ -227,12 +227,87 @@ deploys `ZCL_ZMCP_FLUID_UI` into `$ABAPSMITH_FLUID_API`, and it too refuses
 | `fcode` | string | `fcode` only, optional | (all) | One function code to trace. Omitted means every function code of every GUI status of the program. |
 | `screens` | array of screen-script objects | required for `press` | — | Ordered batch-input script, one entry per dynpro the transaction shows in sequence. |
 | `confirm` | boolean | required (must be exactly `true`) for `press` | — | Explicit acknowledgment that `press` commits business data immediately with no dry run. |
+| `layout` | boolean | no | `false` | `screen` only. Also render a monospace picture of the screen from the field rows already read. No extra ABAP, no change to the generated bridge class, no extra round trip. Ignored by `mode=press`. |
 
 Each `screens[]` entry: `program` (string, required), `dynpro` (string,
 required, e.g. `"100"` — padded to 4 digits automatically), `okcode`
 (string, optional, e.g. `"=ENTR"` or `"/00"`), `cursorField` (string,
 optional), `fields` (array of `{name, value}`, optional — screen field name
 and value, max 132 chars each).
+
+### layout
+
+With `layout: true` on `mode=screen`, the response also carries a monospace
+picture of the screen. It is built client-side from the same field rows
+`RPY_DYNPRO_READ` already returned, at each element's `D021S` line/column —
+nothing extra is deployed or fetched to build it:
+
+- Text and labels are drawn as their text at that position.
+- An input-capable field is a run of underscores as wide as the field, e.g.
+  `KUNNR ________________`; an output-only field is a run of dots instead.
+- A checkbox is `[ ]`, a radio button is `( )`, a pushbutton is `[ Text ]`.
+- A frame is a box of `+`/`-`/`|` with its title on the top edge.
+- A subscreen area is a labelled box, `[subscreen: AREA_NAME]`, sized to its
+  width.
+- A table control is a labelled box, `[table control: TC_NAME]`, with one
+  header row of its column names.
+- A tabstrip is rendered as its tab titles on a single line.
+- An element whose type this renderer does not recognise is still drawn,
+  never dropped — as `?NAME?` at its position.
+
+Below the grid, a `Buttons` line lists the GUI status's function keys from
+`fkeys`, grouped by status:
+
+```
+Buttons (STATUS): Execute (ONLI), Cancel (ECAN)
+```
+
+Screen height and width come from the `RPY_DYHEAD` header (`lines`,
+`columns`). If the grid would exceed the response cap it is cut, and the
+cut is marked, the same as any other truncation in this server.
+
+Illustration only, not a captured screen:
+
+```
+Customer   ________________________
+[ ] Include archived orders
+[ Execute ]
+
+Buttons (STATUS_ONLI): Execute (ONLI), Cancel (ECAN)
+```
+
+**Fidelity**: this is the design-time layout stored in `RPY_DYNPRO_READ`
+(`D021S`), not a runtime screenshot. Text that PBO logic fills in, dynamic
+`MODIFY SCREEN` attributes, table-control column widths, and
+subscreen/step-loop heights are not present in `D021S` at all, so none of
+them are reflected. Positions are approximate; an element that would
+overlap another already placed is shifted right to stay visible rather than
+drawn on top of it.
+
+Known limitations, established from live captures on A4H — `SAPMSYST`
+dynpro `0020` (hand-painted) and a `$TMP` probe report with a generated
+selection screen:
+
+- On a generated selection screen, the label text is not in `D021S` at
+  all: `D021S-STXT` holds a run of underscores, and the real text is
+  filled at PBO from the text pool. Selection-screen labels therefore
+  render as the field name in `?NAME?` form, or as a blank run — not as
+  their real text. Labels on a hand-painted dynpro, such as `SAPMSYST`
+  `0020`, do carry their text.
+- `D021S-STXT` stores blanks as underscores, so a genuine underscore
+  inside a label is indistinguishable from a space.
+- `D021S` carries no height for a frame, a subscreen area, or a step
+  loop. A frame's box is drawn down to the line before the next frame, or
+  to the last occupied line if there is no next frame — that is an
+  inference, not a stored value.
+- Table-control column widths are not stored either; the header row is
+  drawn with the column titles separated by `|`.
+
+Verification: the `D021S` attribute names, the hexadecimal encoding of its
+`RAW(1)` columns, and the element-kind vocabulary were pinned by live
+captures on A4H; the rendered picture itself is produced client-side and is
+covered by unit tests over those captures, but it has not been compared
+against a running SAP GUI screenshot.
 
 Notes: `press` refuses a transaction whose TSTC-CINFO marks it a report
 transaction (`'80'`) rather than a dialog transaction (`'00'`) — use
@@ -306,6 +381,10 @@ Example (read a screen):
 { "mode": "screen", "tcode": "ZDEMO_ORDER01" }
 ```
 
+Example (read a screen with the rendered layout):
+
+```json
+{ "mode": "screen", "tcode": "ZDEMO_ORDER01", "layout": true }
 Example (trace a function code):
 
 ```json
