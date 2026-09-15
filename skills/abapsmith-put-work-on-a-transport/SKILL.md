@@ -126,6 +126,39 @@ Prefer deleting an object under a different request than the one that
 created it, or check back with the user before deleting it under its own
 creating request.
 
+## Transport of copies
+
+Workbench requests aren't the only kind. A **transport of copies** carries a
+snapshot of already-active objects to one named target system, without
+freezing the objects in this system: the originals stay modifiable, under
+their own original request, which the copy leaves untouched. Reach for one
+when you need to ship a snapshot to a target system (e.g. QAS) without
+locking down further work on the same objects here.
+
+Create one with `operation: "create"`, `kind: "copies"`, `target` (the
+target system — required; a transport of copies with no target cannot be
+imported anywhere, so abapsmith refuses to create one without it),
+`package`, and `description` — gated the same as an ordinary `create`
+(`canWrite`, the `package` allowlist, no `$`-package).
+
+It has **no tasks**: `addUser` does not apply, and fails if you try it (ADT
+answers HTTP 400, `TRANSPORT_ERROR "I::000"`). Don't chase that error as a
+generic transport failure — recognise it as "wrong request kind" and stop.
+See [doc/TOOLS/transports.md](../../doc/TOOLS/transports.md) for the wire
+details and exactly what's proven live versus not.
+
+## Did my change reach the target system?
+
+`operation: "log"` (`transport`) reads a request's transport log.
+`operation: "queue"` (`system`, optional `domain`) reads a target system's
+TMS import queue. **The queue is the import BUFFER, not a history** — a
+request that already imported has LEFT the buffer, so its absence there
+does not mean it never arrived. Pair the two: `queue` says what's still
+waiting, `log` says what already happened. Neither triggers an import —
+that stays a human action in STMS; see
+[doc/LIMITATIONS/not-implemented-and-unproven.md](../../doc/LIMITATIONS/not-implemented-and-unproven.md)
+for why.
+
 ## Releasing
 
 `abap_transport_release` is a **separate, irreversible** tool, and it is gated off
@@ -143,5 +176,6 @@ request number exactly, same as `confirm`. When this fires, the right response i
 almost always to release the request **you** created instead — not to override.
 Overriding is a deliberate decision about someone else's work, not a default path.
 
-Check ownership before releasing: `transport_show` reports `createdThisSession:
-yes|no`; use it, don't guess.
+Check ownership before releasing: `transport_show` reports
+`createdByAbapsmith` (the old `createdThisSession: yes|no` field is gone) —
+use it, don't guess.
