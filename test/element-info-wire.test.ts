@@ -1,6 +1,6 @@
 /**
  * Wire-fidelity pin for `src/adt/element-info.ts`: replays the real A4H
- * captures 891-897, 899, 900 in `test/fixtures/live-captured/` (`i91-*`)
+ * captures 952-958, 960, 961 in `test/fixtures/live-captured/` (`i91-*`)
  * through the module's exported PURE functions, so the parser stays pinned
  * to what the server actually sent rather than to what was assumed when the
  * module was written. There is no capture 898 — that request errored with
@@ -19,10 +19,10 @@
  * rows from `conn.adt.usageReferences()` — `abap-adt-api`'s own wire client
  * — and that vendor function is broken for this endpoint: it looks up the
  * document by the hardcoded path `"usageReferences:referencedObject"`
- * (capital `R`), but fixture 900's actual wire bytes declare and use the
+ * (capital `R`), but fixture 961's actual wire bytes declare and use the
  * namespace prefix `usagereferences` (all lowercase) throughout —
  * `xmlns:usagereferences=` and every `<usagereferences:…>` tag — so feeding
- * fixture 900 through the vendor function returns an EMPTY array, not the
+ * fixture 961 through the vendor function returns an EMPTY array, not the
  * two implementers this fixture carries. That is no longer a live concern
  * for this repo: `element-info.ts` now parses where-used itself
  * (`parseUsageReferences`, prefix-agnostic via `removeNSPrefix: true`) and
@@ -62,11 +62,11 @@ function catchAbap(fn: () => unknown): AbapError {
   throw new Error("expected an AbapError, but the call returned normally");
 }
 
-// --------------------------------------------------------- 891-896, 899 --
+// --------------------------------------------------------- 952-957, 960 --
 
 describe("parseElementInfo replays the captured elementinfo documents", () => {
-  it("891: interface method PROCESS resolves to INTF/IO with two INTF/IOP parameter children", () => {
-    const info = parseElementInfo(read("891-i91-elementinfo-interface-method.xml"), ctx("element info"));
+  it("952: interface method PROCESS resolves to INTF/IO with two INTF/IOP parameter children", () => {
+    const info = parseElementInfo(read("952-i91-elementinfo-interface-method.xml"), ctx("element info"));
     expect(info.type).toBe("INTF/IO");
     expect(info.name).toBe("PROCESS");
     expect(info.properties).toEqual({ level: "instance", visibility: "public" });
@@ -102,8 +102,8 @@ describe("parseElementInfo replays the captured elementinfo documents", () => {
     expect(rvResult?.shortText).toBe("Number of characters");
   });
 
-  it("892: private instance attribute MV_COUNT resolves to CLAS/OA with visibility, level and abapType", () => {
-    const info = parseElementInfo(read("892-i91-elementinfo-attribute.xml"), ctx("element info"));
+  it("953: private instance attribute MV_COUNT resolves to CLAS/OA with visibility, level and abapType", () => {
+    const info = parseElementInfo(read("953-i91-elementinfo-attribute.xml"), ctx("element info"));
     expect(info.type).toBe("CLAS/OA");
     expect(info.name).toBe("MV_COUNT");
     expect(info.properties).toEqual({ visibility: "private", level: "instance", abapType: "TYPE I" });
@@ -112,8 +112,8 @@ describe("parseElementInfo replays the captured elementinfo documents", () => {
     expect(info.children).toEqual([]);
   });
 
-  it("893: structured type TY_ROW has an empty abapType and untyped component children", () => {
-    const info = parseElementInfo(read("893-i91-elementinfo-type.xml"), ctx("element info"));
+  it("954: structured type TY_ROW has an empty abapType and untyped component children", () => {
+    const info = parseElementInfo(read("954-i91-elementinfo-type.xml"), ctx("element info"));
     expect(info.type).toBe("CLAS/OT");
     expect(info.name).toBe("TY_ROW");
     // The wire byte for this entry is the self-closing `<abapsource:entry
@@ -140,8 +140,8 @@ describe("parseElementInfo replays the captured elementinfo documents", () => {
     expect(name?.properties).toEqual({ abapType: "TYPE STRING" });
   });
 
-  it("894: local data reference LO_PROBE resolves to CLAS/OOV, visibility=local, no documentation", () => {
-    const info = parseElementInfo(read("894-i91-elementinfo-local-variable.xml"), ctx("element info"));
+  it("955: local data reference LO_PROBE resolves to CLAS/OOV, visibility=local, no documentation", () => {
+    const info = parseElementInfo(read("955-i91-elementinfo-local-variable.xml"), ctx("element info"));
     expect(info.type).toBe("CLAS/OOV");
     expect(info.name).toBe("LO_PROBE");
     expect(info.properties).toEqual({ visibility: "local", abapType: "TYPE REF TO ZIF_I91_PROBE" });
@@ -150,8 +150,8 @@ describe("parseElementInfo replays the captured elementinfo documents", () => {
     expect(info.children).toEqual([]);
   });
 
-  it("895: own method RUN carries paramDefaultValue on the optional IV_TIMES parameter only", () => {
-    const info = parseElementInfo(read("895-i91-elementinfo-method-own.xml"), ctx("element info"));
+  it("956: own method RUN carries paramDefaultValue on the optional IV_TIMES parameter only", () => {
+    const info = parseElementInfo(read("956-i91-elementinfo-method-own.xml"), ctx("element info"));
     expect(info.type).toBe("CLAS/OM");
     expect(info.name).toBe("RUN");
     expect(info.children).toHaveLength(2);
@@ -179,7 +179,7 @@ describe("parseElementInfo replays the captured elementinfo documents", () => {
     expect(rvTotal?.properties.paramDefaultValue).toBeUndefined();
   });
 
-  it("896: function module RFC_PING is thin — empty properties, no doc, no children (ADT limitation for FUGR/FF, not a parser gap)", () => {
+  it("957: function module RFC_PING is thin — empty properties, no doc, no children (ADT limitation for FUGR/FF, not a parser gap)", () => {
     // The wire body for this one is deliberately minimal:
     //   <abapsource:elementInfo adtcore:type="FUGR/FF" adtcore:name="RFC_PING" …>
     //     <abapsource:properties/>
@@ -188,7 +188,7 @@ describe("parseElementInfo replays the captured elementinfo documents", () => {
     // function-module name literal here — this is what A4H actually answered
     // (see the fixture's own `.meta.json` "expect"), not something
     // `parseElementInfo` failed to extract.
-    const info = parseElementInfo(read("896-i91-elementinfo-function-module.xml"), ctx("element info"));
+    const info = parseElementInfo(read("957-i91-elementinfo-function-module.xml"), ctx("element info"));
     expect(info.type).toBe("FUGR/FF");
     expect(info.name).toBe("RFC_PING");
     expect(info.properties).toEqual({});
@@ -198,14 +198,14 @@ describe("parseElementInfo replays the captured elementinfo documents", () => {
     expect(info.children).toEqual([]);
   });
 
-  it("899: a position with nothing resolvable answers 200 with an elementInfo that has no adtcore:name", () => {
-    const info = parseElementInfo(read("899-i91-elementinfo-no-element.xml"), ctx("element info"));
+  it("960: a position with nothing resolvable answers 200 with an elementInfo that has no adtcore:name", () => {
+    const info = parseElementInfo(read("960-i91-elementinfo-no-element.xml"), ctx("element info"));
     expect(info.name).toBeUndefined();
     expect(info.type).toBeUndefined();
     // This is a successful, well-formed answer, not an error — isUnresolved
     // is how callers are meant to distinguish "resolved to nothing" from a
     // wire/parse failure, which would have thrown instead of returning here.
-    // (Note for the report: this IS the "899: a nameless elementInfo document
+    // (Note for the report: this IS the "960: a nameless elementInfo document
     // is still unresolved" assertion — kept under its original name rather
     // than duplicated under a new one.)
     expect(isUnresolved(info)).toBe(true);
@@ -220,7 +220,7 @@ describe("parseElementInfo replays the captured elementinfo documents", () => {
     // fixture file exists for this — there are no bytes to pin — same reason
     // the repo already has no capture 898. Before the fix this threw
     // ADT_ERROR ("no <abapsource:elementInfo> element"); it must now answer
-    // the same unresolved shape fixture 899 does.
+    // the same unresolved shape fixture 960 does.
     const info = parseElementInfo("", ctx("element info"));
     expect(isUnresolved(info)).toBe(true);
     expect(info.children).toEqual([]);
@@ -246,11 +246,11 @@ describe("parseElementInfo replays the captured elementinfo documents", () => {
   });
 });
 
-// -------------------------------------------------------------- 897 --
+// -------------------------------------------------------------- 958 --
 
 describe("parseNavigationTarget / splitFragmentUri replay the definition-target document", () => {
-  it("897: go-to-definition answers an objectReference whose uri fragment splits into line 8, column 10", () => {
-    const target = parseNavigationTarget(read("897-i91-navigation-target-definition.xml"), ctx("navigation target"));
+  it("958: go-to-definition answers an objectReference whose uri fragment splits into line 8, column 10", () => {
+    const target = parseNavigationTarget(read("958-i91-navigation-target-definition.xml"), ctx("navigation target"));
     expect(target).toBeDefined();
     expect(target?.uri).toBe("/sap/bc/adt/oo/interfaces/zif_i91_probe/source/main");
     // Line is 1-based, column is 0-based — the module's own header convention;
@@ -328,8 +328,8 @@ describe("identifierAt finds the ABAP identifier token covering a position", () 
 // --------------------------------------------------- parseUsageReferences --
 
 describe("parseUsageReferences reads a where-used result regardless of the namespace prefix on the wire", () => {
-  it("900: parseUsageReferences reads the lowercase usagereferences: prefix A4H actually sends", () => {
-    const rows = parseUsageReferences(read("900-i91-usage-references-interface-method.xml"), ctx("usage references"));
+  it("961: parseUsageReferences reads the lowercase usagereferences: prefix A4H actually sends", () => {
+    const rows = parseUsageReferences(read("961-i91-usage-references-interface-method.xml"), ctx("usage references"));
     // Sanity on the fixture itself before trusting assertions built on top of
     // it: 5 referencedObject rows (2 classes, 2 implementer methods, 1 caller
     // method) plus the $TMP package row — 6 total, matching what was dumped
@@ -356,14 +356,14 @@ describe("parseUsageReferences reads a where-used result regardless of the names
     expect(packageRow).toBeDefined();
   });
 
-  it("900: parseUsageReferences reads the capitalised usageReferences: prefix the vendor library expects", () => {
+  it("961: parseUsageReferences reads the capitalised usageReferences: prefix the vendor library expects", () => {
     // SYNTHETIC variant, not a live capture: no system has been observed
     // sending the capitalised `usageReferences:` prefix — it is only the
     // shape `abap-adt-api@8.4.1`'s own (broken) reader hardcodes. The point
     // of this test is that `parseUsageReferences` is prefix-agnostic either
     // way, via `usageReferencesXml`'s `removeNSPrefix: true` — not that any
     // real system sends this spelling.
-    const original = read("900-i91-usage-references-interface-method.xml");
+    const original = read("961-i91-usage-references-interface-method.xml");
     const recapitalised = original
       .replace(/xmlns:usagereferences=/g, "xmlns:usageReferences=")
       .replace(/usagereferences:/g, "usageReferences:");
@@ -394,8 +394,8 @@ describe("parseUsageReferences reads a where-used result regardless of the names
 // ------------------------------------------------------- implementationsFrom --
 
 describe("implementationsFrom picks the implementer rows out of a where-used result", () => {
-  it("900: finds both ZCL_I91_PROBE and ZCL_I91_PROBE2 as implementers, each real-cased via its parentUri sibling, and excludes the RUN caller row", () => {
-    const rows = parseUsageReferences(read("900-i91-usage-references-interface-method.xml"), ctx("usage references"));
+  it("961: finds both ZCL_I91_PROBE and ZCL_I91_PROBE2 as implementers, each real-cased via its parentUri sibling, and excludes the RUN caller row", () => {
+    const rows = parseUsageReferences(read("961-i91-usage-references-interface-method.xml"), ctx("usage references"));
     // Sanity on the fixture itself before trusting assertions built on top of
     // it: 5 referencedObject rows (2 classes, 2 implementer methods, 1 caller
     // method) plus the $TMP package row — 6 total, matching what was dumped
@@ -422,15 +422,15 @@ describe("implementationsFrom picks the implementer rows out of a where-used res
     expect(implementations).toHaveLength(2);
   });
 
-  it("900: the caller row alone (without the interface-method rows) yields no implementers", () => {
-    const rows = parseUsageReferences(read("900-i91-usage-references-interface-method.xml"), ctx("usage references"));
+  it("961: the caller row alone (without the interface-method rows) yields no implementers", () => {
+    const rows = parseUsageReferences(read("961-i91-usage-references-interface-method.xml"), ctx("usage references"));
     const runRowOnly = rows.filter((r) => r["adtcore:name"] === "RUN");
     expect(runRowOnly).toHaveLength(1);
     expect(implementationsFrom(runRowOnly, "ZIF_I91_PROBE", "PROCESS")).toEqual([]);
   });
 
-  it("900: implementationsFrom over parseUsageReferences finds both implementing classes", () => {
-    const rows = parseUsageReferences(read("900-i91-usage-references-interface-method.xml"), ctx("usage references"));
+  it("961: implementationsFrom over parseUsageReferences finds both implementing classes", () => {
+    const rows = parseUsageReferences(read("961-i91-usage-references-interface-method.xml"), ctx("usage references"));
     const implementations = implementationsFrom(rows, "ZIF_I91_PROBE", "PROCESS");
     const names = implementations.map((i) => i.className).sort();
     expect(names).toEqual(["ZCL_I91_PROBE", "ZCL_I91_PROBE2"]);

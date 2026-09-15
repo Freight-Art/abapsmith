@@ -955,7 +955,7 @@ export async function abapActivateBatch(
  * follows whatever the server's OWN pretty-printer setting already is
  * (indentation, keyword case, identifier case, ...). It only ever *reads*
  * the effect of that setting (via the stateless `prettyprinter` POST,
- * `prettyPrintSource`), never changes it. (Observed on A4H, fixture 901:
+ * `prettyPrintSource`), never changes it. (Observed on A4H, fixture 962:
  * `indentation=true style=keywordUpper keepIdentifier=true` — cited here,
  * not in any user-facing string, since abapsmith has no lever to change it.)
  */
@@ -1143,7 +1143,7 @@ export async function abapActivateFormat(
     // Already formatted, as far as the server is concerned: distinct from
     // "formatted successfully" below. If `current` and `outcome.source`
     // differ only in line endings, the object genuinely does not need
-    // writing — the server treats the two as identical (fixture 903 shows
+    // writing — the server treats the two as identical (fixture 964 shows
     // the same idempotence for byte-identical input). NOTHING was locked,
     // written, activated or journalled. No `abapWrite` call at all.
     return buildResponse({

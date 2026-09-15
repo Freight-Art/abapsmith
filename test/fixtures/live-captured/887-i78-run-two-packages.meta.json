@@ -1,0 +1,33 @@
+{
+  "n": 887,
+  "label": "i78-run-two-packages",
+  "note": "Synchronous ATC run body with one inclusive objectSet carrying TWO adtcore:objectReference package URIs. Confirms an object set accepts several references and that a PACKAGE reference is accepted here even though the SATC_RUN_REQ simple transformation has no package field; the ack carries a TOOL_FAILURE info next to FINDING_STATS 32,0,47.",
+  "requestMethod": "POST",
+  "requestUrl": "/sap/bc/adt/atc/runs?worklistId=466F46C806601FE1ABD795A0C0B5C069",
+  "requestHeaders": {
+    "Accept": "application/xml",
+    "Content-Type": "application/xml"
+  },
+  "requestBody": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<atc:run maximumVerdicts=\"100\" xmlns:atc=\"http://www.sap.com/adt/atc\">\n\t<objectSets xmlns:adtcore=\"http://www.sap.com/adt/core\">\n\t\t<objectSet kind=\"inclusive\">\n\t\t\t<adtcore:objectReferences>\n\t\t\t\t<adtcore:objectReference adtcore:uri=\"/sap/bc/adt/packages/z_flight_ref_prep\"/>\n\t\t\t\t<adtcore:objectReference adtcore:uri=\"/sap/bc/adt/packages/z_upg_badi_impl\"/>\n\t\t\t</adtcore:objectReferences>\n\t\t</objectSet>\n\t</objectSets>\n</atc:run>",
+  "requestBodyBytes": 466,
+  "responseStatus": 200,
+  "responseHeaders": {
+    "content-type": "application/xml; charset=utf-8",
+    "content-length": "728",
+    "sap-authenticated": "true",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "23132523.000000",
+    "connection": "close"
+  },
+  "byteLength": 728,
+  "zeroByteBody": false,
+  "sha256": "a9c87181621015e4d8fcf59196b426a26a480988a7c503f82e3b2d4a55fbbd6f",
+  "utcTimestamp": "2026-09-12T15:48:31.144327Z",
+  "durationMs": 23389,
+  "sessionName": "I78",
+  "capturedBy": "Standalone python ADT probe (urllib + cookiejar) driven against the A4H sandbox appliance for issue #78's ATC completeness work. REAL wire recording, not synthetic.",
+  "requestHeadersNote": "Only caller-supplied headers are listed. Authorization, Cookie, X-CSRF-Token and X-sap-adt-sessiontype were added by the probe's own session-management code and are deliberately not recorded.",
+  "requestUrlNote": "Path and query only; the appliance host is deliberately not recorded, and neither is the sap-client parameter (001) the probe sent."
+}

@@ -1,0 +1,32 @@
+{
+  "n": 863,
+  "label": "i87-tactz-s-tabu-nam",
+  "expect": null,
+  "note": "Permitted activities for the object.",
+  "requestMethod": "POST",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/datapreview/freestyle?rowNumber=50&sap-client=001",
+  "requestHeaders": {
+    "X-CSRF-Token": "<redacted>",
+    "Accept": "application/vnd.sap.adt.datapreview.table.v1+xml",
+    "Content-Type": "text/plain",
+    "Authorization": "<redacted>"
+  },
+  "requestBody": "SELECT * FROM tactz WHERE brobj = 'S_TABU_NAM'",
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-type": "application/vnd.sap.adt.datapreview.table.v1+xml; charset=utf-8",
+    "content-length": "1312",
+    "sap-authenticated": "true",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "316152.000000"
+  },
+  "byteLength": 1312,
+  "zeroByteBody": false,
+  "sha256": "7cf33812215c1c22a5a7813e946a75e9c3134b6acf4bd61fbcf0c98d4c2764ce",
+  "utcTimestamp": "2026-09-12T13:24:24.034Z",
+  "durationMs": 414,
+  "sessionName": "A"
+}

@@ -20,12 +20,12 @@
  *      `conn.adt.usageReferences()`: that vendor function's answer-reading
  *      path is broken for this endpoint (hardcodes the capitalised
  *      `usageReferences:` namespace prefix; A4H sends the lowercase
- *      `usagereferences:` prefix throughout, fixture 900) and always returns
+ *      `usagereferences:` prefix throughout, fixture 961) and always returns
  *      an empty array against a real A4H response — live-confirmed 2026-09-15,
  *      see {@link parseUsageReferences}'s doc comment.
  *
  * Every wire fact below is measured against `test/fixtures/live-captured/`
- * 891-…-900-… (`i91-*`), not inferred from a spec — each fixture's `.meta.json` `note`
+ * 952-…-961-… (`i91-*`), not inferred from a spec — each fixture's `.meta.json` `note`
  * carries the corroborating detail. This module never calls
  * `setPrettyPrinterSetting` or anything else that mutates the server.
  *
@@ -46,7 +46,7 @@ export interface SourcePosition {
 export const ELEMENT_INFO_URL = "/sap/bc/adt/abapsource/codecompletion/elementinfo";
 export const NAVIGATION_TARGET_URL = "/sap/bc/adt/navigation/target";
 export const USAGE_REFERENCES_URL = "/sap/bc/adt/repository/informationsystem/usageReferences";
-/** Both endpoints' `Accept` — fixtures 891-897. Their `Content-Type` is always `text/plain`, not this. */
+/** Both endpoints' `Accept` — fixtures 952-958. Their `Content-Type` is always `text/plain`, not this. */
 export const ELEMENT_INFO_MEDIA_TYPE = "application/*";
 
 const CONTENT_TYPE_TEXT_PLAIN = "text/plain";
@@ -63,8 +63,8 @@ const CONTENT_TYPE_TEXT_PLAIN = "text/plain";
  * consistency beats a narrower option set).
  *
  * `isArray` matches by trailing jpath segments rather than one fixed depth,
- * because `elementInfo` nests: a method/function-module parameter (891, 895)
- * or a structure component (893) is itself an `elementInfo`, and there is no
+ * because `elementInfo` nests: a method/function-module parameter (952, 956)
+ * or a structure component (954) is itself an `elementInfo`, and there is no
  * captured example of it nesting twice, but nothing rules it out. Matching
  * `"…elementInfo.elementInfo"` (not just `"elementInfo.elementInfo"`) keeps
  * that generic without also matching the document root, whose own jpath is
@@ -96,7 +96,7 @@ const elementInfoXml = new XMLParser({
  * immune to A4H answering with the lowercase `usagereferences:` namespace
  * prefix while `abap-adt-api`'s own (broken) reader hardcodes the capitalised
  * `usageReferences:` — both collapse to the same unprefixed tag/attribute
- * names, so either spelling parses identically (see the two 900 tests in
+ * names, so either spelling parses identically (see the two 961 tests in
  * `test/element-info-wire.test.ts` asserting exactly that).
  */
 const usageReferencesXml = new XMLParser({
@@ -126,7 +126,7 @@ function attr(node: Rec | undefined, name: string): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
-/** Element text: a bare string for an attribute-less leaf, `{"#text": …}` for one with attributes, `""` for self-closing — same three shapes `quickfix.ts`'s `elementText` handles (a self-closing `<entry key="abapType"/>`, fixture 893, is the case that matters here). */
+/** Element text: a bare string for an attribute-less leaf, `{"#text": …}` for one with attributes, `""` for self-closing — same three shapes `quickfix.ts`'s `elementText` handles (a self-closing `<entry key="abapType"/>`, fixture 954, is the case that matters here). */
 function elementText(value: unknown): string | undefined {
   if (typeof value === "string") return value;
   if (value === undefined || value === null) return undefined;
@@ -162,9 +162,9 @@ function parseXmlDocument(body: string, what: string, ctx: ErrorContext, parser:
 
 /** One `abapsource:elementInfo` element, root or nested. */
 export interface ElementInfoEntry {
-  /** `adtcore:type`. Absent on a nested structure component (fixture 893). */
+  /** `adtcore:type`. Absent on a nested structure component (fixture 954). */
   readonly type?: string;
-  /** `adtcore:name`. Absent ONLY on the "no element at this position" answer (899). */
+  /** `adtcore:name`. Absent ONLY on the "no element at this position" answer (960). */
   readonly name?: string;
   /** `abapsource:properties` as key → value. A self-closing entry maps to "". */
   readonly properties: Readonly<Record<string, string>>;
@@ -177,12 +177,12 @@ export interface ElementInfoEntry {
 }
 
 /**
- * `<abapsource:properties/>` (fixture 896, a function module) parses to the
+ * `<abapsource:properties/>` (fixture 957, a function module) parses to the
  * empty string, not a record — the same "childless self-closing tag is a
  * string" shape `quickfix.ts` documents for `<qf:evaluationResults/>` — so
  * `asRecord` returning `undefined` there is the legitimate empty-properties
  * case, not a parse failure. A present `<abapsource:entry key="…"/>` with no
- * text (893's `abapType` on `TY_ROW` itself) maps its key to `""`.
+ * text (954's `abapType` on `TY_ROW` itself) maps its key to `""`.
  */
 function parseProperties(value: unknown): Record<string, string> {
   const rec = asRecord(value);
@@ -268,10 +268,10 @@ function hasNoElementAtAll(body: string, doc: Rec): boolean {
  * Parses an elementinfo document. Throws `AbapError` on unparseable XML
  * (excerpt-truncated, like `quickfix.ts`'s `missingRoot`), or on a document
  * with some OTHER, unrecognised root element — but NOT on either of the two
- * "nothing resolvable here" shapes: fixture 899's well-formed, nameless
+ * "nothing resolvable here" shapes: fixture 960's well-formed, nameless
  * `<abapsource:elementInfo>`, or a zero-byte/declaration-only 200 body (see
  * {@link hasNoElementAtAll}). Both answer {@link UNRESOLVED_ELEMENT_INFO} (or
- * the 899 shape's own parsed equivalent), not a throw; see {@link isUnresolved}.
+ * the 960 shape's own parsed equivalent), not a throw; see {@link isUnresolved}.
  */
 export function parseElementInfo(xml: string, ctx: ErrorContext): ElementInfoEntry {
   const doc = parseXmlDocument(xml, "element info", ctx);
@@ -291,7 +291,7 @@ export function parseElementInfo(xml: string, ctx: ErrorContext): ElementInfoEnt
 /**
  * True when the server resolved nothing at that position — no `adtcore:name`
  * on the (possibly synthetic) root. Two shapes reach here, both HTTP 200:
- * fixture 899's well-formed `<abapsource:elementInfo>` with no `adtcore:name`
+ * fixture 960's well-formed `<abapsource:elementInfo>` with no `adtcore:name`
  * (a blank-ish position that still names an element context), and a
  * zero-byte/declaration-only body (live-confirmed 2026-09-15, a genuinely
  * blank line — see {@link hasNoElementAtAll}), which `parseElementInfo` maps
@@ -305,7 +305,7 @@ export function isUnresolved(info: ElementInfoEntry): boolean {
  * Wire fetch: posts the whole object source (never a snippet — matches
  * `evaluateQuickFixes`'s convention in `quickfix.ts`) and parses the answer.
  * `Content-Type: text/plain` + `Accept: application/*` on both this and
- * {@link findDefinitionTarget} — fixtures 891-899.
+ * {@link findDefinitionTarget} — fixtures 952-960.
  */
 export async function fetchElementInfo(
   conn: AbapConnection,
@@ -340,7 +340,7 @@ export interface DefinitionTarget {
 
 const FRAGMENT_RE = /^(.*)#start=(\d+),(\d+)(?:;end=\d+,\d+)?$/;
 
-/** Splits an `…/source/main#start=8,10` URI (fixture 897). Returns `{uri}` alone when there is no fragment. */
+/** Splits an `…/source/main#start=8,10` URI (fixture 958). Returns `{uri}` alone when there is no fragment. */
 export function splitFragmentUri(uri: string): DefinitionTarget {
   const m = FRAGMENT_RE.exec(uri);
   if (!m) return { uri };
@@ -351,7 +351,7 @@ export function splitFragmentUri(uri: string): DefinitionTarget {
  * Parses `adtcore:objectReference`. `undefined` when the document names no
  * target — an `<adtcore:objectReference/>` with no `adtcore:uri`. NOT the
  * same as a missing/wrong root element, which is a parse failure (thrown),
- * since every captured answer (897) carries the root; only the *attribute*
+ * since every captured answer (958) carries the root; only the *attribute*
  * naming the target is documented as ever being absent.
  */
 export function parseNavigationTarget(xml: string, ctx: ErrorContext): DefinitionTarget | undefined {
@@ -542,7 +542,7 @@ function recordString(rec: Rec, key: string): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
-/** Last non-empty path segment, uppercased — a fallback only used when no sibling row names the class (see {@link implementationsFrom}); not itself confirmed against a live capture, since fixture 900 always has that sibling row. */
+/** Last non-empty path segment, uppercased — a fallback only used when no sibling row names the class (see {@link implementationsFrom}); not itself confirmed against a live capture, since fixture 961 always has that sibling row. */
 function classNameFromUri(uri: string | undefined): string | undefined {
   if (uri === undefined) return undefined;
   const segments = uri.split("/").filter((s) => s.length > 0);
@@ -553,10 +553,10 @@ function classNameFromUri(uri: string | undefined): string | undefined {
 /**
  * Byte-for-byte the body `abap-adt-api@8.4.1`'s own `usageReferences`
  * function sends (`node_modules/abap-adt-api/build/api/syntax.js`) and that
- * fixture 900's capture actually used — 229 bytes, confirmed against that
+ * fixture 961's capture actually used — 229 bytes, confirmed against that
  * fixture's own `.meta.json` `requestBodyBytes`. Reproduced verbatim,
  * including the vendor's own odd indentation (two then four then two
- * spaces): the SERVER accepts this shape fine (fixture 900 got a 200 back
+ * spaces): the SERVER accepts this shape fine (fixture 961 got a 200 back
  * from it), so only the vendor's READ of the answer is wrong, not this
  * request. The lowercase `usagereferences` prefix here is irrelevant to
  * whether the server understands it — {@link parseUsageReferences} parses
@@ -576,8 +576,8 @@ const USAGE_REFERENCES_REQUEST_BODY = `<?xml version="1.0" encoding="ASCII"?>
  * `"usageReferences:usageReferenceResult" / "usageReferences:referencedObjects"
  * / "usageReferences:referencedObject"` (capital `R`), but A4H's actual wire
  * bytes declare and use the lowercase prefix `usagereferences` throughout —
- * `xmlns:usagereferences=` and every `<usagereferences:…>` tag (fixture 900).
- * Fed fixture 900 directly, that vendor function returns an EMPTY array, not
+ * `xmlns:usagereferences=` and every `<usagereferences:…>` tag (fixture 961).
+ * Fed fixture 961 directly, that vendor function returns an EMPTY array, not
  * the two implementers the fixture carries (confirmed with a throwaway
  * script against the installed package) — live-confirmed as the root cause
  * of `abap_read`'s "no implementing classes found" answer 2026-09-15 against
@@ -588,7 +588,7 @@ const USAGE_REFERENCES_REQUEST_BODY = `<?xml version="1.0" encoding="ASCII"?>
  * vendor's expected `usageReferences:referencedObject` collapse to the same
  * unprefixed `referencedObject` tag, and `adtcore:name` collapses to the
  * attribute `@_name` regardless of which element declared the `adtcore`
- * prefix. See the two 900 tests in `test/element-info-wire.test.ts` that
+ * prefix. See the two 961 tests in `test/element-info-wire.test.ts` that
  * feed both spellings through this function and assert identical rows.
  *
  * Root (`usageReferenceResult`) missing ⇒ throws `AbapError("ADT_ERROR", …)`,
@@ -654,14 +654,14 @@ export function parseUsageReferences(xml: string, ctx: ErrorContext): Record<str
  *
  * A row is an implementer, not a caller, exactly when its own
  * `"adtcore:name"` equals `<INTERFACE>~<METHOD>` (case-insensitively) —
- * fixture 900: two rows share that name (`ZCL_I91_PROBE`,
+ * fixture 961: two rows share that name (`ZCL_I91_PROBE`,
  * `ZCL_I91_PROBE2`), while the row named plainly `RUN` is a caller. Grouping
  * rows (`CLAS/OC`, `DEVC/K`) never match this shape, so no separate type
  * check is needed to exclude them.
  *
  * `className` is read off the SIBLING row whose own `uri` equals this row's
  * `parentUri` — that sibling is the class's own `referencedObject` entry
- * (fixture 900: `uri="/sap/bc/adt/oo/classes/zcl_i91_probe"`, `"adtcore:name":
+ * (fixture 961: `uri="/sap/bc/adt/oo/classes/zcl_i91_probe"`, `"adtcore:name":
  * "ZCL_I91_PROBE"`) and carries the real-cased name; the implementer row
  * itself never does. `classNameFromUri`'s path-segment fallback only fires
  * if that sibling is ever missing, which has not been observed live.
@@ -708,7 +708,7 @@ export function implementationsFrom(
  * Where-used at the interface method's declaration, filtered to implementers.
  * DELIBERATELY UNBOUNDED like `whereUsed` in `src/tools/search.ts` — ADT's
  * `usageReferences` endpoint ignores every limit parameter. Returns the fetch
- * wall-clock so the caller can disclose the cost — fixture 900's own capture
+ * wall-clock so the caller can disclose the cost — fixture 961's own capture
  * took nearly 10 seconds for a two-implementer toy example.
  *
  * Does the wire call itself (`conn.post`, exactly like {@link findDefinitionTarget}),

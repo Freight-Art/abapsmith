@@ -12,6 +12,43 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.5.14] - 2026-09-12
+
+### Added
+
+- `abap_atc` covers the ATC workflow end to end (issue #78): `op: "variants"` lists the system's check variants from a repository quickSearch and marks the default from the ATC customizing read; a named `variant` is validated against that list and refused with `BAD_INPUT` before any run is posted; `objects` runs a group of objects in one request and reports the distinct target count; `package` runs a whole package, with `include_subpackages` discovering sub-packages first and a `TIMEOUT RISK` note on large scopes; `delete_worklist` and `auto_cleanup` report A4H's `405` refusal honestly — the worklist stays and keeps accumulating findings, and the `?action=deleteFindings` no-op is never used as a substitute. Verified live on A4H against `$TMP` and `$ABAPSMITH_FLUID_API`; eight new live captures (886–893) back the parsers.
+
+### Fixed
+
+- An ATC run that exceeds the request timeout is classified as a timeout, not a generic `ADT_ERROR`: the message says the outcome on the server is unknown, names the worklist it posted to when one is already known, and points at `ABAP_TIMEOUT_MS` or a narrower scope (issue #78).
+- The two disclosed ATC name-list cuts are allow-listed in the truncation lint with their `… [truncated, <shown> of <total> shown]` markers (issue #78).
+
+## [0.5.13] - 2026-09-12
+
+### Added
+
+- `abap_read` of a package (`DEVC/K`) lists its contents (issue #74): header counts (`objects`, `sub_packages`, `depth`), a `SUB-PACKAGES` section, an `OBJECTS` table with type, name and description, a `types` filter of kind codes, `depth` (1–3) breadth-first recursion into sub-packages with a round-trip cap, and paging over large packages. A note names any sub-package that was listed but not expanded. Verified live on A4H against `$TMP` (390 objects, one sub-package).
+- `abap_read` of a table (`TABL/DT`) gains an `INDEXES` section, and a secondary index is readable on its own as `abap_read {"object":"<TABLE>/<INDEX>","type":"TABL/DI"}` from a DD12V/DD17S catalog read (issue #86).
+- `abap_read` of an authorization object (`SUSO/B`) renders its class, description, fields with their data elements and the permitted activities from TOBJ/TOBJT/TOBCT/TACTZ/TACTT/AUTHX/DD04L/DD07V (issue #87). Read-only; `abap_write` still refuses the type.
+- `abap_write` create and delete of a secondary index (`TABL/DI`) report a definitive verdict from a post-write catalog re-read — `verified`, `index_present`, `index_active` — instead of the bridge's own `ACTFAILED` flag, which is no longer surfaced in `markers`; a `TABL/DT` delete reads the table's indexes beforehand and reports them (issue #86).
+- `abap_write` accepts the same `<TABLE>/<INDEX>` slash form as `abap_read` for `TABL/DI`, with or without `base_table`; a `base_table` that disagrees with the table named in `object` is refused with `BAD_INPUT` naming both values (issue #74).
+
+### Fixed
+
+- Package listings paired each object with the wrong description: the `DESCRIPTION` column of ADT's nodestructure response is misaligned against `OBJECT_NAME` on the server side (reproduced with raw HTTP on A4H). Descriptions are now looked up by exact `(type, name)` key through the repository search, and an unresolved row renders empty and is counted in a note rather than guessed (issue #74).
+
+## [0.5.12] - 2026-09-12
+
+### Added
+
+- `abap_test` reports ABAP Unit coverage on request (issue #75): `coverage: true` runs the tests with coverage measurement and adds a `coverage: statement n/m (p%), branch …, procedure …` header field, a `COVERAGE` section with per-class and per-method rows, `UNCOVERED METHODS`, `COVERAGE NOT REPORTED FOR`, and `ALSO TOUCHED` (objects the run executed but did not measure). `coverage_for` extends the measured set beyond the objects under test; without `coverage` it is `BAD_INPUT` before any request. The measured set is capped at 10 objects because a coverage query over a full roster timed out at 60 s on A4H. A coverage failure degrades to a note and never changes the run outcome. Verified live on A4H, including the `UNCOVERED METHODS` wording.
+- Deleting a class records all four includes (`definitions`, `implementations`, `macros`, `testclasses`) in the journal entry, `abap_journal mode=show` lists them with an `include` column, and `mode=undo` recreates the class with every recorded include and activates once at the end, reporting `restoredIncludes`/`skippedIncludes`; a fully recorded recreate no longer needs `force` (issue #75). Undoing a write to a sub-include restores that include, not `main`. Verified live: delete, undo, and the restored test class ran again.
+- New skill `abapsmith-write-abap-unit-tests`; the ABAP Unit capability rows are re-graded from the live evidence.
+
+### Fixed
+
+- `test/undo.test.ts`'s fake class server answered the four include URIs with an empty 200, which read as "captured, empty"; it now answers 404 so absence is distinguishable from an empty include (issue #75).
+
 ## [0.5.11] - 2026-09-12
 
 ### Added

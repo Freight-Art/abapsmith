@@ -1,0 +1,32 @@
+{
+  "n": 890,
+  "label": "i78-worklist-read-variant2",
+  "note": "Same read on a worklist created for check variant ABAP_CLOUD_READINESS: PROG Z_TMP_DEL yields 5 findings here versus 7 under the system default variant ZABAP_CLOUD_DEVELOPMENT, confirming the variant really changes the result set.",
+  "requestMethod": "GET",
+  "requestUrl": "/sap/bc/adt/atc/worklists/466F46C806601FE1ABD8175DD6788069?includeExemptedFindings=false&usedObjectSet=99999999999999999999999999999999",
+  "requestHeaders": {
+    "Accept": "application/atc.worklist.v1+xml"
+  },
+  "requestBody": null,
+  "requestBodyBytes": 0,
+  "responseStatus": 200,
+  "responseHeaders": {
+    "content-type": "application/atc.worklist.v1+xml; charset=utf-8",
+    "content-length": "7869",
+    "sap-authenticated": "true",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "243367.000000",
+    "connection": "close"
+  },
+  "byteLength": 7869,
+  "zeroByteBody": false,
+  "sha256": "5ac8efe4a8f467ca4a0f600a673c894cf65f567775f982c2d42150f4ba147295",
+  "utcTimestamp": "2026-09-12T15:47:23.587346Z",
+  "durationMs": 413,
+  "sessionName": "I78",
+  "capturedBy": "Standalone python ADT probe (urllib + cookiejar) driven against the A4H sandbox appliance for issue #78's ATC completeness work. REAL wire recording, not synthetic.",
+  "requestHeadersNote": "Only caller-supplied headers are listed. Authorization, Cookie, X-CSRF-Token and X-sap-adt-sessiontype were added by the probe's own session-management code and are deliberately not recorded.",
+  "requestUrlNote": "Path and query only; the appliance host is deliberately not recorded, and neither is the sap-client parameter (001) the probe sent."
+}

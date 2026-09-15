@@ -1,0 +1,32 @@
+{
+  "n": 867,
+  "label": "i87-tobct-probe",
+  "expect": null,
+  "note": null,
+  "requestMethod": "POST",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/datapreview/freestyle?rowNumber=3&sap-client=001",
+  "requestHeaders": {
+    "X-CSRF-Token": "<redacted>",
+    "Accept": "application/vnd.sap.adt.datapreview.table.v1+xml",
+    "Content-Type": "text/plain",
+    "Authorization": "<redacted>"
+  },
+  "requestBody": "SELECT * FROM tobct WHERE oclss = 'BC_A' AND langu = 'E'",
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-type": "application/vnd.sap.adt.datapreview.table.v1+xml; charset=utf-8",
+    "content-length": "1475",
+    "sap-authenticated": "true",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "470194.000000"
+  },
+  "byteLength": 1475,
+  "zeroByteBody": false,
+  "sha256": "a8db94a73b3e6e0a43301ac03bc07ba6772de08c18f8e8e9c247b518e58dd482",
+  "utcTimestamp": "2026-09-12T13:24:38.043Z",
+  "durationMs": 572,
+  "sessionName": "A"
+}

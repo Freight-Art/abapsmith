@@ -4,8 +4,9 @@
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Debugger | n/a | yes | no | n/a | n/a | live | Breakpoints are set and cleared as part of a session; variables can be read but never written, and the frame cursor moves the read position only. |
 | Breakpoints | yes | yes | no | yes | n/a | live | Armed only as part of starting a session, deleted only when it ends, and only ones this session created. No standalone list or remove. `skipCount` is accepted by the server and not enforced, so expect a stop on every hit. |
-| ABAP Unit | n/a | yes | n/a | n/a | n/a | mixed | Runs existing tests; cannot write or delete them, and never requests coverage. See the outcome breakdown below. |
-| ATC | partial | yes | no | no | n/a | mixed | A run creates a server-side worklist as a side effect; there is no worklist delete, no variant create, and exemption management is deliberately absent. |
+| ABAP Unit | yes | yes | yes | n/a | yes | live | Runs existing tests: PASSED/FAILED/NO TESTS RAN/UNKNOWN, never collapsing "nothing ran" into a pass — see the outcome breakdown below. Test classes are created and updated through `abap_write` (`include="testclasses"`), not through `abap_test` itself; verified live end to end — write, activate, run, read-back — against SAP A4H, 2026-09-12. A single class include cannot be deleted on its own (ADT has no such verb), only emptied by writing new content over it. There is no activate verb for the include itself: `abap_activate` on the owning class activates `testclasses` along with it, confirmed live, SAP A4H, 2026-09-12. |
+| ABAP Unit coverage | n/a | yes | n/a | n/a | n/a | mixed | Opt-in (`coverage: true` on `abap_test`), scoped with `coverage_for`. The wire protocol — coverage negotiation on the run, the covered-objects roster, the coverage query, an untouched object's zero-summary response with no per-node breakdown — is `live` (SAP A4H, 2026-09-12; `test/fixtures/live-captured/852`–`856-i75-*`). abapsmith's own report rendering is now `live` too, end to end: `abap_test { object: "ZCL_I75_UNDO", type: "CLAS/OC", coverage: true }` against SAP A4H, 2026-09-12, returned outcome PASSED, tests 1, passed 1, the header `coverage: statement 2/2 (100%), branch 1/1 (100%), procedure 1/1 (100%)` line, a `COVERAGE` section with a class row and a per-method row for `DOUBLE`, and an `ALSO TOUCHED` list of 15 framework objects plus a `… and 19 more (truncated)` line — so the focus set, the header ratio line, the per-class/per-method table, and `ALSO TOUCHED` with its cap are confirmed as rendered MCP tool output, not just wire protocol. Still `tests`-only, exercised only against the live-captured fixtures, not yet observed live as rendered output: the `UNCOVERED METHODS` section, the `not measured by this run` / `not touched by this run` / `not queried` wordings, and `coverage_for` naming an object other than the one under test. See [execute-and-test.md](../TOOLS/execute-and-test.md). |
+| ATC | partial | yes | no | partial | n/a | mixed | A run creates a server-side worklist as a side effect; there is no variant create, and exemption management is deliberately absent. Worklist delete IS attempted (both directly and via `auto_cleanup`) but this release's server refuses every attempt with HTTP 405, so the worklist persists — a caching strategy limits the litter. |
 | Quick fixes | no | yes | yes | no | yes | mixed | Position-driven only, not finding-driven — the ATC route was tried and rejected. Deterministic proposals only; a parameterized one is refused `BAD_INPUT`. Listing is gated as a write because it posts the whole object source. |
 | Runtime dumps | n/a | yes | n/a | no | n/a | live | Read-only feed with a residence window that cannot be widened. The variables chapter is absent from the schema unless an operator enables it. |
 | Object activation | n/a | n/a | n/a | n/a | yes | live | Check-only and activate modes, single and batched. There is no deactivate in ADT, which is why activation can never be undone. |
@@ -14,12 +15,13 @@
 | Transport requests | yes | yes | partial | yes | n/a | live | Create, add a user, and set an owner. Delete is admin-gated and requires echoing the request identifier. Objects cannot be added or removed directly, and a locked entry cannot be unlocked. |
 | Transport release | n/a | yes | n/a | n/a | yes | live | Dry run by default, armed only by echoing the request identifier, and gated separately from ordinary write access. Reports four distinct outcomes and never overstates one. |
 | Write journal | yes | yes | no | no | n/a | tests | Entries are written by the tools themselves; the journal is read-only to the user and has no delete. |
-| Undo | n/a | n/a | yes | yes | n/a | tests | Reverts one journal entry. Refuses activation, transport release, enhancement, and every irreversible entry, with no override. |
+| Undo | n/a | n/a | yes | yes | n/a | mixed | Reverts one journal entry. Refuses activation, transport release, enhancement, and every irreversible entry, with no override. Class-delete recreate (with its four sub-includes) and sub-include-targeted restore are `live` (SAP A4H, 2026-09-12); ordinary `main`-source restore and create-delete are `tests`-only. See the "Journal and undo" note below. |
 | Object search | n/a | yes | n/a | n/a | n/a | live | Name-pattern search only; where-used and source-text search are separate rows below. |
 | Where-used | n/a | yes | n/a | n/a | n/a | live | Static only; dynamic calls do not appear. The server ignores every limit parameter, so the whole result set is always fetched and `max` bounds only the display. |
 | Source search | n/a | partial | n/a | n/a | n/a | mixed | Line-wise text scan (`abap_search mode=source`) over PROG/CLAS/INTF/FUGR/DDLS source, via the built-in `scan` fluid tool. `partial`, not `yes`: a scope (`packages` and/or a narrower-than-`*` `objects` pattern) is mandatory, a fixed 200-object ceiling applies, and it needs the fluid API (`ABAP_FLUID_API` on, `ABAP_MODE` not `read`) — a repository-wide, ungated scan is not reachable. Excludes comments by default (a per-line heuristic, not a parser). `live` (A4H, 2026-09-12): literal and regex line matching (including a spaced pattern), FUGR include resolution, DDLS/CDS reads, package/subpackage scope, the hit-cap/object-ceiling truncation report, and the comment heuristic. `tests`-only: the `abap_search mode=source` MCP dispatch path itself, since the live server runs a released bundle that predates this feature. |
 | Data preview | n/a | partial | no | n/a | n/a | mixed | One DDIC table or view per call, off by default, denylisted for sensitive tables, refused on any system that reports itself productive. No free-form SQL surface exists for callers — the catalog-driven SELECTs the IMG structure tool assembles server-side are not a caller-facing SQL surface either, since a caller never supplies or influences the statement text. |
 | IMG (customizing) navigation | no | partial | no | no | n/a | tests | Navigates the IMG structure only — activities, nodes, and the views/tables behind them — via the ADT freestyle data-preview endpoint, with SQL assembled server-side from a fixed catalog in `src/adt/img-catalog.ts`; every table in the catalog is measured against a live system and `IMG_CATALOG_VERIFIED` is `true`. Generates no ABAP and deploys nothing, so it runs under `ABAP_MODE=read`. Reading the customizing entries themselves is `abap_data_preview`'s job; changing them is `abap_img_edit`'s. |
+| Package (DEVC/K) navigation | no | yes | no | no | n/a | mixed | `abap_read {"object":"<PKG>","type":"DEVC/K"}` returns the package header (type, description, super package, software component, transport layer, application component, responsible) plus its node contents: a per-type object count, direct sub-packages, and the object rows themselves, each opened with an ordinary `abap_read`. `types` filters the rows to given kind codes; `depth` (1-3, default 1) recurses into sub-packages breadth-first, capped at 25 nodestructure round trips total, with a note naming any sub-package the cap left unexpanded. `offset`/`limit` page the row listing. An empty package answers HTTP 200 with a zero-byte body, reported as "no contents," not as an error. See the note below. |
 | IMG (customizing) write | no | partial | yes | yes | n/a | mixed | Writes a resolved base table's rows directly (a guarded `MODIFY`/`DELETE`), not through the view's own SM30-generated maintenance function module — its field-catalogue/dynamic-row-layout requirement was never established outside the SM30 dialog. Transport bookkeeping goes through the same CTS pair (`TR_OBJECTS_CHECK`/`TR_OBJECTS_INSERT`) SM30 itself uses, still interface-only knowledge, never called from here; `create_request` makes the type-`W` request via `TR_INSERT_REQUEST_WITH_TASKS`, called once from here on 2026-09-05 and confirmed working (a first-run defect with no task and a lost request number is why the tool now reports the number before checking for a task). Restricted to delivery classes `C`/`G`/`E`, at most 50 rows per call, and an armed write needs an exact `confirm` echo of the base table name. Generated helper classes go into the dedicated `$ABAPSMITH_FLUID_API` package, never `$TMP`. |
 | Running code | n/a | n/a | n/a | n/a | yes | live | Classes implementing the classrun interface, and classic reports through a generated bridge class. No interactive output. |
 | UI automation | n/a | yes | n/a | n/a | yes | mixed | Classic dynpro only, driven by generated batch input. Pressing commits immediately with no dry run and no rollback. |
@@ -31,22 +33,48 @@
   outcomes and never collapses "nothing ran" into "everything passed." Of the
   four: the no-tests-ran outcome is `live`, captured from a real run; the
   failed outcome is `live`, captured from a real run; the per-method pass
-  verdict is `live`, observed inside that same failure capture; but the
-  run-level all-passed outcome has never been observed live at all — it
-  exists only in a test that manufactures it by stripping the alerts element
-  out of the captured failure. The unknown outcome has never been observed
-  live either and is built entirely from hand-written hypothetical
-  documents.
-- **ATC.** The run acknowledgement is live-captured, and from it the
-  following are confirmed: the run POST is synchronous rather than polled;
-  the worklist identifier, its timestamp and the info blocks are child
-  elements rather than attributes; the used-object-set and completeness
-  flags are attributes on the worklist element; and an info block can
-  repeat. Everything beyond that single object, single variant, single run
-  is not confirmed — no DDIC object, no class, no second variant, no
-  zero-findings run, and no error path. The worklist-read capture exists in
-  the tree but is not wired into any test, so findings parsing is covered by
-  synthetic documents only.
+  verdict is `live`, observed inside that same failure capture; the
+  run-level all-passed outcome is now `live` too — captured against
+  `ZCL_I75_PROBE` on SAP A4H, 2026-09-12
+  (`test/fixtures/live-captured/852-i75-ut-testrun-allpass.xml`), replacing
+  the earlier test that only manufactured this outcome by stripping the
+  alerts element out of the captured failure. The unknown outcome itself has
+  two paths and they grade differently: the "a program came back with no
+  test methods and no `noTestClasses` alert" path is now `live` too —
+  captured against `ZCL_I75_PROBE` on SAP A4H, 2026-09-12, where a test
+  class with no declared `RISK LEVEL` defaulted above the run's risk-level
+  limit and every method was skipped
+  (`test/fixtures/live-captured/857-i75-ut-testrun-risk-exceeded.xml`); the
+  "test methods came back carrying XML the parser cannot grade" path
+  (`unknown > 0`) has still never been observed live and remains built
+  entirely from hand-written hypothetical documents.
+- **ATC.** Ten live captures back this tool; nine are replayed in tests, not
+  just narrated in docs, and the tenth records a no-op this client has no
+  code path to exercise. The first pair (2026-08-01, one object) established the
+  basics: the run POST is synchronous rather than polled; the worklist
+  identifier, its timestamp and the info blocks are child elements rather
+  than attributes; the used-object-set and completeness flags are attributes
+  on the worklist element; an info block can repeat. Eight more captures
+  (2026-09-12, issue #78) settled most of what that first pair left open: a
+  single run request accepts several object references including package
+  references, so a package or multi-object run works over the same
+  synchronous API; a worklist read can be scoped to a numeric `LAST_RUN` id,
+  and accumulates separate object sets across repeated runs rather than
+  replacing them; `worklistTimestamp` is genuinely optional on the wire; a
+  zero-findings run reads back as a clean 200, not an error; a different
+  check variant produces a genuinely different result set (5 findings versus
+  7 for the same object under two variants); check-variant discovery goes
+  through a repository quickSearch, not a dedicated ATC endpoint (that one
+  answers 400); and — the two most operationally important results — a
+  `DELETE` on a worklist is genuinely attempted and answers 405 on this
+  release, and the advertised `deleteFindings` action is a confirmed no-op
+  (traced to a commented-out server-side handler, not just observed as a
+  black box). Still unconfirmed: the attribute-shape `<info>` variant, a run
+  that actually hits `max_findings`, server-side subpackage expansion (no
+  customer package with subpackages exists on A4H to exercise it against), a
+  true `quickfixes` flag (every one observed so far reads false), a
+  successful worklist delete on a release that supports it, and behaviour on
+  an object type or error path this issue's runs did not hit.
 - **Quick fixes.** Both wire hops — the position-based evaluation POST and
   the per-proposal delta POST — are grounded in 12 live captures against a
   sandbox appliance, replayed in `test/quickfix-wire.test.ts`: URLs, media
@@ -82,9 +110,9 @@
   endpoint involved — `live` (A4H, 2026-09-12): the request/response shape,
   keyword-case and layout rewriting, CRLF-to-LF normalisation before the
   changed-bytes comparison, and the idempotent (`changed: false`) case
-  (fixtures 902, 903). The system's own pretty-printer setting was read once
+  (fixtures 963, 964). The system's own pretty-printer setting was read once
   and observed as `indentation=true style=keywordUpper keepIdentifier=true`
-  (fixture 901) — that is one system's configuration, not a guarantee about
+  (fixture 962) — that is one system's configuration, not a guarantee about
   any other. `unverified` live: the object form's full write-back path
   (lock, PUT, activate, journal entry) and the entire refusal matrix
   (`object`+`source` together, neither, `affects`, batch `objects`, `corr_nr`
@@ -92,24 +120,24 @@
   no ABAP source) — all covered only by `test/activate-format.test.ts`
   against a fake ADT server, never exercised against a live one.
 - **Element info / definition lookup.** Three ADT endpoints, each grounded
-  in real A4H captures (2026-09-12, `test/fixtures/live-captured/` 891-897,
-  899, 900): `codecompletion/elementinfo` for the identifier at a position,
+  in real A4H captures (2026-09-12, `test/fixtures/live-captured/` 952-958,
+  960, 961): `codecompletion/elementinfo` for the identifier at a position,
   `navigation/target?filter=definition` for where it is declared, and
   `usageReferences` for an interface method's implementers. Two ADT quirks
   are `live`-observed, not inferred: a function module (`FUGR/FF`) resolves
   to name and type only — no visibility, signature or documentation —
-  confirmed against `RFC_PING` (fixture 896), so an empty signature there
+  confirmed against `RFC_PING` (fixture 957), so an empty signature there
   is that limitation, not "no parameters"; and a position with nothing
-  resolvable answers HTTP 200 in one of two wire shapes: fixture 899's
+  resolvable answers HTTP 200 in one of two wire shapes: fixture 960's
   well-formed document naming no element, or — live-observed A4H,
   2026-09-15 — a zero-byte 200 body at a genuinely blank line, which used
-  to surface as `ADT_ERROR` and is now reported exactly like fixture 899's;
+  to surface as `ADT_ERROR` and is now reported exactly like fixture 960's;
   there is no fixture file for the zero-byte case since there are no bytes
   to pin, the same reason capture 898 is already omitted. Either way it is
   reported as a fact about the position, not an error. The implementer list
   is where-used-based, so dynamic dispatch is invisible to it, and it is
   capped for display (`IMPLEMENTATIONS_DISPLAY_MAX` in `src/tools/read.ts`)
-  with truncation marked; fixture 900's two-implementer capture alone took
+  with truncation marked; fixture 961's two-implementer capture alone took
   close to ten seconds, which is why a slow-fetch note is attached above a
   disclosed threshold rather than assumed fast.
 
@@ -121,7 +149,7 @@
   A4H answers with the lowercase `usagereferences:` prefix, so the vendor
   parser returned nothing; abapsmith now issues the `usageReferences` POST
   itself and parses it prefix-agnostically, accepting either prefix, and
-  the same fixture, 900 bytes, now yields both implementers — a
+  the same fixture (961) now yields both implementers — a
   vendor-library defect worked around locally. A position that IS a
   variable's own declaration used to raise an uncaught error: ADT answers
   the navigation-target request with HTTP 400, exception type
@@ -157,13 +185,37 @@
   and recreate a delete. `force` overrides drift, and nothing else — it
   cannot manufacture the positive absence evidence a create-undo needs, and
   it does not override the enhancement, transport-release, activation,
-  cross-system, class-include, or irreversible refusals. A class delete only
-  ever recorded the main source, so local definitions, implementations,
-  macros and test classes are not restored and the undo reports itself
-  partial. Undo has no committed live capture at all — its only live contact
-  is an opt-in integration test that is skipped unless a live system is
-  configured — which is why it is graded `tests` while the operations it
-  reverses are graded `live`.
+  cross-system, class-include, or irreversible refusals. A class delete now
+  also captures its four local includes (definitions, implementations,
+  macros, test classes) under the same lock as the delete, in the entry's
+  `parts`, so undoing it restores those too — it no longer reports itself
+  partial for that reason. It still reports `PARTIAL` and still needs
+  `force:true`, but only for whichever of the four includes could not be
+  read at delete time. This capture-and-restore path, and undoing a write
+  that targeted a class sub-include directly, are now `live`, confirmed
+  against SAP A4H, 2026-09-12, on class `ZCL_I75_UNDO` in package `$TMP`:
+  `abap_write mode=delete` on the class produced a journal entry with all
+  four parts (`definitions`, `implementations`, `macros`, `testclasses`),
+  every one `beforeCapture: captured`; `abap_journal mode=show` reported
+  the class warning naming all four; `abap_journal mode=undo` reported
+  `action: recreate`, `performed: true`,
+  `restoredIncludes: definitions, implementations, macros, testclasses`,
+  and `activated: true`; and a following `abap_test` on the recreated
+  class ran the restored test class and reported PASSED — proof the
+  `testclasses` include really came back active, which could not happen if
+  only `main` had been restored. Separately, a second version of the
+  `testclasses` include was written directly (`abap_write include:
+  "testclasses"`); `abap_journal mode=show` on that entry reported
+  `include: testclasses` and the include-scoped warning; `abap_journal
+  mode=undo` reported `action: restore` / `activated: true`; and
+  `abap_read { include: "testclasses" }` read back exactly the
+  before-image bytes, its etag equal to the entry's `beforeEtag`
+  (`sha256:be7abc10f006180d9ffb48eafff05612`). Undo's other paths —
+  restoring an ordinary `main`-source update, and deleting a `create` —
+  have no committed live capture yet; their only live contact remains an
+  opt-in integration test that is skipped unless a live system is
+  configured, which is why the row above is graded `mixed` rather than
+  `live`.
 - **UI automation.** Discovery is read-only in effect but still writes — it
   dispatches against the reused fluid body class `ZCL_ZMCP_FLUID_UI` plus a
   content-addressed invoker. A press runs a transaction with scripted batch
@@ -193,6 +245,26 @@
   since the tree has no mnemonic id — a system
   whose customizing text is not English will see `tree` return nothing at
   the root, which is a text-match miss, not a broken catalog table.
+- **Package navigation.** `readPackage` (`src/adt/ddic.ts`) used to be
+  UNSUPPORTED; it now reads the ADT repository nodestructure endpoint
+  (`POST /sap/bc/adt/repository/nodestructure?parent_type=DEVC%2FK&parent_name=<NAME>`)
+  plus the package's own header (`GET /sap/bc/adt/packages/<lowercase-name>`).
+  Folder nodes the wire sends for every DEVC sub-kind (`DEVC/P`, `DEVC/I`,
+  `DEVC/N`, `DEVC/XS`, `DEVC/KI`, `DEVC/OC`, `DEVC/VT`) come back with an
+  empty `OBJECT_NAME`/`OBJECT_URI` and are dropped; a real sub-package is a
+  `DEVC/K` row with a name, matched exactly rather than by a `DEVC` prefix
+  match, so a future folder-kind addition cannot be misread as a
+  sub-package. `withShortDescriptions=true` still leaves a sub-package's own
+  `DESCRIPTION` empty on the wire — reported as-is, not filled in. Deleting
+  a package still only works while it is empty (graded on the object-types
+  table's own `DEVC/K` row, not here). Evidence is `mixed`: the underlying
+  nodestructure and package-header wire behavior is live-verified against
+  A4H, 2026-09-12 (`test/fixtures/live-captured/INDEX.md`, captures
+  852-857, 876-883 — including the zero-byte-body-on-empty-package shape,
+  captures 854 and 877-881), but the `abap_read` route itself — dispatch,
+  `types`/`depth` filtering, the 25-expansion cap, paging — has only been
+  exercised through cassette-replay tests on this branch, not end to end
+  against a live system.
 - **IMG write.** `abap_img_edit` writes a resolved base table's rows
   directly with a guarded `MODIFY`/`DELETE`, not through the view's own
   SM30-generated table-maintenance function module — building that

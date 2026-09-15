@@ -27,6 +27,8 @@ Read the source, metadata or outline of an ABAP object.
 | `line` | number (int, ≥1) | required with `view="definition"`; refused otherwise | — | 1-based source line — same convention as `abap_quick_fix`. Refused with `BAD_INPUT` together with `view="history"`/`"diff"`, and refused with `BAD_INPUT` if given with no `view` at all (it would silently be discarded by an ordinary read). |
 | `column` | number (int, ≥0) | no | `0` | 0-based column — same convention as `abap_quick_fix`. Only meaningful with `view="definition"`; refused otherwise on the same terms as `line`. |
 | `include` | enum `CLASS_INCLUDES` | no | `"main"` | Classes only — which class include to read; applies to the source read and to `view` alike. `"testclasses"` holds ABAP Unit tests; `"main"` never does. Always an explicit, disclosed choice — silently defaulting to `main` would hide changes made in another include. |
+| `types` | string[] | no | — | `DEVC/K` only — filter the package listing to these kind codes, e.g. `["CLAS","DDLS"]`. Refused with `BAD_INPUT` against any other type. |
+| `depth` | number (int, 1–3) | no | `1` | `DEVC/K` only — how many sub-package levels to list. `1` lists only the package itself. Refused with `BAD_INPUT` against any other type. |
 
 Notes: response includes an etag (a content hash) — pass it back as
 `abap_write`'s `expect_etag` to detect a concurrent change before writing.
@@ -103,12 +105,12 @@ the wire protocol, not evidence of a side effect.
 
 - **Function modules resolve to name and type only.** For a `FUGR/FF`
   target, ADT's element info returns no visibility, no signature and no
-  documentation — verified live against `RFC_PING` (fixture 896). An empty
+  documentation — verified live against `RFC_PING` (fixture 957). An empty
   SIGNATURE section for a function module is this limitation, not "no
   parameters."
 - **A position with nothing resolvable is a successful answer, not an
   error.** ADT answers HTTP 200 either way, in one of two wire shapes:
-  fixture 899's well-formed element-info document that names no element at
+  fixture 960's well-formed element-info document that names no element at
   all, or a zero-byte 200 body at a genuinely blank line (live-observed
   A4H, 2026-09-15). There is no fixture file for the zero-byte case —
   there are no bytes to pin, the same reason capture 898 is omitted from
@@ -150,7 +152,7 @@ the wire protocol, not evidence of a side effect.
   (`IMPLEMENTATIONS_DISPLAY_MAX = 50` in `src/tools/read.ts`); truncation is
   marked in the response, never silent. ADT's `usageReferences` endpoint
   itself ignores every limit parameter, so the complete result set is
-  always fetched before the cap is applied — fixture 900's capture, a
+  always fetched before the cap is applied — fixture 961's capture, a
   two-implementer toy example, still took close to ten seconds; a
   cost-disclosure note is attached when the fetch is slow or the reference
   count is large.
@@ -165,9 +167,9 @@ v1's `view="diff"`.
 **Evidence.** `live` (A4H, 2026-09-12): the three wire endpoints
 themselves — `elementinfo` for an interface method call, an attribute, a
 type, a local variable, a class's own method, and a function-module name
-literal (fixtures 891-896); `navigation/target?filter=definition`
-(fixture 897); the no-resolvable-element answer (fixture 899); and
-`usageReferences` for an interface method's implementers (fixture 900).
+literal (fixtures 952-957); `navigation/target?filter=definition`
+(fixture 958); the no-resolvable-element answer (fixture 960); and
+`usageReferences` for an interface method's implementers (fixture 961).
 `live` (A4H, 2026-09-15), a second pass: `usageReferences` returns no
 implementers when read through `abap-adt-api`'s own vendor
 `usageReferences()` parser — the namespace-prefix defect (capitalised
@@ -207,6 +209,148 @@ declaration (entry point (b) above), rather than from a use site:
   "column": 11
 }
 ```
+
+### Package reads (`DEVC/K`)
+
+`abap_read {"object":"ZSD","type":"DEVC/K"}` reads a package: its header,
+then its contents (the ADT repository nodestructure, not DDIC pseudo-DDL —
+a package is not a DDIC object). The response's `meta` carries the header
+fields read from `GET /sap/bc/adt/packages/<name>` — `package_type`,
+`description`, `super_package`, `software_component`, `transport_layer`,
+`application_component`, `responsible` — plus `objects` (row count after any
+`types` filter) and, when the package has direct sub-packages,
+`sub_packages` (count). If the header read fails, those seven fields come
+back `undefined` and a note says so explicitly: they are UNKNOWN, not
+confirmed absent, and the node listing itself is unaffected.
+
+The body has up to two extra sections ahead of the row listing:
+
+- `OBJECTS BY TYPE` — a two-column count of rows by ADT type code (e.g.
+  `CLAS/OC`, `DDLS/DF`), sorted by type.
+- `SUB-PACKAGES` — the package's direct (depth-1) sub-packages, name and
+  description.
+
+Below those, the row listing itself: one row per object directly under the
+package (and, at `depth` > 1, under its expanded sub-packages), each with
+`type`, `name`, `description` and, when `depth` > 1, the `package` it came
+from. Rows are sorted by type then name — never by package — so `offset`/
+`limit` paging stays stable across calls regardless of which sub-package a
+row came from.
+
+`description` is never read from the node structure endpoint's own
+`DESCRIPTION` column: live-verified (issue #74, `test/fixtures/live-captured/`
+captures 884/885) that once a package's node list contains a `DEVC/K`
+sub-package row, the wire's `DESCRIPTION` values are misaligned against the
+`OBJECT_NAME` they are serialised next to — not by a constant offset, and
+that misalignment is invisible from a single row, so it cannot be corrected
+by re-shifting. Instead, every description is resolved by an exact
+`(type, name)` key lookup against
+`GET /sap/bc/adt/repository/informationsystem/search
+?operation=quickSearch&query=<pattern>&packageName=<pkg>`, scoped by name
+rather than pulled a whole package at a time: the names actually being
+rendered under each package are grouped by their first character, and one
+request is issued per distinct group (`query=Z*`, `query=B*`, …), merging
+every group's results into the same keyed `(type, name)` map. This exists
+because a single `query=*` per package hit its own `maxResults` cap on large
+packages — `$TMP` has 11128 objects system-wide under that packageName — and
+left the great majority of a 389-row rendered listing with an empty
+description; scoping each request to one starting character of the rows
+actually being shown keeps each request small and fast (live-verified
+against `$TMP`: `query=Z*` returned 243 entries in 2.9s, correctly resolving
+`ZTESTAI`) without giving up coverage. Only the rows actually being
+rendered — never rows a `types` filter or paging discarded — drive the
+groups. If a package's rendered rows span more distinct starting characters
+than a bounded cap (issue #74: `PACKAGE_DESCRIPTION_GROUP_CAP`, in the low
+tens), the fan-out is capped and a single broader `query=*` request is used
+instead, noted in the output; this keeps the number of requests bounded
+rather than open-ended. Each group's request is independent and individually
+non-fatal — one group's failure never empties another group's descriptions
+— and every request still carries its own bounded `maxResults` cap (retuned
+down for these narrower, per-prefix queries). A row that lookup can't
+resolve — because it genuinely has no description, or its group's request
+failed or was capped — renders an **empty** description, never a guessed or
+positional value, and a note counts how many rows that affected and names
+which group(s), if any, failed. A description lookup failure is never fatal
+to the read; the listing still renders in full with empty descriptions in
+the affected group(s) only.
+
+These requests are not all fired at once: at most 2 are in flight
+concurrently (across every package touched by one `abap_read`, not just
+within one package's own groups), and the header fetch runs to completion
+first rather than alongside them. This was tightened after a live run
+against `$TMP` (16 groups) fired all of them concurrently and 8 came back
+`SessionBusyError` — the ADT session queue serialises requests per
+connection, and 2 matches the connection pool's own default read
+concurrency.
+
+`types` restricts the listing to given kind codes (matched against the ADT
+type, e.g. `"CLAS"` matches `CLAS/OC`) before counting or paging. A `types`
+value that matches nothing produces a note explaining that a zero match does
+not prove the package has none of that kind — the code may be mistyped —
+and suggests comparing against an unfiltered read or `abap_search`.
+
+`depth` (1–3, default 1) recurses into sub-packages breadth-first, one
+nodestructure round trip per sub-package per level; level 1 (the package
+itself) is free of that cost. The recursion is capped at 25 total
+nodestructure round trips across the whole call (independent of `depth`):
+if the cap is reached before every sub-package at the requested depth has
+been expanded, a note lists which sub-packages were NOT expanded — they are
+not hidden, just not descended into — each with the `abap_read` call to
+fetch it directly. `depth` and `types` are both refused with `BAD_INPUT`
+against any type other than `DEVC/K`.
+
+An empty package (no contents at any level reached) answers with the ADT
+node structure endpoint's actual wire behavior: HTTP 200 with a **zero-byte
+body**, not a 404 and not an empty XML document (live-verified,
+`test/fixtures/live-captured/INDEX.md` captures 854, 877-881). abapsmith
+reports this as "no contents", not as an error.
+
+To open a row, read it directly: `abap_read {"object":"<name>","type":"<type>"}`.
+`PARENT_NAME` is empty on every row at package level, so no row needs
+parenting information to open. A `FUGR/F` row is a function group; one of
+its modules is read as `abap_read {"object":"<GROUP>/<MODULE>","type":"FUGR/FF"}`
+— naming guidance only, not a claim about what shape a function group takes
+at package level: none of the committed live nodestructure captures
+(852, 853, 855) contain a `FUGR` row of any kind, so that shape has not
+itself been observed.
+
+Package reads are available under `ABAP_MODE=read` (read-only; the header
+and nodestructure requests never deploy or write anything).
+
+### Catalog reads (`SUSO/B`, `TABL/DI`)
+
+Two types have no ADT object resource of their own, so `abap_read` renders
+them directly from DDIC catalog tables instead of resolving a URI. Because
+there is no source/outline/history/raw-XML axis to apply to a catalog
+render, every parameter other than `object`, `type`, `offset` and `limit`
+is refused with `BAD_INPUT` against either of them (naming the parameter
+that was dropped, not silently discarding it) — this includes `types` and
+`depth`, which are `DEVC/K`-only.
+
+- **`SUSO/B` (authorization object)** — `abap_read {"object":"S_TABU_NAM","type":"SUSO/B"}`
+  renders the object's DEFINITION from eight catalog tables (`TOBJ`,
+  `TOBJT`, `TOBCT`, `TACTZ`, `TACTT`, `AUTHX`, `DD04L`, `DD07V`): class,
+  text, its fields with each field's data element and check table, fixed
+  values, and permitted activities. This is **not** a list of who holds the
+  object — no `AGR_*` (role) or `UST*` (user authorization) table is ever
+  read, regardless of any option passed. `SUSO/B` cannot be written by
+  abapsmith; `SU21` is the only way to edit one. See
+  [doc/SAFETY/data-access-and-credentials.md](../SAFETY/data-access-and-credentials.md)
+  for the full boundary.
+- **`TABL/DI` (table secondary index)** — named as `<TABLE>/<INDEX>`, e.g.
+  `abap_read {"object":"ZTAB/Z01","type":"TABL/DI"}`. Renders one secondary
+  index from `DD12V`/`DD17S`: its unique/non-unique flag, active/inactive
+  status, and ordered field list. A name that doesn't split into exactly
+  two non-empty `<TABLE>/<INDEX>` parts is refused `BAD_INPUT` with a hint
+  to use that form; an index that DD12V has zero rows for is a definitive
+  `NOT_FOUND` (HTTP 200, 0 rows), not a refused read. Not sure of a table's
+  index id? `abap_read {"object":"<TABLE>","type":"TABL/DT"}` now appends
+  an `indexes` section listing every secondary index found this way, before
+  you need to name one.
+
+Both catalog reads are available under `ABAP_MODE=read`: nothing is
+deployed or written, only targeted, validated `WHERE`-filtered `SELECT`s
+against catalog tables.
 
 ## abap_search
 

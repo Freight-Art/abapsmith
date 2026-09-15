@@ -1,19 +1,37 @@
 /**
  * ATC response parsing — pure functions over response bodies, no socket.
  *
- *   - `GET  /sap/bc/adt/atc/customizing`      → {@link parseAtcCustomizing}
- *   - `POST /sap/bc/adt/atc/runs?worklistId=` → {@link parseAtcRunAck}
- *   - `GET  /sap/bc/adt/atc/worklists/{id}`   → {@link parseAtcWorklist}
+ *   - `GET  /sap/bc/adt/atc/customizing`               → {@link parseAtcCustomizing}
+ *   - `POST /sap/bc/adt/atc/runs?worklistId=`          → {@link parseAtcRunAck}
+ *   - `GET  /sap/bc/adt/atc/worklists/{id}`            → {@link parseAtcWorklist}
+ *   - `GET  …informationsystem/search?objectType=CHKV` → {@link parseCheckVariantList}
  *
- * WARNING — unlike other parsers in `src/adt/`, element/attribute names here
- * are NOT verified against real ATC captures (none exist, in this repo or in
- * `abap-adt-api`). They are grounded only in that library's ATC decoders
- * (`atc.d.ts`, v8.4.1); tests beside this module use hand-written synthetic
- * XML. A few specific spots are weaker still and marked INFERRED at their
- * site. Every field is treated as optional regardless of what that decoder
- * requires, since a parser that throws on an unfamiliar release is worse than
- * one that reports a finding with no `checkTitle`.
- * Full reasoning: the git history.
+ * Element/attribute names are now grounded in real captures from an A4H
+ * appliance, under `test/fixtures/live-captured/`:
+ *
+ *   - `893-i78-atc-customizing.xml` — customizing, incl. `systemCheckVariant`.
+ *   - `438-atc2-run.xml`, `887-i78-run-two-packages.xml` — run acknowledgements,
+ *     the latter with two populated `<info>` rows.
+ *   - `439-atc2-worklist-read.xml`, `800-qf-atc-worklist-quickfixinfo.xml`,
+ *     `888-i78-worklist-read-two-packages.xml`,
+ *     `889-i78-worklist-read-lastrun-empty.xml`,
+ *     `890-i78-worklist-read-variant2.xml` — worklist reads, spanning an
+ *     empty run, a single finding, and 29 findings over 5 objects.
+ *   - `886-i78-checkvariants-quicksearch.xml` — the check-variant list, read
+ *     via a repository quickSearch rather than a direct GET (see
+ *     {@link parseCheckVariantList}).
+ *
+ * What remains INFERRED rather than observed, each marked again at its site:
+ *
+ *   - A non-empty `exemptionKind`/`exemptionApproval` pair (every capture so
+ *     far shows `""`, or `"-"` for a finding that has never been exempted —
+ *     not the same as `""`, but neither is a granted exemption).
+ *   - `atcobject:objectTypeId` — present only on `800` and `439`, absent on
+ *     `888`/`890`; its rules for when it does/doesn't appear are unknown.
+ *   - Finding `priority` values outside `1`/`2`/`3`.
+ *   - Any `quickfixes` flag being `true` — all 36 instances observed across
+ *     `888`/`890` read `false`, so {@link AtcQuickFixFlags.any} is parsed but
+ *     unobserved live.
  *
  * Diverges from the library deliberately: no value coercion (parser options
  * below keep `"0001"` as `"0001"`, not roundtripped through a number; only
@@ -65,6 +83,12 @@ const REPEATABLE_JPATHS: ReadonlySet<string> = new Set([
   "worklist.objectSets.objectSet",
   "worklist.objects.object",
   "worklist.objects.object.findings.finding",
+  // finding documentation link — verified against `888` (jpath printed by
+  // driving this exact parser config over that fixture and inspecting the
+  // `isArray` callback's `jpath` argument, not guessed from the tag name).
+  "worklist.objects.object.findings.finding.link",
+  // check-variant list (a repository quickSearch result, not a worklist)
+  "objectReferences.objectReference",
 ]);
 
 // ------------------------------------------------------------- primitives ---
@@ -277,6 +301,28 @@ export function parseAtcRunAck(body: string): AtcRunAck {
 
 // ----------------------------------------------------------------- worklist --
 
+/** The `<atom:link rel="…">` naming a finding's check documentation page. */
+export const DOCUMENTATION_LINK_REL =
+  "http://www.sap.com/adt/relations/documentation";
+
+/**
+ * `<atcfinding:quickfixes>`'s five flags, verbatim except for `any`. Observed
+ * on `888`/`890` (29 findings), every flag `false` on all of them — so `any`
+ * is parsed but its `true` branch is UNOBSERVED, not exercised by a real
+ * response yet.
+ */
+export interface AtcQuickFixFlags {
+  readonly manual: boolean;
+  readonly automatic: boolean;
+  readonly pseudo: boolean;
+  /** `atcfinding:aiBasedQF`. */
+  readonly aiBased: boolean;
+  /** `atcfinding:ai_enabled` — a system setting, not a property of this finding. */
+  readonly aiEnabled: boolean;
+  /** manual || automatic || pseudo || aiBased. `aiEnabled` is deliberately excluded. */
+  readonly any: boolean;
+}
+
 /** One ATC finding, as it sits under its object on the wire. */
 export interface AtcFinding {
   /** The finding's own ADT URI (the marker resource). */
@@ -292,8 +338,21 @@ export interface AtcFinding {
   /** `""` when the finding carries no exemption; `"A"`/`"I"` are known values. */
   readonly exemptionKind: string;
   readonly exemptionApproval: string;
-  /** Present when ATC offers a quick fix; opaque token, not acted on here. */
+  /**
+   * Present when ATC offers a quick fix; opaque token, not acted on here.
+   * A different claim from {@link quickFixes}: this is present on every
+   * finding observed, even ones advertising no quick fix — `801` shows
+   * ADT's own quick-fix evaluation coming back EMPTY at such a finding.
+   */
   readonly quickfixInfo?: string;
+  /** `<atom:link rel="…documentation">`'s `href`, when the finding has one. */
+  readonly documentationUri?: string;
+  /** `<atcfinding:quickfixes>`, when the finding carries the element at all
+   * (absent on `439`/`800`). */
+  readonly quickFixes?: AtcQuickFixFlags;
+  // NOT parsed: `atcfinding:tags`, `remarkText`, `remarkLink`, `checksum`,
+  // `processor`, `lastChangedBy` — nothing in this codebase reads them, and
+  // an unread field is a maintenance cost, not a feature.
 }
 
 /** One checked object and everything ATC found in it. */
@@ -389,6 +448,8 @@ function parseObject(node: Rec): AtcObject {
 
 function parseFinding(node: Rec): AtcFinding {
   const quickfixInfo = attr(node, "quickfixInfo");
+  const documentationUri = findDocumentationUri(node);
+  const quickFixes = parseQuickFixFlags(asRecord(node["quickfixes"]));
   return {
     uri: attrOrEmpty(node, "uri"),
     location: parseAtcLocation(attr(node, "location")),
@@ -403,6 +464,42 @@ function parseFinding(node: Rec): AtcFinding {
     ...(quickfixInfo === undefined || quickfixInfo === ""
       ? {}
       : { quickfixInfo }),
+    ...(documentationUri === undefined ? {} : { documentationUri }),
+    ...(quickFixes === undefined ? {} : { quickFixes }),
+  };
+}
+
+/**
+ * The `href` of the `<atom:link>` child whose `rel` is
+ * {@link DOCUMENTATION_LINK_REL}, ignoring any other `rel` (e.g. `self` in
+ * `abap-adt-api`'s synthetic shape). Present on every finding across
+ * `439`/`800`/`888`/`890`; `undefined` only for a finding with no such link,
+ * which none of the captures show.
+ */
+function findDocumentationUri(node: Rec): string | undefined {
+  for (const raw of asArray(node["link"])) {
+    const link = asRecord(raw);
+    if (attr(link, "rel") !== DOCUMENTATION_LINK_REL) continue;
+    const href = attr(link, "href");
+    if (href !== undefined && href !== "") return href;
+  }
+  return undefined;
+}
+
+function parseQuickFixFlags(node: Rec | undefined): AtcQuickFixFlags | undefined {
+  if (node === undefined) return undefined;
+  const manual = isXmlTrue(attr(node, "manual"));
+  const automatic = isXmlTrue(attr(node, "automatic"));
+  const pseudo = isXmlTrue(attr(node, "pseudo"));
+  const aiBased = isXmlTrue(attr(node, "aiBasedQF"));
+  const aiEnabled = isXmlTrue(attr(node, "ai_enabled"));
+  return {
+    manual,
+    automatic,
+    pseudo,
+    aiBased,
+    aiEnabled,
+    any: manual || automatic || pseudo || aiBased,
   };
 }
 
@@ -487,4 +584,57 @@ export function countFindings(
     if (f.exemptionKind !== "") exempted += 1;
   }
   return { total: findings.length, errors, warnings, infos, other, exempted };
+}
+
+// ------------------------------------------------------------ check variants --
+
+/** One row of a check-variant list, as `886` names it. */
+export interface AtcCheckVariant {
+  readonly name: string;
+  readonly uri: string;
+  readonly description?: string;
+  readonly packageName?: string;
+}
+
+/**
+ * Parse the result of a repository quickSearch scoped to `objectType=CHKV`
+ * (`GET …informationsystem/search?operation=quickSearch&query=*&objectType=CHKV`).
+ * There is no direct `GET /sap/bc/adt/atc/checkvariants` list on A4H — `886`'s
+ * capture note records that route answering 400 `uriMappingError` — so the
+ * repository search is how a client actually enumerates variants.
+ *
+ * Keeps only rows whose `type` starts with `CHKV` (`886` uses `"CHKV/TYP"`);
+ * that filter is what makes the result trustworthy if the search is ever
+ * pointed at something broader than this one object type. Rows are returned
+ * in the server's own order — `886` already comes back alphabetical by
+ * name, so this function does not re-sort.
+ */
+export function parseCheckVariantList(body: string): readonly AtcCheckVariant[] {
+  const doc = parseDocument(body, "check variant list");
+  // A self-closed or childless `<objectReferences/>` parses as `""`, not an
+  // object — that is a real, empty answer, not a missing root, so presence
+  // is checked before coercing to a record (an empty list must not throw).
+  const rawRoot = doc["objectReferences"];
+  if (rawRoot === undefined) {
+    throw missingRoot("check variant list", "objectReferences", body);
+  }
+  const root = asRecord(rawRoot);
+
+  const variants: AtcCheckVariant[] = [];
+  for (const raw of asArray(root?.["objectReference"])) {
+    const node = asRecord(raw);
+    const type = attrOrEmpty(node, "type");
+    if (!type.startsWith("CHKV")) continue;
+    const name = attr(node, "name");
+    if (name === undefined || name === "") continue;
+    const description = attr(node, "description");
+    const packageName = attr(node, "packageName");
+    variants.push({
+      name,
+      uri: attrOrEmpty(node, "uri"),
+      ...(description === undefined || description === "" ? {} : { description }),
+      ...(packageName === undefined || packageName === "" ? {} : { packageName }),
+    });
+  }
+  return variants;
 }

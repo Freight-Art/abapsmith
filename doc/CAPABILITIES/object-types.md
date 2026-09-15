@@ -18,11 +18,18 @@ reflected here fails the suite. See [legend.md](legend.md) for what `yes`,
   generated `IF_OO_ADT_CLASSRUN` bridge class, not ADT REST); `partial` when
   it has an out-of-registry create site (the enhancement types, which
   `abap_enh` creates without a registry `create` field); otherwise `no`.
-- **Read** — `no` when the type has no `TypeSpec` in `src/adt/types.ts`, so no
-  URI can be built for it at all; `yes` when the spec's `mode` is `source`, or
-  when `mode` is `ddic` and `ddicStrategy(kind)` is not `unsupported`;
-  otherwise `partial`, meaning a non-default read mode is required
-  (`format: "raw"` or `enhancements: true`).
+- **Read** — `yes` when the registry entry carries a `catalogRead` field
+  (`src/adt/capabilities.ts`): `abap_read` dispatches on the explicit `type`
+  hint before `resolveObject` runs, and sends these straight to a
+  catalog-table render, so they are readable even though `resolveObject`
+  itself would refuse them. Otherwise `no` when the type has no `TypeSpec`
+  in `src/adt/types.ts`, so no URI can be built for it at all; `yes` when the
+  spec's `mode` is `source`, or when `mode` is `ddic` and `ddicStrategy(kind)`
+  is not `unsupported`; otherwise `partial`, meaning a non-default read mode
+  is required (`format: "raw"` or `enhancements: true`). Two types, `SUSO/B`
+  and `TABL/DI`, have no `TypeSpec` and no ADT REST URI at all — the
+  structural condition the fallback rule above tests — yet both read `yes`
+  through the `catalogRead` rule instead. See their notes below.
 - **Update** — `yes` when the registry entry has a `write` field, which is
   what `abap_write` needs to resolve a change target; otherwise `no`.
 - **Delete** — `yes` when the type is in `DELETABLE_TYPES`; `partial` when it
@@ -92,8 +99,8 @@ inputs to this derivation rather than registry fields:
 | `PROG/PS` | Screen (dynpro) | no | no | no | no | no | tests |
 | `PROG/PC` | GUI status (CUA status) | no | no | no | no | no | tests |
 | `PROG/PT` | GUI title (titlebar) | no | no | no | no | no | tests |
-| `SUSO/B` | Authorization object | no | no | no | no | no | tests |
-| `TABL/DI` | Table secondary index | partial | no | no | partial | no | unverified |
+| `SUSO/B` | Authorization object | no | yes | no | no | no | tests |
+| `TABL/DI` | Table secondary index | partial | yes | no | partial | no | unverified |
 
 The `Object` column values are the registry `label` fields, unreworded.
 
@@ -175,9 +182,20 @@ The `Object` column values are the registry `label` fields, unreworded.
   (typically from its create) survives the delete, and the safety gate judges
   the delete itself as a local mutation rather than against
   `ABAP_ALLOW_TRANSPORTS`.
-  `TABL/DI` (a table's secondary index) is a third bridge-only type with no
-  read route — ADT REST has no index collection at all — so creation goes
-  through `DD_INDEX_INTERFACE` too. A non-unique, one-field create in `$TMP`
+  `TABL/DI` (a table's secondary index) is a third bridge-only type — ADT
+  REST still has no index collection at all, so creation and deletion go
+  through `DD_INDEX_INTERFACE` — but it is no longer read-blind: `catalogRead`
+  sends `abap_read {"object": "<TABLE>/<INDEX>", "type": "TABL/DI"}` to a
+  render built from `DD12V`/`DD17S`, the same two catalog tables the create
+  and delete bridges now re-read after every write to confirm `verified`. A
+  `TABL/DT` read also grew an `indexes` section listing every secondary
+  index found this way. As with `SUSO/B` above, the Read column reads `yes`
+  for `TABL/DI` even though there is no `TypeSpec` and no ADT REST URI:
+  `catalogRead` is what makes it readable despite that. The `DD12V`/`DD17S`
+  reads behind this render were captured live against A4H, 2026-09-12
+  (`test/fixtures/live-captured/INDEX.md`, captures 858-860); the
+  `abap_read` route itself has not been exercised end to end against a live
+  system on this branch. A non-unique, one-field create in `$TMP`
   was proven live on A4H 2026-09-05, confirmed by a post-COMMIT re-read of
   `DD12V` (`AS4LOCAL = 'A'`) and `DD17S`. A unique index on a client-dependent
   table needing that table's client field, once only suspected, is now
@@ -202,16 +220,21 @@ The `Object` column values are the registry `label` fields, unreworded.
   bridge (`INDEX-DELETED-ACTFAILED` / `INDEX-DELETED` / `INDEX-GONE`), a
   re-delete returned `NOT_FOUND`, and the deployed class body read back with
   no line over 255 — so delete is live-proven in `$TMP`. `ACTFAILED` was set
-  on both deletes while every read-back was empty; what the flag means is
-  still not established beyond "not that the rows survived". Deleting the base table
-  was not blocked live by a surviving index (round 1); a later cleanup
-  deleted a base table while its indexes' `DD12V` rows may still have
-  existed, and whether the delete cascaded them away or left them orphaned
-  is unverified — at the time `abap_data_preview` carried no `WHERE` filter,
-  so a targeted `DD12V` check was not practical. It now takes a structured
-  filter (issue #73), so such a check is possible, but this round's outcome
-  was never re-checked and stays unverified. The transportable-package path
-  is unexercised.
+  on both deletes while every read-back was empty, and what the flag means
+  was not established beyond "not that the rows survived" at the time of
+  that round. That question is now moot: the bridge's response no longer
+  reports `ACTFAILED` to the caller at all, for either create or delete —
+  `verified`, `index_present` and `index_active` come from a definitive
+  post-write `DD12V`/`DD17S` re-read instead, and a re-read that itself
+  fails to run is reported as "not verified" with a reason, never inferred
+  from `ACTFAILED`. Deleting the base table was not blocked live by a
+  surviving index (round 1). Whether a base-table delete cascades its
+  indexes away or orphans their `DD12V` rows is resolved the same way going
+  forward: `abap_write`'s `TABL/DT` delete now reads the table's indexes
+  with `index-read.ts` immediately before deleting it and reports what it
+  found in the response, rather than leaving the outcome to a later,
+  unfiltered `abap_data_preview` check. The transportable-package path is
+  unexercised.
 - `ENHO/XH`, `ENHO/XHH`, `ENHS/XS` — created and deleted by `abap_enh`, not
   by `abap_write`; `abap_write` with `op: "delete"` refuses all three.
   Enhancement writes are double-gated on the `allowEnhancements` and
@@ -224,11 +247,29 @@ The `Object` column values are the registry `label` fields, unreworded.
   equality. Hook anchors on a class are discoverable, but creating a hook
   implementation on one is refused; a function group would be refused the
   same way.
-- `SHLP/DH`, `PROG/PS`, `PROG/PC`, `PROG/PT`, `SUSO/B` — carry an
-  `unsupported` entry: no read, no write, no URI. Each states a reason
-  established by live reconnaissance — 404s on every collection, 405s on
-  every write verb, content-free VIT stubs — so the `tests` in their
-  Evidence column grades the refusal the tests pin, not the recon behind it.
+- `SHLP/DH`, `PROG/PS`, `PROG/PC`, `PROG/PT` — carry an `unsupported` entry:
+  no read, no write, no URI. Each states a reason established by live
+  reconnaissance — 404s on every collection, 405s on every write verb,
+  content-free VIT stubs — so the `tests` in their Evidence column grades the
+  refusal the tests pin, not the recon behind it.
+- `SUSO/B` — also carries an `unsupported` entry (no URI, no write; `SU21`,
+  a SAPGUI transaction outside abapsmith's reach, is the only way to edit an
+  authorization object), but unlike the other four it is not read-blind:
+  `catalogRead` sends `abap_read {"object": "<NAME>", "type": "SUSO/B"}`
+  (e.g. `S_TABU_NAM`) to a render built from eight DDIC catalog tables
+  (`TOBJ`, `TOBJT`, `TOBCT`, `TACTZ`, `TACTT`, `AUTHX`, `DD04L`, `DD07V`),
+  each read with a validated, targeted `WHERE` rather than through an ADT
+  object resource — so the Read column above reads `yes`, even though there
+  is no `TypeSpec` and no URI `resolveObject` can hand back: `catalogRead`
+  is exactly what makes the type readable despite that. The render is the
+  authorization object's DEFINITION — class,
+  text, fields, data elements, check tables, fixed values, permitted
+  activities — never who holds it: abapsmith reads no `AGR_*` (role) or
+  `UST*` (user authorization) table, under any option. The wire reads behind
+  this render were captured live against A4H, 2026-09-12
+  (`test/fixtures/live-captured/INDEX.md`, captures 861-875); the
+  `abap_read` route itself has not been exercised end to end against a live
+  system on this branch.
 - `PROG/I` — `create.verified` and `delete` are both `true`, live-verified
   full cycle on A4H 2026-09-04: create, check, activate, re-write, read-back,
   delete. Create goes through the vendor `CreatableTypes` route, not a

@@ -16,12 +16,12 @@
  *     as WRITE.
  *
  * Fixtures are real A4H captures (test/fixtures/live-captured/90{1,2,3}-*):
- * 901 is a read-only observation of the server's OWN pretty-printer setting
+ * 962 is a read-only observation of the server's OWN pretty-printer setting
  * (indentation=true, style=keywordUpper, keepIdentifier=true) — abapsmith
- * must never write to that endpoint. 902 POSTs unformatted source and gets
- * back CRLF-terminated, keyword-uppercased text. 903 POSTs the
+ * must never write to that endpoint. 963 POSTs unformatted source and gets
+ * back CRLF-terminated, keyword-uppercased text. 964 POSTs the
  * already-formatted text back and gets the byte-identical reply (same
- * sha256 as 902) — this is where `changed:false` for real input comes from.
+ * sha256 as 963) — this is where `changed:false` for real input comes from.
  *
  * Every request is served by a fake `HttpClient` (no network, ever); any
  * request the fake has no route for THROWS, naming the method and URL — a
@@ -36,10 +36,10 @@
  * normalises CRLF→LF on the SERVER'S REPLY only, then compares that
  * normalised text against the RAW/unnormalised `source` argument to decide
  * `changed`. Real ADT source reads commonly come back CRLF-terminated
- * (fixture 903's own request body is CRLF — it is what a GET of
+ * (fixture 964's own request body is CRLF — it is what a GET of
  * already-formatted saved source looks like on the wire). Feeding that CRLF
  * text back through `prettyPrintSource` as "current saved source" — exactly
- * fixture 903's scenario — used to make it report `changed: true` with a
+ * fixture 964's scenario — used to make it report `changed: true` with a
  * nonzero `linesChanged`, purely from trailing `\r`, even though nothing
  * textually changed, and would go on to lock, PUT, activate and journal an
  * object that needed none of that. `prettyPrintSource` itself is untouched
@@ -92,20 +92,20 @@ const readMeta = (f: string): { requestBody: string } =>
   JSON.parse(readFileSync(join(FIXTURES, `${f}.meta.json`), "utf8")) as { requestBody: string };
 const readBody = (f: string): string => readFileSync(join(FIXTURES, `${f}.xml`), "utf8");
 
-/** 902's own request body: unformatted source, LF, as a caller would send it. */
-const UNFORMATTED = readMeta("902-i91-prettyprinter-format").requestBody;
-/** 902's own response body: the server's real reply — CRLF-terminated, keywords upper-cased. */
-const FORMATTED_CRLF = readBody("902-i91-prettyprinter-format");
+/** 963's own request body: unformatted source, LF, as a caller would send it. */
+const UNFORMATTED = readMeta("963-i91-prettyprinter-format").requestBody;
+/** 963's own response body: the server's real reply — CRLF-terminated, keywords upper-cased. */
+const FORMATTED_CRLF = readBody("963-i91-prettyprinter-format");
 /** What `prettyPrintSource` returns as `outcome.source` — CRLF normalised to LF. */
 const FORMATTED_LF = FORMATTED_CRLF.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-/** 903's own request body: already-formatted text, CRLF — what a GET of saved source looks like. */
-const ALREADY_FORMATTED_CRLF = readMeta("903-i91-prettyprinter-idempotent").requestBody;
+/** 964's own request body: already-formatted text, CRLF — what a GET of saved source looks like. */
+const ALREADY_FORMATTED_CRLF = readMeta("964-i91-prettyprinter-idempotent").requestBody;
 
-it("fixture sanity: 902's response and 903's response are byte-identical, and 903's request is that same CRLF text", () => {
+it("fixture sanity: 963's response and 964's response are byte-identical, and 964's request is that same CRLF text", () => {
   // Pinned once, up front, so every test below that leans on this fact does
   // not have to re-derive it. Read from the files themselves, not asserted
   // from the brief.
-  expect(readBody("903-i91-prettyprinter-idempotent")).toBe(FORMATTED_CRLF);
+  expect(readBody("964-i91-prettyprinter-idempotent")).toBe(FORMATTED_CRLF);
   expect(ALREADY_FORMATTED_CRLF).toBe(FORMATTED_CRLF);
   expect(FORMATTED_CRLF).toMatch(/\r\n/);
   expect(FORMATTED_CRLF.includes("\r\n")).toBe(true);
@@ -713,18 +713,18 @@ describe("mode=format, object form (`object`) — changed:false, nothing is writ
 // `outcome.changed` — which compares the server's CRLF reply, normalised to
 // LF, against the RAW/unnormalised saved source — to decide whether to write
 // anything back. A CRLF-terminated saved source (exactly what a GET of
-// already-formatted source looks like on the wire; fixture 903's own request
+// already-formatted source looks like on the wire; fixture 964's own request
 // body) made that comparison say `changed: true` purely from trailing `\r`,
 // triggering a pointless lock→PUT→activate cycle and journal entry for an
 // object that needed no change at all. Fixed by comparing `current` against
 // `outcome.source` through `sourceEquals` (src/adt/write.ts) instead, which
 // is the same CRLF-aware comparison `writeObject`'s own compare-before-write
 // short-circuit already uses. Pinned here with the EXACT live-captured bytes
-// fixture 903 carries.
+// fixture 964 carries.
 // ---------------------------------------------------------------------------
 
 describe("CRLF-terminated saved source: mode=format correctly reports changed:false", () => {
-  it("saved source is CRLF and already formatted (fixture 903's own bytes): changed:false, and nothing is locked, written, activated or journalled", async () => {
+  it("saved source is CRLF and already formatted (fixture 964's own bytes): changed:false, and nothing is locked, written, activated or journalled", async () => {
     // No LOCK/PUT/UNLOCK/checkruns/activation route at all — a regression
     // back to the raw `outcome.changed` comparison would try to lock/PUT
     // this object and this fake would throw instead of silently doing it.

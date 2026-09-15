@@ -19,18 +19,18 @@
  * `#start=L,C;end=L,C2&filter=definition` (navigation-target), and
  * `#start=L,C` / bare uri (usageReferences) fragments a synthetic 40-line
  * class source actually produces, using the live-captured A4H bytes in
- * `test/fixtures/live-captured/` (891-897, 899, 900 — the `i91-*` captures;
+ * `test/fixtures/live-captured/` (952-958, 960, 961 — the `i91-*` captures;
  * there is no 898). `findImplementations` (`src/adt/element-info.ts`) posts
  * `USAGE_REFERENCES_URL` itself and parses the answer with its own
  * `parseUsageReferences`, rather than going through `abap-adt-api`'s own
  * `conn.adt.usageReferences()` (`build/api/syntax.js`): that vendor function
  * hardcodes the fixed path `"usageReferences:referencedObject"` (capital R),
- * while fixture 900's actual wire bytes declare and use the all-lowercase
- * prefix `usagereferences` throughout — feeding fixture 900 through the
+ * while fixture 961's actual wire bytes declare and use the all-lowercase
+ * prefix `usagereferences` throughout — feeding fixture 961 through the
  * vendor function returns an EMPTY array, not the two real implementers.
  * This sidesteps that vendor defect in PRODUCTION, not just in this test;
  * the fake connection below answers `USAGE_REFERENCES_URL` with fixture
- * 900's raw bytes verbatim, the same as it does for elementinfo/navigation.
+ * 961's raw bytes verbatim, the same as it does for elementinfo/navigation.
  *
  * The three `NavigationLookup.noTargetReason` wording tests (declaration
  * site / undecidable / unnamed) and the interface-own-declaration
@@ -48,11 +48,11 @@
  * `["name","paramType","abapType","optional","byValue","paramDefaultValue",
  * "shortText"]`), and `renderChildrenTable`'s "present" test only requires
  * ONE candidate column to appear on ONE child. So whenever a components-only
- * child set (name+abapType, fixture 893: a structure's fields) would make
+ * child set (name+abapType, fixture 954: a structure's fields) would make
  * `COMPONENT_COLUMNS` non-empty, `SIGNATURE_COLUMNS` — checked FIRST — is
  * *already* non-empty for the exact same reason, and
  * `const components = signature ? "" : …` never gets to run. The actual,
- * observed behaviour for a TYPE (893) is a section titled "SIGNATURE" (not
+ * observed behaviour for a TYPE (954) is a section titled "SIGNATURE" (not
  * "COMPONENTS") containing the component table; "COMPONENTS" cannot appear
  * in ANY response this handler produces. The type-rendering tests below
  * assert the real, current behaviour, not the titling the issue brief
@@ -138,24 +138,24 @@ function resolved(over: Partial<ResolvedObject> = {}): ResolvedObject {
  * the end) an unambiguous BAD_INPUT case naming "40 line(s)".
  */
 const CLASS_SOURCE_LINES: string[] = Array.from({ length: 40 }, (_, i) => `* filler line ${i + 1}`);
-CLASS_SOURCE_LINES[17] = "    METHODS run"; // line 18: "run" spans columns 12..15 (895)
-CLASS_SOURCE_LINES[24] = "    DATA ls_row TYPE ty_row."; // line 25: "ty_row" spans 21..27 (893)
-CLASS_SOURCE_LINES[34] = "    mv_count = lo_probe->process( iv_input = 'x' )."; // line 35 (892/894/891)
-CLASS_SOURCE_LINES[36] = "    CALL FUNCTION 'RFC_PING'."; // line 37: "RFC_PING" spans 19..27 (896)
-CLASS_SOURCE_LINES[38] = "    ENDMETHOD."; // line 39: no element resolves here (899)
+CLASS_SOURCE_LINES[17] = "    METHODS run"; // line 18: "run" spans columns 12..15 (956)
+CLASS_SOURCE_LINES[24] = "    DATA ls_row TYPE ty_row."; // line 25: "ty_row" spans 21..27 (954)
+CLASS_SOURCE_LINES[34] = "    mv_count = lo_probe->process( iv_input = 'x' )."; // line 35 (953/955/952)
+CLASS_SOURCE_LINES[36] = "    CALL FUNCTION 'RFC_PING'."; // line 37: "RFC_PING" spans 19..27 (957)
+CLASS_SOURCE_LINES[38] = "    ENDMETHOD."; // line 39: no element resolves here (960)
 const CLASS_SOURCE = CLASS_SOURCE_LINES.join("\n");
 
 const CLASS_SOURCE_URI = "/sap/bc/adt/oo/classes/zcl_i91_probe/source/main";
 
 /** Positions, matching each fixture's own captured `#start=line,column` request exactly. */
 const POS = {
-  ownMethod: { line: 18, column: 12 }, // "run" — 895
-  type: { line: 25, column: 21 }, // "ty_row" — 893
-  attribute: { line: 35, column: 4 }, // "mv_count" — 892
-  localVariable: { line: 35, column: 15 }, // "lo_probe" — 894
-  interfaceMethod: { line: 35, column: 25 }, // "process" — 891, matches 897's end=35,32
-  functionModule: { line: 37, column: 19 }, // "RFC_PING" — 896
-  none: { line: 39, column: 4 }, // ENDMETHOD — 899, no element resolves
+  ownMethod: { line: 18, column: 12 }, // "run" — 956
+  type: { line: 25, column: 21 }, // "ty_row" — 954
+  attribute: { line: 35, column: 4 }, // "mv_count" — 953
+  localVariable: { line: 35, column: 15 }, // "lo_probe" — 955
+  interfaceMethod: { line: 35, column: 25 }, // "process" — 952, matches 958's end=35,32
+  functionModule: { line: 37, column: 19 }, // "RFC_PING" — 957
+  none: { line: 39, column: 4 }, // ENDMETHOD — 960, no element resolves
 } as const;
 
 /** Identifier token spans, matching `identifierAt`'s own scan over the lines above. */
@@ -172,22 +172,22 @@ const elementInfoFrag = (pos: { line: number; column: number }): string => `${CL
 const navTargetKey = (pos: { line: number }, span: { start: number; end: number }): string =>
   `${CLASS_SOURCE_URI}#start=${pos.line},${span.start};end=${pos.line},${span.end}|definition`;
 
-/** `<adtcore:objectReference/>` with no `uri` attribute — ADT naming no navigation target, the same shape `parseNavigationTarget` documents as "resolved, but nothing to declare a target for". Used for every position below that has no captured 897-style fixture of its own. */
+/** `<adtcore:objectReference/>` with no `uri` attribute — ADT naming no navigation target, the same shape `parseNavigationTarget` documents as "resolved, but nothing to declare a target for". Used for every position below that has no captured 958-style fixture of its own. */
 const NO_TARGET_XML =
   '<?xml version="1.0" encoding="utf-8"?><adtcore:objectReference xmlns:adtcore="http://www.sap.com/adt/core"/>';
 
 const ELEMENT_INFO_ROUTES: Record<string, string> = {
-  [elementInfoFrag(POS.interfaceMethod)]: fixture("891-i91-elementinfo-interface-method.xml"),
-  [elementInfoFrag(POS.attribute)]: fixture("892-i91-elementinfo-attribute.xml"),
-  [elementInfoFrag(POS.type)]: fixture("893-i91-elementinfo-type.xml"),
-  [elementInfoFrag(POS.localVariable)]: fixture("894-i91-elementinfo-local-variable.xml"),
-  [elementInfoFrag(POS.ownMethod)]: fixture("895-i91-elementinfo-method-own.xml"),
-  [elementInfoFrag(POS.functionModule)]: fixture("896-i91-elementinfo-function-module.xml"),
-  [elementInfoFrag(POS.none)]: fixture("899-i91-elementinfo-no-element.xml"),
+  [elementInfoFrag(POS.interfaceMethod)]: fixture("952-i91-elementinfo-interface-method.xml"),
+  [elementInfoFrag(POS.attribute)]: fixture("953-i91-elementinfo-attribute.xml"),
+  [elementInfoFrag(POS.type)]: fixture("954-i91-elementinfo-type.xml"),
+  [elementInfoFrag(POS.localVariable)]: fixture("955-i91-elementinfo-local-variable.xml"),
+  [elementInfoFrag(POS.ownMethod)]: fixture("956-i91-elementinfo-method-own.xml"),
+  [elementInfoFrag(POS.functionModule)]: fixture("957-i91-elementinfo-function-module.xml"),
+  [elementInfoFrag(POS.none)]: fixture("960-i91-elementinfo-no-element.xml"),
 };
 
 const NAV_TARGET_ROUTES: Record<string, string> = {
-  [navTargetKey(POS.interfaceMethod, SPAN.interfaceMethod)]: fixture("897-i91-navigation-target-definition.xml"),
+  [navTargetKey(POS.interfaceMethod, SPAN.interfaceMethod)]: fixture("958-i91-navigation-target-definition.xml"),
   [navTargetKey(POS.attribute, SPAN.attribute)]: NO_TARGET_XML,
   [navTargetKey(POS.type, SPAN.type)]: NO_TARGET_XML,
   [navTargetKey(POS.localVariable, SPAN.localVariable)]: NO_TARGET_XML,
@@ -199,8 +199,8 @@ const NAV_TARGET_ROUTES: Record<string, string> = {
 
 /**
  * Synthesizes a `usageReferences` wire document naming `count` implementers
- * of `ZIF_I91_PROBE~PROCESS`, in the same shape fixture 900
- * (`900-i91-usage-references-interface-method.xml`) actually carries: a
+ * of `ZIF_I91_PROBE~PROCESS`, in the same shape fixture 961
+ * (`961-i91-usage-references-interface-method.xml`) actually carries: a
  * `usagereferences:referencedObject` row for the class itself, plus one for
  * its `ZIF_I91_PROBE~PROCESS` implementer, all lowercase-`usagereferences:`-
  * prefixed as A4H really sends (see this file's module doc comment). More
@@ -230,11 +230,11 @@ function syntheticUsageReferencesXml(count: number): string {
 const usageReferencesKey = (uri: string, pos?: { readonly line: number; readonly column: number }): string =>
   pos !== undefined ? `${uri}#start=${pos.line},${pos.column}` : uri;
 
-/** `ZIF_I91_PROBE`'s own source URI and fixture 897's declaration position (line 8, column 10) — the where-used call `IMPLEMENTED BY` drives once a navigation target actually resolves into the interface. */
+/** `ZIF_I91_PROBE`'s own source URI and fixture 958's declaration position (line 8, column 10) — the where-used call `IMPLEMENTED BY` drives once a navigation target actually resolves into the interface. */
 const INTERFACE_SOURCE_URI = "/sap/bc/adt/oo/interfaces/zif_i91_probe/source/main";
 const INTERFACE_DECL_POS = { line: 8, column: 10 } as const;
 
-/** A minimal, hand-written (not live-captured) `elementInfo` document for an interface method with no parameters — no fixture carries this shape, every captured interface-method fixture (891) has two. */
+/** A minimal, hand-written (not live-captured) `elementInfo` document for an interface method with no parameters — no fixture carries this shape, every captured interface-method fixture (952) has two. */
 function intfMethodElementInfoXml(name: string): string {
   return (
     '<?xml version="1.0" encoding="utf-8"?><abapsource:elementInfo adtcore:type="INTF/IO" adtcore:name="' +
@@ -309,7 +309,7 @@ function fullConn(): AbapConnection {
     navTarget: NAV_TARGET_ROUTES,
     usageReferences: {
       [usageReferencesKey(INTERFACE_SOURCE_URI, INTERFACE_DECL_POS)]: fixture(
-        "900-i91-usage-references-interface-method.xml",
+        "961-i91-usage-references-interface-method.xml",
       ),
     },
   });
@@ -349,7 +349,7 @@ describe("view=\"definition\" refusals — every combination assertViewCompatibl
       { object: "ZCL_I91_PROBE", view: "definition", line: POS.none.line, column: POS.none.column, version: "active" },
       20_000,
     );
-    // Not thrown, and it is a genuine, complete answer (fixture 899's
+    // Not thrown, and it is a genuine, complete answer (fixture 960's
     // resolved-to-nothing position) — not merely "didn't crash".
     expect(r.etag).toBe("");
     expect(r.text).toContain("No resolvable element");
@@ -437,7 +437,7 @@ function section(text: string, title: string): string | undefined {
 }
 
 describe('view="definition" rendering, driven by live-captured A4H fixtures through a fake connection', () => {
-  it("891+897+900: an interface method resolves to a DEFINITION section (source line + copy-pasteable abap_read call), a SIGNATURE table, a DOC section, and an IMPLEMENTED BY section naming the implementing classes (not the RUN caller row)", async () => {
+  it("952+958+961: an interface method resolves to a DEFINITION section (source line + copy-pasteable abap_read call), a SIGNATURE table, a DOC section, and an IMPLEMENTED BY section naming the implementing classes (not the RUN caller row)", async () => {
     const r = await abapRead(
       fullConn(),
       { object: "ZCL_I91_PROBE", view: "definition", line: POS.interfaceMethod.line, column: POS.interfaceMethod.column },
@@ -455,7 +455,7 @@ describe('view="definition" rendering, driven by live-captured A4H fixtures thro
     expect(definition).toContain("declared at: /sap/bc/adt/oo/interfaces/zif_i91_probe/source/main (line 8, column 10)");
     expect(definition).toContain('abap_read {"object":"ZIF_I91_PROBE","type":"INTF/OI"}');
 
-    // SIGNATURE: both parameters, with the columns fixture 891 actually
+    // SIGNATURE: both parameters, with the columns fixture 952 actually
     // carries (paramDefaultValue is absent on both, so it must not appear).
     const signature = section(r.text, "SIGNATURE");
     expect(signature).toBeDefined();
@@ -491,7 +491,7 @@ describe('view="definition" rendering, driven by live-captured A4H fixtures thro
     );
   });
 
-  it("892: an attribute's visibility/level/abapType reach the header, and there is no SIGNATURE section (a leaf has no children to tabulate)", async () => {
+  it("953: an attribute's visibility/level/abapType reach the header, and there is no SIGNATURE section (a leaf has no children to tabulate)", async () => {
     const r = await abapRead(
       fullConn(),
       { object: "ZCL_I91_PROBE", view: "definition", line: POS.attribute.line, column: POS.attribute.column },
@@ -509,7 +509,7 @@ describe('view="definition" rendering, driven by live-captured A4H fixtures thro
     expect(doc).toContain("Characters counted so far");
   });
 
-  it('893: a structure type lists its components — but the CURRENT CODE titles that table "SIGNATURE", not "COMPONENTS" (see this file\'s module doc comment: COMPONENT_COLUMNS ⊂ SIGNATURE_COLUMNS makes the COMPONENTS branch unreachable)', async () => {
+  it('954: a structure type lists its components — but the CURRENT CODE titles that table "SIGNATURE", not "COMPONENTS" (see this file\'s module doc comment: COMPONENT_COLUMNS ⊂ SIGNATURE_COLUMNS makes the COMPONENTS branch unreachable)', async () => {
     const r = await abapRead(
       fullConn(),
       { object: "ZCL_I91_PROBE", view: "definition", line: POS.type.line, column: POS.type.column },
@@ -528,7 +528,7 @@ describe('view="definition" rendering, driven by live-captured A4H fixtures thro
     expect(signature).toContain("TYPE STRING");
   });
 
-  it("894: a local variable resolves (type, no navigation target) with no DOC section — fixture 894 carries no documentation at all", async () => {
+  it("955: a local variable resolves (type, no navigation target) with no DOC section — fixture 955 carries no documentation at all", async () => {
     const r = await abapRead(
       fullConn(),
       { object: "ZCL_I91_PROBE", view: "definition", line: POS.localVariable.line, column: POS.localVariable.column },
@@ -540,7 +540,7 @@ describe('view="definition" rendering, driven by live-captured A4H fixtures thro
     expect(r.text).not.toContain("--- DOC ---");
   });
 
-  it("895: the class's own method shows its default value in the SIGNATURE table", async () => {
+  it("956: the class's own method shows its default value in the SIGNATURE table", async () => {
     const r = await abapRead(
       fullConn(),
       { object: "ZCL_I91_PROBE", view: "definition", line: POS.ownMethod.line, column: POS.ownMethod.column },
@@ -558,7 +558,7 @@ describe('view="definition" rendering, driven by live-captured A4H fixtures thro
     expect(signature).toContain("Total characters seen");
   });
 
-  it("896: a function module's empty signature is stated as an ADT limitation for FUGR/FF, not reported as a missing parameter", async () => {
+  it("957: a function module's empty signature is stated as an ADT limitation for FUGR/FF, not reported as a missing parameter", async () => {
     const r = await abapRead(
       fullConn(),
       { object: "ZCL_I91_PROBE", view: "definition", line: POS.functionModule.line, column: POS.functionModule.column },
@@ -577,7 +577,7 @@ describe('view="definition" rendering, driven by live-captured A4H fixtures thro
     expect(r.text).toContain("not a rendering gap");
   });
 
-  it("899: no resolvable element at that position is a SUCCESSFUL response echoing the source line, not a thrown error", async () => {
+  it("960: no resolvable element at that position is a SUCCESSFUL response echoing the source line, not a thrown error", async () => {
     const r = await abapRead(
       fullConn(),
       { object: "ZCL_I91_PROBE", view: "definition", line: POS.none.line, column: POS.none.column },
@@ -602,7 +602,7 @@ describe('view="definition" rendering, driven by live-captured A4H fixtures thro
   it("assert the exact elementinfo POST URL and query: the #start=line,column fragment is 1-based line, 0-based column, posted to the codecompletion/elementinfo endpoint", async () => {
     const seen: Array<{ url: string; qs?: Record<string, string> }> = [];
     const conn = fakeConn({
-      elementInfo: { [elementInfoFrag(POS.attribute)]: fixture("892-i91-elementinfo-attribute.xml") },
+      elementInfo: { [elementInfoFrag(POS.attribute)]: fixture("953-i91-elementinfo-attribute.xml") },
       navTarget: { [navTargetKey(POS.attribute, SPAN.attribute)]: NO_TARGET_XML },
     });
     const originalPost = (conn as unknown as { post: (url: string, opts: RawRequestOptions & { body?: string }) => Promise<RawResponse> })
@@ -624,8 +624,8 @@ describe('view="definition" rendering, driven by live-captured A4H fixtures thro
 
   it("IMPLEMENTED BY truncates past IMPLEMENTATIONS_DISPLAY_MAX (50), naming the omitted count — driven by a synthetic 60-implementer usageReferences answer", async () => {
     const conn = fakeConn({
-      elementInfo: { [elementInfoFrag(POS.interfaceMethod)]: fixture("891-i91-elementinfo-interface-method.xml") },
-      navTarget: { [navTargetKey(POS.interfaceMethod, SPAN.interfaceMethod)]: fixture("897-i91-navigation-target-definition.xml") },
+      elementInfo: { [elementInfoFrag(POS.interfaceMethod)]: fixture("952-i91-elementinfo-interface-method.xml") },
+      navTarget: { [navTargetKey(POS.interfaceMethod, SPAN.interfaceMethod)]: fixture("958-i91-navigation-target-definition.xml") },
       usageReferences: { [usageReferencesKey(INTERFACE_SOURCE_URI, INTERFACE_DECL_POS)]: syntheticUsageReferencesXml(60) },
     });
 
@@ -648,7 +648,7 @@ describe('view="definition" rendering, driven by live-captured A4H fixtures thro
 
   it("a position on the variable's own declaration renders the declaration-itself wording instead of throwing", async () => {
     stub.definitionLookupOverride = { noTargetReason: "declaration-itself" };
-    const conn = fakeConn({ elementInfo: { [elementInfoFrag(POS.attribute)]: fixture("892-i91-elementinfo-attribute.xml") } });
+    const conn = fakeConn({ elementInfo: { [elementInfoFrag(POS.attribute)]: fixture("953-i91-elementinfo-attribute.xml") } });
 
     const r = await abapRead(
       conn,
@@ -665,7 +665,7 @@ describe('view="definition" rendering, driven by live-captured A4H fixtures thro
 
   it("an undecidable navigation target renders the more-than-one-implementation wording", async () => {
     stub.definitionLookupOverride = { noTargetReason: "undecidable" };
-    const conn = fakeConn({ elementInfo: { [elementInfoFrag(POS.attribute)]: fixture("892-i91-elementinfo-attribute.xml") } });
+    const conn = fakeConn({ elementInfo: { [elementInfoFrag(POS.attribute)]: fixture("953-i91-elementinfo-attribute.xml") } });
 
     const r = await abapRead(
       conn,
@@ -682,7 +682,7 @@ describe('view="definition" rendering, driven by live-captured A4H fixtures thro
 
   it("a navigation target the server leaves unnamed keeps the existing no-target wording", async () => {
     stub.definitionLookupOverride = { noTargetReason: "unnamed" };
-    const conn = fakeConn({ elementInfo: { [elementInfoFrag(POS.attribute)]: fixture("892-i91-elementinfo-attribute.xml") } });
+    const conn = fakeConn({ elementInfo: { [elementInfoFrag(POS.attribute)]: fixture("953-i91-elementinfo-attribute.xml") } });
 
     const r = await abapRead(
       conn,
@@ -721,7 +721,7 @@ describe('view="definition" rendering, driven by live-captured A4H fixtures thro
     const conn = fakeConn({
       elementInfo: { [`${INTERFACE_SOURCE_URI}#start=${declPos.line},${declPos.column}`]: intfMethodElementInfoXml("PROCESS") },
       usageReferences: {
-        [usageReferencesKey(INTERFACE_SOURCE_URI, declPos)]: fixture("900-i91-usage-references-interface-method.xml"),
+        [usageReferencesKey(INTERFACE_SOURCE_URI, declPos)]: fixture("961-i91-usage-references-interface-method.xml"),
       },
     });
     const usageReferencesSeen: Array<string | undefined> = [];

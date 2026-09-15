@@ -38,10 +38,13 @@ import { type DdicTranscript } from "../adt/ddic-bridge.js";
 import { discardedDescriptorValues, type DiscardedValue } from "../adt/descriptor-fidelity.js";
 import {
   assertSecondaryIndexTarget,
+  callerVisibleIndexTags,
   createSecondaryIndex,
   deleteSecondaryIndexViaBridge,
+  resolveIndexObjectInput,
   resolveIndexOwner,
 } from "../adt/index-create.js";
+import { readTableIndexes, type SecondaryIndexInfo } from "../adt/index-read.js";
 import { createPackageViaBridge, tdevcDiscrepancies } from "../adt/package-create.js";
 import type { RunResult } from "../adt/run.js";
 import { serverPackage } from "../adt/resolved-package.js";
@@ -85,6 +88,7 @@ import {
   deleteObject,
   isPackageType,
   MAX_DELETE_BATCH,
+  NO_JOURNAL,
   PACKAGE_SOFTWARE_COMPONENT_HINT,
   preflightPackageCorr,
   readCurrentSource,
@@ -519,6 +523,21 @@ function captureOf(img: BeforeImage): BeforeImageCapture {
 }
 
 /**
+ * `captureOf`, narrowed for a class SUB-INCLUDE write (`img.include` set).
+ * Written out explicitly rather than trusted to fall out of `captureOf`
+ * above: a sub-include's `existed` is only ever `false` on a confirmed 404
+ * of ITS OWN document (see `BeforeImage.absenceConfirmed` and
+ * `writeObject`'s `emitBeforeImage`), so "confirmed-absent" here is always
+ * real evidence, never `captureOf`'s generic (and here unreachable) "no read
+ * ever ran" fallback. Scoped to the sub-include case only — every other
+ * write path keeps using `captureOf` unchanged.
+ */
+function includeCaptureOf(img: BeforeImage): BeforeImageCapture {
+  if (img.source !== undefined) return "captured";
+  return img.absenceConfirmed ? "confirmed-absent" : "failed";
+}
+
+/**
  * The mode=delete response's undo-ability note — selected by the JOURNAL'S
  * OWN capture outcome (`captureOf`, above) plus the before-image's KIND,
  * never guessed from the object's type alone. A package's metadata XML
@@ -558,6 +577,37 @@ function deleteJournalNote(
     `A journal entry was recorded as ${entryId} for the audit trail, but no source was captured ` +
     `for ${type} ${name} (beforeCapture="${capture}") — abap_journal mode=undo CANNOT restore it ` +
     "from this entry; this deletion is effectively irreversible."
+  );
+}
+
+/**
+ * Issue #86: a `TABL/DT` delete's response note naming the secondary
+ * indexes that went with it. `indexes`/`readFailure` come from a catalog
+ * read taken BEFORE the delete ran (see `abapWrite`'s delete branch) — by
+ * the time this note is built the table (and, with it, its DD12V/DD17S
+ * rows) may already be gone, so there is no "read after" to fall back to
+ * here; whatever was captured beforehand is all there will ever be.
+ */
+function tableDeleteIndexNote(
+  tableName: string,
+  indexes: readonly SecondaryIndexInfo[] | undefined,
+  readFailure: string | undefined,
+): string {
+  if (indexes === undefined) {
+    return (
+      `This table's secondary indexes could not be listed before the delete (${readFailure}) — ` +
+      "whether it had any, and what they covered, is UNKNOWN here, not confirmed as none."
+    );
+  }
+  if (indexes.length === 0) {
+    return `${tableName} had no secondary index (DD12V read before the delete returned zero rows).`;
+  }
+  const list = indexes
+    .map((i) => `${i.id} (${i.fields.length ? i.fields.join(", ") : "no fields on record"})`)
+    .join("; ");
+  return (
+    `${tableName} had ${indexes.length} secondary index${indexes.length === 1 ? "" : "es"}, defined over ` +
+    `its fields, and ${indexes.length === 1 ? "it goes" : "they go"} with the table: ${list}.`
   );
 }
 
@@ -1308,7 +1358,7 @@ export async function abapWrite(
     return abapWriteBatchDelete(conn, input.objects, maxChars, gate, journal, transport);
   }
 
-  const objectRef = input.object;
+  let objectRef = input.object;
   if (objectRef === undefined) {
     throw new AbapError(
       "BAD_INPUT",
@@ -1318,6 +1368,18 @@ export async function abapWrite(
       "Add `object: \"<name>\"` to write or delete one object, or `objects: [...]` with " +
         'mode: "delete" to delete several.',
     );
+  }
+
+  // TABL/DI has no ADT resource of its own (see src/adt/index-create.ts's
+  // header), so `targetFromInput` below (via the shared `parseObjectRef`)
+  // never learns to split its parented "<TABLE>/<INDEX>" form — the same
+  // form `abap_read` already accepts. Resolve that here, before
+  // `targetFromInput` ever sees `objectRef`, so both that form and the
+  // existing bare-name + `base_table` form reach it as a plain index name.
+  if ((input.type ?? "").trim().toUpperCase() === "TABL/DI") {
+    const resolved = resolveIndexObjectInput(objectRef, input.base_table);
+    objectRef = resolved.object;
+    input = { ...input, base_table: resolved.baseTable };
   }
 
   // Raise-only: a per-call verify:true escalates one write; verify:false is
@@ -1382,22 +1444,25 @@ export async function abapWrite(
     // The dangerous corner: `include` + `mode=delete`. ADT has
     // no per-include DELETE — `deleteObject` sends `DELETE {t.uri}`, the
     // CLASS URI — so `{mode:"delete", include:"testclasses"}` meaning "drop
-    // my test class" would instead delete the whole class, and undo can't
-    // restore it (its local includes were never captured; src/adt/undo.ts).
-    // Refused for every include value, including `main`, so callers never
-    // learn that `include` narrows a delete. Zero-network, before
-    // `authorizeMutation` — src/adt/write.ts refuses this too, for every
-    // other caller of `WriteTarget`; this is the cheap early copy.
+    // my test class" would instead delete the whole class AND its other
+    // includes. The journal now records all four local includes on a CLAS/OC
+    // delete (src/adt/write.ts's `deleteObject`), so undoing the WHOLE delete
+    // does bring them back — but there is still no verb that deletes one
+    // include on its own, so this is refused for every include value,
+    // including `main`, so callers never learn that `include` narrows a
+    // delete. Zero-network, before `authorizeMutation` — src/adt/write.ts
+    // refuses this too, for every other caller of `WriteTarget`; this is the
+    // cheap early copy.
     if (input.include !== undefined) {
       throw new AbapError(
         "BAD_INPUT",
         `\`include\` does not apply to mode=delete: ADT cannot delete one include of a class, only ` +
           `the whole class. Deleting ${target.name} because you asked to delete its ` +
-          `${input.include} would destroy its main source and its other includes too, and that ` +
-          `delete could not be undone — abapsmith's journal never captured the local includes.`,
+          `${input.include} would destroy its main source and its other includes too.`,
         { object: target.name, include: input.include, mode: "delete" },
         `To empty an include, WRITE it: {object, include:"${input.include}", source:"<the new, ` +
-          `possibly empty, content>"}. To delete the whole class, drop \`include\`.`,
+          `possibly empty, content>"}. To delete the whole class, drop \`include\` — its includes ` +
+          `are now recorded too, so abap_journal mode=undo on that delete restores all of them.`,
       );
     }
     // A PACKAGE_UNKNOWN refusal here is the fail-closed rule, deliberately
@@ -1412,6 +1477,24 @@ export async function abapWrite(
         maxChars,
       });
     }
+    // Issue #86: a base TABLE's secondary indexes have no ADT resource of
+    // their own (see src/adt/index-create.ts's header) and are not captured
+    // by the before-image the journal takes below — deleting the table
+    // takes them with it with nothing anywhere recording what they were.
+    // Read them now, BEFORE the delete: reading after would just see the
+    // rows already gone (or the table itself gone, if it's a real DDIC
+    // drop). TABL/DT only — a STRU has no index, and TABL/DI's own delete
+    // path (abapDeleteIndexViaBridge below) is a single index, not a table.
+    let preDeleteIndexes: readonly SecondaryIndexInfo[] | undefined;
+    let preDeleteIndexesFailure: string | undefined;
+    if (authorized.target.type === "TABL/DT") {
+      try {
+        preDeleteIndexes = (await readTableIndexes(conn, authorized.target.name)).indexes;
+      } catch (e) {
+        preDeleteIndexesFailure = e instanceof Error ? e.message : String(e);
+      }
+    }
+
     // `withJournalledMutation` (src/journal.ts) fires `begin()` from INSIDE
     // `deleteObject`'s call chain (entry lands on disk before the DELETE
     // goes out), captures the id, and patches the entry to `failed` on throw.
@@ -1436,6 +1519,22 @@ export async function abapWrite(
             // On begin(), not finish(): resolution is pre-flight, so the
             // request is already known — see BeforeImage.corrNr (src/adt/write.ts).
             ...(img.corrNr !== undefined ? { corrNr: img.corrNr } : {}),
+            // A CLAS/OC delete's four local includes (src/adt/write.ts's
+            // `deleteObject`) — recorded as `parts` so undo of the whole
+            // delete can restore each one, not just the main body. Each
+            // part's `object` is the class's own ref with `sourceUri`
+            // overridden to that include's document — the class identity is
+            // the same, only the document under discussion differs.
+            ...(img.includes?.length
+              ? {
+                  parts: img.includes.map((i) => ({
+                    object: { ...journalRef(img.target), sourceUri: i.sourceUri },
+                    existedBefore: i.existed,
+                    beforeCapture: i.capture,
+                    ...(i.source !== undefined ? { beforeSource: i.source } : {}),
+                  })),
+                }
+              : {}),
             systemKey: systemKey(conn.cfg),
             tool: "abap_write",
           };
@@ -1445,7 +1544,15 @@ export async function abapWrite(
         deleteObject(conn, authorized, {
           ...trOpts,
           ...(input.expect_etag ? { expectEtag: input.expect_etag } : {}),
-          onBeforeImage,
+          // `withJournalledMutation` (src/journal.ts) hands back a closure
+          // that is a harmless no-op when `journal` is undefined — but it is
+          // NOT `=== NO_JOURNAL`, so `deleteObject` cannot tell from the
+          // closure alone that nothing will ever be done with a captured
+          // before-image. Passing the literal sentinel here when there is no
+          // journal to write to lets a CLAS/OC delete's four sub-include
+          // reads (src/adt/write.ts's `deleteObject`) be skipped rather than
+          // spent for nothing.
+          onBeforeImage: journal !== undefined ? onBeforeImage : NO_JOURNAL,
           // DEVC/K runs through the classrun bridge, which needs the gate itself
           // even when no transport manager is wired.
           bridgeGate: gate,
@@ -1544,6 +1651,9 @@ export async function abapWrite(
                 "Check for yourself with abap_read on the object (a NOT_FOUND confirms it is gone) or " +
                 `abap_search for "${res.target.name}".`,
             ]
+          : []),
+        ...(res.target.type === "TABL/DT"
+          ? [tableDeleteIndexNote(res.target.name, preDeleteIndexes, preDeleteIndexesFailure)]
           : []),
       ],
       maxChars,
@@ -1670,7 +1780,10 @@ export async function abapWrite(
           operation: img.existed ? "update" : "create",
           object: journalRef(img.target),
           existedBefore: img.existed,
-          beforeCapture: captureOf(img),
+          // A sub-include's absence is `confirmed-absent` evidence, not the
+          // generic `captureOf` path — see `includeCaptureOf`. Gated on
+          // `img.include` so every non-include write keeps `captureOf`.
+          beforeCapture: img.include !== undefined ? includeCaptureOf(img) : captureOf(img),
           ...(img.source !== undefined ? { beforeSource: img.source } : {}),
           // See the delete branch: begin(), since pre-flight resolution
           // already knows the request at this point.
@@ -3887,13 +4000,19 @@ async function abapDeleteViaBridge(
  * `abap_journal mode=undo` hit that invariant instead of a clean refusal.
  * Reversal is `abap_write { mode: "delete", type: "TABL/DI" }`, never undo.
  *
- * `verified` is always `false`: there is no ADT resource of any kind to read
- * an index back from (this type's REGISTRY entry, `src/adt/capabilities.ts`,
- * has no route at all). `INDEX-ACTIVE`/`INDEX-FIELDS` in the transcript come
- * from the generated bridge fragment's own post-`COMMIT WORK` `SELECT
- * COUNT( * )` on DD12V/DD17S inside the same classrun execution, not a
- * second, independent confirmation — so this never calls `verifyObjectCreated`
- * or `verifyViaVitBridge`.
+ * There is no ADT resource of any kind to read an index back from through
+ * REST (this type's REGISTRY entry, `src/adt/capabilities.ts`, has no route
+ * at all), so this never calls `verifyObjectCreated` or `verifyViaVitBridge`.
+ * Instead, `createSecondaryIndex` (`src/adt/index-create.ts`) re-reads DD12V
+ * and DD17S directly through `verifySecondaryIndex` after the bridge
+ * returns, and `verified` here carries that verdict's own `verified` flag —
+ * a real boolean, not a constant. `INDEX-ACTIVE`/`INDEX-FIELDS` in the
+ * transcript remain the generated bridge fragment's own post-`COMMIT WORK`
+ * `SELECT COUNT( * )` on DD12V/DD17S inside the same classrun execution, but
+ * they are no longer the only evidence: the catalog re-read is a second,
+ * independent confirmation, and `createSecondaryIndex` itself throws (via
+ * `assertCreateVerdictAgrees`) if that re-read disagrees with the bridge's
+ * claim of success.
  */
 async function abapCreateIndexViaBridge(
   conn: AbapConnection,
@@ -4006,7 +4125,9 @@ async function abapCreateIndexViaBridge(
       package: owner.packageName.name,
       mode: "create-bridge",
       created: true,
-      verified: false,
+      verified: created.verdict.verified,
+      index_present: created.verdict.present,
+      index_active: created.verdict.active,
       detail,
       bridge_class: CLASSIC_BODY_CLASS,
       markers: created.transcript.tags.join(" "),
@@ -4016,12 +4137,15 @@ async function abapCreateIndexViaBridge(
       `Created by running the classic fluid tool's body class ${CLASSIC_BODY_CLASS}, not over ` +
         `ADT REST: ${cap?.bridgeCreate?.via ?? "see src/adt/index-create.ts"}`,
       cap?.bridgeCreate?.limits ?? "",
-      "NOT independently verified: a secondary index has no ADT resource of its own to read back " +
-        "from (see this type's REGISTRY entry in src/adt/capabilities.ts). The INDEX-ACTIVE and " +
-        "INDEX-FIELDS markers above come from the generated bridge's own post-COMMIT WORK SELECT " +
-        "COUNT( * ) on DD12V and DD17S inside this same classrun execution, not a second, " +
-        "independent read — abapsmith still reports created:true, trusting that transcript, but " +
-        "verified is always false here.",
+      created.verdict.verified
+        ? `Independently verified with a fresh DD12V/DD17S catalog read after the bridge returned: ` +
+          `${created.verdict.statement}`
+        : `NOT independently verified: the post-create catalog re-read did not run (${created.verdict.reason ?? "reason unknown"}). ` +
+          "abapsmith reports created:true based only on the bridge's own transcript (the INDEX-ACTIVE " +
+          "and INDEX-FIELDS markers above, from its post-COMMIT WORK SELECT COUNT( * ) on DD12V and " +
+          "DD17S inside that same classrun execution) — that is all that is known here.",
+      `To read the index back independently at any time: abap_read {"object":"${baseTable}/${target.name}",` +
+        `"type":"TABL/DI"}.`,
       "NOT journalled: an index create has no undo path (src/adt/undo.ts recognises no TABL/DI " +
         "shape and would throw on one). To reverse this, delete the index with a fresh " +
         'abap_write { mode: "delete", type: "TABL/DI" } call, not abap_journal mode=undo.',
@@ -4051,9 +4175,18 @@ async function abapCreateIndexViaBridge(
  * `resolveIndexOwner` reads the base table's real package once, and a
  * caller-supplied `package` is only ever checked for agreement.
  *
- * `verified` is always `false` — see {@link abapCreateIndexViaBridge}'s doc
- * comment: there is no ADT resource to read an index back from, so this
- * never calls `verifyObjectDeleted`.
+ * There is no ADT resource to read an index back from through REST, so this
+ * never calls `verifyObjectDeleted` — see {@link abapCreateIndexViaBridge}'s
+ * doc comment. Instead, `deleteSecondaryIndexViaBridge`
+ * (`src/adt/index-create.ts`) re-reads DD12V/DD17S directly through
+ * `verifySecondaryIndex` after the bridge returns, and `verified` here
+ * carries that verdict's own `verified` flag. Unlike the create side, a
+ * verdict disagreement on delete is never thrown from
+ * `deleteSecondaryIndexViaBridge` — it is only carried out as `verdict` for
+ * this function to report, since a delete that the bridge reports as done
+ * but the catalog still shows present is still better surfaced as a
+ * (loudly caveated) response than as a thrown error after the DDIC change
+ * may already have happened.
  */
 async function abapDeleteIndexViaBridge(
   conn: AbapConnection,
@@ -4151,34 +4284,34 @@ async function abapDeleteIndexViaBridge(
       package: owner.packageName.name,
       mode: "delete-bridge",
       deleted: true,
-      verified: false,
+      verified: deleted.verdict.verified,
+      index_present: deleted.verdict.present,
+      index_active: deleted.verdict.active,
       bridge_class: CLASSIC_BODY_CLASS,
-      markers: deleted.transcript.tags.join(" "),
+      // `callerVisibleIndexTags`, not the raw `transcript.tags`: an
+      // `ACTFAILED`-named tag can appear here even on a delete that fully
+      // succeeded (see that function's doc comment) — `verified`/
+      // `index_present`/`index_active` above already carry the fact a
+      // caller should act on, so the raw flag is filtered out of this
+      // field rather than left to read as an unexplained failure marker.
+      markers: callerVisibleIndexTags(deleted.transcript.tags).join(" "),
       journal: "off (not journalled — see notes)",
     },
     notes: [
       `Deleted by running the classic fluid tool's body class ${CLASSIC_BODY_CLASS}, not over ` +
         `ADT REST — ${type} has no writable ADT collection at all (see this type's REGISTRY entry ` +
         "in src/adt/capabilities.ts).",
-      "NOT independently verified: a secondary index has no ADT resource of its own to read back " +
-        "from. The INDEX-GONE marker above comes from the generated bridge's own post-COMMIT WORK " +
-        "SELECT COUNT( * ) on DD12V and DD17S inside this same classrun execution, not a second, " +
-        "independent read — abapsmith still reports deleted:true, trusting that transcript, but " +
-        "verified is always false here.",
+      deleted.verdict.verified
+        ? `Independently verified with a fresh DD12V/DD17S catalog read after the bridge returned: ` +
+          `${deleted.verdict.statement}`
+        : `NOT independently verified: the post-delete catalog re-read did not run (${deleted.verdict.reason ?? "reason unknown"}). ` +
+          "abapsmith reports deleted:true based only on the bridge's own transcript (the INDEX-GONE " +
+          "marker above, from its post-COMMIT WORK SELECT COUNT( * ) on DD12V and DD17S inside that " +
+          "same classrun execution) — that is all that is known here.",
+      `To confirm independently at any time: abap_read {"object":"${baseTable}/${target.name}",` +
+        `"type":"TABL/DI"} — it should now report the index absent.`,
       "NOT journalled: a bridge delete captures no before-image, so abap_journal mode=undo cannot " +
         "restore this index. To bring it back, create it again with a fresh abap_write call.",
-      ...(deleted.transcript.tags.includes("INDEX-DELETED-ACTFAILED")
-        ? [
-            "ACTFAILED: DD_INDEX_INTERFACE itself reported ACTFAILED = 'X' for this delete, but the " +
-              "bridge's post-COMMIT WORK re-read of DD12V (both unfiltered and AS4LOCAL = 'A') and " +
-              "DD17S found no rows left for this index, so abapsmith reports deleted:true anyway. " +
-              "This was observed live on 2026-09-05 and its cause is not established — it may mean " +
-              "the database-level index drop or the table's re-activation failed rather than the " +
-              "dictionary removal itself. If the table's runtime behaviour looks wrong, check it in " +
-              "SE11/SE14 rather than assuming the delete was clean; abapsmith performs no further " +
-              "check on this path.",
-          ]
-        : []),
     ],
     maxChars,
   });
@@ -4222,6 +4355,7 @@ export function registerWriteTools(mcp: McpServer, deps: WriteToolDeps): void {
           package?: string;
           mode?: string;
           affects?: EnhancedObjectRef;
+          base_table?: string;
           objects?: Array<{ object: string; type?: string; affects?: EnhancedObjectRef }>;
         };
 
@@ -4287,7 +4421,9 @@ export function registerWriteTools(mcp: McpServer, deps: WriteToolDeps): void {
         const object = a.object;
 
         // BEFORE ensureConnected(): a denied write must never reach the wire.
-        const pf = preflight({ object, type: a.type, package: a.package });
+        // `base_table`: only meaningful for `type: "TABL/DI"` — see
+        // `preflight`'s own doc comment for why it needs it there.
+        const pf = preflight({ object, type: a.type, package: a.package, base_table: a.base_table });
         deps.safety.assert(a.mode === "delete" ? "delete" : "write", pf, {
           phase: "preflight",
           corr: { kind: "unresolved" },
@@ -4301,7 +4437,7 @@ export function registerWriteTools(mcp: McpServer, deps: WriteToolDeps): void {
         // would flag the core reading a field the registered schema doesn't declare — casting
         // to the schema-derived type means any new field the core reads must be added to
         // `writeInputSchema` to compile.
-        const res = await deps.pool.withWrite("abap_write", writeGateKey(object, a.type), (conn) =>
+        const res = await deps.pool.withWrite("abap_write", writeGateKey(object, a.type, a.base_table), (conn) =>
           abapWrite(
             conn,
             args as WriteInput,

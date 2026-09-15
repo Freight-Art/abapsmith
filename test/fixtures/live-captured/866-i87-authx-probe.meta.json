@@ -1,0 +1,32 @@
+{
+  "n": 866,
+  "label": "i87-authx-probe",
+  "expect": null,
+  "note": null,
+  "requestMethod": "POST",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/datapreview/freestyle?rowNumber=3&sap-client=001",
+  "requestHeaders": {
+    "X-CSRF-Token": "<redacted>",
+    "Accept": "application/vnd.sap.adt.datapreview.table.v1+xml",
+    "Content-Type": "text/plain",
+    "Authorization": "<redacted>"
+  },
+  "requestBody": "SELECT * FROM authx",
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-type": "application/vnd.sap.adt.datapreview.table.v1+xml; charset=utf-8",
+    "content-length": "2373",
+    "sap-authenticated": "true",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "399819.000000"
+  },
+  "byteLength": 2373,
+  "zeroByteBody": false,
+  "sha256": "2b54d055f796a039dbdc68069f6d7a50d6dda415987e1151b13834cecb5e0737",
+  "utcTimestamp": "2026-09-12T13:24:37.470Z",
+  "durationMs": 519,
+  "sessionName": "A"
+}

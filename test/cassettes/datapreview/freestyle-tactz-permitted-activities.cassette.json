@@ -1,0 +1,41 @@
+{
+  "id": "freestyle-tactz-permitted-activities",
+  "recordedAt": "2026-09-12T13:24:24.034Z",
+  "recordedDurationMs": 414,
+  "appliance": {
+    "sid": "A4H",
+    "client": "001",
+    "kernelRelease": "777",
+    "kernelPatchLevel": "500",
+    "server": "a4hsandbox_A4H_00"
+  },
+  "source": {
+    "type": "live-capture-raw",
+    "citation": "test/fixtures/live-captured/863-i87-tactz-s-tabu-nam.meta.json + test/fixtures/live-captured/863-i87-tactz-s-tabu-nam.xml",
+    "notes": "The Authorization header was redacted at capture time; the X-CSRF-Token header was redacted by the transcriber before this cassette was written. SELECT * FROM tactz WHERE brobj = 'S_TABU_NAM'. TACTZ carries only BROBJ and ACTVT \u2014 no activity text; text lives in TACTT, not here."
+  },
+  "request": {
+    "method": "POST",
+    "path": "/sap/bc/adt/datapreview/freestyle?rowNumber=50&sap-client=001",
+    "headers": {
+      "X-CSRF-Token": "<redacted>",
+      "Accept": "application/vnd.sap.adt.datapreview.table.v1+xml",
+      "Content-Type": "text/plain",
+      "Authorization": "<redacted>"
+    },
+    "body": "SELECT * FROM tactz WHERE brobj = 'S_TABU_NAM'"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/vnd.sap.adt.datapreview.table.v1+xml; charset=utf-8",
+      "content-length": "1312",
+      "sap-authenticated": "true",
+      "sap-cache-control": "+0",
+      "sap-isc-uagent": "0",
+      "sap-server": "true",
+      "sap-perf-fesrec": "316152.000000"
+    },
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><dataPreview:tableData xmlns:dataPreview=\"http://www.sap.com/adt/dataPreview\"><dataPreview:totalRows>3</dataPreview:totalRows><dataPreview:isHanaAnalyticalView>false</dataPreview:isHanaAnalyticalView><dataPreview:executedQueryString>SELECT * FROM TACTZ WHERE BROBJ = 'S_TABU_NAM'   INTO     TABLE @DATA(LT_RESULT)   UP TO 50  ROWS   .</dataPreview:executedQueryString><dataPreview:queryExecutionTime>2.4680000</dataPreview:queryExecutionTime><dataPreview:columns><dataPreview:metadata dataPreview:name=\"BROBJ\" dataPreview:type=\"C\" dataPreview:description=\"BROBJ\" dataPreview:keyAttribute=\"false\" dataPreview:colType=\"\" dataPreview:isKeyFigure=\"false\"/><dataPreview:dataSet><dataPreview:data>S_TABU_NAM</dataPreview:data><dataPreview:data>S_TABU_NAM</dataPreview:data><dataPreview:data>S_TABU_NAM</dataPreview:data></dataPreview:dataSet></dataPreview:columns><dataPreview:columns><dataPreview:metadata dataPreview:name=\"ACTVT\" dataPreview:type=\"C\" dataPreview:description=\"ACTVT\" dataPreview:keyAttribute=\"false\" dataPreview:colType=\"\" dataPreview:isKeyFigure=\"false\"/><dataPreview:dataSet><dataPreview:data>02</dataPreview:data><dataPreview:data>03</dataPreview:data><dataPreview:data>08</dataPreview:data></dataPreview:dataSet></dataPreview:columns></dataPreview:tableData>"
+  }
+}

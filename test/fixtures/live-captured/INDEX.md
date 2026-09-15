@@ -609,3 +609,262 @@ second, unrelated gap: `850` searches `ENQUEUE_E_TABLE` untyped and gets nothing
 that same module directly at `/sap/bc/adt/functions/groups/etable/fmodules/enqueue_e_table` and
 gets a plain `200` with full metadata — quickSearch does not index generated function modules at
 all, so its silence is not evidence the object is missing.
+
+## 2026-09-12 — package navigation: nodestructure and package headers (852-857, 876-883)
+
+Same A4H appliance, client `001`, issue #74. `852` (`SABP_UNIT_ADT`, 10245 B) and `853`
+(`SABP_UNIT_SHARED`, 4497 B) are `POST /sap/bc/adt/repository/nodestructure?parent_type=DEVC%2FK&parent_name=<NAME>&withShortDescriptions=true`
+with `Accept: application/vnd.sap.as+xml; dataname=com.sap.adt.RepositoryObjectTreeContent` and an
+empty request body. The response is a flat list of `<SEU_ADT_REPOSITORY_OBJ_NODE>` elements.
+
+Folder nodes come back with an EMPTY `<OBJECT_NAME/>` and an empty `<OBJECT_URI/>`; they carry a
+`TECH_NAME` equal to the parent package and an `OBJECT_TYPE` such as `DEVC/P`, `DEVC/I`, `DEVC/N`,
+`DEVC/XS`, `DEVC/KI`, `DEVC/OC`, `DEVC/VT`. Real sub-packages are specifically `DEVC/K` rows that DO
+have an `OBJECT_NAME` and an `OBJECT_URI` of `/sap/bc/adt/packages/<lowercase-name>`. Code that
+identifies sub-packages by `OBJECT_TYPE.startsWith("DEVC")` is only correct if it first drops the
+empty-name rows; matching `DEVC/K` exactly is the safe test. `withShortDescriptions=true` still
+leaves sub-package rows with an empty `<DESCRIPTION/>` — confirmed on `853`'s two named `DEVC/K`
+children (`SABP_UNIT_EXCEPTIONS`, `SABP_UNIT_TYPES`).
+
+`854`, `877`, `878`, `879` are the notable edge case: a package with no contents answers **HTTP 200
+with a zero-byte body**, not an empty XML document and not a 404. `880` is the control — the same
+code path against `SABP_UNIT_ADT` returned 10245 B in the same session — and `881` repeats the
+`ZLOCAL` request with no request body at all, with the same zero-byte 200. The empty response is
+genuine server behaviour, not a harness artifact.
+
+`856` and `857` are `GET /sap/bc/adt/packages/<lowercase-name>` with `Accept: */*`; both returned
+`200` with `content-type: application/vnd.sap.adt.packages.v2+xml`. A specific vendor Accept
+(`application/vnd.sap.adt.packages.v1+xml, application/xml`) answers **406 Not Acceptable**
+(`ExceptionResourceNotAcceptable`) on this endpoint; `*/*` is what actually works. The header fields
+a package listing needs are all present: `adtcore:description`, `pak:superPackage/@adtcore:name`,
+`pak:transport/pak:softwareComponent/@pak:name`, `pak:transport/pak:transportLayer/@pak:name`,
+`pak:attributes/@pak:packageType`, `pak:applicationComponent/@pak:name`. `856`
+(`SABP_UNIT_CORE_RUNTIME`) has a super package (`SABP_UNIT_CORE`) and `SAP_BASIS`/`SAP`; `857`
+(`Z_BADI_CHECK`) shows a customer package with an EMPTY `<pak:superPackage/>`, `HOME` and transport
+layer `ZLB1`.
+
+`882` and `883` are TDEVC/TADIR probes kept as evidence of what those tables hold; nothing in the
+shipped code reads them.
+
+## 2026-09-12 — secondary index catalog: DD12V and DD17S (858-860)
+
+Same A4H appliance, issue #86. All three are `POST /sap/bc/adt/datapreview/freestyle?rowNumber=50`
+with a plain-text Open-SQL SELECT as the body. `858` `SELECT * FROM dd12v WHERE sqltab =
+'BDSLORE10'` → 200, `totalRows` 4. Columns: `SQLTAB INDEXNAME AS4LOCAL AS4VERS DDLANGUAGE
+AUTHCLASS UNIQUEFLAG AS4USER AS4DATE AS4TIME ACTFLAG DBINDEX DBSTATE DBINCLEXCL DBSYSSEL1..4 DDTEXT
+ISEXTIND FULL_TEXT LANGU_COLUMN MIME_TYPE_COL MIME_TYPE LANGU_DETECTION FAST_PREPROCESS
+FUZZY_SEARCH_INDX SEARCH_ONLY UPDATE_MODE CONFIGURATION PHRASE_INDX_RATIO TEXT_ANALYSIS
+TOKEN_SEPARATORS ABAP_LANGUAGE_VERSION`. DD12V is language-dependent — it carries `DDLANGUAGE`, so
+one index yields one row per maintained language and a reader must filter or dedupe.
+
+`859` `SELECT * FROM dd17s WHERE sqltab = 'BDSLORE10'` → 200, `totalRows` 2. Columns: `SQLTAB
+INDEXNAME POSITION AS4LOCAL AS4VERS FIELDNAME DESCFLAG`. DD17S is NOT language-dependent;
+`POSITION` gives the field order within the index.
+
+`860` is the negative control: the same DD12V query against a table with no secondary index
+(`SELECT * FROM dd12v WHERE sqltab = 'TADIR'`) answers 200 with `totalRows` 0. An absent index is
+an empty result, not an error.
+
+## 2026-09-12 — authorization object catalog: TOBJ, TOBJT, TOBCT, TACTZ, TACTT, AUTHX, DD04L, DD07V (861-875)
+
+Same A4H appliance, issue #87. Same freestyle endpoint. These captures correct several guesses
+about where authorization-object metadata actually lives.
+
+`861`/`870` `SELECT * FROM tobj WHERE objct = '<OBJ>'` → columns `OBJCT FIEL1..FIEL9 FIEL0 OCLSS
+BNAME FBLOCK CONVERSION`. The ten field slots are `FIEL1`..`FIEL9` followed by **`FIEL0`**, not
+`FIEL10`. TOBJ's key column is `OBJCT`.
+
+`862`/`874` TOBJT holds the object text, and its key column is **`OBJECT`**, not `OBJCT`. Columns
+`LANGU OBJECT TTEXT`. `874` (`SELECT * FROM tobjt WHERE object = 'S_DEVELOP'`) shows more than one
+language row for `S_DEVELOP` (`totalRows` 2), so a reader must filter by language.
+
+`867` TOBCT holds the object-CLASS text: columns `LANGU OCLSS CTEXT`.
+
+`863`/`871` TACTZ lists the activities permitted for an object: columns `BROBJ ACTVT` only — no
+text.
+
+`864` TACTT holds the activity texts: columns `SPRAS ACTVT LTEXT`. Issue #87 names `TACT` for this;
+`TACT` is the plain activity list and the TEXTS are in `TACTT`.
+
+`865` is a failed request kept deliberately: `SELECT * FROM authx WHERE fiel1 = 'DICBERCLS' OR
+fiel1 = 'ACTVT'` answers **HTTP 400 `Unknown column name "FIEL1"`**. `866` (`SELECT * FROM authx`,
+`totalRows` 1380) established AUTHX's real columns: `FIELDNAME ROLLNAME CHECKTABLE EXIT_FB
+ACTVT_FLAG`. `868` then reads the four fields of `S_TABU_NAM` successfully. The authorization
+FIELD's data element and check table come from AUTHX, not from TOBJ.
+
+`869` `SELECT rollname, domname, datatype, leng FROM dd04l WHERE ...` returns 3 rows for 4
+requested data elements (`ACTIV_AUTH`, `TABNAME`, `SUSR_OBJ`, `DEVCLASS`) — a name in AUTHX's
+`ROLLNAME` is not guaranteed to exist in DD04L, so a reader must tolerate a missing row rather than
+assume one.
+
+`872` and `875` read DD07V for a domain's fixed values. DD07V has no `AS4LOCAL` column — adding
+that predicate answers **HTTP 400 `Unknown column name "AS4LOCAL"`**. Its columns are `DOMNAME
+VALPOS DDLANGUAGE DOMVALUE_L DOMVALUE_H DDTEXT DOMVAL_LD DOMVAL_HD APPVAL`. `872` (`ACTIV_AUTH`)
+returns 0 rows — a domain with no fixed values — and `875` (`AS4LOCAL`) returns 5. Rows do not come
+back ordered; a reader must sort by `VALPOS`.
+
+`873` is the other hard-won wire fact: `SELECT * FROM tobj WHERE objct = 'Z_I87_NO_SUCH_OBJ'`
+answers **HTTP 400 `'Z_I87_NO_SUCH_OBJ' is not a valid value for C(10,0)`**. A literal longer than
+the column's declared width is a hard 400 on this endpoint, not an empty result — so a
+caller-supplied object name must be length-validated client-side before it reaches the SQL.
+Re-run with the 10-character `Z_I87_NOPE`, the request captured as `873`, answers 200 with
+`totalRows` 0. The 400 attempt itself was not saved as a separate capture; only the corrected retry
+is on disk.
+
+## 2026-09-12 — nodestructure DESCRIPTION misalignment on $TMP, and the informationsystem/search fix (884-885)
+
+Same A4H appliance, client `001`, issue #74. These two captures confirm the root cause of a live
+defect: `abap_read {"object":"$TMP","type":"DEVC/K"}` was rendering object descriptions that belong
+to a DIFFERENT object.
+
+`884` is `POST /sap/bc/adt/repository/nodestructure?parent_type=DEVC%2FK&parent_name=%24TMP&withShortDescriptions=true`
+against `$TMP`, the same shape as `852`/`853`/`855`. `$TMP` has 404 `<SEU_ADT_REPOSITORY_OBJ_NODE>`
+elements, 389 of them carrying a real `OBJECT_NAME`. Node 1 is the sub-package `$ABAPSMITH_FLUID_API`
+(`DEVC/K`); like every sub-package row seen so far (`853`), its own `<DESCRIPTION/>` is empty on the
+wire. Unlike what earlier captures assumed, that description is not simply missing — it resurfaces
+FOUR ROWS LATER, on node 5 (`CLAS/OC ZCL_I75_PROBE`), which is not that class's own description at
+all. From node 5 on, every `<DESCRIPTION>` belongs to the PREVIOUS node, not its own, all the way to
+the end of the list, where the true final object's description falls off the end entirely and is
+never emitted anywhere. This is a defect in the response payload itself: reproduced with a raw
+`curl` POST and a plain regex over the raw XML bytes, independent of `abap-adt-api` or any parser in
+this codebase.
+
+Ground truth, each object individually re-read at its own ADT resource:
+
+| object | type | real description | what node position `884` misassigns to it |
+|---|---|---|---|
+| `$ABAPSMITH_FLUID_API` | `DEVC/K` | `abapsmith fluid API generated objects` | *(empty on its own node; own description appears 4 rows later)* |
+| `ZTESTAI` | `CLAS/OC` | `test ai` | `Class ZCL_TMP_COUNT_SFLIGHT` (the PREVIOUS node's real description) |
+| `ZIF_APACK_MANIFEST` | `INTF/OI` | `APACK: Manifest interface` | `test ai` (`ZTESTAI`'s real description) |
+| `ZABAP_CLOUD_DEVELOPMENT` | `CHKV/TYP` | `Default ATC variant for ABAP Cloud Development` | `tmp` |
+| `ZAPI_TRAVEL_U_V2_0001` | `OA2S` | *(no description attribute at all)* | `SIDs Characteristic 0FISCVARNT` |
+
+The misalignment is not a constant offset: the sub-package's own missing description reappears 4
+rows down (a one-time jump), and every row after that is off by exactly 1 — not 4 — until the list
+ends. A package with no sub-packages pairs correctly: none of `852`, `853`, `855` (no `DEVC/K` child
+in `853`'s own listing beyond its already-empty-by-design entries) show this drift, and `855`
+(`Z_BADI_CHECK`, no sub-packages at all) pairs every `DESCRIPTION` with its own `OBJECT_NAME`
+correctly. The defect only appears once a `DEVC/K` row is present in the node list.
+
+`885` is `GET /sap/bc/adt/repository/informationsystem/search?operation=quickSearch&query=*&packageName=$TMP`,
+the fix: keying descriptions by `(adtcore:type, adtcore:name)` instead of trusting wire position.
+The real live request (`maxResults=12000`) returned ALL 11128 `<adtcore:objectReference>` elements
+filed under `$TMP` — a single 2542396-byte response — and every one of `884`'s 389 named nodes
+resolved to a correct, non-drifting description by exact key match (389 of 389, no misses). That
+full response is far too large to commit (2.5 MB against captures elsewhere in this directory
+measured in kilobytes), so `885`'s committed body is a FILTERED SUBSET: only the 389
+`<adtcore:objectReference>` elements whose `(adtcore:type, adtcore:name)` pair matches one of `884`'s
+389 named nodes, kept byte-for-byte from the real response in their original relative order — see
+`885`'s `.meta.json` `note` field for the exact full-response byte count, element count and sha256
+this was filtered from. Nothing in the subset was invented or edited, only dropped.
+
+`packageName=$TMP` genuinely filters to that one package: of the 389 kept rows, 388 report
+`adtcore:packageName="$TMP"`; the one exception is `$ABAPSMITH_FLUID_API`'s own `DEVC/K` row, which
+(like every package's own self-row observed here) reports its OWN name as `packageName`, not its
+parent's — it is still a direct child of `$TMP`, just not contained "in" itself. No object actually
+contained inside `$ABAPSMITH_FLUID_API` appeared in the `packageName=$TMP` result set.
+
+One more wire fact worth keeping: when an object genuinely has no short description (`ZAPI_TRAVEL_U_V2_0001`,
+type `OA2S`), `informationsystem/search` OMITS the `adtcore:description` attribute entirely rather
+than emitting `adtcore:description=""`. A reader that does `attr ?? ""` handles this correctly; one
+that assumes the attribute is always present would need an explicit fallback.
+## 2026-09-12 — ATC completeness: check variants, package runs, worklist delete (886-893)
+
+Same A4H appliance, client `001`, user `DEVELOPER`, issue #78. Eight captures fill in what earlier
+ATC fixtures (`438`, `439`, `800`, `801`) left open: how a client discovers check variants, whether
+a run can target more than one package, what a worklist looks like once it has accumulated several
+runs, and whether a worklist or its findings can be cleaned up server-side.
+
+`886` is a repository `quickSearch` with `objectType=CHKV`, listing all 19 ATC check variants as
+`adtcore:objectReference` rows. There is no working `/sap/bc/adt/atc/checkvariants` collection
+endpoint on this release — a plain GET on it answers 400 `uriMappingError` — so this quickSearch
+result is the only way a client can enumerate variants, and it is also the only thing a client can
+validate a requested variant name against: `POST /sap/bc/adt/atc/worklists?checkVariant=<nonsense>`
+answers 200 and creates a real worklist for a variant name that does not exist (observed separately
+while producing this set; that probe itself was not captured as a fixture).
+
+`887` is the synchronous run body (`POST /sap/bc/adt/atc/runs?worklistId=…`), and its `requestBody`
+shows a single `<objectSet kind="inclusive">` carrying **two** `adtcore:objectReference` entries,
+both package URIs. This settles that one object set accepts several object references, and that a
+PACKAGE reference is accepted by the synchronous run body even though the `SATC_RUN_REQ` simple
+transformation has no package field. This is a different, request/response API from the
+asynchronous `SATC_RUN_REQ_2` `<obj:packages includeSubpackages>` grammar, which is poll-based and
+is not exercised by any capture here.
+
+`888` reads that same worklist back with `usedObjectSet=99999999999999999999999999999999`
+(`LAST_RUN`): 29 findings over 5 objects from the 2 packages just run. Two things about the
+`usedObjectSet` query parameter and the response are worth separating: the request asked for
+`LAST_RUN` by its numeric id, and the response's own `atcworklist:usedObjectSet` attribute echoes
+that same value back — so the echo, not the request parameter, is what a caller should trust as
+authoritative when the two might otherwise appear to disagree. `888` also shows that a package run
+registers a persistent `kind="PACKAGE"` object set in the worklist's `objectSets` list alongside
+`ALL` and `LAST_RUN` — confirmed again by `889`, whose worklist carries three `PACKAGE` sets, one
+per package ever run into it, so object sets accumulate across runs rather than being replaced.
+Every finding in `888` carries an `atcfinding:quickfixes` block with `manual`, `automatic`,
+`pseudo`, `aiBasedQF` and `ai_enabled` all `false` — a statement about these particular findings on
+this system, not proof that the flags are never true elsewhere. The `atcworklist:worklist` element
+in `888` also carries no `atcworklist:timestamp` attribute at all, so that attribute is optional on
+the wire, not merely omittable in some encodings.
+
+`889` is the same kind of read after a run that found nothing (a TABL target): `atcworklist:objects`
+and `atcworklist:infos` are both empty, HTTP 200, 1223 bytes — a clean "no findings" shape rather
+than an error.
+
+`890` reads a different worklist, one created for check variant `ABAP_CLOUD_READINESS`, for the same
+object (`PROG Z_TMP_DEL`) captured elsewhere under the system default variant
+`ZABAP_CLOUD_DEVELOPMENT`: 5 findings here versus 7 there. The variant genuinely changes the result
+set; it is not a cosmetic label on an otherwise identical check run.
+
+`952` and `953` both settle that ATC worklists cannot be cleaned up once created. `952` is a `DELETE`
+on the worklist resource, answering **405** `ExceptionMethodNotSupported` — "Resource controller
+does not support method DELETE" (`T100KEY-ID SADT_RESOURCE`, `T100KEY-NO 010`, `T100KEY-V1 DELETE`).
+A `PUT` on the same resource also answers 405 but was not captured. `953` is a `POST` with
+`?action=deleteFindings`, the action ADT discovery advertises as
+`rel="http://www.sap.com/adt/atc/relations/actions/deleteFindings"`: it answers **200 with a
+zero-byte body**, and the worklist's findings are unchanged afterward. The reason is visible in the
+server source: `CL_SATC_ADT_RES_WORKLIST->post` returns immediately when the URI carries a worklist
+id, and the `lcl_handler_delete_findings` implementation in its CCIMP include is commented out in
+its entirety — the advertised action is a no-op, not a working cleanup path. Together, `952` and
+`953` mean every ATC run made against this release leaves server-side worklist state behind with no
+supported way to remove it.
+
+`954` is `GET /sap/bc/adt/atc/customizing`: the document's `systemCheckVariant` property reads
+`ZABAP_CLOUD_DEVELOPMENT` on this system. This is the first captured customizing document; the
+existing parser tests for this shape were previously synthetic.
+
+## 2026-09-12 — element info, go-to-definition, where-used implementers, pretty printer (952-964)
+
+Same A4H appliance, client `001`, user `DEVELOPER`, issue #91 (captured as 891-903 on the branch,
+renumbered at merge; 959 is unused — the corresponding probe, a blank-line element-info request,
+answered a zero-byte 200 body, so there were no bytes to pin). Twelve captures back `abap_read`
+`view="definition"` and `abap_activate` `mode="format"`: `codecompletion/elementinfo` for a method,
+attribute, structured type, local variable, own method, and function-module name literal
+(952-957); `navigation/target?filter=definition` (958); the well-formed "no element here" answer
+(960); the `usageReferences` POST for an interface method's implementers, whose response uses the
+lowercase `usagereferences:` prefix that the vendor `abap-adt-api` parser does not read (961); and
+the pretty printer's settings GET plus two format POSTs, one changing the source and one idempotent
+(962-964). The probes (`ZCL_I91_PROBE`, `ZIF_I91_PROBE`, `$TMP`) were deleted afterwards.
+
+`952` — `POST /sap/bc/adt/abapsource/codecompletion/elementinfo` → 200: interface method call lo_probe->process( ) at 35,25. elementinfo at an interface-method call resolves to INTF/IO PROCESS with visibility, level, ABAP Doc and one nested elementInfo per parameter
+
+`953` — `POST /sap/bc/adt/abapsource/codecompletion/elementinfo` → 200: private instance attribute mv_count at 35,4. elementinfo at an attribute resolves to CLAS/OA with visibility, level and abapType
+
+`954` — `POST /sap/bc/adt/abapsource/codecompletion/elementinfo` → 200: class-local structured type ty_row at 25,21. elementinfo at a class-local structured type resolves to CLAS/OT whose own abapType is empty and whose components are nested elementInfo children
+
+`955` — `POST /sap/bc/adt/abapsource/codecompletion/elementinfo` → 200: local data ref lo_probe at 35,15. elementinfo at a local data reference resolves to CLAS/OOV with visibility=local and no documentation
+
+`956` — `POST /sap/bc/adt/abapsource/codecompletion/elementinfo` → 200: own method RUN at its declaration 18,12. elementinfo at a method declaration resolves to CLAS/OM; an optional parameter carries paramDefaultValue
+
+`957` — `POST /sap/bc/adt/abapsource/codecompletion/elementinfo` → 200: CALL FUNCTION 'RFC_PING' name literal at 37,19. elementinfo at a CALL FUNCTION name literal resolves to FUGR/FF with an empty properties element — no visibility, no signature, no doc
+
+`958` — `POST /sap/bc/adt/navigation/target` → 200: go-to-definition for lo_probe->process at 35,25-32, filter=definition. navigation/target filter=definition answers with adtcore:objectReference whose adtcore:uri carries #start=line,column
+
+`960` — `POST /sap/bc/adt/abapsource/codecompletion/elementinfo` → 200: position on the ENDMETHOD keyword at 39,4 — no resolvable element. elementinfo at a position with no resolvable element answers 200 with an elementInfo element that has no adtcore:name
+
+`961` — `POST /sap/bc/adt/repository/informationsystem/usageReferences` → 200: where-used for ZIF_I91_PROBE~PROCESS at its declaration 8,10 — implementing classes. where-used on an interface method lists the implementing classes as CLAS/OM entries named <INTERFACE>~<METHOD>
+
+`962` — `GET /sap/bc/adt/abapsource/prettyprinter/settings` → 200: GET the system-wide pretty-printer setting (read only, never written). the system-wide pretty-printer setting is readable; A4H answers indentation=true style=keywordUpper keepIdentifier=true
+
+`963` — `POST /sap/bc/adt/abapsource/prettyprinter` → 200: POST unformatted source to the pretty printer; response is the formatted text only. the pretty printer rewrites layout and keyword case from the server setting and returns text/plain only — response body uses CRLF line endings; prettyPrintSource normalises them to LF before comparing
+
+`964` — `POST /sap/bc/adt/abapsource/prettyprinter` → 200: POST already-formatted source; the response is byte-identical to the request (changed:false). pretty-printing already-formatted source returns it byte-identical, which is what changed:false is derived from — response body uses CRLF line endings; prettyPrintSource normalises them to LF before comparing
