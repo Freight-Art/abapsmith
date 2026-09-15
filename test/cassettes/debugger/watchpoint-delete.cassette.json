@@ -1,0 +1,40 @@
+{
+  "id": "watchpoint-delete",
+  "recordedAt": "2026-09-12T17:49:40.953Z",
+  "recordedDurationMs": 61,
+  "appliance": {
+    "sid": "A4H",
+    "client": "001",
+    "server": "a4hsandbox_A4H_00"
+  },
+  "source": {
+    "type": "live-capture-raw",
+    "citation": "test/fixtures/live-captured/919-watchpoint-delete.meta.json",
+    "notes": "DELETE /sap/bc/adt/debugger/watchpoints/1. Answers 200 with a genuinely zero-byte body. Redactions performed by the capture harness before this file was written: appliance host -> 203.0.113.10:50000 (RFC 5737), application-server hostname -> a4hsandbox, Authorization/Cookie/set-cookie header values stripped. sha256/byteLength in the source .meta.json are computed over the redacted body as stored."
+  },
+  "request": {
+    "method": "DELETE",
+    "path": "/sap/bc/adt/debugger/watchpoints/1?sap-client=001",
+    "headers": {
+      "Authorization": "<redacted>",
+      "Cookie": "<redacted: 4 cookies>",
+      "X-sap-adt-sessiontype": "stateful",
+      "X-CSRF-Token": "Ls6asF_TTkrN_WJbzm64EA==",
+      "Accept": "application/xml"
+    },
+    "body": null
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-length": "0",
+      "sap-authenticated": "true",
+      "sap-cache-control": "+0",
+      "sap-isc-uagent": "0",
+      "sap-perf-fesrec": "15228.000000",
+      "sap-server": "true",
+      "set-cookie": "<redacted>"
+    },
+    "body": null
+  }
+}

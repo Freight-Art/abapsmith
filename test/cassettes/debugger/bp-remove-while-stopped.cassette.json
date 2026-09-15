@@ -1,0 +1,40 @@
+{
+  "id": "bp-remove-while-stopped",
+  "recordedAt": "2026-09-12T17:49:40.848Z",
+  "recordedDurationMs": 104,
+  "appliance": {
+    "sid": "A4H",
+    "client": "001",
+    "server": "a4hsandbox_A4H_00"
+  },
+  "source": {
+    "type": "live-capture-raw",
+    "citation": "test/fixtures/live-captured/918-bp-remove-while-stopped.meta.json",
+    "notes": "DELETE of the statement breakpoint armed in bp-set-statement-accepted (id KIND=0.SOURCETYPE=ABAP.MAIN_PROGRAM=ZCL_I89_PROBE=================CP.INCLUDE=ZCL_I89_PROBE=================CM001.LINE_NR=15, urlencoded into the path) while the debuggee was still suspended. Answers 200 with a genuinely zero-byte body. Demonstrates a breakpoint can be removed mid-session without restarting the debuggee. Redactions performed by the capture harness before this file was written: appliance host -> 203.0.113.10:50000 (RFC 5737), application-server hostname -> a4hsandbox, Authorization/Cookie/set-cookie header values stripped. sha256/byteLength in the source .meta.json are computed over the redacted body as stored."
+  },
+  "request": {
+    "method": "DELETE",
+    "path": "/sap/bc/adt/debugger/breakpoints/KIND%3D0.SOURCETYPE%3DABAP.MAIN_PROGRAM%3DZCL_I89_PROBE%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3DCP.INCLUDE%3DZCL_I89_PROBE%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3DCM001.LINE_NR%3D15?scope=external&debuggingMode=user&requestUser=DEVELOPER&terminalId=ZMCPCAPTURE000000000000000000089&ideId=ZMCPCAPTUREIDE00000000000000089&sap-client=001",
+    "headers": {
+      "Authorization": "<redacted>",
+      "Cookie": "<redacted: 4 cookies>",
+      "X-sap-adt-sessiontype": "stateful",
+      "X-CSRF-Token": "Ls6asF_TTkrN_WJbzm64EA==",
+      "Accept": "application/xml"
+    },
+    "body": null
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-length": "0",
+      "sap-authenticated": "true",
+      "sap-cache-control": "+0",
+      "sap-isc-uagent": "0",
+      "sap-perf-fesrec": "64298.000000",
+      "sap-server": "true",
+      "set-cookie": "<redacted>"
+    },
+    "body": null
+  }
+}

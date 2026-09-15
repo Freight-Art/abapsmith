@@ -52,6 +52,13 @@ export interface TransactionDeleteParams {
 export interface TransactionDeleteBridgeParams extends TransactionDeleteParams {
   /** Branded by `./resolved-package.ts` because this module is zero-network and cannot verify it itself. */
   packageName: ServerPackage;
+  /**
+   * Forwarded to the fluid `delete_transaction` action's `confirm_in_role_menu` input
+   * (`src/adt/fluid/builtin/classic.ts`). The ABAP (`abap-tran.ts`) reads AGR_TCODES
+   * and refuses the delete when the tcode sits in a role menu, unless this is `true`;
+   * omitted or `false` reads as `false` there, same as the guard's default.
+   */
+  confirmInRoleMenu?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -119,7 +126,11 @@ export async function deleteTransactionViaBridge(
 
   return runClassicAction(conn, gate, {
     action: "delete_transaction",
-    args: { tcode, package_name: packageName },
+    args: {
+      tcode,
+      package_name: packageName,
+      ...(params.confirmInRoleMenu !== undefined ? { confirm_in_role_menu: params.confirmInRoleMenu } : {}),
+    },
     what: `Deleting transaction ${tcode}`,
     expectTags: ["TRAN-DELETED", "TRAN-GONE"],
     beforeAssert,

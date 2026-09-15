@@ -1,0 +1,37 @@
+{
+  "n": 940,
+  "label": "watchpoint-modify-condition",
+  "expect": null,
+  "note": "PUT modify with a condition \u2014 the shape that was previously uncaptured",
+  "requestMethod": "PUT",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/debugger/watchpoints/1?condition=LV_TOTAL%20%3E%203&active=true&sap-client=001",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted: 4 cookies>",
+    "X-sap-adt-sessiontype": "stateful",
+    "X-CSRF-Token": "qIDViU4xLYoK1XUrqSdTZg==",
+    "Accept": "application/xml"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-encoding": "gzip",
+    "content-length": "490",
+    "content-type": "application/xml; charset=utf-8",
+    "sap-authenticated": "true",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "18719.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 1118,
+  "zeroByteBody": false,
+  "sha256": "ea2c0279c216bb48a196ee91194af2aabcca6f87426159e84dac847a192d2eb9",
+  "utcTimestamp": "2026-09-12T17:56:18.006Z",
+  "durationMs": 72,
+  "sessionName": "A",
+  "transportError": null,
+  "redactions": "appliance host -> 203.0.113.10:50000 (RFC 5737); the application-server hostname was replaced with a4hsandbox (same placeholder as the 011-051 captures); Authorization/Cookie/set-cookie stripped. sha256/byteLength are over the redacted body as stored here."
+}

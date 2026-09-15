@@ -71,6 +71,15 @@ export interface FluidManifest {
    * moves no deploy-version hash.
    */
   readonly internal?: boolean;
+  /**
+   * This tool's ABAP reads its arguments with the flat, single-pass
+   * `scan()` in `src/adt/fluid/builtin/classic/abap-core.ts`, so the
+   * dispatcher flattens nested arrays-of-objects/objects in `args` into
+   * `key/index/prop` rows (`flattenScanArgs`, `./flat-args.js`) before
+   * serialising. Absent/false means the tool gets plain nested JSON. A
+   * plugin manifest may set this too, same as `internal`.
+   */
+  readonly flatArgs?: boolean;
 }
 
 /** A manifest plus its resolved ABAP sources and computed version. */
@@ -292,6 +301,8 @@ const FluidManifestObjectSchema = z.object({
   actions: z.array(FluidActionSpecSchema).min(1),
   // Additive: absent/false means routable, so contract stays "1.0".
   internal: z.boolean().optional(),
+  // Additive: absent/false means the tool gets plain nested JSON args.
+  flatArgs: z.boolean().optional(),
 });
 
 export const FluidManifestSchema: z.ZodType<FluidManifest> = FluidManifestObjectSchema.superRefine(

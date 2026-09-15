@@ -332,6 +332,77 @@ describe("non-advancing abap_debug actions are not gated", () => {
   });
 });
 
+// -------------------------------------------- ungated: breakpoints/watch ---
+//
+// #89 live-verification regression (A4H, 2026-09-15): `action:"breakpoints"`
+// and `action:"watch"` carry no `run.object` at all (only a `stateId`), so
+// gating them at THIS layer resolved `object` to `undefined` on every call
+// and the gate denied all six (action × op) combinations outright with
+// SAFETY_DENIED "No object supplied for a mutating operation" — regardless
+// of op, regardless of whether writes were even enabled. Both actions moved
+// into `DEBUG_UNGATED_ACTIONS`; the real per-op gating (list open, add/remove
+// behind `assertSessionWrite`) lives one layer down in `debug.ts`, against
+// the object the session actually started against.
+
+/** Builds `abap_debug` args for one (action, op) combination under test below. */
+function bpWatchArgs(action: "breakpoints" | "watch", op: "list" | "add" | "remove"): Record<string, unknown> {
+  const base = { action, op, stateId: "S1" };
+  if (op === "add") {
+    return action === "breakpoints"
+      ? { ...base, breakpoints: [{ kind: "line", object: "ZMCP_DEMO", line: 12 }] }
+      : { ...base, variable: "LV_X" };
+  }
+  if (op === "remove") return { ...base, id: action === "breakpoints" ? "BP1" : "1" };
+  return base;
+}
+
+const NEW_UNGATED_ACTIONS = ["breakpoints", "watch"] as const;
+const BP_WATCH_OPS = ["list", "add", "remove"] as const;
+
+describe("#89 regression: breakpoints/watch reach the tool at this layer regardless of op or gate", () => {
+  for (const action of NEW_UNGATED_ACTIONS) {
+    for (const op of BP_WATCH_OPS) {
+      it(`lets action="${action}" op="${op}" through under a write-enabled gate`, async () => {
+        const h = await harness(writable(), okClient());
+        const res = await debugCall(h, bpWatchArgs(action, op));
+        expect(debugTool.abapDebug).toHaveBeenCalledTimes(1);
+        expect(debugTool.abapDebug.mock.calls[0]![1]).toMatchObject({ action, op });
+        expect(res.content[0]!.text).not.toMatch(/READ_ONLY|SAFETY_DENIED/);
+        expect(res.isError).toBeFalsy();
+      });
+
+      it(`lets action="${action}" op="${op}" reach the tool even under the read-only default`, async () => {
+        // This layer no longer gates breakpoints/watch at all (see
+        // DEBUG_UNGATED_ACTIONS's doc comment in debug-register.ts) — so the
+        // call reaches abapDebug here regardless of the gate's read-only
+        // state. That is NOT a hole: the read-only refusal for op:"add" /
+        // op:"remove" lives one layer down, in debug.ts's
+        // assertSessionWrite(gate, run), and is pinned there by
+        // test/debug-tools.test.ts's read-only-after-start block. This test
+        // only claims the call reaches the mocked abapDebug at THIS layer.
+        const h = await harness(cfg(), okClient());
+        const res = await debugCall(h, bpWatchArgs(action, op));
+        expect(debugTool.abapDebug).toHaveBeenCalledTimes(1);
+        expect(debugTool.abapDebug.mock.calls[0]![1]).toMatchObject({ action, op });
+        expect(res.content[0]!.text).not.toMatch(/READ_ONLY|SAFETY_DENIED/);
+        expect(res.isError).toBeFalsy();
+      });
+    }
+  }
+
+  it('does not widen the exempt list to "start": a start with no run object is still refused here', async () => {
+    // Guards against the fix over-reaching: only breakpoints/watch joined
+    // DEBUG_UNGATED_ACTIONS. `start` (and `step`) must stay exactly as gated
+    // as the "abap_debug start stays gated" block above already pins.
+    const h = await harness(writable());
+    const err = errorOf(await debugCall(h, { action: "start" }));
+    expect(err.error).toBe("SAFETY_DENIED");
+    expect(String(err.message)).toMatch(/No object supplied/i);
+    expect(debugTool.abapDebug).not.toHaveBeenCalled();
+    expect(h.http.calls).toHaveLength(0);
+  });
+});
+
 describe("gate refusals are the documented codes", () => {
   it("uses only READ_ONLY/SAFETY_DENIED when refusing", async () => {
     const h = await harness(cfg());

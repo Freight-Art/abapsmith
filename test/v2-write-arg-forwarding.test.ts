@@ -336,7 +336,12 @@ const V2_WRITE_SAMPLES: Record<string, unknown> = {
     longLength: 40,
     headingLabel: "Heading",
     headingLength: 55,
+    searchHelp: "ZSH_PROBE",
+    searchHelpParameter: "ZFIELD",
   },
+  confirm_in_use: true,
+  confirm_maintenance_dialog: true,
+  confirm_in_role_menu: true,
 };
 
 /** Enough of `V2ToolDeps` for `handleAbapWrite` to reach `abapWrite`. */
@@ -478,6 +483,32 @@ describe("§3 v2 abap_write: every declared field reaches the core abapWrite", (
       "the refusal cost a connection and/or a safety-gate call. It is decidable from the " +
         "argument alone; hoist `assertClassInclude` above both.",
     ).toEqual([]);
+  });
+
+  /**
+   * `mode:"update"` used to fall through `a.mode === "delete" ? "delete" :
+   * "write"` and become a CREATE — the single worst outcome for a caller
+   * asking to redefine a SHLP/DH, VIEW/DV or TRAN/T. This drives the real
+   * handler (not just the schema) end to end, through the same `v2Result`
+   * envelope §3's include test above parses, to pin that `abapWrite` is
+   * never reached and the refusal names `update` by value.
+   */
+  it('refuses mode:"update" instead of silently downgrading it to a create', async () => {
+    captured.input = undefined;
+    const result = (await handleAbapWrite({ object: "ZFOO", mode: "update" }, stubDeps())) as {
+      isError?: boolean;
+      content?: { type?: string; text?: string }[];
+    };
+    const text = result.content?.find((c) => c.type === "text")?.text ?? "";
+
+    expect(result.isError, "a caller asking for update must see a refusal, not a reported success").toBe(true);
+    expect(text).toContain("error: BAD_INPUT");
+    expect(text, "the refusal must name the value it got").toContain('mode:"update"');
+    expect(
+      captured.input,
+      "abapWrite must never be called for mode:\"update\" — reaching it here means the value was " +
+        "silently treated as a write, the exact defect this test exists to catch.",
+    ).toBeUndefined();
   });
 });
 
@@ -626,6 +657,13 @@ const KNOWN_V1_ONLY_WRITE_FIELDS = [
   "objects",
   "package_type",
   "program",
+  // SHLP/DH is created and updated through the classic classrun bridge from
+  // this one structured object. `view_fields`/`base_table`/`program` already
+  // put every other bridge-create payload on this list, so widening
+  // `abapWriteInputSchema` for `shlp` alone would leave v2 able to create
+  // exactly one of the three bridge types. Closing this gap means carrying
+  // all the bridge-create payloads at once, not this field on its own.
+  "shlp",
   "software_component",
   "transport_layer",
   // Per-call override that raises ONE write to verified mode

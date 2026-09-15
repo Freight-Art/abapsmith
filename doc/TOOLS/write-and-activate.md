@@ -22,22 +22,63 @@ reaching SAP.
 | `include` | enum `main` \| `definitions` \| `implementations` \| `macros` \| `testclasses` | no | `main` | `CLAS/OC` only — which class sub-include to write. `testclasses` is the ABAP Unit test include (CCAU). A write REPLACES the whole named include; there is no partial/patch write to an include (`edit`/`method` still target `main` only). |
 | `ddic` | object | no | — | Structured create for `DOMA/DD`/`DTEL/DE`/`TTYP/DA` only — alternative to `source` (never both). See `abapsmith-create-ddic-objects` for which fields apply to which type. |
 | `package` | string | no | `$TMP` | Package for a **new** object. Must be allowlisted. For a new `DEVC/K` this is the SUPERpackage, not a sibling — omitting it would create a ROOT package, which the safety gate refuses. |
-| `description` | string | no (required for `TRAN/T`, and for any `ddic` create) | — | Short description for a **new** object. |
+| `description` | string | no (required for `TRAN/T`, for any `ddic` create, and for `mode="update"` on `VIEW/DV`, `TRAN/T` or `SHLP/DH`) | — | Short description for a **new** object, or the replacement description on an `update` — `DDIF_VIEW_PUT`/`RPY_TRANSACTION_INSERT`/`DDIF_SHLP_PUT` all replace the description along with everything else, so an update that wants to keep the old text must pass it again. |
 | `expect_etag` | string | no | — | Etag from a prior `abap_read`. Write is rejected (`ETAG_CONFLICT`) if the object changed since. Also guards `mode=delete`. |
-| `mode` | enum `write` \| `delete` | no | `write` | Write or delete the object. |
+| `mode` | enum `write` \| `delete` \| `update` | no | `write` | `write` creates (or edits source in place for most types); `delete` removes the object; `update` retargets/replaces an EXISTING `VIEW/DV`, `TRAN/T` or `SHLP/DH` through the classic fluid bridge (`DDIF_VIEW_PUT`, `RPY_TRANSACTION_DELETE`+`RPY_TRANSACTION_INSERT`, `DDIF_SHLP_PUT` — each replaces the WHOLE definition, not a patch) — refused zero-network, no server call, for every other type. |
 | `activate` | boolean | no | `true` | Activate after a successful write. |
 | `verify` | boolean | no | — | Raise this one call to `verified` mode — reads the object back after a successful write. Raise-only: cannot lower a server `ABAP_VERIFY_WRITES=verified` default. |
 | `format` | boolean | no | — | Pretty-print the source before writing. |
-| `corr_nr` | string | no | — | Transport request to write into. Omit for `$TMP`-local objects. Required for a `TRAN/T` create into a transportable package; refused for one into a `$` package. A `VIEW/DV` create into a transportable package accepts it but does not require it — omit it and the resolver picks or creates a request under `ABAP_ALLOW_TRANSPORTS`; still refused for a `$` package. Also refused for a `VIEW/DV`/`TRAN/T` delete — neither delete bridge takes a transport parameter, and none is needed: the delete registers nothing in CTS, so it is judged as a local mutation regardless of `ABAP_ALLOW_TRANSPORTS`. For any other `mode=delete`, a named `corr_nr` that disagrees with the request CTS already records the object in is refused before anything is deleted, pre-lock — see "`mode=delete` and transport requests" below; left unnamed, the request that already holds the object wins the deletion, resolved automatically. A `mode=write`/`edit` naming a different `corr_nr` is never refused this way — the write proceeds under the request CTS already holds, reported rather than silently substituted. |
+| `corr_nr` | string | no | — | Transport request to write into. Omit for `$TMP`-local objects. Required for a `TRAN/T` or `SHLP/DH` create into a transportable package (both register via `RS_CORR_INSERT`, which needs a request); refused for either into a `$` package. A `VIEW/DV` create into a transportable package accepts it but does not require it — omit it and the resolver picks or creates a request under `ABAP_ALLOW_TRANSPORTS`; still refused for a `$` package. For `mode="update"` on any of the three, `corr_nr` is always optional, never required, regardless of package — the object already exists and is already recorded wherever CTS holds it; a named value is passed through as-is (`corrSource: "named"`), nothing re-derives or requires it. Also refused for a `VIEW/DV`/`TRAN/T`/`SHLP/DH` delete — none of the three delete bridges takes a transport parameter, and none is needed: the delete registers nothing in CTS, so it is judged as a local mutation regardless of `ABAP_ALLOW_TRANSPORTS`. For any other `mode=delete`, a named `corr_nr` that disagrees with the request CTS already records the object in is refused before anything is deleted, pre-lock — see "`mode=delete` and transport requests" below; left unnamed, the request that already holds the object wins the deletion, resolved automatically. A `mode=write`/`edit` naming a different `corr_nr` is never refused this way — the write proceeds under the request CTS already holds, reported rather than silently substituted. |
 | `software_component` | string | no | — | `DEVC/K` (package) only: `LOCAL`, or a transportable component (e.g. `HOME`) — the latter needs `corr_nr` unless the package is `$TMP`-local. |
 | `package_type` | string | no | `development` | `DEVC/K` only. |
 | `transport_layer` | string | no | — | `DEVC/K` only. |
-| `base_table` | string | no | — | `VIEW/DV` create only — the single base DDIC table. Also accepted for `TABL/DI` create/delete — see "`TABL/DI` addressing" below; there it names the index's base table rather than a view's. |
-| `view_fields` | array\<string\> | no | — | `VIEW/DV` create only — the fields to project, in order. |
-| `program` | string | no (required for `TRAN/T`) | — | `TRAN/T` only — program the transaction starts. |
+| `base_table` | string | no (required for `VIEW/DV` create or `mode="update"`) | — | `VIEW/DV` — the single base DDIC table. An update REPLACES the whole projection, so it must be repeated even to leave it unchanged. Also accepted for `TABL/DI` create/delete — see "`TABL/DI` addressing" below; there it names the index's base table rather than a view's projection source. |
+| `view_fields` | array\<string\> | no (required for `VIEW/DV` create or `mode="update"`) | — | `VIEW/DV` only — the fields to project, in order. Same replace-the-whole-list rule as `base_table` on an update; `DDIF_VIEW_PUT` refuses a view projecting no field at all. |
+| `program` | string | no (required for `TRAN/T` create or `mode="update"`) | — | `TRAN/T` only — the existing SUBMIT-only report the transaction starts. On `mode="update"` this retargets an existing transaction to a different (already-existing) program; abapsmith checks the program exists before calling `RPY_TRANSACTION_DELETE`+`RPY_TRANSACTION_INSERT`. |
+| `shlp` | object | no (required for `SHLP/DH` create or `mode="update"`) | — | `SHLP/DH` only — the search help's full DD30V/DD32P/DD31V/DD33V shape: `selectionMethod`, `selectionMethodType` (enum `T`\|`V`\|`M`), `dialogType`, `textTable`, `hotKey`, `elementary` (if true, `fields` must carry at least one import and one export parameter; if false, an empty `includes` is now accepted — it activates fine on a real system, so the old "has nothing to collect" refusal was removed), `fields` (array of `{name, dataElement, import?, export?, defaultValue?}`), `includes` (array of `{name}`, other search helps this one includes), `assignments` (array of `{field, includedHelp, includedField, direction}`, `direction` enum `I`\|`E`). Every `assignments[i].field` must name one of this call's own `fields[].name`, and every `assignments[i].includedHelp` must name one of this call's own `includes[].name` (both case-insensitive) — refused `BAD_INPUT` zero-network otherwise, before any server call; see "Search help refusals and DH109" below for why. `selectionMethod`/`selectionMethodType` are both optional — omit both for a collective search help, or for an elementary one driven by a search-help exit instead of a table/view (five standard SAP elementary helps carry a blank DD30V-SELMETHOD this way). An update REPLACES the whole interface/includes/assignments list — nothing already defined carries over; see `SearchHelpParams` in `src/adt/shlp-create.ts`. |
+| `confirm_in_use` | boolean | no | — | `SHLP/DH` `mode="delete"` only: required `true` when the search help is still attached to a data element, a table/view field, or included by a collective search help (`DD04L`/`DD35L`/`DD31S` show it in use). Refused zero-network for any other type/mode combination. Only the active version is checked for in-use; an inactive-only leftover (see below) has none of these attachments by definition and never needs it. |
+| `confirm_maintenance_dialog` | boolean | no | — | `VIEW/DV` `mode="delete"` only: overrides the bridge's refusal when the view still has a generated SE54 maintenance dialog (`TVDIR`) — deleting the view would leave that dialog broken. The refusal names the specific dialog (function group, area, package, screen) so a caller can read it before passing this. Refused zero-network for any other type/mode combination. |
+| `confirm_in_role_menu` | boolean | no | — | `TRAN/T` `mode="delete"` or `mode="update"` (retarget) only: overrides the bridge's refusal when the tcode is already assigned to one or more roles' menus (`AGR_TCODES`). Deleting it removes it from those menus; retargeting it changes what those menu entries launch. The refusal names the specific roles. An SM01 transaction lock is **not** checked either way, by design — see `doc/LIMITATIONS/editing.md`. Refused zero-network for any other type/mode combination. |
 | `affects` | object `{name, packageName, masterSystem?, spotName?}` | no (required for `ENHO/XHH`) | — | The object this write's target enhancement binds to. |
 | `objects` | array of `{object, type?, affects?}`, 1–10 entries | no | — | Batch form: delete several objects in one call, one at a time, in the order given. `mode=delete` only. Mutually exclusive with `object` — exactly one of the two, never both and never neither. |
-| `dry_run` | boolean | no | — | Resolve, read, apply the edit locally and run the safety gate, but return a diff preview instead of writing. Works with `source`, `edit`, `method`, `ddic` and `mode=delete`. Refused with `BAD_INPUT` for `objects`, for the bridge-only creates (`VIEW/DV`, `TRAN/T`), and for `DEVC/K`. |
+| `dry_run` | boolean | no | — | Resolve, read, apply the edit locally and run the safety gate, but return a diff preview instead of writing. Works with `source`, `edit`, `method`, `ddic` and `mode=delete`. Refused with `BAD_INPUT` for `objects`, for `DEVC/K`, and — for every mode, not just create — for the four bridge-only types (`SHLP/DH`, `VIEW/DV`, `TRAN/T`, `TABL/DI`): the dispatch check runs before any create/update/delete branching, so a dry-run `mode="delete"` or `mode="update"` on one of these is refused the same as a create. |
+
+**Search help refusals and DH109**: `DDIF_SHLP_PUT` succeeds and
+`DDIF_SHLP_ACTIVATE` then returns `rc = 8` with message `DH109` ("search
+help & was not activated") whenever the definition contains a dangling
+reference — a `DD31V` include naming a search help that does not exist, a
+`DD33V` assignment whose `SUBFIELD` is not an interface parameter of the
+included help, or a `DD33V` assignment whose `FIELDNAME` is not an
+interface parameter of the help being built. All three shapes leave the
+search help stranded as an INACTIVE-ONLY object: a `DD30L` row with
+`AS4LOCAL = 'N'`, no active row, plus a `TADIR` entry. Four refusals stop a
+caller from creating that leftover: two are zero-network, checked in
+`abapsmith` before any server call is made (`assignments[i].field` must be
+one of this call's own `fields[].name`; `assignments[i].includedHelp` must
+be one of this call's own `includes[].name`); two are server-side, run
+inside the generated ABAP BEFORE `RS_CORR_INSERT` so nothing is registered
+when they fire (every `DD31V-SUBSHLP` must exist as an active `DD30L` row;
+every `DD33V-SUBFIELD` must exist as an active `DD32S` row of its
+`SUBSHLP` — a self-referencing assignment, `SUBSHLP = SHLPNAME`, skips this
+one check because the definition being built is not in `DD32S` yet). The
+server-side pair surfaces as `CHECK_FAILED`. `rc = 4` with message `DH108`
+("activated with warnings") is a SUCCESS, not a refusal — a collective help
+carrying a selection method, one with no includes, and one with no
+fields/assignments all activate that way — and now emits a
+`ZMCP-DDIC-NOTE>` line rather than passing silently.
+
+**Inactive-only search helps and `mode="delete"`**: the create/update
+"already exists" probe and `abap_read` both stay active-only — an
+inactive-only search help (the DH109 leftover above, or one stranded by any
+other means) still reads back `NOT_FOUND`. Only the delete path looks at
+both states: it probes with `readSearchHelp`'s `{ includeInactive: true }`
+option (`src/adt/catalog-read.ts`), which falls back to the `'N'` version
+and reports `meta.versionState`, so a failed create's leftover can be
+cleaned up with a normal `abap_write { mode: "delete", type: "SHLP/DH" }`
+instead of being refused `NOT_FOUND`. The delete bridge then clears both
+DDIC states and the `TADIR` entry the same way it does for an active
+search help, emitting the same `SHLP-DELETED` / `SHLP-GONE` markers, with a
+note explaining the object had no active version.
 
 **`TABL/DI` addressing**: `abap_read` names a table secondary index as
 `<TABLE>/<INDEX>` (see `doc/TOOLS/read-and-search.md`'s "Catalog reads"
@@ -219,7 +260,39 @@ failing check skips activation and returns messages with real source line
 numbers, so an activation failure never masquerades as a silent HTTP 200.
 Every successful write is journalled (`abap_journal`) and undoable, except
 enhancement objects (`ENHO/XH`, `ENHO/XHH`, `ENHS/XS`), which can never be
-undone even with `force:true`. The response's `verify:` line reports which
+undone even with `force:true`, and except the bridge routes for `SHLP/DH`,
+`VIEW/DV` and `TRAN/T`, whose journalling differs by operation and, for
+delete, by type. A `VIEW/DV` or `TRAN/T` **create** is journalled the same
+way an ordinary create is — no `irreversible` flag — but `abap_journal
+mode=undo` can only reach it when the pre-create read positively confirmed
+the object absent beforehand (`beforeCapture: "confirmed-absent"`) and the
+create's own read-back found it registered in a package; the create
+response's closing note says which applies for that call. A `VIEW/DV` or
+`TRAN/T` **delete** is NOT journalled at all: the delete bridge captures no
+before-image, so there is nothing `abap_journal` could ever offer to
+restore — to bring the object back, create it again with a fresh
+`abap_write` call. A `SHLP/DH` **create**, and a `mode="update"` on any of
+the three types, are journalled with `irreversible: true` — recorded for
+audit and manual comparison only, since none of `DDIF_VIEW_PUT`,
+`DDIF_SHLP_PUT` or `RPY_TRANSACTION_DELETE`+`RPY_TRANSACTION_INSERT` has a
+"restore the prior definition" primitive to replay, and (for `SHLP/DH`)
+`src/adt/undo.ts`'s `vitTypeFor()` has no `SHLP/DH` case regardless —
+`abap_journal mode=undo` refuses an irreversible entry outright, even with
+`force:true` ("IRREVERSIBLE: this entry can never be undone by any
+mechanism, not even force=true.", `src/tools/journal.ts`). A `SHLP/DH`
+**delete**, unlike a `VIEW/DV`/`TRAN/T` delete, IS journalled with a real
+before-image: the pre-delete existence check doubles as that before-image
+(the rendered pseudo-DDL becomes `beforeSource`, `beforeCapture:
+"captured"`), but the entry is still marked `irreversible: true`, for two
+independent reasons — mechanically, the stored before-image is rendered
+pseudo-DDL, not a `DDIF_SHLP_PUT` payload, so there is nothing for undo to
+replay; and `vitTypeFor()` has no `SHLP/DH` case, so marking it
+irreversible makes `undo.ts`'s `undoBlocker()` refuse cleanly instead of
+reaching that gap. The entry exists for audit and manual reconstruction;
+reversal is a fresh `abap_write { mode: "write", type: "SHLP/DH" }`, never
+`abap_journal mode=undo`. See `doc/LIMITATIONS/editing.md` for the full
+breakdown and live-verification notes. The response's `verify:` line
+reports which
 mode applied: `speculative (not read back)`, `speculative — matched a
 read-back taken before activation, not after` (speculative mode on a write
 the CONCLUSIVE note settled — the pre-activation content gate did read the
@@ -285,12 +358,14 @@ this form, since nothing supplies one), then repeat the call without
 `dry_run` and with that value as `expect_etag`, so the applied write
 compares against exactly the bytes previewed.
 
-Three routes refuse `dry_run` with `BAD_INPUT` rather than half-performing
-it, because they cannot be evaluated without being performed: the `objects`
-batch-delete form (preview one object at a time instead); the bridge-only
-create types (`VIEW/DV`, `TRAN/T`), which are created by generating and
-running an ABAP program, leaving nothing to preview short of doing it; and
-`DEVC/K` (package create), where a transportable package create must claim
+Three kinds of route refuse `dry_run` with `BAD_INPUT` rather than
+half-performing it, because they cannot be evaluated without being
+performed: the `objects` batch-delete form (preview one object at a time
+instead); the bridge-only types (`SHLP/DH`, `VIEW/DV`, `TRAN/T`, `TABL/DI`)
+in every mode they support (create, delete, and — for `SHLP/DH`, `VIEW/DV`,
+`TRAN/T` — `update`), which are created, retargeted or removed by
+generating and running an ABAP program, leaving nothing to preview short of
+doing it; and `DEVC/K` (package create), where a transportable package create must claim
 or create its transport request before anything else can be decided.
 
 Example:

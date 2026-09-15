@@ -30,12 +30,15 @@ abap_write { object, type, package: "$TMP", source, description }
 - Changing part of an existing object — prefer `edit: {old_string, new_string}`
   (splice a unique match) or `method` (replace one `METHOD…ENDMETHOD`) over
   resending the whole source. Both supply the etag automatically. Note `edit` is
-  its own nested object, not a `mode`; `mode` takes only `write` or `delete`.
+  its own nested object, not a `mode`; `mode` takes `write`, `delete`, or
+  `update` (the last one only for `VIEW/DV`, `TRAN/T` and `SHLP/DH` — see
+  `doc/TOOLS/write-and-activate.md`).
 - A bare `{object, source}` full rewrite does **not** auto-supply the etag. Pass
   `expect_etag` yourself or you will silently overwrite a concurrent change.
 - Pass `dry_run: true` to see the gate verdict, the package a create would
-  use, and a diff of the source, without creating anything. Refused for
-  the classrun-bridge creates (`VIEW/DV`, `TRAN/T`) and for `DEVC/K`.
+  use, and a diff of the source, without creating anything. Refused, in every
+  mode (not just create), for the four bridge-only types (`SHLP/DH`,
+  `VIEW/DV`, `TRAN/T`, `TABL/DI`) and for `DEVC/K`.
 - `CLAS/OC` sub-includes: pass `include: "testclasses" | "definitions" |
   "implementations" | "macros"`. Omitting it writes MAIN.
 
@@ -49,7 +52,8 @@ both modes:
 | Signal | Meaning |
 |---|---|
 | activation messages with `type: "E"` | **Failed.** HTTP was still 200. The object is inactive. |
-| `created: true`, `verified: false` for `TRAN/T` | Not confirmed present by read-back — abapsmith is trusting the classrun transcript alone. Confirm by hand (SE93) before relying on it. |
+| `created: true`, `verified: false` for `SHLP/DH`, `VIEW/DV` or `TRAN/T` | A follow-up catalog read (`src/adt/catalog-read.ts`) after the bridge create did not find the object — abapsmith is trusting the classrun transcript alone for this response. Confirm by hand (SE11/SE54/SE93) before relying on it. `verified: true` for these three means the catalog read-back DID find it — read-back is attempted for all three now, not skipped. |
+| `created: true`, `verified: false` for `TABL/DI` | Always `false` for a secondary index — it has no ADT resource of its own to read back from at all, so no read-back is ever attempted. |
 | domain fixed-value texts empty after write | Root element lacked `adtcore:masterLanguage`. Add it and re-write; the text does persist. |
 | no `etag` change | The PUT was a no-op — your source matched byte-for-byte after normalisation. |
 

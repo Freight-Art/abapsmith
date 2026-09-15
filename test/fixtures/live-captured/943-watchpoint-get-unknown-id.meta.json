@@ -1,0 +1,36 @@
+{
+  "n": 943,
+  "label": "watchpoint-get-unknown-id",
+  "expect": null,
+  "note": null,
+  "requestMethod": "GET",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/debugger/watchpoints/99?sap-client=001",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted: 4 cookies>",
+    "X-sap-adt-sessiontype": "stateful",
+    "X-CSRF-Token": "qIDViU4xLYoK1XUrqSdTZg==",
+    "Accept": "application/xml"
+  },
+  "requestBody": null,
+  "responseStatus": 404,
+  "responseStatusText": "Not Found",
+  "responseHeaders": {
+    "content-length": "522",
+    "content-type": "application/xml",
+    "sap-authenticated": "true",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "268047.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 522,
+  "zeroByteBody": false,
+  "sha256": "9287280ed1ff31e241a17cc6a1c67fcda5b503ab37d9f55212d1d5868a24a12d",
+  "utcTimestamp": "2026-09-12T17:56:18.201Z",
+  "durationMs": 321,
+  "sessionName": "A",
+  "transportError": null,
+  "redactions": "appliance host -> 203.0.113.10:50000 (RFC 5737); the application-server hostname was replaced with a4hsandbox (same placeholder as the 011-051 captures); Authorization/Cookie/set-cookie stripped. sha256/byteLength are over the redacted body as stored here."
+}

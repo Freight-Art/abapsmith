@@ -44,6 +44,7 @@ import { forgetManifest } from "../src/adt/fluid/registry.js";
 import { systemKey } from "../src/journal.js";
 import { DATAPREVIEW_XML, T000_NONPRODUCTIVE } from "./helpers/system-role-fake.js";
 import { classicFake, useFluidState } from "./helpers/fluid-classic-fake.js";
+import { canonicalArgsJson } from "../src/adt/fluid/invoke.js";
 
 // ---------------------------------------------------------------------------
 // Fake transport
@@ -183,11 +184,15 @@ const PARAMS: ViewDeleteParams = { viewName: VIEW, packageName: SERVER_PKG };
 
 // `delete_view`'s method body, sliced out of the static class source once —
 // every structural assertion below reads this slice, not a per-call
-// generated fragment (see this file's header). `viewPart.source` ends right
-// after delete_view's own ENDMETHOD, so the slice runs to the array's end.
+// generated fragment (see this file's header). Issue #83 added `update_view`
+// AFTER `delete_view` in the same static class source, so the slice must stop
+// at `update_view`'s own METHOD line rather than running to the array's end —
+// otherwise it would silently swallow update_view's body (and its
+// VIEW-UPDATED tag) into what is supposed to be delete_view-only assertions.
 const allSourceLines = viewPart.source.split("\n");
 const deleteIdx = allSourceLines.findIndex((l) => l.trim() === "METHOD delete_view.");
-const deleteLines = allSourceLines.slice(deleteIdx);
+const updateIdx = allSourceLines.findIndex((l) => l.trim() === "METHOD update_view.");
+const deleteLines = allSourceLines.slice(deleteIdx, updateIdx);
 const deleteTrim = deleteLines.map((l) => l.trim());
 
 /** Every `line( 'TAG' )` call in delete_view's source, in emission order. */
@@ -564,5 +569,65 @@ describe("deleteClassicViewViaBridge happy path", () => {
     expect(source).toBeTruthy();
     expect(source).toContain("METHOD delete_view.");
     expect(source).toContain("METHOD create_view.");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 9 - issue #83: TVDIR maintenance-dialog guard
+// ---------------------------------------------------------------------------
+//
+// The classrun response in this file's fake is a scripted list of tags
+// (`opts.lines()`), not a real ABAP interpreter — so the guard's own runtime
+// branching (SELECT SINGLE FROM tvdir, then `b( 'confirm_maintenance_dialog' )`)
+// cannot be exercised end-to-end offline. What CAN be pinned offline: (a) the
+// guard's shape and position in delete_view's own static source, and (b) that
+// `deleteClassicViewViaBridge` threads `confirmMaintenanceDialog` into the
+// fluid action's args under the EXACT property name the ABAP reads via
+// `b('confirm_maintenance_dialog')` — a name mismatch would fail silently,
+// since an absent fluid input reads as `false` there (guard bypassed).
+
+describe("delete_view's TVDIR (generated maintenance dialog) guard", () => {
+  it("reads TVDIR by TABNAME before DD_OBJ_DEL, and refuses via confirm_maintenance_dialog when a row is found", () => {
+    const tvdirIdx = deleteTrim.indexOf("SELECT SINGLE * FROM tvdir INTO @ls_tvdir WHERE tabname = @lv_view.");
+    const guardIdx = deleteTrim.indexOf("IF b( 'confirm_maintenance_dialog' ) = abap_false.");
+    const ddObjDelIdx = deleteTrim.findIndex((l) => l === "CALL FUNCTION 'DD_OBJ_DEL'");
+    expect(tvdirIdx).toBeGreaterThanOrEqual(0);
+    expect(guardIdx).toBeGreaterThan(tvdirIdx);
+    expect(ddObjDelIdx).toBeGreaterThan(guardIdx);
+  });
+
+  it("confirmMaintenanceDialog threads into the fluid action's args as confirm_maintenance_dialog, exactly the property b('confirm_maintenance_dialog') reads", async () => {
+    const fake = deleteFake();
+    const { conn } = await connected(combine(fake.route, sharedRoute));
+    await deleteClassicViewViaBridge(conn, allowingGate(), { ...PARAMS, confirmMaintenanceDialog: true });
+
+    const invoker = fake.invoker();
+    expect(invoker).toBeTruthy();
+    const src = fake.sourceOf(invoker!);
+    expect(src).toBeTruthy();
+    const chunks = [...src!.matchAll(/`([^`]*)`/g)].map((m) => m[1]);
+    const payload = chunks.join("");
+    expect(payload).toBe(
+      canonicalArgsJson({
+        view_name: PARAMS.viewName,
+        package_name: SERVER_PKG.name,
+        confirm_maintenance_dialog: true,
+      }),
+    );
+  });
+
+  it("omitting confirmMaintenanceDialog omits the key entirely — it is not sent as false", async () => {
+    const fake = deleteFake();
+    const { conn } = await connected(combine(fake.route, sharedRoute));
+    await deleteClassicViewViaBridge(conn, allowingGate(), PARAMS);
+
+    const invoker = fake.invoker();
+    const src = fake.sourceOf(invoker!);
+    const chunks = [...src!.matchAll(/`([^`]*)`/g)].map((m) => m[1]);
+    const payload = chunks.join("");
+    expect(payload).toBe(
+      canonicalArgsJson({ view_name: PARAMS.viewName, package_name: SERVER_PKG.name }),
+    );
+    expect(payload).not.toContain("confirm_maintenance_dialog");
   });
 });

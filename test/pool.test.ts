@@ -37,6 +37,7 @@ import {
   createSessionPool,
   DEBUG_CONCURRENCY,
   DIA_COST_PER_DEBUG_SESSION,
+  resolveDebugSessionLimit,
   type ObjectGate,
   type SessionPool,
 } from "../src/adt/pool.js";
@@ -86,6 +87,16 @@ interface Sizing {
   sessionWaitMs: number;
   debugDiaBudget: number;
   /**
+   * `ABAP_DEBUG_SESSIONS` (src/config.ts), default 1. Added alongside
+   * `debugDiaBudget` above rather than left absent, so this file's fixtures
+   * exercise the actual shipped shape `resolveDebugSessionLimit` reads —
+   * though `resolveDebugSessionLimit` itself also tolerates an absent value
+   * (treating it as 1), which is what every OTHER test file's hand-built
+   * `Config` double (e.g. `test/pool-doubles.ts`) relies on, since none of
+   * them were updated to add this field.
+   */
+  debugSessions: number;
+  /**
    * `boolean | undefined` (not just `boolean`) so a test can pass
    * `serialiseSameObjectWrites: undefined` through `cfg()`'s spread to pin
    * the true "unset" default distinctly from an explicit `false` — see the
@@ -125,6 +136,7 @@ const SERIAL_BASELINE: Sizing = {
   sessionIdleMs: 300_000,
   sessionWaitMs: 10_000,
   debugDiaBudget: 2,
+  debugSessions: 1,
   serialiseSameObjectWrites: false,
 };
 
@@ -1477,6 +1489,90 @@ describe("debug reservations", () => {
     expect(pool.stats().busy).toBe(0);
     // Guards against the floor check leaking a slot on the success path.
     await expect(pool.withRead("r", async () => "ok")).resolves.toBe("ok");
+  });
+
+  // -------------------------------------------------------------------------
+  // resolveDebugSessionLimit — the truth table `roleLimit("debug")` now reads
+  // instead of the bare DEBUG_CONCURRENCY constant.
+  // -------------------------------------------------------------------------
+
+  describe("resolveDebugSessionLimit", () => {
+    it("unset debugSessions (undefined) falls back to DEBUG_CONCURRENCY, matching yesterday's behaviour", () => {
+      // Deliberately built without `cfg()`/SERIAL_BASELINE: this pins the
+      // defensive fallback that lets fixtures written before this setting
+      // existed (e.g. test/pool-doubles.ts's Sizing double) keep working.
+      const withoutField = { debugDiaBudget: 8 } as unknown as Pick<
+        Config,
+        "debugSessions" | "debugDiaBudget"
+      >;
+      expect(resolveDebugSessionLimit(withoutField)).toBe(DEBUG_CONCURRENCY);
+    });
+
+    it("debugSessions=1, debugDiaBudget=2 (shipped defaults) yields 1", () => {
+      expect(resolveDebugSessionLimit({ debugSessions: 1, debugDiaBudget: 2 })).toBe(1);
+    });
+
+    it("debugSessions=2 with the shipped debugDiaBudget=2 is still capped at 1 by the budget", () => {
+      // floor(2/2) = 1, the smaller of the two inputs.
+      expect(resolveDebugSessionLimit({ debugSessions: 2, debugDiaBudget: 2 })).toBe(1);
+    });
+
+    it("debugSessions=2 with debugDiaBudget=4 yields 2 — the budget can now pay for both", () => {
+      expect(resolveDebugSessionLimit({ debugSessions: 2, debugDiaBudget: 4 })).toBe(2);
+    });
+
+    it("debugSessions=4 with debugDiaBudget=8 yields 4 — both inputs agree", () => {
+      expect(resolveDebugSessionLimit({ debugSessions: 4, debugDiaBudget: 8 })).toBe(4);
+    });
+
+    it("debugSessions=4 with a huge debugDiaBudget is still capped at 4 by debugSessions, not the budget", () => {
+      expect(resolveDebugSessionLimit({ debugSessions: 4, debugDiaBudget: 1000 })).toBe(4);
+    });
+
+    it("a budget too low even for one session (0 or 1) still floors the RESULT at 1, not 0", () => {
+      // Whether debugging is possible AT ALL is reserveDebug's separate
+      // `UNSUPPORTED` floor check's job (see the M1/M2/M5 tests above) — this
+      // function must never itself reach 0 and silently double as a second,
+      // differently-worded refusal.
+      expect(resolveDebugSessionLimit({ debugSessions: 2, debugDiaBudget: 0 })).toBe(1);
+      expect(resolveDebugSessionLimit({ debugSessions: 2, debugDiaBudget: 1 })).toBe(1);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Multi-lane reserveDebug: debugSessions > 1 with enough budget actually
+  // grants concurrent leases, while still never queueing past the limit.
+  // -------------------------------------------------------------------------
+
+  it("with debugSessions=2 and a sufficient budget, two concurrent debug leases are granted", async () => {
+    const { pool } = makePool({ debugSessions: 2, debugDiaBudget: 4, maxSessions: 4, readConcurrency: 4 });
+    const first = await pool.reserveDebug("listen-1");
+    const second = await pool.reserveDebug("listen-2");
+    expect(pool.stats().busy).toBe(2);
+    first.release();
+    second.release();
+  });
+
+  it("with debugSessions=2 and a sufficient budget, a third debug lease is refused, not queued", async () => {
+    const { pool } = makePool({
+      debugSessions: 2,
+      debugDiaBudget: 4,
+      maxSessions: 4,
+      readConcurrency: 4,
+      sessionWaitMs: 600_000,
+    });
+    const first = await pool.reserveDebug("listen-1");
+    const second = await pool.reserveDebug("listen-2");
+    const e = await pool
+      .reserveDebug("listen-3")
+      .then(() => null)
+      .catch((err: unknown) => err);
+    expect(e).toBeInstanceOf(SessionBusyError);
+    expect((e as SessionBusyError).reason).toBe("lease-held");
+    expect(pool.stats().waiting, "the third caller is refused outright, never parked").toBe(0);
+    expect(pool.stats().busy).toBe(2);
+    first.release();
+    second.release();
   });
 });
 

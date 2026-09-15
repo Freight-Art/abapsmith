@@ -259,6 +259,25 @@ export interface DdicStructuredFields {
   longLength?: number;
   headingLabel?: string;
   headingLength?: number;
+  /**
+   * Search help attached to this data element — DD04L-SHLPNAME. Must name an
+   * existing, active SHLP/DH; this builder does not verify that (zero-network,
+   * like the rest of the module) — the server's own DTEL activation is what
+   * actually checks the reference. Uppercased and refused above 30 characters
+   * (DD04L-SHLPNAME is CHAR30, live-verified via DD03L on A4H, 2026-09-15 — see
+   * {@link SHLP_NAME_MAX_LEN}). Omitted still emits an empty
+   * `<dtel:searchHelp/>`, matching every accepted body's own shape.
+   */
+  searchHelp?: string;
+  /**
+   * The search help's OWN interface parameter (DD32P-FIELDNAME) this data
+   * element binds to — DD04L-SHLPFIELD. Not the data element's own name.
+   * Meaningless without a search help to belong to, and refused when given
+   * without {@link DdicStructuredFields.searchHelp}. Uppercased and refused
+   * above 30 characters (DD04L-SHLPFIELD is CHAR30, live-verified the same way
+   * as `searchHelp` above).
+   */
+  searchHelpParameter?: string;
 }
 
 /** The three legal `ddic.typeKind` values — see {@link DdicStructuredFields.typeKind}. */
@@ -295,6 +314,8 @@ const DTEL_FIELDS: ReadonlySet<string> = new Set([
   "longLength",
   "headingLabel",
   "headingLength",
+  "searchHelp",
+  "searchHelpParameter",
 ]);
 const TTYP_FIELDS: ReadonlySet<string> = new Set(["typeKind", "typeName", "dataType", "length", "decimals"]);
 
@@ -329,6 +350,41 @@ const DTEL_MAX_LENGTH = {
   long: 40,
   heading: 55,
 } as const;
+
+/**
+ * DD04L-SHLPNAME and DD04L-SHLPFIELD are both CHAR30 — live-verified via DD03L
+ * (TABNAME='DD04L', FIELDNAME IN ('SHLPNAME','SHLPFIELD')) on A4H, 2026-09-15:
+ * both rows returned DATATYPE=CHAR, LENG=30. Not the same read as the
+ * element-shape capture below (a raw DTEL/DE GET), but the same system/date.
+ */
+const SHLP_NAME_MAX_LEN = 30;
+
+/**
+ * Uppercases and length-checks a `ddic.searchHelp`/`ddic.searchHelpParameter`
+ * value against {@link SHLP_NAME_MAX_LEN} — both are ABAP object/parameter
+ * names (DD04L-SHLPNAME, DD04L-SHLPFIELD), so this follows the same
+ * trim-then-uppercase convention other DDIC/CTS identifiers get elsewhere in
+ * this codebase (e.g. `program.trim().toUpperCase()` for TRAN/T's `program`
+ * and `resolveShlpPackage`'s package-name normalisation, both in
+ * src/tools/write.ts) rather than sending the value byte-for-byte as given.
+ * Refuses rather than truncates on overflow — silently cutting the value down
+ * would send something other than what the caller asked for, the exact class
+ * of silent corruption this module's own header comment warns about.
+ */
+function normalizeShlpIdentifier(value: string, field: "searchHelp" | "searchHelpParameter", type: string, name: string): string {
+  const column = field === "searchHelp" ? "DD04L-SHLPNAME" : "DD04L-SHLPFIELD";
+  const normalized = value.trim().toUpperCase();
+  if (normalized.length > SHLP_NAME_MAX_LEN) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `ddic.${field} "${value}" is ${normalized.length} characters, longer than ${column}'s ` +
+        `${SHLP_NAME_MAX_LEN}-character limit.`,
+      { name, type, field, value, length: normalized.length, maxLength: SHLP_NAME_MAX_LEN },
+      `Shorten ddic.${field} to ${SHLP_NAME_MAX_LEN} characters or fewer.`,
+    );
+  }
+  return normalized;
+}
 
 /** Every key present with a defined value must be in `allowed` for `type` — anything else is either ungrounded or belongs to a different type. */
 function rejectStrayFields(type: string, name: string, fields: DdicStructuredFields, allowed: ReadonlySet<string>): void {
@@ -389,6 +445,22 @@ function buildDtel(name: string, description: string, packageName: string, f: Dd
   const longLength = f.longLength ?? 40;
   const headingLabel = f.headingLabel ?? "Bench";
   const headingLength = f.headingLength ?? 55;
+  if (f.searchHelpParameter !== undefined && f.searchHelp === undefined) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `ddic.searchHelpParameter was given without ddic.searchHelp for DTEL/DE ${name} — a parameter ` +
+        "with no search help to belong to is meaningless: DD04L-SHLPFIELD has nothing to attach to " +
+        "without DD04L-SHLPNAME, and the server would accept the write while silently dropping it.",
+      { name, type: "DTEL/DE", searchHelpParameter: f.searchHelpParameter },
+      "Add `ddic.searchHelp` (the search help name this parameter belongs to), or drop " +
+        "`ddic.searchHelpParameter`.",
+    );
+  }
+  const searchHelp = f.searchHelp !== undefined ? normalizeShlpIdentifier(f.searchHelp, "searchHelp", "DTEL/DE", name) : "";
+  const searchHelpParameter =
+    f.searchHelpParameter !== undefined
+      ? normalizeShlpIdentifier(f.searchHelpParameter, "searchHelpParameter", "DTEL/DE", name)
+      : "";
   return (
     `${XML_DECL}<blue:wbobj xmlns:blue="http://www.sap.com/wbobj/dictionary/dtel" xmlns:adtcore="${ADTCORE_NS}" ` +
     `adtcore:name="${escapeXmlAttr(name)}" adtcore:type="DTEL/DE" adtcore:description="${escapeXmlAttr(description)}">` +
@@ -400,7 +472,15 @@ function buildDtel(name: string, description: string, packageName: string, f: Dd
     `${elem("dtel:mediumFieldLabel", mediumLabel)}${elem("dtel:mediumFieldLength", num(mediumLength))}${elem("dtel:mediumFieldMaxLength", num(DTEL_MAX_LENGTH.medium))}` +
     `${elem("dtel:longFieldLabel", longLabel)}${elem("dtel:longFieldLength", num(longLength))}${elem("dtel:longFieldMaxLength", num(DTEL_MAX_LENGTH.long))}` +
     `${elem("dtel:headingFieldLabel", headingLabel)}${elem("dtel:headingFieldLength", num(headingLength))}${elem("dtel:headingFieldMaxLength", num(DTEL_MAX_LENGTH.heading))}` +
-    `${elem("dtel:searchHelp", "")}${elem("dtel:searchHelpParameter", "")}${elem("dtel:setGetParameter", "")}${elem("dtel:defaultComponentName", "")}` +
+    // Element identity, values and order (searchHelp, searchHelpParameter, setGetParameter,
+    // defaultComponentName) are live-captured, not guessed: a raw read of DTEL/DE PBUNAM
+    // (package SPAK_TOOL) on A4H (NetWeaver 7.54, client 001), 2026-09-15, returned inside
+    // <dtel:dataElement> exactly `<dtel:searchHelp>USER_ADDR</dtel:searchHelp>
+    // <dtel:searchHelpParameter>BNAME</dtel:searchHelpParameter>` in this order, and DD04L for
+    // ROLLNAME='PBUNAM' holds SHLPNAME=USER_ADDR, SHLPFIELD=BNAME — so these two elements map to
+    // those two catalog columns. This assembled write path (buildDtel emitting them from `ddic`
+    // fields) has NOT itself been sent to a live system, unverified like the rest of this module.
+    `${elem("dtel:searchHelp", searchHelp)}${elem("dtel:searchHelpParameter", searchHelpParameter)}${elem("dtel:setGetParameter", "")}${elem("dtel:defaultComponentName", "")}` +
     `${elem("dtel:deactivateInputHistory", "false")}${elem("dtel:changeDocument", "false")}` +
     `${elem("dtel:leftToRightDirection", "false")}${elem("dtel:deactivateBIDIFiltering", "false")}` +
     `</dtel:dataElement></blue:wbobj>`

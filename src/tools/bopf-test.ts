@@ -25,8 +25,15 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 
 import type { AbapConnection } from "../adt/connection.js";
-import { AbapError } from "../adt/errors.js";
+import { AbapError, isAbapError } from "../adt/errors.js";
 import type { SessionPool } from "../adt/pool.js";
+import {
+  authTraceOf,
+  renderFailedAuthChecks,
+  switchOffErrorOf,
+  withAuthTrace,
+  type AuthTraceOutcome,
+} from "../adt/authtrace.js";
 import {
   bopfBridgeClassName,
   formatNodeLabel,
@@ -80,6 +87,13 @@ export const bopfTestInputSchema = {
     .boolean()
     .optional()
     .describe("Writes/activates the test bridge without running it; writes no data."),
+  auth_trace: z
+    .boolean()
+    .optional()
+    .describe(
+      "Switch on the SAP authorization trace for the connected user, run the scenario, then read " +
+        "back and switch it back off. Refused on a read-only server. Default false.",
+    ),
 };
 
 export const BopfTestInput = z.object(bopfTestInputSchema);
@@ -216,11 +230,53 @@ function buildBody(result: BopfTestResult, notes: string[]): { body?: string; bo
   return { body, bodyLabel: "TRANSCRIPT" };
 }
 
+/**
+ * Header value for `auth_trace`, shared shape with `abap_run`/`abap_test`
+ * (issue #112 wiring): "no failed checks" / "N failed check(s)" on a run the
+ * trace could complete, or the outcome's own "unavailable: <reason>" string
+ * (never re-prefixed) when it could not.
+ */
+function authTraceHeaderValue(outcome: AuthTraceOutcome): string {
+  if (!outcome.ok) return outcome.reason;
+  return outcome.checks.length > 0 ? `${outcome.checks.length} failed check(s)` : "no failed checks";
+}
+
+/**
+ * `renderFailedAuthChecks` already puts its own "FAILED AUTH CHECKS" line at
+ * the top of its output; `buildResponse`'s `sections` also renders the title
+ * from `{ title }` (`--- FAILED AUTH CHECKS ---`), so that first line is
+ * dropped here to avoid printing the title twice. Returns undefined when
+ * there is nothing to show.
+ */
+function authTraceSection(outcome: AuthTraceOutcome): { title: string; content: string } | undefined {
+  if (!outcome.ok || outcome.checks.length === 0) return undefined;
+  const rendered = renderFailedAuthChecks(outcome.checks);
+  const [, ...rest] = rendered.split("\n");
+  return { title: "FAILED AUTH CHECKS", content: rest.join("\n") };
+}
+
+/** Attaches what `withAuthTrace` learned to a propagating error's `details`, without ever converting the throw into a normal response. Only mutates `e` when `authTraceOf(e)` actually found something to attach. */
+function attachAuthTraceToError(e: unknown): void {
+  const outcome = authTraceOf(e);
+  if (outcome === undefined || !isAbapError(e)) return;
+  e.details["failedAuthChecks"] = outcome.ok
+    ? outcome.checks.length > 0
+      ? renderFailedAuthChecks(outcome.checks)
+      : "no failed checks"
+    : outcome.reason;
+  const switchOffError = switchOffErrorOf(e);
+  if (switchOffError !== undefined) {
+    e.details["authTraceSwitchOffError"] = switchOffError;
+  }
+}
+
 function buildTestResponse(
   result: BopfTestResult,
   refs: CheckRefsResult,
   maxChars: number,
   requestedBo: string,
+  authTraceOutcome?: AuthTraceOutcome,
+  authTraceSwitchOffError?: string,
 ): string {
   const refsChecked = refs !== undefined;
   const notes: string[] = [];
@@ -261,6 +317,25 @@ function buildTestResponse(
     notes.push(formatSkippedRefsNote(refs.findings.length, refs.skipped));
   }
 
+  if (authTraceOutcome !== undefined) {
+    notes.push(
+      "auth_trace reads the SAP authorization trace (falling back to the SU53 buffer) for this " +
+        "run only; it changes no authorisation, role or profile.",
+    );
+    if (authTraceOutcome.ok && authTraceOutcome.usedFallback) {
+      notes.push(
+        "The kernel authorization trace returned nothing, so this came from the SU53 buffer, " +
+          "which shows only what that buffer retained — it is not a complete record of this run.",
+      );
+    }
+    if (authTraceSwitchOffError !== undefined) {
+      notes.push(
+        `The authorization trace may have been left switched ON: switching it back off failed ` +
+          `(${authTraceSwitchOffError}).`,
+      );
+    }
+  }
+
   const { body, bodyLabel } = buildBody(result, notes);
 
   const t = result.transcript;
@@ -271,6 +346,8 @@ function buildTestResponse(
     if (t.keys.length) sections.push({ title: "KEYS", content: formatKeys(t.keys) });
     if (t.diagnostics.length) sections.push({ title: "DIAGNOSTICS", content: t.diagnostics.join("\n") });
   }
+  const authTraceSectionValue = authTraceOutcome ? authTraceSection(authTraceOutcome) : undefined;
+  if (authTraceSectionValue) sections.push(authTraceSectionValue);
 
   // Same slack rule as run.ts: round this run's own measured duration up to
   // the next whole second and pad it, so a BAL entry written just after
@@ -298,6 +375,7 @@ function buildTestResponse(
       warnings: result.generateOnly ? undefined : result.warnings,
       rowsWritten: result.generateOnly ? undefined : result.rowsWritten,
       refsChecked,
+      auth_trace: authTraceOutcome ? authTraceHeaderValue(authTraceOutcome) : undefined,
     },
     sections,
     body,
@@ -355,6 +433,20 @@ export async function runBopfTest(deps: BopfTestDeps, args: unknown): Promise<Ca
 
   validateBopfTestScenario(input.scenario);
 
+  const authTraceRequested = input.auth_trace === true;
+  // System-level action (switches on the SAP authorization trace for the
+  // connected user) — refused on a read-only server before any request is
+  // made, same convention as every other zero-network refusal in this file.
+  if (authTraceRequested && deps.safety.config.readOnly === true) {
+    throw new AbapError(
+      "SAFETY_DENIED",
+      "auth_trace switches the SAP authorization trace on for the connected user, a system-level " +
+        "action, so it is refused on a read-only server.",
+      { auth_trace: true },
+      "Ask the operator to enable writes (ABAP_ALLOW_WRITE), or omit auth_trace to run without it.",
+    );
+  }
+
   // Zero-network preflight: bopfBridgeClassName also validates `bo` (throws on
   // an injection attempt — it's embedded verbatim in generated ABAP) and gives
   // a deterministic gate key, so a refused write costs no network call.
@@ -371,7 +463,7 @@ export async function runBopfTest(deps: BopfTestDeps, args: unknown): Promise<Ca
 
   await deps.ensureConnected();
 
-  const { result, refs } = await deps.pool.withWrite(
+  const { result, refs, authTraceOutcome, authTraceSwitchOffError } = await deps.pool.withWrite(
     "abap_bopf_test",
     bridgeClass,
     async (conn) => {
@@ -392,14 +484,41 @@ export async function runBopfTest(deps: BopfTestDeps, args: unknown): Promise<Ca
         nodes: input.scenario.nodes,
         cleanup: input.scenario.cleanup,
       };
-      const result = await runBopfTestBridge(conn, model, scenario, deps.safety, {
-        generateOnly: input.generate_only,
-      });
-      return { result, refs };
+      const executeBopfRun = async (): Promise<BopfTestResult> =>
+        runBopfTestBridge(conn, model, scenario, deps.safety, {
+          generateOnly: input.generate_only,
+        });
+
+      if (authTraceRequested) {
+        try {
+          const wrapped = await withAuthTrace({ conn, gate: deps.safety }, conn.cfg.user, executeBopfRun);
+          return {
+            result: wrapped.value,
+            refs,
+            authTraceOutcome: wrapped.authTrace,
+            authTraceSwitchOffError: wrapped.switchOffError,
+          };
+        } catch (e) {
+          attachAuthTraceToError(e);
+          throw e;
+        }
+      }
+
+      const result = await executeBopfRun();
+      return { result, refs, authTraceOutcome: undefined, authTraceSwitchOffError: undefined };
     },
   );
 
-  return ok(buildTestResponse(result, refs, deps.cfg.maxResponseChars, input.bo));
+  return ok(
+    buildTestResponse(
+      result,
+      refs,
+      deps.cfg.maxResponseChars,
+      input.bo,
+      authTraceOutcome,
+      authTraceSwitchOffError,
+    ),
+  );
 }
 
 /** Registers `abap_bopf_test` on the MCP server. */

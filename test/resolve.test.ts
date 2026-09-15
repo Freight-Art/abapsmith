@@ -653,16 +653,15 @@ describe("resolveObject — a naming convention is not evidence of existence (AR
 
 /**
  * An explicit `type` hint naming one of the capabilities
- * registry's `unsupported`/`bridgeCreate` codes (SHLP/DH, VIEW/DV, TRAN/T,
- * PROG/PS, PROG/PC, PROG/PT, SUSO/B, TABL/DI — none of them in `types.ts`'s
- * `TYPES` array) used to fall straight through
- * `resolveObject`'s "ambiguous → ask the server" branch: a live search, and
- * then either a generic NOT_FOUND (no
- * live system, or the object doesn't exist under that name) or an
- * under-explained "exists but its type is not a readable source object"
- * (object does exist). Neither names the real, already-known reason, and
- * both cost a network round trip abapsmith didn't need to spend — the
- * refusal was knowable from the type code alone.
+ * registry's `unsupported`/`bridgeCreate` codes (PROG/PS, PROG/PC, PROG/PT,
+ * SUSO/B, TABL/DI — none of them in `types.ts`'s `TYPES` array) used to fall
+ * straight through `resolveObject`'s "ambiguous → ask the server" branch: a
+ * live search, and then either a generic NOT_FOUND (no live system, or the
+ * object doesn't exist under that name) or an under-explained "exists but
+ * its type is not a readable source object" (object does exist). Neither
+ * names the real, already-known reason, and both cost a network round trip
+ * abapsmith didn't need to spend — the refusal was knowable from the type
+ * code alone.
  *
  * `resolveObject` now runs the same `capabilitiesFor` check
  * `resolveWriteTarget` (`write.ts`) already ran for writes, so a caller
@@ -671,12 +670,25 @@ describe("resolveObject — a naming convention is not evidence of existence (AR
  * for the connection before throwing would crash with a `TypeError` instead
  * of the expected `AbapError`, which is how these tests prove zero network
  * requests without a mock.
+ *
+ * SHLP/DH, VIEW/DV and TRAN/T used to belong to this same offline-refusal
+ * family (SHLP/DH via `unsupported`, the other two via `bridgeCreate` with
+ * no readable collection). All three now carry a `mode: "ddic"` `TypeSpec`
+ * in `types.ts` backed by a working (non-`"unsupported"`) `ddicStrategy` —
+ * `readDdic`/`readCatalogObject` (`catalog-read.ts`) read them through
+ * plain-text catalog SELECTs that never touch a REST collection at all — so
+ * `resolveObject`'s bridge-only-create branch now finds them `readable` and
+ * lets them fall through to the ordinary resolution path instead of
+ * refusing. Calling `resolveObject` with the `null` connection below for one
+ * of these three no longer throws an `AbapError`: it crashes reaching for
+ * the connection, which is why the tests that used to exercise their read
+ * refusal now assert directly against the `capabilitiesFor`/`REGISTRY`
+ * state that refusal depended on, instead of driving `resolveObject`.
  */
 describe("resolveObject — explicit unsupported/bridgeCreate type hints refuse offline", () => {
   const offline = null as unknown as Parameters<typeof resolveObject>[0];
 
   it.each([
-    ["SHLP/DH", "search help"],
     ["PROG/PS", "screen"],
     ["PROG/PC", "GUI status"],
     ["PROG/PT", "GUI title"],
@@ -689,58 +701,80 @@ describe("resolveObject — explicit unsupported/bridgeCreate type hints refuse 
     expect(String(err.message)).toMatch(new RegExp(type.replace("/", "\\/")));
   });
 
-  it.each(["VIEW/DV", "TRAN/T", "TABL/DI"])(
-    "refuses a %s read on the source-read path with UNSUPPORTED, offline, naming the ADT-collection gap",
-    async (type) => {
-      const err = await resolveObject(offline, "ZX", { type }).catch((e) => e);
-      expect(isAbapError(err)).toBe(true);
-      expect(err.code).toBe("UNSUPPORTED");
-      expect(String(err.message)).toMatch(/no ADT-readable collection/i);
-    },
-  );
+  // SHLP/DH used to be a fifth row above (it carried an `unsupported`
+  // registry entry). It dropped `unsupported` when the classrun-bridge
+  // create/catalog-read work landed, so `cap?.unsupported` is now undefined
+  // for it and this branch of resolveObject never fires for it — see the
+  // describe-level comment above.
+  //
+  // VIEW/DV and TRAN/T are gone from the list below for the same underlying
+  // reason (readable via `ddicStrategy`, not `unsupported`), leaving TABL/DI
+  // as the only code left with no `types.ts` entry and no working
+  // `ddicStrategy`, so it is the only one still refused on this path.
+  it("refuses a TABL/DI read on the source-read path with UNSUPPORTED, offline, naming the ADT-collection gap", async () => {
+    const err = await resolveObject(offline, "ZX", { type: "TABL/DI" }).catch((e) => e);
+    expect(isAbapError(err)).toBe(true);
+    expect(err.code).toBe("UNSUPPORTED");
+    expect(String(err.message)).toMatch(/no ADT-readable collection/i);
+  });
 
   /**
    * The read refusal's HINT used to tell a caller abapsmith could create a
    * classic view through the classrun bridge — advice `abap_write` then
    * refused, via a dedicated `bridgeCreate.createRefused` registry string.
    * RS_CORR_INSERT now registers a VIEW/DV create for every package, so that
-   * refusal is gone: no REGISTRY entry declares `createRefused` any more
-   * (asserted below on TRAN/T), and VIEW/DV's read hint falls back to the
-   * same generic bridge-create text TRAN/T's always used.
+   * refusal is gone. That hint text, though, was only ever rendered from
+   * `resolveObject`'s bridge-only-create refusal branch — the same branch
+   * that no longer fires for VIEW/DV now that it is `readable` (see the
+   * describe-level comment above). Driving `resolveObject` with the `null`
+   * connection here to inspect `err.hint` would crash instead of throwing,
+   * so the only thing left to pin from a test file is the registry state
+   * the old hint depended on: no `createRefused` override for VIEW/DV,
+   * which is what let it fall back to the same generic bridge-create hint
+   * TRAN/T's read refusal always used, back when VIEW/DV's read was still
+   * refused at all.
    */
-  it("VIEW/DV's read hint is the same generic bridge-create hint TRAN/T's is, now that the create is no longer refused", async () => {
-    const err = await resolveObject(offline, "ZX", { type: "VIEW/DV" }).catch((e) => e);
-    const hint = String(err.hint ?? "");
+  it("VIEW/DV's create is no longer refused: no createRefused override sits on its REGISTRY entry", () => {
     expect(capabilitiesFor("VIEW/DV")?.bridgeCreate?.createRefused).toBeUndefined();
-    expect(hint).toMatch(
-      /abapsmith can create this type through a generated classrun bridge \(see abap_write\)/,
-    );
-    expect(hint).toMatch(/cannot read one back/);
   });
 
   /**
-   * The refusal renders `bridgeCreate.adtRest` verbatim (here and on the write
-   * path in `src/adt/write.ts`), so the identity assertion is what keeps the
-   * two sites from drifting. The fragment used to say the views collection
-   * "answers reads" inside the response refusing exactly that read.
+   * The refusal used to render `bridgeCreate.adtRest` verbatim (here and on
+   * the write path in `src/adt/write.ts`), so this pinned the exact fragment
+   * against drift — it once said the views collection "answers reads" inside
+   * the response refusing exactly that read, and separately claimed
+   * `abap_search rejects VIEW/DV as an unrecognised type`. Both claims are
+   * gone from the current registry string: VIEW/DV's read is no longer
+   * refused (so there is no `err.message` to contain the fragment — driving
+   * `resolveObject` with the `null` connection here crashes instead of
+   * throwing, same as the create-refusal test above), and `abap_search` no
+   * longer rejects VIEW/DV either, now that it has a `types.ts` `TypeSpec`.
+   * What is still worth pinning directly against the registry: the REST
+   * finding itself (405, GET-only, no writable/resolvable collection) is
+   * unchanged and is still the reason the type is bridge-created at all.
    */
-  it("VIEW/DV's read refusal carries the registry's REST finding without naming a read route the caller can take", async () => {
-    const err = await resolveObject(offline, "ZX", { type: "VIEW/DV" }).catch((e) => e);
+  it("VIEW/DV's bridgeCreate.adtRest still states the REST finding that motivates the bridge, without naming a read or search route the caller can't actually take", () => {
     const adtRest = capabilitiesFor("VIEW/DV")?.bridgeCreate?.adtRest ?? "";
-    expect(String(err.message)).toContain(adtRest);
     expect(adtRest).not.toMatch(/answers reads/);
     expect(adtRest).toMatch(/not a route a caller can take/);
-    expect(adtRest).toMatch(/abap_search rejects VIEW\/DV/);
     // The 405 recon stays: it is why this type is bridge-created at all.
     expect(adtRest).toMatch(/405/);
   });
 
-  it("no REGISTRY entry declares bridgeCreate.createRefused any more, and TRAN/T's read hint still names the create that works", async () => {
+  /**
+   * The REGISTRY loop is the invariant that survives: no bridge-create type
+   * declares `createRefused` any more (RS_CORR_INSERT registers a create for
+   * every package). The old second half of this test drove `resolveObject`
+   * with a `null` connection to read TRAN/T's hint text off the read
+   * refusal — TRAN/T is readable now too (same `ddicStrategy` reasoning as
+   * VIEW/DV and SHLP/DH), so that refusal no longer fires and the call would
+   * crash rather than produce a hint. There is nothing left for a test file
+   * to assert about a hint that resolveObject no longer renders for TRAN/T.
+   */
+  it("no REGISTRY entry declares bridgeCreate.createRefused any more", () => {
     for (const code of Object.keys(REGISTRY) as TypeCode[]) {
       expect(REGISTRY[code].bridgeCreate?.createRefused, `${code} declares createRefused`).toBeUndefined();
     }
-    const err = await resolveObject(offline, "ZX", { type: "TRAN/T" }).catch((e) => e);
-    expect(String(err.hint ?? "")).toMatch(/can create this type through a generated classrun bridge/);
   });
 
   /**

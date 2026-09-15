@@ -1,0 +1,42 @@
+{
+  "id": "watchpoint-get-single",
+  "recordedAt": "2026-09-12T17:56:17.942Z",
+  "recordedDurationMs": 63,
+  "appliance": {
+    "sid": "A4H",
+    "client": "001",
+    "server": "a4hsandbox_A4H_00"
+  },
+  "source": {
+    "type": "live-capture-raw",
+    "citation": "test/fixtures/live-captured/939-watchpoint-get-single.meta.json + test/fixtures/live-captured/939-watchpoint-get-single.xml",
+    "notes": "GET /sap/bc/adt/debugger/watchpoints/1 (a specific watchpoint id in the path, distinct from the collection route GET /debugger/watchpoints already covered by watchpoint-list-after-hit). Answers 200 with the <dbg:watchpoints> list root carrying the one row for watchpoint 1 (LV_TOTAL). Redactions performed by the capture harness before this file was written: appliance host -> 203.0.113.10:50000 (RFC 5737), application-server hostname -> a4hsandbox, Authorization/Cookie/set-cookie header values stripped. sha256/byteLength in the source .meta.json are computed over the redacted body as stored."
+  },
+  "request": {
+    "method": "GET",
+    "path": "/sap/bc/adt/debugger/watchpoints/1?sap-client=001",
+    "headers": {
+      "Authorization": "<redacted>",
+      "Cookie": "<redacted: 4 cookies>",
+      "X-sap-adt-sessiontype": "stateful",
+      "X-CSRF-Token": "qIDViU4xLYoK1XUrqSdTZg==",
+      "Accept": "application/xml"
+    },
+    "body": null
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-encoding": "gzip",
+      "content-length": "478",
+      "content-type": "application/xml; charset=utf-8",
+      "sap-authenticated": "true",
+      "sap-cache-control": "+0",
+      "sap-isc-uagent": "0",
+      "sap-perf-fesrec": "10664.000000",
+      "sap-server": "true",
+      "set-cookie": "<redacted>"
+    },
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><dbg:watchpoints xmlns:dbg=\"http://www.sap.com/adt/debugger\"><watchpoint id=\"1\" variableName=\"LV_TOTAL\" kind=\"local\" active=\"true\" expired=\"false\" procedure=\"IF_OO_ADT_CLASSRUN~MAIN\"><condition/><oldVariable>{A:24*\\KERNEL_WATCHPOINT_CLONE}</oldVariable><currentVariable>{A:13*\\KERNEL_WATCHPOINT_WPREF}</currentVariable><oldValue>0 </oldValue><currentValue>0 </currentValue><atom:link href=\"/sap/bc/adt/debugger/watchpoints/1\" rel=\"self\" type=\"application/xml\" title=\"Watchpoint for LV_TOTAL\" xmlns:atom=\"http://www.w3.org/2005/Atom\"/><adtcomp:templateLinks xmlns:adtcomp=\"http://www.sap.com/adt/compatibility\"><adtcomp:templateLink title=\"Self\" rel=\"self\" template=\"/sap/bc/adt/debugger/watchpoints/1\"/><adtcomp:templateLink title=\"Modify\" rel=\"http://www.sap.com/adt/debugger/relations/modify\" template=\"/sap/bc/adt/debugger/watchpoints/1{?condition,active}\"/><adtcomp:templateLink title=\"Delete\" rel=\"http://www.sap.com/adt/debugger/relations/delete\" template=\"/sap/bc/adt/debugger/watchpoints/1\"/></adtcomp:templateLinks></watchpoint></dbg:watchpoints>"
+  }
+}

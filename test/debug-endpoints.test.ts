@@ -6,6 +6,7 @@
  * `npx vitest run` — see the offline/security constraints in the task brief).
  */
 import { describe, expect, it } from "vitest";
+import { isAbapError } from "../src/adt/errors.js";
 import {
   BREAKPOINTS_ACCEPT,
   BREAKPOINTS_CONTENT_TYPE,
@@ -55,6 +56,13 @@ import {
   variableSubcomponentsUrl,
   variableValueStatementUrl,
   withStartFragment,
+  createWatchpointUrl,
+  DEBUGGER_WATCHPOINTS_PATH,
+  modifyWatchpointUrl,
+  watchpointUrl,
+  watchpointsUrl,
+  WATCHPOINTS_ACCEPT,
+  WATCHPOINTS_CONTENT_TYPE,
 } from "../src/debug/endpoints.js";
 
 // A 32-character stand-in terminal/ide id, matching SYSUUID_C32.
@@ -261,6 +269,49 @@ describe("breakpoints", () => {
     expect(breakpointsPostUrl()).toBe(DEBUGGER_BREAKPOINTS_PATH);
   });
 
+  it("post URL omits debuggeeSessionIds entirely when not given", () => {
+    expect(breakpointsPostUrl()).toBe(DEBUGGER_BREAKPOINTS_PATH);
+    expect(breakpointsPostUrl({ checkConflict: true })).not.toContain("debuggeeSessionIds");
+  });
+
+  it("post URL omits debuggeeSessionIds entirely when given an empty array", () => {
+    const url = breakpointsPostUrl({ debuggeeSessionIds: [] });
+    expect(url).toBe(DEBUGGER_BREAKPOINTS_PATH);
+    expect(url).not.toContain("debuggeeSessionIds");
+  });
+
+  it("post URL omits debuggeeSessionIds entirely when every entry is blank/empty", () => {
+    const url = breakpointsPostUrl({ debuggeeSessionIds: ["", "   "] });
+    expect(url).toBe(DEBUGGER_BREAKPOINTS_PATH);
+    expect(url).not.toContain("debuggeeSessionIds");
+  });
+
+  it("post URL carries a single debuggeeSessionIds id, percent-encoding its embedded space", () => {
+    // Real-shape id, verbatim off a live attach response: 16-char session id
+    // (space-padded) + 32-char RFC destination.
+    const url = breakpointsPostUrl({ debuggeeSessionIds: ["170000007A2F00  a4hsandbox_A4H_00"] });
+    expect(url).toBe(
+      `${DEBUGGER_BREAKPOINTS_PATH}?debuggeeSessionIds=170000007A2F00%20%20a4hsandbox_A4H_00`,
+    );
+  });
+
+  it("post URL joins two debuggeeSessionIds with a literal comma, then percent-encodes the whole value", () => {
+    const url = breakpointsPostUrl({ debuggeeSessionIds: ["sid one", "sid two"] });
+    expect(url).toBe(
+      `${DEBUGGER_BREAKPOINTS_PATH}?debuggeeSessionIds=sid%20one%2Csid%20two`,
+    );
+  });
+
+  it("post URL drops blank entries before joining debuggeeSessionIds, without a stray comma", () => {
+    const url = breakpointsPostUrl({ debuggeeSessionIds: ["sidA", "", "sidB"] });
+    expect(url).toBe(`${DEBUGGER_BREAKPOINTS_PATH}?debuggeeSessionIds=sidA%2CsidB`);
+  });
+
+  it("post URL combines checkConflict and debuggeeSessionIds as separate query params", () => {
+    const url = breakpointsPostUrl({ checkConflict: true, debuggeeSessionIds: ["sidA"] });
+    expect(url).toBe(`${DEBUGGER_BREAKPOINTS_PATH}?checkConflict=true&debuggeeSessionIds=sidA`);
+  });
+
   it("delete URL encodes the server-assigned id as a path segment", () => {
     const url = deleteBreakpointUrl({
       id: "KIND=0.SOURCETYPE=ABAP.MAIN_PROGRAM=ZFOO",
@@ -270,6 +321,81 @@ describe("breakpoints", () => {
     });
     expect(url).toContain(encodeURIComponent("KIND=0.SOURCETYPE=ABAP.MAIN_PROGRAM=ZFOO"));
     expect(url).toContain("scope=external");
+  });
+});
+
+function expectBadInput(fn: () => unknown): unknown {
+  let threw: unknown;
+  try {
+    fn();
+  } catch (e) {
+    threw = e;
+  }
+  expect(threw).toBeDefined();
+  expect(isAbapError(threw)).toBe(true);
+  if (isAbapError(threw)) expect(threw.code).toBe("BAD_INPUT");
+  return threw;
+}
+
+describe("watchpoints", () => {
+  it("watchpointsUrl is the bare collection, no query string", () => {
+    expect(watchpointsUrl()).toBe(DEBUGGER_WATCHPOINTS_PATH);
+  });
+
+  it("createWatchpointUrl percent-encodes variableName and condition into the query string, no path segment", () => {
+    const url = createWatchpointUrl({ variableName: "lv_total", condition: "lv_total > 100" });
+    expect(url).toBe(
+      `${DEBUGGER_WATCHPOINTS_PATH}?variableName=${encodeURIComponent("lv_total")}&condition=${encodeURIComponent("lv_total > 100")}`,
+    );
+  });
+
+  it("createWatchpointUrl omits condition entirely when not given", () => {
+    expect(createWatchpointUrl({ variableName: "lv_total" })).toBe(
+      `${DEBUGGER_WATCHPOINTS_PATH}?variableName=${encodeURIComponent("lv_total")}`,
+    );
+  });
+
+  it("createWatchpointUrl refuses an empty variableName with BAD_INPUT", () => {
+    const e = expectBadInput(() => createWatchpointUrl({ variableName: "" }));
+    expect((e as Error).message).toContain("variableName");
+  });
+
+  it("createWatchpointUrl refuses a blank (whitespace-only) variableName with BAD_INPUT", () => {
+    expectBadInput(() => createWatchpointUrl({ variableName: "   " }));
+  });
+
+  it("watchpointUrl encodes the id as a path segment, no query string", () => {
+    const url = watchpointUrl("KIND=0.SOURCETYPE=ABAP.MAIN_PROGRAM=ZFOO");
+    expect(url).toBe(`${DEBUGGER_WATCHPOINTS_PATH}/${encodeURIComponent("KIND=0.SOURCETYPE=ABAP.MAIN_PROGRAM=ZFOO")}`);
+  });
+
+  it("watchpointUrl refuses an empty id with BAD_INPUT", () => {
+    const e = expectBadInput(() => watchpointUrl(""));
+    expect((e as Error).message).toContain("id");
+  });
+
+  it("watchpointUrl refuses a blank (whitespace-only) id with BAD_INPUT", () => {
+    expectBadInput(() => watchpointUrl("   "));
+  });
+
+  it("modifyWatchpointUrl encodes id as a path segment and condition/active into the query string", () => {
+    const url = modifyWatchpointUrl({ id: "WP1", condition: "lv_total > 100", active: true });
+    expect(url).toBe(`${DEBUGGER_WATCHPOINTS_PATH}/WP1?condition=${encodeURIComponent("lv_total > 100")}&active=true`);
+  });
+
+  it("modifyWatchpointUrl carries active=false literally, not omitted", () => {
+    const url = modifyWatchpointUrl({ id: "WP1", active: false });
+    expect(url).toBe(`${DEBUGGER_WATCHPOINTS_PATH}/WP1?active=false`);
+  });
+
+  it("modifyWatchpointUrl refuses an empty id with BAD_INPUT", () => {
+    const e = expectBadInput(() => modifyWatchpointUrl({ id: "" }));
+    expect((e as Error).message).toContain("id");
+  });
+
+  it("content type / accept are plain XML, same as breakpoints", () => {
+    expect(WATCHPOINTS_CONTENT_TYPE).toBe("application/xml");
+    expect(WATCHPOINTS_ACCEPT).toBe("application/xml");
   });
 });
 
@@ -393,6 +519,37 @@ describe("DEBUGGER_ENDPOINTS — the audit table", () => {
   it("the breakpoints GET entry documents it is not a list endpoint", () => {
     const bp = DEBUGGER_ENDPOINTS.find((e) => e.name === "breakpoints.get.conditionValidator");
     expect(bp?.notes).toMatch(/not a list/i);
+  });
+
+  it("has one row per watchpoint operation, each carrying the watchpoints path and a citation", () => {
+    const names = ["watchpoints.create", "watchpoints.list", "watchpoints.get", "watchpoints.modify", "watchpoints.delete"];
+    for (const name of names) {
+      const entry = DEBUGGER_ENDPOINTS.find((e) => e.name === name);
+      expect(entry, `missing DEBUGGER_ENDPOINTS row: ${name}`).toBeDefined();
+      expect(entry?.path).toContain(DEBUGGER_WATCHPOINTS_PATH);
+      expect(entry?.citation.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("watchpoints.create is a POST carrying variableName/condition and documents the 400/404 rules", () => {
+    const create = DEBUGGER_ENDPOINTS.find((e) => e.name === "watchpoints.create");
+    expect(create?.method).toBe("POST");
+    expect(create?.queryParams).toEqual(["variableName", "condition"]);
+    expect(create?.notes).toMatch(/400/);
+    expect(create?.notes).toMatch(/404/);
+  });
+
+  it("watchpoints.modify is a PUT carrying condition/active", () => {
+    const modify = DEBUGGER_ENDPOINTS.find((e) => e.name === "watchpoints.modify");
+    expect(modify?.method).toBe("PUT");
+    expect(modify?.queryParams).toEqual(["condition", "active"]);
+  });
+
+  it("watchpoints.list/get/delete carry no query parameters", () => {
+    for (const name of ["watchpoints.list", "watchpoints.get", "watchpoints.delete"]) {
+      const entry = DEBUGGER_ENDPOINTS.find((e) => e.name === name);
+      expect(entry?.queryParams).toEqual([]);
+    }
   });
 });
 
