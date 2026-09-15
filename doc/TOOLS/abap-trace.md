@@ -25,8 +25,8 @@ need `canWrite` (`ABAP_MODE=edit` or `admin`) — the same rule that gates
 | `kind` | enum `runs` \| `requests` | `list` only | `runs` | List recorded trace runs, or outstanding trace requests. |
 | `view` | enum `hitlist` \| `db` \| `tree` | `read` only | `hitlist` | Which shape to read a trace back in. |
 | `top` | integer | no | `20`, max `100` | Hit-list rows to return, ranked by net time. |
-| `depth` | integer | no | `4`, max `12` | Call-tree flattening depth, relative to the traced object's own entry node (that node is depth 0) — not the ADT dispatch root. `op=read view=tree` only. |
-| `root` | string | no | — | Anchor the tree view at the first call-tree node whose description or calling-program name matches this text (case-insensitive substring). Overrides the automatic anchor. `op=read view=tree` only. |
+| `depth` | integer | no | `4`, max `12` | Call-tree flattening depth, relative to the traced object's own entry node (that node is depth 0) — not the ADT dispatch root. `op=read view=tree` only; refused `BAD_INPUT` under any other view. |
+| `root` | string | no | — | Anchor the tree view at the first call-tree node whose description or calling-program name matches this text (case-insensitive substring). Overrides the automatic anchor. `op=read view=tree` only; refused `BAD_INPUT` under any other view. |
 | `description` | string | no | `"abapsmith trace"` | Free-text label on the trace request. SAP's own field is short; a longer value is refused, not silently cut. |
 | `aggregate` | boolean | no | `true` | Collapse repeated call events together. See "`tree` needs `aggregate=false`" below. |
 | `sql_trace` | boolean | no | `true` | Include database access — what fills the `db` view. |

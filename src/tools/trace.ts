@@ -201,6 +201,9 @@ const OP_ALLOWED_KEYS: Readonly<Record<TraceOp, ReadonlySet<string>>> = {
   delete: new Set(["id"]),
 };
 
+/** Keys that only mean something for `op="read"` `view="tree"`; refused under any other view. */
+const TREE_ONLY_KEYS = ["depth", "root"] as const;
+
 /** Reads and validates `op`, defaulting to `"run"`. Never touches the network. */
 function resolveOp(args: Record<string, unknown>): TraceOp {
   const raw = args.op;
@@ -240,6 +243,21 @@ function validateOpArgs(args: Record<string, unknown>, op: TraceOp): void {
       { op },
       "Pass the class or report name to trace as `object`.",
     );
+  }
+
+  if (op === "read") {
+    const view = args.view ?? "hitlist";
+    const treeOnly = TREE_ONLY_KEYS.filter((k) => args[k] !== undefined);
+    if (view !== "tree" && treeOnly.length > 0) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `abap_trace op="read" view="${String(view)}" does not take ${treeOnly
+          .map((k) => `\`${k}\``)
+          .join(", ")}; ${treeOnly.length === 1 ? "it applies" : "they apply"} to view="tree" only.`,
+        { op, view, irrelevant: treeOnly },
+        `Drop ${treeOnly.length === 1 ? "that parameter" : "those parameters"}, or pass view="tree".`,
+      );
+    }
   }
 
   if ((op === "read" || op === "delete") && typeof args.id !== "string") {

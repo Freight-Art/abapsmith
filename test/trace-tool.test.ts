@@ -457,6 +457,23 @@ describe("B. argument validation (no network)", () => {
     });
   }
 
+  it.each([
+    { view: undefined, extra: { root: "X" } },
+    { view: "hitlist", extra: { root: "X" } },
+    { view: "db", extra: { depth: 3 } },
+    { view: "hitlist", extra: { depth: 2, root: "METH_A" } },
+  ])("op=read view=$view refuses the tree-only key(s) $extra at zero network cost", async ({ view, extra }) => {
+    const h = await harness();
+    const args: Record<string, unknown> = { op: "read", id: NONAGG_RUN_ID, ...extra };
+    if (view !== undefined) args.view = view;
+    const payload = errorPayload(await h.invoke(args));
+    expect(payload.error).toBe("BAD_INPUT");
+    for (const k of Object.keys(extra)) expect(JSON.stringify(payload)).toContain(k);
+    expect(String(payload.message)).toContain('view="tree"');
+    expect(h.calls).toEqual([]);
+    await h.cleanup();
+  });
+
   it("an explicit `undefined` key is not treated as supplied", async () => {
     const h = await harness({ route: pathRoute({ [TRACES_BASE]: fixture("results-feed-two-runs.xml") }) });
     const res = await h.invoke({ op: "list", kind: undefined, id: undefined });
