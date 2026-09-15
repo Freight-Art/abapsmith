@@ -11,49 +11,56 @@
  * `AbapConnection` and actually call the wire — are never imported or
  * exercised here; only `parseElementInfo`, `isUnresolved`,
  * `parseNavigationTarget`, `splitFragmentUri`, `elementInfoFragmentUri`,
- * `identifierAt` and `implementationsFrom` are.
+ * `identifierAt`, `implementationsFrom`, `parseUsageReferences` and
+ * `noTargetReasonFor` are.
  *
- * `implementationsFrom` itself takes already-parsed where-used rows, not raw
- * XML — production gets those rows from `conn.adt.usageReferences()`,
- * `abap-adt-api`'s own wire client, not from anything in this repo. To drive
- * it from fixture 900's raw bytes, `loadUsageReferenceRows` below re-derives
- * the same flat row shape `implementationsFrom`'s own doc comment specifies
- * (`uri`, `parentUri`, `"adtcore:name"`, `"adtcore:type"`, `packageRef:
- * {"adtcore:name": …}`) directly off the wire XML, the same way
- * `read-description-pairing.test.ts` builds `loadObjectReferences` for its
- * own fixture rather than depending on a vendor parser. This is deliberate,
- * not an oversight: the installed `abap-adt-api@8.4.1`'s own `usageReferences`
- * (`node_modules/abap-adt-api/build/api/syntax.js`) looks up the document by
- * the hardcoded path `"usageReferences:referencedObject"` (capital `R`), but
- * fixture 900's actual wire bytes declare and use the namespace prefix
- * `usagereferences` (all lowercase) throughout — `xmlns:usagereferences=` and
- * every `<usagereferences:…>` tag. Feeding fixture 900 through that vendor
- * function directly (confirmed with a throwaway script against the installed
- * package) returns an EMPTY array, not the two implementers this fixture
- * carries — a vendor-library defect distinct from anything in
- * `element-info.ts`, and out of scope to fix here. `loadUsageReferenceRows`
- * therefore matches the fixture's real lowercase prefix, which is also what
- * `implementationsFrom`'s doc comment describes the row shape as.
+ * `parseUsageReferences` USED TO be re-derived test-locally here (a helper
+ * called `loadUsageReferenceRows`), because production got its where-used
+ * rows from `conn.adt.usageReferences()` — `abap-adt-api`'s own wire client
+ * — and that vendor function is broken for this endpoint: it looks up the
+ * document by the hardcoded path `"usageReferences:referencedObject"`
+ * (capital `R`), but fixture 900's actual wire bytes declare and use the
+ * namespace prefix `usagereferences` (all lowercase) throughout —
+ * `xmlns:usagereferences=` and every `<usagereferences:…>` tag — so feeding
+ * fixture 900 through the vendor function returns an EMPTY array, not the
+ * two implementers this fixture carries. That is no longer a live concern
+ * for this repo: `element-info.ts` now parses where-used itself
+ * (`parseUsageReferences`, prefix-agnostic via `removeNSPrefix: true`) and
+ * no longer calls the vendor function at all, so this file exercises the
+ * real production parser directly instead of a test-local stand-in for it.
  */
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { XMLParser } from "fast-xml-parser";
 import { describe, expect, it } from "vitest";
 import {
   elementInfoFragmentUri,
   identifierAt,
   implementationsFrom,
   isUnresolved,
+  noTargetReasonFor,
   parseElementInfo,
   parseNavigationTarget,
+  parseUsageReferences,
   splitFragmentUri,
 } from "../src/adt/element-info.js";
-import type { ErrorContext } from "../src/adt/session.js";
+import { type ErrorContext, translateAdtError } from "../src/adt/session.js";
+import { type AbapError, isAbapError } from "../src/adt/errors.js";
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), "fixtures", "live-captured");
 const read = (f: string): string => readFileSync(join(FIXTURES, f), "utf8");
 const ctx = (operation: string): ErrorContext => ({ operation });
+
+/** Run `fn`, require an `AbapError`, hand it back for field-level assertions — same convention as `activate.test.ts`'s `catchAbap`. */
+function catchAbap(fn: () => unknown): AbapError {
+  try {
+    fn();
+  } catch (e) {
+    if (isAbapError(e)) return e;
+    throw e;
+  }
+  throw new Error("expected an AbapError, but the call returned normally");
+}
 
 // --------------------------------------------------------- 891-896, 899 --
 
@@ -198,7 +205,44 @@ describe("parseElementInfo replays the captured elementinfo documents", () => {
     // This is a successful, well-formed answer, not an error — isUnresolved
     // is how callers are meant to distinguish "resolved to nothing" from a
     // wire/parse failure, which would have thrown instead of returning here.
+    // (Note for the report: this IS the "899: a nameless elementInfo document
+    // is still unresolved" assertion — kept under its original name rather
+    // than duplicated under a new one.)
     expect(isUnresolved(info)).toBe(true);
+  });
+
+  it("parseElementInfo treats a zero-byte 200 body as no resolvable element", () => {
+    // Live-confirmed 2026-09-15 against A4H: a blank line answers HTTP 200
+    // with a ZERO-BYTE body. Captured at
+    // `/sap/bc/adt/oo/classes/cl_abap_typedescr/source/main#start=6,0`;
+    // status 200, byteLength 0, sha256 the empty-string hash
+    // (e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855). No
+    // fixture file exists for this — there are no bytes to pin — same reason
+    // the repo already has no capture 898. Before the fix this threw
+    // ADT_ERROR ("no <abapsource:elementInfo> element"); it must now answer
+    // the same unresolved shape fixture 899 does.
+    const info = parseElementInfo("", ctx("element info"));
+    expect(isUnresolved(info)).toBe(true);
+    expect(info.children).toEqual([]);
+  });
+
+  it("parseElementInfo treats a declaration-only body as no resolvable element", () => {
+    // A variant of the zero-byte case: the XML declaration with no element
+    // after it at all. Not itself a live capture, but the same "nothing was
+    // sent" shape `hasNoElementAtAll` is written to recognise.
+    const info = parseElementInfo('<?xml version="1.0" encoding="utf-8"?>', ctx("element info"));
+    expect(isUnresolved(info)).toBe(true);
+    expect(info.children).toEqual([]);
+  });
+
+  it("parseElementInfo still throws ADT_ERROR for a document with a different root element", () => {
+    // The guard that defect 2's fix was not widened into swallowing real
+    // errors: an envelope with SOME other root (not `elementInfo`, not just
+    // an XML declaration) must still be treated as a parse failure.
+    const xml = '<?xml version="1.0" encoding="utf-8"?><exc:exception xmlns:exc="x"><exc:message>boom</exc:message></exc:exception>';
+    const err = catchAbap(() => parseElementInfo(xml, ctx("element info")));
+    expect(err.code).toBe("ADT_ERROR");
+    expect(err.message).toContain("<abapsource:elementInfo>");
   });
 });
 
@@ -281,57 +325,77 @@ describe("identifierAt finds the ABAP identifier token covering a position", () 
   });
 });
 
-// ------------------------------------------------------- implementationsFrom --
+// --------------------------------------------------- parseUsageReferences --
 
-/**
- * Flat where-used row, re-derived off fixture 900's raw XML the same way
- * `implementationsFrom`'s own doc comment describes `abap-adt-api`'s
- * `usageReferences` as shaping it: the `referencedObject`'s own `uri` /
- * `parentUri` attributes, spread with its nested `adtObject`'s attributes
- * (`adtcore:name`, `adtcore:type` when present), plus `packageRef` lifted
- * from `adtObject`'s own nested `packageRef` element. See the module
- * doc comment at the top of this file for why this is NOT simply a call to
- * the vendor's own `usageReferences` function against this fixture.
- */
-function loadUsageReferenceRows(file: string): Record<string, unknown>[] {
-  const parser = new XMLParser({
-    ignoreAttributes: false,
-    attributeNamePrefix: "@_",
-    parseAttributeValue: true,
-    isArray: (_name, jpath) => jpath === "usagereferences:usageReferenceResult.usagereferences:referencedObjects.usagereferences:referencedObject",
-  });
-  const doc = parser.parse(read(file)) as Record<string, unknown>;
-  const result = doc["usagereferences:usageReferenceResult"] as Record<string, unknown>;
-  const objects = result["usagereferences:referencedObjects"] as Record<string, unknown>;
-  const rows = objects["usagereferences:referencedObject"] as Record<string, unknown>[];
+describe("parseUsageReferences reads a where-used result regardless of the namespace prefix on the wire", () => {
+  it("900: parseUsageReferences reads the lowercase usagereferences: prefix A4H actually sends", () => {
+    const rows = parseUsageReferences(read("900-i91-usage-references-interface-method.xml"), ctx("usage references"));
+    // Sanity on the fixture itself before trusting assertions built on top of
+    // it: 5 referencedObject rows (2 classes, 2 implementer methods, 1 caller
+    // method) plus the $TMP package row — 6 total, matching what was dumped
+    // from the raw XML while building this test.
+    expect(rows).toHaveLength(6);
 
-  const attrsOf = (node: unknown): Record<string, unknown> => {
-    const rec = (node !== null && typeof node === "object" ? (node as Record<string, unknown>) : {}) as Record<
-      string,
-      unknown
-    >;
-    const out: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(rec)) {
-      if (key.startsWith("@_") && key !== "@_xmlns" && !key.startsWith("@_xmlns:")) out[key.slice(2)] = value;
+    const implementerRows = rows.filter((r) => r["adtcore:name"] === "ZIF_I91_PROBE~PROCESS");
+    expect(implementerRows).toHaveLength(2);
+    for (const row of implementerRows) {
+      expect(typeof row.uri).toBe("string");
+      expect(typeof row.parentUri).toBe("string");
+      expect(row["adtcore:name"]).toBe("ZIF_I91_PROBE~PROCESS");
+      const packageRef = row.packageRef as Record<string, unknown>;
+      expect(packageRef["adtcore:name"]).toBe("$TMP");
     }
-    return out;
-  };
 
-  return rows.map((row) => {
-    const adtObject = (row["usagereferences:adtObject"] ?? {}) as Record<string, unknown>;
-    const packageRefNode = adtObject["adtcore:packageRef"];
-    return {
-      ...attrsOf(row),
-      ...attrsOf(adtObject),
-      packageRef: attrsOf(packageRefNode),
-      objectIdentifier: typeof row["objectIdentifier"] === "string" ? row["objectIdentifier"] : "",
-    };
+    const classRow = rows.find((r) => r["adtcore:name"] === "ZCL_I91_PROBE");
+    expect(classRow).toBeDefined();
+    expect(classRow?.uri).toBe("/sap/bc/adt/oo/classes/zcl_i91_probe");
+    const classPackageRef = classRow?.packageRef as Record<string, unknown>;
+    expect(classPackageRef["adtcore:name"]).toBe("$TMP");
+
+    const packageRow = rows.find((r) => r["adtcore:name"] === "$TMP");
+    expect(packageRow).toBeDefined();
   });
-}
+
+  it("900: parseUsageReferences reads the capitalised usageReferences: prefix the vendor library expects", () => {
+    // SYNTHETIC variant, not a live capture: no system has been observed
+    // sending the capitalised `usageReferences:` prefix — it is only the
+    // shape `abap-adt-api@8.4.1`'s own (broken) reader hardcodes. The point
+    // of this test is that `parseUsageReferences` is prefix-agnostic either
+    // way, via `usageReferencesXml`'s `removeNSPrefix: true` — not that any
+    // real system sends this spelling.
+    const original = read("900-i91-usage-references-interface-method.xml");
+    const recapitalised = original
+      .replace(/xmlns:usagereferences=/g, "xmlns:usageReferences=")
+      .replace(/usagereferences:/g, "usageReferences:");
+    expect(recapitalised).not.toBe(original);
+
+    const rowsLower = parseUsageReferences(original, ctx("usage references"));
+    const rowsUpper = parseUsageReferences(recapitalised, ctx("usage references"));
+    expect(rowsUpper).toEqual(rowsLower);
+  });
+
+  it("parseUsageReferences returns no rows for a result document with no referencedObjects", () => {
+    const xml =
+      '<?xml version="1.0" encoding="utf-8"?>' +
+      '<usagereferences:usageReferenceResult numberOfResults="0" ' +
+      'xmlns:usagereferences="http://www.sap.com/adt/ris/usageReferences">' +
+      "<usagereferences:scope/>" +
+      "</usagereferences:usageReferenceResult>";
+    expect(parseUsageReferences(xml, ctx("usage references"))).toEqual([]);
+  });
+
+  it("parseUsageReferences throws ADT_ERROR when the root element is missing", () => {
+    const xml = '<?xml version="1.0" encoding="utf-8"?><exc:exception xmlns:exc="x"><exc:message>nope</exc:message></exc:exception>';
+    const err = catchAbap(() => parseUsageReferences(xml, ctx("usage references")));
+    expect(err.code).toBe("ADT_ERROR");
+  });
+});
+
+// ------------------------------------------------------- implementationsFrom --
 
 describe("implementationsFrom picks the implementer rows out of a where-used result", () => {
   it("900: finds both ZCL_I91_PROBE and ZCL_I91_PROBE2 as implementers, each real-cased via its parentUri sibling, and excludes the RUN caller row", () => {
-    const rows = loadUsageReferenceRows("900-i91-usage-references-interface-method.xml");
+    const rows = parseUsageReferences(read("900-i91-usage-references-interface-method.xml"), ctx("usage references"));
     // Sanity on the fixture itself before trusting assertions built on top of
     // it: 5 referencedObject rows (2 classes, 2 implementer methods, 1 caller
     // method) plus the $TMP package row — 6 total, matching what was dumped
@@ -359,9 +423,85 @@ describe("implementationsFrom picks the implementer rows out of a where-used res
   });
 
   it("900: the caller row alone (without the interface-method rows) yields no implementers", () => {
-    const rows = loadUsageReferenceRows("900-i91-usage-references-interface-method.xml");
+    const rows = parseUsageReferences(read("900-i91-usage-references-interface-method.xml"), ctx("usage references"));
     const runRowOnly = rows.filter((r) => r["adtcore:name"] === "RUN");
     expect(runRowOnly).toHaveLength(1);
     expect(implementationsFrom(runRowOnly, "ZIF_I91_PROBE", "PROCESS")).toEqual([]);
+  });
+
+  it("900: implementationsFrom over parseUsageReferences finds both implementing classes", () => {
+    const rows = parseUsageReferences(read("900-i91-usage-references-interface-method.xml"), ctx("usage references"));
+    const implementations = implementationsFrom(rows, "ZIF_I91_PROBE", "PROCESS");
+    const names = implementations.map((i) => i.className).sort();
+    expect(names).toEqual(["ZCL_I91_PROBE", "ZCL_I91_PROBE2"]);
+    for (const impl of implementations) {
+      expect(impl.methodName).toBe("ZIF_I91_PROBE~PROCESS");
+      expect(impl.packageName).toBe("$TMP");
+    }
+    expect(implementations.map((i) => i.className).includes("ZCL_I91_PROBE2")).toBe(true);
+  });
+});
+
+// -------------------------------------------------------- noTargetReasonFor --
+
+/**
+ * `noTargetReasonFor` is pure over a plain thrown-exception shape plus the
+ * `AbapError` `translateAdtError` already turned it into — it takes no
+ * connection, so it is covered directly here rather than through
+ * `findDefinitionTarget` (which this file does not import or call; see the
+ * module header). `translateAdtError` itself is pure over a plain object
+ * too, so building the "thrown exception" as a literal below and running it
+ * through both is a faithful, no-network replay of what
+ * `findDefinitionTarget`'s catch block actually does.
+ */
+describe("noTargetReasonFor classifies why ADT declined to name a navigation target", () => {
+  it("ED263 NavigationFailure classifies as declaration-itself", () => {
+    // Live-captured 2026-09-15 against A4H at
+    // `/sap/bc/adt/oo/classes/cl_abap_typedescr/source/main#start=21,7;end=21,20`
+    // (`  data ABSOLUTE_NAME type ABAP_ABSTYPENAME read-only .` — a
+    // variable's own declaration), reproduced identically at lines 23 and 27.
+    // The thrown object's shape, dumped in full: constructor
+    // `AdtErrorException`, `err: 400`, `type: "NavigationFailure"`,
+    // `namespace: "com.sap.adt"`, `properties: {"T100KEY-ID": "ED",
+    // "T100KEY-NO": "263"}`, `message`/`localizedMessage`: "Definition
+    // location found; where-used list may be possible", no response body.
+    const e = {
+      err: 400,
+      type: "NavigationFailure",
+      namespace: "com.sap.adt",
+      properties: { "T100KEY-ID": "ED", "T100KEY-NO": "263" },
+      message: "Definition location found; where-used list may be possible",
+      localizedMessage: "Definition location found; where-used list may be possible",
+    };
+    const translated = translateAdtError(e, ctx("navigation target"));
+    expect(noTargetReasonFor(e, translated)).toBe("declaration-itself");
+  });
+
+  it("a navigation-target error saying the target is undecidable classifies as undecidable", () => {
+    // The other live-observed "no target" shape (see NAVIGATION_UNDECIDABLE_RE's
+    // doc comment in element-info.ts): never captured with its properties, so
+    // unlike ED263 above it has no T100 key — the message is the only
+    // evidence, matched via `noTargetReasonFor`'s tier 3 (no type available).
+    const e = {
+      err: 400,
+      message: "Navigation target undecidable: More than one implementation exists",
+    };
+    const translated = translateAdtError(e, ctx("navigation target"));
+    expect(noTargetReasonFor(e, translated)).toBe("undecidable");
+  });
+
+  it("an unrelated ADT error is not classified as a missing navigation target", () => {
+    // A 403 ExceptionResourceNoAccess (the "someone else holds the lock"
+    // shape used elsewhere in this codebase) has nothing to do with
+    // navigation targets at all — must not be misread as either "no target"
+    // reason.
+    const e = {
+      err: 403,
+      type: "ExceptionResourceNoAccess",
+      properties: {},
+      message: "Cannot access object, it is locked",
+    };
+    const translated = translateAdtError(e, ctx("navigation target"));
+    expect(noTargetReasonFor(e, translated)).toBeUndefined();
   });
 });

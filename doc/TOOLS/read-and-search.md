@@ -61,10 +61,15 @@ The response can carry up to five parts:
   for it. Only class and interface targets get the object/type filled in;
   other target kinds still report the location, without a guessed call.
 - **SIGNATURE** (methods, function modules) or **COMPONENTS** (structured
-  types): a table of parameters or fields.
+  types): a table of parameters or fields. A callable with no parameters —
+  an interface method, a class method, or a function module (every one,
+  see the FUGR/FF bullet below) — renders SIGNATURE as `(none)` rather than
+  omitting the section.
 - **DOC**: short text and ABAP Doc for the identifier, if any.
 - **IMPLEMENTED BY** (interface methods only): the implementing classes,
-  from a where-used lookup — see below.
+  from a where-used lookup — see below. Reached either from a use site
+  whose navigation target resolves into the interface, or directly from
+  the interface's own method declaration — see below.
 
 **Position convention.** `line` is 1-based and `column` is 0-based — the
 same convention `abap_quick_fix` uses. This differs from `offset`/`limit`
@@ -102,10 +107,37 @@ the wire protocol, not evidence of a side effect.
   SIGNATURE section for a function module is this limitation, not "no
   parameters."
 - **A position with nothing resolvable is a successful answer, not an
-  error.** ADT can answer HTTP 200 with an element-info document that names
-  no element at all (fixture 899). abapsmith reports this as "no resolvable
-  element at line L, column C" — a fact about the position, not a lookup
-  failure.
+  error.** ADT answers HTTP 200 either way, in one of two wire shapes:
+  fixture 899's well-formed element-info document that names no element at
+  all, or a zero-byte 200 body at a genuinely blank line (live-observed
+  A4H, 2026-09-15). There is no fixture file for the zero-byte case —
+  there are no bytes to pin, the same reason capture 898 is omitted from
+  the repository. Either shape, abapsmith reports "no resolvable element
+  at line L, column C" — a fact about the position, not a lookup failure.
+- **A declaration site can go unreported for three different reasons, and
+  the rest of the response still resolves.** The DEFINITION section can
+  come back with no "declared at" line because: the position asked about
+  IS the declaration itself, which ADT reports as HTTP 400,
+  `NavigationFailure`, T100 key `ED`/`263`, "Definition location found;
+  where-used list may be possible" (live-captured against
+  `CL_ABAP_TYPEDESCR`'s `data ABSOLUTE_NAME …` line, A4H 2026-09-15);
+  more than one implementation exists, so the declaration site is
+  undecidable from this position; or ADT returned a target document that
+  names no URI. All three are reported as prose in the DEFINITION section,
+  not as an error — the header fields, SIGNATURE/COMPONENTS, DOC and
+  IMPLEMENTED BY sections are all still answered from the element-info
+  call, which is unaffected; only the "declared at" line is missing.
+- **IMPLEMENTED BY runs from either of two starting points.** (a) A use
+  site whose navigation target resolves into the interface — e.g. reading
+  a class that calls `zif_x~run` through an interface reference, where the
+  element info at `run` resolves to `INTF/IO` and the navigation target
+  names the interface. (b) The object being read IS the interface
+  (`INTF/OI`) — at the interface's own `METHODS run` declaration line, ADT
+  names no navigation target (the position already is the declaration, see
+  the ED263 case above), so there is nothing to navigate to; the
+  where-used lookup runs anyway, using the position asked about as the
+  declaration site. (b) is the natural "who implements this?" question
+  asked from the one place navigation cannot answer it.
 - **The implementer list is where-used-based, so it is static-analysis
   only.** `CALL FUNCTION lv_name`, `PERFORM (lv_form)`, `SUBMIT (lv_prog)`
   and other dynamic dispatch do not appear — the same blind spot
@@ -132,12 +164,20 @@ type, a local variable, a class's own method, and a function-module name
 literal (fixtures 891-896); `navigation/target?filter=definition`
 (fixture 897); the no-resolvable-element answer (fixture 899); and
 `usageReferences` for an interface method's implementers (fixture 900).
-Still not verified live: the full refusal matrix above, and the rendering
-of every response shape into the DEFINITION/SIGNATURE/COMPONENTS/DOC/
-IMPLEMENTED BY sections — both are covered only by
-`test/read-definition.test.ts` and `test/element-info-wire.test.ts`, which
-replay the captured fixtures against a fake connection rather than hitting
-a live server end to end.
+`live` (A4H, 2026-09-15), a second pass: `usageReferences` returns no
+implementers when read through `abap-adt-api`'s own vendor
+`usageReferences()` parser — the namespace-prefix defect (capitalised
+`usageReferences:` expected, lowercase `usagereferences:` actually sent)
+that motivated parsing where-used locally instead; the zero-byte 200 body
+at a blank line; and the `NavigationFailure` / ED263 answer at a position
+that is itself a declaration, captured against `CL_ABAP_TYPEDESCR`'s `data
+ABSOLUTE_NAME …` line. Still not verified live: the full refusal matrix
+above, and the rendering of the three paths fixed on 2026-09-15 — the
+declaration-itself wording, `SIGNATURE (none)`, and `IMPLEMENTED BY`
+reached from an interface's own declaration — which are `tests`-only,
+covered by `test/read-definition.test.ts` and `test/element-info-wire.test.ts`
+against a fake connection, and have not themselves been re-run end to end
+against a live server.
 
 Example — resolving what `lo_probe->process( )` is and where it comes from:
 
@@ -148,6 +188,19 @@ Example — resolving what `lo_probe->process( )` is and where it comes from:
   "view": "definition",
   "line": 35,
   "column": 25
+}
+```
+
+Example — asking IMPLEMENTED BY directly at the interface's own method
+declaration (entry point (b) above), rather than from a use site:
+
+```json
+{
+  "object": "ZIF_MY_PROBE",
+  "type": "INTF/OI",
+  "view": "definition",
+  "line": 3,
+  "column": 11
 }
 ```
 

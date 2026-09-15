@@ -12,10 +12,17 @@
  *      &filter=definition`, same headers and body. Answers `application/xml`:
  *      a single `adtcore:objectReference adtcore:uri="…"` naming the
  *      declaration site — see {@link parseNavigationTarget}.
- *   3. `usageReferences` (via `conn.adt.usageReferences`, `abap-adt-api`'s own
- *      wire client, not reimplemented here) at an interface method's
- *      declaration — the implementing classes are among the rows it returns,
- *      see {@link implementationsFrom}.
+ *   3. `POST /sap/bc/adt/repository/informationsystem/usageReferences?uri=…`
+ *      at an interface method's declaration — the implementing classes are
+ *      among the rows it returns, see {@link implementationsFrom}. This IS
+ *      reimplemented here (wire call in {@link findImplementations}, parsing
+ *      in {@link parseUsageReferences}), not left to `abap-adt-api`'s own
+ *      `conn.adt.usageReferences()`: that vendor function's answer-reading
+ *      path is broken for this endpoint (hardcodes the capitalised
+ *      `usageReferences:` namespace prefix; A4H sends the lowercase
+ *      `usagereferences:` prefix throughout, fixture 900) and always returns
+ *      an empty array against a real A4H response — live-confirmed 2026-09-15,
+ *      see {@link parseUsageReferences}'s doc comment.
  *
  * Every wire fact below is measured against `test/fixtures/live-captured/`
  * 891-…-900-… (`i91-*`), not inferred from a spec — each fixture's `.meta.json` `note`
@@ -28,7 +35,7 @@
 import { XMLParser } from "fast-xml-parser";
 import type { AbapConnection } from "./connection.js";
 import { AbapError } from "./errors.js";
-import { type ErrorContext, translateAdtError } from "./session.js";
+import { adtExceptionInfo, type ErrorContext, translateAdtError } from "./session.js";
 import { PARSE_EXCERPT_MAX, truncateText } from "../truncate.js";
 
 export interface SourcePosition {
@@ -38,6 +45,7 @@ export interface SourcePosition {
 
 export const ELEMENT_INFO_URL = "/sap/bc/adt/abapsource/codecompletion/elementinfo";
 export const NAVIGATION_TARGET_URL = "/sap/bc/adt/navigation/target";
+export const USAGE_REFERENCES_URL = "/sap/bc/adt/repository/informationsystem/usageReferences";
 /** Both endpoints' `Accept` — fixtures 891-897. Their `Content-Type` is always `text/plain`, not this. */
 export const ELEMENT_INFO_MEDIA_TYPE = "application/*";
 
@@ -77,6 +85,31 @@ const elementInfoXml = new XMLParser({
       jpath.endsWith("elementInfo.elementInfo")),
 });
 
+/**
+ * Where-used documents get their OWN parser instance rather than reusing
+ * `elementInfoXml`: neither of that parser's `isArray` predicates can ever
+ * fire on this document (it has no `properties.entry`, `elementInfo.documentation`
+ * or `elementInfo.elementInfo` path), but a where-used answer DOES need
+ * `referencedObject` array-coerced — a one-row answer must not collapse to a
+ * bare object — which `elementInfoXml` does not do. `removeNSPrefix: true`
+ * is the load-bearing option here: it is what makes {@link parseUsageReferences}
+ * immune to A4H answering with the lowercase `usagereferences:` namespace
+ * prefix while `abap-adt-api`'s own (broken) reader hardcodes the capitalised
+ * `usageReferences:` — both collapse to the same unprefixed tag/attribute
+ * names, so either spelling parses identically (see the two 900 tests in
+ * `test/element-info-wire.test.ts` asserting exactly that).
+ */
+const usageReferencesXml = new XMLParser({
+  ignoreAttributes: false,
+  attributeNamePrefix: "@_",
+  removeNSPrefix: true,
+  parseAttributeValue: false,
+  parseTagValue: false,
+  trimValues: false,
+  isArray: (_name, jpath, _isLeaf, isAttribute) =>
+    !isAttribute && typeof jpath === "string" && jpath.endsWith("referencedObjects.referencedObject"),
+});
+
 type Rec = Record<string, unknown>;
 
 function asRecord(value: unknown): Rec | undefined {
@@ -103,10 +136,10 @@ function elementText(value: unknown): string | undefined {
   return typeof text === "string" ? text : "";
 }
 
-function parseXmlDocument(body: string, what: string, ctx: ErrorContext): Rec {
+function parseXmlDocument(body: string, what: string, ctx: ErrorContext, parser: XMLParser = elementInfoXml): Rec {
   let parsed: unknown;
   try {
-    parsed = elementInfoXml.parse(body);
+    parsed = parser.parse(body);
   } catch (e) {
     throw new AbapError(
       "ADT_ERROR",
@@ -196,16 +229,55 @@ export function elementInfoFragmentUri(sourceUri: string, pos: SourcePosition): 
   return `${sourceUri}#start=${pos.line},${pos.column}`;
 }
 
+/** The unresolved-position answer: `isUnresolved()` true, no children, no name/type. Returned, never thrown, for both shapes {@link hasNoElementAtAll} recognises. */
+const UNRESOLVED_ELEMENT_INFO: ElementInfoEntry = { properties: {}, children: [] };
+
+/**
+ * True when a parsed elementinfo document carries no `<abapsource:elementInfo>`
+ * element AT ALL — as opposed to one with a *different*, unrecognised root
+ * element, which is still a real parse failure and must still throw.
+ *
+ * Two live shapes collapse to this:
+ *  - an empty (`""`) or whitespace-only body — live-confirmed 2026-09-15
+ *    against A4H, `/sap/bc/adt/oo/classes/cl_abap_typedescr/source/main
+ *    #start=6,0` (a blank line): HTTP 200, a ZERO-BYTE body (`byteLength: 0`,
+ *    sha256 of the empty string). No fixture file exists for this one —
+ *    there are no bytes to pin — the same reason the repo already has no
+ *    capture 898.
+ *  - a body that parses to a document whose only keys are the XML
+ *    declaration (`"?xml"`) and/or a whitespace-only `"#text"` — i.e. a
+ *    declaration with no element after it at all, e.g.
+ *    `'<?xml version="1.0" encoding="utf-8"?>'` on its own.
+ *
+ * Deliberately narrow: a document with a real, different root (an
+ * `<exc:exception>` envelope, say) has OTHER keys besides `?xml`/`#text`, so
+ * this returns `false` for it and `parseElementInfo` still throws — this
+ * function's whole job is telling "nothing was sent" apart from "something
+ * else was sent", not softening every missing-root case into an answer.
+ */
+function hasNoElementAtAll(body: string, doc: Rec): boolean {
+  if (body.trim() === "") return true;
+  return Object.keys(doc).every((key) => {
+    if (key === "?xml") return true;
+    if (key === "#text") return typeof doc[key] !== "string" || (doc[key] as string).trim() === "";
+    return false;
+  });
+}
+
 /**
  * Parses an elementinfo document. Throws `AbapError` on unparseable XML
- * (excerpt-truncated, like `quickfix.ts`'s `missingRoot`) — but NOT on a
- * resolved-to-nothing answer (899), which is a well-formed
- * `<abapsource:elementInfo>` with no `adtcore:name`; see {@link isUnresolved}.
+ * (excerpt-truncated, like `quickfix.ts`'s `missingRoot`), or on a document
+ * with some OTHER, unrecognised root element — but NOT on either of the two
+ * "nothing resolvable here" shapes: fixture 899's well-formed, nameless
+ * `<abapsource:elementInfo>`, or a zero-byte/declaration-only 200 body (see
+ * {@link hasNoElementAtAll}). Both answer {@link UNRESOLVED_ELEMENT_INFO} (or
+ * the 899 shape's own parsed equivalent), not a throw; see {@link isUnresolved}.
  */
 export function parseElementInfo(xml: string, ctx: ErrorContext): ElementInfoEntry {
   const doc = parseXmlDocument(xml, "element info", ctx);
   const rootValue = doc["elementInfo"];
   if (rootValue === undefined) {
+    if (hasNoElementAtAll(xml, doc)) return UNRESOLVED_ELEMENT_INFO;
     throw new AbapError(
       "ADT_ERROR",
       `The element info response has no <abapsource:elementInfo> element.`,
@@ -216,7 +288,15 @@ export function parseElementInfo(xml: string, ctx: ErrorContext): ElementInfoEnt
   return parseElementInfoNode(rootValue);
 }
 
-/** True when the server resolved nothing at that position (no `adtcore:name`) — fixture 899, HTTP 200 either way. */
+/**
+ * True when the server resolved nothing at that position — no `adtcore:name`
+ * on the (possibly synthetic) root. Two shapes reach here, both HTTP 200:
+ * fixture 899's well-formed `<abapsource:elementInfo>` with no `adtcore:name`
+ * (a blank-ish position that still names an element context), and a
+ * zero-byte/declaration-only body (live-confirmed 2026-09-15, a genuinely
+ * blank line — see {@link hasNoElementAtAll}), which `parseElementInfo` maps
+ * to the same nameless, childless entry rather than throwing.
+ */
 export function isUnresolved(info: ElementInfoEntry): boolean {
   return info.name === undefined;
 }
@@ -296,23 +376,98 @@ export function parseNavigationTarget(xml: string, ctx: ErrorContext): Definitio
  * declining to name a target rather than answering an empty document. Matched
  * on this one phrase, corroborating-only in spirit but the only evidence that
  * exists for it; not extended to any other ADT_ERROR text since none of those
- * are known to mean "no target", only "something else went wrong".
+ * are known to mean "no target", only "something else went wrong". Still the
+ * only evidence for tier 3 of {@link noTargetReasonFor} below: unlike the
+ * ED263 capture, this exception was never dumped with its `.properties`, so
+ * there is no T100 key to match on instead.
+ *
+ * Compare the OTHER, fully-captured "no target" shape, live-confirmed
+ * 2026-09-15 against A4H at `/sap/bc/adt/oo/classes/cl_abap_typedescr/source
+ * /main#start=21,7;end=21,20` (`  data ABSOLUTE_NAME type ABAP_ABSTYPENAME
+ * read-only .`), reproduced identically at lines 23 and 27 — a position that
+ * IS a variable's own declaration:
+ *   - constructor `AdtErrorException`, `err: 400`
+ *   - `type: "NavigationFailure"`, `namespace: "com.sap.adt"`
+ *   - `properties: { "T100KEY-ID": "ED", "T100KEY-NO": "263" }`
+ *   - `message`/`localizedMessage`: "Definition location found; where-used
+ *     list may be possible"
+ *   - no response body at all
+ * That one IS matched on the T100 key (`noTargetReasonFor`'s tier 1), not on
+ * this message text, per this repo's own rule (`isLockConflict`'s doc
+ * comment in `session.ts`: "match on T100KEY, never on prose") — the message
+ * string is capture-specific prose with no guarantee of surviving an ADT
+ * patch, the T100 key is the stable identifier SAP itself assigns the
+ * message class/number.
  */
 const NAVIGATION_UNDECIDABLE_RE = /undecidable/i;
+
+/** Why ADT declined to name a navigation target. */
+export type NoTargetReason = "declaration-itself" | "undecidable" | "unnamed";
+
+/** Result of the navigation-target lookup: a target, or the reason there is none. */
+export interface NavigationLookup {
+  readonly target?: DefinitionTarget;
+  readonly noTargetReason?: NoTargetReason;
+}
+
+/**
+ * Classifies a thrown navigation-target exception as a known "no target"
+ * shape, or `undefined` if it is not one (caller must rethrow `translated`
+ * in that case — this function never decides that something should be
+ * swallowed, only what it means when {@link findDefinitionTarget} already
+ * decided to).
+ *
+ * Tiers, in order, each corroborating a distinct piece of live evidence (see
+ * {@link NAVIGATION_UNDECIDABLE_RE}'s doc comment for both captures in full):
+ *   1. `T100KEY-ID: "ED"` + `T100KEY-NO: "263"` on the raw exception — the
+ *      live-captured ED263 key, the strongest evidence here and the only
+ *      tier that is not prose-matching.
+ *   2. `type === "NavigationFailure"` AND the translated message matches
+ *      {@link NAVIGATION_UNDECIDABLE_RE} — the type corroborates the message
+ *      when both happen to be available.
+ *   3. The translated message alone matches {@link NAVIGATION_UNDECIDABLE_RE}
+ *      when no type is available to corroborate with — this is the
+ *      "undecidable" case's ENTIRE evidence (see above), so this tier keeps
+ *      `findDefinitionTarget`'s original message-only behaviour intact for
+ *      it rather than tightening it into requiring a type this exception was
+ *      never observed carrying.
+ * Anything else returns `undefined`, and the caller rethrows.
+ */
+export function noTargetReasonFor(e: unknown, translated: AbapError): NoTargetReason | undefined {
+  const info = adtExceptionInfo(e);
+  if (info?.properties["T100KEY-ID"] === "ED" && info.properties["T100KEY-NO"] === "263") {
+    return "declaration-itself";
+  }
+  if (info?.type === "NavigationFailure" && NAVIGATION_UNDECIDABLE_RE.test(translated.message)) {
+    return "undecidable";
+  }
+  if (info?.type === undefined && NAVIGATION_UNDECIDABLE_RE.test(translated.message)) {
+    return "undecidable";
+  }
+  return undefined;
+}
 
 /**
  * `filter=definition` only — `filter=implementation` is unusable for an
  * interface method (see {@link NAVIGATION_UNDECIDABLE_RE}'s doc comment);
  * {@link findImplementations} is the where-used-based replacement for that
- * case. `undefined` when ADT declines to name a target, which is a fact
- * about the position, not a failure — everything else still throws.
+ * case. A `noTargetReason` result (no `target`) means ADT declined to name a
+ * target, which is a fact about the position, not a failure — everything
+ * else still throws. Three ways that happens:
+ *   - `parseNavigationTarget` returned `undefined` (root present, no
+ *     `adtcore:uri`) → `"unnamed"`.
+ *   - the wire call itself threw ED263 ("you are already at the
+ *     declaration") → `"declaration-itself"`.
+ *   - the wire call threw the "undecidable" shape → `"undecidable"`.
+ * See {@link noTargetReasonFor} for how the thrown-exception cases are told
+ * apart.
  */
 export async function findDefinitionTarget(
   conn: AbapConnection,
   sourceUri: string,
   range: { readonly line: number; readonly startColumn: number; readonly endColumn: number },
   source: string,
-): Promise<DefinitionTarget | undefined> {
+): Promise<NavigationLookup> {
   const ctx: ErrorContext = { operation: "navigation target", uri: sourceUri };
   const fragment = `${sourceUri}#start=${range.line},${range.startColumn};end=${range.line},${range.endColumn}`;
   let body: string;
@@ -324,10 +479,12 @@ export async function findDefinitionTarget(
     }));
   } catch (e) {
     const translated = translateAdtError(e, ctx);
-    if (NAVIGATION_UNDECIDABLE_RE.test(translated.message)) return undefined;
+    const noTargetReason = noTargetReasonFor(e, translated);
+    if (noTargetReason !== undefined) return { noTargetReason };
     throw translated;
   }
-  return parseNavigationTarget(body, ctx);
+  const target = parseNavigationTarget(body, ctx);
+  return target !== undefined ? { target } : { noTargetReason: "unnamed" };
 }
 
 // -------------------------------------------------------------- identifiers --
@@ -379,12 +536,106 @@ function classNameFromUri(uri: string | undefined): string | undefined {
 }
 
 /**
+ * Byte-for-byte the body `abap-adt-api@8.4.1`'s own `usageReferences`
+ * function sends (`node_modules/abap-adt-api/build/api/syntax.js`) and that
+ * fixture 900's capture actually used — 229 bytes, confirmed against that
+ * fixture's own `.meta.json` `requestBodyBytes`. Reproduced verbatim,
+ * including the vendor's own odd indentation (two then four then two
+ * spaces): the SERVER accepts this shape fine (fixture 900 got a 200 back
+ * from it), so only the vendor's READ of the answer is wrong, not this
+ * request. The lowercase `usagereferences` prefix here is irrelevant to
+ * whether the server understands it — {@link parseUsageReferences} parses
+ * the ANSWER prefix-agnostically regardless of what this request declares.
+ */
+const USAGE_REFERENCES_REQUEST_BODY = `<?xml version="1.0" encoding="ASCII"?>
+  <usagereferences:usageReferenceRequest xmlns:usagereferences="http://www.sap.com/adt/ris/usageReferences">
+    <usagereferences:affectedObjects/>
+  </usagereferences:usageReferenceRequest>`;
+
+/**
+ * Parses a where-used (`usageReferences`) answer into the flat row shape
+ * {@link implementationsFrom} expects and that `abap-adt-api`'s own
+ * `usageReferences()` used to be the sole source of. Reimplemented here
+ * because that vendor function's answer-reading path is broken for this
+ * endpoint: it looks up the document via the hardcoded, case-sensitive path
+ * `"usageReferences:usageReferenceResult" / "usageReferences:referencedObjects"
+ * / "usageReferences:referencedObject"` (capital `R`), but A4H's actual wire
+ * bytes declare and use the lowercase prefix `usagereferences` throughout —
+ * `xmlns:usagereferences=` and every `<usagereferences:…>` tag (fixture 900).
+ * Fed fixture 900 directly, that vendor function returns an EMPTY array, not
+ * the two implementers the fixture carries (confirmed with a throwaway
+ * script against the installed package) — live-confirmed as the root cause
+ * of `abap_read`'s "no implementing classes found" answer 2026-09-15 against
+ * `ZCL_V91_PROBE`, which does have two implementers.
+ *
+ * `usageReferencesXml`'s `removeNSPrefix: true` is what makes this immune to
+ * either prefix spelling: both `usagereferences:referencedObject` and the
+ * vendor's expected `usageReferences:referencedObject` collapse to the same
+ * unprefixed `referencedObject` tag, and `adtcore:name` collapses to the
+ * attribute `@_name` regardless of which element declared the `adtcore`
+ * prefix. See the two 900 tests in `test/element-info-wire.test.ts` that
+ * feed both spellings through this function and assert identical rows.
+ *
+ * Root (`usageReferenceResult`) missing ⇒ throws `AbapError("ADT_ERROR", …)`,
+ * same convention as {@link parseElementInfo} / {@link parseNavigationTarget}.
+ * Root present but `referencedObjects` absent or empty ⇒ `[]` — a legitimate
+ * "nothing uses this" answer, not a failure.
+ */
+export function parseUsageReferences(xml: string, ctx: ErrorContext): Record<string, unknown>[] {
+  const doc = parseXmlDocument(xml, "usage references", ctx, usageReferencesXml);
+  const rootValue = doc["usageReferenceResult"];
+  if (rootValue === undefined) {
+    throw new AbapError(
+      "ADT_ERROR",
+      `The usage references response has no <usagereferences:usageReferenceResult> element.`,
+      { operation: ctx.operation, uri: ctx.uri, preview: truncateText(xml, PARSE_EXCERPT_MAX) },
+      "This ADT release may answer where-used differently from what this client expects.",
+    );
+  }
+  const root = asRecord(rootValue);
+  const referencedObjects = asRecord(root?.["referencedObjects"]);
+  if (referencedObjects === undefined) return [];
+
+  const rows: Record<string, unknown>[] = [];
+  for (const raw of asArray(referencedObjects["referencedObject"])) {
+    const row = asRecord(raw);
+    if (row === undefined) continue;
+    const adtObject = asRecord(row["adtObject"]) ?? {};
+    const packageRefNode = asRecord(adtObject["packageRef"]);
+    const packageRef: Record<string, unknown> = {};
+    const packageName = attr(packageRefNode, "name");
+    const packageUri = attr(packageRefNode, "uri");
+    const packageType = attr(packageRefNode, "type");
+    if (packageName !== undefined) packageRef["adtcore:name"] = packageName;
+    if (packageUri !== undefined) packageRef["adtcore:uri"] = packageUri;
+    if (packageType !== undefined) packageRef["adtcore:type"] = packageType;
+
+    const rowUri = attr(row, "uri");
+    const parentUri = attr(row, "parentUri");
+    const adtName = attr(adtObject, "name");
+    const adtType = attr(adtObject, "type");
+
+    rows.push({
+      ...(rowUri !== undefined ? { uri: rowUri } : {}),
+      ...(parentUri !== undefined ? { parentUri } : {}),
+      ...(adtName !== undefined ? { "adtcore:name": adtName } : {}),
+      ...(adtType !== undefined ? { "adtcore:type": adtType } : {}),
+      packageRef,
+      objectIdentifier: elementText(row["objectIdentifier"]) ?? "",
+    });
+  }
+  return rows;
+}
+
+/**
  * Implementing classes of an interface method, read off a where-used result.
- * Pure — takes the parsed rows (`conn.adt.usageReferences()`'s own
- * `UsageReference[]`, structurally an index-signature record: `uri`,
- * `parentUri`, `"adtcore:name"`, `"adtcore:type"`, `packageRef: {"adtcore:name":
- * string, …}`, per `abap-adt-api`'s `syntax.js`) so it is testable without a
- * wire.
+ * Pure — takes the parsed rows {@link parseUsageReferences} produces
+ * (structurally an index-signature record: `uri`, `parentUri`,
+ * `"adtcore:name"`, `"adtcore:type"`, `packageRef: {"adtcore:name": string,
+ * …}` — the same flat shape `abap-adt-api`'s own, but broken, `usageReferences()`
+ * used to be the sole source of, per its `syntax.js`) so it is testable
+ * without a wire. UNCHANGED by the switch away from that vendor function:
+ * only where the rows come from moved, not their shape.
  *
  * A row is an implementer, not a caller, exactly when its own
  * `"adtcore:name"` equals `<INTERFACE>~<METHOD>` (case-insensitively) —
@@ -445,12 +696,19 @@ export function implementationsFrom(
  * wall-clock so the caller can disclose the cost — fixture 900's own capture
  * took nearly 10 seconds for a two-implementer toy example.
  *
- * Quirk read off `abap-adt-api`'s `syntax.js` (not wire-verified, since no
- * capture exercises it): the vendor wrapper builds the position fragment as
- * `line && column ? … : url`, so a `pos.column` of exactly `0` is falsy and
- * silently degrades this call to an unscoped, whole-object where-used. This
- * module cannot work around a check inside a dependency it doesn't own; a
- * declaration at column 0 is the one position `pos` should be avoided for.
+ * Does the wire call itself (`conn.post`, exactly like {@link findDefinitionTarget}),
+ * rather than going through `conn.adt.usageReferences()` — see
+ * {@link parseUsageReferences}'s doc comment for why that vendor function's
+ * answer-reading path cannot be trusted here.
+ *
+ * This also retires a quirk that used to live in this doc comment: the
+ * vendor wrapper built its position fragment as `line && column ? … : url`,
+ * so a `pos.column` of exactly `0` was falsy and silently degraded that call
+ * to an unscoped, whole-object where-used — a bug this module could not work
+ * around while the wire call belonged to a dependency it didn't own. Now
+ * that the call is made here (`fragment` below, built with `pos !==
+ * undefined`, never a truthiness check), that quirk is simply gone: column 0
+ * is a normal, fully-scoped position like any other.
  */
 export async function findImplementations(
   conn: AbapConnection,
@@ -464,18 +722,20 @@ export async function findImplementations(
     uri: interfaceSourceUri,
     name: `${interfaceName}~${methodName}`,
   };
+  const fragment = pos !== undefined ? `${interfaceSourceUri}#start=${pos.line},${pos.column}` : interfaceSourceUri;
   const startedAt = Date.now();
-  let refs: readonly Record<string, unknown>[];
+  let body: string;
   try {
-    const raw =
-      pos !== undefined
-        ? await conn.adt.usageReferences(interfaceSourceUri, pos.line, pos.column)
-        : await conn.adt.usageReferences(interfaceSourceUri);
-    refs = raw as unknown as readonly Record<string, unknown>[];
+    ({ body } = await conn.post(USAGE_REFERENCES_URL, {
+      headers: { "Content-Type": "application/*", Accept: "application/*" },
+      qs: { uri: fragment },
+      body: USAGE_REFERENCES_REQUEST_BODY,
+    }));
   } catch (e) {
     throw translateAdtError(e, ctx);
   }
   const fetchMs = Date.now() - startedAt;
+  const refs = parseUsageReferences(body, ctx);
   return {
     implementations: implementationsFrom(refs, interfaceName, methodName),
     fetchMs,

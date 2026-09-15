@@ -1200,6 +1200,15 @@ const SIGNATURE_COLUMNS = ["name", "paramType", "abapType", "optional", "byValue
 const COMPONENT_COLUMNS = ["name", "abapType"];
 
 /**
+ * Element types whose answer is a callable, so "no parameters" is a real
+ * answer worth printing rather than a missing section. `FUGR/FF` is here
+ * for a different reason than the other two — ADT returns no signature at
+ * all for a function module (see the note below) — but the rendering is the
+ * same, and the note below depends on the section existing.
+ */
+const CALLABLE_ELEMENT_TYPES = new Set(["INTF/IO", "CLAS/OM", "FUGR/FF"]);
+
+/**
  * `view="definition"` — ADT's element-info/navigation-target/usage-references
  * endpoints, read-only element lookup at a source position. Returns
  * `{...built, etag: NO_ETAG}` like {@link readHistory}/{@link readDiff}: this
@@ -1281,9 +1290,10 @@ async function readDefinition(
   header.level = props.level;
   header.abapType = props.abapType;
 
-  const target = token
+  const lookup = token
     ? await findDefinitionTarget(conn, sourceUri, { line, startColumn: token.startColumn, endColumn: token.endColumn }, source)
     : undefined;
+  const target = lookup?.target;
   const targetRef = target ? objectRefFromUri(target.uri) : undefined;
 
   const defLines: string[] = [`${line}: ${lineText}`];
@@ -1292,7 +1302,13 @@ async function readDefinition(
       token === undefined
         ? "This position is not on an identifier — ADT still resolved an element here (below), but " +
           "there is no source range to ask the navigation-target endpoint for a declaration site."
-        : "ADT named no navigation target for this identifier.",
+        : lookup?.noTargetReason === "declaration-itself"
+          ? "This position is the declaration itself — ADT reports the definition location is here " +
+            "(SAP message ED263)."
+          : lookup?.noTargetReason === "undecidable"
+            ? "ADT named no navigation target: more than one implementation exists, so the declaration " +
+              "site is undecidable from this position."
+            : "ADT named no navigation target for this identifier.",
     );
   } else {
     defLines.push(
@@ -1306,8 +1322,13 @@ async function readDefinition(
 
   const signature = renderChildrenTable(info.children, SIGNATURE_COLUMNS);
   const components = signature ? "" : renderChildrenTable(info.children, COMPONENT_COLUMNS);
-  if (signature) sections.push({ title: "SIGNATURE", content: signature });
-  if (components) sections.push({ title: "COMPONENTS", content: components });
+  if (signature) {
+    sections.push({ title: "SIGNATURE", content: signature });
+  } else if (components) {
+    sections.push({ title: "COMPONENTS", content: components });
+  } else if (info.type !== undefined && CALLABLE_ELEMENT_TYPES.has(info.type)) {
+    sections.push({ title: "SIGNATURE", content: "(none)" });
+  }
 
   const docLines: string[] = [];
   if (info.shortText) docLines.push(`short text: ${info.shortText}`);
@@ -1325,21 +1346,39 @@ async function readDefinition(
     );
   }
 
-  // Where-used-based implementer listing — interface methods only, and only
-  // when a navigation target actually resolved into that interface: the
-  // most expensive call on this path (fixture 900: ~9.9s for two
-  // implementers), so it must not run for anything else.
-  const isInterfaceMethod = info.type === "INTF/IO" && target !== undefined && /\/oo\/interfaces\//i.test(target.uri);
-  if (isInterfaceMethod && targetRef?.name && info.name) {
-    const implPos: SourcePosition | undefined =
-      target!.line !== undefined && target!.column !== undefined
-        ? { line: target!.line, column: target!.column }
-        : undefined;
+  // Where-used-based implementer listing — interface methods only. The
+  // interface's own declaration site is reached one of two ways: (a) a use
+  // site elsewhere (e.g. `zif_x~run` in an implementing class, or a call
+  // through an interface reference) whose navigation target resolves into
+  // the interface, or (b) the object being read IS the interface, in which
+  // case there is no navigation target to resolve — ADT names none there
+  // either (see ED263 above) — and the declaration site is just the
+  // position asked about. Either way this is still the most expensive call
+  // on this path (fixture 900: ~9.9s for two implementers), so it must not
+  // run for anything but an interface method.
+  let implInterfaceUri: string | undefined;
+  let implInterfaceName: string | undefined;
+  let implPos: SourcePosition | undefined;
+  if (info.type === "INTF/IO" && info.name) {
+    if (target !== undefined && /\/oo\/interfaces\//i.test(target.uri) && targetRef?.name) {
+      implInterfaceUri = target.uri;
+      implInterfaceName = targetRef.name;
+      implPos =
+        target.line !== undefined && target.column !== undefined
+          ? { line: target.line, column: target.column }
+          : undefined;
+    } else if (obj.type === "INTF/OI") {
+      implInterfaceUri = sourceUri;
+      implInterfaceName = obj.name;
+      implPos = pos;
+    }
+  }
+  if (implInterfaceUri && implInterfaceName && info.name) {
     const { implementations, fetchMs, totalReferences } = await findImplementations(
       conn,
-      target!.uri,
+      implInterfaceUri,
       implPos,
-      targetRef.name,
+      implInterfaceName,
       info.name,
     );
     const kept = implementations.slice(0, IMPLEMENTATIONS_DISPLAY_MAX);

@@ -645,13 +645,20 @@ const NOT_REPOSITORY_MUTATIONS: ReadonlyMap<string, string> = new Map([
   ],
   [
     "adt/element-info.ts",
-    "Three read-only lookups: `POST /sap/bc/adt/abapsource/codecompletion/elementinfo` (what is " +
+    "Three `conn.post` lookups: `POST /sap/bc/adt/abapsource/codecompletion/elementinfo` (what is " +
       "the identifier at this position), `POST /sap/bc/adt/navigation/target` (where is it " +
-      "declared), and the vendor library's own `usageReferences` (who implements this interface " +
-      "method). All three are ADT's own read-only element-info/navigation-target/where-used " +
+      "declared), and `POST /sap/bc/adt/repository/informationsystem/usageReferences` (who " +
+      "implements this interface method). The module issues that third request itself rather " +
+      "than going through the vendor library's own `usageReferences` call, because the installed " +
+      "`abap-adt-api` parses the answer through the hardcoded namespace path " +
+      "`usageReferences:referencedObject` (capital `R`) while the reference system answers with " +
+      "the lowercase `usagereferences:` prefix, so the vendor parser always returned an empty " +
+      "list. All three are ADT's own read-only element-info/navigation-target/where-used " +
       "surface. The POST body on the first two carries the object's whole source because that is " +
       "how the wire protocol asks the question — the server needs the source to resolve a " +
-      "position against — not because anything is written; none of the three creates, changes or " +
+      "position against; the where-used POST instead carries a small fixed " +
+      "`usagereferences:usageReferenceRequest` envelope with an empty `affectedObjects` element, " +
+      "not the object's source. None of the three creates, changes or " +
       "deletes a repository object, so no `JournalOperation` value could describe them. Unlike " +
       "`adt/quickfix.ts` below, there is no hop up that DOES journal a repository change here: " +
       "`abap_read view=\"definition\"` (`src/tools/read.ts`) writes nothing at all and stays on " +

@@ -10,7 +10,7 @@
 | Runtime dumps | n/a | yes | n/a | no | n/a | live | Read-only feed with a residence window that cannot be widened. The variables chapter is absent from the schema unless an operator enables it. |
 | Object activation | n/a | n/a | n/a | n/a | yes | live | Check-only and activate modes, single and batched. There is no deactivate in ADT, which is why activation can never be undone. |
 | Pretty printer | n/a | yes | yes | n/a | yes | mixed | `abap_activate mode="format"`. Text form (`source`, no `object`) is a stateless reformat — no lock, no write, no journal entry, gated as read, works even in read-only mode. Object form (`object`, no `source`) reads the saved source, reformats it, and writes it back with `activate: true` through the ordinary journalled write path only if the bytes actually changed; an unchanged reformat reports `changed: false` and takes no lock, no PUT and no activation. Reads the server's own pretty-printer setting and never changes it — `setPrettyPrinterSetting` is never called. See the note below. |
-| Element info / definition lookup | n/a | yes | n/a | n/a | n/a | mixed | `abap_read view="definition"`. Given a 1-based line and 0-based column, answers what/where for the identifier there: kind, name, visibility, level, ABAP type, declaring location (with a copy-pasteable `abap_read` call), signature or components, short text and ABAP Doc; for an interface method, the implementing classes via where-used. Gated as read even though every endpoint is a POST, because none of it returns anything `abap_write` could act on. Not exposed on the v2 tool surface. See the note below. |
+| Element info / definition lookup | n/a | yes | n/a | n/a | n/a | mixed | `abap_read view="definition"`. Given a 1-based line and 0-based column, answers what/where for the identifier there: kind, name, visibility, level, ABAP type, declaring location (with a copy-pasteable `abap_read` call), signature or components, short text and ABAP Doc; for an interface method, the implementing classes via where-used, from either a use site or the interface's own declaration. Gated as read even though every endpoint is a POST, because none of it returns anything `abap_write` could act on. Not exposed on the v2 tool surface. See the note below. |
 | Transport requests | yes | yes | partial | yes | n/a | live | Create, add a user, and set an owner. Delete is admin-gated and requires echoing the request identifier. Objects cannot be added or removed directly, and a locked entry cannot be unlocked. |
 | Transport release | n/a | yes | n/a | n/a | yes | live | Dry run by default, armed only by echoing the request identifier, and gated separately from ordinary write access. Reports four distinct outcomes and never overstates one. |
 | Write journal | yes | yes | no | no | n/a | tests | Entries are written by the tools themselves; the journal is read-only to the user and has no delete. |
@@ -92,27 +92,65 @@
   no ABAP source) — all covered only by `test/activate-format.test.ts`
   against a fake ADT server, never exercised against a live one.
 - **Element info / definition lookup.** Three ADT endpoints, each grounded
-  in real A4H captures (2026-09-12, `test/fixtures/live-captured/`
-  891-897, 899, 900): `codecompletion/elementinfo` for the identifier at a
-  position, `navigation/target?filter=definition` for where it is declared,
-  and `usageReferences` for an interface method's implementers. Two ADT
-  quirks are `live`-observed, not inferred: a function module (`FUGR/FF`)
-  resolves to name and type only — no visibility, signature or
-  documentation — confirmed against `RFC_PING` (fixture 896), so an empty
-  signature there is that limitation, not "no parameters"; and a position
-  with nothing resolvable answers HTTP 200 naming no element (fixture 899),
+  in real A4H captures (2026-09-12, `test/fixtures/live-captured/` 891-897,
+  899, 900): `codecompletion/elementinfo` for the identifier at a position,
+  `navigation/target?filter=definition` for where it is declared, and
+  `usageReferences` for an interface method's implementers. Two ADT quirks
+  are `live`-observed, not inferred: a function module (`FUGR/FF`) resolves
+  to name and type only — no visibility, signature or documentation —
+  confirmed against `RFC_PING` (fixture 896), so an empty signature there
+  is that limitation, not "no parameters"; and a position with nothing
+  resolvable answers HTTP 200 in one of two wire shapes: fixture 899's
+  well-formed document naming no element, or — live-observed A4H,
+  2026-09-15 — a zero-byte 200 body at a genuinely blank line, which used
+  to surface as `ADT_ERROR` and is now reported exactly like fixture 899's;
+  there is no fixture file for the zero-byte case since there are no bytes
+  to pin, the same reason capture 898 is already omitted. Either way it is
   reported as a fact about the position, not an error. The implementer list
   is where-used-based, so dynamic dispatch is invisible to it, and it is
   capped for display (`IMPLEMENTATIONS_DISPLAY_MAX` in `src/tools/read.ts`)
   with truncation marked; fixture 900's two-implementer capture alone took
   close to ten seconds, which is why a slow-fetch note is attached above a
-  disclosed threshold rather than assumed fast. `unverified` live: the full
-  refusal matrix in `assertViewCompatible` (`view="definition"` combined
-  with `format="raw"`, `enhancements=true`, `version="inactive"`,
-  `outline=true`, `method=...`, or `from`/`to`/`context`; missing `line`;
-  `line`/`column` against `view="history"`/`"diff"` or with no `view` at
-  all; a non-source object; `line` past the end of the source) — covered
-  only by `test/read-definition.test.ts` against a fake connection.
+  disclosed threshold rather than assumed fast.
+
+  `live` (A4H, 2026-09-15), a second tranche: the implementer list was
+  previously always empty — `IMPLEMENTED BY` rendered "(no implementing
+  classes found)" for a real two-implementer case — because the installed
+  `abap-adt-api@8.4.1` parses the where-used answer through the hardcoded
+  namespace path `usageReferences:referencedObject` (capital `R`), while
+  A4H answers with the lowercase `usagereferences:` prefix, so the vendor
+  parser returned nothing; abapsmith now issues the `usageReferences` POST
+  itself and parses it prefix-agnostically, accepting either prefix, and
+  the same fixture, 900 bytes, now yields both implementers — a
+  vendor-library defect worked around locally. A position that IS a
+  variable's own declaration used to raise an uncaught error: ADT answers
+  the navigation-target request with HTTP 400, exception type
+  `NavigationFailure`, T100 key `ED`/`263`, message "Definition location
+  found; where-used list may be possible" — captured against
+  `CL_ABAP_TYPEDESCR`'s `data ABSOLUTE_NAME type ABAP_ABSTYPENAME read-only
+  .` line. It is now reported the same way as the pre-existing "declaration
+  site undecidable" case: no "declared at" line, worded as such, with the
+  header fields, signature, doc and implementers still answered.
+  `IMPLEMENTED BY` now also runs from the interface's own declaration line,
+  not only from a use site whose navigation target resolves into the
+  interface — at the declaration line ADT names no navigation target, so
+  the section used to be skipped there. Separately, a callable element with
+  no parameters now renders an explicit `SIGNATURE (none)` instead of
+  omitting the section.
+
+  `unverified` live: the full refusal matrix in `assertViewCompatible`
+  (`view="definition"` combined with `format="raw"`, `enhancements=true`,
+  `version="inactive"`, `outline=true`, `method=...`, or
+  `from`/`to`/`context`; missing `line`; `line`/`column` against
+  `view="history"`/`"diff"` or with no `view` at all; a non-source object;
+  `line` past the end of the source) — covered only by
+  `test/read-definition.test.ts` against a fake connection. Also unverified
+  live: the rendering of the three paths fixed on 2026-09-15 — the
+  declaration-itself wording, `SIGNATURE (none)`, and `IMPLEMENTED BY`
+  reached from an interface's own declaration — has not been re-run end to
+  end against a live server; those are covered only by
+  `test/read-definition.test.ts` and `test/element-info-wire.test.ts`
+  against fake connections.
 - **Journal and undo.** The journal records writes, transport operations,
   activation, enhancement operations, and BOPF writes; it does not record
   FPM reads or BOPF activation. Undo can delete a create, restore an update,

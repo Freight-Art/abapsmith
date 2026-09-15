@@ -15,21 +15,31 @@
  * "no network" pin.
  *
  * Section B drives the real rendering path through a fake `AbapConnection`
- * whose `post` answers ONLY the exact `#start=line,column` (elementinfo) and
- * `#start=L,C;end=L,C2&filter=definition` (navigation-target) fragments a
- * synthetic 40-line class source actually produces, using the live-captured
- * A4H bytes in `test/fixtures/live-captured/` (891-897, 899, 900 — the `i91-*`
- * captures; there is no 898). The interface-method combination (891+897+900)
- * additionally drives `conn.adt.usageReferences` off fixture 900's raw XML —
- * via a locally re-derived flat-row parse, NOT the installed
- * `abap-adt-api@8.4.1`'s own `usageReferences()` (`build/api/syntax.js`),
- * which looks up the fixed path `"usageReferences:referencedObject"`
- * (capital R) while fixture 900's actual wire bytes declare and use the
- * all-lowercase prefix `usagereferences` throughout — feeding fixture 900
- * through the vendor function returns an EMPTY array, not the two real
- * implementers. This is the same vendor defect `element-info-wire.test.ts`
- * documents and works around; it is a defect in `abap-adt-api`, not in this
- * repo, and out of scope to fix here.
+ * whose `post` answers ONLY the exact `#start=line,column` (elementinfo),
+ * `#start=L,C;end=L,C2&filter=definition` (navigation-target), and
+ * `#start=L,C` / bare uri (usageReferences) fragments a synthetic 40-line
+ * class source actually produces, using the live-captured A4H bytes in
+ * `test/fixtures/live-captured/` (891-897, 899, 900 — the `i91-*` captures;
+ * there is no 898). `findImplementations` (`src/adt/element-info.ts`) posts
+ * `USAGE_REFERENCES_URL` itself and parses the answer with its own
+ * `parseUsageReferences`, rather than going through `abap-adt-api`'s own
+ * `conn.adt.usageReferences()` (`build/api/syntax.js`): that vendor function
+ * hardcodes the fixed path `"usageReferences:referencedObject"` (capital R),
+ * while fixture 900's actual wire bytes declare and use the all-lowercase
+ * prefix `usagereferences` throughout — feeding fixture 900 through the
+ * vendor function returns an EMPTY array, not the two real implementers.
+ * This sidesteps that vendor defect in PRODUCTION, not just in this test;
+ * the fake connection below answers `USAGE_REFERENCES_URL` with fixture
+ * 900's raw bytes verbatim, the same as it does for elementinfo/navigation.
+ *
+ * The three `NavigationLookup.noTargetReason` wording tests (declaration
+ * site / undecidable / unnamed) and the interface-own-declaration
+ * implementer-listing test drive `findDefinitionTarget`
+ * (`src/adt/element-info.ts`) through a thin override on top of the real
+ * function — `stub.definitionLookupOverride`, reset every test — rather than
+ * fabricating the underlying HTTP 400/ED263 wire bytes that would produce
+ * each reason: that classification (error message → reason) lives in
+ * `element-info.ts`, not `read.ts`, and is out of this file's remit.
  *
  * FINDING (reported, not fixed — this task's remit is a new test file only,
  * never `src/tools/read.ts`): `readDefinition`'s SIGNATURE/COMPONENTS choice
@@ -44,33 +54,40 @@
  * `const components = signature ? "" : …` never gets to run. The actual,
  * observed behaviour for a TYPE (893) is a section titled "SIGNATURE" (not
  * "COMPONENTS") containing the component table; "COMPONENTS" cannot appear
- * in ANY response this handler produces. The type-rendering test below
- * asserts the real, current behaviour, not the titling the issue brief
+ * in ANY response this handler produces. The type-rendering tests below
+ * assert the real, current behaviour, not the titling the issue brief
  * assumed.
  *
- * NO NETWORK ANYWHERE: `resolveObject` and `readSource` are mocked; every
- * `AbapConnection` used here is a fake whose `post`/`adt.usageReferences`
- * only answer an exact, pre-registered request and throw — naming the URL —
- * on anything else.
+ * NO NETWORK ANYWHERE: `resolveObject` and `readSource` are mocked, and
+ * `findDefinitionTarget` is wrapped (see above); every `AbapConnection` used
+ * here is a fake whose `post` only answers an exact, pre-registered request
+ * and throws — naming the URL — on anything else.
  */
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { XMLParser } from "fast-xml-parser";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AbapConnection, RawRequestOptions, RawResponse } from "../src/adt/connection.js";
 import type { ResolvedObject } from "../src/adt/resolve.js";
-import { ELEMENT_INFO_URL, NAVIGATION_TARGET_URL } from "../src/adt/element-info.js";
+import { ELEMENT_INFO_URL, NAVIGATION_TARGET_URL, USAGE_REFERENCES_URL } from "../src/adt/element-info.js";
 import { abapReadInputSchema } from "../src/tools/v2/schemas.js";
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), "fixtures", "live-captured");
 const fixture = (f: string): string => readFileSync(join(FIXTURES, f), "utf8");
+
+/** The three reasons `findDefinitionTarget` can decline to name a target — mirrors `NavigationLookup`/`NoTargetReason` in `src/adt/element-info.ts` (not imported: this file must still compile/run against the pre-CHANGE-1 contract while that module lands). */
+type FakeNavigationLookup = {
+  readonly target?: { readonly uri: string; readonly line?: number; readonly column?: number };
+  readonly noTargetReason?: "declaration-itself" | "undecidable" | "unnamed";
+};
 
 // --- stub state, set per test -----------------------------------------------
 const stub = {
   object: {} as ResolvedObject,
   source: "",
   sourceUri: "",
+  /** Set by the `noTargetReason`/interface-own-declaration tests to bypass the real `findDefinitionTarget` wire entirely; `undefined` (the default) runs the real function against the fake connection's `navTarget` routes, as every other test does. */
+  definitionLookupOverride: undefined as FakeNavigationLookup | undefined,
 };
 
 vi.mock("../src/adt/resolve.js", async (importActual) => ({
@@ -82,6 +99,15 @@ vi.mock("../src/adt/source.js", async (importActual) => ({
   ...(await importActual<typeof import("../src/adt/source.js")>()),
   readSource: async () => ({ source: stub.source, sourceUri: stub.sourceUri }),
 }));
+
+vi.mock("../src/adt/element-info.js", async (importActual) => {
+  const actual = await importActual<typeof import("../src/adt/element-info.js")>();
+  return {
+    ...actual,
+    findDefinitionTarget: async (...args: Parameters<typeof actual.findDefinitionTarget>) =>
+      stub.definitionLookupOverride ?? actual.findDefinitionTarget(...args),
+  };
+});
 
 const { abapRead } = await import("../src/tools/read.js");
 
@@ -172,62 +198,52 @@ const NAV_TARGET_ROUTES: Record<string, string> = {
 };
 
 /**
- * Fixture 900's raw XML re-derived into the flat row shape
- * `implementationsFrom` (`src/adt/element-info.ts`) documents:
- * `uri`/`parentUri` off the row itself, `"adtcore:name"`/`"adtcore:type"` off
- * its nested `adtObject`, `packageRef` off `adtObject`'s own nested
- * `packageRef`. Deliberately NOT the installed `abap-adt-api`'s own
- * `usageReferences()` — see this file's module doc comment for why that
- * vendor function returns an empty array against this exact fixture.
+ * Synthesizes a `usageReferences` wire document naming `count` implementers
+ * of `ZIF_I91_PROBE~PROCESS`, in the same shape fixture 900
+ * (`900-i91-usage-references-interface-method.xml`) actually carries: a
+ * `usagereferences:referencedObject` row for the class itself, plus one for
+ * its `ZIF_I91_PROBE~PROCESS` implementer, all lowercase-`usagereferences:`-
+ * prefixed as A4H really sends (see this file's module doc comment). More
+ * rows than `IMPLEMENTATIONS_DISPLAY_MAX` (50) will ever show — the point of
+ * the one test that uses this.
  */
-function loadUsageReferenceRows(file: string): Record<string, unknown>[] {
-  const parser = new XMLParser({
-    ignoreAttributes: false,
-    attributeNamePrefix: "@_",
-    parseAttributeValue: true,
-    isArray: (_name, jpath) =>
-      jpath ===
-      "usagereferences:usageReferenceResult.usagereferences:referencedObjects.usagereferences:referencedObject",
-  });
-  const doc = parser.parse(fixture(file)) as Record<string, unknown>;
-  const result = doc["usagereferences:usageReferenceResult"] as Record<string, unknown>;
-  const objects = result["usagereferences:referencedObjects"] as Record<string, unknown>;
-  const rows = objects["usagereferences:referencedObject"] as Record<string, unknown>[];
-
-  const attrsOf = (node: unknown): Record<string, unknown> => {
-    const rec = node !== null && typeof node === "object" ? (node as Record<string, unknown>) : {};
-    const out: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(rec)) {
-      if (key.startsWith("@_") && key !== "@_xmlns" && !key.startsWith("@_xmlns:")) out[key.slice(2)] = value;
-    }
-    return out;
-  };
-
-  return rows.map((row) => {
-    const adtObject = (row["usagereferences:adtObject"] ?? {}) as Record<string, unknown>;
-    const packageRefNode = adtObject["adtcore:packageRef"];
-    return {
-      ...attrsOf(row),
-      ...attrsOf(adtObject),
-      packageRef: attrsOf(packageRefNode),
-    };
-  });
-}
-
-/** More implementer rows than `IMPLEMENTATIONS_DISPLAY_MAX` (50) will ever show — synthetic, per the brief's own allowance for this one sub-test. Each pair is a class's own `referencedObject` row (naming the class) plus its interface-method implementer row, the same two-row shape fixture 900 uses per implementer. */
-function syntheticImplementerRows(count: number): Record<string, unknown>[] {
-  const rows: Record<string, unknown>[] = [];
+function syntheticUsageReferencesXml(count: number): string {
+  const rows: string[] = [];
   for (let i = 0; i < count; i++) {
     const classUri = `/sap/bc/adt/oo/classes/zcl_synth_${i}`;
-    rows.push({ uri: classUri, "adtcore:name": `ZCL_SYNTH_${i}`, packageRef: { "adtcore:name": "$TMP" } });
-    rows.push({
-      uri: `${classUri}/source/main#type=CLAS%2FOM;name=ZIF_I91_PROBE%7ePROCESS`,
-      parentUri: classUri,
-      "adtcore:name": "ZIF_I91_PROBE~PROCESS",
-      packageRef: { "adtcore:name": "$TMP" },
-    });
+    rows.push(
+      `<usagereferences:referencedObject uri="${classUri}" parentUri="/sap/bc/adt/packages/%24tmp" isResult="false" canHaveChildren="false"><usagereferences:adtObject adtcore:name="ZCL_SYNTH_${i}" adtcore:type="CLAS/OC" xmlns:adtcore="http://www.sap.com/adt/core"><adtcore:packageRef adtcore:uri="/sap/bc/adt/packages/%24tmp" adtcore:type="DEVC/K" adtcore:name="$TMP"/></usagereferences:adtObject></usagereferences:referencedObject>`,
+    );
+    rows.push(
+      `<usagereferences:referencedObject uri="${classUri}/source/main#type=CLAS%2FOM;name=ZIF_I91_PROBE%7ePROCESS" parentUri="${classUri}" isResult="false" canHaveChildren="true" usageInformation="gradeDirect,includeProductive"><usagereferences:adtObject adtcore:name="ZIF_I91_PROBE~PROCESS" xmlns:adtcore="http://www.sap.com/adt/core"><adtcore:packageRef adtcore:uri="/sap/bc/adt/packages/%24tmp" adtcore:type="DEVC/K" adtcore:name="$TMP"/></usagereferences:adtObject></usagereferences:referencedObject>`,
+    );
   }
-  return rows;
+  return (
+    '<?xml version="1.0" encoding="utf-8"?>' +
+    `<usagereferences:usageReferenceResult numberOfResults="${count}" xmlns:usagereferences="http://www.sap.com/adt/ris/usageReferences">` +
+    `<usagereferences:referencedObjects>${rows.join("")}</usagereferences:referencedObjects>` +
+    `</usagereferences:usageReferenceResult>`
+  );
+}
+
+/** `#start=L,C` (or the bare uri with no position) — the exact `qs.uri` shape `findImplementations` (`src/adt/element-info.ts`) now posts to `USAGE_REFERENCES_URL`. */
+const usageReferencesKey = (uri: string, pos?: { readonly line: number; readonly column: number }): string =>
+  pos !== undefined ? `${uri}#start=${pos.line},${pos.column}` : uri;
+
+/** `ZIF_I91_PROBE`'s own source URI and fixture 897's declaration position (line 8, column 10) — the where-used call `IMPLEMENTED BY` drives once a navigation target actually resolves into the interface. */
+const INTERFACE_SOURCE_URI = "/sap/bc/adt/oo/interfaces/zif_i91_probe/source/main";
+const INTERFACE_DECL_POS = { line: 8, column: 10 } as const;
+
+/** A minimal, hand-written (not live-captured) `elementInfo` document for an interface method with no parameters — no fixture carries this shape, every captured interface-method fixture (891) has two. */
+function intfMethodElementInfoXml(name: string): string {
+  return (
+    '<?xml version="1.0" encoding="utf-8"?><abapsource:elementInfo adtcore:type="INTF/IO" adtcore:name="' +
+    name +
+    '" xmlns:abapsource="http://www.sap.com/adt/abapsource" xmlns:adtcore="http://www.sap.com/adt/core">' +
+    '<abapsource:properties><abapsource:entry abapsource:key="level">instance</abapsource:entry>' +
+    '<abapsource:entry abapsource:key="visibility">public</abapsource:entry></abapsource:properties>' +
+    "</abapsource:elementInfo>"
+  );
 }
 
 // ------------------------------------------------------------- fake connection --
@@ -235,24 +251,21 @@ function syntheticImplementerRows(count: number): Record<string, unknown>[] {
 interface ConnOpts {
   elementInfo?: Record<string, string>;
   navTarget?: Record<string, string>;
-  usageReferences?: (url: string, line?: number, column?: number) => Promise<readonly Record<string, unknown>[]>;
+  /** Keyed by the exact `qs.uri` (see {@link usageReferencesKey}) `findImplementations` posts to `USAGE_REFERENCES_URL`; value is the raw XML `parseUsageReferences` parses. */
+  usageReferences?: Record<string, string>;
 }
 
 /**
  * A connection whose `post` answers ONLY an exact, pre-registered
- * `qs.uri` (elementinfo) or `qs.uri`+`qs.filter` (navigation-target) request,
- * and whose `adt.usageReferences` answers only if wired — anything else
- * throws, naming the URL, so a stray/unexpected request fails the test
- * loudly instead of silently returning nothing.
+ * `qs.uri` (elementinfo), `qs.uri`+`qs.filter` (navigation-target), or
+ * `qs.uri` (usageReferences) request — anything else throws, naming the URL,
+ * so a stray/unexpected request fails the test loudly instead of silently
+ * returning nothing.
  */
 function fakeConn(opts: ConnOpts = {}): AbapConnection {
   const elementInfo = opts.elementInfo ?? {};
   const navTarget = opts.navTarget ?? {};
-  const usageReferences =
-    opts.usageReferences ??
-    (async (url: string): Promise<readonly Record<string, unknown>[]> => {
-      throw new Error(`UNEXPECTED usageReferences REQUEST (no fake route wired): ${url}`);
-    });
+  const usageReferences = opts.usageReferences ?? {};
 
   const post = async (url: string, reqOpts: RawRequestOptions & { body?: string } = {}): Promise<RawResponse> => {
     const uri = reqOpts.qs?.uri;
@@ -273,13 +286,20 @@ function fakeConn(opts: ConnOpts = {}): AbapConnection {
       }
       return { body, status: 200, headers: {} };
     }
+    if (url === USAGE_REFERENCES_URL) {
+      const body = uri !== undefined ? usageReferences[uri] : undefined;
+      if (body === undefined) {
+        throw new Error(`UNEXPECTED usageReferences REQUEST — no fake route for: ${url}?uri=${String(uri)}`);
+      }
+      return { body, status: 200, headers: {} };
+    }
     throw new Error(`UNEXPECTED REQUEST — no fake route for URL: ${url}`);
   };
 
-  return { cfg: { sid: "A4H" }, post, adt: { usageReferences } } as unknown as AbapConnection;
+  return { cfg: { sid: "A4H" }, post } as unknown as AbapConnection;
 }
 
-/** A connection that throws, naming the URL, on ANY `post`/`usageReferences` call — used by every Section A refusal test to double as a "no network" pin. */
+/** A connection that throws, naming the URL, on ANY `post` call — used by every Section A refusal test to double as a "no network" pin. */
 const noNetworkConn = fakeConn();
 
 /** Every Section B fixture route, wired once. */
@@ -287,7 +307,11 @@ function fullConn(): AbapConnection {
   return fakeConn({
     elementInfo: ELEMENT_INFO_ROUTES,
     navTarget: NAV_TARGET_ROUTES,
-    usageReferences: async () => loadUsageReferenceRows("900-i91-usage-references-interface-method.xml"),
+    usageReferences: {
+      [usageReferencesKey(INTERFACE_SOURCE_URI, INTERFACE_DECL_POS)]: fixture(
+        "900-i91-usage-references-interface-method.xml",
+      ),
+    },
   });
 }
 
@@ -295,6 +319,7 @@ beforeEach(() => {
   stub.object = resolved();
   stub.source = CLASS_SOURCE;
   stub.sourceUri = CLASS_SOURCE_URI;
+  stub.definitionLookupOverride = undefined;
 });
 
 // ============================================================== Section A ==
@@ -541,7 +566,11 @@ describe('view="definition" rendering, driven by live-captured A4H fixtures thro
     );
     expect(r.etag).toBe("");
     expect(r.text).toContain("FUGR/FF RFC_PING");
-    expect(r.text).not.toContain("--- SIGNATURE ---");
+    // CHANGE 3: FUGR/FF is a CALLABLE_ELEMENT_TYPES member, so the empty
+    // SIGNATURE section is now rendered explicitly as "(none)" rather than
+    // omitted — the FUGR/FF note below refers to "the empty SIGNATURE
+    // section above", which requires the section to actually exist.
+    expect(section(r.text, "SIGNATURE")).toBe("(none)");
     expect(r.text).toContain(
       "ADT's element info returns no visibility, no signature and no documentation for FUGR/FF",
     );
@@ -597,7 +626,7 @@ describe('view="definition" rendering, driven by live-captured A4H fixtures thro
     const conn = fakeConn({
       elementInfo: { [elementInfoFrag(POS.interfaceMethod)]: fixture("891-i91-elementinfo-interface-method.xml") },
       navTarget: { [navTargetKey(POS.interfaceMethod, SPAN.interfaceMethod)]: fixture("897-i91-navigation-target-definition.xml") },
-      usageReferences: async () => syntheticImplementerRows(60),
+      usageReferences: { [usageReferencesKey(INTERFACE_SOURCE_URI, INTERFACE_DECL_POS)]: syntheticUsageReferencesXml(60) },
     });
 
     const r = await abapRead(
@@ -613,6 +642,190 @@ describe('view="definition" rendering, driven by live-captured A4H fixtures thro
     expect(implementedBy).toContain("ZCL_SYNTH_49");
     expect(implementedBy).not.toContain("ZCL_SYNTH_50");
     expect(r.text).toContain("--- TRUNCATED --- 10 of 60 implementer(s) not shown (display cap 50).");
+  });
+
+  // ------------------------------------------------------- CHANGE 1/2/3 --
+
+  it("a position on the variable's own declaration renders the declaration-itself wording instead of throwing", async () => {
+    stub.definitionLookupOverride = { noTargetReason: "declaration-itself" };
+    const conn = fakeConn({ elementInfo: { [elementInfoFrag(POS.attribute)]: fixture("892-i91-elementinfo-attribute.xml") } });
+
+    const r = await abapRead(
+      conn,
+      { object: "ZCL_I91_PROBE", view: "definition", line: POS.attribute.line, column: POS.attribute.column },
+      20_000,
+    );
+
+    expect(r.etag).toBe("");
+    const definition = section(r.text, "DEFINITION");
+    expect(definition).toBeDefined();
+    expect(definition).toContain("This position is the declaration itself");
+    expect(definition).toContain("ED263");
+  });
+
+  it("an undecidable navigation target renders the more-than-one-implementation wording", async () => {
+    stub.definitionLookupOverride = { noTargetReason: "undecidable" };
+    const conn = fakeConn({ elementInfo: { [elementInfoFrag(POS.attribute)]: fixture("892-i91-elementinfo-attribute.xml") } });
+
+    const r = await abapRead(
+      conn,
+      { object: "ZCL_I91_PROBE", view: "definition", line: POS.attribute.line, column: POS.attribute.column },
+      20_000,
+    );
+
+    expect(r.etag).toBe("");
+    const definition = section(r.text, "DEFINITION");
+    expect(definition).toBeDefined();
+    expect(definition).toContain("more than one implementation exists");
+    expect(definition).toContain("undecidable");
+  });
+
+  it("a navigation target the server leaves unnamed keeps the existing no-target wording", async () => {
+    stub.definitionLookupOverride = { noTargetReason: "unnamed" };
+    const conn = fakeConn({ elementInfo: { [elementInfoFrag(POS.attribute)]: fixture("892-i91-elementinfo-attribute.xml") } });
+
+    const r = await abapRead(
+      conn,
+      { object: "ZCL_I91_PROBE", view: "definition", line: POS.attribute.line, column: POS.attribute.column },
+      20_000,
+    );
+
+    expect(r.etag).toBe("");
+    const definition = section(r.text, "DEFINITION");
+    expect(definition).toBeDefined();
+    expect(definition).toContain("ADT named no navigation target for this identifier.");
+    expect(definition).not.toContain("declaration itself");
+    expect(definition).not.toContain("undecidable");
+  });
+
+  it("reading an interface's own method declaration lists implementers without a navigation target", async () => {
+    const intfSource = ["INTERFACE zif_i91_probe PUBLIC.", "  METHODS process", "    IMPORTING iv_input TYPE string.", "ENDINTERFACE."].join(
+      "\n",
+    );
+    const declPos = { line: 2, column: 10 }; // "process" starts at column 10 on line 2
+
+    stub.object = resolved({
+      type: "INTF/OI",
+      kind: "INTF",
+      label: "interface",
+      name: "ZIF_I91_PROBE",
+      uri: "/sap/bc/adt/oo/interfaces/zif_i91_probe",
+      sourceUri: INTERFACE_SOURCE_URI,
+      mode: "source",
+    });
+    stub.source = intfSource;
+    stub.sourceUri = INTERFACE_SOURCE_URI;
+    // No navigation target — this position IS the declaration (ED263).
+    stub.definitionLookupOverride = { noTargetReason: "declaration-itself" };
+
+    const conn = fakeConn({
+      elementInfo: { [`${INTERFACE_SOURCE_URI}#start=${declPos.line},${declPos.column}`]: intfMethodElementInfoXml("PROCESS") },
+      usageReferences: {
+        [usageReferencesKey(INTERFACE_SOURCE_URI, declPos)]: fixture("900-i91-usage-references-interface-method.xml"),
+      },
+    });
+    const usageReferencesSeen: Array<string | undefined> = [];
+    const originalPost = (conn as unknown as { post: (url: string, opts: RawRequestOptions & { body?: string }) => Promise<RawResponse> })
+      .post;
+    (conn as unknown as { post: typeof originalPost }).post = async (url, opts) => {
+      if (url === USAGE_REFERENCES_URL) usageReferencesSeen.push(opts.qs?.uri);
+      return originalPost(url, opts);
+    };
+
+    const r = await abapRead(
+      conn,
+      { object: "ZIF_I91_PROBE", type: "INTF/OI", view: "definition", line: declPos.line, column: declPos.column },
+      20_000,
+    );
+
+    expect(r.etag).toBe("");
+    const implementedBy = section(r.text, "IMPLEMENTED BY");
+    expect(implementedBy).toBeDefined();
+    expect(implementedBy).toContain("ZCL_I91_PROBE");
+    expect(implementedBy).toContain("ZCL_I91_PROBE2");
+
+    // The where-used lookup was called with the interface's OWN source URI
+    // and the READ position — not a target-derived one, since there is none.
+    expect(usageReferencesSeen).toEqual([usageReferencesKey(INTERFACE_SOURCE_URI, declPos)]);
+  });
+
+  it("a class method use site still lists implementers via the navigation target", async () => {
+    const r = await abapRead(
+      fullConn(),
+      { object: "ZCL_I91_PROBE", view: "definition", line: POS.interfaceMethod.line, column: POS.interfaceMethod.column },
+      20_000,
+    );
+
+    expect(r.etag).toBe("");
+    const implementedBy = section(r.text, "IMPLEMENTED BY");
+    expect(implementedBy).toBeDefined();
+    expect(implementedBy).toContain("ZCL_I91_PROBE");
+    expect(implementedBy).toContain("ZCL_I91_PROBE2");
+  });
+
+  it("an interface method with no parameters renders SIGNATURE (none)", async () => {
+    const conn = fakeConn({
+      elementInfo: { [elementInfoFrag(POS.interfaceMethod)]: intfMethodElementInfoXml("RUN") },
+      navTarget: { [navTargetKey(POS.interfaceMethod, SPAN.interfaceMethod)]: NO_TARGET_XML },
+    });
+
+    const r = await abapRead(
+      conn,
+      { object: "ZCL_I91_PROBE", view: "definition", line: POS.interfaceMethod.line, column: POS.interfaceMethod.column },
+      20_000,
+    );
+
+    expect(r.etag).toBe("");
+    expect(section(r.text, "SIGNATURE")).toBe("(none)");
+    expect(r.text).not.toContain("--- COMPONENTS ---");
+  });
+
+  it("a function module renders SIGNATURE (none) and the note explaining ADT returns no signature", async () => {
+    const r = await abapRead(
+      fullConn(),
+      { object: "ZCL_I91_PROBE", view: "definition", line: POS.functionModule.line, column: POS.functionModule.column },
+      20_000,
+    );
+
+    expect(r.etag).toBe("");
+    expect(section(r.text, "SIGNATURE")).toBe("(none)");
+    expect(r.text).toContain(
+      "ADT's element info returns no visibility, no signature and no documentation for FUGR/FF",
+    );
+    expect(r.text).toContain("The empty SIGNATURE section above is that fact, not a rendering gap.");
+  });
+
+  it("a structured type still renders COMPONENTS, not an empty SIGNATURE", async () => {
+    const r = await abapRead(
+      fullConn(),
+      { object: "ZCL_I91_PROBE", view: "definition", line: POS.type.line, column: POS.type.column },
+      20_000,
+    );
+
+    expect(r.etag).toBe("");
+    // CLAS/OT is not a CALLABLE_ELEMENT_TYPES member, and this element HAS
+    // children (ID, NAME), so CHANGE 3's "(none)" placeholder must not fire
+    // here. The component table itself is still titled "SIGNATURE", not
+    // "COMPONENTS" — the pre-existing dead code this file's module doc
+    // comment documents; CHANGE 3 does not touch that.
+    const signature = section(r.text, "SIGNATURE");
+    expect(signature).toBeDefined();
+    expect(signature).not.toBe("(none)");
+    expect(signature).toContain("ID");
+    expect(signature).toContain("NAME");
+    expect(r.text).not.toContain("--- COMPONENTS ---");
+  });
+
+  it("an element with no children and no callable type renders neither SIGNATURE nor COMPONENTS", async () => {
+    const r = await abapRead(
+      fullConn(),
+      { object: "ZCL_I91_PROBE", view: "definition", line: POS.localVariable.line, column: POS.localVariable.column },
+      20_000,
+    );
+
+    expect(r.etag).toBe("");
+    expect(r.text).not.toContain("--- SIGNATURE ---");
+    expect(r.text).not.toContain("--- COMPONENTS ---");
   });
 });
 
