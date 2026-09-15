@@ -12,6 +12,17 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.5.21] - 2026-09-15
+
+### Added
+
+- `abap_test scope="impacted"` (issue #111): instead of one named object, select and run the test carriers a changed set puts at risk. The changed set comes from an explicit `changed` list, from the local write journal for this system and session, or from the journal since an ISO timestamp (`since`); each changed object is a candidate carrier itself (`changed directly`) and its where-used consumers (CLAS/PROG/FUGR, at most 20 per object, at most 10 carriers in total) are probed for a test class (`uses <object>`). `SELECTION` and `RESULTS` are reported separately, capped consumers are named on a `--- TRUNCATED ---` line, and two distinct not-a-pass outcomes exist: `NO CHANGED OBJECTS` and `NO IMPACTED TESTS FOUND`. `object`, `coverage`, `coverage_for`, `auth_trace` and `changed`+`since` are refused with `BAD_INPUT` in this scope (`src/adt/impacted.ts`, `src/journal.ts` `since`/`systemKey` filters).
+- `auth_trace: true` on `abap_run`, `abap_test` and `abap_bopf_test` (issue #112): switches SAP's authorization trace on for the connected user around the run, reads back failed authority checks (kernel trace first, SU53 buffer as fallback, each line tagged `[trace]` or `[SU53 fallback]`) and switches it off again on every path, including a dump. The header always carries `auth_trace: no failed checks` / `N failed check(s)` / `unavailable: <reason>`; failed checks render as a `FAILED AUTH CHECKS` section (object, field=value, rc, program, line). Implemented as the built-in fluid tool `authtrace` (`ZCL_ZMCP_FLUID_AUTHTRACE`); refused in read mode. Live-verified on A4H via the SU53 fallback; the kernel-trace read returned no rows on the appliance and is unverified.
+
+### Fixed
+
+- The v2 `abap_do` activation handler no longer asserts a non-optional `object` (a crash path for `scope="impacted"`).
+
 ## [0.5.20] - 2026-09-15
 
 ### Added
