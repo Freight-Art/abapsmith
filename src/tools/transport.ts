@@ -34,7 +34,7 @@ import {
   type JournalObjectRef,
   type JournalOperation,
 } from "../journal.js";
-import type { SafetyGate } from "../safety.js";
+import type { AuthorizedTarget, SafetyGate } from "../safety.js";
 import {
   authorizeCeiling,
   isTrkorr,
@@ -71,6 +71,12 @@ import {
   removeTransportEntryViaBridge,
   type TransportEntryRemoveResult,
 } from "../adt/transport-entry-remove.js";
+import { readTransportLogViaBridge, type TransportLogResult } from "../adt/transport-log.js";
+import { readImportQueueViaBridge, type TransportQueueResult } from "../adt/transport-queue.js";
+import {
+  createTransportOfCopiesViaBridge,
+  type TransportOfCopiesResult,
+} from "../adt/transport-copies.js";
 
 // ---------------------------------------------------------------------------
 // Schemas
@@ -78,10 +84,26 @@ import {
 
 export const transportInputSchema = {
   operation: z
-    .enum(["list", "show", "check", "users", "create", "addUser", "setOwner", "delete", "removeObject"])
+    .enum([
+      "list",
+      "show",
+      "check",
+      "users",
+      "log",
+      "queue",
+      "create",
+      "addUser",
+      "setOwner",
+      "delete",
+      "removeObject",
+    ])
     .describe(
-      "What to do. create/addUser/setOwner need write access (ABAP_MODE=edit or admin, or " +
-        "legacy ABAP_ALLOW_WRITE=true when ABAP_MODE is unset); delete additionally needs the " +
+      "What to do. list/show/check/users/log/queue are plain reads, always allowed. " +
+        "log reads a transport's own export/import log (per target system); queue reads a " +
+        "target system's import queue/buffer. create/addUser/setOwner need write access " +
+        "(ABAP_MODE=edit or admin, or legacy ABAP_ALLOW_WRITE=true when ABAP_MODE is unset); " +
+        "create with kind=\"copies\" (a transport of copies) needs the same write access as an " +
+        "ordinary create — no extra ceiling. delete additionally needs the " +
         "admin-only transport-delete ceiling (ABAP_MODE=admin — no legacy flag grants it) and " +
         "confirm; removeObject (drop one E071 entry and its CTS lock, e.g. for an object " +
         "already deleted from the system, so its request can then be deleted — if the object " +
@@ -89,15 +111,17 @@ export const transportInputSchema = {
         "E071 rows for that object (same PGMID+OBJECT+OBJ_NAME — legal but not reliably " +
         "reproducible; cause unconfirmed), leaving the request undeletable through abapsmith) " +
         "needs that same admin-only transport-delete ceiling and confirm." +
-        " Required args: list/users none; show transport; check object; create " +
-        "package+description; addUser/setOwner transport+user; delete transport+confirm; " +
+        " Required args: list/users none; show transport; check object; log transport; " +
+        "queue system; create package+description (plus target when kind=\"copies\"); " +
+        "addUser/setOwner transport+user; delete transport+confirm; " +
         "removeObject transport+object+confirm.",
     ),
   transport: z
     .string()
     .optional()
     .describe(
-      "Request/task number, e.g. A4HK900123. Required for operation=show/addUser/setOwner/delete/removeObject.",
+      "Request/task number, e.g. A4HK900123. Required for " +
+        "operation=show/addUser/setOwner/delete/removeObject and for operation=log.",
     ),
   user: z
     .string()
@@ -110,7 +134,8 @@ export const transportInputSchema = {
     .optional()
     .describe(
       "Object name. Required for operation=check, and for operation=removeObject (the entry " +
-        "to remove). Optional anchor for create.",
+        "to remove). Optional anchor for create with kind=\"workbench\" (the default); not " +
+        "accepted for create with kind=\"copies\" — a transport of copies is created empty.",
     ),
   package: z
     .string()
@@ -120,6 +145,36 @@ export const transportInputSchema = {
     .string()
     .optional()
     .describe("Short text for the new request, max 60 chars. Required for operation=create."),
+  kind: z
+    .enum(["workbench", "copies"])
+    .optional()
+    .describe(
+      "Which kind of request operation=\"create\" should create. \"workbench\" (the default) is " +
+        "a normal transportable change request created through ADT. \"copies\" is a transport " +
+        "of copies, which carries a snapshot of objects to a target system while leaving the " +
+        "originals modifiable in this system and their original request untouched. " +
+        "kind=\"copies\" requires target.",
+    ),
+  target: z
+    .string()
+    .optional()
+    .describe(
+      "Target system for operation=\"create\" with kind=\"copies\", e.g. A4H. A transport of " +
+        "copies with no target cannot be imported anywhere, so abapsmith refuses to create one.",
+    ),
+  system: z
+    .string()
+    .optional()
+    .describe(
+      "Target system whose import queue to read, e.g. QAS. Required for operation=\"queue\".",
+    ),
+  domain: z
+    .string()
+    .optional()
+    .describe(
+      "TMS transport domain of system, e.g. DOMAIN_A4H. Optional; TMS resolves the local " +
+        "domain when omitted.",
+    ),
   confirm: z
     .string()
     .optional()
@@ -148,10 +203,18 @@ export type TransportReleaseInput = z.infer<typeof TransportReleaseInput>;
 
 export const TRANSPORT_TOOL_DESCRIPTION =
   "Inspect and manage CTS transport requests: list, show, check (does an object need a " +
-  "transport?), users, create, addUser, setOwner, delete, removeObject (drop one E071 entry " +
-  "and its CTS lock so its request can then be deleted — if the object still exists, its " +
-  "lock goes too, and CTS refuses this for some entries, leaving the request undeletable). " +
-  "Reads are always allowed; mutating operations obey the write allowlists. Release is a " +
+  "transport?), users, log (a transport's own export/import log, per target system — a " +
+  "request that has never been exported legitimately has zero log lines; that is not a " +
+  "failure), queue (a target system's import queue/buffer — the requests waiting to be " +
+  "imported there; an already-imported request has left the buffer, so absence alone does " +
+  "not prove a change never arrived), create (kind=\"workbench\", the default, or " +
+  "kind=\"copies\" for a transport of copies — a snapshot sent to a target system that " +
+  "leaves the originals and their own request untouched; requires target), addUser, " +
+  "setOwner, delete, removeObject (drop one E071 entry and its CTS lock so its request can " +
+  "then be deleted — if the object still exists, its lock goes too, and CTS refuses this for " +
+  "some entries, leaving the request undeletable). list/show/check/users/log/queue are plain " +
+  "reads, always allowed; create/addUser/setOwner need write access; delete/removeObject " +
+  "additionally need the admin-only transport-delete ceiling. Release is a " +
   "separate tool, abap_transport_release.";
 
 export const TRANSPORT_RELEASE_TOOL_DESCRIPTION =
@@ -689,12 +752,12 @@ export async function abapTransport(
   ownership?: SessionTrOwner,
 ): Promise<BuiltResponse> {
   switch (input.operation) {
-    // `show`/`check`/`users` are reads — journalling those would stop the
-    // journal from being a record of what changed. `list` is almost a read
-    // too: `opList` may create a search configuration (a real write) to see
-    // Modifiable requests, but that isn't a TRKORR-identified object, so it's
-    // never routed through `recordMutation` — it's surfaced in the response's
-    // `notes` instead.
+    // `show`/`check`/`users`/`log`/`queue` are reads — journalling those
+    // would stop the journal from being a record of what changed. `list` is
+    // almost a read too: `opList` may create a search configuration (a real
+    // write) to see Modifiable requests, but that isn't a TRKORR-identified
+    // object, so it's never routed through `recordMutation` — it's surfaced
+    // in the response's `notes` instead.
     case "list":
       return await opList(conn, input, maxChars, gate, journal);
     case "show":
@@ -703,6 +766,10 @@ export async function abapTransport(
       return await opCheck(conn, input, maxChars);
     case "users":
       return await opUsers(conn, maxChars);
+    case "log":
+      return await opLog(conn, gate, input, maxChars);
+    case "queue":
+      return await opQueue(conn, gate, input, maxChars);
     case "create":
       return await opCreate(conn, input, maxChars, gate, journal, ownership);
     case "addUser":
@@ -1043,6 +1110,201 @@ async function opCheck(
 }
 
 /**
+ * A `transport` value with no format check — `readTransportLogViaBridge` (`src/adt/
+ * transport-log.ts`) validates the shape itself via its own `assertTrkorr`, so this only
+ * covers the "missing entirely" case, in the same BAD_INPUT shape `normTrkorr` uses for it.
+ */
+function requireTransportArg(value: string | undefined, operation: string): string {
+  const raw = (value ?? "").trim().toUpperCase();
+  if (raw === "") {
+    throw new AbapError(
+      "BAD_INPUT",
+      `Operation "${operation}" needs "transport" (a request/task number, e.g. A4HK900123).`,
+      { operation, arg: "transport" },
+    );
+  }
+  return raw;
+}
+
+/**
+ * E070-TRFUNCTION / E070-TRSTATUS are raw one-letter domain codes — unreadable without CTS's
+ * own code table. `fmtTrFunction`/`fmtTrStatus` below gloss them as `label (CODE)` (falling
+ * back to the bare code for anything not in the table, and to `(empty)` for a blank, matching
+ * the convention `opCheck` uses for `korrflag`/`recording` above).
+ *
+ * These are two SEPARATE tables, not one shared map, because the domains collide: `D` means
+ * "modifiable" as a TRSTATUS but "piece list (upgrade)" as a TRFUNCTION. Merging them would
+ * silently mislabel every modifiable request as a piece list (or vice versa) — do not do that
+ * in a future edit.
+ *
+ * Values below are E070's own documented domain fixed values (domains TRFUNCTION / TRSTATUS).
+ * Only `T` (TRFUNCTION) and `D` (TRSTATUS) were observed live, on A4H on 2026-09-15 — the
+ * transport of copies this feature creates comes back with exactly those two codes. The rest
+ * of each table is unverified on this box; none of it is claimed as observed.
+ */
+const TRFUNCTION_LABELS: Record<string, string> = {
+  K: "workbench request",
+  W: "customizing request",
+  T: "transport of copies",
+  C: "relocation of objects without package change",
+  O: "relocation of objects with package change",
+  E: "relocation of a complete package",
+  S: "development/correction task",
+  R: "repair task",
+  X: "unclassified task",
+  Q: "customizing task",
+  G: "piece list (CTS project)",
+  D: "piece list (upgrade)",
+};
+
+const TRSTATUS_LABELS: Record<string, string> = {
+  D: "modifiable",
+  L: "modifiable, protected",
+  O: "release started",
+  R: "released",
+  N: "released, with import protection for repaired objects",
+};
+
+function fmtCodeWithLabel(raw: string, labels: Record<string, string>): string {
+  const code = raw.trim();
+  if (code === "") return "(empty)";
+  const label = labels[code.toUpperCase()];
+  return label ? `${label} (${code})` : code;
+}
+
+function fmtTrFunction(raw: string): string {
+  return fmtCodeWithLabel(raw, TRFUNCTION_LABELS);
+}
+
+function fmtTrStatus(raw: string): string {
+  return fmtCodeWithLabel(raw, TRSTATUS_LABELS);
+}
+
+async function opLog(
+  conn: AbapConnection,
+  gate: SafetyGate,
+  input: TransportInput,
+  maxChars: number,
+): Promise<BuiltResponse> {
+  const trkorr = requireTransportArg(input.transport, "log");
+  const result: TransportLogResult = await readTransportLogViaBridge(conn, gate, { trkorr });
+
+  const sections: Array<{ title: string; content: string }> = [];
+  for (const sys of result.systems) {
+    const date = (sys.date ?? "").trim();
+    const collected = date === "" || date === "00000000" ? "never imported" : `${date} ${sys.time}`;
+    const rc = (sys.rc ?? "").trim();
+    const rcLine = rc === "" ? "no return code yet" : rc + (sys.rcText ? ` (${sys.rcText})` : "");
+    const head = [
+      `System: ${sys.system}${sys.systemText ? ` — ${sys.systemText}` : ""}`,
+      `Return code: ${rcLine}`,
+      `Collected: ${collected}`,
+    ].join("\n");
+    let body: string;
+    if (sys.lines.length === 0) {
+      body =
+        head +
+        "\n\nNo log lines recorded for this system. That is the normal answer, not a failure, " +
+        "for a request that has not been exported yet: the log file is written by tp at export " +
+        "time, so a modifiable or never-exported request legitimately has an overview row and " +
+        "zero log lines (observed live on A4H on 2026-09-15, for every request tried).";
+    } else {
+      body =
+        head +
+        "\n\n" +
+        textTable(
+          sys.lines.map((l) => ({
+            severity: l.severity,
+            class: l.msgClass,
+            number: l.msgNumber,
+            text: l.text,
+          })),
+          ["severity", "class", "number", "text"],
+        );
+    }
+    sections.push({ title: `SYSTEM ${sys.system}`, content: body });
+  }
+
+  const notes: string[] = [];
+  if (result.systems.length === 0) {
+    notes.push(`${result.trkorr} reports no log systems at all — it may have no log overview yet.`);
+  }
+
+  return buildResponse({
+    header: {
+      operation: "log",
+      transport: result.trkorr,
+      trFunction: fmtTrFunction(result.trFunction),
+      trStatus: fmtTrStatus(result.trStatus),
+      systems: result.systems.length,
+    },
+    sections,
+    notes,
+    maxChars,
+  });
+}
+
+async function opQueue(
+  conn: AbapConnection,
+  gate: SafetyGate,
+  input: TransportInput,
+  maxChars: number,
+): Promise<BuiltResponse> {
+  const system = required(input.system, "system", "queue").toUpperCase();
+  const domain = (input.domain ?? "").trim();
+  const result: TransportQueueResult = await readImportQueueViaBridge(conn, gate, {
+    system,
+    ...(domain === "" ? {} : { domain }),
+  });
+
+  const sections: Array<{ title: string; content: string }> = [];
+  if (result.entries.length > 0) {
+    sections.push({
+      title: "QUEUE",
+      content: textTable(
+        result.entries.map((e) => ({
+          position: e.position,
+          request: e.trkorr,
+          importFlag: e.importFlag,
+          maxRc: e.maxRc,
+          function: e.trFunction,
+          owner: e.owner,
+          client: e.targetClient,
+          description: e.description,
+        })),
+        ["position", "request", "importFlag", "maxRc", "function", "owner", "client", "description"],
+      ),
+    });
+  }
+
+  const notes: string[] = [];
+  if (result.entries.length === 0) {
+    notes.push(
+      `The import queue for ${result.system} is EMPTY — no requests are waiting to be imported. ` +
+        "This is the current state of the target system's buffer, not an error and not a failed read.",
+    );
+  }
+  notes.push(
+    "The queue IS the import buffer, not a history: a request that has already been imported " +
+      "has left the buffer, so its absence here does not by itself prove the change never " +
+      `reached ${result.system} — check the request's own log (operation "log") for that.`,
+  );
+
+  return buildResponse({
+    header: {
+      operation: "queue",
+      system: result.system,
+      domain: result.domain.trim() === "" ? "(local domain)" : result.domain,
+      collected: `${result.collectedDate} ${result.collectedTime}`.trim(),
+      entries: result.entries.length,
+    },
+    sections,
+    notes,
+    maxChars,
+  });
+}
+
+/**
  * Best-effort recovery after a failed `trCreate`: a client-side timeout can arrive AFTER the
  * server already created the request, and the caller must not be told "nothing happened" when
  * it did. Looks for a modifiable workbench request whose description exactly matches this
@@ -1167,6 +1429,26 @@ async function opCreate(
     { corr: { kind: "unresolved" } },
   );
 
+  // `kind === "copies"` branches out here, AFTER the shared preamble above (devClass/
+  // description validation, the `$`-package refusal, and the `evaluate`/`authorize` pair) but
+  // BEFORE the workbench-only anchor resolution below — so a transport of copies gets the
+  // identical gate decision a workbench create gets, never a second, potentially-diverging
+  // `evaluate`/`authorize` call, and the workbench path below is reached only when this branch
+  // is not taken, unchanged from before this feature existed.
+  if (input.kind === "copies") {
+    return await createCopies(
+      conn,
+      gate,
+      maxChars,
+      journal,
+      ownership,
+      input,
+      devClass,
+      description,
+      authorized,
+    );
+  }
+
   const anchor = (input.object ?? "").trim();
   const objSourceUrl =
     anchor === ""
@@ -1252,6 +1534,193 @@ async function opCreate(
       reference: objSourceUrl,
     },
     notes,
+    maxChars,
+  });
+}
+
+/**
+ * {@link recoverPossiblyCreated}, adapted for a transport of copies: that function filters on
+ * `kind === "workbench"`, which a copies request never matches — its own `kind` is
+ * `"transport-of-copies"` (see `TrKind`, src/adt/transports.ts) — so it cannot be reused
+ * unmodified. Also matched on `target`: a transport of copies is only a plausible match for
+ * THIS call's request when it carries the same destination, not just the same description.
+ */
+async function recoverPossiblyCreatedCopies(
+  conn: AbapConnection,
+  description: string,
+  target: string,
+): Promise<string[]> {
+  try {
+    const user = (conn.cfg.user ?? "").trim();
+    const res = await trList(conn, user ? { user } : {});
+    return res.workbench
+      .filter((r) => r.kind === "transport-of-copies" && r.status === "modifiable")
+      .filter((r) => r.description === description && (r.target ?? "").toUpperCase() === target)
+      .map((r) => r.trkorr);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * The `kind === "copies"` half of `operation: "create"` — split out of `opCreate` once the
+ * shared preamble (package/description validation and the gate `evaluate`/`authorize` pair)
+ * has run, so both paths are governed by the identical authorization decision. Takes the
+ * already-minted `authorized` rather than re-deriving it, for the same reason.
+ */
+async function createCopies(
+  conn: AbapConnection,
+  gate: SafetyGate,
+  maxChars: number,
+  journal: TransportJournalDeps | undefined,
+  ownership: SessionTrOwner | undefined,
+  input: TransportInput,
+  devClass: string,
+  description: string,
+  authorized: AuthorizedTarget<"transport", { name: string; packageName?: string }>,
+): Promise<BuiltResponse> {
+  const target = (input.target ?? "").trim().toUpperCase();
+  if (target === "") {
+    throw new AbapError(
+      "BAD_INPUT",
+      'Operation "create" with kind "copies" needs "target": a transport of copies with no ' +
+        "target cannot be imported anywhere, so abapsmith refuses to create one.",
+      { operation: "create", kind: "copies", arg: "target" },
+    );
+  }
+  const anchor = (input.object ?? "").trim();
+  if (anchor !== "") {
+    throw new AbapError(
+      "BAD_INPUT",
+      'Operation "create" with kind "copies" does not take "object": a transport of copies is ' +
+        "created empty and objects are added to it afterwards, so the anchor object a " +
+        "workbench create uses does not apply here.",
+      { operation: "create", kind: "copies", arg: "object" },
+    );
+  }
+
+  let copies: TransportOfCopiesResult;
+  try {
+    copies = await createTransportOfCopiesViaBridge(
+      conn,
+      gate,
+      { description, target, devClass },
+      authorized,
+    );
+  } catch (e) {
+    // Same failure mode `trCreate`'s catch above guards against — a client-side timeout can
+    // arrive AFTER the server already created the request. `recoverPossiblyCreated` itself
+    // can't be reused here (see `recoverPossiblyCreatedCopies`'s doc comment), so its
+    // copies-specific counterpart is used instead.
+    const candidates = await recoverPossiblyCreatedCopies(conn, description, target);
+    if (candidates.length === 1) {
+      const candidate = candidates[0]!;
+      // Ownership BEFORE the throw, same reasoning as the workbench path: if the server really
+      // did create this, it is as much this session's as one whose response arrived.
+      ownership?.noteCreated(candidate);
+      // Unlike the workbench recovery above — which notes ownership but never journals on
+      // failure, because an ambiguous or absent candidate leaves no trkorr to file an entry
+      // under — an UNAMBIGUOUS candidate here does have a number, so it CAN be journalled. But
+      // neither terminal verdict would be honest: `succeeded` would claim this call created it
+      // when the match is only owner+modifiable+transport-of-copies+description+target (a
+      // coincidence, however unlikely, is possible), and `failed` would claim nothing happened
+      // when the request may be exactly the one this call just created. `unproven` is the only
+      // verdict that doesn't overstate what this recovery lookup actually established.
+      await recordMutation(
+        journal,
+        {
+          operation: "transport-create",
+          trkorr: candidate,
+          description,
+          package: devClass,
+          existedBefore: false,
+          tool: "abap_transport create kind=copies",
+        },
+        {
+          kind: "unproven",
+          reason:
+            `createTransportOfCopiesViaBridge failed (${e instanceof Error ? e.message : String(e)}), ` +
+            "but a modifiable transport of copies matching this call's description and target " +
+            `already exists on ${conn.cfg.sid}: ${candidate}.`,
+        },
+      );
+    }
+    const originalDetails = e instanceof AbapError ? e.details : {};
+    const code = e instanceof AbapError ? e.code : "TRANSPORT_ERROR";
+    const cause = e instanceof Error ? e.message : String(e);
+    const sid = conn.cfg.sid;
+    const n = candidates.length;
+    if (n === 0) {
+      throw new AbapError(
+        code,
+        `Creating a transport of copies for ${devClass} → ${target} failed: ${cause}`,
+        {
+          ...originalDetails,
+          operation: "create",
+          kind: "copies",
+          package: devClass,
+          target,
+          description,
+        },
+      );
+    }
+    const list = candidates.join(", ");
+    const first = candidates[0];
+    throw new AbapError(
+      code,
+      `Creating a transport of copies for ${devClass} → ${target} failed, but ${n === 1 ? "a modifiable transport of copies that matches this create already exists" : `${n} modifiable transports of copies that match this create already exist`} on ${sid}: ${list}. abapsmith cannot prove ${n === 1 ? "it came" : "they came"} from this call — but a create that fails AFTER the server has already acted looks exactly like this, so do NOT treat this as "nothing happened". The original failure was: ${cause}`,
+      {
+        ...originalDetails,
+        possiblyCreated: candidates,
+        operation: "create",
+        kind: "copies",
+        package: devClass,
+        target,
+        description,
+      },
+      `Check before creating another: abap_transport operation="show" transport="${first}" tells you what ${first} actually is.`,
+    );
+  }
+
+  // A request this session created by hand is as much this session's as an auto-created one.
+  ownership?.noteCreated(copies.trkorr);
+  // JOURNAL — after the POST, same reasoning as the workbench path: no request number exists
+  // before it, so an early entry would file a phantom for every refused creation.
+  await recordMutation(
+    journal,
+    {
+      operation: "transport-create",
+      trkorr: copies.trkorr,
+      description,
+      package: devClass,
+      existedBefore: false,
+      tool: "abap_transport create kind=copies",
+    },
+    { kind: "succeeded" },
+  );
+
+  return buildResponse({
+    header: {
+      operation: "create",
+      kind: categoryTitle("transportOfCopies"),
+      transport: copies.trkorr,
+      trFunction: fmtTrFunction(copies.trFunction),
+      trStatus: fmtTrStatus(copies.trStatus),
+      package: devClass,
+      description,
+      target: copies.target,
+      owner: copies.owner,
+      tasks: copies.tasks,
+    },
+    notes: [
+      `Created ${copies.trkorr}, a TRANSPORT OF COPIES targeting ${copies.target}. It was ` +
+        "created empty; add objects to it the same way as any other request, then pass it as " +
+        "the transport on writes whose changes should be copied there.",
+      "The objects' original request is untouched and they stay modifiable in this system — a " +
+        "transport of copies carries a snapshot to the target; it does not move or freeze the " +
+        "originals.",
+      "A transport of copies has no tasks (observed live on A4H on 2026-09-15: zero task headers).",
+    ],
     maxChars,
   });
 }

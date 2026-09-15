@@ -12,6 +12,12 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.3] - 2026-09-15
+
+### Added
+
+- Transport landscape support in `abap_transport` (#88): `operation="log"` reads a request's transport log (`TRINT_GET_LOG_OVERVIEW` overview row per target system plus the `tp` log lines from `TRINT_GET_LOG_FILE`), with an E070 pre-check so a nonexistent request is `NOT_FOUND` instead of the fake "not yet imported" row the function module would otherwise answer; `operation="queue"` reads a target system's TMS import buffer (`TMS_MGR_READ_TRANSPORT_QUEUE`, optional `domain`), every lock-clearing and cache-refreshing flag forced off, and an unknown system maps to `NOT_FOUND` with a TMSCSYS/TCESYST hint; `create` with `kind="copies"` and a required `target` creates a transport of copies (`TR_INSERT_REQUEST_WITH_TASKS` type `T`) in a transportable package, journalled like other creates. `show` decodes E070 function and status codes to labels. All three run through the fluid `classic` bridge with every `CALL FUNCTION` actual declared as a typed local (a `string` actual dumps with `CX_SY_DYN_CALL_ILLEGAL_TYPE` at runtime, not at activation). Proven live on A4H; a non-empty log or queue and a routed release remain `unverified` because A4H has no transport route. Triggering an import (STMS) is deliberately not implemented and documented in `doc/LIMITATIONS/not-implemented-and-unproven.md`.
+
 ## [0.6.2] - 2026-09-15
 
 ### Added
