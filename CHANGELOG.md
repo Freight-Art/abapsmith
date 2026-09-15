@@ -12,6 +12,23 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.5.16] - 2026-09-15
+
+### Added
+
+- `fluid-plugins/jobs`, an operator-installable fluid plugin covering the SM37 surface (issue #90): `list` (TBTCO by name pattern, user, status and date window), `show` (header, TBTCP steps and the job log via `BP_JOBLOG_READ`), `spool` (a step's list output via `RSPO_RETURN_ABAP_SPOOLJOB`), `schedule` (`JOB_OPEN`/`JOB_SUBMIT`/`JOB_CLOSE` for one existing executable report, immediate, timed or held; OS commands and external programs are refused structurally) and `cancel` (`BP_JOB_ABORT` for a running job, `BP_JOB_DELETE` for a scheduled one, own jobs unless `any_owner`). `schedule` and `cancel` are mutate actions behind `ABAP_ALLOW_FLUID_PLUGIN_MUTATE`, need the `confirm` echo and are journalled as irreversible. Ships with a README, loader tests and was verified end to end on A4H, including `show` on a held job that has no log yet.
+
+## [0.5.15] - 2026-09-15
+
+### Added
+
+- `abap_read` `view: "definition"` answers what the identifier at a `line`/`column` is and where it comes from (issue #91): the element's kind, declaring object, visibility and ABAP type, a `DEFINITION` section with an `abap_read` reference to the declaration, a `SIGNATURE` (or `(none)`) or `COMPONENTS` table, ABAP Doc, and for an interface method an `IMPLEMENTED BY` list gathered from a where-used call — from a use site or from the interface's own `METHODS` declaration. A position on nothing resolvable, on the declaration itself (SAP message ED263) or on a method with more than one implementation (`SEDI_ADT 2`) is reported as prose, not as an error. Verified live on A4H; twelve new live captures (952–964) back the parsers.
+- `abap_activate` `mode: "format"` runs the ABAP pretty printer (issue #91): with `source`, it returns the formatted text and writes nothing; with `object`, it rewrites the object formatted, journals the change so `abap_journal` `mode: "undo"` restores it, and reports `changed: false` without locking or writing when the source is already formatted.
+
+### Fixed
+
+- The `IMPLEMENTED BY` list no longer depends on the vendor `abap-adt-api` where-used parser, which reads the `usageReferences:` namespace prefix while A4H sends `usagereferences:` and so always returned nothing; the request is issued and parsed locally, accepting either prefix (issue #91).
+
 ## [0.5.14] - 2026-09-12
 
 ### Added

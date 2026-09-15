@@ -1,0 +1,30 @@
+{
+  "n": 962,
+  "label": "i91-prettyprinter-settings",
+  "expect": "the system-wide pretty-printer setting is readable; A4H answers indentation=true style=keywordUpper keepIdentifier=true",
+  "note": "GET the system-wide pretty-printer setting (read only, never written)",
+  "requestMethod": "GET",
+  "requestUrl": "/sap/bc/adt/abapsource/prettyprinter/settings",
+  "requestHeaders": {
+    "Accept": "application/*"
+  },
+  "requestBody": null,
+  "requestBodyBytes": 0,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-type": "application/vnd.sap.adt.ppsettings.v5+xml; charset=utf-8",
+    "content-length": "247",
+    "sap-authenticated": "true",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "682724.000000"
+  },
+  "byteLength": 247,
+  "zeroByteBody": false,
+  "sha256": "35458116d45791f30f14a1a761b7ca5382a8edffd4dbb3abef592f4b6d8f5fcd",
+  "utcTimestamp": "2026-09-12T17:26:46.193Z",
+  "durationMs": 748,
+  "sessionName": "LIVE-I91"
+}

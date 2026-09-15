@@ -119,7 +119,7 @@ n	label	method	path	status	byteLength	durationMs
 808	qf-autoqf-step-preview-media-type	POST	/sap/bc/adt/atc/autoqf/worklist?step=preview	ERR	105	89
 809	qf-proposal-delete-member-empty-deltas	POST	/sap/bc/adt/quickfixes/proposals/providers/refactoring/quickfixes/delete_member	200	247	148
 810	qf-proposal-change-to-private-descending-units	POST	/sap/bc/adt/quickfixes/proposals/providers/refactoring/quickfixes/change_to_private	200	776	141
-811	qf-proposal-factory-method-two-insertions	POST	/sap/bc/adt/quickfixes/proposals/providers/refactoring/quickfixes/generate_factory_method	200	891	176
+811	qf-proposal-factory-method-two-insertions	POST	/sap/bc/adt/quickfixes/proposals/providers/refactoring/quickfixes/generate_factory_method	200	952	176
 812	p0-quicksearch-t000-repro	GET	/sap/bc/adt/repository/informationsystem/search?operation=quickSearch&query=T000*&maxResults=5	200	1156	947
 813	p1-nodestructure-strm-t000	GET	/sap/bc/adt/repository/nodestructure?parent_type=DEVC%2FK&parent_name=STRM_T000&withShortDescriptions=true	405	389	809
 814	p1-ddic-table-t000-source	GET	/sap/bc/adt/ddic/tables/t000/source/main	200	1188	1242
@@ -202,3 +202,15 @@ n	label	method	path	status	byteLength	durationMs
 891	i78-worklist-delete-405	DELETE	/sap/bc/adt/atc/worklists/466F46C806601FE1ABD7F225A1B94069	405	525	337
 892	i78-worklist-action-deletefindings-noop	POST	/sap/bc/adt/atc/worklists/466F46C806601FE1ABD7F225A1B94069?action=deleteFindings	200	0	180
 893	i78-atc-customizing	GET	/sap/bc/adt/atc/customizing	200	2211	146
+952	i91-elementinfo-interface-method	POST	/sap/bc/adt/abapsource/codecompletion/elementinfo?uri=%2Fsap%2Fbc%2Fadt%2Foo%2Fclasses%2Fzcl_i91_probe%2Fsource%2Fmain%23start%3D35%2C25	200	2307	10523
+953	i91-elementinfo-attribute	POST	/sap/bc/adt/abapsource/codecompletion/elementinfo?uri=%2Fsap%2Fbc%2Fadt%2Foo%2Fclasses%2Fzcl_i91_probe%2Fsource%2Fmain%23start%3D35%2C4	200	802	240
+954	i91-elementinfo-type	POST	/sap/bc/adt/abapsource/codecompletion/elementinfo?uri=%2Fsap%2Fbc%2Fadt%2Foo%2Fclasses%2Fzcl_i91_probe%2Fsource%2Fmain%23start%3D25%2C21	200	829	576
+955	i91-elementinfo-local-variable	POST	/sap/bc/adt/abapsource/codecompletion/elementinfo?uri=%2Fsap%2Fbc%2Fadt%2Foo%2Fclasses%2Fzcl_i91_probe%2Fsource%2Fmain%23start%3D35%2C15	200	437	368
+956	i91-elementinfo-method-own	POST	/sap/bc/adt/abapsource/codecompletion/elementinfo?uri=%2Fsap%2Fbc%2Fadt%2Foo%2Fclasses%2Fzcl_i91_probe%2Fsource%2Fmain%23start%3D18%2C12	200	2385	229
+957	i91-elementinfo-function-module	POST	/sap/bc/adt/abapsource/codecompletion/elementinfo?uri=%2Fsap%2Fbc%2Fadt%2Foo%2Fclasses%2Fzcl_i91_probe%2Fsource%2Fmain%23start%3D37%2C19	200	255	387
+958	i91-navigation-target-definition	POST	/sap/bc/adt/navigation/target?uri=%2Fsap%2Fbc%2Fadt%2Foo%2Fclasses%2Fzcl_i91_probe%2Fsource%2Fmain%23start%3D35%2C25%3Bend%3D35%2C32&filter=definition	200	185	8614
+960	i91-elementinfo-no-element	POST	/sap/bc/adt/abapsource/codecompletion/elementinfo?uri=%2Fsap%2Fbc%2Fadt%2Foo%2Fclasses%2Fzcl_i91_probe%2Fsource%2Fmain%23start%3D39%2C4	200	164	236
+961	i91-usage-references-interface-method	POST	/sap/bc/adt/repository/informationsystem/usageReferences?uri=%2Fsap%2Fbc%2Fadt%2Foo%2Finterfaces%2Fzif_i91_probe%2Fsource%2Fmain%23start%3D8%2C10	200	4270	9896
+962	i91-prettyprinter-settings	GET	/sap/bc/adt/abapsource/prettyprinter/settings	200	247	748
+963	i91-prettyprinter-format	POST	/sap/bc/adt/abapsource/prettyprinter	200	327	777
+964	i91-prettyprinter-idempotent	POST	/sap/bc/adt/abapsource/prettyprinter	200	327	84

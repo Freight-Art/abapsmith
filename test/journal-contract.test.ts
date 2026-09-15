@@ -668,6 +668,29 @@ const NOT_REPOSITORY_MUTATIONS: ReadonlyMap<string, string> = new Map([
       "source line from the debugger, say), it must journal and this entry must be re-examined.",
   ],
   [
+    "adt/element-info.ts",
+    "Three `conn.post` lookups: `POST /sap/bc/adt/abapsource/codecompletion/elementinfo` (what is " +
+      "the identifier at this position), `POST /sap/bc/adt/navigation/target` (where is it " +
+      "declared), and `POST /sap/bc/adt/repository/informationsystem/usageReferences` (who " +
+      "implements this interface method). The module issues that third request itself rather " +
+      "than going through the vendor library's own `usageReferences` call, because the installed " +
+      "`abap-adt-api` parses the answer through the hardcoded namespace path " +
+      "`usageReferences:referencedObject` (capital `R`) while the reference system answers with " +
+      "the lowercase `usagereferences:` prefix, so the vendor parser always returned an empty " +
+      "list. All three are ADT's own read-only element-info/navigation-target/where-used " +
+      "surface. The POST body on the first two carries the object's whole source because that is " +
+      "how the wire protocol asks the question — the server needs the source to resolve a " +
+      "position against; the where-used POST instead carries a small fixed " +
+      "`usagereferences:usageReferenceRequest` envelope with an empty `affectedObjects` element, " +
+      "not the object's source. None of the three creates, changes or " +
+      "deletes a repository object, so no `JournalOperation` value could describe them. Unlike " +
+      "`adt/quickfix.ts` below, there is no hop up that DOES journal a repository change here: " +
+      "`abap_read view=\"definition\"` (`src/tools/read.ts`) writes nothing at all and stays on " +
+      "the `deps.safety.assert(\"read\")` path, gated as a read, not a write. If a future code " +
+      "path in this module ever POSTs something that changes a repository object, it must journal " +
+      "and this entry must be re-examined.",
+  ],
+  [
     "adt/quickfix.ts",
     "Two POSTs, `evaluateQuickFixes` (quick-fix evaluation) and " +
       "`fetchQuickFixDelta` (one proposal's own `uri`), both of which compute a fix from source " +
@@ -696,6 +719,7 @@ describe("journal contract (heuristic, see file header)", () => {
         "adt/activate.ts",
         "adt/atc.ts",
         "adt/bopf.ts",
+        "adt/element-info.ts",
         "adt/enhancement-bridge.ts",
         "adt/enhancement-hook.ts",
         "adt/enhancement-write.ts",

@@ -1,0 +1,226 @@
+{
+  "contract": "1.0",
+  "id": "jobs",
+  "title": "Background jobs (SM37)",
+  "description": "Lists background jobs, reads a job's steps, log and spool output, schedules an ABAP report as a job, and cancels one.",
+  "objects": [
+    { "name": "ZCL_ZMCP_X_JOBS", "type": "CLAS/OC", "description": "fluid: background jobs, log, spool, schedule",
+      "source": { "file": "abap/zcl_zmcp_x_jobs.abap" } }
+  ],
+  "entry": "ZCL_ZMCP_X_JOBS",
+  "actions": [
+    {
+      "name": "list",
+      "category": "read",
+      "description": "Lists background jobs from TBTCO matching a name pattern ('*' any chars, '+' one char) and optional scheduling-user, status and start-date-window filters. The date window is compared against the actual start date, or the scheduled start date when the job never started. max_rows caps the result (default 100; 0 means no limit) and truncated reports whether more rows exist.",
+      "input": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "maxLength": 32, "description": "Job-name pattern; '*' matches any chars, '+' matches one char. Default '*'." },
+          "user": { "type": "string", "maxLength": 12, "description": "Only jobs scheduled by this user (TBTCO-SDLUNAME). Default: any user." },
+          "status": { "type": "string", "maxLength": 1, "enum": ["P", "S", "Y", "R", "F", "A", "X", "Z"], "description": "Only jobs in this status. Default: any status." },
+          "from_date": { "type": "string", "maxLength": 8, "description": "Lower bound of the date window, YYYYMMDD. Compared against the actual start date, or the scheduled start date when the job never started." },
+          "to_date": { "type": "string", "maxLength": 8, "description": "Upper bound of the date window, YYYYMMDD. Compared against the actual start date, or the scheduled start date when the job never started." },
+          "max_rows": { "type": "string", "maxLength": 6, "description": "Row limit, as an integer written in text. Default 100; 0 means no limit." }
+        }
+      },
+      "output": {
+        "type": "object",
+        "required": ["count", "truncated", "jobs"],
+        "properties": {
+          "count": { "type": "integer", "description": "Number of jobs returned." },
+          "truncated": { "type": "boolean", "description": "True when more jobs matched than max_rows returned." },
+          "jobs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "jobname": { "type": "string" },
+                "jobcount": { "type": "string" },
+                "status": { "type": "string" },
+                "status_text": { "type": "string" },
+                "scheduled_by": { "type": "string" },
+                "exec_user": { "type": "string" },
+                "job_class": { "type": "string" },
+                "periodic": { "type": "boolean" },
+                "sdlstrtdt": { "type": "string" },
+                "sdlstrttm": { "type": "string" },
+                "strtdate": { "type": "string" },
+                "strttime": { "type": "string" },
+                "enddate": { "type": "string" },
+                "endtime": { "type": "string" },
+                "step_count": { "type": "integer" },
+                "exec_server": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "show",
+      "category": "read",
+      "description": "Reads one job's header from TBTCO, its steps from TBTCP, and its job log via BP_JOBLOG_READ. Omit jobcount to take the most recently scheduled job with this name. log_lines caps how many log lines come back (default 200; 0 means all); log_head returns the FIRST log_lines lines instead of the last.",
+      "input": {
+        "type": "object",
+        "required": ["jobname"],
+        "properties": {
+          "jobname": { "type": "string", "maxLength": 32 },
+          "jobcount": { "type": "string", "maxLength": 8, "description": "Job number. Omit to take the most recently scheduled job with this name." },
+          "log_lines": { "type": "string", "maxLength": 6, "description": "How many job-log lines to return, as an integer written in text. Default 200; 0 means all." },
+          "log_head": { "type": "boolean", "description": "True returns the FIRST log_lines lines instead of the last." }
+        }
+      },
+      "output": {
+        "type": "object",
+        "required": ["jobname", "jobcount", "status", "status_text", "step_count", "steps", "log_count", "log_truncated", "log"],
+        "properties": {
+          "jobname": { "type": "string" },
+          "jobcount": { "type": "string" },
+          "status": { "type": "string" },
+          "status_text": { "type": "string" },
+          "scheduled_by": { "type": "string" },
+          "exec_user": { "type": "string" },
+          "job_class": { "type": "string" },
+          "periodic": { "type": "boolean" },
+          "sdlstrtdt": { "type": "string" },
+          "sdlstrttm": { "type": "string" },
+          "strtdate": { "type": "string" },
+          "strttime": { "type": "string" },
+          "enddate": { "type": "string" },
+          "endtime": { "type": "string" },
+          "exec_server": { "type": "string" },
+          "joblog": { "type": "string" },
+          "step_count": { "type": "integer" },
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "step": { "type": "string" },
+                "program": { "type": "string" },
+                "variant": { "type": "string" },
+                "exec_user": { "type": "string" },
+                "status": { "type": "string" },
+                "language": { "type": "string" },
+                "spool_id": { "type": "string", "description": "\"\" when the step produced no spool output." },
+                "external": { "type": "boolean", "description": "True when TBTCP-XPGFLAG is set or XPGPROG/EXTCMD is filled, i.e. the step is an external program, not an ABAP report." }
+              }
+            }
+          },
+          "log_count": { "type": "integer", "description": "Number of log lines returned." },
+          "log_truncated": { "type": "boolean" },
+          "log": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "date": { "type": "string" },
+                "time": { "type": "string" },
+                "type": { "type": "string" },
+                "msgid": { "type": "string" },
+                "msgno": { "type": "string" },
+                "text": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "spool",
+      "category": "read",
+      "description": "Reads a job step's spool output via RSPO_RETURN_ABAP_SPOOLJOB, given a spool_id directly or resolved from a jobname (and optionally jobcount/step). max_lines caps the result (default 1000; 0 means no cap).",
+      "input": {
+        "type": "object",
+        "properties": {
+          "spool_id": { "type": "string", "maxLength": 10, "description": "Spool request number. Give this, or a jobname/step to resolve one from." },
+          "jobname": { "type": "string", "maxLength": 32, "description": "Resolve the spool id from this job's step. Ignored when spool_id is given." },
+          "jobcount": { "type": "string", "maxLength": 8, "description": "Job number. Omit to take the most recently scheduled job with this name." },
+          "step": { "type": "string", "maxLength": 6, "description": "Step number, as an integer written in text. Omit to take the last step that produced spool output." },
+          "first_line": { "type": "string", "maxLength": 8, "description": "First list line to return, as an integer written in text. Default 1." },
+          "last_line": { "type": "string", "maxLength": 8, "description": "Last list line to return, as an integer written in text. Omit for the end of the list." },
+          "max_lines": { "type": "string", "maxLength": 6, "description": "Hard cap on returned lines, as an integer written in text. Default 1000; 0 means no cap." }
+        }
+      },
+      "output": {
+        "type": "object",
+        "required": ["spool_id", "line_count", "truncated", "lines"],
+        "properties": {
+          "spool_id": { "type": "string" },
+          "jobname": { "type": "string" },
+          "jobcount": { "type": "string" },
+          "step": { "type": "string" },
+          "line_count": { "type": "integer" },
+          "truncated": { "type": "boolean" },
+          "lines": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    {
+      "name": "schedule",
+      "category": "mutate",
+      "description": "Creates a single-step background job running one existing ABAP report, optionally with an existing variant, via JOB_OPEN / JOB_SUBMIT / JOB_CLOSE; the step always runs under the calling (technical) user; OS commands and external programs are refused - the action has no input for them and the program must be an executable ABAP report (TRDIR-SUBC = '1').",
+      "input": {
+        "type": "object",
+        "required": ["jobname", "program"],
+        "properties": {
+          "jobname": { "type": "string", "maxLength": 32, "description": "Name for the new job." },
+          "program": { "type": "string", "maxLength": 40, "description": "Existing executable ABAP report (TRDIR-SUBC = '1'). Anything else is refused." },
+          "variant": { "type": "string", "maxLength": 14, "description": "Existing variant of that report. Must already exist; the action creates none." },
+          "start_date": { "type": "string", "maxLength": 8, "description": "Scheduled start date, YYYYMMDD. Omit for an immediate start." },
+          "start_time": { "type": "string", "maxLength": 6, "description": "Scheduled start time, HHMMSS. Only used with start_date; default 000000." },
+          "job_class": { "type": "string", "maxLength": 1, "enum": ["A", "B", "C"], "description": "Job priority class. Default C." },
+          "hold": { "type": "boolean", "description": "True leaves the job scheduled but not released, so it never starts on its own." }
+        }
+      },
+      "output": {
+        "type": "object",
+        "required": ["jobname", "jobcount", "program", "released", "status", "status_text"],
+        "properties": {
+          "jobname": { "type": "string" },
+          "jobcount": { "type": "string" },
+          "program": { "type": "string" },
+          "variant": { "type": "string" },
+          "job_class": { "type": "string" },
+          "released": { "type": "boolean" },
+          "status": { "type": "string" },
+          "status_text": { "type": "string" },
+          "step_number": { "type": "integer" },
+          "start_mode": { "type": "string", "enum": ["immediate", "scheduled", "hold"] },
+          "start_date": { "type": "string" },
+          "start_time": { "type": "string" },
+          "exec_user": { "type": "string" }
+        }
+      },
+      "targets": { "object": "/program" }
+    },
+    {
+      "name": "cancel",
+      "category": "mutate",
+      "description": "Aborts a running job with BP_JOB_ABORT, or deletes a scheduled/released/ready one with BP_JOB_DELETE; a job that already finished or was cancelled is refused; by default only jobs scheduled by the calling user are touched, and any_owner lifts that - SAP's own S_BTCH_ADM / S_BTCH_JOB authorisations remain the real control.",
+      "input": {
+        "type": "object",
+        "required": ["jobname", "jobcount"],
+        "properties": {
+          "jobname": { "type": "string", "maxLength": 32 },
+          "jobcount": { "type": "string", "maxLength": 8 },
+          "any_owner": { "type": "boolean", "description": "True allows acting on a job scheduled by another user. Refused by SAP unless the caller holds the background administrator authorisation." }
+        }
+      },
+      "output": {
+        "type": "object",
+        "required": ["jobname", "jobcount", "mode", "cancelled", "status_before", "status_before_text"],
+        "properties": {
+          "jobname": { "type": "string" },
+          "jobcount": { "type": "string" },
+          "mode": { "type": "string", "enum": ["abort", "delete"] },
+          "cancelled": { "type": "boolean" },
+          "status_before": { "type": "string" },
+          "status_before_text": { "type": "string" },
+          "scheduled_by": { "type": "string" }
+        }
+      }
+    }
+  ]
+}
