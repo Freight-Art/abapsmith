@@ -689,7 +689,7 @@ export function createServer(cfg: Config, opts: ServerOptions): AbapsmithServer 
       // for `systemKey()` on those journal entries.
       registerImgEditTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal });
       registerRunTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
-      registerTestTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
+      registerTestTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal });
       // `abap_atc`: inside `canWrite`, not beside `abap_dumps` — a run
       // creates a persistent ATC worklist row, and this server observably
       // REFUSES to remove it (DELETE answers 405 `ExceptionMethodNotSupported`,
