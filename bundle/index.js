@@ -21976,7 +21976,7 @@ var require_mime_types = __commonJS({
     var TEXT_TYPE_REGEXP = /^text\//i;
     exports2.charset = charset;
     exports2.charsets = { lookup: charset };
-    exports2.contentType = contentType2;
+    exports2.contentType = contentType4;
     exports2.extension = extension;
     exports2.extensions = /* @__PURE__ */ Object.create(null);
     exports2.lookup = lookup;
@@ -21996,7 +21996,7 @@ var require_mime_types = __commonJS({
       }
       return false;
     }
-    function contentType2(str7) {
+    function contentType4(str7) {
       if (!str7 || typeof str7 !== "string") {
         return false;
       }
@@ -23136,7 +23136,7 @@ var require_form_data = __commonJS({
     var parseUrl2 = __require("url").parse;
     var fs4 = __require("fs");
     var Stream = __require("stream").Stream;
-    var crypto = __require("crypto");
+    var crypto2 = __require("crypto");
     var mime = require_mime_types();
     var asynckit = require_asynckit();
     var setToStringTag = require_es_set_tostringtag();
@@ -23230,13 +23230,13 @@ var require_form_data = __commonJS({
         return options.header;
       }
       var contentDisposition = this._getContentDisposition(value, options);
-      var contentType2 = this._getContentType(value, options);
+      var contentType4 = this._getContentType(value, options);
       var contents = "";
       var headers = {
         // add custom disposition as third element or keep it two elements if not
         "Content-Disposition": ["form-data", 'name="' + escapeHeaderParam(field) + '"'].concat(contentDisposition || []),
         // if no content type. allow it to be empty array
-        "Content-Type": [].concat(contentType2 || [])
+        "Content-Type": [].concat(contentType4 || [])
       };
       if (typeof options.header === "object") {
         populate(headers, options.header);
@@ -23272,23 +23272,23 @@ var require_form_data = __commonJS({
       }
     };
     FormData2.prototype._getContentType = function(value, options) {
-      var contentType2 = options.contentType;
-      if (!contentType2 && value && value.name) {
-        contentType2 = mime.lookup(value.name);
+      var contentType4 = options.contentType;
+      if (!contentType4 && value && value.name) {
+        contentType4 = mime.lookup(value.name);
       }
-      if (!contentType2 && value && value.path) {
-        contentType2 = mime.lookup(value.path);
+      if (!contentType4 && value && value.path) {
+        contentType4 = mime.lookup(value.path);
       }
-      if (!contentType2 && value && value.readable && hasOwn(value, "httpVersion")) {
-        contentType2 = value.headers["content-type"];
+      if (!contentType4 && value && value.readable && hasOwn(value, "httpVersion")) {
+        contentType4 = value.headers["content-type"];
       }
-      if (!contentType2 && (options.filepath || options.filename)) {
-        contentType2 = mime.lookup(options.filepath || options.filename);
+      if (!contentType4 && (options.filepath || options.filename)) {
+        contentType4 = mime.lookup(options.filepath || options.filename);
       }
-      if (!contentType2 && value && typeof value === "object") {
-        contentType2 = FormData2.DEFAULT_CONTENT_TYPE;
+      if (!contentType4 && value && typeof value === "object") {
+        contentType4 = FormData2.DEFAULT_CONTENT_TYPE;
       }
-      return contentType2;
+      return contentType4;
     };
     FormData2.prototype._multiPartFooter = function() {
       return function(next) {
@@ -23345,7 +23345,7 @@ var require_form_data = __commonJS({
       return Buffer.concat([dataBuffer, Buffer.from(this._lastBoundary())]);
     };
     FormData2.prototype._generateBoundary = function() {
-      this._boundary = "--------------------------" + crypto.randomBytes(12).toString("hex");
+      this._boundary = "--------------------------" + crypto2.randomBytes(12).toString("hex");
     };
     FormData2.prototype.getLengthSync = function() {
       var knownLength = this._overheadLength + this._valueLength;
@@ -25080,7 +25080,7 @@ var require_axios = __commonJS({
   "node_modules/axios/dist/node/axios.cjs"(exports2, module) {
     "use strict";
     var FormData$1 = require_form_data();
-    var crypto = __require("crypto");
+    var crypto2 = __require("crypto");
     var url2 = __require("url");
     var HttpsProxyAgent = require_dist();
     var http3 = __require("http");
@@ -26428,7 +26428,7 @@ var require_axios = __commonJS({
         length
       } = alphabet;
       const randomValues = new Uint32Array(size);
-      crypto.randomFillSync(randomValues);
+      crypto2.randomFillSync(randomValues);
       for (let i = 0; i < size; i++) {
         str7 += alphabet[randomValues[i] % length];
       }
@@ -26557,8 +26557,8 @@ var require_axios = __commonJS({
       transitional: transitionalDefaults,
       adapter: ["xhr", "http", "fetch"],
       transformRequest: [function transformRequest(data, headers) {
-        const contentType2 = headers.getContentType() || "";
-        const hasJSONContentType = contentType2.indexOf("application/json") > -1;
+        const contentType4 = headers.getContentType() || "";
+        const hasJSONContentType = contentType4.indexOf("application/json") > -1;
         const isObjectPayload = utils$1.isObject(data);
         if (isObjectPayload && utils$1.isHTMLForm(data)) {
           data = new FormData(data);
@@ -26580,10 +26580,10 @@ var require_axios = __commonJS({
         let isFileList2;
         if (isObjectPayload) {
           const formSerializer = own(this, "formSerializer");
-          if (contentType2.indexOf("application/x-www-form-urlencoded") > -1) {
+          if (contentType4.indexOf("application/x-www-form-urlencoded") > -1) {
             return toURLEncodedForm(data, formSerializer).toString();
           }
-          if ((isFileList2 = utils$1.isFileList(data)) || contentType2.indexOf("multipart/form-data") > -1) {
+          if ((isFileList2 = utils$1.isFileList(data)) || contentType4.indexOf("multipart/form-data") > -1) {
             const env = own(this, "env");
             const _FormData = env && env.FormData;
             return toFormData(isFileList2 ? {
@@ -28343,7 +28343,7 @@ var require_axios = __commonJS({
             req.destroy(err);
           }
         });
-        req.on("error", function handleRequestError(err) {
+        req.on("error", function handleRequestError2(err) {
           reject(AxiosError.from(err, null, config2, req));
         });
         const boundSockets = /* @__PURE__ */ new Set();
@@ -28964,20 +28964,20 @@ var require_axios = __commonJS({
       }, env);
       const {
         fetch: envFetch,
-        Request,
-        Response
+        Request: Request2,
+        Response: Response2
       } = env;
       const isFetchSupported = envFetch ? isFunction(envFetch) : typeof fetch === "function";
-      const isRequestSupported = isFunction(Request);
-      const isResponseSupported = isFunction(Response);
+      const isRequestSupported = isFunction(Request2);
+      const isResponseSupported = isFunction(Response2);
       if (!isFetchSupported) {
         return false;
       }
       const isReadableStreamSupported = isFetchSupported && isFunction(ReadableStream2);
-      const encodeText = isFetchSupported && (typeof TextEncoder2 === "function" ? /* @__PURE__ */ ((encoder) => (str7) => encoder.encode(str7))(new TextEncoder2()) : async (str7) => new Uint8Array(await new Request(str7).arrayBuffer()));
+      const encodeText = isFetchSupported && (typeof TextEncoder2 === "function" ? /* @__PURE__ */ ((encoder) => (str7) => encoder.encode(str7))(new TextEncoder2()) : async (str7) => new Uint8Array(await new Request2(str7).arrayBuffer()));
       const supportsRequestStream = isRequestSupported && isReadableStreamSupported && test(() => {
         let duplexAccessed = false;
-        const request = new Request(platform.origin, {
+        const request = new Request2(platform.origin, {
           body: new ReadableStream2(),
           method: "POST",
           get duplex() {
@@ -28991,7 +28991,7 @@ var require_axios = __commonJS({
         }
         return duplexAccessed && !hasContentType;
       });
-      const supportsResponseStream = isResponseSupported && isReadableStreamSupported && test(() => utils$1.isReadableStream(new Response("").body));
+      const supportsResponseStream = isResponseSupported && isReadableStreamSupported && test(() => utils$1.isReadableStream(new Response2("").body));
       const resolvers = {
         stream: supportsResponseStream && ((res) => res.body)
       };
@@ -29014,7 +29014,7 @@ var require_axios = __commonJS({
           return body.size;
         }
         if (utils$1.isSpecCompliantForm(body)) {
-          const _request = new Request(platform.origin, {
+          const _request = new Request2(platform.origin, {
             method: "POST",
             body
           });
@@ -29120,7 +29120,7 @@ var require_axios = __commonJS({
           if (supportsRequestStream && method !== "get" && method !== "head" && (onUploadProgress || mustEnforceStreamBody)) {
             requestContentLength = requestContentLength == null ? await resolveBodyLength(headers, data) : requestContentLength;
             if (requestContentLength !== 0 || mustEnforceStreamBody) {
-              let _request = new Request(url3, {
+              let _request = new Request2(url3, {
                 method: "POST",
                 body: data,
                 duplex: "half"
@@ -29142,10 +29142,10 @@ var require_axios = __commonJS({
           if (!utils$1.isString(withCredentials)) {
             withCredentials = withCredentials ? "include" : "omit";
           }
-          const isCredentialsSupported = isRequestSupported && "credentials" in Request.prototype;
+          const isCredentialsSupported = isRequestSupported && "credentials" in Request2.prototype;
           if (utils$1.isFormData(data)) {
-            const contentType2 = headers.getContentType();
-            if (contentType2 && /^multipart\/form-data/i.test(contentType2) && !/boundary=/i.test(contentType2)) {
+            const contentType4 = headers.getContentType();
+            if (contentType4 && /^multipart\/form-data/i.test(contentType4) && !/boundary=/i.test(contentType4)) {
               headers.delete("content-type");
             }
           }
@@ -29159,7 +29159,7 @@ var require_axios = __commonJS({
             duplex: "half",
             credentials: isCredentialsSupported ? withCredentials : void 0
           };
-          request = isRequestSupported && new Request(url3, resolvedOptions);
+          request = isRequestSupported && new Request2(url3, resolvedOptions);
           let response = await (isRequestSupported ? _fetch(request, fetchOptions) : _fetch(url3, resolvedOptions));
           const responseHeaders = AxiosHeaders.from(response.headers);
           if (hasMaxContentLength) {
@@ -29186,7 +29186,7 @@ var require_axios = __commonJS({
               }
               onProgress && onProgress(loadedBytes);
             };
-            response = new Response(trackStream(response.body, DEFAULT_CHUNK_SIZE, onChunkProgress, () => {
+            response = new Response2(trackStream(response.body, DEFAULT_CHUNK_SIZE, onChunkProgress, () => {
               flush && flush();
               unsubscribe && unsubscribe();
             }), options);
@@ -29264,10 +29264,10 @@ var require_axios = __commonJS({
       let env = config2 && config2.env || {};
       const {
         fetch: fetch2,
-        Request,
-        Response
+        Request: Request2,
+        Response: Response2
       } = env;
-      const seeds = [Request, Response, fetch2];
+      const seeds = [Request2, Response2, fetch2];
       let len = seeds.length, i = len, seed, target, map2 = seedCache;
       while (i--) {
         seed = seeds[i];
@@ -35142,7 +35142,7 @@ var require_tracetypes = __commonJS({
         const updated = new Date(e.updated);
         const links = (0, utilities_1.extractXmlArray)(e.link).map(utilities_1.typedNodeAttr);
         const authors = (0, utilities_1.extractXmlArray)(e.author).map(({ name, uri, "@_role": role }) => ({ name, role, uri }));
-        const { "@_src": contentSrc, "@_type": contentType2 } = e.content;
+        const { "@_src": contentSrc, "@_type": contentType4 } = e.content;
         const { description, executions: executions2, isAggregated, host, requestIndex } = e.extendedData;
         const expires = new Date(e.extendedData.expires);
         const processType = decodeProcessType(e.extendedData.processType["@_processTypeId"]);
@@ -35168,7 +35168,7 @@ var require_tracetypes = __commonJS({
           links,
           authors,
           contentSrc,
-          contentType: contentType2,
+          contentType: contentType4,
           extendedData: extendedData2
         };
       });
@@ -36552,15 +36552,15 @@ function describeUnknownError(e) {
     const text6 = safeToString(e).trim();
     return text6 ? text6 : `a ${typeof e} value was thrown as an error`;
   }
-  let json2;
+  let json3;
   let jsonFailure = "";
   try {
     const out = JSON.stringify(e);
-    if (typeof out === "string") json2 = out;
+    if (typeof out === "string") json3 = out;
   } catch (inner) {
     jsonFailure = inner instanceof Error && typeof inner.message === "string" ? inner.message.trim() : "";
   }
-  if (json2 !== void 0 && json2.trim() && json2 !== "{}") return json2;
+  if (json3 !== void 0 && json3.trim() && json3 !== "{}") return json3;
   let duck;
   try {
     duck = e.message;
@@ -49957,29 +49957,29 @@ var init_json_schema_processors = __esm({
       // do not set
     };
     stringProcessor = (schema, ctx, _json, _params) => {
-      const json2 = _json;
-      json2.type = "string";
+      const json3 = _json;
+      json3.type = "string";
       const { minimum, maximum, format, patterns, contentEncoding } = schema._zod.bag;
       if (typeof minimum === "number")
-        json2.minLength = minimum;
+        json3.minLength = minimum;
       if (typeof maximum === "number")
-        json2.maxLength = maximum;
+        json3.maxLength = maximum;
       if (format) {
-        json2.format = formatMap[format] ?? format;
-        if (json2.format === "")
-          delete json2.format;
+        json3.format = formatMap[format] ?? format;
+        if (json3.format === "")
+          delete json3.format;
         if (format === "time") {
-          delete json2.format;
+          delete json3.format;
         }
       }
       if (contentEncoding)
-        json2.contentEncoding = contentEncoding;
+        json3.contentEncoding = contentEncoding;
       if (patterns && patterns.size > 0) {
         const regexes = [...patterns];
         if (regexes.length === 1)
-          json2.pattern = regexes[0].source;
+          json3.pattern = regexes[0].source;
         else if (regexes.length > 1) {
-          json2.allOf = [
+          json3.allOf = [
             ...regexes.map((regex) => ({
               ...ctx.target === "draft-07" || ctx.target === "draft-04" || ctx.target === "openapi-3.0" ? { type: "string" } : {},
               pattern: regex.source
@@ -49989,40 +49989,40 @@ var init_json_schema_processors = __esm({
       }
     };
     numberProcessor = (schema, ctx, _json, _params) => {
-      const json2 = _json;
+      const json3 = _json;
       const { minimum, maximum, format, multipleOf, exclusiveMaximum, exclusiveMinimum } = schema._zod.bag;
       if (typeof format === "string" && format.includes("int"))
-        json2.type = "integer";
+        json3.type = "integer";
       else
-        json2.type = "number";
+        json3.type = "number";
       const exMin = typeof exclusiveMinimum === "number" && exclusiveMinimum >= (minimum ?? Number.NEGATIVE_INFINITY);
       const exMax = typeof exclusiveMaximum === "number" && exclusiveMaximum <= (maximum ?? Number.POSITIVE_INFINITY);
       const legacy = ctx.target === "draft-04" || ctx.target === "openapi-3.0";
       if (exMin) {
         if (legacy) {
-          json2.minimum = exclusiveMinimum;
-          json2.exclusiveMinimum = true;
+          json3.minimum = exclusiveMinimum;
+          json3.exclusiveMinimum = true;
         } else {
-          json2.exclusiveMinimum = exclusiveMinimum;
+          json3.exclusiveMinimum = exclusiveMinimum;
         }
       } else if (typeof minimum === "number") {
-        json2.minimum = minimum;
+        json3.minimum = minimum;
       }
       if (exMax) {
         if (legacy) {
-          json2.maximum = exclusiveMaximum;
-          json2.exclusiveMaximum = true;
+          json3.maximum = exclusiveMaximum;
+          json3.exclusiveMaximum = true;
         } else {
-          json2.exclusiveMaximum = exclusiveMaximum;
+          json3.exclusiveMaximum = exclusiveMaximum;
         }
       } else if (typeof maximum === "number") {
-        json2.maximum = maximum;
+        json3.maximum = maximum;
       }
       if (typeof multipleOf === "number")
-        json2.multipleOf = multipleOf;
+        json3.multipleOf = multipleOf;
     };
-    booleanProcessor = (_schema, _ctx, json2, _params) => {
-      json2.type = "boolean";
+    booleanProcessor = (_schema, _ctx, json3, _params) => {
+      json3.type = "boolean";
     };
     bigintProcessor = (_schema, ctx, _json, _params) => {
       if (ctx.unrepresentable === "throw") {
@@ -50034,13 +50034,13 @@ var init_json_schema_processors = __esm({
         throw new Error("Symbols cannot be represented in JSON Schema");
       }
     };
-    nullProcessor = (_schema, ctx, json2, _params) => {
+    nullProcessor = (_schema, ctx, json3, _params) => {
       if (ctx.target === "openapi-3.0") {
-        json2.type = "string";
-        json2.nullable = true;
-        json2.enum = [null];
+        json3.type = "string";
+        json3.nullable = true;
+        json3.enum = [null];
       } else {
-        json2.type = "null";
+        json3.type = "null";
       }
     };
     undefinedProcessor = (_schema, ctx, _json, _params) => {
@@ -50053,8 +50053,8 @@ var init_json_schema_processors = __esm({
         throw new Error("Void cannot be represented in JSON Schema");
       }
     };
-    neverProcessor = (_schema, _ctx, json2, _params) => {
-      json2.not = {};
+    neverProcessor = (_schema, _ctx, json3, _params) => {
+      json3.not = {};
     };
     anyProcessor = (_schema, _ctx, _json, _params) => {
     };
@@ -50065,16 +50065,16 @@ var init_json_schema_processors = __esm({
         throw new Error("Date cannot be represented in JSON Schema");
       }
     };
-    enumProcessor = (schema, _ctx, json2, _params) => {
+    enumProcessor = (schema, _ctx, json3, _params) => {
       const def = schema._zod.def;
       const values = getEnumValues(def.entries);
       if (values.every((v) => typeof v === "number"))
-        json2.type = "number";
+        json3.type = "number";
       if (values.every((v) => typeof v === "string"))
-        json2.type = "string";
-      json2.enum = values;
+        json3.type = "string";
+      json3.enum = values;
     };
-    literalProcessor = (schema, ctx, json2, _params) => {
+    literalProcessor = (schema, ctx, json3, _params) => {
       const def = schema._zod.def;
       const vals = [];
       for (const val of def.values) {
@@ -50096,22 +50096,22 @@ var init_json_schema_processors = __esm({
       if (vals.length === 0) {
       } else if (vals.length === 1) {
         const val = vals[0];
-        json2.type = val === null ? "null" : typeof val;
+        json3.type = val === null ? "null" : typeof val;
         if (ctx.target === "draft-04" || ctx.target === "openapi-3.0") {
-          json2.enum = [val];
+          json3.enum = [val];
         } else {
-          json2.const = val;
+          json3.const = val;
         }
       } else {
         if (vals.every((v) => typeof v === "number"))
-          json2.type = "number";
+          json3.type = "number";
         if (vals.every((v) => typeof v === "string"))
-          json2.type = "string";
+          json3.type = "string";
         if (vals.every((v) => typeof v === "boolean"))
-          json2.type = "boolean";
+          json3.type = "boolean";
         if (vals.every((v) => v === null))
-          json2.type = "null";
-        json2.enum = vals;
+          json3.type = "null";
+        json3.enum = vals;
       }
     };
     nanProcessor = (_schema, ctx, _json, _params) => {
@@ -50119,16 +50119,16 @@ var init_json_schema_processors = __esm({
         throw new Error("NaN cannot be represented in JSON Schema");
       }
     };
-    templateLiteralProcessor = (schema, _ctx, json2, _params) => {
-      const _json = json2;
+    templateLiteralProcessor = (schema, _ctx, json3, _params) => {
+      const _json = json3;
       const pattern = schema._zod.pattern;
       if (!pattern)
         throw new Error("Pattern not found in template literal");
       _json.type = "string";
       _json.pattern = pattern.source;
     };
-    fileProcessor = (schema, _ctx, json2, _params) => {
-      const _json = json2;
+    fileProcessor = (schema, _ctx, json3, _params) => {
+      const _json = json3;
       const file2 = {
         type: "string",
         format: "binary",
@@ -50151,8 +50151,8 @@ var init_json_schema_processors = __esm({
         Object.assign(_json, file2);
       }
     };
-    successProcessor = (_schema, _ctx, json2, _params) => {
-      json2.type = "boolean";
+    successProcessor = (_schema, _ctx, json3, _params) => {
+      json3.type = "boolean";
     };
     customProcessor = (_schema, ctx, _json, _params) => {
       if (ctx.unrepresentable === "throw") {
@@ -50180,27 +50180,27 @@ var init_json_schema_processors = __esm({
       }
     };
     arrayProcessor = (schema, ctx, _json, params) => {
-      const json2 = _json;
+      const json3 = _json;
       const def = schema._zod.def;
       const { minimum, maximum } = schema._zod.bag;
       if (typeof minimum === "number")
-        json2.minItems = minimum;
+        json3.minItems = minimum;
       if (typeof maximum === "number")
-        json2.maxItems = maximum;
-      json2.type = "array";
-      json2.items = process2(def.element, ctx, {
+        json3.maxItems = maximum;
+      json3.type = "array";
+      json3.items = process2(def.element, ctx, {
         ...params,
         path: [...params.path, "items"]
       });
     };
     objectProcessor = (schema, ctx, _json, params) => {
-      const json2 = _json;
+      const json3 = _json;
       const def = schema._zod.def;
-      json2.type = "object";
-      json2.properties = {};
+      json3.type = "object";
+      json3.properties = {};
       const shape = def.shape;
       for (const key in shape) {
-        json2.properties[key] = process2(shape[key], ctx, {
+        json3.properties[key] = process2(shape[key], ctx, {
           ...params,
           path: [...params.path, "properties", key]
         });
@@ -50215,21 +50215,21 @@ var init_json_schema_processors = __esm({
         }
       }));
       if (requiredKeys.size > 0) {
-        json2.required = Array.from(requiredKeys);
+        json3.required = Array.from(requiredKeys);
       }
       if (def.catchall?._zod.def.type === "never") {
-        json2.additionalProperties = false;
+        json3.additionalProperties = false;
       } else if (!def.catchall) {
         if (ctx.io === "output")
-          json2.additionalProperties = false;
+          json3.additionalProperties = false;
       } else if (def.catchall) {
-        json2.additionalProperties = process2(def.catchall, ctx, {
+        json3.additionalProperties = process2(def.catchall, ctx, {
           ...params,
           path: [...params.path, "additionalProperties"]
         });
       }
     };
-    unionProcessor = (schema, ctx, json2, params) => {
+    unionProcessor = (schema, ctx, json3, params) => {
       const def = schema._zod.def;
       const isExclusive = def.inclusive === false;
       const options = def.options.map((x, i) => process2(x, ctx, {
@@ -50237,12 +50237,12 @@ var init_json_schema_processors = __esm({
         path: [...params.path, isExclusive ? "oneOf" : "anyOf", i]
       }));
       if (isExclusive) {
-        json2.oneOf = options;
+        json3.oneOf = options;
       } else {
-        json2.anyOf = options;
+        json3.anyOf = options;
       }
     };
-    intersectionProcessor = (schema, ctx, json2, params) => {
+    intersectionProcessor = (schema, ctx, json3, params) => {
       const def = schema._zod.def;
       const a = process2(def.left, ctx, {
         ...params,
@@ -50257,12 +50257,12 @@ var init_json_schema_processors = __esm({
         ...isSimpleIntersection(a) ? a.allOf : [a],
         ...isSimpleIntersection(b) ? b.allOf : [b]
       ];
-      json2.allOf = allOf;
+      json3.allOf = allOf;
     };
     tupleProcessor = (schema, ctx, _json, params) => {
-      const json2 = _json;
+      const json3 = _json;
       const def = schema._zod.def;
-      json2.type = "array";
+      json3.type = "array";
       const prefixPath = ctx.target === "draft-2020-12" ? "prefixItems" : "items";
       const restPath = ctx.target === "draft-2020-12" ? "items" : ctx.target === "openapi-3.0" ? "items" : "additionalItems";
       const prefixItems = def.items.map((x, i) => process2(x, ctx, {
@@ -50274,37 +50274,37 @@ var init_json_schema_processors = __esm({
         path: [...params.path, restPath, ...ctx.target === "openapi-3.0" ? [def.items.length] : []]
       }) : null;
       if (ctx.target === "draft-2020-12") {
-        json2.prefixItems = prefixItems;
+        json3.prefixItems = prefixItems;
         if (rest) {
-          json2.items = rest;
+          json3.items = rest;
         }
       } else if (ctx.target === "openapi-3.0") {
-        json2.items = {
+        json3.items = {
           anyOf: prefixItems
         };
         if (rest) {
-          json2.items.anyOf.push(rest);
+          json3.items.anyOf.push(rest);
         }
-        json2.minItems = prefixItems.length;
+        json3.minItems = prefixItems.length;
         if (!rest) {
-          json2.maxItems = prefixItems.length;
+          json3.maxItems = prefixItems.length;
         }
       } else {
-        json2.items = prefixItems;
+        json3.items = prefixItems;
         if (rest) {
-          json2.additionalItems = rest;
+          json3.additionalItems = rest;
         }
       }
       const { minimum, maximum } = schema._zod.bag;
       if (typeof minimum === "number")
-        json2.minItems = minimum;
+        json3.minItems = minimum;
       if (typeof maximum === "number")
-        json2.maxItems = maximum;
+        json3.maxItems = maximum;
     };
     recordProcessor = (schema, ctx, _json, params) => {
-      const json2 = _json;
+      const json3 = _json;
       const def = schema._zod.def;
-      json2.type = "object";
+      json3.type = "object";
       const keyType = def.keyType;
       const keyBag = keyType._zod.bag;
       const patterns = keyBag?.patterns;
@@ -50313,18 +50313,18 @@ var init_json_schema_processors = __esm({
           ...params,
           path: [...params.path, "patternProperties", "*"]
         });
-        json2.patternProperties = {};
+        json3.patternProperties = {};
         for (const pattern of patterns) {
-          json2.patternProperties[pattern.source] = valueSchema;
+          json3.patternProperties[pattern.source] = valueSchema;
         }
       } else {
         if (ctx.target === "draft-07" || ctx.target === "draft-2020-12") {
-          json2.propertyNames = process2(def.keyType, ctx, {
+          json3.propertyNames = process2(def.keyType, ctx, {
             ...params,
             path: [...params.path, "propertyNames"]
           });
         }
-        json2.additionalProperties = process2(def.valueType, ctx, {
+        json3.additionalProperties = process2(def.valueType, ctx, {
           ...params,
           path: [...params.path, "additionalProperties"]
         });
@@ -50333,19 +50333,19 @@ var init_json_schema_processors = __esm({
       if (keyValues) {
         const validKeyValues = [...keyValues].filter((v) => typeof v === "string" || typeof v === "number");
         if (validKeyValues.length > 0) {
-          json2.required = validKeyValues;
+          json3.required = validKeyValues;
         }
       }
     };
-    nullableProcessor = (schema, ctx, json2, params) => {
+    nullableProcessor = (schema, ctx, json3, params) => {
       const def = schema._zod.def;
       const inner = process2(def.innerType, ctx, params);
       const seen = ctx.seen.get(schema);
       if (ctx.target === "openapi-3.0") {
         seen.ref = def.innerType;
-        json2.nullable = true;
+        json3.nullable = true;
       } else {
-        json2.anyOf = [inner, { type: "null" }];
+        json3.anyOf = [inner, { type: "null" }];
       }
     };
     nonoptionalProcessor = (schema, ctx, _json, params) => {
@@ -50354,22 +50354,22 @@ var init_json_schema_processors = __esm({
       const seen = ctx.seen.get(schema);
       seen.ref = def.innerType;
     };
-    defaultProcessor = (schema, ctx, json2, params) => {
+    defaultProcessor = (schema, ctx, json3, params) => {
       const def = schema._zod.def;
       process2(def.innerType, ctx, params);
       const seen = ctx.seen.get(schema);
       seen.ref = def.innerType;
-      json2.default = JSON.parse(JSON.stringify(def.defaultValue));
+      json3.default = JSON.parse(JSON.stringify(def.defaultValue));
     };
-    prefaultProcessor = (schema, ctx, json2, params) => {
+    prefaultProcessor = (schema, ctx, json3, params) => {
       const def = schema._zod.def;
       process2(def.innerType, ctx, params);
       const seen = ctx.seen.get(schema);
       seen.ref = def.innerType;
       if (ctx.io === "input")
-        json2._prefault = JSON.parse(JSON.stringify(def.defaultValue));
+        json3._prefault = JSON.parse(JSON.stringify(def.defaultValue));
     };
-    catchProcessor = (schema, ctx, json2, params) => {
+    catchProcessor = (schema, ctx, json3, params) => {
       const def = schema._zod.def;
       process2(def.innerType, ctx, params);
       const seen = ctx.seen.get(schema);
@@ -50380,7 +50380,7 @@ var init_json_schema_processors = __esm({
       } catch {
         throw new Error("Dynamic catch values are not supported in JSON Schema");
       }
-      json2.default = catchValue;
+      json3.default = catchValue;
     };
     pipeProcessor = (schema, ctx, _json, params) => {
       const def = schema._zod.def;
@@ -50390,12 +50390,12 @@ var init_json_schema_processors = __esm({
       const seen = ctx.seen.get(schema);
       seen.ref = innerType;
     };
-    readonlyProcessor = (schema, ctx, json2, params) => {
+    readonlyProcessor = (schema, ctx, json3, params) => {
       const def = schema._zod.def;
       process2(def.innerType, ctx, params);
       const seen = ctx.seen.get(schema);
       seen.ref = def.innerType;
-      json2.readOnly = true;
+      json3.readOnly = true;
     };
     promiseProcessor = (schema, ctx, _json, params) => {
       const def = schema._zod.def;
@@ -51828,7 +51828,7 @@ var init_schemas2 = __esm({
     _ZodString = /* @__PURE__ */ $constructor("_ZodString", (inst, def) => {
       $ZodString.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => stringProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => stringProcessor(inst, ctx, json3, params);
       const bag = inst._zod.bag;
       inst.format = bag.format ?? null;
       inst.minLength = bag.minimum ?? null;
@@ -52003,7 +52003,7 @@ var init_schemas2 = __esm({
     ZodNumber = /* @__PURE__ */ $constructor("ZodNumber", (inst, def) => {
       $ZodNumber.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => numberProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => numberProcessor(inst, ctx, json3, params);
       _installLazyMethods(inst, "ZodNumber", {
         gt(value, params) {
           return this.check(_gt(value, params));
@@ -52065,12 +52065,12 @@ var init_schemas2 = __esm({
     ZodBoolean = /* @__PURE__ */ $constructor("ZodBoolean", (inst, def) => {
       $ZodBoolean.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => booleanProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => booleanProcessor(inst, ctx, json3, params);
     });
     ZodBigInt = /* @__PURE__ */ $constructor("ZodBigInt", (inst, def) => {
       $ZodBigInt.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => bigintProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => bigintProcessor(inst, ctx, json3, params);
       inst.gte = (value, params) => inst.check(_gte(value, params));
       inst.min = (value, params) => inst.check(_gte(value, params));
       inst.gt = (value, params) => inst.check(_gt(value, params));
@@ -52096,42 +52096,42 @@ var init_schemas2 = __esm({
     ZodSymbol = /* @__PURE__ */ $constructor("ZodSymbol", (inst, def) => {
       $ZodSymbol.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => symbolProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => symbolProcessor(inst, ctx, json3, params);
     });
     ZodUndefined = /* @__PURE__ */ $constructor("ZodUndefined", (inst, def) => {
       $ZodUndefined.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => undefinedProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => undefinedProcessor(inst, ctx, json3, params);
     });
     ZodNull = /* @__PURE__ */ $constructor("ZodNull", (inst, def) => {
       $ZodNull.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => nullProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => nullProcessor(inst, ctx, json3, params);
     });
     ZodAny = /* @__PURE__ */ $constructor("ZodAny", (inst, def) => {
       $ZodAny.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => anyProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => anyProcessor(inst, ctx, json3, params);
     });
     ZodUnknown = /* @__PURE__ */ $constructor("ZodUnknown", (inst, def) => {
       $ZodUnknown.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => unknownProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => unknownProcessor(inst, ctx, json3, params);
     });
     ZodNever = /* @__PURE__ */ $constructor("ZodNever", (inst, def) => {
       $ZodNever.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => neverProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => neverProcessor(inst, ctx, json3, params);
     });
     ZodVoid = /* @__PURE__ */ $constructor("ZodVoid", (inst, def) => {
       $ZodVoid.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => voidProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => voidProcessor(inst, ctx, json3, params);
     });
     ZodDate = /* @__PURE__ */ $constructor("ZodDate", (inst, def) => {
       $ZodDate.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => dateProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => dateProcessor(inst, ctx, json3, params);
       inst.min = (value, params) => inst.check(_gte(value, params));
       inst.max = (value, params) => inst.check(_lte(value, params));
       const c = inst._zod.bag;
@@ -52141,7 +52141,7 @@ var init_schemas2 = __esm({
     ZodArray = /* @__PURE__ */ $constructor("ZodArray", (inst, def) => {
       $ZodArray.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => arrayProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => arrayProcessor(inst, ctx, json3, params);
       inst.element = def.element;
       _installLazyMethods(inst, "ZodArray", {
         min(n, params) {
@@ -52164,7 +52164,7 @@ var init_schemas2 = __esm({
     ZodObject = /* @__PURE__ */ $constructor("ZodObject", (inst, def) => {
       $ZodObjectJIT.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => objectProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => objectProcessor(inst, ctx, json3, params);
       util_exports.defineLazy(inst, "shape", () => {
         return def.shape;
       });
@@ -52213,13 +52213,13 @@ var init_schemas2 = __esm({
     ZodUnion = /* @__PURE__ */ $constructor("ZodUnion", (inst, def) => {
       $ZodUnion.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => unionProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => unionProcessor(inst, ctx, json3, params);
       inst.options = def.options;
     });
     ZodXor = /* @__PURE__ */ $constructor("ZodXor", (inst, def) => {
       ZodUnion.init(inst, def);
       $ZodXor.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => unionProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => unionProcessor(inst, ctx, json3, params);
       inst.options = def.options;
     });
     ZodDiscriminatedUnion = /* @__PURE__ */ $constructor("ZodDiscriminatedUnion", (inst, def) => {
@@ -52229,12 +52229,12 @@ var init_schemas2 = __esm({
     ZodIntersection = /* @__PURE__ */ $constructor("ZodIntersection", (inst, def) => {
       $ZodIntersection.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => intersectionProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => intersectionProcessor(inst, ctx, json3, params);
     });
     ZodTuple = /* @__PURE__ */ $constructor("ZodTuple", (inst, def) => {
       $ZodTuple.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => tupleProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => tupleProcessor(inst, ctx, json3, params);
       inst.rest = (rest) => inst.clone({
         ...inst._zod.def,
         rest
@@ -52243,14 +52243,14 @@ var init_schemas2 = __esm({
     ZodRecord = /* @__PURE__ */ $constructor("ZodRecord", (inst, def) => {
       $ZodRecord.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => recordProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => recordProcessor(inst, ctx, json3, params);
       inst.keyType = def.keyType;
       inst.valueType = def.valueType;
     });
     ZodMap = /* @__PURE__ */ $constructor("ZodMap", (inst, def) => {
       $ZodMap.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => mapProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => mapProcessor(inst, ctx, json3, params);
       inst.keyType = def.keyType;
       inst.valueType = def.valueType;
       inst.min = (...args) => inst.check(_minSize(...args));
@@ -52261,7 +52261,7 @@ var init_schemas2 = __esm({
     ZodSet = /* @__PURE__ */ $constructor("ZodSet", (inst, def) => {
       $ZodSet.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => setProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => setProcessor(inst, ctx, json3, params);
       inst.min = (...args) => inst.check(_minSize(...args));
       inst.nonempty = (params) => inst.check(_minSize(1, params));
       inst.max = (...args) => inst.check(_maxSize(...args));
@@ -52270,7 +52270,7 @@ var init_schemas2 = __esm({
     ZodEnum = /* @__PURE__ */ $constructor("ZodEnum", (inst, def) => {
       $ZodEnum.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => enumProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => enumProcessor(inst, ctx, json3, params);
       inst.enum = def.entries;
       inst.options = Object.values(def.entries);
       const keys = new Set(Object.keys(def.entries));
@@ -52308,7 +52308,7 @@ var init_schemas2 = __esm({
     ZodLiteral = /* @__PURE__ */ $constructor("ZodLiteral", (inst, def) => {
       $ZodLiteral.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => literalProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => literalProcessor(inst, ctx, json3, params);
       inst.values = new Set(def.values);
       Object.defineProperty(inst, "value", {
         get() {
@@ -52322,7 +52322,7 @@ var init_schemas2 = __esm({
     ZodFile = /* @__PURE__ */ $constructor("ZodFile", (inst, def) => {
       $ZodFile.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => fileProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => fileProcessor(inst, ctx, json3, params);
       inst.min = (size, params) => inst.check(_minSize(size, params));
       inst.max = (size, params) => inst.check(_maxSize(size, params));
       inst.mime = (types, params) => inst.check(_mime(Array.isArray(types) ? types : [types], params));
@@ -52330,7 +52330,7 @@ var init_schemas2 = __esm({
     ZodTransform = /* @__PURE__ */ $constructor("ZodTransform", (inst, def) => {
       $ZodTransform.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => transformProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => transformProcessor(inst, ctx, json3, params);
       inst._zod.parse = (payload, _ctx) => {
         if (_ctx.direction === "backward") {
           throw new $ZodEncodeError(inst.constructor.name);
@@ -52364,62 +52364,62 @@ var init_schemas2 = __esm({
     ZodOptional = /* @__PURE__ */ $constructor("ZodOptional", (inst, def) => {
       $ZodOptional.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => optionalProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => optionalProcessor(inst, ctx, json3, params);
       inst.unwrap = () => inst._zod.def.innerType;
     });
     ZodExactOptional = /* @__PURE__ */ $constructor("ZodExactOptional", (inst, def) => {
       $ZodExactOptional.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => optionalProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => optionalProcessor(inst, ctx, json3, params);
       inst.unwrap = () => inst._zod.def.innerType;
     });
     ZodNullable = /* @__PURE__ */ $constructor("ZodNullable", (inst, def) => {
       $ZodNullable.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => nullableProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => nullableProcessor(inst, ctx, json3, params);
       inst.unwrap = () => inst._zod.def.innerType;
     });
     ZodDefault = /* @__PURE__ */ $constructor("ZodDefault", (inst, def) => {
       $ZodDefault.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => defaultProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => defaultProcessor(inst, ctx, json3, params);
       inst.unwrap = () => inst._zod.def.innerType;
       inst.removeDefault = inst.unwrap;
     });
     ZodPrefault = /* @__PURE__ */ $constructor("ZodPrefault", (inst, def) => {
       $ZodPrefault.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => prefaultProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => prefaultProcessor(inst, ctx, json3, params);
       inst.unwrap = () => inst._zod.def.innerType;
     });
     ZodNonOptional = /* @__PURE__ */ $constructor("ZodNonOptional", (inst, def) => {
       $ZodNonOptional.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => nonoptionalProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => nonoptionalProcessor(inst, ctx, json3, params);
       inst.unwrap = () => inst._zod.def.innerType;
     });
     ZodSuccess = /* @__PURE__ */ $constructor("ZodSuccess", (inst, def) => {
       $ZodSuccess.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => successProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => successProcessor(inst, ctx, json3, params);
       inst.unwrap = () => inst._zod.def.innerType;
     });
     ZodCatch = /* @__PURE__ */ $constructor("ZodCatch", (inst, def) => {
       $ZodCatch.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => catchProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => catchProcessor(inst, ctx, json3, params);
       inst.unwrap = () => inst._zod.def.innerType;
       inst.removeCatch = inst.unwrap;
     });
     ZodNaN = /* @__PURE__ */ $constructor("ZodNaN", (inst, def) => {
       $ZodNaN.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => nanProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => nanProcessor(inst, ctx, json3, params);
     });
     ZodPipe = /* @__PURE__ */ $constructor("ZodPipe", (inst, def) => {
       $ZodPipe.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => pipeProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => pipeProcessor(inst, ctx, json3, params);
       inst.in = def.in;
       inst.out = def.out;
     });
@@ -52434,35 +52434,35 @@ var init_schemas2 = __esm({
     ZodReadonly = /* @__PURE__ */ $constructor("ZodReadonly", (inst, def) => {
       $ZodReadonly.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => readonlyProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => readonlyProcessor(inst, ctx, json3, params);
       inst.unwrap = () => inst._zod.def.innerType;
     });
     ZodTemplateLiteral = /* @__PURE__ */ $constructor("ZodTemplateLiteral", (inst, def) => {
       $ZodTemplateLiteral.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => templateLiteralProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => templateLiteralProcessor(inst, ctx, json3, params);
     });
     ZodLazy = /* @__PURE__ */ $constructor("ZodLazy", (inst, def) => {
       $ZodLazy.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => lazyProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => lazyProcessor(inst, ctx, json3, params);
       inst.unwrap = () => inst._zod.def.getter();
     });
     ZodPromise = /* @__PURE__ */ $constructor("ZodPromise", (inst, def) => {
       $ZodPromise.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => promiseProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => promiseProcessor(inst, ctx, json3, params);
       inst.unwrap = () => inst._zod.def.innerType;
     });
     ZodFunction = /* @__PURE__ */ $constructor("ZodFunction", (inst, def) => {
       $ZodFunction.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => functionProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => functionProcessor(inst, ctx, json3, params);
     });
     ZodCustom = /* @__PURE__ */ $constructor("ZodCustom", (inst, def) => {
       $ZodCustom.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => customProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => customProcessor(inst, ctx, json3, params);
     });
     describe2 = describe;
     meta2 = meta;
@@ -53486,7 +53486,7 @@ var require_main = __commonJS({
     var fs4 = __require("fs");
     var path8 = __require("path");
     var os2 = __require("os");
-    var crypto = __require("crypto");
+    var crypto2 = __require("crypto");
     var TIPS = [
       "\u25C8 encrypted .env [www.dotenvx.com]",
       "\u25C8 secrets for agents [www.dotenvx.com]",
@@ -53730,7 +53730,7 @@ var require_main = __commonJS({
       const authTag = ciphertext.subarray(-16);
       ciphertext = ciphertext.subarray(12, -16);
       try {
-        const aesgcm = crypto.createDecipheriv("aes-256-gcm", key, nonce);
+        const aesgcm = crypto2.createDecipheriv("aes-256-gcm", key, nonce);
         aesgcm.setAuthTag(authTag);
         return `${aesgcm.update(ciphertext)}${aesgcm.final()}`;
       } catch (error51) {
@@ -58813,6 +58813,63 @@ var init_transports = __esm({
   }
 });
 
+// src/mcp-http-auth.ts
+import { createHash as createHash3, timingSafeEqual } from "node:crypto";
+function parseHttpTokens(raw) {
+  if (raw === void 0) return [];
+  const tokens = [];
+  for (const rawEntry of raw.split(",")) {
+    const entry = rawEntry.trim();
+    if (!entry) continue;
+    const eq = entry.indexOf("=");
+    if (eq > 0) {
+      const name = entry.slice(0, eq);
+      const rest = entry.slice(eq + 1);
+      if (HTTP_TOKEN_NAME_PATTERN.test(name) && rest !== "") {
+        tokens.push({ name, value: rest });
+        continue;
+      }
+    }
+    tokens.push({ value: entry });
+  }
+  return tokens;
+}
+function isLoopbackHost(host) {
+  const h = host.trim().toLowerCase();
+  if (h === "localhost" || h === "::1" || h === "[::1]" || h === "0:0:0:0:0:0:0:1") return true;
+  const m = /^(\d{1,3})\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.exec(h);
+  if (!m) return false;
+  const firstOctet = Number(m[1]);
+  return Number.isInteger(firstOctet) && firstOctet === 127;
+}
+function sha256(value) {
+  return createHash3("sha256").update(value, "utf8").digest();
+}
+function verifyBearer(header, tokens) {
+  if (tokens.length === 0) return { ok: true };
+  if (header === void 0 || header.trim() === "") return { ok: false, reason: "missing" };
+  const m = /^Bearer[ \t]+(.+)$/i.exec(header.trim());
+  const presented = m?.[1]?.trim();
+  if (!presented) return { ok: false, reason: "malformed" };
+  const presentedHash = sha256(presented);
+  let matched;
+  for (const token of tokens) {
+    const candidateHash = sha256(token.value);
+    if (timingSafeEqual(presentedHash, candidateHash) && matched === void 0) {
+      matched = token;
+    }
+  }
+  if (matched === void 0) return { ok: false, reason: "rejected" };
+  return matched.name !== void 0 ? { ok: true, caller: matched.name } : { ok: true };
+}
+var HTTP_TOKEN_NAME_PATTERN;
+var init_mcp_http_auth = __esm({
+  "src/mcp-http-auth.ts"() {
+    "use strict";
+    HTTP_TOKEN_NAME_PATTERN = /^[A-Za-z0-9_.-]{1,64}$/;
+  }
+});
+
 // src/adt/http-guard.ts
 import https from "node:https";
 function parseCookieHeaderPairs(header) {
@@ -62155,7 +62212,7 @@ var init_connection = __esm({
 });
 
 // src/adt/object-gate.ts
-import { createHash as createHash3 } from "node:crypto";
+import { createHash as createHash4 } from "node:crypto";
 import * as path4 from "node:path";
 function resolveObjectLockWaitMs(env = process.env) {
   const DEFAULT_MS = 1500;
@@ -62178,7 +62235,7 @@ function resolveCrossProcessObjectLock(env = process.env) {
 }
 function objectGateLockPath(stateDir, objectUri) {
   const key = objectUriOf(objectUri);
-  const hash2 = createHash3("sha256").update(key).digest("hex").slice(0, LOCK_HASH_HEX_LEN);
+  const hash2 = createHash4("sha256").update(key).digest("hex").slice(0, LOCK_HASH_HEX_LEN);
   return path4.join(stateDir, "locks", "objects", `${hash2}.lock`);
 }
 function toObjectLockBusyError(e, objectUri, lockPath) {
@@ -66265,6 +66322,20 @@ function loadConfig(opts = {}) {
       toolSurfaceIssue = `ABAP_TOOL_SURFACE=${toolSurfaceTrimmed} is not a value this server ever accepted. ABAP_TOOL_SURFACE is obsolete \u2014 unset it. See doc/DESIGN-NOTES/tool-surface-v2.md.`;
     }
   }
+  const rawMcpTransport = env.ABAP_MCP_TRANSPORT;
+  const mcpTransportTrimmed = rawMcpTransport !== void 0 ? rawMcpTransport.trim().toLowerCase() : void 0;
+  let mcpTransportIssue;
+  if (mcpTransportTrimmed !== void 0 && mcpTransportTrimmed !== "" && mcpTransportTrimmed !== "stdio" && mcpTransportTrimmed !== "http") {
+    mcpTransportIssue = `ABAP_MCP_TRANSPORT must be "stdio" or "http" (got "${rawMcpTransport}").`;
+  }
+  const resolvedMcpTransport = mcpTransportTrimmed !== void 0 && mcpTransportTrimmed !== "" ? mcpTransportTrimmed : void 0;
+  const resolvedMcpHttpHost = env.ABAP_MCP_HTTP_HOST ?? "127.0.0.1";
+  const mcpHttpTokensParsed = parseHttpTokens(env.ABAP_MCP_HTTP_TOKEN);
+  let mcpHttpIssue;
+  if ((resolvedMcpTransport ?? "stdio") === "http" && !isLoopbackHost(resolvedMcpHttpHost) && mcpHttpTokensParsed.length === 0) {
+    const userClause = env.ABAP_USER ? env.ABAP_USER : "the technical user";
+    mcpHttpIssue = `ABAP_MCP_TRANSPORT=http would bind ${resolvedMcpHttpHost}, which is not a loopback address, and ABAP_MCP_HTTP_TOKEN is not set. abapsmith refuses to serve MCP unauthenticated on an address other hosts can reach: anything that can open a TCP connection to it would get this server's full configured SAP access as ${userClause}. Set ABAP_MCP_HTTP_TOKEN, or bind 127.0.0.1 and terminate TLS and authentication in a reverse proxy in front of it.`;
+  }
   const allowWrite = boolFromEnv(env.ABAP_ALLOW_WRITE);
   const configuredPackages = splitList(env.ABAP_ALLOW_PACKAGES);
   const namePrefixes = splitList(env.ABAP_ALLOW_NAME_PREFIXES);
@@ -66539,17 +66610,24 @@ function loadConfig(opts = {}) {
     crossProcessObjectLock: env.ABAP_CROSS_PROCESS_OBJECT_LOCK,
     objectLockWaitMs: env.ABAP_OBJECT_LOCK_WAIT_MS,
     startupProbe: env.ABAP_STARTUP_PROBE,
+    mcpTransport: resolvedMcpTransport,
+    mcpHttpHost: env.ABAP_MCP_HTTP_HOST,
+    mcpHttpPort: env.ABAP_MCP_HTTP_PORT,
+    mcpHttpPath: env.ABAP_MCP_HTTP_PATH,
+    mcpHttpTokens: mcpHttpTokensParsed,
     fluidApi: env.ABAP_FLUID_API
   });
-  if (!parsed.success || abapModeIssue !== void 0 || enhanceTargetsIssue !== void 0 || credentialIssue !== void 0 || toolSurfaceIssue !== void 0) {
+  if (!parsed.success || abapModeIssue !== void 0 || enhanceTargetsIssue !== void 0 || credentialIssue !== void 0 || toolSurfaceIssue !== void 0 || mcpTransportIssue !== void 0 || mcpHttpIssue !== void 0) {
     const zodIssues = parsed.success ? [] : parsed.error.issues.map((i) => `  - ${i.path.join(".") || "(root)"}: ${i.message}`);
     const modeIssues = abapModeIssue !== void 0 ? [`  - abapMode: ${abapModeIssue}`] : [];
     const enhanceTargetsIssues = enhanceTargetsIssue !== void 0 ? [`  - enhanceTargets: ${enhanceTargetsIssue}`] : [];
     const credentialIssues = credentialIssue !== void 0 ? [`  - credential: ${credentialIssue}`] : [];
     const toolSurfaceIssues = toolSurfaceIssue !== void 0 ? [`  - toolSurface: ${toolSurfaceIssue}`] : [];
+    const mcpTransportIssues = mcpTransportIssue !== void 0 ? [`  - mcpTransport: ${mcpTransportIssue}`] : [];
+    const mcpHttpIssues = mcpHttpIssue !== void 0 ? [`  - mcpHttpToken: ${mcpHttpIssue}`] : [];
     throw new Error(
       `Invalid abapsmith configuration:
-${[...zodIssues, ...modeIssues, ...enhanceTargetsIssues, ...credentialIssues, ...toolSurfaceIssues].join("\n")}`
+${[...zodIssues, ...modeIssues, ...enhanceTargetsIssues, ...credentialIssues, ...toolSurfaceIssues, ...mcpTransportIssues, ...mcpHttpIssues].join("\n")}`
     );
   }
   const cfg = { ...parsed.data, abapMode, capabilities: modeCapabilities };
@@ -66733,6 +66811,11 @@ ${[...zodIssues, ...modeIssues, ...enhanceTargetsIssues, ...credentialIssues, ..
       "[abapsmith] NOTE: ABAP_SEND_CLIENT_PARAM=true \u2014 sending ?sap-client= on requests. Some systems (e.g. the A4H appliance) reject this with an ICF logon-failed page."
     );
   }
+  if (cfg.mcpHttpTokens.length > 0 && cfg.mcpTransport === "stdio") {
+    warn(
+      '[abapsmith] WARNING: ABAP_MCP_HTTP_TOKEN is set but ignored \u2014 ABAP_MCP_TRANSPORT is "stdio", so no HTTP listener is started for it to authenticate. Set ABAP_MCP_TRANSPORT=http to use it, or unset ABAP_MCP_HTTP_TOKEN.'
+    );
+  }
   return cfg;
 }
 function resolveStaticCapabilities(cfg) {
@@ -66830,7 +66913,15 @@ function redactConfigSecrets(cfg) {
     // incident question, so it must be answerable from this report.
     maxDdicActivationBatch: cfg.maxDdicActivationBatch,
     maxSafeActivationBatch: cfg.maxSafeActivationBatch,
-    startupProbe: cfg.startupProbe
+    startupProbe: cfg.startupProbe,
+    mcpTransport: cfg.mcpTransport,
+    mcpHttpHost: cfg.mcpHttpHost,
+    mcpHttpPort: cfg.mcpHttpPort,
+    mcpHttpPath: cfg.mcpHttpPath,
+    // Token VALUES are credentials and never appear here. The NAMES are not:
+    // they are what the journal records as `actor`, so an operator has to be
+    // able to see which ones this process accepts.
+    mcpHttpTokens: cfg.mcpHttpTokens.length === 0 ? "(not set)" : { count: cfg.mcpHttpTokens.length, names: cfg.mcpHttpTokens.map((t) => t.name ?? "(unnamed)") }
   };
 }
 var import_dotenv, dotenvLoaded, COOKIE_ATTRIBUTE_NAMES, SESSION_LIKE_COOKIE_PREFIXES, boolish, boolishTri, boolishRejectDefaultTrue, ConfigSchema, RECOGNISED_ABAP_ALLOW_ENV_VARS;
@@ -66840,6 +66931,7 @@ var init_config = __esm({
     import_dotenv = __toESM(require_main(), 1);
     init_zod();
     init_transports();
+    init_mcp_http_auth();
     init_pool();
     init_client_cert();
     init_service_key();
@@ -67387,6 +67479,36 @@ var init_config = __esm({
        */
       startupProbe: boolishRejectDefaultTrue,
       /**
+       * Which MCP transport `createServer().start()` (`src/server.ts`)
+       * constructs. `"stdio"` (default) is the existing one-process-per-
+       * conversation transport. `"http"` starts a Streamable HTTP listener
+       * (`src/mcp-http.ts`) instead — one process can then serve several MCP
+       * sessions concurrently, each attributed independently via
+       * `src/mcp-session.ts` rather than the process-wide `Journal` fields
+       * `setClientActor`/`setClientSession` use under stdio.
+       */
+      mcpTransport: external_exports.enum(["stdio", "http"]).default("stdio"),
+      /** Host the Streamable HTTP listener binds (`ABAP_MCP_HTTP_HOST`). Only consulted when `mcpTransport === "http"`. */
+      mcpHttpHost: external_exports.string().min(1).default("127.0.0.1"),
+      /**
+       * Port the Streamable HTTP listener binds (`ABAP_MCP_HTTP_PORT`). `0`
+       * asks the OS for a free port — the bound port is then reported on the
+       * `ready on http://...` banner and via `AbapsmithServer.httpAddress`;
+       * the test suite uses `0` to get an unused port without racing a fixed
+       * one.
+       */
+      mcpHttpPort: external_exports.coerce.number().int().min(0).max(65535).default(3e3),
+      /** URL path the Streamable HTTP listener serves MCP on (`ABAP_MCP_HTTP_PATH`); every other path answers 404. */
+      mcpHttpPath: external_exports.string().default("/mcp").refine((p) => p.startsWith("/"), 'ABAP_MCP_HTTP_PATH must start with "/"'),
+      /**
+       * Parsed `ABAP_MCP_HTTP_TOKEN` (`parseHttpTokens`, `src/mcp-http-auth.ts`)
+       * — bearer tokens accepted by the Streamable HTTP listener. Populated by
+       * hand before `safeParse`, the same way `sessionCookie`/`clientCert` are.
+       * Token VALUES are as sensitive as `ABAP_PASSWORD` and are never included
+       * in `redactConfigSecrets`; the NAMES are not secret (see that function).
+       */
+      mcpHttpTokens: external_exports.array(external_exports.custom()).default([]),
+      /**
        * Master switch for the fluid API surface. ON by default — this is why the
        * env var is `ABAP_FLUID_API`, not an `ABAP_ALLOW_*` name: an `ALLOW` name
        * that defaults to on is a contradiction, and it would land the flag in
@@ -67818,11 +67940,11 @@ var require_codegen = __commonJS({
         const rhs = this.rhs === void 0 ? "" : ` = ${this.rhs}`;
         return `${varKind} ${this.name}${rhs};` + _n;
       }
-      optimizeNames(names, constants) {
+      optimizeNames(names, constants2) {
         if (!names[this.name.str])
           return;
         if (this.rhs)
-          this.rhs = optimizeExpr(this.rhs, names, constants);
+          this.rhs = optimizeExpr(this.rhs, names, constants2);
         return this;
       }
       get names() {
@@ -67839,10 +67961,10 @@ var require_codegen = __commonJS({
       render({ _n }) {
         return `${this.lhs} = ${this.rhs};` + _n;
       }
-      optimizeNames(names, constants) {
+      optimizeNames(names, constants2) {
         if (this.lhs instanceof code_1.Name && !names[this.lhs.str] && !this.sideEffects)
           return;
-        this.rhs = optimizeExpr(this.rhs, names, constants);
+        this.rhs = optimizeExpr(this.rhs, names, constants2);
         return this;
       }
       get names() {
@@ -67903,8 +68025,8 @@ var require_codegen = __commonJS({
       optimizeNodes() {
         return `${this.code}` ? this : void 0;
       }
-      optimizeNames(names, constants) {
-        this.code = optimizeExpr(this.code, names, constants);
+      optimizeNames(names, constants2) {
+        this.code = optimizeExpr(this.code, names, constants2);
         return this;
       }
       get names() {
@@ -67933,12 +68055,12 @@ var require_codegen = __commonJS({
         }
         return nodes.length > 0 ? this : void 0;
       }
-      optimizeNames(names, constants) {
+      optimizeNames(names, constants2) {
         const { nodes } = this;
         let i = nodes.length;
         while (i--) {
           const n = nodes[i];
-          if (n.optimizeNames(names, constants))
+          if (n.optimizeNames(names, constants2))
             continue;
           subtractNames(names, n.names);
           nodes.splice(i, 1);
@@ -67991,12 +68113,12 @@ var require_codegen = __commonJS({
           return void 0;
         return this;
       }
-      optimizeNames(names, constants) {
+      optimizeNames(names, constants2) {
         var _a3;
-        this.else = (_a3 = this.else) === null || _a3 === void 0 ? void 0 : _a3.optimizeNames(names, constants);
-        if (!(super.optimizeNames(names, constants) || this.else))
+        this.else = (_a3 = this.else) === null || _a3 === void 0 ? void 0 : _a3.optimizeNames(names, constants2);
+        if (!(super.optimizeNames(names, constants2) || this.else))
           return;
-        this.condition = optimizeExpr(this.condition, names, constants);
+        this.condition = optimizeExpr(this.condition, names, constants2);
         return this;
       }
       get names() {
@@ -68019,10 +68141,10 @@ var require_codegen = __commonJS({
       render(opts) {
         return `for(${this.iteration})` + super.render(opts);
       }
-      optimizeNames(names, constants) {
-        if (!super.optimizeNames(names, constants))
+      optimizeNames(names, constants2) {
+        if (!super.optimizeNames(names, constants2))
           return;
-        this.iteration = optimizeExpr(this.iteration, names, constants);
+        this.iteration = optimizeExpr(this.iteration, names, constants2);
         return this;
       }
       get names() {
@@ -68058,10 +68180,10 @@ var require_codegen = __commonJS({
       render(opts) {
         return `for(${this.varKind} ${this.name} ${this.loop} ${this.iterable})` + super.render(opts);
       }
-      optimizeNames(names, constants) {
-        if (!super.optimizeNames(names, constants))
+      optimizeNames(names, constants2) {
+        if (!super.optimizeNames(names, constants2))
           return;
-        this.iterable = optimizeExpr(this.iterable, names, constants);
+        this.iterable = optimizeExpr(this.iterable, names, constants2);
         return this;
       }
       get names() {
@@ -68103,11 +68225,11 @@ var require_codegen = __commonJS({
         (_b = this.finally) === null || _b === void 0 ? void 0 : _b.optimizeNodes();
         return this;
       }
-      optimizeNames(names, constants) {
+      optimizeNames(names, constants2) {
         var _a3, _b;
-        super.optimizeNames(names, constants);
-        (_a3 = this.catch) === null || _a3 === void 0 ? void 0 : _a3.optimizeNames(names, constants);
-        (_b = this.finally) === null || _b === void 0 ? void 0 : _b.optimizeNames(names, constants);
+        super.optimizeNames(names, constants2);
+        (_a3 = this.catch) === null || _a3 === void 0 ? void 0 : _a3.optimizeNames(names, constants2);
+        (_b = this.finally) === null || _b === void 0 ? void 0 : _b.optimizeNames(names, constants2);
         return this;
       }
       get names() {
@@ -68408,7 +68530,7 @@ var require_codegen = __commonJS({
     function addExprNames(names, from) {
       return from instanceof code_1._CodeOrName ? addNames(names, from.names) : names;
     }
-    function optimizeExpr(expr, names, constants) {
+    function optimizeExpr(expr, names, constants2) {
       if (expr instanceof code_1.Name)
         return replaceName(expr);
       if (!canOptimize(expr))
@@ -68423,14 +68545,14 @@ var require_codegen = __commonJS({
         return items2;
       }, []));
       function replaceName(n) {
-        const c = constants[n.str];
+        const c = constants2[n.str];
         if (c === void 0 || names[n.str] !== 1)
           return n;
         delete names[n.str];
         return c;
       }
       function canOptimize(e) {
-        return e instanceof code_1._Code && e._items.some((c) => c instanceof code_1.Name && names[c.str] === 1 && constants[c.str] !== void 0);
+        return e instanceof code_1._Code && e._items.some((c) => c instanceof code_1.Name && names[c.str] === 1 && constants2[c.str] !== void 0);
       }
     }
     function subtractNames(names, from) {
@@ -71652,8 +71774,8 @@ var require_core = __commonJS({
             return this;
           }
           case "object": {
-            const cacheKey = schemaKeyRef;
-            this._cache.delete(cacheKey);
+            const cacheKey2 = schemaKeyRef;
+            this._cache.delete(cacheKey2);
             let id = schemaKeyRef[this.opts.schemaId];
             if (id) {
               id = (0, resolve_1.normalizeId)(id);
@@ -74300,6 +74422,110 @@ var require_dist2 = __commonJS({
     module.exports = exports2 = formatsPlugin;
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.default = formatsPlugin;
+  }
+});
+
+// node_modules/content-type/index.js
+var require_content_type = __commonJS({
+  "node_modules/content-type/index.js"(exports2) {
+    "use strict";
+    var PARAM_REGEXP = /; *([!#$%&'*+.^_`|~0-9A-Za-z-]+) *= *("(?:[\u000b\u0020\u0021\u0023-\u005b\u005d-\u007e\u0080-\u00ff]|\\[\u000b\u0020-\u00ff])*"|[!#$%&'*+.^_`|~0-9A-Za-z-]+) */g;
+    var TEXT_REGEXP = /^[\u000b\u0020-\u007e\u0080-\u00ff]+$/;
+    var TOKEN_REGEXP = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/;
+    var QESC_REGEXP = /\\([\u000b\u0020-\u00ff])/g;
+    var QUOTE_REGEXP = /([\\"])/g;
+    var TYPE_REGEXP = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+\/[!#$%&'*+.^_`|~0-9A-Za-z-]+$/;
+    exports2.format = format;
+    exports2.parse = parse4;
+    function format(obj) {
+      if (!obj || typeof obj !== "object") {
+        throw new TypeError("argument obj is required");
+      }
+      var parameters = obj.parameters;
+      var type = obj.type;
+      if (!type || !TYPE_REGEXP.test(type)) {
+        throw new TypeError("invalid type");
+      }
+      var string4 = type;
+      if (parameters && typeof parameters === "object") {
+        var param;
+        var params = Object.keys(parameters).sort();
+        for (var i = 0; i < params.length; i++) {
+          param = params[i];
+          if (!TOKEN_REGEXP.test(param)) {
+            throw new TypeError("invalid parameter name");
+          }
+          string4 += "; " + param + "=" + qstring(parameters[param]);
+        }
+      }
+      return string4;
+    }
+    function parse4(string4) {
+      if (!string4) {
+        throw new TypeError("argument string is required");
+      }
+      var header = typeof string4 === "object" ? getcontenttype(string4) : string4;
+      if (typeof header !== "string") {
+        throw new TypeError("argument string is required to be a string");
+      }
+      var index = header.indexOf(";");
+      var type = index !== -1 ? header.slice(0, index).trim() : header.trim();
+      if (!TYPE_REGEXP.test(type)) {
+        throw new TypeError("invalid media type");
+      }
+      var obj = new ContentType(type.toLowerCase());
+      if (index !== -1) {
+        var key;
+        var match;
+        var value;
+        PARAM_REGEXP.lastIndex = index;
+        while (match = PARAM_REGEXP.exec(header)) {
+          if (match.index !== index) {
+            throw new TypeError("invalid parameter format");
+          }
+          index += match[0].length;
+          key = match[1].toLowerCase();
+          value = match[2];
+          if (value.charCodeAt(0) === 34) {
+            value = value.slice(1, -1);
+            if (value.indexOf("\\") !== -1) {
+              value = value.replace(QESC_REGEXP, "$1");
+            }
+          }
+          obj.parameters[key] = value;
+        }
+        if (index !== header.length) {
+          throw new TypeError("invalid parameter format");
+        }
+      }
+      return obj;
+    }
+    function getcontenttype(obj) {
+      var header;
+      if (typeof obj.getHeader === "function") {
+        header = obj.getHeader("content-type");
+      } else if (typeof obj.headers === "object") {
+        header = obj.headers && obj.headers["content-type"];
+      }
+      if (typeof header !== "string") {
+        throw new TypeError("content-type header is missing from object");
+      }
+      return header;
+    }
+    function qstring(val) {
+      var str7 = String(val);
+      if (TOKEN_REGEXP.test(str7)) {
+        return str7;
+      }
+      if (str7.length > 0 && !TEXT_REGEXP.test(str7)) {
+        throw new TypeError("invalid parameter value");
+      }
+      return '"' + str7.replace(QUOTE_REGEXP, "\\$1") + '"';
+    }
+    function ContentType(type) {
+      this.parameters = /* @__PURE__ */ Object.create(null);
+      this.type = type;
+    }
   }
 });
 
@@ -87404,12 +87630,12 @@ init_config();
 init_errors();
 init_http_guard();
 init_tls_credentials();
-import { createHash as createHash5 } from "node:crypto";
+import { createHash as createHash6 } from "node:crypto";
 
 // src/debug/client.ts
 init_errors();
 init_truncate();
-import { createHash as createHash4, randomUUID } from "node:crypto";
+import { createHash as createHash5, randomUUID } from "node:crypto";
 
 // src/debug/endpoints.ts
 init_errors();
@@ -88706,7 +88932,7 @@ function resolveTerminalId(opts) {
     assertValidTerminalId(explicit, "resolveTerminalId's explicit override");
     return explicit;
   }
-  const hex4 = createHash4("sha256").update(opts.seed, "utf8").digest("hex").slice(0, TERMINAL_ID_LENGTH).toUpperCase();
+  const hex4 = createHash5("sha256").update(opts.seed, "utf8").digest("hex").slice(0, TERMINAL_ID_LENGTH).toUpperCase();
   assertValidTerminalId(hex4, "resolveTerminalId's derived id");
   return hex4;
 }
@@ -90026,7 +90252,7 @@ function isStaleCsrfChallenge(resp) {
 
 // src/debug/session.ts
 function computeStateId(input) {
-  return createHash5("sha256").update(
+  return createHash6("sha256").update(
     `${input.debugSessionId}\0${input.stackPosition}\0${input.program}\0${input.line}\0${input.stepCounter}`,
     "utf8"
   ).digest("hex");
@@ -91416,7 +91642,7 @@ async function shutdownAllDebugSessions(log2) {
 }
 
 // src/server.ts
-import { randomUUID as randomUUID2 } from "node:crypto";
+import { randomUUID as randomUUID3 } from "node:crypto";
 
 // node_modules/zod/v3/helpers/util.js
 var util;
@@ -95514,6 +95740,7 @@ function getLiteralValue(schema) {
 
 // node_modules/@modelcontextprotocol/sdk/dist/esm/types.js
 var LATEST_PROTOCOL_VERSION = "2025-11-25";
+var DEFAULT_NEGOTIATED_PROTOCOL_VERSION = "2025-03-26";
 var SUPPORTED_PROTOCOL_VERSIONS = [LATEST_PROTOCOL_VERSION, "2025-06-18", "2025-03-26", "2024-11-05", "2024-10-07"];
 var RELATED_TASK_META_KEY = "io.modelcontextprotocol/related-task";
 var JSONRPC_VERSION = "2.0";
@@ -95842,6 +96069,7 @@ var InitializeRequestSchema = RequestSchema.extend({
   method: literal("initialize"),
   params: InitializeRequestParamsSchema
 });
+var isInitializeRequest = (value) => InitializeRequestSchema.safeParse(value).success;
 var ServerCapabilitiesSchema = object({
   /**
    * Experimental, non-standard capabilities that the server supports.
@@ -100992,8 +101220,8 @@ var StdioServerTransport = class {
   }
   send(message) {
     return new Promise((resolve5) => {
-      const json2 = serializeMessage(message);
-      if (this._stdout.write(json2)) {
+      const json3 = serializeMessage(message);
+      if (this._stdout.write(json3)) {
         resolve5();
       } else {
         this._stdout.once("drain", resolve5);
@@ -101613,10 +101841,25 @@ init_config();
 // src/journal.ts
 init_errors();
 init_compact();
-init_state_dir();
 import { randomBytes as randomBytes5 } from "node:crypto";
 import { promises as fs3 } from "node:fs";
 import * as path5 from "node:path";
+
+// src/mcp-session.ts
+import { AsyncLocalStorage as AsyncLocalStorage3 } from "node:async_hooks";
+var store = new AsyncLocalStorage3();
+function runInMcpSession(ctx, fn) {
+  return store.run(ctx, fn);
+}
+function currentMcpSession() {
+  return store.getStore();
+}
+function mcpSessionActor(ctx) {
+  return ctx.caller ?? ctx.client;
+}
+
+// src/journal.ts
+init_state_dir();
 function journalRef(t) {
   return {
     name: t.name,
@@ -101781,32 +102024,59 @@ var Journal = class _Journal {
     this.lockPath = `${this.indexPath}.lock`;
     this.inFlightDir = path5.join(this.dir, INFLIGHT_DIR);
   }
-  /** Must be lazy, unlike `config.actor`: the client identity is unknown until the transport's initialize handshake completes, which is after this `Journal` is constructed (src/server.ts). */
+  /**
+   * The stdio/process-wide fallback. Must be lazy, unlike `config.actor`:
+   * the client identity is unknown until the transport's initialize
+   * handshake completes, which is after this `Journal` is constructed
+   * (src/server.ts). Under `ABAP_MCP_TRANSPORT=http` this is set once from
+   * the DEFAULT `McpServer` only (`createServer`'s `createMcpServer(undefined)`
+   * call in src/server.ts) — every per-session `McpServer` instead sets
+   * `McpSessionContext.client` (src/mcp-session.ts), which
+   * `resolveActor()` below consults first via the ambient session.
+   */
   setClientActor(name) {
     this.clientActor = name?.trim() || void 0;
   }
-  /** `ABAP_ACTOR` (`config.actor`) wins over the MCP client identity. */
+  /**
+   * `ABAP_ACTOR` (`config.actor`) still wins over everything — it is an
+   * operator override. Below that, the ambient per-MCP-session identity
+   * (`currentMcpSession()`, src/mcp-session.ts) wins over this process-wide
+   * `clientActor`: under `ABAP_MCP_TRANSPORT=http` `clientActor` is shared by
+   * every session this process serves and therefore cannot answer "who" —
+   * only the ambient context, set per request by `src/mcp-http.ts`, can.
+   */
   resolveActor() {
-    return this.config.actor ?? this.clientActor;
+    const ambient = (() => {
+      const c = currentMcpSession();
+      return c ? mcpSessionActor(c) : void 0;
+    })();
+    return this.config.actor ?? ambient ?? this.clientActor;
   }
   /**
    * Set the id this server run/session writes onto every entry from here on
    * — see `JournalEntry.sessionId`/`sessionIdSource`. Same lazy-timing
    * reason as `setClientActor()`: called once, from `oninitialized`
-   * (src/server.ts), after this `Journal` is constructed.
+   * (src/server.ts), after this `Journal` is constructed. This is the
+   * stdio/process-wide fallback, same as `setClientActor()` — an ambient
+   * `McpSessionContext.sessionId` (set per request by `src/mcp-http.ts`)
+   * overrides it; see `begin()` and the `sessionId` getter below.
    */
   setClientSession(id, source) {
     this.clientSessionId = id?.trim() || void 0;
     this.clientSessionSource = this.clientSessionId ? source : void 0;
   }
   /**
-   * The session id that would be spliced onto the NEXT entry, or `undefined`
-   * if none has been set yet. Exposed for `abap_journal mode=list
-   * session=current` (src/tools/journal.ts) to resolve "this conversation"
-   * without duplicating `setClientSession()`'s storage.
+   * The session id that would be spliced onto the NEXT entry for THIS
+   * (stdio, process-wide) fallback, or `undefined` if none has been set
+   * yet — UNLESS an ambient `McpSessionContext` (src/mcp-session.ts) is
+   * current, in which case its `sessionId` wins: `abap_journal mode=list
+   * session=current` (src/tools/journal.ts) must resolve the CALLING
+   * session under `ABAP_MCP_TRANSPORT=http`, not the process. Exposed so
+   * that tool can resolve "this conversation" without duplicating
+   * `setClientSession()`'s storage.
    */
   get sessionId() {
-    return this.clientSessionId;
+    return currentMcpSession()?.sessionId ?? this.clientSessionId;
   }
   // -- reading ------------------------------------------------------------
   /**
@@ -102061,8 +102331,9 @@ var Journal = class _Journal {
     const ts = (/* @__PURE__ */ new Date()).toISOString();
     const beforeCapture = input.beforeCapture ?? (input.existedBefore ? input.beforeSource !== void 0 ? "captured" : "failed" : "unknown");
     const actor = this.resolveActor();
-    const sessionId = this.clientSessionId;
-    const sessionIdSource = this.clientSessionSource;
+    const ambient = currentMcpSession();
+    const sessionId = ambient?.sessionId ?? this.clientSessionId;
+    const sessionIdSource = ambient?.sessionId !== void 0 ? "transport" : this.clientSessionSource;
     const entry = {
       id,
       ts,
@@ -102530,8 +102801,2115 @@ async function withJournalledMutation(journal, spec, run) {
   return { result, entryId, settle };
 }
 
+// src/mcp-http.ts
+import { createServer as createHttpServer } from "node:http";
+import { randomUUID as randomUUID2 } from "node:crypto";
+
+// node_modules/@hono/node-server/dist/constants-BLSFu_RU.mjs
+var X_ALREADY_SENT = "x-hono-already-sent";
+
+// node_modules/@hono/node-server/dist/index.mjs
+import { Http2ServerRequest, constants } from "node:http2";
+import { Readable } from "node:stream";
+
+// node_modules/hono/dist/helper/websocket/index.js
+var defineWebSocketHelper = (handler) => {
+  return ((...args) => {
+    if (typeof args[0] === "function") {
+      const [createEvents, options] = args;
+      return async function upgradeWebSocket2(c, next) {
+        const events = await createEvents(c);
+        const result = await handler(c, events, options);
+        if (result) {
+          return result;
+        }
+        await next();
+      };
+    } else {
+      const [c, events, options] = args;
+      return (async () => {
+        const upgraded = await handler(c, events, options);
+        if (!upgraded) {
+          throw new Error("Failed to upgrade WebSocket");
+        }
+        return upgraded;
+      })();
+    }
+  });
+};
+
+// node_modules/@hono/node-server/dist/index.mjs
+var RequestError = class extends Error {
+  constructor(message, options) {
+    super(message, options);
+    this.name = "RequestError";
+  }
+};
+var reValidRequestUrl = /^\/[!#$&-;=?-\[\]_a-z~]*$/;
+var reDotSegment = /\/\.\.?(?:[/?#]|$)/;
+var reValidHost = /^[a-z0-9._-]+(?::(?:[1-5]\d{3,4}|[6-9]\d{3}))?$/;
+var buildUrl2 = (scheme, host, incomingUrl) => {
+  const url2 = `${scheme}://${host}${incomingUrl}`;
+  if (!reValidHost.test(host)) {
+    const urlObj = new URL(url2);
+    if (urlObj.hostname.length !== host.length && urlObj.hostname !== (host.includes(":") ? host.replace(/:\d+$/, "") : host).toLowerCase()) throw new RequestError("Invalid host header");
+    return urlObj.href;
+  } else if (incomingUrl.length === 0) return url2 + "/";
+  else {
+    if (incomingUrl.charCodeAt(0) !== 47) throw new RequestError("Invalid URL");
+    if (!reValidRequestUrl.test(incomingUrl) || reDotSegment.test(incomingUrl)) return new URL(url2).href;
+    return url2;
+  }
+};
+var toRequestError = (e) => {
+  if (e instanceof RequestError) return e;
+  return new RequestError(e.message, { cause: e });
+};
+var GlobalRequest = global.Request;
+var Request$1 = class extends GlobalRequest {
+  constructor(input, options) {
+    if (typeof input === "object" && getRequestCache in input) {
+      const hasReplacementBody = options !== void 0 && "body" in options && options.body != null;
+      if (input[bodyConsumedDirectlyKey] && !hasReplacementBody) throw new TypeError("Cannot construct a Request with a Request object that has already been used.");
+      input = input[getRequestCache]();
+    }
+    if (typeof options?.body?.getReader !== "undefined") options.duplex ??= "half";
+    super(input, options);
+  }
+};
+var newHeadersFromIncoming = (incoming) => {
+  const headerRecord = [];
+  const rawHeaders = incoming.rawHeaders;
+  for (let i = 0, len = rawHeaders.length; i < len; i += 2) {
+    const key = rawHeaders[i];
+    if (key.charCodeAt(0) !== 58) headerRecord.push([key, rawHeaders[i + 1]]);
+  }
+  return new Headers(headerRecord);
+};
+var wrapBodyStream = /* @__PURE__ */ Symbol("wrapBodyStream");
+var byteExactEncodings = /* @__PURE__ */ new Set([
+  "latin1",
+  "binary",
+  "hex",
+  "base64",
+  "base64url"
+]);
+var isByteExactEncoding = (encoding) => encoding === null || byteExactEncodings.has(encoding);
+var bodyBufferedBeforeDisconnectKey = /* @__PURE__ */ Symbol("bodyBufferedBeforeDisconnect");
+var bodyBufferedLengthBeforeDisconnectKey = /* @__PURE__ */ Symbol("bodyBufferedLengthBeforeDisconnect");
+var toBufferChunk = (chunk3, encoding) => Buffer.isBuffer(chunk3) ? chunk3 : Buffer.from(chunk3, encoding ?? "utf8");
+var isRecoverableDisconnectedIncoming = (incoming) => !(incoming instanceof Http2ServerRequest) && !!incoming.complete && !!incoming.readableAborted && typeof incoming.read === "function" && isByteExactEncoding(incoming.readableEncoding);
+var recordBodyBufferedBeforeDisconnect = (incoming) => {
+  if (incoming.readableDidRead || !isRecoverableDisconnectedIncoming(incoming)) return;
+  const incomingWithRecovery = incoming;
+  incomingWithRecovery[bodyBufferedLengthBeforeDisconnectKey] ??= incoming.readableLength;
+};
+var readBodyBufferedBeforeDisconnect = (incoming, chunks) => {
+  if (incoming.readableDidRead && !chunks || !isRecoverableDisconnectedIncoming(incoming)) return;
+  const incomingWithRecovery = incoming;
+  if (incomingWithRecovery[bodyBufferedBeforeDisconnectKey] !== void 0) return incomingWithRecovery[bodyBufferedBeforeDisconnectKey];
+  let result;
+  const errored = incoming.errored;
+  if (errored && errored.code !== "ECONNRESET") result = errored;
+  else if (incomingWithRecovery[bodyBufferedLengthBeforeDisconnectKey] !== void 0 && incoming.readableLength !== incomingWithRecovery[bodyBufferedLengthBeforeDisconnectKey]) result = newBodyUnusableError();
+  else {
+    const bodyChunks = chunks ?? [];
+    const chunk3 = incoming.read();
+    if (chunk3 !== null) bodyChunks.push(toBufferChunk(chunk3, incoming.readableEncoding));
+    const buffer = bodyChunks.length === 1 ? bodyChunks[0] : Buffer.concat(bodyChunks);
+    result = buffer;
+    const contentLength = incoming.headers["content-length"];
+    if (typeof contentLength === "string" && /^\d+$/.test(contentLength)) {
+      const expectedLength = Number(contentLength);
+      if (Number.isSafeInteger(expectedLength) && buffer.length !== expectedLength) result = newBodyUnusableError();
+    }
+  }
+  incomingWithRecovery[bodyBufferedBeforeDisconnectKey] = result;
+  return result;
+};
+var enqueueBufferedBody = (controller, buffered) => {
+  if (buffered instanceof Error) {
+    controller.error(buffered);
+    return;
+  }
+  if (buffered.length > 0) controller.enqueue(buffered);
+  controller.close();
+};
+var newRequestFromIncoming = (method, url2, headers, incoming, abortController) => {
+  const init = {
+    method,
+    headers,
+    signal: abortController.signal
+  };
+  if (method === "TRACE") {
+    init.method = "GET";
+    const req = new Request$1(url2, init);
+    Object.defineProperty(req, "method", { get() {
+      return "TRACE";
+    } });
+    return req;
+  }
+  if (!(method === "GET" || method === "HEAD")) if ("rawBody" in incoming && incoming.rawBody instanceof Buffer) init.body = new ReadableStream({ start(controller) {
+    controller.enqueue(incoming.rawBody);
+    controller.close();
+  } });
+  else if (incoming[wrapBodyStream]) {
+    let reader;
+    init.body = new ReadableStream({ async pull(controller) {
+      try {
+        if (!reader) {
+          const buffered = readBodyBufferedBeforeDisconnect(incoming);
+          if (buffered !== void 0) {
+            enqueueBufferedBody(controller, buffered);
+            return;
+          }
+        }
+        reader ||= Readable.toWeb(incoming).getReader();
+        const { done, value } = await reader.read();
+        if (done) controller.close();
+        else controller.enqueue(value);
+      } catch (error51) {
+        controller.error(error51);
+      }
+    } });
+  } else {
+    const buffered = readBodyBufferedBeforeDisconnect(incoming);
+    if (buffered !== void 0) init.body = new ReadableStream({ start(controller) {
+      enqueueBufferedBody(controller, buffered);
+    } });
+    else init.body = Readable.toWeb(incoming);
+  }
+  return new Request$1(url2, init);
+};
+var getRequestCache = /* @__PURE__ */ Symbol("getRequestCache");
+var requestCache = /* @__PURE__ */ Symbol("requestCache");
+var incomingKey = /* @__PURE__ */ Symbol("incomingKey");
+var urlKey = /* @__PURE__ */ Symbol("urlKey");
+var methodKey = /* @__PURE__ */ Symbol("methodKey");
+var headersKey = /* @__PURE__ */ Symbol("headersKey");
+var abortControllerKey = /* @__PURE__ */ Symbol("abortControllerKey");
+var getAbortController = /* @__PURE__ */ Symbol("getAbortController");
+var abortRequest = /* @__PURE__ */ Symbol("abortRequest");
+var bodyBufferKey = /* @__PURE__ */ Symbol("bodyBuffer");
+var bodyReadPromiseKey = /* @__PURE__ */ Symbol("bodyReadPromise");
+var bodyConsumedDirectlyKey = /* @__PURE__ */ Symbol("bodyConsumedDirectly");
+var bodyLockReaderKey = /* @__PURE__ */ Symbol("bodyLockReader");
+var abortReasonKey = /* @__PURE__ */ Symbol("abortReason");
+var newBodyUnusableError = () => {
+  return /* @__PURE__ */ new TypeError("Body is unusable");
+};
+var rejectBodyUnusable = () => {
+  return Promise.reject(newBodyUnusableError());
+};
+var textDecoder = new TextDecoder();
+var consumeBodyDirectOnce = (request) => {
+  if (request[bodyConsumedDirectlyKey]) return rejectBodyUnusable();
+  request[bodyConsumedDirectlyKey] = true;
+};
+var toArrayBuffer = (buf) => {
+  return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+};
+var contentType = (request) => {
+  return (request[headersKey] ||= newHeadersFromIncoming(request[incomingKey])).get("content-type") || "";
+};
+var methodTokenRegExp = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
+var normalizeIncomingMethod = (method) => {
+  if (typeof method !== "string" || method.length === 0) return "GET";
+  switch (method) {
+    case "DELETE":
+    case "GET":
+    case "HEAD":
+    case "OPTIONS":
+    case "PATCH":
+    case "POST":
+    case "PUT":
+    case "QUERY":
+      return method;
+  }
+  const upper = method.toUpperCase();
+  switch (upper) {
+    case "DELETE":
+    case "GET":
+    case "HEAD":
+    case "OPTIONS":
+    case "POST":
+    case "PUT":
+      return upper;
+    default:
+      return method;
+  }
+};
+var validateDirectReadMethod = (method) => {
+  if (!methodTokenRegExp.test(method)) return /* @__PURE__ */ new TypeError(`'${method}' is not a valid HTTP method.`);
+  const normalized = method.toUpperCase();
+  if (normalized === "CONNECT" || normalized === "TRACK" || normalized === "TRACE" && method !== "TRACE") return /* @__PURE__ */ new TypeError(`'${method}' HTTP method is unsupported.`);
+};
+var readBodyWithFastPath = (request, method, fromBuffer) => {
+  if (request[bodyConsumedDirectlyKey]) return rejectBodyUnusable();
+  const methodName = request.method;
+  if (methodName === "GET" || methodName === "HEAD") return request[getRequestCache]()[method]();
+  const methodValidationError = validateDirectReadMethod(methodName);
+  if (methodValidationError) return Promise.reject(methodValidationError);
+  if (request[requestCache]) {
+    if (methodName !== "TRACE") return request[requestCache][method]();
+  }
+  const alreadyUsedError = consumeBodyDirectOnce(request);
+  if (alreadyUsedError) return alreadyUsedError;
+  const raw = readRawBodyIfAvailable(request);
+  if (raw) {
+    const result = Promise.resolve(fromBuffer(raw, request));
+    request[bodyBufferKey] = void 0;
+    return result;
+  }
+  return readBodyDirect(request).then((buf) => {
+    const result = fromBuffer(buf, request);
+    request[bodyBufferKey] = void 0;
+    return result;
+  });
+};
+var readRawBodyIfAvailable = (request) => {
+  const incoming = request[incomingKey];
+  if ("rawBody" in incoming && incoming.rawBody instanceof Buffer) return incoming.rawBody;
+};
+var normalizeAbortError = (request, incoming) => {
+  if (incoming.errored) return incoming.errored;
+  const reason = request[abortReasonKey];
+  if (reason !== void 0) return reason instanceof Error ? reason : new Error(String(reason));
+  return /* @__PURE__ */ new Error("Client connection prematurely closed.");
+};
+var readBodyDirect = (request) => {
+  if (request[bodyBufferKey]) return Promise.resolve(request[bodyBufferKey]);
+  if (request[bodyReadPromiseKey]) return request[bodyReadPromiseKey];
+  const incoming = request[incomingKey];
+  if (incoming.readableDidRead) return rejectBodyUnusable();
+  const buffered = readBodyBufferedBeforeDisconnect(incoming);
+  if (buffered !== void 0) {
+    if (buffered instanceof Error) return Promise.reject(buffered);
+    request[bodyBufferKey] = buffered;
+    return Promise.resolve(buffered);
+  }
+  const promise2 = new Promise((resolve5, reject) => {
+    const chunks = [];
+    let settled = false;
+    const finish2 = (callback) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      callback();
+    };
+    const recoverCompleteBodyAfterDisconnect = (error51) => {
+      const streamError = incoming.errored ?? error51;
+      if (!isRecoverableDisconnectedIncoming(incoming) || streamError && streamError.code !== "ECONNRESET") return false;
+      finish2(() => {
+        const recovered = readBodyBufferedBeforeDisconnect(incoming, chunks);
+        if (recovered instanceof Error) reject(recovered);
+        else if (recovered === void 0) reject(error51 ?? normalizeAbortError(request, incoming));
+        else {
+          request[bodyBufferKey] = recovered;
+          resolve5(recovered);
+        }
+      });
+      return true;
+    };
+    const onData = (chunk3) => {
+      chunks.push(toBufferChunk(chunk3, incoming.readableEncoding));
+    };
+    const onEnd = () => {
+      finish2(() => {
+        const buffer = chunks.length === 1 ? chunks[0] : Buffer.concat(chunks);
+        request[bodyBufferKey] = buffer;
+        resolve5(buffer);
+      });
+    };
+    const onError = (error51) => {
+      if (recoverCompleteBodyAfterDisconnect(error51)) return;
+      finish2(() => {
+        reject(error51);
+      });
+    };
+    const onClose = () => {
+      if (incoming.readableEnded) {
+        onEnd();
+        return;
+      }
+      if (recoverCompleteBodyAfterDisconnect()) return;
+      finish2(() => {
+        reject(normalizeAbortError(request, incoming));
+      });
+    };
+    const cleanup = () => {
+      incoming.off("data", onData);
+      incoming.off("end", onEnd);
+      incoming.off("error", onError);
+      incoming.off("close", onClose);
+      request[bodyReadPromiseKey] = void 0;
+    };
+    incoming.on("data", onData);
+    incoming.on("end", onEnd);
+    incoming.on("error", onError);
+    incoming.on("close", onClose);
+    queueMicrotask(() => {
+      if (settled) return;
+      if (incoming.readableEnded) onEnd();
+      else if (incoming.errored) onError(incoming.errored);
+      else if (incoming.destroyed) onClose();
+    });
+  });
+  request[bodyReadPromiseKey] = promise2;
+  return promise2;
+};
+var requestPrototype = {
+  get method() {
+    return this[methodKey];
+  },
+  get url() {
+    return this[urlKey];
+  },
+  get headers() {
+    return this[headersKey] ||= newHeadersFromIncoming(this[incomingKey]);
+  },
+  [abortRequest](reason) {
+    if (this[abortReasonKey] === void 0) this[abortReasonKey] = reason;
+    const abortController = this[abortControllerKey];
+    if (abortController && !abortController.signal.aborted) abortController.abort(reason);
+  },
+  [getAbortController]() {
+    this[abortControllerKey] ||= new AbortController();
+    if (this[abortReasonKey] !== void 0 && !this[abortControllerKey].signal.aborted) this[abortControllerKey].abort(this[abortReasonKey]);
+    return this[abortControllerKey];
+  },
+  [getRequestCache]() {
+    const abortController = this[getAbortController]();
+    if (this[requestCache]) return this[requestCache];
+    const method = this.method;
+    if (this[bodyConsumedDirectlyKey] && !(method === "GET" || method === "HEAD")) {
+      this[bodyBufferKey] = void 0;
+      const init = {
+        method: method === "TRACE" ? "GET" : method,
+        headers: this.headers,
+        signal: abortController.signal
+      };
+      if (method !== "TRACE") {
+        init.body = new ReadableStream({ start(c) {
+          c.close();
+        } });
+        init.duplex = "half";
+      }
+      const req = new Request$1(this[urlKey], init);
+      if (method === "TRACE") Object.defineProperty(req, "method", { get() {
+        return "TRACE";
+      } });
+      return this[requestCache] = req;
+    }
+    return this[requestCache] = newRequestFromIncoming(this.method, this[urlKey], this.headers, this[incomingKey], abortController);
+  },
+  get body() {
+    if (!this[bodyConsumedDirectlyKey]) return this[getRequestCache]().body;
+    const request = this[getRequestCache]();
+    if (!this[bodyLockReaderKey] && request.body) this[bodyLockReaderKey] = request.body.getReader();
+    return request.body;
+  },
+  get bodyUsed() {
+    if (this[bodyConsumedDirectlyKey]) return true;
+    if (this[requestCache]) return this[requestCache].bodyUsed;
+    return false;
+  }
+};
+Object.defineProperty(requestPrototype, "signal", { get() {
+  return this[getAbortController]().signal;
+} });
+[
+  "cache",
+  "credentials",
+  "destination",
+  "integrity",
+  "mode",
+  "redirect",
+  "referrer",
+  "referrerPolicy",
+  "keepalive"
+].forEach((k) => {
+  Object.defineProperty(requestPrototype, k, { get() {
+    return this[getRequestCache]()[k];
+  } });
+});
+["clone", "formData"].forEach((k) => {
+  Object.defineProperty(requestPrototype, k, { value: function() {
+    if (this[bodyConsumedDirectlyKey]) {
+      if (k === "clone") throw newBodyUnusableError();
+      return rejectBodyUnusable();
+    }
+    return this[getRequestCache]()[k]();
+  } });
+});
+Object.defineProperty(requestPrototype, "text", { value: function() {
+  return readBodyWithFastPath(this, "text", (buf) => textDecoder.decode(buf));
+} });
+Object.defineProperty(requestPrototype, "arrayBuffer", { value: function() {
+  return readBodyWithFastPath(this, "arrayBuffer", (buf) => toArrayBuffer(buf));
+} });
+Object.defineProperty(requestPrototype, "blob", { value: function() {
+  return readBodyWithFastPath(this, "blob", (buf, request) => {
+    const type = contentType(request);
+    const init = type ? { headers: { "content-type": type } } : void 0;
+    return new Response(buf, init).blob();
+  });
+} });
+Object.defineProperty(requestPrototype, "json", { value: function() {
+  if (this[bodyConsumedDirectlyKey]) return rejectBodyUnusable();
+  return this.text().then(JSON.parse);
+} });
+Object.defineProperty(requestPrototype, /* @__PURE__ */ Symbol.for("nodejs.util.inspect.custom"), { value: function(depth, options, inspectFn) {
+  return `Request (lightweight) ${inspectFn({
+    method: this.method,
+    url: this.url,
+    headers: this.headers,
+    nativeRequest: this[requestCache]
+  }, {
+    ...options,
+    depth: depth == null ? null : depth - 1
+  })}`;
+} });
+Object.setPrototypeOf(requestPrototype, Request$1.prototype);
+var newRequest = (incoming, defaultHostname) => {
+  const req = Object.create(requestPrototype);
+  req[incomingKey] = incoming;
+  req[methodKey] = normalizeIncomingMethod(incoming.method);
+  const incomingUrl = incoming.url || "";
+  if (incomingUrl[0] !== "/" && (incomingUrl.startsWith("http://") || incomingUrl.startsWith("https://"))) {
+    if (incoming instanceof Http2ServerRequest) throw new RequestError("Absolute URL for :path is not allowed in HTTP/2");
+    try {
+      req[urlKey] = new URL(incomingUrl).href;
+    } catch (e) {
+      throw new RequestError("Invalid absolute URL", { cause: e });
+    }
+    return req;
+  }
+  const host = (incoming instanceof Http2ServerRequest ? incoming.authority : incoming.headers.host) || defaultHostname;
+  if (!host) throw new RequestError("Missing host header");
+  let scheme;
+  if (incoming instanceof Http2ServerRequest) {
+    scheme = incoming.scheme;
+    if (!(scheme === "http" || scheme === "https")) throw new RequestError("Unsupported scheme");
+  } else scheme = incoming.socket && incoming.socket.encrypted ? "https" : "http";
+  try {
+    req[urlKey] = buildUrl2(scheme, host, incomingUrl);
+  } catch (e) {
+    if (e instanceof RequestError) throw e;
+    else throw new RequestError("Invalid URL", { cause: e });
+  }
+  return req;
+};
+var defaultContentType = "text/plain; charset=UTF-8";
+var responseCache = /* @__PURE__ */ Symbol("responseCache");
+var getResponseCache = /* @__PURE__ */ Symbol("getResponseCache");
+var cacheKey = /* @__PURE__ */ Symbol("cache");
+var GlobalResponse = global.Response;
+var Response$1 = class Response$12 {
+  #body;
+  #init;
+  [getResponseCache]() {
+    const cache = this[cacheKey];
+    const liveHeaders = cache && cache[2] instanceof Headers ? cache[2] : void 0;
+    delete this[cacheKey];
+    return this[responseCache] ||= new GlobalResponse(this.#body, liveHeaders ? {
+      status: this.#init?.status,
+      statusText: this.#init?.statusText,
+      headers: liveHeaders
+    } : this.#init);
+  }
+  constructor(body, init) {
+    let headers;
+    this.#body = body;
+    if (init instanceof GlobalResponse) {
+      const cachedGlobalResponse = init[responseCache];
+      if (cachedGlobalResponse) {
+        this.#init = cachedGlobalResponse;
+        this[getResponseCache]();
+        return;
+      }
+      this.#init = init instanceof Response$12 ? init.#init : init;
+      headers = new Headers(init.headers);
+    } else this.#init = init;
+    if (body == null || typeof body === "string" || typeof body?.getReader !== "undefined" || body instanceof Blob || body instanceof Uint8Array) this[cacheKey] = [
+      init?.status || 200,
+      body ?? null,
+      headers || init?.headers
+    ];
+  }
+  get headers() {
+    const cache = this[cacheKey];
+    if (cache) {
+      if (!(cache[2] instanceof Headers)) cache[2] = new Headers(cache[2] || (cache[1] === null ? void 0 : { "content-type": defaultContentType }));
+      return cache[2];
+    }
+    return this[getResponseCache]().headers;
+  }
+  get status() {
+    return this[cacheKey]?.[0] ?? this[getResponseCache]().status;
+  }
+  get ok() {
+    const status = this.status;
+    return status >= 200 && status < 300;
+  }
+};
+[
+  "body",
+  "bodyUsed",
+  "redirected",
+  "statusText",
+  "trailers",
+  "type",
+  "url"
+].forEach((k) => {
+  Object.defineProperty(Response$1.prototype, k, { get() {
+    return this[getResponseCache]()[k];
+  } });
+});
+[
+  "arrayBuffer",
+  "blob",
+  "clone",
+  "formData",
+  "json",
+  "text"
+].forEach((k) => {
+  Object.defineProperty(Response$1.prototype, k, { value: function() {
+    return this[getResponseCache]()[k]();
+  } });
+});
+Object.defineProperty(Response$1.prototype, /* @__PURE__ */ Symbol.for("nodejs.util.inspect.custom"), { value: function(depth, options, inspectFn) {
+  return `Response (lightweight) ${inspectFn({
+    status: this.status,
+    headers: this.headers,
+    ok: this.ok,
+    nativeResponse: this[responseCache]
+  }, {
+    ...options,
+    depth: depth == null ? null : depth - 1
+  })}`;
+} });
+Object.setPrototypeOf(Response$1, GlobalResponse);
+Object.setPrototypeOf(Response$1.prototype, GlobalResponse.prototype);
+var validRedirectUrl = /^https?:\/\/[!#-;=?-[\]_a-z~A-Z]+$/;
+var parseRedirectUrl = (url2) => {
+  if (url2 instanceof URL) return url2.href;
+  if (validRedirectUrl.test(url2)) return url2;
+  return new URL(url2).href;
+};
+var validRedirectStatuses = /* @__PURE__ */ new Set([
+  301,
+  302,
+  303,
+  307,
+  308
+]);
+Object.defineProperty(Response$1, "redirect", {
+  value: function redirect(url2, status = 302) {
+    if (!validRedirectStatuses.has(status)) throw new RangeError("Invalid status code");
+    return new Response$1(null, {
+      status,
+      headers: { location: parseRedirectUrl(url2) }
+    });
+  },
+  writable: true,
+  configurable: true
+});
+Object.defineProperty(Response$1, "json", {
+  value: function json2(data, init) {
+    const body = JSON.stringify(data);
+    if (body === void 0) throw new TypeError("The data is not JSON serializable");
+    const initHeaders = init?.headers;
+    let headers;
+    if (initHeaders) {
+      headers = new Headers(initHeaders);
+      if (!headers.has("content-type")) headers.set("content-type", "application/json");
+    } else headers = { "content-type": "application/json" };
+    return new Response$1(body, {
+      status: init?.status ?? 200,
+      statusText: init?.statusText,
+      headers
+    });
+  },
+  writable: true,
+  configurable: true
+});
+async function readWithoutBlocking(readPromise) {
+  return Promise.race([readPromise, Promise.resolve().then(() => Promise.resolve(void 0))]);
+}
+function writeFromReadableStreamDefaultReader(reader, writable, currentReadPromise) {
+  const cancel = (error51) => {
+    reader.cancel(error51).catch(() => {
+    });
+  };
+  writable.on("close", cancel);
+  writable.on("error", cancel);
+  (currentReadPromise ?? reader.read()).then(flow, handleStreamError);
+  return reader.closed.finally(() => {
+    writable.off("close", cancel);
+    writable.off("error", cancel);
+  });
+  function handleStreamError(error51) {
+    if (error51) writable.destroy(error51);
+  }
+  function onDrain() {
+    reader.read().then(flow, handleStreamError);
+  }
+  function flow({ done, value }) {
+    try {
+      if (done) writable.end();
+      else if (!writable.write(value)) writable.once("drain", onDrain);
+      else return reader.read().then(flow, handleStreamError);
+    } catch (e) {
+      handleStreamError(e);
+    }
+  }
+}
+function writeFromReadableStream(stream, writable) {
+  if (stream.locked) throw new TypeError("ReadableStream is locked.");
+  else if (writable.destroyed) return;
+  return writeFromReadableStreamDefaultReader(stream.getReader(), writable);
+}
+var buildOutgoingHttpHeaders = (headers, defaultContentType2) => {
+  const res = {};
+  if (!(headers instanceof Headers)) headers = new Headers(headers ?? void 0);
+  if (headers.has("set-cookie")) {
+    const cookies = [];
+    for (const [k, v] of headers) if (k === "set-cookie") cookies.push(v);
+    else res[k] = v;
+    if (cookies.length > 0) res["set-cookie"] = cookies;
+  } else for (const [k, v] of headers) res[k] = v;
+  if (defaultContentType2) res["content-type"] ??= defaultContentType2;
+  return res;
+};
+var outgoingEnded = /* @__PURE__ */ Symbol("outgoingEnded");
+var incomingDraining = /* @__PURE__ */ Symbol("incomingDraining");
+var DRAIN_TIMEOUT_MS = 500;
+var MAX_DRAIN_BYTES = 64 * 1024 * 1024;
+var drainIncoming = (incoming) => {
+  const incomingWithDrainState = incoming;
+  if (incoming.destroyed || incomingWithDrainState[incomingDraining]) return;
+  incomingWithDrainState[incomingDraining] = true;
+  if (incoming instanceof Http2ServerRequest) {
+    try {
+      incoming.stream?.close?.(constants.NGHTTP2_NO_ERROR);
+    } catch {
+    }
+    return;
+  }
+  let bytesRead = 0;
+  const cleanup = () => {
+    clearTimeout(timer);
+    incoming.off("data", onData);
+    incoming.off("end", cleanup);
+    incoming.off("error", cleanup);
+  };
+  const forceClose = () => {
+    cleanup();
+    const socket = incoming.socket;
+    if (socket && !socket.destroyed) socket.destroySoon();
+  };
+  const timer = setTimeout(forceClose, DRAIN_TIMEOUT_MS);
+  timer.unref?.();
+  const onData = (chunk3) => {
+    bytesRead += chunk3.length;
+    if (bytesRead > MAX_DRAIN_BYTES) forceClose();
+  };
+  incoming.on("data", onData);
+  incoming.on("end", cleanup);
+  incoming.on("error", cleanup);
+  incoming.resume();
+};
+var makeCloseHandler = (req, incoming, outgoing, needsBodyCleanup) => () => {
+  if (incoming.errored) {
+    recordBodyBufferedBeforeDisconnect(incoming);
+    req[abortRequest](incoming.errored.toString());
+  } else if (!outgoing.writableFinished) {
+    recordBodyBufferedBeforeDisconnect(incoming);
+    req[abortRequest]("Client connection prematurely closed.");
+  }
+  if (needsBodyCleanup && !incoming.readableEnded) setTimeout(() => {
+    if (!incoming.readableEnded) setTimeout(() => {
+      drainIncoming(incoming);
+    });
+  });
+};
+var isImmediateCacheableResponse = (res) => {
+  if (!(cacheKey in res)) return false;
+  const body = res[cacheKey][1];
+  return body === null || typeof body === "string" || body instanceof Uint8Array;
+};
+var handleRequestError = () => new Response(null, { status: 400 });
+var handleFetchError = (e) => new Response(null, { status: e instanceof Error && (e.name === "TimeoutError" || e.constructor.name === "TimeoutError") ? 504 : 500 });
+var handleResponseError = (e, outgoing) => {
+  const err = e instanceof Error ? e : new Error("unknown error", { cause: e });
+  if (err.code === "ERR_STREAM_PREMATURE_CLOSE") console.info("The user aborted a request.");
+  else {
+    console.error(e);
+    if (!outgoing.headersSent) outgoing.writeHead(500, { "Content-Type": "text/plain" });
+    outgoing.end(`Error: ${err.message}`);
+    outgoing.destroy(err);
+  }
+};
+var flushHeaders = (outgoing) => {
+  if ("flushHeaders" in outgoing && outgoing.writable) outgoing.flushHeaders();
+};
+var responseViaCache = async (res, outgoing) => {
+  let [status, body, header] = res[cacheKey];
+  if (!header) {
+    if (body === null) {
+      outgoing.writeHead(status);
+      outgoing.end();
+    } else if (typeof body === "string") {
+      outgoing.writeHead(status, {
+        "Content-Type": defaultContentType,
+        "Content-Length": Buffer.byteLength(body)
+      });
+      outgoing.end(body);
+    } else if (body instanceof Uint8Array) {
+      outgoing.writeHead(status, {
+        "Content-Type": defaultContentType,
+        "Content-Length": body.byteLength
+      });
+      outgoing.end(body);
+    } else if (body instanceof Blob) {
+      outgoing.writeHead(status, {
+        "Content-Type": defaultContentType,
+        "Content-Length": body.size
+      });
+      outgoing.end(new Uint8Array(await body.arrayBuffer()));
+    } else {
+      outgoing.writeHead(status, { "Content-Type": defaultContentType });
+      flushHeaders(outgoing);
+      await writeFromReadableStream(body, outgoing)?.catch((e) => handleResponseError(e, outgoing));
+    }
+    outgoing[outgoingEnded]?.();
+    return;
+  }
+  let hasContentLength = false;
+  if (header instanceof Headers) {
+    hasContentLength = header.has("content-length");
+    header = buildOutgoingHttpHeaders(header, body === null ? void 0 : defaultContentType);
+  } else if (Array.isArray(header)) {
+    const headerObj = new Headers(header);
+    hasContentLength = headerObj.has("content-length");
+    header = buildOutgoingHttpHeaders(headerObj, body === null ? void 0 : defaultContentType);
+  } else for (const key in header) if (key.length === 14 && key.toLowerCase() === "content-length") {
+    hasContentLength = true;
+    break;
+  }
+  if (!hasContentLength) {
+    if (typeof body === "string") header["Content-Length"] = Buffer.byteLength(body);
+    else if (body instanceof Uint8Array) header["Content-Length"] = body.byteLength;
+    else if (body instanceof Blob) header["Content-Length"] = body.size;
+  }
+  outgoing.writeHead(status, header);
+  if (body == null) outgoing.end();
+  else if (typeof body === "string" || body instanceof Uint8Array) outgoing.end(body);
+  else if (body instanceof Blob) outgoing.end(new Uint8Array(await body.arrayBuffer()));
+  else {
+    flushHeaders(outgoing);
+    await writeFromReadableStream(body, outgoing)?.catch((e) => handleResponseError(e, outgoing));
+  }
+  outgoing[outgoingEnded]?.();
+};
+var isPromise = (res) => typeof res.then === "function";
+var responseViaResponseObject = async (res, outgoing, options = {}) => {
+  if (isPromise(res)) if (options.errorHandler) try {
+    res = await res;
+  } catch (err) {
+    const errRes = await options.errorHandler(err);
+    if (!errRes) return;
+    res = errRes;
+  }
+  else res = await res.catch(handleFetchError);
+  if (cacheKey in res) return responseViaCache(res, outgoing);
+  const resHeaderRecord = buildOutgoingHttpHeaders(res.headers, res.body === null ? void 0 : defaultContentType);
+  if (res.body) {
+    const reader = res.body.getReader();
+    const values = [];
+    let done = false;
+    let currentReadPromise = void 0;
+    if (resHeaderRecord["transfer-encoding"] !== "chunked") {
+      let maxReadCount = 2;
+      for (let i = 0; i < maxReadCount; i++) {
+        currentReadPromise ||= reader.read();
+        const chunk3 = await readWithoutBlocking(currentReadPromise).catch((e) => {
+          console.error(e);
+          done = true;
+        });
+        if (!chunk3) {
+          if (i === 1) {
+            await new Promise((resolve5) => setTimeout(resolve5));
+            maxReadCount = 3;
+            continue;
+          }
+          break;
+        }
+        currentReadPromise = void 0;
+        if (chunk3.value) values.push(chunk3.value);
+        if (chunk3.done) {
+          done = true;
+          break;
+        }
+      }
+      if (done && !("content-length" in resHeaderRecord)) resHeaderRecord["content-length"] = values.reduce((acc, value) => acc + value.length, 0);
+    }
+    outgoing.writeHead(res.status, resHeaderRecord);
+    values.forEach((value) => {
+      outgoing.write(value);
+    });
+    if (done) outgoing.end();
+    else {
+      if (values.length === 0) flushHeaders(outgoing);
+      await writeFromReadableStreamDefaultReader(reader, outgoing, currentReadPromise);
+    }
+  } else if (resHeaderRecord[X_ALREADY_SENT]) {
+  } else {
+    outgoing.writeHead(res.status, resHeaderRecord);
+    outgoing.end();
+  }
+  outgoing[outgoingEnded]?.();
+};
+var getRequestListener = (fetchCallback, options = {}) => {
+  const autoCleanupIncoming = options.autoCleanupIncoming ?? true;
+  if (options.overrideGlobalObjects !== false && global.Request !== Request$1) {
+    Object.defineProperty(global, "Request", { value: Request$1 });
+    Object.defineProperty(global, "Response", { value: Response$1 });
+  }
+  return async (incoming, outgoing) => {
+    let res, req;
+    let needsBodyCleanup = false;
+    let closeHandlerAttached = false;
+    const ensureCloseHandler = () => {
+      if (!req || closeHandlerAttached) return;
+      closeHandlerAttached = true;
+      outgoing.on("close", makeCloseHandler(req, incoming, outgoing, needsBodyCleanup));
+    };
+    try {
+      req = newRequest(incoming, options.hostname);
+      needsBodyCleanup = autoCleanupIncoming && !(incoming.method === "GET" || incoming.method === "HEAD");
+      if (needsBodyCleanup) {
+        incoming[wrapBodyStream] = true;
+        if (incoming instanceof Http2ServerRequest) outgoing[outgoingEnded] = () => {
+          if (!incoming.readableEnded) setTimeout(() => {
+            if (!incoming.readableEnded) setTimeout(() => {
+              incoming.destroy();
+              outgoing.destroy();
+            });
+          });
+        };
+      }
+      res = fetchCallback(req, {
+        incoming,
+        outgoing
+      });
+      if (!isPromise(res) && isImmediateCacheableResponse(res)) {
+        if (needsBodyCleanup && !incoming.readableEnded) outgoing.once("finish", () => {
+          if (!incoming.readableEnded) drainIncoming(incoming);
+        });
+        return responseViaCache(res, outgoing);
+      }
+      ensureCloseHandler();
+    } catch (e) {
+      if (!res) if (options.errorHandler) {
+        ensureCloseHandler();
+        res = await options.errorHandler(req ? e : toRequestError(e));
+        if (!res) return;
+      } else if (!req) res = handleRequestError();
+      else res = handleFetchError(e);
+      else return handleResponseError(e, outgoing);
+    }
+    try {
+      return await responseViaResponseObject(res, outgoing, options);
+    } catch (e) {
+      return handleResponseError(e, outgoing);
+    }
+  };
+};
+var CloseEvent = globalThis.CloseEvent ?? class extends Event {
+  #eventInitDict;
+  constructor(type, eventInitDict = {}) {
+    super(type, eventInitDict);
+    this.#eventInitDict = eventInitDict;
+  }
+  get wasClean() {
+    return this.#eventInitDict.wasClean ?? false;
+  }
+  get code() {
+    return this.#eventInitDict.code ?? 0;
+  }
+  get reason() {
+    return this.#eventInitDict.reason ?? "";
+  }
+};
+var ErrorEvent = globalThis.ErrorEvent ?? class extends Event {
+  #eventInitDict;
+  constructor(type, eventInitDict = {}) {
+    super(type, eventInitDict);
+    this.#eventInitDict = eventInitDict;
+  }
+  get message() {
+    return this.#eventInitDict.message ?? "";
+  }
+  get filename() {
+    return this.#eventInitDict.filename ?? "";
+  }
+  get lineno() {
+    return this.#eventInitDict.lineno ?? 0;
+  }
+  get colno() {
+    return this.#eventInitDict.colno ?? 0;
+  }
+  get error() {
+    return this.#eventInitDict.error ?? null;
+  }
+};
+var generateConnectionSymbol = () => /* @__PURE__ */ Symbol("connection");
+var CONNECTION_SYMBOL_KEY = /* @__PURE__ */ Symbol("CONNECTION_SYMBOL_KEY");
+var WAIT_FOR_WEBSOCKET_SYMBOL = /* @__PURE__ */ Symbol("WAIT_FOR_WEBSOCKET_SYMBOL");
+var upgradeWebSocket = defineWebSocketHelper(async (c, events, options) => {
+  if (c.req.header("upgrade")?.toLowerCase() !== "websocket") return;
+  const env = c.env;
+  const waitForWebSocket = env[WAIT_FOR_WEBSOCKET_SYMBOL];
+  if (!waitForWebSocket || !env.incoming) return new Response(null, { status: 500 });
+  const connectionSymbol = generateConnectionSymbol();
+  env[CONNECTION_SYMBOL_KEY] = connectionSymbol;
+  (async () => {
+    let ws;
+    try {
+      ws = await waitForWebSocket(env.incoming, connectionSymbol);
+    } catch {
+      return;
+    }
+    const messagesReceivedInStarting = [];
+    const bufferMessage = (data, isBinary) => {
+      messagesReceivedInStarting.push([data, isBinary]);
+    };
+    ws.on("message", bufferMessage);
+    const ctx = {
+      binaryType: "arraybuffer",
+      close(code, reason) {
+        ws.close(code, reason);
+      },
+      protocol: ws.protocol,
+      raw: ws,
+      get readyState() {
+        return ws.readyState;
+      },
+      send(source, opts) {
+        ws.send(source, { compress: opts?.compress });
+      },
+      url: new URL(c.req.url)
+    };
+    try {
+      events?.onOpen?.(new Event("open"), ctx);
+    } catch (e) {
+      (options?.onError ?? console.error)(e);
+    }
+    const handleMessage = (data, isBinary) => {
+      const datas = Array.isArray(data) ? data : [data];
+      for (const data2 of datas) try {
+        events?.onMessage?.(new MessageEvent("message", { data: isBinary ? data2 instanceof ArrayBuffer ? data2 : data2.buffer.slice(data2.byteOffset, data2.byteOffset + data2.byteLength) : typeof data2 === "string" ? data2 : Buffer.from(data2).toString("utf-8") }), ctx);
+      } catch (e) {
+        (options?.onError ?? console.error)(e);
+      }
+    };
+    ws.off("message", bufferMessage);
+    for (const message of messagesReceivedInStarting) handleMessage(...message);
+    ws.on("message", (data, isBinary) => {
+      handleMessage(data, isBinary);
+    });
+    ws.on("close", (code, reason) => {
+      try {
+        events?.onClose?.(new CloseEvent("close", {
+          code,
+          reason: reason.toString()
+        }), ctx);
+      } catch (e) {
+        (options?.onError ?? console.error)(e);
+      }
+    });
+    ws.on("error", (error51) => {
+      try {
+        events?.onError?.(new ErrorEvent("error", { error: error51 }), ctx);
+      } catch (e) {
+        (options?.onError ?? console.error)(e);
+      }
+    });
+  })();
+  return new Response();
+});
+
+// node_modules/@modelcontextprotocol/sdk/dist/esm/shared/mediaType.js
+var import_content_type = __toESM(require_content_type(), 1);
+function mediaTypeEssence(header) {
+  if (!header) {
+    return void 0;
+  }
+  try {
+    return import_content_type.default.parse(header).type;
+  } catch {
+    const essence = (header.split(";", 1)[0] ?? "").trim().toLowerCase();
+    if (essence === "" || header.slice(essence.length).includes(",")) {
+      return void 0;
+    }
+    return essence;
+  }
+}
+function isJsonContentType(header) {
+  if (header === "application/json") {
+    return true;
+  }
+  return mediaTypeEssence(header) === "application/json";
+}
+
+// node_modules/@modelcontextprotocol/sdk/dist/esm/server/sseKeepAlive.js
+var DEFAULT_SSE_KEEP_ALIVE_MS = 15e3;
+var MAX_TIMER_DELAY_MS = 2 ** 31 - 1;
+function armSseKeepAlive(intervalMs, onTick) {
+  if (!Number.isFinite(intervalMs) || intervalMs < 1) {
+    return void 0;
+  }
+  const timer = setInterval(onTick, Math.min(intervalMs, MAX_TIMER_DELAY_MS));
+  timer.unref?.();
+  return timer;
+}
+
+// node_modules/@modelcontextprotocol/sdk/dist/esm/server/webStandardStreamableHttp.js
+var WebStandardStreamableHTTPServerTransport = class {
+  constructor(options = {}) {
+    this._started = false;
+    this._hasHandledRequest = false;
+    this._streamMapping = /* @__PURE__ */ new Map();
+    this._requestToStreamMapping = /* @__PURE__ */ new Map();
+    this._resumableStreams = /* @__PURE__ */ new Set();
+    this._requestResponseMap = /* @__PURE__ */ new Map();
+    this._initialized = false;
+    this._enableJsonResponse = false;
+    this._standaloneSseStreamId = "_GET_stream";
+    this._closed = false;
+    this.sessionIdGenerator = options.sessionIdGenerator;
+    this._enableJsonResponse = options.enableJsonResponse ?? false;
+    this._eventStore = options.eventStore;
+    this._onsessioninitialized = options.onsessioninitialized;
+    this._onsessionclosed = options.onsessionclosed;
+    this._allowedHosts = options.allowedHosts;
+    this._allowedOrigins = options.allowedOrigins;
+    this._enableDnsRebindingProtection = options.enableDnsRebindingProtection ?? false;
+    this._retryInterval = options.retryInterval;
+    this._keepAliveMs = options.keepAliveMs ?? DEFAULT_SSE_KEEP_ALIVE_MS;
+  }
+  /**
+   * Arms a keep-alive interval for an SSE stream that periodically writes an SSE
+   * comment frame so intermediaries and idle timeouts don't kill the connection.
+   * The returned timer is owned by the stream it was armed for: the stream's
+   * cancel/cleanup callbacks must clear it. The interval clears itself if a
+   * write fails (stream already closed/cancelled).
+   */
+  startKeepAlive(controller, encoder) {
+    if (this._closed)
+      return void 0;
+    const timer = armSseKeepAlive(this._keepAliveMs, () => {
+      try {
+        controller.enqueue(encoder.encode(": keepalive\n\n"));
+      } catch {
+        if (timer !== void 0)
+          clearInterval(timer);
+      }
+    });
+    return timer;
+  }
+  /**
+   * Starts the transport. This is required by the Transport interface but is a no-op
+   * for the Streamable HTTP transport as connections are managed per-request.
+   */
+  async start() {
+    if (this._started) {
+      throw new Error("Transport already started");
+    }
+    this._started = true;
+  }
+  /**
+   * Helper to create a JSON error response
+   */
+  createJsonErrorResponse(status, code, message, options) {
+    const error51 = { code, message };
+    if (options?.data !== void 0) {
+      error51.data = options.data;
+    }
+    return new Response(JSON.stringify({
+      jsonrpc: "2.0",
+      error: error51,
+      id: null
+    }), {
+      status,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers
+      }
+    });
+  }
+  /**
+   * Validates request headers for DNS rebinding protection.
+   * @returns Error response if validation fails, undefined if validation passes.
+   */
+  validateRequestHeaders(req) {
+    if (!this._enableDnsRebindingProtection) {
+      return void 0;
+    }
+    if (this._allowedHosts && this._allowedHosts.length > 0) {
+      const hostHeader = req.headers.get("host");
+      if (!hostHeader || !this._allowedHosts.includes(hostHeader)) {
+        const error51 = `Invalid Host header: ${hostHeader}`;
+        this.onerror?.(new Error(error51));
+        return this.createJsonErrorResponse(403, -32e3, error51);
+      }
+    }
+    if (this._allowedOrigins && this._allowedOrigins.length > 0) {
+      const originHeader = req.headers.get("origin");
+      if (originHeader && !this._allowedOrigins.includes(originHeader)) {
+        const error51 = `Invalid Origin header: ${originHeader}`;
+        this.onerror?.(new Error(error51));
+        return this.createJsonErrorResponse(403, -32e3, error51);
+      }
+    }
+    return void 0;
+  }
+  /**
+   * Handles an incoming HTTP request, whether GET, POST, or DELETE
+   * Returns a Response object (Web Standard)
+   */
+  async handleRequest(req, options) {
+    if (this._closed) {
+      return this.createJsonErrorResponse(404, -32001, "Session not found");
+    }
+    if (!this.sessionIdGenerator && this._hasHandledRequest) {
+      throw new Error("Stateless transport cannot be reused across requests. Create a new transport per request.");
+    }
+    this._hasHandledRequest = true;
+    const validationError = this.validateRequestHeaders(req);
+    if (validationError) {
+      return validationError;
+    }
+    switch (req.method) {
+      case "POST":
+        return this.handlePostRequest(req, options);
+      case "GET":
+        return this.handleGetRequest(req);
+      case "DELETE":
+        return this.handleDeleteRequest(req);
+      default:
+        return this.handleUnsupportedRequest();
+    }
+  }
+  /**
+   * Writes a priming event to establish resumption capability.
+   * Only sends if eventStore is configured (opt-in for resumability) and
+   * the client's protocol version supports empty SSE data (>= 2025-11-25).
+   */
+  async writePrimingEvent(controller, encoder, streamId, protocolVersion) {
+    if (!this._eventStore) {
+      return;
+    }
+    if (protocolVersion < "2025-11-25") {
+      return;
+    }
+    const primingEventId = await this._eventStore.storeEvent(streamId, {});
+    let primingEvent = `id: ${primingEventId}
+data: 
+
+`;
+    if (this._retryInterval !== void 0) {
+      primingEvent = `id: ${primingEventId}
+retry: ${this._retryInterval}
+data: 
+
+`;
+    }
+    controller.enqueue(encoder.encode(primingEvent));
+    this._resumableStreams.add(streamId);
+  }
+  /**
+   * Handles GET requests for SSE stream
+   */
+  async handleGetRequest(req) {
+    const acceptHeader = req.headers.get("accept");
+    if (!acceptHeader?.includes("text/event-stream")) {
+      this.onerror?.(new Error("Not Acceptable: Client must accept text/event-stream"));
+      return this.createJsonErrorResponse(406, -32e3, "Not Acceptable: Client must accept text/event-stream");
+    }
+    const sessionError = this.validateSession(req);
+    if (sessionError) {
+      return sessionError;
+    }
+    const protocolError2 = this.validateProtocolVersion(req);
+    if (protocolError2) {
+      return protocolError2;
+    }
+    if (this._eventStore) {
+      const lastEventId = req.headers.get("last-event-id");
+      if (lastEventId) {
+        return this.replayEvents(lastEventId);
+      }
+    }
+    if (this._streamMapping.get(this._standaloneSseStreamId) !== void 0) {
+      this.onerror?.(new Error("Conflict: Only one SSE stream is allowed per session"));
+      return this.createJsonErrorResponse(409, -32e3, "Conflict: Only one SSE stream is allowed per session");
+    }
+    const encoder = new TextEncoder();
+    let streamController;
+    let keepAliveTimer = void 0;
+    const readable = new ReadableStream({
+      start: (controller) => {
+        streamController = controller;
+      },
+      cancel: () => {
+        if (keepAliveTimer !== void 0) {
+          clearInterval(keepAliveTimer);
+        }
+        if (this._streamMapping.get(this._standaloneSseStreamId)?.controller === streamController) {
+          this._streamMapping.delete(this._standaloneSseStreamId);
+        }
+      }
+    });
+    const headers = {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no"
+    };
+    if (this.sessionId !== void 0) {
+      headers["mcp-session-id"] = this.sessionId;
+    }
+    this._streamMapping.set(this._standaloneSseStreamId, {
+      controller: streamController,
+      encoder,
+      cleanup: () => {
+        if (keepAliveTimer !== void 0) {
+          clearInterval(keepAliveTimer);
+        }
+        this._streamMapping.delete(this._standaloneSseStreamId);
+        try {
+          streamController.close();
+        } catch {
+        }
+      }
+    });
+    keepAliveTimer = this.startKeepAlive(streamController, encoder);
+    return new Response(readable, { headers });
+  }
+  /**
+   * Replays events that would have been sent after the specified event ID
+   * Only used when resumability is enabled
+   */
+  async replayEvents(lastEventId) {
+    if (!this._eventStore) {
+      this.onerror?.(new Error("Event store not configured"));
+      return this.createJsonErrorResponse(400, -32e3, "Event store not configured");
+    }
+    try {
+      let streamId;
+      if (this._eventStore.getStreamIdForEventId) {
+        streamId = await this._eventStore.getStreamIdForEventId(lastEventId);
+        if (!streamId) {
+          this.onerror?.(new Error("Invalid event ID format"));
+          return this.createJsonErrorResponse(400, -32e3, "Invalid event ID format");
+        }
+        if (this._streamMapping.get(streamId) !== void 0) {
+          this.onerror?.(new Error("Conflict: Stream already has an active connection"));
+          return this.createJsonErrorResponse(409, -32e3, "Conflict: Stream already has an active connection");
+        }
+      }
+      const headers = {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache, no-transform",
+        Connection: "keep-alive",
+        "X-Accel-Buffering": "no"
+      };
+      if (this.sessionId !== void 0) {
+        headers["mcp-session-id"] = this.sessionId;
+      }
+      const encoder = new TextEncoder();
+      let streamController;
+      let keepAliveTimer = void 0;
+      let replayedStreamId = void 0;
+      let cancelled = false;
+      const readable = new ReadableStream({
+        start: (controller) => {
+          streamController = controller;
+        },
+        cancel: () => {
+          cancelled = true;
+          if (keepAliveTimer !== void 0) {
+            clearInterval(keepAliveTimer);
+          }
+          if (replayedStreamId !== void 0 && this._streamMapping.get(replayedStreamId)?.controller === streamController) {
+            this._streamMapping.delete(replayedStreamId);
+          }
+        }
+      });
+      const replayedEventIds = /* @__PURE__ */ new Set();
+      replayedStreamId = await this._eventStore.replayEventsAfter(lastEventId, {
+        send: async (eventId, message) => {
+          const success2 = this.writeSSEEvent(streamController, encoder, message, eventId);
+          if (!success2) {
+            this.onerror?.(new Error("Failed replay events"));
+            try {
+              streamController.close();
+            } catch {
+            }
+          } else {
+            replayedEventIds.add(eventId);
+          }
+        }
+      });
+      if (this._closed || cancelled) {
+        try {
+          streamController.close();
+        } catch {
+        }
+        return this.createJsonErrorResponse(404, -32001, "Session not found");
+      }
+      this._streamMapping.get(replayedStreamId)?.cleanup();
+      this._streamMapping.set(replayedStreamId, {
+        controller: streamController,
+        encoder,
+        replayedEventIds,
+        cleanup: () => {
+          if (keepAliveTimer !== void 0) {
+            clearInterval(keepAliveTimer);
+          }
+          this._streamMapping.delete(replayedStreamId);
+          try {
+            streamController.close();
+          } catch {
+          }
+        }
+      });
+      this._resumableStreams.add(replayedStreamId);
+      keepAliveTimer = this.startKeepAlive(streamController, encoder);
+      return new Response(readable, { headers });
+    } catch (error51) {
+      this.onerror?.(error51);
+      return this.createJsonErrorResponse(500, -32e3, "Error replaying events");
+    }
+  }
+  /**
+   * Writes an event to an SSE stream via controller with proper formatting
+   */
+  writeSSEEvent(controller, encoder, message, eventId) {
+    try {
+      let eventData = `event: message
+`;
+      if (eventId) {
+        eventData += `id: ${eventId}
+`;
+      }
+      eventData += `data: ${JSON.stringify(message)}
+
+`;
+      controller.enqueue(encoder.encode(eventData));
+      return true;
+    } catch (error51) {
+      this.onerror?.(error51);
+      return false;
+    }
+  }
+  /**
+   * Handles unsupported requests (PUT, PATCH, etc.)
+   */
+  handleUnsupportedRequest() {
+    this.onerror?.(new Error("Method not allowed."));
+    return new Response(JSON.stringify({
+      jsonrpc: "2.0",
+      error: {
+        code: -32e3,
+        message: "Method not allowed."
+      },
+      id: null
+    }), {
+      status: 405,
+      headers: {
+        Allow: "GET, POST, DELETE",
+        "Content-Type": "application/json"
+      }
+    });
+  }
+  /**
+   * Handles POST requests containing JSON-RPC messages
+   */
+  async handlePostRequest(req, options) {
+    try {
+      const acceptHeader = req.headers.get("accept");
+      if (!acceptHeader?.includes("application/json") || !acceptHeader.includes("text/event-stream")) {
+        this.onerror?.(new Error("Not Acceptable: Client must accept both application/json and text/event-stream"));
+        return this.createJsonErrorResponse(406, -32e3, "Not Acceptable: Client must accept both application/json and text/event-stream");
+      }
+      const ct = req.headers.get("content-type");
+      if (!isJsonContentType(ct)) {
+        this.onerror?.(new Error("Unsupported Media Type: Content-Type must be application/json"));
+        return this.createJsonErrorResponse(415, -32e3, "Unsupported Media Type: Content-Type must be application/json");
+      }
+      const requestInfo = {
+        headers: Object.fromEntries(req.headers.entries()),
+        url: new URL(req.url)
+      };
+      let rawMessage;
+      if (options?.parsedBody !== void 0) {
+        rawMessage = options.parsedBody;
+      } else {
+        try {
+          rawMessage = await req.json();
+        } catch {
+          this.onerror?.(new Error("Parse error: Invalid JSON"));
+          return this.createJsonErrorResponse(400, -32700, "Parse error: Invalid JSON");
+        }
+      }
+      let messages;
+      try {
+        if (Array.isArray(rawMessage)) {
+          messages = rawMessage.map((msg) => JSONRPCMessageSchema.parse(msg));
+        } else {
+          messages = [JSONRPCMessageSchema.parse(rawMessage)];
+        }
+      } catch {
+        this.onerror?.(new Error("Parse error: Invalid JSON-RPC message"));
+        return this.createJsonErrorResponse(400, -32700, "Parse error: Invalid JSON-RPC message");
+      }
+      if (this._closed) {
+        return this.createJsonErrorResponse(404, -32001, "Session not found");
+      }
+      const isInitializationRequest = messages.some(isInitializeRequest);
+      if (isInitializationRequest) {
+        if (this._initialized && this.sessionId !== void 0) {
+          this.onerror?.(new Error("Invalid Request: Server already initialized"));
+          return this.createJsonErrorResponse(400, -32600, "Invalid Request: Server already initialized");
+        }
+        if (messages.length > 1) {
+          this.onerror?.(new Error("Invalid Request: Only one initialization request is allowed"));
+          return this.createJsonErrorResponse(400, -32600, "Invalid Request: Only one initialization request is allowed");
+        }
+        this.sessionId = this.sessionIdGenerator?.();
+        this._initialized = true;
+        if (this.sessionId && this._onsessioninitialized) {
+          await Promise.resolve(this._onsessioninitialized(this.sessionId));
+        }
+      }
+      if (!isInitializationRequest) {
+        const sessionError = this.validateSession(req);
+        if (sessionError) {
+          return sessionError;
+        }
+        const protocolError2 = this.validateProtocolVersion(req);
+        if (protocolError2) {
+          return protocolError2;
+        }
+      }
+      if (this._closed) {
+        return this.createJsonErrorResponse(404, -32001, "Session not found");
+      }
+      const hasRequests = messages.some(isJSONRPCRequest);
+      if (!hasRequests) {
+        for (const message of messages) {
+          this.onmessage?.(message, { authInfo: options?.authInfo, requestInfo });
+        }
+        return new Response(null, { status: 202 });
+      }
+      const streamId = crypto.randomUUID();
+      const initRequest = messages.find((m) => isInitializeRequest(m));
+      const clientProtocolVersion = initRequest ? initRequest.params.protocolVersion : req.headers.get("mcp-protocol-version") ?? DEFAULT_NEGOTIATED_PROTOCOL_VERSION;
+      if (this._enableJsonResponse) {
+        return new Promise((resolve5) => {
+          this._streamMapping.set(streamId, {
+            resolveJson: resolve5,
+            cleanup: () => {
+              this._streamMapping.delete(streamId);
+            }
+          });
+          for (const message of messages) {
+            if (isJSONRPCRequest(message)) {
+              this._requestToStreamMapping.set(message.id, streamId);
+            }
+          }
+          for (const message of messages) {
+            this.onmessage?.(message, { authInfo: options?.authInfo, requestInfo });
+          }
+        });
+      }
+      const encoder = new TextEncoder();
+      let streamController;
+      let keepAliveTimer = void 0;
+      const readable = new ReadableStream({
+        start: (controller) => {
+          streamController = controller;
+        },
+        cancel: () => {
+          if (keepAliveTimer !== void 0) {
+            clearInterval(keepAliveTimer);
+          }
+          if (this._streamMapping.get(streamId)?.controller === streamController) {
+            this._streamMapping.delete(streamId);
+          }
+        }
+      });
+      const headers = {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache, no-transform",
+        Connection: "keep-alive",
+        "X-Accel-Buffering": "no"
+      };
+      if (this.sessionId !== void 0) {
+        headers["mcp-session-id"] = this.sessionId;
+      }
+      for (const message of messages) {
+        if (isJSONRPCRequest(message)) {
+          this._streamMapping.set(streamId, {
+            controller: streamController,
+            encoder,
+            cleanup: () => {
+              if (keepAliveTimer !== void 0) {
+                clearInterval(keepAliveTimer);
+              }
+              this._streamMapping.delete(streamId);
+              try {
+                streamController.close();
+              } catch {
+              }
+            }
+          });
+          this._requestToStreamMapping.set(message.id, streamId);
+        }
+      }
+      try {
+        await this.writePrimingEvent(streamController, encoder, streamId, clientProtocolVersion);
+        for (const message of messages) {
+          let closeSSEStream;
+          let closeStandaloneSSEStream;
+          if (isJSONRPCRequest(message) && this._eventStore && clientProtocolVersion >= "2025-11-25") {
+            closeSSEStream = () => {
+              this.closeSSEStream(message.id);
+            };
+            closeStandaloneSSEStream = () => {
+              this.closeStandaloneSSEStream();
+            };
+          }
+          this.onmessage?.(message, { authInfo: options?.authInfo, requestInfo, closeSSEStream, closeStandaloneSSEStream });
+        }
+      } catch (error51) {
+        this._streamMapping.get(streamId)?.cleanup();
+        this._resumableStreams.delete(streamId);
+        for (const message of messages) {
+          if (isJSONRPCRequest(message)) {
+            this._requestToStreamMapping.delete(message.id);
+          }
+        }
+        throw error51;
+      }
+      if (this._streamMapping.get(streamId)?.controller === streamController) {
+        keepAliveTimer = this.startKeepAlive(streamController, encoder);
+      }
+      return new Response(readable, { status: 200, headers });
+    } catch (error51) {
+      this.onerror?.(error51);
+      return this.createJsonErrorResponse(400, -32700, "Parse error", { data: String(error51) });
+    }
+  }
+  /**
+   * Handles DELETE requests to terminate sessions
+   */
+  async handleDeleteRequest(req) {
+    const sessionError = this.validateSession(req);
+    if (sessionError) {
+      return sessionError;
+    }
+    const protocolError2 = this.validateProtocolVersion(req);
+    if (protocolError2) {
+      return protocolError2;
+    }
+    try {
+      await Promise.resolve(this._onsessionclosed?.(this.sessionId));
+      return new Response(null, { status: 200 });
+    } finally {
+      await this.close();
+    }
+  }
+  /**
+   * Validates session ID for non-initialization requests.
+   * Returns Response error if invalid, undefined otherwise
+   */
+  validateSession(req) {
+    if (this.sessionIdGenerator === void 0) {
+      return void 0;
+    }
+    if (!this._initialized) {
+      this.onerror?.(new Error("Bad Request: Server not initialized"));
+      return this.createJsonErrorResponse(400, -32e3, "Bad Request: Server not initialized");
+    }
+    const sessionId = req.headers.get("mcp-session-id");
+    if (!sessionId) {
+      this.onerror?.(new Error("Bad Request: Mcp-Session-Id header is required"));
+      return this.createJsonErrorResponse(400, -32e3, "Bad Request: Mcp-Session-Id header is required");
+    }
+    if (sessionId !== this.sessionId) {
+      this.onerror?.(new Error("Session not found"));
+      return this.createJsonErrorResponse(404, -32001, "Session not found");
+    }
+    return void 0;
+  }
+  /**
+   * Validates the MCP-Protocol-Version header on incoming requests.
+   *
+   * For initialization: Version negotiation handles unknown versions gracefully
+   * (server responds with its supported version).
+   *
+   * For subsequent requests with MCP-Protocol-Version header:
+   * - Accept if in supported list
+   * - 400 if unsupported
+   *
+   * For HTTP requests without the MCP-Protocol-Version header:
+   * - Accept and default to the version negotiated at initialization
+   */
+  validateProtocolVersion(req) {
+    const protocolVersion = req.headers.get("mcp-protocol-version");
+    if (protocolVersion !== null && !SUPPORTED_PROTOCOL_VERSIONS.includes(protocolVersion)) {
+      this.onerror?.(new Error(`Bad Request: Unsupported protocol version: ${protocolVersion} (supported versions: ${SUPPORTED_PROTOCOL_VERSIONS.join(", ")})`));
+      return this.createJsonErrorResponse(400, -32e3, `Bad Request: Unsupported protocol version: ${protocolVersion} (supported versions: ${SUPPORTED_PROTOCOL_VERSIONS.join(", ")})`);
+    }
+    return void 0;
+  }
+  async close() {
+    if (this._closed) {
+      return;
+    }
+    this._closed = true;
+    this._streamMapping.forEach(({ cleanup }) => {
+      cleanup();
+    });
+    this._streamMapping.clear();
+    this._requestResponseMap.clear();
+    this._resumableStreams.clear();
+    this.onclose?.();
+  }
+  /**
+   * Close an SSE stream for a specific request, triggering client reconnection.
+   * Use this to implement polling behavior during long-running operations -
+   * client will reconnect after the retry interval specified in the priming event.
+   */
+  closeSSEStream(requestId) {
+    const streamId = this._requestToStreamMapping.get(requestId);
+    if (!streamId)
+      return;
+    const stream = this._streamMapping.get(streamId);
+    if (stream) {
+      stream.cleanup();
+    }
+  }
+  /**
+   * Close the standalone GET SSE stream, triggering client reconnection.
+   * Use this to implement polling behavior for server-initiated notifications.
+   */
+  closeStandaloneSSEStream() {
+    const stream = this._streamMapping.get(this._standaloneSseStreamId);
+    if (stream) {
+      stream.cleanup();
+    }
+  }
+  async send(message, options) {
+    let requestId = options?.relatedRequestId;
+    if (isJSONRPCResultResponse(message) || isJSONRPCErrorResponse(message)) {
+      requestId = message.id;
+    }
+    if (requestId === void 0) {
+      if (isJSONRPCResultResponse(message) || isJSONRPCErrorResponse(message)) {
+        throw new Error("Cannot send a response on a standalone SSE stream unless resuming a previous client request");
+      }
+      let eventId;
+      if (this._eventStore) {
+        eventId = await this._eventStore.storeEvent(this._standaloneSseStreamId, message);
+      }
+      const standaloneSse = this._streamMapping.get(this._standaloneSseStreamId);
+      if (standaloneSse === void 0) {
+        return;
+      }
+      if (standaloneSse.controller && standaloneSse.encoder && (eventId === void 0 || !standaloneSse.replayedEventIds?.has(eventId))) {
+        this.writeSSEEvent(standaloneSse.controller, standaloneSse.encoder, message, eventId);
+      }
+      return;
+    }
+    const streamId = this._requestToStreamMapping.get(requestId);
+    if (!streamId) {
+      throw new Error(`No connection established for request ID: ${String(requestId)}`);
+    }
+    let stream = this._streamMapping.get(streamId);
+    if (!this._enableJsonResponse) {
+      let eventId;
+      if (this._eventStore) {
+        eventId = await this._eventStore.storeEvent(streamId, message);
+        stream = this._streamMapping.get(streamId);
+      }
+      if (stream?.controller && stream?.encoder && (eventId === void 0 || !stream.replayedEventIds?.has(eventId))) {
+        const written = this.writeSSEEvent(stream.controller, stream.encoder, message, eventId);
+        if (written && eventId !== void 0) {
+          this._resumableStreams.add(streamId);
+        }
+      }
+    }
+    if (isJSONRPCResultResponse(message) || isJSONRPCErrorResponse(message)) {
+      this._requestResponseMap.set(requestId, message);
+      const relatedIds = Array.from(this._requestToStreamMapping.entries()).filter(([_, sid]) => sid === streamId).map(([id]) => id);
+      const allResponsesReady = relatedIds.every((id) => this._requestResponseMap.has(id));
+      if (allResponsesReady) {
+        if (!stream) {
+          if (this._closed) {
+            for (const id of relatedIds) {
+              this._requestResponseMap.delete(id);
+              this._requestToStreamMapping.delete(id);
+            }
+            return;
+          }
+          if (!this._enableJsonResponse && this._eventStore && this._resumableStreams.has(streamId)) {
+            for (const id of relatedIds) {
+              this._requestResponseMap.delete(id);
+              this._requestToStreamMapping.delete(id);
+            }
+            this._resumableStreams.delete(streamId);
+            return;
+          }
+          for (const id of relatedIds) {
+            this._requestResponseMap.delete(id);
+            this._requestToStreamMapping.delete(id);
+          }
+          throw new Error(`No connection established for request ID: ${String(requestId)}`);
+        }
+        if (this._enableJsonResponse && stream.resolveJson) {
+          const headers = {
+            "Content-Type": "application/json"
+          };
+          if (this.sessionId !== void 0) {
+            headers["mcp-session-id"] = this.sessionId;
+          }
+          const responses = relatedIds.map((id) => this._requestResponseMap.get(id));
+          if (responses.length === 1) {
+            stream.resolveJson(new Response(JSON.stringify(responses[0]), { status: 200, headers }));
+          } else {
+            stream.resolveJson(new Response(JSON.stringify(responses), { status: 200, headers }));
+          }
+        } else {
+          stream.cleanup();
+        }
+        for (const id of relatedIds) {
+          this._requestResponseMap.delete(id);
+          this._requestToStreamMapping.delete(id);
+        }
+        this._resumableStreams.delete(streamId);
+      }
+    }
+  }
+};
+
+// node_modules/@modelcontextprotocol/sdk/dist/esm/server/streamableHttp.js
+var StreamableHTTPServerTransport = class {
+  constructor(options = {}) {
+    this._requestContext = /* @__PURE__ */ new WeakMap();
+    this._webStandardTransport = new WebStandardStreamableHTTPServerTransport(options);
+    this._requestListener = getRequestListener(async (webRequest) => {
+      const context = this._requestContext.get(webRequest);
+      return this._webStandardTransport.handleRequest(webRequest, {
+        authInfo: context?.authInfo,
+        parsedBody: context?.parsedBody
+      });
+    }, { overrideGlobalObjects: false });
+  }
+  /**
+   * Gets the session ID for this transport instance.
+   */
+  get sessionId() {
+    return this._webStandardTransport.sessionId;
+  }
+  /**
+   * Sets callback for when the transport is closed.
+   */
+  set onclose(handler) {
+    this._webStandardTransport.onclose = handler;
+  }
+  get onclose() {
+    return this._webStandardTransport.onclose;
+  }
+  /**
+   * Sets callback for transport errors.
+   */
+  set onerror(handler) {
+    this._webStandardTransport.onerror = handler;
+  }
+  get onerror() {
+    return this._webStandardTransport.onerror;
+  }
+  /**
+   * Sets callback for incoming messages.
+   */
+  set onmessage(handler) {
+    this._webStandardTransport.onmessage = handler;
+  }
+  get onmessage() {
+    return this._webStandardTransport.onmessage;
+  }
+  /**
+   * Starts the transport. This is required by the Transport interface but is a no-op
+   * for the Streamable HTTP transport as connections are managed per-request.
+   */
+  async start() {
+    return this._webStandardTransport.start();
+  }
+  /**
+   * Closes the transport and all active connections.
+   */
+  async close() {
+    return this._webStandardTransport.close();
+  }
+  /**
+   * Sends a JSON-RPC message through the transport.
+   */
+  async send(message, options) {
+    return this._webStandardTransport.send(message, options);
+  }
+  /**
+   * Handles an incoming HTTP request, whether GET or POST.
+   *
+   * This method converts Node.js HTTP objects to Web Standard Request/Response
+   * and delegates to the underlying WebStandardStreamableHTTPServerTransport.
+   *
+   * @param req - Node.js IncomingMessage, optionally with auth property from middleware
+   * @param res - Node.js ServerResponse
+   * @param parsedBody - Optional pre-parsed body from body-parser middleware
+   */
+  async handleRequest(req, res, parsedBody) {
+    const authInfo = req.auth;
+    const handler = getRequestListener(async (webRequest) => {
+      return this._webStandardTransport.handleRequest(webRequest, {
+        authInfo,
+        parsedBody
+      });
+    }, { overrideGlobalObjects: false });
+    await handler(req, res);
+  }
+  /**
+   * Close an SSE stream for a specific request, triggering client reconnection.
+   * Use this to implement polling behavior during long-running operations -
+   * client will reconnect after the retry interval specified in the priming event.
+   */
+  closeSSEStream(requestId) {
+    this._webStandardTransport.closeSSEStream(requestId);
+  }
+  /**
+   * Close the standalone GET SSE stream, triggering client reconnection.
+   * Use this to implement polling behavior for server-initiated notifications.
+   */
+  closeStandaloneSSEStream() {
+    this._webStandardTransport.closeStandaloneSSEStream();
+  }
+};
+
+// src/mcp-http.ts
+init_mcp_http_auth();
+var MAX_HTTP_BODY_BYTES = 4 * 1024 * 1024;
+function jsonRpcError(code, message) {
+  return { jsonrpc: "2.0", error: { code, message }, id: null };
+}
+function sendJson(res, status, body, extraHeaders) {
+  const payload = JSON.stringify(body);
+  res.writeHead(status, { "content-type": "application/json", ...extraHeaders ?? {} });
+  res.end(payload);
+}
+function remoteAddr(req) {
+  return req.socket.remoteAddress ?? "unknown";
+}
+function readBody(req) {
+  return new Promise((resolve5, reject) => {
+    const chunks = [];
+    let total = 0;
+    let done = false;
+    req.on("data", (chunk3) => {
+      if (done) return;
+      total += chunk3.length;
+      if (total > MAX_HTTP_BODY_BYTES) {
+        done = true;
+        req.destroy();
+        reject(new Error("body too large"));
+        return;
+      }
+      chunks.push(chunk3);
+    });
+    req.on("end", () => {
+      if (done) return;
+      done = true;
+      resolve5(Buffer.concat(chunks));
+    });
+    req.on("error", (e) => {
+      if (done) return;
+      done = true;
+      reject(e);
+    });
+  });
+}
+async function startMcpHttpServer(opts) {
+  const sessions = /* @__PURE__ */ new Map();
+  const sockets = /* @__PURE__ */ new Set();
+  async function createSession(caller) {
+    const ctx = {};
+    if (caller !== void 0) ctx.caller = caller;
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: () => randomUUID2(),
+      onsessioninitialized: (sessionId) => {
+        ctx.sessionId = sessionId;
+        sessions.set(sessionId, entry);
+      }
+    });
+    const mcp = opts.createMcpServer(ctx);
+    const entry = { transport, mcp, ctx };
+    transport.onclose = () => {
+      if (ctx.sessionId) sessions.delete(ctx.sessionId);
+      void mcp.close().catch(() => {
+      });
+    };
+    try {
+      await mcp.connect(transport);
+    } catch (e) {
+      try {
+        await transport.close();
+      } catch {
+      }
+      throw e;
+    }
+    return entry;
+  }
+  async function delegate(entry, req, res, parsedBody) {
+    await runInMcpSession(entry.ctx, () => entry.transport.handleRequest(req, res, parsedBody));
+  }
+  async function handleRequest(req, res) {
+    const url2 = new URL(req.url ?? "/", "http://localhost");
+    if (url2.pathname !== opts.path) {
+      sendJson(res, 404, jsonRpcError(-32601, `Not found \u2014 abapsmith serves MCP on ${opts.path} only`));
+      return;
+    }
+    const verdict = verifyBearer(req.headers.authorization, opts.tokens);
+    if (!verdict.ok) {
+      const message = verdict.reason === "missing" ? "missing Authorization: Bearer <token> header" : verdict.reason === "malformed" ? "Authorization header is not a Bearer token" : "bearer token not recognised";
+      opts.log(`[abapsmith] HTTP MCP request rejected (${verdict.reason}) from ${remoteAddr(req)}`);
+      sendJson(res, 401, jsonRpcError(-32001, message), { "www-authenticate": "Bearer" });
+      return;
+    }
+    const method = req.method ?? "";
+    if (method === "GET" || method === "DELETE") {
+      const sessionId = req.headers["mcp-session-id"];
+      const id = typeof sessionId === "string" ? sessionId : void 0;
+      const entry = id !== void 0 ? sessions.get(id) : void 0;
+      if (!entry) {
+        sendJson(res, 404, jsonRpcError(-32001, "unknown or expired MCP session"));
+        return;
+      }
+      await delegate(entry, req, res);
+      return;
+    }
+    if (method === "POST") {
+      let raw;
+      try {
+        raw = await readBody(req);
+      } catch {
+        if (!res.headersSent) sendJson(res, 413, jsonRpcError(-32001, "request body exceeds the size limit"));
+        return;
+      }
+      let body;
+      try {
+        body = raw.length === 0 ? void 0 : JSON.parse(raw.toString("utf8"));
+      } catch {
+        sendJson(res, 400, jsonRpcError(-32700, "request body is not valid JSON"));
+        return;
+      }
+      const sessionIdHeader = req.headers["mcp-session-id"];
+      const id = typeof sessionIdHeader === "string" ? sessionIdHeader : void 0;
+      const existing = id !== void 0 ? sessions.get(id) : void 0;
+      if (existing) {
+        await delegate(existing, req, res, body);
+        return;
+      }
+      if (isInitializeRequest(body)) {
+        let entry;
+        try {
+          entry = await createSession(verdict.caller);
+        } catch (e) {
+          opts.log(
+            `[abapsmith] HTTP MCP session setup failed: ${e instanceof Error ? e.message : String(e)}`
+          );
+          if (!res.headersSent) sendJson(res, 500, jsonRpcError(-32603, "failed to establish MCP session"));
+          return;
+        }
+        await delegate(entry, req, res, body);
+        return;
+      }
+      sendJson(res, 400, jsonRpcError(-32e3, "no valid MCP session id, and this is not an initialize request"));
+      return;
+    }
+    res.writeHead(405, { allow: "GET, POST, DELETE" });
+    res.end();
+  }
+  const server = createHttpServer((req, res) => {
+    handleRequest(req, res).catch((e) => {
+      opts.log(`[abapsmith] HTTP MCP request handler threw: ${e instanceof Error ? e.message : String(e)}`);
+      if (!res.headersSent) {
+        sendJson(res, 500, jsonRpcError(-32603, "internal error"));
+      } else {
+        res.end();
+      }
+    });
+  });
+  server.on("connection", (socket) => {
+    sockets.add(socket);
+    socket.on("close", () => sockets.delete(socket));
+  });
+  await new Promise((resolve5, reject) => {
+    const onError = (e) => reject(e);
+    server.once("error", onError);
+    server.listen(opts.port, opts.host, () => {
+      server.removeListener("error", onError);
+      resolve5();
+    });
+  });
+  const addr = server.address();
+  const boundPort = addr !== null && typeof addr === "object" ? addr.port : opts.port;
+  return {
+    address: { host: opts.host, port: boundPort },
+    get sessionCount() {
+      return sessions.size;
+    },
+    async close() {
+      const entries = [...sessions.values()];
+      sessions.clear();
+      for (const entry of entries) {
+        try {
+          await entry.transport.close();
+        } catch {
+        }
+        try {
+          await entry.mcp.close();
+        } catch {
+        }
+      }
+      const closed = new Promise((resolve5) => {
+        server.close(() => resolve5());
+      });
+      for (const socket of sockets) {
+        socket.destroy();
+      }
+      sockets.clear();
+      await closed;
+    }
+  };
+}
+
 // src/server.ts
 init_safety();
+init_shutdown_hook();
 
 // src/tools/activate.ts
 init_zod();
@@ -105217,7 +107595,7 @@ init_errors();
 // src/adt/run.ts
 var import_abap_adt_api7 = __toESM(require_build(), 1);
 init_errors();
-import { createHash as createHash6 } from "node:crypto";
+import { createHash as createHash7 } from "node:crypto";
 
 // src/adt/bridge-residue.ts
 init_errors();
@@ -106145,7 +108523,7 @@ function bridgeClassName(report) {
   const safe = canon.replace(/[^A-Z0-9_]/g, "_");
   const budget = MAX_NAME - BRIDGE_CLASS_PREFIX.length;
   if (safe.length <= budget && safe === canon) return BRIDGE_CLASS_PREFIX + safe;
-  const hash2 = createHash6("sha256").update(canon, "utf8").digest("hex").slice(0, HASH_LEN).toUpperCase();
+  const hash2 = createHash7("sha256").update(canon, "utf8").digest("hex").slice(0, HASH_LEN).toUpperCase();
   const keep = safe.slice(0, budget - HASH_LEN - 1);
   return `${BRIDGE_CLASS_PREFIX}${keep}_${hash2}`;
 }
@@ -107293,18 +109671,18 @@ function invokerName(toolId, action, args, contract) {
 var ARG_CHUNK_RAW = 90;
 var HIGH_SURROGATE_MIN = 55296;
 var HIGH_SURROGATE_MAX = 56319;
-function abapArgumentChunks(json2) {
+function abapArgumentChunks(json3) {
   const chunks = [];
   let i = 0;
-  while (i < json2.length) {
-    let end = Math.min(i + ARG_CHUNK_RAW, json2.length);
-    if (end < json2.length && end - 1 > i) {
-      const code = json2.charCodeAt(end - 1);
+  while (i < json3.length) {
+    let end = Math.min(i + ARG_CHUNK_RAW, json3.length);
+    if (end < json3.length && end - 1 > i) {
+      const code = json3.charCodeAt(end - 1);
       if (code >= HIGH_SURROGATE_MIN && code <= HIGH_SURROGATE_MAX) {
         end -= 1;
       }
     }
-    chunks.push(json2.slice(i, end));
+    chunks.push(json3.slice(i, end));
     i = end;
   }
   return chunks;
@@ -108138,7 +110516,7 @@ function contentAccept(t) {
   if (writeShapeOf(t.type) !== "properties") return "text/plain";
   return capabilitiesFor(t.type)?.mediaType ?? "application/*";
 }
-function contentType(t) {
+function contentType3(t) {
   if (writeShapeOf(t.type) !== "properties") return "text/plain; charset=utf-8";
   return capabilitiesFor(t.type)?.mediaType ?? "application/*";
 }
@@ -109378,7 +111756,7 @@ async function createByXml(conn, t, corr, payload) {
     assertDomaMasterLanguage(t, payload);
     assertLockObjectRoot(t, payload);
     body = injectEmptyFixValues(t, payload);
-    contentTypeHeader = contentType(t);
+    contentTypeHeader = contentType3(t);
   }
   const collection = t.spec.path.replace(/\/\{name\}$/, "");
   if (collection === t.spec.path) {
@@ -109468,7 +111846,7 @@ async function putContent(conn, t, source, lockHandle, corr) {
   try {
     const resp = await conn.put(contentUri(t), {
       body: source,
-      headers: { "Content-Type": contentType(t) },
+      headers: { "Content-Type": contentType3(t) },
       qs: corr.kind === "transport" ? { lockHandle, corrNr: corr.corrNr } : { lockHandle }
     });
     body = resp.body ?? "";
@@ -117633,7 +120011,7 @@ function warnIfDerivedIdentity(id, warn) {
 // src/debug/arm-lock.ts
 init_errors();
 init_state_dir();
-import { createHash as createHash7 } from "node:crypto";
+import { createHash as createHash8 } from "node:crypto";
 import * as path7 from "node:path";
 var NoopDebugArmLock = class {
   async acquire() {
@@ -117667,7 +120045,7 @@ function debugArmLockKey(cfg) {
 }
 function debugArmLockPath(stateDir, cfg, lane = 0) {
   const hashInput = lane === 0 ? debugArmLockKey(cfg) : `${debugArmLockKey(cfg)}|lane${lane}`;
-  const hash2 = createHash7("sha256").update(hashInput).digest("hex").slice(0, LOCK_HASH_HEX_LEN2);
+  const hash2 = createHash8("sha256").update(hashInput).digest("hex").slice(0, LOCK_HASH_HEX_LEN2);
   return path7.join(stateDir, "locks", "debug", `${hash2}.lock`);
 }
 function toDebugLockBusyError(e, key, lockPath) {
@@ -136492,7 +138870,7 @@ init_errors();
 
 // src/adt/bopf-runtime.ts
 init_errors();
-import { createHash as createHash8 } from "node:crypto";
+import { createHash as createHash9 } from "node:crypto";
 function constantsInterfaceName(model) {
   const name = model.constantsInterfaceRef?.name;
   if (!name) {
@@ -136538,7 +138916,7 @@ function bopfBridgeClassName(bo) {
   const safe = canon.replace(/[^A-Z0-9_]/g, "_");
   const budget = MAX_NAME - BOPF_BRIDGE_CLASS_PREFIX.length;
   if (safe.length <= budget && safe === canon) return BOPF_BRIDGE_CLASS_PREFIX + safe;
-  const hash2 = createHash8("sha256").update(canon, "utf8").digest("hex").slice(0, HASH_LEN2).toUpperCase();
+  const hash2 = createHash9("sha256").update(canon, "utf8").digest("hex").slice(0, HASH_LEN2).toUpperCase();
   const keep = safe.slice(0, budget - HASH_LEN2 - 1);
   return `${BOPF_BRIDGE_CLASS_PREFIX}${keep}_${hash2}`;
 }
@@ -138238,7 +140616,7 @@ async function runFpmRead(conn, query, gate) {
 
 // src/adt/fpm-lock.ts
 init_errors();
-import { createHash as createHash9 } from "node:crypto";
+import { createHash as createHash10 } from "node:crypto";
 var CONFIG_TYPE_LEN = 2;
 var CONFIG_VAR_LEN = 6;
 function assertLockConfigType(value) {
@@ -138418,12 +140796,12 @@ function lockDiscriminator(q) {
     kind: q.key.kind,
     label,
     // Body's own hash: differing ABAP gets a differing bridge class.
-    body: createHash9("sha256").update(body, "utf8").digest("hex")
+    body: createHash10("sha256").update(body, "utf8").digest("hex")
   });
 }
 function fpmLockBridgeClassName(q) {
   const hashHexLen = MAX_NAME - FPM_LOCK_BRIDGE_CLASS_PREFIX.length;
-  const hash2 = createHash9("sha256").update(lockDiscriminator(q), "utf8").digest("hex").slice(0, hashHexLen).toUpperCase();
+  const hash2 = createHash10("sha256").update(lockDiscriminator(q), "utf8").digest("hex").slice(0, hashHexLen).toUpperCase();
   return `${FPM_LOCK_BRIDGE_CLASS_PREFIX}${hash2}`;
 }
 function abapLiteral2(value, what) {
@@ -143027,7 +145405,7 @@ init_errors();
 
 // src/adt/ui-runtime.ts
 init_errors();
-import { createHash as createHash10 } from "node:crypto";
+import { createHash as createHash11 } from "node:crypto";
 
 // src/adt/ui-fcode.ts
 function isRecord2(v) {
@@ -143769,7 +146147,7 @@ function discriminator(q) {
 function uiBridgeClassName(q) {
   validateQuery(q);
   const hashHexLen = MAX_NAME - UI_BRIDGE_CLASS_PREFIX.length;
-  const hash2 = createHash10("sha256").update(discriminator(q), "utf8").digest("hex").slice(0, hashHexLen).toUpperCase();
+  const hash2 = createHash11("sha256").update(discriminator(q), "utf8").digest("hex").slice(0, hashHexLen).toUpperCase();
   return `${UI_BRIDGE_CLASS_PREFIX}${hash2}`;
 }
 var UI_LINE_PREFIX = "UI> ";
@@ -155060,24 +157438,7 @@ function createServer(cfg, opts) {
     log: warn,
     gate: safety
   });
-  const mcp = new McpServer(
-    { name: SERVER_NAME, version: SERVER_VERSION },
-    {
-      instructions: instructionsFor(
-        cfg.abapMode,
-        cfg.readOnly,
-        cfg.allowPackages,
-        toolCapabilities.canUseFluidApi,
-        lockedTools.length
-      )
-    }
-  );
-  const processSessionId = randomUUID2();
-  mcp.server.oninitialized = () => {
-    journal.setClientActor(mcp.server.getClientVersion()?.name);
-    const transportSessionId = mcp.server.transport?.sessionId;
-    journal.setClientSession(transportSessionId ?? processSessionId, transportSessionId ? "transport" : "process");
-  };
+  const processSessionId = randomUUID3();
   let connectPromise;
   let watched;
   const watchPrimary = (conn) => {
@@ -155122,76 +157483,32 @@ function createServer(cfg, opts) {
     );
     await connectPromise;
   };
-  registerTransportTools(mcp, {
-    // The pool, not the connection: transport ops have no single ABAP
-    // object to gate on (a TRKORR isn't a repository object).
-    pool,
-    cfg,
-    safety,
-    ensureConnected,
-    errorResult,
-    journal,
-    warn,
-    // Same manager that adopts requests knows which of them this session
-    // created — `abap_transport show` and the release gate read the
-    // record `transport`'s resolver writes.
-    ownership: transport,
-    // `abap_transport`'s list/show/check/users submodes are ungated and
-    // always registered; only `abap_transport_release` is gated.
-    registerRelease: toolCapabilities.canReleaseTransport
-  });
-  registerBopfTools(mcp, {
-    pool,
-    cfg,
-    safety,
-    ensureConnected,
-    errorResult,
-    transport,
-    journal,
-    registerWrite: toolCapabilities.canWrite
-  });
-  registerEnhancementTools(mcp, {
-    pool,
-    cfg,
-    safety,
-    ensureConnected,
-    errorResult,
-    transport,
-    journal
-  });
-  registerReadTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
-  registerSearchTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
-  registerOpenUrlTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
-  registerImgTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
-  if (toolCapabilities.canWrite) {
-    registerBopfTestTool(mcp, { ...createBopfTestDeps(), pool, cfg, safety, ensureConnected, errorResult });
-    registerFpmTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
-    registerUiTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal });
-    registerWriteTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal, transport });
-    registerImgEditTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal });
-    registerRunTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
-    registerTestTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal });
-    registerAtcTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
-    registerQuickFixTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal, transport });
-  }
-  registerActivateTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, transport, journal });
-  registerJournalTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal });
-  registerDebugTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, debugDeps });
-  if (toolCapabilities.canPreviewData) {
-    registerDataPreviewTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
-  }
-  registerDumpTools(mcp, {
-    pool,
-    cfg,
-    safety,
-    ensureConnected,
-    errorResult,
-    registerVariables: toolCapabilities.canReadDumpVariables
-  });
-  registerServiceTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal, warn });
-  registerTraceTools(mcp, { pool, safety, ensureConnected, errorResult, cfg, journal });
-  if (toolCapabilities.canUseFluidApi) {
-    registerFluidTool(mcp, {
+  const createMcpServer = (ctx) => {
+    const mcp2 = new McpServer(
+      { name: SERVER_NAME, version: SERVER_VERSION },
+      {
+        instructions: instructionsFor(
+          cfg.abapMode,
+          cfg.readOnly,
+          cfg.allowPackages,
+          toolCapabilities.canUseFluidApi,
+          lockedTools.length
+        )
+      }
+    );
+    mcp2.server.oninitialized = () => {
+      if (ctx === void 0) {
+        journal.setClientActor(mcp2.server.getClientVersion()?.name);
+        const transportSessionId = mcp2.server.transport?.sessionId;
+        journal.setClientSession(transportSessionId ?? processSessionId, transportSessionId ? "transport" : "process");
+      } else {
+        ctx.client = mcp2.server.getClientVersion()?.name;
+        ctx.sessionId ??= mcp2.server.transport?.sessionId;
+      }
+    };
+    registerTransportTools(mcp2, {
+      // The pool, not the connection: transport ops have no single ABAP
+      // object to gate on (a TRKORR isn't a repository object).
       pool,
       cfg,
       safety,
@@ -155199,63 +157516,136 @@ function createServer(cfg, opts) {
       errorResult,
       journal,
       warn,
-      toolSet: opts.fluidToolSet ?? builtinFluidToolSet(BUILTIN_FLUID_TOOLS)
+      // Same manager that adopts requests knows which of them this session
+      // created — `abap_transport show` and the release gate read the
+      // record `transport`'s resolver writes.
+      ownership: transport,
+      // `abap_transport`'s list/show/check/users submodes are ungated and
+      // always registered; only `abap_transport_release` is gated.
+      registerRelease: toolCapabilities.canReleaseTransport
     });
-  }
-  registerLockedTools(mcp, { cfg, errorResult, tools: lockedTools });
-  mcp.registerResource(
-    "system",
-    `abap://${cfg.sid}/system`,
-    {
-      title: `ABAP system ${cfg.sid}`,
-      description: "Connection state, system role, and the ADT feature inventory from /discovery.",
-      mimeType: "application/json"
-    },
-    async (uri) => {
-      await ensureConnected();
-      return {
-        contents: [
-          {
-            uri: uri.href,
-            mimeType: "application/json",
-            text: JSON.stringify(
-              {
-                connection: pool.primary().info(),
-                discovery: pool.primary().discovery.summary(),
-                // Live occupancy at the instant of the read — `stats()` is
-                // synchronous, no pool lease, safe to read mid-incident even while
-                // saturated. `limits` are the denominators busy/idle are out of;
-                // without them `busy: 5` alone doesn't say whether that's fine.
-                sessions: {
-                  ...pool.stats(),
-                  limits: {
-                    maxSessions: cfg.maxSessions,
-                    readConcurrency: cfg.readConcurrency,
-                    writeConcurrency: cfg.writeConcurrency
+    registerBopfTools(mcp2, {
+      pool,
+      cfg,
+      safety,
+      ensureConnected,
+      errorResult,
+      transport,
+      journal,
+      registerWrite: toolCapabilities.canWrite
+    });
+    registerEnhancementTools(mcp2, {
+      pool,
+      cfg,
+      safety,
+      ensureConnected,
+      errorResult,
+      transport,
+      journal
+    });
+    registerReadTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult });
+    registerSearchTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult });
+    registerOpenUrlTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult });
+    registerImgTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult });
+    if (toolCapabilities.canWrite) {
+      registerBopfTestTool(mcp2, { ...createBopfTestDeps(), pool, cfg, safety, ensureConnected, errorResult });
+      registerFpmTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult });
+      registerUiTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult, journal });
+      registerWriteTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult, journal, transport });
+      registerImgEditTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult, journal });
+      registerRunTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult });
+      registerTestTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult, journal });
+      registerAtcTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult });
+      registerQuickFixTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult, journal, transport });
+    }
+    registerActivateTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult, transport, journal });
+    registerJournalTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult, journal });
+    registerDebugTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult, debugDeps });
+    if (toolCapabilities.canPreviewData) {
+      registerDataPreviewTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult });
+    }
+    registerDumpTools(mcp2, {
+      pool,
+      cfg,
+      safety,
+      ensureConnected,
+      errorResult,
+      registerVariables: toolCapabilities.canReadDumpVariables
+    });
+    registerServiceTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult, journal, warn });
+    registerTraceTools(mcp2, { pool, safety, ensureConnected, errorResult, cfg, journal });
+    if (toolCapabilities.canUseFluidApi) {
+      registerFluidTool(mcp2, {
+        pool,
+        cfg,
+        safety,
+        ensureConnected,
+        errorResult,
+        journal,
+        warn,
+        toolSet: opts.fluidToolSet ?? builtinFluidToolSet(BUILTIN_FLUID_TOOLS)
+      });
+    }
+    registerLockedTools(mcp2, { cfg, errorResult, tools: lockedTools });
+    mcp2.registerResource(
+      "system",
+      `abap://${cfg.sid}/system`,
+      {
+        title: `ABAP system ${cfg.sid}`,
+        description: "Connection state, system role, and the ADT feature inventory from /discovery.",
+        mimeType: "application/json"
+      },
+      async (uri) => {
+        await ensureConnected();
+        return {
+          contents: [
+            {
+              uri: uri.href,
+              mimeType: "application/json",
+              text: JSON.stringify(
+                {
+                  connection: pool.primary().info(),
+                  discovery: pool.primary().discovery.summary(),
+                  // Live occupancy at the instant of the read — `stats()` is
+                  // synchronous, no pool lease, safe to read mid-incident even while
+                  // saturated. `limits` are the denominators busy/idle are out of;
+                  // without them `busy: 5` alone doesn't say whether that's fine.
+                  sessions: {
+                    ...pool.stats(),
+                    limits: {
+                      maxSessions: cfg.maxSessions,
+                      readConcurrency: cfg.readConcurrency,
+                      writeConcurrency: cfg.writeConcurrency
+                    }
+                  },
+                  safety: {
+                    ...safety.config,
+                    writesEnabled: !safety.config.readOnly,
+                    allowPackages: safety.config.allowPackages,
+                    allowNamePrefixes: safety.namePrefixes,
+                    allowTransports: safety.transportAllowlist
+                  },
+                  journal: {
+                    enabled: journal.enabled,
+                    dir: journal.enabled ? journal.dir : null,
+                    retention: `${journal.config.maxEntries} entries / ${journal.config.maxAgeDays} days`
                   }
                 },
-                safety: {
-                  ...safety.config,
-                  writesEnabled: !safety.config.readOnly,
-                  allowPackages: safety.config.allowPackages,
-                  allowNamePrefixes: safety.namePrefixes,
-                  allowTransports: safety.transportAllowlist
-                },
-                journal: {
-                  enabled: journal.enabled,
-                  dir: journal.enabled ? journal.dir : null,
-                  retention: `${journal.config.maxEntries} entries / ${journal.config.maxAgeDays} days`
-                }
-              },
-              null,
-              2
-            )
-          }
-        ]
-      };
-    }
-  );
-  stripSchemaKeyOnConnect(mcp);
+                null,
+                2
+              )
+            }
+          ]
+        };
+      }
+    );
+    stripSchemaKeyOnConnect(mcp2);
+    return mcp2;
+  };
+  const mcp = createMcpServer();
+  let http3;
+  let httpAddr;
+  let unregisterHttpShutdown;
   return {
     mcp,
     pool,
@@ -155265,10 +157655,31 @@ function createServer(cfg, opts) {
     },
     safety,
     journal,
+    get httpAddress() {
+      return http3?.address;
+    },
+    get mcpSessionCount() {
+      return http3?.sessionCount ?? 0;
+    },
     async start() {
-      const transport2 = new StdioServerTransport();
-      await mcp.connect(transport2);
       const mode = cfg.readOnly ? "read-only" : `WRITES ENABLED \u2192 packages [${cfg.allowPackages.join(", ")}]`;
+      if (cfg.mcpTransport === "stdio") {
+        await mcp.connect(new StdioServerTransport());
+      } else {
+        http3 = await startMcpHttpServer({
+          host: cfg.mcpHttpHost,
+          port: cfg.mcpHttpPort,
+          path: cfg.mcpHttpPath,
+          tokens: cfg.mcpHttpTokens,
+          createMcpServer,
+          log: warn
+        });
+        httpAddr = http3.address;
+        const httpRef = http3;
+        unregisterHttpShutdown = registerShutdownHandler("abapsmith/mcp-http", async () => {
+          await httpRef.close();
+        });
+      }
       let notConnectedSuffix = "";
       if (cfg.startupProbe) {
         try {
@@ -155285,16 +157696,59 @@ function createServer(cfg, opts) {
           notConnectedSuffix = " \u2014 NOT CONNECTED, see probe failure above";
         }
       }
-      warn(
-        `[abapsmith] ready on stdio \u2014 ${cfg.sid} @ ${stripUrlCredentials(cfg.url)} as ${cfg.user} (${mode})${notConnectedSuffix}`
-      );
+      if (cfg.mcpTransport === "stdio") {
+        warn(
+          `[abapsmith] ready on stdio \u2014 ${cfg.sid} @ ${stripUrlCredentials(cfg.url)} as ${cfg.user} (${mode})${notConnectedSuffix}`
+        );
+      } else if (httpAddr) {
+        const addr = httpAddr;
+        const hostForUrl = addr.host.includes(":") ? `[${addr.host}]` : addr.host;
+        warn(
+          `[abapsmith] ready on http://${hostForUrl}:${addr.port}${cfg.mcpHttpPath} \u2014 ${cfg.sid} @ ${stripUrlCredentials(cfg.url)} as ${cfg.user} (${mode})${notConnectedSuffix}`
+        );
+        if (cfg.mcpHttpTokens.length > 0) {
+          const names = cfg.mcpHttpTokens.map((t) => t.name ?? "(unnamed)").join(", ");
+          warn(
+            `[abapsmith] HTTP auth: bearer token required (${cfg.mcpHttpTokens.length} configured: ${names}) \u2014 TLS is NOT terminated here; put a reverse proxy in front for anything but a loopback bind.`
+          );
+        } else {
+          warn(
+            "[abapsmith] HTTP auth: NONE \u2014 bound to a loopback address only; a non-loopback bind without ABAP_MCP_HTTP_TOKEN is refused at startup (src/config.ts)."
+          );
+        }
+      }
       warn(
         journal.enabled ? `[abapsmith] write journal: ${journal.dir} (keeps ${journal.config.maxEntries} entries / ${journal.config.maxAgeDays} days; before-images contain source \u2014 do not commit it)` : "[abapsmith] WARNING: write journal DISABLED (ABAP_JOURNAL=off) \u2014 writes cannot be undone."
       );
     },
+    async closeClients() {
+      try {
+        await mcp.close();
+      } catch (e) {
+        warn(`[abapsmith] WARNING: closing the default MCP server failed: ${e.message}`);
+      }
+      if (http3) {
+        try {
+          await http3.close();
+        } catch (e) {
+          warn(`[abapsmith] WARNING: closing the HTTP MCP listener failed: ${e.message}`);
+        }
+        http3 = void 0;
+      }
+    },
     async stop() {
       shutdownDebugTools();
       await shutdownAllDebugSessions((msg) => warn(msg));
+      unregisterHttpShutdown?.();
+      unregisterHttpShutdown = void 0;
+      if (http3) {
+        try {
+          await http3.close();
+        } catch (e) {
+          warn(`[abapsmith] WARNING: closing the HTTP MCP listener failed: ${e.message}`);
+        }
+        http3 = void 0;
+      }
       await pool.shutdown("mcp-stop");
       pool.dispose();
       await mcp.close();
@@ -155344,7 +157798,7 @@ async function main() {
     shutdownDebugTools();
     await shutdownAllDebugSessions((m) => process.stderr.write(`${m}
 `));
-    await server.mcp.close();
+    await server.closeClients();
   });
   await server.start();
 }
