@@ -62,6 +62,13 @@ export interface AbapCapabilities {
   readonly allowTransportRelease: boolean;
   /** Transport delete/setOwner/addUser-class operations. Defaults to admin-only; two-way overridable. */
   readonly allowTransportDelete: boolean;
+  /**
+   * Publishing or unpublishing a service binding's OData service.
+   * Publishing registers an ICF node under `/sap/opu/odata*`; admin-only,
+   * same tier as `allowTransportRelease`. Two-way overridable — see
+   * {@link AbapModeBooleanOverrides}.
+   */
+  readonly allowServicePublish: boolean;
   /** BAdI/enhancement-spot source writes. Defaults on from edit upward; two-way overridable. */
   readonly allowEnhancements: boolean;
   /** Which *enhanced* (affected) objects may be targeted. */
@@ -152,6 +159,7 @@ export interface AbapModeGrants {
 export interface AbapModeBooleanOverrides {
   readonly allowTransportRelease?: boolean;
   readonly allowTransportDelete?: boolean;
+  readonly allowServicePublish?: boolean;
   readonly allowCascadeDelete?: boolean;
   readonly allowRawAdtWrites?: boolean;
   readonly allowEnhancements?: boolean;
@@ -305,6 +313,7 @@ const READ_CAPABILITIES: AbapCapabilities = freezeCapabilities({
   allowTransports: null,
   allowTransportRelease: false,
   allowTransportDelete: false,
+  allowServicePublish: false,
   allowEnhancements: false,
   enhanceTargets: "none",
   enhanceTargetPackages: [],
@@ -377,6 +386,7 @@ export function capabilitiesForMode(
     allowTransports,
     allowTransportRelease: boolOverrides.allowTransportRelease ?? isAdmin,
     allowTransportDelete: boolOverrides.allowTransportDelete ?? isAdmin,
+    allowServicePublish: boolOverrides.allowServicePublish ?? isAdmin,
     allowEnhancements: boolOverrides.allowEnhancements ?? true,
     enhanceTargets: resolveEnhanceTargets(overrides.enhanceTargets, isAdmin),
     enhanceTargetPackages,
@@ -458,8 +468,8 @@ export function isMutatingOperationAllowed(
 // ABAP_ENHANCE_TARGET_PACKAGES/ABAP_ORIGIN_SYSTEMS (still live as
 // AbapModeOverrides in every mode, so naming them stays correct).
 //
-// The seven boolean capabilities plus enhanceTargets stay IN the
-// table but are not fully dead once ABAP_MODE is set: the seven booleans are
+// The eight boolean capabilities plus enhanceTargets stay IN the
+// table but are not fully dead once ABAP_MODE is set: the eight booleans are
 // re-consulted via AbapModeBooleanOverrides, and enhanceTargets via its
 // AbapModeOverrides field, each a live, two-way (or, for enhanceTargets,
 // three-way) lever. explainDeniedCapability/explainDeniedCapabilities
@@ -479,6 +489,7 @@ export type ModeGovernedCapability = Extract<
   | "allowWrite"
   | "allowTransportRelease"
   | "allowTransportDelete"
+  | "allowServicePublish"
   | "allowEnhancements"
   | "enhanceTargets"
   | "allowSourcePlugins"
@@ -556,6 +567,12 @@ export const MODE_GOVERNED_CAPABILITIES: Readonly<
     legacyEnvVar: "ABAP_ALLOW_TRANSPORT_DELETE",
     label: "deleting a transport request",
     legacyRemediation: "Set ABAP_ALLOW_TRANSPORT_DELETE=true.",
+    modeOverridable: true,
+  },
+  allowServicePublish: {
+    legacyEnvVar: "ABAP_ALLOW_SERVICE_PUBLISH",
+    label: "publishing or unpublishing a service binding",
+    legacyRemediation: "Set ABAP_ALLOW_SERVICE_PUBLISH=true.",
     modeOverridable: true,
   },
   allowCascadeDelete: {
@@ -689,7 +706,7 @@ export function legacyOverriddenClause(envVar: string): string {
 
 /**
  * Capabilities with a live override slot — a {@link AbapModeBooleanOverrides}
- * field for the seven booleans, or the {@link AbapModeOverrides.enhanceTargets}
+ * field for the eight booleans, or the {@link AbapModeOverrides.enhanceTargets}
  * field for the one enum — derived from {@link MODE_GOVERNED_CAPABILITIES}
  * rather than listed a second time.
  */

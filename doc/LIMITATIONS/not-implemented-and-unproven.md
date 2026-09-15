@@ -167,6 +167,23 @@ exist and may work, but have not been exercised against a real system.
   target-system errors — is untested.
 - **`abap_transport` `addUser` and `setOwner`** have unit tests but no captured
   wire behaviour from a live system.
+- **`abap_service` `op="publish"` and `op="unpublish"`** are no longer in
+  this category: both were executed against A4H (client 001,
+  `ABAP_MODE=admin`, 2026-09-15) for a V2 binding and a V4 binding, each
+  followed by a read confirming the resulting live/not-published state. The
+  V2 publish's first attempt timed out at the ADT layer (60000 ms,
+  `ADT_ERROR`); the `service-publish` journal entry had already been
+  written as pending (fail-closed, before the POST), and a re-read showed
+  the binding still unpublished, so the timed-out POST had not landed — the
+  immediate retry succeeded. See
+  [doc/TOOLS/abap-service.md](../TOOLS/abap-service.md) for the full
+  account, including the V4 run (no timeout) and the reserved-namespace
+  refusal observed on `/DMO/UI_TRAVEL_U_V2`. (The OData metadata read
+  itself was already live-verified for both V2 and V4.) The compensating
+  action recorded for a publish is an explicit `abap_service op="unpublish"`
+  call, not an undo: `abap_journal mode=undo` refuses a
+  `service-publish`/`service-unpublish` entry outright (`irreversible:
+  true`) and names that call instead of attempting to reverse it.
 - **`abap_atc` is now proven well beyond the single-object case, not just
   "partially proven."** The original live run against A4H (`$TMP` PROG
   `ZMCP_ATC_PROBE2`, captured 2026-08-01, kept as

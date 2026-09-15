@@ -1,0 +1,30 @@
+{
+  "n": 965,
+  "label": "i82-service-binding-v2",
+  "expect": "the v2/v1 Accept-header list is required for A4H to answer the binding resource at all (a v1-only Accept on this same resource answers 406 ExceptionResourceNotAcceptable); the response carries srvb:published=\"true\" and srvb:allowedAction=\"PUBLISH\" for the same service that 966's catalogue reports allowedAction=\"UNPUBLISH\" for \u2014 the two endpoints disagree, so allowedAction is evidence, not a verdict",
+  "note": "GET the ADT service binding document for /DMO/UI_TRAVEL_U_V2, OData V2, with the corrected two-part v2/v1 Accept header",
+  "requestMethod": "GET",
+  "requestUrl": "/sap/bc/adt/businessservices/bindings/%2fdmo%2fui_travel_u_v2",
+  "requestHeaders": {
+    "Accept": "application/vnd.sap.adt.businessservices.servicebinding.v2+xml, application/vnd.sap.adt.businessservices.servicebinding.v1+xml"
+  },
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-type": "application/vnd.sap.adt.businessservices.servicebinding.v2+xml; charset=utf-8",
+    "content-length": "3435",
+    "sap-authenticated": "true",
+    "etag": "20260401153005001application/vnd.sap.adt.businessservices.servicebinding.v2+xmlvMUbvass7y+vJHsd7dFMxWGVlO8=",
+    "last-modified": "Wed, 01 Apr 2026 15:30:05 GMT",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "206486.000000"
+  },
+  "byteLength": 3435,
+  "zeroByteBody": false,
+  "sha256": "11bd2b916ecc16538b2fdc05fef500912d37a9671f7f58b7ea8ccce3c37db508",
+  "utcTimestamp": "2026-09-15T03:53:31.000Z",
+  "durationMs": 294,
+  "sessionName": "LIVE-I82"
+}

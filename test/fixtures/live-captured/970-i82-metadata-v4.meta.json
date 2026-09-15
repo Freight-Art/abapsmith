@@ -1,0 +1,29 @@
+{
+  "n": 970,
+  "label": "i82-metadata-v4",
+  "expect": "the real V4 $metadata EDMX is fetchable end to end and is 52788 bytes of genuine CSDL: edmx:Edmx Version=\"4.0\", inline and external Annotations blocks, NavigationProperty Type=\"Collection(...)\", bound and unbound Actions \u2014 the shape src/adt/edmx.ts's V4 branch parses, not an inference from the OASIS spec alone",
+  "note": "GET the OData V4 $metadata EDMX for /DMO/UI_TRAVEL_O4_CD",
+  "requestMethod": "GET",
+  "requestUrl": "/sap/opu/odata4/dmo/ui_travel_o4_cd/srvd/dmo/ui_travel_o4_cd/0001/$metadata",
+  "requestHeaders": {
+    "Accept": "application/xml"
+  },
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-type": "application/xml",
+    "content-length": "52788",
+    "sap-authenticated": "true",
+    "odata-version": "4.0",
+    "etag": "W/\"20260915034026\"",
+    "cache-control": "max-age=0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "313365.000000"
+  },
+  "byteLength": 52788,
+  "zeroByteBody": false,
+  "sha256": "0142ee9828f2305ea5c081963c73963ef9802bdf91a17bcd664db2d5a2f6edff",
+  "utcTimestamp": "2026-09-15T03:53:40.228Z",
+  "durationMs": 481,
+  "sessionName": "LIVE-I82"
+}

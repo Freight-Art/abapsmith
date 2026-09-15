@@ -4858,16 +4858,21 @@ describe("XSLT/VT — skeleton create carries rootAttributes", () => {
  * What makes it worth its own describe block: it is the ONE properties-shape
  * type where a generic `Accept: application/*` is documented to fail with
  * 406, so `capabilities.ts` pins the exact vendor type
- * (`application/vnd.sap.adt.businessservices.servicebinding.v1+xml`) rather
- * than gambling on the wildcard. These tests pin that the header actually
- * goes out on every request that touches the object URI (resolution GET,
- * create POST, content PUT), and pin the exact create-body XML documented in
- * the session scratchpad's "SRVB inner body" template — see
- * `src/adt/capabilities.ts`'s `SRVB/SVB` REGISTRY entry for the full story.
+ * (`application/vnd.sap.adt.businessservices.servicebinding.v2+xml`) rather
+ * than gambling on the wildcard. Pinned at `v2`, not `v1`: live-verified on
+ * A4H on 2026-09-15 by direct curl and reproduced end-to-end through
+ * `abap_read` — the binding resource answers `200` for `v2` and `406
+ * ExceptionResourceNotAcceptable` for `v1` on this release, so every raw
+ * SRVB/SVB read was broken until this test's expected value moved from `v1`
+ * to `v2` to match. These tests pin that the header actually goes out on
+ * every request that touches the object URI (resolution GET, create POST,
+ * content PUT), and pin the exact create-body XML documented in the session
+ * scratchpad's "SRVB inner body" template — see `src/adt/capabilities.ts`'s
+ * `SRVB/SVB` REGISTRY entry for the full story.
  */
 describe("SRVB/SVB service binding (properties shape, vendor media type)", () => {
   const SRVB_URI = "/sap/bc/adt/businessservices/bindings/zpropw_svb";
-  const SRVB_MEDIA_TYPE = "application/vnd.sap.adt.businessservices.servicebinding.v1+xml";
+  const SRVB_MEDIA_TYPE = "application/vnd.sap.adt.businessservices.servicebinding.v2+xml";
 
   /**
    * SYNTHETIC — hand-written to match a documented/scratchpad-recorded

@@ -413,6 +413,13 @@ export const ConfigSchema = z.object({
    */
   allowTransportDelete: z.boolean().default(false),
   /**
+   * Ceiling for publishing or unpublishing a service binding's OData
+   * service — registers/removes an ICF node under `/sap/opu/odata*`. NOT
+   * implied by `allowWrite`. `ABAP_ALLOW_SERVICE_PUBLISH` is the
+   * legacy/override lever; admin-only by default otherwise.
+   */
+  allowServicePublish: z.boolean().default(false),
+  /**
    * Ceiling for the BOPF DDIC cascade-delete sweep (`deleteBusinessObject`,
    * `src/adt/bopf.ts`) — deleting the tables/structures/constants-interface a
    * BOPF business object's own delete leaves behind. NOT implied by
@@ -797,8 +804,9 @@ export type Config = z.infer<typeof ConfigSchema> & {
    * (`readOnly`, `allowPackages`, `allowNamePrefixes`, `allowTransports`,
    * `allowTransportRelease`, `allowEnhancements`, `enhanceTargets`,
    * `enhanceTargetPackages`, `allowSourcePlugins`, `originSystems`,
-   * `allowTransportDelete`, `allowCascadeDelete`) — they're the flat
-   * projection of `capabilities` below, not independently derived.
+   * `allowTransportDelete`, `allowServicePublish`, `allowCascadeDelete`) —
+   * they're the flat projection of `capabilities` below, not independently
+   * derived.
    * `allowDataPreview` is the one exception: a non-mutating grant fed INTO
    * `capabilitiesForMode`, so it holds the same value in every mode.
    */
@@ -887,6 +895,7 @@ export const RECOGNISED_ABAP_ALLOW_ENV_VARS: readonly string[] = Object.freeze([
   "ABAP_ALLOW_NAME_PREFIXES",
   "ABAP_ALLOW_PACKAGES",
   "ABAP_ALLOW_RAW_ADT_WRITES",
+  "ABAP_ALLOW_SERVICE_PUBLISH",
   "ABAP_ALLOW_SOURCE_PLUGINS",
   "ABAP_ALLOW_TRANSPORTS",
   "ABAP_ALLOW_TRANSPORT_DELETE",
@@ -1235,6 +1244,7 @@ export function loadConfig(opts: LoadConfigOptions = {}): Config {
   const modeBoolOverrides: AbapModeBooleanOverrides = {
     allowTransportRelease: boolOverrideFromEnv(env.ABAP_ALLOW_TRANSPORT_RELEASE),
     allowTransportDelete: boolOverrideFromEnv(env.ABAP_ALLOW_TRANSPORT_DELETE),
+    allowServicePublish: boolOverrideFromEnv(env.ABAP_ALLOW_SERVICE_PUBLISH),
     allowCascadeDelete: boolOverrideFromEnv(env.ABAP_ALLOW_CASCADE_DELETE),
     allowRawAdtWrites: boolOverrideFromEnv(env.ABAP_ALLOW_RAW_ADT_WRITES),
     allowEnhancements: boolOverrideFromEnv(env.ABAP_ALLOW_ENHANCEMENTS),
@@ -1313,6 +1323,9 @@ export function loadConfig(opts: LoadConfigOptions = {}): Config {
     allowTransportDelete: modeCapabilities
       ? modeCapabilities.allowTransportDelete
       : boolFromEnv(env.ABAP_ALLOW_TRANSPORT_DELETE),
+    allowServicePublish: modeCapabilities
+      ? modeCapabilities.allowServicePublish
+      : boolFromEnv(env.ABAP_ALLOW_SERVICE_PUBLISH),
     allowCascadeDelete: modeCapabilities
       ? modeCapabilities.allowCascadeDelete
       : boolFromEnv(env.ABAP_ALLOW_CASCADE_DELETE),

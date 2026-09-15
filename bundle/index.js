@@ -5062,15 +5062,15 @@ var require_commonjs = __commonJS({
       level: "all",
       numeric: "decimal"
     };
-    function encode3(text3, _a3) {
+    function encode3(text4, _a3) {
       var _b = _a3 === void 0 ? defaultEncodeOptions : _a3, _c = _b.mode, mode = _c === void 0 ? "specialChars" : _c, _d = _b.numeric, numeric = _d === void 0 ? "decimal" : _d, _e = _b.level, level = _e === void 0 ? "all" : _e;
-      if (!text3) {
+      if (!text4) {
         return "";
       }
       var encodeRegExp = encodeRegExps[mode];
       var references = allNamedReferences[level].characters;
       var isHex = numeric === "hexadecimal";
-      return String.prototype.replace.call(text3, encodeRegExp, function(input) {
+      return String.prototype.replace.call(text4, encodeRegExp, function(input) {
         var result = references[input];
         if (!result) {
           var code = input.length > 1 ? (0, surrogate_pairs_js_1.getCodePoint)(input, 0) : input.charCodeAt(0);
@@ -5134,16 +5134,16 @@ var require_commonjs = __commonJS({
       }
       return getDecodedEntity(entity, allNamedReferences[level].entities, false, false);
     }
-    function decode3(text3, _a3) {
+    function decode3(text4, _a3) {
       var _b = _a3 === void 0 ? defaultDecodeOptions : _a3, _c = _b.level, level = _c === void 0 ? "all" : _c, _d = _b.scope, scope = _d === void 0 ? level === "xml" ? "strict" : "body" : _d;
-      if (!text3) {
+      if (!text4) {
         return "";
       }
       var decodeRegExp = decodeRegExps[level][scope];
       var references = allNamedReferences[level].entities;
       var isAttribute = scope === "attribute";
       var isStrict = scope === "strict";
-      return text3.replace(decodeRegExp, function(entity) {
+      return text4.replace(decodeRegExp, function(entity) {
         return getDecodedEntity(entity, references, isAttribute, isStrict);
       });
     }
@@ -27184,20 +27184,20 @@ var require_axios = __commonJS({
       if (parts[0] !== "127") return false;
       return parts.every((p) => /^\d+$/.test(p) && Number(p) >= 0 && Number(p) <= 255);
     };
-    var parseIPv4Octet = (text3) => {
-      if (/^0[xX][0-9a-fA-F]+$/.test(text3)) {
-        const n = parseInt(text3.slice(2), 16);
+    var parseIPv4Octet = (text4) => {
+      if (/^0[xX][0-9a-fA-F]+$/.test(text4)) {
+        const n = parseInt(text4.slice(2), 16);
         return Number.isFinite(n) ? n : null;
       }
-      if (text3.length > 1 && /^0[0-7]+$/.test(text3)) {
-        const n = parseInt(text3, 8);
+      if (text4.length > 1 && /^0[0-7]+$/.test(text4)) {
+        const n = parseInt(text4, 8);
         return Number.isFinite(n) ? n : null;
       }
-      if (text3.length > 1 && /^0[0-9]+$/.test(text3)) {
+      if (text4.length > 1 && /^0[0-9]+$/.test(text4)) {
         return null;
       }
-      if (/^[0-9]+$/.test(text3)) {
-        const n = parseInt(text3, 10);
+      if (/^[0-9]+$/.test(text4)) {
+        const n = parseInt(text4, 10);
         return Number.isFinite(n) ? n : null;
       }
       return null;
@@ -34363,14 +34363,14 @@ var require_feeds = __commonJS({
       const { href } = (0, utilities_1.xmlNodeAttr)(raw === null || raw === void 0 ? void 0 : raw.link);
       const { title, updated } = raw;
       const dumps2 = (0, utilities_1.xmlArray)(raw, "entry").map((e) => {
-        const { category, id, author: { name: author }, summary: { "#text": text3, "@_type": type } } = e;
+        const { category, id, author: { name: author }, summary: { "#text": text4, "@_type": type } } = e;
         const links = (0, utilities_1.xmlArray)(e, "link").map(utilities_1.xmlNodeAttr);
         return {
           categories: category.map(utilities_1.xmlNodeAttr),
           links,
           id,
           author,
-          text: text3,
+          text: text4,
           type
         };
       });
@@ -35317,11 +35317,11 @@ var require_textelements = __commonJS({
         } else if (line.includes("=")) {
           const eq = line.indexOf("=");
           const id = line.slice(0, eq).trim();
-          const text3 = line.slice(eq + 1);
+          const text4 = line.slice(eq + 1);
           if (id) {
             elements.push({
               id,
-              text: text3,
+              text: text4,
               maxLength: currentMaxLength,
               ddicReference: currentDdicReference
             });
@@ -36544,13 +36544,13 @@ function describeUnknownError(e) {
     return name ? `a function (${name}) was thrown as an error` : "an anonymous function was thrown as an error";
   }
   if (typeof e === "symbol") {
-    const text4 = safeToString(e).trim();
-    return text4 ? `${text4} was thrown as an error` : "a symbol was thrown as an error";
+    const text5 = safeToString(e).trim();
+    return text5 ? `${text5} was thrown as an error` : "a symbol was thrown as an error";
   }
   if (e === null) return "`null` was thrown as an error";
   if (typeof e !== "object") {
-    const text4 = safeToString(e).trim();
-    return text4 ? text4 : `a ${typeof e} value was thrown as an error`;
+    const text5 = safeToString(e).trim();
+    return text5 ? text5 : `a ${typeof e} value was thrown as an error`;
   }
   let json2;
   let jsonFailure = "";
@@ -36568,8 +36568,8 @@ function describeUnknownError(e) {
     duck = void 0;
   }
   if (typeof duck === "string" && duck.trim()) return duck;
-  const text3 = safeToString(e).trim();
-  if (text3 && text3 !== "[object Object]") return text3;
+  const text4 = safeToString(e).trim();
+  if (text4 && text4 !== "[object Object]") return text4;
   const kind = kindOf(e);
   return jsonFailure ? `an undescribable ${kind} was thrown as an error (JSON.stringify failed: ${jsonFailure})` : `an undescribable ${kind} was thrown as an error`;
 }
@@ -36646,6 +36646,8 @@ var init_errors = __esm({
       // an authorization gap, not a bad argument
       SERVICE_METADATA_NOT_FOUND: "conditional",
       SERVICE_METADATA_UNPARSEABLE: "conditional",
+      SERVICE_PUBLISH_FAILED: "conditional",
+      // usually an inactive binding or definition; the same call succeeds once that's fixed
       FLUID_API_DISABLED: "terminal",
       // the flag is off or the system refuses writes; no argument changes either
       FLUID_PLUGINS_DISABLED: "terminal",
@@ -36698,14 +36700,14 @@ function redactPair(pair) {
   const name = pair.slice(0, eq);
   return CREDENTIAL_PARAM.test(name) ? `${name}=${REDACTED}` : pair;
 }
-function redactPairs(text3, separators) {
-  return text3.split(separators).map((token, i) => i % 2 === 0 ? redactPair(token) : token).join("");
+function redactPairs(text4, separators) {
+  return text4.split(separators).map((token, i) => i % 2 === 0 ? redactPair(token) : token).join("");
 }
 function redactUrlForCapture(path8) {
-  const text3 = typeof path8 === "string" ? path8 : String(path8 ?? "");
-  const hashIdx = text3.indexOf("#");
-  const beforeHash = hashIdx < 0 ? text3 : text3.slice(0, hashIdx);
-  const fragment = hashIdx < 0 ? void 0 : text3.slice(hashIdx + 1);
+  const text4 = typeof path8 === "string" ? path8 : String(path8 ?? "");
+  const hashIdx = text4.indexOf("#");
+  const beforeHash = hashIdx < 0 ? text4 : text4.slice(0, hashIdx);
+  const fragment = hashIdx < 0 ? void 0 : text4.slice(hashIdx + 1);
   const q = beforeHash.indexOf("?");
   const base = q < 0 ? beforeHash : beforeHash.slice(0, q);
   const query = q < 0 ? void 0 : beforeHash.slice(q + 1);
@@ -36802,19 +36804,19 @@ function truncationMarker(shown, total, spillPath) {
   }
   return "\n\u2026 [truncated, " + shown + " of " + total + " chars shown]";
 }
-function toSafeString(text3) {
-  if (text3 === null || text3 === void 0) return "";
-  if (typeof text3 === "string") return text3;
-  return String(text3);
+function toSafeString(text4) {
+  if (text4 === null || text4 === void 0) return "";
+  if (typeof text4 === "string") return text4;
+  return String(text4);
 }
-function truncateText(text3, maxChars) {
-  const safeText = toSafeString(text3);
+function truncateText(text4, maxChars) {
+  const safeText = toSafeString(text4);
   const limit = maxChars < 0 ? 0 : maxChars;
   if (safeText.length <= limit) return safeText;
   return safeText.slice(0, limit) + truncationMarker(limit, safeText.length);
 }
-function truncateForDisplay(text3, maxChars) {
-  const safeText = toSafeString(text3);
+function truncateForDisplay(text4, maxChars) {
+  const safeText = toSafeString(text4);
   const limit = maxChars < 0 ? 0 : maxChars;
   if (safeText.length <= limit) return safeText;
   return safeText.slice(0, limit) + DISPLAY_ELLIPSIS;
@@ -45516,8 +45518,8 @@ var capitalizeFirstCharacter, error28;
 var init_lt = __esm({
   "node_modules/zod/v4/locales/lt.js"() {
     init_util();
-    capitalizeFirstCharacter = (text3) => {
-      return text3.charAt(0).toUpperCase() + text3.slice(1);
+    capitalizeFirstCharacter = (text4) => {
+      return text4.charAt(0).toUpperCase() + text4.slice(1);
     };
     error28 = () => {
       const Sizable = {
@@ -53292,8 +53294,8 @@ var init_zod = __esm({
 
 // src/compact.ts
 import { createHash as createHash2 } from "node:crypto";
-function estimateTokens(text3) {
-  return Math.ceil(text3.length / CHARS_PER_TOKEN);
+function estimateTokens(text4) {
+  return Math.ceil(text4.length / CHARS_PER_TOKEN);
 }
 function contentHash(content) {
   const normalised = content.replace(/\r\n/g, "\n");
@@ -53321,29 +53323,29 @@ function renderHeader(header) {
   }
   return lines.join("\n");
 }
-function hardClamp(text3, maxChars) {
-  if (text3.length <= maxChars) return text3;
-  const original = text3.length;
+function hardClamp(text4, maxChars) {
+  if (text4.length <= maxChars) return text4;
+  const original = text4.length;
   const marker = (emitted2) => `
 --- OUTPUT HARD-CLAMPED ---
 ${emitted2} of ${original} characters emitted (hard cap ${maxChars}). The rest was dropped mid-text.`;
   let emitted = Math.max(0, maxChars - marker(original).length);
   while (emitted > 0 && emitted + marker(emitted).length > maxChars) emitted--;
-  const clamped = text3.slice(0, emitted) + marker(emitted);
+  const clamped = text4.slice(0, emitted) + marker(emitted);
   return clamped.length <= maxChars ? clamped : clamped.slice(0, maxChars);
 }
-function keepLines(text3, budget) {
-  if (budget >= text3.length) return { kept: text3, cutChars: 0 };
-  if (budget <= 0) return { kept: "", cutChars: text3.length };
+function keepLines(text4, budget) {
+  if (budget >= text4.length) return { kept: text4, cutChars: 0 };
+  if (budget <= 0) return { kept: "", cutChars: text4.length };
   const out = [];
   let left = budget;
-  for (const line of text3.split("\n")) {
+  for (const line of text4.split("\n")) {
     if (left - (line.length + 1) < 0) break;
     out.push(line);
     left -= line.length + 1;
   }
   const kept = out.join("\n");
-  return { kept, cutChars: text3.length - kept.length };
+  return { kept, cutChars: text4.length - kept.length };
 }
 function buildResponse(parts) {
   const maxChars = parts.maxChars ?? DEFAULT_MAX_CHARS;
@@ -53420,7 +53422,7 @@ ${bodyRaw.trimEnd()}` : "",
   ).length;
   const bodyFit = keepLines(bodyRaw.replace(/\r\n/g, "\n").trimEnd(), maxChars - bodyOverhead);
   const keptLines = bodyFit.kept ? bodyFit.kept.split("\n") : [];
-  const text3 = hardClamp(
+  const text4 = hardClamp(
     assemble(
       sectionsFit.kept,
       keptLines.length ? `--- ${label} ---
@@ -53430,18 +53432,18 @@ ${bodyFit.kept}` : "",
     maxChars
   );
   return {
-    text: text3,
+    text: text4,
     truncated: true,
     hasMore: remainingAfter(keptLines.length) > 0,
-    estimatedTokens: estimateTokens(text3),
+    estimatedTokens: estimateTokens(text4),
     returnedLines: keptLines.length,
     totalLines,
-    chars: text3.length,
+    chars: text4.length,
     sectionsTruncated: Boolean(sectionsCut)
   };
 }
-function countLines(text3) {
-  return text3 === "" ? 0 : text3.replace(/\r\n/g, "\n").split("\n").length;
+function countLines(text4) {
+  return text4 === "" ? 0 : text4.replace(/\r\n/g, "\n").split("\n").length;
 }
 function sliceLines(source, offset = 1, limit) {
   const lines = source.replace(/\r\n/g, "\n").split("\n");
@@ -53503,8 +53505,8 @@ var require_main = __commonJS({
     function supportsAnsi() {
       return process.stdout.isTTY;
     }
-    function dim(text3) {
-      return supportsAnsi() ? `\x1B[2m${text3}\x1B[0m` : text3;
+    function dim(text4) {
+      return supportsAnsi() ? `\x1B[2m${text4}\x1B[0m` : text4;
     }
     var LINE = /(?:^|^)\s*(?:export\s+)?([\w.-]+)(?:\s*=\s*?|:\s+?)(\s*'(?:\\'|[^'])*'|\s*"(?:\\"|[^"])*"|\s*`(?:\\`|[^`])*`|[^#\r\n]+)?\s*(?:#.*)?(?:$|$)/mg;
     function parse4(src) {
@@ -57848,7 +57850,7 @@ function prettify(node2, options, matcher, readonlyMatcher) {
   return compress(node2, options, matcher, readonlyMatcher);
 }
 function compress(arr, options, matcher, readonlyMatcher) {
-  let text3;
+  let text4;
   const compressedObj = {};
   for (let i = 0; i < arr.length; i++) {
     const tagObj = arr[i];
@@ -57861,8 +57863,8 @@ function compress(arr, options, matcher, readonlyMatcher) {
       matcher.push(property, rawAttrs);
     }
     if (property === options.textNodeName) {
-      if (text3 === void 0) text3 = tagObj[property];
-      else text3 += "" + tagObj[property];
+      if (text4 === void 0) text4 = tagObj[property];
+      else text4 += "" + tagObj[property];
     } else if (property === void 0) {
       continue;
     } else if (tagObj[property]) {
@@ -57900,9 +57902,9 @@ function compress(arr, options, matcher, readonlyMatcher) {
       }
     }
   }
-  if (typeof text3 === "string") {
-    if (text3.length > 0) compressedObj[options.textNodeName] = text3;
-  } else if (text3 !== void 0) compressedObj[options.textNodeName] = text3;
+  if (typeof text4 === "string") {
+    if (text4.length > 0) compressedObj[options.textNodeName] = text4;
+  } else if (text4 !== void 0) compressedObj[options.textNodeName] = text4;
   return compressedObj;
 }
 function propName(obj) {
@@ -59010,6 +59012,7 @@ function capabilitiesForMode(mode, overrides = {}, grants = {}, boolOverrides = 
     allowTransports,
     allowTransportRelease: boolOverrides.allowTransportRelease ?? isAdmin,
     allowTransportDelete: boolOverrides.allowTransportDelete ?? isAdmin,
+    allowServicePublish: boolOverrides.allowServicePublish ?? isAdmin,
     allowEnhancements: boolOverrides.allowEnhancements ?? true,
     enhanceTargets: resolveEnhanceTargets(overrides.enhanceTargets, isAdmin),
     enhanceTargetPackages,
@@ -59146,6 +59149,7 @@ var init_mode = __esm({
       allowTransports: null,
       allowTransportRelease: false,
       allowTransportDelete: false,
+      allowServicePublish: false,
       allowEnhancements: false,
       enhanceTargets: "none",
       enhanceTargetPackages: [],
@@ -59201,6 +59205,12 @@ var init_mode = __esm({
         legacyEnvVar: "ABAP_ALLOW_TRANSPORT_DELETE",
         label: "deleting a transport request",
         legacyRemediation: "Set ABAP_ALLOW_TRANSPORT_DELETE=true.",
+        modeOverridable: true
+      },
+      allowServicePublish: {
+        legacyEnvVar: "ABAP_ALLOW_SERVICE_PUBLISH",
+        label: "publishing or unpublishing a service binding",
+        legacyRemediation: "Set ABAP_ALLOW_SERVICE_PUBLISH=true.",
         modeOverridable: true
       },
       allowCascadeDelete: {
@@ -59497,8 +59507,8 @@ async function postFormUrlEncoded(url2, body) {
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body: body.toString()
   });
-  const text3 = await res.text();
-  return { status: res.status, body: text3 };
+  const text4 = await res.text();
+  return { status: res.status, body: text4 };
 }
 var import_AxiosHttpClient, DEFAULT_HTTP_TIMEOUT_MS, SESSION_TYPE_HEADER, NOOP_RELEASE, CREDENTIAL_CAVEAT, DENIED_RELEASE_SEGMENTS, DENIED_QUERY_PARAMS, MAX_DECODE_ROUNDS, INVALID_ESCAPE, GuardedHttpClient;
 var init_http_guard = __esm({
@@ -59937,11 +59947,11 @@ var init_oauth = __esm({
         body.set("client_secret", this.settings.clientSecret);
         if (this.settings.scope) body.set("scope", this.settings.scope);
         let status;
-        let text3;
+        let text4;
         try {
           const res = await this.fetchToken(this.settings.tokenUrl, body);
           status = res.status;
-          text3 = res.body;
+          text4 = res.body;
         } catch (e) {
           const reason = e instanceof Error ? e.message : String(e);
           throw this.refreshFailedError(void 0, `network error contacting the token endpoint: ${reason}`);
@@ -59951,7 +59961,7 @@ var init_oauth = __esm({
         }
         let parsed;
         try {
-          parsed = JSON.parse(text3);
+          parsed = JSON.parse(text4);
         } catch {
           throw this.refreshFailedError(status, "the token endpoint's response was not valid JSON");
         }
@@ -63129,10 +63139,10 @@ function parsePreviewBody(body) {
   const messages = [];
   for (const m of Array.isArray(table.message) ? table.message : []) {
     const meta3 = m;
-    const text3 = attrString(meta3, "text");
+    const text4 = attrString(meta3, "text");
     const severity = attrString(meta3, "severity");
-    if (text3 === void 0 && severity === void 0) continue;
-    messages.push({ text: text3 ?? "", severity: severity ?? "" });
+    if (text4 === void 0 && severity === void 0) continue;
+    messages.push({ text: text4 ?? "", severity: severity ?? "" });
   }
   const columns = [];
   const values = [];
@@ -63741,16 +63751,16 @@ var init_index_read = __esm({
 
 // src/adt/ddic.ts
 function parseDdl(source) {
-  const text3 = source.replace(/\r\n/g, "\n");
-  const annotations = text3.split("\n").filter((l) => /^\s*@/.test(l) && !/^\s*@AbapCatalog\.foreignKey/.test(l)).map((l) => l.trim());
+  const text4 = source.replace(/\r\n/g, "\n");
+  const annotations = text4.split("\n").filter((l) => /^\s*@/.test(l) && !/^\s*@AbapCatalog\.foreignKey/.test(l)).map((l) => l.trim());
   const entity = /define\s+(?:table|structure|abstract\s+entity|view\s+entity)\s+([\w/]+)/i.exec(
-    text3
+    text4
   )?.[1];
   const fields = [];
   const includes = [];
-  const open = text3.indexOf("{");
-  const close = text3.lastIndexOf("}");
-  const body = open >= 0 && close > open ? text3.slice(open + 1, close) : text3;
+  const open = text4.indexOf("{");
+  const close = text4.lastIndexOf("}");
+  const body = open >= 0 && close > open ? text4.slice(open + 1, close) : text4;
   for (const rawStmt of body.split(";")) {
     const stmt = rawStmt.replace(/^\s*@[^\n]*$/gm, "").trim();
     if (!stmt) continue;
@@ -64070,11 +64080,11 @@ function parseDomainXml(body, fallbackName) {
   const fixedValues = fixList.map((f) => {
     const low = xmlText(f?.low) ?? "";
     const high = xmlText(f?.high);
-    const text3 = xmlText(f?.text);
+    const text4 = xmlText(f?.text);
     return {
       low,
       high: high === "" ? void 0 : high,
-      text: text3 === "" ? void 0 : text3,
+      text: text4 === "" ? void 0 : text4,
       textLanguage: xmlAttr(f?.text, "language")
     };
   });
@@ -65811,9 +65821,23 @@ var init_capabilities = __esm({
       // create-body fixture.
       //
       // `mediaType` is the one field no other properties-shape type sets (see
-      // its doc comment above) — only OData V2 exists on this release
-      // (/businessservices/bindings/bindingtypes returns exactly two ODATA/V2
-      // entries); there is no V4 to offer.
+      // its doc comment above) — `/businessservices/bindings/bindingtypes`
+      // returned exactly two ODATA/V2 entries when checked (2026-08-18), so
+      // binding CREATION through this registry has only ever been exercised
+      // for V2. That is a statement about what this registry can create, not
+      // about what the system hosts: the appliance does host V4 bindings —
+      // see `test/fixtures/live-captured/970-i82-metadata-v4.xml` — the
+      // bindingtypes endpoint itself was not re-probed on 2026-09-15.
+      //
+      // Pinned to `v2` (not `v1`): A4H's ADT discovery document advertises only
+      // `servicebinding.v2+xml` for the binding resource, and a `v1`-only
+      // Accept 406s on this release — verified 2026-09-15, both by direct curl
+      // and by reproducing the failure through `abap_read` on the released
+      // server (see the doc comment on `mediaType` above for the full detail).
+      // This value also serves as the write-path `Content-Type` (`write.ts`'s
+      // `contentType`) for create/update of a service binding; only the READ
+      // side was re-verified at `v2` in this pass — a binding create/update
+      // with the `v2` Content-Type was not re-tested this session.
       //
       // `namePrefixes` NOT overridden: no ENQU-style foreign-namespace rule, and
       // vendor CreatableTypes already gives it maxLen 26. NOT re-tested by the
@@ -65829,7 +65853,7 @@ var init_capabilities = __esm({
         create: { vendor: false, verified: true },
         delete: true,
         activate: true,
-        mediaType: "application/vnd.sap.adt.businessservices.servicebinding.v1+xml"
+        mediaType: "application/vnd.sap.adt.businessservices.servicebinding.v2+xml"
       },
       // Not in types.ts — see the module doc.
       "SHLP/DH": {
@@ -66081,17 +66105,17 @@ function scanCdsText(raw) {
 function insideAnyStringSpan(pos, spans) {
   return spans.some(([s, e]) => pos >= s && pos < e);
 }
-function findMatchingBrace(text3, openIndex, stringSpans) {
+function findMatchingBrace(text4, openIndex, stringSpans) {
   let depth = 1;
   let i = openIndex + 1;
-  while (i < text3.length) {
+  while (i < text4.length) {
     if (insideAnyStringSpan(i, stringSpans)) {
       const span = stringSpans.find(([s, e]) => i >= s && i < e);
       i = span ? span[1] : i + 1;
       continue;
     }
-    if (text3[i] === "{") depth++;
-    else if (text3[i] === "}") {
+    if (text4[i] === "{") depth++;
+    else if (text4[i] === "}") {
       depth--;
       if (depth === 0) return i;
     }
@@ -66549,6 +66573,15 @@ var init_safety = __esm({
             code: "READ_ONLY"
           };
         }
+        if (opts.publish && this.cfg.readOnly) {
+          const why = this.whyAll(["allowWrite", "allowServicePublish"]);
+          return {
+            allowed: false,
+            reason: `Server is running read-only, so publishing a service binding is refused. Publishing needs both of them. ${why.cause} ${why.remediation}`,
+            rule: "read-only default (publishing also needs the service-publish ceiling)",
+            code: "READ_ONLY"
+          };
+        }
         if (this.cfg.readOnly) {
           const why = this.why("allowWrite");
           return {
@@ -66573,6 +66606,15 @@ var init_safety = __esm({
             allowed: false,
             reason: `Writes are enabled but deleting a transport request is a separate ceiling. ${why.cause} ${why.remediation}`,
             rule: "transport delete ceiling",
+            code: "READ_ONLY"
+          };
+        }
+        if (opts.publish && !this.cfg.allowServicePublish) {
+          const why = this.why("allowServicePublish");
+          return {
+            allowed: false,
+            reason: `Writes are enabled but publishing a service binding is a separate ceiling. ${why.cause} ${why.remediation}`,
+            rule: "service publish ceiling",
             code: "READ_ONLY"
           };
         }
@@ -67480,6 +67522,7 @@ function loadConfig(opts = {}) {
   const modeBoolOverrides = {
     allowTransportRelease: boolOverrideFromEnv(env.ABAP_ALLOW_TRANSPORT_RELEASE),
     allowTransportDelete: boolOverrideFromEnv(env.ABAP_ALLOW_TRANSPORT_DELETE),
+    allowServicePublish: boolOverrideFromEnv(env.ABAP_ALLOW_SERVICE_PUBLISH),
     allowCascadeDelete: boolOverrideFromEnv(env.ABAP_ALLOW_CASCADE_DELETE),
     allowRawAdtWrites: boolOverrideFromEnv(env.ABAP_ALLOW_RAW_ADT_WRITES),
     allowEnhancements: boolOverrideFromEnv(env.ABAP_ALLOW_ENHANCEMENTS),
@@ -67530,6 +67573,7 @@ function loadConfig(opts = {}) {
     // mode branch — read the same way regardless of ABAP_MODE.
     allowDebugJumpToLine,
     allowTransportDelete: modeCapabilities ? modeCapabilities.allowTransportDelete : boolFromEnv(env.ABAP_ALLOW_TRANSPORT_DELETE),
+    allowServicePublish: modeCapabilities ? modeCapabilities.allowServicePublish : boolFromEnv(env.ABAP_ALLOW_SERVICE_PUBLISH),
     allowCascadeDelete: modeCapabilities ? modeCapabilities.allowCascadeDelete : boolFromEnv(env.ABAP_ALLOW_CASCADE_DELETE),
     allowEnhancements: modeCapabilities ? modeCapabilities.allowEnhancements : allowEnhancements,
     // Already validated above (enhanceTargetsOverride/enhanceTargetsIssue) —
@@ -68055,6 +68099,13 @@ var init_config = __esm({
        */
       allowTransportDelete: external_exports.boolean().default(false),
       /**
+       * Ceiling for publishing or unpublishing a service binding's OData
+       * service — registers/removes an ICF node under `/sap/opu/odata*`. NOT
+       * implied by `allowWrite`. `ABAP_ALLOW_SERVICE_PUBLISH` is the
+       * legacy/override lever; admin-only by default otherwise.
+       */
+      allowServicePublish: external_exports.boolean().default(false),
+      /**
        * Ceiling for the BOPF DDIC cascade-delete sweep (`deleteBusinessObject`,
        * `src/adt/bopf.ts`) — deleting the tables/structures/constants-interface a
        * BOPF business object's own delete leaves behind. NOT implied by
@@ -68443,6 +68494,7 @@ var init_config = __esm({
       "ABAP_ALLOW_NAME_PREFIXES",
       "ABAP_ALLOW_PACKAGES",
       "ABAP_ALLOW_RAW_ADT_WRITES",
+      "ABAP_ALLOW_SERVICE_PUBLISH",
       "ABAP_ALLOW_SOURCE_PLUGINS",
       "ABAP_ALLOW_TRANSPORTS",
       "ABAP_ALLOW_TRANSPORT_DELETE",
@@ -72741,7 +72793,7 @@ var require_core = __commonJS({
       errorsText(errors = this.errors, { separator = ", ", dataVar = "data" } = {}) {
         if (!errors || errors.length === 0)
           return "No errors";
-        return errors.map((e) => `${dataVar}${e.instancePath} ${e.message}`).reduce((text3, msg) => text3 + separator + msg);
+        return errors.map((e) => `${dataVar}${e.instancePath} ${e.message}`).reduce((text4, msg) => text4 + separator + msg);
       }
       $dataMetaSchema(metaSchema, keywordsJsonPointers) {
         const rules = this.RULES.all;
@@ -83367,13 +83419,13 @@ async function loadPlugin(dir, knownIds, claimedObjects, cfg) {
     if (relFromDir.startsWith("..") || path3.isAbsolute(relFromDir)) {
       return refuse2(`object "${obj.name}" source.file "${file2}" resolves outside the plugin directory`, id);
     }
-    let text3;
+    let text4;
     try {
-      text3 = await fs2.readFile(realCandidate, "utf8");
+      text4 = await fs2.readFile(realCandidate, "utf8");
     } catch (err) {
       return refuse2(`object "${obj.name}" source.file "${file2}" could not be read: ${err instanceof Error ? err.message : String(err)}`, id);
     }
-    sources.set(obj.name, text3);
+    sources.set(obj.name, text4);
   }
   for (const obj of manifest.objects) {
     const source = sources.get(obj.name) ?? "";
@@ -98052,15 +98104,15 @@ var Journal = class _Journal {
    * the evidence someone is looking for after that crash.
    */
   async readAll() {
-    let text3;
+    let text4;
     try {
-      text3 = await fs3.readFile(this.indexPath, "utf8");
+      text4 = await fs3.readFile(this.indexPath, "utf8");
     } catch (e) {
       if (e.code === "ENOENT") return /* @__PURE__ */ new Map();
       throw e;
     }
     const merged = /* @__PURE__ */ new Map();
-    for (const line of text3.split("\n")) {
+    for (const line of text4.split("\n")) {
       const trimmed = line.trim();
       if (!trimmed) continue;
       let rec;
@@ -98536,8 +98588,8 @@ var Journal = class _Journal {
     if (cap <= 0) return;
     if (this.lineCount === void 0) {
       try {
-        const text3 = await fs3.readFile(this.indexPath, "utf8");
-        this.lineCount = text3.split("\n").filter((l) => l.trim() !== "").length;
+        const text4 = await fs3.readFile(this.indexPath, "utf8");
+        this.lineCount = text4.split("\n").filter((l) => l.trim() !== "").length;
       } catch {
         this.lineCount = 0;
       }
@@ -99033,13 +99085,13 @@ ${valuesElided}` : body;
     return best;
   };
   let kept = fitKept();
-  let text3 = assemble(kept);
-  if (text3.length > maxChars) {
+  let text4 = assemble(kept);
+  if (text4.length > maxChars) {
     const candidates = rows.flatMap(
       (row2) => row2.short === void 0 ? [] : [{ row: row2, short: row2.short, saving: row2.full.length - row2.short.length }]
     );
     candidates.sort((a, b) => b.saving - a.saving);
-    let projected = text3.length;
+    let projected = text4.length;
     for (const c of candidates) {
       if (projected <= maxChars) break;
       projected -= c.saving;
@@ -99047,9 +99099,9 @@ ${valuesElided}` : body;
       c.row.degraded = true;
     }
     kept = fitKept();
-    text3 = assemble(kept);
+    text4 = assemble(kept);
   }
-  if (text3.length > maxChars) {
+  if (text4.length > maxChars) {
     const candidates = rows.map((row2) => ({ row: row2, bare: `${row2.entry.variable.name}:` })).filter((c) => c.row.text.length > c.bare.length + 1).sort((a, b) => b.row.text.length - b.bare.length - (a.row.text.length - a.bare.length));
     const longestName = candidates.reduce(
       (name, c) => c.row.entry.variable.name.length > name.length ? c.row.entry.variable.name : name,
@@ -99059,7 +99111,7 @@ ${valuesElided}` : body;
     const stripped = [];
     let saved = 0;
     for (const c of candidates) {
-      if (text3.length + reserve - saved <= maxChars) break;
+      if (text4.length + reserve - saved <= maxChars) break;
       saved += c.row.text.length - c.bare.length;
       stripped.push(c);
     }
@@ -99078,11 +99130,11 @@ ${valuesElided}` : body;
         }
         valuesElided = marker;
         kept = fitKept();
-        text3 = assemble(kept);
+        text4 = assemble(kept);
       }
     }
   }
-  return { text: text3, degraded: rows.filter((r) => r.degraded).map((r) => r.entry.variable.name) };
+  return { text: text4, degraded: rows.filter((r) => r.degraded).map((r) => r.entry.variable.name) };
 }
 function withChildren(parent, result) {
   const byId = new Map(result.variables.map((v) => [v.id, v]));
@@ -99265,8 +99317,8 @@ function renderDrill(node2, path8, opts) {
     return { text: renderTableWithinBudget(node2.variable, node2.children, opts.rows, path8, maxChars, stateId) };
   }
   const lines = renderNode(node2, 0, maxDepth, path8, stateId);
-  let text3 = lines.join("\n");
-  if (text3.length > maxChars) {
+  let text4 = lines.join("\n");
+  if (text4.length > maxChars) {
     const kept = [];
     let used = 0;
     for (const line of lines) {
@@ -99276,9 +99328,9 @@ function renderDrill(node2, path8, opts) {
     }
     if (kept.length === 0 && lines.length > 0) kept.push(lines[0]);
     const remaining = lines.length - kept.length;
-    text3 = remaining > 0 ? [...kept, elide("lines", remaining, buildRetrievalCall(path8, void 0, stateId))].join("\n") : kept.join("\n");
+    text4 = remaining > 0 ? [...kept, elide("lines", remaining, buildRetrievalCall(path8, void 0, stateId))].join("\n") : kept.join("\n");
   }
-  return { text: text3 };
+  return { text: text4 };
 }
 function renderEmptyBodyTrap(ctx) {
   const lines = [
@@ -99752,8 +99804,8 @@ function assertNoErrors(outcome, context) {
 var KNOWN_ADVISORY_CHECK_MESSAGES = [
   /^Tab\.\s+\S+\s+is of type INTTAB\s*\(Technical settings are not meaningful\)/i
 ];
-function isKnownAdvisoryCheckMessage(text3) {
-  return KNOWN_ADVISORY_CHECK_MESSAGES.some((re) => re.test(text3));
+function isKnownAdvisoryCheckMessage(text4) {
+  return KNOWN_ADVISORY_CHECK_MESSAGES.some((re) => re.test(text4));
 }
 function mapCheckResults(results) {
   return results.map((r) => ({
@@ -100209,8 +100261,8 @@ function renderBatch(outcome) {
   for (const o of outcome.perObject) {
     const summary = summariseMessages(o) || (o.ok ? "clean" : "not activated");
     lines.push(`## ${o.target.name} \u2014 ${summary}${o.ok ? "" : "  <- BLAMED"}`);
-    const text3 = renderMessages(o.messages);
-    if (text3.trim()) lines.push(text3);
+    const text4 = renderMessages(o.messages);
+    if (text4.trim()) lines.push(text4);
     if (o.inactive.length) lines.push(renderInactive(o.inactive));
   }
   if (outcome.unattributed.length || outcome.unattributedInactive.length) {
@@ -100218,8 +100270,8 @@ function renderBatch(outcome) {
       `## (unattributed) \u2014 ${outcome.unattributed.length} message(s), ${outcome.unattributedInactive.length} inactive dependent(s)`,
       "The server did not tie these to any object in the set. They are NOT assigned to a guessed owner, and they still count against the activation."
     );
-    const text3 = renderMessages(outcome.unattributed);
-    if (text3.trim()) lines.push(text3);
+    const text4 = renderMessages(outcome.unattributed);
+    if (text4.trim()) lines.push(text4);
     if (outcome.unattributedInactive.length) lines.push(renderInactive(outcome.unattributedInactive));
   }
   return lines.join("\n");
@@ -100260,18 +100312,18 @@ function translateActivationError(e, target) {
   const err = e;
   const status = Number(err?.err ?? err?.status ?? 0);
   const type = String(err?.type ?? "");
-  const text3 = describeUnknownError(e);
-  if (status === 403 && (/ResourceNoAccess/i.test(type) || /currently editing/i.test(text3))) {
+  const text4 = describeUnknownError(e);
+  if (status === 403 && (/ResourceNoAccess/i.test(type) || /currently editing/i.test(text4))) {
     return new AbapError(
       "LOCKED",
-      `Cannot activate ${target.name}: the object is locked (${text3}).`,
+      `Cannot activate ${target.name}: the object is locked (${text4}).`,
       { object: target.name, uri: target.uri, adtType: type || void 0 },
       "You cannot activate an object while holding its own lock. Unlock first: lock \u2192 PUT source \u2192 unlock \u2192 activate. If the lock is held elsewhere, it must be released there: ADT locks bind to a SESSION (`sap-contextid`), not a user, so the holder may be another session of the SAME user (e.g. a stale editor tab), not necessarily a different person."
     );
   }
   return new AbapError(
     "ADT_ERROR",
-    `Activation of ${target.name} failed: ${text3}`,
+    `Activation of ${target.name} failed: ${text4}`,
     { object: target.name, uri: target.uri, status: status || void 0, adtType: type || void 0 },
     "Activation returns 200 for syntax errors, so a thrown error here is a transport/authorisation problem rather than a source problem."
   );
@@ -101599,14 +101651,14 @@ function toDumpsQueryContract(extendedData) {
 var TS14_RE = /^\d{14}$/;
 var ISO_RE = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?Z$/;
 var pad = (n, width) => String(n).padStart(width, "0");
-function isValidTimestamp14(text3) {
-  if (!TS14_RE.test(text3)) return false;
-  const y = Number(text3.slice(0, 4));
-  const mo = Number(text3.slice(4, 6));
-  const d = Number(text3.slice(6, 8));
-  const h = Number(text3.slice(8, 10));
-  const mi = Number(text3.slice(10, 12));
-  const s = Number(text3.slice(12, 14));
+function isValidTimestamp14(text4) {
+  if (!TS14_RE.test(text4)) return false;
+  const y = Number(text4.slice(0, 4));
+  const mo = Number(text4.slice(4, 6));
+  const d = Number(text4.slice(6, 8));
+  const h = Number(text4.slice(8, 10));
+  const mi = Number(text4.slice(10, 12));
+  const s = Number(text4.slice(12, 14));
   if (mo < 1 || mo > 12 || d < 1 || d > 31 || h > 23 || mi > 59 || s > 59) return false;
   const dt = new Date(Date.UTC(y, mo - 1, d, h, mi, s));
   return dt.getUTCFullYear() === y && dt.getUTCMonth() === mo - 1 && dt.getUTCDate() === d && dt.getUTCHours() === h && dt.getUTCMinutes() === mi && dt.getUTCSeconds() === s;
@@ -101618,9 +101670,9 @@ function normaliseTimestamp(value) {
   if (value instanceof Date) {
     return Number.isNaN(value.getTime()) ? void 0 : timestamp14(value);
   }
-  const text3 = String(value).trim();
-  if (TS14_RE.test(text3)) return isValidTimestamp14(text3) ? text3 : void 0;
-  const m = ISO_RE.exec(text3);
+  const text4 = String(value).trim();
+  if (TS14_RE.test(text4)) return isValidTimestamp14(text4) ? text4 : void 0;
+  const m = ISO_RE.exec(text4);
   if (!m) return void 0;
   const candidate = `${m[1]}${m[2]}${m[3]}${m[4]}${m[5]}${m[6]}`;
   return isValidTimestamp14(candidate) ? candidate : void 0;
@@ -101632,11 +101684,11 @@ function residenceWindowStart(now = /* @__PURE__ */ new Date()) {
   return timestamp14(start);
 }
 var STRUCTURAL = /* @__PURE__ */ new Set(["(", ")", ","]);
-function tokenise(text3) {
+function tokenise(text4) {
   const tokens = [];
   let i = 0;
-  while (i < text3.length) {
-    const ch = text3[i];
+  while (i < text4.length) {
+    const ch = text4[i];
     if (/\s/.test(ch)) {
       i += 1;
       continue;
@@ -101647,15 +101699,15 @@ function tokenise(text3) {
       continue;
     }
     const start = i;
-    while (i < text3.length && !/\s/.test(text3[i]) && !STRUCTURAL.has(text3[i])) {
+    while (i < text4.length && !/\s/.test(text4[i]) && !STRUCTURAL.has(text4[i])) {
       i += 1;
     }
-    tokens.push({ kind: "word", text: text3.slice(start, i), pos: start });
+    tokens.push({ kind: "word", text: text4.slice(start, i), pos: start });
   }
   return tokens;
 }
-function parseFqlQuery(text3) {
-  const tokens = tokenise(text3);
+function parseFqlQuery(text4) {
+  const tokens = tokenise(text4);
   if (tokens.length === 0) return { error: "the query is empty" };
   let i = 0;
   const peek = () => tokens[i];
@@ -102457,11 +102509,11 @@ function splitBridgeOutput(raw) {
   }
   return { list: list5, diagnostics, droppedLines };
 }
-function parseBracketFields(text3) {
+function parseBracketFields(text4) {
   const out = {};
   const re = /(\w+)=\[(.*?)\](?=\s+\w+=\[|\s*$)/g;
   let m;
-  while (m = re.exec(text3)) {
+  while (m = re.exec(text4)) {
     out[m[1]] = m[2];
   }
   return out;
@@ -102493,8 +102545,8 @@ function responseOf(e) {
   }
   return void 0;
 }
-function tidyShortText(text3) {
-  const normalised = text3.replace(/\(termination:[^)]*\)\s*$/i, "").replace(/^(?:error|exception|fehler)\s*:\s*/i, "").replace(/[<>]/g, " ").replace(/\s+/g, " ").trim();
+function tidyShortText(text4) {
+  const normalised = text4.replace(/\(termination:[^)]*\)\s*$/i, "").replace(/^(?:error|exception|fehler)\s*:\s*/i, "").replace(/[<>]/g, " ").replace(/\s+/g, " ").trim();
   return truncateText(normalised, DUMP_SHORT_TEXT_MAX);
 }
 function translateRunFailure(conn, className, e) {
@@ -106305,8 +106357,8 @@ var END_TAG = /<\/([A-Za-z_][\w.-]*(?::[\w.-]+)?)\s*>/g;
 function leafTexts(xml3) {
   const clean = xml3.replace(XML_NOISE, "");
   const out = /* @__PURE__ */ new Map();
-  const push = (name, text3) => {
-    const trimmed = text3.trim();
+  const push = (name, text4) => {
+    const trimmed = text4.trim();
     if (!trimmed) return;
     let list5 = out.get(name);
     if (!list5) {
@@ -107123,11 +107175,11 @@ function lcsRowReversed(a, b) {
 }
 function hirschberg(a, b, out) {
   if (a.length === 0) {
-    for (const text3 of b) out.push({ kind: "ins", text: text3 });
+    for (const text4 of b) out.push({ kind: "ins", text: text4 });
     return;
   }
   if (b.length === 0) {
-    for (const text3 of a) out.push({ kind: "del", text: text3 });
+    for (const text4 of a) out.push({ kind: "del", text: text4 });
     return;
   }
   if (a.length === 1) {
@@ -107135,7 +107187,7 @@ function hirschberg(a, b, out) {
     const idx = b.indexOf(only);
     if (idx === -1) {
       out.push({ kind: "del", text: only });
-      for (const text3 of b) out.push({ kind: "ins", text: text3 });
+      for (const text4 of b) out.push({ kind: "ins", text: text4 });
       return;
     }
     for (let j = 0; j < idx; j++) out.push({ kind: "ins", text: b[j] });
@@ -107174,8 +107226,8 @@ function editScript(oldLines, newLines) {
   let coarse = false;
   if (oldMid.length * newMid.length > MAX_DIFF_CELLS) {
     coarse = true;
-    for (const text3 of oldMid) edits.push({ kind: "del", text: text3 });
-    for (const text3 of newMid) edits.push({ kind: "ins", text: text3 });
+    for (const text4 of oldMid) edits.push({ kind: "del", text: text4 });
+    for (const text4 of newMid) edits.push({ kind: "ins", text: text4 });
   } else {
     hirschberg(oldMid, newMid, edits);
   }
@@ -107184,8 +107236,8 @@ function editScript(oldLines, newLines) {
   }
   return { edits, coarse };
 }
-function renderLine(sigil, text3) {
-  return sigil + truncateForDisplay(text3, DIFF_LINE_MAX);
+function renderLine(sigil, text4) {
+  return sigil + truncateForDisplay(text4, DIFF_LINE_MAX);
 }
 function toHunks(edits, context) {
   const changedAt = [];
@@ -109669,7 +109721,7 @@ async function abapDeleteIndexViaBridge(conn, target, input, maxChars, gate) {
     maxChars
   });
 }
-var ok = (text3) => ({ content: [{ type: "text", text: text3 }] });
+var ok = (text4) => ({ content: [{ type: "text", text: text4 }] });
 function registerWriteTools(mcp, deps) {
   mcp.registerTool(
     "abap_write",
@@ -109837,9 +109889,9 @@ async function journalActivations(journal, conn, items, run2, onThrow) {
 }
 var JOURNAL_MESSAGES_MAX = 2e3;
 function journalMessages(messages) {
-  const text3 = renderMessages([...messages]).trim();
-  if (!text3) return void 0;
-  return truncateText(text3, JOURNAL_MESSAGES_MAX);
+  const text4 = renderMessages([...messages]).trim();
+  if (!text4) return void 0;
+  return truncateText(text4, JOURNAL_MESSAGES_MAX);
 }
 function activationThrowPatch(disposition, name, e) {
   switch (disposition) {
@@ -110376,7 +110428,7 @@ async function abapActivateFormat(conn, input, maxChars, gate, transport, journa
     maxChars
   });
 }
-var ok2 = (text3) => ({ content: [{ type: "text", text: text3 }] });
+var ok2 = (text4) => ({ content: [{ type: "text", text: text4 }] });
 function registerActivateTools(mcp, deps) {
   mcp.registerTool(
     "abap_activate",
@@ -111260,7 +111312,7 @@ async function abapRun(conn, input, maxChars, gate) {
     maxChars
   });
 }
-var ok3 = (text3) => ({ content: [{ type: "text", text: text3 }] });
+var ok3 = (text4) => ({ content: [{ type: "text", text: text4 }] });
 function registerRunTools(mcp, deps) {
   mcp.registerTool(
     "abap_run",
@@ -111824,9 +111876,9 @@ async function handleStart(conn, input, maxChars, deps, gate) {
       } else if (!settled.ok) {
         triggerNote = `The trigger run itself failed: ${settled.error}`;
       } else {
-        const text3 = settled.text.trim();
-        triggerNote = text3 ? `PROGRAM OUTPUT from the trigger run:
-${text3}` : "The trigger run completed and produced no output.";
+        const text4 = settled.text.trim();
+        triggerNote = text4 ? `PROGRAM OUTPUT from the trigger run:
+${text4}` : "The trigger run completed and produced no output.";
       }
     }
     closeTriggerConn();
@@ -112329,14 +112381,14 @@ async function abapDebugValue(input, maxChars) {
   }
   if (!isComplex(rootVar.metaType)) {
     const node3 = { variable: rootVar };
-    const { text: text4 } = renderDrill(node3, canonicalPath, {
+    const { text: text5 } = renderDrill(node3, canonicalPath, {
       depth: input.depth,
       maxChars: clampedMaxChars,
       stateId: input.stateId
     });
     return buildResponse({
       header: { stateId: input.stateId, path: canonicalPath },
-      body: text4,
+      body: text5,
       bodyLabel: "VALUE",
       notes: rootNotes,
       maxChars: clampedMaxChars
@@ -112410,14 +112462,14 @@ async function abapDebugValue(input, maxChars) {
       }
     }
     const node3 = { variable: rootVar, children: rowNodes };
-    const { text: text4 } = renderDrill(node3, canonicalPath, {
+    const { text: text5 } = renderDrill(node3, canonicalPath, {
       rows: { start: clampedFrom, end: clampedTo || clampedFrom },
       maxChars: clampedMaxChars,
       stateId: input.stateId
     });
     return buildResponse({
       header: { stateId: input.stateId, path: canonicalPath },
-      body: text4,
+      body: text5,
       bodyLabel: "VALUE",
       notes: tableNotes,
       maxChars: clampedMaxChars
@@ -112434,14 +112486,14 @@ async function abapDebugValue(input, maxChars) {
     }
   }
   const node2 = withChildren(rootVar, childResult);
-  const { text: text3 } = renderDrill(node2, canonicalPath, {
+  const { text: text4 } = renderDrill(node2, canonicalPath, {
     depth: input.depth,
     maxChars: clampedMaxChars,
     stateId: input.stateId
   });
   return buildResponse({
     header: { stateId: input.stateId, path: canonicalPath },
-    body: text3,
+    body: text4,
     bodyLabel: "VALUE",
     // The `getChildVariables` hop below returns CHILDREN of `canonicalPath`, whose
     // ids are by definition not the id that was requested, so it has no requested-id
@@ -112551,10 +112603,10 @@ function parseBreakpoints(specs) {
 
 // src/tools/debug-register.ts
 var DEBUG_UNGATED_ACTIONS = /* @__PURE__ */ new Set(["stack", "frame", "status", "keepalive", "stop"]);
-function stateIdOfResponse(text3) {
-  return /^stateId: (.+)$/m.exec(text3)?.[1]?.trim();
+function stateIdOfResponse(text4) {
+  return /^stateId: (.+)$/m.exec(text4)?.[1]?.trim();
 }
-var ok4 = (text3) => ({ content: [{ type: "text", text: text3 }] });
+var ok4 = (text4) => ({ content: [{ type: "text", text: text4 }] });
 function registerDebugTools(mcp, deps) {
   const debugSessionObjects = /* @__PURE__ */ new Map();
   mcp.registerTool(
@@ -112784,6 +112836,12 @@ function packageRecreateBlocker(entry) {
 function undoBlocker(entry) {
   if (entry.operation === "transport-release") {
     return "a released transport cannot be recalled; create a corrective transport instead";
+  }
+  if (entry.operation === "service-publish") {
+    return `publishing a service binding changes the system's runtime surface (an ICF node under /sap/opu/odata*), not the object's source, so there is no before-image to write back; call abap_service op="unpublish" confirm=<binding> instead \u2014 a deliberate, separately confirmed act, not an automatic undo`;
+  }
+  if (entry.operation === "service-unpublish") {
+    return `unpublishing a service binding changes the system's runtime surface, not the object's source, so there is no before-image to restore; call abap_service op="publish" confirm=<binding> instead \u2014 a deliberate, separately confirmed act, not an automatic undo`;
   }
   if (entry.operation.startsWith("transport-")) {
     return "transport requests are not undone automatically; use abap_transport to reverse this manually";
@@ -113627,6 +113685,12 @@ function undoHint(e) {
   if (e.operation === "transport-release") {
     return "RELEASED TRANSPORT \u2014 refused: a released transport cannot be recalled; create a corrective transport instead";
   }
+  if (e.operation === "service-publish") {
+    return 'PUBLISHED SERVICE \u2014 refused: publishing changed the runtime surface, not the object source; call abap_service op="unpublish" confirm=<binding> instead';
+  }
+  if (e.operation === "service-unpublish") {
+    return 'UNPUBLISHED SERVICE \u2014 refused: unpublishing changed the runtime surface, not the object source; call abap_service op="publish" confirm=<binding> instead';
+  }
   if (e.operation.startsWith("transport-")) {
     return "refused: transport requests are not undone automatically; use abap_transport to reverse this manually";
   }
@@ -114069,7 +114133,7 @@ async function undoPreflightTarget(journal, input) {
     type: entry.object.type
   };
 }
-var ok5 = (text3) => ({ content: [{ type: "text", text: text3 }] });
+var ok5 = (text4) => ({ content: [{ type: "text", text: text4 }] });
 function registerJournalTools(mcp, deps) {
   mcp.registerTool(
     "abap_journal",
@@ -114268,7 +114332,7 @@ var OpenUrlInput = external_exports.object(openUrlInputSchema).refine(
   (v) => v.type === void 0 && v.line === void 0 || typeof v.object === "string" && v.object.length > 0,
   { message: "type/line are only valid alongside object." }
 );
-var ok6 = (text3) => ({ content: [{ type: "text", text: text3 }] });
+var ok6 = (text4) => ({ content: [{ type: "text", text: text4 }] });
 async function resolveOpenUrl(input, deps) {
   if (input.keyword) {
     const keyword = input.keyword.toUpperCase();
@@ -114601,11 +114665,11 @@ async function readAuthorizationObject(conn, name, opts) {
         const domname = row2[fld2("domainValue", "domname")] ?? "";
         const valueLow = row2[fld2("domainValue", "valueLow")] ?? "";
         const valueHigh = row2[fld2("domainValue", "valueHigh")] ?? "";
-        const text3 = row2[fld2("domainValue", "text")] ?? "";
+        const text4 = row2[fld2("domainValue", "text")] ?? "";
         const valpos = Number.parseInt(row2[fld2("domainValue", "valpos")] ?? "", 10);
         const value = valueHigh.trim() === "" ? valueLow : `${valueLow}..${valueHigh}`;
         const list5 = fixedValuesByDomain.get(domname);
-        const entry = { value, text: text3, valpos: Number.isNaN(valpos) ? 0 : valpos };
+        const entry = { value, text: text4, valpos: Number.isNaN(valpos) ? 0 : valpos };
         if (list5) list5.push(entry);
         else fixedValuesByDomain.set(domname, [entry]);
       }
@@ -114638,11 +114702,11 @@ async function readAuthorizationObject(conn, name, opts) {
     }
   }
   const activities = activityCodes.map((code) => {
-    const text3 = activityTextByCode.get(code);
-    if (text3 === void 0) {
+    const text4 = activityTextByCode.get(code);
+    if (text4 === void 0) {
       notes.push(`No ${tbl2("activityText")} text for activity "${code}" of object "${objectName}" in language "${language}" \u2014 listed with an empty text.`);
     }
-    return { code, text: text3 ?? "" };
+    return { code, text: text4 ?? "" };
   });
   const fields = fieldNames.map((f) => {
     const authx = authxByField.get(f);
@@ -114656,7 +114720,7 @@ async function readAuthorizationObject(conn, name, opts) {
       checkTable: authx?.[fld2("fieldMeta", "checkTable")]?.trim() || void 0,
       isActivityField: (authx?.[fld2("fieldMeta", "actvtFlag")] ?? "").trim() !== "",
       domain: domain2,
-      fixedValues: fixedValues.map(({ value, text: text3 }) => ({ value, text: text3 }))
+      fixedValues: fixedValues.map(({ value, text: text4 }) => ({ value, text: text4 }))
     };
   });
   return {
@@ -114763,8 +114827,8 @@ function elementText(value) {
   if (value === void 0 || value === null) return void 0;
   const rec = asRecord(value);
   if (rec === void 0) return void 0;
-  const text3 = rec["#text"];
-  return typeof text3 === "string" ? text3 : "";
+  const text4 = rec["#text"];
+  return typeof text4 === "string" ? text4 : "";
 }
 function parseXmlDocument(body, what, ctx, parser3 = elementInfoXml) {
   let parsed;
@@ -116306,8 +116370,8 @@ function verdictForMethodNode(node2) {
 function flattenDetails(node2, depth, out) {
   if (!isNode(node2)) return;
   for (const detail of many2(node2.detail)) {
-    const text3 = attr3(detail, "text");
-    if (text3) out.push("  ".repeat(depth) + truncateText(text3, ECHO_LINE_MAX));
+    const text4 = attr3(detail, "text");
+    if (text4) out.push("  ".repeat(depth) + truncateText(text4, ECHO_LINE_MAX));
     flattenDetails(detail.details, depth + 1, out);
   }
 }
@@ -116964,7 +117028,7 @@ ${coverageBody}` : renderBody(res);
     maxChars
   });
 }
-var ok7 = (text3) => ({ content: [{ type: "text", text: text3 }] });
+var ok7 = (text4) => ({ content: [{ type: "text", text: text4 }] });
 function registerTestTools(mcp, deps) {
   mcp.registerTool(
     "abap_test",
@@ -117487,7 +117551,7 @@ function buildSourceResponse2(q, result, maxChars) {
     maxChars
   });
 }
-var ok8 = (text3) => ({ content: [{ type: "text", text: text3 }] });
+var ok8 = (text4) => ({ content: [{ type: "text", text: text4 }] });
 function registerSearchTools(mcp, deps) {
   mcp.registerTool(
     "abap_search",
@@ -117659,9 +117723,9 @@ function fmtTarget(h) {
   const d = (h.targetDescription ?? "").trim();
   return d === "" ? t : `${t} (${d})`;
 }
-function fmtStatus(status, text3) {
+function fmtStatus(status, text4) {
   const base = status === "released" ? "Released (tm:status=R)" : status === "modifiable" ? "Modifiable (tm:status=D)" : status === "protected" ? "Protected" : "unknown";
-  const t = (text3 ?? "").trim();
+  const t = (text4 ?? "").trim();
   return t === "" || t.toLowerCase() === status ? base : `${base} \u2014 ${t}`;
 }
 var TASK_TYPE_NAMES = {
@@ -119109,7 +119173,7 @@ function journalDeps(deps) {
 `));
   return { journal: deps.journal, cfg: deps.cfg, warn };
 }
-var ok9 = (text3) => ({ content: [{ type: "text", text: text3 }] });
+var ok9 = (text4) => ({ content: [{ type: "text", text: text4 }] });
 function registerTransportTools(mcp, deps) {
   mcp.registerTool(
     "abap_transport",
@@ -119575,9 +119639,9 @@ function insertionPoint(tokens, nodeTok, kind) {
   }
   return insertAt;
 }
-function splice(xml3, at, text3) {
+function splice(xml3, at, text4) {
   if (at < 0 || at > xml3.length) fail3("splice offset out of range", { at, length: xml3.length });
-  return xml3.slice(0, at) + text3 + xml3.slice(at);
+  return xml3.slice(0, at) + text4 + xml3.slice(at);
 }
 function spliceOut(xml3, range) {
   if (range.start < 0 || range.end > xml3.length || range.start > range.end) {
@@ -121773,8 +121837,8 @@ function toMcpResult(res) {
   const { journalEntryId: _journalEntryId, ...rest } = res;
   return rest;
 }
-var ok10 = (text3, journalEntryId) => ({
-  content: [{ type: "text", text: text3 }],
+var ok10 = (text4, journalEntryId) => ({
+  content: [{ type: "text", text: text4 }],
   ...journalEntryId ? { journalEntryId } : {}
 });
 var SHOW_NOTES = [
@@ -124022,7 +124086,7 @@ function bopfBridgeSource(model, scenario, className) {
   let step = 1;
   let msgN = 1;
   const write = (s) => body.push(s);
-  const emitOut = (text3) => write(`        out->write( '${BOPF_LINE_PREFIX}${text3}' ).`);
+  const emitOut = (text4) => write(`        out->write( '${BOPF_LINE_PREFIX}${text4}' ).`);
   const emitOutTpl = (tpl) => write(`        out->write( |${BOPF_LINE_PREFIX}${tpl}| ).`);
   emitOut(`STEP${step++} OK service manager obtained`);
   body.length = 0;
@@ -124452,7 +124516,7 @@ function buildTestResponse(result, refs, maxChars, requestedBo) {
     maxChars
   }).text;
 }
-var ok11 = (text3) => ({ content: [{ type: "text", text: text3 }] });
+var ok11 = (text4) => ({ content: [{ type: "text", text: text4 }] });
 var SCENARIO_KEYS = ["nodes", "cleanup"];
 var SCENARIO_NODE_KEYS = ["node", "parentNode", "fields"];
 function assertKnownKeys(obj, allowed, where2) {
@@ -124986,8 +125050,8 @@ function abapTemplateLiteral(value, what) {
   }
   return value;
 }
-function wrapAbapTemplateLines(text3, indent, what) {
-  const checked = abapTemplateLiteral(text3, what);
+function wrapAbapTemplateLines(text4, indent, what) {
+  const checked = abapTemplateLiteral(text4, what);
   const overhead = indent.length + "| | &&".length;
   const budget = ADT_MAX_SOURCE_LINE_LEN - overhead;
   if (budget < 20) {
@@ -125023,8 +125087,8 @@ function wrapAbapTemplateLines(text3, indent, what) {
     (frag, idx) => idx === fragments.length - 1 ? `${indent}|${frag}|` : `${indent}|${frag} | &&`
   );
 }
-function emitWrappedGuardDetail(text3, indent, what) {
-  const wrapped = wrapAbapTemplateLines(text3, indent, what);
+function emitWrappedGuardDetail(text4, indent, what) {
+  const wrapped = wrapAbapTemplateLines(text4, indent, what);
   wrapped[wrapped.length - 1] += " ).";
   return wrapped;
 }
@@ -125731,7 +125795,7 @@ var fpmReadInputSchema = {
   xml_limit: external_exports.number().int().min(0).optional().describe("outline: max XML chars to return from xml_offset. xmlChars always reports the full length.")
 };
 var FpmReadInput = external_exports.object(fpmReadInputSchema);
-var ok12 = (text3) => ({ content: [{ type: "text", text: text3 }] });
+var ok12 = (text4) => ({ content: [{ type: "text", text: text4 }] });
 var FIDELITY_NOTES = [
   "Reads the base persisted configuration only (WDY_CONFIG_DATA/WDY_CONFIG_APPL via CL_WDR_CFG_PERSISTENCE_UTILS or raw SQL) \u2014 cannot see AppCC (application-configuration-controller) runtime overrides layered on top at execution time.",
   "Cannot see customizing/personalization overlays, CBA (Component-Based Architecture) adaptations, or POWL layout personalization \u2014 any of these can change what a user actually sees beyond what is reported here.",
@@ -126110,14 +126174,14 @@ async function runFpmReadTool(deps, args) {
     bridgeClass,
     (conn) => runFpmRead(conn, query, deps.safety)
   );
-  const text3 = query.mode === "find" ? buildFindResponse(result, detail, xmlWindowPassed, deps.cfg.maxResponseChars) : query.mode === "outline" ? buildOutlineResponse(
+  const text4 = query.mode === "find" ? buildFindResponse(result, detail, xmlWindowPassed, deps.cfg.maxResponseChars) : query.mode === "outline" ? buildOutlineResponse(
     query,
     result,
     input.detail !== void 0,
     { offset: input.xml_offset, limit: input.xml_limit },
     deps.cfg.maxResponseChars
   ) : buildAppResponse(query, result, detail, xmlWindowPassed, deps.cfg.maxResponseChars);
-  return ok12(text3);
+  return ok12(text4);
 }
 function registerFpmTools(mcp, deps) {
   mcp.registerTool(
@@ -126635,12 +126699,12 @@ function buildActivityIdSearchQuery(pattern, after) {
 function buildActivityTitleSearchQuery(pattern, language, after) {
   const activity = fld3("imgActivityText", "activity");
   const lang = fld3("imgActivityText", "language");
-  const text3 = fld3("imgActivityText", "text");
+  const text4 = fld3("imgActivityText", "text");
   const { literal: literal2, escapeChar } = imgLikePattern(pattern);
-  const where2 = [`${lang} = ${sqlLiteral(assertImgLanguage(language))}`, `${text3} LIKE '${literal2}' ESCAPE '${escapeChar}'`];
+  const where2 = [`${lang} = ${sqlLiteral(assertImgLanguage(language))}`, `${text4} LIKE '${literal2}' ESCAPE '${escapeChar}'`];
   const afterPred = afterPredicate(activity, after, assertActivityId);
   if (afterPred !== void 0) where2.push(afterPred);
-  return buildSelect(`${activity}, ${text3}`, tbl3("imgActivityText"), where2, activity);
+  return buildSelect(`${activity}, ${text4}`, tbl3("imgActivityText"), where2, activity);
 }
 function buildActivityHeaderQuery(activity) {
   const a = assertActivityId(activity, "activity");
@@ -126650,12 +126714,12 @@ function buildActivityHeaderQuery(activity) {
 function buildActivityTitlesQuery(activities, language) {
   const activity = fld3("imgActivityText", "activity");
   const lang = fld3("imgActivityText", "language");
-  const text3 = fld3("imgActivityText", "text");
+  const text4 = fld3("imgActivityText", "text");
   const where2 = [
     `${lang} = ${sqlLiteral(assertImgLanguage(language))}`,
     inClause(activity, activities, "activities", assertActivityId)
   ];
-  return buildSelect(`${activity}, ${text3}`, tbl3("imgActivityText"), where2);
+  return buildSelect(`${activity}, ${text4}`, tbl3("imgActivityText"), where2);
 }
 function buildActivityHeadersByIdQuery(actIds) {
   const actId = fld3("cusActivityHeader", "actId");
@@ -126685,12 +126749,12 @@ function buildObjectTextsQuery(objectNames, language) {
   const object3 = fld3("cusObjectText", "object");
   const objectType2 = fld3("cusObjectText", "objectType");
   const lang = fld3("cusObjectText", "language");
-  const text3 = fld3("cusObjectText", "text");
+  const text4 = fld3("cusObjectText", "text");
   const where2 = [
     `${lang} = ${sqlLiteral(assertImgLanguage(language))}`,
     inClause(object3, objectNames, "objectNames", assertEntityName)
   ];
-  return buildSelect(`${object3}, ${objectType2}, ${text3}`, tbl3("cusObjectText"), where2);
+  return buildSelect(`${object3}, ${objectType2}, ${text4}`, tbl3("cusObjectText"), where2);
 }
 function buildTableDeliveryClassQuery(tableNames) {
   const table = fld3("ddicTable", "table");
@@ -126707,12 +126771,12 @@ function buildViewClusterQuery(clusterNames) {
 function buildViewClusterTextQuery(clusterNames, language) {
   const cluster = fld3("viewClusterText", "cluster");
   const lang = fld3("viewClusterText", "language");
-  const text3 = fld3("viewClusterText", "text");
+  const text4 = fld3("viewClusterText", "text");
   const where2 = [
     `${lang} = ${sqlLiteral(assertImgLanguage(language))}`,
     inClause(cluster, clusterNames, "clusterNames", assertEntityName)
   ];
-  return buildSelect(`${cluster}, ${text3}`, tbl3("viewClusterText"), where2);
+  return buildSelect(`${cluster}, ${text4}`, tbl3("viewClusterText"), where2);
 }
 function buildViewClusterMembersQuery(clusterNames) {
   const cluster = fld3("viewClusterMember", "cluster");
@@ -126742,13 +126806,13 @@ function buildTableTextsQuery(tableNames, language) {
   const table = fld3("ddicTableText", "table");
   const activeState = fld3("ddicTableText", "activeState");
   const lang = fld3("ddicTableText", "language");
-  const text3 = fld3("ddicTableText", "text");
+  const text4 = fld3("ddicTableText", "text");
   const where2 = [
     `${activeState} = ${sqlLiteral("A")}`,
     `${lang} = ${sqlLiteral(assertImgLanguage(language))}`,
     inClause(table, tableNames, "tableNames", assertEntityName)
   ];
-  return buildSelect(`${table}, ${text3}`, tbl3("ddicTableText"), where2);
+  return buildSelect(`${table}, ${text4}`, tbl3("ddicTableText"), where2);
 }
 function buildViewHeaderQuery(viewNames) {
   const view = fld3("viewHeader", "view");
@@ -126761,13 +126825,13 @@ function buildViewTextQuery(viewNames, language) {
   const view = fld3("viewText", "view");
   const activeState = fld3("viewText", "activeState");
   const lang = fld3("viewText", "language");
-  const text3 = fld3("viewText", "text");
+  const text4 = fld3("viewText", "text");
   const where2 = [
     `${activeState} = ${sqlLiteral("A")}`,
     `${lang} = ${sqlLiteral(assertImgLanguage(language))}`,
     inClause(view, viewNames, "viewNames", assertEntityName)
   ];
-  return buildSelect(`${view}, ${text3}`, tbl3("viewText"), where2);
+  return buildSelect(`${view}, ${text4}`, tbl3("viewText"), where2);
 }
 function buildViewBaseTablesQuery(viewNames) {
   const view = fld3("viewBaseTable", "view");
@@ -126804,12 +126868,12 @@ function buildTransactionsQuery(tcodes) {
 function buildTransactionTextsQuery(tcodes, language) {
   const tcode = fld3("transactionText", "transaction");
   const lang = fld3("transactionText", "language");
-  const text3 = fld3("transactionText", "text");
+  const text4 = fld3("transactionText", "text");
   const where2 = [
     `${lang} = ${sqlLiteral(assertImgLanguage(language))}`,
     inClause(tcode, tcodes, "tcodes", assertTransactionCode2)
   ];
-  return buildSelect(`${tcode}, ${text3}`, tbl3("transactionText"), where2);
+  return buildSelect(`${tcode}, ${text4}`, tbl3("transactionText"), where2);
 }
 function buildViewMaintenanceEventsQuery(viewNames) {
   const view = fld3("viewMaintenanceEvent", "view");
@@ -126830,22 +126894,22 @@ function buildDomainValueTextsQuery(domainNames, language) {
   const activeState = fld3("domainValueText", "activeState");
   const lang = fld3("domainValueText", "language");
   const valueLow = fld3("domainValueText", "valueLow");
-  const text3 = fld3("domainValueText", "text");
+  const text4 = fld3("domainValueText", "text");
   const where2 = [
     `${activeState} = ${sqlLiteral("A")}`,
     `${lang} = ${sqlLiteral(assertImgLanguage(language))}`,
     inClause(domain2, domainNames, "domainNames", assertEntityName)
   ];
-  return buildSelect(`${domain2}, ${valueLow}, ${text3}`, tbl3("domainValueText"), where2, `${domain2}, ${valueLow}`);
+  return buildSelect(`${domain2}, ${valueLow}, ${text4}`, tbl3("domainValueText"), where2, `${domain2}, ${valueLow}`);
 }
 function buildTreeRootProbeQuery(language) {
   const treeId = fld3("imgTreeNodeText", "treeId");
   const nodeId = fld3("imgTreeNodeText", "nodeId");
   const lang = fld3("imgTreeNodeText", "language");
-  const text3 = fld3("imgTreeNodeText", "text");
+  const text4 = fld3("imgTreeNodeText", "text");
   const { literal: literal2, escapeChar } = imgLikePattern(`${IMG_TREE_TEXT_PROBE}*`);
-  const where2 = [`${lang} = ${sqlLiteral(assertImgLanguage(language))}`, `${text3} LIKE '${literal2}' ESCAPE '${escapeChar}'`];
-  return buildSelect(`${treeId}, ${nodeId}, ${lang}, ${text3}`, tbl3("imgTreeNodeText"), where2);
+  const where2 = [`${lang} = ${sqlLiteral(assertImgLanguage(language))}`, `${text4} LIKE '${literal2}' ESCAPE '${escapeChar}'`];
+  return buildSelect(`${treeId}, ${nodeId}, ${lang}, ${text4}`, tbl3("imgTreeNodeText"), where2);
 }
 function buildTreeChildrenQuery(treeId, parentId2, language, after) {
   const node2 = tbl3("imgTreeNode");
@@ -127844,7 +127908,7 @@ var imgReadInputSchema = {
   limit: external_exports.number().int().min(1).optional().describe(`search/tree only: max rows to return. Default ${IMG_PAGE_DEFAULT}, ceiling ${IMG_PAGE_MAX}.`)
 };
 var ImgReadInput = external_exports.object(imgReadInputSchema);
-var ok13 = (text3) => ({ content: [{ type: "text", text: text3 }] });
+var ok13 = (text4) => ({ content: [{ type: "text", text: text4 }] });
 function rejectForMode(mode, field, value) {
   if (value !== void 0) {
     throw new AbapError("BAD_INPUT", `"${field}" is not valid with mode "${mode}".`, { mode, field });
@@ -127865,9 +127929,9 @@ function buildQuery3(input, cfg) {
     rejectForMode("search", "treeId", input.treeId);
     rejectForMode("search", "object", input.object);
     rejectForMode("search", "kind", input.kind);
-    const text3 = requireField("search", "query", input.query);
+    const text4 = requireField("search", "query", input.query);
     const limit = Math.min(input.limit ?? IMG_PAGE_DEFAULT, IMG_PAGE_MAX);
-    const q2 = { mode: "search", text: text3, language, after: input.after, limit };
+    const q2 = { mode: "search", text: text4, language, after: input.after, limit };
     return q2;
   }
   if (input.mode === "show") {
@@ -128343,7 +128407,7 @@ var TRKEY_TASK_RE = /^task_len=\[(\d+)\] task=\[/;
 var TRKEY_VALUE_RE = /^len=\[(\d+)\] value=\[/;
 var ABSENT_RE = /^row=\[(\d+)\]$/;
 var ERROR_RE = /^class=\[([A-Za-z0-9_/]{1,60})\] len=\[(\d+)\] value=\[/;
-function parseImgWriteTranscript(text3) {
+function parseImgWriteTranscript(text4) {
   const result = {
     client: null,
     table: null,
@@ -128359,9 +128423,9 @@ function parseImgWriteTranscript(text3) {
     droppedLines: 0,
     probed: false,
     applied: null,
-    raw: text3
+    raw: text4
   };
-  for (const line of text3.replace(/\r\n/g, "\n").split("\n")) {
+  for (const line of text4.replace(/\r\n/g, "\n").split("\n")) {
     if (line.startsWith(IMGW_LINE_PREFIX)) {
       const rest = line.slice(IMGW_LINE_PREFIX.length);
       const spaceIdx = rest.indexOf(" ");
@@ -128591,9 +128655,9 @@ function extractCustReqValue(afterHead, fieldsRe) {
 var CUSTREQ_VAL_RE = /^len=\[(\d+)\] value=\[/;
 var CUSTREQ_ERR_RE = /^exception=\[([A-Za-z0-9_]{1,30})\] len=\[(\d+)\] value=\[/;
 var CUSTREQ_WARN_RE = /^code=\[([A-Za-z0-9_]{1,30})\] len=\[(\d+)\] value=\[/;
-function parseCustomizingRequestTranscript(text3) {
+function parseCustomizingRequestTranscript(text4) {
   const result = { errors: [], warnings: [] };
-  for (const line of text3.replace(/\r\n/g, "\n").split("\n")) {
+  for (const line of text4.replace(/\r\n/g, "\n").split("\n")) {
     if (line.startsWith(CUSTREQ_LINE_PREFIX)) {
       const rest = line.slice(CUSTREQ_LINE_PREFIX.length);
       const spaceIdx = rest.indexOf(" ");
@@ -129042,9 +129106,9 @@ async function readImgChecks(conn, q) {
     notes.push(...serverNotes4(textsRs));
     mapRows(textsRs, tbl5("domainValueText"), notes, (r) => {
       const code = r[fld5("domainValueText", "valueLow")];
-      const text3 = r[fld5("domainValueText", "text")];
-      if (code === void 0 || text3 === void 0) return void 0;
-      codeToText.set(code, text3);
+      const text4 = r[fld5("domainValueText", "text")];
+      if (code === void 0 || text4 === void 0) return void 0;
+      codeToText.set(code, text4);
       return true;
     });
     const missingCodes = /* @__PURE__ */ new Set();
@@ -129180,7 +129244,7 @@ var imgEditInputSchema = {
   owner: external_exports.string().optional().describe("create_request only: the request owner. Defaults to the logged-in user.")
 };
 var ImgEditInput = external_exports.object(imgEditInputSchema);
-var ok14 = (text3) => ({ content: [{ type: "text", text: text3 }] });
+var ok14 = (text4) => ({ content: [{ type: "text", text: text4 }] });
 function requireString(mode, field, value) {
   const v = (value ?? "").trim();
   if (!v) throw new AbapError("BAD_INPUT", `mode "${mode}" requires ${field}.`, { mode, field });
@@ -130766,7 +130830,7 @@ var uiInputSchema = {
   )
 };
 var UiInput = external_exports.object(uiInputSchema);
-var ok15 = (text3) => ({ content: [{ type: "text", text: text3 }] });
+var ok15 = (text4) => ({ content: [{ type: "text", text: text4 }] });
 var FIDELITY_NOTES2 = [
   "Batch input (BDC) replays classic dynpro screens only. Web Dynpro, FPM/FBI (a different mechanism \u2014 see abap_fpm_read), and Fiori/UI5 screens have no dynpro number and cannot be reached by this tool at any effort level.",
   "BDC scripts are brittle by construction, not by defect: they hardcode screen numbers and field names. A script proven against one system's layout can break on a modal dialog, an authorization popup, a transaction variant, a customizing difference, or a support-package UI change on another \u2014 a working sequence is not portable without re-verification."
@@ -132391,7 +132455,7 @@ var enhInputSchema = {
   )
 };
 var EnhInput = external_exports.object(enhInputSchema);
-var ok16 = (text3) => ({ content: [{ type: "text", text: text3 }] });
+var ok16 = (text4) => ({ content: [{ type: "text", text: text4 }] });
 function enhGateKey(name) {
   const trimmed = name.trim().toUpperCase();
   return trimmed === "" ? void 0 : trimmed;
@@ -133216,20 +133280,20 @@ function registerEnhancementTools(mcp, deps) {
         const input = args;
         const operation = input.operation ?? "write_description";
         if (operation === "discover_hook_anchors" || operation === "create_hook") {
-          const text3 = await runEnhHookOperation(deps, operation, input);
-          return ok16(text3);
+          const text4 = await runEnhHookOperation(deps, operation, input);
+          return ok16(text4);
         }
         if (operation === "delete") {
-          const text3 = await runEnhDeleteOperation(deps, input);
-          return ok16(text3);
+          const text4 = await runEnhDeleteOperation(deps, input);
+          return ok16(text4);
         }
         if (operation === "set_impl_active") {
-          const text3 = await runEnhSetActiveOperation(deps, input);
-          return ok16(text3);
+          const text4 = await runEnhSetActiveOperation(deps, input);
+          return ok16(text4);
         }
         if (operation !== "write_description") {
-          const text3 = await runEnhCreateOperation(deps, operation, input);
-          return ok16(text3);
+          const text4 = await runEnhCreateOperation(deps, operation, input);
+          return ok16(text4);
         }
         const type = input.type;
         if (type === void 0) {
@@ -133377,7 +133441,7 @@ var dataPreviewInputSchema = {
   )
 };
 var DataPreviewInput = external_exports.object(dataPreviewInputSchema);
-var ok17 = (text3) => ({ content: [{ type: "text", text: text3 }] });
+var ok17 = (text4) => ({ content: [{ type: "text", text: text4 }] });
 function uniqueColumnKeys(names) {
   const seen = /* @__PURE__ */ new Map();
   return names.map((raw, i) => {
@@ -133575,8 +133639,8 @@ function attrOrEmpty(node2, name) {
 function elementText2(value) {
   if (typeof value === "string") return value;
   const rec = asRecord2(value);
-  const text3 = rec?.["#text"];
-  return typeof text3 === "string" ? text3 : void 0;
+  const text4 = rec?.["#text"];
+  return typeof text4 === "string" ? text4 : void 0;
 }
 function isXmlTrue(value) {
   return value === "true";
@@ -134208,7 +134272,7 @@ function dumpsInputSchema(options = {}) {
   return external_exports.looseObject(dumpsInputShape(options));
 }
 var DumpsInput = external_exports.object({ ...tier1Shape(), ...tier2Shape() });
-var ok18 = (text3) => ({ content: [{ type: "text", text: text3 }] });
+var ok18 = (text4) => ({ content: [{ type: "text", text: text4 }] });
 var LIST_ONLY = ["query", "from", "to", "max"];
 var SHOW_ONLY = ["key", "chapters", "offset", "variables"];
 var KNOWN_KEYS = new Set(Object.keys(DumpsInput.shape));
@@ -134692,8 +134756,8 @@ function attrOrEmpty2(node2, name) {
 function elementText3(value) {
   if (typeof value === "string") return value;
   const rec = asRecord3(value);
-  const text3 = rec?.["#text"];
-  return typeof text3 === "string" ? text3 : void 0;
+  const text4 = rec?.["#text"];
+  return typeof text4 === "string" ? text4 : void 0;
 }
 function isXmlTrue2(value) {
   return value === "true";
@@ -135838,7 +135902,7 @@ function assertCanDeleteAtcWorklist(gate) {
     d.hint ?? "Deleting an ATC worklist needs the same write capability as running ATC."
   );
 }
-var ok19 = (text3) => ({ content: [{ type: "text", text: text3 }] });
+var ok19 = (text4) => ({ content: [{ type: "text", text: text4 }] });
 function registerAtcTools(mcp, deps) {
   mcp.registerTool(
     "abap_atc",
@@ -136055,8 +136119,8 @@ function elementText4(value) {
   if (value === void 0 || value === null) return void 0;
   const rec = asRecord4(value);
   if (rec === void 0) return void 0;
-  const text3 = rec["#text"];
-  return typeof text3 === "string" ? text3 : "";
+  const text4 = rec["#text"];
+  return typeof text4 === "string" ? text4 : "";
 }
 function parseXmlDocument2(body, what) {
   let parsed;
@@ -136400,7 +136464,7 @@ async function abapQuickFix(conn, input, maxChars, gate, journal, transport, ver
     maxChars
   });
 }
-var ok20 = (text3) => ({ content: [{ type: "text", text: text3 }] });
+var ok20 = (text4) => ({ content: [{ type: "text", text: text4 }] });
 async function explainReadOnlyRefusal(fn) {
   try {
     return await fn();
@@ -136972,10 +137036,11 @@ function findEntitySet(contract, name) {
 // src/adt/odata.ts
 init_truncate();
 var BINDING_BASE = "/sap/bc/adt/businessservices/bindings";
-var BINDING_ACCEPT = "application/vnd.sap.adt.businessservices.servicebinding.v1+xml";
+var BINDING_ACCEPT = "application/vnd.sap.adt.businessservices.servicebinding.v2+xml, application/vnd.sap.adt.businessservices.servicebinding.v1+xml";
 var LINK_REL_V2 = "http://www.sap.com/categories/odatav2";
 var LINK_REL_V4 = "http://www.sap.com/categories/odatav4";
 var BINDING_NAME_CHARS = /^[A-Z0-9_/$]{1,40}$/;
+var SERVICE_NAME_CHARS = /^[A-Za-z0-9_/$.\-]{1,120}$/;
 var SERVICE_METADATA_PATH2 = /^\/sap\/opu\/odata4?\/[A-Za-z0-9_\-/]{1,240}\/\$metadata$/;
 var REPEATABLE_NAMES2 = /* @__PURE__ */ new Set([
   "link",
@@ -137016,6 +137081,19 @@ function boolAttr2(node2, name) {
   if (raw === "false" || raw === "") return false;
   return void 0;
 }
+function text3(node2, name) {
+  if (!isRec2(node2)) return void 0;
+  const v = node2[name];
+  if (typeof v === "string") {
+    const s = v.trim();
+    return s === "" ? void 0 : s;
+  }
+  if (isRec2(v) && typeof v["#text"] === "string") {
+    const s = v["#text"].trim();
+    return s === "" ? void 0 : s;
+  }
+  return void 0;
+}
 function assertServiceRuntimePath(path8) {
   if (SERVICE_METADATA_PATH2.test(path8)) return;
   throw new AbapError(
@@ -137048,9 +137126,12 @@ function normaliseBindingName(raw) {
   }
   return name;
 }
+function serviceBindingUri(name) {
+  return `${BINDING_BASE}/${encodeURIComponent(name.toLowerCase())}`;
+}
 async function readServiceBinding(conn, bindingName) {
   const name = normaliseBindingName(bindingName);
-  const url2 = `${BINDING_BASE}/${encodeURIComponent(name.toLowerCase())}`;
+  const url2 = serviceBindingUri(name);
   let body;
   try {
     body = (await conn.get(url2, { headers: { Accept: BINDING_ACCEPT } })).body;
@@ -137099,7 +137180,8 @@ async function readServiceBinding(conn, bindingName) {
     ...opt2("srvdName", attr9(child3(content, "serviceDefinition"), "name")),
     ...opt2("packageName", attr9(child3(sb, "packageRef"), "name")),
     ...opt2("catalogueUrl", catalogueUrl),
-    ...opt2("catalogueRel", catalogueRel)
+    ...opt2("catalogueRel", catalogueRel),
+    ...opt2("allowedAction", attr9(binding, "allowedAction"))
   };
 }
 function opt2(key, value) {
@@ -137136,7 +137218,8 @@ async function readServiceRuntimeInfo(conn, binding) {
     throw e;
   }
   const doc = adtXml.parse(body);
-  const service = list2(child3(doc, "serviceList"), "services")[0];
+  const container = child3(doc, "serviceList") ?? child3(doc, "serviceGroup");
+  const service = list2(container, "services")[0];
   if (!service) {
     throw new AbapError(
       "SERVICE_NOT_PUBLISHED",
@@ -137156,11 +137239,15 @@ async function readServiceRuntimeInfo(conn, binding) {
     ...opt2("serviceId", attr9(service, "serviceId")),
     ...opt2("serviceVersion", attr9(service, "serviceVersion") ?? attr9(information, "version")),
     ...opt2("servicePath", rawUrl === void 0 ? void 0 : pathOfServiceUrl(rawUrl)),
-    ...opt2("published", boolAttr2(service, "published")),
+    // V4 carries `published` on the root `serviceGroup`, never on the
+    // individual `services` element (which has `created="true"` instead) —
+    // fall back to the container so a published V4 service isn't reported
+    // as tri-state-unknown just because the flag lives one level up.
+    ...opt2("published", boolAttr2(service, "published") ?? boolAttr2(container, "published")),
     collections
   };
 }
-var PUBLISH_HINT = "Publish the service binding first: open it in ADT (or SAP GUI) and press 'Publish' \u2014 or 'Activate' if the binding itself is inactive. abapsmith will NOT publish it: publishing POSTs to /sap/bc/adt/businessservices/odatav2/publishjobs, which mutates the system's runtime service surface, and this feature is read-only introspection by design. Retrying this call before publishing will return the identical error.";
+var PUBLISH_HINT = 'Publish the service binding first: run `abap_service {"binding":"<NAME>","op":"publish","confirm":"<NAME>"}` (needs ABAP_MODE=admin; it echoes the binding name back as confirmation before it POSTs anything) \u2014 or publish it in ADT (or SAP GUI) by hand, pressing \'Activate\' first if the binding itself is inactive. Retrying this call before publishing will return the identical error.';
 function assertPublished(binding, runtime) {
   if (binding.published === false || runtime?.published === false) {
     throw new AbapError(
@@ -137174,6 +137261,129 @@ function assertPublished(binding, runtime) {
       PUBLISH_HINT
     );
   }
+}
+function bindingODataVersion(binding) {
+  const fromBinding = binding.bindingVersion?.toUpperCase();
+  if (fromBinding === "V2" || fromBinding === "V4") return fromBinding;
+  if (binding.catalogueRel === LINK_REL_V2) return "V2";
+  if (binding.catalogueRel === LINK_REL_V4) return "V4";
+  throw new AbapError(
+    "UNSUPPORTED",
+    `The OData version for service binding ${binding.name} could not be established from its binding document (no srvb:version, and no recognised catalogue link relation), so no publish endpoint can be chosen.`,
+    { bindingName: binding.name, bindingVersion: binding.bindingVersion, catalogueRel: binding.catalogueRel },
+    "abapsmith will not guess which OData runtime (V2 or V4) to register the service in. Check the binding's version in ADT."
+  );
+}
+var PUBLISH_JOB_BASE = {
+  V2: "/sap/bc/adt/businessservices/odatav2",
+  V4: "/sap/bc/adt/businessservices/odatav4"
+};
+var PUBLISH_JOB_PATH = /^\/sap\/bc\/adt\/businessservices\/odatav[24]\/(?:un)?publishjobs$/;
+function publishJobPath(action, version2) {
+  const suffix = action === "publish" ? "publishjobs" : "unpublishjobs";
+  const path8 = `${PUBLISH_JOB_BASE[version2]}/${suffix}`;
+  if (!PUBLISH_JOB_PATH.test(path8)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `Built an unexpected publish-job path '${path8}' for action '${action}' / version ${version2}.`,
+      { action, version: version2, path: path8 },
+      "This should never fire; if it does, PUBLISH_JOB_BASE above was edited to something outside the two paths this module is allowed to POST to."
+    );
+  }
+  return path8;
+}
+var STATUS_FIELD_NAMES = ["SEVERITY", "SHORT_TEXT", "LONG_TEXT"];
+var STATUS_SEARCH_MAX_DEPTH = 8;
+function findStatusNode(node2, depth = 0) {
+  if (!isRec2(node2) || depth > STATUS_SEARCH_MAX_DEPTH) return void 0;
+  if (STATUS_FIELD_NAMES.some((f) => f in node2)) return node2;
+  for (const v of Object.values(node2)) {
+    if (Array.isArray(v)) {
+      for (const item of v) {
+        const found = findStatusNode(item, depth + 1);
+        if (found) return found;
+      }
+    } else {
+      const found = findStatusNode(v, depth + 1);
+      if (found) return found;
+    }
+  }
+  return void 0;
+}
+async function runPublishJob(conn, binding, action, proof) {
+  const odataVersion = bindingODataVersion(binding);
+  const jobPath = publishJobPath(action, odataVersion);
+  const serviceName = binding.serviceName ?? binding.name;
+  if (!SERVICE_NAME_CHARS.test(serviceName)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `Service binding ${binding.name} names a service '${truncateText(serviceName, MESSAGE_EXCERPT_MAX)}' outside the character set abapsmith accepts for a publish job.`,
+      { bindingName: binding.name, serviceName },
+      "This name came from the binding document, not from the caller, so this means the document carried something unexpected. abapsmith will not put it into a request body unescaped."
+    );
+  }
+  const objectReference = odataVersion === "V4" ? `<adtcore:objectReference adtcore:name="${serviceName}" adtcore:type="SCGR"/>` : `<adtcore:objectReference adtcore:name="${serviceName}"/>`;
+  const body = `<?xml version="1.0" encoding="UTF-8"?><adtcore:objectReferences xmlns:adtcore="http://www.sap.com/adt/core">${objectReference}</adtcore:objectReferences>`;
+  const headers = odataVersion === "V4" ? {
+    Accept: "application/xml, application/vnd.sap.as+xml;charset=UTF-8;dataname=com.sap.adt.StatusMessage",
+    "Content-Type": "application/xml"
+  } : { Accept: "application/*", "Content-Type": "application/xml" };
+  const qs = {};
+  if (odataVersion === "V2") {
+    qs.servicename = serviceName;
+    if (binding.serviceVersion !== void 0) qs.serviceversion = binding.serviceVersion;
+  }
+  let responseBody;
+  try {
+    responseBody = (await conn.post(jobPath, { headers, body, ...odataVersion === "V2" ? { qs } : {} })).body;
+  } catch (e) {
+    const info = adtExceptionInfo(e);
+    if (info?.status === 403) {
+      throw new AbapError(
+        "SERVICE_PUBLISH_FAILED",
+        `ADT refused the ${action} job for service binding ${binding.name} with HTTP 403.`,
+        { bindingName: binding.name, serviceName, jobPath, status: 403 },
+        "ADT refused the publish job itself: the S_DEVELOP/S_ADT_RES authority that got this session in does not cover registering a service \u2014 that needs its own authorization, which a developer session does not automatically carry."
+      );
+    }
+    const status = info?.status;
+    throw new AbapError(
+      "ADT_ERROR",
+      `The ${action} job for service binding ${binding.name} failed${status === void 0 ? "" : ` with HTTP ${status}`}${info?.message ? `: ${truncateText(info.message, MESSAGE_EXCERPT_MAX)}` : ""}`,
+      {
+        bindingName: binding.name,
+        serviceName,
+        jobPath,
+        ...status === void 0 ? {} : { status },
+        ...info?.message ? { serverMessage: truncateText(info.message, MESSAGE_EXCERPT_MAX) } : {}
+      },
+      "This is not the 403 authorization case handled separately \u2014 check the excerpt above for what ADT actually said."
+    );
+  }
+  const doc = adtXml.parse(responseBody);
+  const statusNode = findStatusNode(doc);
+  const severity = text3(statusNode, "SEVERITY")?.toLowerCase();
+  const shortText = text3(statusNode, "SHORT_TEXT");
+  const longText = text3(statusNode, "LONG_TEXT");
+  if (severity !== void 0 && severity.startsWith("error")) {
+    throw new AbapError(
+      "SERVICE_PUBLISH_FAILED",
+      `The ${action} job for service binding ${binding.name} failed: ${truncateText(shortText ?? "(server gave no short text)", MESSAGE_EXCERPT_MAX)}`,
+      { bindingName: binding.name, serviceName, jobPath, severity, shortText },
+      "The publish job reached the server and the server refused it. Usual causes: an inactive service binding or service definition, a service name already registered by another binding, or a missing S_SERVICE/ICF authorization. Fix the cause and call again \u2014 retrying unchanged returns the same answer."
+    );
+  }
+  return {
+    action,
+    bindingName: binding.name,
+    serviceName,
+    ...opt2("serviceVersion", binding.serviceVersion),
+    odataVersion,
+    jobPath,
+    ...opt2("severity", severity),
+    ...opt2("shortText", shortText),
+    ...opt2("longText", longText)
+  };
 }
 function resolveVersion(binding, contract) {
   const fromBinding = binding.bindingVersion?.toUpperCase();
@@ -137280,7 +137490,13 @@ init_compact();
 var serviceInputSchema = {
   binding: external_exports.string().describe("SRVB name, not the CDS view or SRVD."),
   mode: external_exports.enum(["contract", "entity", "raw"]).optional().describe("contract (default): sets/keys/perms. entity: expand one set, needs entity. raw: EDMX."),
-  entity: external_exports.string().optional().describe("Set/type to expand. Required for mode=entity.")
+  entity: external_exports.string().optional().describe("Set/type to expand. Required for mode=entity."),
+  op: external_exports.enum(["read", "publish", "unpublish"]).optional().describe(
+    "read (default): contract/entity/raw as above. publish/unpublish: register or deregister the binding in the OData service runtime \u2014 needs confirm, and is off unless ABAP_ALLOW_SERVICE_PUBLISH permits it."
+  ),
+  confirm: external_exports.string().optional().describe(
+    "Required to arm op=publish/unpublish: the binding name, echoed back exactly. Omit it first to get a dry run."
+  )
 };
 var ServiceInput = external_exports.object(serviceInputSchema);
 var KNOWN_KEYS4 = new Set(Object.keys(ServiceInput.shape));
@@ -137400,7 +137616,7 @@ function commonNotes(sc) {
   );
   return notes;
 }
-function renderServiceResult(sc, input, maxChars) {
+function renderServiceResult(sc, input, maxChars, extra) {
   const mode = input.mode ?? "contract";
   const c = sc.contract;
   if (mode === "raw") {
@@ -137475,12 +137691,14 @@ function renderServiceResult(sc, input, maxChars) {
       path: sc.metadataPath,
       sets: c.entitySets.length,
       types: c.entityTypes.length,
-      package: sc.binding.packageName
+      package: sc.binding.packageName,
+      ...extra?.header
     },
     sections,
     body: renderEntitySets(sc),
     bodyLabel: "ENTITY SETS",
     notes: [
+      ...extra?.notes ?? [],
       ...commonNotes(sc),
       "CAPS: C/U/D = creatable/updatable/deletable, a leading minus means the service explicitly forbids it, and an absent letter means the metadata does not say.",
       `Compressed from ${c.rawBytes} bytes of EDMX. Expand one set with mode="entity", or get the original with mode="raw".`
@@ -137505,16 +137723,206 @@ async function abapService(conn, input, maxChars) {
     maxChars
   );
 }
-var ok21 = (text3) => ({ content: [{ type: "text", text: text3 }] });
+function publishTarget(binding) {
+  return {
+    name: binding.name,
+    type: "SRVB/SVB",
+    exists: true,
+    ...binding.packageName === void 0 ? {} : { packageName: binding.packageName }
+  };
+}
+function publishCeilingDecision(gate, binding) {
+  return gate.evaluate("write", publishTarget(binding), { publish: true, corr: { kind: "local" } });
+}
+function publishAccessHint(gate) {
+  const mode = gate.config.abapMode;
+  return mode !== void 0 ? `ABAP_MODE=admin (it is ${mode})` : "ABAP_ALLOW_SERVICE_PUBLISH=true";
+}
+function assertPublishCeiling(gate, binding, action) {
+  const d = publishCeilingDecision(gate, binding);
+  if (d.allowed) return;
+  throw new AbapError(
+    d.code ?? "READ_ONLY",
+    d.reason,
+    { operation: `service-${action}`, binding: binding.name, rule: d.rule },
+    d.hint ?? `${action === "publish" ? "Publishing" : "Unpublishing"} a service binding needs ${publishAccessHint(gate)}. It is deliberately NOT implied by ordinary write access (ABAP_MODE=edit, or legacy ABAP_ALLOW_WRITE).`
+  );
+}
+function assertConfirm(action, bindingName, confirm) {
+  if (confirm.trim().toUpperCase() !== bindingName.trim().toUpperCase()) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `confirm must echo the binding name exactly to ${action} ${bindingName}.`,
+      { binding: bindingName, action, confirm },
+      `Call again with confirm: "${bindingName}" once you've reviewed the dry run.`
+    );
+  }
+}
+function publishDryRun(binding, action, ceiling, maxChars) {
+  let jobPath;
+  try {
+    jobPath = publishJobPath(action, bindingODataVersion(binding));
+  } catch {
+    jobPath = void 0;
+  }
+  const armedCall = JSON.stringify({ binding: binding.name, op: action, confirm: binding.name });
+  return buildResponse({
+    header: {
+      binding: binding.name,
+      service: binding.serviceName,
+      op: action,
+      published: binding.published,
+      jobPath,
+      gate: ceiling.allowed ? "allowed" : "refused"
+    },
+    notes: [
+      ceiling.allowed ? `The safety gate permits this ${action}.` : `The safety gate refuses this ${action}: ${ceiling.reason}`,
+      "DRY RUN \u2014 nothing was published or unpublished. This call only read the binding.",
+      `To ${action}, call again with: ${armedCall}`
+    ],
+    maxChars
+  });
+}
+async function abapServicePublish(conn, input, action, maxChars, gate, journal) {
+  const binding = await readServiceBinding(conn, input.binding);
+  const ceiling = publishCeilingDecision(gate, binding);
+  if (input.confirm === void 0) {
+    return publishDryRun(binding, action, ceiling, maxChars);
+  }
+  assertConfirm(action, binding.name, input.confirm);
+  assertPublishCeiling(gate, binding, action);
+  const proof = gate.authorize("write", publishTarget(binding), {
+    publish: true,
+    corr: { kind: "local" }
+  });
+  let beforeRuntime;
+  let beforeCapture = "captured";
+  try {
+    beforeRuntime = await readServiceRuntimeInfo(conn, binding);
+  } catch {
+    beforeRuntime = void 0;
+    beforeCapture = "failed";
+  }
+  const beforeSource = `binding.published=${binding.published ?? "unstated"} runtime.published=${beforeRuntime?.published ?? "unstated"} allowedAction=${binding.allowedAction ?? "unstated"}`;
+  const journalObject = {
+    name: binding.name,
+    type: "SRVB/SVB",
+    uri: serviceBindingUri(binding.name),
+    package: binding.packageName ?? "",
+    description: binding.serviceName ?? binding.name
+  };
+  const journalSystemKey = systemKey({ sid: journal.cfg.sid, url: journal.cfg.url, client: journal.cfg.client });
+  const entry = action === "publish" ? await journal.journal.begin({
+    operation: "service-publish",
+    object: journalObject,
+    existedBefore: true,
+    beforeCapture,
+    beforeSource,
+    irreversible: true,
+    systemKey: journalSystemKey,
+    // No `trSource`: that field answers "where did the transport
+    // request come from" (see `JournalTrSource`) — a publish has no
+    // transport request at all (`corr: {kind:"local"}` above is exactly
+    // this fact), so the field stays absent rather than naming a
+    // request that doesn't exist.
+    tool: "abap_service"
+  }) : await journal.journal.begin({
+    operation: "service-unpublish",
+    object: journalObject,
+    existedBefore: true,
+    beforeCapture,
+    beforeSource,
+    irreversible: true,
+    systemKey: journalSystemKey,
+    tool: "abap_service"
+  });
+  let outcome;
+  try {
+    outcome = await runPublishJob(conn, binding, action, proof);
+  } catch (e) {
+    if (entry) {
+      journal.warn(
+        `[abapsmith] WARNING: ${binding.name} \u2014 the ${action} job failed with "${e.message}". Journal entry ${entry.id} stays \`pending\`: a failed call is not proof the ${action} did not reach the system. Re-check with abap_service {"binding":"${binding.name}"} before retrying.`
+      );
+    }
+    throw e;
+  }
+  if (entry) {
+    const settled = await journal.journal.settle(entry.id, {
+      outcome: "succeeded",
+      afterSource: `severity=${outcome.severity ?? "unstated"} action=${outcome.action}`
+    });
+    if (!settled.settled) {
+      journal.warn(
+        `[abapsmith] WARNING: ${binding.name} \u2014 journal entry ${entry.id} could not be settled (${settled.reason}${settled.error ? `: ${settled.error}` : ""}). It will read as \`pending\`; the ${action} itself succeeded.`
+      );
+    }
+  }
+  const warningNote = outcome.severity !== void 0 && !outcome.severity.startsWith("ok") && !outcome.severity.startsWith("error") ? [`Server reported severity=${outcome.severity}: ${outcome.shortText ?? outcome.longText ?? "(no text)"}`] : [];
+  if (action === "unpublish") {
+    return buildResponse({
+      header: {
+        binding: outcome.bindingName,
+        service: outcome.serviceName,
+        op: "unpublish",
+        odata: outcome.odataVersion,
+        severity: outcome.severity
+      },
+      notes: [
+        `${outcome.bindingName} was unpublished from the OData service runtime.`,
+        ...warningNote,
+        outcome.shortText ?? "(server gave no short text)"
+      ],
+      maxChars
+    });
+  }
+  try {
+    const sc = await readServiceContract(conn, binding.name);
+    return renderServiceResult(sc, {}, maxChars, {
+      header: { severity: outcome.severity },
+      notes: [
+        `${outcome.bindingName} was just published to the OData ${outcome.odataVersion} service runtime.`,
+        ...warningNote
+      ]
+    });
+  } catch (e) {
+    return buildResponse({
+      header: {
+        binding: outcome.bindingName,
+        service: outcome.serviceName,
+        op: "publish",
+        odata: outcome.odataVersion,
+        severity: outcome.severity
+      },
+      notes: [
+        `${outcome.bindingName} was published to the OData service runtime.`,
+        ...warningNote,
+        `Reading the updated contract back failed: ${e.message}. The publish itself succeeded \u2014 call abap_service {"binding":"${outcome.bindingName}"} to see it.`
+      ],
+      maxChars
+    });
+  }
+}
+var ok21 = (text4) => ({ content: [{ type: "text", text: text4 }] });
+function journalDeps2(deps) {
+  return { journal: deps.journal, cfg: deps.cfg, warn: deps.warn };
+}
 function registerServiceTools(mcp, deps) {
   mcp.registerTool(
     "abap_service",
     {
-      description: "OData contract a RAP SRVB publishes: entity sets, keys, fields, nav, CRUD/search/page perms; V2/V4 detected. Cannot read entity data \u2014 contract only. Unpublished bindings named as such.",
+      description: 'OData contract a RAP SRVB publishes: entity sets, keys, fields, nav, CRUD/search/page perms; V2/V4 detected. Cannot read entity data \u2014 contract only. op="publish"/"unpublish" register or deregister the binding in the OData service runtime (admin-mode ceiling, confirm required to arm). Unpublished bindings named as such.',
       inputSchema: serviceInputSchema,
       annotations: {
-        readOnlyHint: true,
-        destructiveHint: false,
+        // op="publish"/"unpublish" mutate (register/deregister an ICF node),
+        // so this is no longer the always-read-only tool it was before:
+        // readOnlyHint is now false. idempotentHint/openWorldHint stay true
+        // — publishing an already-published binding (or unpublishing an
+        // already-unpublished one) re-asserts the same end state rather
+        // than accumulating, and the mutation reaches outside this MCP
+        // session (the ICF/service catalogue), same as before.
+        readOnlyHint: false,
+        destructiveHint: true,
         idempotentHint: true,
         openWorldHint: true
       }
@@ -137524,9 +137932,19 @@ function registerServiceTools(mcp, deps) {
         const a = args ?? {};
         rejectUnknownArgs4(a);
         await deps.ensureConnected();
-        const res = await deps.pool.withRead(
+        const input = a;
+        const op = input.op ?? "read";
+        if (op === "read") {
+          const res2 = await deps.pool.withRead(
+            "abap_service",
+            (conn) => abapService(conn, input, deps.cfg.maxResponseChars)
+          );
+          return ok21(res2.text);
+        }
+        const res = await deps.pool.withWrite(
           "abap_service",
-          (conn) => abapService(conn, a, deps.cfg.maxResponseChars)
+          serviceBindingUri(normaliseBindingName(input.binding)),
+          (conn) => abapServicePublish(conn, input, op, deps.cfg.maxResponseChars, deps.safety, journalDeps2(deps))
         );
         return ok21(res.text);
       } catch (e) {
@@ -137830,8 +138248,8 @@ function attrOrEmpty4(node2, name) {
 function elementText5(value) {
   if (typeof value === "string") return value;
   const rec = asRecord5(value);
-  const text3 = rec?.["#text"];
-  return typeof text3 === "string" ? text3 : void 0;
+  const text4 = rec?.["#text"];
+  return typeof text4 === "string" ? text4 : void 0;
 }
 function isXmlTrue3(value) {
   return value === "true";
@@ -138944,7 +139362,7 @@ async function abapTraceDelete(conn, journal, args, maxChars) {
     maxChars
   });
 }
-var ok22 = (text3) => ({ content: [{ type: "text", text: text3 }] });
+var ok22 = (text4) => ({ content: [{ type: "text", text: text4 }] });
 function assertCanTrace(gate, opLabel) {
   const d = gate.evaluate("execute", void 0, {});
   if (d.allowed || d.code === "SAFETY_DENIED") return;
@@ -139454,7 +139872,7 @@ var FluidInputSchema = external_exports.object(fluidInputSchema);
 function isBareFluidCall(a) {
   return a.op === void 0 && a.tool === void 0 && a.action === void 0;
 }
-var ok23 = (text3) => ({ content: [{ type: "text", text: text3 }] });
+var ok23 = (text4) => ({ content: [{ type: "text", text: text4 }] });
 function badInput(message, field, extra = {}) {
   return new AbapError("BAD_INPUT", message, { field, ...extra });
 }
@@ -140181,11 +140599,11 @@ function renderV2(res) {
   return lines.join("\n");
 }
 function v2Result(res) {
-  const text3 = renderV2(res);
+  const text4 = renderV2(res);
   if (!res.ok) {
-    return { content: [{ type: "text", text: text3 }], isError: true };
+    return { content: [{ type: "text", text: text4 }], isError: true };
   }
-  return { content: [{ type: "text", text: text3 }] };
+  return { content: [{ type: "text", text: text4 }] };
 }
 function levenshtein2(a, b) {
   const m = a.length;
@@ -140982,8 +141400,8 @@ function textOf2(result) {
   }
   return first.text;
 }
-function doOk(text3, next = []) {
-  return { ok: true, tool: "abap_do", data: text3, next };
+function doOk(text4, next = []) {
+  return { ok: true, tool: "abap_do", data: text4, next };
 }
 function journalNext(why = "See this change recorded in the journal.") {
   return [{ tool: "abap_do", args: { action: "journal_list" }, why }];
@@ -141408,8 +141826,8 @@ function createOp(operation) {
     const args = withField(withObject(ctx.args, "name", ctx.object), "operation", operation);
     const input = parseV1(EnhInput, args);
     try {
-      const text3 = await runEnhCreateOperation(deps, operation, input);
-      return doOk(text3, []);
+      const text4 = await runEnhCreateOperation(deps, operation, input);
+      return doOk(text4, []);
     } catch (e) {
       throw classifyEnhancementRefusal(e);
     }
@@ -141420,9 +141838,9 @@ function hookOp(operation) {
     const args = withField(withObject(ctx.args, "name", ctx.object), "operation", operation);
     const input = parseV1(EnhInput, args);
     try {
-      const text3 = await runEnhHookOperation(deps, operation, input);
+      const text4 = await runEnhHookOperation(deps, operation, input);
       const next = operation === "discover_hook_anchors" ? [{ tool: "abap_do", args: { action: "enh_create_hook" }, why: "Create a hook bound to one of these anchors." }] : [];
-      return doOk(text3, next);
+      return doOk(text4, next);
     } catch (e) {
       throw classifyEnhancementRefusal(e);
     }
@@ -141544,19 +141962,19 @@ function unknownValue(tool, field, given, legalValues) {
 }
 function liftV1Result(tool, res, next) {
   const first = res.content.find((c) => c.type === "text");
-  const text3 = first?.text ?? "";
+  const text4 = first?.text ?? "";
   if (res.isError) {
     return {
       ok: false,
       tool,
       error: "ADT_ERROR",
-      message: text3 || "The underlying v1 tool reported a failure with no text content.",
+      message: text4 || "The underlying v1 tool reported a failure with no text content.",
       retryable: void 0,
       // lifted from a v1 tool; cause unknown, no claim
       next
     };
   }
-  return { ok: true, tool, data: text3, next };
+  return { ok: true, tool, data: text4, next };
 }
 
 // src/tools/v2/handlers/find.ts
@@ -142552,8 +142970,8 @@ function errorResult(e) {
   };
 }
 function fitEnvelope(payload) {
-  let text3 = JSON.stringify(payload);
-  if (text3.length <= MAX_ERROR_ENVELOPE_CHARS) return text3;
+  let text4 = JSON.stringify(payload);
+  if (text4.length <= MAX_ERROR_ENVELOPE_CHARS) return text4;
   const adt = payload.adt;
   if (adt?.properties) {
     const dropped = Object.keys(adt.properties).length;
@@ -142565,15 +142983,15 @@ function fitEnvelope(payload) {
         omitted: `${dropped} ADT properties dropped to stay inside the response budget`
       }
     };
-    text3 = JSON.stringify(payload);
-    if (text3.length <= MAX_ERROR_ENVELOPE_CHARS) return text3;
+    text4 = JSON.stringify(payload);
+    if (text4.length <= MAX_ERROR_ENVELOPE_CHARS) return text4;
   }
   if (typeof payload.message === "string" && payload.message.length > MAX_MESSAGE_CHARS) {
     payload = { ...payload, message: truncateText(payload.message, MAX_MESSAGE_CHARS) };
-    text3 = JSON.stringify(payload);
-    if (text3.length <= MAX_ERROR_ENVELOPE_CHARS) return text3;
+    text4 = JSON.stringify(payload);
+    if (text4.length <= MAX_ERROR_ENVELOPE_CHARS) return text4;
   }
-  return truncateText(text3, MAX_ERROR_ENVELOPE_CHARS) + `
+  return truncateText(text4, MAX_ERROR_ENVELOPE_CHARS) + `
 (set ${BODY_DUMP_DIR_ENV} to capture the full error)`;
 }
 
@@ -142705,6 +143123,7 @@ function createServer(cfg, opts) {
     allowTransportRelease: cfg.allowTransportRelease,
     allowTransportDelete: cfg.allowTransportDelete,
     allowCascadeDelete: cfg.allowCascadeDelete,
+    allowServicePublish: cfg.allowServicePublish,
     allowEnhancements: cfg.allowEnhancements,
     enhanceTargets: cfg.enhanceTargets,
     enhanceTargetPackages: cfg.enhanceTargetPackages,
@@ -142874,7 +143293,7 @@ function createServer(cfg, opts) {
       errorResult,
       registerVariables: toolCapabilities.canReadDumpVariables
     });
-    registerServiceTools(mcp, { pool, cfg, ensureConnected, errorResult });
+    registerServiceTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal, warn });
     registerTraceTools(mcp, { pool, safety, ensureConnected, errorResult, cfg, journal });
     if (toolCapabilities.canUseFluidApi) {
       registerFluidTool(mcp, {

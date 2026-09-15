@@ -153,6 +153,12 @@ function undoHint(e: JournalEntry): string {
   if (e.operation === "transport-release") {
     return "RELEASED TRANSPORT — refused: a released transport cannot be recalled; create a corrective transport instead";
   }
+  if (e.operation === "service-publish") {
+    return 'PUBLISHED SERVICE — refused: publishing changed the runtime surface, not the object source; call abap_service op="unpublish" confirm=<binding> instead';
+  }
+  if (e.operation === "service-unpublish") {
+    return 'UNPUBLISHED SERVICE — refused: unpublishing changed the runtime surface, not the object source; call abap_service op="publish" confirm=<binding> instead';
+  }
   if (e.operation.startsWith("transport-")) {
     return "refused: transport requests are not undone automatically; use abap_transport to reverse this manually";
   }

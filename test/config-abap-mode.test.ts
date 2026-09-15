@@ -68,13 +68,18 @@ describe("config: ABAP_MODE=read is authoritative over legacy flags", () => {
     expect(cfg.capabilities?.mode).toBe("read");
   });
 
-  it("allowTransportDelete and allowCascadeDelete are both denied under read, regardless of legacy flags", () => {
+  it("allowTransportDelete, allowServicePublish, and allowCascadeDelete are all denied under read, regardless of legacy flags", () => {
     const cfg = loadConfig({
-      env: env({ ABAP_MODE: "read", ABAP_ALLOW_WRITE: "true" }),
+      env: env({
+        ABAP_MODE: "read",
+        ABAP_ALLOW_WRITE: "true",
+        ABAP_ALLOW_SERVICE_PUBLISH: "true",
+      }),
       warn: () => {},
       skipDotenv: true,
     });
     expect(cfg.allowTransportDelete).toBe(false);
+    expect(cfg.allowServicePublish).toBe(false);
     expect(cfg.allowCascadeDelete).toBe(false);
   });
 
@@ -89,13 +94,14 @@ describe("config: ABAP_MODE=read is authoritative over legacy flags", () => {
     expect(cfg.readOnly).toBe(true);
   });
 
-  it("all seven AbapModeBooleanOverrides vars set to true still resolve to fully denying, and each fires the read-ignores-overrides warning", () => {
+  it("all eight AbapModeBooleanOverrides vars set to true still resolve to fully denying, and each fires the read-ignores-overrides warning", () => {
     const warnings: string[] = [];
     const cfg = loadConfig({
       env: env({
         ABAP_MODE: "read",
         ABAP_ALLOW_TRANSPORT_RELEASE: "true",
         ABAP_ALLOW_TRANSPORT_DELETE: "true",
+        ABAP_ALLOW_SERVICE_PUBLISH: "true",
         ABAP_ALLOW_CASCADE_DELETE: "true",
         ABAP_ALLOW_RAW_ADT_WRITES: "true",
         ABAP_ALLOW_ENHANCEMENTS: "true",
@@ -107,6 +113,7 @@ describe("config: ABAP_MODE=read is authoritative over legacy flags", () => {
     });
     expect(cfg.allowTransportRelease).toBe(false);
     expect(cfg.allowTransportDelete).toBe(false);
+    expect(cfg.allowServicePublish).toBe(false);
     expect(cfg.allowCascadeDelete).toBe(false);
     expect(cfg.allowEnhancements).toBe(false);
     expect(cfg.allowSourcePlugins).toBe(false);
@@ -118,6 +125,7 @@ describe("config: ABAP_MODE=read is authoritative over legacy flags", () => {
     for (const name of [
       "ABAP_ALLOW_TRANSPORT_RELEASE",
       "ABAP_ALLOW_TRANSPORT_DELETE",
+      "ABAP_ALLOW_SERVICE_PUBLISH",
       "ABAP_ALLOW_CASCADE_DELETE",
       "ABAP_ALLOW_RAW_ADT_WRITES",
       "ABAP_ALLOW_ENHANCEMENTS",
@@ -177,13 +185,14 @@ describe("config: ABAP_MODE=edit with no legacy overrides", () => {
     expect(cfg.capabilities?.mode).toBe("edit");
   });
 
-  it("allowTransportDelete and allowCascadeDelete both stay denied under edit — admin-only ceilings", () => {
+  it("allowTransportDelete, allowServicePublish, and allowCascadeDelete all stay denied under edit — admin-only ceilings", () => {
     const cfg = loadConfig({
       env: env({ ABAP_MODE: "edit" }),
       warn: () => {},
       skipDotenv: true,
     });
     expect(cfg.allowTransportDelete).toBe(false);
+    expect(cfg.allowServicePublish).toBe(false);
     expect(cfg.allowCascadeDelete).toBe(false);
   });
 
@@ -212,13 +221,14 @@ describe("config: ABAP_MODE=admin", () => {
     expect(cfg.abapMode).toBe("admin");
   });
 
-  it("unlocks allowTransportDelete and allowCascadeDelete too — the two admin-only ceilings this change closes the gap for", () => {
+  it("unlocks allowTransportDelete, allowServicePublish, and allowCascadeDelete too — the admin-only ceilings this change closes the gap for", () => {
     const cfg = loadConfig({
       env: env({ ABAP_MODE: "admin" }),
       warn: () => {},
       skipDotenv: true,
     });
     expect(cfg.allowTransportDelete).toBe(true);
+    expect(cfg.allowServicePublish).toBe(true);
     expect(cfg.allowCascadeDelete).toBe(true);
   });
 
@@ -426,11 +436,12 @@ describe("config: ABAP_MODE unset — legacy-only behaviour is unchanged (regres
     expect(cfg.allowTransports).toEqual([]);
   });
 
-  it("allowTransportDelete/allowCascadeDelete default to false under legacy config when their own vars are unset", () => {
-    // ABAP_ALLOW_TRANSPORT_DELETE / ABAP_ALLOW_CASCADE_DELETE are now
-    // read directly under the legacy (mode-unset) path too — see the sibling
-    // test below. Neither is implied by ABAP_ALLOW_WRITE or any other
-    // write-adjacent flag, so leaving them unset stays a hard false.
+  it("allowTransportDelete/allowServicePublish/allowCascadeDelete default to false under legacy config when their own vars are unset", () => {
+    // ABAP_ALLOW_TRANSPORT_DELETE / ABAP_ALLOW_SERVICE_PUBLISH /
+    // ABAP_ALLOW_CASCADE_DELETE are now read directly under the legacy
+    // (mode-unset) path too — see the sibling test below. None of the three
+    // is implied by ABAP_ALLOW_WRITE or any other write-adjacent flag, so
+    // leaving them unset stays a hard false.
     const cfg = loadConfig({
       env: env({
         ABAP_ALLOW_WRITE: "true",
@@ -442,6 +453,7 @@ describe("config: ABAP_MODE unset — legacy-only behaviour is unchanged (regres
       skipDotenv: true,
     });
     expect(cfg.allowTransportDelete).toBe(false);
+    expect(cfg.allowServicePublish).toBe(false);
     expect(cfg.allowCascadeDelete).toBe(false);
     expect(cfg.abapMode).toBeUndefined();
   });
@@ -622,13 +634,14 @@ describe("config: deprecation warning when a legacy flag is set alongside ABAP_M
     expect(joined).not.toContain("ABAP_ENHANCE_TARGETS is set but ignored");
   });
 
-  it("does NOT warn for the eight now-overridable flags — they take effect instead of being ignored, enhanceTargets included", () => {
+  it("does NOT warn for the nine now-overridable flags — they take effect instead of being ignored, enhanceTargets included", () => {
     const warnings: string[] = [];
     loadConfig({
       env: env({
         ABAP_MODE: "admin",
         ABAP_ALLOW_TRANSPORT_RELEASE: "true",
         ABAP_ALLOW_TRANSPORT_DELETE: "true",
+        ABAP_ALLOW_SERVICE_PUBLISH: "true",
         ABAP_ALLOW_CASCADE_DELETE: "true",
         ABAP_ALLOW_RAW_ADT_WRITES: "true",
         ABAP_ALLOW_ENHANCEMENTS: "true",
@@ -643,6 +656,7 @@ describe("config: deprecation warning when a legacy flag is set alongside ABAP_M
     for (const name of [
       "ABAP_ALLOW_TRANSPORT_RELEASE",
       "ABAP_ALLOW_TRANSPORT_DELETE",
+      "ABAP_ALLOW_SERVICE_PUBLISH",
       "ABAP_ALLOW_CASCADE_DELETE",
       "ABAP_ALLOW_RAW_ADT_WRITES",
       "ABAP_ALLOW_ENHANCEMENTS",
@@ -1082,7 +1096,7 @@ describe("config: unrecognised ABAP_ALLOW_* names warn", () => {
     expect(joined).toMatch(/typo/i);
   });
 
-  it("every one of the 18 recognised names, set together, produces no unrecognised-name warning", () => {
+  it("every one of the 19 recognised names, set together, produces no unrecognised-name warning", () => {
     const warnings: string[] = [];
     const allSet = Object.fromEntries(RECOGNISED_ABAP_ALLOW_ENV_VARS.map((n) => [n, "true"]));
     loadConfig({

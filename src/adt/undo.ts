@@ -363,6 +363,22 @@ function undoBlocker(entry: JournalEntry): string | undefined {
   if (entry.operation === "transport-release") {
     return "a released transport cannot be recalled; create a corrective transport instead";
   }
+  if (entry.operation === "service-publish") {
+    return (
+      "publishing a service binding changes the system's runtime surface (an ICF node under " +
+      "/sap/opu/odata*), not the object's source, so there is no before-image to write back; " +
+      'call abap_service op="unpublish" confirm=<binding> instead — a deliberate, separately ' +
+      "confirmed act, not an automatic undo"
+    );
+  }
+  if (entry.operation === "service-unpublish") {
+    return (
+      "unpublishing a service binding changes the system's runtime surface, not the object's " +
+      "source, so there is no before-image to restore; " +
+      'call abap_service op="publish" confirm=<binding> instead — a deliberate, separately ' +
+      "confirmed act, not an automatic undo"
+    );
+  }
   if (entry.operation.startsWith("transport-")) {
     return "transport requests are not undone automatically; use abap_transport to reverse this manually";
   }

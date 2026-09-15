@@ -428,6 +428,7 @@ export function createServer(cfg: Config, opts: ServerOptions): AbapsmithServer 
     allowTransportRelease: cfg.allowTransportRelease,
     allowTransportDelete: cfg.allowTransportDelete,
     allowCascadeDelete: cfg.allowCascadeDelete,
+    allowServicePublish: cfg.allowServicePublish,
     allowEnhancements: cfg.allowEnhancements,
     enhanceTargets: cfg.enhanceTargets,
     enhanceTargetPackages: cfg.enhanceTargetPackages,
@@ -732,10 +733,16 @@ export function createServer(cfg: Config, opts: ServerOptions): AbapsmithServer 
       errorResult,
       registerVariables: toolCapabilities.canReadDumpVariables,
     });
-    // `abap_service` (OData $metadata): unconditional, not inside `canWrite`
-    // like `abap_atc` — three GETs, nothing created server-side. No
-    // `safety` — `read` is outside `MUTATING_OPS` and always allowed.
-    registerServiceTools(mcp, { pool, cfg, ensureConnected, errorResult });
+    // `abap_service` (OData $metadata): registered unconditionally, not
+    // inside `canWrite` like `abap_atc` — `op="read"` (the default) is three
+    // GETs, nothing created server-side, always allowed. `op="publish"`/
+    // `"unpublish"` DO mutate (they call an ADT publish job), but the
+    // connected ceilings that would gate them — `allowServicePublish`,
+    // `readOnly`, a productive-system lockout, a failed namespace/package
+    // check against the binding's package — are unknowable at registration
+    // time, exactly like `abap_fluid` below: every call re-checks via
+    // `safety` at call time instead of the tool being registered or not.
+    registerServiceTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal, warn });
     // `abap_trace` (ABAP runtime tracing, SAT): unconditional like `abap_dumps`
     // and `abap_service` above — `list`/`read` are genuine ungated reads, and
     // `start`/`run`/`delete` each self-gate per op inside the handler (a
