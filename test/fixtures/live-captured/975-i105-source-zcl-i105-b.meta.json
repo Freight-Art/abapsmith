@@ -1,0 +1,25 @@
+{
+  "n": 975,
+  "label": "i105-source-zcl-i105-b",
+  "expect": "PERFORM dummy IN PROGRAM zi105_form IF FOUND alongside a static method call - the PERFORM ... IN PROGRAM form the callees parser must recognise",
+  "note": "GET source of $TMP probe class ZCL_I105_B (issue 105 call_graph)",
+  "requestMethod": "GET",
+  "requestUrl": "/sap/bc/adt/oo/classes/zcl_i105_b/source/main?sap-client=001",
+  "requestHeaders": {
+    "Accept": "text/plain"
+  },
+  "responseStatus": 200,
+  "responseHeaders": {
+    "content-type": "text/plain; charset=utf-8",
+    "content-length": "261",
+    "sap-authenticated": "true",
+    "etag": "20260915115759001000011",
+    "sap-server": "true"
+  },
+  "byteLength": 261,
+  "zeroByteBody": false,
+  "sha256": "8e686dbb5af5159c15b9a05598e32ec7c9d2d030b299089d9458a3763e375963",
+  "utcTimestamp": "2026-09-15T12:01:07.121Z",
+  "durationMs": 304,
+  "sessionName": "LIVE-I105-I106-I107"
+}

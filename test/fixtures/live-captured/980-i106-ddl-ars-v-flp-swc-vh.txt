@@ -1,0 +1,21 @@
+@AbapCatalog.sqlViewName: 'ARS_V_FLP_SWCVH'
+@AbapCatalog.compiler.compareFilter: true
+@AbapCatalog.preserveKey: true
+@AccessControl.authorizationCheck: #NOT_ALLOWED
+@EndUserText.label: 'API Snapshot: Value Help - Software Comp'
+
+define view ARS_V_FLP_SWC_VH
+  as select from ARS_SOFTWARE_COMPONENTS_SCP_VH as swcmp
+
+  association [0..1] to cvers_ref as _session_language on  _session_language.component = swcmp.software_component
+                                                       and _session_language.langu     = $session.system_language
+
+  association [0..1] to cvers_ref as _english          on  _english.component = swcmp.software_component
+                                                       and _english.langu     = 'E'
+
+{
+  key software_component                                                                              as software_component,
+      coalesce( _session_language.desc_text, coalesce(_english.desc_text, swcmp.software_component) ) as software_component_descr
+}
+
+  

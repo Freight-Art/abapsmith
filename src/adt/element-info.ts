@@ -13,19 +13,25 @@
  *      a single `adtcore:objectReference adtcore:uri="…"` naming the
  *      declaration site — see {@link parseNavigationTarget}.
  *   3. `POST /sap/bc/adt/repository/informationsystem/usageReferences?uri=…`
- *      at an interface method's declaration — the implementing classes are
- *      among the rows it returns, see {@link implementationsFrom}. This IS
- *      reimplemented here (wire call in {@link findImplementations}, parsing
- *      in {@link parseUsageReferences}), not left to `abap-adt-api`'s own
- *      `conn.adt.usageReferences()`: that vendor function's answer-reading
- *      path is broken for this endpoint (hardcodes the capitalised
- *      `usageReferences:` namespace prefix; A4H sends the lowercase
- *      `usagereferences:` prefix throughout, fixture 961) and always returns
- *      an empty array against a real A4H response — live-confirmed 2026-09-15,
- *      see {@link parseUsageReferences}'s doc comment.
+ *      answers both "who implements this interface method" and plain
+ *      where-used ({@link findImplementations} / `whereUsed` in
+ *      `src/tools/search.ts`). This IS reimplemented here (wire call in
+ *      {@link fetchUsageReferences}, parsing in {@link parseUsageReferences}),
+ *      not left to `abap-adt-api`'s own `conn.adt.usageReferences()`: that
+ *      vendor function's answer-reading path is broken for this endpoint
+ *      (hardcodes the capitalised `usageReferences:` namespace prefix; A4H
+ *      sends the lowercase `usagereferences:` prefix throughout — fixtures
+ *      961 and 973) and always returns an empty array against a real A4H
+ *      response — live-confirmed 2026-09-15 against `ZCL_V91_PROBE` (two
+ *      implementers, "no implementing classes found") and again against
+ *      `ZCL_I105_LEAF` (`abap_search {"query":"ZCL_I105_LEAF","mode":
+ *      "where_used","type":"CLAS"}` answered `referencesTotal: 0` despite
+ *      fixture 973's own wire bytes carrying `numberOfResults="2"` with two
+ *      caller rows), see {@link parseUsageReferences}'s doc comment.
  *
  * Every wire fact below is measured against `test/fixtures/live-captured/`
- * 952-…-961-… (`i91-*`), not inferred from a spec — each fixture's `.meta.json` `note`
+ * 952-…-961-… (`i91-*`) and 971-…-975-… (`i105-*`), not inferred from a
+ * spec — each fixture's `.meta.json` `note`
  * carries the corroborating detail. This module never calls
  * `setPrettyPrinterSetting` or anything else that mutates the server.
  *
@@ -704,40 +710,53 @@ export function implementationsFrom(
   return results;
 }
 
+// Heuristic cost thresholds for the `usageReferences` wire call above, not a
+// fitted cost curve — one measured data point (CL_ABAP_TYPEDESCR at ~5,896
+// references / ~24s wall-clock on A4H). Live here, not in `src/tools/search.ts`
+// or `src/adt/call-graph.ts`, because both of those import `fetchUsageReferences`
+// from this module already and both need these numbers to decide when a
+// where-used/call-graph answer discloses its own cost — this is the one
+// dependency-cycle-free home for a constant describing this wire call's cost.
+export const HIGH_FAN_IN_REFERENCES = 500;
+export const SLOW_FETCH_MS = 5000;
+
 /**
- * Where-used at the interface method's declaration, filtered to implementers.
- * DELIBERATELY UNBOUNDED like `whereUsed` in `src/tools/search.ts` — ADT's
- * `usageReferences` endpoint ignores every limit parameter. Returns the fetch
- * wall-clock so the caller can disclose the cost — fixture 961's own capture
- * took nearly 10 seconds for a two-implementer toy example.
+ * The wire call behind `usageReferences`: one POST (`USAGE_REFERENCES_URL`,
+ * `USAGE_REFERENCES_REQUEST_BODY`, the `application/*` / `application/*`
+ * header pair), parsed by {@link parseUsageReferences}. Shared by
+ * {@link findImplementations} below and by `whereUsed` in
+ * `src/tools/search.ts` (fixture 973: `abap_search {"query":"ZCL_I105_LEAF",
+ * "mode":"where_used","type":"CLAS"}` returned `referencesTotal: 0` live on
+ * 2026-09-15 through the old path — `conn.adt.usageReferences()` — despite
+ * the same request's wire bytes carrying `numberOfResults="2"` with two
+ * caller rows; see this file's top doc comment for why that vendor call
+ * cannot be trusted). One wire path now, not two.
  *
- * Does the wire call itself (`conn.post`, exactly like {@link findDefinitionTarget}),
- * rather than going through `conn.adt.usageReferences()` — see
- * {@link parseUsageReferences}'s doc comment for why that vendor function's
- * answer-reading path cannot be trusted here.
+ * DELIBERATELY UNBOUNDED — ADT's `usageReferences` endpoint ignores every
+ * limit parameter. Returns the fetch wall-clock so the caller can disclose
+ * the cost — fixture 961's own capture took nearly 10 seconds for a
+ * two-implementer toy example.
  *
- * This also retires a quirk that used to live in this doc comment: the
- * vendor wrapper built its position fragment as `line && column ? … : url`,
- * so a `pos.column` of exactly `0` was falsy and silently degraded that call
- * to an unscoped, whole-object where-used — a bug this module could not work
- * around while the wire call belonged to a dependency it didn't own. Now
- * that the call is made here (`fragment` below, built with `pos !==
- * undefined`, never a truthiness check), that quirk is simply gone: column 0
- * is a normal, fully-scoped position like any other.
+ * `name` is optional and, when given, enriches the LOCKED/NOT_FOUND message
+ * text `translateAdtError` builds from `ErrorContext.name` — pass whatever
+ * identifies the target to a human better than the bare `uri` does
+ * (`findImplementations` passes `${interfaceName}~${methodName}`, `whereUsed`
+ * the resolved object's name, `call-graph.ts` the node's name).
+ *
+ * Position fragment built with `pos !== undefined`, never a truthiness
+ * check — the vendor wrapper this replaced built it as `line && column ? …
+ * : url`, so a `pos.column` of exactly `0` was falsy and silently degraded
+ * that call to an unscoped, whole-object where-used. Column 0 is a normal,
+ * fully-scoped position like any other here.
  */
-export async function findImplementations(
+export async function fetchUsageReferences(
   conn: AbapConnection,
-  interfaceSourceUri: string,
-  pos: SourcePosition | undefined,
-  interfaceName: string,
-  methodName: string,
-): Promise<{ readonly implementations: ImplementingMethod[]; readonly fetchMs: number; readonly totalReferences: number }> {
-  const ctx: ErrorContext = {
-    operation: "usage references",
-    uri: interfaceSourceUri,
-    name: `${interfaceName}~${methodName}`,
-  };
-  const fragment = pos !== undefined ? `${interfaceSourceUri}#start=${pos.line},${pos.column}` : interfaceSourceUri;
+  uri: string,
+  pos?: SourcePosition,
+  name?: string,
+): Promise<{ readonly refs: Record<string, unknown>[]; readonly fetchMs: number }> {
+  const ctx: ErrorContext = { operation: "usage references", uri, ...(name !== undefined ? { name } : {}) };
+  const fragment = pos !== undefined ? `${uri}#start=${pos.line},${pos.column}` : uri;
   const startedAt = Date.now();
   let body: string;
   try {
@@ -750,7 +769,22 @@ export async function findImplementations(
     throw translateAdtError(e, ctx);
   }
   const fetchMs = Date.now() - startedAt;
-  const refs = parseUsageReferences(body, ctx);
+  return { refs: parseUsageReferences(body, ctx), fetchMs };
+}
+
+/**
+ * Where-used at the interface method's declaration, filtered to implementers.
+ * Thin wrapper over {@link fetchUsageReferences} — see that function's doc
+ * comment for the wire call and the unbounded-result note.
+ */
+export async function findImplementations(
+  conn: AbapConnection,
+  interfaceSourceUri: string,
+  pos: SourcePosition | undefined,
+  interfaceName: string,
+  methodName: string,
+): Promise<{ readonly implementations: ImplementingMethod[]; readonly fetchMs: number; readonly totalReferences: number }> {
+  const { refs, fetchMs } = await fetchUsageReferences(conn, interfaceSourceUri, pos, `${interfaceName}~${methodName}`);
   return {
     implementations: implementationsFrom(refs, interfaceName, methodName),
     fetchMs,

@@ -25716,7 +25716,7 @@ var require_axios = __commonJS({
       }
       return decoded;
     }
-    function parseParameters(value) {
+    function parseParameters2(value) {
       const parameters = /* @__PURE__ */ Object.create(null);
       const str7 = String(value);
       let start = 0;
@@ -25944,7 +25944,7 @@ var require_axios = __commonJS({
         return thing instanceof this ? thing : new this(thing);
       }
       static parseParameters(value) {
-        return parseParameters(value);
+        return parseParameters2(value);
       }
       static concat(first, ...targets) {
         const computed = new this(first);
@@ -123716,13 +123716,11 @@ function implementationsFrom(refs, interfaceName, methodName) {
   }
   return results;
 }
-async function findImplementations(conn, interfaceSourceUri, pos, interfaceName, methodName) {
-  const ctx = {
-    operation: "usage references",
-    uri: interfaceSourceUri,
-    name: `${interfaceName}~${methodName}`
-  };
-  const fragment = pos !== void 0 ? `${interfaceSourceUri}#start=${pos.line},${pos.column}` : interfaceSourceUri;
+var HIGH_FAN_IN_REFERENCES = 500;
+var SLOW_FETCH_MS = 5e3;
+async function fetchUsageReferences(conn, uri, pos, name) {
+  const ctx = { operation: "usage references", uri, ...name !== void 0 ? { name } : {} };
+  const fragment = pos !== void 0 ? `${uri}#start=${pos.line},${pos.column}` : uri;
   const startedAt = Date.now();
   let body;
   try {
@@ -123735,7 +123733,10 @@ async function findImplementations(conn, interfaceSourceUri, pos, interfaceName,
     throw translateAdtError(e, ctx);
   }
   const fetchMs = Date.now() - startedAt;
-  const refs = parseUsageReferences(body, ctx);
+  return { refs: parseUsageReferences(body, ctx), fetchMs };
+}
+async function findImplementations(conn, interfaceSourceUri, pos, interfaceName, methodName) {
+  const { refs, fetchMs } = await fetchUsageReferences(conn, interfaceSourceUri, pos, `${interfaceName}~${methodName}`);
   return {
     implementations: implementationsFrom(refs, interfaceName, methodName),
     fetchMs,
@@ -123746,6 +123747,1157 @@ async function findImplementations(conn, interfaceSourceUri, pos, interfaceName,
 // src/tools/read.ts
 init_types();
 init_compact();
+
+// src/adt/cds-lineage.ts
+init_errors();
+var EMPTY_PARSED_DDL = {
+  kind: "unknown",
+  dataSources: [],
+  associations: [],
+  fields: [],
+  parameters: []
+};
+function stripLineComment(line2) {
+  let inString = false;
+  for (let i = 0; i < line2.length; i++) {
+    const ch = line2[i];
+    if (ch === "'") {
+      if (inString && line2[i + 1] === "'") {
+        i++;
+        continue;
+      }
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+    if (ch === "/" && line2[i + 1] === "/") return line2.slice(0, i);
+    if (ch === "-" && line2[i + 1] === "-") return line2.slice(0, i);
+  }
+  return line2;
+}
+function stripBlockComments(source) {
+  return source.replace(/\/\*[\s\S]*?\*\//g, " ");
+}
+function stripAnnotations(lines) {
+  const out = [];
+  let braceDepth = 0;
+  let inAnnotationHead = false;
+  for (let line2 of lines) {
+    if (braceDepth > 0) {
+      let consumed = "";
+      let i = 0;
+      for (; i < line2.length && braceDepth > 0; i++) {
+        const ch = line2[i];
+        if (ch === "{") braceDepth++;
+        else if (ch === "}") braceDepth--;
+      }
+      consumed = line2.slice(0, i);
+      line2 = line2.slice(i);
+      void consumed;
+      if (braceDepth > 0) continue;
+    }
+    let rest = line2;
+    let output = "";
+    for (; ; ) {
+      const m = /@[A-Za-z][\w.]*\s*:/.exec(rest);
+      if (!m) {
+        output += rest;
+        break;
+      }
+      output += rest.slice(0, m.index);
+      const afterColon = rest.slice(m.index + m[0].length);
+      const valueStart = /^\s*/.exec(afterColon)[0].length;
+      if (afterColon[valueStart] === "{") {
+        let depth = 0;
+        let i = valueStart;
+        for (; i < afterColon.length; i++) {
+          const ch = afterColon[i];
+          if (ch === "{") depth++;
+          else if (ch === "}") {
+            depth--;
+            if (depth === 0) {
+              i++;
+              break;
+            }
+          }
+        }
+        if (depth > 0) {
+          braceDepth = depth;
+          rest = "";
+          break;
+        }
+        rest = afterColon.slice(i);
+      } else {
+        rest = "";
+      }
+    }
+    void inAnnotationHead;
+    out.push(output);
+  }
+  return out;
+}
+function normalise2(source) {
+  const noCr = source.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const noBlockComments = stripBlockComments(noCr);
+  const lines = noBlockComments.split("\n").map(stripLineComment);
+  const noAnnotations = stripAnnotations(lines);
+  return noAnnotations.join(" ").replace(/\s+/g, " ").trim();
+}
+var KIND_PATTERNS = [
+  { re: /\bdefine\s+root\s+view\s+entity\s+([\w/]+)/i, kind: "root view entity" },
+  { re: /\bdefine\s+transient\s+view\s+entity\s+([\w/]+)/i, kind: "transient view entity" },
+  { re: /\bdefine\s+view\s+entity\s+([\w/]+)/i, kind: "view entity" },
+  { re: /\bdefine\s+table\s+function\s+([\w/]+)/i, kind: "table function" },
+  { re: /\bdefine\s+abstract\s+entity\s+([\w/]+)/i, kind: "abstract entity" },
+  { re: /\bdefine\s+custom\s+entity\s+([\w/]+)/i, kind: "custom entity" },
+  { re: /\bdefine\s+view\s+([\w/]+)/i, kind: "view" }
+];
+var EXTEND_VIEW_RE = /\bextend\s+view\s+([\w/]+)\s+with\s+([\w/]+)/i;
+function detectKindAndName(code) {
+  const extend2 = EXTEND_VIEW_RE.exec(code);
+  if (extend2) return { kind: "extend view", name: extend2[1] };
+  for (const { re, kind } of KIND_PATTERNS) {
+    const m = re.exec(code);
+    if (m) return { kind, name: m[1] };
+  }
+  return { kind: "unknown" };
+}
+function parseParameters(code) {
+  const m = /\bwith\s+parameters\s+([\s\S]*?)\s+as\s+(?:select|projection)\b/i.exec(code);
+  if (!m) return [];
+  const body = m[1];
+  return splitTopLevel(body, ",").map((p) => /^\s*([\w]+)\s*:/.exec(p)?.[1]).filter((p) => Boolean(p));
+}
+function splitTopLevel(text5, sep2) {
+  const parts = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < text5.length; i++) {
+    const ch = text5[i];
+    if (ch === "(") depth++;
+    else if (ch === ")") depth--;
+    else if (ch === sep2 && depth === 0) {
+      parts.push(text5.slice(start, i));
+      start = i + 1;
+    }
+  }
+  parts.push(text5.slice(start));
+  return parts.map((p) => p.trim()).filter((p) => p.length > 0);
+}
+var DATA_SOURCE_RE = /\bunion\s+(?:all\s+)?select\s+from\s+([\w/]+)(?:\s+as\s+(\w+))?|\b(inner\s+join|left\s+outer\s+join|right\s+outer\s+join|cross\s+join|join)\s+([\w/]+)(?:\s+as\s+(\w+))?\s+on\b|\bas\s+select\s+from\s+([\w/]+)(?:\s+as\s+(\w+))?|\bas\s+projection\s+on\s+([\w/]+)(?:\s+as\s+(\w+))?/gi;
+function parseDataSources(code) {
+  const out = [];
+  for (const m of code.matchAll(DATA_SOURCE_RE)) {
+    if (m[1] !== void 0) {
+      out.push({ relation: "union", target: m[1], alias: m[2] });
+    } else if (m[4] !== void 0) {
+      out.push({ relation: "join", joinKind: m[3].replace(/\s+join$/i, "").trim().toLowerCase(), target: m[4], alias: m[5] });
+    } else if (m[6] !== void 0) {
+      out.push({ relation: "from", target: m[6], alias: m[7] });
+    } else if (m[8] !== void 0) {
+      out.push({ relation: "from", target: m[8], alias: m[9] });
+    }
+  }
+  return out;
+}
+var ASSOCIATION_RE = /\bassociation\s*(\[[^\]]*\])?\s*to\s+([\w/]+)\s+as\s+(\w+)\s+on\s+(.*?)(?=\bassociation\s*(?:\[[^\]]*\])?\s*to\b|\{)/gis;
+function parseAssociationsRaw(code) {
+  const out = [];
+  for (const m of code.matchAll(ASSOCIATION_RE)) {
+    out.push({
+      cardinality: m[1]?.replace(/\s+/g, ""),
+      target: m[2],
+      name: m[3],
+      onCondition: m[4].trim()
+    });
+  }
+  return out;
+}
+function firstBraceBlock(code) {
+  const start = code.indexOf("{");
+  if (start < 0) return void 0;
+  let depth = 0;
+  for (let i = start; i < code.length; i++) {
+    const ch = code[i];
+    if (ch === "{") depth++;
+    else if (ch === "}") {
+      depth--;
+      if (depth === 0) return code.slice(start + 1, i);
+    }
+  }
+  return void 0;
+}
+var ASSOCIATION_NAME_RE = /^(?:[\w/]+\.)?(_\w+)$/;
+var DOTTED_REF_RE = /\b([A-Za-z_]\w*)\.([A-Za-z_]\w*)\b/g;
+function parseField(raw) {
+  const text5 = raw.trim();
+  let rest = text5;
+  const isKey = /^key\s+/i.test(rest);
+  if (isKey) rest = rest.replace(/^key\s+/i, "");
+  const aliasMatch = /^([\s\S]*?)\s+as\s+(\w+)\s*$/i.exec(rest);
+  const [, exprGroup, aliasGroup] = aliasMatch ?? [];
+  const expr = (aliasMatch ? exprGroup ?? "" : rest).trim();
+  const alias = aliasGroup;
+  let association;
+  if (!alias) {
+    const assocMatch = ASSOCIATION_NAME_RE.exec(expr);
+    if (assocMatch) association = assocMatch[1];
+  }
+  const sources = [];
+  let sawDotted = false;
+  for (const m of expr.matchAll(DOTTED_REF_RE)) {
+    sawDotted = true;
+    sources.push({ alias: m[1], field: m[2] });
+  }
+  if (!sawDotted && /^\w+$/.test(expr)) {
+    sources.push({ field: expr });
+  }
+  return { text: text5, alias, isKey, association, sources };
+}
+function parseFields(fieldListBody) {
+  return splitTopLevel(fieldListBody, ",").map(parseField);
+}
+function escapeRegExp4(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function parseDdl2(source) {
+  if (typeof source !== "string" || source.trim().length === 0) return EMPTY_PARSED_DDL;
+  const code = normalise2(source);
+  const { kind, name } = detectKindAndName(code);
+  if (kind === "unknown") return EMPTY_PARSED_DDL;
+  const dataSources = parseDataSources(code);
+  const rawAssociations = parseAssociationsRaw(code);
+  const fieldListBody = firstBraceBlock(code);
+  const fields = fieldListBody !== void 0 ? parseFields(fieldListBody) : [];
+  const parameters = parseParameters(code);
+  const associations = rawAssociations.map((a) => ({
+    ...a,
+    selected: fieldListBody !== void 0 && new RegExp(`\\b${escapeRegExp4(a.name)}\\b`).test(fieldListBody)
+  }));
+  return { kind, name, dataSources, associations, fields, parameters };
+}
+var CDS_SOURCE_TYPE = "DDLS/DF";
+var NON_RECURSING_KINDS = /* @__PURE__ */ new Set([
+  "table function",
+  "abstract entity",
+  "custom entity",
+  "extend view",
+  "unknown"
+]);
+var LINEAGE_DEFAULT_DEPTH = 5;
+var LINEAGE_MAX_DEPTH = 10;
+var LINEAGE_DEFAULT_NODE_BUDGET = 200;
+function availableFieldNames(fields) {
+  return fields.map((f) => f.alias ?? f.association ?? f.sources[0]?.field ?? f.text).filter((n) => n.length > 0);
+}
+function findField(fields, name) {
+  const want = name.toUpperCase();
+  return fields.find((f) => {
+    if (f.alias && f.alias.toUpperCase() === want) return true;
+    if (f.association && f.association.toUpperCase() === want) return true;
+    if (!f.alias && f.sources.length === 1 && f.sources[0].field.toUpperCase() === want) return true;
+    return false;
+  });
+}
+function toAbapError2(e, fallbackMessage) {
+  if (isAbapError(e)) return e;
+  return new AbapError("ADT_ERROR", `${fallbackMessage}: ${describeUnknownError(e)}`);
+}
+async function buildLineage(conn, root, opts = {}) {
+  const requestedDepth = opts.depth ?? LINEAGE_DEFAULT_DEPTH;
+  if (!Number.isInteger(requestedDepth) || requestedDepth < 1 || requestedDepth > LINEAGE_MAX_DEPTH) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `depth must be an integer between 1 and ${LINEAGE_MAX_DEPTH} (got ${JSON.stringify(opts.depth)}).`,
+      { depth: opts.depth },
+      `Pass depth between 1 and ${LINEAGE_MAX_DEPTH}, or omit it for the default of ${LINEAGE_DEFAULT_DEPTH}.`
+    );
+  }
+  const nodeBudget = opts.nodeBudget ?? LINEAGE_DEFAULT_NODE_BUDGET;
+  if (!Number.isInteger(nodeBudget) || nodeBudget < 1) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `nodeBudget must be a positive integer (got ${JSON.stringify(opts.nodeBudget)}).`,
+      { nodeBudget: opts.nodeBudget }
+    );
+  }
+  if (root.type !== CDS_SOURCE_TYPE) {
+    throw new AbapError(
+      "UNSUPPORTED",
+      `${root.name} is a ${root.type}, not a CDS view (${CDS_SOURCE_TYPE}). Lineage only traces CDS source \u2014 point it at a DDLS/DF object.`,
+      { type: root.type, name: root.name }
+    );
+  }
+  const seen = /* @__PURE__ */ new Set([root.name.toUpperCase()]);
+  const baseTables = /* @__PURE__ */ new Set();
+  let nodeCount = 1;
+  let sourceReads = 0;
+  let truncated = false;
+  let continueFrom;
+  async function expand(obj, depth, relation, alias, joinKind, associationName) {
+    if (obj.type !== CDS_SOURCE_TYPE) {
+      baseTables.add(obj.name);
+      return {
+        node: {
+          name: obj.name,
+          type: obj.type,
+          kind: "table",
+          depth,
+          relation,
+          alias,
+          joinKind,
+          associationName,
+          children: [],
+          leaf: true,
+          leafReason: `${obj.type} is not CDS source \u2014 lineage stops here`,
+          cycle: false
+        }
+      };
+    }
+    let parsed;
+    try {
+      const src = await readSource(conn, obj, void 0, void 0);
+      sourceReads++;
+      parsed = parseDdl2(src.source);
+    } catch (e) {
+      const err = toAbapError2(e, "reading source");
+      return {
+        node: {
+          name: obj.name,
+          type: obj.type,
+          kind: "unknown",
+          depth,
+          relation,
+          alias,
+          joinKind,
+          associationName,
+          children: [],
+          leaf: true,
+          leafReason: `not found: ${err.message}`,
+          cycle: false
+        }
+      };
+    }
+    const stopReason = NON_RECURSING_KINDS.has(parsed.kind) ? `${parsed.kind} \u2014 not further decomposed` : parsed.parameters.length > 0 ? "parameterised view \u2014 lineage does not resolve parameter bindings" : depth >= requestedDepth ? `depth limit (${requestedDepth}) reached` : void 0;
+    if (stopReason) {
+      return {
+        node: {
+          name: obj.name,
+          type: obj.type,
+          kind: parsed.kind,
+          depth,
+          relation,
+          alias,
+          joinKind,
+          associationName,
+          children: [],
+          leaf: true,
+          leafReason: stopReason,
+          cycle: false,
+          fields: parsed.fields,
+          associations: parsed.associations
+        },
+        parsed
+      };
+    }
+    const children = [];
+    for (const ds of parsed.dataSources) {
+      children.push(await visitRef(ds.target, depth + 1, ds.relation, ds.alias, ds.joinKind, void 0));
+    }
+    for (const assoc of parsed.associations) {
+      if (!assoc.selected) {
+        children.push({
+          name: assoc.target,
+          type: "unknown",
+          kind: "unknown",
+          depth: depth + 1,
+          associationName: assoc.name,
+          children: [],
+          leaf: true,
+          leafReason: "not selected",
+          cycle: false
+        });
+        continue;
+      }
+      children.push(await visitRef(assoc.target, depth + 1, void 0, void 0, void 0, assoc.name));
+    }
+    return {
+      node: {
+        name: obj.name,
+        type: obj.type,
+        kind: parsed.kind,
+        depth,
+        relation,
+        alias,
+        joinKind,
+        associationName,
+        children,
+        leaf: false,
+        cycle: false,
+        fields: parsed.fields,
+        associations: parsed.associations
+      },
+      parsed
+    };
+  }
+  async function visitRef(ref2, depth, relation, alias, joinKind, associationName) {
+    nodeCount++;
+    if (nodeCount > nodeBudget) {
+      truncated = true;
+      continueFrom ??= ref2;
+      return {
+        name: ref2,
+        type: "unknown",
+        kind: "unknown",
+        depth,
+        relation,
+        alias,
+        joinKind,
+        associationName,
+        children: [],
+        leaf: true,
+        leafReason: "node budget exceeded",
+        cycle: false
+      };
+    }
+    let obj;
+    try {
+      obj = await resolveObject(conn, ref2, {});
+    } catch (e) {
+      const err = toAbapError2(e, "resolving reference");
+      return {
+        name: ref2,
+        type: "unknown",
+        kind: "unknown",
+        depth,
+        relation,
+        alias,
+        joinKind,
+        associationName,
+        children: [],
+        leaf: true,
+        leafReason: `not found: ${err.message}`,
+        cycle: false
+      };
+    }
+    const key = obj.name.toUpperCase();
+    if (seen.has(key)) {
+      return {
+        name: obj.name,
+        type: obj.type,
+        kind: "unknown",
+        depth,
+        relation,
+        alias,
+        joinKind,
+        associationName,
+        children: [],
+        leaf: true,
+        cycle: true
+      };
+    }
+    seen.add(key);
+    const { node: node2 } = await expand(obj, depth, relation, alias, joinKind, associationName);
+    return node2;
+  }
+  const { node: rootNode, parsed: rootParsed } = await expand(root, 0);
+  let fieldChain;
+  if (opts.field !== void 0) {
+    const rootFields = rootParsed?.fields ?? [];
+    if (findField(rootFields, opts.field) === void 0) {
+      const names = availableFieldNames(rootFields);
+      const shown = names.slice(0, 40);
+      const suffix = names.length > shown.length ? `, ... and ${names.length - shown.length} more` : "";
+      throw new AbapError(
+        "BAD_INPUT",
+        `${root.name} has no field "${opts.field}". Known fields: ${shown.join(", ")}${suffix}.`,
+        { field: opts.field, knownFields: names },
+        `Pass one of the listed field names (case-insensitive), matched against its exposed alias.`
+      );
+    }
+    fieldChain = await traceField(root, rootParsed, opts.field, requestedDepth);
+  }
+  return {
+    root: rootNode,
+    requestedDepth,
+    nodeCount,
+    baseTables: [...baseTables],
+    sourceReads,
+    truncated,
+    continueFrom,
+    fieldChain
+  };
+  async function traceField(startObj, startParsed, startField, maxSteps) {
+    const steps = [];
+    let currentObj = startObj;
+    let currentParsed = startParsed;
+    let currentField = startField;
+    const chainSeen = /* @__PURE__ */ new Set();
+    for (let i = 0; i < maxSteps; i++) {
+      const chainKey = `${currentObj.name.toUpperCase()}.${currentField.toUpperCase()}`;
+      if (chainSeen.has(chainKey)) {
+        steps.push({
+          nodeName: currentObj.name,
+          nodeType: currentObj.type,
+          fieldText: currentField,
+          sources: [],
+          terminal: true,
+          terminalReason: "cycle -> seen above"
+        });
+        break;
+      }
+      chainSeen.add(chainKey);
+      const field = findField(currentParsed.fields, currentField);
+      if (!field) {
+        steps.push({
+          nodeName: currentObj.name,
+          nodeType: currentObj.type,
+          fieldText: currentField,
+          sources: [],
+          terminal: true,
+          terminalReason: `${currentObj.name} has no field "${currentField}"`
+        });
+        break;
+      }
+      if (field.sources.length !== 1) {
+        steps.push({
+          nodeName: currentObj.name,
+          nodeType: currentObj.type,
+          fieldText: field.text,
+          alias: field.alias,
+          sources: field.sources,
+          terminal: true,
+          terminalReason: field.sources.length === 0 ? "expression has no traceable source reference" : `expression combines ${field.sources.length} source references \u2014 chain stops here`
+        });
+        break;
+      }
+      const only = field.sources[0];
+      const ds = currentParsed.dataSources.find((d) => (d.alias ?? d.target).toUpperCase() === (only.alias ?? "").toUpperCase());
+      const assoc = currentParsed.associations.find((a) => a.name.toUpperCase() === (only.alias ?? "").toUpperCase());
+      const targetRef = ds?.target ?? assoc?.target;
+      if (only.alias === void 0 || targetRef === void 0) {
+        steps.push({
+          nodeName: currentObj.name,
+          nodeType: currentObj.type,
+          fieldText: field.text,
+          alias: field.alias,
+          sources: field.sources,
+          terminal: true,
+          terminalReason: only.alias === void 0 ? "column of this node's own data source \u2014 not itself an alias to follow" : `alias "${only.alias}" does not match a known data source or association here`
+        });
+        break;
+      }
+      steps.push({
+        nodeName: currentObj.name,
+        nodeType: currentObj.type,
+        fieldText: field.text,
+        alias: field.alias,
+        sources: field.sources,
+        terminal: false
+      });
+      let nextObj;
+      try {
+        nextObj = await resolveObject(conn, targetRef, {});
+      } catch (e) {
+        const err = toAbapError2(e, "resolving reference");
+        steps.push({
+          nodeName: targetRef,
+          nodeType: "unknown",
+          fieldText: only.field,
+          sources: [],
+          terminal: true,
+          terminalReason: `not found: ${err.message}`
+        });
+        break;
+      }
+      if (nextObj.type !== CDS_SOURCE_TYPE) {
+        steps.push({
+          nodeName: nextObj.name,
+          nodeType: nextObj.type,
+          fieldText: only.field,
+          sources: [],
+          terminal: true,
+          terminalReason: `${nextObj.type} is not CDS source \u2014 base column`
+        });
+        break;
+      }
+      let nextParsed;
+      try {
+        const src = await readSource(conn, nextObj, void 0, void 0);
+        sourceReads++;
+        nextParsed = parseDdl2(src.source);
+      } catch (e) {
+        const err = toAbapError2(e, "reading source");
+        steps.push({
+          nodeName: nextObj.name,
+          nodeType: nextObj.type,
+          fieldText: only.field,
+          sources: [],
+          terminal: true,
+          terminalReason: `not found: ${err.message}`
+        });
+        break;
+      }
+      currentObj = nextObj;
+      currentParsed = nextParsed;
+      currentField = only.field;
+    }
+    return steps;
+  }
+}
+function nodeLabel(n) {
+  const parts = [];
+  if (n.associationName) {
+    parts.push(`-> ${n.associationName} to ${n.name}`);
+  } else if (n.relation === "join") {
+    parts.push(`${n.joinKind ? `${n.joinKind} ` : ""}join ${n.name}`);
+  } else if (n.relation === "union") {
+    parts.push(`union ${n.name}`);
+  } else if (n.relation === "from") {
+    parts.push(`from ${n.name}`);
+  } else {
+    parts.push(n.name);
+  }
+  if (n.alias) parts.push(`as ${n.alias}`);
+  parts.push(`(${n.kind})`);
+  if (n.cycle) parts.push("(cycle -> seen above)");
+  else if (n.leafReason === "node budget exceeded") {
+  } else if (n.leafReason) {
+    parts.push(`(${n.leafReason})`);
+  }
+  return parts.join(" ");
+}
+function renderTree(node2, indent, lines) {
+  if (node2.leafReason === "node budget exceeded") {
+    lines.push(`${indent}--- TRUNCATED --- (continue from "${node2.name}")`);
+    return;
+  }
+  lines.push(`${indent}${nodeLabel(node2)}`);
+  const childIndent = `${indent}  `;
+  for (const child4 of node2.children) renderTree(child4, childIndent, lines);
+}
+function renderFieldChain(chain, root, field) {
+  const lines = [`${root.name}.${field}`];
+  let indent = "  ";
+  for (const step of chain) {
+    const srcText = step.sources.length ? ` <- ${step.sources.map((s) => s.alias ? `${s.alias}.${s.field}` : s.field).join(", ")}` : "";
+    lines.push(`${indent}${step.fieldText}${srcText}`);
+    if (step.terminal && step.terminalReason) {
+      lines.push(`${indent}  (${step.terminalReason})`);
+    }
+    indent += "  ";
+  }
+  return lines.join("\n");
+}
+function renderLineage(result, opts = {}) {
+  const header = {
+    view: result.root.name,
+    object: `${result.root.name} (${result.root.type})`,
+    depth: String(result.requestedDepth),
+    nodes: String(result.nodeCount),
+    baseTables: String(result.baseTables.length),
+    sourceReads: String(result.sourceReads)
+  };
+  if (opts.field !== void 0) header.field = opts.field;
+  if (result.truncated) header.truncatedNodes = String(result.nodeCount);
+  const notes = [
+    "Lineage is derived by parsing CDS DDL source text, not from ADT's dependency-graph endpoint (that endpoint returns no association edges and no field lineage \u2014 see this file's top comment).",
+    `Only associations referenced somewhere in the field list are followed ("(not selected)" marks the rest).`,
+    `A name repeated anywhere earlier in this walk is shown once and marked "(cycle -> seen above)" on later occurrences, even for a legitimate diamond (the same base table reached two different ways) \u2014 this is a global visited-set, not a strict cycle check.`,
+    `Depth ${result.requestedDepth} of max ${LINEAGE_MAX_DEPTH}; nodes at the limit are leaves even if the underlying view has further data sources.`
+  ];
+  const hints = [];
+  if (result.truncated) {
+    hints.push(`Node budget reached \u2014 re-run with a smaller depth or scope to see past "${String(result.continueFrom)}".`);
+  }
+  if (result.baseTables.length > 0) {
+    hints.push(`Base (non-CDS) tables reached: ${result.baseTables.join(", ")}.`);
+  }
+  let body;
+  if (opts.field !== void 0 && result.fieldChain) {
+    body = renderFieldChain(result.fieldChain, result.root, opts.field);
+  } else {
+    const lines = [];
+    renderTree(result.root, "", lines);
+    body = lines.join("\n");
+  }
+  return { header, body, notes, hints };
+}
+
+// src/adt/footprint.ts
+init_errors();
+init_types();
+init_compact();
+var FOOTPRINT_TYPES = ["PROG/P", "CLAS/OC", "FUGR/F", "FUGR/FF"];
+var DEFAULT_MAX_LINES = 2e4;
+function splitStatements2(source, include) {
+  const lines = source.replace(/\r\n/g, "\n").split("\n");
+  const out = [];
+  let parts = [];
+  let startLine;
+  for (let i = 0; i < lines.length; i++) {
+    const line2 = lines[i] ?? "";
+    const code = abapCodeOf(line2);
+    const raw = line2.slice(0, code.length);
+    let segStart = 0;
+    if (startLine === void 0 && raw.trim() !== "") startLine = i + 1;
+    for (let j = 0; j < code.length; j++) {
+      if (code[j] !== ".") continue;
+      const next = code[j + 1];
+      if (next !== void 0 && !/\s/.test(next)) continue;
+      const segment = raw.slice(segStart, j + 1);
+      parts.push(segment);
+      const text5 = parts.join(" ").replace(/\s+/g, " ").trim();
+      if (text5 !== "" && text5 !== ".") {
+        out.push({ include, startLine: startLine ?? i + 1, endLine: i + 1, text: text5 });
+      }
+      parts = [];
+      startLine = void 0;
+      segStart = j + 1;
+    }
+    const rest = raw.slice(segStart);
+    if (rest.trim() !== "" && startLine === void 0) startLine = i + 1;
+    if (rest !== "") parts.push(rest);
+  }
+  return out;
+}
+function tableOrDynamic(captured) {
+  const c = captured.trim();
+  if (/^\(.+\)$/.test(c)) return { unresolved: c.toUpperCase() };
+  return { table: c.toUpperCase() };
+}
+function cleanFmName(s) {
+  return s.replace(/^'+|'+$/g, "").toUpperCase();
+}
+function classifyStatement(t) {
+  let m = /^EXPORT\b.*\bTO\s+DATABASE\s+([A-Za-z0-9_]+(?:\([A-Za-z0-9_]+\))?)/i.exec(t);
+  if (m) {
+    const captured = m[1];
+    return { kind: "export to database", ...tableOrDynamic(captured.replace(/\(.*\)$/, "")), detail: captured };
+  }
+  m = /^DELETE\s+FROM\s+DATABASE\s+([A-Za-z0-9_]+(?:\([A-Za-z0-9_]+\))?)/i.exec(t);
+  if (m) {
+    const captured = m[1];
+    return { kind: "export to database", ...tableOrDynamic(captured.replace(/\(.*\)$/, "")), detail: captured };
+  }
+  m = /^CALL\s+FUNCTION\s+(\S+)\s+IN\s+UPDATE\s+TASK\b/i.exec(t);
+  if (m) return { kind: "update task", detail: cleanFmName(m[1]) };
+  m = /^CALL\s+FUNCTION\s+(\S+)\s+IN\s+BACKGROUND\s+TASK\b/i.exec(t);
+  if (m) return { kind: "background task", detail: cleanFmName(m[1]) };
+  if (/^CALL\s+FUNCTION\s+'?BAPI_TRANSACTION_COMMIT'?(?![A-Za-z0-9_])/i.test(t)) {
+    return { kind: "commit", detail: "BAPI_TRANSACTION_COMMIT" };
+  }
+  if (/^CALL\s+FUNCTION\s+'?BAPI_TRANSACTION_ROLLBACK'?(?![A-Za-z0-9_])/i.test(t)) {
+    return { kind: "rollback", detail: "BAPI_TRANSACTION_ROLLBACK" };
+  }
+  if (/^COMMIT\s+WORK\b/i.test(t)) return { kind: "commit" };
+  if (/^ROLLBACK\s+WORK\b/i.test(t)) return { kind: "rollback" };
+  if (/\/BOBF\/IF_TRA_SERVICE_MANAGER\S*->\s*MODIFY\s*\(/i.test(t)) {
+    return { kind: "bopf modify", detail: "/BOBF/IF_TRA_SERVICE_MANAGER->MODIFY (no live ground truth)" };
+  }
+  if (/^EXEC\s+SQL\b/i.test(t)) {
+    const insM = /\bINSERT\s+INTO\s+([A-Za-z0-9_.$]+)/i.exec(t);
+    const updM = /\bUPDATE\s+([A-Za-z0-9_.$]+)/i.exec(t);
+    const fromM = /\bFROM\s+([A-Za-z0-9_.$]+)/i.exec(t);
+    const intoM = /\bINTO\s+([A-Za-z0-9_.$]+)/i.exec(t);
+    const cap = insM?.[1] ?? updM?.[1] ?? fromM?.[1] ?? intoM?.[1];
+    return cap ? { kind: "native sql", table: cap.toUpperCase() } : { kind: "native sql", unresolved: "table not statically resolved from EXEC SQL block" };
+  }
+  if (/\bCL_SQL_(STATEMENT|CONNECTION)\S*->\s*EXECUTE_(QUERY|UPDATE|DDL)\s*\(/i.test(t)) {
+    const tabM = /\b(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+([A-Za-z0-9_.$]+)/i.exec(t);
+    return tabM ? { kind: "adbc", table: tabM[1].toUpperCase() } : { kind: "adbc", unresolved: "table not statically resolved from embedded SQL string" };
+  }
+  m = /^CALL\s+TRANSACTION\s+'?([A-Za-z0-9_]+)'?/i.exec(t);
+  if (m) return { kind: "call transaction", detail: m[1].toUpperCase() };
+  m = /^SUBMIT\s+(\(?[A-Za-z0-9_]+\)?)/i.exec(t);
+  if (m) {
+    const rep = m[1];
+    return /^\(/.test(rep) ? { kind: "submit", unresolved: rep.toUpperCase() } : { kind: "submit", detail: rep.toUpperCase() };
+  }
+  m = /^INSERT\s+INTO\s+([A-Za-z0-9_/()]+)\s+VALUES\b/i.exec(t);
+  if (m) return { kind: "insert", ...tableOrDynamic(m[1]) };
+  if (/^INSERT\s+(INITIAL\s+LINE|LINES\s+OF)\b/i.test(t)) return void 0;
+  m = /^INSERT\s+(\([A-Za-z0-9_]+\)|[A-Za-z0-9_/]+)\s+FROM\b/i.exec(t);
+  if (m) return { kind: "insert", ...tableOrDynamic(m[1]) };
+  if (/^INSERT\s+\S+\s+INTO\b/i.test(t)) return void 0;
+  if (!/^UPDATE\s+TASK\b/i.test(t)) {
+    m = /^UPDATE\s+(\([A-Za-z0-9_]+\)|[A-Za-z0-9_/]+)\b/i.exec(t);
+    if (m) return { kind: "update", ...tableOrDynamic(m[1]) };
+  }
+  if (/^MODIFY\s+TABLE\s+/i.test(t)) return void 0;
+  if (/^MODIFY\b/i.test(t) && /\b(INDEX|TRANSPORTING)\b/i.test(t)) return void 0;
+  m = /^MODIFY\s+(\([A-Za-z0-9_]+\)|[A-Za-z0-9_/]+)\s+FROM\b/i.exec(t);
+  if (m) return { kind: "modify", ...tableOrDynamic(m[1]) };
+  m = /^DELETE\s+FROM\s+(\([A-Za-z0-9_]+\)|[A-Za-z0-9_/]+)\b/i.exec(t);
+  if (m) return { kind: "delete", ...tableOrDynamic(m[1]) };
+  if (/^DELETE\s+TABLE\s+/i.test(t)) return void 0;
+  if (/^DELETE\s+ADJACENT\s+DUPLICATES\b/i.test(t)) return void 0;
+  m = /^DELETE\s+(\([A-Za-z0-9_]+\)|[A-Za-z0-9_/]+)\s+FROM\b/i.exec(t);
+  if (m) return { kind: "delete", ...tableOrDynamic(m[1]) };
+  if (/^DELETE\s+\S+\s+(INDEX|WHERE)\b/i.test(t)) return void 0;
+  return void 0;
+}
+function buildReadCall(objectRef, include) {
+  if (include === "main") {
+    return JSON.stringify({ object: objectRef.name, type: objectRef.type });
+  }
+  if (objectRef.type === "CLAS/OC" && CLASS_INCLUDES.includes(include)) {
+    return JSON.stringify({ object: objectRef.name, type: objectRef.type, include });
+  }
+  if (include.includes("/")) {
+    return JSON.stringify({ object: include, type: "FUGR/I" });
+  }
+  if (objectRef.type === "PROG/P" || objectRef.type === "PROG/I") {
+    return JSON.stringify({ object: include, type: "PROG/I" });
+  }
+  if (objectRef.type === "FUGR/F") {
+    return JSON.stringify({ object: `${objectRef.name}/${include}`, type: "FUGR/I" });
+  }
+  return JSON.stringify({ object: include, type: "FUGR/I" });
+}
+function scanFootprint(source, include, objectRef) {
+  const statements = splitStatements2(source, include);
+  const readCall = buildReadCall(objectRef, include);
+  const out = [];
+  for (const stmt of statements) {
+    const hit = classifyStatement(stmt.text);
+    if (!hit) continue;
+    out.push({
+      kind: hit.kind,
+      ...hit.table !== void 0 ? { table: hit.table } : {},
+      ...hit.unresolved !== void 0 ? { unresolved: hit.unresolved } : {},
+      ...hit.detail !== void 0 ? { detail: hit.detail } : {},
+      include,
+      line: stmt.startLine,
+      statement: stmt.text,
+      readCall
+    });
+  }
+  return out;
+}
+function subTarget(spec, name, system, parent) {
+  const uri = buildUri(spec, name, parent);
+  return {
+    system,
+    type: spec.type,
+    kind: spec.kind,
+    label: spec.label,
+    name,
+    uri,
+    sourceUri: `${uri}/source/main`,
+    ...parent !== void 0 ? { parent } : {},
+    mode: spec.mode,
+    activation: "unknown",
+    spec
+  };
+}
+function findIncludeNames(source) {
+  const names = [];
+  const re = /\bINCLUDE\s+([A-Za-z0-9_/]+)/gi;
+  for (const line2 of source.replace(/\r\n/g, "\n").split("\n")) {
+    const raw = line2.slice(0, abapCodeOf(line2).length);
+    re.lastIndex = 0;
+    let m;
+    while ((m = re.exec(raw)) !== null) names.push(m[1].toUpperCase());
+  }
+  return names;
+}
+async function resolveClassIncludes(conn, obj) {
+  const out = [];
+  for (const inc of CLASS_INCLUDES) {
+    try {
+      const { source } = await readSource(conn, obj, inc);
+      out.push({ include: inc, label: inc, source });
+    } catch {
+      out.push({ include: inc, label: `${inc} (not found)` });
+    }
+  }
+  return out;
+}
+async function resolveProgramIncludes(conn, obj) {
+  const out = [];
+  const { source: mainSource } = await readSource(conn, obj);
+  out.push({ include: "main", label: "main", source: mainSource });
+  const spec = specForType("PROG/I");
+  for (const name of findIncludeNames(mainSource)) {
+    try {
+      const { source } = await readSource(conn, subTarget(spec, name, obj.system));
+      out.push({ include: name, label: name, source });
+    } catch {
+      out.push({ include: name, label: `${name} (unreadable)` });
+    }
+  }
+  return out;
+}
+async function resolveFunctionGroupIncludes(conn, obj) {
+  const out = [];
+  const { source: mainSource } = await readSource(conn, obj);
+  out.push({ include: "main", label: "main", source: mainSource });
+  const spec = specForType("FUGR/I");
+  const seen = /* @__PURE__ */ new Set();
+  const level1Sources = [];
+  for (const name of findIncludeNames(mainSource)) {
+    seen.add(name);
+    try {
+      const { source } = await readSource(conn, subTarget(spec, name, obj.system, obj.name));
+      out.push({ include: name, label: name, source });
+      level1Sources.push(source);
+    } catch {
+      out.push({ include: name, label: `${name} (unreadable)` });
+    }
+  }
+  for (const src of level1Sources) {
+    for (const name of findIncludeNames(src)) {
+      if (seen.has(name)) continue;
+      seen.add(name);
+      try {
+        const { source } = await readSource(conn, subTarget(spec, name, obj.system, obj.name));
+        out.push({ include: name, label: name, source });
+      } catch {
+        out.push({ include: name, label: `${name} (unreadable)` });
+      }
+    }
+  }
+  return out;
+}
+async function resolveFunctionModuleIncludes(conn, obj) {
+  const out = [];
+  const { source: ownSource } = await readSource(conn, obj);
+  out.push({ include: "main", label: "main", source: ownSource });
+  const group = obj.parent;
+  if (!group) {
+    out.push({
+      include: "group-top",
+      label: "group's TOP include (unreadable: object has no parent group)"
+    });
+    return out;
+  }
+  const fugrSpec = specForType("FUGR/F");
+  try {
+    const { source: groupMain } = await readSource(conn, subTarget(fugrSpec, group, obj.system));
+    const topName = findIncludeNames(groupMain).find((n) => n.endsWith("TOP"));
+    if (topName) {
+      const qualified = `${group}/${topName}`;
+      try {
+        const incSpec = specForType("FUGR/I");
+        const { source } = await readSource(conn, subTarget(incSpec, topName, obj.system, group));
+        out.push({ include: qualified, label: qualified, source });
+      } catch {
+        out.push({ include: qualified, label: `${qualified} (unreadable)` });
+      }
+    }
+  } catch {
+    out.push({
+      include: "group-top",
+      label: "group's TOP include (unreadable: could not read group main source)"
+    });
+  }
+  return out;
+}
+async function resolveIncludesFor(conn, obj) {
+  switch (obj.type) {
+    case "CLAS/OC":
+      return resolveClassIncludes(conn, obj);
+    case "PROG/P":
+      return resolveProgramIncludes(conn, obj);
+    case "FUGR/F":
+      return resolveFunctionGroupIncludes(conn, obj);
+    case "FUGR/FF":
+      return resolveFunctionModuleIncludes(conn, obj);
+    default:
+      throw new AbapError(
+        "UNSUPPORTED",
+        `Footprint analysis supports ${FOOTPRINT_TYPES.join(", ")} \u2014 ${obj.type} is not one of them.`,
+        { type: obj.type, supported: [...FOOTPRINT_TYPES] }
+      );
+  }
+}
+var WRITE_KINDS = [
+  "insert",
+  "update",
+  "modify",
+  "delete",
+  "export to database",
+  "bopf modify",
+  "native sql",
+  "adbc"
+];
+function isWriteKind(k) {
+  return WRITE_KINDS.includes(k);
+}
+var FORM_OPEN_RE = /^\s*form\s+\S/i;
+var ENDFORM_RE = /^\s*endform\s*\./i;
+function findBlockRanges(source) {
+  const ranges = [];
+  for (const b of scanMethodBlocks(source).blocks) {
+    ranges.push({ start: b.startLine, end: b.endLine });
+  }
+  const lines = source.replace(/\r\n/g, "\n").split("\n");
+  let openForm;
+  for (let i = 0; i < lines.length; i++) {
+    const code = abapCodeOf(lines[i] ?? "");
+    if (FORM_OPEN_RE.test(code)) {
+      if (openForm === void 0) openForm = i + 1;
+      continue;
+    }
+    if (ENDFORM_RE.test(code) && openForm !== void 0) {
+      ranges.push({ start: openForm, end: i + 1 });
+      openForm = void 0;
+    }
+  }
+  return ranges;
+}
+function computeWritesOnlyViaUpdateTask(occurrences, includeList) {
+  const hasTaskCall = occurrences.some((o) => o.kind === "update task" || o.kind === "background task");
+  if (!hasTaskCall) return false;
+  const writes = occurrences.filter((o) => isWriteKind(o.kind));
+  if (writes.length === 0) return true;
+  const blocksByInclude = /* @__PURE__ */ new Map();
+  for (const entry of includeList) {
+    if (entry.source !== void 0) blocksByInclude.set(entry.include, findBlockRanges(entry.source));
+  }
+  return writes.every((w) => {
+    const ranges = blocksByInclude.get(w.include) ?? [];
+    return ranges.some((r) => w.line >= r.start && w.line <= r.end);
+  });
+}
+async function buildFootprint(conn, obj, opts = {}) {
+  if (!FOOTPRINT_TYPES.includes(obj.type)) {
+    throw new AbapError(
+      "UNSUPPORTED",
+      `Footprint analysis supports ${FOOTPRINT_TYPES.join(", ")} \u2014 ${obj.type} is not one of them.`,
+      { type: obj.type, supported: [...FOOTPRINT_TYPES] },
+      "Read the object directly instead of asking for its write footprint. This is NOT silently answered by scanning a different, related object."
+    );
+  }
+  const maxLines = opts.maxLines ?? DEFAULT_MAX_LINES;
+  const objectRef = { name: obj.name, type: obj.type };
+  const includeList = await resolveIncludesFor(conn, obj);
+  const includes = [];
+  const occurrences = [];
+  let linesScanned = 0;
+  let truncatedAt;
+  for (const entry of includeList) {
+    includes.push(entry.label);
+    if (truncatedAt) continue;
+    if (entry.source === void 0) continue;
+    const entryLines = entry.source.replace(/\r\n/g, "\n").split("\n");
+    if (linesScanned + entryLines.length > maxLines) {
+      const remaining = Math.max(0, maxLines - linesScanned);
+      const partial2 = entryLines.slice(0, remaining).join("\n");
+      occurrences.push(...scanFootprint(partial2, entry.include, objectRef));
+      linesScanned = maxLines;
+      truncatedAt = { include: entry.include, line: remaining + 1 };
+      continue;
+    }
+    occurrences.push(...scanFootprint(entry.source, entry.include, objectRef));
+    linesScanned += entryLines.length;
+  }
+  const commitFound = occurrences.some((o) => o.kind === "commit" || o.kind === "rollback");
+  const writesOnlyViaUpdateTask = computeWritesOnlyViaUpdateTask(occurrences, includeList);
+  return {
+    object: `${obj.type} ${obj.name}`,
+    includes,
+    occurrences,
+    linesScanned,
+    commitFound,
+    writesOnlyViaUpdateTask,
+    ...truncatedAt ? { truncatedAt } : {}
+  };
+}
+function occurrenceLine(o) {
+  const loc = `${o.include}:${o.line}`;
+  const extra = o.unresolved !== void 0 ? ` [unresolved: ${o.unresolved}]` : o.detail !== void 0 ? ` (${o.detail})` : "";
+  return `    [${o.kind}] ${loc}  ${o.statement}${extra}`;
+}
+function summarySentence(result) {
+  if (result.occurrences.length === 0) {
+    return "No write, commit, or write-adjacent statement was found in the scanned includes.";
+  }
+  if (result.writesOnlyViaUpdateTask) {
+    return "Every direct write found sits inside a FORM or METHOD block, and the object also calls CALL FUNCTION ... IN UPDATE/BACKGROUND TASK \u2014 consistent with (but not proof of) writes going through an update task rather than executing inline.";
+  }
+  if (result.commitFound) {
+    return "This object both writes and issues its own COMMIT WORK / BAPI_TRANSACTION_COMMIT \u2014 it does not rely on a caller to commit its writes.";
+  }
+  return "This object writes directly (not exclusively via update task) and does not itself commit \u2014 a caller's COMMIT WORK governs when those writes take effect.";
+}
+function renderFootprint(result) {
+  const header = {
+    object: result.object,
+    includes: result.includes.join(", "),
+    linesScanned: result.linesScanned,
+    occurrences: result.occurrences.length,
+    commitFound: result.commitFound ? "yes" : "no",
+    writesOnlyViaUpdateTask: result.writesOnlyViaUpdateTask ? "yes" : "no",
+    ...result.truncatedAt ? { truncated: `${result.truncatedAt.include}:${result.truncatedAt.line}` } : {}
+  };
+  const bodyParts = [];
+  const byTable = /* @__PURE__ */ new Map();
+  for (const o of result.occurrences) {
+    const key = o.table ?? (o.unresolved !== void 0 ? `(unresolved) ${o.unresolved}` : "(n/a)");
+    byTable.set(key, (byTable.get(key) ?? 0) + 1);
+  }
+  if (byTable.size > 0) {
+    const rows = [...byTable.entries()].sort(([a], [b]) => {
+      if (a === "(n/a)") return 1;
+      if (b === "(n/a)") return -1;
+      return a.localeCompare(b);
+    }).map(([table, count]) => ({ table, occurrences: String(count) }));
+    bodyParts.push("Per-table summary:");
+    bodyParts.push(textTable(rows, ["table", "occurrences"]));
+    bodyParts.push("");
+  }
+  const grouped = /* @__PURE__ */ new Map();
+  const unresolvedRows = [];
+  for (const o of result.occurrences) {
+    if (o.table === void 0) {
+      unresolvedRows.push(o);
+      continue;
+    }
+    const list3 = grouped.get(o.table) ?? [];
+    list3.push(o);
+    grouped.set(o.table, list3);
+  }
+  bodyParts.push("Occurrences:");
+  if (result.occurrences.length === 0) {
+    bodyParts.push("  (none found in the scanned includes)");
+  }
+  for (const table of [...grouped.keys()].sort()) {
+    bodyParts.push(`  ${table}:`);
+    for (const o of grouped.get(table)) bodyParts.push(occurrenceLine(o));
+  }
+  if (unresolvedRows.length > 0) {
+    bodyParts.push("  (unresolved / non-table):");
+    for (const o of unresolvedRows) bodyParts.push(occurrenceLine(o));
+  }
+  bodyParts.push("");
+  bodyParts.push(summarySentence(result));
+  if (result.truncatedAt) {
+    bodyParts.push("");
+    bodyParts.push(
+      `--- TRUNCATED --- scan stopped at ${result.truncatedAt.include}:${result.truncatedAt.line} (maxLines budget reached). Resume by reading ${result.truncatedAt.include} from that line, or re-run with a higher maxLines.`
+    );
+  }
+  const notes = [
+    "Detection is static pattern matching over statement text, not a compiler or a call graph \u2014 it can miss a write reached through a macro, dynamic dispatch, or generated code, and it cannot prove a write is unreachable.",
+    "INSERT/MODIFY/DELETE share syntax between database tables and internal tables; telling a database write from an internal-table operation is a keyword-position heuristic (TABLE/INDEX/ TRANSPORTING keyword placement), not type information.",
+    "CALL TRANSACTION and SUBMIT are reported because the target MAY write \u2014 this scanner cannot know whether it actually does without executing it.",
+    "BOPF modify (/BOBF/IF_TRA_SERVICE_MANAGER->MODIFY) is detected by call-site text pattern only; unlike every other kind here, there is no live-captured fixture confirming it against a real BOPF object."
+  ];
+  const hints = [];
+  if (result.truncatedAt) {
+    hints.push(
+      `Scan stopped at ${result.truncatedAt.include}:${result.truncatedAt.line} (maxLines budget). Re-run with a higher maxLines, or read the include directly past that point.`
+    );
+  }
+  for (const label of result.includes) {
+    if (label.includes("(unreadable") || label.includes("(not found)")) {
+      hints.push(`Include "${label}" was not scanned \u2014 its statements (if any) are not reflected here.`);
+    }
+  }
+  return { header, body: bodyParts.join("\n"), notes, hints };
+}
 
 // src/adt/docu.ts
 init_errors();
@@ -123813,12 +124965,12 @@ function resolveDocuTarget(input) {
     { type: input.type }
   );
 }
-function escapeRegExp4(s) {
+function escapeRegExp5(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 function extractAbapDoc(source, member) {
   const lines = source.split(/\r\n|\r|\n/);
-  const declRe = new RegExp(`^\\s*(?:CLASS-)?METHODS\\s+${escapeRegExp4(member)}\\b`, "i");
+  const declRe = new RegExp(`^\\s*(?:CLASS-)?METHODS\\s+${escapeRegExp5(member)}\\b`, "i");
   let declIndex = -1;
   for (let i = 0; i < lines.length; i++) {
     if (declRe.test(abapCodeOf(lines[i] ?? ""))) {
@@ -124003,13 +125155,13 @@ function scanProgramInterface(source) {
   }
   return { parameters, selectOptions, forms, hasStartOfSelection };
 }
-function splitStatements2(source) {
+function splitStatements3(source) {
   const joined = source.replace(/\r\n/g, "\n").split("\n").map(abapCodeOf).join("\n");
   return joined.split(".").map((s) => s.replace(/\s+/g, " ").trim()).filter(Boolean);
 }
 var CLASS_DEFINITION_FOR_TESTING_RE = /\bclass\s+[/\w]+\s+definition\b[\s\S]*\bfor\s+testing\b/i;
 function countTestClasses(testIncludeSource) {
-  return splitStatements2(testIncludeSource).filter((s) => CLASS_DEFINITION_FOR_TESTING_RE.test(s)).length;
+  return splitStatements3(testIncludeSource).filter((s) => CLASS_DEFINITION_FOR_TESTING_RE.test(s)).length;
 }
 var NON_API_COMPONENT_KINDS = /* @__PURE__ */ new Set(["CLAS/OT", "INTF/OT"]);
 function summarisePublicApi(members) {
@@ -124384,8 +125536,8 @@ var readInputSchema = {
   // Enum for the same reason as version/format (G-08): reject a typo rather
   // than silently falling through to an ordinary source read. Named `view`,
   // not `mode` — `mode` is already a response header key and `ResolvedObject.mode`.
-  view: external_exports.enum(["history", "diff", "definition", "docu", "digest"]).optional().describe(
-    `history: versions. diff: hunks. definition: element at line/column. docu: SAP documentation (flattened ITF; type="SIMG" + object=<abap_img activity id> for an IMG activity's docu). digest: one-page object overview. Omit for normal read.`
+  view: external_exports.enum(["history", "diff", "definition", "lineage", "footprint", "docu", "digest"]).optional().describe(
+    `history: versions. diff: hunks. definition: element at line/column. lineage: CDS view sources down to base tables. footprint: database writes and commits. docu: SAP documentation (flattened ITF; type="SIMG" + object=<abap_img activity id> for an IMG activity's docu). digest: one-page object overview. Omit for normal read.`
   ),
   from: external_exports.string().optional().describe('diff: older side \u2014 version, transport, or "active".'),
   to: external_exports.string().optional().describe("diff: newer side, same forms as `from`."),
@@ -124404,7 +125556,20 @@ var readInputSchema = {
   // on both the source-read and `view` paths, always disclosed.
   include: external_exports.enum(CLASS_INCLUDES).optional().describe('Class include. "testclasses"=Unit tests. Default "main".'),
   types: external_exports.array(external_exports.string()).optional().describe('DEVC/K only: filter package contents to these kind codes, e.g. ["CLAS","DDLS"].'),
-  depth: external_exports.number().int().min(1).max(3).optional().describe("DEVC/K only: subpackage nesting depth to list. Default 1.")
+  field: external_exports.string().optional().describe('view="lineage" only: trace one field back to its base columns.'),
+  // The upper bound used to live in this schema as `.max(3)`, back when DEVC/K
+  // was the only consumer of `depth`. Now two unrelated things share the
+  // parameter — a DEVC/K package listing (max 3) and view="lineage" (max
+  // LINEAGE_MAX_DEPTH, 10) — and zod has no way to make the max conditional
+  // on another field, so the bound moved from the schema into code: each
+  // consumer refuses a value above ITS OWN maximum, naming that maximum, via
+  // AbapError("BAD_INPUT", …) rather than a zod validation error (G-08:
+  // refused, never silently clamped). See the DEVC/K check in `abapRead` and
+  // the lineage check in `readLineage` below — both still refuse out-of-range
+  // input, just with a structured error instead of a schema rejection.
+  depth: external_exports.number().int().min(1).optional().describe(
+    'DEVC/K: subpackage nesting depth, default 1, max 3. view="lineage": levels of underlying views, default 5, max 10.'
+  )
 };
 var ReadInput = external_exports.object(readInputSchema);
 var OUTLINE_KINDS = /* @__PURE__ */ new Set(["CLAS", "INTF"]);
@@ -124673,6 +125838,7 @@ async function readEnhancementObject(conn, obj, baseHeader, input, maxChars) {
 var NO_ETAG = "";
 var CORE_TOOLS = /* @__PURE__ */ new Map([[CORE_TOOL_ID, coreTool]]);
 var DIFF_MAX_HUNKS = 200;
+var DEVC_MAX_DEPTH = 3;
 function assertViewCompatible(input, obj) {
   const clash = (param, why, hint) => {
     throw new AbapError(
@@ -124683,41 +125849,43 @@ function assertViewCompatible(input, obj) {
     );
   };
   const isDefinition = input.view === "definition";
+  const isLineage = input.view === "lineage";
+  const isFootprint = input.view === "footprint";
   const isDocu = input.view === "docu";
   const isDigest = input.view === "digest";
   if (input.format) {
     clash(
       'format="raw"',
-      isDefinition ? "raw returns the XML descriptor of a properties-shape type; there is no source text to resolve a line/column position in." : isDocu ? "docu reads SAP's own documentation store (DOKHL/DOKTL), not this object's own wire document \u2014 there is no XML descriptor of a documentation object to return." : isDigest ? "a digest is a rendered six-section overview built from several separate reads, not this object's own current XML descriptor." : "raw returns the current XML descriptor, which has no version feed behind it.",
-      isDefinition ? "Drop format \u2014 a definition lookup only makes sense against source text." : isDocu || isDigest ? "Drop format, or drop view." : "Drop one of the two: view for history/diff, format for the current wire document."
+      isDefinition ? "raw returns the XML descriptor of a properties-shape type; there is no source text to resolve a line/column position in." : isLineage ? "raw returns the current XML descriptor of ONE object; lineage renders a dependency tree parsed from CDS DDL source text across many objects \u2014 there is no single XML descriptor that answers it." : isFootprint ? "raw returns the current XML descriptor of ONE object; footprint renders a scan of ABAP source text for write statements \u2014 there is no XML descriptor that answers it." : isDocu ? "docu reads SAP's own documentation store (DOKHL/DOKTL), not this object's own wire document \u2014 there is no XML descriptor of a documentation object to return." : isDigest ? "a digest is a rendered six-section overview built from several separate reads, not this object's own current XML descriptor." : "raw returns the current XML descriptor, which has no version feed behind it.",
+      isDefinition ? "Drop format \u2014 a definition lookup only makes sense against source text." : isLineage || isFootprint ? `Drop format \u2014 view="${input.view}" produces its own rendering, not the wire document.` : isDocu || isDigest ? "Drop format, or drop view." : "Drop one of the two: view for history/diff, format for the current wire document."
     );
   }
   if (input.enhancements) {
     clash(
       "enhancements=true",
-      isDefinition ? "the enhancement decoders read a structured ENHO/ENHS document, not the source text a position lookup resolves against." : isDocu ? "the enhancement decoders read an ENHO/ENHS document; docu reads the DOKHL/DOKTL documentation store instead \u2014 the two never apply to the same request." : isDigest ? "the enhancement decoders read an ENHO/ENHS document; a digest summarises an ordinary repository object instead \u2014 the two never apply to the same request." : "the enhancement decoders read the current definition only.",
+      isDefinition ? "the enhancement decoders read a structured ENHO/ENHS document, not the source text a position lookup resolves against." : isLineage ? "the enhancement decoders read a structured ENHO/ENHS document; lineage reads CDS DDL source, a different document entirely." : isFootprint ? "the enhancement decoders read a structured ENHO/ENHS document; footprint scans ABAP source for writes, not an enhancement document." : isDocu ? "the enhancement decoders read an ENHO/ENHS document; docu reads the DOKHL/DOKTL documentation store instead \u2014 the two never apply to the same request." : isDigest ? "the enhancement decoders read an ENHO/ENHS document; a digest summarises an ordinary repository object instead \u2014 the two never apply to the same request." : "the enhancement decoders read the current definition only.",
       "Drop enhancements, or drop view."
     );
   }
   if (input.version && (!isDefinition || input.version === "inactive")) {
     clash(
       `version="${input.version}"`,
-      isDefinition ? "the elementinfo and navigation-target POSTs always carry the source abap_read itself read; asking about the inactive version while posting the active source would answer a question about a version that was never sent." : isDocu ? "SAP's documentation store (DOKHL/DOKTL) is not version-controlled the way ABAP source is \u2014 there is no active/inactive pair to select between." : isDigest ? "a digest always summarises the CURRENT active state (falling back to the newest inactive version only the way an ordinary read would); the active/inactive selector is not a thing a fixed overview can apply per section." : 'the active/inactive pair is a different axis from the version FEED; "inactive" is not a feed entry and has no history row.',
-      isDefinition ? "Activate the object first and read the active source, or drop version." : isDocu || isDigest ? "Drop version." : 'Use from/to to name feed versions (list them with view="history").'
+      isDefinition ? "the elementinfo and navigation-target POSTs always carry the source abap_read itself read; asking about the inactive version while posting the active source would answer a question about a version that was never sent." : isLineage ? "lineage always walks the ACTIVE source of the view and everything it references \u2014 there is no per-node way to ask for an inactive version across a whole dependency tree." : isFootprint ? "footprint always scans the ACTIVE source of every include it finds \u2014 there is no per-include way to ask for an inactive version across a whole-object scan." : isDocu ? "SAP's documentation store (DOKHL/DOKTL) is not version-controlled the way ABAP source is \u2014 there is no active/inactive pair to select between." : isDigest ? "a digest always summarises the CURRENT active state (falling back to the newest inactive version only the way an ordinary read would); the active/inactive selector is not a thing a fixed overview can apply per section." : 'the active/inactive pair is a different axis from the version FEED; "inactive" is not a feed entry and has no history row.',
+      isDefinition ? "Activate the object first and read the active source, or drop version." : isLineage || isFootprint ? `Drop version \u2014 view="${input.view}" always reads the current active source.` : isDocu || isDigest ? "Drop version." : 'Use from/to to name feed versions (list them with view="history").'
     );
   }
   if (input.outline) {
     clash(
       "outline=true",
-      isDefinition ? "outline lists the whole component structure, not source text \u2014 there is no line/column position in a component list to resolve." : isDocu ? "outline lists the component structure of a CLASS or INTERFACE object; docu reads a documentation object, which has no component structure of its own." : isDigest ? "a digest already includes its own PUBLIC API section, built the same way outline=true is \u2014 asking for outline=true too would run that pass twice for no new information." : "the outline lists the CURRENT component structure; ADT serves no per-version outline.",
-      isDocu || isDigest ? "Drop outline." : "Read the outline separately, without view."
+      isDefinition ? "outline lists the whole component structure, not source text \u2014 there is no line/column position in a component list to resolve." : isLineage ? "outline lists ONE object's own component structure; lineage's output is a dependency tree over OTHER objects, not a component list of this one." : isFootprint ? "outline lists ONE object's own component structure; footprint's output is a scan of write statements across all of this object's includes, not a component list." : isDocu ? "outline lists the component structure of a CLASS or INTERFACE object; docu reads a documentation object, which has no component structure of its own." : isDigest ? "a digest already includes its own PUBLIC API section, built the same way outline=true is \u2014 asking for outline=true too would run that pass twice for no new information." : "the outline lists the CURRENT component structure; ADT serves no per-version outline.",
+      isLineage || isFootprint ? `Drop outline, or omit view to see ${obj.type} ${obj.name}'s own outline.` : isDocu || isDigest ? "Drop outline." : "Read the outline separately, without view."
     );
   }
   if (input.method && !isDocu) {
     clash(
       `method="${input.method}"`,
-      isDefinition ? "method slices the source down to one component's block and renumbers its lines from 1; a line/column that identifies a position in the FULL source would silently land on whatever happens to sit at that line number inside the renumbered excerpt instead of the position you meant." : isDigest ? "a digest is a fixed six-section overview of the object as a whole; narrowing it to one method would answer a smaller, different question than the digest is for \u2014 the PUBLIC API section already lists every public method." : "ADT versions whole objects (or whole class includes), not individual methods, so there is no per-method feed to read or diff.",
-      isDefinition ? "Drop method and read the definition against the full source (optionally with include)." : isDigest ? "Drop method \u2014 read that one method directly without view, or find it in the digest's PUBLIC API section." : "Drop method \u2014 the diff hunks already carry line numbers you can map back to a method."
+      isDefinition ? "method slices the source down to one component's block and renumbers its lines from 1; a line/column that identifies a position in the FULL source would silently land on whatever happens to sit at that line number inside the renumbered excerpt instead of the position you meant." : isLineage ? "a CDS view's DDL source has no components to slice \u2014 lineage traces data sources and associations across the whole definition, not one method." : isFootprint ? "footprint scans ALL of the object's includes/components together by design \u2014 selecting one method would only hide writes reachable from the others, defeating the point of a whole-object write scan." : isDigest ? "a digest is a fixed six-section overview of the object as a whole; narrowing it to one method would answer a smaller, different question than the digest is for \u2014 the PUBLIC API section already lists every public method." : "ADT versions whole objects (or whole class includes), not individual methods, so there is no per-method feed to read or diff.",
+      isDefinition ? "Drop method and read the definition against the full source (optionally with include)." : isLineage ? "Drop method." : isFootprint ? "Drop method \u2014 footprint's output already labels which include each occurrence is in." : isDigest ? "Drop method \u2014 read that one method directly without view, or find it in the digest's PUBLIC API section." : "Drop method \u2014 the diff hunks already carry line numbers you can map back to a method."
     );
   }
   if (input.include && (isDocu || isDigest)) {
@@ -124732,6 +125900,13 @@ function assertViewCompatible(input, obj) {
       `include="${input.include}"`,
       `only a class has includes, and ${obj.type} ${obj.name} is not one.`,
       "Drop include."
+    );
+  }
+  if (input.include && isFootprint) {
+    clash(
+      `include="${input.include}"`,
+      "footprint scans ALL of the object's includes/sections by design \u2014 a write reachable only from testclasses, or from a class's implementations section, must not go unseen. Selecting one include would contradict that.",
+      "Drop include \u2014 footprint's output already labels which include each occurrence is in."
     );
   }
   if (input.include && obj.include && input.include !== obj.include) {
@@ -124786,7 +125961,7 @@ function assertViewCompatible(input, obj) {
       }
     }
   }
-  if (input.view === "history" || input.view === "diff" || isDocu || isDigest) {
+  if (!isDefinition) {
     for (const [param, value] of [
       ["line", input.line],
       ["column", input.column]
@@ -124794,11 +125969,48 @@ function assertViewCompatible(input, obj) {
       if (value !== void 0) {
         clash(
           param,
-          isDocu ? "it selects a position in ABAP source; docu returns flattened documentation text, which has no line/column axis of its own to resolve a position in." : isDigest ? "it selects a position in ABAP source; a digest is a fixed six-section overview, not a position lookup." : "it selects a position in the CURRENT source; history and diff are about versions, not positions.",
+          isLineage ? "it selects a position in ONE object's CURRENT source; lineage's output is a tree across MANY objects, so there is no single source position for it to mean." : isFootprint ? "it selects a position in ONE object's CURRENT source; footprint's output is a scan across ALL of the object's includes, not a position within one of them." : isDocu ? "it selects a position in ABAP source; docu returns flattened documentation text, which has no line/column axis of its own to resolve a position in." : isDigest ? "it selects a position in ABAP source; a digest is a fixed six-section overview, not a position lookup." : "it selects a position in the CURRENT source; history and diff are about versions, not positions.",
           'Use view="definition" for a position lookup, or drop it.'
         );
       }
     }
+  }
+  if (input.types !== void 0 && (isLineage || isFootprint)) {
+    clash(
+      "types",
+      `types filters a DEVC/K package listing to certain kind codes; view="${input.view}" is not a package read.`,
+      "Drop types."
+    );
+  }
+  if (isLineage || isFootprint) {
+    for (const [param, value] of [
+      ["offset", input.offset],
+      ["limit", input.limit]
+    ]) {
+      if (value !== void 0) {
+        clash(
+          param,
+          isLineage ? "lineage's tree (or field chain, with field=) is bounded by depth/nodeBudget, not paged by line \u2014 there is no line-numbered body for offset/limit to window into." : "footprint's occurrence list is grouped by table, not paged by line \u2014 there is no line-numbered body for offset/limit to window into.",
+          isLineage ? `Drop ${param} \u2014 narrow the walk with depth instead.` : `Drop ${param}.`
+        );
+      }
+    }
+  }
+  if (input.field !== void 0 && !isLineage) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `field is only meaningful with view="lineage"; view="${input.view}" doesn't use it.`,
+      { type: obj.type, name: obj.name, view: input.view, param: "field" },
+      'Drop field, or use view="lineage".'
+    );
+  }
+  if (input.depth !== void 0 && !isLineage) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `depth is only meaningful with view="lineage", or with a DEVC/K package read (no view); view="${input.view}" doesn't use it.`,
+      { type: obj.type, name: obj.name, view: input.view, param: "depth" },
+      `Drop depth, or use view="lineage" to bound the lineage walk.`
+    );
   }
   if (isDefinition && input.line === void 0) {
     throw new AbapError(
@@ -124996,6 +126208,64 @@ async function readDiff(conn, obj, baseHeader, input, maxChars) {
       'List the versions with view="history".'
     ],
     pagingParam: "offset",
+    maxChars
+  });
+  return { ...built, etag: NO_ETAG };
+}
+async function readLineage(conn, obj, baseHeader, input, maxChars) {
+  if (obj.type !== "DDLS/DF") {
+    throw new AbapError(
+      "UNSUPPORTED",
+      `view="lineage" only traces CDS source (DDLS/DF) \u2014 ${obj.type} ${obj.name} is not a CDS view.`,
+      { type: obj.type, name: obj.name },
+      "Point it at a DDLS/DF object, or drop view to read this object directly."
+    );
+  }
+  if (input.depth !== void 0 && input.depth > LINEAGE_MAX_DEPTH) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `depth=${input.depth} exceeds the maximum for view="lineage" (${LINEAGE_MAX_DEPTH}); refused, not clamped.`,
+      { type: obj.type, name: obj.name, depth: input.depth, max: LINEAGE_MAX_DEPTH },
+      `Use depth between 1 and ${LINEAGE_MAX_DEPTH}, or omit it for the default (${LINEAGE_DEFAULT_DEPTH}).`
+    );
+  }
+  const result = await buildLineage(conn, obj, { depth: input.depth, field: input.field });
+  const rendered = renderLineage(result, { field: input.field });
+  const built = buildReadResponse({
+    header: {
+      ...baseHeader,
+      ...rendered.header,
+      view: "lineage"
+    },
+    body: rendered.body,
+    bodyLabel: "LINEAGE",
+    notes: [...rendered.notes],
+    hints: [...rendered.hints],
+    maxChars
+  });
+  return { ...built, etag: NO_ETAG };
+}
+async function readFootprint(conn, obj, baseHeader, input, maxChars) {
+  if (!FOOTPRINT_TYPES.includes(obj.type)) {
+    throw new AbapError(
+      "UNSUPPORTED",
+      `view="footprint" supports ${FOOTPRINT_TYPES.join(", ")} \u2014 ${obj.type} ${obj.name} is not one of them.`,
+      { type: obj.type, name: obj.name, supported: [...FOOTPRINT_TYPES] },
+      "Read the object directly instead of asking for its write footprint."
+    );
+  }
+  const result = await buildFootprint(conn, obj);
+  const rendered = renderFootprint(result);
+  const built = buildReadResponse({
+    header: {
+      ...baseHeader,
+      ...rendered.header,
+      view: "footprint"
+    },
+    body: rendered.body,
+    bodyLabel: "DATABASE FOOTPRINT",
+    notes: rendered.notes,
+    hints: rendered.hints,
     maxChars
   });
   return { ...built, etag: NO_ETAG };
@@ -125519,7 +126789,8 @@ var CATALOG_READ_IRRELEVANT_PARAMS = [
   "include",
   "types",
   "depth",
-  "format"
+  "format",
+  "field"
 ];
 async function readCatalogObject2(conn, input, catalogRead, label, maxChars) {
   const code = input.type.trim().toUpperCase();
@@ -125626,6 +126897,8 @@ async function abapRead(conn, input, maxChars, gate) {
     assertViewCompatible(input, obj);
     if (input.view === "history") return await readHistory(conn, obj, baseHeader, input, maxChars);
     if (input.view === "diff") return await readDiff(conn, obj, baseHeader, input, maxChars);
+    if (input.view === "lineage") return await readLineage(conn, obj, baseHeader, input, maxChars);
+    if (input.view === "footprint") return await readFootprint(conn, obj, baseHeader, input, maxChars);
     if (input.view === "docu") return await readDocu(conn, obj, baseHeader, input, maxChars, gate);
     if (input.view === "digest") return await readDigest(conn, obj, baseHeader, input, maxChars);
     return await readDefinition(conn, obj, baseHeader, input, maxChars);
@@ -125656,6 +126929,14 @@ async function abapRead(conn, input, maxChars, gate) {
         `Add view="definition", or drop ${param}.`
       );
     }
+  }
+  if (input.field !== void 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      'field is only meaningful with view="lineage"; no view was requested, so this would have been an ordinary source read with your parameter discarded.',
+      { type: obj.type, name: obj.name, param: "field" },
+      'Add view="lineage", or drop field.'
+    );
   }
   for (const [param, value] of [
     ["types", input.types],
@@ -125736,6 +127017,14 @@ async function abapRead(conn, input, maxChars, gate) {
         `version="inactive" is not supported for ${obj.type} ${obj.name}: DDIC reads (TABL, DTEL, DOMA, TTYP) always render the current definition.`,
         { type: obj.type, name: obj.name, requested: input.version },
         'Omit version for DDIC objects. Omitting it and passing version="active" return the same bytes.'
+      );
+    }
+    if (obj.type === "DEVC/K" && input.depth !== void 0 && input.depth > DEVC_MAX_DEPTH) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `depth=${input.depth} exceeds the maximum for DEVC/K (${DEVC_MAX_DEPTH}); refused, not clamped.`,
+        { type: obj.type, name: obj.name, depth: input.depth, max: DEVC_MAX_DEPTH },
+        `Use depth between 1 and ${DEVC_MAX_DEPTH}.`
       );
     }
     let rendered;
@@ -127439,6 +128728,306 @@ function registerTestTools(mcp, deps) {
 // src/tools/search.ts
 init_zod();
 init_errors();
+
+// src/adt/call-graph.ts
+init_errors();
+
+// src/adt/call-sites.ts
+var IDENT = "[A-Za-z_][A-Za-z0-9_]*";
+var CALL_FUNCTION_RE2 = new RegExp(
+  `\\bCALL\\s+FUNCTION\\s+(?:'([^']*)'|\\(\\s*(${IDENT})\\s*\\)|(${IDENT}))`,
+  "i"
+);
+var CALL_METHOD_KEYWORD_RE = new RegExp(`\\bCALL\\s+METHOD\\s+(${IDENT})\\s*(=>|->)\\s*${IDENT}`, "i");
+var FUNCTIONAL_METHOD_RE = new RegExp(`\\b(${IDENT})\\s*(=>|->)\\s*${IDENT}\\s*\\(`, "i");
+var PERFORM_IN_PROGRAM_RE = new RegExp(
+  `\\bPERFORM\\s+\\(?\\s*${IDENT}\\s*\\)?\\s+IN\\s+PROGRAM\\s+(?:\\(\\s*(${IDENT})\\s*\\)|(${IDENT}))`,
+  "i"
+);
+var SUBMIT_RE2 = new RegExp(`\\bSUBMIT\\s+(?:\\(\\s*(${IDENT})\\s*\\)|(${IDENT}))`, "i");
+var CALL_TRANSACTION_RE = new RegExp(`\\bCALL\\s+TRANSACTION\\s+(?:'([^']*)'|(${IDENT}))`, "i");
+function codeSlice(line2) {
+  return line2.slice(0, abapCodeOf(line2).length);
+}
+function parseCallSites(source, include) {
+  const rawLines = source.split(/\r\n|\r|\n/);
+  const sites = [];
+  for (let i = 0; i < rawLines.length; i++) {
+    const rawLine = rawLines[i] ?? "";
+    const code = codeSlice(rawLine);
+    if (code.trim() === "") continue;
+    const lineNo = i + 1;
+    const statement = rawLine.trim();
+    const fn = CALL_FUNCTION_RE2.exec(code);
+    if (fn) {
+      if (fn[1] !== void 0) {
+        sites.push({ kind: "function module", target: fn[1].toUpperCase(), rawTarget: fn[1], line: lineNo, include, statement });
+      } else if (fn[2] !== void 0) {
+        sites.push({ kind: "function module", rawTarget: `(${fn[2]})`, line: lineNo, include, statement });
+      } else if (fn[3] !== void 0) {
+        sites.push({ kind: "function module", rawTarget: fn[3], line: lineNo, include, statement });
+      }
+    }
+    const callMethod = CALL_METHOD_KEYWORD_RE.exec(code);
+    const method = callMethod ?? FUNCTIONAL_METHOD_RE.exec(code);
+    if (method) {
+      const receiver = method[1];
+      const arrow = method[2];
+      if (arrow === "=>") {
+        sites.push({ kind: "method", target: receiver.toUpperCase(), rawTarget: receiver, line: lineNo, include, statement });
+      } else {
+        sites.push({ kind: "method", rawTarget: receiver, line: lineNo, include, statement });
+      }
+    }
+    const perform = PERFORM_IN_PROGRAM_RE.exec(code);
+    if (perform) {
+      if (perform[1] !== void 0) {
+        sites.push({ kind: "form", rawTarget: `(${perform[1]})`, line: lineNo, include, statement });
+      } else if (perform[2] !== void 0) {
+        sites.push({ kind: "form", target: perform[2].toUpperCase(), rawTarget: perform[2], line: lineNo, include, statement });
+      }
+    }
+    const submit = SUBMIT_RE2.exec(code);
+    if (submit) {
+      if (submit[1] !== void 0) {
+        sites.push({ kind: "report", rawTarget: `(${submit[1]})`, line: lineNo, include, statement });
+      } else if (submit[2] !== void 0) {
+        sites.push({ kind: "report", target: submit[2].toUpperCase(), rawTarget: submit[2], line: lineNo, include, statement });
+      }
+    }
+    const tran = CALL_TRANSACTION_RE.exec(code);
+    if (tran) {
+      if (tran[1] !== void 0) {
+        sites.push({ kind: "transaction", target: tran[1].toUpperCase(), rawTarget: tran[1], line: lineNo, include, statement });
+      } else if (tran[2] !== void 0) {
+        sites.push({ kind: "transaction", rawTarget: tran[2], line: lineNo, include, statement });
+      }
+    }
+  }
+  return sites;
+}
+
+// src/adt/call-graph.ts
+init_types();
+init_compact();
+function nodeLabel2(node2) {
+  return `${node2.type} ${node2.name} (${node2.packageName ?? "unknown package"})`;
+}
+function abapReadCall(node2) {
+  return `abap_read ${JSON.stringify({ object: node2.name, type: node2.type })}`;
+}
+function resolveFailureReason(e) {
+  if (e instanceof AbapError) return e.message.split("\n")[0] ?? e.message;
+  return e instanceof Error ? e.message : String(e);
+}
+function statementText(cs) {
+  return cs.statement.replace(/\.\s*$/, "");
+}
+function callerChildren(refs, selfUri) {
+  const byUri = /* @__PURE__ */ new Map();
+  for (const r of refs) {
+    const name = r["adtcore:name"];
+    const type = r["adtcore:type"];
+    const uri = r["uri"];
+    if (typeof name !== "string" || typeof type !== "string" || typeof uri !== "string") continue;
+    if (type.toUpperCase() === "DEVC/K") continue;
+    if (uri === selfUri) continue;
+    if (byUri.has(uri)) continue;
+    const packageRefValue = r["packageRef"];
+    const packageRef = packageRefValue !== null && typeof packageRefValue === "object" ? packageRefValue : void 0;
+    const packageName = packageRef ? packageRef["adtcore:name"] : void 0;
+    byUri.set(uri, { type, name, uri, packageName: typeof packageName === "string" ? packageName : void 0 });
+  }
+  return [...byUri.values()];
+}
+async function renderCallerNode(conn, node2, level, depth, max, seen, stats) {
+  const indent = "  ".repeat(level);
+  const label = nodeLabel2(node2);
+  stats.nodeCount += 1;
+  if (seen.has(node2.uri)) {
+    return [`${indent}${label}  (cycle -> seen above)`];
+  }
+  seen.set(node2.uri, label);
+  if (level >= depth) {
+    return [`${indent}${label}  ${abapReadCall(node2)}`];
+  }
+  const { refs, fetchMs } = await fetchUsageReferences(conn, node2.uri, void 0, node2.name);
+  stats.cumulativeFetchMs += fetchMs;
+  const children = callerChildren(refs, node2.uri);
+  stats.maxFanIn = Math.max(stats.maxFanIn, children.length);
+  if (children.length >= HIGH_FAN_IN_REFERENCES) {
+    return [`${indent}${label}  ${abapReadCall(node2)}  (not expanded: ${children.length} references)`];
+  }
+  const lines = [`${indent}${label}  ${abapReadCall(node2)}`];
+  const shown = children.slice(0, max);
+  for (const child4 of shown) {
+    lines.push(...await renderCallerNode(conn, child4, level + 1, depth, max, seen, stats));
+  }
+  if (children.length > shown.length) {
+    const omitted = children.length - shown.length;
+    stats.truncatedNodes += omitted;
+    lines.push(
+      `${"  ".repeat(level + 1)}--- TRUNCATED --- ${omitted} of ${children.length} caller(s) of ${node2.name} not shown (max=${max}).`
+    );
+  }
+  return lines;
+}
+async function collectCallSites(conn, obj) {
+  if (obj.type.toUpperCase() === "CLAS/OC") {
+    const sites = [];
+    for (const inc of CLASS_INCLUDES) {
+      try {
+        const res = await readSource(conn, obj, inc);
+        sites.push(...parseCallSites(res.source, inc));
+      } catch {
+        continue;
+      }
+    }
+    return sites;
+  }
+  try {
+    const res = await readSource(conn, obj);
+    return parseCallSites(res.source, "main");
+  } catch {
+    return [];
+  }
+}
+var CALL_KIND_TYPE = {
+  "function module": "FUGR/FF",
+  report: "PROG/P",
+  form: "PROG/P",
+  method: "CLAS/OC",
+  transaction: "TRAN/T"
+};
+function calleeUnresolvedReason(kind, e) {
+  if (kind === "function module") {
+    return "not found by search; quickSearch does not index generated function modules, so this is not proof it does not exist";
+  }
+  return resolveFailureReason(e);
+}
+function groupCallSites(sites) {
+  const byKey = /* @__PURE__ */ new Map();
+  const dynamicSites = [];
+  for (const cs of sites) {
+    if (cs.target === void 0) {
+      dynamicSites.push(cs);
+      continue;
+    }
+    const key = `${cs.kind}|${cs.target.toUpperCase()}`;
+    if (!byKey.has(key)) byKey.set(key, { target: cs.target, rep: cs });
+  }
+  return { staticGroups: [...byKey.values()], dynamicSites };
+}
+async function renderCalleeNode(conn, node2, level, depth, max, seen, stats) {
+  const indent = "  ".repeat(level);
+  const label = nodeLabel2(node2);
+  stats.nodeCount += 1;
+  if (seen.has(node2.uri)) {
+    return [`${indent}${label}  (cycle -> seen above)`];
+  }
+  seen.set(node2.uri, label);
+  if (level >= depth) {
+    return [`${indent}${label}  ${abapReadCall(node2)}`];
+  }
+  const fetchStart = Date.now();
+  const sites = await collectCallSites(conn, node2);
+  stats.cumulativeFetchMs += Date.now() - fetchStart;
+  const { staticGroups, dynamicSites } = groupCallSites(sites);
+  const entries = [];
+  for (const group of staticGroups) {
+    const kind = group.rep.kind;
+    try {
+      const resolved = await resolveObject(conn, group.target, { type: CALL_KIND_TYPE[kind] });
+      entries.push({ expand: resolved });
+      continue;
+    } catch (typedError) {
+      if (kind === "method") {
+        try {
+          const resolved = await resolveObject(conn, group.target);
+          entries.push({ expand: resolved });
+          continue;
+        } catch (untypedError) {
+          entries.push({ render: `unresolved  ${statementText(group.rep)}  \u2014 ${calleeUnresolvedReason(kind, untypedError)}` });
+          continue;
+        }
+      }
+      entries.push({ render: `unresolved  ${statementText(group.rep)}  \u2014 ${calleeUnresolvedReason(kind, typedError)}` });
+    }
+  }
+  for (const cs of dynamicSites) {
+    entries.push({ render: `unresolved  ${statementText(cs)} (dynamic target)  \u2014 line ${cs.line} of ${cs.include}` });
+  }
+  const lines = [`${indent}${label}  ${abapReadCall(node2)}`];
+  const shown = entries.slice(0, max);
+  for (const entry of shown) {
+    if ("expand" in entry) {
+      lines.push(...await renderCalleeNode(conn, entry.expand, level + 1, depth, max, seen, stats));
+    } else {
+      stats.nodeCount += 1;
+      lines.push(`${"  ".repeat(level + 1)}${entry.render}`);
+    }
+  }
+  if (entries.length > shown.length) {
+    const omitted = entries.length - shown.length;
+    stats.truncatedNodes += omitted;
+    lines.push(
+      `${"  ".repeat(level + 1)}--- TRUNCATED --- ${omitted} of ${entries.length} callee(s) of ${node2.name} not shown (max=${max}).`
+    );
+  }
+  return lines;
+}
+async function buildCallGraph(conn, target, type, direction, depth, max, maxChars) {
+  const root = await resolveObject(conn, target, type ? { type } : {});
+  const seen = /* @__PURE__ */ new Map();
+  const stats = { cumulativeFetchMs: 0, maxFanIn: 0, nodeCount: 0, truncatedNodes: 0 };
+  const lines = direction === "callers" ? await renderCallerNode(
+    conn,
+    { type: root.type, name: root.name, uri: root.uri, packageName: root.packageName },
+    0,
+    depth,
+    max,
+    seen,
+    stats
+  ) : await renderCalleeNode(conn, root, 0, depth, max, seen, stats);
+  const expensive = stats.cumulativeFetchMs >= SLOW_FETCH_MS || stats.maxFanIn >= HIGH_FAN_IN_REFERENCES;
+  const notes = [];
+  if (expensive) {
+    notes.push(
+      `FETCH COST: this walk spent ${(stats.cumulativeFetchMs / 1e3).toFixed(1)}s CUMULATIVE across every ${direction === "callers" ? "usageReferences fetch" : "source read"} it made` + (direction === "callers" ? ` (highest single-node fan-in: ${stats.maxFanIn} references)` : "") + `. The cost is set by fan-in and depth, not by max \u2014 every reference or include is fetched before max trims what is shown, so lowering max would not have made this walk cheaper. Narrow with a smaller depth, or ask about a less widely-referenced object.`
+    );
+  }
+  notes.push(
+    'This graph is static. A dynamically dispatched call \u2014 CALL FUNCTION lv_name, obj->method( ) through a variable, PERFORM (lv_form) IN PROGRAM (lv_prog), SUBMIT (lv_prog), CALL TRANSACTION lv_t \u2014 cannot be resolved to a target object and appears as an "unresolved \u2026 (dynamic target)" leaf instead of an edge; an object reachable only that way is invisible here. Use abap_search mode="source" to search for it by text.'
+  );
+  if (direction === "callees") {
+    notes.push(
+      "Edges come from parsing this object's own source text, not an ADT index: a call name built at runtime (string concatenation) or one issued from inside a macro expansion is invisible to this parser, even though it is fully static from ABAP's own point of view."
+    );
+  }
+  return buildResponse({
+    header: {
+      system: conn.cfg.sid,
+      mode: "call_graph",
+      direction,
+      object: `${root.type} ${root.name}`,
+      uri: root.uri,
+      depth,
+      nodes: stats.nodeCount,
+      truncatedNodes: stats.truncatedNodes > 0 ? stats.truncatedNodes : void 0,
+      fetchMs: expensive ? stats.cumulativeFetchMs : void 0
+    },
+    body: lines.join("\n"),
+    bodyLabel: "CALL GRAPH",
+    notes,
+    hints: [
+      direction === "callers" ? 'Pass direction="callees" to see what this object calls instead.' : 'Pass direction="callers" to see who calls this object instead.',
+      "Raise `depth` (<=4) to expand further, or `max` to show more children per node."
+    ],
+    maxChars
+  });
+}
+
+// src/tools/search.ts
 init_compact();
 init_types();
 init_truncate();
@@ -127585,16 +129174,20 @@ function assertKnownType(type) {
   );
 }
 var searchInputSchema = {
-  query: external_exports.string().describe("Name pattern (mode=objects), target object (mode=where_used), or literal/regex text (mode=source)."),
-  mode: external_exports.enum(["objects", "where_used", "source"]).optional().describe(
-    'Default "objects". "source" scans raw source text (literal/regex, any line) and needs the fluid API; prefer "where_used" when you want real static references to one object, since a text scan also matches strings, comments and dead code.'
+  query: external_exports.string().describe(
+    "Name pattern (mode=objects), target object (mode=where_used/call_graph), or literal/regex text (mode=source)."
+  ),
+  mode: external_exports.enum(["objects", "where_used", "source", "call_graph"]).optional().describe(
+    'Default "objects". "source" scans raw source text (literal/regex, any line) and needs the fluid API; prefer "where_used" when you want real static references to one object, since a text scan also matches strings, comments and dead code. "call_graph" walks multiple levels of callers or callees instead of just one.'
   ),
   type: external_exports.string().optional().describe(
-    `ADT type filter (mode=objects/where_used only). One of: ${[...KNOWN_TYPE_GROUPS].sort().join(" ")}; or a full code, e.g. "CLAS/OC".`
+    `ADT type filter (mode=objects/where_used/call_graph only). One of: ${[...KNOWN_TYPE_GROUPS].sort().join(" ")}; or a full code, e.g. "CLAS/OC".`
   ),
   max: external_exports.number().int().positive().max(200).optional().describe(
-    "Default 50 rows (mode=objects/where_used) or 100 hits (mode=source); narrowing `query` (not lowering `max`) is what makes a broad call cheaper."
+    "Default 50 rows (mode=objects/where_used), 100 hits (mode=source), or 50 children per node (mode=call_graph); narrowing `query` (not lowering `max`) is what makes a broad call cheaper."
   ),
+  direction: external_exports.enum(["callers", "callees"]).optional().describe('mode=call_graph: "callers" (who calls this, default) or "callees" (what this calls).'),
+  depth: external_exports.number().int().positive().optional().describe("mode=call_graph: levels to expand. Default 2, max 4."),
   packages: external_exports.array(external_exports.string()).max(20).optional().describe("mode=source: package scope (TADIR-DEVCLASS). Required unless `objects` is given."),
   include_subpackages: external_exports.boolean().optional().describe("mode=source: also scan every package transitively under `packages` (TDEVC-PARENTCL)."),
   objects: external_exports.string().optional().describe('mode=source: object-name pattern (wildcards `*`), e.g. "ZCL_MY_*". Alternative/addition to `packages`.'),
@@ -127604,11 +129197,25 @@ var searchInputSchema = {
   include_comments: external_exports.boolean().optional().describe("mode=source: also match inside comments (heuristic, line-local). Default false.")
 };
 var SearchInput = external_exports.object(searchInputSchema);
+var MAX_CALL_GRAPH_DEPTH = 4;
 async function abapSearch(conn, input, maxChars) {
   const max = input.max ?? 50;
   if (input.type) assertKnownType(input.type);
-  if ((input.mode ?? "objects") === "where_used") {
+  const mode = input.mode ?? "objects";
+  if (mode === "where_used") {
     return whereUsed(conn, input.query, input.type, max, maxChars);
+  }
+  if (mode === "call_graph") {
+    const depth = input.depth ?? 2;
+    if (depth > MAX_CALL_GRAPH_DEPTH) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `depth=${depth} exceeds the maximum of ${MAX_CALL_GRAPH_DEPTH} for mode="call_graph".`,
+        { depth, max: MAX_CALL_GRAPH_DEPTH },
+        `Pass depth<=${MAX_CALL_GRAPH_DEPTH}. This is refused, not silently capped, because a call graph's cost grows with fan-in at every level \u2014 a caller expecting depth=6 and silently getting depth=4 would draw wrong conclusions from an incomplete tree without knowing it.`
+      );
+    }
+    return buildCallGraph(conn, input.query, input.type, input.direction ?? "callers", depth, max, maxChars);
   }
   return searchObjects(conn, input.query, input.type, max, maxChars);
 }
@@ -127695,13 +129302,9 @@ async function searchObjects(conn, query, type, max, maxChars) {
     maxChars
   });
 }
-var HIGH_FAN_IN_REFERENCES = 500;
-var SLOW_FETCH_MS = 5e3;
 async function whereUsed(conn, target, type, max, maxChars) {
   const obj = await resolveObject(conn, target, type ? { type } : {});
-  const fetchStart = Date.now();
-  const refs = await conn.adt.usageReferences(obj.uri);
-  const fetchMs = Date.now() - fetchStart;
+  const { refs, fetchMs } = await fetchUsageReferences(conn, obj.uri, void 0, obj.name);
   const named = refs.filter((r) => r["adtcore:name"]);
   const totalReferences = named.length;
   const expensive = totalReferences >= HIGH_FAN_IN_REFERENCES || fetchMs >= SLOW_FETCH_MS;
@@ -127709,12 +129312,17 @@ async function whereUsed(conn, target, type, max, maxChars) {
   const omitted = totalReferences - kept.length;
   const capLine = omitted > 0 ? `--- TRUNCATED --- ${omitted} of ${totalReferences} reference(s) not shown (display cap max=${max}). Re-run with max=${Math.min(200, totalReferences)}.` : void 0;
   const capped = omitted > 0;
-  const rows = kept.map((r) => ({
-    type: r["adtcore:type"] ?? "",
-    name: r["adtcore:name"] ?? "",
-    package: r.packageRef?.["adtcore:name"] ?? "",
-    description: truncateForDisplay(r["adtcore:description"] ?? "", DESCRIPTION_COL_NARROW)
-  }));
+  const strField = (v) => typeof v === "string" ? v : "";
+  const rows = kept.map((r) => {
+    const packageRefValue = r["packageRef"];
+    const packageRef = packageRefValue !== null && typeof packageRefValue === "object" ? packageRefValue : void 0;
+    return {
+      type: strField(r["adtcore:type"]),
+      name: strField(r["adtcore:name"]),
+      package: packageRef ? strField(packageRef["adtcore:name"]) : "",
+      description: truncateForDisplay(strField(r["adtcore:description"]), DESCRIPTION_COL_NARROW)
+    };
+  });
   return buildResponse({
     header: {
       system: conn.cfg.sid,
@@ -127769,6 +129377,20 @@ function assertNoSourceOnlyFields(input, mode) {
       'Omit them, or set mode="source" to run a source-text scan.'
     );
   }
+}
+var CALL_GRAPH_ONLY_FIELDS = ["direction", "depth"];
+function assertNoCallGraphOnlyFields(input, mode) {
+  if (mode === "call_graph") return;
+  const passed = CALL_GRAPH_ONLY_FIELDS.filter((f) => input[f] !== void 0);
+  if (passed.length === 0) return;
+  const verb = passed.length > 1 ? "are" : "is";
+  const pronoun = passed.length > 1 ? "them" : "it";
+  throw new AbapError(
+    "BAD_INPUT",
+    `${passed.map((f) => `\`${f}\``).join(" and ")} ${verb} only meaningful with mode="call_graph"; mode="${mode}" would have discarded ${pronoun}.`,
+    { mode, fields: passed },
+    'Omit them, or set mode="call_graph".'
+  );
 }
 var PATTERN_CHARS = /^[A-Za-z0-9_$*/]+$/;
 function assertValidPattern(value, field) {
@@ -127937,7 +129559,7 @@ function registerSearchTools(mcp, deps) {
     "abap_search",
     {
       title: "Search ABAP repository",
-      description: "Find objects by name pattern (mode=objects, wildcards *), list consumers (mode=where_used; 20+ seconds on wide fan-in \u2014 narrow by type/query first), or scan source text line by line (mode=source, needs the fluid API and a package/objects scope).",
+      description: "Find objects by name pattern (mode=objects, wildcards *), list consumers (mode=where_used; 20+ seconds on wide fan-in \u2014 narrow by type/query first), walk multiple levels of callers or callees (mode=call_graph, direction=callers|callees, depth<=4), or scan source text line by line (mode=source, needs the fluid API and a package/objects scope).",
       inputSchema: searchInputSchema,
       annotations: { readOnlyHint: true, openWorldHint: true }
     },
@@ -127945,6 +129567,7 @@ function registerSearchTools(mcp, deps) {
       try {
         const input = args;
         const mode = input.mode ?? "objects";
+        assertNoCallGraphOnlyFields(input, mode);
         if (mode === "source") {
           const q = buildSourceScanQuery(input);
           await deps.ensureConnected();
@@ -139208,7 +140831,7 @@ function renderShow(query, result, maxChars) {
     maxChars
   }).text;
 }
-function renderTree(query, result, maxChars) {
+function renderTree2(query, result, maxChars) {
   const t = result.transcript;
   const notes = standingNotes();
   const rows = t.nodes.map((n) => ({
@@ -139280,7 +140903,7 @@ function renderResult(query, result, maxChars) {
     case "show":
       return renderShow(query, result, maxChars);
     case "tree":
-      return renderTree(query, result, maxChars);
+      return renderTree2(query, result, maxChars);
     case "objects":
       return renderObjects(query, result, maxChars);
   }
@@ -141557,7 +143180,7 @@ function stripAbapComment(line2) {
   }
   return line2;
 }
-function splitStatements3(lines) {
+function splitStatements4(lines) {
   const stmts = [];
   let buf = "";
   let startLine = null;
@@ -141853,7 +143476,7 @@ function analyzeFcodes(raw, opts) {
         if (t !== void 0) lines.push({ line: ln, text: t });
       }
     }
-    const stmts = splitStatements3(lines);
+    const stmts = splitStatements4(lines);
     const analysis = analyzeModuleBody(pai.name, frame.include, program, frame.lineFrom, frame.lineTo, stmts);
     for (const n of analysis.remapNotes) notes.push(n);
     resolved.push({ pai, frame, analysis });
