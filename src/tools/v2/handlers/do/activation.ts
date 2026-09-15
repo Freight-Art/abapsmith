@@ -63,12 +63,22 @@ const test: DoHandler = async (ctx, deps) => {
   const args = withObject(ctx.args, "object", ctx.object);
   const input = parseV1(TestInput, args);
 
-  deps.safety.assert("execute", preflight({ object: input.object, type: input.type }), { phase: "preflight" });
+  // Mirrors registerTestTools in src/tools/test.ts: preflight() resolves
+  // `object`, which only exists for scope="object" (the default) — and even
+  // then `object` may be absent (it's optional in TestInput), in which case
+  // `abapTest`'s own dispatch raises the clean BAD_INPUT refusal below,
+  // rather than this call site passing `undefined` into preflight().
+  if ((input.scope ?? "object") === "object" && input.object !== undefined) {
+    deps.safety.assert("execute", preflight({ object: input.object, type: input.type }), { phase: "preflight" });
+  }
   await deps.ensureConnected();
 
   // WRITE slot, no object gate: replicates registerTestTools' orchestration —
-  // same reasoning as `run` above.
-  const res = await deps.pool.withWrite("abap_test", undefined, (conn) => abapTest(conn, input, deps.cfg.maxResponseChars, deps.safety));
+  // same reasoning as `run` above. `deps.journal` forwarded so scope="impacted"
+  // works identically through abap_do as it does through abap_test.
+  const res = await deps.pool.withWrite("abap_test", undefined, (conn) =>
+    abapTest(conn, input, deps.cfg.maxResponseChars, deps.safety, deps.journal),
+  );
   return doOk(res.text, []);
 };
 

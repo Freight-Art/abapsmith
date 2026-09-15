@@ -3,6 +3,7 @@
 
 import { fluidRuntimeManifest, fluidRuntimeSources } from "../abap/runtime.js";
 import type { FluidManifest } from "../manifest.js";
+import { authtraceManifest, authtraceSources } from "./authtrace.js";
 import { classicManifest, classicSources } from "./classic.js";
 import { coreManifest, coreSources } from "./core.js";
 import { enhManifest, enhSources } from "./enh.js";
@@ -18,6 +19,7 @@ export interface BuiltinFluidTool {
 }
 
 export const BUILTIN_FLUID_TOOLS: readonly BuiltinFluidTool[] = [
+  { manifest: authtraceManifest, sources: authtraceSources },
   { manifest: classicManifest, sources: classicSources },
   { manifest: coreManifest, sources: coreSources },
   { manifest: enhManifest, sources: enhSources },

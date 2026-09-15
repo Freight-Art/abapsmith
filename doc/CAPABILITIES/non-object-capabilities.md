@@ -5,7 +5,7 @@
 | Debugger | n/a | yes | no | n/a | n/a | live | Breakpoints and watchpoints are set and cleared as part of a session, including while a debuggee is already suspended; variables can be read but never written, and the frame cursor moves the read position only. Session concurrency is client-configurable (`ABAP_DEBUG_SESSIONS`), but SAP still allows only one active debug listener per SAP user on a system. |
 | Breakpoints | yes | yes | no | yes | n/a | live | Line, exception, statement and message kinds, mixable in one call; armed at `start` or added later while stopped (`action="breakpoints"` `op="add"`, additive — never touches a breakpoint this session did not create). `op="list"` is a client-side record of what this session armed, not a server read — `GET .../debugger/breakpoints` answers `200` with a zero-byte body regardless of what is actually armed. `op="remove"` is by id, restricted to ids this session created. `skipCount` is accepted by the server and not enforced, so expect a stop on every hit. |
 | Watchpoints | yes | yes | no | yes | n/a | mixed | Variable-path watch with an optional ABAP-expression condition; add/list/remove while stopped (`action="watch"`). A create response echoes only the newly created watchpoint, never the session's full list. A hit surfaces inside a step response as `reachedWatchpoints`, carrying only the new value — the old value needs a follow-up `op="list"`. This tool never modifies a watchpoint (a modify retires the addressed id and issues a new one), so ids it holds stay valid for the session's whole lifetime. `live`: create/list/get/modify/delete, the 400 on a missing variable name, the 404 on an unknown id, and a hit reported on `stepContinue`. `unverified`: a condition actually gating a stop (accepted and stored, but never isolated as the cause of a hit) and `reachedWatchpoints` on an *attach* response (every captured attach stopped on a line breakpoint instead). |
-| ABAP Unit | yes | yes | yes | n/a | yes | live | Runs existing tests: PASSED/FAILED/NO TESTS RAN/UNKNOWN, never collapsing "nothing ran" into a pass — see the outcome breakdown below. Test classes are created and updated through `abap_write` (`include="testclasses"`), not through `abap_test` itself; verified live end to end — write, activate, run, read-back — against SAP A4H, 2026-09-12. A single class include cannot be deleted on its own (ADT has no such verb), only emptied by writing new content over it. There is no activate verb for the include itself: `abap_activate` on the owning class activates `testclasses` along with it, confirmed live, SAP A4H, 2026-09-12. |
+| ABAP Unit | yes | yes | yes | n/a | yes | mixed | Runs existing tests: PASSED/FAILED/NO TESTS RAN/UNKNOWN, never collapsing "nothing ran" into a pass — see the outcome breakdown below. Test classes are created and updated through `abap_write` (`include="testclasses"`), not through `abap_test` itself; verified live end to end — write, activate, run, read-back — against SAP A4H, 2026-09-12. A single class include cannot be deleted on its own (ADT has no such verb), only emptied by writing new content over it. There is no activate verb for the include itself: `abap_activate` on the owning class activates `testclasses` along with it, confirmed live, SAP A4H, 2026-09-12. Also selects and runs the test carriers a changed set puts at risk (`scope: "impacted"`) via where-used, instead of one named object — graded `mixed` because of this: see the impacted-scope breakdown below. |
 | ABAP Unit coverage | n/a | yes | n/a | n/a | n/a | mixed | Opt-in (`coverage: true` on `abap_test`), scoped with `coverage_for`. The wire protocol — coverage negotiation on the run, the covered-objects roster, the coverage query, an untouched object's zero-summary response with no per-node breakdown — is `live` (SAP A4H, 2026-09-12; `test/fixtures/live-captured/852`–`856-i75-*`). abapsmith's own report rendering is now `live` too, end to end: `abap_test { object: "ZCL_I75_UNDO", type: "CLAS/OC", coverage: true }` against SAP A4H, 2026-09-12, returned outcome PASSED, tests 1, passed 1, the header `coverage: statement 2/2 (100%), branch 1/1 (100%), procedure 1/1 (100%)` line, a `COVERAGE` section with a class row and a per-method row for `DOUBLE`, and an `ALSO TOUCHED` list of 15 framework objects plus a `… and 19 more (truncated)` line — so the focus set, the header ratio line, the per-class/per-method table, and `ALSO TOUCHED` with its cap are confirmed as rendered MCP tool output, not just wire protocol. Still `tests`-only, exercised only against the live-captured fixtures, not yet observed live as rendered output: the `UNCOVERED METHODS` section, the `not measured by this run` / `not touched by this run` / `not queried` wordings, and `coverage_for` naming an object other than the one under test. See [execute-and-test.md](../TOOLS/execute-and-test.md). |
 | ATC | partial | yes | no | partial | n/a | mixed | A run creates a server-side worklist as a side effect; there is no variant create, and exemption management is deliberately absent. Worklist delete IS attempted (both directly and via `auto_cleanup`) but this release's server refuses every attempt with HTTP 405, so the worklist persists — a caching strategy limits the litter. |
 | Quick fixes | no | yes | yes | no | yes | mixed | Position-driven only, not finding-driven — the ATC route was tried and rejected. Deterministic proposals only; a parameterized one is refused `BAD_INPUT`. Listing is gated as a write because it posts the whole object source. |
@@ -50,6 +50,71 @@
   "test methods came back carrying XML the parser cannot grade" path
   (`unknown > 0`) has still never been observed live and remains built
   entirely from hand-written hypothetical documents.
+- **Impacted scope (`scope: "impacted"` on `abap_test`).** Selecting a
+  changed object as its own carrier (`changed directly`) and the two
+  distinct empty outcomes — `NO CHANGED OBJECTS` (nothing to select
+  against) and `NO IMPACTED TESTS FOUND` (consumers examined, none carries
+  a test class) — are `live` (SAP A4H, client 001, user DEVELOPER,
+  2026-09-15), on `ZCL_I111_USER` (has a `testclasses` include with
+  `ltcl_user`) and `ZCL_I111_LIB` (no test class), both in `$TMP`:
+  `changed: ["ZCL_I111_USER"]` selected and ran that class for real
+  (`outcome: PASSED`, `tests: 1`, `passed: 1`); `changed: ["ZCL_I111_LIB"]`
+  returned `NO IMPACTED TESTS FOUND (not a pass)`; both names given together
+  deduplicated to the single carrier; and the `caps: per-object 20,
+  carriers 10` header disclosure appeared on both outcomes.
+  `NO CHANGED OBJECTS` is backed by its own live evidence, not inferred
+  from the other outcome: `changed: []` returned `NO CHANGED OBJECTS (not
+  a pass)` with body `No changed objects were given — nothing was run.`,
+  and, separately, `since: "<an ISO timestamp>"` against an empty journal
+  returned the same outcome with body `The journal held no writes for
+  this system since <timestamp> — nothing was run.` — so the
+  journal-derived changed-set path (the `since` filter, the system
+  filter, and its distinct provenance note) is confirmed live as reaching
+  the journal and reporting its provenance. Not yet observed live: that
+  same journal path actually selecting a non-empty changed set — every
+  live `since` run so far has hit an empty journal. The where-used
+  consumer half of the feature is `tests`-only: this appliance's where-used
+  index has never been built — report `SAPRSEUB` has never run, so
+  `WBCROSSGT`/`CROSS` are empty and the ADT `usageReferences` endpoint
+  answers zero rows for every object tried, including SAP-standard ones
+  (`CL_ABAP_UNIT_ASSERT`) — so `consumersExamined` was 0 in every live run
+  above. Finding consumers, the per-object consumer cap (20), the total
+  carrier cap (10), and the `--- TRUNCATED ---` naming of unexamined
+  consumers therefore have unit-test coverage over fakes only; on a system
+  with a built where-used index the consumer half behaves as those tests
+  specify, but that has not been observed live. Also refused, as a
+  deliberate limitation rather than an oversight: `auth_trace: true`
+  combined with `scope: "impacted"` — client-side `BAD_INPUT`, verified
+  live, message `auth_trace is not supported for scope="impacted": it
+  would switch the trace on and off once per carrier and would be
+  silently ignored otherwise.` See
+  [execute-and-test.md](../TOOLS/execute-and-test.md#impacted-scope-scope-changed-since).
+- **Authorization trace (`auth_trace` on `abap_run`/`abap_test`/
+  `abap_bopf_test`).** The whole feature is now verified live end to end,
+  through the real `abap_run` and `abap_test` tool code paths (SAP A4H,
+  client 001, user DEVELOPER, 2026-09-15): `abap_run { object:
+  "ZCL_I111_USER", auth_trace: true }` returned a normal successful run
+  with header `auth_trace: no failed checks`; `abap_test` on the same
+  object with `auth_trace: true` returned `outcome: PASSED`, `tests: 1`,
+  `passed: 1` and `auth_trace: no failed checks`, confirming the trace
+  doesn't disturb the run's own verdict; a deliberately failing check, from
+  a `$TMP` probe class (`ZCL_I112_FAILCHK`) doing an `AUTHORITY-CHECK`
+  against an authorization object that does not exist, produced a real
+  `FAILED AUTH CHECKS` section with the object/field=value/rc/program/line
+  line format and the `[SU53 fallback]` provenance tag, all confirmed as
+  rendered tool output (the reported object name came back truncated to
+  `Z_I112_NOP`, a CHAR10 SU53-buffer artifact of the source data, not a
+  bug); and the switch-off was confirmed by a follow-up status read
+  returning `active: false`. Not verified live: `SUAUTH_READ_TRACE_VALUES`,
+  the kernel-trace read itself — it returned zero rows on this appliance
+  even with the trace active and a check failing inside the window, so
+  every failed check actually observed, including the one above, came from
+  the SU53 fallback; no `[trace]`-tagged line has ever been seen. The
+  kernel-trace read path has unit-test coverage over fakes only. It reads
+  the trace and changes no authorization, role or profile. Also refused,
+  deliberately: `auth_trace: true` together with `scope: "impacted"` on
+  `abap_test` — `BAD_INPUT`, verified live. See
+  [execute-and-test.md](../TOOLS/execute-and-test.md#authorization-trace-auth_trace).
 - **ATC.** Ten live captures back this tool; nine are replayed in tests, not
   just narrated in docs, and the tenth records a no-op this client has no
   code path to exercise. The first pair (2026-08-01, one object) established the
