@@ -119,8 +119,21 @@ function expectedRow(code: string, cap: (typeof REGISTRY)[string]) {
   // A `verified: false` or `delete: false` is itself live evidence — the
   // registry uses `false` to mean "tried live and does not reliably work",
   // not "no attempt was made".
+  //
+  // Bridge types (`bridgeCreate`/`bridgeDelete`) never carry `create`/
+  // `delete` at all — REST itself 405s/404s for them, so there is no
+  // `create`/`delete` object on the entry for a `verified` flag to live on.
+  // `bridgeCreate.verified`/`bridgeDelete.verified` are their own evidence
+  // flags for exactly that reason; only `true` counts here because a bridge
+  // route that failed live would be described as a refusal, not shipped as
+  // a capability at all, so there is no bridge equivalent of `false`.
   const evidence: "live" | "unverified" | "tests" =
-    cap.create?.verified === true || cap.create?.verified === false || cap.delete === true || cap.delete === false
+    cap.create?.verified === true ||
+    cap.create?.verified === false ||
+    cap.delete === true ||
+    cap.delete === false ||
+    cap.bridgeCreate?.verified === true ||
+    cap.bridgeDelete?.verified === true
       ? "live"
       : cap.create || cap.bridgeCreate || cap.write
         ? "unverified"

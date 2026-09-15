@@ -12,6 +12,20 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+### Added
+
+- `SHLP/DH` create and update now cover collective search helps, not just elementary ones, through the same classic fluid bridge (`RS_CORR_INSERT` → `DDIF_SHLP_PUT` → `DDIF_SHLP_ACTIVATE`); both shapes are proven live on A4H (issue #83).
+- Four refusals stop a search-help write from creating an inactive-only leftover after a `DH109` activation failure ("search help & was not activated", caused by a dangling `DD31V` include or `DD33V` assignment reference): two zero-network `BAD_INPUT` checks in `src/adt/shlp-create.ts` (`assignments[i].field` must be one of the call's own `fields[].name`; `assignments[i].includedHelp` must be one of the call's own `includes[].name`), and two server-side `CHECK_FAILED` checks generated into the ABAP that runs before `RS_CORR_INSERT` in `src/adt/fluid/builtin/classic/abap-shlp.ts` (every `DD31V-SUBSHLP` must exist as an active search help; every `DD33V-SUBFIELD` must be an interface parameter of its included help, except a self-referencing assignment). `rc = 4` / `DH108` ("activated with warnings") is now recognized as a success and reported with a `ZMCP-DDIC-NOTE` line instead of passing silently (issue #83).
+- `SHLP/DH` `mode="delete"` now also reaches an inactive-only search help (one left behind by a `DH109` failure or stranded by any other means): `readSearchHelp` (`src/adt/catalog-read.ts`) gained an `{ includeInactive }` option, and the catalogue query builders (`src/adt/catalog-query.ts`) take a version-state argument instead of a hard-pinned active predicate. The create/update "already exists" probe and `abap_read` deliberately stay active-only (issue #83).
+
+### Removed
+
+- The zero-network refusal on `SHLP/DH` create/update for `elementary: false` with an empty `includes` ("has nothing to collect") was removed: a collective search help with no includes activates fine on a real system (issue #83).
+
+### Fixed
+
+- `DD33S-VALUEDIREC` is now decoded on read instead of rendered as the raw stored code, and a `DD31S` self-row (a search help reading back its own include of itself) is suppressed instead of being listed as an include (issue #83).
+
 ## [0.5.11] - 2026-09-12
 
 ### Added

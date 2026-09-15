@@ -66,17 +66,51 @@ export interface SearchHelpField {
   defaultValue?: string;
 }
 
-/** One DD31V included search help. */
+/**
+ * One DD31V included search help.
+ *
+ * Live finding (A4H, 2026-09-15): a `name` naming a search help that does
+ * not exist makes `DDIF_SHLP_PUT` succeed and `DDIF_SHLP_ACTIVATE` then fail
+ * with `rc = 8` / message DH109 ("search help & was not activated"),
+ * stranding this search help as an INACTIVE-ONLY object (a DD30L row with
+ * `AS4LOCAL = 'N'`, no active row, plus a TADIR entry). This module is
+ * zero-network and cannot check whether `name` actually exists — that check
+ * belongs to `abap-shlp.ts`, which runs against the live catalogue.
+ */
 export interface SearchHelpInclude {
   /** The included search help's name (DD31V-SUBSHLP). */
   name: string;
 }
 
-/** One DD33V field assignment between an included search help and this one's interface. */
+/**
+ * One DD33V field assignment between an included search help and this one's
+ * interface.
+ *
+ * Live finding (A4H, 2026-09-15): the same DH109/inactive-only stranding
+ * described on {@link SearchHelpInclude} also results from either a
+ * `subField` — i.e. `includedField` — that is not an interface parameter of
+ * the included help, or a `field` that is not an interface parameter of the
+ * search help being created; `DDIF_SHLP_PUT` succeeds in both cases and
+ * `DDIF_SHLP_ACTIVATE` then fails. Of those two, only `field` can be
+ * checked here without a server round trip (against this call's own
+ * `fields`) — `validate()` in this module refuses it, and refuses
+ * `includedHelp` (below) the same way, against this call's own `includes`.
+ * Whether `includedField` is actually a parameter of `includedHelp`
+ * requires reading THAT search help's own DD32P and is left to
+ * `abap-shlp.ts`.
+ */
 export interface SearchHelpAssignment {
-  /** This search help's field (DD33V-FIELDNAME). */
+  /**
+   * This search help's field (DD33V-FIELDNAME). `validate()` refuses a
+   * value that is not (case-insensitively) one of this call's own
+   * `fields[].name` — see the module doc above.
+   */
   field: string;
-  /** The included search help's name (DD33V-SUBSHLP). */
+  /**
+   * The included search help's name (DD33V-SUBSHLP). `validate()` refuses a
+   * value that is not (case-insensitively) one of this call's own
+   * `includes[].name` — see the module doc above.
+   */
   includedHelp: string;
   /** The included search help's field (DD33V-SUBFIELD). */
   includedField: string;
@@ -124,9 +158,19 @@ export interface SearchHelpParams {
   elementary: boolean;
   /** Interface fields (DD32P), in order. `update_search_help` replaces the whole interface. */
   fields: readonly SearchHelpField[];
-  /** Other search helps included by this one (DD31V), in order. `update_search_help` replaces the whole list. */
+  /**
+   * Other search helps included by this one (DD31V), in order.
+   * `update_search_help` replaces the whole list. See
+   * {@link SearchHelpInclude} for the DH109 dangling-reference failure this
+   * feeds into, and what `validate()` can and cannot check about it locally.
+   */
   includes?: readonly SearchHelpInclude[];
-  /** Field assignments (DD33V). `update_search_help` replaces the whole list. */
+  /**
+   * Field assignments (DD33V). `update_search_help` replaces the whole
+   * list. See {@link SearchHelpAssignment} for the DH109 dangling-reference
+   * failure this feeds into, and what `validate()` can and cannot check
+   * about it locally.
+   */
   assignments?: readonly SearchHelpAssignment[];
 }
 
@@ -318,14 +362,12 @@ export function validate(packageNameStr: string, p: SearchHelpParams): Validated
     name: assertEnhIdentifier(inc.name, `includes[${i}].name`, { maxLength: SHLP_NAME_MAX }),
   }));
 
-  if (!p.elementary && includes.length === 0) {
-    throw new AbapError(
-      "BAD_INPUT",
-      "includes must be a non-empty array when elementary: false — a collective search help with " +
-        "no included helps has nothing to collect.",
-      { what: "includes", elementary: false },
-    );
-  }
+  // NOTE: an earlier round of this module refused elementary: false with an
+  // empty `includes` here ("has nothing to collect"). The 2026-09-15 live
+  // finding above supersedes that: a collective search help with no
+  // included helps activates fine (or only warns, rc = 4 / DH108) on a real
+  // system, so this module must not refuse it either — that refusal has
+  // been removed.
 
   const assignments = (p.assignments ?? []).map((a, i) => {
     const field = assertEnhIdentifier(a.field, `assignments[${i}].field`, { maxLength: SHLP_NAME_MAX });
@@ -340,6 +382,70 @@ export function validate(packageNameStr: string, p: SearchHelpParams): Validated
       );
     }
     return { field, includedHelp, includedField, direction: a.direction };
+  });
+
+  // --- issue #83 (2026-09-15 live finding): DH109 dangling-reference checks ---
+  // Three payload shapes were each reproduced live and each made
+  // DDIF_SHLP_PUT succeed while DDIF_SHLP_ACTIVATE then returned rc = 8 /
+  // DH109 ("search help & was not activated"), stranding the search help as
+  // an INACTIVE-ONLY object (a DD30L row with AS4LOCAL = 'N', no active row,
+  // plus a TADIR entry): a DD31V include naming a search help that does not
+  // exist, a DD33V assignment whose SUBFIELD is not an interface parameter
+  // of the included help, and a DD33V assignment whose FIELDNAME is not an
+  // interface parameter of the search help being created. Only the last of
+  // the three can be checked without a server round trip — whether an
+  // included help exists, and whether its field is one of ITS parameters,
+  // both require reading that other search help's own DD32P, which this
+  // zero-network module cannot do (abap-shlp.ts checks those instead). What
+  // this module CAN check for free is that every assignment's `field` and
+  // `includedHelp` are internally consistent with THIS call's own `fields`
+  // and `includes` — a caller-side typo/mismatch there is exactly as fatal
+  // (same DH109, same inactive-only stranding) and is refused here before
+  // anything is sent.
+  //
+  // Comparison is case-insensitive (`.toUpperCase()`): `assertEnhIdentifier`
+  // above does not itself normalise case, but DD30L/DD31V/DD32P/DD33V names
+  // are effectively case-insensitive in the dictionary, so "carrid" and
+  // "CARRID" must be treated as the same field rather than tripping this
+  // check on casing alone.
+  //
+  // Applied identically to elementary AND collective search helps:
+  // abap-shlp.ts fills DD33V from `assignments` unconditionally (see its
+  // `lv_assign_count = n( 'assignments' )` loop), with no `lv_elementary`
+  // branch guarding it the way the import/export-parameter check above is
+  // guarded — so a dangling assignment on an elementary help fails
+  // DDIF_SHLP_ACTIVATE exactly the same way a collective help's does. There
+  // is no caller-visible "self row" exemption to preserve here: the DD31S
+  // self-row abap-shlp.ts's module doc describes (SUBSHLP = SHLPNAME at
+  // SHPOSITION 0001 for an elementary help's own interface) is written by
+  // SAP's own activation into DD31S, not something this module's caller
+  // supplies via `includes`/`assignments` — it has no bearing on validating
+  // the caller-supplied DD31V/DD33V arrays here.
+  const fieldNames = new Set(fields.map((f) => f.name.toUpperCase()));
+  const includeNames = new Set(includes.map((inc) => inc.name.toUpperCase()));
+  assignments.forEach((a, i) => {
+    if (!fieldNames.has(a.field.toUpperCase())) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `assignments[${i}].field ${JSON.stringify(a.field)} is not one of this search help's own ` +
+          "interface parameters (fields[].name) — DDIF_SHLP_ACTIVATE would otherwise fail with rc = 8 " +
+          '/ DH109 ("search help & was not activated") after DDIF_SHLP_PUT had already succeeded, ' +
+          "leaving the search help stranded as an inactive-only object (a DD30L row with " +
+          "AS4LOCAL = 'N', no active row, plus a TADIR entry) — measured live on A4H 2026-09-15.",
+        { what: `assignments[${i}].field`, value: a.field, fields: fields.map((f) => f.name) },
+      );
+    }
+    if (!includeNames.has(a.includedHelp.toUpperCase())) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `assignments[${i}].includedHelp ${JSON.stringify(a.includedHelp)} names a search help this ` +
+          "definition does not include (includes[].name) — the same DH109 activation failure applies " +
+          "as for assignments[].field above: DDIF_SHLP_ACTIVATE returns rc = 8 for a DD33V row whose " +
+          "SUBSHLP is not among this search help's own DD31V includes, after DDIF_SHLP_PUT has already " +
+          "succeeded, stranding the search help as an inactive-only object.",
+        { what: `assignments[${i}].includedHelp`, value: a.includedHelp, includes: includes.map((inc) => inc.name) },
+      );
+    }
   });
 
   return {

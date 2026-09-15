@@ -260,18 +260,53 @@ export const writeInputSchema = {
       includes: z
         .array(z.object({ name: z.string().describe("DD31V-SUBSHLP.") }))
         .optional()
-        .describe("Other search helps included by this one (DD31V), in order."),
+        .describe(
+          "Other search helps included by this one (DD31V), in order. Optional — empty or omitted is " +
+            "fine, including for elementary: false. Each name must exist as an ACTIVE search help " +
+            "(DD30L); refused before registration otherwise (CHECK_FAILED), rather than passing " +
+            "DDIF_SHLP_PUT and stranding this help as inactive-only when DDIF_SHLP_ACTIVATE then fails " +
+            "(DH109).",
+        ),
       assignments: z
         .array(
           z.object({
-            field: z.string().describe("DD33V-FIELDNAME, this search help's field."),
-            includedHelp: z.string().describe("DD33V-SUBSHLP."),
-            includedField: z.string().describe("DD33V-SUBFIELD."),
-            direction: z.enum(["I", "E"]).describe("DD33V-VALUEDIREC: I=import into, E=export from the included help."),
+            field: z
+              .string()
+              .describe(
+                "DD33V-FIELDNAME, this search help's field. Must match one of this call's own " +
+                  "`fields[].name` (case-insensitive); refused before send otherwise (BAD_INPUT).",
+              ),
+            includedHelp: z
+              .string()
+              .describe(
+                "DD33V-SUBSHLP. Must match one of this call's own `includes[].name` " +
+                  "(case-insensitive); refused before send otherwise (BAD_INPUT).",
+              ),
+            includedField: z
+              .string()
+              .describe(
+                "DD33V-SUBFIELD. Must be an ACTIVE interface parameter (DD32S) of `includedHelp`; " +
+                  "checked server-side before RS_CORR_INSERT and refused otherwise (CHECK_FAILED) — " +
+                  "this needs that other search help's own DD32P/DD32S, so it is not checked " +
+                  "zero-network.",
+              ),
+            direction: z
+              .enum(["I", "E"])
+              .describe(
+                "DD33V-VALUEDIREC: I=import into, E=export from the included help. DDIC may normalise " +
+                  'the stored value to C ("both import and export") on read-back when the target ' +
+                  "parameter is both import and export.",
+              ),
           }),
         )
         .optional()
-        .describe("Field assignments (DD33V) between an included search help and this one's interface."),
+        .describe(
+          "Field assignments (DD33V) between an included search help and this one's interface. A " +
+            "`field`/`includedHelp` not found in this call's own `fields`/`includes`, or an " +
+            "`includedField` that is not an active parameter of `includedHelp`, would otherwise pass " +
+            "DDIF_SHLP_PUT and fail DDIF_SHLP_ACTIVATE (DH109) — all three are refused first instead; " +
+            "see each field below.",
+        ),
     })
     .strict()
     .optional()
@@ -4103,6 +4138,24 @@ async function probeSearchHelp(conn: AbapConnection, name: string): Promise<Ddic
 }
 
 /**
+ * {@link catalogProbe} over `readSearchHelp` with `includeInactive: true` — the
+ * DELETE-only sibling of {@link probeSearchHelp} above. A search help left behind by a
+ * create that PUT but never activated has a DD30L row with `AS4LOCAL='N'` (inactive)
+ * and no active row at all; `probeSearchHelp`'s active-only read sees that as absent
+ * and would refuse the delete with NOT_FOUND even though `delete_search_help`
+ * (`src/adt/shlp-delete.ts`'s bridge) happily removes both DDIC states and the TADIR
+ * entry. `abapDeleteSearchHelpViaBridge` is the ONLY caller: the create path's
+ * "already exists" probe and the update path's existence probe both keep using
+ * `probeSearchHelp` above, deliberately unchanged — an inactive leftover should still
+ * block a create (the name is taken) and an update has its own definition to replace,
+ * not delete. When the result resolves, check `meta.versionState` ("active" or
+ * "inactive") to tell which case was hit.
+ */
+async function probeSearchHelpAnyState(conn: AbapConnection, name: string): Promise<DdicRender | undefined> {
+  return catalogProbe(() => readSearchHelp(conn, name, undefined, { includeInactive: true }));
+}
+
+/**
  * Resolves a caller-named package string for a SHLP/DH create/update/delete into a
  * {@link ServerPackage} — the branded type every search-help mutation site
  * (`src/adt/shlp-create.ts`, `src/adt/shlp-delete.ts`) requires and cannot verify
@@ -4431,24 +4484,31 @@ async function abapCreateSearchHelpViaBridge(
 /**
  * `SHLP/DH` delete. Sibling of {@link abapDeleteViaBridge}, but not folded into it:
  * SHLP/DH has no VIT bridge type to read through, so existence/package resolution
- * goes through {@link probeSearchHelp}/{@link resolveShlpPackage} instead — see
+ * goes through {@link probeSearchHelpAnyState}/{@link resolveShlpPackage} instead — see
  * `resolveShlpPackage`'s doc comment for the weaker guarantee that implies here:
  * unlike VIEW/DV's and TRAN/T's delete, this cannot confirm the search help's OWN
  * current package, only that the NAMED package is real.
  *
  * Journalled through a BESPOKE inline `withJournalledMutation` call, the same shape
  * {@link abapCreateSearchHelpViaBridge} above and this function's own update sibling
- * below use. The pre-delete `probeSearchHelp` read a few lines down — needed anyway to
- * confirm the object exists before deleting it — IS the before-image: its rendered
- * pseudo-DDL (`existing.ddl`, rendered by `readSearchHelpImpl` in `src/adt/catalog-read.ts`,
- * which follows the same pseudo-DDL convention as `src/adt/ddic.ts`) becomes the entry's
- * `beforeSource`.
+ * below use. The pre-delete {@link probeSearchHelpAnyState} read a few lines down —
+ * needed anyway to confirm the object exists before deleting it — IS the before-image:
+ * its rendered pseudo-DDL (`existing.ddl`, rendered by `readSearchHelpImpl` in
+ * `src/adt/catalog-read.ts`, which follows the same pseudo-DDL convention as
+ * `src/adt/ddic.ts`) becomes the entry's `beforeSource`.
  * `beforeCapture` is always `"captured"` here, never `"confirmed-absent"`: the
  * NOT_FOUND throw a few lines below already refused an absent object before any
  * journal entry is opened, so by the time one is, `existing` is always defined — a
- * genuine absence, not a swallowed error, since `catalogProbe` (`probeSearchHelp`'s
+ * genuine absence, not a swallowed error, since `catalogProbe` (`probeSearchHelpAnyState`'s
  * base, `src/adt/write.ts`'s neighbour `catalogProbe` helper above) returns
- * `undefined` only on a server NOT_FOUND and rethrows everything else.
+ * `undefined` only on a server NOT_FOUND and rethrows everything else. `existing` is not
+ * always an ACTIVE definition, though: `probeSearchHelpAnyState` also resolves an
+ * inactive-only search help (`existing.meta.versionState === "inactive"` — a create that
+ * PUT but never activated, DD30L-AS4LOCAL='N', no active row at all), and this function
+ * proceeds with the delete in that case rather than refusing NOT_FOUND, since the
+ * bridge's `delete_search_help` removes both DDIC states and the TADIR entry either
+ * way. The response and journal note both say so, so `beforeSource`/`existing.ddl` is
+ * never mistaken for an active definition when it is actually the inactive one.
  *
  * `irreversible: true` unconditionally, for two independent reasons. Mechanically: the
  * stored before-image is rendered pseudo-DDL, not a `DDIF_SHLP_PUT` payload, so there
@@ -4515,7 +4575,7 @@ async function abapDeleteSearchHelpViaBridge(
     );
   }
 
-  const existing = await probeSearchHelp(conn, target.name);
+  const existing = await probeSearchHelpAnyState(conn, target.name);
   if (existing === undefined) {
     throw new AbapError(
       "NOT_FOUND",
@@ -4523,6 +4583,11 @@ async function abapDeleteSearchHelpViaBridge(
       { object: target.name, type },
     );
   }
+  // Inactive-only leftover — a create that PUT but never activated (DD30L-AS4LOCAL='N',
+  // no active row at all). `probeSearchHelpAnyState`'s doc comment explains why the
+  // delete proceeds here instead of refusing NOT_FOUND: the bridge's `delete_search_help`
+  // removes both DDIC states and the TADIR entry regardless of which one is active.
+  const inactiveOnly = existing.meta.versionState === "inactive";
 
   const packageNameStr = target.packageName?.trim() || "$TMP";
   const resolvedPackage = await resolveShlpPackage(conn, packageNameStr);
@@ -4530,6 +4595,9 @@ async function abapDeleteSearchHelpViaBridge(
   // `existing` (read above to confirm the object is there to delete) doubles as the
   // journal's before-image — see this function's doc comment for why `beforeCapture`
   // is always "captured" at this point and why the entry is unconditionally irreversible.
+  // When `inactiveOnly`, `existing.ddl` is the INACTIVE definition (no active version
+  // ever existed to read instead) — the note below and the journal entry's own note say
+  // so, so `beforeSource` is never mistaken for an active definition on restore.
   const { result: deleted, entryId, settle } = await withJournalledMutation<
     undefined,
     { run: RunResult; transcript: DdicTranscript }
@@ -4563,7 +4631,10 @@ async function abapDeleteSearchHelpViaBridge(
   );
   await settle({ outcome: "succeeded", activation: { attempted: false } });
 
-  const after = await probeSearchHelp(conn, target.name);
+  // Any-state here too, not just active-only: the bridge is expected to remove BOTH
+  // DDIC states, so a leftover inactive row after a claimed success must still fail
+  // this check the same way a leftover active row would.
+  const after = await probeSearchHelpAnyState(conn, target.name);
   if (after !== undefined) {
     throw new AbapError(
       "CHECK_FAILED",
@@ -4597,6 +4668,13 @@ async function abapDeleteSearchHelpViaBridge(
       `Deleted by running the classic fluid tool's body class ${CLASSIC_BODY_CLASS}, not over ADT ` +
         `REST — ${type} has no writable ADT collection at all (see this type's REGISTRY entry in ` +
         "src/adt/capabilities.ts).",
+      inactiveOnly
+        ? `${target.name} had no ACTIVE version — only an inactive one (DD30L-AS4LOCAL='N'), the ` +
+          "state a create that PUT but failed to activate leaves behind. abapsmith deleted it anyway: " +
+          "the bridge's delete_search_help removes both DDIC states and the TADIR entry, whichever " +
+          "is (or isn't) active. The before-image captured for this journal entry (and quoted below) " +
+          "is that INACTIVE definition — there was never an active one to read instead."
+        : "",
       verifyNote,
       entryId !== undefined
         ? `Journalled as ${entryId}, but marked irreversible: the stored before-image is rendered ` +
@@ -4606,7 +4684,7 @@ async function abapDeleteSearchHelpViaBridge(
           "VIEW/DV and TRAN/T). The entry is kept for audit and manual reconstruction only — THIS " +
           'DELETE CANNOT BE UNDONE with abap_journal. To bring the search help back, recreate it by ' +
           'hand with abap_write { mode: "write", type: "SHLP/DH" }, using the pre-delete definition ' +
-          "recorded in this journal entry."
+          `recorded in this journal entry${inactiveOnly ? " (which is the INACTIVE definition — there was no active one)" : ""}.`
         : 'Not journalled (no journal was open), so abapsmith kept no copy of the definition either — ' +
           "this deletion is IRREVERSIBLE from here. To bring the search help back, recreate it by " +
           'hand with abap_write { mode: "write", type: "SHLP/DH" }.',

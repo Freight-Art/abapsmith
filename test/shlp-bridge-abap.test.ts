@@ -160,6 +160,85 @@ describe.each([
   });
 });
 
+describe.each([
+  ["create_search_help", createBody],
+  ["update_search_help", updateBody],
+] as const)(
+  "%s: include and assignment references are checked against the live catalogue before RS_CORR_INSERT (issue #83, DH109)",
+  (_name, body) => {
+    it("loops lt_dd31v and fails with DH109/inactive-only wording when an include's search help does not exist as active, before RS_CORR_INSERT", () => {
+      const dd31Loop = body.indexOf("LOOP AT lt_dd31v INTO ls_dd31v.");
+      const dd30lCheck = body.indexOf("SELECT COUNT( * ) FROM dd30l INTO @lv_ref_count", dd31Loop);
+      const failIdx = body.indexOf("does not exist - ", dd30lCheck);
+      const returnIdx = body.indexOf("RETURN.", failIdx);
+      const endLoop = body.indexOf("ENDLOOP.", returnIdx);
+      const corrInsert = body.indexOf("CALL FUNCTION 'RS_CORR_INSERT'");
+      expect(dd31Loop).toBeGreaterThanOrEqual(0);
+      expect(dd30lCheck).toBeGreaterThan(dd31Loop);
+      expect(body.slice(dd30lCheck, dd30lCheck + 160)).toContain("as4local = 'A'");
+      expect(failIdx).toBeGreaterThan(dd30lCheck);
+      expect(body.slice(failIdx, failIdx + 200)).toContain("DH109");
+      expect(body.slice(failIdx, failIdx + 200)).toContain("inactive-only");
+      expect(returnIdx).toBeGreaterThan(failIdx);
+      expect(endLoop).toBeGreaterThan(returnIdx);
+      expect(corrInsert).toBeGreaterThan(endLoop);
+    });
+
+    it("loops lt_dd33v and fails with DH109 wording when an assignment's SUBFIELD is not an interface parameter of its SUBSHLP in DD32S, before RS_CORR_INSERT", () => {
+      const dd33Loop = body.indexOf("LOOP AT lt_dd33v INTO ls_dd33v.");
+      const dd32sCheck = body.indexOf("SELECT COUNT( * ) FROM dd32s INTO @lv_ref_count", dd33Loop);
+      const failIdx = body.indexOf("is not an interface", dd32sCheck);
+      const returnIdx = body.indexOf("RETURN.", failIdx);
+      const endLoop = body.indexOf("ENDLOOP.", returnIdx);
+      const corrInsert = body.indexOf("CALL FUNCTION 'RS_CORR_INSERT'");
+      expect(dd33Loop).toBeGreaterThanOrEqual(0);
+      expect(dd32sCheck).toBeGreaterThan(dd33Loop);
+      const checkLine = body.slice(dd32sCheck, dd32sCheck + 200);
+      expect(checkLine).toContain("shlpname = @ls_dd33v-subshlp");
+      expect(checkLine).toContain("fieldname = @ls_dd33v-subfield");
+      expect(checkLine).toContain("as4local = 'A'");
+      expect(failIdx).toBeGreaterThan(dd32sCheck);
+      expect(body.slice(failIdx, failIdx + 200)).toContain("DH109");
+      expect(returnIdx).toBeGreaterThan(failIdx);
+      expect(endLoop).toBeGreaterThan(returnIdx);
+      expect(corrInsert).toBeGreaterThan(endLoop);
+    });
+
+    it("skips the DD32S catalogue lookup for an assignment whose SUBSHLP is the search help itself, via CONTINUE before the SELECT", () => {
+      const dd33Loop = body.indexOf("LOOP AT lt_dd33v INTO ls_dd33v.");
+      const selfCheck = body.indexOf("ls_dd33v-subshlp = lv_shlp", dd33Loop);
+      const continueIdx = body.indexOf("CONTINUE.", selfCheck);
+      const dd32sCheck = body.indexOf("SELECT COUNT( * ) FROM dd32s INTO @lv_ref_count", dd33Loop);
+      expect(selfCheck).toBeGreaterThan(dd33Loop);
+      expect(continueIdx).toBeGreaterThan(selfCheck);
+      expect(dd32sCheck).toBeGreaterThan(continueIdx);
+    });
+  },
+);
+
+describe.each([
+  ["create_search_help", createBody],
+  ["update_search_help", updateBody],
+] as const)("%s: DDIF_SHLP_ACTIVATE rc=4 (DH108, activated with warnings) is a success, but is reported, not swallowed", (_name, body) => {
+  it("keeps rc=4 out of the sy-subrc escalation (only rc > 4 becomes a failure)", () => {
+    expect(body).toContain("IF sy-subrc = 0 AND lv_rc > 4.");
+  });
+
+  it("emits a ZMCP-DDIC-NOTE for rc=4 between DDIF_SHLP_ACTIVATE's hard-failure check and the SHLP-ACTIVATED tag", () => {
+    const activate = body.indexOf("CALL FUNCTION 'DDIF_SHLP_ACTIVATE'");
+    const hardFail = body.indexOf("DDIF_SHLP_ACTIVATE failed", activate);
+    const rc4Guard = body.indexOf("IF lv_rc = 4.", hardFail);
+    const note = body.indexOf("ZMCP-DDIC-NOTE> DDIF_SHLP_ACTIVATE returned rc=4", rc4Guard);
+    const activatedTag = body.indexOf("line( 'SHLP-ACTIVATED' )", note);
+    expect(activate).toBeGreaterThanOrEqual(0);
+    expect(hardFail).toBeGreaterThan(activate);
+    expect(rc4Guard).toBeGreaterThan(hardFail);
+    expect(note).toBeGreaterThan(rc4Guard);
+    expect(activatedTag).toBeGreaterThan(note);
+    expect(body.slice(note, note + 220)).toContain("activated with warnings");
+  });
+});
+
 describe("create_search_help and update_search_help share the same fill/dispatch logic (a structural guarantee, not a text-duplication test)", () => {
   it("the segment from the DD30V fill through the final COMMIT WORK is identical between create and update once update's one extra ZMCP-DDIC-NOTE line and incidental blank-line spacing are normalised away", () => {
     // Both methods are built from the SAME `PUT_LOCALS`/`PUT_ACTIVATE`
@@ -259,6 +338,62 @@ describe("delete_search_help: the DD31S in-use COUNT excludes the search help's 
     const line = deleteBody.slice(countIdx, deleteBody.indexOf("\n", countIdx));
     expect(line).toContain("subshlp = @lv_shlp");
     expect(line).toContain("shlpname <> @lv_shlp");
+  });
+});
+
+describe("delete_search_help: an inactive-only object (create PUT but never activated) does not hard-fail the active-state delete (issue #83)", () => {
+  it("counts DD30L's active and inactive rows separately, right after the existence check and before the where-used guard", () => {
+    const existsCheck = deleteBody.indexOf("does not exist");
+    const activeCount = deleteBody.indexOf("SELECT COUNT( * ) FROM dd30l INTO @lv_active_count");
+    const inactiveCount = deleteBody.indexOf("SELECT COUNT( * ) FROM dd30l INTO @lv_inactive_count");
+    const whereUsed = deleteBody.indexOf("FROM dd04l");
+    expect(activeCount).toBeGreaterThan(existsCheck);
+    expect(deleteBody.slice(activeCount, activeCount + 120)).toContain("as4local = 'A'");
+    expect(inactiveCount).toBeGreaterThan(activeCount);
+    expect(deleteBody.slice(inactiveCount, inactiveCount + 120)).toContain("as4local <> 'A'");
+    expect(whereUsed).toBeGreaterThan(inactiveCount);
+  });
+
+  it("emits a ZMCP-DDIC-NOTE when the active count is zero but the inactive count is not, describing a create that PUT but failed to activate", () => {
+    const noteIdx = deleteBody.indexOf("exists only as an inactive version");
+    expect(noteIdx).toBeGreaterThanOrEqual(0);
+    const guardIdx = deleteBody.lastIndexOf(
+      "IF lv_active_count = 0 AND lv_inactive_count > 0.",
+      noteIdx,
+    );
+    expect(guardIdx).toBeGreaterThanOrEqual(0);
+    expect(noteIdx).toBeGreaterThan(guardIdx);
+  });
+
+  it("guards the del_state = 'A' DD_OBJ_DEL failure check with lv_active_count > 0 — a non-zero sy-subrc only hard-fails when an active version existed", () => {
+    const delA = deleteBody.indexOf("del_state   = 'A'");
+    const delN = deleteBody.indexOf("del_state   = 'N'");
+    expect(delA).toBeGreaterThanOrEqual(0);
+    expect(delN).toBeGreaterThan(delA);
+    const segment = deleteBody.slice(delA, delN);
+
+    // The hard fail() + RETURN. is reachable only inside an
+    // "IF lv_active_count > 0." guard, not unconditionally on sy-subrc <> 0.
+    const subrcIdx = segment.indexOf("IF sy-subrc <> 0.");
+    const activeGuardIdx = segment.indexOf("IF lv_active_count > 0.", subrcIdx);
+    const failIdx = segment.indexOf("fail( |DD_OBJ_DEL failed", activeGuardIdx);
+    expect(subrcIdx).toBeGreaterThanOrEqual(0);
+    expect(activeGuardIdx).toBeGreaterThan(subrcIdx);
+    expect(failIdx).toBeGreaterThan(activeGuardIdx);
+
+    // The tolerant path (no active version) records a note instead, and does
+    // not RETURN — it falls through to the del_state = 'N' call.
+    const toleratedNoteIdx = segment.indexOf("not treated as an error");
+    expect(toleratedNoteIdx).toBeGreaterThan(failIdx);
+  });
+
+  it("still fails on a genuinely raised exception (CATCH cx_root) from the del_state = 'A' call regardless of the active count", () => {
+    const delA = deleteBody.indexOf("del_state   = 'A'");
+    const catchIdx = deleteBody.indexOf("CATCH cx_root INTO DATA(lx_del_a)", delA);
+    const raisedFailIdx = deleteBody.indexOf("dd_obj_del_A raised", catchIdx);
+    expect(catchIdx).toBeGreaterThan(delA);
+    expect(raisedFailIdx).toBeGreaterThan(catchIdx);
+    expect(deleteBody.slice(catchIdx, raisedFailIdx + 200)).toContain("RETURN.");
   });
 });
 

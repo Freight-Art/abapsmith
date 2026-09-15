@@ -206,7 +206,15 @@ async function withJournal(fn: (journal: Journal) => Promise<void>): Promise<voi
 /** The fixture combination that lets a `SHLP/DH` delete succeed end to end: the pre-delete probe finds it, the classrun deletes it, the post-delete probe confirms it gone. */
 function successRoute(): Route {
   const classic = classicFake({ action: "delete_search_help", lines: () => ["SHLP-DELETED", "SHLP-GONE"] });
-  const shlp = freestyleQueueRoute([...EXISTS_PROBE_BODIES, emptyResult()]);
+  const shlp = freestyleQueueRoute([
+    ...EXISTS_PROBE_BODIES,
+    // Post-delete probeSearchHelpAnyState(): the ACTIVE ('A') header query
+    // finds nothing (the delete worked)...
+    emptyResult(),
+    // ...so it falls back to the INACTIVE ('N') header query too (issue #83)
+    // — also empty, so the delete stays confirmed "verified gone".
+    emptyResult(),
+  ]);
   return (r) => classic.route(r) ?? shlp(r);
 }
 
@@ -260,7 +268,15 @@ describe("SHLP/DH delete journals a before-image", () => {
 describe("SHLP/DH delete of an absent search help", () => {
   it("throws NOT_FOUND and opens no journal entry at all", async () => {
     await withJournal(async (journal) => {
-      const { conn } = await connected(freestyleQueueRoute([emptyResult()]));
+      const { conn } = await connected(
+        freestyleQueueRoute([
+          // Pre-delete probeSearchHelpAnyState(): ACTIVE ('A') header query finds no row...
+          emptyResult(),
+          // ...so it falls back to the INACTIVE ('N') header query too (issue #83) — also
+          // empty, so the object is genuinely absent and the delete must refuse NOT_FOUND.
+          emptyResult(),
+        ]),
+      );
       let thrown: unknown;
       try {
         await abapWrite(conn, { object: NAME, type: "SHLP/DH", mode: "delete" }, MAX, gate(), journal);

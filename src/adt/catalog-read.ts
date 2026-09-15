@@ -180,6 +180,18 @@ const VIEWGRANT_DECODE: CodeTable = {
   X: "no restriction",
 };
 
+/**
+ * DD33S-VALUEDIREC (search help parameter assignment direction). All three
+ * fixed values were read live on A4H 2026-09-15 from the fixed values of
+ * domain VALUEDIREC in DD07V (the domain behind DD33V-VALUEDIREC, resolved
+ * through DD03L -> DD01L -> DD07V), verbatim in English.
+ */
+const VALUEDIREC_DECODE: CodeTable = {
+  I: "import into the included search help or selection method",
+  C: "both import and export",
+  E: "export from the included search help or selection method",
+};
+
 /** `"<label> (<code>)"` for a known code, the bare code for an unknown one, `undefined` for a blank column — callers then omit the line entirely, per the maintenance-status rule this is written to satisfy generally. */
 function decodeCode(table: CodeTable, raw: string | undefined): string | undefined {
   const code = nonEmpty(raw);
@@ -194,6 +206,7 @@ async function readSearchHelpImpl(
   conn: CatalogReadConnection,
   name: string,
   language: string,
+  opts: SearchHelpReadOptions,
 ): Promise<DdicRender> {
   const ctx: ErrorContext = { operation: "read search help", name, type: "SHLP/DH" };
   const notes: string[] = [];
@@ -204,12 +217,39 @@ async function readSearchHelpImpl(
     throw classifyPreviewFailure(e, ctx);
   }
   notes.push(...serverNotes(header.rs));
-  const headerRow = header.rs.records[0];
+  let headerRow = header.rs.records[0];
+  let state: "A" | "N" = "A";
+
+  // No ACTIVE row: a failed create can leave DD30L with only an INACTIVE
+  // ('N') row behind, which otherwise reads exactly like "does not exist".
+  // Only chase that down when the caller opted in.
+  if (!headerRow && opts.includeInactive) {
+    let inactiveHeader: Issued;
+    try {
+      inactiveHeader = await issue(conn, buildSearchHelpHeaderQuery(name, "N"), CAP_ONE);
+    } catch (e) {
+      throw classifyPreviewFailure(e, ctx);
+    }
+    notes.push(...serverNotes(inactiveHeader.rs));
+    headerRow = inactiveHeader.rs.records[0];
+    if (headerRow) {
+      state = "N";
+    }
+  }
+
   if (!headerRow) {
     throw new AbapError(
       "NOT_FOUND",
       `No active search help named ${name} was found (DD30L returned no row).`,
       { name, type: "SHLP/DH" },
+    );
+  }
+
+  if (state === "N") {
+    notes.push(
+      "This search help has no ACTIVE version — the definition below was read from the INACTIVE " +
+        "(DD30L-AS4LOCAL='N') version. That is what a search help left behind by a create that put " +
+        "but failed to activate looks like.",
     );
   }
 
@@ -220,10 +260,10 @@ async function readSearchHelpImpl(
   let usedBy: Issued;
   let parents: Issued;
   try {
-    text = await issue(conn, buildSearchHelpTextQuery(name, language), CAP_TEXT);
-    includes = await issue(conn, buildSearchHelpIncludesQuery(name), CAP_LIST);
-    params = await issue(conn, buildSearchHelpParamsQuery(name), CAP_LIST);
-    assigns = await issue(conn, buildSearchHelpAssignmentsQuery(name), CAP_LIST);
+    text = await issue(conn, buildSearchHelpTextQuery(name, language, state), CAP_TEXT);
+    includes = await issue(conn, buildSearchHelpIncludesQuery(name, state), CAP_LIST);
+    params = await issue(conn, buildSearchHelpParamsQuery(name, state), CAP_LIST);
+    assigns = await issue(conn, buildSearchHelpAssignmentsQuery(name, state), CAP_LIST);
     usedBy = await issue(conn, buildSearchHelpUsingDataElementsQuery(name), CAP_LIST);
     parents = await issue(conn, buildSearchHelpParentsQuery(name), CAP_LIST);
   } catch (e) {
@@ -275,13 +315,6 @@ async function readSearchHelpImpl(
         "/BA1/F4_FX_RATETYPE, /AIF/FILEDIALOG).",
     );
   }
-  if (assigns.rs.records.length > 0) {
-    notes.push(
-      "DD33S-VALUEDIREC is not decoded here — the column exists (measured 2026-09-12) but its " +
-        "value set was not independently verified on this system, so the raw code is printed as-is.",
-    );
-  }
-
   const elementary = flag(headerRow[fld("searchHelpHeader", "elementary")]);
   const description = nonEmpty(text.rs.records[0]?.[fld("searchHelpText", "text")]);
 
@@ -298,13 +331,37 @@ async function readSearchHelpImpl(
     const hidden = flag(r[fld("searchHelpInclude", "hidden")]) ? " HIDDEN" : "";
     return `${r[fld("searchHelpInclude", "includedHelp")] ?? ""} POS ${r[fld("searchHelpInclude", "position")] ?? ""}${hidden}`;
   });
+  const unknownValueDirections = new Set<string>();
   const assignLines = assigns.rs.records.map((r) => {
     const valueDirection = nonEmpty(r[fld("searchHelpAssign", "valueDirection")]);
+    let dirSuffix = "";
+    if (valueDirection !== undefined) {
+      const decoded = VALUEDIREC_DECODE[valueDirection];
+      if (decoded) {
+        dirSuffix = ` DIR ${valueDirection} (${decoded})`;
+      } else {
+        unknownValueDirections.add(valueDirection);
+        dirSuffix = ` DIR ${valueDirection}`;
+      }
+    }
     return (
       `${r[fld("searchHelpAssign", "field")] ?? ""} = ${r[fld("searchHelpAssign", "includedHelp")] ?? ""}.` +
-      `${r[fld("searchHelpAssign", "includedField")] ?? ""}${valueDirection ? ` DIR ${valueDirection}` : ""}`
+      `${r[fld("searchHelpAssign", "includedField")] ?? ""}${dirSuffix}`
     );
   });
+  if (assigns.rs.records.length > 0) {
+    notes.push(
+      "DD33S-VALUEDIREC is decoded from the fixed values of domain VALUEDIREC, read live from DD07V " +
+        "on A4H 2026-09-15: I = import into the included search help or selection method, C = both " +
+        "import and export, E = export from it.",
+    );
+  }
+  for (const code of unknownValueDirections) {
+    notes.push(
+      `DD33S-VALUEDIREC held "${code}" on at least one assignment row, which is not one of domain ` +
+        "VALUEDIREC's fixed values (I, C, E) — printed as-is with no decoded meaning.",
+    );
+  }
   const usedByLines = usedBy.rs.records.map((r) => {
     return `${r[fld("dataElementHeader", "dataElement")] ?? ""} FIELD ${r[fld("dataElementHeader", "searchHelpField")] ?? ""}`;
   });
@@ -350,18 +407,30 @@ async function readSearchHelpImpl(
       textTable: nonEmpty(headerRow[fld("searchHelpHeader", "textTable")]),
       parameterCount: params.rs.records.length,
       includeCount: includesRs.records.length,
+      versionState: state === "N" ? "inactive" : "active",
     },
     notes,
     hashInput: ddl,
   };
 }
 
+export interface SearchHelpReadOptions {
+  /**
+   * When DD30L has no ACTIVE ('A') row for this search help, retry against
+   * the INACTIVE ('N') row instead of failing NOT_FOUND. Off by default: a
+   * search help that only exists inactive reads exactly like one that does
+   * not exist at all, which is what a failed create leaves behind.
+   */
+  readonly includeInactive?: boolean;
+}
+
 export async function readSearchHelp(
   conn: CatalogReadConnection,
   name: string,
   language: string = IMG_DEFAULT_LANGUAGE,
+  opts: SearchHelpReadOptions = {},
 ): Promise<DdicRender> {
-  return readSearchHelpImpl(conn, name, language);
+  return readSearchHelpImpl(conn, name, language, opts);
 }
 
 // ============================================================ classic view ===

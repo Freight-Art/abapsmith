@@ -283,6 +283,21 @@ export interface TypeCapabilities {
      * itself is enforced in the type's own create module, not from here.
      */
     createRefused?: string;
+    /**
+     * Present and `true` ⇒ this bridge create route was RUN against a real
+     * system and observed to work end-to-end, not merely present in the
+     * codebase — the bridge twin of {@link CreateCapability.verified} being
+     * `true`, for a type that has no `create` object to carry that flag at
+     * all (it is REST-`create`-less by construction; see the field doc
+     * above). Absent means no live run has been recorded, exactly like
+     * `create.verified` being absent — it does NOT mean the route is
+     * untrustworthy, just unattested here. Evidence-only: nothing in
+     * `resolveWriteTarget`, `write.ts`, or anywhere else guards behaviour on
+     * this flag — the bridge runs (or is refused via `createRefused`)
+     * regardless of its value. Read only by `test/capability-matrix-doc.test.ts`
+     * to render the Evidence column in `doc/CAPABILITIES/object-types.md`.
+     */
+    verified?: boolean;
   };
   /**
    * Present ⇒ an EXISTING object of this type is deleted by the same
@@ -295,6 +310,19 @@ export interface TypeCapabilities {
     adtRest: string;
     via: string;
     limits: string;
+    /**
+     * Present and `true` ⇒ this bridge delete route was RUN against a real
+     * system and observed to work end-to-end — the bridge twin of
+     * {@link TypeCapabilities.delete} being `true`, for a type that has no
+     * `delete` boolean to carry that flag (bridge-deleted types use this
+     * object instead; see the field doc above). Absent means no live run
+     * has been recorded, exactly like `create.verified` being absent, not
+     * that the route is known unreliable. Evidence-only: nothing gates
+     * behaviour on this flag. Read only by
+     * `test/capability-matrix-doc.test.ts` to render the Evidence column in
+     * `doc/CAPABILITIES/object-types.md`.
+     */
+    verified?: boolean;
   };
   /**
    * This is a real ADT concept abapsmith deliberately does NOT support
@@ -990,21 +1018,51 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
         "src/adt/shlp-create.ts and src/adt/ddic-bridge.ts.",
       limits:
         "The bridge builds either an elementary search help (one interface, DD31V/DD32P/DD33V) " +
-        "or a collective one (DD31S includes of other search helps) — validated zero-network " +
-        "before dispatch: an elementary help needs at least one import AND one export interface " +
-        "field, a selection method of type T/V is checked against DD02L/DD25L (and its field " +
-        "against DD03L/DD27S), and any other selection-method type gets a `ZMCP-DDIC-NOTE>` " +
-        "instead of a hard check. `update_search_help` REPLACES the whole definition the same " +
-        "way `DDIF_VIEW_PUT` does for a view: any field, include, or assignment not passed in " +
-        "the update call is removed. Proven live on A4H (NetWeaver 7.54, client 001) " +
-        "2026-09-12, in $TMP only: DDIF_SHLP_PUT followed by DDIF_SHLP_ACTIVATE returned " +
-        "sy-subrc = 0 with message DH107, and a read-back of DD30L/DD31S/DD32S/DD33S (through " +
-        "the catalog route, not abap_read's old REST path) showed the definition exactly as " +
-        "put. The transportable (non-$TMP) path runs the identical FM sequence with a real " +
-        "korrnum but has NOT itself been run against a live system. A LOCAL ($-prefixed) " +
-        "package refuses a corr_nr (BAD_INPUT) and registers with korrnum = space; a " +
-        "transportable package requires one (TRANSPORT_ERROR without one) — same pairing rule " +
-        "as VIEW/DV and TRAN/T. See src/adt/shlp-create.ts.",
+        "or a collective one (DD31S includes of other search helps) — both directions are now " +
+        "proven live, not just elementary. Validated zero-network before dispatch: an " +
+        "elementary help needs at least one import AND one export interface field, a selection " +
+        "method of type T/V is checked against DD02L/DD25L (and its field against DD03L/" +
+        "DD27S), and any other selection-method type gets a `ZMCP-DDIC-NOTE>` instead of a hard " +
+        "check. `elementary: false` with an empty `includes` used to be refused zero-network " +
+        "(\"has nothing to collect\") — removed: it activates fine on a real system. " +
+        "`update_search_help` REPLACES the whole definition the same way `DDIF_VIEW_PUT` does " +
+        "for a view: any field, include, or assignment not passed in the update call is " +
+        "removed. Root cause of DH109 found and closed: `DDIF_SHLP_PUT` succeeds and " +
+        "`DDIF_SHLP_ACTIVATE` then returns rc = 8 / message DH109 (\"search help & was not " +
+        "activated\") whenever the definition contains a dangling reference, leaving the " +
+        "search help as an INACTIVE-ONLY object (a DD30L row with AS4LOCAL = 'N', no active " +
+        "row, plus a TADIR entry) — reproduced live for three shapes: a DD31V include naming a " +
+        "search help that does not exist, a DD33V assignment whose SUBFIELD is not an " +
+        "interface parameter of the included help, and a DD33V assignment whose FIELDNAME is " +
+        "not an interface parameter of the help being built. Four refusals now prevent that " +
+        "stranding: two zero-network, in src/adt/shlp-create.ts (every `assignments[i].field` " +
+        "must be one of this call's own `fields[].name`; every `assignments[i].includedHelp` " +
+        "must be one of this call's own `includes[].name`, both case-insensitive), and two " +
+        "server-side, generated into the ABAP itself (src/adt/fluid/builtin/classic/" +
+        "abap-shlp.ts) and run BEFORE RS_CORR_INSERT so nothing is registered when they fire: " +
+        "every DD31V-SUBSHLP must exist as an active DD30L row, and every DD33V-SUBFIELD must " +
+        "exist as an active DD32S row of its SUBSHLP (a self-referencing assignment, SUBSHLP = " +
+        "SHLPNAME, skips this lookup — the definition is not in DD32S yet). The server-side " +
+        "pair surfaces as CHECK_FAILED. rc = 4 / DH108 (\"activated with warnings\") is a " +
+        "SUCCESS, not a refusal — a collective help with a selection method, one with no " +
+        "includes, and one with no fields/assignments each activate that way — and now emits a " +
+        "`ZMCP-DDIC-NOTE>` line instead of passing silently. Proven live on A4H (NetWeaver " +
+        "7.54, client 001), 2026-09-12 and 2026-09-15, in $TMP only: an elementary help and a " +
+        "collective help including it both created, read back, updated and deleted through " +
+        "abapsmith's own tool surface (markers SHLP-REGISTERED / SHLP-PUT / SHLP-ACTIVATED); " +
+        "each of the three DH109 shapes was reproduced (a temporary $TMP probe class, outside " +
+        "abapsmith's own bridge) and left the DD30L/TADIR footprint described above; each of " +
+        "the four refusals fired correctly against a payload built to trip it, before any " +
+        "object was registered. The transportable (non-$TMP) path runs the identical FM " +
+        "sequence with a real korrnum but has NOT itself been run against a live system. A " +
+        "LOCAL ($-prefixed) package refuses a corr_nr (BAD_INPUT) and registers with korrnum = " +
+        "space; a transportable package requires one (TRANSPORT_ERROR without one) — same " +
+        "pairing rule as VIEW/DV and TRAN/T. NOT proven: search-help exits (SELMEXIT), text " +
+        "tables, hot keys, AUTOSUGGEST/FUZZY_SEARCH fields — the bridge does not set them. See " +
+        "src/adt/shlp-create.ts.",
+      // Both elementary and collective create, full cycle, proven live on
+      // A4H 2026-09-12/2026-09-15 — see `limits` above for the run detail.
+      verified: true,
     },
     bridgeDelete: {
       adtRest:
@@ -1022,10 +1080,30 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
         "passes confirm_in_use — all three checked live on A4H 2026-09-12. Same open-transport-" +
         "request-lock caveat as VIEW/DV's bridgeDelete: TR_TADIR_INTERFACE's TADIR delete fails " +
         "under a lock this path does not attempt to clear, and no corr_nr is accepted " +
-        "(src/tools/write.ts refuses one outright). Proven live on A4H 2026-09-12, in $TMP " +
-        "only: DD_OBJ_DEL returned sy-subrc = 0 with message DH051 clearing the active version, " +
-        "TR_TADIR_INTERFACE removed the TADIR row, and a post-delete re-read proved absence, " +
-        "emitting SHLP-DELETED / SHLP-GONE.",
+        "(src/tools/write.ts refuses one outright). Now also reaches an INACTIVE-ONLY leftover " +
+        "(the DH109 stranding bridgeCreate.limits describes above): the catalogue queries in " +
+        "src/adt/catalog-query.ts take a state argument ('A'/'N') instead of hard-pinning " +
+        "AS4LOCAL = 'A', and readSearchHelp (src/adt/catalog-read.ts) gained an " +
+        "`{ includeInactive }` option that falls back to the 'N' version and reports " +
+        "`meta.versionState`; the delete path in src/tools/write.ts probes with that option, so " +
+        "a failed create's leftover can be deleted instead of being refused NOT_FOUND. The " +
+        "create/update \"already exists\" probe deliberately stays active-only, and so does " +
+        "`abap_read` — an inactive-only search help still reads as NOT_FOUND; only the delete " +
+        "path looks at both states. Proven live on A4H 2026-09-12, in $TMP only: DD_OBJ_DEL " +
+        "returned sy-subrc = 0 with message DH051 clearing the active version, TR_TADIR_" +
+        "INTERFACE removed the TADIR row, and a post-delete re-read proved absence, emitting " +
+        "SHLP-DELETED / SHLP-GONE. Proven live again on A4H 2026-09-15 for the inactive-only " +
+        "case: a leftover forced via a temporary $TMP probe class (DDIF_SHLP_PUT + " +
+        "DDIF_SHLP_ACTIVATE against a collective with a dangling include, rc = 8 / DH109, " +
+        "DD30L showing AS4LOCAL = 'N' only plus one TADIR row) read back as NOT_FOUND through " +
+        "abap_read, then deleted cleanly (SHLP-DELETED / SHLP-GONE) with a note explaining it " +
+        "had no active version, and a follow-up DD30L check found zero rows in either state. " +
+        "`abap_journal mode: \"undo\"` still refuses a SHLP/DH write as irreversible, by design " +
+        "— not exercised by this round.",
+      // Both the confirm_in_use-guarded active-version delete and the
+      // inactive-only-leftover delete, proven live on A4H 2026-09-12/
+      // 2026-09-15 — see `limits` above for the run detail.
+      verified: true,
     },
   },
   "VIEW/DV": {

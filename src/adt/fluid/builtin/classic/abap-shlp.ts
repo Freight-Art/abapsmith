@@ -22,6 +22,46 @@
  * created at all. See the comments at each fix site below for the measured
  * evidence.
  *
+ * A third defect, also diagnosed on A4H on 2026-09-15: a search help whose
+ * create PUT but failed to activate is left as an INACTIVE-ONLY object - a
+ * DD30L row with AS4LOCAL = 'N' and no 'A' row, plus a TADIR entry. The
+ * existence check in delete_search_help already reads DD30L with no
+ * AS4LOCAL filter, so it does see such a row, but the DD_OBJ_DEL
+ * del_state = 'A' call then has no active version to delete and can report
+ * a non-zero sy-subrc for that - which used to hard-fail the whole delete
+ * and strand the object forever, since there is no active version left to
+ * ever satisfy a del_state = 'A' delete. Fixed in delete_search_help by
+ * counting the active and inactive DD30L rows separately right after the
+ * existence check, and tolerating a non-zero sy-subrc from the
+ * del_state = 'A' call - recording it as a ZMCP-DDIC-NOTE instead of
+ * failing - only when the active count is zero; a genuine raised exception
+ * (CATCH cx_root) still fails in both cases, and the del_state = 'A' call
+ * still hard-fails on sy-subrc <> 0 whenever an active version does exist.
+ *
+ * The root cause behind that third defect was itself reproduced live on A4H,
+ * 2026-09-15: DDIF_SHLP_PUT succeeds even when the definition it is given is
+ * inconsistent, and DDIF_SHLP_ACTIVATE only then reports rc = 8, message
+ * DH109, for at least three shapes - (1) a DD31V include naming a search
+ * help that does not exist, (2) a DD33V assignment whose SUBFIELD is not an
+ * interface parameter of the assignment's own SUBSHLP, and (3) a DD33V
+ * assignment whose FIELDNAME is not an interface parameter of the search
+ * help being created. It is (2) that's fixed here with a live catalogue
+ * check; (3), and "an assignment's included help must be one of the
+ * declared includes", are LOCAL checks (no catalogue read needed) added in
+ * shlp-create.ts instead - not duplicated in this file. Also measured live:
+ * a collective search help with a selection method, one with no includes,
+ * and one with no interface parameters and no assignments all activate
+ * fine, at worst rc = 4 / DH108 - so none of those shapes are refused here.
+ * DD32S's real columns (SHLPNAME, FIELDNAME, AS4LOCAL, among others) were
+ * confirmed live on A4H the same day via a plain SELECT against
+ * H_VATYPE_BASE; DD32P, used elsewhere in this file, is only the DDIF PUT
+ * structure name and is not a table.
+ *
+ * DDIF_SHLP_ACTIVATE's rc = 4 (DH108, "activated with warnings") is left as
+ * a success - PUT_ACTIVATE below already only escalates rc > 4 to a hard
+ * failure - but it now also reports a ZMCP-DDIC-NOTE so a caller learns
+ * about the warning instead of it being silently discarded.
+ *
  * IMPORTANT, learned the hard way live: the global table types DD31VTAB,
  * DD32PTAB and DD33VTAB do NOT exist on this release - declaring a
  * `TABLES` parameter or a local typed from them fails the syntax check.
@@ -89,6 +129,7 @@ const PUT_LOCALS = `    DATA lv_shlp TYPE dd30l-shlpname.
     DATA lv_export_any TYPE abap_bool.
     DATA lv_selmethod_count TYPE i.
     DATA lv_fld_count TYPE i.
+    DATA lv_ref_count TYPE i.
     DATA lv_rc TYPE sy-subrc.
 
     " --- validation, before anything is registered (RS_CORR_INSERT) ---
@@ -225,6 +266,42 @@ const PUT_LOCALS = `    DATA lv_shlp TYPE dd30l-shlpname.
       APPEND ls_dd33v TO lt_dd33v.
     ENDDO.
 
+    " Check include references (issue #83) - DDIF_SHLP_PUT succeeds even when an include names a
+    " search help that does not exist; DDIF_SHLP_ACTIVATE then fails with rc = 8, message DH109,
+    " and the failed create leaves this search help as an inactive-only object (DD30L-AS4LOCAL =
+    " 'N', no 'A' row) - reproduced live on A4H, 2026-09-15. Caught here, before RS_CORR_INSERT,
+    " so a bad payload registers nothing in CTS.
+    LOOP AT lt_dd31v INTO ls_dd31v.
+      SELECT COUNT( * ) FROM dd30l INTO @lv_ref_count WHERE shlpname = @ls_dd31v-subshlp AND as4local = 'A'.
+      IF lv_ref_count = 0.
+        fail( |include { ls_dd31v-subshlp } of search help { lv_shlp } does not exist - | &&
+          |activation would fail with DH109 and leave { lv_shlp } as an inactive-only object| ).
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+
+    " Check assignment references (issue #83) - same discipline: DDIF_SHLP_PUT succeeds even when
+    " an assignment's SUBFIELD is not actually an interface parameter of its own SUBSHLP;
+    " DDIF_SHLP_ACTIVATE then fails the same way, rc = 8 / DH109. An assignment whose SUBSHLP is
+    " this search help itself is skipped: it refers to a field of the very definition being built
+    " here, not yet present in DD32S, so a live catalogue lookup would either find nothing (create)
+    " or a stale previous definition (update) - DD32S only means something when SUBSHLP names a
+    " DIFFERENT search help (whether or not it is itself one of the declared includes - that
+    " "must be a declared include" rule is a local check, not this one, and lives elsewhere).
+    LOOP AT lt_dd33v INTO ls_dd33v.
+      IF ls_dd33v-subshlp = lv_shlp.
+        CONTINUE.
+      ENDIF.
+      SELECT COUNT( * ) FROM dd32s INTO @lv_ref_count
+        WHERE shlpname = @ls_dd33v-subshlp AND fieldname = @ls_dd33v-subfield AND as4local = 'A'.
+      IF lv_ref_count = 0.
+        fail( |assignment { ls_dd33v-fieldname }: field { ls_dd33v-subfield } is not an interface | &&
+          |parameter of include { ls_dd33v-subshlp } - activation would fail with DH109 and leave | &&
+          |{ lv_shlp } as an inactive-only object| ).
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+
     DATA(lv_object) = |SHLP{ lv_shlp WIDTH = 40 ALIGN = LEFT }|.
     CALL FUNCTION 'RS_CORR_INSERT'
       EXPORTING object = lv_object
@@ -269,6 +346,13 @@ const PUT_ACTIVATE = `    CALL FUNCTION 'DDIF_SHLP_PUT'
     IF sy-subrc <> 0.
       fail( |DDIF_SHLP_ACTIVATE failed, sy-subrc={ sy-subrc }, { sy-msgid }{ sy-msgno }| ).
       RETURN.
+    ENDIF.
+    " rc = 4 (DH108) is still a genuine activation - only rc > 4 was escalated to a failure above -
+    " but "activated with warnings" is a real, if non-fatal, finding that used to be discarded
+    " silently; report it instead of hiding it from the caller.
+    IF lv_rc = 4.
+      line( |ZMCP-DDIC-NOTE> DDIF_SHLP_ACTIVATE returned rc=4, { sy-msgid }{ sy-msgno } - { lv_shlp } | &&
+        |activated with warnings| ).
     ENDIF.
     line( 'SHLP-ACTIVATED' ).
 
@@ -324,6 +408,8 @@ const DELETE_SEARCH_HELP = `  METHOD delete_search_help.
     DATA lv_dtel_count TYPE i.
     DATA lv_att_count TYPE i.
     DATA lv_inc_count TYPE i.
+    DATA lv_active_count TYPE i.
+    DATA lv_inactive_count TYPE i.
 
     " Step 1: confirm there is something left to delete - same resume-tolerant
     " probe as delete_view: a DD30L row is the normal case; also tolerate DD30L
@@ -340,6 +426,20 @@ const DELETE_SEARCH_HELP = `  METHOD delete_search_help.
       ENDIF.
       line( |ZMCP-DDIC-NOTE> resuming a partial delete of { lv_shlp }: DD30L is already gone, | &&
         |TADIR row remains - finishing the TADIR cleanup only, not repeating DD_OBJ_DEL| ).
+    ENDIF.
+
+    " Step 1b: DD30L's active and inactive rows are counted separately - a
+    " create that PUT but failed to activate leaves DD30L with an
+    " AS4LOCAL = 'N' row and no 'A' row (diagnosed live on A4H, 2026-09-15);
+    " the del_state = 'A' delete below has no active version to find in
+    " that case, and its failure is tolerated rather than treated as an
+    " error - see the check right before that call.
+    SELECT COUNT( * ) FROM dd30l INTO @lv_active_count WHERE shlpname = @lv_shlp AND as4local = 'A'.
+    SELECT COUNT( * ) FROM dd30l INTO @lv_inactive_count WHERE shlpname = @lv_shlp AND as4local <> 'A'.
+    IF lv_active_count = 0 AND lv_inactive_count > 0.
+      line( |ZMCP-DDIC-NOTE> { lv_shlp } exists only as an inactive version (DD30L-AS4LOCAL = 'N') - | &&
+        |this is what a create that PUT but failed to activate leaves behind; the active-state | &&
+        |delete step below is expected to find nothing| ).
     ENDIF.
 
     " Step 2: where-used guard (issue #83) - a search help can be attached to
@@ -388,8 +488,18 @@ const DELETE_SEARCH_HELP = `  METHOD delete_search_help.
           RETURN.
       ENDTRY.
       IF sy-subrc <> 0.
-        fail( |DD_OBJ_DEL failed, sy-subrc={ sy-subrc }, { sy-msgid }{ sy-msgno }| ).
-        RETURN.
+        " A non-zero sy-subrc here is only a real error if there was an active
+        " version to delete in the first place - an inactive-only object (a
+        " create that PUT but failed to activate, diagnosed live on A4H
+        " 2026-09-15) has nothing for del_state = 'A' to find, and DD_OBJ_DEL
+        " can report exactly that as a non-zero sy-subrc without raising.
+        IF lv_active_count > 0.
+          fail( |DD_OBJ_DEL failed, sy-subrc={ sy-subrc }, { sy-msgid }{ sy-msgno }| ).
+          RETURN.
+        ENDIF.
+        line( |ZMCP-DDIC-NOTE> DD_OBJ_DEL del_state = 'A' returned sy-subrc={ sy-subrc }, | &&
+          |{ sy-msgid }{ sy-msgno } for { lv_shlp } - not treated as an error, since it had no | &&
+          |active version (DD30L-AS4LOCAL = 'A') to delete| ).
       ENDIF.
 
       TRY.

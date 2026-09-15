@@ -86,7 +86,7 @@ inputs to this derivation rather than registry fields:
 | `ENQU/DL` | Lock object | yes | partial | yes | yes | yes | live |
 | `DEVC/K` | Package | yes | yes | no | partial | no | live |
 | `SRVB/SVB` | Service binding | yes | partial | yes | yes | yes | live |
-| `SHLP/DH` | Search help | partial | yes | no | partial | no | unverified |
+| `SHLP/DH` | Search help | partial | yes | no | partial | no | live |
 | `VIEW/DV` | Classic view | partial | yes | no | partial | no | unverified |
 | `TRAN/T` | Transaction | partial | yes | no | partial | no | unverified |
 | `PROG/PS` | Screen (dynpro) | no | no | no | no | no | tests |

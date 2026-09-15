@@ -117,7 +117,11 @@
   entry's `beforeSource` is the rendered pseudo-DDL — but it is still
   `irreversible: true`: that stored form is not a `DDIF_SHLP_PUT`
   payload, so undo has nothing to replay, and `src/adt/undo.ts`'s
-  `vitTypeFor()` has no `SHLP/DH` case regardless. Reversal for any
+  `vitTypeFor()` has no `SHLP/DH` case regardless. Deleting an
+  INACTIVE-ONLY search help (see below) journals the same way — the
+  pre-delete existence check falls back to the inactive (`AS4LOCAL = 'N'`)
+  version, so `beforeSource`/`existed`/`capture` are still captured from
+  that read, and the entry is still `irreversible: true`. Reversal for any
   irreversible entry is a fresh `abap_write` call, never
   `abap_journal mode=undo`. See `doc/TOOLS/write-and-activate.md` for the
   full picture stated in one place.
@@ -142,7 +146,64 @@
   `dynpro` parameter is ignored — `0390` was passed in but `TSTC-DYPNO`
   came back `1000`, and no `TSTCP` row was created for the report
   transaction; a live `AGR_TCODES` read found 9 rows for `SM30` and none
-  for `ZI83_TC`). What was NOT run live: a write into a transportable
+  for `ZI83_TC`).
+  Follow-up live round on A4H, 2026-09-15, closing out issue #83's DH109
+  investigation: `DDIF_SHLP_PUT` succeeds and `DDIF_SHLP_ACTIVATE` then
+  returns `rc = 8` / message `DH109` ("search help & was not activated")
+  whenever the definition contains a dangling reference — a `DD31V`
+  include naming a search help that does not exist, a `DD33V` assignment
+  whose `SUBFIELD` is not an interface parameter of the included help, or a
+  `DD33V` assignment whose `FIELDNAME` is not an interface parameter of the
+  help being built — and each of the three shapes was reproduced live,
+  each leaving the search help stranded as an INACTIVE-ONLY object (a
+  `DD30L` row with `AS4LOCAL = 'N'`, no active row, plus a `TADIR` entry).
+  The collective payload shape the bridge builds was NOT itself at fault:
+  variants with `DIALOGTYPE` blank vs `'D'`, with `SHLPSELPOS`/
+  `SHLPLISPOS` filled vs blank, and with direction `I`/`E` vs `C`/`E` all
+  activated with `rc = 0` / `DH107`. `rc = 4` / `DH108` ("activated with
+  warnings") is a SUCCESS, not a refusal, and must not be treated as one —
+  a collective help carrying a selection method, one with no includes, and
+  one with no fields/assignments each activate that way, and now emit a
+  `ZMCP-DDIC-NOTE>` line instead of passing silently. Four refusals now
+  stop a caller from creating the DH109 leftover: two zero-network, in
+  `src/adt/shlp-create.ts` (every `assignments[i].field` must be one of
+  the call's own `fields[].name`; every `assignments[i].includedHelp` must
+  be one of the call's own `includes[].name`); two server-side, generated
+  into the ABAP before `RS_CORR_INSERT` runs, in
+  `src/adt/fluid/builtin/classic/abap-shlp.ts` (every `DD31V-SUBSHLP` must
+  exist as an active `DD30L` row; every `DD33V-SUBFIELD` must exist as an
+  active `DD32S` row of its `SUBSHLP`, except a self-referencing
+  assignment, `SUBSHLP = SHLPNAME`, which skips that lookup because the
+  definition is not in `DD32S` yet) — these surface as `CHECK_FAILED`.
+  The superseded zero-network refusal on `elementary: false` with an empty
+  `includes` ("has nothing to collect") was removed: it activates fine on
+  a real system. `mode="delete"` now also reaches an INACTIVE-ONLY
+  leftover: the catalogue queries (`src/adt/catalog-query.ts`) took a hard
+  `AS4LOCAL = 'A'` predicate before this round and now take a state
+  argument, and `readSearchHelp` (`src/adt/catalog-read.ts`) gained an
+  `{ includeInactive }` option that falls back to the `'N'` version and
+  reports `meta.versionState`; the delete path in `src/tools/write.ts`
+  probes with that option, so a failed create's leftover can be deleted
+  instead of being refused `NOT_FOUND`. The create/update "already exists"
+  probe deliberately stays active-only, and so does `abap_read` — an
+  inactive-only search help still reads back `NOT_FOUND`; only the delete
+  path looks at both states. All of the above was exercised live in
+  `$TMP` only: an elementary help and a collective help including it were
+  each created, read back, updated and deleted through abapsmith's own
+  tool surface; each of the three DH109 shapes was reproduced (through a
+  temporary `$TMP` probe class, outside abapsmith's own bridge) and left
+  the described DD30L/TADIR footprint; each of the four refusals fired
+  correctly, before any object was registered, against a payload built to
+  trip it; and the inactive-only leftover forced by the probe class read
+  back `NOT_FOUND` through `abap_read`, then deleted cleanly
+  (`SHLP-DELETED` / `SHLP-GONE`) with a note explaining it had no active
+  version, and a follow-up `DD30L` check found zero rows in either state.
+  NOT proven by this round, and still open: the transportable (non-`$TMP`)
+  path for SHLP/DH; `abap_journal mode="undo"` for SHLP/DH, still refused
+  as irreversible, by design; and search-help exits (`SELMEXIT`), text
+  tables, hot keys, and `AUTOSUGGEST`/`FUZZY_SEARCH` fields, which the
+  bridge does not set.
+  What was NOT run live: a write into a transportable
   (non-`$TMP`) package, for any of the three types, in any mode — the
   `corr_nr`/transport-request path is implemented and unit-tested, not
   live-verified. Issues #83, #84 and #85 each asked for a

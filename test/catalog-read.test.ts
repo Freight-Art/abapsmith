@@ -60,15 +60,32 @@ interface TableFixture {
   rows: readonly (readonly string[])[];
 }
 
+/**
+ * A fixture for one table is either a single `TableFixture` (every call to
+ * that table gets the same answer — the common case) or an array of them,
+ * consumed one per call in order and holding on the last entry once
+ * exhausted. The array form only exists to fake two different queries that
+ * land on the same table (e.g. DD30L queried once for AS4LOCAL='A' and, on
+ * the includeInactive fallback, again for AS4LOCAL='N') — the fake matches on
+ * table name only, not on WHERE-clause content, so sequencing is the only way
+ * to hand back a different row for the second call.
+ */
+type TableFixtureSource = TableFixture | readonly TableFixture[];
+
 /** Records every call it receives and answers from a table-name-keyed fixture map; a table with no fixture answers zero rows. */
 class FakeCatalogConn implements CatalogReadConnection {
   readonly calls: Array<{ sql: string; rowNumber: number; table: string }> = [];
-  constructor(private readonly tables: Record<string, TableFixture>) {}
+  private readonly callCounts: Record<string, number> = {};
+  constructor(private readonly tables: Record<string, TableFixtureSource>) {}
 
   async dataPreviewFreestyle(sql: string, rowNumber: number): Promise<{ body: string }> {
     const table = /FROM\s+(\S+)/.exec(sql)?.[1] ?? "";
     this.calls.push({ sql, rowNumber, table });
-    const fixture = this.tables[table];
+    const source = this.tables[table];
+    const fixture = Array.isArray(source)
+      ? source[Math.min(this.callCounts[table] ?? 0, source.length - 1)]
+      : source;
+    this.callCounts[table] = (this.callCounts[table] ?? 0) + 1;
     return { body: xmlBody(fixture?.columns ?? [], fixture?.rows ?? []) };
   }
 }
@@ -269,13 +286,89 @@ describe("readSearchHelp", () => {
     const conn = new FakeCatalogConn({});
     const err = await catchErr(readSearchHelp(conn, "ZGONE", "E"));
     expect(err.code).toBe("NOT_FOUND");
+    expect(err.message).toBe("No active search help named ZGONE was found (DD30L returned no row).");
   });
 
-  it("DD33S-VALUEDIREC is deliberately NOT decoded — the raw code is printed as-is, with a note explaining why", async () => {
-    // catalog-read.ts's own comment: "the column exists (measured
-    // 2026-09-12) but its value set was not independently verified on this
-    // system, so the raw code is printed as-is." This test pins that
-    // decision, not a claim about what VALUEDIREC's real values mean.
+  it("without includeInactive, no ACTIVE row still throws NOT_FOUND with the unchanged message — no accidental inactive fallback", async () => {
+    // Same empty-DD30L shape as the previous test, but pins that DD30L is
+    // only ever queried once (the AS4LOCAL='A' query) when includeInactive
+    // is not passed at all — the default {} must not trigger the fallback.
+    const conn = new FakeCatalogConn({});
+    const err = await catchErr(readSearchHelp(conn, "ZSHLP", "E"));
+    expect(err.code).toBe("NOT_FOUND");
+    expect(err.message).toBe("No active search help named ZSHLP was found (DD30L returned no row).");
+    expect(conn.calls.filter((c) => c.table === "DD30L")).toHaveLength(1);
+  });
+
+  it("includeInactive: no ACTIVE row but an INACTIVE (AS4LOCAL='N') row exists — falls back, renders, and marks versionState 'inactive'", async () => {
+    // The fake matches on table name only, so the first DD30L fixture
+    // (empty) answers the AS4LOCAL='A' query and the second (one row,
+    // AS4LOCAL='N') answers the AS4LOCAL='N') fallback query — see
+    // TableFixtureSource's doc comment above.
+    const conn = new FakeCatalogConn({
+      DD30L: [
+        { columns: ["SHLPNAME", "AS4LOCAL"], rows: [] },
+        {
+          columns: ["SHLPNAME", "AS4LOCAL", "ISSIMPLE", "SELMETHOD", "SELMTYPE"],
+          rows: [["ZSHLP", "N", "X", "ZSHLPTAB", "T"]],
+        },
+      ],
+    });
+    const render = await readSearchHelp(conn, "ZSHLP", "E", { includeInactive: true });
+
+    expect(render.ddl).toContain("SEARCH HELP ZSHLP.");
+    expect(render.meta.versionState).toBe("inactive");
+    expect(
+      render.notes.some((n) => n.includes("This search help has no ACTIVE version") && n.includes("INACTIVE")),
+    ).toBe(true);
+    expect(conn.calls.filter((c) => c.table === "DD30L")).toHaveLength(2);
+  });
+
+  it("includeInactive set but neither ACTIVE nor INACTIVE row exists — still NOT_FOUND, same message", async () => {
+    const conn = new FakeCatalogConn({});
+    const err = await catchErr(readSearchHelp(conn, "ZGONE", "E", { includeInactive: true }));
+    expect(err.code).toBe("NOT_FOUND");
+    expect(err.message).toBe("No active search help named ZGONE was found (DD30L returned no row).");
+  });
+
+  it("active header found — meta.versionState is 'active' and no inactive-version note is added", async () => {
+    const conn = new FakeCatalogConn({
+      DD30L: { columns: ["SHLPNAME", "AS4LOCAL", "ISSIMPLE", "SELMETHOD", "SELMTYPE"], rows: [["ZSHLP", "A", "", "ZSHLPTAB", "T"]] },
+    });
+    const render = await readSearchHelp(conn, "ZSHLP", "E");
+    expect(render.meta.versionState).toBe("active");
+    expect(render.notes.some((n) => n.includes("This search help has no ACTIVE version"))).toBe(false);
+  });
+
+  it("DD33S-VALUEDIREC: I/C/E decode to the domain's fixed-value meanings (read live from DD07V on A4H), with a provenance note", async () => {
+    const conn = new FakeCatalogConn({
+      DD30L: {
+        columns: ["SHLPNAME", "AS4LOCAL", "ISSIMPLE", "SELMETHOD", "SELMTYPE"],
+        rows: [["ZSHLP", "A", "", "ZSHLPTAB", "T"]],
+      },
+      DD33S: {
+        columns: ["SHLPNAME", "FIELDNAME", "SUBSHLP", "SUBFIELD", "VALUEDIREC"],
+        rows: [
+          ["ZSHLP", "MANDT", "ZSUBHLP", "MANDT", "C"],
+          ["ZSHLP", "CARRID", "ZSUBHLP", "CARRID", "I"],
+          ["ZSHLP", "CONNID", "ZSUBHLP", "CONNID", "E"],
+        ],
+      },
+    });
+    const render = await readSearchHelp(conn, "ZSHLP", "E");
+    expect(render.ddl).toContain("MANDT = ZSUBHLP.MANDT DIR C (both import and export)");
+    expect(render.ddl).toContain(
+      "CARRID = ZSUBHLP.CARRID DIR I (import into the included search help or selection method)",
+    );
+    expect(render.ddl).toContain(
+      "CONNID = ZSUBHLP.CONNID DIR E (export from the included search help or selection method)",
+    );
+    expect(
+      render.notes.some((n) => n.includes("DD33S-VALUEDIREC is decoded from the fixed values of domain VALUEDIREC")),
+    ).toBe(true);
+  });
+
+  it("DD33S-VALUEDIREC: a code outside I/C/E prints the raw code with no parenthetical and adds a note flagging it", async () => {
     const conn = new FakeCatalogConn({
       DD30L: {
         columns: ["SHLPNAME", "AS4LOCAL", "ISSIMPLE", "SELMETHOD", "SELMTYPE"],
@@ -288,7 +381,8 @@ describe("readSearchHelp", () => {
     });
     const render = await readSearchHelp(conn, "ZSHLP", "E");
     expect(render.ddl).toContain("DIR Q");
-    expect(render.notes.some((n) => n.includes("DD33S-VALUEDIREC is not decoded here"))).toBe(true);
+    expect(render.ddl).not.toContain("DIR Q (");
+    expect(render.notes.some((n) => n.includes('held "Q"') && n.includes("not one of domain"))).toBe(true);
   });
 
   it("SELMTYPE_DECODE: an unknown code degrades to the bare raw value, never throwing or blanking", async () => {

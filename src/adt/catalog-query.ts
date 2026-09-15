@@ -33,8 +33,13 @@ import {
 
 // ------------------------------------------------------------ search help ---
 
-/** DD30L header row for one search help, active version only. */
-export function buildSearchHelpHeaderQuery(name: string): string {
+/**
+ * DD30L header row for one search help. Defaults to the active version
+ * (`state = "A"`); pass `state = "N"` to read the inactive version instead —
+ * `readSearchHelp`'s `includeInactive` fallback uses that to reach a search
+ * help left behind by a create that put but failed to activate.
+ */
+export function buildSearchHelpHeaderQuery(name: string, state: "A" | "N" = "A"): string {
   const searchHelp = fld("searchHelpHeader", "searchHelp");
   const activeState = fld("searchHelpHeader", "activeState");
   const cols = (
@@ -52,12 +57,16 @@ export function buildSearchHelpHeaderQuery(name: string): string {
       "dialogType",
     ] as const
   ).map((c) => fld("searchHelpHeader", c));
-  const where = [inClause(searchHelp, [name], "name", assertEntityName), `${activeState} = ${literal("A")}`];
+  const where = [inClause(searchHelp, [name], "name", assertEntityName), `${activeState} = ${literal(state)}`];
   return buildSelect(cols.join(", "), tbl("searchHelpHeader"), where);
 }
 
-/** DD30T description of one search help, active version only, in one language. */
-export function buildSearchHelpTextQuery(name: string, language: string): string {
+/**
+ * DD30T description of one search help, in one language. Defaults to the
+ * active version (`state = "A"`); pass `state = "N"` to read the inactive
+ * version instead (see `buildSearchHelpHeaderQuery`).
+ */
+export function buildSearchHelpTextQuery(name: string, language: string, state: "A" | "N" = "A"): string {
   const searchHelp = fld("searchHelpText", "searchHelp");
   const lang = fld("searchHelpText", "language");
   const activeState = fld("searchHelpText", "activeState");
@@ -65,25 +74,33 @@ export function buildSearchHelpTextQuery(name: string, language: string): string
   const where = [
     inClause(searchHelp, [name], "name", assertEntityName),
     `${lang} = ${literal(assertImgLanguage(language))}`,
-    `${activeState} = ${literal("A")}`,
+    `${activeState} = ${literal(state)}`,
   ];
   return buildSelect(`${searchHelp}, ${text}`, tbl("searchHelpText"), where);
 }
 
-/** DD31S included search helps of one search help, active version only, ordered by position. */
-export function buildSearchHelpIncludesQuery(name: string): string {
+/**
+ * DD31S included search helps of one search help, ordered by position.
+ * Defaults to the active version (`state = "A"`); pass `state = "N"` to read
+ * the inactive version instead (see `buildSearchHelpHeaderQuery`).
+ */
+export function buildSearchHelpIncludesQuery(name: string, state: "A" | "N" = "A"): string {
   const searchHelp = fld("searchHelpInclude", "searchHelp");
   const activeState = fld("searchHelpInclude", "activeState");
   const position = fld("searchHelpInclude", "position");
   const cols = (["searchHelp", "includedHelp", "position", "viaHelp", "hidden"] as const).map((c) =>
     fld("searchHelpInclude", c),
   );
-  const where = [inClause(searchHelp, [name], "name", assertEntityName), `${activeState} = ${literal("A")}`];
+  const where = [inClause(searchHelp, [name], "name", assertEntityName), `${activeState} = ${literal(state)}`];
   return buildSelect(cols.join(", "), tbl("searchHelpInclude"), where, position);
 }
 
-/** DD32S parameters of one search help, active version only, ordered by position. */
-export function buildSearchHelpParamsQuery(name: string): string {
+/**
+ * DD32S parameters of one search help, ordered by position. Defaults to the
+ * active version (`state = "A"`); pass `state = "N"` to read the inactive
+ * version instead (see `buildSearchHelpHeaderQuery`).
+ */
+export function buildSearchHelpParamsQuery(name: string, state: "A" | "N" = "A"): string {
   const searchHelp = fld("searchHelpParam", "searchHelp");
   const activeState = fld("searchHelpParam", "activeState");
   const position = fld("searchHelpParam", "position");
@@ -103,19 +120,23 @@ export function buildSearchHelpParamsQuery(name: string): string {
       "length",
     ] as const
   ).map((c) => fld("searchHelpParam", c));
-  const where = [inClause(searchHelp, [name], "name", assertEntityName), `${activeState} = ${literal("A")}`];
+  const where = [inClause(searchHelp, [name], "name", assertEntityName), `${activeState} = ${literal(state)}`];
   return buildSelect(cols.join(", "), tbl("searchHelpParam"), where, position);
 }
 
-/** DD33S parameter assignments of one search help, active version only, ordered by field. */
-export function buildSearchHelpAssignmentsQuery(name: string): string {
+/**
+ * DD33S parameter assignments of one search help, ordered by field. Defaults
+ * to the active version (`state = "A"`); pass `state = "N"` to read the
+ * inactive version instead (see `buildSearchHelpHeaderQuery`).
+ */
+export function buildSearchHelpAssignmentsQuery(name: string, state: "A" | "N" = "A"): string {
   const searchHelp = fld("searchHelpAssign", "searchHelp");
   const activeState = fld("searchHelpAssign", "activeState");
   const field = fld("searchHelpAssign", "field");
   const cols = (
     ["searchHelp", "field", "includedHelp", "includedField", "defaultValue", "defaultType", "valueDirection"] as const
   ).map((c) => fld("searchHelpAssign", c));
-  const where = [inClause(searchHelp, [name], "name", assertEntityName), `${activeState} = ${literal("A")}`];
+  const where = [inClause(searchHelp, [name], "name", assertEntityName), `${activeState} = ${literal(state)}`];
   return buildSelect(cols.join(", "), tbl("searchHelpAssign"), where, field);
 }
 

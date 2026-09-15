@@ -7575,3 +7575,218 @@ describe("registerWriteTools: batch delete — isError on the envelope, not just
     expect(text).toContain("failed: 0");
   });
 });
+
+/**
+ * `SHLP/DH` delete's existence probe (`abapDeleteSearchHelpViaBridge`, `src/tools/write.ts`)
+ * used to go through `probeSearchHelp` — ACTIVE-only, via `readSearchHelp(conn, name)` with
+ * no `includeInactive` option. A search help left behind by a create that PUT but never
+ * activated has DD30L rows with `AS4LOCAL='N'` only (no active row at all): the active-only
+ * probe sees that exactly like "does not exist" and refused the delete with NOT_FOUND,
+ * even though the bridge's own `delete_search_help` (`src/adt/shlp-delete.ts`) removes both
+ * DDIC states and the TADIR entry regardless of which one is active. Issue #83.
+ *
+ * `probeSearchHelpAnyState` (`src/tools/write.ts`) is the fix: `readSearchHelp(conn, name,
+ * undefined, { includeInactive: true })`, used ONLY by the delete path (pre-delete existence
+ * check and post-delete "still there?" check) — the create path's "already exists" probe and
+ * the update path's existence probe both keep `probeSearchHelp`, unchanged.
+ *
+ * Wire fakes follow `test/shlp-journal.test.ts`'s idiom for this same function: a real
+ * `AbapConnection` over a fake `HttpClient`, `readSearchHelpImpl`'s `/datapreview/freestyle`
+ * calls answered BY ORDER (the first is always `conn.connect()`'s one-time system-role
+ * probe), and the real fluid `classic`-tool deploy/classrun fake
+ * (`test/helpers/fluid-classic-fake.ts`) for the bridge classrun itself. Nothing here touches
+ * a real SAP system. `connected()`/`baseRoute` above answer EVERY freestyle call with the
+ * connect-time fixture unconditionally, which would swallow every DD30L query these tests
+ * need to answer differently — so this section builds its own minimal connection helper
+ * instead of reusing that one.
+ */
+describe("SHLP/DH delete: inactive-only leftover (issue #83)", () => {
+  const SHLP_NAME = "ZMCP_TEST_SHLP_I83";
+
+  const shlpGate = (): SafetyGate =>
+    new SafetyGate({
+      readOnly: false,
+      allowPackages: ["*"],
+      allowNamePrefixes: ["*"],
+      allowTransports: ["*"],
+      writesLockedOut: false,
+    });
+
+  /**
+   * Minimal base routing for `conn.connect()`: `/compatibility/graph`, `/discovery`,
+   * `/ato/settings` — everything BUT the one-time system-role `/datapreview/freestyle`
+   * probe, which `shlpConnected` below answers itself, gated on a `duringConnect` flag so
+   * it never shadows a test's OWN freestyle fixtures once `connect()` has returned.
+   */
+  function shlpConnectRoute(r: Recorded): HttpClientResponse | undefined {
+    if (r.url.includes("/compatibility/graph")) return resp(200, "<graph/>", LOGIN_HEADERS);
+    if (r.url.endsWith("/discovery")) return resp(200, "<service/>", OK_XML);
+    if (r.url.includes("/ato/settings")) return resp(200, "<settings/>", OK_XML);
+    return undefined;
+  }
+
+  async function shlpConnected(route: Route): Promise<{ conn: AbapConnection; adt: FakeAdt }> {
+    let duringConnect = true;
+    const adt = new FakeAdt((r) => {
+      if (duringConnect && r.url.includes("/datapreview/freestyle")) {
+        return resp(200, T000_NONPRODUCTIVE, DATAPREVIEW_XML);
+      }
+      return shlpConnectRoute(r) ?? route(r);
+    });
+    const conn = new AbapConnection(cfg(), {
+      httpClient: adt,
+      log: () => {},
+      breaker: new AuthCircuitBreaker(),
+    });
+    await conn.connect();
+    duringConnect = false;
+    adt.calls.length = 0;
+    return { conn, adt };
+  }
+
+  /** One column's `<dataPreview:columns>` block — same wire shape `test/img-read.test.ts` and `test/shlp-journal.test.ts` use. */
+  function columnXml(name: string, values: readonly string[]): string {
+    const data = values.map((v) => `<dataPreview:data>${v}</dataPreview:data>`).join("");
+    return (
+      `<dataPreview:columns><dataPreview:metadata dataPreview:name="${name}" dataPreview:type="C" dataPreview:keyAttribute="false"/>` +
+      `<dataPreview:dataSet>${data}</dataPreview:dataSet></dataPreview:columns>`
+    );
+  }
+
+  /** One structural stand-in row: a single unread column, just to make a header query find `records.length === 1`. */
+  function oneStandInRow(): string {
+    return (
+      '<?xml version="1.0" encoding="utf-8"?><dataPreview:tableData xmlns:dataPreview="http://www.sap.com/adt/dataPreview">' +
+      `${columnXml("STANDIN_COL", ["x"])}</dataPreview:tableData>`
+    );
+  }
+
+  /** No rows — `readSearchHelpImpl` treats this as "no header row" for a header query, and as "nothing" for every detail query. */
+  function emptyResult(): string {
+    return '<?xml version="1.0" encoding="utf-8"?><dataPreview:tableData xmlns:dataPreview="http://www.sap.com/adt/dataPreview"></dataPreview:tableData>';
+  }
+
+  /**
+   * Routes `/datapreview/freestyle` calls by ORDER, `shlpConnected`'s connect-time probe
+   * already consumed by the time a test's own route runs (see `shlpConnected`'s
+   * `adt.calls.length = 0` reset) — so here every freestyle call maps straight into
+   * `bodies`, in order, with no +1 offset for a probe.
+   */
+  function freestyleQueueRoute(bodies: readonly string[]): Route {
+    let n = 0;
+    return (r) => {
+      if (!r.url.includes("/datapreview/freestyle")) return undefined;
+      const entry = bodies[n];
+      n++;
+      if (entry === undefined) {
+        throw new Error(`freestyleQueueRoute: no fixture queued for SHLP-side call #${n}`);
+      }
+      return resp(200, entry, DATAPREVIEW_XML);
+    };
+  }
+
+  /** No ACTIVE row (empty), then no INACTIVE row either — genuinely absent, in EITHER state. */
+  const ABSENT_ANY_STATE_BODIES: readonly string[] = [emptyResult(), emptyResult()];
+
+  /**
+   * No ACTIVE row, but an INACTIVE one IS found — the exact "create that PUT but never
+   * activated" shape (DD30L-AS4LOCAL='N', no active row at all): active header (empty),
+   * inactive header (found), then the 6 detail queries `readSearchHelpImpl` always issues
+   * once a header row is in hand (text, includes, params, assigns, usedBy, parents).
+   */
+  const INACTIVE_ONLY_FOUND_BODIES: readonly string[] = [
+    emptyResult(),
+    oneStandInRow(),
+    emptyResult(),
+    emptyResult(),
+    emptyResult(),
+    emptyResult(),
+    emptyResult(),
+    emptyResult(),
+  ];
+
+  async function withShlpJournal(fn: (journal: Journal) => Promise<void>): Promise<void> {
+    const dir = await mkdtemp(join(tmpdir(), "abapsmith-shlp-i83-"));
+    try {
+      await fn(new Journal({ dir, enabled: true, maxEntries: 200, maxAgeDays: 30 }, "A4H"));
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  }
+
+  it("(a) proceeds with the delete of an inactive-only search help instead of refusing NOT_FOUND, and the response carries the inactive-only note", async () => {
+    await withShlpJournal(async (journal) => {
+      const classic = classicFake({ action: "delete_search_help", lines: () => ["SHLP-DELETED", "SHLP-GONE"] });
+      const shlp = freestyleQueueRoute([...INACTIVE_ONLY_FOUND_BODIES, ...ABSENT_ANY_STATE_BODIES]);
+      const { conn } = await shlpConnected((r) => classic.route(r) ?? shlp(r));
+
+      const result = await abapWrite(
+        conn,
+        { object: SHLP_NAME, type: "SHLP/DH", mode: "delete" },
+        20_000,
+        shlpGate(),
+        journal,
+      );
+      expect(result.text).toMatch(/deleted:\s*true/);
+      expect(result.text).toMatch(/NOTE:.*no ACTIVE version/);
+      expect(result.text).toMatch(/AS4LOCAL='N'/);
+      expect(result.text).toMatch(/delete_search_help removes both DDIC states/);
+      expect(result.text).toMatch(/INACTIVE definition/);
+
+      const entries = await journal.list();
+      const entry = entries[0];
+      if (!entry) throw new Error("test fixture bug: no journal entry was recorded for the delete");
+      expect(entry.beforeCapture).toBe("captured");
+      expect(entry.existedBefore).toBe(true);
+      expect(entry.irreversible).toBe(true);
+    });
+  });
+
+  it("(b) delete of a genuinely absent search help (no active AND no inactive row) still throws NOT_FOUND with the unchanged message", async () => {
+    await withShlpJournal(async (journal) => {
+      const shlp = freestyleQueueRoute(ABSENT_ANY_STATE_BODIES);
+      const { conn } = await shlpConnected(shlp);
+
+      const e = await catchErr(
+        abapWrite(conn, { object: SHLP_NAME, type: "SHLP/DH", mode: "delete" }, 20_000, shlpGate(), journal),
+      );
+      expect(e.code).toBe("NOT_FOUND");
+      expect(e.message).toBe(`Search help ${SHLP_NAME} does not exist, so there is nothing to delete.`);
+      expect(await journal.list()).toEqual([]);
+    });
+  });
+
+  it("(c) create's 'already exists' probe stays active-only: an active-empty search help is treated as absent without ever probing the inactive version", async () => {
+    await withShlpJournal(async (journal) => {
+      const classic = classicFake({
+        action: "create_search_help",
+        lines: () => ["SHLP-REGISTERED", "SHLP-PUT", "SHLP-ACTIVATED"],
+      });
+      // Exactly ONE body for the pre-create probe's active-only header query, and exactly
+      // ONE more for the post-create verification read's own active-only header query. If
+      // the pre-create probe regressed to ALSO try the inactive header query (2 calls
+      // instead of 1), it would consume the post-create body for itself, and the real
+      // post-create read would then find no fixture queued and throw — failing this test
+      // instead of silently passing.
+      const shlp = freestyleQueueRoute([emptyResult(), emptyResult()]);
+      const { conn } = await shlpConnected((r) => classic.route(r) ?? shlp(r));
+
+      const result = await abapWrite(
+        conn,
+        {
+          object: SHLP_NAME,
+          type: "SHLP/DH",
+          mode: "write",
+          package: "$TMP",
+          description: "Issue #83 standin",
+          shlp: { elementary: false, fields: [], includes: [{ name: "ZMCP_SH_SUB_I83" }] },
+        },
+        20_000,
+        shlpGate(),
+        journal,
+      );
+      expect(result.text).toMatch(/created:\s*true/);
+      expect(result.text).not.toMatch(/already exists/);
+    });
+  });
+});

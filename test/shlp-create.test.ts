@@ -305,25 +305,29 @@ describe.each([
   it(`${name}: elementary=false still refuses an empty fields array's field-name/dataElement grammar issues, but not the import/export rule`, async () => {
     // elementary: false with an EMPTY fields array is not itself refused by
     // the import/export rule (that only applies when elementary is true) —
-    // pin that this genuinely reaches the untouched conn/gate. `includes`
-    // must still be non-empty here (issue #83): a collective help with
-    // nothing included has nothing to collect.
+    // pin that this genuinely reaches the untouched conn/gate.
     await expect(
       fn(conn, gate, baseParams({ elementary: false, fields: [], includes: [{ name: "ZTM_SH_SUB" }] })),
     ).rejects.not.toSatisfy((e: unknown) => isAbapError(e));
   });
 
-  it(`${name}: elementary=false with an empty includes array is refused, naming includes and elementary: false (issue #83)`, async () => {
-    const err = await catchErr(fn(conn, gate, baseParams({ elementary: false, includes: [] })));
-    expect(err.code).toBe("BAD_INPUT");
-    expect(err.details).toMatchObject({ what: "includes", elementary: false });
-    expect(err.message).toContain("includes");
+  // --- issue #83, 2026-09-15 live finding: a collective with no includes -----
+  // activates fine on a real system, or only warns (rc = 4, DH108) - it does
+  // NOT fail the way a dangling include/assignment reference does (DH109).
+  // An earlier round of this module refused this shape outright ("has
+  // nothing to collect"); that refusal has been removed as no longer
+  // justified by measured server behaviour.
+
+  it(`${name}: elementary=false with an empty includes array is ACCEPTED (issue #83, 2026-09-15): a collective with no includes activates fine or only warns on the server, so this module does not refuse it`, async () => {
+    await expect(
+      fn(conn, gate, baseParams({ elementary: false, fields: [], includes: [] })),
+    ).rejects.not.toSatisfy((e: unknown) => isAbapError(e));
   });
 
-  it(`${name}: elementary=false with includes omitted entirely is refused the same way as an empty array`, async () => {
-    const err = await catchErr(fn(conn, gate, baseParams({ elementary: false, includes: undefined })));
-    expect(err.code).toBe("BAD_INPUT");
-    expect(err.details).toMatchObject({ what: "includes", elementary: false });
+  it(`${name}: elementary=false with includes omitted entirely is accepted the same way as an empty array`, async () => {
+    await expect(
+      fn(conn, gate, baseParams({ elementary: false, fields: [], includes: undefined })),
+    ).rejects.not.toSatisfy((e: unknown) => isAbapError(e));
   });
 
   it(`${name}: refuses a field name over CHAR30`, async () => {
@@ -384,6 +388,9 @@ describe.each([
         conn,
         gate,
         baseParams({
+          // includes must name ZTM_SH_SUB (issue #83): validate() now refuses an
+          // assignment whose includedHelp is not one of this call's own includes.
+          includes: [{ name: "ZTM_SH_SUB" }],
           assignments: [{ field: "CARRID", includedHelp: "ZTM_SH_SUB", includedField: "CARRID", direction: dir }],
         }),
       ),
@@ -404,6 +411,79 @@ describe.each([
     );
     expect(err.code).toBe("BAD_INPUT");
     expect(err.details).toMatchObject({ what: "assignments[0].includedHelp" });
+  });
+
+  // --- issue #83, 2026-09-15 live finding: DH109 dangling-reference checks ---
+  // A DD33V assignment whose FIELDNAME/SUBSHLP does not name one of this
+  // search help's own interface parameters/includes makes DDIF_SHLP_PUT
+  // succeed and DDIF_SHLP_ACTIVATE then fail with rc = 8 / DH109, stranding
+  // the search help as an inactive-only object. Both are checkable without
+  // a server round trip, so validate() refuses them before dispatch.
+
+  it(`${name}: refuses an assignments[i].field that is not one of this search help's own fields[].name, naming the offending assignment (DH109)`, async () => {
+    const err = await catchErr(
+      fn(
+        conn,
+        gate,
+        baseParams({
+          includes: [{ name: "ZTM_SH_SUB" }],
+          assignments: [
+            { field: "NOT_A_FIELD", includedHelp: "ZTM_SH_SUB", includedField: "CARRID", direction: "I" },
+          ],
+        }),
+      ),
+    );
+    expect(err.code).toBe("BAD_INPUT");
+    expect(err.details).toMatchObject({ what: "assignments[0].field", value: "NOT_A_FIELD" });
+    expect(err.message).toContain("assignments[0].field");
+    expect(err.message).toContain("interface parameters");
+    expect(err.message).toContain("DH109");
+  });
+
+  it(`${name}: accepts an assignments[i].field that matches fields[].name case-insensitively`, async () => {
+    await expect(
+      fn(
+        conn,
+        gate,
+        baseParams({
+          includes: [{ name: "ZTM_SH_SUB" }],
+          assignments: [{ field: "carrid", includedHelp: "ZTM_SH_SUB", includedField: "CARRID", direction: "I" }],
+        }),
+      ),
+    ).rejects.not.toSatisfy((e: unknown) => isAbapError(e));
+  });
+
+  it(`${name}: refuses an assignments[i].includedHelp that is not one of this search help's own includes[].name, naming the offending assignment (DH109)`, async () => {
+    const err = await catchErr(
+      fn(
+        conn,
+        gate,
+        baseParams({
+          includes: [{ name: "ZTM_SH_SUB" }],
+          assignments: [
+            { field: "CARRID", includedHelp: "ZTM_SH_NOT_INCLUDED", includedField: "CARRID", direction: "I" },
+          ],
+        }),
+      ),
+    );
+    expect(err.code).toBe("BAD_INPUT");
+    expect(err.details).toMatchObject({ what: "assignments[0].includedHelp", value: "ZTM_SH_NOT_INCLUDED" });
+    expect(err.message).toContain("assignments[0].includedHelp");
+    expect(err.message).toContain("does not include");
+    expect(err.message).toContain("DH109");
+  });
+
+  it(`${name}: accepts an assignments[i].includedHelp that matches includes[].name case-insensitively`, async () => {
+    await expect(
+      fn(
+        conn,
+        gate,
+        baseParams({
+          includes: [{ name: "ZTM_SH_SUB" }],
+          assignments: [{ field: "CARRID", includedHelp: "ztm_sh_sub", includedField: "CARRID", direction: "I" }],
+        }),
+      ),
+    ).rejects.not.toSatisfy((e: unknown) => isAbapError(e));
   });
 
   it(`${name}: refuses a local ($) package paired with a corrNr — nothing for it to attach to`, async () => {
@@ -452,6 +532,62 @@ describe.each([
     const err = await catchErr(fn(conn, gate, baseParams({ textTable: "A".repeat(31) })));
     expect(err.code).toBe("BAD_INPUT");
     expect(err.details).toMatchObject({ what: "textTable" });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// issue #83, 2026-09-15 live finding: the collective-search-help shapes
+// measured live on A4H, pinned directly rather than only via baseParams()
+// overrides above.
+// ---------------------------------------------------------------------------
+
+describe("createSearchHelp/updateSearchHelp: collective search-help shapes measured live on A4H, 2026-09-15", () => {
+  /** A minimal, otherwise-valid collective (elementary: false) `SearchHelpParams`. */
+  function collectiveParams(overrides: Partial<SearchHelpParams> = {}): SearchHelpParams {
+    return {
+      shlpName: "ZTM_SH_CARRIER",
+      description: "Carrier search help",
+      packageName: LOCAL_PKG,
+      elementary: false,
+      fields: [],
+      includes: [],
+      assignments: [],
+      ...overrides,
+    };
+  }
+
+  it("the valid collective payload from the live investigation (fields MANDT/CCCATEGORY, include ZSH_I83_EL, assignments MANDT/CCCATEGORY) passes validate()", () => {
+    const params = collectiveParams({
+      fields: [
+        { name: "MANDT", dataElement: "MANDT" },
+        { name: "CCCATEGORY", dataElement: "CCCATEGORY" },
+      ],
+      includes: [{ name: "ZSH_I83_EL" }],
+      assignments: [
+        { field: "MANDT", includedHelp: "ZSH_I83_EL", includedField: "MANDT", direction: "I" },
+        { field: "CCCATEGORY", includedHelp: "ZSH_I83_EL", includedField: "CCCATEGORY", direction: "E" },
+      ],
+    });
+    expect(() => validate(params.packageName.name, params)).not.toThrow();
+  });
+
+  it("a collective that also carries a selection method is accepted — measured live: activates fine or only warns (DH108), never DH109", () => {
+    const params = collectiveParams({
+      selectionMethod: "ZTM_CARRIERS",
+      selectionMethodType: "T",
+      includes: [{ name: "ZSH_I83_EL" }],
+    });
+    expect(() => validate(params.packageName.name, params)).not.toThrow();
+  });
+
+  it("a collective with no includes is accepted — measured live: activates fine or only warns (DH108), never DH109", () => {
+    const params = collectiveParams({ includes: [] });
+    expect(() => validate(params.packageName.name, params)).not.toThrow();
+  });
+
+  it("a collective with no interface parameters and no assignments is accepted — measured live: activates fine or only warns (DH108), never DH109", () => {
+    const params = collectiveParams({ fields: [], includes: [{ name: "ZSH_I83_EL" }], assignments: [] });
+    expect(() => validate(params.packageName.name, params)).not.toThrow();
   });
 });
 
