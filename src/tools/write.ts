@@ -24,6 +24,7 @@ import {
 import type { ActivationOutcome, CheckOutcome, FormatOutcome } from "../adt/activate.js";
 import type { AbapConnection } from "../adt/connection.js";
 import { renderCoActivated } from "./activate.js";
+import { enrichLockedError, type LockHolderLookup } from "../adt/locked-holders.js";
 // Imported directly from capabilities.ts, not via this file's re-export:
 // this module is `vi.mock`ed wholesale by test/tools.test.ts, so routing a
 // pure lookup through that seam breaks mocked tests for no benefit.
@@ -5633,6 +5634,13 @@ export interface WriteToolDeps {
   readonly cfg: Pick<Config, "maxResponseChars" | "verifyWrites">;
   readonly journal: Journal;
   readonly transport: SessionTransport;
+  /**
+   * Optional best-effort enqueue lookup used to name a lock holder on a
+   * LOCKED refusal. Absent = no lookup, refusal unchanged.
+   */
+  readonly lockHolders?: LockHolderLookup;
+  /** Warning sink for a failed best-effort holder lookup. Defaults to stderr. */
+  readonly warn?: (message: string) => void;
 }
 
 const ok = (text: string): CallToolResult => ({ content: [{ type: "text", text }] });
@@ -5656,6 +5664,12 @@ export function registerWriteTools(mcp: McpServer, deps: WriteToolDeps): void {
       annotations: { readOnlyHint: false, destructiveHint: true },
     },
     async (args) => {
+      // Resolved inside the try, at the point the single-object path knows
+      // its target; read back in the catch to drive the best-effort holder
+      // lookup on a LOCKED refusal. Stays `undefined` for the batch
+      // (`objects`) path — there is no one object name a batch LOCKED
+      // refusal could be attributed to.
+      let lockedObject: string | undefined;
       try {
         const a = args as {
           object?: string;
@@ -5727,6 +5741,7 @@ export function registerWriteTools(mcp: McpServer, deps: WriteToolDeps): void {
           );
         }
         const object = a.object;
+        lockedObject = object;
 
         // BEFORE ensureConnected(): a denied write must never reach the wire.
         // `base_table`: only meaningful for `type: "TABL/DI"` — see
@@ -5758,7 +5773,11 @@ export function registerWriteTools(mcp: McpServer, deps: WriteToolDeps): void {
         );
         return ok(res.text);
       } catch (e) {
-        return deps.errorResult(e);
+        // Safe here specifically because `pool.withWrite`'s lease has
+        // already been released by the time this catch runs (the write
+        // above either returned or threw past it) — the read this lookup
+        // performs cannot deadlock against the write that just failed.
+        return deps.errorResult(await enrichLockedError(e, lockedObject, "abap_write", deps.lockHolders, deps.warn));
       }
     },
   );

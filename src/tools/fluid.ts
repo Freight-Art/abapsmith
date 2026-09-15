@@ -38,6 +38,16 @@ import { forgetManifest, readFluidRegistry, type FluidRegistryEntry } from "../a
 import { dispatch, type FluidRunResult } from "../adt/fluid/dispatch.js";
 import { LOG_TOOL_ID, LOG_ACTION } from "../adt/fluid/builtin/log.js";
 import { mapLogRows, renderLogRead, auditLogRead, assertLogReadArgsNoWindowConflict } from "../adt/bal-log.js";
+import {
+  CHANGE_DOCS_TOOL_ID,
+  CHANGE_DOCS_ACTION,
+  assertChangeDocsArgs,
+  mapChangeDocRows,
+  applyPositionPolicy,
+  renderChangeDocs,
+  auditChangeDocs,
+} from "../adt/change-docs.js";
+import { LOCKS_TOOL_ID, LOCKS_ACTION, assertLocksArgs, mapLockRows, renderLocks, auditLocks } from "../adt/enqueue-read.js";
 import { deleteOneFluidObject, type FluidDeleteTarget } from "../adt/fluid/delete.js";
 import {
   probeRetiredBridges,
@@ -676,6 +686,24 @@ async function runRun(deps: FluidToolDeps, a: FluidInput): Promise<string> {
     assertLogReadArgsNoWindowConflict(a.args ?? {});
   }
 
+  // `core.change_docs`'s since/until format and ordering, and `core.locks`'s
+  // "at least one of object/table/user" rule, are equally decidable from
+  // `a.args` alone — same reasoning as `log.read` above, so they get the
+  // same pre-connect treatment rather than paying a round trip for a
+  // mistake this function can already see. For `locks` specifically,
+  // refusing an unfiltered request before connecting at all is the point:
+  // there is no cheaper place to stop a caller from dumping the whole
+  // enqueue table than before the network call that would do it.
+  // `CHANGE_DOCS_TOOL_ID`/`LOCKS_TOOL_ID` are both the string `"core"` —
+  // named constants are used rather than a literal so this stays correct if
+  // that ever changes.
+  if (toolId === CHANGE_DOCS_TOOL_ID && actionName === CHANGE_DOCS_ACTION) {
+    assertChangeDocsArgs(a.args ?? {});
+  }
+  if (toolId === LOCKS_TOOL_ID && actionName === LOCKS_ACTION) {
+    assertLocksArgs(a.args ?? {});
+  }
+
   await deps.ensureConnected();
   // No second check here: `dispatch()` itself re-checks `fluidDisabledReason(cfg, gate)`
   // as its first statement, with the now-connected gate — see the doc comment above.
@@ -723,6 +751,42 @@ async function runRun(deps: FluidToolDeps, a: FluidInput): Promise<string> {
       (m) => void process.stderr.write(m + "\n"),
     );
     return renderLogRead(mapped, {
+      ms: result.ms,
+      version: result.version,
+      deployed: result.deployed,
+      maxChars: deps.cfg.maxResponseChars,
+    }).text;
+  }
+
+  // `core.change_docs` gets its deny-list/row-cap policy pass applied HERE,
+  // not in `guardCoreAction`: the tables to judge are only known once the
+  // CDPOS rows exist (a returned position's own `tabname`), which is after
+  // this dispatch, not before it. Dropped positions are counted and
+  // reported by `renderChangeDocs`, never silently omitted. Same stderr
+  // reasoning as `log.read` above: `FluidToolDeps` has no injectable log
+  // sink, so this writes to stderr directly rather than adding one.
+  if (toolId === CHANGE_DOCS_TOOL_ID && actionName === CHANGE_DOCS_ACTION) {
+    const mapped = mapChangeDocRows(Array.isArray(result.result) ? result.result : []);
+    const policy = applyPositionPolicy(mapped, {
+      assertDataPreview: (t) => deps.safety.assertDataPreview(t),
+      maxRows: deps.cfg.dataPreviewMaxRows,
+    });
+    auditChangeDocs(policy, (m) => void process.stderr.write(m + "\n"));
+    return renderChangeDocs(policy, {
+      ms: result.ms,
+      version: result.version,
+      deployed: result.deployed,
+      maxChars: deps.cfg.maxResponseChars,
+    }).text;
+  }
+
+  // `core.locks` gets the same dedicated render + stderr audit treatment as
+  // `log.read`/`core.change_docs` above, instead of the generic JSON dump
+  // below.
+  if (toolId === LOCKS_TOOL_ID && actionName === LOCKS_ACTION) {
+    const mapped = mapLockRows(Array.isArray(result.result) ? result.result : []);
+    auditLocks(mapped, (m) => void process.stderr.write(m + "\n"));
+    return renderLocks(mapped, {
       ms: result.ms,
       version: result.version,
       deployed: result.deployed,

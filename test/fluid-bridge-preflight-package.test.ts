@@ -231,7 +231,16 @@ describe("tool-layer preflight agrees with deployBridge's real target package", 
       errorResult: (e) => {
         throw e;
       },
-      cfg: { maxResponseChars: 30_000, abapMode: undefined, sid: "TST", url: "http://sap.invalid", client: "001", allowUiPress: false },
+      cfg: {
+        maxResponseChars: 30_000,
+        abapMode: undefined,
+        sid: "TST",
+        url: "http://sap.invalid",
+        client: "001",
+        allowUiPress: false,
+        dataPreviewMaxRows: 100,
+        dataSnapshotTtlHours: 24,
+      },
     });
     const input = { mode: "screen", tcode: "SE80" };
 
@@ -285,7 +294,14 @@ describe("tool-layer preflight agrees with deployBridge's real target package", 
       errorResult: (e) => {
         throw e;
       },
-      cfg: { maxResponseChars: 30_000 },
+      cfg: {
+        maxResponseChars: 30_000,
+        sid: "TST",
+        url: "http://sap.invalid",
+        client: "001",
+        dataPreviewMaxRows: 100,
+        dataSnapshotTtlHours: 24,
+      },
       readModel: async () => {
         throw new Error("readModel: should not be reached — preflight refuses/passes before any network call");
       },

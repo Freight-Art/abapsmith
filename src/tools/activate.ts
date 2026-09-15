@@ -91,6 +91,7 @@ import { AbapError } from "../adt/errors.js";
 import type { SessionPool } from "../adt/pool.js";
 import { parseObjectRef } from "../adt/resolve.js";
 import { translateAdtError } from "../adt/session.js";
+import { enrichLockedError, type LockHolderLookup } from "../adt/locked-holders.js";
 import { specForKeyword, specForType } from "../adt/types.js";
 import { toAbapError, type SessionTransport } from "../adt/session-transport.js";
 import {
@@ -1243,6 +1244,13 @@ export interface ActivateToolDeps {
    * when disabled) — pass the disabled journal, never no journal.
    */
   readonly journal: Journal;
+  /**
+   * Optional best-effort enqueue lookup used to name a lock holder on a
+   * LOCKED refusal. Absent = no lookup, refusal unchanged.
+   */
+  readonly lockHolders?: LockHolderLookup;
+  /** Warning sink for a failed best-effort holder lookup. Defaults to stderr. */
+  readonly warn?: (message: string) => void;
 }
 
 const ok = (text: string): CallToolResult => ({ content: [{ type: "text", text }] });
@@ -1273,6 +1281,13 @@ export function registerActivateTools(mcp: McpServer, deps: ActivateToolDeps): v
       annotations: { readOnlyHint: false, destructiveHint: true },
     },
     async (args) => {
+      // Resolved inside the try, at whichever single-object branch actually
+      // runs (mode=format's object form, or the default check/activate
+      // path below); read back in the catch to drive the best-effort
+      // holder lookup on a LOCKED refusal. Stays `undefined` for the batch
+      // (`objects`) and format-text paths — neither names one object a
+      // LOCKED refusal could be attributed to.
+      let lockedObject: string | undefined;
       try {
         const a = args as {
           object?: string;
@@ -1385,6 +1400,7 @@ export function registerActivateTools(mcp: McpServer, deps: ActivateToolDeps): v
           // write path is, not the lighter `analyze`/`activate` gate
           // mode=check/mode=activate use above.
           const object = a.object;
+          lockedObject = object;
           deps.safety.assert("write", preflight({ object, type: a.type }), {
             phase: "preflight",
             corr: { kind: "unresolved" },
@@ -1415,6 +1431,7 @@ export function registerActivateTools(mcp: McpServer, deps: ActivateToolDeps): v
           );
         }
         const object = a.object;
+        lockedObject = object;
 
         if (mode === "activate") {
           // `pf` computed once and reused below so the two calls can't drift.
@@ -1446,7 +1463,12 @@ export function registerActivateTools(mcp: McpServer, deps: ActivateToolDeps): v
             : await deps.pool.withRead("abap_activate", run);
         return ok(res.text);
       } catch (e) {
-        return deps.errorResult(e);
+        // Safe here specifically because `pool.withWrite`'s lease has
+        // already been released by the time this catch runs (the
+        // check/activate above either returned or threw past it) — the
+        // read this lookup performs cannot deadlock against the write
+        // that just failed.
+        return deps.errorResult(await enrichLockedError(e, lockedObject, "abap_activate", deps.lockHolders, deps.warn));
       }
     },
   );

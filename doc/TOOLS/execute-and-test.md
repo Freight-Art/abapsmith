@@ -21,6 +21,7 @@ reaching SAP.
 | `mode` | enum `class` \| `report` \| `auto` | no | `auto` | Force one execution style or let the server infer it. |
 | `parameters` | array\<object\> | no | — | Report mode only — selection-screen parameters. |
 | `auth_trace` | boolean | no | `false` | Switch on the SAP authorization trace for the executing user around this run and read back failed authority checks afterward. See "Authorization trace" below. Never runs in read mode. |
+| `snapshot_ids` | array\<string\> | no | — | Ids from prior `abap_data_preview mode="snapshot"` calls. Diffed against the live system after the run finishes; a `DATA CHANGES` section is appended. See [Diffing what a call changed](#diffing-what-a-call-changed-snapshot_ids) below. |
 
 Each `parameters[]` entry: `name` (string, required), `type` (enum `char` \|
 `int` \| `packed` \| `date`, optional), `value` (string, optional),
@@ -142,6 +143,7 @@ reaching SAP.
 | `coverage` | boolean | no | `false` | Also measure statement/branch/procedure coverage and report it per class and per method. Not supported with `scope: "impacted"` (`BAD_INPUT`). |
 | `coverage_for` | array\<string\> | no | — | Objects to report coverage for. Default: the objects under test. Ignored unless `coverage` is `true`; giving it without `coverage: true` is `BAD_INPUT`, raised before any request is sent, because a silently-uncovered run would otherwise look like an oversight rather than a mistake. Not supported with `scope: "impacted"` (`BAD_INPUT`). |
 | `auth_trace` | boolean | no | `false` | Switch on the SAP authorization trace for the executing user around this run and read back failed authority checks afterward. See [Authorization trace](#authorization-trace-auth_trace) above. Never runs in read mode. Refused (`BAD_INPUT`) together with `scope: "impacted"` — a deliberate limitation, verified live: `auth_trace is not supported for scope="impacted": it would switch the trace on and off once per carrier and would be silently ignored otherwise.` |
+| `snapshot_ids` | array\<string\> | no | — | Ids from prior `abap_data_preview mode="snapshot"` calls. Diffed against the live system after the test run finishes; a `DATA CHANGES` section is appended. See [Diffing what a call changed](#diffing-what-a-call-changed-snapshot_ids) below. |
 
 Notes: four outcomes, only one of which is a pass. `PASSED` — tests ran and
 all succeeded. `FAILED` — at least one assertion failed. `NO TESTS RAN` —
@@ -353,4 +355,40 @@ Real numbers, captured live on this probe class: class-level statement
 object + 15 `ALSO TOUCHED`) is the exact live-captured roster for this
 run — most of it is SAP framework code the ABAP Unit runtime itself
 touches, not code under test.
+
+## Diffing what a call changed (`snapshot_ids`)
+
+`abap_run` and `abap_test` (and, elsewhere, `abap_bopf_test` — see
+[bopf.md](bopf.md) — and `abap_ui mode="press"` — see
+[ui-and-fpm.md](ui-and-fpm.md)) all take an optional `snapshot_ids` array:
+ids returned by earlier `abap_data_preview mode="snapshot"` calls
+(see [diagnostics.md](diagnostics.md)). After the call's own result has
+already been produced, each id is diffed against the live system, in order,
+one at a time, and the outcome is appended to the response as a
+`DATA CHANGES` section.
+
+This never changes the call's own result or its own success/failure:
+
+- If the call itself **throws** (a dump, a refusal, a dead connection), the
+  error propagates completely unchanged, with no `DATA CHANGES` section at
+  all — the diff is never attempted, because appending prose to a
+  structured, machine-readable refusal would change its shape for every
+  existing consumer.
+- If the call **succeeds** but a given snapshot's diff cannot be produced
+  (it expired, its table was denied since it was taken, or the read itself
+  failed), that one snapshot's line in the section reads `snapshot <id>:
+  refused — <reason>` — the call's own result is still returned intact, and
+  the other ids in the same list are still attempted independently.
+- A snapshot that diffs cleanly reports `snapshot <id> on <table>: +N -N
+  ~N` (inserted/deleted/changed row counts), followed by a table of changed
+  rows when there are any.
+
+Diffing multiple ids is sequential, not concurrent — each diff takes its own
+read lease from the connection pool, and it is deliberately one lease used
+N times rather than N leases contending for a small pool. The diff itself
+obeys the same data-preview deny-list and row-ceiling rules as
+`abap_data_preview mode="diff"`, re-checked at diff time, not just at
+snapshot time — see [diagnostics.md](diagnostics.md)'s "Snapshot and diff"
+section for the full mechanism, including the key-matching rule and its
+fallback when the original snapshot used a `columns` projection.
 

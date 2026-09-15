@@ -64,6 +64,7 @@ import type { SafetyGate } from "../safety.js";
 import { preflight } from "./preflight.js";
 import { DEFAULT_LOG_WINDOW_SECONDS } from "../adt/bal-log.js";
 import { LOG_TOOL_ID, LOG_ACTION } from "../adt/fluid/builtin/log.js";
+import { runSnapshotDiffs } from "./run.js";
 
 export const testInputSchema = {
   object: z.string().optional().describe("Class, program or package to test. Required unless scope is \"impacted\"."),
@@ -111,6 +112,12 @@ export const testInputSchema = {
         "back and switch it back off. scope=\"object\" only. Refused on a read-only server. " +
         "Default false.",
     ),
+  snapshot_ids: z.array(z.string()).optional().describe(
+    "Snapshot ids from prior abap_data_preview mode=\"snapshot\" calls. After this call finishes, " +
+      "each one is re-read and diffed, and the result is appended as a DATA CHANGES section. " +
+      "The diff obeys the same data-preview policy as the snapshot did — if it is refused, this " +
+      "call's own result still returns and the section says why.",
+  ),
 };
 
 export const TestInput = z.object(testInputSchema);
@@ -1191,7 +1198,10 @@ export interface TestToolDeps {
   readonly safety: SafetyGate;
   readonly ensureConnected: () => Promise<void>;
   readonly errorResult: (e: unknown) => CallToolResult;
-  readonly cfg: Pick<Config, "maxResponseChars">;
+  readonly cfg: Pick<
+    Config,
+    "maxResponseChars" | "dataPreviewMaxRows" | "dataSnapshotTtlHours" | "sid" | "url" | "client"
+  >;
   readonly journal: Journal;
 }
 
@@ -1199,6 +1209,7 @@ const ok = (text: string): CallToolResult => ({ content: [{ type: "text", text }
 
 /** Registers `abap_test`: preflight-gated `execute`, runs in a WRITE pool slot. */
 export function registerTestTools(mcp: McpServer, deps: TestToolDeps): void {
+  const audit = (m: string): void => void process.stderr.write(m + "\n");
   mcp.registerTool(
     "abap_test",
     {
@@ -1229,7 +1240,16 @@ export function registerTestTools(mcp: McpServer, deps: TestToolDeps): void {
         const res = await deps.pool.withWrite("abap_test", undefined, (conn) =>
           abapTest(conn, input, deps.cfg.maxResponseChars, deps.safety, deps.journal),
         );
-        return ok(res.text);
+        // Diffed AFTER the test run, on every path that reaches here —
+        // including a FAILED or UNKNOWN verdict, both of which return a
+        // normal BuiltResponse (a test failure is an answer, not an error);
+        // "what did the run change" matters most exactly then. A THROW above
+        // (BAD_INPUT, a dump, a connection failure) skips this and returns
+        // the error unchanged, with no section: it is a structured,
+        // machine-readable refusal, and appending diff prose to it would
+        // change its shape for every existing consumer.
+        const changes = await runSnapshotDiffs(deps, input.snapshot_ids, audit);
+        return ok(changes ? `${res.text}\n\nDATA CHANGES\n${changes}` : res.text);
       } catch (e) {
         return deps.errorResult(e);
       }
