@@ -25,7 +25,8 @@ need `canWrite` (`ABAP_MODE=edit` or `admin`) — the same rule that gates
 | `kind` | enum `runs` \| `requests` | `list` only | `runs` | List recorded trace runs, or outstanding trace requests. |
 | `view` | enum `hitlist` \| `db` \| `tree` | `read` only | `hitlist` | Which shape to read a trace back in. |
 | `top` | integer | no | `20`, max `100` | Hit-list rows to return, ranked by net time. |
-| `depth` | integer | no | `4`, max `12` | Call-tree flattening depth. |
+| `depth` | integer | no | `4`, max `12` | Call-tree flattening depth, relative to the traced object's own entry node (that node is depth 0) — not the ADT dispatch root. `op=read view=tree` only. |
+| `root` | string | no | — | Anchor the tree view at the first call-tree node whose description or calling-program name matches this text (case-insensitive substring). Overrides the automatic anchor. `op=read view=tree` only. |
 | `description` | string | no | `"abapsmith trace"` | Free-text label on the trace request. SAP's own field is short; a longer value is refused, not silently cut. |
 | `aggregate` | boolean | no | `true` | Collapse repeated call events together. See "`tree` needs `aggregate=false`" below. |
 | `sql_trace` | boolean | no | `true` | Include database access — what fills the `db` view. |
@@ -94,6 +95,15 @@ below).
 { "op": "read", "id": "<32-hex id>", "view": "tree", "depth": 6 }
 ```
 
+The tree is re-rooted at the traced object's own entry node before `depth`
+and `top` are applied — see "Call-tree depth is relative to the traced
+object, not the ADT dispatch root" below. To anchor somewhere else in the
+same tree (a specific method, say), name it with `root`:
+
+```json
+{ "op": "read", "id": "<32-hex id>", "view": "tree", "root": "METH_A" }
+```
+
 **`op=delete`** — delete a trace run, or a trace request, by `id`.
 
 ```json
@@ -110,7 +120,41 @@ below).
   `select`, `select single`, `select count(*)`, and a kernel pseudo-row —
   never the full SQL statement text. This ADT endpoint does not return
   statement text at all; do not read the `db` view as if it did.
-- **`tree`** — the call tree, flattened to `depth` levels.
+- **`tree`** — the call tree, re-rooted at the traced object's own entry
+  node and flattened to `depth` levels below it. See "Call-tree depth is
+  relative to the traced object, not the ADT dispatch root" below.
+
+## Call-tree depth is relative to the traced object, not the ADT dispatch root
+
+ADT records the *whole* server-side dispatch that led to the traced
+object's own code, and `callLevel` in the raw statements is the depth from
+that dispatch root, not from the object's entry point. On A4H the dispatch
+machinery alone is more than 12 levels deep before the traced object's
+first statement is reached — so filtering by `callLevel <= depth` (`depth`
+maxes at `12`) could show the whole dispatch stack and still never reach a
+single line of the object that was actually traced.
+
+`view="tree"` fixes this by finding the traced object's own entry node
+first — the first call-tree node whose description or calling-program name
+matches the object's name (case-insensitive) — and using it as the anchor:
+`level 0` in the rendered tree is that node, not the ADT dispatch root.
+Only the anchor and its own subtree (every following node whose level is
+below it, up to the first node at or above its level) are shown; `depth`
+and `top` apply to these relative levels. The response notes which node was
+used as the anchor and its original absolute level.
+
+Pass `root` to anchor somewhere else instead — a specific method inside the
+traced object's own call tree, for instance. `root` is matched the same way
+the automatic anchor is: case-insensitive substring, against description or
+calling-program name.
+
+If no node matches (the automatic anchor, or an explicit `root`), the tool
+falls back to the tree's absolute levels — the previous behaviour — with a
+note that nothing matched and that `root` can name a different anchor.
+Depending on how deep the traced object sits, that fallback may show none of
+its code, which is the exact symptom re-rooting exists to avoid; check the
+spelling of `root`, or omit it to let the traced object be found
+automatically.
 
 ## `tree` needs `aggregate=false`
 
@@ -121,6 +165,12 @@ refused by this tool before any request goes to SAP — the underlying ADT
 call would otherwise answer HTTP 400
 `invalidRequestForAggregatedTraces`. Verified live. Record a trace with
 `aggregate: false` when you know you will want the `tree` view.
+
+The rendered tree still only ever covers a non-aggregated trace's own
+statements — ADT's own dispatch frames above the traced object's entry node
+(see "Call-tree depth is relative to the traced object" above) are never
+shown, re-rooted or not; they exist in the raw statements but are cut away
+before rendering.
 
 ## A trace is scoped to one user and one object, but still records everything the dispatch touched
 

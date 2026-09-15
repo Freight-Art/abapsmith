@@ -47,7 +47,9 @@ from the end only; no element was edited.
   and a parser must cope with that scientific-notation literal.
 
 If you add a hand-written file here, say **SYNTHETIC** in a header comment
-inside the file itself. None of the eight files below is synthetic.
+inside the file itself. None of the eight live-captured files below is
+synthetic; `statements-synthetic-rerooted.xml` (listed separately after the
+table) is.
 
 | file | endpoint | what it proves |
 | --- | --- | --- |
@@ -61,3 +63,13 @@ inside the file itself. None of the eight files below is synthetic.
 | `statements-calltree-top20.xml` | `GET …/{id}/statements` with `Accept: application/vnd.sap.adt.runtime.traces.abaptraces.aggcalltree+xml, application/xml` | The call tree, `callLevel` giving depth and `callerId` the parent. This endpoint is only available for a trace created with `aggregate=false`: for an aggregated trace the same GET returns HTTP 400 with `com.sap.adt.communicationFramework.subType: invalidRequestForAggregatedTraces`. |
 
 None of these eight files is synthetic.
+
+## `statements-synthetic-rerooted.xml`
+
+**SYNTHETIC** — hand-authored, not captured. Built for
+`test/trace-tool.test.ts`'s call-tree re-rooting tests: 15 synthetic
+ADT-dispatch frames at `callLevel` 0-14 (deep enough that the default and
+even the max `depth` would never reach past them under the old absolute-level
+filtering), a `ZCL_V77_SLOW->IF_OO_ADT_CLASSRUN~MAIN` node at `callLevel` 15
+with two child calls (`METH_A`, `METH_B`) at 16-17, and a trailing sibling of
+`MAIN` (also at `callLevel` 15) to prove the subtree extraction stops there.

@@ -67,12 +67,18 @@ import {
   listTraceRuns,
   readTraceRun,
 } from "../adt/traces.js";
-import type { TraceRequestSummary, TraceRunSummary } from "../adt/traces-xml.js";
+import type { TraceRequestSummary, TraceRunSummary, TraceStatementNode } from "../adt/traces-xml.js";
 import { preflight } from "./preflight.js";
 import { abapRun } from "./run.js";
 
 // ------------------------------------------------------------------ schema ---
 
+/**
+ * The raw zod shape for `abap_trace` — exported for type inference
+ * (`TraceInput` below) and so tests can rebuild the registered schema
+ * directly. Never register this object itself: see the note on
+ * `registerTraceTools` about why it must go through `z.looseObject(...)`.
+ */
 export const traceInputSchema = {
   op: z
     .enum(TRACE_OPS)
@@ -107,7 +113,18 @@ export const traceInputSchema = {
     .number()
     .int()
     .optional()
-    .describe("Max call-tree depth. Default 4, max 12. op=read view=tree only."),
+    .describe(
+      "Max call-tree depth, relative to the traced object's own entry node (that node is " +
+        "depth 0), not the ADT dispatch root. Default 4, max 12. op=read view=tree only.",
+    ),
+  root: z
+    .string()
+    .optional()
+    .describe(
+      "Anchor the tree view at the first call-tree node whose description or calling-program " +
+        "name matches this text (case-insensitive substring; matched uppercased). Overrides the " +
+        "automatic anchor, which is the traced object's own entry node. op=read view=tree only.",
+    ),
   description: z
     .string()
     .optional()
@@ -180,7 +197,7 @@ const OP_ALLOWED_KEYS: Readonly<Record<TraceOp, ReadonlySet<string>>> = {
   start: new Set(["object", "type", "executions", ...TRACE_OPTION_KEYS]),
   run: new Set(["object", "type", "top", ...TRACE_OPTION_KEYS]),
   list: new Set(["kind"]),
-  read: new Set(["id", "view", "top", "depth"]),
+  read: new Set(["id", "view", "top", "depth", "root"]),
   delete: new Set(["id"]),
 };
 
@@ -402,6 +419,38 @@ function renderDbAccesses(
   };
 }
 
+/**
+ * `run.objectName` is the classrun URL the trace request was scoped to
+ * (`/sap/bc/adt/oo/classrun/ZCL_I77_PROBE`), which for both a traced class
+ * and a traced report (routed through a generated bridge class — see
+ * `tracedObjectUrl` above) ends in the class name that call-tree nodes for
+ * the traced object's own code will name. `""` (unscoped, shouldn't happen
+ * for a trace this tool created, but defensive) yields `undefined`.
+ */
+function anchorHintFromObjectUrl(objectUrl: string): string | undefined {
+  const last = objectUrl.split("/").filter((s) => s.length > 0).pop();
+  return last === undefined || last.length === 0 ? undefined : last;
+}
+
+/**
+ * Find the first call-tree node that belongs to the traced object: a
+ * case-insensitive substring match against the node's description (e.g.
+ * `"Call M.  ZCL_V77_SLOW->IF_OO_ADT_CLASSRUN~MAIN"` matching hint
+ * `"ZCL_V77_SLOW"`), or a case-insensitive match against its calling
+ * program's name. Statements are in document (pre-order) order, so the
+ * first match is the object's own entry node, not a later reference to it
+ * from inside its own subtree.
+ */
+function findTreeAnchorIndex(statements: readonly TraceStatementNode[], hint: string): number {
+  const needle = hint.trim().toUpperCase();
+  if (needle.length === 0) return -1;
+  return statements.findIndex((s) => {
+    if (s.description.toUpperCase().includes(needle)) return true;
+    const name = s.callingProgram?.name;
+    return name !== undefined && name.toUpperCase().includes(needle);
+  });
+}
+
 async function renderRead(conn: AbapConnection, args: TraceInput, maxChars: number): Promise<BuiltResponse> {
   const rawId = args.id as string;
   const run = await readTraceRun(conn, rawId);
@@ -448,26 +497,68 @@ async function renderRead(conn: AbapConnection, args: TraceInput, maxChars: numb
   assertTreeViewAllowed(run.isAggregated, id);
   const depth = resolveTreeDepth(args.depth);
   const stmt = await fetchTraceStatements(conn, run.id);
-  const flattened = stmt.statements.filter((s) => s.callLevel <= depth);
-  const cut = flattened.slice(0, top);
-  const rows = cut.map((s) => ({
-    level: String(s.callLevel),
-    hits: String(s.hitCount),
-    net_ms: msFromUs(s.netTime.time),
-    gross_ms: msFromUs(s.grossTime.time),
-    description: `${"  ".repeat(s.callLevel)}${s.description}`,
-  }));
-  const table = textTable(rows, ["level", "hits", "net_ms", "gross_ms", "description"]);
+  const rootHint = args.root ?? anchorHintFromObjectUrl(run.objectName);
+  const anchorIndex = rootHint === undefined ? -1 : findTreeAnchorIndex(stmt.statements, rootHint);
+
   const notes: string[] = [];
+  let subtree: TraceStatementNode[];
+  let relativeLevel: (s: TraceStatementNode) => number;
+
+  if (anchorIndex === -1) {
+    // No anchor found (or no hint to search for): fall back to the old
+    // absolute-level rendering, rooted at the ADT dispatch root. On A4H the
+    // dispatch machinery alone is >12 levels deep, so this fallback will
+    // usually show none of the traced object's own code — it exists only so
+    // a caller who passed an unmatched `root`, or whose object name can't be
+    // derived, still gets *something* back instead of an empty tree.
+    subtree = stmt.statements;
+    relativeLevel = (s) => s.callLevel;
+    notes.push(
+      rootHint === undefined
+        ? "could not determine the traced object's name to anchor the call tree on; showing " +
+            "the tree from the ADT dispatch root instead — pass 'root' to anchor it explicitly"
+        : `no call-tree node matched root ${JSON.stringify(rootHint)}; showing the tree from ` +
+            "the ADT dispatch root instead — check the spelling, or omit 'root' to let the " +
+            "traced object be found automatically",
+    );
+  } else {
+    const anchor = stmt.statements[anchorIndex]!;
+    const anchorLevel = anchor.callLevel;
+    subtree = [anchor];
+    for (let i = anchorIndex + 1; i < stmt.statements.length; i++) {
+      const s = stmt.statements[i]!;
+      if (s.callLevel <= anchorLevel) break;
+      subtree.push(s);
+    }
+    relativeLevel = (s) => s.callLevel - anchorLevel;
+    notes.push(
+      `call tree rooted at ${JSON.stringify(anchor.description.trim())} ` +
+        `(absolute level ${anchorLevel}); levels below are relative to this node`,
+    );
+  }
+
+  const flattened = subtree.filter((s) => relativeLevel(s) <= depth);
+  const cut = flattened.slice(0, top);
+  const rows = cut.map((s) => {
+    const level = relativeLevel(s);
+    return {
+      level: String(level),
+      hits: String(s.hitCount),
+      net_ms: msFromUs(s.netTime.time),
+      gross_ms: msFromUs(s.grossTime.time),
+      description: `${"  ".repeat(Math.max(level, 0))}${s.description}`,
+    };
+  });
+  const table = textTable(rows, ["level", "hits", "net_ms", "gross_ms", "description"]);
   if (flattened.length > top) {
     notes.push(
       `showing top ${top} of ${flattened.length} call-tree entries at depth <= ${depth} ` +
         `(${stmt.count} statements total in the untruncated tree)`,
     );
   }
-  if (stmt.statements.length > flattened.length) {
+  if (subtree.length > flattened.length) {
     notes.push(
-      `depth <= ${depth} kept ${flattened.length} of ${stmt.statements.length} call-tree nodes; ` +
+      `depth <= ${depth} kept ${flattened.length} of ${subtree.length} call-tree nodes; ` +
         `deeper nodes were dropped — raise 'depth' (max ${TRACE_MAX_TREE_DEPTH}) to see them`,
     );
   }
@@ -900,7 +991,16 @@ export function registerTraceTools(mcp: McpServer, deps: TraceToolDeps): void {
         'a class/report and reads the result back; op="start" arms a request to trace a later ' +
         'run yourself; op="list" shows existing runs/requests; op="read" reads a run\'s hit ' +
         'list, DB accesses, or call tree; op="delete" removes a run or request.',
-      inputSchema: traceInputSchema,
+      // Registering the raw `traceInputSchema` shape directly here would have
+      // the MCP SDK wrap it in a stripping `z.object`, which silently deletes
+      // unknown keys before they ever reach the handler — `rejectUnknownArgs`
+      // below would then be dead code, refusing nothing, because there would
+      // be nothing left to refuse. `z.looseObject(...)` keeps unknown keys on
+      // the parsed object (and reports `additionalProperties: {}` in the
+      // advertised JSON schema, verified live) so the handler-side check can
+      // actually see and name them. See `./dumps.ts`'s `dumpsInputSchema` for
+      // the precedent this mirrors.
+      inputSchema: z.looseObject(traceInputSchema),
       annotations: { readOnlyHint: false, destructiveHint: true },
     },
     async (args) => {

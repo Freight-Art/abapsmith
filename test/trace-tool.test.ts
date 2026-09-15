@@ -56,14 +56,19 @@ import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import type { CallToolResult, Tool } from "@modelcontextprotocol/sdk/types.js";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import type { HttpClient, HttpClientOptions, HttpClientResponse } from "abap-adt-api/build/AdtHTTP.js";
 
 import { registerTraceTools, traceInputSchema, type TraceToolDeps } from "../src/tools/trace.js";
 import type { AbapConnection } from "../src/adt/connection.js";
 import type { SessionPool } from "../src/adt/pool.js";
 import { SafetyGate, type SafetyDecision } from "../src/safety.js";
-import { errorResult } from "../src/server.js";
+import { errorResult, createServer, type AbapsmithServer } from "../src/server.js";
 import { Journal } from "../src/journal.js";
+import { ConfigSchema, type Config } from "../src/config.js";
+import { AuthCircuitBreaker } from "../src/adt/circuit-breaker.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FIXTURES = join(__dirname, "fixtures", "traces");
@@ -281,7 +286,7 @@ describe("A. registration surface", () => {
     expect(entry?.config.annotations).toEqual({ readOnlyHint: false, destructiveHint: true });
   });
 
-  it("advertises exactly the 17 documented input keys", () => {
+  it("advertises exactly the 18 documented input keys", () => {
     const keys = Object.keys(traceInputSchema).sort();
     expect(keys).toEqual(
       [
@@ -298,13 +303,14 @@ describe("A. registration surface", () => {
         "object",
         "op",
         "procedural_units",
+        "root",
         "sql_trace",
         "top",
         "type",
         "view",
       ].sort(),
     );
-    expect(keys).toHaveLength(17);
+    expect(keys).toHaveLength(18);
   });
 
   it("description mentions all five ops", async () => {
@@ -322,6 +328,82 @@ describe("A. registration surface", () => {
     for (const op of ["start", "run", "list", "read", "delete"]) {
       expect(description).toContain(`"${op}"`);
     }
+  });
+});
+
+// ================================= A2. real MCP schema (SDK round-trip) ===
+
+/**
+ * `fakeMcp()`/`harness()` above capture `registerTool`'s config directly —
+ * they never go through the MCP SDK's own argument validation, which is
+ * exactly the layer Defect 1 lived in: a raw zod SHAPE registered as
+ * `inputSchema` gets wrapped by the SDK in a STRIPPING `z.object`, silently
+ * deleting unknown keys before `rejectUnknownArgs` in the handler ever sees
+ * them. Only a real server behind a real `Client` over `InMemoryTransport`
+ * can prove the fix (`z.looseObject(traceInputSchema)` in
+ * `registerTraceTools`) actually holds — mirrors `sdkHarness()` in
+ * `test/tools-dumps.test.ts`, which exists for the identical reason.
+ */
+const cfg = (over: Partial<Config> = {}): Config => ({
+  ...ConfigSchema.parse({
+    url: "http://sap.invalid:50000",
+    user: "TESTUSER",
+    password: "secret",
+    sid: "TST",
+    client: "001",
+  }),
+  ...over,
+});
+
+/** A transport that must never be reached. */
+class ForbiddenClient implements Partial<HttpClient> {
+  request(_o: HttpClientOptions): Promise<HttpClientResponse> {
+    throw new Error("NETWORK CALL LEAKED: an unknown key must be refused before any request");
+  }
+}
+
+interface SdkHarness {
+  call: (args: Record<string, unknown>) => Promise<CallToolResult>;
+  tool: Tool;
+  close: () => Promise<void>;
+}
+
+async function sdkHarness(config: Config): Promise<SdkHarness> {
+  const srv: AbapsmithServer = createServer(config, {
+    httpClient: new ForbiddenClient() as unknown as HttpClient,
+    log: () => {},
+    breaker: new AuthCircuitBreaker(),
+  });
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  const client = new Client({ name: "test", version: "0.0.0" });
+  await Promise.all([client.connect(clientTransport), srv.mcp.connect(serverTransport)]);
+  const tool = (await client.listTools()).tools.find((t) => t.name === "abap_trace");
+  if (!tool) throw new Error("abap_trace is not in tools/list");
+  return {
+    call: async (args) =>
+      (await client.callTool({ name: "abap_trace", arguments: args })) as unknown as CallToolResult,
+    tool,
+    close: () => client.close(),
+  };
+}
+
+describe("A2. real MCP schema (SDK round-trip, Defect 1)", () => {
+  it("the advertised abap_trace schema is LOOSE: additionalProperties is {}", async () => {
+    const h = await sdkHarness(cfg());
+    expect(h.tool.inputSchema.additionalProperties).toEqual({});
+    await h.close();
+  });
+
+  it("an unknown key survives the SDK's own validation and is refused BAD_INPUT, at zero network cost", async () => {
+    const h = await sdkHarness(cfg());
+    const res = await h.call({ op: "run", object: "X", type: "CLAS/OC", bogus_key: 1 });
+    expect(res.isError).toBe(true);
+    const part = res.content[0];
+    if (!part || part.type !== "text") throw new Error("expected a text content part");
+    const payload = JSON.parse(part.text) as Record<string, unknown>;
+    expect(payload.error).toBe("BAD_INPUT");
+    expect(JSON.stringify(payload)).toContain("bogus_key");
+    await h.close();
   });
 });
 
@@ -734,6 +816,122 @@ describe("F. output rendering (captured fixtures)", () => {
     expect(fullRows).toBeGreaterThan(0);
     expect(shallowRows).toBeGreaterThan(0);
     expect(shallowRows).toBeLessThan(fullRows);
+    await h.cleanup();
+  });
+});
+
+// ============================ F2. call-tree re-rooting (Defect 2, synthetic)
+
+/**
+ * `statements-synthetic-rerooted.xml` (SYNTHETIC — see its header comment
+ * and `test/fixtures/traces/README.md`) has 15 dispatch frames at absolute
+ * `callLevel` 0-14, a `ZCL_V77_SLOW->IF_OO_ADT_CLASSRUN~MAIN` node at 15
+ * with two children at 16-17, then a trailing sibling of `MAIN` also at 15.
+ * This is what the old absolute-`callLevel <= depth` filtering could never
+ * surface: `depth`'s max is 12, so the traced object's own code — anything
+ * at or past level 15 — was unreachable no matter what `depth` was passed.
+ * These tests exercise the re-rooting fix in `renderRead`'s tree branch.
+ */
+const runEntryWithObject = (objectSuffix: string): string =>
+  fixture("results-entry-one-run.xml").replace(
+    "<trc:objectName>/sap/bc/adt/oo/classrun/ZCL_I77_PROBE</trc:objectName>",
+    `<trc:objectName>/sap/bc/adt/oo/classrun/${objectSuffix}</trc:objectName>`,
+  );
+
+describe("F2. call-tree re-rooting (Defect 2, synthetic)", () => {
+  it("auto-anchors at the traced object's own entry node, skipping ADT dispatch frames", async () => {
+    const h = await harness({
+      route: pathRoute({
+        [`${TRACES_BASE}/${NONAGG_RUN_ID}`]: runEntryWithObject("ZCL_V77_SLOW"),
+        [`${TRACES_BASE}/${NONAGG_RUN_ID}/statements`]: fixture("statements-synthetic-rerooted.xml"),
+      }),
+    });
+    const text = okText(await h.invoke({ op: "read", id: NONAGG_RUN_ID, view: "tree", top: 100 }));
+    expect(text).toContain("IF_OO_ADT_CLASSRUN~MAIN");
+    expect(text).toContain("METH_A");
+    expect(text).toContain("METH_B");
+    // Dispatch frames above the anchor, and the trailing sibling of MAIN,
+    // must not appear.
+    expect(text).not.toContain("PARSE_URI_TEMPLATE");
+    expect(text).not.toContain("CLEANUP");
+    // The MAIN row itself is relative level 0 (row starts with "0 ").
+    const tableRows = text.split("\n").filter((l) => /^\d+\s/.test(l));
+    const mainRow = tableRows.find((l) => l.includes("IF_OO_ADT_CLASSRUN~MAIN"));
+    expect(mainRow).toMatch(/^0\s/);
+    const methARow = tableRows.find((l) => l.includes("METH_A"));
+    expect(methARow).toMatch(/^1\s/);
+    const methBRow = tableRows.find((l) => l.includes("METH_B"));
+    expect(methBRow).toMatch(/^2\s/);
+    expect(text).toContain("call tree rooted at");
+    expect(text).toContain("IF_OO_ADT_CLASSRUN~MAIN");
+    await h.cleanup();
+  });
+
+  it("depth applies to the RELATIVE level: depth=1 drops the level-2 child", async () => {
+    const h = await harness({
+      route: pathRoute({
+        [`${TRACES_BASE}/${NONAGG_RUN_ID}`]: runEntryWithObject("ZCL_V77_SLOW"),
+        [`${TRACES_BASE}/${NONAGG_RUN_ID}/statements`]: fixture("statements-synthetic-rerooted.xml"),
+      }),
+    });
+    const text = okText(await h.invoke({ op: "read", id: NONAGG_RUN_ID, view: "tree", depth: 1, top: 100 }));
+    expect(text).toContain("IF_OO_ADT_CLASSRUN~MAIN");
+    expect(text).toContain("METH_A");
+    expect(text).not.toContain("METH_B");
+    await h.cleanup();
+  });
+
+  it("an explicit `root` overrides the auto-detected anchor", async () => {
+    const h = await harness({
+      route: pathRoute({
+        // objectName is the OTHER probe class — would not auto-anchor onto
+        // ZCL_V77_SLOW at all — but `root` names it explicitly.
+        [`${TRACES_BASE}/${NONAGG_RUN_ID}`]: runEntryWithObject("ZCL_I77_PROBE"),
+        [`${TRACES_BASE}/${NONAGG_RUN_ID}/statements`]: fixture("statements-synthetic-rerooted.xml"),
+      }),
+    });
+    const text = okText(
+      await h.invoke({ op: "read", id: NONAGG_RUN_ID, view: "tree", root: "ZCL_V77_SLOW", top: 100 }),
+    );
+    expect(text).toContain("IF_OO_ADT_CLASSRUN~MAIN");
+    expect(text).toContain("METH_A");
+    expect(text).toContain("METH_B");
+    expect(text).not.toContain("PARSE_URI_TEMPLATE");
+    expect(text).toContain("call tree rooted at");
+    await h.cleanup();
+  });
+
+  it("no match (auto-detected object not in the tree) falls back to absolute rendering, with a note", async () => {
+    const h = await harness({
+      route: pathRoute({
+        [`${TRACES_BASE}/${NONAGG_RUN_ID}`]: runEntryWithObject("ZCL_I77_PROBE"),
+        [`${TRACES_BASE}/${NONAGG_RUN_ID}/statements`]: fixture("statements-synthetic-rerooted.xml"),
+      }),
+    });
+    const text = okText(await h.invoke({ op: "read", id: NONAGG_RUN_ID, view: "tree", top: 100 }));
+    expect(text.toLowerCase()).toContain("no call-tree node matched");
+    expect(text).toContain("ZCL_I77_PROBE");
+    expect(text.toLowerCase()).toContain("root");
+    // The fallback is the OLD absolute-level rendering: at the default
+    // depth (4) none of the ADT-dispatch frames past level 4 show, and the
+    // traced object's own code (all at absolute level >= 15) is invisible —
+    // exactly the behaviour Defect 2 reported.
+    expect(text).not.toContain("IF_OO_ADT_CLASSRUN~MAIN");
+    await h.cleanup();
+  });
+
+  it("an unmatched explicit `root` also falls back, naming the value that did not match", async () => {
+    const h = await harness({
+      route: pathRoute({
+        [`${TRACES_BASE}/${NONAGG_RUN_ID}`]: runEntryWithObject("ZCL_V77_SLOW"),
+        [`${TRACES_BASE}/${NONAGG_RUN_ID}/statements`]: fixture("statements-synthetic-rerooted.xml"),
+      }),
+    });
+    const text = okText(
+      await h.invoke({ op: "read", id: NONAGG_RUN_ID, view: "tree", root: "NO_SUCH_OBJECT", top: 100 }),
+    );
+    expect(text.toLowerCase()).toContain("no call-tree node matched");
+    expect(text).toContain("NO_SUCH_OBJECT");
     await h.cleanup();
   });
 });
