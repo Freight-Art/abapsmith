@@ -39,6 +39,7 @@ import type { Config } from "../config.js";
 import { buildResponse, type BuiltResponse } from "../compact.js";
 import type { SafetyGate } from "../safety.js";
 import { preflight } from "./preflight.js";
+import { LOG_TOOL_ID, LOG_ACTION } from "../adt/fluid/builtin/log.js";
 
 const runRangeSchema = z.object({
   sign: z.enum(["I", "E"]).optional(),
@@ -345,6 +346,22 @@ export async function abapRun(
       : "(nothing shown here — but this run is NOT confirmed empty: see the NOTE(s) above " +
         "about diagnostics, dropped lines, and/or incomplete output. Do not read this as a " +
         "clean, silent, successful run.)";
+
+  // last_seconds is measured on the SERVER clock (see log.ts's doc comment
+  // on why `since`/`until` must never be computed from the client clock).
+  // Round the run's own duration up to the next whole second, then add a
+  // few seconds of slack for the round trip between this call finishing and
+  // the log query running — a log write that lands after res.durationMs but
+  // before the BAL query executes must still fall inside the window.
+  const logLastSeconds = Math.ceil(res.durationMs / 1000) + 5;
+  // `notes`, not `hints`: hints only render inside a TRUNCATED/WINDOW notice
+  // (see compact.ts), so a hint here would be silently dropped on the normal
+  // fast path — this line must reach the caller on every response.
+  const logHint =
+    `Application log (BAL) entries this execution may have written: abap_fluid ` +
+    `{"tool":"${LOG_TOOL_ID}","action":"${LOG_ACTION}","args":{"last_seconds":${logLastSeconds},"detail":"messages"}} ` +
+    `— last_seconds is measured on the server clock, so it covers this run.`;
+  notes.push(logHint);
 
   const authTraceSectionValue = authTraceOutcome ? authTraceSection(authTraceOutcome) : undefined;
   const sections: Array<{ title: string; content: string }> = [];

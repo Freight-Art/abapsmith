@@ -296,3 +296,204 @@ message naming the actual kind at call time.
 `format: "abap_value"`/`"test_double"` reproduces values, not the DDIC
 type: a field whose ABAP literal form abapsmith cannot determine is emitted
 as a quoted string and may need a cast by hand.
+## abap_fluid log.read
+
+Read application log (BAL/SLG1) headers and, on request, their messages.
+This is not a dedicated MCP tool — it is the built-in `log` fluid tool's one
+action, reached through `abap_fluid {"tool":"log","action":"read","args":{...}}`.
+See [abap-fluid.md](abap-fluid.md) for the wire contract shared by every
+fluid tool and [../FLUID-API/README.md](../FLUID-API/README.md) for the
+built-in tool list.
+
+**Availability**: same as `abap_fluid` itself (case 3-style: absent entirely
+when `ABAP_FLUID_API` is off; a mode-locked refusal stub on a read-only v1
+server; otherwise the real tool, subject to the runtime
+`FLUID_API_DISABLED` checks). There is no separate flag for `log` — it needs
+nothing `core` or `scan` do not already need.
+
+BAL has no single "read everything" function module. The issue that
+requested this tool named `BAL_LOG_READ`, which does not exist under that
+name on a current system; `log.read` instead drives the documented
+search/load/read pipeline:
+
+1. `BAL_GLB_MEMORY_REFRESH` — clears this session's BAL memory first, so a
+   log already loaded earlier in the same work process (by a prior call)
+   cannot come back with zero messages instead of its real ones.
+2. `BAL_DB_SEARCH` — finds log headers matching the filter (object,
+   subobject, extnumber, user, tcode, program, a date/time window).
+3. `BAL_DB_LOAD` (`detail="messages"` only, `i_lock_handling = 0`, no
+   enqueue) — loads one found log's messages into session memory and
+   returns a handle per message.
+4. `BAL_LOG_MSG_READ` — reads one message by handle, rendering its
+   message-class text (`e_txt_msg`).
+
+| Parameter | Type | Required | Default | Meaning |
+|---|---|---|---|---|
+| `object` | string | no | — | `BALHDR-OBJECT`. `*`/`+` make it a pattern. |
+| `subobject` | string | no | — | `BALHDR-SUBOBJECT`. `*`/`+` make it a pattern. |
+| `extnumber` | string | no | — | External number. `*`/`+` make it a pattern. |
+| `user` | string | no | connected user | Pass `*` for every user. |
+| `since` | string | no | — | Server-time lower bound, `YYYYMMDDHHMMSS`. |
+| `until` | string | no | — | Server-time upper bound, `YYYYMMDDHHMMSS`. |
+| `last_seconds` | integer | no | — | Window ending now, computed server-side. Mutually exclusive with `since`/`until`. |
+| `tcode` | string | no | — | Transaction code. Pattern allowed. |
+| `program` | string | no | — | Program name. Pattern allowed. |
+| `max` | integer | no | `20` | Log limit (`DEFAULT_LOG_MAX`). |
+| `detail` | enum `headers` \| `messages` | no | `headers` | `messages` also fetches each matched log's message rows. |
+
+With neither an absolute window (`since`/`until`) nor a relative one
+(`last_seconds`) given, the window defaults to the last hour
+(`DEFAULT_LOG_WINDOW_SECONDS = 3600`, in `src/adt/bal-log.ts`) — otherwise an
+unqualified call would ask BAL to scan a table that can span years on a live
+system.
+
+`last_seconds` combined with `since` or `until` is refused before any
+network call: `bal-log.ts`'s `assertLogReadArgsNoWindowConflict` rejects the
+combination client-side as `BAD_INPUT`, called from `runRun` in
+`src/tools/fluid.ts` before it connects. The ABAP side (`log.ts`'s
+`do_read`) still carries its own `last_seconds cannot be combined with since
+or until` check too, as a backstop for a caller that reaches it some other
+way.
+
+### Business data warning
+
+`detail="messages"` returns message text and its variables (`msgv1`..`msgv4`)
+verbatim. These are application data written by the logging program, not
+abapsmith's own output, and may contain business data — request
+`detail="messages"` only when needed, the same caution `abap_dumps`'
+`variables` field carries.
+
+### Audit line
+
+Every `log.read` call writes one stderr line naming only what was looked at
+and how much came back — never message text or any other field:
+
+```
+[abapsmith] audit: abap_fluid log.read object=ZFOO subobject=* logs=3 messages=0
+```
+
+This mirrors `abap_data_preview`'s own audit line (table name and row count,
+never row data) — the same shape applied to a different data source.
+
+### `BAL_DB_LOAD` write-back caveat
+
+`BAL_DB_LOAD` can itself write to the database: when it loads a log stored
+in an old on-disk format, it converts it in place via
+`BAL_DB_SAVE_OLD_VERSIONS`. That makes `detail="messages"` on such a system
+not provably free of database side effects, even though this is a "read"
+action — recorded here rather than papered over. `detail="headers"` (the
+default) never calls `BAL_DB_LOAD` and is not subject to this.
+
+### Correlation hints from other tools
+
+`abap_run`, `abap_test`, `abap_bopf_test`, and `abap_ui mode="press"` each
+append a hint pointing at the `log.read` call most likely to explain what
+the executed code did behind the scenes. `abap_run`, `abap_bopf_test`, and
+`abap_ui mode="press"` measure the run's own `durationMs` and round it up to
+the next whole second plus 5 seconds of slack, since `last_seconds` is
+resolved on the server clock and a log entry can land just after the
+measured duration but before the log query runs, e.g.:
+
+```
+Application log (BAL) entries this execution may have written: abap_fluid
+{"tool":"log","action":"read","args":{"last_seconds":47,"detail":"messages"}}
+— last_seconds is measured on the server clock, so it covers this run.
+```
+
+`abap_test` measures no duration of its own (there is nothing in an ABAP
+Unit run result to round up), so its hint names the fluid tool's own
+one-hour default instead of a measured window, and says so plainly:
+
+```
+Application log (BAL) entries this run may have written: abap_fluid
+{"tool":"log","action":"read","args":{"last_seconds":3600,"detail":"messages"}}
+— a default one-hour window; this tool does not measure its own run time,
+so narrow it yourself if the system is busy.
+```
+
+### Worked example
+
+```json
+{ "tool": "log", "action": "read", "args": { "object": "ZFOO", "last_seconds": 3600, "detail": "messages" } }
+```
+
+### Verification status
+
+The four function-module signatures above (`BAL_GLB_MEMORY_REFRESH`,
+`BAL_DB_SEARCH`, `BAL_DB_LOAD`, `BAL_LOG_MSG_READ` — every
+IMPORTING/EXPORTING/TABLES/EXCEPTIONS parameter this tool relies on) were
+verified live on system A4H (probe class `ZCL_I108_PROBE`, 2026-09-15):
+`BAL_DB_SEARCH` returned 5 headers for a 90-day window; `BAL_DB_LOAD` called
+with `i_lock_handling = 0` against one of those headers returned 440 message
+handles; `BAL_LOG_MSG_READ` given one of those handles returned `e_s_msg`
+plus the rendered `e_txt_msg`.
+
+Beyond that FM-level probe, the `log` fluid tool's own generated ABAP body
+was itself run live on A4H (client 001, user DEVELOPER, 2026-09-15):
+deployed to `$TMP` as `ZCL_I108_FLUID_LOG`, activated with zero syntax
+errors, and driven through `IF_OO_ADT_CLASSRUN` against the real
+`ZCL_ZMCP_FLUID_RT`. Called with `{"detail":"headers","last_seconds":864000,
+"user":"*","max":5}` it returned five `{"kind":"log",...}` rows and one
+`{"kind":"summary",...}` row, no `ERR` frame — `last_seconds` and `max`
+were both honoured (`max:5`, five rows returned, `truncated:true`).
+Activation left two non-blocking warnings, both `cl_abap_tstmp=>subtractsecs`
+rounding `TZNTSTMPL` to `TIMESTAMP` (two call sites). The probe object was
+deleted afterwards.
+
+Not observed by that run: `detail="messages"` was never called live — only
+the `detail="headers"` default path was exercised in that pass. That gap was
+closed on the same day: `detail="messages"` and the `abap_fluid
+{"tool":"log","action":"read"}` MCP call path itself — dispatching through
+`dispatch()` and rendering the result through
+`renderLogRead`/`auditLogRead` — were both exercised live on A4H on
+2026-09-15, through an MCP server started from this worktree's `dist/`
+(this branch's build, not the released bundle).
+
+`detail="messages"` verbatim live output, called through `abap_fluid`
+itself:
+
+```
+$ abap_fluid {"tool":"log","action":"read","args":{"detail":"messages","object":"/UIF/LREP","last_seconds":864000,"max":1}}
+tool: log
+action: read
+logs: 1
+messages: 88
+detail: messages
+since: 20260905111848
+until: 20260915111848
+user: DEVELOPER
+server_time: 20260915111848
+ms: 89
+version: 3a7033a5
+deployed: true
+truncated: true
+
+NOTE: Message text and its variables (msgv1..msgv4) are application data written by the logging program, not abapsmith's own output, and may contain business data.
+NOTE: Not every matching log was returned (max=1). Raise max, or narrow the window with since/until, to see a different slice.
+
+--- LOG 00000000000000020406 /UIF/LREP ---
+extnumber       user       date      time    program   tcode  total  abort  error  warning  info  success
+--------------  ---------  --------  ------  --------  -----  -----  -----  -----  -------  ----  -------
+20260909091224  DEVELOPER  20260909  091224  SAPMSSYC         88     0      0      0        88    0
+
+no  type  message  text                                                       level  context
+--  ----  -------  ---------------------------------------------------------  -----  -------
+1   I     BL001    LRep load consistency check                                1
+2   I     BL001    Start of LRep provider version consistency check           1
+...
+88  I     BL001    End of load consistency check                              1
+```
+
+The `...` above stands for 85 further message rows and is not the tool's
+own truncation marker; the `text` column is also narrower here than in the
+real output, which sizes it to the longest message on that log — both are
+this page's formatting, not something the tool does.
+
+The client-side refusal for a conflicting window was confirmed the same
+day, on the same branch build:
+
+```
+$ abap_fluid {"tool":"log","action":"read","args":{"last_seconds":60,"since":"20260915000000"}}
+{"error":"BAD_INPUT","message":"log.read: last_seconds cannot be combined with since or until.","hint":"Name the window one way: pass last_seconds alone, or since/until alone.","retryable":true,"details":{"lastSeconds":60,"since":"20260915000000"}}
+```
+

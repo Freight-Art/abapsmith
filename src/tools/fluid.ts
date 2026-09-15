@@ -36,6 +36,8 @@ import {
 } from "../adt/fluid/ensure.js";
 import { forgetManifest, readFluidRegistry, type FluidRegistryEntry } from "../adt/fluid/registry.js";
 import { dispatch, type FluidRunResult } from "../adt/fluid/dispatch.js";
+import { LOG_TOOL_ID, LOG_ACTION } from "../adt/fluid/builtin/log.js";
+import { mapLogRows, renderLogRead, auditLogRead, assertLogReadArgsNoWindowConflict } from "../adt/bal-log.js";
 import { deleteOneFluidObject, type FluidDeleteTarget } from "../adt/fluid/delete.js";
 import {
   probeRetiredBridges,
@@ -660,6 +662,20 @@ async function runRun(deps: FluidToolDeps, a: FluidInput): Promise<string> {
   if (!actionName) throw badInput("run requires `action`.", "action");
 
   requireFluidEnabled(deps, { op: "run", tool: toolId, action: actionName });
+
+  // `log.read` gets one client-side check before any network happens:
+  // `last_seconds` combined with `since`/`until` is decidable from `a.args`
+  // alone. `logDispatchArgs` (src/adt/bal-log.ts) already does this for
+  // callers that build a `BalLogQuery`, but this generic `run` path hands
+  // the caller's raw `args` straight to `dispatch()` below, so that check
+  // never ran — the caller paid a full round trip to the fluid runtime for
+  // a mistake this function could see on its own. Must run before
+  // `ensureConnected()`, not just before `dispatch()`: connecting is itself
+  // network cost this refusal is supposed to avoid.
+  if (toolId === LOG_TOOL_ID && actionName === LOG_ACTION) {
+    assertLogReadArgsNoWindowConflict(a.args ?? {});
+  }
+
   await deps.ensureConnected();
   // No second check here: `dispatch()` itself re-checks `fluidDisabledReason(cfg, gate)`
   // as its first statement, with the now-connected gate — see the doc comment above.
@@ -688,6 +704,31 @@ async function runRun(deps: FluidToolDeps, a: FluidInput): Promise<string> {
       },
     ),
   );
+
+  // `log.read` gets a dedicated render (text tables, one section per log)
+  // instead of the generic JSON dump below, plus a stderr audit line naming
+  // only what was looked at (object/subobject) and how much came back — see
+  // `src/adt/bal-log.ts`. `FluidToolDeps` has no injectable log sink (unlike
+  // `DataPreviewToolDeps.log`), so this writes to stderr directly rather
+  // than adding one — that field belongs to whoever owns `FluidToolDeps`.
+  if (toolId === LOG_TOOL_ID && actionName === LOG_ACTION) {
+    const mapped = mapLogRows(Array.isArray(result.result) ? result.result : []);
+    const args = a.args ?? {};
+    auditLogRead(
+      mapped,
+      {
+        ...(typeof args["object"] === "string" ? { object: args["object"] } : {}),
+        ...(typeof args["subobject"] === "string" ? { subobject: args["subobject"] } : {}),
+      },
+      (m) => void process.stderr.write(m + "\n"),
+    );
+    return renderLogRead(mapped, {
+      ms: result.ms,
+      version: result.version,
+      deployed: result.deployed,
+      maxChars: deps.cfg.maxResponseChars,
+    }).text;
+  }
 
   return buildResponse({
     header: {

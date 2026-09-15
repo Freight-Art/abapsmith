@@ -670,6 +670,31 @@ describe("abap_fluid — op: run input validation", () => {
     expect(payload.error).toBe("BAD_INPUT");
     expect(String(payload.message)).toContain("tool");
   });
+
+  // Regression for issue #108's follow-up: `abap_fluid run tool:"log"
+  // action:"read"` used to hand `last_seconds`+`since` straight to
+  // `dispatch()` — this args conflict is decidable client-side, but the
+  // check that catches it (logDispatchArgs's assertNoWindowConflict) only
+  // runs for callers that build a BalLogQuery, which this generic `run`
+  // path never does. The toolSet here has no "log" tool loaded at all —
+  // if the refusal fires as intended, runRun never gets far enough to look
+  // one up, so an unrelated `demo` tool set is enough to prove it.
+  it("tool:log action:read refuses last_seconds combined with since before any network, without a log tool even loaded", async () => {
+    const tools = registered({ toolSet: toolSetOf(makeTool({ id: "demo", className: "ZCL_ZMCP_DEMO" })) });
+
+    const payload = errorPayload(
+      await invoke(tools, {
+        op: "run",
+        tool: "log",
+        action: "read",
+        args: { last_seconds: 60, since: "20260915000000" },
+      }),
+    );
+
+    expect(payload.error).toBe("BAD_INPUT");
+    expect(String(payload.message)).toContain("last_seconds");
+    expect(String(payload.message)).toContain("since");
+  });
 });
 
 // ============================================================================

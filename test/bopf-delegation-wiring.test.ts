@@ -40,8 +40,6 @@ import type { TrRequirement } from "../src/adt/transports.js";
 import type { SessionPool } from "../src/adt/pool.js";
 import { errorResult } from "../src/server.js";
 import { registerBopfTools, bopfEditInputSchema, type BopfToolDeps } from "../src/tools/bopf.js";
-import { BOPF_HANDLERS } from "../src/tools/v2/handlers/do/bopf.js";
-import { ABAP_DO_ACTIONS } from "../src/tools/v2/catalogue.js";
 
 // --------------------------------------------------------------------- fixtures ---
 
@@ -491,23 +489,3 @@ describe("abap_bopf show: node/association digests carry the delegation-kind ann
   });
 });
 
-describe("v2 catalogue/handler wiring: bopf_remove_dependent_object is present, the three removed actions are not", () => {
-  it("BOPF_HANDLERS and the ABAP_DO_ACTIONS bopf group both list bopf_remove_dependent_object and neither lists a removed action", () => {
-    const removedActions = ["bopf_add_representative_node", "bopf_remove_representative_node", "bopf_embed_dependent_object"];
-
-    expect(BOPF_HANDLERS.has("bopf_remove_dependent_object")).toBe(true);
-    for (const action of removedActions) {
-      expect(BOPF_HANDLERS.has(action)).toBe(false);
-    }
-
-    const bopfGroupActions = ABAP_DO_ACTIONS.filter((a) => a.group === "bopf");
-    const bopfGroupActionNames = new Set(bopfGroupActions.map((a) => a.action));
-    expect(bopfGroupActionNames.has("bopf_remove_dependent_object")).toBe(true);
-    for (const action of removedActions) {
-      expect(bopfGroupActionNames.has(action)).toBe(false);
-    }
-
-    // Verified by direct count (background claimed 27; confirmed independently here).
-    expect(bopfGroupActions.length).toBe(27);
-  });
-});

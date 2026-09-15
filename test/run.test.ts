@@ -477,8 +477,8 @@ describe("runClass", () => {
 
     // A user's syntax mistake must never brick the server.
     expect(conn.breaker.isTripped).toBe(false);
-    // Still the raw feed path, once: under ABAP_TOOL_SURFACE=v2 `abap_dumps`
-    // is not registered, so this is the only true instruction there.
+    // The raw feed URL is always part of the hint, alongside the `abap_dumps`
+    // pointer asserted below.
     expect(err.hint).toMatch(/\/sap\/bc\/adt\/runtime\/dumps/);
 
     // The old "no tool for that lookup" claim was falsified by the addition
@@ -498,8 +498,8 @@ describe("runClass", () => {
   });
 
   // Integration level: the same window the hint prints must also reach
-  // `details` in machine-readable form, so a v2 surface or an orchestrator can
-  // consume it without regex-scraping prose.
+  // `details` in machine-readable form, so an orchestrator can consume it
+  // without regex-scraping prose.
   it("attaches a machine-readable dump correlation to details", async () => {
     const { conn } = await connected(() =>
       resp(500, dumpPage(), { "content-type": "text/html; charset=utf-8", connection: "close" }),

@@ -8,11 +8,8 @@
  * worked example. This file is narrower and deeper: it parses each
  * `abap_write { ... }` / `abap_read { ... }` worked example out of the
  * skill prose and asserts every field name it names is a real key on that
- * tool's actual exported zod schema — `WriteInput`/`ReadInput` (v1,
- * `src/tools/write.ts` / `src/tools/read.ts`) unioned with
- * `abapWriteInputSchema`/`abapReadInputSchema` (v2, `src/tools/v2/
- * schemas.ts`), since a worked example does not declare which surface it
- * targets. `Object.keys(schema.shape)` (v1) / `Object.keys(schema)` (v2)
+ * tool's actual exported zod schema — `WriteInput`/`ReadInput`
+ * (`src/tools/write.ts` / `src/tools/read.ts`). `Object.keys(schema.shape)`
  * gives the true field set — not a hand-maintained list that could drift
  * from the real schema.
  *
@@ -31,7 +28,6 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { WriteInput } from "../src/tools/write.js";
 import { ReadInput } from "../src/tools/read.js";
-import { abapWriteInputSchema, abapReadInputSchema } from "../src/tools/v2/schemas.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(here, "..");
@@ -59,8 +55,8 @@ function listSkillFiles(): string[] {
 }
 
 const REAL_FIELDS: Record<string, Set<string>> = {
-  abap_write: new Set([...Object.keys(WriteInput.shape), ...Object.keys(abapWriteInputSchema)]),
-  abap_read: new Set([...Object.keys(ReadInput.shape), ...Object.keys(abapReadInputSchema)]),
+  abap_write: new Set(Object.keys(WriteInput.shape)),
+  abap_read: new Set(Object.keys(ReadInput.shape)),
 };
 
 /** Matches a flat `abap_write { ... }` / `abap_read { ... }` example — no nested braces. */

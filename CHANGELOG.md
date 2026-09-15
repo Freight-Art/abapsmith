@@ -12,6 +12,32 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-09-15
+
+### Added
+
+- Application log reader `abap_fluid {"tool":"log","action":"read"}` (#108): the tenth built-in fluid tool reads SLG1/BAL log headers filtered by object, subobject, extnumber, user, tcode, program and a time window (`last_seconds` or `since`/`until`, defaulting to the last hour), and with `detail="messages"` the rendered messages of each log through the documented `BAL_DB_SEARCH` → `BAL_DB_LOAD` → `BAL_LOG_MSG_READ` pipeline. Every response carries a business-data warning, the resolved window and a truncation flag, and the server writes an audit line naming only object and counts. `abap_run`, `abap_test`, `abap_bopf_test` and `abap_ui mode=press` now append a correlation hint pointing at the `log.read` call that covers the run they just made.
+- `abap_read view="docu"` (#109): SAP long texts (`DOKHL`/`DOKTL`, via the `core` fluid tool's new `docu` action and `DOCU_GET` + `CONVERT_ITF_TO_ASCII`) for classes, interfaces, programs, function modules, data elements, tables, messages (`BM 019` or `BM019`) and IMG activities (`type="SIMG"`); with `method=` on a class it returns that method's ABAP Doc comment without any fluid call. Unsupported view combinations (`format="raw"`, `enhancements`, `version`, `outline`, `include`) are refused with `UNSUPPORTED`.
+- `abap_read view="digest"` (#110): a bounded one-page overview of a `CLAS/OC`, `INTF/OI`, `PROG/P`, `FUGR/F`, `FUGR/FF` or `DDLS/DF` object in six fixed sections (HEADER, PUBLIC API, DIRECT DEPENDENCIES, TESTS AND CHECKS, RECENT HISTORY, WHERE TO GO NEXT), each capped at 25 rows with a `--- TRUNCATED ---` line naming the exact follow-up call. Function-module signatures are parsed from the native `FUNCTION … IMPORTING … EXPORTING … TABLES … CHANGING … EXCEPTIONS … RAISING … .` statement (the legacy `Local Interface:` comment block is a fallback), and a parameterless module says so explicitly. A bare `FUGR` is refused as ambiguous. Proven live on A4H against `CL_ABAP_TSTMP`, `RSPARAM`, `BAL_LOG_MSG_READ`, `BAPI_USER_GET_DETAIL` and a customer class with a local test class.
+
+## [0.6.1] - 2026-09-15
+
+### Added
+
+- `abap_fpm_read mode=events` (#101): resolves the toolbar events of a UIBB or application configuration to the code that handles them. The response carries a `VIEWS` section (config ID, kind, feeder class, BO and node per UIBB), an `EVENTS` section (toolbar element with its `Transl` text resolved from WDY_CONFIG_COMPT, event ID, and a handler classified as `bopf`, `feeder`, `app_controller`, `standard`, `action_impl` or `unresolved`, each with the exact follow-up `abap_bopf` or `abap_read` call) and a `WIRES` section (source UIBB, target UIBB, connector class). `uibb` narrows the views and names what was skipped; every response discloses the coverage limits (app-controller override, personalisation, CBA/deltas, nothing executed). Proven live on `/BOFU/TEST_FBI_SALES_ORDER_OVP` and `/BOFU/TEST_CUSTOMER_OIF`.
+- `abap_ui mode=fcode` (#102): from a GUI-status function code to the PAI module and `CASE` branch that handles it, by `tcode` or `program`+`dynpro`, for one `fcode` or all of them. Follows ok_code aliases, several top-level `CASE`s and one remap hop (rendered as its own `via remap … at line N` row), flags `AT EXIT-COMMAND` modules, labels `CALL TRANSACTION`/`LEAVE TO TRANSACTION`, and reports modules without an ok_code `CASE` as `unresolved`. Read-only: never asks for `confirm` and does not need `ABAP_ALLOW_UI_PRESS`. Proven live on `SM30`/`UPD` (`SAPMSVMA` 0100, remap `UPD -> UPDL`) and `SE16`/`BACK`.
+- Skill `abapsmith-research-code` (#103): Procedure A (find usages: objects search → where-used → source-text search → element info → report) and Procedure B (button → code: classify the UI, then `mode=fcode` for dynpros, `mode=events` for FPM, the debugger or `abap_ui mode=press` as the last resort with the gates named). Routed from `abapsmith-orient` and listed in the plugin manifest.
+
+### Changed
+
+- The fluid FPM builtin's `read_config` not-found errors now name the configuration key (`config … type … var …`).
+
+## [0.6.0] - 2026-09-15
+
+### Removed
+
+- The experimental `v2` tool surface (`ABAP_TOOL_SURFACE=v2`: the six consolidated tools `abap_find`, `abap_read`, `abap_write`, `abap_do`, `abap_debug`, `abap_adt`) is gone, as announced in 0.5.10 (issue #76). `src/tools/v2/` and its fourteen test files were deleted; the single remaining surface is always registered and `toolSurface` is no longer a config field. Startup now classifies `ABAP_TOOL_SURFACE`: `v2` and any unrecognised value fail with "Invalid abapsmith configuration" (naming `CHANGELOG.md` and the design note), `v1` starts with one deprecation warning, unset is silent. The one v2-path file with a live caller, `src/tools/v2/edit.ts`, moved to `src/tools/edit.ts`. The reasoning (what the A/B measured, why it never reached v1 reliability, what a future consolidation must prove first) is in the new `doc/DESIGN-NOTES/tool-surface-v2.md`; every doc, skill and test sentence that qualified behaviour by surface was rewritten. All four startup outcomes and the 28-tool `tools/list` were proven on the built server.
+
 ## [0.5.21] - 2026-09-15
 
 ### Added

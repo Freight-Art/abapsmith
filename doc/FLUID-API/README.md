@@ -35,7 +35,7 @@ The framework is reached through exactly one MCP tool, `abap_fluid` — see
 
 ## Built-in tools
 
-Nine fluid tools ship built in. They are ordinary fluid tools — same
+Ten fluid tools ship built in. They are ordinary fluid tools — same
 manifest shape, same protocol, same gate — but they are compiled into
 abapsmith rather than loaded from a plugin directory, so
 `ABAP_ALLOW_FLUID_PLUGINS` and `ABAP_ALLOW_FLUID_PLUGIN_MUTATE` do not
@@ -48,6 +48,7 @@ apply to them.
 | `enh` | `create_spot`, `add_badi_def`, `add_filter_def`, `create_impl`, `set_filter_values` | Enhancement spots, BAdI definitions and implementations. |
 | `fpm` | `find`, `outline`, `app` | Floorplan Manager configuration reads. |
 | `img` | `preview`, `create_request`, `apply` | IMG customizing: row preview, customizing request creation, and the write itself. |
+| `log` | `read` | Application log (BAL/SLG1) header and message reads, via `BAL_DB_SEARCH`/`BAL_DB_LOAD`/`BAL_LOG_MSG_READ` — backs `abap_fluid {"tool":"log","action":"read"}`. |
 | `rt` | `ping`, `fail` | Runtime self-test: proves the frame protocol end to end, including the error frame. |
 | `run` | `report` | Runs an ABAP report and captures its list output. |
 | `scan` | `source` | Line-wise source-text scan over a package/object scope (PROG, CLAS, INTF, FUGR, DDLS), backing `abap_search mode=source`. Kept out of `core` because its `FIND ... PCRE` matching needs kernel 7.55+; isolating it means a pre-7.55 system loses only `scan`. |
@@ -72,6 +73,14 @@ tool having checked first.
 - `core.call_fm` (execute) — calls a function module dynamically. Off
   by default; requires `ABAP_ALLOW_FLUID_CALL_FM`. When `commit: true`,
   also requires a per-call `confirm: "core.call_fm"` echo.
+- `core.docu` (read) — reads SAP's own documentation (`DOKHL`/`DOKIL`/
+  `DOKTL`, via `DOCU_GET`), flattened to plain text. Judged by
+  **neither** `core.select`'s data-preview policy nor
+  `ABAP_ALLOW_DATA_PREVIEW`: `guardCoreAction`
+  (`src/adt/fluid/builtin/core.ts`) deliberately falls through for this
+  action, since it reads documentation text out of `DOKTL`, not
+  application table data. Backs `abap_read view="docu"` — see
+  `doc/TOOLS/read-and-search.md`.
 - `core.eval` (execute) — runs a short caller-supplied ABAP snippet as the
   body of one generated method and serialises named local variables back
   as JSON. Off by default; requires `ABAP_ALLOW_FLUID_EVAL`, which no
@@ -210,8 +219,7 @@ ordering.
 
 One MCP tool, `abap_fluid`. A new fluid tool — built-in or plugin — needs
 **no** MCP registration: it becomes reachable the moment its manifest
-loads. `ABAP_TOOL_SURFACE` is unaffected by this feature; no existing MCP
-tool is hidden, renamed or unregistered.
+loads. No existing MCP tool is hidden, renamed or unregistered.
 
 | `op` | Arguments | Network |
 |---|---|---|

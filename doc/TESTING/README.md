@@ -43,7 +43,7 @@ system reachable at all unless you set `ABAP_URL` yourself. By area:
 | The safety gate | Mode ceiling, package allowlists, productive-system lockout, and the write/undo refusal paths |
 | Journal and drift detection | Write journal entries, before-images, undo, and classifying a stranded entry as succeeded / failed / ambiguous against live source |
 | Debugger transport / session / render | The long-poll HTTP layer, the session state machine above it, and the variable-rendering/context-budget layer — each tested against hand-rolled fakes, never a real debuggee |
-| Tool surface | Both `ABAP_TOOL_SURFACE` values: which tools each surface registers (by name, including capability-gated tools/parameters), the v2 catalogue/dispatch invariants, and coherence between shipped skills and whichever surface a server actually exposes — deliberately with no pinned schema byte total or ceiling; see `test/tools.test.ts`'s "tool surface" describe block for why |
+| Tool surface | Which tools the server registers, by name, including capability-gated tools and parameters, and coherence between shipped skills and what a server actually exposes — deliberately with no pinned schema byte total or ceiling; see `test/tools.test.ts`'s "tool surface" describe block for why |
 
 ### The load-bearing property: refusal costs zero requests
 

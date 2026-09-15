@@ -114,14 +114,6 @@ not by a plausible summary. When a listing and a read disagree — as the
 misaligned description column above shows they can — the read of the object
 wins.
 
-## Surface note
-
-`abap_search` is the v1 name used throughout this skill. On
-`ABAP_TOOL_SURFACE=v2` the same capability is `abap_find`; `abap_read` is the
-same name on both surfaces. Check `tools/list` rather than assuming which
-surface is live. `ABAP_TOOL_SURFACE=v2` is deprecated and will be removed in
-release 0.6.0.
-
 ## Not this skill
 
 Creating anything is `abapsmith-create-an-object` (or `abapsmith-orient` to

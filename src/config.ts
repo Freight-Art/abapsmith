@@ -556,32 +556,6 @@ export const ConfigSchema = z.object({
    */
   originSystems: z.array(z.string()).default([]),
   /**
-   * Which MCP tool surface this server registers (`ABAP_TOOL_SURFACE`).
-   * `"v1"` (default) is today's 13 registrar modules, unchanged. `"v2"`
-   * registers only six consolidated tools (`src/tools/v2/register.ts`) and
-   * skips every v1 registrar. Opt-in only.
-   *
-   * Do not default this to v2 or drop v1 — a live paired A/B measured v2 at
-   * +6.6% more expensive and +142% more tool errors than v1 for
-   * statistically identical successful work, despite a genuine −87.6%
-   * schema-size cut. Full measurement, reasoning, and the bar for
-   * revisiting this default: see the git history.
-   *
-   * As of this release, `"v2"` is DEPRECATED and scheduled for removal in
-   * 0.6.0 (issue #76; keep in sync with `V2_REMOVAL_RELEASE` in
-   * src/server.ts). The surface is frozen: no new tool routes and no defect
-   * fixes land on it. Setting `ABAP_TOOL_SURFACE=v2` logs a deprecation
-   * warning at startup and puts the same sentence in the server
-   * `instructions` (both driven by `V2_DEPRECATION_SENTENCE` in
-   * src/server.ts, so the operator-facing and model-facing wording cannot
-   * drift apart).
-   *
-   * Deliberately no `"both"` value: v2 reuses v1's tool names verbatim, so
-   * registering both surfaces throws "Tool abap_read is already registered"
-   * at startup.
-   */
-  toolSurface: z.enum(["v1", "v2"]).default("v1"),
-  /**
    * How hard abapsmith works to prove a write landed (`ABAP_VERIFY_WRITES`).
    * `"speculative"` (default): a create/activate that returned without error
    * is sufficient, no read-back prescribed on the success path. `"verified"`:
@@ -989,6 +963,30 @@ export function loadConfig(opts: LoadConfigOptions = {}): Config {
       abapMode = parseAbapMode(rawAbapMode);
     } catch (e) {
       abapModeIssue = e instanceof Error ? e.message : String(e);
+    }
+  }
+
+  // ABAP_TOOL_SURFACE (issue #76; doc/DESIGN-NOTES/tool-surface-v2.md): the
+  // v2 consolidated-tool surface was removed and the surface that used to be
+  // called v1 is now the only one, always registered. This cannot be
+  // silently ignored: an operator whose MCP config still sets
+  // ABAP_TOOL_SURFACE=v2 would otherwise get a different tool surface than
+  // they believe they configured, with no signal anything changed. "v1" is
+  // still the name of the surface that survived, so it is accepted (with a
+  // warning, below) rather than rejected like every other stale value.
+  const rawToolSurface = env.ABAP_TOOL_SURFACE;
+  const toolSurfaceTrimmed = rawToolSurface !== undefined ? rawToolSurface.trim() : undefined;
+  let toolSurfaceIssue: string | undefined;
+  if (toolSurfaceTrimmed !== undefined && toolSurfaceTrimmed !== "") {
+    if (toolSurfaceTrimmed === "v2") {
+      toolSurfaceIssue =
+        "ABAP_TOOL_SURFACE=v2 was removed — the six consolidated v2 tools no longer exist. " +
+        "Unset ABAP_TOOL_SURFACE: the former v1 surface is the only one and is always " +
+        "registered. See the Removed entry in CHANGELOG.md and doc/DESIGN-NOTES/tool-surface-v2.md.";
+    } else if (toolSurfaceTrimmed !== "v1") {
+      toolSurfaceIssue =
+        `ABAP_TOOL_SURFACE=${toolSurfaceTrimmed} is not a value this server ever accepted. ` +
+        "ABAP_TOOL_SURFACE is obsolete — unset it. See doc/DESIGN-NOTES/tool-surface-v2.md.";
     }
   }
 
@@ -1414,11 +1412,8 @@ export function loadConfig(opts: LoadConfigOptions = {}): Config {
     // single source of truth, so out-of-range/invalid input reaches the
     // startup error list rather than being papered over here.
     dataPreviewMaxRows: env.ABAP_DATA_PREVIEW_MAX_ROWS,
-    // Not mode-derived — tool surface is orthogonal to the ABAP_MODE
-    // permission ceiling.
-    toolSurface: env.ABAP_TOOL_SURFACE,
     // Not mode-derived — verification posture is orthogonal to the ABAP_MODE
-    // permission ceiling, exactly like toolSurface above.
+    // permission ceiling.
     verifyWrites: env.ABAP_VERIFY_WRITES,
     maxSessions: env.ABAP_MAX_SESSIONS,
     readConcurrency: env.ABAP_READ_CONCURRENCY,
@@ -1447,11 +1442,12 @@ export function loadConfig(opts: LoadConfigOptions = {}): Config {
     !parsed.success ||
     abapModeIssue !== undefined ||
     enhanceTargetsIssue !== undefined ||
-    credentialIssue !== undefined
+    credentialIssue !== undefined ||
+    toolSurfaceIssue !== undefined
   ) {
-    // Combined so an invalid ABAP_MODE/ABAP_ENHANCE_TARGETS/credential setup
-    // reports in the SAME issue list as every other bad env var, in one
-    // startup error.
+    // Combined so an invalid ABAP_MODE/ABAP_ENHANCE_TARGETS/credential/
+    // ABAP_TOOL_SURFACE setup reports in the SAME issue list as every other
+    // bad env var, in one startup error.
     const zodIssues = parsed.success
       ? []
       : parsed.error.issues.map((i) => `  - ${i.path.join(".") || "(root)"}: ${i.message}`);
@@ -1460,8 +1456,10 @@ export function loadConfig(opts: LoadConfigOptions = {}): Config {
       enhanceTargetsIssue !== undefined ? [`  - enhanceTargets: ${enhanceTargetsIssue}`] : [];
     const credentialIssues =
       credentialIssue !== undefined ? [`  - credential: ${credentialIssue}`] : [];
+    const toolSurfaceIssues =
+      toolSurfaceIssue !== undefined ? [`  - toolSurface: ${toolSurfaceIssue}`] : [];
     throw new Error(
-      `Invalid abapsmith configuration:\n${[...zodIssues, ...modeIssues, ...enhanceTargetsIssues, ...credentialIssues].join("\n")}`,
+      `Invalid abapsmith configuration:\n${[...zodIssues, ...modeIssues, ...enhanceTargetsIssues, ...credentialIssues, ...toolSurfaceIssues].join("\n")}`,
     );
   }
 
@@ -1501,6 +1499,13 @@ export function loadConfig(opts: LoadConfigOptions = {}): Config {
     warn(
       "[abapsmith] NOTE: Configured via legacy per-flag env vars. Consider migrating to a " +
         "single ABAP_MODE=read|edit|admin — see README.",
+    );
+  }
+
+  if (toolSurfaceTrimmed === "v1") {
+    warn(
+      "[abapsmith] WARNING: ABAP_TOOL_SURFACE is obsolete and ignored — there is only one tool " +
+        "surface now and it is always registered. Unset it. See doc/DESIGN-NOTES/tool-surface-v2.md.",
     );
   }
 
@@ -2003,7 +2008,6 @@ export function redactConfigSecrets(cfg: Config): Record<string, unknown> {
     // (ABAP_MODE unset), not a redaction.
     abapMode: cfg.abapMode ?? "(unset — legacy per-flag config)",
     capabilities: cfg.capabilities,
-    toolSurface: cfg.toolSurface,
     verifyWrites: cfg.verifyWrites,
     readOnly: cfg.readOnly,
     allowPackages: cfg.allowPackages,
