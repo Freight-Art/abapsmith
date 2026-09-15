@@ -56,6 +56,9 @@ export const DDIC_TAGS = [
   "SHLP-ACTIVATED",
   "SHLP-DELETED",
   "SHLP-GONE",
+  "TRLG-READ",   // transport-log bridge
+  "TRQU-READ",   // import-queue bridge
+  "TRTC-CREATED", // transport-of-copies bridge
 ] as const;
 export type DdicTag = (typeof DDIC_TAGS)[number];
 

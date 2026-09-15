@@ -1,10 +1,12 @@
 /**
- * Thin adapter from the nine classic-bridge operations (view/transaction/
- * index/package create+delete, transport-entry-remove) onto the fluid
- * `classic` tool, so each operation's caller keeps calling a function with
- * the same name, signature and return type it always has, while the ABAP
- * runs through `dispatch()` and the static `ZCL_ZMCP_FLUID_CLASSIC` body
- * class instead of a generated per-operation `IF_OO_ADT_CLASSRUN` class.
+ * Thin adapter from the classic-bridge operations (view/transaction/index/
+ * package/search-help create+delete, view/transaction update, transport-
+ * entry-remove, transport-of-copies create, transport-log/import-queue
+ * reads, exists) onto the fluid `classic` tool, so each operation's caller
+ * keeps calling a function with the same name, signature and return type it
+ * always has, while the ABAP runs through `dispatch()` and the static
+ * `ZCL_ZMCP_FLUID_CLASSIC` body class instead of a generated per-operation
+ * `IF_OO_ADT_CLASSRUN` class.
  *
  * `dispatch()`'s own `targets` gate runs first, over the action's OWN
  * declared pointers — additional to, never a replacement for, the caller's

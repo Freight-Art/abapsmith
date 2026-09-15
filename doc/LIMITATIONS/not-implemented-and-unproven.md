@@ -157,16 +157,94 @@ roughly once per release cycle rather than once per session, but an
 abandoned request still cannot be cleaned up: this slows accumulation, it
 does not fix it.
 
+**Triggering a transport import (STMS) is deliberately not implemented.**
+`abap_transport operation="queue"` reads a target system's import buffer and
+`operation="log"` reads what has already happened, but nothing in abapsmith
+calls `TMS_MGR_IMPORT_TR_REQUEST`. That function module needs only
+`IV_SYSTEM` and `IV_REQUEST` to fire, but its parameter surface is otherwise
+dominated by override flags: `IV_IGNORE_ORIGINALITY`, `IV_IGNORE_REPAIRS`,
+`IV_IGNORE_TRANSTYPE`, `IV_IGNORE_TABLETYPE`, `IV_IGNORE_QAFLAG`,
+`IV_IGNORE_PREDEC`, `IV_IGNORE_CVERS`, `IV_IGNORE_SPAM`, `IV_OVERTAKE`,
+`IV_FORCE`, `IV_IMPORT_AGAIN` — the same family of unsafe-bypass options
+`src/adt/http-guard.ts` already refuses for transport *release*:
+`assertHttpPathAllowed` structurally denies the `relwithignlock` and
+`relObjigchkatc` "ignore lock" / "ignore ATC" release endpoints, and the
+`ignoreLocks`/`ignoreATC` query parameters (`DENIED_QUERY_PARAMS`),
+regardless of what a caller asks for, because bypassing a release quality
+gate is not something an agent should be able to reach for. An import
+trigger built on `TMS_MGR_IMPORT_TR_REQUEST` reopens the identical question
+one layer downstream, for a call at least as irreversible as a release.
+
+Beyond the override-flag question, a correct `IV_CLIENT`/`IV_CTC_ACTIVE`
+parameterisation cannot be chosen without a real multi-system landscape to
+test against, and A4H — one system, no transport route, an import queue
+that has been empty for its whole observed life — can verify none of it:
+the feature would ship entirely unproven while being irreversible in
+production. So abapsmith stops at the read: `queue` says what is waiting,
+`log` says what happened; triggering the import stays a human action in
+STMS.
+
+This is one of the two options issue #88 itself offered for this feature (an
+optionally-gated `ABAP_ALLOW_TRANSPORT_IMPORT` was the other), not an
+oversight, and it is a judgement call: a reviewer with a real multi-system
+landscape and a safe way to rehearse each `IV_IGNORE_*`/`IV_OVERTAKE`/
+`IV_FORCE` flag is free to overturn it. The evidence that would change this
+decision is exactly that — a route, a downstream system, and a wire capture
+of what each override flag actually does, gathered before deciding whether
+abapsmith should ever be allowed to set one.
+
 ## Unproven
 
 Stated separately from the above because the risk is different: these paths
 exist and may work, but have not been exercised against a real system.
 
-- **Transport release** has only been run against a system with no transport
-  route. Behaviour on a landscape with a real route — export, transport logs,
-  target-system errors — is untested.
-- **`abap_transport` `addUser` and `setOwner`** have unit tests but no captured
-  wire behaviour from a live system.
+- **Transport release** has still only been run against a system with no
+  transport route — export, `tp` return codes, a non-empty transport log,
+  and target-system errors remain untested; A4H has no route to exercise
+  them against. What used to be entirely untested here has narrowed,
+  though: `abap_transport operation="log"`'s overview read
+  (`TRINT_GET_LOG_OVERVIEW`) is now live-proven for every request kind
+  tried — see below and
+  [doc/TOOLS/transports.md](../TOOLS/transports.md) — it just has nothing
+  to report on this landscape but "not yet flagged for import," since
+  nothing here has ever actually exported. The log-line detail path
+  (`TRINT_GET_LOG_FILE`) remains unproven; see below.
+- **`abap_transport` `addUser` and `setOwner`** are no longer in this
+  category: both were executed against A4H (client 001, user DEVELOPER,
+  `ABAP_MODE=admin`, 2026-09-15). `setOwner` on workbench request
+  A4HK900169 changed the owner to BWDEVELOPER, confirmed by re-reading the
+  request (its tasks were unchanged), then set back to DEVELOPER
+  afterwards. `addUser` on the same request succeeded and created task
+  A4HK900171 owned by BWDEVELOPER, confirmed by `operation="show"`.
+  `addUser` on a *transport of copies*, by contrast, fails by design — a
+  transport of copies has no tasks, so there is nothing to add a user to —
+  and this is now a captured live shape too: ADT answers HTTP 400,
+  `TRANSPORT_ERROR "I::000"`, `exceptionType: ADT_TM_COMMON_EXCEPTION`.
+  Also observed in the same run: `operation="users"` returns the system's
+  user list — a candidate list to pick a user from — not the request's own
+  task owners; and a request created through ADT reports `target: no
+  target (local-only system)` even though TMS does know this system
+  (`A4H`, domain `DOMAIN_A4H`). See
+  [doc/TOOLS/transports.md](../TOOLS/transports.md).
+- **Transport-of-copies landscape behaviour, the transport log's line
+  content, and a non-empty import queue** are all unproven for the same
+  underlying reason: A4H is a single-system landscape with no transport
+  route and no downstream target system, so none of the following could be
+  exercised beyond being created and inspected in place.
+  `TRINT_GET_LOG_FILE` (the `tp` log lines behind `abap_transport
+  operation="log"`) returned zero rows for every request and system tried,
+  because `tp` has never run on this box; that path is exercised only by
+  unit tests against a fake. `TMS_MGR_READ_TRANSPORT_QUEUE` (behind
+  `operation="queue"`) has only ever been observed returning an empty
+  buffer — no request has ever actually been exported here — so a
+  non-empty queue, and the rendering of its entries, are tests-only. And
+  importing a transport of copies into a real target system — i.e. that
+  the snapshot semantics documented in
+  [doc/TOOLS/transports.md](../TOOLS/transports.md) actually hold once the
+  copy lands downstream — has never been attempted; only its creation
+  (`TR_INSERT_REQUEST_WITH_TASKS`, `IV_TYPE='T'`) and deletion are
+  live-proven. See the Not Implemented note above on why triggering an
+  import itself remains out of scope.
 - **`abap_service` `op="publish"` and `op="unpublish"`** are no longer in
   this category: both were executed against A4H (client 001,
   `ABAP_MODE=admin`, 2026-09-15) for a V2 binding and a V4 binding, each
