@@ -10,6 +10,10 @@ import { config as loadDotenv } from "dotenv";
 import { z } from "zod";
 
 import { isTrkorr } from "./adt/transports.js";
+import { isLoopbackHost, parseHttpTokens, type HttpToken } from "./mcp-http-auth.js";
+// Re-exported so a caller (e.g. `src/mcp-http.ts`) can import this type from
+// config.js directly rather than reaching into `src/mcp-http-auth.js`.
+export type { HttpToken } from "./mcp-http-auth.js";
 // Value import, not just a type — used below to size the startup warning's
 // debug-lease reservation to the actual configured lane count. Safe despite
 // `src/adt/pool.ts` importing `Config` back from here (via `type Config` at
@@ -800,6 +804,39 @@ export const ConfigSchema = z.object({
    */
   startupProbe: boolishRejectDefaultTrue,
   /**
+   * Which MCP transport `createServer().start()` (`src/server.ts`)
+   * constructs. `"stdio"` (default) is the existing one-process-per-
+   * conversation transport. `"http"` starts a Streamable HTTP listener
+   * (`src/mcp-http.ts`) instead — one process can then serve several MCP
+   * sessions concurrently, each attributed independently via
+   * `src/mcp-session.ts` rather than the process-wide `Journal` fields
+   * `setClientActor`/`setClientSession` use under stdio.
+   */
+  mcpTransport: z.enum(["stdio", "http"]).default("stdio"),
+  /** Host the Streamable HTTP listener binds (`ABAP_MCP_HTTP_HOST`). Only consulted when `mcpTransport === "http"`. */
+  mcpHttpHost: z.string().min(1).default("127.0.0.1"),
+  /**
+   * Port the Streamable HTTP listener binds (`ABAP_MCP_HTTP_PORT`). `0`
+   * asks the OS for a free port — the bound port is then reported on the
+   * `ready on http://...` banner and via `AbapsmithServer.httpAddress`;
+   * the test suite uses `0` to get an unused port without racing a fixed
+   * one.
+   */
+  mcpHttpPort: z.coerce.number().int().min(0).max(65535).default(3000),
+  /** URL path the Streamable HTTP listener serves MCP on (`ABAP_MCP_HTTP_PATH`); every other path answers 404. */
+  mcpHttpPath: z
+    .string()
+    .default("/mcp")
+    .refine((p) => p.startsWith("/"), 'ABAP_MCP_HTTP_PATH must start with "/"'),
+  /**
+   * Parsed `ABAP_MCP_HTTP_TOKEN` (`parseHttpTokens`, `src/mcp-http-auth.ts`)
+   * — bearer tokens accepted by the Streamable HTTP listener. Populated by
+   * hand before `safeParse`, the same way `sessionCookie`/`clientCert` are.
+   * Token VALUES are as sensitive as `ABAP_PASSWORD` and are never included
+   * in `redactConfigSecrets`; the NAMES are not secret (see that function).
+   */
+  mcpHttpTokens: z.array(z.custom<HttpToken>()).default([]),
+  /**
    * Master switch for the fluid API surface. ON by default — this is why the
    * env var is `ABAP_FLUID_API`, not an `ABAP_ALLOW_*` name: an `ALLOW` name
    * that defaults to on is a contradiction, and it would land the flag in
@@ -820,6 +857,14 @@ export const ConfigSchema = z.object({
   allowFluidPluginMutate: z.boolean().default(false),
   /** Ceiling for a fluid plugin calling a remote-enabled function module. Off by default. */
   allowFluidCallFm: z.boolean().default(false),
+  /**
+   * Ceiling for `core.eval` — running caller-supplied ABAP statements verbatim inside a
+   * generated method body. Off by default, and NOT force-enabled by any `ABAP_MODE`
+   * (see `modeOverrides` below): every other fluid flag widens per mode because it still
+   * only reaches ABAP the manifest/static-review already shaped, but eval's ABAP is
+   * whatever the caller wrote, so the only honest gate is an explicit, separate opt-in.
+   */
+  allowFluidEval: z.boolean().default(false),
 });
 
 export type Config = z.infer<typeof ConfigSchema> & {
@@ -916,6 +961,7 @@ export const RECOGNISED_ABAP_ALLOW_ENV_VARS: readonly string[] = Object.freeze([
   "ABAP_ALLOW_ENHANCEMENTS",
   "ABAP_ALLOW_ENHANCEMENT_DELETE",
   "ABAP_ALLOW_FLUID_CALL_FM",
+  "ABAP_ALLOW_FLUID_EVAL",
   "ABAP_ALLOW_FLUID_PLUGINS",
   "ABAP_ALLOW_FLUID_PLUGIN_MUTATE",
   "ABAP_ALLOW_NAME_PREFIXES",
@@ -990,6 +1036,49 @@ export function loadConfig(opts: LoadConfigOptions = {}): Config {
         `ABAP_TOOL_SURFACE=${toolSurfaceTrimmed} is not a value this server ever accepted. ` +
         "ABAP_TOOL_SURFACE is obsolete — unset it. See doc/DESIGN-NOTES/tool-surface-v2.md.";
     }
+  }
+
+  // ABAP_MCP_TRANSPORT: validated up front, same idiom as ABAP_TOOL_SURFACE
+  // above — a bad value must reach the combined startup error list, not
+  // zod's own (less specific) enum message.
+  const rawMcpTransport = env.ABAP_MCP_TRANSPORT;
+  const mcpTransportTrimmed =
+    rawMcpTransport !== undefined ? rawMcpTransport.trim().toLowerCase() : undefined;
+  let mcpTransportIssue: string | undefined;
+  if (
+    mcpTransportTrimmed !== undefined &&
+    mcpTransportTrimmed !== "" &&
+    mcpTransportTrimmed !== "stdio" &&
+    mcpTransportTrimmed !== "http"
+  ) {
+    mcpTransportIssue = `ABAP_MCP_TRANSPORT must be "stdio" or "http" (got "${rawMcpTransport}").`;
+  }
+  const resolvedMcpTransport =
+    mcpTransportTrimmed !== undefined && mcpTransportTrimmed !== "" ? mcpTransportTrimmed : undefined;
+
+  // ABAP_MCP_HTTP_TOKEN / ABAP_MCP_HTTP_HOST: an http transport bound to
+  // anything other than loopback, with no bearer token configured, hands
+  // this server's full configured SAP access to anyone who can open a TCP
+  // connection to it — refused at startup rather than left as a silent
+  // footgun. Mirrors the resolution the schema itself applies (unset host
+  // falls back to the "127.0.0.1" default) so this check judges the same
+  // host the server will actually bind.
+  const resolvedMcpHttpHost = env.ABAP_MCP_HTTP_HOST ?? "127.0.0.1";
+  const mcpHttpTokensParsed = parseHttpTokens(env.ABAP_MCP_HTTP_TOKEN);
+  let mcpHttpIssue: string | undefined;
+  if (
+    (resolvedMcpTransport ?? "stdio") === "http" &&
+    !isLoopbackHost(resolvedMcpHttpHost) &&
+    mcpHttpTokensParsed.length === 0
+  ) {
+    const userClause = env.ABAP_USER ? env.ABAP_USER : "the technical user";
+    mcpHttpIssue =
+      `ABAP_MCP_TRANSPORT=http would bind ${resolvedMcpHttpHost}, which is not a loopback ` +
+      "address, and ABAP_MCP_HTTP_TOKEN is not set. abapsmith refuses to serve MCP " +
+      "unauthenticated on an address other hosts can reach: anything that can open a TCP " +
+      `connection to it would get this server's full configured SAP access as ${userClause}. ` +
+      "Set ABAP_MCP_HTTP_TOKEN, or bind 127.0.0.1 and terminate TLS and authentication in a " +
+      "reverse proxy in front of it.";
   }
 
   // Writes need an explicit flag AND an allowlist, but the allowlist itself
@@ -1268,6 +1357,7 @@ export function loadConfig(opts: LoadConfigOptions = {}): Config {
   const allowFluidPlugins = boolFromEnv(env.ABAP_ALLOW_FLUID_PLUGINS);
   const allowFluidPluginMutate = boolFromEnv(env.ABAP_ALLOW_FLUID_PLUGIN_MUTATE);
   const allowFluidCallFm = boolFromEnv(env.ABAP_ALLOW_FLUID_CALL_FM);
+  const allowFluidEval = boolFromEnv(env.ABAP_ALLOW_FLUID_EVAL);
 
   // When ABAP_MODE is set it decides WHETHER a category of operation is
   // possible; these six list-/enum-shaped legacy vars, if also explicitly
@@ -1405,6 +1495,9 @@ export function loadConfig(opts: LoadConfigOptions = {}): Config {
     allowFluidPlugins,
     allowFluidPluginMutate,
     allowFluidCallFm,
+    // Deliberately not part of `modeOverrides`/`modeGrants`/`modeBoolOverrides` above — see the
+    // doc comment on `allowFluidEval` in `ConfigSchema`: `ABAP_MODE=admin` must not turn this on.
+    allowFluidEval,
     dataPreviewDenyTables,
     // Bare fields below: each has a zod `.default()`/`.max()` that is the
     // single source of truth, so out-of-range/invalid input reaches the
@@ -1434,6 +1527,11 @@ export function loadConfig(opts: LoadConfigOptions = {}): Config {
     crossProcessObjectLock: env.ABAP_CROSS_PROCESS_OBJECT_LOCK,
     objectLockWaitMs: env.ABAP_OBJECT_LOCK_WAIT_MS,
     startupProbe: env.ABAP_STARTUP_PROBE,
+    mcpTransport: resolvedMcpTransport,
+    mcpHttpHost: env.ABAP_MCP_HTTP_HOST,
+    mcpHttpPort: env.ABAP_MCP_HTTP_PORT,
+    mcpHttpPath: env.ABAP_MCP_HTTP_PATH,
+    mcpHttpTokens: mcpHttpTokensParsed,
     fluidApi: env.ABAP_FLUID_API,
   });
 
@@ -1442,11 +1540,14 @@ export function loadConfig(opts: LoadConfigOptions = {}): Config {
     abapModeIssue !== undefined ||
     enhanceTargetsIssue !== undefined ||
     credentialIssue !== undefined ||
-    toolSurfaceIssue !== undefined
+    toolSurfaceIssue !== undefined ||
+    mcpTransportIssue !== undefined ||
+    mcpHttpIssue !== undefined
   ) {
     // Combined so an invalid ABAP_MODE/ABAP_ENHANCE_TARGETS/credential/
-    // ABAP_TOOL_SURFACE setup reports in the SAME issue list as every other
-    // bad env var, in one startup error.
+    // ABAP_TOOL_SURFACE/ABAP_MCP_TRANSPORT/ABAP_MCP_HTTP_TOKEN setup reports
+    // in the SAME issue list as every other bad env var, in one startup
+    // error.
     const zodIssues = parsed.success
       ? []
       : parsed.error.issues.map((i) => `  - ${i.path.join(".") || "(root)"}: ${i.message}`);
@@ -1457,8 +1558,11 @@ export function loadConfig(opts: LoadConfigOptions = {}): Config {
       credentialIssue !== undefined ? [`  - credential: ${credentialIssue}`] : [];
     const toolSurfaceIssues =
       toolSurfaceIssue !== undefined ? [`  - toolSurface: ${toolSurfaceIssue}`] : [];
+    const mcpTransportIssues =
+      mcpTransportIssue !== undefined ? [`  - mcpTransport: ${mcpTransportIssue}`] : [];
+    const mcpHttpIssues = mcpHttpIssue !== undefined ? [`  - mcpHttpToken: ${mcpHttpIssue}`] : [];
     throw new Error(
-      `Invalid abapsmith configuration:\n${[...zodIssues, ...modeIssues, ...enhanceTargetsIssues, ...credentialIssues, ...toolSurfaceIssues].join("\n")}`,
+      `Invalid abapsmith configuration:\n${[...zodIssues, ...modeIssues, ...enhanceTargetsIssues, ...credentialIssues, ...toolSurfaceIssues, ...mcpTransportIssues, ...mcpHttpIssues].join("\n")}`,
     );
   }
 
@@ -1854,6 +1958,13 @@ export function loadConfig(opts: LoadConfigOptions = {}): Config {
         "Some systems (e.g. the A4H appliance) reject this with an ICF logon-failed page.",
     );
   }
+  if (cfg.mcpHttpTokens.length > 0 && cfg.mcpTransport === "stdio") {
+    warn(
+      "[abapsmith] WARNING: ABAP_MCP_HTTP_TOKEN is set but ignored — ABAP_MCP_TRANSPORT is " +
+        '"stdio", so no HTTP listener is started for it to authenticate. Set ' +
+        "ABAP_MCP_TRANSPORT=http to use it, or unset ABAP_MCP_HTTP_TOKEN.",
+    );
+  }
 
   return cfg;
 }
@@ -2030,6 +2141,7 @@ export function redactConfigSecrets(cfg: Config): Record<string, unknown> {
     allowFluidPlugins: cfg.allowFluidPlugins,
     allowFluidPluginMutate: cfg.allowFluidPluginMutate,
     allowFluidCallFm: cfg.allowFluidCallFm,
+    allowFluidEval: cfg.allowFluidEval,
     originSystems: cfg.originSystems,
     maxResponseChars: cfg.maxResponseChars,
     stateDir: cfg.stateDir,
@@ -2054,5 +2166,16 @@ export function redactConfigSecrets(cfg: Config): Record<string, unknown> {
     maxDdicActivationBatch: cfg.maxDdicActivationBatch,
     maxSafeActivationBatch: cfg.maxSafeActivationBatch,
     startupProbe: cfg.startupProbe,
+    mcpTransport: cfg.mcpTransport,
+    mcpHttpHost: cfg.mcpHttpHost,
+    mcpHttpPort: cfg.mcpHttpPort,
+    mcpHttpPath: cfg.mcpHttpPath,
+    // Token VALUES are credentials and never appear here. The NAMES are not:
+    // they are what the journal records as `actor`, so an operator has to be
+    // able to see which ones this process accepts.
+    mcpHttpTokens:
+      cfg.mcpHttpTokens.length === 0
+        ? "(not set)"
+        : { count: cfg.mcpHttpTokens.length, names: cfg.mcpHttpTokens.map((t) => t.name ?? "(unnamed)") },
   };
 }

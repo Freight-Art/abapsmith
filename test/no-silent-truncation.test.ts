@@ -392,6 +392,24 @@ const ALLOWED_LINES: { file: string; contains: string; reason: string }[] = [
     reason:
       "renderRead's tree branch caps the abap_trace call-tree rows to 'top'. 'top' is caller-supplied — it defaults to 20 and is capped at 100 by resolveTop in src/adt/traces-query.ts — so the caller controls the size of this cut, and it is disclosed anyway: when flattened.length exceeds top, renderRead pushes a note reading `showing top <shown> of <total> call-tree entries at depth <= <depth> (...)` into buildResponse's notes. The SECOND cut in this same branch — filtering statements to callLevel <= depth before the slice — is a separate concern and is disclosed by its own separate note (added alongside this entry) whenever stmt.statements.length exceeds flattened.length, naming the depth and both counts. Neither cut is silent.",
   },
+  {
+    file: "src/adt/call-graph.ts",
+    contains: "children.slice(0, max)",
+    reason:
+      "Per-node fan-in cap for abap_search mode=call_graph (issue #105). The complement is counted eight lines below and rendered as a `--- TRUNCATED --- <omitted> of <total> caller(s) of <node> not shown (max=<max>).` line under the node, and the total is added to stats.truncatedNodes for the response header, so the cap is disclosed in the tree itself; it sits outside the MARKER_WINDOW only because the recursive expansion of the shown children stands between the slice and the marker.",
+  },
+  {
+    file: "src/adt/call-graph.ts",
+    contains: "entries.slice(0, max)",
+    reason:
+      "Per-node fan-out cap for direction=callees (issue #105). Same shape as the callers cap above: the omitted count is rendered as a `--- TRUNCATED ---` line under the node and counted in stats.truncatedNodes; the recursion over the shown entries is what pushes the marker past the MARKER_WINDOW.",
+  },
+  {
+    file: "src/adt/cds-lineage.ts",
+    contains: "flat.slice(0, max - 1)",
+    reason:
+      "abbreviate(): an ON-condition / association blurb printed next to a lineage tree node is cut at ~80 characters and ALWAYS suffixed with `…` in the same string, so the cut is visible where it happens; the full condition is the CDS source itself, readable in full via abap_read of the DDLS. Nothing structural (no node, no field, no row) is dropped.",
+  },
 ];
 
 function allowedReason(relPath: string, line: string): string | undefined {

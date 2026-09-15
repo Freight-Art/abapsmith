@@ -77,6 +77,36 @@ import {
   type FluidDescribePayload,
   type FluidDescribeTool,
 } from "../adt/fluid/describe.js";
+import { CORE_EVAL_ACTION, CORE_TOOL_ID } from "../adt/fluid/builtin/core.js";
+
+/**
+ * Hides `core.eval` from whatever a `FluidToolSet` renders (`describe.ts` — never edited here,
+ * see its `arity-frozen` note at `test/fluid-describe.test.ts:333`) whenever
+ * `ABAP_ALLOW_FLUID_EVAL` is off. `eval` stays in `coreManifest.actions` permanently (see
+ * `builtin/core.ts`) because `manifestVersion` never hashes `actions`, so a flag flip must not
+ * force a redeploy — this function is the catalogue-side complement of that: the action always
+ * exists and `dispatch()`/`guardCoreAction` always refuse it correctly when the flag is off, but
+ * a model reading the catalogue with the flag off should not see a route it cannot take.
+ *
+ * Shallow and non-mutating: never touches `coreManifest` itself, builds a new `Map`/tool/manifest
+ * instead, so a caller holding the original `toolSet` (e.g. `dispatch()`) is unaffected.
+ */
+export function catalogueToolSet(toolSet: FluidToolSet, cfg: Config): FluidToolSet {
+  if (cfg.allowFluidEval) return toolSet;
+
+  const core = toolSet.tools.get(CORE_TOOL_ID);
+  if (!core || !core.manifest.actions.some((a) => a.name === CORE_EVAL_ACTION)) return toolSet;
+
+  const tools = new Map(toolSet.tools);
+  tools.set(CORE_TOOL_ID, {
+    ...core,
+    manifest: {
+      ...core.manifest,
+      actions: core.manifest.actions.filter((a) => a.name !== CORE_EVAL_ACTION),
+    },
+  });
+  return { ...toolSet, tools };
+}
 
 // ------------------------------------------------------------------ schema ---
 
@@ -284,7 +314,7 @@ function refusedSection(toolSet: FluidToolSet): Array<{ title: string; content: 
  * REFUSED PLUGINS table, same as `renderList`.
  */
 function renderInfoBlock(deps: FluidToolDeps): string {
-  const info = buildFluidInfoBlock(deps);
+  const info = buildFluidInfoBlock({ ...deps, toolSet: catalogueToolSet(deps.toolSet, deps.cfg) });
   const rows = info.tools.map((t) => ({
     id: t.id,
     origin: t.origin,
@@ -1060,7 +1090,10 @@ export function builtinFluidToolSet(builtins: readonly FluidBuiltinSource[]): Fl
 
 /** Registers `abap_fluid`. The caller decides whether this runs at all — see `server.ts`. */
 export function registerFluidTool(mcp: McpServer, deps: FluidToolDeps): void {
-  const description = buildFluidDescription(deps.toolSet);
+  const description =
+    buildFluidDescription(catalogueToolSet(deps.toolSet, deps.cfg)) +
+    "\ncore.eval runs model-authored ABAP under ABAP_ALLOW_FLUID_EVAL: a lint-not-sandbox " +
+    "control whose real boundary is the SAP user's authorisations.";
   mcp.registerTool(
     "abap_fluid",
     {
@@ -1092,7 +1125,13 @@ export function registerFluidTool(mcp: McpServer, deps: FluidToolDeps): void {
             requireFluidEnabled(deps, { op, tool: a.tool });
             const toolId = a.tool ? a.tool : undefined;
             if (toolId !== undefined) mustGetTool(deps.toolSet, toolId);
-            return ok(renderDescribe(deps, buildFluidDescribe(deps.toolSet, toolId), toolId));
+            return ok(
+              renderDescribe(
+                deps,
+                buildFluidDescribe(catalogueToolSet(deps.toolSet, deps.cfg), toolId),
+                toolId,
+              ),
+            );
           }
           case "status":
             requireFluidEnabled(deps, { op });

@@ -116,6 +116,22 @@ former, or `CALL FUNCTION` in any form without the latter. See
 [CONFIGURATION/permissions-and-allowlists.md](../CONFIGURATION/permissions-and-allowlists.md)
 for what each permits.
 
+A fourth flag in the same family, `ABAP_ALLOW_FLUID_EVAL`, gates the
+built-in `core.eval` fluid action — running a caller-supplied ABAP snippet
+as the body of one generated method. It is off by default, and unlike
+every mode-scoped capability elsewhere on this page, no `ABAP_MODE` value
+turns it on, not even `admin`; it is independent of
+`ABAP_ALLOW_FLUID_PLUGINS` and `ABAP_ALLOW_FLUID_PLUGIN_MUTATE`. Every call
+still needs its own `confirm: "core.eval"` echo — there is no
+once-per-session memory — and the supplied lines still go through the
+static review and capability scan on every call, the same as a plugin's
+source at load time. This is a lint-not-sandbox control: the static
+review and the capability scan reject a handful of named statements; they
+do not confine the code. The real boundary is the SAP user's
+authorisations, and `ABAP_ALLOW_FLUID_EVAL` is consent to run
+model-authored code inside that boundary, nothing narrower. See
+[FLUID-API/safety.md](../FLUID-API/safety.md) for the full ordering.
+
 ## The fluid API and read-only
 
 A read-only session disables the fluid API completely: every `abap_fluid` op

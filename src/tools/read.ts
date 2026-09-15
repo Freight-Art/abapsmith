@@ -77,6 +77,8 @@ import {
   type ResponseParts,
 } from "../compact.js";
 import { canonicalEtag } from "../adt/write.js";
+import { buildLineage, LINEAGE_DEFAULT_DEPTH, LINEAGE_MAX_DEPTH, renderLineage } from "../adt/cds-lineage.js";
+import { buildFootprint, FOOTPRINT_TYPES, renderFootprint } from "../adt/footprint.js";
 import type { SessionPool } from "../adt/pool.js";
 import type { Config } from "../config.js";
 import type { SafetyGate } from "../safety.js";
@@ -155,10 +157,11 @@ export const readInputSchema = {
   // than silently falling through to an ordinary source read. Named `view`,
   // not `mode` — `mode` is already a response header key and `ResolvedObject.mode`.
   view: z
-    .enum(["history", "diff", "definition", "docu", "digest"])
+    .enum(["history", "diff", "definition", "lineage", "footprint", "docu", "digest"])
     .optional()
     .describe(
-      "history: versions. diff: hunks. definition: element at line/column. docu: SAP documentation " +
+      "history: versions. diff: hunks. definition: element at line/column. lineage: CDS view sources " +
+        "down to base tables. footprint: database writes and commits. docu: SAP documentation " +
         '(flattened ITF; type="SIMG" + object=<abap_img activity id> for an IMG activity\'s docu). ' +
         "digest: one-page object overview. Omit for normal read.",
     ),
@@ -195,13 +198,26 @@ export const readInputSchema = {
     .array(z.string())
     .optional()
     .describe('DEVC/K only: filter package contents to these kind codes, e.g. ["CLAS","DDLS"].'),
+  field: z.string().optional().describe('view="lineage" only: trace one field back to its base columns.'),
+  // The upper bound used to live in this schema as `.max(3)`, back when DEVC/K
+  // was the only consumer of `depth`. Now two unrelated things share the
+  // parameter — a DEVC/K package listing (max 3) and view="lineage" (max
+  // LINEAGE_MAX_DEPTH, 10) — and zod has no way to make the max conditional
+  // on another field, so the bound moved from the schema into code: each
+  // consumer refuses a value above ITS OWN maximum, naming that maximum, via
+  // AbapError("BAD_INPUT", …) rather than a zod validation error (G-08:
+  // refused, never silently clamped). See the DEVC/K check in `abapRead` and
+  // the lineage check in `readLineage` below — both still refuse out-of-range
+  // input, just with a structured error instead of a schema rejection.
   depth: z
     .number()
     .int()
     .min(1)
-    .max(3)
     .optional()
-    .describe("DEVC/K only: subpackage nesting depth to list. Default 1."),
+    .describe(
+      'DEVC/K: subpackage nesting depth, default 1, max 3. view="lineage": levels of underlying views, ' +
+        "default 5, max 10.",
+    ),
 };
 
 export const ReadInput = z.object(readInputSchema);
@@ -765,6 +781,20 @@ const CORE_TOOLS: ReadonlyMap<string, LoadedFluidTool> = new Map([[CORE_TOOL_ID,
 const DIFF_MAX_HUNKS = 200;
 
 /**
+ * DEVC/K's own maximum for `depth` — used to live as zod's `.max(3)` on the
+ * shared `depth` schema field; moved into code because `depth` now also
+ * bounds view="lineage" (max `LINEAGE_MAX_DEPTH`, imported from
+ * `../adt/cds-lineage.js`), a different maximum for a different consumer.
+ * `src/adt/ddic.ts` enforces the identical bound independently as
+ * `MAX_PACKAGE_DEPTH` (not exported) once `readDdic` actually walks the
+ * package tree; this constant is read.ts's OWN copy, checked before that
+ * call, so the parameter-boundary refusal for this file's callers lives in
+ * this file rather than one call deep in an adt module. Keep the two values
+ * in sync if either changes.
+ */
+const DEVC_MAX_DEPTH = 3;
+
+/**
  * Rejects parameter combinations that `view` cannot honour, rather than
  * answering a different question than the one asked. Same rule as the `version`
  * and `format` refusals below (G-08): never silently normalise.
@@ -781,13 +811,18 @@ function assertViewCompatible(input: ReadInput, obj: ResolvedObject): void {
   // "definition" sits on a different axis from "history"/"diff" (position in
   // the CURRENT source vs. a version feed), so most of the clashes below
   // need one message for the version-feed views and a different, honest one
-  // for definition — never the same wording stretched to cover both. "docu"
+  // for definition — never the same wording stretched to cover both.
+  // "lineage" and "footprint" are two MORE axes again (a tree over OTHER
+  // objects; a whole-object write scan), each needing its own honest reason
+  // rather than inheriting the history/diff or definition wording. "docu"
   // and "digest" are two further axes again (a documentation object has no
   // version feed, no position axis and no XML descriptor; a digest is a
   // fixed six-section overview, not a source read), so each of those needs
   // its own wording too — never the same sentence stretched to cover all
-  // four.
+  // of them.
   const isDefinition = input.view === "definition";
+  const isLineage = input.view === "lineage";
+  const isFootprint = input.view === "footprint";
   const isDocu = input.view === "docu";
   const isDigest = input.view === "digest";
 
@@ -797,18 +832,27 @@ function assertViewCompatible(input: ReadInput, obj: ResolvedObject): void {
       isDefinition
         ? "raw returns the XML descriptor of a properties-shape type; there is no source text to " +
           "resolve a line/column position in."
-        : isDocu
-          ? "docu reads SAP's own documentation store (DOKHL/DOKTL), not this object's own wire " +
-            "document — there is no XML descriptor of a documentation object to return."
-          : isDigest
-            ? "a digest is a rendered six-section overview built from several separate reads, not " +
-              "this object's own current XML descriptor."
-            : "raw returns the current XML descriptor, which has no version feed behind it.",
+        : isLineage
+          ? "raw returns the current XML descriptor of ONE object; lineage renders a dependency tree " +
+            "parsed from CDS DDL source text across many objects — there is no single XML descriptor " +
+            "that answers it."
+          : isFootprint
+            ? "raw returns the current XML descriptor of ONE object; footprint renders a scan of ABAP " +
+              "source text for write statements — there is no XML descriptor that answers it."
+            : isDocu
+              ? "docu reads SAP's own documentation store (DOKHL/DOKTL), not this object's own wire " +
+                "document — there is no XML descriptor of a documentation object to return."
+              : isDigest
+                ? "a digest is a rendered six-section overview built from several separate reads, not " +
+                  "this object's own current XML descriptor."
+                : "raw returns the current XML descriptor, which has no version feed behind it.",
       isDefinition
         ? "Drop format — a definition lookup only makes sense against source text."
-        : isDocu || isDigest
-          ? "Drop format, or drop view."
-          : "Drop one of the two: view for history/diff, format for the current wire document.",
+        : isLineage || isFootprint
+          ? `Drop format — view="${input.view}" produces its own rendering, not the wire document.`
+          : isDocu || isDigest
+            ? "Drop format, or drop view."
+            : "Drop one of the two: view for history/diff, format for the current wire document.",
     );
   }
   if (input.enhancements) {
@@ -817,13 +861,19 @@ function assertViewCompatible(input: ReadInput, obj: ResolvedObject): void {
       isDefinition
         ? "the enhancement decoders read a structured ENHO/ENHS document, not the source text a " +
           "position lookup resolves against."
-        : isDocu
-          ? "the enhancement decoders read an ENHO/ENHS document; docu reads the DOKHL/DOKTL " +
-            "documentation store instead — the two never apply to the same request."
-          : isDigest
-            ? "the enhancement decoders read an ENHO/ENHS document; a digest summarises an ordinary " +
-              "repository object instead — the two never apply to the same request."
-            : "the enhancement decoders read the current definition only.",
+        : isLineage
+          ? "the enhancement decoders read a structured ENHO/ENHS document; lineage reads CDS DDL " +
+            "source, a different document entirely."
+          : isFootprint
+            ? "the enhancement decoders read a structured ENHO/ENHS document; footprint scans ABAP " +
+              "source for writes, not an enhancement document."
+            : isDocu
+              ? "the enhancement decoders read an ENHO/ENHS document; docu reads the DOKHL/DOKTL " +
+                "documentation store instead — the two never apply to the same request."
+              : isDigest
+                ? "the enhancement decoders read an ENHO/ENHS document; a digest summarises an " +
+                  "ordinary repository object instead — the two never apply to the same request."
+                : "the enhancement decoders read the current definition only.",
       "Drop enhancements, or drop view.",
     );
   }
@@ -839,20 +889,28 @@ function assertViewCompatible(input: ReadInput, obj: ResolvedObject): void {
         ? "the elementinfo and navigation-target POSTs always carry the source abap_read itself " +
           "read; asking about the inactive version while posting the active source would answer a " +
           "question about a version that was never sent."
-        : isDocu
-          ? "SAP's documentation store (DOKHL/DOKTL) is not version-controlled the way ABAP source " +
-            "is — there is no active/inactive pair to select between."
-          : isDigest
-            ? "a digest always summarises the CURRENT active state (falling back to the newest " +
-              "inactive version only the way an ordinary read would); the active/inactive selector " +
-              "is not a thing a fixed overview can apply per section."
-            : 'the active/inactive pair is a different axis from the version FEED; "inactive" is not a ' +
-              "feed entry and has no history row.",
+        : isLineage
+          ? "lineage always walks the ACTIVE source of the view and everything it references — " +
+            "there is no per-node way to ask for an inactive version across a whole dependency tree."
+          : isFootprint
+            ? "footprint always scans the ACTIVE source of every include it finds — there is no " +
+              "per-include way to ask for an inactive version across a whole-object scan."
+            : isDocu
+              ? "SAP's documentation store (DOKHL/DOKTL) is not version-controlled the way ABAP " +
+                "source is — there is no active/inactive pair to select between."
+              : isDigest
+                ? "a digest always summarises the CURRENT active state (falling back to the newest " +
+                  "inactive version only the way an ordinary read would); the active/inactive " +
+                  "selector is not a thing a fixed overview can apply per section."
+                : 'the active/inactive pair is a different axis from the version FEED; "inactive" is ' +
+                  "not a feed entry and has no history row.",
       isDefinition
         ? "Activate the object first and read the active source, or drop version."
-        : isDocu || isDigest
-          ? "Drop version."
-          : 'Use from/to to name feed versions (list them with view="history").',
+        : isLineage || isFootprint
+          ? `Drop version — view="${input.view}" always reads the current active source.`
+          : isDocu || isDigest
+            ? "Drop version."
+            : 'Use from/to to name feed versions (list them with view="history").',
     );
   }
   if (input.outline) {
@@ -861,14 +919,24 @@ function assertViewCompatible(input: ReadInput, obj: ResolvedObject): void {
       isDefinition
         ? "outline lists the whole component structure, not source text — there is no line/column " +
           "position in a component list to resolve."
-        : isDocu
-          ? "outline lists the component structure of a CLASS or INTERFACE object; docu reads a " +
-            "documentation object, which has no component structure of its own."
-          : isDigest
-            ? "a digest already includes its own PUBLIC API section, built the same way outline=true " +
-              "is — asking for outline=true too would run that pass twice for no new information."
-            : "the outline lists the CURRENT component structure; ADT serves no per-version outline.",
-      isDocu || isDigest ? "Drop outline." : 'Read the outline separately, without view.',
+        : isLineage
+          ? "outline lists ONE object's own component structure; lineage's output is a dependency " +
+            "tree over OTHER objects, not a component list of this one."
+          : isFootprint
+            ? "outline lists ONE object's own component structure; footprint's output is a scan of " +
+              "write statements across all of this object's includes, not a component list."
+            : isDocu
+              ? "outline lists the component structure of a CLASS or INTERFACE object; docu reads a " +
+                "documentation object, which has no component structure of its own."
+              : isDigest
+                ? "a digest already includes its own PUBLIC API section, built the same way outline=true " +
+                  "is — asking for outline=true too would run that pass twice for no new information."
+                : "the outline lists the CURRENT component structure; ADT serves no per-version outline.",
+      isLineage || isFootprint
+        ? `Drop outline, or omit view to see ${obj.type} ${obj.name}'s own outline.`
+        : isDocu || isDigest
+          ? "Drop outline."
+          : "Read the outline separately, without view.",
     );
   }
   // `method` is the one param docu ACCEPTS: for a CLAS target it selects
@@ -882,18 +950,29 @@ function assertViewCompatible(input: ReadInput, obj: ResolvedObject): void {
           "a line/column that identifies a position in the FULL source would silently land on " +
           "whatever happens to sit at that line number inside the renumbered excerpt instead of the " +
           "position you meant."
-        : isDigest
-          ? "a digest is a fixed six-section overview of the object as a whole; narrowing it to one " +
-            "method would answer a smaller, different question than the digest is for — the PUBLIC " +
-            "API section already lists every public method."
-          : "ADT versions whole objects (or whole class includes), not individual methods, so there is " +
-            "no per-method feed to read or diff.",
+        : isLineage
+          ? "a CDS view's DDL source has no components to slice — lineage traces data sources and " +
+            "associations across the whole definition, not one method."
+          : isFootprint
+            ? "footprint scans ALL of the object's includes/components together by design — " +
+              "selecting one method would only hide writes reachable from the others, defeating the " +
+              "point of a whole-object write scan."
+            : isDigest
+              ? "a digest is a fixed six-section overview of the object as a whole; narrowing it to one " +
+                "method would answer a smaller, different question than the digest is for — the PUBLIC " +
+                "API section already lists every public method."
+              : "ADT versions whole objects (or whole class includes), not individual methods, so there " +
+                "is no per-method feed to read or diff.",
       isDefinition
         ? "Drop method and read the definition against the full source (optionally with include)."
-        : isDigest
-          ? "Drop method — read that one method directly without view, or find it in the digest's " +
-            "PUBLIC API section."
-          : "Drop method — the diff hunks already carry line numbers you can map back to a method.",
+        : isLineage
+          ? "Drop method."
+          : isFootprint
+            ? "Drop method — footprint's output already labels which include each occurrence is in."
+            : isDigest
+              ? "Drop method — read that one method directly without view, or find it in the digest's " +
+                "PUBLIC API section."
+              : "Drop method — the diff hunks already carry line numbers you can map back to a method.",
     );
   }
   // `include` selects a class's documented section (main/definitions/…);
@@ -920,6 +999,19 @@ function assertViewCompatible(input: ReadInput, obj: ResolvedObject): void {
       `include="${input.include}"`,
       `only a class has includes, and ${obj.type} ${obj.name} is not one.`,
       "Drop include.",
+    );
+  }
+  // footprint is the one new view that CAN target a class (CLAS/OC is in
+  // FOOTPRINT_TYPES), so the generic "only a class has includes" check above
+  // does not catch it — footprint needs its own, view-specific reason: it
+  // scans every include by design, so naming one contradicts the view.
+  if (input.include && isFootprint) {
+    clash(
+      `include="${input.include}"`,
+      "footprint scans ALL of the object's includes/sections by design — a write reachable only " +
+        "from testclasses, or from a class's implementations section, must not go unseen. " +
+        "Selecting one include would contradict that.",
+      "Drop include — footprint's output already labels which include each occurrence is in.",
     );
   }
   if (input.include && obj.include && input.include !== obj.include) {
@@ -981,7 +1073,11 @@ function assertViewCompatible(input: ReadInput, obj: ResolvedObject): void {
       }
     }
   }
-  if (input.view === "history" || input.view === "diff" || isDocu || isDigest) {
+  // line/column are meaningful for view="definition" ONLY — every other
+  // view (history/diff, lineage/footprint, docu/digest) is refused here,
+  // each with its own honest reason rather than the history/diff wording
+  // stretched to cover a tree, a whole-object scan or an overview too.
+  if (!isDefinition) {
     for (const [param, value] of [
       ["line", input.line],
       ["column", input.column],
@@ -989,18 +1085,83 @@ function assertViewCompatible(input: ReadInput, obj: ResolvedObject): void {
       if (value !== undefined) {
         clash(
           param,
-          isDocu
-            ? "it selects a position in ABAP source; docu returns flattened documentation text, " +
-              "which has no line/column axis of its own to resolve a position in."
-            : isDigest
-              ? "it selects a position in ABAP source; a digest is a fixed six-section overview, not " +
-                "a position lookup."
-              : "it selects a position in the CURRENT source; history and diff are about versions, not " +
-                "positions.",
+          isLineage
+            ? "it selects a position in ONE object's CURRENT source; lineage's output is a tree " +
+              "across MANY objects, so there is no single source position for it to mean."
+            : isFootprint
+              ? "it selects a position in ONE object's CURRENT source; footprint's output is a scan " +
+                "across ALL of the object's includes, not a position within one of them."
+              : isDocu
+                ? "it selects a position in ABAP source; docu returns flattened documentation text, " +
+                  "which has no line/column axis of its own to resolve a position in."
+                : isDigest
+                  ? "it selects a position in ABAP source; a digest is a fixed six-section overview, not " +
+                    "a position lookup."
+                  : "it selects a position in the CURRENT source; history and diff are about versions, " +
+                    "not positions.",
           'Use view="definition" for a position lookup, or drop it.',
         );
       }
     }
+  }
+  // types filters a DEVC/K package listing only; lineage/footprint never
+  // read a package, so it has nothing to filter — refuse it rather than
+  // silently discard it (the from/to/context loops above do the same for
+  // history/definition; types was never guarded here at all before lineage/
+  // footprint existed, since DEVC/K never reaches assertViewCompatible —
+  // DEVC/K reads have no `view`).
+  if (input.types !== undefined && (isLineage || isFootprint)) {
+    clash(
+      "types",
+      `types filters a DEVC/K package listing to certain kind codes; view="${input.view}" is not a ` +
+        "package read.",
+      "Drop types.",
+    );
+  }
+  // Neither new view pages its body by line: lineage's tree (or field
+  // chain) is bounded by depth/nodeBudget, and footprint's occurrence list
+  // is grouped by table — offset/limit would have nothing to window into,
+  // so they are refused rather than silently ignored.
+  if (isLineage || isFootprint) {
+    for (const [param, value] of [
+      ["offset", input.offset],
+      ["limit", input.limit],
+    ] as const) {
+      if (value !== undefined) {
+        clash(
+          param,
+          isLineage
+            ? "lineage's tree (or field chain, with field=) is bounded by depth/nodeBudget, not " +
+              "paged by line — there is no line-numbered body for offset/limit to window into."
+            : "footprint's occurrence list is grouped by table, not paged by line — there is no " +
+              "line-numbered body for offset/limit to window into.",
+          isLineage ? `Drop ${param} — narrow the walk with depth instead.` : `Drop ${param}.`,
+        );
+      }
+    }
+  }
+  // field only means something for view="lineage" (it selects which field
+  // to trace instead of rendering the whole tree) — refuse it for every
+  // other view rather than silently ignoring it.
+  if (input.field !== undefined && !isLineage) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `field is only meaningful with view="lineage"; view="${input.view}" doesn't use it.`,
+      { type: obj.type, name: obj.name, view: input.view, param: "field" },
+      'Drop field, or use view="lineage".',
+    );
+  }
+  // depth means something for view="lineage" (bounds the walk) and for a
+  // DEVC/K package listing (which has no `view` at all) — refuse it for
+  // every other view that reaches this function.
+  if (input.depth !== undefined && !isLineage) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `depth is only meaningful with view="lineage", or with a DEVC/K package read (no view); ` +
+        `view="${input.view}" doesn't use it.`,
+      { type: obj.type, name: obj.name, view: input.view, param: "depth" },
+      `Drop depth, or use view="lineage" to bound the lineage walk.`,
+    );
   }
   if (isDefinition && input.line === undefined) {
     throw new AbapError(
@@ -1304,6 +1465,84 @@ async function readDiff(
       'List the versions with view="history".',
     ],
     pagingParam: "offset",
+    maxChars,
+  });
+  return { ...built, etag: NO_ETAG };
+}
+
+/** `view="lineage"` — trace a CDS view's data sources down to base tables (issue #106). */
+async function readLineage(
+  conn: AbapConnection,
+  obj: ResolvedObject,
+  baseHeader: Record<string, string | number | undefined>,
+  input: ReadInput,
+  maxChars: number,
+): Promise<BuiltResponse & { etag: string }> {
+  if (obj.type !== "DDLS/DF") {
+    throw new AbapError(
+      "UNSUPPORTED",
+      `view="lineage" only traces CDS source (DDLS/DF) — ${obj.type} ${obj.name} is not a CDS view.`,
+      { type: obj.type, name: obj.name },
+      "Point it at a DDLS/DF object, or drop view to read this object directly.",
+    );
+  }
+  if (input.depth !== undefined && input.depth > LINEAGE_MAX_DEPTH) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `depth=${input.depth} exceeds the maximum for view="lineage" (${LINEAGE_MAX_DEPTH}); refused, not clamped.`,
+      { type: obj.type, name: obj.name, depth: input.depth, max: LINEAGE_MAX_DEPTH },
+      `Use depth between 1 and ${LINEAGE_MAX_DEPTH}, or omit it for the default (${LINEAGE_DEFAULT_DEPTH}).`,
+    );
+  }
+
+  const result = await buildLineage(conn, obj, { depth: input.depth, field: input.field });
+  const rendered = renderLineage(result, { field: input.field });
+
+  const built = buildReadResponse({
+    header: {
+      ...baseHeader,
+      ...rendered.header,
+      view: "lineage",
+    },
+    body: rendered.body,
+    bodyLabel: "LINEAGE",
+    notes: [...rendered.notes],
+    hints: [...rendered.hints],
+    maxChars,
+  });
+  return { ...built, etag: NO_ETAG };
+}
+
+/** `view="footprint"` — static scan of an object's database writes and commits (issue #107). */
+async function readFootprint(
+  conn: AbapConnection,
+  obj: ResolvedObject,
+  baseHeader: Record<string, string | number | undefined>,
+  input: ReadInput,
+  maxChars: number,
+): Promise<BuiltResponse & { etag: string }> {
+  if (!(FOOTPRINT_TYPES as readonly string[]).includes(obj.type)) {
+    throw new AbapError(
+      "UNSUPPORTED",
+      `view="footprint" supports ${FOOTPRINT_TYPES.join(", ")} — ${obj.type} ${obj.name} is not one of them.`,
+      { type: obj.type, name: obj.name, supported: [...FOOTPRINT_TYPES] },
+      "Read the object directly instead of asking for its write footprint.",
+    );
+  }
+
+  const result = await buildFootprint(conn, obj);
+  const rendered = renderFootprint(result);
+
+  const built = buildReadResponse({
+    header: {
+      ...baseHeader,
+      ...rendered.header,
+      view: "footprint",
+    },
+    body: rendered.body,
+    bodyLabel: "DATABASE FOOTPRINT",
+    notes: rendered.notes,
+    hints: rendered.hints,
     maxChars,
   });
   return { ...built, etag: NO_ETAG };
@@ -2169,6 +2408,7 @@ const CATALOG_READ_IRRELEVANT_PARAMS = [
   "types",
   "depth",
   "format",
+  "field",
 ] as const;
 
 /**
@@ -2358,6 +2598,8 @@ export async function abapRead(
     assertViewCompatible(input, obj);
     if (input.view === "history") return await readHistory(conn, obj, baseHeader, input, maxChars);
     if (input.view === "diff") return await readDiff(conn, obj, baseHeader, input, maxChars);
+    if (input.view === "lineage") return await readLineage(conn, obj, baseHeader, input, maxChars);
+    if (input.view === "footprint") return await readFootprint(conn, obj, baseHeader, input, maxChars);
     // gate may be undefined here: readDocu's method= branch needs none, and
     // checks that for itself before the object-based branch (the one that
     // does need it) calls requireDocuGate.
@@ -2401,6 +2643,18 @@ export async function abapRead(
         `Add view="definition", or drop ${param}.`,
       );
     }
+  }
+  // field only parameterises `view="lineage"` — same shape as the
+  // line/column loop above, kept separate because the message names a
+  // different view.
+  if (input.field !== undefined) {
+    throw new AbapError(
+      "BAD_INPUT",
+      'field is only meaningful with view="lineage"; no view was requested, so this would have ' +
+        "been an ordinary source read with your parameter discarded.",
+      { type: obj.type, name: obj.name, param: "field" },
+      'Add view="lineage", or drop field.',
+    );
   }
   // types/depth only parameterise a DEVC/K package listing; silently
   // discarding them against any other type would be the same G-08 failure
@@ -2529,6 +2783,22 @@ export async function abapRead(
           "DDIC reads (TABL, DTEL, DOMA, TTYP) always render the current definition.",
         { type: obj.type, name: obj.name, requested: input.version },
         'Omit version for DDIC objects. Omitting it and passing version="active" return the same bytes.',
+      );
+    }
+    // depth for DEVC/K used to be bounded by zod's `.max(3)` on the schema
+    // (see the `depth` schema comment above) — that bound moved into code
+    // because view="lineage" now shares this parameter with a different
+    // maximum. This is the one place read.ts calls readDdic for a package
+    // listing, so it is the one place that has to re-assert DEVC/K's own
+    // bound: refused, never silently clamped (G-08). The earlier
+    // types/depth loop already guarantees obj.type === "DEVC/K" here
+    // whenever input.depth is set.
+    if (obj.type === "DEVC/K" && input.depth !== undefined && input.depth > DEVC_MAX_DEPTH) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `depth=${input.depth} exceeds the maximum for DEVC/K (${DEVC_MAX_DEPTH}); refused, not clamped.`,
+        { type: obj.type, name: obj.name, depth: input.depth, max: DEVC_MAX_DEPTH },
+        `Use depth between 1 and ${DEVC_MAX_DEPTH}.`,
       );
     }
     let rendered: Awaited<ReturnType<typeof readDdic>>;

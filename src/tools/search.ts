@@ -1,7 +1,8 @@
 /**
- * `abap_search` — three modes over one input schema.
+ * `abap_search` — four modes over one input schema.
  *  - `objects` (default): name-pattern search over the repository.
  *  - `where_used`: static usage references for one object.
+ *  - `call_graph`: multi-level callers/callees tree rooted at one object.
  *  - `source`: line-wise source-text scan over a package/name scope, run
  *    through the fluid `scan` tool (`ZCL_ZMCP_FLUID_SCAN`,
  *    `src/adt/fluid/builtin/scan.ts`) — there is no ADT endpoint for this, so
@@ -14,6 +15,8 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { AbapConnection } from "../adt/connection.js";
 import { AbapError } from "../adt/errors.js";
 import { resolveObject } from "../adt/resolve.js";
+import { fetchUsageReferences, HIGH_FAN_IN_REFERENCES, SLOW_FETCH_MS } from "../adt/element-info.js";
+import { buildCallGraph } from "../adt/call-graph.js";
 import { repairSearchDescriptions } from "../adt/search-descriptions.js";
 import { buildResponse, textTable, type BuiltResponse } from "../compact.js";
 import { specForKeyword, specForType, specFromUri, TYPES } from "../adt/types.js";
@@ -84,18 +87,20 @@ function assertKnownType(type: string): void {
 export const searchInputSchema = {
   query: z
     .string()
-    .describe("Name pattern (mode=objects), target object (mode=where_used), or literal/regex text (mode=source)."),
+    .describe(
+      "Name pattern (mode=objects), target object (mode=where_used/call_graph), or literal/regex text (mode=source).",
+    ),
   mode: z
-    .enum(["objects", "where_used", "source"])
+    .enum(["objects", "where_used", "source", "call_graph"])
     .optional()
     .describe(
-      'Default "objects". "source" scans raw source text (literal/regex, any line) and needs the fluid API; prefer "where_used" when you want real static references to one object, since a text scan also matches strings, comments and dead code.',
+      'Default "objects". "source" scans raw source text (literal/regex, any line) and needs the fluid API; prefer "where_used" when you want real static references to one object, since a text scan also matches strings, comments and dead code. "call_graph" walks multiple levels of callers or callees instead of just one.',
     ),
   type: z
     .string()
     .optional()
     .describe(
-      `ADT type filter (mode=objects/where_used only). One of: ${[...KNOWN_TYPE_GROUPS].sort().join(" ")}; ` +
+      `ADT type filter (mode=objects/where_used/call_graph only). One of: ${[...KNOWN_TYPE_GROUPS].sort().join(" ")}; ` +
         `or a full code, e.g. "CLAS/OC".`,
     ),
   max: z
@@ -105,9 +110,19 @@ export const searchInputSchema = {
     .max(200)
     .optional()
     .describe(
-      "Default 50 rows (mode=objects/where_used) or 100 hits (mode=source); narrowing `query` " +
-        "(not lowering `max`) is what makes a broad call cheaper.",
+      "Default 50 rows (mode=objects/where_used), 100 hits (mode=source), or 50 children per node " +
+        "(mode=call_graph); narrowing `query` (not lowering `max`) is what makes a broad call cheaper.",
     ),
+  direction: z
+    .enum(["callers", "callees"])
+    .optional()
+    .describe('mode=call_graph: "callers" (who calls this, default) or "callees" (what this calls).'),
+  depth: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe("mode=call_graph: levels to expand. Default 2, max 4."),
   packages: z
     .array(z.string())
     .max(20)
@@ -137,6 +152,9 @@ export const searchInputSchema = {
 export const SearchInput = z.object(searchInputSchema);
 export type SearchInput = z.infer<typeof SearchInput>;
 
+/** Zod's `depth` schema has no `.max()` (G-08: a caller asking for more must be REFUSED, not silently clamped down to this). */
+const MAX_CALL_GRAPH_DEPTH = 4;
+
 export async function abapSearch(
   conn: AbapConnection,
   input: SearchInput,
@@ -144,8 +162,23 @@ export async function abapSearch(
 ): Promise<BuiltResponse> {
   const max = input.max ?? 50;
   if (input.type) assertKnownType(input.type);
-  if ((input.mode ?? "objects") === "where_used") {
+  const mode = input.mode ?? "objects";
+  if (mode === "where_used") {
     return whereUsed(conn, input.query, input.type, max, maxChars);
+  }
+  if (mode === "call_graph") {
+    const depth = input.depth ?? 2;
+    if (depth > MAX_CALL_GRAPH_DEPTH) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `depth=${depth} exceeds the maximum of ${MAX_CALL_GRAPH_DEPTH} for mode="call_graph".`,
+        { depth, max: MAX_CALL_GRAPH_DEPTH },
+        `Pass depth<=${MAX_CALL_GRAPH_DEPTH}. This is refused, not silently capped, because a call ` +
+          "graph's cost grows with fan-in at every level — a caller expecting depth=6 and silently " +
+          "getting depth=4 would draw wrong conclusions from an incomplete tree without knowing it.",
+      );
+    }
+    return buildCallGraph(conn, input.query, input.type, input.direction ?? "callers", depth, max, maxChars);
   }
   return searchObjects(conn, input.query, input.type, max, maxChars);
 }
@@ -309,12 +342,6 @@ async function searchObjects(
   });
 }
 
-// Heuristic thresholds, not a fitted cost curve: the only measured data
-// point is CL_ABAP_TYPEDESCR at ~5,896 references / ~24s wall-clock on A4H.
-// Either signal alone marks the call expensive.
-const HIGH_FAN_IN_REFERENCES = 500;
-const SLOW_FETCH_MS = 5000;
-
 async function whereUsed(
   conn: AbapConnection,
   target: string,
@@ -329,9 +356,17 @@ async function whereUsed(
   // result set, sometimes several MB / 10-20s. The cap below is client-side,
   // applied AFTER the full fetch, and its residual cost is disclosed to the
   // caller rather than left silent.
-  const fetchStart = Date.now();
-  const refs = await conn.adt.usageReferences(obj.uri);
-  const fetchMs = Date.now() - fetchStart;
+  //
+  // Goes through `fetchUsageReferences` (element-info.ts), not
+  // `conn.adt.usageReferences()`: that vendor function's answer-reading path
+  // hardcodes the capitalised `usageReferences:` namespace prefix while A4H's
+  // wire bytes use the lowercase `usagereferences:` prefix throughout, so it
+  // always returns an empty array — live-confirmed 2026-09-15,
+  // `abap_search {"query":"ZCL_I105_LEAF","mode":"where_used","type":"CLAS"}`
+  // answered `referencesTotal: 0` despite fixture 973's own wire bytes
+  // (same request) carrying `numberOfResults="2"` with two caller rows. See
+  // `fetchUsageReferences`'s doc comment.
+  const { refs, fetchMs } = await fetchUsageReferences(conn, obj.uri, undefined, obj.name);
 
   // `isResult: false` rows are grouping nodes (packages, containers).
   const named = refs.filter((r) => r["adtcore:name"]);
@@ -346,12 +381,23 @@ async function whereUsed(
         ` (display cap max=${max}). Re-run with max=${Math.min(200, totalReferences)}.`
       : undefined;
   const capped = omitted > 0;
-  const rows = kept.map((r) => ({
-    type: r["adtcore:type"] ?? "",
-    name: r["adtcore:name"] ?? "",
-    package: r.packageRef?.["adtcore:name"] ?? "",
-    description: truncateForDisplay(r["adtcore:description"] ?? "", DESCRIPTION_COL_NARROW),
-  }));
+  // `refs` rows are `Record<string, unknown>` (element-info.ts's parser makes no promise about
+  // value types beyond "whatever fast-xml-parser produced"), so every field is read through this
+  // guard rather than trusted with `?? ""` — same style as `callerChildren` in call-graph.ts.
+  const strField = (v: unknown): string => (typeof v === "string" ? v : "");
+  const rows = kept.map((r) => {
+    const packageRefValue = r["packageRef"];
+    const packageRef =
+      packageRefValue !== null && typeof packageRefValue === "object"
+        ? (packageRefValue as Record<string, unknown>)
+        : undefined;
+    return {
+      type: strField(r["adtcore:type"]),
+      name: strField(r["adtcore:name"]),
+      package: packageRef ? strField(packageRef["adtcore:name"]) : "",
+      description: truncateForDisplay(strField(r["adtcore:description"]), DESCRIPTION_COL_NARROW),
+    };
+  });
 
   return buildResponse({
     header: {
@@ -424,12 +470,12 @@ const SOURCE_ONLY_FIELDS = [
 
 /**
  * Guards the OTHER direction from `buildSourceScanQuery`'s own `type`-forbidden
- * check: mode=objects/where_used silently ignoring a source-only field would
- * look to a caller like the field was honoured. Kept separate from
- * `abapSearch()` (which stays byte-identical) — this runs in the handler,
- * around the call, not inside it.
+ * check: mode=objects/where_used/call_graph silently ignoring a source-only
+ * field would look to a caller like the field was honoured. Kept separate
+ * from `abapSearch()` (which stays byte-identical) — this runs in the
+ * handler, around the call, not inside it.
  */
-function assertNoSourceOnlyFields(input: SearchInput, mode: "objects" | "where_used"): void {
+function assertNoSourceOnlyFields(input: SearchInput, mode: "objects" | "where_used" | "call_graph"): void {
   const passed = SOURCE_ONLY_FIELDS.filter((f) => {
     const v = (input as Record<string, unknown>)[f];
     return v !== undefined && !(Array.isArray(v) && v.length === 0);
@@ -443,6 +489,24 @@ function assertNoSourceOnlyFields(input: SearchInput, mode: "objects" | "where_u
       'Omit them, or set mode="source" to run a source-text scan.',
     );
   }
+}
+
+/** Fields that only mean something for mode="call_graph"; misuse under any other mode is refused, not ignored — mirrors `assertNoSourceOnlyFields` above (and its own doc comment) for the opposite direction. */
+const CALL_GRAPH_ONLY_FIELDS = ["direction", "depth"] as const;
+
+function assertNoCallGraphOnlyFields(input: SearchInput, mode: "objects" | "where_used" | "source" | "call_graph"): void {
+  if (mode === "call_graph") return;
+  const passed = CALL_GRAPH_ONLY_FIELDS.filter((f) => (input as Record<string, unknown>)[f] !== undefined);
+  if (passed.length === 0) return;
+  const verb = passed.length > 1 ? "are" : "is";
+  const pronoun = passed.length > 1 ? "them" : "it";
+  throw new AbapError(
+    "BAD_INPUT",
+    `${passed.map((f) => `\`${f}\``).join(" and ")} ${verb} only meaningful with mode="call_graph"; ` +
+      `mode="${mode}" would have discarded ${pronoun}.`,
+    { mode, fields: passed },
+    'Omit them, or set mode="call_graph".',
+  );
 }
 
 /** A crude but adequate check for an ABAP object-name/package wildcard pattern: `esc_like()` (scan.ts) only ever sees these characters. */
@@ -710,7 +774,8 @@ export function registerSearchTools(mcp: McpServer, deps: SearchToolDeps): void 
       title: "Search ABAP repository",
       description:
         "Find objects by name pattern (mode=objects, wildcards *), list consumers " +
-        "(mode=where_used; 20+ seconds on wide fan-in — narrow by type/query first), or scan " +
+        "(mode=where_used; 20+ seconds on wide fan-in — narrow by type/query first), walk multiple " +
+        "levels of callers or callees (mode=call_graph, direction=callers|callees, depth<=4), or scan " +
         "source text line by line (mode=source, needs the fluid API and a package/objects scope).",
       inputSchema: searchInputSchema,
       annotations: { readOnlyHint: true, openWorldHint: true },
@@ -719,6 +784,7 @@ export function registerSearchTools(mcp: McpServer, deps: SearchToolDeps): void 
       try {
         const input = args as SearchInput;
         const mode = input.mode ?? "objects";
+        assertNoCallGraphOnlyFields(input, mode);
 
         if (mode === "source") {
           const q = buildSourceScanQuery(input);

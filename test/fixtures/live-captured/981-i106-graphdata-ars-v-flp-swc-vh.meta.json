@@ -1,0 +1,24 @@
+{
+  "n": 981,
+  "label": "i106-graphdata-ars-v-flp-swc-vh",
+  "expect": "ADT does serve a CDS data-source tree: nested abapsource:elementInfo, one node per data source, with properties TYPE (CDS_VIEW|CDS_VIEW_ENTITY|TABLE|SELECT|UNION), RELATION (FROM|INNER_JOIN|LEFT_OUTER_JOIN|UNION|SELECT), ENTITY_NAME, NODE_NAME, DB_EXISTS. It nests transitively in one call, but carries no associations and no field lineage",
+  "note": "GET the CDS dependency graph for a standard view (issue 106: does ADT serve a data-source tree at all)",
+  "requestMethod": "GET",
+  "requestUrl": "/sap/bc/adt/ddic/ddl/dependencies/graphdata?ddlsourceName=ARS_V_FLP_SWC_VH&sap-client=001",
+  "requestHeaders": {
+    "Accept": "application/*"
+  },
+  "responseStatus": 200,
+  "responseHeaders": {
+    "content-type": "application/vnd.sap.adt.ddl.SQLDependencyModel.v3+xml; charset=utf-8",
+    "content-length": "6577",
+    "sap-authenticated": "true",
+    "sap-server": "true"
+  },
+  "byteLength": 6577,
+  "zeroByteBody": false,
+  "sha256": "6531255ed8a09faccdcc326587010020d699e957260cb209d26cd62c9ebd3ac4",
+  "utcTimestamp": "2026-09-15T12:01:09.750Z",
+  "durationMs": 811,
+  "sessionName": "LIVE-I105-I106-I107"
+}

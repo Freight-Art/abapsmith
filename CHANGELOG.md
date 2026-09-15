@@ -12,6 +12,39 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.6] - 2026-09-15
+
+### Added
+
+- MCP over Streamable HTTP in addition to stdio (#81): `ABAP_MCP_TRANSPORT=http` serves the same tool surface on `ABAP_MCP_HTTP_HOST` (default `127.0.0.1`) / `ABAP_MCP_HTTP_PORT` (default 3000; `0` lets the OS pick and the ready banner prints the bound port) / `ABAP_MCP_HTTP_PATH` (default `/mcp`), one MCP session per client over a single shared ADT pool (`src/mcp-http.ts`, `src/mcp-session.ts`). `ABAP_MCP_HTTP_TOKEN` takes a comma-separated list of `name=token` (or bare) bearer tokens, compared in constant time; a missing or unknown token is `401` with `www-authenticate: Bearer`, a request to another path `404`, `GET`/`DELETE` without a known `mcp-session-id` `404`, other methods `405` with `allow`, bodies over 4 MiB `413`. A non-loopback bind without a token is refused at startup with a message naming the host and the variable. Writes made over HTTP are journaled with `actor` = the token's name (falling back to the client's `clientInfo.name`) and `sessionIdSource: "transport"`, so two callers of one server are distinguishable in `abap_journal`. TLS is not terminated; `doc/CONFIGURATION/transport.md` and `doc/SAFETY/remote-transport.md` state what the token does and does not authenticate. stdio stays the default and is unchanged; a token set under stdio only logs a warning.
+
+## [0.6.5] - 2026-09-15
+
+### Added
+
+- `abap_search mode="call_graph"` (#105): transitive callers or callees of an object to `depth` levels (default 2, max 4 — above it `BAD_INPUT`, never clamped) as an indented tree with the `abap_read` reference next to every node. `direction="callers"` walks `usageReferences` level by level, de-duplicated by URI, with the package and self rows dropped, a node whose fan-in exceeds the where-used threshold shown as `(not expanded: N references)`, and the cumulative `FETCH COST` note; `direction="callees"` statically parses `CALL FUNCTION`, `CALL METHOD`/`=>`/`->`, `PERFORM … IN PROGRAM`, `SUBMIT` and `CALL TRANSACTION` literals (`src/adt/call-sites.ts`), listing dynamic targets as unresolved leaves rather than dropping them. Cycles render `(cycle -> seen above)`; `max`/`depth` cuts end with `--- TRUNCATED ---`. `direction`/`depth` under any other mode are `BAD_INPUT`.
+- `abap_read view="lineage"` on a `DDLS/DF` (#106): the view's DDL source parsed (`src/adt/cds-lineage.ts`) down to base tables — `from`, the join kinds, `union`, and associations (followed only when referenced in the field list, otherwise `(not selected)`) — to `depth` levels below the root (default 5, max 10, refused above); `field=` traces one output column layer by layer to its base column or expression. ADT's own `graphdata` endpoint is deliberately not the source (no association edges, no field lineage; refuses customer views on A4H) — see `doc/LIMITATIONS/cds-lineage.md`.
+- `abap_read view="footprint"` on `PROG/P`, `CLAS/OC`, `FUGR/F`, `FUGR/FF` (#107): a static scan of every include for Open SQL writes (internal-table forms excluded by keyword position), `IN UPDATE TASK`/`IN BACKGROUND TASK` calls, `COMMIT WORK`/`ROLLBACK WORK`, the BAPI commit/rollback pair, BOPF modify, `EXEC SQL`/ADBC, `EXPORT … TO DATABASE`, `CALL TRANSACTION` and `SUBMIT` ("may write"), grouped per table with include and line; dynamic table or function-module names are listed as unresolved with the variable. Limits in `doc/LIMITATIONS/footprint.md`. `include`/`method` with footprint are `UNSUPPORTED`.
+
+### Fixed
+
+- `abap_search mode="where_used"` answered `referencesTotal: 0` on systems that send the lowercase `usagereferences:` namespace prefix (A4H does): the vendor parser looked up a case-sensitive path. Where-used now goes through abapsmith's own `fetchUsageReferences` (`src/adt/element-info.ts`), which the call graph shares.
+- `abap_read` `depth` out of range is a structured `BAD_INPUT` naming the applicable maximum (3 for `DEVC/K`, 10 for lineage) instead of a schema-level rejection.
+
+## [0.6.4] - 2026-09-15
+
+### Added
+
+- `abap_ui mode="screen"` gains `layout: true` (#113): a `LAYOUT (design-time)` section rendering the dynpro's element grid as monospace text — frames as boxes with their titles, checkboxes and radio buttons as `[ ] label`, I/O fields as underscores of the field length, pushbuttons as `[ Text ]`, table controls as a labelled box with one header row of column names, tabstrips and subscreen areas as boxes — plus a fidelity note that this is the design-time layout, not the runtime rendering. Works with `program`/`dynpro` and with `tcode`; omitted or `false` leaves the response byte-identical; ignored under `mode="press"`. Renderer in `src/tools/ui-layout.ts`.
+- `abap_data_preview` gains `format` and `mask` (#115): `format="abap_value"` emits one ABAP `VALUE #( … )` literal per row group (char-like fields quoted with `'` doubled, NUMC quoted, dates as `'YYYYMMDD'`, packed values with a leading minus, every line wrapped at 255 characters); `format="test_double"` emits a paste-ready ABAP Unit fixture on `cl_osql_test_environment`; `mask` blanks the named columns in every row, an unknown column is `BAD_INPUT` listing the real ones. The audit line records the format and a masked count, never the column names. Default output is unchanged. Renderers in `src/tools/preview-fixture.ts`.
+- `abap_fluid {"tool":"core","action":"eval"}` (#118): runs a caller-supplied ABAP snippet (`lines`, each ≤ 255 characters, no line breaks) inside the fluid core class and returns the named `out` variables serialised. Off by default: needs `ABAP_ALLOW_FLUID_EVAL=1` (`ABAP_MODE=admin` alone does not enable it; the catalogue lists `eval` only when it is on) and `confirm: "core.eval"` on every call, otherwise `FLUID_EVAL_DISABLED`/`BAD_INPUT`. Every snippet passes the static review and capability scan before it runs — `DELETE FROM`, `COMMIT WORK` and other mutations are `FLUID_PLUGIN_MUTATE_DISABLED`, `CALL FUNCTION` additionally needs `ABAP_ALLOW_FLUID_CALL_FM`, `DESTINATION` is refused — and every executed evaluation is journalled with its full lines and marked irreversible. A runtime exception in the snippet is a clean `FLUID_ACTION_FAILED` with the ABAP message, never a dump.
+
+## [0.6.3] - 2026-09-15
+
+### Added
+
+- Transport landscape support in `abap_transport` (#88): `operation="log"` reads a request's transport log (`TRINT_GET_LOG_OVERVIEW` overview row per target system plus the `tp` log lines from `TRINT_GET_LOG_FILE`), with an E070 pre-check so a nonexistent request is `NOT_FOUND` instead of the fake "not yet imported" row the function module would otherwise answer; `operation="queue"` reads a target system's TMS import buffer (`TMS_MGR_READ_TRANSPORT_QUEUE`, optional `domain`), every lock-clearing and cache-refreshing flag forced off, and an unknown system maps to `NOT_FOUND` with a TMSCSYS/TCESYST hint; `create` with `kind="copies"` and a required `target` creates a transport of copies (`TR_INSERT_REQUEST_WITH_TASKS` type `T`) in a transportable package, journalled like other creates. `show` decodes E070 function and status codes to labels. All three run through the fluid `classic` bridge with every `CALL FUNCTION` actual declared as a typed local (a `string` actual dumps with `CX_SY_DYN_CALL_ILLEGAL_TYPE` at runtime, not at activation). Proven live on A4H; a non-empty log or queue and a routed release remain `unverified` because A4H has no transport route. Triggering an import (STMS) is deliberately not implemented and documented in `doc/LIMITATIONS/not-implemented-and-unproven.md`.
+
 ## [0.6.2] - 2026-09-15
 
 ### Added

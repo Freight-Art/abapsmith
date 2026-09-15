@@ -982,3 +982,89 @@ reading `oldValue`/`currentValue` of `1 `/`1 ` in the list afterwards (`945`). T
 accepted and stored, but a condition-gated hit was never isolated in these captures — this run does
 not establish that a `condition` actually gates a watchpoint stop, only that the server accepts and
 persists one.
+
+## 2026-09-15 — call graph, CDS lineage, database footprint (971-983)
+
+Same A4H appliance, client `001`, user `DEVELOPER`, session `LIVE-I105-I106-I107`, three issues in
+one run: #105 (`abap_search mode=call_graph`), #106 (`abap_read view=lineage`), #107 (`abap_read
+view=footprint`). Thirteen captures: a two-object caller cycle and a one-caller leaf for the
+call-graph `callers` side; two `$TMP` probe classes for the `callees` side's source parser; five CDS
+DDL sources covering consumption-view-over-view, base-table leaf, `UNION`, left outer join, and
+unexposed (expression-only) associations; ADT's own dependency-graph endpoint accepting a standard
+view and refusing a customer one; and one report exercising every statement form the footprint
+scanner recognises.
+
+`971` — `POST /sap/bc/adt/repository/informationsystem/usageReferences` → 200: where-used for
+`ZCL_I105_A`, which `ZCL_I105_B` calls and which itself calls `ZCL_I105_B` — the caller side of a
+two-object cycle. Object-level rows carry `adtcore:type`; member rows (`CLAS/OM RUN`) carry only
+`adtcore:name`, so callers must be de-duplicated by the object row's `uri`.
+
+`972` — `POST /sap/bc/adt/repository/informationsystem/usageReferences` → 200: where-used for
+`ZCL_I105_B`, which `ZCL_I105_A` calls — the other half of the cycle. Walking callers from A reaches
+B and then A again, which is what the `(cycle -> seen above)` marker must cut.
+
+`973` — `POST /sap/bc/adt/repository/informationsystem/usageReferences` → 200: where-used for
+`ZCL_I105_LEAF`, called only by `ZCL_I105_A` — a one-caller leaf, the termination case of the
+callers walk. Also the fixture whose own wire bytes carry `numberOfResults="2"` while the vendor
+`usageReferences()` parser's namespace-prefix defect reads it as zero — see
+[doc/LIMITATIONS/search.md](../../../doc/LIMITATIONS/search.md).
+
+`974` — `GET /sap/bc/adt/oo/classes/zcl_i105_a/source/main` → 200: the exact source the callees
+parser must read — a static method call `zcl_i105_b=>run( )`, a `CALL FUNCTION 'RFC_SYSTEM_INFO'`, a
+`SUBMIT` of a report that does not exist, and a method call on another class.
+
+`975` — `GET /sap/bc/adt/oo/classes/zcl_i105_b/source/main` → 200: `PERFORM dummy IN PROGRAM
+zi105_form IF FOUND` alongside a static method call — the `PERFORM … IN PROGRAM` form the callees
+parser must recognise.
+
+`976` — `GET /sap/bc/adt/ddic/ddl/sources/zdemo_c_salesorder_tp_d/source/main` → 200: a customer
+consumption view selecting from another customer CDS view with an alias (`as SalesOrder`), one
+association it exposes as a field (`_Item`), and two associations re-exposed from the underlying
+view — the lineage root.
+
+`977` — `GET /sap/bc/adt/ddic/ddl/sources/zdemo_i_salesorder_tp_d/source/main` → 200: a customer
+interface view selecting from base table `zdemo_soh` with field aliases
+(`SalesOrder.salesorderuuid as SalesOrderUUID`) and three associations whose `ON` conditions use
+`$projection` — the field-lineage and association cases, and a base-table leaf.
+
+`978` — `GET /sap/bc/adt/ddic/ddl/sources/ars_software_components_scp_vh/source/main` → 200: a
+`define view entity` with a `UNION` of two selects over two different CDS views (`ARS_SOFTWARE_
+COMPONENTS_SCP`, `ARS_SWC_CUST_SNAPSHOT_RELEVANT` — the latter is capture 979's own object) — the
+union case.
+
+`979` — `GET /sap/bc/adt/ddic/ddl/sources/ars_swc_cust_snapshot_relevant/source/main` → 200: a left
+outer join between two tables with a multi-line `ON` condition and a `WHERE` clause that mentions
+the joined table — the join case.
+
+`980` — `GET /sap/bc/adt/ddic/ddl/sources/ars_v_flp_swc_vh/source/main` → 200: two associations to
+the same table `cvers_ref` that are used only inside a `coalesce()` expression, never exposed as a
+bare top-level field. `parseDdl` still reports both `selected: true` — its `selected` flag is a
+textual-mention test against the whole field-list body, not a "used as a projected field" check; see
+[doc/LIMITATIONS/cds-lineage.md](../../../doc/LIMITATIONS/cds-lineage.md).
+
+`981` — `GET /sap/bc/adt/ddic/ddl/dependencies/graphdata?ddlsourceName=ARS_V_FLP_SWC_VH` → 200: ADT
+does serve a CDS data-source tree — nested `abapsource:elementInfo`, one node per data source, with
+properties `TYPE` (`CDS_VIEW`/`CDS_VIEW_ENTITY`/`TABLE`/`SELECT`/`UNION`), `RELATION`
+(`FROM`/`INNER_JOIN`/`LEFT_OUTER_JOIN`/`UNION`/`SELECT`), `ENTITY_NAME`, `NODE_NAME`, `DB_EXISTS`. It
+nests transitively in one call, but carries no associations and no field lineage — why this endpoint
+is not the lineage source.
+
+`982` — `GET /sap/bc/adt/ddic/ddl/dependencies/graphdata?ddlsourceName=ZDEMO_C_SALESORDER_TP_D` →
+400: the same endpoint answers `NoDependencyGraphDataCalculationPossible` for a customer view on
+A4H — why the `graphdata` route cannot be the only route, and why the source-parse route is
+mandatory. What separates an accepted view from a refused one was not established from these two
+captures alone.
+
+`983` — `GET /sap/bc/adt/programs/programs/z_i107_footprint/source/main` → 200: one report carrying
+every statement form the footprint scanner must find — `INSERT`/`UPDATE`/`MODIFY`/`DELETE` on
+`zdemo_soh`, `INSERT (gv_tab)` with a dynamic table name, `CALL FUNCTION … IN UPDATE TASK` and `IN
+BACKGROUND TASK`, `COMMIT WORK AND WAIT`, `ROLLBACK WORK`, `BAPI_TRANSACTION_COMMIT`/`_ROLLBACK`,
+`EXPORT … TO DATABASE indx`, `CALL TRANSACTION`, `SUBMIT … AND RETURN`, and two commented-out writes
+that must not be reported. Running the real `scanFootprint`/`renderFootprint` pair against this
+source (offline, no live MCP round trip) reports all fourteen occurrences and neither commented-out
+line.
+
+**Not covered by this run:** no live end-to-end `abap_search mode=call_graph`, `abap_read
+view=lineage`, or `abap_read view=footprint` MCP tool call — the reference MCP server runs a
+previously released bundle that predates all three features, so those paths are covered by the
+offline parser/renderer runs above and by tests, not by a live round trip through tool dispatch.

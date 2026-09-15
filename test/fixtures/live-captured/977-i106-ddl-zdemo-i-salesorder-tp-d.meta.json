@@ -1,0 +1,25 @@
+{
+  "n": 977,
+  "label": "i106-ddl-zdemo-i-salesorder-tp-d",
+  "expect": "a customer interface view selecting from base table zdemo_soh with field aliases (SalesOrder.salesorderuuid as SalesOrderUUID) and three associations whose ON conditions use $projection - the field-lineage and association cases",
+  "note": "GET DDL source of ZDEMO_I_SALESORDER_TP_D (issue 106 lineage, base-table leaf)",
+  "requestMethod": "GET",
+  "requestUrl": "/sap/bc/adt/ddic/ddl/sources/zdemo_i_salesorder_tp_d/source/main?sap-client=001",
+  "requestHeaders": {
+    "Accept": "text/plain"
+  },
+  "responseStatus": 200,
+  "responseHeaders": {
+    "content-type": "text/plain; charset=utf-8",
+    "content-length": "2510",
+    "sap-authenticated": "true",
+    "etag": "202011030946240011",
+    "sap-server": "true"
+  },
+  "byteLength": 2510,
+  "zeroByteBody": false,
+  "sha256": "d3516cb106a029a2764fd18a0e9d8a17274de8c10d2f683670c1c6817f91ea78",
+  "utcTimestamp": "2026-09-15T12:01:07.719Z",
+  "durationMs": 234,
+  "sessionName": "LIVE-I105-I106-I107"
+}

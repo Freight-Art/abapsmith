@@ -13,6 +13,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import { FLUID_CONTRACT, FLUID_CONTRACT_MAJOR, FluidManifestSchema } from "../src/adt/fluid/manifest.js";
+import { FLUID_ABAP_LINE_MAX } from "../src/adt/fluid/static-review.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const docDir = join(repoRoot, "doc", "FLUID-API");
@@ -166,7 +167,15 @@ describe("truthfulness guards", () => {
     const codes = fluidTokens(await errorsSource());
     // FLUID_INPUT_TOO_LARGE is allowed here only so the docs can name and deny it;
     // the "does not exist" test below constrains how it may be mentioned.
-    const allowlist = new Set(["FLUID_CONTRACT", "FLUID_CONTRACT_MAJOR", "FLUID_INPUT_TOO_LARGE"]);
+    // FLUID_ABAP_LINE_MAX is a real exported constant (the per-line ABAP length
+    // limit core.eval validates against), not an error code, so it isn't in
+    // errors.ts's token set above but is still a truthful doc token.
+    const allowlist = new Set([
+      "FLUID_CONTRACT",
+      "FLUID_CONTRACT_MAJOR",
+      "FLUID_INPUT_TOO_LARGE",
+      "FLUID_ABAP_LINE_MAX",
+    ]);
 
     const offenders: string[] = [];
     for (const file of DOC_FILES) {
@@ -201,6 +210,20 @@ describe("truthfulness guards", () => {
     const text = await readDoc("README.md");
     expect(text).toContain("The framework never truncates its own output");
     expect(text).toContain("ABAP_MAX_RESPONSE_CHARS");
+  });
+
+  // The allowlist above takes FLUID_CONTRACT, FLUID_CONTRACT_MAJOR and
+  // FLUID_ABAP_LINE_MAX on trust as "real, just not an error code". Pin that
+  // trust to the compiler: import each and assert it is actually exported, so
+  // a deletion or rename makes this test fail loudly instead of silently
+  // widening the allowlist into a hole. FLUID_INPUT_TOO_LARGE is excluded on
+  // purpose — it is allowlisted precisely because it does NOT exist, and the
+  // neighbouring "does not exist as an error code" / "on a line saying it does
+  // not exist" tests already constrain how the docs may mention it.
+  it("every non-error FLUID_ token the docs may name is a real exported constant", () => {
+    expect(FLUID_CONTRACT).toBeDefined();
+    expect(FLUID_CONTRACT_MAJOR).toBeDefined();
+    expect(FLUID_ABAP_LINE_MAX).toBeDefined();
   });
 });
 

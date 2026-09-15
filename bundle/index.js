@@ -5263,8 +5263,8 @@ var require_utilities = __commonJS({
       if ((0, exports2.isArray)(xml3))
         return xml3.reduce((arr, x) => [...arr, ...xmlFlatArray(x, ...path8)], []);
       if ((0, exports2.isObject)(xml3)) {
-        const [idx, ...rest] = path8;
-        return xmlFlatArray(xml3[idx], ...rest);
+        const [idx2, ...rest] = path8;
+        return xmlFlatArray(xml3[idx2], ...rest);
       }
       return [];
     }
@@ -6000,7 +6000,7 @@ var require_Ord = __commonJS({
       };
     };
     exports2.max = max;
-    var clamp = function(O) {
+    var clamp2 = function(O) {
       var minO = (0, exports2.min)(O);
       var maxO = (0, exports2.max)(O);
       return function(low, hi) {
@@ -6009,7 +6009,7 @@ var require_Ord = __commonJS({
         };
       };
     };
-    exports2.clamp = clamp;
+    exports2.clamp = clamp2;
     var between = function(O) {
       var ltO = (0, exports2.lt)(O);
       var gtO = (0, exports2.gt)(O);
@@ -13101,7 +13101,7 @@ var require_AdtException = __commonJS({
       const root = raw["exc:exception"];
       if (!root && response.status === 401)
         return simpleError(response);
-      const getf = (base, idx) => base ? base[idx] : "";
+      const getf = (base, idx2) => base ? base[idx2] : "";
       const properties = {};
       (0, utilities_1.xmlArray)(root, "properties", "entry").forEach((p) => {
         properties[p["@_key"]] = `${p["#text"]}`.replace(/^\s+/, "").replace(/\s+$/, "");
@@ -21976,7 +21976,7 @@ var require_mime_types = __commonJS({
     var TEXT_TYPE_REGEXP = /^text\//i;
     exports2.charset = charset;
     exports2.charsets = { lookup: charset };
-    exports2.contentType = contentType2;
+    exports2.contentType = contentType4;
     exports2.extension = extension;
     exports2.extensions = /* @__PURE__ */ Object.create(null);
     exports2.lookup = lookup;
@@ -21996,11 +21996,11 @@ var require_mime_types = __commonJS({
       }
       return false;
     }
-    function contentType2(str6) {
-      if (!str6 || typeof str6 !== "string") {
+    function contentType4(str7) {
+      if (!str7 || typeof str7 !== "string") {
         return false;
       }
-      var mime = str6.indexOf("/") === -1 ? exports2.lookup(str6) : str6;
+      var mime = str7.indexOf("/") === -1 ? exports2.lookup(str7) : str7;
       if (!mime) {
         return false;
       }
@@ -22563,14 +22563,14 @@ var require_implementation = __commonJS({
       return arr;
     };
     var joiny = function(arr, joiner) {
-      var str6 = "";
+      var str7 = "";
       for (var i = 0; i < arr.length; i += 1) {
-        str6 += arr[i];
+        str7 += arr[i];
         if (i + 1 < arr.length) {
-          str6 += joiner;
+          str7 += joiner;
         }
       }
-      return str6;
+      return str7;
     };
     module.exports = function bind(that) {
       var target = this;
@@ -23136,14 +23136,14 @@ var require_form_data = __commonJS({
     var parseUrl2 = __require("url").parse;
     var fs4 = __require("fs");
     var Stream = __require("stream").Stream;
-    var crypto = __require("crypto");
+    var crypto2 = __require("crypto");
     var mime = require_mime_types();
     var asynckit = require_asynckit();
     var setToStringTag = require_es_set_tostringtag();
     var hasOwn = require_hasown();
     var populate = require_populate();
-    function escapeHeaderParam(str6) {
-      return String(str6).replace(/\r/g, "%0D").replace(/\n/g, "%0A").replace(/"/g, "%22");
+    function escapeHeaderParam(str7) {
+      return String(str7).replace(/\r/g, "%0D").replace(/\n/g, "%0A").replace(/"/g, "%22");
     }
     function FormData2(options) {
       if (!(this instanceof FormData2)) {
@@ -23230,13 +23230,13 @@ var require_form_data = __commonJS({
         return options.header;
       }
       var contentDisposition = this._getContentDisposition(value, options);
-      var contentType2 = this._getContentType(value, options);
+      var contentType4 = this._getContentType(value, options);
       var contents = "";
       var headers = {
         // add custom disposition as third element or keep it two elements if not
         "Content-Disposition": ["form-data", 'name="' + escapeHeaderParam(field) + '"'].concat(contentDisposition || []),
         // if no content type. allow it to be empty array
-        "Content-Type": [].concat(contentType2 || [])
+        "Content-Type": [].concat(contentType4 || [])
       };
       if (typeof options.header === "object") {
         populate(headers, options.header);
@@ -23272,23 +23272,23 @@ var require_form_data = __commonJS({
       }
     };
     FormData2.prototype._getContentType = function(value, options) {
-      var contentType2 = options.contentType;
-      if (!contentType2 && value && value.name) {
-        contentType2 = mime.lookup(value.name);
+      var contentType4 = options.contentType;
+      if (!contentType4 && value && value.name) {
+        contentType4 = mime.lookup(value.name);
       }
-      if (!contentType2 && value && value.path) {
-        contentType2 = mime.lookup(value.path);
+      if (!contentType4 && value && value.path) {
+        contentType4 = mime.lookup(value.path);
       }
-      if (!contentType2 && value && value.readable && hasOwn(value, "httpVersion")) {
-        contentType2 = value.headers["content-type"];
+      if (!contentType4 && value && value.readable && hasOwn(value, "httpVersion")) {
+        contentType4 = value.headers["content-type"];
       }
-      if (!contentType2 && (options.filepath || options.filename)) {
-        contentType2 = mime.lookup(options.filepath || options.filename);
+      if (!contentType4 && (options.filepath || options.filename)) {
+        contentType4 = mime.lookup(options.filepath || options.filename);
       }
-      if (!contentType2 && value && typeof value === "object") {
-        contentType2 = FormData2.DEFAULT_CONTENT_TYPE;
+      if (!contentType4 && value && typeof value === "object") {
+        contentType4 = FormData2.DEFAULT_CONTENT_TYPE;
       }
-      return contentType2;
+      return contentType4;
     };
     FormData2.prototype._multiPartFooter = function() {
       return function(next) {
@@ -23345,7 +23345,7 @@ var require_form_data = __commonJS({
       return Buffer.concat([dataBuffer, Buffer.from(this._lastBoundary())]);
     };
     FormData2.prototype._generateBoundary = function() {
-      this._boundary = "--------------------------" + crypto.randomBytes(12).toString("hex");
+      this._boundary = "--------------------------" + crypto2.randomBytes(12).toString("hex");
     };
     FormData2.prototype.getLengthSync = function() {
       var knownLength = this._overheadLength + this._valueLength;
@@ -23467,13 +23467,13 @@ var require_ms = __commonJS({
         "val is not a non-empty string or a valid number. val=" + JSON.stringify(val)
       );
     };
-    function parse4(str6) {
-      str6 = String(str6);
-      if (str6.length > 100) {
+    function parse4(str7) {
+      str7 = String(str7);
+      if (str7.length > 100) {
         return;
       }
       var match = /^(-?(?:\d+)?\.?\d+) *(milliseconds?|msecs?|ms|seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h|days?|d|weeks?|w|years?|yrs?|y)?$/i.exec(
-        str6
+        str7
       );
       if (!match) {
         return;
@@ -24074,7 +24074,7 @@ var require_node = __commonJS({
     var { formatters } = module.exports;
     formatters.o = function(v) {
       this.inspectOpts.colors = this.useColors;
-      return util2.inspect(v, this.inspectOpts).split("\n").map((str6) => str6.trim()).join(" ");
+      return util2.inspect(v, this.inspectOpts).split("\n").map((str7) => str7.trim()).join(" ");
     };
     formatters.O = function(v) {
       this.inspectOpts.colors = this.useColors;
@@ -25080,7 +25080,7 @@ var require_axios = __commonJS({
   "node_modules/axios/dist/node/axios.cjs"(exports2, module) {
     "use strict";
     var FormData$1 = require_form_data();
-    var crypto = __require("crypto");
+    var crypto2 = __require("crypto");
     var url2 = __require("url");
     var HttpsProxyAgent = require_dist();
     var http3 = __require("http");
@@ -25127,8 +25127,8 @@ var require_axios = __commonJS({
     };
     var getSafeProp = (obj, prop) => obj != null && hasOwnInPrototypeChain(obj, prop) ? obj[prop] : void 0;
     var kindOf3 = /* @__PURE__ */ ((cache) => (thing) => {
-      const str6 = toString.call(thing);
-      return cache[str6] || (cache[str6] = str6.slice(8, -1).toLowerCase());
+      const str7 = toString.call(thing);
+      return cache[str7] || (cache[str7] = str7.slice(8, -1).toLowerCase());
     })(/* @__PURE__ */ Object.create(null));
     var kindOfTest = (type) => {
       type = type.toLowerCase();
@@ -25208,8 +25208,8 @@ var require_axios = __commonJS({
     };
     var isURLSearchParams = kindOfTest("URLSearchParams");
     var [isReadableStream, isRequest, isResponse, isHeaders] = ["ReadableStream", "Request", "Response", "Headers"].map(kindOfTest);
-    var trim = (str6) => {
-      return str6.trim ? str6.trim() : str6.replace(/^[\s\uFEFF\xA0]+|[\s\uFEFF\xA0]+$/g, "");
+    var trim = (str7) => {
+      return str7.trim ? str7.trim() : str7.replace(/^[\s\uFEFF\xA0]+|[\s\uFEFF\xA0]+$/g, "");
     };
     function forEach(obj, fn, {
       allOwnKeys = false
@@ -25371,13 +25371,13 @@ var require_axios = __commonJS({
       } while (sourceObj && (!filter || filter(sourceObj, destObj)) && sourceObj !== Object.prototype);
       return destObj;
     };
-    var endsWith = (str6, searchString, position) => {
-      str6 = String(str6);
-      if (position === void 0 || position > str6.length) {
-        position = str6.length;
+    var endsWith = (str7, searchString, position) => {
+      str7 = String(str7);
+      if (position === void 0 || position > str7.length) {
+        position = str7.length;
       }
       position -= searchString.length;
-      const lastIndex = str6.indexOf(searchString, position);
+      const lastIndex = str7.indexOf(searchString, position);
       return lastIndex !== -1 && lastIndex === position;
     };
     var toArray2 = (thing) => {
@@ -25405,17 +25405,17 @@ var require_axios = __commonJS({
         fn.call(obj, pair[0], pair[1]);
       }
     };
-    var matchAll = (regExp, str6) => {
+    var matchAll = (regExp, str7) => {
       let matches;
       const arr = [];
-      while ((matches = regExp.exec(str6)) !== null) {
+      while ((matches = regExp.exec(str7)) !== null) {
         arr.push(matches);
       }
       return arr;
     };
     var isHTMLForm = kindOfTest("HTMLFormElement");
-    var toCamelCase = (str6) => {
-      return str6.toLowerCase().replace(/[-_\s]([a-z\d])(\w*)/g, function replacer(m, p1, p2) {
+    var toCamelCase = (str7) => {
+      return str7.toLowerCase().replace(/[-_\s]([a-z\d])(\w*)/g, function replacer(m, p1, p2) {
         return p1.toUpperCase() + p2;
       });
     };
@@ -25620,24 +25620,24 @@ var require_axios = __commonJS({
       });
       return parsed;
     };
-    function trimSPorHTAB(str6) {
+    function trimSPorHTAB(str7) {
       let start = 0;
-      let end = str6.length;
+      let end = str7.length;
       while (start < end) {
-        const code = str6.charCodeAt(start);
+        const code = str7.charCodeAt(start);
         if (code !== 9 && code !== 32) {
           break;
         }
         start += 1;
       }
       while (end > start) {
-        const code = str6.charCodeAt(end - 1);
+        const code = str7.charCodeAt(end - 1);
         if (code !== 9 && code !== 32) {
           break;
         }
         end -= 1;
       }
-      return start === 0 && end === str6.length ? str6 : str6.slice(start, end);
+      return start === 0 && end === str7.length ? str7 : str7.slice(start, end);
     }
     var INVALID_UNICODE_HEADER_VALUE_CHARS = new RegExp("[\\u0000-\\u0008\\u000a-\\u001f\\u007f]+", "g");
     var INVALID_BYTE_STRING_HEADER_VALUE_CHARS = new RegExp("[^\\u0009\\u0020-\\u007e\\u0080-\\u00ff]+", "g");
@@ -25666,11 +25666,11 @@ var require_axios = __commonJS({
       }
       return utils$1.isArray(value) ? value.map(normalizeValue) : sanitizeHeaderValue(String(value));
     }
-    function parseTokens(str6) {
+    function parseTokens(str7) {
       const tokens = /* @__PURE__ */ Object.create(null);
       const tokensRE = /([^\s,;=]+)\s*(?:=\s*([^,;]+))?/g;
       let match;
-      while (match = tokensRE.exec(str6)) {
+      while (match = tokensRE.exec(str7)) {
         tokens[match[1]] = match[2];
       }
       return tokens;
@@ -25716,14 +25716,14 @@ var require_axios = __commonJS({
       }
       return decoded;
     }
-    function parseParameters(value) {
+    function parseParameters2(value) {
       const parameters = /* @__PURE__ */ Object.create(null);
-      const str6 = String(value);
+      const str7 = String(value);
       let start = 0;
-      let quoted2 = false;
+      let quoted3 = false;
       let escaped = false;
       function parseParameter(end) {
-        const part = trimOWS(str6.slice(start, end));
+        const part = trimOWS(str7.slice(start, end));
         const equals = part.indexOf("=");
         if (equals < 1) {
           return;
@@ -25739,27 +25739,27 @@ var require_axios = __commonJS({
         const parameterValue = trimOWS(part.slice(equals + 1));
         parameters[normalizedName] = decodeQuotedString(parameterValue);
       }
-      for (let i = 0; i < str6.length; i++) {
-        const code = str6.charCodeAt(i);
-        if (quoted2) {
+      for (let i = 0; i < str7.length; i++) {
+        const code = str7.charCodeAt(i);
+        if (quoted3) {
           if (escaped) {
             escaped = false;
           } else if (code === 92) {
             escaped = true;
           } else if (code === 34) {
-            quoted2 = false;
+            quoted3 = false;
           }
         } else if (code === 34) {
-          quoted2 = true;
+          quoted3 = true;
         } else if (code === 44 || code === 59) {
           parseParameter(i);
           start = i + 1;
         }
       }
-      parseParameter(str6.length);
+      parseParameter(str7.length);
       return parameters;
     }
-    var isValidHeaderName = (str6) => /^[-_a-zA-Z0-9^`|~,!#$%&'*+.]+$/.test(str6.trim());
+    var isValidHeaderName = (str7) => /^[-_a-zA-Z0-9^`|~,!#$%&'*+.]+$/.test(str7.trim());
     function matchHeaderValue(context, value, header, filter, isHeaderNameFilter) {
       if (utils$1.isFunction(filter)) {
         return filter.call(this, value, header);
@@ -25776,8 +25776,8 @@ var require_axios = __commonJS({
       }
     }
     function formatHeader(header) {
-      return header.trim().toLowerCase().replace(/([a-z\d])(\w*)/g, (w, char, str6) => {
-        return char.toUpperCase() + str6;
+      return header.trim().toLowerCase().replace(/([a-z\d])(\w*)/g, (w, char, str7) => {
+        return char.toUpperCase() + str7;
       });
     }
     function buildAccessors(obj, header) {
@@ -25944,7 +25944,7 @@ var require_axios = __commonJS({
         return thing instanceof this ? thing : new this(thing);
       }
       static parseParameters(value) {
-        return parseParameters(value);
+        return parseParameters2(value);
       }
       static concat(first, ...targets) {
         const computed = new this(first);
@@ -26289,7 +26289,7 @@ var require_axios = __commonJS({
       build(obj);
       return formData;
     }
-    function encode$1(str6) {
+    function encode$1(str7) {
       const charMap = {
         "!": "%21",
         "'": "%27",
@@ -26298,7 +26298,7 @@ var require_axios = __commonJS({
         "~": "%7E",
         "%20": "+"
       };
-      return encodeURIComponent(str6).replace(/[!'()~]|%20/g, function replacer(match) {
+      return encodeURIComponent(str7).replace(/[!'()~]|%20/g, function replacer(match) {
         return charMap[match];
       });
     }
@@ -26423,16 +26423,16 @@ var require_axios = __commonJS({
       ALPHA_DIGIT: ALPHA + ALPHA.toUpperCase() + DIGIT
     };
     var generateString = (size = 16, alphabet = ALPHABET.ALPHA_DIGIT) => {
-      let str6 = "";
+      let str7 = "";
       const {
         length
       } = alphabet;
       const randomValues = new Uint32Array(size);
-      crypto.randomFillSync(randomValues);
+      crypto2.randomFillSync(randomValues);
       for (let i = 0; i < size; i++) {
-        str6 += alphabet[randomValues[i] % length];
+        str7 += alphabet[randomValues[i] % length];
       }
-      return str6;
+      return str7;
     };
     var platform$1 = {
       isNode: true,
@@ -26557,8 +26557,8 @@ var require_axios = __commonJS({
       transitional: transitionalDefaults,
       adapter: ["xhr", "http", "fetch"],
       transformRequest: [function transformRequest(data, headers) {
-        const contentType2 = headers.getContentType() || "";
-        const hasJSONContentType = contentType2.indexOf("application/json") > -1;
+        const contentType4 = headers.getContentType() || "";
+        const hasJSONContentType = contentType4.indexOf("application/json") > -1;
         const isObjectPayload = utils$1.isObject(data);
         if (isObjectPayload && utils$1.isHTMLForm(data)) {
           data = new FormData(data);
@@ -26580,10 +26580,10 @@ var require_axios = __commonJS({
         let isFileList2;
         if (isObjectPayload) {
           const formSerializer = own(this, "formSerializer");
-          if (contentType2.indexOf("application/x-www-form-urlencoded") > -1) {
+          if (contentType4.indexOf("application/x-www-form-urlencoded") > -1) {
             return toURLEncodedForm(data, formSerializer).toString();
           }
-          if ((isFileList2 = utils$1.isFileList(data)) || contentType2.indexOf("multipart/form-data") > -1) {
+          if ((isFileList2 = utils$1.isFileList(data)) || contentType4.indexOf("multipart/form-data") > -1) {
             const env = own(this, "env");
             const _FormData = env && env.FormData;
             return toFormData(isFileList2 ? {
@@ -27314,10 +27314,10 @@ var require_axios = __commonJS({
       if (typeof host !== "string" || host.indexOf(":") === -1) return host;
       const dotted = host.match(IPV4_MAPPED_DOTTED_RE);
       if (dotted) return dotted[1];
-      const hex3 = host.match(IPV4_MAPPED_HEX_RE);
-      if (hex3) {
-        const high = parseInt(hex3[1], 16);
-        const low = parseInt(hex3[2], 16);
+      const hex4 = host.match(IPV4_MAPPED_HEX_RE);
+      if (hex4) {
+        const high = parseInt(hex4[1], 16);
+        const low = parseInt(hex4[2], 16);
         return `${high >> 8}.${high & 255}.${low >> 8}.${low & 255}`;
       }
       return host;
@@ -27478,7 +27478,7 @@ var require_axios = __commonJS({
     };
     var asyncDecorator = (fn, scheduler = utils$1.asap) => (...args) => scheduler(() => fn(...args));
     var isHexDigit = (charCode) => charCode >= 48 && charCode <= 57 || charCode >= 65 && charCode <= 70 || charCode >= 97 && charCode <= 102;
-    var isPercentEncodedByte = (str6, i, len) => i + 2 < len && isHexDigit(str6.charCodeAt(i + 1)) && isHexDigit(str6.charCodeAt(i + 2));
+    var isPercentEncodedByte = (str7, i, len) => i + 2 < len && isHexDigit(str7.charCodeAt(i + 1)) && isHexDigit(str7.charCodeAt(i + 2));
     var hexValue = (charCode) => charCode <= 57 ? charCode - 48 : (charCode & 223) - 55;
     var isBase64Char = (charCode) => charCode >= 65 && charCode <= 90 || // A-Z
     charCode >= 97 && charCode <= 122 || // a-z
@@ -28343,7 +28343,7 @@ var require_axios = __commonJS({
             req.destroy(err);
           }
         });
-        req.on("error", function handleRequestError(err) {
+        req.on("error", function handleRequestError2(err) {
           reject(AxiosError.from(err, null, config2, req));
         });
         const boundSockets = /* @__PURE__ */ new Set();
@@ -28616,7 +28616,7 @@ var require_axios = __commonJS({
       }
       return config3;
     }
-    var encodeUTF8$1 = (str6) => encodeURIComponent(str6).replace(/%([0-9A-F]{2})/gi, (_, hex3) => String.fromCharCode(parseInt(hex3, 16)));
+    var encodeUTF8$1 = (str7) => encodeURIComponent(str7).replace(/%([0-9A-F]{2})/gi, (_, hex4) => String.fromCharCode(parseInt(hex4, 16)));
     function resolveConfig(config2) {
       const newConfig = mergeConfig({}, config2);
       const own2 = (key) => utils$1.hasOwnProp(newConfig, key) ? newConfig[key] : void 0;
@@ -28924,7 +28924,7 @@ var require_axios = __commonJS({
     var {
       isFunction
     } = utils$1;
-    var encodeUTF8 = (str6) => encodeURIComponent(str6).replace(/%([0-9A-F]{2})/gi, (_, hex3) => String.fromCharCode(parseInt(hex3, 16)));
+    var encodeUTF8 = (str7) => encodeURIComponent(str7).replace(/%([0-9A-F]{2})/gi, (_, hex4) => String.fromCharCode(parseInt(hex4, 16)));
     var decodeURIComponentSafe = (value) => {
       if (!utils$1.isString(value)) {
         return value;
@@ -28964,20 +28964,20 @@ var require_axios = __commonJS({
       }, env);
       const {
         fetch: envFetch,
-        Request,
-        Response
+        Request: Request2,
+        Response: Response2
       } = env;
       const isFetchSupported = envFetch ? isFunction(envFetch) : typeof fetch === "function";
-      const isRequestSupported = isFunction(Request);
-      const isResponseSupported = isFunction(Response);
+      const isRequestSupported = isFunction(Request2);
+      const isResponseSupported = isFunction(Response2);
       if (!isFetchSupported) {
         return false;
       }
       const isReadableStreamSupported = isFetchSupported && isFunction(ReadableStream2);
-      const encodeText = isFetchSupported && (typeof TextEncoder2 === "function" ? /* @__PURE__ */ ((encoder) => (str6) => encoder.encode(str6))(new TextEncoder2()) : async (str6) => new Uint8Array(await new Request(str6).arrayBuffer()));
+      const encodeText = isFetchSupported && (typeof TextEncoder2 === "function" ? /* @__PURE__ */ ((encoder) => (str7) => encoder.encode(str7))(new TextEncoder2()) : async (str7) => new Uint8Array(await new Request2(str7).arrayBuffer()));
       const supportsRequestStream = isRequestSupported && isReadableStreamSupported && test(() => {
         let duplexAccessed = false;
-        const request = new Request(platform.origin, {
+        const request = new Request2(platform.origin, {
           body: new ReadableStream2(),
           method: "POST",
           get duplex() {
@@ -28991,7 +28991,7 @@ var require_axios = __commonJS({
         }
         return duplexAccessed && !hasContentType;
       });
-      const supportsResponseStream = isResponseSupported && isReadableStreamSupported && test(() => utils$1.isReadableStream(new Response("").body));
+      const supportsResponseStream = isResponseSupported && isReadableStreamSupported && test(() => utils$1.isReadableStream(new Response2("").body));
       const resolvers = {
         stream: supportsResponseStream && ((res) => res.body)
       };
@@ -29014,7 +29014,7 @@ var require_axios = __commonJS({
           return body.size;
         }
         if (utils$1.isSpecCompliantForm(body)) {
-          const _request = new Request(platform.origin, {
+          const _request = new Request2(platform.origin, {
             method: "POST",
             body
           });
@@ -29120,7 +29120,7 @@ var require_axios = __commonJS({
           if (supportsRequestStream && method !== "get" && method !== "head" && (onUploadProgress || mustEnforceStreamBody)) {
             requestContentLength = requestContentLength == null ? await resolveBodyLength(headers, data) : requestContentLength;
             if (requestContentLength !== 0 || mustEnforceStreamBody) {
-              let _request = new Request(url3, {
+              let _request = new Request2(url3, {
                 method: "POST",
                 body: data,
                 duplex: "half"
@@ -29142,10 +29142,10 @@ var require_axios = __commonJS({
           if (!utils$1.isString(withCredentials)) {
             withCredentials = withCredentials ? "include" : "omit";
           }
-          const isCredentialsSupported = isRequestSupported && "credentials" in Request.prototype;
+          const isCredentialsSupported = isRequestSupported && "credentials" in Request2.prototype;
           if (utils$1.isFormData(data)) {
-            const contentType2 = headers.getContentType();
-            if (contentType2 && /^multipart\/form-data/i.test(contentType2) && !/boundary=/i.test(contentType2)) {
+            const contentType4 = headers.getContentType();
+            if (contentType4 && /^multipart\/form-data/i.test(contentType4) && !/boundary=/i.test(contentType4)) {
               headers.delete("content-type");
             }
           }
@@ -29159,7 +29159,7 @@ var require_axios = __commonJS({
             duplex: "half",
             credentials: isCredentialsSupported ? withCredentials : void 0
           };
-          request = isRequestSupported && new Request(url3, resolvedOptions);
+          request = isRequestSupported && new Request2(url3, resolvedOptions);
           let response = await (isRequestSupported ? _fetch(request, fetchOptions) : _fetch(url3, resolvedOptions));
           const responseHeaders = AxiosHeaders.from(response.headers);
           if (hasMaxContentLength) {
@@ -29186,7 +29186,7 @@ var require_axios = __commonJS({
               }
               onProgress && onProgress(loadedBytes);
             };
-            response = new Response(trackStream(response.body, DEFAULT_CHUNK_SIZE, onChunkProgress, () => {
+            response = new Response2(trackStream(response.body, DEFAULT_CHUNK_SIZE, onChunkProgress, () => {
               flush && flush();
               unsubscribe && unsubscribe();
             }), options);
@@ -29264,10 +29264,10 @@ var require_axios = __commonJS({
       let env = config2 && config2.env || {};
       const {
         fetch: fetch2,
-        Request,
-        Response
+        Request: Request2,
+        Response: Response2
       } = env;
-      const seeds = [Request, Response, fetch2];
+      const seeds = [Request2, Response2, fetch2];
       let len = seeds.length, i = len, seed, target, map2 = seedCache;
       while (i--) {
         seed = seeds[i];
@@ -31260,13 +31260,13 @@ var require_cds = __commonJS({
         const match = key.match(/annotation(Key|Value).([0-9]+)/);
         if (match && match.groups) {
           const mtype = match.groups[1];
-          const idx = (0, utilities_1.toInt)(match.groups[2]);
-          const anno = annotations[idx] || { key: "", value: "" };
+          const idx2 = (0, utilities_1.toInt)(match.groups[2]);
+          const anno = annotations[idx2] || { key: "", value: "" };
           if (mtype === "Key")
             anno.key = rawanno[key];
           else
             anno.value = rawanno[key];
-          annotations[idx] = anno;
+          annotations[idx2] = anno;
         }
       }
       return {
@@ -32971,9 +32971,9 @@ var require_revisions = __commonJS({
         return (0, utilities_1.xmlNode)(base, "@_adtcore:name") || "";
     };
     async function revisions(h, objectUrl, includeName) {
-      const str6 = (0, utilities_1.isString)(objectUrl) ? await (0, objectstructure_1.objectStructure)(h, objectUrl) : objectUrl;
-      const name = str6.metaData["adtcore:name"];
-      const revisionUrl = getRevisionLink(str6, includeName);
+      const str7 = (0, utilities_1.isString)(objectUrl) ? await (0, objectstructure_1.objectStructure)(h, objectUrl) : objectUrl;
+      const name = str7.metaData["adtcore:name"];
+      const revisionUrl = getRevisionLink(str7, includeName);
       if (!revisionUrl)
         throw (0, AdtException_1.adtException)(`Revision URL not found for object ${name}`);
       const headers = { Accept: "application/atom+xml;type=feed" };
@@ -35142,7 +35142,7 @@ var require_tracetypes = __commonJS({
         const updated = new Date(e.updated);
         const links = (0, utilities_1.extractXmlArray)(e.link).map(utilities_1.typedNodeAttr);
         const authors = (0, utilities_1.extractXmlArray)(e.author).map(({ name, uri, "@_role": role }) => ({ name, role, uri }));
-        const { "@_src": contentSrc, "@_type": contentType2 } = e.content;
+        const { "@_src": contentSrc, "@_type": contentType4 } = e.content;
         const { description, executions: executions2, isAggregated, host, requestIndex } = e.extendedData;
         const expires = new Date(e.extendedData.expires);
         const processType = decodeProcessType(e.extendedData.processType["@_processTypeId"]);
@@ -35168,7 +35168,7 @@ var require_tracetypes = __commonJS({
           links,
           authors,
           contentSrc,
-          contentType: contentType2,
+          contentType: contentType4,
           extendedData: extendedData2
         };
       });
@@ -36552,15 +36552,15 @@ function describeUnknownError(e) {
     const text6 = safeToString(e).trim();
     return text6 ? text6 : `a ${typeof e} value was thrown as an error`;
   }
-  let json2;
+  let json3;
   let jsonFailure = "";
   try {
     const out = JSON.stringify(e);
-    if (typeof out === "string") json2 = out;
+    if (typeof out === "string") json3 = out;
   } catch (inner) {
     jsonFailure = inner instanceof Error && typeof inner.message === "string" ? inner.message.trim() : "";
   }
-  if (json2 !== void 0 && json2.trim() && json2 !== "{}") return json2;
+  if (json3 !== void 0 && json3.trim() && json3 !== "{}") return json3;
   let duck;
   try {
     duck = e.message;
@@ -36655,6 +36655,8 @@ var init_errors = __esm({
       FLUID_PLUGINS_DISABLED: "terminal",
       // the flag is off; no argument enables it
       FLUID_PLUGIN_MUTATE_DISABLED: "terminal",
+      // the flag is off; no argument enables it
+      FLUID_EVAL_DISABLED: "terminal",
       // the flag is off; no argument enables it
       FLUID_OBJECT_CONFLICT: "terminal",
       // the ABAP name is owned by something else; retrying rewrites nothing
@@ -38478,14 +38480,14 @@ function promiseAllObject(promisesObj) {
 }
 function randomString(length = 10) {
   const chars = "abcdefghijklmnopqrstuvwxyz";
-  let str6 = "";
+  let str7 = "";
   for (let i = 0; i < length; i++) {
-    str6 += chars[Math.floor(Math.random() * chars.length)];
+    str7 += chars[Math.floor(Math.random() * chars.length)];
   }
-  return str6;
+  return str7;
 }
-function esc(str6) {
-  return JSON.stringify(str6);
+function esc(str7) {
+  return JSON.stringify(str7);
 }
 function slugify(input) {
   return input.toLowerCase().trim().replace(/[^\w\s-]/g, "").replace(/[\s_-]+/g, "-").replace(/^-+|-+$/g, "");
@@ -38529,8 +38531,8 @@ function numKeys(data) {
   }
   return keyCount;
 }
-function escapeRegex(str6) {
-  return str6.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function escapeRegex(str7) {
+  return str7.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 function clone(inst, def, params) {
   const cl = new inst._zod.constr(def ?? inst._zod.def);
@@ -38889,8 +38891,8 @@ function base64urlToUint8Array(base64url3) {
 function uint8ArrayToBase64url(bytes) {
   return uint8ArrayToBase64(bytes).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
 }
-function hexToUint8Array(hex3) {
-  const cleanHex = hex3.replace(/^0x/, "");
+function hexToUint8Array(hex4) {
+  const cleanHex = hex4.replace(/^0x/, "");
   if (cleanHex.length % 2 !== 0) {
     throw new Error("Invalid hex string length");
   }
@@ -49955,29 +49957,29 @@ var init_json_schema_processors = __esm({
       // do not set
     };
     stringProcessor = (schema, ctx, _json, _params) => {
-      const json2 = _json;
-      json2.type = "string";
+      const json3 = _json;
+      json3.type = "string";
       const { minimum, maximum, format, patterns, contentEncoding } = schema._zod.bag;
       if (typeof minimum === "number")
-        json2.minLength = minimum;
+        json3.minLength = minimum;
       if (typeof maximum === "number")
-        json2.maxLength = maximum;
+        json3.maxLength = maximum;
       if (format) {
-        json2.format = formatMap[format] ?? format;
-        if (json2.format === "")
-          delete json2.format;
+        json3.format = formatMap[format] ?? format;
+        if (json3.format === "")
+          delete json3.format;
         if (format === "time") {
-          delete json2.format;
+          delete json3.format;
         }
       }
       if (contentEncoding)
-        json2.contentEncoding = contentEncoding;
+        json3.contentEncoding = contentEncoding;
       if (patterns && patterns.size > 0) {
         const regexes = [...patterns];
         if (regexes.length === 1)
-          json2.pattern = regexes[0].source;
+          json3.pattern = regexes[0].source;
         else if (regexes.length > 1) {
-          json2.allOf = [
+          json3.allOf = [
             ...regexes.map((regex) => ({
               ...ctx.target === "draft-07" || ctx.target === "draft-04" || ctx.target === "openapi-3.0" ? { type: "string" } : {},
               pattern: regex.source
@@ -49987,40 +49989,40 @@ var init_json_schema_processors = __esm({
       }
     };
     numberProcessor = (schema, ctx, _json, _params) => {
-      const json2 = _json;
+      const json3 = _json;
       const { minimum, maximum, format, multipleOf, exclusiveMaximum, exclusiveMinimum } = schema._zod.bag;
       if (typeof format === "string" && format.includes("int"))
-        json2.type = "integer";
+        json3.type = "integer";
       else
-        json2.type = "number";
+        json3.type = "number";
       const exMin = typeof exclusiveMinimum === "number" && exclusiveMinimum >= (minimum ?? Number.NEGATIVE_INFINITY);
       const exMax = typeof exclusiveMaximum === "number" && exclusiveMaximum <= (maximum ?? Number.POSITIVE_INFINITY);
       const legacy = ctx.target === "draft-04" || ctx.target === "openapi-3.0";
       if (exMin) {
         if (legacy) {
-          json2.minimum = exclusiveMinimum;
-          json2.exclusiveMinimum = true;
+          json3.minimum = exclusiveMinimum;
+          json3.exclusiveMinimum = true;
         } else {
-          json2.exclusiveMinimum = exclusiveMinimum;
+          json3.exclusiveMinimum = exclusiveMinimum;
         }
       } else if (typeof minimum === "number") {
-        json2.minimum = minimum;
+        json3.minimum = minimum;
       }
       if (exMax) {
         if (legacy) {
-          json2.maximum = exclusiveMaximum;
-          json2.exclusiveMaximum = true;
+          json3.maximum = exclusiveMaximum;
+          json3.exclusiveMaximum = true;
         } else {
-          json2.exclusiveMaximum = exclusiveMaximum;
+          json3.exclusiveMaximum = exclusiveMaximum;
         }
       } else if (typeof maximum === "number") {
-        json2.maximum = maximum;
+        json3.maximum = maximum;
       }
       if (typeof multipleOf === "number")
-        json2.multipleOf = multipleOf;
+        json3.multipleOf = multipleOf;
     };
-    booleanProcessor = (_schema, _ctx, json2, _params) => {
-      json2.type = "boolean";
+    booleanProcessor = (_schema, _ctx, json3, _params) => {
+      json3.type = "boolean";
     };
     bigintProcessor = (_schema, ctx, _json, _params) => {
       if (ctx.unrepresentable === "throw") {
@@ -50032,13 +50034,13 @@ var init_json_schema_processors = __esm({
         throw new Error("Symbols cannot be represented in JSON Schema");
       }
     };
-    nullProcessor = (_schema, ctx, json2, _params) => {
+    nullProcessor = (_schema, ctx, json3, _params) => {
       if (ctx.target === "openapi-3.0") {
-        json2.type = "string";
-        json2.nullable = true;
-        json2.enum = [null];
+        json3.type = "string";
+        json3.nullable = true;
+        json3.enum = [null];
       } else {
-        json2.type = "null";
+        json3.type = "null";
       }
     };
     undefinedProcessor = (_schema, ctx, _json, _params) => {
@@ -50051,8 +50053,8 @@ var init_json_schema_processors = __esm({
         throw new Error("Void cannot be represented in JSON Schema");
       }
     };
-    neverProcessor = (_schema, _ctx, json2, _params) => {
-      json2.not = {};
+    neverProcessor = (_schema, _ctx, json3, _params) => {
+      json3.not = {};
     };
     anyProcessor = (_schema, _ctx, _json, _params) => {
     };
@@ -50063,16 +50065,16 @@ var init_json_schema_processors = __esm({
         throw new Error("Date cannot be represented in JSON Schema");
       }
     };
-    enumProcessor = (schema, _ctx, json2, _params) => {
+    enumProcessor = (schema, _ctx, json3, _params) => {
       const def = schema._zod.def;
       const values = getEnumValues(def.entries);
       if (values.every((v) => typeof v === "number"))
-        json2.type = "number";
+        json3.type = "number";
       if (values.every((v) => typeof v === "string"))
-        json2.type = "string";
-      json2.enum = values;
+        json3.type = "string";
+      json3.enum = values;
     };
-    literalProcessor = (schema, ctx, json2, _params) => {
+    literalProcessor = (schema, ctx, json3, _params) => {
       const def = schema._zod.def;
       const vals = [];
       for (const val of def.values) {
@@ -50094,22 +50096,22 @@ var init_json_schema_processors = __esm({
       if (vals.length === 0) {
       } else if (vals.length === 1) {
         const val = vals[0];
-        json2.type = val === null ? "null" : typeof val;
+        json3.type = val === null ? "null" : typeof val;
         if (ctx.target === "draft-04" || ctx.target === "openapi-3.0") {
-          json2.enum = [val];
+          json3.enum = [val];
         } else {
-          json2.const = val;
+          json3.const = val;
         }
       } else {
         if (vals.every((v) => typeof v === "number"))
-          json2.type = "number";
+          json3.type = "number";
         if (vals.every((v) => typeof v === "string"))
-          json2.type = "string";
+          json3.type = "string";
         if (vals.every((v) => typeof v === "boolean"))
-          json2.type = "boolean";
+          json3.type = "boolean";
         if (vals.every((v) => v === null))
-          json2.type = "null";
-        json2.enum = vals;
+          json3.type = "null";
+        json3.enum = vals;
       }
     };
     nanProcessor = (_schema, ctx, _json, _params) => {
@@ -50117,16 +50119,16 @@ var init_json_schema_processors = __esm({
         throw new Error("NaN cannot be represented in JSON Schema");
       }
     };
-    templateLiteralProcessor = (schema, _ctx, json2, _params) => {
-      const _json = json2;
+    templateLiteralProcessor = (schema, _ctx, json3, _params) => {
+      const _json = json3;
       const pattern = schema._zod.pattern;
       if (!pattern)
         throw new Error("Pattern not found in template literal");
       _json.type = "string";
       _json.pattern = pattern.source;
     };
-    fileProcessor = (schema, _ctx, json2, _params) => {
-      const _json = json2;
+    fileProcessor = (schema, _ctx, json3, _params) => {
+      const _json = json3;
       const file2 = {
         type: "string",
         format: "binary",
@@ -50149,8 +50151,8 @@ var init_json_schema_processors = __esm({
         Object.assign(_json, file2);
       }
     };
-    successProcessor = (_schema, _ctx, json2, _params) => {
-      json2.type = "boolean";
+    successProcessor = (_schema, _ctx, json3, _params) => {
+      json3.type = "boolean";
     };
     customProcessor = (_schema, ctx, _json, _params) => {
       if (ctx.unrepresentable === "throw") {
@@ -50178,27 +50180,27 @@ var init_json_schema_processors = __esm({
       }
     };
     arrayProcessor = (schema, ctx, _json, params) => {
-      const json2 = _json;
+      const json3 = _json;
       const def = schema._zod.def;
       const { minimum, maximum } = schema._zod.bag;
       if (typeof minimum === "number")
-        json2.minItems = minimum;
+        json3.minItems = minimum;
       if (typeof maximum === "number")
-        json2.maxItems = maximum;
-      json2.type = "array";
-      json2.items = process2(def.element, ctx, {
+        json3.maxItems = maximum;
+      json3.type = "array";
+      json3.items = process2(def.element, ctx, {
         ...params,
         path: [...params.path, "items"]
       });
     };
     objectProcessor = (schema, ctx, _json, params) => {
-      const json2 = _json;
+      const json3 = _json;
       const def = schema._zod.def;
-      json2.type = "object";
-      json2.properties = {};
+      json3.type = "object";
+      json3.properties = {};
       const shape = def.shape;
       for (const key in shape) {
-        json2.properties[key] = process2(shape[key], ctx, {
+        json3.properties[key] = process2(shape[key], ctx, {
           ...params,
           path: [...params.path, "properties", key]
         });
@@ -50213,21 +50215,21 @@ var init_json_schema_processors = __esm({
         }
       }));
       if (requiredKeys.size > 0) {
-        json2.required = Array.from(requiredKeys);
+        json3.required = Array.from(requiredKeys);
       }
       if (def.catchall?._zod.def.type === "never") {
-        json2.additionalProperties = false;
+        json3.additionalProperties = false;
       } else if (!def.catchall) {
         if (ctx.io === "output")
-          json2.additionalProperties = false;
+          json3.additionalProperties = false;
       } else if (def.catchall) {
-        json2.additionalProperties = process2(def.catchall, ctx, {
+        json3.additionalProperties = process2(def.catchall, ctx, {
           ...params,
           path: [...params.path, "additionalProperties"]
         });
       }
     };
-    unionProcessor = (schema, ctx, json2, params) => {
+    unionProcessor = (schema, ctx, json3, params) => {
       const def = schema._zod.def;
       const isExclusive = def.inclusive === false;
       const options = def.options.map((x, i) => process2(x, ctx, {
@@ -50235,12 +50237,12 @@ var init_json_schema_processors = __esm({
         path: [...params.path, isExclusive ? "oneOf" : "anyOf", i]
       }));
       if (isExclusive) {
-        json2.oneOf = options;
+        json3.oneOf = options;
       } else {
-        json2.anyOf = options;
+        json3.anyOf = options;
       }
     };
-    intersectionProcessor = (schema, ctx, json2, params) => {
+    intersectionProcessor = (schema, ctx, json3, params) => {
       const def = schema._zod.def;
       const a = process2(def.left, ctx, {
         ...params,
@@ -50255,12 +50257,12 @@ var init_json_schema_processors = __esm({
         ...isSimpleIntersection(a) ? a.allOf : [a],
         ...isSimpleIntersection(b) ? b.allOf : [b]
       ];
-      json2.allOf = allOf;
+      json3.allOf = allOf;
     };
     tupleProcessor = (schema, ctx, _json, params) => {
-      const json2 = _json;
+      const json3 = _json;
       const def = schema._zod.def;
-      json2.type = "array";
+      json3.type = "array";
       const prefixPath = ctx.target === "draft-2020-12" ? "prefixItems" : "items";
       const restPath = ctx.target === "draft-2020-12" ? "items" : ctx.target === "openapi-3.0" ? "items" : "additionalItems";
       const prefixItems = def.items.map((x, i) => process2(x, ctx, {
@@ -50272,37 +50274,37 @@ var init_json_schema_processors = __esm({
         path: [...params.path, restPath, ...ctx.target === "openapi-3.0" ? [def.items.length] : []]
       }) : null;
       if (ctx.target === "draft-2020-12") {
-        json2.prefixItems = prefixItems;
+        json3.prefixItems = prefixItems;
         if (rest) {
-          json2.items = rest;
+          json3.items = rest;
         }
       } else if (ctx.target === "openapi-3.0") {
-        json2.items = {
+        json3.items = {
           anyOf: prefixItems
         };
         if (rest) {
-          json2.items.anyOf.push(rest);
+          json3.items.anyOf.push(rest);
         }
-        json2.minItems = prefixItems.length;
+        json3.minItems = prefixItems.length;
         if (!rest) {
-          json2.maxItems = prefixItems.length;
+          json3.maxItems = prefixItems.length;
         }
       } else {
-        json2.items = prefixItems;
+        json3.items = prefixItems;
         if (rest) {
-          json2.additionalItems = rest;
+          json3.additionalItems = rest;
         }
       }
       const { minimum, maximum } = schema._zod.bag;
       if (typeof minimum === "number")
-        json2.minItems = minimum;
+        json3.minItems = minimum;
       if (typeof maximum === "number")
-        json2.maxItems = maximum;
+        json3.maxItems = maximum;
     };
     recordProcessor = (schema, ctx, _json, params) => {
-      const json2 = _json;
+      const json3 = _json;
       const def = schema._zod.def;
-      json2.type = "object";
+      json3.type = "object";
       const keyType = def.keyType;
       const keyBag = keyType._zod.bag;
       const patterns = keyBag?.patterns;
@@ -50311,18 +50313,18 @@ var init_json_schema_processors = __esm({
           ...params,
           path: [...params.path, "patternProperties", "*"]
         });
-        json2.patternProperties = {};
+        json3.patternProperties = {};
         for (const pattern of patterns) {
-          json2.patternProperties[pattern.source] = valueSchema;
+          json3.patternProperties[pattern.source] = valueSchema;
         }
       } else {
         if (ctx.target === "draft-07" || ctx.target === "draft-2020-12") {
-          json2.propertyNames = process2(def.keyType, ctx, {
+          json3.propertyNames = process2(def.keyType, ctx, {
             ...params,
             path: [...params.path, "propertyNames"]
           });
         }
-        json2.additionalProperties = process2(def.valueType, ctx, {
+        json3.additionalProperties = process2(def.valueType, ctx, {
           ...params,
           path: [...params.path, "additionalProperties"]
         });
@@ -50331,19 +50333,19 @@ var init_json_schema_processors = __esm({
       if (keyValues) {
         const validKeyValues = [...keyValues].filter((v) => typeof v === "string" || typeof v === "number");
         if (validKeyValues.length > 0) {
-          json2.required = validKeyValues;
+          json3.required = validKeyValues;
         }
       }
     };
-    nullableProcessor = (schema, ctx, json2, params) => {
+    nullableProcessor = (schema, ctx, json3, params) => {
       const def = schema._zod.def;
       const inner = process2(def.innerType, ctx, params);
       const seen = ctx.seen.get(schema);
       if (ctx.target === "openapi-3.0") {
         seen.ref = def.innerType;
-        json2.nullable = true;
+        json3.nullable = true;
       } else {
-        json2.anyOf = [inner, { type: "null" }];
+        json3.anyOf = [inner, { type: "null" }];
       }
     };
     nonoptionalProcessor = (schema, ctx, _json, params) => {
@@ -50352,22 +50354,22 @@ var init_json_schema_processors = __esm({
       const seen = ctx.seen.get(schema);
       seen.ref = def.innerType;
     };
-    defaultProcessor = (schema, ctx, json2, params) => {
+    defaultProcessor = (schema, ctx, json3, params) => {
       const def = schema._zod.def;
       process2(def.innerType, ctx, params);
       const seen = ctx.seen.get(schema);
       seen.ref = def.innerType;
-      json2.default = JSON.parse(JSON.stringify(def.defaultValue));
+      json3.default = JSON.parse(JSON.stringify(def.defaultValue));
     };
-    prefaultProcessor = (schema, ctx, json2, params) => {
+    prefaultProcessor = (schema, ctx, json3, params) => {
       const def = schema._zod.def;
       process2(def.innerType, ctx, params);
       const seen = ctx.seen.get(schema);
       seen.ref = def.innerType;
       if (ctx.io === "input")
-        json2._prefault = JSON.parse(JSON.stringify(def.defaultValue));
+        json3._prefault = JSON.parse(JSON.stringify(def.defaultValue));
     };
-    catchProcessor = (schema, ctx, json2, params) => {
+    catchProcessor = (schema, ctx, json3, params) => {
       const def = schema._zod.def;
       process2(def.innerType, ctx, params);
       const seen = ctx.seen.get(schema);
@@ -50378,7 +50380,7 @@ var init_json_schema_processors = __esm({
       } catch {
         throw new Error("Dynamic catch values are not supported in JSON Schema");
       }
-      json2.default = catchValue;
+      json3.default = catchValue;
     };
     pipeProcessor = (schema, ctx, _json, params) => {
       const def = schema._zod.def;
@@ -50388,12 +50390,12 @@ var init_json_schema_processors = __esm({
       const seen = ctx.seen.get(schema);
       seen.ref = innerType;
     };
-    readonlyProcessor = (schema, ctx, json2, params) => {
+    readonlyProcessor = (schema, ctx, json3, params) => {
       const def = schema._zod.def;
       process2(def.innerType, ctx, params);
       const seen = ctx.seen.get(schema);
       seen.ref = def.innerType;
-      json2.readOnly = true;
+      json3.readOnly = true;
     };
     promiseProcessor = (schema, ctx, _json, params) => {
       const def = schema._zod.def;
@@ -51826,7 +51828,7 @@ var init_schemas2 = __esm({
     _ZodString = /* @__PURE__ */ $constructor("_ZodString", (inst, def) => {
       $ZodString.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => stringProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => stringProcessor(inst, ctx, json3, params);
       const bag = inst._zod.bag;
       inst.format = bag.format ?? null;
       inst.minLength = bag.minimum ?? null;
@@ -52001,7 +52003,7 @@ var init_schemas2 = __esm({
     ZodNumber = /* @__PURE__ */ $constructor("ZodNumber", (inst, def) => {
       $ZodNumber.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => numberProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => numberProcessor(inst, ctx, json3, params);
       _installLazyMethods(inst, "ZodNumber", {
         gt(value, params) {
           return this.check(_gt(value, params));
@@ -52063,12 +52065,12 @@ var init_schemas2 = __esm({
     ZodBoolean = /* @__PURE__ */ $constructor("ZodBoolean", (inst, def) => {
       $ZodBoolean.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => booleanProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => booleanProcessor(inst, ctx, json3, params);
     });
     ZodBigInt = /* @__PURE__ */ $constructor("ZodBigInt", (inst, def) => {
       $ZodBigInt.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => bigintProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => bigintProcessor(inst, ctx, json3, params);
       inst.gte = (value, params) => inst.check(_gte(value, params));
       inst.min = (value, params) => inst.check(_gte(value, params));
       inst.gt = (value, params) => inst.check(_gt(value, params));
@@ -52094,42 +52096,42 @@ var init_schemas2 = __esm({
     ZodSymbol = /* @__PURE__ */ $constructor("ZodSymbol", (inst, def) => {
       $ZodSymbol.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => symbolProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => symbolProcessor(inst, ctx, json3, params);
     });
     ZodUndefined = /* @__PURE__ */ $constructor("ZodUndefined", (inst, def) => {
       $ZodUndefined.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => undefinedProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => undefinedProcessor(inst, ctx, json3, params);
     });
     ZodNull = /* @__PURE__ */ $constructor("ZodNull", (inst, def) => {
       $ZodNull.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => nullProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => nullProcessor(inst, ctx, json3, params);
     });
     ZodAny = /* @__PURE__ */ $constructor("ZodAny", (inst, def) => {
       $ZodAny.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => anyProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => anyProcessor(inst, ctx, json3, params);
     });
     ZodUnknown = /* @__PURE__ */ $constructor("ZodUnknown", (inst, def) => {
       $ZodUnknown.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => unknownProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => unknownProcessor(inst, ctx, json3, params);
     });
     ZodNever = /* @__PURE__ */ $constructor("ZodNever", (inst, def) => {
       $ZodNever.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => neverProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => neverProcessor(inst, ctx, json3, params);
     });
     ZodVoid = /* @__PURE__ */ $constructor("ZodVoid", (inst, def) => {
       $ZodVoid.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => voidProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => voidProcessor(inst, ctx, json3, params);
     });
     ZodDate = /* @__PURE__ */ $constructor("ZodDate", (inst, def) => {
       $ZodDate.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => dateProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => dateProcessor(inst, ctx, json3, params);
       inst.min = (value, params) => inst.check(_gte(value, params));
       inst.max = (value, params) => inst.check(_lte(value, params));
       const c = inst._zod.bag;
@@ -52139,7 +52141,7 @@ var init_schemas2 = __esm({
     ZodArray = /* @__PURE__ */ $constructor("ZodArray", (inst, def) => {
       $ZodArray.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => arrayProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => arrayProcessor(inst, ctx, json3, params);
       inst.element = def.element;
       _installLazyMethods(inst, "ZodArray", {
         min(n, params) {
@@ -52162,7 +52164,7 @@ var init_schemas2 = __esm({
     ZodObject = /* @__PURE__ */ $constructor("ZodObject", (inst, def) => {
       $ZodObjectJIT.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => objectProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => objectProcessor(inst, ctx, json3, params);
       util_exports.defineLazy(inst, "shape", () => {
         return def.shape;
       });
@@ -52211,13 +52213,13 @@ var init_schemas2 = __esm({
     ZodUnion = /* @__PURE__ */ $constructor("ZodUnion", (inst, def) => {
       $ZodUnion.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => unionProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => unionProcessor(inst, ctx, json3, params);
       inst.options = def.options;
     });
     ZodXor = /* @__PURE__ */ $constructor("ZodXor", (inst, def) => {
       ZodUnion.init(inst, def);
       $ZodXor.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => unionProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => unionProcessor(inst, ctx, json3, params);
       inst.options = def.options;
     });
     ZodDiscriminatedUnion = /* @__PURE__ */ $constructor("ZodDiscriminatedUnion", (inst, def) => {
@@ -52227,12 +52229,12 @@ var init_schemas2 = __esm({
     ZodIntersection = /* @__PURE__ */ $constructor("ZodIntersection", (inst, def) => {
       $ZodIntersection.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => intersectionProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => intersectionProcessor(inst, ctx, json3, params);
     });
     ZodTuple = /* @__PURE__ */ $constructor("ZodTuple", (inst, def) => {
       $ZodTuple.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => tupleProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => tupleProcessor(inst, ctx, json3, params);
       inst.rest = (rest) => inst.clone({
         ...inst._zod.def,
         rest
@@ -52241,14 +52243,14 @@ var init_schemas2 = __esm({
     ZodRecord = /* @__PURE__ */ $constructor("ZodRecord", (inst, def) => {
       $ZodRecord.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => recordProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => recordProcessor(inst, ctx, json3, params);
       inst.keyType = def.keyType;
       inst.valueType = def.valueType;
     });
     ZodMap = /* @__PURE__ */ $constructor("ZodMap", (inst, def) => {
       $ZodMap.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => mapProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => mapProcessor(inst, ctx, json3, params);
       inst.keyType = def.keyType;
       inst.valueType = def.valueType;
       inst.min = (...args) => inst.check(_minSize(...args));
@@ -52259,7 +52261,7 @@ var init_schemas2 = __esm({
     ZodSet = /* @__PURE__ */ $constructor("ZodSet", (inst, def) => {
       $ZodSet.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => setProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => setProcessor(inst, ctx, json3, params);
       inst.min = (...args) => inst.check(_minSize(...args));
       inst.nonempty = (params) => inst.check(_minSize(1, params));
       inst.max = (...args) => inst.check(_maxSize(...args));
@@ -52268,7 +52270,7 @@ var init_schemas2 = __esm({
     ZodEnum = /* @__PURE__ */ $constructor("ZodEnum", (inst, def) => {
       $ZodEnum.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => enumProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => enumProcessor(inst, ctx, json3, params);
       inst.enum = def.entries;
       inst.options = Object.values(def.entries);
       const keys = new Set(Object.keys(def.entries));
@@ -52306,7 +52308,7 @@ var init_schemas2 = __esm({
     ZodLiteral = /* @__PURE__ */ $constructor("ZodLiteral", (inst, def) => {
       $ZodLiteral.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => literalProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => literalProcessor(inst, ctx, json3, params);
       inst.values = new Set(def.values);
       Object.defineProperty(inst, "value", {
         get() {
@@ -52320,7 +52322,7 @@ var init_schemas2 = __esm({
     ZodFile = /* @__PURE__ */ $constructor("ZodFile", (inst, def) => {
       $ZodFile.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => fileProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => fileProcessor(inst, ctx, json3, params);
       inst.min = (size, params) => inst.check(_minSize(size, params));
       inst.max = (size, params) => inst.check(_maxSize(size, params));
       inst.mime = (types, params) => inst.check(_mime(Array.isArray(types) ? types : [types], params));
@@ -52328,7 +52330,7 @@ var init_schemas2 = __esm({
     ZodTransform = /* @__PURE__ */ $constructor("ZodTransform", (inst, def) => {
       $ZodTransform.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => transformProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => transformProcessor(inst, ctx, json3, params);
       inst._zod.parse = (payload, _ctx) => {
         if (_ctx.direction === "backward") {
           throw new $ZodEncodeError(inst.constructor.name);
@@ -52362,62 +52364,62 @@ var init_schemas2 = __esm({
     ZodOptional = /* @__PURE__ */ $constructor("ZodOptional", (inst, def) => {
       $ZodOptional.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => optionalProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => optionalProcessor(inst, ctx, json3, params);
       inst.unwrap = () => inst._zod.def.innerType;
     });
     ZodExactOptional = /* @__PURE__ */ $constructor("ZodExactOptional", (inst, def) => {
       $ZodExactOptional.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => optionalProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => optionalProcessor(inst, ctx, json3, params);
       inst.unwrap = () => inst._zod.def.innerType;
     });
     ZodNullable = /* @__PURE__ */ $constructor("ZodNullable", (inst, def) => {
       $ZodNullable.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => nullableProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => nullableProcessor(inst, ctx, json3, params);
       inst.unwrap = () => inst._zod.def.innerType;
     });
     ZodDefault = /* @__PURE__ */ $constructor("ZodDefault", (inst, def) => {
       $ZodDefault.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => defaultProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => defaultProcessor(inst, ctx, json3, params);
       inst.unwrap = () => inst._zod.def.innerType;
       inst.removeDefault = inst.unwrap;
     });
     ZodPrefault = /* @__PURE__ */ $constructor("ZodPrefault", (inst, def) => {
       $ZodPrefault.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => prefaultProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => prefaultProcessor(inst, ctx, json3, params);
       inst.unwrap = () => inst._zod.def.innerType;
     });
     ZodNonOptional = /* @__PURE__ */ $constructor("ZodNonOptional", (inst, def) => {
       $ZodNonOptional.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => nonoptionalProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => nonoptionalProcessor(inst, ctx, json3, params);
       inst.unwrap = () => inst._zod.def.innerType;
     });
     ZodSuccess = /* @__PURE__ */ $constructor("ZodSuccess", (inst, def) => {
       $ZodSuccess.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => successProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => successProcessor(inst, ctx, json3, params);
       inst.unwrap = () => inst._zod.def.innerType;
     });
     ZodCatch = /* @__PURE__ */ $constructor("ZodCatch", (inst, def) => {
       $ZodCatch.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => catchProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => catchProcessor(inst, ctx, json3, params);
       inst.unwrap = () => inst._zod.def.innerType;
       inst.removeCatch = inst.unwrap;
     });
     ZodNaN = /* @__PURE__ */ $constructor("ZodNaN", (inst, def) => {
       $ZodNaN.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => nanProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => nanProcessor(inst, ctx, json3, params);
     });
     ZodPipe = /* @__PURE__ */ $constructor("ZodPipe", (inst, def) => {
       $ZodPipe.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => pipeProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => pipeProcessor(inst, ctx, json3, params);
       inst.in = def.in;
       inst.out = def.out;
     });
@@ -52432,35 +52434,35 @@ var init_schemas2 = __esm({
     ZodReadonly = /* @__PURE__ */ $constructor("ZodReadonly", (inst, def) => {
       $ZodReadonly.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => readonlyProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => readonlyProcessor(inst, ctx, json3, params);
       inst.unwrap = () => inst._zod.def.innerType;
     });
     ZodTemplateLiteral = /* @__PURE__ */ $constructor("ZodTemplateLiteral", (inst, def) => {
       $ZodTemplateLiteral.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => templateLiteralProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => templateLiteralProcessor(inst, ctx, json3, params);
     });
     ZodLazy = /* @__PURE__ */ $constructor("ZodLazy", (inst, def) => {
       $ZodLazy.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => lazyProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => lazyProcessor(inst, ctx, json3, params);
       inst.unwrap = () => inst._zod.def.getter();
     });
     ZodPromise = /* @__PURE__ */ $constructor("ZodPromise", (inst, def) => {
       $ZodPromise.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => promiseProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => promiseProcessor(inst, ctx, json3, params);
       inst.unwrap = () => inst._zod.def.innerType;
     });
     ZodFunction = /* @__PURE__ */ $constructor("ZodFunction", (inst, def) => {
       $ZodFunction.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => functionProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => functionProcessor(inst, ctx, json3, params);
     });
     ZodCustom = /* @__PURE__ */ $constructor("ZodCustom", (inst, def) => {
       $ZodCustom.init(inst, def);
       ZodType.init(inst, def);
-      inst._zod.processJSONSchema = (ctx, json2, params) => customProcessor(inst, ctx, json2, params);
+      inst._zod.processJSONSchema = (ctx, json3, params) => customProcessor(inst, ctx, json3, params);
     });
     describe2 = describe;
     meta2 = meta;
@@ -53484,7 +53486,7 @@ var require_main = __commonJS({
     var fs4 = __require("fs");
     var path8 = __require("path");
     var os2 = __require("os");
-    var crypto = __require("crypto");
+    var crypto2 = __require("crypto");
     var TIPS = [
       "\u25C8 encrypted .env [www.dotenvx.com]",
       "\u25C8 secrets for agents [www.dotenvx.com]",
@@ -53728,7 +53730,7 @@ var require_main = __commonJS({
       const authTag = ciphertext.subarray(-16);
       ciphertext = ciphertext.subarray(12, -16);
       try {
-        const aesgcm = crypto.createDecipheriv("aes-256-gcm", key, nonce);
+        const aesgcm = crypto2.createDecipheriv("aes-256-gcm", key, nonce);
         aesgcm.setAuthTag(authTag);
         return `${aesgcm.update(ciphertext)}${aesgcm.final()}`;
       } catch (error51) {
@@ -54462,29 +54464,29 @@ var init_EntityDecoder = __esm({
        * @param {string} str
        * @returns {string}
        */
-      decode(str6) {
-        if (typeof str6 !== "string" || str6.length === 0) return str6;
-        if (str6.indexOf("&") === -1) return str6;
-        const original = str6;
+      decode(str7) {
+        if (typeof str7 !== "string" || str7.length === 0) return str7;
+        if (str7.indexOf("&") === -1) return str7;
+        const original = str7;
         const chunks = [];
-        const len = str6.length;
+        const len = str7.length;
         let last = 0;
         let i = 0;
         const limitExpansions = this._maxTotalExpansions > 0;
         const limitLength = this._maxExpandedLength > 0;
         const checkLimits = limitExpansions || limitLength;
         while (i < len) {
-          if (str6.charCodeAt(i) !== 38) {
+          if (str7.charCodeAt(i) !== 38) {
             i++;
             continue;
           }
           let j = i + 1;
-          while (j < len && str6.charCodeAt(j) !== 59 && j - i <= 32) j++;
-          if (j >= len || str6.charCodeAt(j) !== 59) {
+          while (j < len && str7.charCodeAt(j) !== 59 && j - i <= 32) j++;
+          if (j >= len || str7.charCodeAt(j) !== 59) {
             i++;
             continue;
           }
-          const token = str6.slice(i + 1, j);
+          const token = str7.slice(i + 1, j);
           if (token.length === 0) {
             i++;
             continue;
@@ -54516,7 +54518,7 @@ var init_EntityDecoder = __esm({
             i++;
             continue;
           }
-          if (i > last) chunks.push(str6.slice(last, i));
+          if (i > last) chunks.push(str7.slice(last, i));
           chunks.push(replacement);
           last = j + 1;
           i = last;
@@ -54542,8 +54544,8 @@ var init_EntityDecoder = __esm({
             }
           }
         }
-        if (last < len) chunks.push(str6.slice(last));
-        const result = chunks.length === 0 ? str6 : chunks.join("");
+        if (last < len) chunks.push(str7.slice(last));
+        const result = chunks.length === 0 ? str7 : chunks.join("");
         return this._postCheck(result, original);
       }
       // -------------------------------------------------------------------------
@@ -54877,7 +54879,7 @@ var init_src2 = __esm({
       if (asciiOnly) return regexesAscii;
       return xmlVersion === "1.1" ? regexes11 : regexes10;
     };
-    qName = (str6, { xmlVersion = "1.0", asciiOnly = false } = {}) => getRegexes(xmlVersion, asciiOnly).qName.test(str6);
+    qName = (str7, { xmlVersion = "1.0", asciiOnly = false } = {}) => getRegexes(xmlVersion, asciiOnly).qName.test(str7);
   }
 });
 
@@ -55323,13 +55325,13 @@ var init_digitTable = __esm({
 });
 
 // node_modules/anynum/anynum.js
-function anynum(str6) {
-  if (typeof str6 !== "string") return str6;
-  const len = str6.length;
-  if (len === 0) return str6;
+function anynum(str7) {
+  if (typeof str7 !== "string") return str7;
+  const len = str7.length;
+  if (len === 0) return str7;
   let firstHit = -1;
   for (let i = 0; i < len; i++) {
-    const cc = str6.charCodeAt(i);
+    const cc = str7.charCodeAt(i);
     if (cc >= CHAR_0 && cc <= CHAR_9 || cc === CHAR_MINUS) continue;
     if (cc < TABLE_OFFSET) {
       if (MINUS_SET.has(cc)) {
@@ -55340,7 +55342,7 @@ function anynum(str6) {
     }
     if (cc >= 55296 && cc <= 56319) {
       if (i + 1 < len) {
-        const low = str6.charCodeAt(i + 1);
+        const low = str7.charCodeAt(i + 1);
         if (low >= 56320 && low <= 57343) {
           const cp = 65536 + (cc - 55296 << 10) + (low - 56320);
           if (HIGH_MAP.has(cp)) {
@@ -55356,22 +55358,22 @@ function anynum(str6) {
       break;
     }
   }
-  if (firstHit === -1) return str6;
+  if (firstHit === -1) return str7;
   const chars = [];
-  if (firstHit > 0) chars.push(str6.slice(0, firstHit));
+  if (firstHit > 0) chars.push(str7.slice(0, firstHit));
   for (let i = firstHit; i < len; i++) {
-    const cc = str6.charCodeAt(i);
+    const cc = str7.charCodeAt(i);
     if (cc >= CHAR_0 && cc <= CHAR_9 || cc === CHAR_MINUS) {
-      chars.push(str6[i]);
+      chars.push(str7[i]);
       continue;
     }
     if (cc < TABLE_OFFSET) {
-      chars.push(MINUS_SET.has(cc) ? "-" : str6[i]);
+      chars.push(MINUS_SET.has(cc) ? "-" : str7[i]);
       continue;
     }
     if (cc >= 55296 && cc <= 56319) {
       if (i + 1 < len) {
-        const low = str6.charCodeAt(i + 1);
+        const low = str7.charCodeAt(i + 1);
         if (low >= 56320 && low <= 57343) {
           const cp = 65536 + (cc - 55296 << 10) + (low - 56320);
           const d2 = HIGH_MAP.get(cp);
@@ -55382,7 +55384,7 @@ function anynum(str6) {
           }
         }
       }
-      chars.push(str6[i]);
+      chars.push(str7[i]);
       continue;
     }
     if (MINUS_SET.has(cc)) {
@@ -55390,7 +55392,7 @@ function anynum(str6) {
       continue;
     }
     const d = TABLE[cc - TABLE_OFFSET];
-    chars.push(d !== NOT_DIGIT ? String.fromCharCode(d + 48) : str6[i]);
+    chars.push(d !== NOT_DIGIT ? String.fromCharCode(d + 48) : str7[i]);
   }
   return chars.join("");
 }
@@ -55408,12 +55410,12 @@ var init_anynum = __esm({
 });
 
 // node_modules/strnum/strnum.js
-function toNumber(str6, options = {}) {
+function toNumber(str7, options = {}) {
   options = Object.assign({}, consider, options);
-  if (!str6 || typeof str6 !== "string") return str6;
-  let trimmedStr = str6.trim();
-  if (trimmedStr.length === 0) return str6;
-  else if (options.skipLike !== void 0 && options.skipLike.test(trimmedStr)) return str6;
+  if (!str7 || typeof str7 !== "string") return str7;
+  let trimmedStr = str7.trim();
+  if (trimmedStr.length === 0) return str7;
+  else if (options.skipLike !== void 0 && options.skipLike.test(trimmedStr)) return str7;
   else if (trimmedStr === "0") return 0;
   if (options.unicode) {
     trimmedStr = anynum_default(trimmedStr);
@@ -55426,9 +55428,9 @@ function toNumber(str6, options = {}) {
   } else if (options.octal && octRegex.test(trimmedStr)) {
     return parse_int(trimmedStr, 8);
   } else if (!isFinite(trimmedStr)) {
-    return handleInfinity(str6, Number(trimmedStr), options);
+    return handleInfinity(str7, Number(trimmedStr), options);
   } else if (trimmedStr.includes("e") || trimmedStr.includes("E")) {
-    return resolveEnotation(str6, trimmedStr, options);
+    return resolveEnotation(str7, trimmedStr, options);
   } else {
     const match = numRegex.exec(trimmedStr);
     if (match) {
@@ -55437,37 +55439,37 @@ function toNumber(str6, options = {}) {
       let numTrimmedByZeros = trimZeros(match[3]);
       const decimalAdjacentToLeadingZeros = sign ? (
         // 0., -00., 000.
-        str6[leadingZeros.length + 1] === "."
-      ) : str6[leadingZeros.length] === ".";
+        str7[leadingZeros.length + 1] === "."
+      ) : str7[leadingZeros.length] === ".";
       if (!options.leadingZeros && (leadingZeros.length > 1 || leadingZeros.length === 1 && !decimalAdjacentToLeadingZeros)) {
-        return str6;
+        return str7;
       } else {
         const num4 = Number(trimmedStr);
         const parsedStr = String(num4);
         if (num4 === 0) return num4;
         if (parsedStr.search(/[eE]/) !== -1) {
           if (options.eNotation) return num4;
-          else return str6;
+          else return str7;
         } else if (trimmedStr.indexOf(".") !== -1) {
           if (parsedStr === "0") return num4;
           else if (parsedStr === numTrimmedByZeros) return num4;
           else if (parsedStr === `${sign}${numTrimmedByZeros}`) return num4;
-          else return str6;
+          else return str7;
         }
         let n = leadingZeros ? numTrimmedByZeros : trimmedStr;
         if (leadingZeros) {
-          return n === parsedStr || sign + n === parsedStr ? num4 : str6;
+          return n === parsedStr || sign + n === parsedStr ? num4 : str7;
         } else {
-          return n === parsedStr || n === sign + parsedStr ? num4 : str6;
+          return n === parsedStr || n === sign + parsedStr ? num4 : str7;
         }
       }
     } else {
-      return str6;
+      return str7;
     }
   }
 }
-function resolveEnotation(str6, trimmedStr, options) {
-  if (!options.eNotation) return str6;
+function resolveEnotation(str7, trimmedStr, options) {
+  if (!options.eNotation) return str7;
   const notation = trimmedStr.match(eNotationRegx);
   if (notation) {
     let sign = notation[1] || "";
@@ -55475,21 +55477,21 @@ function resolveEnotation(str6, trimmedStr, options) {
     const leadingZeros = notation[2];
     const eAdjacentToLeadingZeros = sign ? (
       // 0E.
-      str6[leadingZeros.length + 1] === eChar
-    ) : str6[leadingZeros.length] === eChar;
-    if (leadingZeros.length > 1 && eAdjacentToLeadingZeros) return str6;
+      str7[leadingZeros.length + 1] === eChar
+    ) : str7[leadingZeros.length] === eChar;
+    if (leadingZeros.length > 1 && eAdjacentToLeadingZeros) return str7;
     else if (leadingZeros.length === 1 && (notation[3].startsWith(`.${eChar}`) || notation[3][0] === eChar)) {
       return Number(trimmedStr);
     } else if (leadingZeros.length > 0) {
       if (options.leadingZeros && !eAdjacentToLeadingZeros) {
         trimmedStr = (notation[1] || "") + notation[3];
         return Number(trimmedStr);
-      } else return str6;
+      } else return str7;
     } else {
       return Number(trimmedStr);
     }
   } else {
-    return str6;
+    return str7;
   }
 }
 function trimZeros(numStr) {
@@ -55503,14 +55505,14 @@ function trimZeros(numStr) {
   return numStr;
 }
 function parse_int(numStr, base) {
-  const str6 = numStr.trim();
-  if (base === 2 || base === 8) numStr = str6.substring(2);
+  const str7 = numStr.trim();
+  if (base === 2 || base === 8) numStr = str7.substring(2);
   if (parseInt) return parseInt(numStr, base);
   else if (Number.parseInt) return Number.parseInt(numStr, base);
   else if (window && window.parseInt) return window.parseInt(numStr, base);
   else throw new Error("parseInt, Number.parseInt, window.parseInt are not supported");
 }
-function handleInfinity(str6, num4, options) {
+function handleInfinity(str7, num4, options) {
   const isPositive = num4 === Infinity;
   switch (options.infinity.toLowerCase()) {
     case "null":
@@ -55522,7 +55524,7 @@ function handleInfinity(str6, num4, options) {
       return isPositive ? "Infinity" : "-Infinity";
     case "original":
     default:
-      return str6;
+      return str7;
   }
 }
 var hexRegex, binRegex, octRegex, numRegex, consider, eNotationRegx;
@@ -57438,12 +57440,12 @@ function tagExpWithClosingIndex(xmlData, i, closingChar = ">") {
     }
   }
 }
-function findClosingIndex(xmlData, str6, i, errMsg) {
-  const closingIndex = xmlData.indexOf(str6, i);
+function findClosingIndex(xmlData, str7, i, errMsg) {
+  const closingIndex = xmlData.indexOf(str7, i);
   if (closingIndex === -1) {
     throw new Error(errMsg);
   } else {
-    return closingIndex + str6.length - 1;
+    return closingIndex + str7.length - 1;
   }
 }
 function findClosingChar(xmlData, char, i, errMsg) {
@@ -58808,6 +58810,63 @@ var init_transports = __esm({
     CONFIGURATIONS_TYPE = "application/vnd.sap.adt.configurations.v1+xml";
     CONFIGURATION_TYPE = "application/vnd.sap.adt.configuration.v1+xml";
     LONGTEXT_RE = /\/messageclass\/([^/]+)\/messages\/([^/?]+)\//;
+  }
+});
+
+// src/mcp-http-auth.ts
+import { createHash as createHash3, timingSafeEqual } from "node:crypto";
+function parseHttpTokens(raw) {
+  if (raw === void 0) return [];
+  const tokens = [];
+  for (const rawEntry of raw.split(",")) {
+    const entry = rawEntry.trim();
+    if (!entry) continue;
+    const eq = entry.indexOf("=");
+    if (eq > 0) {
+      const name = entry.slice(0, eq);
+      const rest = entry.slice(eq + 1);
+      if (HTTP_TOKEN_NAME_PATTERN.test(name) && rest !== "") {
+        tokens.push({ name, value: rest });
+        continue;
+      }
+    }
+    tokens.push({ value: entry });
+  }
+  return tokens;
+}
+function isLoopbackHost(host) {
+  const h = host.trim().toLowerCase();
+  if (h === "localhost" || h === "::1" || h === "[::1]" || h === "0:0:0:0:0:0:0:1") return true;
+  const m = /^(\d{1,3})\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.exec(h);
+  if (!m) return false;
+  const firstOctet = Number(m[1]);
+  return Number.isInteger(firstOctet) && firstOctet === 127;
+}
+function sha256(value) {
+  return createHash3("sha256").update(value, "utf8").digest();
+}
+function verifyBearer(header, tokens) {
+  if (tokens.length === 0) return { ok: true };
+  if (header === void 0 || header.trim() === "") return { ok: false, reason: "missing" };
+  const m = /^Bearer[ \t]+(.+)$/i.exec(header.trim());
+  const presented = m?.[1]?.trim();
+  if (!presented) return { ok: false, reason: "malformed" };
+  const presentedHash = sha256(presented);
+  let matched;
+  for (const token of tokens) {
+    const candidateHash = sha256(token.value);
+    if (timingSafeEqual(presentedHash, candidateHash) && matched === void 0) {
+      matched = token;
+    }
+  }
+  if (matched === void 0) return { ok: false, reason: "rejected" };
+  return matched.name !== void 0 ? { ok: true, caller: matched.name } : { ok: true };
+}
+var HTTP_TOKEN_NAME_PATTERN;
+var init_mcp_http_auth = __esm({
+  "src/mcp-http-auth.ts"() {
+    "use strict";
+    HTTP_TOKEN_NAME_PATTERN = /^[A-Za-z0-9_.-]{1,64}$/;
   }
 });
 
@@ -62153,7 +62212,7 @@ var init_connection = __esm({
 });
 
 // src/adt/object-gate.ts
-import { createHash as createHash3 } from "node:crypto";
+import { createHash as createHash4 } from "node:crypto";
 import * as path4 from "node:path";
 function resolveObjectLockWaitMs(env = process.env) {
   const DEFAULT_MS = 1500;
@@ -62176,7 +62235,7 @@ function resolveCrossProcessObjectLock(env = process.env) {
 }
 function objectGateLockPath(stateDir, objectUri) {
   const key = objectUriOf(objectUri);
-  const hash2 = createHash3("sha256").update(key).digest("hex").slice(0, LOCK_HASH_HEX_LEN);
+  const hash2 = createHash4("sha256").update(key).digest("hex").slice(0, LOCK_HASH_HEX_LEN);
   return path4.join(stateDir, "locks", "objects", `${hash2}.lock`);
 }
 function toObjectLockBusyError(e, objectUri, lockPath) {
@@ -66263,6 +66322,20 @@ function loadConfig(opts = {}) {
       toolSurfaceIssue = `ABAP_TOOL_SURFACE=${toolSurfaceTrimmed} is not a value this server ever accepted. ABAP_TOOL_SURFACE is obsolete \u2014 unset it. See doc/DESIGN-NOTES/tool-surface-v2.md.`;
     }
   }
+  const rawMcpTransport = env.ABAP_MCP_TRANSPORT;
+  const mcpTransportTrimmed = rawMcpTransport !== void 0 ? rawMcpTransport.trim().toLowerCase() : void 0;
+  let mcpTransportIssue;
+  if (mcpTransportTrimmed !== void 0 && mcpTransportTrimmed !== "" && mcpTransportTrimmed !== "stdio" && mcpTransportTrimmed !== "http") {
+    mcpTransportIssue = `ABAP_MCP_TRANSPORT must be "stdio" or "http" (got "${rawMcpTransport}").`;
+  }
+  const resolvedMcpTransport = mcpTransportTrimmed !== void 0 && mcpTransportTrimmed !== "" ? mcpTransportTrimmed : void 0;
+  const resolvedMcpHttpHost = env.ABAP_MCP_HTTP_HOST ?? "127.0.0.1";
+  const mcpHttpTokensParsed = parseHttpTokens(env.ABAP_MCP_HTTP_TOKEN);
+  let mcpHttpIssue;
+  if ((resolvedMcpTransport ?? "stdio") === "http" && !isLoopbackHost(resolvedMcpHttpHost) && mcpHttpTokensParsed.length === 0) {
+    const userClause = env.ABAP_USER ? env.ABAP_USER : "the technical user";
+    mcpHttpIssue = `ABAP_MCP_TRANSPORT=http would bind ${resolvedMcpHttpHost}, which is not a loopback address, and ABAP_MCP_HTTP_TOKEN is not set. abapsmith refuses to serve MCP unauthenticated on an address other hosts can reach: anything that can open a TCP connection to it would get this server's full configured SAP access as ${userClause}. Set ABAP_MCP_HTTP_TOKEN, or bind 127.0.0.1 and terminate TLS and authentication in a reverse proxy in front of it.`;
+  }
   const allowWrite = boolFromEnv(env.ABAP_ALLOW_WRITE);
   const configuredPackages = splitList(env.ABAP_ALLOW_PACKAGES);
   const namePrefixes = splitList(env.ABAP_ALLOW_NAME_PREFIXES);
@@ -66283,8 +66356,8 @@ function loadConfig(opts = {}) {
     if (legalValues.includes(rawEnhanceTargets)) {
       enhanceTargetsOverride = rawEnhanceTargets;
     } else {
-      const quoted2 = ENHANCE_TARGETS_VALUES.map((v) => JSON.stringify(v));
-      enhanceTargetsIssue = `ABAP_ENHANCE_TARGETS=${JSON.stringify(rawEnhanceTargets)} is not a recognised value. Valid values are ${quoted2.slice(0, -1).join(", ")}, or ${quoted2[quoted2.length - 1]}.`;
+      const quoted3 = ENHANCE_TARGETS_VALUES.map((v) => JSON.stringify(v));
+      enhanceTargetsIssue = `ABAP_ENHANCE_TARGETS=${JSON.stringify(rawEnhanceTargets)} is not a recognised value. Valid values are ${quoted3.slice(0, -1).join(", ")}, or ${quoted3[quoted3.length - 1]}.`;
     }
   }
   const passwordIsSet = env.ABAP_PASSWORD !== void 0 && env.ABAP_PASSWORD.trim() !== "";
@@ -66418,6 +66491,7 @@ function loadConfig(opts = {}) {
   const allowFluidPlugins = boolFromEnv(env.ABAP_ALLOW_FLUID_PLUGINS);
   const allowFluidPluginMutate = boolFromEnv(env.ABAP_ALLOW_FLUID_PLUGIN_MUTATE);
   const allowFluidCallFm = boolFromEnv(env.ABAP_ALLOW_FLUID_CALL_FM);
+  const allowFluidEval = boolFromEnv(env.ABAP_ALLOW_FLUID_EVAL);
   const modeOverrides = {
     ...env.ABAP_ALLOW_PACKAGES !== void 0 ? { allowPackages: configuredPackages } : {},
     ...env.ABAP_ALLOW_NAME_PREFIXES !== void 0 ? { allowNamePrefixes: namePrefixes } : {},
@@ -66505,6 +66579,9 @@ function loadConfig(opts = {}) {
     allowFluidPlugins,
     allowFluidPluginMutate,
     allowFluidCallFm,
+    // Deliberately not part of `modeOverrides`/`modeGrants`/`modeBoolOverrides` above — see the
+    // doc comment on `allowFluidEval` in `ConfigSchema`: `ABAP_MODE=admin` must not turn this on.
+    allowFluidEval,
     dataPreviewDenyTables,
     // Bare fields below: each has a zod `.default()`/`.max()` that is the
     // single source of truth, so out-of-range/invalid input reaches the
@@ -66533,17 +66610,24 @@ function loadConfig(opts = {}) {
     crossProcessObjectLock: env.ABAP_CROSS_PROCESS_OBJECT_LOCK,
     objectLockWaitMs: env.ABAP_OBJECT_LOCK_WAIT_MS,
     startupProbe: env.ABAP_STARTUP_PROBE,
+    mcpTransport: resolvedMcpTransport,
+    mcpHttpHost: env.ABAP_MCP_HTTP_HOST,
+    mcpHttpPort: env.ABAP_MCP_HTTP_PORT,
+    mcpHttpPath: env.ABAP_MCP_HTTP_PATH,
+    mcpHttpTokens: mcpHttpTokensParsed,
     fluidApi: env.ABAP_FLUID_API
   });
-  if (!parsed.success || abapModeIssue !== void 0 || enhanceTargetsIssue !== void 0 || credentialIssue !== void 0 || toolSurfaceIssue !== void 0) {
+  if (!parsed.success || abapModeIssue !== void 0 || enhanceTargetsIssue !== void 0 || credentialIssue !== void 0 || toolSurfaceIssue !== void 0 || mcpTransportIssue !== void 0 || mcpHttpIssue !== void 0) {
     const zodIssues = parsed.success ? [] : parsed.error.issues.map((i) => `  - ${i.path.join(".") || "(root)"}: ${i.message}`);
     const modeIssues = abapModeIssue !== void 0 ? [`  - abapMode: ${abapModeIssue}`] : [];
     const enhanceTargetsIssues = enhanceTargetsIssue !== void 0 ? [`  - enhanceTargets: ${enhanceTargetsIssue}`] : [];
     const credentialIssues = credentialIssue !== void 0 ? [`  - credential: ${credentialIssue}`] : [];
     const toolSurfaceIssues = toolSurfaceIssue !== void 0 ? [`  - toolSurface: ${toolSurfaceIssue}`] : [];
+    const mcpTransportIssues = mcpTransportIssue !== void 0 ? [`  - mcpTransport: ${mcpTransportIssue}`] : [];
+    const mcpHttpIssues = mcpHttpIssue !== void 0 ? [`  - mcpHttpToken: ${mcpHttpIssue}`] : [];
     throw new Error(
       `Invalid abapsmith configuration:
-${[...zodIssues, ...modeIssues, ...enhanceTargetsIssues, ...credentialIssues, ...toolSurfaceIssues].join("\n")}`
+${[...zodIssues, ...modeIssues, ...enhanceTargetsIssues, ...credentialIssues, ...toolSurfaceIssues, ...mcpTransportIssues, ...mcpHttpIssues].join("\n")}`
     );
   }
   const cfg = { ...parsed.data, abapMode, capabilities: modeCapabilities };
@@ -66727,6 +66811,11 @@ ${[...zodIssues, ...modeIssues, ...enhanceTargetsIssues, ...credentialIssues, ..
       "[abapsmith] NOTE: ABAP_SEND_CLIENT_PARAM=true \u2014 sending ?sap-client= on requests. Some systems (e.g. the A4H appliance) reject this with an ICF logon-failed page."
     );
   }
+  if (cfg.mcpHttpTokens.length > 0 && cfg.mcpTransport === "stdio") {
+    warn(
+      '[abapsmith] WARNING: ABAP_MCP_HTTP_TOKEN is set but ignored \u2014 ABAP_MCP_TRANSPORT is "stdio", so no HTTP listener is started for it to authenticate. Set ABAP_MCP_TRANSPORT=http to use it, or unset ABAP_MCP_HTTP_TOKEN.'
+    );
+  }
   return cfg;
 }
 function resolveStaticCapabilities(cfg) {
@@ -66800,6 +66889,7 @@ function redactConfigSecrets(cfg) {
     allowFluidPlugins: cfg.allowFluidPlugins,
     allowFluidPluginMutate: cfg.allowFluidPluginMutate,
     allowFluidCallFm: cfg.allowFluidCallFm,
+    allowFluidEval: cfg.allowFluidEval,
     originSystems: cfg.originSystems,
     maxResponseChars: cfg.maxResponseChars,
     stateDir: cfg.stateDir,
@@ -66823,7 +66913,15 @@ function redactConfigSecrets(cfg) {
     // incident question, so it must be answerable from this report.
     maxDdicActivationBatch: cfg.maxDdicActivationBatch,
     maxSafeActivationBatch: cfg.maxSafeActivationBatch,
-    startupProbe: cfg.startupProbe
+    startupProbe: cfg.startupProbe,
+    mcpTransport: cfg.mcpTransport,
+    mcpHttpHost: cfg.mcpHttpHost,
+    mcpHttpPort: cfg.mcpHttpPort,
+    mcpHttpPath: cfg.mcpHttpPath,
+    // Token VALUES are credentials and never appear here. The NAMES are not:
+    // they are what the journal records as `actor`, so an operator has to be
+    // able to see which ones this process accepts.
+    mcpHttpTokens: cfg.mcpHttpTokens.length === 0 ? "(not set)" : { count: cfg.mcpHttpTokens.length, names: cfg.mcpHttpTokens.map((t) => t.name ?? "(unnamed)") }
   };
 }
 var import_dotenv, dotenvLoaded, COOKIE_ATTRIBUTE_NAMES, SESSION_LIKE_COOKIE_PREFIXES, boolish, boolishTri, boolishRejectDefaultTrue, ConfigSchema, RECOGNISED_ABAP_ALLOW_ENV_VARS;
@@ -66833,6 +66931,7 @@ var init_config = __esm({
     import_dotenv = __toESM(require_main(), 1);
     init_zod();
     init_transports();
+    init_mcp_http_auth();
     init_pool();
     init_client_cert();
     init_service_key();
@@ -67380,6 +67479,36 @@ var init_config = __esm({
        */
       startupProbe: boolishRejectDefaultTrue,
       /**
+       * Which MCP transport `createServer().start()` (`src/server.ts`)
+       * constructs. `"stdio"` (default) is the existing one-process-per-
+       * conversation transport. `"http"` starts a Streamable HTTP listener
+       * (`src/mcp-http.ts`) instead — one process can then serve several MCP
+       * sessions concurrently, each attributed independently via
+       * `src/mcp-session.ts` rather than the process-wide `Journal` fields
+       * `setClientActor`/`setClientSession` use under stdio.
+       */
+      mcpTransport: external_exports.enum(["stdio", "http"]).default("stdio"),
+      /** Host the Streamable HTTP listener binds (`ABAP_MCP_HTTP_HOST`). Only consulted when `mcpTransport === "http"`. */
+      mcpHttpHost: external_exports.string().min(1).default("127.0.0.1"),
+      /**
+       * Port the Streamable HTTP listener binds (`ABAP_MCP_HTTP_PORT`). `0`
+       * asks the OS for a free port — the bound port is then reported on the
+       * `ready on http://...` banner and via `AbapsmithServer.httpAddress`;
+       * the test suite uses `0` to get an unused port without racing a fixed
+       * one.
+       */
+      mcpHttpPort: external_exports.coerce.number().int().min(0).max(65535).default(3e3),
+      /** URL path the Streamable HTTP listener serves MCP on (`ABAP_MCP_HTTP_PATH`); every other path answers 404. */
+      mcpHttpPath: external_exports.string().default("/mcp").refine((p) => p.startsWith("/"), 'ABAP_MCP_HTTP_PATH must start with "/"'),
+      /**
+       * Parsed `ABAP_MCP_HTTP_TOKEN` (`parseHttpTokens`, `src/mcp-http-auth.ts`)
+       * — bearer tokens accepted by the Streamable HTTP listener. Populated by
+       * hand before `safeParse`, the same way `sessionCookie`/`clientCert` are.
+       * Token VALUES are as sensitive as `ABAP_PASSWORD` and are never included
+       * in `redactConfigSecrets`; the NAMES are not secret (see that function).
+       */
+      mcpHttpTokens: external_exports.array(external_exports.custom()).default([]),
+      /**
        * Master switch for the fluid API surface. ON by default — this is why the
        * env var is `ABAP_FLUID_API`, not an `ABAP_ALLOW_*` name: an `ALLOW` name
        * that defaults to on is a contradiction, and it would land the flag in
@@ -67399,7 +67528,15 @@ var init_config = __esm({
       /** Ceiling for a loaded fluid plugin mutating state. NOT implied by `allowFluidPlugins`. Off by default. */
       allowFluidPluginMutate: external_exports.boolean().default(false),
       /** Ceiling for a fluid plugin calling a remote-enabled function module. Off by default. */
-      allowFluidCallFm: external_exports.boolean().default(false)
+      allowFluidCallFm: external_exports.boolean().default(false),
+      /**
+       * Ceiling for `core.eval` — running caller-supplied ABAP statements verbatim inside a
+       * generated method body. Off by default, and NOT force-enabled by any `ABAP_MODE`
+       * (see `modeOverrides` below): every other fluid flag widens per mode because it still
+       * only reaches ABAP the manifest/static-review already shaped, but eval's ABAP is
+       * whatever the caller wrote, so the only honest gate is an explicit, separate opt-in.
+       */
+      allowFluidEval: external_exports.boolean().default(false)
     });
     RECOGNISED_ABAP_ALLOW_ENV_VARS = Object.freeze([
       "ABAP_ALLOW_CASCADE_DELETE",
@@ -67409,6 +67546,7 @@ var init_config = __esm({
       "ABAP_ALLOW_ENHANCEMENTS",
       "ABAP_ALLOW_ENHANCEMENT_DELETE",
       "ABAP_ALLOW_FLUID_CALL_FM",
+      "ABAP_ALLOW_FLUID_EVAL",
       "ABAP_ALLOW_FLUID_PLUGINS",
       "ABAP_ALLOW_FLUID_PLUGIN_MUTATE",
       "ABAP_ALLOW_NAME_PREFIXES",
@@ -67493,7 +67631,7 @@ var require_code = __commonJS({
     }
     exports2._ = _;
     var plus = new _Code("+");
-    function str6(strs, ...args) {
+    function str7(strs, ...args) {
       const expr = [safeStringify(strs[0])];
       let i = 0;
       while (i < args.length) {
@@ -67504,7 +67642,7 @@ var require_code = __commonJS({
       optimize(expr);
       return new _Code(expr);
     }
-    exports2.str = str6;
+    exports2.str = str7;
     function addCodeArg(code, arg) {
       if (arg instanceof _Code)
         code.push(...arg._items);
@@ -67547,7 +67685,7 @@ var require_code = __commonJS({
       return;
     }
     function strConcat(c1, c2) {
-      return c2.emptyStr() ? c1 : c1.emptyStr() ? c2 : str6`${c1}${c2}`;
+      return c2.emptyStr() ? c1 : c1.emptyStr() ? c2 : str7`${c1}${c2}`;
     }
     exports2.strConcat = strConcat;
     function interpolate(x) {
@@ -67802,11 +67940,11 @@ var require_codegen = __commonJS({
         const rhs = this.rhs === void 0 ? "" : ` = ${this.rhs}`;
         return `${varKind} ${this.name}${rhs};` + _n;
       }
-      optimizeNames(names, constants) {
+      optimizeNames(names, constants2) {
         if (!names[this.name.str])
           return;
         if (this.rhs)
-          this.rhs = optimizeExpr(this.rhs, names, constants);
+          this.rhs = optimizeExpr(this.rhs, names, constants2);
         return this;
       }
       get names() {
@@ -67823,10 +67961,10 @@ var require_codegen = __commonJS({
       render({ _n }) {
         return `${this.lhs} = ${this.rhs};` + _n;
       }
-      optimizeNames(names, constants) {
+      optimizeNames(names, constants2) {
         if (this.lhs instanceof code_1.Name && !names[this.lhs.str] && !this.sideEffects)
           return;
-        this.rhs = optimizeExpr(this.rhs, names, constants);
+        this.rhs = optimizeExpr(this.rhs, names, constants2);
         return this;
       }
       get names() {
@@ -67887,8 +68025,8 @@ var require_codegen = __commonJS({
       optimizeNodes() {
         return `${this.code}` ? this : void 0;
       }
-      optimizeNames(names, constants) {
-        this.code = optimizeExpr(this.code, names, constants);
+      optimizeNames(names, constants2) {
+        this.code = optimizeExpr(this.code, names, constants2);
         return this;
       }
       get names() {
@@ -67917,12 +68055,12 @@ var require_codegen = __commonJS({
         }
         return nodes.length > 0 ? this : void 0;
       }
-      optimizeNames(names, constants) {
+      optimizeNames(names, constants2) {
         const { nodes } = this;
         let i = nodes.length;
         while (i--) {
           const n = nodes[i];
-          if (n.optimizeNames(names, constants))
+          if (n.optimizeNames(names, constants2))
             continue;
           subtractNames(names, n.names);
           nodes.splice(i, 1);
@@ -67975,12 +68113,12 @@ var require_codegen = __commonJS({
           return void 0;
         return this;
       }
-      optimizeNames(names, constants) {
+      optimizeNames(names, constants2) {
         var _a3;
-        this.else = (_a3 = this.else) === null || _a3 === void 0 ? void 0 : _a3.optimizeNames(names, constants);
-        if (!(super.optimizeNames(names, constants) || this.else))
+        this.else = (_a3 = this.else) === null || _a3 === void 0 ? void 0 : _a3.optimizeNames(names, constants2);
+        if (!(super.optimizeNames(names, constants2) || this.else))
           return;
-        this.condition = optimizeExpr(this.condition, names, constants);
+        this.condition = optimizeExpr(this.condition, names, constants2);
         return this;
       }
       get names() {
@@ -68003,10 +68141,10 @@ var require_codegen = __commonJS({
       render(opts) {
         return `for(${this.iteration})` + super.render(opts);
       }
-      optimizeNames(names, constants) {
-        if (!super.optimizeNames(names, constants))
+      optimizeNames(names, constants2) {
+        if (!super.optimizeNames(names, constants2))
           return;
-        this.iteration = optimizeExpr(this.iteration, names, constants);
+        this.iteration = optimizeExpr(this.iteration, names, constants2);
         return this;
       }
       get names() {
@@ -68042,10 +68180,10 @@ var require_codegen = __commonJS({
       render(opts) {
         return `for(${this.varKind} ${this.name} ${this.loop} ${this.iterable})` + super.render(opts);
       }
-      optimizeNames(names, constants) {
-        if (!super.optimizeNames(names, constants))
+      optimizeNames(names, constants2) {
+        if (!super.optimizeNames(names, constants2))
           return;
-        this.iterable = optimizeExpr(this.iterable, names, constants);
+        this.iterable = optimizeExpr(this.iterable, names, constants2);
         return this;
       }
       get names() {
@@ -68087,11 +68225,11 @@ var require_codegen = __commonJS({
         (_b = this.finally) === null || _b === void 0 ? void 0 : _b.optimizeNodes();
         return this;
       }
-      optimizeNames(names, constants) {
+      optimizeNames(names, constants2) {
         var _a3, _b;
-        super.optimizeNames(names, constants);
-        (_a3 = this.catch) === null || _a3 === void 0 ? void 0 : _a3.optimizeNames(names, constants);
-        (_b = this.finally) === null || _b === void 0 ? void 0 : _b.optimizeNames(names, constants);
+        super.optimizeNames(names, constants2);
+        (_a3 = this.catch) === null || _a3 === void 0 ? void 0 : _a3.optimizeNames(names, constants2);
+        (_b = this.finally) === null || _b === void 0 ? void 0 : _b.optimizeNames(names, constants2);
         return this;
       }
       get names() {
@@ -68392,7 +68530,7 @@ var require_codegen = __commonJS({
     function addExprNames(names, from) {
       return from instanceof code_1._CodeOrName ? addNames(names, from.names) : names;
     }
-    function optimizeExpr(expr, names, constants) {
+    function optimizeExpr(expr, names, constants2) {
       if (expr instanceof code_1.Name)
         return replaceName(expr);
       if (!canOptimize(expr))
@@ -68407,14 +68545,14 @@ var require_codegen = __commonJS({
         return items2;
       }, []));
       function replaceName(n) {
-        const c = constants[n.str];
+        const c = constants2[n.str];
         if (c === void 0 || names[n.str] !== 1)
           return n;
         delete names[n.str];
         return c;
       }
       function canOptimize(e) {
-        return e instanceof code_1._Code && e._items.some((c) => c instanceof code_1.Name && names[c.str] === 1 && constants[c.str] !== void 0);
+        return e instanceof code_1._Code && e._items.some((c) => c instanceof code_1.Name && names[c.str] === 1 && constants2[c.str] !== void 0);
       }
     }
     function subtractNames(names, from) {
@@ -68509,22 +68647,22 @@ var require_util = __commonJS({
       return (0, codegen_1._)`${topSchemaRef}${schemaPath}${(0, codegen_1.getProperty)(keyword)}`;
     }
     exports2.schemaRefOrVal = schemaRefOrVal;
-    function unescapeFragment(str6) {
-      return unescapeJsonPointer(decodeURIComponent(str6));
+    function unescapeFragment(str7) {
+      return unescapeJsonPointer(decodeURIComponent(str7));
     }
     exports2.unescapeFragment = unescapeFragment;
-    function escapeFragment(str6) {
-      return encodeURIComponent(escapeJsonPointer(str6));
+    function escapeFragment(str7) {
+      return encodeURIComponent(escapeJsonPointer(str7));
     }
     exports2.escapeFragment = escapeFragment;
-    function escapeJsonPointer(str6) {
-      if (typeof str6 == "number")
-        return `${str6}`;
-      return str6.replace(/~/g, "~0").replace(/\//g, "~1");
+    function escapeJsonPointer(str7) {
+      if (typeof str7 == "number")
+        return `${str7}`;
+      return str7.replace(/~/g, "~0").replace(/\//g, "~1");
     }
     exports2.escapeJsonPointer = escapeJsonPointer;
-    function unescapeJsonPointer(str6) {
-      return str6.replace(/~1/g, "/").replace(/~0/g, "~");
+    function unescapeJsonPointer(str7) {
+      return str7.replace(/~1/g, "/").replace(/~0/g, "~");
     }
     exports2.unescapeJsonPointer = unescapeJsonPointer;
     function eachItem(xs, f) {
@@ -69549,8 +69687,8 @@ var require_json_schema_traverse = __commonJS({
         post(schema, jsonPtr, rootSchema, parentJsonPtr, parentKeyword, parentSchema, keyIndex);
       }
     }
-    function escapeJsonPtr(str6) {
-      return str6.replace(/~/g, "~0").replace(/\//g, "~1");
+    function escapeJsonPtr(str7) {
+      return str7.replace(/~/g, "~0").replace(/\//g, "~1");
     }
   }
 });
@@ -70535,9 +70673,9 @@ var require_utils2 = __commonJS({
     }
     function consumeHextets(buffer, address, output) {
       if (buffer.length) {
-        const hex3 = stringArrayToHexStripped(buffer);
-        if (hex3 !== "") {
-          address.push(hex3);
+        const hex4 = stringArrayToHexStripped(buffer);
+        if (hex4 !== "") {
+          address.push(hex4);
         } else {
           output.error = true;
           return false;
@@ -70614,10 +70752,10 @@ var require_utils2 = __commonJS({
         return { host, isIPV6: false };
       }
     }
-    function findToken(str6, token) {
+    function findToken(str7, token) {
       let ind = 0;
-      for (let i = 0; i < str6.length; i++) {
-        if (str6[i] === token) ind++;
+      for (let i = 0; i < str7.length; i++) {
+        if (str7[i] === token) ind++;
       }
       return ind;
     }
@@ -70711,9 +70849,9 @@ var require_utils2 = __commonJS({
       let output = "";
       for (let i = 0; i < input.length; i++) {
         if (input[i] === "%" && i + 2 < input.length) {
-          const hex3 = input.slice(i + 1, i + 3);
-          if (isHexPair(hex3)) {
-            const normalizedHex = hex3.toUpperCase();
+          const hex4 = input.slice(i + 1, i + 3);
+          if (isHexPair(hex4)) {
+            const normalizedHex = hex4.toUpperCase();
             const decoded = String.fromCharCode(parseInt(normalizedHex, 16));
             if (decodeUnreserved && isUnreserved(decoded)) {
               output += decoded;
@@ -70732,9 +70870,9 @@ var require_utils2 = __commonJS({
       let output = "";
       for (let i = 0; i < input.length; i++) {
         if (input[i] === "%" && i + 2 < input.length) {
-          const hex3 = input.slice(i + 1, i + 3);
-          if (isHexPair(hex3)) {
-            const normalizedHex = hex3.toUpperCase();
+          const hex4 = input.slice(i + 1, i + 3);
+          if (isHexPair(hex4)) {
+            const normalizedHex = hex4.toUpperCase();
             const decoded = String.fromCharCode(parseInt(normalizedHex, 16));
             if (decoded !== "." && isUnreserved(decoded)) {
               output += decoded;
@@ -70757,9 +70895,9 @@ var require_utils2 = __commonJS({
       let output = "";
       for (let i = 0; i < input.length; i++) {
         if (input[i] === "%" && i + 2 < input.length) {
-          const hex3 = input.slice(i + 1, i + 3);
-          if (isHexPair(hex3)) {
-            output += "%" + hex3.toUpperCase();
+          const hex4 = input.slice(i + 1, i + 3);
+          if (isHexPair(hex4)) {
+            output += "%" + hex4.toUpperCase();
             i += 2;
             continue;
           }
@@ -71360,7 +71498,7 @@ var require_core = __commonJS({
     var util_1 = require_util();
     var $dataRefSchema = require_data();
     var uri_1 = require_uri2();
-    var defaultRegExp = (str6, flags) => new RegExp(str6, flags);
+    var defaultRegExp = (str7, flags) => new RegExp(str7, flags);
     defaultRegExp.code = "new RegExp";
     var META_IGNORE_OPTIONS = ["removeAdditional", "useDefaults", "coerceTypes"];
     var EXT_SCOPE_NAMES = /* @__PURE__ */ new Set([
@@ -71636,8 +71774,8 @@ var require_core = __commonJS({
             return this;
           }
           case "object": {
-            const cacheKey = schemaKeyRef;
-            this._cache.delete(cacheKey);
+            const cacheKey2 = schemaKeyRef;
+            this._cache.delete(cacheKey2);
             let id = schemaKeyRef[this.opts.schemaId];
             if (id) {
               id = (0, resolve_1.normalizeId)(id);
@@ -72155,16 +72293,16 @@ var require_ucs2length = __commonJS({
   "node_modules/ajv/dist/runtime/ucs2length.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
-    function ucs2length(str6) {
-      const len = str6.length;
+    function ucs2length(str7) {
+      const len = str7.length;
       let length = 0;
       let pos = 0;
       let value;
       while (pos < len) {
         length++;
-        value = str6.charCodeAt(pos++);
+        value = str7.charCodeAt(pos++);
         if (value >= 55296 && value <= 56319 && pos < len) {
-          value = str6.charCodeAt(pos);
+          value = str7.charCodeAt(pos);
           if ((value & 64512) === 56320)
             pos++;
         }
@@ -74047,8 +74185,8 @@ var require_formats = __commonJS({
     }
     var DATE = /^(\d\d\d\d)-(\d\d)-(\d\d)$/;
     var DAYS = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-    function date5(str6) {
-      const matches = DATE.exec(str6);
+    function date5(str7) {
+      const matches = DATE.exec(str7);
       if (!matches)
         return false;
       const year = +matches[1];
@@ -74067,8 +74205,8 @@ var require_formats = __commonJS({
     }
     var TIME = /^(\d\d):(\d\d):(\d\d(?:\.\d+)?)(z|([+-])(\d\d)(?::?(\d\d))?)?$/i;
     function getTime(strictTimeZone) {
-      return function time3(str6) {
-        const matches = TIME.exec(str6);
+      return function time3(str7) {
+        const matches = TIME.exec(str7);
         if (!matches)
           return false;
         const hr = +matches[1];
@@ -74114,8 +74252,8 @@ var require_formats = __commonJS({
     var DATE_TIME_SEPARATOR = /t|\s/i;
     function getDateTime(strictTimeZone) {
       const time3 = getTime(strictTimeZone);
-      return function date_time(str6) {
-        const dateTime = str6.split(DATE_TIME_SEPARATOR);
+      return function date_time(str7) {
+        const dateTime = str7.split(DATE_TIME_SEPARATOR);
         return dateTime.length === 2 && date5(dateTime[0]) && time3(dateTime[1]);
       };
     }
@@ -74140,13 +74278,13 @@ var require_formats = __commonJS({
     }
     var NOT_URI_FRAGMENT = /\/|:/;
     var URI = /^(?:[a-z][a-z0-9+\-.]*:)(?:\/?\/(?:(?:[a-z0-9\-._~!$&'()*+,;=:]|%[0-9a-f]{2})*@)?(?:\[(?:(?:(?:(?:[0-9a-f]{1,4}:){6}|::(?:[0-9a-f]{1,4}:){5}|(?:[0-9a-f]{1,4})?::(?:[0-9a-f]{1,4}:){4}|(?:(?:[0-9a-f]{1,4}:){0,1}[0-9a-f]{1,4})?::(?:[0-9a-f]{1,4}:){3}|(?:(?:[0-9a-f]{1,4}:){0,2}[0-9a-f]{1,4})?::(?:[0-9a-f]{1,4}:){2}|(?:(?:[0-9a-f]{1,4}:){0,3}[0-9a-f]{1,4})?::[0-9a-f]{1,4}:|(?:(?:[0-9a-f]{1,4}:){0,4}[0-9a-f]{1,4})?::)(?:[0-9a-f]{1,4}:[0-9a-f]{1,4}|(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?))|(?:(?:[0-9a-f]{1,4}:){0,5}[0-9a-f]{1,4})?::[0-9a-f]{1,4}|(?:(?:[0-9a-f]{1,4}:){0,6}[0-9a-f]{1,4})?::)|[Vv][0-9a-f]+\.[a-z0-9\-._~!$&'()*+,;=:]+)\]|(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)|(?:[a-z0-9\-._~!$&'()*+,;=]|%[0-9a-f]{2})*)(?::\d*)?(?:\/(?:[a-z0-9\-._~!$&'()*+,;=:@]|%[0-9a-f]{2})*)*|\/(?:(?:[a-z0-9\-._~!$&'()*+,;=:@]|%[0-9a-f]{2})+(?:\/(?:[a-z0-9\-._~!$&'()*+,;=:@]|%[0-9a-f]{2})*)*)?|(?:[a-z0-9\-._~!$&'()*+,;=:@]|%[0-9a-f]{2})+(?:\/(?:[a-z0-9\-._~!$&'()*+,;=:@]|%[0-9a-f]{2})*)*)(?:\?(?:[a-z0-9\-._~!$&'()*+,;=:@/?]|%[0-9a-f]{2})*)?(?:#(?:[a-z0-9\-._~!$&'()*+,;=:@/?]|%[0-9a-f]{2})*)?$/i;
-    function uri(str6) {
-      return NOT_URI_FRAGMENT.test(str6) && URI.test(str6);
+    function uri(str7) {
+      return NOT_URI_FRAGMENT.test(str7) && URI.test(str7);
     }
     var BYTE = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/gm;
-    function byte(str6) {
+    function byte(str7) {
       BYTE.lastIndex = 0;
-      return BYTE.test(str6);
+      return BYTE.test(str7);
     }
     var MIN_INT32 = -(2 ** 31);
     var MAX_INT32 = 2 ** 31 - 1;
@@ -74160,11 +74298,11 @@ var require_formats = __commonJS({
       return true;
     }
     var Z_ANCHOR = /[^\\]\\Z/;
-    function regex(str6) {
-      if (Z_ANCHOR.test(str6))
+    function regex(str7) {
+      if (Z_ANCHOR.test(str7))
         return false;
       try {
-        new RegExp(str6);
+        new RegExp(str7);
         return true;
       } catch (e) {
         return false;
@@ -74284,6 +74422,110 @@ var require_dist2 = __commonJS({
     module.exports = exports2 = formatsPlugin;
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.default = formatsPlugin;
+  }
+});
+
+// node_modules/content-type/index.js
+var require_content_type = __commonJS({
+  "node_modules/content-type/index.js"(exports2) {
+    "use strict";
+    var PARAM_REGEXP = /; *([!#$%&'*+.^_`|~0-9A-Za-z-]+) *= *("(?:[\u000b\u0020\u0021\u0023-\u005b\u005d-\u007e\u0080-\u00ff]|\\[\u000b\u0020-\u00ff])*"|[!#$%&'*+.^_`|~0-9A-Za-z-]+) */g;
+    var TEXT_REGEXP = /^[\u000b\u0020-\u007e\u0080-\u00ff]+$/;
+    var TOKEN_REGEXP = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/;
+    var QESC_REGEXP = /\\([\u000b\u0020-\u00ff])/g;
+    var QUOTE_REGEXP = /([\\"])/g;
+    var TYPE_REGEXP = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+\/[!#$%&'*+.^_`|~0-9A-Za-z-]+$/;
+    exports2.format = format;
+    exports2.parse = parse4;
+    function format(obj) {
+      if (!obj || typeof obj !== "object") {
+        throw new TypeError("argument obj is required");
+      }
+      var parameters = obj.parameters;
+      var type = obj.type;
+      if (!type || !TYPE_REGEXP.test(type)) {
+        throw new TypeError("invalid type");
+      }
+      var string4 = type;
+      if (parameters && typeof parameters === "object") {
+        var param;
+        var params = Object.keys(parameters).sort();
+        for (var i = 0; i < params.length; i++) {
+          param = params[i];
+          if (!TOKEN_REGEXP.test(param)) {
+            throw new TypeError("invalid parameter name");
+          }
+          string4 += "; " + param + "=" + qstring(parameters[param]);
+        }
+      }
+      return string4;
+    }
+    function parse4(string4) {
+      if (!string4) {
+        throw new TypeError("argument string is required");
+      }
+      var header = typeof string4 === "object" ? getcontenttype(string4) : string4;
+      if (typeof header !== "string") {
+        throw new TypeError("argument string is required to be a string");
+      }
+      var index = header.indexOf(";");
+      var type = index !== -1 ? header.slice(0, index).trim() : header.trim();
+      if (!TYPE_REGEXP.test(type)) {
+        throw new TypeError("invalid media type");
+      }
+      var obj = new ContentType(type.toLowerCase());
+      if (index !== -1) {
+        var key;
+        var match;
+        var value;
+        PARAM_REGEXP.lastIndex = index;
+        while (match = PARAM_REGEXP.exec(header)) {
+          if (match.index !== index) {
+            throw new TypeError("invalid parameter format");
+          }
+          index += match[0].length;
+          key = match[1].toLowerCase();
+          value = match[2];
+          if (value.charCodeAt(0) === 34) {
+            value = value.slice(1, -1);
+            if (value.indexOf("\\") !== -1) {
+              value = value.replace(QESC_REGEXP, "$1");
+            }
+          }
+          obj.parameters[key] = value;
+        }
+        if (index !== header.length) {
+          throw new TypeError("invalid parameter format");
+        }
+      }
+      return obj;
+    }
+    function getcontenttype(obj) {
+      var header;
+      if (typeof obj.getHeader === "function") {
+        header = obj.getHeader("content-type");
+      } else if (typeof obj.headers === "object") {
+        header = obj.headers && obj.headers["content-type"];
+      }
+      if (typeof header !== "string") {
+        throw new TypeError("content-type header is missing from object");
+      }
+      return header;
+    }
+    function qstring(val) {
+      var str7 = String(val);
+      if (TOKEN_REGEXP.test(str7)) {
+        return str7;
+      }
+      if (str7.length > 0 && !TEXT_REGEXP.test(str7)) {
+        throw new TypeError("invalid parameter value");
+      }
+      return '"' + str7.replace(QUOTE_REGEXP, "\\$1") + '"';
+    }
+    function ContentType(type) {
+      this.parameters = /* @__PURE__ */ Object.create(null);
+      this.type = type;
+    }
   }
 });
 
@@ -77207,7 +77449,13 @@ var DDIC_TAGS = [
   "SHLP-PUT",
   "SHLP-ACTIVATED",
   "SHLP-DELETED",
-  "SHLP-GONE"
+  "SHLP-GONE",
+  "TRLG-READ",
+  // transport-log bridge
+  "TRQU-READ",
+  // import-queue bridge
+  "TRTC-CREATED"
+  // transport-of-copies bridge
 ];
 function parseDdicTranscript(raw) {
   const tags = [];
@@ -79143,7 +79391,7 @@ var packagePart = {
 
 // src/adt/fluid/builtin/classic/abap-transport.ts
 var transportPart = {
-  methods: ["remove_transport_entry"],
+  methods: ["remove_transport_entry", "read_transport_log", "read_import_queue", "create_transport_of_copies"],
   source: `  METHOD remove_transport_entry.
     DATA lv_trkorr TYPE trkorr.
     lv_trkorr = s( 'trkorr' ).
@@ -79255,6 +79503,370 @@ var transportPart = {
       RETURN.
     ENDIF.
     line( 'TREN-GONE' ).
+  ENDMETHOD.
+
+  METHOD read_transport_log.
+    DATA lv_trkorr TYPE trkorr.
+    lv_trkorr = s( 'trkorr' ).
+    DATA: ls_e070          TYPE e070,
+          lt_ovw           TYPE scts_log_overviews,
+          ls_ovw           TYPE scts_log_overview,
+          lt_log           TYPE trlogs,
+          ls_log           TYPE trlog,
+          lv_i             TYPE i,
+          lv_sev           TYPE string,
+          lv_cls           TYPE string,
+          lv_num           TYPE string,
+          lv_rc            TYPE string,
+          lv_with_targets  TYPE flag VALUE 'X',
+          lv_logsys        TYPE tmssysnam.
+
+    " Step 1: TRINT_GET_LOG_OVERVIEW answers with sy-subrc 0 even for a
+    " request number that does not exist at all - proven live 2026-09-15 on
+    " A4H with A4HK999999, which came back with the SAME "not yet flagged
+    " for import" row a real, un-imported request gets. Without checking
+    " E070 first, a typo'd request number would silently produce a
+    " confident but meaningless answer instead of a refusal.
+    SELECT SINGLE * FROM e070 INTO @ls_e070 WHERE trkorr = @lv_trkorr.
+    IF sy-subrc <> 0.
+      fail( |no such request { lv_trkorr }| ).
+      RETURN.
+    ENDIF.
+
+    " Step 2.
+    line( |ZMCP-TRLG-REQ { lv_trkorr } { ls_e070-trfunction } { ls_e070-trstatus }| ).
+
+    " Step 3: one row per system this request was, or will be, imported to.
+    " IV_WITH_TRANSPORT_TARGETS is carried in a typed FLAG local (its own
+    " default is already 'X') rather than the bare literal 'X' - this
+    " method never dumped live, but every actual in this class is a typed
+    " local under one uniform rule, so this one follows suit too.
+    CALL FUNCTION 'TRINT_GET_LOG_OVERVIEW'
+      EXPORTING
+        iv_request                = lv_trkorr
+        iv_with_transport_targets = lv_with_targets
+      IMPORTING
+        et_log_overview           = lt_ovw.
+
+    LOOP AT lt_ovw INTO ls_ovw.
+      " A row with no SYSNAM names nothing to read a log for.
+      IF ls_ovw-sysnam IS INITIAL.
+        CONTINUE.
+      ENDIF.
+      lv_i = lv_i + 1.
+      " Live on A4H 2026-09-15: every overview row came back with RC EMPTY
+      " ("not yet flagged for import"), so a raw { ls_ovw-rc } would leave
+      " two consecutive spaces in the fixed-token line below and drop a
+      " token the TS regex requires - same "-" placeholder fix as
+      " SEVERITY/CLASS/NUMBER below.
+      IF ls_ovw-rc IS INITIAL.
+        lv_rc = '-'.
+      ELSE.
+        lv_rc = ls_ovw-rc.
+      ENDIF.
+      " Fixed-token line: only space-free fields. SYSTXT/RCTXT carry free
+      " text that can itself contain spaces, so each gets its own trailing-
+      " text line instead of a slot on this one. DATE/TIME = RAW: a plain
+      " { ls_ovw-moddate }/{ ls_ovw-modtime } embed is converted to the
+      " CURRENT USER's date/time format (e.g. "15.09.2026", "10:37:44"),
+      " not the wire form "20260915"/"103744" the TS side parses - the
+      " wire protocol must not depend on whose user profile is running.
+      line( |ZMCP-TRLG-SYS { lv_i } { ls_ovw-sysnam } { lv_rc } | &&
+            |{ ls_ovw-moddate DATE = RAW } { ls_ovw-modtime TIME = RAW } { ls_ovw-sortidx }| ).
+      line( |ZMCP-TRLG-SYSTXT { lv_i } { ls_ovw-systxt }| ).
+      line( |ZMCP-TRLG-RCTXT { lv_i } { ls_ovw-rctxt }| ).
+
+      " Step 4: TRINT_GET_LOG_FILE has already fetched every log line this
+      " system returned into lt_log before this LOOP ever runs, so every
+      " line is emitted here - no cap. compact.ts is the single layer that
+      " discloses truncation; capping here would only destroy rows a step
+      " before the layer that would have reported the cut.
+      CLEAR lt_log.
+      " IV_SYSTEM is TMSSYSNAM on this FM's own signature - carried in
+      " lv_logsys rather than passing ls_ovw-sysnam straight through, so
+      " every CALL FUNCTION actual in this class is a local typed with the
+      " FM's own parameter type, not a struct field of unverified type.
+      lv_logsys = ls_ovw-sysnam.
+      CALL FUNCTION 'TRINT_GET_LOG_FILE'
+        EXPORTING
+          iv_request  = lv_trkorr
+          iv_system   = lv_logsys
+        IMPORTING
+          et_log_file = lt_log.
+
+      LOOP AT lt_log INTO ls_log.
+        " SEVERITY/CLASS/NUMBER are space-free; LINE is the trailing free
+        " text. A "-" placeholder stands in for an initial SEVERITY or
+        " CLASS so the token count never varies - the TS regex depends on
+        " always finding the same number of tokens before the free text.
+        IF ls_log-severity IS INITIAL.
+          lv_sev = '-'.
+        ELSE.
+          lv_sev = ls_log-severity.
+        ENDIF.
+        IF ls_log-class IS INITIAL.
+          lv_cls = '-'.
+        ELSE.
+          lv_cls = ls_log-class.
+        ENDIF.
+        IF ls_log-number IS INITIAL.
+          lv_num = '-'.
+        ELSE.
+          lv_num = ls_log-number.
+        ENDIF.
+        line( |ZMCP-TRLG-LINE { lv_i } { lv_sev } { lv_cls } { lv_num } { ls_log-line }| ).
+      ENDLOOP.
+    ENDLOOP.
+
+    " Step 5: read-only throughout - no COMMIT, no ROLLBACK.
+    line( |ZMCP-TRLG-COUNT { lv_i }| ).
+    line( 'TRLG-READ' ).
+  ENDMETHOD.
+
+  METHOD read_import_queue.
+    DATA: lv_system TYPE tmscsys-sysnam,
+          lv_domain TYPE tmscsys-domnam.
+    lv_system = s( 'system' ).
+    TRANSLATE lv_system TO UPPER CASE.
+    lv_domain = s( 'domain' ).
+    TRANSLATE lv_domain TO UPPER CASE.
+
+    " Step 1.
+    IF lv_system IS INITIAL.
+      fail( |system is required| ).
+      RETURN.
+    ENDIF.
+
+    DATA: lt_buf       TYPE STANDARD TABLE OF tmsbuffer WITH EMPTY KEY,
+          ls_buf       TYPE tmsbuffer,
+          lv_date      TYPE sy-datum,
+          lv_time      TYPE sy-uzeit,
+          lv_flag      TYPE stms_flag,
+          lv_off       TYPE stms_flag,
+          ls_exception TYPE stmscalert,
+          lv_subrc     TYPE sy-subrc,
+          lv_domout    TYPE string,
+          lv_flagout   TYPE string,
+          lv_bufpos    TYPE string,
+          lv_rowtrkorr TYPE string,
+          lv_impflg    TYPE string,
+          lv_maxrc     TYPE string,
+          lv_trfunc    TYPE string,
+          lv_owner     TYPE string,
+          lv_tarcli    TYPE string.
+
+    " Step 2: IV_CLEAR_LOCKS, IV_UPDATE_CACHE and IV_MONITOR all default to
+    " 'X' in this FM's OWN signature and are not reads - clearing TMS locks
+    " and rewriting the TMS cache are side effects an operation documented
+    " as read-only must not perform, so all six are forced to SPACE here.
+    " LV_OFF is declared TYPE stms_flag and never assigned, so its initial
+    " value (SPACE) is what travels. The live hit on A4H 2026-09-15 was an
+    " untyped ABAP string (from s(...)) bound to one of these typed
+    " STMS_FLAG formals - exactly what CX_SY_DYN_CALL_ILLEGAL_TYPE punishes
+    " in CALL FUNCTION - so every actual here, including this SPACE-valued
+    " one, is a typed local under the same rule.
+    CALL FUNCTION 'TMS_MGR_READ_TRANSPORT_QUEUE'
+      EXPORTING
+        iv_system           = lv_system
+        iv_domain           = lv_domain
+        iv_collect_data     = lv_off
+        iv_read_locks       = lv_off
+        iv_clear_locks      = lv_off
+        iv_update_cache     = lv_off
+        iv_monitor          = lv_off
+        iv_verbose          = lv_off
+      IMPORTING
+        ev_collect_date     = lv_date
+        ev_collect_time     = lv_time
+        ev_collect_flag     = lv_flag
+        es_exception        = ls_exception
+      TABLES
+        tt_buffer           = lt_buf
+      EXCEPTIONS
+        read_config_failed  = 1
+        OTHERS              = 2.
+    lv_subrc = sy-subrc.
+
+    " Step 3: the live READ_CONFIG_FAILED on this box came back with an
+    " EMPTY ES_EXCEPTION, so this message must still read sensibly blank.
+    IF lv_subrc <> 0.
+      fail( |cannot read the import queue of { lv_system }: subrc={ lv_subrc } | &&
+            |msg={ sy-msgid } { sy-msgno } v1={ sy-msgv1 } | &&
+            |exc-msg={ ls_exception-msgid } { ls_exception-msgno } v1={ ls_exception-msgv1 }| ).
+      RETURN.
+    ENDIF.
+
+    " Step 4: a blank domain/flag is emitted as "-" so the token count
+    " never varies.
+    IF lv_domain IS INITIAL.
+      lv_domout = '-'.
+    ELSE.
+      " Plain assignment (c TYPE -> string) keeps the fixed-length field's
+      " trailing blanks verbatim, which would leave extra spaces inside the
+      " fixed-token ZMCP-TRQU-HEAD line below; routing it through a string
+      " template embed instead trims them, same as every other char-typed
+      " field emitted on this line.
+      lv_domout = |{ lv_domain }|.
+    ENDIF.
+    IF lv_flag IS INITIAL.
+      lv_flagout = '-'.
+    ELSE.
+      lv_flagout = lv_flag.
+    ENDIF.
+    " DATE/TIME = RAW: see the matching comment in read_transport_log - a
+    " plain { lv_date }/{ lv_time } embed is user-profile-formatted, not
+    " the wire form "00000000"/"000000" the TS side checks for "never
+    " collected".
+    line( |ZMCP-TRQU-HEAD { lv_system } { lv_domout } { lv_date DATE = RAW } { lv_time TIME = RAW } | &&
+          |{ lv_flagout } { lines( lt_buf ) }| ).
+
+    " Step 5: one pair of lines per buffer row - TMS_MGR_READ_TRANSPORT_QUEUE
+    " has already fetched every row into lt_buf before this LOOP runs, so no
+    " cap here; compact.ts is the layer that discloses truncation. Every
+    " space-free token that can legitimately come back initial is
+    " substituted with "-" for the same fixed-token-count reason as above.
+    LOOP AT lt_buf INTO ls_buf.
+      IF ls_buf-bufpos IS INITIAL.
+        lv_bufpos = '-'.
+      ELSE.
+        lv_bufpos = ls_buf-bufpos.
+      ENDIF.
+      IF ls_buf-trkorr IS INITIAL.
+        lv_rowtrkorr = '-'.
+      ELSE.
+        lv_rowtrkorr = ls_buf-trkorr.
+      ENDIF.
+      IF ls_buf-impflg IS INITIAL.
+        lv_impflg = '-'.
+      ELSE.
+        lv_impflg = ls_buf-impflg.
+      ENDIF.
+      IF ls_buf-maxrc IS INITIAL.
+        lv_maxrc = '-'.
+      ELSE.
+        lv_maxrc = ls_buf-maxrc.
+      ENDIF.
+      IF ls_buf-trfunc IS INITIAL.
+        lv_trfunc = '-'.
+      ELSE.
+        lv_trfunc = ls_buf-trfunc.
+      ENDIF.
+      IF ls_buf-owner IS INITIAL.
+        lv_owner = '-'.
+      ELSE.
+        lv_owner = ls_buf-owner.
+      ENDIF.
+      IF ls_buf-tarcli IS INITIAL.
+        lv_tarcli = '-'.
+      ELSE.
+        lv_tarcli = ls_buf-tarcli.
+      ENDIF.
+      line( |ZMCP-TRQU-ROW { lv_bufpos } { lv_rowtrkorr } { lv_impflg } { lv_maxrc } { lv_trfunc } { lv_owner } { lv_tarcli }| ).
+      line( |ZMCP-TRQU-TEXT { lv_bufpos } { ls_buf-text }| ).
+    ENDLOOP.
+
+    " Step 6: read-only - no COMMIT.
+    line( 'TRQU-READ' ).
+  ENDMETHOD.
+
+  METHOD create_transport_of_copies.
+    DATA: lv_type        TYPE trfunction VALUE 'T',
+          lv_description TYPE as4text,
+          lv_owner       TYPE as4user,
+          lv_target      TYPE tr_target,
+          lv_devclass    TYPE devclass.
+    lv_description = s( 'description' ).
+    lv_target = s( 'target' ).
+    TRANSLATE lv_target TO UPPER CASE.
+    lv_devclass = s( 'devclass' ).
+    TRANSLATE lv_devclass TO UPPER CASE.
+    lv_owner = sy-uname.
+
+    " Step 1: a transport of copies created with no target system can never
+    " be imported anywhere, so abapsmith refuses to create one at all
+    " rather than leaving an orphaned request behind for a human to find.
+    IF lv_description IS INITIAL.
+      fail( |description is required| ).
+      RETURN.
+    ENDIF.
+    IF lv_target IS INITIAL.
+      fail( |target is required - a transport of copies with no target system can never be imported| ).
+      RETURN.
+    ENDIF.
+    IF lv_devclass IS INITIAL.
+      fail( |devclass is required| ).
+      RETURN.
+    ENDIF.
+
+    DATA: ls_header    TYPE trwbo_request_header,
+          lt_tasks     TYPE trwbo_request_headers,
+          lv_subrc     TYPE sy-subrc,
+          ls_e070      TYPE e070,
+          lv_tarsystem TYPE string.
+
+    " Step 2: IT_USERS and ET_TASK_HEADERS are ORDINARY parameters on this
+    " FM, not TABLES parameters - calling them with a TABLES clause
+    " short-dumps with "Type conflict during a function module call" (hit
+    " live 2026-09-15); neither is passed here at all, since this bridge
+    " needs no extra users and reads the tasks back from ET_TASK_HEADERS.
+    " Every actual below is a local typed with the FM's OWN parameter type
+    " (TRFUNCTION/AS4TEXT/AS4USER/TR_TARGET/DEVCLASS), never the bare result
+    " of s(...) - an inline declaration that infers string, bound straight
+    " to one of these fixed-length typed formals, is what raised
+    " CX_SY_DYN_CALL_ILLEGAL_TYPE live on A4H 2026-09-15.
+    CALL FUNCTION 'TR_INSERT_REQUEST_WITH_TASKS'
+      EXPORTING
+        iv_type           = lv_type
+        iv_text           = lv_description
+        iv_owner          = lv_owner
+        iv_target         = lv_target
+        iv_devclass       = lv_devclass
+      IMPORTING
+        es_request_header = ls_header
+        et_task_headers   = lt_tasks
+      EXCEPTIONS
+        insert_failed     = 1
+        enqueue_failed    = 2
+        OTHERS            = 3.
+    lv_subrc = sy-subrc.
+    IF lv_subrc <> 0.
+      fail( |TR_INSERT_REQUEST_WITH_TASKS failed, sy-subrc={ lv_subrc }, | &&
+            |msg={ sy-msgid } { sy-msgno } v1={ sy-msgv1 } v2={ sy-msgv2 } v3={ sy-msgv3 } v4={ sy-msgv4 }| ).
+      RETURN.
+    ENDIF.
+
+    " Step 3: mirrors the type-W defect in doc/CAPABILITIES/non-object-capabilities.md
+    " row 27 - a reported success with no allocated number is not a no-op,
+    " it is CTS lying about what it did.
+    IF ls_header-trkorr IS INITIAL.
+      fail( |CTS reported success but allocated no request number| ).
+      RETURN.
+    ENDIF.
+
+    " Step 4.
+    COMMIT WORK AND WAIT.
+
+    " Step 5: a tag alone is not proof - re-read E070 for the allocated
+    " number to prove it is really there rather than trusting the FM's own
+    " success report alone. If the re-read finds nothing, the caller still
+    " learns the number that was allocated, even though the operation as a
+    " whole failed.
+    SELECT SINGLE * FROM e070 INTO @ls_e070 WHERE trkorr = @ls_header-trkorr.
+    IF sy-subrc <> 0.
+      fail( |TR_INSERT_REQUEST_WITH_TASKS allocated { ls_header-trkorr } but E070 has no row for it| ).
+      RETURN.
+    ENDIF.
+    IF ls_e070-tarsystem IS INITIAL.
+      lv_tarsystem = '-'.
+    ELSE.
+      lv_tarsystem = ls_e070-tarsystem.
+    ENDIF.
+    " Live on A4H 2026-09-15: TRFUNCTION='T', TRSTATUS='D', TARSYSTEM='A4H',
+    " ZERO task headers - a transport of copies has no tasks.
+    line( |ZMCP-TRTC-CREATED { ls_e070-trkorr } { ls_e070-trfunction } { ls_e070-trstatus } { lv_tarsystem } { ls_e070-as4user } { lines( lt_tasks ) }| ).
+
+    " Step 6.
+    line( 'TRTC-CREATED' ).
   ENDMETHOD.`
 };
 
@@ -79324,7 +79936,7 @@ var classicManifest = {
   contract: FLUID_CONTRACT,
   id: CLASSIC_TOOL_ID,
   title: "Classic DDIC/CTS bridge",
-  description: "Classic-UI DDIC and CTS mutations (view, transaction, search help, index, package, transport entry).",
+  description: "Classic-UI DDIC and CTS mutations (view, transaction, search help, index, package, transport entry, transport of copies) plus read-only transport log and import queue lookups.",
   // This tool's ABAP reads args with the flat, single-pass `scan()`
   // (`./classic/abap-core.ts`) — see `FluidManifest.flatArgs` — so the
   // dispatcher flattens nested arrays-of-objects/objects (e.g. `shlp`'s
@@ -79343,7 +79955,7 @@ var classicManifest = {
     {
       name: CLASSIC_BODY_CLASS,
       type: "CLAS/OC",
-      description: "fluid: classic DDIC/CTS mutations (view/tran/shlp/index/pkg)",
+      description: "fluid: classic DDIC/CTS (view/tran/shlp/idx/pkg/trkorr)",
       source: { text: CLASSIC_SOURCE }
     }
   ],
@@ -79826,6 +80438,58 @@ var classicManifest = {
       },
       output: { type: "array", items: { type: "string" }, description: "One transcript line per element." },
       targets: { object: "/name" }
+    },
+    {
+      name: "read_transport_log",
+      category: "read",
+      description: "Reads a transport request's per-target-system import log overview and log file lines.",
+      input: {
+        type: "object",
+        required: ["trkorr"],
+        properties: {
+          trkorr: { type: "string", maxLength: 10, description: "The transport request to read the log of." }
+        }
+      },
+      output: { type: "array", items: { type: "string" }, description: "One transcript line per element." }
+    },
+    {
+      name: "read_import_queue",
+      category: "read",
+      description: "Reads a TMS system's import queue (buffer) without collecting, locking or caching side effects.",
+      input: {
+        type: "object",
+        required: ["system"],
+        properties: {
+          system: { type: "string", maxLength: 8, description: "The TMS system id whose queue is read." },
+          domain: {
+            type: "string",
+            maxLength: 32,
+            description: "TMS transport domain, e.g. DOMAIN_A4H; empty lets TMS resolve the local domain."
+          }
+        }
+      },
+      output: { type: "array", items: { type: "string" }, description: "One transcript line per element." }
+    },
+    {
+      name: "create_transport_of_copies",
+      category: "mutate",
+      description: "Creates a transport of copies (TRFUNCTION 'T') targeting one system.",
+      // No `targets`: the caller-facing wrapper (`../../transport-copies.ts`) requires a
+      // pre-minted `AuthorizedTarget<"transport", ...>` and does its own runtime name-match
+      // backstop before dispatch, the same idiom `trCreate` (`../../transports.ts`) uses —
+      // `devclass` here is only an attribute recorded on the request header
+      // (TR_INSERT_REQUEST_WITH_TASKS's IV_DEVCLASS), not a package being written into, so a
+      // `package:`-pointer declaration here would misrepresent what the call actually does.
+      input: {
+        type: "object",
+        required: ["description", "target", "devclass"],
+        properties: {
+          description: { type: "string", maxLength: 60, description: "Short text (E070/AS4TEXT, CHAR60)." },
+          target: { type: "string", maxLength: 10, description: "Target system (E070-TARSYSTEM)." },
+          devclass: { type: "string", maxLength: 30, description: "Package recorded on the request header." }
+        }
+      },
+      output: { type: "array", items: { type: "string" }, description: "One transcript line per element." }
     }
   ]
 };
@@ -79842,6 +80506,216 @@ var classicTool = {
 
 // src/adt/fluid/builtin/core.ts
 init_errors();
+
+// src/adt/fluid/static-review.ts
+init_truncate();
+var FLUID_ABAP_LINE_MAX = 255;
+var CALL_SYSTEM_RE = /\bCALL\s+'SYSTEM'/i;
+var EXEC_SQL_RE = /\bEXEC\s+SQL\b/i;
+var INSERT_REPORT_RE = /\bINSERT\s+REPORT\b/i;
+var GENERATE_SUBROUTINE_POOL_RE = /\bGENERATE\s+SUBROUTINE\s+POOL\b/i;
+var CALL_FUNCTION_RE = /\bCALL\s+FUNCTION\b/i;
+var DESTINATION_RE = /\bDESTINATION\b/i;
+var SUBMIT_RE = /\bSUBMIT\b/i;
+var VIA_JOB_RE = /\bVIA\s+JOB\b/i;
+var CALL_METHOD_RE = /\bCALL\s+METHOD\b/i;
+var CALL_METHOD_DIRECT_DYNAMIC_RE = /\bCALL\s+METHOD\s*\(/i;
+var ARROW_PAREN_RE = /(?:->|=>)\s*\(/;
+var SHIPPED_RULES = [
+  { name: "call-system", test: (s) => CALL_SYSTEM_RE.test(s) },
+  { name: "exec-sql", test: (s) => EXEC_SQL_RE.test(s) },
+  { name: "insert-report", test: (s) => INSERT_REPORT_RE.test(s) },
+  { name: "generate-subroutine-pool", test: (s) => GENERATE_SUBROUTINE_POOL_RE.test(s) },
+  {
+    name: "call-function-destination",
+    test: (s) => CALL_FUNCTION_RE.test(s) && DESTINATION_RE.test(s)
+  },
+  { name: "submit-via-job", test: (s) => SUBMIT_RE.test(s) && VIA_JOB_RE.test(s) },
+  {
+    name: "dynamic-call-method",
+    test: (s) => CALL_METHOD_RE.test(s) && (CALL_METHOD_DIRECT_DYNAMIC_RE.test(s) || ARROW_PAREN_RE.test(s))
+  }
+];
+var FLUID_SHIPPED_PROHIBITIONS = SHIPPED_RULES.map((r) => r.name);
+function escapeRegExpLiteral(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function buildPhraseRule(phrase) {
+  const segments = phrase.split(/(\s+)/);
+  const pattern = segments.map((seg) => /^\s+$/.test(seg) ? "\\s+" : escapeRegExpLiteral(seg)).join("");
+  const leading = /^\w/.test(phrase) ? "\\b" : "";
+  const trailing = /\w$/.test(phrase) ? "\\b" : "";
+  const re = new RegExp(leading + pattern + trailing, "i");
+  return { name: `extra:${phrase}`, test: (s) => re.test(s) };
+}
+function blankCommentLine(line2) {
+  return line2.startsWith("*") ? "" : line2;
+}
+function splitStatements(blankedLines) {
+  const joined = blankedLines.join("\n");
+  const lineStarts2 = [];
+  let acc = 0;
+  for (const l of blankedLines) {
+    lineStarts2.push(acc);
+    acc += l.length + 1;
+  }
+  const cleaned = [];
+  const raws = [];
+  let state = "normal";
+  let stmtStart = 0;
+  for (let i = 0; i < joined.length; i++) {
+    const ch = joined.charAt(i);
+    if (state === "comment") {
+      cleaned.push(ch === "\n" ? ch : " ");
+      if (ch === "\n") state = "normal";
+      continue;
+    }
+    if (state === "string") {
+      cleaned.push(ch);
+      if (ch === "'") {
+        if (joined.charAt(i + 1) === "'") {
+          i++;
+          cleaned.push(joined.charAt(i));
+          continue;
+        }
+        state = "normal";
+      }
+      continue;
+    }
+    if (state === "template") {
+      cleaned.push(ch);
+      if (ch === "\\") {
+        const next = joined.charAt(i + 1);
+        if (next !== "") {
+          i++;
+          cleaned.push(next);
+        }
+        continue;
+      }
+      if (ch === "|") state = "normal";
+      continue;
+    }
+    if (ch === "'") {
+      state = "string";
+      cleaned.push(ch);
+      continue;
+    }
+    if (ch === "|") {
+      state = "template";
+      cleaned.push(ch);
+      continue;
+    }
+    if (ch === '"') {
+      state = "comment";
+      cleaned.push(" ");
+      continue;
+    }
+    if (ch === ".") {
+      raws.push({ raw: cleaned.slice(stmtStart, i).join(""), startOffset: stmtStart });
+      stmtStart = i + 1;
+    }
+    cleaned.push(ch);
+  }
+  const tail = cleaned.slice(stmtStart).join("");
+  if (tail.trim().length > 0) {
+    raws.push({ raw: tail, startOffset: stmtStart });
+  }
+  const statements = [];
+  let lineCursor = 0;
+  for (const { raw, startOffset } of raws) {
+    const firstNonWs = raw.search(/\S/);
+    if (firstNonWs < 0) continue;
+    const normalized = raw.replace(/\s+/g, " ").trim();
+    if (normalized.length === 0) continue;
+    const target = startOffset + firstNonWs;
+    while (lineCursor + 1 < lineStarts2.length && (lineStarts2[lineCursor + 1] ?? Infinity) <= target) {
+      lineCursor++;
+    }
+    statements.push({ normalized, startLine: lineCursor + 1 });
+  }
+  return statements;
+}
+var ITAB_NAME_RE = /^(lt_|it_|gt_|ct_|mt_)/i;
+var COMMIT_ROLLBACK_RE = /^(COMMIT|ROLLBACK)\s+WORK\b/i;
+var UPDATE_STMT_RE = /^UPDATE\s+\S/i;
+var DELETE_FROM_RE = /^DELETE\s+FROM\s+\S/i;
+var INSERT_NATIVE_SQL_RE = /^INSERT\s+INTO\s+\S+\s+VALUES\b/i;
+var INSERT_INTO_ITAB_RE = /\bINTO\s+(?:TABLE\s+)?\S+/i;
+var INSERT_DB_FROM_RE = /^INSERT\s+\S+\s+FROM\b/i;
+var MODIFY_SCREEN_RE = /^MODIFY\s+SCREEN\b/i;
+var MODIFY_TARGET_RE = /^MODIFY\s+(?:TABLE\s+)?(\S+)/i;
+function classifiesAsDbWrite(statement) {
+  if (UPDATE_STMT_RE.test(statement)) return true;
+  if (DELETE_FROM_RE.test(statement)) return true;
+  if (INSERT_NATIVE_SQL_RE.test(statement)) return true;
+  if (INSERT_INTO_ITAB_RE.test(statement)) return false;
+  if (INSERT_DB_FROM_RE.test(statement)) return true;
+  if (MODIFY_SCREEN_RE.test(statement)) return false;
+  const modifyTarget = MODIFY_TARGET_RE.exec(statement);
+  if (modifyTarget) {
+    const target = modifyTarget[1];
+    return target !== void 0 && !ITAB_NAME_RE.test(target);
+  }
+  return false;
+}
+function scanFluidCapabilities(objectName, source) {
+  const blankedLines = source.split(/\r\n|\r|\n/).map(blankCommentLine);
+  const statements = splitStatements(blankedLines);
+  const findings = [];
+  for (const stmt of statements) {
+    let capability;
+    if (classifiesAsDbWrite(stmt.normalized)) {
+      capability = "db-write";
+    } else if (COMMIT_ROLLBACK_RE.test(stmt.normalized)) {
+      capability = "commit-rollback";
+    } else if (CALL_FUNCTION_RE.test(stmt.normalized)) {
+      capability = "call-function";
+    }
+    if (capability !== void 0) {
+      findings.push({
+        object: objectName,
+        line: stmt.startLine,
+        capability,
+        text: truncateText(stmt.normalized, ECHO_LINE_MAX)
+      });
+    }
+  }
+  return findings;
+}
+function reviewFluidAbap(objectName, source, extraProhibitions) {
+  const lines = source.split(/\r\n|\r|\n/);
+  const findings = [];
+  lines.forEach((line2, idx2) => {
+    if (line2.length > FLUID_ABAP_LINE_MAX) {
+      findings.push({
+        object: objectName,
+        line: idx2 + 1,
+        rule: "line-length",
+        text: truncateText(line2.trim(), ECHO_LINE_MAX)
+      });
+    }
+  });
+  const blankedLines = lines.map(blankCommentLine);
+  const statements = splitStatements(blankedLines);
+  const rules = [
+    ...SHIPPED_RULES,
+    ...(extraProhibitions ?? []).map(buildPhraseRule)
+  ];
+  for (const stmt of statements) {
+    for (const rule of rules) {
+      if (rule.test(stmt.normalized)) {
+        findings.push({
+          object: objectName,
+          line: stmt.startLine,
+          rule: rule.name,
+          text: truncateText(stmt.normalized, ECHO_LINE_MAX)
+        });
+      }
+    }
+  }
+  findings.sort((a, b) => a.line - b.line);
+  return findings;
+}
 
 // src/adt/fluid/builtin/core/abap-core.ts
 init_errors();
@@ -80844,6 +81718,9 @@ var docuPart = {
 // src/adt/fluid/builtin/core.ts
 var CORE_TOOL_ID = "core";
 var CORE_BODY_CLASS = "ZCL_ZMCP_FLUID_CORE";
+var CORE_EVAL_ACTION = "eval";
+var CORE_EVAL_CONFIRM = "core.eval";
+var EVAL_OUT_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]{0,29}$/;
 var RUNTIME_SOURCE3 = fluidRuntimeSources.get(FLUID_RUNTIME_CLASS);
 if (RUNTIME_SOURCE3 === void 0) {
   throw new Error(`fluidRuntimeSources has no entry for ${FLUID_RUNTIME_CLASS}`);
@@ -80988,6 +81865,39 @@ var coreManifest = {
         items: { type: "object" },
         description: "One returned parameter per element: name, kind, value."
       }
+    },
+    {
+      name: CORE_EVAL_ACTION,
+      // Not "mutate": `invokerSource` appends a COMMIT WORK footer for `category: "mutate"` (see
+      // its doc comment) and a mutate action is journalled through `journalFluidMutate`, whose
+      // `JOURNAL_ARGS_MAX`-truncated description is exactly the "cannot see what actually ran"
+      // failure eval exists to avoid — eval gets its own untruncated journal path
+      // (`journalFluidEval`, dispatch.ts) instead.
+      category: "execute",
+      description: "Run the supplied ABAP statements as the body of one method and return the named locals as JSON. Off unless ABAP_ALLOW_FLUID_EVAL is set. This is a lint-not-sandbox control: the static review and the capability scan reject a handful of named statements, they do not confine the code. The real boundary is the SAP user's authorisations, and ABAP_ALLOW_FLUID_EVAL is consent to run model-authored code inside that boundary, nothing narrower.",
+      input: {
+        type: "object",
+        required: ["lines"],
+        properties: {
+          lines: {
+            type: "array",
+            items: { type: "string", maxLength: FLUID_ABAP_LINE_MAX },
+            description: `ABAP statements, one per array element, run verbatim inside one TRY block. Each element is one source line: no CR/LF, at most ${FLUID_ABAP_LINE_MAX} characters.`
+          },
+          out: {
+            type: "array",
+            items: { type: "string", maxLength: 30 },
+            description: `Names of local data objects declared in "lines" to serialise back as JSON, in order. Each must match ${EVAL_OUT_NAME_RE}.`
+          }
+        }
+      },
+      output: {
+        type: "array",
+        items: { type: "object" },
+        description: 'One element per "out" name, in order: {name, value} when serialisation succeeded, {name, error} otherwise.'
+      }
+      // No `targets`: unlike `select`/`describe_fm`, there is no single object this action
+      // touches — the caller's own `lines` decide that, not a declared object/package/transport.
     }
   ]
 };
@@ -81042,6 +81952,115 @@ async function guardCoreAction(deps, req) {
     }
     return;
   }
+  if (req.action === CORE_EVAL_ACTION) {
+    if (!deps.cfg.allowFluidEval) {
+      throw new AbapError(
+        "FLUID_EVAL_DISABLED",
+        "core.eval is off; set ABAP_ALLOW_FLUID_EVAL=1 to enable it",
+        { tool: req.tool, action: req.action, rule: "ABAP_ALLOW_FLUID_EVAL" }
+      );
+    }
+    if (req.confirm !== CORE_EVAL_CONFIRM) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `core.eval requires confirm: ${JSON.stringify(CORE_EVAL_CONFIRM)} (got ${req.confirm === void 0 ? "nothing" : JSON.stringify(req.confirm)}).`,
+        { field: "confirm", expected: CORE_EVAL_CONFIRM, got: req.confirm }
+      );
+    }
+    const rawArgs = evalArgsRecord(req.args);
+    const rawLines = rawArgs["lines"];
+    if (!Array.isArray(rawLines) || rawLines.length === 0 || !rawLines.every((l) => typeof l === "string")) {
+      throw new AbapError(
+        "BAD_INPUT",
+        'core.eval requires "lines": a non-empty array of ABAP statement strings.',
+        { field: "lines" }
+      );
+    }
+    const lines = rawLines;
+    for (let i = 0; i < lines.length; i++) {
+      const line2 = lines[i];
+      const lineNo = i + 1;
+      if (/[\r\n]/.test(line2)) {
+        throw new AbapError(
+          "BAD_INPUT",
+          `core.eval "lines"[${i}] (line ${lineNo}) must not contain a CR or LF \u2014 one array element is one ABAP source line.`,
+          { field: "lines", line: lineNo }
+        );
+      }
+      if (line2.length > FLUID_ABAP_LINE_MAX) {
+        throw new AbapError(
+          "BAD_INPUT",
+          `core.eval "lines"[${i}] (line ${lineNo}) is ${line2.length} characters long; ABAP source lines are capped at ${FLUID_ABAP_LINE_MAX}.`,
+          { field: "lines", line: lineNo, length: line2.length }
+        );
+      }
+    }
+    const rawOut = rawArgs["out"];
+    let out = [];
+    if (rawOut !== void 0) {
+      if (!Array.isArray(rawOut) || !rawOut.every((o) => typeof o === "string")) {
+        throw new AbapError("BAD_INPUT", 'core.eval "out", when given, must be an array of strings.', {
+          field: "out"
+        });
+      }
+      for (const name of rawOut) {
+        if (!EVAL_OUT_NAME_RE.test(name)) {
+          throw new AbapError(
+            "BAD_INPUT",
+            `core.eval "out" name ${JSON.stringify(name)} must match ${EVAL_OUT_NAME_RE}.`,
+            { field: "out", value: name }
+          );
+        }
+      }
+      const seen = /* @__PURE__ */ new Set();
+      out = rawOut.filter((name) => {
+        if (seen.has(name)) return false;
+        seen.add(name);
+        return true;
+      });
+    }
+    const findings = reviewFluidAbap(CORE_EVAL_CONFIRM, lines.join("\n"));
+    const firstFinding = findings[0];
+    if (firstFinding !== void 0) {
+      throw new AbapError(
+        "FLUID_MANIFEST_INVALID",
+        `static review refused core.eval at line ${firstFinding.line}, rule "${firstFinding.rule}": ${firstFinding.text}`,
+        { tool: req.tool, action: req.action, line: firstFinding.line, rule: firstFinding.rule }
+      );
+    }
+    const caps = scanFluidCapabilities(CORE_EVAL_CONFIRM, lines.join("\n"));
+    const mutateHit = caps.find((c) => c.capability === "db-write" || c.capability === "commit-rollback");
+    if (mutateHit !== void 0 && !deps.cfg.allowFluidPluginMutate) {
+      throw new AbapError(
+        "FLUID_PLUGIN_MUTATE_DISABLED",
+        `core.eval line ${mutateHit.line} (${JSON.stringify(mutateHit.text)}) contains a database write or COMMIT WORK/ROLLBACK WORK statement; ABAP_ALLOW_FLUID_PLUGIN_MUTATE is off`,
+        { tool: req.tool, action: req.action, line: mutateHit.line, rule: "ABAP_ALLOW_FLUID_PLUGIN_MUTATE" }
+      );
+    }
+    const callFmHit = caps.find((c) => c.capability === "call-function");
+    if (callFmHit !== void 0 && !deps.cfg.allowFluidCallFm) {
+      throw new AbapError(
+        "SAFETY_DENIED",
+        `core.eval line ${callFmHit.line} (${JSON.stringify(callFmHit.text)}) contains CALL FUNCTION; ABAP_ALLOW_FLUID_CALL_FM is off`,
+        { tool: req.tool, action: req.action, line: callFmHit.line, rule: "ABAP_ALLOW_FLUID_CALL_FM" }
+      );
+    }
+    return;
+  }
+}
+function evalArgsRecord(args) {
+  return typeof args === "object" && args !== null && !Array.isArray(args) ? args : {};
+}
+function parseEvalArgs(args) {
+  const lines = Array.isArray(args["lines"]) ? args["lines"].filter((l) => typeof l === "string") : [];
+  const rawOut = Array.isArray(args["out"]) ? args["out"].filter((o) => typeof o === "string") : [];
+  const seen = /* @__PURE__ */ new Set();
+  const out = rawOut.filter((name) => {
+    if (seen.has(name)) return false;
+    seen.add(name);
+    return true;
+  });
+  return { lines, out };
 }
 
 // src/adt/fluid/builtin/enh.ts
@@ -86384,218 +87403,6 @@ var BUILTIN_FLUID_TOOLS = [
 // src/adt/fluid/plugin-loader.ts
 import * as fs2 from "node:fs/promises";
 import * as path3 from "node:path";
-
-// src/adt/fluid/static-review.ts
-init_truncate();
-var FLUID_ABAP_LINE_MAX = 255;
-var CALL_SYSTEM_RE = /\bCALL\s+'SYSTEM'/i;
-var EXEC_SQL_RE = /\bEXEC\s+SQL\b/i;
-var INSERT_REPORT_RE = /\bINSERT\s+REPORT\b/i;
-var GENERATE_SUBROUTINE_POOL_RE = /\bGENERATE\s+SUBROUTINE\s+POOL\b/i;
-var CALL_FUNCTION_RE = /\bCALL\s+FUNCTION\b/i;
-var DESTINATION_RE = /\bDESTINATION\b/i;
-var SUBMIT_RE = /\bSUBMIT\b/i;
-var VIA_JOB_RE = /\bVIA\s+JOB\b/i;
-var CALL_METHOD_RE = /\bCALL\s+METHOD\b/i;
-var CALL_METHOD_DIRECT_DYNAMIC_RE = /\bCALL\s+METHOD\s*\(/i;
-var ARROW_PAREN_RE = /(?:->|=>)\s*\(/;
-var SHIPPED_RULES = [
-  { name: "call-system", test: (s) => CALL_SYSTEM_RE.test(s) },
-  { name: "exec-sql", test: (s) => EXEC_SQL_RE.test(s) },
-  { name: "insert-report", test: (s) => INSERT_REPORT_RE.test(s) },
-  { name: "generate-subroutine-pool", test: (s) => GENERATE_SUBROUTINE_POOL_RE.test(s) },
-  {
-    name: "call-function-destination",
-    test: (s) => CALL_FUNCTION_RE.test(s) && DESTINATION_RE.test(s)
-  },
-  { name: "submit-via-job", test: (s) => SUBMIT_RE.test(s) && VIA_JOB_RE.test(s) },
-  {
-    name: "dynamic-call-method",
-    test: (s) => CALL_METHOD_RE.test(s) && (CALL_METHOD_DIRECT_DYNAMIC_RE.test(s) || ARROW_PAREN_RE.test(s))
-  }
-];
-var FLUID_SHIPPED_PROHIBITIONS = SHIPPED_RULES.map((r) => r.name);
-function escapeRegExpLiteral(s) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-function buildPhraseRule(phrase) {
-  const segments = phrase.split(/(\s+)/);
-  const pattern = segments.map((seg) => /^\s+$/.test(seg) ? "\\s+" : escapeRegExpLiteral(seg)).join("");
-  const leading = /^\w/.test(phrase) ? "\\b" : "";
-  const trailing = /\w$/.test(phrase) ? "\\b" : "";
-  const re = new RegExp(leading + pattern + trailing, "i");
-  return { name: `extra:${phrase}`, test: (s) => re.test(s) };
-}
-function blankCommentLine(line2) {
-  return line2.startsWith("*") ? "" : line2;
-}
-function splitStatements(blankedLines) {
-  const joined = blankedLines.join("\n");
-  const lineStarts2 = [];
-  let acc = 0;
-  for (const l of blankedLines) {
-    lineStarts2.push(acc);
-    acc += l.length + 1;
-  }
-  const cleaned = [];
-  const raws = [];
-  let state = "normal";
-  let stmtStart = 0;
-  for (let i = 0; i < joined.length; i++) {
-    const ch = joined.charAt(i);
-    if (state === "comment") {
-      cleaned.push(ch === "\n" ? ch : " ");
-      if (ch === "\n") state = "normal";
-      continue;
-    }
-    if (state === "string") {
-      cleaned.push(ch);
-      if (ch === "'") {
-        if (joined.charAt(i + 1) === "'") {
-          i++;
-          cleaned.push(joined.charAt(i));
-          continue;
-        }
-        state = "normal";
-      }
-      continue;
-    }
-    if (state === "template") {
-      cleaned.push(ch);
-      if (ch === "\\") {
-        const next = joined.charAt(i + 1);
-        if (next !== "") {
-          i++;
-          cleaned.push(next);
-        }
-        continue;
-      }
-      if (ch === "|") state = "normal";
-      continue;
-    }
-    if (ch === "'") {
-      state = "string";
-      cleaned.push(ch);
-      continue;
-    }
-    if (ch === "|") {
-      state = "template";
-      cleaned.push(ch);
-      continue;
-    }
-    if (ch === '"') {
-      state = "comment";
-      cleaned.push(" ");
-      continue;
-    }
-    if (ch === ".") {
-      raws.push({ raw: cleaned.slice(stmtStart, i).join(""), startOffset: stmtStart });
-      stmtStart = i + 1;
-    }
-    cleaned.push(ch);
-  }
-  const tail = cleaned.slice(stmtStart).join("");
-  if (tail.trim().length > 0) {
-    raws.push({ raw: tail, startOffset: stmtStart });
-  }
-  const statements = [];
-  let lineCursor = 0;
-  for (const { raw, startOffset } of raws) {
-    const firstNonWs = raw.search(/\S/);
-    if (firstNonWs < 0) continue;
-    const normalized = raw.replace(/\s+/g, " ").trim();
-    if (normalized.length === 0) continue;
-    const target = startOffset + firstNonWs;
-    while (lineCursor + 1 < lineStarts2.length && (lineStarts2[lineCursor + 1] ?? Infinity) <= target) {
-      lineCursor++;
-    }
-    statements.push({ normalized, startLine: lineCursor + 1 });
-  }
-  return statements;
-}
-var ITAB_NAME_RE = /^(lt_|it_|gt_|ct_|mt_)/i;
-var COMMIT_ROLLBACK_RE = /^(COMMIT|ROLLBACK)\s+WORK\b/i;
-var UPDATE_STMT_RE = /^UPDATE\s+\S/i;
-var DELETE_FROM_RE = /^DELETE\s+FROM\s+\S/i;
-var INSERT_NATIVE_SQL_RE = /^INSERT\s+INTO\s+\S+\s+VALUES\b/i;
-var INSERT_INTO_ITAB_RE = /\bINTO\s+(?:TABLE\s+)?\S+/i;
-var INSERT_DB_FROM_RE = /^INSERT\s+\S+\s+FROM\b/i;
-var MODIFY_SCREEN_RE = /^MODIFY\s+SCREEN\b/i;
-var MODIFY_TARGET_RE = /^MODIFY\s+(?:TABLE\s+)?(\S+)/i;
-function classifiesAsDbWrite(statement) {
-  if (UPDATE_STMT_RE.test(statement)) return true;
-  if (DELETE_FROM_RE.test(statement)) return true;
-  if (INSERT_NATIVE_SQL_RE.test(statement)) return true;
-  if (INSERT_INTO_ITAB_RE.test(statement)) return false;
-  if (INSERT_DB_FROM_RE.test(statement)) return true;
-  if (MODIFY_SCREEN_RE.test(statement)) return false;
-  const modifyTarget = MODIFY_TARGET_RE.exec(statement);
-  if (modifyTarget) {
-    const target = modifyTarget[1];
-    return target !== void 0 && !ITAB_NAME_RE.test(target);
-  }
-  return false;
-}
-function scanFluidCapabilities(objectName, source) {
-  const blankedLines = source.split(/\r\n|\r|\n/).map(blankCommentLine);
-  const statements = splitStatements(blankedLines);
-  const findings = [];
-  for (const stmt of statements) {
-    let capability;
-    if (classifiesAsDbWrite(stmt.normalized)) {
-      capability = "db-write";
-    } else if (COMMIT_ROLLBACK_RE.test(stmt.normalized)) {
-      capability = "commit-rollback";
-    } else if (CALL_FUNCTION_RE.test(stmt.normalized)) {
-      capability = "call-function";
-    }
-    if (capability !== void 0) {
-      findings.push({
-        object: objectName,
-        line: stmt.startLine,
-        capability,
-        text: truncateText(stmt.normalized, ECHO_LINE_MAX)
-      });
-    }
-  }
-  return findings;
-}
-function reviewFluidAbap(objectName, source, extraProhibitions) {
-  const lines = source.split(/\r\n|\r|\n/);
-  const findings = [];
-  lines.forEach((line2, idx) => {
-    if (line2.length > FLUID_ABAP_LINE_MAX) {
-      findings.push({
-        object: objectName,
-        line: idx + 1,
-        rule: "line-length",
-        text: truncateText(line2.trim(), ECHO_LINE_MAX)
-      });
-    }
-  });
-  const blankedLines = lines.map(blankCommentLine);
-  const statements = splitStatements(blankedLines);
-  const rules = [
-    ...SHIPPED_RULES,
-    ...(extraProhibitions ?? []).map(buildPhraseRule)
-  ];
-  for (const stmt of statements) {
-    for (const rule of rules) {
-      if (rule.test(stmt.normalized)) {
-        findings.push({
-          object: objectName,
-          line: stmt.startLine,
-          rule: rule.name,
-          text: truncateText(stmt.normalized, ECHO_LINE_MAX)
-        });
-      }
-    }
-  }
-  findings.sort((a, b) => a.line - b.line);
-  return findings;
-}
-
-// src/adt/fluid/plugin-loader.ts
 var MANIFEST_FILE = "fluid-plugin.json";
 function namespaceRe(pluginId) {
   const id = pluginId.toUpperCase();
@@ -86823,12 +87630,12 @@ init_config();
 init_errors();
 init_http_guard();
 init_tls_credentials();
-import { createHash as createHash5 } from "node:crypto";
+import { createHash as createHash6 } from "node:crypto";
 
 // src/debug/client.ts
 init_errors();
 init_truncate();
-import { createHash as createHash4, randomUUID } from "node:crypto";
+import { createHash as createHash5, randomUUID } from "node:crypto";
 
 // src/debug/endpoints.ts
 init_errors();
@@ -88072,9 +88879,9 @@ function splitHeadBody(msg) {
 function parseHeaderBlock(block2) {
   const headers = {};
   for (const line2 of block2.split(/\r?\n/)) {
-    const idx = line2.indexOf(":");
-    if (idx < 0) continue;
-    headers[line2.slice(0, idx).trim().toLowerCase()] = line2.slice(idx + 1).trim();
+    const idx2 = line2.indexOf(":");
+    if (idx2 < 0) continue;
+    headers[line2.slice(0, idx2).trim().toLowerCase()] = line2.slice(idx2 + 1).trim();
   }
   return headers;
 }
@@ -88125,9 +88932,9 @@ function resolveTerminalId(opts) {
     assertValidTerminalId(explicit, "resolveTerminalId's explicit override");
     return explicit;
   }
-  const hex3 = createHash4("sha256").update(opts.seed, "utf8").digest("hex").slice(0, TERMINAL_ID_LENGTH).toUpperCase();
-  assertValidTerminalId(hex3, "resolveTerminalId's derived id");
-  return hex3;
+  const hex4 = createHash5("sha256").update(opts.seed, "utf8").digest("hex").slice(0, TERMINAL_ID_LENGTH).toUpperCase();
+  assertValidTerminalId(hex4, "resolveTerminalId's derived id");
+  return hex4;
 }
 function looksLikeExceptionEnvelope(body) {
   return /<exc:exception[\s>]/i.test(body) || /<exception[\s>]/i.test(body);
@@ -89445,7 +90252,7 @@ function isStaleCsrfChallenge(resp) {
 
 // src/debug/session.ts
 function computeStateId(input) {
-  return createHash5("sha256").update(
+  return createHash6("sha256").update(
     `${input.debugSessionId}\0${input.stackPosition}\0${input.program}\0${input.line}\0${input.stepCounter}`,
     "utf8"
   ).digest("hex");
@@ -89893,8 +90700,8 @@ var DebugSession = class {
    */
   async removeBreakpoint(stateId, id) {
     return this.runStateful(stateId, async () => {
-      const idx = this.ownedBreakpoints.findIndex((bp) => bp.id === id);
-      if (idx === -1) {
+      const idx2 = this.ownedBreakpoints.findIndex((bp) => bp.id === id);
+      if (idx2 === -1) {
         throw new AbapError(
           "BAD_INPUT",
           `removeBreakpoint: this session does not own a breakpoint with id "${id}". Ids owned by this session: ${this.ownedBreakpoints.length > 0 ? this.ownedBreakpoints.map((bp) => bp.id).join(", ") : "(none)"}.`,
@@ -89914,7 +90721,7 @@ var DebugSession = class {
       } catch (e) {
         if (!(isAbapError(e) && e.code === "NOT_FOUND")) throw e;
       }
-      this.ownedBreakpoints.splice(idx, 1);
+      this.ownedBreakpoints.splice(idx2, 1);
       await this.notifyDebuggeeOfOwnedBreakpoints(`removeBreakpoint ${id}`);
     });
   }
@@ -90050,8 +90857,8 @@ var DebugSession = class {
    */
   async removeWatchpoint(stateId, id) {
     return this.runStateful(stateId, async () => {
-      const idx = this.ownedWatchpoints.indexOf(id);
-      if (idx === -1) {
+      const idx2 = this.ownedWatchpoints.indexOf(id);
+      if (idx2 === -1) {
         throw new AbapError(
           "BAD_INPUT",
           `removeWatchpoint: this session does not own a watchpoint with id "${id}". Ids owned by this session: ${this.ownedWatchpoints.length > 0 ? this.ownedWatchpoints.join(", ") : "(none)"}.`,
@@ -90064,7 +90871,7 @@ var DebugSession = class {
       } catch (e) {
         if (!(isAbapError(e) && e.code === "NOT_FOUND")) throw e;
       }
-      this.ownedWatchpoints.splice(idx, 1);
+      this.ownedWatchpoints.splice(idx2, 1);
     });
   }
   /**
@@ -90835,7 +91642,7 @@ async function shutdownAllDebugSessions(log2) {
 }
 
 // src/server.ts
-import { randomUUID as randomUUID2 } from "node:crypto";
+import { randomUUID as randomUUID3 } from "node:crypto";
 
 // node_modules/zod/v3/helpers/util.js
 var util;
@@ -94933,6 +95740,7 @@ function getLiteralValue(schema) {
 
 // node_modules/@modelcontextprotocol/sdk/dist/esm/types.js
 var LATEST_PROTOCOL_VERSION = "2025-11-25";
+var DEFAULT_NEGOTIATED_PROTOCOL_VERSION = "2025-03-26";
 var SUPPORTED_PROTOCOL_VERSIONS = [LATEST_PROTOCOL_VERSION, "2025-06-18", "2025-03-26", "2024-11-05", "2024-10-07"];
 var RELATED_TASK_META_KEY = "io.modelcontextprotocol/related-task";
 var JSONRPC_VERSION = "2.0";
@@ -95261,6 +96069,7 @@ var InitializeRequestSchema = RequestSchema.extend({
   method: literal("initialize"),
   params: InitializeRequestParamsSchema
 });
+var isInitializeRequest = (value) => InitializeRequestSchema.safeParse(value).success;
 var ServerCapabilitiesSchema = object({
   /**
    * Experimental, non-standard capabilities that the server supports.
@@ -100411,8 +101220,8 @@ var StdioServerTransport = class {
   }
   send(message) {
     return new Promise((resolve5) => {
-      const json2 = serializeMessage(message);
-      if (this._stdout.write(json2)) {
+      const json3 = serializeMessage(message);
+      if (this._stdout.write(json3)) {
         resolve5();
       } else {
         this._stdout.once("drain", resolve5);
@@ -101032,10 +101841,25 @@ init_config();
 // src/journal.ts
 init_errors();
 init_compact();
-init_state_dir();
 import { randomBytes as randomBytes5 } from "node:crypto";
 import { promises as fs3 } from "node:fs";
 import * as path5 from "node:path";
+
+// src/mcp-session.ts
+import { AsyncLocalStorage as AsyncLocalStorage3 } from "node:async_hooks";
+var store = new AsyncLocalStorage3();
+function runInMcpSession(ctx, fn) {
+  return store.run(ctx, fn);
+}
+function currentMcpSession() {
+  return store.getStore();
+}
+function mcpSessionActor(ctx) {
+  return ctx.caller ?? ctx.client;
+}
+
+// src/journal.ts
+init_state_dir();
 function journalRef(t) {
   return {
     name: t.name,
@@ -101200,32 +102024,59 @@ var Journal = class _Journal {
     this.lockPath = `${this.indexPath}.lock`;
     this.inFlightDir = path5.join(this.dir, INFLIGHT_DIR);
   }
-  /** Must be lazy, unlike `config.actor`: the client identity is unknown until the transport's initialize handshake completes, which is after this `Journal` is constructed (src/server.ts). */
+  /**
+   * The stdio/process-wide fallback. Must be lazy, unlike `config.actor`:
+   * the client identity is unknown until the transport's initialize
+   * handshake completes, which is after this `Journal` is constructed
+   * (src/server.ts). Under `ABAP_MCP_TRANSPORT=http` this is set once from
+   * the DEFAULT `McpServer` only (`createServer`'s `createMcpServer(undefined)`
+   * call in src/server.ts) — every per-session `McpServer` instead sets
+   * `McpSessionContext.client` (src/mcp-session.ts), which
+   * `resolveActor()` below consults first via the ambient session.
+   */
   setClientActor(name) {
     this.clientActor = name?.trim() || void 0;
   }
-  /** `ABAP_ACTOR` (`config.actor`) wins over the MCP client identity. */
+  /**
+   * `ABAP_ACTOR` (`config.actor`) still wins over everything — it is an
+   * operator override. Below that, the ambient per-MCP-session identity
+   * (`currentMcpSession()`, src/mcp-session.ts) wins over this process-wide
+   * `clientActor`: under `ABAP_MCP_TRANSPORT=http` `clientActor` is shared by
+   * every session this process serves and therefore cannot answer "who" —
+   * only the ambient context, set per request by `src/mcp-http.ts`, can.
+   */
   resolveActor() {
-    return this.config.actor ?? this.clientActor;
+    const ambient = (() => {
+      const c = currentMcpSession();
+      return c ? mcpSessionActor(c) : void 0;
+    })();
+    return this.config.actor ?? ambient ?? this.clientActor;
   }
   /**
    * Set the id this server run/session writes onto every entry from here on
    * — see `JournalEntry.sessionId`/`sessionIdSource`. Same lazy-timing
    * reason as `setClientActor()`: called once, from `oninitialized`
-   * (src/server.ts), after this `Journal` is constructed.
+   * (src/server.ts), after this `Journal` is constructed. This is the
+   * stdio/process-wide fallback, same as `setClientActor()` — an ambient
+   * `McpSessionContext.sessionId` (set per request by `src/mcp-http.ts`)
+   * overrides it; see `begin()` and the `sessionId` getter below.
    */
   setClientSession(id, source) {
     this.clientSessionId = id?.trim() || void 0;
     this.clientSessionSource = this.clientSessionId ? source : void 0;
   }
   /**
-   * The session id that would be spliced onto the NEXT entry, or `undefined`
-   * if none has been set yet. Exposed for `abap_journal mode=list
-   * session=current` (src/tools/journal.ts) to resolve "this conversation"
-   * without duplicating `setClientSession()`'s storage.
+   * The session id that would be spliced onto the NEXT entry for THIS
+   * (stdio, process-wide) fallback, or `undefined` if none has been set
+   * yet — UNLESS an ambient `McpSessionContext` (src/mcp-session.ts) is
+   * current, in which case its `sessionId` wins: `abap_journal mode=list
+   * session=current` (src/tools/journal.ts) must resolve the CALLING
+   * session under `ABAP_MCP_TRANSPORT=http`, not the process. Exposed so
+   * that tool can resolve "this conversation" without duplicating
+   * `setClientSession()`'s storage.
    */
   get sessionId() {
-    return this.clientSessionId;
+    return currentMcpSession()?.sessionId ?? this.clientSessionId;
   }
   // -- reading ------------------------------------------------------------
   /**
@@ -101480,8 +102331,9 @@ var Journal = class _Journal {
     const ts = (/* @__PURE__ */ new Date()).toISOString();
     const beforeCapture = input.beforeCapture ?? (input.existedBefore ? input.beforeSource !== void 0 ? "captured" : "failed" : "unknown");
     const actor = this.resolveActor();
-    const sessionId = this.clientSessionId;
-    const sessionIdSource = this.clientSessionSource;
+    const ambient = currentMcpSession();
+    const sessionId = ambient?.sessionId ?? this.clientSessionId;
+    const sessionIdSource = ambient?.sessionId !== void 0 ? "transport" : this.clientSessionSource;
     const entry = {
       id,
       ts,
@@ -101627,9 +102479,9 @@ var Journal = class _Journal {
         await this.ensureDirs();
         const parts = (existing.parts ?? []).map((p) => ({ ...p }));
         for (const [idxStr, source] of Object.entries(patch.partsAfterSource)) {
-          const idx = Number(idxStr);
-          if (!Number.isInteger(idx) || idx < 0 || idx >= parts.length) continue;
-          parts[idx] = { ...parts[idx], after: await this.writeImage(id, "after", source, void 0, idx) };
+          const idx2 = Number(idxStr);
+          if (!Number.isInteger(idx2) || idx2 < 0 || idx2 >= parts.length) continue;
+          parts[idx2] = { ...parts[idx2], after: await this.writeImage(id, "after", source, void 0, idx2) };
         }
         record2.parts = parts;
       }
@@ -101949,8 +102801,2115 @@ async function withJournalledMutation(journal, spec, run) {
   return { result, entryId, settle };
 }
 
+// src/mcp-http.ts
+import { createServer as createHttpServer } from "node:http";
+import { randomUUID as randomUUID2 } from "node:crypto";
+
+// node_modules/@hono/node-server/dist/constants-BLSFu_RU.mjs
+var X_ALREADY_SENT = "x-hono-already-sent";
+
+// node_modules/@hono/node-server/dist/index.mjs
+import { Http2ServerRequest, constants } from "node:http2";
+import { Readable } from "node:stream";
+
+// node_modules/hono/dist/helper/websocket/index.js
+var defineWebSocketHelper = (handler) => {
+  return ((...args) => {
+    if (typeof args[0] === "function") {
+      const [createEvents, options] = args;
+      return async function upgradeWebSocket2(c, next) {
+        const events = await createEvents(c);
+        const result = await handler(c, events, options);
+        if (result) {
+          return result;
+        }
+        await next();
+      };
+    } else {
+      const [c, events, options] = args;
+      return (async () => {
+        const upgraded = await handler(c, events, options);
+        if (!upgraded) {
+          throw new Error("Failed to upgrade WebSocket");
+        }
+        return upgraded;
+      })();
+    }
+  });
+};
+
+// node_modules/@hono/node-server/dist/index.mjs
+var RequestError = class extends Error {
+  constructor(message, options) {
+    super(message, options);
+    this.name = "RequestError";
+  }
+};
+var reValidRequestUrl = /^\/[!#$&-;=?-\[\]_a-z~]*$/;
+var reDotSegment = /\/\.\.?(?:[/?#]|$)/;
+var reValidHost = /^[a-z0-9._-]+(?::(?:[1-5]\d{3,4}|[6-9]\d{3}))?$/;
+var buildUrl2 = (scheme, host, incomingUrl) => {
+  const url2 = `${scheme}://${host}${incomingUrl}`;
+  if (!reValidHost.test(host)) {
+    const urlObj = new URL(url2);
+    if (urlObj.hostname.length !== host.length && urlObj.hostname !== (host.includes(":") ? host.replace(/:\d+$/, "") : host).toLowerCase()) throw new RequestError("Invalid host header");
+    return urlObj.href;
+  } else if (incomingUrl.length === 0) return url2 + "/";
+  else {
+    if (incomingUrl.charCodeAt(0) !== 47) throw new RequestError("Invalid URL");
+    if (!reValidRequestUrl.test(incomingUrl) || reDotSegment.test(incomingUrl)) return new URL(url2).href;
+    return url2;
+  }
+};
+var toRequestError = (e) => {
+  if (e instanceof RequestError) return e;
+  return new RequestError(e.message, { cause: e });
+};
+var GlobalRequest = global.Request;
+var Request$1 = class extends GlobalRequest {
+  constructor(input, options) {
+    if (typeof input === "object" && getRequestCache in input) {
+      const hasReplacementBody = options !== void 0 && "body" in options && options.body != null;
+      if (input[bodyConsumedDirectlyKey] && !hasReplacementBody) throw new TypeError("Cannot construct a Request with a Request object that has already been used.");
+      input = input[getRequestCache]();
+    }
+    if (typeof options?.body?.getReader !== "undefined") options.duplex ??= "half";
+    super(input, options);
+  }
+};
+var newHeadersFromIncoming = (incoming) => {
+  const headerRecord = [];
+  const rawHeaders = incoming.rawHeaders;
+  for (let i = 0, len = rawHeaders.length; i < len; i += 2) {
+    const key = rawHeaders[i];
+    if (key.charCodeAt(0) !== 58) headerRecord.push([key, rawHeaders[i + 1]]);
+  }
+  return new Headers(headerRecord);
+};
+var wrapBodyStream = /* @__PURE__ */ Symbol("wrapBodyStream");
+var byteExactEncodings = /* @__PURE__ */ new Set([
+  "latin1",
+  "binary",
+  "hex",
+  "base64",
+  "base64url"
+]);
+var isByteExactEncoding = (encoding) => encoding === null || byteExactEncodings.has(encoding);
+var bodyBufferedBeforeDisconnectKey = /* @__PURE__ */ Symbol("bodyBufferedBeforeDisconnect");
+var bodyBufferedLengthBeforeDisconnectKey = /* @__PURE__ */ Symbol("bodyBufferedLengthBeforeDisconnect");
+var toBufferChunk = (chunk3, encoding) => Buffer.isBuffer(chunk3) ? chunk3 : Buffer.from(chunk3, encoding ?? "utf8");
+var isRecoverableDisconnectedIncoming = (incoming) => !(incoming instanceof Http2ServerRequest) && !!incoming.complete && !!incoming.readableAborted && typeof incoming.read === "function" && isByteExactEncoding(incoming.readableEncoding);
+var recordBodyBufferedBeforeDisconnect = (incoming) => {
+  if (incoming.readableDidRead || !isRecoverableDisconnectedIncoming(incoming)) return;
+  const incomingWithRecovery = incoming;
+  incomingWithRecovery[bodyBufferedLengthBeforeDisconnectKey] ??= incoming.readableLength;
+};
+var readBodyBufferedBeforeDisconnect = (incoming, chunks) => {
+  if (incoming.readableDidRead && !chunks || !isRecoverableDisconnectedIncoming(incoming)) return;
+  const incomingWithRecovery = incoming;
+  if (incomingWithRecovery[bodyBufferedBeforeDisconnectKey] !== void 0) return incomingWithRecovery[bodyBufferedBeforeDisconnectKey];
+  let result;
+  const errored = incoming.errored;
+  if (errored && errored.code !== "ECONNRESET") result = errored;
+  else if (incomingWithRecovery[bodyBufferedLengthBeforeDisconnectKey] !== void 0 && incoming.readableLength !== incomingWithRecovery[bodyBufferedLengthBeforeDisconnectKey]) result = newBodyUnusableError();
+  else {
+    const bodyChunks = chunks ?? [];
+    const chunk3 = incoming.read();
+    if (chunk3 !== null) bodyChunks.push(toBufferChunk(chunk3, incoming.readableEncoding));
+    const buffer = bodyChunks.length === 1 ? bodyChunks[0] : Buffer.concat(bodyChunks);
+    result = buffer;
+    const contentLength = incoming.headers["content-length"];
+    if (typeof contentLength === "string" && /^\d+$/.test(contentLength)) {
+      const expectedLength = Number(contentLength);
+      if (Number.isSafeInteger(expectedLength) && buffer.length !== expectedLength) result = newBodyUnusableError();
+    }
+  }
+  incomingWithRecovery[bodyBufferedBeforeDisconnectKey] = result;
+  return result;
+};
+var enqueueBufferedBody = (controller, buffered) => {
+  if (buffered instanceof Error) {
+    controller.error(buffered);
+    return;
+  }
+  if (buffered.length > 0) controller.enqueue(buffered);
+  controller.close();
+};
+var newRequestFromIncoming = (method, url2, headers, incoming, abortController) => {
+  const init = {
+    method,
+    headers,
+    signal: abortController.signal
+  };
+  if (method === "TRACE") {
+    init.method = "GET";
+    const req = new Request$1(url2, init);
+    Object.defineProperty(req, "method", { get() {
+      return "TRACE";
+    } });
+    return req;
+  }
+  if (!(method === "GET" || method === "HEAD")) if ("rawBody" in incoming && incoming.rawBody instanceof Buffer) init.body = new ReadableStream({ start(controller) {
+    controller.enqueue(incoming.rawBody);
+    controller.close();
+  } });
+  else if (incoming[wrapBodyStream]) {
+    let reader;
+    init.body = new ReadableStream({ async pull(controller) {
+      try {
+        if (!reader) {
+          const buffered = readBodyBufferedBeforeDisconnect(incoming);
+          if (buffered !== void 0) {
+            enqueueBufferedBody(controller, buffered);
+            return;
+          }
+        }
+        reader ||= Readable.toWeb(incoming).getReader();
+        const { done, value } = await reader.read();
+        if (done) controller.close();
+        else controller.enqueue(value);
+      } catch (error51) {
+        controller.error(error51);
+      }
+    } });
+  } else {
+    const buffered = readBodyBufferedBeforeDisconnect(incoming);
+    if (buffered !== void 0) init.body = new ReadableStream({ start(controller) {
+      enqueueBufferedBody(controller, buffered);
+    } });
+    else init.body = Readable.toWeb(incoming);
+  }
+  return new Request$1(url2, init);
+};
+var getRequestCache = /* @__PURE__ */ Symbol("getRequestCache");
+var requestCache = /* @__PURE__ */ Symbol("requestCache");
+var incomingKey = /* @__PURE__ */ Symbol("incomingKey");
+var urlKey = /* @__PURE__ */ Symbol("urlKey");
+var methodKey = /* @__PURE__ */ Symbol("methodKey");
+var headersKey = /* @__PURE__ */ Symbol("headersKey");
+var abortControllerKey = /* @__PURE__ */ Symbol("abortControllerKey");
+var getAbortController = /* @__PURE__ */ Symbol("getAbortController");
+var abortRequest = /* @__PURE__ */ Symbol("abortRequest");
+var bodyBufferKey = /* @__PURE__ */ Symbol("bodyBuffer");
+var bodyReadPromiseKey = /* @__PURE__ */ Symbol("bodyReadPromise");
+var bodyConsumedDirectlyKey = /* @__PURE__ */ Symbol("bodyConsumedDirectly");
+var bodyLockReaderKey = /* @__PURE__ */ Symbol("bodyLockReader");
+var abortReasonKey = /* @__PURE__ */ Symbol("abortReason");
+var newBodyUnusableError = () => {
+  return /* @__PURE__ */ new TypeError("Body is unusable");
+};
+var rejectBodyUnusable = () => {
+  return Promise.reject(newBodyUnusableError());
+};
+var textDecoder = new TextDecoder();
+var consumeBodyDirectOnce = (request) => {
+  if (request[bodyConsumedDirectlyKey]) return rejectBodyUnusable();
+  request[bodyConsumedDirectlyKey] = true;
+};
+var toArrayBuffer = (buf) => {
+  return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+};
+var contentType = (request) => {
+  return (request[headersKey] ||= newHeadersFromIncoming(request[incomingKey])).get("content-type") || "";
+};
+var methodTokenRegExp = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
+var normalizeIncomingMethod = (method) => {
+  if (typeof method !== "string" || method.length === 0) return "GET";
+  switch (method) {
+    case "DELETE":
+    case "GET":
+    case "HEAD":
+    case "OPTIONS":
+    case "PATCH":
+    case "POST":
+    case "PUT":
+    case "QUERY":
+      return method;
+  }
+  const upper = method.toUpperCase();
+  switch (upper) {
+    case "DELETE":
+    case "GET":
+    case "HEAD":
+    case "OPTIONS":
+    case "POST":
+    case "PUT":
+      return upper;
+    default:
+      return method;
+  }
+};
+var validateDirectReadMethod = (method) => {
+  if (!methodTokenRegExp.test(method)) return /* @__PURE__ */ new TypeError(`'${method}' is not a valid HTTP method.`);
+  const normalized = method.toUpperCase();
+  if (normalized === "CONNECT" || normalized === "TRACK" || normalized === "TRACE" && method !== "TRACE") return /* @__PURE__ */ new TypeError(`'${method}' HTTP method is unsupported.`);
+};
+var readBodyWithFastPath = (request, method, fromBuffer) => {
+  if (request[bodyConsumedDirectlyKey]) return rejectBodyUnusable();
+  const methodName = request.method;
+  if (methodName === "GET" || methodName === "HEAD") return request[getRequestCache]()[method]();
+  const methodValidationError = validateDirectReadMethod(methodName);
+  if (methodValidationError) return Promise.reject(methodValidationError);
+  if (request[requestCache]) {
+    if (methodName !== "TRACE") return request[requestCache][method]();
+  }
+  const alreadyUsedError = consumeBodyDirectOnce(request);
+  if (alreadyUsedError) return alreadyUsedError;
+  const raw = readRawBodyIfAvailable(request);
+  if (raw) {
+    const result = Promise.resolve(fromBuffer(raw, request));
+    request[bodyBufferKey] = void 0;
+    return result;
+  }
+  return readBodyDirect(request).then((buf) => {
+    const result = fromBuffer(buf, request);
+    request[bodyBufferKey] = void 0;
+    return result;
+  });
+};
+var readRawBodyIfAvailable = (request) => {
+  const incoming = request[incomingKey];
+  if ("rawBody" in incoming && incoming.rawBody instanceof Buffer) return incoming.rawBody;
+};
+var normalizeAbortError = (request, incoming) => {
+  if (incoming.errored) return incoming.errored;
+  const reason = request[abortReasonKey];
+  if (reason !== void 0) return reason instanceof Error ? reason : new Error(String(reason));
+  return /* @__PURE__ */ new Error("Client connection prematurely closed.");
+};
+var readBodyDirect = (request) => {
+  if (request[bodyBufferKey]) return Promise.resolve(request[bodyBufferKey]);
+  if (request[bodyReadPromiseKey]) return request[bodyReadPromiseKey];
+  const incoming = request[incomingKey];
+  if (incoming.readableDidRead) return rejectBodyUnusable();
+  const buffered = readBodyBufferedBeforeDisconnect(incoming);
+  if (buffered !== void 0) {
+    if (buffered instanceof Error) return Promise.reject(buffered);
+    request[bodyBufferKey] = buffered;
+    return Promise.resolve(buffered);
+  }
+  const promise2 = new Promise((resolve5, reject) => {
+    const chunks = [];
+    let settled = false;
+    const finish2 = (callback) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      callback();
+    };
+    const recoverCompleteBodyAfterDisconnect = (error51) => {
+      const streamError = incoming.errored ?? error51;
+      if (!isRecoverableDisconnectedIncoming(incoming) || streamError && streamError.code !== "ECONNRESET") return false;
+      finish2(() => {
+        const recovered = readBodyBufferedBeforeDisconnect(incoming, chunks);
+        if (recovered instanceof Error) reject(recovered);
+        else if (recovered === void 0) reject(error51 ?? normalizeAbortError(request, incoming));
+        else {
+          request[bodyBufferKey] = recovered;
+          resolve5(recovered);
+        }
+      });
+      return true;
+    };
+    const onData = (chunk3) => {
+      chunks.push(toBufferChunk(chunk3, incoming.readableEncoding));
+    };
+    const onEnd = () => {
+      finish2(() => {
+        const buffer = chunks.length === 1 ? chunks[0] : Buffer.concat(chunks);
+        request[bodyBufferKey] = buffer;
+        resolve5(buffer);
+      });
+    };
+    const onError = (error51) => {
+      if (recoverCompleteBodyAfterDisconnect(error51)) return;
+      finish2(() => {
+        reject(error51);
+      });
+    };
+    const onClose = () => {
+      if (incoming.readableEnded) {
+        onEnd();
+        return;
+      }
+      if (recoverCompleteBodyAfterDisconnect()) return;
+      finish2(() => {
+        reject(normalizeAbortError(request, incoming));
+      });
+    };
+    const cleanup = () => {
+      incoming.off("data", onData);
+      incoming.off("end", onEnd);
+      incoming.off("error", onError);
+      incoming.off("close", onClose);
+      request[bodyReadPromiseKey] = void 0;
+    };
+    incoming.on("data", onData);
+    incoming.on("end", onEnd);
+    incoming.on("error", onError);
+    incoming.on("close", onClose);
+    queueMicrotask(() => {
+      if (settled) return;
+      if (incoming.readableEnded) onEnd();
+      else if (incoming.errored) onError(incoming.errored);
+      else if (incoming.destroyed) onClose();
+    });
+  });
+  request[bodyReadPromiseKey] = promise2;
+  return promise2;
+};
+var requestPrototype = {
+  get method() {
+    return this[methodKey];
+  },
+  get url() {
+    return this[urlKey];
+  },
+  get headers() {
+    return this[headersKey] ||= newHeadersFromIncoming(this[incomingKey]);
+  },
+  [abortRequest](reason) {
+    if (this[abortReasonKey] === void 0) this[abortReasonKey] = reason;
+    const abortController = this[abortControllerKey];
+    if (abortController && !abortController.signal.aborted) abortController.abort(reason);
+  },
+  [getAbortController]() {
+    this[abortControllerKey] ||= new AbortController();
+    if (this[abortReasonKey] !== void 0 && !this[abortControllerKey].signal.aborted) this[abortControllerKey].abort(this[abortReasonKey]);
+    return this[abortControllerKey];
+  },
+  [getRequestCache]() {
+    const abortController = this[getAbortController]();
+    if (this[requestCache]) return this[requestCache];
+    const method = this.method;
+    if (this[bodyConsumedDirectlyKey] && !(method === "GET" || method === "HEAD")) {
+      this[bodyBufferKey] = void 0;
+      const init = {
+        method: method === "TRACE" ? "GET" : method,
+        headers: this.headers,
+        signal: abortController.signal
+      };
+      if (method !== "TRACE") {
+        init.body = new ReadableStream({ start(c) {
+          c.close();
+        } });
+        init.duplex = "half";
+      }
+      const req = new Request$1(this[urlKey], init);
+      if (method === "TRACE") Object.defineProperty(req, "method", { get() {
+        return "TRACE";
+      } });
+      return this[requestCache] = req;
+    }
+    return this[requestCache] = newRequestFromIncoming(this.method, this[urlKey], this.headers, this[incomingKey], abortController);
+  },
+  get body() {
+    if (!this[bodyConsumedDirectlyKey]) return this[getRequestCache]().body;
+    const request = this[getRequestCache]();
+    if (!this[bodyLockReaderKey] && request.body) this[bodyLockReaderKey] = request.body.getReader();
+    return request.body;
+  },
+  get bodyUsed() {
+    if (this[bodyConsumedDirectlyKey]) return true;
+    if (this[requestCache]) return this[requestCache].bodyUsed;
+    return false;
+  }
+};
+Object.defineProperty(requestPrototype, "signal", { get() {
+  return this[getAbortController]().signal;
+} });
+[
+  "cache",
+  "credentials",
+  "destination",
+  "integrity",
+  "mode",
+  "redirect",
+  "referrer",
+  "referrerPolicy",
+  "keepalive"
+].forEach((k) => {
+  Object.defineProperty(requestPrototype, k, { get() {
+    return this[getRequestCache]()[k];
+  } });
+});
+["clone", "formData"].forEach((k) => {
+  Object.defineProperty(requestPrototype, k, { value: function() {
+    if (this[bodyConsumedDirectlyKey]) {
+      if (k === "clone") throw newBodyUnusableError();
+      return rejectBodyUnusable();
+    }
+    return this[getRequestCache]()[k]();
+  } });
+});
+Object.defineProperty(requestPrototype, "text", { value: function() {
+  return readBodyWithFastPath(this, "text", (buf) => textDecoder.decode(buf));
+} });
+Object.defineProperty(requestPrototype, "arrayBuffer", { value: function() {
+  return readBodyWithFastPath(this, "arrayBuffer", (buf) => toArrayBuffer(buf));
+} });
+Object.defineProperty(requestPrototype, "blob", { value: function() {
+  return readBodyWithFastPath(this, "blob", (buf, request) => {
+    const type = contentType(request);
+    const init = type ? { headers: { "content-type": type } } : void 0;
+    return new Response(buf, init).blob();
+  });
+} });
+Object.defineProperty(requestPrototype, "json", { value: function() {
+  if (this[bodyConsumedDirectlyKey]) return rejectBodyUnusable();
+  return this.text().then(JSON.parse);
+} });
+Object.defineProperty(requestPrototype, /* @__PURE__ */ Symbol.for("nodejs.util.inspect.custom"), { value: function(depth, options, inspectFn) {
+  return `Request (lightweight) ${inspectFn({
+    method: this.method,
+    url: this.url,
+    headers: this.headers,
+    nativeRequest: this[requestCache]
+  }, {
+    ...options,
+    depth: depth == null ? null : depth - 1
+  })}`;
+} });
+Object.setPrototypeOf(requestPrototype, Request$1.prototype);
+var newRequest = (incoming, defaultHostname) => {
+  const req = Object.create(requestPrototype);
+  req[incomingKey] = incoming;
+  req[methodKey] = normalizeIncomingMethod(incoming.method);
+  const incomingUrl = incoming.url || "";
+  if (incomingUrl[0] !== "/" && (incomingUrl.startsWith("http://") || incomingUrl.startsWith("https://"))) {
+    if (incoming instanceof Http2ServerRequest) throw new RequestError("Absolute URL for :path is not allowed in HTTP/2");
+    try {
+      req[urlKey] = new URL(incomingUrl).href;
+    } catch (e) {
+      throw new RequestError("Invalid absolute URL", { cause: e });
+    }
+    return req;
+  }
+  const host = (incoming instanceof Http2ServerRequest ? incoming.authority : incoming.headers.host) || defaultHostname;
+  if (!host) throw new RequestError("Missing host header");
+  let scheme;
+  if (incoming instanceof Http2ServerRequest) {
+    scheme = incoming.scheme;
+    if (!(scheme === "http" || scheme === "https")) throw new RequestError("Unsupported scheme");
+  } else scheme = incoming.socket && incoming.socket.encrypted ? "https" : "http";
+  try {
+    req[urlKey] = buildUrl2(scheme, host, incomingUrl);
+  } catch (e) {
+    if (e instanceof RequestError) throw e;
+    else throw new RequestError("Invalid URL", { cause: e });
+  }
+  return req;
+};
+var defaultContentType = "text/plain; charset=UTF-8";
+var responseCache = /* @__PURE__ */ Symbol("responseCache");
+var getResponseCache = /* @__PURE__ */ Symbol("getResponseCache");
+var cacheKey = /* @__PURE__ */ Symbol("cache");
+var GlobalResponse = global.Response;
+var Response$1 = class Response$12 {
+  #body;
+  #init;
+  [getResponseCache]() {
+    const cache = this[cacheKey];
+    const liveHeaders = cache && cache[2] instanceof Headers ? cache[2] : void 0;
+    delete this[cacheKey];
+    return this[responseCache] ||= new GlobalResponse(this.#body, liveHeaders ? {
+      status: this.#init?.status,
+      statusText: this.#init?.statusText,
+      headers: liveHeaders
+    } : this.#init);
+  }
+  constructor(body, init) {
+    let headers;
+    this.#body = body;
+    if (init instanceof GlobalResponse) {
+      const cachedGlobalResponse = init[responseCache];
+      if (cachedGlobalResponse) {
+        this.#init = cachedGlobalResponse;
+        this[getResponseCache]();
+        return;
+      }
+      this.#init = init instanceof Response$12 ? init.#init : init;
+      headers = new Headers(init.headers);
+    } else this.#init = init;
+    if (body == null || typeof body === "string" || typeof body?.getReader !== "undefined" || body instanceof Blob || body instanceof Uint8Array) this[cacheKey] = [
+      init?.status || 200,
+      body ?? null,
+      headers || init?.headers
+    ];
+  }
+  get headers() {
+    const cache = this[cacheKey];
+    if (cache) {
+      if (!(cache[2] instanceof Headers)) cache[2] = new Headers(cache[2] || (cache[1] === null ? void 0 : { "content-type": defaultContentType }));
+      return cache[2];
+    }
+    return this[getResponseCache]().headers;
+  }
+  get status() {
+    return this[cacheKey]?.[0] ?? this[getResponseCache]().status;
+  }
+  get ok() {
+    const status = this.status;
+    return status >= 200 && status < 300;
+  }
+};
+[
+  "body",
+  "bodyUsed",
+  "redirected",
+  "statusText",
+  "trailers",
+  "type",
+  "url"
+].forEach((k) => {
+  Object.defineProperty(Response$1.prototype, k, { get() {
+    return this[getResponseCache]()[k];
+  } });
+});
+[
+  "arrayBuffer",
+  "blob",
+  "clone",
+  "formData",
+  "json",
+  "text"
+].forEach((k) => {
+  Object.defineProperty(Response$1.prototype, k, { value: function() {
+    return this[getResponseCache]()[k]();
+  } });
+});
+Object.defineProperty(Response$1.prototype, /* @__PURE__ */ Symbol.for("nodejs.util.inspect.custom"), { value: function(depth, options, inspectFn) {
+  return `Response (lightweight) ${inspectFn({
+    status: this.status,
+    headers: this.headers,
+    ok: this.ok,
+    nativeResponse: this[responseCache]
+  }, {
+    ...options,
+    depth: depth == null ? null : depth - 1
+  })}`;
+} });
+Object.setPrototypeOf(Response$1, GlobalResponse);
+Object.setPrototypeOf(Response$1.prototype, GlobalResponse.prototype);
+var validRedirectUrl = /^https?:\/\/[!#-;=?-[\]_a-z~A-Z]+$/;
+var parseRedirectUrl = (url2) => {
+  if (url2 instanceof URL) return url2.href;
+  if (validRedirectUrl.test(url2)) return url2;
+  return new URL(url2).href;
+};
+var validRedirectStatuses = /* @__PURE__ */ new Set([
+  301,
+  302,
+  303,
+  307,
+  308
+]);
+Object.defineProperty(Response$1, "redirect", {
+  value: function redirect(url2, status = 302) {
+    if (!validRedirectStatuses.has(status)) throw new RangeError("Invalid status code");
+    return new Response$1(null, {
+      status,
+      headers: { location: parseRedirectUrl(url2) }
+    });
+  },
+  writable: true,
+  configurable: true
+});
+Object.defineProperty(Response$1, "json", {
+  value: function json2(data, init) {
+    const body = JSON.stringify(data);
+    if (body === void 0) throw new TypeError("The data is not JSON serializable");
+    const initHeaders = init?.headers;
+    let headers;
+    if (initHeaders) {
+      headers = new Headers(initHeaders);
+      if (!headers.has("content-type")) headers.set("content-type", "application/json");
+    } else headers = { "content-type": "application/json" };
+    return new Response$1(body, {
+      status: init?.status ?? 200,
+      statusText: init?.statusText,
+      headers
+    });
+  },
+  writable: true,
+  configurable: true
+});
+async function readWithoutBlocking(readPromise) {
+  return Promise.race([readPromise, Promise.resolve().then(() => Promise.resolve(void 0))]);
+}
+function writeFromReadableStreamDefaultReader(reader, writable, currentReadPromise) {
+  const cancel = (error51) => {
+    reader.cancel(error51).catch(() => {
+    });
+  };
+  writable.on("close", cancel);
+  writable.on("error", cancel);
+  (currentReadPromise ?? reader.read()).then(flow, handleStreamError);
+  return reader.closed.finally(() => {
+    writable.off("close", cancel);
+    writable.off("error", cancel);
+  });
+  function handleStreamError(error51) {
+    if (error51) writable.destroy(error51);
+  }
+  function onDrain() {
+    reader.read().then(flow, handleStreamError);
+  }
+  function flow({ done, value }) {
+    try {
+      if (done) writable.end();
+      else if (!writable.write(value)) writable.once("drain", onDrain);
+      else return reader.read().then(flow, handleStreamError);
+    } catch (e) {
+      handleStreamError(e);
+    }
+  }
+}
+function writeFromReadableStream(stream, writable) {
+  if (stream.locked) throw new TypeError("ReadableStream is locked.");
+  else if (writable.destroyed) return;
+  return writeFromReadableStreamDefaultReader(stream.getReader(), writable);
+}
+var buildOutgoingHttpHeaders = (headers, defaultContentType2) => {
+  const res = {};
+  if (!(headers instanceof Headers)) headers = new Headers(headers ?? void 0);
+  if (headers.has("set-cookie")) {
+    const cookies = [];
+    for (const [k, v] of headers) if (k === "set-cookie") cookies.push(v);
+    else res[k] = v;
+    if (cookies.length > 0) res["set-cookie"] = cookies;
+  } else for (const [k, v] of headers) res[k] = v;
+  if (defaultContentType2) res["content-type"] ??= defaultContentType2;
+  return res;
+};
+var outgoingEnded = /* @__PURE__ */ Symbol("outgoingEnded");
+var incomingDraining = /* @__PURE__ */ Symbol("incomingDraining");
+var DRAIN_TIMEOUT_MS = 500;
+var MAX_DRAIN_BYTES = 64 * 1024 * 1024;
+var drainIncoming = (incoming) => {
+  const incomingWithDrainState = incoming;
+  if (incoming.destroyed || incomingWithDrainState[incomingDraining]) return;
+  incomingWithDrainState[incomingDraining] = true;
+  if (incoming instanceof Http2ServerRequest) {
+    try {
+      incoming.stream?.close?.(constants.NGHTTP2_NO_ERROR);
+    } catch {
+    }
+    return;
+  }
+  let bytesRead = 0;
+  const cleanup = () => {
+    clearTimeout(timer);
+    incoming.off("data", onData);
+    incoming.off("end", cleanup);
+    incoming.off("error", cleanup);
+  };
+  const forceClose = () => {
+    cleanup();
+    const socket = incoming.socket;
+    if (socket && !socket.destroyed) socket.destroySoon();
+  };
+  const timer = setTimeout(forceClose, DRAIN_TIMEOUT_MS);
+  timer.unref?.();
+  const onData = (chunk3) => {
+    bytesRead += chunk3.length;
+    if (bytesRead > MAX_DRAIN_BYTES) forceClose();
+  };
+  incoming.on("data", onData);
+  incoming.on("end", cleanup);
+  incoming.on("error", cleanup);
+  incoming.resume();
+};
+var makeCloseHandler = (req, incoming, outgoing, needsBodyCleanup) => () => {
+  if (incoming.errored) {
+    recordBodyBufferedBeforeDisconnect(incoming);
+    req[abortRequest](incoming.errored.toString());
+  } else if (!outgoing.writableFinished) {
+    recordBodyBufferedBeforeDisconnect(incoming);
+    req[abortRequest]("Client connection prematurely closed.");
+  }
+  if (needsBodyCleanup && !incoming.readableEnded) setTimeout(() => {
+    if (!incoming.readableEnded) setTimeout(() => {
+      drainIncoming(incoming);
+    });
+  });
+};
+var isImmediateCacheableResponse = (res) => {
+  if (!(cacheKey in res)) return false;
+  const body = res[cacheKey][1];
+  return body === null || typeof body === "string" || body instanceof Uint8Array;
+};
+var handleRequestError = () => new Response(null, { status: 400 });
+var handleFetchError = (e) => new Response(null, { status: e instanceof Error && (e.name === "TimeoutError" || e.constructor.name === "TimeoutError") ? 504 : 500 });
+var handleResponseError = (e, outgoing) => {
+  const err = e instanceof Error ? e : new Error("unknown error", { cause: e });
+  if (err.code === "ERR_STREAM_PREMATURE_CLOSE") console.info("The user aborted a request.");
+  else {
+    console.error(e);
+    if (!outgoing.headersSent) outgoing.writeHead(500, { "Content-Type": "text/plain" });
+    outgoing.end(`Error: ${err.message}`);
+    outgoing.destroy(err);
+  }
+};
+var flushHeaders = (outgoing) => {
+  if ("flushHeaders" in outgoing && outgoing.writable) outgoing.flushHeaders();
+};
+var responseViaCache = async (res, outgoing) => {
+  let [status, body, header] = res[cacheKey];
+  if (!header) {
+    if (body === null) {
+      outgoing.writeHead(status);
+      outgoing.end();
+    } else if (typeof body === "string") {
+      outgoing.writeHead(status, {
+        "Content-Type": defaultContentType,
+        "Content-Length": Buffer.byteLength(body)
+      });
+      outgoing.end(body);
+    } else if (body instanceof Uint8Array) {
+      outgoing.writeHead(status, {
+        "Content-Type": defaultContentType,
+        "Content-Length": body.byteLength
+      });
+      outgoing.end(body);
+    } else if (body instanceof Blob) {
+      outgoing.writeHead(status, {
+        "Content-Type": defaultContentType,
+        "Content-Length": body.size
+      });
+      outgoing.end(new Uint8Array(await body.arrayBuffer()));
+    } else {
+      outgoing.writeHead(status, { "Content-Type": defaultContentType });
+      flushHeaders(outgoing);
+      await writeFromReadableStream(body, outgoing)?.catch((e) => handleResponseError(e, outgoing));
+    }
+    outgoing[outgoingEnded]?.();
+    return;
+  }
+  let hasContentLength = false;
+  if (header instanceof Headers) {
+    hasContentLength = header.has("content-length");
+    header = buildOutgoingHttpHeaders(header, body === null ? void 0 : defaultContentType);
+  } else if (Array.isArray(header)) {
+    const headerObj = new Headers(header);
+    hasContentLength = headerObj.has("content-length");
+    header = buildOutgoingHttpHeaders(headerObj, body === null ? void 0 : defaultContentType);
+  } else for (const key in header) if (key.length === 14 && key.toLowerCase() === "content-length") {
+    hasContentLength = true;
+    break;
+  }
+  if (!hasContentLength) {
+    if (typeof body === "string") header["Content-Length"] = Buffer.byteLength(body);
+    else if (body instanceof Uint8Array) header["Content-Length"] = body.byteLength;
+    else if (body instanceof Blob) header["Content-Length"] = body.size;
+  }
+  outgoing.writeHead(status, header);
+  if (body == null) outgoing.end();
+  else if (typeof body === "string" || body instanceof Uint8Array) outgoing.end(body);
+  else if (body instanceof Blob) outgoing.end(new Uint8Array(await body.arrayBuffer()));
+  else {
+    flushHeaders(outgoing);
+    await writeFromReadableStream(body, outgoing)?.catch((e) => handleResponseError(e, outgoing));
+  }
+  outgoing[outgoingEnded]?.();
+};
+var isPromise = (res) => typeof res.then === "function";
+var responseViaResponseObject = async (res, outgoing, options = {}) => {
+  if (isPromise(res)) if (options.errorHandler) try {
+    res = await res;
+  } catch (err) {
+    const errRes = await options.errorHandler(err);
+    if (!errRes) return;
+    res = errRes;
+  }
+  else res = await res.catch(handleFetchError);
+  if (cacheKey in res) return responseViaCache(res, outgoing);
+  const resHeaderRecord = buildOutgoingHttpHeaders(res.headers, res.body === null ? void 0 : defaultContentType);
+  if (res.body) {
+    const reader = res.body.getReader();
+    const values = [];
+    let done = false;
+    let currentReadPromise = void 0;
+    if (resHeaderRecord["transfer-encoding"] !== "chunked") {
+      let maxReadCount = 2;
+      for (let i = 0; i < maxReadCount; i++) {
+        currentReadPromise ||= reader.read();
+        const chunk3 = await readWithoutBlocking(currentReadPromise).catch((e) => {
+          console.error(e);
+          done = true;
+        });
+        if (!chunk3) {
+          if (i === 1) {
+            await new Promise((resolve5) => setTimeout(resolve5));
+            maxReadCount = 3;
+            continue;
+          }
+          break;
+        }
+        currentReadPromise = void 0;
+        if (chunk3.value) values.push(chunk3.value);
+        if (chunk3.done) {
+          done = true;
+          break;
+        }
+      }
+      if (done && !("content-length" in resHeaderRecord)) resHeaderRecord["content-length"] = values.reduce((acc, value) => acc + value.length, 0);
+    }
+    outgoing.writeHead(res.status, resHeaderRecord);
+    values.forEach((value) => {
+      outgoing.write(value);
+    });
+    if (done) outgoing.end();
+    else {
+      if (values.length === 0) flushHeaders(outgoing);
+      await writeFromReadableStreamDefaultReader(reader, outgoing, currentReadPromise);
+    }
+  } else if (resHeaderRecord[X_ALREADY_SENT]) {
+  } else {
+    outgoing.writeHead(res.status, resHeaderRecord);
+    outgoing.end();
+  }
+  outgoing[outgoingEnded]?.();
+};
+var getRequestListener = (fetchCallback, options = {}) => {
+  const autoCleanupIncoming = options.autoCleanupIncoming ?? true;
+  if (options.overrideGlobalObjects !== false && global.Request !== Request$1) {
+    Object.defineProperty(global, "Request", { value: Request$1 });
+    Object.defineProperty(global, "Response", { value: Response$1 });
+  }
+  return async (incoming, outgoing) => {
+    let res, req;
+    let needsBodyCleanup = false;
+    let closeHandlerAttached = false;
+    const ensureCloseHandler = () => {
+      if (!req || closeHandlerAttached) return;
+      closeHandlerAttached = true;
+      outgoing.on("close", makeCloseHandler(req, incoming, outgoing, needsBodyCleanup));
+    };
+    try {
+      req = newRequest(incoming, options.hostname);
+      needsBodyCleanup = autoCleanupIncoming && !(incoming.method === "GET" || incoming.method === "HEAD");
+      if (needsBodyCleanup) {
+        incoming[wrapBodyStream] = true;
+        if (incoming instanceof Http2ServerRequest) outgoing[outgoingEnded] = () => {
+          if (!incoming.readableEnded) setTimeout(() => {
+            if (!incoming.readableEnded) setTimeout(() => {
+              incoming.destroy();
+              outgoing.destroy();
+            });
+          });
+        };
+      }
+      res = fetchCallback(req, {
+        incoming,
+        outgoing
+      });
+      if (!isPromise(res) && isImmediateCacheableResponse(res)) {
+        if (needsBodyCleanup && !incoming.readableEnded) outgoing.once("finish", () => {
+          if (!incoming.readableEnded) drainIncoming(incoming);
+        });
+        return responseViaCache(res, outgoing);
+      }
+      ensureCloseHandler();
+    } catch (e) {
+      if (!res) if (options.errorHandler) {
+        ensureCloseHandler();
+        res = await options.errorHandler(req ? e : toRequestError(e));
+        if (!res) return;
+      } else if (!req) res = handleRequestError();
+      else res = handleFetchError(e);
+      else return handleResponseError(e, outgoing);
+    }
+    try {
+      return await responseViaResponseObject(res, outgoing, options);
+    } catch (e) {
+      return handleResponseError(e, outgoing);
+    }
+  };
+};
+var CloseEvent = globalThis.CloseEvent ?? class extends Event {
+  #eventInitDict;
+  constructor(type, eventInitDict = {}) {
+    super(type, eventInitDict);
+    this.#eventInitDict = eventInitDict;
+  }
+  get wasClean() {
+    return this.#eventInitDict.wasClean ?? false;
+  }
+  get code() {
+    return this.#eventInitDict.code ?? 0;
+  }
+  get reason() {
+    return this.#eventInitDict.reason ?? "";
+  }
+};
+var ErrorEvent = globalThis.ErrorEvent ?? class extends Event {
+  #eventInitDict;
+  constructor(type, eventInitDict = {}) {
+    super(type, eventInitDict);
+    this.#eventInitDict = eventInitDict;
+  }
+  get message() {
+    return this.#eventInitDict.message ?? "";
+  }
+  get filename() {
+    return this.#eventInitDict.filename ?? "";
+  }
+  get lineno() {
+    return this.#eventInitDict.lineno ?? 0;
+  }
+  get colno() {
+    return this.#eventInitDict.colno ?? 0;
+  }
+  get error() {
+    return this.#eventInitDict.error ?? null;
+  }
+};
+var generateConnectionSymbol = () => /* @__PURE__ */ Symbol("connection");
+var CONNECTION_SYMBOL_KEY = /* @__PURE__ */ Symbol("CONNECTION_SYMBOL_KEY");
+var WAIT_FOR_WEBSOCKET_SYMBOL = /* @__PURE__ */ Symbol("WAIT_FOR_WEBSOCKET_SYMBOL");
+var upgradeWebSocket = defineWebSocketHelper(async (c, events, options) => {
+  if (c.req.header("upgrade")?.toLowerCase() !== "websocket") return;
+  const env = c.env;
+  const waitForWebSocket = env[WAIT_FOR_WEBSOCKET_SYMBOL];
+  if (!waitForWebSocket || !env.incoming) return new Response(null, { status: 500 });
+  const connectionSymbol = generateConnectionSymbol();
+  env[CONNECTION_SYMBOL_KEY] = connectionSymbol;
+  (async () => {
+    let ws;
+    try {
+      ws = await waitForWebSocket(env.incoming, connectionSymbol);
+    } catch {
+      return;
+    }
+    const messagesReceivedInStarting = [];
+    const bufferMessage = (data, isBinary) => {
+      messagesReceivedInStarting.push([data, isBinary]);
+    };
+    ws.on("message", bufferMessage);
+    const ctx = {
+      binaryType: "arraybuffer",
+      close(code, reason) {
+        ws.close(code, reason);
+      },
+      protocol: ws.protocol,
+      raw: ws,
+      get readyState() {
+        return ws.readyState;
+      },
+      send(source, opts) {
+        ws.send(source, { compress: opts?.compress });
+      },
+      url: new URL(c.req.url)
+    };
+    try {
+      events?.onOpen?.(new Event("open"), ctx);
+    } catch (e) {
+      (options?.onError ?? console.error)(e);
+    }
+    const handleMessage = (data, isBinary) => {
+      const datas = Array.isArray(data) ? data : [data];
+      for (const data2 of datas) try {
+        events?.onMessage?.(new MessageEvent("message", { data: isBinary ? data2 instanceof ArrayBuffer ? data2 : data2.buffer.slice(data2.byteOffset, data2.byteOffset + data2.byteLength) : typeof data2 === "string" ? data2 : Buffer.from(data2).toString("utf-8") }), ctx);
+      } catch (e) {
+        (options?.onError ?? console.error)(e);
+      }
+    };
+    ws.off("message", bufferMessage);
+    for (const message of messagesReceivedInStarting) handleMessage(...message);
+    ws.on("message", (data, isBinary) => {
+      handleMessage(data, isBinary);
+    });
+    ws.on("close", (code, reason) => {
+      try {
+        events?.onClose?.(new CloseEvent("close", {
+          code,
+          reason: reason.toString()
+        }), ctx);
+      } catch (e) {
+        (options?.onError ?? console.error)(e);
+      }
+    });
+    ws.on("error", (error51) => {
+      try {
+        events?.onError?.(new ErrorEvent("error", { error: error51 }), ctx);
+      } catch (e) {
+        (options?.onError ?? console.error)(e);
+      }
+    });
+  })();
+  return new Response();
+});
+
+// node_modules/@modelcontextprotocol/sdk/dist/esm/shared/mediaType.js
+var import_content_type = __toESM(require_content_type(), 1);
+function mediaTypeEssence(header) {
+  if (!header) {
+    return void 0;
+  }
+  try {
+    return import_content_type.default.parse(header).type;
+  } catch {
+    const essence = (header.split(";", 1)[0] ?? "").trim().toLowerCase();
+    if (essence === "" || header.slice(essence.length).includes(",")) {
+      return void 0;
+    }
+    return essence;
+  }
+}
+function isJsonContentType(header) {
+  if (header === "application/json") {
+    return true;
+  }
+  return mediaTypeEssence(header) === "application/json";
+}
+
+// node_modules/@modelcontextprotocol/sdk/dist/esm/server/sseKeepAlive.js
+var DEFAULT_SSE_KEEP_ALIVE_MS = 15e3;
+var MAX_TIMER_DELAY_MS = 2 ** 31 - 1;
+function armSseKeepAlive(intervalMs, onTick) {
+  if (!Number.isFinite(intervalMs) || intervalMs < 1) {
+    return void 0;
+  }
+  const timer = setInterval(onTick, Math.min(intervalMs, MAX_TIMER_DELAY_MS));
+  timer.unref?.();
+  return timer;
+}
+
+// node_modules/@modelcontextprotocol/sdk/dist/esm/server/webStandardStreamableHttp.js
+var WebStandardStreamableHTTPServerTransport = class {
+  constructor(options = {}) {
+    this._started = false;
+    this._hasHandledRequest = false;
+    this._streamMapping = /* @__PURE__ */ new Map();
+    this._requestToStreamMapping = /* @__PURE__ */ new Map();
+    this._resumableStreams = /* @__PURE__ */ new Set();
+    this._requestResponseMap = /* @__PURE__ */ new Map();
+    this._initialized = false;
+    this._enableJsonResponse = false;
+    this._standaloneSseStreamId = "_GET_stream";
+    this._closed = false;
+    this.sessionIdGenerator = options.sessionIdGenerator;
+    this._enableJsonResponse = options.enableJsonResponse ?? false;
+    this._eventStore = options.eventStore;
+    this._onsessioninitialized = options.onsessioninitialized;
+    this._onsessionclosed = options.onsessionclosed;
+    this._allowedHosts = options.allowedHosts;
+    this._allowedOrigins = options.allowedOrigins;
+    this._enableDnsRebindingProtection = options.enableDnsRebindingProtection ?? false;
+    this._retryInterval = options.retryInterval;
+    this._keepAliveMs = options.keepAliveMs ?? DEFAULT_SSE_KEEP_ALIVE_MS;
+  }
+  /**
+   * Arms a keep-alive interval for an SSE stream that periodically writes an SSE
+   * comment frame so intermediaries and idle timeouts don't kill the connection.
+   * The returned timer is owned by the stream it was armed for: the stream's
+   * cancel/cleanup callbacks must clear it. The interval clears itself if a
+   * write fails (stream already closed/cancelled).
+   */
+  startKeepAlive(controller, encoder) {
+    if (this._closed)
+      return void 0;
+    const timer = armSseKeepAlive(this._keepAliveMs, () => {
+      try {
+        controller.enqueue(encoder.encode(": keepalive\n\n"));
+      } catch {
+        if (timer !== void 0)
+          clearInterval(timer);
+      }
+    });
+    return timer;
+  }
+  /**
+   * Starts the transport. This is required by the Transport interface but is a no-op
+   * for the Streamable HTTP transport as connections are managed per-request.
+   */
+  async start() {
+    if (this._started) {
+      throw new Error("Transport already started");
+    }
+    this._started = true;
+  }
+  /**
+   * Helper to create a JSON error response
+   */
+  createJsonErrorResponse(status, code, message, options) {
+    const error51 = { code, message };
+    if (options?.data !== void 0) {
+      error51.data = options.data;
+    }
+    return new Response(JSON.stringify({
+      jsonrpc: "2.0",
+      error: error51,
+      id: null
+    }), {
+      status,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers
+      }
+    });
+  }
+  /**
+   * Validates request headers for DNS rebinding protection.
+   * @returns Error response if validation fails, undefined if validation passes.
+   */
+  validateRequestHeaders(req) {
+    if (!this._enableDnsRebindingProtection) {
+      return void 0;
+    }
+    if (this._allowedHosts && this._allowedHosts.length > 0) {
+      const hostHeader = req.headers.get("host");
+      if (!hostHeader || !this._allowedHosts.includes(hostHeader)) {
+        const error51 = `Invalid Host header: ${hostHeader}`;
+        this.onerror?.(new Error(error51));
+        return this.createJsonErrorResponse(403, -32e3, error51);
+      }
+    }
+    if (this._allowedOrigins && this._allowedOrigins.length > 0) {
+      const originHeader = req.headers.get("origin");
+      if (originHeader && !this._allowedOrigins.includes(originHeader)) {
+        const error51 = `Invalid Origin header: ${originHeader}`;
+        this.onerror?.(new Error(error51));
+        return this.createJsonErrorResponse(403, -32e3, error51);
+      }
+    }
+    return void 0;
+  }
+  /**
+   * Handles an incoming HTTP request, whether GET, POST, or DELETE
+   * Returns a Response object (Web Standard)
+   */
+  async handleRequest(req, options) {
+    if (this._closed) {
+      return this.createJsonErrorResponse(404, -32001, "Session not found");
+    }
+    if (!this.sessionIdGenerator && this._hasHandledRequest) {
+      throw new Error("Stateless transport cannot be reused across requests. Create a new transport per request.");
+    }
+    this._hasHandledRequest = true;
+    const validationError = this.validateRequestHeaders(req);
+    if (validationError) {
+      return validationError;
+    }
+    switch (req.method) {
+      case "POST":
+        return this.handlePostRequest(req, options);
+      case "GET":
+        return this.handleGetRequest(req);
+      case "DELETE":
+        return this.handleDeleteRequest(req);
+      default:
+        return this.handleUnsupportedRequest();
+    }
+  }
+  /**
+   * Writes a priming event to establish resumption capability.
+   * Only sends if eventStore is configured (opt-in for resumability) and
+   * the client's protocol version supports empty SSE data (>= 2025-11-25).
+   */
+  async writePrimingEvent(controller, encoder, streamId, protocolVersion) {
+    if (!this._eventStore) {
+      return;
+    }
+    if (protocolVersion < "2025-11-25") {
+      return;
+    }
+    const primingEventId = await this._eventStore.storeEvent(streamId, {});
+    let primingEvent = `id: ${primingEventId}
+data: 
+
+`;
+    if (this._retryInterval !== void 0) {
+      primingEvent = `id: ${primingEventId}
+retry: ${this._retryInterval}
+data: 
+
+`;
+    }
+    controller.enqueue(encoder.encode(primingEvent));
+    this._resumableStreams.add(streamId);
+  }
+  /**
+   * Handles GET requests for SSE stream
+   */
+  async handleGetRequest(req) {
+    const acceptHeader = req.headers.get("accept");
+    if (!acceptHeader?.includes("text/event-stream")) {
+      this.onerror?.(new Error("Not Acceptable: Client must accept text/event-stream"));
+      return this.createJsonErrorResponse(406, -32e3, "Not Acceptable: Client must accept text/event-stream");
+    }
+    const sessionError = this.validateSession(req);
+    if (sessionError) {
+      return sessionError;
+    }
+    const protocolError2 = this.validateProtocolVersion(req);
+    if (protocolError2) {
+      return protocolError2;
+    }
+    if (this._eventStore) {
+      const lastEventId = req.headers.get("last-event-id");
+      if (lastEventId) {
+        return this.replayEvents(lastEventId);
+      }
+    }
+    if (this._streamMapping.get(this._standaloneSseStreamId) !== void 0) {
+      this.onerror?.(new Error("Conflict: Only one SSE stream is allowed per session"));
+      return this.createJsonErrorResponse(409, -32e3, "Conflict: Only one SSE stream is allowed per session");
+    }
+    const encoder = new TextEncoder();
+    let streamController;
+    let keepAliveTimer = void 0;
+    const readable = new ReadableStream({
+      start: (controller) => {
+        streamController = controller;
+      },
+      cancel: () => {
+        if (keepAliveTimer !== void 0) {
+          clearInterval(keepAliveTimer);
+        }
+        if (this._streamMapping.get(this._standaloneSseStreamId)?.controller === streamController) {
+          this._streamMapping.delete(this._standaloneSseStreamId);
+        }
+      }
+    });
+    const headers = {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no"
+    };
+    if (this.sessionId !== void 0) {
+      headers["mcp-session-id"] = this.sessionId;
+    }
+    this._streamMapping.set(this._standaloneSseStreamId, {
+      controller: streamController,
+      encoder,
+      cleanup: () => {
+        if (keepAliveTimer !== void 0) {
+          clearInterval(keepAliveTimer);
+        }
+        this._streamMapping.delete(this._standaloneSseStreamId);
+        try {
+          streamController.close();
+        } catch {
+        }
+      }
+    });
+    keepAliveTimer = this.startKeepAlive(streamController, encoder);
+    return new Response(readable, { headers });
+  }
+  /**
+   * Replays events that would have been sent after the specified event ID
+   * Only used when resumability is enabled
+   */
+  async replayEvents(lastEventId) {
+    if (!this._eventStore) {
+      this.onerror?.(new Error("Event store not configured"));
+      return this.createJsonErrorResponse(400, -32e3, "Event store not configured");
+    }
+    try {
+      let streamId;
+      if (this._eventStore.getStreamIdForEventId) {
+        streamId = await this._eventStore.getStreamIdForEventId(lastEventId);
+        if (!streamId) {
+          this.onerror?.(new Error("Invalid event ID format"));
+          return this.createJsonErrorResponse(400, -32e3, "Invalid event ID format");
+        }
+        if (this._streamMapping.get(streamId) !== void 0) {
+          this.onerror?.(new Error("Conflict: Stream already has an active connection"));
+          return this.createJsonErrorResponse(409, -32e3, "Conflict: Stream already has an active connection");
+        }
+      }
+      const headers = {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache, no-transform",
+        Connection: "keep-alive",
+        "X-Accel-Buffering": "no"
+      };
+      if (this.sessionId !== void 0) {
+        headers["mcp-session-id"] = this.sessionId;
+      }
+      const encoder = new TextEncoder();
+      let streamController;
+      let keepAliveTimer = void 0;
+      let replayedStreamId = void 0;
+      let cancelled = false;
+      const readable = new ReadableStream({
+        start: (controller) => {
+          streamController = controller;
+        },
+        cancel: () => {
+          cancelled = true;
+          if (keepAliveTimer !== void 0) {
+            clearInterval(keepAliveTimer);
+          }
+          if (replayedStreamId !== void 0 && this._streamMapping.get(replayedStreamId)?.controller === streamController) {
+            this._streamMapping.delete(replayedStreamId);
+          }
+        }
+      });
+      const replayedEventIds = /* @__PURE__ */ new Set();
+      replayedStreamId = await this._eventStore.replayEventsAfter(lastEventId, {
+        send: async (eventId, message) => {
+          const success2 = this.writeSSEEvent(streamController, encoder, message, eventId);
+          if (!success2) {
+            this.onerror?.(new Error("Failed replay events"));
+            try {
+              streamController.close();
+            } catch {
+            }
+          } else {
+            replayedEventIds.add(eventId);
+          }
+        }
+      });
+      if (this._closed || cancelled) {
+        try {
+          streamController.close();
+        } catch {
+        }
+        return this.createJsonErrorResponse(404, -32001, "Session not found");
+      }
+      this._streamMapping.get(replayedStreamId)?.cleanup();
+      this._streamMapping.set(replayedStreamId, {
+        controller: streamController,
+        encoder,
+        replayedEventIds,
+        cleanup: () => {
+          if (keepAliveTimer !== void 0) {
+            clearInterval(keepAliveTimer);
+          }
+          this._streamMapping.delete(replayedStreamId);
+          try {
+            streamController.close();
+          } catch {
+          }
+        }
+      });
+      this._resumableStreams.add(replayedStreamId);
+      keepAliveTimer = this.startKeepAlive(streamController, encoder);
+      return new Response(readable, { headers });
+    } catch (error51) {
+      this.onerror?.(error51);
+      return this.createJsonErrorResponse(500, -32e3, "Error replaying events");
+    }
+  }
+  /**
+   * Writes an event to an SSE stream via controller with proper formatting
+   */
+  writeSSEEvent(controller, encoder, message, eventId) {
+    try {
+      let eventData = `event: message
+`;
+      if (eventId) {
+        eventData += `id: ${eventId}
+`;
+      }
+      eventData += `data: ${JSON.stringify(message)}
+
+`;
+      controller.enqueue(encoder.encode(eventData));
+      return true;
+    } catch (error51) {
+      this.onerror?.(error51);
+      return false;
+    }
+  }
+  /**
+   * Handles unsupported requests (PUT, PATCH, etc.)
+   */
+  handleUnsupportedRequest() {
+    this.onerror?.(new Error("Method not allowed."));
+    return new Response(JSON.stringify({
+      jsonrpc: "2.0",
+      error: {
+        code: -32e3,
+        message: "Method not allowed."
+      },
+      id: null
+    }), {
+      status: 405,
+      headers: {
+        Allow: "GET, POST, DELETE",
+        "Content-Type": "application/json"
+      }
+    });
+  }
+  /**
+   * Handles POST requests containing JSON-RPC messages
+   */
+  async handlePostRequest(req, options) {
+    try {
+      const acceptHeader = req.headers.get("accept");
+      if (!acceptHeader?.includes("application/json") || !acceptHeader.includes("text/event-stream")) {
+        this.onerror?.(new Error("Not Acceptable: Client must accept both application/json and text/event-stream"));
+        return this.createJsonErrorResponse(406, -32e3, "Not Acceptable: Client must accept both application/json and text/event-stream");
+      }
+      const ct = req.headers.get("content-type");
+      if (!isJsonContentType(ct)) {
+        this.onerror?.(new Error("Unsupported Media Type: Content-Type must be application/json"));
+        return this.createJsonErrorResponse(415, -32e3, "Unsupported Media Type: Content-Type must be application/json");
+      }
+      const requestInfo = {
+        headers: Object.fromEntries(req.headers.entries()),
+        url: new URL(req.url)
+      };
+      let rawMessage;
+      if (options?.parsedBody !== void 0) {
+        rawMessage = options.parsedBody;
+      } else {
+        try {
+          rawMessage = await req.json();
+        } catch {
+          this.onerror?.(new Error("Parse error: Invalid JSON"));
+          return this.createJsonErrorResponse(400, -32700, "Parse error: Invalid JSON");
+        }
+      }
+      let messages;
+      try {
+        if (Array.isArray(rawMessage)) {
+          messages = rawMessage.map((msg) => JSONRPCMessageSchema.parse(msg));
+        } else {
+          messages = [JSONRPCMessageSchema.parse(rawMessage)];
+        }
+      } catch {
+        this.onerror?.(new Error("Parse error: Invalid JSON-RPC message"));
+        return this.createJsonErrorResponse(400, -32700, "Parse error: Invalid JSON-RPC message");
+      }
+      if (this._closed) {
+        return this.createJsonErrorResponse(404, -32001, "Session not found");
+      }
+      const isInitializationRequest = messages.some(isInitializeRequest);
+      if (isInitializationRequest) {
+        if (this._initialized && this.sessionId !== void 0) {
+          this.onerror?.(new Error("Invalid Request: Server already initialized"));
+          return this.createJsonErrorResponse(400, -32600, "Invalid Request: Server already initialized");
+        }
+        if (messages.length > 1) {
+          this.onerror?.(new Error("Invalid Request: Only one initialization request is allowed"));
+          return this.createJsonErrorResponse(400, -32600, "Invalid Request: Only one initialization request is allowed");
+        }
+        this.sessionId = this.sessionIdGenerator?.();
+        this._initialized = true;
+        if (this.sessionId && this._onsessioninitialized) {
+          await Promise.resolve(this._onsessioninitialized(this.sessionId));
+        }
+      }
+      if (!isInitializationRequest) {
+        const sessionError = this.validateSession(req);
+        if (sessionError) {
+          return sessionError;
+        }
+        const protocolError2 = this.validateProtocolVersion(req);
+        if (protocolError2) {
+          return protocolError2;
+        }
+      }
+      if (this._closed) {
+        return this.createJsonErrorResponse(404, -32001, "Session not found");
+      }
+      const hasRequests = messages.some(isJSONRPCRequest);
+      if (!hasRequests) {
+        for (const message of messages) {
+          this.onmessage?.(message, { authInfo: options?.authInfo, requestInfo });
+        }
+        return new Response(null, { status: 202 });
+      }
+      const streamId = crypto.randomUUID();
+      const initRequest = messages.find((m) => isInitializeRequest(m));
+      const clientProtocolVersion = initRequest ? initRequest.params.protocolVersion : req.headers.get("mcp-protocol-version") ?? DEFAULT_NEGOTIATED_PROTOCOL_VERSION;
+      if (this._enableJsonResponse) {
+        return new Promise((resolve5) => {
+          this._streamMapping.set(streamId, {
+            resolveJson: resolve5,
+            cleanup: () => {
+              this._streamMapping.delete(streamId);
+            }
+          });
+          for (const message of messages) {
+            if (isJSONRPCRequest(message)) {
+              this._requestToStreamMapping.set(message.id, streamId);
+            }
+          }
+          for (const message of messages) {
+            this.onmessage?.(message, { authInfo: options?.authInfo, requestInfo });
+          }
+        });
+      }
+      const encoder = new TextEncoder();
+      let streamController;
+      let keepAliveTimer = void 0;
+      const readable = new ReadableStream({
+        start: (controller) => {
+          streamController = controller;
+        },
+        cancel: () => {
+          if (keepAliveTimer !== void 0) {
+            clearInterval(keepAliveTimer);
+          }
+          if (this._streamMapping.get(streamId)?.controller === streamController) {
+            this._streamMapping.delete(streamId);
+          }
+        }
+      });
+      const headers = {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache, no-transform",
+        Connection: "keep-alive",
+        "X-Accel-Buffering": "no"
+      };
+      if (this.sessionId !== void 0) {
+        headers["mcp-session-id"] = this.sessionId;
+      }
+      for (const message of messages) {
+        if (isJSONRPCRequest(message)) {
+          this._streamMapping.set(streamId, {
+            controller: streamController,
+            encoder,
+            cleanup: () => {
+              if (keepAliveTimer !== void 0) {
+                clearInterval(keepAliveTimer);
+              }
+              this._streamMapping.delete(streamId);
+              try {
+                streamController.close();
+              } catch {
+              }
+            }
+          });
+          this._requestToStreamMapping.set(message.id, streamId);
+        }
+      }
+      try {
+        await this.writePrimingEvent(streamController, encoder, streamId, clientProtocolVersion);
+        for (const message of messages) {
+          let closeSSEStream;
+          let closeStandaloneSSEStream;
+          if (isJSONRPCRequest(message) && this._eventStore && clientProtocolVersion >= "2025-11-25") {
+            closeSSEStream = () => {
+              this.closeSSEStream(message.id);
+            };
+            closeStandaloneSSEStream = () => {
+              this.closeStandaloneSSEStream();
+            };
+          }
+          this.onmessage?.(message, { authInfo: options?.authInfo, requestInfo, closeSSEStream, closeStandaloneSSEStream });
+        }
+      } catch (error51) {
+        this._streamMapping.get(streamId)?.cleanup();
+        this._resumableStreams.delete(streamId);
+        for (const message of messages) {
+          if (isJSONRPCRequest(message)) {
+            this._requestToStreamMapping.delete(message.id);
+          }
+        }
+        throw error51;
+      }
+      if (this._streamMapping.get(streamId)?.controller === streamController) {
+        keepAliveTimer = this.startKeepAlive(streamController, encoder);
+      }
+      return new Response(readable, { status: 200, headers });
+    } catch (error51) {
+      this.onerror?.(error51);
+      return this.createJsonErrorResponse(400, -32700, "Parse error", { data: String(error51) });
+    }
+  }
+  /**
+   * Handles DELETE requests to terminate sessions
+   */
+  async handleDeleteRequest(req) {
+    const sessionError = this.validateSession(req);
+    if (sessionError) {
+      return sessionError;
+    }
+    const protocolError2 = this.validateProtocolVersion(req);
+    if (protocolError2) {
+      return protocolError2;
+    }
+    try {
+      await Promise.resolve(this._onsessionclosed?.(this.sessionId));
+      return new Response(null, { status: 200 });
+    } finally {
+      await this.close();
+    }
+  }
+  /**
+   * Validates session ID for non-initialization requests.
+   * Returns Response error if invalid, undefined otherwise
+   */
+  validateSession(req) {
+    if (this.sessionIdGenerator === void 0) {
+      return void 0;
+    }
+    if (!this._initialized) {
+      this.onerror?.(new Error("Bad Request: Server not initialized"));
+      return this.createJsonErrorResponse(400, -32e3, "Bad Request: Server not initialized");
+    }
+    const sessionId = req.headers.get("mcp-session-id");
+    if (!sessionId) {
+      this.onerror?.(new Error("Bad Request: Mcp-Session-Id header is required"));
+      return this.createJsonErrorResponse(400, -32e3, "Bad Request: Mcp-Session-Id header is required");
+    }
+    if (sessionId !== this.sessionId) {
+      this.onerror?.(new Error("Session not found"));
+      return this.createJsonErrorResponse(404, -32001, "Session not found");
+    }
+    return void 0;
+  }
+  /**
+   * Validates the MCP-Protocol-Version header on incoming requests.
+   *
+   * For initialization: Version negotiation handles unknown versions gracefully
+   * (server responds with its supported version).
+   *
+   * For subsequent requests with MCP-Protocol-Version header:
+   * - Accept if in supported list
+   * - 400 if unsupported
+   *
+   * For HTTP requests without the MCP-Protocol-Version header:
+   * - Accept and default to the version negotiated at initialization
+   */
+  validateProtocolVersion(req) {
+    const protocolVersion = req.headers.get("mcp-protocol-version");
+    if (protocolVersion !== null && !SUPPORTED_PROTOCOL_VERSIONS.includes(protocolVersion)) {
+      this.onerror?.(new Error(`Bad Request: Unsupported protocol version: ${protocolVersion} (supported versions: ${SUPPORTED_PROTOCOL_VERSIONS.join(", ")})`));
+      return this.createJsonErrorResponse(400, -32e3, `Bad Request: Unsupported protocol version: ${protocolVersion} (supported versions: ${SUPPORTED_PROTOCOL_VERSIONS.join(", ")})`);
+    }
+    return void 0;
+  }
+  async close() {
+    if (this._closed) {
+      return;
+    }
+    this._closed = true;
+    this._streamMapping.forEach(({ cleanup }) => {
+      cleanup();
+    });
+    this._streamMapping.clear();
+    this._requestResponseMap.clear();
+    this._resumableStreams.clear();
+    this.onclose?.();
+  }
+  /**
+   * Close an SSE stream for a specific request, triggering client reconnection.
+   * Use this to implement polling behavior during long-running operations -
+   * client will reconnect after the retry interval specified in the priming event.
+   */
+  closeSSEStream(requestId) {
+    const streamId = this._requestToStreamMapping.get(requestId);
+    if (!streamId)
+      return;
+    const stream = this._streamMapping.get(streamId);
+    if (stream) {
+      stream.cleanup();
+    }
+  }
+  /**
+   * Close the standalone GET SSE stream, triggering client reconnection.
+   * Use this to implement polling behavior for server-initiated notifications.
+   */
+  closeStandaloneSSEStream() {
+    const stream = this._streamMapping.get(this._standaloneSseStreamId);
+    if (stream) {
+      stream.cleanup();
+    }
+  }
+  async send(message, options) {
+    let requestId = options?.relatedRequestId;
+    if (isJSONRPCResultResponse(message) || isJSONRPCErrorResponse(message)) {
+      requestId = message.id;
+    }
+    if (requestId === void 0) {
+      if (isJSONRPCResultResponse(message) || isJSONRPCErrorResponse(message)) {
+        throw new Error("Cannot send a response on a standalone SSE stream unless resuming a previous client request");
+      }
+      let eventId;
+      if (this._eventStore) {
+        eventId = await this._eventStore.storeEvent(this._standaloneSseStreamId, message);
+      }
+      const standaloneSse = this._streamMapping.get(this._standaloneSseStreamId);
+      if (standaloneSse === void 0) {
+        return;
+      }
+      if (standaloneSse.controller && standaloneSse.encoder && (eventId === void 0 || !standaloneSse.replayedEventIds?.has(eventId))) {
+        this.writeSSEEvent(standaloneSse.controller, standaloneSse.encoder, message, eventId);
+      }
+      return;
+    }
+    const streamId = this._requestToStreamMapping.get(requestId);
+    if (!streamId) {
+      throw new Error(`No connection established for request ID: ${String(requestId)}`);
+    }
+    let stream = this._streamMapping.get(streamId);
+    if (!this._enableJsonResponse) {
+      let eventId;
+      if (this._eventStore) {
+        eventId = await this._eventStore.storeEvent(streamId, message);
+        stream = this._streamMapping.get(streamId);
+      }
+      if (stream?.controller && stream?.encoder && (eventId === void 0 || !stream.replayedEventIds?.has(eventId))) {
+        const written = this.writeSSEEvent(stream.controller, stream.encoder, message, eventId);
+        if (written && eventId !== void 0) {
+          this._resumableStreams.add(streamId);
+        }
+      }
+    }
+    if (isJSONRPCResultResponse(message) || isJSONRPCErrorResponse(message)) {
+      this._requestResponseMap.set(requestId, message);
+      const relatedIds = Array.from(this._requestToStreamMapping.entries()).filter(([_, sid]) => sid === streamId).map(([id]) => id);
+      const allResponsesReady = relatedIds.every((id) => this._requestResponseMap.has(id));
+      if (allResponsesReady) {
+        if (!stream) {
+          if (this._closed) {
+            for (const id of relatedIds) {
+              this._requestResponseMap.delete(id);
+              this._requestToStreamMapping.delete(id);
+            }
+            return;
+          }
+          if (!this._enableJsonResponse && this._eventStore && this._resumableStreams.has(streamId)) {
+            for (const id of relatedIds) {
+              this._requestResponseMap.delete(id);
+              this._requestToStreamMapping.delete(id);
+            }
+            this._resumableStreams.delete(streamId);
+            return;
+          }
+          for (const id of relatedIds) {
+            this._requestResponseMap.delete(id);
+            this._requestToStreamMapping.delete(id);
+          }
+          throw new Error(`No connection established for request ID: ${String(requestId)}`);
+        }
+        if (this._enableJsonResponse && stream.resolveJson) {
+          const headers = {
+            "Content-Type": "application/json"
+          };
+          if (this.sessionId !== void 0) {
+            headers["mcp-session-id"] = this.sessionId;
+          }
+          const responses = relatedIds.map((id) => this._requestResponseMap.get(id));
+          if (responses.length === 1) {
+            stream.resolveJson(new Response(JSON.stringify(responses[0]), { status: 200, headers }));
+          } else {
+            stream.resolveJson(new Response(JSON.stringify(responses), { status: 200, headers }));
+          }
+        } else {
+          stream.cleanup();
+        }
+        for (const id of relatedIds) {
+          this._requestResponseMap.delete(id);
+          this._requestToStreamMapping.delete(id);
+        }
+        this._resumableStreams.delete(streamId);
+      }
+    }
+  }
+};
+
+// node_modules/@modelcontextprotocol/sdk/dist/esm/server/streamableHttp.js
+var StreamableHTTPServerTransport = class {
+  constructor(options = {}) {
+    this._requestContext = /* @__PURE__ */ new WeakMap();
+    this._webStandardTransport = new WebStandardStreamableHTTPServerTransport(options);
+    this._requestListener = getRequestListener(async (webRequest) => {
+      const context = this._requestContext.get(webRequest);
+      return this._webStandardTransport.handleRequest(webRequest, {
+        authInfo: context?.authInfo,
+        parsedBody: context?.parsedBody
+      });
+    }, { overrideGlobalObjects: false });
+  }
+  /**
+   * Gets the session ID for this transport instance.
+   */
+  get sessionId() {
+    return this._webStandardTransport.sessionId;
+  }
+  /**
+   * Sets callback for when the transport is closed.
+   */
+  set onclose(handler) {
+    this._webStandardTransport.onclose = handler;
+  }
+  get onclose() {
+    return this._webStandardTransport.onclose;
+  }
+  /**
+   * Sets callback for transport errors.
+   */
+  set onerror(handler) {
+    this._webStandardTransport.onerror = handler;
+  }
+  get onerror() {
+    return this._webStandardTransport.onerror;
+  }
+  /**
+   * Sets callback for incoming messages.
+   */
+  set onmessage(handler) {
+    this._webStandardTransport.onmessage = handler;
+  }
+  get onmessage() {
+    return this._webStandardTransport.onmessage;
+  }
+  /**
+   * Starts the transport. This is required by the Transport interface but is a no-op
+   * for the Streamable HTTP transport as connections are managed per-request.
+   */
+  async start() {
+    return this._webStandardTransport.start();
+  }
+  /**
+   * Closes the transport and all active connections.
+   */
+  async close() {
+    return this._webStandardTransport.close();
+  }
+  /**
+   * Sends a JSON-RPC message through the transport.
+   */
+  async send(message, options) {
+    return this._webStandardTransport.send(message, options);
+  }
+  /**
+   * Handles an incoming HTTP request, whether GET or POST.
+   *
+   * This method converts Node.js HTTP objects to Web Standard Request/Response
+   * and delegates to the underlying WebStandardStreamableHTTPServerTransport.
+   *
+   * @param req - Node.js IncomingMessage, optionally with auth property from middleware
+   * @param res - Node.js ServerResponse
+   * @param parsedBody - Optional pre-parsed body from body-parser middleware
+   */
+  async handleRequest(req, res, parsedBody) {
+    const authInfo = req.auth;
+    const handler = getRequestListener(async (webRequest) => {
+      return this._webStandardTransport.handleRequest(webRequest, {
+        authInfo,
+        parsedBody
+      });
+    }, { overrideGlobalObjects: false });
+    await handler(req, res);
+  }
+  /**
+   * Close an SSE stream for a specific request, triggering client reconnection.
+   * Use this to implement polling behavior during long-running operations -
+   * client will reconnect after the retry interval specified in the priming event.
+   */
+  closeSSEStream(requestId) {
+    this._webStandardTransport.closeSSEStream(requestId);
+  }
+  /**
+   * Close the standalone GET SSE stream, triggering client reconnection.
+   * Use this to implement polling behavior for server-initiated notifications.
+   */
+  closeStandaloneSSEStream() {
+    this._webStandardTransport.closeStandaloneSSEStream();
+  }
+};
+
+// src/mcp-http.ts
+init_mcp_http_auth();
+var MAX_HTTP_BODY_BYTES = 4 * 1024 * 1024;
+function jsonRpcError(code, message) {
+  return { jsonrpc: "2.0", error: { code, message }, id: null };
+}
+function sendJson(res, status, body, extraHeaders) {
+  const payload = JSON.stringify(body);
+  res.writeHead(status, { "content-type": "application/json", ...extraHeaders ?? {} });
+  res.end(payload);
+}
+function remoteAddr(req) {
+  return req.socket.remoteAddress ?? "unknown";
+}
+function readBody(req) {
+  return new Promise((resolve5, reject) => {
+    const chunks = [];
+    let total = 0;
+    let done = false;
+    req.on("data", (chunk3) => {
+      if (done) return;
+      total += chunk3.length;
+      if (total > MAX_HTTP_BODY_BYTES) {
+        done = true;
+        req.destroy();
+        reject(new Error("body too large"));
+        return;
+      }
+      chunks.push(chunk3);
+    });
+    req.on("end", () => {
+      if (done) return;
+      done = true;
+      resolve5(Buffer.concat(chunks));
+    });
+    req.on("error", (e) => {
+      if (done) return;
+      done = true;
+      reject(e);
+    });
+  });
+}
+async function startMcpHttpServer(opts) {
+  const sessions = /* @__PURE__ */ new Map();
+  const sockets = /* @__PURE__ */ new Set();
+  async function createSession(caller) {
+    const ctx = {};
+    if (caller !== void 0) ctx.caller = caller;
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: () => randomUUID2(),
+      onsessioninitialized: (sessionId) => {
+        ctx.sessionId = sessionId;
+        sessions.set(sessionId, entry);
+      }
+    });
+    const mcp = opts.createMcpServer(ctx);
+    const entry = { transport, mcp, ctx };
+    transport.onclose = () => {
+      if (ctx.sessionId) sessions.delete(ctx.sessionId);
+      void mcp.close().catch(() => {
+      });
+    };
+    try {
+      await mcp.connect(transport);
+    } catch (e) {
+      try {
+        await transport.close();
+      } catch {
+      }
+      throw e;
+    }
+    return entry;
+  }
+  async function delegate(entry, req, res, parsedBody) {
+    await runInMcpSession(entry.ctx, () => entry.transport.handleRequest(req, res, parsedBody));
+  }
+  async function handleRequest(req, res) {
+    const url2 = new URL(req.url ?? "/", "http://localhost");
+    if (url2.pathname !== opts.path) {
+      sendJson(res, 404, jsonRpcError(-32601, `Not found \u2014 abapsmith serves MCP on ${opts.path} only`));
+      return;
+    }
+    const verdict = verifyBearer(req.headers.authorization, opts.tokens);
+    if (!verdict.ok) {
+      const message = verdict.reason === "missing" ? "missing Authorization: Bearer <token> header" : verdict.reason === "malformed" ? "Authorization header is not a Bearer token" : "bearer token not recognised";
+      opts.log(`[abapsmith] HTTP MCP request rejected (${verdict.reason}) from ${remoteAddr(req)}`);
+      sendJson(res, 401, jsonRpcError(-32001, message), { "www-authenticate": "Bearer" });
+      return;
+    }
+    const method = req.method ?? "";
+    if (method === "GET" || method === "DELETE") {
+      const sessionId = req.headers["mcp-session-id"];
+      const id = typeof sessionId === "string" ? sessionId : void 0;
+      const entry = id !== void 0 ? sessions.get(id) : void 0;
+      if (!entry) {
+        sendJson(res, 404, jsonRpcError(-32001, "unknown or expired MCP session"));
+        return;
+      }
+      await delegate(entry, req, res);
+      return;
+    }
+    if (method === "POST") {
+      let raw;
+      try {
+        raw = await readBody(req);
+      } catch {
+        if (!res.headersSent) sendJson(res, 413, jsonRpcError(-32001, "request body exceeds the size limit"));
+        return;
+      }
+      let body;
+      try {
+        body = raw.length === 0 ? void 0 : JSON.parse(raw.toString("utf8"));
+      } catch {
+        sendJson(res, 400, jsonRpcError(-32700, "request body is not valid JSON"));
+        return;
+      }
+      const sessionIdHeader = req.headers["mcp-session-id"];
+      const id = typeof sessionIdHeader === "string" ? sessionIdHeader : void 0;
+      const existing = id !== void 0 ? sessions.get(id) : void 0;
+      if (existing) {
+        await delegate(existing, req, res, body);
+        return;
+      }
+      if (isInitializeRequest(body)) {
+        let entry;
+        try {
+          entry = await createSession(verdict.caller);
+        } catch (e) {
+          opts.log(
+            `[abapsmith] HTTP MCP session setup failed: ${e instanceof Error ? e.message : String(e)}`
+          );
+          if (!res.headersSent) sendJson(res, 500, jsonRpcError(-32603, "failed to establish MCP session"));
+          return;
+        }
+        await delegate(entry, req, res, body);
+        return;
+      }
+      sendJson(res, 400, jsonRpcError(-32e3, "no valid MCP session id, and this is not an initialize request"));
+      return;
+    }
+    res.writeHead(405, { allow: "GET, POST, DELETE" });
+    res.end();
+  }
+  const server = createHttpServer((req, res) => {
+    handleRequest(req, res).catch((e) => {
+      opts.log(`[abapsmith] HTTP MCP request handler threw: ${e instanceof Error ? e.message : String(e)}`);
+      if (!res.headersSent) {
+        sendJson(res, 500, jsonRpcError(-32603, "internal error"));
+      } else {
+        res.end();
+      }
+    });
+  });
+  server.on("connection", (socket) => {
+    sockets.add(socket);
+    socket.on("close", () => sockets.delete(socket));
+  });
+  await new Promise((resolve5, reject) => {
+    const onError = (e) => reject(e);
+    server.once("error", onError);
+    server.listen(opts.port, opts.host, () => {
+      server.removeListener("error", onError);
+      resolve5();
+    });
+  });
+  const addr = server.address();
+  const boundPort = addr !== null && typeof addr === "object" ? addr.port : opts.port;
+  return {
+    address: { host: opts.host, port: boundPort },
+    get sessionCount() {
+      return sessions.size;
+    },
+    async close() {
+      const entries = [...sessions.values()];
+      sessions.clear();
+      for (const entry of entries) {
+        try {
+          await entry.transport.close();
+        } catch {
+        }
+        try {
+          await entry.mcp.close();
+        } catch {
+        }
+      }
+      const closed = new Promise((resolve5) => {
+        server.close(() => resolve5());
+      });
+      for (const socket of sockets) {
+        socket.destroy();
+      }
+      sockets.clear();
+      await closed;
+    }
+  };
+}
+
 // src/server.ts
 init_safety();
+init_shutdown_hook();
 
 // src/tools/activate.ts
 init_zod();
@@ -102785,9 +105744,9 @@ function defaultNewer(released, active, ctx) {
 }
 function predecessorOf(released, newer) {
   if (newer.kind !== "released") return released[0];
-  const idx = released.findIndex((e) => e.uri === newer.uri);
-  if (idx === -1) return released[0];
-  return released[idx + 1];
+  const idx2 = released.findIndex((e) => e.uri === newer.uri);
+  if (idx2 === -1) return released[0];
+  return released[idx2 + 1];
 }
 
 // src/adt/activate.ts
@@ -104636,7 +107595,7 @@ init_errors();
 // src/adt/run.ts
 var import_abap_adt_api7 = __toESM(require_build(), 1);
 init_errors();
-import { createHash as createHash6 } from "node:crypto";
+import { createHash as createHash7 } from "node:crypto";
 
 // src/adt/bridge-residue.ts
 init_errors();
@@ -105564,7 +108523,7 @@ function bridgeClassName(report) {
   const safe = canon.replace(/[^A-Z0-9_]/g, "_");
   const budget = MAX_NAME - BRIDGE_CLASS_PREFIX.length;
   if (safe.length <= budget && safe === canon) return BRIDGE_CLASS_PREFIX + safe;
-  const hash2 = createHash6("sha256").update(canon, "utf8").digest("hex").slice(0, HASH_LEN).toUpperCase();
+  const hash2 = createHash7("sha256").update(canon, "utf8").digest("hex").slice(0, HASH_LEN).toUpperCase();
   const keep = safe.slice(0, budget - HASH_LEN - 1);
   return `${BRIDGE_CLASS_PREFIX}${keep}_${hash2}`;
 }
@@ -106706,24 +109665,24 @@ function canonicalArgsJson(value) {
 }
 function invokerName(toolId, action, args, contract) {
   const joined = [toolId, action, contract, canonicalArgsJson(args)].map(hashPart).join("");
-  const hex3 = contentHash(joined).replace(/^sha256:/, "").slice(0, 8).toUpperCase();
-  return `ZCL_ZMCP_I_${hex3}`;
+  const hex4 = contentHash(joined).replace(/^sha256:/, "").slice(0, 8).toUpperCase();
+  return `ZCL_ZMCP_I_${hex4}`;
 }
 var ARG_CHUNK_RAW = 90;
 var HIGH_SURROGATE_MIN = 55296;
 var HIGH_SURROGATE_MAX = 56319;
-function abapArgumentChunks(json2) {
+function abapArgumentChunks(json3) {
   const chunks = [];
   let i = 0;
-  while (i < json2.length) {
-    let end = Math.min(i + ARG_CHUNK_RAW, json2.length);
-    if (end < json2.length && end - 1 > i) {
-      const code = json2.charCodeAt(end - 1);
+  while (i < json3.length) {
+    let end = Math.min(i + ARG_CHUNK_RAW, json3.length);
+    if (end < json3.length && end - 1 > i) {
+      const code = json3.charCodeAt(end - 1);
       if (code >= HIGH_SURROGATE_MIN && code <= HIGH_SURROGATE_MAX) {
         end -= 1;
       }
     }
-    chunks.push(json2.slice(i, end));
+    chunks.push(json3.slice(i, end));
     i = end;
   }
   return chunks;
@@ -106743,6 +109702,44 @@ function assertNoQuoteOrNewline(value, field) {
     });
   }
   return value;
+}
+var EVAL_OUT_NAME_RE2 = /^[A-Za-z_][A-Za-z0-9_]{0,29}$/;
+function evalOutEmitter(name) {
+  if (!EVAL_OUT_NAME_RE2.test(name)) {
+    throw new AbapError("BAD_INPUT", `eval out name "${name}" must match ${EVAL_OUT_NAME_RE2}.`, {
+      field: "out",
+      value: name
+    });
+  }
+  return `        CLEAR lv_zmcp_out.
+        TRY.
+            CALL METHOD ('/UI2/CL_JSON')=>('SERIALIZE') EXPORTING data = ${name} RECEIVING r_json = lv_zmcp_out.
+            zcl_zmcp_fluid_rt=>out( |\\{"name":"${name}","value":| && lv_zmcp_out && |\\}| ).
+          CATCH cx_root INTO lx_zmcp_ser.
+            zcl_zmcp_fluid_rt=>out( |\\{"name":"${name}","error":"{ zcl_zmcp_fluid_rt=>esc( lx_zmcp_ser->get_text( ) ) }"\\}| ).
+        ENDTRY.`;
+}
+function evalMethodBody(toolId, action, version2, contract, body) {
+  const callerLines = body.lines.join("\n");
+  const outLines = body.out.map(evalOutEmitter).join("\n");
+  const tryBody = [callerLines, outLines].filter((s) => s.length > 0).join("\n");
+  return `  METHOD if_oo_adt_classrun~main.
+*   Generated by abapsmith for fluid tool '${toolId}', action '${action}'. Do not edit.
+*   The body below is the caller's own statements, run verbatim. See doc/FLUID-API/safety.md.
+    DATA lv_zmcp_out TYPE string.
+*   Declared here, not inline, so more than one \`out\` name does not redeclare it.
+    DATA lx_zmcp_ser TYPE REF TO cx_root.
+    zcl_zmcp_fluid_rt=>attach( io_out = out iv_ver = '${version2}' iv_contract = '${contract}' ).
+    zcl_zmcp_fluid_rt=>begin( iv_id = '${toolId}' iv_action = '${action}' ).
+
+    TRY.
+${tryBody}
+      CATCH cx_root INTO DATA(lx_err).
+        zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = '${action}' iv_text = lx_err->get_text( ) ).
+        zcl_zmcp_fluid_rt=>end( 8 ).
+    ENDTRY.
+    zcl_zmcp_fluid_rt=>end( 0 ).
+  ENDMETHOD.`;
 }
 function invokerSource(args) {
   const plainName = assertPlainName(args.name, "invoker class name");
@@ -106770,6 +109767,27 @@ function invokerSource(args) {
   }
   const cls = plainName.toLowerCase();
   const entryLower = entry.toLowerCase();
+  if (args.evalBody) {
+    const source2 = `CLASS ${cls} DEFINITION
+  PUBLIC FINAL
+  CREATE PUBLIC.
+
+  PUBLIC SECTION.
+    INTERFACES if_oo_adt_classrun.
+  PROTECTED SECTION.
+  PRIVATE SECTION.
+ENDCLASS.
+
+
+CLASS ${cls} IMPLEMENTATION.
+
+${evalMethodBody(toolId, action, args.version, args.contract, args.evalBody)}
+
+ENDCLASS.
+`;
+    assertAbapLineLengths(source2);
+    return source2;
+  }
   const jsonLines = [
     "    CLEAR lv_json.",
     ...abapArgumentChunks(args.argsJson).map(
@@ -107001,6 +110019,62 @@ async function journalFluidMutate(deps, req, sysKey, origin) {
     );
   }
 }
+function isCoreEval(req) {
+  return req.tool === CORE_TOOL_ID && req.action === CORE_EVAL_ACTION;
+}
+async function journalFluidEval(deps, req, sysKey) {
+  const journal = deps.journal;
+  if (!journal) return;
+  const { lines } = parseEvalArgs(req.args ?? {});
+  const object3 = {
+    name: `${req.tool}.${req.action}`,
+    type: "FLUID",
+    uri: "",
+    package: FLUID_PACKAGE,
+    // Full snippet, never `truncateText`'d — see this function's own doc comment.
+    description: `fluid core eval: core.eval lines=
+${lines.join("\n")}`
+  };
+  const beginInput2 = {
+    // No dedicated `JournalOperation` exists for "ran caller code" — `"update"` is the closest of
+    // the shipped values (mirrors `journalFluidMutate`'s own choice for the same reason: this is
+    // a change to server-side state, not a create/delete/activate/transport/service action).
+    operation: "update",
+    object: object3,
+    existedBefore: true,
+    // No before-image exists for whatever ABAP-side state the caller's own statements touched —
+    // this framework never reads one, so "captured"/"failed" would both overstate what is known.
+    beforeCapture: "unknown",
+    // No generic undo exists for arbitrary caller-supplied ABAP — there is nothing to replay it
+    // against.
+    irreversible: true,
+    systemKey: sysKey,
+    trSource: "caller",
+    tool: req.tool
+  };
+  let entry;
+  try {
+    entry = await journal.begin(beginInput2);
+  } catch (e) {
+    deps.warn?.(
+      `[abapsmith] WARNING: core.eval \u2014 the eval DID run but could NOT be journalled: ${e.message}.`
+    );
+    return;
+  }
+  if (!entry) return;
+  try {
+    const settled = await journal.settle(entry.id, { outcome: "succeeded" });
+    if (!settled.settled) {
+      deps.warn?.(
+        `[abapsmith] WARNING: core.eval \u2014 journal entry ${entry.id} could not be settled (${settled.reason}).`
+      );
+    }
+  } catch (e) {
+    deps.warn?.(
+      `[abapsmith] WARNING: core.eval \u2014 journal entry ${entry.id} could not be settled (${e.message}).`
+    );
+  }
+}
 async function forceInvokerRegeneration(deps, invokerClassName) {
   let authorized;
   try {
@@ -107143,7 +110217,12 @@ async function dispatch2(deps, req) {
       argsJson,
       version: tool.version,
       contract,
-      commit: action.category === "mutate"
+      commit: action.category === "mutate",
+      // `invokerClassName` above is already `invokerName(req.tool, req.action, wireArgs, contract)`
+      // — wireArgs includes `lines`/`out`, so two different eval snippets hash to two different
+      // class names on their own. Nothing extra is needed here for cache correctness; this just
+      // supplies the body that name's contents actually deploy.
+      ...isCoreEval(req) ? { evalBody: parseEvalArgs(req.args ?? {}) } : {}
     });
     const deployedBridge2 = await deployBridge(deps.conn, deps.gate, {
       className: name,
@@ -107195,6 +110274,8 @@ async function dispatch2(deps, req) {
   }
   if (action.category === "mutate" && deps.journal) {
     await journalFluidMutate(deps, req, sysKey, tool.origin);
+  } else if (isCoreEval(req) && deps.journal) {
+    await journalFluidEval(deps, req, sysKey);
   }
   let result;
   if (action.output.type === "array") {
@@ -107435,7 +110516,7 @@ function contentAccept(t) {
   if (writeShapeOf(t.type) !== "properties") return "text/plain";
   return capabilitiesFor(t.type)?.mediaType ?? "application/*";
 }
-function contentType(t) {
+function contentType3(t) {
   if (writeShapeOf(t.type) !== "properties") return "text/plain; charset=utf-8";
   return capabilitiesFor(t.type)?.mediaType ?? "application/*";
 }
@@ -108675,7 +111756,7 @@ async function createByXml(conn, t, corr, payload) {
     assertDomaMasterLanguage(t, payload);
     assertLockObjectRoot(t, payload);
     body = injectEmptyFixValues(t, payload);
-    contentTypeHeader = contentType(t);
+    contentTypeHeader = contentType3(t);
   }
   const collection = t.spec.path.replace(/\/\{name\}$/, "");
   if (collection === t.spec.path) {
@@ -108765,7 +111846,7 @@ async function putContent(conn, t, source, lockHandle, corr) {
   try {
     const resp = await conn.put(contentUri(t), {
       body: source,
-      headers: { "Content-Type": contentType(t) },
+      headers: { "Content-Type": contentType3(t) },
       qs: corr.kind === "transport" ? { lockHandle, corrNr: corr.corrNr } : { lockHandle }
     });
     body = resp.body ?? "";
@@ -112582,10 +115663,10 @@ function findAll(haystack, needle) {
   const offsets = [];
   let from = 0;
   for (; ; ) {
-    const idx = haystack.indexOf(needle, from);
-    if (idx === -1) break;
-    offsets.push(idx);
-    from = idx + needle.length;
+    const idx2 = haystack.indexOf(needle, from);
+    if (idx2 === -1) break;
+    offsets.push(idx2);
+    from = idx2 + needle.length;
   }
   return offsets;
 }
@@ -112705,15 +115786,15 @@ function hirschberg(a, b, out) {
   }
   if (a.length === 1) {
     const only = a[0];
-    const idx = b.indexOf(only);
-    if (idx === -1) {
+    const idx2 = b.indexOf(only);
+    if (idx2 === -1) {
       out.push({ kind: "del", text: only });
       for (const text5 of b) out.push({ kind: "ins", text: text5 });
       return;
     }
-    for (let j = 0; j < idx; j++) out.push({ kind: "ins", text: b[j] });
+    for (let j = 0; j < idx2; j++) out.push({ kind: "ins", text: b[j] });
     out.push({ kind: "eq", text: only });
-    for (let j = idx + 1; j < b.length; j++) out.push({ kind: "ins", text: b[j] });
+    for (let j = idx2 + 1; j < b.length; j++) out.push({ kind: "ins", text: b[j] });
     return;
   }
   const mid = a.length >> 1;
@@ -116930,7 +120011,7 @@ function warnIfDerivedIdentity(id, warn) {
 // src/debug/arm-lock.ts
 init_errors();
 init_state_dir();
-import { createHash as createHash7 } from "node:crypto";
+import { createHash as createHash8 } from "node:crypto";
 import * as path7 from "node:path";
 var NoopDebugArmLock = class {
   async acquire() {
@@ -116964,7 +120045,7 @@ function debugArmLockKey(cfg) {
 }
 function debugArmLockPath(stateDir, cfg, lane = 0) {
   const hashInput = lane === 0 ? debugArmLockKey(cfg) : `${debugArmLockKey(cfg)}|lane${lane}`;
-  const hash2 = createHash7("sha256").update(hashInput).digest("hex").slice(0, LOCK_HASH_HEX_LEN2);
+  const hash2 = createHash8("sha256").update(hashInput).digest("hex").slice(0, LOCK_HASH_HEX_LEN2);
   return path7.join(stateDir, "locks", "debug", `${hash2}.lock`);
 }
 function toDebugLockBusyError(e, key, lockPath) {
@@ -123013,13 +126094,11 @@ function implementationsFrom(refs, interfaceName, methodName) {
   }
   return results;
 }
-async function findImplementations(conn, interfaceSourceUri, pos, interfaceName, methodName) {
-  const ctx = {
-    operation: "usage references",
-    uri: interfaceSourceUri,
-    name: `${interfaceName}~${methodName}`
-  };
-  const fragment = pos !== void 0 ? `${interfaceSourceUri}#start=${pos.line},${pos.column}` : interfaceSourceUri;
+var HIGH_FAN_IN_REFERENCES = 500;
+var SLOW_FETCH_MS = 5e3;
+async function fetchUsageReferences(conn, uri, pos, name) {
+  const ctx = { operation: "usage references", uri, ...name !== void 0 ? { name } : {} };
+  const fragment = pos !== void 0 ? `${uri}#start=${pos.line},${pos.column}` : uri;
   const startedAt = Date.now();
   let body;
   try {
@@ -123032,7 +126111,10 @@ async function findImplementations(conn, interfaceSourceUri, pos, interfaceName,
     throw translateAdtError(e, ctx);
   }
   const fetchMs = Date.now() - startedAt;
-  const refs = parseUsageReferences(body, ctx);
+  return { refs: parseUsageReferences(body, ctx), fetchMs };
+}
+async function findImplementations(conn, interfaceSourceUri, pos, interfaceName, methodName) {
+  const { refs, fetchMs } = await fetchUsageReferences(conn, interfaceSourceUri, pos, `${interfaceName}~${methodName}`);
   return {
     implementations: implementationsFrom(refs, interfaceName, methodName),
     fetchMs,
@@ -123043,6 +126125,1157 @@ async function findImplementations(conn, interfaceSourceUri, pos, interfaceName,
 // src/tools/read.ts
 init_types();
 init_compact();
+
+// src/adt/cds-lineage.ts
+init_errors();
+var EMPTY_PARSED_DDL = {
+  kind: "unknown",
+  dataSources: [],
+  associations: [],
+  fields: [],
+  parameters: []
+};
+function stripLineComment(line2) {
+  let inString = false;
+  for (let i = 0; i < line2.length; i++) {
+    const ch = line2[i];
+    if (ch === "'") {
+      if (inString && line2[i + 1] === "'") {
+        i++;
+        continue;
+      }
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+    if (ch === "/" && line2[i + 1] === "/") return line2.slice(0, i);
+    if (ch === "-" && line2[i + 1] === "-") return line2.slice(0, i);
+  }
+  return line2;
+}
+function stripBlockComments(source) {
+  return source.replace(/\/\*[\s\S]*?\*\//g, " ");
+}
+function stripAnnotations(lines) {
+  const out = [];
+  let braceDepth = 0;
+  let inAnnotationHead = false;
+  for (let line2 of lines) {
+    if (braceDepth > 0) {
+      let consumed = "";
+      let i = 0;
+      for (; i < line2.length && braceDepth > 0; i++) {
+        const ch = line2[i];
+        if (ch === "{") braceDepth++;
+        else if (ch === "}") braceDepth--;
+      }
+      consumed = line2.slice(0, i);
+      line2 = line2.slice(i);
+      void consumed;
+      if (braceDepth > 0) continue;
+    }
+    let rest = line2;
+    let output = "";
+    for (; ; ) {
+      const m = /@[A-Za-z][\w.]*\s*:/.exec(rest);
+      if (!m) {
+        output += rest;
+        break;
+      }
+      output += rest.slice(0, m.index);
+      const afterColon = rest.slice(m.index + m[0].length);
+      const valueStart = /^\s*/.exec(afterColon)[0].length;
+      if (afterColon[valueStart] === "{") {
+        let depth = 0;
+        let i = valueStart;
+        for (; i < afterColon.length; i++) {
+          const ch = afterColon[i];
+          if (ch === "{") depth++;
+          else if (ch === "}") {
+            depth--;
+            if (depth === 0) {
+              i++;
+              break;
+            }
+          }
+        }
+        if (depth > 0) {
+          braceDepth = depth;
+          rest = "";
+          break;
+        }
+        rest = afterColon.slice(i);
+      } else {
+        rest = "";
+      }
+    }
+    void inAnnotationHead;
+    out.push(output);
+  }
+  return out;
+}
+function normalise2(source) {
+  const noCr = source.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const noBlockComments = stripBlockComments(noCr);
+  const lines = noBlockComments.split("\n").map(stripLineComment);
+  const noAnnotations = stripAnnotations(lines);
+  return noAnnotations.join(" ").replace(/\s+/g, " ").trim();
+}
+var KIND_PATTERNS = [
+  { re: /\bdefine\s+root\s+view\s+entity\s+([\w/]+)/i, kind: "root view entity" },
+  { re: /\bdefine\s+transient\s+view\s+entity\s+([\w/]+)/i, kind: "transient view entity" },
+  { re: /\bdefine\s+view\s+entity\s+([\w/]+)/i, kind: "view entity" },
+  { re: /\bdefine\s+table\s+function\s+([\w/]+)/i, kind: "table function" },
+  { re: /\bdefine\s+abstract\s+entity\s+([\w/]+)/i, kind: "abstract entity" },
+  { re: /\bdefine\s+custom\s+entity\s+([\w/]+)/i, kind: "custom entity" },
+  { re: /\bdefine\s+view\s+([\w/]+)/i, kind: "view" }
+];
+var EXTEND_VIEW_RE = /\bextend\s+view\s+([\w/]+)\s+with\s+([\w/]+)/i;
+function detectKindAndName(code) {
+  const extend2 = EXTEND_VIEW_RE.exec(code);
+  if (extend2) return { kind: "extend view", name: extend2[1] };
+  for (const { re, kind } of KIND_PATTERNS) {
+    const m = re.exec(code);
+    if (m) return { kind, name: m[1] };
+  }
+  return { kind: "unknown" };
+}
+function parseParameters(code) {
+  const m = /\bwith\s+parameters\s+([\s\S]*?)\s+as\s+(?:select|projection)\b/i.exec(code);
+  if (!m) return [];
+  const body = m[1];
+  return splitTopLevel(body, ",").map((p) => /^\s*([\w]+)\s*:/.exec(p)?.[1]).filter((p) => Boolean(p));
+}
+function splitTopLevel(text5, sep2) {
+  const parts = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < text5.length; i++) {
+    const ch = text5[i];
+    if (ch === "(") depth++;
+    else if (ch === ")") depth--;
+    else if (ch === sep2 && depth === 0) {
+      parts.push(text5.slice(start, i));
+      start = i + 1;
+    }
+  }
+  parts.push(text5.slice(start));
+  return parts.map((p) => p.trim()).filter((p) => p.length > 0);
+}
+var DATA_SOURCE_RE = /\bunion\s+(?:all\s+)?select\s+from\s+([\w/]+)(?:\s+as\s+(\w+))?|\b(inner\s+join|left\s+outer\s+join|right\s+outer\s+join|cross\s+join|join)\s+([\w/]+)(?:\s+as\s+(\w+))?\s+on\b|\bas\s+select\s+from\s+([\w/]+)(?:\s+as\s+(\w+))?|\bas\s+projection\s+on\s+([\w/]+)(?:\s+as\s+(\w+))?/gi;
+function parseDataSources(code) {
+  const out = [];
+  for (const m of code.matchAll(DATA_SOURCE_RE)) {
+    if (m[1] !== void 0) {
+      out.push({ relation: "union", target: m[1], alias: m[2] });
+    } else if (m[4] !== void 0) {
+      out.push({ relation: "join", joinKind: m[3].replace(/\s+join$/i, "").trim().toLowerCase(), target: m[4], alias: m[5] });
+    } else if (m[6] !== void 0) {
+      out.push({ relation: "from", target: m[6], alias: m[7] });
+    } else if (m[8] !== void 0) {
+      out.push({ relation: "from", target: m[8], alias: m[9] });
+    }
+  }
+  return out;
+}
+var ASSOCIATION_RE = /\bassociation\s*(\[[^\]]*\])?\s*to\s+([\w/]+)\s+as\s+(\w+)\s+on\s+(.*?)(?=\bassociation\s*(?:\[[^\]]*\])?\s*to\b|\{)/gis;
+function parseAssociationsRaw(code) {
+  const out = [];
+  for (const m of code.matchAll(ASSOCIATION_RE)) {
+    out.push({
+      cardinality: m[1]?.replace(/\s+/g, ""),
+      target: m[2],
+      name: m[3],
+      onCondition: m[4].trim()
+    });
+  }
+  return out;
+}
+function firstBraceBlock(code) {
+  const start = code.indexOf("{");
+  if (start < 0) return void 0;
+  let depth = 0;
+  for (let i = start; i < code.length; i++) {
+    const ch = code[i];
+    if (ch === "{") depth++;
+    else if (ch === "}") {
+      depth--;
+      if (depth === 0) return code.slice(start + 1, i);
+    }
+  }
+  return void 0;
+}
+var ASSOCIATION_NAME_RE = /^(?:[\w/]+\.)?(_\w+)$/;
+var DOTTED_REF_RE = /\b([A-Za-z_]\w*)\.([A-Za-z_]\w*)\b/g;
+function parseField(raw) {
+  const text5 = raw.trim();
+  let rest = text5;
+  const isKey = /^key\s+/i.test(rest);
+  if (isKey) rest = rest.replace(/^key\s+/i, "");
+  const aliasMatch = /^([\s\S]*?)\s+as\s+(\w+)\s*$/i.exec(rest);
+  const [, exprGroup, aliasGroup] = aliasMatch ?? [];
+  const expr = (aliasMatch ? exprGroup ?? "" : rest).trim();
+  const alias = aliasGroup;
+  let association;
+  if (!alias) {
+    const assocMatch = ASSOCIATION_NAME_RE.exec(expr);
+    if (assocMatch) association = assocMatch[1];
+  }
+  const sources = [];
+  let sawDotted = false;
+  for (const m of expr.matchAll(DOTTED_REF_RE)) {
+    sawDotted = true;
+    sources.push({ alias: m[1], field: m[2] });
+  }
+  if (!sawDotted && /^\w+$/.test(expr)) {
+    sources.push({ field: expr });
+  }
+  return { text: text5, alias, isKey, association, sources };
+}
+function parseFields(fieldListBody) {
+  return splitTopLevel(fieldListBody, ",").map(parseField);
+}
+function escapeRegExp4(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function parseDdl2(source) {
+  if (typeof source !== "string" || source.trim().length === 0) return EMPTY_PARSED_DDL;
+  const code = normalise2(source);
+  const { kind, name } = detectKindAndName(code);
+  if (kind === "unknown") return EMPTY_PARSED_DDL;
+  const dataSources = parseDataSources(code);
+  const rawAssociations = parseAssociationsRaw(code);
+  const fieldListBody = firstBraceBlock(code);
+  const fields = fieldListBody !== void 0 ? parseFields(fieldListBody) : [];
+  const parameters = parseParameters(code);
+  const associations = rawAssociations.map((a) => ({
+    ...a,
+    selected: fieldListBody !== void 0 && new RegExp(`\\b${escapeRegExp4(a.name)}\\b`).test(fieldListBody)
+  }));
+  return { kind, name, dataSources, associations, fields, parameters };
+}
+var CDS_SOURCE_TYPE = "DDLS/DF";
+var NON_RECURSING_KINDS = /* @__PURE__ */ new Set([
+  "table function",
+  "abstract entity",
+  "custom entity",
+  "extend view",
+  "unknown"
+]);
+var LINEAGE_DEFAULT_DEPTH = 5;
+var LINEAGE_MAX_DEPTH = 10;
+var LINEAGE_DEFAULT_NODE_BUDGET = 200;
+function availableFieldNames(fields) {
+  return fields.map((f) => f.alias ?? f.association ?? f.sources[0]?.field ?? f.text).filter((n) => n.length > 0);
+}
+function findField(fields, name) {
+  const want = name.toUpperCase();
+  return fields.find((f) => {
+    if (f.alias && f.alias.toUpperCase() === want) return true;
+    if (f.association && f.association.toUpperCase() === want) return true;
+    if (!f.alias && f.sources.length === 1 && f.sources[0].field.toUpperCase() === want) return true;
+    return false;
+  });
+}
+function toAbapError2(e, fallbackMessage) {
+  if (isAbapError(e)) return e;
+  return new AbapError("ADT_ERROR", `${fallbackMessage}: ${describeUnknownError(e)}`);
+}
+async function buildLineage(conn, root, opts = {}) {
+  const requestedDepth = opts.depth ?? LINEAGE_DEFAULT_DEPTH;
+  if (!Number.isInteger(requestedDepth) || requestedDepth < 1 || requestedDepth > LINEAGE_MAX_DEPTH) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `depth must be an integer between 1 and ${LINEAGE_MAX_DEPTH} (got ${JSON.stringify(opts.depth)}).`,
+      { depth: opts.depth },
+      `Pass depth between 1 and ${LINEAGE_MAX_DEPTH}, or omit it for the default of ${LINEAGE_DEFAULT_DEPTH}.`
+    );
+  }
+  const nodeBudget = opts.nodeBudget ?? LINEAGE_DEFAULT_NODE_BUDGET;
+  if (!Number.isInteger(nodeBudget) || nodeBudget < 1) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `nodeBudget must be a positive integer (got ${JSON.stringify(opts.nodeBudget)}).`,
+      { nodeBudget: opts.nodeBudget }
+    );
+  }
+  if (root.type !== CDS_SOURCE_TYPE) {
+    throw new AbapError(
+      "UNSUPPORTED",
+      `${root.name} is a ${root.type}, not a CDS view (${CDS_SOURCE_TYPE}). Lineage only traces CDS source \u2014 point it at a DDLS/DF object.`,
+      { type: root.type, name: root.name }
+    );
+  }
+  const seen = /* @__PURE__ */ new Set([root.name.toUpperCase()]);
+  const baseTables = /* @__PURE__ */ new Set();
+  let nodeCount = 1;
+  let sourceReads = 0;
+  let truncated = false;
+  let continueFrom;
+  async function expand(obj, depth, relation, alias, joinKind, associationName) {
+    if (obj.type !== CDS_SOURCE_TYPE) {
+      baseTables.add(obj.name);
+      return {
+        node: {
+          name: obj.name,
+          type: obj.type,
+          kind: "table",
+          depth,
+          relation,
+          alias,
+          joinKind,
+          associationName,
+          children: [],
+          leaf: true,
+          leafReason: `${obj.type} is not CDS source \u2014 lineage stops here`,
+          cycle: false
+        }
+      };
+    }
+    let parsed;
+    try {
+      const src = await readSource(conn, obj, void 0, void 0);
+      sourceReads++;
+      parsed = parseDdl2(src.source);
+    } catch (e) {
+      const err = toAbapError2(e, "reading source");
+      return {
+        node: {
+          name: obj.name,
+          type: obj.type,
+          kind: "unknown",
+          depth,
+          relation,
+          alias,
+          joinKind,
+          associationName,
+          children: [],
+          leaf: true,
+          leafReason: `not found: ${err.message}`,
+          cycle: false
+        }
+      };
+    }
+    const stopReason = NON_RECURSING_KINDS.has(parsed.kind) ? `${parsed.kind} \u2014 not further decomposed` : parsed.parameters.length > 0 ? "parameterised view \u2014 lineage does not resolve parameter bindings" : depth >= requestedDepth ? `depth limit (${requestedDepth}) reached` : void 0;
+    if (stopReason) {
+      return {
+        node: {
+          name: obj.name,
+          type: obj.type,
+          kind: parsed.kind,
+          depth,
+          relation,
+          alias,
+          joinKind,
+          associationName,
+          children: [],
+          leaf: true,
+          leafReason: stopReason,
+          cycle: false,
+          fields: parsed.fields,
+          associations: parsed.associations
+        },
+        parsed
+      };
+    }
+    const children = [];
+    for (const ds of parsed.dataSources) {
+      children.push(await visitRef(ds.target, depth + 1, ds.relation, ds.alias, ds.joinKind, void 0));
+    }
+    for (const assoc of parsed.associations) {
+      if (!assoc.selected) {
+        children.push({
+          name: assoc.target,
+          type: "unknown",
+          kind: "unknown",
+          depth: depth + 1,
+          associationName: assoc.name,
+          children: [],
+          leaf: true,
+          leafReason: "not selected",
+          cycle: false
+        });
+        continue;
+      }
+      children.push(await visitRef(assoc.target, depth + 1, void 0, void 0, void 0, assoc.name));
+    }
+    return {
+      node: {
+        name: obj.name,
+        type: obj.type,
+        kind: parsed.kind,
+        depth,
+        relation,
+        alias,
+        joinKind,
+        associationName,
+        children,
+        leaf: false,
+        cycle: false,
+        fields: parsed.fields,
+        associations: parsed.associations
+      },
+      parsed
+    };
+  }
+  async function visitRef(ref2, depth, relation, alias, joinKind, associationName) {
+    nodeCount++;
+    if (nodeCount > nodeBudget) {
+      truncated = true;
+      continueFrom ??= ref2;
+      return {
+        name: ref2,
+        type: "unknown",
+        kind: "unknown",
+        depth,
+        relation,
+        alias,
+        joinKind,
+        associationName,
+        children: [],
+        leaf: true,
+        leafReason: "node budget exceeded",
+        cycle: false
+      };
+    }
+    let obj;
+    try {
+      obj = await resolveObject(conn, ref2, {});
+    } catch (e) {
+      const err = toAbapError2(e, "resolving reference");
+      return {
+        name: ref2,
+        type: "unknown",
+        kind: "unknown",
+        depth,
+        relation,
+        alias,
+        joinKind,
+        associationName,
+        children: [],
+        leaf: true,
+        leafReason: `not found: ${err.message}`,
+        cycle: false
+      };
+    }
+    const key = obj.name.toUpperCase();
+    if (seen.has(key)) {
+      return {
+        name: obj.name,
+        type: obj.type,
+        kind: "unknown",
+        depth,
+        relation,
+        alias,
+        joinKind,
+        associationName,
+        children: [],
+        leaf: true,
+        cycle: true
+      };
+    }
+    seen.add(key);
+    const { node: node2 } = await expand(obj, depth, relation, alias, joinKind, associationName);
+    return node2;
+  }
+  const { node: rootNode, parsed: rootParsed } = await expand(root, 0);
+  let fieldChain;
+  if (opts.field !== void 0) {
+    const rootFields = rootParsed?.fields ?? [];
+    if (findField(rootFields, opts.field) === void 0) {
+      const names = availableFieldNames(rootFields);
+      const shown = names.slice(0, 40);
+      const suffix = names.length > shown.length ? `, ... and ${names.length - shown.length} more` : "";
+      throw new AbapError(
+        "BAD_INPUT",
+        `${root.name} has no field "${opts.field}". Known fields: ${shown.join(", ")}${suffix}.`,
+        { field: opts.field, knownFields: names },
+        `Pass one of the listed field names (case-insensitive), matched against its exposed alias.`
+      );
+    }
+    fieldChain = await traceField(root, rootParsed, opts.field, requestedDepth);
+  }
+  return {
+    root: rootNode,
+    requestedDepth,
+    nodeCount,
+    baseTables: [...baseTables],
+    sourceReads,
+    truncated,
+    continueFrom,
+    fieldChain
+  };
+  async function traceField(startObj, startParsed, startField, maxSteps) {
+    const steps = [];
+    let currentObj = startObj;
+    let currentParsed = startParsed;
+    let currentField = startField;
+    const chainSeen = /* @__PURE__ */ new Set();
+    for (let i = 0; i < maxSteps; i++) {
+      const chainKey = `${currentObj.name.toUpperCase()}.${currentField.toUpperCase()}`;
+      if (chainSeen.has(chainKey)) {
+        steps.push({
+          nodeName: currentObj.name,
+          nodeType: currentObj.type,
+          fieldText: currentField,
+          sources: [],
+          terminal: true,
+          terminalReason: "cycle -> seen above"
+        });
+        break;
+      }
+      chainSeen.add(chainKey);
+      const field = findField(currentParsed.fields, currentField);
+      if (!field) {
+        steps.push({
+          nodeName: currentObj.name,
+          nodeType: currentObj.type,
+          fieldText: currentField,
+          sources: [],
+          terminal: true,
+          terminalReason: `${currentObj.name} has no field "${currentField}"`
+        });
+        break;
+      }
+      if (field.sources.length !== 1) {
+        steps.push({
+          nodeName: currentObj.name,
+          nodeType: currentObj.type,
+          fieldText: field.text,
+          alias: field.alias,
+          sources: field.sources,
+          terminal: true,
+          terminalReason: field.sources.length === 0 ? "expression has no traceable source reference" : `expression combines ${field.sources.length} source references \u2014 chain stops here`
+        });
+        break;
+      }
+      const only = field.sources[0];
+      const ds = currentParsed.dataSources.find((d) => (d.alias ?? d.target).toUpperCase() === (only.alias ?? "").toUpperCase());
+      const assoc = currentParsed.associations.find((a) => a.name.toUpperCase() === (only.alias ?? "").toUpperCase());
+      const targetRef = ds?.target ?? assoc?.target;
+      if (only.alias === void 0 || targetRef === void 0) {
+        steps.push({
+          nodeName: currentObj.name,
+          nodeType: currentObj.type,
+          fieldText: field.text,
+          alias: field.alias,
+          sources: field.sources,
+          terminal: true,
+          terminalReason: only.alias === void 0 ? "column of this node's own data source \u2014 not itself an alias to follow" : `alias "${only.alias}" does not match a known data source or association here`
+        });
+        break;
+      }
+      steps.push({
+        nodeName: currentObj.name,
+        nodeType: currentObj.type,
+        fieldText: field.text,
+        alias: field.alias,
+        sources: field.sources,
+        terminal: false
+      });
+      let nextObj;
+      try {
+        nextObj = await resolveObject(conn, targetRef, {});
+      } catch (e) {
+        const err = toAbapError2(e, "resolving reference");
+        steps.push({
+          nodeName: targetRef,
+          nodeType: "unknown",
+          fieldText: only.field,
+          sources: [],
+          terminal: true,
+          terminalReason: `not found: ${err.message}`
+        });
+        break;
+      }
+      if (nextObj.type !== CDS_SOURCE_TYPE) {
+        steps.push({
+          nodeName: nextObj.name,
+          nodeType: nextObj.type,
+          fieldText: only.field,
+          sources: [],
+          terminal: true,
+          terminalReason: `${nextObj.type} is not CDS source \u2014 base column`
+        });
+        break;
+      }
+      let nextParsed;
+      try {
+        const src = await readSource(conn, nextObj, void 0, void 0);
+        sourceReads++;
+        nextParsed = parseDdl2(src.source);
+      } catch (e) {
+        const err = toAbapError2(e, "reading source");
+        steps.push({
+          nodeName: nextObj.name,
+          nodeType: nextObj.type,
+          fieldText: only.field,
+          sources: [],
+          terminal: true,
+          terminalReason: `not found: ${err.message}`
+        });
+        break;
+      }
+      currentObj = nextObj;
+      currentParsed = nextParsed;
+      currentField = only.field;
+    }
+    return steps;
+  }
+}
+function nodeLabel(n) {
+  const parts = [];
+  if (n.associationName) {
+    parts.push(`-> ${n.associationName} to ${n.name}`);
+  } else if (n.relation === "join") {
+    parts.push(`${n.joinKind ? `${n.joinKind} ` : ""}join ${n.name}`);
+  } else if (n.relation === "union") {
+    parts.push(`union ${n.name}`);
+  } else if (n.relation === "from") {
+    parts.push(`from ${n.name}`);
+  } else {
+    parts.push(n.name);
+  }
+  if (n.alias) parts.push(`as ${n.alias}`);
+  parts.push(`(${n.kind})`);
+  if (n.cycle) parts.push("(cycle -> seen above)");
+  else if (n.leafReason === "node budget exceeded") {
+  } else if (n.leafReason) {
+    parts.push(`(${n.leafReason})`);
+  }
+  return parts.join(" ");
+}
+function renderTree(node2, indent, lines) {
+  if (node2.leafReason === "node budget exceeded") {
+    lines.push(`${indent}--- TRUNCATED --- (continue from "${node2.name}")`);
+    return;
+  }
+  lines.push(`${indent}${nodeLabel(node2)}`);
+  const childIndent = `${indent}  `;
+  for (const child4 of node2.children) renderTree(child4, childIndent, lines);
+}
+function renderFieldChain(chain, root, field) {
+  const lines = [`${root.name}.${field}`];
+  let indent = "  ";
+  for (const step of chain) {
+    const srcText = step.sources.length ? ` <- ${step.sources.map((s) => s.alias ? `${s.alias}.${s.field}` : s.field).join(", ")}` : "";
+    lines.push(`${indent}${step.fieldText}${srcText}`);
+    if (step.terminal && step.terminalReason) {
+      lines.push(`${indent}  (${step.terminalReason})`);
+    }
+    indent += "  ";
+  }
+  return lines.join("\n");
+}
+function renderLineage(result, opts = {}) {
+  const header = {
+    view: result.root.name,
+    object: `${result.root.name} (${result.root.type})`,
+    depth: String(result.requestedDepth),
+    nodes: String(result.nodeCount),
+    baseTables: String(result.baseTables.length),
+    sourceReads: String(result.sourceReads)
+  };
+  if (opts.field !== void 0) header.field = opts.field;
+  if (result.truncated) header.truncatedNodes = String(result.nodeCount);
+  const notes = [
+    "Lineage is derived by parsing CDS DDL source text, not from ADT's dependency-graph endpoint (that endpoint returns no association edges and no field lineage \u2014 see this file's top comment).",
+    `Only associations referenced somewhere in the field list are followed ("(not selected)" marks the rest).`,
+    `A name repeated anywhere earlier in this walk is shown once and marked "(cycle -> seen above)" on later occurrences, even for a legitimate diamond (the same base table reached two different ways) \u2014 this is a global visited-set, not a strict cycle check.`,
+    `Depth ${result.requestedDepth} of max ${LINEAGE_MAX_DEPTH}; nodes at the limit are leaves even if the underlying view has further data sources.`
+  ];
+  const hints = [];
+  if (result.truncated) {
+    hints.push(`Node budget reached \u2014 re-run with a smaller depth or scope to see past "${String(result.continueFrom)}".`);
+  }
+  if (result.baseTables.length > 0) {
+    hints.push(`Base (non-CDS) tables reached: ${result.baseTables.join(", ")}.`);
+  }
+  let body;
+  if (opts.field !== void 0 && result.fieldChain) {
+    body = renderFieldChain(result.fieldChain, result.root, opts.field);
+  } else {
+    const lines = [];
+    renderTree(result.root, "", lines);
+    body = lines.join("\n");
+  }
+  return { header, body, notes, hints };
+}
+
+// src/adt/footprint.ts
+init_errors();
+init_types();
+init_compact();
+var FOOTPRINT_TYPES = ["PROG/P", "CLAS/OC", "FUGR/F", "FUGR/FF"];
+var DEFAULT_MAX_LINES = 2e4;
+function splitStatements2(source, include) {
+  const lines = source.replace(/\r\n/g, "\n").split("\n");
+  const out = [];
+  let parts = [];
+  let startLine;
+  for (let i = 0; i < lines.length; i++) {
+    const line2 = lines[i] ?? "";
+    const code = abapCodeOf(line2);
+    const raw = line2.slice(0, code.length);
+    let segStart = 0;
+    if (startLine === void 0 && raw.trim() !== "") startLine = i + 1;
+    for (let j = 0; j < code.length; j++) {
+      if (code[j] !== ".") continue;
+      const next = code[j + 1];
+      if (next !== void 0 && !/\s/.test(next)) continue;
+      const segment = raw.slice(segStart, j + 1);
+      parts.push(segment);
+      const text5 = parts.join(" ").replace(/\s+/g, " ").trim();
+      if (text5 !== "" && text5 !== ".") {
+        out.push({ include, startLine: startLine ?? i + 1, endLine: i + 1, text: text5 });
+      }
+      parts = [];
+      startLine = void 0;
+      segStart = j + 1;
+    }
+    const rest = raw.slice(segStart);
+    if (rest.trim() !== "" && startLine === void 0) startLine = i + 1;
+    if (rest !== "") parts.push(rest);
+  }
+  return out;
+}
+function tableOrDynamic(captured) {
+  const c = captured.trim();
+  if (/^\(.+\)$/.test(c)) return { unresolved: c.toUpperCase() };
+  return { table: c.toUpperCase() };
+}
+function cleanFmName(s) {
+  return s.replace(/^'+|'+$/g, "").toUpperCase();
+}
+function classifyStatement(t) {
+  let m = /^EXPORT\b.*\bTO\s+DATABASE\s+([A-Za-z0-9_]+(?:\([A-Za-z0-9_]+\))?)/i.exec(t);
+  if (m) {
+    const captured = m[1];
+    return { kind: "export to database", ...tableOrDynamic(captured.replace(/\(.*\)$/, "")), detail: captured };
+  }
+  m = /^DELETE\s+FROM\s+DATABASE\s+([A-Za-z0-9_]+(?:\([A-Za-z0-9_]+\))?)/i.exec(t);
+  if (m) {
+    const captured = m[1];
+    return { kind: "export to database", ...tableOrDynamic(captured.replace(/\(.*\)$/, "")), detail: captured };
+  }
+  m = /^CALL\s+FUNCTION\s+(\S+)\s+IN\s+UPDATE\s+TASK\b/i.exec(t);
+  if (m) return { kind: "update task", detail: cleanFmName(m[1]) };
+  m = /^CALL\s+FUNCTION\s+(\S+)\s+IN\s+BACKGROUND\s+TASK\b/i.exec(t);
+  if (m) return { kind: "background task", detail: cleanFmName(m[1]) };
+  if (/^CALL\s+FUNCTION\s+'?BAPI_TRANSACTION_COMMIT'?(?![A-Za-z0-9_])/i.test(t)) {
+    return { kind: "commit", detail: "BAPI_TRANSACTION_COMMIT" };
+  }
+  if (/^CALL\s+FUNCTION\s+'?BAPI_TRANSACTION_ROLLBACK'?(?![A-Za-z0-9_])/i.test(t)) {
+    return { kind: "rollback", detail: "BAPI_TRANSACTION_ROLLBACK" };
+  }
+  if (/^COMMIT\s+WORK\b/i.test(t)) return { kind: "commit" };
+  if (/^ROLLBACK\s+WORK\b/i.test(t)) return { kind: "rollback" };
+  if (/\/BOBF\/IF_TRA_SERVICE_MANAGER\S*->\s*MODIFY\s*\(/i.test(t)) {
+    return { kind: "bopf modify", detail: "/BOBF/IF_TRA_SERVICE_MANAGER->MODIFY (no live ground truth)" };
+  }
+  if (/^EXEC\s+SQL\b/i.test(t)) {
+    const insM = /\bINSERT\s+INTO\s+([A-Za-z0-9_.$]+)/i.exec(t);
+    const updM = /\bUPDATE\s+([A-Za-z0-9_.$]+)/i.exec(t);
+    const fromM = /\bFROM\s+([A-Za-z0-9_.$]+)/i.exec(t);
+    const intoM = /\bINTO\s+([A-Za-z0-9_.$]+)/i.exec(t);
+    const cap = insM?.[1] ?? updM?.[1] ?? fromM?.[1] ?? intoM?.[1];
+    return cap ? { kind: "native sql", table: cap.toUpperCase() } : { kind: "native sql", unresolved: "table not statically resolved from EXEC SQL block" };
+  }
+  if (/\bCL_SQL_(STATEMENT|CONNECTION)\S*->\s*EXECUTE_(QUERY|UPDATE|DDL)\s*\(/i.test(t)) {
+    const tabM = /\b(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+([A-Za-z0-9_.$]+)/i.exec(t);
+    return tabM ? { kind: "adbc", table: tabM[1].toUpperCase() } : { kind: "adbc", unresolved: "table not statically resolved from embedded SQL string" };
+  }
+  m = /^CALL\s+TRANSACTION\s+'?([A-Za-z0-9_]+)'?/i.exec(t);
+  if (m) return { kind: "call transaction", detail: m[1].toUpperCase() };
+  m = /^SUBMIT\s+(\(?[A-Za-z0-9_]+\)?)/i.exec(t);
+  if (m) {
+    const rep = m[1];
+    return /^\(/.test(rep) ? { kind: "submit", unresolved: rep.toUpperCase() } : { kind: "submit", detail: rep.toUpperCase() };
+  }
+  m = /^INSERT\s+INTO\s+([A-Za-z0-9_/()]+)\s+VALUES\b/i.exec(t);
+  if (m) return { kind: "insert", ...tableOrDynamic(m[1]) };
+  if (/^INSERT\s+(INITIAL\s+LINE|LINES\s+OF)\b/i.test(t)) return void 0;
+  m = /^INSERT\s+(\([A-Za-z0-9_]+\)|[A-Za-z0-9_/]+)\s+FROM\b/i.exec(t);
+  if (m) return { kind: "insert", ...tableOrDynamic(m[1]) };
+  if (/^INSERT\s+\S+\s+INTO\b/i.test(t)) return void 0;
+  if (!/^UPDATE\s+TASK\b/i.test(t)) {
+    m = /^UPDATE\s+(\([A-Za-z0-9_]+\)|[A-Za-z0-9_/]+)\b/i.exec(t);
+    if (m) return { kind: "update", ...tableOrDynamic(m[1]) };
+  }
+  if (/^MODIFY\s+TABLE\s+/i.test(t)) return void 0;
+  if (/^MODIFY\b/i.test(t) && /\b(INDEX|TRANSPORTING)\b/i.test(t)) return void 0;
+  m = /^MODIFY\s+(\([A-Za-z0-9_]+\)|[A-Za-z0-9_/]+)\s+FROM\b/i.exec(t);
+  if (m) return { kind: "modify", ...tableOrDynamic(m[1]) };
+  m = /^DELETE\s+FROM\s+(\([A-Za-z0-9_]+\)|[A-Za-z0-9_/]+)\b/i.exec(t);
+  if (m) return { kind: "delete", ...tableOrDynamic(m[1]) };
+  if (/^DELETE\s+TABLE\s+/i.test(t)) return void 0;
+  if (/^DELETE\s+ADJACENT\s+DUPLICATES\b/i.test(t)) return void 0;
+  m = /^DELETE\s+(\([A-Za-z0-9_]+\)|[A-Za-z0-9_/]+)\s+FROM\b/i.exec(t);
+  if (m) return { kind: "delete", ...tableOrDynamic(m[1]) };
+  if (/^DELETE\s+\S+\s+(INDEX|WHERE)\b/i.test(t)) return void 0;
+  return void 0;
+}
+function buildReadCall(objectRef, include) {
+  if (include === "main") {
+    return JSON.stringify({ object: objectRef.name, type: objectRef.type });
+  }
+  if (objectRef.type === "CLAS/OC" && CLASS_INCLUDES.includes(include)) {
+    return JSON.stringify({ object: objectRef.name, type: objectRef.type, include });
+  }
+  if (include.includes("/")) {
+    return JSON.stringify({ object: include, type: "FUGR/I" });
+  }
+  if (objectRef.type === "PROG/P" || objectRef.type === "PROG/I") {
+    return JSON.stringify({ object: include, type: "PROG/I" });
+  }
+  if (objectRef.type === "FUGR/F") {
+    return JSON.stringify({ object: `${objectRef.name}/${include}`, type: "FUGR/I" });
+  }
+  return JSON.stringify({ object: include, type: "FUGR/I" });
+}
+function scanFootprint(source, include, objectRef) {
+  const statements = splitStatements2(source, include);
+  const readCall = buildReadCall(objectRef, include);
+  const out = [];
+  for (const stmt of statements) {
+    const hit = classifyStatement(stmt.text);
+    if (!hit) continue;
+    out.push({
+      kind: hit.kind,
+      ...hit.table !== void 0 ? { table: hit.table } : {},
+      ...hit.unresolved !== void 0 ? { unresolved: hit.unresolved } : {},
+      ...hit.detail !== void 0 ? { detail: hit.detail } : {},
+      include,
+      line: stmt.startLine,
+      statement: stmt.text,
+      readCall
+    });
+  }
+  return out;
+}
+function subTarget(spec, name, system, parent) {
+  const uri = buildUri(spec, name, parent);
+  return {
+    system,
+    type: spec.type,
+    kind: spec.kind,
+    label: spec.label,
+    name,
+    uri,
+    sourceUri: `${uri}/source/main`,
+    ...parent !== void 0 ? { parent } : {},
+    mode: spec.mode,
+    activation: "unknown",
+    spec
+  };
+}
+function findIncludeNames(source) {
+  const names = [];
+  const re = /\bINCLUDE\s+([A-Za-z0-9_/]+)/gi;
+  for (const line2 of source.replace(/\r\n/g, "\n").split("\n")) {
+    const raw = line2.slice(0, abapCodeOf(line2).length);
+    re.lastIndex = 0;
+    let m;
+    while ((m = re.exec(raw)) !== null) names.push(m[1].toUpperCase());
+  }
+  return names;
+}
+async function resolveClassIncludes(conn, obj) {
+  const out = [];
+  for (const inc of CLASS_INCLUDES) {
+    try {
+      const { source } = await readSource(conn, obj, inc);
+      out.push({ include: inc, label: inc, source });
+    } catch {
+      out.push({ include: inc, label: `${inc} (not found)` });
+    }
+  }
+  return out;
+}
+async function resolveProgramIncludes(conn, obj) {
+  const out = [];
+  const { source: mainSource } = await readSource(conn, obj);
+  out.push({ include: "main", label: "main", source: mainSource });
+  const spec = specForType("PROG/I");
+  for (const name of findIncludeNames(mainSource)) {
+    try {
+      const { source } = await readSource(conn, subTarget(spec, name, obj.system));
+      out.push({ include: name, label: name, source });
+    } catch {
+      out.push({ include: name, label: `${name} (unreadable)` });
+    }
+  }
+  return out;
+}
+async function resolveFunctionGroupIncludes(conn, obj) {
+  const out = [];
+  const { source: mainSource } = await readSource(conn, obj);
+  out.push({ include: "main", label: "main", source: mainSource });
+  const spec = specForType("FUGR/I");
+  const seen = /* @__PURE__ */ new Set();
+  const level1Sources = [];
+  for (const name of findIncludeNames(mainSource)) {
+    seen.add(name);
+    try {
+      const { source } = await readSource(conn, subTarget(spec, name, obj.system, obj.name));
+      out.push({ include: name, label: name, source });
+      level1Sources.push(source);
+    } catch {
+      out.push({ include: name, label: `${name} (unreadable)` });
+    }
+  }
+  for (const src of level1Sources) {
+    for (const name of findIncludeNames(src)) {
+      if (seen.has(name)) continue;
+      seen.add(name);
+      try {
+        const { source } = await readSource(conn, subTarget(spec, name, obj.system, obj.name));
+        out.push({ include: name, label: name, source });
+      } catch {
+        out.push({ include: name, label: `${name} (unreadable)` });
+      }
+    }
+  }
+  return out;
+}
+async function resolveFunctionModuleIncludes(conn, obj) {
+  const out = [];
+  const { source: ownSource } = await readSource(conn, obj);
+  out.push({ include: "main", label: "main", source: ownSource });
+  const group = obj.parent;
+  if (!group) {
+    out.push({
+      include: "group-top",
+      label: "group's TOP include (unreadable: object has no parent group)"
+    });
+    return out;
+  }
+  const fugrSpec = specForType("FUGR/F");
+  try {
+    const { source: groupMain } = await readSource(conn, subTarget(fugrSpec, group, obj.system));
+    const topName = findIncludeNames(groupMain).find((n) => n.endsWith("TOP"));
+    if (topName) {
+      const qualified = `${group}/${topName}`;
+      try {
+        const incSpec = specForType("FUGR/I");
+        const { source } = await readSource(conn, subTarget(incSpec, topName, obj.system, group));
+        out.push({ include: qualified, label: qualified, source });
+      } catch {
+        out.push({ include: qualified, label: `${qualified} (unreadable)` });
+      }
+    }
+  } catch {
+    out.push({
+      include: "group-top",
+      label: "group's TOP include (unreadable: could not read group main source)"
+    });
+  }
+  return out;
+}
+async function resolveIncludesFor(conn, obj) {
+  switch (obj.type) {
+    case "CLAS/OC":
+      return resolveClassIncludes(conn, obj);
+    case "PROG/P":
+      return resolveProgramIncludes(conn, obj);
+    case "FUGR/F":
+      return resolveFunctionGroupIncludes(conn, obj);
+    case "FUGR/FF":
+      return resolveFunctionModuleIncludes(conn, obj);
+    default:
+      throw new AbapError(
+        "UNSUPPORTED",
+        `Footprint analysis supports ${FOOTPRINT_TYPES.join(", ")} \u2014 ${obj.type} is not one of them.`,
+        { type: obj.type, supported: [...FOOTPRINT_TYPES] }
+      );
+  }
+}
+var WRITE_KINDS = [
+  "insert",
+  "update",
+  "modify",
+  "delete",
+  "export to database",
+  "bopf modify",
+  "native sql",
+  "adbc"
+];
+function isWriteKind(k) {
+  return WRITE_KINDS.includes(k);
+}
+var FORM_OPEN_RE = /^\s*form\s+\S/i;
+var ENDFORM_RE = /^\s*endform\s*\./i;
+function findBlockRanges(source) {
+  const ranges = [];
+  for (const b of scanMethodBlocks(source).blocks) {
+    ranges.push({ start: b.startLine, end: b.endLine });
+  }
+  const lines = source.replace(/\r\n/g, "\n").split("\n");
+  let openForm;
+  for (let i = 0; i < lines.length; i++) {
+    const code = abapCodeOf(lines[i] ?? "");
+    if (FORM_OPEN_RE.test(code)) {
+      if (openForm === void 0) openForm = i + 1;
+      continue;
+    }
+    if (ENDFORM_RE.test(code) && openForm !== void 0) {
+      ranges.push({ start: openForm, end: i + 1 });
+      openForm = void 0;
+    }
+  }
+  return ranges;
+}
+function computeWritesOnlyViaUpdateTask(occurrences, includeList) {
+  const hasTaskCall = occurrences.some((o) => o.kind === "update task" || o.kind === "background task");
+  if (!hasTaskCall) return false;
+  const writes = occurrences.filter((o) => isWriteKind(o.kind));
+  if (writes.length === 0) return true;
+  const blocksByInclude = /* @__PURE__ */ new Map();
+  for (const entry of includeList) {
+    if (entry.source !== void 0) blocksByInclude.set(entry.include, findBlockRanges(entry.source));
+  }
+  return writes.every((w) => {
+    const ranges = blocksByInclude.get(w.include) ?? [];
+    return ranges.some((r) => w.line >= r.start && w.line <= r.end);
+  });
+}
+async function buildFootprint(conn, obj, opts = {}) {
+  if (!FOOTPRINT_TYPES.includes(obj.type)) {
+    throw new AbapError(
+      "UNSUPPORTED",
+      `Footprint analysis supports ${FOOTPRINT_TYPES.join(", ")} \u2014 ${obj.type} is not one of them.`,
+      { type: obj.type, supported: [...FOOTPRINT_TYPES] },
+      "Read the object directly instead of asking for its write footprint. This is NOT silently answered by scanning a different, related object."
+    );
+  }
+  const maxLines = opts.maxLines ?? DEFAULT_MAX_LINES;
+  const objectRef = { name: obj.name, type: obj.type };
+  const includeList = await resolveIncludesFor(conn, obj);
+  const includes = [];
+  const occurrences = [];
+  let linesScanned = 0;
+  let truncatedAt;
+  for (const entry of includeList) {
+    includes.push(entry.label);
+    if (truncatedAt) continue;
+    if (entry.source === void 0) continue;
+    const entryLines = entry.source.replace(/\r\n/g, "\n").split("\n");
+    if (linesScanned + entryLines.length > maxLines) {
+      const remaining = Math.max(0, maxLines - linesScanned);
+      const partial2 = entryLines.slice(0, remaining).join("\n");
+      occurrences.push(...scanFootprint(partial2, entry.include, objectRef));
+      linesScanned = maxLines;
+      truncatedAt = { include: entry.include, line: remaining + 1 };
+      continue;
+    }
+    occurrences.push(...scanFootprint(entry.source, entry.include, objectRef));
+    linesScanned += entryLines.length;
+  }
+  const commitFound = occurrences.some((o) => o.kind === "commit" || o.kind === "rollback");
+  const writesOnlyViaUpdateTask = computeWritesOnlyViaUpdateTask(occurrences, includeList);
+  return {
+    object: `${obj.type} ${obj.name}`,
+    includes,
+    occurrences,
+    linesScanned,
+    commitFound,
+    writesOnlyViaUpdateTask,
+    ...truncatedAt ? { truncatedAt } : {}
+  };
+}
+function occurrenceLine(o) {
+  const loc = `${o.include}:${o.line}`;
+  const extra = o.unresolved !== void 0 ? ` [unresolved: ${o.unresolved}]` : o.detail !== void 0 ? ` (${o.detail})` : "";
+  return `    [${o.kind}] ${loc}  ${o.statement}${extra}`;
+}
+function summarySentence(result) {
+  if (result.occurrences.length === 0) {
+    return "No write, commit, or write-adjacent statement was found in the scanned includes.";
+  }
+  if (result.writesOnlyViaUpdateTask) {
+    return "Every direct write found sits inside a FORM or METHOD block, and the object also calls CALL FUNCTION ... IN UPDATE/BACKGROUND TASK \u2014 consistent with (but not proof of) writes going through an update task rather than executing inline.";
+  }
+  if (result.commitFound) {
+    return "This object both writes and issues its own COMMIT WORK / BAPI_TRANSACTION_COMMIT \u2014 it does not rely on a caller to commit its writes.";
+  }
+  return "This object writes directly (not exclusively via update task) and does not itself commit \u2014 a caller's COMMIT WORK governs when those writes take effect.";
+}
+function renderFootprint(result) {
+  const header = {
+    object: result.object,
+    includes: result.includes.join(", "),
+    linesScanned: result.linesScanned,
+    occurrences: result.occurrences.length,
+    commitFound: result.commitFound ? "yes" : "no",
+    writesOnlyViaUpdateTask: result.writesOnlyViaUpdateTask ? "yes" : "no",
+    ...result.truncatedAt ? { truncated: `${result.truncatedAt.include}:${result.truncatedAt.line}` } : {}
+  };
+  const bodyParts = [];
+  const byTable = /* @__PURE__ */ new Map();
+  for (const o of result.occurrences) {
+    const key = o.table ?? (o.unresolved !== void 0 ? `(unresolved) ${o.unresolved}` : "(n/a)");
+    byTable.set(key, (byTable.get(key) ?? 0) + 1);
+  }
+  if (byTable.size > 0) {
+    const rows = [...byTable.entries()].sort(([a], [b]) => {
+      if (a === "(n/a)") return 1;
+      if (b === "(n/a)") return -1;
+      return a.localeCompare(b);
+    }).map(([table, count]) => ({ table, occurrences: String(count) }));
+    bodyParts.push("Per-table summary:");
+    bodyParts.push(textTable(rows, ["table", "occurrences"]));
+    bodyParts.push("");
+  }
+  const grouped = /* @__PURE__ */ new Map();
+  const unresolvedRows = [];
+  for (const o of result.occurrences) {
+    if (o.table === void 0) {
+      unresolvedRows.push(o);
+      continue;
+    }
+    const list3 = grouped.get(o.table) ?? [];
+    list3.push(o);
+    grouped.set(o.table, list3);
+  }
+  bodyParts.push("Occurrences:");
+  if (result.occurrences.length === 0) {
+    bodyParts.push("  (none found in the scanned includes)");
+  }
+  for (const table of [...grouped.keys()].sort()) {
+    bodyParts.push(`  ${table}:`);
+    for (const o of grouped.get(table)) bodyParts.push(occurrenceLine(o));
+  }
+  if (unresolvedRows.length > 0) {
+    bodyParts.push("  (unresolved / non-table):");
+    for (const o of unresolvedRows) bodyParts.push(occurrenceLine(o));
+  }
+  bodyParts.push("");
+  bodyParts.push(summarySentence(result));
+  if (result.truncatedAt) {
+    bodyParts.push("");
+    bodyParts.push(
+      `--- TRUNCATED --- scan stopped at ${result.truncatedAt.include}:${result.truncatedAt.line} (maxLines budget reached). Resume by reading ${result.truncatedAt.include} from that line, or re-run with a higher maxLines.`
+    );
+  }
+  const notes = [
+    "Detection is static pattern matching over statement text, not a compiler or a call graph \u2014 it can miss a write reached through a macro, dynamic dispatch, or generated code, and it cannot prove a write is unreachable.",
+    "INSERT/MODIFY/DELETE share syntax between database tables and internal tables; telling a database write from an internal-table operation is a keyword-position heuristic (TABLE/INDEX/ TRANSPORTING keyword placement), not type information.",
+    "CALL TRANSACTION and SUBMIT are reported because the target MAY write \u2014 this scanner cannot know whether it actually does without executing it.",
+    "BOPF modify (/BOBF/IF_TRA_SERVICE_MANAGER->MODIFY) is detected by call-site text pattern only; unlike every other kind here, there is no live-captured fixture confirming it against a real BOPF object."
+  ];
+  const hints = [];
+  if (result.truncatedAt) {
+    hints.push(
+      `Scan stopped at ${result.truncatedAt.include}:${result.truncatedAt.line} (maxLines budget). Re-run with a higher maxLines, or read the include directly past that point.`
+    );
+  }
+  for (const label of result.includes) {
+    if (label.includes("(unreadable") || label.includes("(not found)")) {
+      hints.push(`Include "${label}" was not scanned \u2014 its statements (if any) are not reflected here.`);
+    }
+  }
+  return { header, body: bodyParts.join("\n"), notes, hints };
+}
 
 // src/adt/docu.ts
 init_errors();
@@ -123110,12 +127343,12 @@ function resolveDocuTarget(input) {
     { type: input.type }
   );
 }
-function escapeRegExp4(s) {
+function escapeRegExp5(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 function extractAbapDoc(source, member) {
   const lines = source.split(/\r\n|\r|\n/);
-  const declRe = new RegExp(`^\\s*(?:CLASS-)?METHODS\\s+${escapeRegExp4(member)}\\b`, "i");
+  const declRe = new RegExp(`^\\s*(?:CLASS-)?METHODS\\s+${escapeRegExp5(member)}\\b`, "i");
   let declIndex = -1;
   for (let i = 0; i < lines.length; i++) {
     if (declRe.test(abapCodeOf(lines[i] ?? ""))) {
@@ -123300,13 +127533,13 @@ function scanProgramInterface(source) {
   }
   return { parameters, selectOptions, forms, hasStartOfSelection };
 }
-function splitStatements2(source) {
+function splitStatements3(source) {
   const joined = source.replace(/\r\n/g, "\n").split("\n").map(abapCodeOf).join("\n");
   return joined.split(".").map((s) => s.replace(/\s+/g, " ").trim()).filter(Boolean);
 }
 var CLASS_DEFINITION_FOR_TESTING_RE = /\bclass\s+[/\w]+\s+definition\b[\s\S]*\bfor\s+testing\b/i;
 function countTestClasses(testIncludeSource) {
-  return splitStatements2(testIncludeSource).filter((s) => CLASS_DEFINITION_FOR_TESTING_RE.test(s)).length;
+  return splitStatements3(testIncludeSource).filter((s) => CLASS_DEFINITION_FOR_TESTING_RE.test(s)).length;
 }
 var NON_API_COMPONENT_KINDS = /* @__PURE__ */ new Set(["CLAS/OT", "INTF/OT"]);
 function summarisePublicApi(members) {
@@ -123681,8 +127914,8 @@ var readInputSchema = {
   // Enum for the same reason as version/format (G-08): reject a typo rather
   // than silently falling through to an ordinary source read. Named `view`,
   // not `mode` — `mode` is already a response header key and `ResolvedObject.mode`.
-  view: external_exports.enum(["history", "diff", "definition", "docu", "digest"]).optional().describe(
-    `history: versions. diff: hunks. definition: element at line/column. docu: SAP documentation (flattened ITF; type="SIMG" + object=<abap_img activity id> for an IMG activity's docu). digest: one-page object overview. Omit for normal read.`
+  view: external_exports.enum(["history", "diff", "definition", "lineage", "footprint", "docu", "digest"]).optional().describe(
+    `history: versions. diff: hunks. definition: element at line/column. lineage: CDS view sources down to base tables. footprint: database writes and commits. docu: SAP documentation (flattened ITF; type="SIMG" + object=<abap_img activity id> for an IMG activity's docu). digest: one-page object overview. Omit for normal read.`
   ),
   from: external_exports.string().optional().describe('diff: older side \u2014 version, transport, or "active".'),
   to: external_exports.string().optional().describe("diff: newer side, same forms as `from`."),
@@ -123701,7 +127934,20 @@ var readInputSchema = {
   // on both the source-read and `view` paths, always disclosed.
   include: external_exports.enum(CLASS_INCLUDES).optional().describe('Class include. "testclasses"=Unit tests. Default "main".'),
   types: external_exports.array(external_exports.string()).optional().describe('DEVC/K only: filter package contents to these kind codes, e.g. ["CLAS","DDLS"].'),
-  depth: external_exports.number().int().min(1).max(3).optional().describe("DEVC/K only: subpackage nesting depth to list. Default 1.")
+  field: external_exports.string().optional().describe('view="lineage" only: trace one field back to its base columns.'),
+  // The upper bound used to live in this schema as `.max(3)`, back when DEVC/K
+  // was the only consumer of `depth`. Now two unrelated things share the
+  // parameter — a DEVC/K package listing (max 3) and view="lineage" (max
+  // LINEAGE_MAX_DEPTH, 10) — and zod has no way to make the max conditional
+  // on another field, so the bound moved from the schema into code: each
+  // consumer refuses a value above ITS OWN maximum, naming that maximum, via
+  // AbapError("BAD_INPUT", …) rather than a zod validation error (G-08:
+  // refused, never silently clamped). See the DEVC/K check in `abapRead` and
+  // the lineage check in `readLineage` below — both still refuse out-of-range
+  // input, just with a structured error instead of a schema rejection.
+  depth: external_exports.number().int().min(1).optional().describe(
+    'DEVC/K: subpackage nesting depth, default 1, max 3. view="lineage": levels of underlying views, default 5, max 10.'
+  )
 };
 var ReadInput = external_exports.object(readInputSchema);
 var OUTLINE_KINDS = /* @__PURE__ */ new Set(["CLAS", "INTF"]);
@@ -123970,6 +128216,7 @@ async function readEnhancementObject(conn, obj, baseHeader, input, maxChars) {
 var NO_ETAG = "";
 var CORE_TOOLS = /* @__PURE__ */ new Map([[CORE_TOOL_ID, coreTool]]);
 var DIFF_MAX_HUNKS = 200;
+var DEVC_MAX_DEPTH = 3;
 function assertViewCompatible(input, obj) {
   const clash = (param, why, hint) => {
     throw new AbapError(
@@ -123980,41 +128227,43 @@ function assertViewCompatible(input, obj) {
     );
   };
   const isDefinition = input.view === "definition";
+  const isLineage = input.view === "lineage";
+  const isFootprint = input.view === "footprint";
   const isDocu = input.view === "docu";
   const isDigest = input.view === "digest";
   if (input.format) {
     clash(
       'format="raw"',
-      isDefinition ? "raw returns the XML descriptor of a properties-shape type; there is no source text to resolve a line/column position in." : isDocu ? "docu reads SAP's own documentation store (DOKHL/DOKTL), not this object's own wire document \u2014 there is no XML descriptor of a documentation object to return." : isDigest ? "a digest is a rendered six-section overview built from several separate reads, not this object's own current XML descriptor." : "raw returns the current XML descriptor, which has no version feed behind it.",
-      isDefinition ? "Drop format \u2014 a definition lookup only makes sense against source text." : isDocu || isDigest ? "Drop format, or drop view." : "Drop one of the two: view for history/diff, format for the current wire document."
+      isDefinition ? "raw returns the XML descriptor of a properties-shape type; there is no source text to resolve a line/column position in." : isLineage ? "raw returns the current XML descriptor of ONE object; lineage renders a dependency tree parsed from CDS DDL source text across many objects \u2014 there is no single XML descriptor that answers it." : isFootprint ? "raw returns the current XML descriptor of ONE object; footprint renders a scan of ABAP source text for write statements \u2014 there is no XML descriptor that answers it." : isDocu ? "docu reads SAP's own documentation store (DOKHL/DOKTL), not this object's own wire document \u2014 there is no XML descriptor of a documentation object to return." : isDigest ? "a digest is a rendered six-section overview built from several separate reads, not this object's own current XML descriptor." : "raw returns the current XML descriptor, which has no version feed behind it.",
+      isDefinition ? "Drop format \u2014 a definition lookup only makes sense against source text." : isLineage || isFootprint ? `Drop format \u2014 view="${input.view}" produces its own rendering, not the wire document.` : isDocu || isDigest ? "Drop format, or drop view." : "Drop one of the two: view for history/diff, format for the current wire document."
     );
   }
   if (input.enhancements) {
     clash(
       "enhancements=true",
-      isDefinition ? "the enhancement decoders read a structured ENHO/ENHS document, not the source text a position lookup resolves against." : isDocu ? "the enhancement decoders read an ENHO/ENHS document; docu reads the DOKHL/DOKTL documentation store instead \u2014 the two never apply to the same request." : isDigest ? "the enhancement decoders read an ENHO/ENHS document; a digest summarises an ordinary repository object instead \u2014 the two never apply to the same request." : "the enhancement decoders read the current definition only.",
+      isDefinition ? "the enhancement decoders read a structured ENHO/ENHS document, not the source text a position lookup resolves against." : isLineage ? "the enhancement decoders read a structured ENHO/ENHS document; lineage reads CDS DDL source, a different document entirely." : isFootprint ? "the enhancement decoders read a structured ENHO/ENHS document; footprint scans ABAP source for writes, not an enhancement document." : isDocu ? "the enhancement decoders read an ENHO/ENHS document; docu reads the DOKHL/DOKTL documentation store instead \u2014 the two never apply to the same request." : isDigest ? "the enhancement decoders read an ENHO/ENHS document; a digest summarises an ordinary repository object instead \u2014 the two never apply to the same request." : "the enhancement decoders read the current definition only.",
       "Drop enhancements, or drop view."
     );
   }
   if (input.version && (!isDefinition || input.version === "inactive")) {
     clash(
       `version="${input.version}"`,
-      isDefinition ? "the elementinfo and navigation-target POSTs always carry the source abap_read itself read; asking about the inactive version while posting the active source would answer a question about a version that was never sent." : isDocu ? "SAP's documentation store (DOKHL/DOKTL) is not version-controlled the way ABAP source is \u2014 there is no active/inactive pair to select between." : isDigest ? "a digest always summarises the CURRENT active state (falling back to the newest inactive version only the way an ordinary read would); the active/inactive selector is not a thing a fixed overview can apply per section." : 'the active/inactive pair is a different axis from the version FEED; "inactive" is not a feed entry and has no history row.',
-      isDefinition ? "Activate the object first and read the active source, or drop version." : isDocu || isDigest ? "Drop version." : 'Use from/to to name feed versions (list them with view="history").'
+      isDefinition ? "the elementinfo and navigation-target POSTs always carry the source abap_read itself read; asking about the inactive version while posting the active source would answer a question about a version that was never sent." : isLineage ? "lineage always walks the ACTIVE source of the view and everything it references \u2014 there is no per-node way to ask for an inactive version across a whole dependency tree." : isFootprint ? "footprint always scans the ACTIVE source of every include it finds \u2014 there is no per-include way to ask for an inactive version across a whole-object scan." : isDocu ? "SAP's documentation store (DOKHL/DOKTL) is not version-controlled the way ABAP source is \u2014 there is no active/inactive pair to select between." : isDigest ? "a digest always summarises the CURRENT active state (falling back to the newest inactive version only the way an ordinary read would); the active/inactive selector is not a thing a fixed overview can apply per section." : 'the active/inactive pair is a different axis from the version FEED; "inactive" is not a feed entry and has no history row.',
+      isDefinition ? "Activate the object first and read the active source, or drop version." : isLineage || isFootprint ? `Drop version \u2014 view="${input.view}" always reads the current active source.` : isDocu || isDigest ? "Drop version." : 'Use from/to to name feed versions (list them with view="history").'
     );
   }
   if (input.outline) {
     clash(
       "outline=true",
-      isDefinition ? "outline lists the whole component structure, not source text \u2014 there is no line/column position in a component list to resolve." : isDocu ? "outline lists the component structure of a CLASS or INTERFACE object; docu reads a documentation object, which has no component structure of its own." : isDigest ? "a digest already includes its own PUBLIC API section, built the same way outline=true is \u2014 asking for outline=true too would run that pass twice for no new information." : "the outline lists the CURRENT component structure; ADT serves no per-version outline.",
-      isDocu || isDigest ? "Drop outline." : "Read the outline separately, without view."
+      isDefinition ? "outline lists the whole component structure, not source text \u2014 there is no line/column position in a component list to resolve." : isLineage ? "outline lists ONE object's own component structure; lineage's output is a dependency tree over OTHER objects, not a component list of this one." : isFootprint ? "outline lists ONE object's own component structure; footprint's output is a scan of write statements across all of this object's includes, not a component list." : isDocu ? "outline lists the component structure of a CLASS or INTERFACE object; docu reads a documentation object, which has no component structure of its own." : isDigest ? "a digest already includes its own PUBLIC API section, built the same way outline=true is \u2014 asking for outline=true too would run that pass twice for no new information." : "the outline lists the CURRENT component structure; ADT serves no per-version outline.",
+      isLineage || isFootprint ? `Drop outline, or omit view to see ${obj.type} ${obj.name}'s own outline.` : isDocu || isDigest ? "Drop outline." : "Read the outline separately, without view."
     );
   }
   if (input.method && !isDocu) {
     clash(
       `method="${input.method}"`,
-      isDefinition ? "method slices the source down to one component's block and renumbers its lines from 1; a line/column that identifies a position in the FULL source would silently land on whatever happens to sit at that line number inside the renumbered excerpt instead of the position you meant." : isDigest ? "a digest is a fixed six-section overview of the object as a whole; narrowing it to one method would answer a smaller, different question than the digest is for \u2014 the PUBLIC API section already lists every public method." : "ADT versions whole objects (or whole class includes), not individual methods, so there is no per-method feed to read or diff.",
-      isDefinition ? "Drop method and read the definition against the full source (optionally with include)." : isDigest ? "Drop method \u2014 read that one method directly without view, or find it in the digest's PUBLIC API section." : "Drop method \u2014 the diff hunks already carry line numbers you can map back to a method."
+      isDefinition ? "method slices the source down to one component's block and renumbers its lines from 1; a line/column that identifies a position in the FULL source would silently land on whatever happens to sit at that line number inside the renumbered excerpt instead of the position you meant." : isLineage ? "a CDS view's DDL source has no components to slice \u2014 lineage traces data sources and associations across the whole definition, not one method." : isFootprint ? "footprint scans ALL of the object's includes/components together by design \u2014 selecting one method would only hide writes reachable from the others, defeating the point of a whole-object write scan." : isDigest ? "a digest is a fixed six-section overview of the object as a whole; narrowing it to one method would answer a smaller, different question than the digest is for \u2014 the PUBLIC API section already lists every public method." : "ADT versions whole objects (or whole class includes), not individual methods, so there is no per-method feed to read or diff.",
+      isDefinition ? "Drop method and read the definition against the full source (optionally with include)." : isLineage ? "Drop method." : isFootprint ? "Drop method \u2014 footprint's output already labels which include each occurrence is in." : isDigest ? "Drop method \u2014 read that one method directly without view, or find it in the digest's PUBLIC API section." : "Drop method \u2014 the diff hunks already carry line numbers you can map back to a method."
     );
   }
   if (input.include && (isDocu || isDigest)) {
@@ -124029,6 +128278,13 @@ function assertViewCompatible(input, obj) {
       `include="${input.include}"`,
       `only a class has includes, and ${obj.type} ${obj.name} is not one.`,
       "Drop include."
+    );
+  }
+  if (input.include && isFootprint) {
+    clash(
+      `include="${input.include}"`,
+      "footprint scans ALL of the object's includes/sections by design \u2014 a write reachable only from testclasses, or from a class's implementations section, must not go unseen. Selecting one include would contradict that.",
+      "Drop include \u2014 footprint's output already labels which include each occurrence is in."
     );
   }
   if (input.include && obj.include && input.include !== obj.include) {
@@ -124083,7 +128339,7 @@ function assertViewCompatible(input, obj) {
       }
     }
   }
-  if (input.view === "history" || input.view === "diff" || isDocu || isDigest) {
+  if (!isDefinition) {
     for (const [param, value] of [
       ["line", input.line],
       ["column", input.column]
@@ -124091,11 +128347,48 @@ function assertViewCompatible(input, obj) {
       if (value !== void 0) {
         clash(
           param,
-          isDocu ? "it selects a position in ABAP source; docu returns flattened documentation text, which has no line/column axis of its own to resolve a position in." : isDigest ? "it selects a position in ABAP source; a digest is a fixed six-section overview, not a position lookup." : "it selects a position in the CURRENT source; history and diff are about versions, not positions.",
+          isLineage ? "it selects a position in ONE object's CURRENT source; lineage's output is a tree across MANY objects, so there is no single source position for it to mean." : isFootprint ? "it selects a position in ONE object's CURRENT source; footprint's output is a scan across ALL of the object's includes, not a position within one of them." : isDocu ? "it selects a position in ABAP source; docu returns flattened documentation text, which has no line/column axis of its own to resolve a position in." : isDigest ? "it selects a position in ABAP source; a digest is a fixed six-section overview, not a position lookup." : "it selects a position in the CURRENT source; history and diff are about versions, not positions.",
           'Use view="definition" for a position lookup, or drop it.'
         );
       }
     }
+  }
+  if (input.types !== void 0 && (isLineage || isFootprint)) {
+    clash(
+      "types",
+      `types filters a DEVC/K package listing to certain kind codes; view="${input.view}" is not a package read.`,
+      "Drop types."
+    );
+  }
+  if (isLineage || isFootprint) {
+    for (const [param, value] of [
+      ["offset", input.offset],
+      ["limit", input.limit]
+    ]) {
+      if (value !== void 0) {
+        clash(
+          param,
+          isLineage ? "lineage's tree (or field chain, with field=) is bounded by depth/nodeBudget, not paged by line \u2014 there is no line-numbered body for offset/limit to window into." : "footprint's occurrence list is grouped by table, not paged by line \u2014 there is no line-numbered body for offset/limit to window into.",
+          isLineage ? `Drop ${param} \u2014 narrow the walk with depth instead.` : `Drop ${param}.`
+        );
+      }
+    }
+  }
+  if (input.field !== void 0 && !isLineage) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `field is only meaningful with view="lineage"; view="${input.view}" doesn't use it.`,
+      { type: obj.type, name: obj.name, view: input.view, param: "field" },
+      'Drop field, or use view="lineage".'
+    );
+  }
+  if (input.depth !== void 0 && !isLineage) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `depth is only meaningful with view="lineage", or with a DEVC/K package read (no view); view="${input.view}" doesn't use it.`,
+      { type: obj.type, name: obj.name, view: input.view, param: "depth" },
+      `Drop depth, or use view="lineage" to bound the lineage walk.`
+    );
   }
   if (isDefinition && input.line === void 0) {
     throw new AbapError(
@@ -124293,6 +128586,64 @@ async function readDiff(conn, obj, baseHeader, input, maxChars) {
       'List the versions with view="history".'
     ],
     pagingParam: "offset",
+    maxChars
+  });
+  return { ...built, etag: NO_ETAG };
+}
+async function readLineage(conn, obj, baseHeader, input, maxChars) {
+  if (obj.type !== "DDLS/DF") {
+    throw new AbapError(
+      "UNSUPPORTED",
+      `view="lineage" only traces CDS source (DDLS/DF) \u2014 ${obj.type} ${obj.name} is not a CDS view.`,
+      { type: obj.type, name: obj.name },
+      "Point it at a DDLS/DF object, or drop view to read this object directly."
+    );
+  }
+  if (input.depth !== void 0 && input.depth > LINEAGE_MAX_DEPTH) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `depth=${input.depth} exceeds the maximum for view="lineage" (${LINEAGE_MAX_DEPTH}); refused, not clamped.`,
+      { type: obj.type, name: obj.name, depth: input.depth, max: LINEAGE_MAX_DEPTH },
+      `Use depth between 1 and ${LINEAGE_MAX_DEPTH}, or omit it for the default (${LINEAGE_DEFAULT_DEPTH}).`
+    );
+  }
+  const result = await buildLineage(conn, obj, { depth: input.depth, field: input.field });
+  const rendered = renderLineage(result, { field: input.field });
+  const built = buildReadResponse({
+    header: {
+      ...baseHeader,
+      ...rendered.header,
+      view: "lineage"
+    },
+    body: rendered.body,
+    bodyLabel: "LINEAGE",
+    notes: [...rendered.notes],
+    hints: [...rendered.hints],
+    maxChars
+  });
+  return { ...built, etag: NO_ETAG };
+}
+async function readFootprint(conn, obj, baseHeader, input, maxChars) {
+  if (!FOOTPRINT_TYPES.includes(obj.type)) {
+    throw new AbapError(
+      "UNSUPPORTED",
+      `view="footprint" supports ${FOOTPRINT_TYPES.join(", ")} \u2014 ${obj.type} ${obj.name} is not one of them.`,
+      { type: obj.type, name: obj.name, supported: [...FOOTPRINT_TYPES] },
+      "Read the object directly instead of asking for its write footprint."
+    );
+  }
+  const result = await buildFootprint(conn, obj);
+  const rendered = renderFootprint(result);
+  const built = buildReadResponse({
+    header: {
+      ...baseHeader,
+      ...rendered.header,
+      view: "footprint"
+    },
+    body: rendered.body,
+    bodyLabel: "DATABASE FOOTPRINT",
+    notes: rendered.notes,
+    hints: rendered.hints,
     maxChars
   });
   return { ...built, etag: NO_ETAG };
@@ -124816,7 +129167,8 @@ var CATALOG_READ_IRRELEVANT_PARAMS = [
   "include",
   "types",
   "depth",
-  "format"
+  "format",
+  "field"
 ];
 async function readCatalogObject2(conn, input, catalogRead, label, maxChars) {
   const code = input.type.trim().toUpperCase();
@@ -124923,6 +129275,8 @@ async function abapRead(conn, input, maxChars, gate) {
     assertViewCompatible(input, obj);
     if (input.view === "history") return await readHistory(conn, obj, baseHeader, input, maxChars);
     if (input.view === "diff") return await readDiff(conn, obj, baseHeader, input, maxChars);
+    if (input.view === "lineage") return await readLineage(conn, obj, baseHeader, input, maxChars);
+    if (input.view === "footprint") return await readFootprint(conn, obj, baseHeader, input, maxChars);
     if (input.view === "docu") return await readDocu(conn, obj, baseHeader, input, maxChars, gate);
     if (input.view === "digest") return await readDigest(conn, obj, baseHeader, input, maxChars);
     return await readDefinition(conn, obj, baseHeader, input, maxChars);
@@ -124953,6 +129307,14 @@ async function abapRead(conn, input, maxChars, gate) {
         `Add view="definition", or drop ${param}.`
       );
     }
+  }
+  if (input.field !== void 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      'field is only meaningful with view="lineage"; no view was requested, so this would have been an ordinary source read with your parameter discarded.',
+      { type: obj.type, name: obj.name, param: "field" },
+      'Add view="lineage", or drop field.'
+    );
   }
   for (const [param, value] of [
     ["types", input.types],
@@ -125033,6 +129395,14 @@ async function abapRead(conn, input, maxChars, gate) {
         `version="inactive" is not supported for ${obj.type} ${obj.name}: DDIC reads (TABL, DTEL, DOMA, TTYP) always render the current definition.`,
         { type: obj.type, name: obj.name, requested: input.version },
         'Omit version for DDIC objects. Omitting it and passing version="active" return the same bytes.'
+      );
+    }
+    if (obj.type === "DEVC/K" && input.depth !== void 0 && input.depth > DEVC_MAX_DEPTH) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `depth=${input.depth} exceeds the maximum for DEVC/K (${DEVC_MAX_DEPTH}); refused, not clamped.`,
+        { type: obj.type, name: obj.name, depth: input.depth, max: DEVC_MAX_DEPTH },
+        `Use depth between 1 and ${DEVC_MAX_DEPTH}.`
       );
     }
     let rendered;
@@ -125665,8 +130035,8 @@ var IMPACTED_CONSUMER_KINDS = ["CLAS", "PROG", "FUGR"];
 var PER_OBJECT_CONSUMER_CAP = 20;
 var SELECTED_CARRIER_CAP = 10;
 function kindOf2(type) {
-  const idx = type.indexOf("/");
-  return (idx >= 0 ? type.slice(0, idx) : type).trim().toUpperCase();
+  const idx2 = type.indexOf("/");
+  return (idx2 >= 0 ? type.slice(0, idx2) : type).trim().toUpperCase();
 }
 async function selectImpacted(changed, deps) {
   const changedNamesUpper = new Set(changed.map((c) => c.name.toUpperCase()));
@@ -126736,6 +131106,306 @@ function registerTestTools(mcp, deps) {
 // src/tools/search.ts
 init_zod();
 init_errors();
+
+// src/adt/call-graph.ts
+init_errors();
+
+// src/adt/call-sites.ts
+var IDENT = "[A-Za-z_][A-Za-z0-9_]*";
+var CALL_FUNCTION_RE2 = new RegExp(
+  `\\bCALL\\s+FUNCTION\\s+(?:'([^']*)'|\\(\\s*(${IDENT})\\s*\\)|(${IDENT}))`,
+  "i"
+);
+var CALL_METHOD_KEYWORD_RE = new RegExp(`\\bCALL\\s+METHOD\\s+(${IDENT})\\s*(=>|->)\\s*${IDENT}`, "i");
+var FUNCTIONAL_METHOD_RE = new RegExp(`\\b(${IDENT})\\s*(=>|->)\\s*${IDENT}\\s*\\(`, "i");
+var PERFORM_IN_PROGRAM_RE = new RegExp(
+  `\\bPERFORM\\s+\\(?\\s*${IDENT}\\s*\\)?\\s+IN\\s+PROGRAM\\s+(?:\\(\\s*(${IDENT})\\s*\\)|(${IDENT}))`,
+  "i"
+);
+var SUBMIT_RE2 = new RegExp(`\\bSUBMIT\\s+(?:\\(\\s*(${IDENT})\\s*\\)|(${IDENT}))`, "i");
+var CALL_TRANSACTION_RE = new RegExp(`\\bCALL\\s+TRANSACTION\\s+(?:'([^']*)'|(${IDENT}))`, "i");
+function codeSlice(line2) {
+  return line2.slice(0, abapCodeOf(line2).length);
+}
+function parseCallSites(source, include) {
+  const rawLines = source.split(/\r\n|\r|\n/);
+  const sites = [];
+  for (let i = 0; i < rawLines.length; i++) {
+    const rawLine = rawLines[i] ?? "";
+    const code = codeSlice(rawLine);
+    if (code.trim() === "") continue;
+    const lineNo = i + 1;
+    const statement = rawLine.trim();
+    const fn = CALL_FUNCTION_RE2.exec(code);
+    if (fn) {
+      if (fn[1] !== void 0) {
+        sites.push({ kind: "function module", target: fn[1].toUpperCase(), rawTarget: fn[1], line: lineNo, include, statement });
+      } else if (fn[2] !== void 0) {
+        sites.push({ kind: "function module", rawTarget: `(${fn[2]})`, line: lineNo, include, statement });
+      } else if (fn[3] !== void 0) {
+        sites.push({ kind: "function module", rawTarget: fn[3], line: lineNo, include, statement });
+      }
+    }
+    const callMethod = CALL_METHOD_KEYWORD_RE.exec(code);
+    const method = callMethod ?? FUNCTIONAL_METHOD_RE.exec(code);
+    if (method) {
+      const receiver = method[1];
+      const arrow = method[2];
+      if (arrow === "=>") {
+        sites.push({ kind: "method", target: receiver.toUpperCase(), rawTarget: receiver, line: lineNo, include, statement });
+      } else {
+        sites.push({ kind: "method", rawTarget: receiver, line: lineNo, include, statement });
+      }
+    }
+    const perform = PERFORM_IN_PROGRAM_RE.exec(code);
+    if (perform) {
+      if (perform[1] !== void 0) {
+        sites.push({ kind: "form", rawTarget: `(${perform[1]})`, line: lineNo, include, statement });
+      } else if (perform[2] !== void 0) {
+        sites.push({ kind: "form", target: perform[2].toUpperCase(), rawTarget: perform[2], line: lineNo, include, statement });
+      }
+    }
+    const submit = SUBMIT_RE2.exec(code);
+    if (submit) {
+      if (submit[1] !== void 0) {
+        sites.push({ kind: "report", rawTarget: `(${submit[1]})`, line: lineNo, include, statement });
+      } else if (submit[2] !== void 0) {
+        sites.push({ kind: "report", target: submit[2].toUpperCase(), rawTarget: submit[2], line: lineNo, include, statement });
+      }
+    }
+    const tran = CALL_TRANSACTION_RE.exec(code);
+    if (tran) {
+      if (tran[1] !== void 0) {
+        sites.push({ kind: "transaction", target: tran[1].toUpperCase(), rawTarget: tran[1], line: lineNo, include, statement });
+      } else if (tran[2] !== void 0) {
+        sites.push({ kind: "transaction", rawTarget: tran[2], line: lineNo, include, statement });
+      }
+    }
+  }
+  return sites;
+}
+
+// src/adt/call-graph.ts
+init_types();
+init_compact();
+function nodeLabel2(node2) {
+  return `${node2.type} ${node2.name} (${node2.packageName ?? "unknown package"})`;
+}
+function abapReadCall(node2) {
+  return `abap_read ${JSON.stringify({ object: node2.name, type: node2.type })}`;
+}
+function resolveFailureReason(e) {
+  if (e instanceof AbapError) return e.message.split("\n")[0] ?? e.message;
+  return e instanceof Error ? e.message : String(e);
+}
+function statementText(cs) {
+  return cs.statement.replace(/\.\s*$/, "");
+}
+function callerChildren(refs, selfUri) {
+  const byUri = /* @__PURE__ */ new Map();
+  for (const r of refs) {
+    const name = r["adtcore:name"];
+    const type = r["adtcore:type"];
+    const uri = r["uri"];
+    if (typeof name !== "string" || typeof type !== "string" || typeof uri !== "string") continue;
+    if (type.toUpperCase() === "DEVC/K") continue;
+    if (uri === selfUri) continue;
+    if (byUri.has(uri)) continue;
+    const packageRefValue = r["packageRef"];
+    const packageRef = packageRefValue !== null && typeof packageRefValue === "object" ? packageRefValue : void 0;
+    const packageName = packageRef ? packageRef["adtcore:name"] : void 0;
+    byUri.set(uri, { type, name, uri, packageName: typeof packageName === "string" ? packageName : void 0 });
+  }
+  return [...byUri.values()];
+}
+async function renderCallerNode(conn, node2, level, depth, max, seen, stats) {
+  const indent = "  ".repeat(level);
+  const label = nodeLabel2(node2);
+  stats.nodeCount += 1;
+  if (seen.has(node2.uri)) {
+    return [`${indent}${label}  (cycle -> seen above)`];
+  }
+  seen.set(node2.uri, label);
+  if (level >= depth) {
+    return [`${indent}${label}  ${abapReadCall(node2)}`];
+  }
+  const { refs, fetchMs } = await fetchUsageReferences(conn, node2.uri, void 0, node2.name);
+  stats.cumulativeFetchMs += fetchMs;
+  const children = callerChildren(refs, node2.uri);
+  stats.maxFanIn = Math.max(stats.maxFanIn, children.length);
+  if (children.length >= HIGH_FAN_IN_REFERENCES) {
+    return [`${indent}${label}  ${abapReadCall(node2)}  (not expanded: ${children.length} references)`];
+  }
+  const lines = [`${indent}${label}  ${abapReadCall(node2)}`];
+  const shown = children.slice(0, max);
+  for (const child4 of shown) {
+    lines.push(...await renderCallerNode(conn, child4, level + 1, depth, max, seen, stats));
+  }
+  if (children.length > shown.length) {
+    const omitted = children.length - shown.length;
+    stats.truncatedNodes += omitted;
+    lines.push(
+      `${"  ".repeat(level + 1)}--- TRUNCATED --- ${omitted} of ${children.length} caller(s) of ${node2.name} not shown (max=${max}).`
+    );
+  }
+  return lines;
+}
+async function collectCallSites(conn, obj) {
+  if (obj.type.toUpperCase() === "CLAS/OC") {
+    const sites = [];
+    for (const inc of CLASS_INCLUDES) {
+      try {
+        const res = await readSource(conn, obj, inc);
+        sites.push(...parseCallSites(res.source, inc));
+      } catch {
+        continue;
+      }
+    }
+    return sites;
+  }
+  try {
+    const res = await readSource(conn, obj);
+    return parseCallSites(res.source, "main");
+  } catch {
+    return [];
+  }
+}
+var CALL_KIND_TYPE = {
+  "function module": "FUGR/FF",
+  report: "PROG/P",
+  form: "PROG/P",
+  method: "CLAS/OC",
+  transaction: "TRAN/T"
+};
+function calleeUnresolvedReason(kind, e) {
+  if (kind === "function module") {
+    return "not found by search; quickSearch does not index generated function modules, so this is not proof it does not exist";
+  }
+  return resolveFailureReason(e);
+}
+function groupCallSites(sites) {
+  const byKey = /* @__PURE__ */ new Map();
+  const dynamicSites = [];
+  for (const cs of sites) {
+    if (cs.target === void 0) {
+      dynamicSites.push(cs);
+      continue;
+    }
+    const key = `${cs.kind}|${cs.target.toUpperCase()}`;
+    if (!byKey.has(key)) byKey.set(key, { target: cs.target, rep: cs });
+  }
+  return { staticGroups: [...byKey.values()], dynamicSites };
+}
+async function renderCalleeNode(conn, node2, level, depth, max, seen, stats) {
+  const indent = "  ".repeat(level);
+  const label = nodeLabel2(node2);
+  stats.nodeCount += 1;
+  if (seen.has(node2.uri)) {
+    return [`${indent}${label}  (cycle -> seen above)`];
+  }
+  seen.set(node2.uri, label);
+  if (level >= depth) {
+    return [`${indent}${label}  ${abapReadCall(node2)}`];
+  }
+  const fetchStart = Date.now();
+  const sites = await collectCallSites(conn, node2);
+  stats.cumulativeFetchMs += Date.now() - fetchStart;
+  const { staticGroups, dynamicSites } = groupCallSites(sites);
+  const entries = [];
+  for (const group of staticGroups) {
+    const kind = group.rep.kind;
+    try {
+      const resolved = await resolveObject(conn, group.target, { type: CALL_KIND_TYPE[kind] });
+      entries.push({ expand: resolved });
+      continue;
+    } catch (typedError) {
+      if (kind === "method") {
+        try {
+          const resolved = await resolveObject(conn, group.target);
+          entries.push({ expand: resolved });
+          continue;
+        } catch (untypedError) {
+          entries.push({ render: `unresolved  ${statementText(group.rep)}  \u2014 ${calleeUnresolvedReason(kind, untypedError)}` });
+          continue;
+        }
+      }
+      entries.push({ render: `unresolved  ${statementText(group.rep)}  \u2014 ${calleeUnresolvedReason(kind, typedError)}` });
+    }
+  }
+  for (const cs of dynamicSites) {
+    entries.push({ render: `unresolved  ${statementText(cs)} (dynamic target)  \u2014 line ${cs.line} of ${cs.include}` });
+  }
+  const lines = [`${indent}${label}  ${abapReadCall(node2)}`];
+  const shown = entries.slice(0, max);
+  for (const entry of shown) {
+    if ("expand" in entry) {
+      lines.push(...await renderCalleeNode(conn, entry.expand, level + 1, depth, max, seen, stats));
+    } else {
+      stats.nodeCount += 1;
+      lines.push(`${"  ".repeat(level + 1)}${entry.render}`);
+    }
+  }
+  if (entries.length > shown.length) {
+    const omitted = entries.length - shown.length;
+    stats.truncatedNodes += omitted;
+    lines.push(
+      `${"  ".repeat(level + 1)}--- TRUNCATED --- ${omitted} of ${entries.length} callee(s) of ${node2.name} not shown (max=${max}).`
+    );
+  }
+  return lines;
+}
+async function buildCallGraph(conn, target, type, direction, depth, max, maxChars) {
+  const root = await resolveObject(conn, target, type ? { type } : {});
+  const seen = /* @__PURE__ */ new Map();
+  const stats = { cumulativeFetchMs: 0, maxFanIn: 0, nodeCount: 0, truncatedNodes: 0 };
+  const lines = direction === "callers" ? await renderCallerNode(
+    conn,
+    { type: root.type, name: root.name, uri: root.uri, packageName: root.packageName },
+    0,
+    depth,
+    max,
+    seen,
+    stats
+  ) : await renderCalleeNode(conn, root, 0, depth, max, seen, stats);
+  const expensive = stats.cumulativeFetchMs >= SLOW_FETCH_MS || stats.maxFanIn >= HIGH_FAN_IN_REFERENCES;
+  const notes = [];
+  if (expensive) {
+    notes.push(
+      `FETCH COST: this walk spent ${(stats.cumulativeFetchMs / 1e3).toFixed(1)}s CUMULATIVE across every ${direction === "callers" ? "usageReferences fetch" : "source read"} it made` + (direction === "callers" ? ` (highest single-node fan-in: ${stats.maxFanIn} references)` : "") + `. The cost is set by fan-in and depth, not by max \u2014 every reference or include is fetched before max trims what is shown, so lowering max would not have made this walk cheaper. Narrow with a smaller depth, or ask about a less widely-referenced object.`
+    );
+  }
+  notes.push(
+    'This graph is static. A dynamically dispatched call \u2014 CALL FUNCTION lv_name, obj->method( ) through a variable, PERFORM (lv_form) IN PROGRAM (lv_prog), SUBMIT (lv_prog), CALL TRANSACTION lv_t \u2014 cannot be resolved to a target object and appears as an "unresolved \u2026 (dynamic target)" leaf instead of an edge; an object reachable only that way is invisible here. Use abap_search mode="source" to search for it by text.'
+  );
+  if (direction === "callees") {
+    notes.push(
+      "Edges come from parsing this object's own source text, not an ADT index: a call name built at runtime (string concatenation) or one issued from inside a macro expansion is invisible to this parser, even though it is fully static from ABAP's own point of view."
+    );
+  }
+  return buildResponse({
+    header: {
+      system: conn.cfg.sid,
+      mode: "call_graph",
+      direction,
+      object: `${root.type} ${root.name}`,
+      uri: root.uri,
+      depth,
+      nodes: stats.nodeCount,
+      truncatedNodes: stats.truncatedNodes > 0 ? stats.truncatedNodes : void 0,
+      fetchMs: expensive ? stats.cumulativeFetchMs : void 0
+    },
+    body: lines.join("\n"),
+    bodyLabel: "CALL GRAPH",
+    notes,
+    hints: [
+      direction === "callers" ? 'Pass direction="callees" to see what this object calls instead.' : 'Pass direction="callers" to see who calls this object instead.',
+      "Raise `depth` (<=4) to expand further, or `max` to show more children per node."
+    ],
+    maxChars
+  });
+}
+
+// src/tools/search.ts
 init_compact();
 init_types();
 init_truncate();
@@ -126882,16 +131552,20 @@ function assertKnownType(type) {
   );
 }
 var searchInputSchema = {
-  query: external_exports.string().describe("Name pattern (mode=objects), target object (mode=where_used), or literal/regex text (mode=source)."),
-  mode: external_exports.enum(["objects", "where_used", "source"]).optional().describe(
-    'Default "objects". "source" scans raw source text (literal/regex, any line) and needs the fluid API; prefer "where_used" when you want real static references to one object, since a text scan also matches strings, comments and dead code.'
+  query: external_exports.string().describe(
+    "Name pattern (mode=objects), target object (mode=where_used/call_graph), or literal/regex text (mode=source)."
+  ),
+  mode: external_exports.enum(["objects", "where_used", "source", "call_graph"]).optional().describe(
+    'Default "objects". "source" scans raw source text (literal/regex, any line) and needs the fluid API; prefer "where_used" when you want real static references to one object, since a text scan also matches strings, comments and dead code. "call_graph" walks multiple levels of callers or callees instead of just one.'
   ),
   type: external_exports.string().optional().describe(
-    `ADT type filter (mode=objects/where_used only). One of: ${[...KNOWN_TYPE_GROUPS].sort().join(" ")}; or a full code, e.g. "CLAS/OC".`
+    `ADT type filter (mode=objects/where_used/call_graph only). One of: ${[...KNOWN_TYPE_GROUPS].sort().join(" ")}; or a full code, e.g. "CLAS/OC".`
   ),
   max: external_exports.number().int().positive().max(200).optional().describe(
-    "Default 50 rows (mode=objects/where_used) or 100 hits (mode=source); narrowing `query` (not lowering `max`) is what makes a broad call cheaper."
+    "Default 50 rows (mode=objects/where_used), 100 hits (mode=source), or 50 children per node (mode=call_graph); narrowing `query` (not lowering `max`) is what makes a broad call cheaper."
   ),
+  direction: external_exports.enum(["callers", "callees"]).optional().describe('mode=call_graph: "callers" (who calls this, default) or "callees" (what this calls).'),
+  depth: external_exports.number().int().positive().optional().describe("mode=call_graph: levels to expand. Default 2, max 4."),
   packages: external_exports.array(external_exports.string()).max(20).optional().describe("mode=source: package scope (TADIR-DEVCLASS). Required unless `objects` is given."),
   include_subpackages: external_exports.boolean().optional().describe("mode=source: also scan every package transitively under `packages` (TDEVC-PARENTCL)."),
   objects: external_exports.string().optional().describe('mode=source: object-name pattern (wildcards `*`), e.g. "ZCL_MY_*". Alternative/addition to `packages`.'),
@@ -126901,11 +131575,25 @@ var searchInputSchema = {
   include_comments: external_exports.boolean().optional().describe("mode=source: also match inside comments (heuristic, line-local). Default false.")
 };
 var SearchInput = external_exports.object(searchInputSchema);
+var MAX_CALL_GRAPH_DEPTH = 4;
 async function abapSearch(conn, input, maxChars) {
   const max = input.max ?? 50;
   if (input.type) assertKnownType(input.type);
-  if ((input.mode ?? "objects") === "where_used") {
+  const mode = input.mode ?? "objects";
+  if (mode === "where_used") {
     return whereUsed(conn, input.query, input.type, max, maxChars);
+  }
+  if (mode === "call_graph") {
+    const depth = input.depth ?? 2;
+    if (depth > MAX_CALL_GRAPH_DEPTH) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `depth=${depth} exceeds the maximum of ${MAX_CALL_GRAPH_DEPTH} for mode="call_graph".`,
+        { depth, max: MAX_CALL_GRAPH_DEPTH },
+        `Pass depth<=${MAX_CALL_GRAPH_DEPTH}. This is refused, not silently capped, because a call graph's cost grows with fan-in at every level \u2014 a caller expecting depth=6 and silently getting depth=4 would draw wrong conclusions from an incomplete tree without knowing it.`
+      );
+    }
+    return buildCallGraph(conn, input.query, input.type, input.direction ?? "callers", depth, max, maxChars);
   }
   return searchObjects(conn, input.query, input.type, max, maxChars);
 }
@@ -126992,13 +131680,9 @@ async function searchObjects(conn, query, type, max, maxChars) {
     maxChars
   });
 }
-var HIGH_FAN_IN_REFERENCES = 500;
-var SLOW_FETCH_MS = 5e3;
 async function whereUsed(conn, target, type, max, maxChars) {
   const obj = await resolveObject(conn, target, type ? { type } : {});
-  const fetchStart = Date.now();
-  const refs = await conn.adt.usageReferences(obj.uri);
-  const fetchMs = Date.now() - fetchStart;
+  const { refs, fetchMs } = await fetchUsageReferences(conn, obj.uri, void 0, obj.name);
   const named = refs.filter((r) => r["adtcore:name"]);
   const totalReferences = named.length;
   const expensive = totalReferences >= HIGH_FAN_IN_REFERENCES || fetchMs >= SLOW_FETCH_MS;
@@ -127006,12 +131690,17 @@ async function whereUsed(conn, target, type, max, maxChars) {
   const omitted = totalReferences - kept.length;
   const capLine = omitted > 0 ? `--- TRUNCATED --- ${omitted} of ${totalReferences} reference(s) not shown (display cap max=${max}). Re-run with max=${Math.min(200, totalReferences)}.` : void 0;
   const capped = omitted > 0;
-  const rows = kept.map((r) => ({
-    type: r["adtcore:type"] ?? "",
-    name: r["adtcore:name"] ?? "",
-    package: r.packageRef?.["adtcore:name"] ?? "",
-    description: truncateForDisplay(r["adtcore:description"] ?? "", DESCRIPTION_COL_NARROW)
-  }));
+  const strField = (v) => typeof v === "string" ? v : "";
+  const rows = kept.map((r) => {
+    const packageRefValue = r["packageRef"];
+    const packageRef = packageRefValue !== null && typeof packageRefValue === "object" ? packageRefValue : void 0;
+    return {
+      type: strField(r["adtcore:type"]),
+      name: strField(r["adtcore:name"]),
+      package: packageRef ? strField(packageRef["adtcore:name"]) : "",
+      description: truncateForDisplay(strField(r["adtcore:description"]), DESCRIPTION_COL_NARROW)
+    };
+  });
   return buildResponse({
     header: {
       system: conn.cfg.sid,
@@ -127066,6 +131755,20 @@ function assertNoSourceOnlyFields(input, mode) {
       'Omit them, or set mode="source" to run a source-text scan.'
     );
   }
+}
+var CALL_GRAPH_ONLY_FIELDS = ["direction", "depth"];
+function assertNoCallGraphOnlyFields(input, mode) {
+  if (mode === "call_graph") return;
+  const passed = CALL_GRAPH_ONLY_FIELDS.filter((f) => input[f] !== void 0);
+  if (passed.length === 0) return;
+  const verb = passed.length > 1 ? "are" : "is";
+  const pronoun = passed.length > 1 ? "them" : "it";
+  throw new AbapError(
+    "BAD_INPUT",
+    `${passed.map((f) => `\`${f}\``).join(" and ")} ${verb} only meaningful with mode="call_graph"; mode="${mode}" would have discarded ${pronoun}.`,
+    { mode, fields: passed },
+    'Omit them, or set mode="call_graph".'
+  );
 }
 var PATTERN_CHARS = /^[A-Za-z0-9_$*/]+$/;
 function assertValidPattern(value, field) {
@@ -127234,7 +131937,7 @@ function registerSearchTools(mcp, deps) {
     "abap_search",
     {
       title: "Search ABAP repository",
-      description: "Find objects by name pattern (mode=objects, wildcards *), list consumers (mode=where_used; 20+ seconds on wide fan-in \u2014 narrow by type/query first), or scan source text line by line (mode=source, needs the fluid API and a package/objects scope).",
+      description: "Find objects by name pattern (mode=objects, wildcards *), list consumers (mode=where_used; 20+ seconds on wide fan-in \u2014 narrow by type/query first), walk multiple levels of callers or callees (mode=call_graph, direction=callers|callees, depth<=4), or scan source text line by line (mode=source, needs the fluid API and a package/objects scope).",
       inputSchema: searchInputSchema,
       annotations: { readOnlyHint: true, openWorldHint: true }
     },
@@ -127242,6 +131945,7 @@ function registerSearchTools(mcp, deps) {
       try {
         const input = args;
         const mode = input.mode ?? "objects";
+        assertNoCallGraphOnlyFields(input, mode);
         if (mode === "source") {
           const q = buildSourceScanQuery(input);
           await deps.ensureConnected();
@@ -127365,22 +132069,318 @@ function removalTouchedNothing(e) {
   return !raw.split("\n").some((line2) => TREN_ROW_RE.test(line2.trim()));
 }
 
+// src/adt/transport-log.ts
+init_errors();
+init_transports();
+var TRLG_REQ_RE = /^ZMCP-TRLG-REQ (\S+) (\S+) (\S+)/;
+var TRLG_SYS_RE = /^ZMCP-TRLG-SYS (\d+) (\S+) (\S+) (\S+) (\S+) (\S+)/;
+var TRLG_SYSTXT_RE = /^ZMCP-TRLG-SYSTXT (\d+) ?(.*)$/;
+var TRLG_RCTXT_RE = /^ZMCP-TRLG-RCTXT (\d+) ?(.*)$/;
+var TRLG_LINE_RE = /^ZMCP-TRLG-LINE (\d+) (\S+) (\S+) (\S+) ?(.*)$/;
+function unplaceholder(value) {
+  return value === "-" ? "" : value;
+}
+async function readTransportLogViaBridge(conn, gate, params) {
+  const trkorr = assertTrkorr(params.trkorr, "readTransportLog");
+  const beforeAssert = (transcript2) => {
+    if (transcript2.errorLine?.startsWith("no such request")) {
+      throw new AbapError(
+        "NOT_FOUND",
+        `No such transport request ${trkorr}. Raw ABAP-side detail: ${transcript2.errorLine}`,
+        { trkorr, raw: transcript2.raw },
+        "TRINT_GET_LOG_OVERVIEW answers with sy-subrc 0 even for a request number that does not exist at all, so abapsmith checks E070 first and refuses here rather than reporting a plausible-looking but meaningless log."
+      );
+    }
+  };
+  const { run, transcript } = await runClassicAction(conn, gate, {
+    action: "read_transport_log",
+    args: { trkorr },
+    what: `Reading the import log of ${trkorr}`,
+    expectTags: ["TRLG-READ"],
+    beforeAssert
+  });
+  let trFunction = "";
+  let trStatus = "";
+  let reqFound = false;
+  const systemsByIndex = /* @__PURE__ */ new Map();
+  const order = [];
+  for (const line2 of transcript.raw.split("\n")) {
+    const trimmed = line2.trim();
+    const reqMatch = TRLG_REQ_RE.exec(trimmed);
+    if (reqMatch) {
+      reqFound = true;
+      trFunction = reqMatch[2];
+      trStatus = reqMatch[3];
+      continue;
+    }
+    const sysMatch = TRLG_SYS_RE.exec(trimmed);
+    if (sysMatch) {
+      const idx2 = sysMatch[1];
+      const sys = {
+        system: sysMatch[2],
+        systemText: "",
+        rc: unplaceholder(sysMatch[3]),
+        rcText: "",
+        date: sysMatch[4],
+        time: sysMatch[5],
+        sortIndex: Number(sysMatch[6]),
+        lines: []
+      };
+      systemsByIndex.set(idx2, sys);
+      order.push(idx2);
+      continue;
+    }
+    const systxtMatch = TRLG_SYSTXT_RE.exec(trimmed);
+    if (systxtMatch) {
+      const sys = systemsByIndex.get(systxtMatch[1]);
+      if (sys) sys.systemText = systxtMatch[2] ?? "";
+      continue;
+    }
+    const rctxtMatch = TRLG_RCTXT_RE.exec(trimmed);
+    if (rctxtMatch) {
+      const sys = systemsByIndex.get(rctxtMatch[1]);
+      if (sys) sys.rcText = rctxtMatch[2] ?? "";
+      continue;
+    }
+    const lineMatch = TRLG_LINE_RE.exec(trimmed);
+    if (lineMatch) {
+      const sys = systemsByIndex.get(lineMatch[1]);
+      if (sys) {
+        sys.lines.push({
+          severity: unplaceholder(lineMatch[2]),
+          msgClass: unplaceholder(lineMatch[3]),
+          msgNumber: unplaceholder(lineMatch[4]),
+          text: lineMatch[5] ?? ""
+        });
+      }
+      continue;
+    }
+  }
+  if (!reqFound) {
+    throw new AbapError(
+      "CHECK_FAILED",
+      `readTransportLog reported success for ${trkorr} but the transcript carried no ZMCP-TRLG-REQ line \u2014 the ABAP-side and TS-side parsers have drifted apart.`,
+      { trkorr, raw: transcript.raw }
+    );
+  }
+  const systems = order.map((idx2) => systemsByIndex.get(idx2));
+  return { run, transcript, trkorr, trFunction, trStatus, systems };
+}
+
+// src/adt/transport-queue.ts
+init_errors();
+var TRQU_HEAD_RE = /^ZMCP-TRQU-HEAD (\S+) (\S+) (\S+) (\S+) (\S+) (\d+)/;
+var TRQU_ROW_RE = /^ZMCP-TRQU-ROW (\S+) (\S+) (\S+) (\S+) (\S+) (\S+) (\S+)/;
+var TRQU_TEXT_RE = /^ZMCP-TRQU-TEXT (\S+) ?(.*)$/;
+function unplaceholder2(value) {
+  return value === "-" ? "" : value;
+}
+async function readImportQueueViaBridge(conn, gate, params) {
+  const system = (params.system ?? "").trim().toUpperCase();
+  if (system === "") {
+    throw new AbapError("BAD_INPUT", "system is required", { params });
+  }
+  const domain2 = (params.domain ?? "").trim().toUpperCase();
+  const beforeAssert = (transcript2) => {
+    if (transcript2.errorLine?.startsWith("cannot read the import queue of")) {
+      throw new AbapError(
+        "NOT_FOUND",
+        `Cannot read the import queue of ${system}: it is not a system this TMS domain knows about, or the domain controller could not be reached. Raw ABAP-side detail: ${transcript2.errorLine}`,
+        { system, domain: domain2, raw: transcript2.raw },
+        "TMS_MGR_READ_TRANSPORT_QUEUE raised READ_CONFIG_FAILED \u2014 check the system id (and domain, if the box's TMS domain names more than one) against STMS's system overview (TMSCSYS/TCESYST)."
+      );
+    }
+  };
+  const { run, transcript } = await runClassicAction(conn, gate, {
+    action: "read_import_queue",
+    args: { system, domain: domain2 },
+    what: `Reading the import queue of ${system}`,
+    expectTags: ["TRQU-READ"],
+    beforeAssert
+  });
+  let head;
+  const entries = [];
+  let pendingRow;
+  for (const line2 of transcript.raw.split("\n")) {
+    const trimmed = line2.trim();
+    const headMatch = TRQU_HEAD_RE.exec(trimmed);
+    if (headMatch) {
+      head = {
+        system: headMatch[1],
+        domain: unplaceholder2(headMatch[2]),
+        date: headMatch[3],
+        time: headMatch[4],
+        flag: unplaceholder2(headMatch[5])
+      };
+      continue;
+    }
+    const rowMatch = TRQU_ROW_RE.exec(trimmed);
+    if (rowMatch) {
+      if (pendingRow) entries.push(pendingRow);
+      pendingRow = {
+        position: unplaceholder2(rowMatch[1]),
+        trkorr: unplaceholder2(rowMatch[2]),
+        importFlag: unplaceholder2(rowMatch[3]),
+        maxRc: unplaceholder2(rowMatch[4]),
+        trFunction: unplaceholder2(rowMatch[5]),
+        owner: unplaceholder2(rowMatch[6]),
+        targetClient: unplaceholder2(rowMatch[7]),
+        description: ""
+      };
+      continue;
+    }
+    const textMatch = TRQU_TEXT_RE.exec(trimmed);
+    if (textMatch && pendingRow) {
+      pendingRow.description = textMatch[2] ?? "";
+      entries.push(pendingRow);
+      pendingRow = void 0;
+      continue;
+    }
+  }
+  if (pendingRow) entries.push(pendingRow);
+  if (!head) {
+    throw new AbapError(
+      "CHECK_FAILED",
+      `readImportQueue reported success for ${system} but the transcript carried no ZMCP-TRQU-HEAD line \u2014 the ABAP-side and TS-side parsers have drifted apart.`,
+      { system, domain: domain2, raw: transcript.raw }
+    );
+  }
+  return {
+    run,
+    transcript,
+    system: head.system,
+    domain: head.domain,
+    collectedDate: head.date,
+    collectedTime: head.time,
+    collectFlag: head.flag,
+    entries
+  };
+}
+
+// src/adt/transport-copies.ts
+init_errors();
+var TRTC_CREATED_RE = /^ZMCP-TRTC-CREATED (\S+) (\S+) (\S+) (\S+) (\S+) (\d+)/;
+function unplaceholder3(value) {
+  return value === "-" ? "" : value;
+}
+async function createTransportOfCopiesViaBridge(conn, gate, params, authorized) {
+  const authName = authorized.target.name.trim().toUpperCase();
+  const actualName = params.devClass.trim().toUpperCase();
+  if (authName !== actualName) {
+    throw new AbapError(
+      "SAFETY_DENIED",
+      `Internal wiring error in createTransportOfCopiesViaBridge: the AuthorizedTarget names "${authorized.target.name}", but the transport of copies is about to be created for package "${params.devClass}". An AuthorizedTarget minted for one package must never be threaded into a call that creates a request for a different one.`,
+      { authorizedName: authorized.target.name, actualName: params.devClass },
+      "This indicates a bug in the caller \u2014 mint a fresh AuthorizedTarget for the actual devClass."
+    );
+  }
+  const description = (params.description ?? "").trim();
+  if (description === "") {
+    throw new AbapError("BAD_INPUT", "description is required", { params });
+  }
+  const target = (params.target ?? "").trim().toUpperCase();
+  if (target === "") {
+    throw new AbapError(
+      "BAD_INPUT",
+      "target is required \u2014 a transport of copies with no target system can never be imported",
+      { params }
+    );
+  }
+  const devClass = (params.devClass ?? "").trim().toUpperCase();
+  if (devClass === "") {
+    throw new AbapError("BAD_INPUT", "devClass is required", { params });
+  }
+  const beforeAssert = (transcript2) => {
+    if (transcript2.errorLine?.startsWith("CTS reported success but allocated no request number")) {
+      throw new AbapError(
+        "CHECK_FAILED",
+        `TR_INSERT_REQUEST_WITH_TASKS reported success creating a transport of copies for ${devClass} \u2192 ${target} but allocated no request number. Raw ABAP-side detail: ${transcript2.errorLine}`,
+        { devClass, target, description, raw: transcript2.raw }
+      );
+    }
+    if (transcript2.errorLine?.includes("but E070 has no row for it")) {
+      throw new AbapError(
+        "CHECK_FAILED",
+        `TR_INSERT_REQUEST_WITH_TASKS allocated a request for ${devClass} \u2192 ${target} but a re-read of E070 found no row for it. Raw ABAP-side detail: ${transcript2.errorLine}`,
+        { devClass, target, description, raw: transcript2.raw }
+      );
+    }
+  };
+  const { run, transcript } = await runClassicAction(conn, gate, {
+    action: "create_transport_of_copies",
+    args: { description, target, devclass: devClass },
+    what: `Creating a transport of copies for ${devClass} targeting ${target}`,
+    expectTags: ["TRTC-CREATED"],
+    beforeAssert
+  });
+  let created;
+  for (const line2 of transcript.raw.split("\n")) {
+    const trimmed = line2.trim();
+    const match = TRTC_CREATED_RE.exec(trimmed);
+    if (match) {
+      created = {
+        run,
+        transcript,
+        trkorr: match[1],
+        trFunction: match[2],
+        trStatus: match[3],
+        target: unplaceholder3(match[4]),
+        owner: match[5],
+        tasks: Number(match[6])
+      };
+      break;
+    }
+  }
+  if (!created) {
+    throw new AbapError(
+      "CHECK_FAILED",
+      `createTransportOfCopies reported success for ${devClass} \u2192 ${target} but the transcript carried no ZMCP-TRTC-CREATED line \u2014 the ABAP-side and TS-side parsers have drifted apart.`,
+      { devClass, target, description, raw: transcript.raw }
+    );
+  }
+  return created;
+}
+
 // src/tools/transport.ts
 var transportInputSchema = {
-  operation: external_exports.enum(["list", "show", "check", "users", "create", "addUser", "setOwner", "delete", "removeObject"]).describe(
-    "What to do. create/addUser/setOwner need write access (ABAP_MODE=edit or admin, or legacy ABAP_ALLOW_WRITE=true when ABAP_MODE is unset); delete additionally needs the admin-only transport-delete ceiling (ABAP_MODE=admin \u2014 no legacy flag grants it) and confirm; removeObject (drop one E071 entry and its CTS lock, e.g. for an object already deleted from the system, so its request can then be deleted \u2014 if the object still exists, its lock goes too; CTS refuses this when the request holds 2 or more E071 rows for that object (same PGMID+OBJECT+OBJ_NAME \u2014 legal but not reliably reproducible; cause unconfirmed), leaving the request undeletable through abapsmith) needs that same admin-only transport-delete ceiling and confirm. Required args: list/users none; show transport; check object; create package+description; addUser/setOwner transport+user; delete transport+confirm; removeObject transport+object+confirm."
+  operation: external_exports.enum([
+    "list",
+    "show",
+    "check",
+    "users",
+    "log",
+    "queue",
+    "create",
+    "addUser",
+    "setOwner",
+    "delete",
+    "removeObject"
+  ]).describe(
+    `What to do. list/show/check/users/log/queue are plain reads, always allowed. log reads a transport's own export/import log (per target system); queue reads a target system's import queue/buffer. create/addUser/setOwner need write access (ABAP_MODE=edit or admin, or legacy ABAP_ALLOW_WRITE=true when ABAP_MODE is unset); create with kind="copies" (a transport of copies) needs the same write access as an ordinary create \u2014 no extra ceiling. delete additionally needs the admin-only transport-delete ceiling (ABAP_MODE=admin \u2014 no legacy flag grants it) and confirm; removeObject (drop one E071 entry and its CTS lock, e.g. for an object already deleted from the system, so its request can then be deleted \u2014 if the object still exists, its lock goes too; CTS refuses this when the request holds 2 or more E071 rows for that object (same PGMID+OBJECT+OBJ_NAME \u2014 legal but not reliably reproducible; cause unconfirmed), leaving the request undeletable through abapsmith) needs that same admin-only transport-delete ceiling and confirm. Required args: list/users none; show transport; check object; log transport; queue system; create package+description (plus target when kind="copies"); addUser/setOwner transport+user; delete transport+confirm; removeObject transport+object+confirm.`
   ),
   transport: external_exports.string().optional().describe(
-    "Request/task number, e.g. A4HK900123. Required for operation=show/addUser/setOwner/delete/removeObject."
+    "Request/task number, e.g. A4HK900123. Required for operation=show/addUser/setOwner/delete/removeObject and for operation=log."
   ),
   user: external_exports.string().optional().describe(
     "User: filter for list, new member/owner otherwise. Required for operation=addUser/setOwner."
   ),
   object: external_exports.string().optional().describe(
-    "Object name. Required for operation=check, and for operation=removeObject (the entry to remove). Optional anchor for create."
+    'Object name. Required for operation=check, and for operation=removeObject (the entry to remove). Optional anchor for create with kind="workbench" (the default); not accepted for create with kind="copies" \u2014 a transport of copies is created empty.'
   ),
   package: external_exports.string().optional().describe("Development package (devclass). Required for operation=create."),
   description: external_exports.string().optional().describe("Short text for the new request, max 60 chars. Required for operation=create."),
+  kind: external_exports.enum(["workbench", "copies"]).optional().describe(
+    'Which kind of request operation="create" should create. "workbench" (the default) is a normal transportable change request created through ADT. "copies" is a transport of copies, which carries a snapshot of objects to a target system while leaving the originals modifiable in this system and their original request untouched. kind="copies" requires target.'
+  ),
+  target: external_exports.string().optional().describe(
+    'Target system for operation="create" with kind="copies", e.g. A4H. A transport of copies with no target cannot be imported anywhere, so abapsmith refuses to create one.'
+  ),
+  system: external_exports.string().optional().describe(
+    'Target system whose import queue to read, e.g. QAS. Required for operation="queue".'
+  ),
+  domain: external_exports.string().optional().describe(
+    "TMS transport domain of system, e.g. DOMAIN_A4H. Optional; TMS resolves the local domain when omitted."
+  ),
   confirm: external_exports.string().optional().describe("Echo the request number to arm delete or removeObject.")
 };
 var TransportInput = external_exports.object(transportInputSchema);
@@ -127392,7 +132392,7 @@ var transportReleaseInputSchema = {
   )
 };
 var TransportReleaseInput = external_exports.object(transportReleaseInputSchema);
-var TRANSPORT_TOOL_DESCRIPTION = "Inspect and manage CTS transport requests: list, show, check (does an object need a transport?), users, create, addUser, setOwner, delete, removeObject (drop one E071 entry and its CTS lock so its request can then be deleted \u2014 if the object still exists, its lock goes too, and CTS refuses this for some entries, leaving the request undeletable). Reads are always allowed; mutating operations obey the write allowlists. Release is a separate tool, abap_transport_release.";
+var TRANSPORT_TOOL_DESCRIPTION = `Inspect and manage CTS transport requests: list, show, check (does an object need a transport?), users, log (a transport's own export/import log, per target system \u2014 a request that has never been exported legitimately has zero log lines; that is not a failure), queue (a target system's import queue/buffer \u2014 the requests waiting to be imported there; an already-imported request has left the buffer, so absence alone does not prove a change never arrived), create (kind="workbench", the default, or kind="copies" for a transport of copies \u2014 a snapshot sent to a target system that leaves the originals and their own request untouched; requires target), addUser, setOwner, delete, removeObject (drop one E071 entry and its CTS lock so its request can then be deleted \u2014 if the object still exists, its lock goes too, and CTS refuses this for some entries, leaving the request undeletable). list/show/check/users/log/queue are plain reads, always allowed; create/addUser/setOwner need write access; delete/removeObject additionally need the admin-only transport-delete ceiling. Release is a separate tool, abap_transport_release.`;
 var TRANSPORT_RELEASE_TOOL_DESCRIPTION = "Release one CTS transport request \u2014 irreversible. Gated by a release ceiling separate from ordinary write access; see abapsmith-orient. A request this session did not create is refused unless confirm_unowned is also passed.";
 function fmtTarget(h) {
   const t = (h.target ?? "").trim();
@@ -127647,12 +132647,12 @@ async function recordMutation(j, spec, verdict) {
 }
 async function abapTransport(conn, input, maxChars, gate, journal, ownership) {
   switch (input.operation) {
-    // `show`/`check`/`users` are reads — journalling those would stop the
-    // journal from being a record of what changed. `list` is almost a read
-    // too: `opList` may create a search configuration (a real write) to see
-    // Modifiable requests, but that isn't a TRKORR-identified object, so it's
-    // never routed through `recordMutation` — it's surfaced in the response's
-    // `notes` instead.
+    // `show`/`check`/`users`/`log`/`queue` are reads — journalling those
+    // would stop the journal from being a record of what changed. `list` is
+    // almost a read too: `opList` may create a search configuration (a real
+    // write) to see Modifiable requests, but that isn't a TRKORR-identified
+    // object, so it's never routed through `recordMutation` — it's surfaced
+    // in the response's `notes` instead.
     case "list":
       return await opList(conn, input, maxChars, gate, journal);
     case "show":
@@ -127661,6 +132661,10 @@ async function abapTransport(conn, input, maxChars, gate, journal, ownership) {
       return await opCheck(conn, input, maxChars);
     case "users":
       return await opUsers(conn, maxChars);
+    case "log":
+      return await opLog(conn, gate, input, maxChars);
+    case "queue":
+      return await opQueue(conn, gate, input, maxChars);
     case "create":
       return await opCreate(conn, input, maxChars, gate, journal, ownership);
     case "addUser":
@@ -127915,6 +132919,145 @@ async function opCheck(conn, input, maxChars) {
     maxChars
   });
 }
+function requireTransportArg(value, operation) {
+  const raw = (value ?? "").trim().toUpperCase();
+  if (raw === "") {
+    throw new AbapError(
+      "BAD_INPUT",
+      `Operation "${operation}" needs "transport" (a request/task number, e.g. A4HK900123).`,
+      { operation, arg: "transport" }
+    );
+  }
+  return raw;
+}
+var TRFUNCTION_LABELS = {
+  K: "workbench request",
+  W: "customizing request",
+  T: "transport of copies",
+  C: "relocation of objects without package change",
+  O: "relocation of objects with package change",
+  E: "relocation of a complete package",
+  S: "development/correction task",
+  R: "repair task",
+  X: "unclassified task",
+  Q: "customizing task",
+  G: "piece list (CTS project)",
+  D: "piece list (upgrade)"
+};
+var TRSTATUS_LABELS = {
+  D: "modifiable",
+  L: "modifiable, protected",
+  O: "release started",
+  R: "released",
+  N: "released, with import protection for repaired objects"
+};
+function fmtCodeWithLabel(raw, labels) {
+  const code = raw.trim();
+  if (code === "") return "(empty)";
+  const label = labels[code.toUpperCase()];
+  return label ? `${label} (${code})` : code;
+}
+function fmtTrFunction(raw) {
+  return fmtCodeWithLabel(raw, TRFUNCTION_LABELS);
+}
+function fmtTrStatus(raw) {
+  return fmtCodeWithLabel(raw, TRSTATUS_LABELS);
+}
+async function opLog(conn, gate, input, maxChars) {
+  const trkorr = requireTransportArg(input.transport, "log");
+  const result = await readTransportLogViaBridge(conn, gate, { trkorr });
+  const sections = [];
+  for (const sys of result.systems) {
+    const date5 = (sys.date ?? "").trim();
+    const collected = date5 === "" || date5 === "00000000" ? "never imported" : `${date5} ${sys.time}`;
+    const rc = (sys.rc ?? "").trim();
+    const rcLine = rc === "" ? "no return code yet" : rc + (sys.rcText ? ` (${sys.rcText})` : "");
+    const head = [
+      `System: ${sys.system}${sys.systemText ? ` \u2014 ${sys.systemText}` : ""}`,
+      `Return code: ${rcLine}`,
+      `Collected: ${collected}`
+    ].join("\n");
+    let body;
+    if (sys.lines.length === 0) {
+      body = head + "\n\nNo log lines recorded for this system. That is the normal answer, not a failure, for a request that has not been exported yet: the log file is written by tp at export time, so a modifiable or never-exported request legitimately has an overview row and zero log lines (observed live on A4H on 2026-09-15, for every request tried).";
+    } else {
+      body = head + "\n\n" + textTable(
+        sys.lines.map((l) => ({
+          severity: l.severity,
+          class: l.msgClass,
+          number: l.msgNumber,
+          text: l.text
+        })),
+        ["severity", "class", "number", "text"]
+      );
+    }
+    sections.push({ title: `SYSTEM ${sys.system}`, content: body });
+  }
+  const notes = [];
+  if (result.systems.length === 0) {
+    notes.push(`${result.trkorr} reports no log systems at all \u2014 it may have no log overview yet.`);
+  }
+  return buildResponse({
+    header: {
+      operation: "log",
+      transport: result.trkorr,
+      trFunction: fmtTrFunction(result.trFunction),
+      trStatus: fmtTrStatus(result.trStatus),
+      systems: result.systems.length
+    },
+    sections,
+    notes,
+    maxChars
+  });
+}
+async function opQueue(conn, gate, input, maxChars) {
+  const system = required2(input.system, "system", "queue").toUpperCase();
+  const domain2 = (input.domain ?? "").trim();
+  const result = await readImportQueueViaBridge(conn, gate, {
+    system,
+    ...domain2 === "" ? {} : { domain: domain2 }
+  });
+  const sections = [];
+  if (result.entries.length > 0) {
+    sections.push({
+      title: "QUEUE",
+      content: textTable(
+        result.entries.map((e) => ({
+          position: e.position,
+          request: e.trkorr,
+          importFlag: e.importFlag,
+          maxRc: e.maxRc,
+          function: e.trFunction,
+          owner: e.owner,
+          client: e.targetClient,
+          description: e.description
+        })),
+        ["position", "request", "importFlag", "maxRc", "function", "owner", "client", "description"]
+      )
+    });
+  }
+  const notes = [];
+  if (result.entries.length === 0) {
+    notes.push(
+      `The import queue for ${result.system} is EMPTY \u2014 no requests are waiting to be imported. This is the current state of the target system's buffer, not an error and not a failed read.`
+    );
+  }
+  notes.push(
+    `The queue IS the import buffer, not a history: a request that has already been imported has left the buffer, so its absence here does not by itself prove the change never reached ${result.system} \u2014 check the request's own log (operation "log") for that.`
+  );
+  return buildResponse({
+    header: {
+      operation: "queue",
+      system: result.system,
+      domain: result.domain.trim() === "" ? "(local domain)" : result.domain,
+      collected: `${result.collectedDate} ${result.collectedTime}`.trim(),
+      entries: result.entries.length
+    },
+    sections,
+    notes,
+    maxChars
+  });
+}
 async function recoverPossiblyCreated(conn, description) {
   try {
     const user = (conn.cfg.user ?? "").trim();
@@ -127970,6 +133113,19 @@ async function opCreate(conn, input, maxChars, gate, journal, ownership) {
     { name: devClass, packageName: devClass },
     { corr: { kind: "unresolved" } }
   );
+  if (input.kind === "copies") {
+    return await createCopies(
+      conn,
+      gate,
+      maxChars,
+      journal,
+      ownership,
+      input,
+      devClass,
+      description,
+      authorized
+    );
+  }
   const anchor = (input.object ?? "").trim();
   const objSourceUrl = anchor === "" ? `/sap/bc/adt/packages/${encodeURIComponent(devClass.toLowerCase())}` : (await resolveObject(conn, anchor)).uri;
   let created;
@@ -128023,6 +133179,131 @@ async function opCreate(conn, input, maxChars, gate, journal, ownership) {
       reference: objSourceUrl
     },
     notes,
+    maxChars
+  });
+}
+async function recoverPossiblyCreatedCopies(conn, description, target) {
+  try {
+    const user = (conn.cfg.user ?? "").trim();
+    const res = await trList(conn, user ? { user } : {});
+    return res.workbench.filter((r) => r.kind === "transport-of-copies" && r.status === "modifiable").filter((r) => r.description === description && (r.target ?? "").toUpperCase() === target).map((r) => r.trkorr);
+  } catch {
+    return [];
+  }
+}
+async function createCopies(conn, gate, maxChars, journal, ownership, input, devClass, description, authorized) {
+  const target = (input.target ?? "").trim().toUpperCase();
+  if (target === "") {
+    throw new AbapError(
+      "BAD_INPUT",
+      'Operation "create" with kind "copies" needs "target": a transport of copies with no target cannot be imported anywhere, so abapsmith refuses to create one.',
+      { operation: "create", kind: "copies", arg: "target" }
+    );
+  }
+  const anchor = (input.object ?? "").trim();
+  if (anchor !== "") {
+    throw new AbapError(
+      "BAD_INPUT",
+      'Operation "create" with kind "copies" does not take "object": a transport of copies is created empty and objects are added to it afterwards, so the anchor object a workbench create uses does not apply here.',
+      { operation: "create", kind: "copies", arg: "object" }
+    );
+  }
+  let copies;
+  try {
+    copies = await createTransportOfCopiesViaBridge(
+      conn,
+      gate,
+      { description, target, devClass },
+      authorized
+    );
+  } catch (e) {
+    const candidates = await recoverPossiblyCreatedCopies(conn, description, target);
+    if (candidates.length === 1) {
+      const candidate = candidates[0];
+      ownership?.noteCreated(candidate);
+      await recordMutation(
+        journal,
+        {
+          operation: "transport-create",
+          trkorr: candidate,
+          description,
+          package: devClass,
+          existedBefore: false,
+          tool: "abap_transport create kind=copies"
+        },
+        {
+          kind: "unproven",
+          reason: `createTransportOfCopiesViaBridge failed (${e instanceof Error ? e.message : String(e)}), but a modifiable transport of copies matching this call's description and target already exists on ${conn.cfg.sid}: ${candidate}.`
+        }
+      );
+    }
+    const originalDetails = e instanceof AbapError ? e.details : {};
+    const code = e instanceof AbapError ? e.code : "TRANSPORT_ERROR";
+    const cause = e instanceof Error ? e.message : String(e);
+    const sid = conn.cfg.sid;
+    const n = candidates.length;
+    if (n === 0) {
+      throw new AbapError(
+        code,
+        `Creating a transport of copies for ${devClass} \u2192 ${target} failed: ${cause}`,
+        {
+          ...originalDetails,
+          operation: "create",
+          kind: "copies",
+          package: devClass,
+          target,
+          description
+        }
+      );
+    }
+    const list3 = candidates.join(", ");
+    const first = candidates[0];
+    throw new AbapError(
+      code,
+      `Creating a transport of copies for ${devClass} \u2192 ${target} failed, but ${n === 1 ? "a modifiable transport of copies that matches this create already exists" : `${n} modifiable transports of copies that match this create already exist`} on ${sid}: ${list3}. abapsmith cannot prove ${n === 1 ? "it came" : "they came"} from this call \u2014 but a create that fails AFTER the server has already acted looks exactly like this, so do NOT treat this as "nothing happened". The original failure was: ${cause}`,
+      {
+        ...originalDetails,
+        possiblyCreated: candidates,
+        operation: "create",
+        kind: "copies",
+        package: devClass,
+        target,
+        description
+      },
+      `Check before creating another: abap_transport operation="show" transport="${first}" tells you what ${first} actually is.`
+    );
+  }
+  ownership?.noteCreated(copies.trkorr);
+  await recordMutation(
+    journal,
+    {
+      operation: "transport-create",
+      trkorr: copies.trkorr,
+      description,
+      package: devClass,
+      existedBefore: false,
+      tool: "abap_transport create kind=copies"
+    },
+    { kind: "succeeded" }
+  );
+  return buildResponse({
+    header: {
+      operation: "create",
+      kind: categoryTitle("transportOfCopies"),
+      transport: copies.trkorr,
+      trFunction: fmtTrFunction(copies.trFunction),
+      trStatus: fmtTrStatus(copies.trStatus),
+      package: devClass,
+      description,
+      target: copies.target,
+      owner: copies.owner,
+      tasks: copies.tasks
+    },
+    notes: [
+      `Created ${copies.trkorr}, a TRANSPORT OF COPIES targeting ${copies.target}. It was created empty; add objects to it the same way as any other request, then pass it as the transport on writes whose changes should be copied there.`,
+      "The objects' original request is untouched and they stay modifiable in this system \u2014 a transport of copies carries a snapshot to the target; it does not move or freeze the originals.",
+      "A transport of copies has no tasks (observed live on A4H on 2026-09-15: zero task headers)."
+    ],
     maxChars
   });
 }
@@ -129257,8 +134538,8 @@ var ELEMENT_TAG = {
   alternativeKey: "bo:alternativeKeys"
 };
 function bareName(qualifiedName) {
-  const idx = qualifiedName.indexOf(":");
-  return idx === -1 ? qualifiedName : qualifiedName.slice(idx + 1);
+  const idx2 = qualifiedName.indexOf(":");
+  return idx2 === -1 ? qualifiedName : qualifiedName.slice(idx2 + 1);
 }
 function findNodeToken(tokens, name, nodeId) {
   return tokens.find(
@@ -129309,9 +134590,9 @@ function insertionPoint(tokens, nodeTok, kind) {
   for (const t of tokens) {
     if (t.depth !== nodeTok.depth + 1) continue;
     if (t.openStart <= nodeTok.openStart || t.openStart >= nodeTok.closeEnd) continue;
-    const idx = NODE_CHILD_ORDER.indexOf(bareName(t.name));
-    if (idx === -1) continue;
-    if (idx <= targetIdx) insertAt = t.closeEnd;
+    const idx2 = NODE_CHILD_ORDER.indexOf(bareName(t.name));
+    if (idx2 === -1) continue;
+    if (idx2 <= targetIdx) insertAt = t.closeEnd;
     else break;
   }
   return insertAt;
@@ -129394,9 +134675,9 @@ function spliceSetElementRef(xml3, tokens, ownerToken, refTag, ref2, childOrder)
   for (const t of tokens) {
     if (t.depth !== ownerToken.depth + 1) continue;
     if (t.openStart <= ownerToken.openStart || t.openStart >= ownerToken.closeEnd) continue;
-    const idx = childOrder.indexOf(bareName(t.name));
-    if (idx === -1) continue;
-    if (idx <= targetIdx) insertAt = t.closeEnd;
+    const idx2 = childOrder.indexOf(bareName(t.name));
+    if (idx2 === -1) continue;
+    if (idx2 <= targetIdx) insertAt = t.closeEnd;
     else break;
   }
   return splice(xml3, insertAt, fragment);
@@ -133589,7 +138870,7 @@ init_errors();
 
 // src/adt/bopf-runtime.ts
 init_errors();
-import { createHash as createHash8 } from "node:crypto";
+import { createHash as createHash9 } from "node:crypto";
 function constantsInterfaceName(model) {
   const name = model.constantsInterfaceRef?.name;
   if (!name) {
@@ -133635,7 +138916,7 @@ function bopfBridgeClassName(bo) {
   const safe = canon.replace(/[^A-Z0-9_]/g, "_");
   const budget = MAX_NAME - BOPF_BRIDGE_CLASS_PREFIX.length;
   if (safe.length <= budget && safe === canon) return BOPF_BRIDGE_CLASS_PREFIX + safe;
-  const hash2 = createHash8("sha256").update(canon, "utf8").digest("hex").slice(0, HASH_LEN2).toUpperCase();
+  const hash2 = createHash9("sha256").update(canon, "utf8").digest("hex").slice(0, HASH_LEN2).toUpperCase();
   const keep = safe.slice(0, budget - HASH_LEN2 - 1);
   return `${BOPF_BRIDGE_CLASS_PREFIX}${keep}_${hash2}`;
 }
@@ -134787,23 +140068,23 @@ function classifyHandler(eventId, target, ctx) {
   };
 }
 function buildTextIndex(frames) {
-  const idx = /* @__PURE__ */ new Map();
+  const idx2 = /* @__PURE__ */ new Map();
   for (const f of frames) {
     const key = `${normKey(f.config_id, f.config_type, f.config_var)} ${f.text_id}`;
-    let entry = idx.get(key);
+    let entry = idx2.get(key);
     if (!entry) {
       entry = { byLangu: /* @__PURE__ */ new Map(), order: [] };
-      idx.set(key, entry);
+      idx2.set(key, entry);
     }
     if (!entry.byLangu.has(f.langu)) {
       entry.byLangu.set(f.langu, f.description);
       entry.order.push(f.langu);
     }
   }
-  return idx;
+  return idx2;
 }
-function resolveTextId(idx, configId, configType, configVar, textId, logonLangu) {
-  const entry = idx.get(`${normKey(configId, configType, configVar)} ${textId}`);
+function resolveTextId(idx2, configId, configType, configVar, textId, logonLangu) {
+  const entry = idx2.get(`${normKey(configId, configType, configVar)} ${textId}`);
   if (!entry) return void 0;
   if (logonLangu && entry.byLangu.has(logonLangu)) return entry.byLangu.get(logonLangu);
   if (entry.byLangu.has("E")) return entry.byLangu.get("E");
@@ -135335,7 +140616,7 @@ async function runFpmRead(conn, query, gate) {
 
 // src/adt/fpm-lock.ts
 init_errors();
-import { createHash as createHash9 } from "node:crypto";
+import { createHash as createHash10 } from "node:crypto";
 var CONFIG_TYPE_LEN = 2;
 var CONFIG_VAR_LEN = 6;
 function assertLockConfigType(value) {
@@ -135515,12 +140796,12 @@ function lockDiscriminator(q) {
     kind: q.key.kind,
     label,
     // Body's own hash: differing ABAP gets a differing bridge class.
-    body: createHash9("sha256").update(body, "utf8").digest("hex")
+    body: createHash10("sha256").update(body, "utf8").digest("hex")
   });
 }
 function fpmLockBridgeClassName(q) {
   const hashHexLen = MAX_NAME - FPM_LOCK_BRIDGE_CLASS_PREFIX.length;
-  const hash2 = createHash9("sha256").update(lockDiscriminator(q), "utf8").digest("hex").slice(0, hashHexLen).toUpperCase();
+  const hash2 = createHash10("sha256").update(lockDiscriminator(q), "utf8").digest("hex").slice(0, hashHexLen).toUpperCase();
   return `${FPM_LOCK_BRIDGE_CLASS_PREFIX}${hash2}`;
 }
 function abapLiteral2(value, what) {
@@ -135579,7 +140860,7 @@ function wrapAbapTemplateLines(text5, indent, what) {
   }
   fragments.push(current);
   return fragments.map(
-    (frag, idx) => idx === fragments.length - 1 ? `${indent}|${frag}|` : `${indent}|${frag} | &&`
+    (frag, idx2) => idx2 === fragments.length - 1 ? `${indent}|${frag}|` : `${indent}|${frag} | &&`
   );
 }
 function emitWrappedGuardDetail(text5, indent, what) {
@@ -137328,14 +142609,14 @@ async function readImgTree(conn, q) {
   const ordered = orderImgTreeSiblings(rawSiblings);
   let startIdx = 0;
   if (q.after !== void 0) {
-    const idx = ordered.findIndex((s) => s.nodeId === q.after);
-    if (idx === -1) {
+    const idx2 = ordered.findIndex((s) => s.nodeId === q.after);
+    if (idx2 === -1) {
       throw new AbapError("BAD_INPUT", `after cursor "${q.after}" is not one of parent "${parentId2}"'s children.`, {
         after: q.after,
         parentId: parentId2
       });
     }
-    startIdx = idx + 1;
+    startIdx = idx2 + 1;
   }
   const pageSiblings = ordered.slice(startIdx, startIdx + limit);
   const more = startIdx + limit < ordered.length;
@@ -137928,7 +143209,7 @@ function renderShow(query, result, maxChars) {
     maxChars
   }).text;
 }
-function renderTree(query, result, maxChars) {
+function renderTree2(query, result, maxChars) {
   const t = result.transcript;
   const notes = standingNotes();
   const rows = t.nodes.map((n) => ({
@@ -138000,7 +143281,7 @@ function renderResult(query, result, maxChars) {
     case "show":
       return renderShow(query, result, maxChars);
     case "tree":
-      return renderTree(query, result, maxChars);
+      return renderTree2(query, result, maxChars);
     case "objects":
       return renderObjects(query, result, maxChars);
   }
@@ -140124,7 +145405,7 @@ init_errors();
 
 // src/adt/ui-runtime.ts
 init_errors();
-import { createHash as createHash10 } from "node:crypto";
+import { createHash as createHash11 } from "node:crypto";
 
 // src/adt/ui-fcode.ts
 function isRecord2(v) {
@@ -140277,7 +145558,7 @@ function stripAbapComment(line2) {
   }
   return line2;
 }
-function splitStatements3(lines) {
+function splitStatements4(lines) {
   const stmts = [];
   let buf = "";
   let startLine = null;
@@ -140443,8 +145724,8 @@ function buildRead(object3, program, lineFrom, lineTo) {
 }
 function parseWhenLiterals(whenNorm) {
   const body = whenNorm.replace(/^when\s+/i, "");
-  const quoted2 = [...body.matchAll(/'([^']*)'/g)].map((m) => m[1] ?? "");
-  if (quoted2.length > 0) return quoted2;
+  const quoted3 = [...body.matchAll(/'([^']*)'/g)].map((m) => m[1] ?? "");
+  if (quoted3.length > 0) return quoted3;
   if (/^others\b/i.test(body.trim())) return ["OTHERS"];
   return [];
 }
@@ -140573,7 +145854,7 @@ function analyzeFcodes(raw, opts) {
         if (t !== void 0) lines.push({ line: ln, text: t });
       }
     }
-    const stmts = splitStatements3(lines);
+    const stmts = splitStatements4(lines);
     const analysis = analyzeModuleBody(pai.name, frame.include, program, frame.lineFrom, frame.lineTo, stmts);
     for (const n of analysis.remapNotes) notes.push(n);
     resolved.push({ pai, frame, analysis });
@@ -140866,7 +146147,7 @@ function discriminator(q) {
 function uiBridgeClassName(q) {
   validateQuery(q);
   const hashHexLen = MAX_NAME - UI_BRIDGE_CLASS_PREFIX.length;
-  const hash2 = createHash10("sha256").update(discriminator(q), "utf8").digest("hex").slice(0, hashHexLen).toUpperCase();
+  const hash2 = createHash11("sha256").update(discriminator(q), "utf8").digest("hex").slice(0, hashHexLen).toUpperCase();
   return `${UI_BRIDGE_CLASS_PREFIX}${hash2}`;
 }
 var UI_LINE_PREFIX = "UI> ";
@@ -141277,6 +146558,279 @@ async function runUiPressBridge(conn, query, gate) {
 // src/tools/ui.ts
 init_compact();
 init_safety();
+
+// src/tools/ui-layout.ts
+var LAYOUT_FIDELITY_NOTE = "this is the DESIGN-TIME layout from RPY_DYNPRO_READ, not a runtime screenshot. Text filled at PBO, dynamic MODIFY SCREEN attributes, table-control column widths, and subscreen/step-loop heights are not in D021S. Positions are approximate: overlapping elements are shifted right to keep them visible.";
+var HEX_RE = /^[0-9A-Fa-f]{1,4}$/;
+var DEC_RE = /^\d{1,4}$/;
+function hex3(row2, key) {
+  const v = row2[key];
+  if (v === void 0 || !HEX_RE.test(v)) return 0;
+  return parseInt(v, 16);
+}
+function dec2(v) {
+  if (v === void 0 || !DEC_RE.test(v)) return void 0;
+  return parseInt(v, 10);
+}
+function str5(row2, key) {
+  return row2[key] ?? "";
+}
+function idx(oneBased) {
+  return oneBased === 0 ? 0 : oneBased - 1;
+}
+function clamp(v, lo, hi) {
+  return Math.min(hi, Math.max(lo, v));
+}
+function decodeStxt(raw) {
+  let s = raw;
+  if (s.startsWith("@")) {
+    const closing = s.indexOf("@", 1);
+    if (closing !== -1) s = s.slice(closing + 1);
+  }
+  s = s.replace(/_+$/, "");
+  s = s.replace(/_/g, " ");
+  return s.trimEnd();
+}
+function buildGrid(width, height) {
+  return Array.from({ length: Math.max(0, height) }, () => new Array(width).fill(" "));
+}
+function writeSpan(grid, row2, col, text5, width) {
+  if (row2 < 0 || row2 >= grid.length) return;
+  const line2 = grid[row2];
+  if (!line2) return;
+  let c = col;
+  for (let i = 0; i < text5.length; i++) {
+    if (c >= width) {
+      const last = width - 1;
+      if (last >= 0 && last < line2.length) line2[last] = ">";
+      return;
+    }
+    if (c >= 0) line2[c] = text5[i] ?? " ";
+    c++;
+  }
+}
+function markOccupied(occ, col, len, width) {
+  for (let c = Math.max(0, col); c < col + len && c < width; c++) occ.add(c);
+}
+function renderEmptyFill(row2, fnam) {
+  const stxt = str5(row2, "stxt");
+  const flg1 = hex3(row2, "flg1");
+  if ((flg1 & 128) === 0) {
+    return decodeStxt(stxt) || `?${fnam}?`;
+  }
+  const grp3 = str5(row2, "grp3");
+  if (grp3 === "TXT" || grp3 === "COM" || grp3 === "TOT") {
+    return decodeStxt(stxt) || `?${fnam}?`;
+  }
+  if (stxt !== "" && /^_+$/.test(stxt)) {
+    const width = Math.max(hex3(row2, "leng"), 1);
+    const ch = (flg1 & 33) === 1 ? "." : "_";
+    return ch.repeat(width);
+  }
+  return decodeStxt(stxt) || `?${fnam}?`;
+}
+function renderNonEmptyFill(row2, fnam, fill) {
+  switch (fill) {
+    case "C": {
+      const t = decodeStxt(str5(row2, "stxt"));
+      return `[ ] ${t || fnam}`;
+    }
+    case "A": {
+      const t = decodeStxt(str5(row2, "stxt"));
+      return `( ) ${t || fnam}`;
+    }
+    case "P": {
+      const t = decodeStxt(str5(row2, "stxt"));
+      return `[ ${t || fnam} ]`;
+    }
+    case "I":
+      return `[tabstrip: ${fnam}]`;
+    default:
+      return `?${fnam}?`;
+  }
+}
+function frameTopEdge(width, title) {
+  if (title === "") return "+" + "-".repeat(Math.max(0, width - 2)) + "+";
+  const prefix = `+- ${title} `;
+  const dashes = "-".repeat(Math.max(0, width - prefix.length - 1));
+  return prefix + dashes + "+";
+}
+function frameBox(row2, bottomLine) {
+  const topLine = hex3(row2, "line");
+  const colHex = hex3(row2, "coln");
+  const width = hex3(row2, "leng");
+  const col = idx(colHex);
+  const fnam = str5(row2, "fnam");
+  const title = decodeStxt(str5(row2, "stxt")) || fnam;
+  const rows = [{ line: idx(topLine), col, text: frameTopEdge(width, title) }];
+  for (let l = topLine + 1; l < bottomLine; l++) {
+    rows.push({ line: idx(l), col, text: "|" });
+    rows.push({ line: idx(l), col: col + width - 1, text: "|" });
+  }
+  rows.push({ line: idx(bottomLine), col, text: "+" + "-".repeat(Math.max(0, width - 2)) + "+" });
+  return rows;
+}
+function resolveFrameBottom(topLine, allFrameLines, maxDrawnLine) {
+  let next = Infinity;
+  for (const l of allFrameLines) {
+    if (l > topLine && l < next) next = l;
+  }
+  const bottom = Number.isFinite(next) ? next - 1 : maxDrawnLine;
+  return Math.max(bottom, topLine + 1);
+}
+function tableControlBox(anchor, members) {
+  const fnam = str5(anchor, "fnam");
+  const line2 = idx(hex3(anchor, "line"));
+  const col = idx(hex3(anchor, "coln"));
+  const width = Math.max(hex3(anchor, "leng"), 12);
+  const titleMember = members.find((m) => str5(m, "fnam").startsWith("%") && hex3(m, "fmb2") === 64);
+  const title = titleMember ? decodeStxt(str5(titleMember, "stxt")) : "";
+  const headers = members.filter((m) => str5(m, "fnam").startsWith("%") && hex3(m, "fmb2") === 128).slice().sort((a, b) => hex3(a, "coln") - hex3(b, "coln")).map((m) => decodeStxt(str5(m, "stxt")));
+  const row1Body = `+- table control: ${fnam}` + (title ? ` "${title}"` : "") + " ";
+  const row1 = row1Body + "-".repeat(Math.max(0, width - row1Body.length - 1)) + "+";
+  const row2Body = "| " + headers.join(" | ");
+  const row2 = row2Body + " ".repeat(Math.max(0, width - row2Body.length - 1)) + "|";
+  const row3 = "|" + " ".repeat(Math.max(0, width - 2)) + "|";
+  const row4 = "+" + "-".repeat(Math.max(0, width - 2)) + "+";
+  return [row1, row2, row3, row4].map((text5, i) => ({ line: line2 + i, col, text: text5 }));
+}
+function subscreenBox(row2) {
+  const fnam = str5(row2, "fnam");
+  const line2 = idx(hex3(row2, "line"));
+  const col = idx(hex3(row2, "coln"));
+  const lengHex = hex3(row2, "leng");
+  const width = Math.max(lengHex, 20);
+  const row1Body = `+- subscreen: ${fnam} (${lengHex} cols) `;
+  const row1 = row1Body + "-".repeat(Math.max(0, width - row1Body.length - 1)) + "+";
+  const row22 = "|" + " ".repeat(Math.max(0, width - 2)) + "|";
+  const row3 = "+" + "-".repeat(Math.max(0, width - 2)) + "+";
+  return [row1, row22, row3].map((text5, i) => ({ line: line2 + i, col, text: text5 }));
+}
+function compareDrawItems(a, b) {
+  if (a.lineHex !== b.lineHex) return a.lineHex - b.lineHex;
+  if (a.colHex !== b.colHex) return a.colHex - b.colHex;
+  return a.fnam < b.fnam ? -1 : a.fnam > b.fnam ? 1 : 0;
+}
+function isTableMember(row2, anchorLanfs) {
+  const lanf = hex3(row2, "lanf");
+  if (lanf === 0) return false;
+  if (str5(row2, "fill") === "T") return false;
+  return anchorLanfs.has(lanf);
+}
+function buildDrawItems(topLevel, drawable, anchorLanfs) {
+  const items2 = [];
+  for (const row2 of topLevel) {
+    const fill = str5(row2, "fill");
+    if (fill === "R") continue;
+    const fnam = str5(row2, "fnam");
+    const lineHex = hex3(row2, "line");
+    const colHex = hex3(row2, "coln");
+    if (fill === "T") {
+      const lanf = hex3(row2, "lanf");
+      const members = drawable.filter((r) => isTableMember(r, anchorLanfs) && hex3(r, "lanf") === lanf);
+      items2.push({ kind: "box", lineHex, colHex, fnam, rows: tableControlBox(row2, members) });
+      continue;
+    }
+    if (fill === "B") {
+      items2.push({ kind: "box", lineHex, colHex, fnam, rows: subscreenBox(row2) });
+      continue;
+    }
+    const text5 = fill === "" ? renderEmptyFill(row2, fnam) : renderNonEmptyFill(row2, fnam, fill);
+    items2.push({ kind: "line", lineHex, colHex, col: idx(colHex), fnam, text: text5 });
+  }
+  return items2;
+}
+function placeDrawItems(grid, items2, width) {
+  const occupiedByLine = /* @__PURE__ */ new Map();
+  const occFor = (line2) => {
+    let occ = occupiedByLine.get(line2);
+    if (!occ) {
+      occ = /* @__PURE__ */ new Set();
+      occupiedByLine.set(line2, occ);
+    }
+    return occ;
+  };
+  for (const item of items2) {
+    if (item.kind === "line") {
+      const rowIdx = idx(item.lineHex);
+      const occ = occFor(rowIdx);
+      let c = item.col;
+      while (occ.has(c)) c++;
+      writeSpan(grid, rowIdx, c, item.text, width);
+      markOccupied(occ, c, item.text.length, width);
+    } else {
+      for (const r of item.rows) {
+        writeSpan(grid, r.line, r.col, r.text, width);
+        markOccupied(occFor(r.line), r.col, r.text.length, width);
+      }
+    }
+  }
+}
+var GRID_MAX_ROWS = 300;
+function buildGridLines(header, fields) {
+  const width = clamp(dec2(header?.columns) ?? 132, 40, 255);
+  const drawable = fields.filter((r) => hex3(r, "line") !== 255);
+  const anchorLanfs = new Set(
+    drawable.filter((r) => str5(r, "fill") === "T").map((r) => hex3(r, "lanf"))
+  );
+  const topLevel = drawable.filter((r) => !isTableMember(r, anchorLanfs));
+  const maxDrawnLine = topLevel.reduce((m, r) => Math.max(m, hex3(r, "line")), 0);
+  const headerLines = dec2(header?.lines);
+  const rawHeight = headerLines === void 0 || headerLines === 0 ? maxDrawnLine : headerLines;
+  const height = Math.min(rawHeight, GRID_MAX_ROWS);
+  const cutNote = headerLines !== void 0 && headerLines > GRID_MAX_ROWS ? `(grid cut to ${GRID_MAX_ROWS} rows; RPY_DYHEAD reports ${headerLines})` : void 0;
+  const grid = buildGrid(width, height);
+  const frameRows = topLevel.filter((r) => str5(r, "fill") === "R").slice().sort((a, b) => hex3(a, "line") - hex3(b, "line") || hex3(a, "coln") - hex3(b, "coln"));
+  const frameLines = frameRows.map((r) => hex3(r, "line"));
+  for (const frame of frameRows) {
+    const topLine = hex3(frame, "line");
+    const bottom = resolveFrameBottom(topLine, frameLines, maxDrawnLine);
+    for (const r of frameBox(frame, bottom)) writeSpan(grid, r.line, r.col, r.text, width);
+  }
+  const items2 = buildDrawItems(topLevel, drawable, anchorLanfs).sort(compareDrawItems);
+  placeDrawItems(grid, items2, width);
+  const lines = grid.map((row2) => row2.join("").replace(/[ \t]+$/, ""));
+  while (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
+  return cutNote ? [...lines, cutNote] : lines;
+}
+function renderButtons(fkeys) {
+  const statusOrder = [];
+  const byStatus = /* @__PURE__ */ new Map();
+  for (const row2 of fkeys) {
+    const code = str5(row2, "code");
+    if (code === "") continue;
+    const status = str5(row2, "status");
+    let codes = byStatus.get(status);
+    if (!codes) {
+      codes = /* @__PURE__ */ new Map();
+      byStatus.set(status, codes);
+      statusOrder.push(status);
+    }
+    if (!codes.has(code)) codes.set(code, str5(row2, "text"));
+  }
+  if (statusOrder.length === 0) return "Buttons: (no GUI status buttons)";
+  return statusOrder.map((status) => {
+    const codes = byStatus.get(status);
+    const parts = codes ? Array.from(codes.entries()).map(([code, text5]) => text5 ? `${text5} (${code})` : `(${code})`) : [];
+    return `Buttons (${status}): ${parts.join(", ")}`;
+  }).join("\n");
+}
+function renderScreenLayoutInner(input) {
+  const gridLines = buildGridLines(input.header, input.fields ?? []);
+  const buttons = renderButtons(input.fkeys ?? []);
+  return [...gridLines, "", buttons, "", `NOTE: ${LAYOUT_FIDELITY_NOTE}`].join("\n");
+}
+function renderScreenLayout(input) {
+  try {
+    return renderScreenLayoutInner(input);
+  } catch {
+    return `(layout render failed on malformed input)
+
+NOTE: ${LAYOUT_FIDELITY_NOTE}`;
+  }
+}
+
+// src/tools/ui.ts
 var uiPressFieldSchema = external_exports.object({
   name: external_exports.string().describe("Screen field name (D021S-FNAM), e.g. BKPF-BLDAT."),
   value: external_exports.string().describe("Value to set (BDCDATA-FVAL, max 132 chars).")
@@ -141300,6 +146854,9 @@ var uiInputSchema = {
   ),
   screens: external_exports.array(uiPressScreenSchema).optional().describe(
     "press only, required: ordered batch-input script, one entry per dynpro the transaction will show in sequence. Build it incrementally using the screen call's own field/status output and the 00/344 stall this tool reports when a script runs out."
+  ),
+  layout: external_exports.boolean().optional().describe(
+    "screen only, default false: also render a monospace picture of the screen from the field rows already read. No extra ABAP and no extra round trip. Design-time layout, not a runtime screenshot. Ignored by press."
   ),
   confirm: external_exports.boolean().optional().describe(
     "press only, REQUIRED (must be exactly true) \u2014 acknowledges the commit. Omitted or false is refused before any network call."
@@ -141451,7 +147008,7 @@ function renderRecordRows(rows) {
     (row2) => Object.entries(row2).map(([k, v]) => `${k}=[${v}]`).join(" ")
   ).join("\n");
 }
-function buildScreenResponse(query, result, maxChars) {
+function buildScreenResponse(query, result, maxChars, layout) {
   const t = result.transcript;
   const notes = [...FIDELITY_NOTES2];
   if (t.tcode) {
@@ -141471,6 +147028,9 @@ function buildScreenResponse(query, result, maxChars) {
   if (t.noCua) {
     notes.push(`No GUI status defined for program ${t.noCua.program} \u2014 this is normal, not an error.`);
   }
+  if (layout) {
+    notes.push(LAYOUT_FIDELITY_NOTE);
+  }
   return buildResponse({
     header: {
       mode: "screen",
@@ -141487,6 +147047,7 @@ function buildScreenResponse(query, result, maxChars) {
       bridgeRefreshed: result.bridgeRefreshed
     },
     sections: [
+      ...layout ? [{ title: "LAYOUT (design-time)", content: renderScreenLayout({ header: t.header, fields: t.fields, fkeys: t.fkeys }) }] : [],
       { title: "HEADER (RPY_DYNPRO_READ)", content: t.header ? renderRecordRows([t.header]) : "(not read)" },
       { title: "FLOW LOGIC", content: renderRecordRows(t.flow) },
       { title: "GUI STATUSES (names)", content: renderRecordRows(t.statusList) },
@@ -141663,7 +147224,7 @@ async function runScreenTool(deps, input) {
     uiManifest.entry,
     (conn) => runUiBridge(conn, query, deps.safety)
   );
-  return ok15(buildScreenResponse(query, result, deps.cfg.maxResponseChars));
+  return ok15(buildScreenResponse(query, result, deps.cfg.maxResponseChars, input.layout === true));
 }
 async function runFcodeTool(deps, input) {
   const query = buildFcodeQuery(input);
@@ -144015,6 +149576,260 @@ init_datapreview();
 init_datapreview_filter();
 init_compact();
 init_truncate();
+
+// src/tools/preview-fixture.ts
+var ABAP_LINE_MAX = 255;
+var MASK_TEXT = "MASKED";
+var SHARED_NOTE = "A fixture is a copy of production rows. The same deny-list, the same ABAP_ALLOW_DATA_PREVIEW flag and the same row ceiling that govern a plain preview governed this read \u2014 format is applied to rows already fetched, never as a separate path around the check.";
+var TEST_DOUBLE_NOTE = "cl_osql_test_environment doubles an Open SQL entity (transparent table, database view, CDS view) \u2014 which is the only kind abap_data_preview can read. For a structure or a table type there is nothing to double: use the VALUE literal alone. cl_abap_testdouble doubles a class or an interface, not a table.";
+var INT_TYPES = /* @__PURE__ */ new Set(["I", "INT1", "INT2", "INT4", "INT8", "B", "S"]);
+var DEC_TYPES = /* @__PURE__ */ new Set(["P", "DEC", "CURR", "QUAN", "F", "FLTP"]);
+var HEX_TYPES = /* @__PURE__ */ new Set(["X", "RAW", "RAWSTRING"]);
+function columnGroup(type) {
+  if (type === "D") return "date";
+  if (type === "T") return "time";
+  if (INT_TYPES.has(type)) return "int";
+  if (DEC_TYPES.has(type)) return "dec";
+  if (HEX_TYPES.has(type)) return "hex";
+  return "char";
+}
+function escapeAbapLiteral3(cell) {
+  return cell.replace(/'/g, "''");
+}
+function quoted2(cell) {
+  return `'${escapeAbapLiteral3(cell)}'`;
+}
+function normaliseTrailingSign(trimmed) {
+  const m = /^(\d+(?:\.\d+)?)-$/.exec(trimmed);
+  return m ? `-${m[1] ?? ""}` : trimmed;
+}
+function abapLiteralFor(column, cell) {
+  const type = (column.type || "").toUpperCase();
+  const group = columnGroup(type);
+  const trimmed = cell.trim();
+  switch (group) {
+    case "date": {
+      const digits = cell.replace(/\D/g, "");
+      return digits.length === 8 ? `'${digits}'` : quoted2(cell);
+    }
+    case "time": {
+      const digits = cell.replace(/\D/g, "");
+      return digits.length === 6 ? `'${digits}'` : quoted2(cell);
+    }
+    case "int": {
+      const signed = normaliseTrailingSign(trimmed);
+      return /^-?\d+$/.test(signed) ? signed : quoted2(cell);
+    }
+    case "dec": {
+      const signed = normaliseTrailingSign(trimmed);
+      return /^-?\d+(\.\d+)?$/.test(signed) ? `'${signed}'` : quoted2(cell);
+    }
+    case "hex":
+      return quoted2(cell);
+    case "char":
+    default:
+      return quoted2(cell);
+  }
+}
+function maskedInitialLiteral(group) {
+  switch (group) {
+    case "int":
+    case "dec":
+      return "0";
+    case "date":
+      return "'00000000'";
+    case "time":
+      return "'000000'";
+    case "hex":
+    default:
+      return "''";
+  }
+}
+function resolveColumns(result, columnOrder) {
+  if (columnOrder === void 0 || columnOrder.length === 0) {
+    return result.columns.map((column, index) => ({ column, index }));
+  }
+  const byUpperName = /* @__PURE__ */ new Map();
+  result.columns.forEach((column, index) => {
+    byUpperName.set(column.name.toUpperCase(), { column, index });
+  });
+  const out = [];
+  for (const name of columnOrder) {
+    const hit = byUpperName.get(name.toUpperCase());
+    if (hit) out.push(hit);
+  }
+  return out;
+}
+function buildRowFields(columns, cells, maskedUpper) {
+  const fields = [];
+  let omitted = false;
+  for (const { column, index } of columns) {
+    const name = column.name.toLowerCase();
+    const group = columnGroup((column.type || "").toUpperCase());
+    if (maskedUpper.has(column.name.toUpperCase())) {
+      const literal2 = group === "char" ? `'${MASK_TEXT}'` : maskedInitialLiteral(group);
+      fields.push({ name, literal: literal2 });
+      continue;
+    }
+    const cell = cells[index] ?? "";
+    if (cell.trim() === "" && !column.key) {
+      omitted = true;
+      continue;
+    }
+    fields.push({ name, literal: abapLiteralFor(column, cell) });
+  }
+  return { fields, omitted };
+}
+function renderRowGroup(fields, indent, longFieldNotes, longFieldNoted) {
+  const pairs = fields.map((f) => ({ name: f.name, text: `${f.name} = ${f.literal}` }));
+  const singleLine = `${indent}( ${pairs.map((p) => p.text).join(" ")} )`;
+  if (singleLine.length <= ABAP_LINE_MAX) return singleLine;
+  const contIndent = `${indent}  `;
+  const lines = [`${indent}(`];
+  let current = [];
+  let currentLen = 0;
+  const flush = () => {
+    if (current.length) {
+      lines.push(`${contIndent}${current.join(" ")}`);
+      current = [];
+      currentLen = 0;
+    }
+  };
+  for (const p of pairs) {
+    const soloLen = contIndent.length + p.text.length;
+    if (soloLen > ABAP_LINE_MAX) {
+      flush();
+      lines.push(`${contIndent}${p.text}`);
+      if (!longFieldNoted.has(p.name)) {
+        longFieldNoted.add(p.name);
+        longFieldNotes.push(
+          `Field ${p.name} produces an ABAP literal longer than 255 characters on its own; the emitted line exceeds ABAP's source line limit and must be shortened by hand.`
+        );
+      }
+      continue;
+    }
+    const addedLen = current.length ? currentLen + 1 + p.text.length : p.text.length;
+    if (contIndent.length + addedLen > ABAP_LINE_MAX) {
+      flush();
+      current = [p.text];
+      currentLen = p.text.length;
+    } else {
+      current.push(p.text);
+      currentLen = addedLen;
+    }
+  }
+  flush();
+  lines.push(`${indent})`);
+  return lines.join("\n");
+}
+function buildValueLiteralLines(entity, columns, rows, maskedUpper, indent, longFieldNotes, longFieldNoted) {
+  const typeLine = `${indent}TYPES ty_rows TYPE STANDARD TABLE OF ${entity} WITH EMPTY KEY.`;
+  if (rows.length === 0) {
+    return {
+      lines: [typeLine, `${indent}DATA(lt_rows) = VALUE ty_rows( ).`],
+      anyOmitted: false
+    };
+  }
+  let anyOmitted = false;
+  const groupIndent = `${indent}  `;
+  const groupLines = [];
+  for (const cells of rows) {
+    const { fields, omitted } = buildRowFields(columns, cells, maskedUpper);
+    if (omitted) anyOmitted = true;
+    groupLines.push(renderRowGroup(fields, groupIndent, longFieldNotes, longFieldNoted));
+  }
+  return {
+    lines: [typeLine, `${indent}DATA(lt_rows) = VALUE ty_rows(`, ...groupLines, `${indent}).`],
+    anyOmitted
+  };
+}
+var EMPTY_CELLS_OMITTED_NOTE = "Empty cells are omitted from the VALUE literal (ABAP fills them with the type's initial value); key fields are always emitted.";
+var KEY_METADATA_UNRELIABLE_NOTE = "The ADT data preview reports no key attribute for most entities, so few or no fields qualify as keys here: an omitted cell is an initial value in the fixture, which is not always the same as the row's real state.";
+function normaliseMaskUpper(maskedFields) {
+  return new Set(maskedFields.map((f) => f.toUpperCase()));
+}
+function renderAbapValue(input) {
+  const { result, maskedFields, columnOrder } = input;
+  const notes = [SHARED_NOTE];
+  const maskedUpper = normaliseMaskUpper(maskedFields);
+  const columns = resolveColumns(result, columnOrder);
+  const entity = result.table.toLowerCase();
+  if (result.rows.length === 0) {
+    notes.push("The preview returned no rows, so the VALUE literal below is empty.");
+    return {
+      text: [
+        `TYPES ty_rows TYPE STANDARD TABLE OF ${entity} WITH EMPTY KEY.`,
+        "DATA(lt_rows) = VALUE ty_rows( )."
+      ].join("\n"),
+      notes,
+      fixtureKind: "literal_only"
+    };
+  }
+  const longFieldNotes = [];
+  const longFieldNoted = /* @__PURE__ */ new Set();
+  const { lines, anyOmitted } = buildValueLiteralLines(
+    entity,
+    columns,
+    result.rows,
+    maskedUpper,
+    "",
+    longFieldNotes,
+    longFieldNoted
+  );
+  if (anyOmitted) notes.push(EMPTY_CELLS_OMITTED_NOTE, KEY_METADATA_UNRELIABLE_NOTE);
+  notes.push(...longFieldNotes);
+  return { text: lines.join("\n"), notes, fixtureKind: "literal_only" };
+}
+function renderTestDouble(input) {
+  const { result, maskedFields, columnOrder } = input;
+  const notes = [SHARED_NOTE, TEST_DOUBLE_NOTE];
+  const maskedUpper = normaliseMaskUpper(maskedFields);
+  const columns = resolveColumns(result, columnOrder);
+  const entity = result.table.toLowerCase();
+  const entityUpper = result.table.toUpperCase();
+  let literalLines;
+  let anyOmitted = false;
+  const longFieldNotes = [];
+  const longFieldNoted = /* @__PURE__ */ new Set();
+  if (result.rows.length === 0) {
+    literalLines = [
+      `  TYPES ty_rows TYPE STANDARD TABLE OF ${entity} WITH EMPTY KEY.`,
+      "  DATA(lt_rows) = VALUE ty_rows( )."
+    ];
+    notes.push("The preview returned no rows, so the VALUE literal inside the fixture is empty.");
+  } else {
+    const built = buildValueLiteralLines(
+      entity,
+      columns,
+      result.rows,
+      maskedUpper,
+      "  ",
+      longFieldNotes,
+      longFieldNoted
+    );
+    literalLines = built.lines;
+    anyOmitted = built.anyOmitted;
+  }
+  if (anyOmitted) notes.push(EMPTY_CELLS_OMITTED_NOTE, KEY_METADATA_UNRELIABLE_NOTE);
+  notes.push(...longFieldNotes);
+  const text5 = [
+    '" Paste into your test class. Requires CLASS ... FOR TESTING RISK LEVEL HARMLESS.',
+    "CLASS-DATA go_osql TYPE REF TO if_osql_test_environment.",
+    "",
+    "METHOD class_setup.",
+    `  go_osql = cl_osql_test_environment=>create( VALUE #( ( '${entityUpper}' ) ) ).`,
+    ...literalLines,
+    "  go_osql->insert_test_data( lt_rows ).",
+    "ENDMETHOD.",
+    "",
+    "METHOD class_teardown.",
+    "  go_osql->destroy( ).",
+    "ENDMETHOD."
+  ].join("\n");
+  return { text: text5, notes, fixtureKind: "osql_test_environment" };
+}
+
+// src/tools/data-preview.ts
 var CELL_DISPLAY_WIDTH = 60;
 var dataPreviewInputSchema = {
   table: external_exports.string().optional().describe(
@@ -144048,6 +149863,12 @@ var dataPreviewInputSchema = {
   ),
   distinct: external_exports.boolean().optional().describe(
     "Suppress duplicate rows. Requires every order_by field to also appear in columns \u2014 otherwise the sort key would not be part of what distinctness is computed over."
+  ),
+  format: external_exports.enum(["table", "abap_value", "test_double"]).optional().describe(
+    "How to render the rows. table (default): the usual text table. abap_value: the rows as one typed VALUE #( ... ) literal for the entity's line type. test_double: that literal wrapped in a ready-to-paste cl_osql_test_environment fixture. Same deny-list, same flag, same row ceiling in every case \u2014 the format is applied after the read, never around the check."
+  ),
+  mask: external_exports.array(external_exports.string()).optional().describe(
+    "Field names to blank in the OUTPUT only, applied at render time after the read. Character-like fields become 'MASKED'; other types become their initial value. The response lists which fields were masked."
   )
 };
 var DataPreviewInput = external_exports.object(dataPreviewInputSchema);
@@ -144066,15 +149887,7 @@ function columnSummary(result) {
     (c) => `${c.name || "?"}:${c.type || "?"}` + (c.length === void 0 ? "" : `(${c.length})`) + (c.key ? "*" : "")
   ).join(" ");
 }
-function renderPreview2(result, requested, maxChars) {
-  const keys = uniqueColumnKeys(result.columns.map((c) => c.name));
-  const rows = result.rows.map((cells) => {
-    const rec = {};
-    keys.forEach((k, i) => {
-      rec[k] = truncateForDisplay(cells[i] ?? "", CELL_DISPLAY_WIDTH);
-    });
-    return rec;
-  });
+function previewNotes(result, requested) {
   const filtered = result.statement !== void 0;
   const notes = [];
   if (result.rowsRequested < requested) {
@@ -144102,17 +149915,32 @@ function renderPreview2(result, requested, maxChars) {
       ) : filtered ? `EMPTY: no row in ${result.table} matched the where filter. That is NOT evidence ${result.table} itself is empty \u2014 only that nothing satisfied the condition(s). The rendered statement is in STATEMENT above.` : `EMPTY: ${result.table} exists and was read successfully, but returned no rows. That is a genuinely empty result, not a failure and not a truncation.`
     );
   }
+  return notes;
+}
+function previewSections(result) {
   const sections = [];
   if (result.columns.length) {
     sections.push({ title: "COLUMNS (* = key)", content: columnSummary(result) });
   }
-  if (filtered) {
+  if (result.statement !== void 0) {
     const statementLines = [`sent: ${result.statement}`];
     if (result.executedQueryString !== void 0) {
       statementLines.push(`server compiled: ${result.executedQueryString}`);
     }
     sections.push({ title: "STATEMENT", content: statementLines.join("\n") });
   }
+  return sections;
+}
+function renderPreview2(result, requested, maxChars) {
+  const keys = uniqueColumnKeys(result.columns.map((c) => c.name));
+  const rows = result.rows.map((cells) => {
+    const rec = {};
+    keys.forEach((k, i) => {
+      rec[k] = truncateForDisplay(cells[i] ?? "", CELL_DISPLAY_WIDTH);
+    });
+    return rec;
+  });
+  const filtered = result.statement !== void 0;
   return buildResponse({
     header: {
       table: result.table,
@@ -144123,12 +149951,50 @@ function renderPreview2(result, requested, maxChars) {
       filtered,
       total_rows: result.totalRows
     },
-    sections,
+    sections: previewSections(result),
     body: rows.length ? textTable(rows, keys) : "(no rows)",
     bodyLabel: "ROWS",
-    notes,
+    notes: previewNotes(result, requested),
     maxChars
   });
+}
+function renderFixture(result, requested, maxChars, format, maskedUpper, columnOrder) {
+  const fixtureInput = {
+    result,
+    maskedFields: maskedUpper,
+    columnOrder
+  };
+  const render = format === "abap_value" ? renderAbapValue(fixtureInput) : renderTestDouble(fixtureInput);
+  return buildResponse({
+    header: {
+      table: result.table,
+      columns: result.columns.length,
+      rows_shown: result.rows.length,
+      rows_requested: result.rowsRequested,
+      more_rows_exist: result.moreRowsExist,
+      filtered: result.statement !== void 0,
+      total_rows: result.totalRows,
+      format,
+      masked: maskedUpper.length ? maskedUpper.join(",") : void 0
+    },
+    sections: previewSections(result),
+    body: render.text,
+    bodyLabel: format === "abap_value" ? "ABAP_VALUE" : "TEST_DOUBLE",
+    notes: [...previewNotes(result, requested), ...render.notes],
+    maxChars
+  });
+}
+function normaliseMask(mask) {
+  if (mask === void 0) return [];
+  const seen = /* @__PURE__ */ new Set();
+  const out = [];
+  for (const raw of mask) {
+    const name = raw.trim().toUpperCase();
+    if (name === "" || seen.has(name)) continue;
+    seen.add(name);
+    out.push(name);
+  }
+  return out;
 }
 function registerDataPreviewTools(mcp, deps) {
   const audit = deps.log ?? ((m) => void process.stderr.write(m + "\n"));
@@ -144137,7 +150003,7 @@ function registerDataPreviewTools(mcp, deps) {
     "abap_data_preview",
     {
       title: "Preview DDIC table data",
-      description: `Read rows from ONE DDIC entity: a table, database/projection view, or parameterless CDS view \u2014 not every DDIC entity kind qualifies. A name plus an optional structured filter (where/columns/order_by/distinct) \u2014 still no JOIN, no aggregate, and no SQL text. Rows clamped to the ceiling (currently ${ceiling}). Deny-listed tables and non-provably-nonproductive systems are refused.`,
+      description: `Read rows from ONE DDIC entity: a table, database/projection view, or parameterless CDS view \u2014 not every DDIC entity kind qualifies. A name plus an optional structured filter (where/columns/order_by/distinct) \u2014 still no JOIN, no aggregate, and no SQL text. Rows clamped to the ceiling (currently ${ceiling}). Deny-listed tables and non-provably-nonproductive systems are refused. format: abap_value / test_double turn the rows into a paste-ready ABAP fixture under the same policy.`,
       inputSchema: dataPreviewInputSchema,
       annotations: {
         readOnlyHint: true,
@@ -144184,9 +150050,35 @@ function registerDataPreviewTools(mcp, deps) {
             ...isEmptyFilter(filter) ? {} : { filter }
           })
         );
-        const res = renderPreview2(result, requested, deps.cfg.maxResponseChars);
+        const requestedFormat = a.format ?? "table";
+        let res;
+        let maskedUpper = [];
+        if (requestedFormat === "table") {
+          res = renderPreview2(result, requested, deps.cfg.maxResponseChars);
+        } else {
+          maskedUpper = normaliseMask(a.mask);
+          const knownColumns = result.columns;
+          const knownUpper = new Set(knownColumns.map((c) => c.name.toUpperCase()));
+          const unknown2 = maskedUpper.filter((name) => !knownUpper.has(name));
+          if (unknown2.length) {
+            throw new AbapError(
+              "BAD_INPUT",
+              `mask names field(s) not present on ${result.table}: ${unknown2.join(", ")}.`,
+              { table: result.table, mask: unknown2, columns: knownColumns.map((c) => c.name) },
+              `Known columns: ${knownColumns.map((c) => c.name).join(", ") || "(none)"}. A mask field must match a real column, or it would be silently ignored.`
+            );
+          }
+          res = renderFixture(
+            result,
+            requested,
+            deps.cfg.maxResponseChars,
+            requestedFormat,
+            maskedUpper,
+            a.columns
+          );
+        }
         audit(
-          `[abapsmith] audit: abap_data_preview table=${result.table} rows=${result.rows.length} requested=${requested} effective=${effective} more_rows_exist=${result.moreRowsExist} filtered=${result.statement !== void 0}` + (result.totalRows === void 0 ? "" : ` total_rows=${result.totalRows}`)
+          `[abapsmith] audit: abap_data_preview table=${result.table} rows=${result.rows.length} requested=${requested} effective=${effective} more_rows_exist=${result.moreRowsExist} filtered=${result.statement !== void 0}` + (result.totalRows === void 0 ? "" : ` total_rows=${result.totalRows}`) + ` format=${requestedFormat} masked=${maskedUpper.length}`
         );
         return ok17(res.text);
       } catch (e) {
@@ -144459,11 +150351,11 @@ var TIER1_CHAPTER_NAMES = ["kap7", "kap8", "kap9", "kap11"];
 var VARIABLES_CHAPTER_NAME = "kap10";
 function dumpChapterExtents(chapters, totalLines) {
   const sorted = [...chapters].sort((a, b) => a.line - b.line || a.chapterOrder - b.chapterOrder);
-  const clamp = (n) => Math.min(Math.max(n, 0), Math.max(totalLines, 0));
+  const clamp2 = (n) => Math.min(Math.max(n, 0), Math.max(totalLines, 0));
   return sorted.map((chapter, i) => {
     const next = sorted[i + 1];
-    const start = clamp(chapter.line - 1);
-    const end = clamp(next === void 0 ? totalLines : next.line - 1);
+    const start = clamp2(chapter.line - 1);
+    const end = clamp2(next === void 0 ? totalLines : next.line - 1);
     return { chapter, start, end: Math.max(start, end) };
   });
 }
@@ -147260,7 +153152,7 @@ function detectVersion2(edmx, schemas) {
   );
 }
 function indexAssociations(schemas) {
-  const idx = /* @__PURE__ */ new Map();
+  const idx2 = /* @__PURE__ */ new Map();
   for (const s of schemas) {
     const ns = attr8(s, "Namespace");
     for (const a of list(s, "Association")) {
@@ -147274,11 +153166,11 @@ function indexAssociations(schemas) {
         const mult = attr8(e, "Multiplicity");
         ends.set(role, { type, ...mult === void 0 ? {} : { multiplicity: mult } });
       }
-      idx.set(name, ends);
-      if (ns) idx.set(`${ns}.${name}`, ends);
+      idx2.set(name, ends);
+      if (ns) idx2.set(`${ns}.${name}`, ends);
     }
   }
-  return idx;
+  return idx2;
 }
 function v2Navigation(typeNode, assoc) {
   const out = [];
@@ -147411,21 +153303,21 @@ function v4Capabilities(annotations) {
   };
 }
 function indexV4ExternalAnnotations(schemas) {
-  const idx = /* @__PURE__ */ new Map();
+  const idx2 = /* @__PURE__ */ new Map();
   for (const s of schemas) {
     for (const block2 of list(s, "Annotations")) {
       const target = attr8(block2, "Target");
       if (!target) continue;
       const anns = v4AnnotationsOf(block2);
       if (anns.length === 0) continue;
-      idx.set(target, [...idx.get(target) ?? [], ...anns]);
+      idx2.set(target, [...idx2.get(target) ?? [], ...anns]);
       const slash = target.indexOf("/");
       const cut = slash === -1 ? target.lastIndexOf(".") : target.lastIndexOf(".", slash);
       const short = cut === -1 ? target : target.slice(cut + 1);
-      if (short !== target) idx.set(short, [...idx.get(short) ?? [], ...anns]);
+      if (short !== target) idx2.set(short, [...idx2.get(short) ?? [], ...anns]);
     }
   }
-  return idx;
+  return idx2;
 }
 function v4Navigation(typeNode) {
   const out = [];
@@ -149532,8 +155424,8 @@ function resolveExecutions(raw) {
   return raw;
 }
 function shortId2(fullId) {
-  const idx = fullId.lastIndexOf("/");
-  return idx === -1 ? fullId : fullId.slice(idx + 1);
+  const idx2 = fullId.lastIndexOf("/");
+  return idx2 === -1 ? fullId : fullId.slice(idx2 + 1);
 }
 var msFromUs = (us) => String(Math.round(us / 1e3));
 var pct = (p) => `${p.toFixed(1)}%`;
@@ -150458,6 +156350,20 @@ function buildFluidInfoBlock(deps) {
 }
 
 // src/tools/fluid.ts
+function catalogueToolSet(toolSet, cfg) {
+  if (cfg.allowFluidEval) return toolSet;
+  const core = toolSet.tools.get(CORE_TOOL_ID);
+  if (!core || !core.manifest.actions.some((a) => a.name === CORE_EVAL_ACTION)) return toolSet;
+  const tools = new Map(toolSet.tools);
+  tools.set(CORE_TOOL_ID, {
+    ...core,
+    manifest: {
+      ...core.manifest,
+      actions: core.manifest.actions.filter((a) => a.name !== CORE_EVAL_ACTION)
+    }
+  });
+  return { ...toolSet, tools };
+}
 var FLUID_OPS = ["list", "describe", "status", "verify", "run", "repair", "remove"];
 var fluidInputSchema = {
   op: external_exports.enum(FLUID_OPS).optional().describe(
@@ -150539,7 +156445,7 @@ function refusedSection(toolSet) {
   return [{ title: "REFUSED PLUGINS", content: textTable(rows, ["path", "id", "code", "reason"]) }];
 }
 function renderInfoBlock(deps) {
-  const info = buildFluidInfoBlock(deps);
+  const info = buildFluidInfoBlock({ ...deps, toolSet: catalogueToolSet(deps.toolSet, deps.cfg) });
   const rows = info.tools.map((t) => ({
     id: t.id,
     origin: t.origin,
@@ -151039,7 +156945,7 @@ function builtinFluidToolSet(builtins) {
   return { tools, refused: [], warnings: [] };
 }
 function registerFluidTool(mcp, deps) {
-  const description = buildFluidDescription(deps.toolSet);
+  const description = buildFluidDescription(catalogueToolSet(deps.toolSet, deps.cfg)) + "\ncore.eval runs model-authored ABAP under ABAP_ALLOW_FLUID_EVAL: a lint-not-sandbox control whose real boundary is the SAP user's authorisations.";
   mcp.registerTool(
     "abap_fluid",
     {
@@ -151069,7 +156975,13 @@ function registerFluidTool(mcp, deps) {
             requireFluidEnabled(deps, { op, tool: a.tool });
             const toolId = a.tool ? a.tool : void 0;
             if (toolId !== void 0) mustGetTool(deps.toolSet, toolId);
-            return ok23(renderDescribe(deps, buildFluidDescribe(deps.toolSet, toolId), toolId));
+            return ok23(
+              renderDescribe(
+                deps,
+                buildFluidDescribe(catalogueToolSet(deps.toolSet, deps.cfg), toolId),
+                toolId
+              )
+            );
           }
           case "status":
             requireFluidEnabled(deps, { op });
@@ -151100,7 +157012,7 @@ var MAX_PROPERTY_VALUE_CHARS = 300;
 var MAX_RESIDUAL_PROPERTIES = 24;
 var MAX_MESSAGE_CHARS = 500;
 var SUBTYPE_KEY2 = "com.sap.adt.communicationFramework.subType";
-function str5(v) {
+function str6(v) {
   if (typeof v === "string") return v.trim() || void 0;
   if (typeof v === "number" && Number.isFinite(v)) return String(v);
   return void 0;
@@ -151202,9 +157114,9 @@ function adtEnvelopeFromThrown(e) {
   const env = envelopeFromProperties(info.properties);
   if (info.status !== void 0) env.status = info.status;
   env.exceptionType ??= info.type;
-  env.namespace ??= str5(any2.namespace);
-  env.code ??= str5(any2.code);
-  const localized = str5(any2.localizedMessage);
+  env.namespace ??= str6(any2.namespace);
+  env.code ??= str6(any2.code);
+  const localized = str6(any2.localizedMessage);
   if (localized && localized !== info.message) env.localizedMessage = localized;
   return env;
 }
@@ -151221,8 +157133,8 @@ function adtEnvelopeFromDetails(details) {
         } else rest[k] = v;
         break;
       case "adtExceptionType":
-        if (str5(v)) {
-          env.exceptionType = str5(v);
+        if (str6(v)) {
+          env.exceptionType = str6(v);
           sawAny = true;
         } else rest[k] = v;
         break;
@@ -151239,14 +157151,14 @@ function adtEnvelopeFromDetails(details) {
         } else rest[k] = v;
         break;
       case "blockingUser":
-        if (str5(v)) {
-          env.lock = { ...env.lock, blockingUser: str5(v) };
+        if (str6(v)) {
+          env.lock = { ...env.lock, blockingUser: str6(v) };
           sawAny = true;
         } else rest[k] = v;
         break;
       case "transport":
-        if (str5(v)) {
-          env.transport = str5(v);
+        if (str6(v)) {
+          env.transport = str6(v);
           sawAny = true;
         } else rest[k] = v;
         break;
@@ -151526,24 +157438,7 @@ function createServer(cfg, opts) {
     log: warn,
     gate: safety
   });
-  const mcp = new McpServer(
-    { name: SERVER_NAME, version: SERVER_VERSION },
-    {
-      instructions: instructionsFor(
-        cfg.abapMode,
-        cfg.readOnly,
-        cfg.allowPackages,
-        toolCapabilities.canUseFluidApi,
-        lockedTools.length
-      )
-    }
-  );
-  const processSessionId = randomUUID2();
-  mcp.server.oninitialized = () => {
-    journal.setClientActor(mcp.server.getClientVersion()?.name);
-    const transportSessionId = mcp.server.transport?.sessionId;
-    journal.setClientSession(transportSessionId ?? processSessionId, transportSessionId ? "transport" : "process");
-  };
+  const processSessionId = randomUUID3();
   let connectPromise;
   let watched;
   const watchPrimary = (conn) => {
@@ -151588,76 +157483,32 @@ function createServer(cfg, opts) {
     );
     await connectPromise;
   };
-  registerTransportTools(mcp, {
-    // The pool, not the connection: transport ops have no single ABAP
-    // object to gate on (a TRKORR isn't a repository object).
-    pool,
-    cfg,
-    safety,
-    ensureConnected,
-    errorResult,
-    journal,
-    warn,
-    // Same manager that adopts requests knows which of them this session
-    // created — `abap_transport show` and the release gate read the
-    // record `transport`'s resolver writes.
-    ownership: transport,
-    // `abap_transport`'s list/show/check/users submodes are ungated and
-    // always registered; only `abap_transport_release` is gated.
-    registerRelease: toolCapabilities.canReleaseTransport
-  });
-  registerBopfTools(mcp, {
-    pool,
-    cfg,
-    safety,
-    ensureConnected,
-    errorResult,
-    transport,
-    journal,
-    registerWrite: toolCapabilities.canWrite
-  });
-  registerEnhancementTools(mcp, {
-    pool,
-    cfg,
-    safety,
-    ensureConnected,
-    errorResult,
-    transport,
-    journal
-  });
-  registerReadTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
-  registerSearchTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
-  registerOpenUrlTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
-  registerImgTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
-  if (toolCapabilities.canWrite) {
-    registerBopfTestTool(mcp, { ...createBopfTestDeps(), pool, cfg, safety, ensureConnected, errorResult });
-    registerFpmTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
-    registerUiTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal });
-    registerWriteTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal, transport });
-    registerImgEditTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal });
-    registerRunTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
-    registerTestTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal });
-    registerAtcTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
-    registerQuickFixTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal, transport });
-  }
-  registerActivateTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, transport, journal });
-  registerJournalTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal });
-  registerDebugTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, debugDeps });
-  if (toolCapabilities.canPreviewData) {
-    registerDataPreviewTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
-  }
-  registerDumpTools(mcp, {
-    pool,
-    cfg,
-    safety,
-    ensureConnected,
-    errorResult,
-    registerVariables: toolCapabilities.canReadDumpVariables
-  });
-  registerServiceTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal, warn });
-  registerTraceTools(mcp, { pool, safety, ensureConnected, errorResult, cfg, journal });
-  if (toolCapabilities.canUseFluidApi) {
-    registerFluidTool(mcp, {
+  const createMcpServer = (ctx) => {
+    const mcp2 = new McpServer(
+      { name: SERVER_NAME, version: SERVER_VERSION },
+      {
+        instructions: instructionsFor(
+          cfg.abapMode,
+          cfg.readOnly,
+          cfg.allowPackages,
+          toolCapabilities.canUseFluidApi,
+          lockedTools.length
+        )
+      }
+    );
+    mcp2.server.oninitialized = () => {
+      if (ctx === void 0) {
+        journal.setClientActor(mcp2.server.getClientVersion()?.name);
+        const transportSessionId = mcp2.server.transport?.sessionId;
+        journal.setClientSession(transportSessionId ?? processSessionId, transportSessionId ? "transport" : "process");
+      } else {
+        ctx.client = mcp2.server.getClientVersion()?.name;
+        ctx.sessionId ??= mcp2.server.transport?.sessionId;
+      }
+    };
+    registerTransportTools(mcp2, {
+      // The pool, not the connection: transport ops have no single ABAP
+      // object to gate on (a TRKORR isn't a repository object).
       pool,
       cfg,
       safety,
@@ -151665,63 +157516,136 @@ function createServer(cfg, opts) {
       errorResult,
       journal,
       warn,
-      toolSet: opts.fluidToolSet ?? builtinFluidToolSet(BUILTIN_FLUID_TOOLS)
+      // Same manager that adopts requests knows which of them this session
+      // created — `abap_transport show` and the release gate read the
+      // record `transport`'s resolver writes.
+      ownership: transport,
+      // `abap_transport`'s list/show/check/users submodes are ungated and
+      // always registered; only `abap_transport_release` is gated.
+      registerRelease: toolCapabilities.canReleaseTransport
     });
-  }
-  registerLockedTools(mcp, { cfg, errorResult, tools: lockedTools });
-  mcp.registerResource(
-    "system",
-    `abap://${cfg.sid}/system`,
-    {
-      title: `ABAP system ${cfg.sid}`,
-      description: "Connection state, system role, and the ADT feature inventory from /discovery.",
-      mimeType: "application/json"
-    },
-    async (uri) => {
-      await ensureConnected();
-      return {
-        contents: [
-          {
-            uri: uri.href,
-            mimeType: "application/json",
-            text: JSON.stringify(
-              {
-                connection: pool.primary().info(),
-                discovery: pool.primary().discovery.summary(),
-                // Live occupancy at the instant of the read — `stats()` is
-                // synchronous, no pool lease, safe to read mid-incident even while
-                // saturated. `limits` are the denominators busy/idle are out of;
-                // without them `busy: 5` alone doesn't say whether that's fine.
-                sessions: {
-                  ...pool.stats(),
-                  limits: {
-                    maxSessions: cfg.maxSessions,
-                    readConcurrency: cfg.readConcurrency,
-                    writeConcurrency: cfg.writeConcurrency
+    registerBopfTools(mcp2, {
+      pool,
+      cfg,
+      safety,
+      ensureConnected,
+      errorResult,
+      transport,
+      journal,
+      registerWrite: toolCapabilities.canWrite
+    });
+    registerEnhancementTools(mcp2, {
+      pool,
+      cfg,
+      safety,
+      ensureConnected,
+      errorResult,
+      transport,
+      journal
+    });
+    registerReadTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult });
+    registerSearchTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult });
+    registerOpenUrlTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult });
+    registerImgTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult });
+    if (toolCapabilities.canWrite) {
+      registerBopfTestTool(mcp2, { ...createBopfTestDeps(), pool, cfg, safety, ensureConnected, errorResult });
+      registerFpmTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult });
+      registerUiTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult, journal });
+      registerWriteTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult, journal, transport });
+      registerImgEditTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult, journal });
+      registerRunTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult });
+      registerTestTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult, journal });
+      registerAtcTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult });
+      registerQuickFixTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult, journal, transport });
+    }
+    registerActivateTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult, transport, journal });
+    registerJournalTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult, journal });
+    registerDebugTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult, debugDeps });
+    if (toolCapabilities.canPreviewData) {
+      registerDataPreviewTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult });
+    }
+    registerDumpTools(mcp2, {
+      pool,
+      cfg,
+      safety,
+      ensureConnected,
+      errorResult,
+      registerVariables: toolCapabilities.canReadDumpVariables
+    });
+    registerServiceTools(mcp2, { pool, cfg, safety, ensureConnected, errorResult, journal, warn });
+    registerTraceTools(mcp2, { pool, safety, ensureConnected, errorResult, cfg, journal });
+    if (toolCapabilities.canUseFluidApi) {
+      registerFluidTool(mcp2, {
+        pool,
+        cfg,
+        safety,
+        ensureConnected,
+        errorResult,
+        journal,
+        warn,
+        toolSet: opts.fluidToolSet ?? builtinFluidToolSet(BUILTIN_FLUID_TOOLS)
+      });
+    }
+    registerLockedTools(mcp2, { cfg, errorResult, tools: lockedTools });
+    mcp2.registerResource(
+      "system",
+      `abap://${cfg.sid}/system`,
+      {
+        title: `ABAP system ${cfg.sid}`,
+        description: "Connection state, system role, and the ADT feature inventory from /discovery.",
+        mimeType: "application/json"
+      },
+      async (uri) => {
+        await ensureConnected();
+        return {
+          contents: [
+            {
+              uri: uri.href,
+              mimeType: "application/json",
+              text: JSON.stringify(
+                {
+                  connection: pool.primary().info(),
+                  discovery: pool.primary().discovery.summary(),
+                  // Live occupancy at the instant of the read — `stats()` is
+                  // synchronous, no pool lease, safe to read mid-incident even while
+                  // saturated. `limits` are the denominators busy/idle are out of;
+                  // without them `busy: 5` alone doesn't say whether that's fine.
+                  sessions: {
+                    ...pool.stats(),
+                    limits: {
+                      maxSessions: cfg.maxSessions,
+                      readConcurrency: cfg.readConcurrency,
+                      writeConcurrency: cfg.writeConcurrency
+                    }
+                  },
+                  safety: {
+                    ...safety.config,
+                    writesEnabled: !safety.config.readOnly,
+                    allowPackages: safety.config.allowPackages,
+                    allowNamePrefixes: safety.namePrefixes,
+                    allowTransports: safety.transportAllowlist
+                  },
+                  journal: {
+                    enabled: journal.enabled,
+                    dir: journal.enabled ? journal.dir : null,
+                    retention: `${journal.config.maxEntries} entries / ${journal.config.maxAgeDays} days`
                   }
                 },
-                safety: {
-                  ...safety.config,
-                  writesEnabled: !safety.config.readOnly,
-                  allowPackages: safety.config.allowPackages,
-                  allowNamePrefixes: safety.namePrefixes,
-                  allowTransports: safety.transportAllowlist
-                },
-                journal: {
-                  enabled: journal.enabled,
-                  dir: journal.enabled ? journal.dir : null,
-                  retention: `${journal.config.maxEntries} entries / ${journal.config.maxAgeDays} days`
-                }
-              },
-              null,
-              2
-            )
-          }
-        ]
-      };
-    }
-  );
-  stripSchemaKeyOnConnect(mcp);
+                null,
+                2
+              )
+            }
+          ]
+        };
+      }
+    );
+    stripSchemaKeyOnConnect(mcp2);
+    return mcp2;
+  };
+  const mcp = createMcpServer();
+  let http3;
+  let httpAddr;
+  let unregisterHttpShutdown;
   return {
     mcp,
     pool,
@@ -151731,10 +157655,31 @@ function createServer(cfg, opts) {
     },
     safety,
     journal,
+    get httpAddress() {
+      return http3?.address;
+    },
+    get mcpSessionCount() {
+      return http3?.sessionCount ?? 0;
+    },
     async start() {
-      const transport2 = new StdioServerTransport();
-      await mcp.connect(transport2);
       const mode = cfg.readOnly ? "read-only" : `WRITES ENABLED \u2192 packages [${cfg.allowPackages.join(", ")}]`;
+      if (cfg.mcpTransport === "stdio") {
+        await mcp.connect(new StdioServerTransport());
+      } else {
+        http3 = await startMcpHttpServer({
+          host: cfg.mcpHttpHost,
+          port: cfg.mcpHttpPort,
+          path: cfg.mcpHttpPath,
+          tokens: cfg.mcpHttpTokens,
+          createMcpServer,
+          log: warn
+        });
+        httpAddr = http3.address;
+        const httpRef = http3;
+        unregisterHttpShutdown = registerShutdownHandler("abapsmith/mcp-http", async () => {
+          await httpRef.close();
+        });
+      }
       let notConnectedSuffix = "";
       if (cfg.startupProbe) {
         try {
@@ -151751,16 +157696,59 @@ function createServer(cfg, opts) {
           notConnectedSuffix = " \u2014 NOT CONNECTED, see probe failure above";
         }
       }
-      warn(
-        `[abapsmith] ready on stdio \u2014 ${cfg.sid} @ ${stripUrlCredentials(cfg.url)} as ${cfg.user} (${mode})${notConnectedSuffix}`
-      );
+      if (cfg.mcpTransport === "stdio") {
+        warn(
+          `[abapsmith] ready on stdio \u2014 ${cfg.sid} @ ${stripUrlCredentials(cfg.url)} as ${cfg.user} (${mode})${notConnectedSuffix}`
+        );
+      } else if (httpAddr) {
+        const addr = httpAddr;
+        const hostForUrl = addr.host.includes(":") ? `[${addr.host}]` : addr.host;
+        warn(
+          `[abapsmith] ready on http://${hostForUrl}:${addr.port}${cfg.mcpHttpPath} \u2014 ${cfg.sid} @ ${stripUrlCredentials(cfg.url)} as ${cfg.user} (${mode})${notConnectedSuffix}`
+        );
+        if (cfg.mcpHttpTokens.length > 0) {
+          const names = cfg.mcpHttpTokens.map((t) => t.name ?? "(unnamed)").join(", ");
+          warn(
+            `[abapsmith] HTTP auth: bearer token required (${cfg.mcpHttpTokens.length} configured: ${names}) \u2014 TLS is NOT terminated here; put a reverse proxy in front for anything but a loopback bind.`
+          );
+        } else {
+          warn(
+            "[abapsmith] HTTP auth: NONE \u2014 bound to a loopback address only; a non-loopback bind without ABAP_MCP_HTTP_TOKEN is refused at startup (src/config.ts)."
+          );
+        }
+      }
       warn(
         journal.enabled ? `[abapsmith] write journal: ${journal.dir} (keeps ${journal.config.maxEntries} entries / ${journal.config.maxAgeDays} days; before-images contain source \u2014 do not commit it)` : "[abapsmith] WARNING: write journal DISABLED (ABAP_JOURNAL=off) \u2014 writes cannot be undone."
       );
     },
+    async closeClients() {
+      try {
+        await mcp.close();
+      } catch (e) {
+        warn(`[abapsmith] WARNING: closing the default MCP server failed: ${e.message}`);
+      }
+      if (http3) {
+        try {
+          await http3.close();
+        } catch (e) {
+          warn(`[abapsmith] WARNING: closing the HTTP MCP listener failed: ${e.message}`);
+        }
+        http3 = void 0;
+      }
+    },
     async stop() {
       shutdownDebugTools();
       await shutdownAllDebugSessions((msg) => warn(msg));
+      unregisterHttpShutdown?.();
+      unregisterHttpShutdown = void 0;
+      if (http3) {
+        try {
+          await http3.close();
+        } catch (e) {
+          warn(`[abapsmith] WARNING: closing the HTTP MCP listener failed: ${e.message}`);
+        }
+        http3 = void 0;
+      }
       await pool.shutdown("mcp-stop");
       pool.dispose();
       await mcp.close();
@@ -151810,7 +157798,7 @@ async function main() {
     shutdownDebugTools();
     await shutdownAllDebugSessions((m) => process.stderr.write(`${m}
 `));
-    await server.mcp.close();
+    await server.closeClients();
   });
   await server.start();
 }

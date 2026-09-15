@@ -44,7 +44,7 @@ apply to them.
 | Tool | Actions | What it covers |
 |---|---|---|
 | `classic` | `create_view`, `delete_view`, `create_transaction`, `delete_transaction`, `create_index`, `delete_index`, `create_package`, `delete_package`, `remove_transport_entry`, `exists` | Repository objects with no usable ADT write endpoint. |
-| `core` | `select`, `describe_fm`, `docu`, `call_fm`, `change_docs`, `locks` | Generic DDIC reads, SAP documentation reads, dynamic function-module calls, change-document reads and enqueue-lock reads. |
+| `core` | `select`, `describe_fm`, `docu`, `call_fm`, `eval`, `change_docs`, `locks` | Generic DDIC reads, SAP documentation reads, dynamic function-module calls, one-shot ABAP snippet evaluation, change-document reads and enqueue-lock reads. |
 | `enh` | `create_spot`, `add_badi_def`, `add_filter_def`, `create_impl`, `set_filter_values` | Enhancement spots, BAdI definitions and implementations. |
 | `fpm` | `find`, `outline`, `app` | Floorplan Manager configuration reads. |
 | `img` | `preview`, `create_request`, `apply` | IMG customizing: row preview, customizing request creation, and the write itself. |
@@ -102,6 +102,45 @@ tool having checked first.
   there is no release/`DEQUEUE` path here. Not judged by the data-preview
   policy at all — enqueue state is runtime lock information, not table
   data. See `doc/TOOLS/abap-fluid.md`.
+- `core.eval` (execute) — runs a short caller-supplied ABAP snippet as the
+  body of one generated method and serialises named local variables back
+  as JSON. Off by default; requires `ABAP_ALLOW_FLUID_EVAL`, which no
+  `ABAP_MODE` (including `admin`) turns on, and which is independent of
+  `ABAP_ALLOW_FLUID_PLUGINS`/`ABAP_ALLOW_FLUID_PLUGIN_MUTATE`. Every call
+  must carry `confirm: "core.eval"` — there is no once-per-session memory.
+  Call shape:
+
+  ```json
+  {"tool":"core","action":"eval","args":{"lines":["DATA(lv_x) = 1 + 1.","lv_x = lv_x * 3."],"out":["lv_x"]},"confirm":"core.eval"}
+  ```
+
+  `lines` are the statements forming the body of one method — each line at
+  most `FLUID_ABAP_LINE_MAX` (255) characters, none containing CR or LF.
+  `out` names local variables to serialise back, each matching
+  `^[A-Za-z_][A-Za-z0-9_]{0,29}$`; the result is one entry per name,
+  `{"name":"LV_X","value":6}` or, when serialisation itself failed,
+  `{"name":"LV_X","error":"..."}`. Every call that reaches execution is
+  journalled with the full, untruncated `lines` — unlike the ~500-character
+  cap on an ordinary fluid mutation's journal description — because the
+  point of the entry is to read back exactly what ran; the entry is not
+  undoable.
+
+  **This is a lint-not-sandbox control.** The static review and the
+  capability scan reject a handful of named statements; they do not
+  confine the code. The real boundary is the SAP user's authorisations, and
+  `ABAP_ALLOW_FLUID_EVAL` is consent to run model-authored code inside that
+  boundary, nothing narrower. See [safety.md](safety.md) for the full
+  ordering, including where `core.eval` sits among the other steps, and for
+  what the control does not do.
+
+  **Verification status.** `/UI2/CL_JSON=>SERIALIZE` was confirmed to
+  exist on the reference system A4H with the expected signature.
+  End-to-end eval execution is covered by unit tests over the generated
+  ABAP, the static review and the capability scan; the availability of
+  `/UI2/CL_JSON` on any given system is a NetWeaver/SAP_UI assumption, not
+  something abapsmith installs or verifies at runtime, and where the class
+  is absent each `out` name comes back as an `error` entry rather than a
+  `value`.
 
 `select`'s `fields` are validated against the table's DDIC components
 before they reach the dynamic column list. `where` is passed through as
@@ -129,6 +168,7 @@ it was written against.
 | `ABAP_ALLOW_FLUID_PLUGINS` | off | Required, in addition to a non-empty `ABAP_FLUID_PLUGINS`, before any plugin loads or runs. |
 | `ABAP_ALLOW_FLUID_PLUGIN_MUTATE` | off | Required for a plugin action with `category: "mutate"`. Built-ins are unaffected. |
 | `ABAP_ALLOW_FLUID_CALL_FM` | off | Required for the built-in `core.call_fm` action. Every other `core` action is unaffected. |
+| `ABAP_ALLOW_FLUID_EVAL` | off | Required for the built-in `core.eval` action. Not switched on by any `ABAP_MODE`, not even `admin`, and independent of `ABAP_ALLOW_FLUID_PLUGINS`/`ABAP_ALLOW_FLUID_PLUGIN_MUTATE`. While off, `core.eval` does not appear in the catalogue at all. |
 
 `call_fm` is an **authorisation-shaped control, not a sandbox.** With the
 flag on, any function module the logged-on user may call can be called,
