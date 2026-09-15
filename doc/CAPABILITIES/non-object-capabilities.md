@@ -9,6 +9,7 @@
 | ATC | partial | yes | no | partial | n/a | mixed | A run creates a server-side worklist as a side effect; there is no variant create, and exemption management is deliberately absent. Worklist delete IS attempted (both directly and via `auto_cleanup`) but this release's server refuses every attempt with HTTP 405, so the worklist persists — a caching strategy limits the litter. |
 | Quick fixes | no | yes | yes | no | yes | mixed | Position-driven only, not finding-driven — the ATC route was tried and rejected. Deterministic proposals only; a parameterized one is refused `BAD_INPUT`. Listing is gated as a write because it posts the whole object source. |
 | Runtime dumps | n/a | yes | n/a | no | n/a | live | Read-only feed with a residence window that cannot be widened. The variables chapter is absent from the schema unless an operator enables it. |
+| Runtime trace (SAT) | yes | yes | n/a | yes | n/a | mixed | Scoped to one connected user and one object; `op=run` creates a trace request, executes the object, waits for and reads the trace, then deletes the request, while `op=start` leaves that cleanup to the caller — a fully consumed request is not cleaned up by the server on its own. `view="tree"` is refused up front against an aggregated trace rather than sent to fail server-side. Read views are `hitlist`, `db` (statement kind, table, counts and time — not full SQL text), and `tree`. The standalone SQL-trace collection (`/sap/bc/adt/runtime/traces/sqltraces`) does not exist as a resource on the reference release and is `unverified`; SQL access on that release is read only through the `db` view of the same trace. Refused outright on a cloud tenant, where ADT discovery does not offer `traces.abaptraces`. |
 | Object activation | n/a | n/a | n/a | n/a | yes | live | Check-only and activate modes, single and batched. There is no deactivate in ADT, which is why activation can never be undone. |
 | Transport requests | yes | yes | partial | yes | n/a | live | Create, add a user, and set an owner. Delete is admin-gated and requires echoing the request identifier. Objects cannot be added or removed directly, and a locked entry cannot be unlocked. |
 | Transport release | n/a | yes | n/a | n/a | yes | live | Dry run by default, armed only by echoing the request identifier, and gated separately from ordinary write access. Reports four distinct outcomes and never overstates one. |
@@ -255,3 +256,18 @@
   server running this build — is exercised only by unit tests against a
   fake fluid runtime, because the live MCP server runs the previously
   released bundle, not this worktree's code.
+- **Runtime trace (SAT).** `op=start`, a scoped trace run over a `$TMP`
+  class, a hit-list read, a database-access read, a call-tree read on a
+  non-aggregated trace, listing runs, listing requests, and deleting both
+  a run and a request were all exercised live against A4H (SAP_BASIS 754
+  SP0007, client 001), 2026-09-15 — see
+  [doc/TOOLS/abap-trace.md](../TOOLS/abap-trace.md) for the numbers
+  (a four-statement class produced 1161 hit-list entries, about 790 KB,
+  mostly framework code beneath it). The standalone SQL-trace collection
+  at `/sap/bc/adt/runtime/traces/sqltraces` is `unverified`: it does not
+  exist as a resource on the reference release (a GET answers "does not
+  exist" and ADT discovery there does not advertise
+  `traces.sqltraces`), so it is exercised only against fakes and never
+  called by this tool. On that release, SQL access is read through the
+  `sql_trace`-fed `db` view of the ABAP trace itself, which reports
+  statement kind, table, counts and time, never full SQL statement text.

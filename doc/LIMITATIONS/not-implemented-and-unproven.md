@@ -2,7 +2,20 @@
 
 ## Not implemented
 
-No runtime tracing, no profiling, and no package tree navigation.
+No package tree navigation.
+
+`abap_trace` now covers ABAP runtime tracing (SAT) and, on the reference
+release, SQL tracing folded into it as the `sql_trace` flag rather than as
+a standalone resource — see [doc/TOOLS/abap-trace.md](../TOOLS/abap-trace.md).
+What remains genuinely unproven: the standalone ADT SQL-trace collection at
+`/sap/bc/adt/runtime/traces/sqltraces` does not exist as a resource on the
+reference release (a GET answers "does not exist," and ADT discovery there
+does not advertise `traces.sqltraces`), so the code path for it is exercised
+only against fakes and is never called by this tool — do not read
+`sql_trace` as proof that the standalone collection works anywhere. There is
+also no profiling beyond what a trace's hit list, database-access view and
+call tree already give: no sampling profiler, no aggregate-across-runs view,
+and no way to compare two traces against each other.
 
 `abap_search mode=source` now scans source text line by line — see
 [doc/TOOLS/read-and-search.md](../TOOLS/read-and-search.md) — but it is
@@ -202,3 +215,10 @@ exist and may work, but have not been exercised against a real system.
   mid-run.
 - **The debugger is single-session.** One reserved debug lease, one live
   session. Concurrent debugging from two agents is not supported and not tested.
+- **`abap_trace`'s standalone SQL-trace path.** The dedicated ADT SQL-trace
+  collection (`/sap/bc/adt/runtime/traces/sqltraces`) has code behind it in
+  this codebase but has never been run against a real system: the reference
+  release does not serve that resource at all (a GET answers "does not
+  exist," and its ADT discovery document does not advertise
+  `traces.sqltraces`). Only `sql_trace` inside the ABAP-trace parameters,
+  which feeds the `db` view of an ordinary trace, is verified live.
