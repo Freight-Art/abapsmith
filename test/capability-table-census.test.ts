@@ -164,21 +164,32 @@ describe("capability table: bridgeDelete requires an explicit note", () => {
 });
 
 describe("capability table: bridge-only-create types state their update position", () => {
-  // VIEW/DV was creatable and deletable through the classrun
-  // bridge but silent on whether it could be CHANGED, unlike TRAN/T, whose
-  // `bridgeCreate.limits` already said so. A type with no create route but
-  // the bridge (`BRIDGE_ONLY_CREATE_TYPES` — today VIEW/DV, TRAN/T) has no
-  // `write` field either, so `abap_write` can never resolve a URI to change
-  // one; that fact belongs in `limits`, not left for a caller to discover by
-  // trying. Matches on content, not on the exact sentence this fix wrote, so
+  // VIEW/DV was creatable and deletable through the classrun bridge but
+  // silent on whether it could be CHANGED. A type with no create route but
+  // the bridge (`BRIDGE_ONLY_CREATE_TYPES`) has no `write` field either, so
+  // `abap_write` can never resolve a URI to change one; that fact belongs in
+  // `limits`, not left for a caller to discover by trying. This no longer
+  // means every entry must say "not supported": SHLP/DH, VIEW/DV and TRAN/T
+  // each gained a real update route (update_search_help, update_view,
+  // update_transaction) and their `limits` now describe it instead — only
+  // TABL/DI still has none. So the structural property this test can still
+  // hold every entry to is silence-free, not answer-free: `limits` must
+  // either say update/change is unsupported, or name the concrete route that
+  // does it. Matches on content, not on the exact sentence this fix wrote, so
   // it keeps holding if the wording is later reworded.
-  it("every BRIDGE_ONLY_CREATE_TYPES entry's bridgeCreate.limits documents that update/change is unsupported", () => {
+  it("every BRIDGE_ONLY_CREATE_TYPES entry's bridgeCreate.limits states its update/change position, supported or not", () => {
     expect(BRIDGE_ONLY_CREATE_TYPES.length).toBeGreaterThan(0);
     for (const type of BRIDGE_ONLY_CREATE_TYPES) {
       const limits = REGISTRY[type]?.bridgeCreate?.limits ?? "";
       expect(limits.length, `${type}: no bridgeCreate.limits text at all`).toBeGreaterThan(0);
+      const mentionsUpdate = /update|chang(e|ing)/i.test(limits);
+      const statesUnsupported = /not support/i.test(limits);
+      // A described route names either the concrete update action
+      // (update_search_help / update_view / update_transaction, or a
+      // camelCase equivalent) or the module that implements it.
+      const namesUpdateRoute = /update[_-]?[a-z]+/i.test(limits);
       expect(
-        /update|chang(e|ing)/i.test(limits) && /not support/i.test(limits),
+        mentionsUpdate && (statesUnsupported || namesUpdateRoute),
         `${type}: bridgeCreate.limits never states its update/change position: ${limits}`,
       ).toBe(true);
     }
@@ -215,13 +226,21 @@ describe("capability table: skill is current without a build", () => {
     expect(current.trim()).toBe(table.trim());
   });
 
-  // The generated block above already names VIEW/DV and TRAN/T in its
-  // "not readable either" bullet (it's registry-wide, not bucket-scoped), and
-  // the hand-written region repeats them in its own "What abap_read refuses
-  // outright" list. Derived from NON_READABLE_TYPES itself, not a copied
-  // list, so it can't drift.
-  it("the hand-written region names every NON_READABLE_TYPES code, including VIEW/DV and TRAN/T", () => {
-    expect(NON_READABLE_TYPES).toEqual(expect.arrayContaining(["VIEW/DV", "TRAN/T"]));
+  // SHLP/DH, VIEW/DV and TRAN/T are bridge-only-create too but are read
+  // through a plain-text catalog SELECT (src/adt/catalog-read.ts), not
+  // refused — they must NOT be in NON_READABLE_TYPES, and the hand-written
+  // "What abap_read refuses outright" region says so explicitly instead of
+  // listing them as refused. The generated block above still names them in
+  // its registry-wide "not readable either" bullet's cross-reference — but
+  // only if they land in `bridgeCreatableNonReadable`, which they no longer
+  // do. The generated block above already names every genuinely non-readable
+  // code in its "not readable either" bullet, and the hand-written region
+  // repeats them in its own "What abap_read refuses outright" list. Derived
+  // from NON_READABLE_TYPES itself, not a copied list, so it can't drift.
+  it("the hand-written region names every NON_READABLE_TYPES code, and none of SHLP/DH, VIEW/DV, TRAN/T", () => {
+    expect(NON_READABLE_TYPES).not.toContain("SHLP/DH");
+    expect(NON_READABLE_TYPES).not.toContain("VIEW/DV");
+    expect(NON_READABLE_TYPES).not.toContain("TRAN/T");
 
     const skillPath = new URL("../skills/abapsmith-orient/SKILL.md", import.meta.url);
     const body = readFileSync(skillPath, "utf8");

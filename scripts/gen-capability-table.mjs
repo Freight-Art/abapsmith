@@ -51,28 +51,56 @@ export const OUT_OF_REGISTRY_CREATE = {
   "ENHO/XHH": "src/adt/enhancement-hook.ts — createHookImplementation (PROG/P host only)",
 };
 
+// Bridge-only-create types (bridgeCreate set, no create) that are readable
+// anyway, through a plain-text catalog SELECT (src/adt/catalog-query.ts +
+// catalog-read.ts) rather than the ADT REST collection the bridge exists to
+// go around. Duplicates the exclusion NON_READABLE_TYPES applies in
+// src/adt/capabilities.ts — see the `nonReadable` field below for why this
+// script can't just import that logic.
+const CATALOG_READABLE_BRIDGE_ONLY_TYPES = new Set(["SHLP/DH", "VIEW/DV", "TRAN/T"]);
+
 // Per-type gloss for the bridge bucket, grounded in each type's
 // `bridgeCreate` entry in src/adt/capabilities.ts.
 const BRIDGE_NOTE = {
+  "SHLP/DH":
+    "builds an elementary (one interface) or collective (DD31S includes of other search " +
+    "helps) search help via RS_CORR_INSERT then DDIF_SHLP_PUT then DDIF_SHLP_ACTIVATE; an " +
+    "elementary help needs at least one import AND one export interface field, checked " +
+    "zero-network before dispatch. `update_search_help` REPLACES the whole definition — any " +
+    "field, include or assignment not passed again is removed. There is no ADT REST read or " +
+    "write route for a search help at all (every mutating verb 404s), but " +
+    "src/adt/catalog-read.ts reads one back through plain-text DD30L/DD30T/DD32S/DD31S/DD33S " +
+    "catalog SELECTs, so success is not proven by transcript markers alone. Proven live on " +
+    "A4H 2026-09-12, $TMP only: DDIF_SHLP_PUT + DDIF_SHLP_ACTIVATE returned DH107, and a " +
+    "catalog read-back matched what was put. A transportable package requires corr_nr; a `$` " +
+    "package refuses one and registers with korrnum = space — same pairing rule as VIEW/DV " +
+    "and TRAN/T. The transportable path has NOT itself been run live.",
   "VIEW/DV":
     "builds a single-table database view (DD25V class 'D') via RS_CORR_INSERT then " +
     "DDIF_VIEW_PUT then DDIF_VIEW_ACTIVATE; no joins, no SE54 maintenance dialog. A " +
     "transportable package resolves a transport request the same way a DEVC/K create does — " +
     "the caller's corr_nr, or else one picked or created under ABAP_ALLOW_TRANSPORTS; a `$` " +
-    "package refuses a corr_nr and registers with korrnum = space instead. There is no " +
-    "read-back: abapsmith cannot read a classic view " +
-    "through ADT, so success is proven only by transcript markers. Proven live on A4H: " +
-    "2026-09-04 into a transportable package with a corr_nr; 2026-09-05, " +
-    "RS_CORR_INSERT registered one in a `$` package with korrnum = space (sy-subrc 0, TADIR " +
-    "row), then removed by the delete bridge. Change is not supported either.",
+    "package refuses a corr_nr and registers with korrnum = space instead. There is no ADT " +
+    "REST read route (405 on every mutating verb, empty discovery collection), but " +
+    "src/adt/catalog-read.ts reads DD25L/DD25T/DD26S/DD27S/TVDIR back through plain-text " +
+    "catalog SELECTs, so success is not proven by transcript markers alone. Proven live on A4H: 2026-09-04 " +
+    "into a transportable package with a corr_nr; 2026-09-05, RS_CORR_INSERT registered one " +
+    "in a `$` package with korrnum = space (sy-subrc 0, TADIR row), then removed by the " +
+    "delete bridge. Changing an EXISTING view is also supported now (`update_view`, " +
+    "DDIF_VIEW_PUT again — REPLACES the whole definition, so an omitted field is dropped), " +
+    "proven live 2026-09-12 (message D0322, field count 2 to 3).",
   "TRAN/T":
     "creates a REPORT transaction (dynpro 1000) starting an existing program, via " +
-    "RPY_TRANSACTION_INSERT; change is still not supported. A transportable package requires " +
-    "corr_nr; a `$` package refuses one and registers with korrnum = space instead. " +
-    "RPY_TRANSACTION_INSERT's signature was read live on A4H 2026-09-05: transport_number is " +
-    "optional and forwarded verbatim to RS_CORR_INSERT as korrnum, and suppress_corr_insert " +
-    "defaults to space so the registration always runs. No live create into a transportable " +
-    "package has been run.",
+    "RPY_TRANSACTION_INSERT. Retargeting an EXISTING transaction to a different program is " +
+    "also supported now (`update_transaction`: RPY_TRANSACTION_DELETE then re-INSERT under " +
+    "one RS_CORR_INSERT registration, refused unless confirm_in_role_menu is passed when the " +
+    "tcode is already in a role menu; an SM01 lock is NOT checked either way, by design), " +
+    "proven live 2026-09-12 (message EU075, program confirmed changed on read-back). A " +
+    "transportable package requires corr_nr; a `$` package refuses one and registers with " +
+    "korrnum = space instead. RPY_TRANSACTION_INSERT's signature was read live on A4H " +
+    "2026-09-05: transport_number is optional and forwarded verbatim to RS_CORR_INSERT as " +
+    "korrnum, and suppress_corr_insert defaults to space so the registration always runs. No " +
+    "live create into a transportable package has been run.",
   "TABL/DI":
     "creates a secondary index on an existing table via DD_INDEX_INTERFACE (ACTION='I'); there " +
     "is no ADT-readable index route at all, so success is proven only by re-reading DD12V/DD17S " +
@@ -95,16 +123,36 @@ const BRIDGE_NOTE = {
 // here, grounded in that type's bridgeDelete.limits — a type with no entry
 // is a build error (see the throw below), not an inherited guarantee.
 const BRIDGE_DELETE_NOTE = {
+  "SHLP/DH":
+    "DD_OBJ_DEL (del_state 'A' then 'N') clears DD30L, then TR_TADIR_INTERFACE clears the " +
+    "TADIR row — the same two-call pattern VIEW/DV's delete uses, with the same open-" +
+    "transport-request-lock caveat (TR_TADIR_INTERFACE's TADIR delete fails under a lock " +
+    "this path does not clear). Guarded by a where-used check the other two bridge deletes " +
+    "do not have: attached to a data element (DD04L), a table/view field (DD35L), or " +
+    "included by a collective search help (DD31S) refuses the delete unless the caller " +
+    "passes confirm_in_use — all three checked live on A4H 2026-09-12. No corr_nr is " +
+    "accepted. Proven live on A4H 2026-09-12, $TMP only: DD_OBJ_DEL returned DH051, " +
+    "TR_TADIR_INTERFACE removed the TADIR row, and a post-delete re-read proved absence " +
+    "(SHLP-DELETED / SHLP-GONE).",
   "VIEW/DV":
     "abapsmith's own create registers every view in TADIR, so the delete bridge " +
     "(src/adt/view-delete.ts) always has one to act on. Proven live on A4H 2026-09-05: a " +
     "bridge-created view in a `$`-prefixed package was removed cleanly, VIEW-DELETED / " +
     "VIEW-GONE.",
   "TRAN/T":
-    "the bridge calls RPY_TRANSACTION_DELETE, but its parameter set is inferred from " +
-    "RPY_TRANSACTION_INSERT's `transaction` parameter, not transcribed from a capture of the " +
-    "delete FM itself — not live-verified, and whether it registers in TADIR/transport is " +
-    "unknown.",
+    "the bridge calls RPY_TRANSACTION_DELETE, whose parameter set was captured live on A4H " +
+    "2026-09-12 (IN TRANSACTION TSTC-TCODE required, TRANSPORT_NUMBER, " +
+    "SUPPRESS_AUTHORITY_CHECK, SUPPRESS_CORR_INSERT, SUPPRESS_CORR_CHECK; exceptions " +
+    "NOT_EXCECUTED — SAP's own misspelling — and OBJECT_NOT_FOUND) — not inferred from " +
+    "RPY_TRANSACTION_INSERT's `transaction` parameter name, as this entry previously read. " +
+    "Guarded by the same where-used check as retargeting: a tcode already assigned to one or " +
+    "more roles' menus (AGR_TCODES) refuses the delete unless the caller passes " +
+    "confirm_in_role_menu; an SM01 transaction lock is NOT checked either way. Live-verified " +
+    "once, 2026-09-05: TRAN-DELETED / TRAN-GONE with a post-delete re-read proving absence. " +
+    "Whether RPY_TRANSACTION_DELETE itself calls RS_CORR_INSERT (the way RPY_TRANSACTION_" +
+    "INSERT does) is still unknown, so deleting a transaction out of a TRANSPORTABLE package " +
+    "may plausibly hit a headless-dynpro failure; no transport handling is attempted here " +
+    "either way.",
   "DEVC/K":
     "runs over the same bridge (src/adt/package-delete.ts) the create uses, gated by the same " +
     "empty-package limit noted above; the create's journal entry no longer marks itself " +
@@ -170,12 +218,26 @@ export async function buildCapabilityTable(registry) {
       bridgeDel: Boolean(cap.bridgeDelete),
       outOfRegistry: type in OUT_OF_REGISTRY_CREATE,
       // Mirrors NON_READABLE_TYPES's predicate in src/adt/capabilities.ts:
-      // a `catalogRead` type has no ADT resource either, but abap_read
-      // dispatches it to a catalog-table render before resolveObject ever
-      // runs, so it does not belong in this bucket.
+      // `unsupported`, plus a bridge-only create (bridgeCreate set, no create)
+      // MINUS two independent exemptions, exactly as NON_READABLE_TYPES
+      // applies them:
+      //   * a `catalogRead` type has no ADT resource either, but abap_read
+      //     dispatches it to a catalog-TABLE render before resolveObject ever
+      //     runs, so it does not belong in this bucket (SUSO/B, TABL/DI);
+      //   * the three bridge-only types with a working catalog-based DDIC
+      //     read (src/adt/catalog-query.ts + catalog-read.ts) — SHLP/DH,
+      //     VIEW/DV, TRAN/T. This script is plain Node with no TypeScript
+      //     loader, so it can't import src/adt/ddic-strategy.ts's
+      //     DDIC_CATALOG_BASED to derive that the way capabilities.ts does;
+      //     the three-code duplicate above is deliberate and cheap, and the
+      //     census test asserts buckets.nonReadable equals NON_READABLE_TYPES
+      //     exactly, so the two lists can't silently drift apart.
       nonReadable:
         cap.catalogRead === undefined &&
-        (Boolean(cap.unsupported) || (cap.bridgeCreate !== undefined && cap.create === undefined)),
+        (Boolean(cap.unsupported) ||
+          (cap.bridgeCreate !== undefined &&
+            cap.create === undefined &&
+            !CATALOG_READABLE_BRIDGE_ONLY_TYPES.has(type))),
       catalogRead: Boolean(cap.catalogRead),
     };
   });
@@ -206,8 +268,8 @@ export async function buildCapabilityTable(registry) {
     "",
     `**Bridge-only create types (${bridged.length}).** ADT REST has no usable create for these, so ` +
       "abapsmith runs them over the fluid `classic` tool's shared `ZCL_ZMCP_FLUID_CLASSIC` body " +
-      "class in `$ABAPSMITH_FLUID_API`, not a throwaway per-call `$TMP` classrun. The bridge " +
-      "never updates an existing object. Whether it can delete one — and so whether the " +
+      "class in `$ABAPSMITH_FLUID_API`, not a throwaway per-call `$TMP` classrun. Whether it can " +
+      "also update an EXISTING object, and whether it can delete one — and so whether the " +
       "create is reversible — differs per type; see each bullet." +
       (bridged.some((r) => r.bridgeRefused)
         ? " A bullet marked **create REFUSED** creates nothing at all: the bridge is described but " +
@@ -251,8 +313,8 @@ export async function buildCapabilityTable(registry) {
           `instead (\`catalogRead\`, src/adt/capabilities.ts), not an ordinary ADT read: ` +
           `${catalogReadable.length ? fmt(catalogReadable) : "_(none)_"}.`,
         `- Not readable either (${nonReadable.length}) — \`abap_read\` refuses these before any ` +
-          "network call, from an `unsupported` entry or a bridge-only create with no ADT-readable " +
-          `collection (NON_READABLE_TYPES, src/adt/capabilities.ts): ${nonReadable.length ? fmt(nonReadable) : "_(none)_"}.` +
+          "network call, from an `unsupported` entry or a bridge-only create with no read route " +
+          `of any kind (NON_READABLE_TYPES, src/adt/capabilities.ts): ${nonReadable.length ? fmt(nonReadable) : "_(none)_"}.` +
           (bridgeCreatableNonReadable.length
             ? " Registry-wide, not just this bucket: " +
               `${fmt(bridgeCreatableNonReadable)} — creatable through the bridge above, still unreadable.`

@@ -74,14 +74,24 @@ export interface ClassicViewParams {
   corrSource?: "named" | "auto";
 }
 
-/** `DDOBJNAME`/`TABNAME`/`FIELDNAME` are all CHAR30 — the same ceiling `assertEnhIdentifier` defaults to. */
-const VIEW_NAME_MAX = 30;
+/**
+ * `DDOBJNAME`/`TABNAME`/`FIELDNAME` are all CHAR30 — the same ceiling
+ * `assertEnhIdentifier` defaults to. Exported so `./view-update.ts`'s
+ * `updateClassicView` validates against the identical limit rather than a
+ * re-typed copy of the number.
+ */
+export const VIEW_NAME_MAX = 30;
 
-/** `DD25V-DDTEXT` is `AS4TEXT`, CHAR60. */
-const VIEW_TEXT_MAX = 60;
+/** `DD25V-DDTEXT` is `AS4TEXT`, CHAR60. Exported for `./view-update.ts`, same reason as {@link VIEW_NAME_MAX}. */
+export const VIEW_TEXT_MAX = 60;
 
-/** Keeps the zero-padded `DD27P-OBJPOS` position (4 numeric chars) inside `0001`-`9999`, which `abap-view.ts`'s `create_view` method pads at runtime. */
-const MAX_VIEW_FIELDS = 249;
+/**
+ * Keeps the zero-padded `DD27P-OBJPOS` position (4 numeric chars) inside
+ * `0001`-`9999`, which `abap-view.ts`'s `create_view`/`update_view` methods
+ * both pad at runtime. Exported for `./view-update.ts`, same reason as
+ * {@link VIEW_NAME_MAX}.
+ */
+export const MAX_VIEW_FIELDS = 249;
 
 /**
  * Local (non-transportable) package: ANY `$`-prefixed package, per

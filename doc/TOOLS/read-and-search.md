@@ -44,6 +44,80 @@ nothing at all, which happens for generated function modules (e.g.
 `ENQUEUE_E_TABLE`) that the repository search does not index: say
 `"ENQUEUE_E_TABLE in ETABLE"` or `"ETABLE/ENQUEUE_E_TABLE"`.
 
+### `SHLP/DH`, `VIEW/DV`, `TRAN/T`: catalog reads, not ADT source
+
+Search helps, classic (DDIC) views and transactions have no ADT-readable
+collection — a GET against any of them 404s or returns a content-free stub.
+`abap_read` reaches all three a different way: a plain-text `SELECT` against
+the underlying catalog tables, issued over the ADT freestyle data-preview
+endpoint and rendered as pseudo-DDL (`src/adt/catalog-query.ts` builds the
+SQL, `src/adt/catalog-read.ts` runs it and renders the result). This is not
+the classic fluid bridge that `abap_write` uses for these three types — it
+needs no generated `IF_OO_ADT_CLASSRUN` class, so it works under
+`ABAP_MODE=read` as well as `edit`/`admin`.
+
+Each type reads from its own set of tables and renders its own section
+layout:
+
+- **`SHLP/DH` (search help)** — header from `DD30L`/`DD30T` (selection
+  method, selection method type, text table, hot key, dialog type,
+  elementary vs. collective); `PARAMETERS` from `DD32S`; `INCLUDES` (for a
+  collective help) from `DD31S`; `ASSIGNMENTS` from `DD33S`; plus two
+  DDL-only sections not returned as separate structured sections —
+  `USED BY DATA ELEMENTS` from `DD04L` and `INCLUDED BY` from `DD31S`
+  (which other collective help includes this one). `DD33S-VALUEDIREC` is
+  decoded from the fixed values of domain `VALUEDIREC`, read live from
+  `DD07V` on A4H (`I` import, `C` copy, `E` export), with a provenance note;
+  a code outside that set prints as-is and adds a note flagging it. DDIC writes a `DD31S` row
+  pointing an elementary search help at its own interface (`SUBSHLP` =
+  `SHLPNAME`, `SHPOSITION` `0001`) even when the caller defined no includes
+  at all — measured live on A4H 2026-09-15 on a freshly created elementary
+  search help with two interface fields and no includes/assignments, and
+  confirmed as DDIC's general representation (not a write-path artifact) by
+  reading `DD31S` for five standard SAP elementary search helps
+  (`/UI2/GROUPS_SH`, `/AIF/MESSAGE_CLID_SHLP`, `/UI5/PURPOSE`,
+  `/BA1/F4_FX_RATETYPE`, `/AIF/FILEDIALOG`), each with exactly that one
+  self-row. `abap_read` filters that row out of `INCLUDES`, `INCLUDED BY`
+  and the `includeCount` summary field — it is not an include relationship
+  — and adds a note when it does so; `ASSIGNMENTS` rows are left alone,
+  since there is no equivalent evidence for what a self-referencing `DD33S`
+  row would mean.
+- **`VIEW/DV` (classic view)** — header from `DD25L`/`DD25T` (root table,
+  aggregate type, view class, read-only flag, view grant, application
+  class, master language) plus `TVDIR` (package and screen, when a
+  generated SE54 maintenance dialog exists for the view — absent
+  otherwise); `BASE TABLES` from `DD26S` (including any foreign-key join);
+  `FIELDS` from `DD27S` (view field, data element, source table/field, key
+  and read-only flags).
+- **`TRAN/T` (transaction)** — header from `TSTC`/`TSTCT` (program, initial
+  screen, class info, message area) plus a parsed `PARAMETERS` block from
+  `TSTCP` (a report transaction shows `STARTS:`; a parameter/variant
+  transaction shows the raw `TSTCP-PARAM` string and its parsed
+  assignments); `AUTHORIZATION` from `TSTCA`; `ASSIGNED TO ROLES` from
+  `AGR_TCODES`. This is strictly more than the old generic-VIT-bridge read
+  ever returned (no call parameters, no authorization checks, no role-menu
+  membership), and it works in every `ABAP_MODE`, unlike the fluid bridge
+  `abap_write` needs for creating or changing a transaction.
+
+**Caps and truncation.** Every detail list (`PARAMETERS`/`INCLUDES`/
+`ASSIGNMENTS`/`USED BY DATA ELEMENTS`/`INCLUDED BY` for `SHLP/DH`;
+`BASE TABLES`/`FIELDS` for `VIEW/DV`; `AUTHORIZATION`/`ASSIGNED TO ROLES`
+for `TRAN/T`) is capped at 200 rows; the description-text query (one row per
+language) is capped at 50. Hitting either cap always adds a note naming what
+was capped — abapsmith never truncates a list silently. Header/detail
+single-row lookups are capped at exactly one row, since there is only ever
+one meaningful row to find.
+
+**Not verified end to end.** These queries were run directly against A4H
+(NetWeaver 7.54, client 001) and returned real column lists and sample
+rows, so the SQL and the rendering are grounded in live data. The assembled
+`abap_read` code path itself — dispatch through `resolveObject` into
+`readSearchHelp`/`readClassicView`/`readTransaction` — has not been
+exercised against a live MCP server, because the server this project talks
+to runs a previously released bundle, not this working tree. Treat the read
+side as implemented against live-captured data, not live-verified end to
+end.
+
 ### view="definition": element info and go-to-definition
 
 Given `line` (1-based) and `column` (0-based, default 0), `view="definition"`

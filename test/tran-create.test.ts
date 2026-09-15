@@ -162,14 +162,37 @@ const PARAMS: TransactionParams = {
   corrNr: CORR_NR,
 };
 
+// `create_transaction`'s own method body, sliced out of the static class
+// source once. Issue #83 added `update_transaction` right after
+// `create_transaction` in the same static class source, and that new method
+// legitimately passes `suppress_corr_insert = 'X'` to `RPY_TRANSACTION_DELETE`
+// (one `RS_CORR_INSERT` call up front covers the whole delete+insert pair for
+// a retarget) — so any assertion about `suppress_corr_insert`'s absence must
+// be scoped to create_transaction's own source region, not the whole file.
+const allTranLines = tranPart.source.split("\n");
+const createIdx = allTranLines.findIndex((l) => l.trim() === "METHOD create_transaction.");
+const updateTranIdx = allTranLines.findIndex((l) => l.trim() === "METHOD update_transaction.");
+const createTranSource = allTranLines.slice(createIdx, updateTranIdx).join("\n");
+
 // ---------------------------------------------------------------------------
 // 1 — the classic body's own transcript vocabulary
 // ---------------------------------------------------------------------------
 
 describe("abap-tran.ts's transcript vocabulary", () => {
-  it("every tag create_transaction/delete_transaction emit is one parseDdicTranscript recognises", () => {
+  // Issue #83 added `update_transaction` to the same static source, emitting
+  // its own tags (TRAN-REGISTERED, TRAN-RETARGETED) alongside
+  // create_transaction/delete_transaction's — so this can no longer assert
+  // an exact whole-file tag list (that list now includes update_transaction's
+  // tags too, which this describe block is not about). What's still true,
+  // and worth pinning here, is that every tag ANY method in tranPart emits is
+  // one parseDdicTranscript actually recognises — a non-exhaustive membership
+  // check, not an exact enumeration of the whole file.
+  it("every tag create_transaction/update_transaction/delete_transaction emit is one parseDdicTranscript recognises", () => {
     const tags = [...tranPart.source.matchAll(/line\(\s*'([^']+)'\s*\)/g)].map((m) => m[1]!);
-    expect(tags).toEqual(["TRAN-CREATED", "TRAN-DELETED", "TRAN-GONE"]);
+    expect(tags.length).toBeGreaterThan(0);
+    expect(tags).toEqual(
+      expect.arrayContaining(["TRAN-CREATED", "TRAN-DELETED", "TRAN-GONE", "TRAN-REGISTERED", "TRAN-RETARGETED"]),
+    );
     const parsed = parseDdicTranscript(tags.join("\n"));
     expect(new Set(parsed.tags)).toEqual(new Set(tags));
     expect(parsed.errorLine).toBeUndefined();
@@ -407,10 +430,12 @@ describe("suppress_corr_insert", () => {
    * own body. Passing it would skip that registration and leave a transaction
    * with no repository entry behind it.
    */
-  it("is absent from the generated source", () => {
-    const source = tranPart.source;
-    expect(source.toLowerCase()).not.toContain("suppress_corr_insert");
-    expect(source.toLowerCase()).not.toContain("corr_insert");
+  it("is absent from create_transaction's own source region", () => {
+    // Scoped to create_transaction: update_transaction (issue #83) legitimately
+    // passes suppress_corr_insert = 'X' to RPY_TRANSACTION_DELETE elsewhere in
+    // this same static source — see this describe block's header comment.
+    expect(createTranSource.toLowerCase()).not.toContain("suppress_corr_insert");
+    expect(createTranSource.toLowerCase()).not.toContain("corr_insert");
   });
 });
 
@@ -501,7 +526,10 @@ describe("scope — this module binds a transaction to a caller-supplied program
 
 describe("transport_number threaded into RPY_TRANSACTION_INSERT", () => {
   it("threads transport_number from corr_nr for a non-local package, and space for a local one, at runtime", () => {
-    const source = tranPart.source;
+    // Scoped to create_transaction's own region — update_transaction (issue
+    // #83) legitimately passes suppress_corr_insert = 'X' elsewhere in this
+    // same static source (see the "suppress_corr_insert" describe block above).
+    const source = createTranSource;
     expect(source).toContain("DATA(lv_local) = boolc( to_upper( lv_package ) CP '$*' )");
     expect(source).toContain("lv_transport = space");
     expect(source).toContain("lv_transport = lv_corr_nr");

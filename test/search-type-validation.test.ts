@@ -105,14 +105,6 @@ describe('abap_search rejects an unrecognised `type` before any server call', ()
     expect(err.code).toBe("BAD_INPUT");
   });
 
-  // The VIEW/DV capability entry tells a caller this rejection is why a
-  // classic view cannot be reached for a read at all; that claim needs a test.
-  it('rejects "VIEW/DV" — the type abap_read refuses, so neither route reaches a classic view', async () => {
-    const err = await rejects(searchConn({}), { query: "Z*", type: "VIEW/DV", max: 5 });
-    expect(err.code).toBe("BAD_INPUT");
-    expect(KNOWN_TYPE_GROUPS.has("VIEW")).toBe(false);
-  });
-
   it('mode: "where_used" with type: "any" also rejects with BAD_INPUT before usageReferences is called', async () => {
     let calls = 0;
     const conn = searchConn({
@@ -161,6 +153,24 @@ describe("abap_search accepts every valid spelling of `type` and filters correct
     expect(namesIn(r.text)).toEqual(["ZTAB_A"]);
   });
 
+  // VIEW/DV used to be rejected here: `abap_read` had no route to a classic
+  // view at all, so a search filter that admitted it would have pointed a
+  // caller at a type it could never then read. VIEW/DV, TRAN/T and SHLP/DH
+  // all gained a `mode: "ddic"` TypeSpec in types.ts on this branch (read
+  // through catalog-read.ts's plain-text catalog SELECTs, not ADT REST), so
+  // KNOWN_TYPE_GROUPS — derived from TYPES — now includes VIEW, and
+  // abap_search's `type` filter agrees with abap_read instead of refusing
+  // what abap_read can now serve.
+  it('a full type code, "VIEW/DV", is accepted — abap_read now reads a classic view, and abap_search agrees', async () => {
+    const r = await abapSearch(
+      searchConn({ searchObject: async () => [...ROWS, { "adtcore:type": "VIEW/DV", "adtcore:name": "ZVIEW_A" }] }),
+      { query: "Z*", type: "VIEW/DV", max: 50 },
+      20_000,
+    );
+    expect(namesIn(r.text)).toEqual(["ZVIEW_A"]);
+    expect(KNOWN_TYPE_GROUPS.has("VIEW")).toBe(true);
+  });
+
   it('an unknown sub-type on a known group, "ENHS/XB", returns only the ENHS/XB row — this is the case a naive specForType-only check would wrongly reject', async () => {
     const r = await abapSearch(
       searchConn({ searchObject: async () => ROWS }),
@@ -200,14 +210,26 @@ describe("the `type` schema description enumerates only groups the runtime actua
     }
   });
 
-  it('does not advertise "TRAN", "VIEW", or "SHLP" as accepted groups', () => {
+  // TRAN, VIEW and SHLP used to be deliberately absent here: TRAN/T, VIEW/DV
+  // and SHLP/DH had no `types.ts` TypeSpec, so KNOWN_TYPE_GROUPS (derived
+  // from TYPES, per the first test in this describe) never contained their
+  // group words and the description correctly never advertised them. All
+  // three now have a `mode: "ddic"` TypeSpec, so KNOWN_TYPE_GROUPS contains
+  // them and the description — being derived, not hand-listed — must too;
+  // failing to advertise a group the runtime actually accepts would be a
+  // caller-facing regression in the schema, not a safety property worth
+  // keeping.
+  it('advertises "TRAN", "VIEW", and "SHLP" as accepted groups now that all three have a TypeSpec', () => {
     const listed = description
       .replace(/^.*One of:\s*/s, "")
       .split(";")[0]!
       .trim()
       .split(/\s+/);
-    expect(listed).not.toContain("TRAN");
-    expect(listed).not.toContain("VIEW");
-    expect(listed).not.toContain("SHLP");
+    expect(listed).toContain("TRAN");
+    expect(listed).toContain("VIEW");
+    expect(listed).toContain("SHLP");
+    expect(KNOWN_TYPE_GROUPS.has("TRAN")).toBe(true);
+    expect(KNOWN_TYPE_GROUPS.has("VIEW")).toBe(true);
+    expect(KNOWN_TYPE_GROUPS.has("SHLP")).toBe(true);
   });
 });
