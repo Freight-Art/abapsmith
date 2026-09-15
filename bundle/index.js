@@ -81762,7 +81762,7 @@ var changeDocsPart = {
     DATA lv_tcode    TYPE string.
     DATA lv_since    TYPE string.
     DATA lv_until    TYPE string.
-    DATA lv_max      TYPE i.
+    DATA lv_max_docs TYPE i.
     DATA lv_probe    TYPE i.
     DATA lv_now_d    TYPE d.
     DATA lv_now_t    TYPE t.
@@ -81812,11 +81812,11 @@ var changeDocsPart = {
       lv_tcode = lv_tcode_in.
     ENDIF.
 
-    lv_max = num( 'max' ).
-    IF lv_max <= 0.
-      lv_max = 20.
+    lv_max_docs = num( 'max' ).
+    IF lv_max_docs <= 0.
+      lv_max_docs = 20.
     ENDIF.
-    lv_probe = lv_max + 1.
+    lv_probe = lv_max_docs + 1.
 
     " One server-time snapshot for both the default window and the summary's
     " server_time, so the two never disagree about "now". since/until are
@@ -81852,7 +81852,7 @@ var changeDocsPart = {
       lv_t_since = lv_since+8(6).
     ENDIF.
 
-    " UP TO @lv_probe ROWS fetches one row past lv_max, purely to detect
+    " UP TO @lv_probe ROWS fetches one row past lv_max_docs, purely to detect
     " truncation - see the DELETE below, the same probe pattern core.log
     " uses for BAL_DB_SEARCH's result.
     TRY.
@@ -81873,7 +81873,7 @@ var changeDocsPart = {
     ENDTRY.
 
     lv_truncated = abap_false.
-    IF lines( lt_hdr ) > lv_max.
+    IF lines( lt_hdr ) > lv_max_docs.
       lv_truncated = abap_true.
       " DELETE ... FROM requires a data object, not an arithmetic expression.
       DELETE lt_hdr FROM lv_probe.
@@ -81944,7 +81944,7 @@ var changeDocsPart = {
       |"tcode":"{ zcl_zmcp_fluid_rt=>esc( lv_tcode ) }",| &&
       |"since":"{ zcl_zmcp_fluid_rt=>esc( lv_since_s ) }",| &&
       |"until":"{ zcl_zmcp_fluid_rt=>esc( lv_until_s ) }",| &&
-      |"max":{ lv_max },| &&
+      |"max":{ lv_max_docs },| &&
       |"server_time":"{ zcl_zmcp_fluid_rt=>esc( lv_server_time ) }"\\}| ).
   ENDMETHOD.`
 };
@@ -81956,7 +81956,7 @@ var locksPart = {
     DATA lv_object    TYPE string.
     DATA lv_table     TYPE string.
     DATA lv_user      TYPE string.
-    DATA lv_max       TYPE i.
+    DATA lv_max_locks       TYPE i.
     DATA lv_read      TYPE i.
     DATA lv_matched   TYPE i.
     DATA lv_kept      TYPE i.
@@ -81986,13 +81986,13 @@ var locksPart = {
     lv_object = to_upper( s( 'object' ) ).
     lv_table  = to_upper( s( 'table' ) ).
     lv_user   = to_upper( s( 'user' ) ).
-    lv_max    = num( 'max' ).
+    lv_max_locks    = num( 'max' ).
     IF lv_object IS INITIAL AND lv_table IS INITIAL AND lv_user IS INITIAL.
       fail( 'at least one of object, table or user is required' ).
       RETURN.
     ENDIF.
-    IF lv_max <= 0.
-      lv_max = 50.
+    IF lv_max_locks <= 0.
+      lv_max_locks = 50.
     ENDIF.
 
     CLEAR ls_opt.
@@ -82044,7 +82044,7 @@ var locksPart = {
     lv_json = lv_json && |,"object":"{ zcl_zmcp_fluid_rt=>esc( lv_object ) }"|.
     lv_json = lv_json && |,"table":"{ zcl_zmcp_fluid_rt=>esc( lv_table ) }"|.
     lv_json = lv_json && |,"user":"{ zcl_zmcp_fluid_rt=>esc( lv_user ) }"|.
-    lv_json = lv_json && |,"max":{ lv_max }|.
+    lv_json = lv_json && |,"max":{ lv_max_locks }|.
     lv_json = lv_json && ',"fields_present":['.
     lv_first = abap_true.
     LOOP AT lt_opt INTO ls_opt WHERE present = abap_true.
@@ -82095,7 +82095,7 @@ var locksPart = {
         CONTINUE.
       ENDIF.
       lv_matched = lv_matched + 1.
-      IF lv_kept >= lv_max.
+      IF lv_kept >= lv_max_locks.
         CONTINUE.
       ENDIF.
       lv_kept = lv_kept + 1.

@@ -71,7 +71,7 @@ export const locksPart: CoreAbapPart = {
     DATA lv_object    TYPE string.
     DATA lv_table     TYPE string.
     DATA lv_user      TYPE string.
-    DATA lv_max       TYPE i.
+    DATA lv_max_locks       TYPE i.
     DATA lv_read      TYPE i.
     DATA lv_matched   TYPE i.
     DATA lv_kept      TYPE i.
@@ -101,13 +101,13 @@ export const locksPart: CoreAbapPart = {
     lv_object = to_upper( s( 'object' ) ).
     lv_table  = to_upper( s( 'table' ) ).
     lv_user   = to_upper( s( 'user' ) ).
-    lv_max    = num( 'max' ).
+    lv_max_locks    = num( 'max' ).
     IF lv_object IS INITIAL AND lv_table IS INITIAL AND lv_user IS INITIAL.
       fail( 'at least one of object, table or user is required' ).
       RETURN.
     ENDIF.
-    IF lv_max <= 0.
-      lv_max = 50.
+    IF lv_max_locks <= 0.
+      lv_max_locks = 50.
     ENDIF.
 
     CLEAR ls_opt.
@@ -159,7 +159,7 @@ export const locksPart: CoreAbapPart = {
     lv_json = lv_json && |,"object":"{ zcl_zmcp_fluid_rt=>esc( lv_object ) }"|.
     lv_json = lv_json && |,"table":"{ zcl_zmcp_fluid_rt=>esc( lv_table ) }"|.
     lv_json = lv_json && |,"user":"{ zcl_zmcp_fluid_rt=>esc( lv_user ) }"|.
-    lv_json = lv_json && |,"max":{ lv_max }|.
+    lv_json = lv_json && |,"max":{ lv_max_locks }|.
     lv_json = lv_json && ',"fields_present":['.
     lv_first = abap_true.
     LOOP AT lt_opt INTO ls_opt WHERE present = abap_true.
@@ -210,7 +210,7 @@ export const locksPart: CoreAbapPart = {
         CONTINUE.
       ENDIF.
       lv_matched = lv_matched + 1.
-      IF lv_kept >= lv_max.
+      IF lv_kept >= lv_max_locks.
         CONTINUE.
       ENDIF.
       lv_kept = lv_kept + 1.

@@ -74,7 +74,7 @@ export const changeDocsPart: CoreAbapPart = {
     DATA lv_tcode    TYPE string.
     DATA lv_since    TYPE string.
     DATA lv_until    TYPE string.
-    DATA lv_max      TYPE i.
+    DATA lv_max_docs TYPE i.
     DATA lv_probe    TYPE i.
     DATA lv_now_d    TYPE d.
     DATA lv_now_t    TYPE t.
@@ -124,11 +124,11 @@ export const changeDocsPart: CoreAbapPart = {
       lv_tcode = lv_tcode_in.
     ENDIF.
 
-    lv_max = num( 'max' ).
-    IF lv_max <= 0.
-      lv_max = 20.
+    lv_max_docs = num( 'max' ).
+    IF lv_max_docs <= 0.
+      lv_max_docs = 20.
     ENDIF.
-    lv_probe = lv_max + 1.
+    lv_probe = lv_max_docs + 1.
 
     " One server-time snapshot for both the default window and the summary's
     " server_time, so the two never disagree about "now". since/until are
@@ -164,7 +164,7 @@ export const changeDocsPart: CoreAbapPart = {
       lv_t_since = lv_since+8(6).
     ENDIF.
 
-    " UP TO @lv_probe ROWS fetches one row past lv_max, purely to detect
+    " UP TO @lv_probe ROWS fetches one row past lv_max_docs, purely to detect
     " truncation - see the DELETE below, the same probe pattern core.log
     " uses for BAL_DB_SEARCH's result.
     TRY.
@@ -185,7 +185,7 @@ export const changeDocsPart: CoreAbapPart = {
     ENDTRY.
 
     lv_truncated = abap_false.
-    IF lines( lt_hdr ) > lv_max.
+    IF lines( lt_hdr ) > lv_max_docs.
       lv_truncated = abap_true.
       " DELETE ... FROM requires a data object, not an arithmetic expression.
       DELETE lt_hdr FROM lv_probe.
@@ -256,7 +256,7 @@ export const changeDocsPart: CoreAbapPart = {
       |"tcode":"{ zcl_zmcp_fluid_rt=>esc( lv_tcode ) }",| &&
       |"since":"{ zcl_zmcp_fluid_rt=>esc( lv_since_s ) }",| &&
       |"until":"{ zcl_zmcp_fluid_rt=>esc( lv_until_s ) }",| &&
-      |"max":{ lv_max },| &&
+      |"max":{ lv_max_docs },| &&
       |"server_time":"{ zcl_zmcp_fluid_rt=>esc( lv_server_time ) }"\\}| ).
   ENDMETHOD.`,
 };

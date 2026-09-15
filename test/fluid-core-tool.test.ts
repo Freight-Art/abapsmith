@@ -8,15 +8,22 @@
  */
 import { describe, expect, it } from "vitest";
 import { coreManifest, coreSources } from "../src/adt/fluid/builtin/core.js";
-import { FLUID_CONTRACT, FluidManifestSchema } from "../src/adt/fluid/manifest.js";
-import { FLUID_ABAP_LINE_MAX, reviewFluidAbap } from "../src/adt/fluid/static-review.js";
+import {
+  FLUID_CONTRACT,
+  FluidManifestSchema,
+} from "../src/adt/fluid/manifest.js";
+import {
+  FLUID_ABAP_LINE_MAX,
+  reviewFluidAbap,
+} from "../src/adt/fluid/static-review.js";
 
 describe("coreManifest — schema", () => {
   it("parses cleanly through FluidManifestSchema", () => {
     const result = FluidManifestSchema.safeParse(coreManifest);
-    expect(result.success, JSON.stringify(result.success ? undefined : result.error.issues, null, 2)).toBe(
-      true,
-    );
+    expect(
+      result.success,
+      JSON.stringify(result.success ? undefined : result.error.issues, null, 2),
+    ).toBe(true);
   });
 
   it("declares the current FLUID_CONTRACT", () => {
@@ -25,14 +32,24 @@ describe("coreManifest — schema", () => {
 });
 
 describe("coreManifest — action ids", () => {
-  it("has exactly call_fm, describe_fm, docu, eval, select, sorted", () => {
+  it("has exactly call_fm, change_docs, describe_fm, docu, eval, locks, select, sorted", () => {
     const names = coreManifest.actions.map((a) => a.name).sort();
+    // `change_docs` (#114) and `locks` (#116) are reads; both were added to
+    // this exact list deliberately, together with their own ABAP parts.
     // `eval` is unconditionally present here: manifestVersion hashes only the
     // contract and the objects, never the actions, so keeping `eval` permanently
     // in the manifest forces no redeploy when it is turned on/off. Its actual
     // gating lives in `guardCoreAction` and the catalogue, not in this manifest —
     // do not "fix" this by making the manifest conditional.
-    expect(names).toEqual(["call_fm", "describe_fm", "docu", "eval", "select"]);
+    expect(names).toEqual([
+      "call_fm",
+      "change_docs",
+      "describe_fm",
+      "docu",
+      "eval",
+      "locks",
+      "select",
+    ]);
   });
 
   // `submit` was deliberately cut from this slice: `core` reads and calls
@@ -62,7 +79,8 @@ describe("coreManifest — action categories", () => {
 
 describe("coreManifest — select input schema", () => {
   const select = coreManifest.actions.find((a) => a.name === "select");
-  if (select === undefined) throw new Error("coreManifest has no select action");
+  if (select === undefined)
+    throw new Error("coreManifest has no select action");
   const props = select.input.properties ?? {};
 
   it("requires table", () => {
@@ -70,7 +88,9 @@ describe("coreManifest — select input schema", () => {
   });
 
   it("declares fields, where, max_rows as optional properties (not required)", () => {
-    expect(Object.keys(props)).toEqual(expect.arrayContaining(["fields", "where", "max_rows"]));
+    expect(Object.keys(props)).toEqual(
+      expect.arrayContaining(["fields", "where", "max_rows"]),
+    );
     for (const optional of ["fields", "where", "max_rows"]) {
       expect(select.input.required ?? []).not.toContain(optional);
     }
@@ -80,13 +100,15 @@ describe("coreManifest — select input schema", () => {
   // means no limit — abapsmith imposes no default and no ceiling (see the
   // property's own description and abap-select.ts's module doc comment).
   it("max_rows has no default key", () => {
-    const maxRowsSchema = props["max_rows"] as Record<string, unknown> | undefined;
+    const maxRowsSchema = props["max_rows"] as
+      Record<string, unknown> | undefined;
     expect(maxRowsSchema).toBeDefined();
     expect("default" in (maxRowsSchema as Record<string, unknown>)).toBe(false);
   });
 
   it("max_rows has no maximum key", () => {
-    const maxRowsSchema = props["max_rows"] as Record<string, unknown> | undefined;
+    const maxRowsSchema = props["max_rows"] as
+      Record<string, unknown> | undefined;
     expect(maxRowsSchema).toBeDefined();
     expect("maximum" in (maxRowsSchema as Record<string, unknown>)).toBe(false);
   });
@@ -108,6 +130,12 @@ describe("coreSources — no cap in the ABAP either", () => {
   });
 
   it("never clamps lv_max to a positive default when it is 0 (no `lv_max = <positive digit>` assignment)", () => {
+    // `lv_max` is core.select's pass-through row limit. `core.change_docs`
+    // and `core.locks` carry their OWN documented defaults (20 documents /
+    // 50 rows when `max` is 0 or omitted) under `lv_max_docs`/`lv_max_locks`,
+    // which this regex does not (and must not) match: they are not row caps
+    // on a SELECT the caller asked to be unlimited, they are the size of a
+    // read the caller did not size at all.
     expect(joined).not.toMatch(/lv_max\s*=\s*[1-9]/);
   });
 });
@@ -128,23 +156,28 @@ describe("coreManifest — objects", () => {
 
   it("has a coreSources entry for every declared object", () => {
     for (const name of names) {
-      expect(coreSources.has(name), `coreSources is missing "${name}"`).toBe(true);
+      expect(coreSources.has(name), `coreSources is missing "${name}"`).toBe(
+        true,
+      );
     }
   });
 
   it("has no coreSources entry the manifest does not declare", () => {
     const declared = new Set(names);
     for (const key of coreSources.keys()) {
-      expect(declared.has(key), `coreSources has orphan entry "${key}"`).toBe(true);
+      expect(declared.has(key), `coreSources has orphan entry "${key}"`).toBe(
+        true,
+      );
     }
   });
 
   it.each(coreManifest.objects.map((o) => [o.name, o] as const))(
     "%s: description is at most 60 characters",
     (_name, obj) => {
-      expect(obj.description.length, `"${obj.name}" description is ${obj.description.length} chars`).toBeLessThanOrEqual(
-        60,
-      );
+      expect(
+        obj.description.length,
+        `"${obj.name}" description is ${obj.description.length} chars`,
+      ).toBeLessThanOrEqual(60);
     },
   );
 
@@ -154,9 +187,10 @@ describe("coreManifest — objects", () => {
       const source = coreSources.get(name) ?? "";
       const lines = source.split(/\r\n|\r|\n/);
       lines.forEach((line, i) => {
-        expect(line.length, `"${name}" line ${i + 1} is ${line.length} chars: ${line}`).toBeLessThanOrEqual(
-          FLUID_ABAP_LINE_MAX,
-        );
+        expect(
+          line.length,
+          `"${name}" line ${i + 1} is ${line.length} chars: ${line}`,
+        ).toBeLessThanOrEqual(FLUID_ABAP_LINE_MAX);
       });
     },
   );
@@ -178,11 +212,11 @@ describe("coreManifest — action targets", () => {
     expect(byName.get("call_fm")?.targets).toBeUndefined();
   });
 
-  it("select declares targets: { object: \"/table\" }", () => {
+  it('select declares targets: { object: "/table" }', () => {
     expect(byName.get("select")?.targets).toEqual({ object: "/table" });
   });
 
-  it("describe_fm declares targets: { object: \"/name\" }", () => {
+  it('describe_fm declares targets: { object: "/name" }', () => {
     expect(byName.get("describe_fm")?.targets).toEqual({ object: "/name" });
   });
 });
