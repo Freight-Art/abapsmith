@@ -138,8 +138,10 @@ locking down further work on the same objects here.
 Create one with `operation: "create"`, `kind: "copies"`, `target` (the
 target system — required; a transport of copies with no target cannot be
 imported anywhere, so abapsmith refuses to create one without it),
-`package`, and `description` — gated the same as an ordinary `create`
-(`canWrite`, the `package` allowlist, no `$`-package).
+`package` (must be transportable — a `$`-package is refused, since objects
+in a local package are never transported), and `description` — gated the
+same as an ordinary `create` (`canWrite`, the `package` allowlist, no
+`$`-package).
 
 It has **no tasks**: `addUser` does not apply, and fails if you try it (ADT
 answers HTTP 400, `TRANSPORT_ERROR "I::000"`). Don't chase that error as a

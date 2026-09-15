@@ -191,18 +191,51 @@ as `tm:type="K"` regardless, so ADT cannot create this kind at all (see
 
 Gate: identical to ordinary `create` — needs `canWrite`, checks `package`
 against the same allowlist, and refuses a `$`-package — and it IS
-journalled, as `transport-create`, the same as a workbench request.
+journalled, as `transport-create`, the same as a workbench request. Beyond
+the allowlist, `package` must specifically be a **transportable** package: a
+`$`-prefixed local package is refused outright, because objects that live in
+a local package are never transported at all, so a transport of copies of
+them would carry nothing meaningful anywhere. The live run below used
+`ZCUSTOM_DEVELOPMENT`, an ordinary transportable package — `$TMP` is not
+usable here.
 
-Live-proven (A4H, client 001, user DEVELOPER, 2026-09-15):
-`TR_INSERT_REQUEST_WITH_TASKS` with `IV_TYPE='T'`, `IV_TARGET='A4H'` really
-created request A4HK900168 — `TRFUNCTION='T'`, `TRSTATUS='D'`,
-`TARSYSTEM='A4H'`, zero task headers. `operation="show"` rendered it as
-`kind: transport-of-copies`, `target: A4H (A4H)`. The request was deleted
-again afterwards with `operation="delete"`, which also works on a transport
-of copies. **Not proven**: importing a transport of copies into a target
+Live-proven (A4H, client 001, user DEVELOPER, 2026-09-15) — creation was
+exercised by running the fixed bridge ABAP for
+`create_transport_of_copies` directly out of a throwaway `$TMP` probe
+class: the MCP server process loads `bundle/index.js` at process start
+and does not hot-reload, so the fixed code could not be reached through
+the released tool in this same session. The probe ran with
+`description: "i88 copies I88"`, `target: "A4H"`, `devclass:
+"ZCUSTOM_DEVELOPMENT"` and created request A4HK900174
+(`TR_INSERT_REQUEST_WITH_TASKS` with `IV_TYPE='T'`, `IV_TARGET='A4H'`, zero
+task headers). Every step after creation ran through the released
+`abap_transport` tool against that same request: `operation="show"`
+rendered it as `kind:
+transport-of-copies`, `status: Modifiable (tm:status=D)`, `owner:
+DEVELOPER`, `description: i88 copies I88`, `target: A4H (A4H)`, `tasks: 0`,
+`objects: 0`. `operation="log"` rendered `trFunction: transport of copies
+(T)`, `trStatus: modifiable (D)`, one system (`DEV`), "no return code yet",
+"never imported", and no log lines recorded for that system. A caveat on
+that one: `show`, `addUser`, `delete` and `list` are plain ADT paths the
+fix does not touch, so serving them from the pre-fix bundle is immaterial
+— but `operation="log"` runs through the same classic bridge the fix
+touched, so what actually ran here was the pre-fix `read_transport_log`.
+The FIXED `read_transport_log` was separately exercised through the same
+`$TMP` probe class, against request A4HK900158, and returned the same
+transcript shape: one `DEV` overview row, empty system text, "Not yet
+flagged for import", and zero log lines — the log method's fix was
+cosmetic hardening only, with no behaviour change.
+`operation="addUser"` against the same request failed exactly as the
+no-tasks claim above predicts: HTTP 400, `TRANSPORT_ERROR` message `I::000`,
+`details.exceptionType: ADT_TM_COMMON_EXCEPTION`. `operation="delete"` with
+`confirm: "A4HK900174"` reported `verdict: DELETED — confirmed gone`,
+`existedBefore: true`, `gone: true`, `verified: true`, `httpStatus: 200`; a
+following `operation="list"` for `user="DEVELOPER"` no longer listed
+A4HK900174. **Not proven**: importing a transport of copies into a target
 system — i.e. that the snapshot semantics above actually hold once the copy
-lands downstream — has never been exercised, since A4H has no downstream
-target system to import into. See
+lands downstream — has never been exercised, since A4H is a single-system
+landscape with no transport route and no downstream target, and `tp` has
+never run on it. See
 [doc/LIMITATIONS/not-implemented-and-unproven.md](../LIMITATIONS/not-implemented-and-unproven.md).
 
 Unrelated quirk noticed while proving this: a request created through the
@@ -253,21 +286,53 @@ has already been imported has LEFT the buffer — its absence from `queue`
 does not prove the change never arrived. Pair `queue` (what's waiting) with
 `log` (what happened) to answer "did my change reach `QAS`?"
 
-Live-proven (A4H, 2026-09-15): `TMS_MGR_READ_TRANSPORT_QUEUE` for `A4H` /
-`DOMAIN_A4H` returned `sy-subrc 0` with an EMPTY buffer (zero rows) and a
-collection timestamp — nothing has ever been exported from this system. For
-a system name TMS does not know (`DEV`, which the transport-route config
-table TCESYST still names as a phantom target but TMS's own `TMSCSYS` does
-not) it returned `READ_CONFIG_FAILED` with an empty message; abapsmith maps
-that to `NOT_FOUND` with a hint that the system is not in this system's TMS
-configuration. **Not proven**: a non-empty queue, and the rendering of its
-entries — a request has never actually been exported from A4H to observe
-this with. That path is exercised only by unit tests. Evidence: `mixed`.
+Live-proven (A4H, 2026-09-15) — these captures came from running the fixed
+bridge ABAP for `read_import_queue` directly out of the same `$TMP` probe
+class described in the transport-of-copies section above, since the
+released `abap_transport operation="queue"` wire path was still serving
+the pre-fix bundle and short-dumped: `TMS_MGR_READ_TRANSPORT_QUEUE` for
+`A4H` / `DOMAIN_A4H` returned `sy-subrc 0` with an EMPTY buffer (zero rows), collect
+flag `X`, and a collect timestamp of `20260915 144255` — the exact moment of
+the call. **A recent collect timestamp does not mean anything is waiting**:
+TMS reports a fresh collect even when the buffer is empty, so the timestamp
+alone proves only that TMS collected recently, not that a request is
+queued. Omitting `domain` behaves the same way: a second live call against
+`A4H` with no `domain` returned the identical empty result (`sy-subrc 0`,
+zero rows, collect flag `X`, timestamp `20260915 144257`), with the omitted
+domain rendered as the `-` placeholder in the reply. For a system name TMS
+does not know — `DEV`, which the transport-route config table TCESYST
+still names as a phantom target but TMS's own `TMSCSYS` does not carry —
+the live call returned `READ_CONFIG_FAILED` with `sy-subrc 1`, `sy-msgid =
+XT`, `sy-msgno = 126`, `sy-msgv1 = DEV`, and an **empty `ES_EXCEPTION`**
+(`msgid` blank, `msgno` 000): the function module's own structured
+exception output field carries nothing useful here, and the only real
+diagnosis is in `sy-msgid`/`sy-msgno` — which is exactly why abapsmith
+carries the raw `subrc=`/`msg=` detail through into the mapped `NOT_FOUND`,
+rather than trusting `ES_EXCEPTION` alone. **Not proven**: a non-empty
+queue, and the rendering of its entries — a request has never actually been
+exported from A4H to observe this with. That path is exercised only by unit
+tests. Evidence: `mixed`.
 
 abapsmith deliberately stops at reading the queue: there is no operation to
 trigger an import from it. See
 [doc/LIMITATIONS/not-implemented-and-unproven.md](../LIMITATIONS/not-implemented-and-unproven.md)
 for the reasoning.
+
+### Wire-path rule: typed actuals for every `CALL FUNCTION`
+
+Wire-path rule, learned the hard way: the classic bridge's action-argument
+helper (`s(...)`) always returns an ABAP `string`. Passing that `string`
+actual straight into a fixed-length typed `CALL FUNCTION` formal (e.g.
+`TRFUNCTION`, `AS4TEXT`, `STMS_FLAG`) raises `CX_SY_DYN_CALL_ILLEGAL_TYPE`
+at runtime, not at syntax-check time — the call compiles and activates
+clean, so the defect only surfaces when the operation is actually invoked,
+which is how it reached a live run undetected (`operation=queue` and
+`operation=create kind=copies` both short-dumped this way against A4H,
+2026-09-15, before the fix). Every actual passed into a `CALL
+FUNCTION` in `read_transport_log`, `read_import_queue` and
+`create_transport_of_copies` is therefore a local variable declared with
+the function module's own parameter type — never a bare `s(...)` result or
+a literal — and any future bridge action must follow the same rule.
 
 ## abap_transport_release
 

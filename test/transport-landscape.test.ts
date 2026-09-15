@@ -855,20 +855,37 @@ describe("transportPart — structural regression guard", () => {
     expect(maxLen).toBeLessThanOrEqual(ABAP_SOURCE_LINE_MAX);
   });
 
-  it("read_import_queue passes iv_clear_locks/iv_update_cache/iv_monitor as space, not their FM defaults", () => {
+  it("read_import_queue passes iv_clear_locks/iv_update_cache/iv_monitor as an initial stms_flag local, not their FM defaults", () => {
     // WHY: TMS_MGR_READ_TRANSPORT_QUEUE defaults these (and others) to 'X' in
     // its OWN signature, and at least these three are side-effecting —
     // clearing TMS locks / rewriting the TMS cache — which an operation
     // documented as read-only must never do as a side effect of a read.
-    const body = norm(methodBody("read_import_queue"));
-    expect(body).toContain(norm("iv_clear_locks      = space"));
-    expect(body).toContain(norm("iv_update_cache     = space"));
-    expect(body).toContain(norm("iv_monitor          = space"));
+    // The actual is a typed STMS_FLAG local (lv_off), not the bare literal
+    // `space` — passing an untyped/literal actual against a typed CALL
+    // FUNCTION formal is exactly what raised CX_SY_DYN_CALL_ILLEGAL_TYPE
+    // live on A4H 2026-09-15 (see the guard below). Proving the read cannot
+    // clear locks / update the cache / monitor now means proving lv_off is
+    // declared TYPE stms_flag AND is never assigned a non-initial value —
+    // its only value is its own initial value, SPACE.
+    const rawBody = methodBody("read_import_queue");
+    const body = norm(rawBody);
+    expect(body).toContain(norm("iv_collect_data     = lv_off"));
+    expect(body).toContain(norm("iv_read_locks       = lv_off"));
+    expect(body).toContain(norm("iv_clear_locks      = lv_off"));
+    expect(body).toContain(norm("iv_update_cache     = lv_off"));
+    expect(body).toContain(norm("iv_monitor          = lv_off"));
+    expect(body).toContain(norm("iv_verbose          = lv_off"));
+    expect(rawBody).toMatch(/lv_off\s+TYPE stms_flag/);
+    expect(rawBody).not.toMatch(/lv_off\s*=/);
   });
 
-  it("create_transport_of_copies passes iv_type = 'T'", () => {
+  it("create_transport_of_copies passes iv_type = lv_type, a typed TRFUNCTION local carrying 'T'", () => {
+    // WHY: a bare literal 'T' actual against a typed CALL FUNCTION formal is
+    // the same defect class as the space literal above — the literal is now
+    // carried in a TRFUNCTION-typed local declared with VALUE 'T' instead.
     const body = norm(methodBody("create_transport_of_copies"));
-    expect(body).toContain(norm("iv_type           = 'T'"));
+    expect(body).toContain(norm("iv_type           = lv_type"));
+    expect(methodBody("create_transport_of_copies")).toMatch(/lv_type\s+TYPE trfunction VALUE 'T'/);
   });
 
   it("read_transport_log SELECTs from e070 BEFORE calling TRINT_GET_LOG_OVERVIEW", () => {
@@ -896,6 +913,47 @@ describe("transportPart — structural regression guard", () => {
     const queueBody = methodBody("read_import_queue");
     expect(queueBody).toContain("{ lv_date DATE = RAW }");
     expect(queueBody).toContain("{ lv_time TIME = RAW }");
+  });
+
+  // Fired live on A4H on 2026-09-15 as CX_SY_DYN_CALL_ILLEGAL_TYPE for
+  // read_import_queue and create_transport_of_copies: `DATA(lv_x) = s( 'x' )`
+  // binds lv_x TYPE string (s()'s own return type), and CALL FUNCTION raises
+  // CX_SY_DYN_CALL_ILLEGAL_TYPE when a `string` actual is passed to a
+  // fixed-length (type c) EXPORTING formal — read_transport_log already did
+  // this right (`DATA lv_trkorr TYPE trkorr.` then an ordinary assignment);
+  // the other two did not. This guard proves every EXPORTING actual in all
+  // three methods is a local this method declared with its own explicit
+  // TYPE, and that no inline DATA(...) declaration — which can never carry
+  // an explicit TYPE — remains anywhere in any of them.
+  it("no CALL FUNCTION actual is an untyped string from s( ) — CX_SY_DYN_CALL_ILLEGAL_TYPE guard", () => {
+    for (const name of ["read_transport_log", "read_import_queue", "create_transport_of_copies"] as const) {
+      const body = methodBody(name);
+
+      expect(body, `${name}: no inline DATA(...) declaration remains`).not.toContain("DATA(");
+
+      // Every local this method declares with an explicit TYPE — the name
+      // immediately before the TYPE keyword, across both `DATA name TYPE x.`
+      // and `DATA: a TYPE x, b TYPE y.` forms.
+      const declared = new Set([...body.matchAll(/(\w+)\s+TYPE\b/g)].map((m) => m[1]));
+
+      // Every `EXPORTING ... <next section>` slice of every CALL FUNCTION in
+      // this method.
+      const exportingBlocks = [
+        ...body.matchAll(/EXPORTING\n([\s\S]*?)\n\s*(?:IMPORTING|CHANGING|TABLES|EXCEPTIONS)\b/g),
+      ].map((m) => m[1]);
+      expect(exportingBlocks.length, `${name}: at least one CALL FUNCTION EXPORTING block found`).toBeGreaterThan(0);
+
+      for (const block of exportingBlocks) {
+        const assigns = [...block.matchAll(/\b(iv_\w+|is_\w+)\s*=\s*(\S+)/g)];
+        expect(assigns.length, `${name}: EXPORTING block has at least one formal = actual pair`).toBeGreaterThan(0);
+        for (const [, formal, actual] of assigns) {
+          expect(
+            declared.has(actual),
+            `${name}: EXPORTING ${formal} = ${actual} — ${actual} is not a locally-declared typed variable`,
+          ).toBe(true);
+        }
+      }
+    }
   });
 });
 

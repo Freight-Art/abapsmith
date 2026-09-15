@@ -137,16 +137,18 @@ export const transportPart: ClassicAbapPart = {
   METHOD read_transport_log.
     DATA lv_trkorr TYPE trkorr.
     lv_trkorr = s( 'trkorr' ).
-    DATA: ls_e070    TYPE e070,
-          lt_ovw     TYPE scts_log_overviews,
-          ls_ovw     TYPE scts_log_overview,
-          lt_log     TYPE trlogs,
-          ls_log     TYPE trlog,
-          lv_i       TYPE i,
-          lv_sev     TYPE string,
-          lv_cls     TYPE string,
-          lv_num     TYPE string,
-          lv_rc      TYPE string.
+    DATA: ls_e070          TYPE e070,
+          lt_ovw           TYPE scts_log_overviews,
+          ls_ovw           TYPE scts_log_overview,
+          lt_log           TYPE trlogs,
+          ls_log           TYPE trlog,
+          lv_i             TYPE i,
+          lv_sev           TYPE string,
+          lv_cls           TYPE string,
+          lv_num           TYPE string,
+          lv_rc            TYPE string,
+          lv_with_targets  TYPE flag VALUE 'X',
+          lv_logsys        TYPE tmssysnam.
 
     " Step 1: TRINT_GET_LOG_OVERVIEW answers with sy-subrc 0 even for a
     " request number that does not exist at all - proven live 2026-09-15 on
@@ -164,10 +166,14 @@ export const transportPart: ClassicAbapPart = {
     line( |ZMCP-TRLG-REQ { lv_trkorr } { ls_e070-trfunction } { ls_e070-trstatus }| ).
 
     " Step 3: one row per system this request was, or will be, imported to.
+    " IV_WITH_TRANSPORT_TARGETS is carried in a typed FLAG local (its own
+    " default is already 'X') rather than the bare literal 'X' - this
+    " method never dumped live, but every actual in this class is a typed
+    " local under one uniform rule, so this one follows suit too.
     CALL FUNCTION 'TRINT_GET_LOG_OVERVIEW'
       EXPORTING
         iv_request                = lv_trkorr
-        iv_with_transport_targets = 'X'
+        iv_with_transport_targets = lv_with_targets
       IMPORTING
         et_log_overview           = lt_ovw.
 
@@ -205,10 +211,15 @@ export const transportPart: ClassicAbapPart = {
       " discloses truncation; capping here would only destroy rows a step
       " before the layer that would have reported the cut.
       CLEAR lt_log.
+      " IV_SYSTEM is TMSSYSNAM on this FM's own signature - carried in
+      " lv_logsys rather than passing ls_ovw-sysnam straight through, so
+      " every CALL FUNCTION actual in this class is a local typed with the
+      " FM's own parameter type, not a struct field of unverified type.
+      lv_logsys = ls_ovw-sysnam.
       CALL FUNCTION 'TRINT_GET_LOG_FILE'
         EXPORTING
           iv_request  = lv_trkorr
-          iv_system   = ls_ovw-sysnam
+          iv_system   = lv_logsys
         IMPORTING
           et_log_file = lt_log.
 
@@ -242,9 +253,11 @@ export const transportPart: ClassicAbapPart = {
   ENDMETHOD.
 
   METHOD read_import_queue.
-    DATA(lv_system) = s( 'system' ).
+    DATA: lv_system TYPE tmscsys-sysnam,
+          lv_domain TYPE tmscsys-domnam.
+    lv_system = s( 'system' ).
     TRANSLATE lv_system TO UPPER CASE.
-    DATA(lv_domain) = s( 'domain' ).
+    lv_domain = s( 'domain' ).
     TRANSLATE lv_domain TO UPPER CASE.
 
     " Step 1.
@@ -258,6 +271,7 @@ export const transportPart: ClassicAbapPart = {
           lv_date      TYPE sy-datum,
           lv_time      TYPE sy-uzeit,
           lv_flag      TYPE stms_flag,
+          lv_off       TYPE stms_flag,
           ls_exception TYPE stmscalert,
           lv_subrc     TYPE sy-subrc,
           lv_domout    TYPE string,
@@ -274,16 +288,22 @@ export const transportPart: ClassicAbapPart = {
     " 'X' in this FM's OWN signature and are not reads - clearing TMS locks
     " and rewriting the TMS cache are side effects an operation documented
     " as read-only must not perform, so all six are forced to SPACE here.
+    " LV_OFF is declared TYPE stms_flag and never assigned, so its initial
+    " value (SPACE) is what travels. The live hit on A4H 2026-09-15 was an
+    " untyped ABAP string (from s(...)) bound to one of these typed
+    " STMS_FLAG formals - exactly what CX_SY_DYN_CALL_ILLEGAL_TYPE punishes
+    " in CALL FUNCTION - so every actual here, including this SPACE-valued
+    " one, is a typed local under the same rule.
     CALL FUNCTION 'TMS_MGR_READ_TRANSPORT_QUEUE'
       EXPORTING
         iv_system           = lv_system
         iv_domain           = lv_domain
-        iv_collect_data     = space
-        iv_read_locks       = space
-        iv_clear_locks      = space
-        iv_update_cache     = space
-        iv_monitor          = space
-        iv_verbose          = space
+        iv_collect_data     = lv_off
+        iv_read_locks       = lv_off
+        iv_clear_locks      = lv_off
+        iv_update_cache     = lv_off
+        iv_monitor          = lv_off
+        iv_verbose          = lv_off
       IMPORTING
         ev_collect_date     = lv_date
         ev_collect_time     = lv_time
@@ -310,7 +330,12 @@ export const transportPart: ClassicAbapPart = {
     IF lv_domain IS INITIAL.
       lv_domout = '-'.
     ELSE.
-      lv_domout = lv_domain.
+      " Plain assignment (c TYPE -> string) keeps the fixed-length field's
+      " trailing blanks verbatim, which would leave extra spaces inside the
+      " fixed-token ZMCP-TRQU-HEAD line below; routing it through a string
+      " template embed instead trims them, same as every other char-typed
+      " field emitted on this line.
+      lv_domout = |{ lv_domain }|.
     ENDIF.
     IF lv_flag IS INITIAL.
       lv_flagout = '-'.
@@ -374,11 +399,17 @@ export const transportPart: ClassicAbapPart = {
   ENDMETHOD.
 
   METHOD create_transport_of_copies.
-    DATA(lv_description) = s( 'description' ).
-    DATA(lv_target) = s( 'target' ).
+    DATA: lv_type        TYPE trfunction VALUE 'T',
+          lv_description TYPE as4text,
+          lv_owner       TYPE as4user,
+          lv_target      TYPE tr_target,
+          lv_devclass    TYPE devclass.
+    lv_description = s( 'description' ).
+    lv_target = s( 'target' ).
     TRANSLATE lv_target TO UPPER CASE.
-    DATA(lv_devclass) = s( 'devclass' ).
+    lv_devclass = s( 'devclass' ).
     TRANSLATE lv_devclass TO UPPER CASE.
+    lv_owner = sy-uname.
 
     " Step 1: a transport of copies created with no target system can never
     " be imported anywhere, so abapsmith refuses to create one at all
@@ -407,11 +438,16 @@ export const transportPart: ClassicAbapPart = {
     " short-dumps with "Type conflict during a function module call" (hit
     " live 2026-09-15); neither is passed here at all, since this bridge
     " needs no extra users and reads the tasks back from ET_TASK_HEADERS.
+    " Every actual below is a local typed with the FM's OWN parameter type
+    " (TRFUNCTION/AS4TEXT/AS4USER/TR_TARGET/DEVCLASS), never the bare result
+    " of s(...) - an inline declaration that infers string, bound straight
+    " to one of these fixed-length typed formals, is what raised
+    " CX_SY_DYN_CALL_ILLEGAL_TYPE live on A4H 2026-09-15.
     CALL FUNCTION 'TR_INSERT_REQUEST_WITH_TASKS'
       EXPORTING
-        iv_type           = 'T'
+        iv_type           = lv_type
         iv_text           = lv_description
-        iv_owner          = sy-uname
+        iv_owner          = lv_owner
         iv_target         = lv_target
         iv_devclass       = lv_devclass
       IMPORTING
