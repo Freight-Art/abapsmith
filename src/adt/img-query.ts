@@ -72,11 +72,11 @@ export function assertSqlValue(value: string, what: string, maxLen = 60): string
 
 // -------------------------------------------------------- catalog lookups ---
 
-function tbl<K extends ImgCatalogKey>(key: K): string {
+export function tbl<K extends ImgCatalogKey>(key: K): string {
   return IMG_CATALOG[key].table;
 }
 
-function fld<K extends ImgCatalogKey, F extends keyof (typeof IMG_CATALOG)[K]["fields"]>(key: K, field: F): string {
+export function fld<K extends ImgCatalogKey, F extends keyof (typeof IMG_CATALOG)[K]["fields"]>(key: K, field: F): string {
   // Cast only works around TS2536 (a generic key can't double-index the catalog type
   // directly) — `field`'s type is still tied to this specific K, so a typo stays a
   // compile error.
@@ -124,7 +124,7 @@ function assertActId(value: string, what = "actId"): string {
  * object name) — reuses `datapreview.ts`'s already-tested `isValidDdicEntityName`,
  * which (unlike an activity id) expects and enforces an upper-cased name.
  */
-function assertEntityName(value: string, what = "name"): string {
+export function assertEntityName(value: string, what = "name"): string {
   const raw = assertSqlValue(value, what, 30);
   const v = raw.trim().toUpperCase();
   if (!isValidDdicEntityName(v)) {
@@ -170,7 +170,7 @@ export function assertImgLanguage(value: string): string {
 }
 
 /** TCODE is not a DDIC entity name (no PLAIN_NAME_RE/NAMESPACED_NAME_RE shape guarantee) but is stored upper-case. */
-function assertTransactionCode(value: string, what = "tcode"): string {
+export function assertTransactionCode(value: string, what = "tcode"): string {
   const v = assertSqlValue(value, what, 20).trim().toUpperCase();
   if (v === "" || !ID_CHARSET_RE.test(v)) {
     throw new AbapError(
@@ -271,7 +271,7 @@ function inPredicate(column: string, literals: readonly string[]): string {
   return lines.join("\n");
 }
 
-function inClause(
+export function inClause(
   column: string,
   values: readonly string[],
   what: string,

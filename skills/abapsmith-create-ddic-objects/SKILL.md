@@ -1,6 +1,6 @@
 ---
 name: abapsmith-create-ddic-objects
-description: Creates domains, data elements, table types, tables, structures, message classes, and lock objects in the right order with the right payload shape. Use for any DDIC dictionary object.
+description: Creates domains, data elements, table types, tables, structures, message classes, lock objects, and search helps in the right order with the right payload shape. Use for any DDIC dictionary object.
 ---
 
 # DDIC objects
@@ -16,6 +16,13 @@ Two payload shapes, and DDIC is where they diverge hardest.
 lowercase `<enqu:lockobject>` element in namespace
 `http://www.sap.com/adt/ddic/enqu`, with minimal content
 `primaryTable/{tableName, lockMode}`.
+
+**`SHLP/DH` (search help) is a third, unrelated shape** — not `source`, not
+`properties`. There is no ADT-writable collection for a search help at all
+(every mutating REST verb 404s, the same gap `VIEW/DV` and `TRAN/T` have),
+so `abap_write` reaches it through the classic fluid bridge instead of a
+PUT: pass a structured `shlp` object (never `source`), see "`SHLP/DH`
+(search help)" below and `doc/TOOLS/write-and-activate.md`.
 
 ## Order matters
 
@@ -178,6 +185,114 @@ parameter is normal, not corruption.
 **`MSAG/N` and `ENQU/DL` cannot be read in default mode** — `abap_read` throws
 `UNSUPPORTED`. Use `format: "raw"`; a raw read of an existing lock object such
 as `E_TABLE` shows the canonical shape.
+
+## `SHLP/DH` (search help)
+
+Not `source`, not `properties`. There is no ADT REST collection for a search
+help at all — every mutating verb 404s — so `abap_write` builds it through
+the classic fluid bridge (`RS_CORR_INSERT` → `DDIF_SHLP_PUT` →
+`DDIF_SHLP_ACTIVATE`) from a structured `shlp` field, never `source` and
+never `ddic`:
+
+- `selectionMethod` — the table or view the help selects from.
+- `selectionMethodType` — enum `T` (table) | `V` (view) | `M` (structure/other).
+- `dialogType`, `textTable`, `hotKey`.
+- `elementary` — boolean. If `true`, `fields` must carry at least one
+  `import` field AND at least one `export` field — checked zero-network,
+  before the bridge is dispatched at all, no server round trip spent on it.
+- `fields` — array of `{ name, dataElement, import?, export?, defaultValue? }`.
+- `includes` — array of `{ name }`, other search helps this one includes
+  (a collective search help — `elementary: false` with one or more
+  `includes` entries — assembles several elementary helps under one hood).
+- `assignments` — array of `{ field, includedHelp, includedField, direction }`,
+  `direction` enum `I` (import) | `E` (export); required when `includes` is
+  non-empty, to wire an included help's fields back to the outer interface.
+
+See `SearchHelpParams` in `src/adt/shlp-create.ts` for the exact shape.
+
+**A write replaces the whole definition here too**, same rule as the XML
+shapes above: `mode="update"` (action `update_search_help`) re-sends the
+entire `shlp` object, and any field, include or assignment not repeated is
+dropped, not merged. Requires `shlp` and `description` again in full;
+refuses `activate: false` (`DDIF_SHLP_ACTIVATE` runs inside the same bridge
+call) and refuses `confirm_in_role_menu` (that guard belongs to `TRAN/T`
+only).
+
+**corr_nr pairs with the package, like `TRAN/T`, not like `VIEW/DV`.** A
+transportable (non-`$`) package requires `corr_nr` — omitting it is
+`TRANSPORT_ERROR`; a `$`-prefixed package refuses one outright. Neither
+create nor update ever auto-resolves a transport request the way `VIEW/DV`
+does. `mode="update"` never needs `corr_nr`, regardless of package.
+
+**Delete is guarded by a where-used check the other two bridge deletes
+(`VIEW/DV`, `TRAN/T`) do not have.** `DD_OBJ_DEL` (then
+`TR_TADIR_INTERFACE` to drop the TADIR row) refuses when `DD04L` shows the
+search help attached to a data element, `DD35L` shows it on an individual
+table/view field, or `DD31S` shows it included by a collective search
+help — pass `confirm_in_use: true` to override once you've read what it's
+attached to. Delete accepts no `corr_nr` at all (same rule as `VIEW/DV` and
+`TRAN/T` delete).
+
+**Reading one back is a catalog read, not an ADT REST GET** — `abap_read`
+renders pseudo-DDL from plain-text `DD30L`/`DD30T`/`DD32S`/`DD31S`/`DD33S`
+`SELECT`s (`src/adt/catalog-read.ts`), the same mechanism `VIEW/DV` and
+`TRAN/T` reads use. `DD33S-VALUEDIREC` is rendered as the raw stored code,
+not decoded — see `doc/TOOLS/read-and-search.md`.
+
+**Attaching a search help to a data element is a `DTEL/DE` field, not a
+`SHLP/DH` one.** There is no `SHLP/DH`-side call that wires the two
+together — instead, `abap_write` on the data element carries `ddic.searchHelp`
+and `ddic.searchHelpParameter` (`DD04L-SHLPNAME` / `DD04L-SHLPFIELD`):
+
+```
+abap_write {
+  object: "ZDE_EXAMPLE", type: "DTEL/DE",
+  ddic: { searchHelp: "ZSH_EXAMPLE", searchHelpParameter: "FIELDNAME" }
+}
+```
+
+`searchHelp` must name an existing, active `SHLP/DH` — not checked before
+send, the same zero-network discipline the rest of `ddic` follows; the
+server's own DTEL activation is what actually validates the reference.
+`searchHelpParameter` is the search help's OWN interface parameter
+(`DD32P-FIELDNAME`), not the data element's own name, and is refused with
+`BAD_INPUT` when given without `searchHelp` — a parameter with no search
+help to belong to is meaningless (`buildDtel`, `src/adt/ddic-payload.ts`).
+Both values are trimmed and upper-cased before send; either one longer than
+30 characters is refused with `BAD_INPUT` rather than silently truncated
+(`normalizeShlpIdentifier`) — 30 is `DD04L-SHLPNAME`/`DD04L-SHLPFIELD`'s own
+column length (`DD03L`, both `CHAR30`). Omitting both emits both elements
+empty, which is how an unattached data element looks.
+
+Proven live on A4H (NetWeaver 7.54, client 001), 2026-09-15: `abap_read
+PBUNAM DTEL/DE format=raw` returned
+`<dtel:searchHelp>USER_ADDR</dtel:searchHelp><dtel:searchHelpParameter>BNAME</dtel:searchHelpParameter>`,
+matching that data element's `DD04L` row (`SHLPNAME=USER_ADDR`,
+`SHLPFIELD=BNAME`); `MANDT` has both elements empty. **Not verified**: no
+`DTEL/DE` write carrying these two fields has itself been sent to a live
+system — the attachment is implemented and unit-tested only. See
+`doc/TOOLS/write-and-activate.md` for the `ddic` field table.
+
+Every create, and a `mode="update"`, is journalled `irreversible: true`
+(there is no "put the old interface back" primitive to replay, and
+`abap_journal mode=undo`'s bridge-create branch has no case for `SHLP/DH`
+regardless). Delete IS journalled too, with a real before-image — the
+pre-delete existence check doubles as it, so the entry carries the
+rendered pseudo-DDL as `beforeSource` — but it is still marked
+`irreversible: true`: that stored form is pseudo-DDL, not a
+`DDIF_SHLP_PUT` payload, so there is nothing to mechanically replay, and
+`abap_journal mode=undo` still has no `SHLP/DH` case to reach it through
+either way. The entry is kept for audit and manual reconstruction;
+reversal is a fresh `abap_write { mode: "write", type: "SHLP/DH" }`, never
+`abap_journal mode=undo`. See `doc/LIMITATIONS/editing.md` and
+`doc/TOOLS/write-and-activate.md` for the full undo/journal picture.
+
+Proven live on A4H (NetWeaver 7.54, client 001), 2026-09-12, `$TMP` only:
+create returned `DH107` from `DDIF_SHLP_ACTIVATE`; delete returned `DH051`
+from `DD_OBJ_DEL`, with `TR_TADIR_INTERFACE` removing the TADIR row and a
+post-delete re-read confirming absence. **Not verified**: any write into a
+transportable (non-`$TMP`) package for this type; an SM01-style lock check
+(there isn't one, by design, same as `TRAN/T`).
 
 ## Skeletons
 

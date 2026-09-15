@@ -861,30 +861,36 @@ describe("capabilities.ts registry (write-support-for-missing-DDIC-types)", () =
   });
 
   /**
-   * SHLP/DH and VIEW/DV are real ADT concepts that abapsmith deliberately does
-   * not support: both 404 on every ADT request on this release (recon —
-   * see capabilities.ts's module doc). TRAN/T (transaction) is a different
-   * kind of refusal: TSTC is NOT the ADT-writable type code for a
-   * transaction, so this also pins that abapsmith does not fall for the
-   * TSTC-looks-like-a-table-name trap. PROG/PS (screen/dynpro), PROG/PC
-   * (GUI status/CUA status) and PROG/PT (GUI title/titlebar) are program
-   * subobjects with no ADT discovery collection and no
-   * informationsystem/objecttypes registration — read-only as a content-free
-   * VIT-bridge stub (for PROG/PT, not even key-validated: the bridge returns
-   * 200 for a made-up title id or a nonexistent program), 405 on every write
-   * verb, verified live. SUSO/B (authorization object) is the newest member,
-   * added: IS a registered ADT object type (unlike the PROG
-   * subobjects), but has no discovery collection and no writable route
-   * either — the VIT bridge answers with a basic-properties stub only, live
-   * recon via a manual probe script (not shipped in this release). None of
-   * the seven are in `types.ts`'s `TYPES` array, so this exercises the
-   * dedicated registry-sourced short-circuit in `resolveWriteTarget`, not
-   * the ordinary `specForType`/`specForKeyword` lookup — and it must fire
-   * before any network call, exactly like the DTEL/DE and ENHO/XH refusals
-   * above.
+   * VIEW/DV is a real ADT concept that abapsmith deliberately does not
+   * support over PUT-source write: it 404s/405s on every mutating ADT
+   * request on this release (recon — see capabilities.ts's module doc).
+   * TRAN/T (transaction) is a different kind of refusal: TSTC is NOT the
+   * ADT-writable type code for a transaction, so this also pins that
+   * abapsmith does not fall for the TSTC-looks-like-a-table-name trap.
+   * PROG/PS (screen/dynpro), PROG/PC (GUI status/CUA status) and PROG/PT
+   * (GUI title/titlebar) are program subobjects with no ADT discovery
+   * collection and no informationsystem/objecttypes registration —
+   * read-only as a content-free VIT-bridge stub (for PROG/PT, not even
+   * key-validated: the bridge returns 200 for a made-up title id or a
+   * nonexistent program), 405 on every write verb, verified live. SUSO/B
+   * (authorization object) is the newest member, added: IS a registered ADT
+   * object type (unlike the PROG subobjects), but has no discovery
+   * collection and no writable route either — the VIT bridge answers with a
+   * basic-properties stub only, live recon via a manual probe script (not
+   * shipped in this release). None of the six are in `types.ts`'s `TYPES`
+   * array, so this exercises the dedicated registry-sourced short-circuit
+   * in `resolveWriteTarget`, not the ordinary `specForType`/`specForKeyword`
+   * lookup — and it must fire before any network call, exactly like the
+   * DTEL/DE and ENHO/XH refusals above.
+   *
+   * SHLP/DH used to be a fifth row here (search help, also 404 on every ADT
+   * request). It dropped its `unsupported` registry entry for `bridgeCreate`
+   * when the classrun-bridge create/catalog-read work landed, so it no
+   * longer says "cannot be written by abapsmith" at all — see the dedicated
+   * SHLP/DH test below, next to VIEW/DV and TRAN/T's, which pins what it
+   * says instead.
    */
   it.each([
-    ["SHLP/DH", "search help"],
     ["PROG/PS", "screen"],
     ["PROG/PC", "GUI status"],
     ["PROG/PT", "GUI title"],
@@ -926,6 +932,32 @@ describe("capabilities.ts registry (write-support-for-missing-DDIC-types)", () =
       expect(String(e.hint ?? "")).toMatch(new RegExp(type.replace("/", "\\/")));
     },
   );
+
+  /**
+   * SHLP/DH joined VIEW/DV and TRAN/T's family (bridgeCreate, writable only
+   * through the classrun bridge) rather than the `it.each` above's: it used
+   * to say "cannot be written by abapsmith" via a dedicated `unsupported`
+   * registry entry, and that entry is gone. It is NOT merged into the
+   * VIEW/DV-and-TRAN/T `it.each` above because its REST finding is a
+   * different shape: search helps 404 across every mutating verb (there is
+   * no writable OR readable REST collection at all), where VIEW/DV and
+   * TRAN/T's collections are GET-only (405 on write, 200 on read) — so the
+   * shared `/405|GET-only/` assertion above does not hold for SHLP/DH and a
+   * separate test is more honest than stretching that regex to fit. What
+   * carries over unchanged: `resolveWriteTarget` — the SOURCE-write path —
+   * still refuses it, UNSUPPORTED rather than the generic "Unknown object
+   * type" BAD_INPUT, naming the bridge as the route that does work.
+   */
+  it("refuses SHLP/DH on the SOURCE-write path with UNSUPPORTED, offline, and names the bridge route that does work", async () => {
+    const e = await catchErr(resolveWriteTarget(offline, { type: "SHLP/DH", name: "ZX" }));
+    expect(e.code).toBe("UNSUPPORTED");
+    expect(String(e.message)).toMatch(/no writable ADT collection/i);
+    expect(String(e.message)).toMatch(/as source/i);
+    expect(String(e.message)).toMatch(/404/);
+    expect(String(e.hint ?? "")).toMatch(/abap_write/);
+    expect(String(e.hint ?? "")).toMatch(/no update route/);
+    expect(String(e.hint ?? "")).toMatch(/SHLP\/DH/);
+  });
 
   /**
    * The two types no longer diverge on the create half: neither REGISTRY
@@ -5469,6 +5501,14 @@ describe("invariant: no REGISTRY type may declare `bridgeCreate` without a routi
     // one for agreement, never requires it. `corr_nr` is excluded for the
     // same reason as DEVC/K's: judged by package policy, not presence.
     "TABL/DI": ["object", "type", "description", "base_table", "index_fields"],
+    // SHLP/DH: same `object`/`type`/`description`/`package` convention as
+    // VIEW/DV and TRAN/T (`package` defaults to $TMP rather than being
+    // refused when absent, exactly like theirs — listed here as the field
+    // that selects the create's target package, not as a hard BAD_INPUT
+    // gate). `shlp` is the type-specific field abapCreateSearchHelpViaBridge
+    // (src/tools/write.ts) refuses the create without — its DD30V/DD32P/
+    // DD31V/DD33V definition.
+    "SHLP/DH": ["object", "type", "description", "package", "shlp"],
   };
 
   /** The walk. Deliberately over the real REGISTRY, not over BRIDGE_CREATABLE_TYPES. */

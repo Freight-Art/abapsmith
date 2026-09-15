@@ -15,6 +15,13 @@ import { AbapError } from "./errors.js";
 import type { ResolvedObject } from "./resolve.js";
 import { isNotFoundError, translateAdtError, type ErrorContext } from "./session.js";
 import { textTable } from "../compact.js";
+import { readCatalogObject } from "./catalog-read.js";
+import {
+  ddicStrategy,
+  DDIC_SOURCE_BASED,
+  DDIC_XML_ONLY,
+  DDIC_CATALOG_BASED,
+} from "./ddic-strategy.js";
 
 export interface DdicRender {
   /** The pseudo-DDL body, safe to hand to the model. */
@@ -559,20 +566,16 @@ export function renderDomain(view: DomainView): DdicRender {
 
 // ------------------------------------------------------------- the reader ---
 
-/** The two live-captured groups, kept as data rather than a per-type flag. */
-export const DDIC_SOURCE_BASED = ["TABL", "STRU"] as const;
-export const DDIC_XML_ONLY = ["DTEL", "DOMA", "TTYP"] as const;
-
-export type DdicStrategy = "source" | "xml" | "package" | "unsupported";
-
-/** How this kind is actually read on this release. Verified, not guessed. */
-export function ddicStrategy(kind: string): DdicStrategy {
-  const k = kind.toUpperCase();
-  if ((DDIC_SOURCE_BASED as readonly string[]).includes(k)) return "source";
-  if ((DDIC_XML_ONLY as readonly string[]).includes(k)) return "xml";
-  if (k === "DEVC") return "package";
-  return "unsupported";
-}
+// Moved to ddic-strategy.ts (an importless leaf module) to break a runtime
+// import cycle back through capabilities.ts; re-exported here so existing
+// importers of this module keep working.
+export {
+  DDIC_SOURCE_BASED,
+  DDIC_XML_ONLY,
+  DDIC_CATALOG_BASED,
+  ddicStrategy,
+} from "./ddic-strategy.js";
+export type { DdicStrategy } from "./ddic-strategy.js";
 
 /**
  * Classify a failed DDIC fetch instead of swallowing it. A 403 is an
@@ -798,11 +801,16 @@ export async function readDdic(conn: AbapConnection, obj: ResolvedObject): Promi
         default:
           return readTableType(conn, obj);
       }
+    case "catalog":
+      return readCatalogObject(conn, obj);
     default:
       throw new AbapError(
         "UNSUPPORTED",
         `${obj.type} is not a DDIC type abap_read can render.`,
-        { type: obj.type, renderable: [...DDIC_SOURCE_BASED, ...DDIC_XML_ONLY, "DEVC"] },
+        {
+          type: obj.type,
+          renderable: [...DDIC_SOURCE_BASED, ...DDIC_XML_ONLY, ...DDIC_CATALOG_BASED, "DEVC"],
+        },
       );
   }
 }

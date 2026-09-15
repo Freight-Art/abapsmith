@@ -10,6 +10,7 @@ import type { SearchResult } from "abap-adt-api";
 import { isAddressableAbapObjectName } from "../safety.js";
 import { capabilitiesFor, isBridgeOnlyCreateType, TERMINAL_REFUSAL_NOTE } from "./capabilities.js";
 import type { AbapConnection } from "./connection.js";
+import { ddicStrategy } from "./ddic-strategy.js";
 import { AbapError } from "./errors.js";
 import { repairSearchDescriptions } from "./search-descriptions.js";
 import {
@@ -353,21 +354,34 @@ export async function resolveObject(
       );
     }
     // DEVC/K also declares bridgeCreate but has a real ADT collection
-    // and resolves fine, so it's excluded here; only VIEW/DV, TRAN/T, and
-    // TABL/DI truly have none.
+    // and resolves fine, so it's excluded here; of the rest, only TABL/DI
+    // truly has no read at all. VIEW/DV, TRAN/T and (since it dropped
+    // `unsupported` above) SHLP/DH used to be refused here too, on the
+    // premise that "no ADT collection to build a URI against" meant "no
+    // read" — that premise no longer holds now that `types.ts` carries a
+    // `mode: "ddic"` spec for all three backed by a working (non-
+    // "unsupported") `ddicStrategy`: `readDdic`/`readCatalogObject`
+    // (`catalog-read.ts`) read them through plain-text catalog SELECTs
+    // that never touch a REST collection at all, so the absence of one is
+    // no longer disqualifying. `TABL/DI` has no `types.ts` entry (so
+    // `specForType` returns `undefined` for it) and stays refused here.
     if (cap?.bridgeCreate && isBridgeOnlyCreateType(opts.type)) {
-      throw new AbapError(
-        "UNSUPPORTED",
-        `${cap.label} (${code}) has no ADT-readable collection to resolve a URI against. ` +
-          `${cap.bridgeCreate.adtRest} ${TERMINAL_REFUSAL_NOTE}`,
-        { type: code },
-        // Registry-sourced when the create is refused, so this hint cannot
-        // send a caller to `abap_write` for a create `abap_write` will refuse.
-        cap.bridgeCreate.createRefused ??
-          "abapsmith can create this type through a generated classrun bridge (see abap_write), " +
-            "but cannot read one back.",
-        { retryable: false }, // matches UNSUPPORTED's own default; reaffirmed for readability at the throw site
-      );
+      const spec = specForType(opts.type);
+      const readable = spec?.mode === "ddic" && ddicStrategy(spec.kind) !== "unsupported";
+      if (!readable) {
+        throw new AbapError(
+          "UNSUPPORTED",
+          `${cap.label} (${code}) has no ADT-readable collection to resolve a URI against. ` +
+            `${cap.bridgeCreate.adtRest} ${TERMINAL_REFUSAL_NOTE}`,
+          { type: code },
+          // Registry-sourced when the create is refused, so this hint cannot
+          // send a caller to `abap_write` for a create `abap_write` will refuse.
+          cap.bridgeCreate.createRefused ??
+            "abapsmith can create this type through a generated classrun bridge (see abap_write), " +
+              "but cannot read one back.",
+          { retryable: false }, // matches UNSUPPORTED's own default; reaffirmed for readability at the throw site
+        );
+      }
     }
   }
 

@@ -44,6 +44,13 @@ export interface ViewDeleteParams {
   viewName: string;
   /** Server-resolved (`./resolved-package.ts`) — this module is zero-network and cannot verify it itself. */
   packageName: ServerPackage;
+  /**
+   * Forwarded to the fluid `delete_view` action's `confirm_maintenance_dialog` input
+   * (`src/adt/fluid/builtin/classic.ts`). The ABAP (`abap-view.ts`) reads TVDIR and
+   * refuses the delete when the view has a generated maintenance dialog, unless this
+   * is `true`; omitted or `false` reads as `false` there, same as the guard's default.
+   */
+  confirmMaintenanceDialog?: boolean;
 }
 
 /** `DDOBJNAME`/`VIEWNAME` are CHAR30 — same ceiling `./view-create.ts` uses. */
@@ -105,7 +112,13 @@ export async function deleteClassicViewViaBridge(
 
   return runClassicAction(conn, gate, {
     action: "delete_view",
-    args: { view_name: viewName, package_name: packageName },
+    args: {
+      view_name: viewName,
+      package_name: packageName,
+      ...(params.confirmMaintenanceDialog !== undefined
+        ? { confirm_maintenance_dialog: params.confirmMaintenanceDialog }
+        : {}),
+    },
     what: `Deleting classic view ${viewName}`,
     expectTags: ["VIEW-DELETED", "VIEW-GONE"],
     beforeAssert,

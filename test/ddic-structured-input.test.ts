@@ -169,7 +169,103 @@ describe("buildStructuredDdicDescriptor — value substitution keeps the same el
   });
 });
 
+describe("buildStructuredDdicDescriptor — search help attachment (DTEL/DE)", () => {
+  // Live evidence (read-only): `abap_read PBUNAM DTEL/DE format=raw` on A4H
+  // (NetWeaver 7.54, client 001), 2026-09-15, returned
+  // `<dtel:searchHelp>USER_ADDR</dtel:searchHelp><dtel:searchHelpParameter>BNAME</dtel:searchHelpParameter>`,
+  // matching that data element's DD04L row (SHLPNAME=USER_ADDR,
+  // SHLPFIELD=BNAME); MANDT has both elements empty. That was a READ
+  // capture only — no DTEL/DE write carrying these fields has ever been
+  // sent to a live system, and the tests below use structural stand-in
+  // names, not USER_ADDR/BNAME, to keep that distinction visible.
+
+  it("both dtel:searchHelp and dtel:searchHelpParameter are always emitted, non-empty and in order when both are given", () => {
+    const xml = buildStructuredDdicDescriptor("DTEL/DE", NAME, DESCR, PKG, {
+      searchHelp: "z154c_search_help_standin",
+      searchHelpParameter: "standin_field",
+    });
+    expect(xml).toContain(
+      "<dtel:searchHelp>Z154C_SEARCH_HELP_STANDIN</dtel:searchHelp>" +
+        "<dtel:searchHelpParameter>STANDIN_FIELD</dtel:searchHelpParameter>",
+    );
+  });
+
+  it("searchHelp given alone (no parameter) does not throw, and searchHelpParameter still renders empty", () => {
+    const xml = buildStructuredDdicDescriptor("DTEL/DE", NAME, DESCR, PKG, {
+      searchHelp: "z154c_search_help_standin",
+    });
+    expect(xml).toContain("<dtel:searchHelp>Z154C_SEARCH_HELP_STANDIN</dtel:searchHelp>");
+    expect(xml).toContain("<dtel:searchHelpParameter/>");
+  });
+
+  it("normalizeShlpIdentifier trims surrounding whitespace and upper-cases both fields", () => {
+    const xml = buildStructuredDdicDescriptor("DTEL/DE", NAME, DESCR, PKG, {
+      searchHelp: "  z154c_search_help_standin  ",
+      searchHelpParameter: "  standin_field  ",
+    });
+    expect(xml).toContain("<dtel:searchHelp>Z154C_SEARCH_HELP_STANDIN</dtel:searchHelp>");
+    expect(xml).toContain("<dtel:searchHelpParameter>STANDIN_FIELD</dtel:searchHelpParameter>");
+  });
+
+  it("normalizeShlpIdentifier refuses a searchHelp over 30 characters with BAD_INPUT naming the field — it never silently truncates", () => {
+    const tooLong = "Z154C_STANDIN_NAME_OVER_THIRTY_CHARS";
+    expect(tooLong.length).toBeGreaterThan(30);
+    let thrown: unknown;
+    try {
+      buildStructuredDdicDescriptor("DTEL/DE", NAME, DESCR, PKG, { searchHelp: tooLong });
+    } catch (e) {
+      thrown = e;
+    }
+    expect(isAbapError(thrown) && thrown.code).toBe("BAD_INPUT");
+    const message = isAbapError(thrown) ? thrown.message : "";
+    expect(message).toContain("searchHelp");
+    expect(message).toContain(String(tooLong.length));
+    // The failure mode this guard exists to prevent: the error carries the
+    // FULL original value and its FULL length, never a value or length
+    // clipped to the 30-character ceiling — proof nothing was truncated
+    // and silently accepted.
+    const details = isAbapError(thrown) ? thrown.details : {};
+    expect(details.value).toBe(tooLong);
+    expect(details.length).toBe(tooLong.length);
+    expect(details.maxLength).toBe(30);
+    expect(details.field).toBe("searchHelp");
+  });
+
+  it("normalizeShlpIdentifier refuses a searchHelpParameter over 30 characters the same way, naming that field instead", () => {
+    const tooLong = "STANDIN_PARAMETER_NAME_OVER_THIRTY_CHARS_LONG";
+    expect(tooLong.length).toBeGreaterThan(30);
+    let thrown: unknown;
+    try {
+      buildStructuredDdicDescriptor("DTEL/DE", NAME, DESCR, PKG, {
+        searchHelp: "z154c_search_help_standin",
+        searchHelpParameter: tooLong,
+      });
+    } catch (e) {
+      thrown = e;
+    }
+    expect(isAbapError(thrown) && thrown.code).toBe("BAD_INPUT");
+    const details = isAbapError(thrown) ? thrown.details : {};
+    expect(details.field).toBe("searchHelpParameter");
+    expect(details.value).toBe(tooLong);
+    expect(details.length).toBe(tooLong.length);
+  });
+});
+
 describe("buildStructuredDdicDescriptor — refuses what isn't grounded", () => {
+  it("refuses ddic.searchHelpParameter given without ddic.searchHelp for DTEL/DE — a parameter with nothing to attach to", () => {
+    let thrown: unknown;
+    try {
+      buildStructuredDdicDescriptor("DTEL/DE", NAME, DESCR, PKG, { searchHelpParameter: "standin_field" });
+    } catch (e) {
+      thrown = e;
+    }
+    expect(isAbapError(thrown) && thrown.code).toBe("BAD_INPUT");
+    const message = isAbapError(thrown) ? thrown.message : "";
+    expect(message).toContain("searchHelpParameter");
+    expect(message).toContain("searchHelp");
+  });
+
+
   it("refuses a type outside the three XML-only DDIC types", () => {
     let thrown: unknown;
     try {
