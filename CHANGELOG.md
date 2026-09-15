@@ -12,6 +12,19 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.5] - 2026-09-15
+
+### Added
+
+- `abap_search mode="call_graph"` (#105): transitive callers or callees of an object to `depth` levels (default 2, max 4 — above it `BAD_INPUT`, never clamped) as an indented tree with the `abap_read` reference next to every node. `direction="callers"` walks `usageReferences` level by level, de-duplicated by URI, with the package and self rows dropped, a node whose fan-in exceeds the where-used threshold shown as `(not expanded: N references)`, and the cumulative `FETCH COST` note; `direction="callees"` statically parses `CALL FUNCTION`, `CALL METHOD`/`=>`/`->`, `PERFORM … IN PROGRAM`, `SUBMIT` and `CALL TRANSACTION` literals (`src/adt/call-sites.ts`), listing dynamic targets as unresolved leaves rather than dropping them. Cycles render `(cycle -> seen above)`; `max`/`depth` cuts end with `--- TRUNCATED ---`. `direction`/`depth` under any other mode are `BAD_INPUT`.
+- `abap_read view="lineage"` on a `DDLS/DF` (#106): the view's DDL source parsed (`src/adt/cds-lineage.ts`) down to base tables — `from`, the join kinds, `union`, and associations (followed only when referenced in the field list, otherwise `(not selected)`) — to `depth` levels below the root (default 5, max 10, refused above); `field=` traces one output column layer by layer to its base column or expression. ADT's own `graphdata` endpoint is deliberately not the source (no association edges, no field lineage; refuses customer views on A4H) — see `doc/LIMITATIONS/cds-lineage.md`.
+- `abap_read view="footprint"` on `PROG/P`, `CLAS/OC`, `FUGR/F`, `FUGR/FF` (#107): a static scan of every include for Open SQL writes (internal-table forms excluded by keyword position), `IN UPDATE TASK`/`IN BACKGROUND TASK` calls, `COMMIT WORK`/`ROLLBACK WORK`, the BAPI commit/rollback pair, BOPF modify, `EXEC SQL`/ADBC, `EXPORT … TO DATABASE`, `CALL TRANSACTION` and `SUBMIT` ("may write"), grouped per table with include and line; dynamic table or function-module names are listed as unresolved with the variable. Limits in `doc/LIMITATIONS/footprint.md`. `include`/`method` with footprint are `UNSUPPORTED`.
+
+### Fixed
+
+- `abap_search mode="where_used"` answered `referencesTotal: 0` on systems that send the lowercase `usagereferences:` namespace prefix (A4H does): the vendor parser looked up a case-sensitive path. Where-used now goes through abapsmith's own `fetchUsageReferences` (`src/adt/element-info.ts`), which the call graph shares.
+- `abap_read` `depth` out of range is a structured `BAD_INPUT` naming the applicable maximum (3 for `DEVC/K`, 10 for lineage) instead of a schema-level rejection.
+
 ## [0.6.4] - 2026-09-15
 
 ### Added
