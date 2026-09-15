@@ -508,14 +508,104 @@ convention `abap_search mode=source` and ordinary truncated reads use.
   member-level detail a caller can get from `outline=true` directly. For
   `PROG/P`, a line-by-line scan of `PARAMETERS`, `SELECT-OPTIONS` and
   `FORM` declarations, plus a note when `START-OF-SELECTION` is present.
-  For `FUGR/FF`, `scanFunctionInterface` parses the function module's
-  signature statically out of ADT-generated source: SAP's own
-  `*"*"Local Interface:` comment block, walked section by section
-  (`IMPORTING`/`EXPORTING`/`CHANGING`/`TABLES`/`EXCEPTIONS`), giving one row
-  per parameter with its name, section keyword, typing, and an
-  `(optional)` marker for a `DEFAULT`/`OPTIONAL` line. If the source
-  carries no such block (a hand-edited or malformed source), the section
-  renders empty with an explicit note saying so. For `DDLS/DF`,
+  For `FUGR/FF`, `scanFunctionSignature` (`scanFunctionInterface` is a thin
+  wrapper over it returning just the parameters) parses the function
+  module's signature statically out of source ADT already returned. It
+  tries the NATIVE `FUNCTION <name> IMPORTING ... EXPORTING ... .`
+  signature statement first — a live system (A4H) was found to serve every
+  function module this way, keywords upper- or lowercase, one parameter
+  per line — walked section by section (`IMPORTING`/`EXPORTING`/
+  `CHANGING`/`TABLES`/`EXCEPTIONS`/`RAISING`), giving one row per parameter
+  with its name, section keyword, typing, and an `(optional)` marker for a
+  `DEFAULT`/`OPTIONAL` line. When the statement itself carries no
+  parameters, it falls back to the LEGACY form some sources still carry:
+  SAP's older generated `*"*"Local Interface:` comment block, parsed the
+  same way. A function module whose `FUNCTION` statement was found and
+  walked but genuinely declares no parameters at all (e.g. `RFC_PING`, and
+  no legacy comment block present either) also renders an empty section,
+  but with its own note stating plainly that this is the module's real,
+  parameterless signature — not a failed scan. Only when neither shape is
+  present at all (a hand-edited or malformed source, or one shaped in a way
+  this scan does not recognise) does the section render empty with the
+  both-forms-tried note. A truncated `FUGR/FF` PUBLIC API names the call to
+  re-read the object's own source (with `type` to disambiguate from the
+  function group) as "the rest", not `outline=true` — `outline=true` is
+  refused outright for this type, since these rows come from a source scan,
+  not an outline scan.
+
+  Verified live against A4H on 2026-09-15, through an MCP server built from
+  this branch. `abap_read {"object":"BAL_LOG_MSG_READ","type":"FUGR/FF",
+  "view":"digest"}`, PUBLIC API section verbatim:
+
+  ```
+  --- PUBLIC API ---
+  name                      kind        detail
+  ------------------------  ----------  -----------------------
+  i_s_msg_handle            IMPORTING   TYPE balmsghndl
+  i_langu                   IMPORTING   TYPE sylangu (optional)
+  e_s_msg                   EXPORTING   TYPE bal_s_msg
+  e_exists_on_db            EXPORTING   TYPE boolean
+  e_txt_msgty               EXPORTING   TYPE c
+  e_txt_msgid               EXPORTING   TYPE c
+  e_txt_detlevel            EXPORTING   TYPE c
+  e_txt_probclass           EXPORTING   TYPE c
+  e_txt_msg                 EXPORTING   TYPE c
+  e_warning_text_not_found  EXPORTING   TYPE boolean
+  log_not_found             EXCEPTIONS
+  msg_not_found             EXCEPTIONS
+  ```
+
+  `STRING_CENTER` renders `STRING IMPORTING TYPE ANY`, `CSTRING EXPORTING
+  TYPE ANY` and `TOO_SMALL EXCEPTIONS` the same way. A lowercase-keyword
+  source parses identically — `LVC_FIELDCATALOG_MERGE`, which also carries a
+  `CHANGING` section and `LIKE` typings:
+
+  ```
+  --- PUBLIC API ---
+  name                    kind        detail
+  ----------------------  ----------  -----------------------------
+  i_buffer_active         IMPORTING   type any (optional)
+  i_structure_name        IMPORTING   like dd02l-tabname (optional)
+  i_client_never_display  IMPORTING   type slis_char_1 (optional)
+  i_bypassing_buffer      IMPORTING   type char01 (optional)
+  i_internal_tabname      IMPORTING   like dd02l-tabname (optional)
+  ct_fieldcat             CHANGING    type lvc_t_fcat
+  inconsistent_interface  EXCEPTIONS
+  program_error           EXCEPTIONS
+  ```
+
+  `BAPI_USER_GET_DETAIL` has a `TABLES` section and overflows the 25-row
+  section budget — its last rows and truncation marker, verbatim:
+
+  ```
+  parameter       TABLES     like bapiparam (optional)
+  profiles        TABLES     like bapiprof (optional)
+  activitygroups  TABLES     like bapiagr (optional)
+  return          TABLES     like bapiret2
+  addtel          TABLES     like bapiadtel (optional)
+  addfax          TABLES     like bapiadfax (optional)
+  addttx          TABLES     like bapiadttx (optional)
+  --- TRUNCATED --- PUBLIC API cut after 25 of 44 rows; abap_read {"object":"BAPI_USER_GET_DETAIL","type":"FUGR/FF"}
+  ```
+
+  `RAISING` was confirmed on a throwaway `$TMP` function module written for
+  the check (deleted afterwards), whose signature declared
+  `RAISING CX_SY_CONVERSION_ERROR CX_SY_ITAB_LINE_NOT_FOUND`:
+
+  ```
+  cx_sy_conversion_error     RAISING
+  cx_sy_itab_line_not_found  RAISING
+  ```
+
+  `RFC_PING` — a function module whose whole source is `FUNCTION RFC_PING.`
+  … `ENDFUNCTION.` — renders `(no parameters found by the source scan)` plus
+  the parameterless note, verbatim:
+
+  ```
+  NOTE: PUBLIC API is empty for RFC_PING: its native "FUNCTION RFC_PING ... ." statement was found and parsed, and it declares no IMPORTING, EXPORTING, CHANGING, TABLES, EXCEPTIONS or RAISING clause at all — this module takes nothing, returns nothing and raises no exception. That is its real signature, not a limitation of this scan.
+  ```
+
+  For `DDLS/DF`,
   `scanCdsFields` parses the projected field list out of the `select from
   { ... }` block when it can do so with confidence — resolving `as
   <alias>` and stripping `key`/`@Annotation` prefixes — and falls back to

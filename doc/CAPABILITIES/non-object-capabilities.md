@@ -541,13 +541,23 @@
   instead of running it. The issue that requested this feature also named
   `abap_read view="footprint"` and `abap_search mode="call_graph"`; neither
   exists in this codebase and neither is ever named in a digest's output.
-  PUBLIC API renders a real signature for `FUGR/FF` (parsed from ADT's
-  generated `*"*"Local Interface:` comment block: parameter name, section
-  keyword, typing, and an `(optional)` marker) and, when the select list
-  can be parsed with confidence, for `DDLS/DF` (the projected field list) —
-  falling back to an empty section with an explicit note when it can't (a
-  cast, function call, sub-select, or bare association in the select list
-  makes it give up on the whole view rather than return a partial list).
+  PUBLIC API renders a real signature for `FUGR/FF`: parsed first from the
+  NATIVE `FUNCTION <name> IMPORTING ... .` signature statement — a live
+  system (A4H) was found to serve every function module this way,
+  keywords upper- or lowercase — with the older ADT-generated
+  `*"*"Local Interface:` comment block parsed as a fallback for sources
+  that carry only that form. Either way it yields parameter name, section
+  keyword, typing, and an `(optional)` marker. A function module whose
+  native `FUNCTION` statement was found and walked but genuinely declares
+  no parameters at all (e.g. `RFC_PING`) also renders an empty section, but
+  with its own note stating this is the module's real, parameterless
+  signature, not a failed scan; the section renders empty with a note
+  naming both forms tried only when neither shape is present at all. It
+  also renders PUBLIC API, when the select list can be parsed with confidence,
+  for `DDLS/DF` (the projected field list) — falling back to an empty
+  section with an explicit note when it can't (a cast, function call,
+  sub-select, or bare association in the select list makes it give up on
+  the whole view rather than return a partial list).
   Only `FUGR/F` (the function group itself) still always renders an empty
   PUBLIC API, with an explicit note: listing a group's modules needs a
   search call this view deliberately does not make.

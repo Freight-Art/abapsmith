@@ -93,7 +93,7 @@ import {
   isDigestType,
   scanDependencies,
   scanProgramInterface,
-  scanFunctionInterface,
+  scanFunctionSignature,
   scanCdsFields,
   countTestClasses,
   summarisePublicApi,
@@ -1953,7 +1953,15 @@ async function readDigest(
   let publicApi: DigestPublicApi;
   if (OUTLINE_KINDS.has(obj.kind)) {
     const members = await classMembers(conn, obj);
-    publicApi = summarisePublicApi(members);
+    publicApi = {
+      ...summarisePublicApi(members),
+      // Outline really is the source of these rows for CLAS/INTF —
+      // outline=true genuinely returns more when this section is
+      // truncated, and "no rows" here really does mean the outline scan
+      // found nothing public.
+      fullCallLine: `abap_read {"object":"${obj.name}","outline":true}`,
+      emptyText: "(no public components found by the outline scan)",
+    };
   } else if (obj.type === "PROG/P") {
     const pi = scanProgramInterface(source);
     publicApi = {
@@ -1963,17 +1971,27 @@ async function readDigest(
         ...pi.forms.map((name) => ({ name, kind: "form" })),
       ],
       hiddenCounts: [],
+      // outline=true is refused for PROG/P (OUTLINE_KINDS is CLAS/INTF
+      // only) — the rows above came from a static scan of the source
+      // itself, so re-reading that source is what actually has the rest.
+      fullCallLine: `abap_read {"object":"${obj.name}","type":"PROG/P"}`,
+      emptyText: "(no parameters, select-options or forms found by the source scan)",
     };
     if (pi.hasStartOfSelection) extraNotes.push("START-OF-SELECTION is present in this program's source.");
   } else if (obj.type === "FUGR/FF") {
     // The function module's own signature IS its public API — scanned from
-    // ADT's generated `*"*"Local Interface:` comment block in the source
-    // already fetched above for the dependency scan (see digest.ts's module
-    // comment). `optional` has no separate column of its own: it is folded
-    // into `detail` (spelling: "<typing> (optional)", or bare "(optional)"
-    // for a DEFAULT/OPTIONAL exception line, which carries no typing) so the
-    // row shape stays the same {name, kind, detail} every other branch uses.
-    const params = scanFunctionInterface(source);
+    // the source already fetched above for the dependency scan (see
+    // digest.ts's module comment). `scanFunctionSignature` tries the NATIVE
+    // `FUNCTION <name> IMPORTING ... .` signature statement first — issue
+    // #108's live verifier found that is what ADT actually serves on a real
+    // system (A4H), keywords upper- or lowercase — and falls back to the
+    // LEGACY ADT-generated `*"*"Local Interface:` comment block only when
+    // the native parse finds nothing. `optional` has no separate column of
+    // its own: it is folded into `detail` (spelling: "<typing> (optional)",
+    // or bare "(optional)" for a DEFAULT/OPTIONAL exception/RAISING line,
+    // which carries no typing) so the row shape stays the same
+    // {name, kind, detail} every other branch uses.
+    const { form, parameters: params } = scanFunctionSignature(source);
     publicApi = {
       rows: params.map((p) => {
         const detail = [p.typing || undefined, p.optional ? "(optional)" : undefined]
@@ -1983,15 +2001,37 @@ async function readDigest(
       }),
       // A function module's interface has no private/protected half to hide
       // counts for — everything IMPORTING/EXPORTING/CHANGING/TABLES/
-      // EXCEPTIONS declares is already the whole public signature.
+      // EXCEPTIONS/RAISING declares is already the whole public signature.
       hiddenCounts: [],
+      // outline=true is refused for FUGR/FF ("has no ADT component
+      // structure to list") — the rows above came from the source scan
+      // above, so re-reading that source (with `type` to disambiguate from
+      // FUGR/F, the function group) is what actually has the rest.
+      fullCallLine: `abap_read {"object":"${obj.name}","type":"FUGR/FF"}`,
+      emptyText: "(no parameters found by the source scan)",
     };
     if (params.length === 0) {
-      extraNotes.push(
-        `PUBLIC API is empty for ${obj.name}: its source carries no generated ` +
-          '"Local Interface:" comment block — a real outcome (the block is missing or was hand-edited ' +
-          "away), not a limitation of this tool.",
-      );
+      if (form === "native") {
+        // issue #108 defect: the native FUNCTION statement WAS found and
+        // walked — this is not a failed scan, the module genuinely
+        // declares no parameters (e.g. RFC_PING). The note used to be the
+        // both-forms-tried one below regardless, which was simply false
+        // for this case.
+        extraNotes.push(
+          `PUBLIC API is empty for ${obj.name}: its native "FUNCTION ${obj.name} ... ." statement was ` +
+            "found and parsed, and it declares no IMPORTING, EXPORTING, CHANGING, TABLES, EXCEPTIONS or " +
+            "RAISING clause at all — this module takes nothing, returns nothing and raises no exception. " +
+            "That is its real signature, not a limitation of this scan.",
+        );
+      } else {
+        extraNotes.push(
+          `PUBLIC API is empty for ${obj.name}: its source carries neither a parseable native ` +
+            '"FUNCTION … IMPORTING/EXPORTING/… ." signature statement (the form ADT serves on this system) ' +
+            'nor the legacy generated "Local Interface:" comment block — a real outcome (the source is ' +
+            "malformed, hand-edited, or shaped in a way this scan does not recognise), not a limitation of " +
+            "this tool.",
+        );
+      }
     }
   } else if (obj.type === "DDLS/DF") {
     // The projected field list IS the view's public API. `scanCdsFields`
@@ -2003,6 +2043,12 @@ async function readDigest(
     publicApi = {
       rows: fields.map((name) => ({ name, kind: "field" })),
       hiddenCounts: [],
+      // outline=true is refused for DDLS/DF ("has no ADT component
+      // structure to list") — the rows above came from the source scan
+      // above, so re-reading that source (with `type` for symmetry with
+      // the other non-outline branches) is what actually has the rest.
+      fullCallLine: `abap_read {"object":"${obj.name}","type":"DDLS/DF"}`,
+      emptyText: "(no fields found by the source scan)",
     };
     if (fields.length === 0) {
       extraNotes.push(
@@ -2017,7 +2063,15 @@ async function readDigest(
     // needs a search call (there is no /objectstructure-style listing for a
     // FUGR/F group), and this view deliberately never makes one — see this
     // function's module comment on where-used for the same reasoning.
-    publicApi = { rows: [], hiddenCounts: [] };
+    publicApi = {
+      rows: [],
+      hiddenCounts: [],
+      // Never truncated (rows is always []), but still named accurately:
+      // no outline scan runs here at all, so outline=true would be as much
+      // a dead end as it is for the other non-outline types.
+      fullCallLine: `abap_search {"query":"${obj.name}"}`,
+      emptyText: "(FUGR/F lists no modules directly — see note below)",
+    };
     extraNotes.push(
       `PUBLIC API is empty for ${obj.type}: listing a function group's modules needs a search call, ` +
         'which this view does not make — use abap_search to list FUGR/F\'s modules, or point digest ' +

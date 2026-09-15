@@ -18,6 +18,7 @@ import {
   countTestClasses,
   summarisePublicApi,
   scanFunctionInterface,
+  scanFunctionSignature,
   scanCdsFields,
   buildDigestSections,
   type DigestInput,
@@ -487,6 +488,304 @@ describe("scanFunctionInterface", () => {
 });
 
 // ---------------------------------------------------------------------------
+// scanFunctionInterface — NATIVE `FUNCTION ... .` signature statements
+// (issue #108: A4H's live verifier found this is the form ADT actually
+// serves for function modules, not the legacy comment block above). The
+// three sources below are captured A4H excerpts, copied verbatim from a
+// live abap_read digest run — see /tmp/i108-live/fm-sources.txt.
+// ---------------------------------------------------------------------------
+
+// Captured A4H source, verbatim (abap_read {"object":"BAL_LOG_MSG_READ","type":"FUGR/FF"}).
+// Uppercase keywords, IMPORTING/EXPORTING/EXCEPTIONS, a DEFAULT sy-langu.
+const FM_NATIVE_BAL_LOG_MSG_READ_SOURCE = `FUNCTION bal_log_msg_read
+  IMPORTING
+    VALUE(i_s_msg_handle) TYPE balmsghndl
+    VALUE(i_langu) TYPE sylangu DEFAULT sy-langu
+  EXPORTING
+    e_s_msg TYPE bal_s_msg
+    e_exists_on_db TYPE boolean
+    e_txt_msgty TYPE c
+    e_txt_msgid TYPE c
+    e_txt_detlevel TYPE c
+    e_txt_probclass TYPE c
+    e_txt_msg TYPE c
+    e_warning_text_not_found TYPE boolean
+  EXCEPTIONS
+    log_not_found
+    msg_not_found.
+
+
+
+  FIELD-SYMBOLS:
+    <l_s_mhdr>             TYPE bal_s_mhdr,
+`;
+
+// Captured A4H source, verbatim (abap_read {"object":"BAPI_USER_GET_DETAIL","type":"FUGR/FF"}).
+// Entirely lowercase keywords, `like`, `default 'X'`, `optional`, a TABLES section.
+const FM_NATIVE_BAPI_USER_GET_DETAIL_SOURCE = `function bapi_user_get_detail
+  importing
+    value(username) like bapibname-bapibname
+    value(cache_results) type flag_x default 'X'
+    value(extuid_get) type bapiextuidget optional
+  exporting
+    value(logondata) like bapilogond
+    value(uclass) type bapiuclass
+  tables
+    parameter like bapiparam optional
+    profiles like bapiprof optional
+    return like bapiret2
+    usattribute like bapiusattribute optional.
+
+
+
+
+  " Translate Key to Upper case
+  set locale language sy-langu.
+`;
+
+// Captured A4H source, verbatim (abap_read {"object":"LVC_FIELDCATALOG_MERGE","type":"FUGR/FF"}).
+// Lowercase keywords, a CHANGING section, and a trailing ##ADT_PARAMETER_UNTYPED pragma.
+const FM_NATIVE_LVC_FIELDCATALOG_MERGE_SOURCE = `function lvc_fieldcatalog_merge
+  importing
+    value(i_buffer_active) type any optional ##ADT_PARAMETER_UNTYPED
+    value(i_structure_name) like dd02l-tabname optional
+    value(i_client_never_display) type slis_char_1 default 'X'
+    value(i_bypassing_buffer) type char01 optional
+    value(i_internal_tabname) like dd02l-tabname optional
+  changing
+    value(ct_fieldcat) type lvc_t_fcat
+  exceptions
+    inconsistent_interface
+    program_error.
+
+
+
+  data: lt_fieldcat type kkblo_t_fieldcat,
+`;
+
+// Hand-written — no A4H sample of a native, parameterless FUNCTION statement
+// was captured, but ADT does serve one this way (the opening line carries
+// its own terminating period, since there is no IMPORTING/EXPORTING/... to
+// follow it).
+const FM_NATIVE_NO_PARAMS_SOURCE = `FUNCTION z_i108_no_params.
+  WRITE 'hello'.
+ENDFUNCTION.
+`;
+
+// Captured A4H source, verbatim (abap_read {"object":"RFC_PING","type":"FUGR/FF","view":"digest"}).
+// issue #108 defect A: a genuinely parameterless function module — the
+// FUNCTION statement is found and walked, it just declares nothing.
+const FM_NATIVE_RFC_PING_SOURCE = `FUNCTION RFC_PING.
+
+
+
+* RFC - P I N G
+*
+* Funktion dient als Verbindungstest.
+*"----------------------------------------------------------------------
+
+ENDFUNCTION.
+`;
+
+// Captured A4H source, verbatim — a throwaway `$TMP` function module
+// (Z_I108_SIG_RAISE) written purely for this check, digested live, then
+// deleted. RAISING lists class-based exceptions the same one-name-per-line
+// way EXCEPTIONS does; the server lower-cased the parameter and exception
+// names on read-back (as it does elsewhere — see BAPI_USER_GET_DETAIL
+// above), while the IMPORTING/EXPORTING/CHANGING/RAISING/TYPE/VALUE
+// keywords were served back as authored.
+const FM_NATIVE_RAISING_SOURCE = `FUNCTION z_i108_sig_raise
+  IMPORTING
+    VALUE(iv_name) TYPE string
+    VALUE(iv_langu) TYPE sylangu DEFAULT sy-langu
+  EXPORTING
+    VALUE(ev_text) TYPE string
+  CHANGING
+    VALUE(ct_rows) TYPE string_table
+  RAISING
+    cx_sy_conversion_error
+    cx_sy_itab_line_not_found.
+`;
+
+// Hand-written — no A4H sample happened to wrap a parameter clause onto a
+// continuation line, but ADT's own pretty-printer can do this for a long
+// TYPE/LIKE clause; this pins that the continuation is merged into the
+// parameter it extends rather than read as a parameter of its own.
+const FM_NATIVE_CONTINUATION_SOURCE = `FUNCTION z_i108_continuation
+  IMPORTING
+    VALUE(iv_key)
+      TYPE zkey
+      DEFAULT '1'
+  EXPORTING
+    ev_text TYPE string.
+`;
+
+describe("scanFunctionInterface — native FUNCTION ... . statement", () => {
+  it("parses uppercase IMPORTING/EXPORTING/EXCEPTIONS with a DEFAULT sy-langu (captured A4H: BAL_LOG_MSG_READ)", () => {
+    const params = scanFunctionInterface(FM_NATIVE_BAL_LOG_MSG_READ_SOURCE);
+    expect(params.map((p) => [p.kind, p.name])).toEqual([
+      ["IMPORTING", "i_s_msg_handle"],
+      ["IMPORTING", "i_langu"],
+      ["EXPORTING", "e_s_msg"],
+      ["EXPORTING", "e_exists_on_db"],
+      ["EXPORTING", "e_txt_msgty"],
+      ["EXPORTING", "e_txt_msgid"],
+      ["EXPORTING", "e_txt_detlevel"],
+      ["EXPORTING", "e_txt_probclass"],
+      ["EXPORTING", "e_txt_msg"],
+      ["EXPORTING", "e_warning_text_not_found"],
+      ["EXCEPTIONS", "log_not_found"],
+      ["EXCEPTIONS", "msg_not_found"],
+    ]);
+    expect(params.find((p) => p.name === "i_langu")).toEqual({
+      kind: "IMPORTING",
+      name: "i_langu",
+      typing: "TYPE sylangu",
+      optional: true,
+    });
+    expect(params.find((p) => p.name === "log_not_found")).toEqual({
+      kind: "EXCEPTIONS",
+      name: "log_not_found",
+      typing: "",
+      optional: false,
+    });
+  });
+
+  it("parses lowercase keywords, `like`, `default 'X'`, `optional`, and a TABLES section (captured A4H: BAPI_USER_GET_DETAIL)", () => {
+    const params = scanFunctionInterface(FM_NATIVE_BAPI_USER_GET_DETAIL_SOURCE);
+    expect(params.map((p) => [p.kind, p.name])).toEqual([
+      ["IMPORTING", "username"],
+      ["IMPORTING", "cache_results"],
+      ["IMPORTING", "extuid_get"],
+      ["EXPORTING", "logondata"],
+      ["EXPORTING", "uclass"],
+      ["TABLES", "parameter"],
+      ["TABLES", "profiles"],
+      ["TABLES", "return"],
+      ["TABLES", "usattribute"],
+    ]);
+    expect(params.find((p) => p.name === "username")).toEqual({
+      kind: "IMPORTING",
+      name: "username",
+      typing: "like bapibname-bapibname",
+      optional: false,
+    });
+    expect(params.find((p) => p.name === "cache_results")).toEqual({
+      kind: "IMPORTING",
+      name: "cache_results",
+      typing: "type flag_x",
+      optional: true,
+    });
+    expect(params.find((p) => p.name === "usattribute")).toEqual({
+      kind: "TABLES",
+      name: "usattribute",
+      typing: "like bapiusattribute",
+      optional: true,
+    });
+  });
+
+  it("does not run past the terminating period into the function body (BAPI_USER_GET_DETAIL's `set locale language sy-langu.`)", () => {
+    const params = scanFunctionInterface(FM_NATIVE_BAPI_USER_GET_DETAIL_SOURCE);
+    expect(params.some((p) => ["sy", "language", "locale", "set"].includes(p.name))).toBe(false);
+    expect(params).toHaveLength(9);
+  });
+
+  it("parses a CHANGING section and strips a trailing ##ADT_PARAMETER_UNTYPED pragma (captured A4H: LVC_FIELDCATALOG_MERGE)", () => {
+    const params = scanFunctionInterface(FM_NATIVE_LVC_FIELDCATALOG_MERGE_SOURCE);
+    expect(params.map((p) => [p.kind, p.name])).toEqual([
+      ["IMPORTING", "i_buffer_active"],
+      ["IMPORTING", "i_structure_name"],
+      ["IMPORTING", "i_client_never_display"],
+      ["IMPORTING", "i_bypassing_buffer"],
+      ["IMPORTING", "i_internal_tabname"],
+      ["CHANGING", "ct_fieldcat"],
+      ["EXCEPTIONS", "inconsistent_interface"],
+      ["EXCEPTIONS", "program_error"],
+    ]);
+    expect(params.find((p) => p.name === "i_buffer_active")).toEqual({
+      kind: "IMPORTING",
+      name: "i_buffer_active",
+      typing: "type any", // the ##ADT_PARAMETER_UNTYPED pragma must not leak into typing
+      optional: true,
+    });
+    expect(params.find((p) => p.name === "ct_fieldcat")).toEqual({
+      kind: "CHANGING",
+      name: "ct_fieldcat",
+      typing: "type lvc_t_fcat",
+      optional: false,
+    });
+  });
+
+  it("returns [] for a parameterless `FUNCTION foo.` statement", () => {
+    expect(scanFunctionInterface(FM_NATIVE_NO_PARAMS_SOURCE)).toEqual([]);
+  });
+
+  it("returns [] — not an error — when the source has neither a native FUNCTION statement nor a legacy comment block", () => {
+    expect(scanFunctionInterface("REPORT z_i108_not_a_function.\n  WRITE 'hi'.\n")).toEqual([]);
+  });
+
+  it("treats a RAISING class list like EXCEPTIONS — bare names, no typing (captured live from a throwaway $TMP module, Z_I108_SIG_RAISE, deleted afterwards)", () => {
+    const params = scanFunctionInterface(FM_NATIVE_RAISING_SOURCE);
+    expect(params.map((p) => [p.kind, p.name, p.typing, p.optional])).toEqual([
+      ["IMPORTING", "iv_name", "TYPE string", false],
+      ["IMPORTING", "iv_langu", "TYPE sylangu", true],
+      ["EXPORTING", "ev_text", "TYPE string", false],
+      ["CHANGING", "ct_rows", "TYPE string_table", false],
+      ["RAISING", "cx_sy_conversion_error", "", false],
+      ["RAISING", "cx_sy_itab_line_not_found", "", false],
+    ]);
+  });
+
+  it("merges a wrapped TYPE/DEFAULT continuation line into the parameter it extends (hand-written)", () => {
+    const params = scanFunctionInterface(FM_NATIVE_CONTINUATION_SOURCE);
+    expect(params).toEqual([
+      { kind: "IMPORTING", name: "iv_key", typing: "TYPE zkey", optional: true },
+      { kind: "EXPORTING", name: "ev_text", typing: "TYPE string", optional: false },
+    ]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// scanFunctionSignature — issue #108 defect A: distinguishing a genuinely
+// parameterless FUNCTION statement ("native", found and walked, zero
+// parameters) from a source with no recognisable signature shape at all
+// ("none"), so readDigest can render an accurate note for each.
+// ---------------------------------------------------------------------------
+
+describe("scanFunctionSignature", () => {
+  it('reports form "native" with zero parameters for RFC_PING\'s real, genuinely parameterless source', () => {
+    expect(scanFunctionSignature(FM_NATIVE_RFC_PING_SOURCE)).toEqual({ form: "native", parameters: [] });
+  });
+
+  it('reports form "native" (not "none") for the hand-written parameterless FUNCTION statement too', () => {
+    expect(scanFunctionSignature(FM_NATIVE_NO_PARAMS_SOURCE)).toEqual({ form: "native", parameters: [] });
+  });
+
+  it('reports form "native" with the parsed parameters for a normal signature', () => {
+    expect(scanFunctionSignature(FM_NATIVE_RAISING_SOURCE).form).toBe("native");
+  });
+
+  it('reports form "none" when the source has neither a native FUNCTION statement nor a legacy comment block', () => {
+    expect(scanFunctionSignature("REPORT z_i108_not_a_function.\n  WRITE 'hi'.\n")).toEqual({
+      form: "none",
+      parameters: [],
+    });
+  });
+
+  it('reports form "legacy" when only the ADT-generated comment block supplies the parameters', () => {
+    const scan = scanFunctionSignature(FM_FULL_SIGNATURE_SOURCE);
+    expect(scan.form).toBe("legacy");
+    expect(scan.parameters.length).toBeGreaterThan(0);
+  });
+
+  it("scanFunctionInterface stays a thin wrapper returning just the parameters", () => {
+    expect(scanFunctionInterface(FM_NATIVE_RFC_PING_SOURCE)).toEqual(
+      scanFunctionSignature(FM_NATIVE_RFC_PING_SOURCE).parameters,
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
 // scanCdsFields — literal captured-looking CDS view sources (issue #110's
 // DDLS/DF "public API" gap).
 // ---------------------------------------------------------------------------
@@ -601,6 +900,64 @@ describe("buildDigestSections: section-wise truncation", () => {
     const { sections } = buildDigestSections(input, { maxRowsPerSection: DIGEST_MAX_ROWS_PER_SECTION });
     const apiSection = sections.find((s) => s.title === "PUBLIC API");
     expect(apiSection?.content).not.toContain("--- TRUNCATED ---");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildDigestSections: the PUBLIC API "get the rest" call must follow the
+// object type (issue #108 defect B) — only CLAS/INTF's rows come from an
+// outline scan, so only there does outline=true genuinely return more.
+// Every other digest type gets refused outright by outline=true ("has no
+// ADT component structure to list"), so naming it for e.g. a FUGR/FF
+// handed the caller a dead end; the fix is `DigestPublicApi.fullCallLine`,
+// filled in per branch by the wiring layer (src/tools/read.ts).
+// ---------------------------------------------------------------------------
+
+describe('buildDigestSections: PUBLIC API "get the rest" call follows the object type', () => {
+  it('names abap_read {"object":"X","outline":true} for a truncated CLAS PUBLIC API (default — byte-identical to before issue #108)', () => {
+    const rows = Array.from({ length: 30 }, (_, i) => ({ name: `MEMBER_${i}`, kind: "Method" }));
+    // baseInput's header.type is "CLAS/OC" and its publicApi carries no
+    // fullCallLine — exactly the shape every pre-issue-108 caller/test used.
+    const input = baseInput({ publicApi: { rows, hiddenCounts: [] } });
+    const { sections, notes } = buildDigestSections(input, { maxRowsPerSection: DIGEST_MAX_ROWS_PER_SECTION });
+
+    const apiSection = sections.find((s) => s.title === "PUBLIC API");
+    expect(apiSection?.content).toContain('abap_read {"object":"ZCL_I110_PROBE","outline":true}');
+    expect(notes.some((n) => n.includes("PUBLIC API") && n.includes('"outline":true} has the rest.'))).toBe(
+      true,
+    );
+  });
+
+  it('names the source-read call, NOT outline=true, for a truncated FUGR/FF PUBLIC API', () => {
+    const rows = Array.from({ length: 30 }, (_, i) => ({ name: `PARAM_${i}`, kind: "IMPORTING" }));
+    const input = baseInput({
+      header: {
+        type: "FUGR/FF",
+        name: "BAPI_USER_GET_DETAIL",
+        lastChangedSource: "released",
+      },
+      publicApi: {
+        rows,
+        hiddenCounts: [],
+        fullCallLine: 'abap_read {"object":"BAPI_USER_GET_DETAIL","type":"FUGR/FF"}',
+        emptyText: "(no parameters found by the source scan)",
+      },
+    });
+    const { sections, notes } = buildDigestSections(input, { maxRowsPerSection: DIGEST_MAX_ROWS_PER_SECTION });
+
+    const apiSection = sections.find((s) => s.title === "PUBLIC API");
+    expect(apiSection?.content).toContain(
+      'abap_read {"object":"BAPI_USER_GET_DETAIL","type":"FUGR/FF"}',
+    );
+    expect(apiSection?.content).not.toContain("outline");
+    expect(
+      notes.some(
+        (n) =>
+          n.includes("PUBLIC API") &&
+          n.includes('abap_read {"object":"BAPI_USER_GET_DETAIL","type":"FUGR/FF"} has the rest.'),
+      ),
+    ).toBe(true);
+    expect(notes.some((n) => n.includes("outline"))).toBe(false);
   });
 });
 

@@ -43,6 +43,26 @@ export interface DigestPublicApi {
   readonly hiddenCounts: readonly { readonly visibility: string; readonly count: number }[];
   /** Rows dropped from `rows` before this digest was built; 0/undefined when none. */
   readonly truncatedRows?: number;
+  /**
+   * The `abap_read` call that returns the rest of `rows` when this section
+   * is truncated, named for how THIS type's rows were actually produced —
+   * only CLAS/INTF's rows come from an outline scan, so only there does
+   * `outline=true` genuinely return more (issue #108: `outline=true` is
+   * refused outright for every other digest type — "has no ADT component
+   * structure to list" — so naming it for e.g. a FUGR/FF handed the caller
+   * a dead end). The wiring layer (`readDigest` in `src/tools/read.ts`)
+   * fills this in per branch, since each branch already knows what
+   * produced its rows. Defaults to the CLAS/INTF outline=true call when
+   * omitted, so callers/tests that predate this field keep working.
+   */
+  readonly fullCallLine?: string;
+  /**
+   * Text shown for this section when `rows` is empty. Must not claim an
+   * outline scan ran for a type that never runs one (see `fullCallLine`).
+   * Defaults to the outline-scan wording when omitted, for the same
+   * back-compat reason as `fullCallLine`.
+   */
+  readonly emptyText?: string;
 }
 
 export interface DigestDependency {
@@ -485,24 +505,42 @@ export function summarisePublicApi(members: readonly ClassMember[]): DigestPubli
 // CLAS/INTF only) or `scanProgramInterface` (PROG/P selection-screen only).
 // Both read the source ADT already returned for the dependency scan — no
 // extra call.
+//
+// Two shapes of function-module source exist in the wild, and issue #108's
+// live verifier found the first one is what a real system (A4H) actually
+// serves: a NATIVE `FUNCTION <name> IMPORTING ... EXPORTING ... .` ABAP
+// statement, keywords upper- or lowercase, no comment markers at all. The
+// second is the LEGACY generated comment block older ADT/GUI tooling wrote
+// above that statement (`*"*"Local Interface:` through a `*"----` rule) —
+// still parsed as a fallback for sources that carry it, but no longer
+// assumed to be the only form. `scanFunctionInterface` tries the native
+// parse first and only falls back to the comment-block parse when the
+// native one finds no `FUNCTION` statement or no parameters.
 // ---------------------------------------------------------------------------
 
 export interface FunctionParameter {
-  readonly kind: "IMPORTING" | "EXPORTING" | "CHANGING" | "TABLES" | "EXCEPTIONS";
+  readonly kind: "IMPORTING" | "EXPORTING" | "CHANGING" | "TABLES" | "EXCEPTIONS" | "RAISING";
   readonly name: string;
-  readonly typing: string; // "TYPE ZKEY", "STRUCTURE ZROW", "" for an exception
+  readonly typing: string; // "TYPE ZKEY", "STRUCTURE ZROW", "" for an exception or a RAISING class
   readonly optional: boolean; // true when the line carries DEFAULT or OPTIONAL
 }
 
-/** `IMPORTING`/`EXPORTING`/`CHANGING`/`TABLES`/`EXCEPTIONS`, alone on its own comment line. */
-const FM_SECTION_KEYWORD_RE = /^(IMPORTING|EXPORTING|CHANGING|TABLES|EXCEPTIONS)\s*$/i;
+/**
+ * `IMPORTING`/`EXPORTING`/`CHANGING`/`TABLES`/`EXCEPTIONS`/`RAISING`, either
+ * alone on its own line (the normal shape, in both the comment block and
+ * ADT's native rendering) or — matched defensively — followed by more
+ * content on the same line, which native source does not need but a
+ * hand-edited one might produce.
+ */
+const FM_SECTION_KEYWORD_RE = /^(IMPORTING|EXPORTING|CHANGING|TABLES|EXCEPTIONS|RAISING)\b\s*(.*)$/i;
 
 /**
  * The header line ADT's function-module source carries above the parameter
  * list, in the two forms actually seen: a single `*"` prefix ("Local
  * Interface:") or the doubled `*"*"` prefix ADT's own generator produces
  * ("Local interface:", note the different casing convention across sources —
- * matched case-insensitively here for that reason).
+ * matched case-insensitively here for that reason). This is the LEGACY
+ * fallback form — see the section comment above.
  */
 const FM_INTERFACE_HEADER_RE = /^\*"(?:\*")?\s*local\s+interface\s*:?\s*$/i;
 
@@ -510,11 +548,28 @@ const FM_INTERFACE_HEADER_RE = /^\*"(?:\*")?\s*local\s+interface\s*:?\s*$/i;
 const FM_RULE_RE = /^-+$/;
 
 /**
- * One parameter/exception line's content (the comment prefix already
- * stripped) into a name/typing/optional triple, or `undefined` when the line
- * doesn't have the expected shape. Handles both the `VALUE(...)`/
- * `REFERENCE(...)`-wrapped form IMPORTING/EXPORTING/CHANGING carry and the
- * bare-name form TABLES/EXCEPTIONS carry.
+ * The opening line of a NATIVE function-module signature statement:
+ * `FUNCTION <name>` with or without the trailing period a parameterless
+ * function carries on the same line (`FUNCTION foo.`). Keywords are
+ * case-insensitive — A4H serves some function modules (e.g.
+ * `bapi_user_get_detail`) with an entirely lowercase signature.
+ */
+const FM_NATIVE_OPEN_RE = /^function\s+([\w/]+)\s*(\.)?\s*$/i;
+
+/** A parameter-clause continuation: a line that extends the *previous* parameter rather than starting a new one. */
+const FM_CONTINUATION_RE = /^(type|like|structure|default|optional)\b/i;
+
+/**
+ * One parameter/exception/RAISING-class line's content into a
+ * name/typing/optional triple, or `undefined` when the line doesn't have the
+ * expected shape. Handles both the `VALUE(...)`/`REFERENCE(...)`-wrapped
+ * form IMPORTING/EXPORTING/CHANGING carry and the bare-name form
+ * TABLES/EXCEPTIONS/RAISING carry. Shared between the native-statement
+ * parser and the legacy comment-block parser below; by the time either
+ * calls it, `content` has already had its source-specific noise (comment
+ * prefix, pragma, trailing line comment, statement-terminating period)
+ * stripped by the caller, so this function only has to deal with the
+ * parameter grammar itself.
  */
 function parseFmParamLine(content: string): { name: string; typing: string; optional: boolean } | undefined {
   const wrapped = /^(?:VALUE|REFERENCE)\(([^)]+)\)\s*(.*)$/i.exec(content);
@@ -536,11 +591,13 @@ function parseFmParamLine(content: string): { name: string; typing: string; opti
  * Scans ADT's generated function-module interface comment block —
  * `*"*"Local Interface:` through the closing `*"----...` rule — for its
  * IMPORTING/EXPORTING/CHANGING/TABLES/EXCEPTIONS parameters, in source
- * order. Returns `[]` when `source` carries no such block; that is a normal
- * outcome (a malformed or hand-edited FM source, or a non-FM source passed
- * in by mistake), not an error worth throwing over.
+ * order. This is the LEGACY fallback path (see the section comment above);
+ * `scanFunctionInterface` only reaches it when the native statement parse
+ * below found nothing. Returns `[]` when `source` carries no such block;
+ * that is a normal outcome (a malformed or hand-edited FM source, or a
+ * non-FM source passed in by mistake), not an error worth throwing over.
  */
-export function scanFunctionInterface(source: string): readonly FunctionParameter[] {
+function scanFunctionInterfaceLegacyComment(source: string): readonly FunctionParameter[] {
   const lines = source.replace(/\r\n/g, "\n").split("\n");
   const startIdx = lines.findIndex((l) => FM_INTERFACE_HEADER_RE.test(l.trim()));
   if (startIdx === -1) return [];
@@ -567,6 +624,154 @@ export function scanFunctionInterface(source: string): readonly FunctionParamete
   }
 
   return params;
+}
+
+/**
+ * Reduces the NATIVE `FUNCTION <name> ... .` statement down to its clean
+ * body lines: comment-only lines (`*` or `"` in column 1) dropped, `##PRAGMA`
+ * tokens and trailing `" ...` line comments stripped off each kept line, and
+ * everything from the statement-terminating period onward — on whichever
+ * line it falls — discarded, so the function body (which starts right after
+ * that period, e.g. `bapi_user_get_detail`'s `set locale language sy-langu.`)
+ * is never walked. Returns `undefined` when `source` opens with no
+ * `FUNCTION` statement at all.
+ */
+function collectNativeFunctionStatementBody(lines: readonly string[]): readonly string[] | undefined {
+  const startIdx = lines.findIndex((l) => FM_NATIVE_OPEN_RE.test(l.trim()));
+  if (startIdx === -1) return undefined;
+
+  const open = FM_NATIVE_OPEN_RE.exec(lines[startIdx]!.trim())!;
+  const body: string[] = [];
+  let terminated = !!open[2]; // `FUNCTION foo.` — no parameters, statement ends on the opening line
+
+  for (let i = startIdx + 1; i < lines.length && !terminated; i++) {
+    const raw = (lines[i] ?? "").trim();
+    if (raw === "" || raw.startsWith("*") || raw.startsWith('"')) continue; // blank filler or a full-line comment
+
+    let content = raw
+      .replace(/\s*##[A-Za-z0-9_]+/g, "") // strip ADT pragma tokens, e.g. ##ADT_PARAMETER_UNTYPED
+      .replace(/\s+".*$/, "") // strip a trailing " ... line comment
+      .trimEnd();
+    if (content === "") continue;
+
+    const dotIdx = content.indexOf(".");
+    if (dotIdx !== -1) {
+      content = content.slice(0, dotIdx).trimEnd();
+      terminated = true;
+    }
+    if (content) body.push(content);
+  }
+
+  return body;
+}
+
+/**
+ * Walks a NATIVE function-module signature statement's clean body lines
+ * (see `collectNativeFunctionStatementBody`) for its
+ * IMPORTING/EXPORTING/CHANGING/TABLES/EXCEPTIONS/RAISING parameters, in
+ * source order. A parameter clause that wraps onto a following line — the
+ * continuation starting with TYPE/LIKE/STRUCTURE/DEFAULT/OPTIONAL — is
+ * joined back onto the parameter it continues rather than read as a second
+ * parameter, since that is the only way to tell the two shapes apart once
+ * the ADT-generated column alignment is gone.
+ */
+function parseNativeFunctionBody(body: readonly string[]): readonly FunctionParameter[] {
+  const params: FunctionParameter[] = [];
+  let currentKind: FunctionParameter["kind"] | undefined;
+  let chunk: string | undefined;
+
+  const finalizeChunk = () => {
+    if (chunk !== undefined && currentKind) {
+      const parsed = parseFmParamLine(chunk.replace(/,\s*$/, "").trim());
+      if (parsed) params.push({ kind: currentKind, name: parsed.name, typing: parsed.typing, optional: parsed.optional });
+    }
+    chunk = undefined;
+  };
+
+  for (const line of body) {
+    const sectionMatch = FM_SECTION_KEYWORD_RE.exec(line);
+    if (sectionMatch) {
+      finalizeChunk();
+      currentKind = sectionMatch[1]!.toUpperCase() as FunctionParameter["kind"];
+      chunk = sectionMatch[2]?.trim() || undefined; // defensive: content trailing the keyword on the same line
+      continue;
+    }
+    if (!currentKind) continue; // content before the first section keyword
+
+    if (chunk !== undefined && FM_CONTINUATION_RE.test(line)) {
+      chunk = `${chunk} ${line}`; // merge into the parameter this line continues, not a new one
+      continue;
+    }
+    finalizeChunk();
+    chunk = line;
+  }
+  finalizeChunk();
+
+  return params;
+}
+
+/** What `scanFunctionSignature` found: which shape of signature supplied `parameters`. */
+export interface FunctionSignatureScan {
+  /**
+   * `"native"` — the `FUNCTION <name> ... .` statement itself carried the
+   * parameter clauses (ADT's current rendering), OR it was a bare,
+   * self-terminated `FUNCTION <name>.` line with no legacy comment block
+   * above it either — a genuinely parameterless module (e.g. `RFC_PING`;
+   * see issue #108's live verifier). `"legacy"` — the `FUNCTION <name>.`
+   * line (if present at all) carried no parameters of its own, and the
+   * ADT-generated `*"*"Local Interface:` comment block above it supplied
+   * them instead — the classic shape, where the real statement is always
+   * bare and the interface lives only in that comment. `"none"` — neither
+   * shape was present at all. The caller (`readDigest` in
+   * `src/tools/read.ts`) needs this distinction to avoid rendering a
+   * "nothing was found" note for a module that genuinely takes no
+   * parameters.
+   */
+  readonly form: "native" | "legacy" | "none";
+  readonly parameters: readonly FunctionParameter[];
+}
+
+/**
+ * Finds a function module's IMPORTING/EXPORTING/CHANGING/TABLES/
+ * EXCEPTIONS/RAISING parameters, in source order, and which shape of
+ * signature supplied them. Tries the NATIVE `FUNCTION <name> ... .`
+ * signature statement first — that is the form a live system (A4H)
+ * actually serves via ADT, upper- or lowercase keywords, one parameter per
+ * line. Every classic (legacy) FM source ALSO opens with a `FUNCTION
+ * <name>` line, but a bare, self-terminated one — the real parameters live
+ * only in the `*"*"Local Interface:` comment block above it — so a native
+ * parse that finds zero parameters is not by itself proof the module takes
+ * none; only the absence of that legacy comment block makes it so. See
+ * `FunctionSignatureScan.form`'s doc comment for the exact three-way split.
+ * `parameters` is `[]` when neither shape is present; that is a normal
+ * outcome (a malformed or hand-edited FM source, or a non-FM source passed
+ * in by mistake), not an error worth throwing over.
+ */
+export function scanFunctionSignature(source: string): FunctionSignatureScan {
+  const lines = source.replace(/\r\n/g, "\n").split("\n");
+
+  const nativeBody = collectNativeFunctionStatementBody(lines);
+  const nativeParams = nativeBody ? parseNativeFunctionBody(nativeBody) : [];
+  if (nativeParams.length > 0) return { form: "native", parameters: nativeParams };
+
+  const legacyHeaderFound = lines.some((l) => FM_INTERFACE_HEADER_RE.test(l.trim()));
+  if (legacyHeaderFound) return { form: "legacy", parameters: scanFunctionInterfaceLegacyComment(source) };
+
+  // No legacy comment block anywhere in the source: a bare `FUNCTION
+  // <name>.` statement (if one was found at all) really is the whole
+  // signature, just an empty one.
+  if (nativeBody !== undefined) return { form: "native", parameters: [] };
+
+  return { form: "none", parameters: [] };
+}
+
+/**
+ * Thin wrapper over `scanFunctionSignature` for callers that only need the
+ * parameter list, not which shape supplied it (e.g. existing tests). See
+ * `scanFunctionSignature`'s doc comment for the native/legacy scan order.
+ */
+export function scanFunctionInterface(source: string): readonly FunctionParameter[] {
+  return scanFunctionSignature(source).parameters;
 }
 
 /** Strip one leading `@Annotation.path: value` clause or `key` keyword from a CDS select-list entry. */
@@ -800,11 +1005,17 @@ export function buildDigestSections(
     kind: r.kind,
     detail: r.detail ?? "",
   }));
+  // Default preserves the pre-issue-108 CLAS/INTF wording byte-for-byte for
+  // any caller that doesn't set these fields — see DigestPublicApi's doc
+  // comment on `fullCallLine`/`emptyText` for why they can't just be
+  // hardcoded here anymore.
+  const apiFullCallLine = input.publicApi.fullCallLine ?? `abap_read {"object":"${name}","outline":true}`;
+  const apiEmptyText = input.publicApi.emptyText ?? "(no public components found by the outline scan)";
   const apiRendered = renderTable(apiRows, ["name", "kind", "detail"], {
     maxRows: opts.maxRowsPerSection,
     sectionTitle: SECTION_TITLES.publicApi,
-    fullCallLine: `abap_read {"object":"${name}","outline":true}`,
-    emptyText: "(no public components found by the outline scan)",
+    fullCallLine: apiFullCallLine,
+    emptyText: apiEmptyText,
   });
   const hiddenLines = input.publicApi.hiddenCounts.map(
     (h) => `${h.count} ${h.visibility} component(s) not listed`,
@@ -813,8 +1024,7 @@ export function buildDigestSections(
   if (apiRendered.truncation) {
     notes.push(
       `${SECTION_TITLES.publicApi}: showed ${apiRendered.truncation.shown} of ` +
-        `${apiRendered.truncation.total} public rows; abap_read {"object":"${name}","outline":true} ` +
-        "has the rest.",
+        `${apiRendered.truncation.total} public rows; ${apiFullCallLine} has the rest.`,
     );
   }
   if (input.publicApi.truncatedRows) {
