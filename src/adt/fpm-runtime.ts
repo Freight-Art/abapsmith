@@ -17,6 +17,7 @@ import type { SafetyGate } from "../safety.js";
 import { dispatch } from "./fluid/dispatch.js";
 import { fpmManifest, fpmSources, CONFIG_ID_LEN } from "./fluid/builtin/fpm.js";
 import { manifestVersion, type LoadedFluidTool } from "./fluid/manifest.js";
+import { splitEventFrames, resolveFpmEvents, type FpmEventsResolved } from "./fpm-events.js";
 
 // ---------------------------------------------------------------------------
 // Query model
@@ -46,7 +47,18 @@ export interface FpmAppQuery {
   resolve: boolean;
 }
 
-export type FpmBridgeQuery = FpmFindQuery | FpmOutlineQuery | FpmAppQuery;
+export interface FpmEventsQuery {
+  mode: "events";
+  configId: string;
+  configType: string;
+  configVar: string;
+  /** Restrict referenced-config reads to this config_id (case-insensitive on the ABAP side). */
+  uibb?: string;
+  /** Also fetch the CL_FPM_EVENT catalogue and, per referenced BOPF BO, its node/action catalogue. */
+  resolve: boolean;
+}
+
+export type FpmBridgeQuery = FpmFindQuery | FpmOutlineQuery | FpmAppQuery | FpmEventsQuery;
 
 // ---------------------------------------------------------------------------
 // Validation — kept for `fpm-lock.ts` (config_id/config_var share the same
@@ -114,6 +126,14 @@ function fpmDispatchArgs(query: FpmBridgeQuery): Record<string, unknown> {
       return { config_id: query.configId, config_type: query.configType, config_var: query.configVar };
     case "app":
       return { config_id: query.configId, resolve: query.resolve };
+    case "events":
+      return {
+        config_id: query.configId,
+        config_type: query.configType,
+        config_var: query.configVar,
+        ...(query.uibb !== undefined ? { uibb: query.uibb } : {}),
+        resolve: query.resolve,
+      };
   }
 }
 
@@ -168,6 +188,7 @@ export interface FpmTranscriptResult {
     devclass: string;
   };
   appNodes: FpmAppNode[];
+  events?: FpmEventsResolved;
   diagnostics: string[];
   droppedLines: number;
 }
@@ -292,6 +313,23 @@ interface FpmAppNodeResult {
   is_leaf: boolean;
   resolved?: { xml_len: number; feeder_hint: boolean; bopf_hint: boolean; excerpt?: string };
   resolve_error?: string;
+}
+
+/** Kept in lockstep with fpmManifest's "events" action output.items.properties.kind enum (fluid/builtin/fpm.ts) and splitEventFrames's own switch (fpm-events.ts). */
+const FPM_EVENTS_FRAME_KINDS: ReadonlySet<string> = new Set([
+  "config",
+  "fpm_event",
+  "fpm_event_error",
+  "bopf_node",
+  "bopf_action",
+  "bopf_error",
+  "summary",
+]);
+
+function isFpmEventsFrame(v: unknown): boolean {
+  if (typeof v !== "object" || v === null) return false;
+  const kind = (v as Record<string, unknown>)["kind"];
+  return typeof kind === "string" && FPM_EVENTS_FRAME_KINDS.has(kind);
 }
 
 function isFpmAppNodeResult(v: unknown): v is FpmAppNodeResult {
@@ -462,6 +500,30 @@ export async function runFpmRead(
         outlineMeta: undefined,
         appNodes,
         diagnostics,
+        droppedLines: 0,
+      };
+      break;
+    }
+    case "events": {
+      if (!Array.isArray(res.result) || !res.result.every(isFpmEventsFrame)) {
+        throw new AbapError(
+          "FLUID_PROTOCOL_ERROR",
+          "fpm.events returned a result that does not match the declared array-of-frame schema.",
+          { tool: "fpm", action: "events", result: res.result },
+        );
+      }
+      const raw = splitEventFrames(res.result);
+      const events = resolveFpmEvents(raw);
+      transcript = {
+        count: undefined,
+        configs: [],
+        outlineXml: undefined,
+        outlineMeta: undefined,
+        appNodes: [],
+        events,
+        diagnostics: raw.unrecognised.length
+          ? [`${ERR_LINE_PREFIX}EVENTS ${raw.unrecognised.length} unrecognised frame(s) — protocol drift, see bodyBytes/raw result.`]
+          : [],
         droppedLines: 0,
       };
       break;

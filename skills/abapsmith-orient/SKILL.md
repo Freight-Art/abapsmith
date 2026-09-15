@@ -6,7 +6,8 @@ description: Checks what abapsmith can actually build on this SAP system before 
 # Orient before writing
 
 abapsmith writes a **fixed enum of object types**. Most ABAP types are not in it.
-Check here before planning any create.
+Check here before planning any create. "Where is X used?" or "what does this
+button do?" is not a write question at all — that is `abapsmith-research-code`.
 
 ## The writable set
 
@@ -233,6 +234,7 @@ Default to `$TMP` unless the task says otherwise.
 | Get a transport request, or release one | `abapsmith-put-work-on-a-transport` |
 | Undo a wrong write, or read undo's refusals | `abapsmith-recover-a-bad-write` |
 | Survey an unfamiliar package or object | `abapsmith-explore-a-package` |
+| Where is X used, or what does this button do | `abapsmith-research-code` |
 | Run ABAP Unit, and fix what fails | `abapsmith-run-tests-and-fix` |
 | ATC findings and quick fixes | `abapsmith-check-code-quality` |
 | A run short-dumped or gave a wrong value | `abapsmith-debug-a-failing-run` |

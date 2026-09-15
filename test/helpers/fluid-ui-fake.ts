@@ -1,7 +1,9 @@
 /**
- * Shared fake-ADT plumbing for the fluid `ui` tool's `screen` action, used by
- * ui-runtime.test.ts, ui-system-key.test.ts and integration-fluid-ui.test.ts.
- * Modeled directly on test/helpers/fluid-img-fake.ts. Two things live here:
+ * Shared fake-ADT plumbing for the fluid `ui` tool's `screen` and `fcode`
+ * actions, used by ui-runtime.test.ts, ui-system-key.test.ts,
+ * ui-fcode.test.ts, ui-fcode-tool.test.ts, fluid-builtin-ui.test.ts and
+ * integration-fluid-ui.test.ts. Modeled directly on
+ * test/helpers/fluid-img-fake.ts. Three things live here:
  *
  * - `uiScreenConsole`: wraps a single already-built JSON payload (the shape
  *   `toUiTranscriptResult` in src/adt/ui-runtime.ts expects to reshape) into
@@ -11,6 +13,12 @@
  *   `res.result` — unlike img's array-of-string output (one OUT frame per
  *   line), ui's screen console carries exactly one OUT frame, whose payload
  *   is the whole object.
+ *
+ * - `uiFcodeConsole`: the `fcode` action's equivalent — `uiManifest`'s
+ *   `fcode` action declares a `type: "array"` output, so `dispatch()` emits
+ *   one OUT frame per element of the array and hands back `transcript.values`
+ *   (every OUT frame, in order) as `res.result`, unlike `screen`'s single
+ *   verbatim OUT payload.
  *
  * - `dynamicUiFluidRoute`: auto-vivifying class store for the two class
  *   shapes the fluid ui screen probe ever deploys — the fixed body class
@@ -97,6 +105,27 @@ export function uiScreenConsole(
   const out = [
     frame("BEGIN", { id: "ui", action: "screen", ver: opts.ver ?? uiManifestVersion, contract: uiManifest.contract }),
     frame("OUT", payload),
+    frame("END", { rc: opts.rc ?? 0, outBytes: raw.length, truncated: opts.truncated ?? false, ms: 1 }),
+  ];
+  return out.join("\n") + "\n";
+}
+
+/**
+ * One `OUT` frame per element of `frames`, bracketed by BEGIN (id: "ui",
+ * action: "fcode") and END — unlike `uiScreenConsole`, `ui.fcode`'s output is
+ * `type: "array"` (`uiManifest.actions[1].output`), so `dispatch()` hands
+ * back `transcript.values` (every OUT frame, in order) as the array result,
+ * not a single verbatim payload.
+ */
+export function uiFcodeConsole(
+  frames: readonly unknown[],
+  opts: { ver?: string; rc?: number; truncated?: boolean } = {},
+): string {
+  const frame = (name: string, body: unknown) => `ZMCP-H>${name} ${JSON.stringify(body)}`;
+  const raw = JSON.stringify(frames);
+  const out = [
+    frame("BEGIN", { id: "ui", action: "fcode", ver: opts.ver ?? uiManifestVersion, contract: uiManifest.contract }),
+    ...frames.map((f) => frame("OUT", f)),
     frame("END", { rc: opts.rc ?? 0, outBytes: raw.length, truncated: opts.truncated ?? false, ms: 1 }),
   ];
   return out.join("\n") + "\n";

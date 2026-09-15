@@ -225,6 +225,93 @@ function extractToolNames(text: string): Set<string> {
  */
 const KNOWN_HYPOTHETICAL_NAMES = new Set(["abap_fpm_write"]);
 
+/**
+ * One entry of `REQUIRED_MODE_COVERAGE`. `mode: null` means the requirement
+ * is about the tool NAME itself (no specific mode), not a tool+mode
+ * combination — see the two `abap_ui`/`abap_fpm_read` entries below.
+ */
+interface ModeCoverageRequirement {
+  tool: string;
+  mode: string | null;
+  reason: string;
+}
+
+/**
+ * Issue #103's list of `tool` (+ optional `mode`) combinations that MUST be
+ * reachable from at least one `skills/*\/SKILL.md`, on top of the bare
+ * tool-name-only bar Check D already enforces. Check D would pass even if
+ * every mention of `abap_search` in every skill talked only about
+ * `mode=objects` and never once about `where_used` or `source` — Check E
+ * below closes that gap for the specific modes issue #103 calls out.
+ *
+ * This is a single declared list so a future required mode is a one-line
+ * addition here, not a new hand-written assertion.
+ */
+const REQUIRED_MODE_COVERAGE: ModeCoverageRequirement[] = [
+  {
+    tool: "abap_search",
+    mode: "where_used",
+    reason: "issue #103: where-used tracing must be reachable from a skill, not just tools/list",
+  },
+  {
+    tool: "abap_search",
+    mode: "source",
+    reason: "issue #103: source-text search must be reachable from a skill, not just tools/list",
+  },
+  {
+    tool: "abap_ui",
+    mode: "fcode",
+    reason: "issue #103: dynpro function-code/toolbar-button tracing must be reachable from a skill",
+  },
+  {
+    tool: "abap_fpm_read",
+    mode: "events",
+    reason: "issue #103: FPM/Web Dynpro event tracing must be reachable from a skill",
+  },
+  {
+    tool: "abap_ui",
+    mode: null,
+    reason: "issue #103: abap_ui itself must be mentioned by a skill (the abap_fpm_read discoverability class of gap, see Check D's doc comment)",
+  },
+  {
+    tool: "abap_fpm_read",
+    mode: null,
+    reason: "issue #103: abap_fpm_read itself must be mentioned by a skill (this is the exact tool from the recon 2026-08-12 defect Check D was built for)",
+  },
+];
+
+/**
+ * Builds a regex that matches a `mode` key/value pair spelled any of the
+ * ways the skills actually write it:
+ *
+ *   - `mode=where_used`               (bare, unquoted)
+ *   - `mode="where_used"`             (quoted value, `=`)
+ *   - `"mode":"where_used"`           (JSON-shaped worked example)
+ *   - `mode: "where_used"`            (prose/YAML-ish, `:` plus space)
+ *
+ * Backtick-wrapped occurrences (`` `mode=where_used` ``) need no special
+ * case — the regex only looks at the `mode`...value substring itself and
+ * does not care what characters surround it.
+ *
+ * Both the leading `mode` and the trailing value get a negative lookbehind/
+ * lookahead word boundary, mirroring TOOL_NAME_RE's guard: this stops
+ * `mode` from matching inside a longer identifier (e.g. `abapMode`) and
+ * stops the value from matching a longer word that merely starts with it
+ * (e.g. mode `source` must not match `mode="sourcecode"`).
+ *
+ * Verified against the real files (see the report accompanying this
+ * change) with:
+ *   grep -rn 'mode' skills/*\/*.md | grep -i where_used
+ *   grep -rn 'mode' skills/*\/*.md | grep -E 'mode.{0,3}source'
+ *   grep -rn 'mode' skills/*\/*.md | grep -i fcode
+ *   grep -rn 'mode' skills/*\/*.md | grep -i events
+ * — every line grep found for each mode is also matched by this regex.
+ */
+function buildModeRegex(mode: string): RegExp {
+  const escapedMode = mode.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(?<![A-Za-z0-9_])mode"?\\s*[:=]\\s*"?${escapedMode}"?(?![A-Za-z0-9_])`);
+}
+
 // ---------------------------------------------------------------------------
 
 describe("skills <-> tool-surface coherence (capability discoverability + surface parity)", () => {
@@ -368,6 +455,54 @@ describe("skills <-> tool-surface coherence (capability discoverability + surfac
         "defect: the tool existed and worked, but nothing routed a caller to it). Add a pointer to " +
         "the most relevant existing skill rather than leaving this list non-empty:\n" +
         unmentioned.join(", "),
+    ).toEqual([]);
+  });
+
+  it("Check E — every required tool+mode combination from issue #103 appears, in that combination, in at least one skill file", () => {
+    // This works at MODE granularity, one level finer than Checks A-D (which
+    // only ever look at the bare abap_* NAME). A skill can satisfy Check D
+    // for `abap_search` by mentioning `mode=objects` alone and never once
+    // discuss `where_used` or `source` — Check E is what catches that for
+    // the specific combinations issue #103 requires.
+    //
+    // What this DOES check: for a given { tool, mode } pair, at least one
+    // skill file contains both the tool name (via TOOL_NAME_RE) and the
+    // mode written in one of the forms buildModeRegex recognizes, anywhere
+    // in that same file's text.
+    //
+    // What this does NOT check: it does not require the tool name and the
+    // mode to appear in the same worked example, the same sentence, or even
+    // the same paragraph — only the same file. A skill file that mentions
+    // `abap_search` in its intro and `mode="source"` in an unrelated
+    // aside about a different tool later on would still pass. Co-occurrence
+    // in one file is not proof the skill tells a coherent story about that
+    // tool+mode combination — it only proves a caller reading the whole
+    // file will run across both, not that they are told to use them
+    // together. As with Checks A-D, this raises the floor; it is not a
+    // substitute for reading the skill's worked examples.
+    const files = listSkillFiles();
+    const fileTexts = files.map((file) => ({ file, text: readFileSync(file, "utf8") }));
+
+    const offenders: string[] = [];
+    for (const req of REQUIRED_MODE_COVERAGE) {
+      const modeRe = req.mode === null ? null : buildModeRegex(req.mode);
+      const satisfied = fileTexts.some(({ text }) => {
+        if (!extractToolNames(text).has(req.tool)) return false;
+        return modeRe === null || modeRe.test(text);
+      });
+      if (!satisfied) {
+        const pairLabel = req.mode === null ? req.tool : `${req.tool} mode=${req.mode}`;
+        offenders.push(
+          `${pairLabel} (${req.reason}) — not found together in any of: ${files.join(", ")}`,
+        );
+      }
+    }
+
+    expect(
+      offenders,
+      "Required tool+mode combination(s) from REQUIRED_MODE_COVERAGE are not covered by any skill " +
+        "file (tool name and mode must both appear in the SAME file — see the comment on Check E " +
+        "and on buildModeRegex for exactly what counts as a match):\n" + offenders.join("\n"),
     ).toEqual([]);
   });
 

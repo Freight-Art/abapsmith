@@ -46,6 +46,7 @@ import type { SafetyGate } from "../safety.js";
 import { dispatch } from "./fluid/dispatch.js";
 import { manifestVersion, type LoadedFluidTool } from "./fluid/manifest.js";
 import { uiManifest, uiSources } from "./fluid/builtin/ui.js";
+import { analyzeFcodes, splitFcodeFrames, type UiFcodeResult } from "./ui-fcode.js";
 
 // ---------------------------------------------------------------------------
 // Query model
@@ -60,6 +61,20 @@ export type UiScreenTarget =
 export interface UiScreenQuery {
   readonly mode: "screen";
   readonly target: UiScreenTarget;
+}
+
+/**
+ * Mode 3 — static trace of one dynpro's function code(s): which PAI
+ * module(s) fire, how they dispatch (`ok_code`/`sy-ucomm`/alias), and what
+ * each matching branch calls. Read-only in effect, same as `screen` — no
+ * dynpro is ever driven, nothing is executed beyond the fluid bridge's own
+ * `RPY_DYNPRO_READ`/`READ REPORT`/CUA reads.
+ */
+export interface UiFcodeQuery {
+  readonly mode: "fcode";
+  readonly target: UiScreenTarget;
+  /** One function code to trace. Omitted = every function code of every GUI status. */
+  readonly fcode?: string;
 }
 
 /** One `FNAM`/`FVAL` pair — an ordinary screen field being set. */
@@ -86,7 +101,7 @@ export interface UiPressQuery {
   readonly screens: readonly UiBdcScreen[];
 }
 
-export type UiBridgeQuery = UiScreenQuery | UiPressQuery;
+export type UiBridgeQuery = UiScreenQuery | UiFcodeQuery | UiPressQuery;
 
 // ---------------------------------------------------------------------------
 // Validation (injection defense — every one of these strings is interpolated
@@ -231,7 +246,30 @@ export function assertOkCode(value: string): string {
   return trimmed;
 }
 
-/** Runs every field-level validator for `q`'s mode, throwing `BAD_INPUT` on anything malformed. Called from `uiBridgeClassName` (zero-network preflight), from `uiBridgeSource` before generating `pressBody`, and from `runUiScreenFluid` before dispatching a screen query via fluid. */
+/**
+ * Validates an optional fcode filter for `mode:"fcode"`. Not width-checked
+ * against a DDIC field (there is no BDCDATA/TSTC column involved — this
+ * value is never embedded in generated ABAP, only compared in TypeScript
+ * against the CUA data the bridge reads back), so `TCODE_MAX` (CHAR20) is
+ * reused as a generous ceiling rather than inventing a new one.
+ */
+export function assertFcode(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    throw new AbapError("BAD_INPUT", "fcode must not be empty when given.", { value });
+  }
+  if (trimmed.length > TCODE_MAX) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `fcode "${value}" is ${trimmed.length} characters long; function codes are max ${TCODE_MAX}.`,
+      { value },
+    );
+  }
+  assertNoControlChars(trimmed, "fcode");
+  return trimmed;
+}
+
+/** Runs every field-level validator for `q`'s mode, throwing `BAD_INPUT` on anything malformed. Called from `uiBridgeClassName` (zero-network preflight), from `uiBridgeSource` before generating `pressBody`, and from `runUiScreenFluid`/`runUiFcodeFluid` before dispatching a query via fluid. */
 function validateQuery(q: UiBridgeQuery): void {
   switch (q.mode) {
     case "screen":
@@ -241,6 +279,15 @@ function validateQuery(q: UiBridgeQuery): void {
         assertProgramName(q.target.program);
         assertDynpro(q.target.dynpro);
       }
+      break;
+    case "fcode":
+      if (q.target.by === "tcode") {
+        assertTcode(q.target.tcode);
+      } else {
+        assertProgramName(q.target.program);
+        assertDynpro(q.target.dynpro);
+      }
+      if (q.fcode !== undefined) assertFcode(q.fcode);
       break;
     case "press": {
       assertTcode(q.tcode);
@@ -280,6 +327,12 @@ function discriminator(q: UiBridgeQuery): string {
   switch (q.mode) {
     case "screen":
       return JSON.stringify({ mode: "screen", target: q.target });
+    // fcode, like screen, dispatches against the static fluid body class
+    // (see runUiFcodeFluid) rather than a generated per-query one, so this
+    // branch is unreachable in practice — included only so `uiBridgeClassName`
+    // stays total over the whole UiBridgeQuery union.
+    case "fcode":
+      return JSON.stringify({ mode: "fcode", target: q.target, fcode: q.fcode });
     case "press":
       return JSON.stringify({ mode: "press", tcode: q.tcode, screens: q.screens });
   }
@@ -701,6 +754,20 @@ export interface UiBridgeResult {
   bridgeRefreshed: boolean;
   durationMs: number;
   transcript: UiTranscriptResult;
+  /**
+   * Set only for `mode:"fcode"`. Added here rather than as a new field on
+   * `UiTranscriptResult` because `UiTranscriptResult` is entirely about
+   * `press`/`screen`'s single-JSON-object bridge payload (`FIELD`/`FLOW`/
+   * `STATUS`-tagged lines out of `parseUiTranscript`); `fcode` dispatches a
+   * different fluid action with a structurally different, multi-frame
+   * output (see `ui-fcode.ts`), so bolting it onto `UiTranscriptResult`
+   * would mean every one of that interface's fields stays permanently
+   * unset for a fcode result while unrelated new fcode-only fields sit next
+   * to them. `transcript` is still populated (with an all-empty
+   * `UiTranscriptResult`) for a fcode result, purely so `UiBridgeResult`
+   * doesn't need `transcript` to become optional for the other two modes.
+   */
+  fcode?: UiFcodeResult;
   outputComplete: boolean;
   bodyBytes: number;
 }
@@ -812,6 +879,9 @@ export async function runUiBridge(
   if (query.mode === "screen") {
     return runUiScreenFluid(conn, query, gate);
   }
+  if (query.mode === "fcode") {
+    return runUiFcodeFluid(conn, query, gate);
+  }
   return runUiPressBridge(conn, query, gate);
 }
 
@@ -849,6 +919,69 @@ async function runUiScreenFluid(
     bridgeRefreshed: res.deployed,
     durationMs: Date.now() - started,
     transcript,
+    outputComplete: !res.truncated,
+    bodyBytes: Buffer.byteLength(JSON.stringify(res.result), "utf8"),
+  };
+}
+
+/** All-empty placeholder — see `UiBridgeResult.fcode`'s doc comment for why a fcode result still carries a (unused) `transcript`. */
+const EMPTY_TRANSCRIPT: UiTranscriptResult = {
+  fields: [],
+  flow: [],
+  statusList: [],
+  functions: [],
+  fkeys: [],
+  diagnostics: [],
+  droppedLines: 0,
+};
+
+/**
+ * `fcode` (mode 3) — dispatched against the same static fluid body class as
+ * `screen` (`ui.fcode`, not a generated per-call bridge). Static analysis
+ * only: the ABAP side never runs anything beyond `RPY_DYNPRO_READ`,
+ * `READ REPORT`, and the CUA-status FMs `screen` already uses — no BDCDATA,
+ * no `CALL TRANSACTION`, ever. `res.result` is the fluid action's full
+ * `out()` array (`action.output.type === "array"` in `uiManifest`, so
+ * `dispatch()` returns `transcript.values` — see `fluid/dispatch.ts`), which
+ * `splitFcodeFrames`/`analyzeFcodes` (`ui-fcode.ts`) turn into the trace.
+ */
+async function runUiFcodeFluid(
+  conn: AbapConnection,
+  query: UiFcodeQuery,
+  gate: SafetyGate,
+): Promise<UiBridgeResult> {
+  const started = Date.now();
+  validateQuery(query);
+
+  const args = {
+    ...(query.target.by === "tcode"
+      ? { tcode: query.target.tcode }
+      : { program: query.target.program, dynpro: query.target.dynpro }),
+    ...(query.fcode !== undefined ? { fcode: query.fcode } : {}),
+  };
+
+  const res = await dispatch(
+    { conn, cfg: conn.cfg, gate, tools: UI_TOOLS },
+    { tool: "ui", action: "fcode", args, caller: { tool: "abap_ui", action: "fcode" } },
+  );
+
+  if (!Array.isArray(res.result)) {
+    throw new AbapError(
+      "FLUID_PROTOCOL_ERROR",
+      "ui.fcode returned a result that does not match its declared output schema (expected an array of frames).",
+      { tool: "ui", action: "fcode", result: res.result },
+    );
+  }
+  const raw = splitFcodeFrames(res.result);
+  const fcode = analyzeFcodes(raw, { fcode: query.fcode });
+
+  return {
+    query,
+    bridgeClass: uiManifest.entry,
+    bridgeRefreshed: res.deployed,
+    durationMs: Date.now() - started,
+    transcript: EMPTY_TRANSCRIPT,
+    fcode,
     outputComplete: !res.truncated,
     bodyBytes: Buffer.byteLength(JSON.stringify(res.result), "utf8"),
   };

@@ -16,10 +16,12 @@ import {
   runFpmRead,
   type FpmAppQuery,
   type FpmBridgeQuery,
+  type FpmEventsQuery,
   type FpmFindQuery,
   type FpmOutlineQuery,
   type FpmReadResult,
 } from "../adt/fpm-runtime.js";
+import type { FpmEventHandler } from "../adt/fpm-events.js";
 import { fpmManifest } from "../adt/fluid/builtin/fpm.js";
 import {
   assertLockConfigType,
@@ -36,21 +38,37 @@ import { FLUID_PACKAGE } from "../adt/fluid/package.js";
 
 export const fpmReadInputSchema = {
   mode: z
-    .enum(["find", "outline", "app", "locks"])
+    .enum(["find", "outline", "app", "locks", "events"])
     .describe(
       "find: search configs. outline: one config's node tree. app: an application config's full " +
-        "UIBB hierarchy. locks: who holds enqueue locks on a config.",
+        "UIBB hierarchy. locks: who holds enqueue locks on a config. events: trace which toolbar/" +
+        "button-row/FBI-action elements raise which FPM event, and what handles it (standard FPM, " +
+        "BOPF, feeder, app controller, or unresolved).",
     ),
   config_id: z
     .string()
     .optional()
-    .describe("Configuration ID (max 32). Required for outline/app/locks."),
+    .describe("Configuration ID (max 32). Required for outline/app/locks/events."),
   config_type: z.string().optional().describe("NUMC2. 00=component, 02=application. Default 00."),
   config_var: z.string().optional().describe("Variant (max 6). Default blank."),
   component: z.string().optional().describe("find: filter by Web Dynpro component."),
   query: z.string().optional().describe("find: config ID pattern, * wildcard."),
   package: z.string().optional().describe("find: filter by package."),
-  resolve: z.boolean().optional().describe("app: expand each UIBB's feeder/BOPF binding. Default true."),
+  uibb: z
+    .string()
+    .optional()
+    .describe(
+      "events: restrict referenced-config reads to this config_id (case-insensitive); others are " +
+        "reported as skipped, not read.",
+    ),
+  resolve: z
+    .boolean()
+    .optional()
+    .describe(
+      "app: expand each UIBB's feeder/BOPF binding. events: also fetch the standard CL_FPM_EVENT " +
+        "catalogue and, per referenced BOPF business object, its node/action catalogue. Default true " +
+        "for both.",
+    ),
   detail: z
     .enum(["compact", "full"])
     .optional()
@@ -98,6 +116,11 @@ export interface FpmToolDeps {
 
 const ok = (text: string): CallToolResult => ({ content: [{ type: "text", text }] });
 
+/** Shared by {@link FIDELITY_NOTES} and {@link EVENTS_COVERAGE_LIMITS} — not one of the four events-specific limits, so it is not dropped when the latter is used. */
+const XML_DECODING_NOTE =
+  "XML decoding has only been verified in depth against FORM/LIST UIBBs and one FBI view shape; " +
+  "other UIBB kinds may contain structure this tool does not specially recognise.";
+
 /** Disclosed on every response: coverage limits — the persisted config can differ from runtime. */
 const FIDELITY_NOTES: readonly string[] = [
   "Reads the base persisted configuration only (WDY_CONFIG_DATA/WDY_CONFIG_APPL via " +
@@ -106,8 +129,29 @@ const FIDELITY_NOTES: readonly string[] = [
   "Cannot see customizing/personalization overlays, CBA (Component-Based Architecture) " +
     "adaptations, or POWL layout personalization — any of these can change what a user actually " +
     "sees beyond what is reported here.",
-  "XML decoding has only been verified in depth against FORM/LIST UIBBs and one FBI view shape; " +
-    "other UIBB kinds may contain structure this tool does not specially recognise.",
+  XML_DECODING_NOTE,
+];
+
+/**
+ * Disclosed on every `events` response, unconditionally — none of these four
+ * can be resolved from saved configuration alone (see doc/TOOLS/ui-and-fpm.md,
+ * "mode: events" section, "four coverage limits" paragraph, which this must
+ * stay consistent with). Worded independently of {@link FIDELITY_NOTES} — its
+ * AppCC-override and personalisation/CBA entries overlap two of these four,
+ * so `buildEventsResponse` uses this list instead of `FIDELITY_NOTES`
+ * (keeping only {@link XML_DECODING_NOTE} alongside it) rather than printing
+ * the same limit twice.
+ */
+const EVENTS_COVERAGE_LIMITS: readonly string[] = [
+  "An application-controller (AppCC) override can intercept or replace any event listed here — " +
+    "this traces the saved configuration only, not a runtime override layered on top of it.",
+  "Personalisation can rebind a toolbar element to a different action at run time — what is shown " +
+    "is the configured default, not necessarily what a given user actually sees.",
+  "Context-based adaptation (CBA) and configuration deltas are not resolved — this trace covers " +
+    "only this configuration's own saved content, not what CBA or a delta configuration layered on " +
+    "top of it might add or change.",
+  "Nothing is executed: this is a trace of saved configuration, not an observation of a real event " +
+    "firing — no run-time event is observed.",
 ];
 
 /** outline's own XML crosses ~3,000 tokens (CHARS_PER_TOKEN, src/compact.ts) — the point a caller benefits from being told xml_offset/xml_limit exist, without a note firing on every small config. */
@@ -139,6 +183,20 @@ function buildQuery(input: FpmReadInput): FpmBridgeQuery {
       configId: assertConfigId(input.config_id),
       configType: input.config_type ?? "00",
       configVar: input.config_var ?? "",
+    };
+    return q;
+  }
+  if (input.mode === "events") {
+    if (!input.config_id || !input.config_id.trim()) {
+      throw new AbapError("BAD_INPUT", 'mode "events" requires config_id.', { mode: input.mode });
+    }
+    const q: FpmEventsQuery = {
+      mode: "events",
+      configId: assertConfigId(input.config_id),
+      configType: input.config_type ?? "00",
+      configVar: input.config_var ?? "",
+      uibb: input.uibb,
+      resolve: input.resolve ?? true,
     };
     return q;
   }
@@ -451,6 +509,154 @@ function buildAppResponse(
   }).text;
 }
 
+function describeHandler(h: FpmEventHandler): string {
+  switch (h.kind) {
+    case "standard":
+      return h.verified ? `standard (${h.eventId})` : `standard (${h.eventId}, unverified — pass resolve=true)`;
+    case "bopf":
+      return `bopf ${h.bo} — follow up: ${h.call}`;
+    case "feeder":
+      return `feeder ${h.feederClass} (config ${h.configId})`;
+    case "app_controller":
+      return `app_controller ${h.component}`;
+    case "unresolved":
+      return `unresolved — ${h.reason}`;
+  }
+}
+
+function buildEventsResponse(
+  query: FpmEventsQuery,
+  result: FpmReadResult,
+  detailPassed: boolean,
+  xmlWindowPassed: boolean,
+  maxChars: number,
+): string {
+  const t = result.transcript;
+  const ev = t.events;
+  // Every `events` response — including the "no data" early return below —
+  // discloses these unconditionally; see EVENTS_COVERAGE_LIMITS's doc comment
+  // for why FIDELITY_NOTES is not used here.
+  const notes: string[] = [...EVENTS_COVERAGE_LIMITS, XML_DECODING_NOTE];
+
+  const baseHeader = {
+    mode: "events" as const,
+    config_id: query.configId,
+    config_type: query.configType,
+    config_var: query.configVar || undefined,
+    uibb: query.uibb,
+    resolve: query.resolve,
+    bridgeClass: result.bridgeClass,
+    bridgeRefreshed: result.bridgeRefreshed,
+  };
+
+  if (!ev) {
+    notes.push("No event data was returned.");
+    return buildResponse({ header: baseHeader, body: "(no data)", bodyLabel: "EVENTS", notes, maxChars }).text;
+  }
+
+  notes.push(...ev.notes);
+  if (t.diagnostics.length) {
+    notes.push(`The ABAP bridge reported ${t.diagnostics.length} diagnostic line(s) — see DIAGNOSTICS.`);
+  }
+  if (!result.outputComplete) {
+    notes.push(
+      "The bridge's output was cut off before every config/event could be gathered — results below may be incomplete.",
+    );
+  }
+  if (ev.truncated) {
+    notes.push(`The ABAP side truncated its "${ev.truncated}" walk at its cap — some configs/BOs may be missing.`);
+  }
+  if (detailPassed) {
+    notes.push('mode "events" ignores detail — its output is already a compact trace.');
+  }
+  if (xmlWindowPassed) {
+    notes.push('mode "events" ignores xml_offset/xml_limit — they apply to mode "outline" only.');
+  }
+  if (ev.unreadable.length) {
+    notes.push(`${ev.unreadable.length} referenced config(s) failed to read — see UNREADABLE.`);
+  }
+  if (ev.skipped.length) {
+    notes.push(`${ev.skipped.length} referenced config(s) were skipped by the uibb filter — see SKIPPED.`);
+  }
+
+  const rows = ev.events.map((e) => ({
+    config_id: e.configId,
+    source: e.source,
+    element_id: e.elementId,
+    text: e.text ?? "",
+    event_id: e.eventId ?? "",
+    handler: e.handler.kind,
+    detail: describeHandler(e.handler),
+  }));
+
+  const sections: { title: string; content: string }[] = [];
+  if (t.diagnostics.length) sections.push({ title: "DIAGNOSTICS", content: t.diagnostics.join("\n") });
+  if (ev.wires.length) {
+    sections.push({
+      title: "WIRES",
+      content: textTable(
+        ev.wires.map((w) => ({
+          config_id: w.configId,
+          component: w.component,
+          src_config_id: w.srcConfigId,
+          src_component: w.srcComponent,
+          connector: w.connector,
+        })),
+        ["config_id", "component", "src_config_id", "src_component", "connector"],
+      ),
+    });
+  }
+  if (ev.appController) {
+    sections.push({
+      title: "APP CONTROLLER",
+      content:
+        `component=${ev.appController.component} config_id=${ev.appController.configId} ` +
+        `config_type=${ev.appController.configType} config_var=${ev.appController.configVar}`,
+    });
+  }
+  if (ev.unreadable.length) {
+    sections.push({
+      title: "UNREADABLE",
+      content: textTable(
+        ev.unreadable.map((u) => ({
+          config_id: u.configId,
+          config_type: u.configType,
+          config_var: u.configVar,
+          error: u.error,
+        })),
+        ["config_id", "config_type", "config_var", "error"],
+      ),
+    });
+  }
+  if (ev.skipped.length) {
+    sections.push({
+      title: "SKIPPED",
+      content: textTable(
+        ev.skipped.map((s) => ({ config_id: s.configId, config_type: s.configType, config_var: s.configVar })),
+        ["config_id", "config_type", "config_var"],
+      ),
+    });
+  }
+
+  return buildResponse({
+    header: {
+      ...baseHeader,
+      root_component: ev.root.component || undefined,
+      root_devclass: ev.root.devclass || undefined,
+      views: ev.views.length,
+      events: rows.length,
+      wires: ev.wires.length,
+    },
+    sections,
+    body: rows.length
+      ? textTable(rows, ["config_id", "source", "element_id", "text", "event_id", "handler", "detail"])
+      : "(no toolbar/button-row/fbi-action elements found)",
+    bodyLabel: "EVENTS",
+    notes,
+    maxChars,
+  }).text;
+}
+
 /** Rendering for a wildcard-filled GARG segment (raw fill is U+FFFF; would print as mojibake). */
 const WILDCARD_CELL = "*";
 
@@ -584,8 +790,11 @@ const FPM_TOOL_DESCRIPTION =
   "Read SAP FPM/FBI screen configurations — no ADT read endpoint exists. find: search by " +
   "component/config_id pattern/package. outline: one configuration's XML plus delta/package " +
   "metadata. app: an application configuration's full UIBB hierarchy with feeder/BOPF hints " +
-  "(resolve, default true). locks: enqueue lock holders. Read-only; every call deploys a " +
-  "throwaway bridge class into abapsmith's own package.";
+  "(resolve, default true). events: trace which toolbar/button-row/FBI-action raises which FPM " +
+  "event and what handles it (standard FPM, BOPF, feeder, app controller, or unresolved), " +
+  "optionally cross-checked against the CL_FPM_EVENT and BOPF catalogues (resolve, default true). " +
+  "locks: enqueue lock holders. Read-only; every call deploys a throwaway bridge class into " +
+  "abapsmith's own package.";
 
 export async function runFpmReadTool(deps: FpmToolDeps, args: unknown): Promise<CallToolResult> {
   const input = args as FpmReadInput;
@@ -643,7 +852,9 @@ export async function runFpmReadTool(deps: FpmToolDeps, args: unknown): Promise<
             { offset: input.xml_offset, limit: input.xml_limit },
             deps.cfg.maxResponseChars,
           )
-        : buildAppResponse(query, result, detail, xmlWindowPassed, deps.cfg.maxResponseChars);
+        : query.mode === "events"
+          ? buildEventsResponse(query, result, input.detail !== undefined, xmlWindowPassed, deps.cfg.maxResponseChars)
+          : buildAppResponse(query, result, detail, xmlWindowPassed, deps.cfg.maxResponseChars);
 
   return ok(text);
 }
