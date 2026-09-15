@@ -202,6 +202,20 @@ armed. When that happens on an active session's `stop`, calling
 attached at this server's identity, on top of the ordinary cleanup — use it
 to recover before starting a new session against the same target.
 
+### Connection hygiene: the stateful ADT session is dropped after every debug session
+
+SAP binds a debuggee's ATTACH to the connection's stateful ADT session (the
+`sap-contextid`), not just to the debugger identity (`terminalId`/`ideId`).
+Live-verified 2026-09-15 against A4H: inside one abapsmith process, the FIRST
+`start`→`stop` cycle works, and every later `start` on the SAME connection
+then fails with HTTP 500 "Debuggee already attached", even though a fresh
+connection at the identical identity reports `terminateDebuggee` → 404
+`noSessionAttached` and an empty 8-second listener poll — proof the server
+side is already clean. To avoid this, the connection's stateful ADT session
+is dropped after every debug session ends (a clean `stop`, a force-cleared
+one, or a failed `start`'s own cleanup), so the next `start` always attaches
+under a fresh ABAP session.
+
 ### `ABAP_DEBUG_SESSIONS`
 
 `ABAP_DEBUG_SESSIONS` (default 1) sets how many concurrent debug leases
