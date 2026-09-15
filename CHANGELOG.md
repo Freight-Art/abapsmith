@@ -12,6 +12,12 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.5.16] - 2026-09-15
+
+### Added
+
+- `fluid-plugins/jobs`, an operator-installable fluid plugin covering the SM37 surface (issue #90): `list` (TBTCO by name pattern, user, status and date window), `show` (header, TBTCP steps and the job log via `BP_JOBLOG_READ`), `spool` (a step's list output via `RSPO_RETURN_ABAP_SPOOLJOB`), `schedule` (`JOB_OPEN`/`JOB_SUBMIT`/`JOB_CLOSE` for one existing executable report, immediate, timed or held; OS commands and external programs are refused structurally) and `cancel` (`BP_JOB_ABORT` for a running job, `BP_JOB_DELETE` for a scheduled one, own jobs unless `any_owner`). `schedule` and `cancel` are mutate actions behind `ABAP_ALLOW_FLUID_PLUGIN_MUTATE`, need the `confirm` echo and are journalled as irreversible. Ships with a README, loader tests and was verified end to end on A4H, including `show` on a held job that has no log yet.
+
 ## [0.5.15] - 2026-09-15
 
 ### Added
