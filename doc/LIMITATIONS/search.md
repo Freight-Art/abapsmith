@@ -116,3 +116,48 @@
   MCP call has not been exercised against a live system — the reference
   system runs a released bundle that predates this feature — so that path
   is covered only by tests against a fake fluid runtime.
+
+- **`abap-adt-api`'s `usageReferences` parser reads a hardcoded, wrong-case
+  namespace prefix, and A4H never sends that case.** The vendor library's
+  parser looks for the capitalised path `usageReferences:referencedObject`
+  and does not strip or case-fold namespace prefixes before matching; A4H
+  sends `usagereferences:` (lowercase) throughout its `usageReferences`
+  response, confirmed in the raw wire bytes of captures 961 and 973. Left
+  as-is, every caller going through the vendor parser gets zero results
+  back from a system that actually has some. This was live-confirmed again
+  on 2026-09-15: `abap_search
+  {"query":"ZCL_I105_LEAF","mode":"where_used","type":"CLAS"}` answered
+  `referencesTotal: 0`, while capture 973's own wire bytes — the exact
+  response that call received — carry `numberOfResults="2"` in plain sight.
+  `element-info.ts` already worked around this locally for
+  `view="definition"`'s IMPLEMENTED BY section; `whereUsed` in
+  `src/tools/search.ts` had not, and now goes through the same
+  `fetchUsageReferences` helper `element-info.ts` uses, so there is one
+  parsing path instead of two. What this does **not** establish: whether
+  other ABAP systems send the capitalised prefix the vendor library
+  expects — only A4H was observed, and only A4H is what every capture above
+  is from.
+
+- **`mode=call_graph`'s cost is set by fan-in and depth, not by `max`, and
+  its `callees` side is a static parse with real blind spots.** Walking
+  `callers` chains `usageReferences` fetches — the same defect and the same
+  `fetchUsageReferences` code path documented in the bullet above — so a
+  caller-side call graph's cost grows with each node's own fan-in at every
+  level of the walk, not with the `max` children-per-node cap. The only
+  measured data point for that cost is `CL_ABAP_TYPEDESCR`: about 5,896
+  references at roughly 24 seconds wall-clock on A4H (see
+  `element-info.ts`'s `HIGH_FAN_IN_REFERENCES`/`SLOW_FETCH_MS` thresholds,
+  disclosed in that file's own comment as heuristic round numbers, not a
+  fitted cost curve — there is no second measured point to fit one to).
+  `callees` is answered a different way: a static text parse of the
+  object's own source (`src/adt/call-sites.ts`), not an index and not a
+  call graph in the compiler sense. Dynamic dispatch is never resolvable
+  from source text alone — `CALL FUNCTION lv_name`, `PERFORM (lv_form)`,
+  `SUBMIT (lv_prog)`, and `lo_ref->method( )` (an instance reference call,
+  since the variable's static type cannot be read off the call site) all
+  become unresolved entries rather than edges; `mode=source` is the tool to
+  search for a dynamic target's literal name instead. A `FUGR/FF` callee
+  that fails to resolve by name is not proof that function module does not
+  exist — quickSearch does not index every generated function module, the
+  same limitation captures 850/851 already document above for
+  `mode=objects`.

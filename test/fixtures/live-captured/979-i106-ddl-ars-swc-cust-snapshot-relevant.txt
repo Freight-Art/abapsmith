@@ -1,0 +1,28 @@
+//*************************************************
+// The view returns all software components from HOME/LOCAL/CUSTOMER which might not have ABAP LANGUAGE VERSION 5
+// and which are relevant for Snapshot Creation.
+// In SAP Cloud Platform ABAP environment, this is empty as only ALV = 5 Components are allowed
+// In onPremise all Software Components of type C + HOME + LOCAL should be returned
+// excluding installed components
+//
+// Element Definition:
+// - SOFTWARE_COMPONENT: Software component name 
+//*************************************************
+@AbapCatalog.sqlViewName: 'ARS_SWC_CSREL'
+@AbapCatalog.compiler.compareFilter: true
+@AbapCatalog.preserveKey: true
+@AccessControl.authorizationCheck: #NOT_ALLOWED
+@EndUserText.label: 'Software Components relevant Snapshot'
+define view ARS_SWC_CUST_SNAPSHOT_RELEVANT
+  as select from cvers as cvers
+  left outer join abap_langu_swcmp as ars_swc on ars_swc.dlvunit                        = 'LOCAL' and
+                                                 ars_swc.allowed_abap_language_versions = 'S' 
+{
+  key  cvers.component as software_component
+}
+where
+      ars_swc.dlvunit is null and         // ensures that the system does not have a cloud-like software component configuration
+    ( cvers.comp_type = #relc_type.'C' or // Customer project component
+      cvers.comp_type = #relc_type.'M' or // HOME
+      cvers.comp_type = #relc_type.'L' or // LOCAL
+      cvers.comp_type = #relc_type.'J'  ) // ZLOCAL

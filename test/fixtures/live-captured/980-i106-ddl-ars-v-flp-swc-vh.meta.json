@@ -1,0 +1,25 @@
+{
+  "n": 980,
+  "label": "i106-ddl-ars-v-flp-swc-vh",
+  "expect": "two associations to the same table cvers_ref that are used only inside a coalesce() expression and are never exposed as fields - the association-not-selected case",
+  "note": "GET DDL source of ARS_V_FLP_SWC_VH (issue 106 lineage, unexposed associations)",
+  "requestMethod": "GET",
+  "requestUrl": "/sap/bc/adt/ddic/ddl/sources/ars_v_flp_swc_vh/source/main?sap-client=001",
+  "requestHeaders": {
+    "Accept": "text/plain"
+  },
+  "responseStatus": 200,
+  "responseHeaders": {
+    "content-type": "text/plain; charset=utf-8",
+    "content-length": "1019",
+    "sap-authenticated": "true",
+    "etag": "202303311509190011",
+    "sap-server": "true"
+  },
+  "byteLength": 1019,
+  "zeroByteBody": false,
+  "sha256": "7b43cb2b7ed042325bede77f80bb00e9dbade33edc0c8ff5f09aa7b51fe4889a",
+  "utcTimestamp": "2026-09-15T12:01:08.661Z",
+  "durationMs": 220,
+  "sessionName": "LIVE-I105-I106-I107"
+}

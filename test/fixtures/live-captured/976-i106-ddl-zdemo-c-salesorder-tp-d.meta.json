@@ -1,0 +1,25 @@
+{
+  "n": 976,
+  "label": "i106-ddl-zdemo-c-salesorder-tp-d",
+  "expect": "a customer consumption view selecting from another customer CDS view with an alias (as SalesOrder), one association it exposes as a field (_Item), and two associations re-exposed from the underlying view",
+  "note": "GET DDL source of ZDEMO_C_SALESORDER_TP_D (issue 106 lineage root)",
+  "requestMethod": "GET",
+  "requestUrl": "/sap/bc/adt/ddic/ddl/sources/zdemo_c_salesorder_tp_d/source/main?sap-client=001",
+  "requestHeaders": {
+    "Accept": "text/plain"
+  },
+  "responseStatus": 200,
+  "responseHeaders": {
+    "content-type": "text/plain; charset=utf-8",
+    "content-length": "1273",
+    "sap-authenticated": "true",
+    "etag": "202011030947380011",
+    "sap-server": "true"
+  },
+  "byteLength": 1273,
+  "zeroByteBody": false,
+  "sha256": "fcbfe052a10775b4ec4c1603284d318704cb5647d6a893624301bbc60a1f4f74",
+  "utcTimestamp": "2026-09-15T12:01:07.439Z",
+  "durationMs": 250,
+  "sessionName": "LIVE-I105-I106-I107"
+}
