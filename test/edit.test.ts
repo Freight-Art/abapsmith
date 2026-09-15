@@ -1,6 +1,6 @@
 /**
  * Offline, pure unit tests for `abap_write`'s edit primitive
- * (`src/tools/v2/edit.ts`). No ADT/network dependency at
+ * (`src/tools/edit.ts`). No ADT/network dependency at
  * all — every case here is a direct `applyEdit(...)` call.
  *
  * Per this project's standing rule ("verify ABAP claims against the
@@ -9,9 +9,7 @@
  * covered separately by a live A4H capture.
  */
 import { describe, expect, it } from "vitest";
-import { applyEdit, describeEditFailure, EditInputError, type EditAmbiguous, type EditNoMatch } from "../src/tools/v2/edit.js";
-import { handleAbapWrite } from "../src/tools/v2/handlers/write.js";
-import type { V2ToolDeps } from "../src/tools/v2/runtime.js";
+import { applyEdit, describeEditFailure, EditInputError, type EditAmbiguous, type EditNoMatch } from "../src/tools/edit.js";
 
 describe("applyEdit", () => {
   it("0 matches: returns a no-match result, not a throw", () => {
@@ -125,69 +123,5 @@ describe("describeEditFailure", () => {
     const msg = describeEditFailure({ ok: false, kind: "no-match" });
     expect(msg).toContain("0 matches");
     expect(msg.toLowerCase()).toContain("not even its first line");
-  });
-});
-
-/**
- * `handlers/write.ts`'s conflicting-form validation runs BEFORE
- * `deps.safety.assert`/`deps.ensureConnected` — the whole point being that a
- * malformed call costs zero requests. This stub deps object makes every
- * network-shaped member throw, so if the handler ever reached past the
- * conflict check for these two inputs, the test would fail loudly rather
- * than silently doing nothing.
- */
-function unreachableDeps(): V2ToolDeps {
-  const boom = (member: string) => () => {
-    throw new Error(`unreachable: ${member} should not be called for a conflicting/malformed input`);
-  };
-  return {
-    pool: { withWrite: boom("pool.withWrite") } as unknown as V2ToolDeps["pool"],
-    safety: { assert: boom("safety.assert") } as unknown as V2ToolDeps["safety"],
-    ensureConnected: boom("ensureConnected"),
-    errorResult: boom("errorResult"),
-    journal: {} as V2ToolDeps["journal"],
-    transport: {} as V2ToolDeps["transport"],
-    debugDeps: {} as V2ToolDeps["debugDeps"],
-    warn: () => {},
-    cfg: { maxResponseChars: 50_000, allowEnhancements: false, allowSourcePlugins: false, user: "test", abapMode: "admin" },
-  };
-}
-
-describe("handleAbapWrite: conflicting-form validation (zero network cost)", () => {
-  it("edit + source together: BAD_INPUT, never reaches safety/connect/pool", async () => {
-    const res = await handleAbapWrite(
-      { object: "ZCL_FOO", edit: { old_string: "a", new_string: "b" }, source: "CLASS ..." },
-      unreachableDeps(),
-    );
-    expect(res.isError).toBe(true);
-    const text = (res.content[0] as { text: string }).text;
-    expect(text).toContain("error: BAD_INPUT");
-    expect(text.toLowerCase()).toContain("not both");
-  });
-
-  it("edit + method together: BAD_INPUT, never reaches safety/connect/pool", async () => {
-    const res = await handleAbapWrite(
-      { object: "ZCL_FOO", edit: { old_string: "a", new_string: "b" }, method: "CALCULATE" },
-      unreachableDeps(),
-    );
-    expect(res.isError).toBe(true);
-    const text = (res.content[0] as { text: string }).text;
-    expect(text).toContain("error: BAD_INPUT");
-    expect(text.toLowerCase()).toContain("not both");
-  });
-
-  it("missing object: BAD_INPUT, never reaches safety/connect/pool", async () => {
-    const res = await handleAbapWrite({ source: "CLASS ..." }, unreachableDeps());
-    expect(res.isError).toBe(true);
-    const text = (res.content[0] as { text: string }).text;
-    expect(text).toContain("error: BAD_INPUT");
-  });
-
-  it("bare call: self-describes instead of erroring", async () => {
-    const res = await handleAbapWrite({}, unreachableDeps());
-    expect(res.isError).toBeUndefined();
-    const text = (res.content[0] as { text: string }).text;
-    expect(text).toContain("ok: true");
-    expect(text).toContain("unique-match splice");
   });
 });

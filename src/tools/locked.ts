@@ -13,12 +13,9 @@
  * pointer at what unlocks it. The safety outcome does not change — nothing
  * here is a new way to write; it is a new way to explain why writing is off.
  *
- * Scoped to the v1 surface on purpose. v2's `abap_do` already answers this
- * class of question structurally: every action carries a `minMode`, and
- * calling `abap_do({})` with no action returns the live catalogue of what is
- * unlocked at the current `ABAP_MODE` — there is nothing this module could
- * add there, so `lockedToolsFor` returns `[]` whenever `toolSurface` is not
- * `"v1"`.
+ * `lockedToolsFor` returns `[]` whenever the server is not read-only end to
+ * end (`cfg.readOnly !== true`) — a non-read-only server registers the real
+ * tools instead, so no stub is ever offered alongside its real counterpart.
  *
  * `abap_data_preview` is deliberately NOT among {@link MODE_LOCKED_TOOLS}:
  * its gate is `allowDataPreview`, an out-of-band flag independent of
@@ -133,14 +130,13 @@ export const MODE_LOCKED_TOOLS: readonly ModeLockedTool[] = [
 ];
 
 /**
- * The stubs to register for this config. `[]` unless the server is running
- * the v1 surface AND is read-only end to end (`cfg.readOnly === true`) —
- * v2 needs none of this (see this module's header comment), and a
- * non-read-only v1 server registers the real tools instead, so no stub is
- * ever offered alongside its real counterpart.
+ * The stubs to register for this config. `[]` unless the server is
+ * read-only end to end (`cfg.readOnly === true`) — a non-read-only server
+ * registers the real tools instead, so no stub is ever offered alongside
+ * its real counterpart.
  */
 export function lockedToolsFor(cfg: Config): readonly ModeLockedTool[] {
-  if (cfg.toolSurface !== "v1" || cfg.readOnly !== true) return [];
+  if (cfg.readOnly !== true) return [];
   return MODE_LOCKED_TOOLS.filter((tool) => tool.availableWhen === undefined || tool.availableWhen(cfg));
 }
 

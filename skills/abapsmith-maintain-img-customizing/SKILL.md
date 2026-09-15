@@ -259,9 +259,7 @@ call above — see `doc/TOOLS/abap-img-edit.md` for that expert path.
 ## Availability
 
 `abap_img_edit` is a real write and needs `ABAP_MODE=edit` or higher — it
-is absent from `tools/list` under `read`, unlike `abap_img` itself. It is
-v1-only — as of this build it has no v2 (`abap_do`) action. Check
-`tools/list` before assuming it exists under `ABAP_TOOL_SURFACE=v2`.
+is absent from `tools/list` under `read`, unlike `abap_img` itself.
 
 A call can also be refused with `write-lockout` ("No system-role probe
 has confirmed this system is non-productive yet") if nothing has yet

@@ -45,14 +45,11 @@ to end:
   tool was absent. Only what a read-only server can *tell* a caller about
   these tools changed; what it can *do* did not. Before this
   (`src/tools/locked.ts`, issue #63), calling one of these on a read-only
-  v1 server got `MCP error -32602: Tool <name> not found` —
+  server got `MCP error -32602: Tool <name> not found` —
   indistinguishable from a typo'd name, with no hint that raising
   `ABAP_MODE` was the fix. `abap_data_preview` is deliberately excluded
   from this mechanism: its gate is the out-of-band `ABAP_ALLOW_DATA_PREVIEW`
-  flag, not a mode ceiling, so it stays in the bullet above instead. The v2
-  surface has no equivalent of this bullet: `abap_do`'s `minMode` already
-  answers "what would unlock this" structurally per action, and `abap_write`
-  stays genuinely absent from v2's `tools/list` under `read` mode.
+  flag, not a mode ceiling, so it stays in the bullet above instead.
 - **Registered, gated per call.** A tool with a genuinely ungated read mode is
   always listed, and its mutating modes are refused at the point of use:
   `abap_transport` (list/show/check/users are reads), `abap_bopf` (pure read),

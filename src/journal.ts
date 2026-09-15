@@ -332,8 +332,7 @@ export interface JournalEntry {
    *  - `transport-release` (src/tools/transport.ts): ADT has no "un-release".
    *  - Activation entries (src/tools/activate.ts): `operation: "activate"`
    *    is refused by name — ADT has no deactivate operation either.
-   *  - Enhancement create/update/delete (src/tools/enh.ts and its v2 twin,
-   *    src/tools/v2/handlers/do/enhancements.ts): `undoBlocker()`
+   *  - Enhancement create/update/delete (src/tools/enh.ts): `undoBlocker()`
    *    (src/adt/undo.ts) refuses `ENHO/XH`, `ENHO/XHH` and `ENHS/XS`
    *    unconditionally.
    *  - BOPF writes (src/tools/bopf.ts): no BOPF-specific check in

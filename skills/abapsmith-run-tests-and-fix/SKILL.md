@@ -80,7 +80,7 @@ before the next `abap_test` call.
 
 **`abap_test` needs write access even though it changes no source.** It is
 gated the same as any mutation: `ABAP_MODE=edit|admin` and the package
-allowlist. On a read-only v1 server it is not skipped — it is still listed in
+allowlist. On a read-only server it is not skipped — it is still listed in
 `tools/list`, under an empty schema, and refuses every call `READ_ONLY`
 without reaching SAP.
 
@@ -105,13 +105,6 @@ about behaviour.
 
 There is **no coverage measurement**. `abap_test` reports verdicts per method,
 not which lines a passing test touched — don't promise one.
-
-## Surface note
-
-`abap_test` is v1-only. On `ABAP_TOOL_SURFACE=v2` the same capability is an
-action of `abap_do` — call `abap_do({})` for the catalogue rather than
-assuming the name carries over. Check `tools/list` either way.
-`ABAP_TOOL_SURFACE=v2` is deprecated and will be removed in 0.6.0.
 
 ## Not this skill
 

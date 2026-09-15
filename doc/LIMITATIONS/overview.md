@@ -32,12 +32,3 @@ capability-registry lookup (`REGISTRY` in `src/adt/capabilities.ts`) rather
 than hardcoded per message — so the day a type gains that capability, the
 refusal stops firing and the sentence disappears with it, rather than going
 stale.
-
-## The v2 tool surface (`ABAP_TOOL_SURFACE=v2`)
-
-Deprecated, and will be removed outright in release 0.6.0 (issue #76) — see
-[doc/TOOL-SURFACE-V2/](../TOOL-SURFACE-V2/README.md) for known defects and
-status; they are not being fixed, since the surface is being removed
-regardless. Every limitation below applies to v2 as well as v1 unless noted
-otherwise — v2 is a thinner routing layer over the same core, not a
-separate implementation.

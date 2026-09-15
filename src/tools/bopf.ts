@@ -249,9 +249,9 @@ export type BopfDeleteInput = z.infer<typeof BopfDeleteInput>;
 
 /**
  * Slice of {@link BopfToolDeps} the pure `runBopf*` handlers read.
- * Deliberately excludes `registerWrite` (registration-time-only, meaningless
- * to v2's `abap_do` handlers which call `runBopfEdit`/`runBopfDelete`/
- * `runBopfRead` directly with `V2ToolDeps`).
+ * Deliberately excludes `registerWrite`: that field only governs whether
+ * `registerBopfTools` registers the mutating tools, and is meaningless once
+ * you're already inside a handler that ran.
  */
 export interface BopfRunDeps {
   readonly pool: SessionPool;
@@ -300,9 +300,7 @@ export function bopfGateKey(bo: string): string | undefined {
  * since it only bit calls that actually wrote a journal entry.
  * `journalEntryId` here rides the return value only as far as
  * `registerBopfTools`'s `mcp.registerTool` callbacks, which strip it via
- * `toMcpResult` before it can reach the wire; `src/tools/v2/handlers/do/
- * bopf.ts`'s `journalled()` reads it directly from `runBopfEdit`/
- * `runBopfDelete`'s return value, upstream of that strip.
+ * `toMcpResult` before it can reach the wire.
  */
 export type BopfCallResult = CallToolResult & { readonly journalEntryId?: string };
 
@@ -322,14 +320,14 @@ function toMcpResult(res: BopfCallResult): CallToolResult {
 /**
  * `journalEntryId` rides the INTERNAL `BopfCallResult.journalEntryId` field
  * (see its doc comment — NOT `structuredContent`, per the defect above), never
- * prepended to `text`, so `src/tools/v2/handlers/do/bopf.ts` can tell whether
- * an entry was actually journalled. Absent when journalling is disabled, on
- * a dry run, or for an op this module doesn't journal (`activate`). The id
- * itself still reaches the caller — via the response builders'
- * `journalEntryId` header line (`buildEditResponse`/
- * `buildDeleteResultResponse`), not appended here: appending after
- * `buildResponse` has already run would breach its `hardClamp`-guaranteed
- * `text.length <= maxChars`.
+ * prepended to `text`, so a caller of `runBopfEdit`/`runBopfDelete` directly
+ * (tests, mainly) can tell whether an entry was actually journalled without
+ * parsing response text. Absent when journalling is disabled, on a dry run,
+ * or for an op this module doesn't journal (`activate`). The id itself still
+ * reaches the MCP caller — via the response builders' `journalEntryId`
+ * header line (`buildEditResponse`/`buildDeleteResultResponse`), not
+ * appended here: appending after `buildResponse` has already run would
+ * breach its `hardClamp`-guaranteed `text.length <= maxChars`.
  */
 const ok = (text: string, journalEntryId?: string): BopfCallResult => ({
   content: [{ type: "text", text }],
