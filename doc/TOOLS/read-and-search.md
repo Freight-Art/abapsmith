@@ -406,12 +406,6 @@ deliberately **not** judged by `guardCoreAction`'s data-preview policy
 `ABAP_ALLOW_DATA_PREVIEW` applies to it, since it reads SAP's own
 documentation text out of `DOKTL`, not application table data.
 
-**Not on the v2 tool surface.** Same as `view="definition"` above: v2's
-`abapReadInputSchema` (`src/tools/v2/schemas.ts`) does not expose
-`view="docu"`, `view="digest"`, or `method` on this axis — its `view`
-values are `source | contract | method | diff | metadata | outline | bopf |
-fpm`, a disjoint vocabulary from v1's.
-
 **Evidence.** `live` (A4H, probe class `ZCL_I109_PROBE`, 2026-09-15): every
 `DOCU_GET` and `CONVERT_ITF_TO_ASCII` parameter `core.docu`'s ABAP relies on
 — `DOKHL-ID`/`DOKHL-OBJECT` CHAR2/CHAR40 truncation handled by moving the
