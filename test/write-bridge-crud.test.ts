@@ -276,8 +276,17 @@ describe("abapCreateViaBridge — corr_nr/package pairing, now that the VIEW/DV 
     return { transport: new SessionTransport({ allowTransports: ["*"], cts: { trShow } as never }), trShow };
   }
 
-  /** A `SessionTransport` in auto mode — no caller-named request, so `#resolveAuto` creates one via `trCreate`. */
-  function autoTransport(): { transport: SessionTransport; trCreate: ReturnType<typeof vi.fn> } {
+  /**
+   * A `SessionTransport` in auto mode — no caller-named request, so
+   * `#resolveAuto` first asks CTS for the package's modifiable candidates
+   * (`trRequirement`, anchored on the PACKAGE because the object does not exist
+   * yet — issue #141) and, finding none it may adopt, creates one via `trCreate`.
+   */
+  function autoTransport(): {
+    transport: SessionTransport;
+    trCreate: ReturnType<typeof vi.fn>;
+    trRequirement: ReturnType<typeof vi.fn>;
+  } {
     const devClass = "ZTM";
     const authorizeCreate = () =>
       new SafetyGate({ readOnly: false, allowPackages: ["*"] }).authorize(
@@ -289,9 +298,26 @@ describe("abapCreateViaBridge — corr_nr/package pairing, now that the VIEW/DV 
       trkorr: "A4HK900321",
       path: "/com.sap.cts/object_record/A4HK900321",
     }));
+    const trRequirement = vi.fn(async (_conn: unknown, uri: string) => ({
+      uri,
+      operation: "I",
+      candidates: [],
+      locks: [],
+      messages: [],
+      checkFailed: false,
+      raw: { result: "S", korrflag: "X", recording: "" },
+      kind: "transport-required",
+      mustSupplyCorrNr: true,
+      serverWouldFabricate: false,
+    }));
     return {
-      transport: new SessionTransport({ allowTransports: ["auto"], authorizeCreate, cts: { trCreate } as never }),
+      transport: new SessionTransport({
+        allowTransports: ["auto"],
+        authorizeCreate,
+        cts: { trCreate, trRequirement } as never,
+      }),
       trCreate,
+      trRequirement,
     };
   }
 
@@ -331,7 +357,7 @@ describe("abapCreateViaBridge — corr_nr/package pairing, now that the VIEW/DV 
     const classic = classicFake({ action: "create_view", lines: () => ["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"] });
     const vit = vitRoute("confirmed", "viewdv", VIEW, "VIEW/DV", "ZTM");
     const { conn, adt } = await connected(both(classic.route, vit));
-    const { transport, trCreate } = autoTransport();
+    const { transport, trCreate, trRequirement } = autoTransport();
     const result = await abapWrite(
       conn,
       { ...validInput, package: "ZTM" },
@@ -344,8 +370,12 @@ describe("abapCreateViaBridge — corr_nr/package pairing, now that the VIEW/DV 
     expect(result.text).toMatch(/transport: A4HK900321/);
     expect(trCreate).toHaveBeenCalledTimes(1);
     expect(classic.invoker()).toBe(viewInvoker("ZTM", "A4HK900321"));
-    // resolveForNewTransportable never classifies a not-yet-existing object, so the
-    // synthesized view URI (classicViewUri) is never sent to CTS's classification check.
+    // The not-yet-existing view is never classified by CTS — the one candidate
+    // look-up is anchored on the PACKAGE (issue #141: the same adopt-else-create
+    // route the ADT-lock types take), and the fake CTS above answered it, so the
+    // synthesized view URI never reaches the wire as a transportchecks call.
+    expect(trRequirement).toHaveBeenCalledTimes(1);
+    expect(String(trRequirement.mock.calls[0]?.[1])).toBe("/sap/bc/adt/packages/ztm");
     expect(adt.calls.some((c) => c.url.includes("transportchecks"))).toBe(false);
   });
 
@@ -401,24 +431,19 @@ describe("abapCreateViaBridge — corr_nr/package pairing, now that the VIEW/DV 
     expect(String(e.message)).toMatch(/\$TMP/);
   });
 
-  it("TRAN/T into a transportable package with NO corr_nr is refused TRANSPORT_ERROR before any network call", async () => {
-    const offline = null as unknown as AbapConnection;
-    const e = await catchErr(
-      abapWrite(
-        offline,
-        {
-          object: "ZMCPT01",
-          type: "TRAN/T",
-          package: "ZTM",
-          description: "Carrier list",
-          program: "ZMCP_CARRIER_LIST",
-        },
-        MAX,
-        gate(),
-      ),
-    );
+  it("TRAN/T into a transportable package with NO corr_nr and NO transport manager wired is refused TRANSPORT_ERROR as a wiring failure, before the bridge is deployed", async () => {
+    // Issue #141: an omitted corr_nr is no longer a caller mistake for a bridge
+    // type — it is resolved by the session manager. Without one wired (this
+    // harness shape) nothing can resolve it, and the refusal says so instead of
+    // sending the caller off to name a request the gate would then refuse.
+    const classic = classicFake({ action: "create_transaction", lines: () => ["TRAN-CREATED"] });
+    const { conn } = await connected(both(programRoute(PROGRAM), classic.route));
+    const e = await catchErr(abapWrite(conn, { ...TRAN_INPUT, package: "ZTM" }, MAX, gate()));
     expect(e.code).toBe("TRANSPORT_ERROR");
-    expect(String(e.message)).toMatch(/corr_nr/);
+    expect(String(e.message)).toMatch(/no transport manager is wired/);
+    expect(String(e.message)).toMatch(/not a mistake in the request/);
+    expect(String(e.message)).not.toMatch(/pass corr_nr/);
+    expect(classic.deployed().length).toBe(0);
   });
 
   it("TRAN/T into $TMP WITH a corr_nr is refused BAD_INPUT before any network call", async () => {
