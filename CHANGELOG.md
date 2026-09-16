@@ -12,6 +12,8 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.12] - 2026-09-16
+
 ### Added
 
 - `abap_debug` reports how the debugger attached (#152): the `start` response header carries `debuggee: <DBGEE_KIND>` and, for a post-mortem attach, `dump: <id>` plus a `POST-MORTEM` note saying the run has already terminated, that stepping cannot resume it, which armed exception breakpoints did not stop it, and the `abap_dumps` call that reads the dump.
