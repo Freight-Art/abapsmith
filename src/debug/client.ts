@@ -267,12 +267,12 @@ function parseListenerConflictBody(body: string): ListenerConflict {
 }
 
 /** Empty body → hold expired naturally (see `ListenOutcome`); exception envelope → conflict; otherwise a caught debuggee. */
-function parseListenResult(raw: RawResponse): ListenOutcome {
+function parseListenResult(raw: RawResponse, warn?: (msg: string) => void): ListenOutcome {
   if (raw.body.trim() === "") return { kind: "empty" };
   if (looksLikeExceptionEnvelope(raw.body)) {
     return { kind: "conflict", conflict: parseListenerConflictBody(raw.body) };
   }
-  return { kind: "debuggee", debuggee: parseDebuggeeResponse(raw.body) };
+  return { kind: "debuggee", debuggee: parseDebuggeeResponse(raw.body, { warn }) };
 }
 
 // Batch — per-sub-request outcome type. Failures are visible, never flattened to success (see `BatchResult` in types.ts).
@@ -477,7 +477,7 @@ export class DebugClient {
    */
   launchListener(params: ListenerLaunchParams): ListenHandle {
     const handle = this.longPoll.listen(listenerLaunchUrl(params), { headers: { Accept: LISTENER_ACCEPT } });
-    const result = handle.result.then(parseListenResult);
+    const result = handle.result.then((raw) => parseListenResult(raw, this.warn));
     // HAZARD: this derived promise is returned but may not be awaited at the
     // moment the long poll rejects in the background. An unobserved rejection
     // raises Node's `unhandledRejection` and can kill the whole MCP server

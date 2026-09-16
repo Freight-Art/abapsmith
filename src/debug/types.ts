@@ -272,13 +272,30 @@ export interface ModifyWatchpointRequest {
 // Listener / debuggee
 // ---------------------------------------------------------------------------
 
-export type DebuggeeKind = "debuggee" | "postmortem" | "postmortem_dialog";
+/**
+ * `DBGEE_KIND`, normalised. `"postmortem"` covers every spelling the server
+ * uses for a caught short dump: the documented `POSTMORTEM` and the
+ * abbreviated `PMORTEM` A4H sends when a run dumps with only an exception
+ * breakpoint armed (#152) — any value containing `MORTEM` maps here, and
+ * `DIALOG` in it selects `"postmortem_dialog"`. `"unknown"` is a value this
+ * parser has never seen: the debuggee is still attached and usable, only its
+ * kind is not understood; `Debuggee.rawKind` keeps the wire spelling and the
+ * parser logs a warning naming it instead of throwing.
+ */
+export type DebuggeeKind = "debuggee" | "postmortem" | "postmortem_dialog" | "unknown";
+
+/** True for both post-mortem kinds — a caught short dump, not a live, steppable debuggee. */
+export function isPostMortemKind(kind: DebuggeeKind): boolean {
+  return kind === "postmortem" || kind === "postmortem_dialog";
+}
 
 /** What a caught listener (or a post-mortem short dump) gives you. */
 export interface Debuggee {
   /** The handle passed to `attach`. */
   id: string;
   kind: DebuggeeKind;
+  /** `DBGEE_KIND` exactly as the server spelled it (`DEBUGGEE`, `POSTMORTEM`, `PMORTEM`, …). */
+  rawKind: string;
   client: number;
   terminalId: string;
   ideId: string;

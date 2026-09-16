@@ -49,6 +49,7 @@ import type {
   DebugContext,
   DebugSettings,
   DebugStack,
+  DebuggeeKind,
   DebugStepKind,
   DebugStepResult,
   DebugVariable,
@@ -140,6 +141,14 @@ export interface DebugSessionSnapshot {
   stateId?: StateId;
   debugSessionId?: string;
   debuggeeId?: string;
+  /**
+   * What kind of debuggee the listener caught (#152): a live `"debuggee"`, or a
+   * short dump the server offered post-mortem (`"postmortem"`/
+   * `"postmortem_dialog"`, with the dump's id/URI when the wire carried them),
+   * or `"unknown"` for a `DBGEE_KIND` the parser has never seen (`rawKind`
+   * keeps the spelling). Set by `waitForDebuggee()`, cleared by `terminate()`.
+   */
+  debuggee?: { kind: DebuggeeKind; rawKind: string; dumpId?: string; dumpUri?: string };
   deathReason?: DebugDeathReason;
   deathDetail?: string;
   /** Structured counterpart to `deathReason`/`deathDetail`. Undefined exactly when `deathReason` is. */
@@ -365,6 +374,7 @@ export class DebugSession {
   private currentStateId: StateId | undefined;
   private debugSessionId: string | undefined;
   private debuggeeId: string | undefined;
+  private caughtDebuggee: DebugSessionSnapshot["debuggee"];
   private deathReason: DebugDeathReason | undefined;
   private deathDetail: string | undefined;
   private terminationResult: DebugTerminationResult | undefined;
@@ -455,6 +465,7 @@ export class DebugSession {
       stateId: this.currentStateId,
       debugSessionId: this.debugSessionId,
       debuggeeId: this.debuggeeId,
+      debuggee: this.caughtDebuggee,
       deathReason: this.deathReason,
       deathDetail: this.deathDetail,
       terminationResult: this.terminationResult,
@@ -1219,6 +1230,8 @@ export class DebugSession {
 
     if (outcome.kind === "debuggee") {
       this.debuggeeId = outcome.debuggee.id;
+      const d = outcome.debuggee;
+      this.caughtDebuggee = { kind: d.kind, rawKind: d.rawKind, dumpId: d.dumpId, dumpUri: d.dumpUri };
       this.status = "caught";
       this.startIdleTimer();
       return outcome;
@@ -1813,6 +1826,7 @@ export class DebugSession {
       this.clearIdleTimer();
       this.listenHandle = undefined;
       this.debuggeeId = undefined;
+      this.caughtDebuggee = undefined;
       this.deathReason = reason;
       this.deathDetail = detail;
       this.terminationResult = this.buildTerminationResult(reason, detail, evidence);

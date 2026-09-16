@@ -817,20 +817,24 @@ export function parseChildVariablesResponse(xmlText: string): ChildVariablesResu
   return { hierarchies, variables };
 }
 
-function parseDebuggeeKind(raw: string | undefined): DebuggeeKind {
-  switch ((raw ?? "").toUpperCase()) {
-    case "DEBUGGEE":
-      return "debuggee";
-    case "POSTMORTEM":
-      return "postmortem";
-    case "POSTMORTEM_DIALOG":
-      return "postmortem_dialog";
-    default:
-      throw new DebugXmlParseError(
-        `parseDebuggeeResponse: unrecognised DBGEE_KIND "${raw ?? ""}"`,
-        raw ?? "",
-      );
-  }
+/**
+ * `DBGEE_KIND` → `DebuggeeKind`. Any value containing `MORTEM` is a caught
+ * short dump: A4H answers an exception-only `start` whose run dumped with
+ * `PMORTEM`, not the `POSTMORTEM` the fixture family documents (#152), so the
+ * match is on the substring rather than on a closed list. A value this
+ * function has never seen is reported through `warn` (with the raw spelling)
+ * and degrades to `"unknown"` — the debuggee was caught and is attachable
+ * either way; refusing to parse it only turned a usable stop into an abort.
+ */
+export function parseDebuggeeKind(raw: string | undefined, warn?: (msg: string) => void): DebuggeeKind {
+  const upper = (raw ?? "").trim().toUpperCase();
+  if (upper === "DEBUGGEE") return "debuggee";
+  if (upper.includes("MORTEM")) return upper.includes("DIALOG") ? "postmortem_dialog" : "postmortem";
+  warn?.(
+    `parseDebuggeeResponse: unrecognised DBGEE_KIND "${raw ?? ""}" — treating the debuggee as attached ` +
+      "with kind unknown (raw value kept in Debuggee.rawKind)",
+  );
+  return "unknown";
 }
 
 /**
@@ -845,7 +849,10 @@ function parseDebuggeeKind(raw: string | undefined): DebuggeeKind {
  * false; see archive. The `X` family is still real elsewhere in the same envelope (`READ_ONLY`,
  * `IS_LOCAL`), which is why `xBool` exists at all.
  */
-export function parseDebuggeeResponse(xmlText: string): Debuggee {
+export function parseDebuggeeResponse(
+  xmlText: string,
+  opts?: { warn?: (msg: string) => void },
+): Debuggee {
   const parsed = parser.parse(xmlText) as Record<string, unknown>;
   const root = parsed.abap as Record<string, unknown>;
   const values = root?.values as Record<string, unknown> | undefined;
@@ -859,7 +866,8 @@ export function parseDebuggeeResponse(xmlText: string): Debuggee {
   }
   return {
     id: str(row.DEBUGGEE_ID),
-    kind: parseDebuggeeKind(row.DBGEE_KIND),
+    kind: parseDebuggeeKind(row.DBGEE_KIND, opts?.warn),
+    rawKind: str(row.DBGEE_KIND),
     client: num(row.CLIENT),
     // TERMINAL_ID/IDE_ID/INCL_CURR are absent from the postmortem fixture despite Debuggee
     // declaring them required — a post-mortem debuggee was never attached via a terminal.
