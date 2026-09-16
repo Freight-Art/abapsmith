@@ -119432,6 +119432,10 @@ function discardedDescriptorValues(sent, stored) {
     const storedValues = storedTexts.get(element) ?? [];
     if (sentValues.length > storedValues.length) {
       out.push({ element, sent: sentValues, stored: storedValues });
+      continue;
+    }
+    if (sentValues.some((v, i) => v === "true" && storedValues[i] === "false")) {
+      out.push({ element, sent: sentValues, stored: storedValues });
     }
   }
   return out;
@@ -121984,7 +121988,19 @@ function assertDdicDescriptorShape(type, name, xml3) {
 }
 var ADTCORE_NS2 = "http://www.sap.com/adt/core";
 var XML_DECL = '<?xml version="1.0" encoding="UTF-8"?>';
-var DOMA_FIELDS = /* @__PURE__ */ new Set(["dataType", "length", "decimals", "outputLength", "lowercase", "signExists"]);
+var ROOT_LANGUAGE_ATTRS = 'adtcore:masterLanguage="EN" adtcore:language="EN"';
+var FIX_VALUE_MAX_LEN = 10;
+var FIX_VALUE_TEXT_MAX_LEN = 60;
+var DOMA_FIELDS = /* @__PURE__ */ new Set([
+  "dataType",
+  "length",
+  "decimals",
+  "outputLength",
+  "lowercase",
+  "signExists",
+  "fixedValues",
+  "valueTable"
+]);
 var DTEL_FIELDS = /* @__PURE__ */ new Set([
   "typeKind",
   "typeName",
@@ -122026,6 +122042,81 @@ var DTEL_MAX_LENGTH = {
   long: 40,
   heading: 55
 };
+function dtelLabel(slot, label, requestedLength, name) {
+  const max = DTEL_MAX_LENGTH[slot];
+  if (label.length > max) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `ddic.${slot}Label "${label}" is ${label.length} characters, longer than the ${max}-character maximum of the ${slot} field label (DD04T).`,
+      { name, type: "DTEL/DE", field: `${slot}Label`, value: label, length: label.length, maxLength: max },
+      `Shorten ddic.${slot}Label to ${max} characters or fewer.`
+    );
+  }
+  const length = requestedLength ?? max;
+  if (!Number.isInteger(length) || length < Math.max(1, label.length) || length > max) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `ddic.${slot}Length ${length} is not a usable display width for the ${slot} field label "${label}" \u2014 it must be a whole number from ${Math.max(1, label.length)} (the label's own length) to ${max}.`,
+      { name, type: "DTEL/DE", field: `${slot}Length`, value: length, labelLength: label.length, maxLength: max },
+      `Drop ddic.${slot}Length to get the slot's maximum (${max}), or give a value between the label's length and ${max}.`
+    );
+  }
+  return { label, length };
+}
+var DOMA_DECIMAL_TYPES = /* @__PURE__ */ new Set(["DEC", "CURR", "QUAN"]);
+function defaultDomaOutputLength(dataType, length, decimals, signExists) {
+  const type = dataType.toUpperCase();
+  if (DOMA_DECIMAL_TYPES.has(type)) return length + (decimals > 0 ? 1 : 0) + (signExists ? 1 : 0);
+  if (type === "DATS") return 10;
+  if (type === "TIMS") return 8;
+  return length;
+}
+function fixedValueBound(which, value, index, domainLength, name) {
+  const cap = Math.min(FIX_VALUE_MAX_LEN, domainLength);
+  if (value.length > cap) {
+    const reason = value.length > FIX_VALUE_MAX_LEN ? `longer than DD07L-DOMVALUE_${which === "low" ? "L" : "H"}'s ${FIX_VALUE_MAX_LEN}-character limit` : `longer than the domain's own length of ${domainLength}`;
+    throw new AbapError(
+      "BAD_INPUT",
+      `ddic.fixedValues[${index}].${which} "${value}" is ${value.length} characters, ${reason}.`,
+      { name, type: "DOMA/DD", field: `fixedValues[${index}].${which}`, value, length: value.length, maxLength: cap },
+      `Shorten the value to ${cap} characters or fewer, or raise ddic.length.`
+    );
+  }
+  return value;
+}
+function renderFixValue(v, index, domainLength, name) {
+  const low = fixedValueBound("low", v.low, index, domainLength, name);
+  const high = v.high === void 0 ? "" : fixedValueBound("high", v.high, index, domainLength, name);
+  if (v.text.length > FIX_VALUE_TEXT_MAX_LEN) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `ddic.fixedValues[${index}].text "${v.text}" is ${v.text.length} characters, longer than DD07T-DDTEXT's ${FIX_VALUE_TEXT_MAX_LEN}-character limit.`,
+      {
+        name,
+        type: "DOMA/DD",
+        field: `fixedValues[${index}].text`,
+        value: v.text,
+        length: v.text.length,
+        maxLength: FIX_VALUE_TEXT_MAX_LEN
+      },
+      `Shorten the text to ${FIX_VALUE_TEXT_MAX_LEN} characters or fewer.`
+    );
+  }
+  return `<doma:fixValue>${elem("doma:low", low)}${elem("doma:high", high)}${elem("doma:text", v.text)}</doma:fixValue>`;
+}
+function renderValueTableRef(valueTable, name) {
+  if (valueTable === void 0) return "<doma:valueTableRef/>";
+  const table = valueTable.trim().toUpperCase();
+  if (table === "" || !/^[A-Z0-9_/]{1,30}$/.test(table)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `ddic.valueTable "${valueTable}" is not a table name (DD01L-ENTITYTAB is CHAR30: letters, digits, "_" and "/").`,
+      { name, type: "DOMA/DD", field: "valueTable", value: valueTable },
+      "Give the name of an existing transparent table, or drop ddic.valueTable."
+    );
+  }
+  return `<doma:valueTableRef adtcore:uri="/sap/bc/adt/ddic/tables/${escapeXmlAttr4(table.toLowerCase())}" adtcore:type="TABL/DT" adtcore:name="${escapeXmlAttr4(table)}"/>`;
+}
 var SHLP_NAME_MAX_LEN = 30;
 function normalizeShlpIdentifier(value, field, type, name) {
   const column = field === "searchHelp" ? "DD04L-SHLPNAME" : "DD04L-SHLPFIELD";
@@ -122057,10 +122148,13 @@ function buildDoma(name, description, packageName, f) {
   const dataType = f.dataType ?? "CHAR";
   const length = f.length ?? 10;
   const decimals = f.decimals ?? 0;
-  const outputLength = f.outputLength ?? length;
   const lowercase2 = f.lowercase ?? false;
   const signExists = f.signExists ?? false;
-  return `${XML_DECL}<doma:domain xmlns:doma="http://www.sap.com/dictionary/domain" xmlns:adtcore="${ADTCORE_NS2}" adtcore:name="${escapeXmlAttr4(name)}" adtcore:type="DOMA/DD" adtcore:description="${escapeXmlAttr4(description)}"><adtcore:packageRef adtcore:name="${escapeXmlAttr4(packageName)}"/><doma:content><doma:typeInformation>${elem("doma:datatype", dataType)}${elem("doma:length", num2(length))}${elem("doma:decimals", num2(decimals))}</doma:typeInformation><doma:outputInformation>${elem("doma:length", num2(outputLength))}${elem("doma:lowercase", String(lowercase2))}${elem("doma:signExists", String(signExists))}</doma:outputInformation></doma:content></doma:domain>`;
+  const outputLength = f.outputLength ?? defaultDomaOutputLength(dataType, length, decimals, signExists);
+  const fixRows = (f.fixedValues ?? []).map((v, i) => renderFixValue(v, i, length, name)).join("");
+  const valueInformation = f.fixedValues === void 0 && f.valueTable === void 0 ? "" : `<doma:valueInformation>${renderValueTableRef(f.valueTable, name)}${elem("doma:appendExists", "false")}` + // No rows: the skeleton's self-closing `<doma:fixValues/>`, byte for byte.
+  (fixRows === "" ? "<doma:fixValues/>" : `<doma:fixValues>${fixRows}</doma:fixValues>`) + `</doma:valueInformation>`;
+  return `${XML_DECL}<doma:domain xmlns:doma="http://www.sap.com/dictionary/domain" xmlns:adtcore="${ADTCORE_NS2}" adtcore:name="${escapeXmlAttr4(name)}" adtcore:type="DOMA/DD" adtcore:description="${escapeXmlAttr4(description)}" ${ROOT_LANGUAGE_ATTRS}><adtcore:packageRef adtcore:name="${escapeXmlAttr4(packageName)}"/><doma:content><doma:typeInformation>${elem("doma:datatype", dataType)}${elem("doma:length", num2(length))}${elem("doma:decimals", num2(decimals))}</doma:typeInformation><doma:outputInformation>${elem("doma:length", num2(outputLength))}${elem("doma:signExists", String(signExists))}${elem("doma:lowercase", String(lowercase2))}</doma:outputInformation>` + valueInformation + `</doma:content></doma:domain>`;
 }
 function buildDtel(name, description, packageName, f) {
   const typeKind = f.typeKind ?? "predefinedAbapType";
@@ -122076,14 +122170,10 @@ function buildDtel(name, description, packageName, f) {
   const dataType = f.dataType ?? "CHAR";
   const length = f.length ?? 10;
   const decimals = f.decimals ?? 0;
-  const shortLabel = f.shortLabel ?? "Bench";
-  const shortLength = f.shortLength ?? 10;
-  const mediumLabel = f.mediumLabel ?? "Bench";
-  const mediumLength = f.mediumLength ?? 20;
-  const longLabel = f.longLabel ?? "Bench";
-  const longLength = f.longLength ?? 40;
-  const headingLabel = f.headingLabel ?? "Bench";
-  const headingLength = f.headingLength ?? 55;
+  const short = dtelLabel("short", f.shortLabel ?? "Bench", f.shortLength, name);
+  const medium = dtelLabel("medium", f.mediumLabel ?? "Bench", f.mediumLength, name);
+  const long = dtelLabel("long", f.longLabel ?? "Bench", f.longLength, name);
+  const heading = dtelLabel("heading", f.headingLabel ?? "Bench", f.headingLength, name);
   if (f.searchHelpParameter !== void 0 && f.searchHelp === void 0) {
     throw new AbapError(
       "BAD_INPUT",
@@ -122094,7 +122184,7 @@ function buildDtel(name, description, packageName, f) {
   }
   const searchHelp = f.searchHelp !== void 0 ? normalizeShlpIdentifier(f.searchHelp, "searchHelp", "DTEL/DE", name) : "";
   const searchHelpParameter = f.searchHelpParameter !== void 0 ? normalizeShlpIdentifier(f.searchHelpParameter, "searchHelpParameter", "DTEL/DE", name) : "";
-  return `${XML_DECL}<blue:wbobj xmlns:blue="http://www.sap.com/wbobj/dictionary/dtel" xmlns:adtcore="${ADTCORE_NS2}" adtcore:name="${escapeXmlAttr4(name)}" adtcore:type="DTEL/DE" adtcore:description="${escapeXmlAttr4(description)}"><adtcore:packageRef adtcore:name="${escapeXmlAttr4(packageName)}"/><dtel:dataElement xmlns:dtel="${DATAELEMENT_NS}">${elem("dtel:typeKind", typeKind)}${elem("dtel:typeName", typeName)}${elem("dtel:dataType", dataType)}${elem("dtel:dataTypeLength", numPadded(length, 6))}${elem("dtel:dataTypeDecimals", numPadded(decimals, 6))}${elem("dtel:shortFieldLabel", shortLabel)}${elem("dtel:shortFieldLength", num2(shortLength))}${elem("dtel:shortFieldMaxLength", num2(DTEL_MAX_LENGTH.short))}${elem("dtel:mediumFieldLabel", mediumLabel)}${elem("dtel:mediumFieldLength", num2(mediumLength))}${elem("dtel:mediumFieldMaxLength", num2(DTEL_MAX_LENGTH.medium))}${elem("dtel:longFieldLabel", longLabel)}${elem("dtel:longFieldLength", num2(longLength))}${elem("dtel:longFieldMaxLength", num2(DTEL_MAX_LENGTH.long))}${elem("dtel:headingFieldLabel", headingLabel)}${elem("dtel:headingFieldLength", num2(headingLength))}${elem("dtel:headingFieldMaxLength", num2(DTEL_MAX_LENGTH.heading))}${elem("dtel:searchHelp", searchHelp)}${elem("dtel:searchHelpParameter", searchHelpParameter)}${elem("dtel:setGetParameter", "")}${elem("dtel:defaultComponentName", "")}${elem("dtel:deactivateInputHistory", "false")}${elem("dtel:changeDocument", "false")}${elem("dtel:leftToRightDirection", "false")}${elem("dtel:deactivateBIDIFiltering", "false")}</dtel:dataElement></blue:wbobj>`;
+  return `${XML_DECL}<blue:wbobj xmlns:blue="http://www.sap.com/wbobj/dictionary/dtel" xmlns:adtcore="${ADTCORE_NS2}" adtcore:name="${escapeXmlAttr4(name)}" adtcore:type="DTEL/DE" adtcore:description="${escapeXmlAttr4(description)}" ${ROOT_LANGUAGE_ATTRS}><adtcore:packageRef adtcore:name="${escapeXmlAttr4(packageName)}"/><dtel:dataElement xmlns:dtel="${DATAELEMENT_NS}">${elem("dtel:typeKind", typeKind)}${elem("dtel:typeName", typeName)}${elem("dtel:dataType", dataType)}${elem("dtel:dataTypeLength", numPadded(length, 6))}${elem("dtel:dataTypeDecimals", numPadded(decimals, 6))}${elem("dtel:shortFieldLabel", short.label)}${elem("dtel:shortFieldLength", numPadded(short.length, 2))}${elem("dtel:shortFieldMaxLength", num2(DTEL_MAX_LENGTH.short))}${elem("dtel:mediumFieldLabel", medium.label)}${elem("dtel:mediumFieldLength", numPadded(medium.length, 2))}${elem("dtel:mediumFieldMaxLength", num2(DTEL_MAX_LENGTH.medium))}${elem("dtel:longFieldLabel", long.label)}${elem("dtel:longFieldLength", numPadded(long.length, 2))}${elem("dtel:longFieldMaxLength", num2(DTEL_MAX_LENGTH.long))}${elem("dtel:headingFieldLabel", heading.label)}${elem("dtel:headingFieldLength", numPadded(heading.length, 2))}${elem("dtel:headingFieldMaxLength", num2(DTEL_MAX_LENGTH.heading))}${elem("dtel:searchHelp", searchHelp)}${elem("dtel:searchHelpParameter", searchHelpParameter)}${elem("dtel:setGetParameter", "")}${elem("dtel:defaultComponentName", "")}${elem("dtel:deactivateInputHistory", "false")}${elem("dtel:changeDocument", "false")}${elem("dtel:leftToRightDirection", "false")}${elem("dtel:deactivateBIDIFiltering", "false")}</dtel:dataElement></blue:wbobj>`;
 }
 function buildTtyp(name, description, packageName, f) {
   const typeKind = f.typeKind ?? "dictionaryType";
@@ -122110,7 +122200,7 @@ function buildTtyp(name, description, packageName, f) {
   const dataType = f.dataType ?? "STRU";
   const length = f.length ?? 0;
   const decimals = f.decimals ?? 0;
-  return `${XML_DECL}<ttyp:tableType xmlns:ttyp="http://www.sap.com/dictionary/tabletype" xmlns:adtcore="${ADTCORE_NS2}" adtcore:name="${escapeXmlAttr4(name)}" adtcore:type="TTYP/DA" adtcore:description="${escapeXmlAttr4(description)}"><adtcore:packageRef adtcore:name="${escapeXmlAttr4(packageName)}"/><ttyp:rowType>${elem("ttyp:typeKind", typeKind)}${elem("ttyp:typeName", typeName)}<ttyp:builtInType>${elem("ttyp:dataType", dataType)}${elem("ttyp:length", numPadded(length, 6))}${elem("ttyp:decimals", numPadded(decimals, 6))}</ttyp:builtInType><ttyp:rangeType/></ttyp:rowType></ttyp:tableType>`;
+  return `${XML_DECL}<ttyp:tableType xmlns:ttyp="http://www.sap.com/dictionary/tabletype" xmlns:adtcore="${ADTCORE_NS2}" adtcore:name="${escapeXmlAttr4(name)}" adtcore:type="TTYP/DA" adtcore:description="${escapeXmlAttr4(description)}" ${ROOT_LANGUAGE_ATTRS}><adtcore:packageRef adtcore:name="${escapeXmlAttr4(packageName)}"/><ttyp:rowType>${elem("ttyp:typeKind", typeKind)}${elem("ttyp:typeName", typeName)}<ttyp:builtInType>${elem("ttyp:dataType", dataType)}${elem("ttyp:length", numPadded(length, 6))}${elem("ttyp:decimals", numPadded(decimals, 6))}</ttyp:builtInType><ttyp:rangeType/></ttyp:rowType></ttyp:tableType>`;
 }
 function buildStructuredDdicDescriptor(type, name, description, packageName, fields) {
   const allowed = STRUCTURED_FIELDS_BY_TYPE[type];
@@ -122590,6 +122680,10 @@ var writeInputSchema = {
     outputLength: external_exports.number().optional(),
     lowercase: external_exports.boolean().optional(),
     signExists: external_exports.boolean().optional(),
+    fixedValues: external_exports.array(external_exports.object({ low: external_exports.string(), high: external_exports.string().optional(), text: external_exports.string() }).strict()).optional().describe(
+      "DOMA/DD only: fixed values, in order. `low` (or `low`..`high` for an interval) max 10 chars and within the domain length; `text` max 60 chars."
+    ),
+    valueTable: external_exports.string().optional().describe("DOMA/DD only: value table name (existence checked by the server)."),
     typeKind: external_exports.enum(["domain", "predefinedAbapType", "dictionaryType"]).optional(),
     typeName: external_exports.string().optional(),
     shortLabel: external_exports.string().optional(),
@@ -122760,7 +122854,7 @@ function targetFromInput(input) {
   return target;
 }
 function resolveDdicStructuredSource(input, target) {
-  if (input.source !== void 0) {
+  if (input.source !== void 0 && input.source !== "") {
     throw new AbapError(
       "BAD_INPUT",
       "`source` and `ddic` cannot both be given \u2014 they are two ways to build the same descriptor.",
@@ -122997,6 +123091,14 @@ function describeShrink(before, after) {
   if (removedLines < SHRINK_DISCLOSURE_MIN_LINES) return void 0;
   if (removedLines / beforeLines < SHRINK_DISCLOSURE_FRACTION) return void 0;
   return { beforeLines, removedLines, percent: Math.round(removedLines / beforeLines * 100) };
+}
+var LANGUAGE_DEPENDENT_TEXT_RE = /^(?:[\w.-]+:)?(?:\w+FieldLabel|text)$/;
+function languageDependentDiscardHint(discarded, source) {
+  if (discarded.length === 0 || !discarded.every((d) => LANGUAGE_DEPENDENT_TEXT_RE.test(d.element))) return void 0;
+  const rootTag = /<[A-Za-z_][\w.-]*(?::[A-Za-z_][\w.-]*)?\b[^>]*>/.exec(source.replace(/<\?xml[^>]*\?>/, ""))?.[0] ?? "";
+  const hasMasterLanguage = /\badtcore:masterLanguage\s*=/.test(rootTag);
+  const what = discarded.map((d) => d.element).join(", ");
+  return `The dropped element(s) \u2014 ${what} \u2014 are language-dependent texts (field labels / fixed-value texts), which ADT stores only when the root element carries adtcore:masterLanguage; ` + (hasMasterLanguage ? "this document already has it, so something else emptied them \u2014 " : 'this document has none. Add adtcore:masterLanguage="EN" (and adtcore:language="EN") to the root element and send the same document again \u2014 rewriting the object in place repairs it, which is exactly what fixed the live reproduction. ') + "Re-read the object with abap_read to see the descriptor the server actually holds, or activate it as written with abap_activate.";
 }
 function describeDiscard(d) {
   const sentText = d.sent.map((v) => JSON.stringify(v)).join(", ");
@@ -123574,7 +123676,7 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
               discarded,
               ...entryId !== void 0 ? { journal: entryId } : {}
             },
-            "This is a server-side discard, not a rejection \u2014 the document was accepted and nothing ran to check it. Re-read the object with abap_read to see the descriptor the server actually holds, then either rework the payload so the dropped element(s) survive, or accept the object as written and activate it yourself with abap_activate." + (entryId !== void 0 ? ` Remove this write with abap_journal mode=undo entry=${entryId}.` : " The write journal is off, so abapsmith cannot undo this for you.")
+            "This is a server-side discard, not a rejection \u2014 the document was accepted and nothing ran to check it. " + (languageDependentDiscardHint(discarded, source) ?? "Re-read the object with abap_read to see the descriptor the server actually holds, then either rework the payload so the dropped element(s) survive, or accept the object as written and activate it yourself with abap_activate.") + (entryId !== void 0 ? ` Remove this write with abap_journal mode=undo entry=${entryId}.` : " The write journal is off, so abapsmith cannot undo this for you.")
           );
         }
       }
