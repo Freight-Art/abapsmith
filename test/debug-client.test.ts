@@ -615,6 +615,67 @@ describe("launchListener", () => {
     if (result.kind === "debuggee") expect(result.debuggee.id).toBe("D1");
   });
 
+  it("parses a PMORTEM listener body as a caught post-mortem debuggee, not a parse failure (#152)", async () => {
+    // Issue #152: an exception-only start whose run dumped answered the listener with
+    // DBGEE_KIND "PMORTEM", which the closed-list parser rejected — aborting the start
+    // after the debuggee had already been caught.
+    const dumpXml =
+      `<?xml version="1.0" encoding="utf-8"?><asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">` +
+      `<asx:values><DATA><STPDA_DEBUGGEE><DEBUGGEE_ID>DUMP1</DEBUGGEE_ID><DBGEE_KIND>PMORTEM</DBGEE_KIND>` +
+      `<DUMP_ID>20260916_100000_DEVELOPER</DUMP_ID><DUMP_URI>/sap/bc/adt/runtime/dumps/1</DUMP_URI>` +
+      `</STPDA_DEBUGGEE></DATA></asx:values></asx:abap>`;
+    const warnings: string[] = [];
+    const fake = new FakeListener({ status: 200, headers: {}, body: dumpXml });
+    const client = new DebugClient({
+      transport: new FakeTransport([]),
+      longPoll: fake,
+      warn: (m) => warnings.push(m),
+    });
+    const handle = client.launchListener({
+      debuggingMode: "user",
+      terminalId: TERMINAL,
+      ideId: IDE,
+      requestUser: "DEV",
+    });
+    const result = await handle.result;
+    expect(result.kind).toBe("debuggee");
+    if (result.kind === "debuggee") {
+      expect(result.debuggee.kind).toBe("postmortem");
+      expect(result.debuggee.rawKind).toBe("PMORTEM");
+      expect(result.debuggee.dumpId).toBe("20260916_100000_DEVELOPER");
+    }
+    expect(warnings).toEqual([]);
+  });
+
+  it("routes an unrecognised DBGEE_KIND to the client's warn sink and still reports the caught debuggee (#152)", async () => {
+    const oddXml =
+      `<?xml version="1.0" encoding="utf-8"?><asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">` +
+      `<asx:values><DATA><STPDA_DEBUGGEE><DEBUGGEE_ID>D9</DEBUGGEE_ID><DBGEE_KIND>NEWKIND</DBGEE_KIND>` +
+      `</STPDA_DEBUGGEE></DATA></asx:values></asx:abap>`;
+    const warnings: string[] = [];
+    const fake = new FakeListener({ status: 200, headers: {}, body: oddXml });
+    const client = new DebugClient({
+      transport: new FakeTransport([]),
+      longPoll: fake,
+      warn: (m) => warnings.push(m),
+    });
+    const handle = client.launchListener({
+      debuggingMode: "user",
+      terminalId: TERMINAL,
+      ideId: IDE,
+      requestUser: "DEV",
+    });
+    const result = await handle.result;
+    expect(result.kind).toBe("debuggee");
+    if (result.kind === "debuggee") {
+      expect(result.debuggee.id).toBe("D9");
+      expect(result.debuggee.kind).toBe("unknown");
+      expect(result.debuggee.rawKind).toBe("NEWKIND");
+    }
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('"NEWKIND"');
+  });
+
   it("parses a conflict body (the displaced client's conflictNotification)", async () => {
     const conflictXml =
       `<exc:exception xmlns:exc="http://www.sap.com/abapxml/types/communicationFramework">` +
