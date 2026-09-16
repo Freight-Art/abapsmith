@@ -175,8 +175,11 @@ describe("abap_read outline says what is actually true", () => {
     stub.source = Array.from({ length: 30 }, (_, i) => `line ${i}`).join("\n");
     const r = await abapRead(conn, { object: "ZREPORT", outline: true }, 20_000);
     expect(r.text).not.toContain("(no components)");
-    expect(r.text).toMatch(/outline is NOT SUPPORTED for PROG\/P/);
-    expect(r.text).toMatch(/NOT a statement that ZREPORT has no components/);
+    // #148: a PROG outline is now a statement scan of the text, and a scan
+    // that finds nothing says so as a scan result, not as a fact about ZREPORT.
+    expect(r.text).toMatch(/text scan of statement-initial keywords/);
+    expect(r.text).toMatch(/found no FORM\/FUNCTION\/MODULE\/CLASS\/METHOD\/INCLUDE statement/);
+    expect(r.text).toMatch(/NOT a statement that the program has no components/);
   });
 
   it("still says 'really has no components' when a class genuinely has none", async () => {

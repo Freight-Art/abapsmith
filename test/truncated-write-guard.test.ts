@@ -248,7 +248,9 @@ describe("a truncated read cannot become a full-source rewrite", () => {
     const { conn, adt } = await connected(existing(PROG_URI, PROG, "PROG/P", BIG_SOURCE_CRLF));
 
     // --- the read, at the real default budget (15k tokens ≈ 47,100 chars) ---
-    const read = await abapRead(conn, { object: PROG }, 47_100);
+    // full=true since #148: a 3,002-line PROG would otherwise answer with its
+    // outline by default; the guard is about the SOURCE a caller asked for.
+    const read = await abapRead(conn, { object: PROG, full: true }, 47_100);
 
     expect(read.truncated, "3,001 lines must not fit in a 47,100-char response").toBe(true);
     expect(read.returnedLines).toBeLessThan(read.totalLines!);
@@ -304,7 +306,7 @@ describe("a truncated read cannot become a full-source rewrite", () => {
    */
   it("the truncated write's etag MATCHES the server — the concurrency check cannot catch it", async () => {
     const { conn } = await connected(existing(PROG_URI, PROG, "PROG/P", BIG_SOURCE_CRLF));
-    const read = await abapRead(conn, { object: PROG }, 47_100);
+    const read = await abapRead(conn, { object: PROG, full: true }, 47_100);
 
     // Same hash, no conflict. Had the guard not been added, this write would
     // have succeeded and deleted ~2,900 lines.
@@ -326,7 +328,7 @@ describe("a truncated read cannot become a full-source rewrite", () => {
   it("an UNtruncated read of the same object hands back a plain etag and writes fine", async () => {
     const { conn } = await connected(existing(PROG_URI, PROG, "PROG/P", BIG_SOURCE_CRLF));
     // A budget that fits the whole thing: ~124k chars of source.
-    const read = await abapRead(conn, { object: PROG }, 400_000);
+    const read = await abapRead(conn, { object: PROG, full: true }, 400_000);
 
     expect(read.truncated).toBe(false);
     expect(isPartialEtag(read.etag)).toBe(false);
@@ -341,7 +343,7 @@ describe("a truncated read cannot become a full-source rewrite", () => {
 
   it("says what to do instead, and does not suggest dropping expect_etag", async () => {
     const { conn } = await connected(existing(PROG_URI, PROG, "PROG/P", BIG_SOURCE_CRLF));
-    const read = await abapRead(conn, { object: PROG }, 47_100);
+    const read = await abapRead(conn, { object: PROG, full: true }, 47_100);
     const err = await catchErr(
       writeObject(conn, await authWrite(conn, { type: "PROG/P", name: PROG }), {
         source: sourceFence(read.text),
@@ -583,7 +585,7 @@ describe("`edit` is the form a truncated read can still safely use", () => {
    */
   it("an edit presenting a partial: etag is accepted, with the marker stripped", async () => {
     const { conn } = await connected(existing(PROG_URI, PROG, "PROG/P", BIG_SOURCE_CRLF));
-    const read = await abapRead(conn, { object: PROG }, 47_100);
+    const read = await abapRead(conn, { object: PROG, full: true }, 47_100);
     expect(isPartialEtag(read.etag)).toBe(true);
 
     const resolved = await resolveWriteSource(

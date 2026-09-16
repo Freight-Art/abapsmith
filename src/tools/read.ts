@@ -66,7 +66,15 @@ import {
 } from "../adt/element-info.js";
 import { CLASS_INCLUDES, assertClassInclude, type ClassInclude } from "../adt/types.js";
 import { DEFAULT_CONTEXT_LINES, diffSources, renderHunks } from "../diff.js";
-import { classMembers, readMethod, readSource, renderOutline } from "../adt/source.js";
+import {
+  classMembers,
+  grepSource,
+  readMethod,
+  readSource,
+  renderOutline,
+  renderSourceStructure,
+  scanSourceStructure,
+} from "../adt/source.js";
 import {
   buildResponse,
   countLines,
@@ -120,6 +128,21 @@ import type { LoadedFluidTool } from "../adt/fluid/manifest.js";
 // exports before both have finished loading.
 import { runCrossSystemDiff } from "./read-systems.js";
 
+/**
+ * Issue #148: a CLAS/INTF/PROG/FUGR source read above EITHER bound answers
+ * with the outline instead of the source unless the caller asked for a
+ * part (method/include/offset/limit/pattern) or the whole (full=true,
+ * outline=false). Measured on the standard objects the issue quotes: full
+ * reads of 10K–31K chars paged over 2–3 calls before an agent had even
+ * decided which method it wanted.
+ */
+export const OUTLINE_DEFAULT_LINES = 150;
+export const OUTLINE_DEFAULT_CHARS = 8000;
+/** `pattern=`: matching lines rendered before the cut is disclosed (limit= overrides). */
+export const PATTERN_MAX_MATCHES = 50;
+/** `pattern=`: unchanged lines around each match when `context` is omitted. */
+export const PATTERN_DEFAULT_CONTEXT = 2;
+
 export const readInputSchema = {
   object: z.string().describe('Name, "class X", "table Y", or ADT URI.'),
   type: z
@@ -132,7 +155,21 @@ export const readInputSchema = {
         `Not readable: ${NON_READABLE_TYPES.join(" ")}.`,
     ),
   method: z.string().optional().describe("Only this method/component."),
-  outline: z.boolean().optional().describe("Component list with line ranges."),
+  outline: z
+    .boolean()
+    .optional()
+    .describe(
+      `Component list with line ranges. Default for CLAS/INTF/PROG/FUGR above ${OUTLINE_DEFAULT_LINES} ` +
+        `lines or ${OUTLINE_DEFAULT_CHARS} chars unless method/include/offset/limit/pattern/full is given.`,
+    ),
+  full: z.boolean().optional().describe("Whole source even above the default-outline threshold."),
+  pattern: z
+    .string()
+    .optional()
+    .describe(
+      `Regex (case-insensitive): only matching lines, numbered, with \`context\` lines around each ` +
+        `(like grep -n -C). Max ${PATTERN_MAX_MATCHES} matches unless limit= is given; offset= sets the first line scanned.`,
+    ),
   offset: z
     .number()
     .int()
@@ -175,7 +212,13 @@ export const readInputSchema = {
     ),
   from: z.string().optional().describe('diff: older side — version, transport, or "active".'),
   to: z.string().optional().describe("diff: newer side, same forms as `from`."),
-  context: z.number().int().min(0).max(20).optional().describe("diff: context lines per hunk. Default 3."),
+  context: z
+    .number()
+    .int()
+    .min(0)
+    .max(20)
+    .optional()
+    .describe(`Lines around each pattern match (default ${PATTERN_DEFAULT_CONTEXT}) or per diff hunk (default 3).`),
   // Same names/bounds/semantics as abap_quick_fix's line/column (quickfix.ts)
   // — deliberately, so a caller who has already learned one learns both.
   // No `.default(0)` on column: unlike quick-fix (which always needs a
@@ -258,6 +301,14 @@ export const crossSystemInputSchema = {
  * a different fact from "has no components".
  */
 export const OUTLINE_KINDS = new Set(["CLAS", "INTF"]);
+
+/**
+ * Kinds that get the outline BY DEFAULT above `OUTLINE_DEFAULT_LINES`/
+ * `OUTLINE_DEFAULT_CHARS` (issue #148). CLAS/INTF use the ADT component
+ * structure; PROG/FUGR have none, so they get `scanSourceStructure`'s
+ * statement table of contents instead — disclosed as a text scan.
+ */
+const DEFAULT_OUTLINE_KINDS = new Set(["CLAS", "INTF", "PROG", "FUGR"]);
 
 /**
  * `ResolvedObject.kind` values the enhancement decoders
@@ -570,6 +621,7 @@ function buildSourceResponse(
     ...parts,
     header: { ...parts.header, etag: partialEtag },
     notes: [TRUNCATED_SOURCE_NOTE, ...(parts.notes ?? [])],
+    size: true,
   });
   return { ...second, truncated: true, etag: partialEtag };
 }
@@ -611,7 +663,9 @@ function buildSourceResponse(
  * lose just to fit a header the caller didn't ask for.
  */
 export function buildReadResponse(parts: ResponseParts): BuiltResponse {
-  const first = buildResponse(parts);
+  // `size: true` — every read answer states its own chars/lines/truncated
+  // (issue #148), rendered inside the budget by compact.ts.
+  const first = buildResponse({ ...parts, size: true });
   if (first.truncated) return first;
   const facts = [
     "truncated=false",
@@ -623,6 +677,7 @@ export function buildReadResponse(parts: ResponseParts): BuiltResponse {
   const withFacts = buildResponse({
     ...parts,
     header: { ...parts.header, response: `complete (${facts})` },
+    size: true,
   });
   return withFacts.truncated ? first : withFacts;
 }
@@ -945,6 +1000,22 @@ function assertViewCompatible(input: ReadInput, obj: ResolvedObject): void {
           : isDocu || isDigest
             ? "Drop version."
             : 'Use from/to to name feed versions (list them with view="history").',
+    );
+  }
+  if (input.pattern !== undefined) {
+    clash(
+      `pattern="${input.pattern}"`,
+      "pattern greps the object's plain SOURCE lines; a view renders something other than the " +
+        "plain source, so there are no source lines for it to filter.",
+      "Drop pattern, or drop view to grep the source.",
+    );
+  }
+  if (input.full) {
+    clash(
+      "full=true",
+      "full only overrides the default outline of a large SOURCE read; a view is never replaced " +
+        "by an outline, so there is nothing for it to override.",
+      "Drop full.",
     );
   }
   if (input.outline) {
@@ -2164,6 +2235,8 @@ function assertDocuBypassCompatible(input: ReadInput, kind: string): void {
   if (input.enhancements) clash("enhancements=true");
   if (input.version !== undefined) clash(`version="${input.version}"`);
   if (input.outline) clash("outline=true");
+  if (input.pattern !== undefined) clash(`pattern="${input.pattern}"`);
+  if (input.full) clash("full=true");
   if (input.include !== undefined) clash(`include="${input.include}"`);
   if (input.from !== undefined) clash("from");
   if (input.to !== undefined) clash("to");
@@ -2436,6 +2509,8 @@ async function readDigest(
 const CATALOG_READ_IRRELEVANT_PARAMS = [
   "method",
   "outline",
+  "pattern",
+  "full",
   "enhancements",
   "version",
   "view",
@@ -2530,6 +2605,86 @@ async function readCatalogObject(
   );
 }
 
+/**
+ * Argument-only checks for issue #148's `pattern`/`full` — decidable
+ * before resolveObject's first request, so they cost no round trip.
+ * `full` contradicts anything narrower; `pattern` has its own line frame
+ * (offset= is where scanning starts, limit= the match cap), so method= and
+ * outline= are refused rather than silently reinterpreted (G-08).
+ */
+function assertPatternAndFullArgs(input: ReadInput): void {
+  if (input.full) {
+    for (const [param, value] of [
+      ["outline=true", input.outline || undefined],
+      ["method", input.method],
+      ["pattern", input.pattern],
+    ] as const) {
+      if (value !== undefined) {
+        throw new AbapError(
+          "BAD_INPUT",
+          `full=true asks for the whole source; ${param} asks for part of it — both cannot be honoured.`,
+          { object: input.object, param: "full", with: param },
+          `Drop full, or drop ${param}.`,
+        );
+      }
+    }
+  }
+  if (input.pattern === undefined) return;
+  if (input.pattern === "") {
+    throw new AbapError(
+      "BAD_INPUT",
+      "pattern is empty — an empty regex matches every line, which is a plain read, not a filter.",
+      { object: input.object, param: "pattern" },
+      "Pass a regex, or drop pattern to read the source.",
+    );
+  }
+  try {
+    new RegExp(input.pattern, "i");
+  } catch (e) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `pattern is not a valid regular expression: ${e instanceof Error ? e.message : String(e)}`,
+      { object: input.object, param: "pattern", pattern: input.pattern },
+      "Fix the regex (JavaScript syntax, matched case-insensitively per line).",
+    );
+  }
+  for (const [param, value] of [
+    ["outline=true", input.outline || undefined],
+    ["method", input.method],
+  ] as const) {
+    if (value !== undefined) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `pattern cannot be combined with ${param}: pattern filters the document's own lines ` +
+          "(absolute line numbers), which is a different answer from a component list or one method's block.",
+        { object: input.object, param: "pattern", with: param },
+        `Drop ${param} (pattern already narrows the read), or drop pattern.`,
+      );
+    }
+  }
+}
+
+/**
+ * `pattern`/`full` only mean something on the plain source path; every
+ * other rendering (raw XML, enhancement decode, pseudo-DDL) would discard
+ * them — refused, naming the parameter, like from/to/context are.
+ */
+function refuseSourceOnlyParams(input: ReadInput, obj: ResolvedObject, why: string): void {
+  for (const [param, value] of [
+    ["pattern", input.pattern],
+    ["full", input.full || undefined],
+  ] as const) {
+    if (value !== undefined) {
+      throw new AbapError(
+        "UNSUPPORTED",
+        `${param} is only meaningful for a source read; ${why} for ${obj.type} ${obj.name}.`,
+        { type: obj.type, name: obj.name, param },
+        `Drop ${param}.`,
+      );
+    }
+  }
+}
+
 export async function abapRead(
   conn: AbapConnection,
   input: ReadInput,
@@ -2542,6 +2697,7 @@ export async function abapRead(
   // v2) and v2 forbids closed enums. `ccau` is SE24's name for `testclasses`
   // — a mistake a caller will actually make.
   if (input.include !== undefined) assertClassInclude(input.include, input.object);
+  assertPatternAndFullArgs(input);
 
   // SUSO/B and TABL/DI have no ADT resource, so resolveObject cannot reach
   // them (see capabilities.ts's `catalogRead`). Dispatch on the explicit type
@@ -2652,7 +2808,6 @@ export async function abapRead(
   for (const [param, value] of [
     ["from", input.from],
     ["to", input.to],
-    ["context", input.context],
   ] as const) {
     if (value !== undefined) {
       throw new AbapError(
@@ -2663,6 +2818,17 @@ export async function abapRead(
         `Add view="diff", or drop ${param}.`,
       );
     }
+  }
+  // `context` is shared by view="diff" (hunk context) and pattern= (lines
+  // around a match, issue #148); with neither it would be discarded.
+  if (input.context !== undefined && input.pattern === undefined) {
+    throw new AbapError(
+      "BAD_INPUT",
+      'context is only meaningful with view="diff" or pattern; neither was requested, so this ' +
+        "would have been an ordinary source read with your parameter discarded.",
+      { type: obj.type, name: obj.name, param: "context" },
+      'Add view="diff" or pattern="<regex>", or drop context.',
+    );
   }
   // line/column only parameterise `view="definition"` — same shape as the
   // from/to/context loop above, kept separate because the message names a
@@ -2718,6 +2884,7 @@ export async function abapRead(
   // Placed ahead of every other mode: a request for the wire document
   // itself, not a rendering choice within source/ddic/enhancements.
   if (input.format === "raw") {
+    refuseSourceOnlyParams(input, obj, 'format="raw" returns the XML descriptor, not source lines');
     if (input.version) {
       throw new AbapError(
         "UNSUPPORTED",
@@ -2795,6 +2962,7 @@ export async function abapRead(
 
   // ------------------------------------------------------- enhancements ---
   if (input.enhancements) {
+    refuseSourceOnlyParams(input, obj, "enhancements=true renders a decoded enhancement document, not source lines");
     if (!ENHANCEMENT_KINDS.has(obj.kind)) {
       throw new AbapError(
         "UNSUPPORTED",
@@ -2810,6 +2978,7 @@ export async function abapRead(
 
   // ---------------------------------------------------------------- DDIC ---
   if (obj.mode === "ddic") {
+    refuseSourceOnlyParams(input, obj, `${obj.type} is rendered as pseudo-DDL from the dictionary, not read as source lines`);
     // G-08: not a silent normalisation — `active` is accepted only because it
     // names the no-op that already happens (disclosed below in a note), and
     // nothing is rewritten to get there. `inactive` asserts a state the
@@ -2933,6 +3102,7 @@ export async function abapRead(
       : [
           'Read a single method with method="<NAME>".',
           "Get the component list first with outline=true.",
+          'pattern="<regex>" returns only matching lines (numbered, with context).',
           ...(obj.kind === "CLAS"
             ? [
                 'Local and test classes are NOT in this source: read them with include="testclasses" ' +
@@ -2941,52 +3111,164 @@ export async function abapRead(
             : []),
         ];
 
-  // Outline: the cheap orientation pass.
-  if (input.outline) {
-    // Outline is a CLASS/INTERFACE-only feature (/objectstructure); for
-    // other types "(no components)" would misread as "genuinely has none".
-    if (!OUTLINE_KINDS.has(obj.kind)) {
+  const totalLines = countLines(source);
+  const totalChars = source.length;
+  const method = input.method ?? obj.member;
+
+  // ------------------------------------------------- pattern (issue #148) ---
+  // grep -n -C over the document: only matching lines, absolute line
+  // numbers (the offset= frame), `context` lines around each. The etag is
+  // marked partial: a pattern read never shows the whole text, so a
+  // full-source write presenting it would be exactly the truncated-read
+  // write-back TRUNCATED_SOURCE_NOTE exists for.
+  if (input.pattern !== undefined) {
+    const context = input.context ?? PATTERN_DEFAULT_CONTEXT;
+    const maxMatches = input.limit ?? PATTERN_MAX_MATCHES;
+    const grep = grepSource(source, input.pattern, {
+      context,
+      fromLine: input.offset ?? 1,
+      maxMatches,
+    });
+    const partialEtag = markEtagPartial(etag);
+    const nextOffset = grep.lastShownLine !== undefined ? grep.lastShownLine + 1 : undefined;
+    const truncLine = grep.truncated
+      ? `--- TRUNCATED --- ${grep.shown} of ${grep.total} matching line(s) shown (cap ${maxMatches}` +
+        `${input.limit === undefined ? ", raise with limit=" : ""}). Continue with offset=${nextOffset}, ` +
+        "or narrow the pattern."
+      : undefined;
+    const body = [
+      grep.text ||
+        `(no line of ${obj.type} ${obj.name}${include && include !== "main" ? ` include "${include}"` : ""}` +
+          ` matches /${input.pattern}/i${input.offset ? ` from line ${input.offset}` : ""})`,
+      truncLine,
+    ]
+      .filter((s): s is string => s !== undefined)
+      .join("\n");
+    const built = buildReadResponse({
+      header: {
+        ...header,
+        etag: partialEtag,
+        pattern: input.pattern,
+        context,
+        matches: grep.total,
+        matchesShown: grep.shown,
+        ...(input.offset ? { scannedFrom: input.offset } : {}),
+        totalLines,
+        totalChars,
+      },
+      body,
+      bodyLabel: "MATCHES",
+      notes: [
+        ...includeNotes,
+        "Matches only, not the whole text: line numbers are absolute (read around one with " +
+          "offset/limit), `:` marks a matching line, `-` a context line. The etag is marked " +
+          "`partial:` — abap_write's edit={old_string,new_string} accepts it; a full-source " +
+          "rewrite is refused.",
+      ],
+      hints: ["Narrow the pattern, or lower context, to fit more matches in one response."],
+      maxChars,
+    });
+    return { ...built, etag: partialEtag };
+  }
+
+  // ---------------------------------------------- outline (issue #148) ---
+  // Explicit outline=true, or the DEFAULT for a large CLAS/INTF/PROG/FUGR
+  // when nothing narrower (method/include/offset/limit) and nothing wider
+  // (full=true, outline=false) was asked for.
+  const aboveThreshold = totalLines > OUTLINE_DEFAULT_LINES || totalChars > OUTLINE_DEFAULT_CHARS;
+  const outlineByDefault =
+    input.outline === undefined &&
+    !input.full &&
+    method === undefined &&
+    include === undefined &&
+    input.offset === undefined &&
+    input.limit === undefined &&
+    DEFAULT_OUTLINE_KINDS.has(obj.kind) &&
+    aboveThreshold;
+  if (input.outline || outlineByDefault) {
+    const defaultNotes = outlineByDefault
+      ? [
+          `${obj.type} ${obj.name} is ${totalLines} lines / ${totalChars} chars — above the ` +
+            `default-outline threshold (${OUTLINE_DEFAULT_LINES} lines or ${OUTLINE_DEFAULT_CHARS} ` +
+            "chars), so this is the OUTLINE, not the source. Read a part with " +
+            `${OUTLINE_KINDS.has(obj.kind) ? 'method="<NAME>", ' : ""}pattern="<regex>" or ` +
+            `offset/limit, or the whole ${totalLines}-line source with full=true.`,
+        ]
+      : [];
+    const outlineHeader = {
+      ...header,
+      outline: outlineByDefault ? "default (large source)" : "requested",
+      totalLines,
+      totalChars,
+    };
+    const partHints = [
+      ...(OUTLINE_KINDS.has(obj.kind) ? ['Read one component with method="<NAME>".'] : []),
+      'pattern="<regex>" returns only matching lines; offset/limit page the source; full=true reads all of it.',
+    ];
+    if (OUTLINE_KINDS.has(obj.kind)) {
+      const members = await classMembers(conn, obj);
+      const outline = renderOutline(members);
+      const window = sliceLines(outline, input.offset ?? 1, input.limit);
       const built = buildReadResponse({
-        header: { ...header, totalLines: countLines(source) },
-        body:
-          `(outline is NOT SUPPORTED for ${obj.type} — it is implemented for classes and ` +
-          `interfaces only, via the ADT component structure. This is a tool limitation, ` +
-          `NOT a statement that ${obj.name} has no components.)`,
+        header: { ...outlineHeader, components: members.length },
+        body: outline
+          ? window.text
+          : `(${obj.type} ${obj.name} really has no methods, attributes or events — the ` +
+            `component structure came back empty.)`,
         bodyLabel: "OUTLINE",
-        notes: [
-          `outline=true was ignored: ${obj.type} has no ADT component structure to list. ` +
-            `Re-read without outline (optionally with offset/limit) to see the source.`,
-        ],
-        hints: ["Re-read without outline=true, using offset/limit to page the source."],
+        bodyOffset: outline ? window.offset : undefined,
+        bodyTotalLines: outline ? window.total : undefined,
+        pagingParam: "offset",
+        notes: [...includeNotes, ...defaultNotes],
+        hints: partHints,
         maxChars,
       });
       return { ...built, etag };
     }
-    const members = await classMembers(conn, obj);
-    const outline = renderOutline(members);
-    const window = sliceLines(outline, input.offset ?? 1, input.limit);
+    if (obj.kind === "PROG" || obj.kind === "FUGR") {
+      // No ADT component structure for these — a statement table of
+      // contents scanned from the text, said to be exactly that.
+      const rows = scanSourceStructure(source);
+      const built = buildReadResponse({
+        header: { ...outlineHeader, components: rows.length },
+        body: rows.length
+          ? renderSourceStructure(rows)
+          : `(the text scan found no FORM/FUNCTION/MODULE/CLASS/METHOD/INCLUDE statement or event ` +
+            `block in ${obj.type} ${obj.name}'s ${totalLines} lines — this is a scan of statement ` +
+            "keywords, NOT a statement that the program has no components.)",
+        bodyLabel: "OUTLINE",
+        notes: [
+          ...includeNotes,
+          ...defaultNotes,
+          `${obj.type} has no ADT component structure; this outline is a text scan of statement-` +
+            "initial keywords (REPORT/INCLUDE/FORM/FUNCTION/MODULE/CLASS/METHOD/INTERFACE and " +
+            "event blocks) with their END lines. Line numbers are offset= positions in this document.",
+        ],
+        hints: partHints,
+        maxChars,
+      });
+      return { ...built, etag };
+    }
+    // Outline is a CLASS/INTERFACE (ADT) or PROG/FUGR (text scan) feature;
+    // for other types "(no components)" would misread as "genuinely has none".
     const built = buildReadResponse({
-      header: {
-        ...header,
-        components: members.length,
-        totalLines: countLines(source),
-      },
-      body: outline
-        ? window.text
-        : `(${obj.type} ${obj.name} really has no methods, attributes or events — the ` +
-          `component structure came back empty.)`,
+      header: { ...header, totalLines },
+      body:
+        `(outline is NOT SUPPORTED for ${obj.type} — it is implemented for classes and ` +
+        `interfaces (ADT component structure) and programs/function groups (statement scan) ` +
+        `only. This is a tool limitation, NOT a statement that ${obj.name} has no components.)`,
       bodyLabel: "OUTLINE",
-      bodyOffset: outline ? window.offset : undefined,
-      bodyTotalLines: outline ? window.total : undefined,
-      hints: ['Read one component with method="<NAME>".'],
-      pagingParam: "offset",
+      notes: [
+        `outline=true was ignored: ${obj.type} has no component structure to list. ` +
+          `Re-read without outline (optionally with offset/limit or pattern) to see the source.`,
+      ],
+      hints: ["Re-read without outline=true, using offset/limit to page the source."],
       maxChars,
     });
     return { ...built, etag };
   }
 
   // Method-level read.
-  const method = input.method ?? obj.member;
   if (method) {
     const m = await readMethod(conn, obj, source, method);
     const parts = [m.declaration, m.implementation].filter(Boolean).join("\n\n");
@@ -3034,7 +3316,7 @@ export async function abapRead(
   // happen — buildSourceResponse marks the etag `partial:` when it is.
   return buildSourceResponse(
     {
-      header: { ...header, totalLines: window.total },
+      header: { ...header, totalLines: window.total, totalChars },
       body: window.text,
       bodyLabel: "SOURCE",
       bodyOffset: window.offset,
@@ -3199,6 +3481,8 @@ function resolveCrossSystemSides(
   for (const [param, value] of [
     ["method", input.method],
     ["outline", input.outline],
+    ["pattern", input.pattern],
+    ["full", input.full],
     ["line", input.line],
     ["column", input.column],
     ["types", input.types],
