@@ -444,4 +444,133 @@ describe("dry_run — method form", () => {
     assertNoMutation(adt);
     expect(adt.calls.map((c) => c.label)).toEqual([`GET ${CLAS_URI}`, `GET ${CLAS_SRC}`, `GET ${CLAS_STRUCT}`]);
   });
+
+  // Issue #147: the member lookup asks for the INACTIVE structure first — the
+  // state a class is in right after a CHECK_FAILED full write — and falls back
+  // to the active one only when the server has no inactive version.
+  const OBJECT_XML_VERSIONED = (version: string): string =>
+    `<?xml version="1.0" encoding="utf-8"?>` +
+    `<adtcore:objectMetadata xmlns:adtcore="http://www.sap.com/adt/core" ` +
+    `adtcore:name="${CLAS_NAME}" adtcore:type="CLAS/OC" adtcore:version="${version}">` +
+    `<adtcore:packageRef adtcore:name="$TMP"/>` +
+    `</adtcore:objectMetadata>`;
+
+  it("asks for version=inactive first and falls back to active when the server has no inactive version", async () => {
+    const { conn, adt } = await connected((r) => {
+      if (r.url === CLAS_URI && r.method === "GET") return resp(200, OBJECT_XML(CLAS_NAME, "CLAS/OC"), OK_XML);
+      if (r.url === CLAS_SRC && r.method === "GET") return resp(200, CURRENT_SOURCE, OK_TEXT);
+      if (r.url === CLAS_STRUCT && r.method === "GET") {
+        if (r.qs.version === "inactive") return resp(404, NOT_FOUND_XML, OK_XML);
+        return resp(200, OBJECT_STRUCTURE_XML, OK_XML);
+      }
+      return undefined;
+    });
+    const result = await abapWrite(
+      conn,
+      { object: CLAS_NAME, type: "CLAS/OC", method: "get_value", source: NEW_METHOD_SOURCE, dry_run: true } as never,
+      MAX,
+      GATE,
+    );
+    expect(result.text).toContain("+    result = 2.");
+    assertNoMutation(adt);
+    const structureCalls = adt.calls.filter((c) => c.url === CLAS_STRUCT);
+    expect(structureCalls.map((c) => c.qs.version)).toEqual(["inactive", "active"]);
+    expect(structureCalls[0]!.qs.withShortDescriptions).toBe("true");
+  });
+
+  it("uses the inactive structure's line ranges when one exists, and never asks for the active one", async () => {
+    // The inactive version has grown a method ABOVE get_value, so its
+    // implementation block sits three lines lower than in the active one.
+    const INACTIVE_SOURCE =
+      "CLASS zmcp_test_cls DEFINITION PUBLIC FINAL CREATE PUBLIC.\n" +
+      "  PUBLIC SECTION.\n" +
+      "    METHODS get_value RETURNING VALUE(result) TYPE i.\n" +
+      "    METHODS other.\n" +
+      "ENDCLASS.\n" +
+      "\n" +
+      "CLASS zmcp_test_cls IMPLEMENTATION.\n" +
+      "  METHOD other.\n" +
+      "  ENDMETHOD.\n" +
+      "  METHOD get_value.\n" +
+      "    result = 1.\n" +
+      "  ENDMETHOD.\n" +
+      "ENDCLASS.\n";
+    const INACTIVE_STRUCTURE_XML = OBJECT_STRUCTURE_XML.replace(
+      `adtcore:name="GET_VALUE" adtcore:type="CLAS/OM">` +
+        `<atom:link href="./source/main#start=7,0;end=9,0" `,
+      `adtcore:name="OTHER" adtcore:type="CLAS/OM">` +
+        `<atom:link href="./source/main#start=8,0;end=9,0" ` +
+        `rel="http://www.sap.com/adt/relations/source/implementationBlock"/>` +
+        `</abapsource:objectStructureElement>` +
+        `<abapsource:objectStructureElement adtcore:name="GET_VALUE" adtcore:type="CLAS/OM">` +
+        `<atom:link href="./source/main#start=10,0;end=12,0" `,
+    );
+    expect(INACTIVE_STRUCTURE_XML).toContain("start=10,0;end=12,0");
+    const { conn, adt } = await connected((r) => {
+      if (r.url === CLAS_URI && r.method === "GET") return resp(200, OBJECT_XML(CLAS_NAME, "CLAS/OC"), OK_XML);
+      if (r.url === CLAS_SRC && r.method === "GET") return resp(200, INACTIVE_SOURCE, OK_TEXT);
+      if (r.url === CLAS_STRUCT && r.method === "GET") {
+        if (r.qs.version === "inactive") return resp(200, INACTIVE_STRUCTURE_XML, OK_XML);
+        throw new Error("the active structure must not be requested when an inactive one exists");
+      }
+      return undefined;
+    });
+    const result = await abapWrite(
+      conn,
+      { object: CLAS_NAME, type: "CLAS/OC", method: "get_value", source: NEW_METHOD_SOURCE, dry_run: true } as never,
+      MAX,
+      GATE,
+    );
+    expect(result.text).toContain("-    result = 1.");
+    expect(result.text).toContain("+    result = 2.");
+    assertNoMutation(adt);
+    expect(adt.calls.filter((c) => c.url === CLAS_STRUCT).map((c) => c.qs.version)).toEqual(["inactive"]);
+  });
+
+  it("skips the inactive attempt when the descriptor says the active version is current", async () => {
+    const { conn, adt } = await connected((r) => {
+      if (r.url === CLAS_URI && r.method === "GET") return resp(200, OBJECT_XML_VERSIONED("active"), OK_XML);
+      if (r.url === CLAS_SRC && r.method === "GET") return resp(200, CURRENT_SOURCE, OK_TEXT);
+      if (r.url === CLAS_STRUCT && r.method === "GET") {
+        if (r.qs.version === "inactive") throw new Error("no inactive lookup when active-is-current");
+        return resp(200, OBJECT_STRUCTURE_XML, OK_XML);
+      }
+      return undefined;
+    });
+    const result = await abapWrite(
+      conn,
+      { object: CLAS_NAME, type: "CLAS/OC", method: "get_value", source: NEW_METHOD_SOURCE, dry_run: true } as never,
+      MAX,
+      GATE,
+    );
+    expect(result.text).toContain("+    result = 2.");
+    assertNoMutation(adt);
+    expect(adt.calls.filter((c) => c.url === CLAS_STRUCT).map((c) => c.qs.version)).toEqual(["active"]);
+  });
+
+  it("NOT_FOUND for a missing method lists the class's methods and never the class name (#147)", async () => {
+    const { conn, adt } = await connected((r) => {
+      if (r.url === CLAS_URI && r.method === "GET") return resp(200, OBJECT_XML(CLAS_NAME, "CLAS/OC"), OK_XML);
+      if (r.url === CLAS_SRC && r.method === "GET") return resp(200, CURRENT_SOURCE, OK_TEXT);
+      if (r.url === CLAS_STRUCT && r.method === "GET") {
+        if (r.qs.version === "inactive") return resp(404, NOT_FOUND_XML, OK_XML);
+        return resp(200, OBJECT_STRUCTURE_XML, OK_XML);
+      }
+      return undefined;
+    });
+    const err = await catchErr(
+      abapWrite(
+        conn,
+        { object: CLAS_NAME, type: "CLAS/OC", method: "get_valu", source: NEW_METHOD_SOURCE, dry_run: true } as never,
+        MAX,
+        GATE,
+      ),
+    );
+    expect(err.code).toBe("NOT_FOUND");
+    expect(err.details.available).toEqual(["GET_VALUE"]);
+    expect(err.details.version).toBe("active");
+    expect(err.message).toMatch(/has no method get_valu\./);
+    expect(err.message).not.toContain(CLAS_NAME + " (");
+    assertNoMutation(adt);
+  });
 });

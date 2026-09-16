@@ -120,7 +120,11 @@ vi.mock("../src/adt/package-create.js", () => ({
   createPackageViaBridge: adt.createPackageViaBridge,
   tdevcDiscrepancies: adt.tdevcDiscrepancies,
 }));
-vi.mock("../src/adt/activate.js", () => ({
+vi.mock("../src/adt/activate.js", async (importActual) => ({
+  // Pure helpers stay real: `withSourceContext` only slices the caller's own
+  // source text (issue #147) and touches no network.
+  withSourceContext: (await importActual<typeof import("../src/adt/activate.js")>()).withSourceContext,
+  SOURCE_LINE_MAX: (await importActual<typeof import("../src/adt/activate.js")>()).SOURCE_LINE_MAX,
   checkSource: adt.checkSource,
   activateObject: adt.activateObject,
   assertNoErrors: adt.assertNoErrors,
