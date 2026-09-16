@@ -5194,9 +5194,9 @@ var require_utilities = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.orUndefined = exports2.toXmlAttributes = exports2.hasMessage = exports2.boolFromAbap = exports2.followUrl = exports2.parseJsonDate = exports2.toSapDate = exports2.parseSapDate = exports2.parse = exports2.fullParse = exports2.numberParseOptions = exports2.bar = exports2.typedNodeAttr = exports2.xmlNodeAttr = exports2.stripNs = exports2.xmlRoot = exports2.extractXmlArray = exports2.xmlArrayType = exports2.isUndefined = exports2.isNativeError = exports2.isNumber = exports2.isString = exports2.isArray = exports2.isObject = exports2.encodeEntity = void 0;
     exports2.JSON2AbapXML = JSON2AbapXML;
-    exports2.xmlNode = xmlNode2;
+    exports2.xmlNode = xmlNode3;
     exports2.xmlFlatArray = xmlFlatArray;
-    exports2.xmlArray = xmlArray2;
+    exports2.xmlArray = xmlArray3;
     exports2.toInt = toInt;
     exports2.btoa = btoa2;
     exports2.parts = parts;
@@ -5242,7 +5242,7 @@ var require_utilities = __commonJS({
     exports2.xmlArrayType = xmlArrayType;
     var extractXmlArray = (x) => x ? (0, exports2.isArray)(x) ? x : [x] : [];
     exports2.extractXmlArray = extractXmlArray;
-    function xmlNode2(xml3, ...path9) {
+    function xmlNode3(xml3, ...path9) {
       let current = xml3;
       path9.some((key) => {
         if ((0, exports2.isObject)(current))
@@ -5268,8 +5268,8 @@ var require_utilities = __commonJS({
       }
       return [];
     }
-    function xmlArray2(xml3, ...path9) {
-      const node2 = xmlNode2(xml3, ...path9);
+    function xmlArray3(xml3, ...path9) {
+      const node2 = xmlNode3(xml3, ...path9);
       if (node2) {
         if ((0, exports2.isArray)(node2))
           return node2;
@@ -5291,11 +5291,11 @@ var require_utilities = __commonJS({
     }, {});
     exports2.stripNs = stripNs;
     var stripAttrPrefix = (x) => x.replace(/^@_/, "");
-    var xmlNodeAttr2 = (n) => n && ok24(n).filter((k) => k.match(/^(?!@_xmlns)@_/)).reduce((part, cur) => {
+    var xmlNodeAttr3 = (n) => n && ok24(n).filter((k) => k.match(/^(?!@_xmlns)@_/)).reduce((part, cur) => {
       part[cur.replace(/^@_/, "")] = n[cur];
       return part;
     }, {});
-    exports2.xmlNodeAttr = xmlNodeAttr2;
+    exports2.xmlNodeAttr = xmlNodeAttr3;
     var typedNodeAttr = (n) => n && ok24(n).filter((k) => k.match(/^(?!@_xmlns)@_/)).reduce((part, cur) => {
       part[cur.replace(/^@_/, "")] = n[cur];
       return part;
@@ -5307,13 +5307,13 @@ var require_utilities = __commonJS({
       hex: true,
       skipLike: new RegExp("")
     };
-    var fullParse2 = (xml3, options = {}) => new fast_xml_parser_1.XMLParser({
+    var fullParse3 = (xml3, options = {}) => new fast_xml_parser_1.XMLParser({
       ignoreAttributes: false,
       trimValues: false,
       parseAttributeValue: true,
       ...options
     }).parse(xml3);
-    exports2.fullParse = fullParse2;
+    exports2.fullParse = fullParse3;
     var parse4 = (xml3, options = {}) => new fast_xml_parser_1.XMLParser(options).parse(xml3);
     exports2.parse = parse4;
     function toInt(x) {
@@ -32442,10 +32442,10 @@ var require_objectstructure = __commonJS({
         return false;
       return void 0;
     }
-    function parseStructureElement(el) {
+    function parseStructureElement2(el) {
       const attr11 = (0, utilities_1.xmlNodeAttr)(el);
       const links = (0, utilities_1.xmlArray)(el, "atom:link").map(utilities_1.xmlNodeAttr);
-      const children = (0, utilities_1.xmlArray)(el, "abapsource:objectStructureElement").map(parseStructureElement);
+      const children = (0, utilities_1.xmlArray)(el, "abapsource:objectStructureElement").map(parseStructureElement2);
       return {
         name: attr11["adtcore:name"] || "",
         type: attr11["adtcore:type"] || "",
@@ -32476,7 +32476,7 @@ var require_objectstructure = __commonJS({
         const rootEl = (0, utilities_1.xmlNode)(raw, "abapsource:objectStructureElement");
         if (!rootEl)
           return [];
-        const structureElements = (0, utilities_1.xmlArray)(rootEl, "abapsource:objectStructureElement").map(parseStructureElement);
+        const structureElements = (0, utilities_1.xmlArray)(rootEl, "abapsource:objectStructureElement").map(parseStructureElement2);
         return structureElements;
       } catch (e) {
       }
@@ -107174,6 +107174,7 @@ init_errors();
 init_errors();
 init_session();
 init_types();
+var import_utilities = __toESM(require_utilities(), 1);
 
 // src/adt/write-verify.ts
 init_capabilities();
@@ -107651,44 +107652,246 @@ function linkRange(c, relSuffix) {
   const link = (c.links ?? []).find((l) => l.rel?.endsWith(relSuffix));
   return parseFragmentRange(link?.href);
 }
+var GLOBAL_OBJECT_TYPES = /* @__PURE__ */ new Set(["CLAS/OC", "INTF/OI"]);
 function flattenComponents(root) {
   const out = [];
   const walk = (c) => {
     for (const child4 of c.components ?? []) {
-      out.push({
-        name: child4["adtcore:name"],
-        type: child4["adtcore:type"],
-        visibility: child4.visibility,
-        level: child4.level,
-        redefinition: child4.redefinition,
-        definition: linkRange(child4, REL_DEF_BLOCK),
-        implementation: linkRange(child4, REL_IMPL_BLOCK)
-      });
+      if (!GLOBAL_OBJECT_TYPES.has(child4["adtcore:type"])) {
+        out.push({
+          name: child4["adtcore:name"],
+          type: child4["adtcore:type"],
+          visibility: child4.visibility,
+          level: child4.level,
+          redefinition: child4.redefinition,
+          definition: linkRange(child4, REL_DEF_BLOCK),
+          implementation: linkRange(child4, REL_IMPL_BLOCK)
+        });
+      }
       walk(child4);
     }
   };
   walk(root);
   return out;
 }
-async function classMembers(conn, obj) {
-  let root;
-  try {
-    root = await conn.adt.classComponents(obj.uri);
-  } catch (e) {
-    throw classifySourceFailure(e, {
-      operation: "read components",
-      uri: obj.uri,
-      name: obj.name,
-      type: obj.type
-    });
+function parseStructureElement(e) {
+  const attrs = (0, import_utilities.xmlNodeAttr)(e);
+  const links = (0, import_utilities.xmlArray)(e, "atom:link").map((l) => (0, import_utilities.xmlNodeAttr)(l));
+  const components = (0, import_utilities.xmlArray)(e, "abapsource:objectStructureElement").map(parseStructureElement);
+  return { ...attrs, links, components };
+}
+async function fetchStructure(conn, obj, version2) {
+  if (version2 === "active") return conn.adt.classComponents(obj.uri);
+  const resp = await conn.get(`${obj.uri}/objectstructure`, {
+    headers: { "Content-Type": "application/*" },
+    qs: { version: "inactive", withShortDescriptions: "true" }
+  });
+  const root = (0, import_utilities.xmlNode)((0, import_utilities.fullParse)(resp.body), "abapsource:objectStructureElement");
+  if (root === void 0 || root === null) {
+    return {
+      "adtcore:name": obj.name,
+      "adtcore:type": obj.type,
+      links: [],
+      components: []
+    };
   }
-  return flattenComponents(root);
+  return parseStructureElement(root);
+}
+async function classMembersFor(conn, obj, version2) {
+  const ctx = {
+    operation: "read components",
+    uri: obj.uri,
+    name: obj.name,
+    type: obj.type
+  };
+  const fetch2 = async (v) => {
+    try {
+      return { members: flattenComponents(await fetchStructure(conn, obj, v)), version: v };
+    } catch (e) {
+      throw classifySourceFailure(e, ctx);
+    }
+  };
+  if (version2 !== void 0) return fetch2(version2);
+  if (obj.activation === "active-is-current") return fetch2("active");
+  let inactive;
+  try {
+    inactive = await fetch2("inactive");
+  } catch {
+    inactive = void 0;
+  }
+  if (inactive && inactive.members.length > 0) return inactive;
+  return fetch2("active");
+}
+async function classMembers(conn, obj, version2) {
+  return (await classMembersFor(conn, obj, version2)).members;
 }
 function findMember(members, wanted) {
   const w = wanted.toUpperCase();
   return members.find((m) => m.name.toUpperCase() === w) ?? members.find((m) => m.name.toUpperCase().split("~").pop() === w);
 }
-var AVAILABLE_MEMBERS_MAX = 12;
+function abapStatements(source) {
+  const lines = source.replace(/\r\n/g, "\n").split("\n");
+  const out = [];
+  let text5 = "";
+  let code = "";
+  let start = -1;
+  const flush = (endLine) => {
+    if (code.trim()) out.push({ text: text5.trim(), code: code.trim(), startLine: start, endLine });
+    text5 = "";
+    code = "";
+    start = -1;
+  };
+  for (let i = 0; i < lines.length; i++) {
+    const line2 = lines[i] ?? "";
+    let c = abapCodeOf(line2);
+    let t = line2.slice(0, c.length);
+    let idx2;
+    while ((idx2 = c.indexOf(".")) >= 0) {
+      if (start < 0 && c.slice(0, idx2).trim()) start = i + 1;
+      text5 += t.slice(0, idx2);
+      code += c.slice(0, idx2);
+      flush(i + 1);
+      c = c.slice(idx2 + 1);
+      t = t.slice(idx2 + 1);
+    }
+    if (c.trim() && start < 0) start = i + 1;
+    if (start >= 0) {
+      text5 += `${t}
+`;
+      code += `${c}
+`;
+    }
+  }
+  return out;
+}
+var DECLARATION_HEAD_RE = /^(CLASS-METHODS|METHODS)\b\s*(:)?\s*/i;
+function findMethodDeclaration(source, name) {
+  for (const st of abapStatements(source)) {
+    const head = DECLARATION_HEAD_RE.exec(st.code);
+    if (!head) continue;
+    const keyword = (head[1] ?? "METHODS").toUpperCase();
+    const bodyAt = head[0].length;
+    const segments = [];
+    if (head[2]) {
+      let from = bodyAt;
+      for (; ; ) {
+        const comma = st.code.indexOf(",", from);
+        if (comma < 0) {
+          segments.push([from, st.code.length]);
+          break;
+        }
+        segments.push([from, comma]);
+        from = comma + 1;
+      }
+    } else {
+      segments.push([bodyAt, st.code.length]);
+    }
+    for (const [a, b] of segments) {
+      const first = st.code.slice(a, b).trim().split(/\s+/)[0] ?? "";
+      if (first && methodNamesMatch(first, name)) {
+        return head[2] ? `${keyword} ${st.text.slice(a, b).trim()}.` : `${st.text.trim()}.`;
+      }
+    }
+  }
+  return void 0;
+}
+function parseClassParents(source) {
+  const parents = { interfaces: [] };
+  let inDefinition = false;
+  for (const st of abapStatements(source)) {
+    const flat = st.code.replace(/\s+/g, " ").trim();
+    if (!inDefinition) {
+      const def = /^(?:CLASS\s+\S+\s+DEFINITION|INTERFACE\s+\S+)\b(.*)$/i.exec(flat);
+      if (!def) continue;
+      if (/\b(DEFERRED|LOAD)\b/i.test(def[1] ?? "")) continue;
+      inDefinition = true;
+      const inh = /\bINHERITING\s+FROM\s+(\S+)/i.exec(def[1] ?? "");
+      if (inh?.[1]) parents.superclass = inh[1].toUpperCase();
+      continue;
+    }
+    if (/^(ENDCLASS|ENDINTERFACE)\b/i.test(flat)) break;
+    const intf = /^INTERFACES\b\s*(:)?\s*(.*)$/i.exec(flat);
+    if (!intf) continue;
+    const body = intf[2] ?? "";
+    const segments = intf[1] ? body.split(",") : [body];
+    for (const seg of segments) {
+      const first = seg.trim().split(/\s+/)[0];
+      if (first) parents.interfaces.push(first.toUpperCase());
+    }
+  }
+  return parents;
+}
+var CHAIN_MAX_DEPTH = 16;
+function relatedObject(base, name, type) {
+  const spec = specForType(type);
+  const uri = buildUri(spec, name);
+  return {
+    system: base.system,
+    type,
+    kind: spec.kind,
+    label: spec.label,
+    name: name.toUpperCase(),
+    uri,
+    sourceUri: `${uri}/source/main`,
+    mode: "source",
+    activation: "unknown",
+    spec
+  };
+}
+async function walkInheritanceChain(conn, obj, source, version2, visit) {
+  const visited = [];
+  const unresolved = [];
+  const seen = /* @__PURE__ */ new Set([obj.name.toUpperCase()]);
+  const queue = [];
+  const enqueue = (from, parents, depth) => {
+    if (depth > CHAIN_MAX_DEPTH) return;
+    if (parents.superclass && !seen.has(parents.superclass)) {
+      seen.add(parents.superclass);
+      queue.push({ name: parents.superclass, type: "CLAS/OC", relation: "superclass", via: from, depth });
+    }
+    for (const i of parents.interfaces) {
+      if (seen.has(i)) continue;
+      seen.add(i);
+      queue.push({ name: i, type: "INTF/OI", relation: "interface", via: from, depth });
+    }
+  };
+  enqueue(obj.name, parseClassParents(source), 1);
+  while (queue.length > 0) {
+    const next = queue.shift();
+    const parent = relatedObject(obj, next.name, next.type);
+    let parentSource;
+    let members;
+    try {
+      parentSource = (await readSource(conn, parent, void 0, version2)).source;
+      members = await classMembersFor(conn, parent, version2);
+    } catch (e) {
+      if (e instanceof AbapError && e.code === "NOT_FOUND") {
+        unresolved.push({ name: next.name, relation: next.relation, via: next.via, reason: e.message });
+        continue;
+      }
+      throw e;
+    }
+    const node2 = {
+      obj: parent,
+      relation: next.relation,
+      via: next.via,
+      depth: next.depth,
+      source: parentSource,
+      members
+    };
+    visited.push(node2);
+    if (visit(node2) === true) break;
+    enqueue(parent.name, parseClassParents(parentSource), next.depth + 1);
+  }
+  return { visited, unresolved };
+}
+var AVAILABLE_MEMBERS_MAX_DEFAULT = 40;
+function availableMembersMax() {
+  const raw = process.env.ABAP_AVAILABLE_MEMBERS_MAX;
+  if (raw === void 0 || raw.trim() === "") return AVAILABLE_MEMBERS_MAX_DEFAULT;
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : AVAILABLE_MEMBERS_MAX_DEFAULT;
+}
 function levenshtein(a, b) {
   const prev = Array.from({ length: b.length + 1 }, (_, j) => j);
   for (let i = 1; i <= a.length; i++) {
@@ -107702,47 +107905,154 @@ function levenshtein(a, b) {
   }
   return prev[b.length] ?? 0;
 }
-async function readMethod(conn, obj, source, method) {
-  const members = await classMembers(conn, obj);
-  const methods = members.filter((m) => m.type === "CLAS/OM" || m.type === "INTF/OM");
+function commonPrefixLength(a, b) {
+  let n = 0;
+  while (n < a.length && n < b.length && a[n] === b[n]) n += 1;
+  return n;
+}
+function rankCandidates(names, wanted) {
+  const w = wanted.toUpperCase();
+  return [...names].sort((a, b) => {
+    const A = a.toUpperCase();
+    const B = b.toUpperCase();
+    const byPrefix = commonPrefixLength(B, w) - commonPrefixLength(A, w);
+    if (byPrefix !== 0) return byPrefix;
+    const byDistance = levenshtein(A, w) - levenshtein(B, w);
+    if (byDistance !== 0) return byDistance;
+    return A < B ? -1 : A > B ? 1 : 0;
+  });
+}
+var isMethod = (m) => m.type === "CLAS/OM" || m.type === "INTF/OM";
+function resolveIn(members, source, method) {
+  const methods = members.filter(isMethod);
   const member = findMember(methods.length ? methods : members, method);
-  if (!member) {
-    const pool = methods.length ? methods : members;
-    const wantedUpper = method.toUpperCase();
-    const ranked = [...pool].sort(
-      (a, b) => levenshtein(a.name.toUpperCase(), wantedUpper) - levenshtein(b.name.toUpperCase(), wantedUpper)
-    );
-    const shown = ranked.slice(0, AVAILABLE_MEMBERS_MAX);
-    const dropped = pool.length - shown.length;
-    const disclosure = dropped > 0 ? ` [TRUNCATED: listing ${shown.length} of ${pool.length} components \u2014 ${dropped} not shown, retrieve with: abap_read({outline:true})]` : "";
-    throw new AbapError(
-      "NOT_FOUND",
-      `${obj.type} ${obj.name} has no method ${method}.${disclosure}`,
-      {
-        method,
-        availableTotal: pool.length,
-        available: shown.map((m) => m.name),
-        ...dropped > 0 ? { availableTruncated: dropped } : {}
-      },
-      dropped > 0 ? `The list above is INCOMPLETE (${shown.length} of ${pool.length}). Read the object with outline=true for every component before concluding the method is missing.` : "Read the object without `method` to see its full component list."
-    );
-  }
+  if (!member) return void 0;
   const lines = source.replace(/\r\n/g, "\n").split("\n");
   const cut = (r) => r ? lines.slice(Math.max(0, r.startLine - 1), r.endLine).join("\n") : void 0;
+  const declaration = cut(member.definition) ?? findMethodDeclaration(source, member.name);
+  const implementation = cut(member.implementation);
   return {
     member,
-    declaration: cut(member.definition),
-    implementation: cut(member.implementation),
-    implementationRange: member.implementation
+    ...declaration !== void 0 ? { declaration } : {},
+    ...implementation !== void 0 ? { implementation } : {},
+    ...member.implementation ? { implementationRange: member.implementation } : {}
   };
 }
-function renderOutline(members) {
-  const rows = members.filter((m) => m.type === "CLAS/OM" || m.type === "INTF/OM" || m.type === "CLAS/OA").map((m) => {
-    const loc = m.implementation ? `${m.implementation.startLine}-${m.implementation.endLine}` : m.definition ? `${m.definition.startLine}-${m.definition.endLine}` : "";
-    const flags = [m.visibility, m.level, m.redefinition ? "redefinition" : void 0].filter(Boolean).join(" ");
-    return `  ${m.name}  [${flags}]${loc ? `  lines ${loc}` : ""}`;
+async function readMethod(conn, obj, source, method, opts = {}) {
+  const own = await classMembersFor(conn, obj, opts.version);
+  const searched = [obj.name];
+  const here = resolveIn(own.members, source, method);
+  if (here) return { ...here, version: own.version, searched };
+  const inheritedPool = [];
+  let unresolved = [];
+  if (opts.inherited) {
+    let found;
+    const walk = await walkInheritanceChain(conn, obj, source, opts.version, (node2) => {
+      searched.push(`${node2.obj.name} (${node2.relation} of ${node2.via})`);
+      const r = resolveIn(node2.members.members, node2.source, method);
+      if (r) {
+        found = {
+          ...r,
+          version: node2.members.version,
+          foundOn: {
+            name: node2.obj.name,
+            type: node2.obj.type,
+            relation: node2.relation,
+            via: node2.via,
+            depth: node2.depth
+          },
+          searched
+        };
+        return true;
+      }
+      for (const m of node2.members.members.filter(isMethod)) {
+        if (node2.relation === "superclass" && m.visibility === "private") continue;
+        inheritedPool.push({ name: m.name, on: node2.obj.name, relation: node2.relation });
+      }
+      return false;
+    });
+    if (found) return found;
+    unresolved = walk.unresolved;
+  }
+  const max = opts.availableMax ?? availableMembersMax();
+  const methods = own.members.filter(isMethod);
+  const pool = methods.length ? methods : own.members;
+  const shown = rankCandidates(
+    pool.map((m) => m.name),
+    method
+  ).slice(0, max);
+  const dropped = pool.length - shown.length;
+  const byName = new Map(inheritedPool.map((c) => [c.name.toUpperCase(), c]));
+  const inheritedShown = rankCandidates([...byName.keys()], method).slice(0, max).map((n) => {
+    const c = byName.get(n);
+    return `${c.name} (${c.on})`;
   });
-  return rows.join("\n");
+  const inheritedDropped = byName.size - inheritedShown.length;
+  const where2 = opts.inherited ? `${obj.type} ${obj.name} has no method ${method}, and neither does anything it inherits from or implements (searched ${searched.join(", ")}).` : `${obj.type} ${obj.name} has no method ${method}.`;
+  const truncation = dropped > 0 ? ` [TRUNCATED: listing ${shown.length} of ${pool.length} components \u2014 ${dropped} not shown, retrieve with: abap_read({outline:true})]` : "";
+  const emptiness = pool.length === 0 ? ` The ${own.version} version of ${obj.name} declares no methods at all` + (own.version === "active" ? " (no inactive version was found, so the active structure was used)." : ".") : "";
+  throw new AbapError(
+    "NOT_FOUND",
+    `${where2}${emptiness}${truncation}`,
+    {
+      method,
+      version: own.version,
+      searched,
+      availableTotal: pool.length,
+      available: shown,
+      ...dropped > 0 ? { availableTruncated: dropped } : {},
+      ...opts.inherited ? {
+        availableInheritedTotal: byName.size,
+        availableInherited: inheritedShown,
+        ...inheritedDropped > 0 ? { availableInheritedTruncated: inheritedDropped } : {}
+      } : {},
+      ...unresolved.length > 0 ? { unresolved } : {}
+    },
+    (dropped > 0 ? `The list above is INCOMPLETE (${shown.length} of ${pool.length}). Read the object with outline=true for every component before concluding the method is missing. ` : pool.length === 0 ? "`available` is empty because the structure has no methods, not because the list was cut. " : "") + (opts.inherited ? "Members are resolved against the inactive version when one exists, then the active one, then up the superclass/interface chain; `availableInherited` names the origin of each inherited candidate." : "Read the object with outline=true to see its full component list, including inherited members.")
+  );
+}
+async function inheritedMembers(conn, obj, source, own, version2) {
+  const inherited = [];
+  const searched = [];
+  const taken = new Set(own.map((m) => m.name.toUpperCase()));
+  const walk = await walkInheritanceChain(conn, obj, source, version2, (node2) => {
+    searched.push(node2.obj.name);
+    for (const m of node2.members.members) {
+      if (node2.relation === "superclass" && m.visibility === "private") continue;
+      const key = m.name.toUpperCase();
+      const implemented = node2.relation === "interface" ? `${node2.obj.name}~${key}` : key;
+      if (taken.has(key) || taken.has(implemented)) continue;
+      taken.add(key);
+      inherited.push({ ...m, on: node2.obj.name, relation: node2.relation, depth: node2.depth });
+    }
+    return false;
+  });
+  return { inherited, searched, unresolved: walk.unresolved };
+}
+var OUTLINE_TYPES = /* @__PURE__ */ new Set(["CLAS/OM", "INTF/OM", "CLAS/OA", "INTF/OA"]);
+function outlineRow(m, indent) {
+  const loc = m.implementation ? `${m.implementation.startLine}-${m.implementation.endLine}` : m.definition ? `${m.definition.startLine}-${m.definition.endLine}` : "";
+  const flags = [m.visibility, m.level, m.redefinition ? "redefinition" : void 0].filter(Boolean).join(" ");
+  return `${indent}${m.name}  [${flags}]${loc ? `  lines ${loc}` : ""}`;
+}
+function renderOutline(members) {
+  return members.filter((m) => OUTLINE_TYPES.has(m.type)).map((m) => outlineRow(m, "  ")).join("\n");
+}
+function renderInheritedOutline(rows) {
+  const groups = /* @__PURE__ */ new Map();
+  for (const r of rows) {
+    if (!OUTLINE_TYPES.has(r.type)) continue;
+    const list3 = groups.get(r.on) ?? [];
+    list3.push(r);
+    groups.set(r.on, list3);
+  }
+  const out = [];
+  for (const [on, list3] of groups) {
+    const relation = list3[0]?.relation ?? "superclass";
+    out.push(`  from ${on} (${relation}, depth ${list3[0]?.depth ?? 1}; line numbers are ${on}'s):`);
+    for (const r of list3) out.push(outlineRow(r, "    "));
+  }
+  return out.join("\n");
 }
 
 // src/adt/run.ts
@@ -107778,7 +108088,7 @@ init_compact();
 init_safety();
 
 // src/adt/activate.ts
-var import_utilities = __toESM(require_utilities(), 1);
+var import_utilities2 = __toESM(require_utilities(), 1);
 init_errors();
 init_truncate();
 init_types();
@@ -108109,6 +108419,24 @@ function renderMessages(messages, source) {
   }
   return out.join("\n");
 }
+var SOURCE_LINE_MAX = 200;
+function withSourceContext(messages, source, opts = {}) {
+  const maxLen = opts.maxLen ?? SOURCE_LINE_MAX;
+  const context = opts.context ?? 1;
+  const lines = source.replace(/\r\n/g, "\n").split("\n");
+  const clip = (text5) => truncateForDisplay(text5, maxLen);
+  return messages.map((m) => {
+    if (m.line === void 0 || m.line < 1 || m.line > lines.length) return { ...m };
+    const out = { ...m, sourceLine: clip(lines[m.line - 1] ?? "") };
+    if (context > 0) {
+      const b = m.line - context;
+      const a = m.line + context;
+      if (b >= 1) out.before = { line: b, text: clip(lines[b - 1] ?? "") };
+      if (a <= lines.length) out.after = { line: a, text: clip(lines[a - 1] ?? "") };
+    }
+    return out;
+  });
+}
 function renderInactive(inactive) {
   if (inactive.length === 0) return "";
   const { objects, unnamed } = displayInactive(inactive);
@@ -108360,13 +108688,13 @@ function toActivationElement(source) {
   return {
     deleted: s["@_ioc:deleted"],
     user: s["@_ioc:user"],
-    ...(0, import_utilities.xmlNodeAttr)(s["ioc:ref"])
+    ...(0, import_utilities2.xmlNodeAttr)(s["ioc:ref"])
   };
 }
 function parseInactiveObjects(raw) {
-  return (0, import_utilities.xmlArray)(raw, "ioc:inactiveObjects", "ioc:entry").map((obj) => ({
-    object: toActivationElement((0, import_utilities.xmlNode)(obj, "ioc:object")),
-    transport: toActivationElement((0, import_utilities.xmlNode)(obj, "ioc:transport"))
+  return (0, import_utilities2.xmlArray)(raw, "ioc:inactiveObjects", "ioc:entry").map((obj) => ({
+    object: toActivationElement((0, import_utilities2.xmlNode)(obj, "ioc:object")),
+    transport: toActivationElement((0, import_utilities2.xmlNode)(obj, "ioc:transport"))
   }));
 }
 function parseActivationResponse(body) {
@@ -108374,11 +108702,11 @@ function parseActivationResponse(body) {
   let success2 = true;
   let inactive = [];
   if (body) {
-    const raw = (0, import_utilities.fullParse)(body);
+    const raw = (0, import_utilities2.fullParse)(body);
     inactive = parseInactiveObjects(raw);
-    messages = (0, import_utilities.xmlArray)(raw, "chkl:messages", "msg").map((m) => {
+    messages = (0, import_utilities2.xmlArray)(raw, "chkl:messages", "msg").map((m) => {
       const rec = m;
-      const message = (0, import_utilities.xmlNodeAttr)(rec);
+      const message = (0, import_utilities2.xmlNodeAttr)(rec);
       const shortTextNode = rec["shortText"];
       message.shortText = shortTextNode?.txt || "Syntax error";
       return message;
@@ -123068,7 +123396,7 @@ function resolvedObjectAdapter(conn, t) {
     packageName: t.packageName,
     description: t.description,
     mode: "source",
-    activation: "unknown",
+    activation: t.activation ?? "unknown",
     spec: t.spec
   };
 }
@@ -123351,7 +123679,9 @@ async function resolveWriteSource(conn, authorized, input) {
         { object: t.name }
       );
     }
-    const ms = await readMethod(conn, resolvedObjectAdapter(conn, t), current, input.method);
+    const ms = await readMethod(conn, resolvedObjectAdapter(conn, t), current, input.method, {
+      inherited: false
+    });
     if (!ms.implementationRange) {
       throw new AbapError(
         "NOT_FOUND",
@@ -123367,7 +123697,12 @@ async function resolveWriteSource(conn, authorized, input) {
       ...ms.implementationRange ? { range: ms.implementationRange } : {},
       object: t.name
     });
-    return { source: spliced, expectEtag: input.expect_etag ?? canonicalEtag(current), current };
+    return {
+      source: spliced,
+      expectEtag: input.expect_etag ?? canonicalEtag(current),
+      current,
+      methodVersion: ms.version
+    };
   }
   if (input.source !== void 0) {
     assertNotOrphanMethodBlock(input.source, t.name, t.type);
@@ -123639,7 +123974,8 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
   const {
     source: resolvedSource,
     expectEtag: resolvedExpectEtag,
-    current: resolvedCurrent
+    current: resolvedCurrent,
+    methodVersion: resolvedMethodVersion
   } = await resolveWriteSource(conn, authorized, input);
   if (input.format && capabilitiesFor(authorized.target.type)?.write?.shape === "properties") {
     throw new AbapError(
@@ -123792,10 +124128,18 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
         throw ae;
       }
     } else if (wantActivate && !check2.ok) {
+      const rendered = renderMessages(check2.messages, source);
       throw new AbapError(
         "CHECK_FAILED",
-        `syntax check reported ${check2.errors} error(s), ${check2.warnings} warning(s)`,
-        { messages: check2.messages }
+        `syntax check reported ${check2.errors} error(s), ${check2.warnings} warning(s)` + (rendered ? `:
+${rendered}` : ""),
+        {
+          messages: withSourceContext(check2.messages, source, {
+            maxLen: SOURCE_LINE_MAX,
+            context: 1
+          }),
+          rendered
+        }
       );
     }
   } catch (e) {
@@ -123840,7 +124184,7 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
           ...e.hint ? { hint: e.hint } : {}
         } : cause
       },
-      "The write itself succeeded and is NOT rolled back: the new source is on the server and the object is INACTIVE, so it will not execute and callers still see the last active version. Fix the reported lines and write again to activate it" + (journalled2 ? `, or restore the previous source with abap_journal mode=undo entry=${entryId}.` : ". The write journal is off, so abapsmith cannot undo this for you \u2014 write the previous source back by hand if you need the old version.") + (journalError ? ` NOTE: the journal entry could not be settled (${journalError}), so ${entryId} may still read as pending and undo may decline it \u2014 check abap_journal first.` : "")
+      'The write itself succeeded and is NOT rolled back: the new source is on the server and the object is INACTIVE, so it will not execute and callers still see the last active version. Fix the reported lines \u2014 for a class, abap_write method="<NAME>" repairs one method against the INACTIVE version (no re-read needed; details.failure.details.messages carries each offending line with context); otherwise use edit= or write the full source again \u2014 then abap_activate, or write with activate=true' + (journalled2 ? `, or restore the previous source with abap_journal mode=undo entry=${entryId}.` : ". The write journal is off, so abapsmith cannot undo this for you \u2014 write the previous source back by hand if you need the old version.") + (journalError ? ` NOTE: the journal entry could not be settled (${journalError}), so ${entryId} may still read as pending and undo may decline it \u2014 check abap_journal first.` : "")
     );
   }
   await settle({
@@ -123916,6 +124260,11 @@ ${renderInactive(activation.inactive)}`);
   const notes = [
     written.corrNrOverrode !== void 0 && written.corrNrSent !== void 0 ? corrNrOverriddenWriteNote(written.corrNrOverrode, written.corrNrSent, written.target.type, written.target.name) : transportNote(written.transport, gate.config?.abapMode)
   ];
+  if (input.method !== void 0 && resolvedMethodVersion !== void 0) {
+    notes.push(
+      `method="${input.method}" was resolved against the ${resolvedMethodVersion.toUpperCase()} version's component structure` + (resolvedMethodVersion === "inactive" ? " \u2014 a newer inactive version existed (e.g. after a CHECK_FAILED write) and its line ranges were used." : ".")
+    );
+  }
   if (transport !== void 0 && written.transport.status === "transport" && written.transport.corrNr !== void 0 && transport.lastAutoDecision?.trkorr.toUpperCase() === written.transport.corrNr.toUpperCase()) {
     notes.push(transport.lastAutoDecision.reason);
   }
@@ -132529,11 +132878,11 @@ function assertIncludeCompatible(input, obj) {
     );
   }
   const method = input.method ?? obj.member;
-  if (method) {
+  if (method && include !== "definitions") {
     clash(
       `method="${method}"`,
       "the method's line range comes from the ADT component structure, which numbers lines in the class's main document. Cutting those lines out of a different include would return whatever happens to sit at them \u2014 not that method.",
-      `Read include="${include}" in full and locate the method in it, or drop include to read ${method} from the class body.`
+      `Read include="${include}" in full and locate the method in it, drop include to read ${method} from the class body, or use include="definitions" for its declaration alone.`
     );
   }
   return include;
@@ -133494,11 +133843,13 @@ async function abapRead(conn, input, maxChars, gate) {
       maxChars
     );
   }
+  const methodWanted = input.method ?? obj.member;
+  const declarationOnly = Boolean(methodWanted) && include === "definitions";
   const {
     source,
     serverEtag,
     sourceUri: readUri
-  } = await readSource(conn, obj, include, input.version);
+  } = await readSource(conn, obj, declarationOnly ? "main" : include, input.version);
   const etag = resourceEtag(source);
   const header = {
     ...baseHeader,
@@ -133539,20 +133890,51 @@ async function abapRead(conn, input, maxChars, gate) {
       });
       return { ...built2, etag };
     }
-    const members = await classMembers(conn, obj);
-    const outline = renderOutline(members);
+    const own = await classMembersFor(conn, obj, input.version);
+    const members = own.members;
+    const ownOutline = renderOutline(members);
+    const chain = await inheritedMembers(conn, obj, source, members, input.version);
+    const inheritedOutline = renderInheritedOutline(chain.inherited);
+    const sections = [];
+    if (ownOutline) sections.push(ownOutline);
+    else if (inheritedOutline) {
+      sections.push(`  (${obj.name} declares no methods, attributes or events of its own)`);
+    }
+    if (inheritedOutline) {
+      sections.push(
+        "",
+        `INHERITED (${chain.inherited.length} public/protected members declared on ${obj.name}'s superclasses/interfaces; method="<NAME>" resolves them automatically):`,
+        inheritedOutline
+      );
+    }
+    const outline = sections.join("\n");
     const window3 = sliceLines(outline, input.offset ?? 1, input.limit);
+    const notes = [];
+    if (chain.unresolved.length) {
+      notes.push(
+        "Inheritance chain incomplete \u2014 not readable on this system: " + chain.unresolved.map((u) => `${u.name} (${u.relation} of ${u.via}: ${u.reason})`).join("; ") + ". Members declared there are not listed."
+      );
+    }
     const built = buildReadResponse({
       header: {
         ...header,
         components: members.length,
+        inherited: chain.inherited.length,
+        structureVersion: own.version,
         totalLines: countLines(source)
       },
-      body: outline ? window3.text : `(${obj.type} ${obj.name} really has no methods, attributes or events \u2014 the component structure came back empty.)`,
+      body: outline ? window3.text : `(${obj.type} ${obj.name} really has no methods, attributes or events \u2014 the component structure came back empty${chain.searched.length ? ` and so did ${chain.searched.join(", ")}'s` : ""}.)`,
       bodyLabel: "OUTLINE",
       bodyOffset: outline ? window3.offset : void 0,
       bodyTotalLines: outline ? window3.total : void 0,
-      hints: ['Read one component with method="<NAME>".'],
+      notes,
+      hints: [
+        'Read one component with method="<NAME>".',
+        ...inheritedOutline ? [
+          `Inherited members work the same way: method="<NAME>" walks the chain and reports foundOn. Their line numbers are the defining object's.`
+        ] : [],
+        'To learn a signature, use method="<NAME>" with include="definitions" (declaration only); do not read the full class.'
+      ],
       pagingParam: "offset",
       maxChars
     });
@@ -133560,8 +133942,29 @@ async function abapRead(conn, input, maxChars, gate) {
   }
   const method = input.method ?? obj.member;
   if (method) {
-    const m = await readMethod(conn, obj, source, method);
-    const parts = [m.declaration, m.implementation].filter(Boolean).join("\n\n");
+    const m = await readMethod(conn, obj, source, method, {
+      version: input.version,
+      inherited: true
+    });
+    const parts = (declarationOnly ? [m.declaration] : [m.declaration, m.implementation]).filter(Boolean).join("\n\n");
+    const origin = m.foundOn;
+    const originLabel = origin ? `${origin.name} (${origin.relation} of ${origin.via}, depth ${origin.depth})` : void 0;
+    const methodNotes = [];
+    if (origin) {
+      methodNotes.push(
+        `${m.member.name} is not declared by ${obj.name}; it comes from ${originLabel}. The block below and its line numbers are ${origin.name}'s, not ${obj.name}'s (searched: ${m.searched.join(" -> ")}).`
+      );
+    }
+    if (m.version === "inactive" && input.version !== "inactive") {
+      methodNotes.push(
+        `${origin?.name ?? obj.name} has a newer INACTIVE version; the method was resolved against it (ADT's default read returns that newest version too).`
+      );
+    }
+    if (declarationOnly) {
+      methodNotes.push(
+        'include="definitions" with method= returns the declaration only, cut from the class definition in the main document (the CCDEF local-definitions include holds nothing global). Drop include to get the implementation as well.'
+      );
+    }
     const window3 = sliceLines(parts, input.offset ?? 1, input.limit);
     return buildSourceResponse(
       {
@@ -133569,17 +133972,23 @@ async function abapRead(conn, input, maxChars, gate) {
           ...header,
           method: m.member.name,
           visibility: m.member.visibility,
+          foundOn: originLabel,
+          structureVersion: m.version,
           // Absolute position in the object, for orientation only — never used as
           // the paging frame.
           sourceLines: m.implementationRange ? `${m.implementationRange.startLine}-${m.implementationRange.endLine}` : void 0,
           blockLines: parts ? window3.total : void 0
         },
-        body: parts ? window3.text : "(no source found for this component)",
-        bodyLabel: "METHOD SOURCE",
+        body: parts ? window3.text : declarationOnly ? `(no METHODS declaration for ${m.member.name} found in ${origin?.name ?? obj.name}'s definition \u2014 ADT lists the component but the definition text does not declare it under that name, e.g. an interface method implemented as IF~METHOD)` : "(no source found for this component)",
+        bodyLabel: declarationOnly ? "METHOD DECLARATION" : "METHOD SOURCE",
         bodyOffset: parts ? window3.offset : void 0,
         bodyTotalLines: parts ? window3.total : void 0,
+        notes: methodNotes,
         hints: [
           "`offset` here is relative to this method block (line 1 = first line shown above), not to the object's source lines.",
+          ...declarationOnly ? ['Drop include="definitions" to read the implementation as well.'] : [
+            'To learn a signature only, use method= with include="definitions"; do not read the full class.'
+          ],
           "Omit `method` to read the whole object, or use outline=true for the component list."
         ],
         pagingParam: "offset",
@@ -133671,7 +134080,7 @@ function registerReadTools(mcp, deps) {
     "abap_read",
     {
       title: "Read ABAP object",
-      description: `Read an ABAP object: source, pseudo-DDL, a DEVC/K package listing (types/depth filter it), or (SUSO/B, TABL/DI) a read-only catalog render. view="docu" reads SAP's own documentation (or, with method=, a method's ABAP Doc); view="digest" gives a one-page overview (CLAS/INTF/PROG/FUGR/DDLS) with public API, dependencies, tests and recent history. Returns an etag. Capped ~15k tokens \u2014 use outline/method/offset for large objects. Example: {"object":"ZCL_FOO","type":"CLAS/OC"}.`,
+      description: `Read an ABAP object: source, pseudo-DDL, a DEVC/K package listing (types/depth filter it), or (SUSO/B, TABL/DI) a read-only catalog render. view="docu" reads SAP's own documentation (or, with method=, a method's ABAP Doc); view="digest" gives a one-page overview (CLAS/INTF/PROG/FUGR/DDLS) with public API, dependencies, tests and recent history. Returns an etag. Capped ~15k tokens \u2014 use outline/method/offset for large objects. To learn a method's signature, use method= with include="definitions" (declaration only); do not read the full class. method= also finds inherited members (superclasses and interfaces) and reports foundOn. Example: {"object":"ZCL_FOO","type":"CLAS/OC"}.`,
       // `from_system`/`to_system` (issue #93, cross-system view="diff")
       // are spliced in only when more than one system is configured —
       // a single-system server has nothing a second system field could
