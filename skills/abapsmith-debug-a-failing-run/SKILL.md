@@ -85,6 +85,14 @@ the response echoes `line: 19` together with the generated `include` SAP
 resolved it into. The start response already answers most simple questions —
 a separate variables call is often unnecessary.
 
+The `stateId` in that response is 12 hex characters — write it back as
+printed. The full 64-character digest is accepted too, as is any prefix of
+at least 8 characters; nothing is gained by quoting the long form. A stale
+id is refused with the current one named in the message. Explanatory `NOTE:` paragraphs (what a revisited
+position proves, what `OMITTED` means, what a post-mortem attach is) are
+printed in full once per session and as a one-line reminder afterwards —
+read them the first time; the reminder still carries the per-call fact.
+
 Observed detail: the stack printed frames `#13` down to `#4` and then jumped
 straight to `#2`. Frame numbers are SAP's own and are **not** a dense `1..n`
 list — do not assume contiguity when picking a frame.
@@ -123,6 +131,17 @@ unconditionally when you are done is harmless and is the right habit.
 - `abap_debug` only catches breakpoints **it triggers itself** — `run` is
   required on `action: "start"`, under the configured user. It cannot arm a
   listener and wait for someone else's session.
+- **An exception breakpoint on a class that does not exist** is refused
+  before anything is armed (`BAD_INPUT`, naming the class) — SAP would
+  accept it and never fire it. One the server accepted but did not echo
+  back is reported in the `start` response as `NOT armed`.
+- **An exception breakpoint alone has not been seen to stop at the
+  `RAISE`** — the run went straight to the dump and `start` attached to it
+  (`debuggee: PMORTEM`, with a `POST-MORTEM` note naming the class). A run
+  that ends without any exception breakpoint firing says so at death. To
+  stop at a raise, use a line breakpoint on the `RAISE` statement, or the
+  statement breakpoint `RAISE EXCEPTION TYPE` paired with a line breakpoint
+  in the target object.
 - **Variables are read-only by design** — there is no "set variable".
 - `frame` moves the read cursor only — it does not unwind or re-execute anything.
 - `skipCount` is accepted and sent to SAP but **not enforced** — use
