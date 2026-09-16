@@ -215,6 +215,53 @@ export function renderMessages(messages: AdtMessage[], source?: string): string 
   return out.join("\n");
 }
 
+/** Cap on the echoed source line in `withSourceContext` (issue #147). */
+export const SOURCE_LINE_MAX = 200;
+
+export interface SourceContextLine {
+  line: number;
+  text: string;
+}
+
+/** An `AdtMessage` plus the offending line and its neighbours, taken from the caller's own bytes. */
+export interface MessageWithSource extends AdtMessage {
+  /** The reported line, trimmed to `maxLen` characters (marker appended when cut). */
+  sourceLine?: string;
+  /** One line before, when there is one. */
+  before?: SourceContextLine;
+  /** One line after, when there is one. */
+  after?: SourceContextLine;
+}
+
+/**
+ * Attach the offending source line (trimmed to `maxLen`, default 200) and
+ * one line of context on each side to every positioned message. `source` is
+ * the text the caller just sent — no round trip, and no claim about what
+ * the server holds. Messages without a line, or whose line lies outside
+ * `source`, are returned unchanged. Pure: never throws, never touches I/O.
+ */
+export function withSourceContext(
+  messages: ReadonlyArray<AdtMessage>,
+  source: string,
+  opts: { maxLen?: number; context?: number } = {},
+): MessageWithSource[] {
+  const maxLen = opts.maxLen ?? SOURCE_LINE_MAX;
+  const context = opts.context ?? 1;
+  const lines = source.replace(/\r\n/g, "\n").split("\n");
+  const clip = (text: string): string => truncateForDisplay(text, maxLen);
+  return messages.map((m) => {
+    if (m.line === undefined || m.line < 1 || m.line > lines.length) return { ...m };
+    const out: MessageWithSource = { ...m, sourceLine: clip(lines[m.line - 1] ?? "") };
+    if (context > 0) {
+      const b = m.line - context;
+      const a = m.line + context;
+      if (b >= 1) out.before = { line: b, text: clip(lines[b - 1] ?? "") };
+      if (a <= lines.length) out.after = { line: a, text: clip(lines[a - 1] ?? "") };
+    }
+    return out;
+  });
+}
+
 /**
  * Caller-facing rendering of `<ioc:inactiveObjects>` — one `type name` per
  * line plus what to do. Separate from `renderMessages`: inactive dependents
