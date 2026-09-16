@@ -107704,23 +107704,23 @@ async function classMembersFor(conn, obj, version2) {
     name: obj.name,
     type: obj.type
   };
-  const fetch2 = async (v) => {
+  const load = async (v) => {
     try {
       return { members: flattenComponents(await fetchStructure(conn, obj, v)), version: v };
     } catch (e) {
       throw classifySourceFailure(e, ctx);
     }
   };
-  if (version2 !== void 0) return fetch2(version2);
-  if (obj.activation === "active-is-current") return fetch2("active");
+  if (version2 !== void 0) return load(version2);
+  if (obj.activation === "active-is-current") return load("active");
   let inactive;
   try {
-    inactive = await fetch2("inactive");
+    inactive = await load("inactive");
   } catch {
     inactive = void 0;
   }
   if (inactive && inactive.members.length > 0) return inactive;
-  return fetch2("active");
+  return load("active");
 }
 async function classMembers(conn, obj, version2) {
   return (await classMembersFor(conn, obj, version2)).members;
