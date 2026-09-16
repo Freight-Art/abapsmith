@@ -24,6 +24,7 @@ version was set to `0.3.0`, which is intended.
 - **`PROG`/`FUGR` outline** (#148). `outline=true` on a program or function group is no longer "NOT SUPPORTED": it is a statement scan of the text (`FORM`/`FUNCTION`/`MODULE`/`CLASS`/`METHOD`/`INCLUDE`, event blocks) with line ranges, disclosed as a scan in the response. Other kinds keep the unsupported answer.
 - **`abap_search mode=source` groups hits per object** (#148). One `<TYPE> <NAME>  (<n> hits)` header per object, then `<line>: <text>` rows (with an `include <NAME>` sub-header where the include is not the object itself); at most 20 hits per object, the rest as a count naming how to narrow. The `NOTE:` block appears once at the top. The header gains `objectsWithHits`.
 - **`context`** is now shared by `view="diff"` (per hunk, default 3) and `pattern` (around each match, default 2); it is still refused when neither is given.
+
 ## [0.6.11] - 2026-09-16
 
 ### Fixed
