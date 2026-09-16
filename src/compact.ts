@@ -142,6 +142,23 @@ export interface ResponseParts {
    */
   pagingParam?: string;
   maxChars?: number;
+  /**
+   * Append a `size:` header line stating the emitted response's OWN
+   * chars/lines/truncated (issue #148) — measured on the final text, so it
+   * is exact, not an estimate. Rendered inside the budgeted render, so
+   * `hardClamp`'s cap still holds. See `withSizeLine`.
+   */
+  size?: boolean;
+}
+
+/** What the `size:` header line reports (issue #148). */
+export interface ResponseSize {
+  /** Exact character count of the whole emitted text. */
+  chars: number;
+  /** Line count of the whole emitted text (header, notes, body, notice). */
+  lines: number;
+  /** Same flag as `BuiltResponse.truncated`. */
+  truncated: boolean;
 }
 
 export interface BuiltResponse {
@@ -157,6 +174,8 @@ export interface BuiltResponse {
   estimatedTokens: number;
   returnedLines?: number;
   totalLines?: number;
+  /** Present when `ResponseParts.size` asked for the `size:` header line. */
+  size?: ResponseSize;
   /** Exact emitted character count. Guaranteed `<= maxChars`. */
   chars?: number;
   /** True when the prologue sections had to be cut to fit the budget. */
@@ -214,6 +233,42 @@ function keepLines(text: string, budget: number): { kept: string; cutChars: numb
  * clamp makes the cap unconditional.
  */
 export function buildResponse(parts: ResponseParts): BuiltResponse {
+  if (parts.size) return withSizeLine(parts);
+  return renderResponse(parts);
+}
+
+export function formatSize(size: ResponseSize): string {
+  return `${size.chars} chars, ${size.lines} lines, truncated=${size.truncated}`;
+}
+
+/**
+ * The `size:` header line is self-referential — its own digits are part of
+ * the text it measures, and in the truncated case a longer header steals
+ * body lines. So it is solved as a fixed point: render with a claimed size,
+ * measure, re-render with the measurement, until the measurement stops
+ * moving (in practice 1–2 rounds; the digit count only changes at powers of
+ * ten). If it never settles (a digit boundary that flips the body cut back
+ * and forth), the last render is returned with the claim prefixed `~` so it
+ * is never stated as exact when it is not.
+ */
+function withSizeLine(parts: ResponseParts): BuiltResponse {
+  const { size: _flag, ...rest } = parts;
+  const base = renderResponse(rest);
+  let claim: ResponseSize = { chars: base.text.length, lines: countLines(base.text), truncated: base.truncated };
+  let built = base;
+  for (let round = 0; round < 4; round++) {
+    built = renderResponse({ ...rest, header: { ...rest.header, size: formatSize(claim) } });
+    const actual: ResponseSize = { chars: built.text.length, lines: countLines(built.text), truncated: built.truncated };
+    if (actual.chars === claim.chars && actual.lines === claim.lines && actual.truncated === claim.truncated) {
+      return { ...built, size: actual };
+    }
+    claim = actual;
+  }
+  built = renderResponse({ ...rest, header: { ...rest.header, size: `~${formatSize(claim)}` } });
+  return { ...built, size: claim };
+}
+
+function renderResponse(parts: ResponseParts): BuiltResponse {
   const maxChars = parts.maxChars ?? DEFAULT_MAX_CHARS;
   const header = renderHeader(parts.header);
   const sectionBlocks = (parts.sections ?? [])
