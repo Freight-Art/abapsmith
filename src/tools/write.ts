@@ -200,6 +200,14 @@ export const writeInputSchema = {
       outputLength: z.number().optional(),
       lowercase: z.boolean().optional(),
       signExists: z.boolean().optional(),
+      fixedValues: z
+        .array(z.object({ low: z.string(), high: z.string().optional(), text: z.string() }).strict())
+        .optional()
+        .describe(
+          "DOMA/DD only: fixed values, in order. `low` (or `low`..`high` for an interval) max 10 " +
+            "chars and within the domain length; `text` max 60 chars.",
+        ),
+      valueTable: z.string().optional().describe("DOMA/DD only: value table name (existence checked by the server)."),
       typeKind: z.enum(["domain", "predefinedAbapType", "dictionaryType"]).optional(),
       typeName: z.string().optional(),
       shortLabel: z.string().optional(),
@@ -524,7 +532,9 @@ export function targetFromInput(input: WriteInput & { object: string }): WriteTa
  * other `source`, with no separate validation path.
  */
 function resolveDdicStructuredSource(input: WriteInputV2, target: WriteTarget): string {
-  if (input.source !== undefined) {
+  // An empty `source` is treated as absent: clients that always send the
+  // field (`source: ""` next to `ddic`) are not asking for two descriptors.
+  if (input.source !== undefined && input.source !== "") {
     throw new AbapError(
       "BAD_INPUT",
       "`source` and `ddic` cannot both be given — they are two ways to build the same descriptor.",
@@ -1125,6 +1135,40 @@ function describeShrink(
   if (removedLines < SHRINK_DISCLOSURE_MIN_LINES) return undefined;
   if (removedLines / beforeLines < SHRINK_DISCLOSURE_FRACTION) return undefined;
   return { beforeLines, removedLines, percent: Math.round((removedLines / beforeLines) * 100) };
+}
+
+/**
+ * Leaf elements whose text the server keeps only when the root carries
+ * `adtcore:masterLanguage`: DTEL field labels (`dtel:shortFieldLabel` …
+ * `dtel:headingFieldLabel`) and DOMA fixed-value texts (`doma:text`). Both
+ * were reproduced live on A4H — the document is accepted, the texts come back
+ * empty, nothing warns (2026-09-16 for DTEL/DE ZAS_DTEL_TEST; the DOMA case is
+ * what `assertDomaMasterLanguage` refuses up front).
+ */
+const LANGUAGE_DEPENDENT_TEXT_RE = /^(?:[\w.-]+:)?(?:\w+FieldLabel|text)$/;
+
+/**
+ * When EVERY dropped element is a language-dependent text, the cause is known
+ * and the fix is one attribute — say so instead of the generic "rework the
+ * payload". Returns `undefined` for any other mix, so the caller keeps the
+ * generic hint.
+ */
+function languageDependentDiscardHint(discarded: readonly DiscardedValue[], source: string): string | undefined {
+  if (discarded.length === 0 || !discarded.every((d) => LANGUAGE_DEPENDENT_TEXT_RE.test(d.element))) return undefined;
+  const rootTag = /<[A-Za-z_][\w.-]*(?::[A-Za-z_][\w.-]*)?\b[^>]*>/.exec(source.replace(/<\?xml[^>]*\?>/, ""))?.[0] ?? "";
+  const hasMasterLanguage = /\badtcore:masterLanguage\s*=/.test(rootTag);
+  const what = discarded.map((d) => d.element).join(", ");
+  return (
+    `The dropped element(s) — ${what} — are language-dependent texts (field labels / fixed-value ` +
+    "texts), which ADT stores only when the root element carries adtcore:masterLanguage; " +
+    (hasMasterLanguage
+      ? "this document already has it, so something else emptied them — "
+      : 'this document has none. Add adtcore:masterLanguage="EN" (and adtcore:language="EN") to the ' +
+        "root element and send the same document again — rewriting the object in place repairs it, " +
+        "which is exactly what fixed the live reproduction. ") +
+    "Re-read the object with abap_read to see the descriptor the server actually holds, or activate " +
+    "it as written with abap_activate."
+  );
 }
 
 /** One `DiscardedValue` as `element (sent "a", "b", server now holds "c")`. */
@@ -2120,10 +2164,12 @@ export async function abapWrite(
               ...(entryId !== undefined ? { journal: entryId } : {}),
             },
             "This is a server-side discard, not a rejection — the document was accepted and " +
-              "nothing ran to check it. Re-read the object with abap_read to see the descriptor " +
-              "the server actually holds, then either rework the payload so the dropped " +
-              "element(s) survive, or accept the object as written and activate it yourself " +
-              "with abap_activate." +
+              "nothing ran to check it. " +
+              (languageDependentDiscardHint(discarded, source) ??
+                "Re-read the object with abap_read to see the descriptor " +
+                  "the server actually holds, then either rework the payload so the dropped " +
+                  "element(s) survive, or accept the object as written and activate it yourself " +
+                  "with abap_activate.") +
               (entryId !== undefined
                 ? ` Remove this write with abap_journal mode=undo entry=${entryId}.`
                 : " The write journal is off, so abapsmith cannot undo this for you."),

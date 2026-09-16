@@ -18,6 +18,24 @@ version was set to `0.3.0`, which is intended.
 - **Gate verdict before any transport is created** (#142). A bridge create is asserted against the safety gate — with the caller's `corr_nr` or as unresolved — before the resolver runs, so a denied write costs zero wire requests and creates no request; the `VIEW/DV` path used to create one first and leak it. Should the post-resolution assert refuse after a request was created in the same call, the refusal carries `details.createdTransport`, its hint names the request and `abap_transport operation=delete` removes it, and the create is journalled as `transport-create`.
 - **Transport-allowlist refusals are rule-specific, caller-side and terminal** (#143). Every `SAFETY_DENIED` on rules `transport allowlist` / `transport allowlist (fail closed)`, and every session-resolver denial, now carries a hint worded for the mode in force — under `auto`: "The server picks the request itself under ABAP_ALLOW_TRANSPORTS=auto. Omit corr_nr. Naming a request is refused regardless of which request."; under a pinned list: "Only these requests are permitted: … ask the operator to extend the list"; under an empty list: only `$`-packages are writable — states that it is terminal (`retryable: false`), and never suggests editing the environment. The `abapsmith-put-work-on-a-transport` skill no longer describes an omitted `corr_nr` as "the value `AUTO`" (the string is not accepted; omit the field) and tells agents never to retry a terminal `SAFETY_DENIED` by changing arguments.
 
+## [0.6.10] - 2026-09-16
+
+### Added
+
+- **`abap_write` `ddic` for `DOMA/DD`: fixed values, value table, computed output length** (#145). `fixedValues: [{low, high?, text}]` renders the `<doma:valueInformation>` / `<doma:fixValues>` block in the shape a live GET returns (the server numbers the rows); `low`/`high` are refused over 10 characters (`DD07L-DOMVALUE_L`) or over the domain length, `text` over 60, each naming the row. `valueTable` renders the `<doma:valueTableRef>` uri/type/name triple. `outputLength` now defaults per data type — `DEC`/`CURR`/`QUAN`: length + 1 for decimals + 1 for the sign; `DATS` 10; `TIMS` 8; otherwise the length — and a caller's value still wins. Live: a `CHAR 1` domain with three fixed values and a signed `DEC 13,3` domain created through `ddic` activated on A4H and read back intact.
+- **Live suite `test/integration-ddic-structured.test.ts`** (#144, #145): creates, activates, reads back and deletes a `DTEL/DE` with four labels and the two domains above through the `ddic` shortcut.
+
+### Fixed
+
+- **`abap_write` `ddic` for `DTEL/DE`: field labels were silently discarded** (#144). The generated descriptor had no `adtcore:masterLanguage` on the root, so the server accepted the PUT and stored every `<dtel:*FieldLabel>` empty; the read-back guard then reported `CHECK_FAILED` / `VALUE_DISCARDED` and the object stayed inactive. All three builders now emit `adtcore:masterLanguage="EN" adtcore:language="EN"` on the root — the same body with the attribute activated with all labels intact on A4H. Labels over 10/20/40/55 characters are refused with `BAD_INPUT` naming the field (never truncated); `*Length` defaults to the slot maximum, must be at least the label's length, and is written two-digit padded like the live shape (`05`, `03`).
+- **`abap_write` `ddic` for `DOMA/DD`: `signExists` was silently dropped** (#145). The builder emitted `<doma:signExists>` after `<doma:lowercase>`; in that order a `DEC 13,3` domain with `signExists: true` activated on A4H with the flag stored `false` and no message. The elements are now emitted in the live order (`signExists` first), and the descriptor read-back guard reports a flag sent `true` and stored `false` as a discard — previously only an emptied element counted.
+- **`VALUE_DISCARDED` hint names the cause when only texts were dropped** (#144). When every discarded element is a DTEL field label or a `<doma:text>`, the hint says these are language-dependent texts stored only with `adtcore:masterLanguage` on the root, and tells the caller to add it and resend (or, when the document already carries it, that something else emptied them) instead of the generic "rework the payload".
+
+### Changed
+
+- **`abap_write`: `source: ""` next to `ddic` is treated as absent** (#144, #145). A client that always sends the field no longer gets `BAD_INPUT` for giving "both"; a non-empty `source` with `ddic` is still refused before any request.
+- **`abapsmith-create-ddic-objects` skill** (#144, #145): the `ddic` section now states what was live-verified and documents `fixedValues`/`valueTable`/the output-length rule; the `DTEL/DE` traps gain the `adtcore:masterLanguage` label discard and correct the `*FieldLength` description (a two-digit display width, not the label's character count — `MANDT` reads back 10 for "Mandant"); the `DOMA/DD` traps gain the `signExists`/`lowercase` element order.
+
 ## [0.6.9] - 2026-09-16
 
 ### Added
