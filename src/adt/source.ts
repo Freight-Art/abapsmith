@@ -549,26 +549,26 @@ export async function classMembersFor(
     name: obj.name,
     type: obj.type,
   };
-  const fetch = async (v: SourceVersion): Promise<MemberSet> => {
+  const load = async (v: SourceVersion): Promise<MemberSet> => {
     try {
       return { members: flattenComponents(await fetchStructure(conn, obj, v)), version: v };
     } catch (e) {
       throw classifySourceFailure(e, ctx);
     }
   };
-  if (version !== undefined) return fetch(version);
+  if (version !== undefined) return load(version);
   // The object's own metadata already says when no inactive version exists
   // (`adtcore:version="active"` on the descriptor): skip the attempt then —
   // one request fewer, and no "inactive" claim the descriptor contradicts.
-  if (obj.activation === "active-is-current") return fetch("active");
+  if (obj.activation === "active-is-current") return load("active");
   let inactive: MemberSet | undefined;
   try {
-    inactive = await fetch("inactive");
+    inactive = await load("inactive");
   } catch {
     inactive = undefined;
   }
   if (inactive && inactive.members.length > 0) return inactive;
-  return fetch("active");
+  return load("active");
 }
 
 export async function classMembers(
