@@ -12,6 +12,8 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.11] - 2026-09-16
+
 ### Fixed
 
 - **Classic-bridge creates resolve a transport request under `auto`** (#141). `VIEW/DV`, `TRAN/T`, `SHLP/DH`, `TABL/DI` and `DEVC/K` creates into a transportable package no longer demand a named `corr_nr` that `ABAP_ALLOW_TRANSPORTS=auto` then refuses. With `corr_nr` omitted they take the same route as a class create: the session resolver asks CTS for the package's modifiable requests, reuses one this session created or one attributed to abapsmith, else creates one, and the write response's `transport:` field names it. `dispatch()`'s targets gate now receives the provenance of the resolved request from a builtin caller (`FluidRunRequest.corrSource`), so an auto-selected request is judged as such instead of as caller-named; plugin tools cannot declare it, and pinned or empty lists refuse exactly as before. `TRANSPORT_ERROR` on these paths now means a request was genuinely needed and none could be resolved. Skills `abapsmith-create-an-object`, `abapsmith-create-ddic-objects` and `abapsmith-put-work-on-a-transport` updated.
