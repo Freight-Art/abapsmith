@@ -1938,12 +1938,14 @@ export async function preflightPackageCorr(
       `Transport request ${res.corrNr} was created by this call before the refusal and holds ` +
       "no objects; it is journalled as transport-create, and " +
       `abap_transport operation=delete corr_nr=${res.corrNr} removes it.`;
+    // No retryable override: `gate.assert` only ever throws SAFETY_DENIED or
+    // INTERNAL_GATE_MISUSE, both terminal by classification, and the rethrow
+    // keeps the code, so it classifies to the same retryable: false.
     throw new AbapError(
       err.code,
       err.message,
       { ...err.details, createdTransport: res.corrNr },
       err.hint === undefined || err.hint === "" ? leakNote : `${err.hint} ${leakNote}`,
-      { retryable: err.retryable === true },
     );
   }
   return { corrNr: res.corrNr, source };
