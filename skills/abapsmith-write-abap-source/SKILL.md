@@ -40,6 +40,30 @@ abap_write { object, source, expect_etag }
 That makes the applied write compare-before-write against exactly the bytes
 previewed, not whatever the object holds by the time the call lands.
 
+## Learn a signature without reading the class
+
+To learn a method's signature, use `method=` with `include="definitions"`;
+do not read the full class:
+
+```
+abap_read { object: "CL_SALV_COLUMNS_TABLE", method: "GET_COLUMNS", include: "definitions" }
+```
+
+That returns the `METHODS …` declaration alone. `method=` without `include`
+returns the declaration first, then the body. Both find members declared on
+a superclass or interface and report `foundOn`; `outline=true` lists those
+inherited members in their own section. A `NOT_FOUND` lists candidate names
+from the whole chain — read it before guessing another name.
+
+## After CHECK_FAILED
+
+A full write whose syntax check fails is saved INACTIVE, not discarded. Fix
+the reported lines (each message quotes the offending line with one line of
+context) with `abap_write { object, method, source }` — `method=` resolves
+against the inactive version, so no re-read is needed — then `abap_activate`.
+Rewriting the whole class again also works; reading the active source back
+does not, since it predates the failed write.
+
 ## Statements that activate cleanly and fail at run time
 
 These are not caught by the syntax check in any object type:

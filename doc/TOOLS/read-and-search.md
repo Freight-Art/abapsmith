@@ -13,8 +13,8 @@ Read the source, metadata or outline of an ABAP object.
 |---|---|---|---|---|
 | `object` | string | yes | — | Object reference: bare name, `"class ZCL_FOO"`, or a raw ADT URI. |
 | `type` | string | no | — | ADT type hint, e.g. `CLAS/OC`, to disambiguate a bare name. |
-| `method` | string | no | — | Read one method's source instead of the whole class. With `view="docu"` against a `CLAS` object, selects that method's ABAP Doc comment instead of the class's own SAP documentation — refused against every other `view`. |
-| `outline` | boolean | no | — | Return the structural outline (members/methods) instead of full source. |
+| `method` | string | no | — | Read one method's source instead of the whole class: its `METHODS` declaration first, then the `METHOD … ENDMETHOD.` body. Resolved against the inactive version's component structure when one exists, then the active one, then up the superclass/interface chain (`foundOn` in the header). With `include="definitions"`, returns the declaration only — the cheap way to learn a signature. With `view="docu"` against a `CLAS` object, selects that method's ABAP Doc comment instead of the class's own SAP documentation — refused against every other `view`. See ["Classes: `method=`, `outline=true`, inherited members and the inactive version"](#classes-method-outlinetrue-inherited-members-and-the-inactive-version). |
+| `outline` | boolean | no | — | Return the structural outline (members/methods) instead of full source. For classes, an `INHERITED` section lists the public/protected members of every superclass and interface with the defining object. |
 | `offset` | number (int, 1–999999) | no | — | 1-based first line to return. |
 | `limit` | number (int, 1–999999) | no | — | Number of lines to return. |
 | `enhancements` | boolean | no | — | Also report enhancement anchors/implementations on this object. |
@@ -46,6 +46,55 @@ module by that name, or asking for the group by hand if the search finds
 nothing at all, which happens for generated function modules (e.g.
 `ENQUEUE_E_TABLE`) that the repository search does not index: say
 `"ENQUEUE_E_TABLE in ETABLE"` or `"ETABLE/ENQUEUE_E_TABLE"`.
+
+### Classes: `method=`, `outline=true`, inherited members and the inactive version
+
+`method=` and `outline=true` share one component lookup (`src/adt/source.ts`,
+`classMembersFor` / `readMethod`). Facts a caller can rely on:
+
+- **Which version is resolved.** The component structure is fetched for the
+  INACTIVE version first (`/objectstructure?version=inactive`) and, when the
+  system reports none (or an empty one), for the active version. The
+  descriptor's own `adtcore:version` attributes short-circuit this: an object
+  whose every version attribute is `active` never asks for the inactive
+  structure. The header's `structureVersion` names the version whose line
+  ranges were used, and a note says so when it was the inactive one. Without
+  this, a class whose last full write failed its syntax check (saved inactive,
+  see [`abap_write`](write-and-activate.md#abap_write)) resolved every
+  `method=` against the stale active line ranges, and a method that existed
+  only in the inactive version was `NOT_FOUND`.
+- **`method=` walks the inheritance chain.** When the class itself has no such
+  member, the walk follows `INHERITING FROM` and `INTERFACES` from the
+  definition source, superclass first, then the interfaces, each level's own
+  parents after it, and stops at the first hit. The header then carries
+  `foundOn: "ZCL_PARENT (superclass of ZCL_CHILD, depth 1)"` (or
+  `interface of …`) and `sourceLines` in the defining object's numbering; a
+  note repeats that the lines are the defining object's. Private members of a
+  superclass are not inherited and are not searched. A parent that cannot be
+  read on this system (missing, or not readable in this mode) is skipped and
+  listed under `details.unresolved` / a response note rather than aborting the
+  read.
+- **`NOT_FOUND` lists candidates from the whole chain.** `details.available`
+  are the class's own methods, `details.availableInherited` the inherited ones
+  as `"NAME (ORIGIN)"`, both preferring names sharing a prefix with the request
+  (`GET_` for `GET_COLUMNS`) when the list is cut. Each list is capped at
+  `ABAP_AVAILABLE_MEMBERS_MAX` names (default 40; `availableTruncated` /
+  `availableInheritedTruncated` say how many were dropped). The class's own
+  name is never listed as a member — the interface's `CLAS/OC` self-entry in
+  the ADT structure is filtered out.
+- **Signature first.** A `method=` read returns the `METHODS …` declaration
+  (from the definition part, unchained from a `METHODS: a, b.` list) as a
+  block ahead of the `METHOD … ENDMETHOD.` body; `blockLines` counts both.
+  `method=` together with `include="definitions"` returns the declaration
+  alone (`METHOD DECLARATION` body label) — the way to learn a signature
+  without reading the class. `method=` with any other `include` is still
+  `UNSUPPORTED`, since method bodies live in `main`.
+- **`outline=true` shows inherited members.** After the class's own
+  components an `INHERITED (…)` section lists the public and protected methods,
+  attributes and events declared on its superclasses and interfaces, grouped
+  by defining object with its relation and depth, line numbers in that
+  object's source. The header's `components` counts the class's own members,
+  `inherited` the chain's.
 
 ### `SHLP/DH`, `VIEW/DV`, `TRAN/T`: catalog reads, not ADT source
 
