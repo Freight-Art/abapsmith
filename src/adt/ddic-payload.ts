@@ -234,21 +234,82 @@ export function assertDdicDescriptorShape(type: string, name: string, xml: strin
 // no committed sweep-log artifact, so that comment (not a log file) is the
 // citation for "accepted". Every default below is the literal value those
 // bodies used, so `ddic: {}` reproduces the grounded document byte-for-byte
-// (name/description/package aside). This builder has never itself been sent
-// to a live system — unverified, like everything else this module builds
-// until proven otherwise.
+// (name/description/package aside) — with one deliberate addition, the root
+// language attributes, see ROOT_LANGUAGE_ATTRS.
+//
+// Live-verified on A4H (NetWeaver 7.54, client 001), 2026-09-16, through this
+// builder's own output sent via the `source` route (#144/#145):
+//   - DTEL/DE ZAS_DTEL_TEST in $TMP: the body WITHOUT `adtcore:masterLanguage`
+//     was accepted, but every `<dtel:*FieldLabel>` came back empty on the
+//     read-back (CHECK_FAILED / VALUE_DISCARDED, object left inactive). The
+//     byte-identical body with `adtcore:masterLanguage="EN"` added to the root
+//     activated, and the read-back held all four labels and the `*FieldLength`
+//     values 10/20/40/55 unchanged.
+//   - DOMA/DD ZAS_DOMA_ST (CHAR 1, three fixed values) and ZAS_DOMA_AMT
+//     (DEC 13,3) and DTEL/DE ZAS_DTEL_LBL: see test/integration-ddic-structured.test.ts.
 
 const ADTCORE_NS = "http://www.sap.com/adt/core";
 const XML_DECL = '<?xml version="1.0" encoding="UTF-8"?>';
+
+/**
+ * Root attributes every builder emits. `adtcore:masterLanguage` is what makes
+ * the server KEEP language-dependent texts (DTEL field labels, DOMA fixed-value
+ * texts): without it the PUT is accepted and the texts are silently discarded —
+ * reproduced live for DTEL/DE on 2026-09-16 (see the module note above) and
+ * for DOMA/DD earlier (`assertDomaMasterLanguage` in src/tools/write.ts refuses
+ * exactly that document zero-network). `adtcore:language` is what every live
+ * GET carries next to it and what the three static skeletons above send.
+ */
+const ROOT_LANGUAGE_ATTRS = 'adtcore:masterLanguage="EN" adtcore:language="EN"';
+
+/** DD07L-DOMVALUE_L / DOMVALUE_H are CHAR10 — a raw DTEL/DE read of DOMVALUE_L on A4H, 2026-09-16, returned dataType CHAR, dataTypeLength 000010. */
+const FIX_VALUE_MAX_LEN = 10;
+/** DD07T-DDTEXT is AS4TEXT, CHAR60 — a raw DTEL/DE read of AS4TEXT on A4H, 2026-09-16, returned dataType CHAR, dataTypeLength 000060. */
+const FIX_VALUE_TEXT_MAX_LEN = 60;
+
+/** One `<doma:fixValue>` row — see {@link DdicStructuredFields.fixedValues}. */
+export interface DdicFixedValue {
+  /** Single value, or the lower bound of an interval when `high` is given. An empty string is a legal key (XFELD's second row is `<doma:low/>` "Nein"). */
+  low: string;
+  /** Upper bound of an interval; omitted for a single value. */
+  high?: string;
+  /** Text shown for the value — DD07T-DDTEXT, at most 60 characters. */
+  text: string;
+}
 
 /** Flat, type-agnostic field surface for the three properties-shape DDIC types. Unset fields fall back to the bench-accepted literal for that slot. */
 export interface DdicStructuredFields {
   dataType?: string;
   length?: number;
   decimals?: number;
+  /**
+   * DOMA/DD only. When omitted it is computed per data type — see
+   * {@link defaultDomaOutputLength}; a caller's value always wins.
+   */
   outputLength?: number;
   lowercase?: boolean;
   signExists?: boolean;
+  /**
+   * DOMA/DD only. Rendered as the `<doma:valueInformation>` /
+   * `<doma:fixValues>` block whose shape is lifted from live GETs of XFELD and
+   * AS4LOCAL (A4H, 2026-09-16): one `<doma:fixValue>` per row with `low`,
+   * `high` and `text` children in that order. `<doma:position>` is left out —
+   * the server numbers the rows. Each `low`/`high` is refused above
+   * {@link FIX_VALUE_MAX_LEN} characters and above the domain's own `length`;
+   * `text` above {@link FIX_VALUE_TEXT_MAX_LEN}. An empty array emits the
+   * empty `<doma:fixValues/>` the accepted skeleton carries.
+   */
+  fixedValues?: DdicFixedValue[];
+  /**
+   * DOMA/DD only. Value table (DD01L-ENTITYTAB), rendered as
+   * `<doma:valueTableRef adtcore:uri="/sap/bc/adt/ddic/tables/<name>"
+   * adtcore:type="TABL/DT" adtcore:name="<NAME>"/>` — the exact triple a live
+   * GET of S_CARR_ID returns for SCARR
+   * (test/fixtures/live-captured/845-live-doma-s-carr-id.xml). Uppercased;
+   * whether the table exists and has a key field on this domain is checked by
+   * the server's own activation, not here.
+   */
+  valueTable?: string;
   typeKind?: DdicTypeKind;
   typeName?: string;
   shortLabel?: string;
@@ -299,7 +360,16 @@ export function assertDdicTypeKind(requested: string): DdicTypeKind {
   );
 }
 
-const DOMA_FIELDS: ReadonlySet<string> = new Set(["dataType", "length", "decimals", "outputLength", "lowercase", "signExists"]);
+const DOMA_FIELDS: ReadonlySet<string> = new Set([
+  "dataType",
+  "length",
+  "decimals",
+  "outputLength",
+  "lowercase",
+  "signExists",
+  "fixedValues",
+  "valueTable",
+]);
 const DTEL_FIELDS: ReadonlySet<string> = new Set([
   "typeKind",
   "typeName",
@@ -338,7 +408,7 @@ function num(n: number): string {
   return String(Math.trunc(n));
 }
 
-/** Zero-padded to `width` — DTEL's `dataTypeLength`/`dataTypeDecimals` and TTYP's `length`/`decimals` are `000010`-style in every attested body; DOMA's equivalent slots are not (`doma:length>10`, unpadded) and must keep using {@link num}. */
+/** Zero-padded to `width` — DTEL's `dataTypeLength`/`dataTypeDecimals` and TTYP's `length`/`decimals` are `000010`-style in every attested body, and DTEL's `*FieldLength` is two digits (`03`, `07` in live GETs of MANDT and in the skeleton); DOMA's type/output slots are not (`doma:length>10`, unpadded) and must keep using {@link num}. */
 function numPadded(n: number, width: number): string {
   return String(Math.trunc(n)).padStart(width, "0");
 }
@@ -350,6 +420,130 @@ const DTEL_MAX_LENGTH = {
   long: 40,
   heading: 55,
 } as const;
+
+type DtelLabelSlot = keyof typeof DTEL_MAX_LENGTH;
+
+/**
+ * `<dtel:*FieldLength>` is the label's display width (DD04T's SCRLEN1..3 /
+ * SCRLEN4 for heading): a designer-chosen number of columns between the
+ * label's own length and the slot's fixed maximum — MANDT stores 10 for the
+ * 7-character "Mandant" and 03 for the heading "Mdt" (live GET, A4H,
+ * 2026-09-16). The server stores whatever is sent without checking, so this is
+ * the only place a label longer than its slot, or a width the label cannot fit
+ * in, gets caught. Refuses rather than truncates, for the reason
+ * {@link normalizeShlpIdentifier} gives.
+ */
+function dtelLabel(
+  slot: DtelLabelSlot,
+  label: string,
+  requestedLength: number | undefined,
+  name: string,
+): { label: string; length: number } {
+  const max = DTEL_MAX_LENGTH[slot];
+  if (label.length > max) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `ddic.${slot}Label "${label}" is ${label.length} characters, longer than the ${max}-character ` +
+        `maximum of the ${slot} field label (DD04T).`,
+      { name, type: "DTEL/DE", field: `${slot}Label`, value: label, length: label.length, maxLength: max },
+      `Shorten ddic.${slot}Label to ${max} characters or fewer.`,
+    );
+  }
+  const length = requestedLength ?? max;
+  if (!Number.isInteger(length) || length < Math.max(1, label.length) || length > max) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `ddic.${slot}Length ${length} is not a usable display width for the ${slot} field label "${label}" — ` +
+        `it must be a whole number from ${Math.max(1, label.length)} (the label's own length) to ${max}.`,
+      { name, type: "DTEL/DE", field: `${slot}Length`, value: length, labelLength: label.length, maxLength: max },
+      `Drop ddic.${slot}Length to get the slot's maximum (${max}), or give a value between the label's length and ${max}.`,
+    );
+  }
+  return { label, length };
+}
+
+/** Numeric domain types whose external display needs room for the decimal separator and the sign. */
+const DOMA_DECIMAL_TYPES: ReadonlySet<string> = new Set(["DEC", "CURR", "QUAN"]);
+
+/**
+ * Output length the ABAP Dictionary itself proposes for a domain when the
+ * caller gives none: DEC/CURR/QUAN need one column for the decimal separator
+ * (when there are decimals) and one for the sign (when `signExists`); DATS
+ * displays as 10 (`DD.MM.YYYY`), TIMS as 8 (`HH:MM:SS`); everything else
+ * (CHAR, NUMC, CLNT, LANG, UNIT, CUKY, …) displays as many columns as it is
+ * long. Exported for the offline tests; a caller's `outputLength` always wins.
+ */
+export function defaultDomaOutputLength(dataType: string, length: number, decimals: number, signExists: boolean): number {
+  const type = dataType.toUpperCase();
+  if (DOMA_DECIMAL_TYPES.has(type)) return length + (decimals > 0 ? 1 : 0) + (signExists ? 1 : 0);
+  if (type === "DATS") return 10;
+  if (type === "TIMS") return 8;
+  return length;
+}
+
+function fixedValueBound(
+  which: "low" | "high",
+  value: string,
+  index: number,
+  domainLength: number,
+  name: string,
+): string {
+  const cap = Math.min(FIX_VALUE_MAX_LEN, domainLength);
+  if (value.length > cap) {
+    const reason =
+      value.length > FIX_VALUE_MAX_LEN
+        ? `longer than DD07L-DOMVALUE_${which === "low" ? "L" : "H"}'s ${FIX_VALUE_MAX_LEN}-character limit`
+        : `longer than the domain's own length of ${domainLength}`;
+    throw new AbapError(
+      "BAD_INPUT",
+      `ddic.fixedValues[${index}].${which} "${value}" is ${value.length} characters, ${reason}.`,
+      { name, type: "DOMA/DD", field: `fixedValues[${index}].${which}`, value, length: value.length, maxLength: cap },
+      `Shorten the value to ${cap} characters or fewer, or raise ddic.length.`,
+    );
+  }
+  return value;
+}
+
+function renderFixValue(v: DdicFixedValue, index: number, domainLength: number, name: string): string {
+  const low = fixedValueBound("low", v.low, index, domainLength, name);
+  const high = v.high === undefined ? "" : fixedValueBound("high", v.high, index, domainLength, name);
+  if (v.text.length > FIX_VALUE_TEXT_MAX_LEN) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `ddic.fixedValues[${index}].text "${v.text}" is ${v.text.length} characters, longer than ` +
+        `DD07T-DDTEXT's ${FIX_VALUE_TEXT_MAX_LEN}-character limit.`,
+      {
+        name,
+        type: "DOMA/DD",
+        field: `fixedValues[${index}].text`,
+        value: v.text,
+        length: v.text.length,
+        maxLength: FIX_VALUE_TEXT_MAX_LEN,
+      },
+      `Shorten the text to ${FIX_VALUE_TEXT_MAX_LEN} characters or fewer.`,
+    );
+  }
+  // Child order low, high, text is the live order (XFELD/AS4LOCAL GETs); `high` is
+  // always present, self-closed when empty, as in every live row.
+  return `<doma:fixValue>${elem("doma:low", low)}${elem("doma:high", high)}${elem("doma:text", v.text)}</doma:fixValue>`;
+}
+
+function renderValueTableRef(valueTable: string | undefined, name: string): string {
+  if (valueTable === undefined) return "<doma:valueTableRef/>";
+  const table = valueTable.trim().toUpperCase();
+  if (table === "" || !/^[A-Z0-9_/]{1,30}$/.test(table)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `ddic.valueTable "${valueTable}" is not a table name (DD01L-ENTITYTAB is CHAR30: letters, digits, "_" and "/").`,
+      { name, type: "DOMA/DD", field: "valueTable", value: valueTable },
+      "Give the name of an existing transparent table, or drop ddic.valueTable.",
+    );
+  }
+  return (
+    `<doma:valueTableRef adtcore:uri="/sap/bc/adt/ddic/tables/${escapeXmlAttr(table.toLowerCase())}" ` +
+    `adtcore:type="TABL/DT" adtcore:name="${escapeXmlAttr(table)}"/>`
+  );
+}
 
 /**
  * DD04L-SHLPNAME and DD04L-SHLPFIELD are both CHAR30 — live-verified via DD03L
@@ -407,16 +601,34 @@ function buildDoma(name: string, description: string, packageName: string, f: Dd
   const dataType = f.dataType ?? "CHAR";
   const length = f.length ?? 10;
   const decimals = f.decimals ?? 0;
-  const outputLength = f.outputLength ?? length;
   const lowercase = f.lowercase ?? false;
   const signExists = f.signExists ?? false;
+  const outputLength = f.outputLength ?? defaultDomaOutputLength(dataType, length, decimals, signExists);
+  // The valueInformation block is only emitted when there is something to put in
+  // it: the bench-accepted body has none, and `injectEmptyFixValues`
+  // (src/tools/write.ts) leaves a document without the block alone. Its child
+  // order — valueTableRef, appendExists, fixValues — is the live order.
+  const fixRows = (f.fixedValues ?? []).map((v, i) => renderFixValue(v, i, length, name)).join("");
+  const valueInformation =
+    f.fixedValues === undefined && f.valueTable === undefined
+      ? ""
+      : `<doma:valueInformation>${renderValueTableRef(f.valueTable, name)}${elem("doma:appendExists", "false")}` +
+        // No rows: the skeleton's self-closing `<doma:fixValues/>`, byte for byte.
+        (fixRows === "" ? "<doma:fixValues/>" : `<doma:fixValues>${fixRows}</doma:fixValues>`) +
+        `</doma:valueInformation>`;
   return (
     `${XML_DECL}<doma:domain xmlns:doma="http://www.sap.com/dictionary/domain" xmlns:adtcore="${ADTCORE_NS}" ` +
-    `adtcore:name="${escapeXmlAttr(name)}" adtcore:type="DOMA/DD" adtcore:description="${escapeXmlAttr(description)}">` +
+    `adtcore:name="${escapeXmlAttr(name)}" adtcore:type="DOMA/DD" adtcore:description="${escapeXmlAttr(description)}" ${ROOT_LANGUAGE_ATTRS}>` +
     `<adtcore:packageRef adtcore:name="${escapeXmlAttr(packageName)}"/>` +
     `<doma:content>` +
     `<doma:typeInformation>${elem("doma:datatype", dataType)}${elem("doma:length", num(length))}${elem("doma:decimals", num(decimals))}</doma:typeInformation>` +
-    `<doma:outputInformation>${elem("doma:length", num(outputLength))}${elem("doma:lowercase", String(lowercase))}${elem("doma:signExists", String(signExists))}</doma:outputInformation>` +
+    // signExists BEFORE lowercase — the live child order (skeleton above, every
+    // GET). Sent the other way round, A4H activated `ZAS_DOMA_V1` (DEC 13,3,
+    // signExists true) with `signExists` stored FALSE and no message
+    // (2026-09-16); the same body with signExists first kept it. The bench
+    // body had both flags false, which is why its order never showed this.
+    `<doma:outputInformation>${elem("doma:length", num(outputLength))}${elem("doma:signExists", String(signExists))}${elem("doma:lowercase", String(lowercase))}</doma:outputInformation>` +
+    valueInformation +
     `</doma:content></doma:domain>`
   );
 }
@@ -437,14 +649,10 @@ function buildDtel(name: string, description: string, packageName: string, f: Dd
   const decimals = f.decimals ?? 0;
   // "Bench" is the literal label text from the body a live system accepted —
   // not a tasteful default, just what's grounded. Don't "improve" it without new evidence.
-  const shortLabel = f.shortLabel ?? "Bench";
-  const shortLength = f.shortLength ?? 10;
-  const mediumLabel = f.mediumLabel ?? "Bench";
-  const mediumLength = f.mediumLength ?? 20;
-  const longLabel = f.longLabel ?? "Bench";
-  const longLength = f.longLength ?? 40;
-  const headingLabel = f.headingLabel ?? "Bench";
-  const headingLength = f.headingLength ?? 55;
+  const short = dtelLabel("short", f.shortLabel ?? "Bench", f.shortLength, name);
+  const medium = dtelLabel("medium", f.mediumLabel ?? "Bench", f.mediumLength, name);
+  const long = dtelLabel("long", f.longLabel ?? "Bench", f.longLength, name);
+  const heading = dtelLabel("heading", f.headingLabel ?? "Bench", f.headingLength, name);
   if (f.searchHelpParameter !== undefined && f.searchHelp === undefined) {
     throw new AbapError(
       "BAD_INPUT",
@@ -463,23 +671,24 @@ function buildDtel(name: string, description: string, packageName: string, f: Dd
       : "";
   return (
     `${XML_DECL}<blue:wbobj xmlns:blue="http://www.sap.com/wbobj/dictionary/dtel" xmlns:adtcore="${ADTCORE_NS}" ` +
-    `adtcore:name="${escapeXmlAttr(name)}" adtcore:type="DTEL/DE" adtcore:description="${escapeXmlAttr(description)}">` +
+    `adtcore:name="${escapeXmlAttr(name)}" adtcore:type="DTEL/DE" adtcore:description="${escapeXmlAttr(description)}" ${ROOT_LANGUAGE_ATTRS}>` +
     `<adtcore:packageRef adtcore:name="${escapeXmlAttr(packageName)}"/>` +
     `<dtel:dataElement xmlns:dtel="${DATAELEMENT_NS}">` +
     `${elem("dtel:typeKind", typeKind)}${elem("dtel:typeName", typeName)}` +
     `${elem("dtel:dataType", dataType)}${elem("dtel:dataTypeLength", numPadded(length, 6))}${elem("dtel:dataTypeDecimals", numPadded(decimals, 6))}` +
-    `${elem("dtel:shortFieldLabel", shortLabel)}${elem("dtel:shortFieldLength", num(shortLength))}${elem("dtel:shortFieldMaxLength", num(DTEL_MAX_LENGTH.short))}` +
-    `${elem("dtel:mediumFieldLabel", mediumLabel)}${elem("dtel:mediumFieldLength", num(mediumLength))}${elem("dtel:mediumFieldMaxLength", num(DTEL_MAX_LENGTH.medium))}` +
-    `${elem("dtel:longFieldLabel", longLabel)}${elem("dtel:longFieldLength", num(longLength))}${elem("dtel:longFieldMaxLength", num(DTEL_MAX_LENGTH.long))}` +
-    `${elem("dtel:headingFieldLabel", headingLabel)}${elem("dtel:headingFieldLength", num(headingLength))}${elem("dtel:headingFieldMaxLength", num(DTEL_MAX_LENGTH.heading))}` +
+    `${elem("dtel:shortFieldLabel", short.label)}${elem("dtel:shortFieldLength", numPadded(short.length, 2))}${elem("dtel:shortFieldMaxLength", num(DTEL_MAX_LENGTH.short))}` +
+    `${elem("dtel:mediumFieldLabel", medium.label)}${elem("dtel:mediumFieldLength", numPadded(medium.length, 2))}${elem("dtel:mediumFieldMaxLength", num(DTEL_MAX_LENGTH.medium))}` +
+    `${elem("dtel:longFieldLabel", long.label)}${elem("dtel:longFieldLength", numPadded(long.length, 2))}${elem("dtel:longFieldMaxLength", num(DTEL_MAX_LENGTH.long))}` +
+    `${elem("dtel:headingFieldLabel", heading.label)}${elem("dtel:headingFieldLength", numPadded(heading.length, 2))}${elem("dtel:headingFieldMaxLength", num(DTEL_MAX_LENGTH.heading))}` +
     // Element identity, values and order (searchHelp, searchHelpParameter, setGetParameter,
     // defaultComponentName) are live-captured, not guessed: a raw read of DTEL/DE PBUNAM
     // (package SPAK_TOOL) on A4H (NetWeaver 7.54, client 001), 2026-09-15, returned inside
     // <dtel:dataElement> exactly `<dtel:searchHelp>USER_ADDR</dtel:searchHelp>
     // <dtel:searchHelpParameter>BNAME</dtel:searchHelpParameter>` in this order, and DD04L for
     // ROLLNAME='PBUNAM' holds SHLPNAME=USER_ADDR, SHLPFIELD=BNAME — so these two elements map to
-    // those two catalog columns. This assembled write path (buildDtel emitting them from `ddic`
-    // fields) has NOT itself been sent to a live system, unverified like the rest of this module.
+    // those two catalog columns. The assembled write path has been sent live with these two
+    // slots EMPTY (ZAS_DTEL_TEST / ZAS_DTEL_LBL, 2026-09-16); a non-empty search help through
+    // `ddic` has not itself been sent to a live system.
     `${elem("dtel:searchHelp", searchHelp)}${elem("dtel:searchHelpParameter", searchHelpParameter)}${elem("dtel:setGetParameter", "")}${elem("dtel:defaultComponentName", "")}` +
     `${elem("dtel:deactivateInputHistory", "false")}${elem("dtel:changeDocument", "false")}` +
     `${elem("dtel:leftToRightDirection", "false")}${elem("dtel:deactivateBIDIFiltering", "false")}` +
@@ -506,7 +715,7 @@ function buildTtyp(name: string, description: string, packageName: string, f: Dd
   const decimals = f.decimals ?? 0;
   return (
     `${XML_DECL}<ttyp:tableType xmlns:ttyp="http://www.sap.com/dictionary/tabletype" xmlns:adtcore="${ADTCORE_NS}" ` +
-    `adtcore:name="${escapeXmlAttr(name)}" adtcore:type="TTYP/DA" adtcore:description="${escapeXmlAttr(description)}">` +
+    `adtcore:name="${escapeXmlAttr(name)}" adtcore:type="TTYP/DA" adtcore:description="${escapeXmlAttr(description)}" ${ROOT_LANGUAGE_ATTRS}>` +
     `<adtcore:packageRef adtcore:name="${escapeXmlAttr(packageName)}"/>` +
     `<ttyp:rowType>` +
     `${elem("ttyp:typeKind", typeKind)}${elem("ttyp:typeName", typeName)}` +
