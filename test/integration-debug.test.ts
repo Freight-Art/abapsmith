@@ -115,6 +115,19 @@ const DEMO_URI ="/sap/bc/adt/programs/programs/zmcp_dbg_demo/source/main";
 const FILL_URI = "/sap/bc/adt/programs/programs/zmcp_dbg_fill/source/main";
 const ITEM_URI = "/sap/bc/adt/ddic/tables/zmcp_dbg_item/source/main";
 const RUN_URI = "/sap/bc/adt/oo/classes/zmcp_dbg_run/source/main";
+/**
+ * #152 probe class. NOT part of the seeded fixture set: case 5 skips itself
+ * when the class is absent. To run it, create in `$TMP` (delete afterwards):
+ *
+ *   CLASS zcl_as_dbgexc DEFINITION PUBLIC FINAL CREATE PUBLIC.
+ *     PUBLIC SECTION. INTERFACES if_oo_adt_classrun.
+ *   ENDCLASS.
+ *   CLASS zcl_as_dbgexc IMPLEMENTATION.
+ *     METHOD if_oo_adt_classrun~main. RAISE EXCEPTION TYPE cx_sy_zerodivide. ENDMETHOD.
+ *   ENDCLASS.
+ */
+const EXC_URI = "/sap/bc/adt/oo/classes/zcl_as_dbgexc/source/main";
+const EXC_CLASS = "ZCL_AS_DBGEXC";
 const LAUNCHER = "ZMCP_DBG_RUN";
 
 let connA: AbapConnection;
@@ -214,8 +227,8 @@ const debugControlConnections = new Map<AbapConnection, string>();
 const tlog = (msg: string) => process.stderr.write(`[integration-debug.test.ts] teardown: ${msg}\n`);
 const errText = (e: unknown) => (e instanceof Error ? `${e.name}: ${e.message}` : String(e));
 
-/** Both live cases' debug contexts, defined once so teardown can address the very listeners the cases registered. */
-function debugContext(seed: "main" | "idle"): DebugContext {
+/** Every live case's debug context, defined once so teardown can address the very listeners the cases registered. */
+function debugContext(seed: "main" | "idle" | "exception"): DebugContext {
   return {
     debuggingMode: "user",
     terminalId: resolveTerminalId({ seed: `abapsmith-integration-debug-${seed}-terminal` }),
@@ -223,7 +236,7 @@ function debugContext(seed: "main" | "idle"): DebugContext {
     requestUser: cfg.user,
   };
 }
-const SEEDS = ["main", "idle"] as const;
+const SEEDS = ["main", "idle", "exception"] as const;
 
 /**
  * `role` decides whether the connection joins the last-resort sweep registry:
@@ -703,6 +716,89 @@ d("live debug-session verification (A4H)", () => {
         // connA2/connB2 are NOT shut down here — afterEach owns every connection
         // `openCaseConnection()` handed out, so they are released on every exit
         // path including the ones that skip this `finally` entirely.
+      }
+
+      await assertCleanDebugTables(connA);
+    },
+    MAX,
+  );
+  // #152 — an exception breakpoint ALONE must suspend the run at the RAISE,
+  // before the short dump. Issue report: with only an exception breakpoint
+  // the listener came back with DBGEE_KIND "PMORTEM" (the dump, not a live
+  // debuggee); paired with a line breakpoint the line stopped and the raise
+  // never did. This case records what the server actually does with the
+  // request shape abapsmith sends (attribute-identical to the accepted
+  // capture in test/cassettes/debugger/bp-set-exception-accepted.cassette.json).
+  //
+  // STATUS: written against the seeded-fixture pattern above but NOT YET RUN
+  // LIVE — the auth circuit breaker was latched on the shared user while
+  // #152 was worked on. The expectations below encode the DESIRED behaviour
+  // (a live debuggee suspended inside ZCL_AS_DBGEXC); a PMORTEM result here
+  // is the bug reproducing, and the diagnostic line makes that visible.
+  it(
+    "an exception breakpoint on CX_SY_ZERODIVIDE alone suspends the run before the dump (#152)",
+    async (ctx) => {
+      skipIfDirtyOnArrival(ctx);
+      assertUsable();
+      const probe = await connA.get(EXC_URI, { headers: { Accept: "text/plain" } }).catch((e: unknown) => e);
+      if (probe instanceof Error || (typeof probe === "object" && probe !== null && "status" in probe && probe.status !== 200)) {
+        ctx.skip(`${EXC_CLASS} is not present in $TMP — see the EXC_URI comment for its source`);
+      }
+
+      const connA3 = await openCaseConnection("debug-control");
+      const client = createDebugClientForConnection(connA3, { safety: GATE, listenTimeoutSeconds: 60 });
+      const context: DebugContext = debugContext("exception");
+      const session3 = new DebugSession({ client, context, idleTimeoutMs: 300_000, listenerTimeoutSeconds: 60 });
+      const connB3 = await openCaseConnection("trigger");
+
+      let triggerP3: Promise<{ status: number; body: string }> | undefined;
+      let bodyCompleted = false;
+      try {
+        const created = await session3.prepareBreakpoints([
+          { kind: "exception", clientId: "exc1", exceptionClass: "CX_SY_ZERODIVIDE" },
+        ]);
+        expect(created).toHaveLength(1);
+        expect(created[0]?.id).toBe("KIND=5.EXCEPTION_CLASS=CX_SY_ZERODIVIDE");
+
+        await session3.armListener();
+        // Do NOT trigger immediately — see BREAKPOINT_ACTIVATION_SETTLE_MS.
+        await new Promise((r) => setTimeout(r, BREAKPOINT_ACTIVATION_SETTLE_MS));
+
+        triggerP3 = connB3.post(`/sap/bc/adt/oo/classrun/${EXC_CLASS}`, { headers: { Accept: "text/plain" } });
+
+        const lr = await session3.waitForDebuggee();
+        // Diagnostic first, so a failing run still says WHAT came back.
+        console.log(
+          `[exception-bp] listen kind=${lr.kind}` +
+            (lr.kind === "debuggee"
+              ? ` debuggeeKind=${lr.debuggee.kind} rawKind=${lr.debuggee.rawKind} dumpId=${lr.debuggee.dumpId ?? "-"}`
+              : ""),
+        );
+        expect(lr.kind).toBe("debuggee");
+        if (lr.kind !== "debuggee") return;
+        // A PMORTEM here means the run dumped WITHOUT the breakpoint firing — the #152 report.
+        expect(lr.debuggee.kind).toBe("debuggee");
+
+        const a3 = await session3.attach(lr.debuggee.id);
+        console.log(
+          `[exception-bp] attach frames=${JSON.stringify(
+            a3.stack.frames.map((f) => ({ p: f.programName, i: f.includeName, l: f.line })),
+          )}`,
+        );
+        expect(a3.stack.frames.some((f) => f.programName.toUpperCase().includes(EXC_CLASS))).toBe(true);
+
+        if (session3.snapshot.status === "suspended") {
+          await session3.step(a3.stateId, "stepContinue");
+        }
+        bodyCompleted = true;
+      } finally {
+        await session3.terminate().catch((e: unknown) => {
+          const detail = `case 5 terminate() failed: ${errText(e)}`;
+          tlog(detail);
+          pendingProblems.push(detail);
+        });
+        if (bodyCompleted) expect(session3.snapshot.status).toBe("dead");
+        if (triggerP3) await triggerP3.catch(() => undefined);
       }
 
       await assertCleanDebugTables(connA);

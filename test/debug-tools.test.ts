@@ -1094,7 +1094,8 @@ describe("note-once guidance (#151) and caught-kind disclosure (#152)", () => {
     expect(result.text).toMatch(/^debuggee: PMORTEM$/m);
     expect(result.text).toMatch(/^dump: 20260916_101500_DEVELOPER$/m);
     expect(result.text).toContain("NOTE: POST-MORTEM: the debugger attached to a short dump (DBGEE_KIND PMORTEM dump 20260916_101500_DEVELOPER)");
-    expect(result.text).toContain("exception breakpoint was set to stop BEFORE this dump, it did not fire");
+    // Started without an exception breakpoint: nothing to name as not-fired (#152).
+    expect(result.text).not.toContain("did not suspend the run before this dump");
     expect(result.text).toContain('abap_dumps({id:"20260916_101500_DEVELOPER"})');
     expect(extractStateId(result.text)).toMatch(/^[0-9a-f]{12}$/);
   });
@@ -3308,10 +3309,192 @@ describe("B1 — exception, statement and message breakpoints reach the schema a
     // `line` breakpoint, which SAFETY_DENIEDs on this exact allowlist) — so
     // reaching a normal "suspended" result IS the assertion that the package
     // rule never ran here. No `line` breakpoint also means `resolveObject`
-    // is never called for this start at all.
+    // is never called for the RUN OBJECT (the exception class itself is
+    // resolved once, #152 — a different name).
     const result = await promise;
     expect(extractStateId(result.text)).toBeTruthy();
     expect(countOf(log, "resolveObject:ZTEST_MCP_CRUD")).toBe(0);
+  }, 20_000);
+});
+
+// ---------------------------------------------------------------------------
+// #152 — exception breakpoints: the class must exist, the server must echo
+// the breakpoint as armed, and a run that ends without ever stopping at one
+// says so (src/tools/debug.ts: the `bp.kind === "exception"` branch, the
+// echo check after `prepareBreakpoints`, and `composeDeathOutput`).
+// ---------------------------------------------------------------------------
+
+/** The live echo shape (cassette bp-set-exception-accepted): the exception row carries its KIND=5 id. */
+const BREAKPOINTS_WITH_EXCEPTION_XML =
+  `<?xml version="1.0"?><dbg:breakpoints xmlns:dbg="http://www.sap.com/adt/debugger">` +
+  `<dbg:breakpoint kind="line" id="BP1"/>` +
+  `<dbg:breakpoint kind="exception" clientId="exc1" id="KIND=5.EXCEPTION_CLASS=CX_SY_ZERODIVIDE" exceptionClass="CX_SY_ZERODIVIDE"/>` +
+  `</dbg:breakpoints>`;
+
+const LINE_PLUS_EXCEPTION = {
+  action: "start",
+  breakpoints: [
+    { kind: "line", object: "ZTEST_MCP_CRUD", line: 15 },
+    { kind: "exception", exceptionClass: "cx_sy_zerodivide" },
+  ],
+  run: { object: "ZTEST_MCP_CRUD", mode: "report" },
+};
+
+/**
+ * `getStack` succeeds `aliveReads` times, then reports the session dead (the
+ * Signal-A shape). Attach reads once; every step that stays alive reads twice
+ * (the follow-up plus the lag-mitigation verification in `DebugSession.step`).
+ */
+function dyingGetStack(aliveReads: number): () => RawResponse {
+  let calls = 0;
+  return () => {
+    calls++;
+    if (calls <= aliveReads) return okResponse(buildStackXml("ZTEST_MCP_CRUD", 15));
+    throw new AbapError("SESSION_DEAD", "An exception was raised", { bodyExcerpt: "An exception was raised" });
+  };
+}
+
+describe("exception breakpoints: class existence, server echo and non-firing disclosure (#152)", () => {
+  it("resolves the exception class once, arms it on the wire, and at death says the armed breakpoint never suspended the run", async () => {
+    const log: string[] = [];
+    const listener = new FakeListener(log);
+    const transport = new FakeTransport(
+      log,
+      HAPPY_TABLE({
+        "setBreakpoints:real": okResponse(BREAKPOINTS_WITH_EXCEPTION_XML),
+        getStack: dyingGetStack(1),
+        step: okResponse(buildStepXml({})),
+      }),
+    );
+    const deps = makeDeps({ log, transport, listener });
+
+    const promise = abapDebug(DUMMY_CONN, DebugInput.parse(LINE_PLUS_EXCEPTION), 60_000, deps, writableGate());
+    await flushMicrotasks();
+    listener.resolveWith(okResponse(buildDebuggeeXml("X1")));
+    const started = await promise;
+
+    expect(countOf(log, "resolveObject:CX_SY_ZERODIVIDE")).toBe(1);
+    const realPost = transport.calls.find(
+      (c) => c.path.includes("/debugger/breakpoints") && c.method === "POST" && !c.body?.includes('validationOnly="true"'),
+    );
+    expect(realPost?.body).toContain('kind="exception"');
+    expect(realPost?.body).toContain('exceptionClass="cx_sy_zerodivide"');
+    expect(started.text).not.toContain("NOT armed");
+    expect(started.text).not.toContain("never suspended");
+
+    const dead = await abapDebug(
+      DUMMY_CONN,
+      { action: "step", step: "continue", stateId: extractStateId(started.text)! } as DebugInput,
+      60_000,
+      deps,
+      writableGate(),
+    );
+    expect(dead.text).toContain("terminationKind: session_ended");
+    expect(dead.text).toContain("Exception breakpoint(s) on CX_SY_ZERODIVIDE were armed (server-echoed) but never suspended");
+  }, 20_000);
+
+  it("refuses the start by name when the exception class cannot be resolved, before any breakpoint request", async () => {
+    const log: string[] = [];
+    const listener = new FakeListener(log);
+    const transport = new FakeTransport(log, HAPPY_TABLE());
+    const base = makeDeps({ log, transport, listener });
+    const deps: DebugToolDeps = {
+      ...base,
+      resolveObject: async (conn, ref) => {
+        if (ref === "CX_NOPE") throw new AbapError("NOT_FOUND", `No object named ${ref}`, { ref });
+        return base.resolveObject(conn, ref);
+      },
+    };
+    const input = DebugInput.parse({
+      action: "start",
+      breakpoints: [{ kind: "exception", exceptionClass: "cx_nope" }],
+      run: { object: "ZTEST_MCP_CRUD", mode: "report" },
+    });
+    await expect(abapDebug(DUMMY_CONN, input, 60_000, deps, writableGate())).rejects.toMatchObject({
+      code: "BAD_INPUT",
+      message: expect.stringContaining("Exception breakpoint on CX_NOPE: the exception class could not be found"),
+    });
+    expect(transport.calls.filter((c) => c.path.includes("/debugger/breakpoints") && c.method === "POST")).toHaveLength(0);
+    expect(countOf(log, "listener:launch")).toBe(0);
+  }, 20_000);
+
+  it("says in the start response when the server accepted the request but did not echo the exception breakpoint, and then does not claim it was armed at death", async () => {
+    const log: string[] = [];
+    const listener = new FakeListener(log);
+    // HAPPY_TABLE's default echo carries only the line breakpoint.
+    const transport = new FakeTransport(log, HAPPY_TABLE({ getStack: dyingGetStack(1), step: okResponse(buildStepXml({})) }));
+    const deps = makeDeps({ log, transport, listener });
+
+    const promise = abapDebug(DUMMY_CONN, DebugInput.parse(LINE_PLUS_EXCEPTION), 60_000, deps, writableGate());
+    await flushMicrotasks();
+    listener.resolveWith(okResponse(buildDebuggeeXml("X2")));
+    const started = await promise;
+    expect(started.text).toContain(
+      "NOTE: Exception breakpoint on CX_SY_ZERODIVIDE: the server accepted the breakpoints request but did not echo this breakpoint as armed — treat it as NOT armed",
+    );
+
+    const dead = await abapDebug(
+      DUMMY_CONN,
+      { action: "step", step: "continue", stateId: extractStateId(started.text)! } as DebugInput,
+      60_000,
+      deps,
+      writableGate(),
+    );
+    expect(dead.text).toContain("terminationKind: session_ended");
+    expect(dead.text).not.toContain("never suspended");
+  }, 20_000);
+
+  it("stays silent at death once the exception breakpoint has actually suspended the run (KIND=5 id on a step)", async () => {
+    const log: string[] = [];
+    const listener = new FakeListener(log);
+    let steps = 0;
+    const transport = new FakeTransport(
+      log,
+      HAPPY_TABLE({
+        "setBreakpoints:real": okResponse(BREAKPOINTS_WITH_EXCEPTION_XML),
+        getStack: dyingGetStack(3),
+        step: () =>
+          okResponse(buildStepXml({ reachedBreakpoints: ++steps === 1 ? ["KIND=5.EXCEPTION_CLASS=CX_SY_ZERODIVIDE"] : [] })),
+      }),
+    );
+    const deps = makeDeps({ log, transport, listener });
+
+    const promise = abapDebug(DUMMY_CONN, DebugInput.parse(LINE_PLUS_EXCEPTION), 60_000, deps, writableGate());
+    await flushMicrotasks();
+    listener.resolveWith(okResponse(buildDebuggeeXml("X3")));
+    const started = await promise;
+    const hit = await abapDebug(
+      DUMMY_CONN,
+      { action: "step", step: "continue", stateId: extractStateId(started.text)! } as DebugInput,
+      60_000,
+      deps,
+      writableGate(),
+    );
+    expect(hit.text).toContain("status: suspended");
+    const dead = await abapDebug(
+      DUMMY_CONN,
+      { action: "step", step: "continue", stateId: extractStateId(hit.text)! } as DebugInput,
+      60_000,
+      deps,
+      writableGate(),
+    );
+    expect(dead.text).toContain("terminationKind: session_ended");
+    expect(dead.text).not.toContain("never suspended");
+  }, 20_000);
+
+  it("names the armed exception breakpoint in the post-mortem note when the start attaches to a dump (PMORTEM)", async () => {
+    const log: string[] = [];
+    const listener = new FakeListener(log);
+    const transport = new FakeTransport(log, HAPPY_TABLE({ "setBreakpoints:real": okResponse(BREAKPOINTS_WITH_EXCEPTION_XML) }));
+    const deps = makeDeps({ log, transport, listener });
+
+    const promise = abapDebug(DUMMY_CONN, DebugInput.parse(LINE_PLUS_EXCEPTION), 60_000, deps, writableGate());
+    await flushMicrotasks();
+    listener.resolveWith(okResponse(buildDebuggeeXml("X4", { kind: "PMORTEM", dumpId: "20260916_101500_DEVELOPER" })));
+    const started = await promise;
+    expect(started.text).toContain("debuggee: PMORTEM");
+    expect(started.text).toContain("The exception breakpoint(s) on CX_SY_ZERODIVIDE did not suspend the run before this dump.");
+    await abapDebug(DUMMY_CONN, { action: "stop" } as DebugInput, 60_000, deps, writableGate());
   }, 20_000);
 });
 

@@ -518,6 +518,14 @@ interface CurrentRun {
    * state change (breakpoint hit, post-mortem attach). See guidance.ts.
    */
   guidance: GuidanceLedger;
+  /**
+   * #152 — exception classes whose breakpoints the server echoed as armed at
+   * `start`, and whether any exception breakpoint has suspended this run yet.
+   * Read at death: a run that ended without ever stopping at one of them says
+   * so, instead of leaving the caller to infer it from the dump.
+   */
+  armedExceptionClasses: readonly string[];
+  exceptionBreakpointFired: boolean;
   /** Never rejects — already normalized via .then(ok, err) attached synchronously at creation time. */
   triggerSettled: Promise<DebugTriggerOutcome>;
   /**
@@ -1394,6 +1402,16 @@ async function composeDeathOutput(
   if (settled === TIMED_OUT) {
     notes.push("Program output is incomplete: the trigger run had not returned when the wait expired.");
   }
+  // #152 — an exception breakpoint that never suspended the run is otherwise
+  // invisible at death: the caller sees a dump and has to guess whether the
+  // breakpoint was armed at all.
+  if (run.armedExceptionClasses.length > 0 && !run.exceptionBreakpointFired) {
+    notes.push(
+      `Exception breakpoint(s) on ${run.armedExceptionClasses.join(", ")} were armed (server-echoed) but never ` +
+        "suspended this run before it ended. To stop at the raise, arm a line breakpoint on the RAISE statement, " +
+        'or a statement breakpoint "RAISE EXCEPTION TYPE" together with a line breakpoint in the target object.',
+    );
+  }
   // Structured discriminator alongside `deathReason`/`terminationKind` — see
   // `triggerOutcomeHeader`'s doc comment. Costs zero JSON-schema bytes: a
   // response HEADER field, not part of any tool's zod schema.
@@ -1776,6 +1794,10 @@ async function handleStart(
   // but does not enforce it — every hit suspends. Collected so the response
   // repeats the warning per armed skipCount, not just in the schema text.
   const skipCountWarnings: string[] = [];
+  // #152 — exception classes this start asked for, and the subset the server
+  // echoed as armed. Outside the try so the run record can carry them.
+  const requestedExceptionClasses: string[] = [];
+  const armedExceptionClasses: string[] = [];
   // Declared OUTSIDE the try so the catch can release the trigger connection
   // even though it's created inside it. Starts as a no-op.
   let closeTriggerConn: () => void = () => {};
@@ -1864,6 +1886,28 @@ async function handleStart(
         // An exception breakpoint names a class to WATCH, not modify — gating
         // it against the exception class's own name would deny every standard
         // CX_* for no safety gain, so the session-level (run target) check covers it.
+        //
+        // #152 — SAP does not refuse an exception breakpoint whose class it
+        // cannot find (live: an empty exceptionClass was answered 200 and
+        // registered nothing — test/debug-xml-request.test.ts), so an unknown
+        // class would be armed, never fire, and the run would end in a dump
+        // with nothing to say why. Resolve the class first (one read per
+        // distinct class, cached) and refuse the start by name instead.
+        const exceptionClass = bp.exceptionClass.trim().toUpperCase();
+        if (!resolvedCache.has(exceptionClass)) {
+          try {
+            resolvedCache.set(exceptionClass, await deps.resolveObject(conn, exceptionClass));
+          } catch (e) {
+            throw new AbapError(
+              "BAD_INPUT",
+              `Exception breakpoint on ${exceptionClass}: the exception class could not be found ` +
+                `(${describeUnknownError(e)}). SAP would accept the breakpoint and never fire it, so the ` +
+                "start is refused instead.",
+              { exceptionClass, cause: describeUnknownError(e) },
+            );
+          }
+        }
+        requestedExceptionClasses.push(exceptionClass);
         breakpoints.push({
           kind: "exception",
           exceptionClass: bp.exceptionClass,
@@ -1896,7 +1940,24 @@ async function handleStart(
       }
     }
 
-    await session.prepareBreakpoints(breakpoints);
+    const created = await session.prepareBreakpoints(breakpoints);
+    // #152 — the server echoes every breakpoint it armed (live: an exception
+    // breakpoint comes back as `KIND=5.EXCEPTION_CLASS=<class>`, cassette
+    // bp-set-exception-accepted). One accepted without an echo is not armed;
+    // say so now rather than after the run has dumped.
+    for (const cls of requestedExceptionClasses) {
+      const echoed = created.some(
+        (c) => c.kind === "exception" && c.exceptionClass.trim().toUpperCase() === cls,
+      );
+      if (echoed) {
+        if (!armedExceptionClasses.includes(cls)) armedExceptionClasses.push(cls);
+      } else {
+        skipCountWarnings.push(
+          `Exception breakpoint on ${cls}: the server accepted the breakpoints request but did not echo ` +
+            `this breakpoint as armed — treat it as NOT armed; the run will not stop when ${cls} is raised.`,
+        );
+      }
+    }
     await session.armListener();
 
     triggerConn = await deps.createTriggerConnection();
@@ -2014,6 +2075,8 @@ async function handleStart(
     gateTarget,
     lastStack: attachedStack,
     guidance: new GuidanceLedger(),
+    armedExceptionClasses,
+    exceptionBreakpointFired: false,
     lane: targetLane,
   };
   debugLanes[targetLane] = run;
@@ -2027,7 +2090,7 @@ async function handleStart(
     run.guidance.noteStateChange(isPostMortemKind(caught.kind) ? "postmortem" : `kind:${caught.rawKind}`);
     caughtHeader["debuggee"] = caught.rawKind;
     if (caught.dumpId) caughtHeader["dump"] = caught.dumpId;
-    skipCountWarnings.push(...run.guidance.render([describeCaughtKind(caught)]));
+    skipCountWarnings.push(...run.guidance.render([describeCaughtKind(caught, run.armedExceptionClasses)]));
   }
 
   // Issue #89: auto-continue past framework stops that have nothing to do
@@ -2194,6 +2257,11 @@ async function handleStep(
   // for; the same breakpoint hit again (a loop under step:"continue") is not.
   if (result.step.reachedBreakpoints.length > 0) {
     run.guidance.noteStateChange(`bp:${result.step.reachedBreakpoints.map((b) => b.id).join(",")}`);
+  }
+  // #152 — an exception breakpoint's server id is `KIND=5.EXCEPTION_CLASS=…`
+  // (live cassette bp-set-exception-accepted); either signal counts as fired.
+  if (result.step.reachedBreakpoints.some((b) => b.kind === "exception" || b.id.startsWith("KIND=5."))) {
+    run.exceptionBreakpointFired = true;
   }
   // Advisory (see session.ts's `visitedPositions`): this exact (program,
   // stack level, line) has been reported before this session. The ONE fact
@@ -3188,21 +3256,30 @@ function listIds(ids: readonly string[]): string {
  * breakpoint meant to stop BEFORE the dump did not fire. Unknown kind: the
  * wire said something this server has never seen; it is treated as attached.
  */
-function describeCaughtKind(caught: {
-  kind: string;
-  rawKind: string;
-  dumpId?: string;
-  dumpUri?: string;
-}): GuidanceNote {
+function describeCaughtKind(
+  caught: {
+    kind: string;
+    rawKind: string;
+    dumpId?: string;
+    dumpUri?: string;
+  },
+  armedExceptionClasses: readonly string[],
+): GuidanceNote {
   if (caught.kind === "postmortem" || caught.kind === "postmortem_dialog") {
     const dump = caught.dumpId ? ` dump ${caught.dumpId}` : "";
+    // #152 — name the exception breakpoints that were supposed to stop the
+    // run before this dump and did not.
+    const notFired =
+      armedExceptionClasses.length > 0
+        ? `The exception breakpoint(s) on ${armedExceptionClasses.join(", ")} did not suspend the run before this dump. `
+        : "";
     return {
       key: "postmortem",
       full:
         `POST-MORTEM: the debugger attached to a short dump (DBGEE_KIND ${caught.rawKind}${dump}), not to a ` +
         "running debuggee. The run has ALREADY terminated; stack and variables are its state at the dump, and " +
-        "stepping cannot resume it. If an exception breakpoint was set to stop BEFORE this dump, it did not " +
-        `fire. Read the dump text with abap_dumps${caught.dumpId ? `({id:"${caught.dumpId}"})` : ""}.`,
+        `stepping cannot resume it. ${notFired}Read the dump text with abap_dumps` +
+        `${caught.dumpId ? `({id:"${caught.dumpId}"})` : ""}.`,
       brief: `Post-mortem session (${caught.rawKind}${dump}) — the run already terminated; stepping cannot resume it.`,
     };
   }
