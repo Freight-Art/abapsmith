@@ -1404,12 +1404,16 @@ async function composeDeathOutput(
   }
   // #152 — an exception breakpoint that never suspended the run is otherwise
   // invisible at death: the caller sees a dump and has to guess whether the
-  // breakpoint was armed at all.
+  // breakpoint was armed at all. The rule stated here is live-verified (A4H,
+  // 2026-09-16, test/integration-debug.test.ts): a RAISE with a handler up
+  // the stack suspends at the raise; a RAISE nobody catches goes straight to
+  // the runtime error and the listener gets the post-mortem instead.
   if (run.armedExceptionClasses.length > 0 && !run.exceptionBreakpointFired) {
     notes.push(
       `Exception breakpoint(s) on ${run.armedExceptionClasses.join(", ")} were armed (server-echoed) but never ` +
-        "suspended this run before it ended. To stop at the raise, arm a line breakpoint on the RAISE statement, " +
-        'or a statement breakpoint "RAISE EXCEPTION TYPE" together with a line breakpoint in the target object.',
+        `suspended this run before it ended. ${EXCEPTION_BREAKPOINT_RULE} To stop before an uncaught raise, arm a ` +
+        'line breakpoint on the RAISE statement, or a statement breakpoint "RAISE EXCEPTION TYPE" together with a ' +
+        "line breakpoint in the target object.",
     );
   }
   // Structured discriminator alongside `deathReason`/`terminationKind` — see
@@ -1957,6 +1961,14 @@ async function handleStart(
             `this breakpoint as armed — treat it as NOT armed; the run will not stop when ${cls} is raised.`,
         );
       }
+    }
+    // #152 item 3 — say up front what an armed exception breakpoint can and
+    // cannot do, so a run that dumps is not a surprise.
+    if (armedExceptionClasses.length > 0) {
+      skipCountWarnings.push(
+        `Exception breakpoint(s) on ${armedExceptionClasses.join(", ")} armed. ${EXCEPTION_BREAKPOINT_RULE} ` +
+          "To stop before an uncaught raise, add a line breakpoint on the RAISE statement.",
+      );
     }
     await session.armListener();
 
@@ -3249,6 +3261,23 @@ function listIds(ids: readonly string[]): string {
   );
 }
 
+
+/**
+ * #152 — what an ADT exception breakpoint actually does, live-verified on A4H
+ * (2026-09-16, `test/integration-debug.test.ts`, probe classes
+ * `ZCL_AS_DBGEXC`/`ZCL_AS_DBGEXC2`): a `RAISE EXCEPTION TYPE cx_sy_zerodivide`
+ * inside a TRY with a matching CATCH suspended at the raise (DBGEE_KIND
+ * `DEBUGGEE`, stack inside the probe class); the same RAISE with no handler,
+ * and a real `1 / 0`, never suspended — the listener returned DBGEE_KIND
+ * `PMORTEM` with dump ids `UNCAUGHT_EXCEPTION` / `COMPUTE_INT_ZERODIVIDE`.
+ * The registration is not at fault (it is attribute-identical to the accepted
+ * capture); the runtime turns an unhandled raise into a runtime error before
+ * the breakpoint gets its turn.
+ */
+const EXCEPTION_BREAKPOINT_RULE =
+  "An exception breakpoint stops at the RAISE only when a handler for the exception exists up the stack " +
+  "(live-verified: a caught RAISE suspends at the raise; an uncaught one, and a real division by zero, go " +
+  "straight to the runtime error and the debugger sees the post-mortem instead).";
 /**
  * #152 — the start-response note for a caught debuggee that is not a live
  * one. Post-mortem: the run already terminated with a short dump, so the
@@ -3266,12 +3295,14 @@ function describeCaughtKind(
   armedExceptionClasses: readonly string[],
 ): GuidanceNote {
   if (caught.kind === "postmortem" || caught.kind === "postmortem_dialog") {
+    // (rule text: EXCEPTION_BREAKPOINT_RULE, defined above this function)
     const dump = caught.dumpId ? ` dump ${caught.dumpId}` : "";
     // #152 — name the exception breakpoints that were supposed to stop the
     // run before this dump and did not.
     const notFired =
       armedExceptionClasses.length > 0
-        ? `The exception breakpoint(s) on ${armedExceptionClasses.join(", ")} did not suspend the run before this dump. `
+        ? `The exception breakpoint(s) on ${armedExceptionClasses.join(", ")} did not suspend the run before this ` +
+          `dump: ${EXCEPTION_BREAKPOINT_RULE} `
         : "";
     return {
       key: "postmortem",

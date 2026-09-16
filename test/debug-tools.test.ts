@@ -3381,6 +3381,9 @@ describe("exception breakpoints: class existence, server echo and non-firing dis
     expect(realPost?.body).toContain('exceptionClass="cx_sy_zerodivide"');
     expect(started.text).not.toContain("NOT armed");
     expect(started.text).not.toContain("never suspended");
+    // #152 item 3 — the start response says what the armed breakpoint can do.
+    expect(started.text).toContain("Exception breakpoint(s) on CX_SY_ZERODIVIDE armed.");
+    expect(started.text).toContain("stops at the RAISE only when a handler for the exception exists up the stack");
 
     const dead = await abapDebug(
       DUMMY_CONN,
@@ -3391,6 +3394,7 @@ describe("exception breakpoints: class existence, server echo and non-firing dis
     );
     expect(dead.text).toContain("terminationKind: session_ended");
     expect(dead.text).toContain("Exception breakpoint(s) on CX_SY_ZERODIVIDE were armed (server-echoed) but never suspended");
+    expect(dead.text).toContain("To stop before an uncaught raise, arm a line breakpoint on the RAISE statement");
   }, 20_000);
 
   it("refuses the start by name when the exception class cannot be resolved, before any breakpoint request", async () => {
@@ -3493,7 +3497,9 @@ describe("exception breakpoints: class existence, server echo and non-firing dis
     listener.resolveWith(okResponse(buildDebuggeeXml("X4", { kind: "PMORTEM", dumpId: "20260916_101500_DEVELOPER" })));
     const started = await promise;
     expect(started.text).toContain("debuggee: PMORTEM");
-    expect(started.text).toContain("The exception breakpoint(s) on CX_SY_ZERODIVIDE did not suspend the run before this dump.");
+    expect(started.text).toContain(
+      "The exception breakpoint(s) on CX_SY_ZERODIVIDE did not suspend the run before this dump: An exception breakpoint stops at the RAISE only when a handler",
+    );
     await abapDebug(DUMMY_CONN, { action: "stop" } as DebugInput, 60_000, deps, writableGate());
   }, 20_000);
 });
