@@ -286,6 +286,23 @@
  * stays **8**; `ALLOWLIST_CEILING` is now **26**. This entry must be deleted
  * (and the ceiling dropped) if the suite ever stops connecting for real.
  *
+ * ### Ceiling bump: the CHECK_FAILED-then-method= repair live suite
+ *
+ * `integration-checkfail-method-repair.test.ts` joined as a TWENTY-SEVENTH
+ * entry, under the same clause as the live-suite entries above: another
+ * genuine permanent member, same category as `integration.test.ts` /
+ * `integration-undo.test.ts` / `integration-ddic-structured.test.ts`. It is
+ * a live suite (self-gated on `VITEST_LIVE=1` plus `ABAP_URL` plus write
+ * access via `liveSuiteSkipReason({ write: true })`, and named in
+ * vitest.config.ts's `LIVE_INTEGRATION_TESTS`) that writes `$TMP` class `ZCL_AS_CHECKFAIL` with
+ * a syntax error (saved inactive, `CHECK_FAILED`), repairs the one broken
+ * method with `abap_write method=` resolved against the inactive component
+ * structure (issue #147), activates, reads back and deletes it. There is no
+ * fake in the file to route a probe through, and the real system answers
+ * the T000 probe itself. `ALLOWLIST_SIZE_AT_LANDING` still stays **8**;
+ * `ALLOWLIST_CEILING` is now **27**. This entry must be deleted (and the
+ * ceiling dropped) if the suite ever stops connecting for real.
+ *
  * ## The config-only exemption (separate from the allow-list)
  *
  * A suite whose SUBJECT is config resolution — env string in, resolved value
@@ -323,7 +340,7 @@ const CONFIG_BUILDERS_AT_LANDING = 17;
  * accommodate unrepaired debt — that is what `PROBE_ALLOWLIST.length <=
  * builders.length` and the shrink-to-THREE target below still guard against.
  */
-const ALLOWLIST_CEILING = ALLOWLIST_SIZE_AT_LANDING + 18; // +1 integration-fpm-lock, +1 integration-class-includes, +1 object-gate-config-equivalence, +1 pool-cross-process-object-gate, +1 integration-lock-handle, +1 integration-fluid-runtime, +1 integration-fluid-run, +1 integration-fluid-tool, +1 integration-fluid-img, +1 integration-fluid-classic, +1 integration-fluid-core, +1 integration-fluid-ui, +1 integration-fluid-fpm, +1 integration-fluid-enh, +1 fluid-describe, +1 integration-fluid-plugin, +1 read-cross-system-diff, +1 integration-ddic-structured
+const ALLOWLIST_CEILING = ALLOWLIST_SIZE_AT_LANDING + 19; // +1 integration-fpm-lock, +1 integration-class-includes, +1 object-gate-config-equivalence, +1 pool-cross-process-object-gate, +1 integration-lock-handle, +1 integration-fluid-runtime, +1 integration-fluid-run, +1 integration-fluid-tool, +1 integration-fluid-img, +1 integration-fluid-classic, +1 integration-fluid-core, +1 integration-fluid-ui, +1 integration-fluid-fpm, +1 integration-fluid-enh, +1 fluid-describe, +1 integration-fluid-plugin, +1 read-cross-system-diff, +1 integration-ddic-structured, +1 integration-checkfail-method-repair
 
 // ---------------------------------------------------------------------------
 // The scan
@@ -823,6 +840,18 @@ const PROBE_ALLOWLIST: { file: string; why: string }[] = [
       "(src/adt/ddic-payload.ts, #144/#145), activates them, reads the raw ADT XML back to prove " +
       "every value sent survived, and deletes them on a fresh connection each. There is no fake " +
       "to route.",
+  },
+  {
+    file: "integration-checkfail-method-repair.test.ts",
+    why:
+      "LIVE suite, same idiom as integration.test.ts / integration-undo.test.ts / " +
+      "integration-ddic-structured.test.ts. Gated on VITEST_LIVE=1 plus ABAP_URL plus write " +
+      "access via liveSuiteSkipReason({ write: true }) from test/live-appliance-state.ts, and named in " +
+      "vitest.config.ts's LIVE_INTEGRATION_TESTS. It builds its config with loadConfig() and " +
+      "talks to the real A4H appliance, which answers the T000 probe itself. It writes $TMP " +
+      "class ZCL_AS_CHECKFAIL with a syntax error (CHECK_FAILED, saved inactive), repairs the " +
+      "one broken method with abap_write method= resolved against the inactive component " +
+      "structure (#147), activates, reads it back and deletes it. There is no fake to route.",
   },
 ];
 

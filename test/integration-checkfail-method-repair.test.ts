@@ -20,9 +20,10 @@
  * that structure for a saved-but-inactive class.
  *
  * GATING. Runs only under `VITEST_LIVE=1`, and only with `ABAP_URL` set and
- * write access configured (`test/helpers/live-write-gate.ts`). The file is
- * also listed in `LIVE_INTEGRATION_TESTS` (vitest.config.ts); the self-gate
- * below is independent of that list on purpose.
+ * write access configured (`liveSuiteSkipReason({ write: true })` in
+ * `test/live-appliance-state.ts`); the skip reason is stated once. The file
+ * is also listed in `LIVE_INTEGRATION_TESTS` (vitest.config.ts); the
+ * self-gate below is independent of that list on purpose.
  *
  * BUDGET. One object, `ZCL_AS_CHECKFAIL` in `$TMP`, ~12 requests: one
  * create (fails its check), one `method=` write, one activation, one
@@ -40,14 +41,17 @@ import { abapWrite } from "../src/tools/write.js";
 import { abapRead } from "../src/tools/read.js";
 import { abapActivate } from "../src/tools/activate.js";
 import { SafetyGate } from "../src/safety.js";
-import { liveWriteConfigured } from "./helpers/live-write-gate.js";
+import { liveSuiteSkipReason, skipForApplianceState } from "./live-appliance-state.js";
 
 loadEnvFile();
 
-const liveEnabled = process.env.VITEST_LIVE === "1";
-const haveUrl = Boolean(process.env.ABAP_URL);
-const allowWrite = liveWriteConfigured();
-const d = liveEnabled && haveUrl && allowWrite ? describe : describe.skip;
+const notRun =
+  process.env.VITEST_LIVE === "1"
+    ? liveSuiteSkipReason({ write: true })
+    : "VITEST_LIVE is not 1 — live suites run only under the live config";
+const d = notRun === undefined ? describe : describe.skip;
+// A collection-time skip is counted but never says why; state the reason once, greppably.
+if (notRun !== undefined) it("live checkfail method repair: suite not run", (ctx) => skipForApplianceState(ctx, notRun));
 
 const NAME = "ZCL_AS_CHECKFAIL";
 const MAX = 60_000;
