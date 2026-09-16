@@ -327,6 +327,7 @@ async function searchObjects(
     },
     body,
     bodyLabel: "RESULTS",
+    size: true,
     notes,
     // abap_search has no offset/paging parameter — `max` is the only lever, so
     // the hint must not promise one.
@@ -415,6 +416,7 @@ async function whereUsed(
       ? textTable(rows, ["type", "name", "package", "description"]) + (capLine ? `\n${capLine}` : "")
       : "(no references found)",
     bodyLabel: "USED BY",
+    size: true,
     notes: [
       ...(expensive
         ? [
@@ -656,15 +658,70 @@ function scopeLabel(q: SourceScanQuery): string {
   return parts.join(" ");
 }
 
+/**
+ * Hits rendered per object before the rest of that object's hits are
+ * folded into a count (issue #148): one noisy object (a constants include,
+ * a generated class) used to fill the whole response with its own rows and
+ * push every other object's first hit off the page.
+ */
+export const SOURCE_PER_OBJECT_HIT_CAP = 20;
+
+interface HitGroup {
+  objType: string;
+  objName: string;
+  hits: SourceScanHit[];
+}
+
+/** Hits grouped per object, first-seen order (the scan's own order) kept. */
+export function groupSourceHits(hits: readonly SourceScanHit[]): HitGroup[] {
+  const groups = new Map<string, HitGroup>();
+  for (const h of hits) {
+    const key = `${h.objType} ${h.objName}`;
+    const g = groups.get(key);
+    if (g) g.hits.push(h);
+    else groups.set(key, { objType: h.objType, objName: h.objName, hits: [h] });
+  }
+  return [...groups.values()];
+}
+
+/**
+ * The MATCHES body: one header line per object, then `line: text` rows —
+ * with an `include <name>` sub-header only where an object's hits span
+ * includes whose name is not the object's own (CLAS method includes, FUGR
+ * includes), since that name is what `readHint` tells the caller to pass.
+ * Above `SOURCE_PER_OBJECT_HIT_CAP` the remainder is a count, never
+ * silently dropped.
+ */
+export function renderGroupedHits(groups: readonly HitGroup[], perObjectCap = SOURCE_PER_OBJECT_HIT_CAP): string {
+  const out: string[] = [];
+  for (const g of groups) {
+    const shown = g.hits.slice(0, perObjectCap);
+    const n = g.hits.length;
+    out.push(
+      `${g.objType} ${g.objName}  (${n} hit${n === 1 ? "" : "s"}${n > shown.length ? `, ${shown.length} shown` : ""})`,
+    );
+    const ownDocumentOnly = g.hits.every((h) => h.include === g.objName);
+    let lastInclude: string | undefined;
+    for (const h of shown) {
+      if (!ownDocumentOnly && h.include !== lastInclude) {
+        out.push(`  include ${h.include}`);
+        lastInclude = h.include;
+      }
+      out.push(`${ownDocumentOnly ? "  " : "    "}${h.line}: ${truncateForDisplay(h.text, 120)}`);
+    }
+    if (n > shown.length) {
+      out.push(
+        `  ... ${n - shown.length} more hit(s) in ${g.objName} not shown (per-object cap ${perObjectCap}` +
+          `; narrow \`query\`, or scope with objects="${g.objName}").`,
+      );
+    }
+  }
+  return out.join("\n");
+}
+
 export function buildSourceResponse(q: SourceScanQuery, result: SourceScanResult, maxChars: number): BuiltResponse {
   const { hits, summary } = result;
-  const rows = hits.map((h) => ({
-    type: h.objType,
-    name: h.objName,
-    include: h.include,
-    line: String(h.line),
-    text: truncateForDisplay(h.text, 120),
-  }));
+  const groups = groupSourceHits(hits);
 
   const objectsNotScanned = summary.objectsTotal - summary.objectsScanned;
   const truncLine =
@@ -679,7 +736,7 @@ export function buildSourceResponse(q: SourceScanQuery, result: SourceScanResult
   // `truncLine` is disclosure of a real gap in what was scanned, independent
   // of whether anything matched — an object-ceiling cut with zero hits is
   // still a cut, and used to be reported silently as a plain "(no matches)".
-  const body = [rows.length ? textTable(rows, ["type", "name", "include", "line", "text"]) : "(no matches)", truncLine]
+  const body = [groups.length ? renderGroupedHits(groups) : "(no matches)", truncLine]
     .filter((s): s is string => s !== undefined)
     .join("\n");
 
@@ -707,6 +764,7 @@ export function buildSourceResponse(q: SourceScanQuery, result: SourceScanResult
       include_subpackages: q.includeSubpackages || undefined,
       types: q.types.length ? q.types.join(",") : undefined,
       hits: summary.hits,
+      objectsWithHits: groups.length || undefined,
       objectsScanned: summary.objectsScanned,
       objectsTotal: summary.objectsTotal,
       includesScanned: summary.includesScanned,
@@ -715,14 +773,16 @@ export function buildSourceResponse(q: SourceScanQuery, result: SourceScanResult
     },
     body,
     bodyLabel: "MATCHES",
+    size: true,
     notes: [
       // `notes` are ALWAYS shown (unlike `hints`, which `compact.ts`'s
       // `buildResponse` only renders when the response is incomplete) — the
       // concrete abap_read follow-up has to survive a response that fits
       // fully, so it lives here, not in `hints`.
       ...(exampleHints.length > 0 ? ["Read around a hit with abap_read:", ...exampleHints] : []),
-      "Line numbers are include-local: for CLAS/FUGR hits, `line` counts from the top of the " +
-        "matching include (a method's own program, not the class as a whole), not from the object.",
+      "Hits are grouped per object; `line` is include-local (for CLAS/FUGR it counts from the top " +
+        "of the named include, not the object), and each object shows at most " +
+        `${SOURCE_PER_OBJECT_HIT_CAP} hits — the rest is a count.`,
       ...(summary.includesSkipped > 0
         ? [
             `${summary.includesSkipped} include(s) could not be read (e.g. a generated or ` +
@@ -730,12 +790,10 @@ export function buildSourceResponse(q: SourceScanQuery, result: SourceScanResult
               "gap, not proof those includes have no match.",
           ]
         : []),
-      "include_comments=false strips comments with a per-line heuristic (`code_part()`), which can " +
-        "misjudge a line whose quote/comment state depends on the previous line. DDLS/CDS sources have " +
-        "no ABAP comment syntax, so they are always matched in full text regardless of include_comments.",
-      "This is a text scan, not a call graph: it finds literal/regex matches wherever they sit " +
-        '(strings, comments, dead code). Use mode="where_used" instead when what you actually want ' +
-        "is real static references to one object.",
+      "Text scan, not a call graph: matches wherever they sit (strings, comments, dead code); " +
+        'mode="where_used" gives real static references. include_comments=false strips comments ' +
+        "with a per-line heuristic (`code_part()`) that can misjudge multi-line quote state; " +
+        "DDLS/CDS sources are always matched in full text.",
     ],
     hints: [
       "Raise `max` (<=200) for more hits, or narrow `query`/`packages`/`objects`/`types` instead of widening scope.",
