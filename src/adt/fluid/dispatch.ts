@@ -7,8 +7,8 @@
  */
 import type { AbapConnection } from "../connection.js";
 import type { Config } from "../../config.js";
-import type { Operation, SafetyGate } from "../../safety.js";
-import { safetyTarget } from "../../safety.js";
+import type { Operation, SafetyCorr, SafetyGate } from "../../safety.js";
+import { normalizeCorrNr, safetyTarget } from "../../safety.js";
 import type { Journal, JournalBeginInput, JournalObjectRef } from "../../journal.js";
 import { systemKey } from "../../journal.js";
 import { AbapError, isAbapError } from "../errors.js";
@@ -50,6 +50,20 @@ export interface FluidRunRequest {
   readonly args: unknown;
   readonly confirm?: string;
   readonly corrNr?: string;
+  /**
+   * How the request named by the action's `targets.transport` pointer was
+   * chosen — the provenance the transport allowlist (src/safety.ts step 10)
+   * judges. `"auto"` means abapsmith's own session resolver picked it under
+   * `ABAP_ALLOW_TRANSPORTS=auto` (adopted the caller's open request for the
+   * package, or created one) and the gate already passed it as such at the
+   * tool layer; omitted or `"named"` means the caller named it, the stricter
+   * reading. Honoured for a BUILTIN tool only — a plugin manifest or an
+   * `abap_fluid` caller cannot declare its way past the allowlist — and the
+   * `abap_fluid` tool never sets it (src/tools/fluid.ts). Issue #141: without
+   * this, the classic-bridge creates (VIEW/DV, TRAN/T, SHLP/DH, TABL/DI,
+   * DEVC/K) had every auto-resolved request refused right here as "named".
+   */
+  readonly corrSource?: "named" | "auto";
   /**
    * Set when a dedicated MCP tool reroutes through `dispatch()` instead of
    * deploying its own bridge — mirrors `DeployBridgeOptions.caller` in run.ts
@@ -187,6 +201,7 @@ function assertTargetsAgainstGate(
   action: FluidActionSpec,
   args: unknown,
   origin: LoadedFluidTool["origin"],
+  corrSource: FluidRunRequest["corrSource"],
 ): void {
   const targets = action.targets;
   if (!targets) return;
@@ -200,7 +215,17 @@ function assertTargetsAgainstGate(
   });
   // `corr: "local"` only binds for a builtin tool — a plugin manifest cannot self-declare its
   // way past the transport allowlist by claiming an action registers nothing in CTS.
-  const corr = targets.corr === "local" && origin === "builtin" ? ({ kind: "local" } as const) : undefined;
+  // Likewise `corrSource: "auto"`: only a builtin caller (the classic bridge modules, after
+  // `resolveBridgeCreateCorr` in src/tools/write.ts resolved AND gate-judged the request as
+  // auto-selected) may report the resolved request with that provenance; everything else
+  // keeps the legacy shape, where a non-blank `corrNr` is judged as caller-NAMED.
+  const autoCorrNr = corrSource === "auto" && origin === "builtin" ? normalizeCorrNr(resolvedTransport) : undefined;
+  const corr: SafetyCorr | undefined =
+    targets.corr === "local" && origin === "builtin"
+      ? { kind: "local" }
+      : autoCorrNr !== undefined
+        ? { kind: "transport", corrNr: autoCorrNr, source: "auto" }
+        : undefined;
   gate.assert(gateOpForCategory(action.category), target, {
     ...(resolvedTransport !== undefined ? { corrNr: resolvedTransport } : {}),
     ...(corr !== undefined ? { corr } : {}),
@@ -535,7 +560,7 @@ export async function dispatch(deps: FluidDeps, req: FluidRunRequest): Promise<F
     );
   }
 
-  assertTargetsAgainstGate(deps.gate, action, req.args, tool.origin);
+  assertTargetsAgainstGate(deps.gate, action, req.args, tool.origin, req.corrSource);
 
   await ensureFluidPackage(deps.conn, deps.gate);
   const sysKey = systemKey(deps.conn.cfg);

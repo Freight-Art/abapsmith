@@ -12,6 +12,14 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.11] - 2026-09-16
+
+### Fixed
+
+- **Classic-bridge creates resolve a transport request under `auto`** (#141). `VIEW/DV`, `TRAN/T`, `SHLP/DH`, `TABL/DI` and `DEVC/K` creates into a transportable package no longer demand a named `corr_nr` that `ABAP_ALLOW_TRANSPORTS=auto` then refuses. With `corr_nr` omitted they take the same route as a class create: the session resolver asks CTS for the package's modifiable requests, reuses one this session created or one attributed to abapsmith, else creates one, and the write response's `transport:` field names it. `dispatch()`'s targets gate now receives the provenance of the resolved request from a builtin caller (`FluidRunRequest.corrSource`), so an auto-selected request is judged as such instead of as caller-named; plugin tools cannot declare it, and pinned or empty lists refuse exactly as before. `TRANSPORT_ERROR` on these paths now means a request was genuinely needed and none could be resolved. Skills `abapsmith-create-an-object`, `abapsmith-create-ddic-objects` and `abapsmith-put-work-on-a-transport` updated.
+- **Gate verdict before any transport is created** (#142). A bridge create is asserted against the safety gate — with the caller's `corr_nr` or as unresolved — before the resolver runs, so a denied write costs zero wire requests and creates no request; the `VIEW/DV` path used to create one first and leak it. Should the post-resolution assert refuse after a request was created in the same call, the refusal carries `details.createdTransport`, its hint names the request and `abap_transport operation=delete` removes it, and the create is journalled as `transport-create`.
+- **Transport-allowlist refusals are rule-specific, caller-side and terminal** (#143). Every `SAFETY_DENIED` on rules `transport allowlist` / `transport allowlist (fail closed)`, and every session-resolver denial, now carries a hint worded for the mode in force — under `auto`: "The server picks the request itself under ABAP_ALLOW_TRANSPORTS=auto. Omit corr_nr. Naming a request is refused regardless of which request."; under a pinned list: "Only these requests are permitted: … ask the operator to extend the list"; under an empty list: only `$`-packages are writable — states that it is terminal (`retryable: false`), and never suggests editing the environment. The `abapsmith-put-work-on-a-transport` skill no longer describes an omitted `corr_nr` as "the value `AUTO`" (the string is not accepted; omit the field) and tells agents never to retry a terminal `SAFETY_DENIED` by changing arguments.
+
 ## [0.6.10] - 2026-09-16
 
 ### Added

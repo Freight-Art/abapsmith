@@ -208,11 +208,15 @@ function validate(p: ClassicViewParams): ClassicViewParams {
     throw new AbapError(
       "TRANSPORT_ERROR",
       `packageName ${JSON.stringify(packageName)} is not local ($-prefixed), so this view must be ` +
-        "registered in CTS via RS_CORR_INSERT, which requires a transport request — pass corr_nr " +
-        "(an ALREADY gate-judged TRKORR, e.g. A4HK900121).",
+        "registered in CTS via RS_CORR_INSERT, which requires a transport request — and none " +
+        "was resolved for this call.",
       { packageName },
-      "Via abap_write, pass corr_nr with the TRKORR the safety gate already judged for this write " +
-        "(see the abapsmith-put-work-on-a-transport skill).",
+      "Through abap_write no corr_nr is needed: omitted, the request is resolved under " +
+        "ABAP_ALLOW_TRANSPORTS before this module runs (auto reuses a modifiable request this " +
+        "session created for the package, else creates one; a pinned list uses one of its " +
+        "entries). Reaching this refusal from abap_write means no session transport manager was " +
+        "wired into the call — an abapsmith wiring defect, not a caller error. A direct caller of " +
+        "this module hands it a TRKORR the safety gate has already judged.",
     );
   }
   const corrNr = local ? undefined : (p.corrNr as string);
@@ -303,6 +307,7 @@ export async function createClassicView(
       corr_nr: corrNr ?? "",
     },
     what: `Creating classic view ${viewName}`,
+    ...(corr !== undefined ? { corrSource: corr.source } : {}),
     expectTags,
     completed: partial.completed,
     partialHint: partial.hint,
