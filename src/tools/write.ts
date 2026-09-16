@@ -20,6 +20,8 @@ import {
   prettyPrintSource,
   renderInactive,
   renderMessages,
+  SOURCE_LINE_MAX,
+  withSourceContext,
 } from "../adt/activate.js";
 import type { ActivationOutcome, CheckOutcome, FormatOutcome } from "../adt/activate.js";
 import type { AbapConnection } from "../adt/connection.js";
@@ -848,8 +850,10 @@ export type WriteInputV2 = WriteInput;
  * functions actually read (`.uri`, `.type`, `.name`) comes from `t`; the rest
  * exist only to satisfy the shape: `system`/`kind`/`label` are still real
  * values (just sourced from `t.spec`/`conn.cfg`), `mode: "source"` is
- * accurate for method-replace targets, and `activation: "unknown"` is
- * `ActivationState`'s own honest default, not a guess.
+ * accurate for method-replace targets, and `activation` is what the
+ * descriptor GET in `resolveWriteTarget` reported (`"unknown"` — its honest
+ * default — when nothing was read); `classMembersFor` uses it to skip the
+ * inactive-structure attempt when the descriptor says active is current.
  */
 function resolvedObjectAdapter(conn: AbapConnection, t: ResolvedTarget): ResolvedObject {
   return {
@@ -863,7 +867,7 @@ function resolvedObjectAdapter(conn: AbapConnection, t: ResolvedTarget): Resolve
     packageName: t.packageName,
     description: t.description,
     mode: "source",
-    activation: "unknown",
+    activation: t.activation ?? "unknown",
     spec: t.spec,
   };
 }
@@ -1284,6 +1288,8 @@ export async function resolveWriteSource(
   expectEtag?: string;
   /** Server bytes the splice actually ran against — undefined for the plain-`source` form, which reads nothing. */
   current?: string;
+  /** For `method=`: which `/objectstructure` version the member was resolved against (issue #147). */
+  methodVersion?: "active" | "inactive";
 }> {
   const t = authorized.target;
 
@@ -1389,7 +1395,13 @@ export async function resolveWriteSource(
         { object: t.name },
       );
     }
-    const ms = await readMethod(conn, resolvedObjectAdapter(conn, t), current, input.method);
+    // Issue #147: resolve against the inactive version when one exists (the
+    // state right after a CHECK_FAILED full write), falling back to active.
+    // Inherited members are NOT walked here: a method= write replaces the
+    // block in THIS class, and a superclass's block is not that.
+    const ms = await readMethod(conn, resolvedObjectAdapter(conn, t), current, input.method, {
+      inherited: false,
+    });
     if (!ms.implementationRange) {
       throw new AbapError(
         "NOT_FOUND",
@@ -1406,7 +1418,12 @@ export async function resolveWriteSource(
       ...(ms.implementationRange ? { range: ms.implementationRange } : {}),
       object: t.name,
     });
-    return { source: spliced, expectEtag: input.expect_etag ?? canonicalEtag(current), current };
+    return {
+      source: spliced,
+      expectEtag: input.expect_etag ?? canonicalEtag(current),
+      current,
+      methodVersion: ms.version,
+    };
   }
 
   if (input.source !== undefined) {
@@ -1873,6 +1890,7 @@ export async function abapWrite(
     source: resolvedSource,
     expectEtag: resolvedExpectEtag,
     current: resolvedCurrent,
+    methodVersion: resolvedMethodVersion,
   } = await resolveWriteSource(conn, authorized, input);
   // Pretty-print AFTER resolving the final source (post edit/method splice),
   // BEFORE the PUT: every downstream consumer of `source` must see the same
@@ -2149,10 +2167,21 @@ export async function abapWrite(
       // Real check errors, so activation was skipped. Throw into the catch below so this
       // gets the same isError:true / written:true,activated:false shape as every other
       // "saved but not activated" cause (G-05: this must never fall through as a silent success).
+      // Issue #147 (3): each message carries the offending line (trimmed to
+      // 200 chars) and one line of context each side, cut from `source` —
+      // the bytes just sent — so no round trip and nothing to re-read.
+      const rendered = renderMessages(check.messages, source);
       throw new AbapError(
         "CHECK_FAILED",
-        `syntax check reported ${check.errors} error(s), ${check.warnings} warning(s)`,
-        { messages: check.messages },
+        `syntax check reported ${check.errors} error(s), ${check.warnings} warning(s)` +
+          (rendered ? `:\n${rendered}` : ""),
+        {
+          messages: withSourceContext(check.messages, source, {
+            maxLen: SOURCE_LINE_MAX,
+            context: 1,
+          }),
+          rendered,
+        },
       );
     }
   } catch (e) {
@@ -2224,7 +2253,11 @@ export async function abapWrite(
       },
       "The write itself succeeded and is NOT rolled back: the new source is on the server " +
         "and the object is INACTIVE, so it will not execute and callers still see the last " +
-        "active version. Fix the reported lines and write again to activate it" +
+        "active version. Fix the reported lines — for a class, abap_write method=\"<NAME>\" " +
+        "repairs one method against the INACTIVE version (no re-read needed; " +
+        "details.failure.details.messages carries each offending line with context); " +
+        "otherwise use edit= or write the full source again — then abap_activate, or write " +
+        "with activate=true" +
         (journalled
           ? `, or restore the previous source with abap_journal mode=undo entry=${entryId}.`
           : ". The write journal is off, so abapsmith cannot undo this for you — write the " +
@@ -2361,6 +2394,16 @@ export async function abapWrite(
       ? corrNrOverriddenWriteNote(written.corrNrOverrode, written.corrNrSent, written.target.type, written.target.name)
       : transportNote(written.transport, gate.config?.abapMode),
   ];
+  if (input.method !== undefined && resolvedMethodVersion !== undefined) {
+    notes.push(
+      `method="${input.method}" was resolved against the ${resolvedMethodVersion.toUpperCase()} ` +
+        "version's component structure" +
+        (resolvedMethodVersion === "inactive"
+          ? " — a newer inactive version existed (e.g. after a CHECK_FAILED write) and its " +
+            "line ranges were used."
+          : "."),
+    );
+  }
   // Quote the resolver's own account of the transport decision, but only when its
   // trkorr provably matches the one this write actually used — a stale or
   // unrelated lastAutoDecision must never be attributed to this write.
