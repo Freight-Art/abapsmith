@@ -25,6 +25,11 @@ const LIVE_INTEGRATION_TESTS = [
   // when abap_write uses it. Same independent-gate convention as the CCAU
   // suite above.
   "test/integration-lock-handle.test.ts",
+  // Issue #147: a full class write with a syntax error lands CHECK_FAILED
+  // (saved inactive), one `method=` write repairs it against the INACTIVE
+  // version without a re-read, and activation succeeds. Same independent
+  // gate convention as the CCAU suite.
+  "test/integration-checkfail-method-repair.test.ts",
   // Fluid API runtime: ensureFluidPackage/ensureFluidTool actually deploy
   // ZCL_ZMCP_FLUID_RT and dispatch() actually round-trips its ping/fail
   // actions on a real system. Listed here so VITEST_LIVE=1 COLLECTS it — the

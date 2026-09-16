@@ -32,7 +32,7 @@ npm run check:cassettes
 ### `npm test` is offline
 
 `npm test` runs `vitest run` with no filter — everything under `test/`. The
-live integration suites — six as of this writing — are excluded by name
+live integration suites — seven as of this writing — are excluded by name
 from every run that is not `VITEST_LIVE=1`; `vitest.config.ts` holds the
 authoritative list in `LIVE_INTEGRATION_TESTS` — don't hand-copy it here,
 since a transcribed list drifts. Enumerate it yourself with
@@ -57,14 +57,15 @@ layers, and the tool surface (both `ABAP_TOOL_SURFACE` values). Full layout:
 
 ### Live tests need a real SAP system
 
-`npm run test:live` (`VITEST_LIVE=1 vitest run`) runs the six live suites in
+`npm run test:live` (`VITEST_LIVE=1 vitest run`) runs the seven live suites in
 `LIVE_INTEGRATION_TESTS`. **You almost certainly cannot run these** unless
 you have your own ABAP system with ADT enabled (`/sap/bc/adt/*` reachable
 over HTTP) and a technical user with `S_DEVELOP` and a writable `$TMP`
 package. They perform real logons, writes, activations, runs, and a live
-debugger attach against that system. All six collect under `ABAP_URL` alone,
-but four (`integration-undo`, `integration-fpm-lock`,
-`integration-class-includes`, `integration-lock-handle`) additionally need
+debugger attach against that system. All seven collect under `ABAP_URL` alone,
+but five (`integration-undo`, `integration-fpm-lock`,
+`integration-class-includes`, `integration-lock-handle`,
+`integration-checkfail-method-repair`) additionally need
 write access configured — `ABAP_MODE=edit` or `admin`, or (only when
 `ABAP_MODE` is unset) the legacy `ABAP_ALLOW_WRITE=true` — or they collect
 and skip; see `LIVE_INTEGRATION_TESTS` in `vitest.config.ts` for exactly
