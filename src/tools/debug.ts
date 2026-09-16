@@ -65,6 +65,8 @@ import {
   type VariableNode,
 } from "../debug/render.js";
 import { alignRequestedVariables, DebugXmlParseError } from "../debug/xml-response.js";
+import { budgetWithNotes, GuidanceLedger, type GuidanceNote } from "../debug/guidance.js";
+import { isPostMortemKind } from "../debug/types.js";
 import { readBadiImplementation, readEnhancementSpot, readSourceCodePlugin } from "../adt/enhancement.js";
 import type {
   Breakpoint,
@@ -510,6 +512,12 @@ interface CurrentRun {
    * the stateful session, which is exactly what must never be added.
    */
   lastStack?: DebugStack;
+  /**
+   * #151 — note-once ledger for this session's advisory notes: the full
+   * explanation the first time, a one-line brief afterwards, re-armed on a
+   * state change (breakpoint hit, post-mortem attach). See guidance.ts.
+   */
+  guidance: GuidanceLedger;
   /** Never rejects — already normalized via .then(ok, err) attached synchronously at creation time. */
   triggerSettled: Promise<DebugTriggerOutcome>;
   /**
@@ -1219,6 +1227,7 @@ async function composeStopOutput(
   stateId: StateId,
   maxChars: number,
   extraNotes: readonly string[] = [],
+  headerExtra: Record<string, string | undefined> = {},
 ): Promise<BuiltResponse> {
   const root = await run.session.getRootVariables(stateId);
   const entries = root.variables.variables.map((variable) => ({ variable }));
@@ -1231,6 +1240,12 @@ async function composeStopOutput(
   const stackText = renderStackSection(stack, wireId);
   const visibleFrames = stack.frames.filter((f) => !f.systemProgram);
   const top = visibleFrames[0] ?? stack.frames[0];
+  const stopNotes = [
+    ...extraNotes,
+    ...(survey.degraded.length
+      ? [`${survey.degraded.length} value(s) shortened to fit budget — each still names its own retrieval call.`]
+      : []),
+  ];
 
   return buildResponse({
     header: {
@@ -1240,17 +1255,14 @@ async function composeStopOutput(
       include: top?.includeName,
       line: top?.line,
       stateId: wireId,
+      ...headerExtra,
     },
     sections: [{ title: "STACK", content: stackText }],
     body: survey.text,
     bodyLabel: "VARIABLES",
-    notes: [
-      ...extraNotes,
-      ...(survey.degraded.length
-        ? [`${survey.degraded.length} value(s) shortened to fit budget — each still names its own retrieval call.`]
-        : []),
-    ],
-    maxChars: clampMaxChars(maxChars),
+    notes: stopNotes,
+    // #151 — notes ride outside the content budget: they never displace variables.
+    maxChars: budgetWithNotes(stopNotes, clampMaxChars(maxChars)),
   });
 }
 
@@ -2001,9 +2013,22 @@ async function handleStart(
     closeTriggerConn,
     gateTarget,
     lastStack: attachedStack,
+    guidance: new GuidanceLedger(),
     lane: targetLane,
   };
   debugLanes[targetLane] = run;
+
+  // #152 — say what was caught when it is not a live debuggee: a post-mortem
+  // attach (the run already dumped; an exception breakpoint set to stop BEFORE
+  // the dump did not fire) or a kind this server has never seen.
+  const caught = run.session.snapshot.debuggee;
+  const caughtHeader: Record<string, string | undefined> = {};
+  if (caught && caught.kind !== "debuggee") {
+    run.guidance.noteStateChange(isPostMortemKind(caught.kind) ? "postmortem" : `kind:${caught.rawKind}`);
+    caughtHeader["debuggee"] = caught.rawKind;
+    if (caught.dumpId) caughtHeader["dump"] = caught.dumpId;
+    skipCountWarnings.push(...run.guidance.render([describeCaughtKind(caught)]));
+  }
 
   // Issue #89: auto-continue past framework stops that have nothing to do
   // with the object this session was started against — see
@@ -2076,7 +2101,7 @@ async function handleStart(
     }
   }
 
-  return await composeStopOutput(run, "start", attachedStack, attachedStateId, maxChars, skipCountWarnings);
+  return await composeStopOutput(run, "start", attachedStack, attachedStateId, maxChars, skipCountWarnings, caughtHeader);
 }
 
 async function handleStep(
@@ -2165,21 +2190,34 @@ async function handleStep(
     return out;
   }
   run.lastStack = result.stack;
+  // #151 — a breakpoint hit is a state change worth re-reading the full notes
+  // for; the same breakpoint hit again (a loop under step:"continue") is not.
+  if (result.step.reachedBreakpoints.length > 0) {
+    run.guidance.noteStateChange(`bp:${result.step.reachedBreakpoints.map((b) => b.id).join(",")}`);
+  }
   // Advisory (see session.ts's `visitedPositions`): this exact (program,
   // stack level, line) has been reported before this session. The ONE fact
-  // provable about a revisit — NOT a loop-iteration count.
+  // provable about a revisit — NOT a loop-iteration count. Explained in full
+  // once per session (#151); afterwards only the fact.
   const revisitNotes =
     result.positionVisitCount > 1
-      ? [
-          `Position revisited: this exact program/line/stack-level has now been reached ` +
-            `${result.positionVisitCount} times by stepping in this session. If you are stepping ` +
-            `through a loop body, "step over"/"step into" can under-report how many iterations ` +
-            `actually ran between visits — this only proves you returned to this line, not how ` +
-            `many times the loop body executed in between. For a reliable per-iteration count, set ` +
-            `a breakpoint at the loop body's start (abap_debug action:"start" or a line breakpoint) ` +
-            `and use step:"continue" repeatedly instead of stepping through — each hit is a real, ` +
-            `separately counted stop.`,
-        ]
+      ? run.guidance.render([
+          {
+            key: "revisit",
+            full:
+              `Position revisited: this exact program/line/stack-level has now been reached ` +
+              `${result.positionVisitCount} times by stepping in this session. If you are stepping ` +
+              `through a loop body, "step over"/"step into" can under-report how many iterations ` +
+              `actually ran between visits — this only proves you returned to this line, not how ` +
+              `many times the loop body executed in between. For a reliable per-iteration count, set ` +
+              `a breakpoint at the loop body's start (abap_debug action:"start" or a line breakpoint) ` +
+              `and use step:"continue" repeatedly instead of stepping through — each hit is a real, ` +
+              `separately counted stop.`,
+            brief:
+              `Position revisited (${result.positionVisitCount} times in this session) — proves a return to ` +
+              "this line, not an iteration count; see the earlier NOTE.",
+          },
+        ])
       : [];
   // D-watch: `session.readWatchpoints()`'s own doc comment says it is "meant
   // for the tool layer to call right after a stop" with no `stateId` of its
@@ -2294,6 +2332,20 @@ async function handleFrame(input: DebugInput, maxChars: number): Promise<BuiltRe
   const entries = root.variables.variables.map((variable) => ({ variable }));
   const survey = renderSurvey(entries, { maxChars: DEBUG_MAX_CHARS, stateId: wireId });
   const stackText = renderStackSection(lastStack, wireId);
+  const frameNotes = [
+    ...run.guidance.render([
+      {
+        key: "frame-cursor",
+        full:
+          `Read cursor switched to frame #${target.stackPosition} — this does not change what runs ` +
+          "next. The next step resumes from the live top frame regardless (live-verified).",
+        brief: `Read cursor at frame #${target.stackPosition}; the next step still resumes from the live top frame.`,
+      },
+    ]),
+    ...(survey.degraded.length
+      ? [`${survey.degraded.length} value(s) shortened to fit budget — each still names its own retrieval call.`]
+      : []),
+  ];
   return buildResponse({
     header: {
       action: "frame",
@@ -2307,14 +2359,8 @@ async function handleFrame(input: DebugInput, maxChars: number): Promise<BuiltRe
     sections: [{ title: "STACK", content: stackText }],
     body: survey.text,
     bodyLabel: "VARIABLES",
-    notes: [
-      `Read cursor switched to frame #${target.stackPosition} — this does not change what runs ` +
-        "next. The next step resumes from the live top frame regardless (live-verified).",
-      ...(survey.degraded.length
-        ? [`${survey.degraded.length} value(s) shortened to fit budget — each still names its own retrieval call.`]
-        : []),
-    ],
-    maxChars: clampMaxChars(maxChars),
+    notes: frameNotes,
+    maxChars: budgetWithNotes(frameNotes, clampMaxChars(maxChars)),
   });
 }
 
@@ -3084,14 +3130,15 @@ export async function abapDebugVars(input: DebugVarsInput, maxChars: number): Pr
     },
   );
 
+  const varsNotes = survey.degraded.length
+    ? [`${survey.degraded.length} value(s) shortened to fit budget — each still names its own retrieval call.`]
+    : [];
   return buildResponse({
     header: { stateId: wireId, scope: input.scope ?? "all", count: filtered.length },
     body: survey.text,
     bodyLabel: "VARIABLES",
-    notes: survey.degraded.length
-      ? [`${survey.degraded.length} value(s) shortened to fit budget — each still names its own retrieval call.`]
-      : [],
-    maxChars: clampMaxChars(maxChars),
+    notes: varsNotes,
+    maxChars: budgetWithNotes(varsNotes, clampMaxChars(maxChars)),
   });
 }
 
@@ -3134,31 +3181,76 @@ function listIds(ids: readonly string[]): string {
   );
 }
 
+/**
+ * #152 — the start-response note for a caught debuggee that is not a live
+ * one. Post-mortem: the run already terminated with a short dump, so the
+ * session inspects a final state that cannot be stepped, and an exception
+ * breakpoint meant to stop BEFORE the dump did not fire. Unknown kind: the
+ * wire said something this server has never seen; it is treated as attached.
+ */
+function describeCaughtKind(caught: {
+  kind: string;
+  rawKind: string;
+  dumpId?: string;
+  dumpUri?: string;
+}): GuidanceNote {
+  if (caught.kind === "postmortem" || caught.kind === "postmortem_dialog") {
+    const dump = caught.dumpId ? ` dump ${caught.dumpId}` : "";
+    return {
+      key: "postmortem",
+      full:
+        `POST-MORTEM: the debugger attached to a short dump (DBGEE_KIND ${caught.rawKind}${dump}), not to a ` +
+        "running debuggee. The run has ALREADY terminated; stack and variables are its state at the dump, and " +
+        "stepping cannot resume it. If an exception breakpoint was set to stop BEFORE this dump, it did not " +
+        `fire. Read the dump text with abap_dumps${caught.dumpId ? `({id:"${caught.dumpId}"})` : ""}.`,
+      brief: `Post-mortem session (${caught.rawKind}${dump}) — the run already terminated; stepping cannot resume it.`,
+    };
+  }
+  return {
+    key: `kind:${caught.rawKind}`,
+    full:
+      `The debugger attached to a debuggee of an unrecognised kind (DBGEE_KIND "${caught.rawKind}"). It is ` +
+      "treated as attached with kind unknown: stack, variables and stepping are attempted as for a live " +
+      "debuggee, and any refusal is reported as it happens.",
+    brief: `Debuggee kind "${caught.rawKind}" is unrecognised — treated as attached, kind unknown.`,
+  };
+}
+
 function describeOmissions(
   requestedIds: readonly string[],
   align: { resolved: DebugVariable[]; missing: string[]; unexpected: DebugVariable[] },
   ctx: { subject: string; stateId: string },
-): string[] {
-  const notes: string[] = [];
+): GuidanceNote[] {
+  const notes: GuidanceNote[] = [];
   if (align.missing.length > 0) {
-    notes.push(
-      `OMITTED: the debugger returned ${align.resolved.length} of the ${requestedIds.length} variable ` +
+    notes.push({
+      key: "omitted",
+      full:
+        `OMITTED: the debugger returned ${align.resolved.length} of the ${requestedIds.length} variable ` +
         `id(s) requested for ${ctx.subject} — ${listIds(align.missing)} came back with NO row at all ` +
         "and are NOT shown. A requested id with no row is UNRESOLVED at this stop (unknown name, " +
         "out-of-range index, or not visible in this frame); it is NOT an empty value, and " +
         "re-requesting it returns the same nothing. Confirm the id exists here with " +
         `abap_debug_vars({stateId:"${ctx.stateId}"}).`,
-    );
+      brief:
+        `OMITTED: ${listIds(align.missing)} — no row at this stop for ${ctx.subject} (unresolved, not empty; ` +
+        `confirm with abap_debug_vars({stateId:"${ctx.stateId}"})).`,
+    });
   }
   if (align.unexpected.length > 0) {
     const ids = align.unexpected.map((v) => v.id);
-    notes.push(
-      `UNREQUESTED: the debugger also returned ${align.unexpected.length} row(s) whose id was NOT ` +
+    notes.push({
+      key: "unrequested",
+      full:
+        `UNREQUESTED: the debugger also returned ${align.unexpected.length} row(s) whose id was NOT ` +
         `requested — ${listIds(ids)}. Their values are NOT shown, because a row nobody asked for, ` +
         `rendered under ${ctx.subject}, is a wrong answer wearing the right label — the exact ` +
         "mis-attribution that hid this defect. Read one on purpose with " +
         `abap_debug_value({stateId:"${ctx.stateId}", path:"${ids[0]}"}).`,
-    );
+      brief:
+        `UNREQUESTED: ${listIds(ids)} returned but not requested under ${ctx.subject} — not shown ` +
+        `(abap_debug_value({stateId:"${ctx.stateId}", path:"${ids[0]}"}) reads one on purpose).`,
+    });
   }
   return notes;
 }
@@ -3237,10 +3329,9 @@ export async function abapDebugValue(input: DebugValueInput, maxChars: number): 
   // D19: match the response to the request by `ID`, never by position. `rootVars[0]`
   // was a row the server chose, not the row that was asked for.
   const rootAlign = alignRequestedVariables([canonicalPath], rootVars);
-  const rootNotes = describeOmissions([canonicalPath], rootAlign, {
-    subject: canonicalPath,
-    stateId: wireId,
-  });
+  const rootNotes = run.guidance.render(
+    describeOmissions([canonicalPath], rootAlign, { subject: canonicalPath, stateId: wireId }),
+  );
   const rootVar = rootAlign.resolved[0];
   if (!rootVar) {
     return buildResponse({
@@ -3270,7 +3361,7 @@ export async function abapDebugValue(input: DebugValueInput, maxChars: number): 
       body: text,
       bodyLabel: "VALUE",
       notes: rootNotes,
-      maxChars: clampedMaxChars,
+      maxChars: budgetWithNotes(rootNotes, clampedMaxChars),
     });
   }
 
@@ -3337,7 +3428,7 @@ export async function abapDebugValue(input: DebugValueInput, maxChars: number): 
         const rowAlign = alignRequestedVariables(ids, rowVars);
         rowNodes = rowAlign.resolved.map((variable) => ({ variable }));
         tableNotes.push(
-          ...describeOmissions(ids, rowAlign, { subject: canonicalPath, stateId: wireId }),
+          ...run.guidance.render(describeOmissions(ids, rowAlign, { subject: canonicalPath, stateId: wireId })),
         );
       } catch (e) {
         // T5c: same 0-byte-body trap as the root `getVariables` call above (SAP
@@ -3349,7 +3440,7 @@ export async function abapDebugValue(input: DebugValueInput, maxChars: number): 
             body: renderEmptyBodyTrap({ path: canonicalPath, tableLines: total }),
             bodyLabel: "VALUE",
             notes: tableNotes,
-            maxChars: clampedMaxChars,
+            maxChars: budgetWithNotes(tableNotes, clampedMaxChars),
           });
         }
         throw e;
@@ -3367,7 +3458,7 @@ export async function abapDebugValue(input: DebugValueInput, maxChars: number): 
           body: renderEmptyBodyTrap({ path: canonicalPath, tableLines: total }),
           bodyLabel: "VALUE",
           notes: tableNotes,
-          maxChars: clampedMaxChars,
+          maxChars: budgetWithNotes(tableNotes, clampedMaxChars),
         });
       }
     }
@@ -3382,7 +3473,7 @@ export async function abapDebugValue(input: DebugValueInput, maxChars: number): 
       body: text,
       bodyLabel: "VALUE",
       notes: tableNotes,
-      maxChars: clampedMaxChars,
+      maxChars: budgetWithNotes(tableNotes, clampedMaxChars),
     });
   }
 
@@ -3411,6 +3502,6 @@ export async function abapDebugValue(input: DebugValueInput, maxChars: number): 
     // ids are by definition not the id that was requested, so it has no requested-id
     // alignment to do. `rootNotes` still travels: it describes the root read.
     notes: rootNotes,
-    maxChars: clampedMaxChars,
+    maxChars: budgetWithNotes(rootNotes, clampedMaxChars),
   });
 }

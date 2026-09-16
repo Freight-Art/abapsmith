@@ -90,10 +90,16 @@ function buildStepXml(overrides: {
   debugSessionId?: string;
   isSteppingPossible?: boolean;
   isTerminationPossible?: boolean;
+  /** Ids of breakpoints this step stopped on (`<dbg:reachedBreakpoints><breakpoint id=.../>`). */
+  reachedBreakpoints?: readonly string[];
 } = {}): string {
   const debugSessionId = overrides.debugSessionId ?? "SESS1";
   const isSteppingPossible = overrides.isSteppingPossible ?? true;
   const isTerminationPossible = overrides.isTerminationPossible ?? true;
+  const reached = overrides.reachedBreakpoints ?? [];
+  const reachedXml = reached.length
+    ? `<dbg:reachedBreakpoints>${reached.map((id) => `<breakpoint id="${id}" kind="line"/>`).join("")}</dbg:reachedBreakpoints>`
+    : "<dbg:reachedBreakpoints/>";
   return `<?xml version="1.0" encoding="utf-8"?>
 <dbg:step xmlns:dbg="http://www.sap.com/adt/debugger"
   isRfc="false" isSameSystem="true" serverName="A4HSANDBOX_A4H_01"
@@ -102,7 +108,7 @@ function buildStepXml(overrides: {
   <dbg:settings systemDebugging="false" createExceptionObject="false" backgroundRFC="false"
     sharedObjectDebugging="false" showDataAging="false" updateDebugging="false"/>
   <dbg:actions/>
-  <dbg:reachedBreakpoints/>
+  ${reachedXml}
 </dbg:step>`;
 }
 
@@ -136,14 +142,16 @@ function buildTwoFrameStackXml(): string {
 </dbg:stack>`;
 }
 
-function buildDebuggeeXml(id: string): string {
+function buildDebuggeeXml(id: string, opts: { kind?: string; dumpId?: string } = {}): string {
+  const kind = opts.kind ?? "DEBUGGEE";
+  const dump = opts.dumpId ? `<DUMP_ID>${opts.dumpId}</DUMP_ID>` : "";
   return `<?xml version="1.0" encoding="utf-8"?>
 <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0"><asx:values><DATA>
 <STPDA_DEBUGGEE><CLIENT>001</CLIENT><DEBUGGEE_ID>${id}</DEBUGGEE_ID><TERMINAL_ID>${TERMINAL}</TERMINAL_ID>
 <IDE_ID>${IDE}</IDE_ID><DEBUGGEE_USER>TESTUSER</DEBUGGEE_USER><PRG_CURR>ZTEST_MCP_CRUD</PRG_CURR>
 <INCL_CURR>ZTEST_MCP_CRUD</INCL_CURR><LINE_CURR>15</LINE_CURR><RFCDEST></RFCDEST>
 <APPLSERVER>A4HSANDBOX</APPLSERVER><SYSID>A4H</SYSID><SYSNR>0</SYSNR><TSTMP>20260731120000</TSTMP>
-<DBGEE_KIND>DEBUGGEE</DBGEE_KIND><IS_ATTACH_IMPOSSIBLE></IS_ATTACH_IMPOSSIBLE><IS_SAME_SERVER>X</IS_SAME_SERVER>
+<DBGEE_KIND>${kind}</DBGEE_KIND>${dump}<IS_ATTACH_IMPOSSIBLE></IS_ATTACH_IMPOSSIBLE><IS_SAME_SERVER>X</IS_SAME_SERVER>
 <INSTANCE_NAME>A4H_01</INSTANCE_NAME></STPDA_DEBUGGEE></DATA></asx:values></asx:abap>`;
 }
 
@@ -971,6 +979,154 @@ describe("short stateId on the wire (#151)", () => {
       await abapDebug(DUMMY_CONN, { action: "stop" } as DebugInput, 60_000, UNUSED_DEPS, writableGate()).catch(() => {});
       await abapDebug(DUMMY_CONN, { action: "stop" } as DebugInput, 60_000, UNUSED_DEPS, writableGate()).catch(() => {});
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 6c. #151 — note-once guidance: the explanation behind a recurring advisory
+//     note is printed in full once per session, then as a one-line brief that
+//     still states the per-call fact; a breakpoint hit re-arms the full text.
+//     #152 — a post-mortem or unknown-kind attach is disclosed in the start
+//     response instead of being reported as a live debuggee.
+// ---------------------------------------------------------------------------
+
+describe("note-once guidance (#151) and caught-kind disclosure (#152)", () => {
+  const step = (deps: DebugToolDeps, stateId: string) =>
+    abapDebug(DUMMY_CONN, { action: "step", step: "into", stateId } as DebugInput, 60_000, deps, writableGate());
+
+  it("prints the revisit explanation in full on the second visit and only the fact from the third on", async () => {
+    const log: string[] = [];
+    const listener = new FakeListener(log);
+    const transport = new FakeTransport(log, HAPPY_TABLE({ step: okResponse(buildStepXml({})) }));
+    const deps = makeDeps({ log, transport, listener });
+    const s0 = await startSuspended(deps, listener, "NO1");
+
+    const first = await step(deps, s0);
+    expect(first.text).not.toContain("Position revisited");
+    const second = await step(deps, extractStateId(first.text)!);
+    expect(second.text).toContain("Position revisited: this exact program/line/stack-level");
+    expect(second.text).toContain("2 times");
+    expect(second.text).toContain("not how");
+    const third = await step(deps, extractStateId(second.text)!);
+    expect(third.text).toContain("Position revisited (3 times in this session)");
+    expect(third.text).toContain("see the earlier NOTE");
+    expect(third.text).not.toContain("not how");
+    expect(third.text.length).toBeLessThan(second.text.length);
+  });
+
+  it("a breakpoint hit re-arms the full explanation once; the SAME breakpoint hit again does not, a different one does", async () => {
+    const log: string[] = [];
+    const listener = new FakeListener(log);
+    const hits: (readonly string[])[] = [[], [], ["BP-A"], ["BP-A"], ["BP-B"]];
+    let n = 0;
+    const transport = new FakeTransport(
+      log,
+      HAPPY_TABLE({ step: () => okResponse(buildStepXml({ reachedBreakpoints: hits[n++] ?? [] })) }),
+    );
+    const deps = makeDeps({ log, transport, listener });
+    let stateId = await startSuspended(deps, listener, "NO2");
+
+    const texts: string[] = [];
+    for (let i = 0; i < 5; i++) {
+      const r = await step(deps, stateId);
+      texts.push(r.text);
+      stateId = extractStateId(r.text)!;
+    }
+    // step 1: first visit — no note. step 2: full. step 3 (hit BP-A): full again.
+    // step 4 (BP-A again): brief. step 5 (BP-B): full again.
+    expect(texts[0]).not.toContain("Position revisited");
+    expect(texts[1]).toContain("Position revisited: this exact");
+    expect(texts[2]).toContain("Position revisited: this exact");
+    expect(texts[3]).toContain("Position revisited (4 times");
+    expect(texts[3]).not.toContain("Position revisited: this exact");
+    expect(texts[4]).toContain("Position revisited: this exact");
+  });
+
+  it("frame: the read-cursor explanation is printed once, then a one-liner that still names the frame", async () => {
+    const log: string[] = [];
+    const listener = new FakeListener(log);
+    const transport = new FakeTransport(
+      log,
+      HAPPY_TABLE({ getStack: okResponse(buildTwoFrameStackXml()), setStackPosition: okResponse("") }),
+    );
+    const deps = makeDeps({ log, transport, listener });
+    const stateId = await startSuspended(deps, listener, "NO3");
+
+    const frame = () =>
+      abapDebug(DUMMY_CONN, { action: "frame", stateId, frame: 1 } as DebugInput, 60_000, deps, writableGate());
+    const first = await frame();
+    expect(first.text).toContain("Read cursor switched to frame #1 — this does not change what runs");
+    const second = await frame();
+    expect(second.text).toContain("Read cursor at frame #1; the next step still resumes from the live top frame.");
+    expect(second.text).not.toContain("does not change what runs");
+  });
+
+  it("value: the OMITTED explanation is printed once; later omissions still name the unresolved id", async () => {
+    const log: string[] = [];
+    const listener = new FakeListener(log);
+    const transport = new FakeTransport(
+      log,
+      HAPPY_TABLE({ getVariables: okResponse(live("102-np-vars-negative.xml")) }),
+    );
+    const deps = makeDeps({ log, transport, listener });
+    const stateId = await startSuspended(deps, listener, "NO4");
+
+    const first = await abapDebugValue({ stateId, path: "LV_ZMCP_NEG" }, 60_000);
+    expect(first.text).toContain("OMITTED: the debugger returned 0 of the 1 variable id(s)");
+    expect(first.text).toContain("LV_ZMCP_NEG");
+    const second = await abapDebugValue({ stateId, path: "LV_ZMCP_NEG" }, 60_000);
+    expect(second.text).toContain("OMITTED: LV_ZMCP_NEG — no row at this stop");
+    expect(second.text).toContain(`abap_debug_vars({stateId:"${stateId}"})`);
+    expect(second.text).not.toContain("0 of the 1 variable id(s)");
+  });
+
+  it("start: a PMORTEM debuggee is disclosed in the header and a POST-MORTEM note, not reported as a live stop (#152)", async () => {
+    const log: string[] = [];
+    const listener = new FakeListener(log);
+    const transport = new FakeTransport(log, HAPPY_TABLE());
+    const deps = makeDeps({ log, transport, listener });
+
+    const promise = abapDebug(DUMMY_CONN, START_INPUT, 60_000, deps, writableGate());
+    await flushMicrotasks();
+    listener.resolveWith(okResponse(buildDebuggeeXml("PM1", { kind: "PMORTEM", dumpId: "20260916_101500_DEVELOPER" })));
+    const result = await promise;
+
+    expect(result.text).toMatch(/^debuggee: PMORTEM$/m);
+    expect(result.text).toMatch(/^dump: 20260916_101500_DEVELOPER$/m);
+    expect(result.text).toContain("NOTE: POST-MORTEM: the debugger attached to a short dump (DBGEE_KIND PMORTEM dump 20260916_101500_DEVELOPER)");
+    expect(result.text).toContain("exception breakpoint was set to stop BEFORE this dump, it did not fire");
+    expect(result.text).toContain('abap_dumps({id:"20260916_101500_DEVELOPER"})');
+    expect(extractStateId(result.text)).toMatch(/^[0-9a-f]{12}$/);
+  });
+
+  it("start: an unrecognised DBGEE_KIND is disclosed as attached-with-kind-unknown instead of aborting the start (#152)", async () => {
+    const log: string[] = [];
+    const listener = new FakeListener(log);
+    const transport = new FakeTransport(log, HAPPY_TABLE());
+    const deps = makeDeps({ log, transport, listener });
+
+    const promise = abapDebug(DUMMY_CONN, START_INPUT, 60_000, deps, writableGate());
+    await flushMicrotasks();
+    listener.resolveWith(okResponse(buildDebuggeeXml("UK1", { kind: "NEWKIND" })));
+    const result = await promise;
+
+    expect(result.text).toMatch(/^debuggee: NEWKIND$/m);
+    expect(result.text).toContain('unrecognised kind (DBGEE_KIND "NEWKIND")');
+    expect(result.text).toContain("treated as attached with kind unknown");
+  });
+
+  it("start: a live DEBUGGEE carries neither a debuggee header line nor a caught-kind note", async () => {
+    const log: string[] = [];
+    const listener = new FakeListener(log);
+    const transport = new FakeTransport(log, HAPPY_TABLE());
+    const deps = makeDeps({ log, transport, listener });
+    const promise = abapDebug(DUMMY_CONN, START_INPUT, 60_000, deps, writableGate());
+    await flushMicrotasks();
+    listener.resolveWith(okResponse(buildDebuggeeXml("LV1")));
+    const result = await promise;
+    expect(result.text).not.toMatch(/^debuggee:/m);
+    expect(result.text).not.toContain("POST-MORTEM");
+    expect(result.text).not.toContain("unrecognised kind");
   });
 });
 

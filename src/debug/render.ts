@@ -30,7 +30,16 @@ import type {
 // Budget
 // ---------------------------------------------------------------------------
 
-/** Debugger char budget — deliberately below `src/compact.ts`'s repo-wide `DEFAULT_MAX_CHARS` (47,100): debugger output is denser and fetched repeatedly per stop. See archive for the full rationale. */
+/**
+ * Debugger char budget — deliberately below `src/compact.ts`'s repo-wide
+ * `DEFAULT_MAX_CHARS` (47,100): debugger output is denser and fetched
+ * repeatedly per stop. See archive for the full rationale.
+ *
+ * #151: this budget covers the header, sections and body. Advisory NOTE
+ * lines ride outside it (`budgetWithNotes` in `src/debug/guidance.ts`), so
+ * a note never displaces variable content; a response with notes may
+ * therefore exceed `DEBUG_MAX_CHARS` by exactly the notes' own length.
+ */
 export const DEBUG_MAX_CHARS = 30_000;
 
 /** Hard cap on rows examined by a `where=`-style scan before reporting the unexamined remainder explicitly (never scan silently). */
