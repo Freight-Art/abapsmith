@@ -52,6 +52,10 @@ import {
 import { resolveTerminalId } from "../src/debug/client.js";
 import type { DebugContext } from "../src/debug/types.js";
 import { SafetyGate } from "../src/safety.js";
+import { AbapError } from "../src/adt/errors.js";
+import { abapWrite } from "../src/tools/write.js";
+import { abapActivate } from "../src/tools/activate.js";
+import { liveWriteConfigured } from "./helpers/live-write-gate.js";
 import { skipForApplianceState, underApplianceStateWatch } from "./live-appliance-state.js";
 
 loadEnvFile();
@@ -116,18 +120,58 @@ const FILL_URI = "/sap/bc/adt/programs/programs/zmcp_dbg_fill/source/main";
 const ITEM_URI = "/sap/bc/adt/ddic/tables/zmcp_dbg_item/source/main";
 const RUN_URI = "/sap/bc/adt/oo/classes/zmcp_dbg_run/source/main";
 /**
- * #152 probe class. NOT part of the seeded fixture set: case 5 skips itself
- * when the class is absent. To run it, create in `$TMP` (delete afterwards):
- *
- *   CLASS zcl_as_dbgexc DEFINITION PUBLIC FINAL CREATE PUBLIC.
- *     PUBLIC SECTION. INTERFACES if_oo_adt_classrun.
- *   ENDCLASS.
- *   CLASS zcl_as_dbgexc IMPLEMENTATION.
- *     METHOD if_oo_adt_classrun~main. RAISE EXCEPTION TYPE cx_sy_zerodivide. ENDMETHOD.
- *   ENDCLASS.
+ * #152 probe classes. NOT part of the seeded fixture set: cases 5a/5b create
+ * them in `$TMP` themselves when the write gate is on (`liveWriteConfigured`,
+ * i.e. ABAP_MODE allows writes) and `afterAll` deletes what this run created;
+ * with the gate off they skip unless the class is already there. Two classes,
+ * one difference — whether the RAISE has a handler up the stack. That is the
+ * whole #152 finding (live, A4H 7.54, 2026-09-16):
+ *   - uncaught RAISE (`ZCL_AS_DBGEXC`): the exception breakpoint never fires;
+ *     the listener returns DBGEE_KIND `PMORTEM`, dump `UNCAUGHT_EXCEPTION`;
+ *   - caught RAISE (`ZCL_AS_DBGEXC2`): the same breakpoint suspends at the
+ *     raise, DBGEE_KIND `DEBUGGEE`, stack inside the probe class.
+ *   (A real `1 / 0` with no handler behaved like the uncaught RAISE: `PMORTEM`,
+ *   dump `COMPUTE_INT_ZERODIVIDE`.)
  */
-const EXC_URI = "/sap/bc/adt/oo/classes/zcl_as_dbgexc/source/main";
-const EXC_CLASS = "ZCL_AS_DBGEXC";
+interface ProbeClass {
+  readonly name: string;
+  readonly uri: string;
+  /** The body of `if_oo_adt_classrun~main`, already indented four spaces. */
+  readonly body: string;
+}
+const EXC_UNCAUGHT: ProbeClass = {
+  name: "ZCL_AS_DBGEXC",
+  uri: "/sap/bc/adt/oo/classes/zcl_as_dbgexc/source/main",
+  body: "    RAISE EXCEPTION TYPE cx_sy_zerodivide.",
+};
+const EXC_CAUGHT: ProbeClass = {
+  name: "ZCL_AS_DBGEXC2",
+  uri: "/sap/bc/adt/oo/classes/zcl_as_dbgexc2/source/main",
+  body: [
+    "    TRY.",
+    "        RAISE EXCEPTION TYPE cx_sy_zerodivide.",
+    "      CATCH cx_sy_zerodivide.",
+    "        out->write( 'caught' ).",
+    "    ENDTRY.",
+  ].join("\n"),
+};
+const probeClassSource = (p: ProbeClass): string =>
+  [
+    `CLASS ${p.name.toLowerCase()} DEFINITION PUBLIC FINAL CREATE PUBLIC.`,
+    "  PUBLIC SECTION.",
+    "    INTERFACES if_oo_adt_classrun.",
+    "ENDCLASS.",
+    `CLASS ${p.name.toLowerCase()} IMPLEMENTATION.`,
+    "  METHOD if_oo_adt_classrun~main.",
+    p.body,
+    "  ENDMETHOD.",
+    "ENDCLASS.",
+    "",
+  ].join("\n");
+/** Exactly the two probe classes, in exactly one package. Nothing wider. */
+const PROBE_WRITE_GATE = new SafetyGate({ readOnly: false, allowPackages: ["$TMP"], allowNamePrefixes: ["ZCL_AS_"] });
+/** Probe classes THIS run created — deleted in `afterAll`; a class that was already there is left alone. */
+const createdProbeClasses: ProbeClass[] = [];
 const LAUNCHER = "ZMCP_DBG_RUN";
 
 let connA: AbapConnection;
@@ -228,7 +272,8 @@ const tlog = (msg: string) => process.stderr.write(`[integration-debug.test.ts] 
 const errText = (e: unknown) => (e instanceof Error ? `${e.name}: ${e.message}` : String(e));
 
 /** Every live case's debug context, defined once so teardown can address the very listeners the cases registered. */
-function debugContext(seed: "main" | "idle" | "exception"): DebugContext {
+type Seed = "main" | "idle" | "exception" | "exception-caught";
+function debugContext(seed: Seed): DebugContext {
   return {
     debuggingMode: "user",
     terminalId: resolveTerminalId({ seed: `abapsmith-integration-debug-${seed}-terminal` }),
@@ -236,7 +281,7 @@ function debugContext(seed: "main" | "idle" | "exception"): DebugContext {
     requestUser: cfg.user,
   };
 }
-const SEEDS = ["main", "idle", "exception"] as const;
+const SEEDS: readonly Seed[] = ["main", "idle", "exception", "exception-caught"];
 
 /**
  * `role` decides whether the connection joins the last-resort sweep registry:
@@ -384,6 +429,23 @@ d("live debug-session verification (A4H)", () => {
     // is idempotent, but the debug sessions must be gone BEFORE their connection is.
     await shutdownAllDebugSessions(tlog).catch((e: unknown) => tlog(`afterAll shutdown failed: ${errText(e)}`));
     await shutdownCaseConnections("test-end");
+    // #152 probe classes this run created. Never throws — a failed delete is
+    // reported, not allowed to replace the case's own verdict. A fresh
+    // connection per delete: a stateful session that just deleted an object
+    // has been seen to answer the NEXT request with 400 ICMENOSESSION.
+    for (const p of createdProbeClasses.splice(0)) {
+      const conn = new AbapConnection(cfg, { log: () => {}, breaker: new AuthCircuitBreaker() });
+      try {
+        await conn.connect();
+        await abapWrite(conn, { object: p.name, type: "CLAS/OC", mode: "delete", confirm: p.name } as never, MAX, PROBE_WRITE_GATE);
+        tlog(`deleted probe class ${p.name} from $TMP`);
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn(`[integration-debug.test.ts] could not delete ${p.name} — it may be left behind in $TMP on a SHARED appliance. Remove it by hand if so. Cause: ${errText(e)}`);
+      } finally {
+        await conn.shutdown("probe-class-delete").catch(() => undefined);
+      }
+    }
     debugControlConnections.delete(connA);
     await connA?.shutdown("test-end");
     await connB?.shutdown("test-end");
@@ -722,83 +784,183 @@ d("live debug-session verification (A4H)", () => {
     },
     MAX,
   );
-  // #152 — an exception breakpoint ALONE must suspend the run at the RAISE,
-  // before the short dump. Issue report: with only an exception breakpoint
-  // the listener came back with DBGEE_KIND "PMORTEM" (the dump, not a live
-  // debuggee); paired with a line breakpoint the line stopped and the raise
-  // never did. This case records what the server actually does with the
-  // request shape abapsmith sends (attribute-identical to the accepted
-  // capture in test/cassettes/debugger/bp-set-exception-accepted.cassette.json).
+  // #152 — what an exception breakpoint ALONE does, both ways. The issue
+  // reported the uncaught case (listener came back with DBGEE_KIND "PMORTEM";
+  // paired with a line breakpoint the line stopped and the raise never did).
+  // The request shape abapsmith sends is attribute-identical to the accepted
+  // capture (test/cassettes/debugger/bp-set-exception-accepted.cassette.json),
+  // so the two cases below pin what the SERVER does with it, live.
   //
-  // STATUS: written against the seeded-fixture pattern above but NOT YET RUN
-  // LIVE — the auth circuit breaker was latched on the shared user while
-  // #152 was worked on. The expectations below encode the DESIRED behaviour
-  // (a live debuggee suspended inside ZCL_AS_DBGEXC); a PMORTEM result here
-  // is the bug reproducing, and the diagnostic line makes that visible.
+  // LIVE 2026-09-16 (A4H 7.54, through this branch's code): 5a → PMORTEM,
+  // dump UNCAUGHT_EXCEPTION; 5b → DEBUGGEE suspended inside ZCL_AS_DBGEXC2.
+  // A real `1 / 0` without a handler behaved like 5a (dump COMPUTE_INT_ZERODIVIDE).
+
+  /**
+   * Present with the expected body, or created by this run (write gate
+   * permitting). False = absent and not creatable. A class that IS there but
+   * with a different `main` body fails loudly instead of being overwritten or
+   * silently accepted: the case's verdict depends on exactly that body (a
+   * leftover `1 / 0` probe once turned 5a's `UNCAUGHT_EXCEPTION` into
+   * `COMPUTE_INT_ZERODIVIDE`), and overwriting a foreign object is not this
+   * suite's call to make even inside `$TMP`.
+   */
+  async function ensureProbeClass(p: ProbeClass): Promise<boolean> {
+    const existing = await connA.get(p.uri, { headers: { Accept: "text/plain" } }).then(
+      (r) => (r.status === 200 ? r.body : null),
+      () => null,
+    );
+    if (existing !== null) {
+      const normalise = (t: string) => t.replace(/\s+/g, " ").trim().toUpperCase();
+      if (!normalise(existing).includes(normalise(p.body))) {
+        throw new Error(
+          `${p.name} exists in $TMP but its main method is not the #152 probe body. ` +
+            `Delete it (or restore the body from ${p.name === EXC_UNCAUGHT.name ? "EXC_UNCAUGHT" : "EXC_CAUGHT"} in this file) and re-run.`,
+        );
+      }
+      return true;
+    }
+    if (!liveWriteConfigured()) return false;
+    // Own connection: a write is stateful (locks) and must not share connA.
+    const conn = new AbapConnection(cfg, { log: () => {}, breaker: new AuthCircuitBreaker() });
+    try {
+      await conn.connect();
+      await abapWrite(
+        conn,
+        {
+          object: p.name,
+          type: "CLAS/OC",
+          source: probeClassSource(p),
+          package: "$TMP",
+          description: "abapsmith #152 exception breakpoint probe",
+        } as never,
+        MAX,
+        PROBE_WRITE_GATE,
+      );
+      createdProbeClasses.push(p); // registered before activation: a failed activation still gets deleted
+      const act = await abapActivate(conn, { object: p.name, type: "CLAS/OC" } as never, MAX, PROBE_WRITE_GATE);
+      if (!/^activated: true$/m.test(act.text)) throw new Error(`activating ${p.name} did not report activated: true:\n${act.text}`);
+      return true;
+    } finally {
+      await conn.shutdown("probe-class-create").catch(() => undefined);
+    }
+  }
+
+  /**
+   * Arms ONE exception breakpoint on CX_SY_ZERODIVIDE, arms the listener, triggers
+   * the probe class through the classrun launcher, and returns what the listener
+   * caught. The session is registered with the module registry, so teardown
+   * reaches it on every exit path; the caller still terminates it in `finally`.
+   * The trigger promise never rejects (an uncaught raise answers the classrun
+   * POST with 500 — that is the dump, not a test failure).
+   */
+  async function armExceptionBreakpointAndTrigger(seed: Seed, p: ProbeClass) {
+    const control = await openCaseConnection("debug-control");
+    const client = createDebugClientForConnection(control, { safety: GATE, listenTimeoutSeconds: 60 });
+    const session = new DebugSession({ client, context: debugContext(seed), idleTimeoutMs: 300_000, listenerTimeoutSeconds: 60 });
+    const trigger = await openCaseConnection("trigger");
+
+    const created = await session.prepareBreakpoints([{ kind: "exception", clientId: "exc1", exceptionClass: "CX_SY_ZERODIVIDE" }]);
+    expect(created).toHaveLength(1);
+    expect(created[0]?.id).toBe("KIND=5.EXCEPTION_CLASS=CX_SY_ZERODIVIDE");
+
+    await session.armListener();
+    // Do NOT trigger immediately — see BREAKPOINT_ACTIVATION_SETTLE_MS.
+    await new Promise((r) => setTimeout(r, BREAKPOINT_ACTIVATION_SETTLE_MS));
+    const triggerP = trigger
+      .post(`/sap/bc/adt/oo/classrun/${p.name}`, { headers: { Accept: "text/plain" } })
+      .then((r) => ({ status: r.status, body: r.body }), (e: unknown) => ({ status: -1, body: errText(e) }));
+
+    const lr = await session.waitForDebuggee();
+    // Diagnostic first, so a failing run still says WHAT came back.
+    console.log(
+      `[exception-bp ${seed}] listen kind=${lr.kind}` +
+        (lr.kind === "debuggee" ? ` debuggeeKind=${lr.debuggee.kind} rawKind=${lr.debuggee.rawKind} dumpId=${lr.debuggee.dumpId ?? "-"}` : ""),
+    );
+    return { session, lr, triggerP };
+  }
+
+  const frameNames = (frames: readonly { programName: string; includeName: string; line: number }[]) =>
+    JSON.stringify(frames.slice(0, 3).map((f) => ({ p: f.programName, i: f.includeName, l: f.line })));
+
   it(
-    "an exception breakpoint on CX_SY_ZERODIVIDE alone suspends the run before the dump (#152)",
+    "5a: an exception breakpoint alone does not stop an uncaught RAISE — the run dumps and the listener returns PMORTEM (#152)",
     async (ctx) => {
       skipIfDirtyOnArrival(ctx);
       assertUsable();
-      const probe = await connA.get(EXC_URI, { headers: { Accept: "text/plain" } }).catch((e: unknown) => e);
-      if (probe instanceof Error || (typeof probe === "object" && probe !== null && "status" in probe && probe.status !== 200)) {
-        ctx.skip(`${EXC_CLASS} is not present in $TMP — see the EXC_URI comment for its source`);
+      if (!(await ensureProbeClass(EXC_UNCAUGHT))) {
+        ctx.skip(`${EXC_UNCAUGHT.name} is absent and the write gate is off (ABAP_MODE) — cannot create it`);
       }
-
-      const connA3 = await openCaseConnection("debug-control");
-      const client = createDebugClientForConnection(connA3, { safety: GATE, listenTimeoutSeconds: 60 });
-      const context: DebugContext = debugContext("exception");
-      const session3 = new DebugSession({ client, context, idleTimeoutMs: 300_000, listenerTimeoutSeconds: 60 });
-      const connB3 = await openCaseConnection("trigger");
-
-      let triggerP3: Promise<{ status: number; body: string }> | undefined;
+      const { session, lr, triggerP } = await armExceptionBreakpointAndTrigger("exception", EXC_UNCAUGHT);
       let bodyCompleted = false;
       try {
-        const created = await session3.prepareBreakpoints([
-          { kind: "exception", clientId: "exc1", exceptionClass: "CX_SY_ZERODIVIDE" },
-        ]);
-        expect(created).toHaveLength(1);
-        expect(created[0]?.id).toBe("KIND=5.EXCEPTION_CLASS=CX_SY_ZERODIVIDE");
-
-        await session3.armListener();
-        // Do NOT trigger immediately — see BREAKPOINT_ACTIVATION_SETTLE_MS.
-        await new Promise((r) => setTimeout(r, BREAKPOINT_ACTIVATION_SETTLE_MS));
-
-        triggerP3 = connB3.post(`/sap/bc/adt/oo/classrun/${EXC_CLASS}`, { headers: { Accept: "text/plain" } });
-
-        const lr = await session3.waitForDebuggee();
-        // Diagnostic first, so a failing run still says WHAT came back.
-        console.log(
-          `[exception-bp] listen kind=${lr.kind}` +
-            (lr.kind === "debuggee"
-              ? ` debuggeeKind=${lr.debuggee.kind} rawKind=${lr.debuggee.rawKind} dumpId=${lr.debuggee.dumpId ?? "-"}`
-              : ""),
-        );
         expect(lr.kind).toBe("debuggee");
         if (lr.kind !== "debuggee") return;
-        // A PMORTEM here means the run dumped WITHOUT the breakpoint firing — the #152 report.
-        expect(lr.debuggee.kind).toBe("debuggee");
+        // The #152 report, reproduced: no suspension at the raise, the dump instead.
+        // `parseDebuggeeKind` (item 1) turns the PMORTEM into a post-mortem attach
+        // instead of aborting the start.
+        expect(lr.debuggee.kind).toBe("postmortem");
+        expect(lr.debuggee.rawKind).toBe("PMORTEM");
+        expect(lr.debuggee.dumpId).toBe("UNCAUGHT_EXCEPTION");
 
-        const a3 = await session3.attach(lr.debuggee.id);
-        console.log(
-          `[exception-bp] attach frames=${JSON.stringify(
-            a3.stack.frames.map((f) => ({ p: f.programName, i: f.includeName, l: f.line })),
-          )}`,
-        );
-        expect(a3.stack.frames.some((f) => f.programName.toUpperCase().includes(EXC_CLASS))).toBe(true);
-
-        if (session3.snapshot.status === "suspended") {
-          await session3.step(a3.stateId, "stepContinue");
-        }
+        const a = await session.attach(lr.debuggee.id);
+        console.log(`[exception-bp uncaught] attach frames=${frameNames(a.stack.frames)}`);
+        expect(a.stack.frames.some((f) => f.programName.toUpperCase().includes(EXC_UNCAUGHT.name))).toBe(true);
         bodyCompleted = true;
       } finally {
-        await session3.terminate().catch((e: unknown) => {
-          const detail = `case 5 terminate() failed: ${errText(e)}`;
+        await session.terminate().catch((e: unknown) => {
+          const detail = `case 5a terminate() failed: ${errText(e)}`;
           tlog(detail);
           pendingProblems.push(detail);
         });
-        if (bodyCompleted) expect(session3.snapshot.status).toBe("dead");
-        if (triggerP3) await triggerP3.catch(() => undefined);
+        if (bodyCompleted) expect(session.snapshot.status).toBe("dead");
+        const t = await triggerP;
+        console.log(`[exception-bp uncaught] trigger status=${t.status}`);
+      }
+
+      await assertCleanDebugTables(connA);
+    },
+    MAX,
+  );
+
+  it(
+    "5b: the same exception breakpoint suspends at a RAISE that has a handler up the stack (#152)",
+    async (ctx) => {
+      skipIfDirtyOnArrival(ctx);
+      assertUsable();
+      if (!(await ensureProbeClass(EXC_CAUGHT))) {
+        ctx.skip(`${EXC_CAUGHT.name} is absent and the write gate is off (ABAP_MODE) — cannot create it`);
+      }
+      const { session, lr, triggerP } = await armExceptionBreakpointAndTrigger("exception-caught", EXC_CAUGHT);
+      let bodyCompleted = false;
+      try {
+        expect(lr.kind).toBe("debuggee");
+        if (lr.kind !== "debuggee") return;
+        expect(lr.debuggee.kind).toBe("debuggee");
+        expect(lr.debuggee.rawKind).toBe("DEBUGGEE");
+
+        const a = await session.attach(lr.debuggee.id);
+        console.log(`[exception-bp caught] attach frames=${frameNames(a.stack.frames)}`);
+        expect(a.stack.frames.some((f) => f.programName.toUpperCase().includes(EXC_CAUGHT.name))).toBe(true);
+        expect(session.snapshot.status).toBe("suspended");
+
+        // Continue: the CATCH handles it and the run ends. `step` reports that as
+        // SESSION_DEAD ("ran to completion") — a normal end, not a failure.
+        try {
+          await session.step(a.stateId, "stepContinue");
+        } catch (e) {
+          if (!(e instanceof AbapError && e.code === "SESSION_DEAD")) throw e;
+        }
+        expect(session.snapshot.status).toBe("dead");
+        bodyCompleted = true;
+      } finally {
+        await session.terminate().catch((e: unknown) => {
+          const detail = `case 5b terminate() failed: ${errText(e)}`;
+          tlog(detail);
+          pendingProblems.push(detail);
+        });
+        if (bodyCompleted) expect(session.snapshot.status).toBe("dead");
+        const t = await triggerP;
+        console.log(`[exception-bp caught] trigger status=${t.status} body=${t.body.slice(0, 80)}`);
       }
 
       await assertCleanDebugTables(connA);
