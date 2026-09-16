@@ -148480,6 +148480,33 @@ async function runUiPressBridge(conn, query, gate) {
   };
 }
 
+// src/adt/ui-tstc.ts
+init_catalog_select();
+function tstcKind(cinfo) {
+  switch (cinfo) {
+    case "00":
+      return "dialog transaction (classic dynpro; batch input / press applies)";
+    case "80":
+      return "report transaction (SUBMIT-driven; batch input does NOT apply)";
+    default:
+      return "unrecognised transaction kind - mechanism not confirmed, do not assume batch input applies";
+  }
+}
+async function lookupTransaction(conn, tcode) {
+  const result = await runCatalogSelect(conn, buildTransactionDetailQuery(tcode), 1);
+  const row2 = result.rows[0];
+  if (!row2) return void 0;
+  const cinfo = (row2.CINFO ?? "").trim();
+  return {
+    tcode: (row2.TCODE ?? tcode).trim(),
+    program: (row2.PGMNA ?? "").trim(),
+    dynpro: (row2.DYPNO ?? "").trim(),
+    cinfo,
+    kind: tstcKind(cinfo),
+    bdcApplies: cinfo === "00" ? true : cinfo === "80" ? false : void 0
+  };
+}
+
 // src/tools/ui.ts
 init_compact();
 init_safety();
@@ -148755,6 +148782,117 @@ NOTE: ${LAYOUT_FIDELITY_NOTE}`;
   }
 }
 
+// src/tools/ui-compact.ts
+init_compact();
+var OWN_COLUMNS = /* @__PURE__ */ new Set(["name", "fnam", "fill", "line", "coln", "leng", "stxt"]);
+var FLG1_DEFAULT = "80";
+var ALL_ZERO_RE = /^0+$/;
+var ALL_UNDERSCORE_RE = /^_+$/;
+function classifyScreenField(row2) {
+  if (hex3(row2, "line") === 255) return "okcode";
+  const fill = str5(row2, "fill");
+  switch (fill) {
+    case "":
+      break;
+    case "C":
+      return "checkbox";
+    case "A":
+      return "radio";
+    case "P":
+      return "button";
+    case "I":
+      return "tabstrip";
+    case "R":
+      return "frame";
+    case "T":
+      return "table";
+    case "B":
+      return "subscreen";
+    default:
+      return `fill=${fill}`;
+  }
+  const flg1 = hex3(row2, "flg1");
+  if ((flg1 & 128) === 0) return "text";
+  const grp3 = str5(row2, "grp3");
+  if (grp3 === "TXT" || grp3 === "COM" || grp3 === "TOT") return "label";
+  const stxt = str5(row2, "stxt");
+  if (stxt !== "" && ALL_UNDERSCORE_RE.test(stxt)) {
+    return (flg1 & 33) === 1 ? "out" : "io";
+  }
+  return "label";
+}
+function compactFieldAttrs(row2) {
+  const parts = [];
+  const text5 = decodeStxt(str5(row2, "stxt"));
+  const rawText = str5(row2, "stxt");
+  if (text5 !== "" && !ALL_UNDERSCORE_RE.test(rawText)) parts.push(`text="${text5}"`);
+  for (const [key, value] of Object.entries(row2)) {
+    if (OWN_COLUMNS.has(key)) continue;
+    if (value === void 0 || value === "") continue;
+    if (ALL_ZERO_RE.test(value)) continue;
+    if (key === "flg1" && value === FLG1_DEFAULT) continue;
+    parts.push(`${key}=${value}`);
+  }
+  return parts.join(" ");
+}
+function renderCompactFields(rows) {
+  if (!rows.length) return "(none)";
+  const table = rows.map((row2) => ({
+    name: str5(row2, "fnam") || str5(row2, "name"),
+    type: classifyScreenField(row2),
+    len: String(hex3(row2, "leng")),
+    pos: `${hex3(row2, "line")},${hex3(row2, "coln")}`,
+    attrs: compactFieldAttrs(row2)
+  }));
+  return textTable(table, ["name", "type", "len", "pos", "attrs"]);
+}
+var GENERATED_RE = /%_/;
+var CHAIN_RE = /^\s*CHAIN\s*\.?\s*$/i;
+var ENDCHAIN_RE = /^\s*ENDCHAIN\s*\.?\s*$/i;
+function flowLineText(row2) {
+  const line2 = row2.line;
+  if (line2 !== void 0) return line2;
+  return Object.entries(row2).map(([k, v]) => `${k}=[${v}]`).join(" ");
+}
+function renderCompactFlow(rows) {
+  if (!rows.length) return { text: "(none)", omitted: 0 };
+  const lines = rows.map(flowLineText);
+  const generated = lines.map((l) => GENERATED_RE.test(l));
+  for (let i = 0; i < lines.length; i++) {
+    if (!CHAIN_RE.test(lines[i] ?? "")) continue;
+    let j = i + 1;
+    while (j < lines.length && !ENDCHAIN_RE.test(lines[j] ?? "")) j++;
+    if (j >= lines.length) break;
+    const body = generated.slice(i + 1, j);
+    if (body.length > 0 && body.every(Boolean)) {
+      generated[i] = true;
+      generated[j] = true;
+    }
+    i = j;
+  }
+  const out = [];
+  let omitted = 0;
+  for (let i = 0; i < lines.length; ) {
+    if (!generated[i]) {
+      out.push(lines[i] ?? "");
+      i++;
+      continue;
+    }
+    let j = i;
+    while (j < lines.length && generated[j]) j++;
+    const run = j - i;
+    const indent = /^\s*/.exec(lines[i] ?? "")?.[0] ?? "";
+    out.push(`${indent}(${run} generated %_ flow-logic line${run === 1 ? "" : "s"} omitted)`);
+    omitted += run;
+    i = j;
+  }
+  return { text: out.join("\n"), omitted };
+}
+function compactScreenNote(flowOmitted) {
+  const flow = flowOmitted > 0 ? `${flowOmitted} generated %_ flow-logic line${flowOmitted === 1 ? "" : "s"} collapsed into counted markers` : "no generated %_ flow-logic lines to collapse";
+  return `Compact output (detail:"compact", the default): FIELDS is one line per element (name  type  len  pos  attrs \u2014 len/pos decimal, attrs only where they differ from the plain element: no empty or zero columns, no flg1=80, no I/O mask stxt); ${flow}. detail:"full" restores the raw key=[value] dump of every D021S column and every flow line.`;
+}
+
 // src/tools/ui.ts
 var uiPressFieldSchema = external_exports.object({
   name: external_exports.string().describe("Screen field name (D021S-FNAM), e.g. BKPF-BLDAT."),
@@ -148776,10 +148914,10 @@ var uiInputSchema = {
     "screen: read one dynpro (discovery, read-only in effect). fcode: static trace of one function code's handling \u2014 reads source, runs nothing, same read-only effect as screen. press: run a batch-input script \u2014 commits, cannot be rolled back. Requires ABAP_MODE=admin, ABAP_ALLOW_UI_PRESS=true, and confirm:true."
   ),
   tcode: external_exports.string().optional().describe(
-    "Transaction code. screen/fcode: alternative to program+dynpro. press: required."
+    "Transaction code. screen/fcode: alternative to program+dynpro. press: required \u2014 press needs tcode; program/dynpro is only supported by mode=screen. A tcode with no TSTC row is refused with NOT_FOUND before any bridge class is deployed."
   ),
-  program: external_exports.string().optional().describe("screen/fcode only, with dynpro: program name instead of tcode."),
-  dynpro: external_exports.string().optional().describe('screen/fcode only, with program: screen number, e.g. "100".'),
+  program: external_exports.string().optional().describe("screen/fcode only, with dynpro: program name instead of tcode. Refused by press."),
+  dynpro: external_exports.string().optional().describe('screen/fcode only, with program: screen number, e.g. "100". Refused by press.'),
   fcode: external_exports.string().optional().describe(
     "fcode only: one function code to trace. Omitted = every function code of every GUI status of the program."
   ),
@@ -148788,6 +148926,9 @@ var uiInputSchema = {
   ),
   layout: external_exports.boolean().optional().describe(
     "screen only, default false: also render a monospace picture of the screen from the field rows already read. No extra ABAP and no extra round trip. Design-time layout, not a runtime screenshot. Ignored by press."
+  ),
+  detail: external_exports.enum(["compact", "full"]).optional().describe(
+    'screen only, default "compact": FIELDS is one line per element (name  type  len  pos  attrs, only non-default attrs) and runs of generated %_ flow-logic lines collapse into one counted line; user-written modules are always listed. "full" is the raw key=[value] dump of every D021S column and every flow line. Render-side only \u2014 same ABAP, same single bridge call. The LAYOUT section (layout:true) is the same in both. Ignored by fcode and press.'
   ),
   confirm: external_exports.boolean().optional().describe(
     "press only, REQUIRED (must be exactly true) \u2014 acknowledges the commit. Omitted or false is refused before any network call."
@@ -148861,6 +149002,16 @@ function buildFcodeQuery(input) {
 function buildPressQuery(input) {
   const tcode = input.tcode?.trim();
   if (!tcode) {
+    const program = input.program?.trim();
+    const dynpro = input.dynpro?.trim();
+    if (program || dynpro) {
+      throw new AbapError(
+        "BAD_INPUT",
+        "press needs tcode; program/dynpro is only supported by mode=screen",
+        { mode: "press", program: input.program, dynpro: input.dynpro },
+        'Give the transaction code that starts on this dynpro (mode:"screen" with the same program/dynpro shows it under tcode when one is registered), or use mode:"fcode" for a static trace of what a function code would do.'
+      );
+    }
     throw new AbapError("BAD_INPUT", 'mode:"press" requires tcode.', {
       mode: "press"
     });
@@ -148920,29 +149071,19 @@ function assertPressEnabled(cfg) {
     "Set both ABAP_MODE=admin and ABAP_ALLOW_UI_PRESS=true if this call is genuinely intended."
   );
 }
-async function assertBdcApplies(deps, tcode) {
-  const precheckQuery = {
-    mode: "screen",
-    target: { by: "tcode", tcode }
-  };
-  deps.safety.assert(
-    "write",
-    { name: uiManifest.entry, packageName: FLUID_PACKAGE, type: "CLAS/OC" },
-    { phase: "preflight" }
-  );
-  const precheck = await deps.pool.withWrite(
-    "abap_ui",
-    uiManifest.entry,
-    (conn) => runUiBridge(conn, precheckQuery, deps.safety)
-  );
-  const kind = precheck.transcript.tcode;
-  if (!kind) {
+async function assertTransactionExists(deps, tcode) {
+  const record2 = await deps.pool.withRead("abap_ui", (conn) => lookupTransaction(conn, tcode));
+  if (!record2) {
     throw new AbapError(
-      "ADT_ERROR",
-      `Could not resolve transaction ${tcode} via TSTC before press \u2014 the precheck bridge returned no tcode record.`,
-      { tcode }
+      "NOT_FOUND",
+      `transaction ${tcode} does not exist`,
+      { tcode, table: "TSTC", type: "TRAN/T" },
+      'TSTC has no row for this code, so no bridge class was deployed. Check the spelling, or address the screen directly with mode:"screen" and program + dynpro.'
     );
   }
+  return record2;
+}
+function assertBdcApplies(tcode, kind) {
   if (kind.bdcApplies !== true) {
     throw new AbapError(
       "SAFETY_DENIED",
@@ -148957,9 +149098,11 @@ function renderRecordRows(rows) {
     (row2) => Object.entries(row2).map(([k, v]) => `${k}=[${v}]`).join(" ")
   ).join("\n");
 }
-function buildScreenResponse(query, result, maxChars, layout) {
+function buildScreenResponse(query, result, maxChars, layout, detail = "compact") {
   const t = result.transcript;
   const notes = [...FIDELITY_NOTES2];
+  const compact = detail === "compact";
+  const flow = compact ? renderCompactFlow(t.flow) : { text: renderRecordRows(t.flow), omitted: 0 };
   if (t.tcode) {
     if (t.tcode.bdcApplies === false) {
       notes.push(
@@ -148984,6 +149127,9 @@ function buildScreenResponse(query, result, maxChars, layout) {
   if (layout) {
     notes.push(LAYOUT_FIDELITY_NOTE);
   }
+  if (compact) {
+    notes.push(compactScreenNote(flow.omitted));
+  }
   return buildResponse({
     header: {
       mode: "screen",
@@ -148993,6 +149139,7 @@ function buildScreenResponse(query, result, maxChars, layout) {
       dynpro: t.resolved?.dynpro,
       fieldsCount: t.fieldsCount,
       flowCount: t.flowCount,
+      ...compact ? { flowOmitted: flow.omitted, detail } : {},
       statusCount: t.statusCount,
       functionsCount: t.functionsCount,
       fkeysCount: t.fkeysCount,
@@ -149014,7 +149161,7 @@ function buildScreenResponse(query, result, maxChars, layout) {
         title: "HEADER (RPY_DYNPRO_READ)",
         content: t.header ? renderRecordRows([t.header]) : "(not read)"
       },
-      { title: "FLOW LOGIC", content: renderRecordRows(t.flow) },
+      { title: "FLOW LOGIC", content: flow.text },
       {
         title: "GUI STATUSES (names)",
         content: renderRecordRows(t.statusList)
@@ -149026,7 +149173,7 @@ function buildScreenResponse(query, result, maxChars, layout) {
       { title: "FUNCTION KEYS", content: renderRecordRows(t.fkeys) },
       ...t.diagnostics.length ? [{ title: "DIAGNOSTICS", content: t.diagnostics.join("\n") }] : []
     ],
-    body: renderRecordRows(t.fields),
+    body: compact ? renderCompactFields(t.fields) : renderRecordRows(t.fields),
     bodyLabel: "FIELDS",
     notes,
     maxChars
@@ -149222,6 +149369,7 @@ async function runScreenTool(deps, input) {
     { phase: "preflight" }
   );
   await deps.ensureConnected();
+  if (query.target.by === "tcode") await assertTransactionExists(deps, query.target.tcode);
   const result = await deps.pool.withWrite(
     "abap_ui",
     uiManifest.entry,
@@ -149232,7 +149380,8 @@ async function runScreenTool(deps, input) {
       query,
       result,
       deps.cfg.maxResponseChars,
-      input.layout === true
+      input.layout === true,
+      input.detail ?? "compact"
     )
   );
 }
@@ -149245,6 +149394,7 @@ async function runFcodeTool(deps, input) {
     { phase: "preflight" }
   );
   await deps.ensureConnected();
+  if (query.target.by === "tcode") await assertTransactionExists(deps, query.target.tcode);
   const result = await deps.pool.withWrite(
     "abap_ui",
     uiManifest.entry,
@@ -149263,7 +149413,8 @@ async function runPressTool(deps, input) {
     { phase: "preflight" }
   );
   await deps.ensureConnected();
-  await assertBdcApplies(deps, query.tcode);
+  const tstc = await assertTransactionExists(deps, query.tcode);
+  assertBdcApplies(query.tcode, tstc);
   const bridgeClass = uiBridgeClassName(query);
   deps.safety.assert(
     "write",

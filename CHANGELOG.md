@@ -18,6 +18,17 @@ version was set to `0.3.0`, which is intended.
 - **Gate verdict before any transport is created** (#142). A bridge create is asserted against the safety gate — with the caller's `corr_nr` or as unresolved — before the resolver runs, so a denied write costs zero wire requests and creates no request; the `VIEW/DV` path used to create one first and leak it. Should the post-resolution assert refuse after a request was created in the same call, the refusal carries `details.createdTransport`, its hint names the request and `abap_transport operation=delete` removes it, and the create is journalled as `transport-create`.
 - **Transport-allowlist refusals are rule-specific, caller-side and terminal** (#143). Every `SAFETY_DENIED` on rules `transport allowlist` / `transport allowlist (fail closed)`, and every session-resolver denial, now carries a hint worded for the mode in force — under `auto`: "The server picks the request itself under ABAP_ALLOW_TRANSPORTS=auto. Omit corr_nr. Naming a request is refused regardless of which request."; under a pinned list: "Only these requests are permitted: … ask the operator to extend the list"; under an empty list: only `$`-packages are writable — states that it is terminal (`retryable: false`), and never suggests editing the environment. The `abapsmith-put-work-on-a-transport` skill no longer describes an omitted `corr_nr` as "the value `AUTO`" (the string is not accepted; omit the field) and tells agents never to retry a terminal `SAFETY_DENIED` by changing arguments.
 
+## [0.6.9] - 2026-09-16
+
+### Added
+
+- `abap_ui mode="screen"` gains `detail` (`compact` | `full`, default `compact`) (#150). Compact renders `FIELDS` one line per element — `name  type  len  pos  attrs`, with `len`/`pos` decimal and `attrs` holding only what differs from a plain input field — and folds every run of generated `%_...` flow-logic lines into one `(N generated %_ flow-logic lines omitted)` line, keeping every user-written `MODULE`/`FIELD` line; the header reports `flowOmitted` and a note names the way back. `detail: "full"` is the previous `key=[value]` dump, byte for byte. The `layout: true` picture and every other section are the same under both. Render-side only: same ABAP, same single bridge call.
+
+### Changed
+
+- `abap_ui` checks `TSTC` before deploying anything (#150). `screen`/`fcode` by `tcode` and every `press` first run one freestyle select on the read lane and refuse a transaction with no row as a structured `NOT_FOUND: transaction X does not exist` — about a second on the wire instead of the ~20 s a fresh invoker-class deploy cost before the bridge's own SELECT failed. `press` reads `CINFO` from that same row, so the extra screen-mode bridge run it used to make for the report/dialog check is gone; a press now deploys exactly one class, its own BDCDATA bridge.
+- `abap_ui mode="press"` with `program`+`dynpro` and no `tcode` is refused as `BAD_INPUT` with the message `press needs tcode; program/dynpro is only supported by mode=screen`, before any network call (#150). Driving a bare dynpro was investigated and decided against: `CALL SCREEN` from the classrun bridge has no GUI session and cannot address another program's dynpro, and a generated wrapper transaction would be a cross-client `TSTC`/`TADIR` object outside the safety gate — see `doc/TOOLS/ui-and-fpm.md`, "press needs tcode".
+
 ## [0.6.8] - 2026-09-15
 
 ### Added

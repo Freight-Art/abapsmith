@@ -7,8 +7,8 @@
  * It must now come back as a `notes` entry, which compact.ts always renders.
  *
  * Harness: a trimmed copy of test/ui-system-key.test.ts's own harness (its
- * header explains the fake classrun routing for `press`'s two-bridge
- * choreography — TSTC precheck then BDCDATA press). This file drops the
+ * header explains the fake classrun routing for `press`'s choreography —
+ * TSTC pre-check select, then the BDCDATA press bridge). This file drops the
  * journal-persistence half of that test (mkdtemp/readPersistedEntries) since
  * it is not what's under test here; only the rendered response text is.
  */
@@ -31,6 +31,7 @@ import { registerUiTools, type UiToolDeps } from "../src/tools/ui.js";
 import { errorResult } from "../src/server.js";
 import { DATA_PREVIEW_PATH, systemRoleProbeResponse } from "./helpers/system-role-fake.js";
 import { dynamicUiFluidRoute, isUiFluidClass, uiScreenConsole } from "./helpers/fluid-ui-fake.js";
+import { isTstcSelect, tstcSelectResponse } from "./helpers/tstc-select-fake.js";
 import { FLUID_PACKAGE } from "../src/adt/fluid/package.js";
 
 const cfg = (): Config =>
@@ -115,6 +116,11 @@ function pressHappyPath(tcode: string): (o: HttpClientOptions) => HttpClientResp
       });
     }
     if (o.url.includes(SESSION_URL)) return resp(200, "<graph/>", LOGIN_HEADERS);
+    // Issue #150: press now learns "exists" and CINFO from one TSTC select on the read lane
+    // (src/adt/ui-tstc.ts) — matched on the SQL body before the generic data-preview branch.
+    if (isTstcSelect(o)) {
+      return tstcSelectResponse([{ TCODE: tcode, PGMNA: "SAPMZUI1", DYPNO: "0100", CINFO: "00" }]);
+    }
     if (o.url.includes(DATA_PREVIEW_PATH)) return systemRoleProbeResponse("nonproductive");
     if (o.url.includes("/ato/settings")) return resp(200, "<settings/>", OK_XML);
     if (o.url === PKG_URI && method === "GET") {
