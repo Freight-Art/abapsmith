@@ -16,7 +16,10 @@
  * touched — the gate is the first thing after argument validation.
  */
 import { describe, expect, it, vi } from "vitest";
-import type { AbapConnection } from "../src/adt/connection.js";
+import type { HttpClient, HttpClientOptions, HttpClientResponse } from "abap-adt-api/build/AdtHTTP.js";
+import { routeSystemRoleProbe } from "./helpers/system-role-fake.js";
+import { AbapConnection } from "../src/adt/connection.js";
+import { AuthCircuitBreaker } from "../src/adt/circuit-breaker.js";
 import { ConfigSchema, type Config } from "../src/config.js";
 import { AbapError } from "../src/adt/errors.js";
 import { SafetyGate, type EvaluateOptions } from "../src/safety.js";
@@ -37,6 +40,29 @@ const cfg = (): Config =>
     allowFluidPlugins: true,
     allowFluidPluginMutate: true,
   });
+
+/**
+ * Every request is a test failure: the gate is reached before any wire call,
+ * so the connection is built (with the mandatory system-role probe routed)
+ * but never connected and never asked for anything.
+ */
+class SilentAdt implements HttpClient {
+  readonly calls: string[] = [];
+  async request(o: HttpClientOptions): Promise<HttpClientResponse> {
+    this.calls.push(`${(o.method ?? "GET").toUpperCase()} ${o.url}`);
+    throw new Error(`corr-source test: unexpected wire request ${o.url}`);
+  }
+}
+
+function neverConnected(): { conn: AbapConnection; adt: SilentAdt } {
+  const adt = new SilentAdt();
+  const conn = new AbapConnection(cfg(), {
+    httpClient: routeSystemRoleProbe(adt, { answer: "nonproductive" }),
+    log: () => {},
+    breaker: new AuthCircuitBreaker(),
+  });
+  return { conn, adt };
+}
 
 const CREATE_ACTION: FluidActionSpec = {
   name: "create_thing",
@@ -88,10 +114,11 @@ async function verdict(
       refusal = e as AbapError;
       throw e;
     }
-    throw new AbapError("INTERNAL_ERROR", SENTINEL);
+    throw new AbapError("INTERNAL_GATE_MISUSE", SENTINEL);
   });
+  const { conn, adt } = neverConnected(); // never touched: the gate stops the call first
   const deps: FluidDeps = {
-    conn: {} as AbapConnection, // never touched: the gate stops the call first
+    conn,
     cfg: cfg(),
     gate,
     tools: new Map([[tool.manifest.id, tool]]),
@@ -107,6 +134,7 @@ async function verdict(
     await dispatch(deps, req);
     throw new Error("unreachable: the spy always throws");
   } catch (e) {
+    expect(adt.calls).toEqual([]);
     if (e instanceof AbapError && e.message === SENTINEL) return { allowed: true, ...(seen ? { opts: seen } : {}) };
     if (e instanceof AbapError && e.code === "SAFETY_DENIED") return { allowed: false, error: e, ...(seen ? { opts: seen } : {}) };
     throw e;

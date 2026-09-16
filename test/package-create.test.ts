@@ -410,21 +410,34 @@ describe("honest gate refusals — the second gate runs, and runs FIRST (zero-ne
     expect(adt.calls.length).toBe(0);
   });
 
-  it("transports not allowed: preflightPackageCorr refuses a not-allowlisted corrNr with ZERO network calls", async () => {
+  it("transports not allowed: preflightPackageCorr refuses a not-allowlisted corrNr as the gate's own SAFETY_DENIED, BEFORE resolution, with ZERO network calls (#142)", async () => {
     const offline = null as unknown as AbapConnection;
     const transport = new SessionTransport({ allowTransports: ["A4HK900001"] });
     const gate = new SafetyGate({ readOnly: false, allowPackages: ["ZTM"], allowTransports: ["A4HK900001"] });
+    // Shaped like the real caller's target (src/tools/write.ts, DEVC/K
+    // create): `superPackage` is what the gate judges a package CREATE's
+    // container by, and `exists: false` marks it as a create. Without them
+    // the pre-resolution gate would read a ROOT create and refuse on the
+    // package rule — before the transport rule this test is about.
     const target: PreflightTarget = {
       uri: "/sap/bc/adt/packages/ztm_testpkg",
       name: "ZTM_TESTPKG",
       packageName: "ZTM",
+      superPackage: "ZTM",
       type: "DEVC/K",
+      exists: false,
     };
     const err = await catchErr(
       preflightPackageCorr(offline, target, { transport, gate, corrNr: "A4HK900999" }),
     );
-    expect(err.code).toBe("TRANSPORT_ERROR");
+    // Pre-#142 this surfaced as the resolver's TRANSPORT_ERROR; the gate now
+    // judges the named request first (a null connection proves nothing was
+    // resolved or created on the way), so it is the gate's terminal verdict.
+    expect(err.code).toBe("SAFETY_DENIED");
+    expect(err.details.rule).toBe("transport allowlist");
     expect(err.message).toMatch(/not permitted by ABAP_ALLOW_TRANSPORTS/);
+    expect(err.hint).toMatch(/Only these requests are permitted: A4HK900001/);
+    expect(err.retryable).toBe(false);
   });
 
   it("does NOT assert `activate` on the package — a package create has no activation step", async () => {
