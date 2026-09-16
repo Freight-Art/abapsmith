@@ -2226,27 +2226,31 @@ describe("tool surface", () => {
     const props = schema?.properties ?? {};
     expect(props.description?.description).toContain("Required to create a TRAN/T");
     expect(props.description?.description).toContain("37");
-    // corr_nr is now conditionally REQUIRED only for a transportable TRAN/T
-    // create — a transportable VIEW/DV create resolves its own corr_nr when
-    // omitted (honouring one if supplied) — as well as conditionally refused
-    // ($ package create, either type's delete) — pin the whole string so all
-    // of that contract stays honest.
+    // corr_nr is OPTIONAL for every transportable create since #141 — the
+    // bridge types (TRAN/T, VIEW/DV, SHLP/DH, TABL/DI) resolve one under
+    // ABAP_ALLOW_TRANSPORTS exactly like the ADT-lock types, and under auto a
+    // NAMED request is refused, so the description must tell the caller to
+    // omit it — as well as conditionally refused ($ package create, either
+    // type's delete). Pin the whole string so all of that contract stays honest.
     expect(props.corr_nr?.description).toBe(
-      "Transport request. $TMP needs none. Required for a TRAN/T or TABL/DI create into a " +
-        "transportable package; optional for a VIEW/DV create, which resolves one under " +
-        "ABAP_ALLOW_TRANSPORTS when omitted. Refused for a $ package, and on VIEW/DV or TRAN/T " +
-        "delete. TABL/DI delete: same package-derived requirement as its create, not refused. " +
+      "Transport request. $TMP needs none. Optional for every transportable create, including " +
+        "the bridge types TRAN/T, VIEW/DV, SHLP/DH and TABL/DI: omitted, one is resolved under " +
+        "ABAP_ALLOW_TRANSPORTS (auto reuses a modifiable request this session created for the " +
+        "package, else creates one; under auto a NAMED request is refused, so omit it). Refused " +
+        "for a $ package, and on VIEW/DV or TRAN/T delete. TABL/DI delete: same package-derived " +
+        "resolution as its create, not refused. " +
         "If the object is already recorded in a DIFFERENT request, CTS imposes that one instead: " +
         "mode=write proceeds under it and reports corr_nr_honoured: false; mode=delete is refused " +
         "outright with TRANSPORT_ERROR (CORR_NR_NOT_HONOURED) and deletes nothing.",
     );
-    // package's TRAN/T clause states the corr_nr/package pairing rule; its
-    // VIEW/DV clause instead states that a transportable one resolves its own
-    // corr_nr — pin it verbatim rather than substring-matching, since a
-    // substring match would pass even if the rule reversed.
+    // package states that a transportable one resolves its own request for
+    // EVERY type (no per-type "needs corr_nr" clause any more) — pin it
+    // verbatim rather than substring-matching, since a substring match would
+    // pass even if the rule reversed for one bridge type.
     expect(props.package?.description).toBe(
-      "Package for a NEW object. Default $TMP. TRAN/T: a transportable one needs corr_nr. " +
-        "VIEW/DV: a transportable one resolves its own. A $-package refuses corr_nr. " +
+      "Package for a NEW object. Default $TMP. A transportable one resolves its transport " +
+        "request under ABAP_ALLOW_TRANSPORTS when corr_nr is omitted (every type, including " +
+        "TRAN/T, VIEW/DV, SHLP/DH and TABL/DI). A $-package refuses corr_nr. " +
         "TABL/DI: ignored except to check agreement — an index's package is always the base " +
         "table's, never caller-chosen.",
     );

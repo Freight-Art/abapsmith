@@ -113,6 +113,15 @@ export interface TransactionParams {
    * `korrnum = space` instead (see {@link assertTransactionCreateTarget}).
    */
   corrNr?: string;
+  /**
+   * How `corrNr` was chosen, for the gate: `"named"` when a human named it
+   * (caller-supplied or a configured pin), `"auto"` when the session
+   * resolver picked or created it (`preflightPackageCorr`). Defaults to
+   * `"named"`, the stricter reading — under `ABAP_ALLOW_TRANSPORTS=auto`
+   * only `"auto"` passes, so a caller that resolved the request itself must
+   * say so or be refused.
+   */
+  corrSource?: "named" | "auto";
 }
 
 /**
@@ -164,10 +173,14 @@ export function assertTransactionCreateTarget(
       "TRANSPORT_ERROR",
       `packageName ${JSON.stringify(validated)} is not local ($-prefixed), so this transaction must ` +
         "be registered in CTS via RPY_TRANSACTION_INSERT's own RS_CORR_INSERT call, which requires a " +
-        "transport request — pass corr_nr (an ALREADY gate-judged TRKORR, e.g. A4HK900121).",
+        "transport request — and none was resolved for this call.",
       { packageName: validated },
-      "Via abap_write, pass corr_nr with the TRKORR the safety gate already judged for this write " +
-        "(see the abapsmith-put-work-on-a-transport skill).",
+      "Through abap_write no corr_nr is needed: omitted, the request is resolved under " +
+        "ABAP_ALLOW_TRANSPORTS before this module runs (auto reuses a modifiable request this " +
+        "session created for the package, else creates one; a pinned list uses one of its " +
+        "entries). Reaching this refusal from abap_write means no session transport manager was " +
+        "wired into the call — an abapsmith wiring defect, not a caller error. A direct caller of " +
+        "this module hands it a TRKORR the safety gate has already judged.",
     );
   }
   if (corrNr !== undefined) assertCorrNr(corrNr);
@@ -229,7 +242,7 @@ export async function createTransaction(
 
   const corr: SafetyCorr | undefined = local
     ? undefined
-    : { kind: "transport", corrNr: corrNr as string, source: "named" };
+    : { kind: "transport", corrNr: corrNr as string, source: params.corrSource ?? "named" };
   assertBridgeMutation(
     gate,
     { type: "TRAN/T", name: tcode, packageName },
@@ -246,6 +259,7 @@ export async function createTransaction(
       corr_nr: corrNr ?? "",
     },
     what: `Creating transaction ${tcode}`,
+    ...(corr !== undefined ? { corrSource: corr.source } : {}),
     expectTags: ["TRAN-CREATED"],
   });
 }

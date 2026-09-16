@@ -334,6 +334,35 @@ FUNCTION` in `read_transport_log`, `read_import_queue` and
 the function module's own parameter type — never a bare `s(...)` result or
 a literal — and any future bridge action must follow the same rule.
 
+## Classic-bridge creates under `auto`
+
+Every transportable create takes the same route to a request, the
+classic-bridge types included (`VIEW/DV`, `TRAN/T`, `SHLP/DH`, `TABL/DI`,
+`DEVC/K`): `corr_nr` is never required. With it omitted, the safety gate
+judges the write first — zero wire requests, so a refusal creates nothing —
+then `resolveForNewTransportable` (`src/adt/session-transport.ts`) asks CTS
+for the modifiable requests of the **package** (the object cannot be
+classified before it exists) and reuses one this session created or one
+attributed to abapsmith, else creates one; the write response's
+`transport:` field names the request either way, with the resolver's
+reason. Under `ABAP_ALLOW_TRANSPORTS=auto` a named `corr_nr` is refused
+regardless of which request — `SAFETY_DENIED`, rule `transport allowlist`,
+`retryable: false`, hint "omit corr_nr". `TRANSPORT_ERROR` on these paths
+now means a request was genuinely needed and none could be resolved (no
+transport manager wired into the call, or CTS refused the create), not
+"pass a corr_nr".
+
+A request created by a call that then refused is never silent: the
+refusal's `details.createdTransport` names it, its hint says `abap_transport
+operation=delete corr_nr=<TRKORR>` removes the empty request, and the
+create is journalled as `transport-create` so `abap_journal` lists it
+(undo does not delete requests — that stays an explicit `abap_transport`
+call under the admin-only ceiling). Offline coverage:
+`test/bridge-create-transport-auto.test.ts`,
+`test/session-transport-package-candidates.test.ts`,
+`test/transport-denial-hints.test.ts`. Not verified live: the brief for the
+change confined live writes to `$TMP`, which never reaches this route.
+
 ## abap_transport_release
 
 Release a transport request. Irreversible — a released request cannot be
