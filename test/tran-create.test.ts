@@ -545,13 +545,15 @@ describe("transport_number threaded into RPY_TRANSACTION_INSERT", () => {
     expect(assertTransactionCreateTarget("ZTM", CORR_NR)).toBe("ZTM");
   });
 
-  it("a transportable package with no corr_nr is TRANSPORT_ERROR, mentions corr_nr, with ZERO network calls", async () => {
+  it("a transportable package with no corr_nr is TRANSPORT_ERROR saying none was resolved — the hint must NOT send an abap_write caller to add corr_nr (#141) — with ZERO network calls", async () => {
     const fake = classicFake({ action: "create_transaction", lines: () => ["TRAN-CREATED"] });
     const { conn, adt } = await connected(fake.route);
     const { corrNr: _drop, ...withoutCorr } = PARAMS;
     const err = await catchErr(createTransaction(conn, allowingGate(), withoutCorr as TransactionParams));
     expect(err.code).toBe("TRANSPORT_ERROR");
-    expect(err.message).toContain("corr_nr");
+    expect(err.message).toContain("none was resolved for this call");
+    expect(err.hint).toContain("no corr_nr is needed");
+    expect(err.hint).toContain("wiring defect, not a caller error");
     expect(adt.calls.length).toBe(0);
   });
 

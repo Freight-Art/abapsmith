@@ -345,6 +345,72 @@ export const DEFAULT_ENHANCE_TARGETS: EnhanceTargets = "none";
 export const DEFAULT_TRANSPORTS = ["*"];
 
 /**
+ * Terminality note every transport-allowlist refusal ends with. `SAFETY_DENIED`
+ * is never retryable (`RETRYABILITY` in src/adt/errors.ts), and the envelope
+ * already says `retryable: false`; the prose repeats it so an agent reading
+ * only the hint does not try the same call again with a different `corr_nr`.
+ */
+const TRANSPORT_HINT_TERMINAL =
+  "This refusal is terminal (retryable: false): no change to the arguments of this call will pass.";
+
+/**
+ * Caller-side remedy for a transport-allowlist refusal, worded for the mode
+ * `ABAP_ALLOW_TRANSPORTS` is actually in. Shared by the gate's step 10, the
+ * session transport resolver (src/adt/session-transport.ts) and the
+ * zero-network bridge pre-checks (src/adt/tran-create.ts, shlp-create.ts,
+ * view-create.ts, index-create.ts), so every layer that can refuse a
+ * transportable write names the same rule and the same way out.
+ *
+ * Two rules the wording keeps (issue #143):
+ *
+ * - It never tells the caller to edit the environment. The allowlist is the
+ *   operator's knob; an agent that "fixes" a refusal by setting
+ *   `ABAP_ALLOW_TRANSPORTS` has defeated the gate, and an agent that cannot
+ *   set it is sent in a circle. The remedy is always an argument the CALLER
+ *   controls (omit `corr_nr`, pass one of the listed requests, write to a
+ *   `$`-package) or "ask the operator".
+ * - Under `auto` it says outright that naming a request is refused
+ *   regardless of WHICH request, so the caller does not try another number.
+ */
+export function transportAllowlistHint(allowTransports: readonly string[]): string {
+  const normalized = allowTransports.map((t) => t.trim().toUpperCase()).filter((t) => t !== "");
+  if (normalized.length === 0) {
+    return (
+      "No transportable write can succeed in this session: ABAP_ALLOW_TRANSPORTS is explicitly " +
+      "empty. Only local ($-prefixed) packages such as $TMP are writable. " +
+      "Ask the operator to allow transports if this object must be transportable. " +
+      TRANSPORT_HINT_TERMINAL
+    );
+  }
+  if (normalized.includes("*")) {
+    return (
+      "Any modifiable request the connected user owns (or has a task in) can be named as corr_nr, " +
+      "or omit corr_nr to let the server pick one."
+    );
+  }
+  const pins = normalized.filter((t) => t !== "AUTO");
+  if (pins.length === 0) {
+    return (
+      "The server picks the request itself under ABAP_ALLOW_TRANSPORTS=auto. Omit corr_nr: a " +
+      "modifiable workbench request this session created (abap_transport operation=create) or " +
+      "already attributed to itself is reused for the package, otherwise one is created — either " +
+      "way the response's transport field names it. Naming a request is refused regardless of " +
+      "which request. " +
+      TRANSPORT_HINT_TERMINAL
+    );
+  }
+  const omitClause = normalized.includes("AUTO")
+    ? "or omit corr_nr to let the server pick or create one"
+    : "or omit corr_nr to use the first of them that is still modifiable";
+  return (
+    `Only these requests are permitted: ${pins.join(", ")}. Pass one of them as corr_nr, ` +
+    `${omitClause}. No other request number passes; ask the operator to extend the list if the ` +
+    "work must go elsewhere. " +
+    TRANSPORT_HINT_TERMINAL
+  );
+}
+
+/**
  * One meaning for a blank `corr_nr` across every tool. `""` — or any
  * all-whitespace string — is not the name of a transport request; a caller
  * templating the field or defaulting it to `""` rather than omitting the key
@@ -1753,6 +1819,7 @@ export class SafetyGate {
             "Local ($-prefixed) packages are unaffected.",
           rule: "transport allowlist (fail closed)",
           code: "SAFETY_DENIED",
+          hint: transportAllowlistHint(allowTransports),
         };
       }
       // `{kind:"local"}` skips step 10 for a transportable-looking package.
@@ -1788,6 +1855,7 @@ export class SafetyGate {
               `[${allowTransports.join(", ")}].`,
             rule: "transport allowlist",
             code: "SAFETY_DENIED",
+            hint: transportAllowlistHint(allowTransports),
           };
         }
       }

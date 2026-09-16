@@ -12,6 +12,16 @@ the refusal was produced by a capability-registry fact, the sentence "Terminal
 for this object type — an identical retry cannot succeed." in the message text
 (`TERMINAL_REFUSAL_NOTE`, `src/adt/capabilities.ts`).
 
+`SAFETY_DENIED` is always terminal, and its transport-allowlist refusals
+(rules `transport allowlist` and `transport allowlist (fail closed)`) say so
+in the hint: the allowlist is the operator's setting, so no change to the
+call's arguments — another request number, an empty string, a different
+package spelling — can pass. The hint names the one caller-side remedy for
+the mode in force (omit `corr_nr` under `auto`; pass a listed request under
+a pinned list; write to a `$`-package or ask the operator under an empty
+list) and never asks the caller to edit the environment. Do not retry such a
+refusal by changing arguments.
+
 `retryable` is derived from the error's taxonomy code rather than decided
 per message: `RETRYABILITY` in `src/adt/errors.ts` classifies every
 `AbapErrorCode` as terminal, retryable or conditional, and an individual throw

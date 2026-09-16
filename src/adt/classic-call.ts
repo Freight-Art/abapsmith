@@ -31,6 +31,13 @@ export interface ClassicCallOptions {
   readonly action: string;
   /** Arguments by the contract's names. Omit a key entirely — never pass `undefined`. */
   readonly args: Record<string, unknown>;
+  /**
+   * Provenance of the `corr_nr` in `args` for `dispatch()`'s own targets gate
+   * — see `FluidRunRequest.corrSource`. Pass the same value the module's own
+   * `assertBridgeMutation` call judged with, so both gate layers see the
+   * identical mutation; omitted means caller-named (the stricter reading).
+   */
+  readonly corrSource?: "named" | "auto";
   /** The old `runDdicBridge` `what` wording, unchanged. */
   readonly what: string;
   readonly expectTags: readonly DdicTag[];
@@ -54,7 +61,12 @@ export async function runClassicAction(
 ): Promise<{ run: RunResult; transcript: DdicTranscript }> {
   const fr = await dispatch(
     { conn, cfg: conn.cfg, gate, tools: new Map([[CLASSIC_TOOL_ID, classicTool]]) },
-    { tool: CLASSIC_TOOL_ID, action: opts.action, args: opts.args },
+    {
+      tool: CLASSIC_TOOL_ID,
+      action: opts.action,
+      args: opts.args,
+      ...(opts.corrSource !== undefined ? { corrSource: opts.corrSource } : {}),
+    },
   );
 
   if (!Array.isArray(fr.result) || !fr.result.every((v) => typeof v === "string")) {

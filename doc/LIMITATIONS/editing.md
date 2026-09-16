@@ -70,10 +70,10 @@
   `RPY_TRANSACTION_INSERT`, then activation where one exists — a
   transaction has none), because none of the three has a writable ADT
   collection either. A transportable package resolves a transport request
-  the same way a `DEVC/K` create does — the caller's `corr_nr` if given,
-  or else one picked or created under `ABAP_ALLOW_TRANSPORTS` for
-  `VIEW/DV`; `TRAN/T` and `SHLP/DH` both require an explicit `corr_nr` for
-  a transportable package, and refuse the create/update otherwise. A `$`
+  the same way a `DEVC/K` create does for all three — the caller's
+  `corr_nr` if given and permitted, or else one reused or created under
+  `ABAP_ALLOW_TRANSPORTS`; none of them requires an explicit `corr_nr`
+  (under `auto` naming one is refused; omit it). A `$`
   package (`$TMP` included) refuses a `corr_nr` for all three and
   registers with `korrnum = space` instead — proven live on A4H,
   2026-09-04 (`VIEW/DV`, a transportable package, with `corr_nr`) and
