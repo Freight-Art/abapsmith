@@ -12,6 +12,8 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.10] - 2026-09-16
+
 ### Added
 
 - **`abap_write` `ddic` for `DOMA/DD`: fixed values, value table, computed output length** (#145). `fixedValues: [{low, high?, text}]` renders the `<doma:valueInformation>` / `<doma:fixValues>` block in the shape a live GET returns (the server numbers the rows); `low`/`high` are refused over 10 characters (`DD07L-DOMVALUE_L`) or over the domain length, `text` over 60, each naming the row. `valueTable` renders the `<doma:valueTableRef>` uri/type/name triple. `outputLength` now defaults per data type — `DEC`/`CURR`/`QUAN`: length + 1 for decimals + 1 for the sign; `DATS` 10; `TIMS` 8; otherwise the length — and a caller's value still wins. Live: a `CHAR 1` domain with three fixed values and a signed `DEC 13,3` domain created through `ddic` activated on A4H and read back intact.
