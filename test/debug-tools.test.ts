@@ -44,6 +44,7 @@ import {
   DebugSession,
   forceDropDebugSession,
   listActiveDebugSessions,
+  SHORT_STATE_ID_LENGTH,
   shutdownAllDebugSessions,
 } from "../src/debug/session.js";
 import type { DebugRequestOptions, LongPollHandle } from "../src/debug/transport.js";
@@ -823,6 +824,153 @@ describe("abap_debug_value — malformed path", () => {
         return true;
       },
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 6b. #151 — the stateId on the wire is the 12-char prefix of the session's
+//     64-char digest. Every response prints the short form (header and every
+//     retrieval hint); every stateful call accepts it back, along with the
+//     full id and any prefix of at least 8 chars.
+// ---------------------------------------------------------------------------
+
+describe("short stateId on the wire (#151)", () => {
+  const HEX64 = /[0-9a-f]{64}/;
+
+  it("start/stack/vars print a 12-char stateId in the header and quote the SAME token in every retrieval hint — the 64-char digest never appears", async () => {
+    const log: string[] = [];
+    const listener = new FakeListener(log);
+    const transport = new FakeTransport(log, HAPPY_TABLE());
+    const deps = makeDeps({ log, transport, listener });
+
+    const startResult = await (async () => {
+      const promise = abapDebug(DUMMY_CONN, START_INPUT, 60_000, deps, writableGate());
+      await flushMicrotasks();
+      listener.resolveWith(okResponse(buildDebuggeeXml("D151")));
+      return promise;
+    })();
+    const wire = extractStateId(startResult.text)!;
+    expect(wire).toMatch(/^[0-9a-f]{12}$/);
+    expect(wire).toHaveLength(SHORT_STATE_ID_LENGTH);
+
+    const stackResult = await abapDebug(DUMMY_CONN, { action: "stack", stateId: wire } as DebugInput, 60_000, deps, writableGate());
+    const varsResult = await abapDebugVars({ stateId: wire, scope: "all" }, 60_000);
+    const texts = [startResult.text, stackResult.text, varsResult.text];
+    for (const text of texts) {
+      expect(text).not.toMatch(HEX64);
+      expect(extractStateId(text)).toBe(wire);
+    }
+    // Every quoted stateId in a hint is the wire token, and at least one hint exists.
+    const quoted = texts.flatMap((t) => [...t.matchAll(/stateId: "([^"]*)"/g)].map((m) => m[1]));
+    expect(quoted.length).toBeGreaterThan(0);
+    for (const q of quoted) expect(q).toBe(wire);
+  });
+
+  it("accepts the wire token, the full 64-char id, an 8-char prefix and upper-case spelling; refuses a 7-char prefix naming the wire token", async () => {
+    const log: string[] = [];
+    const listener = new FakeListener(log);
+    const transport = new FakeTransport(
+      log,
+      HAPPY_TABLE({
+        getVariables: () =>
+          okResponse(buildVariablesXml([{ id: "SY-SUBRC", name: "SY-SUBRC", metaType: "simple", value: "0" }])),
+      }),
+    );
+    const deps = makeDeps({ log, transport, listener });
+    const wire = await startSuspended(deps, listener, "D151b");
+
+    const session = listActiveDebugSessions().find((s) => s.snapshot.stateId?.startsWith(wire));
+    expect(session).toBeDefined();
+    const full = session!.snapshot.stateId!;
+    expect(full).toHaveLength(64);
+    expect(full.startsWith(wire)).toBe(true);
+
+    for (const spelling of [wire, full, full.slice(0, 8), wire.toUpperCase()]) {
+      const vars = await abapDebugVars({ stateId: spelling }, 60_000);
+      expect(extractStateId(vars.text)).toBe(wire);
+      const value = await abapDebugValue({ stateId: spelling, path: "SY-SUBRC" }, 60_000);
+      expect(extractStateId(value.text)).toBe(wire);
+      const stack = await abapDebug(
+        DUMMY_CONN,
+        { action: "stack", stateId: spelling } as DebugInput,
+        60_000,
+        deps,
+        writableGate(),
+      );
+      expect(extractStateId(stack.text)).toBe(wire);
+    }
+
+    const requestsBefore = log.length;
+    await expect(abapDebugVars({ stateId: wire.slice(0, 7) }, 60_000)).rejects.toSatisfy((e: unknown) => {
+      if (!isAbapError(e) || e.code !== "BAD_INPUT") return false;
+      expect(e.message).toContain(`"${wire}"`);
+      expect(e.message).not.toMatch(HEX64);
+      expect(e.details["currentStateId"]).toBe(full);
+      return true;
+    });
+    expect(log.length).toBe(requestsBefore);
+  });
+
+  it("with two lanes, a prefix routes to the lane whose current id it names", async () => {
+    const laneCount = resolveDebugSessionLimit({ debugSessions: 2, debugDiaBudget: 10 });
+    expect(laneCount).toBe(2);
+
+    const logA: string[] = [];
+    const listenerA = new FakeListener(logA);
+    const transportA = new FakeTransport(logA, HAPPY_TABLE({ getStack: okResponse(buildStackXml("ZLANE_A", 1)) }));
+    const depsA = makeDeps({ log: logA, transport: transportA, listener: listenerA, debugLaneCount: laneCount });
+    const promiseA = abapDebug(
+      DUMMY_CONN,
+      { action: "start", breakpoints: [{ kind: "line", object: "ZLANE_A", line: 1 }], run: { object: "ZLANE_A" } } as DebugInput,
+      60_000,
+      depsA,
+      writableGate(),
+    );
+    await flushMicrotasks();
+    listenerA.resolveWith(okResponse(buildDebuggeeXml("L151-A")));
+    const wireA = extractStateId((await promiseA).text)!;
+
+    const logB: string[] = [];
+    const listenerB = new FakeListener(logB);
+    const transportB = new FakeTransport(logB, HAPPY_TABLE({ getStack: okResponse(buildStackXml("ZLANE_B", 1)) }));
+    const depsB = makeDeps({ log: logB, transport: transportB, listener: listenerB, debugLaneCount: laneCount });
+    const promiseB = abapDebug(
+      DUMMY_CONN,
+      { action: "start", breakpoints: [{ kind: "line", object: "ZLANE_B", line: 1 }], run: { object: "ZLANE_B" } } as DebugInput,
+      60_000,
+      depsB,
+      writableGate(),
+    );
+    await flushMicrotasks();
+    listenerB.resolveWith(okResponse(buildDebuggeeXml("L151-B")));
+    const wireB = extractStateId((await promiseB).text)!;
+    expect(wireA).not.toBe(wireB);
+
+    try {
+      // Different lane: the deps passed are lane A's, but the stateId names lane B.
+      const stackB = await abapDebug(
+        DUMMY_CONN,
+        { action: "stack", stateId: wireB.slice(0, 8) } as DebugInput,
+        60_000,
+        depsA,
+        writableGate(),
+      );
+      expect(stackB.text).toContain("ZLANE_B");
+      expect(stackB.text).not.toContain("ZLANE_A");
+      expect(extractStateId(stackB.text)).toBe(wireB);
+      const stackA = await abapDebug(
+        DUMMY_CONN,
+        { action: "stack", stateId: wireA } as DebugInput,
+        60_000,
+        depsB,
+        writableGate(),
+      );
+      expect(stackA.text).toContain("ZLANE_A");
+      expect(extractStateId(stackA.text)).toBe(wireA);
+    } finally {
+      await abapDebug(DUMMY_CONN, { action: "stop" } as DebugInput, 60_000, UNUSED_DEPS, writableGate()).catch(() => {});
+      await abapDebug(DUMMY_CONN, { action: "stop" } as DebugInput, 60_000, UNUSED_DEPS, writableGate()).catch(() => {});
+    }
   });
 });
 

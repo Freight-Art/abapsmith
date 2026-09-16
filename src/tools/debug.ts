@@ -39,6 +39,8 @@ import {
   DebugSession,
   forceDropDebugSession,
   listActiveDebugSessions,
+  shortStateId,
+  stateIdMatches,
   type DebugSessionOptions,
   type DebugTerminationResult,
 } from "../debug/session.js";
@@ -578,10 +580,37 @@ function resolveLaneRun(stateId: StateId | undefined): CurrentRun | undefined {
   const active = activeLaneRuns();
   if (active.length <= 1) return active[0];
   if (stateId !== undefined) {
-    const exact = active.find((r) => r.session.snapshot.stateId === stateId);
-    if (exact) return exact;
+    // #151 — the wire form is a prefix of the full id, so lanes are matched by
+    // `stateIdMatches` (full id, short form, or a prefix of at least
+    // MIN_STATE_ID_PREFIX_LENGTH), not by equality. A prefix that names more
+    // than one lane's current id is refused rather than guessed.
+    const matches = active.filter((r) => {
+      const current = r.session.snapshot.stateId;
+      return current !== undefined && stateIdMatches(current, stateId);
+    });
+    if (matches.length === 1) return matches[0];
+    if (matches.length > 1) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `stateId "${stateId}" is a prefix of ${matches.length} active debug sessions' current ids — ` +
+          "pass a longer prefix or the full id.",
+        { providedStateId: stateId, matchingLanes: matches.length },
+      );
+    }
   }
   return active[0];
+}
+
+/**
+ * The canonical wire form of `run`'s CURRENT stateId (#151) — what every
+ * response header and every retrieval hint prints, whatever spelling (full
+ * id, short form, prefix) the caller passed in. Falls back to the caller's
+ * own value only when the session has no current state, in which case the
+ * stateful call that follows refuses it anyway.
+ */
+function wireStateId(run: CurrentRun, fallback: string): string {
+  const current = run.session.snapshot.stateId;
+  return current !== undefined ? shortStateId(current) : fallback;
 }
 
 /** Lowest-indexed lane with no run tracked, below `limit` — `undefined` if every lane 0..limit-1 is occupied. */
@@ -1059,7 +1088,8 @@ export const debugInputSchema = {
     .string()
     .optional()
     .describe(
-      "From the most recent start/step/stack/frame response; a stale id is refused.",
+      "From the most recent start/step/stack/frame response (12-char token; the full id or a prefix of " +
+        "at least 8 chars is accepted too); a stale id is refused.",
     ),
   frame: z
     .number()
@@ -1194,9 +1224,11 @@ async function composeStopOutput(
   const entries = root.variables.variables.map((variable) => ({ variable }));
   // D6: without `stateId`, the renderer's retrieval-call hints fill the slot
   // with the literal placeholder `<stateId>` — an agent would copy that verbatim.
-  const survey = renderSurvey(entries, { maxChars: DEBUG_MAX_CHARS, stateId });
+  // #151 — the full id is the session's internal value; the wire carries the short form.
+  const wireId = shortStateId(stateId);
+  const survey = renderSurvey(entries, { maxChars: DEBUG_MAX_CHARS, stateId: wireId });
 
-  const stackText = renderStackSection(stack, stateId);
+  const stackText = renderStackSection(stack, wireId);
   const visibleFrames = stack.frames.filter((f) => !f.systemProgram);
   const top = visibleFrames[0] ?? stack.frames[0];
 
@@ -1207,7 +1239,7 @@ async function composeStopOutput(
       program: top?.programName,
       include: top?.includeName,
       line: top?.line,
-      stateId,
+      stateId: wireId,
     },
     sections: [{ title: "STACK", content: stackText }],
     body: survey.text,
@@ -2195,9 +2227,10 @@ async function handleStack(input: DebugInput, maxChars: number): Promise<BuiltRe
   if (!input.stateId) {
     throw new AbapError("BAD_INPUT", 'abap_debug({action:"stack"}) requires "stateId".');
   }
+  const wireId = wireStateId(run, input.stateId);
   const stack = await run.session.getStack(input.stateId);
   run.lastStack = stack;
-  const stackText = renderStackSection(stack, input.stateId);
+  const stackText = renderStackSection(stack, wireId);
   const visibleFrames = stack.frames.filter((f) => !f.systemProgram);
   const top = visibleFrames[0] ?? stack.frames[0];
   return buildResponse({
@@ -2207,7 +2240,7 @@ async function handleStack(input: DebugInput, maxChars: number): Promise<BuiltRe
       program: top?.programName,
       include: top?.includeName,
       line: top?.line,
-      stateId: input.stateId,
+      stateId: wireId,
     },
     sections: [{ title: "STACK", content: stackText }],
     maxChars: clampMaxChars(maxChars),
@@ -2234,6 +2267,7 @@ async function handleFrame(input: DebugInput, maxChars: number): Promise<BuiltRe
   if (!input.stateId) {
     throw new AbapError("BAD_INPUT", 'abap_debug({action:"frame"}) requires "stateId".');
   }
+  const wireId = wireStateId(run, input.stateId);
   if (input.frame === undefined) {
     throw new AbapError(
       "BAD_INPUT",
@@ -2250,7 +2284,7 @@ async function handleFrame(input: DebugInput, maxChars: number): Promise<BuiltRe
     throw new AbapError(
       "BAD_INPUT",
       `abap_debug({action:"frame", frame:${input.frame}}) does not match any frame in the most ` +
-        `recently known stack. Call abap_debug({action:"stack", stateId:"${input.stateId}"}) ` +
+        `recently known stack. Call abap_debug({action:"stack", stateId:"${wireId}"}) ` +
         "first to see the current stackPosition values.",
       { frame: input.frame },
     );
@@ -2258,8 +2292,8 @@ async function handleFrame(input: DebugInput, maxChars: number): Promise<BuiltRe
   await run.session.setStackPosition(input.stateId, { stackPosition: input.frame, stackType: "ABAP" });
   const root = await run.session.getRootVariables(input.stateId);
   const entries = root.variables.variables.map((variable) => ({ variable }));
-  const survey = renderSurvey(entries, { maxChars: DEBUG_MAX_CHARS, stateId: input.stateId });
-  const stackText = renderStackSection(lastStack, input.stateId);
+  const survey = renderSurvey(entries, { maxChars: DEBUG_MAX_CHARS, stateId: wireId });
+  const stackText = renderStackSection(lastStack, wireId);
   return buildResponse({
     header: {
       action: "frame",
@@ -2268,7 +2302,7 @@ async function handleFrame(input: DebugInput, maxChars: number): Promise<BuiltRe
       include: target.includeName,
       line: target.line,
       frame: target.stackPosition,
-      stateId: input.stateId,
+      stateId: wireId,
     },
     sections: [{ title: "STACK", content: stackText }],
     body: survey.text,
@@ -2307,7 +2341,7 @@ async function handleKeepalive(
     header: {
       action: "keepalive",
       status: snapshot.status,
-      stateId: snapshot.stateId,
+      stateId: snapshot.stateId === undefined ? undefined : shortStateId(snapshot.stateId),
       debugSessionId: snapshot.debugSessionId,
     },
     maxChars: clampMaxChars(maxChars),
@@ -2423,6 +2457,7 @@ async function handleBreakpoints(
         "to confirm which stop this call addresses.",
     );
   }
+  const wireId = wireStateId(run, input.stateId);
 
   if (op === "list") {
     const owned = run.session.listOwnedBreakpoints();
@@ -2431,7 +2466,7 @@ async function handleBreakpoints(
         action: "breakpoints",
         op: "list",
         status: run.session.snapshot.status,
-        stateId: input.stateId,
+        stateId: wireId,
         count: owned.length,
       },
       sections: [
@@ -2471,7 +2506,7 @@ async function handleBreakpoints(
         action: "breakpoints",
         op: "add",
         status: run.session.snapshot.status,
-        stateId: input.stateId,
+        stateId: wireId,
         count: created.length,
       },
       sections: [
@@ -2497,7 +2532,7 @@ async function handleBreakpoints(
       action: "breakpoints",
       op: "remove",
       status: run.session.snapshot.status,
-      stateId: input.stateId,
+      stateId: wireId,
       id: input.id,
     },
     maxChars: clampMaxChars(maxChars),
@@ -2560,6 +2595,7 @@ async function handleWatch(input: DebugInput, maxChars: number, gate: SafetyGate
         "confirm which stop this call addresses.",
     );
   }
+  const wireId = wireStateId(run, input.stateId);
 
   if (op === "add") {
     if (!input.variable) {
@@ -2581,7 +2617,7 @@ async function handleWatch(input: DebugInput, maxChars: number, gate: SafetyGate
         action: "watch",
         op: "add",
         status: run.session.snapshot.status,
-        stateId: input.stateId,
+        stateId: wireId,
         count: created.length,
       },
       sections: [{ title: "WATCHPOINTS", content: lines.join("\n") }],
@@ -2612,7 +2648,7 @@ async function handleWatch(input: DebugInput, maxChars: number, gate: SafetyGate
         action: "watch",
         op: "list",
         status: run.session.snapshot.status,
-        stateId: input.stateId,
+        stateId: wireId,
         count: owned.length,
       },
       sections: [
@@ -2633,7 +2669,7 @@ async function handleWatch(input: DebugInput, maxChars: number, gate: SafetyGate
       action: "watch",
       op: "remove",
       status: run.session.snapshot.status,
-      stateId: input.stateId,
+      stateId: wireId,
       id: input.id,
     },
     maxChars: clampMaxChars(maxChars),
@@ -2926,7 +2962,7 @@ async function handleStatus(maxChars: number): Promise<BuiltResponse> {
       header: {
         action: "status",
         status: snapshot.status,
-        stateId: snapshot.stateId,
+        stateId: snapshot.stateId === undefined ? undefined : shortStateId(snapshot.stateId),
         debugSessionId: snapshot.debugSessionId,
         debuggeeId: snapshot.debuggeeId,
         deathReason: snapshot.deathReason,
@@ -2948,7 +2984,7 @@ async function handleStatus(maxChars: number): Promise<BuiltResponse> {
     header: {
       action: "status",
       status: snapshot.status,
-      stateId: snapshot.stateId,
+      stateId: snapshot.stateId === undefined ? undefined : shortStateId(snapshot.stateId),
       debugSessionId: snapshot.debugSessionId,
       debuggeeId: snapshot.debuggeeId,
       deathReason: snapshot.deathReason,
@@ -2995,7 +3031,7 @@ export async function abapDebug(
 export const debugVarsInputSchema = {
   stateId: z
     .string()
-    .describe("From the most recent start/step/stack/frame response."),
+    .describe("From the most recent start/step/stack/frame response (12-char token; full id or a prefix of at least 8 chars also accepted)."),
   scope: z
     .enum(["all", "locals", "parameters", "globals"])
     .optional()
@@ -3020,6 +3056,7 @@ export async function abapDebugVars(input: DebugVarsInput, maxChars: number): Pr
   if (!input.stateId) {
     throw new AbapError("BAD_INPUT", 'abap_debug_vars requires "stateId".');
   }
+  const wireId = wireStateId(run, input.stateId);
   const root = await run.session.getRootVariables(input.stateId);
 
   const scopeOf = new Map<string, string>();
@@ -3043,12 +3080,12 @@ export async function abapDebugVars(input: DebugVarsInput, maxChars: number): Pr
       maxChars: DEBUG_MAX_CHARS,
       scopeLabel: input.scope && input.scope !== "all" ? input.scope.toUpperCase() : undefined,
       // D6 — real stateId, not `STATE_ID_PLACEHOLDER`.
-      stateId: input.stateId,
+      stateId: wireId,
     },
   );
 
   return buildResponse({
-    header: { stateId: input.stateId, scope: input.scope ?? "all", count: filtered.length },
+    header: { stateId: wireId, scope: input.scope ?? "all", count: filtered.length },
     body: survey.text,
     bodyLabel: "VARIABLES",
     notes: survey.degraded.length
@@ -3129,7 +3166,7 @@ function describeOmissions(
 export const debugValueInputSchema = {
   stateId: z
     .string()
-    .describe("From the most recent start/step/stack/frame response."),
+    .describe("From the most recent start/step/stack/frame response (12-char token; full id or a prefix of at least 8 chars also accepted)."),
   path: z
     .string()
     .describe(
@@ -3170,6 +3207,7 @@ export async function abapDebugValue(input: DebugValueInput, maxChars: number): 
   if (!input.stateId) {
     throw new AbapError("BAD_INPUT", 'abap_debug_value requires "stateId".');
   }
+  const wireId = wireStateId(run, input.stateId);
 
   const validation = validatePath(input.path);
   if (!validation.ok) {
@@ -3188,7 +3226,7 @@ export async function abapDebugValue(input: DebugValueInput, maxChars: number): 
   } catch (e) {
     if (e instanceof DebugXmlParseError) {
       return buildResponse({
-        header: { stateId: input.stateId, path: canonicalPath },
+        header: { stateId: wireId, path: canonicalPath },
         body: renderEmptyBodyTrap({ path: canonicalPath }),
         bodyLabel: "VALUE",
         maxChars: clampedMaxChars,
@@ -3201,12 +3239,12 @@ export async function abapDebugValue(input: DebugValueInput, maxChars: number): 
   const rootAlign = alignRequestedVariables([canonicalPath], rootVars);
   const rootNotes = describeOmissions([canonicalPath], rootAlign, {
     subject: canonicalPath,
-    stateId: input.stateId,
+    stateId: wireId,
   });
   const rootVar = rootAlign.resolved[0];
   if (!rootVar) {
     return buildResponse({
-      header: { stateId: input.stateId, path: canonicalPath },
+      header: { stateId: wireId, path: canonicalPath },
       // The empty-body trap claims "0 bytes", which is only true when the
       // debugger really sent nothing. Rows for OTHER ids is a different fact and
       // gets its own words rather than a convenient lie.
@@ -3225,10 +3263,10 @@ export async function abapDebugValue(input: DebugValueInput, maxChars: number): 
     const { text } = renderDrill(node, canonicalPath, {
       depth: input.depth,
       maxChars: clampedMaxChars,
-      stateId: input.stateId,
+      stateId: wireId,
     });
     return buildResponse({
-      header: { stateId: input.stateId, path: canonicalPath },
+      header: { stateId: wireId, path: canonicalPath },
       body: text,
       bodyLabel: "VALUE",
       notes: rootNotes,
@@ -3265,7 +3303,7 @@ export async function abapDebugValue(input: DebugValueInput, maxChars: number): 
         `TRUNCATED: count:${requestedCount} exceeds the ${MAX_TABLE_ROWS}-row maximum, so only ` +
           `${count} row(s) were requested from ${canonicalPath} — rows ${from + count} onward were ` +
           "NOT fetched and are NOT shown. Continue with " +
-          `abap_debug_value({stateId:"${input.stateId}", path:"${canonicalPath}", from:${from + count}, count:${MAX_TABLE_ROWS}}).`,
+          `abap_debug_value({stateId:"${wireId}", path:"${canonicalPath}", from:${from + count}, count:${MAX_TABLE_ROWS}}).`,
       );
     }
     if (total === 0) {
@@ -3274,7 +3312,7 @@ export async function abapDebugValue(input: DebugValueInput, maxChars: number): 
       tableNotes.push(
         `Row count is unavailable — the debugger did not report TABLE_LINES for ${canonicalPath}. ` +
           "This is NOT the same as an empty table. \"from\" could not be range-checked. " +
-          `To settle it, probe the first row: abap_debug_value({stateId:"${input.stateId}", ` +
+          `To settle it, probe the first row: abap_debug_value({stateId:"${wireId}", ` +
           `path:"${canonicalPath}[1]"}) — a row comes back only if data is actually present.`,
       );
       if (input.from !== undefined && input.from > 1) {
@@ -3299,7 +3337,7 @@ export async function abapDebugValue(input: DebugValueInput, maxChars: number): 
         const rowAlign = alignRequestedVariables(ids, rowVars);
         rowNodes = rowAlign.resolved.map((variable) => ({ variable }));
         tableNotes.push(
-          ...describeOmissions(ids, rowAlign, { subject: canonicalPath, stateId: input.stateId }),
+          ...describeOmissions(ids, rowAlign, { subject: canonicalPath, stateId: wireId }),
         );
       } catch (e) {
         // T5c: same 0-byte-body trap as the root `getVariables` call above (SAP
@@ -3307,7 +3345,7 @@ export async function abapDebugValue(input: DebugValueInput, maxChars: number): 
         // DebugXmlParseError) — without this a row read hitting it threw raw.
         if (e instanceof DebugXmlParseError) {
           return buildResponse({
-            header: { stateId: input.stateId, path: canonicalPath },
+            header: { stateId: wireId, path: canonicalPath },
             body: renderEmptyBodyTrap({ path: canonicalPath, tableLines: total }),
             bodyLabel: "VALUE",
             notes: tableNotes,
@@ -3325,7 +3363,7 @@ export async function abapDebugValue(input: DebugValueInput, maxChars: number): 
       // response is a different fact, already stated by OMITTED/UNREQUESTED above.
       if (ids.length > 0 && rowCount === 0) {
         return buildResponse({
-          header: { stateId: input.stateId, path: canonicalPath },
+          header: { stateId: wireId, path: canonicalPath },
           body: renderEmptyBodyTrap({ path: canonicalPath, tableLines: total }),
           bodyLabel: "VALUE",
           notes: tableNotes,
@@ -3337,10 +3375,10 @@ export async function abapDebugValue(input: DebugValueInput, maxChars: number): 
     const { text } = renderDrill(node, canonicalPath, {
       rows: { start: clampedFrom, end: clampedTo || clampedFrom },
       maxChars: clampedMaxChars,
-      stateId: input.stateId,
+      stateId: wireId,
     });
     return buildResponse({
-      header: { stateId: input.stateId, path: canonicalPath },
+      header: { stateId: wireId, path: canonicalPath },
       body: text,
       bodyLabel: "VALUE",
       notes: tableNotes,
@@ -3363,10 +3401,10 @@ export async function abapDebugValue(input: DebugValueInput, maxChars: number): 
   const { text } = renderDrill(node, canonicalPath, {
     depth: input.depth,
     maxChars: clampedMaxChars,
-    stateId: input.stateId,
+    stateId: wireId,
   });
   return buildResponse({
-    header: { stateId: input.stateId, path: canonicalPath },
+    header: { stateId: wireId, path: canonicalPath },
     body: text,
     bodyLabel: "VALUE",
     // The `getChildVariables` hop below returns CHILDREN of `canonicalPath`, whose

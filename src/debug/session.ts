@@ -83,6 +83,44 @@ export function computeStateId(input: {
     .digest("hex");
 }
 
+/**
+ * Wire form of a `StateId` (#151): the first `SHORT_STATE_ID_LENGTH` hex
+ * characters of the full sha256. Every tool response prints this form, and
+ * every stateful call accepts it back — `stateIdMatches` resolves it against
+ * the session's current id. 12 hex characters is 48 bits: within one lane
+ * there is exactly one current id, so a stale short id (from before a step)
+ * collides with the current one only if the first 12 characters of two
+ * sha256 digests agree, which is the same order of chance as the full-length
+ * scheme already accepted for its own hash. The full 64-character id stays
+ * the canonical internal value (`DebugSessionSnapshot.stateId`, every
+ * `details.currentStateId`), and is still accepted on the wire.
+ */
+export const SHORT_STATE_ID_LENGTH = 12;
+
+/**
+ * The shortest prefix `stateIdMatches` accepts. Anything shorter is refused
+ * outright rather than matched, so a truncated paste cannot resolve to the
+ * current state by luck.
+ */
+export const MIN_STATE_ID_PREFIX_LENGTH = 8;
+
+/** The wire (short) form of `id` — a prefix of the full hex digest, see `SHORT_STATE_ID_LENGTH`. */
+export function shortStateId(id: StateId): string {
+  return id.slice(0, SHORT_STATE_ID_LENGTH);
+}
+
+/**
+ * Does `provided` name `current`? True for the full id, the short wire form,
+ * and any prefix of at least `MIN_STATE_ID_PREFIX_LENGTH` characters
+ * (case-insensitive — the digest is lower-case hex). Never true for a
+ * prefix shorter than that, and never true for a string longer than the id.
+ */
+export function stateIdMatches(current: StateId, provided: string): boolean {
+  const p = provided.trim().toLowerCase();
+  if (p.length < MIN_STATE_ID_PREFIX_LENGTH || p.length > current.length) return false;
+  return current.startsWith(p);
+}
+
 // ---------------------------------------------------------------------------
 // Public status / snapshot / options shapes.
 // ---------------------------------------------------------------------------
@@ -1427,11 +1465,15 @@ export class DebugSession {
         { status: this.status },
       );
     }
-    if (stateId !== this.currentStateId) {
+    if (!stateIdMatches(this.currentStateId, stateId)) {
       throw new AbapError(
         "BAD_INPUT",
-        `Stale stateId: the session has moved on. The current stateId is "${this.currentStateId}".`,
-        { providedStateId: stateId, currentStateId: this.currentStateId },
+        `Stale stateId: the session has moved on. The current stateId is "${shortStateId(this.currentStateId)}".`,
+        {
+          providedStateId: stateId,
+          currentStateId: this.currentStateId,
+          currentShortStateId: shortStateId(this.currentStateId),
+        },
         "Re-fetch the stack/variables using the current stateId rather than one held from before the last step — " +
           "this session deliberately does not auto-recover against a different state (types.ts's StateId doc comment).",
       );
@@ -1605,7 +1647,7 @@ export class DebugSession {
         `step: the "${kind}" step DID execute on the debuggee — it has already moved and cannot be moved back — ` +
           `but the follow-up getStack() failed: ${describeUnknownError(e)}. Do NOT retry the step: doing so would ` +
           `step the debuggee a SECOND time. The stateId you passed has been retired; the current stateId is ` +
-          `"${this.currentStateId}".`,
+          `"${shortStateId(this.currentStateId)}".`,
         {
           stepExecuted: true,
           kind,
@@ -1614,7 +1656,7 @@ export class DebugSession {
           causeCode: isAbapError(e) ? e.code : undefined,
           cause: describeUnknownError(e),
         },
-        `Re-read the stack with getStack("${this.currentStateId}") to resynchronise. Only re-issue step() once ` +
+        `Re-read the stack with getStack("${shortStateId(this.currentStateId)}") to resynchronise. Only re-issue step() once ` +
           `you have a fresh stack — a retry with the old stateId is now refused precisely so the debuggee cannot ` +
           `be stepped twice for one requested step.`,
         { retryable: false }, // the step already executed; retrying would step the debuggee a second time
