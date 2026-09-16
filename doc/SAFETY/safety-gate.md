@@ -53,6 +53,53 @@ equivalent open question there. An explicit deny-all
 (`ABAP_ALLOW_TRANSPORTS=`) still refuses all three deletes outright — that
 check runs before the local branch, so fail-closed stays fail-closed.
 
+#### Verdict before side effect; provenance of an auto-resolved request
+
+Check 7 is evaluated twice on a transportable create, and the first pass
+costs no wire request. Before the session resolver is consulted, the write
+is asserted with the caller's own `corr_nr` if one was given (`source:
+"named"`) or as `{kind:"unresolved"}` if not — an unresolved corr fails only
+the deny-all rule, which is exactly the rule that must fire before any
+request could be created. Only after that verdict does the resolver run
+(`resolveForNewTransportable`, `src/adt/session-transport.ts`, which for a
+not-yet-existing object asks CTS for the modifiable requests of the
+**package** and takes the same adopt-else-create decision the ADT-lock
+types get), and the number it chose is asserted again with its true
+provenance — `source: "auto"` for a resolver pick, `source: "named"` for a
+caller value passed through. Issue #142 was the `VIEW/DV` bridge running
+the resolver, creating a request, and only then reaching the gate; issue
+#141 was the bridge creates demanding a named request under `auto`, which
+this same check then refused. The classic-bridge creates (`VIEW/DV`,
+`TRAN/T`, `SHLP/DH`, `TABL/DI`, `DEVC/K`) now follow that order
+(`resolveBridgeCreateCorr` / `bridgePreflightCorr` in `src/tools/write.ts`,
+`preflightPackageCorr` in `src/adt/write.ts`).
+
+The second gate layer those creates pass through is `dispatch()`'s own
+targets gate (`assertTargetsAgainstGate`, `src/adt/fluid/dispatch.ts`),
+which judges the `corr_nr` an action's `targets.transport` pointer
+resolves to. It used to read every non-blank value as caller-named, so a
+request abapsmith's resolver had just picked under `auto` was refused there
+after the tool layer had passed it. A builtin caller (`runClassicAction`,
+`src/adt/classic-call.ts`) now hands it the provenance it judged with
+(`FluidRunRequest.corrSource`), and `"auto"` is honoured for the builtin
+origin only: a plugin manifest or an `abap_fluid` caller cannot declare it
+(`src/tools/fluid.ts` never sets it), omitting it keeps the stricter
+"named" reading, and a pinned or empty list refuses an auto-selected
+request exactly as before. The rules of check 7 are unchanged; what changed
+is that both layers now see the same mutation with the same provenance
+(`test/fluid-dispatch-corr-source.test.ts`,
+`test/bridge-create-transport-auto.test.ts`).
+
+If the post-resolution assert refuses after the resolver created a request
+in the same call — possible only when the allowlist changed underneath a
+live session, since the pre-resolution assert already applied it — the
+refusal carries `details.createdTransport` and its hint names the request
+and how to remove it (`abap_transport operation=delete`); the create is
+journalled as `transport-create` regardless, so nothing is silently leaked.
+Both transport-allowlist refusals name their rule and a caller-side remedy
+for the mode in force (`transportAllowlistHint`, `src/safety.ts`), never an
+environment edit, and are terminal (`retryable: false`) — issue #143.
+
 ### The ladder governs what this server does, not ABAP it executes
 
 Checks 4–7 constrain the arguments this server itself passes on a write —

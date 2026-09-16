@@ -14,7 +14,11 @@ applies in both write-verification modes.
 ## Before you start
 
 1. Target type is in the creatable list — see `abapsmith-orient`. If not, stop.
-2. Package: `$TMP` (default) or a real package **plus `corr_nr`**.
+2. Package: `$TMP` (default) or a real package. `corr_nr` is optional for
+   every type: omit it and the server picks or creates the request (the
+   response's `transport:` field names it); name one only when
+   `ABAP_ALLOW_TRANSPORTS` permits named requests — see
+   `abapsmith-put-work-on-a-transport`.
 3. Changing an existing object: `abap_read` it first and keep the `etag`.
 
 ## Steps
@@ -70,12 +74,23 @@ newer version, so an unactivated object reads back looking correct.
 ## If it fails
 
 - **Type refused** — not in the creatable enum. Not routable around.
-- **`TRANSPORT_ERROR`** — transportable package without `corr_nr`. Get a request
-  first: `abapsmith-put-work-on-a-transport`. **Omit `corr_nr` entirely** when you
-  have no request; do not pass `""`. `abap_write` tolerates the empty string, but
-  `abap_enh` and `abap_activate` read it as a *named* request matching nothing and
-  refuse `SAFETY_DENIED`, whose message points at transport config rather than at
-  the empty string.
+- **`SAFETY_DENIED`, rule `transport allowlist`** — the request this call would
+  use is not permitted by `ABAP_ALLOW_TRANSPORTS`. It is **terminal**
+  (`retryable: false`): the hint names the rule and the only caller-side remedy
+  — under `auto`, omit `corr_nr` (naming a request is refused regardless of
+  which one); under a pinned list, pass one of the listed requests or omit
+  `corr_nr`; under an explicitly empty list, only `$`-packages are writable.
+  Never retry by changing arguments, and never propose editing the server's
+  environment — that is the operator's setting. If the refusal carries
+  `details.createdTransport`, a request was created before the refusal and
+  holds nothing; report it (the hint says how to remove it).
+- **`TRANSPORT_ERROR`** — a transport request is genuinely needed and none could
+  be resolved (no transport manager wired into the call, or CTS refused to
+  create one). Get a request first: `abapsmith-put-work-on-a-transport`. **Omit
+  `corr_nr` entirely** when you have no request; do not pass `""`. `abap_write`
+  tolerates the empty string, but `abap_enh` and `abap_activate` read it as a
+  *named* request matching nothing and refuse `SAFETY_DENIED`, whose message
+  points at transport config rather than at the empty string.
 - **Etag mismatch after the PUT** (`phase: "pre-activation"`) — a second, later
   check than the one guarding your write. Someone changed the object mid-call.
   Re-read and redo; do not blindly retry.

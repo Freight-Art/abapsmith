@@ -246,11 +246,17 @@ refuses `activate: false` (`DDIF_SHLP_ACTIVATE` runs inside the same bridge
 call) and refuses `confirm_in_role_menu` (that guard belongs to `TRAN/T`
 only).
 
-**corr_nr pairs with the package, like `TRAN/T`, not like `VIEW/DV`.** A
-transportable (non-`$`) package requires `corr_nr` — omitting it is
-`TRANSPORT_ERROR`; a `$`-prefixed package refuses one outright. Neither
-create nor update ever auto-resolves a transport request the way `VIEW/DV`
-does. `mode="update"` never needs `corr_nr`, regardless of package.
+**corr_nr pairs with the package, like `TRAN/T` and `VIEW/DV`.** A
+transportable (non-`$`) package never requires `corr_nr`: omit it and the
+create resolves a request the same way a class create does — the caller's
+open modifiable request for the package (one this session created via
+`abap_transport operation=create`, or one attributed to abapsmith) is
+reused, else one is created — and the response's `transport:` field names
+it. Under `ABAP_ALLOW_TRANSPORTS=auto` naming a request is refused
+(`SAFETY_DENIED`, terminal; omit the field), and that verdict is reached
+before any wire request, so a refusal creates nothing. A `$`-prefixed
+package refuses a `corr_nr` outright. `mode="update"` never needs
+`corr_nr`, regardless of package.
 
 **Delete is guarded by a where-used check the other two bridge deletes
 (`VIEW/DV`, `TRAN/T`) do not have.** `DD_OBJ_DEL` (then
