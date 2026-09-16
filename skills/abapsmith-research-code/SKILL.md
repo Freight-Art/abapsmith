@@ -52,7 +52,10 @@ Procedure B walks from a UI entry point down to the code a button fires.
    an inherited or redefined method is not attributed to the wrong class.
    - Refusal to expect: a `line`/`column` that does not point at an
      identifier returns nothing useful — fall back to the class's own
-     outline (`abap_read {"object":"<OBJ>","outline":true}`) and its line
+     outline (`abap_read {"object":"<OBJ>","outline":true}` — the default
+     answer anyway above 150 lines / 8000 chars) or a grep of it
+     (`abap_read {"object":"<OBJ>","pattern":"<regex>"}`, numbered
+     matching lines with context) and its line
      ranges instead of guessing coordinates.
 5. Report per hit: object, include, line, and the exact `abap_read` call
    that opens it. **Keep "registered references" (step 2) and "text hits"
