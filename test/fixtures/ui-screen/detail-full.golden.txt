@@ -1,0 +1,60 @@
+mode: screen
+tcode: ZAS_GOLD
+cinfo: 00
+program: ZAS_GOLD
+dynpro: 1000
+fieldsCount: 9
+flowCount: 19
+statusCount: 1
+functionsCount: 2
+fkeysCount: 1
+bridgeClass: ZCL_ZMCP_FLUID_UI
+bridgeRefreshed: true
+
+NOTE: Batch input (BDC) replays classic dynpro screens only. Web Dynpro, FPM/FBI (a different mechanism — see abap_fpm_read), and Fiori/UI5 screens have no dynpro number and cannot be reached by this tool at any effort level.
+NOTE: BDC scripts are brittle by construction, not by defect: they hardcode screen numbers and field names. A script proven against one system's layout can break on a modal dialog, an authorization popup, a transaction variant, a customizing difference, or a support-package UI change on another — a working sequence is not portable without re-verification.
+
+--- HEADER (RPY_DYNPRO_READ) ---
+prog=[ZAS_GOLD] dnum=[1000] type=[S] lines=[200] columns=[120] nline=[01] ncol=[01]
+
+--- FLOW LOGIC ---
+line=[PROCESS BEFORE OUTPUT.]
+line=[  MODULE %_INIT_PBO.]
+line=[  MODULE %_PBO.]
+line=[  MODULE %_P_KUNNR_%_APP_%-TEXT_%_PBO.]
+line=[  MODULE status_1000.]
+line=[PROCESS AFTER INPUT.]
+line=[  MODULE %_INIT_PAI.]
+line=[  CHAIN.]
+line=[    FIELD %_USER_%_APP_%-LOW.]
+line=[    FIELD %_USER_%_APP_%-HIGH.]
+line=[    MODULE %_USER_%_APP_%-VALU_PUSH ON REQUEST.]
+line=[  ENDCHAIN.]
+line=[  CHAIN.]
+line=[    FIELD P_SELSHW.]
+line=[    MODULE check_selshw ON CHAIN-REQUEST.]
+line=[  ENDCHAIN.]
+line=[  MODULE %_PAI.]
+line=[  MODULE user_command_1000.]
+line=[  MODULE %_EXIT_PAI AT EXIT-COMMAND.]
+
+--- GUI STATUSES (names) ---
+status=[%_00] modal=[]
+
+--- FUNCTION CODES (program-wide) ---
+code=[ONLI] text=[Execute] type=[]
+code=[SJOB] text=[Execute in background] type=[]
+
+--- FUNCTION KEYS ---
+status=[%_00] code=[ONLI] text=[Execute] quickinfo=[Execute (F8)]
+
+--- FIELDS ---
+name=[%_P_KUNNR_%_APP_%-TEXT] fnam=[%_P_KUNNR_%_APP_%-TEXT] fill=[] line=[02] coln=[01] leng=[1F] ltyp=[] lblk=[00] lrep=[00] flg1=[80] flg2=[00] flg3=[00] fmb1=[00] fmb2=[00] lanf=[00] didx=[0000] stxt=[_______________________________] aglt=[00] adez=[00] grp1=[] grp2=[] grp3=[TXT] grp4=[]
+name=[T_USER] fnam=[T_USER] fill=[] line=[02] coln=[04] leng=[1B] ltyp=[] lblk=[00] lrep=[00] flg1=[80] flg2=[00] flg3=[00] fmb1=[00] fmb2=[00] lanf=[00] didx=[0000] stxt=[___________________________] aglt=[00] adez=[00] grp1=[] grp2=[] grp3=[COF] grp4=[]
+name=[%_USER_%_APP_%-OPTI_PUSH] fnam=[%_USER_%_APP_%-OPTI_PUSH] fill=[] line=[02] coln=[20] leng=[28] ltyp=[] lblk=[00] lrep=[00] flg1=[81] flg2=[00] flg3=[00] fmb1=[00] fmb2=[00] lanf=[00] didx=[0000] stxt=[________________________________________] aglt=[00] adez=[00] grp1=[] grp2=[] grp3=[OPU] grp4=[]
+name=[P_SELSHW] fnam=[P_SELSHW] fill=[C] line=[25] coln=[04] leng=[01] ltyp=[] lblk=[00] lrep=[00] flg1=[80] flg2=[00] flg3=[00] fmb1=[00] fmb2=[00] lanf=[00] didx=[0000] stxt=[_] aglt=[00] adez=[00] grp1=[] grp2=[] grp3=[PAR] grp4=[]
+name=[%_SUBSCREEN_TAB] fnam=[%_SUBSCREEN_TAB] fill=[B] line=[03] coln=[02] leng=[70] ltyp=[] lblk=[0A] lrep=[00] flg1=[80] flg2=[00] flg3=[00] fmb1=[00] fmb2=[00] lanf=[00] didx=[0000] stxt=[] aglt=[00] adez=[00] grp1=[] grp2=[] grp3=[] grp4=[]
+name=[%_ZAS_HEADLINE] fnam=[%_ZAS_HEADLINE] fill=[] line=[01] coln=[02] leng=[14] ltyp=[] lblk=[00] lrep=[00] flg1=[20] flg2=[00] flg3=[00] fmb1=[00] fmb2=[00] lanf=[00] didx=[0000] stxt=[Selection_criteria] aglt=[00] adez=[00] grp1=[] grp2=[] grp3=[] grp4=[]
+name=[P_RAD1] fnam=[P_RAD1] fill=[A] line=[05] coln=[04] leng=[01] ltyp=[] lblk=[00] lrep=[00] flg1=[80] flg2=[00] flg3=[00] fmb1=[00] fmb2=[00] lanf=[00] didx=[0000] stxt=[_] aglt=[00] adez=[00] grp1=[] grp2=[] grp3=[PAR] grp4=[RB1]
+name=[%_ZAS_ICON] fnam=[%_ZAS_ICON] fill=[P] line=[07] coln=[04] leng=[0C] ltyp=[] lblk=[00] lrep=[00] flg1=[80] flg2=[00] flg3=[00] fmb1=[00] fmb2=[00] lanf=[00] didx=[0000] stxt=[@0A@Run_________] aglt=[00] adez=[00] grp1=[] grp2=[] grp3=[] grp4=[]
+name=[SSCRFIELDS-UCOMM] fnam=[SSCRFIELDS-UCOMM] fill=[] line=[FF] coln=[01] leng=[14] ltyp=[O] lblk=[00] lrep=[00] flg1=[80] flg2=[00] flg3=[00] fmb1=[00] fmb2=[00] lanf=[00] didx=[0012] stxt=[] aglt=[00] adez=[00] grp1=[] grp2=[] grp3=[] grp4=[]

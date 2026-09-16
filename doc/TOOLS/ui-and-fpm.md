@@ -230,19 +230,69 @@ deploys `ZCL_ZMCP_FLUID_UI` into `$ABAPSMITH_FLUID_API`, and it too refuses
 | Parameter | Type | Required | Default | Meaning |
 |---|---|---|---|---|
 | `mode` | enum `screen` \| `press` \| `fcode` | yes | — | `screen`: read one dynpro (discovery, read-only in effect). `press`: run a batch-input script — commits, cannot be rolled back. `fcode`: trace a classic dynpro function code to the ABAP that handles it, by static analysis only — read-only in effect, executes nothing. |
-| `tcode` | string | `screen`: alternative to program+dynpro; `press`: required; `fcode`: alternative to program+dynpro | — | Transaction code. |
-| `program` | string | `screen`/`fcode` only, with `dynpro` | — | Program name instead of `tcode`. |
-| `dynpro` | string | `screen`/`fcode` only, with `program` | — | Screen number, e.g. `"100"`. |
+| `tcode` | string | `screen`: alternative to program+dynpro; `press`: required; `fcode`: alternative to program+dynpro | — | Transaction code. Checked against `TSTC` first: a code with no row is refused as `NOT_FOUND` before any bridge class is deployed (see "TSTC pre-check" below). |
+| `program` | string | `screen`/`fcode` only, with `dynpro` | — | Program name instead of `tcode`. `press` refuses it (see "press needs tcode" below). |
+| `dynpro` | string | `screen`/`fcode` only, with `program` | — | Screen number, e.g. `"100"`. `press` refuses it. |
 | `fcode` | string | `fcode` only, optional | (all) | One function code to trace. Omitted means every function code of every GUI status of the program. |
 | `screens` | array of screen-script objects | required for `press` | — | Ordered batch-input script, one entry per dynpro the transaction shows in sequence. |
 | `confirm` | boolean | required (must be exactly `true`) for `press` | — | Explicit acknowledgment that `press` commits business data immediately with no dry run. |
 | `layout` | boolean | no | `false` | `screen` only. Also render a monospace picture of the screen from the field rows already read. No extra ABAP, no change to the generated bridge class, no extra round trip. Ignored by `mode=press`. |
+| `detail` | enum `compact` \| `full` | no | `"compact"` | `screen` only. `compact`: one line per field and generated `%_` flow-logic lines collapsed into counted markers (see "Compact screen output" below). `full`: the raw `key=[value]` dump of every `D021S` column and every flow line. Render-side only — same ABAP, same single bridge call. Ignored by `fcode` and `press`. |
 
 Each `screens[]` entry: `program` (string, required), `dynpro` (string,
 required, e.g. `"100"` — padded to 4 digits automatically), `okcode`
 (string, optional, e.g. `"=ENTR"` or `"/00"`), `cursorField` (string,
 optional), `fields` (array of `{name, value}`, optional — screen field name
 and value, max 132 chars each).
+
+### Compact screen output (`detail`)
+
+By default (`detail: "compact"`) a `mode=screen` response renders its two
+bulky sections in short form; the header counts (`fieldsCount`,
+`flowCount`, ...), `HEADER`, `GUI STATUSES`, `FUNCTION CODES`,
+`FUNCTION KEYS`, and the optional `LAYOUT` section are the same under both
+settings.
+
+`FIELDS` is one line per element:
+
+```
+name                      type      len  pos    attrs
+------------------------  --------  ---  -----  -------------------
+%_P_KUNNR_%_APP_%-TEXT    label     31   2,1    grp3=TXT
+T_USER                    io        27   2,4    grp3=COF
+%_USER_%_APP_%-OPTI_PUSH  out       40   2,32   flg1=81 grp3=OPU
+P_SELSHW                  checkbox  1    37,4   grp3=PAR
+SSCRFIELDS-UCOMM          okcode    20   255,1  ltyp=O didx=0012
+```
+
+- `type` is one word — `io`, `out`, `label`, `text`, `checkbox`, `radio`,
+  `button`, `frame`, `subscreen`, `tabstrip`, `table`, `okcode` (the
+  line-`FF` OK-code field), or `fill=X` for a fill code the renderer does
+  not know — classified by the same rule the `layout` renderer uses, so
+  the two never disagree about what an element is.
+- `len` and `pos` (`line,col`) are decimal; the raw rows carry them as hex.
+- `attrs` holds only what differs from a plain element: empty columns,
+  all-zero `RAW(1)` columns, `flg1=80` (the value on every ordinary input
+  field) and an `stxt` that is just an underscore I/O mask are dropped. A
+  real screen text is decoded (`_` becomes a space, the `@NN@` icon prefix
+  is stripped) and shown first as `text="..."`.
+
+`FLOW LOGIC` keeps every line the developer wrote and folds each maximal
+run of generated `%_...` lines (`MODULE %_INIT_PBO.`,
+`FIELD %_P_X_%_APP_%-LOW.`, `MODULE %_PAI.`, ...) into one line,
+`(N generated %_ flow-logic lines omitted)`, indented like the first line
+it replaced. A `CHAIN.`/`ENDCHAIN.` pair whose whole body is generated
+folds with it; a `CHAIN` with any user-written line stays, with only the
+generated lines inside it folded. The header gains `flowOmitted: N` and a
+`NOTE:` line states what was folded and that `detail: "full"` restores the
+dump.
+
+A standard report selection screen has around a hundred generated `%_`
+elements, each of which the full dump renders as roughly forty
+`key=[value]` pairs, so the full response for such a screen ran to about
+27,000 characters (#150). `detail: "full"` still produces exactly that
+output — the compact renderer is a different function, not a filter over
+the dump — for the case where a raw `D021S` value matters.
 
 ### layout
 
@@ -318,6 +368,45 @@ captures on A4H; the rendered picture itself is produced client-side and is
 covered by unit tests over those captures, but it has not been compared
 against a running SAP GUI screenshot.
 
+### TSTC pre-check (`NOT_FOUND` for a transaction that does not exist)
+
+Every tcode-addressed call — `screen` or `fcode` with `tcode`, and every
+`press` — first runs one freestyle select against `TSTC` on the read lane
+(the same `dataPreview` path `abap_data_preview` uses), after the
+connection is up and before any bridge class is touched. A code with no
+row is refused as a structured error:
+
+```json
+{"error":"NOT_FOUND","message":"transaction ZNOPE does not exist","details":{"tcode":"ZNOPE","table":"TSTC","type":"TRAN/T"}}
+```
+
+Before #150 the same mistake cost a full fluid-invoker deploy, activation
+and classrun — about 20 s on A4H — before the bridge's own
+`SELECT SINGLE FROM tstc` failed with an `ADT_ERROR`; the select costs about
+a second. For `press`, the row's `CINFO` is also what the report/dialog
+check below reads, so a press no longer runs a second, screen-mode bridge
+just to learn `CINFO`: it deploys exactly one class, its own BDCDATA
+bridge. A `program`+`dynpro` screen read has nothing to look up and skips
+the pre-check.
+
+### press needs tcode
+
+`mode=press` with `program`+`dynpro` and no `tcode` is refused before any
+network call, as a structured `BAD_INPUT` whose message is exactly
+`press needs tcode; program/dynpro is only supported by mode=screen`
+(`details` carries the `program`/`dynpro` given). This was decided against
+implementing (#150), not deferred: `CALL TRANSACTION` is the only way batch
+input reaches a screen, and the two alternatives both fail the tool's
+safety properties — `CALL SCREEN` from the ADT classrun bridge has no GUI
+session (it dumps with `DYNPRO_SEND_IN_BACKGROUND`) and a class cannot
+`CALL SCREEN` a dynpro owned by another program; a generated wrapper
+transaction in `$TMP` would be a cross-client `TSTC`/`TADIR` object created
+outside the typed safety gate, left behind whenever the press dumps, and a
+way around both `UI_PRESS_DENYLIST` and the tcode-level execute gate. Find
+the transaction that starts on that dynpro (`mode:"screen"` with the same
+`program`/`dynpro` reports it under `tcode` when `TSTC` has one) and press
+that.
+
 Notes: `press` refuses a transaction whose TSTC-CINFO marks it a report
 transaction (`'80'`) rather than a dialog transaction (`'00'`) — use
 `abap_run` for those instead. `press` has no dry run — `confirm:true` is the
@@ -388,6 +477,12 @@ Example (read a screen):
 
 ```json
 { "mode": "screen", "tcode": "ZDEMO_ORDER01" }
+```
+
+Example (read a screen with every raw `D021S` column and every flow line):
+
+```json
+{ "mode": "screen", "tcode": "ZDEMO_ORDER01", "detail": "full" }
 ```
 
 Example (read a screen with the rendered layout):
