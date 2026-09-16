@@ -62,8 +62,28 @@ breakpoint ever suspended the run; a run that ends without that gets a
 note at death naming the classes, and a `start` that attaches to a short
 dump instead of a live debuggee (`debuggee: PMORTEM` in the header, plus
 `dump: <id>` when the listener named one) gets a `POST-MORTEM` note that
-names them too. See "Not verified" below for what is still open about
-exception breakpoints stopping at the raise.
+names them too.
+
+What an exception breakpoint does, live-verified on A4H (SAP NetWeaver
+7.54, 2026-09-16, `test/integration-debug.test.ts` cases 5a/5b against the
+`$TMP` probe classes `ZCL_AS_DBGEXC`/`ZCL_AS_DBGEXC2`, which the suite
+creates and deletes itself): it stops at the `RAISE` only when a handler
+for the exception exists up the stack. `RAISE EXCEPTION TYPE
+cx_sy_zerodivide` inside a `TRY ... CATCH cx_sy_zerodivide` suspended at
+the raise (`DBGEE_KIND "DEBUGGEE"`, stack inside the probe class); the
+same `RAISE` with no handler, and a real `1 / 0`, never suspended — the
+listener returned `DBGEE_KIND "PMORTEM"` with dump ids
+`UNCAUGHT_EXCEPTION` / `COMPUTE_INT_ZERODIVIDE`, i.e. the runtime turned
+the unhandled raise into a runtime error before the breakpoint got its
+turn. The registration is not at fault: the request abapsmith sends is
+attribute-for-attribute the body A4H accepted and echoed as
+`KIND=5.EXCEPTION_CLASS=CX_SY_ZERODIVIDE`
+(`test/cassettes/debugger/bp-set-exception-accepted.cassette.json`, pinned
+by `test/debug-xml-request.test.ts`). The `start` response says this
+rule whenever an exception breakpoint is armed, and the death and
+`POST-MORTEM` notes repeat it. To stop before an *uncaught* raise, arm a
+line breakpoint on the `RAISE` statement, or a statement breakpoint
+`RAISE EXCEPTION TYPE` paired with a line breakpoint in the target object.
 
 A statement breakpoint (`kind: "statement"`): `statement` (string, required
 — an ABAP statement keyword, e.g. `RAISE`, that fires wherever it occurs),
@@ -436,23 +456,12 @@ Example (start):
 - Two genuinely concurrent debug sessions is `unverified`. Never
   demonstrated on the appliance, for the per-user exclusivity reason under
   [`ABAP_DEBUG_SESSIONS`](#abap_debug_sessions) above.
-- An exception breakpoint ALONE suspending at the `RAISE`, before the
-  short dump, is `unverified` and reported not to happen (#152: with only
-  an exception breakpoint the listener returned `DBGEE_KIND "PMORTEM"` —
-  the dump, not a live debuggee — and paired with a line breakpoint the
-  line stopped while the raise never did). The request abapsmith sends is
-  attribute-for-attribute the body A4H accepted and echoed as
-  `KIND=5.EXCEPTION_CLASS=CX_SY_ZERODIVIDE`
-  (`test/cassettes/debugger/bp-set-exception-accepted.cassette.json`,
-  pinned by `test/debug-xml-request.test.ts`), so the registration is not
-  malformed; why the armed breakpoint does not stop the debuggee could
-  not be determined offline. `test/integration-debug.test.ts` carries a
-  live case against a `$TMP` probe class `ZCL_AS_DBGEXC` (source in the
-  file) that encodes the desired behaviour and skips when the class is
-  absent; it has not yet been run live. Until it passes, the way to stop at
-  a raise is a line breakpoint on the `RAISE` statement, or a statement
-  breakpoint `RAISE EXCEPTION TYPE` paired with a line breakpoint in the
-  target object (live-verified above).
+- An exception breakpoint stopping an *uncaught* raise before the short
+  dump has been tried and does not happen on A4H 7.54 (see the exception
+  breakpoint paragraph above for the live runs). Whether a release exists
+  on which it does is `unverified`; the rule abapsmith states is the one
+  observed, and `test/integration-debug.test.ts` cases 5a/5b re-check it
+  on every live run.
 
 ## abap_debug_vars
 

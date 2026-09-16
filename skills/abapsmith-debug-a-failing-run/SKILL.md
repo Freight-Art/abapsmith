@@ -135,11 +135,14 @@ unconditionally when you are done is harmless and is the right habit.
   before anything is armed (`BAD_INPUT`, naming the class) — SAP would
   accept it and never fire it. One the server accepted but did not echo
   back is reported in the `start` response as `NOT armed`.
-- **An exception breakpoint alone has not been seen to stop at the
-  `RAISE`** — the run went straight to the dump and `start` attached to it
-  (`debuggee: PMORTEM`, with a `POST-MORTEM` note naming the class). A run
-  that ends without any exception breakpoint firing says so at death. To
-  stop at a raise, use a line breakpoint on the `RAISE` statement, or the
+- **An exception breakpoint stops at the `RAISE` only when a handler for
+  the exception exists up the stack** (live-verified: a caught `RAISE`
+  suspends at the raise; an uncaught one, and a real division by zero, go
+  straight to the runtime error and `start` attaches to the dump —
+  `debuggee: PMORTEM`, with a `POST-MORTEM` note naming the class). The
+  `start` response says so whenever an exception breakpoint is armed, and
+  a run that ends without one firing says so at death. To stop before an
+  uncaught raise, use a line breakpoint on the `RAISE` statement, or the
   statement breakpoint `RAISE EXCEPTION TYPE` paired with a line breakpoint
   in the target object.
 - **Variables are read-only by design** — there is no "set variable".
