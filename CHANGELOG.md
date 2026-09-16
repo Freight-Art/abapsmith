@@ -12,6 +12,15 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+### Added
+
+- `abap_ui mode="screen"` gains `detail` (`compact` | `full`, default `compact`) (#150). Compact renders `FIELDS` one line per element — `name  type  len  pos  attrs`, with `len`/`pos` decimal and `attrs` holding only what differs from a plain input field — and folds every run of generated `%_...` flow-logic lines into one `(N generated %_ flow-logic lines omitted)` line, keeping every user-written `MODULE`/`FIELD` line; the header reports `flowOmitted` and a note names the way back. `detail: "full"` is the previous `key=[value]` dump, byte for byte. The `layout: true` picture and every other section are the same under both. Render-side only: same ABAP, same single bridge call.
+
+### Changed
+
+- `abap_ui` checks `TSTC` before deploying anything (#150). `screen`/`fcode` by `tcode` and every `press` first run one freestyle select on the read lane and refuse a transaction with no row as a structured `NOT_FOUND: transaction X does not exist` — about a second on the wire instead of the ~20 s a fresh invoker-class deploy cost before the bridge's own SELECT failed. `press` reads `CINFO` from that same row, so the extra screen-mode bridge run it used to make for the report/dialog check is gone; a press now deploys exactly one class, its own BDCDATA bridge.
+- `abap_ui mode="press"` with `program`+`dynpro` and no `tcode` is refused as `BAD_INPUT` with the message `press needs tcode; program/dynpro is only supported by mode=screen`, before any network call (#150). Driving a bare dynpro was investigated and decided against: `CALL SCREEN` from the classrun bridge has no GUI session and cannot address another program's dynpro, and a generated wrapper transaction would be a cross-client `TSTC`/`TADIR` object outside the safety gate — see `doc/TOOLS/ui-and-fpm.md`, "press needs tcode".
+
 ## [0.6.8] - 2026-09-15
 
 ### Added
