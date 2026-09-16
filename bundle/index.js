@@ -119432,6 +119432,10 @@ function discardedDescriptorValues(sent, stored) {
     const storedValues = storedTexts.get(element) ?? [];
     if (sentValues.length > storedValues.length) {
       out.push({ element, sent: sentValues, stored: storedValues });
+      continue;
+    }
+    if (sentValues.some((v, i) => v === "true" && storedValues[i] === "false")) {
+      out.push({ element, sent: sentValues, stored: storedValues });
     }
   }
   return out;
@@ -121984,7 +121988,19 @@ function assertDdicDescriptorShape(type, name, xml3) {
 }
 var ADTCORE_NS2 = "http://www.sap.com/adt/core";
 var XML_DECL = '<?xml version="1.0" encoding="UTF-8"?>';
-var DOMA_FIELDS = /* @__PURE__ */ new Set(["dataType", "length", "decimals", "outputLength", "lowercase", "signExists"]);
+var ROOT_LANGUAGE_ATTRS = 'adtcore:masterLanguage="EN" adtcore:language="EN"';
+var FIX_VALUE_MAX_LEN = 10;
+var FIX_VALUE_TEXT_MAX_LEN = 60;
+var DOMA_FIELDS = /* @__PURE__ */ new Set([
+  "dataType",
+  "length",
+  "decimals",
+  "outputLength",
+  "lowercase",
+  "signExists",
+  "fixedValues",
+  "valueTable"
+]);
 var DTEL_FIELDS = /* @__PURE__ */ new Set([
   "typeKind",
   "typeName",
@@ -122026,6 +122042,81 @@ var DTEL_MAX_LENGTH = {
   long: 40,
   heading: 55
 };
+function dtelLabel(slot, label, requestedLength, name) {
+  const max = DTEL_MAX_LENGTH[slot];
+  if (label.length > max) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `ddic.${slot}Label "${label}" is ${label.length} characters, longer than the ${max}-character maximum of the ${slot} field label (DD04T).`,
+      { name, type: "DTEL/DE", field: `${slot}Label`, value: label, length: label.length, maxLength: max },
+      `Shorten ddic.${slot}Label to ${max} characters or fewer.`
+    );
+  }
+  const length = requestedLength ?? max;
+  if (!Number.isInteger(length) || length < Math.max(1, label.length) || length > max) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `ddic.${slot}Length ${length} is not a usable display width for the ${slot} field label "${label}" \u2014 it must be a whole number from ${Math.max(1, label.length)} (the label's own length) to ${max}.`,
+      { name, type: "DTEL/DE", field: `${slot}Length`, value: length, labelLength: label.length, maxLength: max },
+      `Drop ddic.${slot}Length to get the slot's maximum (${max}), or give a value between the label's length and ${max}.`
+    );
+  }
+  return { label, length };
+}
+var DOMA_DECIMAL_TYPES = /* @__PURE__ */ new Set(["DEC", "CURR", "QUAN"]);
+function defaultDomaOutputLength(dataType, length, decimals, signExists) {
+  const type = dataType.toUpperCase();
+  if (DOMA_DECIMAL_TYPES.has(type)) return length + (decimals > 0 ? 1 : 0) + (signExists ? 1 : 0);
+  if (type === "DATS") return 10;
+  if (type === "TIMS") return 8;
+  return length;
+}
+function fixedValueBound(which, value, index, domainLength, name) {
+  const cap = Math.min(FIX_VALUE_MAX_LEN, domainLength);
+  if (value.length > cap) {
+    const reason = value.length > FIX_VALUE_MAX_LEN ? `longer than DD07L-DOMVALUE_${which === "low" ? "L" : "H"}'s ${FIX_VALUE_MAX_LEN}-character limit` : `longer than the domain's own length of ${domainLength}`;
+    throw new AbapError(
+      "BAD_INPUT",
+      `ddic.fixedValues[${index}].${which} "${value}" is ${value.length} characters, ${reason}.`,
+      { name, type: "DOMA/DD", field: `fixedValues[${index}].${which}`, value, length: value.length, maxLength: cap },
+      `Shorten the value to ${cap} characters or fewer, or raise ddic.length.`
+    );
+  }
+  return value;
+}
+function renderFixValue(v, index, domainLength, name) {
+  const low = fixedValueBound("low", v.low, index, domainLength, name);
+  const high = v.high === void 0 ? "" : fixedValueBound("high", v.high, index, domainLength, name);
+  if (v.text.length > FIX_VALUE_TEXT_MAX_LEN) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `ddic.fixedValues[${index}].text "${v.text}" is ${v.text.length} characters, longer than DD07T-DDTEXT's ${FIX_VALUE_TEXT_MAX_LEN}-character limit.`,
+      {
+        name,
+        type: "DOMA/DD",
+        field: `fixedValues[${index}].text`,
+        value: v.text,
+        length: v.text.length,
+        maxLength: FIX_VALUE_TEXT_MAX_LEN
+      },
+      `Shorten the text to ${FIX_VALUE_TEXT_MAX_LEN} characters or fewer.`
+    );
+  }
+  return `<doma:fixValue>${elem("doma:low", low)}${elem("doma:high", high)}${elem("doma:text", v.text)}</doma:fixValue>`;
+}
+function renderValueTableRef(valueTable, name) {
+  if (valueTable === void 0) return "<doma:valueTableRef/>";
+  const table = valueTable.trim().toUpperCase();
+  if (table === "" || !/^[A-Z0-9_/]{1,30}$/.test(table)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `ddic.valueTable "${valueTable}" is not a table name (DD01L-ENTITYTAB is CHAR30: letters, digits, "_" and "/").`,
+      { name, type: "DOMA/DD", field: "valueTable", value: valueTable },
+      "Give the name of an existing transparent table, or drop ddic.valueTable."
+    );
+  }
+  return `<doma:valueTableRef adtcore:uri="/sap/bc/adt/ddic/tables/${escapeXmlAttr4(table.toLowerCase())}" adtcore:type="TABL/DT" adtcore:name="${escapeXmlAttr4(table)}"/>`;
+}
 var SHLP_NAME_MAX_LEN = 30;
 function normalizeShlpIdentifier(value, field, type, name) {
   const column = field === "searchHelp" ? "DD04L-SHLPNAME" : "DD04L-SHLPFIELD";
@@ -122057,10 +122148,13 @@ function buildDoma(name, description, packageName, f) {
   const dataType = f.dataType ?? "CHAR";
   const length = f.length ?? 10;
   const decimals = f.decimals ?? 0;
-  const outputLength = f.outputLength ?? length;
   const lowercase2 = f.lowercase ?? false;
   const signExists = f.signExists ?? false;
-  return `${XML_DECL}<doma:domain xmlns:doma="http://www.sap.com/dictionary/domain" xmlns:adtcore="${ADTCORE_NS2}" adtcore:name="${escapeXmlAttr4(name)}" adtcore:type="DOMA/DD" adtcore:description="${escapeXmlAttr4(description)}"><adtcore:packageRef adtcore:name="${escapeXmlAttr4(packageName)}"/><doma:content><doma:typeInformation>${elem("doma:datatype", dataType)}${elem("doma:length", num2(length))}${elem("doma:decimals", num2(decimals))}</doma:typeInformation><doma:outputInformation>${elem("doma:length", num2(outputLength))}${elem("doma:lowercase", String(lowercase2))}${elem("doma:signExists", String(signExists))}</doma:outputInformation></doma:content></doma:domain>`;
+  const outputLength = f.outputLength ?? defaultDomaOutputLength(dataType, length, decimals, signExists);
+  const fixRows = (f.fixedValues ?? []).map((v, i) => renderFixValue(v, i, length, name)).join("");
+  const valueInformation = f.fixedValues === void 0 && f.valueTable === void 0 ? "" : `<doma:valueInformation>${renderValueTableRef(f.valueTable, name)}${elem("doma:appendExists", "false")}` + // No rows: the skeleton's self-closing `<doma:fixValues/>`, byte for byte.
+  (fixRows === "" ? "<doma:fixValues/>" : `<doma:fixValues>${fixRows}</doma:fixValues>`) + `</doma:valueInformation>`;
+  return `${XML_DECL}<doma:domain xmlns:doma="http://www.sap.com/dictionary/domain" xmlns:adtcore="${ADTCORE_NS2}" adtcore:name="${escapeXmlAttr4(name)}" adtcore:type="DOMA/DD" adtcore:description="${escapeXmlAttr4(description)}" ${ROOT_LANGUAGE_ATTRS}><adtcore:packageRef adtcore:name="${escapeXmlAttr4(packageName)}"/><doma:content><doma:typeInformation>${elem("doma:datatype", dataType)}${elem("doma:length", num2(length))}${elem("doma:decimals", num2(decimals))}</doma:typeInformation><doma:outputInformation>${elem("doma:length", num2(outputLength))}${elem("doma:signExists", String(signExists))}${elem("doma:lowercase", String(lowercase2))}</doma:outputInformation>` + valueInformation + `</doma:content></doma:domain>`;
 }
 function buildDtel(name, description, packageName, f) {
   const typeKind = f.typeKind ?? "predefinedAbapType";
@@ -122076,14 +122170,10 @@ function buildDtel(name, description, packageName, f) {
   const dataType = f.dataType ?? "CHAR";
   const length = f.length ?? 10;
   const decimals = f.decimals ?? 0;
-  const shortLabel = f.shortLabel ?? "Bench";
-  const shortLength = f.shortLength ?? 10;
-  const mediumLabel = f.mediumLabel ?? "Bench";
-  const mediumLength = f.mediumLength ?? 20;
-  const longLabel = f.longLabel ?? "Bench";
-  const longLength = f.longLength ?? 40;
-  const headingLabel = f.headingLabel ?? "Bench";
-  const headingLength = f.headingLength ?? 55;
+  const short = dtelLabel("short", f.shortLabel ?? "Bench", f.shortLength, name);
+  const medium = dtelLabel("medium", f.mediumLabel ?? "Bench", f.mediumLength, name);
+  const long = dtelLabel("long", f.longLabel ?? "Bench", f.longLength, name);
+  const heading = dtelLabel("heading", f.headingLabel ?? "Bench", f.headingLength, name);
   if (f.searchHelpParameter !== void 0 && f.searchHelp === void 0) {
     throw new AbapError(
       "BAD_INPUT",
@@ -122094,7 +122184,7 @@ function buildDtel(name, description, packageName, f) {
   }
   const searchHelp = f.searchHelp !== void 0 ? normalizeShlpIdentifier(f.searchHelp, "searchHelp", "DTEL/DE", name) : "";
   const searchHelpParameter = f.searchHelpParameter !== void 0 ? normalizeShlpIdentifier(f.searchHelpParameter, "searchHelpParameter", "DTEL/DE", name) : "";
-  return `${XML_DECL}<blue:wbobj xmlns:blue="http://www.sap.com/wbobj/dictionary/dtel" xmlns:adtcore="${ADTCORE_NS2}" adtcore:name="${escapeXmlAttr4(name)}" adtcore:type="DTEL/DE" adtcore:description="${escapeXmlAttr4(description)}"><adtcore:packageRef adtcore:name="${escapeXmlAttr4(packageName)}"/><dtel:dataElement xmlns:dtel="${DATAELEMENT_NS}">${elem("dtel:typeKind", typeKind)}${elem("dtel:typeName", typeName)}${elem("dtel:dataType", dataType)}${elem("dtel:dataTypeLength", numPadded(length, 6))}${elem("dtel:dataTypeDecimals", numPadded(decimals, 6))}${elem("dtel:shortFieldLabel", shortLabel)}${elem("dtel:shortFieldLength", num2(shortLength))}${elem("dtel:shortFieldMaxLength", num2(DTEL_MAX_LENGTH.short))}${elem("dtel:mediumFieldLabel", mediumLabel)}${elem("dtel:mediumFieldLength", num2(mediumLength))}${elem("dtel:mediumFieldMaxLength", num2(DTEL_MAX_LENGTH.medium))}${elem("dtel:longFieldLabel", longLabel)}${elem("dtel:longFieldLength", num2(longLength))}${elem("dtel:longFieldMaxLength", num2(DTEL_MAX_LENGTH.long))}${elem("dtel:headingFieldLabel", headingLabel)}${elem("dtel:headingFieldLength", num2(headingLength))}${elem("dtel:headingFieldMaxLength", num2(DTEL_MAX_LENGTH.heading))}${elem("dtel:searchHelp", searchHelp)}${elem("dtel:searchHelpParameter", searchHelpParameter)}${elem("dtel:setGetParameter", "")}${elem("dtel:defaultComponentName", "")}${elem("dtel:deactivateInputHistory", "false")}${elem("dtel:changeDocument", "false")}${elem("dtel:leftToRightDirection", "false")}${elem("dtel:deactivateBIDIFiltering", "false")}</dtel:dataElement></blue:wbobj>`;
+  return `${XML_DECL}<blue:wbobj xmlns:blue="http://www.sap.com/wbobj/dictionary/dtel" xmlns:adtcore="${ADTCORE_NS2}" adtcore:name="${escapeXmlAttr4(name)}" adtcore:type="DTEL/DE" adtcore:description="${escapeXmlAttr4(description)}" ${ROOT_LANGUAGE_ATTRS}><adtcore:packageRef adtcore:name="${escapeXmlAttr4(packageName)}"/><dtel:dataElement xmlns:dtel="${DATAELEMENT_NS}">${elem("dtel:typeKind", typeKind)}${elem("dtel:typeName", typeName)}${elem("dtel:dataType", dataType)}${elem("dtel:dataTypeLength", numPadded(length, 6))}${elem("dtel:dataTypeDecimals", numPadded(decimals, 6))}${elem("dtel:shortFieldLabel", short.label)}${elem("dtel:shortFieldLength", numPadded(short.length, 2))}${elem("dtel:shortFieldMaxLength", num2(DTEL_MAX_LENGTH.short))}${elem("dtel:mediumFieldLabel", medium.label)}${elem("dtel:mediumFieldLength", numPadded(medium.length, 2))}${elem("dtel:mediumFieldMaxLength", num2(DTEL_MAX_LENGTH.medium))}${elem("dtel:longFieldLabel", long.label)}${elem("dtel:longFieldLength", numPadded(long.length, 2))}${elem("dtel:longFieldMaxLength", num2(DTEL_MAX_LENGTH.long))}${elem("dtel:headingFieldLabel", heading.label)}${elem("dtel:headingFieldLength", numPadded(heading.length, 2))}${elem("dtel:headingFieldMaxLength", num2(DTEL_MAX_LENGTH.heading))}${elem("dtel:searchHelp", searchHelp)}${elem("dtel:searchHelpParameter", searchHelpParameter)}${elem("dtel:setGetParameter", "")}${elem("dtel:defaultComponentName", "")}${elem("dtel:deactivateInputHistory", "false")}${elem("dtel:changeDocument", "false")}${elem("dtel:leftToRightDirection", "false")}${elem("dtel:deactivateBIDIFiltering", "false")}</dtel:dataElement></blue:wbobj>`;
 }
 function buildTtyp(name, description, packageName, f) {
   const typeKind = f.typeKind ?? "dictionaryType";
@@ -122110,7 +122200,7 @@ function buildTtyp(name, description, packageName, f) {
   const dataType = f.dataType ?? "STRU";
   const length = f.length ?? 0;
   const decimals = f.decimals ?? 0;
-  return `${XML_DECL}<ttyp:tableType xmlns:ttyp="http://www.sap.com/dictionary/tabletype" xmlns:adtcore="${ADTCORE_NS2}" adtcore:name="${escapeXmlAttr4(name)}" adtcore:type="TTYP/DA" adtcore:description="${escapeXmlAttr4(description)}"><adtcore:packageRef adtcore:name="${escapeXmlAttr4(packageName)}"/><ttyp:rowType>${elem("ttyp:typeKind", typeKind)}${elem("ttyp:typeName", typeName)}<ttyp:builtInType>${elem("ttyp:dataType", dataType)}${elem("ttyp:length", numPadded(length, 6))}${elem("ttyp:decimals", numPadded(decimals, 6))}</ttyp:builtInType><ttyp:rangeType/></ttyp:rowType></ttyp:tableType>`;
+  return `${XML_DECL}<ttyp:tableType xmlns:ttyp="http://www.sap.com/dictionary/tabletype" xmlns:adtcore="${ADTCORE_NS2}" adtcore:name="${escapeXmlAttr4(name)}" adtcore:type="TTYP/DA" adtcore:description="${escapeXmlAttr4(description)}" ${ROOT_LANGUAGE_ATTRS}><adtcore:packageRef adtcore:name="${escapeXmlAttr4(packageName)}"/><ttyp:rowType>${elem("ttyp:typeKind", typeKind)}${elem("ttyp:typeName", typeName)}<ttyp:builtInType>${elem("ttyp:dataType", dataType)}${elem("ttyp:length", numPadded(length, 6))}${elem("ttyp:decimals", numPadded(decimals, 6))}</ttyp:builtInType><ttyp:rangeType/></ttyp:rowType></ttyp:tableType>`;
 }
 function buildStructuredDdicDescriptor(type, name, description, packageName, fields) {
   const allowed = STRUCTURED_FIELDS_BY_TYPE[type];
@@ -122590,6 +122680,10 @@ var writeInputSchema = {
     outputLength: external_exports.number().optional(),
     lowercase: external_exports.boolean().optional(),
     signExists: external_exports.boolean().optional(),
+    fixedValues: external_exports.array(external_exports.object({ low: external_exports.string(), high: external_exports.string().optional(), text: external_exports.string() }).strict()).optional().describe(
+      "DOMA/DD only: fixed values, in order. `low` (or `low`..`high` for an interval) max 10 chars and within the domain length; `text` max 60 chars."
+    ),
+    valueTable: external_exports.string().optional().describe("DOMA/DD only: value table name (existence checked by the server)."),
     typeKind: external_exports.enum(["domain", "predefinedAbapType", "dictionaryType"]).optional(),
     typeName: external_exports.string().optional(),
     shortLabel: external_exports.string().optional(),
@@ -122760,7 +122854,7 @@ function targetFromInput(input) {
   return target;
 }
 function resolveDdicStructuredSource(input, target) {
-  if (input.source !== void 0) {
+  if (input.source !== void 0 && input.source !== "") {
     throw new AbapError(
       "BAD_INPUT",
       "`source` and `ddic` cannot both be given \u2014 they are two ways to build the same descriptor.",
@@ -122997,6 +123091,14 @@ function describeShrink(before, after) {
   if (removedLines < SHRINK_DISCLOSURE_MIN_LINES) return void 0;
   if (removedLines / beforeLines < SHRINK_DISCLOSURE_FRACTION) return void 0;
   return { beforeLines, removedLines, percent: Math.round(removedLines / beforeLines * 100) };
+}
+var LANGUAGE_DEPENDENT_TEXT_RE = /^(?:[\w.-]+:)?(?:\w+FieldLabel|text)$/;
+function languageDependentDiscardHint(discarded, source) {
+  if (discarded.length === 0 || !discarded.every((d) => LANGUAGE_DEPENDENT_TEXT_RE.test(d.element))) return void 0;
+  const rootTag = /<[A-Za-z_][\w.-]*(?::[A-Za-z_][\w.-]*)?\b[^>]*>/.exec(source.replace(/<\?xml[^>]*\?>/, ""))?.[0] ?? "";
+  const hasMasterLanguage = /\badtcore:masterLanguage\s*=/.test(rootTag);
+  const what = discarded.map((d) => d.element).join(", ");
+  return `The dropped element(s) \u2014 ${what} \u2014 are language-dependent texts (field labels / fixed-value texts), which ADT stores only when the root element carries adtcore:masterLanguage; ` + (hasMasterLanguage ? "this document already has it, so something else emptied them \u2014 " : 'this document has none. Add adtcore:masterLanguage="EN" (and adtcore:language="EN") to the root element and send the same document again \u2014 rewriting the object in place repairs it, which is exactly what fixed the live reproduction. ') + "Re-read the object with abap_read to see the descriptor the server actually holds, or activate it as written with abap_activate.";
 }
 function describeDiscard(d) {
   const sentText = d.sent.map((v) => JSON.stringify(v)).join(", ");
@@ -123574,7 +123676,7 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
               discarded,
               ...entryId !== void 0 ? { journal: entryId } : {}
             },
-            "This is a server-side discard, not a rejection \u2014 the document was accepted and nothing ran to check it. Re-read the object with abap_read to see the descriptor the server actually holds, then either rework the payload so the dropped element(s) survive, or accept the object as written and activate it yourself with abap_activate." + (entryId !== void 0 ? ` Remove this write with abap_journal mode=undo entry=${entryId}.` : " The write journal is off, so abapsmith cannot undo this for you.")
+            "This is a server-side discard, not a rejection \u2014 the document was accepted and nothing ran to check it. " + (languageDependentDiscardHint(discarded, source) ?? "Re-read the object with abap_read to see the descriptor the server actually holds, then either rework the payload so the dropped element(s) survive, or accept the object as written and activate it yourself with abap_activate.") + (entryId !== void 0 ? ` Remove this write with abap_journal mode=undo entry=${entryId}.` : " The write journal is off, so abapsmith cannot undo this for you.")
           );
         }
       }
@@ -148480,6 +148582,33 @@ async function runUiPressBridge(conn, query, gate) {
   };
 }
 
+// src/adt/ui-tstc.ts
+init_catalog_select();
+function tstcKind(cinfo) {
+  switch (cinfo) {
+    case "00":
+      return "dialog transaction (classic dynpro; batch input / press applies)";
+    case "80":
+      return "report transaction (SUBMIT-driven; batch input does NOT apply)";
+    default:
+      return "unrecognised transaction kind - mechanism not confirmed, do not assume batch input applies";
+  }
+}
+async function lookupTransaction(conn, tcode) {
+  const result = await runCatalogSelect(conn, buildTransactionDetailQuery(tcode), 1);
+  const row2 = result.rows[0];
+  if (!row2) return void 0;
+  const cinfo = (row2.CINFO ?? "").trim();
+  return {
+    tcode: (row2.TCODE ?? tcode).trim(),
+    program: (row2.PGMNA ?? "").trim(),
+    dynpro: (row2.DYPNO ?? "").trim(),
+    cinfo,
+    kind: tstcKind(cinfo),
+    bdcApplies: cinfo === "00" ? true : cinfo === "80" ? false : void 0
+  };
+}
+
 // src/tools/ui.ts
 init_compact();
 init_safety();
@@ -148755,6 +148884,117 @@ NOTE: ${LAYOUT_FIDELITY_NOTE}`;
   }
 }
 
+// src/tools/ui-compact.ts
+init_compact();
+var OWN_COLUMNS = /* @__PURE__ */ new Set(["name", "fnam", "fill", "line", "coln", "leng", "stxt"]);
+var FLG1_DEFAULT = "80";
+var ALL_ZERO_RE = /^0+$/;
+var ALL_UNDERSCORE_RE = /^_+$/;
+function classifyScreenField(row2) {
+  if (hex3(row2, "line") === 255) return "okcode";
+  const fill = str5(row2, "fill");
+  switch (fill) {
+    case "":
+      break;
+    case "C":
+      return "checkbox";
+    case "A":
+      return "radio";
+    case "P":
+      return "button";
+    case "I":
+      return "tabstrip";
+    case "R":
+      return "frame";
+    case "T":
+      return "table";
+    case "B":
+      return "subscreen";
+    default:
+      return `fill=${fill}`;
+  }
+  const flg1 = hex3(row2, "flg1");
+  if ((flg1 & 128) === 0) return "text";
+  const grp3 = str5(row2, "grp3");
+  if (grp3 === "TXT" || grp3 === "COM" || grp3 === "TOT") return "label";
+  const stxt = str5(row2, "stxt");
+  if (stxt !== "" && ALL_UNDERSCORE_RE.test(stxt)) {
+    return (flg1 & 33) === 1 ? "out" : "io";
+  }
+  return "label";
+}
+function compactFieldAttrs(row2) {
+  const parts = [];
+  const text5 = decodeStxt(str5(row2, "stxt"));
+  const rawText = str5(row2, "stxt");
+  if (text5 !== "" && !ALL_UNDERSCORE_RE.test(rawText)) parts.push(`text="${text5}"`);
+  for (const [key, value] of Object.entries(row2)) {
+    if (OWN_COLUMNS.has(key)) continue;
+    if (value === void 0 || value === "") continue;
+    if (ALL_ZERO_RE.test(value)) continue;
+    if (key === "flg1" && value === FLG1_DEFAULT) continue;
+    parts.push(`${key}=${value}`);
+  }
+  return parts.join(" ");
+}
+function renderCompactFields(rows) {
+  if (!rows.length) return "(none)";
+  const table = rows.map((row2) => ({
+    name: str5(row2, "fnam") || str5(row2, "name"),
+    type: classifyScreenField(row2),
+    len: String(hex3(row2, "leng")),
+    pos: `${hex3(row2, "line")},${hex3(row2, "coln")}`,
+    attrs: compactFieldAttrs(row2)
+  }));
+  return textTable(table, ["name", "type", "len", "pos", "attrs"]);
+}
+var GENERATED_RE = /%_/;
+var CHAIN_RE = /^\s*CHAIN\s*\.?\s*$/i;
+var ENDCHAIN_RE = /^\s*ENDCHAIN\s*\.?\s*$/i;
+function flowLineText(row2) {
+  const line2 = row2.line;
+  if (line2 !== void 0) return line2;
+  return Object.entries(row2).map(([k, v]) => `${k}=[${v}]`).join(" ");
+}
+function renderCompactFlow(rows) {
+  if (!rows.length) return { text: "(none)", omitted: 0 };
+  const lines = rows.map(flowLineText);
+  const generated = lines.map((l) => GENERATED_RE.test(l));
+  for (let i = 0; i < lines.length; i++) {
+    if (!CHAIN_RE.test(lines[i] ?? "")) continue;
+    let j = i + 1;
+    while (j < lines.length && !ENDCHAIN_RE.test(lines[j] ?? "")) j++;
+    if (j >= lines.length) break;
+    const body = generated.slice(i + 1, j);
+    if (body.length > 0 && body.every(Boolean)) {
+      generated[i] = true;
+      generated[j] = true;
+    }
+    i = j;
+  }
+  const out = [];
+  let omitted = 0;
+  for (let i = 0; i < lines.length; ) {
+    if (!generated[i]) {
+      out.push(lines[i] ?? "");
+      i++;
+      continue;
+    }
+    let j = i;
+    while (j < lines.length && generated[j]) j++;
+    const run = j - i;
+    const indent = /^\s*/.exec(lines[i] ?? "")?.[0] ?? "";
+    out.push(`${indent}(${run} generated %_ flow-logic line${run === 1 ? "" : "s"} omitted)`);
+    omitted += run;
+    i = j;
+  }
+  return { text: out.join("\n"), omitted };
+}
+function compactScreenNote(flowOmitted) {
+  const flow = flowOmitted > 0 ? `${flowOmitted} generated %_ flow-logic line${flowOmitted === 1 ? "" : "s"} collapsed into counted markers` : "no generated %_ flow-logic lines to collapse";
+  return `Compact output (detail:"compact", the default): FIELDS is one line per element (name  type  len  pos  attrs \u2014 len/pos decimal, attrs only where they differ from the plain element: no empty or zero columns, no flg1=80, no I/O mask stxt); ${flow}. detail:"full" restores the raw key=[value] dump of every D021S column and every flow line.`;
+}
+
 // src/tools/ui.ts
 var uiPressFieldSchema = external_exports.object({
   name: external_exports.string().describe("Screen field name (D021S-FNAM), e.g. BKPF-BLDAT."),
@@ -148776,10 +149016,10 @@ var uiInputSchema = {
     "screen: read one dynpro (discovery, read-only in effect). fcode: static trace of one function code's handling \u2014 reads source, runs nothing, same read-only effect as screen. press: run a batch-input script \u2014 commits, cannot be rolled back. Requires ABAP_MODE=admin, ABAP_ALLOW_UI_PRESS=true, and confirm:true."
   ),
   tcode: external_exports.string().optional().describe(
-    "Transaction code. screen/fcode: alternative to program+dynpro. press: required."
+    "Transaction code. screen/fcode: alternative to program+dynpro. press: required \u2014 press needs tcode; program/dynpro is only supported by mode=screen. A tcode with no TSTC row is refused with NOT_FOUND before any bridge class is deployed."
   ),
-  program: external_exports.string().optional().describe("screen/fcode only, with dynpro: program name instead of tcode."),
-  dynpro: external_exports.string().optional().describe('screen/fcode only, with program: screen number, e.g. "100".'),
+  program: external_exports.string().optional().describe("screen/fcode only, with dynpro: program name instead of tcode. Refused by press."),
+  dynpro: external_exports.string().optional().describe('screen/fcode only, with program: screen number, e.g. "100". Refused by press.'),
   fcode: external_exports.string().optional().describe(
     "fcode only: one function code to trace. Omitted = every function code of every GUI status of the program."
   ),
@@ -148788,6 +149028,9 @@ var uiInputSchema = {
   ),
   layout: external_exports.boolean().optional().describe(
     "screen only, default false: also render a monospace picture of the screen from the field rows already read. No extra ABAP and no extra round trip. Design-time layout, not a runtime screenshot. Ignored by press."
+  ),
+  detail: external_exports.enum(["compact", "full"]).optional().describe(
+    'screen only, default "compact": FIELDS is one line per element (name  type  len  pos  attrs, only non-default attrs) and runs of generated %_ flow-logic lines collapse into one counted line; user-written modules are always listed. "full" is the raw key=[value] dump of every D021S column and every flow line. Render-side only \u2014 same ABAP, same single bridge call. The LAYOUT section (layout:true) is the same in both. Ignored by fcode and press.'
   ),
   confirm: external_exports.boolean().optional().describe(
     "press only, REQUIRED (must be exactly true) \u2014 acknowledges the commit. Omitted or false is refused before any network call."
@@ -148861,6 +149104,16 @@ function buildFcodeQuery(input) {
 function buildPressQuery(input) {
   const tcode = input.tcode?.trim();
   if (!tcode) {
+    const program = input.program?.trim();
+    const dynpro = input.dynpro?.trim();
+    if (program || dynpro) {
+      throw new AbapError(
+        "BAD_INPUT",
+        "press needs tcode; program/dynpro is only supported by mode=screen",
+        { mode: "press", program: input.program, dynpro: input.dynpro },
+        'Give the transaction code that starts on this dynpro (mode:"screen" with the same program/dynpro shows it under tcode when one is registered), or use mode:"fcode" for a static trace of what a function code would do.'
+      );
+    }
     throw new AbapError("BAD_INPUT", 'mode:"press" requires tcode.', {
       mode: "press"
     });
@@ -148920,29 +149173,19 @@ function assertPressEnabled(cfg) {
     "Set both ABAP_MODE=admin and ABAP_ALLOW_UI_PRESS=true if this call is genuinely intended."
   );
 }
-async function assertBdcApplies(deps, tcode) {
-  const precheckQuery = {
-    mode: "screen",
-    target: { by: "tcode", tcode }
-  };
-  deps.safety.assert(
-    "write",
-    { name: uiManifest.entry, packageName: FLUID_PACKAGE, type: "CLAS/OC" },
-    { phase: "preflight" }
-  );
-  const precheck = await deps.pool.withWrite(
-    "abap_ui",
-    uiManifest.entry,
-    (conn) => runUiBridge(conn, precheckQuery, deps.safety)
-  );
-  const kind = precheck.transcript.tcode;
-  if (!kind) {
+async function assertTransactionExists(deps, tcode) {
+  const record2 = await deps.pool.withRead("abap_ui", (conn) => lookupTransaction(conn, tcode));
+  if (!record2) {
     throw new AbapError(
-      "ADT_ERROR",
-      `Could not resolve transaction ${tcode} via TSTC before press \u2014 the precheck bridge returned no tcode record.`,
-      { tcode }
+      "NOT_FOUND",
+      `transaction ${tcode} does not exist`,
+      { tcode, table: "TSTC", type: "TRAN/T" },
+      'TSTC has no row for this code, so no bridge class was deployed. Check the spelling, or address the screen directly with mode:"screen" and program + dynpro.'
     );
   }
+  return record2;
+}
+function assertBdcApplies(tcode, kind) {
   if (kind.bdcApplies !== true) {
     throw new AbapError(
       "SAFETY_DENIED",
@@ -148957,9 +149200,11 @@ function renderRecordRows(rows) {
     (row2) => Object.entries(row2).map(([k, v]) => `${k}=[${v}]`).join(" ")
   ).join("\n");
 }
-function buildScreenResponse(query, result, maxChars, layout) {
+function buildScreenResponse(query, result, maxChars, layout, detail = "compact") {
   const t = result.transcript;
   const notes = [...FIDELITY_NOTES2];
+  const compact = detail === "compact";
+  const flow = compact ? renderCompactFlow(t.flow) : { text: renderRecordRows(t.flow), omitted: 0 };
   if (t.tcode) {
     if (t.tcode.bdcApplies === false) {
       notes.push(
@@ -148984,6 +149229,9 @@ function buildScreenResponse(query, result, maxChars, layout) {
   if (layout) {
     notes.push(LAYOUT_FIDELITY_NOTE);
   }
+  if (compact) {
+    notes.push(compactScreenNote(flow.omitted));
+  }
   return buildResponse({
     header: {
       mode: "screen",
@@ -148993,6 +149241,7 @@ function buildScreenResponse(query, result, maxChars, layout) {
       dynpro: t.resolved?.dynpro,
       fieldsCount: t.fieldsCount,
       flowCount: t.flowCount,
+      ...compact ? { flowOmitted: flow.omitted, detail } : {},
       statusCount: t.statusCount,
       functionsCount: t.functionsCount,
       fkeysCount: t.fkeysCount,
@@ -149014,7 +149263,7 @@ function buildScreenResponse(query, result, maxChars, layout) {
         title: "HEADER (RPY_DYNPRO_READ)",
         content: t.header ? renderRecordRows([t.header]) : "(not read)"
       },
-      { title: "FLOW LOGIC", content: renderRecordRows(t.flow) },
+      { title: "FLOW LOGIC", content: flow.text },
       {
         title: "GUI STATUSES (names)",
         content: renderRecordRows(t.statusList)
@@ -149026,7 +149275,7 @@ function buildScreenResponse(query, result, maxChars, layout) {
       { title: "FUNCTION KEYS", content: renderRecordRows(t.fkeys) },
       ...t.diagnostics.length ? [{ title: "DIAGNOSTICS", content: t.diagnostics.join("\n") }] : []
     ],
-    body: renderRecordRows(t.fields),
+    body: compact ? renderCompactFields(t.fields) : renderRecordRows(t.fields),
     bodyLabel: "FIELDS",
     notes,
     maxChars
@@ -149222,6 +149471,7 @@ async function runScreenTool(deps, input) {
     { phase: "preflight" }
   );
   await deps.ensureConnected();
+  if (query.target.by === "tcode") await assertTransactionExists(deps, query.target.tcode);
   const result = await deps.pool.withWrite(
     "abap_ui",
     uiManifest.entry,
@@ -149232,7 +149482,8 @@ async function runScreenTool(deps, input) {
       query,
       result,
       deps.cfg.maxResponseChars,
-      input.layout === true
+      input.layout === true,
+      input.detail ?? "compact"
     )
   );
 }
@@ -149245,6 +149496,7 @@ async function runFcodeTool(deps, input) {
     { phase: "preflight" }
   );
   await deps.ensureConnected();
+  if (query.target.by === "tcode") await assertTransactionExists(deps, query.target.tcode);
   const result = await deps.pool.withWrite(
     "abap_ui",
     uiManifest.entry,
@@ -149263,7 +149515,8 @@ async function runPressTool(deps, input) {
     { phase: "preflight" }
   );
   await deps.ensureConnected();
-  await assertBdcApplies(deps, query.tcode);
+  const tstc = await assertTransactionExists(deps, query.tcode);
+  assertBdcApplies(query.tcode, tstc);
   const bridgeClass = uiBridgeClassName(query);
   deps.safety.assert(
     "write",

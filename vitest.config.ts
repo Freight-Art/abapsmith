@@ -48,6 +48,11 @@ const LIVE_INTEGRATION_TESTS = [
   // Listed here so VITEST_LIVE=1 COLLECTS it — the suite carries its own
   // independent gate, same convention as the suites above.
   "test/integration-fluid-img.test.ts",
+  // The `ddic` structured shortcut (DTEL/DE labels, DOMA/DD fixed values and
+  // output length) against a real appliance: created, activated, read back,
+  // deleted. Listed here so VITEST_LIVE=1 COLLECTS it — the suite carries
+  // its own independent gate, same convention as the suites above.
+  "test/integration-ddic-structured.test.ts",
   // The builtin `classic` fluid tool: deploys/activates ZCL_ZMCP_FLUID_CLASSIC
   // into $ABAPSMITH_FLUID_API and round-trips a create/delete/exists cycle on
   // a throwaway $TMP transaction. Same independent-gate convention as the

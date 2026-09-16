@@ -93,7 +93,10 @@ inference from a search snippet.
      naming the module and include — it never suppresses branches found by
      another `CASE` in the same module, and it never silently falls through.
    - Fallback when `fcode` is unresolved, or absent under `ABAP_MODE=read`:
-     fall back to `abap_ui mode="screen"` for the flow logic, resolve the
+     fall back to `abap_ui mode="screen"` for the flow logic (compact by
+     default: generated `%_` lines are folded into counted markers and the
+     user-written `MODULE`/`FIELD` lines are all still there; pass
+     `detail:"full"` only when a raw `D021S` column matters), resolve the
      real includes by hand through `D010INC` (filtering out generated
      entries), and `abap_read` the module directly — remembering the
      dispatch variable is often an alias for the OK-code field, `WHEN`

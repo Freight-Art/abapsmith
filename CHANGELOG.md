@@ -30,6 +30,35 @@ version was set to `0.3.0`, which is intended.
 - **`method=` writes and reads against a class with an inactive version** (#147). Method line ranges were always taken from the ACTIVE component structure, so after a `CHECK_FAILED` full write every `method=` write spliced into stale line ranges and a method that existed only in the inactive version was `NOT_FOUND`. The structure is now fetched for the inactive version first (`?version=inactive`) and falls back to the active one; the response header (`structureVersion`) and the write's note say which version was used.
 - A `method=` `NOT_FOUND` no longer lists the class's own name as an available member (#147) — the `CLAS/OC` / `INTF/OI` self-entry of the ADT component structure is filtered out, so `available` names methods only.
 
+## [0.6.10] - 2026-09-16
+
+### Added
+
+- **`abap_write` `ddic` for `DOMA/DD`: fixed values, value table, computed output length** (#145). `fixedValues: [{low, high?, text}]` renders the `<doma:valueInformation>` / `<doma:fixValues>` block in the shape a live GET returns (the server numbers the rows); `low`/`high` are refused over 10 characters (`DD07L-DOMVALUE_L`) or over the domain length, `text` over 60, each naming the row. `valueTable` renders the `<doma:valueTableRef>` uri/type/name triple. `outputLength` now defaults per data type — `DEC`/`CURR`/`QUAN`: length + 1 for decimals + 1 for the sign; `DATS` 10; `TIMS` 8; otherwise the length — and a caller's value still wins. Live: a `CHAR 1` domain with three fixed values and a signed `DEC 13,3` domain created through `ddic` activated on A4H and read back intact.
+- **Live suite `test/integration-ddic-structured.test.ts`** (#144, #145): creates, activates, reads back and deletes a `DTEL/DE` with four labels and the two domains above through the `ddic` shortcut.
+
+### Fixed
+
+- **`abap_write` `ddic` for `DTEL/DE`: field labels were silently discarded** (#144). The generated descriptor had no `adtcore:masterLanguage` on the root, so the server accepted the PUT and stored every `<dtel:*FieldLabel>` empty; the read-back guard then reported `CHECK_FAILED` / `VALUE_DISCARDED` and the object stayed inactive. All three builders now emit `adtcore:masterLanguage="EN" adtcore:language="EN"` on the root — the same body with the attribute activated with all labels intact on A4H. Labels over 10/20/40/55 characters are refused with `BAD_INPUT` naming the field (never truncated); `*Length` defaults to the slot maximum, must be at least the label's length, and is written two-digit padded like the live shape (`05`, `03`).
+- **`abap_write` `ddic` for `DOMA/DD`: `signExists` was silently dropped** (#145). The builder emitted `<doma:signExists>` after `<doma:lowercase>`; in that order a `DEC 13,3` domain with `signExists: true` activated on A4H with the flag stored `false` and no message. The elements are now emitted in the live order (`signExists` first), and the descriptor read-back guard reports a flag sent `true` and stored `false` as a discard — previously only an emptied element counted.
+- **`VALUE_DISCARDED` hint names the cause when only texts were dropped** (#144). When every discarded element is a DTEL field label or a `<doma:text>`, the hint says these are language-dependent texts stored only with `adtcore:masterLanguage` on the root, and tells the caller to add it and resend (or, when the document already carries it, that something else emptied them) instead of the generic "rework the payload".
+
+### Changed
+
+- **`abap_write`: `source: ""` next to `ddic` is treated as absent** (#144, #145). A client that always sends the field no longer gets `BAD_INPUT` for giving "both"; a non-empty `source` with `ddic` is still refused before any request.
+- **`abapsmith-create-ddic-objects` skill** (#144, #145): the `ddic` section now states what was live-verified and documents `fixedValues`/`valueTable`/the output-length rule; the `DTEL/DE` traps gain the `adtcore:masterLanguage` label discard and correct the `*FieldLength` description (a two-digit display width, not the label's character count — `MANDT` reads back 10 for "Mandant"); the `DOMA/DD` traps gain the `signExists`/`lowercase` element order.
+
+## [0.6.9] - 2026-09-16
+
+### Added
+
+- `abap_ui mode="screen"` gains `detail` (`compact` | `full`, default `compact`) (#150). Compact renders `FIELDS` one line per element — `name  type  len  pos  attrs`, with `len`/`pos` decimal and `attrs` holding only what differs from a plain input field — and folds every run of generated `%_...` flow-logic lines into one `(N generated %_ flow-logic lines omitted)` line, keeping every user-written `MODULE`/`FIELD` line; the header reports `flowOmitted` and a note names the way back. `detail: "full"` is the previous `key=[value]` dump, byte for byte. The `layout: true` picture and every other section are the same under both. Render-side only: same ABAP, same single bridge call.
+
+### Changed
+
+- `abap_ui` checks `TSTC` before deploying anything (#150). `screen`/`fcode` by `tcode` and every `press` first run one freestyle select on the read lane and refuse a transaction with no row as a structured `NOT_FOUND: transaction X does not exist` — about a second on the wire instead of the ~20 s a fresh invoker-class deploy cost before the bridge's own SELECT failed. `press` reads `CINFO` from that same row, so the extra screen-mode bridge run it used to make for the report/dialog check is gone; a press now deploys exactly one class, its own BDCDATA bridge.
+- `abap_ui mode="press"` with `program`+`dynpro` and no `tcode` is refused as `BAD_INPUT` with the message `press needs tcode; program/dynpro is only supported by mode=screen`, before any network call (#150). Driving a bare dynpro was investigated and decided against: `CALL SCREEN` from the classrun bridge has no GUI session and cannot address another program's dynpro, and a generated wrapper transaction would be a cross-client `TSTC`/`TADIR` object outside the safety gate — see `doc/TOOLS/ui-and-fpm.md`, "press needs tcode".
+
 ## [0.6.8] - 2026-09-15
 
 ### Added
