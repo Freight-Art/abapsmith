@@ -36,7 +36,13 @@
  * (1) UiBridgeResult has no `mode` discriminant, mode data lives at
  * transcript.press vs screen-only fields; (2) pressBody() runs CALL
  * TRANSACTION unconditionally with no CINFO check — assertBdcApplies below
- * adds that check at this layer.
+ * adds that check at this layer, from the TSTC row the pre-check already
+ * read (issue #150: one catalog select instead of a second bridge run).
+ *
+ * Every tcode-addressed call (screen/fcode by tcode, and press) first asks
+ * TSTC through src/adt/ui-tstc.ts and refuses with NOT_FOUND when the
+ * transaction does not exist — about 1 s on the wire instead of the ~20 s a
+ * fresh content-hashed invoker class cost before the ABAP SELECT failed.
  */
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -61,6 +67,7 @@ import type {
   UiFcodeRow,
 } from "../adt/ui-fcode.js";
 import { uiManifest } from "../adt/fluid/builtin/ui.js";
+import { lookupTransaction, type UiTstcRecord } from "../adt/ui-tstc.js";
 import { LOG_TOOL_ID, LOG_ACTION } from "../adt/fluid/builtin/log.js";
 import type { SessionPool } from "../adt/pool.js";
 import type { Config } from "../config.js";
@@ -70,6 +77,7 @@ import { withJournalledMutation, systemKey, type Journal } from "../journal.js";
 import { FLUID_PACKAGE } from "../adt/fluid/package.js";
 import { runSnapshotDiffs } from "./run.js";
 import { renderScreenLayout, LAYOUT_FIDELITY_NOTE } from "./ui-layout.js";
+import { compactScreenNote, renderCompactFields, renderCompactFlow } from "./ui-compact.js";
 
 // ---------------------------------------------------------------------------
 // Input schema
@@ -118,16 +126,18 @@ export const uiInputSchema = {
     .string()
     .optional()
     .describe(
-      "Transaction code. screen/fcode: alternative to program+dynpro. press: required.",
+      "Transaction code. screen/fcode: alternative to program+dynpro. press: required — press " +
+        "needs tcode; program/dynpro is only supported by mode=screen. A tcode with no TSTC row is " +
+        "refused with NOT_FOUND before any bridge class is deployed.",
     ),
   program: z
     .string()
     .optional()
-    .describe("screen/fcode only, with dynpro: program name instead of tcode."),
+    .describe("screen/fcode only, with dynpro: program name instead of tcode. Refused by press."),
   dynpro: z
     .string()
     .optional()
-    .describe('screen/fcode only, with program: screen number, e.g. "100".'),
+    .describe('screen/fcode only, with program: screen number, e.g. "100". Refused by press.'),
   fcode: z
     .string()
     .optional()
@@ -150,6 +160,16 @@ export const uiInputSchema = {
       "screen only, default false: also render a monospace picture of the screen from the field " +
         "rows already read. No extra ABAP and no extra round trip. Design-time layout, not a " +
         "runtime screenshot. Ignored by press.",
+    ),
+  detail: z
+    .enum(["compact", "full"])
+    .optional()
+    .describe(
+      'screen only, default "compact": FIELDS is one line per element (name  type  len  pos  attrs, ' +
+        "only non-default attrs) and runs of generated %_ flow-logic lines collapse into one counted " +
+        'line; user-written modules are always listed. "full" is the raw key=[value] dump of every ' +
+        "D021S column and every flow line. Render-side only — same ABAP, same single bridge call. " +
+        "The LAYOUT section (layout:true) is the same in both. Ignored by fcode and press.",
     ),
   confirm: z
     .boolean()
@@ -301,6 +321,24 @@ function buildFcodeQuery(input: UiInput): UiFcodeQuery {
 function buildPressQuery(input: UiInput): UiPressQuery {
   const tcode = input.tcode?.trim();
   if (!tcode) {
+    const program = input.program?.trim();
+    const dynpro = input.dynpro?.trim();
+    if (program || dynpro) {
+      // Issue #150: a program+dynpro pair cannot be pressed. CALL SCREEN
+      // needs a GUI session the ADT classrun bridge does not have, a class
+      // cannot CALL SCREEN a dynpro owned by another program, and a
+      // generated wrapper transaction would be a cross-client TSTC/TADIR
+      // object outside the typed safety gate — so the refusal is explicit
+      // and zero-network, not a silent fall-through to "requires tcode".
+      throw new AbapError(
+        "BAD_INPUT",
+        "press needs tcode; program/dynpro is only supported by mode=screen",
+        { mode: "press", program: input.program, dynpro: input.dynpro },
+        'Give the transaction code that starts on this dynpro (mode:"screen" with the same ' +
+          "program/dynpro shows it under tcode when one is registered), or use mode:\"fcode\" for a " +
+          "static trace of what a function code would do.",
+      );
+    }
     throw new AbapError("BAD_INPUT", 'mode:"press" requires tcode.', {
       mode: "press",
     });
@@ -391,40 +429,40 @@ function assertPressEnabled(cfg: UiToolDeps["cfg"]): void {
 }
 
 /**
+ * TSTC pre-check (issue #150). One `dataPreviewFreestyle` select on the
+ * read lane, before any bridge class is deployed: a tcode with no TSTC row
+ * is refused as a structured NOT_FOUND in about a second, where the fluid
+ * bridge used to deploy and activate a fresh content-hashed invoker class
+ * (~20 s) before its own SELECT SINGLE failed. Returns the row so press
+ * can read CINFO from it (see assertBdcApplies) instead of running a whole
+ * screen-mode bridge for that one byte.
+ */
+async function assertTransactionExists(
+  deps: UiToolDeps,
+  tcode: string,
+): Promise<UiTstcRecord> {
+  const record = await deps.pool.withRead("abap_ui", (conn) => lookupTransaction(conn, tcode));
+  if (!record) {
+    throw new AbapError(
+      "NOT_FOUND",
+      `transaction ${tcode} does not exist`,
+      { tcode, table: "TSTC", type: "TRAN/T" },
+      "TSTC has no row for this code, so no bridge class was deployed. Check the spelling, or " +
+        'address the screen directly with mode:"screen" and program + dynpro.',
+    );
+  }
+  return record;
+}
+
+/**
  * ui-runtime's pressBody() runs CALL TRANSACTION unconditionally with no
  * CINFO check (only the screen action's ABAP reads it) — left alone, a
  * report tcode would just run the report and ignore the scripted BDCDATA.
- * This closes that gap: an extra screen-mode precheck call reads TSTC-CINFO
- * before every press. An unrecognised CINFO value is refused too,
- * conservatively.
+ * This closes that gap from the TSTC row assertTransactionExists already
+ * read before every press. An unrecognised CINFO value is refused too,
+ * conservatively. Pure — the wire work happened in the pre-check.
  */
-async function assertBdcApplies(
-  deps: UiToolDeps,
-  tcode: string,
-): Promise<void> {
-  const precheckQuery: UiScreenQuery = {
-    mode: "screen",
-    target: { by: "tcode", tcode },
-  };
-  deps.safety.assert(
-    "write",
-    { name: uiManifest.entry, packageName: FLUID_PACKAGE, type: "CLAS/OC" },
-    { phase: "preflight" },
-  );
-  const precheck = await deps.pool.withWrite(
-    "abap_ui",
-    uiManifest.entry,
-    (conn) => runUiBridge(conn, precheckQuery, deps.safety),
-  );
-  const kind = precheck.transcript.tcode;
-  if (!kind) {
-    throw new AbapError(
-      "ADT_ERROR",
-      `Could not resolve transaction ${tcode} via TSTC before press — the precheck bridge returned no ` +
-        "tcode record.",
-      { tcode },
-    );
-  }
+function assertBdcApplies(tcode: string, kind: UiTstcRecord): void {
   if (kind.bdcApplies !== true) {
     throw new AbapError(
       "SAFETY_DENIED",
@@ -465,9 +503,15 @@ function buildScreenResponse(
   result: UiBridgeResult,
   maxChars: number,
   layout: boolean,
+  detail: "compact" | "full" = "compact",
 ): string {
   const t = result.transcript;
   const notes = [...FIDELITY_NOTES];
+  // detail:"full" is the pre-#150 dump, byte for byte (pinned by
+  // test/ui-screen-compact-tool.test.ts against a golden rendered by that
+  // code): every branch below that differs is guarded on `compact`.
+  const compact = detail === "compact";
+  const flow = compact ? renderCompactFlow(t.flow) : { text: renderRecordRows(t.flow), omitted: 0 };
 
   if (t.tcode) {
     if (t.tcode.bdcApplies === false) {
@@ -496,6 +540,9 @@ function buildScreenResponse(
   if (layout) {
     notes.push(LAYOUT_FIDELITY_NOTE);
   }
+  if (compact) {
+    notes.push(compactScreenNote(flow.omitted));
+  }
   return buildResponse({
     header: {
       mode: "screen",
@@ -505,6 +552,7 @@ function buildScreenResponse(
       dynpro: t.resolved?.dynpro,
       fieldsCount: t.fieldsCount,
       flowCount: t.flowCount,
+      ...(compact ? { flowOmitted: flow.omitted, detail } : {}),
       statusCount: t.statusCount,
       functionsCount: t.functionsCount,
       fkeysCount: t.fkeysCount,
@@ -528,7 +576,7 @@ function buildScreenResponse(
         title: "HEADER (RPY_DYNPRO_READ)",
         content: t.header ? renderRecordRows([t.header]) : "(not read)",
       },
-      { title: "FLOW LOGIC", content: renderRecordRows(t.flow) },
+      { title: "FLOW LOGIC", content: flow.text },
       {
         title: "GUI STATUSES (names)",
         content: renderRecordRows(t.statusList),
@@ -542,7 +590,7 @@ function buildScreenResponse(
         ? [{ title: "DIAGNOSTICS", content: t.diagnostics.join("\n") }]
         : []),
     ],
-    body: renderRecordRows(t.fields),
+    body: compact ? renderCompactFields(t.fields) : renderRecordRows(t.fields),
     bodyLabel: "FIELDS",
     notes,
     maxChars,
@@ -812,6 +860,9 @@ async function runScreenTool(
 
   await deps.ensureConnected();
 
+  // Issue #150: refuse a non-existent tcode from one TSTC select, before the bridge deploys anything.
+  if (query.target.by === "tcode") await assertTransactionExists(deps, query.target.tcode);
+
   const result = await deps.pool.withWrite(
     "abap_ui",
     uiManifest.entry,
@@ -823,6 +874,7 @@ async function runScreenTool(
       result,
       deps.cfg.maxResponseChars,
       input.layout === true,
+      input.detail ?? "compact",
     ),
   );
 }
@@ -849,6 +901,9 @@ async function runFcodeTool(
   );
 
   await deps.ensureConnected();
+
+  // Same TSTC pre-check as screen (issue #150) — fcode resolves by tcode through the same bridge path.
+  if (query.target.by === "tcode") await assertTransactionExists(deps, query.target.tcode);
 
   const result = await deps.pool.withWrite(
     "abap_ui",
@@ -884,8 +939,11 @@ async function runPressTool(
 
   await deps.ensureConnected();
 
+  // Issue #150: one TSTC select answers both "does it exist" (NOT_FOUND, no bridge deployed) and
+  // "does batch input apply" (CINFO) — the second screen-mode bridge run press used to pay is gone.
+  const tstc = await assertTransactionExists(deps, query.tcode);
   // Closes ui-runtime's missing CINFO check before the mutating CALL TRANSACTION — see assertBdcApplies.
-  await assertBdcApplies(deps, query.tcode);
+  assertBdcApplies(query.tcode, tstc);
 
   const bridgeClass = uiBridgeClassName(query);
   deps.safety.assert(
