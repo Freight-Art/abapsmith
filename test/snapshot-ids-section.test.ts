@@ -59,8 +59,8 @@ function fakeSnapshot(over: Partial<StoredSnapshot> = {}): StoredSnapshot {
     version: 1,
     id: newSnapshotId(),
     systemKey: "SID|http://sap.invalid:50000|100",
-    createdAt: "2026-09-15T00:00:00.000Z",
-    expiresAt: "2026-09-16T00:00:00.000Z",
+    createdAt: new Date(Date.now() - 60_000).toISOString(), // anchored to the test clock: a fixed date expired once the calendar passed it
+    expiresAt: new Date(Date.now() + 24 * 3_600_000).toISOString(),
     ttlHours: 24,
     selection: { table: "T000", max_rows: 10 },
     columns: [{ name: "MANDT", key: true }],
@@ -168,8 +168,8 @@ function storeSnapshot(over: Partial<StoredSnapshot> = {}): StoredSnapshot {
     version: 1,
     id: newSnapshotId(),
     systemKey: SYSTEM_KEY,
-    createdAt: "2026-09-15T00:00:00.000Z",
-    expiresAt: "2026-09-16T00:00:00.000Z",
+    createdAt: new Date(Date.now() - 60_000).toISOString(), // anchored to the test clock: a fixed date expired once the calendar passed it
+    expiresAt: new Date(Date.now() + 24 * 3_600_000).toISOString(),
     ttlHours: 24,
     selection: { table: "T000", max_rows: 10 },
     columns: [{ name: "MANDT", key: true }],
