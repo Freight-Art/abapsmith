@@ -19,10 +19,12 @@ This is a **precondition of writing**, not a shipping step. Do it before
 
 ## `corr_nr` is gated by ABAP_ALLOW_TRANSPORTS
 
-The gate compares your `corr_nr` against that allowlist. Omitting the field is not
-"no value" — it is the value `AUTO`.
+The gate compares your `corr_nr` against that allowlist. Omitting the field means
+"let the server pick or create the request" — the `auto` route. **Omit the field;
+never pass the string `AUTO`, it is not accepted** (it is read as a named request
+called `AUTO`, which matches nothing).
 
-| allowlist | omitted (AUTO) | named `A4HK900123` | `""` |
+| allowlist | omitted | named `A4HK900123` | `""` |
 |---|---|---|---|
 | `auto` (default, unset) | allowed | **`SAFETY_DENIED`** | `SAFETY_DENIED` |
 | `A4HK900123` (pinned) | **`SAFETY_DENIED`** | allowed | `SAFETY_DENIED` |
@@ -31,11 +33,20 @@ The gate compares your `corr_nr` against that allowlist. Omitting the field is n
 
 Two consequences worth stating to the user:
 
-- **On the default config you cannot choose the request.** Naming one is refused;
-  the server auto-selects or auto-creates. Say which request it landed in, read
-  back from the write response — the user cannot ship what they cannot find.
-- **Pinning a request forbids auto-selection.** `AUTO` is not in a pinned list, so
-  omitting `corr_nr` starts failing the moment someone pins one.
+- **Under `auto` you cannot choose the request.** Naming one is refused
+  regardless of which request; the server reuses a modifiable request this
+  session created (or one attributed to abapsmith) for the package, else creates
+  one. Say which request it landed in, read back from the write response's
+  `transport:` field — the user cannot ship what they cannot find.
+- **Pinning a request forbids auto-creation.** Omitting `corr_nr` under a pinned
+  list uses the first pinned request that is still modifiable, and fails once
+  none is; pinned mode never creates a request.
+- **A `SAFETY_DENIED` with `retryable: false` is terminal.** Never retry it by
+  changing arguments — not another request number, not an empty string, not a
+  different package spelling. Its hint names the rule and the one caller-side way
+  out (omit `corr_nr`, pass a listed request, or ask the operator). The allowlist
+  is the operator's setting; do not suggest editing the environment to get past
+  it.
 
 **Never send an empty string.** It is not the same as omitting the field: it is
 read as a named request whose name is empty, and matches nothing under any
@@ -56,6 +67,12 @@ allowlist. Omit the field instead.
    with `corr_nr` omitted, and read the write response's transport note to
    confirm which request it picked.
 
+This applies to every transportable create, including the classic-bridge types
+(`VIEW/DV`, `TRAN/T`, `SHLP/DH`, `TABL/DI`, `DEVC/K`): none of them requires a
+`corr_nr` any more. Under `auto` they take the same reuse-or-create route as a
+class or program, and the response's `transport:` field names the request.
+Naming one for them under `auto` is the same terminal `SAFETY_DENIED`.
+
 ### Which request an omitted `corr_nr` lands in
 
 Under `auto`, the server picks in this order:
@@ -69,6 +86,16 @@ Under `auto`, the server picks in this order:
    which can be a **leftover from a previous abapsmith session**, not this one.
    The write response says so plainly when it happens.
 4. Failing that, it creates a fresh request.
+
+For an object that does not exist yet, the candidates in steps 2–3 come from
+CTS's view of the **package** (the object cannot be classified before it
+exists). The safety gate judges the write before any of this — a refusal
+costs no CTS call and creates no request. If a request was nonetheless created
+in a call that then refused (only possible when the operator's allowlist
+changes underneath a live session), the refusal names it in
+`details.createdTransport` and its hint says `abap_transport operation=delete
+corr_nr=<TRKORR>` removes it; every created request is journalled as
+`transport-create`, so `abap_journal` lists it either way.
 
 ## Reading a list result
 

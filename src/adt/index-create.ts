@@ -87,6 +87,13 @@ export interface SecondaryIndexParams {
   packageName: ServerPackage;
   /** An ALREADY gate-judged TRKORR, required for a non-local package, refused for a local one. */
   corrNr?: string;
+  /**
+   * How `corrNr` was chosen, for the gate: `"named"` (a human named it) or
+   * `"auto"` (the session resolver picked or created it). Defaults to
+   * `"named"`, the stricter reading — see `TransactionParams.corrSource` in
+   * `./tran-create.ts`.
+   */
+  corrSource?: "named" | "auto";
   /** DD12V-UNIQUEFLAG. Omitted/false emits no `unique` line at all (not `unique = ''`). */
   unique?: boolean;
 }
@@ -97,6 +104,8 @@ export interface IndexDeleteParams {
   /** Server-resolved only — see {@link SecondaryIndexParams.packageName}'s doc for why. */
   packageName: ServerPackage;
   corrNr?: string;
+  /** See {@link SecondaryIndexParams.corrSource}. */
+  corrSource?: "named" | "auto";
 }
 
 /** `DD12V-INDEXNAME` is CHAR3. */
@@ -236,11 +245,15 @@ export function assertSecondaryIndexTarget(packageName: string, corrNr: string |
     throw new AbapError(
       "TRANSPORT_ERROR",
       `packageName ${JSON.stringify(validated)} is not local ($-prefixed), so this index must be ` +
-        "created with TRANSPORT_NUMBER set, which requires a transport request — pass corr_nr " +
-        "(an ALREADY gate-judged TRKORR, e.g. A4HK900121).",
+        "created with TRANSPORT_NUMBER set, which requires a transport request — and none was " +
+        "resolved for this call.",
       { packageName: validated },
-      "Via abap_write, pass corr_nr with the TRKORR the safety gate already judged for this write " +
-        "(see the abapsmith-put-work-on-a-transport skill).",
+      "Through abap_write no corr_nr is needed: omitted, the request is resolved under " +
+        "ABAP_ALLOW_TRANSPORTS before this module runs (auto reuses a modifiable request this " +
+        "session created for the package, else creates one; a pinned list uses one of its " +
+        "entries). Reaching this refusal from abap_write means no session transport manager was " +
+        "wired into the call — an abapsmith wiring defect, not a caller error. A direct caller of " +
+        "this module hands it a TRKORR the safety gate has already judged.",
     );
   }
   return local ? "" : assertCorrNr(corrNr as string);
@@ -598,7 +611,9 @@ export async function createSecondaryIndex(
   const { indexName, baseTable, fields, description, packageName, corrNr, unique } = validated;
 
   const corr: SafetyCorr | undefined =
-    corrNr === undefined ? undefined : { kind: "transport", corrNr, source: "named" };
+    corrNr === undefined
+      ? undefined
+      : { kind: "transport", corrNr, source: params.corrSource ?? "named" };
 
   // Gate on the domain object itself — the fluid tool's own gate only judges its body class, never this index.
   // activate: true because DD_INDEX_INTERFACE is called with ACTIVATE = 'X' in the same execution.
@@ -621,6 +636,7 @@ export async function createSecondaryIndex(
       ...(params.unique !== undefined ? { unique } : {}),
     },
     what: `Creating secondary index ${indexName} on ${baseTable}`,
+    ...(corr !== undefined ? { corrSource: corr.source } : {}),
     expectTags: ["INDEX-CREATED", "INDEX-ACTIVE", "INDEX-FIELDS"],
     beforeAssert: indexBridgeErrorHook("insert", indexName, baseTable),
     completed: partial.completed,
@@ -689,7 +705,9 @@ export async function deleteSecondaryIndexViaBridge(
   const { indexName, baseTable, packageName, corrNr } = validated;
 
   const corr: SafetyCorr | undefined =
-    corrNr === undefined ? undefined : { kind: "transport", corrNr, source: "named" };
+    corrNr === undefined
+      ? undefined
+      : { kind: "transport", corrNr, source: params.corrSource ?? "named" };
 
   assertBridgeMutation(
     gate,
@@ -706,6 +724,7 @@ export async function deleteSecondaryIndexViaBridge(
       corr_nr: corrNr ?? "",
     },
     what: `Deleting secondary index ${indexName} on ${baseTable}`,
+    ...(corr !== undefined ? { corrSource: corr.source } : {}),
     expectTags: ["INDEX-DELETED", "INDEX-GONE"],
     beforeAssert: indexBridgeErrorHook("delete", indexName, baseTable),
   });

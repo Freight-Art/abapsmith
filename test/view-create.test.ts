@@ -559,11 +559,13 @@ describe("assertClassicViewCreateTarget", () => {
     expect(err.message).toContain("korrnum = space");
   });
 
-  it("refuses a transportable package given no corrNr as TRANSPORT_ERROR, naming corr_nr — reached with a null connection, i.e. zero network", async () => {
+  it("refuses a transportable package given no corrNr as TRANSPORT_ERROR saying none was resolved — the hint must NOT send an abap_write caller to add corr_nr (#141) — reached with a null connection, i.e. zero network", async () => {
     const { corrNr: _drop, ...withoutCorr } = VIEW;
     const err = await catchErr(createClassicView(offline, allowingGate(), withoutCorr as ClassicViewParams));
     expect(err.code).toBe("TRANSPORT_ERROR");
-    expect(err.message).toContain("corr_nr");
+    expect(err.message).toContain("none was resolved for this call");
+    expect(err.hint).toContain("no corr_nr is needed");
+    expect(err.hint).toContain("wiring defect, not a caller error");
   });
 
   it("refuses a malformed corrNr as BAD_INPUT — reached with a null connection, i.e. zero network", async () => {

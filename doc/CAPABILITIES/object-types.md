@@ -173,15 +173,15 @@ The `Object` column values are the registry `label` fields, unreworded.
   it, unless `confirm_maintenance_dialog`. `TRAN/T` delete and retarget
   (`mode="update"`) refuse when `AGR_TCODES` lists the tcode in a role's
   menu, unless `confirm_in_role_menu`. None of the three checks an SM01
-  transaction lock either way. For `TRAN/T`, a transportable package
-  requires `corr_nr` for the create or retarget, and a `$` package (`$TMP`
-  included) refuses one and registers with `korrnum = space` instead. For
-  `VIEW/DV`, a transportable package resolves a transport request the same
-  way a `DEVC/K` create does — the caller's `corr_nr` if given, or else one
-  picked or created under `ABAP_ALLOW_TRANSPORTS`; a `$` package (`$TMP`
-  included) still refuses a `corr_nr` and registers with `korrnum = space`
-  instead. `SHLP/DH` follows the same local/transportable pairing rule as
-  the other two. The created view lands in TADIR either way, so the delete
+  transaction lock either way. For all three, a transportable
+  package resolves a transport request the same way a `DEVC/K` or class
+  create does — the caller's `corr_nr` if given and permitted, or else one
+  reused or created under `ABAP_ALLOW_TRANSPORTS` (`corr_nr` is never
+  required; under `auto` naming one is refused, and the response's
+  `transport:` field says which request was used); a `$` package (`$TMP`
+  included) refuses a `corr_nr` and registers with `korrnum = space`
+  instead. The gate verdict precedes the first wire request, so a refused
+  create resolves and creates nothing. The created view lands in TADIR either way, so the delete
   bridge can remove it afterwards — proven live on A4H, 2026-09-04
   (a transportable package, with `corr_nr`) and 2026-09-05 (a
   `$`-prefixed package: view registered with `korrnum = space`, then deleted,

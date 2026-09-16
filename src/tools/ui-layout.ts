@@ -554,3 +554,8 @@ export function renderScreenLayout(input: ScreenLayoutInput): string {
     return `(layout render failed on malformed input)\n\nNOTE: ${LAYOUT_FIDELITY_NOTE}`;
   }
 }
+
+// Shared with src/tools/ui-compact.ts (issue #150) so the compact FIELDS
+// renderer classifies rows with exactly the decoders the layout renderer
+// uses. Exporting them changes nothing about the layout output.
+export { hex as screenHex, str as screenStr, decodeStxt as decodeScreenText };

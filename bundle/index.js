@@ -64994,6 +64994,21 @@ var init_capabilities = __esm({
 function isUnrestrictedPrefixList(prefixes) {
   return prefixes.some((p) => p.trim() === NAME_PREFIX_WILDCARD);
 }
+function transportAllowlistHint(allowTransports) {
+  const normalized = allowTransports.map((t) => t.trim().toUpperCase()).filter((t) => t !== "");
+  if (normalized.length === 0) {
+    return "No transportable write can succeed in this session: ABAP_ALLOW_TRANSPORTS is explicitly empty. Only local ($-prefixed) packages such as $TMP are writable. Ask the operator to allow transports if this object must be transportable. " + TRANSPORT_HINT_TERMINAL;
+  }
+  if (normalized.includes("*")) {
+    return "Any modifiable request the connected user owns (or has a task in) can be named as corr_nr, or omit corr_nr to let the server pick one.";
+  }
+  const pins = normalized.filter((t) => t !== "AUTO");
+  if (pins.length === 0) {
+    return "The server picks the request itself under ABAP_ALLOW_TRANSPORTS=auto. Omit corr_nr: a modifiable workbench request this session created (abap_transport operation=create) or already attributed to itself is reused for the package, otherwise one is created \u2014 either way the response's transport field names it. Naming a request is refused regardless of which request. " + TRANSPORT_HINT_TERMINAL;
+  }
+  const omitClause = normalized.includes("AUTO") ? "or omit corr_nr to let the server pick or create one" : "or omit corr_nr to use the first of them that is still modifiable";
+  return `Only these requests are permitted: ${pins.join(", ")}. Pass one of them as corr_nr, ${omitClause}. No other request number passes; ask the operator to extend the list if the work must go elsewhere. ` + TRANSPORT_HINT_TERMINAL;
+}
 function normalizeCorrNr(corrNr) {
   const trimmed = corrNr?.trim();
   return trimmed === void 0 || trimmed === "" ? void 0 : trimmed;
@@ -65198,7 +65213,7 @@ function isPreviewTableDenied(name, extra) {
   }
   return { denied: false };
 }
-var MUTATING_OPS, SAP_PACKAGE_PREFIXES, DEFAULT_NAME_PREFIXES, NAME_PREFIX_WILDCARD, DEFAULT_ENHANCE_TARGETS, DEFAULT_TRANSPORTS, ABAP_IDENTIFIER_MAX, ENHANCEMENT_TYPE_HEADS, ENHANCE_SAP_TARGET_REQUIREMENT, INVOCATION_TARGET_TYPES, DOTTED_SQLVIEWNAME_RE, NESTED_ABAPCATALOG_HEAD_RE, NESTED_SQLVIEWNAME_RE, SQLVIEWNAME_TOKEN_RE, DEFAULT_PREVIEW_DENY_TABLES, OPERATOR_DENY_REASON, PROBE_FAILURE_HINT, MINT, AuthorizedTarget, SafetyGate;
+var MUTATING_OPS, SAP_PACKAGE_PREFIXES, DEFAULT_NAME_PREFIXES, NAME_PREFIX_WILDCARD, DEFAULT_ENHANCE_TARGETS, DEFAULT_TRANSPORTS, TRANSPORT_HINT_TERMINAL, ABAP_IDENTIFIER_MAX, ENHANCEMENT_TYPE_HEADS, ENHANCE_SAP_TARGET_REQUIREMENT, INVOCATION_TARGET_TYPES, DOTTED_SQLVIEWNAME_RE, NESTED_ABAPCATALOG_HEAD_RE, NESTED_SQLVIEWNAME_RE, SQLVIEWNAME_TOKEN_RE, DEFAULT_PREVIEW_DENY_TABLES, OPERATOR_DENY_REASON, PROBE_FAILURE_HINT, MINT, AuthorizedTarget, SafetyGate;
 var init_safety = __esm({
   "src/safety.ts"() {
     "use strict";
@@ -65243,6 +65258,7 @@ var init_safety = __esm({
     NAME_PREFIX_WILDCARD = "*";
     DEFAULT_ENHANCE_TARGETS = "none";
     DEFAULT_TRANSPORTS = ["*"];
+    TRANSPORT_HINT_TERMINAL = "This refusal is terminal (retryable: false): no change to the arguments of this call will pass.";
     ABAP_IDENTIFIER_MAX = 30;
     ENHANCEMENT_TYPE_HEADS = ["ENHO", "ENHS", "ENHC", "ENHP"];
     ENHANCE_SAP_TARGET_REQUIREMENT = {
@@ -65739,7 +65755,8 @@ var init_safety = __esm({
               allowed: false,
               reason: `${obj.name} is in package ${obj.packageName}, which needs a transport request, but ABAP_ALLOW_TRANSPORTS is explicitly empty \u2014 every transportable write is refused. Local ($-prefixed) packages are unaffected.`,
               rule: "transport allowlist (fail closed)",
-              code: "SAFETY_DENIED"
+              code: "SAFETY_DENIED",
+              hint: transportAllowlistHint(allowTransports)
             };
           }
           if (corr.kind === "local") {
@@ -65760,7 +65777,8 @@ var init_safety = __esm({
                 allowed: false,
                 reason: `Transport ${corr.corrNr} is not permitted by ABAP_ALLOW_TRANSPORTS [${allowTransports.join(", ")}].`,
                 rule: "transport allowlist",
-                code: "SAFETY_DENIED"
+                code: "SAFETY_DENIED",
+                hint: transportAllowlistHint(allowTransports)
               };
             }
           }
@@ -103941,6 +103959,7 @@ init_pool();
 // src/adt/session-transport.ts
 init_errors();
 init_transports();
+init_safety();
 function parsePolicy(allowTransports) {
   const entries = allowTransports.map((e) => e.trim()).filter((e) => e !== "");
   const disabled = allowTransports.length === 0;
@@ -103999,6 +104018,8 @@ function pickLatest(candidates) {
 }
 var SessionTransport = class _SessionTransport {
   #policy;
+  /** The raw `ABAP_ALLOW_TRANSPORTS` list — kept so refusals can word their remedy per mode. */
+  #allowTransports;
   #cts;
   #whoami;
   #now;
@@ -104019,6 +104040,7 @@ var SessionTransport = class _SessionTransport {
   #created = /* @__PURE__ */ new Set();
   constructor(opts) {
     this.#policy = parsePolicy(opts.allowTransports);
+    this.#allowTransports = [...opts.allowTransports];
     this.#cts = {
       trRequirement: opts.cts?.trRequirement ?? trRequirement,
       trCreate: opts.cts?.trCreate ?? trCreate,
@@ -104101,16 +104123,35 @@ var SessionTransport = class _SessionTransport {
     );
   }
   /**
-   * Decides a transport for a `DEVC/K` package create: CTS can't
-   * classify an object that doesn't exist, so resolve()'s pre-flight always
-   * answers "local". Runs Steps 3-7 unchanged with pinnedTo forced undefined
-   * (no server pin is possible), and never returns "not-needed". `candidates`
-   * is always empty here — CTS has never seen this object, so there is no
-   * candidate list to trust.
+   * Decides a transport for an object CTS has never seen — a `DEVC/K`
+   * package create, or a classic-bridge create (`VIEW/DV`, `TRAN/T`,
+   * `SHLP/DH`, `TABL/DI`): resolve()'s pre-flight would always answer
+   * "local" for it. Runs Steps 3-7 unchanged with pinnedTo forced undefined
+   * (no server pin is possible), and never returns "not-needed".
+   *
+   * The object itself has no candidate list, but its PACKAGE does (issue
+   * #141): `trRequirement()` anchored on `/sap/bc/adt/packages/<devclass>`
+   * returns the connected user's modifiable requests for that package —
+   * measured live, the same list `abap_transport operation=check` shows
+   * for the package. Feeding those to `#resolveAuto` gives a new bridge
+   * object the same adoption the ADT-lock types get from their own
+   * pre-flight: a request this session created (`abap_transport
+   * operation=create`, tier 1) or one attributed to abapsmith (tier 2) is
+   * reused, and a fresh one is created only when neither exists. Before
+   * this the list was always empty, so every bridge create under `auto`
+   * minted a new request even when the caller had just created one.
+   *
+   * The package check is a read (no CTS side effect) and only made when
+   * `#resolveAuto` could use its answer: policy is auto, nothing is
+   * pinned, and the caller named no request. It is best-effort — a failed
+   * or unrouted check yields no candidates, which is exactly the previous
+   * behaviour, never a refusal.
    */
   async resolveForNewTransportable(conn, obj, opts = {}) {
     const named = _SessionTransport.#normalizeCorrNr(opts.corrNr);
     if (!named.ok) return named.denied;
+    const wantsAuto = named.wanted === void 0 && !this.#policy.disabled && this.#policy.pins.length === 0 && this.#policy.auto;
+    const candidates = wantsAuto ? await this.#packageCandidates(conn, obj.devclass) : [];
     return this.#decideTransportable(
       conn,
       obj,
@@ -104118,9 +104159,32 @@ var SessionTransport = class _SessionTransport {
       void 0,
       void 0,
       obj.devclass,
-      [],
+      candidates,
       opts.revalidate === true
     );
+  }
+  /**
+   * Modifiable requests CTS offers for a PACKAGE, as candidates for
+   * `#resolveAuto`'s adoption tiers. Empty when the package is unknown, a
+   * server pin is reported (the package itself is recorded somewhere — not
+   * a candidate list for a new object in it), or the check fails or
+   * objects: adoption is an optimisation over creating, never a gate.
+   */
+  async #packageCandidates(conn, devclass) {
+    const pkg = devclass?.trim();
+    if (pkg === void 0 || pkg === "") return [];
+    try {
+      const req = await this.#cts.trRequirement(
+        conn,
+        `/sap/bc/adt/packages/${encodeURIComponent(pkg.toLowerCase())}`,
+        pkg,
+        "I"
+      );
+      if (req.checkFailed || req.pinnedTo !== void 0 && req.pinnedTo !== "") return [];
+      return req.candidates ?? [];
+    } catch {
+      return [];
+    }
   }
   /**
    * Steps 3–7 of `resolve()`, extracted so they are shared verbatim with
@@ -104134,7 +104198,7 @@ var SessionTransport = class _SessionTransport {
         "transports-disabled",
         "TRANSPORT_ERROR",
         `${obj.name ?? obj.uri} needs a transport request, but ABAP_ALLOW_TRANSPORTS is explicitly empty \u2014 every transportable write is refused. Local ($TMP) writes are unaffected.`,
-        "Set ABAP_ALLOW_TRANSPORTS=auto, or list a specific request number."
+        transportAllowlistHint(this.#allowTransports)
       );
     }
     if (pinnedTo !== void 0 && pinnedTo !== "") {
@@ -104146,7 +104210,7 @@ var SessionTransport = class _SessionTransport {
           "not-allowlisted",
           "TRANSPORT_ERROR",
           `Transport ${wanted} is not permitted by ABAP_ALLOW_TRANSPORTS [${this.#policy.pins.join(", ") || "auto"}].`,
-          'Add it to ABAP_ALLOW_TRANSPORTS, or use "*" to allow any caller-named request.'
+          transportAllowlistHint(this.#allowTransports)
         );
       }
       const problem = await this.#checkUsable(conn, wanted);
@@ -104161,7 +104225,7 @@ var SessionTransport = class _SessionTransport {
         "not-allowlisted",
         "TRANSPORT_ERROR",
         `${obj.name ?? obj.uri} needs a transport request, but ABAP_ALLOW_TRANSPORTS does not permit creating one and no request was named.`,
-        "Pass a corr_nr, or set ABAP_ALLOW_TRANSPORTS=auto to let this session create one."
+        transportAllowlistHint(this.#allowTransports)
       );
     }
     return this.#resolveAuto(conn, obj, devclass, candidates, revalidate);
@@ -104290,7 +104354,7 @@ var SessionTransport = class _SessionTransport {
       "no-usable-pin",
       "TRANSPORT_ERROR",
       `None of the transport requests in ABAP_ALLOW_TRANSPORTS is usable: ${problems.join(" ")}`,
-      "Pinned mode never creates a request; list a modifiable one or set ABAP_ALLOW_TRANSPORTS=auto."
+      `Pinned mode never creates a request. Only ${this.#policy.pins.join(", ")} may be used; ask the operator to reopen one of them or list a modifiable request. No corr_nr value outside that list passes, so retrying with a different request number will not help.`
     );
   }
   async #resolveAuto(conn, obj, reqDevclass, candidates, revalidate) {
@@ -109820,7 +109884,7 @@ function gateOpForCategory(category) {
       return "write";
   }
 }
-function assertTargetsAgainstGate(gate, action, args, origin) {
+function assertTargetsAgainstGate(gate, action, args, origin, corrSource) {
   const targets = action.targets;
   if (!targets) return;
   const resolvedObject = targets.object !== void 0 ? resolveTargetString(args, targets.object, "object") : void 0;
@@ -109830,7 +109894,8 @@ function assertTargetsAgainstGate(gate, action, args, origin) {
     name: resolvedObject ?? resolvedPackage ?? "",
     ...resolvedPackage !== void 0 ? { packageName: resolvedPackage } : {}
   });
-  const corr = targets.corr === "local" && origin === "builtin" ? { kind: "local" } : void 0;
+  const autoCorrNr = corrSource === "auto" && origin === "builtin" ? normalizeCorrNr(resolvedTransport) : void 0;
+  const corr = targets.corr === "local" && origin === "builtin" ? { kind: "local" } : autoCorrNr !== void 0 ? { kind: "transport", corrNr: autoCorrNr, source: "auto" } : void 0;
   gate.assert(gateOpForCategory(action.category), target, {
     ...resolvedTransport !== void 0 ? { corrNr: resolvedTransport } : {},
     ...corr !== void 0 ? { corr } : {}
@@ -110057,7 +110122,7 @@ async function dispatch2(deps, req) {
       { tool: attrTool, action: attrAction, messages: inputErrors }
     );
   }
-  assertTargetsAgainstGate(deps.gate, action, req.args, tool.origin);
+  assertTargetsAgainstGate(deps.gate, action, req.args, tool.origin, req.corrSource);
   await ensureFluidPackage(deps.conn, deps.gate);
   const sysKey = systemKey(deps.conn.cfg);
   const wireArgs = tool.manifest.flatArgs === true ? flattenScanArgs(req.args) : req.args;
@@ -110193,7 +110258,12 @@ async function dispatch2(deps, req) {
 async function runClassicAction(conn, gate, opts) {
   const fr = await dispatch2(
     { conn, cfg: conn.cfg, gate, tools: /* @__PURE__ */ new Map([[CLASSIC_TOOL_ID, classicTool]]) },
-    { tool: CLASSIC_TOOL_ID, action: opts.action, args: opts.args }
+    {
+      tool: CLASSIC_TOOL_ID,
+      action: opts.action,
+      args: opts.args,
+      ...opts.corrSource !== void 0 ? { corrSource: opts.corrSource } : {}
+    }
   );
   if (!Array.isArray(fr.result) || !fr.result.every((v) => typeof v === "string")) {
     throw new AbapError(
@@ -110946,6 +111016,24 @@ async function preflightCorr(conn, t, opts, operation, op) {
   };
 }
 async function preflightPackageCorr(conn, t, opts) {
+  const op = opts.op ?? "write";
+  const gateTarget = {
+    name: t.name,
+    packageName: t.packageName,
+    type: t.type,
+    // See the `PreflightTarget` doc comment: without these two, a package
+    // create would be judged on its own name here — the container question
+    // `authorizeMutation` already answered using the superpackage — and the
+    // two gate calls could disagree on the identical mutation.
+    ...t.superPackage !== void 0 ? { superPackage: t.superPackage } : {},
+    ...t.exists !== void 0 ? { exists: t.exists } : {}
+  };
+  const named = normalizeCorrNr(opts.corrNr);
+  opts.gate.assert(op, gateTarget, {
+    corr: named === void 0 ? { kind: "unresolved" } : { kind: "transport", corrNr: named, source: "named" },
+    intent: void 0,
+    phase: "preflight"
+  });
   const res = await opts.transport.resolveForNewTransportable(
     conn,
     {
@@ -110954,7 +111042,7 @@ async function preflightPackageCorr(conn, t, opts) {
       name: t.name,
       type: t.type
     },
-    opts.corrNr === void 0 ? {} : { corrNr: opts.corrNr }
+    named === void 0 ? {} : { corrNr: named }
   );
   const denial = toAbapError(res);
   if (denial) throw denial;
@@ -110966,24 +111054,21 @@ async function preflightPackageCorr(conn, t, opts) {
     );
   }
   const source = res.source === "config-pin" || res.source === "caller" ? "named" : "auto";
-  opts.gate.assert(
-    "write",
-    {
-      name: t.name,
-      packageName: t.packageName,
-      type: t.type,
-      // See the `PreflightTarget` doc comment: without these two, a package
-      // create would be judged on its own name here — the container question
-      // `authorizeMutation` already answered using the superpackage — and the
-      // two gate calls could disagree on the identical mutation.
-      ...t.superPackage !== void 0 ? { superPackage: t.superPackage } : {},
-      ...t.exists !== void 0 ? { exists: t.exists } : {}
-    },
-    {
+  try {
+    opts.gate.assert(op, gateTarget, {
       corr: { kind: "transport", corrNr: res.corrNr, source },
       intent: void 0
-    }
-  );
+    });
+  } catch (err) {
+    if (!(err instanceof AbapError) || !res.created) throw err;
+    const leakNote = `Transport request ${res.corrNr} was created by this call before the refusal and holds no objects; it is journalled as transport-create, and abap_transport operation=delete corr_nr=${res.corrNr} removes it.`;
+    throw new AbapError(
+      err.code,
+      err.message,
+      { ...err.details, createdTransport: res.corrNr },
+      err.hint === void 0 || err.hint === "" ? leakNote : `${err.hint} ${leakNote}`
+    );
+  }
   return { corrNr: res.corrNr, source };
 }
 function corrForMutation(preflight2, lock) {
@@ -114057,9 +114142,9 @@ function assertSecondaryIndexTarget(packageName, corrNr) {
   if (!local && corrNr === void 0) {
     throw new AbapError(
       "TRANSPORT_ERROR",
-      `packageName ${JSON.stringify(validated)} is not local ($-prefixed), so this index must be created with TRANSPORT_NUMBER set, which requires a transport request \u2014 pass corr_nr (an ALREADY gate-judged TRKORR, e.g. A4HK900121).`,
+      `packageName ${JSON.stringify(validated)} is not local ($-prefixed), so this index must be created with TRANSPORT_NUMBER set, which requires a transport request \u2014 and none was resolved for this call.`,
       { packageName: validated },
-      "Via abap_write, pass corr_nr with the TRKORR the safety gate already judged for this write (see the abapsmith-put-work-on-a-transport skill)."
+      "Through abap_write no corr_nr is needed: omitted, the request is resolved under ABAP_ALLOW_TRANSPORTS before this module runs (auto reuses a modifiable request this session created for the package, else creates one; a pinned list uses one of its entries). Reaching this refusal from abap_write means no session transport manager was wired into the call \u2014 an abapsmith wiring defect, not a caller error. A direct caller of this module hands it a TRKORR the safety gate has already judged."
     );
   }
   return local ? "" : assertCorrNr(corrNr);
@@ -114245,7 +114330,7 @@ async function createSecondaryIndex(conn, gate, params) {
   assertServerPackage(params.packageName, `secondary index ${params.indexName} on ${params.baseTable}`);
   const validated = validate2(params);
   const { indexName, baseTable, fields, description, packageName, corrNr, unique } = validated;
-  const corr = corrNr === void 0 ? void 0 : { kind: "transport", corrNr, source: "named" };
+  const corr = corrNr === void 0 ? void 0 : { kind: "transport", corrNr, source: params.corrSource ?? "named" };
   assertBridgeMutation(
     gate,
     { type: "TABL/DI", name: indexGateName(baseTable, indexName), packageName: packageName.name },
@@ -114264,6 +114349,7 @@ async function createSecondaryIndex(conn, gate, params) {
       ...params.unique !== void 0 ? { unique } : {}
     },
     what: `Creating secondary index ${indexName} on ${baseTable}`,
+    ...corr !== void 0 ? { corrSource: corr.source } : {},
     expectTags: ["INDEX-CREATED", "INDEX-ACTIVE", "INDEX-FIELDS"],
     beforeAssert: indexBridgeErrorHook("insert", indexName, baseTable),
     completed: partial2.completed,
@@ -114280,7 +114366,7 @@ async function deleteSecondaryIndexViaBridge(conn, gate, params) {
   assertServerPackage(params.packageName, `secondary index ${params.indexName} on ${params.baseTable}`);
   const validated = validateDelete(params);
   const { indexName, baseTable, packageName, corrNr } = validated;
-  const corr = corrNr === void 0 ? void 0 : { kind: "transport", corrNr, source: "named" };
+  const corr = corrNr === void 0 ? void 0 : { kind: "transport", corrNr, source: params.corrSource ?? "named" };
   assertBridgeMutation(
     gate,
     { type: "TABL/DI", name: indexGateName(baseTable, indexName), packageName: packageName.name },
@@ -114295,6 +114381,7 @@ async function deleteSecondaryIndexViaBridge(conn, gate, params) {
       corr_nr: corrNr ?? ""
     },
     what: `Deleting secondary index ${indexName} on ${baseTable}`,
+    ...corr !== void 0 ? { corrSource: corr.source } : {},
     expectTags: ["INDEX-DELETED", "INDEX-GONE"],
     beforeAssert: indexBridgeErrorHook("delete", indexName, baseTable)
   });
@@ -119432,6 +119519,10 @@ function discardedDescriptorValues(sent, stored) {
     const storedValues = storedTexts.get(element) ?? [];
     if (sentValues.length > storedValues.length) {
       out.push({ element, sent: sentValues, stored: storedValues });
+      continue;
+    }
+    if (sentValues.some((v, i) => v === "true" && storedValues[i] === "false")) {
+      out.push({ element, sent: sentValues, stored: storedValues });
     }
   }
   return out;
@@ -119564,6 +119655,7 @@ async function createPackageViaBridge(conn, gate, params) {
       package_type: params.packageType ?? ""
     },
     what: `Creating package ${packageName}`,
+    corrSource: corr.source,
     expectTags,
     completed: {
       "PKG-CREATED": `package ${packageName} was created and saved on ${conn.cfg.sid} \u2014 it exists, it is NOT attached to a super package, and abapsmith did not delete it`,
@@ -119625,9 +119717,9 @@ function assertTransactionCreateTarget(packageName, corrNr) {
   if (!local && corrNr === void 0) {
     throw new AbapError(
       "TRANSPORT_ERROR",
-      `packageName ${JSON.stringify(validated)} is not local ($-prefixed), so this transaction must be registered in CTS via RPY_TRANSACTION_INSERT's own RS_CORR_INSERT call, which requires a transport request \u2014 pass corr_nr (an ALREADY gate-judged TRKORR, e.g. A4HK900121).`,
+      `packageName ${JSON.stringify(validated)} is not local ($-prefixed), so this transaction must be registered in CTS via RPY_TRANSACTION_INSERT's own RS_CORR_INSERT call, which requires a transport request \u2014 and none was resolved for this call.`,
       { packageName: validated },
-      "Via abap_write, pass corr_nr with the TRKORR the safety gate already judged for this write (see the abapsmith-put-work-on-a-transport skill)."
+      "Through abap_write no corr_nr is needed: omitted, the request is resolved under ABAP_ALLOW_TRANSPORTS before this module runs (auto reuses a modifiable request this session created for the package, else creates one; a pinned list uses one of its entries). Reaching this refusal from abap_write means no session transport manager was wired into the call \u2014 an abapsmith wiring defect, not a caller error. A direct caller of this module hands it a TRKORR the safety gate has already judged."
     );
   }
   if (corrNr !== void 0) assertCorrNr3(corrNr);
@@ -119640,7 +119732,7 @@ async function createTransaction(conn, gate, params) {
   const packageName = assertTransactionCreateTarget(params.packageName, params.corrNr);
   const local = isLocalPackageName(packageName);
   const corrNr = local ? void 0 : params.corrNr;
-  const corr = local ? void 0 : { kind: "transport", corrNr, source: "named" };
+  const corr = local ? void 0 : { kind: "transport", corrNr, source: params.corrSource ?? "named" };
   assertBridgeMutation(
     gate,
     { type: "TRAN/T", name: tcode, packageName },
@@ -119656,6 +119748,7 @@ async function createTransaction(conn, gate, params) {
       corr_nr: corrNr ?? ""
     },
     what: `Creating transaction ${tcode}`,
+    ...corr !== void 0 ? { corrSource: corr.source } : {},
     expectTags: ["TRAN-CREATED"]
   });
 }
@@ -119842,9 +119935,9 @@ function validate3(p) {
   if (!local && p.corrNr === void 0) {
     throw new AbapError(
       "TRANSPORT_ERROR",
-      `packageName ${JSON.stringify(packageName)} is not local ($-prefixed), so this view must be registered in CTS via RS_CORR_INSERT, which requires a transport request \u2014 pass corr_nr (an ALREADY gate-judged TRKORR, e.g. A4HK900121).`,
+      `packageName ${JSON.stringify(packageName)} is not local ($-prefixed), so this view must be registered in CTS via RS_CORR_INSERT, which requires a transport request \u2014 and none was resolved for this call.`,
       { packageName },
-      "Via abap_write, pass corr_nr with the TRKORR the safety gate already judged for this write (see the abapsmith-put-work-on-a-transport skill)."
+      "Through abap_write no corr_nr is needed: omitted, the request is resolved under ABAP_ALLOW_TRANSPORTS before this module runs (auto reuses a modifiable request this session created for the package, else creates one; a pinned list uses one of its entries). Reaching this refusal from abap_write means no session transport manager was wired into the call \u2014 an abapsmith wiring defect, not a caller error. A direct caller of this module hands it a TRKORR the safety gate has already judged."
     );
   }
   const corrNr = local ? void 0 : p.corrNr;
@@ -119881,6 +119974,7 @@ async function createClassicView(conn, gate, params) {
       corr_nr: corrNr ?? ""
     },
     what: `Creating classic view ${viewName}`,
+    ...corr !== void 0 ? { corrSource: corr.source } : {},
     expectTags,
     completed: partial2.completed,
     partialHint: partial2.hint
@@ -120035,9 +120129,9 @@ function validate5(packageNameStr, p) {
   if (!local && p.corrNr === void 0) {
     throw new AbapError(
       "TRANSPORT_ERROR",
-      `packageName ${JSON.stringify(packageName)} is not local ($-prefixed), so this search help must be registered in CTS via RS_CORR_INSERT, which requires a transport request \u2014 pass corr_nr (an ALREADY gate-judged TRKORR, e.g. A4HK900121).`,
+      `packageName ${JSON.stringify(packageName)} is not local ($-prefixed), so this search help must be registered in CTS via RS_CORR_INSERT, which requires a transport request \u2014 and none was resolved for this call.`,
       { packageName },
-      "Via abap_write, pass corr_nr with the TRKORR the safety gate already judged for this write (see the abapsmith-put-work-on-a-transport skill)."
+      "Through abap_write no corr_nr is needed: omitted, the request is resolved under ABAP_ALLOW_TRANSPORTS before this module runs (auto reuses a modifiable request this session created for the package, else creates one; a pinned list uses one of its entries). Reaching this refusal from abap_write means no session transport manager was wired into the call \u2014 an abapsmith wiring defect, not a caller error. A direct caller of this module hands it a TRKORR the safety gate has already judged."
     );
   }
   const corrNr = local ? void 0 : p.corrNr;
@@ -120196,6 +120290,7 @@ async function createSearchHelp(conn, gate, params) {
     action: "create_search_help",
     args: buildArgs(v),
     what: `Creating search help ${v.shlpName}`,
+    ...local ? {} : { corrSource: v.corrSource ?? "named" },
     expectTags: SHLP_EXPECT_TAGS
   });
 }
@@ -120212,6 +120307,7 @@ async function updateSearchHelp(conn, gate, params) {
     action: "update_search_help",
     args: buildArgs(v),
     what: `Updating search help ${v.shlpName}`,
+    ...local ? {} : { corrSource: v.corrSource ?? "named" },
     expectTags: SHLP_EXPECT_TAGS
   });
 }
@@ -121984,7 +122080,19 @@ function assertDdicDescriptorShape(type, name, xml3) {
 }
 var ADTCORE_NS2 = "http://www.sap.com/adt/core";
 var XML_DECL = '<?xml version="1.0" encoding="UTF-8"?>';
-var DOMA_FIELDS = /* @__PURE__ */ new Set(["dataType", "length", "decimals", "outputLength", "lowercase", "signExists"]);
+var ROOT_LANGUAGE_ATTRS = 'adtcore:masterLanguage="EN" adtcore:language="EN"';
+var FIX_VALUE_MAX_LEN = 10;
+var FIX_VALUE_TEXT_MAX_LEN = 60;
+var DOMA_FIELDS = /* @__PURE__ */ new Set([
+  "dataType",
+  "length",
+  "decimals",
+  "outputLength",
+  "lowercase",
+  "signExists",
+  "fixedValues",
+  "valueTable"
+]);
 var DTEL_FIELDS = /* @__PURE__ */ new Set([
   "typeKind",
   "typeName",
@@ -122026,6 +122134,81 @@ var DTEL_MAX_LENGTH = {
   long: 40,
   heading: 55
 };
+function dtelLabel(slot, label, requestedLength, name) {
+  const max = DTEL_MAX_LENGTH[slot];
+  if (label.length > max) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `ddic.${slot}Label "${label}" is ${label.length} characters, longer than the ${max}-character maximum of the ${slot} field label (DD04T).`,
+      { name, type: "DTEL/DE", field: `${slot}Label`, value: label, length: label.length, maxLength: max },
+      `Shorten ddic.${slot}Label to ${max} characters or fewer.`
+    );
+  }
+  const length = requestedLength ?? max;
+  if (!Number.isInteger(length) || length < Math.max(1, label.length) || length > max) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `ddic.${slot}Length ${length} is not a usable display width for the ${slot} field label "${label}" \u2014 it must be a whole number from ${Math.max(1, label.length)} (the label's own length) to ${max}.`,
+      { name, type: "DTEL/DE", field: `${slot}Length`, value: length, labelLength: label.length, maxLength: max },
+      `Drop ddic.${slot}Length to get the slot's maximum (${max}), or give a value between the label's length and ${max}.`
+    );
+  }
+  return { label, length };
+}
+var DOMA_DECIMAL_TYPES = /* @__PURE__ */ new Set(["DEC", "CURR", "QUAN"]);
+function defaultDomaOutputLength(dataType, length, decimals, signExists) {
+  const type = dataType.toUpperCase();
+  if (DOMA_DECIMAL_TYPES.has(type)) return length + (decimals > 0 ? 1 : 0) + (signExists ? 1 : 0);
+  if (type === "DATS") return 10;
+  if (type === "TIMS") return 8;
+  return length;
+}
+function fixedValueBound(which, value, index, domainLength, name) {
+  const cap = Math.min(FIX_VALUE_MAX_LEN, domainLength);
+  if (value.length > cap) {
+    const reason = value.length > FIX_VALUE_MAX_LEN ? `longer than DD07L-DOMVALUE_${which === "low" ? "L" : "H"}'s ${FIX_VALUE_MAX_LEN}-character limit` : `longer than the domain's own length of ${domainLength}`;
+    throw new AbapError(
+      "BAD_INPUT",
+      `ddic.fixedValues[${index}].${which} "${value}" is ${value.length} characters, ${reason}.`,
+      { name, type: "DOMA/DD", field: `fixedValues[${index}].${which}`, value, length: value.length, maxLength: cap },
+      `Shorten the value to ${cap} characters or fewer, or raise ddic.length.`
+    );
+  }
+  return value;
+}
+function renderFixValue(v, index, domainLength, name) {
+  const low = fixedValueBound("low", v.low, index, domainLength, name);
+  const high = v.high === void 0 ? "" : fixedValueBound("high", v.high, index, domainLength, name);
+  if (v.text.length > FIX_VALUE_TEXT_MAX_LEN) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `ddic.fixedValues[${index}].text "${v.text}" is ${v.text.length} characters, longer than DD07T-DDTEXT's ${FIX_VALUE_TEXT_MAX_LEN}-character limit.`,
+      {
+        name,
+        type: "DOMA/DD",
+        field: `fixedValues[${index}].text`,
+        value: v.text,
+        length: v.text.length,
+        maxLength: FIX_VALUE_TEXT_MAX_LEN
+      },
+      `Shorten the text to ${FIX_VALUE_TEXT_MAX_LEN} characters or fewer.`
+    );
+  }
+  return `<doma:fixValue>${elem("doma:low", low)}${elem("doma:high", high)}${elem("doma:text", v.text)}</doma:fixValue>`;
+}
+function renderValueTableRef(valueTable, name) {
+  if (valueTable === void 0) return "<doma:valueTableRef/>";
+  const table = valueTable.trim().toUpperCase();
+  if (table === "" || !/^[A-Z0-9_/]{1,30}$/.test(table)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `ddic.valueTable "${valueTable}" is not a table name (DD01L-ENTITYTAB is CHAR30: letters, digits, "_" and "/").`,
+      { name, type: "DOMA/DD", field: "valueTable", value: valueTable },
+      "Give the name of an existing transparent table, or drop ddic.valueTable."
+    );
+  }
+  return `<doma:valueTableRef adtcore:uri="/sap/bc/adt/ddic/tables/${escapeXmlAttr4(table.toLowerCase())}" adtcore:type="TABL/DT" adtcore:name="${escapeXmlAttr4(table)}"/>`;
+}
 var SHLP_NAME_MAX_LEN = 30;
 function normalizeShlpIdentifier(value, field, type, name) {
   const column = field === "searchHelp" ? "DD04L-SHLPNAME" : "DD04L-SHLPFIELD";
@@ -122057,10 +122240,13 @@ function buildDoma(name, description, packageName, f) {
   const dataType = f.dataType ?? "CHAR";
   const length = f.length ?? 10;
   const decimals = f.decimals ?? 0;
-  const outputLength = f.outputLength ?? length;
   const lowercase2 = f.lowercase ?? false;
   const signExists = f.signExists ?? false;
-  return `${XML_DECL}<doma:domain xmlns:doma="http://www.sap.com/dictionary/domain" xmlns:adtcore="${ADTCORE_NS2}" adtcore:name="${escapeXmlAttr4(name)}" adtcore:type="DOMA/DD" adtcore:description="${escapeXmlAttr4(description)}"><adtcore:packageRef adtcore:name="${escapeXmlAttr4(packageName)}"/><doma:content><doma:typeInformation>${elem("doma:datatype", dataType)}${elem("doma:length", num2(length))}${elem("doma:decimals", num2(decimals))}</doma:typeInformation><doma:outputInformation>${elem("doma:length", num2(outputLength))}${elem("doma:lowercase", String(lowercase2))}${elem("doma:signExists", String(signExists))}</doma:outputInformation></doma:content></doma:domain>`;
+  const outputLength = f.outputLength ?? defaultDomaOutputLength(dataType, length, decimals, signExists);
+  const fixRows = (f.fixedValues ?? []).map((v, i) => renderFixValue(v, i, length, name)).join("");
+  const valueInformation = f.fixedValues === void 0 && f.valueTable === void 0 ? "" : `<doma:valueInformation>${renderValueTableRef(f.valueTable, name)}${elem("doma:appendExists", "false")}` + // No rows: the skeleton's self-closing `<doma:fixValues/>`, byte for byte.
+  (fixRows === "" ? "<doma:fixValues/>" : `<doma:fixValues>${fixRows}</doma:fixValues>`) + `</doma:valueInformation>`;
+  return `${XML_DECL}<doma:domain xmlns:doma="http://www.sap.com/dictionary/domain" xmlns:adtcore="${ADTCORE_NS2}" adtcore:name="${escapeXmlAttr4(name)}" adtcore:type="DOMA/DD" adtcore:description="${escapeXmlAttr4(description)}" ${ROOT_LANGUAGE_ATTRS}><adtcore:packageRef adtcore:name="${escapeXmlAttr4(packageName)}"/><doma:content><doma:typeInformation>${elem("doma:datatype", dataType)}${elem("doma:length", num2(length))}${elem("doma:decimals", num2(decimals))}</doma:typeInformation><doma:outputInformation>${elem("doma:length", num2(outputLength))}${elem("doma:signExists", String(signExists))}${elem("doma:lowercase", String(lowercase2))}</doma:outputInformation>` + valueInformation + `</doma:content></doma:domain>`;
 }
 function buildDtel(name, description, packageName, f) {
   const typeKind = f.typeKind ?? "predefinedAbapType";
@@ -122076,14 +122262,10 @@ function buildDtel(name, description, packageName, f) {
   const dataType = f.dataType ?? "CHAR";
   const length = f.length ?? 10;
   const decimals = f.decimals ?? 0;
-  const shortLabel = f.shortLabel ?? "Bench";
-  const shortLength = f.shortLength ?? 10;
-  const mediumLabel = f.mediumLabel ?? "Bench";
-  const mediumLength = f.mediumLength ?? 20;
-  const longLabel = f.longLabel ?? "Bench";
-  const longLength = f.longLength ?? 40;
-  const headingLabel = f.headingLabel ?? "Bench";
-  const headingLength = f.headingLength ?? 55;
+  const short = dtelLabel("short", f.shortLabel ?? "Bench", f.shortLength, name);
+  const medium = dtelLabel("medium", f.mediumLabel ?? "Bench", f.mediumLength, name);
+  const long = dtelLabel("long", f.longLabel ?? "Bench", f.longLength, name);
+  const heading = dtelLabel("heading", f.headingLabel ?? "Bench", f.headingLength, name);
   if (f.searchHelpParameter !== void 0 && f.searchHelp === void 0) {
     throw new AbapError(
       "BAD_INPUT",
@@ -122094,7 +122276,7 @@ function buildDtel(name, description, packageName, f) {
   }
   const searchHelp = f.searchHelp !== void 0 ? normalizeShlpIdentifier(f.searchHelp, "searchHelp", "DTEL/DE", name) : "";
   const searchHelpParameter = f.searchHelpParameter !== void 0 ? normalizeShlpIdentifier(f.searchHelpParameter, "searchHelpParameter", "DTEL/DE", name) : "";
-  return `${XML_DECL}<blue:wbobj xmlns:blue="http://www.sap.com/wbobj/dictionary/dtel" xmlns:adtcore="${ADTCORE_NS2}" adtcore:name="${escapeXmlAttr4(name)}" adtcore:type="DTEL/DE" adtcore:description="${escapeXmlAttr4(description)}"><adtcore:packageRef adtcore:name="${escapeXmlAttr4(packageName)}"/><dtel:dataElement xmlns:dtel="${DATAELEMENT_NS}">${elem("dtel:typeKind", typeKind)}${elem("dtel:typeName", typeName)}${elem("dtel:dataType", dataType)}${elem("dtel:dataTypeLength", numPadded(length, 6))}${elem("dtel:dataTypeDecimals", numPadded(decimals, 6))}${elem("dtel:shortFieldLabel", shortLabel)}${elem("dtel:shortFieldLength", num2(shortLength))}${elem("dtel:shortFieldMaxLength", num2(DTEL_MAX_LENGTH.short))}${elem("dtel:mediumFieldLabel", mediumLabel)}${elem("dtel:mediumFieldLength", num2(mediumLength))}${elem("dtel:mediumFieldMaxLength", num2(DTEL_MAX_LENGTH.medium))}${elem("dtel:longFieldLabel", longLabel)}${elem("dtel:longFieldLength", num2(longLength))}${elem("dtel:longFieldMaxLength", num2(DTEL_MAX_LENGTH.long))}${elem("dtel:headingFieldLabel", headingLabel)}${elem("dtel:headingFieldLength", num2(headingLength))}${elem("dtel:headingFieldMaxLength", num2(DTEL_MAX_LENGTH.heading))}${elem("dtel:searchHelp", searchHelp)}${elem("dtel:searchHelpParameter", searchHelpParameter)}${elem("dtel:setGetParameter", "")}${elem("dtel:defaultComponentName", "")}${elem("dtel:deactivateInputHistory", "false")}${elem("dtel:changeDocument", "false")}${elem("dtel:leftToRightDirection", "false")}${elem("dtel:deactivateBIDIFiltering", "false")}</dtel:dataElement></blue:wbobj>`;
+  return `${XML_DECL}<blue:wbobj xmlns:blue="http://www.sap.com/wbobj/dictionary/dtel" xmlns:adtcore="${ADTCORE_NS2}" adtcore:name="${escapeXmlAttr4(name)}" adtcore:type="DTEL/DE" adtcore:description="${escapeXmlAttr4(description)}" ${ROOT_LANGUAGE_ATTRS}><adtcore:packageRef adtcore:name="${escapeXmlAttr4(packageName)}"/><dtel:dataElement xmlns:dtel="${DATAELEMENT_NS}">${elem("dtel:typeKind", typeKind)}${elem("dtel:typeName", typeName)}${elem("dtel:dataType", dataType)}${elem("dtel:dataTypeLength", numPadded(length, 6))}${elem("dtel:dataTypeDecimals", numPadded(decimals, 6))}${elem("dtel:shortFieldLabel", short.label)}${elem("dtel:shortFieldLength", numPadded(short.length, 2))}${elem("dtel:shortFieldMaxLength", num2(DTEL_MAX_LENGTH.short))}${elem("dtel:mediumFieldLabel", medium.label)}${elem("dtel:mediumFieldLength", numPadded(medium.length, 2))}${elem("dtel:mediumFieldMaxLength", num2(DTEL_MAX_LENGTH.medium))}${elem("dtel:longFieldLabel", long.label)}${elem("dtel:longFieldLength", numPadded(long.length, 2))}${elem("dtel:longFieldMaxLength", num2(DTEL_MAX_LENGTH.long))}${elem("dtel:headingFieldLabel", heading.label)}${elem("dtel:headingFieldLength", numPadded(heading.length, 2))}${elem("dtel:headingFieldMaxLength", num2(DTEL_MAX_LENGTH.heading))}${elem("dtel:searchHelp", searchHelp)}${elem("dtel:searchHelpParameter", searchHelpParameter)}${elem("dtel:setGetParameter", "")}${elem("dtel:defaultComponentName", "")}${elem("dtel:deactivateInputHistory", "false")}${elem("dtel:changeDocument", "false")}${elem("dtel:leftToRightDirection", "false")}${elem("dtel:deactivateBIDIFiltering", "false")}</dtel:dataElement></blue:wbobj>`;
 }
 function buildTtyp(name, description, packageName, f) {
   const typeKind = f.typeKind ?? "dictionaryType";
@@ -122110,7 +122292,7 @@ function buildTtyp(name, description, packageName, f) {
   const dataType = f.dataType ?? "STRU";
   const length = f.length ?? 0;
   const decimals = f.decimals ?? 0;
-  return `${XML_DECL}<ttyp:tableType xmlns:ttyp="http://www.sap.com/dictionary/tabletype" xmlns:adtcore="${ADTCORE_NS2}" adtcore:name="${escapeXmlAttr4(name)}" adtcore:type="TTYP/DA" adtcore:description="${escapeXmlAttr4(description)}"><adtcore:packageRef adtcore:name="${escapeXmlAttr4(packageName)}"/><ttyp:rowType>${elem("ttyp:typeKind", typeKind)}${elem("ttyp:typeName", typeName)}<ttyp:builtInType>${elem("ttyp:dataType", dataType)}${elem("ttyp:length", numPadded(length, 6))}${elem("ttyp:decimals", numPadded(decimals, 6))}</ttyp:builtInType><ttyp:rangeType/></ttyp:rowType></ttyp:tableType>`;
+  return `${XML_DECL}<ttyp:tableType xmlns:ttyp="http://www.sap.com/dictionary/tabletype" xmlns:adtcore="${ADTCORE_NS2}" adtcore:name="${escapeXmlAttr4(name)}" adtcore:type="TTYP/DA" adtcore:description="${escapeXmlAttr4(description)}" ${ROOT_LANGUAGE_ATTRS}><adtcore:packageRef adtcore:name="${escapeXmlAttr4(packageName)}"/><ttyp:rowType>${elem("ttyp:typeKind", typeKind)}${elem("ttyp:typeName", typeName)}<ttyp:builtInType>${elem("ttyp:dataType", dataType)}${elem("ttyp:length", numPadded(length, 6))}${elem("ttyp:decimals", numPadded(decimals, 6))}</ttyp:builtInType><ttyp:rangeType/></ttyp:rowType></ttyp:tableType>`;
 }
 function buildStructuredDdicDescriptor(type, name, description, packageName, fields) {
   const allowed = STRUCTURED_FIELDS_BY_TYPE[type];
@@ -122575,7 +122757,7 @@ var writeInputSchema = {
   // (src/tools/read.ts), turns a typo into a schema rejection.
   include: external_exports.enum(CLASS_INCLUDES).optional().describe("CLAS/OC only; testclasses=ABAP Unit tests, default main."),
   package: external_exports.string().optional().describe(
-    "Package for a NEW object. Default $TMP. TRAN/T: a transportable one needs corr_nr. VIEW/DV: a transportable one resolves its own. A $-package refuses corr_nr. TABL/DI: ignored except to check agreement \u2014 an index's package is always the base table's, never caller-chosen."
+    "Package for a NEW object. Default $TMP. A transportable one resolves its transport request under ABAP_ALLOW_TRANSPORTS when corr_nr is omitted (every type, including TRAN/T, VIEW/DV, SHLP/DH and TABL/DI). A $-package refuses corr_nr. TABL/DI: ignored except to check agreement \u2014 an index's package is always the base table's, never caller-chosen."
   ),
   description: external_exports.string().optional().describe("Required to create a TRAN/T. Max 37 chars."),
   // Structured create for the three XML-only DDIC types, so a
@@ -122590,6 +122772,10 @@ var writeInputSchema = {
     outputLength: external_exports.number().optional(),
     lowercase: external_exports.boolean().optional(),
     signExists: external_exports.boolean().optional(),
+    fixedValues: external_exports.array(external_exports.object({ low: external_exports.string(), high: external_exports.string().optional(), text: external_exports.string() }).strict()).optional().describe(
+      "DOMA/DD only: fixed values, in order. `low` (or `low`..`high` for an interval) max 10 chars and within the domain length; `text` max 60 chars."
+    ),
+    valueTable: external_exports.string().optional().describe("DOMA/DD only: value table name (existence checked by the server)."),
     typeKind: external_exports.enum(["domain", "predefinedAbapType", "dictionaryType"]).optional(),
     typeName: external_exports.string().optional(),
     shortLabel: external_exports.string().optional(),
@@ -122667,7 +122853,7 @@ var writeInputSchema = {
     "Preview only: resolve, read, apply the edit locally, run the safety gate, and return the diff and the expect_etag a real write would assert. Makes no lock, PUT, DELETE, activation, unlock or transport call and journals nothing."
   ),
   corr_nr: external_exports.string().optional().describe(
-    "Transport request. $TMP needs none. Required for a TRAN/T or TABL/DI create into a transportable package; optional for a VIEW/DV create, which resolves one under ABAP_ALLOW_TRANSPORTS when omitted. Refused for a $ package, and on VIEW/DV or TRAN/T delete. TABL/DI delete: same package-derived requirement as its create, not refused. If the object is already recorded in a DIFFERENT request, CTS imposes that one instead: mode=write proceeds under it and reports corr_nr_honoured: false; mode=delete is refused outright with TRANSPORT_ERROR (CORR_NR_NOT_HONOURED) and deletes nothing."
+    "Transport request. $TMP needs none. Optional for every transportable create, including the bridge types TRAN/T, VIEW/DV, SHLP/DH and TABL/DI: omitted, one is resolved under ABAP_ALLOW_TRANSPORTS (auto reuses a modifiable request this session created for the package, else creates one; under auto a NAMED request is refused, so omit it). Refused for a $ package, and on VIEW/DV or TRAN/T delete. TABL/DI delete: same package-derived resolution as its create, not refused. If the object is already recorded in a DIFFERENT request, CTS imposes that one instead: mode=write proceeds under it and reports corr_nr_honoured: false; mode=delete is refused outright with TRANSPORT_ERROR (CORR_NR_NOT_HONOURED) and deletes nothing."
   ),
   software_component: external_exports.string().optional().describe("DEVC/K required: LOCAL or transportable."),
   package_type: external_exports.string().optional().describe("DEVC/K only. Default development."),
@@ -122760,7 +122946,7 @@ function targetFromInput(input) {
   return target;
 }
 function resolveDdicStructuredSource(input, target) {
-  if (input.source !== void 0) {
+  if (input.source !== void 0 && input.source !== "") {
     throw new AbapError(
       "BAD_INPUT",
       "`source` and `ddic` cannot both be given \u2014 they are two ways to build the same descriptor.",
@@ -122997,6 +123183,14 @@ function describeShrink(before, after) {
   if (removedLines < SHRINK_DISCLOSURE_MIN_LINES) return void 0;
   if (removedLines / beforeLines < SHRINK_DISCLOSURE_FRACTION) return void 0;
   return { beforeLines, removedLines, percent: Math.round(removedLines / beforeLines * 100) };
+}
+var LANGUAGE_DEPENDENT_TEXT_RE = /^(?:[\w.-]+:)?(?:\w+FieldLabel|text)$/;
+function languageDependentDiscardHint(discarded, source) {
+  if (discarded.length === 0 || !discarded.every((d) => LANGUAGE_DEPENDENT_TEXT_RE.test(d.element))) return void 0;
+  const rootTag = /<[A-Za-z_][\w.-]*(?::[A-Za-z_][\w.-]*)?\b[^>]*>/.exec(source.replace(/<\?xml[^>]*\?>/, ""))?.[0] ?? "";
+  const hasMasterLanguage = /\badtcore:masterLanguage\s*=/.test(rootTag);
+  const what = discarded.map((d) => d.element).join(", ");
+  return `The dropped element(s) \u2014 ${what} \u2014 are language-dependent texts (field labels / fixed-value texts), which ADT stores only when the root element carries adtcore:masterLanguage; ` + (hasMasterLanguage ? "this document already has it, so something else emptied them \u2014 " : 'this document has none. Add adtcore:masterLanguage="EN" (and adtcore:language="EN") to the root element and send the same document again \u2014 rewriting the object in place repairs it, which is exactly what fixed the live reproduction. ') + "Re-read the object with abap_read to see the descriptor the server actually holds, or activate it as written with abap_activate.";
 }
 function describeDiscard(d) {
   const sentText = d.sent.map((v) => JSON.stringify(v)).join(", ");
@@ -123574,7 +123768,7 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
               discarded,
               ...entryId !== void 0 ? { journal: entryId } : {}
             },
-            "This is a server-side discard, not a rejection \u2014 the document was accepted and nothing ran to check it. Re-read the object with abap_read to see the descriptor the server actually holds, then either rework the payload so the dropped element(s) survive, or accept the object as written and activate it yourself with abap_activate." + (entryId !== void 0 ? ` Remove this write with abap_journal mode=undo entry=${entryId}.` : " The write journal is off, so abapsmith cannot undo this for you.")
+            "This is a server-side discard, not a rejection \u2014 the document was accepted and nothing ran to check it. " + (languageDependentDiscardHint(discarded, source) ?? "Re-read the object with abap_read to see the descriptor the server actually holds, then either rework the payload so the dropped element(s) survive, or accept the object as written and activate it yourself with abap_activate.") + (entryId !== void 0 ? ` Remove this write with abap_journal mode=undo entry=${entryId}.` : " The write journal is off, so abapsmith cannot undo this for you.")
           );
         }
       }
@@ -124342,15 +124536,69 @@ async function abapBridgeCrud(conn, target, input, maxChars, gate, journal, tran
         'Delete the index (mode="delete") and create a new one with the desired `index_fields`.'
       );
     }
-    return mode === "delete" ? abapDeleteIndexViaBridge(conn, target, input, maxChars, gate) : abapCreateIndexViaBridge(conn, target, input, maxChars, gate);
+    return mode === "delete" ? abapDeleteIndexViaBridge(conn, target, input, maxChars, gate, transport) : abapCreateIndexViaBridge(conn, target, input, maxChars, gate, transport);
   }
   if (mode === "update") {
     return abapUpdateViaBridge(conn, target, input, maxChars, gate, journal);
   }
   if (type === "SHLP/DH") {
-    return mode === "delete" ? abapDeleteSearchHelpViaBridge(conn, target, input, maxChars, gate, journal) : abapCreateSearchHelpViaBridge(conn, target, input, maxChars, gate, journal);
+    return mode === "delete" ? abapDeleteSearchHelpViaBridge(conn, target, input, maxChars, gate, journal) : abapCreateSearchHelpViaBridge(conn, target, input, maxChars, gate, journal, transport);
   }
   return mode === "delete" ? abapDeleteViaBridge(conn, target, input, maxChars, gate) : abapCreateViaBridge(conn, target, input, maxChars, gate, journal, transport);
+}
+async function resolveBridgeCreateCorr(conn, gate, transport, t, named) {
+  if (isLocalPackageName(t.packageName)) {
+    return named === void 0 ? {} : { corrNr: named };
+  }
+  if (transport === void 0) {
+    if (named !== void 0) {
+      gate.assert(
+        t.op ?? "write",
+        { name: t.name, type: t.type, packageName: t.packageName, exists: t.op === "delete" },
+        { corr: { kind: "transport", corrNr: named, source: "named" }, intent: void 0 }
+      );
+      return {
+        corrNr: named,
+        corrSource: "named",
+        transportInfo: { status: "transport", required: true, corrNr: named }
+      };
+    }
+    throw new AbapError(
+      "TRANSPORT_ERROR",
+      `${t.name} needs a transport request (package ${t.packageName} is not local), but no transport manager is wired into this call. This is an internal wiring failure in abapsmith, not a mistake in the request.`,
+      { name: t.name, type: t.type, packageName: t.packageName }
+    );
+  }
+  const preflightTarget = {
+    uri: t.uri,
+    name: t.name,
+    type: t.type,
+    packageName: t.packageName,
+    exists: t.op === "delete"
+  };
+  const corr = await preflightPackageCorr(conn, preflightTarget, {
+    transport,
+    gate,
+    ...named !== void 0 ? { corrNr: named } : {},
+    ...t.op !== void 0 ? { op: t.op } : {}
+  });
+  return {
+    corrNr: corr.corrNr,
+    corrSource: corr.source,
+    transportInfo: { status: "transport", required: true, corrNr: corr.corrNr }
+  };
+}
+function bridgePreflightCorr(named) {
+  return named === void 0 ? { kind: "unresolved" } : { kind: "transport", corrNr: named, source: "named" };
+}
+function bridgeTransportNotes(transportInfo, transport, gate) {
+  if (transportInfo === void 0) return [];
+  const notes = [transportNote(transportInfo, gate.config?.abapMode)];
+  const decision = transport?.lastAutoDecision;
+  if (decision !== void 0 && transportInfo.corrNr !== void 0 && decision.trkorr.toUpperCase() === transportInfo.corrNr.toUpperCase()) {
+    notes.push(decision.reason);
+  }
+  return notes;
 }
 async function journalBridgeCreate(journal, conn, ref2, beforeCapture, corrNr, mutate) {
   const { result, entryId, settle } = await withJournalledMutation(
@@ -124425,14 +124673,22 @@ async function abapCreateViaBridge(conn, target, input, maxChars, gate, journal,
     bad("`software_component`, `package_type` and `transport_layer` are DEVC/K fields only.");
   }
   const packageName = target.packageName?.trim() || "$TMP";
-  if (type === "VIEW/DV") assertClassicViewCreateTarget(packageName, normalizeCorrNr(input.corr_nr));
-  if (type === "TRAN/T") assertTransactionCreateTarget(packageName, normalizeCorrNr(input.corr_nr));
+  const named = normalizeCorrNr(input.corr_nr);
+  if (type === "VIEW/DV") assertClassicViewCreateTarget(packageName, named);
+  if (type === "TRAN/T" && (named !== void 0 || isLocalPackageName(packageName))) {
+    assertTransactionCreateTarget(packageName, named);
+  }
   const description = input.description?.trim();
   if (!description) {
     bad(
       `\`description\` is required to create a ${label} (${type}) \u2014 it is the object's short text (${type === "TRAN/T" ? "TSTCT-TTEXT" : "DD25V-DDTEXT"}), and the API has no default for it.`
     );
   }
+  gate.assert(
+    "write",
+    { name: target.name, type, packageName: packageName.toUpperCase(), exists: false },
+    { corr: bridgePreflightCorr(named), intent: void 0, phase: "preflight" }
+  );
   const common = { description, packageName };
   let created;
   let bridgeClass;
@@ -124477,36 +124733,14 @@ async function abapCreateViaBridge(conn, target, input, maxChars, gate, journal,
     const baseTable = input.base_table;
     const viewFields = input.view_fields;
     bridgeClass = CLASSIC_BODY_CLASS;
-    const named = normalizeCorrNr(input.corr_nr);
-    const localPkg = isLocalPackageName(packageName);
-    let corrNr;
-    let corrSource;
-    if (localPkg) {
-      corrNr = named;
-    } else {
-      if (transport === void 0) {
-        throw new AbapError(
-          "TRANSPORT_ERROR",
-          `${target.name} needs a transport request (package ${packageName} is not local), but no transport manager is wired into this call. This is an internal wiring failure in abapsmith, not a mistake in the request.`,
-          { name: target.name, packageName }
-        );
-      }
-      const preflightTarget = {
-        uri: classicViewUri(target.name),
-        name: target.name,
-        type: "VIEW/DV",
-        packageName,
-        exists: false
-      };
-      const corr = await preflightPackageCorr(conn, preflightTarget, {
-        transport,
-        gate,
-        ...named !== void 0 ? { corrNr: named } : {}
-      });
-      corrNr = corr.corrNr;
-      corrSource = corr.source;
-    }
-    if (corrNr !== void 0) transportInfo = { status: "transport", required: true, corrNr };
+    const { corrNr, corrSource, transportInfo: viewTransport } = await resolveBridgeCreateCorr(
+      conn,
+      gate,
+      transport,
+      { name: target.name, type: "VIEW/DV", uri: classicViewUri(target.name), packageName },
+      named
+    );
+    transportInfo = viewTransport;
     ({ result: created, entryId } = await journalBridgeCreate(
       journal,
       conn,
@@ -124565,14 +124799,27 @@ async function abapCreateViaBridge(conn, target, input, maxChars, gate, journal,
       );
     }
     bridgeClass = CLASSIC_BODY_CLASS;
-    const corrNr = normalizeCorrNr(input.corr_nr);
+    const { corrNr, corrSource, transportInfo: tranTransport } = await resolveBridgeCreateCorr(
+      conn,
+      gate,
+      transport,
+      { name: target.name, type: "TRAN/T", uri: objectUri, packageName },
+      named
+    );
+    transportInfo = tranTransport;
     ({ result: created, entryId } = await journalBridgeCreate(
       journal,
       conn,
       { name: target.name, type, uri: objectUri, packageName, description },
       beforeCapture,
       corrNr,
-      () => createTransaction(conn, gate, { ...common, tcode: target.name, program, corrNr })
+      () => createTransaction(conn, gate, {
+        ...common,
+        tcode: target.name,
+        program,
+        corrNr,
+        ...corrSource !== void 0 ? { corrSource } : {}
+      })
     ));
     detail = `report transaction starting ${program} (dynpro 1000)`;
     const outcome = await verifyObjectCreated(conn, {
@@ -124614,6 +124861,7 @@ async function abapCreateViaBridge(conn, target, input, maxChars, gate, journal,
     notes: [
       `Created by running the classic fluid tool's body class ${bridgeClass}, not over ADT REST: ${cap?.bridgeCreate?.via ?? "see src/adt/classic-call.ts"}`,
       cap?.bridgeCreate?.limits ?? "",
+      ...bridgeTransportNotes(transportInfo, transport, gate),
       verifyNote,
       bridgeReversalNote(entryId, beforeCapture, registration, label, type, target.name)
     ].filter((n) => n !== ""),
@@ -124830,7 +125078,7 @@ async function resolveBridgeUpdateTarget(conn, vitType, name, type, label, reque
   }
   return resolved;
 }
-async function abapCreateSearchHelpViaBridge(conn, target, input, maxChars, gate, journal) {
+async function abapCreateSearchHelpViaBridge(conn, target, input, maxChars, gate, journal, transport) {
   const type = "SHLP/DH";
   const cap = capabilitiesFor(type);
   const label = cap?.label ?? type;
@@ -124874,11 +125122,28 @@ async function abapCreateSearchHelpViaBridge(conn, target, input, maxChars, gate
     );
   }
   const packageNameStr = target.packageName?.trim() || "$TMP";
-  const corrNr = normalizeCorrNr(input.corr_nr);
-  assertSearchHelpTarget(packageNameStr, corrNr);
+  const named = normalizeCorrNr(input.corr_nr);
+  if (named !== void 0 || isLocalPackageName(packageNameStr)) {
+    assertSearchHelpTarget(packageNameStr, named);
+  }
+  gate.assert(
+    "write",
+    { name: target.name, type, packageName: packageNameStr.trim().toUpperCase(), exists: false },
+    { corr: bridgePreflightCorr(named), intent: void 0, phase: "preflight" }
+  );
   const packageName = await resolveShlpPackage(conn, packageNameStr);
-  const local = isLocalPackageName(packageName.name);
-  const corrSource = local ? void 0 : "named";
+  const { corrNr, corrSource, transportInfo } = await resolveBridgeCreateCorr(
+    conn,
+    gate,
+    transport,
+    {
+      name: target.name,
+      type,
+      uri: vitBridgeUri("shlpdh", target.name),
+      packageName: packageName.name
+    },
+    named
+  );
   let beforeCapture = "failed";
   if (journal) {
     const existing = await probeSearchHelp(conn, target.name);
@@ -124896,8 +125161,8 @@ async function abapCreateSearchHelpViaBridge(conn, target, input, maxChars, gate
     shlpName: target.name,
     description,
     packageName,
-    corrNr,
-    corrSource,
+    ...corrNr !== void 0 ? { corrNr } : {},
+    ...corrSource !== void 0 ? { corrSource } : {},
     selectionMethod: shlp.selectionMethod,
     selectionMethodType: shlp.selectionMethodType,
     dialogType: shlp.dialogType,
@@ -124949,6 +125214,7 @@ async function abapCreateSearchHelpViaBridge(conn, target, input, maxChars, gate
       system: conn.cfg.sid,
       object: `${type} ${target.name}`,
       package: packageName.name,
+      ...transportInfo !== void 0 ? { transport: transportHeaderText(transportInfo) } : {},
       mode: "create-bridge",
       created: true,
       verified,
@@ -124960,6 +125226,7 @@ async function abapCreateSearchHelpViaBridge(conn, target, input, maxChars, gate
     notes: [
       `Created by running the classic fluid tool's body class ${CLASSIC_BODY_CLASS}, not over ADT REST: ${cap?.bridgeCreate?.via ?? "see src/adt/classic-call.ts"}`,
       cap?.bridgeCreate?.limits ?? "",
+      ...bridgeTransportNotes(transportInfo, transport, gate),
       verifyNote,
       entryId !== void 0 ? `Journalled as ${entryId}, but marked irreversible: SHLP/DH has no VIT-bridge type for abap_journal mode=undo to resolve it through (src/adt/undo.ts's vitTypeFor only covers VIEW/DV and TRAN/T), so undo refuses this entry rather than crash. Reverse by hand with abap_write { mode: "delete", type: "SHLP/DH" }.` : 'Not journalled (no journal was open). Reverse by hand with abap_write { mode: "delete", type: "SHLP/DH" }.',
       "abapsmith could only confirm the NAMED package is real (via DEVC/K, or trusted zero-network for a local $-prefixed name) \u2014 unlike VIEW/DV and TRAN/T, there is no VIT-bridge stub or TADIR column in the catalog read for SHLP/DH to confirm the object's OWN registered package after create; see resolveShlpPackage's doc comment."
@@ -125418,7 +125685,7 @@ async function abapUpdateViaBridge(conn, target, input, maxChars, gate, journal)
     maxChars
   });
 }
-async function abapCreateIndexViaBridge(conn, target, input, maxChars, gate) {
+async function abapCreateIndexViaBridge(conn, target, input, maxChars, gate, transport) {
   const type = "TABL/DI";
   const cap = capabilitiesFor(type);
   const label = cap?.label ?? type;
@@ -125477,15 +125744,30 @@ async function abapCreateIndexViaBridge(conn, target, input, maxChars, gate) {
       "Drop the `package` argument to create the index where its base table actually lives, or correct it if this named the wrong table."
     );
   }
-  const corrNr = normalizeCorrNr(input.corr_nr);
-  assertSecondaryIndexTarget(owner.packageName.name, corrNr);
+  const named = normalizeCorrNr(input.corr_nr);
+  if (named !== void 0 || isLocalPackageName(owner.packageName.name)) {
+    assertSecondaryIndexTarget(owner.packageName.name, named);
+  }
+  const { corrNr, corrSource, transportInfo } = await resolveBridgeCreateCorr(
+    conn,
+    gate,
+    transport,
+    {
+      name: indexGateName(baseTable, target.name),
+      type,
+      uri: vitBridgeUri("tabldi", `${baseTable}-${target.name}`),
+      packageName: owner.packageName.name
+    },
+    named
+  );
   const created = await createSecondaryIndex(conn, gate, {
     indexName: target.name,
     baseTable,
     fields: indexFields,
     description,
     packageName: owner.packageName,
-    corrNr,
+    ...corrNr !== void 0 ? { corrNr } : {},
+    ...corrSource !== void 0 ? { corrSource } : {},
     unique: input.index_unique
   });
   const detail = `secondary index over ${indexFields.length} field(s) of ${baseTable}` + (input.index_unique ? ", unique" : "");
@@ -125494,6 +125776,7 @@ async function abapCreateIndexViaBridge(conn, target, input, maxChars, gate) {
       system: conn.cfg.sid,
       object: `${type} ${target.name}`,
       package: owner.packageName.name,
+      ...transportInfo !== void 0 ? { transport: transportHeaderText(transportInfo) } : {},
       mode: "create-bridge",
       created: true,
       verified: created.verdict.verified,
@@ -125507,6 +125790,7 @@ async function abapCreateIndexViaBridge(conn, target, input, maxChars, gate) {
     notes: [
       `Created by running the classic fluid tool's body class ${CLASSIC_BODY_CLASS}, not over ADT REST: ${cap?.bridgeCreate?.via ?? "see src/adt/index-create.ts"}`,
       cap?.bridgeCreate?.limits ?? "",
+      ...bridgeTransportNotes(transportInfo, transport, gate),
       created.verdict.verified ? `Independently verified with a fresh DD12V/DD17S catalog read after the bridge returned: ${created.verdict.statement}` : `NOT independently verified: the post-create catalog re-read did not run (${created.verdict.reason ?? "reason unknown"}). abapsmith reports created:true based only on the bridge's own transcript (the INDEX-ACTIVE and INDEX-FIELDS markers above, from its post-COMMIT WORK SELECT COUNT( * ) on DD12V and DD17S inside that same classrun execution) \u2014 that is all that is known here.`,
       `To read the index back independently at any time: abap_read {"object":"${baseTable}/${target.name}","type":"TABL/DI"}.`,
       'NOT journalled: an index create has no undo path (src/adt/undo.ts recognises no TABL/DI shape and would throw on one). To reverse this, delete the index with a fresh abap_write { mode: "delete", type: "TABL/DI" } call, not abap_journal mode=undo.'
@@ -125514,7 +125798,7 @@ async function abapCreateIndexViaBridge(conn, target, input, maxChars, gate) {
     maxChars
   });
 }
-async function abapDeleteIndexViaBridge(conn, target, input, maxChars, gate) {
+async function abapDeleteIndexViaBridge(conn, target, input, maxChars, gate, transport) {
   const type = "TABL/DI";
   const cap = capabilitiesFor(type);
   const label = cap?.label ?? type;
@@ -125561,19 +125845,36 @@ async function abapDeleteIndexViaBridge(conn, target, input, maxChars, gate) {
       "Drop the `package` argument to delete the index where its base table actually lives, or correct it if this named the wrong table."
     );
   }
-  const corrNr = normalizeCorrNr(input.corr_nr);
-  assertSecondaryIndexTarget(owner.packageName.name, corrNr);
+  const named = normalizeCorrNr(input.corr_nr);
+  if (named !== void 0 || isLocalPackageName(owner.packageName.name)) {
+    assertSecondaryIndexTarget(owner.packageName.name, named);
+  }
+  const { corrNr, corrSource, transportInfo } = await resolveBridgeCreateCorr(
+    conn,
+    gate,
+    transport,
+    {
+      name: indexGateName(baseTable, target.name),
+      type,
+      uri: vitBridgeUri("tabldi", `${baseTable}-${target.name}`),
+      packageName: owner.packageName.name,
+      op: "delete"
+    },
+    named
+  );
   const deleted = await deleteSecondaryIndexViaBridge(conn, gate, {
     indexName: target.name,
     baseTable,
     packageName: owner.packageName,
-    corrNr
+    ...corrNr !== void 0 ? { corrNr } : {},
+    ...corrSource !== void 0 ? { corrSource } : {}
   });
   return buildResponse({
     header: {
       system: conn.cfg.sid,
       object: `${type} ${target.name}`,
       package: owner.packageName.name,
+      ...transportInfo !== void 0 ? { transport: transportHeaderText(transportInfo) } : {},
       mode: "delete-bridge",
       deleted: true,
       verified: deleted.verdict.verified,
@@ -148480,6 +148781,33 @@ async function runUiPressBridge(conn, query, gate) {
   };
 }
 
+// src/adt/ui-tstc.ts
+init_catalog_select();
+function tstcKind(cinfo) {
+  switch (cinfo) {
+    case "00":
+      return "dialog transaction (classic dynpro; batch input / press applies)";
+    case "80":
+      return "report transaction (SUBMIT-driven; batch input does NOT apply)";
+    default:
+      return "unrecognised transaction kind - mechanism not confirmed, do not assume batch input applies";
+  }
+}
+async function lookupTransaction(conn, tcode) {
+  const result = await runCatalogSelect(conn, buildTransactionDetailQuery(tcode), 1);
+  const row2 = result.rows[0];
+  if (!row2) return void 0;
+  const cinfo = (row2.CINFO ?? "").trim();
+  return {
+    tcode: (row2.TCODE ?? tcode).trim(),
+    program: (row2.PGMNA ?? "").trim(),
+    dynpro: (row2.DYPNO ?? "").trim(),
+    cinfo,
+    kind: tstcKind(cinfo),
+    bdcApplies: cinfo === "00" ? true : cinfo === "80" ? false : void 0
+  };
+}
+
 // src/tools/ui.ts
 init_compact();
 init_safety();
@@ -148755,6 +149083,117 @@ NOTE: ${LAYOUT_FIDELITY_NOTE}`;
   }
 }
 
+// src/tools/ui-compact.ts
+init_compact();
+var OWN_COLUMNS = /* @__PURE__ */ new Set(["name", "fnam", "fill", "line", "coln", "leng", "stxt"]);
+var FLG1_DEFAULT = "80";
+var ALL_ZERO_RE = /^0+$/;
+var ALL_UNDERSCORE_RE = /^_+$/;
+function classifyScreenField(row2) {
+  if (hex3(row2, "line") === 255) return "okcode";
+  const fill = str5(row2, "fill");
+  switch (fill) {
+    case "":
+      break;
+    case "C":
+      return "checkbox";
+    case "A":
+      return "radio";
+    case "P":
+      return "button";
+    case "I":
+      return "tabstrip";
+    case "R":
+      return "frame";
+    case "T":
+      return "table";
+    case "B":
+      return "subscreen";
+    default:
+      return `fill=${fill}`;
+  }
+  const flg1 = hex3(row2, "flg1");
+  if ((flg1 & 128) === 0) return "text";
+  const grp3 = str5(row2, "grp3");
+  if (grp3 === "TXT" || grp3 === "COM" || grp3 === "TOT") return "label";
+  const stxt = str5(row2, "stxt");
+  if (stxt !== "" && ALL_UNDERSCORE_RE.test(stxt)) {
+    return (flg1 & 33) === 1 ? "out" : "io";
+  }
+  return "label";
+}
+function compactFieldAttrs(row2) {
+  const parts = [];
+  const text5 = decodeStxt(str5(row2, "stxt"));
+  const rawText = str5(row2, "stxt");
+  if (text5 !== "" && !ALL_UNDERSCORE_RE.test(rawText)) parts.push(`text="${text5}"`);
+  for (const [key, value] of Object.entries(row2)) {
+    if (OWN_COLUMNS.has(key)) continue;
+    if (value === void 0 || value === "") continue;
+    if (ALL_ZERO_RE.test(value)) continue;
+    if (key === "flg1" && value === FLG1_DEFAULT) continue;
+    parts.push(`${key}=${value}`);
+  }
+  return parts.join(" ");
+}
+function renderCompactFields(rows) {
+  if (!rows.length) return "(none)";
+  const table = rows.map((row2) => ({
+    name: str5(row2, "fnam") || str5(row2, "name"),
+    type: classifyScreenField(row2),
+    len: String(hex3(row2, "leng")),
+    pos: `${hex3(row2, "line")},${hex3(row2, "coln")}`,
+    attrs: compactFieldAttrs(row2)
+  }));
+  return textTable(table, ["name", "type", "len", "pos", "attrs"]);
+}
+var GENERATED_RE = /%_/;
+var CHAIN_RE = /^\s*CHAIN\s*\.?\s*$/i;
+var ENDCHAIN_RE = /^\s*ENDCHAIN\s*\.?\s*$/i;
+function flowLineText(row2) {
+  const line2 = row2.line;
+  if (line2 !== void 0) return line2;
+  return Object.entries(row2).map(([k, v]) => `${k}=[${v}]`).join(" ");
+}
+function renderCompactFlow(rows) {
+  if (!rows.length) return { text: "(none)", omitted: 0 };
+  const lines = rows.map(flowLineText);
+  const generated = lines.map((l) => GENERATED_RE.test(l));
+  for (let i = 0; i < lines.length; i++) {
+    if (!CHAIN_RE.test(lines[i] ?? "")) continue;
+    let j = i + 1;
+    while (j < lines.length && !ENDCHAIN_RE.test(lines[j] ?? "")) j++;
+    if (j >= lines.length) break;
+    const body = generated.slice(i + 1, j);
+    if (body.length > 0 && body.every(Boolean)) {
+      generated[i] = true;
+      generated[j] = true;
+    }
+    i = j;
+  }
+  const out = [];
+  let omitted = 0;
+  for (let i = 0; i < lines.length; ) {
+    if (!generated[i]) {
+      out.push(lines[i] ?? "");
+      i++;
+      continue;
+    }
+    let j = i;
+    while (j < lines.length && generated[j]) j++;
+    const run = j - i;
+    const indent = /^\s*/.exec(lines[i] ?? "")?.[0] ?? "";
+    out.push(`${indent}(${run} generated %_ flow-logic line${run === 1 ? "" : "s"} omitted)`);
+    omitted += run;
+    i = j;
+  }
+  return { text: out.join("\n"), omitted };
+}
+function compactScreenNote(flowOmitted) {
+  const flow = flowOmitted > 0 ? `${flowOmitted} generated %_ flow-logic line${flowOmitted === 1 ? "" : "s"} collapsed into counted markers` : "no generated %_ flow-logic lines to collapse";
+  return `Compact output (detail:"compact", the default): FIELDS is one line per element (name  type  len  pos  attrs \u2014 len/pos decimal, attrs only where they differ from the plain element: no empty or zero columns, no flg1=80, no I/O mask stxt); ${flow}. detail:"full" restores the raw key=[value] dump of every D021S column and every flow line.`;
+}
+
 // src/tools/ui.ts
 var uiPressFieldSchema = external_exports.object({
   name: external_exports.string().describe("Screen field name (D021S-FNAM), e.g. BKPF-BLDAT."),
@@ -148776,10 +149215,10 @@ var uiInputSchema = {
     "screen: read one dynpro (discovery, read-only in effect). fcode: static trace of one function code's handling \u2014 reads source, runs nothing, same read-only effect as screen. press: run a batch-input script \u2014 commits, cannot be rolled back. Requires ABAP_MODE=admin, ABAP_ALLOW_UI_PRESS=true, and confirm:true."
   ),
   tcode: external_exports.string().optional().describe(
-    "Transaction code. screen/fcode: alternative to program+dynpro. press: required."
+    "Transaction code. screen/fcode: alternative to program+dynpro. press: required \u2014 press needs tcode; program/dynpro is only supported by mode=screen. A tcode with no TSTC row is refused with NOT_FOUND before any bridge class is deployed."
   ),
-  program: external_exports.string().optional().describe("screen/fcode only, with dynpro: program name instead of tcode."),
-  dynpro: external_exports.string().optional().describe('screen/fcode only, with program: screen number, e.g. "100".'),
+  program: external_exports.string().optional().describe("screen/fcode only, with dynpro: program name instead of tcode. Refused by press."),
+  dynpro: external_exports.string().optional().describe('screen/fcode only, with program: screen number, e.g. "100". Refused by press.'),
   fcode: external_exports.string().optional().describe(
     "fcode only: one function code to trace. Omitted = every function code of every GUI status of the program."
   ),
@@ -148788,6 +149227,9 @@ var uiInputSchema = {
   ),
   layout: external_exports.boolean().optional().describe(
     "screen only, default false: also render a monospace picture of the screen from the field rows already read. No extra ABAP and no extra round trip. Design-time layout, not a runtime screenshot. Ignored by press."
+  ),
+  detail: external_exports.enum(["compact", "full"]).optional().describe(
+    'screen only, default "compact": FIELDS is one line per element (name  type  len  pos  attrs, only non-default attrs) and runs of generated %_ flow-logic lines collapse into one counted line; user-written modules are always listed. "full" is the raw key=[value] dump of every D021S column and every flow line. Render-side only \u2014 same ABAP, same single bridge call. The LAYOUT section (layout:true) is the same in both. Ignored by fcode and press.'
   ),
   confirm: external_exports.boolean().optional().describe(
     "press only, REQUIRED (must be exactly true) \u2014 acknowledges the commit. Omitted or false is refused before any network call."
@@ -148861,6 +149303,16 @@ function buildFcodeQuery(input) {
 function buildPressQuery(input) {
   const tcode = input.tcode?.trim();
   if (!tcode) {
+    const program = input.program?.trim();
+    const dynpro = input.dynpro?.trim();
+    if (program || dynpro) {
+      throw new AbapError(
+        "BAD_INPUT",
+        "press needs tcode; program/dynpro is only supported by mode=screen",
+        { mode: "press", program: input.program, dynpro: input.dynpro },
+        'Give the transaction code that starts on this dynpro (mode:"screen" with the same program/dynpro shows it under tcode when one is registered), or use mode:"fcode" for a static trace of what a function code would do.'
+      );
+    }
     throw new AbapError("BAD_INPUT", 'mode:"press" requires tcode.', {
       mode: "press"
     });
@@ -148920,29 +149372,19 @@ function assertPressEnabled(cfg) {
     "Set both ABAP_MODE=admin and ABAP_ALLOW_UI_PRESS=true if this call is genuinely intended."
   );
 }
-async function assertBdcApplies(deps, tcode) {
-  const precheckQuery = {
-    mode: "screen",
-    target: { by: "tcode", tcode }
-  };
-  deps.safety.assert(
-    "write",
-    { name: uiManifest.entry, packageName: FLUID_PACKAGE, type: "CLAS/OC" },
-    { phase: "preflight" }
-  );
-  const precheck = await deps.pool.withWrite(
-    "abap_ui",
-    uiManifest.entry,
-    (conn) => runUiBridge(conn, precheckQuery, deps.safety)
-  );
-  const kind = precheck.transcript.tcode;
-  if (!kind) {
+async function assertTransactionExists(deps, tcode) {
+  const record2 = await deps.pool.withRead("abap_ui", (conn) => lookupTransaction(conn, tcode));
+  if (!record2) {
     throw new AbapError(
-      "ADT_ERROR",
-      `Could not resolve transaction ${tcode} via TSTC before press \u2014 the precheck bridge returned no tcode record.`,
-      { tcode }
+      "NOT_FOUND",
+      `transaction ${tcode} does not exist`,
+      { tcode, table: "TSTC", type: "TRAN/T" },
+      'TSTC has no row for this code, so no bridge class was deployed. Check the spelling, or address the screen directly with mode:"screen" and program + dynpro.'
     );
   }
+  return record2;
+}
+function assertBdcApplies(tcode, kind) {
   if (kind.bdcApplies !== true) {
     throw new AbapError(
       "SAFETY_DENIED",
@@ -148957,9 +149399,11 @@ function renderRecordRows(rows) {
     (row2) => Object.entries(row2).map(([k, v]) => `${k}=[${v}]`).join(" ")
   ).join("\n");
 }
-function buildScreenResponse(query, result, maxChars, layout) {
+function buildScreenResponse(query, result, maxChars, layout, detail = "compact") {
   const t = result.transcript;
   const notes = [...FIDELITY_NOTES2];
+  const compact = detail === "compact";
+  const flow = compact ? renderCompactFlow(t.flow) : { text: renderRecordRows(t.flow), omitted: 0 };
   if (t.tcode) {
     if (t.tcode.bdcApplies === false) {
       notes.push(
@@ -148984,6 +149428,9 @@ function buildScreenResponse(query, result, maxChars, layout) {
   if (layout) {
     notes.push(LAYOUT_FIDELITY_NOTE);
   }
+  if (compact) {
+    notes.push(compactScreenNote(flow.omitted));
+  }
   return buildResponse({
     header: {
       mode: "screen",
@@ -148993,6 +149440,7 @@ function buildScreenResponse(query, result, maxChars, layout) {
       dynpro: t.resolved?.dynpro,
       fieldsCount: t.fieldsCount,
       flowCount: t.flowCount,
+      ...compact ? { flowOmitted: flow.omitted, detail } : {},
       statusCount: t.statusCount,
       functionsCount: t.functionsCount,
       fkeysCount: t.fkeysCount,
@@ -149014,7 +149462,7 @@ function buildScreenResponse(query, result, maxChars, layout) {
         title: "HEADER (RPY_DYNPRO_READ)",
         content: t.header ? renderRecordRows([t.header]) : "(not read)"
       },
-      { title: "FLOW LOGIC", content: renderRecordRows(t.flow) },
+      { title: "FLOW LOGIC", content: flow.text },
       {
         title: "GUI STATUSES (names)",
         content: renderRecordRows(t.statusList)
@@ -149026,7 +149474,7 @@ function buildScreenResponse(query, result, maxChars, layout) {
       { title: "FUNCTION KEYS", content: renderRecordRows(t.fkeys) },
       ...t.diagnostics.length ? [{ title: "DIAGNOSTICS", content: t.diagnostics.join("\n") }] : []
     ],
-    body: renderRecordRows(t.fields),
+    body: compact ? renderCompactFields(t.fields) : renderRecordRows(t.fields),
     bodyLabel: "FIELDS",
     notes,
     maxChars
@@ -149222,6 +149670,7 @@ async function runScreenTool(deps, input) {
     { phase: "preflight" }
   );
   await deps.ensureConnected();
+  if (query.target.by === "tcode") await assertTransactionExists(deps, query.target.tcode);
   const result = await deps.pool.withWrite(
     "abap_ui",
     uiManifest.entry,
@@ -149232,7 +149681,8 @@ async function runScreenTool(deps, input) {
       query,
       result,
       deps.cfg.maxResponseChars,
-      input.layout === true
+      input.layout === true,
+      input.detail ?? "compact"
     )
   );
 }
@@ -149245,6 +149695,7 @@ async function runFcodeTool(deps, input) {
     { phase: "preflight" }
   );
   await deps.ensureConnected();
+  if (query.target.by === "tcode") await assertTransactionExists(deps, query.target.tcode);
   const result = await deps.pool.withWrite(
     "abap_ui",
     uiManifest.entry,
@@ -149263,7 +149714,8 @@ async function runPressTool(deps, input) {
     { phase: "preflight" }
   );
   await deps.ensureConnected();
-  await assertBdcApplies(deps, query.tcode);
+  const tstc = await assertTransactionExists(deps, query.tcode);
+  assertBdcApplies(query.tcode, tstc);
   const bridgeClass = uiBridgeClassName(query);
   deps.safety.assert(
     "write",

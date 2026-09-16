@@ -324,6 +324,7 @@ export async function createPackageViaBridge(
       package_type: params.packageType ?? "",
     },
     what: `Creating package ${packageName}`,
+    corrSource: corr.source,
     expectTags,
     completed: {
       "PKG-CREATED": `package ${packageName} was created and saved on ${conn.cfg.sid} — it exists, it is NOT attached to a super package, and abapsmith did not delete it`,
