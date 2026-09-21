@@ -29,7 +29,7 @@ import {
   parseSourceCodePlugin,
 } from "../src/adt/enhancement-xml.js";
 import type { ResolvedObject } from "../src/adt/resolve.js";
-import type { ClassMember, MethodSource } from "../src/adt/source.js";
+import type { ClassMember, InheritedOutline, MethodSource } from "../src/adt/source.js";
 
 // Real captures, same convention as enhancement-xml.test.ts: fixture bytes
 // copied unmodified from a live A4H capture, decoded via the real parser —
@@ -44,6 +44,8 @@ const stub = {
   source: "",
   method: undefined as MethodSource | undefined,
   members: [] as ClassMember[],
+  membersVersion: "active" as "active" | "inactive",
+  inherited: { inherited: [], searched: [], unresolved: [] } as InheritedOutline,
   badiImplementation: undefined as BadiImplementationDocument | undefined,
   sourceCodePlugin: undefined as SourceCodePluginDocument | undefined,
   enhancementSpot: undefined as EnhancementSpotDocument | undefined,
@@ -58,6 +60,8 @@ vi.mock("../src/adt/source.js", async (importActual) => ({
   ...(await importActual<typeof import("../src/adt/source.js")>()),
   readSource: async () => ({ source: stub.source, serverEtag: '"W/etag"' }),
   classMembers: async () => stub.members,
+  classMembersFor: async () => ({ members: stub.members, version: stub.membersVersion }),
+  inheritedMembers: async () => stub.inherited,
   readMethod: async () => stub.method!,
 }));
 
@@ -93,6 +97,8 @@ beforeEach(() => {
   stub.source = "";
   stub.method = undefined;
   stub.members = [];
+  stub.membersVersion = "active";
+  stub.inherited = { inherited: [], searched: [], unresolved: [] };
   stub.badiImplementation = undefined;
   stub.sourceCodePlugin = undefined;
   stub.enhancementSpot = undefined;
@@ -112,6 +118,8 @@ describe("abap_read method paging terminates and covers every line once", () => 
       member: { name: "CALCULATE", type: "CLAS/OM", visibility: "public" },
       declaration: "  METHODS calculate.",
       implementation: BODY.join("\n"),
+      version: "active",
+      searched: ["ZCL_BIG"],
       // Deliberately ABSOLUTE, and deliberately far from 1: this is exactly the
       // number that used to be handed to the compactor as `bodyOffset` while
       // the total stayed relative to the method block.
@@ -185,6 +193,133 @@ describe("abap_read outline says what is actually true", () => {
     stub.members = [];
     const r = await abapRead(conn, { object: "ZCL_EMPTY", outline: true }, 20_000);
     expect(r.text).toMatch(/really has no methods, attributes or events/);
+  });
+
+  // Issue #146 (2): what the class gets from its superclasses/interfaces is a
+  // section of its own, tagged with the defining object.
+  it("lists inherited public/protected members in their own section, by defining object", async () => {
+    stub.source = "CLASS zcl_big DEFINITION INHERITING FROM zcl_base.\nENDCLASS.";
+    stub.members = [{ name: "OWN", type: "CLAS/OM", visibility: "public" }];
+    stub.inherited = {
+      inherited: [
+        { name: "GET_COLUMNS", type: "CLAS/OM", visibility: "public", on: "ZCL_BASE", relation: "superclass", depth: 1, implementation: { startLine: 11, endLine: 13 } },
+        { name: "DO_IT", type: "INTF/OM", visibility: "public", on: "ZIF_THING", relation: "interface", depth: 1 },
+      ],
+      searched: ["ZCL_BASE", "ZIF_THING"],
+      unresolved: [],
+    };
+    const r = await abapRead(conn, { object: "ZCL_BIG", outline: true }, 20_000);
+    expect(r.text).toMatch(/components: 1/);
+    expect(r.text).toMatch(/inherited: 2/);
+    expect(r.text).toMatch(/structureVersion: active/);
+    expect(r.text).toContain("OWN  [public]");
+    expect(r.text).toContain("INHERITED (2 public/protected members declared on ZCL_BIG's superclasses/interfaces");
+    expect(r.text).toContain("from ZCL_BASE (superclass, depth 1; line numbers are ZCL_BASE's):");
+    expect(r.text).toContain("GET_COLUMNS  [public]  lines 11-13");
+    expect(r.text).toContain("from ZIF_THING (interface, depth 1; line numbers are ZIF_THING's):");
+    // Hints render only on a windowed response.
+    const windowed = await abapRead(conn, { object: "ZCL_BIG", outline: true, limit: 2 }, 20_000);
+    expect(windowed.text).toMatch(/- Inherited members work the same way: method="<NAME>" walks the chain/);
+    expect(windowed.text).toMatch(/include="definitions" \(declaration only\); do not read the full class/);
+  });
+
+  it("says which parent could not be read instead of pretending the chain is complete", async () => {
+    stub.members = [{ name: "OWN", type: "CLAS/OM", visibility: "public" }];
+    stub.inherited = {
+      inherited: [],
+      searched: [],
+      unresolved: [{ name: "ZCL_HIDDEN", relation: "superclass", via: "ZCL_BIG", reason: "NOT_FOUND: no such class" }],
+    };
+    const r = await abapRead(conn, { object: "ZCL_BIG", outline: true }, 20_000);
+    expect(r.text).toMatch(/Inheritance chain incomplete[^\n]*ZCL_HIDDEN \(superclass of ZCL_BIG: NOT_FOUND: no such class\)/);
+    expect(r.text).not.toContain("INHERITED (");
+  });
+
+  it("an outline resolved against a newer inactive version says so in the header", async () => {
+    stub.members = [{ name: "NEW_ONE", type: "CLAS/OM", visibility: "public" }];
+    stub.membersVersion = "inactive";
+    const r = await abapRead(conn, { object: "ZCL_BIG", outline: true }, 20_000);
+    expect(r.text).toMatch(/structureVersion: inactive/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// method= — inherited members, declaration-only reads, inactive resolution.
+// ---------------------------------------------------------------------------
+
+describe("abap_read method= (issues #146 / #147)", () => {
+  const own = (): MethodSource => ({
+    member: { name: "CALCULATE", type: "CLAS/OM", visibility: "public" },
+    declaration: "METHODS calculate IMPORTING iv TYPE i RETURNING VALUE(rv) TYPE i.",
+    implementation: "  METHOD calculate.\n    rv = iv.\n  ENDMETHOD.",
+    implementationRange: { startLine: 6, endLine: 8 },
+    version: "active",
+    searched: ["ZCL_BIG"],
+  });
+
+  beforeEach(() => {
+    stub.source = "CLASS zcl_big DEFINITION.\nENDCLASS.";
+    stub.method = own();
+  });
+
+  it('method= with include="definitions" returns the declaration only, not UNSUPPORTED (#146 item 3)', async () => {
+    const r = await abapRead(conn, { object: "ZCL_BIG", method: "CALCULATE", include: "definitions" }, 20_000);
+    expect(r.text).toContain("--- METHOD DECLARATION ---");
+    expect(r.text).toContain("METHODS calculate IMPORTING iv TYPE i RETURNING VALUE(rv) TYPE i.");
+    expect(r.text).not.toContain("rv = iv.");
+    expect(r.text).toMatch(/returns the declaration only/);
+    expect(r.text).toMatch(/blockLines: 1/);
+  });
+
+  it("without include, the signature comes first and the body after it", async () => {
+    const r = await abapRead(conn, { object: "ZCL_BIG", method: "CALCULATE" }, 20_000);
+    expect(r.text).toContain("--- METHOD SOURCE ---");
+    const decl = r.text.indexOf("METHODS calculate");
+    const body = r.text.indexOf("rv = iv.");
+    expect(decl).toBeGreaterThan(-1);
+    expect(body).toBeGreaterThan(decl);
+    // Hints render only on a windowed response.
+    const windowed = await abapRead(conn, { object: "ZCL_BIG", method: "CALCULATE", limit: 1 }, 20_000);
+    expect(windowed.text).toMatch(/- To learn a signature only, use method= with include="definitions"; do not read the full class/);
+  });
+
+  it('still refuses method= with include="implementations" and names the two routes that work', async () => {
+    let thrown: unknown;
+    try {
+      await abapRead(conn, { object: "ZCL_BIG", method: "CALCULATE", include: "implementations" }, 20_000);
+    } catch (e) {
+      thrown = e;
+    }
+    expect((thrown as AbapError).code).toBe("UNSUPPORTED");
+    expect((thrown as AbapError).hint).toMatch(/include="definitions" for its declaration alone/);
+  });
+
+  it("an inherited method reports foundOn and warns that the line numbers are the defining class's (#146 item 1)", async () => {
+    stub.method = {
+      ...own(),
+      member: { name: "GET_COLUMNS", type: "CLAS/OM", visibility: "public" },
+      declaration: "METHODS get_columns RETURNING VALUE(rt) TYPE string_table.",
+      implementation: "  METHOD get_columns.\n  ENDMETHOD.",
+      implementationRange: { startLine: 40, endLine: 41 },
+      foundOn: { name: "ZCL_BASE", type: "CLAS/OC", relation: "superclass", via: "ZCL_BIG", depth: 1 },
+      searched: ["ZCL_BIG", "ZCL_BASE (superclass of ZCL_BIG)"],
+    };
+    const r = await abapRead(conn, { object: "ZCL_BIG", method: "GET_COLUMNS" }, 20_000);
+    expect(r.text).toMatch(/foundOn: ZCL_BASE \(superclass of ZCL_BIG, depth 1\)/);
+    expect(r.text).toMatch(/sourceLines: 40-41/);
+    expect(r.text).toMatch(/GET_COLUMNS is not declared by ZCL_BIG; it comes from ZCL_BASE/);
+    expect(r.text).toMatch(/line numbers are ZCL_BASE's, not ZCL_BIG's \(searched: ZCL_BIG -> ZCL_BASE \(superclass of ZCL_BIG\)\)/);
+  });
+
+  it("a method resolved against a newer inactive version says so, unless inactive was asked for (#147)", async () => {
+    stub.method = { ...own(), version: "inactive" };
+    const r = await abapRead(conn, { object: "ZCL_BIG", method: "CALCULATE" }, 20_000);
+    expect(r.text).toMatch(/structureVersion: inactive/);
+    expect(r.text).toMatch(/ZCL_BIG has a newer INACTIVE version; the method was resolved against it/);
+
+    const explicit = await abapRead(conn, { object: "ZCL_BIG", method: "CALCULATE", version: "inactive" }, 20_000);
+    expect(explicit.text).toMatch(/structureVersion: inactive/);
+    expect(explicit.text).not.toMatch(/has a newer INACTIVE version/);
   });
 });
 
