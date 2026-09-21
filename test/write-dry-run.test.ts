@@ -442,7 +442,16 @@ describe("dry_run — method form", () => {
     expect(result.text).toContain("-    result = 1.");
     expect(result.text).toContain("+    result = 2.");
     assertNoMutation(adt);
-    expect(adt.calls.map((c) => c.label)).toEqual([`GET ${CLAS_URI}`, `GET ${CLAS_SRC}`, `GET ${CLAS_STRUCT}`]);
+    // The descriptor carries no adtcore:version, so `activationFromBody`
+    // reports "unknown" and `checkActivation` spends one more GET on the
+    // same URI to settle it (also "unknown" here) before falling straight
+    // to the active structure — no inactive attempt.
+    expect(adt.calls.map((c) => c.label)).toEqual([
+      `GET ${CLAS_URI}`,
+      `GET ${CLAS_SRC}`,
+      `GET ${CLAS_URI}`,
+      `GET ${CLAS_STRUCT}`,
+    ]);
   });
 
   // Issue #147: the member lookup asks for the INACTIVE structure first — the
@@ -456,8 +465,10 @@ describe("dry_run — method form", () => {
     `</adtcore:objectMetadata>`;
 
   it("asks for version=inactive first and falls back to active when the server has no inactive version", async () => {
+    // Descriptor says "inactive" (a newer inactive version exists), but the
+    // structure endpoint itself has none — the fallback case (#147).
     const { conn, adt } = await connected((r) => {
-      if (r.url === CLAS_URI && r.method === "GET") return resp(200, OBJECT_XML(CLAS_NAME, "CLAS/OC"), OK_XML);
+      if (r.url === CLAS_URI && r.method === "GET") return resp(200, OBJECT_XML_VERSIONED("inactive"), OK_XML);
       if (r.url === CLAS_SRC && r.method === "GET") return resp(200, CURRENT_SOURCE, OK_TEXT);
       if (r.url === CLAS_STRUCT && r.method === "GET") {
         if (r.qs.version === "inactive") return resp(404, NOT_FOUND_XML, OK_XML);
@@ -473,6 +484,13 @@ describe("dry_run — method form", () => {
     );
     expect(result.text).toContain("+    result = 2.");
     assertNoMutation(adt);
+    expect(adt.calls.map((c) => c.label)).toEqual([
+      `GET ${CLAS_URI}`,
+      `GET ${CLAS_SRC}`,
+      `GET ${CLAS_URI}`,
+      `GET ${CLAS_STRUCT}`,
+      `GET ${CLAS_STRUCT}`,
+    ]);
     const structureCalls = adt.calls.filter((c) => c.url === CLAS_STRUCT);
     expect(structureCalls.map((c) => c.qs.version)).toEqual(["inactive", "active"]);
     expect(structureCalls[0]!.qs.withShortDescriptions).toBe("true");
@@ -507,7 +525,7 @@ describe("dry_run — method form", () => {
     );
     expect(INACTIVE_STRUCTURE_XML).toContain("start=10,0;end=12,0");
     const { conn, adt } = await connected((r) => {
-      if (r.url === CLAS_URI && r.method === "GET") return resp(200, OBJECT_XML(CLAS_NAME, "CLAS/OC"), OK_XML);
+      if (r.url === CLAS_URI && r.method === "GET") return resp(200, OBJECT_XML_VERSIONED("inactive"), OK_XML);
       if (r.url === CLAS_SRC && r.method === "GET") return resp(200, INACTIVE_SOURCE, OK_TEXT);
       if (r.url === CLAS_STRUCT && r.method === "GET") {
         if (r.qs.version === "inactive") return resp(200, INACTIVE_STRUCTURE_XML, OK_XML);
@@ -524,6 +542,12 @@ describe("dry_run — method form", () => {
     expect(result.text).toContain("-    result = 1.");
     expect(result.text).toContain("+    result = 2.");
     assertNoMutation(adt);
+    expect(adt.calls.map((c) => c.label)).toEqual([
+      `GET ${CLAS_URI}`,
+      `GET ${CLAS_SRC}`,
+      `GET ${CLAS_URI}`,
+      `GET ${CLAS_STRUCT}`,
+    ]);
     expect(adt.calls.filter((c) => c.url === CLAS_STRUCT).map((c) => c.qs.version)).toEqual(["inactive"]);
   });
 
@@ -545,6 +569,9 @@ describe("dry_run — method form", () => {
     );
     expect(result.text).toContain("+    result = 2.");
     assertNoMutation(adt);
+    // "active-is-current" comes straight off the first descriptor read, so
+    // `checkActivation`'s extra GET never happens — one GET on CLAS_URI, not two.
+    expect(adt.calls.map((c) => c.label)).toEqual([`GET ${CLAS_URI}`, `GET ${CLAS_SRC}`, `GET ${CLAS_STRUCT}`]);
     expect(adt.calls.filter((c) => c.url === CLAS_STRUCT).map((c) => c.qs.version)).toEqual(["active"]);
   });
 

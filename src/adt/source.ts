@@ -5,7 +5,7 @@
 import type { ClassComponent } from "abap-adt-api";
 import type { AbapConnection } from "./connection.js";
 import { AbapError } from "./errors.js";
-import type { ResolvedObject } from "./resolve.js";
+import { checkActivation, type ResolvedObject } from "./resolve.js";
 import { type ErrorContext, translateAdtError } from "./session.js";
 import {
   buildUri,
@@ -449,20 +449,27 @@ function linkRange(c: ClassComponent, relSuffix: string): SourceRange | undefine
 }
 
 /**
- * Types that name a GLOBAL object. A global class or interface is never a
- * component of one, so a structure element carrying one of these types is
- * the object itself, not a member (issue #147: the ACTIVE structure of a
- * never-activated class listed the class's own name as its only "member",
- * and `available` echoed it back as a method candidate).
+ * Types that name a GLOBAL object rather than a member of one. A global
+ * class or interface is never a component of one, so a structure element
+ * carrying one of these types is the object itself, not a member (issue
+ * #147: the ACTIVE structure of a never-activated class listed the class's
+ * own name as its only "member", and `available` echoed it back as a
+ * method candidate). Live-verified: every class's active structure also
+ * carries its own name as a `CLAS/OCX` child (`isExternalRef="true"`, its
+ * Text Elements), which before also put each superclass's own name into
+ * the outline's INHERITED list — checked below alongside the type set,
+ * since `isExternalRef` can in principle mark other types too.
  */
-const GLOBAL_OBJECT_TYPES = new Set(["CLAS/OC", "INTF/OI"]);
+const NON_MEMBER_TYPES = new Set(["CLAS/OC", "INTF/OI", "CLAS/OCX"]);
 
 /** Flatten the component tree that `/objectstructure` returns. */
 export function flattenComponents(root: ClassComponent): ClassMember[] {
   const out: ClassMember[] = [];
   const walk = (c: ClassComponent) => {
     for (const child of c.components ?? []) {
-      if (!GLOBAL_OBJECT_TYPES.has(child["adtcore:type"])) {
+      const isExternalRef = (child as { isExternalRef?: unknown }).isExternalRef;
+      const externalRef = isExternalRef === true || isExternalRef === "true";
+      if (!NON_MEMBER_TYPES.has(child["adtcore:type"]) && !externalRef) {
         out.push({
           name: child["adtcore:name"],
           type: child["adtcore:type"],
@@ -528,15 +535,19 @@ async function fetchStructure(
 /**
  * Members of a class/interface, with the version they came from.
  *
- * No `version` ⇒ the INACTIVE structure is tried first and the active one is
- * the fallback: a method that exists only in a saved-but-not-activated
- * source is visible nowhere else, and the default source read (no
- * `?version=`) returns that same inactive text, so line ranges and members
- * describe one document. An explicit `version` is honoured as given.
- * Failures of the inactive attempt are not classified here — whatever it
- * was (no inactive version, transport, auth) the active read that follows
- * reports it, and a tripped circuit breaker refuses the second call before
- * it reaches the wire.
+ * The decision is the object DESCRIPTOR's `adtcore:version`, not a probe of
+ * `/objectstructure?version=inactive`: for a fully active object, ADT
+ * answers that query with HTTP 200 and the ACTIVE structure (no marker of
+ * any kind) — verified live against a standard class — so treating a
+ * successful inactive read as proof of an inactive version wrongly reports
+ * `version: "inactive"` for ordinary active objects. `obj.activation` is
+ * read as-is when the caller already knows it; otherwise one `GET {uri}`
+ * (`checkActivation`) settles it. The inactive structure is then requested
+ * ONLY when the descriptor reports a newer inactive version exists; a
+ * failed or empty inactive read falls back to the active structure, and an
+ * unreadable descriptor (network, auth, unsupported type) is treated as
+ * active — never as an unconfirmed claim of "inactive". An explicit
+ * `version` skips all of this and is honoured as given.
  */
 export async function classMembersFor(
   conn: AbapConnection,
@@ -557,17 +568,16 @@ export async function classMembersFor(
     }
   };
   if (version !== undefined) return load(version);
-  // The object's own metadata already says when no inactive version exists
-  // (`adtcore:version="active"` on the descriptor): skip the attempt then —
-  // one request fewer, and no "inactive" claim the descriptor contradicts.
-  if (obj.activation === "active-is-current") return load("active");
-  let inactive: MemberSet | undefined;
-  try {
-    inactive = await load("inactive");
-  } catch {
-    inactive = undefined;
+  const activation = obj.activation === "unknown" ? await checkActivation(conn, obj) : obj.activation;
+  if (activation === "newer-inactive-exists") {
+    let inactive: MemberSet | undefined;
+    try {
+      inactive = await load("inactive");
+    } catch {
+      inactive = undefined;
+    }
+    if (inactive && inactive.members.length > 0) return inactive;
   }
-  if (inactive && inactive.members.length > 0) return inactive;
   return load("active");
 }
 

@@ -55,6 +55,8 @@ interface Comp {
   visibility?: string;
   impl?: string;
   def?: string;
+  /** Live fact: the active structure of a never-activated class carries the class's own name as a CLAS/OCX child with this set. */
+  isExternalRef?: boolean | string;
 }
 
 /** `/objectstructure` XML, in the shape A4H serves (see test/write-dry-run.test.ts). */
@@ -76,6 +78,7 @@ function structureXml(name: string, type: string, comps: Comp[]): string {
         (c) =>
           `<abapsource:objectStructureElement adtcore:name="${c.name}" adtcore:type="${c.type}"` +
           (c.visibility ? ` visibility="${c.visibility}"` : "") +
+          (c.isExternalRef !== undefined ? ` isExternalRef="${c.isExternalRef}"` : "") +
           `>${links(c)}</abapsource:objectStructureElement>`,
       )
       .join("") +
@@ -93,6 +96,7 @@ function structureParsed(name: string, type: string, comps: Comp[]): unknown {
       "adtcore:name": c.name,
       "adtcore:type": c.type,
       visibility: c.visibility,
+      ...(c.isExternalRef !== undefined ? { isExternalRef: c.isExternalRef } : {}),
       links: [
         ...(c.def
           ? [{ rel: "http://www.sap.com/adt/relations/source/definitionBlock", href: `./source/main#${c.def}` }]
@@ -111,6 +115,18 @@ interface Fixture {
   active?: Comp[];
   /** Components of the INACTIVE structure; `undefined` = the server has no inactive version and answers 404. */
   inactive?: Comp[];
+  /**
+   * The object DESCRIPTOR's `adtcore:version`, as `checkActivation` reads it
+   * — defaults to "inactive" when `inactive` is given (a newer inactive
+   * version exists) and "active" otherwise. "error" makes the descriptor
+   * request itself fail (network/auth/unsupported type).
+   */
+  descriptor?: "active" | "inactive" | "error";
+}
+
+/** `descriptor`, defaulted from whether the fixture carries an inactive structure. */
+function descriptorOf(fx: Fixture): "active" | "inactive" | "error" {
+  return fx.descriptor ?? (fx.inactive !== undefined ? "inactive" : "active");
 }
 
 interface Call {
@@ -152,6 +168,14 @@ function fakeConn(objects: Record<string, Fixture>): { conn: AbapConnection; cal
         if (!fx || fx.active === undefined) throw notFound(url);
         const type = url.includes("/interfaces/") ? "INTF/OI" : "CLAS/OC";
         return structureParsed(url.split("/").pop()!.toUpperCase(), type, fx.active);
+      },
+      objectStructure: async (url: string) => {
+        calls.push({ url, qs: { descriptor: "true" } });
+        const fx = objects[url];
+        if (!fx) throw notFound(url);
+        const d = descriptorOf(fx);
+        if (d === "error") throw new Error(`descriptor of ${url} could not be read`);
+        return { metaData: { "adtcore:version": d } };
       },
     },
   };
@@ -258,36 +282,61 @@ const CHILD = objectOf("CLAS/OC", "ZCL_AS_CHILD");
 // ---------------------------------------------------------------------------
 
 describe("classMembersFor resolves against the inactive version first (#147)", () => {
-  it("uses the inactive structure when the server has one", async () => {
+  it("uses the inactive structure when the descriptor reports a newer inactive version", async () => {
     const { conn, calls } = fakeConn({
       [CHILD_URI]: { source: CHILD_SRC, active: [], inactive: CHILD_COMPS },
     });
     const r = await classMembersFor(conn, CHILD);
     expect(r.version).toBe("inactive");
     expect(r.members.map((m) => m.name)).toEqual(["OWN_METHOD", "ZIF_AS_THING~DO_IT"]);
-    expect(calls).toEqual([{ url: `${CHILD_URI}/objectstructure`, qs: { version: "inactive", withShortDescriptions: "true" } }]);
+    expect(calls).toEqual([
+      { url: CHILD_URI, qs: { descriptor: "true" } },
+      { url: `${CHILD_URI}/objectstructure`, qs: { version: "inactive", withShortDescriptions: "true" } },
+    ]);
+  });
+
+  it("never claims inactive for a fully active object (ADT answers ?version=inactive with the active structure)", async () => {
+    const { conn, calls } = fakeConn({
+      [CHILD_URI]: { source: CHILD_SRC, active: CHILD_COMPS, inactive: CHILD_COMPS, descriptor: "active" },
+    });
+    const r = await classMembersFor(conn, CHILD);
+    expect(r.version).toBe("active");
+    expect(calls.map((c) => c.qs?.version ?? c.qs?.descriptor)).toEqual(["true", "active"]);
   });
 
   it("falls back to the active structure when the inactive request fails", async () => {
-    const { conn, calls } = fakeConn({ [CHILD_URI]: { source: CHILD_SRC, active: CHILD_COMPS } });
+    const { conn, calls } = fakeConn({
+      [CHILD_URI]: { source: CHILD_SRC, active: CHILD_COMPS, descriptor: "inactive" },
+    });
     const r = await classMembersFor(conn, CHILD);
     expect(r.version).toBe("active");
     expect(r.members).toHaveLength(2);
-    expect(calls.map((c) => c.qs?.version)).toEqual(["inactive", "active"]);
+    expect(calls.map((c) => c.qs?.version ?? c.qs?.descriptor)).toEqual(["true", "inactive", "active"]);
   });
 
   it("falls back to active when the inactive structure is empty", async () => {
-    const { conn } = fakeConn({ [CHILD_URI]: { source: CHILD_SRC, active: CHILD_COMPS, inactive: [] } });
+    const { conn } = fakeConn({
+      [CHILD_URI]: { source: CHILD_SRC, active: CHILD_COMPS, inactive: [], descriptor: "inactive" },
+    });
     const r = await classMembersFor(conn, CHILD);
     expect(r.version).toBe("active");
     expect(r.members).toHaveLength(2);
   });
 
-  it("skips the inactive attempt when the descriptor already says active is current", async () => {
+  it("skips the descriptor when the object already says active is current", async () => {
     const { conn, calls } = fakeConn({ [CHILD_URI]: { source: CHILD_SRC, active: CHILD_COMPS, inactive: CHILD_COMPS } });
     const r = await classMembersFor(conn, objectOf("CLAS/OC", "ZCL_AS_CHILD", "active-is-current"));
     expect(r.version).toBe("active");
     expect(calls.map((c) => c.qs?.version)).toEqual(["active"]);
+  });
+
+  it("uses active when the descriptor is unreadable", async () => {
+    const { conn, calls } = fakeConn({
+      [CHILD_URI]: { source: CHILD_SRC, active: CHILD_COMPS, descriptor: "error" },
+    });
+    const r = await classMembersFor(conn, CHILD);
+    expect(r.version).toBe("active");
+    expect(calls.some((c) => c.qs?.version === "inactive")).toBe(false);
   });
 
   it("honours an explicit version without trying the other", async () => {
@@ -297,6 +346,14 @@ describe("classMembersFor resolves against the inactive version first (#147)", (
     expect(calls.map((c) => c.qs?.version)).toEqual(["active"]);
     const err = await caught(() => classMembersFor(fakeConn({ [CHILD_URI]: { source: CHILD_SRC, active: CHILD_COMPS } }).conn, CHILD, "inactive"));
     expect(err.code).toBe("NOT_FOUND");
+  });
+
+  it("never lists a CLAS/OCX external-reference entry as a member (live fact: the active structure of a never-activated class)", async () => {
+    const comps: Comp[] = [{ name: "ZCL_AS_CHECKFAIL", type: "CLAS/OCX", isExternalRef: "true" }, ...CHILD_COMPS];
+    const { conn } = fakeConn({ [CHILD_URI]: { source: CHILD_SRC, active: comps, descriptor: "active" } });
+    const r = await classMembersFor(conn, CHILD, "active");
+    expect(r.members.map((m) => m.name)).not.toContain("ZCL_AS_CHECKFAIL");
+    expect(r.members.map((m) => m.name)).toEqual(["OWN_METHOD", "ZIF_AS_THING~DO_IT"]);
   });
 
   it("never lists the class or interface itself as a member (#147 item 2)", () => {
@@ -349,13 +406,15 @@ describe("readMethod walks the inheritance chain (#146)", () => {
     expect(r.implementation).toContain("rt_columns = VALUE #( ( `A` ) ).");
     expect(r.implementationRange).toEqual({ startLine: 11, endLine: 13, document: "./source/main" });
     expect(r.searched).toEqual(["ZCL_AS_CHILD", "ZCL_AS_PARENT (superclass of ZCL_AS_CHILD)"]);
-    // Own structure (inactive attempt + active), then the parent's source and structure.
-    expect(calls.map((c) => c.url)).toEqual([
-      `${CHILD_URI}/objectstructure`,
-      CHILD_URI,
-      `${PARENT_URI}/source/main`,
-      `${PARENT_URI}/objectstructure`,
-      PARENT_URI,
+    // Own structure (descriptor + active — FAMILY has no inactive fixtures, so the
+    // descriptor says active-is-current and the inactive structure is never attempted),
+    // then the parent's source, descriptor and active structure.
+    expect(calls.map((c) => ({ url: c.url, qs: c.qs?.descriptor ?? c.qs?.version }))).toEqual([
+      { url: CHILD_URI, qs: "true" },
+      { url: CHILD_URI, qs: "active" },
+      { url: `${PARENT_URI}/source/main`, qs: undefined },
+      { url: PARENT_URI, qs: "true" },
+      { url: PARENT_URI, qs: "active" },
     ]);
   });
 
