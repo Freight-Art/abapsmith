@@ -12,6 +12,16 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+### Added
+
+- `abap_dumps mode=show` gains `section` (#149): `"analysis"` (kap0, kap3, kap4, kap28), `"source"` (kap7, kap8), `"variables"` (kap10, gated exactly like `variables:true`), `"stack"` (kap11, kap22), `"environment"` (kap5, kap6, kap6a, kap9, kap14), or `"all"` — the full set `show` returned by default before this change. With neither `section` nor `chapters` given, `show` now returns a summary instead of chapter text: runtime error, exception class, short text, the source line (kap7/kap8 — include, line, statement), error analysis (kap3, trimmed to ~450 characters) and how to correct (kap4, ~260 characters), the top 5 call-stack frames (kap11), and a note listing every chapter the dump has. Capped at 3,000 characters, truncation marked like any other response. `section` and `chapters` together, or `offset` on the summary, are `BAD_INPUT`.
+- `abap_run` gains its own `TIMEOUT` error code for a classrun request that outran `ABAP_TIMEOUT_MS` (#149), and correlates it — along with a `200` whose body isn't console output — against the ST22 dumps feed: a dump of the same user and terminated program published in the last 60 seconds (±2 s slack) is looked up before the error reaches the caller, at a cost of at most two extra GETs.
+
+### Changed
+
+- `abap_dumps mode=show`'s default output is now the summary above, not chapter text (#149). `section:"all"` gives the previous full-chapter-text output (kap7, kap8, kap9, kap11).
+- A classrun transport timeout is now `TIMEOUT`, not the unclassified `ADT_ERROR` (#149). It carries `details.dump` and `retryable: false` when the ST22 lookup finds a matching dump (read it with `abap_dumps mode=show key=…`, don't retry unchanged); `details.dumpLookup` and `retryable: true` when it finds none (the run may simply have run past the budget); and no retry claim when the lookup itself fails. The no-console `ADT_ERROR` gets the same lookup and the same `details.dump`/`details.dumpLookup`, but keeps its own default retryability either way.
+
 ## [0.6.12] - 2026-09-16
 
 ### Added
@@ -58,7 +68,7 @@ version was set to `0.3.0`, which is intended.
 
 ### Added
 
-- `abap_ui mode="screen"` gains `detail` (`compact` | `full`, default `compact`) (#150). Compact renders `FIELDS` one line per element — `name  type  len  pos  attrs`, with `len`/`pos` decimal and `attrs` holding only what differs from a plain input field — and folds every run of generated `%_...` flow-logic lines into one `(N generated %_ flow-logic lines omitted)` line, keeping every user-written `MODULE`/`FIELD` line; the header reports `flowOmitted` and a note names the way back. `detail: "full"` is the previous `key=[value]` dump, byte for byte. The `layout: true` picture and every other section are the same under both. Render-side only: same ABAP, same single bridge call.
+- `abap_ui mode="screen"` gains `detail` (`compact` | `full`, default `compact`) (#150). Compact renders `FIELDS` one line per element — `name  type  len  pos  attrs`, with `len`/`pos` decimal and `attrs` holding only what differs from a plain input field — and folds every run of generated `%_...` flow-logic lines into one `(N generated %_ flow-logic lines omitted)` line, keeping every user-written `MODULE`/`FIELD` line; the header reports `flowOmitted` and a note names the way back. `detail: "full"` is the previous `key=[value]` dump,. The `layout: true` picture and every other section are the same under both. Render-side only: same ABAP, same single bridge call.
 
 ### Changed
 

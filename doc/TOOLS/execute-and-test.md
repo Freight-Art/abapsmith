@@ -51,6 +51,46 @@ Example:
 }
 ```
 
+### Timeouts and short dumps (#149)
+
+If the classrun request doesn't answer within `ABAP_TIMEOUT_MS` (default
+60000 ms), the session is abandoned client-side and the error is its own
+code, `TIMEOUT` — not the unclassified `ADT_ERROR` a transport-level failure
+used to get. The same follow-up also fires when the server answers `200`
+but the body isn't console output (an ADT exception envelope, an ICF HTML
+page, or the literal string `"undefined"`): that comes back as `ADT_ERROR`
+with `details.noConsoleOutput: true`.
+
+On either of those two outcomes, `abap_run` asks the ST22 dumps feed once
+for a dump of the same user and the terminated program — the class pool
+(`ZCL_FOO=======================CP`; for a bridged report, also the report
+name) — published in the last 60 seconds (±2 s clock slack). That costs at
+most two extra GETs (the feed, plus one dump detail fetch). Three outcomes:
+
+- **A matching dump was found.** `details.dump` carries `{key, runtimeError,
+  exception, shortText, program, published}`; the message gains "A short
+  dump was recorded for this run: `<runtimeError>` — `<shortText>`"; the
+  hint says to read it with `abap_dumps {"mode":"show","key":"<key>"}` (the
+  default summary already carries the source line, the error analysis and
+  the top of the call stack) and not to retry unchanged — the same code
+  dumps the same way. `retryable` is `false`.
+- **No matching dump.** `details.dumpLookup` carries `{from, to, programs,
+  candidates, matched: false}`. `TIMEOUT` keeps `retryable: true` — the
+  request may simply have run past the budget, and nothing says it crashed.
+  The no-console `ADT_ERROR` keeps its own default (no retry claim either
+  way).
+- **The feed lookup itself failed.** `details.dumpLookup.failure` names why,
+  and `retryable` is withdrawn (absent) — neither "ran long" nor "crashed"
+  is established.
+
+Any other `abap_run` failure (a dead session, a 4xx) never touches the
+dumps feed — only `TIMEOUT` and the no-console `ADT_ERROR` are looked up.
+`TIMEOUT` also carries `details.mayHaveExecuted: true` and the "may already
+have executed and committed" disclosure: the request may have run to
+completion and committed on the server before the client gave up waiting,
+so a mutating run should not be blindly retried — re-read what it touches
+first.
+
 ### Authorization trace (`auth_trace`)
 
 `auth_trace: true` on `abap_run`, `abap_test` or `abap_bopf_test` wraps the
