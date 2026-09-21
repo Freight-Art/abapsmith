@@ -112814,6 +112814,9 @@ function buildDumpsFeedUrl(request, options = {}) {
   };
 }
 
+// src/adt/run-dump-lookup.ts
+init_truncate();
+
 // src/adt/dumps-xml.ts
 init_fxp();
 init_errors();
@@ -113468,10 +113471,8 @@ function programMatches(terminatedProgram, programs) {
   const upper = terminatedProgram.trim().toUpperCase();
   return upper !== "" && programs.some((p) => p.trim().toUpperCase() === upper);
 }
-var FAILURE_TEXT_MAX = 200;
 function describeFailure3(e) {
-  const text5 = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
-  return text5.length > FAILURE_TEXT_MAX ? `${text5.slice(0, FAILURE_TEXT_MAX)}\u2026` : text5;
+  return truncateText(e instanceof Error ? `${e.name}: ${e.message}` : String(e), MESSAGE_EXCERPT_MAX);
 }
 async function findRecentDump(conn, window2, programs) {
   const wanted = programs.map((p) => p.toUpperCase());
