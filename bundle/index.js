@@ -107652,12 +107652,14 @@ function linkRange(c, relSuffix) {
   const link = (c.links ?? []).find((l) => l.rel?.endsWith(relSuffix));
   return parseFragmentRange(link?.href);
 }
-var GLOBAL_OBJECT_TYPES = /* @__PURE__ */ new Set(["CLAS/OC", "INTF/OI"]);
+var NON_MEMBER_TYPES = /* @__PURE__ */ new Set(["CLAS/OC", "INTF/OI", "CLAS/OCX"]);
 function flattenComponents(root) {
   const out = [];
   const walk = (c) => {
     for (const child4 of c.components ?? []) {
-      if (!GLOBAL_OBJECT_TYPES.has(child4["adtcore:type"])) {
+      const isExternalRef = child4.isExternalRef;
+      const externalRef = isExternalRef === true || isExternalRef === "true";
+      if (!NON_MEMBER_TYPES.has(child4["adtcore:type"]) && !externalRef) {
         out.push({
           name: child4["adtcore:name"],
           type: child4["adtcore:type"],
@@ -107712,14 +107714,16 @@ async function classMembersFor(conn, obj, version2) {
     }
   };
   if (version2 !== void 0) return load(version2);
-  if (obj.activation === "active-is-current") return load("active");
-  let inactive;
-  try {
-    inactive = await load("inactive");
-  } catch {
-    inactive = void 0;
+  const activation = obj.activation === "unknown" ? await checkActivation(conn, obj) : obj.activation;
+  if (activation === "newer-inactive-exists") {
+    let inactive;
+    try {
+      inactive = await load("inactive");
+    } catch {
+      inactive = void 0;
+    }
+    if (inactive && inactive.members.length > 0) return inactive;
   }
-  if (inactive && inactive.members.length > 0) return inactive;
   return load("active");
 }
 async function classMembers(conn, obj, version2) {
