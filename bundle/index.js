@@ -36610,6 +36610,7 @@ var init_errors = __esm({
       CHECK_FAILED: "conditional",
       SESSION_DEAD: "conditional",
       RUNTIME_DUMP: "conditional",
+      TIMEOUT: "conditional",
       JOURNAL_IO: "conditional",
       TRANSPORT_LOCKED: "conditional",
       TRANSPORT_GONE: "conditional",
@@ -53358,29 +53359,6 @@ function keepLines(text5, budget) {
   return { kept, cutChars: text5.length - kept.length };
 }
 function buildResponse(parts) {
-  if (parts.size) return withSizeLine(parts);
-  return renderResponse(parts);
-}
-function formatSize(size) {
-  return `${size.chars} chars, ${size.lines} lines, truncated=${size.truncated}`;
-}
-function withSizeLine(parts) {
-  const { size: _flag, ...rest } = parts;
-  const base = renderResponse(rest);
-  let claim = { chars: base.text.length, lines: countLines(base.text), truncated: base.truncated };
-  let built = base;
-  for (let round = 0; round < 4; round++) {
-    built = renderResponse({ ...rest, header: { ...rest.header, size: formatSize(claim) } });
-    const actual = { chars: built.text.length, lines: countLines(built.text), truncated: built.truncated };
-    if (actual.chars === claim.chars && actual.lines === claim.lines && actual.truncated === claim.truncated) {
-      return { ...built, size: actual };
-    }
-    claim = actual;
-  }
-  built = renderResponse({ ...rest, header: { ...rest.header, size: `~${formatSize(claim)}` } });
-  return { ...built, size: claim };
-}
-function renderResponse(parts) {
   const maxChars = parts.maxChars ?? DEFAULT_MAX_CHARS;
   const header = renderHeader(parts.header);
   const sectionBlocks = (parts.sections ?? []).filter((s) => s.content.trim().length > 0).map((s) => `--- ${s.title} ---
@@ -108141,100 +108119,6 @@ function renderInheritedOutline(rows) {
   }
   return out.join("\n");
 }
-function grepSource(source, pattern, opts) {
-  const re = new RegExp(pattern, "i");
-  const lines = source === "" ? [] : source.replace(/\r\n/g, "\n").split("\n");
-  const from = Math.max(1, opts.fromLine);
-  const matches = [];
-  for (let i = from - 1; i < lines.length; i++) {
-    if (re.test(lines[i])) matches.push(i + 1);
-  }
-  const shownMatches = matches.slice(0, Math.max(0, opts.maxMatches));
-  const shownSet = new Set(shownMatches);
-  const width = String(lines.length).length;
-  const out = [];
-  let prevEnd = 0;
-  for (const m of shownMatches) {
-    const start = Math.max(from, m - opts.context);
-    const end = Math.min(lines.length, m + opts.context);
-    const groupStart = Math.max(start, prevEnd + 1);
-    if (prevEnd > 0 && groupStart > prevEnd + 1) out.push("--");
-    for (let n = groupStart; n <= end; n++) {
-      out.push(`${String(n).padStart(width)}${shownSet.has(n) ? ":" : "-"} ${lines[n - 1]}`);
-    }
-    prevEnd = Math.max(prevEnd, end);
-  }
-  return {
-    text: out.join("\n"),
-    total: matches.length,
-    shown: shownMatches.length,
-    lastShownLine: shownMatches.length ? shownMatches[shownMatches.length - 1] : void 0,
-    truncated: shownMatches.length < matches.length
-  };
-}
-var STRUCTURE_OPENERS = [
-  { re: /^(REPORT|PROGRAM|FUNCTION-POOL)\s+(\S+?)\s*[.\s]/i, kind: "$1", nameGroup: 2 },
-  { re: /^INCLUDE\s+(\S+?)\s*\./i, kind: "INCLUDE", nameGroup: 1 },
-  { re: /^FORM\s+(\S+)/i, kind: "FORM", nameGroup: 1, closer: "ENDFORM" },
-  { re: /^FUNCTION\s+(\S+?)\s*\./i, kind: "FUNCTION", nameGroup: 1, closer: "ENDFUNCTION" },
-  { re: /^MODULE\s+(\S+?)(\s+(?:INPUT|OUTPUT))?\s*\./i, kind: "MODULE", nameGroup: 1, closer: "ENDMODULE" },
-  { re: /^CLASS\s+(\S+)\s+(DEFINITION|IMPLEMENTATION)\b/i, kind: "CLASS $2", nameGroup: 1, closer: "ENDCLASS" },
-  { re: /^INTERFACE\s+(\S+?)\s*[.\s]/i, kind: "INTERFACE", nameGroup: 1, closer: "ENDINTERFACE" },
-  { re: /^METHOD\s+(\S+?)\s*[.\s]/i, kind: "METHOD", nameGroup: 1, closer: "ENDMETHOD" },
-  {
-    re: /^(INITIALIZATION|START-OF-SELECTION|END-OF-SELECTION|TOP-OF-PAGE|END-OF-PAGE|LOAD-OF-PROGRAM|AT LINE-SELECTION|AT USER-COMMAND|AT PF\d+|AT SELECTION-SCREEN[^.]*|GET\s+\S+(?:\s+LATE)?)\s*\./i,
-    kind: "$1"
-  },
-  {
-    re: /^SELECTION-SCREEN\s+BEGIN\s+OF\s+(SCREEN|BLOCK|TABBED BLOCK|LINE)\s+(\S+)/i,
-    kind: "SELECTION-SCREEN $1",
-    nameGroup: 2
-  }
-];
-function scanSourceStructure(source) {
-  const lines = source === "" ? [] : source.replace(/\r\n/g, "\n").split("\n");
-  const rows = [];
-  const open = [];
-  for (let i = 0; i < lines.length; i++) {
-    const raw = lines[i];
-    if (raw.startsWith("*")) continue;
-    const stmt = raw.trim();
-    if (stmt === "" || stmt.startsWith('"')) continue;
-    const endMatch = /^(ENDFORM|ENDFUNCTION|ENDMODULE|ENDCLASS|ENDINTERFACE|ENDMETHOD)\b/i.exec(stmt);
-    if (endMatch) {
-      const closer = endMatch[1].toUpperCase();
-      for (let d = open.length - 1; d >= 0; d--) {
-        if (open[d].closer === closer) {
-          open[d].row.endLine = i + 1;
-          open.length = d;
-          break;
-        }
-      }
-      continue;
-    }
-    for (const opener of STRUCTURE_OPENERS) {
-      const m = opener.re.exec(stmt);
-      if (!m) continue;
-      const kind = opener.kind.replace(
-        /\$(\d)/g,
-        (_s, g) => (m[Number(g)] ?? "").toUpperCase().replace(/\s+/g, " ").trim()
-      );
-      const name = opener.nameGroup === void 0 ? "" : (m[opener.nameGroup] ?? "").replace(/[.,]+$/, "").toUpperCase();
-      const row2 = { kind, name, startLine: i + 1, depth: open.length };
-      rows.push(row2);
-      if (opener.closer) open.push({ row: row2, closer: opener.closer });
-      break;
-    }
-  }
-  return rows;
-}
-function renderSourceStructure(rows) {
-  return rows.map((r) => {
-    const label = r.name ? `${r.kind} ${r.name}` : r.kind;
-    const loc = r.endLine ? `lines ${r.startLine}-${r.endLine}` : `line ${r.startLine}`;
-    return `  ${"  ".repeat(r.depth)}${label}  ${loc}`;
-  }).join("\n");
-}
 
 // src/adt/run.ts
 var import_abap_adt_api8 = __toESM(require_build(), 1);
@@ -113262,6 +113146,704 @@ function buildDumpsFeedUrl(request, options = {}) {
   };
 }
 
+// src/adt/run-dump-lookup.ts
+init_truncate();
+
+// src/adt/dumps-xml.ts
+init_fxp();
+init_errors();
+var dumpsXml = new XMLParser({
+  ignoreAttributes: false,
+  attributeNamePrefix: "@_",
+  removeNSPrefix: true,
+  parseAttributeValue: false,
+  parseTagValue: false,
+  trimValues: true,
+  // `typeof jpath === "string"` guards the v5 `string | MatcherView` type (holds
+  // under default `jPath: true`). `isAttribute` excludes attributes, which share
+  // the element jpath space (`feed.entry.link` vs `feed.entry.link.href`).
+  isArray: (_name, jpath, _isLeaf, isAttribute) => !isAttribute && typeof jpath === "string" && REPEATABLE_JPATHS.has(jpath)
+});
+var REPEATABLE_JPATHS = /* @__PURE__ */ new Set([
+  // dumps feed + feeds catalog
+  "feed.entry",
+  "feed.link",
+  "feed.entry.link",
+  "feed.entry.category",
+  // dump detail
+  "dump.links.link",
+  "dump.chapters.chapter",
+  // feed:extendedData contract
+  "feed.entry.extendedData.operators.operator",
+  "feed.entry.extendedData.dataTypes.dataType",
+  "feed.entry.extendedData.dataTypes.dataType.operators.operator",
+  "feed.entry.extendedData.attributes.attribute",
+  "feed.entry.extendedData.attributes.attribute.operators.operator",
+  "feed.entry.extendedData.queryVariants.queryVariant"
+]);
+function asRecord(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value) ? value : void 0;
+}
+function asArray2(value) {
+  if (Array.isArray(value)) return value;
+  return value === void 0 || value === null ? [] : [value];
+}
+function attr2(node2, name) {
+  const value = node2?.[`@_${name}`];
+  return typeof value === "string" ? value : void 0;
+}
+function attrOrEmpty(node2, name) {
+  return attr2(node2, name) ?? "";
+}
+function elementText(value) {
+  if (typeof value === "string") return value;
+  const rec = asRecord(value);
+  const text5 = rec?.["#text"];
+  return typeof text5 === "string" ? text5 : void 0;
+}
+function isXmlTrue(value) {
+  return value === "true";
+}
+function intAttr(node2, name) {
+  const raw = attr2(node2, name);
+  if (raw === void 0 || raw === "") return void 0;
+  const n = Number.parseInt(raw, 10);
+  return Number.isFinite(n) ? n : void 0;
+}
+function hrefParam(href, name) {
+  if (href === void 0) return void 0;
+  const q = href.indexOf("?");
+  if (q < 0) return void 0;
+  return new URLSearchParams(href.slice(q + 1)).get(name) ?? void 0;
+}
+var DUMP_DETAIL_PATH_PREFIX = "/sap/bc/adt/runtime/dump/";
+var ADT_SCHEME_RE = /^adt:\/\/[^/]*/;
+function dumpLinkKind(uri) {
+  if (ADT_SCHEME_RE.test(uri)) return "adt-uri";
+  if (/^https?:\/\//i.test(uri)) return "external-url";
+  return "adt-path";
+}
+function stripAdtScheme(uri) {
+  return uri.replace(ADT_SCHEME_RE, "");
+}
+function dumpKeyFromDetailPath(path9) {
+  if (!path9.startsWith(DUMP_DETAIL_PATH_PREFIX)) return void 0;
+  const key = path9.slice(DUMP_DETAIL_PATH_PREFIX.length);
+  return key === "" ? void 0 : key;
+}
+function exceptionFromDoc(doc) {
+  const exc = asRecord(doc.exception);
+  if (exc === void 0) return void 0;
+  return {
+    namespace: attrOrEmpty(asRecord(exc.namespace), "id"),
+    type: attrOrEmpty(asRecord(exc.type), "id"),
+    message: elementText(exc.message) ?? ""
+  };
+}
+function refuseExceptionEnvelope(doc, what) {
+  const exc = exceptionFromDoc(doc);
+  if (exc === void 0) return;
+  throw new AbapError(
+    "ADT_ERROR",
+    `Expected ${what} but the body is an ADT exception envelope: ${exc.type} \u2014 ${exc.message}`,
+    { exceptionType: exc.type, exceptionNamespace: exc.namespace },
+    "This is a server error body, not a payload. Check the HTTP status of the response the body came from rather than the parse."
+  );
+}
+var CATEGORY_LABEL_RUNTIME_ERROR = "ABAP runtime error";
+var CATEGORY_LABEL_TERMINATED_PROGRAM = "Terminated ABAP program";
+function categoryTerm(categories, label) {
+  for (const raw of asArray2(categories)) {
+    const cat = asRecord(raw);
+    if (attr2(cat, "label") === label) return attrOrEmpty(cat, "term");
+  }
+  return "";
+}
+function linkHref(links, rel) {
+  for (const raw of asArray2(links)) {
+    const link = asRecord(raw);
+    if (attr2(link, "rel") === rel) return attr2(link, "href");
+  }
+  return void 0;
+}
+function parseDumpFeed(body) {
+  const doc = dumpsXml.parse(body);
+  refuseExceptionEnvelope(doc, "an ABAP dumps feed");
+  if (!("feed" in doc)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "Not an Atom feed: no root <atom:feed> element.",
+      { rootElements: Object.keys(doc).filter((k) => k !== "?xml") },
+      "This parser reads /sap/bc/adt/runtime/dumps responses."
+    );
+  }
+  const feed = asRecord(doc.feed) ?? {};
+  const selfHref = linkHref(feed.link, "self");
+  const nextHref = linkHref(feed.link, "next");
+  const entries = [];
+  for (const raw of asArray2(feed.entry)) {
+    const entry = asRecord(raw);
+    if (entry === void 0) continue;
+    const detailPath = stripAdtScheme(linkHref(entry.link, "self") ?? "");
+    const key = dumpKeyFromDetailPath(detailPath);
+    if (key === void 0) continue;
+    const alternate = linkHref(entry.link, "alternate");
+    entries.push({
+      key,
+      detailPath,
+      user: elementText(asRecord(entry.author)?.name) ?? "",
+      // By @label, never by position: the two categories are order-stable in
+      // the capture but nothing in Atom says they must be.
+      runtimeError: categoryTerm(entry.category, CATEGORY_LABEL_RUNTIME_ERROR),
+      terminatedProgram: categoryTerm(entry.category, CATEGORY_LABEL_TERMINATED_PROGRAM),
+      title: elementText(entry.title) ?? "",
+      published: elementText(entry.published) ?? "",
+      updated: elementText(entry.updated) ?? "",
+      guiPath: elementText(entry.id) ?? "",
+      ...alternate === void 0 ? {} : { sapGuiUri: alternate }
+      // entry.summary is deliberately not read: ~13 KB of escaped HTML per
+      // entry, 91% of the feed's bytes, and a duplicate of the detail.
+    });
+  }
+  const newest = hrefParam(selfHref, "from");
+  const oldest = hrefParam(nextHref, "to");
+  return {
+    systemId: elementText(asRecord(feed.contributor)?.name) ?? "",
+    title: elementText(feed.title) ?? "",
+    updated: elementText(feed.updated) ?? "",
+    ...selfHref === void 0 ? {} : { selfHref },
+    ...nextHref === void 0 ? {} : { nextHref },
+    ...newest === void 0 ? {} : { newestTimestamp: newest },
+    ...oldest === void 0 ? {} : { oldestTimestamp: oldest },
+    hasMore: nextHref !== void 0,
+    entries
+  };
+}
+var DUMP_RELATION_PREFIX = "http://www.sap.com/adt/relations/runtime/dump/";
+function relationToken(relation) {
+  return relation.startsWith(DUMP_RELATION_PREFIX) ? relation.slice(DUMP_RELATION_PREFIX.length) : relation;
+}
+function findDumpLink(links, token) {
+  return links.find((l) => l.relationToken === token);
+}
+function parseDumpDetail(body) {
+  const doc = dumpsXml.parse(body);
+  refuseExceptionEnvelope(doc, "an ABAP dump detail");
+  const dump = asRecord(doc.dump);
+  if (dump === void 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "Not an ABAP dump detail: no root <dump:dump> element.",
+      { rootElements: Object.keys(doc).filter((k) => k !== "?xml") },
+      "This parser reads application/vnd.sap.adt.runtime.dump.v1+xml bodies. A text/plain request to the same URL is answered with HTTP 406."
+    );
+  }
+  const links = [];
+  for (const raw of asArray2(asRecord(dump.links)?.link)) {
+    const node2 = asRecord(raw);
+    const relation = attrOrEmpty(node2, "relation");
+    const uri = attrOrEmpty(node2, "uri");
+    links.push({
+      relation,
+      relationToken: relationToken(relation),
+      uri,
+      contentType: attrOrEmpty(node2, "contentType"),
+      kind: dumpLinkKind(uri)
+    });
+  }
+  const chapters = [];
+  for (const raw of asArray2(asRecord(dump.chapters)?.chapter)) {
+    const node2 = asRecord(raw);
+    const name = attrOrEmpty(node2, "name");
+    const line2 = intAttr(node2, "line");
+    if (line2 === void 0) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `Dump chapter '${name}' has no usable line offset (line=${String(attr2(node2, "line"))}).`,
+        { chapter: name },
+        "The line attribute is the 1-based offset of the chapter's banner in the /formatted body; without it the chapter cannot be located."
+      );
+    }
+    chapters.push({
+      name,
+      title: attrOrEmpty(node2, "title"),
+      category: attrOrEmpty(node2, "category"),
+      line: line2,
+      chapterOrder: intAttr(node2, "chapterOrder") ?? 0,
+      categoryOrder: intAttr(node2, "categoryOrder") ?? 0
+    });
+  }
+  const contents = findDumpLink(links, "contents");
+  const termination = findDumpLink(links, "termination");
+  const target = termination === void 0 ? void 0 : terminationTarget(termination.uri);
+  return {
+    title: attrOrEmpty(dump, "title"),
+    error: attrOrEmpty(dump, "error"),
+    author: attrOrEmpty(dump, "author"),
+    exception: attrOrEmpty(dump, "exception"),
+    terminatedProgram: attrOrEmpty(dump, "terminatedProgram"),
+    serverInstance: attrOrEmpty(dump, "serverInstance"),
+    datetime: attrOrEmpty(dump, "datetime"),
+    systemDate: attrOrEmpty(dump, "systemDate"),
+    systemTime: attrOrEmpty(dump, "systemTime"),
+    links,
+    chapters,
+    ...contents === void 0 ? {} : { formattedPath: stripAdtScheme(contents.uri) },
+    ...target === void 0 ? {} : { termination: target }
+  };
+}
+function terminationTarget(uri) {
+  const path9 = stripAdtScheme(uri);
+  if (path9 === "") return void 0;
+  const hash2 = path9.indexOf("#");
+  if (hash2 < 0) return { path: path9 };
+  const start = new URLSearchParams(path9.slice(hash2 + 1)).get("start");
+  const line2 = start === null ? Number.NaN : Number.parseInt(start, 10);
+  return {
+    path: path9.slice(0, hash2),
+    ...Number.isFinite(line2) ? { line: line2 } : {}
+  };
+}
+var TIER1_CHAPTER_NAMES = ["kap7", "kap8", "kap9", "kap11"];
+var VARIABLES_CHAPTER_NAME = "kap10";
+function dumpChapterExtents(chapters, totalLines) {
+  const sorted = [...chapters].sort((a, b) => a.line - b.line || a.chapterOrder - b.chapterOrder);
+  const clamp2 = (n) => Math.min(Math.max(n, 0), Math.max(totalLines, 0));
+  return sorted.map((chapter, i) => {
+    const next = sorted[i + 1];
+    const start = clamp2(chapter.line - 1);
+    const end = clamp2(next === void 0 ? totalLines : next.line - 1);
+    return { chapter, start, end: Math.max(start, end) };
+  });
+}
+function sliceDumpChapters(chapters, formatted, names) {
+  const wanted = new Set(names);
+  if (wanted.size === 0) return "";
+  const lines = formatted.split("\n");
+  const parts = [];
+  for (const extent of dumpChapterExtents(chapters, lines.length)) {
+    if (!wanted.has(extent.chapter.name)) continue;
+    parts.push(lines.slice(extent.start, extent.end).join("\n"));
+  }
+  return parts.join("\n");
+}
+function operatorRefIds(container) {
+  const ids = [];
+  for (const raw of asArray2(asRecord(container)?.operator)) {
+    const id = attr2(asRecord(raw), "id");
+    if (id !== void 0 && id !== "") ids.push(id);
+  }
+  return ids;
+}
+function parseExtendedData(node2) {
+  const intervalNode = asRecord(asRecord(node2.refresh)?.interval);
+  const intervalValue = intAttr(intervalNode, "value");
+  const intervalUnit = attr2(intervalNode, "unit");
+  const pageSize = intAttr(asRecord(node2.paging), "size");
+  const queryDepthText = elementText(node2.queryDepth);
+  const queryDepth = queryDepthText === void 0 ? Number.NaN : Number.parseInt(queryDepthText, 10);
+  const operators = [];
+  for (const raw of asArray2(asRecord(node2.operators)?.operator)) {
+    const op = asRecord(raw);
+    operators.push({
+      id: attrOrEmpty(op, "id"),
+      numberOfOperands: intAttr(op, "numberOfOperands") ?? 0,
+      kind: attrOrEmpty(op, "kind"),
+      label: elementText(op?.label) ?? ""
+    });
+  }
+  const dataTypes = [];
+  for (const raw of asArray2(asRecord(node2.dataTypes)?.dataType)) {
+    const dt = asRecord(raw);
+    dataTypes.push({
+      id: attrOrEmpty(dt, "id"),
+      label: elementText(dt?.label) ?? "",
+      operatorIds: operatorRefIds(dt?.operators)
+    });
+  }
+  const attributes = [];
+  for (const raw of asArray2(asRecord(node2.attributes)?.attribute)) {
+    const at = asRecord(raw);
+    attributes.push({
+      id: attrOrEmpty(at, "id"),
+      dataTypeId: attrOrEmpty(asRecord(at?.dataType), "id"),
+      label: elementText(at?.label) ?? "",
+      operatorIds: operatorRefIds(at?.operators)
+    });
+  }
+  const queryVariants = [];
+  for (const raw of asArray2(asRecord(node2.queryVariants)?.queryVariant)) {
+    const qv = asRecord(raw);
+    queryVariants.push({
+      queryString: attrOrEmpty(qv, "queryString"),
+      title: attrOrEmpty(qv, "title"),
+      isDefault: isXmlTrue(attr2(qv, "isDefault"))
+    });
+  }
+  return {
+    ...intervalValue === void 0 ? {} : { refresh: { value: intervalValue, unit: intervalUnit ?? "" } },
+    ...pageSize === void 0 ? {} : { pageSize },
+    notificationEnabled: isXmlTrue(attr2(asRecord(node2.notification), "isEnabled")),
+    operators,
+    dataTypes,
+    attributes,
+    queryIsObligatory: isXmlTrue(elementText(node2.queryIsObligatory)),
+    ...Number.isFinite(queryDepth) ? { queryDepth } : {},
+    queryVariants
+  };
+}
+function parseFeedsCatalog(body) {
+  const doc = dumpsXml.parse(body);
+  refuseExceptionEnvelope(doc, "the ADT feeds catalog");
+  const feed = asRecord(doc.feed) ?? {};
+  const entries = [];
+  for (const raw of asArray2(feed.entry)) {
+    const entry = asRecord(raw);
+    if (entry === void 0) continue;
+    const contentSrc = attr2(asRecord(entry.content), "src");
+    const alternateHref = linkHref(entry.link, "alternate");
+    const ed = asRecord(entry.extendedData);
+    entries.push({
+      id: elementText(entry.id) ?? "",
+      title: elementText(entry.title) ?? "",
+      ...contentSrc === void 0 ? {} : { contentSrc },
+      ...alternateHref === void 0 ? {} : { alternateHref },
+      published: elementText(entry.published) ?? "",
+      updated: elementText(entry.updated) ?? "",
+      ...ed === void 0 ? {} : { extendedData: parseExtendedData(ed) }
+    });
+  }
+  return {
+    systemId: elementText(asRecord(feed.contributor)?.name) ?? "",
+    title: elementText(feed.title) ?? "",
+    updated: elementText(feed.updated) ?? "",
+    entries
+  };
+}
+function findDumpsFeedEntry(catalog) {
+  return catalog.entries.find((e) => e.id === DUMPS_FEED_PATH || e.contentSrc === DUMPS_FEED_PATH);
+}
+
+// src/adt/dumps.ts
+init_errors();
+init_session();
+var FEEDS_CATALOG_PATH = "/sap/bc/adt/feeds";
+var FEEDS_CATALOG_ACCEPT = "application/xml, application/atom+xml, application/atomsvc+xml, */*";
+var DUMPS_FEED_ACCEPT = "*/*";
+var DUMP_DETAIL_ACCEPT = "application/vnd.sap.adt.runtime.dump.v1+xml";
+var DUMP_FORMATTED_ACCEPT = "text/plain";
+var FORMATTED_SUFFIX = "/formatted";
+var FORMATTED_RELATION_TOKEN = "contents";
+var BAD_DUMP_KEY = /%25|[?#/\\]|\s/;
+function assertVerbatimDumpKey(key) {
+  if (typeof key !== "string" || key.trim() === "") {
+    throw new AbapError(
+      "BAD_INPUT",
+      "A dump key is required.",
+      { dumpKey: String(key) },
+      'Take the key from a dump list entry \u2014 it is the `rel="self"` link of the Atom entry with the `adt://{SID}` prefix stripped, and nothing else.'
+    );
+  }
+  if (BAD_DUMP_KEY.test(key)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "This dump key has been altered and will not resolve; refusing to send it.",
+      { dumpKey: key },
+      "The key is an opaque fixed-width token that arrives ALREADY percent-encoded \u2014 its `%20` runs are the space padding of a 70-character structure. Pass it through byte for byte. Do not URL-encode it (that turns `%20` into `%2520`, a captured 404), do not decode it, do not trim it, and do not rebuild it from its fields: all four mutations were captured as 404."
+    );
+  }
+  return key;
+}
+function dumpDetailPath(key) {
+  return `${DUMP_DETAIL_PATH_PREFIX}${assertVerbatimDumpKey(key)}`;
+}
+function dumpFormattedPath(key) {
+  return `${dumpDetailPath(key)}${FORMATTED_SUFFIX}`;
+}
+function classifyDumpFailure(e, ctx) {
+  const err = translateAdtError(e, ctx);
+  const status = typeof err.details.status === "number" ? err.details.status : void 0;
+  const key = ctx.dumpKey;
+  if (err.code === "NOT_FOUND" && key !== void 0) {
+    return new AbapError(
+      "NOT_FOUND",
+      `No dump with this key exists on the system (HTTP 404 from ${ctx.uri ?? "the dump resource"}).`,
+      { ...err.details, dumpKey: key },
+      `Two causes, in order of likelihood. (1) The key was altered in transit: it must be the feed entry's \`rel="self"\` value with the \`adt://{SID}\` prefix stripped and NOTHING else done to it \u2014 encoding, decoding and trimming were each captured as a 404. (2) The dump has left the ${DUMPS_RESIDENCE_WINDOW_DAYS}-day ADT residence window. List the dumps again and use a key from that answer.`
+    );
+  }
+  if (err.code !== "ADT_ERROR") return err;
+  if (status === 406) {
+    return new AbapError(
+      "ADT_ERROR",
+      `The dump resource does not offer the representation that was requested (HTTP 406).`,
+      { ...err.details, ...key === void 0 ? {} : { dumpKey: key } },
+      `This is a client bug, not a server or authorisation problem: each dump representation has its own resource and its own Accept. The detail document is '${DUMP_DETAIL_ACCEPT}' on the base resource; plain text is the '/formatted' SUB-RESOURCE, not a content-type of the base \u2014 asking the base for text/plain is a captured 406.`
+    );
+  }
+  if (status === 400) {
+    return new AbapError(
+      "BAD_INPUT",
+      `The server rejected this dumps request (HTTP 400) without saying why.`,
+      { ...err.details, ...key === void 0 ? {} : { dumpKey: key } },
+      `This endpoint answers an unknown attribute, a syntax error, a missing and(\u2026)/or(\u2026) wrapper and excess nesting with the SAME 372-byte ExceptionInvalidData body, so the status carries no diagnosis. Re-check the filter against the served contract from ${FEEDS_CATALOG_PATH}. Note that most bad parameters are NOT reported at all \u2014 they come back as 200 with the complete unfiltered feed \u2014 so a 400 means the query string itself, or a non-numeric $top.`
+    );
+  }
+  if (status === 401 || status === 403) {
+    return new AbapError(
+      "AUTH_FAILED",
+      `Not authorised (HTTP ${status}) to read runtime-error dumps.`,
+      { ...err.details, ...key === void 0 ? {} : { dumpKey: key } },
+      "The logon succeeded; this user lacks the ST22 display authorisation (typically S_ADMI_FCD / S_DEVELOP). Nothing about the key or the filter is in question \u2014 do not retry with a different one."
+    );
+  }
+  return err;
+}
+var capabilityCache = /* @__PURE__ */ new WeakMap();
+async function fetchFeedsCatalog(conn) {
+  const ctx = { operation: "dumps.feedsCatalog", uri: FEEDS_CATALOG_PATH };
+  let body;
+  try {
+    ({ body } = await conn.get(FEEDS_CATALOG_PATH, { headers: { Accept: FEEDS_CATALOG_ACCEPT } }));
+  } catch (e) {
+    throw classifyDumpFailure(e, ctx);
+  }
+  return parseFeedsCatalog(body);
+}
+async function probeDumpsFeed(conn) {
+  const cached2 = capabilityCache.get(conn);
+  if (cached2 !== void 0) return cached2;
+  let catalog;
+  try {
+    catalog = await fetchFeedsCatalog(conn);
+  } catch (e) {
+    return {
+      state: "unknown",
+      reason: `Could not read the feed catalog at ${FEEDS_CATALOG_PATH}: ${e instanceof Error ? e.message : String(e)}. This says nothing about whether the dumps feed exists, so the request proceeds.`
+    };
+  }
+  const entry = findDumpsFeedEntry(catalog);
+  if (entry === void 0) {
+    const verdict2 = {
+      state: "unsupported",
+      reason: `${FEEDS_CATALOG_PATH} was read successfully on ${catalog.systemId || "this system"} and lists ${catalog.entries.length} feed(s), none of them ${DUMPS_FEED_PATH}. The runtime-error feed is not served here.`
+    };
+    capabilityCache.set(conn, verdict2);
+    return verdict2;
+  }
+  const ed = entry.extendedData;
+  const verdict = {
+    state: "supported",
+    reason: `${FEEDS_CATALOG_PATH} lists ${DUMPS_FEED_PATH}${entry.title ? ` ("${entry.title}")` : ""}.`,
+    entry,
+    ...ed === void 0 ? {} : {
+      contract: toDumpsQueryContract(ed),
+      ...ed.pageSize === void 0 ? {} : { pageSize: ed.pageSize },
+      ...ed.refresh === void 0 ? {} : { refresh: ed.refresh }
+    }
+  };
+  capabilityCache.set(conn, verdict);
+  return verdict;
+}
+function assertDumpsSupported(capability) {
+  if (capability.state !== "unsupported") return;
+  throw new AbapError(
+    "UNSUPPORTED",
+    `This system does not serve ABAP runtime-error dumps over ADT. ${capability.reason}`,
+    { state: capability.state, catalog: FEEDS_CATALOG_PATH, feed: DUMPS_FEED_PATH },
+    `The verdict comes from ${FEEDS_CATALOG_PATH} (the Feed Repository catalog), which was read successfully and does not list the feed \u2014 it is not a guess from a 404 and not from /sap/bc/adt/discovery, which never lists this feed even where it works. Read the dump in SAP GUI transaction ST22 instead.`
+  );
+}
+async function resolveDumpsContract(conn) {
+  const capability = await probeDumpsFeed(conn);
+  if (capability.contract !== void 0) {
+    return { contract: capability.contract, source: "served", capability };
+  }
+  return { contract: DUMPS_CONTRACT_AS_CAPTURED, source: "as-captured", capability };
+}
+function emptyDumpsReason(windowStart, filtered) {
+  const base = `No dumps in the last ${DUMPS_RESIDENCE_WINDOW_DAYS} days matching this filter. ADT can only see runtime errors recorded since about ${windowStart} \u2014 the ${DUMPS_RESIDENCE_WINDOW_DAYS}-day SNAP residence window (C_SNAP_ADT_RESIDENCE_DAYS = ${DUMPS_RESIDENCE_WINDOW_DAYS}) is applied server-side and a 'from' bound cannot widen it, so an older dump can still exist in transaction ST22 and be absent here.`;
+  return filtered ? `${base} Widening or dropping the filter may find dumps inside the window.` : `${base} No filter was applied, so this system recorded no runtime errors at all in that window.`;
+}
+function isFiltered(request) {
+  return request.$query !== void 0 || request.from !== void 0 || request.to !== void 0;
+}
+async function getFeed(conn, url2, ctx) {
+  let body;
+  try {
+    ({ body } = await conn.get(url2, { headers: { Accept: DUMPS_FEED_ACCEPT } }));
+  } catch (e) {
+    throw classifyDumpFailure(e, ctx);
+  }
+  return parseDumpFeed(body);
+}
+function toPage(feed, url2, notes, windowStart, filtered, contractSource, capability) {
+  return {
+    entries: feed.entries,
+    systemId: feed.systemId,
+    hasMore: feed.hasMore,
+    ...feed.nextHref === void 0 ? {} : { nextHref: feed.nextHref },
+    url: url2,
+    notes,
+    residenceWindowStart: windowStart,
+    ...feed.entries.length === 0 ? { emptyReason: emptyDumpsReason(windowStart, filtered) } : {},
+    contractSource,
+    ...capability === void 0 ? {} : { capability }
+  };
+}
+async function listDumps(conn, request = {}, options = {}) {
+  const now = options.now ?? /* @__PURE__ */ new Date();
+  const probe3 = options.probe !== false;
+  let contract = options.contract;
+  let contractSource = contract === void 0 ? "as-captured" : "served";
+  let capability;
+  const notes = [];
+  if (contract === void 0 && probe3) {
+    const resolved = await resolveDumpsContract(conn);
+    assertDumpsSupported(resolved.capability);
+    contract = resolved.contract;
+    contractSource = resolved.source;
+    capability = resolved.capability;
+    if (resolved.capability.state === "unknown") {
+      notes.push(
+        `The dumps feed could not be confirmed from ${FEEDS_CATALOG_PATH}, so this request was sent anyway rather than refused. ${resolved.capability.reason}`
+      );
+    }
+    if (resolved.source === "as-captured") {
+      notes.push(
+        `${FEEDS_CATALOG_PATH} served no filter contract for this feed, so the filter was validated against the contract captured from another system. A filter this client accepts may still be refused by the server with an opaque 400.`
+      );
+    }
+  }
+  const built = buildDumpsFeedUrl(request, { contract: contract ?? DUMPS_CONTRACT_AS_CAPTURED, now });
+  notes.push(...built.notes);
+  const feed = await getFeed(conn, built.url, {
+    operation: "dumps.list",
+    uri: built.url
+  });
+  return toPage(
+    feed,
+    built.url,
+    notes,
+    built.residenceWindowStart,
+    isFiltered(request),
+    contractSource,
+    capability
+  );
+}
+async function fetchDumpDetail(conn, key) {
+  const uri = dumpDetailPath(key);
+  let body;
+  try {
+    ({ body } = await conn.get(uri, { headers: { Accept: DUMP_DETAIL_ACCEPT } }));
+  } catch (e) {
+    throw classifyDumpFailure(e, { operation: "dumps.detail", uri, dumpKey: key });
+  }
+  return parseDumpDetail(body);
+}
+async function fetchDumpFormatted(conn, target) {
+  const { uri, key } = formattedTarget(target);
+  try {
+    const { body } = await conn.get(uri, { headers: { Accept: DUMP_FORMATTED_ACCEPT } });
+    return body;
+  } catch (e) {
+    throw classifyDumpFailure(e, {
+      operation: "dumps.formatted",
+      uri,
+      ...key === void 0 ? {} : { dumpKey: key }
+    });
+  }
+}
+function formattedTarget(target) {
+  if (typeof target === "string") return { uri: dumpFormattedPath(target), key: target };
+  const link = target.links.find((l) => l.relationToken === FORMATTED_RELATION_TOKEN);
+  const path9 = target.formattedPath ?? link?.uri;
+  if (path9 === void 0) {
+    throw new AbapError(
+      "NOT_FOUND",
+      "This dump detail advertises no plain-text rendering.",
+      { error: target.error, links: target.links.map((l) => l.relationToken) },
+      `The '/formatted' body is reached through the '${FORMATTED_RELATION_TOKEN}' relation of the detail document. A detail without it is a shape this client has never been shown; fetch the dump by key instead, which appends the sub-resource directly.`
+    );
+  }
+  if (link !== void 0 && link.kind !== "adt-path") {
+    throw new AbapError(
+      "BAD_INPUT",
+      "The dump's plain-text link is not a server-relative ADT path; refusing to follow it.",
+      { uri: link.uri, kind: link.kind },
+      "This resource advertises absolute links (an internal https://host:port URL among them) that are not reachable or trustworthy from this client. Only server-relative paths are followed."
+    );
+  }
+  return { uri: path9 };
+}
+function selectDumpChapters(detail, formatted, names = TIER1_CHAPTER_NAMES) {
+  const requested = [...names];
+  const have = new Set(detail.chapters.map((c) => c.name));
+  const present = requested.filter((n) => have.has(n));
+  const missing = requested.filter((n) => !have.has(n));
+  return {
+    detail,
+    text: sliceDumpChapters(detail.chapters, formatted, present),
+    requested,
+    present,
+    missing,
+    totalLines: formatted === "" ? 0 : formatted.split("\n").length,
+    includesVariables: present.includes(VARIABLES_CHAPTER_NAME)
+  };
+}
+
+// src/adt/run-dump-lookup.ts
+var RECENT_DUMP_LOOKBACK_SECONDS = 60;
+var RECENT_DUMP_MAX_ROWS = 20;
+var CLASS_NAME_WIDTH = 30;
+function classPoolName(className) {
+  return `${className.toUpperCase().padEnd(CLASS_NAME_WIDTH, "=")}CP`;
+}
+function programMatches(terminatedProgram, programs) {
+  const upper = terminatedProgram.trim().toUpperCase();
+  return upper !== "" && programs.some((p) => p.trim().toUpperCase() === upper);
+}
+function describeFailure3(e) {
+  return truncateText(e instanceof Error ? `${e.name}: ${e.message}` : String(e), MESSAGE_EXCERPT_MAX);
+}
+async function findRecentDump(conn, window2, programs) {
+  const wanted = programs.map((p) => p.toUpperCase());
+  const base = { window: window2, programs: wanted, candidates: 0 };
+  let entries;
+  try {
+    const page = await listDumps(
+      conn,
+      {
+        ...window2.query === void 0 ? {} : { $query: window2.query },
+        from: window2.from,
+        to: window2.to,
+        $top: RECENT_DUMP_MAX_ROWS
+      },
+      { probe: false }
+    );
+    entries = page.entries;
+  } catch (e) {
+    return { ...base, failure: describeFailure3(e) };
+  }
+  const mine = window2.user === void 0 ? entries : entries.filter((entry) => entry.user.toUpperCase() === window2.user);
+  const match = mine.find((entry) => programMatches(entry.terminatedProgram, wanted));
+  if (match === void 0) return { ...base, candidates: mine.length };
+  const found = {
+    key: match.key,
+    runtimeError: match.runtimeError,
+    shortText: match.title,
+    program: match.terminatedProgram,
+    user: match.user,
+    published: match.published
+  };
+  try {
+    const detail = await fetchDumpDetail(conn, match.key);
+    if (detail.exception) found.exception = detail.exception;
+  } catch {
+  }
+  return { ...base, found, candidates: mine.length };
+}
+
 // src/adt/run.ts
 init_enhancement_templates();
 
@@ -113503,7 +114085,7 @@ function selectionScreenNotes(parsed, supplied) {
 
 // src/adt/run.ts
 var DUMP_CORRELATION_SLACK_SECONDS = 2;
-function buildDumpCorrelation(serverTime, user) {
+function buildDumpCorrelation(serverTime, user, options = {}) {
   if (!serverTime) return void 0;
   const digits = serverTime.replace(/\D/g, "");
   if (!isValidTimestamp14(digits)) return void 0;
@@ -113516,7 +114098,8 @@ function buildDumpCorrelation(serverTime, user) {
     Number(digits.slice(12, 14))
   );
   const slack = DUMP_CORRELATION_SLACK_SECONDS * 1e3;
-  const from = timestamp14(new Date(at - slack));
+  const lookback = Math.max(0, options.lookbackSeconds ?? 0) * 1e3;
+  const from = timestamp14(new Date(at - lookback - slack));
   const to = timestamp14(new Date(at + slack));
   const upper = user?.trim().toUpperCase();
   const query = upper ? buildFqlQuery({
@@ -113761,12 +114344,100 @@ function translateRunFailure(conn, className, e) {
       )
     );
   }
+  if (resp === void 0 && isTimeoutError(e)) {
+    invalidateSession(conn);
+    return discloseMutationRisk(timeoutError(className, conn.cfg.timeoutMs, e));
+  }
   const translated = translateAdtError(e, {
     operation: "run class",
     name: className,
     uri: `${CLASSRUN_PATH}${className}`
   });
   return resp === void 0 && !(0, import_abap_adt_api8.isCsrfError)(e) ? discloseMutationRisk(translated) : translated;
+}
+function timeoutError(className, timeoutMs, cause) {
+  const err = new AbapError(
+    "TIMEOUT",
+    `${className} did not answer within ${timeoutMs} ms (ABAP_TIMEOUT_MS); the request was abandoned client-side.`,
+    { class: className, timeoutMs },
+    "The ABAP session was abandoned, not stopped \u2014 the program may still be running on the server. If it legitimately needs longer, raise ABAP_TIMEOUT_MS or make it do less per run.",
+    { retryable: true }
+    // TIMEOUT is `conditional`; before the dumps feed is asked the likeliest story is "ran long", and withDumpLookup withdraws this the moment a dump says otherwise
+  );
+  err.cause = cause;
+  return err;
+}
+async function attachRecentDump(conn, className, e, options) {
+  if (!isAbapError(e)) return e;
+  const isTimeout = e.code === "TIMEOUT";
+  const noConsole = e.code === "ADT_ERROR" && e.details.noConsoleOutput === true;
+  if (!isTimeout && !noConsole) return e;
+  const window2 = buildDumpCorrelation(timestamp14(/* @__PURE__ */ new Date()), conn.cfg.user, {
+    lookbackSeconds: RECENT_DUMP_LOOKBACK_SECONDS
+  });
+  if (window2 === void 0) return e;
+  const programs = [
+    classPoolName(className),
+    ...(options.dumpPrograms ?? []).map((p) => p.toUpperCase())
+  ];
+  const lookup = await findRecentDump(conn, window2, programs);
+  return withDumpLookup(e, lookup, isTimeout);
+}
+function withDumpLookup(e, lookup, isTimeout) {
+  const { window: window2, found } = lookup;
+  const searched = `user ${window2.user ?? "(any)"}, program ${lookup.programs.join(" or ")}, between ${window2.from} and ${window2.to}`;
+  const summary = {
+    from: window2.from,
+    to: window2.to,
+    ...window2.query === void 0 ? {} : { query: window2.query },
+    programs: lookup.programs,
+    candidates: lookup.candidates
+  };
+  let revised;
+  if (found !== void 0) {
+    const exception = found.exception ? `, ${found.exception}` : "";
+    revised = new AbapError(
+      e.code,
+      `${e.message} A short dump of this program by this user was recorded in the last minute: ${found.runtimeError} \u2014 ${found.shortText}`,
+      {
+        ...e.details,
+        dump: {
+          key: found.key,
+          runtimeError: found.runtimeError,
+          ...found.exception ? { exception: found.exception } : {},
+          shortText: found.shortText,
+          program: found.program,
+          published: found.published
+        },
+        dumpLookup: { ...summary, matched: true }
+      },
+      `${found.program} short-dumped for this user within the last minute (${found.runtimeError}${exception}): ${found.shortText} \u2014 almost certainly this run; if several runs overlapped, compare details.dump.published with the call time. Read it with abap_dumps ${JSON.stringify({ mode: "show", key: found.key })} \u2014 the default summary carries the source line, the error analysis and the top of the call stack. Any output written before the dump is lost. Do not retry unchanged; the same code dumps the same way.`,
+      { retryable: false }
+      // a fresh dump of this program by this user: it crashed, and retrying the same code crashes it again
+    );
+  } else if (lookup.failure !== void 0) {
+    revised = new AbapError(
+      e.code,
+      e.message,
+      { ...e.details, dumpLookup: { ...summary, failure: lookup.failure } },
+      `${e.hint ?? ""} Whether the run short-dumped is UNKNOWN: the dumps-feed lookup for ${searched} failed (${lookup.failure}). Check yourself with abap_dumps ${JSON.stringify({ mode: "list", from: window2.from, to: window2.to, ...window2.query ? { query: window2.query } : {} })} before deciding to retry.`,
+      { retryable: void 0 }
+      // the feed could not be read, so neither "ran long" nor "crashed" is established — withdraw the claim rather than guess
+    );
+  } else {
+    const verdict = isTimeout ? `so the run most likely ran past the budget rather than crashing. Retrying unchanged is safe only if the program is idempotent; otherwise re-read what it touches first.` : "so the empty answer is not explained by a crash.";
+    revised = new AbapError(
+      e.code,
+      e.message,
+      { ...e.details, dumpLookup: { ...summary, matched: false } },
+      `${e.hint ?? ""} No ST22 dump for ${searched} (${lookup.candidates} other dump(s) of that user in the window), ${verdict}`,
+      { retryable: e.retryable }
+      // no dump found: the original verdict stands (TIMEOUT's `true`, the no-console ADT_ERROR's `undefined`)
+    );
+  }
+  revised.stack = e.stack;
+  revised.cause = e.cause;
+  return revised;
 }
 var UNDEFINED_BODY_LITERAL = "undefined";
 var XML_OR_HTML_BODY_PREFIX = /^(<\?xml|<!DOCTYPE|<html)/i;
@@ -113777,17 +114448,17 @@ function bogusBodyReason(raw, trimmed) {
   if (XML_OR_HTML_BODY_PREFIX.test(trimmed)) return "the body is XML/HTML markup, not console output";
   return void 0;
 }
-function assertPlausibleRunOutput(className, raw, bodyBytes) {
+function implausibleRunOutput(className, raw, bodyBytes) {
   const reason = bogusBodyReason(raw, raw.trim());
-  if (!reason) return;
-  throw new AbapError(
+  if (!reason) return void 0;
+  return new AbapError(
     "ADT_ERROR",
     `${className} returned HTTP 200, but ${reason} \u2014 the response is not usable as program output.`,
-    { class: className, bodyBytes },
+    { class: className, bodyBytes, noConsoleOutput: true },
     "classrun returns 200 for both genuine output and an ADT error envelope / ICF error page \u2014 the status code alone proves nothing. Treat this the same as a thrown ADT error rather than trusting the body."
   );
 }
-async function runClass(conn, className) {
+async function runClass(conn, className, options = {}) {
   const name = assertPlainName(className, "Class name").toUpperCase();
   if (name.length > MAX_NAME) {
     throw new AbapError(
@@ -113797,15 +114468,21 @@ async function runClass(conn, className) {
     );
   }
   const started = Date.now();
-  const raw = await conn.withFreshSession(async (client) => {
-    try {
-      return await client.runClass(name);
-    } catch (e) {
-      throw translateRunFailure(conn, name, e);
-    }
-  });
+  let raw;
+  try {
+    raw = await conn.withFreshSession(async (client) => {
+      try {
+        return await client.runClass(name);
+      } catch (e) {
+        throw translateRunFailure(conn, name, e);
+      }
+    });
+  } catch (e) {
+    throw await attachRecentDump(conn, name, e, options);
+  }
   const bodyBytes = Buffer.byteLength(raw, "utf8");
-  assertPlausibleRunOutput(name, raw, bodyBytes);
+  const implausible = implausibleRunOutput(name, raw, bodyBytes);
+  if (implausible !== void 0) throw await attachRecentDump(conn, name, implausible, options);
   const output = raw.replace(/\r\n/g, "\n").replace(/\n+$/, "");
   return {
     mode: "class",
@@ -113969,19 +114646,21 @@ function discloseMutationRisk(err) {
     err.code,
     err.message,
     { ...err.details, mayHaveExecuted: true },
-    err.hint ? `${err.hint} ${disclosure}` : disclosure
+    err.hint ? `${err.hint} ${disclosure}` : disclosure,
+    { retryable: err.retryable }
+    // re-wrap: carries the classified retryable through unchanged (TIMEOUT's explicit `true` would otherwise fall back to the table's `undefined`)
   );
   disclosed.stack = err.stack;
   disclosed.cause = err.cause;
   return disclosed;
 }
-async function executeBridge(conn, gate, deployed) {
+async function executeBridge(conn, gate, deployed, options = {}) {
   const executeAuthorization = gate.authorize("execute", {
     name: deployed.target.name,
     packageName: deployed.target.packageName,
     type: deployed.target.type
   });
-  return runClass(conn, executeAuthorization.target.name);
+  return runClass(conn, executeAuthorization.target.name, options);
 }
 async function runReport(conn, reportName, gate, parameters = []) {
   const started = Date.now();
@@ -113999,7 +114678,7 @@ async function runReport(conn, reportName, gate, parameters = []) {
     verify: (activation) => verifyBridgeActivation(activation, className, "run bridge", { report })
   });
   const { bridgeRefreshed, activationVerified: bridgeActivationVerified } = deployed;
-  const run = await executeBridge(conn, gate, deployed);
+  const run = await executeBridge(conn, gate, deployed, { dumpPrograms: [report] });
   const { list: list3, diagnostics, droppedLines: bridgeDroppedLines } = splitBridgeOutput(run.output);
   const beforeHeaderStrip = list3.length;
   const stripped = stripListHeader(list3);
@@ -114183,7 +114862,7 @@ function abapTimestamp(d) {
   const pad2 = (n, w = 2) => String(n).padStart(w, "0");
   return `${d.getUTCFullYear()}${pad2(d.getUTCMonth() + 1)}${pad2(d.getUTCDate())}${pad2(d.getUTCHours())}${pad2(d.getUTCMinutes())}${pad2(d.getUTCSeconds())}`;
 }
-function describeFailure3(e) {
+function describeFailure4(e) {
   if (isAbapError(e)) {
     return `${e.code}: ${e.message}`;
   }
@@ -114209,7 +114888,7 @@ async function withAuthTrace(deps, user, fn) {
       from = onResult.timestamp;
     }
   } catch (e) {
-    onFailureReason = describeFailure3(e);
+    onFailureReason = describeFailure4(e);
   }
   let result;
   let fnError;
@@ -114229,7 +114908,7 @@ async function withAuthTrace(deps, user, fn) {
       const { checks, usedFallback } = await readFailedAuthChecks(deps, { user, from, to });
       authTrace = { ok: true, checks, usedFallback };
     } catch (e) {
-      authTrace = { ok: false, reason: `unavailable: ${describeFailure3(e)}` };
+      authTrace = { ok: false, reason: `unavailable: ${describeFailure4(e)}` };
     }
   }
   let switchOffError;
@@ -114237,7 +114916,7 @@ async function withAuthTrace(deps, user, fn) {
     try {
       await authTraceOff(deps);
     } catch (e) {
-      switchOffError = describeFailure3(e);
+      switchOffError = describeFailure4(e);
     }
   }
   if (fnThrew) {
@@ -115433,7 +116112,7 @@ var runInputSchema = {
     "Switch on the SAP authorization trace for the connected user, run, then read back and switch it back off. Refused on a read-only server. Default false."
   ),
   snapshot_ids: external_exports.array(external_exports.string()).optional().describe(
-    'Snapshot ids from prior abap_data_preview mode="snapshot" calls; each is re-read and diffed after this call and appended as a DATA CHANGES section, under the same data-preview policy (a refused diff does not fail this call).'
+    `Snapshot ids from prior abap_data_preview mode="snapshot" calls. After this call finishes, each one is re-read and diffed, and the result is appended as a DATA CHANGES section. The diff obeys the same data-preview policy as the snapshot did \u2014 if it is refused, this call's own result still returns and the section says why.`
   )
 };
 var RunInput = external_exports.object(runInputSchema);
@@ -115994,7 +116673,7 @@ var debugInputSchema = {
       messageBreakpointSchema
     ])
   ).optional().describe(
-    '\u22651 entry, required for action="start" and for action="breakpoints" op="add"; kinds (line/exception/statement/message) may mix and are validated against SAP before arming; condition and skipCount are optional on every kind, skipCount sent to SAP but NOT enforced.'
+    '\u22651 entry, required for action="start" and for action="breakpoints" op="add"; kinds (line/exception/statement/message) may mix and are validated against SAP before arming. All kinds take optional condition (ABAP expression, suspend only when true) and skipCount (sent to SAP, NOT enforced \u2014 use step:"continue").'
   ),
   run: external_exports.object({
     object: external_exports.string().describe("Class or report to execute \u2014 same resolution rules as abap_run."),
@@ -117922,7 +118601,7 @@ var xmlParser2 = new XMLParser({
   parseTagValue: false,
   trimValues: true
 });
-function asArray2(v) {
+function asArray3(v) {
   if (v === void 0 || v === null) return [];
   return Array.isArray(v) ? v : [v];
 }
@@ -117942,11 +118621,11 @@ function textTransl(v) {
 }
 function items(node2) {
   if (!isRecord(node2)) return [];
-  return asArray2(node2["Item"]).filter(isRecord);
+  return asArray3(node2["Item"]).filter(isRecord);
 }
 function findAllNodesByName(el, name, acc = []) {
   if (!isRecord(el)) return acc;
-  for (const node2 of asArray2(el["Node"])) {
+  for (const node2 of asArray3(el["Node"])) {
     if (!isRecord(node2)) continue;
     if (node2["@_Name"] === name) acc.push(node2);
     findAllNodesByName(node2, name, acc);
@@ -118014,11 +118693,11 @@ function collectButtonRows(root) {
     for (const elNode of findAllNodesByName(rowNode, "BUTTON_ROW_ELEMENT")) {
       for (const elItem of items(elNode)) {
         const events = findAllNodesByName(elItem, "BUTTON_ACTION").flatMap((n) => items(n)).map((i) => ({ eventId: text3(i["EVENT_ID"]), text: text3(i["TEXT"]) }));
-        const rowText = textTransl(elItem["TEXT"]);
+        const rowText2 = textTransl(elItem["TEXT"]);
         rows.push({
           elementId: text3(elItem["ELEMENT_ID"]),
-          text: rowText.value,
-          textTransl: rowText.translatable,
+          text: rowText2.value,
+          textTransl: rowText2.translatable,
           displayType: text3(elItem["DISPLAY_TYPE"]),
           events,
           raw: elItem
@@ -118133,7 +118812,7 @@ function collectFeeders(root) {
     if (!isRecord(el)) return;
     const feeder = text3(el["FEEDER"]);
     if (feeder) out.push(feeder);
-    for (const node2 of asArray2(el["Node"])) walk(node2);
+    for (const node2 of asArray3(el["Node"])) walk(node2);
     for (const item of items(el)) walk(item);
   };
   walk(root);
@@ -118152,7 +118831,7 @@ function collectBoNames(root) {
       }
       walk(item);
     }
-    for (const node2 of asArray2(el["Node"])) walk(node2);
+    for (const node2 of asArray3(el["Node"])) walk(node2);
   };
   walk(root);
   return [...out];
@@ -118171,7 +118850,7 @@ function collectBoNodePairs(root) {
     const paramBo = nameValue.get("BO");
     if (paramBo) out.push({ bo: paramBo, node: nameValue.get("NODE") || void 0 });
     for (const item of items(el)) walk(item);
-    for (const node2 of asArray2(el["Node"])) walk(node2);
+    for (const node2 of asArray3(el["Node"])) walk(node2);
   };
   walk(root);
   return out;
@@ -123406,10 +124085,10 @@ var writeInputSchema = {
     headingLabel: external_exports.string().optional(),
     headingLength: external_exports.number().optional(),
     searchHelp: external_exports.string().optional().describe(
-      "DTEL/DE only: search help attached to this data element (DD04L-SHLPNAME). Not checked before send. Uppercased, max 30 chars."
+      "DTEL/DE only: search help attached to this data element (DD04L-SHLPNAME). Must name an existing, active SHLP/DH \u2014 not checked before send. Uppercased, max 30 chars."
     ),
     searchHelpParameter: external_exports.string().optional().describe(
-      "DTEL/DE only: the search help's own interface parameter this data element binds to (DD04L-SHLPFIELD). Refused without `searchHelp`. Uppercased, max 30 chars."
+      "DTEL/DE only: the search help's own interface parameter this data element binds to (DD04L-SHLPFIELD, e.g. DD32P-FIELDNAME on the search help itself) \u2014 not the data element's own name. Refused without `searchHelp`. Uppercased, max 30 chars."
     )
   }).strict().optional().describe("DOMA/DD, DTEL/DE, TTYP/DA: alt to `source`, never both."),
   // SHLP/DH create/update, required: DD30V/DD32P/DD31V/DD33V fields no
@@ -123421,7 +124100,7 @@ var writeInputSchema = {
   // update — nothing carried over here from what already exists.
   shlp: external_exports.object({
     selectionMethod: external_exports.string().optional().describe(
-      "DD30V-SELMETHOD: table or view the search help selects from. Omit for a collective search help, or an elementary one driven by a search-help exit instead of a table/view."
+      "DD30V-SELMETHOD: table or view the search help selects from. Omit for a collective search help, or an elementary one driven by a search-help exit instead of a table/view \u2014 both are normal and have no selection method at all."
     ),
     selectionMethodType: external_exports.enum(["T", "V", "M"]).optional().describe(
       "DD30V-SELMTYPE. Only meaningful alongside selectionMethod; omit when selectionMethod is omitted too."
@@ -123440,7 +124119,7 @@ var writeInputSchema = {
       })
     ).describe("Interface fields (DD32P), in order."),
     includes: external_exports.array(external_exports.object({ name: external_exports.string().describe("DD31V-SUBSHLP.") })).optional().describe(
-      "Other search helps included by this one (DD31V), in order. Optional \u2014 empty or omitted is fine, including for elementary: false. Each name must exist as an ACTIVE search help (DD30L); refused before registration otherwise (CHECK_FAILED)."
+      "Other search helps included by this one (DD31V), in order. Optional \u2014 empty or omitted is fine, including for elementary: false. Each name must exist as an ACTIVE search help (DD30L); refused before registration otherwise (CHECK_FAILED), rather than passing DDIF_SHLP_PUT and stranding this help as inactive-only when DDIF_SHLP_ACTIVATE then fails (DH109)."
     ),
     assignments: external_exports.array(
       external_exports.object({
@@ -123451,25 +124130,25 @@ var writeInputSchema = {
           "DD33V-SUBSHLP. Must match one of this call's own `includes[].name` (case-insensitive); refused before send otherwise (BAD_INPUT)."
         ),
         includedField: external_exports.string().describe(
-          "DD33V-SUBFIELD. Must be an ACTIVE interface parameter (DD32S) of `includedHelp`; checked server-side before RS_CORR_INSERT, not zero-network, and refused otherwise (CHECK_FAILED)."
+          "DD33V-SUBFIELD. Must be an ACTIVE interface parameter (DD32S) of `includedHelp`; checked server-side before RS_CORR_INSERT and refused otherwise (CHECK_FAILED) \u2014 this needs that other search help's own DD32P/DD32S, so it is not checked zero-network."
         ),
         direction: external_exports.enum(["I", "E"]).describe(
-          'DD33V-VALUEDIREC: I=import into, E=export from the included help. May read back as C ("both import and export") when the target parameter is both import and export.'
+          'DD33V-VALUEDIREC: I=import into, E=export from the included help. DDIC may normalise the stored value to C ("both import and export") on read-back when the target parameter is both import and export.'
         )
       })
     ).optional().describe(
-      "Field assignments (DD33V) between an included search help and this one's interface. `field`, `includedHelp` and `includedField` are each validated against this call's own fields/includes/target help; see each field below."
+      "Field assignments (DD33V) between an included search help and this one's interface. A `field`/`includedHelp` not found in this call's own `fields`/`includes`, or an `includedField` that is not an active parameter of `includedHelp`, would otherwise pass DDIF_SHLP_PUT and fail DDIF_SHLP_ACTIVATE (DH109) \u2014 all three are refused first instead; see each field below."
     )
   }).strict().optional().describe("SHLP/DH create/update, required: search help definition. See SearchHelpParams in src/adt/shlp-create.ts."),
   expect_etag: external_exports.string().optional().describe("Etag from abap_read; fails if changed."),
   mode: external_exports.enum(["write", "delete", "update"]).optional().describe(
-    'Default write (create for most types). "update" retargets/replaces an EXISTING VIEW/DV, TRAN/T or SHLP/DH in place (whole definition replaced) \u2014 refused zero-network for every other type.'
+    'Default write (create for most types). "update" retargets/replaces an EXISTING VIEW/DV, TRAN/T or SHLP/DH in place (DDIF_VIEW_PUT / RPY_TRANSACTION_DELETE+INSERT / DDIF_SHLP_PUT replace the whole definition/target) \u2014 refused zero-network for every other type.'
   ),
   activate: external_exports.boolean().optional().describe("Default true."),
   verify: external_exports.boolean().optional().describe("Force verified mode; reads back after write."),
   format: external_exports.boolean().optional().describe("Pretty-print source before writing."),
   dry_run: external_exports.boolean().optional().describe(
-    "Preview only: returns the diff and the expect_etag a real write would assert. Makes no lock, PUT, DELETE, activation, unlock or transport call and journals nothing."
+    "Preview only: resolve, read, apply the edit locally, run the safety gate, and return the diff and the expect_etag a real write would assert. Makes no lock, PUT, DELETE, activation, unlock or transport call and journals nothing."
   ),
   corr_nr: external_exports.string().optional().describe(
     "Transport request. $TMP needs none. Optional for every transportable create, including the bridge types TRAN/T, VIEW/DV, SHLP/DH and TABL/DI: omitted, one is resolved under ABAP_ALLOW_TRANSPORTS (auto reuses a modifiable request this session created for the package, else creates one; under auto a NAMED request is refused, so omit it). Refused for a $ package, and on VIEW/DV or TRAN/T delete. TABL/DI delete: same package-derived resolution as its create, not refused. If the object is already recorded in a DIFFERENT request, CTS imposes that one instead: mode=write proceeds under it and reports corr_nr_honoured: false; mode=delete is refused outright with TRANSPORT_ERROR (CORR_NR_NOT_HONOURED) and deletes nothing."
@@ -123500,10 +124179,10 @@ var writeInputSchema = {
     "SHLP/DH delete only: required true when the search help is still attached to a data element, a table/view field, or included by a collective search help (DD04L/DD35L/DD31S). Refused zero-network for any other type/mode combination."
   ),
   confirm_maintenance_dialog: external_exports.boolean().optional().describe(
-    "VIEW/DV delete: overrides the bridge's refusal when the view still has a generated SE54 maintenance dialog (TVDIR), which the delete leaves broken; the refusal names the dialog. Refused zero-network for any other type/mode combination."
+    "VIEW/DV delete: overrides the bridge's refusal when the view still has a generated SE54 maintenance dialog (TVDIR) \u2014 deleting the view leaves that dialog broken. The bridge's refusal names the specific dialog (function group area, package, type, screen) so a caller can read it and decide before passing this. Refused zero-network for any other type/mode combination."
   ),
   confirm_in_role_menu: external_exports.boolean().optional().describe(
-    `TRAN/T mode="delete" or mode="update" (retarget): overrides the bridge's refusal when the tcode is assigned to role menus (AGR_TCODES) \u2014 deleting removes it from them, retargeting changes what they launch; the refusal names the roles. An SM01 lock is not checked. Refused zero-network for any other type/mode combination.`
+    `TRAN/T mode="delete" or mode="update" (retarget): overrides the bridge's refusal when the tcode is already assigned to one or more roles' menus (AGR_TCODES). Deleting it removes it from those role menus; retargeting it changes what those menu entries launch. The bridge's refusal names the specific roles so a caller can read it and decide before passing this. An SM01 transaction lock is not checked either way. Refused zero-network for any other type/mode combination.`
   ),
   // Same shape/wording as abap_enh's `affects` field (src/tools/enh.ts), so
   // callers share one vocabulary. Required for an enhancement-type write
@@ -130417,21 +131096,21 @@ var usageReferencesXml = new XMLParser({
   trimValues: false,
   isArray: (_name, jpath, _isLeaf, isAttribute) => !isAttribute && typeof jpath === "string" && jpath.endsWith("referencedObjects.referencedObject")
 });
-function asRecord(value) {
+function asRecord2(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value) ? value : void 0;
 }
-function asArray3(value) {
+function asArray4(value) {
   if (Array.isArray(value)) return value;
   return value === void 0 || value === null ? [] : [value];
 }
-function attr2(node2, name) {
+function attr3(node2, name) {
   const value = node2?.[`@_${name}`];
   return typeof value === "string" ? value : void 0;
 }
-function elementText(value) {
+function elementText2(value) {
   if (typeof value === "string") return value;
   if (value === void 0 || value === null) return void 0;
-  const rec = asRecord(value);
+  const rec = asRecord2(value);
   if (rec === void 0) return void 0;
   const text5 = rec["#text"];
   return typeof text5 === "string" ? text5 : "";
@@ -130448,7 +131127,7 @@ function parseXmlDocument(body, what, ctx, parser3 = elementInfoXml) {
       "The server answered with something other than the expected document."
     );
   }
-  const rec = asRecord(parsed);
+  const rec = asRecord2(parsed);
   if (rec === void 0) {
     throw new AbapError(
       "ADT_ERROR",
@@ -130460,32 +131139,32 @@ function parseXmlDocument(body, what, ctx, parser3 = elementInfoXml) {
   return rec;
 }
 function parseProperties(value) {
-  const rec = asRecord(value);
+  const rec = asRecord2(value);
   if (rec === void 0) return {};
   const result = {};
-  for (const raw of asArray3(rec["entry"])) {
-    const entryNode = asRecord(raw);
-    const key = attr2(entryNode, "key");
+  for (const raw of asArray4(rec["entry"])) {
+    const entryNode = asRecord2(raw);
+    const key = attr3(entryNode, "key");
     if (key === void 0) continue;
-    result[key] = elementText(raw) ?? "";
+    result[key] = elementText2(raw) ?? "";
   }
   return result;
 }
 function findDocumentation(node2, rel) {
-  for (const raw of asArray3(node2["documentation"])) {
-    const docNode = asRecord(raw);
-    if (attr2(docNode, "rel") !== rel) continue;
-    return elementText(raw) ?? "";
+  for (const raw of asArray4(node2["documentation"])) {
+    const docNode = asRecord2(raw);
+    if (attr3(docNode, "rel") !== rel) continue;
+    return elementText2(raw) ?? "";
   }
   return void 0;
 }
 function parseElementInfoNode(raw) {
-  const node2 = asRecord(raw) ?? {};
-  const type = attr2(node2, "type");
-  const name = attr2(node2, "name");
+  const node2 = asRecord2(raw) ?? {};
+  const type = attr3(node2, "type");
+  const name = attr3(node2, "name");
   const shortText = findDocumentation(node2, "shorttext");
   const abapDoc = findDocumentation(node2, "abapdoc");
-  const children = asArray3(node2["elementInfo"]).map(parseElementInfoNode);
+  const children = asArray4(node2["elementInfo"]).map(parseElementInfoNode);
   return {
     ...type !== void 0 ? { type } : {},
     ...name !== void 0 ? { name } : {},
@@ -130555,7 +131234,7 @@ function parseNavigationTarget(xml3, ctx) {
       "This ADT release may answer navigation targets differently from what this client expects."
     );
   }
-  const uri = attr2(asRecord(rootValue), "uri");
+  const uri = attr3(asRecord2(rootValue), "uri");
   return uri === void 0 ? void 0 : splitFragmentUri(uri);
 }
 var NAVIGATION_UNDECIDABLE_RE = /undecidable/i;
@@ -130635,33 +131314,33 @@ function parseUsageReferences(xml3, ctx) {
       "This ADT release may answer where-used differently from what this client expects."
     );
   }
-  const root = asRecord(rootValue);
-  const referencedObjects = asRecord(root?.["referencedObjects"]);
+  const root = asRecord2(rootValue);
+  const referencedObjects = asRecord2(root?.["referencedObjects"]);
   if (referencedObjects === void 0) return [];
   const rows = [];
-  for (const raw of asArray3(referencedObjects["referencedObject"])) {
-    const row2 = asRecord(raw);
+  for (const raw of asArray4(referencedObjects["referencedObject"])) {
+    const row2 = asRecord2(raw);
     if (row2 === void 0) continue;
-    const adtObject = asRecord(row2["adtObject"]) ?? {};
-    const packageRefNode = asRecord(adtObject["packageRef"]);
+    const adtObject = asRecord2(row2["adtObject"]) ?? {};
+    const packageRefNode = asRecord2(adtObject["packageRef"]);
     const packageRef = {};
-    const packageName = attr2(packageRefNode, "name");
-    const packageUri = attr2(packageRefNode, "uri");
-    const packageType = attr2(packageRefNode, "type");
+    const packageName = attr3(packageRefNode, "name");
+    const packageUri = attr3(packageRefNode, "uri");
+    const packageType = attr3(packageRefNode, "type");
     if (packageName !== void 0) packageRef["adtcore:name"] = packageName;
     if (packageUri !== void 0) packageRef["adtcore:uri"] = packageUri;
     if (packageType !== void 0) packageRef["adtcore:type"] = packageType;
-    const rowUri = attr2(row2, "uri");
-    const parentUri = attr2(row2, "parentUri");
-    const adtName = attr2(adtObject, "name");
-    const adtType = attr2(adtObject, "type");
+    const rowUri = attr3(row2, "uri");
+    const parentUri = attr3(row2, "parentUri");
+    const adtName = attr3(adtObject, "name");
+    const adtType = attr3(adtObject, "type");
     rows.push({
       ...rowUri !== void 0 ? { uri: rowUri } : {},
       ...parentUri !== void 0 ? { parentUri } : {},
       ...adtName !== void 0 ? { "adtcore:name": adtName } : {},
       ...adtType !== void 0 ? { "adtcore:type": adtType } : {},
       packageRef,
-      objectIdentifier: elementText(row2["objectIdentifier"]) ?? ""
+      objectIdentifier: elementText2(row2["objectIdentifier"]) ?? ""
     });
   }
   return rows;
@@ -130684,7 +131363,7 @@ function implementationsFrom(refs, interfaceName, methodName) {
     const className = (parentUri !== void 0 ? nameByUri.get(parentUri) : void 0) ?? classNameFromUri(parentUri);
     if (className === void 0) continue;
     const packageRefValue = ref2["packageRef"];
-    const packageRef = asRecord(packageRefValue);
+    const packageRef = asRecord2(packageRefValue);
     const packageName = packageRef !== void 0 ? recordString(packageRef, "adtcore:name") : void 0;
     results.push({
       className,
@@ -132588,23 +133267,13 @@ async function runCrossSystemDiff(params) {
 }
 
 // src/tools/read.ts
-var OUTLINE_DEFAULT_LINES = 150;
-var OUTLINE_DEFAULT_CHARS = 8e3;
-var PATTERN_MAX_MATCHES = 50;
-var PATTERN_DEFAULT_CONTEXT = 2;
 var readInputSchema = {
   object: external_exports.string().describe('Name, "class X", "table Y", or ADT URI.'),
   type: external_exports.string().optional().describe(
     `ADT type to disambiguate. DEVC/K: package listing (types/depth filter it). SUSO/B: renders the object's DEFINITION (fields, permitted activities) from the catalog \u2014 NOT who holds it, no AGR_*/UST* table is read. TABL/DI: <TABLE>/<INDEX> catalog render. Not readable: ${NON_READABLE_TYPES.join(" ")}.`
   ),
   method: external_exports.string().optional().describe("Only this method/component."),
-  outline: external_exports.boolean().optional().describe(
-    `Component list with line ranges. Default for CLAS/INTF/PROG/FUGR above ${OUTLINE_DEFAULT_LINES} lines or ${OUTLINE_DEFAULT_CHARS} chars unless method/include/offset/limit/pattern/full is given.`
-  ),
-  full: external_exports.boolean().optional().describe("Whole source even above the default-outline threshold."),
-  pattern: external_exports.string().optional().describe(
-    `Regex (case-insensitive): only matching lines, numbered, with \`context\` lines around each (like grep -n -C). Max ${PATTERN_MAX_MATCHES} matches unless limit= is given; offset= sets the first line scanned.`
-  ),
+  outline: external_exports.boolean().optional().describe("Component list with line ranges."),
   offset: external_exports.number().int().min(1).max(999999).optional().describe("1-based first line (chars if format=raw)."),
   limit: external_exports.number().int().min(1).max(999999).optional().describe("Max lines (chars if format=raw)."),
   enhancements: external_exports.boolean().optional().describe("BAdI/plug-in/enhancement-spot decode (ENHO/XH,XHH,ENHS), not source."),
@@ -132620,11 +133289,11 @@ var readInputSchema = {
   // than silently falling through to an ordinary source read. Named `view`,
   // not `mode` — `mode` is already a response header key and `ResolvedObject.mode`.
   view: external_exports.enum(["history", "diff", "definition", "lineage", "footprint", "docu", "digest"]).optional().describe(
-    'history: versions. diff: hunks. definition: element at line/column. lineage: CDS sources down to base tables. footprint: database writes and commits. docu: SAP documentation (type="SIMG" + object=<abap_img activity id> for an IMG activity). digest: one-page overview. Omit for a normal read.'
+    `history: versions. diff: hunks. definition: element at line/column. lineage: CDS view sources down to base tables. footprint: database writes and commits. docu: SAP documentation (flattened ITF; type="SIMG" + object=<abap_img activity id> for an IMG activity's docu). digest: one-page object overview. Omit for normal read.`
   ),
   from: external_exports.string().optional().describe('diff: older side \u2014 version, transport, or "active".'),
   to: external_exports.string().optional().describe("diff: newer side, same forms as `from`."),
-  context: external_exports.number().int().min(0).max(20).optional().describe(`Lines around each pattern match (default ${PATTERN_DEFAULT_CONTEXT}) or per diff hunk (default 3).`),
+  context: external_exports.number().int().min(0).max(20).optional().describe("diff: context lines per hunk. Default 3."),
   // Same names/bounds/semantics as abap_quick_fix's line/column (quickfix.ts)
   // — deliberately, so a caller who has already learned one learns both.
   // No `.default(0)` on column: unlike quick-fix (which always needs a
@@ -132662,7 +133331,6 @@ var crossSystemInputSchema = {
   )
 };
 var OUTLINE_KINDS = /* @__PURE__ */ new Set(["CLAS", "INTF"]);
-var DEFAULT_OUTLINE_KINDS = /* @__PURE__ */ new Set(["CLAS", "INTF", "PROG", "FUGR"]);
 var ENHANCEMENT_KINDS = /* @__PURE__ */ new Set(["ENHO/XH", "ENHO/XHH", "ENHS"]);
 function renderRef(ref2) {
   if (!ref2?.name) return "(none)";
@@ -132824,13 +133492,12 @@ function buildSourceResponse(parts, etag, forceIncomplete = false) {
   const second = buildResponse({
     ...parts,
     header: { ...parts.header, etag: partialEtag },
-    notes: [TRUNCATED_SOURCE_NOTE, ...parts.notes ?? []],
-    size: true
+    notes: [TRUNCATED_SOURCE_NOTE, ...parts.notes ?? []]
   });
   return { ...second, truncated: true, etag: partialEtag };
 }
 function buildReadResponse(parts) {
-  const first = buildResponse({ ...parts, size: true });
+  const first = buildResponse(parts);
   if (first.truncated) return first;
   const facts = [
     "truncated=false",
@@ -132841,8 +133508,7 @@ function buildReadResponse(parts) {
   ].join(" ");
   const withFacts = buildResponse({
     ...parts,
-    header: { ...parts.header, response: `complete (${facts})` },
-    size: true
+    header: { ...parts.header, response: `complete (${facts})` }
   });
   return withFacts.truncated ? first : withFacts;
 }
@@ -132964,20 +133630,6 @@ function assertViewCompatible(input, obj) {
       `version="${input.version}"`,
       isDefinition ? "the elementinfo and navigation-target POSTs always carry the source abap_read itself read; asking about the inactive version while posting the active source would answer a question about a version that was never sent." : isLineage ? "lineage always walks the ACTIVE source of the view and everything it references \u2014 there is no per-node way to ask for an inactive version across a whole dependency tree." : isFootprint ? "footprint always scans the ACTIVE source of every include it finds \u2014 there is no per-include way to ask for an inactive version across a whole-object scan." : isDocu ? "SAP's documentation store (DOKHL/DOKTL) is not version-controlled the way ABAP source is \u2014 there is no active/inactive pair to select between." : isDigest ? "a digest always summarises the CURRENT active state (falling back to the newest inactive version only the way an ordinary read would); the active/inactive selector is not a thing a fixed overview can apply per section." : 'the active/inactive pair is a different axis from the version FEED; "inactive" is not a feed entry and has no history row.',
       isDefinition ? "Activate the object first and read the active source, or drop version." : isLineage || isFootprint ? `Drop version \u2014 view="${input.view}" always reads the current active source.` : isDocu || isDigest ? "Drop version." : 'Use from/to to name feed versions (list them with view="history").'
-    );
-  }
-  if (input.pattern !== void 0) {
-    clash(
-      `pattern="${input.pattern}"`,
-      "pattern greps the object's plain SOURCE lines; a view renders something other than the plain source, so there are no source lines for it to filter.",
-      "Drop pattern, or drop view to grep the source."
-    );
-  }
-  if (input.full) {
-    clash(
-      "full=true",
-      "full only overrides the default outline of a large SOURCE read; a view is never replaced by an outline, so there is nothing for it to override.",
-      "Drop full."
     );
   }
   if (input.outline) {
@@ -133702,8 +134354,6 @@ function assertDocuBypassCompatible(input, kind) {
   if (input.enhancements) clash("enhancements=true");
   if (input.version !== void 0) clash(`version="${input.version}"`);
   if (input.outline) clash("outline=true");
-  if (input.pattern !== void 0) clash(`pattern="${input.pattern}"`);
-  if (input.full) clash("full=true");
   if (input.include !== void 0) clash(`include="${input.include}"`);
   if (input.from !== void 0) clash("from");
   if (input.to !== void 0) clash("to");
@@ -133888,8 +134538,6 @@ async function readDigest(conn, obj, baseHeader, input, maxChars) {
 var CATALOG_READ_IRRELEVANT_PARAMS = [
   "method",
   "outline",
-  "pattern",
-  "full",
   "enhancements",
   "version",
   "view",
@@ -133961,74 +134609,8 @@ async function readCatalogObject2(conn, input, catalogRead, label, maxChars) {
     maxChars
   );
 }
-function assertPatternAndFullArgs(input) {
-  if (input.full) {
-    for (const [param, value] of [
-      ["outline=true", input.outline || void 0],
-      ["method", input.method],
-      ["pattern", input.pattern]
-    ]) {
-      if (value !== void 0) {
-        throw new AbapError(
-          "BAD_INPUT",
-          `full=true asks for the whole source; ${param} asks for part of it \u2014 both cannot be honoured.`,
-          { object: input.object, param: "full", with: param },
-          `Drop full, or drop ${param}.`
-        );
-      }
-    }
-  }
-  if (input.pattern === void 0) return;
-  if (input.pattern === "") {
-    throw new AbapError(
-      "BAD_INPUT",
-      "pattern is empty \u2014 an empty regex matches every line, which is a plain read, not a filter.",
-      { object: input.object, param: "pattern" },
-      "Pass a regex, or drop pattern to read the source."
-    );
-  }
-  try {
-    new RegExp(input.pattern, "i");
-  } catch (e) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `pattern is not a valid regular expression: ${e instanceof Error ? e.message : String(e)}`,
-      { object: input.object, param: "pattern", pattern: input.pattern },
-      "Fix the regex (JavaScript syntax, matched case-insensitively per line)."
-    );
-  }
-  for (const [param, value] of [
-    ["outline=true", input.outline || void 0],
-    ["method", input.method]
-  ]) {
-    if (value !== void 0) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `pattern cannot be combined with ${param}: pattern filters the document's own lines (absolute line numbers), which is a different answer from a component list or one method's block.`,
-        { object: input.object, param: "pattern", with: param },
-        `Drop ${param} (pattern already narrows the read), or drop pattern.`
-      );
-    }
-  }
-}
-function refuseSourceOnlyParams(input, obj, why) {
-  for (const [param, value] of [
-    ["pattern", input.pattern],
-    ["full", input.full || void 0]
-  ]) {
-    if (value !== void 0) {
-      throw new AbapError(
-        "UNSUPPORTED",
-        `${param} is only meaningful for a source read; ${why} for ${obj.type} ${obj.name}.`,
-        { type: obj.type, name: obj.name, param },
-        `Drop ${param}.`
-      );
-    }
-  }
-}
 async function abapRead(conn, input, maxChars, gate) {
   if (input.include !== void 0) assertClassInclude(input.include, input.object);
-  assertPatternAndFullArgs(input);
   const catalogCap = input.type ? capabilitiesFor(input.type) : void 0;
   if (catalogCap?.catalogRead) {
     return readCatalogObject2(conn, input, catalogCap.catalogRead, catalogCap.label, maxChars);
@@ -134081,7 +134663,8 @@ async function abapRead(conn, input, maxChars, gate) {
   }
   for (const [param, value] of [
     ["from", input.from],
-    ["to", input.to]
+    ["to", input.to],
+    ["context", input.context]
   ]) {
     if (value !== void 0) {
       throw new AbapError(
@@ -134091,14 +134674,6 @@ async function abapRead(conn, input, maxChars, gate) {
         `Add view="diff", or drop ${param}.`
       );
     }
-  }
-  if (input.context !== void 0 && input.pattern === void 0) {
-    throw new AbapError(
-      "BAD_INPUT",
-      'context is only meaningful with view="diff" or pattern; neither was requested, so this would have been an ordinary source read with your parameter discarded.',
-      { type: obj.type, name: obj.name, param: "context" },
-      'Add view="diff" or pattern="<regex>", or drop context.'
-    );
   }
   for (const [param, value] of [
     ["line", input.line],
@@ -134136,7 +134711,6 @@ async function abapRead(conn, input, maxChars, gate) {
   }
   const include = assertIncludeCompatible(input, obj);
   if (input.format === "raw") {
-    refuseSourceOnlyParams(input, obj, 'format="raw" returns the XML descriptor, not source lines');
     if (input.version) {
       throw new AbapError(
         "UNSUPPORTED",
@@ -134184,7 +134758,6 @@ async function abapRead(conn, input, maxChars, gate) {
     return built;
   }
   if (input.enhancements) {
-    refuseSourceOnlyParams(input, obj, "enhancements=true renders a decoded enhancement document, not source lines");
     if (!ENHANCEMENT_KINDS.has(obj.kind)) {
       throw new AbapError(
         "UNSUPPORTED",
@@ -134196,7 +134769,6 @@ async function abapRead(conn, input, maxChars, gate) {
     return readEnhancementObject(conn, obj, baseHeader, input, maxChars);
   }
   if (obj.mode === "ddic") {
-    refuseSourceOnlyParams(input, obj, `${obj.type} is rendered as pseudo-DDL from the dictionary, not read as source lines`);
     if (input.version === "inactive") {
       throw new AbapError(
         "UNSUPPORTED",
@@ -134270,146 +134842,75 @@ async function abapRead(conn, input, maxChars, gate) {
   ] : [
     'Read a single method with method="<NAME>".',
     "Get the component list first with outline=true.",
-    'pattern="<regex>" returns only matching lines (numbered, with context).',
     ...obj.kind === "CLAS" ? [
       'Local and test classes are NOT in this source: read them with include="testclasses" (ABAP Unit), "definitions", "implementations" or "macros".'
     ] : []
   ];
-  const totalLines = countLines(source);
-  const totalChars = source.length;
-  const method = input.method ?? obj.member;
-  if (input.pattern !== void 0) {
-    const context = input.context ?? PATTERN_DEFAULT_CONTEXT;
-    const maxMatches = input.limit ?? PATTERN_MAX_MATCHES;
-    const grep = grepSource(source, input.pattern, {
-      context,
-      fromLine: input.offset ?? 1,
-      maxMatches
-    });
-    const partialEtag = markEtagPartial(etag);
-    const nextOffset = grep.lastShownLine !== void 0 ? grep.lastShownLine + 1 : void 0;
-    const truncLine = grep.truncated ? `--- TRUNCATED --- ${grep.shown} of ${grep.total} matching line(s) shown (cap ${maxMatches}${input.limit === void 0 ? ", raise with limit=" : ""}). Continue with offset=${nextOffset}, or narrow the pattern.` : void 0;
-    const body = [
-      grep.text || `(no line of ${obj.type} ${obj.name}${include && include !== "main" ? ` include "${include}"` : ""} matches /${input.pattern}/i${input.offset ? ` from line ${input.offset}` : ""})`,
-      truncLine
-    ].filter((s) => s !== void 0).join("\n");
+  if (input.outline) {
+    if (!OUTLINE_KINDS.has(obj.kind)) {
+      const built2 = buildReadResponse({
+        header: { ...header, totalLines: countLines(source) },
+        body: `(outline is NOT SUPPORTED for ${obj.type} \u2014 it is implemented for classes and interfaces only, via the ADT component structure. This is a tool limitation, NOT a statement that ${obj.name} has no components.)`,
+        bodyLabel: "OUTLINE",
+        notes: [
+          `outline=true was ignored: ${obj.type} has no ADT component structure to list. Re-read without outline (optionally with offset/limit) to see the source.`
+        ],
+        hints: ["Re-read without outline=true, using offset/limit to page the source."],
+        maxChars
+      });
+      return { ...built2, etag };
+    }
+    const own = await classMembersFor(conn, obj, input.version);
+    const members = own.members;
+    const ownOutline = renderOutline(members);
+    const chain = await inheritedMembers(conn, obj, source, members, input.version);
+    const inheritedOutline = renderInheritedOutline(chain.inherited);
+    const sections = [];
+    if (ownOutline) sections.push(ownOutline);
+    else if (inheritedOutline) {
+      sections.push(`  (${obj.name} declares no methods, attributes or events of its own)`);
+    }
+    if (inheritedOutline) {
+      sections.push(
+        "",
+        `INHERITED (${chain.inherited.length} public/protected members declared on ${obj.name}'s superclasses/interfaces; method="<NAME>" resolves them automatically):`,
+        inheritedOutline
+      );
+    }
+    const outline = sections.join("\n");
+    const window3 = sliceLines(outline, input.offset ?? 1, input.limit);
+    const notes = [];
+    if (chain.unresolved.length) {
+      notes.push(
+        "Inheritance chain incomplete \u2014 not readable on this system: " + chain.unresolved.map((u) => `${u.name} (${u.relation} of ${u.via}: ${u.reason})`).join("; ") + ". Members declared there are not listed."
+      );
+    }
     const built = buildReadResponse({
       header: {
         ...header,
-        etag: partialEtag,
-        pattern: input.pattern,
-        context,
-        matches: grep.total,
-        matchesShown: grep.shown,
-        ...input.offset ? { scannedFrom: input.offset } : {},
-        totalLines,
-        totalChars
+        components: members.length,
+        inherited: chain.inherited.length,
+        structureVersion: own.version,
+        totalLines: countLines(source)
       },
-      body,
-      bodyLabel: "MATCHES",
-      notes: [
-        ...includeNotes,
-        "Matches only, not the whole text: line numbers are absolute (read around one with offset/limit), `:` marks a matching line, `-` a context line. The etag is marked `partial:` \u2014 abap_write's edit={old_string,new_string} accepts it; a full-source rewrite is refused."
-      ],
-      hints: ["Narrow the pattern, or lower context, to fit more matches in one response."],
-      maxChars
-    });
-    return { ...built, etag: partialEtag };
-  }
-  const aboveThreshold = totalLines > OUTLINE_DEFAULT_LINES || totalChars > OUTLINE_DEFAULT_CHARS;
-  const outlineByDefault = input.outline === void 0 && !input.full && method === void 0 && include === void 0 && input.offset === void 0 && input.limit === void 0 && DEFAULT_OUTLINE_KINDS.has(obj.kind) && aboveThreshold;
-  if (input.outline || outlineByDefault) {
-    const defaultNotes = outlineByDefault ? [
-      `${obj.type} ${obj.name} is ${totalLines} lines / ${totalChars} chars \u2014 above the default-outline threshold (${OUTLINE_DEFAULT_LINES} lines or ${OUTLINE_DEFAULT_CHARS} chars), so this is the OUTLINE, not the source. Read a part with ${OUTLINE_KINDS.has(obj.kind) ? 'method="<NAME>", ' : ""}pattern="<regex>" or offset/limit, or the whole ${totalLines}-line source with full=true.`
-    ] : [];
-    const outlineHeader = {
-      ...header,
-      outline: outlineByDefault ? "default (large source)" : "requested",
-      totalLines,
-      totalChars
-    };
-    const partHints = [
-      ...OUTLINE_KINDS.has(obj.kind) ? ['Read one component with method="<NAME>".'] : [],
-      'pattern="<regex>" returns only matching lines; offset/limit page the source; full=true reads all of it.'
-    ];
-    if (OUTLINE_KINDS.has(obj.kind)) {
-      const own = await classMembersFor(conn, obj, input.version);
-      const members = own.members;
-      const ownOutline = renderOutline(members);
-      const chain = await inheritedMembers(conn, obj, source, members, input.version);
-      const inheritedOutline = renderInheritedOutline(chain.inherited);
-      const sections = [];
-      if (ownOutline) sections.push(ownOutline);
-      else if (inheritedOutline) {
-        sections.push(`  (${obj.name} declares no methods, attributes or events of its own)`);
-      }
-      if (inheritedOutline) {
-        sections.push(
-          "",
-          `INHERITED (${chain.inherited.length} public/protected members declared on ${obj.name}'s superclasses/interfaces; method="<NAME>" resolves them automatically):`,
-          inheritedOutline
-        );
-      }
-      const outline = sections.join("\n");
-      const window3 = sliceLines(outline, input.offset ?? 1, input.limit);
-      const notes = [...includeNotes, ...defaultNotes];
-      if (chain.unresolved.length) {
-        notes.push(
-          "Inheritance chain incomplete \u2014 not readable on this system: " + chain.unresolved.map((u) => `${u.name} (${u.relation} of ${u.via}: ${u.reason})`).join("; ") + ". Members declared there are not listed."
-        );
-      }
-      const built2 = buildReadResponse({
-        header: {
-          ...outlineHeader,
-          components: members.length,
-          inherited: chain.inherited.length,
-          structureVersion: own.version
-        },
-        body: outline ? window3.text : `(${obj.type} ${obj.name} really has no methods, attributes or events \u2014 the component structure came back empty${chain.searched.length ? ` and so did ${chain.searched.join(", ")}'s` : ""}.)`,
-        bodyLabel: "OUTLINE",
-        bodyOffset: outline ? window3.offset : void 0,
-        bodyTotalLines: outline ? window3.total : void 0,
-        pagingParam: "offset",
-        notes,
-        hints: [
-          ...partHints,
-          ...inheritedOutline ? [
-            `Inherited members work the same way: method="<NAME>" walks the chain and reports foundOn. Their line numbers are the defining object's.`
-          ] : [],
-          'To learn a signature, use method="<NAME>" with include="definitions" (declaration only); do not read the full class.'
-        ],
-        maxChars
-      });
-      return { ...built2, etag };
-    }
-    if (obj.kind === "PROG" || obj.kind === "FUGR") {
-      const rows = scanSourceStructure(source);
-      const built2 = buildReadResponse({
-        header: { ...outlineHeader, components: rows.length },
-        body: rows.length ? renderSourceStructure(rows) : `(the text scan found no FORM/FUNCTION/MODULE/CLASS/METHOD/INCLUDE statement or event block in ${obj.type} ${obj.name}'s ${totalLines} lines \u2014 this is a scan of statement keywords, NOT a statement that the program has no components.)`,
-        bodyLabel: "OUTLINE",
-        notes: [
-          ...includeNotes,
-          ...defaultNotes,
-          `${obj.type} has no ADT component structure; this outline is a text scan of statement-initial keywords (REPORT/INCLUDE/FORM/FUNCTION/MODULE/CLASS/METHOD/INTERFACE and event blocks) with their END lines. Line numbers are offset= positions in this document.`
-        ],
-        hints: partHints,
-        maxChars
-      });
-      return { ...built2, etag };
-    }
-    const built = buildReadResponse({
-      header: { ...header, totalLines },
-      body: `(outline is NOT SUPPORTED for ${obj.type} \u2014 it is implemented for classes and interfaces (ADT component structure) and programs/function groups (statement scan) only. This is a tool limitation, NOT a statement that ${obj.name} has no components.)`,
+      body: outline ? window3.text : `(${obj.type} ${obj.name} really has no methods, attributes or events \u2014 the component structure came back empty${chain.searched.length ? ` and so did ${chain.searched.join(", ")}'s` : ""}.)`,
       bodyLabel: "OUTLINE",
-      notes: [
-        `outline=true was ignored: ${obj.type} has no component structure to list. Re-read without outline (optionally with offset/limit or pattern) to see the source.`
+      bodyOffset: outline ? window3.offset : void 0,
+      bodyTotalLines: outline ? window3.total : void 0,
+      notes,
+      hints: [
+        'Read one component with method="<NAME>".',
+        ...inheritedOutline ? [
+          `Inherited members work the same way: method="<NAME>" walks the chain and reports foundOn. Their line numbers are the defining object's.`
+        ] : [],
+        'To learn a signature, use method="<NAME>" with include="definitions" (declaration only); do not read the full class.'
       ],
-      hints: ["Re-read without outline=true, using offset/limit to page the source."],
+      pagingParam: "offset",
       maxChars
     });
     return { ...built, etag };
   }
+  const method = input.method ?? obj.member;
   if (method) {
     const m = await readMethod(conn, obj, source, method, {
       version: input.version,
@@ -134469,7 +134970,7 @@ async function abapRead(conn, input, maxChars, gate) {
   const window2 = sliceLines(source, input.offset ?? 1, input.limit);
   return buildSourceResponse(
     {
-      header: { ...header, totalLines: window2.total, totalChars },
+      header: { ...header, totalLines: window2.total },
       body: window2.text,
       bodyLabel: "SOURCE",
       bodyOffset: window2.offset,
@@ -134528,8 +135029,6 @@ function resolveCrossSystemSides(input, deps) {
   for (const [param, value] of [
     ["method", input.method],
     ["outline", input.outline],
-    ["pattern", input.pattern],
-    ["full", input.full],
     ["line", input.line],
     ["column", input.column],
     ["types", input.types],
@@ -134551,7 +135050,7 @@ function registerReadTools(mcp, deps) {
     "abap_read",
     {
       title: "Read ABAP object",
-      description: `Read an ABAP object: source, pseudo-DDL, a DEVC/K package listing, or (SUSO/B, TABL/DI) a read-only catalog render; view= selects docu/digest/history/diff/definition/lineage/footprint. A CLAS/INTF/PROG/FUGR source above 150 lines or 8k chars answers with its outline by default \u2014 then method=, pattern= (regex, with context), offset/limit, or full=true. To learn a method's signature, use method= with include="definitions" (declaration only); method= also finds inherited members (superclasses and interfaces) and reports foundOn. Returns an etag; capped ~15k tokens, truncation marked. Example: {"object":"ZCL_FOO","type":"CLAS/OC"}.`,
+      description: `Read an ABAP object: source, pseudo-DDL, a DEVC/K package listing (types/depth filter it), or (SUSO/B, TABL/DI) a read-only catalog render. view="docu" reads SAP's own documentation (or, with method=, a method's ABAP Doc); view="digest" gives a one-page overview (CLAS/INTF/PROG/FUGR/DDLS) with public API, dependencies, tests and recent history. Returns an etag. Capped ~15k tokens \u2014 use outline/method/offset for large objects. To learn a method's signature, use method= with include="definitions" (declaration only); do not read the full class. method= also finds inherited members (superclasses and interfaces) and reports foundOn. Example: {"object":"ZCL_FOO","type":"CLAS/OC"}.`,
       // `from_system`/`to_system` (issue #93, cross-system view="diff")
       // are spliced in only when more than one system is configured —
       // a single-system server has nothing a second system field could
@@ -134662,7 +135161,7 @@ function many2(v) {
   if (Array.isArray(v)) return v.filter(isNode);
   return isNode(v) ? [v] : [];
 }
-function attr3(node2, name) {
+function attr4(node2, name) {
   const v = node2[`@_${name}`];
   if (typeof v !== "string") return void 0;
   const t = v.trim();
@@ -134699,7 +135198,7 @@ function verdictForMethodNode(node2) {
   }
   if (unrecognised.length > 0) return { verdict: "unknown", unrecognised };
   if (!childNames(node2).includes("alerts")) return { verdict: "passed", unrecognised: [] };
-  const severities = many2(node2.alerts).flatMap((container) => many2(container.alert)).map((a) => attr3(a, "severity"));
+  const severities = many2(node2.alerts).flatMap((container) => many2(container.alert)).map((a) => attr4(a, "severity"));
   if (severities.some((s) => s !== void 0 && SEVERITY_FAILS.has(s))) {
     return { verdict: "failed", unrecognised: [] };
   }
@@ -134713,7 +135212,7 @@ function verdictForMethodNode(node2) {
 function flattenDetails(node2, depth, out) {
   if (!isNode(node2)) return;
   for (const detail of many2(node2.detail)) {
-    const text5 = attr3(detail, "text");
+    const text5 = attr4(detail, "text");
     if (text5) out.push("  ".repeat(depth) + truncateText(text5, ECHO_LINE_MAX));
     flattenDetails(detail.details, depth + 1, out);
   }
@@ -134727,16 +135226,16 @@ function includeNameFromUri(uri) {
 function parseStack(node2) {
   if (!isNode(node2)) return [];
   return many2(node2.stackEntry).map((e) => {
-    const uri = attr3(e, "uri");
+    const uri = attr4(e, "uri");
     const at = parseStartFragment(uri);
     const includeName = includeNameFromUri(uri);
     return {
       ...uri ? { uri } : {},
       ...at ? { line: at.line, col: at.col } : {},
       ...includeName ? { includeName } : {},
-      ...attr3(e, "type") ? { type: attr3(e, "type") } : {},
-      ...attr3(e, "name") ? { name: attr3(e, "name") } : {},
-      ...attr3(e, "description") ? { description: truncateText(attr3(e, "description"), ECHO_LINE_MAX) } : {}
+      ...attr4(e, "type") ? { type: attr4(e, "type") } : {},
+      ...attr4(e, "name") ? { name: attr4(e, "name") } : {},
+      ...attr4(e, "description") ? { description: truncateText(attr4(e, "description"), ECHO_LINE_MAX) } : {}
     };
   });
 }
@@ -134747,8 +135246,8 @@ function parseAlerts(container) {
     flattenDetails(a.details, 0, details);
     const title = typeof a.title === "string" ? a.title.trim() : void 0;
     return {
-      ...attr3(a, "kind") ? { kind: attr3(a, "kind") } : {},
-      ...attr3(a, "severity") ? { severity: attr3(a, "severity") } : {},
+      ...attr4(a, "kind") ? { kind: attr4(a, "kind") } : {},
+      ...attr4(a, "severity") ? { severity: attr4(a, "severity") } : {},
       ...title ? { title: truncateText(title, MESSAGE_EXCERPT_MAX) } : {},
       details,
       stack: parseStack(a.stack)
@@ -134780,7 +135279,7 @@ function parseRunResult(xml3) {
   }
   const externalNode = many2(root.external)[0];
   const coverageNode = externalNode && isNode(externalNode.coverage) ? externalNode.coverage : void 0;
-  const coverageUriRaw = coverageNode ? attr3(coverageNode, "uri") : void 0;
+  const coverageUriRaw = coverageNode ? attr4(coverageNode, "uri") : void 0;
   const coverageUri = coverageUriRaw && coverageUriRaw.startsWith(COVERAGE_MEASUREMENT_PREFIX) ? coverageUriRaw : void 0;
   const otherAlerts = [];
   for (const a of parseAlerts(root.alerts)) otherAlerts.push({ ...a, scope: "run" });
@@ -134790,14 +135289,14 @@ function parseRunResult(xml3) {
   let failed = 0;
   let unknown2 = 0;
   for (const prog of many2(root.program)) {
-    const programName = attr3(prog, "name") ?? "(unnamed program)";
+    const programName = attr4(prog, "name") ?? "(unnamed program)";
     for (const a of parseAlerts(prog.alerts)) {
       otherAlerts.push({ ...a, scope: `program ${programName}` });
     }
     const classes = [];
     for (const tcContainer of many2(prog.testClasses)) {
       for (const tc of many2(tcContainer.testClass)) {
-        const className = attr3(tc, "name") ?? "(unnamed test class)";
+        const className = attr4(tc, "name") ?? "(unnamed test class)";
         for (const a of parseAlerts(tc.alerts)) {
           otherAlerts.push({ ...a, scope: `test class ${className}` });
         }
@@ -134810,11 +135309,11 @@ function parseRunResult(xml3) {
             else if (verdict === "failed") failed++;
             else unknown2++;
             methods.push({
-              name: attr3(tm, "name") ?? "(unnamed method)",
+              name: attr4(tm, "name") ?? "(unnamed method)",
               className,
               verdict,
-              ...attr3(tm, "executionTime") ? { executionTime: attr3(tm, "executionTime") } : {},
-              ...attr3(tm, "unit") ? { unit: attr3(tm, "unit") } : {},
+              ...attr4(tm, "executionTime") ? { executionTime: attr4(tm, "executionTime") } : {},
+              ...attr4(tm, "unit") ? { unit: attr4(tm, "unit") } : {},
               alerts: parseAlerts(tm.alerts),
               unrecognised
             });
@@ -134822,15 +135321,15 @@ function parseRunResult(xml3) {
         }
         classes.push({
           name: className,
-          ...attr3(tc, "riskLevel") ? { riskLevel: attr3(tc, "riskLevel") } : {},
-          ...attr3(tc, "durationCategory") ? { durationCategory: attr3(tc, "durationCategory") } : {},
+          ...attr4(tc, "riskLevel") ? { riskLevel: attr4(tc, "riskLevel") } : {},
+          ...attr4(tc, "durationCategory") ? { durationCategory: attr4(tc, "durationCategory") } : {},
           methods
         });
       }
     }
     programs.push({
       name: programName,
-      ...attr3(prog, "type") ? { type: attr3(prog, "type") } : {},
+      ...attr4(prog, "type") ? { type: attr4(prog, "type") } : {},
       classes
     });
   }
@@ -134930,10 +135429,10 @@ function parseCoveredObjects(xml3) {
       const ref2 = isNode(co.objectReference) ? co.objectReference : void 0;
       if (!ref2) continue;
       out.push({
-        name: attr3(ref2, "name") ?? "(unnamed object)",
-        ...attr3(ref2, "type") ? { type: attr3(ref2, "type") } : {},
-        ...attr3(ref2, "uri") ? { uri: attr3(ref2, "uri") } : {},
-        ...attr3(ref2, "packageName") ? { packageName: attr3(ref2, "packageName") } : {}
+        name: attr4(ref2, "name") ?? "(unnamed object)",
+        ...attr4(ref2, "type") ? { type: attr4(ref2, "type") } : {},
+        ...attr4(ref2, "uri") ? { uri: attr4(ref2, "uri") } : {},
+        ...attr4(ref2, "packageName") ? { packageName: attr4(ref2, "packageName") } : {}
       });
     }
   }
@@ -134957,20 +135456,20 @@ function parseCount(raw) {
 }
 function parseCoverageNode(node2) {
   const ref2 = isNode(node2.objectReference) ? node2.objectReference : void 0;
-  const name = (ref2 ? attr3(ref2, "name") : void 0) ?? "(unnamed node)";
+  const name = (ref2 ? attr4(ref2, "name") : void 0) ?? "(unnamed node)";
   const unrecognised = [];
   let statement;
   let branch;
   let procedure;
   const coveragesContainer = isNode(node2.coverages) ? node2.coverages : void 0;
   for (const cov of many2(coveragesContainer?.coverage)) {
-    const type = attr3(cov, "type");
+    const type = attr4(cov, "type");
     if (type === void 0 || !KNOWN_COVERAGE_TYPES.has(type)) {
       unrecognised.push(type ?? "coverage with no @type");
       continue;
     }
-    const totalRaw = attr3(cov, "total");
-    const executedRaw = attr3(cov, "executed");
+    const totalRaw = attr4(cov, "total");
+    const executedRaw = attr4(cov, "executed");
     const total = parseCount(totalRaw);
     if (total === void 0) {
       unrecognised.push(`${type} (unparseable total="${totalRaw ?? ""}")`);
@@ -134991,9 +135490,9 @@ function parseCoverageNode(node2) {
   for (const child4 of many2(childContainer?.node)) children.push(parseCoverageNode(child4));
   return {
     name,
-    ...ref2 && attr3(ref2, "type") ? { type: attr3(ref2, "type") } : {},
-    ...ref2 && attr3(ref2, "uri") ? { uri: attr3(ref2, "uri") } : {},
-    ...ref2 && attr3(ref2, "description") ? { description: attr3(ref2, "description") } : {},
+    ...ref2 && attr4(ref2, "type") ? { type: attr4(ref2, "type") } : {},
+    ...ref2 && attr4(ref2, "uri") ? { uri: attr4(ref2, "uri") } : {},
+    ...ref2 && attr4(ref2, "description") ? { description: attr4(ref2, "description") } : {},
     ...statement ? { statement } : {},
     ...branch ? { branch } : {},
     ...procedure ? { procedure } : {},
@@ -135382,7 +135881,7 @@ var testInputSchema = {
     'Switch on the SAP authorization trace for the connected user, run the test, then read back and switch it back off. scope="object" only. Refused on a read-only server. Default false.'
   ),
   snapshot_ids: external_exports.array(external_exports.string()).optional().describe(
-    'Snapshot ids from prior abap_data_preview mode="snapshot" calls; each is re-read and diffed after this call and appended as a DATA CHANGES section, under the same data-preview policy (a refused diff does not fail this call).'
+    `Snapshot ids from prior abap_data_preview mode="snapshot" calls. After this call finishes, each one is re-read and diffed, and the result is appended as a DATA CHANGES section. The diff obeys the same data-preview policy as the snapshot did \u2014 if it is refused, this call's own result still returns and the section says why.`
   )
 };
 var TestInput = external_exports.object(testInputSchema);
@@ -136418,7 +136917,6 @@ async function buildCallGraph(conn, target, type, direction, depth, max, maxChar
     },
     body: lines.join("\n"),
     bodyLabel: "CALL GRAPH",
-    size: true,
     notes,
     hints: [
       direction === "callers" ? 'Pass direction="callees" to see what this object calls instead.' : 'Pass direction="callers" to see who calls this object instead.',
@@ -136579,7 +137077,7 @@ var searchInputSchema = {
     "Name pattern (mode=objects), target object (mode=where_used/call_graph), or literal/regex text (mode=source)."
   ),
   mode: external_exports.enum(["objects", "where_used", "source", "call_graph"]).optional().describe(
-    'Default "objects". "source": raw source-text scan (literal/regex; needs the fluid API; also matches strings, comments and dead code \u2014 prefer "where_used" for real static references). "call_graph": multiple levels of callers or callees.'
+    'Default "objects". "source" scans raw source text (literal/regex, any line) and needs the fluid API; prefer "where_used" when you want real static references to one object, since a text scan also matches strings, comments and dead code. "call_graph" walks multiple levels of callers or callees instead of just one.'
   ),
   type: external_exports.string().optional().describe(
     `ADT type filter (mode=objects/where_used/call_graph only). One of: ${[...KNOWN_TYPE_GROUPS].sort().join(" ")}; or a full code, e.g. "CLAS/OC".`
@@ -136691,7 +137189,6 @@ async function searchObjects(conn, query, type, max, maxChars) {
     },
     body,
     bodyLabel: "RESULTS",
-    size: true,
     notes,
     // abap_search has no offset/paging parameter — `max` is the only lever, so
     // the hint must not promise one.
@@ -136740,7 +137237,6 @@ async function whereUsed(conn, target, type, max, maxChars) {
     body: rows.length ? textTable(rows, ["type", "name", "package", "description"]) + (capLine ? `
 ${capLine}` : "") : "(no references found)",
     bodyLabel: "USED BY",
-    size: true,
     notes: [
       ...expensive ? [
         `FETCH COST: this call took ${(fetchMs / 1e3).toFixed(1)}s and returned ${totalReferences} reference(s). ADT's usageReferences endpoint has no server-side limit, so the entire set is enumerated and transferred before max is applied. The cost is set by the target's fan-in, not by max \u2014 lowering max would not have made this call cheaper. If cost matters, ask about a narrower or less widely-referenced object instead.`
@@ -136894,48 +137390,18 @@ function scopeLabel(q) {
   if (q.objects) parts.push(`objects=${q.objects}`);
   return parts.join(" ");
 }
-var SOURCE_PER_OBJECT_HIT_CAP = 20;
-function groupSourceHits(hits) {
-  const groups = /* @__PURE__ */ new Map();
-  for (const h of hits) {
-    const key = `${h.objType} ${h.objName}`;
-    const g = groups.get(key);
-    if (g) g.hits.push(h);
-    else groups.set(key, { objType: h.objType, objName: h.objName, hits: [h] });
-  }
-  return [...groups.values()];
-}
-function renderGroupedHits(groups, perObjectCap = SOURCE_PER_OBJECT_HIT_CAP) {
-  const out = [];
-  for (const g of groups) {
-    const shown = g.hits.slice(0, perObjectCap);
-    const n = g.hits.length;
-    out.push(
-      `${g.objType} ${g.objName}  (${n} hit${n === 1 ? "" : "s"}${n > shown.length ? `, ${shown.length} shown` : ""})`
-    );
-    const ownDocumentOnly = g.hits.every((h) => h.include === g.objName);
-    let lastInclude;
-    for (const h of shown) {
-      if (!ownDocumentOnly && h.include !== lastInclude) {
-        out.push(`  include ${h.include}`);
-        lastInclude = h.include;
-      }
-      out.push(`${ownDocumentOnly ? "  " : "    "}${h.line}: ${truncateForDisplay(h.text, 120)}`);
-    }
-    if (n > shown.length) {
-      out.push(
-        `  ... ${n - shown.length} more hit(s) in ${g.objName} not shown (per-object cap ${perObjectCap}; narrow \`query\`, or scope with objects="${g.objName}").`
-      );
-    }
-  }
-  return out.join("\n");
-}
 function buildSourceResponse2(q, result, maxChars) {
   const { hits, summary } = result;
-  const groups = groupSourceHits(hits);
+  const rows = hits.map((h) => ({
+    type: h.objType,
+    name: h.objName,
+    include: h.include,
+    line: String(h.line),
+    text: truncateForDisplay(h.text, 120)
+  }));
   const objectsNotScanned = summary.objectsTotal - summary.objectsScanned;
   const truncLine = summary.truncated === "hits" ? `--- TRUNCATED --- the hit cap (max=${q.maxHits}) was reached; more matches may exist beyond the last one shown. Raise \`max\` (<=200) or narrow \`query\`/scope.` : summary.truncated === "objects" ? `--- TRUNCATED --- ${objectsNotScanned} of ${summary.objectsTotal} object(s) in scope were not scanned (object ceiling ${q.maxObjects}). Narrow \`packages\`/\`objects\`/\`types\`.` : void 0;
-  const body = [groups.length ? renderGroupedHits(groups) : "(no matches)", truncLine].filter((s) => s !== void 0).join("\n");
+  const body = [rows.length ? textTable(rows, ["type", "name", "include", "line", "text"]) : "(no matches)", truncLine].filter((s) => s !== void 0).join("\n");
   const exampleHints = (() => {
     const seen = /* @__PURE__ */ new Set();
     const out = [];
@@ -136959,7 +137425,6 @@ function buildSourceResponse2(q, result, maxChars) {
       include_subpackages: q.includeSubpackages || void 0,
       types: q.types.length ? q.types.join(",") : void 0,
       hits: summary.hits,
-      objectsWithHits: groups.length || void 0,
       objectsScanned: summary.objectsScanned,
       objectsTotal: summary.objectsTotal,
       includesScanned: summary.includesScanned,
@@ -136968,18 +137433,18 @@ function buildSourceResponse2(q, result, maxChars) {
     },
     body,
     bodyLabel: "MATCHES",
-    size: true,
     notes: [
       // `notes` are ALWAYS shown (unlike `hints`, which `compact.ts`'s
       // `buildResponse` only renders when the response is incomplete) — the
       // concrete abap_read follow-up has to survive a response that fits
       // fully, so it lives here, not in `hints`.
       ...exampleHints.length > 0 ? ["Read around a hit with abap_read:", ...exampleHints] : [],
-      `Hits are grouped per object; \`line\` is include-local (for CLAS/FUGR it counts from the top of the named include, not the object), and each object shows at most ${SOURCE_PER_OBJECT_HIT_CAP} hits \u2014 the rest is a count.`,
+      "Line numbers are include-local: for CLAS/FUGR hits, `line` counts from the top of the matching include (a method's own program, not the class as a whole), not from the object.",
       ...summary.includesSkipped > 0 ? [
         `${summary.includesSkipped} include(s) could not be read (e.g. a generated or inconsistent include) and are NOT represented in the results above \u2014 this is a gap, not proof those includes have no match.`
       ] : [],
-      'Text scan, not a call graph: matches wherever they sit (strings, comments, dead code); mode="where_used" gives real static references. include_comments=false strips comments with a per-line heuristic (`code_part()`) that can misjudge multi-line quote state; DDLS/CDS sources are always matched in full text.'
+      "include_comments=false strips comments with a per-line heuristic (`code_part()`), which can misjudge a line whose quote/comment state depends on the previous line. DDLS/CDS sources have no ABAP comment syntax, so they are always matched in full text regardless of include_comments.",
+      'This is a text scan, not a call graph: it finds literal/regex matches wherever they sit (strings, comments, dead code). Use mode="where_used" instead when what you actually want is real static references to one object.'
     ],
     hints: [
       "Raise `max` (<=200) for more hits, or narrow `query`/`packages`/`objects`/`types` instead of widening scope."
@@ -136993,7 +137458,7 @@ function registerSearchTools(mcp, deps) {
     "abap_search",
     {
       title: "Search ABAP repository",
-      description: "Find objects by name pattern (mode=objects, wildcards *), list consumers (mode=where_used; 20+ seconds on wide fan-in \u2014 narrow by type/query first), walk multiple levels of callers or callees (mode=call_graph, direction=callers|callees, depth<=4), or scan source text (mode=source; hits grouped per object, needs the fluid API and a package/objects scope).",
+      description: "Find objects by name pattern (mode=objects, wildcards *), list consumers (mode=where_used; 20+ seconds on wide fan-in \u2014 narrow by type/query first), walk multiple levels of callers or callees (mode=call_graph, direction=callers|callees, depth<=4), or scan source text line by line (mode=source, needs the fluid API and a package/objects scope).",
       inputSchema: searchInputSchema,
       annotations: { readOnlyHint: true, openWorldHint: true }
     },
@@ -137412,7 +137877,7 @@ var transportInputSchema = {
     "delete",
     "removeObject"
   ]).describe(
-    'What to do. list/show/check/users/log/queue are plain reads, always allowed. create/addUser/setOwner need write access (ABAP_MODE=edit or admin, or legacy ABAP_ALLOW_WRITE=true when ABAP_MODE is unset); kind="copies" needs no extra ceiling. removeObject and delete share one ceiling: delete additionally needs the admin-only transport-delete ceiling (ABAP_MODE=admin \u2014 no legacy flag grants it) and confirm; removeObject needs that same ceiling and confirm. Required args: list/users none; show transport; check object; log transport; queue system; create package+description (plus target when kind="copies"); addUser/setOwner transport+user; delete transport+confirm; removeObject transport+object+confirm.'
+    `What to do. list/show/check/users/log/queue are plain reads, always allowed. log reads a transport's own export/import log (per target system); queue reads a target system's import queue/buffer. create/addUser/setOwner need write access (ABAP_MODE=edit or admin, or legacy ABAP_ALLOW_WRITE=true when ABAP_MODE is unset); create with kind="copies" (a transport of copies) needs the same write access as an ordinary create \u2014 no extra ceiling. delete additionally needs the admin-only transport-delete ceiling (ABAP_MODE=admin \u2014 no legacy flag grants it) and confirm; removeObject (drop one E071 entry and its CTS lock, e.g. for an object already deleted from the system, so its request can then be deleted \u2014 if the object still exists, its lock goes too; CTS refuses this when the request holds 2 or more E071 rows for that object (same PGMID+OBJECT+OBJ_NAME \u2014 legal but not reliably reproducible; cause unconfirmed), leaving the request undeletable through abapsmith) needs that same admin-only transport-delete ceiling and confirm. Required args: list/users none; show transport; check object; log transport; queue system; create package+description (plus target when kind="copies"); addUser/setOwner transport+user; delete transport+confirm; removeObject transport+object+confirm.`
   ),
   transport: external_exports.string().optional().describe(
     "Request/task number, e.g. A4HK900123. Required for operation=show/addUser/setOwner/delete/removeObject and for operation=log."
@@ -137421,18 +137886,22 @@ var transportInputSchema = {
     "User: filter for list, new member/owner otherwise. Required for operation=addUser/setOwner."
   ),
   object: external_exports.string().optional().describe(
-    'Object name. Required for operation=check/removeObject (removeObject: the entry to remove). Optional anchor for create with kind="workbench" (default); not for kind="copies", which is created empty.'
+    'Object name. Required for operation=check, and for operation=removeObject (the entry to remove). Optional anchor for create with kind="workbench" (the default); not accepted for create with kind="copies" \u2014 a transport of copies is created empty.'
   ),
   package: external_exports.string().optional().describe("Development package (devclass). Required for operation=create."),
   description: external_exports.string().optional().describe("Short text for the new request, max 60 chars. Required for operation=create."),
   kind: external_exports.enum(["workbench", "copies"]).optional().describe(
-    'operation="create" only. "workbench" (default): a normal transportable change request. "copies": a snapshot sent to a target system, originals untouched; requires target.'
+    'Which kind of request operation="create" should create. "workbench" (the default) is a normal transportable change request created through ADT. "copies" is a transport of copies, which carries a snapshot of objects to a target system while leaving the originals modifiable in this system and their original request untouched. kind="copies" requires target.'
   ),
   target: external_exports.string().optional().describe(
     'Target system for operation="create" with kind="copies", e.g. A4H. A transport of copies with no target cannot be imported anywhere, so abapsmith refuses to create one.'
   ),
-  system: external_exports.string().optional().describe('Target system whose import queue to read, e.g. QAS. Required for operation="queue".'),
-  domain: external_exports.string().optional().describe("TMS transport domain of system, e.g. DOMAIN_A4H. Optional; TMS resolves the local domain when omitted."),
+  system: external_exports.string().optional().describe(
+    'Target system whose import queue to read, e.g. QAS. Required for operation="queue".'
+  ),
+  domain: external_exports.string().optional().describe(
+    "TMS transport domain of system, e.g. DOMAIN_A4H. Optional; TMS resolves the local domain when omitted."
+  ),
   confirm: external_exports.string().optional().describe("Echo the request number to arm delete or removeObject.")
 };
 var TransportInput = external_exports.object(transportInputSchema);
@@ -137444,7 +137913,7 @@ var transportReleaseInputSchema = {
   )
 };
 var TransportReleaseInput = external_exports.object(transportReleaseInputSchema);
-var TRANSPORT_TOOL_DESCRIPTION = `Inspect and manage CTS transport requests: list, show, check (does an object need a transport?), users, log (a request's export/import log per target system), queue (a target system's import buffer), create (kind="workbench" default, or "copies" with target), addUser, setOwner, delete, removeObject (drop one E071 entry and its CTS lock). list/show/check/users/log/queue are plain reads, always allowed; create/addUser/setOwner need write access; delete/removeObject additionally need the admin-only transport-delete ceiling. Release is a separate tool, abap_transport_release. Semantics of log/queue/copies/removeObject: doc/TOOLS/transports.md.`;
+var TRANSPORT_TOOL_DESCRIPTION = `Inspect and manage CTS transport requests: list, show, check (does an object need a transport?), users, log (a transport's own export/import log, per target system \u2014 a request that has never been exported legitimately has zero log lines; that is not a failure), queue (a target system's import queue/buffer \u2014 the requests waiting to be imported there; an already-imported request has left the buffer, so absence alone does not prove a change never arrived), create (kind="workbench", the default, or kind="copies" for a transport of copies \u2014 a snapshot sent to a target system that leaves the originals and their own request untouched; requires target), addUser, setOwner, delete, removeObject (drop one E071 entry and its CTS lock so its request can then be deleted \u2014 if the object still exists, its lock goes too, and CTS refuses this for some entries, leaving the request undeletable). list/show/check/users/log/queue are plain reads, always allowed; create/addUser/setOwner need write access; delete/removeObject additionally need the admin-only transport-delete ceiling. Release is a separate tool, abap_transport_release.`;
 var TRANSPORT_RELEASE_TOOL_DESCRIPTION = "Release one CTS transport request \u2014 irreversible. Gated by a release ceiling separate from ordinary write access; see abapsmith-orient. A request this session did not create is refused unless confirm_unowned is also passed.";
 function fmtTarget(h) {
   const t = (h.target ?? "").trim();
@@ -140882,16 +141351,16 @@ function parseSearchResults(xml3) {
   let m;
   while (m = re.exec(xml3)) {
     const tag = m[0];
-    const uri = attr4(tag, "uri");
-    const type = attr4(tag, "type");
-    const name = attr4(tag, "name");
+    const uri = attr5(tag, "uri");
+    const type = attr5(tag, "type");
+    const name = attr5(tag, "name");
     if (name && type) {
       out.push({ ...uri ? { uri } : {}, type, name });
     }
   }
   return out;
 }
-function attr4(tag, name) {
+function attr5(tag, name) {
   const re = new RegExp(`[\\w:]*:${name}="([^"]*)"`);
   const m = re.exec(tag);
   if (m && m[1] !== void 0) return xmlUnescape(m[1]);
@@ -143174,7 +143643,7 @@ function attributeSessionDeath(e, input) {
   const hint = e.details.kind === "dump" ? "The session died while the server was processing this edit, so every lock it held is already released and nothing was activated. Do NOT retry the identical call \u2014 an ASSERTION_FAILED in BOPF's model mapper (/BOBF/CL_CONF_MODEL_API_MAP) is deterministic in the payload, and the same request will kill the session again. Re-read the BO first, since the PUT may or may not have landed, and check the spec fields the mapper has to map (uniqueness/dataTypeRef/dataTableTypeRef/keyElements on an alternative key, category on a determination/validation/query). This is NOT an authentication failure." : e.hint;
   return new AbapError(e.code, message, details, hint);
 }
-var BOPF_EDIT_TOOL_DESCRIPTION = "One design-time edit to a BOPF business object (or create one). node/name/spec carry the specifics \u2014 spec shapes, add_node/remove_node rules and dangling-ref handling are in the abapsmith-edit-a-bopf-object skill and doc/TOOLS/bopf.md. add_alternative_key and set_alternative_key_fields both need i_know_this_may_not_activate: true \u2014 no alternative key added this way has been observed to activate. remove_dependent_object removes an existing dependent-object embedding; abapsmith cannot create one.";
+var BOPF_EDIT_TOOL_DESCRIPTION = 'One design-time edit to a BOPF business object (or create one). node/name/spec carry the specifics \u2014 see the abapsmith-edit-a-bopf-object skill for spec shapes, add_node/remove_node rules, and dangling-ref handling. add_alternative_key and set_alternative_key_fields both need i_know_this_may_not_activate: true \u2014 no alternative key added this way has been observed to activate; add_alternative_key additionally needs spec.uniqueness/dataTypeRef/dataTableTypeRef/keyElements, all four, and its checkAfterModify/checkBeforeSave/noCheck are constrained by uniqueness. remove_dependent_object removes an existing dependent-object embedding (its DoComposition association plus the matching "<name>.ROOT" node); abapsmith cannot create one \u2014 see doc/CAPABILITIES/bopf.md.';
 function recoverCreateAfterSessionDeath(deps, createRequest) {
   return deps.pool.withRead("abap_bopf_edit", (conn) => readModel(conn, createRequest.name));
 }
@@ -144413,7 +144882,7 @@ var bopfTestInputSchema = {
     "Switch on the SAP authorization trace for the connected user, run the scenario, then read back and switch it back off. Refused on a read-only server. Default false."
   ),
   snapshot_ids: external_exports.array(external_exports.string()).optional().describe(
-    'Snapshot ids from prior abap_data_preview mode="snapshot" calls; each is re-read and diffed after this call and appended as a DATA CHANGES section, under the same data-preview policy (a refused diff does not fail this call).'
+    `Snapshot ids from prior abap_data_preview mode="snapshot" calls. After this call finishes, each one is re-read and diffed, and the result is appended as a DATA CHANGES section. The diff obeys the same data-preview policy as the snapshot did \u2014 if it is refused, this call's own result still returns and the section says why.`
   )
 };
 var BopfTestInput = external_exports.object(bopfTestInputSchema);
@@ -144691,7 +145160,7 @@ init_errors();
 init_compact();
 var fpmReadInputSchema = {
   mode: external_exports.enum(["find", "outline", "app", "locks", "events"]).describe(
-    "find: search configs by component/config_id/package. outline: one config's XML plus metadata. app: an application config's full UIBB hierarchy (feeder/BOPF hints with resolve). locks: enqueue lock holders. events: which toolbar/button-row/FBI-action raises which FPM event and what handles it (FPM, BOPF, feeder, app controller, ACTION_IMPL class, or unresolved)."
+    "find: search configs. outline: one config's node tree. app: an application config's full UIBB hierarchy. locks: who holds enqueue locks on a config. events: trace which toolbar/button-row/FBI-action elements raise which FPM event, and what handles it (standard FPM, BOPF, feeder, app controller, ACTION_IMPL class, or unresolved)."
   ),
   config_id: external_exports.string().optional().describe("Configuration ID (max 32). Required for outline/app/locks/events."),
   config_type: external_exports.string().optional().describe("NUMC2. 00=component, 02=application. Default 00."),
@@ -145236,7 +145705,7 @@ function buildLocksResponse(query, result, detailPassed, xmlWindowPassed, maxCha
     maxChars
   }).text;
 }
-var FPM_TOOL_DESCRIPTION = "Read SAP FPM/FBI screen configurations (no ADT read endpoint exists): find, outline, app, events, locks \u2014 see mode. Read-only; every call deploys a throwaway bridge class into abapsmith's own package.";
+var FPM_TOOL_DESCRIPTION = "Read SAP FPM/FBI screen configurations \u2014 no ADT read endpoint exists. find: search by component/config_id pattern/package. outline: one configuration's XML plus delta/package metadata. app: an application configuration's full UIBB hierarchy with feeder/BOPF hints (resolve, default true). events: trace which toolbar/button-row/FBI-action raises which FPM event and what handles it (standard FPM, BOPF, feeder, app controller, ACTION_IMPL class, or unresolved), optionally cross-checked against the CL_FPM_EVENT and BOPF catalogues (resolve, default true). locks: enqueue lock holders. Read-only; every call deploys a throwaway bridge class into abapsmith's own package.";
 async function runFpmReadTool(deps, args) {
   const input = args;
   const detail = input.detail ?? "compact";
@@ -146133,17 +146602,21 @@ var IMG_OBJECT_KINDS = [
 ];
 var imgReadInputSchema = {
   mode: external_exports.enum(["search", "show", "tree", "objects"]).describe(
-    "search: find activities by title/id text. show: an activity's reference-IMG path, objects and tables. tree: a node's reference-IMG children. objects: an object's DDIC tables and fields."
+    "search: find activities by title/id text. show: one activity's reference-IMG path, maintenance objects and tables. tree: the reference-IMG node children under a node. objects: a view/cluster/table/customizing object's underlying DDIC tables and fields."
   ),
-  query: external_exports.string().optional().describe('search only: a term with no "*" matches as a substring; "*" is an explicit wildcard, "*" alone matches everything.'),
+  query: external_exports.string().optional().describe(
+    'search only: a term with no "*" matches as a substring of the title or id; "*" is an explicit wildcard, and "*" alone matches everything.'
+  ),
   activity: external_exports.string().optional().describe("show only: the IMG activity id to display."),
   node: external_exports.string().optional().describe("tree only: the node to list children of. Omit for that tree's own root."),
   treeId: external_exports.string().optional().describe(
-    "tree only: the tree a node id belongs to, echoed back as treeId on a previous tree response (e.g. after following a REF node). Omit to use the reference-IMG tree."
+    "tree only: the tree a node id belongs to (echoed back as treeId on a previous tree response, e.g. after following a REF node into a different tree). Omit to use the reference-IMG tree."
   ),
   object: external_exports.string().optional().describe("objects only: a view, view cluster, table, or customizing object name."),
   kind: external_exports.enum(IMG_OBJECT_KINDS).optional().describe("objects only: a hint for the object's kind, used when the name is ambiguous."),
-  language: external_exports.string().regex(IMG_LANGUAGE_RE, "single-character SAP language key (SPRAS), not an ISO code").optional().describe("Single-character SAP language key (SPRAS), e.g. E or D \u2014 not EN/DE. Defaults to the server's configured language, else E."),
+  language: external_exports.string().regex(IMG_LANGUAGE_RE, "single-character SAP language key (SPRAS), not an ISO code").optional().describe(
+    `single-character SAP language key (SPRAS), e.g. "E" for English, "D" for German \u2014 not a 2-letter ISO code. Defaults to the server's configured language, else "E".`
+  ),
   after: external_exports.string().optional().describe(
     "search/tree only: opaque keyset cursor copied from a previous response's paging note. Omit for the first page."
   ),
@@ -146418,7 +146891,7 @@ function renderResult(query, result, maxChars) {
       return renderObjects(query, result, maxChars);
   }
 }
-var IMG_TOOL_DESCRIPTION = `Read the IMG customizing catalog: search (query) finds activities; show (activity) returns its path, objects and tables; tree (node/treeId optional) lists a node's children; objects (object, kind optional) returns a customizing object's DDIC tables and fields. search/tree page via after/limit (default ${IMG_PAGE_DEFAULT}, ceiling ${IMG_PAGE_MAX}) \u2014 pass back the exact {"after": "<cursor>"} a response gives; there is no numeric offset. Fields not valid for the mode are rejected.`;
+var IMG_TOOL_DESCRIPTION = `search (query) finds activities. show (activity) returns its path, objects and tables. tree (node optional, treeId optional) lists a tree node's children, that tree's own root if node is omitted. objects (object, kind optional) returns a view/cluster/table/customizing object's DDIC tables and fields. search/tree page via after/limit (default ${IMG_PAGE_DEFAULT}, ceiling ${IMG_PAGE_MAX}): omit "after" for the first page, then pass back the exact {"after": "<cursor>"} value a response's paging note gives you \u2014 there is no numeric offset to jump to. Every field not valid for the given mode is rejected outright.`;
 async function runImgReadTool(deps, args) {
   const input = args;
   const query = buildQuery3(input, deps.cfg);
@@ -147445,42 +147918,42 @@ var imgEditRowSchema = external_exports.object({
 }).strict();
 var imgEditInputSchema = {
   mode: external_exports.enum(["preview", "upsert", "delete", "create_request"]).describe(
-    "preview: validate rows and show current vs. prospective, without writing. upsert: write rows (insert or update). delete: remove rows. create_request: create a customizing (type W) transport request."
+    "preview: validate rows against policy and show current vs. prospective rows, without writing. upsert: write rows (insert new keys, update existing ones). delete: remove rows. create_request: create a new customizing (type W) transport request and return its number."
   ),
   activity: external_exports.string().optional().describe(
-    "preview/upsert/delete: an IMG activity id, as abap_img show accepts. Resolves to base table, key fields, and client field. Exactly one of activity/object/table is required. Conflicts with key_fields/client_field."
+    "preview/upsert/delete: an IMG activity id, exactly as abap_img show accepts. Resolved to its base table, key fields, and client field automatically. Exactly one of activity/object/table is required. Conflicts with key_fields/client_field (those are derived from the resolution)."
   ),
   object: external_exports.string().optional().describe(
-    "preview/upsert/delete: a maintenance view, view cluster, transaction or table name, as abap_img objects accepts. Exactly one of activity/object/table is required. Conflicts with key_fields/client_field."
+    "preview/upsert/delete: a maintenance view, view cluster, transaction, or table name, exactly as abap_img objects accepts. Resolved to its base table, key fields, and client field automatically. Exactly one of activity/object/table is required. Conflicts with key_fields/client_field (those are derived from the resolution)."
   ),
   kind: external_exports.enum(["table", "view", "cluster", "transaction", "customizing_object", "report"]).optional().describe(
-    "Only meaningful with object: which catalog to resolve object against. Omitted: tries table, view, cluster, transaction, customizing object, in that order, first match wins."
+    "Only meaningful together with object: which catalog to resolve object against. Omitted: probed as table, then view, then cluster, then transaction, then customizing object, first match wins."
   ),
   table: external_exports.string().optional().describe(
-    "Expert escape hatch: the base DDIC table to read/write directly, bypassing activity/object resolution. Exactly one of activity/object/table is required. Requires key_fields; a genuinely client-independent table cannot be written."
+    "Expert escape hatch: the base DDIC table to read/write directly, e.g. ZTEST_IMGW, bypassing activity/object resolution. Exactly one of activity/object/table is required for preview/upsert/delete. Requires key_fields; client_field is optional (defaults to MANDT) but this tool cannot write a genuinely client-independent table regardless \u2014 the write always sets client_field from sy-mandt."
   ),
   client_field: external_exports.string().optional().describe(
-    "table (expert escape hatch) only: the table's client field name, e.g. MANDT. Conflicts with activity/object."
+    "table (expert escape hatch) only: the table's client field name, e.g. MANDT. Conflicts with activity/object, whose client field is resolved automatically."
   ),
   key_fields: external_exports.array(external_exports.string()).optional().describe(
-    "table (expert escape hatch) only: the table's key field names, in order, excluding the client field. At least one required. Conflicts with activity/object."
+    "table (expert escape hatch) only: the table's key field names, in order, excluding the client field. At least one required. Conflicts with activity/object, whose key fields are resolved automatically."
   ),
   rows: external_exports.array(imgEditRowSchema).optional().describe("preview/upsert/delete: 1-50 rows to probe/write. delete ignores each row's values."),
   view: external_exports.string().optional().describe(
-    "upsert/delete: the maintenance view or view cluster name recorded on the transport entry. Defaults to the resolved view/cluster (or table if the resolved target is a table); with table, defaults to table."
+    "upsert/delete: the maintenance view or view cluster name recorded on the transport entry. With activity/object, defaults to the resolved view/cluster name (or table, if the resolved target is a table). With table, defaults to table."
   ),
   master_type: external_exports.enum(["VDAT", "CDAT"]).optional().describe(
-    `upsert/delete: the transport entry's object type \u2014 "VDAT" for a maintenance view (default), "CDAT" for a customizing object recorded directly.`
+    `upsert/delete: the transport entry's object type. "VDAT" for a maintenance view (default), "CDAT" for a customizing object recorded directly.`
   ),
   language: external_exports.string().regex(IMG_LANGUAGE_RE, "single-character SAP language key (SPRAS), not an ISO code").optional().describe(
-    `Single-character SAP language key (SPRAS), e.g. E or D \u2014 not EN/DE. Default ${JSON.stringify(IMG_DEFAULT_LANGUAGE)}.`
+    `Single-character SAP language key (SPRAS) the probe reads DD02L/DD03L texts in, e.g. "E" for English, "D" for German \u2014 not a 2-letter ISO code like EN/DE. Defaults to ${JSON.stringify(IMG_DEFAULT_LANGUAGE)}.`
   ),
   corr_nr: external_exports.string().optional().describe(
     "upsert/delete: transport request to record the write on. Required unless the client is proven not to auto-record client-dependent changes."
   ),
   confirm: external_exports.string().optional().describe("upsert/delete: must equal table, case-insensitive, to arm the write."),
   allow_cross_client: external_exports.boolean().optional().describe(
-    "Clears the policy refusal for a client-independent (affects-every-client) table. Does not make it writable \u2014 the apply class always sets the client field from sy-mandt."
+    "Clears the policy refusal for a client-independent (affects-every-client) table. Does not make the write possible \u2014 the generated apply class always sets the client field from sy-mandt, which a genuinely client-independent table has none of."
   ),
   description: external_exports.string().optional().describe("create_request only: the request's description text."),
   owner: external_exports.string().optional().describe("create_request only: the request owner. Defaults to the logged-in user.")
@@ -148500,7 +148973,7 @@ async function runCreateRequestMode(deps, input) {
   }
   return ok14(renderCreateRequest(plan, result, deps.cfg.maxResponseChars));
 }
-var IMG_EDIT_TOOL_DESCRIPTION = "Write IMG customizing rows. preview validates rows against policy and shows current vs. prospective rows without writing; upsert/delete write rows and need confirm equal to table (case-insensitive) \u2014 corr_nr is usually required; create_request (description, owner) mints a customizing (type W) transport request. First call per mode deploys and activates a bridge class in $ABAPSMITH_FLUID_API. Details: doc/TOOLS/abap-img-edit.md.";
+var IMG_EDIT_TOOL_DESCRIPTION = "preview (table, key_fields, rows) validates rows against policy and shows current vs. prospective rows without writing. upsert/delete (table, key_fields, rows, confirm) write rows; confirm must equal table (case-insensitive) and corr_nr is usually required. view/master_type name the transport entry recorded for upsert/delete (default: table/VDAT). create_request (description, owner) mints a new customizing (type W) transport request. First call per mode deploys and activates a bridge class in $ABAPSMITH_FLUID_API.";
 async function runImgEditTool(deps, args) {
   const input = args;
   switch (input.mode) {
@@ -150121,7 +150594,7 @@ var uiInputSchema = {
     "screen: read one dynpro (discovery, read-only in effect). fcode: static trace of one function code's handling \u2014 reads source, runs nothing, same read-only effect as screen. press: run a batch-input script \u2014 commits, cannot be rolled back. Requires ABAP_MODE=admin, ABAP_ALLOW_UI_PRESS=true, and confirm:true."
   ),
   tcode: external_exports.string().optional().describe(
-    "Transaction code. screen/fcode: alternative to program+dynpro. press: required. A tcode with no TSTC row is refused with NOT_FOUND before any bridge class is deployed."
+    "Transaction code. screen/fcode: alternative to program+dynpro. press: required \u2014 press needs tcode; program/dynpro is only supported by mode=screen. A tcode with no TSTC row is refused with NOT_FOUND before any bridge class is deployed."
   ),
   program: external_exports.string().optional().describe("screen/fcode only, with dynpro: program name instead of tcode. Refused by press."),
   dynpro: external_exports.string().optional().describe('screen/fcode only, with program: screen number, e.g. "100". Refused by press.'),
@@ -150129,19 +150602,19 @@ var uiInputSchema = {
     "fcode only: one function code to trace. Omitted = every function code of every GUI status of the program."
   ),
   screens: external_exports.array(uiPressScreenSchema).optional().describe(
-    "press only, required: ordered batch-input script, one entry per dynpro in sequence. Build it from the screen call's output and the 00/344 stall this tool reports when a script runs out."
+    "press only, required: ordered batch-input script, one entry per dynpro the transaction will show in sequence. Build it incrementally using the screen call's own field/status output and the 00/344 stall this tool reports when a script runs out."
   ),
   layout: external_exports.boolean().optional().describe(
-    "screen only, default false: also render a monospace picture of the screen. Design-time layout, not a runtime screenshot. Ignored by press."
+    "screen only, default false: also render a monospace picture of the screen from the field rows already read. No extra ABAP and no extra round trip. Design-time layout, not a runtime screenshot. Ignored by press."
   ),
   detail: external_exports.enum(["compact", "full"]).optional().describe(
-    'screen only, default "compact": "compact" is one line per field, generated %_ flow lines collapsed; "full" is the raw dump of every D021S column and flow line. Render-side only \u2014 same single bridge call. Ignored by fcode and press.'
+    'screen only, default "compact": FIELDS is one line per element (name  type  len  pos  attrs, only non-default attrs) and runs of generated %_ flow-logic lines collapse into one counted line; user-written modules are always listed. "full" is the raw key=[value] dump of every D021S column and every flow line. Render-side only \u2014 same ABAP, same single bridge call. The LAYOUT section (layout:true) is the same in both. Ignored by fcode and press.'
   ),
   confirm: external_exports.boolean().optional().describe(
     "press only, REQUIRED (must be exactly true) \u2014 acknowledges the commit. Omitted or false is refused before any network call."
   ),
   snapshot_ids: external_exports.array(external_exports.string()).optional().describe(
-    'mode: "press" only (the mode that can change data). Snapshot ids from prior abap_data_preview mode="snapshot" calls; each is re-read and diffed after the script and appended as a DATA CHANGES section, under the same data-preview policy (a refused diff does not fail this call).'
+    `mode: "press" only \u2014 press is the mode that can change data. Snapshot ids from prior abap_data_preview mode="snapshot" calls. After the press script finishes, each one is re-read and diffed, and the result is appended as a DATA CHANGES section. The diff obeys the same data-preview policy as the snapshot did \u2014 if it is refused, this call's own result still returns and the section says why.`
   )
 };
 var UiInput = external_exports.object(uiInputSchema);
@@ -152008,7 +152481,7 @@ var enhInputSchema = {
     ...ENH_DELETE_OPERATIONS,
     ...ENH_ACTIVATION_OPERATIONS
   ]).optional().describe(
-    'Default "write_description". Six create ops: always $TMP, always activate. discover_hook_anchors: read-only. delete needs ABAP_ALLOW_ENHANCEMENT_DELETE=true, irreversible; set_impl_active: reversible.'
+    'Default "write_description". Six create ops: always $TMP, always activate. discover_hook_anchors: read-only. delete needs ABAP_ALLOW_ENHANCEMENT_DELETE=true, irreversible. set_impl_active: reversible.'
   ),
   type: external_exports.enum(ENHANCEMENT_WRITE_TYPES).optional().describe("Required for write_description/delete; unused otherwise."),
   name: external_exports.string().describe(
@@ -152016,7 +152489,7 @@ var enhInputSchema = {
   ),
   description: external_exports.string().optional().describe("Required for write_description/create_hook (new adtcore:description, max 60). Unused otherwise."),
   spec: external_exports.record(external_exports.string(), external_exports.unknown()).optional().describe(
-    "Fields per op (?=optional; IDs max 30 chars; lengths and value rules in doc/TOOLS/enhancements.md).\ncreate_spot: description.\nadd_badi_def: badiName, interfaceName, singleUse, shortText.\nadd_filter_def: badiName, filterName, filterType, filterText?.\ncreate_impl: spotName, badiName, implName, implClass, active, description.\nset_filter_values: spotName, implName, filterName, filterType, compare, value.\nexercise: methodName, filterName?, filterValue?, params?[{name, kind?, value?, type?}] (params[].type: required for changing/exporting/receiving, forbidden otherwise; a namespaced type ref is allowed).\ndiscover_hook_anchors: hostType, hostName, hostUri.\ncreate_hook: hostType(PROG/P only), hostName, hostUri, anchorFullName, anchorFullDescription, responsible?, activate?.\nset_impl_active: active, implName?(omit only if exactly one entry), description?."
+    "Fields per op (?=optional, else required; numbers=max chars). IDs max 30 chars, see enhancement skill.\ncreate_spot: description(60).\nadd_badi_def: badiName, interfaceName, singleUse(bool), shortText(60).\nadd_filter_def: badiName, filterName, filterType(1 upper letter, e.g. C), filterText?(255).\ncreate_impl: spotName, badiName, implName, implClass, active(bool), description(60).\nset_filter_values: spotName, implName, filterName, filterType(as above), compare(=,<>,<,<=,>,>=,EQ,NE,LT,LE,GT,GE), value(255).\nexercise: methodName, filterName?, filterValue?, params?[{name, kind?(importing/changing/exporting/receiving, default importing, max 1 receiving), value?(req for importing/changing, else forbidden), type?(params[].type: req for changing/exporting/receiving, else forbidden; namespaced type ref)}].\ndiscover_hook_anchors: hostType, hostName, hostUri.\ncreate_hook: hostType(PROG/P only), hostName, hostUri, anchorFullName, anchorFullDescription(200), responsible?(12), activate?(bool).\nset_impl_active: active(bool), implName?(omit only if exactly one entry), description?(60)."
   ),
   affects: external_exports.object({
     name: external_exports.string().describe("Affected object name."),
@@ -153242,24 +153715,26 @@ var dataPreviewInputSchema = {
   ),
   object: external_exports.string().optional().describe("Alias for table; table wins if both are given."),
   max_rows: external_exports.number().int().optional().describe(
-    "Rows to return, clamped to the server's ceiling. At least 1 \u2014 0 is refused."
+    `Rows to return, clamped to the server's ceiling (clamp reported in the response). At least 1 \u2014 0 is refused, never read as "default".`
   ),
   where: external_exports.array(
     external_exports.object({
-      field: external_exports.string().describe("DDIC field name, checked against the entity's columns."),
+      field: external_exports.string().describe(
+        "DDIC field name, checked against the entity's own column list before anything is sent."
+      ),
       op: external_exports.enum(PREVIEW_OPS).describe(
-        "Comparison operator: eq/ne/lt/le/gt/ge/like/in/is_null."
+        "Comparison operator: eq/ne/lt/le/gt/ge compare one typed value; like matches an SQL pattern (% = any run, _ = one character, # = escape character); in matches any of an array of values; is_null takes no value at all."
       ),
       value: external_exports.union([
         external_exports.string(),
         external_exports.number(),
         external_exports.array(external_exports.union([external_exports.string(), external_exports.number()]))
       ]).optional().describe(
-        "Required for every op except is_null (which must omit it); an array only for op=in. Rendered as a typed literal for the field's DDIC type."
+        "Required for every op except is_null (which must omit it); an array only for op=in. Always rendered as a typed literal for the field's DDIC type \u2014 never concatenated as text."
       )
     })
   ).optional().describe(
-    "Structured filter conditions, ANDed together (no OR, no free text). The same S_TABU_* authorisations still apply to every row."
+    "Structured filter conditions, ANDed together (no OR, no free text). This does not widen what the technical user may read \u2014 the same S_TABU_* authorisations still apply to every row."
   ),
   columns: external_exports.array(external_exports.string()).optional().describe(
     "Project only these DDIC fields, in this order, instead of every column on the entity."
@@ -153270,25 +153745,25 @@ var dataPreviewInputSchema = {
       direction: external_exports.enum(["asc", "desc"]).optional().describe('Sort direction; defaults to "asc" when omitted.')
     })
   ).optional().describe(
-    "Sort order, applied in array order (first field is the primary sort key). Keyset paging: order on a key, add a gt/lt where on the last value seen."
+    "Sort order, applied in array order (first field is the primary sort key). Required for keyset paging: order on a key and add a `gt`/`lt` where-condition on the last value seen."
   ),
   distinct: external_exports.boolean().optional().describe(
-    "Suppress duplicate rows. Requires every order_by field to also appear in columns."
+    "Suppress duplicate rows. Requires every order_by field to also appear in columns \u2014 otherwise the sort key would not be part of what distinctness is computed over."
   ),
   mode: external_exports.enum(["preview", "snapshot", "diff"]).optional().describe(
-    `Defaults to "preview": read and show rows. "snapshot" stores the read rows for later comparison. "diff" re-reads a stored snapshot's own selection and reports what changed.`
+    `Defaults to "preview": read and show rows. "snapshot" reads the same selection and stores the rows locally for a later comparison. "diff" re-reads a stored snapshot's own selection and reports what changed since it was taken.`
   ),
   snapshot_id: external_exports.string().optional().describe(
     'The id returned by a prior mode: "snapshot" call. Required for mode: "diff"; refused in the other two modes.'
   ),
   ttl_hours: external_exports.number().int().optional().describe(
-    'mode: "snapshot" only. How long the snapshot survives before it is pruned, clamped down to the operator ceiling ABAP_DATA_SNAPSHOT_TTL_HOURS.'
+    'mode: "snapshot" only. How long the snapshot survives before it is pruned, clamped DOWN to the operator ceiling ABAP_DATA_SNAPSHOT_TTL_HOURS (the clamp, if any, is reported in the response).'
   ),
   format: external_exports.enum(["table", "abap_value", "test_double"]).optional().describe(
-    "table (default): text table. abap_value: the rows as one typed VALUE #( ... ) literal. test_double: that literal in a cl_osql_test_environment fixture. Same deny-list, flag and row ceiling in every case."
+    "How to render the rows. table (default): the usual text table. abap_value: the rows as one typed VALUE #( ... ) literal for the entity's line type. test_double: that literal wrapped in a ready-to-paste cl_osql_test_environment fixture. Same deny-list, same flag, same row ceiling in every case \u2014 the format is applied after the read, never around the check."
   ),
   mask: external_exports.array(external_exports.string()).optional().describe(
-    "Field names to blank in the output only, applied at render time after the read."
+    "Field names to blank in the OUTPUT only, applied at render time after the read. Character-like fields become 'MASKED'; other types become their initial value. The response lists which fields were masked."
   )
 };
 var DataPreviewInput = external_exports.object(dataPreviewInputSchema);
@@ -153485,7 +153960,7 @@ function registerDataPreviewTools(mcp, deps) {
     "abap_data_preview",
     {
       title: "Preview DDIC table data",
-      description: `Read rows from ONE DDIC entity (table, database/projection view, or parameterless CDS view) with an optional structured filter (where/columns/order_by/distinct) \u2014 no JOIN, aggregate or SQL text. Rows clamped to the ceiling (currently ${ceiling}). Deny-listed tables and non-provably-nonproductive systems are refused. mode=preview|snapshot|diff and format=table|abap_value|test_double: see those parameters.`,
+      description: `Read rows from ONE DDIC entity: a table, database/projection view, or parameterless CDS view \u2014 not every DDIC entity kind qualifies. A name plus an optional structured filter (where/columns/order_by/distinct) \u2014 still no JOIN, no aggregate, and no SQL text. Rows clamped to the ceiling (currently ${ceiling}). Deny-listed tables and non-provably-nonproductive systems are refused. Three modes: "preview" (default) reads and shows rows; "snapshot" reads the same selection and stores the rows locally under a returned snapshot_id; "diff" re-reads a stored snapshot's own recorded selection and reports what changed since it was taken. format: abap_value / test_double turn the rows into a paste-ready ABAP fixture under the same policy.`,
       inputSchema: dataPreviewInputSchema,
       annotations: {
         readOnlyHint: true,
@@ -153643,646 +154118,183 @@ function registerDataPreviewTools(mcp, deps) {
 init_zod();
 init_errors();
 
-// src/adt/dumps-xml.ts
-init_fxp();
-init_errors();
-var dumpsXml = new XMLParser({
-  ignoreAttributes: false,
-  attributeNamePrefix: "@_",
-  removeNSPrefix: true,
-  parseAttributeValue: false,
-  parseTagValue: false,
-  trimValues: true,
-  // `typeof jpath === "string"` guards the v5 `string | MatcherView` type (holds
-  // under default `jPath: true`). `isAttribute` excludes attributes, which share
-  // the element jpath space (`feed.entry.link` vs `feed.entry.link.href`).
-  isArray: (_name, jpath, _isLeaf, isAttribute) => !isAttribute && typeof jpath === "string" && REPEATABLE_JPATHS.has(jpath)
-});
-var REPEATABLE_JPATHS = /* @__PURE__ */ new Set([
-  // dumps feed + feeds catalog
-  "feed.entry",
-  "feed.link",
-  "feed.entry.link",
-  "feed.entry.category",
-  // dump detail
-  "dump.links.link",
-  "dump.chapters.chapter",
-  // feed:extendedData contract
-  "feed.entry.extendedData.operators.operator",
-  "feed.entry.extendedData.dataTypes.dataType",
-  "feed.entry.extendedData.dataTypes.dataType.operators.operator",
-  "feed.entry.extendedData.attributes.attribute",
-  "feed.entry.extendedData.attributes.attribute.operators.operator",
-  "feed.entry.extendedData.queryVariants.queryVariant"
-]);
-function asRecord2(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value) ? value : void 0;
+// src/adt/dumps-summary.ts
+var DUMP_SECTIONS = ["analysis", "source", "variables", "stack", "environment", "all"];
+var SECTION_CHAPTERS = {
+  /** Short text, error analysis, how to correct, chain of exception objects. */
+  analysis: ["kap0", "kap3", "kap4", "kap28"],
+  /** Where terminated, source code extract. */
+  source: ["kap7", "kap8"],
+  /** Selected Variables — gated by ABAP_ALLOW_DUMP_VARIABLES like `chapters:"kap10"`. */
+  variables: [VARIABLES_CHAPTER_NAME],
+  /** Active calls/events, application calls. */
+  stack: ["kap11", "kap22"],
+  /** System environment, user and transaction, server-side connection, system fields, programs affected. */
+  environment: ["kap5", "kap6", "kap6a", "kap9", "kap14"]
+};
+function isDumpSection(value) {
+  return typeof value === "string" && DUMP_SECTIONS.includes(value);
 }
-function asArray4(value) {
-  if (Array.isArray(value)) return value;
-  return value === void 0 || value === null ? [] : [value];
+function sectionChapterNames(section) {
+  return section === "all" ? [...TIER1_CHAPTER_NAMES] : [...SECTION_CHAPTERS[section]];
 }
-function attr5(node2, name) {
-  const value = node2?.[`@_${name}`];
-  return typeof value === "string" ? value : void 0;
-}
-function attrOrEmpty(node2, name) {
-  return attr5(node2, name) ?? "";
-}
-function elementText2(value) {
-  if (typeof value === "string") return value;
-  const rec = asRecord2(value);
-  const text5 = rec?.["#text"];
-  return typeof text5 === "string" ? text5 : void 0;
-}
-function isXmlTrue(value) {
-  return value === "true";
-}
-function intAttr(node2, name) {
-  const raw = attr5(node2, name);
-  if (raw === void 0 || raw === "") return void 0;
-  const n = Number.parseInt(raw, 10);
-  return Number.isFinite(n) ? n : void 0;
-}
-function hrefParam(href, name) {
-  if (href === void 0) return void 0;
-  const q = href.indexOf("?");
-  if (q < 0) return void 0;
-  return new URLSearchParams(href.slice(q + 1)).get(name) ?? void 0;
-}
-var DUMP_DETAIL_PATH_PREFIX = "/sap/bc/adt/runtime/dump/";
-var ADT_SCHEME_RE = /^adt:\/\/[^/]*/;
-function dumpLinkKind(uri) {
-  if (ADT_SCHEME_RE.test(uri)) return "adt-uri";
-  if (/^https?:\/\//i.test(uri)) return "external-url";
-  return "adt-path";
-}
-function stripAdtScheme(uri) {
-  return uri.replace(ADT_SCHEME_RE, "");
-}
-function dumpKeyFromDetailPath(path9) {
-  if (!path9.startsWith(DUMP_DETAIL_PATH_PREFIX)) return void 0;
-  const key = path9.slice(DUMP_DETAIL_PATH_PREFIX.length);
-  return key === "" ? void 0 : key;
-}
-function exceptionFromDoc(doc) {
-  const exc = asRecord2(doc.exception);
-  if (exc === void 0) return void 0;
-  return {
-    namespace: attrOrEmpty(asRecord2(exc.namespace), "id"),
-    type: attrOrEmpty(asRecord2(exc.type), "id"),
-    message: elementText2(exc.message) ?? ""
-  };
-}
-function refuseExceptionEnvelope(doc, what) {
-  const exc = exceptionFromDoc(doc);
-  if (exc === void 0) return;
-  throw new AbapError(
-    "ADT_ERROR",
-    `Expected ${what} but the body is an ADT exception envelope: ${exc.type} \u2014 ${exc.message}`,
-    { exceptionType: exc.type, exceptionNamespace: exc.namespace },
-    "This is a server error body, not a payload. Check the HTTP status of the response the body came from rather than the parse."
-  );
-}
-var CATEGORY_LABEL_RUNTIME_ERROR = "ABAP runtime error";
-var CATEGORY_LABEL_TERMINATED_PROGRAM = "Terminated ABAP program";
-function categoryTerm(categories, label) {
-  for (const raw of asArray4(categories)) {
-    const cat = asRecord2(raw);
-    if (attr5(cat, "label") === label) return attrOrEmpty(cat, "term");
-  }
-  return "";
-}
-function linkHref(links, rel) {
-  for (const raw of asArray4(links)) {
-    const link = asRecord2(raw);
-    if (attr5(link, "rel") === rel) return attr5(link, "href");
-  }
-  return void 0;
-}
-function parseDumpFeed(body) {
-  const doc = dumpsXml.parse(body);
-  refuseExceptionEnvelope(doc, "an ABAP dumps feed");
-  if (!("feed" in doc)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      "Not an Atom feed: no root <atom:feed> element.",
-      { rootElements: Object.keys(doc).filter((k) => k !== "?xml") },
-      "This parser reads /sap/bc/adt/runtime/dumps responses."
-    );
-  }
-  const feed = asRecord2(doc.feed) ?? {};
-  const selfHref = linkHref(feed.link, "self");
-  const nextHref = linkHref(feed.link, "next");
-  const entries = [];
-  for (const raw of asArray4(feed.entry)) {
-    const entry = asRecord2(raw);
-    if (entry === void 0) continue;
-    const detailPath = stripAdtScheme(linkHref(entry.link, "self") ?? "");
-    const key = dumpKeyFromDetailPath(detailPath);
-    if (key === void 0) continue;
-    const alternate = linkHref(entry.link, "alternate");
-    entries.push({
-      key,
-      detailPath,
-      user: elementText2(asRecord2(entry.author)?.name) ?? "",
-      // By @label, never by position: the two categories are order-stable in
-      // the capture but nothing in Atom says they must be.
-      runtimeError: categoryTerm(entry.category, CATEGORY_LABEL_RUNTIME_ERROR),
-      terminatedProgram: categoryTerm(entry.category, CATEGORY_LABEL_TERMINATED_PROGRAM),
-      title: elementText2(entry.title) ?? "",
-      published: elementText2(entry.published) ?? "",
-      updated: elementText2(entry.updated) ?? "",
-      guiPath: elementText2(entry.id) ?? "",
-      ...alternate === void 0 ? {} : { sapGuiUri: alternate }
-      // entry.summary is deliberately not read: ~13 KB of escaped HTML per
-      // entry, 91% of the feed's bytes, and a duplicate of the detail.
-    });
-  }
-  const newest = hrefParam(selfHref, "from");
-  const oldest = hrefParam(nextHref, "to");
-  return {
-    systemId: elementText2(asRecord2(feed.contributor)?.name) ?? "",
-    title: elementText2(feed.title) ?? "",
-    updated: elementText2(feed.updated) ?? "",
-    ...selfHref === void 0 ? {} : { selfHref },
-    ...nextHref === void 0 ? {} : { nextHref },
-    ...newest === void 0 ? {} : { newestTimestamp: newest },
-    ...oldest === void 0 ? {} : { oldestTimestamp: oldest },
-    hasMore: nextHref !== void 0,
-    entries
-  };
-}
-var DUMP_RELATION_PREFIX = "http://www.sap.com/adt/relations/runtime/dump/";
-function relationToken(relation) {
-  return relation.startsWith(DUMP_RELATION_PREFIX) ? relation.slice(DUMP_RELATION_PREFIX.length) : relation;
-}
-function findDumpLink(links, token) {
-  return links.find((l) => l.relationToken === token);
-}
-function parseDumpDetail(body) {
-  const doc = dumpsXml.parse(body);
-  refuseExceptionEnvelope(doc, "an ABAP dump detail");
-  const dump = asRecord2(doc.dump);
-  if (dump === void 0) {
-    throw new AbapError(
-      "BAD_INPUT",
-      "Not an ABAP dump detail: no root <dump:dump> element.",
-      { rootElements: Object.keys(doc).filter((k) => k !== "?xml") },
-      "This parser reads application/vnd.sap.adt.runtime.dump.v1+xml bodies. A text/plain request to the same URL is answered with HTTP 406."
-    );
-  }
-  const links = [];
-  for (const raw of asArray4(asRecord2(dump.links)?.link)) {
-    const node2 = asRecord2(raw);
-    const relation = attrOrEmpty(node2, "relation");
-    const uri = attrOrEmpty(node2, "uri");
-    links.push({
-      relation,
-      relationToken: relationToken(relation),
-      uri,
-      contentType: attrOrEmpty(node2, "contentType"),
-      kind: dumpLinkKind(uri)
-    });
-  }
-  const chapters = [];
-  for (const raw of asArray4(asRecord2(dump.chapters)?.chapter)) {
-    const node2 = asRecord2(raw);
-    const name = attrOrEmpty(node2, "name");
-    const line2 = intAttr(node2, "line");
-    if (line2 === void 0) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `Dump chapter '${name}' has no usable line offset (line=${String(attr5(node2, "line"))}).`,
-        { chapter: name },
-        "The line attribute is the 1-based offset of the chapter's banner in the /formatted body; without it the chapter cannot be located."
-      );
-    }
-    chapters.push({
-      name,
-      title: attrOrEmpty(node2, "title"),
-      category: attrOrEmpty(node2, "category"),
-      line: line2,
-      chapterOrder: intAttr(node2, "chapterOrder") ?? 0,
-      categoryOrder: intAttr(node2, "categoryOrder") ?? 0
-    });
-  }
-  const contents = findDumpLink(links, "contents");
-  const termination = findDumpLink(links, "termination");
-  const target = termination === void 0 ? void 0 : terminationTarget(termination.uri);
-  return {
-    title: attrOrEmpty(dump, "title"),
-    error: attrOrEmpty(dump, "error"),
-    author: attrOrEmpty(dump, "author"),
-    exception: attrOrEmpty(dump, "exception"),
-    terminatedProgram: attrOrEmpty(dump, "terminatedProgram"),
-    serverInstance: attrOrEmpty(dump, "serverInstance"),
-    datetime: attrOrEmpty(dump, "datetime"),
-    systemDate: attrOrEmpty(dump, "systemDate"),
-    systemTime: attrOrEmpty(dump, "systemTime"),
-    links,
-    chapters,
-    ...contents === void 0 ? {} : { formattedPath: stripAdtScheme(contents.uri) },
-    ...target === void 0 ? {} : { termination: target }
-  };
-}
-function terminationTarget(uri) {
-  const path9 = stripAdtScheme(uri);
-  if (path9 === "") return void 0;
-  const hash2 = path9.indexOf("#");
-  if (hash2 < 0) return { path: path9 };
-  const start = new URLSearchParams(path9.slice(hash2 + 1)).get("start");
-  const line2 = start === null ? Number.NaN : Number.parseInt(start, 10);
-  return {
-    path: path9.slice(0, hash2),
-    ...Number.isFinite(line2) ? { line: line2 } : {}
-  };
-}
-var TIER1_CHAPTER_NAMES = ["kap7", "kap8", "kap9", "kap11"];
-var VARIABLES_CHAPTER_NAME = "kap10";
-function dumpChapterExtents(chapters, totalLines) {
-  const sorted = [...chapters].sort((a, b) => a.line - b.line || a.chapterOrder - b.chapterOrder);
-  const clamp2 = (n) => Math.min(Math.max(n, 0), Math.max(totalLines, 0));
-  return sorted.map((chapter, i) => {
-    const next = sorted[i + 1];
-    const start = clamp2(chapter.line - 1);
-    const end = clamp2(next === void 0 ? totalLines : next.line - 1);
-    return { chapter, start, end: Math.max(start, end) };
-  });
-}
-function sliceDumpChapters(chapters, formatted, names) {
-  const wanted = new Set(names);
-  if (wanted.size === 0) return "";
+var SUMMARY_CHAPTER_NAMES = ["kap3", "kap4", "kap7", "kap8", "kap11"];
+var SUMMARY_PROSE_CHARS = { errorAnalysis: 450, howToCorrect: 260 };
+var SUMMARY_STACK_FRAMES = 5;
+var BANNER = /^-{3,}\s*$/;
+var ROW = /^\|(.*)\|\s*$/;
+function chapterLines(detail, formatted, name) {
   const lines = formatted.split("\n");
-  const parts = [];
-  for (const extent of dumpChapterExtents(chapters, lines.length)) {
-    if (!wanted.has(extent.chapter.name)) continue;
-    parts.push(lines.slice(extent.start, extent.end).join("\n"));
-  }
-  return parts.join("\n");
+  const extent = dumpChapterExtents(detail.chapters, lines.length).find((e) => e.chapter.name === name);
+  if (extent === void 0) return void 0;
+  return lines.slice(extent.start, extent.end);
 }
-function operatorRefIds(container) {
-  const ids = [];
-  for (const raw of asArray4(asRecord2(container)?.operator)) {
-    const id = attr5(asRecord2(raw), "id");
-    if (id !== void 0 && id !== "") ids.push(id);
-  }
-  return ids;
+function rowText(line2) {
+  if (BANNER.test(line2)) return void 0;
+  const m = ROW.exec(line2);
+  return m?.[1]?.replace(/\s+$/, "");
 }
-function parseExtendedData(node2) {
-  const intervalNode = asRecord2(asRecord2(node2.refresh)?.interval);
-  const intervalValue = intAttr(intervalNode, "value");
-  const intervalUnit = attr5(intervalNode, "unit");
-  const pageSize = intAttr(asRecord2(node2.paging), "size");
-  const queryDepthText = elementText2(node2.queryDepth);
-  const queryDepth = queryDepthText === void 0 ? Number.NaN : Number.parseInt(queryDepthText, 10);
-  const operators = [];
-  for (const raw of asArray4(asRecord2(node2.operators)?.operator)) {
-    const op = asRecord2(raw);
-    operators.push({
-      id: attrOrEmpty(op, "id"),
-      numberOfOperands: intAttr(op, "numberOfOperands") ?? 0,
-      kind: attrOrEmpty(op, "kind"),
-      label: elementText2(op?.label) ?? ""
-    });
-  }
-  const dataTypes = [];
-  for (const raw of asArray4(asRecord2(node2.dataTypes)?.dataType)) {
-    const dt = asRecord2(raw);
-    dataTypes.push({
-      id: attrOrEmpty(dt, "id"),
-      label: elementText2(dt?.label) ?? "",
-      operatorIds: operatorRefIds(dt?.operators)
-    });
-  }
-  const attributes = [];
-  for (const raw of asArray4(asRecord2(node2.attributes)?.attribute)) {
-    const at = asRecord2(raw);
-    attributes.push({
-      id: attrOrEmpty(at, "id"),
-      dataTypeId: attrOrEmpty(asRecord2(at?.dataType), "id"),
-      label: elementText2(at?.label) ?? "",
-      operatorIds: operatorRefIds(at?.operators)
-    });
-  }
-  const queryVariants = [];
-  for (const raw of asArray4(asRecord2(node2.queryVariants)?.queryVariant)) {
-    const qv = asRecord2(raw);
-    queryVariants.push({
-      queryString: attrOrEmpty(qv, "queryString"),
-      title: attrOrEmpty(qv, "title"),
-      isDefault: isXmlTrue(attr5(qv, "isDefault"))
-    });
-  }
-  return {
-    ...intervalValue === void 0 ? {} : { refresh: { value: intervalValue, unit: intervalUnit ?? "" } },
-    ...pageSize === void 0 ? {} : { pageSize },
-    notificationEnabled: isXmlTrue(attr5(asRecord2(node2.notification), "isEnabled")),
-    operators,
-    dataTypes,
-    attributes,
-    queryIsObligatory: isXmlTrue(elementText2(node2.queryIsObligatory)),
-    ...Number.isFinite(queryDepth) ? { queryDepth } : {},
-    queryVariants
-  };
-}
-function parseFeedsCatalog(body) {
-  const doc = dumpsXml.parse(body);
-  refuseExceptionEnvelope(doc, "the ADT feeds catalog");
-  const feed = asRecord2(doc.feed) ?? {};
-  const entries = [];
-  for (const raw of asArray4(feed.entry)) {
-    const entry = asRecord2(raw);
-    if (entry === void 0) continue;
-    const contentSrc = attr5(asRecord2(entry.content), "src");
-    const alternateHref = linkHref(entry.link, "alternate");
-    const ed = asRecord2(entry.extendedData);
-    entries.push({
-      id: elementText2(entry.id) ?? "",
-      title: elementText2(entry.title) ?? "",
-      ...contentSrc === void 0 ? {} : { contentSrc },
-      ...alternateHref === void 0 ? {} : { alternateHref },
-      published: elementText2(entry.published) ?? "",
-      updated: elementText2(entry.updated) ?? "",
-      ...ed === void 0 ? {} : { extendedData: parseExtendedData(ed) }
-    });
-  }
-  return {
-    systemId: elementText2(asRecord2(feed.contributor)?.name) ?? "",
-    title: elementText2(feed.title) ?? "",
-    updated: elementText2(feed.updated) ?? "",
-    entries
-  };
-}
-function findDumpsFeedEntry(catalog) {
-  return catalog.entries.find((e) => e.id === DUMPS_FEED_PATH || e.contentSrc === DUMPS_FEED_PATH);
-}
-
-// src/adt/dumps.ts
-init_errors();
-init_session();
-var FEEDS_CATALOG_PATH = "/sap/bc/adt/feeds";
-var FEEDS_CATALOG_ACCEPT = "application/xml, application/atom+xml, application/atomsvc+xml, */*";
-var DUMPS_FEED_ACCEPT = "*/*";
-var DUMP_DETAIL_ACCEPT = "application/vnd.sap.adt.runtime.dump.v1+xml";
-var DUMP_FORMATTED_ACCEPT = "text/plain";
-var FORMATTED_SUFFIX = "/formatted";
-var FORMATTED_RELATION_TOKEN = "contents";
-var BAD_DUMP_KEY = /%25|[?#/\\]|\s/;
-function assertVerbatimDumpKey(key) {
-  if (typeof key !== "string" || key.trim() === "") {
-    throw new AbapError(
-      "BAD_INPUT",
-      "A dump key is required.",
-      { dumpKey: String(key) },
-      'Take the key from a dump list entry \u2014 it is the `rel="self"` link of the Atom entry with the `adt://{SID}` prefix stripped, and nothing else.'
-    );
-  }
-  if (BAD_DUMP_KEY.test(key)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      "This dump key has been altered and will not resolve; refusing to send it.",
-      { dumpKey: key },
-      "The key is an opaque fixed-width token that arrives ALREADY percent-encoded \u2014 its `%20` runs are the space padding of a 70-character structure. Pass it through byte for byte. Do not URL-encode it (that turns `%20` into `%2520`, a captured 404), do not decode it, do not trim it, and do not rebuild it from its fields: all four mutations were captured as 404."
-    );
-  }
-  return key;
-}
-function dumpDetailPath(key) {
-  return `${DUMP_DETAIL_PATH_PREFIX}${assertVerbatimDumpKey(key)}`;
-}
-function dumpFormattedPath(key) {
-  return `${dumpDetailPath(key)}${FORMATTED_SUFFIX}`;
-}
-function classifyDumpFailure(e, ctx) {
-  const err = translateAdtError(e, ctx);
-  const status = typeof err.details.status === "number" ? err.details.status : void 0;
-  const key = ctx.dumpKey;
-  if (err.code === "NOT_FOUND" && key !== void 0) {
-    return new AbapError(
-      "NOT_FOUND",
-      `No dump with this key exists on the system (HTTP 404 from ${ctx.uri ?? "the dump resource"}).`,
-      { ...err.details, dumpKey: key },
-      `Two causes, in order of likelihood. (1) The key was altered in transit: it must be the feed entry's \`rel="self"\` value with the \`adt://{SID}\` prefix stripped and NOTHING else done to it \u2014 encoding, decoding and trimming were each captured as a 404. (2) The dump has left the ${DUMPS_RESIDENCE_WINDOW_DAYS}-day ADT residence window. List the dumps again and use a key from that answer.`
-    );
-  }
-  if (err.code !== "ADT_ERROR") return err;
-  if (status === 406) {
-    return new AbapError(
-      "ADT_ERROR",
-      `The dump resource does not offer the representation that was requested (HTTP 406).`,
-      { ...err.details, ...key === void 0 ? {} : { dumpKey: key } },
-      `This is a client bug, not a server or authorisation problem: each dump representation has its own resource and its own Accept. The detail document is '${DUMP_DETAIL_ACCEPT}' on the base resource; plain text is the '/formatted' SUB-RESOURCE, not a content-type of the base \u2014 asking the base for text/plain is a captured 406.`
-    );
-  }
-  if (status === 400) {
-    return new AbapError(
-      "BAD_INPUT",
-      `The server rejected this dumps request (HTTP 400) without saying why.`,
-      { ...err.details, ...key === void 0 ? {} : { dumpKey: key } },
-      `This endpoint answers an unknown attribute, a syntax error, a missing and(\u2026)/or(\u2026) wrapper and excess nesting with the SAME 372-byte ExceptionInvalidData body, so the status carries no diagnosis. Re-check the filter against the served contract from ${FEEDS_CATALOG_PATH}. Note that most bad parameters are NOT reported at all \u2014 they come back as 200 with the complete unfiltered feed \u2014 so a 400 means the query string itself, or a non-numeric $top.`
-    );
-  }
-  if (status === 401 || status === 403) {
-    return new AbapError(
-      "AUTH_FAILED",
-      `Not authorised (HTTP ${status}) to read runtime-error dumps.`,
-      { ...err.details, ...key === void 0 ? {} : { dumpKey: key } },
-      "The logon succeeded; this user lacks the ST22 display authorisation (typically S_ADMI_FCD / S_DEVELOP). Nothing about the key or the filter is in question \u2014 do not retry with a different one."
-    );
-  }
-  return err;
-}
-var capabilityCache = /* @__PURE__ */ new WeakMap();
-async function fetchFeedsCatalog(conn) {
-  const ctx = { operation: "dumps.feedsCatalog", uri: FEEDS_CATALOG_PATH };
-  let body;
-  try {
-    ({ body } = await conn.get(FEEDS_CATALOG_PATH, { headers: { Accept: FEEDS_CATALOG_ACCEPT } }));
-  } catch (e) {
-    throw classifyDumpFailure(e, ctx);
-  }
-  return parseFeedsCatalog(body);
-}
-async function probeDumpsFeed(conn) {
-  const cached2 = capabilityCache.get(conn);
-  if (cached2 !== void 0) return cached2;
-  let catalog;
-  try {
-    catalog = await fetchFeedsCatalog(conn);
-  } catch (e) {
-    return {
-      state: "unknown",
-      reason: `Could not read the feed catalog at ${FEEDS_CATALOG_PATH}: ${e instanceof Error ? e.message : String(e)}. This says nothing about whether the dumps feed exists, so the request proceeds.`
-    };
-  }
-  const entry = findDumpsFeedEntry(catalog);
-  if (entry === void 0) {
-    const verdict2 = {
-      state: "unsupported",
-      reason: `${FEEDS_CATALOG_PATH} was read successfully on ${catalog.systemId || "this system"} and lists ${catalog.entries.length} feed(s), none of them ${DUMPS_FEED_PATH}. The runtime-error feed is not served here.`
-    };
-    capabilityCache.set(conn, verdict2);
-    return verdict2;
-  }
-  const ed = entry.extendedData;
-  const verdict = {
-    state: "supported",
-    reason: `${FEEDS_CATALOG_PATH} lists ${DUMPS_FEED_PATH}${entry.title ? ` ("${entry.title}")` : ""}.`,
-    entry,
-    ...ed === void 0 ? {} : {
-      contract: toDumpsQueryContract(ed),
-      ...ed.pageSize === void 0 ? {} : { pageSize: ed.pageSize },
-      ...ed.refresh === void 0 ? {} : { refresh: ed.refresh }
+function cleanProse(lines, title) {
+  const out = [];
+  let titleSeen = false;
+  for (const line2 of lines) {
+    const text5 = rowText(line2);
+    if (text5 === void 0) continue;
+    const trimmed = text5.trim();
+    if (!titleSeen) {
+      titleSeen = true;
+      if (trimmed === title.trim()) continue;
     }
-  };
-  capabilityCache.set(conn, verdict);
-  return verdict;
-}
-function assertDumpsSupported(capability) {
-  if (capability.state !== "unsupported") return;
-  throw new AbapError(
-    "UNSUPPORTED",
-    `This system does not serve ABAP runtime-error dumps over ADT. ${capability.reason}`,
-    { state: capability.state, catalog: FEEDS_CATALOG_PATH, feed: DUMPS_FEED_PATH },
-    `The verdict comes from ${FEEDS_CATALOG_PATH} (the Feed Repository catalog), which was read successfully and does not list the feed \u2014 it is not a guess from a 404 and not from /sap/bc/adt/discovery, which never lists this feed even where it works. Read the dump in SAP GUI transaction ST22 instead.`
-  );
-}
-async function resolveDumpsContract(conn) {
-  const capability = await probeDumpsFeed(conn);
-  if (capability.contract !== void 0) {
-    return { contract: capability.contract, source: "served", capability };
-  }
-  return { contract: DUMPS_CONTRACT_AS_CAPTURED, source: "as-captured", capability };
-}
-function emptyDumpsReason(windowStart, filtered) {
-  const base = `No dumps in the last ${DUMPS_RESIDENCE_WINDOW_DAYS} days matching this filter. ADT can only see runtime errors recorded since about ${windowStart} \u2014 the ${DUMPS_RESIDENCE_WINDOW_DAYS}-day SNAP residence window (C_SNAP_ADT_RESIDENCE_DAYS = ${DUMPS_RESIDENCE_WINDOW_DAYS}) is applied server-side and a 'from' bound cannot widen it, so an older dump can still exist in transaction ST22 and be absent here.`;
-  return filtered ? `${base} Widening or dropping the filter may find dumps inside the window.` : `${base} No filter was applied, so this system recorded no runtime errors at all in that window.`;
-}
-function isFiltered(request) {
-  return request.$query !== void 0 || request.from !== void 0 || request.to !== void 0;
-}
-async function getFeed(conn, url2, ctx) {
-  let body;
-  try {
-    ({ body } = await conn.get(url2, { headers: { Accept: DUMPS_FEED_ACCEPT } }));
-  } catch (e) {
-    throw classifyDumpFailure(e, ctx);
-  }
-  return parseDumpFeed(body);
-}
-function toPage(feed, url2, notes, windowStart, filtered, contractSource, capability) {
-  return {
-    entries: feed.entries,
-    systemId: feed.systemId,
-    hasMore: feed.hasMore,
-    ...feed.nextHref === void 0 ? {} : { nextHref: feed.nextHref },
-    url: url2,
-    notes,
-    residenceWindowStart: windowStart,
-    ...feed.entries.length === 0 ? { emptyReason: emptyDumpsReason(windowStart, filtered) } : {},
-    contractSource,
-    ...capability === void 0 ? {} : { capability }
-  };
-}
-async function listDumps(conn, request = {}, options = {}) {
-  const now = options.now ?? /* @__PURE__ */ new Date();
-  const probe3 = options.probe !== false;
-  let contract = options.contract;
-  let contractSource = contract === void 0 ? "as-captured" : "served";
-  let capability;
-  const notes = [];
-  if (contract === void 0 && probe3) {
-    const resolved = await resolveDumpsContract(conn);
-    assertDumpsSupported(resolved.capability);
-    contract = resolved.contract;
-    contractSource = resolved.source;
-    capability = resolved.capability;
-    if (resolved.capability.state === "unknown") {
-      notes.push(
-        `The dumps feed could not be confirmed from ${FEEDS_CATALOG_PATH}, so this request was sent anyway rather than refused. ${resolved.capability.reason}`
-      );
+    if (trimmed === "") {
+      if (out.length > 0 && out[out.length - 1] !== "") out.push("");
+      continue;
     }
-    if (resolved.source === "as-captured") {
-      notes.push(
-        `${FEEDS_CATALOG_PATH} served no filter contract for this feed, so the filter was validated against the contract captured from another system. A filter this client accepts may still be refused by the server with an opaque 400.`
-      );
+    const continuation = /^\s{5,}\S/.test(text5) && out.length > 0 && out[out.length - 1] !== "";
+    if (continuation) {
+      out[out.length - 1] = `${out[out.length - 1]} ${trimmed}`;
+    } else {
+      out.push(trimmed);
     }
   }
-  const built = buildDumpsFeedUrl(request, { contract: contract ?? DUMPS_CONTRACT_AS_CAPTURED, now });
-  notes.push(...built.notes);
-  const feed = await getFeed(conn, built.url, {
-    operation: "dumps.list",
-    uri: built.url
-  });
-  return toPage(
-    feed,
-    built.url,
-    notes,
-    built.residenceWindowStart,
-    isFiltered(request),
-    contractSource,
-    capability
-  );
+  while (out.length > 0 && out[out.length - 1] === "") out.pop();
+  return out;
 }
-async function fetchDumpDetail(conn, key) {
-  const uri = dumpDetailPath(key);
-  let body;
-  try {
-    ({ body } = await conn.get(uri, { headers: { Accept: DUMP_DETAIL_ACCEPT } }));
-  } catch (e) {
-    throw classifyDumpFailure(e, { operation: "dumps.detail", uri, dumpKey: key });
+var CORRECTION_BOILERPLATE = /^(If the error occurs in a non-mod|If you cannot solve the problem yourself|If the error occurr?ed in one of your own)/i;
+var ANALYSIS_NOISE = /^(An exception has occurred in class "[^"]*"\. This exception was not caught|in procedure "[^"]*" "\(\w+\)" or propagated by a RAISING clause\.|Since the caller of the procedure could not have anticipated.*|exception, the current program was terminated\.|The reason for the exception (occurring was|is):)$/;
+function prose(lines, title, options) {
+  if (lines === void 0) return { lines: [], omitted: 0, boilerplateCut: false };
+  let cleaned = cleanProse(lines, title);
+  let boilerplateCut = false;
+  if (options.cutAt !== void 0) {
+    const at = cleaned.findIndex((l) => options.cutAt?.test(l));
+    if (at >= 0) {
+      cleaned = cleaned.slice(0, at);
+      boilerplateCut = true;
+    }
   }
-  return parseDumpDetail(body);
+  if (options.drop !== void 0) cleaned = cleaned.filter((l) => !options.drop?.test(l));
+  cleaned = collapseBlanks(cleaned);
+  const kept = [];
+  let used = 0;
+  for (const line2 of cleaned) {
+    if (kept.length > 0 && used + line2.length + 1 > options.maxChars) break;
+    kept.push(line2);
+    used += line2.length + 1;
+  }
+  while (kept.length > 0 && kept[kept.length - 1] === "") kept.pop();
+  return { lines: kept, omitted: cleaned.length - kept.length, boilerplateCut };
 }
-async function fetchDumpFormatted(conn, target) {
-  const { uri, key } = formattedTarget(target);
-  try {
-    const { body } = await conn.get(uri, { headers: { Accept: DUMP_FORMATTED_ACCEPT } });
-    return body;
-  } catch (e) {
-    throw classifyDumpFailure(e, {
-      operation: "dumps.formatted",
-      uri,
-      ...key === void 0 ? {} : { dumpKey: key }
-    });
+function collapseBlanks(lines) {
+  const out = [];
+  for (const line2 of lines) {
+    if (line2 === "" && (out.length === 0 || out[out.length - 1] === "")) continue;
+    out.push(line2);
   }
+  while (out.length > 0 && out[out.length - 1] === "") out.pop();
+  return out;
 }
-function formattedTarget(target) {
-  if (typeof target === "string") return { uri: dumpFormattedPath(target), key: target };
-  const link = target.links.find((l) => l.relationToken === FORMATTED_RELATION_TOKEN);
-  const path9 = target.formattedPath ?? link?.uri;
-  if (path9 === void 0) {
-    throw new AbapError(
-      "NOT_FOUND",
-      "This dump detail advertises no plain-text rendering.",
-      { error: target.error, links: target.links.map((l) => l.relationToken) },
-      `The '/formatted' body is reached through the '${FORMATTED_RELATION_TOKEN}' relation of the detail document. A detail without it is a shape this client has never been shown; fetch the dump by key instead, which appends the sub-resource directly.`
-    );
+var TERMINATION_POINT = /termination point is in line (\d+) of (?:include|program)\s+"([^"]+)"/i;
+var IN_PROCEDURE = /in procedure "([^"]+)"\s+"\((\w+)\)"/i;
+var MARKED_ROW = /^\|>{2,}\|(.*)\|\s*$/;
+function parseSourceLine(detail, whereTerminated, sourceExtract) {
+  const out = {};
+  if (whereTerminated !== void 0) {
+    const text5 = cleanProse(whereTerminated, "").join(" ");
+    const at = TERMINATION_POINT.exec(text5);
+    if (at?.[1] !== void 0 && at[2] !== void 0) {
+      out.line = Number(at[1]);
+      out.include = at[2];
+    }
+    const proc = IN_PROCEDURE.exec(text5);
+    if (proc?.[1] !== void 0) {
+      out.procedure = proc[1];
+      if (proc[2] !== void 0) out.procedureKind = proc[2];
+    }
   }
-  if (link !== void 0 && link.kind !== "adt-path") {
-    throw new AbapError(
-      "BAD_INPUT",
-      "The dump's plain-text link is not a server-relative ADT path; refusing to follow it.",
-      { uri: link.uri, kind: link.kind },
-      "This resource advertises absolute links (an internal https://host:port URL among them) that are not reachable or trustworthy from this client. Only server-relative paths are followed."
-    );
+  if (out.line === void 0 && detail.termination?.line !== void 0) out.line = detail.termination.line;
+  if (sourceExtract !== void 0) {
+    for (const line2 of sourceExtract) {
+      const m = MARKED_ROW.exec(line2);
+      if (m?.[1] !== void 0) {
+        const statement = m[1].trim();
+        if (statement !== "") out.statement = statement;
+        break;
+      }
+    }
   }
-  return { uri: path9 };
+  return out;
 }
-function selectDumpChapters(detail, formatted, names = TIER1_CHAPTER_NAMES) {
-  const requested = [...names];
+var FRAME_ROW = /^\|\s*(\d+)\s+([A-Z]+(?:\s\([A-Z]+\))?)\s+(\S+)\s+(\S+)\s+(\d+)\s*\|\s*$/;
+var NAME_ROW = /^\|\s{4,}(\S.*?)\s*\|\s*$/;
+function parseStackFrames(lines) {
+  if (lines === void 0) return [];
+  const frames = [];
+  let pending;
+  for (const line2 of lines) {
+    const frame = FRAME_ROW.exec(line2);
+    if (frame !== null) {
+      pending = {
+        no: Number(frame[1]),
+        kind: frame[2] ?? "",
+        program: frame[3] ?? "",
+        include: frame[4] ?? "",
+        line: Number(frame[5]),
+        name: ""
+      };
+      frames.push(pending);
+      continue;
+    }
+    if (pending !== void 0) {
+      const name = NAME_ROW.exec(line2);
+      if (name?.[1] !== void 0) pending.name = name[1];
+      pending = void 0;
+    }
+  }
+  return frames;
+}
+function summariseDump(detail, formatted) {
   const have = new Set(detail.chapters.map((c) => c.name));
-  const present = requested.filter((n) => have.has(n));
-  const missing = requested.filter((n) => !have.has(n));
+  const titleOf = (name) => detail.chapters.find((c) => c.name === name)?.title ?? "";
+  const get = (name) => chapterLines(detail, formatted, name);
+  const analysis = get("kap3");
+  const correct = get("kap4");
+  const where2 = get("kap7");
+  const extract = get("kap8");
+  const calls = get("kap11");
   return {
-    detail,
-    text: sliceDumpChapters(detail.chapters, formatted, present),
-    requested,
-    present,
-    missing,
-    totalLines: formatted === "" ? 0 : formatted.split("\n").length,
-    includesVariables: present.includes(VARIABLES_CHAPTER_NAME)
+    shortText: detail.title,
+    errorAnalysis: prose(analysis, titleOf("kap3"), {
+      maxChars: SUMMARY_PROSE_CHARS.errorAnalysis,
+      drop: ANALYSIS_NOISE
+    }),
+    howToCorrect: prose(correct, titleOf("kap4"), {
+      maxChars: SUMMARY_PROSE_CHARS.howToCorrect,
+      cutAt: CORRECTION_BOILERPLATE
+    }),
+    source: parseSourceLine(detail, where2, extract),
+    stack: parseStackFrames(calls),
+    chapters: [...detail.chapters].sort((a, b) => a.chapterOrder - b.chapterOrder),
+    missing: SUMMARY_CHAPTER_NAMES.filter((n) => !have.has(n))
   };
 }
 
@@ -154305,8 +154317,16 @@ function tier1Shape() {
       "list: newest dump to include, YYYYMMDDHHMMSS. No page cursor exists; to page backwards, set to= the oldest timestamp already seen."
     ),
     max: external_exports.number().int().min(1).max(100).optional().describe(`list: rows to request (default ${DEFAULT_MAX_ROWS}).`),
+    // A string, not a z.enum: the SDK would answer an unknown value with a
+    // protocol error, and section:"variables" on a server that never offered
+    // it must land in the same DUMP_VARIABLES_DISABLED refusal as chapters:"kap10".
+    // parseSection() validates at the handler. Tier 1 does not name the
+    // variables section: no parameter text may offer what the operator did not enable.
+    section: external_exports.string().optional().describe(
+      'show: which chapter text to return instead of the default summary. "analysis" = short text, error analysis, how to correct, exception chain; "source" = where terminated + source extract; "stack" = call stack; "environment" = system/user/session fields; "all" = the full default set (where terminated, source extract, system fields, call stack). Alternative to chapters.'
+    ),
     chapters: external_exports.string().optional().describe(
-      'show: comma-separated chapter NAMES, e.g. "kap7,kap8,kap11" \u2014 names, never the titles, which are translated. Default: where terminated, source extract, system fields, call stack. Every chapter this dump has is listed in the response.'
+      'show: comma-separated chapter NAMES, e.g. "kap7,kap8,kap11" \u2014 names, never the titles, which are translated. Alternative to section. Without either, show returns a summary; every chapter this dump has is listed in the response.'
     ),
     offset: external_exports.number().int().min(1).max(999999).optional().describe("show: 1-based first line of the returned chapter text.")
   };
@@ -154315,6 +154335,10 @@ function tier2Shape() {
   return {
     variables: external_exports.boolean().optional().describe(
       "show: also return Selected Variables \u2014 the live values of locals and internal tables at termination. Real business data, permanently, in this transcript. Page it with offset."
+    ),
+    // The same field as tier 1's, re-described: only here may "variables" be named.
+    section: external_exports.string().optional().describe(
+      'show: which chapter text to return instead of the default summary. "analysis" = short text, error analysis, how to correct, exception chain; "source" = where terminated + source extract; "stack" = call stack; "environment" = system/user/session fields; "variables" = Selected Variables (kap10, same data and same cost as variables:true); "all" = the full default set (where terminated, source extract, system fields, call stack). Alternative to chapters.'
     )
   };
 }
@@ -154327,7 +154351,7 @@ function dumpsInputSchema(options = {}) {
 var DumpsInput = external_exports.object({ ...tier1Shape(), ...tier2Shape() });
 var ok18 = (text5) => ({ content: [{ type: "text", text: text5 }] });
 var LIST_ONLY = ["query", "from", "to", "max"];
-var SHOW_ONLY = ["key", "chapters", "offset", "variables"];
+var SHOW_ONLY = ["key", "section", "chapters", "offset", "variables"];
 var KNOWN_KEYS = new Set(Object.keys(DumpsInput.shape));
 function rejectUnknownArgs(a) {
   const unknown2 = Object.keys(a).filter((k) => !KNOWN_KEYS.has(k));
@@ -154352,6 +154376,16 @@ function rejectCrossModeArgs(a, mode) {
 function parseChapterNames(raw) {
   if (raw === void 0) return [];
   return raw.split(",").map((n) => n.trim()).filter((n) => n.length > 0);
+}
+function parseSection(raw) {
+  if (raw === void 0) return void 0;
+  if (isDumpSection(raw)) return raw;
+  throw new AbapError(
+    "BAD_INPUT",
+    `section must be one of ${DUMP_SECTIONS.join(", ")}; got ${JSON.stringify(raw)}.`,
+    { section: raw },
+    'Pick a section, or select chapters by name with chapters:"kap7,kap8". Without either, show returns the summary.'
+  );
 }
 function wantsVariables(names, variables) {
   return variables === true || names.some((n) => n.toLowerCase() === VARIABLES_CHAPTER_NAME);
@@ -154419,7 +154453,7 @@ function chapterIndex(detail, hide) {
   return rows.length ? textTable(rows, ["name", "line", "title", "category"]) : "";
 }
 function renderDumpShow(input) {
-  const { selection, formattedChars, offset, maxChars, variablesAllowed } = input;
+  const { selection, formattedChars, offset, maxChars, variablesAllowed, view } = input;
   const detail = selection.detail;
   const hasVariablesChapter = detail.chapters.some((c) => c.name === VARIABLES_CHAPTER_NAME);
   const hidden = variablesAllowed ? [] : [VARIABLES_CHAPTER_NAME];
@@ -154448,6 +154482,7 @@ function renderDumpShow(input) {
   return buildResponse({
     header: {
       mode: "show",
+      view: view ?? "all",
       error: detail.error,
       exception: detail.exception,
       program: detail.terminatedProgram,
@@ -154472,6 +154507,72 @@ function renderDumpShow(input) {
     maxChars
   });
 }
+var DUMP_SUMMARY_MAX_CHARS = 3e3;
+function proseBlock(p, section) {
+  const lines = [...p.lines];
+  if (p.omitted > 0) lines.push(`(${p.omitted} more line(s): section:"${section}")`);
+  else if (p.boilerplateCut) lines.push(`(SAP support boilerplate cut: section:"${section}" has it)`);
+  return lines.join("\n");
+}
+function sourceLineText(source, detail) {
+  const where2 = source.include === void 0 ? `${detail.terminatedProgram || "(unknown program)"}${source.line === void 0 ? "" : ` line ${source.line}`}` : `include ${source.include}${source.line === void 0 ? "" : ` line ${source.line}`}`;
+  const proc = source.procedure === void 0 ? "" : ` in ${source.procedure}${source.procedureKind ? ` (${source.procedureKind})` : ""}`;
+  const statement = source.statement === void 0 ? '(failing statement not found in the source extract \u2014 section:"source")' : `statement: ${source.statement}`;
+  return `${where2}${proc}
+${statement}`;
+}
+function renderDumpSummary(input) {
+  const { detail, summary, maxChars, variablesAllowed } = input;
+  const hasVariablesChapter = detail.chapters.some((c) => c.name === VARIABLES_CHAPTER_NAME);
+  const sections = [];
+  sections.push({ title: "SHORT TEXT", content: summary.shortText || "(none)" });
+  sections.push({ title: "SOURCE LINE (kap7, kap8)", content: sourceLineText(summary.source, detail) });
+  if (summary.errorAnalysis.lines.length > 0) {
+    sections.push({ title: "ERROR ANALYSIS (kap3)", content: proseBlock(summary.errorAnalysis, "analysis") });
+  }
+  if (summary.howToCorrect.lines.length > 0) {
+    sections.push({ title: "HOW TO CORRECT (kap4)", content: proseBlock(summary.howToCorrect, "analysis") });
+  }
+  const frames = summary.stack.slice(0, SUMMARY_STACK_FRAMES);
+  const stack = frames.map((f) => `#${f.no} ${f.kind} ${f.name || "(unnamed)"} \u2014 ${f.include} line ${f.line}`).join("\n");
+  const notes = [];
+  if (detail.termination) {
+    const at = detail.termination.line === void 0 ? "" : `#start=${detail.termination.line}`;
+    notes.push(`Terminated program: read it with abap_read object:"${detail.termination.path}${at}".`);
+  }
+  if (summary.missing.length > 0) {
+    notes.push(
+      `Chapter(s) this summary reads but the dump lacks: ${summary.missing.join(", ")} \u2014 the matching parts above are empty, not hidden.`
+    );
+  }
+  const index = summary.chapters.map((c) => `${c.name} ${c.title}${c.name === VARIABLES_CHAPTER_NAME && !variablesAllowed ? " (not enabled here)" : ""}`).join(", ");
+  notes.push(`Chapters in this dump (select by name): ${index || "(none)"}.`);
+  notes.push(
+    'Summary view. Chapter text verbatim: section:"analysis"|"source"|"stack"|"environment"' + (variablesAllowed ? '|"variables"' : "") + '|"all" (all = the tier-1 set), or chapters:"kap7,kap8".'
+  );
+  if (!variablesAllowed && hasVariablesChapter) {
+    notes.push(
+      `Chapter ${VARIABLES_CHAPTER_NAME} (Selected Variables) exists in this dump and is NOT available on this server: not enabled by the operator. Not a fault, not something to work around.`
+    );
+  }
+  return buildResponse({
+    header: {
+      mode: "show",
+      view: "summary",
+      error: detail.error,
+      exception: detail.exception,
+      program: detail.terminatedProgram,
+      user: detail.author,
+      when: detail.datetime,
+      instance: detail.serverInstance
+    },
+    sections,
+    body: stack || '(no call stack parsed \u2014 section:"stack" returns kap11 as printed)',
+    bodyLabel: `CALL STACK (top ${frames.length} of ${summary.stack.length} frames, innermost first` + (summary.stack.length > frames.length ? '; section:"stack" for all)' : ")"),
+    notes,
+    maxChars: Math.min(maxChars, DUMP_SUMMARY_MAX_CHARS)
+  });
+}
 function registerDumpTools(mcp, deps) {
   const audit = deps.log ?? ((m) => void process.stderr.write(m + "\n"));
   const variablesAllowed = deps.registerVariables === true;
@@ -154479,7 +154580,7 @@ function registerDumpTools(mcp, deps) {
     "abap_dumps",
     {
       title: "Read ABAP runtime errors (ST22 short dumps)",
-      description: `Read ABAP runtime errors (ST22 short dumps) from the system's dump repository \u2014 not the exception text of a run this server just triggered. mode=list filters the dump feed; mode=show returns one dump, chapter by chapter. The feed reaches back ${DUMPS_RESIDENCE_WINDOW_DAYS} DAYS ONLY: an empty list means "no dumps in the last ${DUMPS_RESIDENCE_WINDOW_DAYS} days matching this filter", never "nothing failed". Copy key from a list row VERBATIM. show returns header, source extract, system fields and call stack, and nothing else unless the operator enabled more.`,
+      description: `Read ABAP runtime errors (ST22 short dumps) from the system's dump repository \u2014 not the exception text of a run this server just triggered. mode=list filters the dump feed; mode=show returns one dump, chapter by chapter. The feed reaches back ${DUMPS_RESIDENCE_WINDOW_DAYS} DAYS ONLY: an empty list means "no dumps in the last ${DUMPS_RESIDENCE_WINDOW_DAYS} days matching this filter", never "nothing failed". Copy key from a list row VERBATIM. show returns a summary (exception, short text, error analysis, how to correct, source line, top of the call stack, chapter index); section or chapters returns chapter text \u2014 where terminated, source extract, system fields, call stack, and nothing else unless the operator enabled more.`,
       inputSchema: dumpsInputSchema({ variables: variablesAllowed }),
       annotations: {
         readOnlyHint: true,
@@ -154524,16 +154625,48 @@ function registerDumpTools(mcp, deps) {
             'Call mode:"list" first and copy the key column of a row VERBATIM \u2014 do not trim, re-encode or rebuild it from the timestamp and user, each of which 404s.'
           );
         }
+        const section = parseSection(a.section);
         const requested = parseChapterNames(a.chapters);
-        const askedForVariables = wantsVariables(requested, a.variables);
+        if (section !== void 0 && requested.length > 0) {
+          throw new AbapError(
+            "BAD_INPUT",
+            "section and chapters are alternatives; pass one of them.",
+            { section, chapters: a.chapters },
+            "section names a preset of chapters, chapters names them one by one. Neither was applied."
+          );
+        }
+        const askedForVariables = section === "variables" || wantsVariables(requested, a.variables);
         if (askedForVariables) deps.safety.assertDumpVariables();
-        const base = requested.length > 0 ? requested : [...TIER1_CHAPTER_NAMES];
+        const summaryView = section === void 0 && requested.length === 0 && !askedForVariables;
+        if (summaryView && a.offset !== void 0) {
+          throw new AbapError(
+            "BAD_INPUT",
+            "offset pages chapter text, and the summary has none.",
+            { offset: a.offset },
+            'Pass section (e.g. section:"source") or chapters together with offset.'
+          );
+        }
+        const base = section !== void 0 ? sectionChapterNames(section) : requested.length > 0 ? requested : [...TIER1_CHAPTER_NAMES];
         const wanted = askedForVariables ? [...base, VARIABLES_CHAPTER_NAME] : base;
         const fetched = await deps.pool.withRead("abap_dumps", async (conn) => {
           const detail = await fetchDumpDetail(conn, a.key);
           const formatted = await fetchDumpFormatted(conn, detail);
           return { detail, formatted };
         });
+        if (summaryView) {
+          const summary = summariseDump(fetched.detail, fetched.formatted);
+          audit(
+            `[abapsmith] audit: abap_dumps mode=show error=${fetched.detail.error} program=${fetched.detail.terminatedProgram} chapters=summary variables=false`
+          );
+          return ok18(
+            renderDumpSummary({
+              detail: fetched.detail,
+              summary,
+              maxChars: deps.cfg.maxResponseChars,
+              variablesAllowed
+            }).text
+          );
+        }
         const names = dedupe(resolveChapterNames(wanted, fetched.detail));
         const selection = selectDumpChapters(fetched.detail, fetched.formatted, names);
         if (selection.includesVariables) deps.safety.assertDumpVariables();
@@ -154546,7 +154679,8 @@ function registerDumpTools(mcp, deps) {
             formattedChars: fetched.formatted.length,
             offset: a.offset ?? 1,
             maxChars: deps.cfg.maxResponseChars,
-            variablesAllowed
+            variablesAllowed,
+            view: section ?? (requested.length > 0 ? "chapters" : "all")
           }).text
         );
       } catch (e) {
@@ -156537,7 +156671,7 @@ function registerQuickFixTools(mcp, deps) {
   mcp.registerTool(
     "abap_quick_fix",
     {
-      description: 'ADT quick fixes at one source position. mode="list" enumerates proposals; mode="apply" applies one by id through the journalled abap_write pipeline (undoable). Deterministic proposals only \u2014 a parameterized one is refused. Gated as a write in BOTH modes (list POSTs the object source), so unavailable on a read-only server.',
+      description: 'ADT quick fixes at one source position. mode="list" enumerates proposals; mode="apply" applies one by id through the journalled abap_write pipeline (undoable via abap_journal mode=undo). v1 applies deterministic proposals only \u2014 a parameterized one is refused, not guessed at. Gated as a write in BOTH modes: list POSTs the whole object source for evaluation, so it is unavailable on a read-only server.',
       inputSchema: quickFixInputSchema,
       annotations: {
         readOnlyHint: false,
@@ -158844,16 +158978,16 @@ var traceInputSchema = {
   object: external_exports.string().optional().describe("Class or report to trace. Required for op=start and op=run."),
   type: external_exports.string().optional().describe("ADT type, e.g. CLAS/OC, when ambiguous. op=start/run only."),
   id: external_exports.string().optional().describe(
-    "A trace run id (op=read) or run/request id (op=delete); bare id or the full path a previous list/create answered with."
+    "A trace run id (op=read) or a trace run/request id (op=delete). Accepts either the bare id or the full path a previous list/create answered with."
   ),
   kind: external_exports.enum(TRACE_LIST_KINDS).optional().describe(`What to list. Default "runs". One of: ${TRACE_LIST_KINDS.join(", ")}. op=list only.`),
   view: external_exports.enum(TRACE_VIEWS).optional().describe(`What to read. Default "hitlist". One of: ${TRACE_VIEWS.join(", ")}. op=read only.`),
   top: external_exports.number().int().optional().describe("Cap on rows shown. Default 20, max 100. op=read (hitlist/tree) and op=run only."),
   depth: external_exports.number().int().optional().describe(
-    "Max call-tree depth relative to the traced object's own entry node. Default 4, max 12. op=read view=tree only."
+    "Max call-tree depth, relative to the traced object's own entry node (that node is depth 0), not the ADT dispatch root. Default 4, max 12. op=read view=tree only."
   ),
   root: external_exports.string().optional().describe(
-    "Anchor the tree view at the first call-tree node matching this text (case-insensitive substring on description or calling-program name), overriding the automatic entry-node anchor. op=read view=tree only."
+    "Anchor the tree view at the first call-tree node whose description or calling-program name matches this text (case-insensitive substring; matched uppercased). Overrides the automatic anchor, which is the traced object's own entry node. op=read view=tree only."
   ),
   description: external_exports.string().optional().describe("Short label for the trace request (max 60 chars). op=start/run only."),
   aggregate: external_exports.boolean().optional().describe(
@@ -158866,7 +159000,7 @@ var traceInputSchema = {
   max_size_kb: external_exports.number().int().optional().describe(`Trace file size cap in KB. Default 30720, max ${TRACE_MAX_SIZE_KB}. op=start/run only.`),
   max_seconds: external_exports.number().int().optional().describe(`Trace duration cap in seconds. Default 600, max ${TRACE_MAX_SECONDS}. op=start/run only.`),
   executions: external_exports.number().int().optional().describe(
-    `How many executions the request stays armed for, default ${TRACE_DEFAULT_EXECUTIONS}, max ${TRACE_MAX_EXECUTIONS}. op=start only \u2014 op=run always arms a single execution.`
+    `How many executions the request stays armed for. Default ${TRACE_DEFAULT_EXECUTIONS}, max ${TRACE_MAX_EXECUTIONS}. op=start only \u2014 op=run always creates a single-execution request.`
   )
 };
 var TraceInput = external_exports.object(traceInputSchema);
@@ -160229,7 +160363,7 @@ function catalogueToolSet(toolSet, cfg) {
 var FLUID_OPS = ["list", "describe", "status", "verify", "run", "repair", "remove"];
 var fluidInputSchema = {
   op: external_exports.enum(FLUID_OPS).optional().describe(
-    'What to do. Defaults to "run" when `tool` or `action` is given; a call with none of `op`/`tool`/`action` returns the catalogue. list/describe: no network. status: local registry plus a best-effort probe. verify: what is actually deployed. run: execute one action, deploying or repairing first if needed. repair: force a redeploy (no `tool`: also reap retired pre-fluid bridge classes; with `tool`: prune its stale invokers). remove: delete abapsmith-owned generated ABAP.'
+    'What to do. Defaults to "run" whenever `tool` or `action` is given without `op`; a call with none of `op`/`tool`/`action` returns the catalogue instead (other fields such as `args`/`confirm`/`corr_nr`/`scope` do not affect this). list/describe touch no network; status reads the local registry plus a best-effort probe of retired pre-fluid bridge classes and invoker classes per tool. verify asks the system what is actually deployed. run (the default) executes one action, deploying or repairing first if needed. repair forces a redeploy (and, with no `tool`, also reaps retired pre-fluid bridge classes; with `tool`, prunes its stale invokers). remove deletes abapsmith-owned generated ABAP.'
   ),
   tool: external_exports.string().optional().describe(
     'Fluid tool id. Required for describe and run; an optional filter for verify/repair (default: every loaded tool); required for remove unless scope is "all".'
@@ -160243,7 +160377,7 @@ var fluidInputSchema = {
   ),
   corr_nr: external_exports.string().optional().describe("Transport request number, forwarded to run for a mutating action that targets a transportable object."),
   scope: external_exports.enum(["tool", "invokers", "all", "dynamic"]).optional().describe(
-    `remove only. "tool" (default): one tool's manifest objects (needs \`tool\`). "invokers": every generated per-call invoker class (ZCL_ZMCP_I_xxxxxxxx). "dynamic": every generated per-call dynamic-bridge class (see \`status\`). "all": every abapsmith-owned object in ${FLUID_PACKAGE} (includes both). The package itself is never deleted.`
+    `remove only. "tool" (default) deletes one tool's manifest objects (needs \`tool\`). "invokers" deletes every generated per-call invoker class (ZCL_ZMCP_I_xxxxxxxx). "dynamic" deletes every generated per-call dynamic-bridge class (the abap_bopf_test/abap_ui/abap_enh/abap_fpm_read/abap_run tool paths that deploy fresh ABAP per call \u2014 see \`status\`'s "dynamic bridges" section). "all" deletes every abapsmith-owned object in ${FLUID_PACKAGE}, which already includes both of the above. The package itself is never deleted.`
   )
 };
 var FluidInputSchema = external_exports.object(fluidInputSchema);
@@ -161244,7 +161378,7 @@ function instructionsFor(abapMode, readOnly, allowPackages, fluidAvailable = fal
   const writeGate = abapMode !== void 0 ? `unless ABAP_MODE is edit or admin (it is ${abapMode})` : "unless the operator set ABAP_ALLOW_WRITE";
   const packageScope = packageScopeSentence(readOnly, allowPackages);
   const systemsSentence = systems !== void 0 && systems.length > 1 ? ` This process serves ${systems.length} systems: ${systems.map((s) => `${s.alias} (${s.sid}, ${s.mode})`).join(", ")}. Every tool takes an optional system parameter naming one of these aliases and defaults to ${systems[0]?.alias ?? "the default system"} when omitted; each system's permission ceiling is its own \u2014 read-only on one alias is not lifted by admin mode on another.` : "";
-  return `Access to an SAP ABAP system over ADT. Use abap_search to locate objects, abap_read to read source or DDIC definitions (a large class answers with its outline by default; then method= or pattern=), abap_write to create/change/delete, abap_activate to syntax-check or activate, abap_run to execute a class or report and capture its output, abap_test to run ABAP Unit tests (it reports NO TESTS RAN separately from PASSED \u2014 they are not the same answer), abap_debug/abap_debug_vars/abap_debug_value to set breakpoints and step through execution with full variable inspection, abap_journal to see what you changed and undo it. Writes are OFF ${writeGate}, and need a customer-namespace object name plus a package the allowlist permits: ${packageScope} Every write records the previous source locally first, so abap_journal mode=undo can put it back \u2014 but only for objects this server wrote. Responses are capped and truncation is always marked.` + (fluidAvailable ? " abap_fluid deploys and runs small generated ABAP tools inside $ABAPSMITH_FLUID_API (call it with no arguments for the catalogue)." : "") + (lockedToolCount > 0 ? ` ${lockedToolCount} further tools are listed but LOCKED at this permission level (abap_write among them) \u2014 each one's description says what unlocks it, and calling one returns a refusal without touching the SAP system.` : "") + systemsSentence;
+  return `Access to an SAP ABAP system over ADT. Use abap_search to locate objects, abap_read to read source or DDIC definitions (outline=true first for large classes, then method=), abap_write to create/change/delete, abap_activate to syntax-check or activate, abap_run to execute a class or report and capture its output, abap_test to run ABAP Unit tests (it reports NO TESTS RAN separately from PASSED \u2014 they are not the same answer), abap_debug/abap_debug_vars/abap_debug_value to set breakpoints and step through execution with full variable inspection, abap_journal to see what you changed and undo it. Writes are OFF ${writeGate}, and need a customer-namespace object name plus a package the allowlist permits: ${packageScope} Every write records the previous source locally first, so abap_journal mode=undo can put it back \u2014 but only for objects this server wrote. Responses are capped and truncation is always marked.` + (fluidAvailable ? " abap_fluid deploys and runs small generated ABAP tools inside $ABAPSMITH_FLUID_API (call it with no arguments for the catalogue)." : "") + (lockedToolCount > 0 ? ` ${lockedToolCount} further tools are listed but LOCKED at this permission level (abap_write among them) \u2014 each one's description says what unlocks it, and calling one returns a refusal without touching the SAP system.` : "") + systemsSentence;
 }
 function describeStartupProbeFailure(e) {
   if (isAbapError(e)) return { code: e.code, message: e.message, hint: e.hint };

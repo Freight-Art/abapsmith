@@ -17,9 +17,10 @@ call regardless of advertisement.
 | `from` | string | `list` only | — | Oldest dump to include, `YYYYMMDDHHMMSS`, server local time. |
 | `to` | string | `list` only | — | Newest dump to include, `YYYYMMDDHHMMSS`. |
 | `max` | number (int, 1–100) | `list` only | (server default) | Rows to request. Each requested row costs roughly 12 KB on the wire. |
-| `chapters` | string | `show` only | — | Comma-separated chapter names, e.g. `"kap7,kap8,kap11"` — names, not translated titles. |
-| `offset` | number (int, 1–999999) | `show` only | — | 1-based first line of the returned chapter text. |
-| `variables` | boolean | `show` only, gated | — | Also return Selected Variables — live values of locals/internal tables at termination. Large (~1,100 lines); page with `offset`. Contains real business data. |
+| `section` | string, one of `analysis`\|`source`\|`variables`\|`stack`\|`environment`\|`all` | `show` only | — | Which chapter text to return instead of the default summary. Alternative to `chapters` — passing both is `BAD_INPUT`. |
+| `chapters` | string | `show` only | — | Comma-separated chapter names, e.g. `"kap7,kap8,kap11"` — names, not translated titles. Alternative to `section`. |
+| `offset` | number (int, 1–999999) | `show` only | — | 1-based first line of the returned chapter text. Only meaningful together with `section`, `chapters`, or `section:"all"` — on the default summary (neither given) it is `BAD_INPUT`, since the summary is not a window onto anything. |
+| `variables` | boolean | `show` only, gated | — | Also return Selected Variables — live values of locals/internal tables at termination. Large (~1,100 lines); page with `offset`. Contains real business data. Same gate as `section:"variables"`. |
 
 Notes: the feed reaches back a fixed residence window only (server-defined,
 short) — an empty list means nothing in that window matched, never "nothing
@@ -31,6 +32,44 @@ both an unrecognized attribute and a genuine syntax error with the same
 opaque HTTP 400. `mode=list`'s feed never reports a total count
 (`$inlinecount` is inert on it): when exactly `max` rows come back, that is
 evidence there are almost certainly more, not proof of a complete set.
+
+### `mode="show"` defaults to a summary (#149)
+
+With neither `section` nor `chapters` (nor `variables`) given, `show` no
+longer returns chapter text at all — it returns a distilled summary, capped
+at 3,000 characters (`buildResponse` marks any cut the same way it marks
+any other truncation):
+
+- the header's `error`/`exception` fields — the runtime error and the
+  exception class;
+- SHORT TEXT;
+- SOURCE LINE (kap7, kap8) — include (or program), line, the enclosing
+  procedure, and the failing statement, read from "where terminated" and the
+  source extract;
+- ERROR ANALYSIS (kap3), prose cleaned up and trimmed to ~450 characters;
+- HOW TO CORRECT (kap4), trimmed to ~260 characters and cut before SAP's
+  "if you cannot solve the problem yourself" support boilerplate;
+- the top 5 call-stack frames (kap11), innermost first;
+- a note listing every chapter this dump has (name and title), so the next
+  call can name what it wants.
+
+Use `section` to get chapter text instead — verbatim, not summarised:
+
+| `section` | Chapters |
+|---|---|
+| `analysis` | kap0, kap3, kap4, kap28 |
+| `source` | kap7, kap8 |
+| `variables` | kap10 (gated — see below) |
+| `stack` | kap11, kap22 |
+| `environment` | kap5, kap6, kap6a, kap9, kap14 |
+| `all` | kap7, kap8, kap9, kap11 — the full set `show` returned by default before this change |
+
+`section` and `chapters` are alternatives, not additive — passing both is
+`BAD_INPUT`. `section:"variables"` is gated exactly like `variables:true`:
+refused as `DUMP_VARIABLES_DISABLED` unless the operator set
+`ABAP_ALLOW_DUMP_VARIABLES=true`. `offset` pages chapter text; it has
+nothing to page on the summary, so `offset` without `section`, `chapters`,
+or `section:"all"` is `BAD_INPUT`.
 
 ## abap_data_preview
 
