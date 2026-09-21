@@ -33,6 +33,17 @@ timestamp (`20260912144130`), instance, user and client. Use that timestamp
 directly as your `from`/`to` window instead of guessing — the server's clock,
 not yours, is what the feed is indexed by.
 
+`RUNTIME_DUMP` is not the only way `abap_run` tells you a dump happened. A
+`TIMEOUT` (the classrun request outran `ABAP_TIMEOUT_MS`) or a no-console
+`ADT_ERROR` (`details.noConsoleOutput: true`) each trigger a lookup of the
+same ST22 feed before the error reaches you. When it matches, `details.dump`
+carries `{key, runtimeError, exception, shortText, program, published}` and
+the hint names that `key` directly — go straight to `abap_dumps
+{"mode":"show","key":"<that key>"}`, skip step b. `TIMEOUT` with `retryable:
+true` and `details.dumpLookup.matched: false` means no crash was recorded —
+the run more likely just ran past the budget than dumped, so this skill does
+not apply; look at whether the run needs more time, not at ST22.
+
 **b. `abap_dumps { "mode": "list", "from": "20260912144000", "to": "20260912144300" }`**
 returned exactly one row (`when / user / error / program / short_text / key`),
 plus `window_start: 20260905000000`. **The feed has no page cursor** — to go
@@ -49,13 +60,22 @@ Copy it **exactly** — `%20` runs and trailing digit included. Do not decode
 it, trim it, or rebuild it from the columns; internal spacing is significant
 and the trailing digit is part of the key.
 
-**d. `abap_dumps { "mode": "show", "key": "<that key verbatim>" }`** returned
-`error: COMPUTE_INT_ZERODIVIDE`, `exception: CX_SY_ZERODIVIDE`,
-`program: ZCL_I92_PROBE=================CP`, `chapters_shown: kap7,kap8,kap9,kap11`
-(the default set: where terminated, source extract, system fields, call
-stack), plus a full chapter index (`name / line / title / category`).
-**Select chapters by name (`kap7`, `kap8`, …), never by title** — titles are
-translated.
+**d. `abap_dumps { "mode": "show", "key": "<that key verbatim>" }`** — with
+neither `section` nor `chapters` given, this now returns a **summary**
+(issue #149), not chapter text: `error: COMPUTE_INT_ZERODIVIDE`,
+`exception: CX_SY_ZERODIVIDE`, `program: ZCL_I92_PROBE=================CP`
+in the header, then SHORT TEXT, the SOURCE LINE (kap7/kap8 — include, line,
+statement), ERROR ANALYSIS (kap3) and HOW TO CORRECT (kap4) trimmed to a
+few hundred characters each, and the top 5 call-stack frames (kap11) —
+capped at 3,000 characters total. A closing note lists every chapter this
+dump has, by name.
+
+To read a chapter verbatim instead of the summary, pass
+`section:"source"|"stack"|"analysis"|"variables"|"environment"|"all"`
+(`"all"` is the full set `show` used to return by default: where
+terminated, source extract, system fields, call stack) or `chapters` with
+explicit names, e.g. `chapters:"kap7,kap8,kap11"`. **Select chapters by
+name (`kap7`, `kap8`, …), never by title** — titles are translated.
 
 Two things from that response worth acting on:
 

@@ -36610,6 +36610,7 @@ var init_errors = __esm({
       CHECK_FAILED: "conditional",
       SESSION_DEAD: "conditional",
       RUNTIME_DUMP: "conditional",
+      TIMEOUT: "conditional",
       JOURNAL_IO: "conditional",
       TRANSPORT_LOCKED: "conditional",
       TRANSPORT_GONE: "conditional",
@@ -113145,6 +113146,704 @@ function buildDumpsFeedUrl(request, options = {}) {
   };
 }
 
+// src/adt/run-dump-lookup.ts
+init_truncate();
+
+// src/adt/dumps-xml.ts
+init_fxp();
+init_errors();
+var dumpsXml = new XMLParser({
+  ignoreAttributes: false,
+  attributeNamePrefix: "@_",
+  removeNSPrefix: true,
+  parseAttributeValue: false,
+  parseTagValue: false,
+  trimValues: true,
+  // `typeof jpath === "string"` guards the v5 `string | MatcherView` type (holds
+  // under default `jPath: true`). `isAttribute` excludes attributes, which share
+  // the element jpath space (`feed.entry.link` vs `feed.entry.link.href`).
+  isArray: (_name, jpath, _isLeaf, isAttribute) => !isAttribute && typeof jpath === "string" && REPEATABLE_JPATHS.has(jpath)
+});
+var REPEATABLE_JPATHS = /* @__PURE__ */ new Set([
+  // dumps feed + feeds catalog
+  "feed.entry",
+  "feed.link",
+  "feed.entry.link",
+  "feed.entry.category",
+  // dump detail
+  "dump.links.link",
+  "dump.chapters.chapter",
+  // feed:extendedData contract
+  "feed.entry.extendedData.operators.operator",
+  "feed.entry.extendedData.dataTypes.dataType",
+  "feed.entry.extendedData.dataTypes.dataType.operators.operator",
+  "feed.entry.extendedData.attributes.attribute",
+  "feed.entry.extendedData.attributes.attribute.operators.operator",
+  "feed.entry.extendedData.queryVariants.queryVariant"
+]);
+function asRecord(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value) ? value : void 0;
+}
+function asArray2(value) {
+  if (Array.isArray(value)) return value;
+  return value === void 0 || value === null ? [] : [value];
+}
+function attr2(node2, name) {
+  const value = node2?.[`@_${name}`];
+  return typeof value === "string" ? value : void 0;
+}
+function attrOrEmpty(node2, name) {
+  return attr2(node2, name) ?? "";
+}
+function elementText(value) {
+  if (typeof value === "string") return value;
+  const rec = asRecord(value);
+  const text5 = rec?.["#text"];
+  return typeof text5 === "string" ? text5 : void 0;
+}
+function isXmlTrue(value) {
+  return value === "true";
+}
+function intAttr(node2, name) {
+  const raw = attr2(node2, name);
+  if (raw === void 0 || raw === "") return void 0;
+  const n = Number.parseInt(raw, 10);
+  return Number.isFinite(n) ? n : void 0;
+}
+function hrefParam(href, name) {
+  if (href === void 0) return void 0;
+  const q = href.indexOf("?");
+  if (q < 0) return void 0;
+  return new URLSearchParams(href.slice(q + 1)).get(name) ?? void 0;
+}
+var DUMP_DETAIL_PATH_PREFIX = "/sap/bc/adt/runtime/dump/";
+var ADT_SCHEME_RE = /^adt:\/\/[^/]*/;
+function dumpLinkKind(uri) {
+  if (ADT_SCHEME_RE.test(uri)) return "adt-uri";
+  if (/^https?:\/\//i.test(uri)) return "external-url";
+  return "adt-path";
+}
+function stripAdtScheme(uri) {
+  return uri.replace(ADT_SCHEME_RE, "");
+}
+function dumpKeyFromDetailPath(path9) {
+  if (!path9.startsWith(DUMP_DETAIL_PATH_PREFIX)) return void 0;
+  const key = path9.slice(DUMP_DETAIL_PATH_PREFIX.length);
+  return key === "" ? void 0 : key;
+}
+function exceptionFromDoc(doc) {
+  const exc = asRecord(doc.exception);
+  if (exc === void 0) return void 0;
+  return {
+    namespace: attrOrEmpty(asRecord(exc.namespace), "id"),
+    type: attrOrEmpty(asRecord(exc.type), "id"),
+    message: elementText(exc.message) ?? ""
+  };
+}
+function refuseExceptionEnvelope(doc, what) {
+  const exc = exceptionFromDoc(doc);
+  if (exc === void 0) return;
+  throw new AbapError(
+    "ADT_ERROR",
+    `Expected ${what} but the body is an ADT exception envelope: ${exc.type} \u2014 ${exc.message}`,
+    { exceptionType: exc.type, exceptionNamespace: exc.namespace },
+    "This is a server error body, not a payload. Check the HTTP status of the response the body came from rather than the parse."
+  );
+}
+var CATEGORY_LABEL_RUNTIME_ERROR = "ABAP runtime error";
+var CATEGORY_LABEL_TERMINATED_PROGRAM = "Terminated ABAP program";
+function categoryTerm(categories, label) {
+  for (const raw of asArray2(categories)) {
+    const cat = asRecord(raw);
+    if (attr2(cat, "label") === label) return attrOrEmpty(cat, "term");
+  }
+  return "";
+}
+function linkHref(links, rel) {
+  for (const raw of asArray2(links)) {
+    const link = asRecord(raw);
+    if (attr2(link, "rel") === rel) return attr2(link, "href");
+  }
+  return void 0;
+}
+function parseDumpFeed(body) {
+  const doc = dumpsXml.parse(body);
+  refuseExceptionEnvelope(doc, "an ABAP dumps feed");
+  if (!("feed" in doc)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "Not an Atom feed: no root <atom:feed> element.",
+      { rootElements: Object.keys(doc).filter((k) => k !== "?xml") },
+      "This parser reads /sap/bc/adt/runtime/dumps responses."
+    );
+  }
+  const feed = asRecord(doc.feed) ?? {};
+  const selfHref = linkHref(feed.link, "self");
+  const nextHref = linkHref(feed.link, "next");
+  const entries = [];
+  for (const raw of asArray2(feed.entry)) {
+    const entry = asRecord(raw);
+    if (entry === void 0) continue;
+    const detailPath = stripAdtScheme(linkHref(entry.link, "self") ?? "");
+    const key = dumpKeyFromDetailPath(detailPath);
+    if (key === void 0) continue;
+    const alternate = linkHref(entry.link, "alternate");
+    entries.push({
+      key,
+      detailPath,
+      user: elementText(asRecord(entry.author)?.name) ?? "",
+      // By @label, never by position: the two categories are order-stable in
+      // the capture but nothing in Atom says they must be.
+      runtimeError: categoryTerm(entry.category, CATEGORY_LABEL_RUNTIME_ERROR),
+      terminatedProgram: categoryTerm(entry.category, CATEGORY_LABEL_TERMINATED_PROGRAM),
+      title: elementText(entry.title) ?? "",
+      published: elementText(entry.published) ?? "",
+      updated: elementText(entry.updated) ?? "",
+      guiPath: elementText(entry.id) ?? "",
+      ...alternate === void 0 ? {} : { sapGuiUri: alternate }
+      // entry.summary is deliberately not read: ~13 KB of escaped HTML per
+      // entry, 91% of the feed's bytes, and a duplicate of the detail.
+    });
+  }
+  const newest = hrefParam(selfHref, "from");
+  const oldest = hrefParam(nextHref, "to");
+  return {
+    systemId: elementText(asRecord(feed.contributor)?.name) ?? "",
+    title: elementText(feed.title) ?? "",
+    updated: elementText(feed.updated) ?? "",
+    ...selfHref === void 0 ? {} : { selfHref },
+    ...nextHref === void 0 ? {} : { nextHref },
+    ...newest === void 0 ? {} : { newestTimestamp: newest },
+    ...oldest === void 0 ? {} : { oldestTimestamp: oldest },
+    hasMore: nextHref !== void 0,
+    entries
+  };
+}
+var DUMP_RELATION_PREFIX = "http://www.sap.com/adt/relations/runtime/dump/";
+function relationToken(relation) {
+  return relation.startsWith(DUMP_RELATION_PREFIX) ? relation.slice(DUMP_RELATION_PREFIX.length) : relation;
+}
+function findDumpLink(links, token) {
+  return links.find((l) => l.relationToken === token);
+}
+function parseDumpDetail(body) {
+  const doc = dumpsXml.parse(body);
+  refuseExceptionEnvelope(doc, "an ABAP dump detail");
+  const dump = asRecord(doc.dump);
+  if (dump === void 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "Not an ABAP dump detail: no root <dump:dump> element.",
+      { rootElements: Object.keys(doc).filter((k) => k !== "?xml") },
+      "This parser reads application/vnd.sap.adt.runtime.dump.v1+xml bodies. A text/plain request to the same URL is answered with HTTP 406."
+    );
+  }
+  const links = [];
+  for (const raw of asArray2(asRecord(dump.links)?.link)) {
+    const node2 = asRecord(raw);
+    const relation = attrOrEmpty(node2, "relation");
+    const uri = attrOrEmpty(node2, "uri");
+    links.push({
+      relation,
+      relationToken: relationToken(relation),
+      uri,
+      contentType: attrOrEmpty(node2, "contentType"),
+      kind: dumpLinkKind(uri)
+    });
+  }
+  const chapters = [];
+  for (const raw of asArray2(asRecord(dump.chapters)?.chapter)) {
+    const node2 = asRecord(raw);
+    const name = attrOrEmpty(node2, "name");
+    const line2 = intAttr(node2, "line");
+    if (line2 === void 0) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `Dump chapter '${name}' has no usable line offset (line=${String(attr2(node2, "line"))}).`,
+        { chapter: name },
+        "The line attribute is the 1-based offset of the chapter's banner in the /formatted body; without it the chapter cannot be located."
+      );
+    }
+    chapters.push({
+      name,
+      title: attrOrEmpty(node2, "title"),
+      category: attrOrEmpty(node2, "category"),
+      line: line2,
+      chapterOrder: intAttr(node2, "chapterOrder") ?? 0,
+      categoryOrder: intAttr(node2, "categoryOrder") ?? 0
+    });
+  }
+  const contents = findDumpLink(links, "contents");
+  const termination = findDumpLink(links, "termination");
+  const target = termination === void 0 ? void 0 : terminationTarget(termination.uri);
+  return {
+    title: attrOrEmpty(dump, "title"),
+    error: attrOrEmpty(dump, "error"),
+    author: attrOrEmpty(dump, "author"),
+    exception: attrOrEmpty(dump, "exception"),
+    terminatedProgram: attrOrEmpty(dump, "terminatedProgram"),
+    serverInstance: attrOrEmpty(dump, "serverInstance"),
+    datetime: attrOrEmpty(dump, "datetime"),
+    systemDate: attrOrEmpty(dump, "systemDate"),
+    systemTime: attrOrEmpty(dump, "systemTime"),
+    links,
+    chapters,
+    ...contents === void 0 ? {} : { formattedPath: stripAdtScheme(contents.uri) },
+    ...target === void 0 ? {} : { termination: target }
+  };
+}
+function terminationTarget(uri) {
+  const path9 = stripAdtScheme(uri);
+  if (path9 === "") return void 0;
+  const hash2 = path9.indexOf("#");
+  if (hash2 < 0) return { path: path9 };
+  const start = new URLSearchParams(path9.slice(hash2 + 1)).get("start");
+  const line2 = start === null ? Number.NaN : Number.parseInt(start, 10);
+  return {
+    path: path9.slice(0, hash2),
+    ...Number.isFinite(line2) ? { line: line2 } : {}
+  };
+}
+var TIER1_CHAPTER_NAMES = ["kap7", "kap8", "kap9", "kap11"];
+var VARIABLES_CHAPTER_NAME = "kap10";
+function dumpChapterExtents(chapters, totalLines) {
+  const sorted = [...chapters].sort((a, b) => a.line - b.line || a.chapterOrder - b.chapterOrder);
+  const clamp2 = (n) => Math.min(Math.max(n, 0), Math.max(totalLines, 0));
+  return sorted.map((chapter, i) => {
+    const next = sorted[i + 1];
+    const start = clamp2(chapter.line - 1);
+    const end = clamp2(next === void 0 ? totalLines : next.line - 1);
+    return { chapter, start, end: Math.max(start, end) };
+  });
+}
+function sliceDumpChapters(chapters, formatted, names) {
+  const wanted = new Set(names);
+  if (wanted.size === 0) return "";
+  const lines = formatted.split("\n");
+  const parts = [];
+  for (const extent of dumpChapterExtents(chapters, lines.length)) {
+    if (!wanted.has(extent.chapter.name)) continue;
+    parts.push(lines.slice(extent.start, extent.end).join("\n"));
+  }
+  return parts.join("\n");
+}
+function operatorRefIds(container) {
+  const ids = [];
+  for (const raw of asArray2(asRecord(container)?.operator)) {
+    const id = attr2(asRecord(raw), "id");
+    if (id !== void 0 && id !== "") ids.push(id);
+  }
+  return ids;
+}
+function parseExtendedData(node2) {
+  const intervalNode = asRecord(asRecord(node2.refresh)?.interval);
+  const intervalValue = intAttr(intervalNode, "value");
+  const intervalUnit = attr2(intervalNode, "unit");
+  const pageSize = intAttr(asRecord(node2.paging), "size");
+  const queryDepthText = elementText(node2.queryDepth);
+  const queryDepth = queryDepthText === void 0 ? Number.NaN : Number.parseInt(queryDepthText, 10);
+  const operators = [];
+  for (const raw of asArray2(asRecord(node2.operators)?.operator)) {
+    const op = asRecord(raw);
+    operators.push({
+      id: attrOrEmpty(op, "id"),
+      numberOfOperands: intAttr(op, "numberOfOperands") ?? 0,
+      kind: attrOrEmpty(op, "kind"),
+      label: elementText(op?.label) ?? ""
+    });
+  }
+  const dataTypes = [];
+  for (const raw of asArray2(asRecord(node2.dataTypes)?.dataType)) {
+    const dt = asRecord(raw);
+    dataTypes.push({
+      id: attrOrEmpty(dt, "id"),
+      label: elementText(dt?.label) ?? "",
+      operatorIds: operatorRefIds(dt?.operators)
+    });
+  }
+  const attributes = [];
+  for (const raw of asArray2(asRecord(node2.attributes)?.attribute)) {
+    const at = asRecord(raw);
+    attributes.push({
+      id: attrOrEmpty(at, "id"),
+      dataTypeId: attrOrEmpty(asRecord(at?.dataType), "id"),
+      label: elementText(at?.label) ?? "",
+      operatorIds: operatorRefIds(at?.operators)
+    });
+  }
+  const queryVariants = [];
+  for (const raw of asArray2(asRecord(node2.queryVariants)?.queryVariant)) {
+    const qv = asRecord(raw);
+    queryVariants.push({
+      queryString: attrOrEmpty(qv, "queryString"),
+      title: attrOrEmpty(qv, "title"),
+      isDefault: isXmlTrue(attr2(qv, "isDefault"))
+    });
+  }
+  return {
+    ...intervalValue === void 0 ? {} : { refresh: { value: intervalValue, unit: intervalUnit ?? "" } },
+    ...pageSize === void 0 ? {} : { pageSize },
+    notificationEnabled: isXmlTrue(attr2(asRecord(node2.notification), "isEnabled")),
+    operators,
+    dataTypes,
+    attributes,
+    queryIsObligatory: isXmlTrue(elementText(node2.queryIsObligatory)),
+    ...Number.isFinite(queryDepth) ? { queryDepth } : {},
+    queryVariants
+  };
+}
+function parseFeedsCatalog(body) {
+  const doc = dumpsXml.parse(body);
+  refuseExceptionEnvelope(doc, "the ADT feeds catalog");
+  const feed = asRecord(doc.feed) ?? {};
+  const entries = [];
+  for (const raw of asArray2(feed.entry)) {
+    const entry = asRecord(raw);
+    if (entry === void 0) continue;
+    const contentSrc = attr2(asRecord(entry.content), "src");
+    const alternateHref = linkHref(entry.link, "alternate");
+    const ed = asRecord(entry.extendedData);
+    entries.push({
+      id: elementText(entry.id) ?? "",
+      title: elementText(entry.title) ?? "",
+      ...contentSrc === void 0 ? {} : { contentSrc },
+      ...alternateHref === void 0 ? {} : { alternateHref },
+      published: elementText(entry.published) ?? "",
+      updated: elementText(entry.updated) ?? "",
+      ...ed === void 0 ? {} : { extendedData: parseExtendedData(ed) }
+    });
+  }
+  return {
+    systemId: elementText(asRecord(feed.contributor)?.name) ?? "",
+    title: elementText(feed.title) ?? "",
+    updated: elementText(feed.updated) ?? "",
+    entries
+  };
+}
+function findDumpsFeedEntry(catalog) {
+  return catalog.entries.find((e) => e.id === DUMPS_FEED_PATH || e.contentSrc === DUMPS_FEED_PATH);
+}
+
+// src/adt/dumps.ts
+init_errors();
+init_session();
+var FEEDS_CATALOG_PATH = "/sap/bc/adt/feeds";
+var FEEDS_CATALOG_ACCEPT = "application/xml, application/atom+xml, application/atomsvc+xml, */*";
+var DUMPS_FEED_ACCEPT = "*/*";
+var DUMP_DETAIL_ACCEPT = "application/vnd.sap.adt.runtime.dump.v1+xml";
+var DUMP_FORMATTED_ACCEPT = "text/plain";
+var FORMATTED_SUFFIX = "/formatted";
+var FORMATTED_RELATION_TOKEN = "contents";
+var BAD_DUMP_KEY = /%25|[?#/\\]|\s/;
+function assertVerbatimDumpKey(key) {
+  if (typeof key !== "string" || key.trim() === "") {
+    throw new AbapError(
+      "BAD_INPUT",
+      "A dump key is required.",
+      { dumpKey: String(key) },
+      'Take the key from a dump list entry \u2014 it is the `rel="self"` link of the Atom entry with the `adt://{SID}` prefix stripped, and nothing else.'
+    );
+  }
+  if (BAD_DUMP_KEY.test(key)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "This dump key has been altered and will not resolve; refusing to send it.",
+      { dumpKey: key },
+      "The key is an opaque fixed-width token that arrives ALREADY percent-encoded \u2014 its `%20` runs are the space padding of a 70-character structure. Pass it through byte for byte. Do not URL-encode it (that turns `%20` into `%2520`, a captured 404), do not decode it, do not trim it, and do not rebuild it from its fields: all four mutations were captured as 404."
+    );
+  }
+  return key;
+}
+function dumpDetailPath(key) {
+  return `${DUMP_DETAIL_PATH_PREFIX}${assertVerbatimDumpKey(key)}`;
+}
+function dumpFormattedPath(key) {
+  return `${dumpDetailPath(key)}${FORMATTED_SUFFIX}`;
+}
+function classifyDumpFailure(e, ctx) {
+  const err = translateAdtError(e, ctx);
+  const status = typeof err.details.status === "number" ? err.details.status : void 0;
+  const key = ctx.dumpKey;
+  if (err.code === "NOT_FOUND" && key !== void 0) {
+    return new AbapError(
+      "NOT_FOUND",
+      `No dump with this key exists on the system (HTTP 404 from ${ctx.uri ?? "the dump resource"}).`,
+      { ...err.details, dumpKey: key },
+      `Two causes, in order of likelihood. (1) The key was altered in transit: it must be the feed entry's \`rel="self"\` value with the \`adt://{SID}\` prefix stripped and NOTHING else done to it \u2014 encoding, decoding and trimming were each captured as a 404. (2) The dump has left the ${DUMPS_RESIDENCE_WINDOW_DAYS}-day ADT residence window. List the dumps again and use a key from that answer.`
+    );
+  }
+  if (err.code !== "ADT_ERROR") return err;
+  if (status === 406) {
+    return new AbapError(
+      "ADT_ERROR",
+      `The dump resource does not offer the representation that was requested (HTTP 406).`,
+      { ...err.details, ...key === void 0 ? {} : { dumpKey: key } },
+      `This is a client bug, not a server or authorisation problem: each dump representation has its own resource and its own Accept. The detail document is '${DUMP_DETAIL_ACCEPT}' on the base resource; plain text is the '/formatted' SUB-RESOURCE, not a content-type of the base \u2014 asking the base for text/plain is a captured 406.`
+    );
+  }
+  if (status === 400) {
+    return new AbapError(
+      "BAD_INPUT",
+      `The server rejected this dumps request (HTTP 400) without saying why.`,
+      { ...err.details, ...key === void 0 ? {} : { dumpKey: key } },
+      `This endpoint answers an unknown attribute, a syntax error, a missing and(\u2026)/or(\u2026) wrapper and excess nesting with the SAME 372-byte ExceptionInvalidData body, so the status carries no diagnosis. Re-check the filter against the served contract from ${FEEDS_CATALOG_PATH}. Note that most bad parameters are NOT reported at all \u2014 they come back as 200 with the complete unfiltered feed \u2014 so a 400 means the query string itself, or a non-numeric $top.`
+    );
+  }
+  if (status === 401 || status === 403) {
+    return new AbapError(
+      "AUTH_FAILED",
+      `Not authorised (HTTP ${status}) to read runtime-error dumps.`,
+      { ...err.details, ...key === void 0 ? {} : { dumpKey: key } },
+      "The logon succeeded; this user lacks the ST22 display authorisation (typically S_ADMI_FCD / S_DEVELOP). Nothing about the key or the filter is in question \u2014 do not retry with a different one."
+    );
+  }
+  return err;
+}
+var capabilityCache = /* @__PURE__ */ new WeakMap();
+async function fetchFeedsCatalog(conn) {
+  const ctx = { operation: "dumps.feedsCatalog", uri: FEEDS_CATALOG_PATH };
+  let body;
+  try {
+    ({ body } = await conn.get(FEEDS_CATALOG_PATH, { headers: { Accept: FEEDS_CATALOG_ACCEPT } }));
+  } catch (e) {
+    throw classifyDumpFailure(e, ctx);
+  }
+  return parseFeedsCatalog(body);
+}
+async function probeDumpsFeed(conn) {
+  const cached2 = capabilityCache.get(conn);
+  if (cached2 !== void 0) return cached2;
+  let catalog;
+  try {
+    catalog = await fetchFeedsCatalog(conn);
+  } catch (e) {
+    return {
+      state: "unknown",
+      reason: `Could not read the feed catalog at ${FEEDS_CATALOG_PATH}: ${e instanceof Error ? e.message : String(e)}. This says nothing about whether the dumps feed exists, so the request proceeds.`
+    };
+  }
+  const entry = findDumpsFeedEntry(catalog);
+  if (entry === void 0) {
+    const verdict2 = {
+      state: "unsupported",
+      reason: `${FEEDS_CATALOG_PATH} was read successfully on ${catalog.systemId || "this system"} and lists ${catalog.entries.length} feed(s), none of them ${DUMPS_FEED_PATH}. The runtime-error feed is not served here.`
+    };
+    capabilityCache.set(conn, verdict2);
+    return verdict2;
+  }
+  const ed = entry.extendedData;
+  const verdict = {
+    state: "supported",
+    reason: `${FEEDS_CATALOG_PATH} lists ${DUMPS_FEED_PATH}${entry.title ? ` ("${entry.title}")` : ""}.`,
+    entry,
+    ...ed === void 0 ? {} : {
+      contract: toDumpsQueryContract(ed),
+      ...ed.pageSize === void 0 ? {} : { pageSize: ed.pageSize },
+      ...ed.refresh === void 0 ? {} : { refresh: ed.refresh }
+    }
+  };
+  capabilityCache.set(conn, verdict);
+  return verdict;
+}
+function assertDumpsSupported(capability) {
+  if (capability.state !== "unsupported") return;
+  throw new AbapError(
+    "UNSUPPORTED",
+    `This system does not serve ABAP runtime-error dumps over ADT. ${capability.reason}`,
+    { state: capability.state, catalog: FEEDS_CATALOG_PATH, feed: DUMPS_FEED_PATH },
+    `The verdict comes from ${FEEDS_CATALOG_PATH} (the Feed Repository catalog), which was read successfully and does not list the feed \u2014 it is not a guess from a 404 and not from /sap/bc/adt/discovery, which never lists this feed even where it works. Read the dump in SAP GUI transaction ST22 instead.`
+  );
+}
+async function resolveDumpsContract(conn) {
+  const capability = await probeDumpsFeed(conn);
+  if (capability.contract !== void 0) {
+    return { contract: capability.contract, source: "served", capability };
+  }
+  return { contract: DUMPS_CONTRACT_AS_CAPTURED, source: "as-captured", capability };
+}
+function emptyDumpsReason(windowStart, filtered) {
+  const base = `No dumps in the last ${DUMPS_RESIDENCE_WINDOW_DAYS} days matching this filter. ADT can only see runtime errors recorded since about ${windowStart} \u2014 the ${DUMPS_RESIDENCE_WINDOW_DAYS}-day SNAP residence window (C_SNAP_ADT_RESIDENCE_DAYS = ${DUMPS_RESIDENCE_WINDOW_DAYS}) is applied server-side and a 'from' bound cannot widen it, so an older dump can still exist in transaction ST22 and be absent here.`;
+  return filtered ? `${base} Widening or dropping the filter may find dumps inside the window.` : `${base} No filter was applied, so this system recorded no runtime errors at all in that window.`;
+}
+function isFiltered(request) {
+  return request.$query !== void 0 || request.from !== void 0 || request.to !== void 0;
+}
+async function getFeed(conn, url2, ctx) {
+  let body;
+  try {
+    ({ body } = await conn.get(url2, { headers: { Accept: DUMPS_FEED_ACCEPT } }));
+  } catch (e) {
+    throw classifyDumpFailure(e, ctx);
+  }
+  return parseDumpFeed(body);
+}
+function toPage(feed, url2, notes, windowStart, filtered, contractSource, capability) {
+  return {
+    entries: feed.entries,
+    systemId: feed.systemId,
+    hasMore: feed.hasMore,
+    ...feed.nextHref === void 0 ? {} : { nextHref: feed.nextHref },
+    url: url2,
+    notes,
+    residenceWindowStart: windowStart,
+    ...feed.entries.length === 0 ? { emptyReason: emptyDumpsReason(windowStart, filtered) } : {},
+    contractSource,
+    ...capability === void 0 ? {} : { capability }
+  };
+}
+async function listDumps(conn, request = {}, options = {}) {
+  const now = options.now ?? /* @__PURE__ */ new Date();
+  const probe3 = options.probe !== false;
+  let contract = options.contract;
+  let contractSource = contract === void 0 ? "as-captured" : "served";
+  let capability;
+  const notes = [];
+  if (contract === void 0 && probe3) {
+    const resolved = await resolveDumpsContract(conn);
+    assertDumpsSupported(resolved.capability);
+    contract = resolved.contract;
+    contractSource = resolved.source;
+    capability = resolved.capability;
+    if (resolved.capability.state === "unknown") {
+      notes.push(
+        `The dumps feed could not be confirmed from ${FEEDS_CATALOG_PATH}, so this request was sent anyway rather than refused. ${resolved.capability.reason}`
+      );
+    }
+    if (resolved.source === "as-captured") {
+      notes.push(
+        `${FEEDS_CATALOG_PATH} served no filter contract for this feed, so the filter was validated against the contract captured from another system. A filter this client accepts may still be refused by the server with an opaque 400.`
+      );
+    }
+  }
+  const built = buildDumpsFeedUrl(request, { contract: contract ?? DUMPS_CONTRACT_AS_CAPTURED, now });
+  notes.push(...built.notes);
+  const feed = await getFeed(conn, built.url, {
+    operation: "dumps.list",
+    uri: built.url
+  });
+  return toPage(
+    feed,
+    built.url,
+    notes,
+    built.residenceWindowStart,
+    isFiltered(request),
+    contractSource,
+    capability
+  );
+}
+async function fetchDumpDetail(conn, key) {
+  const uri = dumpDetailPath(key);
+  let body;
+  try {
+    ({ body } = await conn.get(uri, { headers: { Accept: DUMP_DETAIL_ACCEPT } }));
+  } catch (e) {
+    throw classifyDumpFailure(e, { operation: "dumps.detail", uri, dumpKey: key });
+  }
+  return parseDumpDetail(body);
+}
+async function fetchDumpFormatted(conn, target) {
+  const { uri, key } = formattedTarget(target);
+  try {
+    const { body } = await conn.get(uri, { headers: { Accept: DUMP_FORMATTED_ACCEPT } });
+    return body;
+  } catch (e) {
+    throw classifyDumpFailure(e, {
+      operation: "dumps.formatted",
+      uri,
+      ...key === void 0 ? {} : { dumpKey: key }
+    });
+  }
+}
+function formattedTarget(target) {
+  if (typeof target === "string") return { uri: dumpFormattedPath(target), key: target };
+  const link = target.links.find((l) => l.relationToken === FORMATTED_RELATION_TOKEN);
+  const path9 = target.formattedPath ?? link?.uri;
+  if (path9 === void 0) {
+    throw new AbapError(
+      "NOT_FOUND",
+      "This dump detail advertises no plain-text rendering.",
+      { error: target.error, links: target.links.map((l) => l.relationToken) },
+      `The '/formatted' body is reached through the '${FORMATTED_RELATION_TOKEN}' relation of the detail document. A detail without it is a shape this client has never been shown; fetch the dump by key instead, which appends the sub-resource directly.`
+    );
+  }
+  if (link !== void 0 && link.kind !== "adt-path") {
+    throw new AbapError(
+      "BAD_INPUT",
+      "The dump's plain-text link is not a server-relative ADT path; refusing to follow it.",
+      { uri: link.uri, kind: link.kind },
+      "This resource advertises absolute links (an internal https://host:port URL among them) that are not reachable or trustworthy from this client. Only server-relative paths are followed."
+    );
+  }
+  return { uri: path9 };
+}
+function selectDumpChapters(detail, formatted, names = TIER1_CHAPTER_NAMES) {
+  const requested = [...names];
+  const have = new Set(detail.chapters.map((c) => c.name));
+  const present = requested.filter((n) => have.has(n));
+  const missing = requested.filter((n) => !have.has(n));
+  return {
+    detail,
+    text: sliceDumpChapters(detail.chapters, formatted, present),
+    requested,
+    present,
+    missing,
+    totalLines: formatted === "" ? 0 : formatted.split("\n").length,
+    includesVariables: present.includes(VARIABLES_CHAPTER_NAME)
+  };
+}
+
+// src/adt/run-dump-lookup.ts
+var RECENT_DUMP_LOOKBACK_SECONDS = 60;
+var RECENT_DUMP_MAX_ROWS = 20;
+var CLASS_NAME_WIDTH = 30;
+function classPoolName(className) {
+  return `${className.toUpperCase().padEnd(CLASS_NAME_WIDTH, "=")}CP`;
+}
+function programMatches(terminatedProgram, programs) {
+  const upper = terminatedProgram.trim().toUpperCase();
+  return upper !== "" && programs.some((p) => p.trim().toUpperCase() === upper);
+}
+function describeFailure3(e) {
+  return truncateText(e instanceof Error ? `${e.name}: ${e.message}` : String(e), MESSAGE_EXCERPT_MAX);
+}
+async function findRecentDump(conn, window2, programs) {
+  const wanted = programs.map((p) => p.toUpperCase());
+  const base = { window: window2, programs: wanted, candidates: 0 };
+  let entries;
+  try {
+    const page = await listDumps(
+      conn,
+      {
+        ...window2.query === void 0 ? {} : { $query: window2.query },
+        from: window2.from,
+        to: window2.to,
+        $top: RECENT_DUMP_MAX_ROWS
+      },
+      { probe: false }
+    );
+    entries = page.entries;
+  } catch (e) {
+    return { ...base, failure: describeFailure3(e) };
+  }
+  const mine = window2.user === void 0 ? entries : entries.filter((entry) => entry.user.toUpperCase() === window2.user);
+  const match = mine.find((entry) => programMatches(entry.terminatedProgram, wanted));
+  if (match === void 0) return { ...base, candidates: mine.length };
+  const found = {
+    key: match.key,
+    runtimeError: match.runtimeError,
+    shortText: match.title,
+    program: match.terminatedProgram,
+    user: match.user,
+    published: match.published
+  };
+  try {
+    const detail = await fetchDumpDetail(conn, match.key);
+    if (detail.exception) found.exception = detail.exception;
+  } catch {
+  }
+  return { ...base, found, candidates: mine.length };
+}
+
 // src/adt/run.ts
 init_enhancement_templates();
 
@@ -113386,7 +114085,7 @@ function selectionScreenNotes(parsed, supplied) {
 
 // src/adt/run.ts
 var DUMP_CORRELATION_SLACK_SECONDS = 2;
-function buildDumpCorrelation(serverTime, user) {
+function buildDumpCorrelation(serverTime, user, options = {}) {
   if (!serverTime) return void 0;
   const digits = serverTime.replace(/\D/g, "");
   if (!isValidTimestamp14(digits)) return void 0;
@@ -113399,7 +114098,8 @@ function buildDumpCorrelation(serverTime, user) {
     Number(digits.slice(12, 14))
   );
   const slack = DUMP_CORRELATION_SLACK_SECONDS * 1e3;
-  const from = timestamp14(new Date(at - slack));
+  const lookback = Math.max(0, options.lookbackSeconds ?? 0) * 1e3;
+  const from = timestamp14(new Date(at - lookback - slack));
   const to = timestamp14(new Date(at + slack));
   const upper = user?.trim().toUpperCase();
   const query = upper ? buildFqlQuery({
@@ -113644,12 +114344,100 @@ function translateRunFailure(conn, className, e) {
       )
     );
   }
+  if (resp === void 0 && isTimeoutError(e)) {
+    invalidateSession(conn);
+    return discloseMutationRisk(timeoutError(className, conn.cfg.timeoutMs, e));
+  }
   const translated = translateAdtError(e, {
     operation: "run class",
     name: className,
     uri: `${CLASSRUN_PATH}${className}`
   });
   return resp === void 0 && !(0, import_abap_adt_api8.isCsrfError)(e) ? discloseMutationRisk(translated) : translated;
+}
+function timeoutError(className, timeoutMs, cause) {
+  const err = new AbapError(
+    "TIMEOUT",
+    `${className} did not answer within ${timeoutMs} ms (ABAP_TIMEOUT_MS); the request was abandoned client-side.`,
+    { class: className, timeoutMs },
+    "The ABAP session was abandoned, not stopped \u2014 the program may still be running on the server. If it legitimately needs longer, raise ABAP_TIMEOUT_MS or make it do less per run.",
+    { retryable: true }
+    // TIMEOUT is `conditional`; before the dumps feed is asked the likeliest story is "ran long", and withDumpLookup withdraws this the moment a dump says otherwise
+  );
+  err.cause = cause;
+  return err;
+}
+async function attachRecentDump(conn, className, e, options) {
+  if (!isAbapError(e)) return e;
+  const isTimeout = e.code === "TIMEOUT";
+  const noConsole = e.code === "ADT_ERROR" && e.details.noConsoleOutput === true;
+  if (!isTimeout && !noConsole) return e;
+  const window2 = buildDumpCorrelation(timestamp14(/* @__PURE__ */ new Date()), conn.cfg.user, {
+    lookbackSeconds: RECENT_DUMP_LOOKBACK_SECONDS
+  });
+  if (window2 === void 0) return e;
+  const programs = [
+    classPoolName(className),
+    ...(options.dumpPrograms ?? []).map((p) => p.toUpperCase())
+  ];
+  const lookup = await findRecentDump(conn, window2, programs);
+  return withDumpLookup(e, lookup, isTimeout);
+}
+function withDumpLookup(e, lookup, isTimeout) {
+  const { window: window2, found } = lookup;
+  const searched = `user ${window2.user ?? "(any)"}, program ${lookup.programs.join(" or ")}, between ${window2.from} and ${window2.to}`;
+  const summary = {
+    from: window2.from,
+    to: window2.to,
+    ...window2.query === void 0 ? {} : { query: window2.query },
+    programs: lookup.programs,
+    candidates: lookup.candidates
+  };
+  let revised;
+  if (found !== void 0) {
+    const exception = found.exception ? `, ${found.exception}` : "";
+    revised = new AbapError(
+      e.code,
+      `${e.message} A short dump of this program by this user was recorded in the last minute: ${found.runtimeError} \u2014 ${found.shortText}`,
+      {
+        ...e.details,
+        dump: {
+          key: found.key,
+          runtimeError: found.runtimeError,
+          ...found.exception ? { exception: found.exception } : {},
+          shortText: found.shortText,
+          program: found.program,
+          published: found.published
+        },
+        dumpLookup: { ...summary, matched: true }
+      },
+      `${found.program} short-dumped for this user within the last minute (${found.runtimeError}${exception}): ${found.shortText} \u2014 almost certainly this run; if several runs overlapped, compare details.dump.published with the call time. Read it with abap_dumps ${JSON.stringify({ mode: "show", key: found.key })} \u2014 the default summary carries the source line, the error analysis and the top of the call stack. Any output written before the dump is lost. Do not retry unchanged; the same code dumps the same way.`,
+      { retryable: false }
+      // a fresh dump of this program by this user: it crashed, and retrying the same code crashes it again
+    );
+  } else if (lookup.failure !== void 0) {
+    revised = new AbapError(
+      e.code,
+      e.message,
+      { ...e.details, dumpLookup: { ...summary, failure: lookup.failure } },
+      `${e.hint ?? ""} Whether the run short-dumped is UNKNOWN: the dumps-feed lookup for ${searched} failed (${lookup.failure}). Check yourself with abap_dumps ${JSON.stringify({ mode: "list", from: window2.from, to: window2.to, ...window2.query ? { query: window2.query } : {} })} before deciding to retry.`,
+      { retryable: void 0 }
+      // the feed could not be read, so neither "ran long" nor "crashed" is established — withdraw the claim rather than guess
+    );
+  } else {
+    const verdict = isTimeout ? `so the run most likely ran past the budget rather than crashing. Retrying unchanged is safe only if the program is idempotent; otherwise re-read what it touches first.` : "so the empty answer is not explained by a crash.";
+    revised = new AbapError(
+      e.code,
+      e.message,
+      { ...e.details, dumpLookup: { ...summary, matched: false } },
+      `${e.hint ?? ""} No ST22 dump for ${searched} (${lookup.candidates} other dump(s) of that user in the window), ${verdict}`,
+      { retryable: e.retryable }
+      // no dump found: the original verdict stands (TIMEOUT's `true`, the no-console ADT_ERROR's `undefined`)
+    );
+  }
+  revised.stack = e.stack;
+  revised.cause = e.cause;
+  return revised;
 }
 var UNDEFINED_BODY_LITERAL = "undefined";
 var XML_OR_HTML_BODY_PREFIX = /^(<\?xml|<!DOCTYPE|<html)/i;
@@ -113660,17 +114448,17 @@ function bogusBodyReason(raw, trimmed) {
   if (XML_OR_HTML_BODY_PREFIX.test(trimmed)) return "the body is XML/HTML markup, not console output";
   return void 0;
 }
-function assertPlausibleRunOutput(className, raw, bodyBytes) {
+function implausibleRunOutput(className, raw, bodyBytes) {
   const reason = bogusBodyReason(raw, raw.trim());
-  if (!reason) return;
-  throw new AbapError(
+  if (!reason) return void 0;
+  return new AbapError(
     "ADT_ERROR",
     `${className} returned HTTP 200, but ${reason} \u2014 the response is not usable as program output.`,
-    { class: className, bodyBytes },
+    { class: className, bodyBytes, noConsoleOutput: true },
     "classrun returns 200 for both genuine output and an ADT error envelope / ICF error page \u2014 the status code alone proves nothing. Treat this the same as a thrown ADT error rather than trusting the body."
   );
 }
-async function runClass(conn, className) {
+async function runClass(conn, className, options = {}) {
   const name = assertPlainName(className, "Class name").toUpperCase();
   if (name.length > MAX_NAME) {
     throw new AbapError(
@@ -113680,15 +114468,21 @@ async function runClass(conn, className) {
     );
   }
   const started = Date.now();
-  const raw = await conn.withFreshSession(async (client) => {
-    try {
-      return await client.runClass(name);
-    } catch (e) {
-      throw translateRunFailure(conn, name, e);
-    }
-  });
+  let raw;
+  try {
+    raw = await conn.withFreshSession(async (client) => {
+      try {
+        return await client.runClass(name);
+      } catch (e) {
+        throw translateRunFailure(conn, name, e);
+      }
+    });
+  } catch (e) {
+    throw await attachRecentDump(conn, name, e, options);
+  }
   const bodyBytes = Buffer.byteLength(raw, "utf8");
-  assertPlausibleRunOutput(name, raw, bodyBytes);
+  const implausible = implausibleRunOutput(name, raw, bodyBytes);
+  if (implausible !== void 0) throw await attachRecentDump(conn, name, implausible, options);
   const output = raw.replace(/\r\n/g, "\n").replace(/\n+$/, "");
   return {
     mode: "class",
@@ -113852,19 +114646,21 @@ function discloseMutationRisk(err) {
     err.code,
     err.message,
     { ...err.details, mayHaveExecuted: true },
-    err.hint ? `${err.hint} ${disclosure}` : disclosure
+    err.hint ? `${err.hint} ${disclosure}` : disclosure,
+    { retryable: err.retryable }
+    // re-wrap: carries the classified retryable through unchanged (TIMEOUT's explicit `true` would otherwise fall back to the table's `undefined`)
   );
   disclosed.stack = err.stack;
   disclosed.cause = err.cause;
   return disclosed;
 }
-async function executeBridge(conn, gate, deployed) {
+async function executeBridge(conn, gate, deployed, options = {}) {
   const executeAuthorization = gate.authorize("execute", {
     name: deployed.target.name,
     packageName: deployed.target.packageName,
     type: deployed.target.type
   });
-  return runClass(conn, executeAuthorization.target.name);
+  return runClass(conn, executeAuthorization.target.name, options);
 }
 async function runReport(conn, reportName, gate, parameters = []) {
   const started = Date.now();
@@ -113882,7 +114678,7 @@ async function runReport(conn, reportName, gate, parameters = []) {
     verify: (activation) => verifyBridgeActivation(activation, className, "run bridge", { report })
   });
   const { bridgeRefreshed, activationVerified: bridgeActivationVerified } = deployed;
-  const run = await executeBridge(conn, gate, deployed);
+  const run = await executeBridge(conn, gate, deployed, { dumpPrograms: [report] });
   const { list: list3, diagnostics, droppedLines: bridgeDroppedLines } = splitBridgeOutput(run.output);
   const beforeHeaderStrip = list3.length;
   const stripped = stripListHeader(list3);
@@ -114066,7 +114862,7 @@ function abapTimestamp(d) {
   const pad2 = (n, w = 2) => String(n).padStart(w, "0");
   return `${d.getUTCFullYear()}${pad2(d.getUTCMonth() + 1)}${pad2(d.getUTCDate())}${pad2(d.getUTCHours())}${pad2(d.getUTCMinutes())}${pad2(d.getUTCSeconds())}`;
 }
-function describeFailure3(e) {
+function describeFailure4(e) {
   if (isAbapError(e)) {
     return `${e.code}: ${e.message}`;
   }
@@ -114092,7 +114888,7 @@ async function withAuthTrace(deps, user, fn) {
       from = onResult.timestamp;
     }
   } catch (e) {
-    onFailureReason = describeFailure3(e);
+    onFailureReason = describeFailure4(e);
   }
   let result;
   let fnError;
@@ -114112,7 +114908,7 @@ async function withAuthTrace(deps, user, fn) {
       const { checks, usedFallback } = await readFailedAuthChecks(deps, { user, from, to });
       authTrace = { ok: true, checks, usedFallback };
     } catch (e) {
-      authTrace = { ok: false, reason: `unavailable: ${describeFailure3(e)}` };
+      authTrace = { ok: false, reason: `unavailable: ${describeFailure4(e)}` };
     }
   }
   let switchOffError;
@@ -114120,7 +114916,7 @@ async function withAuthTrace(deps, user, fn) {
     try {
       await authTraceOff(deps);
     } catch (e) {
-      switchOffError = describeFailure3(e);
+      switchOffError = describeFailure4(e);
     }
   }
   if (fnThrew) {
@@ -117805,7 +118601,7 @@ var xmlParser2 = new XMLParser({
   parseTagValue: false,
   trimValues: true
 });
-function asArray2(v) {
+function asArray3(v) {
   if (v === void 0 || v === null) return [];
   return Array.isArray(v) ? v : [v];
 }
@@ -117825,11 +118621,11 @@ function textTransl(v) {
 }
 function items(node2) {
   if (!isRecord(node2)) return [];
-  return asArray2(node2["Item"]).filter(isRecord);
+  return asArray3(node2["Item"]).filter(isRecord);
 }
 function findAllNodesByName(el, name, acc = []) {
   if (!isRecord(el)) return acc;
-  for (const node2 of asArray2(el["Node"])) {
+  for (const node2 of asArray3(el["Node"])) {
     if (!isRecord(node2)) continue;
     if (node2["@_Name"] === name) acc.push(node2);
     findAllNodesByName(node2, name, acc);
@@ -117897,11 +118693,11 @@ function collectButtonRows(root) {
     for (const elNode of findAllNodesByName(rowNode, "BUTTON_ROW_ELEMENT")) {
       for (const elItem of items(elNode)) {
         const events = findAllNodesByName(elItem, "BUTTON_ACTION").flatMap((n) => items(n)).map((i) => ({ eventId: text3(i["EVENT_ID"]), text: text3(i["TEXT"]) }));
-        const rowText = textTransl(elItem["TEXT"]);
+        const rowText2 = textTransl(elItem["TEXT"]);
         rows.push({
           elementId: text3(elItem["ELEMENT_ID"]),
-          text: rowText.value,
-          textTransl: rowText.translatable,
+          text: rowText2.value,
+          textTransl: rowText2.translatable,
           displayType: text3(elItem["DISPLAY_TYPE"]),
           events,
           raw: elItem
@@ -118016,7 +118812,7 @@ function collectFeeders(root) {
     if (!isRecord(el)) return;
     const feeder = text3(el["FEEDER"]);
     if (feeder) out.push(feeder);
-    for (const node2 of asArray2(el["Node"])) walk(node2);
+    for (const node2 of asArray3(el["Node"])) walk(node2);
     for (const item of items(el)) walk(item);
   };
   walk(root);
@@ -118035,7 +118831,7 @@ function collectBoNames(root) {
       }
       walk(item);
     }
-    for (const node2 of asArray2(el["Node"])) walk(node2);
+    for (const node2 of asArray3(el["Node"])) walk(node2);
   };
   walk(root);
   return [...out];
@@ -118054,7 +118850,7 @@ function collectBoNodePairs(root) {
     const paramBo = nameValue.get("BO");
     if (paramBo) out.push({ bo: paramBo, node: nameValue.get("NODE") || void 0 });
     for (const item of items(el)) walk(item);
-    for (const node2 of asArray2(el["Node"])) walk(node2);
+    for (const node2 of asArray3(el["Node"])) walk(node2);
   };
   walk(root);
   return out;
@@ -130300,21 +131096,21 @@ var usageReferencesXml = new XMLParser({
   trimValues: false,
   isArray: (_name, jpath, _isLeaf, isAttribute) => !isAttribute && typeof jpath === "string" && jpath.endsWith("referencedObjects.referencedObject")
 });
-function asRecord(value) {
+function asRecord2(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value) ? value : void 0;
 }
-function asArray3(value) {
+function asArray4(value) {
   if (Array.isArray(value)) return value;
   return value === void 0 || value === null ? [] : [value];
 }
-function attr2(node2, name) {
+function attr3(node2, name) {
   const value = node2?.[`@_${name}`];
   return typeof value === "string" ? value : void 0;
 }
-function elementText(value) {
+function elementText2(value) {
   if (typeof value === "string") return value;
   if (value === void 0 || value === null) return void 0;
-  const rec = asRecord(value);
+  const rec = asRecord2(value);
   if (rec === void 0) return void 0;
   const text5 = rec["#text"];
   return typeof text5 === "string" ? text5 : "";
@@ -130331,7 +131127,7 @@ function parseXmlDocument(body, what, ctx, parser3 = elementInfoXml) {
       "The server answered with something other than the expected document."
     );
   }
-  const rec = asRecord(parsed);
+  const rec = asRecord2(parsed);
   if (rec === void 0) {
     throw new AbapError(
       "ADT_ERROR",
@@ -130343,32 +131139,32 @@ function parseXmlDocument(body, what, ctx, parser3 = elementInfoXml) {
   return rec;
 }
 function parseProperties(value) {
-  const rec = asRecord(value);
+  const rec = asRecord2(value);
   if (rec === void 0) return {};
   const result = {};
-  for (const raw of asArray3(rec["entry"])) {
-    const entryNode = asRecord(raw);
-    const key = attr2(entryNode, "key");
+  for (const raw of asArray4(rec["entry"])) {
+    const entryNode = asRecord2(raw);
+    const key = attr3(entryNode, "key");
     if (key === void 0) continue;
-    result[key] = elementText(raw) ?? "";
+    result[key] = elementText2(raw) ?? "";
   }
   return result;
 }
 function findDocumentation(node2, rel) {
-  for (const raw of asArray3(node2["documentation"])) {
-    const docNode = asRecord(raw);
-    if (attr2(docNode, "rel") !== rel) continue;
-    return elementText(raw) ?? "";
+  for (const raw of asArray4(node2["documentation"])) {
+    const docNode = asRecord2(raw);
+    if (attr3(docNode, "rel") !== rel) continue;
+    return elementText2(raw) ?? "";
   }
   return void 0;
 }
 function parseElementInfoNode(raw) {
-  const node2 = asRecord(raw) ?? {};
-  const type = attr2(node2, "type");
-  const name = attr2(node2, "name");
+  const node2 = asRecord2(raw) ?? {};
+  const type = attr3(node2, "type");
+  const name = attr3(node2, "name");
   const shortText = findDocumentation(node2, "shorttext");
   const abapDoc = findDocumentation(node2, "abapdoc");
-  const children = asArray3(node2["elementInfo"]).map(parseElementInfoNode);
+  const children = asArray4(node2["elementInfo"]).map(parseElementInfoNode);
   return {
     ...type !== void 0 ? { type } : {},
     ...name !== void 0 ? { name } : {},
@@ -130438,7 +131234,7 @@ function parseNavigationTarget(xml3, ctx) {
       "This ADT release may answer navigation targets differently from what this client expects."
     );
   }
-  const uri = attr2(asRecord(rootValue), "uri");
+  const uri = attr3(asRecord2(rootValue), "uri");
   return uri === void 0 ? void 0 : splitFragmentUri(uri);
 }
 var NAVIGATION_UNDECIDABLE_RE = /undecidable/i;
@@ -130518,33 +131314,33 @@ function parseUsageReferences(xml3, ctx) {
       "This ADT release may answer where-used differently from what this client expects."
     );
   }
-  const root = asRecord(rootValue);
-  const referencedObjects = asRecord(root?.["referencedObjects"]);
+  const root = asRecord2(rootValue);
+  const referencedObjects = asRecord2(root?.["referencedObjects"]);
   if (referencedObjects === void 0) return [];
   const rows = [];
-  for (const raw of asArray3(referencedObjects["referencedObject"])) {
-    const row2 = asRecord(raw);
+  for (const raw of asArray4(referencedObjects["referencedObject"])) {
+    const row2 = asRecord2(raw);
     if (row2 === void 0) continue;
-    const adtObject = asRecord(row2["adtObject"]) ?? {};
-    const packageRefNode = asRecord(adtObject["packageRef"]);
+    const adtObject = asRecord2(row2["adtObject"]) ?? {};
+    const packageRefNode = asRecord2(adtObject["packageRef"]);
     const packageRef = {};
-    const packageName = attr2(packageRefNode, "name");
-    const packageUri = attr2(packageRefNode, "uri");
-    const packageType = attr2(packageRefNode, "type");
+    const packageName = attr3(packageRefNode, "name");
+    const packageUri = attr3(packageRefNode, "uri");
+    const packageType = attr3(packageRefNode, "type");
     if (packageName !== void 0) packageRef["adtcore:name"] = packageName;
     if (packageUri !== void 0) packageRef["adtcore:uri"] = packageUri;
     if (packageType !== void 0) packageRef["adtcore:type"] = packageType;
-    const rowUri = attr2(row2, "uri");
-    const parentUri = attr2(row2, "parentUri");
-    const adtName = attr2(adtObject, "name");
-    const adtType = attr2(adtObject, "type");
+    const rowUri = attr3(row2, "uri");
+    const parentUri = attr3(row2, "parentUri");
+    const adtName = attr3(adtObject, "name");
+    const adtType = attr3(adtObject, "type");
     rows.push({
       ...rowUri !== void 0 ? { uri: rowUri } : {},
       ...parentUri !== void 0 ? { parentUri } : {},
       ...adtName !== void 0 ? { "adtcore:name": adtName } : {},
       ...adtType !== void 0 ? { "adtcore:type": adtType } : {},
       packageRef,
-      objectIdentifier: elementText(row2["objectIdentifier"]) ?? ""
+      objectIdentifier: elementText2(row2["objectIdentifier"]) ?? ""
     });
   }
   return rows;
@@ -130567,7 +131363,7 @@ function implementationsFrom(refs, interfaceName, methodName) {
     const className = (parentUri !== void 0 ? nameByUri.get(parentUri) : void 0) ?? classNameFromUri(parentUri);
     if (className === void 0) continue;
     const packageRefValue = ref2["packageRef"];
-    const packageRef = asRecord(packageRefValue);
+    const packageRef = asRecord2(packageRefValue);
     const packageName = packageRef !== void 0 ? recordString(packageRef, "adtcore:name") : void 0;
     results.push({
       className,
@@ -134365,7 +135161,7 @@ function many2(v) {
   if (Array.isArray(v)) return v.filter(isNode);
   return isNode(v) ? [v] : [];
 }
-function attr3(node2, name) {
+function attr4(node2, name) {
   const v = node2[`@_${name}`];
   if (typeof v !== "string") return void 0;
   const t = v.trim();
@@ -134402,7 +135198,7 @@ function verdictForMethodNode(node2) {
   }
   if (unrecognised.length > 0) return { verdict: "unknown", unrecognised };
   if (!childNames(node2).includes("alerts")) return { verdict: "passed", unrecognised: [] };
-  const severities = many2(node2.alerts).flatMap((container) => many2(container.alert)).map((a) => attr3(a, "severity"));
+  const severities = many2(node2.alerts).flatMap((container) => many2(container.alert)).map((a) => attr4(a, "severity"));
   if (severities.some((s) => s !== void 0 && SEVERITY_FAILS.has(s))) {
     return { verdict: "failed", unrecognised: [] };
   }
@@ -134416,7 +135212,7 @@ function verdictForMethodNode(node2) {
 function flattenDetails(node2, depth, out) {
   if (!isNode(node2)) return;
   for (const detail of many2(node2.detail)) {
-    const text5 = attr3(detail, "text");
+    const text5 = attr4(detail, "text");
     if (text5) out.push("  ".repeat(depth) + truncateText(text5, ECHO_LINE_MAX));
     flattenDetails(detail.details, depth + 1, out);
   }
@@ -134430,16 +135226,16 @@ function includeNameFromUri(uri) {
 function parseStack(node2) {
   if (!isNode(node2)) return [];
   return many2(node2.stackEntry).map((e) => {
-    const uri = attr3(e, "uri");
+    const uri = attr4(e, "uri");
     const at = parseStartFragment(uri);
     const includeName = includeNameFromUri(uri);
     return {
       ...uri ? { uri } : {},
       ...at ? { line: at.line, col: at.col } : {},
       ...includeName ? { includeName } : {},
-      ...attr3(e, "type") ? { type: attr3(e, "type") } : {},
-      ...attr3(e, "name") ? { name: attr3(e, "name") } : {},
-      ...attr3(e, "description") ? { description: truncateText(attr3(e, "description"), ECHO_LINE_MAX) } : {}
+      ...attr4(e, "type") ? { type: attr4(e, "type") } : {},
+      ...attr4(e, "name") ? { name: attr4(e, "name") } : {},
+      ...attr4(e, "description") ? { description: truncateText(attr4(e, "description"), ECHO_LINE_MAX) } : {}
     };
   });
 }
@@ -134450,8 +135246,8 @@ function parseAlerts(container) {
     flattenDetails(a.details, 0, details);
     const title = typeof a.title === "string" ? a.title.trim() : void 0;
     return {
-      ...attr3(a, "kind") ? { kind: attr3(a, "kind") } : {},
-      ...attr3(a, "severity") ? { severity: attr3(a, "severity") } : {},
+      ...attr4(a, "kind") ? { kind: attr4(a, "kind") } : {},
+      ...attr4(a, "severity") ? { severity: attr4(a, "severity") } : {},
       ...title ? { title: truncateText(title, MESSAGE_EXCERPT_MAX) } : {},
       details,
       stack: parseStack(a.stack)
@@ -134483,7 +135279,7 @@ function parseRunResult(xml3) {
   }
   const externalNode = many2(root.external)[0];
   const coverageNode = externalNode && isNode(externalNode.coverage) ? externalNode.coverage : void 0;
-  const coverageUriRaw = coverageNode ? attr3(coverageNode, "uri") : void 0;
+  const coverageUriRaw = coverageNode ? attr4(coverageNode, "uri") : void 0;
   const coverageUri = coverageUriRaw && coverageUriRaw.startsWith(COVERAGE_MEASUREMENT_PREFIX) ? coverageUriRaw : void 0;
   const otherAlerts = [];
   for (const a of parseAlerts(root.alerts)) otherAlerts.push({ ...a, scope: "run" });
@@ -134493,14 +135289,14 @@ function parseRunResult(xml3) {
   let failed = 0;
   let unknown2 = 0;
   for (const prog of many2(root.program)) {
-    const programName = attr3(prog, "name") ?? "(unnamed program)";
+    const programName = attr4(prog, "name") ?? "(unnamed program)";
     for (const a of parseAlerts(prog.alerts)) {
       otherAlerts.push({ ...a, scope: `program ${programName}` });
     }
     const classes = [];
     for (const tcContainer of many2(prog.testClasses)) {
       for (const tc of many2(tcContainer.testClass)) {
-        const className = attr3(tc, "name") ?? "(unnamed test class)";
+        const className = attr4(tc, "name") ?? "(unnamed test class)";
         for (const a of parseAlerts(tc.alerts)) {
           otherAlerts.push({ ...a, scope: `test class ${className}` });
         }
@@ -134513,11 +135309,11 @@ function parseRunResult(xml3) {
             else if (verdict === "failed") failed++;
             else unknown2++;
             methods.push({
-              name: attr3(tm, "name") ?? "(unnamed method)",
+              name: attr4(tm, "name") ?? "(unnamed method)",
               className,
               verdict,
-              ...attr3(tm, "executionTime") ? { executionTime: attr3(tm, "executionTime") } : {},
-              ...attr3(tm, "unit") ? { unit: attr3(tm, "unit") } : {},
+              ...attr4(tm, "executionTime") ? { executionTime: attr4(tm, "executionTime") } : {},
+              ...attr4(tm, "unit") ? { unit: attr4(tm, "unit") } : {},
               alerts: parseAlerts(tm.alerts),
               unrecognised
             });
@@ -134525,15 +135321,15 @@ function parseRunResult(xml3) {
         }
         classes.push({
           name: className,
-          ...attr3(tc, "riskLevel") ? { riskLevel: attr3(tc, "riskLevel") } : {},
-          ...attr3(tc, "durationCategory") ? { durationCategory: attr3(tc, "durationCategory") } : {},
+          ...attr4(tc, "riskLevel") ? { riskLevel: attr4(tc, "riskLevel") } : {},
+          ...attr4(tc, "durationCategory") ? { durationCategory: attr4(tc, "durationCategory") } : {},
           methods
         });
       }
     }
     programs.push({
       name: programName,
-      ...attr3(prog, "type") ? { type: attr3(prog, "type") } : {},
+      ...attr4(prog, "type") ? { type: attr4(prog, "type") } : {},
       classes
     });
   }
@@ -134633,10 +135429,10 @@ function parseCoveredObjects(xml3) {
       const ref2 = isNode(co.objectReference) ? co.objectReference : void 0;
       if (!ref2) continue;
       out.push({
-        name: attr3(ref2, "name") ?? "(unnamed object)",
-        ...attr3(ref2, "type") ? { type: attr3(ref2, "type") } : {},
-        ...attr3(ref2, "uri") ? { uri: attr3(ref2, "uri") } : {},
-        ...attr3(ref2, "packageName") ? { packageName: attr3(ref2, "packageName") } : {}
+        name: attr4(ref2, "name") ?? "(unnamed object)",
+        ...attr4(ref2, "type") ? { type: attr4(ref2, "type") } : {},
+        ...attr4(ref2, "uri") ? { uri: attr4(ref2, "uri") } : {},
+        ...attr4(ref2, "packageName") ? { packageName: attr4(ref2, "packageName") } : {}
       });
     }
   }
@@ -134660,20 +135456,20 @@ function parseCount(raw) {
 }
 function parseCoverageNode(node2) {
   const ref2 = isNode(node2.objectReference) ? node2.objectReference : void 0;
-  const name = (ref2 ? attr3(ref2, "name") : void 0) ?? "(unnamed node)";
+  const name = (ref2 ? attr4(ref2, "name") : void 0) ?? "(unnamed node)";
   const unrecognised = [];
   let statement;
   let branch;
   let procedure;
   const coveragesContainer = isNode(node2.coverages) ? node2.coverages : void 0;
   for (const cov of many2(coveragesContainer?.coverage)) {
-    const type = attr3(cov, "type");
+    const type = attr4(cov, "type");
     if (type === void 0 || !KNOWN_COVERAGE_TYPES.has(type)) {
       unrecognised.push(type ?? "coverage with no @type");
       continue;
     }
-    const totalRaw = attr3(cov, "total");
-    const executedRaw = attr3(cov, "executed");
+    const totalRaw = attr4(cov, "total");
+    const executedRaw = attr4(cov, "executed");
     const total = parseCount(totalRaw);
     if (total === void 0) {
       unrecognised.push(`${type} (unparseable total="${totalRaw ?? ""}")`);
@@ -134694,9 +135490,9 @@ function parseCoverageNode(node2) {
   for (const child4 of many2(childContainer?.node)) children.push(parseCoverageNode(child4));
   return {
     name,
-    ...ref2 && attr3(ref2, "type") ? { type: attr3(ref2, "type") } : {},
-    ...ref2 && attr3(ref2, "uri") ? { uri: attr3(ref2, "uri") } : {},
-    ...ref2 && attr3(ref2, "description") ? { description: attr3(ref2, "description") } : {},
+    ...ref2 && attr4(ref2, "type") ? { type: attr4(ref2, "type") } : {},
+    ...ref2 && attr4(ref2, "uri") ? { uri: attr4(ref2, "uri") } : {},
+    ...ref2 && attr4(ref2, "description") ? { description: attr4(ref2, "description") } : {},
     ...statement ? { statement } : {},
     ...branch ? { branch } : {},
     ...procedure ? { procedure } : {},
@@ -140555,16 +141351,16 @@ function parseSearchResults(xml3) {
   let m;
   while (m = re.exec(xml3)) {
     const tag = m[0];
-    const uri = attr4(tag, "uri");
-    const type = attr4(tag, "type");
-    const name = attr4(tag, "name");
+    const uri = attr5(tag, "uri");
+    const type = attr5(tag, "type");
+    const name = attr5(tag, "name");
     if (name && type) {
       out.push({ ...uri ? { uri } : {}, type, name });
     }
   }
   return out;
 }
-function attr4(tag, name) {
+function attr5(tag, name) {
   const re = new RegExp(`[\\w:]*:${name}="([^"]*)"`);
   const m = re.exec(tag);
   if (m && m[1] !== void 0) return xmlUnescape(m[1]);
@@ -153322,646 +154118,183 @@ function registerDataPreviewTools(mcp, deps) {
 init_zod();
 init_errors();
 
-// src/adt/dumps-xml.ts
-init_fxp();
-init_errors();
-var dumpsXml = new XMLParser({
-  ignoreAttributes: false,
-  attributeNamePrefix: "@_",
-  removeNSPrefix: true,
-  parseAttributeValue: false,
-  parseTagValue: false,
-  trimValues: true,
-  // `typeof jpath === "string"` guards the v5 `string | MatcherView` type (holds
-  // under default `jPath: true`). `isAttribute` excludes attributes, which share
-  // the element jpath space (`feed.entry.link` vs `feed.entry.link.href`).
-  isArray: (_name, jpath, _isLeaf, isAttribute) => !isAttribute && typeof jpath === "string" && REPEATABLE_JPATHS.has(jpath)
-});
-var REPEATABLE_JPATHS = /* @__PURE__ */ new Set([
-  // dumps feed + feeds catalog
-  "feed.entry",
-  "feed.link",
-  "feed.entry.link",
-  "feed.entry.category",
-  // dump detail
-  "dump.links.link",
-  "dump.chapters.chapter",
-  // feed:extendedData contract
-  "feed.entry.extendedData.operators.operator",
-  "feed.entry.extendedData.dataTypes.dataType",
-  "feed.entry.extendedData.dataTypes.dataType.operators.operator",
-  "feed.entry.extendedData.attributes.attribute",
-  "feed.entry.extendedData.attributes.attribute.operators.operator",
-  "feed.entry.extendedData.queryVariants.queryVariant"
-]);
-function asRecord2(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value) ? value : void 0;
+// src/adt/dumps-summary.ts
+var DUMP_SECTIONS = ["analysis", "source", "variables", "stack", "environment", "all"];
+var SECTION_CHAPTERS = {
+  /** Short text, error analysis, how to correct, chain of exception objects. */
+  analysis: ["kap0", "kap3", "kap4", "kap28"],
+  /** Where terminated, source code extract. */
+  source: ["kap7", "kap8"],
+  /** Selected Variables — gated by ABAP_ALLOW_DUMP_VARIABLES like `chapters:"kap10"`. */
+  variables: [VARIABLES_CHAPTER_NAME],
+  /** Active calls/events, application calls. */
+  stack: ["kap11", "kap22"],
+  /** System environment, user and transaction, server-side connection, system fields, programs affected. */
+  environment: ["kap5", "kap6", "kap6a", "kap9", "kap14"]
+};
+function isDumpSection(value) {
+  return typeof value === "string" && DUMP_SECTIONS.includes(value);
 }
-function asArray4(value) {
-  if (Array.isArray(value)) return value;
-  return value === void 0 || value === null ? [] : [value];
+function sectionChapterNames(section) {
+  return section === "all" ? [...TIER1_CHAPTER_NAMES] : [...SECTION_CHAPTERS[section]];
 }
-function attr5(node2, name) {
-  const value = node2?.[`@_${name}`];
-  return typeof value === "string" ? value : void 0;
-}
-function attrOrEmpty(node2, name) {
-  return attr5(node2, name) ?? "";
-}
-function elementText2(value) {
-  if (typeof value === "string") return value;
-  const rec = asRecord2(value);
-  const text5 = rec?.["#text"];
-  return typeof text5 === "string" ? text5 : void 0;
-}
-function isXmlTrue(value) {
-  return value === "true";
-}
-function intAttr(node2, name) {
-  const raw = attr5(node2, name);
-  if (raw === void 0 || raw === "") return void 0;
-  const n = Number.parseInt(raw, 10);
-  return Number.isFinite(n) ? n : void 0;
-}
-function hrefParam(href, name) {
-  if (href === void 0) return void 0;
-  const q = href.indexOf("?");
-  if (q < 0) return void 0;
-  return new URLSearchParams(href.slice(q + 1)).get(name) ?? void 0;
-}
-var DUMP_DETAIL_PATH_PREFIX = "/sap/bc/adt/runtime/dump/";
-var ADT_SCHEME_RE = /^adt:\/\/[^/]*/;
-function dumpLinkKind(uri) {
-  if (ADT_SCHEME_RE.test(uri)) return "adt-uri";
-  if (/^https?:\/\//i.test(uri)) return "external-url";
-  return "adt-path";
-}
-function stripAdtScheme(uri) {
-  return uri.replace(ADT_SCHEME_RE, "");
-}
-function dumpKeyFromDetailPath(path9) {
-  if (!path9.startsWith(DUMP_DETAIL_PATH_PREFIX)) return void 0;
-  const key = path9.slice(DUMP_DETAIL_PATH_PREFIX.length);
-  return key === "" ? void 0 : key;
-}
-function exceptionFromDoc(doc) {
-  const exc = asRecord2(doc.exception);
-  if (exc === void 0) return void 0;
-  return {
-    namespace: attrOrEmpty(asRecord2(exc.namespace), "id"),
-    type: attrOrEmpty(asRecord2(exc.type), "id"),
-    message: elementText2(exc.message) ?? ""
-  };
-}
-function refuseExceptionEnvelope(doc, what) {
-  const exc = exceptionFromDoc(doc);
-  if (exc === void 0) return;
-  throw new AbapError(
-    "ADT_ERROR",
-    `Expected ${what} but the body is an ADT exception envelope: ${exc.type} \u2014 ${exc.message}`,
-    { exceptionType: exc.type, exceptionNamespace: exc.namespace },
-    "This is a server error body, not a payload. Check the HTTP status of the response the body came from rather than the parse."
-  );
-}
-var CATEGORY_LABEL_RUNTIME_ERROR = "ABAP runtime error";
-var CATEGORY_LABEL_TERMINATED_PROGRAM = "Terminated ABAP program";
-function categoryTerm(categories, label) {
-  for (const raw of asArray4(categories)) {
-    const cat = asRecord2(raw);
-    if (attr5(cat, "label") === label) return attrOrEmpty(cat, "term");
-  }
-  return "";
-}
-function linkHref(links, rel) {
-  for (const raw of asArray4(links)) {
-    const link = asRecord2(raw);
-    if (attr5(link, "rel") === rel) return attr5(link, "href");
-  }
-  return void 0;
-}
-function parseDumpFeed(body) {
-  const doc = dumpsXml.parse(body);
-  refuseExceptionEnvelope(doc, "an ABAP dumps feed");
-  if (!("feed" in doc)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      "Not an Atom feed: no root <atom:feed> element.",
-      { rootElements: Object.keys(doc).filter((k) => k !== "?xml") },
-      "This parser reads /sap/bc/adt/runtime/dumps responses."
-    );
-  }
-  const feed = asRecord2(doc.feed) ?? {};
-  const selfHref = linkHref(feed.link, "self");
-  const nextHref = linkHref(feed.link, "next");
-  const entries = [];
-  for (const raw of asArray4(feed.entry)) {
-    const entry = asRecord2(raw);
-    if (entry === void 0) continue;
-    const detailPath = stripAdtScheme(linkHref(entry.link, "self") ?? "");
-    const key = dumpKeyFromDetailPath(detailPath);
-    if (key === void 0) continue;
-    const alternate = linkHref(entry.link, "alternate");
-    entries.push({
-      key,
-      detailPath,
-      user: elementText2(asRecord2(entry.author)?.name) ?? "",
-      // By @label, never by position: the two categories are order-stable in
-      // the capture but nothing in Atom says they must be.
-      runtimeError: categoryTerm(entry.category, CATEGORY_LABEL_RUNTIME_ERROR),
-      terminatedProgram: categoryTerm(entry.category, CATEGORY_LABEL_TERMINATED_PROGRAM),
-      title: elementText2(entry.title) ?? "",
-      published: elementText2(entry.published) ?? "",
-      updated: elementText2(entry.updated) ?? "",
-      guiPath: elementText2(entry.id) ?? "",
-      ...alternate === void 0 ? {} : { sapGuiUri: alternate }
-      // entry.summary is deliberately not read: ~13 KB of escaped HTML per
-      // entry, 91% of the feed's bytes, and a duplicate of the detail.
-    });
-  }
-  const newest = hrefParam(selfHref, "from");
-  const oldest = hrefParam(nextHref, "to");
-  return {
-    systemId: elementText2(asRecord2(feed.contributor)?.name) ?? "",
-    title: elementText2(feed.title) ?? "",
-    updated: elementText2(feed.updated) ?? "",
-    ...selfHref === void 0 ? {} : { selfHref },
-    ...nextHref === void 0 ? {} : { nextHref },
-    ...newest === void 0 ? {} : { newestTimestamp: newest },
-    ...oldest === void 0 ? {} : { oldestTimestamp: oldest },
-    hasMore: nextHref !== void 0,
-    entries
-  };
-}
-var DUMP_RELATION_PREFIX = "http://www.sap.com/adt/relations/runtime/dump/";
-function relationToken(relation) {
-  return relation.startsWith(DUMP_RELATION_PREFIX) ? relation.slice(DUMP_RELATION_PREFIX.length) : relation;
-}
-function findDumpLink(links, token) {
-  return links.find((l) => l.relationToken === token);
-}
-function parseDumpDetail(body) {
-  const doc = dumpsXml.parse(body);
-  refuseExceptionEnvelope(doc, "an ABAP dump detail");
-  const dump = asRecord2(doc.dump);
-  if (dump === void 0) {
-    throw new AbapError(
-      "BAD_INPUT",
-      "Not an ABAP dump detail: no root <dump:dump> element.",
-      { rootElements: Object.keys(doc).filter((k) => k !== "?xml") },
-      "This parser reads application/vnd.sap.adt.runtime.dump.v1+xml bodies. A text/plain request to the same URL is answered with HTTP 406."
-    );
-  }
-  const links = [];
-  for (const raw of asArray4(asRecord2(dump.links)?.link)) {
-    const node2 = asRecord2(raw);
-    const relation = attrOrEmpty(node2, "relation");
-    const uri = attrOrEmpty(node2, "uri");
-    links.push({
-      relation,
-      relationToken: relationToken(relation),
-      uri,
-      contentType: attrOrEmpty(node2, "contentType"),
-      kind: dumpLinkKind(uri)
-    });
-  }
-  const chapters = [];
-  for (const raw of asArray4(asRecord2(dump.chapters)?.chapter)) {
-    const node2 = asRecord2(raw);
-    const name = attrOrEmpty(node2, "name");
-    const line2 = intAttr(node2, "line");
-    if (line2 === void 0) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `Dump chapter '${name}' has no usable line offset (line=${String(attr5(node2, "line"))}).`,
-        { chapter: name },
-        "The line attribute is the 1-based offset of the chapter's banner in the /formatted body; without it the chapter cannot be located."
-      );
-    }
-    chapters.push({
-      name,
-      title: attrOrEmpty(node2, "title"),
-      category: attrOrEmpty(node2, "category"),
-      line: line2,
-      chapterOrder: intAttr(node2, "chapterOrder") ?? 0,
-      categoryOrder: intAttr(node2, "categoryOrder") ?? 0
-    });
-  }
-  const contents = findDumpLink(links, "contents");
-  const termination = findDumpLink(links, "termination");
-  const target = termination === void 0 ? void 0 : terminationTarget(termination.uri);
-  return {
-    title: attrOrEmpty(dump, "title"),
-    error: attrOrEmpty(dump, "error"),
-    author: attrOrEmpty(dump, "author"),
-    exception: attrOrEmpty(dump, "exception"),
-    terminatedProgram: attrOrEmpty(dump, "terminatedProgram"),
-    serverInstance: attrOrEmpty(dump, "serverInstance"),
-    datetime: attrOrEmpty(dump, "datetime"),
-    systemDate: attrOrEmpty(dump, "systemDate"),
-    systemTime: attrOrEmpty(dump, "systemTime"),
-    links,
-    chapters,
-    ...contents === void 0 ? {} : { formattedPath: stripAdtScheme(contents.uri) },
-    ...target === void 0 ? {} : { termination: target }
-  };
-}
-function terminationTarget(uri) {
-  const path9 = stripAdtScheme(uri);
-  if (path9 === "") return void 0;
-  const hash2 = path9.indexOf("#");
-  if (hash2 < 0) return { path: path9 };
-  const start = new URLSearchParams(path9.slice(hash2 + 1)).get("start");
-  const line2 = start === null ? Number.NaN : Number.parseInt(start, 10);
-  return {
-    path: path9.slice(0, hash2),
-    ...Number.isFinite(line2) ? { line: line2 } : {}
-  };
-}
-var TIER1_CHAPTER_NAMES = ["kap7", "kap8", "kap9", "kap11"];
-var VARIABLES_CHAPTER_NAME = "kap10";
-function dumpChapterExtents(chapters, totalLines) {
-  const sorted = [...chapters].sort((a, b) => a.line - b.line || a.chapterOrder - b.chapterOrder);
-  const clamp2 = (n) => Math.min(Math.max(n, 0), Math.max(totalLines, 0));
-  return sorted.map((chapter, i) => {
-    const next = sorted[i + 1];
-    const start = clamp2(chapter.line - 1);
-    const end = clamp2(next === void 0 ? totalLines : next.line - 1);
-    return { chapter, start, end: Math.max(start, end) };
-  });
-}
-function sliceDumpChapters(chapters, formatted, names) {
-  const wanted = new Set(names);
-  if (wanted.size === 0) return "";
+var SUMMARY_CHAPTER_NAMES = ["kap3", "kap4", "kap7", "kap8", "kap11"];
+var SUMMARY_PROSE_CHARS = { errorAnalysis: 450, howToCorrect: 260 };
+var SUMMARY_STACK_FRAMES = 5;
+var BANNER = /^-{3,}\s*$/;
+var ROW = /^\|(.*)\|\s*$/;
+function chapterLines(detail, formatted, name) {
   const lines = formatted.split("\n");
-  const parts = [];
-  for (const extent of dumpChapterExtents(chapters, lines.length)) {
-    if (!wanted.has(extent.chapter.name)) continue;
-    parts.push(lines.slice(extent.start, extent.end).join("\n"));
-  }
-  return parts.join("\n");
+  const extent = dumpChapterExtents(detail.chapters, lines.length).find((e) => e.chapter.name === name);
+  if (extent === void 0) return void 0;
+  return lines.slice(extent.start, extent.end);
 }
-function operatorRefIds(container) {
-  const ids = [];
-  for (const raw of asArray4(asRecord2(container)?.operator)) {
-    const id = attr5(asRecord2(raw), "id");
-    if (id !== void 0 && id !== "") ids.push(id);
-  }
-  return ids;
+function rowText(line2) {
+  if (BANNER.test(line2)) return void 0;
+  const m = ROW.exec(line2);
+  return m?.[1]?.replace(/\s+$/, "");
 }
-function parseExtendedData(node2) {
-  const intervalNode = asRecord2(asRecord2(node2.refresh)?.interval);
-  const intervalValue = intAttr(intervalNode, "value");
-  const intervalUnit = attr5(intervalNode, "unit");
-  const pageSize = intAttr(asRecord2(node2.paging), "size");
-  const queryDepthText = elementText2(node2.queryDepth);
-  const queryDepth = queryDepthText === void 0 ? Number.NaN : Number.parseInt(queryDepthText, 10);
-  const operators = [];
-  for (const raw of asArray4(asRecord2(node2.operators)?.operator)) {
-    const op = asRecord2(raw);
-    operators.push({
-      id: attrOrEmpty(op, "id"),
-      numberOfOperands: intAttr(op, "numberOfOperands") ?? 0,
-      kind: attrOrEmpty(op, "kind"),
-      label: elementText2(op?.label) ?? ""
-    });
-  }
-  const dataTypes = [];
-  for (const raw of asArray4(asRecord2(node2.dataTypes)?.dataType)) {
-    const dt = asRecord2(raw);
-    dataTypes.push({
-      id: attrOrEmpty(dt, "id"),
-      label: elementText2(dt?.label) ?? "",
-      operatorIds: operatorRefIds(dt?.operators)
-    });
-  }
-  const attributes = [];
-  for (const raw of asArray4(asRecord2(node2.attributes)?.attribute)) {
-    const at = asRecord2(raw);
-    attributes.push({
-      id: attrOrEmpty(at, "id"),
-      dataTypeId: attrOrEmpty(asRecord2(at?.dataType), "id"),
-      label: elementText2(at?.label) ?? "",
-      operatorIds: operatorRefIds(at?.operators)
-    });
-  }
-  const queryVariants = [];
-  for (const raw of asArray4(asRecord2(node2.queryVariants)?.queryVariant)) {
-    const qv = asRecord2(raw);
-    queryVariants.push({
-      queryString: attrOrEmpty(qv, "queryString"),
-      title: attrOrEmpty(qv, "title"),
-      isDefault: isXmlTrue(attr5(qv, "isDefault"))
-    });
-  }
-  return {
-    ...intervalValue === void 0 ? {} : { refresh: { value: intervalValue, unit: intervalUnit ?? "" } },
-    ...pageSize === void 0 ? {} : { pageSize },
-    notificationEnabled: isXmlTrue(attr5(asRecord2(node2.notification), "isEnabled")),
-    operators,
-    dataTypes,
-    attributes,
-    queryIsObligatory: isXmlTrue(elementText2(node2.queryIsObligatory)),
-    ...Number.isFinite(queryDepth) ? { queryDepth } : {},
-    queryVariants
-  };
-}
-function parseFeedsCatalog(body) {
-  const doc = dumpsXml.parse(body);
-  refuseExceptionEnvelope(doc, "the ADT feeds catalog");
-  const feed = asRecord2(doc.feed) ?? {};
-  const entries = [];
-  for (const raw of asArray4(feed.entry)) {
-    const entry = asRecord2(raw);
-    if (entry === void 0) continue;
-    const contentSrc = attr5(asRecord2(entry.content), "src");
-    const alternateHref = linkHref(entry.link, "alternate");
-    const ed = asRecord2(entry.extendedData);
-    entries.push({
-      id: elementText2(entry.id) ?? "",
-      title: elementText2(entry.title) ?? "",
-      ...contentSrc === void 0 ? {} : { contentSrc },
-      ...alternateHref === void 0 ? {} : { alternateHref },
-      published: elementText2(entry.published) ?? "",
-      updated: elementText2(entry.updated) ?? "",
-      ...ed === void 0 ? {} : { extendedData: parseExtendedData(ed) }
-    });
-  }
-  return {
-    systemId: elementText2(asRecord2(feed.contributor)?.name) ?? "",
-    title: elementText2(feed.title) ?? "",
-    updated: elementText2(feed.updated) ?? "",
-    entries
-  };
-}
-function findDumpsFeedEntry(catalog) {
-  return catalog.entries.find((e) => e.id === DUMPS_FEED_PATH || e.contentSrc === DUMPS_FEED_PATH);
-}
-
-// src/adt/dumps.ts
-init_errors();
-init_session();
-var FEEDS_CATALOG_PATH = "/sap/bc/adt/feeds";
-var FEEDS_CATALOG_ACCEPT = "application/xml, application/atom+xml, application/atomsvc+xml, */*";
-var DUMPS_FEED_ACCEPT = "*/*";
-var DUMP_DETAIL_ACCEPT = "application/vnd.sap.adt.runtime.dump.v1+xml";
-var DUMP_FORMATTED_ACCEPT = "text/plain";
-var FORMATTED_SUFFIX = "/formatted";
-var FORMATTED_RELATION_TOKEN = "contents";
-var BAD_DUMP_KEY = /%25|[?#/\\]|\s/;
-function assertVerbatimDumpKey(key) {
-  if (typeof key !== "string" || key.trim() === "") {
-    throw new AbapError(
-      "BAD_INPUT",
-      "A dump key is required.",
-      { dumpKey: String(key) },
-      'Take the key from a dump list entry \u2014 it is the `rel="self"` link of the Atom entry with the `adt://{SID}` prefix stripped, and nothing else.'
-    );
-  }
-  if (BAD_DUMP_KEY.test(key)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      "This dump key has been altered and will not resolve; refusing to send it.",
-      { dumpKey: key },
-      "The key is an opaque fixed-width token that arrives ALREADY percent-encoded \u2014 its `%20` runs are the space padding of a 70-character structure. Pass it through byte for byte. Do not URL-encode it (that turns `%20` into `%2520`, a captured 404), do not decode it, do not trim it, and do not rebuild it from its fields: all four mutations were captured as 404."
-    );
-  }
-  return key;
-}
-function dumpDetailPath(key) {
-  return `${DUMP_DETAIL_PATH_PREFIX}${assertVerbatimDumpKey(key)}`;
-}
-function dumpFormattedPath(key) {
-  return `${dumpDetailPath(key)}${FORMATTED_SUFFIX}`;
-}
-function classifyDumpFailure(e, ctx) {
-  const err = translateAdtError(e, ctx);
-  const status = typeof err.details.status === "number" ? err.details.status : void 0;
-  const key = ctx.dumpKey;
-  if (err.code === "NOT_FOUND" && key !== void 0) {
-    return new AbapError(
-      "NOT_FOUND",
-      `No dump with this key exists on the system (HTTP 404 from ${ctx.uri ?? "the dump resource"}).`,
-      { ...err.details, dumpKey: key },
-      `Two causes, in order of likelihood. (1) The key was altered in transit: it must be the feed entry's \`rel="self"\` value with the \`adt://{SID}\` prefix stripped and NOTHING else done to it \u2014 encoding, decoding and trimming were each captured as a 404. (2) The dump has left the ${DUMPS_RESIDENCE_WINDOW_DAYS}-day ADT residence window. List the dumps again and use a key from that answer.`
-    );
-  }
-  if (err.code !== "ADT_ERROR") return err;
-  if (status === 406) {
-    return new AbapError(
-      "ADT_ERROR",
-      `The dump resource does not offer the representation that was requested (HTTP 406).`,
-      { ...err.details, ...key === void 0 ? {} : { dumpKey: key } },
-      `This is a client bug, not a server or authorisation problem: each dump representation has its own resource and its own Accept. The detail document is '${DUMP_DETAIL_ACCEPT}' on the base resource; plain text is the '/formatted' SUB-RESOURCE, not a content-type of the base \u2014 asking the base for text/plain is a captured 406.`
-    );
-  }
-  if (status === 400) {
-    return new AbapError(
-      "BAD_INPUT",
-      `The server rejected this dumps request (HTTP 400) without saying why.`,
-      { ...err.details, ...key === void 0 ? {} : { dumpKey: key } },
-      `This endpoint answers an unknown attribute, a syntax error, a missing and(\u2026)/or(\u2026) wrapper and excess nesting with the SAME 372-byte ExceptionInvalidData body, so the status carries no diagnosis. Re-check the filter against the served contract from ${FEEDS_CATALOG_PATH}. Note that most bad parameters are NOT reported at all \u2014 they come back as 200 with the complete unfiltered feed \u2014 so a 400 means the query string itself, or a non-numeric $top.`
-    );
-  }
-  if (status === 401 || status === 403) {
-    return new AbapError(
-      "AUTH_FAILED",
-      `Not authorised (HTTP ${status}) to read runtime-error dumps.`,
-      { ...err.details, ...key === void 0 ? {} : { dumpKey: key } },
-      "The logon succeeded; this user lacks the ST22 display authorisation (typically S_ADMI_FCD / S_DEVELOP). Nothing about the key or the filter is in question \u2014 do not retry with a different one."
-    );
-  }
-  return err;
-}
-var capabilityCache = /* @__PURE__ */ new WeakMap();
-async function fetchFeedsCatalog(conn) {
-  const ctx = { operation: "dumps.feedsCatalog", uri: FEEDS_CATALOG_PATH };
-  let body;
-  try {
-    ({ body } = await conn.get(FEEDS_CATALOG_PATH, { headers: { Accept: FEEDS_CATALOG_ACCEPT } }));
-  } catch (e) {
-    throw classifyDumpFailure(e, ctx);
-  }
-  return parseFeedsCatalog(body);
-}
-async function probeDumpsFeed(conn) {
-  const cached2 = capabilityCache.get(conn);
-  if (cached2 !== void 0) return cached2;
-  let catalog;
-  try {
-    catalog = await fetchFeedsCatalog(conn);
-  } catch (e) {
-    return {
-      state: "unknown",
-      reason: `Could not read the feed catalog at ${FEEDS_CATALOG_PATH}: ${e instanceof Error ? e.message : String(e)}. This says nothing about whether the dumps feed exists, so the request proceeds.`
-    };
-  }
-  const entry = findDumpsFeedEntry(catalog);
-  if (entry === void 0) {
-    const verdict2 = {
-      state: "unsupported",
-      reason: `${FEEDS_CATALOG_PATH} was read successfully on ${catalog.systemId || "this system"} and lists ${catalog.entries.length} feed(s), none of them ${DUMPS_FEED_PATH}. The runtime-error feed is not served here.`
-    };
-    capabilityCache.set(conn, verdict2);
-    return verdict2;
-  }
-  const ed = entry.extendedData;
-  const verdict = {
-    state: "supported",
-    reason: `${FEEDS_CATALOG_PATH} lists ${DUMPS_FEED_PATH}${entry.title ? ` ("${entry.title}")` : ""}.`,
-    entry,
-    ...ed === void 0 ? {} : {
-      contract: toDumpsQueryContract(ed),
-      ...ed.pageSize === void 0 ? {} : { pageSize: ed.pageSize },
-      ...ed.refresh === void 0 ? {} : { refresh: ed.refresh }
+function cleanProse(lines, title) {
+  const out = [];
+  let titleSeen = false;
+  for (const line2 of lines) {
+    const text5 = rowText(line2);
+    if (text5 === void 0) continue;
+    const trimmed = text5.trim();
+    if (!titleSeen) {
+      titleSeen = true;
+      if (trimmed === title.trim()) continue;
     }
-  };
-  capabilityCache.set(conn, verdict);
-  return verdict;
-}
-function assertDumpsSupported(capability) {
-  if (capability.state !== "unsupported") return;
-  throw new AbapError(
-    "UNSUPPORTED",
-    `This system does not serve ABAP runtime-error dumps over ADT. ${capability.reason}`,
-    { state: capability.state, catalog: FEEDS_CATALOG_PATH, feed: DUMPS_FEED_PATH },
-    `The verdict comes from ${FEEDS_CATALOG_PATH} (the Feed Repository catalog), which was read successfully and does not list the feed \u2014 it is not a guess from a 404 and not from /sap/bc/adt/discovery, which never lists this feed even where it works. Read the dump in SAP GUI transaction ST22 instead.`
-  );
-}
-async function resolveDumpsContract(conn) {
-  const capability = await probeDumpsFeed(conn);
-  if (capability.contract !== void 0) {
-    return { contract: capability.contract, source: "served", capability };
-  }
-  return { contract: DUMPS_CONTRACT_AS_CAPTURED, source: "as-captured", capability };
-}
-function emptyDumpsReason(windowStart, filtered) {
-  const base = `No dumps in the last ${DUMPS_RESIDENCE_WINDOW_DAYS} days matching this filter. ADT can only see runtime errors recorded since about ${windowStart} \u2014 the ${DUMPS_RESIDENCE_WINDOW_DAYS}-day SNAP residence window (C_SNAP_ADT_RESIDENCE_DAYS = ${DUMPS_RESIDENCE_WINDOW_DAYS}) is applied server-side and a 'from' bound cannot widen it, so an older dump can still exist in transaction ST22 and be absent here.`;
-  return filtered ? `${base} Widening or dropping the filter may find dumps inside the window.` : `${base} No filter was applied, so this system recorded no runtime errors at all in that window.`;
-}
-function isFiltered(request) {
-  return request.$query !== void 0 || request.from !== void 0 || request.to !== void 0;
-}
-async function getFeed(conn, url2, ctx) {
-  let body;
-  try {
-    ({ body } = await conn.get(url2, { headers: { Accept: DUMPS_FEED_ACCEPT } }));
-  } catch (e) {
-    throw classifyDumpFailure(e, ctx);
-  }
-  return parseDumpFeed(body);
-}
-function toPage(feed, url2, notes, windowStart, filtered, contractSource, capability) {
-  return {
-    entries: feed.entries,
-    systemId: feed.systemId,
-    hasMore: feed.hasMore,
-    ...feed.nextHref === void 0 ? {} : { nextHref: feed.nextHref },
-    url: url2,
-    notes,
-    residenceWindowStart: windowStart,
-    ...feed.entries.length === 0 ? { emptyReason: emptyDumpsReason(windowStart, filtered) } : {},
-    contractSource,
-    ...capability === void 0 ? {} : { capability }
-  };
-}
-async function listDumps(conn, request = {}, options = {}) {
-  const now = options.now ?? /* @__PURE__ */ new Date();
-  const probe3 = options.probe !== false;
-  let contract = options.contract;
-  let contractSource = contract === void 0 ? "as-captured" : "served";
-  let capability;
-  const notes = [];
-  if (contract === void 0 && probe3) {
-    const resolved = await resolveDumpsContract(conn);
-    assertDumpsSupported(resolved.capability);
-    contract = resolved.contract;
-    contractSource = resolved.source;
-    capability = resolved.capability;
-    if (resolved.capability.state === "unknown") {
-      notes.push(
-        `The dumps feed could not be confirmed from ${FEEDS_CATALOG_PATH}, so this request was sent anyway rather than refused. ${resolved.capability.reason}`
-      );
+    if (trimmed === "") {
+      if (out.length > 0 && out[out.length - 1] !== "") out.push("");
+      continue;
     }
-    if (resolved.source === "as-captured") {
-      notes.push(
-        `${FEEDS_CATALOG_PATH} served no filter contract for this feed, so the filter was validated against the contract captured from another system. A filter this client accepts may still be refused by the server with an opaque 400.`
-      );
+    const continuation = /^\s{5,}\S/.test(text5) && out.length > 0 && out[out.length - 1] !== "";
+    if (continuation) {
+      out[out.length - 1] = `${out[out.length - 1]} ${trimmed}`;
+    } else {
+      out.push(trimmed);
     }
   }
-  const built = buildDumpsFeedUrl(request, { contract: contract ?? DUMPS_CONTRACT_AS_CAPTURED, now });
-  notes.push(...built.notes);
-  const feed = await getFeed(conn, built.url, {
-    operation: "dumps.list",
-    uri: built.url
-  });
-  return toPage(
-    feed,
-    built.url,
-    notes,
-    built.residenceWindowStart,
-    isFiltered(request),
-    contractSource,
-    capability
-  );
+  while (out.length > 0 && out[out.length - 1] === "") out.pop();
+  return out;
 }
-async function fetchDumpDetail(conn, key) {
-  const uri = dumpDetailPath(key);
-  let body;
-  try {
-    ({ body } = await conn.get(uri, { headers: { Accept: DUMP_DETAIL_ACCEPT } }));
-  } catch (e) {
-    throw classifyDumpFailure(e, { operation: "dumps.detail", uri, dumpKey: key });
+var CORRECTION_BOILERPLATE = /^(If the error occurs in a non-mod|If you cannot solve the problem yourself|If the error occurr?ed in one of your own)/i;
+var ANALYSIS_NOISE = /^(An exception has occurred in class "[^"]*"\. This exception was not caught|in procedure "[^"]*" "\(\w+\)" or propagated by a RAISING clause\.|Since the caller of the procedure could not have anticipated.*|exception, the current program was terminated\.|The reason for the exception (occurring was|is):)$/;
+function prose(lines, title, options) {
+  if (lines === void 0) return { lines: [], omitted: 0, boilerplateCut: false };
+  let cleaned = cleanProse(lines, title);
+  let boilerplateCut = false;
+  if (options.cutAt !== void 0) {
+    const at = cleaned.findIndex((l) => options.cutAt?.test(l));
+    if (at >= 0) {
+      cleaned = cleaned.slice(0, at);
+      boilerplateCut = true;
+    }
   }
-  return parseDumpDetail(body);
+  if (options.drop !== void 0) cleaned = cleaned.filter((l) => !options.drop?.test(l));
+  cleaned = collapseBlanks(cleaned);
+  const kept = [];
+  let used = 0;
+  for (const line2 of cleaned) {
+    if (kept.length > 0 && used + line2.length + 1 > options.maxChars) break;
+    kept.push(line2);
+    used += line2.length + 1;
+  }
+  while (kept.length > 0 && kept[kept.length - 1] === "") kept.pop();
+  return { lines: kept, omitted: cleaned.length - kept.length, boilerplateCut };
 }
-async function fetchDumpFormatted(conn, target) {
-  const { uri, key } = formattedTarget(target);
-  try {
-    const { body } = await conn.get(uri, { headers: { Accept: DUMP_FORMATTED_ACCEPT } });
-    return body;
-  } catch (e) {
-    throw classifyDumpFailure(e, {
-      operation: "dumps.formatted",
-      uri,
-      ...key === void 0 ? {} : { dumpKey: key }
-    });
+function collapseBlanks(lines) {
+  const out = [];
+  for (const line2 of lines) {
+    if (line2 === "" && (out.length === 0 || out[out.length - 1] === "")) continue;
+    out.push(line2);
   }
+  while (out.length > 0 && out[out.length - 1] === "") out.pop();
+  return out;
 }
-function formattedTarget(target) {
-  if (typeof target === "string") return { uri: dumpFormattedPath(target), key: target };
-  const link = target.links.find((l) => l.relationToken === FORMATTED_RELATION_TOKEN);
-  const path9 = target.formattedPath ?? link?.uri;
-  if (path9 === void 0) {
-    throw new AbapError(
-      "NOT_FOUND",
-      "This dump detail advertises no plain-text rendering.",
-      { error: target.error, links: target.links.map((l) => l.relationToken) },
-      `The '/formatted' body is reached through the '${FORMATTED_RELATION_TOKEN}' relation of the detail document. A detail without it is a shape this client has never been shown; fetch the dump by key instead, which appends the sub-resource directly.`
-    );
+var TERMINATION_POINT = /termination point is in line (\d+) of (?:include|program)\s+"([^"]+)"/i;
+var IN_PROCEDURE = /in procedure "([^"]+)"\s+"\((\w+)\)"/i;
+var MARKED_ROW = /^\|>{2,}\|(.*)\|\s*$/;
+function parseSourceLine(detail, whereTerminated, sourceExtract) {
+  const out = {};
+  if (whereTerminated !== void 0) {
+    const text5 = cleanProse(whereTerminated, "").join(" ");
+    const at = TERMINATION_POINT.exec(text5);
+    if (at?.[1] !== void 0 && at[2] !== void 0) {
+      out.line = Number(at[1]);
+      out.include = at[2];
+    }
+    const proc = IN_PROCEDURE.exec(text5);
+    if (proc?.[1] !== void 0) {
+      out.procedure = proc[1];
+      if (proc[2] !== void 0) out.procedureKind = proc[2];
+    }
   }
-  if (link !== void 0 && link.kind !== "adt-path") {
-    throw new AbapError(
-      "BAD_INPUT",
-      "The dump's plain-text link is not a server-relative ADT path; refusing to follow it.",
-      { uri: link.uri, kind: link.kind },
-      "This resource advertises absolute links (an internal https://host:port URL among them) that are not reachable or trustworthy from this client. Only server-relative paths are followed."
-    );
+  if (out.line === void 0 && detail.termination?.line !== void 0) out.line = detail.termination.line;
+  if (sourceExtract !== void 0) {
+    for (const line2 of sourceExtract) {
+      const m = MARKED_ROW.exec(line2);
+      if (m?.[1] !== void 0) {
+        const statement = m[1].trim();
+        if (statement !== "") out.statement = statement;
+        break;
+      }
+    }
   }
-  return { uri: path9 };
+  return out;
 }
-function selectDumpChapters(detail, formatted, names = TIER1_CHAPTER_NAMES) {
-  const requested = [...names];
+var FRAME_ROW = /^\|\s*(\d+)\s+([A-Z]+(?:\s\([A-Z]+\))?)\s+(\S+)\s+(\S+)\s+(\d+)\s*\|\s*$/;
+var NAME_ROW = /^\|\s{4,}(\S.*?)\s*\|\s*$/;
+function parseStackFrames(lines) {
+  if (lines === void 0) return [];
+  const frames = [];
+  let pending;
+  for (const line2 of lines) {
+    const frame = FRAME_ROW.exec(line2);
+    if (frame !== null) {
+      pending = {
+        no: Number(frame[1]),
+        kind: frame[2] ?? "",
+        program: frame[3] ?? "",
+        include: frame[4] ?? "",
+        line: Number(frame[5]),
+        name: ""
+      };
+      frames.push(pending);
+      continue;
+    }
+    if (pending !== void 0) {
+      const name = NAME_ROW.exec(line2);
+      if (name?.[1] !== void 0) pending.name = name[1];
+      pending = void 0;
+    }
+  }
+  return frames;
+}
+function summariseDump(detail, formatted) {
   const have = new Set(detail.chapters.map((c) => c.name));
-  const present = requested.filter((n) => have.has(n));
-  const missing = requested.filter((n) => !have.has(n));
+  const titleOf = (name) => detail.chapters.find((c) => c.name === name)?.title ?? "";
+  const get = (name) => chapterLines(detail, formatted, name);
+  const analysis = get("kap3");
+  const correct = get("kap4");
+  const where2 = get("kap7");
+  const extract = get("kap8");
+  const calls = get("kap11");
   return {
-    detail,
-    text: sliceDumpChapters(detail.chapters, formatted, present),
-    requested,
-    present,
-    missing,
-    totalLines: formatted === "" ? 0 : formatted.split("\n").length,
-    includesVariables: present.includes(VARIABLES_CHAPTER_NAME)
+    shortText: detail.title,
+    errorAnalysis: prose(analysis, titleOf("kap3"), {
+      maxChars: SUMMARY_PROSE_CHARS.errorAnalysis,
+      drop: ANALYSIS_NOISE
+    }),
+    howToCorrect: prose(correct, titleOf("kap4"), {
+      maxChars: SUMMARY_PROSE_CHARS.howToCorrect,
+      cutAt: CORRECTION_BOILERPLATE
+    }),
+    source: parseSourceLine(detail, where2, extract),
+    stack: parseStackFrames(calls),
+    chapters: [...detail.chapters].sort((a, b) => a.chapterOrder - b.chapterOrder),
+    missing: SUMMARY_CHAPTER_NAMES.filter((n) => !have.has(n))
   };
 }
 
@@ -153984,8 +154317,16 @@ function tier1Shape() {
       "list: newest dump to include, YYYYMMDDHHMMSS. No page cursor exists; to page backwards, set to= the oldest timestamp already seen."
     ),
     max: external_exports.number().int().min(1).max(100).optional().describe(`list: rows to request (default ${DEFAULT_MAX_ROWS}).`),
+    // A string, not a z.enum: the SDK would answer an unknown value with a
+    // protocol error, and section:"variables" on a server that never offered
+    // it must land in the same DUMP_VARIABLES_DISABLED refusal as chapters:"kap10".
+    // parseSection() validates at the handler. Tier 1 does not name the
+    // variables section: no parameter text may offer what the operator did not enable.
+    section: external_exports.string().optional().describe(
+      'show: which chapter text to return instead of the default summary. "analysis" = short text, error analysis, how to correct, exception chain; "source" = where terminated + source extract; "stack" = call stack; "environment" = system/user/session fields; "all" = the full default set (where terminated, source extract, system fields, call stack). Alternative to chapters.'
+    ),
     chapters: external_exports.string().optional().describe(
-      'show: comma-separated chapter NAMES, e.g. "kap7,kap8,kap11" \u2014 names, never the titles, which are translated. Default: where terminated, source extract, system fields, call stack. Every chapter this dump has is listed in the response.'
+      'show: comma-separated chapter NAMES, e.g. "kap7,kap8,kap11" \u2014 names, never the titles, which are translated. Alternative to section. Without either, show returns a summary; every chapter this dump has is listed in the response.'
     ),
     offset: external_exports.number().int().min(1).max(999999).optional().describe("show: 1-based first line of the returned chapter text.")
   };
@@ -153994,6 +154335,10 @@ function tier2Shape() {
   return {
     variables: external_exports.boolean().optional().describe(
       "show: also return Selected Variables \u2014 the live values of locals and internal tables at termination. Real business data, permanently, in this transcript. Page it with offset."
+    ),
+    // The same field as tier 1's, re-described: only here may "variables" be named.
+    section: external_exports.string().optional().describe(
+      'show: which chapter text to return instead of the default summary. "analysis" = short text, error analysis, how to correct, exception chain; "source" = where terminated + source extract; "stack" = call stack; "environment" = system/user/session fields; "variables" = Selected Variables (kap10, same data and same cost as variables:true); "all" = the full default set (where terminated, source extract, system fields, call stack). Alternative to chapters.'
     )
   };
 }
@@ -154006,7 +154351,7 @@ function dumpsInputSchema(options = {}) {
 var DumpsInput = external_exports.object({ ...tier1Shape(), ...tier2Shape() });
 var ok18 = (text5) => ({ content: [{ type: "text", text: text5 }] });
 var LIST_ONLY = ["query", "from", "to", "max"];
-var SHOW_ONLY = ["key", "chapters", "offset", "variables"];
+var SHOW_ONLY = ["key", "section", "chapters", "offset", "variables"];
 var KNOWN_KEYS = new Set(Object.keys(DumpsInput.shape));
 function rejectUnknownArgs(a) {
   const unknown2 = Object.keys(a).filter((k) => !KNOWN_KEYS.has(k));
@@ -154031,6 +154376,16 @@ function rejectCrossModeArgs(a, mode) {
 function parseChapterNames(raw) {
   if (raw === void 0) return [];
   return raw.split(",").map((n) => n.trim()).filter((n) => n.length > 0);
+}
+function parseSection(raw) {
+  if (raw === void 0) return void 0;
+  if (isDumpSection(raw)) return raw;
+  throw new AbapError(
+    "BAD_INPUT",
+    `section must be one of ${DUMP_SECTIONS.join(", ")}; got ${JSON.stringify(raw)}.`,
+    { section: raw },
+    'Pick a section, or select chapters by name with chapters:"kap7,kap8". Without either, show returns the summary.'
+  );
 }
 function wantsVariables(names, variables) {
   return variables === true || names.some((n) => n.toLowerCase() === VARIABLES_CHAPTER_NAME);
@@ -154098,7 +154453,7 @@ function chapterIndex(detail, hide) {
   return rows.length ? textTable(rows, ["name", "line", "title", "category"]) : "";
 }
 function renderDumpShow(input) {
-  const { selection, formattedChars, offset, maxChars, variablesAllowed } = input;
+  const { selection, formattedChars, offset, maxChars, variablesAllowed, view } = input;
   const detail = selection.detail;
   const hasVariablesChapter = detail.chapters.some((c) => c.name === VARIABLES_CHAPTER_NAME);
   const hidden = variablesAllowed ? [] : [VARIABLES_CHAPTER_NAME];
@@ -154127,6 +154482,7 @@ function renderDumpShow(input) {
   return buildResponse({
     header: {
       mode: "show",
+      view: view ?? "all",
       error: detail.error,
       exception: detail.exception,
       program: detail.terminatedProgram,
@@ -154151,6 +154507,72 @@ function renderDumpShow(input) {
     maxChars
   });
 }
+var DUMP_SUMMARY_MAX_CHARS = 3e3;
+function proseBlock(p, section) {
+  const lines = [...p.lines];
+  if (p.omitted > 0) lines.push(`(${p.omitted} more line(s): section:"${section}")`);
+  else if (p.boilerplateCut) lines.push(`(SAP support boilerplate cut: section:"${section}" has it)`);
+  return lines.join("\n");
+}
+function sourceLineText(source, detail) {
+  const where2 = source.include === void 0 ? `${detail.terminatedProgram || "(unknown program)"}${source.line === void 0 ? "" : ` line ${source.line}`}` : `include ${source.include}${source.line === void 0 ? "" : ` line ${source.line}`}`;
+  const proc = source.procedure === void 0 ? "" : ` in ${source.procedure}${source.procedureKind ? ` (${source.procedureKind})` : ""}`;
+  const statement = source.statement === void 0 ? '(failing statement not found in the source extract \u2014 section:"source")' : `statement: ${source.statement}`;
+  return `${where2}${proc}
+${statement}`;
+}
+function renderDumpSummary(input) {
+  const { detail, summary, maxChars, variablesAllowed } = input;
+  const hasVariablesChapter = detail.chapters.some((c) => c.name === VARIABLES_CHAPTER_NAME);
+  const sections = [];
+  sections.push({ title: "SHORT TEXT", content: summary.shortText || "(none)" });
+  sections.push({ title: "SOURCE LINE (kap7, kap8)", content: sourceLineText(summary.source, detail) });
+  if (summary.errorAnalysis.lines.length > 0) {
+    sections.push({ title: "ERROR ANALYSIS (kap3)", content: proseBlock(summary.errorAnalysis, "analysis") });
+  }
+  if (summary.howToCorrect.lines.length > 0) {
+    sections.push({ title: "HOW TO CORRECT (kap4)", content: proseBlock(summary.howToCorrect, "analysis") });
+  }
+  const frames = summary.stack.slice(0, SUMMARY_STACK_FRAMES);
+  const stack = frames.map((f) => `#${f.no} ${f.kind} ${f.name || "(unnamed)"} \u2014 ${f.include} line ${f.line}`).join("\n");
+  const notes = [];
+  if (detail.termination) {
+    const at = detail.termination.line === void 0 ? "" : `#start=${detail.termination.line}`;
+    notes.push(`Terminated program: read it with abap_read object:"${detail.termination.path}${at}".`);
+  }
+  if (summary.missing.length > 0) {
+    notes.push(
+      `Chapter(s) this summary reads but the dump lacks: ${summary.missing.join(", ")} \u2014 the matching parts above are empty, not hidden.`
+    );
+  }
+  const index = summary.chapters.map((c) => `${c.name} ${c.title}${c.name === VARIABLES_CHAPTER_NAME && !variablesAllowed ? " (not enabled here)" : ""}`).join(", ");
+  notes.push(`Chapters in this dump (select by name): ${index || "(none)"}.`);
+  notes.push(
+    'Summary view. Chapter text verbatim: section:"analysis"|"source"|"stack"|"environment"' + (variablesAllowed ? '|"variables"' : "") + '|"all" (all = the tier-1 set), or chapters:"kap7,kap8".'
+  );
+  if (!variablesAllowed && hasVariablesChapter) {
+    notes.push(
+      `Chapter ${VARIABLES_CHAPTER_NAME} (Selected Variables) exists in this dump and is NOT available on this server: not enabled by the operator. Not a fault, not something to work around.`
+    );
+  }
+  return buildResponse({
+    header: {
+      mode: "show",
+      view: "summary",
+      error: detail.error,
+      exception: detail.exception,
+      program: detail.terminatedProgram,
+      user: detail.author,
+      when: detail.datetime,
+      instance: detail.serverInstance
+    },
+    sections,
+    body: stack || '(no call stack parsed \u2014 section:"stack" returns kap11 as printed)',
+    bodyLabel: `CALL STACK (top ${frames.length} of ${summary.stack.length} frames, innermost first` + (summary.stack.length > frames.length ? '; section:"stack" for all)' : ")"),
+    notes,
+    maxChars: Math.min(maxChars, DUMP_SUMMARY_MAX_CHARS)
+  });
+}
 function registerDumpTools(mcp, deps) {
   const audit = deps.log ?? ((m) => void process.stderr.write(m + "\n"));
   const variablesAllowed = deps.registerVariables === true;
@@ -154158,7 +154580,7 @@ function registerDumpTools(mcp, deps) {
     "abap_dumps",
     {
       title: "Read ABAP runtime errors (ST22 short dumps)",
-      description: `Read ABAP runtime errors (ST22 short dumps) from the system's dump repository \u2014 not the exception text of a run this server just triggered. mode=list filters the dump feed; mode=show returns one dump, chapter by chapter. The feed reaches back ${DUMPS_RESIDENCE_WINDOW_DAYS} DAYS ONLY: an empty list means "no dumps in the last ${DUMPS_RESIDENCE_WINDOW_DAYS} days matching this filter", never "nothing failed". Copy key from a list row VERBATIM. show returns the header, source extract, system fields and call stack, and nothing else unless the operator enabled more.`,
+      description: `Read ABAP runtime errors (ST22 short dumps) from the system's dump repository \u2014 not the exception text of a run this server just triggered. mode=list filters the dump feed; mode=show returns one dump, chapter by chapter. The feed reaches back ${DUMPS_RESIDENCE_WINDOW_DAYS} DAYS ONLY: an empty list means "no dumps in the last ${DUMPS_RESIDENCE_WINDOW_DAYS} days matching this filter", never "nothing failed". Copy key from a list row VERBATIM. show returns a summary (exception, short text, error analysis, how to correct, source line, top of the call stack, chapter index); section or chapters returns chapter text \u2014 where terminated, source extract, system fields, call stack, and nothing else unless the operator enabled more.`,
       inputSchema: dumpsInputSchema({ variables: variablesAllowed }),
       annotations: {
         readOnlyHint: true,
@@ -154203,16 +154625,48 @@ function registerDumpTools(mcp, deps) {
             'Call mode:"list" first and copy the key column of a row VERBATIM \u2014 do not trim, re-encode or rebuild it from the timestamp and user, each of which 404s.'
           );
         }
+        const section = parseSection(a.section);
         const requested = parseChapterNames(a.chapters);
-        const askedForVariables = wantsVariables(requested, a.variables);
+        if (section !== void 0 && requested.length > 0) {
+          throw new AbapError(
+            "BAD_INPUT",
+            "section and chapters are alternatives; pass one of them.",
+            { section, chapters: a.chapters },
+            "section names a preset of chapters, chapters names them one by one. Neither was applied."
+          );
+        }
+        const askedForVariables = section === "variables" || wantsVariables(requested, a.variables);
         if (askedForVariables) deps.safety.assertDumpVariables();
-        const base = requested.length > 0 ? requested : [...TIER1_CHAPTER_NAMES];
+        const summaryView = section === void 0 && requested.length === 0 && !askedForVariables;
+        if (summaryView && a.offset !== void 0) {
+          throw new AbapError(
+            "BAD_INPUT",
+            "offset pages chapter text, and the summary has none.",
+            { offset: a.offset },
+            'Pass section (e.g. section:"source") or chapters together with offset.'
+          );
+        }
+        const base = section !== void 0 ? sectionChapterNames(section) : requested.length > 0 ? requested : [...TIER1_CHAPTER_NAMES];
         const wanted = askedForVariables ? [...base, VARIABLES_CHAPTER_NAME] : base;
         const fetched = await deps.pool.withRead("abap_dumps", async (conn) => {
           const detail = await fetchDumpDetail(conn, a.key);
           const formatted = await fetchDumpFormatted(conn, detail);
           return { detail, formatted };
         });
+        if (summaryView) {
+          const summary = summariseDump(fetched.detail, fetched.formatted);
+          audit(
+            `[abapsmith] audit: abap_dumps mode=show error=${fetched.detail.error} program=${fetched.detail.terminatedProgram} chapters=summary variables=false`
+          );
+          return ok18(
+            renderDumpSummary({
+              detail: fetched.detail,
+              summary,
+              maxChars: deps.cfg.maxResponseChars,
+              variablesAllowed
+            }).text
+          );
+        }
         const names = dedupe(resolveChapterNames(wanted, fetched.detail));
         const selection = selectDumpChapters(fetched.detail, fetched.formatted, names);
         if (selection.includesVariables) deps.safety.assertDumpVariables();
@@ -154225,7 +154679,8 @@ function registerDumpTools(mcp, deps) {
             formattedChars: fetched.formatted.length,
             offset: a.offset ?? 1,
             maxChars: deps.cfg.maxResponseChars,
-            variablesAllowed
+            variablesAllowed,
+            view: section ?? (requested.length > 0 ? "chapters" : "all")
           }).text
         );
       } catch (e) {

@@ -48,6 +48,13 @@ import { activateObject, assertNoErrors, type ActivationOutcome } from "./activa
 // to a caller matches what the dumps tool accepts. Acyclic (verified: chain
 // dumps-query -> dumps-xml -> errors never reaches run.js) — re-check before widening.
 import { buildFqlQuery, isValidTimestamp14, timestamp14, DUMPS_FEED_PATH } from "./dumps-query.js";
+import { isTimeoutError } from "./source.js";
+import {
+  classPoolName,
+  findRecentDump,
+  RECENT_DUMP_LOOKBACK_SECONDS,
+  type RecentDumpLookup,
+} from "./run-dump-lookup.js";
 import { abapLiteral } from "./enhancement-templates.js";
 import {
   marshalSelectionTable,
@@ -117,9 +124,20 @@ const DUMP_CORRELATION_SLACK_SECONDS = 2;
  * @param serverTime `parseDumpPage().serverTime`, or `undefined`.
  * @param user the logon user (`conn.cfg.user`), or `undefined`.
  */
+export interface DumpCorrelationOptions {
+  /**
+   * Widen the window backwards by this many seconds, on top of the ±2 s
+   * slack: `from = at − lookback − 2 s`, `to = at + 2 s`. Used when `at` is
+   * not the dump's own server time but the moment a run was given up on
+   * (issue #149) — the dump happened some time before that.
+   */
+  lookbackSeconds?: number;
+}
+
 export function buildDumpCorrelation(
   serverTime: string | undefined,
   user: string | undefined,
+  options: DumpCorrelationOptions = {},
 ): DumpCorrelation | undefined {
   if (!serverTime) return undefined;
 
@@ -138,7 +156,8 @@ export function buildDumpCorrelation(
     Number(digits.slice(12, 14)),
   );
   const slack = DUMP_CORRELATION_SLACK_SECONDS * 1_000;
-  const from = timestamp14(new Date(at - slack));
+  const lookback = Math.max(0, options.lookbackSeconds ?? 0) * 1_000;
+  const from = timestamp14(new Date(at - lookback - slack));
   const to = timestamp14(new Date(at + slack));
 
   // FQL `user` operand is case-insensitive (measured live 2026-08-11 — see
@@ -704,6 +723,18 @@ function translateRunFailure(conn: AbapConnection, className: string, e: unknown
     );
   }
 
+  // A transport timeout: no response at all, the request abandoned by this
+  // side. Its own code (`TIMEOUT`, issue #149) rather than the unclassified
+  // `ADT_ERROR` — a caller needs to tell "ran too long" from "the ADT call
+  // was malformed", and `runClass` goes on to ask the dumps feed whether the
+  // run actually crashed. The session is dropped, not reused: the server may
+  // still be executing the request, and a further call on the same cookies
+  // would queue behind it.
+  if (resp === undefined && isTimeoutError(e)) {
+    invalidateSession(conn);
+    return discloseMutationRisk(timeoutError(className, conn.cfg.timeoutMs, e));
+  }
+
   // Anything else is an ordinary ADT failure. session.translateAdtError() owns
   // that mapping (and guarantees no raw XML/HTML crosses the boundary).
   const translated = translateAdtError(e, {
@@ -713,6 +744,151 @@ function translateRunFailure(conn: AbapConnection, className: string, e: unknown
   });
   // A CSRF refusal never dispatched, so it is excluded here.
   return resp === undefined && !isCsrfError(e) ? discloseMutationRisk(translated) : translated;
+}
+
+/**
+ * The `TIMEOUT` envelope as minted at the failing call, before the dumps feed
+ * has been consulted: retryable, because until a dump says otherwise the
+ * likeliest story is a program that simply runs longer than the budget.
+ * {@link attachRecentDump} revises that.
+ */
+function timeoutError(className: string, timeoutMs: number, cause: unknown): AbapError {
+  const err = new AbapError(
+    "TIMEOUT",
+    `${className} did not answer within ${timeoutMs} ms (ABAP_TIMEOUT_MS); the request was ` +
+      "abandoned client-side.",
+    { class: className, timeoutMs },
+    "The ABAP session was abandoned, not stopped — the program may still be running on the " +
+      "server. If it legitimately needs longer, raise ABAP_TIMEOUT_MS or make it do less per run.",
+    { retryable: true }, // TIMEOUT is `conditional`; before the dumps feed is asked the likeliest story is "ran long", and withDumpLookup withdraws this the moment a dump says otherwise
+  );
+  err.cause = cause;
+  return err;
+}
+
+/** Options for {@link runClass}. */
+export interface RunClassOptions {
+  /**
+   * Programs, besides the class's own pool, a short dump of this run may be
+   * attributed to — the report a run bridge SUBMITs. Matched against the feed's
+   * "Terminated ABAP program" when a timeout or non-console answer sends
+   * `runClass` to the dumps feed (issue #149).
+   */
+  dumpPrograms?: readonly string[];
+}
+
+/**
+ * Issue #149: a timeout or a 200-without-console-output leaves the caller not
+ * knowing whether the program crashed. Ask the dumps feed for a dump of this
+ * user and program in the last {@link RECENT_DUMP_LOOKBACK_SECONDS} seconds
+ * and fold the answer into the error:
+ *
+ *  - found → `details.dump` (key, runtime error, exception, short text), a
+ *    hint naming `abap_dumps mode=show key=…`, and `retryable: false` —
+ *    running the same code again reproduces the dump;
+ *  - not found → `details.dumpLookup` says what was searched, and a `TIMEOUT`
+ *    keeps `retryable: true`;
+ *  - the lookup itself failed → `details.dumpLookup.failure`; the retry verdict
+ *    is withdrawn (`retryable` absent), because nothing is known either way.
+ *
+ * Only `TIMEOUT` and the no-console `ADT_ERROR` are touched; every other error
+ * passes through untouched. The lookup runs after `withFreshSession` has
+ * released the session lock, on a session `translateRunFailure` already
+ * invalidated for the timeout case.
+ */
+async function attachRecentDump(
+  conn: AbapConnection,
+  className: string,
+  e: unknown,
+  options: RunClassOptions,
+): Promise<unknown> {
+  if (!isAbapError(e)) return e;
+  const isTimeout = e.code === "TIMEOUT";
+  const noConsole = e.code === "ADT_ERROR" && e.details.noConsoleOutput === true;
+  if (!isTimeout && !noConsole) return e;
+
+  // No server time exists for a request that never answered; the process
+  // clock, formatted as UTC, is the only anchor. Documented in run-dump-lookup.ts.
+  const window = buildDumpCorrelation(timestamp14(new Date()), conn.cfg.user, {
+    lookbackSeconds: RECENT_DUMP_LOOKBACK_SECONDS,
+  });
+  if (window === undefined) return e;
+
+  const programs = [
+    classPoolName(className),
+    ...(options.dumpPrograms ?? []).map((p) => p.toUpperCase()),
+  ];
+  const lookup = await findRecentDump(conn, window, programs);
+  return withDumpLookup(e, lookup, isTimeout);
+}
+
+/** Rewrite `e` with the outcome of {@link findRecentDump}. Pure. */
+function withDumpLookup(e: AbapError, lookup: RecentDumpLookup, isTimeout: boolean): AbapError {
+  const { window, found } = lookup;
+  const searched =
+    `user ${window.user ?? "(any)"}, program ${lookup.programs.join(" or ")}, ` +
+    `between ${window.from} and ${window.to}`;
+  const summary = {
+    from: window.from,
+    to: window.to,
+    ...(window.query === undefined ? {} : { query: window.query }),
+    programs: lookup.programs,
+    candidates: lookup.candidates,
+  };
+
+  let revised: AbapError;
+  if (found !== undefined) {
+    const exception = found.exception ? `, ${found.exception}` : "";
+    revised = new AbapError(
+      e.code,
+      `${e.message} A short dump of this program by this user was recorded in the last minute: ${found.runtimeError} — ${found.shortText}`,
+      {
+        ...e.details,
+        dump: {
+          key: found.key,
+          runtimeError: found.runtimeError,
+          ...(found.exception ? { exception: found.exception } : {}),
+          shortText: found.shortText,
+          program: found.program,
+          published: found.published,
+        },
+        dumpLookup: { ...summary, matched: true },
+      },
+      `${found.program} short-dumped for this user within the last minute (${found.runtimeError}${exception}): ` +
+        `${found.shortText} — almost certainly this run; if several runs overlapped, compare details.dump.published ` +
+        `with the call time. Read it with abap_dumps ${JSON.stringify({ mode: "show", key: found.key })} — the default summary ` +
+        "carries the source line, the error analysis and the top of the call stack. Any output " +
+        "written before the dump is lost. Do not retry unchanged; the same code dumps the same way.",
+      { retryable: false }, // a fresh dump of this program by this user: it crashed, and retrying the same code crashes it again
+    );
+  } else if (lookup.failure !== undefined) {
+    revised = new AbapError(
+      e.code,
+      e.message,
+      { ...e.details, dumpLookup: { ...summary, failure: lookup.failure } },
+      `${e.hint ?? ""} Whether the run short-dumped is UNKNOWN: the dumps-feed lookup for ` +
+        `${searched} failed (${lookup.failure}). Check yourself with abap_dumps ` +
+        `${JSON.stringify({ mode: "list", from: window.from, to: window.to, ...(window.query ? { query: window.query } : {}) })} ` +
+        "before deciding to retry.",
+      { retryable: undefined }, // the feed could not be read, so neither "ran long" nor "crashed" is established — withdraw the claim rather than guess
+    );
+  } else {
+    const verdict = isTimeout
+      ? `so the run most likely ran past the budget rather than crashing. Retrying unchanged ` +
+        "is safe only if the program is idempotent; otherwise re-read what it touches first."
+      : "so the empty answer is not explained by a crash.";
+    revised = new AbapError(
+      e.code,
+      e.message,
+      { ...e.details, dumpLookup: { ...summary, matched: false } },
+      `${e.hint ?? ""} No ST22 dump for ${searched} ` +
+        `(${lookup.candidates} other dump(s) of that user in the window), ${verdict}`,
+      { retryable: e.retryable }, // no dump found: the original verdict stands (TIMEOUT's `true`, the no-console ADT_ERROR's `undefined`)
+    );
+  }
+  revised.stack = e.stack;
+  revised.cause = e.cause;
+  return revised;
 }
 
 // ---------------------------------------------------------------------------
@@ -738,19 +914,21 @@ function bogusBodyReason(raw: string, trimmed: string): string | undefined {
 }
 
 /**
- * Throw when `raw` cannot plausibly be the class's own console output. A
- * genuinely empty body (`""`, `bodyBytes: 0`) is a legitimate run that
- * printed nothing and is NOT rejected here — only the shapes that are
- * indistinguishable-by-accident from a real 200 are (F1).
+ * The error for a `raw` that cannot plausibly be the class's own console
+ * output, or `undefined` when it can. A genuinely empty body (`""`,
+ * `bodyBytes: 0`) is a legitimate run that printed nothing and is NOT
+ * rejected here — only the shapes that are indistinguishable-by-accident
+ * from a real 200 are (F1). `details.noConsoleOutput` is what sends the
+ * error through {@link attachRecentDump}.
  */
-function assertPlausibleRunOutput(className: string, raw: string, bodyBytes: number): void {
+function implausibleRunOutput(className: string, raw: string, bodyBytes: number): AbapError | undefined {
   const reason = bogusBodyReason(raw, raw.trim());
-  if (!reason) return;
+  if (!reason) return undefined;
 
-  throw new AbapError(
+  return new AbapError(
     "ADT_ERROR",
     `${className} returned HTTP 200, but ${reason} — the response is not usable as program output.`,
-    { class: className, bodyBytes },
+    { class: className, bodyBytes, noConsoleOutput: true },
     "classrun returns 200 for both genuine output and an ADT error envelope / ICF error " +
       "page — the status code alone proves nothing. Treat this the same as a thrown ADT " +
       "error rather than trusting the body.",
@@ -768,13 +946,20 @@ function assertPlausibleRunOutput(className: string, raw: string, bodyBytes: num
  * path, no body, no Content-Type. Success is `200 text/plain` whose body is the
  * raw console output and nothing else: no XML, no envelope.
  *
- * TIMEOUTS: the recon never exercised a server-side classrun timeout, so its
- * behaviour is unknown. No client-side timeout is imposed here beyond the
- * connection-wide one — a short timeout would abandon a running ABAP session
- * without stopping it, which is worse than waiting. Revisit once a long-running
- * classrun has actually been observed.
+ * TIMEOUTS: no client-side timeout is imposed here beyond the connection-wide
+ * one (`ABAP_TIMEOUT_MS`) — a short timeout would abandon a running ABAP
+ * session without stopping it, which is worse than waiting. When that
+ * connection-wide timeout does fire, the error is `TIMEOUT` and the dumps feed
+ * is consulted for a dump of this run before the caller sees it — see
+ * {@link attachRecentDump} (issue #149). The recon never observed a
+ * server-side classrun timeout; what a real one looks like on the wire is
+ * still unknown.
  */
-export async function runClass(conn: AbapConnection, className: string): Promise<RunResult> {
+export async function runClass(
+  conn: AbapConnection,
+  className: string,
+  options: RunClassOptions = {},
+): Promise<RunResult> {
   const name = assertPlainName(className, "Class name").toUpperCase();
   if (name.length > MAX_NAME) {
     throw new AbapError(
@@ -790,18 +975,26 @@ export async function runClass(conn: AbapConnection, className: string): Promise
   // can be the stale implementation (verified: byte-identical wrong output,
   // HTTP 200). Every execution gets a fresh session unconditionally; skipping
   // it costs a tool that lies with a straight face.
-  const raw = await conn.withFreshSession(async (client) => {
-    try {
-      return await client.runClass(name);
-    } catch (e) {
-      throw translateRunFailure(conn, name, e);
-    }
-  });
+  let raw: string;
+  try {
+    raw = await conn.withFreshSession(async (client) => {
+      try {
+        return await client.runClass(name);
+      } catch (e) {
+        throw translateRunFailure(conn, name, e);
+      }
+    });
+  } catch (e) {
+    // Outside `withFreshSession`: the feed lookup needs the session lock this
+    // callback holds. Only TIMEOUT is looked up; everything else passes through.
+    throw await attachRecentDump(conn, name, e, options);
+  }
 
   // `client.runClass()` does `return "" + response.body`, so `raw` is always a
   // string — the old `typeof raw === "string" ? … : ""` branch was dead code.
   const bodyBytes = Buffer.byteLength(raw, "utf8");
-  assertPlausibleRunOutput(name, raw, bodyBytes);
+  const implausible = implausibleRunOutput(name, raw, bodyBytes);
+  if (implausible !== undefined) throw await attachRecentDump(conn, name, implausible, options);
 
   const output = raw.replace(/\r\n/g, "\n").replace(/\n+$/, "");
   return {
@@ -1197,6 +1390,7 @@ function discloseMutationRisk(err: AbapError): AbapError {
     err.message,
     { ...err.details, mayHaveExecuted: true },
     err.hint ? `${err.hint} ${disclosure}` : disclosure,
+    { retryable: err.retryable }, // re-wrap: carries the classified retryable through unchanged (TIMEOUT's explicit `true` would otherwise fall back to the table's `undefined`)
   );
   disclosed.stack = err.stack;
   disclosed.cause = err.cause;
@@ -1225,6 +1419,7 @@ export async function executeBridge(
   conn: AbapConnection,
   gate: SafetyGate,
   deployed: DeployedBridge,
+  options: RunClassOptions = {},
 ): Promise<RunResult> {
   const executeAuthorization = gate.authorize("execute", {
     name: deployed.target.name,
@@ -1232,7 +1427,7 @@ export async function executeBridge(
     type: deployed.target.type,
   });
 
-  return runClass(conn, executeAuthorization.target.name);
+  return runClass(conn, executeAuthorization.target.name, options);
 }
 
 /**
@@ -1274,7 +1469,9 @@ export async function runReport(
   });
   const { bridgeRefreshed, activationVerified: bridgeActivationVerified } = deployed;
 
-  const run = await executeBridge(conn, gate, deployed);
+  // A dump inside the SUBMITted report is attributed to the report, not the
+  // bridge pool — both are candidates for the #149 lookup.
+  const run = await executeBridge(conn, gate, deployed, { dumpPrograms: [report] });
   const { list, diagnostics, droppedLines: bridgeDroppedLines } = splitBridgeOutput(run.output);
   const beforeHeaderStrip = list.length;
   const stripped = stripListHeader(list);

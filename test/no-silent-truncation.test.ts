@@ -261,6 +261,12 @@ function scanForHandRolledTruncation(): Offense[] {
 
 const ALLOWED_LINES: { file: string; contains: string; reason: string }[] = [
   {
+    file: "src/tools/dumps.ts",
+    contains: "summary.stack.slice(0, SUMMARY_STACK_FRAMES)",
+    reason:
+      "Call-stack cap of the abap_dumps summary view (issue #149). The section title rendered from the same values reads `CALL STACK (top <shown> of <total> frames, innermost first; section:\"stack\" for all)`, so the cut, both counts and the call that returns the rest are disclosed to the caller in the same block.",
+  },
+  {
     file: "src/adt/impacted.ts",
     contains: "kept.slice(0, PER_OBJECT_CONSUMER_CAP)",
     reason:
