@@ -28,7 +28,7 @@ gated on `canWrite` (they arm, remove, or advance a live debuggee).
 | `run` | object `{object, mode?}` | required for `action=start` | — | Program to trigger, on a separate connection. `mode`: `class` \| `report` \| `auto`, default `auto`. |
 | `step` | enum `into` \| `over` \| `return` \| `continue` \| `runToLine` \| `jumpToLine` | required for `action=step` | — | How to advance. `continue` may end the session. `jumpToLine` is disabled by default. |
 | `toLine` | number (int, 1–999999) | required for `step=runToLine`/`jumpToLine` | — | 1-based target line in the current frame's own source. |
-| `stateId` | string | required for `action=step`/`stack`/`frame`/`breakpoints`/`watch` | — | Identifies one stop. A stale id is refused, naming the current one. |
+| `stateId` | string | required for `action=step`/`stack`/`frame`/`breakpoints`/`watch` | — | Identifies one stop. The 12-character id printed by the most recent response; the full 64-character digest or any prefix of at least 8 characters is accepted too. A stale id is refused, naming the current one. |
 | `frame` | number (int, ≥1) | required for `action=frame` | — | 1-based stack position to move the read cursor to. |
 | `op` | enum `list` \| `add` \| `remove` | no | `list` for `action=breakpoints`; for `action=watch`, `add` when `variable` is given, else `list` | `action=breakpoints`/`watch` only — which operation to perform. |
 | `id` | string | required for `op=remove` | — | `action=breakpoints`/`watch` only — the id to remove; restricted to an id this session owns. |
@@ -50,7 +50,40 @@ hit; accepted but not enforced server-side, every hit still suspends).
 
 An exception breakpoint (`kind: "exception"`): `exceptionClass` (string,
 required — fires wherever that exception is raised, not only inside the
-object named in `run`), plus the same `condition`/`skipCount`.
+object named in `run`), plus the same `condition`/`skipCount`. SAP accepts
+an exception breakpoint on a class it cannot find and simply never fires
+it (live: an empty `exceptionClass` was answered 200 with nothing armed),
+so `start` resolves the class first and refuses with `BAD_INPUT`, naming
+it, before any breakpoint request is sent (#152). After arming, an
+exception breakpoint the server did not echo back in its response is
+reported in the `start` response as `NOT armed`. Each session remembers
+which exception classes the server echoed and whether any exception
+breakpoint ever suspended the run; a run that ends without that gets a
+note at death naming the classes, and a `start` that attaches to a short
+dump instead of a live debuggee (`debuggee: PMORTEM` in the header, plus
+`dump: <id>` when the listener named one) gets a `POST-MORTEM` note that
+names them too.
+
+What an exception breakpoint does, live-verified on A4H (SAP NetWeaver
+7.54, 2026-09-16, `test/integration-debug.test.ts` cases 5a/5b against the
+`$TMP` probe classes `ZCL_AS_DBGEXC`/`ZCL_AS_DBGEXC2`, which the suite
+creates and deletes itself): it stops at the `RAISE` only when a handler
+for the exception exists up the stack. `RAISE EXCEPTION TYPE
+cx_sy_zerodivide` inside a `TRY ... CATCH cx_sy_zerodivide` suspended at
+the raise (`DBGEE_KIND "DEBUGGEE"`, stack inside the probe class); the
+same `RAISE` with no handler, and a real `1 / 0`, never suspended — the
+listener returned `DBGEE_KIND "PMORTEM"` with dump ids
+`UNCAUGHT_EXCEPTION` / `COMPUTE_INT_ZERODIVIDE`, i.e. the runtime turned
+the unhandled raise into a runtime error before the breakpoint got its
+turn. The registration is not at fault: the request abapsmith sends is
+attribute-for-attribute the body A4H accepted and echoed as
+`KIND=5.EXCEPTION_CLASS=CX_SY_ZERODIVIDE`
+(`test/cassettes/debugger/bp-set-exception-accepted.cassette.json`, pinned
+by `test/debug-xml-request.test.ts`). The `start` response says this
+rule whenever an exception breakpoint is armed, and the death and
+`POST-MORTEM` notes repeat it. To stop before an *uncaught* raise, arm a
+line breakpoint on the `RAISE` statement, or a statement breakpoint
+`RAISE EXCEPTION TYPE` paired with a line breakpoint in the target object.
 
 A statement breakpoint (`kind: "statement"`): `statement` (string, required
 — an ABAP statement keyword, e.g. `RAISE`, that fires wherever it occurs),
@@ -147,6 +180,29 @@ debug listener left armed by an earlier process instance when this process
 has no session of its own to route the stop through (separate from `force`,
 which instead clears an ATTACHED/suspended debuggee). `status` reports the
 current session's status with no network calls and no side effects.
+
+### Response size: notes once per session, outside the budget
+
+Every debugger response is clamped to `DEBUG_MAX_CHARS` (30 000,
+`src/debug/render.ts`); what is cut is named, never dropped silently.
+Since #151 the recurring explanatory notes — what a revisited position
+proves, that `frame` moves only the read cursor, what an `OMITTED` or
+`UNREQUESTED` variable row means, what a post-mortem attach is — are
+printed in full the first time each one applies in a session and as a
+one-line reminder that still states the per-call fact (which ids, which
+frame, how many visits) afterwards. A state change the caller must
+re-read for — a different breakpoint hit, a post-mortem attach — prints
+the full text again; hitting the same breakpoint in a loop does not. Notes
+are added on top of the budget, so they never displace stack or variable
+content. Per-call evidence (watchpoint values, termination evidence,
+auto-continue reports) is not shortened.
+
+The `stateId` printed on every stop is the first 12 hex characters of the
+session's SHA-256 state digest, and that is the form to write back. The
+full 64-character digest is still accepted, as is a prefix of at least 8
+characters. A prefix that matches no current state, or is too short, is
+refused as a stale id; the refusal names the current short id and carries
+both forms in `details.currentStateId` / `details.currentShortStateId`.
 
 Only `ABAP_DEBUG_SESSIONS` debug sessions (default 1) may be active per
 process at a time — a `start` beyond that count is refused. (For what a
@@ -400,6 +456,12 @@ Example (start):
 - Two genuinely concurrent debug sessions is `unverified`. Never
   demonstrated on the appliance, for the per-user exclusivity reason under
   [`ABAP_DEBUG_SESSIONS`](#abap_debug_sessions) above.
+- An exception breakpoint stopping an *uncaught* raise before the short
+  dump has been tried and does not happen on A4H 7.54 (see the exception
+  breakpoint paragraph above for the live runs). Whether a release exists
+  on which it does is `unverified`; the rule abapsmith states is the one
+  observed, and `test/integration-debug.test.ts` cases 5a/5b re-check it
+  on every live run.
 
 ## abap_debug_vars
 
@@ -410,7 +472,7 @@ required).
 
 | Parameter | Type | Required | Default | Meaning |
 |---|---|---|---|---|
-| `stateId` | string | yes | — | From the most recent start/step/stack response. |
+| `stateId` | string | yes | — | The 12-character id from the most recent start/step/stack response; the full id or a prefix of at least 8 characters is accepted too. |
 | `scope` | enum `all` \| `locals` \| `parameters` \| `globals` | no | `all` | Narrow the survey. |
 | `filter` | string | no | — | Case-insensitive substring match on variable name. |
 
@@ -426,7 +488,7 @@ for tables.
 
 | Parameter | Type | Required | Default | Meaning |
 |---|---|---|---|---|
-| `stateId` | string | yes | — | From the most recent start/step/stack response. |
+| `stateId` | string | yes | — | The 12-character id from the most recent start/step/stack response; the full id or a prefix of at least 8 characters is accepted too. |
 | `path` | string | yes | — | Variable path, e.g. `LT_ITEMS[42]-MATNR` or `SY-SUBRC`. Field symbols keep their angle brackets. |
 | `from` | number (int, 1–999999) | no | `1` | Tables only — 1-based first row. |
 | `count` | number (int, positive, ≤200) | no | `20` | Tables only — rows to return. Page with `from` for more. |

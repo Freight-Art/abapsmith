@@ -5,9 +5,17 @@
 import type { ClassComponent } from "abap-adt-api";
 import type { AbapConnection } from "./connection.js";
 import { AbapError } from "./errors.js";
-import type { ResolvedObject } from "./resolve.js";
+import { checkActivation, type ResolvedObject } from "./resolve.js";
 import { type ErrorContext, translateAdtError } from "./session.js";
-import { CLASS_INCLUDES, type ClassInclude, classIncludeUri } from "./types.js";
+import {
+  buildUri,
+  CLASS_INCLUDES,
+  type ClassInclude,
+  classIncludeUri,
+  specForType,
+  type TypeSpec,
+} from "./types.js";
+import { fullParse, xmlArray, xmlNode, xmlNodeAttr } from "abap-adt-api/build/utilities.js";
 import {
   blankSourceIsAmbiguous,
   objectAcceptFor,
@@ -440,20 +448,38 @@ function linkRange(c: ClassComponent, relSuffix: string): SourceRange | undefine
   return parseFragmentRange(link?.href);
 }
 
+/**
+ * Types that name a GLOBAL object rather than a member of one. A global
+ * class or interface is never a component of one, so a structure element
+ * carrying one of these types is the object itself, not a member (issue
+ * #147: the ACTIVE structure of a never-activated class listed the class's
+ * own name as its only "member", and `available` echoed it back as a
+ * method candidate). Live-verified: every class's active structure also
+ * carries its own name as a `CLAS/OCX` child (`isExternalRef="true"`, its
+ * Text Elements), which before also put each superclass's own name into
+ * the outline's INHERITED list — checked below alongside the type set,
+ * since `isExternalRef` can in principle mark other types too.
+ */
+const NON_MEMBER_TYPES = new Set(["CLAS/OC", "INTF/OI", "CLAS/OCX"]);
+
 /** Flatten the component tree that `/objectstructure` returns. */
 export function flattenComponents(root: ClassComponent): ClassMember[] {
   const out: ClassMember[] = [];
   const walk = (c: ClassComponent) => {
     for (const child of c.components ?? []) {
-      out.push({
-        name: child["adtcore:name"],
-        type: child["adtcore:type"],
-        visibility: child.visibility,
-        level: child.level,
-        redefinition: (child as { redefinition?: boolean }).redefinition,
-        definition: linkRange(child, REL_DEF_BLOCK),
-        implementation: linkRange(child, REL_IMPL_BLOCK),
-      });
+      const isExternalRef = (child as { isExternalRef?: unknown }).isExternalRef;
+      const externalRef = isExternalRef === true || isExternalRef === "true";
+      if (!NON_MEMBER_TYPES.has(child["adtcore:type"]) && !externalRef) {
+        out.push({
+          name: child["adtcore:name"],
+          type: child["adtcore:type"],
+          visibility: child.visibility,
+          level: child.level,
+          redefinition: (child as { redefinition?: boolean }).redefinition,
+          definition: linkRange(child, REL_DEF_BLOCK),
+          implementation: linkRange(child, REL_IMPL_BLOCK),
+        });
+      }
       walk(child);
     }
   };
@@ -461,24 +487,106 @@ export function flattenComponents(root: ClassComponent): ClassMember[] {
   return out;
 }
 
+export type SourceVersion = "active" | "inactive";
+
+export interface MemberSet {
+  members: ClassMember[];
+  /** Which version of `/objectstructure` answered. */
+  version: SourceVersion;
+}
+
+/** Mirror of abap-adt-api's private `parseElement` (api/syntax.js). */
+function parseStructureElement(e: unknown): ClassComponent {
+  const attrs = xmlNodeAttr(e) as Record<string, unknown>;
+  const links = xmlArray(e, "atom:link").map((l: unknown) => xmlNodeAttr(l));
+  const components = xmlArray(e, "abapsource:objectStructureElement").map(parseStructureElement);
+  return { ...attrs, links, components } as unknown as ClassComponent;
+}
+
+/**
+ * `/objectstructure` for one explicit version. abap-adt-api's
+ * `classComponents` hardcodes `version=active`, so the inactive structure —
+ * the only one that knows about methods added by a write that has not been
+ * activated yet (issue #147) — is fetched here directly and parsed the same
+ * way.
+ */
+async function fetchStructure(
+  conn: AbapConnection,
+  obj: ResolvedObject,
+  version: SourceVersion,
+): Promise<ClassComponent> {
+  if (version === "active") return conn.adt.classComponents(obj.uri);
+  const resp = await conn.get(`${obj.uri}/objectstructure`, {
+    headers: { "Content-Type": "application/*" },
+    qs: { version: "inactive", withShortDescriptions: "true" },
+  });
+  const root: unknown = xmlNode(fullParse(resp.body), "abapsource:objectStructureElement");
+  if (root === undefined || root === null) {
+    return {
+      "adtcore:name": obj.name,
+      "adtcore:type": obj.type,
+      links: [],
+      components: [],
+    } as unknown as ClassComponent;
+  }
+  return parseStructureElement(root);
+}
+
+/**
+ * Members of a class/interface, with the version they came from.
+ *
+ * The decision is the object DESCRIPTOR's `adtcore:version`, not a probe of
+ * `/objectstructure?version=inactive`: for a fully active object, ADT
+ * answers that query with HTTP 200 and the ACTIVE structure (no marker of
+ * any kind) — verified live against a standard class — so treating a
+ * successful inactive read as proof of an inactive version wrongly reports
+ * `version: "inactive"` for ordinary active objects. `obj.activation` is
+ * read as-is when the caller already knows it; otherwise one `GET {uri}`
+ * (`checkActivation`) settles it. The inactive structure is then requested
+ * ONLY when the descriptor reports a newer inactive version exists; a
+ * failed or empty inactive read falls back to the active structure, and an
+ * unreadable descriptor (network, auth, unsupported type) is treated as
+ * active — never as an unconfirmed claim of "inactive". An explicit
+ * `version` skips all of this and is honoured as given.
+ */
+export async function classMembersFor(
+  conn: AbapConnection,
+  obj: ResolvedObject,
+  version?: SourceVersion,
+): Promise<MemberSet> {
+  const ctx: ErrorContext = {
+    operation: "read components",
+    uri: obj.uri,
+    name: obj.name,
+    type: obj.type,
+  };
+  const load = async (v: SourceVersion): Promise<MemberSet> => {
+    try {
+      return { members: flattenComponents(await fetchStructure(conn, obj, v)), version: v };
+    } catch (e) {
+      throw classifySourceFailure(e, ctx);
+    }
+  };
+  if (version !== undefined) return load(version);
+  const activation = obj.activation === "unknown" ? await checkActivation(conn, obj) : obj.activation;
+  if (activation === "newer-inactive-exists") {
+    let inactive: MemberSet | undefined;
+    try {
+      inactive = await load("inactive");
+    } catch {
+      inactive = undefined;
+    }
+    if (inactive && inactive.members.length > 0) return inactive;
+  }
+  return load("active");
+}
+
 export async function classMembers(
   conn: AbapConnection,
   obj: ResolvedObject,
+  version?: SourceVersion,
 ): Promise<ClassMember[]> {
-  // `/objectstructure` failed raw — an abap-adt-api exception (or a whole
-  // ADT XML blob) escaped to the caller. Same classification as readSource.
-  let root: ClassComponent;
-  try {
-    root = await conn.adt.classComponents(obj.uri);
-  } catch (e) {
-    throw classifySourceFailure(e, {
-      operation: "read components",
-      uri: obj.uri,
-      name: obj.name,
-      type: obj.type,
-    });
-  }
-  return flattenComponents(root);
+  return (await classMembersFor(conn, obj, version)).members;
 }
 
 /** Case- and interface-prefix-insensitive member match. */
@@ -490,6 +598,266 @@ export function findMember(members: ClassMember[], wanted: string): ClassMember 
   );
 }
 
+// ---------------------------------------------------------------------------
+// Statements: the local, comment-aware view of a source text that the
+// declaration scanner and the inheritance parser share.
+// ---------------------------------------------------------------------------
+
+export interface AbapStatement {
+  /** Statement text as written (comments cut, literals intact), no trailing period. */
+  text: string;
+  /** Same text with literal contents blanked — safe to search for keywords. */
+  code: string;
+  startLine: number;
+  endLine: number;
+}
+
+/**
+ * Split a source into statements at periods outside comments and literals.
+ * `text` and `code` are built in lockstep, so an offset found in `code`
+ * slices `text` at the same character. Not a parser: string templates
+ * (`|…|`) are not literals to `abapCodeOf`, so a period inside one ends a
+ * statement early — harmless for the declaration statements this serves.
+ */
+export function abapStatements(source: string): AbapStatement[] {
+  const lines = source.replace(/\r\n/g, "\n").split("\n");
+  const out: AbapStatement[] = [];
+  let text = "";
+  let code = "";
+  let start = -1;
+  const flush = (endLine: number) => {
+    if (code.trim()) out.push({ text: text.trim(), code: code.trim(), startLine: start, endLine });
+    text = "";
+    code = "";
+    start = -1;
+  };
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i] ?? "";
+    let c = abapCodeOf(line);
+    let t = line.slice(0, c.length);
+    let idx: number;
+    while ((idx = c.indexOf(".")) >= 0) {
+      if (start < 0 && c.slice(0, idx).trim()) start = i + 1;
+      text += t.slice(0, idx);
+      code += c.slice(0, idx);
+      flush(i + 1);
+      c = c.slice(idx + 1);
+      t = t.slice(idx + 1);
+    }
+    if (c.trim() && start < 0) start = i + 1;
+    if (start >= 0) {
+      text += `${t}\n`;
+      code += `${c}\n`;
+    }
+  }
+  return out;
+}
+
+const DECLARATION_HEAD_RE = /^(CLASS-METHODS|METHODS)\b\s*(:)?\s*/i;
+
+/**
+ * The `METHODS`/`CLASS-METHODS` declaration of one method, cut from a source
+ * text by scanning — the fallback when `/objectstructure` carries no
+ * `definitionBlock` range for the member. A chained declaration
+ * (`METHODS: a, b …`) is unchained: the answer is `METHODS b …` alone.
+ */
+export function findMethodDeclaration(source: string, name: string): string | undefined {
+  for (const st of abapStatements(source)) {
+    const head = DECLARATION_HEAD_RE.exec(st.code);
+    if (!head) continue;
+    const keyword = (head[1] ?? "METHODS").toUpperCase();
+    const bodyAt = head[0].length;
+    const segments: Array<[number, number]> = [];
+    if (head[2]) {
+      let from = bodyAt;
+      for (;;) {
+        const comma = st.code.indexOf(",", from);
+        if (comma < 0) {
+          segments.push([from, st.code.length]);
+          break;
+        }
+        segments.push([from, comma]);
+        from = comma + 1;
+      }
+    } else {
+      segments.push([bodyAt, st.code.length]);
+    }
+    for (const [a, b] of segments) {
+      const first = st.code.slice(a, b).trim().split(/\s+/)[0] ?? "";
+      if (first && methodNamesMatch(first, name)) {
+        return head[2] ? `${keyword} ${st.text.slice(a, b).trim()}.` : `${st.text.trim()}.`;
+      }
+    }
+  }
+  return undefined;
+}
+
+export interface ClassParents {
+  /** `INHERITING FROM`, upper-cased, when the global definition names one. */
+  superclass?: string;
+  /** `INTERFACES` statements of the global definition, upper-cased, in order. */
+  interfaces: string[];
+}
+
+/**
+ * Superclass and implemented/component interfaces named by the global
+ * definition in `source` (a class's main source or an interface's). Reads
+ * only the first `CLASS … DEFINITION` / `INTERFACE …` block — local classes
+ * live in other includes and never reach here.
+ */
+export function parseClassParents(source: string): ClassParents {
+  const parents: ClassParents = { interfaces: [] };
+  let inDefinition = false;
+  for (const st of abapStatements(source)) {
+    const flat = st.code.replace(/\s+/g, " ").trim();
+    if (!inDefinition) {
+      // `CLASS x DEFINITION …` — an interface has no DEFINITION keyword:
+      // `INTERFACE x PUBLIC.` (and `INTERFACE x DEFERRED.` for a forward
+      // reference, skipped like a class's).
+      const def = /^(?:CLASS\s+\S+\s+DEFINITION|INTERFACE\s+\S+)\b(.*)$/i.exec(flat);
+      if (!def) continue;
+      if (/\b(DEFERRED|LOAD)\b/i.test(def[1] ?? "")) continue;
+      inDefinition = true;
+      const inh = /\bINHERITING\s+FROM\s+(\S+)/i.exec(def[1] ?? "");
+      if (inh?.[1]) parents.superclass = inh[1].toUpperCase();
+      continue;
+    }
+    if (/^(ENDCLASS|ENDINTERFACE)\b/i.test(flat)) break;
+    const intf = /^INTERFACES\b\s*(:)?\s*(.*)$/i.exec(flat);
+    if (!intf) continue;
+    const body = intf[2] ?? "";
+    const segments = intf[1] ? body.split(",") : [body];
+    for (const seg of segments) {
+      const first = seg.trim().split(/\s+/)[0];
+      if (first) parents.interfaces.push(first.toUpperCase());
+    }
+  }
+  return parents;
+}
+
+// ---------------------------------------------------------------------------
+// The inheritance chain (issue #146).
+// ---------------------------------------------------------------------------
+
+export type ChainRelation = "superclass" | "interface";
+
+export interface ChainNode {
+  obj: ResolvedObject;
+  relation: ChainRelation;
+  /** The object whose definition named this one. */
+  via: string;
+  /** 1 for a direct superclass/interface, 2 for theirs, … */
+  depth: number;
+  source: string;
+  members: MemberSet;
+}
+
+export interface ChainUnresolved {
+  name: string;
+  relation: ChainRelation;
+  via: string;
+  reason: string;
+}
+
+/** Enough levels for any real hierarchy; a cycle is stopped by the visited set anyway. */
+const CHAIN_MAX_DEPTH = 16;
+
+function relatedObject(base: ResolvedObject, name: string, type: "CLAS/OC" | "INTF/OI"): ResolvedObject {
+  const spec = specForType(type) as TypeSpec;
+  const uri = buildUri(spec, name);
+  return {
+    system: base.system,
+    type,
+    kind: spec.kind,
+    label: spec.label,
+    name: name.toUpperCase(),
+    uri,
+    sourceUri: `${uri}/source/main`,
+    mode: "source",
+    activation: "unknown",
+    spec,
+  };
+}
+
+/**
+ * Breadth-first walk over superclasses and interfaces, nearest first: the
+ * direct superclass, then the class's own interfaces, then the
+ * superclass's parents, and so on. Each level costs one source read and one
+ * `/objectstructure`. `visit` returning `true` stops the walk. A parent that
+ * does not exist (or is not readable as a global class/interface) is
+ * reported in `unresolved` rather than failing the whole walk; every other
+ * failure propagates, already classified.
+ */
+export async function walkInheritanceChain(
+  conn: AbapConnection,
+  obj: ResolvedObject,
+  source: string,
+  version: SourceVersion | undefined,
+  visit: (node: ChainNode) => boolean | void,
+): Promise<{ visited: ChainNode[]; unresolved: ChainUnresolved[] }> {
+  const visited: ChainNode[] = [];
+  const unresolved: ChainUnresolved[] = [];
+  const seen = new Set<string>([obj.name.toUpperCase()]);
+  type Pending = {
+    name: string;
+    type: "CLAS/OC" | "INTF/OI";
+    relation: ChainRelation;
+    via: string;
+    depth: number;
+  };
+  const queue: Pending[] = [];
+  const enqueue = (from: string, parents: ClassParents, depth: number) => {
+    if (depth > CHAIN_MAX_DEPTH) return;
+    if (parents.superclass && !seen.has(parents.superclass)) {
+      seen.add(parents.superclass);
+      queue.push({ name: parents.superclass, type: "CLAS/OC", relation: "superclass", via: from, depth });
+    }
+    for (const i of parents.interfaces) {
+      if (seen.has(i)) continue;
+      seen.add(i);
+      queue.push({ name: i, type: "INTF/OI", relation: "interface", via: from, depth });
+    }
+  };
+  enqueue(obj.name, parseClassParents(source), 1);
+  while (queue.length > 0) {
+    const next = queue.shift() as Pending;
+    const parent = relatedObject(obj, next.name, next.type);
+    let parentSource: string;
+    let members: MemberSet;
+    try {
+      parentSource = (await readSource(conn, parent, undefined, version)).source;
+      members = await classMembersFor(conn, parent, version);
+    } catch (e) {
+      if (e instanceof AbapError && e.code === "NOT_FOUND") {
+        unresolved.push({ name: next.name, relation: next.relation, via: next.via, reason: e.message });
+        continue;
+      }
+      throw e;
+    }
+    const node: ChainNode = {
+      obj: parent,
+      relation: next.relation,
+      via: next.via,
+      depth: next.depth,
+      source: parentSource,
+      members,
+    };
+    visited.push(node);
+    if (visit(node) === true) break;
+    enqueue(parent.name, parseClassParents(parentSource), next.depth + 1);
+  }
+  return { visited, unresolved };
+}
+
+export interface MethodOrigin {
+  name: string;
+  type: string;
+  relation: ChainRelation;
+  /** The object whose definition named `name` — the class itself at depth 1. */
+  via: string;
+  depth: number;
+}
+
 export interface MethodSource {
   member: ClassMember;
   declaration?: string;
@@ -499,13 +867,31 @@ export interface MethodSource {
    * coordinate semantics). Safe to render; NOT safe to slice a separately
    * fetched text with unverified — `spliceMethodBlock` in src/tools/write.ts
    * re-derives the block from the bytes it rewrites and uses this only as a
-   * cross-check.
+   * cross-check. When `foundOn` is set the range is in THAT object's source.
    */
   implementationRange?: SourceRange;
+  /** Which `/objectstructure` version the member was resolved against. */
+  version: SourceVersion;
+  /** Set when the member was not on the object itself but up its chain. */
+  foundOn?: MethodOrigin;
+  /** Objects searched before the answer, nearest first; the object itself first. */
+  searched: string[];
 }
 
-/** How many component names a "no such method" error lists. Always disclosed. */
-const AVAILABLE_MEMBERS_MAX = 12;
+/**
+ * How many component names a "no such method" error lists per origin.
+ * `ABAP_AVAILABLE_MEMBERS_MAX` overrides the default; the cut is always
+ * disclosed, and members sharing a prefix with the requested name survive it
+ * first.
+ */
+export const AVAILABLE_MEMBERS_MAX_DEFAULT = 40;
+
+export function availableMembersMax(): number {
+  const raw = process.env.ABAP_AVAILABLE_MEMBERS_MAX;
+  if (raw === undefined || raw.trim() === "") return AVAILABLE_MEMBERS_MAX_DEFAULT;
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : AVAILABLE_MEMBERS_MAX_DEFAULT;
+}
 
 /** Plain Levenshtein edit distance, no dependencies. */
 function levenshtein(a: string, b: string): number {
@@ -522,80 +908,272 @@ function levenshtein(a: string, b: string): number {
   return prev[b.length] ?? 0;
 }
 
+function commonPrefixLength(a: string, b: string): number {
+  let n = 0;
+  while (n < a.length && n < b.length && a[n] === b[n]) n += 1;
+  return n;
+}
+
+/**
+ * Candidates for "did you mean": longest shared prefix first (a caller
+ * asking for GET_COLUMNS wants GET_COLUMN and GET_COLUMNS_TABLE ahead of
+ * SET_COLUMNS), edit distance second, name third for a stable answer.
+ */
+export function rankCandidates(names: string[], wanted: string): string[] {
+  const w = wanted.toUpperCase();
+  return [...names].sort((a, b) => {
+    const A = a.toUpperCase();
+    const B = b.toUpperCase();
+    const byPrefix = commonPrefixLength(B, w) - commonPrefixLength(A, w);
+    if (byPrefix !== 0) return byPrefix;
+    const byDistance = levenshtein(A, w) - levenshtein(B, w);
+    if (byDistance !== 0) return byDistance;
+    return A < B ? -1 : A > B ? 1 : 0;
+  });
+}
+
+export interface ReadMethodOptions {
+  /** Explicit structure version; default is inactive-then-active (issue #147). */
+  version?: SourceVersion;
+  /** Walk superclasses and interfaces when the object itself lacks the member (issue #146). */
+  inherited?: boolean;
+  /** Cap on each candidate list in the NOT_FOUND details; default `availableMembersMax()`. */
+  availableMax?: number;
+}
+
+const isMethod = (m: ClassMember): boolean => m.type === "CLAS/OM" || m.type === "INTF/OM";
+
+function resolveIn(
+  members: ClassMember[],
+  source: string,
+  method: string,
+): Omit<MethodSource, "version" | "searched"> | undefined {
+  const methods = members.filter(isMethod);
+  const member = findMember(methods.length ? methods : members, method);
+  if (!member) return undefined;
+  const lines = source.replace(/\r\n/g, "\n").split("\n");
+  const cut = (r?: SourceRange) =>
+    r ? lines.slice(Math.max(0, r.startLine - 1), r.endLine).join("\n") : undefined;
+  const declaration = cut(member.definition) ?? findMethodDeclaration(source, member.name);
+  const implementation = cut(member.implementation);
+  return {
+    member,
+    ...(declaration !== undefined ? { declaration } : {}),
+    ...(implementation !== undefined ? { implementation } : {}),
+    ...(member.implementation ? { implementationRange: member.implementation } : {}),
+  };
+}
+
 /**
  * Return only the declaration and body of one method.
- * Costs one extra round trip (`/objectstructure`) and saves ~20x on payload.
+ * Costs one extra round trip (`/objectstructure`) — two when the inactive
+ * structure is empty and the active one has to be read — and saves ~20x on
+ * payload. With `inherited: true`, a member the object does not declare is
+ * looked for up its superclass/interface chain (two more requests per
+ * level) and answered with `foundOn`.
  */
 export async function readMethod(
   conn: AbapConnection,
   obj: ResolvedObject,
   source: string,
   method: string,
+  opts: ReadMethodOptions = {},
 ): Promise<MethodSource> {
-  const members = await classMembers(conn, obj);
-  const methods = members.filter((m) => m.type === "CLAS/OM" || m.type === "INTF/OM");
-  const member = findMember(methods.length ? methods : members, method);
-  if (!member) {
-    // The cap MUST be disclosed — a silently-cut list makes an agent
-    // conclude a real method doesn't exist. Ranked by edit distance so a
-    // typo's real target surfaces first.
-    const pool = methods.length ? methods : members;
-    const wantedUpper = method.toUpperCase();
-    const ranked = [...pool].sort(
-      (a, b) =>
-        levenshtein(a.name.toUpperCase(), wantedUpper) -
-        levenshtein(b.name.toUpperCase(), wantedUpper),
-    );
-    const shown = ranked.slice(0, AVAILABLE_MEMBERS_MAX);
-    const dropped = pool.length - shown.length;
-    const disclosure =
-      dropped > 0
-        ? ` [TRUNCATED: listing ${shown.length} of ${pool.length} components — ` +
-          `${dropped} not shown, retrieve with: abap_read({outline:true})]`
-        : "";
-    throw new AbapError(
-      "NOT_FOUND",
-      `${obj.type} ${obj.name} has no method ${method}.${disclosure}`,
-      {
-        method,
-        availableTotal: pool.length,
-        available: shown.map((m) => m.name),
-        ...(dropped > 0 ? { availableTruncated: dropped } : {}),
-      },
-      dropped > 0
-        ? `The list above is INCOMPLETE (${shown.length} of ${pool.length}). Read the object ` +
-          "with outline=true for every component before concluding the method is missing."
-        : "Read the object without `method` to see its full component list.",
-    );
-  }
-  const lines = source.replace(/\r\n/g, "\n").split("\n");
-  const cut = (r?: SourceRange) =>
-    r ? lines.slice(Math.max(0, r.startLine - 1), r.endLine).join("\n") : undefined;
+  const own = await classMembersFor(conn, obj, opts.version);
+  const searched = [obj.name];
+  const here = resolveIn(own.members, source, method);
+  if (here) return { ...here, version: own.version, searched };
 
-  return {
-    member,
-    declaration: cut(member.definition),
-    implementation: cut(member.implementation),
-    implementationRange: member.implementation,
-  };
+  const inheritedPool: Array<{ name: string; on: string; relation: ChainRelation }> = [];
+  let unresolved: ChainUnresolved[] = [];
+  if (opts.inherited) {
+    let found: MethodSource | undefined;
+    const walk = await walkInheritanceChain(conn, obj, source, opts.version, (node) => {
+      searched.push(`${node.obj.name} (${node.relation} of ${node.via})`);
+      const r = resolveIn(node.members.members, node.source, method);
+      if (r) {
+        found = {
+          ...r,
+          version: node.members.version,
+          foundOn: {
+            name: node.obj.name,
+            type: node.obj.type,
+            relation: node.relation,
+            via: node.via,
+            depth: node.depth,
+          },
+          searched,
+        };
+        return true;
+      }
+      for (const m of node.members.members.filter(isMethod)) {
+        // Private members of a superclass are not inherited; an interface has no private members.
+        if (node.relation === "superclass" && m.visibility === "private") continue;
+        inheritedPool.push({ name: m.name, on: node.obj.name, relation: node.relation });
+      }
+      return false;
+    });
+    if (found) return found;
+    unresolved = walk.unresolved;
+  }
+
+  // The cap MUST be disclosed — a silently-cut list makes an agent conclude
+  // a real method doesn't exist. Prefix-sharing names survive the cut first.
+  const max = opts.availableMax ?? availableMembersMax();
+  const methods = own.members.filter(isMethod);
+  const pool = methods.length ? methods : own.members;
+  const shown = rankCandidates(
+    pool.map((m) => m.name),
+    method,
+  ).slice(0, max);
+  const dropped = pool.length - shown.length;
+  const byName = new Map(inheritedPool.map((c) => [c.name.toUpperCase(), c]));
+  const inheritedShown = rankCandidates([...byName.keys()], method)
+    .slice(0, max)
+    .map((n) => {
+      const c = byName.get(n) as { name: string; on: string; relation: ChainRelation };
+      return `${c.name} (${c.on})`;
+    });
+  const inheritedDropped = byName.size - inheritedShown.length;
+
+  const where = opts.inherited
+    ? `${obj.type} ${obj.name} has no method ${method}, and neither does anything it inherits ` +
+      `from or implements (searched ${searched.join(", ")}).`
+    : `${obj.type} ${obj.name} has no method ${method}.`;
+  const truncation =
+    dropped > 0
+      ? ` [TRUNCATED: listing ${shown.length} of ${pool.length} components — ${dropped} not shown, ` +
+        `retrieve with: abap_read({outline:true})]`
+      : "";
+  const emptiness =
+    pool.length === 0
+      ? ` The ${own.version} version of ${obj.name} declares no methods at all` +
+        (own.version === "active"
+          ? " (no inactive version was found, so the active structure was used)."
+          : ".")
+      : "";
+  throw new AbapError(
+    "NOT_FOUND",
+    `${where}${emptiness}${truncation}`,
+    {
+      method,
+      version: own.version,
+      searched,
+      availableTotal: pool.length,
+      available: shown,
+      ...(dropped > 0 ? { availableTruncated: dropped } : {}),
+      ...(opts.inherited
+        ? {
+            availableInheritedTotal: byName.size,
+            availableInherited: inheritedShown,
+            ...(inheritedDropped > 0 ? { availableInheritedTruncated: inheritedDropped } : {}),
+          }
+        : {}),
+      ...(unresolved.length > 0 ? { unresolved } : {}),
+    },
+    (dropped > 0
+      ? `The list above is INCOMPLETE (${shown.length} of ${pool.length}). Read the object ` +
+        "with outline=true for every component before concluding the method is missing. "
+      : pool.length === 0
+        ? "`available` is empty because the structure has no methods, not because the list was cut. "
+        : "") +
+      (opts.inherited
+        ? "Members are resolved against the inactive version when one exists, then the active one, " +
+          "then up the superclass/interface chain; `availableInherited` names the origin of each " +
+          "inherited candidate."
+        : "Read the object with outline=true to see its full component list, including inherited members."),
+  );
+}
+
+export interface InheritedMember extends ClassMember {
+  /** Defining class or interface. */
+  on: string;
+  relation: ChainRelation;
+  depth: number;
+}
+
+export interface InheritedOutline {
+  inherited: InheritedMember[];
+  /** Chain objects read, nearest first. */
+  searched: string[];
+  unresolved: ChainUnresolved[];
+}
+
+/**
+ * Public and protected members the object gets from its superclasses and
+ * interfaces, excluding anything it declares (or redefines/implements)
+ * itself — the nearest definition wins. Costs two requests per chain
+ * level; zero when the definition names no parent.
+ */
+export async function inheritedMembers(
+  conn: AbapConnection,
+  obj: ResolvedObject,
+  source: string,
+  own: ClassMember[],
+  version?: SourceVersion,
+): Promise<InheritedOutline> {
+  const inherited: InheritedMember[] = [];
+  const searched: string[] = [];
+  const taken = new Set(own.map((m) => m.name.toUpperCase()));
+  const walk = await walkInheritanceChain(conn, obj, source, version, (node) => {
+    searched.push(node.obj.name);
+    for (const m of node.members.members) {
+      if (node.relation === "superclass" && m.visibility === "private") continue;
+      const key = m.name.toUpperCase();
+      // An interface method reaches the implementing class as `IF~METHOD`.
+      const implemented = node.relation === "interface" ? `${node.obj.name}~${key}` : key;
+      if (taken.has(key) || taken.has(implemented)) continue;
+      taken.add(key);
+      inherited.push({ ...m, on: node.obj.name, relation: node.relation, depth: node.depth });
+    }
+    return false;
+  });
+  return { inherited, searched, unresolved: walk.unresolved };
+}
+
+const OUTLINE_TYPES = new Set(["CLAS/OM", "INTF/OM", "CLAS/OA", "INTF/OA"]);
+
+function outlineRow(m: ClassMember, indent: string): string {
+  const loc = m.implementation
+    ? `${m.implementation.startLine}-${m.implementation.endLine}`
+    : m.definition
+      ? `${m.definition.startLine}-${m.definition.endLine}`
+      : "";
+  const flags = [m.visibility, m.level, m.redefinition ? "redefinition" : undefined]
+    .filter(Boolean)
+    .join(" ");
+  return `${indent}${m.name}  [${flags}]${loc ? `  lines ${loc}` : ""}`;
 }
 
 /** One-line-per-member outline. Cheap orientation before a targeted read. */
 export function renderOutline(members: ClassMember[]): string {
-  const rows = members
-    .filter((m) => m.type === "CLAS/OM" || m.type === "INTF/OM" || m.type === "CLAS/OA")
-    .map((m) => {
-      const loc = m.implementation
-        ? `${m.implementation.startLine}-${m.implementation.endLine}`
-        : m.definition
-          ? `${m.definition.startLine}-${m.definition.endLine}`
-          : "";
-      const flags = [m.visibility, m.level, m.redefinition ? "redefinition" : undefined]
-        .filter(Boolean)
-        .join(" ");
-      return `  ${m.name}  [${flags}]${loc ? `  lines ${loc}` : ""}`;
-    });
-  return rows.join("\n");
+  return members
+    .filter((m) => OUTLINE_TYPES.has(m.type))
+    .map((m) => outlineRow(m, "  "))
+    .join("\n");
+}
+
+/**
+ * The inherited section of an outline, grouped by defining object, nearest
+ * first. Line numbers are those of the DEFINING object's source, which is
+ * why each group names it: a `method=` read of the class resolves these
+ * through the chain, a full read of the class never shows them.
+ */
+export function renderInheritedOutline(rows: InheritedMember[]): string {
+  const groups = new Map<string, InheritedMember[]>();
+  for (const r of rows) {
+    if (!OUTLINE_TYPES.has(r.type)) continue;
+    const list = groups.get(r.on) ?? [];
+    list.push(r);
+    groups.set(r.on, list);
+  }
+  const out: string[] = [];
+  for (const [on, list] of groups) {
+    const relation = list[0]?.relation ?? "superclass";
+    out.push(`  from ${on} (${relation}, depth ${list[0]?.depth ?? 1}; line numbers are ${on}'s):`);
+    for (const r of list) out.push(outlineRow(r, "    "));
+  }
+  return out.join("\n");
 }
 
 // ---------------------------------------------------------------------------

@@ -13,8 +13,8 @@ Read the source, metadata or outline of an ABAP object.
 |---|---|---|---|---|
 | `object` | string | yes | — | Object reference: bare name, `"class ZCL_FOO"`, or a raw ADT URI. |
 | `type` | string | no | — | ADT type hint, e.g. `CLAS/OC`, to disambiguate a bare name. |
-| `method` | string | no | — | Read one method's source instead of the whole class. With `view="docu"` against a `CLAS` object, selects that method's ABAP Doc comment instead of the class's own SAP documentation — refused against every other `view`. |
-| `outline` | boolean | no | automatic — see [Large sources](#large-sources-outline-by-default-pattern-and-full) | `true`: the component list with line ranges instead of the source (`CLAS`/`INTF`: ADT component structure; `PROG`/`FUGR`: a statement scan of the text). `false`: the source, even above the default-outline threshold. Omitted: the outline is the default for a `CLAS`/`INTF`/`PROG`/`FUGR` source read above 150 lines or 8000 chars when no narrower parameter is given. |
+| `method` | string | no | — | Read one method's source instead of the whole class: its `METHODS` declaration first, then the `METHOD … ENDMETHOD.` body. Resolved against the inactive version's component structure when one exists, then the active one, then up the superclass/interface chain (`foundOn` in the header). With `include="definitions"`, returns the declaration only — the cheap way to learn a signature. With `view="docu"` against a `CLAS` object, selects that method's ABAP Doc comment instead of the class's own SAP documentation — refused against every other `view`. Giving it also opts out of the default outline. See ["Classes: `method=`, `outline=true`, inherited members and the inactive version"](#classes-method-outlinetrue-inherited-members-and-the-inactive-version). |
+| `outline` | boolean | no | automatic — see [Large sources](#large-sources-outline-by-default-pattern-and-full) | `true`: the component list with line ranges instead of the source (`CLAS`/`INTF`: ADT component structure; `PROG`/`FUGR`: a statement scan of the text). `false`: the source, even above the default-outline threshold. Omitted: the outline is the default for a `CLAS`/`INTF`/`PROG`/`FUGR` source read above 150 lines or 8000 chars when no narrower parameter is given. For classes, an `INHERITED` section lists the public/protected members of every superclass and interface with the defining object. |
 | `full` | boolean | no | — | The whole source even above the default-outline threshold — the same as `outline=false`, named for what it asks. Refused with `BAD_INPUT` together with `outline=true`, `method` or `pattern` (whole vs. part cannot both be honoured), with `UNSUPPORTED` together with any `view` and on the raw/enhancements/DDIC paths. |
 | `pattern` | string | no | — | Case-insensitive regex: only the source lines matching it, numbered like `grep -n -C`, with `context` unchanged lines around each match. At most 50 matches per response unless `limit` says otherwise; `offset` is the first line scanned. Empty or invalid → `BAD_INPUT` before any request. Refused with `BAD_INPUT` together with `outline=true`/`method`/`full`, with `UNSUPPORTED` together with any `view`, `format="raw"`, `enhancements=true` and on a DDIC/catalog read. |
 | `offset` | number (int, 1–999999) | no | — | 1-based first line to return (with `pattern`: the first line scanned). Giving it also opts out of the default outline. |
@@ -125,6 +125,64 @@ empty result, the `full` clashes) and `test/read-pattern.test.ts`
 partial etag, pattern over a large class). Live: not run against A4H on
 this build — the installed MCP tools run the released bundle, whose
 `abap_read` has neither parameter.
+
+### Classes: `method=`, `outline=true`, inherited members and the inactive version
+
+`method=` and `outline=true` share one component lookup (`src/adt/source.ts`,
+`classMembersFor` / `readMethod`). Facts a caller can rely on:
+
+- **Which version is resolved.** The object's own descriptor (`GET {uri}`,
+  attribute `adtcore:version`) decides, not a blind try of the inactive
+  structure first: ADT answers `/objectstructure?version=inactive` with the
+  ACTIVE structure, no marker, for an object that has no newer inactive
+  version, so asking for it first cannot tell "inactive" from "active" —
+  the descriptor is consulted instead. When the object's activation state
+  isn't already known this costs one descriptor GET; the inactive structure
+  is then requested only when the descriptor reports a newer inactive
+  version, falling back to the active structure when that read fails or
+  comes back empty. Otherwise, and whenever the descriptor itself can't be
+  read, the active structure is used directly. The header's
+  `structureVersion` names the version whose line ranges were used, and a
+  note says so — and only claims "inactive" — when the descriptor reported
+  one. Without this, a class whose last full write failed its syntax check
+  (saved inactive, see [`abap_write`](write-and-activate.md#abap_write))
+  resolved every `method=` against the stale active line ranges, and a
+  method that existed only in the inactive version was `NOT_FOUND`.
+- **`method=` walks the inheritance chain.** When the class itself has no such
+  member, the walk follows `INHERITING FROM` and `INTERFACES` from the
+  definition source, superclass first, then the interfaces, each level's own
+  parents after it, and stops at the first hit. The header then carries
+  `foundOn: "ZCL_PARENT (superclass of ZCL_CHILD, depth 1)"` (or
+  `interface of …`) and `sourceLines` in the defining object's numbering; a
+  note repeats that the lines are the defining object's. Private members of a
+  superclass are not inherited and are not searched. A parent that cannot be
+  read on this system (missing, or not readable in this mode) is skipped and
+  listed under `details.unresolved` / a response note rather than aborting the
+  read.
+- **`NOT_FOUND` lists candidates from the whole chain.** `details.available`
+  are the class's own methods, `details.availableInherited` the inherited ones
+  as `"NAME (ORIGIN)"`, both preferring names sharing a prefix with the request
+  (`GET_` for `GET_COLUMNS`) when the list is cut. Each list is capped at
+  `ABAP_AVAILABLE_MEMBERS_MAX` names (default 40; `availableTruncated` /
+  `availableInheritedTruncated` say how many were dropped). The class's own
+  name is never listed as a member — the interface's `CLAS/OC` self-entry in
+  the ADT structure is filtered out, and so is the `CLAS/OCX` "Text
+  Elements" entry (`isExternalRef="true"`) that every class's active
+  structure carries for itself — which before also made each chain parent's
+  own name appear in the outline's `INHERITED` section.
+- **Signature first.** A `method=` read returns the `METHODS …` declaration
+  (from the definition part, unchained from a `METHODS: a, b.` list) as a
+  block ahead of the `METHOD … ENDMETHOD.` body; `blockLines` counts both.
+  `method=` together with `include="definitions"` returns the declaration
+  alone (`METHOD DECLARATION` body label) — the way to learn a signature
+  without reading the class. `method=` with any other `include` is still
+  `UNSUPPORTED`, since method bodies live in `main`.
+- **`outline=true` shows inherited members.** After the class's own
+  components an `INHERITED (…)` section lists the public and protected methods,
+  attributes and events declared on its superclasses and interfaces, grouped
+  by defining object with its relation and depth, line numbers in that
+  object's source. The header's `components` counts the class's own members,
+  `inherited` the chain's.
 
 ### `SHLP/DH`, `VIEW/DV`, `TRAN/T`: catalog reads, not ADT source
 

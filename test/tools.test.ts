@@ -143,6 +143,8 @@ const adt = vi.hoisted(() => ({
   canonicalEtag: vi.fn((s: string) => s),
   checkSource: vi.fn(),
   activateObject: vi.fn(),
+  /** `method=` member lookup (src/adt/source.js); programmed per test. */
+  readMethod: vi.fn(),
   /** The tools now raise a failed activation through this; a clean one is a no-op. */
   assertNoErrors: vi.fn(),
   parseStartFragment: vi.fn(),
@@ -190,7 +192,11 @@ vi.mock("../src/adt/package-create.js", () => ({
   createPackageViaBridge: adt.createPackageViaBridge,
   tdevcDiscrepancies: adt.tdevcDiscrepancies,
 }));
-vi.mock("../src/adt/activate.js", () => ({
+vi.mock("../src/adt/activate.js", async (importActual) => ({
+  // Pure helpers stay real: `withSourceContext` only slices the caller's own
+  // source text (issue #147) and touches no network.
+  withSourceContext: (await importActual<typeof import("../src/adt/activate.js")>()).withSourceContext,
+  SOURCE_LINE_MAX: (await importActual<typeof import("../src/adt/activate.js")>()).SOURCE_LINE_MAX,
   checkSource: adt.checkSource,
   activateObject: adt.activateObject,
   assertNoErrors: adt.assertNoErrors,
@@ -202,6 +208,12 @@ vi.mock("../src/adt/activate.js", () => ({
   assertBatchActivated: adt.assertBatchActivated,
   renderBatch: adt.renderBatch,
   MAX_ACTIVATION_BATCH: adt.MAX_ACTIVATION_BATCH,
+}));
+// Only `readMethod` is faked: the splice helpers it feeds are pure and stay
+// real, so a method= write here exercises the genuine splice.
+vi.mock("../src/adt/source.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../src/adt/source.js")>()),
+  readMethod: adt.readMethod,
 }));
 // Only `resolveObject` is faked — `parseObjectRef` is pure and is what the
 // pre-flight gate runs on, so it must stay real.
@@ -683,6 +695,111 @@ describe("abap_write routing", () => {
     expect(err.error).toBe("CHECK_FAILED");
     expect(err.message).toMatch(/saved INACTIVE/);
     expect(err.details).toMatchObject({ written: true, activated: false });
+  });
+
+  it("CHECK_FAILED quotes each offending line with its neighbours from the sent source, and the hint names the method= repair (#147)", async () => {
+    adt.resolveWriteTarget.mockResolvedValue(target);
+    adt.writeObject.mockResolvedValue({
+      target,
+      created: false,
+      changed: true,
+      etag: "sha256:def",
+      transport: { status: "local", required: false },
+    });
+    adt.checkSource.mockResolvedValue({
+      ok: false,
+      messages: [
+        { severity: "E", text: "period missing", line: 3, col: 5 },
+        { severity: "W", text: "no position" },
+      ],
+      errors: 1,
+      warnings: 1,
+    });
+    const h = await harness(cfg({ readOnly: false, allowPackages: ["$TMP"] }), new CountingClient(okResponse));
+    const res = await call(h, "abap_write", {
+      object: "ZMCP_DEMO",
+      package: "$TMP",
+      source: ["REPORT zmcp_demo.", "DATA a TYPE i.", "a = 1", "WRITE a.", `WRITE '${"x".repeat(300)}'.`].join("\n"),
+    });
+    const err = errorOf(res);
+    expect(err.error).toBe("CHECK_FAILED");
+    const failure = (err.details as { failure: { details: { messages: unknown[] } } }).failure;
+    // Cut from the bytes just sent — no re-read happened (readCurrentSource is
+    // the pre-activation gate's one call, and it never ran: the check failed first).
+    expect(adt.readCurrentSource).not.toHaveBeenCalled();
+    expect(failure.details.messages[0]).toEqual({
+      severity: "E",
+      text: "period missing",
+      line: 3,
+      col: 5,
+      sourceLine: "a = 1",
+      before: { line: 2, text: "DATA a TYPE i." },
+      after: { line: 4, text: "WRITE a." },
+    });
+    // A message with no line is passed through untouched, never guessed at.
+    expect(failure.details.messages[1]).toEqual({ severity: "W", text: "no position" });
+    expect(err.hint).toMatch(/abap_write method="<NAME>" repairs one method against the INACTIVE version/);
+    expect(err.hint).toMatch(/details\.failure\.details\.messages/);
+    expect(err.hint).toMatch(/then abap_activate/);
+  });
+
+  it("a method= write reports which version's component structure resolved the method (#147)", async () => {
+    const CLASS_SOURCE = [
+      "CLASS zcl_mcp_demo DEFINITION PUBLIC FINAL CREATE PUBLIC.",
+      "  PUBLIC SECTION.",
+      "    METHODS double.",
+      "ENDCLASS.",
+      "CLASS zcl_mcp_demo IMPLEMENTATION.",
+      "  METHOD double.",
+      "    rv = 1",
+      "  ENDMETHOD.",
+      "ENDCLASS.",
+    ].join("\n");
+    const clas = {
+      ...target,
+      type: "CLAS/OC",
+      name: "ZCL_MCP_DEMO",
+      uri: "/sap/bc/adt/oo/classes/zcl_mcp_demo",
+      sourceUri: "/sap/bc/adt/oo/classes/zcl_mcp_demo/source/main",
+      exists: true,
+    };
+    adt.resolveWriteTarget.mockResolvedValue(clas);
+    adt.readCurrentSource.mockResolvedValueOnce(CLASS_SOURCE);
+    // The state right after a CHECK_FAILED full write: the member came from
+    // the INACTIVE structure.
+    adt.readMethod.mockResolvedValue({
+      member: { name: "DOUBLE", type: "CLAS/OM", visibility: "public" },
+      implementationRange: { startLine: 6, endLine: 8 },
+      version: "inactive",
+      searched: ["ZCL_MCP_DEMO"],
+    });
+    adt.writeObject.mockResolvedValue({
+      target: clas,
+      created: false,
+      changed: true,
+      etag: "sha256:fixed",
+      transport: { status: "local", required: false },
+    });
+    adt.checkSource.mockResolvedValue({ ok: true, messages: [], errors: 0, warnings: 0 });
+    adt.activateObject.mockResolvedValue({ ok: true, messages: [], errors: 0, warnings: 0, activated: true, inactive: [] });
+
+    const h = await harness(cfg({ readOnly: false, allowPackages: ["$TMP"] }), new CountingClient(okResponse));
+    const res = await call(h, "abap_write", {
+      object: "ZCL_MCP_DEMO",
+      type: "CLAS/OC",
+      method: "double",
+      source: "METHOD double.\n    rv = 1.\n  ENDMETHOD.",
+    });
+    expect(res.isError).toBeFalsy();
+    // Inherited members are never walked for a write: the block replaced is this class's.
+    expect(adt.readMethod).toHaveBeenCalledTimes(1);
+    expect(adt.readMethod.mock.calls[0]![4]).toEqual({ inherited: false });
+    const written = (adt.writeObject.mock.calls[0]![2] as { source: string }).source;
+    expect(written).toContain("    rv = 1.");
+    expect(written).not.toContain("rv = 1\n");
+    expect(res.content[0]!.text).toMatch(
+      /method="double" was resolved against the INACTIVE version's component structure — a newer inactive version existed/,
+    );
   });
 
   /**

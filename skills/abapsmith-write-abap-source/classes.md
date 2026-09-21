@@ -20,6 +20,13 @@ re-reads and supplies the etag for you:
 abap_write { object, method, source }
 ```
 
+`method` resolves the method's line range against the inactive version when
+one exists (the state a class is left in after a failed syntax check), so a
+`method` write is the repair path after `CHECK_FAILED`; the response says
+which version it used. Before writing a call to a method, learn its
+signature with `abap_read { object, method, include: "definitions" }` — not
+by reading the class.
+
 ## Source that saves, then is refused or fails
 
 - A comment line outside `METHOD … ENDMETHOD` or the DEFINITION part makes ADT refuse the

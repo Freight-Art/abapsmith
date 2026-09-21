@@ -3,7 +3,8 @@
  * threshold (OUTLINE_DEFAULT_LINES lines or OUTLINE_DEFAULT_CHARS chars)
  * answers with the outline by default; anything narrower (method/include/
  * offset/limit/pattern) or wider (full=true, outline=false) still gets the
- * source. Offline: resolveObject and the source readers are stubbed.
+ * source. Offline: resolveObject, the source readers and the component lookup
+ * (classMembersFor / inheritedMembers, issues #146/#147) are stubbed.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AbapConnection } from "../src/adt/connection.js";
@@ -29,6 +30,11 @@ vi.mock("../src/adt/source.js", async (importActual) => ({
     stub.classMembersCalls += 1;
     return stub.members;
   },
+  classMembersFor: async () => {
+    stub.classMembersCalls += 1;
+    return { members: stub.members, version: "active" };
+  },
+  inheritedMembers: async () => ({ inherited: [], unresolved: [], searched: [] }),
   readMethod: async () => {
     throw new Error("readMethod must not be called by these tests");
   },

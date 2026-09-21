@@ -18,7 +18,7 @@ reaching SAP.
 | `type` | string | no | — | ADT type, required to create a **new** object, e.g. `CLAS/OC`, `PROG/P`. Not every type creates reliably — see `doc/LIMITATIONS/editing.md`. |
 | `source` | string | no (required unless `mode=delete`) | — | Complete new source. |
 | `edit` | object `{old_string, new_string, replace_all?}` | no | — | Apply a string replacement to the current source instead of sending a full replacement. |
-| `method` | string | no | — | Write one method's source instead of the whole class. |
+| `method` | string | no | — | Write one method's source instead of the whole class. The method's line range is resolved against the INACTIVE version's component structure when one exists (a class saved inactive by a failed syntax check), as reported by the object's descriptor, otherwise the active one; the success note says which. A method missing from both is `NOT_FOUND` with `details.available` naming the class's own methods — never the class name. |
 | `include` | enum `main` \| `definitions` \| `implementations` \| `macros` \| `testclasses` | no | `main` | `CLAS/OC` only — which class sub-include to write. `testclasses` is the ABAP Unit test include (CCAU). A write REPLACES the whole named include; there is no partial/patch write to an include (`edit`/`method` still target `main` only). |
 | `ddic` | object | no | — | Structured create for `DOMA/DD`/`DTEL/DE`/`TTYP/DA` only — alternative to `source` (never both; an empty `source: ""` counts as absent). `DOMA/DD` takes `fixedValues: [{low, high?, text}]` and `valueTable`, and computes `outputLength` from the type unless given. See `abapsmith-create-ddic-objects` for which fields apply to which type. |
 | `package` | string | no | `$TMP` | Package for a **new** object. Must be allowlisted. For a new `DEVC/K` this is the SUPERpackage, not a sibling — omitting it would create a ROOT package, which the safety gate refuses. |
@@ -258,6 +258,19 @@ turns — one tool call instead of N — not HTTP round trips and not server loa
 Notes: the syntax check runs after the save and before activation — a
 failing check skips activation and returns messages with real source line
 numbers, so an activation failure never masquerades as a silent HTTP 200.
+Each message in `details.failure.details.messages` also carries the
+offending line's text as it was just sent (`sourceLine`, trimmed, cut at 200
+characters) and one line of context each side (`before` / `after`), taken
+from the source the call already holds — no second read; messages without a
+line position are passed through untouched. The `CHECK_FAILED` hint says the
+object is saved inactive and that, for a class, `abap_write method="<NAME>"`
+repairs one method against that inactive version, after which
+`abap_activate` (or a write with `activate=true`) activates it. A syntax
+error that ADT already refuses at save time (a missing period,
+`ExceptionResourceScanDuringSaveFailure`) never reaches this state — for a
+new object the just-created shell is deleted again and the response says
+so; only errors that pass the save and fail the check leave the object
+inactive.
 Every successful write is journalled (`abap_journal`) and undoable, except
 enhancement objects (`ENHO/XH`, `ENHO/XHH`, `ENHS/XS`), which can never be
 undone even with `force:true`, and except the bridge routes for `SHLP/DH`,

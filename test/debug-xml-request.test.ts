@@ -4,6 +4,9 @@
  * Every "got this wrong elsewhere" note below is testing the
  * specific correction, not just the happy path.
  */
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { XMLParser, XMLValidator } from "fast-xml-parser";
 import { describe, expect, it } from "vitest";
 import { AbapError } from "../src/adt/errors.js";
@@ -125,6 +128,44 @@ describe("buildBreakpointsRequestXml — every supported kind", () => {
     const bp = parsed["dbg:breakpoints"].breakpoint;
     expect(bp["@_kind"]).toBe("exception");
     expect(bp["@_exceptionClass"]).toBe("CX_SY_ZERODIVIDE");
+  });
+
+  it("exception breakpoint: attribute-for-attribute the body A4H accepted and echoed as KIND=5 (#152)", () => {
+    // The recorded request is what the server answered 200 to, assigning
+    // `KIND=5.EXCEPTION_CLASS=CX_SY_ZERODIVIDE`. Namespace placement and
+    // whitespace differ between the capture harness and today's renderer, so
+    // the comparison is on parsed attributes, not bytes.
+    const cassette = JSON.parse(
+      readFileSync(
+        join(dirname(fileURLToPath(import.meta.url)), "cassettes", "debugger", "bp-set-exception-accepted.cassette.json"),
+        "utf8",
+      ),
+    ) as { request: { body: string }; response: { body: string } };
+    const recorded = parse(cassette.request.body)["dbg:breakpoints"];
+    const req: BreakpointsRequest = {
+      debuggingMode: "user",
+      scope: "external",
+      requestUser: recorded["@_requestUser"],
+      terminalId: recorded["@_terminalId"],
+      ideId: recorded["@_ideId"],
+      breakpoints: [{ kind: "exception", clientId: "exc1", skipCount: 0, exceptionClass: "CX_SY_ZERODIVIDE" }],
+    };
+    const ours = parse(buildBreakpointsRequestXml(req))["dbg:breakpoints"];
+    for (const attr of ["@_debuggingMode", "@_scope", "@_requestUser", "@_terminalId", "@_ideId"]) {
+      expect(ours[attr], attr).toBe(recorded[attr]);
+    }
+    const ourBp = ours.breakpoint;
+    const recordedBp = recorded.breakpoint;
+    const keys = (o: Record<string, unknown>) =>
+      Object.keys(o)
+        .filter((k) => k.startsWith("@_") && !k.startsWith("@_xmlns"))
+        .sort();
+    expect(keys(ourBp)).toEqual(keys(recordedBp));
+    for (const k of keys(recordedBp)) expect(ourBp[k], k).toBe(recordedBp[k]);
+    // What the server sends back for exactly this body: the echoed class and its KIND=5 id.
+    const echoed = parse(cassette.response.body)["dbg:breakpoints"].breakpoint;
+    expect(echoed["@_id"]).toBe("KIND=5.EXCEPTION_CLASS=CX_SY_ZERODIVIDE");
+    expect(echoed["@_exceptionClass"]).toBe("CX_SY_ZERODIVIDE");
   });
 
   it("statement breakpoint", () => {

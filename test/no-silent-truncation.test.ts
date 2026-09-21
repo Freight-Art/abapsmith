@@ -327,6 +327,12 @@ const ALLOWED_LINES: { file: string; contains: string; reason: string }[] = [
       "Hash prefix, not content — the debug-arm-lock FILENAME width, identical rationale (and identical constant) to object-gate.ts's entry above. The hashed input is the (url, client, user) lock key, which is never shown to a caller; the key itself is reported in full in DEBUG_SESSION_LOCKED_CROSS_PROCESS's details.",
   },
   {
+    file: "src/debug/session.ts",
+    contains: "id.slice(0, SHORT_STATE_ID_LENGTH)",
+    reason:
+      "Hash prefix, not content — the wire form of a debugger stateId (#151). The full sha256 stays the session's internal value and is still accepted back; the short form is a derived identifier, never caller content.",
+  },
+  {
     file: "src/debug/client.ts",
     contains: 'digest("hex").slice(0, TERMINAL_ID_LENGTH)',
     reason:
@@ -409,6 +415,18 @@ const ALLOWED_LINES: { file: string; contains: string; reason: string }[] = [
     contains: "flat.slice(0, max - 1)",
     reason:
       "abbreviate(): an ON-condition / association blurb printed next to a lineage tree node is cut at ~80 characters and ALWAYS suffixed with `…` in the same string, so the cut is visible where it happens; the full condition is the CDS source itself, readable in full via abap_read of the DDLS. Nothing structural (no node, no field, no row) is dropped.",
+  },
+  {
+    file: "src/adt/source.ts",
+    contains: ").slice(0, max);",
+    reason:
+      "NOT_FOUND candidate list for method= (issue #146): the class's own methods are ranked and cut at ABAP_AVAILABLE_MEMBERS_MAX. `dropped` is computed on the next line and, when non-zero, the error message carries ` [TRUNCATED: listing <shown> of <total> components — <n> not shown, retrieve with: abap_read({outline:true})]` and details.availableTruncated names the count, so the cap is disclosed in the same response.",
+  },
+  {
+    file: "src/adt/source.ts",
+    contains: ".slice(0, max)",
+    reason:
+      "Same NOT_FOUND path, the inherited-candidate list (issue #146): cut at the same cap; `inheritedDropped` is computed two lines below and surfaces as details.availableInheritedTruncated whenever it is non-zero, next to the shown names in details.availableInherited. Test: test/source-members.test.ts.",
   },
 ];
 

@@ -26,6 +26,42 @@ version was set to `0.3.0`, which is intended.
 - **`context`** is now shared by `view="diff"` (per hunk, default 3) and `pattern` (around each match, default 2); it is still refused when neither is given.
 - **Shorter tool schemas** (#148). Tool and parameter descriptions in `tools/list` are trimmed to the parameters plus one line of intent: explanatory paragraphs (why a check exists, which function module runs, how a section is rendered) now live in `doc/TOOLS/*.md` and the skills, which the descriptions point to. Every gating or refusal statement an agent must see before calling stays as a one-liner (what is refused, with which code, whether before any request). Measured over all 29 tools in admin mode (`JSON.stringify({name, description, inputSchema})`), the `tools/list` payload shrinks from 81967 to 75147 chars (-8.3%) even though `abap_read` gained three parameters.
 
+## [0.6.13] - 2026-09-21
+
+### Added
+
+- **`abap_read method=` resolves inherited members** (#146). When the class itself declares no such member, the lookup walks `INHERITING FROM` and `INTERFACES` from the definition source (superclass first, then interfaces, each level's own parents after it) and returns the first hit with `foundOn` in the header and the defining object's line numbers; a `NOT_FOUND` lists the class's own methods in `details.available` and the chain's in `details.availableInherited` as `NAME (ORIGIN)`, preferring names that share a prefix with the request. A parent that cannot be read is reported under `details.unresolved` instead of aborting the read.
+- **`abap_read outline=true` lists inherited members** (#146). An `INHERITED` section after the class's own components names every public/protected method, attribute and event declared on its superclasses and interfaces, grouped by defining object with relation and depth; the header carries `components` and `inherited` counts.
+- **`abap_read method=` returns the declaration first** (#146). The `METHODS …` statement (unchained from a `METHODS: a, b.` list) precedes the `METHOD … ENDMETHOD.` body; `method=` with `include="definitions"` returns the declaration alone instead of `UNSUPPORTED`. The tool description and the `abapsmith-write-abap-source` skill say to learn a signature this way rather than reading the full class.
+- **`ABAP_AVAILABLE_MEMBERS_MAX`** (#146). Caps each candidate list in a `method=` `NOT_FOUND` (default 40, was a fixed 12); `availableTruncated` / `availableInheritedTruncated` report how many names were dropped.
+- **`CHECK_FAILED` quotes the offending lines** (#147). Each syntax-check message in `details.failure.details.messages` carries `sourceLine` (trimmed, cut at 200 characters) and one line of context each side (`before` / `after`), taken from the source the call just sent — no second read.
+- Live suite `test/integration-checkfail-method-repair.test.ts` (#147): a full write with a syntax error into `$TMP` class `ZCL_AS_CHECKFAIL`, a `method=` repair against the inactive version, and activation.
+
+### Changed
+
+- The `CHECK_FAILED` hint after a full write says the object is saved inactive and that `abap_write method="<NAME>"` repairs one method against that inactive version, then `abap_activate` (#147).
+
+### Fixed
+
+- **`method=` writes and reads against a class with an inactive version** (#147). Method line ranges were always taken from the ACTIVE component structure, so after a `CHECK_FAILED` full write every `method=` write spliced into stale line ranges and a method that existed only in the inactive version was `NOT_FOUND`. The object's descriptor (`adtcore:version`) now decides which structure to fetch: when it reports a newer inactive version, the structure is fetched with `?version=inactive` (falling back to the active one when that read fails or is empty); otherwise the active structure is used — because ADT answers `?version=inactive` with the active structure, unmarked, for a fully active object, so requesting it first without checking the descriptor could not tell the two apart. The response header (`structureVersion`) and the write's note say which version was used.
+- A `method=` `NOT_FOUND` no longer lists the class's own name as an available member (#147) — the `CLAS/OC` / `INTF/OI` self-entry of the ADT component structure is filtered out, and so is the `CLAS/OCX` external-reference entry (the class's Text Elements, present in every class's active structure — it also made each superclass's own name appear in the outline's `INHERITED` section), so `available` names methods only.
+
+## [0.6.12] - 2026-09-16
+
+### Added
+
+- `abap_debug` reports how the debugger attached (#152): the `start` response header carries `debuggee: <DBGEE_KIND>` and, for a post-mortem attach, `dump: <id>` plus a `POST-MORTEM` note saying the run has already terminated, that stepping cannot resume it, which armed exception breakpoints did not stop it, and the `abap_dumps` call that reads the dump.
+- `abap_debug` exception breakpoints (#152): `start` resolves the exception class first and refuses with `BAD_INPUT`, naming the class, before any breakpoint request when it does not exist — SAP accepts such a breakpoint and never fires it. An exception breakpoint the server accepted but did not echo back is reported in the `start` response as `NOT armed`. The `start` response, the death note and the `POST-MORTEM` note state the live-verified rule: an exception breakpoint stops at the `RAISE` only when a handler for the exception exists up the stack; an uncaught raise (and a real division by zero) goes straight to the runtime error and the debugger attaches to the dump. The registration itself was not at fault. `test/integration-debug.test.ts` gains live cases 5a/5b that create the `$TMP` probe classes `ZCL_AS_DBGEXC` (uncaught raise → `PMORTEM`, dump `UNCAUGHT_EXCEPTION`) and `ZCL_AS_DBGEXC2` (caught raise → suspended at the raise), pin both outcomes, and delete the classes afterwards.
+
+### Changed
+
+- `abap_debug`, `abap_debug_vars` and `abap_debug_value` print a 12-character `stateId` instead of the 64-character digest (#151). The short id is what to write back; the full digest and any prefix of at least 8 characters are accepted too. A prefix matching no current state is refused as a stale id, naming the current short id and carrying both forms in `details`.
+- The recurring explanatory notes on debugger responses (revisited position, `frame` read-cursor, `OMITTED`/`UNREQUESTED` variable rows, post-mortem attach) are printed in full once per debug session and as a one-line reminder afterwards; a different breakpoint hit or a post-mortem attach prints the full text again (#151). Notes sit outside the `DEBUG_MAX_CHARS` budget, so they no longer displace stack or variable content. Per-call evidence (watchpoint values, termination evidence, auto-continue reports) is unchanged. The debug skill and `doc/TOOLS/debugger.md` describe the short id and the note-once behaviour.
+
+### Fixed
+
+- `abap_debug mode=start` no longer fails with `parseDebuggeeResponse: unrecognised DBGEE_KIND "PMORTEM"` when the run dumps before any breakpoint fires (#152). `PMORTEM` and every `*MORTEM*` value parse as post-mortem; any other unknown kind is logged as a warning with the raw value and the session attaches as "kind unknown" instead of aborting.
+
 ## [0.6.11] - 2026-09-16
 
 ### Fixed

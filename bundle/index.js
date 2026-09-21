@@ -5194,9 +5194,9 @@ var require_utilities = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.orUndefined = exports2.toXmlAttributes = exports2.hasMessage = exports2.boolFromAbap = exports2.followUrl = exports2.parseJsonDate = exports2.toSapDate = exports2.parseSapDate = exports2.parse = exports2.fullParse = exports2.numberParseOptions = exports2.bar = exports2.typedNodeAttr = exports2.xmlNodeAttr = exports2.stripNs = exports2.xmlRoot = exports2.extractXmlArray = exports2.xmlArrayType = exports2.isUndefined = exports2.isNativeError = exports2.isNumber = exports2.isString = exports2.isArray = exports2.isObject = exports2.encodeEntity = void 0;
     exports2.JSON2AbapXML = JSON2AbapXML;
-    exports2.xmlNode = xmlNode2;
+    exports2.xmlNode = xmlNode3;
     exports2.xmlFlatArray = xmlFlatArray;
-    exports2.xmlArray = xmlArray2;
+    exports2.xmlArray = xmlArray3;
     exports2.toInt = toInt;
     exports2.btoa = btoa2;
     exports2.parts = parts;
@@ -5242,7 +5242,7 @@ var require_utilities = __commonJS({
     exports2.xmlArrayType = xmlArrayType;
     var extractXmlArray = (x) => x ? (0, exports2.isArray)(x) ? x : [x] : [];
     exports2.extractXmlArray = extractXmlArray;
-    function xmlNode2(xml3, ...path9) {
+    function xmlNode3(xml3, ...path9) {
       let current = xml3;
       path9.some((key) => {
         if ((0, exports2.isObject)(current))
@@ -5268,8 +5268,8 @@ var require_utilities = __commonJS({
       }
       return [];
     }
-    function xmlArray2(xml3, ...path9) {
-      const node2 = xmlNode2(xml3, ...path9);
+    function xmlArray3(xml3, ...path9) {
+      const node2 = xmlNode3(xml3, ...path9);
       if (node2) {
         if ((0, exports2.isArray)(node2))
           return node2;
@@ -5291,11 +5291,11 @@ var require_utilities = __commonJS({
     }, {});
     exports2.stripNs = stripNs;
     var stripAttrPrefix = (x) => x.replace(/^@_/, "");
-    var xmlNodeAttr2 = (n) => n && ok24(n).filter((k) => k.match(/^(?!@_xmlns)@_/)).reduce((part, cur) => {
+    var xmlNodeAttr3 = (n) => n && ok24(n).filter((k) => k.match(/^(?!@_xmlns)@_/)).reduce((part, cur) => {
       part[cur.replace(/^@_/, "")] = n[cur];
       return part;
     }, {});
-    exports2.xmlNodeAttr = xmlNodeAttr2;
+    exports2.xmlNodeAttr = xmlNodeAttr3;
     var typedNodeAttr = (n) => n && ok24(n).filter((k) => k.match(/^(?!@_xmlns)@_/)).reduce((part, cur) => {
       part[cur.replace(/^@_/, "")] = n[cur];
       return part;
@@ -5307,13 +5307,13 @@ var require_utilities = __commonJS({
       hex: true,
       skipLike: new RegExp("")
     };
-    var fullParse2 = (xml3, options = {}) => new fast_xml_parser_1.XMLParser({
+    var fullParse3 = (xml3, options = {}) => new fast_xml_parser_1.XMLParser({
       ignoreAttributes: false,
       trimValues: false,
       parseAttributeValue: true,
       ...options
     }).parse(xml3);
-    exports2.fullParse = fullParse2;
+    exports2.fullParse = fullParse3;
     var parse4 = (xml3, options = {}) => new fast_xml_parser_1.XMLParser(options).parse(xml3);
     exports2.parse = parse4;
     function toInt(x) {
@@ -32442,10 +32442,10 @@ var require_objectstructure = __commonJS({
         return false;
       return void 0;
     }
-    function parseStructureElement(el) {
+    function parseStructureElement2(el) {
       const attr11 = (0, utilities_1.xmlNodeAttr)(el);
       const links = (0, utilities_1.xmlArray)(el, "atom:link").map(utilities_1.xmlNodeAttr);
-      const children = (0, utilities_1.xmlArray)(el, "abapsource:objectStructureElement").map(parseStructureElement);
+      const children = (0, utilities_1.xmlArray)(el, "abapsource:objectStructureElement").map(parseStructureElement2);
       return {
         name: attr11["adtcore:name"] || "",
         type: attr11["adtcore:type"] || "",
@@ -32476,7 +32476,7 @@ var require_objectstructure = __commonJS({
         const rootEl = (0, utilities_1.xmlNode)(raw, "abapsource:objectStructureElement");
         if (!rootEl)
           return [];
-        const structureElements = (0, utilities_1.xmlArray)(rootEl, "abapsource:objectStructureElement").map(parseStructureElement);
+        const structureElements = (0, utilities_1.xmlArray)(rootEl, "abapsource:objectStructureElement").map(parseStructureElement2);
         return structureElements;
       } catch (e) {
       }
@@ -53358,29 +53358,6 @@ function keepLines(text5, budget) {
   return { kept, cutChars: text5.length - kept.length };
 }
 function buildResponse(parts) {
-  if (parts.size) return withSizeLine(parts);
-  return renderResponse(parts);
-}
-function formatSize(size) {
-  return `${size.chars} chars, ${size.lines} lines, truncated=${size.truncated}`;
-}
-function withSizeLine(parts) {
-  const { size: _flag, ...rest } = parts;
-  const base = renderResponse(rest);
-  let claim = { chars: base.text.length, lines: countLines(base.text), truncated: base.truncated };
-  let built = base;
-  for (let round = 0; round < 4; round++) {
-    built = renderResponse({ ...rest, header: { ...rest.header, size: formatSize(claim) } });
-    const actual = { chars: built.text.length, lines: countLines(built.text), truncated: built.truncated };
-    if (actual.chars === claim.chars && actual.lines === claim.lines && actual.truncated === claim.truncated) {
-      return { ...built, size: actual };
-    }
-    claim = actual;
-  }
-  built = renderResponse({ ...rest, header: { ...rest.header, size: `~${formatSize(claim)}` } });
-  return { ...built, size: claim };
-}
-function renderResponse(parts) {
   const maxChars = parts.maxChars ?? DEFAULT_MAX_CHARS;
   const header = renderHeader(parts.header);
   const sectionBlocks = (parts.sections ?? []).filter((s) => s.content.trim().length > 0).map((s) => `--- ${s.title} ---
@@ -89364,22 +89341,16 @@ function parseChildVariablesResponse(xmlText2) {
   const variables = toArray(variablesNode?.STPDA_ADT_VARIABLE).map(parseVariableRow);
   return { hierarchies, variables };
 }
-function parseDebuggeeKind(raw) {
-  switch ((raw ?? "").toUpperCase()) {
-    case "DEBUGGEE":
-      return "debuggee";
-    case "POSTMORTEM":
-      return "postmortem";
-    case "POSTMORTEM_DIALOG":
-      return "postmortem_dialog";
-    default:
-      throw new DebugXmlParseError(
-        `parseDebuggeeResponse: unrecognised DBGEE_KIND "${raw ?? ""}"`,
-        raw ?? ""
-      );
-  }
+function parseDebuggeeKind(raw, warn) {
+  const upper = (raw ?? "").trim().toUpperCase();
+  if (upper === "DEBUGGEE") return "debuggee";
+  if (upper.includes("MORTEM")) return upper.includes("DIALOG") ? "postmortem_dialog" : "postmortem";
+  warn?.(
+    `parseDebuggeeResponse: unrecognised DBGEE_KIND "${raw ?? ""}" \u2014 treating the debuggee as attached with kind unknown (raw value kept in Debuggee.rawKind)`
+  );
+  return "unknown";
 }
-function parseDebuggeeResponse(xmlText2) {
+function parseDebuggeeResponse(xmlText2, opts) {
   const parsed = parser.parse(xmlText2);
   const root = parsed.abap;
   const values = root?.values;
@@ -89393,7 +89364,8 @@ function parseDebuggeeResponse(xmlText2) {
   }
   return {
     id: str(row2.DEBUGGEE_ID),
-    kind: parseDebuggeeKind(row2.DBGEE_KIND),
+    kind: parseDebuggeeKind(row2.DBGEE_KIND, opts?.warn),
+    rawKind: str(row2.DBGEE_KIND),
     client: num(row2.CLIENT),
     // TERMINAL_ID/IDE_ID/INCL_CURR are absent from the postmortem fixture despite Debuggee
     // declaring them required — a post-mortem debuggee was never attached via a terminal.
@@ -89566,12 +89538,12 @@ function parseListenerConflictBody(body) {
     subType: parsed.subtype
   };
 }
-function parseListenResult(raw) {
+function parseListenResult(raw, warn) {
   if (raw.body.trim() === "") return { kind: "empty" };
   if (looksLikeExceptionEnvelope(raw.body)) {
     return { kind: "conflict", conflict: parseListenerConflictBody(raw.body) };
   }
-  return { kind: "debuggee", debuggee: parseDebuggeeResponse(raw.body) };
+  return { kind: "debuggee", debuggee: parseDebuggeeResponse(raw.body, { warn }) };
 }
 function buildMultipartBatchBody(operations, boundary) {
   const parts = operations.map((op) => {
@@ -89712,7 +89684,7 @@ var DebugClient = class {
    */
   launchListener(params) {
     const handle = this.longPoll.listen(listenerLaunchUrl(params), { headers: { Accept: LISTENER_ACCEPT } });
-    const result = handle.result.then(parseListenResult);
+    const result = handle.result.then((raw) => parseListenResult(raw, this.warn));
     void result.catch(() => {
     });
     return {
@@ -90874,6 +90846,16 @@ function computeStateId(input) {
     "utf8"
   ).digest("hex");
 }
+var SHORT_STATE_ID_LENGTH = 12;
+var MIN_STATE_ID_PREFIX_LENGTH = 8;
+function shortStateId(id) {
+  return id.slice(0, SHORT_STATE_ID_LENGTH);
+}
+function stateIdMatches(current, provided) {
+  const p = provided.trim().toLowerCase();
+  if (p.length < MIN_STATE_ID_PREFIX_LENGTH || p.length > current.length) return false;
+  return current.startsWith(p);
+}
 function terminationEvidenceFrom(e) {
   if (!isAbapError(e)) return void 0;
   const d = e.details;
@@ -90932,6 +90914,7 @@ var DebugSession = class {
   currentStateId;
   debugSessionId;
   debuggeeId;
+  caughtDebuggee;
   deathReason;
   deathDetail;
   terminationResult;
@@ -91014,6 +90997,7 @@ var DebugSession = class {
       stateId: this.currentStateId,
       debugSessionId: this.debugSessionId,
       debuggeeId: this.debuggeeId,
+      debuggee: this.caughtDebuggee,
       deathReason: this.deathReason,
       deathDetail: this.deathDetail,
       terminationResult: this.terminationResult,
@@ -91674,6 +91658,8 @@ var DebugSession = class {
     const outcome = settled.value;
     if (outcome.kind === "debuggee") {
       this.debuggeeId = outcome.debuggee.id;
+      const d = outcome.debuggee;
+      this.caughtDebuggee = { kind: d.kind, rawKind: d.rawKind, dumpId: d.dumpId, dumpUri: d.dumpUri };
       this.status = "caught";
       this.startIdleTimer();
       return outcome;
@@ -91823,11 +91809,15 @@ var DebugSession = class {
         { status: this.status }
       );
     }
-    if (stateId !== this.currentStateId) {
+    if (!stateIdMatches(this.currentStateId, stateId)) {
       throw new AbapError(
         "BAD_INPUT",
-        `Stale stateId: the session has moved on. The current stateId is "${this.currentStateId}".`,
-        { providedStateId: stateId, currentStateId: this.currentStateId },
+        `Stale stateId: the session has moved on. The current stateId is "${shortStateId(this.currentStateId)}".`,
+        {
+          providedStateId: stateId,
+          currentStateId: this.currentStateId,
+          currentShortStateId: shortStateId(this.currentStateId)
+        },
         "Re-fetch the stack/variables using the current stateId rather than one held from before the last step \u2014 this session deliberately does not auto-recover against a different state (types.ts's StateId doc comment)."
       );
     }
@@ -91966,7 +91956,7 @@ var DebugSession = class {
       await dieOnDeathSignal(e);
       throw new AbapError(
         "BAD_INPUT",
-        `step: the "${kind}" step DID execute on the debuggee \u2014 it has already moved and cannot be moved back \u2014 but the follow-up getStack() failed: ${describeUnknownError(e)}. Do NOT retry the step: doing so would step the debuggee a SECOND time. The stateId you passed has been retired; the current stateId is "${this.currentStateId}".`,
+        `step: the "${kind}" step DID execute on the debuggee \u2014 it has already moved and cannot be moved back \u2014 but the follow-up getStack() failed: ${describeUnknownError(e)}. Do NOT retry the step: doing so would step the debuggee a SECOND time. The stateId you passed has been retired; the current stateId is "${shortStateId(this.currentStateId)}".`,
         {
           stepExecuted: true,
           kind,
@@ -91975,7 +91965,7 @@ var DebugSession = class {
           causeCode: isAbapError(e) ? e.code : void 0,
           cause: describeUnknownError(e)
         },
-        `Re-read the stack with getStack("${this.currentStateId}") to resynchronise. Only re-issue step() once you have a fresh stack \u2014 a retry with the old stateId is now refused precisely so the debuggee cannot be stepped twice for one requested step.`,
+        `Re-read the stack with getStack("${shortStateId(this.currentStateId)}") to resynchronise. Only re-issue step() once you have a fresh stack \u2014 a retry with the old stateId is now refused precisely so the debuggee cannot be stepped twice for one requested step.`,
         { retryable: false }
         // the step already executed; retrying would step the debuggee a second time
       );
@@ -92111,6 +92101,7 @@ var DebugSession = class {
       this.clearIdleTimer();
       this.listenHandle = void 0;
       this.debuggeeId = void 0;
+      this.caughtDebuggee = void 0;
       this.deathReason = reason;
       this.deathDetail = detail;
       this.terminationResult = this.buildTerminationResult(reason, detail, evidence);
@@ -106782,6 +106773,52 @@ function renderStackSection(stack, stateId) {
   return lines.join("\n");
 }
 
+// src/debug/guidance.ts
+var GuidanceLedger = class {
+  seen = /* @__PURE__ */ new Set();
+  lastSignature;
+  /**
+   * The text to emit for `notes`, in order: the full text for a key not yet
+   * seen since the last state change, the brief otherwise. Marks each key
+   * seen, so two notes with the same key in ONE call print full then brief.
+   */
+  render(notes) {
+    const out = [];
+    for (const note of notes) {
+      if (this.seen.has(note.key)) {
+        out.push(note.brief);
+      } else {
+        this.seen.add(note.key);
+        out.push(note.full);
+      }
+    }
+    return out;
+  }
+  /**
+   * Record that the run's state changed in a way worth re-reading the full
+   * notes for. `signature` names the change (`"bp:<ids>"`, `"postmortem"`);
+   * only a signature DIFFERENT from the previous one re-arms the full text.
+   */
+  noteStateChange(signature) {
+    if (signature === this.lastSignature) return;
+    this.lastSignature = signature;
+    this.seen.clear();
+  }
+  /** True when `key` has already been printed in full since the last state change. */
+  hasSeen(key) {
+    return this.seen.has(key);
+  }
+};
+var NOTE_OVERHEAD = "NOTE: ".length + 1;
+function budgetWithNotes(notes, clampedMaxChars) {
+  return clampedMaxChars + notes.reduce((sum, n) => sum + n.length + NOTE_OVERHEAD, 0);
+}
+
+// src/debug/types.ts
+function isPostMortemKind(kind) {
+  return kind === "postmortem" || kind === "postmortem_dialog";
+}
+
 // src/adt/enhancement.ts
 init_session();
 init_errors();
@@ -107197,6 +107234,7 @@ init_errors();
 init_errors();
 init_session();
 init_types();
+var import_utilities = __toESM(require_utilities(), 1);
 
 // src/adt/write-verify.ts
 init_capabilities();
@@ -107674,44 +107712,250 @@ function linkRange(c, relSuffix) {
   const link = (c.links ?? []).find((l) => l.rel?.endsWith(relSuffix));
   return parseFragmentRange(link?.href);
 }
+var NON_MEMBER_TYPES = /* @__PURE__ */ new Set(["CLAS/OC", "INTF/OI", "CLAS/OCX"]);
 function flattenComponents(root) {
   const out = [];
   const walk = (c) => {
     for (const child4 of c.components ?? []) {
-      out.push({
-        name: child4["adtcore:name"],
-        type: child4["adtcore:type"],
-        visibility: child4.visibility,
-        level: child4.level,
-        redefinition: child4.redefinition,
-        definition: linkRange(child4, REL_DEF_BLOCK),
-        implementation: linkRange(child4, REL_IMPL_BLOCK)
-      });
+      const isExternalRef = child4.isExternalRef;
+      const externalRef = isExternalRef === true || isExternalRef === "true";
+      if (!NON_MEMBER_TYPES.has(child4["adtcore:type"]) && !externalRef) {
+        out.push({
+          name: child4["adtcore:name"],
+          type: child4["adtcore:type"],
+          visibility: child4.visibility,
+          level: child4.level,
+          redefinition: child4.redefinition,
+          definition: linkRange(child4, REL_DEF_BLOCK),
+          implementation: linkRange(child4, REL_IMPL_BLOCK)
+        });
+      }
       walk(child4);
     }
   };
   walk(root);
   return out;
 }
-async function classMembers(conn, obj) {
-  let root;
-  try {
-    root = await conn.adt.classComponents(obj.uri);
-  } catch (e) {
-    throw classifySourceFailure(e, {
-      operation: "read components",
-      uri: obj.uri,
-      name: obj.name,
-      type: obj.type
-    });
+function parseStructureElement(e) {
+  const attrs = (0, import_utilities.xmlNodeAttr)(e);
+  const links = (0, import_utilities.xmlArray)(e, "atom:link").map((l) => (0, import_utilities.xmlNodeAttr)(l));
+  const components = (0, import_utilities.xmlArray)(e, "abapsource:objectStructureElement").map(parseStructureElement);
+  return { ...attrs, links, components };
+}
+async function fetchStructure(conn, obj, version2) {
+  if (version2 === "active") return conn.adt.classComponents(obj.uri);
+  const resp = await conn.get(`${obj.uri}/objectstructure`, {
+    headers: { "Content-Type": "application/*" },
+    qs: { version: "inactive", withShortDescriptions: "true" }
+  });
+  const root = (0, import_utilities.xmlNode)((0, import_utilities.fullParse)(resp.body), "abapsource:objectStructureElement");
+  if (root === void 0 || root === null) {
+    return {
+      "adtcore:name": obj.name,
+      "adtcore:type": obj.type,
+      links: [],
+      components: []
+    };
   }
-  return flattenComponents(root);
+  return parseStructureElement(root);
+}
+async function classMembersFor(conn, obj, version2) {
+  const ctx = {
+    operation: "read components",
+    uri: obj.uri,
+    name: obj.name,
+    type: obj.type
+  };
+  const load = async (v) => {
+    try {
+      return { members: flattenComponents(await fetchStructure(conn, obj, v)), version: v };
+    } catch (e) {
+      throw classifySourceFailure(e, ctx);
+    }
+  };
+  if (version2 !== void 0) return load(version2);
+  const activation = obj.activation === "unknown" ? await checkActivation(conn, obj) : obj.activation;
+  if (activation === "newer-inactive-exists") {
+    let inactive;
+    try {
+      inactive = await load("inactive");
+    } catch {
+      inactive = void 0;
+    }
+    if (inactive && inactive.members.length > 0) return inactive;
+  }
+  return load("active");
+}
+async function classMembers(conn, obj, version2) {
+  return (await classMembersFor(conn, obj, version2)).members;
 }
 function findMember(members, wanted) {
   const w = wanted.toUpperCase();
   return members.find((m) => m.name.toUpperCase() === w) ?? members.find((m) => m.name.toUpperCase().split("~").pop() === w);
 }
-var AVAILABLE_MEMBERS_MAX = 12;
+function abapStatements(source) {
+  const lines = source.replace(/\r\n/g, "\n").split("\n");
+  const out = [];
+  let text5 = "";
+  let code = "";
+  let start = -1;
+  const flush = (endLine) => {
+    if (code.trim()) out.push({ text: text5.trim(), code: code.trim(), startLine: start, endLine });
+    text5 = "";
+    code = "";
+    start = -1;
+  };
+  for (let i = 0; i < lines.length; i++) {
+    const line2 = lines[i] ?? "";
+    let c = abapCodeOf(line2);
+    let t = line2.slice(0, c.length);
+    let idx2;
+    while ((idx2 = c.indexOf(".")) >= 0) {
+      if (start < 0 && c.slice(0, idx2).trim()) start = i + 1;
+      text5 += t.slice(0, idx2);
+      code += c.slice(0, idx2);
+      flush(i + 1);
+      c = c.slice(idx2 + 1);
+      t = t.slice(idx2 + 1);
+    }
+    if (c.trim() && start < 0) start = i + 1;
+    if (start >= 0) {
+      text5 += `${t}
+`;
+      code += `${c}
+`;
+    }
+  }
+  return out;
+}
+var DECLARATION_HEAD_RE = /^(CLASS-METHODS|METHODS)\b\s*(:)?\s*/i;
+function findMethodDeclaration(source, name) {
+  for (const st of abapStatements(source)) {
+    const head = DECLARATION_HEAD_RE.exec(st.code);
+    if (!head) continue;
+    const keyword = (head[1] ?? "METHODS").toUpperCase();
+    const bodyAt = head[0].length;
+    const segments = [];
+    if (head[2]) {
+      let from = bodyAt;
+      for (; ; ) {
+        const comma = st.code.indexOf(",", from);
+        if (comma < 0) {
+          segments.push([from, st.code.length]);
+          break;
+        }
+        segments.push([from, comma]);
+        from = comma + 1;
+      }
+    } else {
+      segments.push([bodyAt, st.code.length]);
+    }
+    for (const [a, b] of segments) {
+      const first = st.code.slice(a, b).trim().split(/\s+/)[0] ?? "";
+      if (first && methodNamesMatch(first, name)) {
+        return head[2] ? `${keyword} ${st.text.slice(a, b).trim()}.` : `${st.text.trim()}.`;
+      }
+    }
+  }
+  return void 0;
+}
+function parseClassParents(source) {
+  const parents = { interfaces: [] };
+  let inDefinition = false;
+  for (const st of abapStatements(source)) {
+    const flat = st.code.replace(/\s+/g, " ").trim();
+    if (!inDefinition) {
+      const def = /^(?:CLASS\s+\S+\s+DEFINITION|INTERFACE\s+\S+)\b(.*)$/i.exec(flat);
+      if (!def) continue;
+      if (/\b(DEFERRED|LOAD)\b/i.test(def[1] ?? "")) continue;
+      inDefinition = true;
+      const inh = /\bINHERITING\s+FROM\s+(\S+)/i.exec(def[1] ?? "");
+      if (inh?.[1]) parents.superclass = inh[1].toUpperCase();
+      continue;
+    }
+    if (/^(ENDCLASS|ENDINTERFACE)\b/i.test(flat)) break;
+    const intf = /^INTERFACES\b\s*(:)?\s*(.*)$/i.exec(flat);
+    if (!intf) continue;
+    const body = intf[2] ?? "";
+    const segments = intf[1] ? body.split(",") : [body];
+    for (const seg of segments) {
+      const first = seg.trim().split(/\s+/)[0];
+      if (first) parents.interfaces.push(first.toUpperCase());
+    }
+  }
+  return parents;
+}
+var CHAIN_MAX_DEPTH = 16;
+function relatedObject(base, name, type) {
+  const spec = specForType(type);
+  const uri = buildUri(spec, name);
+  return {
+    system: base.system,
+    type,
+    kind: spec.kind,
+    label: spec.label,
+    name: name.toUpperCase(),
+    uri,
+    sourceUri: `${uri}/source/main`,
+    mode: "source",
+    activation: "unknown",
+    spec
+  };
+}
+async function walkInheritanceChain(conn, obj, source, version2, visit) {
+  const visited = [];
+  const unresolved = [];
+  const seen = /* @__PURE__ */ new Set([obj.name.toUpperCase()]);
+  const queue = [];
+  const enqueue = (from, parents, depth) => {
+    if (depth > CHAIN_MAX_DEPTH) return;
+    if (parents.superclass && !seen.has(parents.superclass)) {
+      seen.add(parents.superclass);
+      queue.push({ name: parents.superclass, type: "CLAS/OC", relation: "superclass", via: from, depth });
+    }
+    for (const i of parents.interfaces) {
+      if (seen.has(i)) continue;
+      seen.add(i);
+      queue.push({ name: i, type: "INTF/OI", relation: "interface", via: from, depth });
+    }
+  };
+  enqueue(obj.name, parseClassParents(source), 1);
+  while (queue.length > 0) {
+    const next = queue.shift();
+    const parent = relatedObject(obj, next.name, next.type);
+    let parentSource;
+    let members;
+    try {
+      parentSource = (await readSource(conn, parent, void 0, version2)).source;
+      members = await classMembersFor(conn, parent, version2);
+    } catch (e) {
+      if (e instanceof AbapError && e.code === "NOT_FOUND") {
+        unresolved.push({ name: next.name, relation: next.relation, via: next.via, reason: e.message });
+        continue;
+      }
+      throw e;
+    }
+    const node2 = {
+      obj: parent,
+      relation: next.relation,
+      via: next.via,
+      depth: next.depth,
+      source: parentSource,
+      members
+    };
+    visited.push(node2);
+    if (visit(node2) === true) break;
+    enqueue(parent.name, parseClassParents(parentSource), next.depth + 1);
+  }
+  return { visited, unresolved };
+}
+var AVAILABLE_MEMBERS_MAX_DEFAULT = 40;
+function availableMembersMax() {
+  const raw = process.env.ABAP_AVAILABLE_MEMBERS_MAX;
+  if (raw === void 0 || raw.trim() === "") return AVAILABLE_MEMBERS_MAX_DEFAULT;
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : AVAILABLE_MEMBERS_MAX_DEFAULT;
+}
 function levenshtein(a, b) {
   const prev = Array.from({ length: b.length + 1 }, (_, j) => j);
   for (let i = 1; i <= a.length; i++) {
@@ -107725,141 +107969,154 @@ function levenshtein(a, b) {
   }
   return prev[b.length] ?? 0;
 }
-async function readMethod(conn, obj, source, method) {
-  const members = await classMembers(conn, obj);
-  const methods = members.filter((m) => m.type === "CLAS/OM" || m.type === "INTF/OM");
+function commonPrefixLength(a, b) {
+  let n = 0;
+  while (n < a.length && n < b.length && a[n] === b[n]) n += 1;
+  return n;
+}
+function rankCandidates(names, wanted) {
+  const w = wanted.toUpperCase();
+  return [...names].sort((a, b) => {
+    const A = a.toUpperCase();
+    const B = b.toUpperCase();
+    const byPrefix = commonPrefixLength(B, w) - commonPrefixLength(A, w);
+    if (byPrefix !== 0) return byPrefix;
+    const byDistance = levenshtein(A, w) - levenshtein(B, w);
+    if (byDistance !== 0) return byDistance;
+    return A < B ? -1 : A > B ? 1 : 0;
+  });
+}
+var isMethod = (m) => m.type === "CLAS/OM" || m.type === "INTF/OM";
+function resolveIn(members, source, method) {
+  const methods = members.filter(isMethod);
   const member = findMember(methods.length ? methods : members, method);
-  if (!member) {
-    const pool = methods.length ? methods : members;
-    const wantedUpper = method.toUpperCase();
-    const ranked = [...pool].sort(
-      (a, b) => levenshtein(a.name.toUpperCase(), wantedUpper) - levenshtein(b.name.toUpperCase(), wantedUpper)
-    );
-    const shown = ranked.slice(0, AVAILABLE_MEMBERS_MAX);
-    const dropped = pool.length - shown.length;
-    const disclosure = dropped > 0 ? ` [TRUNCATED: listing ${shown.length} of ${pool.length} components \u2014 ${dropped} not shown, retrieve with: abap_read({outline:true})]` : "";
-    throw new AbapError(
-      "NOT_FOUND",
-      `${obj.type} ${obj.name} has no method ${method}.${disclosure}`,
-      {
-        method,
-        availableTotal: pool.length,
-        available: shown.map((m) => m.name),
-        ...dropped > 0 ? { availableTruncated: dropped } : {}
-      },
-      dropped > 0 ? `The list above is INCOMPLETE (${shown.length} of ${pool.length}). Read the object with outline=true for every component before concluding the method is missing.` : "Read the object without `method` to see its full component list."
-    );
-  }
+  if (!member) return void 0;
   const lines = source.replace(/\r\n/g, "\n").split("\n");
   const cut = (r) => r ? lines.slice(Math.max(0, r.startLine - 1), r.endLine).join("\n") : void 0;
+  const declaration = cut(member.definition) ?? findMethodDeclaration(source, member.name);
+  const implementation = cut(member.implementation);
   return {
     member,
-    declaration: cut(member.definition),
-    implementation: cut(member.implementation),
-    implementationRange: member.implementation
+    ...declaration !== void 0 ? { declaration } : {},
+    ...implementation !== void 0 ? { implementation } : {},
+    ...member.implementation ? { implementationRange: member.implementation } : {}
   };
+}
+async function readMethod(conn, obj, source, method, opts = {}) {
+  const own = await classMembersFor(conn, obj, opts.version);
+  const searched = [obj.name];
+  const here = resolveIn(own.members, source, method);
+  if (here) return { ...here, version: own.version, searched };
+  const inheritedPool = [];
+  let unresolved = [];
+  if (opts.inherited) {
+    let found;
+    const walk = await walkInheritanceChain(conn, obj, source, opts.version, (node2) => {
+      searched.push(`${node2.obj.name} (${node2.relation} of ${node2.via})`);
+      const r = resolveIn(node2.members.members, node2.source, method);
+      if (r) {
+        found = {
+          ...r,
+          version: node2.members.version,
+          foundOn: {
+            name: node2.obj.name,
+            type: node2.obj.type,
+            relation: node2.relation,
+            via: node2.via,
+            depth: node2.depth
+          },
+          searched
+        };
+        return true;
+      }
+      for (const m of node2.members.members.filter(isMethod)) {
+        if (node2.relation === "superclass" && m.visibility === "private") continue;
+        inheritedPool.push({ name: m.name, on: node2.obj.name, relation: node2.relation });
+      }
+      return false;
+    });
+    if (found) return found;
+    unresolved = walk.unresolved;
+  }
+  const max = opts.availableMax ?? availableMembersMax();
+  const methods = own.members.filter(isMethod);
+  const pool = methods.length ? methods : own.members;
+  const shown = rankCandidates(
+    pool.map((m) => m.name),
+    method
+  ).slice(0, max);
+  const dropped = pool.length - shown.length;
+  const byName = new Map(inheritedPool.map((c) => [c.name.toUpperCase(), c]));
+  const inheritedShown = rankCandidates([...byName.keys()], method).slice(0, max).map((n) => {
+    const c = byName.get(n);
+    return `${c.name} (${c.on})`;
+  });
+  const inheritedDropped = byName.size - inheritedShown.length;
+  const where2 = opts.inherited ? `${obj.type} ${obj.name} has no method ${method}, and neither does anything it inherits from or implements (searched ${searched.join(", ")}).` : `${obj.type} ${obj.name} has no method ${method}.`;
+  const truncation = dropped > 0 ? ` [TRUNCATED: listing ${shown.length} of ${pool.length} components \u2014 ${dropped} not shown, retrieve with: abap_read({outline:true})]` : "";
+  const emptiness = pool.length === 0 ? ` The ${own.version} version of ${obj.name} declares no methods at all` + (own.version === "active" ? " (no inactive version was found, so the active structure was used)." : ".") : "";
+  throw new AbapError(
+    "NOT_FOUND",
+    `${where2}${emptiness}${truncation}`,
+    {
+      method,
+      version: own.version,
+      searched,
+      availableTotal: pool.length,
+      available: shown,
+      ...dropped > 0 ? { availableTruncated: dropped } : {},
+      ...opts.inherited ? {
+        availableInheritedTotal: byName.size,
+        availableInherited: inheritedShown,
+        ...inheritedDropped > 0 ? { availableInheritedTruncated: inheritedDropped } : {}
+      } : {},
+      ...unresolved.length > 0 ? { unresolved } : {}
+    },
+    (dropped > 0 ? `The list above is INCOMPLETE (${shown.length} of ${pool.length}). Read the object with outline=true for every component before concluding the method is missing. ` : pool.length === 0 ? "`available` is empty because the structure has no methods, not because the list was cut. " : "") + (opts.inherited ? "Members are resolved against the inactive version when one exists, then the active one, then up the superclass/interface chain; `availableInherited` names the origin of each inherited candidate." : "Read the object with outline=true to see its full component list, including inherited members.")
+  );
+}
+async function inheritedMembers(conn, obj, source, own, version2) {
+  const inherited = [];
+  const searched = [];
+  const taken = new Set(own.map((m) => m.name.toUpperCase()));
+  const walk = await walkInheritanceChain(conn, obj, source, version2, (node2) => {
+    searched.push(node2.obj.name);
+    for (const m of node2.members.members) {
+      if (node2.relation === "superclass" && m.visibility === "private") continue;
+      const key = m.name.toUpperCase();
+      const implemented = node2.relation === "interface" ? `${node2.obj.name}~${key}` : key;
+      if (taken.has(key) || taken.has(implemented)) continue;
+      taken.add(key);
+      inherited.push({ ...m, on: node2.obj.name, relation: node2.relation, depth: node2.depth });
+    }
+    return false;
+  });
+  return { inherited, searched, unresolved: walk.unresolved };
+}
+var OUTLINE_TYPES = /* @__PURE__ */ new Set(["CLAS/OM", "INTF/OM", "CLAS/OA", "INTF/OA"]);
+function outlineRow(m, indent) {
+  const loc = m.implementation ? `${m.implementation.startLine}-${m.implementation.endLine}` : m.definition ? `${m.definition.startLine}-${m.definition.endLine}` : "";
+  const flags = [m.visibility, m.level, m.redefinition ? "redefinition" : void 0].filter(Boolean).join(" ");
+  return `${indent}${m.name}  [${flags}]${loc ? `  lines ${loc}` : ""}`;
 }
 function renderOutline(members) {
-  const rows = members.filter((m) => m.type === "CLAS/OM" || m.type === "INTF/OM" || m.type === "CLAS/OA").map((m) => {
-    const loc = m.implementation ? `${m.implementation.startLine}-${m.implementation.endLine}` : m.definition ? `${m.definition.startLine}-${m.definition.endLine}` : "";
-    const flags = [m.visibility, m.level, m.redefinition ? "redefinition" : void 0].filter(Boolean).join(" ");
-    return `  ${m.name}  [${flags}]${loc ? `  lines ${loc}` : ""}`;
-  });
-  return rows.join("\n");
+  return members.filter((m) => OUTLINE_TYPES.has(m.type)).map((m) => outlineRow(m, "  ")).join("\n");
 }
-function grepSource(source, pattern, opts) {
-  const re = new RegExp(pattern, "i");
-  const lines = source === "" ? [] : source.replace(/\r\n/g, "\n").split("\n");
-  const from = Math.max(1, opts.fromLine);
-  const matches = [];
-  for (let i = from - 1; i < lines.length; i++) {
-    if (re.test(lines[i])) matches.push(i + 1);
+function renderInheritedOutline(rows) {
+  const groups = /* @__PURE__ */ new Map();
+  for (const r of rows) {
+    if (!OUTLINE_TYPES.has(r.type)) continue;
+    const list3 = groups.get(r.on) ?? [];
+    list3.push(r);
+    groups.set(r.on, list3);
   }
-  const shownMatches = matches.slice(0, Math.max(0, opts.maxMatches));
-  const shownSet = new Set(shownMatches);
-  const width = String(lines.length).length;
   const out = [];
-  let prevEnd = 0;
-  for (const m of shownMatches) {
-    const start = Math.max(from, m - opts.context);
-    const end = Math.min(lines.length, m + opts.context);
-    const groupStart = Math.max(start, prevEnd + 1);
-    if (prevEnd > 0 && groupStart > prevEnd + 1) out.push("--");
-    for (let n = groupStart; n <= end; n++) {
-      out.push(`${String(n).padStart(width)}${shownSet.has(n) ? ":" : "-"} ${lines[n - 1]}`);
-    }
-    prevEnd = Math.max(prevEnd, end);
+  for (const [on, list3] of groups) {
+    const relation = list3[0]?.relation ?? "superclass";
+    out.push(`  from ${on} (${relation}, depth ${list3[0]?.depth ?? 1}; line numbers are ${on}'s):`);
+    for (const r of list3) out.push(outlineRow(r, "    "));
   }
-  return {
-    text: out.join("\n"),
-    total: matches.length,
-    shown: shownMatches.length,
-    lastShownLine: shownMatches.length ? shownMatches[shownMatches.length - 1] : void 0,
-    truncated: shownMatches.length < matches.length
-  };
-}
-var STRUCTURE_OPENERS = [
-  { re: /^(REPORT|PROGRAM|FUNCTION-POOL)\s+(\S+?)\s*[.\s]/i, kind: "$1", nameGroup: 2 },
-  { re: /^INCLUDE\s+(\S+?)\s*\./i, kind: "INCLUDE", nameGroup: 1 },
-  { re: /^FORM\s+(\S+)/i, kind: "FORM", nameGroup: 1, closer: "ENDFORM" },
-  { re: /^FUNCTION\s+(\S+?)\s*\./i, kind: "FUNCTION", nameGroup: 1, closer: "ENDFUNCTION" },
-  { re: /^MODULE\s+(\S+?)(\s+(?:INPUT|OUTPUT))?\s*\./i, kind: "MODULE", nameGroup: 1, closer: "ENDMODULE" },
-  { re: /^CLASS\s+(\S+)\s+(DEFINITION|IMPLEMENTATION)\b/i, kind: "CLASS $2", nameGroup: 1, closer: "ENDCLASS" },
-  { re: /^INTERFACE\s+(\S+?)\s*[.\s]/i, kind: "INTERFACE", nameGroup: 1, closer: "ENDINTERFACE" },
-  { re: /^METHOD\s+(\S+?)\s*[.\s]/i, kind: "METHOD", nameGroup: 1, closer: "ENDMETHOD" },
-  {
-    re: /^(INITIALIZATION|START-OF-SELECTION|END-OF-SELECTION|TOP-OF-PAGE|END-OF-PAGE|LOAD-OF-PROGRAM|AT LINE-SELECTION|AT USER-COMMAND|AT PF\d+|AT SELECTION-SCREEN[^.]*|GET\s+\S+(?:\s+LATE)?)\s*\./i,
-    kind: "$1"
-  },
-  {
-    re: /^SELECTION-SCREEN\s+BEGIN\s+OF\s+(SCREEN|BLOCK|TABBED BLOCK|LINE)\s+(\S+)/i,
-    kind: "SELECTION-SCREEN $1",
-    nameGroup: 2
-  }
-];
-function scanSourceStructure(source) {
-  const lines = source === "" ? [] : source.replace(/\r\n/g, "\n").split("\n");
-  const rows = [];
-  const open = [];
-  for (let i = 0; i < lines.length; i++) {
-    const raw = lines[i];
-    if (raw.startsWith("*")) continue;
-    const stmt = raw.trim();
-    if (stmt === "" || stmt.startsWith('"')) continue;
-    const endMatch = /^(ENDFORM|ENDFUNCTION|ENDMODULE|ENDCLASS|ENDINTERFACE|ENDMETHOD)\b/i.exec(stmt);
-    if (endMatch) {
-      const closer = endMatch[1].toUpperCase();
-      for (let d = open.length - 1; d >= 0; d--) {
-        if (open[d].closer === closer) {
-          open[d].row.endLine = i + 1;
-          open.length = d;
-          break;
-        }
-      }
-      continue;
-    }
-    for (const opener of STRUCTURE_OPENERS) {
-      const m = opener.re.exec(stmt);
-      if (!m) continue;
-      const kind = opener.kind.replace(
-        /\$(\d)/g,
-        (_s, g) => (m[Number(g)] ?? "").toUpperCase().replace(/\s+/g, " ").trim()
-      );
-      const name = opener.nameGroup === void 0 ? "" : (m[opener.nameGroup] ?? "").replace(/[.,]+$/, "").toUpperCase();
-      const row2 = { kind, name, startLine: i + 1, depth: open.length };
-      rows.push(row2);
-      if (opener.closer) open.push({ row: row2, closer: opener.closer });
-      break;
-    }
-  }
-  return rows;
-}
-function renderSourceStructure(rows) {
-  return rows.map((r) => {
-    const label = r.name ? `${r.kind} ${r.name}` : r.kind;
-    const loc = r.endLine ? `lines ${r.startLine}-${r.endLine}` : `line ${r.startLine}`;
-    return `  ${"  ".repeat(r.depth)}${label}  ${loc}`;
-  }).join("\n");
+  return out.join("\n");
 }
 
 // src/adt/run.ts
@@ -107895,7 +108152,7 @@ init_compact();
 init_safety();
 
 // src/adt/activate.ts
-var import_utilities = __toESM(require_utilities(), 1);
+var import_utilities2 = __toESM(require_utilities(), 1);
 init_errors();
 init_truncate();
 init_types();
@@ -108226,6 +108483,24 @@ function renderMessages(messages, source) {
   }
   return out.join("\n");
 }
+var SOURCE_LINE_MAX = 200;
+function withSourceContext(messages, source, opts = {}) {
+  const maxLen = opts.maxLen ?? SOURCE_LINE_MAX;
+  const context = opts.context ?? 1;
+  const lines = source.replace(/\r\n/g, "\n").split("\n");
+  const clip = (text5) => truncateForDisplay(text5, maxLen);
+  return messages.map((m) => {
+    if (m.line === void 0 || m.line < 1 || m.line > lines.length) return { ...m };
+    const out = { ...m, sourceLine: clip(lines[m.line - 1] ?? "") };
+    if (context > 0) {
+      const b = m.line - context;
+      const a = m.line + context;
+      if (b >= 1) out.before = { line: b, text: clip(lines[b - 1] ?? "") };
+      if (a <= lines.length) out.after = { line: a, text: clip(lines[a - 1] ?? "") };
+    }
+    return out;
+  });
+}
 function renderInactive(inactive) {
   if (inactive.length === 0) return "";
   const { objects, unnamed } = displayInactive(inactive);
@@ -108477,13 +108752,13 @@ function toActivationElement(source) {
   return {
     deleted: s["@_ioc:deleted"],
     user: s["@_ioc:user"],
-    ...(0, import_utilities.xmlNodeAttr)(s["ioc:ref"])
+    ...(0, import_utilities2.xmlNodeAttr)(s["ioc:ref"])
   };
 }
 function parseInactiveObjects(raw) {
-  return (0, import_utilities.xmlArray)(raw, "ioc:inactiveObjects", "ioc:entry").map((obj) => ({
-    object: toActivationElement((0, import_utilities.xmlNode)(obj, "ioc:object")),
-    transport: toActivationElement((0, import_utilities.xmlNode)(obj, "ioc:transport"))
+  return (0, import_utilities2.xmlArray)(raw, "ioc:inactiveObjects", "ioc:entry").map((obj) => ({
+    object: toActivationElement((0, import_utilities2.xmlNode)(obj, "ioc:object")),
+    transport: toActivationElement((0, import_utilities2.xmlNode)(obj, "ioc:transport"))
   }));
 }
 function parseActivationResponse(body) {
@@ -108491,11 +108766,11 @@ function parseActivationResponse(body) {
   let success2 = true;
   let inactive = [];
   if (body) {
-    const raw = (0, import_utilities.fullParse)(body);
+    const raw = (0, import_utilities2.fullParse)(body);
     inactive = parseInactiveObjects(raw);
-    messages = (0, import_utilities.xmlArray)(raw, "chkl:messages", "msg").map((m) => {
+    messages = (0, import_utilities2.xmlArray)(raw, "chkl:messages", "msg").map((m) => {
       const rec = m;
-      const message = (0, import_utilities.xmlNodeAttr)(rec);
+      const message = (0, import_utilities2.xmlNodeAttr)(rec);
       const shortTextNode = rec["shortText"];
       message.shortText = shortTextNode?.txt || "Syntax error";
       return message;
@@ -115041,7 +115316,7 @@ var runInputSchema = {
     "Switch on the SAP authorization trace for the connected user, run, then read back and switch it back off. Refused on a read-only server. Default false."
   ),
   snapshot_ids: external_exports.array(external_exports.string()).optional().describe(
-    'Snapshot ids from prior abap_data_preview mode="snapshot" calls; each is re-read and diffed after this call and appended as a DATA CHANGES section, under the same data-preview policy (a refused diff does not fail this call).'
+    `Snapshot ids from prior abap_data_preview mode="snapshot" calls. After this call finishes, each one is re-read and diffed, and the result is appended as a DATA CHANGES section. The diff obeys the same data-preview policy as the snapshot did \u2014 if it is refused, this call's own result still returns and the section says why.`
   )
 };
 var RunInput = external_exports.object(runInputSchema);
@@ -115433,10 +115708,24 @@ function resolveLaneRun(stateId) {
   const active = activeLaneRuns();
   if (active.length <= 1) return active[0];
   if (stateId !== void 0) {
-    const exact = active.find((r) => r.session.snapshot.stateId === stateId);
-    if (exact) return exact;
+    const matches = active.filter((r) => {
+      const current = r.session.snapshot.stateId;
+      return current !== void 0 && stateIdMatches(current, stateId);
+    });
+    if (matches.length === 1) return matches[0];
+    if (matches.length > 1) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `stateId "${stateId}" is a prefix of ${matches.length} active debug sessions' current ids \u2014 pass a longer prefix or the full id.`,
+        { providedStateId: stateId, matchingLanes: matches.length }
+      );
+    }
   }
   return active[0];
+}
+function wireStateId(run, fallback) {
+  const current = run.session.snapshot.stateId;
+  return current !== void 0 ? shortStateId(current) : fallback;
 }
 function firstFreeLane(limit) {
   for (let i = 0; i < limit; i++) {
@@ -115588,7 +115877,7 @@ var debugInputSchema = {
       messageBreakpointSchema
     ])
   ).optional().describe(
-    '\u22651 entry, required for action="start" and for action="breakpoints" op="add"; kinds (line/exception/statement/message) may mix and are validated against SAP before arming; condition and skipCount are optional on every kind, skipCount sent to SAP but NOT enforced.'
+    '\u22651 entry, required for action="start" and for action="breakpoints" op="add"; kinds (line/exception/statement/message) may mix and are validated against SAP before arming. All kinds take optional condition (ABAP expression, suspend only when true) and skipCount (sent to SAP, NOT enforced \u2014 use step:"continue").'
   ),
   run: external_exports.object({
     object: external_exports.string().describe("Class or report to execute \u2014 same resolution rules as abap_run."),
@@ -115603,7 +115892,7 @@ var debugInputSchema = {
     `Required for step="runToLine"/"jumpToLine". 1-based line in the current frame's source.`
   ),
   stateId: external_exports.string().optional().describe(
-    "From the most recent start/step/stack/frame response; a stale id is refused."
+    "From the most recent start/step/stack/frame response (12-char token; the full id or a prefix of at least 8 chars is accepted too); a stale id is refused."
   ),
   frame: external_exports.number().int().min(1).describe(
     "1-based stackPosition from the last STACK section. Read-only."
@@ -115670,13 +115959,18 @@ function lineStepUri(stack, toLine) {
   }
   return withStartFragment(frame.uri.split("#")[0], toLine);
 }
-async function composeStopOutput(run, action, stack, stateId, maxChars, extraNotes = []) {
+async function composeStopOutput(run, action, stack, stateId, maxChars, extraNotes = [], headerExtra = {}) {
   const root = await run.session.getRootVariables(stateId);
   const entries = root.variables.variables.map((variable) => ({ variable }));
-  const survey = renderSurvey(entries, { maxChars: DEBUG_MAX_CHARS, stateId });
-  const stackText = renderStackSection(stack, stateId);
+  const wireId = shortStateId(stateId);
+  const survey = renderSurvey(entries, { maxChars: DEBUG_MAX_CHARS, stateId: wireId });
+  const stackText = renderStackSection(stack, wireId);
   const visibleFrames = stack.frames.filter((f) => !f.systemProgram);
   const top = visibleFrames[0] ?? stack.frames[0];
+  const stopNotes = [
+    ...extraNotes,
+    ...survey.degraded.length ? [`${survey.degraded.length} value(s) shortened to fit budget \u2014 each still names its own retrieval call.`] : []
+  ];
   return buildResponse({
     header: {
       action,
@@ -115684,16 +115978,15 @@ async function composeStopOutput(run, action, stack, stateId, maxChars, extraNot
       program: top?.programName,
       include: top?.includeName,
       line: top?.line,
-      stateId
+      stateId: wireId,
+      ...headerExtra
     },
     sections: [{ title: "STACK", content: stackText }],
     body: survey.text,
     bodyLabel: "VARIABLES",
-    notes: [
-      ...extraNotes,
-      ...survey.degraded.length ? [`${survey.degraded.length} value(s) shortened to fit budget \u2014 each still names its own retrieval call.`] : []
-    ],
-    maxChars: clampMaxChars(maxChars)
+    notes: stopNotes,
+    // #151 — notes ride outside the content budget: they never displace variables.
+    maxChars: budgetWithNotes(stopNotes, clampMaxChars(maxChars))
   });
 }
 function isGenericFallbackEvidence(tr) {
@@ -115745,6 +116038,11 @@ async function composeDeathOutput(run, action, maxChars, cause, extraNotes = [])
   ].filter((n) => Boolean(n));
   if (settled === TIMED_OUT) {
     notes.push("Program output is incomplete: the trigger run had not returned when the wait expired.");
+  }
+  if (run.armedExceptionClasses.length > 0 && !run.exceptionBreakpointFired) {
+    notes.push(
+      `Exception breakpoint(s) on ${run.armedExceptionClasses.join(", ")} were armed (server-echoed) but never suspended this run before it ended. ${EXCEPTION_BREAKPOINT_RULE} To stop before an uncaught raise, arm a line breakpoint on the RAISE statement, or a statement breakpoint "RAISE EXCEPTION TYPE" together with a line breakpoint in the target object.`
+    );
   }
   const triggerOutcome = triggerOutcomeHeader(settled);
   if (triggerOutcome === "short_dumped" || triggerOutcome === "trigger_failed") {
@@ -115928,6 +116226,8 @@ async function handleStart(conn, input, maxChars, deps, gate) {
   let triggerConn;
   let triggerSettled;
   const skipCountWarnings = [];
+  const requestedExceptionClasses = [];
+  const armedExceptionClasses = [];
   let closeTriggerConn = () => {
   };
   try {
@@ -115988,6 +116288,19 @@ async function handleStart(conn, input, maxChars, deps, gate) {
           ...bp.skipCount !== void 0 ? { skipCount: bp.skipCount } : {}
         });
       } else if (bp.kind === "exception") {
+        const exceptionClass = bp.exceptionClass.trim().toUpperCase();
+        if (!resolvedCache.has(exceptionClass)) {
+          try {
+            resolvedCache.set(exceptionClass, await deps.resolveObject(conn, exceptionClass));
+          } catch (e) {
+            throw new AbapError(
+              "BAD_INPUT",
+              `Exception breakpoint on ${exceptionClass}: the exception class could not be found (${describeUnknownError(e)}). SAP would accept the breakpoint and never fire it, so the start is refused instead.`,
+              { exceptionClass, cause: describeUnknownError(e) }
+            );
+          }
+        }
+        requestedExceptionClasses.push(exceptionClass);
         breakpoints.push({
           kind: "exception",
           exceptionClass: bp.exceptionClass,
@@ -116012,7 +116325,24 @@ async function handleStart(conn, input, maxChars, deps, gate) {
         });
       }
     }
-    await session.prepareBreakpoints(breakpoints);
+    const created = await session.prepareBreakpoints(breakpoints);
+    for (const cls of requestedExceptionClasses) {
+      const echoed = created.some(
+        (c) => c.kind === "exception" && c.exceptionClass.trim().toUpperCase() === cls
+      );
+      if (echoed) {
+        if (!armedExceptionClasses.includes(cls)) armedExceptionClasses.push(cls);
+      } else {
+        skipCountWarnings.push(
+          `Exception breakpoint on ${cls}: the server accepted the breakpoints request but did not echo this breakpoint as armed \u2014 treat it as NOT armed; the run will not stop when ${cls} is raised.`
+        );
+      }
+    }
+    if (armedExceptionClasses.length > 0) {
+      skipCountWarnings.push(
+        `Exception breakpoint(s) on ${armedExceptionClasses.join(", ")} armed. ${EXCEPTION_BREAKPOINT_RULE} To stop before an uncaught raise, add a line breakpoint on the RAISE statement.`
+      );
+    }
     await session.armListener();
     triggerConn = await deps.createTriggerConnection();
     closeTriggerConn = makeTriggerConnCloser(triggerConn, deps.log);
@@ -116086,9 +116416,20 @@ ${triggerNote}`, {});
     closeTriggerConn,
     gateTarget,
     lastStack: attachedStack,
+    guidance: new GuidanceLedger(),
+    armedExceptionClasses,
+    exceptionBreakpointFired: false,
     lane: targetLane
   };
   debugLanes[targetLane] = run;
+  const caught = run.session.snapshot.debuggee;
+  const caughtHeader = {};
+  if (caught && caught.kind !== "debuggee") {
+    run.guidance.noteStateChange(isPostMortemKind(caught.kind) ? "postmortem" : `kind:${caught.rawKind}`);
+    caughtHeader["debuggee"] = caught.rawKind;
+    if (caught.dumpId) caughtHeader["dump"] = caught.dumpId;
+    skipCountWarnings.push(...run.guidance.render([describeCaughtKind(caught, run.armedExceptionClasses)]));
+  }
   const runObjectName = parseObjectRef(input.run.object).name.toUpperCase();
   const skippedFrameworkStops = [];
   const describeTopFrame = (stack) => {
@@ -116136,7 +116477,7 @@ ${triggerNote}`, {});
       );
     }
   }
-  return await composeStopOutput(run, "start", attachedStack, attachedStateId, maxChars, skipCountWarnings);
+  return await composeStopOutput(run, "start", attachedStack, attachedStateId, maxChars, skipCountWarnings, caughtHeader);
 }
 async function handleStep(input, maxChars, gate, deps) {
   const run = resolveLaneRun(input.stateId);
@@ -116198,9 +116539,19 @@ async function handleStep(input, maxChars, gate, deps) {
     return out;
   }
   run.lastStack = result.stack;
-  const revisitNotes = result.positionVisitCount > 1 ? [
-    `Position revisited: this exact program/line/stack-level has now been reached ${result.positionVisitCount} times by stepping in this session. If you are stepping through a loop body, "step over"/"step into" can under-report how many iterations actually ran between visits \u2014 this only proves you returned to this line, not how many times the loop body executed in between. For a reliable per-iteration count, set a breakpoint at the loop body's start (abap_debug action:"start" or a line breakpoint) and use step:"continue" repeatedly instead of stepping through \u2014 each hit is a real, separately counted stop.`
-  ] : [];
+  if (result.step.reachedBreakpoints.length > 0) {
+    run.guidance.noteStateChange(`bp:${result.step.reachedBreakpoints.map((b) => b.id).join(",")}`);
+  }
+  if (result.step.reachedBreakpoints.some((b) => b.kind === "exception" || b.id.startsWith("KIND=5."))) {
+    run.exceptionBreakpointFired = true;
+  }
+  const revisitNotes = result.positionVisitCount > 1 ? run.guidance.render([
+    {
+      key: "revisit",
+      full: `Position revisited: this exact program/line/stack-level has now been reached ${result.positionVisitCount} times by stepping in this session. If you are stepping through a loop body, "step over"/"step into" can under-report how many iterations actually ran between visits \u2014 this only proves you returned to this line, not how many times the loop body executed in between. For a reliable per-iteration count, set a breakpoint at the loop body's start (abap_debug action:"start" or a line breakpoint) and use step:"continue" repeatedly instead of stepping through \u2014 each hit is a real, separately counted stop.`,
+      brief: `Position revisited (${result.positionVisitCount} times in this session) \u2014 proves a return to this line, not an iteration count; see the earlier NOTE.`
+    }
+  ]) : [];
   const watchpointNotes = [];
   if (result.step.reachedWatchpoints.length > 0) {
     let byId;
@@ -116233,9 +116584,10 @@ async function handleStack(input, maxChars) {
   if (!input.stateId) {
     throw new AbapError("BAD_INPUT", 'abap_debug({action:"stack"}) requires "stateId".');
   }
+  const wireId = wireStateId(run, input.stateId);
   const stack = await run.session.getStack(input.stateId);
   run.lastStack = stack;
-  const stackText = renderStackSection(stack, input.stateId);
+  const stackText = renderStackSection(stack, wireId);
   const visibleFrames = stack.frames.filter((f) => !f.systemProgram);
   const top = visibleFrames[0] ?? stack.frames[0];
   return buildResponse({
@@ -116245,7 +116597,7 @@ async function handleStack(input, maxChars) {
       program: top?.programName,
       include: top?.includeName,
       line: top?.line,
-      stateId: input.stateId
+      stateId: wireId
     },
     sections: [{ title: "STACK", content: stackText }],
     maxChars: clampMaxChars(maxChars)
@@ -116262,6 +116614,7 @@ async function handleFrame(input, maxChars) {
   if (!input.stateId) {
     throw new AbapError("BAD_INPUT", 'abap_debug({action:"frame"}) requires "stateId".');
   }
+  const wireId = wireStateId(run, input.stateId);
   if (input.frame === void 0) {
     throw new AbapError(
       "BAD_INPUT",
@@ -116273,15 +116626,25 @@ async function handleFrame(input, maxChars) {
   if (!lastStack || !target) {
     throw new AbapError(
       "BAD_INPUT",
-      `abap_debug({action:"frame", frame:${input.frame}}) does not match any frame in the most recently known stack. Call abap_debug({action:"stack", stateId:"${input.stateId}"}) first to see the current stackPosition values.`,
+      `abap_debug({action:"frame", frame:${input.frame}}) does not match any frame in the most recently known stack. Call abap_debug({action:"stack", stateId:"${wireId}"}) first to see the current stackPosition values.`,
       { frame: input.frame }
     );
   }
   await run.session.setStackPosition(input.stateId, { stackPosition: input.frame, stackType: "ABAP" });
   const root = await run.session.getRootVariables(input.stateId);
   const entries = root.variables.variables.map((variable) => ({ variable }));
-  const survey = renderSurvey(entries, { maxChars: DEBUG_MAX_CHARS, stateId: input.stateId });
-  const stackText = renderStackSection(lastStack, input.stateId);
+  const survey = renderSurvey(entries, { maxChars: DEBUG_MAX_CHARS, stateId: wireId });
+  const stackText = renderStackSection(lastStack, wireId);
+  const frameNotes = [
+    ...run.guidance.render([
+      {
+        key: "frame-cursor",
+        full: `Read cursor switched to frame #${target.stackPosition} \u2014 this does not change what runs next. The next step resumes from the live top frame regardless (live-verified).`,
+        brief: `Read cursor at frame #${target.stackPosition}; the next step still resumes from the live top frame.`
+      }
+    ]),
+    ...survey.degraded.length ? [`${survey.degraded.length} value(s) shortened to fit budget \u2014 each still names its own retrieval call.`] : []
+  ];
   return buildResponse({
     header: {
       action: "frame",
@@ -116290,16 +116653,13 @@ async function handleFrame(input, maxChars) {
       include: target.includeName,
       line: target.line,
       frame: target.stackPosition,
-      stateId: input.stateId
+      stateId: wireId
     },
     sections: [{ title: "STACK", content: stackText }],
     body: survey.text,
     bodyLabel: "VARIABLES",
-    notes: [
-      `Read cursor switched to frame #${target.stackPosition} \u2014 this does not change what runs next. The next step resumes from the live top frame regardless (live-verified).`,
-      ...survey.degraded.length ? [`${survey.degraded.length} value(s) shortened to fit budget \u2014 each still names its own retrieval call.`] : []
-    ],
-    maxChars: clampMaxChars(maxChars)
+    notes: frameNotes,
+    maxChars: budgetWithNotes(frameNotes, clampMaxChars(maxChars))
   });
 }
 async function handleKeepalive(maxChars, gate) {
@@ -116317,7 +116677,7 @@ async function handleKeepalive(maxChars, gate) {
     header: {
       action: "keepalive",
       status: snapshot.status,
-      stateId: snapshot.stateId,
+      stateId: snapshot.stateId === void 0 ? void 0 : shortStateId(snapshot.stateId),
       debugSessionId: snapshot.debugSessionId
     },
     maxChars: clampMaxChars(maxChars)
@@ -116398,6 +116758,7 @@ async function handleBreakpoints(conn, input, maxChars, deps, gate) {
       `abap_debug({action:"breakpoints", op:"${op}"}) requires "stateId" \u2014 same as stack/frame, to confirm which stop this call addresses.`
     );
   }
+  const wireId = wireStateId(run, input.stateId);
   if (op === "list") {
     const owned = run.session.listOwnedBreakpoints();
     return buildResponse({
@@ -116405,7 +116766,7 @@ async function handleBreakpoints(conn, input, maxChars, deps, gate) {
         action: "breakpoints",
         op: "list",
         status: run.session.snapshot.status,
-        stateId: input.stateId,
+        stateId: wireId,
         count: owned.length
       },
       sections: [
@@ -116439,7 +116800,7 @@ async function handleBreakpoints(conn, input, maxChars, deps, gate) {
         action: "breakpoints",
         op: "add",
         status: run.session.snapshot.status,
-        stateId: input.stateId,
+        stateId: wireId,
         count: created.length
       },
       sections: [
@@ -116461,7 +116822,7 @@ async function handleBreakpoints(conn, input, maxChars, deps, gate) {
       action: "breakpoints",
       op: "remove",
       status: run.session.snapshot.status,
-      stateId: input.stateId,
+      stateId: wireId,
       id: input.id
     },
     maxChars: clampMaxChars(maxChars)
@@ -116505,6 +116866,7 @@ async function handleWatch(input, maxChars, gate) {
       `abap_debug({action:"watch", op:"${op}"}) requires "stateId" \u2014 same as stack/frame, to confirm which stop this call addresses.`
     );
   }
+  const wireId = wireStateId(run, input.stateId);
   if (op === "add") {
     if (!input.variable) {
       throw new AbapError("BAD_INPUT", 'abap_debug({action:"watch", op:"add"}) requires "variable".');
@@ -116522,7 +116884,7 @@ async function handleWatch(input, maxChars, gate) {
         action: "watch",
         op: "add",
         status: run.session.snapshot.status,
-        stateId: input.stateId,
+        stateId: wireId,
         count: created.length
       },
       sections: [{ title: "WATCHPOINTS", content: lines.join("\n") }],
@@ -116542,7 +116904,7 @@ async function handleWatch(input, maxChars, gate) {
         action: "watch",
         op: "list",
         status: run.session.snapshot.status,
-        stateId: input.stateId,
+        stateId: wireId,
         count: owned.length
       },
       sections: [
@@ -116561,7 +116923,7 @@ async function handleWatch(input, maxChars, gate) {
       action: "watch",
       op: "remove",
       status: run.session.snapshot.status,
-      stateId: input.stateId,
+      stateId: wireId,
       id: input.id
     },
     maxChars: clampMaxChars(maxChars)
@@ -116723,7 +117085,7 @@ async function handleStatus(maxChars) {
       header: {
         action: "status",
         status: snapshot2.status,
-        stateId: snapshot2.stateId,
+        stateId: snapshot2.stateId === void 0 ? void 0 : shortStateId(snapshot2.stateId),
         debugSessionId: snapshot2.debugSessionId,
         debuggeeId: snapshot2.debuggeeId,
         deathReason: snapshot2.deathReason,
@@ -116744,7 +117106,7 @@ async function handleStatus(maxChars) {
     header: {
       action: "status",
       status: snapshot.status,
-      stateId: snapshot.stateId,
+      stateId: snapshot.stateId === void 0 ? void 0 : shortStateId(snapshot.stateId),
       debugSessionId: snapshot.debugSessionId,
       debuggeeId: snapshot.debuggeeId,
       deathReason: snapshot.deathReason,
@@ -116777,7 +117139,7 @@ async function abapDebug(conn, input, maxChars, deps, gate) {
   }
 }
 var debugVarsInputSchema = {
-  stateId: external_exports.string().describe("From the most recent start/step/stack/frame response."),
+  stateId: external_exports.string().describe("From the most recent start/step/stack/frame response (12-char token; full id or a prefix of at least 8 chars also accepted)."),
   scope: external_exports.enum(["all", "locals", "parameters", "globals"]).optional().describe("Default all."),
   filter: external_exports.string().optional().describe("Substring match on name.")
 };
@@ -116795,6 +117157,7 @@ async function abapDebugVars(input, maxChars) {
   if (!input.stateId) {
     throw new AbapError("BAD_INPUT", 'abap_debug_vars requires "stateId".');
   }
+  const wireId = wireStateId(run, input.stateId);
   const root = await run.session.getRootVariables(input.stateId);
   const scopeOf = /* @__PURE__ */ new Map();
   for (const h of root.variables.hierarchies) {
@@ -116815,15 +117178,16 @@ async function abapDebugVars(input, maxChars) {
       maxChars: DEBUG_MAX_CHARS,
       scopeLabel: input.scope && input.scope !== "all" ? input.scope.toUpperCase() : void 0,
       // D6 — real stateId, not `STATE_ID_PLACEHOLDER`.
-      stateId: input.stateId
+      stateId: wireId
     }
   );
+  const varsNotes = survey.degraded.length ? [`${survey.degraded.length} value(s) shortened to fit budget \u2014 each still names its own retrieval call.`] : [];
   return buildResponse({
-    header: { stateId: input.stateId, scope: input.scope ?? "all", count: filtered.length },
+    header: { stateId: wireId, scope: input.scope ?? "all", count: filtered.length },
     body: survey.text,
     bodyLabel: "VARIABLES",
-    notes: survey.degraded.length ? [`${survey.degraded.length} value(s) shortened to fit budget \u2014 each still names its own retrieval call.`] : [],
-    maxChars: clampMaxChars(maxChars)
+    notes: varsNotes,
+    maxChars: budgetWithNotes(varsNotes, clampMaxChars(maxChars))
   });
 }
 var DEFAULT_TABLE_ROWS = 20;
@@ -116834,23 +117198,44 @@ function listIds(ids) {
   const shown = ids.slice(0, MAX_LISTED_IDS);
   return `${shown.join(", ")} \u2026 [TRUNCATED: ${shown.length} of ${ids.length} id(s) listed, ${ids.length - shown.length} cut]`;
 }
+var EXCEPTION_BREAKPOINT_RULE = "An exception breakpoint stops at the RAISE only when a handler for the exception exists up the stack (live-verified: a caught RAISE suspends at the raise; an uncaught one, and a real division by zero, go straight to the runtime error and the debugger sees the post-mortem instead).";
+function describeCaughtKind(caught, armedExceptionClasses) {
+  if (caught.kind === "postmortem" || caught.kind === "postmortem_dialog") {
+    const dump = caught.dumpId ? ` dump ${caught.dumpId}` : "";
+    const notFired = armedExceptionClasses.length > 0 ? `The exception breakpoint(s) on ${armedExceptionClasses.join(", ")} did not suspend the run before this dump: ${EXCEPTION_BREAKPOINT_RULE} ` : "";
+    return {
+      key: "postmortem",
+      full: `POST-MORTEM: the debugger attached to a short dump (DBGEE_KIND ${caught.rawKind}${dump}), not to a running debuggee. The run has ALREADY terminated; stack and variables are its state at the dump, and stepping cannot resume it. ${notFired}Read the dump text with abap_dumps${caught.dumpId ? `({id:"${caught.dumpId}"})` : ""}.`,
+      brief: `Post-mortem session (${caught.rawKind}${dump}) \u2014 the run already terminated; stepping cannot resume it.`
+    };
+  }
+  return {
+    key: `kind:${caught.rawKind}`,
+    full: `The debugger attached to a debuggee of an unrecognised kind (DBGEE_KIND "${caught.rawKind}"). It is treated as attached with kind unknown: stack, variables and stepping are attempted as for a live debuggee, and any refusal is reported as it happens.`,
+    brief: `Debuggee kind "${caught.rawKind}" is unrecognised \u2014 treated as attached, kind unknown.`
+  };
+}
 function describeOmissions(requestedIds, align, ctx) {
   const notes = [];
   if (align.missing.length > 0) {
-    notes.push(
-      `OMITTED: the debugger returned ${align.resolved.length} of the ${requestedIds.length} variable id(s) requested for ${ctx.subject} \u2014 ${listIds(align.missing)} came back with NO row at all and are NOT shown. A requested id with no row is UNRESOLVED at this stop (unknown name, out-of-range index, or not visible in this frame); it is NOT an empty value, and re-requesting it returns the same nothing. Confirm the id exists here with abap_debug_vars({stateId:"${ctx.stateId}"}).`
-    );
+    notes.push({
+      key: "omitted",
+      full: `OMITTED: the debugger returned ${align.resolved.length} of the ${requestedIds.length} variable id(s) requested for ${ctx.subject} \u2014 ${listIds(align.missing)} came back with NO row at all and are NOT shown. A requested id with no row is UNRESOLVED at this stop (unknown name, out-of-range index, or not visible in this frame); it is NOT an empty value, and re-requesting it returns the same nothing. Confirm the id exists here with abap_debug_vars({stateId:"${ctx.stateId}"}).`,
+      brief: `OMITTED: ${listIds(align.missing)} \u2014 no row at this stop for ${ctx.subject} (unresolved, not empty; confirm with abap_debug_vars({stateId:"${ctx.stateId}"})).`
+    });
   }
   if (align.unexpected.length > 0) {
     const ids = align.unexpected.map((v) => v.id);
-    notes.push(
-      `UNREQUESTED: the debugger also returned ${align.unexpected.length} row(s) whose id was NOT requested \u2014 ${listIds(ids)}. Their values are NOT shown, because a row nobody asked for, rendered under ${ctx.subject}, is a wrong answer wearing the right label \u2014 the exact mis-attribution that hid this defect. Read one on purpose with abap_debug_value({stateId:"${ctx.stateId}", path:"${ids[0]}"}).`
-    );
+    notes.push({
+      key: "unrequested",
+      full: `UNREQUESTED: the debugger also returned ${align.unexpected.length} row(s) whose id was NOT requested \u2014 ${listIds(ids)}. Their values are NOT shown, because a row nobody asked for, rendered under ${ctx.subject}, is a wrong answer wearing the right label \u2014 the exact mis-attribution that hid this defect. Read one on purpose with abap_debug_value({stateId:"${ctx.stateId}", path:"${ids[0]}"}).`,
+      brief: `UNREQUESTED: ${listIds(ids)} returned but not requested under ${ctx.subject} \u2014 not shown (abap_debug_value({stateId:"${ctx.stateId}", path:"${ids[0]}"}) reads one on purpose).`
+    });
   }
   return notes;
 }
 var debugValueInputSchema = {
-  stateId: external_exports.string().describe("From the most recent start/step/stack/frame response."),
+  stateId: external_exports.string().describe("From the most recent start/step/stack/frame response (12-char token; full id or a prefix of at least 8 chars also accepted)."),
   path: external_exports.string().describe(
     "Variable path, e.g. LT_ITEMS[42]-MATNR. Field symbols keep their angle brackets, e.g. <LS_ITEM>. Unknown paths return empty, not NOT_FOUND."
   ),
@@ -116867,6 +117252,7 @@ async function abapDebugValue(input, maxChars) {
   if (!input.stateId) {
     throw new AbapError("BAD_INPUT", 'abap_debug_value requires "stateId".');
   }
+  const wireId = wireStateId(run, input.stateId);
   const validation = validatePath(input.path);
   if (!validation.ok) {
     throw new AbapError(
@@ -116883,7 +117269,7 @@ async function abapDebugValue(input, maxChars) {
   } catch (e) {
     if (e instanceof DebugXmlParseError) {
       return buildResponse({
-        header: { stateId: input.stateId, path: canonicalPath },
+        header: { stateId: wireId, path: canonicalPath },
         body: renderEmptyBodyTrap({ path: canonicalPath }),
         bodyLabel: "VALUE",
         maxChars: clampedMaxChars
@@ -116892,14 +117278,13 @@ async function abapDebugValue(input, maxChars) {
     throw e;
   }
   const rootAlign = alignRequestedVariables([canonicalPath], rootVars);
-  const rootNotes = describeOmissions([canonicalPath], rootAlign, {
-    subject: canonicalPath,
-    stateId: input.stateId
-  });
+  const rootNotes = run.guidance.render(
+    describeOmissions([canonicalPath], rootAlign, { subject: canonicalPath, stateId: wireId })
+  );
   const rootVar = rootAlign.resolved[0];
   if (!rootVar) {
     return buildResponse({
-      header: { stateId: input.stateId, path: canonicalPath },
+      header: { stateId: wireId, path: canonicalPath },
       // The empty-body trap claims "0 bytes", which is only true when the
       // debugger really sent nothing. Rows for OTHER ids is a different fact and
       // gets its own words rather than a convenient lie.
@@ -116913,14 +117298,14 @@ async function abapDebugValue(input, maxChars) {
     const { text: text6 } = renderDrill(node3, canonicalPath, {
       depth: input.depth,
       maxChars: clampedMaxChars,
-      stateId: input.stateId
+      stateId: wireId
     });
     return buildResponse({
-      header: { stateId: input.stateId, path: canonicalPath },
+      header: { stateId: wireId, path: canonicalPath },
       body: text6,
       bodyLabel: "VALUE",
       notes: rootNotes,
-      maxChars: clampedMaxChars
+      maxChars: budgetWithNotes(rootNotes, clampedMaxChars)
     });
   }
   if (rootVar.metaType === "table") {
@@ -116939,14 +117324,14 @@ async function abapDebugValue(input, maxChars) {
     const tableNotes = [...rootNotes];
     if (countWasClamped) {
       tableNotes.push(
-        `TRUNCATED: count:${requestedCount} exceeds the ${MAX_TABLE_ROWS}-row maximum, so only ${count} row(s) were requested from ${canonicalPath} \u2014 rows ${from + count} onward were NOT fetched and are NOT shown. Continue with abap_debug_value({stateId:"${input.stateId}", path:"${canonicalPath}", from:${from + count}, count:${MAX_TABLE_ROWS}}).`
+        `TRUNCATED: count:${requestedCount} exceeds the ${MAX_TABLE_ROWS}-row maximum, so only ${count} row(s) were requested from ${canonicalPath} \u2014 rows ${from + count} onward were NOT fetched and are NOT shown. Continue with abap_debug_value({stateId:"${wireId}", path:"${canonicalPath}", from:${from + count}, count:${MAX_TABLE_ROWS}}).`
       );
     }
     if (total === 0) {
       tableNotes.push(`${canonicalPath} is empty: 0 rows.`);
     } else if (total === void 0) {
       tableNotes.push(
-        `Row count is unavailable \u2014 the debugger did not report TABLE_LINES for ${canonicalPath}. This is NOT the same as an empty table. "from" could not be range-checked. To settle it, probe the first row: abap_debug_value({stateId:"${input.stateId}", path:"${canonicalPath}[1]"}) \u2014 a row comes back only if data is actually present.`
+        `Row count is unavailable \u2014 the debugger did not report TABLE_LINES for ${canonicalPath}. This is NOT the same as an empty table. "from" could not be range-checked. To settle it, probe the first row: abap_debug_value({stateId:"${wireId}", path:"${canonicalPath}[1]"}) \u2014 a row comes back only if data is actually present.`
       );
       if (input.from !== void 0 && input.from > 1) {
         tableNotes.push(
@@ -116966,27 +117351,27 @@ async function abapDebugValue(input, maxChars) {
         const rowAlign = alignRequestedVariables(ids, rowVars);
         rowNodes = rowAlign.resolved.map((variable) => ({ variable }));
         tableNotes.push(
-          ...describeOmissions(ids, rowAlign, { subject: canonicalPath, stateId: input.stateId })
+          ...run.guidance.render(describeOmissions(ids, rowAlign, { subject: canonicalPath, stateId: wireId }))
         );
       } catch (e) {
         if (e instanceof DebugXmlParseError) {
           return buildResponse({
-            header: { stateId: input.stateId, path: canonicalPath },
+            header: { stateId: wireId, path: canonicalPath },
             body: renderEmptyBodyTrap({ path: canonicalPath, tableLines: total }),
             bodyLabel: "VALUE",
             notes: tableNotes,
-            maxChars: clampedMaxChars
+            maxChars: budgetWithNotes(tableNotes, clampedMaxChars)
           });
         }
         throw e;
       }
       if (ids.length > 0 && rowCount === 0) {
         return buildResponse({
-          header: { stateId: input.stateId, path: canonicalPath },
+          header: { stateId: wireId, path: canonicalPath },
           body: renderEmptyBodyTrap({ path: canonicalPath, tableLines: total }),
           bodyLabel: "VALUE",
           notes: tableNotes,
-          maxChars: clampedMaxChars
+          maxChars: budgetWithNotes(tableNotes, clampedMaxChars)
         });
       }
     }
@@ -116994,14 +117379,14 @@ async function abapDebugValue(input, maxChars) {
     const { text: text6 } = renderDrill(node3, canonicalPath, {
       rows: { start: clampedFrom, end: clampedTo || clampedFrom },
       maxChars: clampedMaxChars,
-      stateId: input.stateId
+      stateId: wireId
     });
     return buildResponse({
-      header: { stateId: input.stateId, path: canonicalPath },
+      header: { stateId: wireId, path: canonicalPath },
       body: text6,
       bodyLabel: "VALUE",
       notes: tableNotes,
-      maxChars: clampedMaxChars
+      maxChars: budgetWithNotes(tableNotes, clampedMaxChars)
     });
   }
   let childResult;
@@ -117018,17 +117403,17 @@ async function abapDebugValue(input, maxChars) {
   const { text: text5 } = renderDrill(node2, canonicalPath, {
     depth: input.depth,
     maxChars: clampedMaxChars,
-    stateId: input.stateId
+    stateId: wireId
   });
   return buildResponse({
-    header: { stateId: input.stateId, path: canonicalPath },
+    header: { stateId: wireId, path: canonicalPath },
     body: text5,
     bodyLabel: "VALUE",
     // The `getChildVariables` hop below returns CHILDREN of `canonicalPath`, whose
     // ids are by definition not the id that was requested, so it has no requested-id
     // alignment to do. `rootNotes` still travels: it describes the root read.
     notes: rootNotes,
-    maxChars: clampedMaxChars
+    maxChars: budgetWithNotes(rootNotes, clampedMaxChars)
   });
 }
 
@@ -122904,10 +123289,10 @@ var writeInputSchema = {
     headingLabel: external_exports.string().optional(),
     headingLength: external_exports.number().optional(),
     searchHelp: external_exports.string().optional().describe(
-      "DTEL/DE only: search help attached to this data element (DD04L-SHLPNAME). Not checked before send. Uppercased, max 30 chars."
+      "DTEL/DE only: search help attached to this data element (DD04L-SHLPNAME). Must name an existing, active SHLP/DH \u2014 not checked before send. Uppercased, max 30 chars."
     ),
     searchHelpParameter: external_exports.string().optional().describe(
-      "DTEL/DE only: the search help's own interface parameter this data element binds to (DD04L-SHLPFIELD). Refused without `searchHelp`. Uppercased, max 30 chars."
+      "DTEL/DE only: the search help's own interface parameter this data element binds to (DD04L-SHLPFIELD, e.g. DD32P-FIELDNAME on the search help itself) \u2014 not the data element's own name. Refused without `searchHelp`. Uppercased, max 30 chars."
     )
   }).strict().optional().describe("DOMA/DD, DTEL/DE, TTYP/DA: alt to `source`, never both."),
   // SHLP/DH create/update, required: DD30V/DD32P/DD31V/DD33V fields no
@@ -122919,7 +123304,7 @@ var writeInputSchema = {
   // update — nothing carried over here from what already exists.
   shlp: external_exports.object({
     selectionMethod: external_exports.string().optional().describe(
-      "DD30V-SELMETHOD: table or view the search help selects from. Omit for a collective search help, or an elementary one driven by a search-help exit instead of a table/view."
+      "DD30V-SELMETHOD: table or view the search help selects from. Omit for a collective search help, or an elementary one driven by a search-help exit instead of a table/view \u2014 both are normal and have no selection method at all."
     ),
     selectionMethodType: external_exports.enum(["T", "V", "M"]).optional().describe(
       "DD30V-SELMTYPE. Only meaningful alongside selectionMethod; omit when selectionMethod is omitted too."
@@ -122938,7 +123323,7 @@ var writeInputSchema = {
       })
     ).describe("Interface fields (DD32P), in order."),
     includes: external_exports.array(external_exports.object({ name: external_exports.string().describe("DD31V-SUBSHLP.") })).optional().describe(
-      "Other search helps included by this one (DD31V), in order. Optional \u2014 empty or omitted is fine, including for elementary: false. Each name must exist as an ACTIVE search help (DD30L); refused before registration otherwise (CHECK_FAILED)."
+      "Other search helps included by this one (DD31V), in order. Optional \u2014 empty or omitted is fine, including for elementary: false. Each name must exist as an ACTIVE search help (DD30L); refused before registration otherwise (CHECK_FAILED), rather than passing DDIF_SHLP_PUT and stranding this help as inactive-only when DDIF_SHLP_ACTIVATE then fails (DH109)."
     ),
     assignments: external_exports.array(
       external_exports.object({
@@ -122949,25 +123334,25 @@ var writeInputSchema = {
           "DD33V-SUBSHLP. Must match one of this call's own `includes[].name` (case-insensitive); refused before send otherwise (BAD_INPUT)."
         ),
         includedField: external_exports.string().describe(
-          "DD33V-SUBFIELD. Must be an ACTIVE interface parameter (DD32S) of `includedHelp`; checked server-side before RS_CORR_INSERT, not zero-network, and refused otherwise (CHECK_FAILED)."
+          "DD33V-SUBFIELD. Must be an ACTIVE interface parameter (DD32S) of `includedHelp`; checked server-side before RS_CORR_INSERT and refused otherwise (CHECK_FAILED) \u2014 this needs that other search help's own DD32P/DD32S, so it is not checked zero-network."
         ),
         direction: external_exports.enum(["I", "E"]).describe(
-          'DD33V-VALUEDIREC: I=import into, E=export from the included help. May read back as C ("both import and export") when the target parameter is both import and export.'
+          'DD33V-VALUEDIREC: I=import into, E=export from the included help. DDIC may normalise the stored value to C ("both import and export") on read-back when the target parameter is both import and export.'
         )
       })
     ).optional().describe(
-      "Field assignments (DD33V) between an included search help and this one's interface. `field`, `includedHelp` and `includedField` are each validated against this call's own fields/includes/target help; see each field below."
+      "Field assignments (DD33V) between an included search help and this one's interface. A `field`/`includedHelp` not found in this call's own `fields`/`includes`, or an `includedField` that is not an active parameter of `includedHelp`, would otherwise pass DDIF_SHLP_PUT and fail DDIF_SHLP_ACTIVATE (DH109) \u2014 all three are refused first instead; see each field below."
     )
   }).strict().optional().describe("SHLP/DH create/update, required: search help definition. See SearchHelpParams in src/adt/shlp-create.ts."),
   expect_etag: external_exports.string().optional().describe("Etag from abap_read; fails if changed."),
   mode: external_exports.enum(["write", "delete", "update"]).optional().describe(
-    'Default write (create for most types). "update" retargets/replaces an EXISTING VIEW/DV, TRAN/T or SHLP/DH in place (whole definition replaced) \u2014 refused zero-network for every other type.'
+    'Default write (create for most types). "update" retargets/replaces an EXISTING VIEW/DV, TRAN/T or SHLP/DH in place (DDIF_VIEW_PUT / RPY_TRANSACTION_DELETE+INSERT / DDIF_SHLP_PUT replace the whole definition/target) \u2014 refused zero-network for every other type.'
   ),
   activate: external_exports.boolean().optional().describe("Default true."),
   verify: external_exports.boolean().optional().describe("Force verified mode; reads back after write."),
   format: external_exports.boolean().optional().describe("Pretty-print source before writing."),
   dry_run: external_exports.boolean().optional().describe(
-    "Preview only: returns the diff and the expect_etag a real write would assert. Makes no lock, PUT, DELETE, activation, unlock or transport call and journals nothing."
+    "Preview only: resolve, read, apply the edit locally, run the safety gate, and return the diff and the expect_etag a real write would assert. Makes no lock, PUT, DELETE, activation, unlock or transport call and journals nothing."
   ),
   corr_nr: external_exports.string().optional().describe(
     "Transport request. $TMP needs none. Optional for every transportable create, including the bridge types TRAN/T, VIEW/DV, SHLP/DH and TABL/DI: omitted, one is resolved under ABAP_ALLOW_TRANSPORTS (auto reuses a modifiable request this session created for the package, else creates one; under auto a NAMED request is refused, so omit it). Refused for a $ package, and on VIEW/DV or TRAN/T delete. TABL/DI delete: same package-derived resolution as its create, not refused. If the object is already recorded in a DIFFERENT request, CTS imposes that one instead: mode=write proceeds under it and reports corr_nr_honoured: false; mode=delete is refused outright with TRANSPORT_ERROR (CORR_NR_NOT_HONOURED) and deletes nothing."
@@ -122998,10 +123383,10 @@ var writeInputSchema = {
     "SHLP/DH delete only: required true when the search help is still attached to a data element, a table/view field, or included by a collective search help (DD04L/DD35L/DD31S). Refused zero-network for any other type/mode combination."
   ),
   confirm_maintenance_dialog: external_exports.boolean().optional().describe(
-    "VIEW/DV delete: overrides the bridge's refusal when the view still has a generated SE54 maintenance dialog (TVDIR), which the delete leaves broken; the refusal names the dialog. Refused zero-network for any other type/mode combination."
+    "VIEW/DV delete: overrides the bridge's refusal when the view still has a generated SE54 maintenance dialog (TVDIR) \u2014 deleting the view leaves that dialog broken. The bridge's refusal names the specific dialog (function group area, package, type, screen) so a caller can read it and decide before passing this. Refused zero-network for any other type/mode combination."
   ),
   confirm_in_role_menu: external_exports.boolean().optional().describe(
-    `TRAN/T mode="delete" or mode="update" (retarget): overrides the bridge's refusal when the tcode is assigned to role menus (AGR_TCODES) \u2014 deleting removes it from them, retargeting changes what they launch; the refusal names the roles. An SM01 lock is not checked. Refused zero-network for any other type/mode combination.`
+    `TRAN/T mode="delete" or mode="update" (retarget): overrides the bridge's refusal when the tcode is already assigned to one or more roles' menus (AGR_TCODES). Deleting it removes it from those role menus; retargeting it changes what those menu entries launch. The bridge's refusal names the specific roles so a caller can read it and decide before passing this. An SM01 transaction lock is not checked either way. Refused zero-network for any other type/mode combination.`
   ),
   // Same shape/wording as abap_enh's `affects` field (src/tools/enh.ts), so
   // callers share one vocabulary. Required for an enhancement-type write
@@ -123185,7 +123570,7 @@ function resolvedObjectAdapter(conn, t) {
     packageName: t.packageName,
     description: t.description,
     mode: "source",
-    activation: "unknown",
+    activation: t.activation ?? "unknown",
     spec: t.spec
   };
 }
@@ -123468,7 +123853,9 @@ async function resolveWriteSource(conn, authorized, input) {
         { object: t.name }
       );
     }
-    const ms = await readMethod(conn, resolvedObjectAdapter(conn, t), current, input.method);
+    const ms = await readMethod(conn, resolvedObjectAdapter(conn, t), current, input.method, {
+      inherited: false
+    });
     if (!ms.implementationRange) {
       throw new AbapError(
         "NOT_FOUND",
@@ -123484,7 +123871,12 @@ async function resolveWriteSource(conn, authorized, input) {
       ...ms.implementationRange ? { range: ms.implementationRange } : {},
       object: t.name
     });
-    return { source: spliced, expectEtag: input.expect_etag ?? canonicalEtag(current), current };
+    return {
+      source: spliced,
+      expectEtag: input.expect_etag ?? canonicalEtag(current),
+      current,
+      methodVersion: ms.version
+    };
   }
   if (input.source !== void 0) {
     assertNotOrphanMethodBlock(input.source, t.name, t.type);
@@ -123756,7 +124148,8 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
   const {
     source: resolvedSource,
     expectEtag: resolvedExpectEtag,
-    current: resolvedCurrent
+    current: resolvedCurrent,
+    methodVersion: resolvedMethodVersion
   } = await resolveWriteSource(conn, authorized, input);
   if (input.format && capabilitiesFor(authorized.target.type)?.write?.shape === "properties") {
     throw new AbapError(
@@ -123909,10 +124302,18 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
         throw ae;
       }
     } else if (wantActivate && !check2.ok) {
+      const rendered = renderMessages(check2.messages, source);
       throw new AbapError(
         "CHECK_FAILED",
-        `syntax check reported ${check2.errors} error(s), ${check2.warnings} warning(s)`,
-        { messages: check2.messages }
+        `syntax check reported ${check2.errors} error(s), ${check2.warnings} warning(s)` + (rendered ? `:
+${rendered}` : ""),
+        {
+          messages: withSourceContext(check2.messages, source, {
+            maxLen: SOURCE_LINE_MAX,
+            context: 1
+          }),
+          rendered
+        }
       );
     }
   } catch (e) {
@@ -123957,7 +124358,7 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
           ...e.hint ? { hint: e.hint } : {}
         } : cause
       },
-      "The write itself succeeded and is NOT rolled back: the new source is on the server and the object is INACTIVE, so it will not execute and callers still see the last active version. Fix the reported lines and write again to activate it" + (journalled2 ? `, or restore the previous source with abap_journal mode=undo entry=${entryId}.` : ". The write journal is off, so abapsmith cannot undo this for you \u2014 write the previous source back by hand if you need the old version.") + (journalError ? ` NOTE: the journal entry could not be settled (${journalError}), so ${entryId} may still read as pending and undo may decline it \u2014 check abap_journal first.` : "")
+      'The write itself succeeded and is NOT rolled back: the new source is on the server and the object is INACTIVE, so it will not execute and callers still see the last active version. Fix the reported lines \u2014 for a class, abap_write method="<NAME>" repairs one method against the INACTIVE version (no re-read needed; details.failure.details.messages carries each offending line with context); otherwise use edit= or write the full source again \u2014 then abap_activate, or write with activate=true' + (journalled2 ? `, or restore the previous source with abap_journal mode=undo entry=${entryId}.` : ". The write journal is off, so abapsmith cannot undo this for you \u2014 write the previous source back by hand if you need the old version.") + (journalError ? ` NOTE: the journal entry could not be settled (${journalError}), so ${entryId} may still read as pending and undo may decline it \u2014 check abap_journal first.` : "")
     );
   }
   await settle({
@@ -124033,6 +124434,11 @@ ${renderInactive(activation.inactive)}`);
   const notes = [
     written.corrNrOverrode !== void 0 && written.corrNrSent !== void 0 ? corrNrOverriddenWriteNote(written.corrNrOverrode, written.corrNrSent, written.target.type, written.target.name) : transportNote(written.transport, gate.config?.abapMode)
   ];
+  if (input.method !== void 0 && resolvedMethodVersion !== void 0) {
+    notes.push(
+      `method="${input.method}" was resolved against the ${resolvedMethodVersion.toUpperCase()} version's component structure` + (resolvedMethodVersion === "inactive" ? " \u2014 a newer inactive version existed (e.g. after a CHECK_FAILED write) and its line ranges were used." : ".")
+    );
+  }
   if (transport !== void 0 && written.transport.status === "transport" && written.transport.corrNr !== void 0 && transport.lastAutoDecision?.trkorr.toUpperCase() === written.transport.corrNr.toUpperCase()) {
     notes.push(transport.lastAutoDecision.reason);
   }
@@ -132065,23 +132471,13 @@ async function runCrossSystemDiff(params) {
 }
 
 // src/tools/read.ts
-var OUTLINE_DEFAULT_LINES = 150;
-var OUTLINE_DEFAULT_CHARS = 8e3;
-var PATTERN_MAX_MATCHES = 50;
-var PATTERN_DEFAULT_CONTEXT = 2;
 var readInputSchema = {
   object: external_exports.string().describe('Name, "class X", "table Y", or ADT URI.'),
   type: external_exports.string().optional().describe(
     `ADT type to disambiguate. DEVC/K: package listing (types/depth filter it). SUSO/B: renders the object's DEFINITION (fields, permitted activities) from the catalog \u2014 NOT who holds it, no AGR_*/UST* table is read. TABL/DI: <TABLE>/<INDEX> catalog render. Not readable: ${NON_READABLE_TYPES.join(" ")}.`
   ),
   method: external_exports.string().optional().describe("Only this method/component."),
-  outline: external_exports.boolean().optional().describe(
-    `Component list with line ranges. Default for CLAS/INTF/PROG/FUGR above ${OUTLINE_DEFAULT_LINES} lines or ${OUTLINE_DEFAULT_CHARS} chars unless method/include/offset/limit/pattern/full is given.`
-  ),
-  full: external_exports.boolean().optional().describe("Whole source even above the default-outline threshold."),
-  pattern: external_exports.string().optional().describe(
-    `Regex (case-insensitive): only matching lines, numbered, with \`context\` lines around each (like grep -n -C). Max ${PATTERN_MAX_MATCHES} matches unless limit= is given; offset= sets the first line scanned.`
-  ),
+  outline: external_exports.boolean().optional().describe("Component list with line ranges."),
   offset: external_exports.number().int().min(1).max(999999).optional().describe("1-based first line (chars if format=raw)."),
   limit: external_exports.number().int().min(1).max(999999).optional().describe("Max lines (chars if format=raw)."),
   enhancements: external_exports.boolean().optional().describe("BAdI/plug-in/enhancement-spot decode (ENHO/XH,XHH,ENHS), not source."),
@@ -132097,11 +132493,11 @@ var readInputSchema = {
   // than silently falling through to an ordinary source read. Named `view`,
   // not `mode` — `mode` is already a response header key and `ResolvedObject.mode`.
   view: external_exports.enum(["history", "diff", "definition", "lineage", "footprint", "docu", "digest"]).optional().describe(
-    'history: versions. diff: hunks. definition: element at line/column. lineage: CDS sources down to base tables. footprint: database writes and commits. docu: SAP documentation (type="SIMG" + object=<abap_img activity id> for an IMG activity). digest: one-page overview. Omit for a normal read.'
+    `history: versions. diff: hunks. definition: element at line/column. lineage: CDS view sources down to base tables. footprint: database writes and commits. docu: SAP documentation (flattened ITF; type="SIMG" + object=<abap_img activity id> for an IMG activity's docu). digest: one-page object overview. Omit for normal read.`
   ),
   from: external_exports.string().optional().describe('diff: older side \u2014 version, transport, or "active".'),
   to: external_exports.string().optional().describe("diff: newer side, same forms as `from`."),
-  context: external_exports.number().int().min(0).max(20).optional().describe(`Lines around each pattern match (default ${PATTERN_DEFAULT_CONTEXT}) or per diff hunk (default 3).`),
+  context: external_exports.number().int().min(0).max(20).optional().describe("diff: context lines per hunk. Default 3."),
   // Same names/bounds/semantics as abap_quick_fix's line/column (quickfix.ts)
   // — deliberately, so a caller who has already learned one learns both.
   // No `.default(0)` on column: unlike quick-fix (which always needs a
@@ -132139,7 +132535,6 @@ var crossSystemInputSchema = {
   )
 };
 var OUTLINE_KINDS = /* @__PURE__ */ new Set(["CLAS", "INTF"]);
-var DEFAULT_OUTLINE_KINDS = /* @__PURE__ */ new Set(["CLAS", "INTF", "PROG", "FUGR"]);
 var ENHANCEMENT_KINDS = /* @__PURE__ */ new Set(["ENHO/XH", "ENHO/XHH", "ENHS"]);
 function renderRef(ref2) {
   if (!ref2?.name) return "(none)";
@@ -132301,13 +132696,12 @@ function buildSourceResponse(parts, etag, forceIncomplete = false) {
   const second = buildResponse({
     ...parts,
     header: { ...parts.header, etag: partialEtag },
-    notes: [TRUNCATED_SOURCE_NOTE, ...parts.notes ?? []],
-    size: true
+    notes: [TRUNCATED_SOURCE_NOTE, ...parts.notes ?? []]
   });
   return { ...second, truncated: true, etag: partialEtag };
 }
 function buildReadResponse(parts) {
-  const first = buildResponse({ ...parts, size: true });
+  const first = buildResponse(parts);
   if (first.truncated) return first;
   const facts = [
     "truncated=false",
@@ -132318,8 +132712,7 @@ function buildReadResponse(parts) {
   ].join(" ");
   const withFacts = buildResponse({
     ...parts,
-    header: { ...parts.header, response: `complete (${facts})` },
-    size: true
+    header: { ...parts.header, response: `complete (${facts})` }
   });
   return withFacts.truncated ? first : withFacts;
 }
@@ -132441,20 +132834,6 @@ function assertViewCompatible(input, obj) {
       `version="${input.version}"`,
       isDefinition ? "the elementinfo and navigation-target POSTs always carry the source abap_read itself read; asking about the inactive version while posting the active source would answer a question about a version that was never sent." : isLineage ? "lineage always walks the ACTIVE source of the view and everything it references \u2014 there is no per-node way to ask for an inactive version across a whole dependency tree." : isFootprint ? "footprint always scans the ACTIVE source of every include it finds \u2014 there is no per-include way to ask for an inactive version across a whole-object scan." : isDocu ? "SAP's documentation store (DOKHL/DOKTL) is not version-controlled the way ABAP source is \u2014 there is no active/inactive pair to select between." : isDigest ? "a digest always summarises the CURRENT active state (falling back to the newest inactive version only the way an ordinary read would); the active/inactive selector is not a thing a fixed overview can apply per section." : 'the active/inactive pair is a different axis from the version FEED; "inactive" is not a feed entry and has no history row.',
       isDefinition ? "Activate the object first and read the active source, or drop version." : isLineage || isFootprint ? `Drop version \u2014 view="${input.view}" always reads the current active source.` : isDocu || isDigest ? "Drop version." : 'Use from/to to name feed versions (list them with view="history").'
-    );
-  }
-  if (input.pattern !== void 0) {
-    clash(
-      `pattern="${input.pattern}"`,
-      "pattern greps the object's plain SOURCE lines; a view renders something other than the plain source, so there are no source lines for it to filter.",
-      "Drop pattern, or drop view to grep the source."
-    );
-  }
-  if (input.full) {
-    clash(
-      "full=true",
-      "full only overrides the default outline of a large SOURCE read; a view is never replaced by an outline, so there is nothing for it to override.",
-      "Drop full."
     );
   }
   if (input.outline) {
@@ -132673,11 +133052,11 @@ function assertIncludeCompatible(input, obj) {
     );
   }
   const method = input.method ?? obj.member;
-  if (method) {
+  if (method && include !== "definitions") {
     clash(
       `method="${method}"`,
       "the method's line range comes from the ADT component structure, which numbers lines in the class's main document. Cutting those lines out of a different include would return whatever happens to sit at them \u2014 not that method.",
-      `Read include="${include}" in full and locate the method in it, or drop include to read ${method} from the class body.`
+      `Read include="${include}" in full and locate the method in it, drop include to read ${method} from the class body, or use include="definitions" for its declaration alone.`
     );
   }
   return include;
@@ -133179,8 +133558,6 @@ function assertDocuBypassCompatible(input, kind) {
   if (input.enhancements) clash("enhancements=true");
   if (input.version !== void 0) clash(`version="${input.version}"`);
   if (input.outline) clash("outline=true");
-  if (input.pattern !== void 0) clash(`pattern="${input.pattern}"`);
-  if (input.full) clash("full=true");
   if (input.include !== void 0) clash(`include="${input.include}"`);
   if (input.from !== void 0) clash("from");
   if (input.to !== void 0) clash("to");
@@ -133365,8 +133742,6 @@ async function readDigest(conn, obj, baseHeader, input, maxChars) {
 var CATALOG_READ_IRRELEVANT_PARAMS = [
   "method",
   "outline",
-  "pattern",
-  "full",
   "enhancements",
   "version",
   "view",
@@ -133438,74 +133813,8 @@ async function readCatalogObject2(conn, input, catalogRead, label, maxChars) {
     maxChars
   );
 }
-function assertPatternAndFullArgs(input) {
-  if (input.full) {
-    for (const [param, value] of [
-      ["outline=true", input.outline || void 0],
-      ["method", input.method],
-      ["pattern", input.pattern]
-    ]) {
-      if (value !== void 0) {
-        throw new AbapError(
-          "BAD_INPUT",
-          `full=true asks for the whole source; ${param} asks for part of it \u2014 both cannot be honoured.`,
-          { object: input.object, param: "full", with: param },
-          `Drop full, or drop ${param}.`
-        );
-      }
-    }
-  }
-  if (input.pattern === void 0) return;
-  if (input.pattern === "") {
-    throw new AbapError(
-      "BAD_INPUT",
-      "pattern is empty \u2014 an empty regex matches every line, which is a plain read, not a filter.",
-      { object: input.object, param: "pattern" },
-      "Pass a regex, or drop pattern to read the source."
-    );
-  }
-  try {
-    new RegExp(input.pattern, "i");
-  } catch (e) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `pattern is not a valid regular expression: ${e instanceof Error ? e.message : String(e)}`,
-      { object: input.object, param: "pattern", pattern: input.pattern },
-      "Fix the regex (JavaScript syntax, matched case-insensitively per line)."
-    );
-  }
-  for (const [param, value] of [
-    ["outline=true", input.outline || void 0],
-    ["method", input.method]
-  ]) {
-    if (value !== void 0) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `pattern cannot be combined with ${param}: pattern filters the document's own lines (absolute line numbers), which is a different answer from a component list or one method's block.`,
-        { object: input.object, param: "pattern", with: param },
-        `Drop ${param} (pattern already narrows the read), or drop pattern.`
-      );
-    }
-  }
-}
-function refuseSourceOnlyParams(input, obj, why) {
-  for (const [param, value] of [
-    ["pattern", input.pattern],
-    ["full", input.full || void 0]
-  ]) {
-    if (value !== void 0) {
-      throw new AbapError(
-        "UNSUPPORTED",
-        `${param} is only meaningful for a source read; ${why} for ${obj.type} ${obj.name}.`,
-        { type: obj.type, name: obj.name, param },
-        `Drop ${param}.`
-      );
-    }
-  }
-}
 async function abapRead(conn, input, maxChars, gate) {
   if (input.include !== void 0) assertClassInclude(input.include, input.object);
-  assertPatternAndFullArgs(input);
   const catalogCap = input.type ? capabilitiesFor(input.type) : void 0;
   if (catalogCap?.catalogRead) {
     return readCatalogObject2(conn, input, catalogCap.catalogRead, catalogCap.label, maxChars);
@@ -133558,7 +133867,8 @@ async function abapRead(conn, input, maxChars, gate) {
   }
   for (const [param, value] of [
     ["from", input.from],
-    ["to", input.to]
+    ["to", input.to],
+    ["context", input.context]
   ]) {
     if (value !== void 0) {
       throw new AbapError(
@@ -133568,14 +133878,6 @@ async function abapRead(conn, input, maxChars, gate) {
         `Add view="diff", or drop ${param}.`
       );
     }
-  }
-  if (input.context !== void 0 && input.pattern === void 0) {
-    throw new AbapError(
-      "BAD_INPUT",
-      'context is only meaningful with view="diff" or pattern; neither was requested, so this would have been an ordinary source read with your parameter discarded.',
-      { type: obj.type, name: obj.name, param: "context" },
-      'Add view="diff" or pattern="<regex>", or drop context.'
-    );
   }
   for (const [param, value] of [
     ["line", input.line],
@@ -133613,7 +133915,6 @@ async function abapRead(conn, input, maxChars, gate) {
   }
   const include = assertIncludeCompatible(input, obj);
   if (input.format === "raw") {
-    refuseSourceOnlyParams(input, obj, 'format="raw" returns the XML descriptor, not source lines');
     if (input.version) {
       throw new AbapError(
         "UNSUPPORTED",
@@ -133661,7 +133962,6 @@ async function abapRead(conn, input, maxChars, gate) {
     return built;
   }
   if (input.enhancements) {
-    refuseSourceOnlyParams(input, obj, "enhancements=true renders a decoded enhancement document, not source lines");
     if (!ENHANCEMENT_KINDS.has(obj.kind)) {
       throw new AbapError(
         "UNSUPPORTED",
@@ -133673,7 +133973,6 @@ async function abapRead(conn, input, maxChars, gate) {
     return readEnhancementObject(conn, obj, baseHeader, input, maxChars);
   }
   if (obj.mode === "ddic") {
-    refuseSourceOnlyParams(input, obj, `${obj.type} is rendered as pseudo-DDL from the dictionary, not read as source lines`);
     if (input.version === "inactive") {
       throw new AbapError(
         "UNSUPPORTED",
@@ -133718,11 +134017,13 @@ async function abapRead(conn, input, maxChars, gate) {
       maxChars
     );
   }
+  const methodWanted = input.method ?? obj.member;
+  const declarationOnly = Boolean(methodWanted) && include === "definitions";
   const {
     source,
     serverEtag,
     sourceUri: readUri
-  } = await readSource(conn, obj, include, input.version);
+  } = await readSource(conn, obj, declarationOnly ? "main" : include, input.version);
   const etag = resourceEtag(source);
   const header = {
     ...baseHeader,
@@ -133745,116 +134046,99 @@ async function abapRead(conn, input, maxChars, gate) {
   ] : [
     'Read a single method with method="<NAME>".',
     "Get the component list first with outline=true.",
-    'pattern="<regex>" returns only matching lines (numbered, with context).',
     ...obj.kind === "CLAS" ? [
       'Local and test classes are NOT in this source: read them with include="testclasses" (ABAP Unit), "definitions", "implementations" or "macros".'
     ] : []
   ];
-  const totalLines = countLines(source);
-  const totalChars = source.length;
-  const method = input.method ?? obj.member;
-  if (input.pattern !== void 0) {
-    const context = input.context ?? PATTERN_DEFAULT_CONTEXT;
-    const maxMatches = input.limit ?? PATTERN_MAX_MATCHES;
-    const grep = grepSource(source, input.pattern, {
-      context,
-      fromLine: input.offset ?? 1,
-      maxMatches
-    });
-    const partialEtag = markEtagPartial(etag);
-    const nextOffset = grep.lastShownLine !== void 0 ? grep.lastShownLine + 1 : void 0;
-    const truncLine = grep.truncated ? `--- TRUNCATED --- ${grep.shown} of ${grep.total} matching line(s) shown (cap ${maxMatches}${input.limit === void 0 ? ", raise with limit=" : ""}). Continue with offset=${nextOffset}, or narrow the pattern.` : void 0;
-    const body = [
-      grep.text || `(no line of ${obj.type} ${obj.name}${include && include !== "main" ? ` include "${include}"` : ""} matches /${input.pattern}/i${input.offset ? ` from line ${input.offset}` : ""})`,
-      truncLine
-    ].filter((s) => s !== void 0).join("\n");
+  if (input.outline) {
+    if (!OUTLINE_KINDS.has(obj.kind)) {
+      const built2 = buildReadResponse({
+        header: { ...header, totalLines: countLines(source) },
+        body: `(outline is NOT SUPPORTED for ${obj.type} \u2014 it is implemented for classes and interfaces only, via the ADT component structure. This is a tool limitation, NOT a statement that ${obj.name} has no components.)`,
+        bodyLabel: "OUTLINE",
+        notes: [
+          `outline=true was ignored: ${obj.type} has no ADT component structure to list. Re-read without outline (optionally with offset/limit) to see the source.`
+        ],
+        hints: ["Re-read without outline=true, using offset/limit to page the source."],
+        maxChars
+      });
+      return { ...built2, etag };
+    }
+    const own = await classMembersFor(conn, obj, input.version);
+    const members = own.members;
+    const ownOutline = renderOutline(members);
+    const chain = await inheritedMembers(conn, obj, source, members, input.version);
+    const inheritedOutline = renderInheritedOutline(chain.inherited);
+    const sections = [];
+    if (ownOutline) sections.push(ownOutline);
+    else if (inheritedOutline) {
+      sections.push(`  (${obj.name} declares no methods, attributes or events of its own)`);
+    }
+    if (inheritedOutline) {
+      sections.push(
+        "",
+        `INHERITED (${chain.inherited.length} public/protected members declared on ${obj.name}'s superclasses/interfaces; method="<NAME>" resolves them automatically):`,
+        inheritedOutline
+      );
+    }
+    const outline = sections.join("\n");
+    const window3 = sliceLines(outline, input.offset ?? 1, input.limit);
+    const notes = [];
+    if (chain.unresolved.length) {
+      notes.push(
+        "Inheritance chain incomplete \u2014 not readable on this system: " + chain.unresolved.map((u) => `${u.name} (${u.relation} of ${u.via}: ${u.reason})`).join("; ") + ". Members declared there are not listed."
+      );
+    }
     const built = buildReadResponse({
       header: {
         ...header,
-        etag: partialEtag,
-        pattern: input.pattern,
-        context,
-        matches: grep.total,
-        matchesShown: grep.shown,
-        ...input.offset ? { scannedFrom: input.offset } : {},
-        totalLines,
-        totalChars
+        components: members.length,
+        inherited: chain.inherited.length,
+        structureVersion: own.version,
+        totalLines: countLines(source)
       },
-      body,
-      bodyLabel: "MATCHES",
-      notes: [
-        ...includeNotes,
-        "Matches only, not the whole text: line numbers are absolute (read around one with offset/limit), `:` marks a matching line, `-` a context line. The etag is marked `partial:` \u2014 abap_write's edit={old_string,new_string} accepts it; a full-source rewrite is refused."
-      ],
-      hints: ["Narrow the pattern, or lower context, to fit more matches in one response."],
-      maxChars
-    });
-    return { ...built, etag: partialEtag };
-  }
-  const aboveThreshold = totalLines > OUTLINE_DEFAULT_LINES || totalChars > OUTLINE_DEFAULT_CHARS;
-  const outlineByDefault = input.outline === void 0 && !input.full && method === void 0 && include === void 0 && input.offset === void 0 && input.limit === void 0 && DEFAULT_OUTLINE_KINDS.has(obj.kind) && aboveThreshold;
-  if (input.outline || outlineByDefault) {
-    const defaultNotes = outlineByDefault ? [
-      `${obj.type} ${obj.name} is ${totalLines} lines / ${totalChars} chars \u2014 above the default-outline threshold (${OUTLINE_DEFAULT_LINES} lines or ${OUTLINE_DEFAULT_CHARS} chars), so this is the OUTLINE, not the source. Read a part with ${OUTLINE_KINDS.has(obj.kind) ? 'method="<NAME>", ' : ""}pattern="<regex>" or offset/limit, or the whole ${totalLines}-line source with full=true.`
-    ] : [];
-    const outlineHeader = {
-      ...header,
-      outline: outlineByDefault ? "default (large source)" : "requested",
-      totalLines,
-      totalChars
-    };
-    const partHints = [
-      ...OUTLINE_KINDS.has(obj.kind) ? ['Read one component with method="<NAME>".'] : [],
-      'pattern="<regex>" returns only matching lines; offset/limit page the source; full=true reads all of it.'
-    ];
-    if (OUTLINE_KINDS.has(obj.kind)) {
-      const members = await classMembers(conn, obj);
-      const outline = renderOutline(members);
-      const window3 = sliceLines(outline, input.offset ?? 1, input.limit);
-      const built2 = buildReadResponse({
-        header: { ...outlineHeader, components: members.length },
-        body: outline ? window3.text : `(${obj.type} ${obj.name} really has no methods, attributes or events \u2014 the component structure came back empty.)`,
-        bodyLabel: "OUTLINE",
-        bodyOffset: outline ? window3.offset : void 0,
-        bodyTotalLines: outline ? window3.total : void 0,
-        pagingParam: "offset",
-        notes: [...includeNotes, ...defaultNotes],
-        hints: partHints,
-        maxChars
-      });
-      return { ...built2, etag };
-    }
-    if (obj.kind === "PROG" || obj.kind === "FUGR") {
-      const rows = scanSourceStructure(source);
-      const built2 = buildReadResponse({
-        header: { ...outlineHeader, components: rows.length },
-        body: rows.length ? renderSourceStructure(rows) : `(the text scan found no FORM/FUNCTION/MODULE/CLASS/METHOD/INCLUDE statement or event block in ${obj.type} ${obj.name}'s ${totalLines} lines \u2014 this is a scan of statement keywords, NOT a statement that the program has no components.)`,
-        bodyLabel: "OUTLINE",
-        notes: [
-          ...includeNotes,
-          ...defaultNotes,
-          `${obj.type} has no ADT component structure; this outline is a text scan of statement-initial keywords (REPORT/INCLUDE/FORM/FUNCTION/MODULE/CLASS/METHOD/INTERFACE and event blocks) with their END lines. Line numbers are offset= positions in this document.`
-        ],
-        hints: partHints,
-        maxChars
-      });
-      return { ...built2, etag };
-    }
-    const built = buildReadResponse({
-      header: { ...header, totalLines },
-      body: `(outline is NOT SUPPORTED for ${obj.type} \u2014 it is implemented for classes and interfaces (ADT component structure) and programs/function groups (statement scan) only. This is a tool limitation, NOT a statement that ${obj.name} has no components.)`,
+      body: outline ? window3.text : `(${obj.type} ${obj.name} really has no methods, attributes or events \u2014 the component structure came back empty${chain.searched.length ? ` and so did ${chain.searched.join(", ")}'s` : ""}.)`,
       bodyLabel: "OUTLINE",
-      notes: [
-        `outline=true was ignored: ${obj.type} has no component structure to list. Re-read without outline (optionally with offset/limit or pattern) to see the source.`
+      bodyOffset: outline ? window3.offset : void 0,
+      bodyTotalLines: outline ? window3.total : void 0,
+      notes,
+      hints: [
+        'Read one component with method="<NAME>".',
+        ...inheritedOutline ? [
+          `Inherited members work the same way: method="<NAME>" walks the chain and reports foundOn. Their line numbers are the defining object's.`
+        ] : [],
+        'To learn a signature, use method="<NAME>" with include="definitions" (declaration only); do not read the full class.'
       ],
-      hints: ["Re-read without outline=true, using offset/limit to page the source."],
+      pagingParam: "offset",
       maxChars
     });
     return { ...built, etag };
   }
+  const method = input.method ?? obj.member;
   if (method) {
-    const m = await readMethod(conn, obj, source, method);
-    const parts = [m.declaration, m.implementation].filter(Boolean).join("\n\n");
+    const m = await readMethod(conn, obj, source, method, {
+      version: input.version,
+      inherited: true
+    });
+    const parts = (declarationOnly ? [m.declaration] : [m.declaration, m.implementation]).filter(Boolean).join("\n\n");
+    const origin = m.foundOn;
+    const originLabel = origin ? `${origin.name} (${origin.relation} of ${origin.via}, depth ${origin.depth})` : void 0;
+    const methodNotes = [];
+    if (origin) {
+      methodNotes.push(
+        `${m.member.name} is not declared by ${obj.name}; it comes from ${originLabel}. The block below and its line numbers are ${origin.name}'s, not ${obj.name}'s (searched: ${m.searched.join(" -> ")}).`
+      );
+    }
+    if (m.version === "inactive" && input.version !== "inactive") {
+      methodNotes.push(
+        `${origin?.name ?? obj.name} has a newer INACTIVE version; the method was resolved against it (ADT's default read returns that newest version too).`
+      );
+    }
+    if (declarationOnly) {
+      methodNotes.push(
+        'include="definitions" with method= returns the declaration only, cut from the class definition in the main document (the CCDEF local-definitions include holds nothing global). Drop include to get the implementation as well.'
+      );
+    }
     const window3 = sliceLines(parts, input.offset ?? 1, input.limit);
     return buildSourceResponse(
       {
@@ -133862,17 +134146,23 @@ async function abapRead(conn, input, maxChars, gate) {
           ...header,
           method: m.member.name,
           visibility: m.member.visibility,
+          foundOn: originLabel,
+          structureVersion: m.version,
           // Absolute position in the object, for orientation only — never used as
           // the paging frame.
           sourceLines: m.implementationRange ? `${m.implementationRange.startLine}-${m.implementationRange.endLine}` : void 0,
           blockLines: parts ? window3.total : void 0
         },
-        body: parts ? window3.text : "(no source found for this component)",
-        bodyLabel: "METHOD SOURCE",
+        body: parts ? window3.text : declarationOnly ? `(no METHODS declaration for ${m.member.name} found in ${origin?.name ?? obj.name}'s definition \u2014 ADT lists the component but the definition text does not declare it under that name, e.g. an interface method implemented as IF~METHOD)` : "(no source found for this component)",
+        bodyLabel: declarationOnly ? "METHOD DECLARATION" : "METHOD SOURCE",
         bodyOffset: parts ? window3.offset : void 0,
         bodyTotalLines: parts ? window3.total : void 0,
+        notes: methodNotes,
         hints: [
           "`offset` here is relative to this method block (line 1 = first line shown above), not to the object's source lines.",
+          ...declarationOnly ? ['Drop include="definitions" to read the implementation as well.'] : [
+            'To learn a signature only, use method= with include="definitions"; do not read the full class.'
+          ],
           "Omit `method` to read the whole object, or use outline=true for the component list."
         ],
         pagingParam: "offset",
@@ -133884,7 +134174,7 @@ async function abapRead(conn, input, maxChars, gate) {
   const window2 = sliceLines(source, input.offset ?? 1, input.limit);
   return buildSourceResponse(
     {
-      header: { ...header, totalLines: window2.total, totalChars },
+      header: { ...header, totalLines: window2.total },
       body: window2.text,
       bodyLabel: "SOURCE",
       bodyOffset: window2.offset,
@@ -133943,8 +134233,6 @@ function resolveCrossSystemSides(input, deps) {
   for (const [param, value] of [
     ["method", input.method],
     ["outline", input.outline],
-    ["pattern", input.pattern],
-    ["full", input.full],
     ["line", input.line],
     ["column", input.column],
     ["types", input.types],
@@ -133966,7 +134254,7 @@ function registerReadTools(mcp, deps) {
     "abap_read",
     {
       title: "Read ABAP object",
-      description: 'Read an ABAP object: source, pseudo-DDL, a DEVC/K package listing, or (SUSO/B, TABL/DI) a read-only catalog render; view= selects docu/digest/history/diff/definition/lineage/footprint. A CLAS/INTF/PROG/FUGR source above 150 lines or 8k chars answers with its outline by default \u2014 then method=, pattern= (regex, with context), offset/limit, or full=true. Returns an etag; capped ~15k tokens, truncation marked. Example: {"object":"ZCL_FOO","type":"CLAS/OC"}.',
+      description: `Read an ABAP object: source, pseudo-DDL, a DEVC/K package listing (types/depth filter it), or (SUSO/B, TABL/DI) a read-only catalog render. view="docu" reads SAP's own documentation (or, with method=, a method's ABAP Doc); view="digest" gives a one-page overview (CLAS/INTF/PROG/FUGR/DDLS) with public API, dependencies, tests and recent history. Returns an etag. Capped ~15k tokens \u2014 use outline/method/offset for large objects. To learn a method's signature, use method= with include="definitions" (declaration only); do not read the full class. method= also finds inherited members (superclasses and interfaces) and reports foundOn. Example: {"object":"ZCL_FOO","type":"CLAS/OC"}.`,
       // `from_system`/`to_system` (issue #93, cross-system view="diff")
       // are spliced in only when more than one system is configured —
       // a single-system server has nothing a second system field could
@@ -134797,7 +135085,7 @@ var testInputSchema = {
     'Switch on the SAP authorization trace for the connected user, run the test, then read back and switch it back off. scope="object" only. Refused on a read-only server. Default false.'
   ),
   snapshot_ids: external_exports.array(external_exports.string()).optional().describe(
-    'Snapshot ids from prior abap_data_preview mode="snapshot" calls; each is re-read and diffed after this call and appended as a DATA CHANGES section, under the same data-preview policy (a refused diff does not fail this call).'
+    `Snapshot ids from prior abap_data_preview mode="snapshot" calls. After this call finishes, each one is re-read and diffed, and the result is appended as a DATA CHANGES section. The diff obeys the same data-preview policy as the snapshot did \u2014 if it is refused, this call's own result still returns and the section says why.`
   )
 };
 var TestInput = external_exports.object(testInputSchema);
@@ -135833,7 +136121,6 @@ async function buildCallGraph(conn, target, type, direction, depth, max, maxChar
     },
     body: lines.join("\n"),
     bodyLabel: "CALL GRAPH",
-    size: true,
     notes,
     hints: [
       direction === "callers" ? 'Pass direction="callees" to see what this object calls instead.' : 'Pass direction="callers" to see who calls this object instead.',
@@ -135994,7 +136281,7 @@ var searchInputSchema = {
     "Name pattern (mode=objects), target object (mode=where_used/call_graph), or literal/regex text (mode=source)."
   ),
   mode: external_exports.enum(["objects", "where_used", "source", "call_graph"]).optional().describe(
-    'Default "objects". "source": raw source-text scan (literal/regex; needs the fluid API; also matches strings, comments and dead code \u2014 prefer "where_used" for real static references). "call_graph": multiple levels of callers or callees.'
+    'Default "objects". "source" scans raw source text (literal/regex, any line) and needs the fluid API; prefer "where_used" when you want real static references to one object, since a text scan also matches strings, comments and dead code. "call_graph" walks multiple levels of callers or callees instead of just one.'
   ),
   type: external_exports.string().optional().describe(
     `ADT type filter (mode=objects/where_used/call_graph only). One of: ${[...KNOWN_TYPE_GROUPS].sort().join(" ")}; or a full code, e.g. "CLAS/OC".`
@@ -136106,7 +136393,6 @@ async function searchObjects(conn, query, type, max, maxChars) {
     },
     body,
     bodyLabel: "RESULTS",
-    size: true,
     notes,
     // abap_search has no offset/paging parameter — `max` is the only lever, so
     // the hint must not promise one.
@@ -136155,7 +136441,6 @@ async function whereUsed(conn, target, type, max, maxChars) {
     body: rows.length ? textTable(rows, ["type", "name", "package", "description"]) + (capLine ? `
 ${capLine}` : "") : "(no references found)",
     bodyLabel: "USED BY",
-    size: true,
     notes: [
       ...expensive ? [
         `FETCH COST: this call took ${(fetchMs / 1e3).toFixed(1)}s and returned ${totalReferences} reference(s). ADT's usageReferences endpoint has no server-side limit, so the entire set is enumerated and transferred before max is applied. The cost is set by the target's fan-in, not by max \u2014 lowering max would not have made this call cheaper. If cost matters, ask about a narrower or less widely-referenced object instead.`
@@ -136309,48 +136594,18 @@ function scopeLabel(q) {
   if (q.objects) parts.push(`objects=${q.objects}`);
   return parts.join(" ");
 }
-var SOURCE_PER_OBJECT_HIT_CAP = 20;
-function groupSourceHits(hits) {
-  const groups = /* @__PURE__ */ new Map();
-  for (const h of hits) {
-    const key = `${h.objType} ${h.objName}`;
-    const g = groups.get(key);
-    if (g) g.hits.push(h);
-    else groups.set(key, { objType: h.objType, objName: h.objName, hits: [h] });
-  }
-  return [...groups.values()];
-}
-function renderGroupedHits(groups, perObjectCap = SOURCE_PER_OBJECT_HIT_CAP) {
-  const out = [];
-  for (const g of groups) {
-    const shown = g.hits.slice(0, perObjectCap);
-    const n = g.hits.length;
-    out.push(
-      `${g.objType} ${g.objName}  (${n} hit${n === 1 ? "" : "s"}${n > shown.length ? `, ${shown.length} shown` : ""})`
-    );
-    const ownDocumentOnly = g.hits.every((h) => h.include === g.objName);
-    let lastInclude;
-    for (const h of shown) {
-      if (!ownDocumentOnly && h.include !== lastInclude) {
-        out.push(`  include ${h.include}`);
-        lastInclude = h.include;
-      }
-      out.push(`${ownDocumentOnly ? "  " : "    "}${h.line}: ${truncateForDisplay(h.text, 120)}`);
-    }
-    if (n > shown.length) {
-      out.push(
-        `  ... ${n - shown.length} more hit(s) in ${g.objName} not shown (per-object cap ${perObjectCap}; narrow \`query\`, or scope with objects="${g.objName}").`
-      );
-    }
-  }
-  return out.join("\n");
-}
 function buildSourceResponse2(q, result, maxChars) {
   const { hits, summary } = result;
-  const groups = groupSourceHits(hits);
+  const rows = hits.map((h) => ({
+    type: h.objType,
+    name: h.objName,
+    include: h.include,
+    line: String(h.line),
+    text: truncateForDisplay(h.text, 120)
+  }));
   const objectsNotScanned = summary.objectsTotal - summary.objectsScanned;
   const truncLine = summary.truncated === "hits" ? `--- TRUNCATED --- the hit cap (max=${q.maxHits}) was reached; more matches may exist beyond the last one shown. Raise \`max\` (<=200) or narrow \`query\`/scope.` : summary.truncated === "objects" ? `--- TRUNCATED --- ${objectsNotScanned} of ${summary.objectsTotal} object(s) in scope were not scanned (object ceiling ${q.maxObjects}). Narrow \`packages\`/\`objects\`/\`types\`.` : void 0;
-  const body = [groups.length ? renderGroupedHits(groups) : "(no matches)", truncLine].filter((s) => s !== void 0).join("\n");
+  const body = [rows.length ? textTable(rows, ["type", "name", "include", "line", "text"]) : "(no matches)", truncLine].filter((s) => s !== void 0).join("\n");
   const exampleHints = (() => {
     const seen = /* @__PURE__ */ new Set();
     const out = [];
@@ -136374,7 +136629,6 @@ function buildSourceResponse2(q, result, maxChars) {
       include_subpackages: q.includeSubpackages || void 0,
       types: q.types.length ? q.types.join(",") : void 0,
       hits: summary.hits,
-      objectsWithHits: groups.length || void 0,
       objectsScanned: summary.objectsScanned,
       objectsTotal: summary.objectsTotal,
       includesScanned: summary.includesScanned,
@@ -136383,18 +136637,18 @@ function buildSourceResponse2(q, result, maxChars) {
     },
     body,
     bodyLabel: "MATCHES",
-    size: true,
     notes: [
       // `notes` are ALWAYS shown (unlike `hints`, which `compact.ts`'s
       // `buildResponse` only renders when the response is incomplete) — the
       // concrete abap_read follow-up has to survive a response that fits
       // fully, so it lives here, not in `hints`.
       ...exampleHints.length > 0 ? ["Read around a hit with abap_read:", ...exampleHints] : [],
-      `Hits are grouped per object; \`line\` is include-local (for CLAS/FUGR it counts from the top of the named include, not the object), and each object shows at most ${SOURCE_PER_OBJECT_HIT_CAP} hits \u2014 the rest is a count.`,
+      "Line numbers are include-local: for CLAS/FUGR hits, `line` counts from the top of the matching include (a method's own program, not the class as a whole), not from the object.",
       ...summary.includesSkipped > 0 ? [
         `${summary.includesSkipped} include(s) could not be read (e.g. a generated or inconsistent include) and are NOT represented in the results above \u2014 this is a gap, not proof those includes have no match.`
       ] : [],
-      'Text scan, not a call graph: matches wherever they sit (strings, comments, dead code); mode="where_used" gives real static references. include_comments=false strips comments with a per-line heuristic (`code_part()`) that can misjudge multi-line quote state; DDLS/CDS sources are always matched in full text.'
+      "include_comments=false strips comments with a per-line heuristic (`code_part()`), which can misjudge a line whose quote/comment state depends on the previous line. DDLS/CDS sources have no ABAP comment syntax, so they are always matched in full text regardless of include_comments.",
+      'This is a text scan, not a call graph: it finds literal/regex matches wherever they sit (strings, comments, dead code). Use mode="where_used" instead when what you actually want is real static references to one object.'
     ],
     hints: [
       "Raise `max` (<=200) for more hits, or narrow `query`/`packages`/`objects`/`types` instead of widening scope."
@@ -136408,7 +136662,7 @@ function registerSearchTools(mcp, deps) {
     "abap_search",
     {
       title: "Search ABAP repository",
-      description: "Find objects by name pattern (mode=objects, wildcards *), list consumers (mode=where_used; 20+ seconds on wide fan-in \u2014 narrow by type/query first), walk multiple levels of callers or callees (mode=call_graph, direction=callers|callees, depth<=4), or scan source text (mode=source; hits grouped per object, needs the fluid API and a package/objects scope).",
+      description: "Find objects by name pattern (mode=objects, wildcards *), list consumers (mode=where_used; 20+ seconds on wide fan-in \u2014 narrow by type/query first), walk multiple levels of callers or callees (mode=call_graph, direction=callers|callees, depth<=4), or scan source text line by line (mode=source, needs the fluid API and a package/objects scope).",
       inputSchema: searchInputSchema,
       annotations: { readOnlyHint: true, openWorldHint: true }
     },
@@ -136827,7 +137081,7 @@ var transportInputSchema = {
     "delete",
     "removeObject"
   ]).describe(
-    'What to do. list/show/check/users/log/queue are plain reads, always allowed. create/addUser/setOwner need write access (ABAP_MODE=edit or admin, or legacy ABAP_ALLOW_WRITE=true when ABAP_MODE is unset); kind="copies" needs no extra ceiling. removeObject and delete share one ceiling: delete additionally needs the admin-only transport-delete ceiling (ABAP_MODE=admin \u2014 no legacy flag grants it) and confirm; removeObject needs that same ceiling and confirm. Required args: list/users none; show transport; check object; log transport; queue system; create package+description (plus target when kind="copies"); addUser/setOwner transport+user; delete transport+confirm; removeObject transport+object+confirm.'
+    `What to do. list/show/check/users/log/queue are plain reads, always allowed. log reads a transport's own export/import log (per target system); queue reads a target system's import queue/buffer. create/addUser/setOwner need write access (ABAP_MODE=edit or admin, or legacy ABAP_ALLOW_WRITE=true when ABAP_MODE is unset); create with kind="copies" (a transport of copies) needs the same write access as an ordinary create \u2014 no extra ceiling. delete additionally needs the admin-only transport-delete ceiling (ABAP_MODE=admin \u2014 no legacy flag grants it) and confirm; removeObject (drop one E071 entry and its CTS lock, e.g. for an object already deleted from the system, so its request can then be deleted \u2014 if the object still exists, its lock goes too; CTS refuses this when the request holds 2 or more E071 rows for that object (same PGMID+OBJECT+OBJ_NAME \u2014 legal but not reliably reproducible; cause unconfirmed), leaving the request undeletable through abapsmith) needs that same admin-only transport-delete ceiling and confirm. Required args: list/users none; show transport; check object; log transport; queue system; create package+description (plus target when kind="copies"); addUser/setOwner transport+user; delete transport+confirm; removeObject transport+object+confirm.`
   ),
   transport: external_exports.string().optional().describe(
     "Request/task number, e.g. A4HK900123. Required for operation=show/addUser/setOwner/delete/removeObject and for operation=log."
@@ -136836,18 +137090,22 @@ var transportInputSchema = {
     "User: filter for list, new member/owner otherwise. Required for operation=addUser/setOwner."
   ),
   object: external_exports.string().optional().describe(
-    'Object name. Required for operation=check/removeObject (removeObject: the entry to remove). Optional anchor for create with kind="workbench" (default); not for kind="copies", which is created empty.'
+    'Object name. Required for operation=check, and for operation=removeObject (the entry to remove). Optional anchor for create with kind="workbench" (the default); not accepted for create with kind="copies" \u2014 a transport of copies is created empty.'
   ),
   package: external_exports.string().optional().describe("Development package (devclass). Required for operation=create."),
   description: external_exports.string().optional().describe("Short text for the new request, max 60 chars. Required for operation=create."),
   kind: external_exports.enum(["workbench", "copies"]).optional().describe(
-    'operation="create" only. "workbench" (default): a normal transportable change request. "copies": a snapshot sent to a target system, originals untouched; requires target.'
+    'Which kind of request operation="create" should create. "workbench" (the default) is a normal transportable change request created through ADT. "copies" is a transport of copies, which carries a snapshot of objects to a target system while leaving the originals modifiable in this system and their original request untouched. kind="copies" requires target.'
   ),
   target: external_exports.string().optional().describe(
     'Target system for operation="create" with kind="copies", e.g. A4H. A transport of copies with no target cannot be imported anywhere, so abapsmith refuses to create one.'
   ),
-  system: external_exports.string().optional().describe('Target system whose import queue to read, e.g. QAS. Required for operation="queue".'),
-  domain: external_exports.string().optional().describe("TMS transport domain of system, e.g. DOMAIN_A4H. Optional; TMS resolves the local domain when omitted."),
+  system: external_exports.string().optional().describe(
+    'Target system whose import queue to read, e.g. QAS. Required for operation="queue".'
+  ),
+  domain: external_exports.string().optional().describe(
+    "TMS transport domain of system, e.g. DOMAIN_A4H. Optional; TMS resolves the local domain when omitted."
+  ),
   confirm: external_exports.string().optional().describe("Echo the request number to arm delete or removeObject.")
 };
 var TransportInput = external_exports.object(transportInputSchema);
@@ -136859,7 +137117,7 @@ var transportReleaseInputSchema = {
   )
 };
 var TransportReleaseInput = external_exports.object(transportReleaseInputSchema);
-var TRANSPORT_TOOL_DESCRIPTION = `Inspect and manage CTS transport requests: list, show, check (does an object need a transport?), users, log (a request's export/import log per target system), queue (a target system's import buffer), create (kind="workbench" default, or "copies" with target), addUser, setOwner, delete, removeObject (drop one E071 entry and its CTS lock). list/show/check/users/log/queue are plain reads, always allowed; create/addUser/setOwner need write access; delete/removeObject additionally need the admin-only transport-delete ceiling. Release is a separate tool, abap_transport_release. Semantics of log/queue/copies/removeObject: doc/TOOLS/transports.md.`;
+var TRANSPORT_TOOL_DESCRIPTION = `Inspect and manage CTS transport requests: list, show, check (does an object need a transport?), users, log (a transport's own export/import log, per target system \u2014 a request that has never been exported legitimately has zero log lines; that is not a failure), queue (a target system's import queue/buffer \u2014 the requests waiting to be imported there; an already-imported request has left the buffer, so absence alone does not prove a change never arrived), create (kind="workbench", the default, or kind="copies" for a transport of copies \u2014 a snapshot sent to a target system that leaves the originals and their own request untouched; requires target), addUser, setOwner, delete, removeObject (drop one E071 entry and its CTS lock so its request can then be deleted \u2014 if the object still exists, its lock goes too, and CTS refuses this for some entries, leaving the request undeletable). list/show/check/users/log/queue are plain reads, always allowed; create/addUser/setOwner need write access; delete/removeObject additionally need the admin-only transport-delete ceiling. Release is a separate tool, abap_transport_release.`;
 var TRANSPORT_RELEASE_TOOL_DESCRIPTION = "Release one CTS transport request \u2014 irreversible. Gated by a release ceiling separate from ordinary write access; see abapsmith-orient. A request this session did not create is refused unless confirm_unowned is also passed.";
 function fmtTarget(h) {
   const t = (h.target ?? "").trim();
@@ -142589,7 +142847,7 @@ function attributeSessionDeath(e, input) {
   const hint = e.details.kind === "dump" ? "The session died while the server was processing this edit, so every lock it held is already released and nothing was activated. Do NOT retry the identical call \u2014 an ASSERTION_FAILED in BOPF's model mapper (/BOBF/CL_CONF_MODEL_API_MAP) is deterministic in the payload, and the same request will kill the session again. Re-read the BO first, since the PUT may or may not have landed, and check the spec fields the mapper has to map (uniqueness/dataTypeRef/dataTableTypeRef/keyElements on an alternative key, category on a determination/validation/query). This is NOT an authentication failure." : e.hint;
   return new AbapError(e.code, message, details, hint);
 }
-var BOPF_EDIT_TOOL_DESCRIPTION = "One design-time edit to a BOPF business object (or create one). node/name/spec carry the specifics \u2014 spec shapes, add_node/remove_node rules and dangling-ref handling are in the abapsmith-edit-a-bopf-object skill and doc/TOOLS/bopf.md. add_alternative_key and set_alternative_key_fields both need i_know_this_may_not_activate: true \u2014 no alternative key added this way has been observed to activate. remove_dependent_object removes an existing dependent-object embedding; abapsmith cannot create one.";
+var BOPF_EDIT_TOOL_DESCRIPTION = 'One design-time edit to a BOPF business object (or create one). node/name/spec carry the specifics \u2014 see the abapsmith-edit-a-bopf-object skill for spec shapes, add_node/remove_node rules, and dangling-ref handling. add_alternative_key and set_alternative_key_fields both need i_know_this_may_not_activate: true \u2014 no alternative key added this way has been observed to activate; add_alternative_key additionally needs spec.uniqueness/dataTypeRef/dataTableTypeRef/keyElements, all four, and its checkAfterModify/checkBeforeSave/noCheck are constrained by uniqueness. remove_dependent_object removes an existing dependent-object embedding (its DoComposition association plus the matching "<name>.ROOT" node); abapsmith cannot create one \u2014 see doc/CAPABILITIES/bopf.md.';
 function recoverCreateAfterSessionDeath(deps, createRequest) {
   return deps.pool.withRead("abap_bopf_edit", (conn) => readModel(conn, createRequest.name));
 }
@@ -143828,7 +144086,7 @@ var bopfTestInputSchema = {
     "Switch on the SAP authorization trace for the connected user, run the scenario, then read back and switch it back off. Refused on a read-only server. Default false."
   ),
   snapshot_ids: external_exports.array(external_exports.string()).optional().describe(
-    'Snapshot ids from prior abap_data_preview mode="snapshot" calls; each is re-read and diffed after this call and appended as a DATA CHANGES section, under the same data-preview policy (a refused diff does not fail this call).'
+    `Snapshot ids from prior abap_data_preview mode="snapshot" calls. After this call finishes, each one is re-read and diffed, and the result is appended as a DATA CHANGES section. The diff obeys the same data-preview policy as the snapshot did \u2014 if it is refused, this call's own result still returns and the section says why.`
   )
 };
 var BopfTestInput = external_exports.object(bopfTestInputSchema);
@@ -144106,7 +144364,7 @@ init_errors();
 init_compact();
 var fpmReadInputSchema = {
   mode: external_exports.enum(["find", "outline", "app", "locks", "events"]).describe(
-    "find: search configs by component/config_id/package. outline: one config's XML plus metadata. app: an application config's full UIBB hierarchy (feeder/BOPF hints with resolve). locks: enqueue lock holders. events: which toolbar/button-row/FBI-action raises which FPM event and what handles it (FPM, BOPF, feeder, app controller, ACTION_IMPL class, or unresolved)."
+    "find: search configs. outline: one config's node tree. app: an application config's full UIBB hierarchy. locks: who holds enqueue locks on a config. events: trace which toolbar/button-row/FBI-action elements raise which FPM event, and what handles it (standard FPM, BOPF, feeder, app controller, ACTION_IMPL class, or unresolved)."
   ),
   config_id: external_exports.string().optional().describe("Configuration ID (max 32). Required for outline/app/locks/events."),
   config_type: external_exports.string().optional().describe("NUMC2. 00=component, 02=application. Default 00."),
@@ -144651,7 +144909,7 @@ function buildLocksResponse(query, result, detailPassed, xmlWindowPassed, maxCha
     maxChars
   }).text;
 }
-var FPM_TOOL_DESCRIPTION = "Read SAP FPM/FBI screen configurations (no ADT read endpoint exists): find, outline, app, events, locks \u2014 see mode. Read-only; every call deploys a throwaway bridge class into abapsmith's own package.";
+var FPM_TOOL_DESCRIPTION = "Read SAP FPM/FBI screen configurations \u2014 no ADT read endpoint exists. find: search by component/config_id pattern/package. outline: one configuration's XML plus delta/package metadata. app: an application configuration's full UIBB hierarchy with feeder/BOPF hints (resolve, default true). events: trace which toolbar/button-row/FBI-action raises which FPM event and what handles it (standard FPM, BOPF, feeder, app controller, ACTION_IMPL class, or unresolved), optionally cross-checked against the CL_FPM_EVENT and BOPF catalogues (resolve, default true). locks: enqueue lock holders. Read-only; every call deploys a throwaway bridge class into abapsmith's own package.";
 async function runFpmReadTool(deps, args) {
   const input = args;
   const detail = input.detail ?? "compact";
@@ -145548,17 +145806,21 @@ var IMG_OBJECT_KINDS = [
 ];
 var imgReadInputSchema = {
   mode: external_exports.enum(["search", "show", "tree", "objects"]).describe(
-    "search: find activities by title/id text. show: an activity's reference-IMG path, objects and tables. tree: a node's reference-IMG children. objects: an object's DDIC tables and fields."
+    "search: find activities by title/id text. show: one activity's reference-IMG path, maintenance objects and tables. tree: the reference-IMG node children under a node. objects: a view/cluster/table/customizing object's underlying DDIC tables and fields."
   ),
-  query: external_exports.string().optional().describe('search only: a term with no "*" matches as a substring; "*" is an explicit wildcard, "*" alone matches everything.'),
+  query: external_exports.string().optional().describe(
+    'search only: a term with no "*" matches as a substring of the title or id; "*" is an explicit wildcard, and "*" alone matches everything.'
+  ),
   activity: external_exports.string().optional().describe("show only: the IMG activity id to display."),
   node: external_exports.string().optional().describe("tree only: the node to list children of. Omit for that tree's own root."),
   treeId: external_exports.string().optional().describe(
-    "tree only: the tree a node id belongs to, echoed back as treeId on a previous tree response (e.g. after following a REF node). Omit to use the reference-IMG tree."
+    "tree only: the tree a node id belongs to (echoed back as treeId on a previous tree response, e.g. after following a REF node into a different tree). Omit to use the reference-IMG tree."
   ),
   object: external_exports.string().optional().describe("objects only: a view, view cluster, table, or customizing object name."),
   kind: external_exports.enum(IMG_OBJECT_KINDS).optional().describe("objects only: a hint for the object's kind, used when the name is ambiguous."),
-  language: external_exports.string().regex(IMG_LANGUAGE_RE, "single-character SAP language key (SPRAS), not an ISO code").optional().describe("Single-character SAP language key (SPRAS), e.g. E or D \u2014 not EN/DE. Defaults to the server's configured language, else E."),
+  language: external_exports.string().regex(IMG_LANGUAGE_RE, "single-character SAP language key (SPRAS), not an ISO code").optional().describe(
+    `single-character SAP language key (SPRAS), e.g. "E" for English, "D" for German \u2014 not a 2-letter ISO code. Defaults to the server's configured language, else "E".`
+  ),
   after: external_exports.string().optional().describe(
     "search/tree only: opaque keyset cursor copied from a previous response's paging note. Omit for the first page."
   ),
@@ -145833,7 +146095,7 @@ function renderResult(query, result, maxChars) {
       return renderObjects(query, result, maxChars);
   }
 }
-var IMG_TOOL_DESCRIPTION = `Read the IMG customizing catalog: search (query) finds activities; show (activity) returns its path, objects and tables; tree (node/treeId optional) lists a node's children; objects (object, kind optional) returns a customizing object's DDIC tables and fields. search/tree page via after/limit (default ${IMG_PAGE_DEFAULT}, ceiling ${IMG_PAGE_MAX}) \u2014 pass back the exact {"after": "<cursor>"} a response gives; there is no numeric offset. Fields not valid for the mode are rejected.`;
+var IMG_TOOL_DESCRIPTION = `search (query) finds activities. show (activity) returns its path, objects and tables. tree (node optional, treeId optional) lists a tree node's children, that tree's own root if node is omitted. objects (object, kind optional) returns a view/cluster/table/customizing object's DDIC tables and fields. search/tree page via after/limit (default ${IMG_PAGE_DEFAULT}, ceiling ${IMG_PAGE_MAX}): omit "after" for the first page, then pass back the exact {"after": "<cursor>"} value a response's paging note gives you \u2014 there is no numeric offset to jump to. Every field not valid for the given mode is rejected outright.`;
 async function runImgReadTool(deps, args) {
   const input = args;
   const query = buildQuery3(input, deps.cfg);
@@ -146860,42 +147122,42 @@ var imgEditRowSchema = external_exports.object({
 }).strict();
 var imgEditInputSchema = {
   mode: external_exports.enum(["preview", "upsert", "delete", "create_request"]).describe(
-    "preview: validate rows and show current vs. prospective, without writing. upsert: write rows (insert or update). delete: remove rows. create_request: create a customizing (type W) transport request."
+    "preview: validate rows against policy and show current vs. prospective rows, without writing. upsert: write rows (insert new keys, update existing ones). delete: remove rows. create_request: create a new customizing (type W) transport request and return its number."
   ),
   activity: external_exports.string().optional().describe(
-    "preview/upsert/delete: an IMG activity id, as abap_img show accepts. Resolves to base table, key fields, and client field. Exactly one of activity/object/table is required. Conflicts with key_fields/client_field."
+    "preview/upsert/delete: an IMG activity id, exactly as abap_img show accepts. Resolved to its base table, key fields, and client field automatically. Exactly one of activity/object/table is required. Conflicts with key_fields/client_field (those are derived from the resolution)."
   ),
   object: external_exports.string().optional().describe(
-    "preview/upsert/delete: a maintenance view, view cluster, transaction or table name, as abap_img objects accepts. Exactly one of activity/object/table is required. Conflicts with key_fields/client_field."
+    "preview/upsert/delete: a maintenance view, view cluster, transaction, or table name, exactly as abap_img objects accepts. Resolved to its base table, key fields, and client field automatically. Exactly one of activity/object/table is required. Conflicts with key_fields/client_field (those are derived from the resolution)."
   ),
   kind: external_exports.enum(["table", "view", "cluster", "transaction", "customizing_object", "report"]).optional().describe(
-    "Only meaningful with object: which catalog to resolve object against. Omitted: tries table, view, cluster, transaction, customizing object, in that order, first match wins."
+    "Only meaningful together with object: which catalog to resolve object against. Omitted: probed as table, then view, then cluster, then transaction, then customizing object, first match wins."
   ),
   table: external_exports.string().optional().describe(
-    "Expert escape hatch: the base DDIC table to read/write directly, bypassing activity/object resolution. Exactly one of activity/object/table is required. Requires key_fields; a genuinely client-independent table cannot be written."
+    "Expert escape hatch: the base DDIC table to read/write directly, e.g. ZTEST_IMGW, bypassing activity/object resolution. Exactly one of activity/object/table is required for preview/upsert/delete. Requires key_fields; client_field is optional (defaults to MANDT) but this tool cannot write a genuinely client-independent table regardless \u2014 the write always sets client_field from sy-mandt."
   ),
   client_field: external_exports.string().optional().describe(
-    "table (expert escape hatch) only: the table's client field name, e.g. MANDT. Conflicts with activity/object."
+    "table (expert escape hatch) only: the table's client field name, e.g. MANDT. Conflicts with activity/object, whose client field is resolved automatically."
   ),
   key_fields: external_exports.array(external_exports.string()).optional().describe(
-    "table (expert escape hatch) only: the table's key field names, in order, excluding the client field. At least one required. Conflicts with activity/object."
+    "table (expert escape hatch) only: the table's key field names, in order, excluding the client field. At least one required. Conflicts with activity/object, whose key fields are resolved automatically."
   ),
   rows: external_exports.array(imgEditRowSchema).optional().describe("preview/upsert/delete: 1-50 rows to probe/write. delete ignores each row's values."),
   view: external_exports.string().optional().describe(
-    "upsert/delete: the maintenance view or view cluster name recorded on the transport entry. Defaults to the resolved view/cluster (or table if the resolved target is a table); with table, defaults to table."
+    "upsert/delete: the maintenance view or view cluster name recorded on the transport entry. With activity/object, defaults to the resolved view/cluster name (or table, if the resolved target is a table). With table, defaults to table."
   ),
   master_type: external_exports.enum(["VDAT", "CDAT"]).optional().describe(
-    `upsert/delete: the transport entry's object type \u2014 "VDAT" for a maintenance view (default), "CDAT" for a customizing object recorded directly.`
+    `upsert/delete: the transport entry's object type. "VDAT" for a maintenance view (default), "CDAT" for a customizing object recorded directly.`
   ),
   language: external_exports.string().regex(IMG_LANGUAGE_RE, "single-character SAP language key (SPRAS), not an ISO code").optional().describe(
-    `Single-character SAP language key (SPRAS), e.g. E or D \u2014 not EN/DE. Default ${JSON.stringify(IMG_DEFAULT_LANGUAGE)}.`
+    `Single-character SAP language key (SPRAS) the probe reads DD02L/DD03L texts in, e.g. "E" for English, "D" for German \u2014 not a 2-letter ISO code like EN/DE. Defaults to ${JSON.stringify(IMG_DEFAULT_LANGUAGE)}.`
   ),
   corr_nr: external_exports.string().optional().describe(
     "upsert/delete: transport request to record the write on. Required unless the client is proven not to auto-record client-dependent changes."
   ),
   confirm: external_exports.string().optional().describe("upsert/delete: must equal table, case-insensitive, to arm the write."),
   allow_cross_client: external_exports.boolean().optional().describe(
-    "Clears the policy refusal for a client-independent (affects-every-client) table. Does not make it writable \u2014 the apply class always sets the client field from sy-mandt."
+    "Clears the policy refusal for a client-independent (affects-every-client) table. Does not make the write possible \u2014 the generated apply class always sets the client field from sy-mandt, which a genuinely client-independent table has none of."
   ),
   description: external_exports.string().optional().describe("create_request only: the request's description text."),
   owner: external_exports.string().optional().describe("create_request only: the request owner. Defaults to the logged-in user.")
@@ -147915,7 +148177,7 @@ async function runCreateRequestMode(deps, input) {
   }
   return ok14(renderCreateRequest(plan, result, deps.cfg.maxResponseChars));
 }
-var IMG_EDIT_TOOL_DESCRIPTION = "Write IMG customizing rows. preview validates rows against policy and shows current vs. prospective rows without writing; upsert/delete write rows and need confirm equal to table (case-insensitive) \u2014 corr_nr is usually required; create_request (description, owner) mints a customizing (type W) transport request. First call per mode deploys and activates a bridge class in $ABAPSMITH_FLUID_API. Details: doc/TOOLS/abap-img-edit.md.";
+var IMG_EDIT_TOOL_DESCRIPTION = "preview (table, key_fields, rows) validates rows against policy and shows current vs. prospective rows without writing. upsert/delete (table, key_fields, rows, confirm) write rows; confirm must equal table (case-insensitive) and corr_nr is usually required. view/master_type name the transport entry recorded for upsert/delete (default: table/VDAT). create_request (description, owner) mints a new customizing (type W) transport request. First call per mode deploys and activates a bridge class in $ABAPSMITH_FLUID_API.";
 async function runImgEditTool(deps, args) {
   const input = args;
   switch (input.mode) {
@@ -149536,7 +149798,7 @@ var uiInputSchema = {
     "screen: read one dynpro (discovery, read-only in effect). fcode: static trace of one function code's handling \u2014 reads source, runs nothing, same read-only effect as screen. press: run a batch-input script \u2014 commits, cannot be rolled back. Requires ABAP_MODE=admin, ABAP_ALLOW_UI_PRESS=true, and confirm:true."
   ),
   tcode: external_exports.string().optional().describe(
-    "Transaction code. screen/fcode: alternative to program+dynpro. press: required. A tcode with no TSTC row is refused with NOT_FOUND before any bridge class is deployed."
+    "Transaction code. screen/fcode: alternative to program+dynpro. press: required \u2014 press needs tcode; program/dynpro is only supported by mode=screen. A tcode with no TSTC row is refused with NOT_FOUND before any bridge class is deployed."
   ),
   program: external_exports.string().optional().describe("screen/fcode only, with dynpro: program name instead of tcode. Refused by press."),
   dynpro: external_exports.string().optional().describe('screen/fcode only, with program: screen number, e.g. "100". Refused by press.'),
@@ -149544,19 +149806,19 @@ var uiInputSchema = {
     "fcode only: one function code to trace. Omitted = every function code of every GUI status of the program."
   ),
   screens: external_exports.array(uiPressScreenSchema).optional().describe(
-    "press only, required: ordered batch-input script, one entry per dynpro in sequence. Build it from the screen call's output and the 00/344 stall this tool reports when a script runs out."
+    "press only, required: ordered batch-input script, one entry per dynpro the transaction will show in sequence. Build it incrementally using the screen call's own field/status output and the 00/344 stall this tool reports when a script runs out."
   ),
   layout: external_exports.boolean().optional().describe(
-    "screen only, default false: also render a monospace picture of the screen. Design-time layout, not a runtime screenshot. Ignored by press."
+    "screen only, default false: also render a monospace picture of the screen from the field rows already read. No extra ABAP and no extra round trip. Design-time layout, not a runtime screenshot. Ignored by press."
   ),
   detail: external_exports.enum(["compact", "full"]).optional().describe(
-    'screen only, default "compact": "compact" is one line per field, generated %_ flow lines collapsed; "full" is the raw dump of every D021S column and flow line. Render-side only \u2014 same single bridge call. Ignored by fcode and press.'
+    'screen only, default "compact": FIELDS is one line per element (name  type  len  pos  attrs, only non-default attrs) and runs of generated %_ flow-logic lines collapse into one counted line; user-written modules are always listed. "full" is the raw key=[value] dump of every D021S column and every flow line. Render-side only \u2014 same ABAP, same single bridge call. The LAYOUT section (layout:true) is the same in both. Ignored by fcode and press.'
   ),
   confirm: external_exports.boolean().optional().describe(
     "press only, REQUIRED (must be exactly true) \u2014 acknowledges the commit. Omitted or false is refused before any network call."
   ),
   snapshot_ids: external_exports.array(external_exports.string()).optional().describe(
-    'mode: "press" only (the mode that can change data). Snapshot ids from prior abap_data_preview mode="snapshot" calls; each is re-read and diffed after the script and appended as a DATA CHANGES section, under the same data-preview policy (a refused diff does not fail this call).'
+    `mode: "press" only \u2014 press is the mode that can change data. Snapshot ids from prior abap_data_preview mode="snapshot" calls. After the press script finishes, each one is re-read and diffed, and the result is appended as a DATA CHANGES section. The diff obeys the same data-preview policy as the snapshot did \u2014 if it is refused, this call's own result still returns and the section says why.`
   )
 };
 var UiInput = external_exports.object(uiInputSchema);
@@ -151423,7 +151685,7 @@ var enhInputSchema = {
     ...ENH_DELETE_OPERATIONS,
     ...ENH_ACTIVATION_OPERATIONS
   ]).optional().describe(
-    'Default "write_description". Six create ops: always $TMP, always activate. discover_hook_anchors: read-only. delete needs ABAP_ALLOW_ENHANCEMENT_DELETE=true, irreversible; set_impl_active: reversible.'
+    'Default "write_description". Six create ops: always $TMP, always activate. discover_hook_anchors: read-only. delete needs ABAP_ALLOW_ENHANCEMENT_DELETE=true, irreversible. set_impl_active: reversible.'
   ),
   type: external_exports.enum(ENHANCEMENT_WRITE_TYPES).optional().describe("Required for write_description/delete; unused otherwise."),
   name: external_exports.string().describe(
@@ -151431,7 +151693,7 @@ var enhInputSchema = {
   ),
   description: external_exports.string().optional().describe("Required for write_description/create_hook (new adtcore:description, max 60). Unused otherwise."),
   spec: external_exports.record(external_exports.string(), external_exports.unknown()).optional().describe(
-    "Fields per op (?=optional; IDs max 30 chars; lengths and value rules in doc/TOOLS/enhancements.md).\ncreate_spot: description.\nadd_badi_def: badiName, interfaceName, singleUse, shortText.\nadd_filter_def: badiName, filterName, filterType, filterText?.\ncreate_impl: spotName, badiName, implName, implClass, active, description.\nset_filter_values: spotName, implName, filterName, filterType, compare, value.\nexercise: methodName, filterName?, filterValue?, params?[{name, kind?, value?, type?}] (params[].type: required for changing/exporting/receiving, forbidden otherwise; a namespaced type ref is allowed).\ndiscover_hook_anchors: hostType, hostName, hostUri.\ncreate_hook: hostType(PROG/P only), hostName, hostUri, anchorFullName, anchorFullDescription, responsible?, activate?.\nset_impl_active: active, implName?(omit only if exactly one entry), description?."
+    "Fields per op (?=optional, else required; numbers=max chars). IDs max 30 chars, see enhancement skill.\ncreate_spot: description(60).\nadd_badi_def: badiName, interfaceName, singleUse(bool), shortText(60).\nadd_filter_def: badiName, filterName, filterType(1 upper letter, e.g. C), filterText?(255).\ncreate_impl: spotName, badiName, implName, implClass, active(bool), description(60).\nset_filter_values: spotName, implName, filterName, filterType(as above), compare(=,<>,<,<=,>,>=,EQ,NE,LT,LE,GT,GE), value(255).\nexercise: methodName, filterName?, filterValue?, params?[{name, kind?(importing/changing/exporting/receiving, default importing, max 1 receiving), value?(req for importing/changing, else forbidden), type?(params[].type: req for changing/exporting/receiving, else forbidden; namespaced type ref)}].\ndiscover_hook_anchors: hostType, hostName, hostUri.\ncreate_hook: hostType(PROG/P only), hostName, hostUri, anchorFullName, anchorFullDescription(200), responsible?(12), activate?(bool).\nset_impl_active: active(bool), implName?(omit only if exactly one entry), description?(60)."
   ),
   affects: external_exports.object({
     name: external_exports.string().describe("Affected object name."),
@@ -152657,24 +152919,26 @@ var dataPreviewInputSchema = {
   ),
   object: external_exports.string().optional().describe("Alias for table; table wins if both are given."),
   max_rows: external_exports.number().int().optional().describe(
-    "Rows to return, clamped to the server's ceiling. At least 1 \u2014 0 is refused."
+    `Rows to return, clamped to the server's ceiling (clamp reported in the response). At least 1 \u2014 0 is refused, never read as "default".`
   ),
   where: external_exports.array(
     external_exports.object({
-      field: external_exports.string().describe("DDIC field name, checked against the entity's columns."),
+      field: external_exports.string().describe(
+        "DDIC field name, checked against the entity's own column list before anything is sent."
+      ),
       op: external_exports.enum(PREVIEW_OPS).describe(
-        "Comparison operator: eq/ne/lt/le/gt/ge/like/in/is_null."
+        "Comparison operator: eq/ne/lt/le/gt/ge compare one typed value; like matches an SQL pattern (% = any run, _ = one character, # = escape character); in matches any of an array of values; is_null takes no value at all."
       ),
       value: external_exports.union([
         external_exports.string(),
         external_exports.number(),
         external_exports.array(external_exports.union([external_exports.string(), external_exports.number()]))
       ]).optional().describe(
-        "Required for every op except is_null (which must omit it); an array only for op=in. Rendered as a typed literal for the field's DDIC type."
+        "Required for every op except is_null (which must omit it); an array only for op=in. Always rendered as a typed literal for the field's DDIC type \u2014 never concatenated as text."
       )
     })
   ).optional().describe(
-    "Structured filter conditions, ANDed together (no OR, no free text). The same S_TABU_* authorisations still apply to every row."
+    "Structured filter conditions, ANDed together (no OR, no free text). This does not widen what the technical user may read \u2014 the same S_TABU_* authorisations still apply to every row."
   ),
   columns: external_exports.array(external_exports.string()).optional().describe(
     "Project only these DDIC fields, in this order, instead of every column on the entity."
@@ -152685,25 +152949,25 @@ var dataPreviewInputSchema = {
       direction: external_exports.enum(["asc", "desc"]).optional().describe('Sort direction; defaults to "asc" when omitted.')
     })
   ).optional().describe(
-    "Sort order, applied in array order (first field is the primary sort key). Keyset paging: order on a key, add a gt/lt where on the last value seen."
+    "Sort order, applied in array order (first field is the primary sort key). Required for keyset paging: order on a key and add a `gt`/`lt` where-condition on the last value seen."
   ),
   distinct: external_exports.boolean().optional().describe(
-    "Suppress duplicate rows. Requires every order_by field to also appear in columns."
+    "Suppress duplicate rows. Requires every order_by field to also appear in columns \u2014 otherwise the sort key would not be part of what distinctness is computed over."
   ),
   mode: external_exports.enum(["preview", "snapshot", "diff"]).optional().describe(
-    `Defaults to "preview": read and show rows. "snapshot" stores the read rows for later comparison. "diff" re-reads a stored snapshot's own selection and reports what changed.`
+    `Defaults to "preview": read and show rows. "snapshot" reads the same selection and stores the rows locally for a later comparison. "diff" re-reads a stored snapshot's own selection and reports what changed since it was taken.`
   ),
   snapshot_id: external_exports.string().optional().describe(
     'The id returned by a prior mode: "snapshot" call. Required for mode: "diff"; refused in the other two modes.'
   ),
   ttl_hours: external_exports.number().int().optional().describe(
-    'mode: "snapshot" only. How long the snapshot survives before it is pruned, clamped down to the operator ceiling ABAP_DATA_SNAPSHOT_TTL_HOURS.'
+    'mode: "snapshot" only. How long the snapshot survives before it is pruned, clamped DOWN to the operator ceiling ABAP_DATA_SNAPSHOT_TTL_HOURS (the clamp, if any, is reported in the response).'
   ),
   format: external_exports.enum(["table", "abap_value", "test_double"]).optional().describe(
-    "table (default): text table. abap_value: the rows as one typed VALUE #( ... ) literal. test_double: that literal in a cl_osql_test_environment fixture. Same deny-list, flag and row ceiling in every case."
+    "How to render the rows. table (default): the usual text table. abap_value: the rows as one typed VALUE #( ... ) literal for the entity's line type. test_double: that literal wrapped in a ready-to-paste cl_osql_test_environment fixture. Same deny-list, same flag, same row ceiling in every case \u2014 the format is applied after the read, never around the check."
   ),
   mask: external_exports.array(external_exports.string()).optional().describe(
-    "Field names to blank in the output only, applied at render time after the read."
+    "Field names to blank in the OUTPUT only, applied at render time after the read. Character-like fields become 'MASKED'; other types become their initial value. The response lists which fields were masked."
   )
 };
 var DataPreviewInput = external_exports.object(dataPreviewInputSchema);
@@ -152900,7 +153164,7 @@ function registerDataPreviewTools(mcp, deps) {
     "abap_data_preview",
     {
       title: "Preview DDIC table data",
-      description: `Read rows from ONE DDIC entity (table, database/projection view, or parameterless CDS view) with an optional structured filter (where/columns/order_by/distinct) \u2014 no JOIN, aggregate or SQL text. Rows clamped to the ceiling (currently ${ceiling}). Deny-listed tables and non-provably-nonproductive systems are refused. mode=preview|snapshot|diff and format=table|abap_value|test_double: see those parameters.`,
+      description: `Read rows from ONE DDIC entity: a table, database/projection view, or parameterless CDS view \u2014 not every DDIC entity kind qualifies. A name plus an optional structured filter (where/columns/order_by/distinct) \u2014 still no JOIN, no aggregate, and no SQL text. Rows clamped to the ceiling (currently ${ceiling}). Deny-listed tables and non-provably-nonproductive systems are refused. Three modes: "preview" (default) reads and shows rows; "snapshot" reads the same selection and stores the rows locally under a returned snapshot_id; "diff" re-reads a stored snapshot's own recorded selection and reports what changed since it was taken. format: abap_value / test_double turn the rows into a paste-ready ABAP fixture under the same policy.`,
       inputSchema: dataPreviewInputSchema,
       annotations: {
         readOnlyHint: true,
@@ -153894,7 +154158,7 @@ function registerDumpTools(mcp, deps) {
     "abap_dumps",
     {
       title: "Read ABAP runtime errors (ST22 short dumps)",
-      description: `Read ABAP runtime errors (ST22 short dumps) from the system's dump repository \u2014 not the exception text of a run this server just triggered. mode=list filters the dump feed; mode=show returns one dump, chapter by chapter. The feed reaches back ${DUMPS_RESIDENCE_WINDOW_DAYS} DAYS ONLY: an empty list means "no dumps in the last ${DUMPS_RESIDENCE_WINDOW_DAYS} days matching this filter", never "nothing failed". Copy key from a list row VERBATIM. show returns header, source extract, system fields and call stack, and nothing else unless the operator enabled more.`,
+      description: `Read ABAP runtime errors (ST22 short dumps) from the system's dump repository \u2014 not the exception text of a run this server just triggered. mode=list filters the dump feed; mode=show returns one dump, chapter by chapter. The feed reaches back ${DUMPS_RESIDENCE_WINDOW_DAYS} DAYS ONLY: an empty list means "no dumps in the last ${DUMPS_RESIDENCE_WINDOW_DAYS} days matching this filter", never "nothing failed". Copy key from a list row VERBATIM. show returns the header, source extract, system fields and call stack, and nothing else unless the operator enabled more.`,
       inputSchema: dumpsInputSchema({ variables: variablesAllowed }),
       annotations: {
         readOnlyHint: true,
@@ -155952,7 +156216,7 @@ function registerQuickFixTools(mcp, deps) {
   mcp.registerTool(
     "abap_quick_fix",
     {
-      description: 'ADT quick fixes at one source position. mode="list" enumerates proposals; mode="apply" applies one by id through the journalled abap_write pipeline (undoable). Deterministic proposals only \u2014 a parameterized one is refused. Gated as a write in BOTH modes (list POSTs the object source), so unavailable on a read-only server.',
+      description: 'ADT quick fixes at one source position. mode="list" enumerates proposals; mode="apply" applies one by id through the journalled abap_write pipeline (undoable via abap_journal mode=undo). v1 applies deterministic proposals only \u2014 a parameterized one is refused, not guessed at. Gated as a write in BOTH modes: list POSTs the whole object source for evaluation, so it is unavailable on a read-only server.',
       inputSchema: quickFixInputSchema,
       annotations: {
         readOnlyHint: false,
@@ -158259,16 +158523,16 @@ var traceInputSchema = {
   object: external_exports.string().optional().describe("Class or report to trace. Required for op=start and op=run."),
   type: external_exports.string().optional().describe("ADT type, e.g. CLAS/OC, when ambiguous. op=start/run only."),
   id: external_exports.string().optional().describe(
-    "A trace run id (op=read) or run/request id (op=delete); bare id or the full path a previous list/create answered with."
+    "A trace run id (op=read) or a trace run/request id (op=delete). Accepts either the bare id or the full path a previous list/create answered with."
   ),
   kind: external_exports.enum(TRACE_LIST_KINDS).optional().describe(`What to list. Default "runs". One of: ${TRACE_LIST_KINDS.join(", ")}. op=list only.`),
   view: external_exports.enum(TRACE_VIEWS).optional().describe(`What to read. Default "hitlist". One of: ${TRACE_VIEWS.join(", ")}. op=read only.`),
   top: external_exports.number().int().optional().describe("Cap on rows shown. Default 20, max 100. op=read (hitlist/tree) and op=run only."),
   depth: external_exports.number().int().optional().describe(
-    "Max call-tree depth relative to the traced object's own entry node. Default 4, max 12. op=read view=tree only."
+    "Max call-tree depth, relative to the traced object's own entry node (that node is depth 0), not the ADT dispatch root. Default 4, max 12. op=read view=tree only."
   ),
   root: external_exports.string().optional().describe(
-    "Anchor the tree view at the first call-tree node matching this text (case-insensitive substring on description or calling-program name), overriding the automatic entry-node anchor. op=read view=tree only."
+    "Anchor the tree view at the first call-tree node whose description or calling-program name matches this text (case-insensitive substring; matched uppercased). Overrides the automatic anchor, which is the traced object's own entry node. op=read view=tree only."
   ),
   description: external_exports.string().optional().describe("Short label for the trace request (max 60 chars). op=start/run only."),
   aggregate: external_exports.boolean().optional().describe(
@@ -158281,7 +158545,7 @@ var traceInputSchema = {
   max_size_kb: external_exports.number().int().optional().describe(`Trace file size cap in KB. Default 30720, max ${TRACE_MAX_SIZE_KB}. op=start/run only.`),
   max_seconds: external_exports.number().int().optional().describe(`Trace duration cap in seconds. Default 600, max ${TRACE_MAX_SECONDS}. op=start/run only.`),
   executions: external_exports.number().int().optional().describe(
-    `How many executions the request stays armed for, default ${TRACE_DEFAULT_EXECUTIONS}, max ${TRACE_MAX_EXECUTIONS}. op=start only \u2014 op=run always arms a single execution.`
+    `How many executions the request stays armed for. Default ${TRACE_DEFAULT_EXECUTIONS}, max ${TRACE_MAX_EXECUTIONS}. op=start only \u2014 op=run always creates a single-execution request.`
   )
 };
 var TraceInput = external_exports.object(traceInputSchema);
@@ -159644,7 +159908,7 @@ function catalogueToolSet(toolSet, cfg) {
 var FLUID_OPS = ["list", "describe", "status", "verify", "run", "repair", "remove"];
 var fluidInputSchema = {
   op: external_exports.enum(FLUID_OPS).optional().describe(
-    'What to do. Defaults to "run" when `tool` or `action` is given; a call with none of `op`/`tool`/`action` returns the catalogue. list/describe: no network. status: local registry plus a best-effort probe. verify: what is actually deployed. run: execute one action, deploying or repairing first if needed. repair: force a redeploy (no `tool`: also reap retired pre-fluid bridge classes; with `tool`: prune its stale invokers). remove: delete abapsmith-owned generated ABAP.'
+    'What to do. Defaults to "run" whenever `tool` or `action` is given without `op`; a call with none of `op`/`tool`/`action` returns the catalogue instead (other fields such as `args`/`confirm`/`corr_nr`/`scope` do not affect this). list/describe touch no network; status reads the local registry plus a best-effort probe of retired pre-fluid bridge classes and invoker classes per tool. verify asks the system what is actually deployed. run (the default) executes one action, deploying or repairing first if needed. repair forces a redeploy (and, with no `tool`, also reaps retired pre-fluid bridge classes; with `tool`, prunes its stale invokers). remove deletes abapsmith-owned generated ABAP.'
   ),
   tool: external_exports.string().optional().describe(
     'Fluid tool id. Required for describe and run; an optional filter for verify/repair (default: every loaded tool); required for remove unless scope is "all".'
@@ -159658,7 +159922,7 @@ var fluidInputSchema = {
   ),
   corr_nr: external_exports.string().optional().describe("Transport request number, forwarded to run for a mutating action that targets a transportable object."),
   scope: external_exports.enum(["tool", "invokers", "all", "dynamic"]).optional().describe(
-    `remove only. "tool" (default): one tool's manifest objects (needs \`tool\`). "invokers": every generated per-call invoker class (ZCL_ZMCP_I_xxxxxxxx). "dynamic": every generated per-call dynamic-bridge class (see \`status\`). "all": every abapsmith-owned object in ${FLUID_PACKAGE} (includes both). The package itself is never deleted.`
+    `remove only. "tool" (default) deletes one tool's manifest objects (needs \`tool\`). "invokers" deletes every generated per-call invoker class (ZCL_ZMCP_I_xxxxxxxx). "dynamic" deletes every generated per-call dynamic-bridge class (the abap_bopf_test/abap_ui/abap_enh/abap_fpm_read/abap_run tool paths that deploy fresh ABAP per call \u2014 see \`status\`'s "dynamic bridges" section). "all" deletes every abapsmith-owned object in ${FLUID_PACKAGE}, which already includes both of the above. The package itself is never deleted.`
   )
 };
 var FluidInputSchema = external_exports.object(fluidInputSchema);
@@ -160659,7 +160923,7 @@ function instructionsFor(abapMode, readOnly, allowPackages, fluidAvailable = fal
   const writeGate = abapMode !== void 0 ? `unless ABAP_MODE is edit or admin (it is ${abapMode})` : "unless the operator set ABAP_ALLOW_WRITE";
   const packageScope = packageScopeSentence(readOnly, allowPackages);
   const systemsSentence = systems !== void 0 && systems.length > 1 ? ` This process serves ${systems.length} systems: ${systems.map((s) => `${s.alias} (${s.sid}, ${s.mode})`).join(", ")}. Every tool takes an optional system parameter naming one of these aliases and defaults to ${systems[0]?.alias ?? "the default system"} when omitted; each system's permission ceiling is its own \u2014 read-only on one alias is not lifted by admin mode on another.` : "";
-  return `Access to an SAP ABAP system over ADT. Use abap_search to locate objects, abap_read to read source or DDIC definitions (a large class answers with its outline by default; then method= or pattern=), abap_write to create/change/delete, abap_activate to syntax-check or activate, abap_run to execute a class or report and capture its output, abap_test to run ABAP Unit tests (it reports NO TESTS RAN separately from PASSED \u2014 they are not the same answer), abap_debug/abap_debug_vars/abap_debug_value to set breakpoints and step through execution with full variable inspection, abap_journal to see what you changed and undo it. Writes are OFF ${writeGate}, and need a customer-namespace object name plus a package the allowlist permits: ${packageScope} Every write records the previous source locally first, so abap_journal mode=undo can put it back \u2014 but only for objects this server wrote. Responses are capped and truncation is always marked.` + (fluidAvailable ? " abap_fluid deploys and runs small generated ABAP tools inside $ABAPSMITH_FLUID_API (call it with no arguments for the catalogue)." : "") + (lockedToolCount > 0 ? ` ${lockedToolCount} further tools are listed but LOCKED at this permission level (abap_write among them) \u2014 each one's description says what unlocks it, and calling one returns a refusal without touching the SAP system.` : "") + systemsSentence;
+  return `Access to an SAP ABAP system over ADT. Use abap_search to locate objects, abap_read to read source or DDIC definitions (outline=true first for large classes, then method=), abap_write to create/change/delete, abap_activate to syntax-check or activate, abap_run to execute a class or report and capture its output, abap_test to run ABAP Unit tests (it reports NO TESTS RAN separately from PASSED \u2014 they are not the same answer), abap_debug/abap_debug_vars/abap_debug_value to set breakpoints and step through execution with full variable inspection, abap_journal to see what you changed and undo it. Writes are OFF ${writeGate}, and need a customer-namespace object name plus a package the allowlist permits: ${packageScope} Every write records the previous source locally first, so abap_journal mode=undo can put it back \u2014 but only for objects this server wrote. Responses are capped and truncation is always marked.` + (fluidAvailable ? " abap_fluid deploys and runs small generated ABAP tools inside $ABAPSMITH_FLUID_API (call it with no arguments for the catalogue)." : "") + (lockedToolCount > 0 ? ` ${lockedToolCount} further tools are listed but LOCKED at this permission level (abap_write among them) \u2014 each one's description says what unlocks it, and calling one returns a refusal without touching the SAP system.` : "") + systemsSentence;
 }
 function describeStartupProbeFailure(e) {
   if (isAbapError(e)) return { code: e.code, message: e.message, hint: e.hint };

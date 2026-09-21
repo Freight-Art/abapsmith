@@ -68,9 +68,12 @@ import { CLASS_INCLUDES, assertClassInclude, type ClassInclude } from "../adt/ty
 import { DEFAULT_CONTEXT_LINES, diffSources, renderHunks } from "../diff.js";
 import {
   classMembers,
+  classMembersFor,
   grepSource,
+  inheritedMembers,
   readMethod,
   readSource,
+  renderInheritedOutline,
   renderOutline,
   renderSourceStructure,
   scanSourceStructure,
@@ -1397,14 +1400,17 @@ function assertIncludeCompatible(input: ReadInput, obj: ResolvedObject): ClassIn
     );
   }
   const method = input.method ?? obj.member;
-  if (method) {
+  // `method=` + include="definitions" is the signature route (issue #146):
+  // the declaration alone, cut from the class's main document — the global
+  // definition lives there, not in CCDEF. Every other include still clashes.
+  if (method && include !== "definitions") {
     clash(
       `method="${method}"`,
       "the method's line range comes from the ADT component structure, which numbers lines in " +
         "the class's main document. Cutting those lines out of a different include would return " +
         "whatever happens to sit at them — not that method.",
-      `Read include="${include}" in full and locate the method in it, or drop include to read ` +
-        `${method} from the class body.`,
+      `Read include="${include}" in full and locate the method in it, drop include to read ` +
+        `${method} from the class body, or use include="definitions" for its declaration alone.`,
     );
   }
   return include;
@@ -3056,11 +3062,16 @@ export async function abapRead(
   // this is the one place deciding which document the response is about,
   // disclosed in the header and, for a non-main include, in a note naming
   // the exact URI.
+  // The signature route (`method=` + include="definitions") reads MAIN: the
+  // global class's declarations are in the main document, and the component
+  // structure numbers lines against it. CCDEF holds local definitions.
+  const methodWanted = input.method ?? obj.member;
+  const declarationOnly = Boolean(methodWanted) && include === "definitions";
   const {
     source,
     serverEtag,
     sourceUri: readUri,
-  } = await readSource(conn, obj, include, input.version);
+  } = await readSource(conn, obj, declarationOnly ? "main" : include, input.version);
   const etag = resourceEtag(source);
   const header: Record<string, string | number | undefined> = {
     ...baseHeader,
@@ -3206,21 +3217,71 @@ export async function abapRead(
       'pattern="<regex>" returns only matching lines; offset/limit page the source; full=true reads all of it.',
     ];
     if (OUTLINE_KINDS.has(obj.kind)) {
-      const members = await classMembers(conn, obj);
-      const outline = renderOutline(members);
+      // Issue #147: the structure is resolved against the inactive version
+      // when one exists (falling back to active); `structureVersion` says which.
+      const own = await classMembersFor(conn, obj, input.version);
+      const members = own.members;
+      const ownOutline = renderOutline(members);
+      // Issue #146 (2): public/protected members the class gets from its
+      // superclasses and interfaces, grouped by the defining object. The
+      // chain comes from INHERITING FROM / INTERFACES in the source already
+      // in hand — zero extra requests for a class that names no parent.
+      const chain = await inheritedMembers(conn, obj, source, members, input.version);
+      const inheritedOutline = renderInheritedOutline(chain.inherited);
+      const sections: string[] = [];
+      if (ownOutline) sections.push(ownOutline);
+      else if (inheritedOutline) {
+        sections.push(`  (${obj.name} declares no methods, attributes or events of its own)`);
+      }
+      if (inheritedOutline) {
+        sections.push(
+          "",
+          `INHERITED (${chain.inherited.length} public/protected members declared on ` +
+            `${obj.name}'s superclasses/interfaces; method="<NAME>" resolves them automatically):`,
+          inheritedOutline,
+        );
+      }
+      const outline = sections.join("\n");
       const window = sliceLines(outline, input.offset ?? 1, input.limit);
+      const notes = [...includeNotes, ...defaultNotes];
+      if (chain.unresolved.length) {
+        notes.push(
+          "Inheritance chain incomplete — not readable on this system: " +
+            chain.unresolved
+              .map((u) => `${u.name} (${u.relation} of ${u.via}: ${u.reason})`)
+              .join("; ") +
+            ". Members declared there are not listed.",
+        );
+      }
       const built = buildReadResponse({
-        header: { ...outlineHeader, components: members.length },
+        header: {
+          ...outlineHeader,
+          components: members.length,
+          inherited: chain.inherited.length,
+          structureVersion: own.version,
+        },
         body: outline
           ? window.text
           : `(${obj.type} ${obj.name} really has no methods, attributes or events — the ` +
-            `component structure came back empty.)`,
+            `component structure came back empty${
+              chain.searched.length ? ` and so did ${chain.searched.join(", ")}'s` : ""
+            }.)`,
         bodyLabel: "OUTLINE",
         bodyOffset: outline ? window.offset : undefined,
         bodyTotalLines: outline ? window.total : undefined,
         pagingParam: "offset",
-        notes: [...includeNotes, ...defaultNotes],
-        hints: partHints,
+        notes,
+        hints: [
+          ...partHints,
+          ...(inheritedOutline
+            ? [
+                'Inherited members work the same way: method="<NAME>" walks the chain and reports ' +
+                  "foundOn. Their line numbers are the defining object's.",
+              ]
+            : []),
+          'To learn a signature, use method="<NAME>" with include="definitions" (declaration only); ' +
+            "do not read the full class.",
+        ],
         maxChars,
       });
       return { ...built, etag };
@@ -3270,8 +3331,42 @@ export async function abapRead(
 
   // Method-level read.
   if (method) {
-    const m = await readMethod(conn, obj, source, method);
-    const parts = [m.declaration, m.implementation].filter(Boolean).join("\n\n");
+    // Issue #146: the chain (superclasses, then interfaces) is walked when
+    // the object itself lacks the member; `foundOn` says where it came from.
+    // Issue #147: members resolve against the inactive version when one
+    // exists. include="definitions" narrows the answer to the declaration.
+    const m = await readMethod(conn, obj, source, method, {
+      version: input.version,
+      inherited: true,
+    });
+    const parts = (declarationOnly ? [m.declaration] : [m.declaration, m.implementation])
+      .filter(Boolean)
+      .join("\n\n");
+    const origin = m.foundOn;
+    const originLabel = origin
+      ? `${origin.name} (${origin.relation} of ${origin.via}, depth ${origin.depth})`
+      : undefined;
+    const methodNotes: string[] = [];
+    if (origin) {
+      methodNotes.push(
+        `${m.member.name} is not declared by ${obj.name}; it comes from ${originLabel}. ` +
+          `The block below and its line numbers are ${origin.name}'s, not ${obj.name}'s ` +
+          `(searched: ${m.searched.join(" -> ")}).`,
+      );
+    }
+    if (m.version === "inactive" && input.version !== "inactive") {
+      methodNotes.push(
+        `${origin?.name ?? obj.name} has a newer INACTIVE version; the method was resolved ` +
+          "against it (ADT's default read returns that newest version too).",
+      );
+    }
+    if (declarationOnly) {
+      methodNotes.push(
+        'include="definitions" with method= returns the declaration only, cut from the class ' +
+          "definition in the main document (the CCDEF local-definitions include holds nothing " +
+          "global). Drop include to get the implementation as well.",
+      );
+    }
     // FRAME MISMATCH (fixed): body here is the method block, so its line
     // count is RELATIVE to it. Passing the absolute source line as
     // bodyOffset while totalLines stayed relative produced notices like
@@ -3287,6 +3382,8 @@ export async function abapRead(
           ...header,
           method: m.member.name,
           visibility: m.member.visibility,
+          foundOn: originLabel,
+          structureVersion: m.version,
           // Absolute position in the object, for orientation only — never used as
           // the paging frame.
           sourceLines: m.implementationRange
@@ -3294,13 +3391,26 @@ export async function abapRead(
             : undefined,
           blockLines: parts ? window.total : undefined,
         },
-        body: parts ? window.text : "(no source found for this component)",
-        bodyLabel: "METHOD SOURCE",
+        body: parts
+          ? window.text
+          : declarationOnly
+            ? `(no METHODS declaration for ${m.member.name} found in ${origin?.name ?? obj.name}'s ` +
+              "definition — ADT lists the component but the definition text does not declare it " +
+              "under that name, e.g. an interface method implemented as IF~METHOD)"
+            : "(no source found for this component)",
+        bodyLabel: declarationOnly ? "METHOD DECLARATION" : "METHOD SOURCE",
         bodyOffset: parts ? window.offset : undefined,
         bodyTotalLines: parts ? window.total : undefined,
+        notes: methodNotes,
         hints: [
           "`offset` here is relative to this method block (line 1 = first line shown above), " +
             "not to the object's source lines.",
+          ...(declarationOnly
+            ? ["Drop include=\"definitions\" to read the implementation as well."]
+            : [
+                'To learn a signature only, use method= with include="definitions"; do not read ' +
+                  "the full class.",
+              ]),
           "Omit `method` to read the whole object, or use outline=true for the component list.",
         ],
         pagingParam: "offset",
@@ -3550,7 +3660,9 @@ export function registerReadTools(mcp: McpServer, deps: ReadToolDeps): void {
         "a read-only catalog render; view= selects docu/digest/history/diff/definition/lineage/" +
         "footprint. A CLAS/INTF/PROG/FUGR source above 150 lines or 8k chars answers with its " +
         "outline by default — then method=, pattern= (regex, with context), offset/limit, or " +
-        "full=true. Returns an etag; capped ~15k tokens, truncation marked. " +
+        "full=true. To learn a method's signature, use method= with include=\"definitions\" " +
+        "(declaration only); method= also finds inherited members (superclasses and interfaces) " +
+        "and reports foundOn. Returns an etag; capped ~15k tokens, truncation marked. " +
         "Example: {\"object\":\"ZCL_FOO\",\"type\":\"CLAS/OC\"}.",
       // `from_system`/`to_system` (issue #93, cross-system view="diff")
       // are spliced in only when more than one system is configured —

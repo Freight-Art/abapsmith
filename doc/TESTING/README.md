@@ -12,7 +12,7 @@ npm run check:leaks   # asserts no secrets or live hostnames in tracked files
 ## `npm test` is offline, and `ABAP_URL` does not change that
 
 `npm test` runs `vitest run` with no filter, but `vitest.config.ts` excludes
-the six live integration suites by name from every run that is not
+the eighteen live integration suites by name from every run that is not
 `VITEST_LIVE=1` — see `LIVE_INTEGRATION_TESTS` in that file for the
 authoritative list. That exclusion is config-level, not a CLI flag — it holds
 even if someone names an excluded file explicitly on the command line.
@@ -77,13 +77,17 @@ against reality.
 
 ## Live tests
 
-Six suites are live-only — `LIVE_INTEGRATION_TESTS` in `vitest.config.ts` is
-the authoritative list (`grep LIVE_INTEGRATION_TESTS -A7 vitest.config.ts`):
-a real logon-and-read/write/activate/run round trip, a live debugger attach,
-an undo against a real journal entry, a locking scenario against a real FPM
-screen, a write into a class's CCAU include, and a lock-handle validity
-check. All six require `ABAP_URL` to collect at all; four of them (undo,
-FPM-lock, class-includes, lock-handle) also need write access configured —
+Eighteen suites are live-only — `LIVE_INTEGRATION_TESTS` in
+`vitest.config.ts` is the authoritative list (`grep LIVE_INTEGRATION_TESTS
+-A60 vitest.config.ts`). Among them: a real logon-and-read/write/activate/run
+round trip, a live debugger attach, an undo against a real journal entry, a
+locking scenario against a real FPM screen, a write into a class's CCAU
+include, a lock-handle validity check, the fluid API and structured-DDIC
+round trips, and a CHECK_FAILED-then-`method=`-repair sequence against a
+class's inactive version. All of them require `ABAP_URL` to collect at all;
+the ones that write (undo, FPM-lock, class-includes, lock-handle,
+checkfail-method-repair, the fluid and ddic suites)
+also need write access configured —
 `ABAP_MODE=edit` or `admin`, or the legacy `ABAP_ALLOW_WRITE=true` when
 `ABAP_MODE` is unset — without which they collect and skip rather than run
 (`test/helpers/live-write-gate.ts`). The lock-handle suite's own
