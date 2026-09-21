@@ -1,13 +1,10 @@
 /**
  * LIVE acceptance test for issue #147: `method=` after CHECK_FAILED.
  *
- * ###########################################################################
- * ## STATUS: NOT YET RUN against a live system at the time it was written.  ##
- * ## The shared A4H credential's auth circuit breaker was latched by other  ##
- * ## processes for the whole session and was deliberately not re-armed.    ##
- * ## Every claim below is therefore what the code is DESIGNED to do; the   ##
- * ## first green run should replace this box with its date and tip.        ##
- * ###########################################################################
+ * RUN LIVE on 2026-09-21 against A4H (ABAP Platform 1909 developer edition,
+ * client 001): the full write ended CHECK_FAILED with the offending line
+ * quoted, method= repaired DOUBLE against the inactive version, activation
+ * was clean, the active read-back held the repair, and the class was deleted.
  *
  * WHAT IT IS FOR. Before the fix, a full class write whose syntax check
  * failed left the object saved INACTIVE, and the next `abap_write method=`
@@ -15,9 +12,11 @@
  * component structure, which does not yet know the method (or the class,
  * when the class is new), and `available` listed the class name itself.
  * The only way out was a full re-read and re-write. `classMembersFor`
- * (src/adt/source.ts) now asks for `version=inactive` first and falls back
- * to active; this file is the one place that can prove ADT actually serves
- * that structure for a saved-but-inactive class.
+ * (src/adt/source.ts) now reads the object's descriptor and, when it
+ * reports a newer inactive version, fetches the structure with
+ * `version=inactive` (falling back to active); this file is the one place
+ * that can prove ADT actually serves that structure for a
+ * saved-but-inactive class.
  *
  * GATING. Runs only under `VITEST_LIVE=1`, and only with `ABAP_URL` set and
  * write access configured (`liveSuiteSkipReason({ write: true })` in
@@ -57,9 +56,12 @@ const NAME = "ZCL_AS_CHECKFAIL";
 const MAX = 60_000;
 
 /**
- * The broken class. `rv_out = iv_in * 2` without the period is a genuine
- * syntax error inside DOUBLE, and only there — so the repair is exactly one
- * method, and everything else the check could complain about is absent.
+ * The broken class. `rv_out = iv_in * lv_missing.` is a semantic error on
+ * purpose: a missing period is refused by ADT at save time
+ * (`ExceptionResourceScanDuringSaveFailure`) and the just-created class is
+ * rolled back, so nothing would be left inactive to repair. An unknown
+ * field passes the save and fails only the syntax check, which is the
+ * state issue #147 is actually about.
  */
 const BROKEN = `CLASS zcl_as_checkfail DEFINITION PUBLIC FINAL CREATE PUBLIC.
   PUBLIC SECTION.
@@ -68,7 +70,7 @@ ENDCLASS.
 
 CLASS zcl_as_checkfail IMPLEMENTATION.
   METHOD double.
-    rv_out = iv_in * 2
+    rv_out = iv_in * lv_missing.
   ENDMETHOD.
 ENDCLASS.
 `;
@@ -142,7 +144,7 @@ d("live: a CHECK_FAILED class is repaired with one method= write and activated",
     // bytes just sent, not from a re-read.
     const failure = err.details.failure as { details?: { messages?: Array<{ sourceLine?: string }> } };
     const withLine = failure.details?.messages?.find((m) => m.sourceLine !== undefined);
-    expect(withLine?.sourceLine, "no message carried its source line").toContain("rv_out = iv_in * 2");
+    expect(withLine?.sourceLine, "no message carried its source line").toContain("rv_out = iv_in * lv_missing");
     // Issue #147 (4): the hint names the repair route.
     expect(err.hint ?? "").toMatch(/method="<NAME>"/);
     expect(err.hint ?? "").toMatch(/abap_activate/);
