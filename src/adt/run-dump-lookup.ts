@@ -20,6 +20,7 @@
  * time drifts the window by that offset — `details.dumpLookup` states the
  * window so the miss is visible, not silent.
  */
+import { MESSAGE_EXCERPT_MAX, truncateText } from "../truncate.js";
 import type { AbapConnection } from "./connection.js";
 import { fetchDumpDetail, listDumps } from "./dumps.js";
 
@@ -87,11 +88,8 @@ export interface RecentDumpLookup {
   failure?: string;
 }
 
-const FAILURE_TEXT_MAX = 200;
-
 function describeFailure(e: unknown): string {
-  const text = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
-  return text.length > FAILURE_TEXT_MAX ? `${text.slice(0, FAILURE_TEXT_MAX)}…` : text;
+  return truncateText(e instanceof Error ? `${e.name}: ${e.message}` : String(e), MESSAGE_EXCERPT_MAX);
 }
 
 /**
