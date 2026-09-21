@@ -327,6 +327,12 @@ const ALLOWED_LINES: { file: string; contains: string; reason: string }[] = [
       "Hash prefix, not content — the debug-arm-lock FILENAME width, identical rationale (and identical constant) to object-gate.ts's entry above. The hashed input is the (url, client, user) lock key, which is never shown to a caller; the key itself is reported in full in DEBUG_SESSION_LOCKED_CROSS_PROCESS's details.",
   },
   {
+    file: "src/debug/session.ts",
+    contains: "id.slice(0, SHORT_STATE_ID_LENGTH)",
+    reason:
+      "Hash prefix, not content — the wire form of a debugger stateId (#151). The full sha256 stays the session's internal value and is still accepted back; the short form is a derived identifier, never caller content.",
+  },
+  {
     file: "src/debug/client.ts",
     contains: 'digest("hex").slice(0, TERMINAL_ID_LENGTH)',
     reason:

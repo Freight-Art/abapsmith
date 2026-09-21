@@ -24,7 +24,11 @@ import {
   createDebugClientForConnection,
   DebugSession,
   listActiveDebugSessions,
+  MIN_STATE_ID_PREFIX_LENGTH,
+  SHORT_STATE_ID_LENGTH,
+  shortStateId,
   shutdownAllDebugSessions,
+  stateIdMatches,
   type DebugSessionOptions,
 } from "../src/debug/session.js";
 import { ACQUIRE_NO_SESSION_LEASE, LONGPOLL_TIMEOUT_MARGIN_MS } from "../src/debug/transport.js";
@@ -596,8 +600,10 @@ describe("stale stateId rejection", () => {
 
     await expect(session.getStack(stateId1)).rejects.toSatisfy((e: unknown) => {
       if (!isAbapError(e) || e.code !== "BAD_INPUT") return false;
-      expect(e.message).toContain(stateId2);
+      // #151: the message names the wire form; the full id stays in details.
+      expect(e.message).toContain(`"${shortStateId(stateId2)}"`);
       expect(e.details["currentStateId"]).toBe(stateId2);
+      expect(e.details["currentShortStateId"]).toBe(shortStateId(stateId2));
       expect(e.details["providedStateId"]).toBe(stateId1);
       return true;
     });
@@ -616,10 +622,87 @@ describe("stale stateId rejection", () => {
 
     await expect(session.getVariables(stateId1, ["SY-SUBRC"])).rejects.toSatisfy((e: unknown) => {
       if (!isAbapError(e) || e.code !== "BAD_INPUT") return false;
-      expect(e.message).toContain(stateId2);
+      // #151: the message names the wire form; the full id stays in details.
+      expect(e.message).toContain(`"${shortStateId(stateId2)}"`);
       expect(e.details["currentStateId"]).toBe(stateId2);
+      expect(e.details["currentShortStateId"]).toBe(shortStateId(stateId2));
       return true;
     });
+  });
+
+  // -------------------------------------------------------------------------
+  // #151 — short stateId on the wire. The session keeps returning the full
+  // 64-char digest; the tool layer prints its 12-char prefix. Every stateful
+  // call must therefore accept the full id, the short form, and any prefix of
+  // at least MIN_STATE_ID_PREFIX_LENGTH — and refuse anything shorter or stale.
+  // -------------------------------------------------------------------------
+
+  it("stateIdMatches: full id, 12-char wire form and an 8-char prefix match; 7 chars, a wrong prefix, a longer string and empty do not (#151)", () => {
+    const full = computeStateId({ debugSessionId: "S", stackPosition: 0, program: "P", line: 1, stepCounter: 0 });
+    expect(full).toHaveLength(64);
+    expect(shortStateId(full)).toHaveLength(SHORT_STATE_ID_LENGTH);
+    expect(full.startsWith(shortStateId(full))).toBe(true);
+    expect(stateIdMatches(full, full)).toBe(true);
+    expect(stateIdMatches(full, shortStateId(full))).toBe(true);
+    expect(stateIdMatches(full, full.slice(0, MIN_STATE_ID_PREFIX_LENGTH))).toBe(true);
+    // Case and surrounding whitespace are forgiven — hex is hex.
+    expect(stateIdMatches(full, ` ${shortStateId(full).toUpperCase()} `)).toBe(true);
+    expect(stateIdMatches(full, full.slice(0, MIN_STATE_ID_PREFIX_LENGTH - 1))).toBe(false);
+    expect(stateIdMatches(full, "")).toBe(false);
+    expect(stateIdMatches(full, `${full}0`)).toBe(false);
+    const other = computeStateId({ debugSessionId: "S", stackPosition: 0, program: "P", line: 2, stepCounter: 0 });
+    expect(stateIdMatches(full, shortStateId(other))).toBe(false);
+  });
+
+  it("getStack() accepts the full id, the wire form and an 8-char prefix; refuses a 7-char prefix with zero wire requests (#151)", async () => {
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk({ line: 15 }), stackOk({ line: 15 }), stackOk({ line: 15 }), stackOk({ line: 15 })],
+    });
+    const session = makeSession({ transport });
+
+    const { stateId } = await session.attach("D1");
+    expect(stateId).toHaveLength(64);
+
+    await session.getStack(stateId);
+    await session.getStack(shortStateId(stateId));
+    await session.getStack(stateId.slice(0, MIN_STATE_ID_PREFIX_LENGTH));
+    const before = transport.calls.length;
+
+    await expect(session.getStack(stateId.slice(0, MIN_STATE_ID_PREFIX_LENGTH - 1))).rejects.toSatisfy(
+      (e: unknown) => {
+        if (!isAbapError(e) || e.code !== "BAD_INPUT") return false;
+        expect(e.message).toContain(`"${shortStateId(stateId)}"`);
+        expect(e.details["currentStateId"]).toBe(stateId);
+        return true;
+      },
+    );
+    expect(transport.calls.length).toBe(before);
+    // The session's own view never changes: the snapshot carries the full id.
+    expect(session.snapshot.stateId).toBe(stateId);
+  });
+
+  it("a stale WIRE-FORM id (from before a step) is refused the same way as a stale full id (#151)", async () => {
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk({ line: 15 }), stackOk({ line: 16 }), stackOk({ line: 16 })],
+      step: [stepOk()],
+    });
+    const session = makeSession({ transport });
+
+    const { stateId: stateId1 } = await session.attach("D1");
+    const { stateId: stateId2 } = await session.step(shortStateId(stateId1), "stepOver");
+    expect(stateId2).toHaveLength(64);
+    expect(stateId2).not.toBe(stateId1);
+
+    await expect(session.getStack(shortStateId(stateId1))).rejects.toSatisfy((e: unknown) => {
+      if (!isAbapError(e) || e.code !== "BAD_INPUT") return false;
+      expect(e.message).toContain(`"${shortStateId(stateId2)}"`);
+      expect(e.details["currentStateId"]).toBe(stateId2);
+      expect(e.details["providedStateId"]).toBe(shortStateId(stateId1));
+      return true;
+    });
+    await session.getStack(shortStateId(stateId2));
   });
 });
 
@@ -3046,8 +3129,10 @@ describe("addBreakpoints()", () => {
       session.addBreakpoints(stateId1, [{ kind: "line", uri: "/some/uri#start=1" }]),
     ).rejects.toSatisfy((e: unknown) => {
       if (!isAbapError(e) || e.code !== "BAD_INPUT") return false;
-      expect(e.message).toContain(stateId2);
+      // #151: the message names the wire form; the full id stays in details.
+      expect(e.message).toContain(`"${shortStateId(stateId2)}"`);
       expect(e.details["currentStateId"]).toBe(stateId2);
+      expect(e.details["currentShortStateId"]).toBe(shortStateId(stateId2));
       expect(e.details["providedStateId"]).toBe(stateId1);
       return true;
     });
