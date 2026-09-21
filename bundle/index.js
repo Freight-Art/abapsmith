@@ -53358,6 +53358,29 @@ function keepLines(text5, budget) {
   return { kept, cutChars: text5.length - kept.length };
 }
 function buildResponse(parts) {
+  if (parts.size) return withSizeLine(parts);
+  return renderResponse(parts);
+}
+function formatSize(size) {
+  return `${size.chars} chars, ${size.lines} lines, truncated=${size.truncated}`;
+}
+function withSizeLine(parts) {
+  const { size: _flag, ...rest } = parts;
+  const base = renderResponse(rest);
+  let claim = { chars: base.text.length, lines: countLines(base.text), truncated: base.truncated };
+  let built = base;
+  for (let round = 0; round < 4; round++) {
+    built = renderResponse({ ...rest, header: { ...rest.header, size: formatSize(claim) } });
+    const actual = { chars: built.text.length, lines: countLines(built.text), truncated: built.truncated };
+    if (actual.chars === claim.chars && actual.lines === claim.lines && actual.truncated === claim.truncated) {
+      return { ...built, size: actual };
+    }
+    claim = actual;
+  }
+  built = renderResponse({ ...rest, header: { ...rest.header, size: `~${formatSize(claim)}` } });
+  return { ...built, size: claim };
+}
+function renderResponse(parts) {
   const maxChars = parts.maxChars ?? DEFAULT_MAX_CHARS;
   const header = renderHeader(parts.header);
   const sectionBlocks = (parts.sections ?? []).filter((s) => s.content.trim().length > 0).map((s) => `--- ${s.title} ---
@@ -107744,6 +107767,100 @@ function renderOutline(members) {
   });
   return rows.join("\n");
 }
+function grepSource(source, pattern, opts) {
+  const re = new RegExp(pattern, "i");
+  const lines = source === "" ? [] : source.replace(/\r\n/g, "\n").split("\n");
+  const from = Math.max(1, opts.fromLine);
+  const matches = [];
+  for (let i = from - 1; i < lines.length; i++) {
+    if (re.test(lines[i])) matches.push(i + 1);
+  }
+  const shownMatches = matches.slice(0, Math.max(0, opts.maxMatches));
+  const shownSet = new Set(shownMatches);
+  const width = String(lines.length).length;
+  const out = [];
+  let prevEnd = 0;
+  for (const m of shownMatches) {
+    const start = Math.max(from, m - opts.context);
+    const end = Math.min(lines.length, m + opts.context);
+    const groupStart = Math.max(start, prevEnd + 1);
+    if (prevEnd > 0 && groupStart > prevEnd + 1) out.push("--");
+    for (let n = groupStart; n <= end; n++) {
+      out.push(`${String(n).padStart(width)}${shownSet.has(n) ? ":" : "-"} ${lines[n - 1]}`);
+    }
+    prevEnd = Math.max(prevEnd, end);
+  }
+  return {
+    text: out.join("\n"),
+    total: matches.length,
+    shown: shownMatches.length,
+    lastShownLine: shownMatches.length ? shownMatches[shownMatches.length - 1] : void 0,
+    truncated: shownMatches.length < matches.length
+  };
+}
+var STRUCTURE_OPENERS = [
+  { re: /^(REPORT|PROGRAM|FUNCTION-POOL)\s+(\S+?)\s*[.\s]/i, kind: "$1", nameGroup: 2 },
+  { re: /^INCLUDE\s+(\S+?)\s*\./i, kind: "INCLUDE", nameGroup: 1 },
+  { re: /^FORM\s+(\S+)/i, kind: "FORM", nameGroup: 1, closer: "ENDFORM" },
+  { re: /^FUNCTION\s+(\S+?)\s*\./i, kind: "FUNCTION", nameGroup: 1, closer: "ENDFUNCTION" },
+  { re: /^MODULE\s+(\S+?)(\s+(?:INPUT|OUTPUT))?\s*\./i, kind: "MODULE", nameGroup: 1, closer: "ENDMODULE" },
+  { re: /^CLASS\s+(\S+)\s+(DEFINITION|IMPLEMENTATION)\b/i, kind: "CLASS $2", nameGroup: 1, closer: "ENDCLASS" },
+  { re: /^INTERFACE\s+(\S+?)\s*[.\s]/i, kind: "INTERFACE", nameGroup: 1, closer: "ENDINTERFACE" },
+  { re: /^METHOD\s+(\S+?)\s*[.\s]/i, kind: "METHOD", nameGroup: 1, closer: "ENDMETHOD" },
+  {
+    re: /^(INITIALIZATION|START-OF-SELECTION|END-OF-SELECTION|TOP-OF-PAGE|END-OF-PAGE|LOAD-OF-PROGRAM|AT LINE-SELECTION|AT USER-COMMAND|AT PF\d+|AT SELECTION-SCREEN[^.]*|GET\s+\S+(?:\s+LATE)?)\s*\./i,
+    kind: "$1"
+  },
+  {
+    re: /^SELECTION-SCREEN\s+BEGIN\s+OF\s+(SCREEN|BLOCK|TABBED BLOCK|LINE)\s+(\S+)/i,
+    kind: "SELECTION-SCREEN $1",
+    nameGroup: 2
+  }
+];
+function scanSourceStructure(source) {
+  const lines = source === "" ? [] : source.replace(/\r\n/g, "\n").split("\n");
+  const rows = [];
+  const open = [];
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    if (raw.startsWith("*")) continue;
+    const stmt = raw.trim();
+    if (stmt === "" || stmt.startsWith('"')) continue;
+    const endMatch = /^(ENDFORM|ENDFUNCTION|ENDMODULE|ENDCLASS|ENDINTERFACE|ENDMETHOD)\b/i.exec(stmt);
+    if (endMatch) {
+      const closer = endMatch[1].toUpperCase();
+      for (let d = open.length - 1; d >= 0; d--) {
+        if (open[d].closer === closer) {
+          open[d].row.endLine = i + 1;
+          open.length = d;
+          break;
+        }
+      }
+      continue;
+    }
+    for (const opener of STRUCTURE_OPENERS) {
+      const m = opener.re.exec(stmt);
+      if (!m) continue;
+      const kind = opener.kind.replace(
+        /\$(\d)/g,
+        (_s, g) => (m[Number(g)] ?? "").toUpperCase().replace(/\s+/g, " ").trim()
+      );
+      const name = opener.nameGroup === void 0 ? "" : (m[opener.nameGroup] ?? "").replace(/[.,]+$/, "").toUpperCase();
+      const row2 = { kind, name, startLine: i + 1, depth: open.length };
+      rows.push(row2);
+      if (opener.closer) open.push({ row: row2, closer: opener.closer });
+      break;
+    }
+  }
+  return rows;
+}
+function renderSourceStructure(rows) {
+  return rows.map((r) => {
+    const label = r.name ? `${r.kind} ${r.name}` : r.kind;
+    const loc = r.endLine ? `lines ${r.startLine}-${r.endLine}` : `line ${r.startLine}`;
+    return `  ${"  ".repeat(r.depth)}${label}  ${loc}`;
+  }).join("\n");
+}
 
 // src/adt/run.ts
 var import_abap_adt_api8 = __toESM(require_build(), 1);
@@ -114924,7 +115041,7 @@ var runInputSchema = {
     "Switch on the SAP authorization trace for the connected user, run, then read back and switch it back off. Refused on a read-only server. Default false."
   ),
   snapshot_ids: external_exports.array(external_exports.string()).optional().describe(
-    `Snapshot ids from prior abap_data_preview mode="snapshot" calls. After this call finishes, each one is re-read and diffed, and the result is appended as a DATA CHANGES section. The diff obeys the same data-preview policy as the snapshot did \u2014 if it is refused, this call's own result still returns and the section says why.`
+    'Snapshot ids from prior abap_data_preview mode="snapshot" calls; each is re-read and diffed after this call and appended as a DATA CHANGES section, under the same data-preview policy (a refused diff does not fail this call).'
   )
 };
 var RunInput = external_exports.object(runInputSchema);
@@ -115471,7 +115588,7 @@ var debugInputSchema = {
       messageBreakpointSchema
     ])
   ).optional().describe(
-    '\u22651 entry, required for action="start" and for action="breakpoints" op="add"; kinds (line/exception/statement/message) may mix and are validated against SAP before arming. All kinds take optional condition (ABAP expression, suspend only when true) and skipCount (sent to SAP, NOT enforced \u2014 use step:"continue").'
+    '\u22651 entry, required for action="start" and for action="breakpoints" op="add"; kinds (line/exception/statement/message) may mix and are validated against SAP before arming; condition and skipCount are optional on every kind, skipCount sent to SAP but NOT enforced.'
   ),
   run: external_exports.object({
     object: external_exports.string().describe("Class or report to execute \u2014 same resolution rules as abap_run."),
@@ -122787,10 +122904,10 @@ var writeInputSchema = {
     headingLabel: external_exports.string().optional(),
     headingLength: external_exports.number().optional(),
     searchHelp: external_exports.string().optional().describe(
-      "DTEL/DE only: search help attached to this data element (DD04L-SHLPNAME). Must name an existing, active SHLP/DH \u2014 not checked before send. Uppercased, max 30 chars."
+      "DTEL/DE only: search help attached to this data element (DD04L-SHLPNAME). Not checked before send. Uppercased, max 30 chars."
     ),
     searchHelpParameter: external_exports.string().optional().describe(
-      "DTEL/DE only: the search help's own interface parameter this data element binds to (DD04L-SHLPFIELD, e.g. DD32P-FIELDNAME on the search help itself) \u2014 not the data element's own name. Refused without `searchHelp`. Uppercased, max 30 chars."
+      "DTEL/DE only: the search help's own interface parameter this data element binds to (DD04L-SHLPFIELD). Refused without `searchHelp`. Uppercased, max 30 chars."
     )
   }).strict().optional().describe("DOMA/DD, DTEL/DE, TTYP/DA: alt to `source`, never both."),
   // SHLP/DH create/update, required: DD30V/DD32P/DD31V/DD33V fields no
@@ -122802,7 +122919,7 @@ var writeInputSchema = {
   // update — nothing carried over here from what already exists.
   shlp: external_exports.object({
     selectionMethod: external_exports.string().optional().describe(
-      "DD30V-SELMETHOD: table or view the search help selects from. Omit for a collective search help, or an elementary one driven by a search-help exit instead of a table/view \u2014 both are normal and have no selection method at all."
+      "DD30V-SELMETHOD: table or view the search help selects from. Omit for a collective search help, or an elementary one driven by a search-help exit instead of a table/view."
     ),
     selectionMethodType: external_exports.enum(["T", "V", "M"]).optional().describe(
       "DD30V-SELMTYPE. Only meaningful alongside selectionMethod; omit when selectionMethod is omitted too."
@@ -122821,7 +122938,7 @@ var writeInputSchema = {
       })
     ).describe("Interface fields (DD32P), in order."),
     includes: external_exports.array(external_exports.object({ name: external_exports.string().describe("DD31V-SUBSHLP.") })).optional().describe(
-      "Other search helps included by this one (DD31V), in order. Optional \u2014 empty or omitted is fine, including for elementary: false. Each name must exist as an ACTIVE search help (DD30L); refused before registration otherwise (CHECK_FAILED), rather than passing DDIF_SHLP_PUT and stranding this help as inactive-only when DDIF_SHLP_ACTIVATE then fails (DH109)."
+      "Other search helps included by this one (DD31V), in order. Optional \u2014 empty or omitted is fine, including for elementary: false. Each name must exist as an ACTIVE search help (DD30L); refused before registration otherwise (CHECK_FAILED)."
     ),
     assignments: external_exports.array(
       external_exports.object({
@@ -122832,25 +122949,25 @@ var writeInputSchema = {
           "DD33V-SUBSHLP. Must match one of this call's own `includes[].name` (case-insensitive); refused before send otherwise (BAD_INPUT)."
         ),
         includedField: external_exports.string().describe(
-          "DD33V-SUBFIELD. Must be an ACTIVE interface parameter (DD32S) of `includedHelp`; checked server-side before RS_CORR_INSERT and refused otherwise (CHECK_FAILED) \u2014 this needs that other search help's own DD32P/DD32S, so it is not checked zero-network."
+          "DD33V-SUBFIELD. Must be an ACTIVE interface parameter (DD32S) of `includedHelp`; checked server-side before RS_CORR_INSERT, not zero-network, and refused otherwise (CHECK_FAILED)."
         ),
         direction: external_exports.enum(["I", "E"]).describe(
-          'DD33V-VALUEDIREC: I=import into, E=export from the included help. DDIC may normalise the stored value to C ("both import and export") on read-back when the target parameter is both import and export.'
+          'DD33V-VALUEDIREC: I=import into, E=export from the included help. May read back as C ("both import and export") when the target parameter is both import and export.'
         )
       })
     ).optional().describe(
-      "Field assignments (DD33V) between an included search help and this one's interface. A `field`/`includedHelp` not found in this call's own `fields`/`includes`, or an `includedField` that is not an active parameter of `includedHelp`, would otherwise pass DDIF_SHLP_PUT and fail DDIF_SHLP_ACTIVATE (DH109) \u2014 all three are refused first instead; see each field below."
+      "Field assignments (DD33V) between an included search help and this one's interface. `field`, `includedHelp` and `includedField` are each validated against this call's own fields/includes/target help; see each field below."
     )
   }).strict().optional().describe("SHLP/DH create/update, required: search help definition. See SearchHelpParams in src/adt/shlp-create.ts."),
   expect_etag: external_exports.string().optional().describe("Etag from abap_read; fails if changed."),
   mode: external_exports.enum(["write", "delete", "update"]).optional().describe(
-    'Default write (create for most types). "update" retargets/replaces an EXISTING VIEW/DV, TRAN/T or SHLP/DH in place (DDIF_VIEW_PUT / RPY_TRANSACTION_DELETE+INSERT / DDIF_SHLP_PUT replace the whole definition/target) \u2014 refused zero-network for every other type.'
+    'Default write (create for most types). "update" retargets/replaces an EXISTING VIEW/DV, TRAN/T or SHLP/DH in place (whole definition replaced) \u2014 refused zero-network for every other type.'
   ),
   activate: external_exports.boolean().optional().describe("Default true."),
   verify: external_exports.boolean().optional().describe("Force verified mode; reads back after write."),
   format: external_exports.boolean().optional().describe("Pretty-print source before writing."),
   dry_run: external_exports.boolean().optional().describe(
-    "Preview only: resolve, read, apply the edit locally, run the safety gate, and return the diff and the expect_etag a real write would assert. Makes no lock, PUT, DELETE, activation, unlock or transport call and journals nothing."
+    "Preview only: returns the diff and the expect_etag a real write would assert. Makes no lock, PUT, DELETE, activation, unlock or transport call and journals nothing."
   ),
   corr_nr: external_exports.string().optional().describe(
     "Transport request. $TMP needs none. Optional for every transportable create, including the bridge types TRAN/T, VIEW/DV, SHLP/DH and TABL/DI: omitted, one is resolved under ABAP_ALLOW_TRANSPORTS (auto reuses a modifiable request this session created for the package, else creates one; under auto a NAMED request is refused, so omit it). Refused for a $ package, and on VIEW/DV or TRAN/T delete. TABL/DI delete: same package-derived resolution as its create, not refused. If the object is already recorded in a DIFFERENT request, CTS imposes that one instead: mode=write proceeds under it and reports corr_nr_honoured: false; mode=delete is refused outright with TRANSPORT_ERROR (CORR_NR_NOT_HONOURED) and deletes nothing."
@@ -122881,10 +122998,10 @@ var writeInputSchema = {
     "SHLP/DH delete only: required true when the search help is still attached to a data element, a table/view field, or included by a collective search help (DD04L/DD35L/DD31S). Refused zero-network for any other type/mode combination."
   ),
   confirm_maintenance_dialog: external_exports.boolean().optional().describe(
-    "VIEW/DV delete: overrides the bridge's refusal when the view still has a generated SE54 maintenance dialog (TVDIR) \u2014 deleting the view leaves that dialog broken. The bridge's refusal names the specific dialog (function group area, package, type, screen) so a caller can read it and decide before passing this. Refused zero-network for any other type/mode combination."
+    "VIEW/DV delete: overrides the bridge's refusal when the view still has a generated SE54 maintenance dialog (TVDIR), which the delete leaves broken; the refusal names the dialog. Refused zero-network for any other type/mode combination."
   ),
   confirm_in_role_menu: external_exports.boolean().optional().describe(
-    `TRAN/T mode="delete" or mode="update" (retarget): overrides the bridge's refusal when the tcode is already assigned to one or more roles' menus (AGR_TCODES). Deleting it removes it from those role menus; retargeting it changes what those menu entries launch. The bridge's refusal names the specific roles so a caller can read it and decide before passing this. An SM01 transaction lock is not checked either way. Refused zero-network for any other type/mode combination.`
+    `TRAN/T mode="delete" or mode="update" (retarget): overrides the bridge's refusal when the tcode is assigned to role menus (AGR_TCODES) \u2014 deleting removes it from them, retargeting changes what they launch; the refusal names the roles. An SM01 lock is not checked. Refused zero-network for any other type/mode combination.`
   ),
   // Same shape/wording as abap_enh's `affects` field (src/tools/enh.ts), so
   // callers share one vocabulary. Required for an enhancement-type write
@@ -131948,13 +132065,23 @@ async function runCrossSystemDiff(params) {
 }
 
 // src/tools/read.ts
+var OUTLINE_DEFAULT_LINES = 150;
+var OUTLINE_DEFAULT_CHARS = 8e3;
+var PATTERN_MAX_MATCHES = 50;
+var PATTERN_DEFAULT_CONTEXT = 2;
 var readInputSchema = {
   object: external_exports.string().describe('Name, "class X", "table Y", or ADT URI.'),
   type: external_exports.string().optional().describe(
     `ADT type to disambiguate. DEVC/K: package listing (types/depth filter it). SUSO/B: renders the object's DEFINITION (fields, permitted activities) from the catalog \u2014 NOT who holds it, no AGR_*/UST* table is read. TABL/DI: <TABLE>/<INDEX> catalog render. Not readable: ${NON_READABLE_TYPES.join(" ")}.`
   ),
   method: external_exports.string().optional().describe("Only this method/component."),
-  outline: external_exports.boolean().optional().describe("Component list with line ranges."),
+  outline: external_exports.boolean().optional().describe(
+    `Component list with line ranges. Default for CLAS/INTF/PROG/FUGR above ${OUTLINE_DEFAULT_LINES} lines or ${OUTLINE_DEFAULT_CHARS} chars unless method/include/offset/limit/pattern/full is given.`
+  ),
+  full: external_exports.boolean().optional().describe("Whole source even above the default-outline threshold."),
+  pattern: external_exports.string().optional().describe(
+    `Regex (case-insensitive): only matching lines, numbered, with \`context\` lines around each (like grep -n -C). Max ${PATTERN_MAX_MATCHES} matches unless limit= is given; offset= sets the first line scanned.`
+  ),
   offset: external_exports.number().int().min(1).max(999999).optional().describe("1-based first line (chars if format=raw)."),
   limit: external_exports.number().int().min(1).max(999999).optional().describe("Max lines (chars if format=raw)."),
   enhancements: external_exports.boolean().optional().describe("BAdI/plug-in/enhancement-spot decode (ENHO/XH,XHH,ENHS), not source."),
@@ -131970,11 +132097,11 @@ var readInputSchema = {
   // than silently falling through to an ordinary source read. Named `view`,
   // not `mode` — `mode` is already a response header key and `ResolvedObject.mode`.
   view: external_exports.enum(["history", "diff", "definition", "lineage", "footprint", "docu", "digest"]).optional().describe(
-    `history: versions. diff: hunks. definition: element at line/column. lineage: CDS view sources down to base tables. footprint: database writes and commits. docu: SAP documentation (flattened ITF; type="SIMG" + object=<abap_img activity id> for an IMG activity's docu). digest: one-page object overview. Omit for normal read.`
+    'history: versions. diff: hunks. definition: element at line/column. lineage: CDS sources down to base tables. footprint: database writes and commits. docu: SAP documentation (type="SIMG" + object=<abap_img activity id> for an IMG activity). digest: one-page overview. Omit for a normal read.'
   ),
   from: external_exports.string().optional().describe('diff: older side \u2014 version, transport, or "active".'),
   to: external_exports.string().optional().describe("diff: newer side, same forms as `from`."),
-  context: external_exports.number().int().min(0).max(20).optional().describe("diff: context lines per hunk. Default 3."),
+  context: external_exports.number().int().min(0).max(20).optional().describe(`Lines around each pattern match (default ${PATTERN_DEFAULT_CONTEXT}) or per diff hunk (default 3).`),
   // Same names/bounds/semantics as abap_quick_fix's line/column (quickfix.ts)
   // — deliberately, so a caller who has already learned one learns both.
   // No `.default(0)` on column: unlike quick-fix (which always needs a
@@ -132012,6 +132139,7 @@ var crossSystemInputSchema = {
   )
 };
 var OUTLINE_KINDS = /* @__PURE__ */ new Set(["CLAS", "INTF"]);
+var DEFAULT_OUTLINE_KINDS = /* @__PURE__ */ new Set(["CLAS", "INTF", "PROG", "FUGR"]);
 var ENHANCEMENT_KINDS = /* @__PURE__ */ new Set(["ENHO/XH", "ENHO/XHH", "ENHS"]);
 function renderRef(ref2) {
   if (!ref2?.name) return "(none)";
@@ -132173,12 +132301,13 @@ function buildSourceResponse(parts, etag, forceIncomplete = false) {
   const second = buildResponse({
     ...parts,
     header: { ...parts.header, etag: partialEtag },
-    notes: [TRUNCATED_SOURCE_NOTE, ...parts.notes ?? []]
+    notes: [TRUNCATED_SOURCE_NOTE, ...parts.notes ?? []],
+    size: true
   });
   return { ...second, truncated: true, etag: partialEtag };
 }
 function buildReadResponse(parts) {
-  const first = buildResponse(parts);
+  const first = buildResponse({ ...parts, size: true });
   if (first.truncated) return first;
   const facts = [
     "truncated=false",
@@ -132189,7 +132318,8 @@ function buildReadResponse(parts) {
   ].join(" ");
   const withFacts = buildResponse({
     ...parts,
-    header: { ...parts.header, response: `complete (${facts})` }
+    header: { ...parts.header, response: `complete (${facts})` },
+    size: true
   });
   return withFacts.truncated ? first : withFacts;
 }
@@ -132311,6 +132441,20 @@ function assertViewCompatible(input, obj) {
       `version="${input.version}"`,
       isDefinition ? "the elementinfo and navigation-target POSTs always carry the source abap_read itself read; asking about the inactive version while posting the active source would answer a question about a version that was never sent." : isLineage ? "lineage always walks the ACTIVE source of the view and everything it references \u2014 there is no per-node way to ask for an inactive version across a whole dependency tree." : isFootprint ? "footprint always scans the ACTIVE source of every include it finds \u2014 there is no per-include way to ask for an inactive version across a whole-object scan." : isDocu ? "SAP's documentation store (DOKHL/DOKTL) is not version-controlled the way ABAP source is \u2014 there is no active/inactive pair to select between." : isDigest ? "a digest always summarises the CURRENT active state (falling back to the newest inactive version only the way an ordinary read would); the active/inactive selector is not a thing a fixed overview can apply per section." : 'the active/inactive pair is a different axis from the version FEED; "inactive" is not a feed entry and has no history row.',
       isDefinition ? "Activate the object first and read the active source, or drop version." : isLineage || isFootprint ? `Drop version \u2014 view="${input.view}" always reads the current active source.` : isDocu || isDigest ? "Drop version." : 'Use from/to to name feed versions (list them with view="history").'
+    );
+  }
+  if (input.pattern !== void 0) {
+    clash(
+      `pattern="${input.pattern}"`,
+      "pattern greps the object's plain SOURCE lines; a view renders something other than the plain source, so there are no source lines for it to filter.",
+      "Drop pattern, or drop view to grep the source."
+    );
+  }
+  if (input.full) {
+    clash(
+      "full=true",
+      "full only overrides the default outline of a large SOURCE read; a view is never replaced by an outline, so there is nothing for it to override.",
+      "Drop full."
     );
   }
   if (input.outline) {
@@ -133035,6 +133179,8 @@ function assertDocuBypassCompatible(input, kind) {
   if (input.enhancements) clash("enhancements=true");
   if (input.version !== void 0) clash(`version="${input.version}"`);
   if (input.outline) clash("outline=true");
+  if (input.pattern !== void 0) clash(`pattern="${input.pattern}"`);
+  if (input.full) clash("full=true");
   if (input.include !== void 0) clash(`include="${input.include}"`);
   if (input.from !== void 0) clash("from");
   if (input.to !== void 0) clash("to");
@@ -133219,6 +133365,8 @@ async function readDigest(conn, obj, baseHeader, input, maxChars) {
 var CATALOG_READ_IRRELEVANT_PARAMS = [
   "method",
   "outline",
+  "pattern",
+  "full",
   "enhancements",
   "version",
   "view",
@@ -133290,8 +133438,74 @@ async function readCatalogObject2(conn, input, catalogRead, label, maxChars) {
     maxChars
   );
 }
+function assertPatternAndFullArgs(input) {
+  if (input.full) {
+    for (const [param, value] of [
+      ["outline=true", input.outline || void 0],
+      ["method", input.method],
+      ["pattern", input.pattern]
+    ]) {
+      if (value !== void 0) {
+        throw new AbapError(
+          "BAD_INPUT",
+          `full=true asks for the whole source; ${param} asks for part of it \u2014 both cannot be honoured.`,
+          { object: input.object, param: "full", with: param },
+          `Drop full, or drop ${param}.`
+        );
+      }
+    }
+  }
+  if (input.pattern === void 0) return;
+  if (input.pattern === "") {
+    throw new AbapError(
+      "BAD_INPUT",
+      "pattern is empty \u2014 an empty regex matches every line, which is a plain read, not a filter.",
+      { object: input.object, param: "pattern" },
+      "Pass a regex, or drop pattern to read the source."
+    );
+  }
+  try {
+    new RegExp(input.pattern, "i");
+  } catch (e) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `pattern is not a valid regular expression: ${e instanceof Error ? e.message : String(e)}`,
+      { object: input.object, param: "pattern", pattern: input.pattern },
+      "Fix the regex (JavaScript syntax, matched case-insensitively per line)."
+    );
+  }
+  for (const [param, value] of [
+    ["outline=true", input.outline || void 0],
+    ["method", input.method]
+  ]) {
+    if (value !== void 0) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `pattern cannot be combined with ${param}: pattern filters the document's own lines (absolute line numbers), which is a different answer from a component list or one method's block.`,
+        { object: input.object, param: "pattern", with: param },
+        `Drop ${param} (pattern already narrows the read), or drop pattern.`
+      );
+    }
+  }
+}
+function refuseSourceOnlyParams(input, obj, why) {
+  for (const [param, value] of [
+    ["pattern", input.pattern],
+    ["full", input.full || void 0]
+  ]) {
+    if (value !== void 0) {
+      throw new AbapError(
+        "UNSUPPORTED",
+        `${param} is only meaningful for a source read; ${why} for ${obj.type} ${obj.name}.`,
+        { type: obj.type, name: obj.name, param },
+        `Drop ${param}.`
+      );
+    }
+  }
+}
 async function abapRead(conn, input, maxChars, gate) {
   if (input.include !== void 0) assertClassInclude(input.include, input.object);
+  assertPatternAndFullArgs(input);
   const catalogCap = input.type ? capabilitiesFor(input.type) : void 0;
   if (catalogCap?.catalogRead) {
     return readCatalogObject2(conn, input, catalogCap.catalogRead, catalogCap.label, maxChars);
@@ -133344,8 +133558,7 @@ async function abapRead(conn, input, maxChars, gate) {
   }
   for (const [param, value] of [
     ["from", input.from],
-    ["to", input.to],
-    ["context", input.context]
+    ["to", input.to]
   ]) {
     if (value !== void 0) {
       throw new AbapError(
@@ -133355,6 +133568,14 @@ async function abapRead(conn, input, maxChars, gate) {
         `Add view="diff", or drop ${param}.`
       );
     }
+  }
+  if (input.context !== void 0 && input.pattern === void 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      'context is only meaningful with view="diff" or pattern; neither was requested, so this would have been an ordinary source read with your parameter discarded.',
+      { type: obj.type, name: obj.name, param: "context" },
+      'Add view="diff" or pattern="<regex>", or drop context.'
+    );
   }
   for (const [param, value] of [
     ["line", input.line],
@@ -133392,6 +133613,7 @@ async function abapRead(conn, input, maxChars, gate) {
   }
   const include = assertIncludeCompatible(input, obj);
   if (input.format === "raw") {
+    refuseSourceOnlyParams(input, obj, 'format="raw" returns the XML descriptor, not source lines');
     if (input.version) {
       throw new AbapError(
         "UNSUPPORTED",
@@ -133439,6 +133661,7 @@ async function abapRead(conn, input, maxChars, gate) {
     return built;
   }
   if (input.enhancements) {
+    refuseSourceOnlyParams(input, obj, "enhancements=true renders a decoded enhancement document, not source lines");
     if (!ENHANCEMENT_KINDS.has(obj.kind)) {
       throw new AbapError(
         "UNSUPPORTED",
@@ -133450,6 +133673,7 @@ async function abapRead(conn, input, maxChars, gate) {
     return readEnhancementObject(conn, obj, baseHeader, input, maxChars);
   }
   if (obj.mode === "ddic") {
+    refuseSourceOnlyParams(input, obj, `${obj.type} is rendered as pseudo-DDL from the dictionary, not read as source lines`);
     if (input.version === "inactive") {
       throw new AbapError(
         "UNSUPPORTED",
@@ -133521,44 +133745,113 @@ async function abapRead(conn, input, maxChars, gate) {
   ] : [
     'Read a single method with method="<NAME>".',
     "Get the component list first with outline=true.",
+    'pattern="<regex>" returns only matching lines (numbered, with context).',
     ...obj.kind === "CLAS" ? [
       'Local and test classes are NOT in this source: read them with include="testclasses" (ABAP Unit), "definitions", "implementations" or "macros".'
     ] : []
   ];
-  if (input.outline) {
-    if (!OUTLINE_KINDS.has(obj.kind)) {
+  const totalLines = countLines(source);
+  const totalChars = source.length;
+  const method = input.method ?? obj.member;
+  if (input.pattern !== void 0) {
+    const context = input.context ?? PATTERN_DEFAULT_CONTEXT;
+    const maxMatches = input.limit ?? PATTERN_MAX_MATCHES;
+    const grep = grepSource(source, input.pattern, {
+      context,
+      fromLine: input.offset ?? 1,
+      maxMatches
+    });
+    const partialEtag = markEtagPartial(etag);
+    const nextOffset = grep.lastShownLine !== void 0 ? grep.lastShownLine + 1 : void 0;
+    const truncLine = grep.truncated ? `--- TRUNCATED --- ${grep.shown} of ${grep.total} matching line(s) shown (cap ${maxMatches}${input.limit === void 0 ? ", raise with limit=" : ""}). Continue with offset=${nextOffset}, or narrow the pattern.` : void 0;
+    const body = [
+      grep.text || `(no line of ${obj.type} ${obj.name}${include && include !== "main" ? ` include "${include}"` : ""} matches /${input.pattern}/i${input.offset ? ` from line ${input.offset}` : ""})`,
+      truncLine
+    ].filter((s) => s !== void 0).join("\n");
+    const built = buildReadResponse({
+      header: {
+        ...header,
+        etag: partialEtag,
+        pattern: input.pattern,
+        context,
+        matches: grep.total,
+        matchesShown: grep.shown,
+        ...input.offset ? { scannedFrom: input.offset } : {},
+        totalLines,
+        totalChars
+      },
+      body,
+      bodyLabel: "MATCHES",
+      notes: [
+        ...includeNotes,
+        "Matches only, not the whole text: line numbers are absolute (read around one with offset/limit), `:` marks a matching line, `-` a context line. The etag is marked `partial:` \u2014 abap_write's edit={old_string,new_string} accepts it; a full-source rewrite is refused."
+      ],
+      hints: ["Narrow the pattern, or lower context, to fit more matches in one response."],
+      maxChars
+    });
+    return { ...built, etag: partialEtag };
+  }
+  const aboveThreshold = totalLines > OUTLINE_DEFAULT_LINES || totalChars > OUTLINE_DEFAULT_CHARS;
+  const outlineByDefault = input.outline === void 0 && !input.full && method === void 0 && include === void 0 && input.offset === void 0 && input.limit === void 0 && DEFAULT_OUTLINE_KINDS.has(obj.kind) && aboveThreshold;
+  if (input.outline || outlineByDefault) {
+    const defaultNotes = outlineByDefault ? [
+      `${obj.type} ${obj.name} is ${totalLines} lines / ${totalChars} chars \u2014 above the default-outline threshold (${OUTLINE_DEFAULT_LINES} lines or ${OUTLINE_DEFAULT_CHARS} chars), so this is the OUTLINE, not the source. Read a part with ${OUTLINE_KINDS.has(obj.kind) ? 'method="<NAME>", ' : ""}pattern="<regex>" or offset/limit, or the whole ${totalLines}-line source with full=true.`
+    ] : [];
+    const outlineHeader = {
+      ...header,
+      outline: outlineByDefault ? "default (large source)" : "requested",
+      totalLines,
+      totalChars
+    };
+    const partHints = [
+      ...OUTLINE_KINDS.has(obj.kind) ? ['Read one component with method="<NAME>".'] : [],
+      'pattern="<regex>" returns only matching lines; offset/limit page the source; full=true reads all of it.'
+    ];
+    if (OUTLINE_KINDS.has(obj.kind)) {
+      const members = await classMembers(conn, obj);
+      const outline = renderOutline(members);
+      const window3 = sliceLines(outline, input.offset ?? 1, input.limit);
       const built2 = buildReadResponse({
-        header: { ...header, totalLines: countLines(source) },
-        body: `(outline is NOT SUPPORTED for ${obj.type} \u2014 it is implemented for classes and interfaces only, via the ADT component structure. This is a tool limitation, NOT a statement that ${obj.name} has no components.)`,
+        header: { ...outlineHeader, components: members.length },
+        body: outline ? window3.text : `(${obj.type} ${obj.name} really has no methods, attributes or events \u2014 the component structure came back empty.)`,
         bodyLabel: "OUTLINE",
-        notes: [
-          `outline=true was ignored: ${obj.type} has no ADT component structure to list. Re-read without outline (optionally with offset/limit) to see the source.`
-        ],
-        hints: ["Re-read without outline=true, using offset/limit to page the source."],
+        bodyOffset: outline ? window3.offset : void 0,
+        bodyTotalLines: outline ? window3.total : void 0,
+        pagingParam: "offset",
+        notes: [...includeNotes, ...defaultNotes],
+        hints: partHints,
         maxChars
       });
       return { ...built2, etag };
     }
-    const members = await classMembers(conn, obj);
-    const outline = renderOutline(members);
-    const window3 = sliceLines(outline, input.offset ?? 1, input.limit);
+    if (obj.kind === "PROG" || obj.kind === "FUGR") {
+      const rows = scanSourceStructure(source);
+      const built2 = buildReadResponse({
+        header: { ...outlineHeader, components: rows.length },
+        body: rows.length ? renderSourceStructure(rows) : `(the text scan found no FORM/FUNCTION/MODULE/CLASS/METHOD/INCLUDE statement or event block in ${obj.type} ${obj.name}'s ${totalLines} lines \u2014 this is a scan of statement keywords, NOT a statement that the program has no components.)`,
+        bodyLabel: "OUTLINE",
+        notes: [
+          ...includeNotes,
+          ...defaultNotes,
+          `${obj.type} has no ADT component structure; this outline is a text scan of statement-initial keywords (REPORT/INCLUDE/FORM/FUNCTION/MODULE/CLASS/METHOD/INTERFACE and event blocks) with their END lines. Line numbers are offset= positions in this document.`
+        ],
+        hints: partHints,
+        maxChars
+      });
+      return { ...built2, etag };
+    }
     const built = buildReadResponse({
-      header: {
-        ...header,
-        components: members.length,
-        totalLines: countLines(source)
-      },
-      body: outline ? window3.text : `(${obj.type} ${obj.name} really has no methods, attributes or events \u2014 the component structure came back empty.)`,
+      header: { ...header, totalLines },
+      body: `(outline is NOT SUPPORTED for ${obj.type} \u2014 it is implemented for classes and interfaces (ADT component structure) and programs/function groups (statement scan) only. This is a tool limitation, NOT a statement that ${obj.name} has no components.)`,
       bodyLabel: "OUTLINE",
-      bodyOffset: outline ? window3.offset : void 0,
-      bodyTotalLines: outline ? window3.total : void 0,
-      hints: ['Read one component with method="<NAME>".'],
-      pagingParam: "offset",
+      notes: [
+        `outline=true was ignored: ${obj.type} has no component structure to list. Re-read without outline (optionally with offset/limit or pattern) to see the source.`
+      ],
+      hints: ["Re-read without outline=true, using offset/limit to page the source."],
       maxChars
     });
     return { ...built, etag };
   }
-  const method = input.method ?? obj.member;
   if (method) {
     const m = await readMethod(conn, obj, source, method);
     const parts = [m.declaration, m.implementation].filter(Boolean).join("\n\n");
@@ -133591,7 +133884,7 @@ async function abapRead(conn, input, maxChars, gate) {
   const window2 = sliceLines(source, input.offset ?? 1, input.limit);
   return buildSourceResponse(
     {
-      header: { ...header, totalLines: window2.total },
+      header: { ...header, totalLines: window2.total, totalChars },
       body: window2.text,
       bodyLabel: "SOURCE",
       bodyOffset: window2.offset,
@@ -133650,6 +133943,8 @@ function resolveCrossSystemSides(input, deps) {
   for (const [param, value] of [
     ["method", input.method],
     ["outline", input.outline],
+    ["pattern", input.pattern],
+    ["full", input.full],
     ["line", input.line],
     ["column", input.column],
     ["types", input.types],
@@ -133671,7 +133966,7 @@ function registerReadTools(mcp, deps) {
     "abap_read",
     {
       title: "Read ABAP object",
-      description: `Read an ABAP object: source, pseudo-DDL, a DEVC/K package listing (types/depth filter it), or (SUSO/B, TABL/DI) a read-only catalog render. view="docu" reads SAP's own documentation (or, with method=, a method's ABAP Doc); view="digest" gives a one-page overview (CLAS/INTF/PROG/FUGR/DDLS) with public API, dependencies, tests and recent history. Returns an etag. Capped ~15k tokens \u2014 use outline/method/offset for large objects. Example: {"object":"ZCL_FOO","type":"CLAS/OC"}.`,
+      description: 'Read an ABAP object: source, pseudo-DDL, a DEVC/K package listing, or (SUSO/B, TABL/DI) a read-only catalog render; view= selects docu/digest/history/diff/definition/lineage/footprint. A CLAS/INTF/PROG/FUGR source above 150 lines or 8k chars answers with its outline by default \u2014 then method=, pattern= (regex, with context), offset/limit, or full=true. Returns an etag; capped ~15k tokens, truncation marked. Example: {"object":"ZCL_FOO","type":"CLAS/OC"}.',
       // `from_system`/`to_system` (issue #93, cross-system view="diff")
       // are spliced in only when more than one system is configured —
       // a single-system server has nothing a second system field could
@@ -134502,7 +134797,7 @@ var testInputSchema = {
     'Switch on the SAP authorization trace for the connected user, run the test, then read back and switch it back off. scope="object" only. Refused on a read-only server. Default false.'
   ),
   snapshot_ids: external_exports.array(external_exports.string()).optional().describe(
-    `Snapshot ids from prior abap_data_preview mode="snapshot" calls. After this call finishes, each one is re-read and diffed, and the result is appended as a DATA CHANGES section. The diff obeys the same data-preview policy as the snapshot did \u2014 if it is refused, this call's own result still returns and the section says why.`
+    'Snapshot ids from prior abap_data_preview mode="snapshot" calls; each is re-read and diffed after this call and appended as a DATA CHANGES section, under the same data-preview policy (a refused diff does not fail this call).'
   )
 };
 var TestInput = external_exports.object(testInputSchema);
@@ -135538,6 +135833,7 @@ async function buildCallGraph(conn, target, type, direction, depth, max, maxChar
     },
     body: lines.join("\n"),
     bodyLabel: "CALL GRAPH",
+    size: true,
     notes,
     hints: [
       direction === "callers" ? 'Pass direction="callees" to see what this object calls instead.' : 'Pass direction="callers" to see who calls this object instead.',
@@ -135698,7 +135994,7 @@ var searchInputSchema = {
     "Name pattern (mode=objects), target object (mode=where_used/call_graph), or literal/regex text (mode=source)."
   ),
   mode: external_exports.enum(["objects", "where_used", "source", "call_graph"]).optional().describe(
-    'Default "objects". "source" scans raw source text (literal/regex, any line) and needs the fluid API; prefer "where_used" when you want real static references to one object, since a text scan also matches strings, comments and dead code. "call_graph" walks multiple levels of callers or callees instead of just one.'
+    'Default "objects". "source": raw source-text scan (literal/regex; needs the fluid API; also matches strings, comments and dead code \u2014 prefer "where_used" for real static references). "call_graph": multiple levels of callers or callees.'
   ),
   type: external_exports.string().optional().describe(
     `ADT type filter (mode=objects/where_used/call_graph only). One of: ${[...KNOWN_TYPE_GROUPS].sort().join(" ")}; or a full code, e.g. "CLAS/OC".`
@@ -135810,6 +136106,7 @@ async function searchObjects(conn, query, type, max, maxChars) {
     },
     body,
     bodyLabel: "RESULTS",
+    size: true,
     notes,
     // abap_search has no offset/paging parameter — `max` is the only lever, so
     // the hint must not promise one.
@@ -135858,6 +136155,7 @@ async function whereUsed(conn, target, type, max, maxChars) {
     body: rows.length ? textTable(rows, ["type", "name", "package", "description"]) + (capLine ? `
 ${capLine}` : "") : "(no references found)",
     bodyLabel: "USED BY",
+    size: true,
     notes: [
       ...expensive ? [
         `FETCH COST: this call took ${(fetchMs / 1e3).toFixed(1)}s and returned ${totalReferences} reference(s). ADT's usageReferences endpoint has no server-side limit, so the entire set is enumerated and transferred before max is applied. The cost is set by the target's fan-in, not by max \u2014 lowering max would not have made this call cheaper. If cost matters, ask about a narrower or less widely-referenced object instead.`
@@ -136011,18 +136309,48 @@ function scopeLabel(q) {
   if (q.objects) parts.push(`objects=${q.objects}`);
   return parts.join(" ");
 }
+var SOURCE_PER_OBJECT_HIT_CAP = 20;
+function groupSourceHits(hits) {
+  const groups = /* @__PURE__ */ new Map();
+  for (const h of hits) {
+    const key = `${h.objType} ${h.objName}`;
+    const g = groups.get(key);
+    if (g) g.hits.push(h);
+    else groups.set(key, { objType: h.objType, objName: h.objName, hits: [h] });
+  }
+  return [...groups.values()];
+}
+function renderGroupedHits(groups, perObjectCap = SOURCE_PER_OBJECT_HIT_CAP) {
+  const out = [];
+  for (const g of groups) {
+    const shown = g.hits.slice(0, perObjectCap);
+    const n = g.hits.length;
+    out.push(
+      `${g.objType} ${g.objName}  (${n} hit${n === 1 ? "" : "s"}${n > shown.length ? `, ${shown.length} shown` : ""})`
+    );
+    const ownDocumentOnly = g.hits.every((h) => h.include === g.objName);
+    let lastInclude;
+    for (const h of shown) {
+      if (!ownDocumentOnly && h.include !== lastInclude) {
+        out.push(`  include ${h.include}`);
+        lastInclude = h.include;
+      }
+      out.push(`${ownDocumentOnly ? "  " : "    "}${h.line}: ${truncateForDisplay(h.text, 120)}`);
+    }
+    if (n > shown.length) {
+      out.push(
+        `  ... ${n - shown.length} more hit(s) in ${g.objName} not shown (per-object cap ${perObjectCap}; narrow \`query\`, or scope with objects="${g.objName}").`
+      );
+    }
+  }
+  return out.join("\n");
+}
 function buildSourceResponse2(q, result, maxChars) {
   const { hits, summary } = result;
-  const rows = hits.map((h) => ({
-    type: h.objType,
-    name: h.objName,
-    include: h.include,
-    line: String(h.line),
-    text: truncateForDisplay(h.text, 120)
-  }));
+  const groups = groupSourceHits(hits);
   const objectsNotScanned = summary.objectsTotal - summary.objectsScanned;
   const truncLine = summary.truncated === "hits" ? `--- TRUNCATED --- the hit cap (max=${q.maxHits}) was reached; more matches may exist beyond the last one shown. Raise \`max\` (<=200) or narrow \`query\`/scope.` : summary.truncated === "objects" ? `--- TRUNCATED --- ${objectsNotScanned} of ${summary.objectsTotal} object(s) in scope were not scanned (object ceiling ${q.maxObjects}). Narrow \`packages\`/\`objects\`/\`types\`.` : void 0;
-  const body = [rows.length ? textTable(rows, ["type", "name", "include", "line", "text"]) : "(no matches)", truncLine].filter((s) => s !== void 0).join("\n");
+  const body = [groups.length ? renderGroupedHits(groups) : "(no matches)", truncLine].filter((s) => s !== void 0).join("\n");
   const exampleHints = (() => {
     const seen = /* @__PURE__ */ new Set();
     const out = [];
@@ -136046,6 +136374,7 @@ function buildSourceResponse2(q, result, maxChars) {
       include_subpackages: q.includeSubpackages || void 0,
       types: q.types.length ? q.types.join(",") : void 0,
       hits: summary.hits,
+      objectsWithHits: groups.length || void 0,
       objectsScanned: summary.objectsScanned,
       objectsTotal: summary.objectsTotal,
       includesScanned: summary.includesScanned,
@@ -136054,18 +136383,18 @@ function buildSourceResponse2(q, result, maxChars) {
     },
     body,
     bodyLabel: "MATCHES",
+    size: true,
     notes: [
       // `notes` are ALWAYS shown (unlike `hints`, which `compact.ts`'s
       // `buildResponse` only renders when the response is incomplete) — the
       // concrete abap_read follow-up has to survive a response that fits
       // fully, so it lives here, not in `hints`.
       ...exampleHints.length > 0 ? ["Read around a hit with abap_read:", ...exampleHints] : [],
-      "Line numbers are include-local: for CLAS/FUGR hits, `line` counts from the top of the matching include (a method's own program, not the class as a whole), not from the object.",
+      `Hits are grouped per object; \`line\` is include-local (for CLAS/FUGR it counts from the top of the named include, not the object), and each object shows at most ${SOURCE_PER_OBJECT_HIT_CAP} hits \u2014 the rest is a count.`,
       ...summary.includesSkipped > 0 ? [
         `${summary.includesSkipped} include(s) could not be read (e.g. a generated or inconsistent include) and are NOT represented in the results above \u2014 this is a gap, not proof those includes have no match.`
       ] : [],
-      "include_comments=false strips comments with a per-line heuristic (`code_part()`), which can misjudge a line whose quote/comment state depends on the previous line. DDLS/CDS sources have no ABAP comment syntax, so they are always matched in full text regardless of include_comments.",
-      'This is a text scan, not a call graph: it finds literal/regex matches wherever they sit (strings, comments, dead code). Use mode="where_used" instead when what you actually want is real static references to one object.'
+      'Text scan, not a call graph: matches wherever they sit (strings, comments, dead code); mode="where_used" gives real static references. include_comments=false strips comments with a per-line heuristic (`code_part()`) that can misjudge multi-line quote state; DDLS/CDS sources are always matched in full text.'
     ],
     hints: [
       "Raise `max` (<=200) for more hits, or narrow `query`/`packages`/`objects`/`types` instead of widening scope."
@@ -136079,7 +136408,7 @@ function registerSearchTools(mcp, deps) {
     "abap_search",
     {
       title: "Search ABAP repository",
-      description: "Find objects by name pattern (mode=objects, wildcards *), list consumers (mode=where_used; 20+ seconds on wide fan-in \u2014 narrow by type/query first), walk multiple levels of callers or callees (mode=call_graph, direction=callers|callees, depth<=4), or scan source text line by line (mode=source, needs the fluid API and a package/objects scope).",
+      description: "Find objects by name pattern (mode=objects, wildcards *), list consumers (mode=where_used; 20+ seconds on wide fan-in \u2014 narrow by type/query first), walk multiple levels of callers or callees (mode=call_graph, direction=callers|callees, depth<=4), or scan source text (mode=source; hits grouped per object, needs the fluid API and a package/objects scope).",
       inputSchema: searchInputSchema,
       annotations: { readOnlyHint: true, openWorldHint: true }
     },
@@ -136498,7 +136827,7 @@ var transportInputSchema = {
     "delete",
     "removeObject"
   ]).describe(
-    `What to do. list/show/check/users/log/queue are plain reads, always allowed. log reads a transport's own export/import log (per target system); queue reads a target system's import queue/buffer. create/addUser/setOwner need write access (ABAP_MODE=edit or admin, or legacy ABAP_ALLOW_WRITE=true when ABAP_MODE is unset); create with kind="copies" (a transport of copies) needs the same write access as an ordinary create \u2014 no extra ceiling. delete additionally needs the admin-only transport-delete ceiling (ABAP_MODE=admin \u2014 no legacy flag grants it) and confirm; removeObject (drop one E071 entry and its CTS lock, e.g. for an object already deleted from the system, so its request can then be deleted \u2014 if the object still exists, its lock goes too; CTS refuses this when the request holds 2 or more E071 rows for that object (same PGMID+OBJECT+OBJ_NAME \u2014 legal but not reliably reproducible; cause unconfirmed), leaving the request undeletable through abapsmith) needs that same admin-only transport-delete ceiling and confirm. Required args: list/users none; show transport; check object; log transport; queue system; create package+description (plus target when kind="copies"); addUser/setOwner transport+user; delete transport+confirm; removeObject transport+object+confirm.`
+    'What to do. list/show/check/users/log/queue are plain reads, always allowed. create/addUser/setOwner need write access (ABAP_MODE=edit or admin, or legacy ABAP_ALLOW_WRITE=true when ABAP_MODE is unset); kind="copies" needs no extra ceiling. removeObject and delete share one ceiling: delete additionally needs the admin-only transport-delete ceiling (ABAP_MODE=admin \u2014 no legacy flag grants it) and confirm; removeObject needs that same ceiling and confirm. Required args: list/users none; show transport; check object; log transport; queue system; create package+description (plus target when kind="copies"); addUser/setOwner transport+user; delete transport+confirm; removeObject transport+object+confirm.'
   ),
   transport: external_exports.string().optional().describe(
     "Request/task number, e.g. A4HK900123. Required for operation=show/addUser/setOwner/delete/removeObject and for operation=log."
@@ -136507,22 +136836,18 @@ var transportInputSchema = {
     "User: filter for list, new member/owner otherwise. Required for operation=addUser/setOwner."
   ),
   object: external_exports.string().optional().describe(
-    'Object name. Required for operation=check, and for operation=removeObject (the entry to remove). Optional anchor for create with kind="workbench" (the default); not accepted for create with kind="copies" \u2014 a transport of copies is created empty.'
+    'Object name. Required for operation=check/removeObject (removeObject: the entry to remove). Optional anchor for create with kind="workbench" (default); not for kind="copies", which is created empty.'
   ),
   package: external_exports.string().optional().describe("Development package (devclass). Required for operation=create."),
   description: external_exports.string().optional().describe("Short text for the new request, max 60 chars. Required for operation=create."),
   kind: external_exports.enum(["workbench", "copies"]).optional().describe(
-    'Which kind of request operation="create" should create. "workbench" (the default) is a normal transportable change request created through ADT. "copies" is a transport of copies, which carries a snapshot of objects to a target system while leaving the originals modifiable in this system and their original request untouched. kind="copies" requires target.'
+    'operation="create" only. "workbench" (default): a normal transportable change request. "copies": a snapshot sent to a target system, originals untouched; requires target.'
   ),
   target: external_exports.string().optional().describe(
     'Target system for operation="create" with kind="copies", e.g. A4H. A transport of copies with no target cannot be imported anywhere, so abapsmith refuses to create one.'
   ),
-  system: external_exports.string().optional().describe(
-    'Target system whose import queue to read, e.g. QAS. Required for operation="queue".'
-  ),
-  domain: external_exports.string().optional().describe(
-    "TMS transport domain of system, e.g. DOMAIN_A4H. Optional; TMS resolves the local domain when omitted."
-  ),
+  system: external_exports.string().optional().describe('Target system whose import queue to read, e.g. QAS. Required for operation="queue".'),
+  domain: external_exports.string().optional().describe("TMS transport domain of system, e.g. DOMAIN_A4H. Optional; TMS resolves the local domain when omitted."),
   confirm: external_exports.string().optional().describe("Echo the request number to arm delete or removeObject.")
 };
 var TransportInput = external_exports.object(transportInputSchema);
@@ -136534,7 +136859,7 @@ var transportReleaseInputSchema = {
   )
 };
 var TransportReleaseInput = external_exports.object(transportReleaseInputSchema);
-var TRANSPORT_TOOL_DESCRIPTION = `Inspect and manage CTS transport requests: list, show, check (does an object need a transport?), users, log (a transport's own export/import log, per target system \u2014 a request that has never been exported legitimately has zero log lines; that is not a failure), queue (a target system's import queue/buffer \u2014 the requests waiting to be imported there; an already-imported request has left the buffer, so absence alone does not prove a change never arrived), create (kind="workbench", the default, or kind="copies" for a transport of copies \u2014 a snapshot sent to a target system that leaves the originals and their own request untouched; requires target), addUser, setOwner, delete, removeObject (drop one E071 entry and its CTS lock so its request can then be deleted \u2014 if the object still exists, its lock goes too, and CTS refuses this for some entries, leaving the request undeletable). list/show/check/users/log/queue are plain reads, always allowed; create/addUser/setOwner need write access; delete/removeObject additionally need the admin-only transport-delete ceiling. Release is a separate tool, abap_transport_release.`;
+var TRANSPORT_TOOL_DESCRIPTION = `Inspect and manage CTS transport requests: list, show, check (does an object need a transport?), users, log (a request's export/import log per target system), queue (a target system's import buffer), create (kind="workbench" default, or "copies" with target), addUser, setOwner, delete, removeObject (drop one E071 entry and its CTS lock). list/show/check/users/log/queue are plain reads, always allowed; create/addUser/setOwner need write access; delete/removeObject additionally need the admin-only transport-delete ceiling. Release is a separate tool, abap_transport_release. Semantics of log/queue/copies/removeObject: doc/TOOLS/transports.md.`;
 var TRANSPORT_RELEASE_TOOL_DESCRIPTION = "Release one CTS transport request \u2014 irreversible. Gated by a release ceiling separate from ordinary write access; see abapsmith-orient. A request this session did not create is refused unless confirm_unowned is also passed.";
 function fmtTarget(h) {
   const t = (h.target ?? "").trim();
@@ -142264,7 +142589,7 @@ function attributeSessionDeath(e, input) {
   const hint = e.details.kind === "dump" ? "The session died while the server was processing this edit, so every lock it held is already released and nothing was activated. Do NOT retry the identical call \u2014 an ASSERTION_FAILED in BOPF's model mapper (/BOBF/CL_CONF_MODEL_API_MAP) is deterministic in the payload, and the same request will kill the session again. Re-read the BO first, since the PUT may or may not have landed, and check the spec fields the mapper has to map (uniqueness/dataTypeRef/dataTableTypeRef/keyElements on an alternative key, category on a determination/validation/query). This is NOT an authentication failure." : e.hint;
   return new AbapError(e.code, message, details, hint);
 }
-var BOPF_EDIT_TOOL_DESCRIPTION = 'One design-time edit to a BOPF business object (or create one). node/name/spec carry the specifics \u2014 see the abapsmith-edit-a-bopf-object skill for spec shapes, add_node/remove_node rules, and dangling-ref handling. add_alternative_key and set_alternative_key_fields both need i_know_this_may_not_activate: true \u2014 no alternative key added this way has been observed to activate; add_alternative_key additionally needs spec.uniqueness/dataTypeRef/dataTableTypeRef/keyElements, all four, and its checkAfterModify/checkBeforeSave/noCheck are constrained by uniqueness. remove_dependent_object removes an existing dependent-object embedding (its DoComposition association plus the matching "<name>.ROOT" node); abapsmith cannot create one \u2014 see doc/CAPABILITIES/bopf.md.';
+var BOPF_EDIT_TOOL_DESCRIPTION = "One design-time edit to a BOPF business object (or create one). node/name/spec carry the specifics \u2014 spec shapes, add_node/remove_node rules and dangling-ref handling are in the abapsmith-edit-a-bopf-object skill and doc/TOOLS/bopf.md. add_alternative_key and set_alternative_key_fields both need i_know_this_may_not_activate: true \u2014 no alternative key added this way has been observed to activate. remove_dependent_object removes an existing dependent-object embedding; abapsmith cannot create one.";
 function recoverCreateAfterSessionDeath(deps, createRequest) {
   return deps.pool.withRead("abap_bopf_edit", (conn) => readModel(conn, createRequest.name));
 }
@@ -143503,7 +143828,7 @@ var bopfTestInputSchema = {
     "Switch on the SAP authorization trace for the connected user, run the scenario, then read back and switch it back off. Refused on a read-only server. Default false."
   ),
   snapshot_ids: external_exports.array(external_exports.string()).optional().describe(
-    `Snapshot ids from prior abap_data_preview mode="snapshot" calls. After this call finishes, each one is re-read and diffed, and the result is appended as a DATA CHANGES section. The diff obeys the same data-preview policy as the snapshot did \u2014 if it is refused, this call's own result still returns and the section says why.`
+    'Snapshot ids from prior abap_data_preview mode="snapshot" calls; each is re-read and diffed after this call and appended as a DATA CHANGES section, under the same data-preview policy (a refused diff does not fail this call).'
   )
 };
 var BopfTestInput = external_exports.object(bopfTestInputSchema);
@@ -143781,7 +144106,7 @@ init_errors();
 init_compact();
 var fpmReadInputSchema = {
   mode: external_exports.enum(["find", "outline", "app", "locks", "events"]).describe(
-    "find: search configs. outline: one config's node tree. app: an application config's full UIBB hierarchy. locks: who holds enqueue locks on a config. events: trace which toolbar/button-row/FBI-action elements raise which FPM event, and what handles it (standard FPM, BOPF, feeder, app controller, ACTION_IMPL class, or unresolved)."
+    "find: search configs by component/config_id/package. outline: one config's XML plus metadata. app: an application config's full UIBB hierarchy (feeder/BOPF hints with resolve). locks: enqueue lock holders. events: which toolbar/button-row/FBI-action raises which FPM event and what handles it (FPM, BOPF, feeder, app controller, ACTION_IMPL class, or unresolved)."
   ),
   config_id: external_exports.string().optional().describe("Configuration ID (max 32). Required for outline/app/locks/events."),
   config_type: external_exports.string().optional().describe("NUMC2. 00=component, 02=application. Default 00."),
@@ -144326,7 +144651,7 @@ function buildLocksResponse(query, result, detailPassed, xmlWindowPassed, maxCha
     maxChars
   }).text;
 }
-var FPM_TOOL_DESCRIPTION = "Read SAP FPM/FBI screen configurations \u2014 no ADT read endpoint exists. find: search by component/config_id pattern/package. outline: one configuration's XML plus delta/package metadata. app: an application configuration's full UIBB hierarchy with feeder/BOPF hints (resolve, default true). events: trace which toolbar/button-row/FBI-action raises which FPM event and what handles it (standard FPM, BOPF, feeder, app controller, ACTION_IMPL class, or unresolved), optionally cross-checked against the CL_FPM_EVENT and BOPF catalogues (resolve, default true). locks: enqueue lock holders. Read-only; every call deploys a throwaway bridge class into abapsmith's own package.";
+var FPM_TOOL_DESCRIPTION = "Read SAP FPM/FBI screen configurations (no ADT read endpoint exists): find, outline, app, events, locks \u2014 see mode. Read-only; every call deploys a throwaway bridge class into abapsmith's own package.";
 async function runFpmReadTool(deps, args) {
   const input = args;
   const detail = input.detail ?? "compact";
@@ -145223,21 +145548,17 @@ var IMG_OBJECT_KINDS = [
 ];
 var imgReadInputSchema = {
   mode: external_exports.enum(["search", "show", "tree", "objects"]).describe(
-    "search: find activities by title/id text. show: one activity's reference-IMG path, maintenance objects and tables. tree: the reference-IMG node children under a node. objects: a view/cluster/table/customizing object's underlying DDIC tables and fields."
+    "search: find activities by title/id text. show: an activity's reference-IMG path, objects and tables. tree: a node's reference-IMG children. objects: an object's DDIC tables and fields."
   ),
-  query: external_exports.string().optional().describe(
-    'search only: a term with no "*" matches as a substring of the title or id; "*" is an explicit wildcard, and "*" alone matches everything.'
-  ),
+  query: external_exports.string().optional().describe('search only: a term with no "*" matches as a substring; "*" is an explicit wildcard, "*" alone matches everything.'),
   activity: external_exports.string().optional().describe("show only: the IMG activity id to display."),
   node: external_exports.string().optional().describe("tree only: the node to list children of. Omit for that tree's own root."),
   treeId: external_exports.string().optional().describe(
-    "tree only: the tree a node id belongs to (echoed back as treeId on a previous tree response, e.g. after following a REF node into a different tree). Omit to use the reference-IMG tree."
+    "tree only: the tree a node id belongs to, echoed back as treeId on a previous tree response (e.g. after following a REF node). Omit to use the reference-IMG tree."
   ),
   object: external_exports.string().optional().describe("objects only: a view, view cluster, table, or customizing object name."),
   kind: external_exports.enum(IMG_OBJECT_KINDS).optional().describe("objects only: a hint for the object's kind, used when the name is ambiguous."),
-  language: external_exports.string().regex(IMG_LANGUAGE_RE, "single-character SAP language key (SPRAS), not an ISO code").optional().describe(
-    `single-character SAP language key (SPRAS), e.g. "E" for English, "D" for German \u2014 not a 2-letter ISO code. Defaults to the server's configured language, else "E".`
-  ),
+  language: external_exports.string().regex(IMG_LANGUAGE_RE, "single-character SAP language key (SPRAS), not an ISO code").optional().describe("Single-character SAP language key (SPRAS), e.g. E or D \u2014 not EN/DE. Defaults to the server's configured language, else E."),
   after: external_exports.string().optional().describe(
     "search/tree only: opaque keyset cursor copied from a previous response's paging note. Omit for the first page."
   ),
@@ -145512,7 +145833,7 @@ function renderResult(query, result, maxChars) {
       return renderObjects(query, result, maxChars);
   }
 }
-var IMG_TOOL_DESCRIPTION = `search (query) finds activities. show (activity) returns its path, objects and tables. tree (node optional, treeId optional) lists a tree node's children, that tree's own root if node is omitted. objects (object, kind optional) returns a view/cluster/table/customizing object's DDIC tables and fields. search/tree page via after/limit (default ${IMG_PAGE_DEFAULT}, ceiling ${IMG_PAGE_MAX}): omit "after" for the first page, then pass back the exact {"after": "<cursor>"} value a response's paging note gives you \u2014 there is no numeric offset to jump to. Every field not valid for the given mode is rejected outright.`;
+var IMG_TOOL_DESCRIPTION = `Read the IMG customizing catalog: search (query) finds activities; show (activity) returns its path, objects and tables; tree (node/treeId optional) lists a node's children; objects (object, kind optional) returns a customizing object's DDIC tables and fields. search/tree page via after/limit (default ${IMG_PAGE_DEFAULT}, ceiling ${IMG_PAGE_MAX}) \u2014 pass back the exact {"after": "<cursor>"} a response gives; there is no numeric offset. Fields not valid for the mode are rejected.`;
 async function runImgReadTool(deps, args) {
   const input = args;
   const query = buildQuery3(input, deps.cfg);
@@ -146539,42 +146860,42 @@ var imgEditRowSchema = external_exports.object({
 }).strict();
 var imgEditInputSchema = {
   mode: external_exports.enum(["preview", "upsert", "delete", "create_request"]).describe(
-    "preview: validate rows against policy and show current vs. prospective rows, without writing. upsert: write rows (insert new keys, update existing ones). delete: remove rows. create_request: create a new customizing (type W) transport request and return its number."
+    "preview: validate rows and show current vs. prospective, without writing. upsert: write rows (insert or update). delete: remove rows. create_request: create a customizing (type W) transport request."
   ),
   activity: external_exports.string().optional().describe(
-    "preview/upsert/delete: an IMG activity id, exactly as abap_img show accepts. Resolved to its base table, key fields, and client field automatically. Exactly one of activity/object/table is required. Conflicts with key_fields/client_field (those are derived from the resolution)."
+    "preview/upsert/delete: an IMG activity id, as abap_img show accepts. Resolves to base table, key fields, and client field. Exactly one of activity/object/table is required. Conflicts with key_fields/client_field."
   ),
   object: external_exports.string().optional().describe(
-    "preview/upsert/delete: a maintenance view, view cluster, transaction, or table name, exactly as abap_img objects accepts. Resolved to its base table, key fields, and client field automatically. Exactly one of activity/object/table is required. Conflicts with key_fields/client_field (those are derived from the resolution)."
+    "preview/upsert/delete: a maintenance view, view cluster, transaction or table name, as abap_img objects accepts. Exactly one of activity/object/table is required. Conflicts with key_fields/client_field."
   ),
   kind: external_exports.enum(["table", "view", "cluster", "transaction", "customizing_object", "report"]).optional().describe(
-    "Only meaningful together with object: which catalog to resolve object against. Omitted: probed as table, then view, then cluster, then transaction, then customizing object, first match wins."
+    "Only meaningful with object: which catalog to resolve object against. Omitted: tries table, view, cluster, transaction, customizing object, in that order, first match wins."
   ),
   table: external_exports.string().optional().describe(
-    "Expert escape hatch: the base DDIC table to read/write directly, e.g. ZTEST_IMGW, bypassing activity/object resolution. Exactly one of activity/object/table is required for preview/upsert/delete. Requires key_fields; client_field is optional (defaults to MANDT) but this tool cannot write a genuinely client-independent table regardless \u2014 the write always sets client_field from sy-mandt."
+    "Expert escape hatch: the base DDIC table to read/write directly, bypassing activity/object resolution. Exactly one of activity/object/table is required. Requires key_fields; a genuinely client-independent table cannot be written."
   ),
   client_field: external_exports.string().optional().describe(
-    "table (expert escape hatch) only: the table's client field name, e.g. MANDT. Conflicts with activity/object, whose client field is resolved automatically."
+    "table (expert escape hatch) only: the table's client field name, e.g. MANDT. Conflicts with activity/object."
   ),
   key_fields: external_exports.array(external_exports.string()).optional().describe(
-    "table (expert escape hatch) only: the table's key field names, in order, excluding the client field. At least one required. Conflicts with activity/object, whose key fields are resolved automatically."
+    "table (expert escape hatch) only: the table's key field names, in order, excluding the client field. At least one required. Conflicts with activity/object."
   ),
   rows: external_exports.array(imgEditRowSchema).optional().describe("preview/upsert/delete: 1-50 rows to probe/write. delete ignores each row's values."),
   view: external_exports.string().optional().describe(
-    "upsert/delete: the maintenance view or view cluster name recorded on the transport entry. With activity/object, defaults to the resolved view/cluster name (or table, if the resolved target is a table). With table, defaults to table."
+    "upsert/delete: the maintenance view or view cluster name recorded on the transport entry. Defaults to the resolved view/cluster (or table if the resolved target is a table); with table, defaults to table."
   ),
   master_type: external_exports.enum(["VDAT", "CDAT"]).optional().describe(
-    `upsert/delete: the transport entry's object type. "VDAT" for a maintenance view (default), "CDAT" for a customizing object recorded directly.`
+    `upsert/delete: the transport entry's object type \u2014 "VDAT" for a maintenance view (default), "CDAT" for a customizing object recorded directly.`
   ),
   language: external_exports.string().regex(IMG_LANGUAGE_RE, "single-character SAP language key (SPRAS), not an ISO code").optional().describe(
-    `Single-character SAP language key (SPRAS) the probe reads DD02L/DD03L texts in, e.g. "E" for English, "D" for German \u2014 not a 2-letter ISO code like EN/DE. Defaults to ${JSON.stringify(IMG_DEFAULT_LANGUAGE)}.`
+    `Single-character SAP language key (SPRAS), e.g. E or D \u2014 not EN/DE. Default ${JSON.stringify(IMG_DEFAULT_LANGUAGE)}.`
   ),
   corr_nr: external_exports.string().optional().describe(
     "upsert/delete: transport request to record the write on. Required unless the client is proven not to auto-record client-dependent changes."
   ),
   confirm: external_exports.string().optional().describe("upsert/delete: must equal table, case-insensitive, to arm the write."),
   allow_cross_client: external_exports.boolean().optional().describe(
-    "Clears the policy refusal for a client-independent (affects-every-client) table. Does not make the write possible \u2014 the generated apply class always sets the client field from sy-mandt, which a genuinely client-independent table has none of."
+    "Clears the policy refusal for a client-independent (affects-every-client) table. Does not make it writable \u2014 the apply class always sets the client field from sy-mandt."
   ),
   description: external_exports.string().optional().describe("create_request only: the request's description text."),
   owner: external_exports.string().optional().describe("create_request only: the request owner. Defaults to the logged-in user.")
@@ -147594,7 +147915,7 @@ async function runCreateRequestMode(deps, input) {
   }
   return ok14(renderCreateRequest(plan, result, deps.cfg.maxResponseChars));
 }
-var IMG_EDIT_TOOL_DESCRIPTION = "preview (table, key_fields, rows) validates rows against policy and shows current vs. prospective rows without writing. upsert/delete (table, key_fields, rows, confirm) write rows; confirm must equal table (case-insensitive) and corr_nr is usually required. view/master_type name the transport entry recorded for upsert/delete (default: table/VDAT). create_request (description, owner) mints a new customizing (type W) transport request. First call per mode deploys and activates a bridge class in $ABAPSMITH_FLUID_API.";
+var IMG_EDIT_TOOL_DESCRIPTION = "Write IMG customizing rows. preview validates rows against policy and shows current vs. prospective rows without writing; upsert/delete write rows and need confirm equal to table (case-insensitive) \u2014 corr_nr is usually required; create_request (description, owner) mints a customizing (type W) transport request. First call per mode deploys and activates a bridge class in $ABAPSMITH_FLUID_API. Details: doc/TOOLS/abap-img-edit.md.";
 async function runImgEditTool(deps, args) {
   const input = args;
   switch (input.mode) {
@@ -149215,7 +149536,7 @@ var uiInputSchema = {
     "screen: read one dynpro (discovery, read-only in effect). fcode: static trace of one function code's handling \u2014 reads source, runs nothing, same read-only effect as screen. press: run a batch-input script \u2014 commits, cannot be rolled back. Requires ABAP_MODE=admin, ABAP_ALLOW_UI_PRESS=true, and confirm:true."
   ),
   tcode: external_exports.string().optional().describe(
-    "Transaction code. screen/fcode: alternative to program+dynpro. press: required \u2014 press needs tcode; program/dynpro is only supported by mode=screen. A tcode with no TSTC row is refused with NOT_FOUND before any bridge class is deployed."
+    "Transaction code. screen/fcode: alternative to program+dynpro. press: required. A tcode with no TSTC row is refused with NOT_FOUND before any bridge class is deployed."
   ),
   program: external_exports.string().optional().describe("screen/fcode only, with dynpro: program name instead of tcode. Refused by press."),
   dynpro: external_exports.string().optional().describe('screen/fcode only, with program: screen number, e.g. "100". Refused by press.'),
@@ -149223,19 +149544,19 @@ var uiInputSchema = {
     "fcode only: one function code to trace. Omitted = every function code of every GUI status of the program."
   ),
   screens: external_exports.array(uiPressScreenSchema).optional().describe(
-    "press only, required: ordered batch-input script, one entry per dynpro the transaction will show in sequence. Build it incrementally using the screen call's own field/status output and the 00/344 stall this tool reports when a script runs out."
+    "press only, required: ordered batch-input script, one entry per dynpro in sequence. Build it from the screen call's output and the 00/344 stall this tool reports when a script runs out."
   ),
   layout: external_exports.boolean().optional().describe(
-    "screen only, default false: also render a monospace picture of the screen from the field rows already read. No extra ABAP and no extra round trip. Design-time layout, not a runtime screenshot. Ignored by press."
+    "screen only, default false: also render a monospace picture of the screen. Design-time layout, not a runtime screenshot. Ignored by press."
   ),
   detail: external_exports.enum(["compact", "full"]).optional().describe(
-    'screen only, default "compact": FIELDS is one line per element (name  type  len  pos  attrs, only non-default attrs) and runs of generated %_ flow-logic lines collapse into one counted line; user-written modules are always listed. "full" is the raw key=[value] dump of every D021S column and every flow line. Render-side only \u2014 same ABAP, same single bridge call. The LAYOUT section (layout:true) is the same in both. Ignored by fcode and press.'
+    'screen only, default "compact": "compact" is one line per field, generated %_ flow lines collapsed; "full" is the raw dump of every D021S column and flow line. Render-side only \u2014 same single bridge call. Ignored by fcode and press.'
   ),
   confirm: external_exports.boolean().optional().describe(
     "press only, REQUIRED (must be exactly true) \u2014 acknowledges the commit. Omitted or false is refused before any network call."
   ),
   snapshot_ids: external_exports.array(external_exports.string()).optional().describe(
-    `mode: "press" only \u2014 press is the mode that can change data. Snapshot ids from prior abap_data_preview mode="snapshot" calls. After the press script finishes, each one is re-read and diffed, and the result is appended as a DATA CHANGES section. The diff obeys the same data-preview policy as the snapshot did \u2014 if it is refused, this call's own result still returns and the section says why.`
+    'mode: "press" only (the mode that can change data). Snapshot ids from prior abap_data_preview mode="snapshot" calls; each is re-read and diffed after the script and appended as a DATA CHANGES section, under the same data-preview policy (a refused diff does not fail this call).'
   )
 };
 var UiInput = external_exports.object(uiInputSchema);
@@ -151102,7 +151423,7 @@ var enhInputSchema = {
     ...ENH_DELETE_OPERATIONS,
     ...ENH_ACTIVATION_OPERATIONS
   ]).optional().describe(
-    'Default "write_description". Six create ops: always $TMP, always activate. discover_hook_anchors: read-only. delete needs ABAP_ALLOW_ENHANCEMENT_DELETE=true, irreversible. set_impl_active: reversible.'
+    'Default "write_description". Six create ops: always $TMP, always activate. discover_hook_anchors: read-only. delete needs ABAP_ALLOW_ENHANCEMENT_DELETE=true, irreversible; set_impl_active: reversible.'
   ),
   type: external_exports.enum(ENHANCEMENT_WRITE_TYPES).optional().describe("Required for write_description/delete; unused otherwise."),
   name: external_exports.string().describe(
@@ -151110,7 +151431,7 @@ var enhInputSchema = {
   ),
   description: external_exports.string().optional().describe("Required for write_description/create_hook (new adtcore:description, max 60). Unused otherwise."),
   spec: external_exports.record(external_exports.string(), external_exports.unknown()).optional().describe(
-    "Fields per op (?=optional, else required; numbers=max chars). IDs max 30 chars, see enhancement skill.\ncreate_spot: description(60).\nadd_badi_def: badiName, interfaceName, singleUse(bool), shortText(60).\nadd_filter_def: badiName, filterName, filterType(1 upper letter, e.g. C), filterText?(255).\ncreate_impl: spotName, badiName, implName, implClass, active(bool), description(60).\nset_filter_values: spotName, implName, filterName, filterType(as above), compare(=,<>,<,<=,>,>=,EQ,NE,LT,LE,GT,GE), value(255).\nexercise: methodName, filterName?, filterValue?, params?[{name, kind?(importing/changing/exporting/receiving, default importing, max 1 receiving), value?(req for importing/changing, else forbidden), type?(params[].type: req for changing/exporting/receiving, else forbidden; namespaced type ref)}].\ndiscover_hook_anchors: hostType, hostName, hostUri.\ncreate_hook: hostType(PROG/P only), hostName, hostUri, anchorFullName, anchorFullDescription(200), responsible?(12), activate?(bool).\nset_impl_active: active(bool), implName?(omit only if exactly one entry), description?(60)."
+    "Fields per op (?=optional; IDs max 30 chars; lengths and value rules in doc/TOOLS/enhancements.md).\ncreate_spot: description.\nadd_badi_def: badiName, interfaceName, singleUse, shortText.\nadd_filter_def: badiName, filterName, filterType, filterText?.\ncreate_impl: spotName, badiName, implName, implClass, active, description.\nset_filter_values: spotName, implName, filterName, filterType, compare, value.\nexercise: methodName, filterName?, filterValue?, params?[{name, kind?, value?, type?}] (params[].type: required for changing/exporting/receiving, forbidden otherwise; a namespaced type ref is allowed).\ndiscover_hook_anchors: hostType, hostName, hostUri.\ncreate_hook: hostType(PROG/P only), hostName, hostUri, anchorFullName, anchorFullDescription, responsible?, activate?.\nset_impl_active: active, implName?(omit only if exactly one entry), description?."
   ),
   affects: external_exports.object({
     name: external_exports.string().describe("Affected object name."),
@@ -152336,26 +152657,24 @@ var dataPreviewInputSchema = {
   ),
   object: external_exports.string().optional().describe("Alias for table; table wins if both are given."),
   max_rows: external_exports.number().int().optional().describe(
-    `Rows to return, clamped to the server's ceiling (clamp reported in the response). At least 1 \u2014 0 is refused, never read as "default".`
+    "Rows to return, clamped to the server's ceiling. At least 1 \u2014 0 is refused."
   ),
   where: external_exports.array(
     external_exports.object({
-      field: external_exports.string().describe(
-        "DDIC field name, checked against the entity's own column list before anything is sent."
-      ),
+      field: external_exports.string().describe("DDIC field name, checked against the entity's columns."),
       op: external_exports.enum(PREVIEW_OPS).describe(
-        "Comparison operator: eq/ne/lt/le/gt/ge compare one typed value; like matches an SQL pattern (% = any run, _ = one character, # = escape character); in matches any of an array of values; is_null takes no value at all."
+        "Comparison operator: eq/ne/lt/le/gt/ge/like/in/is_null."
       ),
       value: external_exports.union([
         external_exports.string(),
         external_exports.number(),
         external_exports.array(external_exports.union([external_exports.string(), external_exports.number()]))
       ]).optional().describe(
-        "Required for every op except is_null (which must omit it); an array only for op=in. Always rendered as a typed literal for the field's DDIC type \u2014 never concatenated as text."
+        "Required for every op except is_null (which must omit it); an array only for op=in. Rendered as a typed literal for the field's DDIC type."
       )
     })
   ).optional().describe(
-    "Structured filter conditions, ANDed together (no OR, no free text). This does not widen what the technical user may read \u2014 the same S_TABU_* authorisations still apply to every row."
+    "Structured filter conditions, ANDed together (no OR, no free text). The same S_TABU_* authorisations still apply to every row."
   ),
   columns: external_exports.array(external_exports.string()).optional().describe(
     "Project only these DDIC fields, in this order, instead of every column on the entity."
@@ -152366,25 +152685,25 @@ var dataPreviewInputSchema = {
       direction: external_exports.enum(["asc", "desc"]).optional().describe('Sort direction; defaults to "asc" when omitted.')
     })
   ).optional().describe(
-    "Sort order, applied in array order (first field is the primary sort key). Required for keyset paging: order on a key and add a `gt`/`lt` where-condition on the last value seen."
+    "Sort order, applied in array order (first field is the primary sort key). Keyset paging: order on a key, add a gt/lt where on the last value seen."
   ),
   distinct: external_exports.boolean().optional().describe(
-    "Suppress duplicate rows. Requires every order_by field to also appear in columns \u2014 otherwise the sort key would not be part of what distinctness is computed over."
+    "Suppress duplicate rows. Requires every order_by field to also appear in columns."
   ),
   mode: external_exports.enum(["preview", "snapshot", "diff"]).optional().describe(
-    `Defaults to "preview": read and show rows. "snapshot" reads the same selection and stores the rows locally for a later comparison. "diff" re-reads a stored snapshot's own selection and reports what changed since it was taken.`
+    `Defaults to "preview": read and show rows. "snapshot" stores the read rows for later comparison. "diff" re-reads a stored snapshot's own selection and reports what changed.`
   ),
   snapshot_id: external_exports.string().optional().describe(
     'The id returned by a prior mode: "snapshot" call. Required for mode: "diff"; refused in the other two modes.'
   ),
   ttl_hours: external_exports.number().int().optional().describe(
-    'mode: "snapshot" only. How long the snapshot survives before it is pruned, clamped DOWN to the operator ceiling ABAP_DATA_SNAPSHOT_TTL_HOURS (the clamp, if any, is reported in the response).'
+    'mode: "snapshot" only. How long the snapshot survives before it is pruned, clamped down to the operator ceiling ABAP_DATA_SNAPSHOT_TTL_HOURS.'
   ),
   format: external_exports.enum(["table", "abap_value", "test_double"]).optional().describe(
-    "How to render the rows. table (default): the usual text table. abap_value: the rows as one typed VALUE #( ... ) literal for the entity's line type. test_double: that literal wrapped in a ready-to-paste cl_osql_test_environment fixture. Same deny-list, same flag, same row ceiling in every case \u2014 the format is applied after the read, never around the check."
+    "table (default): text table. abap_value: the rows as one typed VALUE #( ... ) literal. test_double: that literal in a cl_osql_test_environment fixture. Same deny-list, flag and row ceiling in every case."
   ),
   mask: external_exports.array(external_exports.string()).optional().describe(
-    "Field names to blank in the OUTPUT only, applied at render time after the read. Character-like fields become 'MASKED'; other types become their initial value. The response lists which fields were masked."
+    "Field names to blank in the output only, applied at render time after the read."
   )
 };
 var DataPreviewInput = external_exports.object(dataPreviewInputSchema);
@@ -152581,7 +152900,7 @@ function registerDataPreviewTools(mcp, deps) {
     "abap_data_preview",
     {
       title: "Preview DDIC table data",
-      description: `Read rows from ONE DDIC entity: a table, database/projection view, or parameterless CDS view \u2014 not every DDIC entity kind qualifies. A name plus an optional structured filter (where/columns/order_by/distinct) \u2014 still no JOIN, no aggregate, and no SQL text. Rows clamped to the ceiling (currently ${ceiling}). Deny-listed tables and non-provably-nonproductive systems are refused. Three modes: "preview" (default) reads and shows rows; "snapshot" reads the same selection and stores the rows locally under a returned snapshot_id; "diff" re-reads a stored snapshot's own recorded selection and reports what changed since it was taken. format: abap_value / test_double turn the rows into a paste-ready ABAP fixture under the same policy.`,
+      description: `Read rows from ONE DDIC entity (table, database/projection view, or parameterless CDS view) with an optional structured filter (where/columns/order_by/distinct) \u2014 no JOIN, aggregate or SQL text. Rows clamped to the ceiling (currently ${ceiling}). Deny-listed tables and non-provably-nonproductive systems are refused. mode=preview|snapshot|diff and format=table|abap_value|test_double: see those parameters.`,
       inputSchema: dataPreviewInputSchema,
       annotations: {
         readOnlyHint: true,
@@ -153575,7 +153894,7 @@ function registerDumpTools(mcp, deps) {
     "abap_dumps",
     {
       title: "Read ABAP runtime errors (ST22 short dumps)",
-      description: `Read ABAP runtime errors (ST22 short dumps) from the system's dump repository \u2014 not the exception text of a run this server just triggered. mode=list filters the dump feed; mode=show returns one dump, chapter by chapter. The feed reaches back ${DUMPS_RESIDENCE_WINDOW_DAYS} DAYS ONLY: an empty list means "no dumps in the last ${DUMPS_RESIDENCE_WINDOW_DAYS} days matching this filter", never "nothing failed". Copy key from a list row VERBATIM. show returns the header, source extract, system fields and call stack, and nothing else unless the operator enabled more.`,
+      description: `Read ABAP runtime errors (ST22 short dumps) from the system's dump repository \u2014 not the exception text of a run this server just triggered. mode=list filters the dump feed; mode=show returns one dump, chapter by chapter. The feed reaches back ${DUMPS_RESIDENCE_WINDOW_DAYS} DAYS ONLY: an empty list means "no dumps in the last ${DUMPS_RESIDENCE_WINDOW_DAYS} days matching this filter", never "nothing failed". Copy key from a list row VERBATIM. show returns header, source extract, system fields and call stack, and nothing else unless the operator enabled more.`,
       inputSchema: dumpsInputSchema({ variables: variablesAllowed }),
       annotations: {
         readOnlyHint: true,
@@ -155633,7 +155952,7 @@ function registerQuickFixTools(mcp, deps) {
   mcp.registerTool(
     "abap_quick_fix",
     {
-      description: 'ADT quick fixes at one source position. mode="list" enumerates proposals; mode="apply" applies one by id through the journalled abap_write pipeline (undoable via abap_journal mode=undo). v1 applies deterministic proposals only \u2014 a parameterized one is refused, not guessed at. Gated as a write in BOTH modes: list POSTs the whole object source for evaluation, so it is unavailable on a read-only server.',
+      description: 'ADT quick fixes at one source position. mode="list" enumerates proposals; mode="apply" applies one by id through the journalled abap_write pipeline (undoable). Deterministic proposals only \u2014 a parameterized one is refused. Gated as a write in BOTH modes (list POSTs the object source), so unavailable on a read-only server.',
       inputSchema: quickFixInputSchema,
       annotations: {
         readOnlyHint: false,
@@ -157940,16 +158259,16 @@ var traceInputSchema = {
   object: external_exports.string().optional().describe("Class or report to trace. Required for op=start and op=run."),
   type: external_exports.string().optional().describe("ADT type, e.g. CLAS/OC, when ambiguous. op=start/run only."),
   id: external_exports.string().optional().describe(
-    "A trace run id (op=read) or a trace run/request id (op=delete). Accepts either the bare id or the full path a previous list/create answered with."
+    "A trace run id (op=read) or run/request id (op=delete); bare id or the full path a previous list/create answered with."
   ),
   kind: external_exports.enum(TRACE_LIST_KINDS).optional().describe(`What to list. Default "runs". One of: ${TRACE_LIST_KINDS.join(", ")}. op=list only.`),
   view: external_exports.enum(TRACE_VIEWS).optional().describe(`What to read. Default "hitlist". One of: ${TRACE_VIEWS.join(", ")}. op=read only.`),
   top: external_exports.number().int().optional().describe("Cap on rows shown. Default 20, max 100. op=read (hitlist/tree) and op=run only."),
   depth: external_exports.number().int().optional().describe(
-    "Max call-tree depth, relative to the traced object's own entry node (that node is depth 0), not the ADT dispatch root. Default 4, max 12. op=read view=tree only."
+    "Max call-tree depth relative to the traced object's own entry node. Default 4, max 12. op=read view=tree only."
   ),
   root: external_exports.string().optional().describe(
-    "Anchor the tree view at the first call-tree node whose description or calling-program name matches this text (case-insensitive substring; matched uppercased). Overrides the automatic anchor, which is the traced object's own entry node. op=read view=tree only."
+    "Anchor the tree view at the first call-tree node matching this text (case-insensitive substring on description or calling-program name), overriding the automatic entry-node anchor. op=read view=tree only."
   ),
   description: external_exports.string().optional().describe("Short label for the trace request (max 60 chars). op=start/run only."),
   aggregate: external_exports.boolean().optional().describe(
@@ -157962,7 +158281,7 @@ var traceInputSchema = {
   max_size_kb: external_exports.number().int().optional().describe(`Trace file size cap in KB. Default 30720, max ${TRACE_MAX_SIZE_KB}. op=start/run only.`),
   max_seconds: external_exports.number().int().optional().describe(`Trace duration cap in seconds. Default 600, max ${TRACE_MAX_SECONDS}. op=start/run only.`),
   executions: external_exports.number().int().optional().describe(
-    `How many executions the request stays armed for. Default ${TRACE_DEFAULT_EXECUTIONS}, max ${TRACE_MAX_EXECUTIONS}. op=start only \u2014 op=run always creates a single-execution request.`
+    `How many executions the request stays armed for, default ${TRACE_DEFAULT_EXECUTIONS}, max ${TRACE_MAX_EXECUTIONS}. op=start only \u2014 op=run always arms a single execution.`
   )
 };
 var TraceInput = external_exports.object(traceInputSchema);
@@ -159325,7 +159644,7 @@ function catalogueToolSet(toolSet, cfg) {
 var FLUID_OPS = ["list", "describe", "status", "verify", "run", "repair", "remove"];
 var fluidInputSchema = {
   op: external_exports.enum(FLUID_OPS).optional().describe(
-    'What to do. Defaults to "run" whenever `tool` or `action` is given without `op`; a call with none of `op`/`tool`/`action` returns the catalogue instead (other fields such as `args`/`confirm`/`corr_nr`/`scope` do not affect this). list/describe touch no network; status reads the local registry plus a best-effort probe of retired pre-fluid bridge classes and invoker classes per tool. verify asks the system what is actually deployed. run (the default) executes one action, deploying or repairing first if needed. repair forces a redeploy (and, with no `tool`, also reaps retired pre-fluid bridge classes; with `tool`, prunes its stale invokers). remove deletes abapsmith-owned generated ABAP.'
+    'What to do. Defaults to "run" when `tool` or `action` is given; a call with none of `op`/`tool`/`action` returns the catalogue. list/describe: no network. status: local registry plus a best-effort probe. verify: what is actually deployed. run: execute one action, deploying or repairing first if needed. repair: force a redeploy (no `tool`: also reap retired pre-fluid bridge classes; with `tool`: prune its stale invokers). remove: delete abapsmith-owned generated ABAP.'
   ),
   tool: external_exports.string().optional().describe(
     'Fluid tool id. Required for describe and run; an optional filter for verify/repair (default: every loaded tool); required for remove unless scope is "all".'
@@ -159339,7 +159658,7 @@ var fluidInputSchema = {
   ),
   corr_nr: external_exports.string().optional().describe("Transport request number, forwarded to run for a mutating action that targets a transportable object."),
   scope: external_exports.enum(["tool", "invokers", "all", "dynamic"]).optional().describe(
-    `remove only. "tool" (default) deletes one tool's manifest objects (needs \`tool\`). "invokers" deletes every generated per-call invoker class (ZCL_ZMCP_I_xxxxxxxx). "dynamic" deletes every generated per-call dynamic-bridge class (the abap_bopf_test/abap_ui/abap_enh/abap_fpm_read/abap_run tool paths that deploy fresh ABAP per call \u2014 see \`status\`'s "dynamic bridges" section). "all" deletes every abapsmith-owned object in ${FLUID_PACKAGE}, which already includes both of the above. The package itself is never deleted.`
+    `remove only. "tool" (default): one tool's manifest objects (needs \`tool\`). "invokers": every generated per-call invoker class (ZCL_ZMCP_I_xxxxxxxx). "dynamic": every generated per-call dynamic-bridge class (see \`status\`). "all": every abapsmith-owned object in ${FLUID_PACKAGE} (includes both). The package itself is never deleted.`
   )
 };
 var FluidInputSchema = external_exports.object(fluidInputSchema);
@@ -160340,7 +160659,7 @@ function instructionsFor(abapMode, readOnly, allowPackages, fluidAvailable = fal
   const writeGate = abapMode !== void 0 ? `unless ABAP_MODE is edit or admin (it is ${abapMode})` : "unless the operator set ABAP_ALLOW_WRITE";
   const packageScope = packageScopeSentence(readOnly, allowPackages);
   const systemsSentence = systems !== void 0 && systems.length > 1 ? ` This process serves ${systems.length} systems: ${systems.map((s) => `${s.alias} (${s.sid}, ${s.mode})`).join(", ")}. Every tool takes an optional system parameter naming one of these aliases and defaults to ${systems[0]?.alias ?? "the default system"} when omitted; each system's permission ceiling is its own \u2014 read-only on one alias is not lifted by admin mode on another.` : "";
-  return `Access to an SAP ABAP system over ADT. Use abap_search to locate objects, abap_read to read source or DDIC definitions (outline=true first for large classes, then method=), abap_write to create/change/delete, abap_activate to syntax-check or activate, abap_run to execute a class or report and capture its output, abap_test to run ABAP Unit tests (it reports NO TESTS RAN separately from PASSED \u2014 they are not the same answer), abap_debug/abap_debug_vars/abap_debug_value to set breakpoints and step through execution with full variable inspection, abap_journal to see what you changed and undo it. Writes are OFF ${writeGate}, and need a customer-namespace object name plus a package the allowlist permits: ${packageScope} Every write records the previous source locally first, so abap_journal mode=undo can put it back \u2014 but only for objects this server wrote. Responses are capped and truncation is always marked.` + (fluidAvailable ? " abap_fluid deploys and runs small generated ABAP tools inside $ABAPSMITH_FLUID_API (call it with no arguments for the catalogue)." : "") + (lockedToolCount > 0 ? ` ${lockedToolCount} further tools are listed but LOCKED at this permission level (abap_write among them) \u2014 each one's description says what unlocks it, and calling one returns a refusal without touching the SAP system.` : "") + systemsSentence;
+  return `Access to an SAP ABAP system over ADT. Use abap_search to locate objects, abap_read to read source or DDIC definitions (a large class answers with its outline by default; then method= or pattern=), abap_write to create/change/delete, abap_activate to syntax-check or activate, abap_run to execute a class or report and capture its output, abap_test to run ABAP Unit tests (it reports NO TESTS RAN separately from PASSED \u2014 they are not the same answer), abap_debug/abap_debug_vars/abap_debug_value to set breakpoints and step through execution with full variable inspection, abap_journal to see what you changed and undo it. Writes are OFF ${writeGate}, and need a customer-namespace object name plus a package the allowlist permits: ${packageScope} Every write records the previous source locally first, so abap_journal mode=undo can put it back \u2014 but only for objects this server wrote. Responses are capped and truncation is always marked.` + (fluidAvailable ? " abap_fluid deploys and runs small generated ABAP tools inside $ABAPSMITH_FLUID_API (call it with no arguments for the catalogue)." : "") + (lockedToolCount > 0 ? ` ${lockedToolCount} further tools are listed but LOCKED at this permission level (abap_write among them) \u2014 each one's description says what unlocks it, and calling one returns a refusal without touching the SAP system.` : "") + systemsSentence;
 }
 function describeStartupProbeFailure(e) {
   if (isAbapError(e)) return { code: e.code, message: e.message, hint: e.hint };
