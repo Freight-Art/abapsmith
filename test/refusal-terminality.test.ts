@@ -452,12 +452,19 @@ describe("terminality overrides are deliberate and explained", () => {
   // leaked/all-busy), each terminal-by-code (UNSUPPORTED or
   // DEBUG_ALL_LEASES_BUSY) but honestly retryable once a stop frees a lane.
   // Both additions land in the same merge, so the total is 25.
-  it("exactly 26 call sites pass a 5th argument to `new AbapError(...)` — 2 in adt/resolve.ts, 8 in adt/write.ts, 2 in adt/datapreview.ts and 1 in adt/locked-holders.ts (re-wraps that carry the classified retryability through unchanged), 1 in adt/resolved-package.ts, 1 in adt/index-create.ts, 3 in adt/undo.ts, 2 in tools/write.ts, 4 in tools/debug.ts, 1 in tools/ui.ts and 1 in debug/session.ts: all 26 are per-site overrides of RETRYABILITY's default (terminal-by-code UNSUPPORTED/SAFETY_DENIED sites whose own prose promises a working retry, plus BAD_INPUT sites whose own prose forbids a retry); most terminal codes still get retryable:false automatically from RETRYABILITY with no 5th argument at all", () => {
+  // 26 became 31 with issue #149 (adt/run.ts): `TIMEOUT` is minted
+  // `retryable: true` (a `conditional` code, so the default is `undefined`)
+  // and then re-wrapped three ways by `withDumpLookup` — `false` when the
+  // dumps feed shows the run short-dumped, `undefined` when the feed could not
+  // be read, the original verdict carried through when no dump matched — plus
+  // `discloseMutationRisk`, which now carries the classified retryable through
+  // its re-wrap instead of letting it fall back to the table.
+  it("exactly 31 call sites pass a 5th argument to `new AbapError(...)` — 2 in adt/resolve.ts, 8 in adt/write.ts, 2 in adt/datapreview.ts and 1 in adt/locked-holders.ts (re-wraps that carry the classified retryability through unchanged), 1 in adt/resolved-package.ts, 1 in adt/index-create.ts, 3 in adt/undo.ts, 5 in adt/run.ts (the TIMEOUT mint and four re-wraps), 2 in tools/write.ts, 4 in tools/debug.ts, 1 in tools/ui.ts and 1 in debug/session.ts: all 31 are per-site overrides of RETRYABILITY's default (terminal-by-code UNSUPPORTED/SAFETY_DENIED sites whose own prose promises a working retry, plus BAD_INPUT sites whose own prose forbids a retry); most terminal codes still get retryable:false automatically from RETRYABILITY with no 5th argument at all", () => {
     const { calls } = scanSrc();
     expect(
       calls.length,
       `found: ${calls.map((c) => `${c.file}:${c.line}`).join(", ")}`,
-    ).toBe(26);
+    ).toBe(31);
   });
 });
 

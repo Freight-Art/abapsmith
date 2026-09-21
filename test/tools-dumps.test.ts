@@ -495,7 +495,7 @@ describe("the handler refuses tier 2 even when the schema never offered it", () 
 
   it("tier 1 never touches the variable chapter, and says so by name", async () => {
     const h = harness({ registerVariables: false, allowDumpVariables: false });
-    const text = okText(await h.invoke({ mode: "show", key: KEY }));
+    const text = okText(await h.invoke({ mode: "show", key: KEY, section: "all" }));
     expect(text).toMatch(/chapters_shown: kap7,kap8,kap9,kap11/);
     // §5.10 — named, not a generic 404. An agent told "no such chapter"
     // concludes the dump held no variable data, which is false.
@@ -641,9 +641,22 @@ describe("a tier-2 request against a tier-1 server fails loudly at the SDK bound
 
   it("a plain tier-1 show still works, so the block above is not just refusing everything", async () => {
     const h = await sdkHarness(cfg());
-    const res = await h.call({ mode: "show", key: KEY });
+    const res = await h.call({ mode: "show", key: KEY, section: "all" });
     expect(res.isError).toBeFalsy();
     expect(textOf(res)).toMatch(/chapters_shown: kap7,kap8,kap9,kap11/);
+    await h.close();
+  });
+
+  it("section is accepted end to end, and an unknown section is BAD_INPUT, not stripped", async () => {
+    const h = await sdkHarness(cfg());
+    const ok = await h.call({ mode: "show", key: KEY, section: "source" });
+    expect(ok.isError).toBeFalsy();
+    expect(textOf(ok)).toMatch(/chapters_shown: kap7,kap8\b/);
+    const bad = await h.call({ mode: "show", key: KEY, section: "everything" });
+    expect(bad.isError).toBe(true);
+    const payload = JSON.parse(textOf(bad)) as Record<string, unknown>;
+    expect(payload.error).toBe("BAD_INPUT");
+    expect(String(payload.message ?? "")).toMatch(/section must be one of/);
     await h.close();
   });
 });
@@ -660,7 +673,7 @@ describe('mode="show"', () => {
 
   it("declares offset paging in the slice frame, and says which frame that is", async () => {
     const h = harness({ maxResponseChars: 1_500 });
-    const text = okText(await h.invoke({ mode: "show", key: KEY }));
+    const text = okText(await h.invoke({ mode: "show", key: KEY, section: "all" }));
     expect(text).toMatch(/Fetch the next chunk with offset=/);
     expect(text).toMatch(/relative to the assembled chapter slice, NOT to the dump's/);
   });
@@ -685,7 +698,7 @@ describe('mode="show"', () => {
   });
 
   it("states that slicing saves context, not bandwidth", async () => {
-    const text = okText(await harness().invoke({ mode: "show", key: KEY }));
+    const text = okText(await harness().invoke({ mode: "show", key: KEY, section: "all" }));
     expect(text).toMatch(/Chapter slicing saves context, not bandwidth/);
   });
 
@@ -770,5 +783,164 @@ describe("a parameter belonging to the other mode is refused, never ignored", ()
     expect(payload.error).toBe("BAD_INPUT");
     expect(String(payload.message ?? "")).toMatch(/does not take max/);
     expect(h.urls).toEqual([]);
+  });
+});
+
+// ===========================================================================
+// Summary view and `section` (issue #149)
+// ===========================================================================
+
+describe('mode="show" without section/chapters is a summary', () => {
+  it("fits the fixture dump in under 3000 chars with nothing cut, and says what it is", async () => {
+    const h = harness();
+    const text = okText(await h.invoke({ mode: "show", key: KEY }));
+    expect(text.length).toBeLessThan(3_000);
+    expect(text).toMatch(/^mode: show\nview: summary$/m);
+    expect(text).not.toMatch(/--- TRUNCATED ---/);
+    expect(text).not.toMatch(/chapters_shown/);
+    // one detail read, one /formatted read — the same wire cost as before
+    expect(h.urls).toEqual([DETAIL_PATH, `${DETAIL_PATH}/formatted`]);
+    expect(h.audit.join("\n")).toMatch(/chapters=summary variables=false/);
+  });
+
+  it("carries exception, short text, error analysis, how to correct, the source line and five frames", async () => {
+    const text = okText(await harness().invoke({ mode: "show", key: KEY }));
+    expect(text).toMatch(/^exception: CX_SY_DYNAMIC_OSQL_SEMANTICS$/m);
+    expect(text).toMatch(/--- SHORT TEXT ---\nRuntime Error: SAPSQL_PARSE_ERROR/);
+    expect(text).toMatch(/--- ERROR ANALYSIS \(kap3\) ---/);
+    expect(text).toContain('"ZMCP_NO_SUCH_TABLE_XX" is not declared as a table');
+    expect(text).toMatch(/--- HOW TO CORRECT \(kap4\) ---/);
+    expect(text).toMatch(
+      /--- SOURCE LINE \(kap7, kap8\) ---\ninclude ZCL_ZMCP_DMP_SQL==============CM001 line 7 in IF_OO_ADT_CLASSRUN~MAIN \(METHOD\)\nstatement: SELECT COUNT\(\*\) FROM \(lv_tab\) INTO @lv_cnt\./,
+    );
+    expect(text).toMatch(/--- CALL STACK \(top 5 of 12 frames, innermost first; section:"stack" for all\) ---/);
+    const frames = text.match(/^#\d+ /gm) ?? [];
+    expect(frames).toHaveLength(5);
+    expect(text).toMatch(/^#12 METHOD ZCL_ZMCP_DMP_SQL=>IF_OO_ADT_CLASSRUN~MAIN — ZCL_ZMCP_DMP_SQL==============CM001 line 7$/m);
+    expect(text).not.toMatch(/^#7 /m);
+  });
+
+  it("lists every chapter of the dump by name, and points at section= for the rest", async () => {
+    const text = okText(await harness().invoke({ mode: "show", key: KEY }));
+    expect(text).toMatch(/Chapters in this dump \(select by name\): kap0 Short Text, kap1 What happened\?/);
+    expect(text).toMatch(/kap19 ABAP Control Blocks \(CONT\)\./);
+    expect(text).toMatch(/section:"analysis"\|"source"\|"stack"\|"environment"\|"all"/);
+    expect(text).toMatch(/read it with abap_read object:"\/sap\/bc\/adt\//);
+  });
+
+  it("never carries kap10 text, names kap10 as present-but-not-enabled on tier 1, and offers the variables section only when enabled", async () => {
+    const off = okText(
+      await harness({ registerVariables: false, allowDumpVariables: false }).invoke({ mode: "show", key: KEY }),
+    );
+    expect(off).toMatch(/Chapter kap10 \(Selected Variables\) exists in this dump and is NOT/);
+    expect(off).toMatch(/kap10 Selected Variables \(not enabled here\)/);
+    expect(off).not.toMatch(/"variables"/);
+    expect(off).not.toContain("5445544554455554333333333333334522222222");
+    const on = okText(
+      await harness({ registerVariables: true, allowDumpVariables: true }).invoke({ mode: "show", key: KEY }),
+    );
+    expect(on).toMatch(/\|"variables"\|/);
+    expect(on).not.toMatch(/NOT available on this server/);
+    expect(on).not.toContain("5445544554455554333333333333334522222222");
+  });
+
+  it("marks what a tight budget cut, and keeps the source line ahead of the prose", async () => {
+    const text = okText(await harness({ maxResponseChars: 2_400 }).invoke({ mode: "show", key: KEY }));
+    expect(text.length).toBeLessThanOrEqual(2_400);
+    expect(text).toMatch(/--- TRUNCATED ---/);
+    expect(text).toMatch(/Prologue sections were ALSO cut/);
+    expect(text).toMatch(/--- SOURCE LINE \(kap7, kap8\) ---/);
+  });
+
+  it("refuses offset on the summary — there is no chapter text to page", async () => {
+    const h = harness();
+    const payload = errorPayload(await h.invoke({ mode: "show", key: KEY, offset: 5 }));
+    expect(payload.error).toBe("BAD_INPUT");
+    expect(String(payload.message ?? "")).toMatch(/offset pages chapter text/);
+    expect(h.urls).toEqual([]);
+  });
+});
+
+describe('mode="show" section=', () => {
+  const cases: Array<[string, string]> = [
+    ["analysis", "kap0,kap3,kap4,kap28"],
+    ["source", "kap7,kap8"],
+    ["stack", "kap11,kap22"],
+    ["environment", "kap5,kap6,kap6a,kap9,kap14"],
+    ["all", "kap7,kap8,kap9,kap11"],
+  ];
+  for (const [section, shown] of cases) {
+    it(`section:"${section}" returns exactly ${shown} as chapter text`, async () => {
+      const h = harness();
+      const text = okText(await h.invoke({ mode: "show", key: KEY, section }));
+      expect(text).toMatch(new RegExp(`^view: ${section}$`, "m"));
+      expect(text).toMatch(new RegExp(`^chapters_shown: ${shown}$`, "m"));
+      expect(text).toMatch(/--- CHAPTER TEXT/);
+      expect(text).not.toMatch(/view: summary/);
+      expect(h.urls).toEqual([DETAIL_PATH, `${DETAIL_PATH}/formatted`]);
+    });
+  }
+
+  it('section:"all" is the pre-#149 default show, byte for byte apart from the view line', async () => {
+    const all = okText(await harness().invoke({ mode: "show", key: KEY, section: "all" }));
+    const explicit = okText(await harness().invoke({ mode: "show", key: KEY, chapters: "kap7,kap8,kap9,kap11" }));
+    expect(all.replace(/^view: .*$/m, "")).toBe(explicit.replace(/^view: .*$/m, ""));
+    expect(all).toMatch(/Chapter slicing saves context, not bandwidth/);
+  });
+
+  it('section:"variables" is the kap10 route: refused DUMP_VARIABLES_DISABLED with zero requests when not enabled', async () => {
+    const h = harness({ registerVariables: false, allowDumpVariables: false });
+    const payload = errorPayload(await h.invoke({ mode: "show", key: KEY, section: "variables" }));
+    expect(payload.error).toBe("DUMP_VARIABLES_DISABLED");
+    expect(h.urls).toEqual([]);
+    expect(h.poolCalls).toEqual([]);
+  });
+
+  it('section:"variables" with the gate on returns kap10, and only kap10', async () => {
+    const h = harness({ registerVariables: true, allowDumpVariables: true });
+    const text = okText(await h.invoke({ mode: "show", key: KEY, section: "variables" }));
+    expect(text).toMatch(/^chapters_shown: kap10$/m);
+    expect(h.audit.join("\n")).toMatch(/variables=true/);
+  });
+
+  it("variables:true alone keeps its meaning — the tier-1 set plus kap10, not the summary", async () => {
+    const h = harness({ registerVariables: true, allowDumpVariables: true });
+    const text = okText(await h.invoke({ mode: "show", key: KEY, variables: true }));
+    expect(text).toMatch(/^view: all$/m);
+    expect(text).toMatch(/^chapters_shown: kap7,kap8,kap9,kap11,kap10$/m);
+  });
+
+  it("an unknown section is BAD_INPUT naming the choices, with zero requests", async () => {
+    const h = harness();
+    const payload = errorPayload(await h.invoke({ mode: "show", key: KEY, section: "everything" }));
+    expect(payload.error).toBe("BAD_INPUT");
+    expect(String(payload.message ?? "")).toMatch(
+      /section must be one of analysis, source, variables, stack, environment, all/,
+    );
+    expect(h.urls).toEqual([]);
+  });
+
+  it("section and chapters together are BAD_INPUT, with zero requests", async () => {
+    const h = harness();
+    const payload = errorPayload(await h.invoke({ mode: "show", key: KEY, section: "source", chapters: "kap11" }));
+    expect(payload.error).toBe("BAD_INPUT");
+    expect(String(payload.message ?? "")).toMatch(/section and chapters are alternatives/);
+    expect(h.urls).toEqual([]);
+  });
+
+  it('mode="list" refuses section as a show-only parameter', async () => {
+    const h = harness();
+    const payload = errorPayload(await h.invoke({ mode: "list", section: "source" }));
+    expect(payload.error).toBe("BAD_INPUT");
+    expect(String(payload.message ?? "")).toMatch(/does not take section/);
+    expect(h.urls).toEqual([]);
+  });
+
+  it("tier 1 advertises section without naming variables; tier 2 names it", async () => {
+    const tier1 = dumpsInputShape({ variables: false });
+    const tier2 = dumpsInputShape({ variables: true });
+    expect(tier1.section.description ?? "").toMatch(/"analysis".*"source".*"stack".*"environment".*"all"/s);
+    expect(tier1.section.description ?? "").not.toMatch(/variables/i);
+    expect((tier2 as { section: { description?: string } }).section.description ?? "").toMatch(/"variables"/);
   });
 });

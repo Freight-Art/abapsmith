@@ -91,6 +91,14 @@ export type AbapErrorCode =
   | "SESSION_DEAD"
   /** The executed ABAP code short-dumped. */
   | "RUNTIME_DUMP"
+  /**
+   * The ABAP system did not answer within `ABAP_TIMEOUT_MS` and the request
+   * was abandoned client-side. Raised by `abap_run`, which first looks the
+   * dumps feed up for a short dump of the same user and program: with one
+   * found, `details.dump` names it and the error is NOT retryable; with none,
+   * the run most likely ran long and `retryable` is `true`.
+   */
+  | "TIMEOUT"
   // ---- journal + undo ----
   /**
    * The local write journal could not be read or written — disk full, bad
@@ -441,6 +449,7 @@ export const RETRYABILITY: Record<AbapErrorCode, Retryability> = {
   CHECK_FAILED: "conditional",
   SESSION_DEAD: "conditional",
   RUNTIME_DUMP: "conditional",
+  TIMEOUT: "conditional",
   JOURNAL_IO: "conditional",
   TRANSPORT_LOCKED: "conditional",
   TRANSPORT_GONE: "conditional",

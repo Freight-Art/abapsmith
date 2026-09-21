@@ -2,9 +2,10 @@
  * `abap_dumps` — the ST22 short-dump reader. One tool, two modes.
  *
  * Two-tier capability split:
- *   - Tier 1 (always registered): mode="list"/"show" limited to header,
- *     source extract, system fields, call stack. Genuine ungated read — no
- *     ADT verb it issues is in `MUTATING_OPS`.
+ *   - Tier 1 (always registered): mode="list"/"show" limited to the summary
+ *     (issue #149), header, source extract, system fields, call stack and the
+ *     other non-variable chapters. Genuine ungated read — no ADT verb it
+ *     issues is in `MUTATING_OPS`.
  *   - Tier 2 (the "Selected Variables" chapter, kap10): live values of
  *     locals and internal tables at termination — real business data,
  *     permanently, in whatever transcript the answer lands in. Behind
@@ -43,6 +44,17 @@ import {
   type DumpFeedEntry,
 } from "../adt/dumps-xml.js";
 import { DUMPS_RESIDENCE_WINDOW_DAYS } from "../adt/dumps-query.js";
+import {
+  DUMP_SECTIONS,
+  SUMMARY_STACK_FRAMES,
+  isDumpSection,
+  sectionChapterNames,
+  summariseDump,
+  type DumpProse,
+  type DumpSection,
+  type DumpSourceLine,
+  type DumpSummary,
+} from "../adt/dumps-summary.js";
 import { buildResponse, sliceLines, textTable, type BuiltResponse } from "../compact.js";
 import { truncateForDisplay } from "../truncate.js";
 import type { SessionPool } from "../adt/pool.js";
@@ -105,13 +117,28 @@ function tier1Shape() {
       .max(100)
       .optional()
       .describe(`list: rows to request (default ${DEFAULT_MAX_ROWS}).`),
+    // A string, not a z.enum: the SDK would answer an unknown value with a
+    // protocol error, and section:"variables" on a server that never offered
+    // it must land in the same DUMP_VARIABLES_DISABLED refusal as chapters:"kap10".
+    // parseSection() validates at the handler. Tier 1 does not name the
+    // variables section: no parameter text may offer what the operator did not enable.
+    section: z
+      .string()
+      .optional()
+      .describe(
+        'show: which chapter text to return instead of the default summary. "analysis" = short ' +
+          'text, error analysis, how to correct, exception chain; "source" = where terminated + ' +
+          'source extract; "stack" = call stack; "environment" = system/user/session fields; ' +
+          '"all" = the full default set (where terminated, source extract, system fields, ' +
+          "call stack). Alternative to chapters.",
+      ),
     chapters: z
       .string()
       .optional()
       .describe(
         'show: comma-separated chapter NAMES, e.g. "kap7,kap8,kap11" — names, never the ' +
-          "titles, which are translated. Default: where terminated, source extract, system " +
-          "fields, call stack. Every chapter this dump has is listed in the response.",
+          "titles, which are translated. Alternative to section. Without either, show returns " +
+          "a summary; every chapter this dump has is listed in the response.",
       ),
     offset: z
       .number()
@@ -133,6 +160,18 @@ function tier2Shape() {
         "show: also return Selected Variables — the live values of locals and internal " +
           "tables at termination. Real business data, permanently, in this transcript. " +
           "Page it with offset.",
+      ),
+    // The same field as tier 1's, re-described: only here may "variables" be named.
+    section: z
+      .string()
+      .optional()
+      .describe(
+        'show: which chapter text to return instead of the default summary. "analysis" = short ' +
+          'text, error analysis, how to correct, exception chain; "source" = where terminated + ' +
+          'source extract; "stack" = call stack; "environment" = system/user/session fields; ' +
+          '"variables" = Selected Variables (kap10, same data and same cost as variables:true); ' +
+          '"all" = the full default set (where terminated, source extract, system fields, ' +
+          "call stack). Alternative to chapters.",
       ),
   };
 }
@@ -195,7 +234,7 @@ const ok = (text: string): CallToolResult => ({ content: [{ type: "text", text }
 
 /** Fields that belong to exactly one mode, applied to this tool's own surface. */
 const LIST_ONLY = ["query", "from", "to", "max"] as const;
-const SHOW_ONLY = ["key", "chapters", "offset", "variables"] as const;
+const SHOW_ONLY = ["key", "section", "chapters", "offset", "variables"] as const;
 
 /**
  * Every key this tool has, at either capability surface — `variables`
@@ -251,6 +290,19 @@ function parseChapterNames(raw: string | undefined): string[] {
     .split(",")
     .map((n) => n.trim())
     .filter((n) => n.length > 0);
+}
+
+/** `section`, validated by hand: the registered schema is loose, so the enum is not enforced for us. */
+function parseSection(raw: unknown): DumpSection | undefined {
+  if (raw === undefined) return undefined;
+  if (isDumpSection(raw)) return raw;
+  throw new AbapError(
+    "BAD_INPUT",
+    `section must be one of ${DUMP_SECTIONS.join(", ")}; got ${JSON.stringify(raw)}.`,
+    { section: raw },
+    "Pick a section, or select chapters by name with chapters:\"kap7,kap8\". Without either, " +
+      "show returns the summary.",
+  );
 }
 
 /** True when this request asks, by either route, for the variable chapter. */
@@ -360,15 +412,17 @@ export interface DumpShowRender {
   maxChars: number;
   /** False when this deployment has not enabled the variable chapter. */
   variablesAllowed: boolean;
+  /** What selected the chapters: a `section`, `"chapters"`, or `"all"` (the tier-1 default). */
+  view?: DumpSection | "chapters";
 }
 
 /**
- * Render `mode:"show"`. The paging frame is the assembled slice, not
+ * Render `mode:"show"` chapter text. The paging frame is the assembled slice, not
  * `/formatted`'s absolute line numbering — absolute numbering breaks the
  * moment `chapters` selects two non-adjacent chapters.
  */
 export function renderDumpShow(input: DumpShowRender): BuiltResponse {
-  const { selection, formattedChars, offset, maxChars, variablesAllowed } = input;
+  const { selection, formattedChars, offset, maxChars, variablesAllowed, view } = input;
   const detail = selection.detail;
   const hasVariablesChapter = detail.chapters.some((c) => c.name === VARIABLES_CHAPTER_NAME);
   const hidden = variablesAllowed ? [] : [VARIABLES_CHAPTER_NAME];
@@ -416,6 +470,7 @@ export function renderDumpShow(input: DumpShowRender): BuiltResponse {
   return buildResponse({
     header: {
       mode: "show",
+      view: view ?? "all",
       error: detail.error,
       exception: detail.exception,
       program: detail.terminatedProgram,
@@ -442,6 +497,116 @@ export function renderDumpShow(input: DumpShowRender): BuiltResponse {
   });
 }
 
+/** Ceiling for the summary view. `buildResponse` marks anything it has to cut. */
+export const DUMP_SUMMARY_MAX_CHARS = 3_000;
+
+export interface DumpSummaryRender {
+  detail: DumpDetail;
+  summary: DumpSummary;
+  maxChars: number;
+  /** False when this deployment has not enabled the variable chapter. */
+  variablesAllowed: boolean;
+}
+
+function proseBlock(p: DumpProse, section: DumpSection): string {
+  const lines = [...p.lines];
+  if (p.omitted > 0) lines.push(`(${p.omitted} more line(s): section:"${section}")`);
+  else if (p.boilerplateCut) lines.push(`(SAP support boilerplate cut: section:"${section}" has it)`);
+  return lines.join("\n");
+}
+
+function sourceLineText(source: DumpSourceLine, detail: DumpDetail): string {
+  const where =
+    source.include === undefined
+      ? `${detail.terminatedProgram || "(unknown program)"}${source.line === undefined ? "" : ` line ${source.line}`}`
+      : `include ${source.include}${source.line === undefined ? "" : ` line ${source.line}`}`;
+  const proc =
+    source.procedure === undefined
+      ? ""
+      : ` in ${source.procedure}${source.procedureKind ? ` (${source.procedureKind})` : ""}`;
+  const statement =
+    source.statement === undefined
+      ? '(failing statement not found in the source extract — section:"source")'
+      : `statement: ${source.statement}`;
+  return `${where}${proc}\n${statement}`;
+}
+
+/**
+ * Render the default `mode:"show"` view (issue #149): what a caller needs to
+ * decide the next step, in about {@link DUMP_SUMMARY_MAX_CHARS} characters,
+ * with the chapter index so the next call can name what it wants. No
+ * `pagingParam`: the summary is not a window onto anything — `section` or
+ * `chapters` are the way to more.
+ */
+export function renderDumpSummary(input: DumpSummaryRender): BuiltResponse {
+  const { detail, summary, maxChars, variablesAllowed } = input;
+  const hasVariablesChapter = detail.chapters.some((c) => c.name === VARIABLES_CHAPTER_NAME);
+
+  // Order is priority: when the budget bites, buildResponse keeps the first
+  // sections whole and drops the tail, so the source line outranks the prose.
+  const sections: Array<{ title: string; content: string }> = [];
+  sections.push({ title: "SHORT TEXT", content: summary.shortText || "(none)" });
+  sections.push({ title: "SOURCE LINE (kap7, kap8)", content: sourceLineText(summary.source, detail) });
+  if (summary.errorAnalysis.lines.length > 0) {
+    sections.push({ title: "ERROR ANALYSIS (kap3)", content: proseBlock(summary.errorAnalysis, "analysis") });
+  }
+  if (summary.howToCorrect.lines.length > 0) {
+    sections.push({ title: "HOW TO CORRECT (kap4)", content: proseBlock(summary.howToCorrect, "analysis") });
+  }
+
+  const frames = summary.stack.slice(0, SUMMARY_STACK_FRAMES);
+  const stack = frames
+    .map((f) => `#${f.no} ${f.kind} ${f.name || "(unnamed)"} — ${f.include} line ${f.line}`)
+    .join("\n");
+
+  const notes: string[] = [];
+  if (detail.termination) {
+    const at = detail.termination.line === undefined ? "" : `#start=${detail.termination.line}`;
+    notes.push(`Terminated program: read it with abap_read object:"${detail.termination.path}${at}".`);
+  }
+  if (summary.missing.length > 0) {
+    notes.push(
+      `Chapter(s) this summary reads but the dump lacks: ${summary.missing.join(", ")} — the ` +
+        "matching parts above are empty, not hidden.",
+    );
+  }
+  const index = summary.chapters
+    .map((c) => `${c.name} ${c.title}${c.name === VARIABLES_CHAPTER_NAME && !variablesAllowed ? " (not enabled here)" : ""}`)
+    .join(", ");
+  notes.push(`Chapters in this dump (select by name): ${index || "(none)"}.`);
+  notes.push(
+    'Summary view. Chapter text verbatim: section:"analysis"|"source"|"stack"|"environment"' +
+      (variablesAllowed ? '|"variables"' : "") +
+      '|"all" (all = the tier-1 set), or chapters:"kap7,kap8".',
+  );
+  if (!variablesAllowed && hasVariablesChapter) {
+    notes.push(
+      `Chapter ${VARIABLES_CHAPTER_NAME} (Selected Variables) exists in this dump and is NOT ` +
+        "available on this server: not enabled by the operator. Not a fault, not something to work around.",
+    );
+  }
+
+  return buildResponse({
+    header: {
+      mode: "show",
+      view: "summary",
+      error: detail.error,
+      exception: detail.exception,
+      program: detail.terminatedProgram,
+      user: detail.author,
+      when: detail.datetime,
+      instance: detail.serverInstance,
+    },
+    sections,
+    body: stack || '(no call stack parsed — section:"stack" returns kap11 as printed)',
+    bodyLabel:
+      `CALL STACK (top ${frames.length} of ${summary.stack.length} frames, innermost first` +
+      (summary.stack.length > frames.length ? '; section:"stack" for all)' : ")"),
+    notes,
+    maxChars: Math.min(maxChars, DUMP_SUMMARY_MAX_CHARS),
+  });
+}
+
 // -------------------------------------------------------------- registration ---
 
 /**
@@ -463,8 +628,10 @@ export function registerDumpTools(mcp: McpServer, deps: DumpsToolDeps): void {
         "feed; mode=show returns one dump, chapter by chapter. The feed reaches back " +
         `${DUMPS_RESIDENCE_WINDOW_DAYS} DAYS ONLY: an empty list means "no dumps in the last ` +
         `${DUMPS_RESIDENCE_WINDOW_DAYS} days matching this filter", never "nothing failed". ` +
-        "Copy key from a list row VERBATIM. show returns the header, source extract, system " +
-        "fields and call stack, and nothing else unless the operator enabled more.",
+        "Copy key from a list row VERBATIM. show returns a summary (exception, short text, " +
+        "error analysis, how to correct, source line, top of the call stack, chapter index); " +
+        "section or chapters returns chapter text — where terminated, source extract, system " +
+        "fields, call stack, and nothing else unless the operator enabled more.",
       inputSchema: dumpsInputSchema({ variables: variablesAllowed }),
       annotations: {
         readOnlyHint: true,
@@ -521,8 +688,18 @@ export function registerDumpTools(mcp: McpServer, deps: DumpsToolDeps): void {
           );
         }
 
+        const section = parseSection(a.section);
         const requested = parseChapterNames(a.chapters);
-        const askedForVariables = wantsVariables(requested, a.variables as boolean | undefined);
+        if (section !== undefined && requested.length > 0) {
+          throw new AbapError(
+            "BAD_INPUT",
+            "section and chapters are alternatives; pass one of them.",
+            { section, chapters: a.chapters },
+            "section names a preset of chapters, chapters names them one by one. Neither was applied.",
+          );
+        }
+        const askedForVariables =
+          section === "variables" || wantsVariables(requested, a.variables as boolean | undefined);
 
         // 2. THE GATE, before any dump resource is fetched. Defence in depth:
         //    the schema already omits `variables` when off, but a schema only
@@ -532,7 +709,25 @@ export function registerDumpTools(mcp: McpServer, deps: DumpsToolDeps): void {
         //    carries no dump data.
         if (askedForVariables) deps.safety.assertDumpVariables();
 
-        const base = requested.length > 0 ? requested : [...TIER1_CHAPTER_NAMES];
+        // The summary (issue #149) is the default; any explicit selection —
+        // section, chapters or variables:true — asks for chapter text instead.
+        // variables:true alone keeps its old meaning: the tier-1 set plus kap10.
+        const summaryView = section === undefined && requested.length === 0 && !askedForVariables;
+        if (summaryView && a.offset !== undefined) {
+          throw new AbapError(
+            "BAD_INPUT",
+            "offset pages chapter text, and the summary has none.",
+            { offset: a.offset },
+            'Pass section (e.g. section:"source") or chapters together with offset.',
+          );
+        }
+
+        const base =
+          section !== undefined
+            ? sectionChapterNames(section)
+            : requested.length > 0
+              ? requested
+              : [...TIER1_CHAPTER_NAMES];
         const wanted = askedForVariables ? [...base, VARIABLES_CHAPTER_NAME] : base;
 
         // 3. Detail and body come from the SAME dump, fetched inside one
@@ -543,6 +738,22 @@ export function registerDumpTools(mcp: McpServer, deps: DumpsToolDeps): void {
           const formatted = await fetchDumpFormatted(conn, detail);
           return { detail, formatted };
         });
+
+        if (summaryView) {
+          const summary = summariseDump(fetched.detail, fetched.formatted);
+          audit(
+            `[abapsmith] audit: abap_dumps mode=show error=${fetched.detail.error} ` +
+              `program=${fetched.detail.terminatedProgram} chapters=summary variables=false`,
+          );
+          return ok(
+            renderDumpSummary({
+              detail: fetched.detail,
+              summary,
+              maxChars: deps.cfg.maxResponseChars,
+              variablesAllowed,
+            }).text,
+          );
+        }
 
         const names = dedupe(resolveChapterNames(wanted, fetched.detail));
         const selection = selectDumpChapters(fetched.detail, fetched.formatted, names);
@@ -566,6 +777,7 @@ export function registerDumpTools(mcp: McpServer, deps: DumpsToolDeps): void {
             offset: a.offset ?? 1,
             maxChars: deps.cfg.maxResponseChars,
             variablesAllowed,
+            view: section ?? (requested.length > 0 ? "chapters" : "all"),
           }).text,
         );
       } catch (e) {
