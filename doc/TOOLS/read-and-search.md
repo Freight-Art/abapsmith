@@ -52,17 +52,23 @@ nothing at all, which happens for generated function modules (e.g.
 `method=` and `outline=true` share one component lookup (`src/adt/source.ts`,
 `classMembersFor` / `readMethod`). Facts a caller can rely on:
 
-- **Which version is resolved.** The component structure is fetched for the
-  INACTIVE version first (`/objectstructure?version=inactive`) and, when the
-  system reports none (or an empty one), for the active version. The
-  descriptor's own `adtcore:version` attributes short-circuit this: an object
-  whose every version attribute is `active` never asks for the inactive
-  structure. The header's `structureVersion` names the version whose line
-  ranges were used, and a note says so when it was the inactive one. Without
-  this, a class whose last full write failed its syntax check (saved inactive,
-  see [`abap_write`](write-and-activate.md#abap_write)) resolved every
-  `method=` against the stale active line ranges, and a method that existed
-  only in the inactive version was `NOT_FOUND`.
+- **Which version is resolved.** The object's own descriptor (`GET {uri}`,
+  attribute `adtcore:version`) decides, not a blind try of the inactive
+  structure first: ADT answers `/objectstructure?version=inactive` with the
+  ACTIVE structure, no marker, for an object that has no newer inactive
+  version, so asking for it first cannot tell "inactive" from "active" —
+  the descriptor is consulted instead. When the object's activation state
+  isn't already known this costs one descriptor GET; the inactive structure
+  is then requested only when the descriptor reports a newer inactive
+  version, falling back to the active structure when that read fails or
+  comes back empty. Otherwise, and whenever the descriptor itself can't be
+  read, the active structure is used directly. The header's
+  `structureVersion` names the version whose line ranges were used, and a
+  note says so — and only claims "inactive" — when the descriptor reported
+  one. Without this, a class whose last full write failed its syntax check
+  (saved inactive, see [`abap_write`](write-and-activate.md#abap_write))
+  resolved every `method=` against the stale active line ranges, and a
+  method that existed only in the inactive version was `NOT_FOUND`.
 - **`method=` walks the inheritance chain.** When the class itself has no such
   member, the walk follows `INHERITING FROM` and `INTERFACES` from the
   definition source, superclass first, then the interfaces, each level's own
@@ -81,7 +87,10 @@ nothing at all, which happens for generated function modules (e.g.
   `ABAP_AVAILABLE_MEMBERS_MAX` names (default 40; `availableTruncated` /
   `availableInheritedTruncated` say how many were dropped). The class's own
   name is never listed as a member — the interface's `CLAS/OC` self-entry in
-  the ADT structure is filtered out.
+  the ADT structure is filtered out, and so is the `CLAS/OCX` "Text
+  Elements" entry (`isExternalRef="true"`) that every class's active
+  structure carries for itself — which before also made each chain parent's
+  own name appear in the outline's `INHERITED` section.
 - **Signature first.** A `method=` read returns the `METHODS …` declaration
   (from the definition part, unchained from a `METHODS: a, b.` list) as a
   block ahead of the `METHOD … ENDMETHOD.` body; `blockLines` counts both.

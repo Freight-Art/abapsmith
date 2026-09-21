@@ -62,7 +62,10 @@ the reported lines (each message quotes the offending line with one line of
 context) with `abap_write { object, method, source }` — `method=` resolves
 against the inactive version, so no re-read is needed — then `abap_activate`.
 Rewriting the whole class again also works; reading the active source back
-does not, since it predates the failed write.
+does not, since it predates the failed write. If the response says the
+just-created object was deleted again, nothing is saved — the source was
+refused at save time (typically a missing period); write the whole object
+again.
 
 ## Statements that activate cleanly and fail at run time
 
