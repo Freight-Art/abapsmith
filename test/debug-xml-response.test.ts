@@ -29,6 +29,7 @@ import {
   parseBatchResponse,
   parseBreakpointsResponse,
   parseChildVariablesResponse,
+  parseDebuggeeKind,
   parseDebuggeeResponse,
   parseSettingsAttrs,
   parseSettingsResponse,
@@ -38,6 +39,7 @@ import {
   parseWatchpointsResponse,
   xBool,
 } from "../src/debug/xml-response.js";
+import { isPostMortemKind } from "../src/debug/types.js";
 import { isTruncated } from "../src/truncate.js";
 
 const FIXTURE_DIR = join(dirname(fileURLToPath(import.meta.url)), "fixtures", "debugger");
@@ -570,14 +572,52 @@ describe("parseDebuggeeResponse (debuggee-postmortem.xml) — caught short dump"
     expect(result.include).toBe("");
   });
 
-  it("throws DebugXmlParseError on an unrecognised DBGEE_KIND", () => {
-    const xml = `<?xml version="1.0" encoding="utf-8"?>
+  const envelope = (kind: string) => `<?xml version="1.0" encoding="utf-8"?>
 <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
-  <asx:values><DATA><STPDA_DEBUGGEE><DEBUGGEE_ID>X</DEBUGGEE_ID><DBGEE_KIND>SOMETHING_NEW</DBGEE_KIND></STPDA_DEBUGGEE></DATA></asx:values>
+  <asx:values><DATA><STPDA_DEBUGGEE><DEBUGGEE_ID>X</DEBUGGEE_ID><DBGEE_KIND>${kind}</DBGEE_KIND></STPDA_DEBUGGEE></DATA></asx:values>
 </asx:abap>`;
-    expect(() => parseDebuggeeResponse(xml)).toThrow(DebugXmlParseError);
+
+  it("accepts the abbreviated PMORTEM A4H sends on an exception-only start as postmortem (#152)", () => {
+    // Live shape from issue #152: `parseDebuggeeResponse: unrecognised DBGEE_KIND "PMORTEM"` aborted
+    // a start whose run had dumped. The abbreviation is the same post-mortem debuggee.
+    const warnings: string[] = [];
+    const result = parseDebuggeeResponse(envelope("PMORTEM"), { warn: (m) => warnings.push(m) });
+    expect(result.kind).toBe("postmortem");
+    expect(result.rawKind).toBe("PMORTEM");
+    expect(warnings).toEqual([]);
+  });
+
+  it("treats any *MORTEM* spelling as post-mortem, with DIALOG selecting postmortem_dialog", () => {
+    expect(parseDebuggeeKind("POSTMORTEM")).toBe("postmortem");
+    expect(parseDebuggeeKind("pmortem")).toBe("postmortem");
+    expect(parseDebuggeeKind("POST_MORTEM")).toBe("postmortem");
+    expect(parseDebuggeeKind("POSTMORTEM_DIALOG")).toBe("postmortem_dialog");
+    expect(parseDebuggeeKind("PMORTEM_DIALOG")).toBe("postmortem_dialog");
+    expect(parseDebuggeeKind(" DEBUGGEE ")).toBe("debuggee");
+    expect(isPostMortemKind("postmortem")).toBe(true);
+    expect(isPostMortemKind("postmortem_dialog")).toBe(true);
+    expect(isPostMortemKind("debuggee")).toBe(false);
+    expect(isPostMortemKind("unknown")).toBe(false);
+  });
+
+  it("degrades an unrecognised DBGEE_KIND to kind unknown and warns with the raw value instead of throwing (#152)", () => {
+    // RETITLED (was "throws DebugXmlParseError on an unrecognised DBGEE_KIND"): an unknown kind used to
+    // abort the whole start. The debuggee was caught and is attachable regardless of what the server
+    // calls it, so the parser now keeps it and reports the unknown spelling through `warn`.
+    const warnings: string[] = [];
+    const result = parseDebuggeeResponse(envelope("SOMETHING_NEW"), { warn: (m) => warnings.push(m) });
+    expect(result.kind).toBe("unknown");
+    expect(result.rawKind).toBe("SOMETHING_NEW");
+    expect(result.id).toBe("X");
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('DBGEE_KIND "SOMETHING_NEW"');
+    expect(warnings[0]).toContain("kind unknown");
+    // No warn sink at all: still no throw, still usable.
+    expect(parseDebuggeeResponse(envelope("SOMETHING_NEW")).kind).toBe("unknown");
+    expect(parseDebuggeeResponse(envelope("")).kind).toBe("unknown");
   });
 });
+
 
 // ---------------------------------------------------------------------------
 // IsComplexType / DebugMetaType

@@ -61,6 +61,7 @@ import { Journal, systemKey } from "../src/journal.js";
 import { errorResult } from "../src/server.js";
 import { DATA_PREVIEW_PATH, systemRoleProbeResponse } from "./helpers/system-role-fake.js";
 import { dynamicUiFluidRoute, isUiFluidClass, uiScreenConsole } from "./helpers/fluid-ui-fake.js";
+import { isTstcSelect, tstcSelectResponse } from "./helpers/tstc-select-fake.js";
 import { FLUID_PACKAGE } from "../src/adt/fluid/package.js";
 
 // ---------------------------------------------------------------------------
@@ -114,11 +115,13 @@ class RecordingClient implements HttpClient {
 }
 
 /**
- * `press`'s full happy path: `assertBdcApplies`'s `mode:"screen"` TSTC
- * precheck, then the `mode:"press"` BDCDATA bridge. The precheck no longer
- * deploys a per-call generated bridge class — it dispatches through the
- * fluid `ui.screen` action (`src/adt/fluid/dispatch.ts`) against the fixed
- * body class `uiManifest.entry`, so it is routed through
+ * `press`'s full happy path: the TSTC pre-check (one catalog select,
+ * issue #150 — it replaced the `mode:"screen"` bridge run `assertBdcApplies`
+ * used to make for CINFO), then the `mode:"press"` BDCDATA bridge. The
+ * fluid `ui.screen` routing below is kept so this harness still answers a
+ * screen-mode dispatch through the fluid `ui.screen` action
+ * (`src/adt/fluid/dispatch.ts`) against the fixed
+ * body class `uiManifest.entry`, routed through
  * `dynamicUiFluidRoute` (test/helpers/fluid-ui-fake.ts), same idiom as
  * test/img-edit-tool.test.ts's `multiBridgeHappyPath`: classrun for a fluid
  * ui class (runtime/body/invoker, `isUiFluidClass`) is intercepted and
@@ -162,6 +165,11 @@ function pressHappyPath(tcode: string): (o: HttpClientOptions) => HttpClientResp
       });
     }
     if (o.url.includes(SESSION_URL)) return resp(200, "<graph/>", LOGIN_HEADERS);
+    // Issue #150: press now learns "exists" and CINFO from one TSTC select on the read lane
+    // (src/adt/ui-tstc.ts) — matched on the SQL body before the generic data-preview branch.
+    if (isTstcSelect(o)) {
+      return tstcSelectResponse([{ TCODE: tcode, PGMNA: "SAPMZUI1", DYPNO: "0100", CINFO: "00" }]);
+    }
     if (o.url.includes(DATA_PREVIEW_PATH)) return systemRoleProbeResponse("nonproductive");
     if (o.url.includes("/ato/settings")) return resp(200, "<settings/>", OK_XML);
     if (o.url === PKG_URI && method === "GET") {

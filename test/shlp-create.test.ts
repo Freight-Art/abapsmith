@@ -492,10 +492,12 @@ describe.each([
     expect(err.message).toContain("nothing here for one to attach to");
   });
 
-  it(`${name}: refuses a non-local package with no corrNr as TRANSPORT_ERROR, hinting at the transports skill`, async () => {
+  it(`${name}: refuses a non-local package with no corrNr as TRANSPORT_ERROR saying none was resolved — the hint must NOT send an abap_write caller to add corr_nr (#141)`, async () => {
     const err = await catchErr(fn(conn, gate, baseParams({ packageName: REAL_PKG })));
     expect(err.code).toBe("TRANSPORT_ERROR");
-    expect(err.hint).toContain("abapsmith-put-work-on-a-transport");
+    expect(err.message).toContain("none was resolved for this call");
+    expect(err.hint).toContain("no corr_nr is needed");
+    expect(err.hint).toContain("wiring defect, not a caller error");
   });
 
   it(`${name}: accepts a non-local package with a valid corrNr`, async () => {

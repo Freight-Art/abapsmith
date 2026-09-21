@@ -30,6 +30,7 @@ import { canonicalEtag, canonicalSource, contentHash, isPartialEtag, stripPartia
 import {
   isAddressableAbapObjectName,
   isEnhancementType,
+  normalizeCorrNr,
   type AuthorizedTarget,
   type EnhancementIntent,
   type MutatingOperation,
@@ -1834,16 +1835,64 @@ export async function preflightCorr(
 }
 
 /**
- * `preflightCorr`'s sibling for a not-yet-existing transportable `DEVC/K`
- * create: CTS can't classify an object it's never seen, so `resolve()`
- * would wrongly answer `local` and drop `corr_nr`. Returns a plain
- * corrNr, not `GatedCorr`, since the bridge substitutes it into ABAP source.
+ * `preflightCorr`'s sibling for a not-yet-existing transportable object —
+ * a `DEVC/K` package create, and the classic-bridge creates (`VIEW/DV`,
+ * `TRAN/T`, `SHLP/DH`, `TABL/DI`) whose objects CTS has never seen either.
+ * `resolve()` would wrongly answer `local` for all of them and drop
+ * `corr_nr`. Returns a plain corrNr, not `GatedCorr`, since the bridges
+ * substitute it into ABAP source.
+ *
+ * Ordering (issue #142): the gate is consulted TWICE, and the first time
+ * is BEFORE the resolver runs. The resolver is the one step here that can
+ * have a server-side side effect — under `ABAP_ALLOW_TRANSPORTS=auto` it
+ * creates a transport request when it finds none to reuse — so every
+ * verdict the gate can reach without a resolved number (mode, namespace,
+ * package allowlist, name prefix, deny-all transports, and a caller-named
+ * request the allowlist refuses) is taken first, at zero wire cost. Only a
+ * write the gate would otherwise let through reaches the resolver; the
+ * second, post-resolution assert then judges the number the resolver chose
+ * exactly as before. If THAT one refuses after a request was created in
+ * this call, the refusal carries `details.createdTransport` and says so, so
+ * the request is not silently leaked.
  */
 export async function preflightPackageCorr(
   conn: AbapConnection,
   t: PreflightTarget,
-  opts: { transport: SessionTransport; gate: SafetyGate; corrNr?: string },
+  opts: {
+    transport: SessionTransport;
+    gate: SafetyGate;
+    corrNr?: string;
+    /** The mutation being gated — `"write"` (create) unless a bridge delete says otherwise. */
+    op?: "write" | "delete";
+  },
 ): Promise<{ corrNr: string; source: "named" | "auto" }> {
+  const op = opts.op ?? "write";
+  const gateTarget = {
+    name: t.name,
+    packageName: t.packageName,
+    type: t.type,
+    // See the `PreflightTarget` doc comment: without these two, a package
+    // create would be judged on its own name here — the container question
+    // `authorizeMutation` already answered using the superpackage — and the
+    // two gate calls could disagree on the identical mutation.
+    ...(t.superPackage !== undefined ? { superPackage: t.superPackage } : {}),
+    ...(t.exists !== undefined ? { exists: t.exists } : {}),
+  };
+  const named = normalizeCorrNr(opts.corrNr);
+  // Pre-resolution verdict: zero network, before any request can be created.
+  // `unresolved` lets the gate refuse deny-all and everything above step 10
+  // while deferring the number check; a caller-named request is judged as
+  // `named` right here, so "naming a request under auto" is refused before
+  // the resolver could create anything.
+  opts.gate.assert(op, gateTarget, {
+    corr:
+      named === undefined
+        ? { kind: "unresolved" }
+        : { kind: "transport", corrNr: named, source: "named" },
+    intent: undefined,
+    phase: "preflight",
+  });
+
   const res = await opts.transport.resolveForNewTransportable(
     conn,
     {
@@ -1855,7 +1904,7 @@ export async function preflightPackageCorr(
       name: t.name,
       type: t.type,
     },
-    opts.corrNr === undefined ? {} : { corrNr: opts.corrNr },
+    named === undefined ? {} : { corrNr: named },
   );
   const denial = toAbapError(res);
   if (denial) throw denial;
@@ -1874,24 +1923,31 @@ export async function preflightPackageCorr(
   // config-pin/caller are a human naming the request; other sources are the
   // server choosing it (see SafetyCorr in src/safety.ts).
   const source = res.source === "config-pin" || res.source === "caller" ? "named" : "auto";
-  opts.gate.assert(
-    "write",
-    {
-      name: t.name,
-      packageName: t.packageName,
-      type: t.type,
-      // See the `PreflightTarget` doc comment: without these two, a package
-      // create would be judged on its own name here — the container question
-      // `authorizeMutation` already answered using the superpackage — and the
-      // two gate calls could disagree on the identical mutation.
-      ...(t.superPackage !== undefined ? { superPackage: t.superPackage } : {}),
-      ...(t.exists !== undefined ? { exists: t.exists } : {}),
-    },
-    {
+  try {
+    opts.gate.assert(op, gateTarget, {
       corr: { kind: "transport", corrNr: res.corrNr, source },
       intent: undefined,
-    },
-  );
+    });
+  } catch (err) {
+    if (!(err instanceof AbapError) || !res.created) throw err;
+    // The resolver created a request and the gate then refused the number
+    // it chose (a pinned allowlist with an auto resolver, for instance).
+    // Nothing was written under it, but it exists: name it, so the caller
+    // (and abap_journal, which recorded the transport-create) can drop it.
+    const leakNote =
+      `Transport request ${res.corrNr} was created by this call before the refusal and holds ` +
+      "no objects; it is journalled as transport-create, and " +
+      `abap_transport operation=delete corr_nr=${res.corrNr} removes it.`;
+    // No retryable override: `gate.assert` only ever throws SAFETY_DENIED or
+    // INTERNAL_GATE_MISUSE, both terminal by classification, and the rethrow
+    // keeps the code, so it classifies to the same retryable: false.
+    throw new AbapError(
+      err.code,
+      err.message,
+      { ...err.details, createdTransport: res.corrNr },
+      err.hint === undefined || err.hint === "" ? leakNote : `${err.hint} ${leakNote}`,
+    );
+  }
   return { corrNr: res.corrNr, source };
 }
 

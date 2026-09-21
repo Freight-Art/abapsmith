@@ -38,7 +38,7 @@ import {
   type TrHeader,
   type TrOperation,
 } from "./transports.js";
-import type { AuthorizedTarget } from "../safety.js";
+import { transportAllowlistHint, type AuthorizedTarget } from "../safety.js";
 
 // ---------------------------------------------------------------------------
 // Injection seam
@@ -426,6 +426,8 @@ function pickLatest(candidates: readonly TrHeader[]): TrHeader {
  */
 export class SessionTransport implements SessionTrOwner {
   readonly #policy: TransportPolicy;
+  /** The raw `ABAP_ALLOW_TRANSPORTS` list — kept so refusals can word their remedy per mode. */
+  readonly #allowTransports: readonly string[];
   readonly #cts: CtsClient;
   readonly #whoami: () => string | undefined;
   readonly #now: () => Date;
@@ -453,6 +455,7 @@ export class SessionTransport implements SessionTrOwner {
 
   constructor(opts: SessionTransportOptions) {
     this.#policy = parsePolicy(opts.allowTransports);
+    this.#allowTransports = [...opts.allowTransports];
     this.#cts = {
       trRequirement: opts.cts?.trRequirement ?? trRequirement,
       trCreate: opts.cts?.trCreate ?? trCreate,
@@ -568,12 +571,29 @@ export class SessionTransport implements SessionTrOwner {
   }
 
   /**
-   * Decides a transport for a `DEVC/K` package create: CTS can't
-   * classify an object that doesn't exist, so resolve()'s pre-flight always
-   * answers "local". Runs Steps 3-7 unchanged with pinnedTo forced undefined
-   * (no server pin is possible), and never returns "not-needed". `candidates`
-   * is always empty here — CTS has never seen this object, so there is no
-   * candidate list to trust.
+   * Decides a transport for an object CTS has never seen — a `DEVC/K`
+   * package create, or a classic-bridge create (`VIEW/DV`, `TRAN/T`,
+   * `SHLP/DH`, `TABL/DI`): resolve()'s pre-flight would always answer
+   * "local" for it. Runs Steps 3-7 unchanged with pinnedTo forced undefined
+   * (no server pin is possible), and never returns "not-needed".
+   *
+   * The object itself has no candidate list, but its PACKAGE does (issue
+   * #141): `trRequirement()` anchored on `/sap/bc/adt/packages/<devclass>`
+   * returns the connected user's modifiable requests for that package —
+   * measured live, the same list `abap_transport operation=check` shows
+   * for the package. Feeding those to `#resolveAuto` gives a new bridge
+   * object the same adoption the ADT-lock types get from their own
+   * pre-flight: a request this session created (`abap_transport
+   * operation=create`, tier 1) or one attributed to abapsmith (tier 2) is
+   * reused, and a fresh one is created only when neither exists. Before
+   * this the list was always empty, so every bridge create under `auto`
+   * minted a new request even when the caller had just created one.
+   *
+   * The package check is a read (no CTS side effect) and only made when
+   * `#resolveAuto` could use its answer: policy is auto, nothing is
+   * pinned, and the caller named no request. It is best-effort — a failed
+   * or unrouted check yields no candidates, which is exactly the previous
+   * behaviour, never a refusal.
    */
   async resolveForNewTransportable(
     conn: AbapConnection,
@@ -582,6 +602,12 @@ export class SessionTransport implements SessionTrOwner {
   ): Promise<SessionTrResolution> {
     const named = SessionTransport.#normalizeCorrNr(opts.corrNr);
     if (!named.ok) return named.denied;
+    const wantsAuto =
+      named.wanted === undefined &&
+      !this.#policy.disabled &&
+      this.#policy.pins.length === 0 &&
+      this.#policy.auto;
+    const candidates = wantsAuto ? await this.#packageCandidates(conn, obj.devclass) : [];
     return this.#decideTransportable(
       conn,
       obj,
@@ -589,9 +615,36 @@ export class SessionTransport implements SessionTrOwner {
       undefined,
       undefined,
       obj.devclass,
-      [],
+      candidates,
       opts.revalidate === true,
     );
+  }
+
+  /**
+   * Modifiable requests CTS offers for a PACKAGE, as candidates for
+   * `#resolveAuto`'s adoption tiers. Empty when the package is unknown, a
+   * server pin is reported (the package itself is recorded somewhere — not
+   * a candidate list for a new object in it), or the check fails or
+   * objects: adoption is an optimisation over creating, never a gate.
+   */
+  async #packageCandidates(
+    conn: AbapConnection,
+    devclass: string | undefined,
+  ): Promise<readonly TrHeader[]> {
+    const pkg = devclass?.trim();
+    if (pkg === undefined || pkg === "") return [];
+    try {
+      const req = await this.#cts.trRequirement(
+        conn,
+        `/sap/bc/adt/packages/${encodeURIComponent(pkg.toLowerCase())}`,
+        pkg,
+        "I",
+      );
+      if (req.checkFailed || (req.pinnedTo !== undefined && req.pinnedTo !== "")) return [];
+      return req.candidates ?? [];
+    } catch {
+      return [];
+    }
   }
 
   /**
@@ -617,7 +670,7 @@ export class SessionTransport implements SessionTrOwner {
         "transports-disabled",
         "TRANSPORT_ERROR",
         `${obj.name ?? obj.uri} needs a transport request, but ABAP_ALLOW_TRANSPORTS is explicitly empty — every transportable write is refused. Local ($TMP) writes are unaffected.`,
-        "Set ABAP_ALLOW_TRANSPORTS=auto, or list a specific request number.",
+        transportAllowlistHint(this.#allowTransports),
       );
     }
 
@@ -634,7 +687,7 @@ export class SessionTransport implements SessionTrOwner {
           "not-allowlisted",
           "TRANSPORT_ERROR",
           `Transport ${wanted} is not permitted by ABAP_ALLOW_TRANSPORTS [${this.#policy.pins.join(", ") || "auto"}].`,
-          'Add it to ABAP_ALLOW_TRANSPORTS, or use "*" to allow any caller-named request.',
+          transportAllowlistHint(this.#allowTransports),
         );
       }
       const problem = await this.#checkUsable(conn, wanted);
@@ -653,7 +706,7 @@ export class SessionTransport implements SessionTrOwner {
         "not-allowlisted",
         "TRANSPORT_ERROR",
         `${obj.name ?? obj.uri} needs a transport request, but ABAP_ALLOW_TRANSPORTS does not permit creating one and no request was named.`,
-        'Pass a corr_nr, or set ABAP_ALLOW_TRANSPORTS=auto to let this session create one.',
+        transportAllowlistHint(this.#allowTransports),
       );
     }
     return this.#resolveAuto(conn, obj, devclass, candidates, revalidate);
@@ -819,7 +872,9 @@ export class SessionTransport implements SessionTrOwner {
       "no-usable-pin",
       "TRANSPORT_ERROR",
       `None of the transport requests in ABAP_ALLOW_TRANSPORTS is usable: ${problems.join(" ")}`,
-      "Pinned mode never creates a request; list a modifiable one or set ABAP_ALLOW_TRANSPORTS=auto.",
+      `Pinned mode never creates a request. Only ${this.#policy.pins.join(", ")} may be used; ask the ` +
+        "operator to reopen one of them or list a modifiable request. No corr_nr value outside that " +
+        "list passes, so retrying with a different request number will not help.",
     );
   }
 

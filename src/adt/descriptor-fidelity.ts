@@ -11,7 +11,11 @@
  * `000000`) is not a discard: only the COUNT of non-empty occurrences per
  * element name is compared, never the text itself, because the server
  * routinely rewrites values it kept and flagging that would be noise on
- * every ordinary write.
+ * every ordinary write. ONE exception (#145): a flag sent as the literal
+ * `true` and stored as the literal `false` — no normalisation produces that;
+ * live it meant the element was ignored (a `DOMA/DD` with
+ * `<doma:signExists>true</doma:signExists>` after `<doma:lowercase>`
+ * activated on A4H with signExists stored `false`, no message, 2026-09-16).
  */
 
 const XML_NOISE = /<\?xml[^?]*\?>|<!--[\s\S]*?-->/g;
@@ -70,7 +74,8 @@ function leafTexts(xml: string): Map<string, string[]> {
  * MORE non-empty occurrences of it than the stored one — a value that
  * changed but stayed non-empty is not reported, deliberately: widening this
  * to flag every changed value would turn routine server normalisation into
- * false positives on writes that lost nothing.
+ * false positives on writes that lost nothing — with the single literal
+ * `true` -> `false` exception documented at the top of this file.
  */
 export function discardedDescriptorValues(sent: string, stored: string): DiscardedValue[] {
   const sentTexts = leafTexts(sent);
@@ -79,6 +84,10 @@ export function discardedDescriptorValues(sent: string, stored: string): Discard
   for (const [element, sentValues] of sentTexts) {
     const storedValues = storedTexts.get(element) ?? [];
     if (sentValues.length > storedValues.length) {
+      out.push({ element, sent: sentValues, stored: storedValues });
+      continue;
+    }
+    if (sentValues.some((v, i) => v === "true" && storedValues[i] === "false")) {
       out.push({ element, sent: sentValues, stored: storedValues });
     }
   }

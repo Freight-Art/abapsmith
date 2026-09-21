@@ -41,17 +41,35 @@ yours. **PUT silent, activate loud.**
 `abap_write`'s `ddic` field builds the descriptor for you, for `DOMA/DD`,
 `DTEL/DE`, `TTYP/DA` only — pass typed fields (`dataType`, `length`,
 `typeKind`, `typeName`, the DTEL label fields, …) instead of `source`, never
-both. Which fields apply where: `dataType`/`length`/`decimals` apply to all
-three; `typeKind`/`typeName` are `DTEL/TTYP` only; `shortLabel`/`mediumLabel`/
+both (an empty `source: ""` next to `ddic` is treated as absent). Which
+fields apply where: `dataType`/`length`/`decimals` apply to all three;
+`typeKind`/`typeName` are `DTEL/TTYP` only; `shortLabel`/`mediumLabel`/
 `longLabel`/`headingLabel` (and their `…Length` counterparts) are `DTEL`
-only; `outputLength`/`lowercase`/`signExists` are `DOMA` only. Any other
-field name is refused by the schema itself. It only emits element sets
-proven in a PUT body a live system accepted; anything not proven there (fixed
-values, a value table ref, `primaryKey`, `initialRowCount`, a settable
-`rangeType`, `typeKind: "rangeTypeOnDataelement"`, …) is refused — drop to
-`source` for those. `ddic: {}` alone reproduces the grounded body's defaults.
-This path is unverified — it has never itself been sent to a live system —
-so treat a rejection as informative and fall back to `source` below.
+only; `outputLength`/`lowercase`/`signExists`/`fixedValues`/`valueTable` are
+`DOMA` only. Any other field name is refused by the schema itself.
+
+Live-verified on A4H (NetWeaver 7.54) on 2026-09-16 — objects created through
+`ddic`, activated, read back with every value intact, deleted: a `DTEL/DE`
+with all four labels (`ZAS_DTEL_LBL`), a `CHAR 1` domain with three fixed
+values (`ZAS_DOMA_ST`), a `DEC 13,3` signed amount domain (`ZAS_DOMA_AMT`).
+The builder puts `adtcore:masterLanguage="EN"` on the root itself, so the
+label / fixed-value-text discard described under "Per-type traps" cannot
+happen through `ddic`. Still refused, because never proven in a PUT body:
+`primaryKey`, `initialRowCount`, a settable `rangeType`, `typeKind:
+"rangeTypeOnDataelement"` — drop to `source` for those. `ddic: {}` alone
+reproduces the grounded body's defaults.
+
+`DOMA/DD` specifics: `fixedValues: [{low, high?, text}]` renders the
+`<doma:fixValues>` block in the order given (`low`/`high` at most 10
+characters — `DD07L-DOMVALUE_L` — and within the domain length; `text` at most
+60; the server numbers the rows). `valueTable: "SCARR"` renders the
+`<doma:valueTableRef>` triple; the server checks the table exists at
+activation. `outputLength` defaults to the Dictionary's own proposal — `DEC`/
+`CURR`/`QUAN`: `length` + 1 if `decimals` > 0 + 1 if `signExists`; `DATS` 10;
+`TIMS` 8; everything else `length` — and a caller's value wins. `DTEL/DE`
+specifics: labels over 10/20/40/55 characters are refused before sending
+(never truncated); `*Length` defaults to that maximum and must be at least the
+label's own length.
 
 For anything `ddic` doesn't cover, there is no helper that builds the XML
 from a field list — compose the whole descriptor:
@@ -121,6 +139,21 @@ attach a note saying the text "has been observed to fail to persist on some
 systems" — that note is symptom-only and fires on exactly this missing-attribute
 case. Treat it as a prompt to check `masterLanguage`, not as a diagnosis.
 
+**`<doma:signExists>` must come before `<doma:lowercase>`** inside
+`<doma:outputInformation>` (the order every live GET and the skeleton below
+carry: `length`, `style`, `conversionExit`, `signExists`, `lowercase`,
+`ampmFormat`). Sent the other way round, a `DEC 13,3` domain with
+`signExists=true` activated on A4H with `signExists` stored `false` — no
+message, no error (live, 2026-09-16). `abap_write`'s read-back guard now
+reports a flag sent `true` and stored `false` as `CHECK_FAILED` /
+`VALUE_DISCARDED`; `ddic` emits the right order.
+
+The output length is not free-form: for `DEC`/`CURR`/`QUAN` it is `length`
+plus one for the decimal separator when `decimals` > 0 plus one for the sign
+when `signExists`; `DATS` is 10 and `TIMS` is 8. A `DEC 13,3` signed domain
+with `<doma:outputInformation><doma:length>000015</doma:length>` activated
+clean; `ddic` computes this unless `outputLength` is given.
+
 **`DTEL/DE`** — References a domain. Create *and activate* the domain first.
 
 The root is `<blue:wbobj>` in `http://www.sap.com/wbobj/dictionary/dtel`, but
@@ -143,9 +176,22 @@ for 7 rejections in the sweep.
 
 `shortFieldLabel` is capped at 10 characters. Over-length is rejected with an
 opaque simple-transformation deserialization error naming `SBD_DATAELEMENT`,
-not a length complaint. In every live capture, the `<dtel:*FieldLength>` value
-equals the actual character length of the matching label — worth imitating,
-though the server has not been observed enforcing it.
+not a length complaint. `<dtel:*FieldLength>` is a two-digit display width
+(`05`, `03`), not the label's character count: live, `MANDT` reads back
+`shortFieldLength` 10 for the 7-character "Mandant" and `headingFieldLength`
+03 for "Mdt". Keep it at least the label's length and at most the slot's
+`*FieldMaxLength` (10/20/40/55); the server has not been observed enforcing
+either.
+
+**Field labels need `adtcore:masterLanguage` on the root element**, exactly as
+fixed-value texts do on a domain. Without it the PUT is accepted, all four
+`<dtel:*FieldLabel>` elements are stored empty, and the object stays
+inactive — `abap_write`'s pre-activation read-back reports it as
+`CHECK_FAILED` / `VALUE_DISCARDED` naming the four label elements, and the
+hint says to add the attribute and send the same document again (live,
+`ZAS_DTEL_TEST` on A4H, 2026-09-16: the byte-identical body with
+`adtcore:masterLanguage="EN"` activated with every label intact). The
+skeleton below carries it.
 
 **`TTYP/DA`** — `<ttyp:rowType>` children are **order-sensitive**: `typeKind`,
 `typeName`, `builtInType` (`dataType`, `length`, `decimals`), `rangeType`. Wrong
@@ -246,11 +292,17 @@ refuses `activate: false` (`DDIF_SHLP_ACTIVATE` runs inside the same bridge
 call) and refuses `confirm_in_role_menu` (that guard belongs to `TRAN/T`
 only).
 
-**corr_nr pairs with the package, like `TRAN/T`, not like `VIEW/DV`.** A
-transportable (non-`$`) package requires `corr_nr` — omitting it is
-`TRANSPORT_ERROR`; a `$`-prefixed package refuses one outright. Neither
-create nor update ever auto-resolves a transport request the way `VIEW/DV`
-does. `mode="update"` never needs `corr_nr`, regardless of package.
+**corr_nr pairs with the package, like `TRAN/T` and `VIEW/DV`.** A
+transportable (non-`$`) package never requires `corr_nr`: omit it and the
+create resolves a request the same way a class create does — the caller's
+open modifiable request for the package (one this session created via
+`abap_transport operation=create`, or one attributed to abapsmith) is
+reused, else one is created — and the response's `transport:` field names
+it. Under `ABAP_ALLOW_TRANSPORTS=auto` naming a request is refused
+(`SAFETY_DENIED`, terminal; omit the field), and that verdict is reached
+before any wire request, so a refusal creates nothing. A `$`-prefixed
+package refuses a `corr_nr` outright. `mode="update"` never needs
+`corr_nr`, regardless of package.
 
 **Delete is guarded by a where-used check the other two bridge deletes
 (`VIEW/DV`, `TRAN/T`) do not have.** `DD_OBJ_DEL` (then

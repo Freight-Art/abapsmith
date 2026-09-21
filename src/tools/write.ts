@@ -42,6 +42,7 @@ import {
   callerVisibleIndexTags,
   createSecondaryIndex,
   deleteSecondaryIndexViaBridge,
+  indexGateName,
   resolveIndexObjectInput,
   resolveIndexOwner,
 } from "../adt/index-create.js";
@@ -115,7 +116,13 @@ import { buildResponse, stripPartialEtag, type BuiltResponse } from "../compact.
 import type { Config, VerifyWritesMode } from "../config.js";
 import type { BeforeImageCapture, Journal } from "../journal.js";
 import { journalRef, systemKey, withJournalledMutation } from "../journal.js";
-import { normalizeCorrNr, type AuthorizedTarget, type MutatingOperation, type SafetyGate } from "../safety.js";
+import {
+  normalizeCorrNr,
+  type AuthorizedTarget,
+  type MutatingOperation,
+  type SafetyCorr,
+  type SafetyGate,
+} from "../safety.js";
 import { applyEdit, describeEditFailure, EditInputError } from "./edit.js";
 import { buildDeleteDryRunResponse, buildWriteDryRunResponse, dryRunNotSupported } from "./write-dry-run.js";
 import { enhancementPreflightIntent, preflight, writeGateKey } from "./preflight.js";
@@ -170,8 +177,9 @@ export const writeInputSchema = {
     .string()
     .optional()
     .describe(
-      "Package for a NEW object. Default $TMP. TRAN/T: a transportable one needs corr_nr. " +
-        "VIEW/DV: a transportable one resolves its own. A $-package refuses corr_nr. " +
+      "Package for a NEW object. Default $TMP. A transportable one resolves its transport " +
+        "request under ABAP_ALLOW_TRANSPORTS when corr_nr is omitted (every type, including " +
+        "TRAN/T, VIEW/DV, SHLP/DH and TABL/DI). A $-package refuses corr_nr. " +
         "TABL/DI: ignored except to check agreement — an index's package is always the base " +
         "table's, never caller-chosen.",
     ),
@@ -192,6 +200,14 @@ export const writeInputSchema = {
       outputLength: z.number().optional(),
       lowercase: z.boolean().optional(),
       signExists: z.boolean().optional(),
+      fixedValues: z
+        .array(z.object({ low: z.string(), high: z.string().optional(), text: z.string() }).strict())
+        .optional()
+        .describe(
+          "DOMA/DD only: fixed values, in order. `low` (or `low`..`high` for an interval) max 10 " +
+            "chars and within the domain length; `text` max 60 chars.",
+        ),
+      valueTable: z.string().optional().describe("DOMA/DD only: value table name (existence checked by the server)."),
       typeKind: z.enum(["domain", "predefinedAbapType", "dictionaryType"]).optional(),
       typeName: z.string().optional(),
       shortLabel: z.string().optional(),
@@ -341,10 +357,12 @@ export const writeInputSchema = {
     .string()
     .optional()
     .describe(
-      "Transport request. $TMP needs none. Required for a TRAN/T or TABL/DI create into a " +
-        "transportable package; optional for a VIEW/DV create, which resolves one under " +
-        "ABAP_ALLOW_TRANSPORTS when omitted. Refused for a $ package, and on VIEW/DV or TRAN/T " +
-        "delete. TABL/DI delete: same package-derived requirement as its create, not refused. " +
+      "Transport request. $TMP needs none. Optional for every transportable create, including " +
+        "the bridge types TRAN/T, VIEW/DV, SHLP/DH and TABL/DI: omitted, one is resolved under " +
+        "ABAP_ALLOW_TRANSPORTS (auto reuses a modifiable request this session created for the " +
+        "package, else creates one; under auto a NAMED request is refused, so omit it). Refused " +
+        "for a $ package, and on VIEW/DV or TRAN/T delete. TABL/DI delete: same package-derived " +
+        "resolution as its create, not refused. " +
         "If the object is already recorded in a DIFFERENT request, CTS imposes that one instead: " +
         "mode=write proceeds under it and reports corr_nr_honoured: false; mode=delete is refused " +
         "outright with TRANSPORT_ERROR (CORR_NR_NOT_HONOURED) and deletes nothing.",
@@ -514,7 +532,9 @@ export function targetFromInput(input: WriteInput & { object: string }): WriteTa
  * other `source`, with no separate validation path.
  */
 function resolveDdicStructuredSource(input: WriteInputV2, target: WriteTarget): string {
-  if (input.source !== undefined) {
+  // An empty `source` is treated as absent: clients that always send the
+  // field (`source: ""` next to `ddic`) are not asking for two descriptors.
+  if (input.source !== undefined && input.source !== "") {
     throw new AbapError(
       "BAD_INPUT",
       "`source` and `ddic` cannot both be given — they are two ways to build the same descriptor.",
@@ -1115,6 +1135,40 @@ function describeShrink(
   if (removedLines < SHRINK_DISCLOSURE_MIN_LINES) return undefined;
   if (removedLines / beforeLines < SHRINK_DISCLOSURE_FRACTION) return undefined;
   return { beforeLines, removedLines, percent: Math.round((removedLines / beforeLines) * 100) };
+}
+
+/**
+ * Leaf elements whose text the server keeps only when the root carries
+ * `adtcore:masterLanguage`: DTEL field labels (`dtel:shortFieldLabel` …
+ * `dtel:headingFieldLabel`) and DOMA fixed-value texts (`doma:text`). Both
+ * were reproduced live on A4H — the document is accepted, the texts come back
+ * empty, nothing warns (2026-09-16 for DTEL/DE ZAS_DTEL_TEST; the DOMA case is
+ * what `assertDomaMasterLanguage` refuses up front).
+ */
+const LANGUAGE_DEPENDENT_TEXT_RE = /^(?:[\w.-]+:)?(?:\w+FieldLabel|text)$/;
+
+/**
+ * When EVERY dropped element is a language-dependent text, the cause is known
+ * and the fix is one attribute — say so instead of the generic "rework the
+ * payload". Returns `undefined` for any other mix, so the caller keeps the
+ * generic hint.
+ */
+function languageDependentDiscardHint(discarded: readonly DiscardedValue[], source: string): string | undefined {
+  if (discarded.length === 0 || !discarded.every((d) => LANGUAGE_DEPENDENT_TEXT_RE.test(d.element))) return undefined;
+  const rootTag = /<[A-Za-z_][\w.-]*(?::[A-Za-z_][\w.-]*)?\b[^>]*>/.exec(source.replace(/<\?xml[^>]*\?>/, ""))?.[0] ?? "";
+  const hasMasterLanguage = /\badtcore:masterLanguage\s*=/.test(rootTag);
+  const what = discarded.map((d) => d.element).join(", ");
+  return (
+    `The dropped element(s) — ${what} — are language-dependent texts (field labels / fixed-value ` +
+    "texts), which ADT stores only when the root element carries adtcore:masterLanguage; " +
+    (hasMasterLanguage
+      ? "this document already has it, so something else emptied them — "
+      : 'this document has none. Add adtcore:masterLanguage="EN" (and adtcore:language="EN") to the ' +
+        "root element and send the same document again — rewriting the object in place repairs it, " +
+        "which is exactly what fixed the live reproduction. ") +
+    "Re-read the object with abap_read to see the descriptor the server actually holds, or activate " +
+    "it as written with abap_activate."
+  );
 }
 
 /** One `DiscardedValue` as `element (sent "a", "b", server now holds "c")`. */
@@ -2110,10 +2164,12 @@ export async function abapWrite(
               ...(entryId !== undefined ? { journal: entryId } : {}),
             },
             "This is a server-side discard, not a rejection — the document was accepted and " +
-              "nothing ran to check it. Re-read the object with abap_read to see the descriptor " +
-              "the server actually holds, then either rework the payload so the dropped " +
-              "element(s) survive, or accept the object as written and activate it yourself " +
-              "with abap_activate." +
+              "nothing ran to check it. " +
+              (languageDependentDiscardHint(discarded, source) ??
+                "Re-read the object with abap_read to see the descriptor " +
+                  "the server actually holds, then either rework the payload so the dropped " +
+                  "element(s) survive, or accept the object as written and activate it yourself " +
+                  "with abap_activate.") +
               (entryId !== undefined
                 ? ` Remove this write with abap_journal mode=undo entry=${entryId}.`
                 : " The write journal is off, so abapsmith cannot undo this for you."),
@@ -3508,8 +3564,8 @@ async function abapBridgeCrud(
       );
     }
     return mode === "delete"
-      ? abapDeleteIndexViaBridge(conn, target, input, maxChars, gate)
-      : abapCreateIndexViaBridge(conn, target, input, maxChars, gate);
+      ? abapDeleteIndexViaBridge(conn, target, input, maxChars, gate, transport)
+      : abapCreateIndexViaBridge(conn, target, input, maxChars, gate, transport);
   }
   if (mode === "update") {
     return abapUpdateViaBridge(conn, target, input, maxChars, gate, journal);
@@ -3517,11 +3573,129 @@ async function abapBridgeCrud(
   if (type === "SHLP/DH") {
     return mode === "delete"
       ? abapDeleteSearchHelpViaBridge(conn, target, input, maxChars, gate, journal)
-      : abapCreateSearchHelpViaBridge(conn, target, input, maxChars, gate, journal);
+      : abapCreateSearchHelpViaBridge(conn, target, input, maxChars, gate, journal, transport);
   }
   return mode === "delete"
     ? abapDeleteViaBridge(conn, target, input, maxChars, gate)
     : abapCreateViaBridge(conn, target, input, maxChars, gate, journal, transport);
+}
+
+/**
+ * Transport for a classic-bridge create or index delete (`VIEW/DV`, `TRAN/T`,
+ * `SHLP/DH`, `TABL/DI`) — the one place the four bridge routes decide their
+ * `corr_nr`, so they cannot drift apart again (issue #141: only VIEW/DV had
+ * the auto route; the other three demanded a named request that the gate
+ * then refused under `ABAP_ALLOW_TRANSPORTS=auto`, a dead end).
+ *
+ * - A local (`$`) package: no transport. The zero-network pairing check the
+ *   caller already ran proved `named` is undefined here.
+ * - A transportable package: `preflightPackageCorr` (src/adt/write.ts) —
+ *   gate verdict first at zero wire cost, then the session resolver, which
+ *   under `auto` reuses a modifiable request this session created for the
+ *   package or creates one, and under a pinned/wildcard list honours the
+ *   named or configured request. The resolved number comes back with its
+ *   `corrSource` (what the bridge's own gate call must report) and a
+ *   `TransportInfo` for the response header, so every bridge create names
+ *   the request it wrote under.
+ *
+ * `uri` is synthesized — none of these objects exists yet — and only reaches
+ * the wire as `<REF>` if a new request is created, exactly as a DEVC/K
+ * create's own not-yet-existing URI does.
+ */
+async function resolveBridgeCreateCorr(
+  conn: AbapConnection,
+  gate: SafetyGate,
+  transport: SessionTransport | undefined,
+  t: { name: string; type: string; uri: string; packageName: string; op?: "write" | "delete" },
+  named: string | undefined,
+): Promise<{ corrNr?: string; corrSource?: "named" | "auto"; transportInfo?: TransportInfo }> {
+  if (isLocalPackageName(t.packageName)) {
+    return named === undefined ? {} : { corrNr: named };
+  }
+  if (transport === undefined) {
+    // No session resolver wired (the historical, $TMP-only harness shape). A
+    // caller-NAMED request still goes the way it always did — judged by the gate
+    // here at zero wire cost and again by the bridge module's own gate call — but
+    // an OMITTED one cannot be resolved by anybody, and that is an internal wiring
+    // failure, not a caller mistake: every other transportable mutation reaches
+    // here with a transport manager already resolved (same shape as
+    // abapCreatePackage's bridge route).
+    if (named !== undefined) {
+      gate.assert(
+        t.op ?? "write",
+        { name: t.name, type: t.type, packageName: t.packageName, exists: t.op === "delete" },
+        { corr: { kind: "transport", corrNr: named, source: "named" }, intent: undefined },
+      );
+      return {
+        corrNr: named,
+        corrSource: "named",
+        transportInfo: { status: "transport", required: true, corrNr: named },
+      };
+    }
+    throw new AbapError(
+      "TRANSPORT_ERROR",
+      `${t.name} needs a transport request (package ${t.packageName} is not local), but no ` +
+        "transport manager is wired into this call. This is an internal wiring failure in " +
+        "abapsmith, not a mistake in the request.",
+      { name: t.name, type: t.type, packageName: t.packageName },
+    );
+  }
+  const preflightTarget: PreflightTarget = {
+    uri: t.uri,
+    name: t.name,
+    type: t.type,
+    packageName: t.packageName,
+    exists: t.op === "delete",
+  };
+  const corr = await preflightPackageCorr(conn, preflightTarget, {
+    transport,
+    gate,
+    ...(named !== undefined ? { corrNr: named } : {}),
+    ...(t.op !== undefined ? { op: t.op } : {}),
+  });
+  return {
+    corrNr: corr.corrNr,
+    corrSource: corr.source,
+    transportInfo: { status: "transport", required: true, corrNr: corr.corrNr },
+  };
+}
+
+/**
+ * The `SafetyCorr` a zero-network gate preflight reports for a bridge create
+ * before any request is resolved: the caller-named request as `"named"`, or
+ * `unresolved` when the session resolver has yet to pick one. Under
+ * `ABAP_ALLOW_TRANSPORTS=auto` a named request is refused right here, before
+ * a single wire request, and the refusal carries the rule's own hint.
+ */
+function bridgePreflightCorr(named: string | undefined): SafetyCorr {
+  return named === undefined
+    ? { kind: "unresolved" }
+    : { kind: "transport", corrNr: named, source: "named" };
+}
+
+/**
+ * Response notes for a bridge write's transport: the standard `transportNote`,
+ * plus the resolver's own account of HOW it chose the request (created,
+ * adopted, cached) when that decision is the one this write used — the same
+ * attribution guard the ADT write path applies, so an unrelated
+ * `lastAutoDecision` is never pinned on this write.
+ */
+function bridgeTransportNotes(
+  transportInfo: TransportInfo | undefined,
+  transport: SessionTransport | undefined,
+  gate: SafetyGate,
+): string[] {
+  if (transportInfo === undefined) return [];
+  const notes = [transportNote(transportInfo, gate.config?.abapMode)];
+  const decision = transport?.lastAutoDecision;
+  if (
+    decision !== undefined &&
+    transportInfo.corrNr !== undefined &&
+    decision.trkorr.toUpperCase() === transportInfo.corrNr.toUpperCase()
+  ) {
+    notes.push(decision.reason);
+  }
+  return notes;
 }
 
 /**
@@ -3716,9 +3890,15 @@ async function abapCreateViaBridge(
   // package needing a request is resolved below (preflightPackageCorr), not asserted
   // here — view-create.ts's own `validate` still refuses an unresolved one as defence
   // in depth, not the only enforcement point.
-  if (type === "VIEW/DV") assertClassicViewCreateTarget(packageName, normalizeCorrNr(input.corr_nr));
+  const named = normalizeCorrNr(input.corr_nr);
+  if (type === "VIEW/DV") assertClassicViewCreateTarget(packageName, named);
   // Same pairing for TRAN/T: RPY_TRANSACTION_INSERT's own RS_CORR_INSERT needs the request.
-  if (type === "TRAN/T") assertTransactionCreateTarget(packageName, normalizeCorrNr(input.corr_nr));
+  // A transportable package with NO corr_nr is not asserted here either — it is resolved
+  // below by `resolveBridgeCreateCorr` (issue #141), and tran-create.ts's own `validate`
+  // still refuses an unresolved one as defence in depth.
+  if (type === "TRAN/T" && (named !== undefined || isLocalPackageName(packageName))) {
+    assertTransactionCreateTarget(packageName, named);
+  }
   const description = input.description?.trim();
   if (!description) {
     bad(
@@ -3726,6 +3906,19 @@ async function abapCreateViaBridge(
         `(${type === "TRAN/T" ? "TSTCT-TTEXT" : "DD25V-DDTEXT"}), and the API has no default for it.`,
     );
   }
+
+  // Zero-network gate verdict BEFORE any request leaves (TRAN/T's program look-up,
+  // the absence probe, the resolver): a refused package, name, mode, or — under
+  // ABAP_ALLOW_TRANSPORTS=auto — a caller-named corr_nr costs nothing on the wire
+  // and can never leave a freshly created request behind (issues #141/#142). The
+  // same verdict is repeated on the resolved request inside
+  // `resolveBridgeCreateCorr` and again in the bridge module's own gate call;
+  // every layer must pass, this one only moves the first refusal earlier.
+  gate.assert(
+    "write",
+    { name: target.name, type, packageName: packageName.toUpperCase(), exists: false },
+    { corr: bridgePreflightCorr(named), intent: undefined, phase: "preflight" },
+  );
 
   const common = { description: description as string, packageName };
   let created: { run: RunResult; transcript: DdicTranscript };
@@ -3735,8 +3928,8 @@ async function abapCreateViaBridge(
   let verifyNote: string;
   let entryId: string | undefined;
   let registration: BridgeRegistration;
-  // Set only for a transportable VIEW/DV create, once preflightPackageCorr resolves a
-  // request; stays undefined for a local VIEW/DV (no transport) and for TRAN/T (unchanged).
+  // Set for a transportable create of either type once `resolveBridgeCreateCorr` resolves
+  // a request; stays undefined for a local package (no transport).
   let transportInfo: TransportInfo | undefined;
 
   const vitType = type === "VIEW/DV" ? "viewdv" : "trant";
@@ -3792,47 +3985,14 @@ async function abapCreateViaBridge(
     // COMMIT WORK fix closes the gap is NOT assumed here — the read-back below decides,
     // live, on every call.
     bridgeClass = CLASSIC_BODY_CLASS;
-    const named = normalizeCorrNr(input.corr_nr);
-    const localPkg = isLocalPackageName(packageName);
-    let corrNr: string | undefined;
-    let corrSource: "named" | "auto" | undefined;
-    if (localPkg) {
-      // assertClassicViewCreateTarget above already proved this is undefined for a local package.
-      corrNr = named;
-    } else {
-      // Internal wiring failure, not a caller mistake — same shape as abapCreatePackage's
-      // bridge route below: every other transportable mutation reaches here with a
-      // transport manager already resolved.
-      if (transport === undefined) {
-        throw new AbapError(
-          "TRANSPORT_ERROR",
-          `${target.name} needs a transport request (package ${packageName} is not local), but no ` +
-            "transport manager is wired into this call. This is an internal wiring failure in " +
-            "abapsmith, not a mistake in the request.",
-          { name: target.name, packageName },
-        );
-      }
-      const preflightTarget: PreflightTarget = {
-        uri: classicViewUri(target.name),
-        name: target.name,
-        type: "VIEW/DV",
-        packageName,
-        exists: false,
-      };
-      // The URI is synthesized because the view doesn't exist yet — resolveForNewTransportable
-      // (src/adt/session-transport.ts) never sends it to a CTS classification check; it only
-      // reaches the wire as <REF> if a new request is created, exactly as a DEVC/K create's own
-      // not-yet-existing URI does. Any refusal here (resolver denial, or the gate) propagates
-      // untouched.
-      const corr = await preflightPackageCorr(conn, preflightTarget, {
-        transport,
-        gate,
-        ...(named !== undefined ? { corrNr: named } : {}),
-      });
-      corrNr = corr.corrNr;
-      corrSource = corr.source;
-    }
-    if (corrNr !== undefined) transportInfo = { status: "transport", required: true, corrNr };
+    const { corrNr, corrSource, transportInfo: viewTransport } = await resolveBridgeCreateCorr(
+      conn,
+      gate,
+      transport,
+      { name: target.name, type: "VIEW/DV", uri: classicViewUri(target.name), packageName },
+      named,
+    );
+    transportInfo = viewTransport;
     ({ result: created, entryId } = await journalBridgeCreate(
       journal,
       conn,
@@ -3930,14 +4090,30 @@ async function abapCreateViaBridge(
     }
 
     bridgeClass = CLASSIC_BODY_CLASS;
-    const corrNr = normalizeCorrNr(input.corr_nr);
+    // Same route as VIEW/DV above: a transportable package resolves its request under
+    // ABAP_ALLOW_TRANSPORTS (issue #141) instead of demanding a named one.
+    const { corrNr, corrSource, transportInfo: tranTransport } = await resolveBridgeCreateCorr(
+      conn,
+      gate,
+      transport,
+      { name: target.name, type: "TRAN/T", uri: objectUri, packageName },
+      named,
+    );
+    transportInfo = tranTransport;
     ({ result: created, entryId } = await journalBridgeCreate(
       journal,
       conn,
       { name: target.name, type, uri: objectUri, packageName, description: description as string },
       beforeCapture,
       corrNr,
-      () => createTransaction(conn, gate, { ...common, tcode: target.name, program, corrNr }),
+      () =>
+        createTransaction(conn, gate, {
+          ...common,
+          tcode: target.name,
+          program,
+          corrNr,
+          ...(corrSource !== undefined ? { corrSource } : {}),
+        }),
     ));
     detail = `report transaction starting ${program} (dynpro 1000)`;
 
@@ -3997,6 +4173,7 @@ async function abapCreateViaBridge(
       `Created by running the classic fluid tool's body class ${bridgeClass}, not over ADT REST: ` +
         `${cap?.bridgeCreate?.via ?? "see src/adt/classic-call.ts"}`,
       cap?.bridgeCreate?.limits ?? "",
+      ...bridgeTransportNotes(transportInfo, transport, gate),
       verifyNote,
       bridgeReversalNote(entryId, beforeCapture, registration, label, type, target.name),
     ].filter((n) => n !== ""),
@@ -4415,6 +4592,7 @@ async function abapCreateSearchHelpViaBridge(
   maxChars: number,
   gate: SafetyGate,
   journal?: Journal,
+  transport?: SessionTransport,
 ): Promise<BuiltResponse> {
   const type = "SHLP/DH";
   const cap = capabilitiesFor(type);
@@ -4468,17 +4646,40 @@ async function abapCreateSearchHelpViaBridge(
   }
 
   const packageNameStr = target.packageName?.trim() || "$TMP";
-  const corrNr = normalizeCorrNr(input.corr_nr);
+  const named = normalizeCorrNr(input.corr_nr);
   // Zero-network local+corr_nr pairing check, same "a bad combination costs no
-  // request" discipline as abapCreateViaBridge — the other pairing direction
-  // (transportable without corr_nr) is enforced inside createSearchHelp's own
-  // validate() a few lines down, at the cost of the pre-create read below already
-  // having run by then.
-  assertSearchHelpTarget(packageNameStr, corrNr);
+  // request" discipline as abapCreateViaBridge. The other pairing direction
+  // (transportable without corr_nr) is no longer a refusal: the request is
+  // resolved below by `resolveBridgeCreateCorr` (issue #141), and
+  // createSearchHelp's own validate() still refuses an unresolved one as
+  // defence in depth.
+  if (named !== undefined || isLocalPackageName(packageNameStr)) {
+    assertSearchHelpTarget(packageNameStr, named);
+  }
+  // Zero-network gate verdict on the caller-named package BEFORE the package
+  // read below, so a refused package/name/mode costs no request at all. The
+  // same verdict is repeated on the server-resolved package inside
+  // `resolveBridgeCreateCorr` and again in createSearchHelp's own gate call —
+  // every layer must pass; this one only moves the first refusal earlier.
+  gate.assert(
+    "write",
+    { name: target.name, type, packageName: packageNameStr.trim().toUpperCase(), exists: false },
+    { corr: bridgePreflightCorr(named), intent: undefined, phase: "preflight" },
+  );
 
   const packageName = await resolveShlpPackage(conn, packageNameStr);
-  const local = isLocalPackageName(packageName.name);
-  const corrSource: "named" | "auto" | undefined = local ? undefined : "named";
+  const { corrNr, corrSource, transportInfo } = await resolveBridgeCreateCorr(
+    conn,
+    gate,
+    transport,
+    {
+      name: target.name,
+      type,
+      uri: vitBridgeUri("shlpdh", target.name),
+      packageName: packageName.name,
+    },
+    named,
+  );
 
   // Positive absence evidence, read BEFORE the create — same "confirmed-absent"
   // discipline as abapCreateViaBridge's own pre-check, skipped entirely when the
@@ -4505,8 +4706,8 @@ async function abapCreateSearchHelpViaBridge(
     shlpName: target.name,
     description: description as string,
     packageName,
-    corrNr,
-    corrSource,
+    ...(corrNr !== undefined ? { corrNr } : {}),
+    ...(corrSource !== undefined ? { corrSource } : {}),
     selectionMethod: shlp.selectionMethod,
     selectionMethodType: shlp.selectionMethodType,
     dialogType: shlp.dialogType,
@@ -4566,6 +4767,7 @@ async function abapCreateSearchHelpViaBridge(
       system: conn.cfg.sid,
       object: `${type} ${target.name}`,
       package: packageName.name,
+      ...(transportInfo !== undefined ? { transport: transportHeaderText(transportInfo) } : {}),
       mode: "create-bridge",
       created: true,
       verified,
@@ -4578,6 +4780,7 @@ async function abapCreateSearchHelpViaBridge(
       `Created by running the classic fluid tool's body class ${CLASSIC_BODY_CLASS}, not over ADT ` +
         `REST: ${cap?.bridgeCreate?.via ?? "see src/adt/classic-call.ts"}`,
       cap?.bridgeCreate?.limits ?? "",
+      ...bridgeTransportNotes(transportInfo, transport, gate),
       verifyNote,
       entryId !== undefined
         ? `Journalled as ${entryId}, but marked irreversible: SHLP/DH has no VIT-bridge type for ` +
@@ -5329,6 +5532,7 @@ async function abapCreateIndexViaBridge(
   input: WriteInput,
   maxChars: number,
   gate: SafetyGate,
+  transport?: SessionTransport,
 ): Promise<BuiltResponse> {
   const type = "TABL/DI";
   const cap = capabilitiesFor(type);
@@ -5406,12 +5610,28 @@ async function abapCreateIndexViaBridge(
     );
   }
 
-  const corrNr = normalizeCorrNr(input.corr_nr);
-  // Zero-network package/corr_nr check against the SERVER-resolved package,
-  // same discipline as VIEW/DV's `assertClassicViewCreateTarget` call in
-  // `abapCreateViaBridge` above — `createSecondaryIndex`'s own `validate()`
-  // repeats this as defence in depth, not the only enforcement point.
-  assertSecondaryIndexTarget(owner.packageName.name, corrNr);
+  const named = normalizeCorrNr(input.corr_nr);
+  // Zero-network package/corr_nr pairing check against the SERVER-resolved
+  // package, same discipline as VIEW/DV's `assertClassicViewCreateTarget` call
+  // in `abapCreateViaBridge` above. A transportable package with NO corr_nr is
+  // resolved by `resolveBridgeCreateCorr` (issue #141) rather than refused;
+  // `createSecondaryIndex`'s own `validate()` still refuses an unresolved one
+  // as defence in depth, not the only enforcement point.
+  if (named !== undefined || isLocalPackageName(owner.packageName.name)) {
+    assertSecondaryIndexTarget(owner.packageName.name, named);
+  }
+  const { corrNr, corrSource, transportInfo } = await resolveBridgeCreateCorr(
+    conn,
+    gate,
+    transport,
+    {
+      name: indexGateName(baseTable, target.name),
+      type,
+      uri: vitBridgeUri("tabldi", `${baseTable}-${target.name}`),
+      packageName: owner.packageName.name,
+    },
+    named,
+  );
 
   const created = await createSecondaryIndex(conn, gate, {
     indexName: target.name,
@@ -5419,7 +5639,8 @@ async function abapCreateIndexViaBridge(
     fields: indexFields,
     description,
     packageName: owner.packageName,
-    corrNr,
+    ...(corrNr !== undefined ? { corrNr } : {}),
+    ...(corrSource !== undefined ? { corrSource } : {}),
     unique: input.index_unique,
   });
 
@@ -5432,6 +5653,7 @@ async function abapCreateIndexViaBridge(
       system: conn.cfg.sid,
       object: `${type} ${target.name}`,
       package: owner.packageName.name,
+      ...(transportInfo !== undefined ? { transport: transportHeaderText(transportInfo) } : {}),
       mode: "create-bridge",
       created: true,
       verified: created.verdict.verified,
@@ -5446,6 +5668,7 @@ async function abapCreateIndexViaBridge(
       `Created by running the classic fluid tool's body class ${CLASSIC_BODY_CLASS}, not over ` +
         `ADT REST: ${cap?.bridgeCreate?.via ?? "see src/adt/index-create.ts"}`,
       cap?.bridgeCreate?.limits ?? "",
+      ...bridgeTransportNotes(transportInfo, transport, gate),
       created.verdict.verified
         ? `Independently verified with a fresh DD12V/DD17S catalog read after the bridge returned: ` +
           `${created.verdict.statement}`
@@ -5503,6 +5726,7 @@ async function abapDeleteIndexViaBridge(
   input: WriteInput,
   maxChars: number,
   gate: SafetyGate,
+  transport?: SessionTransport,
 ): Promise<BuiltResponse> {
   const type = "TABL/DI";
   const cap = capabilitiesFor(type);
@@ -5573,17 +5797,34 @@ async function abapDeleteIndexViaBridge(
     );
   }
 
-  const corrNr = normalizeCorrNr(input.corr_nr);
+  const named = normalizeCorrNr(input.corr_nr);
   // Divergence from abapDeleteViaBridge's blanket corr_nr refusal — see this
   // function's doc comment: DD_INDEX_INTERFACE's ACTION='D' call DOES take a
   // transport parameter, so a transportable package's index delete needs one.
-  assertSecondaryIndexTarget(owner.packageName.name, corrNr);
+  // Resolved the same way as the create (issue #141) when none is named.
+  if (named !== undefined || isLocalPackageName(owner.packageName.name)) {
+    assertSecondaryIndexTarget(owner.packageName.name, named);
+  }
+  const { corrNr, corrSource, transportInfo } = await resolveBridgeCreateCorr(
+    conn,
+    gate,
+    transport,
+    {
+      name: indexGateName(baseTable, target.name),
+      type,
+      uri: vitBridgeUri("tabldi", `${baseTable}-${target.name}`),
+      packageName: owner.packageName.name,
+      op: "delete",
+    },
+    named,
+  );
 
   const deleted = await deleteSecondaryIndexViaBridge(conn, gate, {
     indexName: target.name,
     baseTable,
     packageName: owner.packageName,
-    corrNr,
+    ...(corrNr !== undefined ? { corrNr } : {}),
+    ...(corrSource !== undefined ? { corrSource } : {}),
   });
 
   return buildResponse({
@@ -5591,6 +5832,7 @@ async function abapDeleteIndexViaBridge(
       system: conn.cfg.sid,
       object: `${type} ${target.name}`,
       package: owner.packageName.name,
+      ...(transportInfo !== undefined ? { transport: transportHeaderText(transportInfo) } : {}),
       mode: "delete-bridge",
       deleted: true,
       verified: deleted.verdict.verified,
