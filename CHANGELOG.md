@@ -12,6 +12,26 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.13] - 2026-09-21
+
+### Added
+
+- **`abap_read method=` resolves inherited members** (#146). When the class itself declares no such member, the lookup walks `INHERITING FROM` and `INTERFACES` from the definition source (superclass first, then interfaces, each level's own parents after it) and returns the first hit with `foundOn` in the header and the defining object's line numbers; a `NOT_FOUND` lists the class's own methods in `details.available` and the chain's in `details.availableInherited` as `NAME (ORIGIN)`, preferring names that share a prefix with the request. A parent that cannot be read is reported under `details.unresolved` instead of aborting the read.
+- **`abap_read outline=true` lists inherited members** (#146). An `INHERITED` section after the class's own components names every public/protected method, attribute and event declared on its superclasses and interfaces, grouped by defining object with relation and depth; the header carries `components` and `inherited` counts.
+- **`abap_read method=` returns the declaration first** (#146). The `METHODS …` statement (unchained from a `METHODS: a, b.` list) precedes the `METHOD … ENDMETHOD.` body; `method=` with `include="definitions"` returns the declaration alone instead of `UNSUPPORTED`. The tool description and the `abapsmith-write-abap-source` skill say to learn a signature this way rather than reading the full class.
+- **`ABAP_AVAILABLE_MEMBERS_MAX`** (#146). Caps each candidate list in a `method=` `NOT_FOUND` (default 40, was a fixed 12); `availableTruncated` / `availableInheritedTruncated` report how many names were dropped.
+- **`CHECK_FAILED` quotes the offending lines** (#147). Each syntax-check message in `details.failure.details.messages` carries `sourceLine` (trimmed, cut at 200 characters) and one line of context each side (`before` / `after`), taken from the source the call just sent — no second read.
+- Live suite `test/integration-checkfail-method-repair.test.ts` (#147): a full write with a syntax error into `$TMP` class `ZCL_AS_CHECKFAIL`, a `method=` repair against the inactive version, and activation.
+
+### Changed
+
+- The `CHECK_FAILED` hint after a full write says the object is saved inactive and that `abap_write method="<NAME>"` repairs one method against that inactive version, then `abap_activate` (#147).
+
+### Fixed
+
+- **`method=` writes and reads against a class with an inactive version** (#147). Method line ranges were always taken from the ACTIVE component structure, so after a `CHECK_FAILED` full write every `method=` write spliced into stale line ranges and a method that existed only in the inactive version was `NOT_FOUND`. The object's descriptor (`adtcore:version`) now decides which structure to fetch: when it reports a newer inactive version, the structure is fetched with `?version=inactive` (falling back to the active one when that read fails or is empty); otherwise the active structure is used — because ADT answers `?version=inactive` with the active structure, unmarked, for a fully active object, so requesting it first without checking the descriptor could not tell the two apart. The response header (`structureVersion`) and the write's note say which version was used.
+- A `method=` `NOT_FOUND` no longer lists the class's own name as an available member (#147) — the `CLAS/OC` / `INTF/OI` self-entry of the ADT component structure is filtered out, and so is the `CLAS/OCX` external-reference entry (the class's Text Elements, present in every class's active structure — it also made each superclass's own name appear in the outline's `INHERITED` section), so `available` names methods only.
+
 ## [0.6.12] - 2026-09-16
 
 ### Added

@@ -349,7 +349,9 @@ describe("readMethod discloses the cap on its component list", () => {
 
   it("states the true total when more components exist than it lists", async () => {
     const err = await caught(() =>
-      readMethod(componentsConn(83), CLAS, "CLASS zcl_foo DEFINITION.", "NO_SUCH_METHOD"),
+      readMethod(componentsConn(83), CLAS, "CLASS zcl_foo DEFINITION.", "NO_SUCH_METHOD", {
+        availableMax: 12,
+      }),
     );
     expect(err.code).toBe("NOT_FOUND");
     // (a) the true total, in the payload the caller receives …
@@ -369,7 +371,9 @@ describe("readMethod discloses the cap on its component list", () => {
 
   it("a method beyond the cap is not implied to be absent", async () => {
     const err = await caught(() =>
-      readMethod(componentsConn(83), CLAS, "CLASS zcl_foo DEFINITION.", "TYPO_METHOD"),
+      readMethod(componentsConn(83), CLAS, "CLASS zcl_foo DEFINITION.", "TYPO_METHOD", {
+        availableMax: 12,
+      }),
     );
     const listed = err.details.available as string[];
     // METHOD_70 really exists and really is missing from the list — the error

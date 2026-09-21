@@ -416,6 +416,18 @@ const ALLOWED_LINES: { file: string; contains: string; reason: string }[] = [
     reason:
       "abbreviate(): an ON-condition / association blurb printed next to a lineage tree node is cut at ~80 characters and ALWAYS suffixed with `…` in the same string, so the cut is visible where it happens; the full condition is the CDS source itself, readable in full via abap_read of the DDLS. Nothing structural (no node, no field, no row) is dropped.",
   },
+  {
+    file: "src/adt/source.ts",
+    contains: ").slice(0, max);",
+    reason:
+      "NOT_FOUND candidate list for method= (issue #146): the class's own methods are ranked and cut at ABAP_AVAILABLE_MEMBERS_MAX. `dropped` is computed on the next line and, when non-zero, the error message carries ` [TRUNCATED: listing <shown> of <total> components — <n> not shown, retrieve with: abap_read({outline:true})]` and details.availableTruncated names the count, so the cap is disclosed in the same response.",
+  },
+  {
+    file: "src/adt/source.ts",
+    contains: ".slice(0, max)",
+    reason:
+      "Same NOT_FOUND path, the inherited-candidate list (issue #146): cut at the same cap; `inheritedDropped` is computed two lines below and surfaces as details.availableInheritedTruncated whenever it is non-zero, next to the shown names in details.availableInherited. Test: test/source-members.test.ts.",
+  },
 ];
 
 function allowedReason(relPath: string, line: string): string | undefined {
