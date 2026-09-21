@@ -12,6 +12,8 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.14] - 2026-09-21
+
 ### Added
 
 - `abap_dumps mode=show` gains `section` (#149): `"analysis"` (kap0, kap3, kap4, kap28), `"source"` (kap7, kap8), `"variables"` (kap10, gated exactly like `variables:true`), `"stack"` (kap11, kap22), `"environment"` (kap5, kap6, kap6a, kap9, kap14), or `"all"` — the full set `show` returned by default before this change. With neither `section` nor `chapters` given, `show` now returns a summary instead of chapter text: runtime error, exception class, short text, the source line (kap7/kap8 — include, line, statement), error analysis (kap3, trimmed to ~450 characters) and how to correct (kap4, ~260 characters), the top 5 call-stack frames (kap11), and a note listing every chapter the dump has. Capped at 3,000 characters, truncation marked like any other response. `section` and `chapters` together, or `offset` on the summary, are `BAD_INPUT`.
