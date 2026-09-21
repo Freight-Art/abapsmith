@@ -38,6 +38,22 @@ undo.
 
 ## Spec field reference (per operation)
 
+Unless noted otherwise, every id-shaped field (`spotName`, `badiName`,
+`implName`, `filterName`, `interfaceName`, `hostName`, ...) is capped at 30
+characters.
+
+| Operation | Fields (`?` = optional) | Limits |
+|---|---|---|
+| `create_spot` | `description` | ≤ 60 chars |
+| `add_badi_def` | `badiName`, `interfaceName`, `singleUse` (bool), `shortText` | `shortText` ≤ 60 chars |
+| `add_filter_def` | `badiName`, `filterName`, `filterType`, `filterText?` | `filterType`: one upper-case letter, e.g. `C`; `filterText` ≤ 255 chars |
+| `create_impl` | `spotName`, `badiName`, `implName`, `implClass`, `active` (bool), `description` | `description` ≤ 60 chars |
+| `set_filter_values` | `spotName`, `implName`, `filterName`, `filterType`, `compare`, `value` | `filterType` as above; `compare` — see below; `value` ≤ 255 chars |
+| `exercise` | `methodName`, `filterName?`, `filterValue?`, `params[]`: `{name, kind?, value?, type?}` | `kind`: `importing` (default) \| `changing` \| `exporting` \| `receiving`, at most one `receiving` entry; `value` required for `importing`/`changing`, forbidden otherwise; `type` required for `changing`/`exporting`/`receiving`, forbidden for `importing` (a namespaced type reference) — rationale below |
+| `discover_hook_anchors` | `hostType`, `hostName`, `hostUri` | — |
+| `create_hook` | `hostType` (`PROG`/`P` only), `hostName`, `hostUri`, `anchorFullName`, `anchorFullDescription`, `responsible?`, `activate?` (bool) | `anchorFullDescription` ≤ 200 chars; `responsible` ≤ 12 chars |
+| `set_impl_active` | `active` (bool), `implName?`, `description?` | `implName` omittable only if the object has exactly one implementation entry; `description` ≤ 60 chars |
+
 `spec.description` (`create_spot`, `create_impl`) becomes the object's root
 `adtcore:description`. Both operations require it up front, rather than
 leaving it to a follow-up `write_description` call, because SAP's

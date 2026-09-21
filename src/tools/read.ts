@@ -205,10 +205,10 @@ export const readInputSchema = {
     .enum(["history", "diff", "definition", "lineage", "footprint", "docu", "digest"])
     .optional()
     .describe(
-      "history: versions. diff: hunks. definition: element at line/column. lineage: CDS view sources " +
+      "history: versions. diff: hunks. definition: element at line/column. lineage: CDS sources " +
         "down to base tables. footprint: database writes and commits. docu: SAP documentation " +
-        '(flattened ITF; type="SIMG" + object=<abap_img activity id> for an IMG activity\'s docu). ' +
-        "digest: one-page object overview. Omit for normal read.",
+        '(type="SIMG" + object=<abap_img activity id> for an IMG activity). digest: one-page ' +
+        "overview. Omit for a normal read.",
     ),
   from: z.string().optional().describe('diff: older side — version, transport, or "active".'),
   to: z.string().optional().describe("diff: newer side, same forms as `from`."),
@@ -3546,11 +3546,11 @@ export function registerReadTools(mcp: McpServer, deps: ReadToolDeps): void {
     {
       title: "Read ABAP object",
       description:
-        "Read an ABAP object: source, pseudo-DDL, a DEVC/K package listing (types/depth filter it), " +
-        "or (SUSO/B, TABL/DI) a read-only catalog render. view=\"docu\" reads SAP's own documentation " +
-        "(or, with method=, a method's ABAP Doc); view=\"digest\" gives a one-page overview " +
-        "(CLAS/INTF/PROG/FUGR/DDLS) with public API, dependencies, tests and recent history. " +
-        "Returns an etag. Capped ~15k tokens — use outline/method/offset for large objects. " +
+        "Read an ABAP object: source, pseudo-DDL, a DEVC/K package listing, or (SUSO/B, TABL/DI) " +
+        "a read-only catalog render; view= selects docu/digest/history/diff/definition/lineage/" +
+        "footprint. A CLAS/INTF/PROG/FUGR source above 150 lines or 8k chars answers with its " +
+        "outline by default — then method=, pattern= (regex, with context), offset/limit, or " +
+        "full=true. Returns an etag; capped ~15k tokens, truncation marked. " +
         "Example: {\"object\":\"ZCL_FOO\",\"type\":\"CLAS/OC\"}.",
       // `from_system`/`to_system` (issue #93, cross-system view="diff")
       // are spliced in only when more than one system is configured —

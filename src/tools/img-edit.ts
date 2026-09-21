@@ -107,58 +107,50 @@ export const imgEditInputSchema = {
   mode: z
     .enum(["preview", "upsert", "delete", "create_request"])
     .describe(
-      "preview: validate rows against policy and show current vs. prospective rows, without writing. " +
-        "upsert: write rows (insert new keys, update existing ones). delete: remove rows. " +
-        "create_request: create a new customizing (type W) transport request and return its number.",
+      "preview: validate rows and show current vs. prospective, without writing. upsert: write rows " +
+        "(insert or update). delete: remove rows. create_request: create a customizing (type W) transport request.",
     ),
   activity: z
     .string()
     .optional()
     .describe(
-      "preview/upsert/delete: an IMG activity id, exactly as abap_img show accepts. Resolved to its " +
-        "base table, key fields, and client field automatically. Exactly one of activity/object/table " +
-        "is required. Conflicts with key_fields/client_field (those are derived from the resolution).",
+      "preview/upsert/delete: an IMG activity id, as abap_img show accepts. Resolves to base table, key " +
+        "fields, and client field. Exactly one of activity/object/table is required. Conflicts with key_fields/client_field.",
     ),
   object: z
     .string()
     .optional()
     .describe(
-      "preview/upsert/delete: a maintenance view, view cluster, transaction, or table name, exactly as " +
-        "abap_img objects accepts. Resolved to its base table, key fields, and client field " +
-        "automatically. Exactly one of activity/object/table is required. Conflicts with " +
-        "key_fields/client_field (those are derived from the resolution).",
+      "preview/upsert/delete: a maintenance view, view cluster, transaction or table name, as abap_img " +
+        "objects accepts. Exactly one of activity/object/table is required. Conflicts with key_fields/client_field.",
     ),
   kind: z
     .enum(["table", "view", "cluster", "transaction", "customizing_object", "report"])
     .optional()
     .describe(
-      "Only meaningful together with object: which catalog to resolve object against. Omitted: probed " +
-        "as table, then view, then cluster, then transaction, then customizing object, first match wins.",
+      "Only meaningful with object: which catalog to resolve object against. Omitted: tries table, " +
+        "view, cluster, transaction, customizing object, in that order, first match wins.",
     ),
   table: z
     .string()
     .optional()
     .describe(
-      "Expert escape hatch: the base DDIC table to read/write directly, e.g. ZTEST_IMGW, bypassing " +
-        "activity/object resolution. Exactly one of activity/object/table is required for " +
-        "preview/upsert/delete. Requires key_fields; client_field is optional (defaults to MANDT) " +
-        "but this tool cannot write a genuinely client-independent table regardless — the write " +
-        "always sets client_field from sy-mandt.",
+      "Expert escape hatch: the base DDIC table to read/write directly, bypassing activity/object " +
+        "resolution. Exactly one of activity/object/table is required. Requires key_fields; " +
+        "a genuinely client-independent table cannot be written.",
     ),
   client_field: z
     .string()
     .optional()
     .describe(
-      "table (expert escape hatch) only: the table's client field name, e.g. MANDT. Conflicts with " +
-        "activity/object, whose client field is resolved automatically.",
+      "table (expert escape hatch) only: the table's client field name, e.g. MANDT. Conflicts with activity/object.",
     ),
   key_fields: z
     .array(z.string())
     .optional()
     .describe(
       "table (expert escape hatch) only: the table's key field names, in order, excluding the client " +
-        "field. At least one required. Conflicts with activity/object, whose key fields are resolved " +
-        "automatically.",
+        "field. At least one required. Conflicts with activity/object.",
     ),
   rows: z
     .array(imgEditRowSchema)
@@ -169,14 +161,13 @@ export const imgEditInputSchema = {
     .optional()
     .describe(
       "upsert/delete: the maintenance view or view cluster name recorded on the transport entry. " +
-        "With activity/object, defaults to the resolved view/cluster name (or table, if the resolved " +
-        "target is a table). With table, defaults to table.",
+        "Defaults to the resolved view/cluster (or table if the resolved target is a table); with table, defaults to table.",
     ),
   master_type: z
     .enum(["VDAT", "CDAT"])
     .optional()
     .describe(
-      'upsert/delete: the transport entry\'s object type. "VDAT" for a maintenance view (default), ' +
+      'upsert/delete: the transport entry\'s object type — "VDAT" for a maintenance view (default), ' +
         '"CDAT" for a customizing object recorded directly.',
     ),
   language: z
@@ -184,8 +175,7 @@ export const imgEditInputSchema = {
     .regex(IMG_LANGUAGE_RE, "single-character SAP language key (SPRAS), not an ISO code")
     .optional()
     .describe(
-      'Single-character SAP language key (SPRAS) the probe reads DD02L/DD03L texts in, e.g. "E" for ' +
-        `English, "D" for German — not a 2-letter ISO code like EN/DE. Defaults to ${JSON.stringify(IMG_DEFAULT_LANGUAGE)}.`,
+      `Single-character SAP language key (SPRAS), e.g. E or D — not EN/DE. Default ${JSON.stringify(IMG_DEFAULT_LANGUAGE)}.`,
     ),
   corr_nr: z
     .string()
@@ -203,8 +193,7 @@ export const imgEditInputSchema = {
     .optional()
     .describe(
       "Clears the policy refusal for a client-independent (affects-every-client) table. Does not make " +
-        "the write possible — the generated apply class always sets the client field from sy-mandt, " +
-        "which a genuinely client-independent table has none of.",
+        "it writable — the apply class always sets the client field from sy-mandt.",
     ),
   description: z.string().optional().describe("create_request only: the request's description text."),
   owner: z.string().optional().describe("create_request only: the request owner. Defaults to the logged-in user."),
@@ -1896,12 +1885,11 @@ async function runCreateRequestMode(deps: ImgEditToolDeps, input: ImgEditInput):
 // ---------------------------------------------------------------------------
 
 const IMG_EDIT_TOOL_DESCRIPTION =
-  "preview (table, key_fields, rows) validates rows against policy and shows current vs. prospective " +
-  "rows without writing. upsert/delete (table, key_fields, rows, confirm) write rows; confirm must " +
-  "equal table (case-insensitive) and corr_nr is usually required. view/master_type name the " +
-  "transport entry recorded for upsert/delete (default: table/VDAT). create_request (description, " +
-  "owner) mints a new customizing (type W) transport request. First call per mode deploys and " +
-  "activates a bridge class in $ABAPSMITH_FLUID_API.";
+  "Write IMG customizing rows. preview validates rows against policy and shows current vs. " +
+  "prospective rows without writing; upsert/delete write rows and need confirm equal to table " +
+  "(case-insensitive) — corr_nr is usually required; create_request (description, owner) mints " +
+  "a customizing (type W) transport request. First call per mode deploys and activates a " +
+  "bridge class in $ABAPSMITH_FLUID_API. Details: doc/TOOLS/abap-img-edit.md.";
 
 export async function runImgEditTool(deps: ImgEditToolDeps, args: unknown): Promise<CallToolResult> {
   const input = args as ImgEditInput;

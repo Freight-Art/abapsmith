@@ -463,8 +463,8 @@ export function registerDumpTools(mcp: McpServer, deps: DumpsToolDeps): void {
         "feed; mode=show returns one dump, chapter by chapter. The feed reaches back " +
         `${DUMPS_RESIDENCE_WINDOW_DAYS} DAYS ONLY: an empty list means "no dumps in the last ` +
         `${DUMPS_RESIDENCE_WINDOW_DAYS} days matching this filter", never "nothing failed". ` +
-        "Copy key from a list row VERBATIM. show returns the header, source extract, system " +
-        "fields and call stack, and nothing else unless the operator enabled more.",
+        "Copy key from a list row VERBATIM. show returns header, source extract, system fields " +
+        "and call stack, and nothing else unless the operator enabled more.",
       inputSchema: dumpsInputSchema({ variables: variablesAllowed }),
       annotations: {
         readOnlyHint: true,

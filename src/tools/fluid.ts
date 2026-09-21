@@ -125,14 +125,12 @@ export const fluidInputSchema = {
     .enum(FLUID_OPS)
     .optional()
     .describe(
-      'What to do. Defaults to "run" whenever `tool` or `action` is given without `op`; a call ' +
-        "with none of `op`/`tool`/`action` returns the catalogue instead (other fields such as " +
-        "`args`/`confirm`/`corr_nr`/`scope` do not affect this). list/describe touch no network; " +
-        "status reads the local registry plus a best-effort probe of retired pre-fluid bridge " +
-        "classes and invoker classes per tool. verify asks the system what is actually deployed. " +
-        "run (the default) executes one action, deploying or repairing first if needed. repair " +
-        "forces a redeploy (and, with no `tool`, also reaps retired pre-fluid bridge classes; " +
-        "with `tool`, prunes its stale invokers). remove deletes abapsmith-owned generated ABAP.",
+      'What to do. Defaults to "run" when `tool` or `action` is given; a call with none of ' +
+        "`op`/`tool`/`action` returns the catalogue. list/describe: no network. status: local " +
+        "registry plus a best-effort probe. verify: what is actually deployed. run: execute one " +
+        "action, deploying or repairing first if needed. repair: force a redeploy (no `tool`: " +
+        "also reap retired pre-fluid bridge classes; with `tool`: prune its stale invokers). " +
+        "remove: delete abapsmith-owned generated ABAP.",
     ),
   tool: z
     .string()
@@ -165,12 +163,10 @@ export const fluidInputSchema = {
     .enum(["tool", "invokers", "all", "dynamic"])
     .optional()
     .describe(
-      'remove only. "tool" (default) deletes one tool\'s manifest objects (needs `tool`). ' +
-        '"invokers" deletes every generated per-call invoker class ' +
-        '(ZCL_ZMCP_I_xxxxxxxx). "dynamic" deletes every generated per-call dynamic-bridge class ' +
-        "(the abap_bopf_test/abap_ui/abap_enh/abap_fpm_read/abap_run tool paths that deploy fresh " +
-        'ABAP per call — see `status`\'s "dynamic bridges" section). "all" deletes every ' +
-        `abapsmith-owned object in ${FLUID_PACKAGE}, which already includes both of the above. ` +
+      'remove only. "tool" (default): one tool\'s manifest objects (needs `tool`). ' +
+        '"invokers": every generated per-call invoker class (ZCL_ZMCP_I_xxxxxxxx). ' +
+        '"dynamic": every generated per-call dynamic-bridge class (see `status`). "all": every ' +
+        `abapsmith-owned object in ${FLUID_PACKAGE} (includes both). ` +
         "The package itself is never deleted.",
     ),
 };

@@ -94,7 +94,9 @@ export const searchInputSchema = {
     .enum(["objects", "where_used", "source", "call_graph"])
     .optional()
     .describe(
-      'Default "objects". "source" scans raw source text (literal/regex, any line) and needs the fluid API; prefer "where_used" when you want real static references to one object, since a text scan also matches strings, comments and dead code. "call_graph" walks multiple levels of callers or callees instead of just one.',
+      'Default "objects". "source": raw source-text scan (literal/regex; needs the fluid API; ' +
+        'also matches strings, comments and dead code — prefer "where_used" for real static ' +
+        'references). "call_graph": multiple levels of callers or callees.',
     ),
   type: z
     .string()
@@ -834,7 +836,8 @@ export function registerSearchTools(mcp: McpServer, deps: SearchToolDeps): void 
         "Find objects by name pattern (mode=objects, wildcards *), list consumers " +
         "(mode=where_used; 20+ seconds on wide fan-in — narrow by type/query first), walk multiple " +
         "levels of callers or callees (mode=call_graph, direction=callers|callees, depth<=4), or scan " +
-        "source text line by line (mode=source, needs the fluid API and a package/objects scope).",
+        "source text (mode=source; hits grouped per object, needs the fluid API and a " +
+        "package/objects scope).",
       inputSchema: searchInputSchema,
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
