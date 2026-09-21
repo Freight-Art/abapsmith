@@ -89341,22 +89341,16 @@ function parseChildVariablesResponse(xmlText2) {
   const variables = toArray(variablesNode?.STPDA_ADT_VARIABLE).map(parseVariableRow);
   return { hierarchies, variables };
 }
-function parseDebuggeeKind(raw) {
-  switch ((raw ?? "").toUpperCase()) {
-    case "DEBUGGEE":
-      return "debuggee";
-    case "POSTMORTEM":
-      return "postmortem";
-    case "POSTMORTEM_DIALOG":
-      return "postmortem_dialog";
-    default:
-      throw new DebugXmlParseError(
-        `parseDebuggeeResponse: unrecognised DBGEE_KIND "${raw ?? ""}"`,
-        raw ?? ""
-      );
-  }
+function parseDebuggeeKind(raw, warn) {
+  const upper = (raw ?? "").trim().toUpperCase();
+  if (upper === "DEBUGGEE") return "debuggee";
+  if (upper.includes("MORTEM")) return upper.includes("DIALOG") ? "postmortem_dialog" : "postmortem";
+  warn?.(
+    `parseDebuggeeResponse: unrecognised DBGEE_KIND "${raw ?? ""}" \u2014 treating the debuggee as attached with kind unknown (raw value kept in Debuggee.rawKind)`
+  );
+  return "unknown";
 }
-function parseDebuggeeResponse(xmlText2) {
+function parseDebuggeeResponse(xmlText2, opts) {
   const parsed = parser.parse(xmlText2);
   const root = parsed.abap;
   const values = root?.values;
@@ -89370,7 +89364,8 @@ function parseDebuggeeResponse(xmlText2) {
   }
   return {
     id: str(row2.DEBUGGEE_ID),
-    kind: parseDebuggeeKind(row2.DBGEE_KIND),
+    kind: parseDebuggeeKind(row2.DBGEE_KIND, opts?.warn),
+    rawKind: str(row2.DBGEE_KIND),
     client: num(row2.CLIENT),
     // TERMINAL_ID/IDE_ID/INCL_CURR are absent from the postmortem fixture despite Debuggee
     // declaring them required — a post-mortem debuggee was never attached via a terminal.
@@ -89543,12 +89538,12 @@ function parseListenerConflictBody(body) {
     subType: parsed.subtype
   };
 }
-function parseListenResult(raw) {
+function parseListenResult(raw, warn) {
   if (raw.body.trim() === "") return { kind: "empty" };
   if (looksLikeExceptionEnvelope(raw.body)) {
     return { kind: "conflict", conflict: parseListenerConflictBody(raw.body) };
   }
-  return { kind: "debuggee", debuggee: parseDebuggeeResponse(raw.body) };
+  return { kind: "debuggee", debuggee: parseDebuggeeResponse(raw.body, { warn }) };
 }
 function buildMultipartBatchBody(operations, boundary) {
   const parts = operations.map((op) => {
@@ -89689,7 +89684,7 @@ var DebugClient = class {
    */
   launchListener(params) {
     const handle = this.longPoll.listen(listenerLaunchUrl(params), { headers: { Accept: LISTENER_ACCEPT } });
-    const result = handle.result.then(parseListenResult);
+    const result = handle.result.then((raw) => parseListenResult(raw, this.warn));
     void result.catch(() => {
     });
     return {
@@ -90851,6 +90846,16 @@ function computeStateId(input) {
     "utf8"
   ).digest("hex");
 }
+var SHORT_STATE_ID_LENGTH = 12;
+var MIN_STATE_ID_PREFIX_LENGTH = 8;
+function shortStateId(id) {
+  return id.slice(0, SHORT_STATE_ID_LENGTH);
+}
+function stateIdMatches(current, provided) {
+  const p = provided.trim().toLowerCase();
+  if (p.length < MIN_STATE_ID_PREFIX_LENGTH || p.length > current.length) return false;
+  return current.startsWith(p);
+}
 function terminationEvidenceFrom(e) {
   if (!isAbapError(e)) return void 0;
   const d = e.details;
@@ -90909,6 +90914,7 @@ var DebugSession = class {
   currentStateId;
   debugSessionId;
   debuggeeId;
+  caughtDebuggee;
   deathReason;
   deathDetail;
   terminationResult;
@@ -90991,6 +90997,7 @@ var DebugSession = class {
       stateId: this.currentStateId,
       debugSessionId: this.debugSessionId,
       debuggeeId: this.debuggeeId,
+      debuggee: this.caughtDebuggee,
       deathReason: this.deathReason,
       deathDetail: this.deathDetail,
       terminationResult: this.terminationResult,
@@ -91651,6 +91658,8 @@ var DebugSession = class {
     const outcome = settled.value;
     if (outcome.kind === "debuggee") {
       this.debuggeeId = outcome.debuggee.id;
+      const d = outcome.debuggee;
+      this.caughtDebuggee = { kind: d.kind, rawKind: d.rawKind, dumpId: d.dumpId, dumpUri: d.dumpUri };
       this.status = "caught";
       this.startIdleTimer();
       return outcome;
@@ -91800,11 +91809,15 @@ var DebugSession = class {
         { status: this.status }
       );
     }
-    if (stateId !== this.currentStateId) {
+    if (!stateIdMatches(this.currentStateId, stateId)) {
       throw new AbapError(
         "BAD_INPUT",
-        `Stale stateId: the session has moved on. The current stateId is "${this.currentStateId}".`,
-        { providedStateId: stateId, currentStateId: this.currentStateId },
+        `Stale stateId: the session has moved on. The current stateId is "${shortStateId(this.currentStateId)}".`,
+        {
+          providedStateId: stateId,
+          currentStateId: this.currentStateId,
+          currentShortStateId: shortStateId(this.currentStateId)
+        },
         "Re-fetch the stack/variables using the current stateId rather than one held from before the last step \u2014 this session deliberately does not auto-recover against a different state (types.ts's StateId doc comment)."
       );
     }
@@ -91943,7 +91956,7 @@ var DebugSession = class {
       await dieOnDeathSignal(e);
       throw new AbapError(
         "BAD_INPUT",
-        `step: the "${kind}" step DID execute on the debuggee \u2014 it has already moved and cannot be moved back \u2014 but the follow-up getStack() failed: ${describeUnknownError(e)}. Do NOT retry the step: doing so would step the debuggee a SECOND time. The stateId you passed has been retired; the current stateId is "${this.currentStateId}".`,
+        `step: the "${kind}" step DID execute on the debuggee \u2014 it has already moved and cannot be moved back \u2014 but the follow-up getStack() failed: ${describeUnknownError(e)}. Do NOT retry the step: doing so would step the debuggee a SECOND time. The stateId you passed has been retired; the current stateId is "${shortStateId(this.currentStateId)}".`,
         {
           stepExecuted: true,
           kind,
@@ -91952,7 +91965,7 @@ var DebugSession = class {
           causeCode: isAbapError(e) ? e.code : void 0,
           cause: describeUnknownError(e)
         },
-        `Re-read the stack with getStack("${this.currentStateId}") to resynchronise. Only re-issue step() once you have a fresh stack \u2014 a retry with the old stateId is now refused precisely so the debuggee cannot be stepped twice for one requested step.`,
+        `Re-read the stack with getStack("${shortStateId(this.currentStateId)}") to resynchronise. Only re-issue step() once you have a fresh stack \u2014 a retry with the old stateId is now refused precisely so the debuggee cannot be stepped twice for one requested step.`,
         { retryable: false }
         // the step already executed; retrying would step the debuggee a second time
       );
@@ -92088,6 +92101,7 @@ var DebugSession = class {
       this.clearIdleTimer();
       this.listenHandle = void 0;
       this.debuggeeId = void 0;
+      this.caughtDebuggee = void 0;
       this.deathReason = reason;
       this.deathDetail = detail;
       this.terminationResult = this.buildTerminationResult(reason, detail, evidence);
@@ -106759,6 +106773,52 @@ function renderStackSection(stack, stateId) {
   return lines.join("\n");
 }
 
+// src/debug/guidance.ts
+var GuidanceLedger = class {
+  seen = /* @__PURE__ */ new Set();
+  lastSignature;
+  /**
+   * The text to emit for `notes`, in order: the full text for a key not yet
+   * seen since the last state change, the brief otherwise. Marks each key
+   * seen, so two notes with the same key in ONE call print full then brief.
+   */
+  render(notes) {
+    const out = [];
+    for (const note of notes) {
+      if (this.seen.has(note.key)) {
+        out.push(note.brief);
+      } else {
+        this.seen.add(note.key);
+        out.push(note.full);
+      }
+    }
+    return out;
+  }
+  /**
+   * Record that the run's state changed in a way worth re-reading the full
+   * notes for. `signature` names the change (`"bp:<ids>"`, `"postmortem"`);
+   * only a signature DIFFERENT from the previous one re-arms the full text.
+   */
+  noteStateChange(signature) {
+    if (signature === this.lastSignature) return;
+    this.lastSignature = signature;
+    this.seen.clear();
+  }
+  /** True when `key` has already been printed in full since the last state change. */
+  hasSeen(key) {
+    return this.seen.has(key);
+  }
+};
+var NOTE_OVERHEAD = "NOTE: ".length + 1;
+function budgetWithNotes(notes, clampedMaxChars) {
+  return clampedMaxChars + notes.reduce((sum, n) => sum + n.length + NOTE_OVERHEAD, 0);
+}
+
+// src/debug/types.ts
+function isPostMortemKind(kind) {
+  return kind === "postmortem" || kind === "postmortem_dialog";
+}
+
 // src/adt/enhancement.ts
 init_session();
 init_errors();
@@ -115316,10 +115376,24 @@ function resolveLaneRun(stateId) {
   const active = activeLaneRuns();
   if (active.length <= 1) return active[0];
   if (stateId !== void 0) {
-    const exact = active.find((r) => r.session.snapshot.stateId === stateId);
-    if (exact) return exact;
+    const matches = active.filter((r) => {
+      const current = r.session.snapshot.stateId;
+      return current !== void 0 && stateIdMatches(current, stateId);
+    });
+    if (matches.length === 1) return matches[0];
+    if (matches.length > 1) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `stateId "${stateId}" is a prefix of ${matches.length} active debug sessions' current ids \u2014 pass a longer prefix or the full id.`,
+        { providedStateId: stateId, matchingLanes: matches.length }
+      );
+    }
   }
   return active[0];
+}
+function wireStateId(run, fallback) {
+  const current = run.session.snapshot.stateId;
+  return current !== void 0 ? shortStateId(current) : fallback;
 }
 function firstFreeLane(limit) {
   for (let i = 0; i < limit; i++) {
@@ -115486,7 +115560,7 @@ var debugInputSchema = {
     `Required for step="runToLine"/"jumpToLine". 1-based line in the current frame's source.`
   ),
   stateId: external_exports.string().optional().describe(
-    "From the most recent start/step/stack/frame response; a stale id is refused."
+    "From the most recent start/step/stack/frame response (12-char token; the full id or a prefix of at least 8 chars is accepted too); a stale id is refused."
   ),
   frame: external_exports.number().int().min(1).describe(
     "1-based stackPosition from the last STACK section. Read-only."
@@ -115553,13 +115627,18 @@ function lineStepUri(stack, toLine) {
   }
   return withStartFragment(frame.uri.split("#")[0], toLine);
 }
-async function composeStopOutput(run, action, stack, stateId, maxChars, extraNotes = []) {
+async function composeStopOutput(run, action, stack, stateId, maxChars, extraNotes = [], headerExtra = {}) {
   const root = await run.session.getRootVariables(stateId);
   const entries = root.variables.variables.map((variable) => ({ variable }));
-  const survey = renderSurvey(entries, { maxChars: DEBUG_MAX_CHARS, stateId });
-  const stackText = renderStackSection(stack, stateId);
+  const wireId = shortStateId(stateId);
+  const survey = renderSurvey(entries, { maxChars: DEBUG_MAX_CHARS, stateId: wireId });
+  const stackText = renderStackSection(stack, wireId);
   const visibleFrames = stack.frames.filter((f) => !f.systemProgram);
   const top = visibleFrames[0] ?? stack.frames[0];
+  const stopNotes = [
+    ...extraNotes,
+    ...survey.degraded.length ? [`${survey.degraded.length} value(s) shortened to fit budget \u2014 each still names its own retrieval call.`] : []
+  ];
   return buildResponse({
     header: {
       action,
@@ -115567,16 +115646,15 @@ async function composeStopOutput(run, action, stack, stateId, maxChars, extraNot
       program: top?.programName,
       include: top?.includeName,
       line: top?.line,
-      stateId
+      stateId: wireId,
+      ...headerExtra
     },
     sections: [{ title: "STACK", content: stackText }],
     body: survey.text,
     bodyLabel: "VARIABLES",
-    notes: [
-      ...extraNotes,
-      ...survey.degraded.length ? [`${survey.degraded.length} value(s) shortened to fit budget \u2014 each still names its own retrieval call.`] : []
-    ],
-    maxChars: clampMaxChars(maxChars)
+    notes: stopNotes,
+    // #151 — notes ride outside the content budget: they never displace variables.
+    maxChars: budgetWithNotes(stopNotes, clampMaxChars(maxChars))
   });
 }
 function isGenericFallbackEvidence(tr) {
@@ -115628,6 +115706,11 @@ async function composeDeathOutput(run, action, maxChars, cause, extraNotes = [])
   ].filter((n) => Boolean(n));
   if (settled === TIMED_OUT) {
     notes.push("Program output is incomplete: the trigger run had not returned when the wait expired.");
+  }
+  if (run.armedExceptionClasses.length > 0 && !run.exceptionBreakpointFired) {
+    notes.push(
+      `Exception breakpoint(s) on ${run.armedExceptionClasses.join(", ")} were armed (server-echoed) but never suspended this run before it ended. ${EXCEPTION_BREAKPOINT_RULE} To stop before an uncaught raise, arm a line breakpoint on the RAISE statement, or a statement breakpoint "RAISE EXCEPTION TYPE" together with a line breakpoint in the target object.`
+    );
   }
   const triggerOutcome = triggerOutcomeHeader(settled);
   if (triggerOutcome === "short_dumped" || triggerOutcome === "trigger_failed") {
@@ -115811,6 +115894,8 @@ async function handleStart(conn, input, maxChars, deps, gate) {
   let triggerConn;
   let triggerSettled;
   const skipCountWarnings = [];
+  const requestedExceptionClasses = [];
+  const armedExceptionClasses = [];
   let closeTriggerConn = () => {
   };
   try {
@@ -115871,6 +115956,19 @@ async function handleStart(conn, input, maxChars, deps, gate) {
           ...bp.skipCount !== void 0 ? { skipCount: bp.skipCount } : {}
         });
       } else if (bp.kind === "exception") {
+        const exceptionClass = bp.exceptionClass.trim().toUpperCase();
+        if (!resolvedCache.has(exceptionClass)) {
+          try {
+            resolvedCache.set(exceptionClass, await deps.resolveObject(conn, exceptionClass));
+          } catch (e) {
+            throw new AbapError(
+              "BAD_INPUT",
+              `Exception breakpoint on ${exceptionClass}: the exception class could not be found (${describeUnknownError(e)}). SAP would accept the breakpoint and never fire it, so the start is refused instead.`,
+              { exceptionClass, cause: describeUnknownError(e) }
+            );
+          }
+        }
+        requestedExceptionClasses.push(exceptionClass);
         breakpoints.push({
           kind: "exception",
           exceptionClass: bp.exceptionClass,
@@ -115895,7 +115993,24 @@ async function handleStart(conn, input, maxChars, deps, gate) {
         });
       }
     }
-    await session.prepareBreakpoints(breakpoints);
+    const created = await session.prepareBreakpoints(breakpoints);
+    for (const cls of requestedExceptionClasses) {
+      const echoed = created.some(
+        (c) => c.kind === "exception" && c.exceptionClass.trim().toUpperCase() === cls
+      );
+      if (echoed) {
+        if (!armedExceptionClasses.includes(cls)) armedExceptionClasses.push(cls);
+      } else {
+        skipCountWarnings.push(
+          `Exception breakpoint on ${cls}: the server accepted the breakpoints request but did not echo this breakpoint as armed \u2014 treat it as NOT armed; the run will not stop when ${cls} is raised.`
+        );
+      }
+    }
+    if (armedExceptionClasses.length > 0) {
+      skipCountWarnings.push(
+        `Exception breakpoint(s) on ${armedExceptionClasses.join(", ")} armed. ${EXCEPTION_BREAKPOINT_RULE} To stop before an uncaught raise, add a line breakpoint on the RAISE statement.`
+      );
+    }
     await session.armListener();
     triggerConn = await deps.createTriggerConnection();
     closeTriggerConn = makeTriggerConnCloser(triggerConn, deps.log);
@@ -115969,9 +116084,20 @@ ${triggerNote}`, {});
     closeTriggerConn,
     gateTarget,
     lastStack: attachedStack,
+    guidance: new GuidanceLedger(),
+    armedExceptionClasses,
+    exceptionBreakpointFired: false,
     lane: targetLane
   };
   debugLanes[targetLane] = run;
+  const caught = run.session.snapshot.debuggee;
+  const caughtHeader = {};
+  if (caught && caught.kind !== "debuggee") {
+    run.guidance.noteStateChange(isPostMortemKind(caught.kind) ? "postmortem" : `kind:${caught.rawKind}`);
+    caughtHeader["debuggee"] = caught.rawKind;
+    if (caught.dumpId) caughtHeader["dump"] = caught.dumpId;
+    skipCountWarnings.push(...run.guidance.render([describeCaughtKind(caught, run.armedExceptionClasses)]));
+  }
   const runObjectName = parseObjectRef(input.run.object).name.toUpperCase();
   const skippedFrameworkStops = [];
   const describeTopFrame = (stack) => {
@@ -116019,7 +116145,7 @@ ${triggerNote}`, {});
       );
     }
   }
-  return await composeStopOutput(run, "start", attachedStack, attachedStateId, maxChars, skipCountWarnings);
+  return await composeStopOutput(run, "start", attachedStack, attachedStateId, maxChars, skipCountWarnings, caughtHeader);
 }
 async function handleStep(input, maxChars, gate, deps) {
   const run = resolveLaneRun(input.stateId);
@@ -116081,9 +116207,19 @@ async function handleStep(input, maxChars, gate, deps) {
     return out;
   }
   run.lastStack = result.stack;
-  const revisitNotes = result.positionVisitCount > 1 ? [
-    `Position revisited: this exact program/line/stack-level has now been reached ${result.positionVisitCount} times by stepping in this session. If you are stepping through a loop body, "step over"/"step into" can under-report how many iterations actually ran between visits \u2014 this only proves you returned to this line, not how many times the loop body executed in between. For a reliable per-iteration count, set a breakpoint at the loop body's start (abap_debug action:"start" or a line breakpoint) and use step:"continue" repeatedly instead of stepping through \u2014 each hit is a real, separately counted stop.`
-  ] : [];
+  if (result.step.reachedBreakpoints.length > 0) {
+    run.guidance.noteStateChange(`bp:${result.step.reachedBreakpoints.map((b) => b.id).join(",")}`);
+  }
+  if (result.step.reachedBreakpoints.some((b) => b.kind === "exception" || b.id.startsWith("KIND=5."))) {
+    run.exceptionBreakpointFired = true;
+  }
+  const revisitNotes = result.positionVisitCount > 1 ? run.guidance.render([
+    {
+      key: "revisit",
+      full: `Position revisited: this exact program/line/stack-level has now been reached ${result.positionVisitCount} times by stepping in this session. If you are stepping through a loop body, "step over"/"step into" can under-report how many iterations actually ran between visits \u2014 this only proves you returned to this line, not how many times the loop body executed in between. For a reliable per-iteration count, set a breakpoint at the loop body's start (abap_debug action:"start" or a line breakpoint) and use step:"continue" repeatedly instead of stepping through \u2014 each hit is a real, separately counted stop.`,
+      brief: `Position revisited (${result.positionVisitCount} times in this session) \u2014 proves a return to this line, not an iteration count; see the earlier NOTE.`
+    }
+  ]) : [];
   const watchpointNotes = [];
   if (result.step.reachedWatchpoints.length > 0) {
     let byId;
@@ -116116,9 +116252,10 @@ async function handleStack(input, maxChars) {
   if (!input.stateId) {
     throw new AbapError("BAD_INPUT", 'abap_debug({action:"stack"}) requires "stateId".');
   }
+  const wireId = wireStateId(run, input.stateId);
   const stack = await run.session.getStack(input.stateId);
   run.lastStack = stack;
-  const stackText = renderStackSection(stack, input.stateId);
+  const stackText = renderStackSection(stack, wireId);
   const visibleFrames = stack.frames.filter((f) => !f.systemProgram);
   const top = visibleFrames[0] ?? stack.frames[0];
   return buildResponse({
@@ -116128,7 +116265,7 @@ async function handleStack(input, maxChars) {
       program: top?.programName,
       include: top?.includeName,
       line: top?.line,
-      stateId: input.stateId
+      stateId: wireId
     },
     sections: [{ title: "STACK", content: stackText }],
     maxChars: clampMaxChars(maxChars)
@@ -116145,6 +116282,7 @@ async function handleFrame(input, maxChars) {
   if (!input.stateId) {
     throw new AbapError("BAD_INPUT", 'abap_debug({action:"frame"}) requires "stateId".');
   }
+  const wireId = wireStateId(run, input.stateId);
   if (input.frame === void 0) {
     throw new AbapError(
       "BAD_INPUT",
@@ -116156,15 +116294,25 @@ async function handleFrame(input, maxChars) {
   if (!lastStack || !target) {
     throw new AbapError(
       "BAD_INPUT",
-      `abap_debug({action:"frame", frame:${input.frame}}) does not match any frame in the most recently known stack. Call abap_debug({action:"stack", stateId:"${input.stateId}"}) first to see the current stackPosition values.`,
+      `abap_debug({action:"frame", frame:${input.frame}}) does not match any frame in the most recently known stack. Call abap_debug({action:"stack", stateId:"${wireId}"}) first to see the current stackPosition values.`,
       { frame: input.frame }
     );
   }
   await run.session.setStackPosition(input.stateId, { stackPosition: input.frame, stackType: "ABAP" });
   const root = await run.session.getRootVariables(input.stateId);
   const entries = root.variables.variables.map((variable) => ({ variable }));
-  const survey = renderSurvey(entries, { maxChars: DEBUG_MAX_CHARS, stateId: input.stateId });
-  const stackText = renderStackSection(lastStack, input.stateId);
+  const survey = renderSurvey(entries, { maxChars: DEBUG_MAX_CHARS, stateId: wireId });
+  const stackText = renderStackSection(lastStack, wireId);
+  const frameNotes = [
+    ...run.guidance.render([
+      {
+        key: "frame-cursor",
+        full: `Read cursor switched to frame #${target.stackPosition} \u2014 this does not change what runs next. The next step resumes from the live top frame regardless (live-verified).`,
+        brief: `Read cursor at frame #${target.stackPosition}; the next step still resumes from the live top frame.`
+      }
+    ]),
+    ...survey.degraded.length ? [`${survey.degraded.length} value(s) shortened to fit budget \u2014 each still names its own retrieval call.`] : []
+  ];
   return buildResponse({
     header: {
       action: "frame",
@@ -116173,16 +116321,13 @@ async function handleFrame(input, maxChars) {
       include: target.includeName,
       line: target.line,
       frame: target.stackPosition,
-      stateId: input.stateId
+      stateId: wireId
     },
     sections: [{ title: "STACK", content: stackText }],
     body: survey.text,
     bodyLabel: "VARIABLES",
-    notes: [
-      `Read cursor switched to frame #${target.stackPosition} \u2014 this does not change what runs next. The next step resumes from the live top frame regardless (live-verified).`,
-      ...survey.degraded.length ? [`${survey.degraded.length} value(s) shortened to fit budget \u2014 each still names its own retrieval call.`] : []
-    ],
-    maxChars: clampMaxChars(maxChars)
+    notes: frameNotes,
+    maxChars: budgetWithNotes(frameNotes, clampMaxChars(maxChars))
   });
 }
 async function handleKeepalive(maxChars, gate) {
@@ -116200,7 +116345,7 @@ async function handleKeepalive(maxChars, gate) {
     header: {
       action: "keepalive",
       status: snapshot.status,
-      stateId: snapshot.stateId,
+      stateId: snapshot.stateId === void 0 ? void 0 : shortStateId(snapshot.stateId),
       debugSessionId: snapshot.debugSessionId
     },
     maxChars: clampMaxChars(maxChars)
@@ -116281,6 +116426,7 @@ async function handleBreakpoints(conn, input, maxChars, deps, gate) {
       `abap_debug({action:"breakpoints", op:"${op}"}) requires "stateId" \u2014 same as stack/frame, to confirm which stop this call addresses.`
     );
   }
+  const wireId = wireStateId(run, input.stateId);
   if (op === "list") {
     const owned = run.session.listOwnedBreakpoints();
     return buildResponse({
@@ -116288,7 +116434,7 @@ async function handleBreakpoints(conn, input, maxChars, deps, gate) {
         action: "breakpoints",
         op: "list",
         status: run.session.snapshot.status,
-        stateId: input.stateId,
+        stateId: wireId,
         count: owned.length
       },
       sections: [
@@ -116322,7 +116468,7 @@ async function handleBreakpoints(conn, input, maxChars, deps, gate) {
         action: "breakpoints",
         op: "add",
         status: run.session.snapshot.status,
-        stateId: input.stateId,
+        stateId: wireId,
         count: created.length
       },
       sections: [
@@ -116344,7 +116490,7 @@ async function handleBreakpoints(conn, input, maxChars, deps, gate) {
       action: "breakpoints",
       op: "remove",
       status: run.session.snapshot.status,
-      stateId: input.stateId,
+      stateId: wireId,
       id: input.id
     },
     maxChars: clampMaxChars(maxChars)
@@ -116388,6 +116534,7 @@ async function handleWatch(input, maxChars, gate) {
       `abap_debug({action:"watch", op:"${op}"}) requires "stateId" \u2014 same as stack/frame, to confirm which stop this call addresses.`
     );
   }
+  const wireId = wireStateId(run, input.stateId);
   if (op === "add") {
     if (!input.variable) {
       throw new AbapError("BAD_INPUT", 'abap_debug({action:"watch", op:"add"}) requires "variable".');
@@ -116405,7 +116552,7 @@ async function handleWatch(input, maxChars, gate) {
         action: "watch",
         op: "add",
         status: run.session.snapshot.status,
-        stateId: input.stateId,
+        stateId: wireId,
         count: created.length
       },
       sections: [{ title: "WATCHPOINTS", content: lines.join("\n") }],
@@ -116425,7 +116572,7 @@ async function handleWatch(input, maxChars, gate) {
         action: "watch",
         op: "list",
         status: run.session.snapshot.status,
-        stateId: input.stateId,
+        stateId: wireId,
         count: owned.length
       },
       sections: [
@@ -116444,7 +116591,7 @@ async function handleWatch(input, maxChars, gate) {
       action: "watch",
       op: "remove",
       status: run.session.snapshot.status,
-      stateId: input.stateId,
+      stateId: wireId,
       id: input.id
     },
     maxChars: clampMaxChars(maxChars)
@@ -116606,7 +116753,7 @@ async function handleStatus(maxChars) {
       header: {
         action: "status",
         status: snapshot2.status,
-        stateId: snapshot2.stateId,
+        stateId: snapshot2.stateId === void 0 ? void 0 : shortStateId(snapshot2.stateId),
         debugSessionId: snapshot2.debugSessionId,
         debuggeeId: snapshot2.debuggeeId,
         deathReason: snapshot2.deathReason,
@@ -116627,7 +116774,7 @@ async function handleStatus(maxChars) {
     header: {
       action: "status",
       status: snapshot.status,
-      stateId: snapshot.stateId,
+      stateId: snapshot.stateId === void 0 ? void 0 : shortStateId(snapshot.stateId),
       debugSessionId: snapshot.debugSessionId,
       debuggeeId: snapshot.debuggeeId,
       deathReason: snapshot.deathReason,
@@ -116660,7 +116807,7 @@ async function abapDebug(conn, input, maxChars, deps, gate) {
   }
 }
 var debugVarsInputSchema = {
-  stateId: external_exports.string().describe("From the most recent start/step/stack/frame response."),
+  stateId: external_exports.string().describe("From the most recent start/step/stack/frame response (12-char token; full id or a prefix of at least 8 chars also accepted)."),
   scope: external_exports.enum(["all", "locals", "parameters", "globals"]).optional().describe("Default all."),
   filter: external_exports.string().optional().describe("Substring match on name.")
 };
@@ -116678,6 +116825,7 @@ async function abapDebugVars(input, maxChars) {
   if (!input.stateId) {
     throw new AbapError("BAD_INPUT", 'abap_debug_vars requires "stateId".');
   }
+  const wireId = wireStateId(run, input.stateId);
   const root = await run.session.getRootVariables(input.stateId);
   const scopeOf = /* @__PURE__ */ new Map();
   for (const h of root.variables.hierarchies) {
@@ -116698,15 +116846,16 @@ async function abapDebugVars(input, maxChars) {
       maxChars: DEBUG_MAX_CHARS,
       scopeLabel: input.scope && input.scope !== "all" ? input.scope.toUpperCase() : void 0,
       // D6 — real stateId, not `STATE_ID_PLACEHOLDER`.
-      stateId: input.stateId
+      stateId: wireId
     }
   );
+  const varsNotes = survey.degraded.length ? [`${survey.degraded.length} value(s) shortened to fit budget \u2014 each still names its own retrieval call.`] : [];
   return buildResponse({
-    header: { stateId: input.stateId, scope: input.scope ?? "all", count: filtered.length },
+    header: { stateId: wireId, scope: input.scope ?? "all", count: filtered.length },
     body: survey.text,
     bodyLabel: "VARIABLES",
-    notes: survey.degraded.length ? [`${survey.degraded.length} value(s) shortened to fit budget \u2014 each still names its own retrieval call.`] : [],
-    maxChars: clampMaxChars(maxChars)
+    notes: varsNotes,
+    maxChars: budgetWithNotes(varsNotes, clampMaxChars(maxChars))
   });
 }
 var DEFAULT_TABLE_ROWS = 20;
@@ -116717,23 +116866,44 @@ function listIds(ids) {
   const shown = ids.slice(0, MAX_LISTED_IDS);
   return `${shown.join(", ")} \u2026 [TRUNCATED: ${shown.length} of ${ids.length} id(s) listed, ${ids.length - shown.length} cut]`;
 }
+var EXCEPTION_BREAKPOINT_RULE = "An exception breakpoint stops at the RAISE only when a handler for the exception exists up the stack (live-verified: a caught RAISE suspends at the raise; an uncaught one, and a real division by zero, go straight to the runtime error and the debugger sees the post-mortem instead).";
+function describeCaughtKind(caught, armedExceptionClasses) {
+  if (caught.kind === "postmortem" || caught.kind === "postmortem_dialog") {
+    const dump = caught.dumpId ? ` dump ${caught.dumpId}` : "";
+    const notFired = armedExceptionClasses.length > 0 ? `The exception breakpoint(s) on ${armedExceptionClasses.join(", ")} did not suspend the run before this dump: ${EXCEPTION_BREAKPOINT_RULE} ` : "";
+    return {
+      key: "postmortem",
+      full: `POST-MORTEM: the debugger attached to a short dump (DBGEE_KIND ${caught.rawKind}${dump}), not to a running debuggee. The run has ALREADY terminated; stack and variables are its state at the dump, and stepping cannot resume it. ${notFired}Read the dump text with abap_dumps${caught.dumpId ? `({id:"${caught.dumpId}"})` : ""}.`,
+      brief: `Post-mortem session (${caught.rawKind}${dump}) \u2014 the run already terminated; stepping cannot resume it.`
+    };
+  }
+  return {
+    key: `kind:${caught.rawKind}`,
+    full: `The debugger attached to a debuggee of an unrecognised kind (DBGEE_KIND "${caught.rawKind}"). It is treated as attached with kind unknown: stack, variables and stepping are attempted as for a live debuggee, and any refusal is reported as it happens.`,
+    brief: `Debuggee kind "${caught.rawKind}" is unrecognised \u2014 treated as attached, kind unknown.`
+  };
+}
 function describeOmissions(requestedIds, align, ctx) {
   const notes = [];
   if (align.missing.length > 0) {
-    notes.push(
-      `OMITTED: the debugger returned ${align.resolved.length} of the ${requestedIds.length} variable id(s) requested for ${ctx.subject} \u2014 ${listIds(align.missing)} came back with NO row at all and are NOT shown. A requested id with no row is UNRESOLVED at this stop (unknown name, out-of-range index, or not visible in this frame); it is NOT an empty value, and re-requesting it returns the same nothing. Confirm the id exists here with abap_debug_vars({stateId:"${ctx.stateId}"}).`
-    );
+    notes.push({
+      key: "omitted",
+      full: `OMITTED: the debugger returned ${align.resolved.length} of the ${requestedIds.length} variable id(s) requested for ${ctx.subject} \u2014 ${listIds(align.missing)} came back with NO row at all and are NOT shown. A requested id with no row is UNRESOLVED at this stop (unknown name, out-of-range index, or not visible in this frame); it is NOT an empty value, and re-requesting it returns the same nothing. Confirm the id exists here with abap_debug_vars({stateId:"${ctx.stateId}"}).`,
+      brief: `OMITTED: ${listIds(align.missing)} \u2014 no row at this stop for ${ctx.subject} (unresolved, not empty; confirm with abap_debug_vars({stateId:"${ctx.stateId}"})).`
+    });
   }
   if (align.unexpected.length > 0) {
     const ids = align.unexpected.map((v) => v.id);
-    notes.push(
-      `UNREQUESTED: the debugger also returned ${align.unexpected.length} row(s) whose id was NOT requested \u2014 ${listIds(ids)}. Their values are NOT shown, because a row nobody asked for, rendered under ${ctx.subject}, is a wrong answer wearing the right label \u2014 the exact mis-attribution that hid this defect. Read one on purpose with abap_debug_value({stateId:"${ctx.stateId}", path:"${ids[0]}"}).`
-    );
+    notes.push({
+      key: "unrequested",
+      full: `UNREQUESTED: the debugger also returned ${align.unexpected.length} row(s) whose id was NOT requested \u2014 ${listIds(ids)}. Their values are NOT shown, because a row nobody asked for, rendered under ${ctx.subject}, is a wrong answer wearing the right label \u2014 the exact mis-attribution that hid this defect. Read one on purpose with abap_debug_value({stateId:"${ctx.stateId}", path:"${ids[0]}"}).`,
+      brief: `UNREQUESTED: ${listIds(ids)} returned but not requested under ${ctx.subject} \u2014 not shown (abap_debug_value({stateId:"${ctx.stateId}", path:"${ids[0]}"}) reads one on purpose).`
+    });
   }
   return notes;
 }
 var debugValueInputSchema = {
-  stateId: external_exports.string().describe("From the most recent start/step/stack/frame response."),
+  stateId: external_exports.string().describe("From the most recent start/step/stack/frame response (12-char token; full id or a prefix of at least 8 chars also accepted)."),
   path: external_exports.string().describe(
     "Variable path, e.g. LT_ITEMS[42]-MATNR. Field symbols keep their angle brackets, e.g. <LS_ITEM>. Unknown paths return empty, not NOT_FOUND."
   ),
@@ -116750,6 +116920,7 @@ async function abapDebugValue(input, maxChars) {
   if (!input.stateId) {
     throw new AbapError("BAD_INPUT", 'abap_debug_value requires "stateId".');
   }
+  const wireId = wireStateId(run, input.stateId);
   const validation = validatePath(input.path);
   if (!validation.ok) {
     throw new AbapError(
@@ -116766,7 +116937,7 @@ async function abapDebugValue(input, maxChars) {
   } catch (e) {
     if (e instanceof DebugXmlParseError) {
       return buildResponse({
-        header: { stateId: input.stateId, path: canonicalPath },
+        header: { stateId: wireId, path: canonicalPath },
         body: renderEmptyBodyTrap({ path: canonicalPath }),
         bodyLabel: "VALUE",
         maxChars: clampedMaxChars
@@ -116775,14 +116946,13 @@ async function abapDebugValue(input, maxChars) {
     throw e;
   }
   const rootAlign = alignRequestedVariables([canonicalPath], rootVars);
-  const rootNotes = describeOmissions([canonicalPath], rootAlign, {
-    subject: canonicalPath,
-    stateId: input.stateId
-  });
+  const rootNotes = run.guidance.render(
+    describeOmissions([canonicalPath], rootAlign, { subject: canonicalPath, stateId: wireId })
+  );
   const rootVar = rootAlign.resolved[0];
   if (!rootVar) {
     return buildResponse({
-      header: { stateId: input.stateId, path: canonicalPath },
+      header: { stateId: wireId, path: canonicalPath },
       // The empty-body trap claims "0 bytes", which is only true when the
       // debugger really sent nothing. Rows for OTHER ids is a different fact and
       // gets its own words rather than a convenient lie.
@@ -116796,14 +116966,14 @@ async function abapDebugValue(input, maxChars) {
     const { text: text6 } = renderDrill(node3, canonicalPath, {
       depth: input.depth,
       maxChars: clampedMaxChars,
-      stateId: input.stateId
+      stateId: wireId
     });
     return buildResponse({
-      header: { stateId: input.stateId, path: canonicalPath },
+      header: { stateId: wireId, path: canonicalPath },
       body: text6,
       bodyLabel: "VALUE",
       notes: rootNotes,
-      maxChars: clampedMaxChars
+      maxChars: budgetWithNotes(rootNotes, clampedMaxChars)
     });
   }
   if (rootVar.metaType === "table") {
@@ -116822,14 +116992,14 @@ async function abapDebugValue(input, maxChars) {
     const tableNotes = [...rootNotes];
     if (countWasClamped) {
       tableNotes.push(
-        `TRUNCATED: count:${requestedCount} exceeds the ${MAX_TABLE_ROWS}-row maximum, so only ${count} row(s) were requested from ${canonicalPath} \u2014 rows ${from + count} onward were NOT fetched and are NOT shown. Continue with abap_debug_value({stateId:"${input.stateId}", path:"${canonicalPath}", from:${from + count}, count:${MAX_TABLE_ROWS}}).`
+        `TRUNCATED: count:${requestedCount} exceeds the ${MAX_TABLE_ROWS}-row maximum, so only ${count} row(s) were requested from ${canonicalPath} \u2014 rows ${from + count} onward were NOT fetched and are NOT shown. Continue with abap_debug_value({stateId:"${wireId}", path:"${canonicalPath}", from:${from + count}, count:${MAX_TABLE_ROWS}}).`
       );
     }
     if (total === 0) {
       tableNotes.push(`${canonicalPath} is empty: 0 rows.`);
     } else if (total === void 0) {
       tableNotes.push(
-        `Row count is unavailable \u2014 the debugger did not report TABLE_LINES for ${canonicalPath}. This is NOT the same as an empty table. "from" could not be range-checked. To settle it, probe the first row: abap_debug_value({stateId:"${input.stateId}", path:"${canonicalPath}[1]"}) \u2014 a row comes back only if data is actually present.`
+        `Row count is unavailable \u2014 the debugger did not report TABLE_LINES for ${canonicalPath}. This is NOT the same as an empty table. "from" could not be range-checked. To settle it, probe the first row: abap_debug_value({stateId:"${wireId}", path:"${canonicalPath}[1]"}) \u2014 a row comes back only if data is actually present.`
       );
       if (input.from !== void 0 && input.from > 1) {
         tableNotes.push(
@@ -116849,27 +117019,27 @@ async function abapDebugValue(input, maxChars) {
         const rowAlign = alignRequestedVariables(ids, rowVars);
         rowNodes = rowAlign.resolved.map((variable) => ({ variable }));
         tableNotes.push(
-          ...describeOmissions(ids, rowAlign, { subject: canonicalPath, stateId: input.stateId })
+          ...run.guidance.render(describeOmissions(ids, rowAlign, { subject: canonicalPath, stateId: wireId }))
         );
       } catch (e) {
         if (e instanceof DebugXmlParseError) {
           return buildResponse({
-            header: { stateId: input.stateId, path: canonicalPath },
+            header: { stateId: wireId, path: canonicalPath },
             body: renderEmptyBodyTrap({ path: canonicalPath, tableLines: total }),
             bodyLabel: "VALUE",
             notes: tableNotes,
-            maxChars: clampedMaxChars
+            maxChars: budgetWithNotes(tableNotes, clampedMaxChars)
           });
         }
         throw e;
       }
       if (ids.length > 0 && rowCount === 0) {
         return buildResponse({
-          header: { stateId: input.stateId, path: canonicalPath },
+          header: { stateId: wireId, path: canonicalPath },
           body: renderEmptyBodyTrap({ path: canonicalPath, tableLines: total }),
           bodyLabel: "VALUE",
           notes: tableNotes,
-          maxChars: clampedMaxChars
+          maxChars: budgetWithNotes(tableNotes, clampedMaxChars)
         });
       }
     }
@@ -116877,14 +117047,14 @@ async function abapDebugValue(input, maxChars) {
     const { text: text6 } = renderDrill(node3, canonicalPath, {
       rows: { start: clampedFrom, end: clampedTo || clampedFrom },
       maxChars: clampedMaxChars,
-      stateId: input.stateId
+      stateId: wireId
     });
     return buildResponse({
-      header: { stateId: input.stateId, path: canonicalPath },
+      header: { stateId: wireId, path: canonicalPath },
       body: text6,
       bodyLabel: "VALUE",
       notes: tableNotes,
-      maxChars: clampedMaxChars
+      maxChars: budgetWithNotes(tableNotes, clampedMaxChars)
     });
   }
   let childResult;
@@ -116901,17 +117071,17 @@ async function abapDebugValue(input, maxChars) {
   const { text: text5 } = renderDrill(node2, canonicalPath, {
     depth: input.depth,
     maxChars: clampedMaxChars,
-    stateId: input.stateId
+    stateId: wireId
   });
   return buildResponse({
-    header: { stateId: input.stateId, path: canonicalPath },
+    header: { stateId: wireId, path: canonicalPath },
     body: text5,
     bodyLabel: "VALUE",
     // The `getChildVariables` hop below returns CHILDREN of `canonicalPath`, whose
     // ids are by definition not the id that was requested, so it has no requested-id
     // alignment to do. `rootNotes` still travels: it describes the root read.
     notes: rootNotes,
-    maxChars: clampedMaxChars
+    maxChars: budgetWithNotes(rootNotes, clampedMaxChars)
   });
 }
 

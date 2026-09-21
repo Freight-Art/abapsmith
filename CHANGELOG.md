@@ -12,6 +12,22 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.12] - 2026-09-16
+
+### Added
+
+- `abap_debug` reports how the debugger attached (#152): the `start` response header carries `debuggee: <DBGEE_KIND>` and, for a post-mortem attach, `dump: <id>` plus a `POST-MORTEM` note saying the run has already terminated, that stepping cannot resume it, which armed exception breakpoints did not stop it, and the `abap_dumps` call that reads the dump.
+- `abap_debug` exception breakpoints (#152): `start` resolves the exception class first and refuses with `BAD_INPUT`, naming the class, before any breakpoint request when it does not exist — SAP accepts such a breakpoint and never fires it. An exception breakpoint the server accepted but did not echo back is reported in the `start` response as `NOT armed`. The `start` response, the death note and the `POST-MORTEM` note state the live-verified rule: an exception breakpoint stops at the `RAISE` only when a handler for the exception exists up the stack; an uncaught raise (and a real division by zero) goes straight to the runtime error and the debugger attaches to the dump. The registration itself was not at fault. `test/integration-debug.test.ts` gains live cases 5a/5b that create the `$TMP` probe classes `ZCL_AS_DBGEXC` (uncaught raise → `PMORTEM`, dump `UNCAUGHT_EXCEPTION`) and `ZCL_AS_DBGEXC2` (caught raise → suspended at the raise), pin both outcomes, and delete the classes afterwards.
+
+### Changed
+
+- `abap_debug`, `abap_debug_vars` and `abap_debug_value` print a 12-character `stateId` instead of the 64-character digest (#151). The short id is what to write back; the full digest and any prefix of at least 8 characters are accepted too. A prefix matching no current state is refused as a stale id, naming the current short id and carrying both forms in `details`.
+- The recurring explanatory notes on debugger responses (revisited position, `frame` read-cursor, `OMITTED`/`UNREQUESTED` variable rows, post-mortem attach) are printed in full once per debug session and as a one-line reminder afterwards; a different breakpoint hit or a post-mortem attach prints the full text again (#151). Notes sit outside the `DEBUG_MAX_CHARS` budget, so they no longer displace stack or variable content. Per-call evidence (watchpoint values, termination evidence, auto-continue reports) is unchanged. The debug skill and `doc/TOOLS/debugger.md` describe the short id and the note-once behaviour.
+
+### Fixed
+
+- `abap_debug mode=start` no longer fails with `parseDebuggeeResponse: unrecognised DBGEE_KIND "PMORTEM"` when the run dumps before any breakpoint fires (#152). `PMORTEM` and every `*MORTEM*` value parse as post-mortem; any other unknown kind is logged as a warning with the raw value and the session attaches as "kind unknown" instead of aborting.
+
 ## [0.6.11] - 2026-09-16
 
 ### Fixed
