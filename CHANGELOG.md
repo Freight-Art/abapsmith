@@ -12,6 +12,8 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.13] - 2026-09-21
+
 ### Added
 
 - **`abap_read method=` resolves inherited members** (#146). When the class itself declares no such member, the lookup walks `INHERITING FROM` and `INTERFACES` from the definition source (superclass first, then interfaces, each level's own parents after it) and returns the first hit with `foundOn` in the header and the defining object's line numbers; a `NOT_FOUND` lists the class's own methods in `details.available` and the chain's in `details.availableInherited` as `NAME (ORIGIN)`, preferring names that share a prefix with the request. A parent that cannot be read is reported under `details.unresolved` instead of aborting the read.
