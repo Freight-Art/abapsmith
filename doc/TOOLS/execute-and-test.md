@@ -69,8 +69,11 @@ most two extra GETs (the feed, plus one dump detail fetch). Three outcomes:
 
 - **A matching dump was found.** `details.dump` carries `{key, runtimeError,
   exception, shortText, program, published}`; the message gains "A short
-  dump was recorded for this run: `<runtimeError>` — `<shortText>`"; the
-  hint says to read it with `abap_dumps {"mode":"show","key":"<key>"}` (the
+  dump of this program by this user was recorded in the last minute:
+  `<runtimeError>` — `<shortText>`". The match is by user, program and
+  time window, not by request: if several runs of the same program
+  overlapped, `details.dump.published` says which one it is. The hint says
+  to read it with `abap_dumps {"mode":"show","key":"<key>"}` (the
   default summary already carries the source line, the error analysis and
   the top of the call stack) and not to retry unchanged — the same code
   dumps the same way. `retryable` is `false`.

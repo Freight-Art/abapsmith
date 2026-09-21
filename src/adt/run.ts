@@ -841,7 +841,7 @@ function withDumpLookup(e: AbapError, lookup: RecentDumpLookup, isTimeout: boole
     const exception = found.exception ? `, ${found.exception}` : "";
     revised = new AbapError(
       e.code,
-      `${e.message} A short dump was recorded for this run: ${found.runtimeError} — ${found.shortText}`,
+      `${e.message} A short dump of this program by this user was recorded in the last minute: ${found.runtimeError} — ${found.shortText}`,
       {
         ...e.details,
         dump: {
@@ -854,11 +854,12 @@ function withDumpLookup(e: AbapError, lookup: RecentDumpLookup, isTimeout: boole
         },
         dumpLookup: { ...summary, matched: true },
       },
-      `The run short-dumped (${found.runtimeError}${exception}): ${found.shortText}. Read it with ` +
-        `abap_dumps ${JSON.stringify({ mode: "show", key: found.key })} — the default summary ` +
+      `${found.program} short-dumped for this user within the last minute (${found.runtimeError}${exception}): ` +
+        `${found.shortText} — almost certainly this run; if several runs overlapped, compare details.dump.published ` +
+        `with the call time. Read it with abap_dumps ${JSON.stringify({ mode: "show", key: found.key })} — the default summary ` +
         "carries the source line, the error analysis and the top of the call stack. Any output " +
         "written before the dump is lost. Do not retry unchanged; the same code dumps the same way.",
-      { retryable: false }, // a recorded short dump for this run: the program crashed, and retrying the same code crashes it again
+      { retryable: false }, // a fresh dump of this program by this user: it crashed, and retrying the same code crashes it again
     );
   } else if (lookup.failure !== undefined) {
     revised = new AbapError(
