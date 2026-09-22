@@ -13,7 +13,9 @@ applies in both write-verification modes.
 
 ## Before you start
 
-1. Target type is in the creatable list — see `abapsmith-orient`. If not, stop.
+1. Target type is in the writable list — see `writable-types.md` next to this
+   skill (the generated table) — and `abap_write` validates `type` before
+   anything else, so a wrong code fails with zero requests.
 2. Package: `$TMP` (default) or a real package. `corr_nr` is optional for
    every type: omit it and the server picks or creates the request (the
    response's `transport:` field names it); name one only when
@@ -73,17 +75,22 @@ newer version, so an unactivated object reads back looking correct.
 
 ## If it fails
 
-- **Type refused** — not in the creatable enum. Not routable around.
+- **Type refused** — not in the writable enum. Not routable around.
+- **Unknown object type with `Did you mean …`** — use the suggested code only
+  if it is what the task meant; `details.writable` lists every accepted type.
 - **`SAFETY_DENIED`, rule `transport allowlist`** — the request this call would
-  use is not permitted by `ABAP_ALLOW_TRANSPORTS`. It is **terminal**
-  (`retryable: false`): the hint names the rule and the only caller-side remedy
-  — under `auto`, omit `corr_nr` (naming a request is refused regardless of
-  which one); under a pinned list, pass one of the listed requests or omit
-  `corr_nr`; under an explicitly empty list, only `$`-packages are writable.
-  Never retry by changing arguments, and never propose editing the server's
-  environment — that is the operator's setting. If the refusal carries
-  `details.createdTransport`, a request was created before the refusal and
-  holds nothing; report it (the hint says how to remove it).
+  use is not permitted by `ABAP_ALLOW_TRANSPORTS`. It is **terminal for this
+  object and package** (`retryable: false`): the hint names the rule and the
+  only caller-side remedy — under `auto`, omit `corr_nr` (naming a request is
+  refused regardless of which one); under a pinned list, pass one of the
+  listed requests or omit `corr_nr`; under an explicitly empty list, only
+  `$`-packages are writable. Do not vary arguments (another `corr_nr`, an
+  empty string, a different package spelling, a different type code) — never
+  retry by changing them, and never propose editing the server's environment,
+  that is the operator's setting. Report the rule the hint names and, if the
+  task allows, use `$TMP`. If the refusal carries `details.createdTransport`,
+  a request was created before the refusal and holds nothing; report it (the
+  hint says how to remove it).
 - **`TRANSPORT_ERROR`** — a transport request is genuinely needed and none could
   be resolved (no transport manager wired into the call, or CTS refused to
   create one). Get a request first: `abapsmith-put-work-on-a-transport`. **Omit

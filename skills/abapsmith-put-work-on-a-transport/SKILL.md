@@ -1,6 +1,6 @@
 ---
 name: abapsmith-put-work-on-a-transport
-description: Gets a transport request number to pass as corr_nr before writing to a transportable package. Use before any write outside $TMP, or after a TRANSPORT_ERROR.
+description: Explains which transport request a write outside $TMP lands in, when to omit corr_nr, when a request must be created or named, and how to release one. Use before any write outside $TMP, or after a TRANSPORT_ERROR / SAFETY_DENIED on corr_nr.
 ---
 
 # Getting a transport request
@@ -41,12 +41,13 @@ Two consequences worth stating to the user:
 - **Pinning a request forbids auto-creation.** Omitting `corr_nr` under a pinned
   list uses the first pinned request that is still modifiable, and fails once
   none is; pinned mode never creates a request.
-- **A `SAFETY_DENIED` with `retryable: false` is terminal.** Never retry it by
-  changing arguments — not another request number, not an empty string, not a
-  different package spelling. Its hint names the rule and the one caller-side way
-  out (omit `corr_nr`, pass a listed request, or ask the operator). The allowlist
-  is the operator's setting; do not suggest editing the environment to get past
-  it.
+- **A `SAFETY_DENIED` with `retryable: false` is terminal for this object and
+  package.** Never retry it by changing arguments — not another request
+  number, not an empty string, not a different package spelling. Its hint
+  names the rule and the one caller-side way out (omit `corr_nr`, pass a
+  listed request, or ask the operator). The allowlist is the operator's
+  setting; do not suggest editing the environment to get past it. Report the
+  rule the hint names and, if the task allows, use `$TMP` instead.
 
 **Never send an empty string.** It is not the same as omitting the field: it is
 read as a named request whose name is empty, and matches nothing under any
@@ -56,16 +57,29 @@ allowlist. Omit the field instead.
 
 ## Steps
 
-1. `transport_list` — look for a **Modifiable** request (`tm:status = "D"`).
-   Key on `tm:status`, never `tm:status_text` (localised).
-2. No suitable request → `transport_create { package, description }`.
-3. Pass the number as `corr_nr` only if the allowlist permits a named request;
-   otherwise omit it and report which request the server chose.
-4. Want the work isolated in its own request under `auto`? Call
-   `transport_create` first regardless — you still can't name it as `corr_nr`,
-   but the next transportable write in this session lands in it. Then write
-   with `corr_nr` omitted, and read the write response's transport note to
-   confirm which request it picked.
+1. **Omit `corr_nr`.** This is the default path — correct under `auto` (and
+   when the allowlist is unset), and also correct under a pinned list or `*`
+   if you don't need to steer where the write lands.
+2. **Write, then read the request number back.** The write response's
+   `transport:` field names the request the server used. Report that number —
+   the user cannot ship what they cannot find.
+3. **Only if the allowlist is a pinned list or `*`, and you need to name a
+   request:**
+   - `transport_list` — look for a **Modifiable** request (`tm:status = "D"`).
+     Key on `tm:status`, never `tm:status_text` (localised).
+   - Under `*`, no suitable request → `transport_create { package,
+     description }`. Under a pinned list, there is nothing to create — a
+     freshly created number won't be on the pin; if none of the pinned
+     requests is modifiable, that's the operator's setting, not something to
+     work around.
+   - Pass the number as `corr_nr`.
+
+**Under `auto`, never call `transport_create` before a write.** A named
+`corr_nr` is refused under `auto` regardless of which request, so calling
+`transport_create` first buys you nothing — it can't be passed to the write
+that follows — and just leaves an extra, empty request behind if the
+resolver doesn't happen to pick it back up. Omit `corr_nr` and read the
+request back from the write response instead (step 2).
 
 This applies to every transportable create, including the classic-bridge types
 (`VIEW/DV`, `TRAN/T`, `SHLP/DH`, `TABL/DI`, `DEVC/K`): none of them requires a
@@ -194,6 +208,21 @@ for why.
 by default (`allowTransportRelease`). Release is a deployment decision, not a
 cleanup step — never release a request just because the work is finished. Confirm
 with the user first, and check the request is complete and owned by them.
+
+### Mode ceilings
+
+Per-feature ceilings here are not implied by ordinary write access:
+
+- **Transport release** (`abap_transport_release`) — `ABAP_MODE=admin` by
+  default, or `edit` mode plus the explicit override
+  `ABAP_ALLOW_TRANSPORT_RELEASE=true`. Legacy path: that same flag plus
+  `ABAP_ALLOW_WRITE=true` when `ABAP_MODE` is unset.
+- **Transport delete** (`abap_transport` `operation=delete`) — `ABAP_MODE=admin`
+  only. There is no legacy flag that grants it; ordinary write access
+  (`edit`) never does either.
+
+`confirm`, or echoing a request number, only arms an action the ceiling
+already permits — it never substitutes for the mode or the flag.
 
 A `SAFETY_DENIED` here means the config forbids release; that is the intended
 answer, not an obstacle to route around.

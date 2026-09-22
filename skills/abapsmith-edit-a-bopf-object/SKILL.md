@@ -275,6 +275,15 @@ set. Its `save()` can set `ev_rejected='X'` — nothing persisted — while the 
 returns 200 and raises nothing. Check the rejection note, not the absence of an
 error. `generate_only: true` builds the bridge without running it.
 
+A classrun of your own that calls the BOPF service manager
+(`/BOBF/CL_TRA_SERV_MGR_FACTORY` → `modify` then the transaction manager
+`save`) persists nothing until it commits: `save( )` reporting not rejected
+is not a commit; add `COMMIT WORK.` after the save call, e.g.
+```abap
+lo_txn->save( IMPORTING ev_rejected = lv_rejected ).
+COMMIT WORK.
+```
+
 ## Deleting
 
 `bopf_delete` leaves BOPF's **generated DDIC objects behind** — roughly 7 tables,
