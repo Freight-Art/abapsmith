@@ -222,6 +222,15 @@ function dumpHint(correlation: DumpCorrelation | undefined): string {
   );
 }
 
+/** #180: why one captured-list or bridge-output line was dropped. */
+export type DroppedLineReason = "blank" | "header" | "unprefixed";
+
+/** position is 1-based: a list-line number for "blank"/"header", a raw bridge-line number for "unprefixed". */
+export interface DroppedLine {
+  reason: DroppedLineReason;
+  position: number;
+}
+
 export interface RunResult {
   mode: "class" | "report";
   object: string;
@@ -235,6 +244,8 @@ export interface RunResult {
    * line the bridge split had to drop (F2/F3). 0 when nothing was removed.
    */
   droppedLines: number;
+  /** Report mode only: one entry per line counted in `droppedLines`, with its position. */
+  dropped?: DroppedLine[];
   /** Raw response body length in bytes, before any parsing. */
   bodyBytes: number;
   /** False when any ABAP-side width truncation was detected (F5). */
@@ -509,15 +520,39 @@ const looksLikeListPageHeader = (line: string): boolean =>
  * silent partial amount — callers can diff `lines.length` to detect it.
  */
 export function stripListHeader(lines: string[]): string[] {
+  return stripListHeaderDetailed(lines).lines;
+}
+
+/** Same removal as {@link stripListHeader}, plus the position of each dropped line. */
+export function stripListHeaderDetailed(lines: string[]): { lines: string[]; dropped: DroppedLine[] } {
+  const dropped: DroppedLine[] = [];
   // LIST_TO_ASCI right-pads every line to the list width.
   const out = lines.map((l) => l.replace(/[ \t\r ]+$/, ""));
   // …and pads the page out with blank lines. Trailing only — never internal.
-  while (out.length > 0 && out[out.length - 1] === "") out.pop();
+  while (out.length > 0 && out[out.length - 1] === "") {
+    dropped.push({ reason: "blank", position: out.length });
+    out.pop();
+  }
 
   if (out.length >= 2 && out[0] !== "" && looksLikeListPageHeader(out[0]!) && isRuleLine(out[1]!)) {
-    return out.slice(2);
+    out.splice(0, 2);
+    dropped.push({ reason: "header", position: 1 }, { reason: "header", position: 2 });
   }
-  return out;
+  dropped.sort((a, b) => a.position - b.position);
+  return { lines: out, dropped };
+}
+
+/**
+ * #180: keepBlankLines keeps the page header and every blank line at its
+ * captured position (lines are still right-trimmed, LIST_TO_ASCI pads them);
+ * otherwise the usual header strip and trailing-blank pop apply.
+ */
+export function filterCapturedList(
+  list: string[],
+  keepBlankLines: boolean,
+): { lines: string[]; dropped: DroppedLine[] } {
+  if (!keepBlankLines) return stripListHeaderDetailed(list);
+  return { lines: list.map((l) => l.replace(/[ \t\r ]+$/, "")), dropped: [] };
 }
 
 /**
@@ -531,11 +566,14 @@ export function stripListHeader(lines: string[]): string[] {
  */
 export function splitBridgeOutput(
   raw: string,
-): { list: string[]; diagnostics: string[]; droppedLines: number } {
+): { list: string[]; diagnostics: string[]; droppedLines: number; dropped: DroppedLine[] } {
   const list: string[] = [];
   const diagnostics: string[] = [];
+  const dropped: DroppedLine[] = [];
   let droppedLines = 0;
-  for (const line of raw.replace(/\r\n/g, "\n").split("\n")) {
+  const rawLines = raw.replace(/\r\n/g, "\n").split("\n");
+  for (let i = 0; i < rawLines.length; i++) {
+    const line = rawLines[i]!;
     if (line.startsWith(LIST_LINE_PREFIX)) {
       // Exactly one prefix — leading blanks of the list line are column
       // alignment and must survive.
@@ -548,9 +586,10 @@ export function splitBridgeOutput(
       // Neither LIST> nor ZMCP-ERR> (F3) — disclosed via droppedLines rather
       // than silently absorbed.
       droppedLines++;
+      dropped.push({ reason: "unprefixed", position: i + 1 });
     }
   }
-  return { list, diagnostics, droppedLines };
+  return { list, diagnostics, droppedLines, dropped };
 }
 
 /**
@@ -1447,6 +1486,7 @@ export async function runReport(
   reportName: string,
   gate: SafetyGate,
   parameters: readonly RunParameterInput[] = [],
+  options?: { keepBlankLines?: boolean },
 ): Promise<RunResult> {
   const started = Date.now();
   const report = assertPlainName(reportName, "Report name").toUpperCase();
@@ -1476,10 +1516,10 @@ export async function runReport(
   // A dump inside the SUBMITted report is attributed to the report, not the
   // bridge pool — both are candidates for the #149 lookup.
   const run = await executeBridge(conn, gate, deployed, { dumpPrograms: [report] });
-  const { list, diagnostics, droppedLines: bridgeDroppedLines } = splitBridgeOutput(run.output);
-  const beforeHeaderStrip = list.length;
-  const stripped = stripListHeader(list);
-  const headerDroppedLines = beforeHeaderStrip - stripped.length;
+  const { list, diagnostics, droppedLines: bridgeDroppedLines, dropped: bridgeDropped } = splitBridgeOutput(
+    run.output,
+  );
+  const { lines: stripped, dropped: headerDropped } = filterCapturedList(list, options?.keepBlankLines === true);
   const output = stripped.join("\n");
   // F5: the bridge discloses width truncation via a ZMCP-ERR> diagnostic —
   // surface that as `outputComplete: false` rather than leaving it buried in
@@ -1493,7 +1533,8 @@ export async function runReport(
     lines: stripped.length,
     // F4: the full write → activate → run round trip, not just the classrun leg.
     durationMs: Date.now() - started,
-    droppedLines: bridgeDroppedLines + headerDroppedLines,
+    droppedLines: bridgeDroppedLines + headerDropped.length,
+    dropped: [...headerDropped, ...bridgeDropped],
     bodyBytes: run.bodyBytes,
     outputComplete,
     bridgeClass: className,

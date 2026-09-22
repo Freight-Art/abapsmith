@@ -1861,6 +1861,7 @@ describe("abap_run", () => {
       "ZMCP_REPORT",
       expect.anything(),
       [],
+      { keepBlankLines: false },
     );
     expect(res.content[0]!.text).toMatch(/ZCL_MCP_RUN_ZMCP_REPORT/);
   });

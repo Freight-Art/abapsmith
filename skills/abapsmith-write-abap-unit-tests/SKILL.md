@@ -117,13 +117,17 @@ abap_test { object: "ZCL_MY_CLASS", type: "CLAS/OC" }
 The response reports exactly one of four outcomes: `PASSED`, `FAILED`,
 `NO TESTS RAN (not a pass)`, or `UNKNOWN (not a pass)`. **`NO TESTS RAN` is
 not the same thing as `PASSED`.** It means nothing was verified — either
-there is no `testclasses` include, or activation failed and the class
-(tests included) never became active, or every test method there is above
-the risk level this run allowed. A `PASSED` after a fresh write is only
-meaningful once you have confirmed the write and activation actually
-succeeded; a silently-failed activation followed by a test run reports
-`NO TESTS RAN`, not a failure, so do not read the absence of `FAILED` as
-success.
+the class's `testclasses` include is absent or empty (`abap_test` states
+which), or activation failed and the class (tests included) never became
+active, or every test method there is above the risk level this run
+allowed. A `PASSED` after a fresh write is only meaningful once you have
+confirmed the write and activation actually succeeded; a silently-failed
+activation followed by a test run reports `NO TESTS RAN`, not a failure,
+so do not read the absence of `FAILED` as success. `UNKNOWN` (`RESULT NOT
+GRADED`) is reported only when the `testclasses` include exists and is
+non-empty but the run still came back empty, or the include itself could
+not be probed — it is a narrower case than `NO TESTS RAN`, not a
+synonym for it.
 
 `risk_level` (`harmless` / `dangerous` / `critical`, default `harmless`,
 cumulative from harmless up) gates which test methods run. A test method
