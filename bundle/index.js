@@ -3525,8 +3525,8 @@ var require_lib = __commonJS({
     exports2.alias = exports2.clean = exports2.StrictType = exports2.dictionary = exports2.object = exports2.ObjectType = exports2.Dictionary = exports2.getDefaultContext = exports2.getValidationError = exports2.interface = exports2.Array = exports2.taggedUnion = exports2.TaggedUnionType = exports2.Integer = exports2.refinement = exports2.any = exports2.AnyType = exports2.never = exports2.NeverType = exports2.Function = exports2.FunctionType = exports2.exact = exports2.ExactType = exports2.strict = exports2.readonlyArray = exports2.ReadonlyArrayType = exports2.readonly = exports2.ReadonlyType = exports2.tuple = exports2.TupleType = exports2.intersection = exports2.IntersectionType = exports2.union = exports2.UnionType = exports2.record = exports2.DictionaryType = void 0;
     var Either_1 = require_Either();
     exports2.failures = Either_1.left;
-    var failure = function(value, context, message) {
-      return (0, exports2.failures)([{ value, context, message }]);
+    var failure = function(value, context, message2) {
+      return (0, exports2.failures)([{ value, context, message: message2 }]);
     };
     exports2.failure = failure;
     exports2.success = Either_1.right;
@@ -13018,19 +13018,19 @@ var require_AdtException = __commonJS({
       get typeID() {
         return ADTEXTYPEID;
       }
-      static create(errOrResponse, properties, type, message, parent, namespace, localizedMessage, response) {
+      static create(errOrResponse, properties, type, message2, parent, namespace, localizedMessage, response) {
         if (!(0, utilities_1.isNumber)(errOrResponse)) {
           return this.create(errOrResponse.status, properties, "", errOrResponse.statusText || "Unknown error in adt client", void 0, void 0, void 0, errOrResponse);
         } else {
-          return new _AdtErrorException(errOrResponse, properties, type, message, parent, namespace, localizedMessage, response);
+          return new _AdtErrorException(errOrResponse, properties, type, message2, parent, namespace, localizedMessage, response);
         }
       }
-      constructor(err, properties, type, message, parent, namespace, localizedMessage, response) {
+      constructor(err, properties, type, message2, parent, namespace, localizedMessage, response) {
         super();
         this.err = err;
         this.properties = properties;
         this.type = type;
-        this.message = message;
+        this.message = message2;
         this.parent = parent;
         this.namespace = namespace;
         this.localizedMessage = localizedMessage;
@@ -13042,9 +13042,9 @@ var require_AdtException = __commonJS({
       get typeID() {
         return CSRFEXTYPEID;
       }
-      constructor(message, parent) {
+      constructor(message2, parent) {
         super();
-        this.message = message;
+        this.message = message2;
         this.parent = parent;
       }
     };
@@ -13148,8 +13148,8 @@ var require_AdtException = __commonJS({
         return AdtErrorException.create(500, {}, "Unknown error", `${errOrResp}`);
       return fromExceptionOrResponse_int(errOrResp, config2);
     }
-    function adtException(message, number4 = 0) {
-      return new AdtErrorException(number4, {}, "", message);
+    function adtException(message2, number4 = 0) {
+      return new AdtErrorException(number4, {}, "", message2);
     }
     function ValidateObjectUrl(url2) {
       if (url2.match(/^\/sap\/bc\/adt\/[a-z]+\/[a-zA-Z%\$]?[\w%]+/))
@@ -13259,8 +13259,8 @@ var require_delayed_stream = __commonJS({
         return;
       }
       this._maxDataSizeExceeded = true;
-      var message = "DelayedStream#maxDataSize of " + this.maxDataSize + " bytes exceeded.";
-      this.emit("error", new Error(message));
+      var message2 = "DelayedStream#maxDataSize of " + this.maxDataSize + " bytes exceeded.";
+      this.emit("error", new Error(message2));
     };
   }
 });
@@ -13411,8 +13411,8 @@ var require_combined_stream = __commonJS({
       if (this.dataSize <= this.maxDataSize) {
         return;
       }
-      var message = "DelayedStream#maxDataSize of " + this.maxDataSize + " bytes exceeded.";
-      this._emitError(new Error(message));
+      var message2 = "DelayedStream#maxDataSize of " + this.maxDataSize + " bytes exceeded.";
+      this._emitError(new Error(message2));
     };
     CombinedStream.prototype._updateDataSize = function() {
       this.dataSize = 0;
@@ -25018,14 +25018,14 @@ var require_follow_redirects = __commonJS({
       }
       return lastValue === null || typeof lastValue === "undefined" ? void 0 : String(lastValue).trim();
     }
-    function createErrorType(code, message, baseClass) {
+    function createErrorType(code, message2, baseClass) {
       function CustomError(properties) {
         if (isFunction(Error.captureStackTrace)) {
           Error.captureStackTrace(this, this.constructor);
         }
         Object.assign(this, properties || {});
         this.code = code;
-        this.message = this.cause ? message + ": " + this.cause.message : message;
+        this.message = this.cause ? message2 + ": " + this.cause.message : message2;
       }
       CustomError.prototype = new (baseClass || Error)();
       Object.defineProperties(CustomError.prototype, {
@@ -26041,22 +26041,22 @@ var require_axios = __commonJS({
       }
     }
     function aggregateErrorMessage(error51) {
-      const message = error51.errors.map((entry) => {
+      const message2 = error51.errors.map((entry) => {
         try {
           return entry && entry.message ? stringifySafely$1(entry.message) : stringifySafely$1(entry);
         } catch (err) {
           return "";
         }
       }).filter(Boolean).join("; ");
-      return message || error51.name || "AggregateError";
+      return message2 || error51.name || "AggregateError";
     }
     var AxiosError = class _AxiosError extends Error {
       static from(error51, code, config2, request, response, customProps) {
-        let message = error51.message;
-        if (!message && utils$1.isArray(error51.errors) && error51.errors.length) {
-          message = aggregateErrorMessage(error51);
+        let message2 = error51.message;
+        if (!message2 && utils$1.isArray(error51.errors) && error51.errors.length) {
+          message2 = aggregateErrorMessage(error51);
         }
-        const axiosError = new _AxiosError(message, code || error51.code, config2, request, response);
+        const axiosError = new _AxiosError(message2, code || error51.code, config2, request, response);
         Object.defineProperty(axiosError, "cause", {
           __proto__: null,
           value: error51,
@@ -26082,13 +26082,13 @@ var require_axios = __commonJS({
        *
        * @returns {Error} The created error.
        */
-      constructor(message, code, config2, request, response) {
-        super(message);
+      constructor(message2, code, config2, request, response) {
+        super(message2);
         Object.defineProperty(this, "message", {
           // Null-proto descriptor so a polluted Object.prototype.get cannot turn
           // this data descriptor into an accessor descriptor on the way in.
           __proto__: null,
-          value: message,
+          value: message2,
           enumerable: true,
           writable: true,
           configurable: true
@@ -26671,8 +26671,8 @@ var require_axios = __commonJS({
        *
        * @returns {CanceledError} The created error.
        */
-      constructor(message, config2, request) {
-        super(message == null ? "canceled" : message, AxiosError.ERR_CANCELED, config2, request);
+      constructor(message2, config2, request) {
+        super(message2 == null ? "canceled" : message2, AxiosError.ERR_CANCELED, config2, request);
         this.name = "CanceledError";
         this.__CANCEL__ = true;
       }
@@ -29393,9 +29393,9 @@ var require_axios = __commonJS({
       };
     });
     var deprecatedWarnings = {};
-    validators$1.transitional = function transitional(validator2, version2, message) {
+    validators$1.transitional = function transitional(validator2, version2, message2) {
       function formatMessage(opt3, desc) {
-        return "[Axios v" + VERSION + "] Transitional option '" + opt3 + "'" + desc + (message ? ". " + message : "");
+        return "[Axios v" + VERSION + "] Transitional option '" + opt3 + "'" + desc + (message2 ? ". " + message2 : "");
       }
       return (value, opt3, opts) => {
         if (validator2 === false) {
@@ -29671,11 +29671,11 @@ var require_axios = __commonJS({
           };
           return promise2;
         };
-        executor(function cancel(message, config2, request) {
+        executor(function cancel(message2, config2, request) {
           if (token.reason) {
             return;
           }
-          token.reason = new CanceledError(message, config2, request);
+          token.reason = new CanceledError(message2, config2, request);
           resolvePromise(token.reason);
         });
       }
@@ -30064,8 +30064,8 @@ var require_AxiosHttpClient = __commonJS({
           return axiosRespToHttp(raw);
         } catch (error51) {
           if (!(0, axios_1.isAxiosError)(error51)) {
-            const message = (0, utilities_1.hasMessage)(error51) ? error51.message : "Unknown error in HTTP client";
-            throw new AdtHTTP_1.HttpClientException(message, void 0, void 0, this.config, options, void 0, error51);
+            const message2 = (0, utilities_1.hasMessage)(error51) ? error51.message : "Unknown error in HTTP client";
+            throw new AdtHTTP_1.HttpClientException(message2, void 0, void 0, this.config, options, void 0, error51);
           }
           const response = error51.response && axiosRespToHttp(error51.response);
           throw new AdtHTTP_1.HttpClientException(error51.message, error51.code, error51.status, this.config, options, response, error51);
@@ -30102,8 +30102,8 @@ var require_AdtHTTP = __commonJS({
     exports2.isHeaderValue = isHeaderValue;
     var adtRequestNumber = 0;
     var HttpClientException = class extends Error {
-      constructor(message, code, status, config2, request, response, parent) {
-        super(message);
+      constructor(message2, code, status, config2, request, response, parent) {
+        super(message2);
         this.code = code;
         this.status = status;
         this.config = config2;
@@ -30713,11 +30713,11 @@ var require_atc = __commonJS({
         parseAttributeValue: false
       });
       const root = (0, utilities_1.xmlNode)(raw, "exemptionApply", "exemptionProposal");
-      const { message, type } = (0, utilities_1.xmlNode)(raw, "exemptionApply", "status") || {};
+      const { message: message2, type } = (0, utilities_1.xmlNode)(raw, "exemptionApply", "status") || {};
       if ((0, __1.isErrorMessageType)(type))
-        throw (0, __1.adtException)(message);
-      if (message && type)
-        return (0, __1.validateParseResult)(atcProposalMessage.decode({ message, type }));
+        throw (0, __1.adtException)(message2);
+      if (message2 && type)
+        return (0, __1.validateParseResult)(atcProposalMessage.decode({ message: message2, type }));
       const finding2 = (0, utilities_1.isString)(root.finding) ? root.finding : (0, utilities_1.xmlNodeAttr)((0, utilities_1.xmlNode)(root, "finding"));
       if (!(0, utilities_1.isString)(finding2)) {
         finding2.priority = (0, utilities_1.toInt)(finding2.priority);
@@ -30901,7 +30901,7 @@ var require_syntax2 = __commonJS({
       const messages = [];
       (0, utilities_1.xmlArray)(raw, "chkrun:checkRunReports", "chkrun:checkReport", "chkrun:checkMessageList", "chkrun:checkMessage").forEach((m) => {
         const rawUri = m["@_chkrun:uri"] || "";
-        let message = {
+        let message2 = {
           uri: rawUri,
           line: 0,
           offset: 0,
@@ -30911,9 +30911,9 @@ var require_syntax2 = __commonJS({
         const matches = rawUri.match(/([^#]+)#start=([\d]+),([\d]+)/);
         if (matches) {
           const [uri, line2, offset] = matches.slice(1);
-          message = { ...message, uri, line: (0, utilities_1.toInt)(line2), offset: (0, utilities_1.toInt)(offset) };
+          message2 = { ...message2, uri, line: (0, utilities_1.toInt)(line2), offset: (0, utilities_1.toInt)(offset) };
         }
-        messages.push(message);
+        messages.push(message2);
       });
       return messages;
     }
@@ -32569,9 +32569,9 @@ var require_activate = __commonJS({
         const raw = (0, utilities_1.fullParse)(response.body);
         inactive = parseInactive(raw);
         messages = (0, utilities_1.xmlArray)(raw, "chkl:messages", "msg").map((m) => {
-          const message = (0, utilities_1.xmlNodeAttr)(m);
-          message.shortText = m.shortText && m.shortText.txt || "Syntax error";
-          return message;
+          const message2 = (0, utilities_1.xmlNodeAttr)(m);
+          message2.shortText = m.shortText && m.shortText.txt || "Syntax error";
+          return message2;
         });
         if (inactive.length > 0)
           success2 = false;
@@ -34481,7 +34481,7 @@ var require_debugger = __commonJS({
     };
     var parseDebugError = (raw) => {
       if (raw.exception) {
-        const { namespace: { "@_id": namespace }, type: { "@_id": type }, localizedMessage, message } = raw.exception;
+        const { namespace: { "@_id": namespace }, type: { "@_id": type }, localizedMessage, message: message2 } = raw.exception;
         const parseMessage = (m) => ({ text: m["#text"], lang: m["@_lang"] });
         const entries = {};
         for (const ex of (0, utilities_1.xmlArray)(raw.exception, "properties", "entry"))
@@ -34490,7 +34490,7 @@ var require_debugger = __commonJS({
           ...entries,
           namespace,
           type,
-          message: parseMessage(message),
+          message: parseMessage(message2),
           localizedMessage: parseMessage(localizedMessage)
         };
       }
@@ -36528,8 +36528,8 @@ function safeToString(e) {
 }
 function describeUnknownError(e) {
   if (e instanceof Error) {
-    const message = typeof e.message === "string" ? e.message : "";
-    if (message.trim()) return message;
+    const message2 = typeof e.message === "string" ? e.message : "";
+    if (message2.trim()) return message2;
     const name = typeof e.name === "string" && e.name.trim() ? e.name.trim() : "Error";
     return `${name} was thrown with an empty message`;
   }
@@ -36679,8 +36679,8 @@ var init_errors = __esm({
       details;
       hint;
       retryable;
-      constructor(code, message, details = {}, hint, options) {
-        super(message);
+      constructor(code, message2, details = {}, hint, options) {
+        super(message2);
         this.name = "AbapError";
         this.code = code;
         this.details = details;
@@ -36885,12 +36885,12 @@ function describeXmlPath(xmlPath, properties) {
   }
   return `The server rejected the document at ${xmlPath}${offsetText}: an element or attribute value there is not one the object model accepts. Retrying unchanged fails again.`;
 }
-function classifyAdtMessage(message, properties, exceptionType) {
+function classifyAdtMessage(message2, properties, exceptionType) {
   const id = properties["T100KEY-ID"];
   const no = properties["T100KEY-NO"];
   for (const rule of ADT_MESSAGE_RULES) {
     const t100Hit = rule.t100Id !== void 0 && rule.t100No !== void 0 && id === rule.t100Id && no !== void 0 && sameT100No(no, rule.t100No);
-    const proseHit = rule.match !== void 0 && rule.match.test(message);
+    const proseHit = rule.match !== void 0 && rule.match.test(message2);
     const exceptionHit = rule.exceptionType !== void 0 && exceptionType === rule.exceptionType && (rule.property === void 0 || !!properties[rule.property]);
     if (t100Hit || proseHit || exceptionHit) return rule;
   }
@@ -37081,11 +37081,11 @@ function adtExceptionInfo(e) {
   }
   const response = pickResponse(any2);
   const rawMessage = describeUnknownError(e);
-  const message = CONTENTLESS_HTTP_MESSAGE_RE.test(rawMessage.trim()) ? scrapeResponseBodyText(response?.body) ?? `The ABAP system returned ${status ?? "an error"} with no diagnostic body.` : rawMessage;
+  const message2 = CONTENTLESS_HTTP_MESSAGE_RE.test(rawMessage.trim()) ? scrapeResponseBodyText(response?.body) ?? `The ABAP system returned ${status ?? "an error"} with no diagnostic body.` : rawMessage;
   return {
     status,
     type: typeof any2.type === "string" && any2.type ? any2.type : void 0,
-    message,
+    message: message2,
     properties,
     response
   };
@@ -38866,14 +38866,14 @@ function prefixIssues(path9, issues) {
     return iss;
   });
 }
-function unwrapMessage(message) {
-  return typeof message === "string" ? message : message?.message;
+function unwrapMessage(message2) {
+  return typeof message2 === "string" ? message2 : message2?.message;
 }
 function finalizeIssue(iss, ctx, config2) {
-  const message = iss.message ? iss.message : unwrapMessage(iss.inst?._zod.def?.error?.(iss)) ?? unwrapMessage(ctx?.error?.(iss)) ?? unwrapMessage(config2.customError?.(iss)) ?? unwrapMessage(config2.localeError?.(iss)) ?? "Invalid input";
+  const message2 = iss.message ? iss.message : unwrapMessage(iss.inst?._zod.def?.error?.(iss)) ?? unwrapMessage(ctx?.error?.(iss)) ?? unwrapMessage(config2.customError?.(iss)) ?? unwrapMessage(config2.localeError?.(iss)) ?? "Invalid input";
   const { inst: _inst, continue: _continue, input: _input, ...rest } = iss;
   rest.path ?? (rest.path = []);
-  rest.message = message;
+  rest.message = message2;
   if (ctx?.reportInput) {
     rest.input = _input;
   }
@@ -53647,14 +53647,14 @@ var require_main = __commonJS({
       }
       return DotenvModule.parse(decrypted);
     }
-    function _warn(message) {
-      console.error(`\u26A0 ${message}`);
+    function _warn(message2) {
+      console.error(`\u26A0 ${message2}`);
     }
-    function _debug(message) {
-      console.log(`\u2506 ${message}`);
+    function _debug(message2) {
+      console.log(`\u2506 ${message2}`);
     }
-    function _log(message) {
-      console.log(`\u25C7 ${message}`);
+    function _log(message2) {
+      console.log(`\u25C7 ${message2}`);
     }
     function _dotenvKey(options) {
       if (options && options.DOTENV_KEY && options.DOTENV_KEY.length > 0) {
@@ -54204,11 +54204,11 @@ function validateAmpersand(xmlData, i) {
   }
   return i;
 }
-function getErrorObject(code, message, lineNumber) {
+function getErrorObject(code, message2, lineNumber) {
   return {
     err: {
       code,
-      msg: message,
+      msg: message2,
       line: lineNumber.line || lineNumber,
       col: lineNumber.col
     }
@@ -58199,26 +58199,26 @@ function ctsError(e, operation, trkorr) {
   if (trkorr) details.trkorr = trkorr;
   if (f?.status !== void 0) details.status = f.status;
   if (f?.type) details.exceptionType = f.type;
-  const message = f?.message || describeUnknownError(e);
+  const message2 = f?.message || describeUnknownError(e);
   if (isGone(f)) {
     return new AbapError(
       "TRANSPORT_GONE",
-      message,
+      message2,
       details,
       'SAP does not recognise this transport/task number \u2014 it is not evidence of a system problem, and retrying this same number will not change that. It is usually gone because it was already released or deleted, or because the number was mistyped; this response does not say which. Run abap_transport with operation "list" to see what actually exists before acting on this number again.'
     );
   }
-  if (/contains locked objects/i.test(message)) {
+  if (/contains locked objects/i.test(message2)) {
     return new AbapError(
       "TRANSPORT_LOCKED",
-      message,
+      message2,
       details,
       `CTS holds this entry's lock until the request is released; deleting the object does not clear it. The number above may be a child task, not the one you passed. Real exits: abap_transport operation "removeObject" with object = the entry's name and confirm = the request number (admin mode only) \u2014 drops that one entry and its lock from an unreleased request/task; release the request (irreversible); or in SE03 run "Unlock Objects (Expert Tool)" and then handle it by hand in SE09/SE10. abapsmith cannot unlock an entry while leaving it on the request \u2014 removeObject removes it outright.`
     );
   }
   return new AbapError(
     "TRANSPORT_ERROR",
-    message,
+    message2,
     details,
     // Reached only for an UNCLASSIFIED CTS response (neither "gone" nor "locked"), so this
     // hint must not imply either. Parameter name is `operation` not `action` —
@@ -59001,7 +59001,7 @@ function formatRemaining(ms) {
 function circuitOpenError(breaker) {
   const info = breaker.info;
   const status = breaker.status();
-  const message = info?.message ?? status.message;
+  const message2 = info?.message ?? status.message;
   const latchFile = breaker.durableLatchFile;
   const details = info ? {
     reason: info.reason,
@@ -59040,7 +59040,7 @@ function circuitOpenError(breaker) {
   }
   return new AbapError(
     "AUTH_CIRCUIT_OPEN",
-    `ABAP connection disabled: the 401 circuit breaker has tripped. First failure: ${message}`,
+    `ABAP connection disabled: the 401 circuit breaker has tripped. First failure: ${message2}`,
     details,
     hint
   );
@@ -59695,12 +59695,12 @@ var init_oauth = __esm({
        */
       refreshFailedError(status, extra) {
         const statusPart = status !== void 0 ? `HTTP ${status}` : "no response";
-        const message = extra ? `OAuth token refresh against ${this.safeTokenUrl} failed: ${extra} (${statusPart}).` : `OAuth token refresh against ${this.safeTokenUrl} failed (${statusPart}).`;
+        const message2 = extra ? `OAuth token refresh against ${this.safeTokenUrl} failed: ${extra} (${statusPart}).` : `OAuth token refresh against ${this.safeTokenUrl} failed (${statusPart}).`;
         const details = { tokenUrl: this.safeTokenUrl };
         if (status !== void 0) details.status = status;
         const hint = this.remedyHint();
-        this.lastFailure = { message, atMs: this.now() };
-        return new AbapError("AUTH_TOKEN_REFRESH_FAILED", message, details, hint);
+        this.lastFailure = { message: message2, atMs: this.now() };
+        return new AbapError("AUTH_TOKEN_REFRESH_FAILED", message2, details, hint);
       }
       /**
        * Thrown when a call arrives while a prior failure's cooldown is still in
@@ -59708,9 +59708,9 @@ var init_oauth = __esm({
        * restarted (only a real attempt, successful or not, moves `lastFailure`).
        */
       cooldownError() {
-        const message = `OAuth token refresh against ${this.safeTokenUrl} is in cooldown after a recent failure.`;
+        const message2 = `OAuth token refresh against ${this.safeTokenUrl} is in cooldown after a recent failure.`;
         const details = { tokenUrl: this.safeTokenUrl };
-        return new AbapError("AUTH_TOKEN_REFRESH_FAILED", message, details, this.remedyHint());
+        return new AbapError("AUTH_TOKEN_REFRESH_FAILED", message2, details, this.remedyHint());
       }
       remedyHint() {
         const cooldownSeconds = Math.round(this.failureCooldownMs / 1e3);
@@ -70573,12 +70573,12 @@ var require_errors = __commonJS({
       }
       return [E.schemaPath, schPath];
     }
-    function extraErrorProps(cxt, { params, message }, keyValues) {
+    function extraErrorProps(cxt, { params, message: message2 }, keyValues) {
       const { keyword, data, schemaValue, it } = cxt;
       const { opts, propertyName, topSchemaRef, schemaPath } = it;
       keyValues.push([E.keyword, keyword], [E.params, typeof params == "function" ? params(cxt) : params || (0, codegen_1._)`{}`]);
       if (opts.messages) {
-        keyValues.push([E.message, typeof message == "function" ? message(cxt) : message]);
+        keyValues.push([E.message, typeof message2 == "function" ? message2(cxt) : message2]);
       }
       if (opts.verbose) {
         keyValues.push([E.schema, schemaValue], [E.parentSchema, (0, codegen_1._)`${topSchemaRef}${schemaPath}`], [names_1.default.data, data]);
@@ -73404,11 +73404,11 @@ var require_core = __commonJS({
         }
         const valid = this.validate($schema, schema);
         if (!valid && throwOrLogError) {
-          const message = "schema is invalid: " + this.errorsText();
+          const message2 = "schema is invalid: " + this.errorsText();
           if (this.opts.validateSchema === "log")
-            this.logger.error(message);
+            this.logger.error(message2);
           else
-            throw new Error(message);
+            throw new Error(message2);
         }
         return valid;
       }
@@ -76832,27 +76832,27 @@ function classifyFilteredPreviewFailure(e, ctx, sql) {
   if (err.code !== "ADT_ERROR") {
     return new AbapError(err.code, err.message, { ...err.details, sql }, err.hint, { retryable: err.retryable });
   }
-  const message = err.message;
-  if (/client field .* cannot be specified in the where condition/i.test(message)) {
+  const message2 = err.message;
+  if (/client field .* cannot be specified in the where condition/i.test(message2)) {
     return new AbapError(
       "BAD_INPUT",
-      message,
+      message2,
       { ...err.details, sql },
       "The read is already scoped to the logon client \u2014 drop the where condition on the client field."
     );
   }
-  if (/like condition can only be used with character-like fields/i.test(message)) {
+  if (/like condition can only be used with character-like fields/i.test(message2)) {
     return new AbapError(
       "BAD_INPUT",
-      message,
+      message2,
       { ...err.details, sql },
       "Use eq/ne/lt/le/gt/ge on a numeric field instead of like."
     );
   }
-  if (/from the order by clause is missing in the select list/i.test(message)) {
+  if (/from the order by clause is missing in the select list/i.test(message2)) {
     return new AbapError(
       "BAD_INPUT",
-      message,
+      message2,
       { ...err.details, sql },
       "With distinct, every order_by field must also appear in columns."
     );
@@ -77354,9 +77354,9 @@ var AuthCircuitBreaker = class _AuthCircuitBreaker {
    * `ctx.at` lets `forConfig`'s fingerprint replay preserve the ORIGINAL trip
    * timestamp instead of stamping `new Date()`. Every other caller omits it.
    */
-  trip(reason, message, ctx = {}) {
+  trip(reason, message2, ctx = {}) {
     if (this.tripped) return this.tripped;
-    this.tripped = { reason, message, status: ctx.status, url: ctx.url, at: ctx.at ?? /* @__PURE__ */ new Date() };
+    this.tripped = { reason, message: message2, status: ctx.status, url: ctx.url, at: ctx.at ?? /* @__PURE__ */ new Date() };
     this.latchFingerprint ??= this.credentialFingerprint;
     this.rearmSignalFile = authRearmSignalPath();
     if (this.credentialFingerprint) {
@@ -77688,8 +77688,8 @@ var AuthCircuitBreaker = class _AuthCircuitBreaker {
       if (this.authProbeOutstanding) this.failAuthProbe();
       return this.tripped;
     }
-    const message = reason === "icf-logon-page" ? "SAP ICF returned a logon-failure page. This counts as a failed logon attempt." : reason === "icf-password-change" ? "SAP ICF returned a password-change page. This counts as a failed logon attempt against the same lockout counter and must not be retried automatically." : `Authentication rejected by the ABAP system (HTTP ${status}).`;
-    return this.trip(reason, message, { status, url: url2 });
+    const message2 = reason === "icf-logon-page" ? "SAP ICF returned a logon-failure page. This counts as a failed logon attempt." : reason === "icf-password-change" ? "SAP ICF returned a password-change page. This counts as a failed logon attempt against the same lockout counter and must not be retried automatically." : `Authentication rejected by the ABAP system (HTTP ${status}).`;
+    return this.trip(reason, message2, { status, url: url2 });
   }
   /**
    * Lazy, side-effecting clock check: the ONLY way `open` becomes `half-open`.
@@ -79161,19 +79161,19 @@ function assertDdicTranscript(result, expectTags, what, opts) {
   if (result.errorLine) {
     const dynproHint = isHeadlessDynproFailure(result.errorLine) ? HEADLESS_DYNPRO_HINT : void 0;
     const firedCompleted = result.tags.filter((t) => opts?.completed?.[t] !== void 0);
-    let message = `${what} failed on the server: ${result.errorLine}`;
+    let message2 = `${what} failed on the server: ${result.errorLine}`;
     const details = { raw: result.raw };
     let hint = dynproHint;
     if (firedCompleted.length > 0) {
       const done = firedCompleted.map((t) => opts.completed[t]);
-      const sep2 = /[.!?:]\s*$/.test(message) ? " " : ". ";
-      message += `${sep2}PARTIAL SUCCESS, NOT A NO-OP: this is a multi-step operation and earlier steps already took effect on the server and were NOT rolled back \u2014 ${done.join("; ")}.`;
+      const sep2 = /[.!?:]\s*$/.test(message2) ? " " : ". ";
+      message2 += `${sep2}PARTIAL SUCCESS, NOT A NO-OP: this is a multi-step operation and earlier steps already took effect on the server and were NOT rolled back \u2014 ${done.join("; ")}.`;
       details.partial = true;
       details.completed = firedCompleted;
       const prefix = [PARTIAL_SUCCESS_HINT, opts?.partialHint].filter((s) => s !== void 0).join(" ");
       hint = [prefix, dynproHint].filter((s) => s !== void 0).join(" ");
     }
-    throw new AbapError("CHECK_FAILED", message, details, hint);
+    throw new AbapError("CHECK_FAILED", message2, details, hint);
   }
   const missing = expectTags.filter((t) => !result.tags.includes(t));
   if (missing.length > 0) {
@@ -90787,8 +90787,8 @@ init_truncate();
 var DebugXmlParseError = class extends Error {
   /** First ~500 chars of the offending input, with a truncation marker if cut. */
   excerpt;
-  constructor(message, input) {
-    super(message);
+  constructor(message2, input) {
+    super(message2);
     this.name = "DebugXmlParseError";
     this.excerpt = truncateText(input, PARSE_EXCERPT_MAX);
   }
@@ -91270,13 +91270,13 @@ function parseAdtError(body, status, path9) {
   }
   const typeNode = root.type;
   const abapType = typeof typeNode?.id === "string" ? typeNode.id : void 0;
-  const message = textOf(root.message) ?? `HTTP ${status}`;
+  const message2 = textOf(root.message) ?? `HTTP ${status}`;
   const exceptionClassNames = collectExceptionClassNames(properties);
   return {
     status,
     subtype: properties["com.sap.adt.communicationFramework.subType"],
     abapType,
-    message,
+    message: message2,
     path: path9,
     bodyExcerpt,
     ...exceptionClassNames.length ? { exceptionClassNames } : {}
@@ -91399,8 +91399,8 @@ function decodeBatchPart(result, path9, parse4) {
   try {
     return { ok: true, value: parse4(result.body) };
   } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    return { ok: false, error: { status: result.status, message, path: path9, bodyExcerpt: truncateDiagnosticBody(result.body) } };
+    const message2 = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: { status: result.status, message: message2, path: path9, bodyExcerpt: truncateDiagnosticBody(result.body) } };
   }
 }
 var DebugClient = class {
@@ -91981,8 +91981,8 @@ function assertServerHoldSafe(serverHoldSeconds, clientAbortMs) {
   }
 }
 var LongPollAborted = class extends Error {
-  constructor(message = "Long-poll request aborted.") {
-    super(message);
+  constructor(message2 = "Long-poll request aborted.") {
+    super(message2);
     this.name = "AbortError";
   }
 };
@@ -92190,16 +92190,16 @@ function buildUrlWithQuery(baseUrl, path9, qs) {
 function adtErrorFromException(e, path9) {
   captureErrorBody("adtErrorFromException", path9, e);
   const info = adtExceptionInfo(e);
-  const message = info?.message || describeUnknownError(e);
+  const message2 = info?.message || describeUnknownError(e);
   const rawBody = info?.response?.body ?? "";
   const exceptionClassNames = collectExceptionClassNames(info?.properties);
   return {
     status: info?.status ?? 0,
     subtype: info?.properties["com.sap.adt.communicationFramework.subType"] || void 0,
     abapType: info?.type,
-    message,
+    message: message2,
     path: path9,
-    bodyExcerpt: truncateDiagnosticBody(rawBody || message),
+    bodyExcerpt: truncateDiagnosticBody(rawBody || message2),
     ...exceptionClassNames.length ? { exceptionClassNames } : {}
   };
 }
@@ -92207,7 +92207,7 @@ var withSubtype = (err) => err.subtype ? { subtype: err.subtype } : {};
 var RESOURCE_NO_ACCESS_TYPE = "ExceptionResourceNoAccess";
 var isResourceNoAccess = (err) => err.abapType === RESOURCE_NO_ACCESS_TYPE;
 var ADT_REST_DATA_INVALID_TEXT = "Data is invalid and could not be converted";
-var isAdtRestDataInvalidText = (message) => (message ?? "").trim().toLowerCase() === ADT_REST_DATA_INVALID_TEXT.toLowerCase();
+var isAdtRestDataInvalidText = (message2) => (message2 ?? "").trim().toLowerCase() === ADT_REST_DATA_INVALID_TEXT.toLowerCase();
 var EU510_LOCK_TEXT = /\bis currently editing\b/i;
 function resourceNoAccessError(err) {
   const lockTextSeen = EU510_LOCK_TEXT.test(err.message ?? "");
@@ -94331,104 +94331,104 @@ ZodError2.create = (issues) => {
 
 // node_modules/zod/v3/locales/en.js
 var errorMap = (issue4, _ctx) => {
-  let message;
+  let message2;
   switch (issue4.code) {
     case ZodIssueCode2.invalid_type:
       if (issue4.received === ZodParsedType.undefined) {
-        message = "Required";
+        message2 = "Required";
       } else {
-        message = `Expected ${issue4.expected}, received ${issue4.received}`;
+        message2 = `Expected ${issue4.expected}, received ${issue4.received}`;
       }
       break;
     case ZodIssueCode2.invalid_literal:
-      message = `Invalid literal value, expected ${JSON.stringify(issue4.expected, util.jsonStringifyReplacer)}`;
+      message2 = `Invalid literal value, expected ${JSON.stringify(issue4.expected, util.jsonStringifyReplacer)}`;
       break;
     case ZodIssueCode2.unrecognized_keys:
-      message = `Unrecognized key(s) in object: ${util.joinValues(issue4.keys, ", ")}`;
+      message2 = `Unrecognized key(s) in object: ${util.joinValues(issue4.keys, ", ")}`;
       break;
     case ZodIssueCode2.invalid_union:
-      message = `Invalid input`;
+      message2 = `Invalid input`;
       break;
     case ZodIssueCode2.invalid_union_discriminator:
-      message = `Invalid discriminator value. Expected ${util.joinValues(issue4.options)}`;
+      message2 = `Invalid discriminator value. Expected ${util.joinValues(issue4.options)}`;
       break;
     case ZodIssueCode2.invalid_enum_value:
-      message = `Invalid enum value. Expected ${util.joinValues(issue4.options)}, received '${issue4.received}'`;
+      message2 = `Invalid enum value. Expected ${util.joinValues(issue4.options)}, received '${issue4.received}'`;
       break;
     case ZodIssueCode2.invalid_arguments:
-      message = `Invalid function arguments`;
+      message2 = `Invalid function arguments`;
       break;
     case ZodIssueCode2.invalid_return_type:
-      message = `Invalid function return type`;
+      message2 = `Invalid function return type`;
       break;
     case ZodIssueCode2.invalid_date:
-      message = `Invalid date`;
+      message2 = `Invalid date`;
       break;
     case ZodIssueCode2.invalid_string:
       if (typeof issue4.validation === "object") {
         if ("includes" in issue4.validation) {
-          message = `Invalid input: must include "${issue4.validation.includes}"`;
+          message2 = `Invalid input: must include "${issue4.validation.includes}"`;
           if (typeof issue4.validation.position === "number") {
-            message = `${message} at one or more positions greater than or equal to ${issue4.validation.position}`;
+            message2 = `${message2} at one or more positions greater than or equal to ${issue4.validation.position}`;
           }
         } else if ("startsWith" in issue4.validation) {
-          message = `Invalid input: must start with "${issue4.validation.startsWith}"`;
+          message2 = `Invalid input: must start with "${issue4.validation.startsWith}"`;
         } else if ("endsWith" in issue4.validation) {
-          message = `Invalid input: must end with "${issue4.validation.endsWith}"`;
+          message2 = `Invalid input: must end with "${issue4.validation.endsWith}"`;
         } else {
           util.assertNever(issue4.validation);
         }
       } else if (issue4.validation !== "regex") {
-        message = `Invalid ${issue4.validation}`;
+        message2 = `Invalid ${issue4.validation}`;
       } else {
-        message = "Invalid";
+        message2 = "Invalid";
       }
       break;
     case ZodIssueCode2.too_small:
       if (issue4.type === "array")
-        message = `Array must contain ${issue4.exact ? "exactly" : issue4.inclusive ? `at least` : `more than`} ${issue4.minimum} element(s)`;
+        message2 = `Array must contain ${issue4.exact ? "exactly" : issue4.inclusive ? `at least` : `more than`} ${issue4.minimum} element(s)`;
       else if (issue4.type === "string")
-        message = `String must contain ${issue4.exact ? "exactly" : issue4.inclusive ? `at least` : `over`} ${issue4.minimum} character(s)`;
+        message2 = `String must contain ${issue4.exact ? "exactly" : issue4.inclusive ? `at least` : `over`} ${issue4.minimum} character(s)`;
       else if (issue4.type === "number")
-        message = `Number must be ${issue4.exact ? `exactly equal to ` : issue4.inclusive ? `greater than or equal to ` : `greater than `}${issue4.minimum}`;
+        message2 = `Number must be ${issue4.exact ? `exactly equal to ` : issue4.inclusive ? `greater than or equal to ` : `greater than `}${issue4.minimum}`;
       else if (issue4.type === "bigint")
-        message = `Number must be ${issue4.exact ? `exactly equal to ` : issue4.inclusive ? `greater than or equal to ` : `greater than `}${issue4.minimum}`;
+        message2 = `Number must be ${issue4.exact ? `exactly equal to ` : issue4.inclusive ? `greater than or equal to ` : `greater than `}${issue4.minimum}`;
       else if (issue4.type === "date")
-        message = `Date must be ${issue4.exact ? `exactly equal to ` : issue4.inclusive ? `greater than or equal to ` : `greater than `}${new Date(Number(issue4.minimum))}`;
+        message2 = `Date must be ${issue4.exact ? `exactly equal to ` : issue4.inclusive ? `greater than or equal to ` : `greater than `}${new Date(Number(issue4.minimum))}`;
       else
-        message = "Invalid input";
+        message2 = "Invalid input";
       break;
     case ZodIssueCode2.too_big:
       if (issue4.type === "array")
-        message = `Array must contain ${issue4.exact ? `exactly` : issue4.inclusive ? `at most` : `less than`} ${issue4.maximum} element(s)`;
+        message2 = `Array must contain ${issue4.exact ? `exactly` : issue4.inclusive ? `at most` : `less than`} ${issue4.maximum} element(s)`;
       else if (issue4.type === "string")
-        message = `String must contain ${issue4.exact ? `exactly` : issue4.inclusive ? `at most` : `under`} ${issue4.maximum} character(s)`;
+        message2 = `String must contain ${issue4.exact ? `exactly` : issue4.inclusive ? `at most` : `under`} ${issue4.maximum} character(s)`;
       else if (issue4.type === "number")
-        message = `Number must be ${issue4.exact ? `exactly` : issue4.inclusive ? `less than or equal to` : `less than`} ${issue4.maximum}`;
+        message2 = `Number must be ${issue4.exact ? `exactly` : issue4.inclusive ? `less than or equal to` : `less than`} ${issue4.maximum}`;
       else if (issue4.type === "bigint")
-        message = `BigInt must be ${issue4.exact ? `exactly` : issue4.inclusive ? `less than or equal to` : `less than`} ${issue4.maximum}`;
+        message2 = `BigInt must be ${issue4.exact ? `exactly` : issue4.inclusive ? `less than or equal to` : `less than`} ${issue4.maximum}`;
       else if (issue4.type === "date")
-        message = `Date must be ${issue4.exact ? `exactly` : issue4.inclusive ? `smaller than or equal to` : `smaller than`} ${new Date(Number(issue4.maximum))}`;
+        message2 = `Date must be ${issue4.exact ? `exactly` : issue4.inclusive ? `smaller than or equal to` : `smaller than`} ${new Date(Number(issue4.maximum))}`;
       else
-        message = "Invalid input";
+        message2 = "Invalid input";
       break;
     case ZodIssueCode2.custom:
-      message = `Invalid input`;
+      message2 = `Invalid input`;
       break;
     case ZodIssueCode2.invalid_intersection_types:
-      message = `Intersection results could not be merged`;
+      message2 = `Intersection results could not be merged`;
       break;
     case ZodIssueCode2.not_multiple_of:
-      message = `Number must be a multiple of ${issue4.multipleOf}`;
+      message2 = `Number must be a multiple of ${issue4.multipleOf}`;
       break;
     case ZodIssueCode2.not_finite:
-      message = "Number must be finite";
+      message2 = "Number must be finite";
       break;
     default:
-      message = _ctx.defaultError;
+      message2 = _ctx.defaultError;
       util.assertNever(issue4);
   }
-  return { message };
+  return { message: message2 };
 };
 var en_default2 = errorMap;
 
@@ -94550,8 +94550,8 @@ var isAsync = (x) => typeof Promise !== "undefined" && x instanceof Promise;
 // node_modules/zod/v3/helpers/errorUtil.js
 var errorUtil;
 (function(errorUtil2) {
-  errorUtil2.errToObj = (message) => typeof message === "string" ? { message } : message || {};
-  errorUtil2.toString = (message) => typeof message === "string" ? message : message?.message;
+  errorUtil2.errToObj = (message2) => typeof message2 === "string" ? { message: message2 } : message2 || {};
+  errorUtil2.toString = (message2) => typeof message2 === "string" ? message2 : message2?.message;
 })(errorUtil || (errorUtil = {}));
 
 // node_modules/zod/v3/types.js
@@ -94603,16 +94603,16 @@ function processCreateParams(params) {
   if (errorMap2)
     return { errorMap: errorMap2, description };
   const customMap = (iss, ctx) => {
-    const { message } = params;
+    const { message: message2 } = params;
     if (iss.code === "invalid_enum_value") {
-      return { message: message ?? ctx.defaultError };
+      return { message: message2 ?? ctx.defaultError };
     }
     if (typeof ctx.data === "undefined") {
-      return { message: message ?? required_error ?? ctx.defaultError };
+      return { message: message2 ?? required_error ?? ctx.defaultError };
     }
     if (iss.code !== "invalid_type")
       return { message: ctx.defaultError };
-    return { message: message ?? invalid_type_error ?? ctx.defaultError };
+    return { message: message2 ?? invalid_type_error ?? ctx.defaultError };
   };
   return { errorMap: customMap, description };
 }
@@ -94738,14 +94738,14 @@ var ZodType2 = class {
     const result = await (isAsync(maybeAsyncResult) ? maybeAsyncResult : Promise.resolve(maybeAsyncResult));
     return handleResult(ctx, result);
   }
-  refine(check2, message) {
+  refine(check2, message2) {
     const getIssueProperties = (val) => {
-      if (typeof message === "string" || typeof message === "undefined") {
-        return { message };
-      } else if (typeof message === "function") {
-        return message(val);
+      if (typeof message2 === "string" || typeof message2 === "undefined") {
+        return { message: message2 };
+      } else if (typeof message2 === "function") {
+        return message2(val);
       } else {
-        return message;
+        return message2;
       }
     };
     return this._refinement((val, ctx) => {
@@ -95281,11 +95281,11 @@ var ZodString2 = class _ZodString2 extends ZodType2 {
     }
     return { status: status.value, value: input.data };
   }
-  _regex(regex, validation, message) {
+  _regex(regex, validation, message2) {
     return this.refinement((data) => regex.test(data), {
       validation,
       code: ZodIssueCode2.invalid_string,
-      ...errorUtil.errToObj(message)
+      ...errorUtil.errToObj(message2)
     });
   }
   _addCheck(check2) {
@@ -95294,37 +95294,37 @@ var ZodString2 = class _ZodString2 extends ZodType2 {
       checks: [...this._def.checks, check2]
     });
   }
-  email(message) {
-    return this._addCheck({ kind: "email", ...errorUtil.errToObj(message) });
+  email(message2) {
+    return this._addCheck({ kind: "email", ...errorUtil.errToObj(message2) });
   }
-  url(message) {
-    return this._addCheck({ kind: "url", ...errorUtil.errToObj(message) });
+  url(message2) {
+    return this._addCheck({ kind: "url", ...errorUtil.errToObj(message2) });
   }
-  emoji(message) {
-    return this._addCheck({ kind: "emoji", ...errorUtil.errToObj(message) });
+  emoji(message2) {
+    return this._addCheck({ kind: "emoji", ...errorUtil.errToObj(message2) });
   }
-  uuid(message) {
-    return this._addCheck({ kind: "uuid", ...errorUtil.errToObj(message) });
+  uuid(message2) {
+    return this._addCheck({ kind: "uuid", ...errorUtil.errToObj(message2) });
   }
-  nanoid(message) {
-    return this._addCheck({ kind: "nanoid", ...errorUtil.errToObj(message) });
+  nanoid(message2) {
+    return this._addCheck({ kind: "nanoid", ...errorUtil.errToObj(message2) });
   }
-  cuid(message) {
-    return this._addCheck({ kind: "cuid", ...errorUtil.errToObj(message) });
+  cuid(message2) {
+    return this._addCheck({ kind: "cuid", ...errorUtil.errToObj(message2) });
   }
-  cuid2(message) {
-    return this._addCheck({ kind: "cuid2", ...errorUtil.errToObj(message) });
+  cuid2(message2) {
+    return this._addCheck({ kind: "cuid2", ...errorUtil.errToObj(message2) });
   }
-  ulid(message) {
-    return this._addCheck({ kind: "ulid", ...errorUtil.errToObj(message) });
+  ulid(message2) {
+    return this._addCheck({ kind: "ulid", ...errorUtil.errToObj(message2) });
   }
-  base64(message) {
-    return this._addCheck({ kind: "base64", ...errorUtil.errToObj(message) });
+  base64(message2) {
+    return this._addCheck({ kind: "base64", ...errorUtil.errToObj(message2) });
   }
-  base64url(message) {
+  base64url(message2) {
     return this._addCheck({
       kind: "base64url",
-      ...errorUtil.errToObj(message)
+      ...errorUtil.errToObj(message2)
     });
   }
   jwt(options) {
@@ -95354,8 +95354,8 @@ var ZodString2 = class _ZodString2 extends ZodType2 {
       ...errorUtil.errToObj(options?.message)
     });
   }
-  date(message) {
-    return this._addCheck({ kind: "date", message });
+  date(message2) {
+    return this._addCheck({ kind: "date", message: message2 });
   }
   time(options) {
     if (typeof options === "string") {
@@ -95371,14 +95371,14 @@ var ZodString2 = class _ZodString2 extends ZodType2 {
       ...errorUtil.errToObj(options?.message)
     });
   }
-  duration(message) {
-    return this._addCheck({ kind: "duration", ...errorUtil.errToObj(message) });
+  duration(message2) {
+    return this._addCheck({ kind: "duration", ...errorUtil.errToObj(message2) });
   }
-  regex(regex, message) {
+  regex(regex, message2) {
     return this._addCheck({
       kind: "regex",
       regex,
-      ...errorUtil.errToObj(message)
+      ...errorUtil.errToObj(message2)
     });
   }
   includes(value, options) {
@@ -95389,46 +95389,46 @@ var ZodString2 = class _ZodString2 extends ZodType2 {
       ...errorUtil.errToObj(options?.message)
     });
   }
-  startsWith(value, message) {
+  startsWith(value, message2) {
     return this._addCheck({
       kind: "startsWith",
       value,
-      ...errorUtil.errToObj(message)
+      ...errorUtil.errToObj(message2)
     });
   }
-  endsWith(value, message) {
+  endsWith(value, message2) {
     return this._addCheck({
       kind: "endsWith",
       value,
-      ...errorUtil.errToObj(message)
+      ...errorUtil.errToObj(message2)
     });
   }
-  min(minLength, message) {
+  min(minLength, message2) {
     return this._addCheck({
       kind: "min",
       value: minLength,
-      ...errorUtil.errToObj(message)
+      ...errorUtil.errToObj(message2)
     });
   }
-  max(maxLength, message) {
+  max(maxLength, message2) {
     return this._addCheck({
       kind: "max",
       value: maxLength,
-      ...errorUtil.errToObj(message)
+      ...errorUtil.errToObj(message2)
     });
   }
-  length(len, message) {
+  length(len, message2) {
     return this._addCheck({
       kind: "length",
       value: len,
-      ...errorUtil.errToObj(message)
+      ...errorUtil.errToObj(message2)
     });
   }
   /**
    * Equivalent to `.min(1)`
    */
-  nonempty(message) {
-    return this.min(1, errorUtil.errToObj(message));
+  nonempty(message2) {
+    return this.min(1, errorUtil.errToObj(message2));
   }
   trim() {
     return new _ZodString2({
@@ -95621,19 +95621,19 @@ var ZodNumber2 = class _ZodNumber extends ZodType2 {
     }
     return { status: status.value, value: input.data };
   }
-  gte(value, message) {
-    return this.setLimit("min", value, true, errorUtil.toString(message));
+  gte(value, message2) {
+    return this.setLimit("min", value, true, errorUtil.toString(message2));
   }
-  gt(value, message) {
-    return this.setLimit("min", value, false, errorUtil.toString(message));
+  gt(value, message2) {
+    return this.setLimit("min", value, false, errorUtil.toString(message2));
   }
-  lte(value, message) {
-    return this.setLimit("max", value, true, errorUtil.toString(message));
+  lte(value, message2) {
+    return this.setLimit("max", value, true, errorUtil.toString(message2));
   }
-  lt(value, message) {
-    return this.setLimit("max", value, false, errorUtil.toString(message));
+  lt(value, message2) {
+    return this.setLimit("max", value, false, errorUtil.toString(message2));
   }
-  setLimit(kind, value, inclusive, message) {
+  setLimit(kind, value, inclusive, message2) {
     return new _ZodNumber({
       ...this._def,
       checks: [
@@ -95642,7 +95642,7 @@ var ZodNumber2 = class _ZodNumber extends ZodType2 {
           kind,
           value,
           inclusive,
-          message: errorUtil.toString(message)
+          message: errorUtil.toString(message2)
         }
       ]
     });
@@ -95653,68 +95653,68 @@ var ZodNumber2 = class _ZodNumber extends ZodType2 {
       checks: [...this._def.checks, check2]
     });
   }
-  int(message) {
+  int(message2) {
     return this._addCheck({
       kind: "int",
-      message: errorUtil.toString(message)
+      message: errorUtil.toString(message2)
     });
   }
-  positive(message) {
+  positive(message2) {
     return this._addCheck({
       kind: "min",
       value: 0,
       inclusive: false,
-      message: errorUtil.toString(message)
+      message: errorUtil.toString(message2)
     });
   }
-  negative(message) {
+  negative(message2) {
     return this._addCheck({
       kind: "max",
       value: 0,
       inclusive: false,
-      message: errorUtil.toString(message)
+      message: errorUtil.toString(message2)
     });
   }
-  nonpositive(message) {
+  nonpositive(message2) {
     return this._addCheck({
       kind: "max",
       value: 0,
       inclusive: true,
-      message: errorUtil.toString(message)
+      message: errorUtil.toString(message2)
     });
   }
-  nonnegative(message) {
+  nonnegative(message2) {
     return this._addCheck({
       kind: "min",
       value: 0,
       inclusive: true,
-      message: errorUtil.toString(message)
+      message: errorUtil.toString(message2)
     });
   }
-  multipleOf(value, message) {
+  multipleOf(value, message2) {
     return this._addCheck({
       kind: "multipleOf",
       value,
-      message: errorUtil.toString(message)
+      message: errorUtil.toString(message2)
     });
   }
-  finite(message) {
+  finite(message2) {
     return this._addCheck({
       kind: "finite",
-      message: errorUtil.toString(message)
+      message: errorUtil.toString(message2)
     });
   }
-  safe(message) {
+  safe(message2) {
     return this._addCheck({
       kind: "min",
       inclusive: true,
       value: Number.MIN_SAFE_INTEGER,
-      message: errorUtil.toString(message)
+      message: errorUtil.toString(message2)
     })._addCheck({
       kind: "max",
       inclusive: true,
       value: Number.MAX_SAFE_INTEGER,
-      message: errorUtil.toString(message)
+      message: errorUtil.toString(message2)
     });
   }
   get minValue() {
@@ -95837,19 +95837,19 @@ var ZodBigInt2 = class _ZodBigInt extends ZodType2 {
     });
     return INVALID;
   }
-  gte(value, message) {
-    return this.setLimit("min", value, true, errorUtil.toString(message));
+  gte(value, message2) {
+    return this.setLimit("min", value, true, errorUtil.toString(message2));
   }
-  gt(value, message) {
-    return this.setLimit("min", value, false, errorUtil.toString(message));
+  gt(value, message2) {
+    return this.setLimit("min", value, false, errorUtil.toString(message2));
   }
-  lte(value, message) {
-    return this.setLimit("max", value, true, errorUtil.toString(message));
+  lte(value, message2) {
+    return this.setLimit("max", value, true, errorUtil.toString(message2));
   }
-  lt(value, message) {
-    return this.setLimit("max", value, false, errorUtil.toString(message));
+  lt(value, message2) {
+    return this.setLimit("max", value, false, errorUtil.toString(message2));
   }
-  setLimit(kind, value, inclusive, message) {
+  setLimit(kind, value, inclusive, message2) {
     return new _ZodBigInt({
       ...this._def,
       checks: [
@@ -95858,7 +95858,7 @@ var ZodBigInt2 = class _ZodBigInt extends ZodType2 {
           kind,
           value,
           inclusive,
-          message: errorUtil.toString(message)
+          message: errorUtil.toString(message2)
         }
       ]
     });
@@ -95869,43 +95869,43 @@ var ZodBigInt2 = class _ZodBigInt extends ZodType2 {
       checks: [...this._def.checks, check2]
     });
   }
-  positive(message) {
+  positive(message2) {
     return this._addCheck({
       kind: "min",
       value: BigInt(0),
       inclusive: false,
-      message: errorUtil.toString(message)
+      message: errorUtil.toString(message2)
     });
   }
-  negative(message) {
+  negative(message2) {
     return this._addCheck({
       kind: "max",
       value: BigInt(0),
       inclusive: false,
-      message: errorUtil.toString(message)
+      message: errorUtil.toString(message2)
     });
   }
-  nonpositive(message) {
+  nonpositive(message2) {
     return this._addCheck({
       kind: "max",
       value: BigInt(0),
       inclusive: true,
-      message: errorUtil.toString(message)
+      message: errorUtil.toString(message2)
     });
   }
-  nonnegative(message) {
+  nonnegative(message2) {
     return this._addCheck({
       kind: "min",
       value: BigInt(0),
       inclusive: true,
-      message: errorUtil.toString(message)
+      message: errorUtil.toString(message2)
     });
   }
-  multipleOf(value, message) {
+  multipleOf(value, message2) {
     return this._addCheck({
       kind: "multipleOf",
       value,
-      message: errorUtil.toString(message)
+      message: errorUtil.toString(message2)
     });
   }
   get minValue() {
@@ -96028,18 +96028,18 @@ var ZodDate2 = class _ZodDate extends ZodType2 {
       checks: [...this._def.checks, check2]
     });
   }
-  min(minDate, message) {
+  min(minDate, message2) {
     return this._addCheck({
       kind: "min",
       value: minDate.getTime(),
-      message: errorUtil.toString(message)
+      message: errorUtil.toString(message2)
     });
   }
-  max(maxDate, message) {
+  max(maxDate, message2) {
     return this._addCheck({
       kind: "max",
       value: maxDate.getTime(),
-      message: errorUtil.toString(message)
+      message: errorUtil.toString(message2)
     });
   }
   get minDate() {
@@ -96271,26 +96271,26 @@ var ZodArray2 = class _ZodArray extends ZodType2 {
   get element() {
     return this._def.type;
   }
-  min(minLength, message) {
+  min(minLength, message2) {
     return new _ZodArray({
       ...this._def,
-      minLength: { value: minLength, message: errorUtil.toString(message) }
+      minLength: { value: minLength, message: errorUtil.toString(message2) }
     });
   }
-  max(maxLength, message) {
+  max(maxLength, message2) {
     return new _ZodArray({
       ...this._def,
-      maxLength: { value: maxLength, message: errorUtil.toString(message) }
+      maxLength: { value: maxLength, message: errorUtil.toString(message2) }
     });
   }
-  length(len, message) {
+  length(len, message2) {
     return new _ZodArray({
       ...this._def,
-      exactLength: { value: len, message: errorUtil.toString(message) }
+      exactLength: { value: len, message: errorUtil.toString(message2) }
     });
   }
-  nonempty(message) {
-    return this.min(1, message);
+  nonempty(message2) {
+    return this.min(1, message2);
   }
 };
 ZodArray2.create = (schema, params) => {
@@ -96433,17 +96433,17 @@ var ZodObject2 = class _ZodObject extends ZodType2 {
   get shape() {
     return this._def.shape();
   }
-  strict(message) {
+  strict(message2) {
     errorUtil.errToObj;
     return new _ZodObject({
       ...this._def,
       unknownKeys: "strict",
-      ...message !== void 0 ? {
+      ...message2 !== void 0 ? {
         errorMap: (issue4, ctx) => {
           const defaultError = this._def.errorMap?.(issue4, ctx).message ?? ctx.defaultError;
           if (issue4.code === "unrecognized_keys")
             return {
-              message: errorUtil.errToObj(message).message ?? defaultError
+              message: errorUtil.errToObj(message2).message ?? defaultError
             };
           return {
             message: defaultError
@@ -97199,23 +97199,23 @@ var ZodSet2 = class _ZodSet extends ZodType2 {
       return finalizeSet(elements);
     }
   }
-  min(minSize, message) {
+  min(minSize, message2) {
     return new _ZodSet({
       ...this._def,
-      minSize: { value: minSize, message: errorUtil.toString(message) }
+      minSize: { value: minSize, message: errorUtil.toString(message2) }
     });
   }
-  max(maxSize, message) {
+  max(maxSize, message2) {
     return new _ZodSet({
       ...this._def,
-      maxSize: { value: maxSize, message: errorUtil.toString(message) }
+      maxSize: { value: maxSize, message: errorUtil.toString(message2) }
     });
   }
-  size(size, message) {
-    return this.min(size, message).max(size, message);
+  size(size, message2) {
+    return this.min(size, message2).max(size, message2);
   }
-  nonempty(message) {
-    return this.min(1, message);
+  nonempty(message2) {
+    return this.min(1, message2);
   }
 };
 ZodSet2.create = (valueType, params) => {
@@ -99678,8 +99678,8 @@ var ServerResultSchema = union([
   CreateTaskResultSchema
 ]);
 var McpError = class _McpError extends Error {
-  constructor(code, message, data) {
-    super(`MCP error ${code}: ${message}`);
+  constructor(code, message2, data) {
+    super(`MCP error ${code}: ${message2}`);
     this.code = code;
     this.data = data;
     this.name = "McpError";
@@ -99687,19 +99687,19 @@ var McpError = class _McpError extends Error {
   /**
    * Factory method to create the appropriate error type based on the error code and data
    */
-  static fromError(code, message, data) {
+  static fromError(code, message2, data) {
     if (code === ErrorCode.UrlElicitationRequired && data) {
       const errorData = data;
       if (errorData.elicitations) {
-        return new UrlElicitationRequiredError(errorData.elicitations, message);
+        return new UrlElicitationRequiredError(errorData.elicitations, message2);
       }
     }
-    return new _McpError(code, message, data);
+    return new _McpError(code, message2, data);
   }
 };
 var UrlElicitationRequiredError = class extends McpError {
-  constructor(elicitations, message = `URL elicitation${elicitations.length > 1 ? "s" : ""} required`) {
-    super(ErrorCode.UrlElicitationRequired, message, {
+  constructor(elicitations, message2 = `URL elicitation${elicitations.length > 1 ? "s" : ""} required`) {
+    super(ErrorCode.UrlElicitationRequired, message2, {
       elicitations
     });
   }
@@ -100232,7 +100232,7 @@ function escapeNonAlphaNumeric(source) {
   }
   return result;
 }
-function addFormat(schema, value, message, refs) {
+function addFormat(schema, value, message2, refs) {
   if (schema.format || schema.anyOf?.some((x) => x.format)) {
     if (!schema.anyOf) {
       schema.anyOf = [];
@@ -100254,13 +100254,13 @@ function addFormat(schema, value, message, refs) {
     }
     schema.anyOf.push({
       format: value,
-      ...message && refs.errorMessages && { errorMessage: { format: message } }
+      ...message2 && refs.errorMessages && { errorMessage: { format: message2 } }
     });
   } else {
-    setResponseValueAndErrors(schema, "format", value, message, refs);
+    setResponseValueAndErrors(schema, "format", value, message2, refs);
   }
 }
-function addPattern(schema, regex, message, refs) {
+function addPattern(schema, regex, message2, refs) {
   if (schema.pattern || schema.allOf?.some((x) => x.pattern)) {
     if (!schema.allOf) {
       schema.allOf = [];
@@ -100282,10 +100282,10 @@ function addPattern(schema, regex, message, refs) {
     }
     schema.allOf.push({
       pattern: stringifyRegExpWithFlags(regex, refs),
-      ...message && refs.errorMessages && { errorMessage: { pattern: message } }
+      ...message2 && refs.errorMessages && { errorMessage: { pattern: message2 } }
     });
   } else {
-    setResponseValueAndErrors(schema, "pattern", stringifyRegExpWithFlags(regex, refs), message, refs);
+    setResponseValueAndErrors(schema, "pattern", stringifyRegExpWithFlags(regex, refs), message2, refs);
   }
 }
 function stringifyRegExpWithFlags(regex, refs) {
@@ -101084,15 +101084,15 @@ var Protocol = class {
             let queuedMessage;
             while (queuedMessage = await this._taskMessageQueue.dequeue(taskId, extra.sessionId)) {
               if (queuedMessage.type === "response" || queuedMessage.type === "error") {
-                const message = queuedMessage.message;
-                const requestId = message.id;
+                const message2 = queuedMessage.message;
+                const requestId = message2.id;
                 const resolver = this._requestResolvers.get(requestId);
                 if (resolver) {
                   this._requestResolvers.delete(requestId);
                   if (queuedMessage.type === "response") {
-                    resolver(message);
+                    resolver(message2);
                   } else {
-                    const errorMessage = message;
+                    const errorMessage = message2;
                     const error51 = new McpError(errorMessage.error.code, errorMessage.error.message, errorMessage.error.data);
                     resolver(error51);
                   }
@@ -101231,16 +101231,16 @@ var Protocol = class {
       this._onerror(error51);
     };
     const _onmessage = this._transport?.onmessage;
-    this._transport.onmessage = (message, extra) => {
-      _onmessage?.(message, extra);
-      if (isJSONRPCResultResponse(message) || isJSONRPCErrorResponse(message)) {
-        this._onresponse(message);
-      } else if (isJSONRPCRequest(message)) {
-        this._onrequest(message, extra);
-      } else if (isJSONRPCNotification(message)) {
-        this._onnotification(message);
+    this._transport.onmessage = (message2, extra) => {
+      _onmessage?.(message2, extra);
+      if (isJSONRPCResultResponse(message2) || isJSONRPCErrorResponse(message2)) {
+        this._onresponse(message2);
+      } else if (isJSONRPCRequest(message2)) {
+        this._onrequest(message2, extra);
+      } else if (isJSONRPCNotification(message2)) {
+        this._onnotification(message2);
       } else {
-        this._onerror(new Error(`Unknown message type: ${JSON.stringify(message)}`));
+        this._onerror(new Error(`Unknown message type: ${JSON.stringify(message2)}`));
       }
     };
     await this._transport.start();
@@ -101850,12 +101850,12 @@ var Protocol = class {
    * the error appropriately (e.g., by failing the task, logging, etc.). The Protocol layer
    * simply propagates the error.
    */
-  async _enqueueTaskMessage(taskId, message, sessionId) {
+  async _enqueueTaskMessage(taskId, message2, sessionId) {
     if (!this._taskStore || !this._taskMessageQueue) {
       throw new Error("Cannot enqueue task message: taskStore and taskMessageQueue are not configured");
     }
     const maxQueueSize = this._options?.maxTaskQueueSize;
-    await this._taskMessageQueue.enqueue(taskId, message, sessionId, maxQueueSize);
+    await this._taskMessageQueue.enqueue(taskId, message2, sessionId, maxQueueSize);
   }
   /**
    * Clears the message queue for a task and rejects any pending request resolvers.
@@ -101865,9 +101865,9 @@ var Protocol = class {
   async _clearTaskQueue(taskId, sessionId) {
     if (this._taskMessageQueue) {
       const messages = await this._taskMessageQueue.dequeueAll(taskId, sessionId);
-      for (const message of messages) {
-        if (message.type === "request" && isJSONRPCRequest(message.message)) {
-          const requestId = message.message.id;
+      for (const message2 of messages) {
+        if (message2.type === "request" && isJSONRPCRequest(message2.message)) {
+          const requestId = message2.message.id;
           const resolver = this._requestResolvers.get(requestId);
           if (resolver) {
             resolver(new McpError(ErrorCode.InternalError, "Task cancelled or completed"));
@@ -103596,8 +103596,8 @@ var ReadBuffer = class {
 function deserializeMessage(line2) {
   return JSONRPCMessageSchema.parse(JSON.parse(line2));
 }
-function serializeMessage(message) {
-  return JSON.stringify(message) + "\n";
+function serializeMessage(message2) {
+  return JSON.stringify(message2) + "\n";
 }
 
 // node_modules/@modelcontextprotocol/sdk/dist/esm/server/stdio.js
@@ -103635,11 +103635,11 @@ var StdioServerTransport = class {
   processReadBuffer() {
     while (true) {
       try {
-        const message = this._readBuffer.readMessage();
-        if (message === null) {
+        const message2 = this._readBuffer.readMessage();
+        if (message2 === null) {
           break;
         }
-        this.onmessage?.(message);
+        this.onmessage?.(message2);
       } catch (error51) {
         this.onerror?.(error51);
       }
@@ -103655,9 +103655,9 @@ var StdioServerTransport = class {
     this._readBuffer.clear();
     this.onclose?.();
   }
-  send(message) {
+  send(message2) {
     return new Promise((resolve5) => {
-      const json3 = serializeMessage(message);
+      const json3 = serializeMessage(message2);
       if (this._stdout.write(json3)) {
         resolve5();
       } else {
@@ -103710,8 +103710,8 @@ var defineWebSocketHelper = (handler) => {
 
 // node_modules/@hono/node-server/dist/index.mjs
 var RequestError = class extends Error {
-  constructor(message, options) {
-    super(message, options);
+  constructor(message2, options) {
+    super(message2, options);
     this.name = "RequestError";
   }
 };
@@ -104686,7 +104686,7 @@ var upgradeWebSocket = defineWebSocketHelper(async (c, events, options) => {
       }
     };
     ws.off("message", bufferMessage);
-    for (const message of messagesReceivedInStarting) handleMessage(...message);
+    for (const message2 of messagesReceivedInStarting) handleMessage(...message2);
     ws.on("message", (data, isBinary) => {
       handleMessage(data, isBinary);
     });
@@ -104803,8 +104803,8 @@ var WebStandardStreamableHTTPServerTransport = class {
   /**
    * Helper to create a JSON error response
    */
-  createJsonErrorResponse(status, code, message, options) {
-    const error51 = { code, message };
+  createJsonErrorResponse(status, code, message2, options) {
+    const error51 = { code, message: message2 };
     if (options?.data !== void 0) {
       error51.data = options.data;
     }
@@ -105021,8 +105021,8 @@ data:
       });
       const replayedEventIds = /* @__PURE__ */ new Set();
       replayedStreamId = await this._eventStore.replayEventsAfter(lastEventId, {
-        send: async (eventId, message) => {
-          const success2 = this.writeSSEEvent(streamController, encoder, message, eventId);
+        send: async (eventId, message2) => {
+          const success2 = this.writeSSEEvent(streamController, encoder, message2, eventId);
           if (!success2) {
             this.onerror?.(new Error("Failed replay events"));
             try {
@@ -105068,7 +105068,7 @@ data:
   /**
    * Writes an event to an SSE stream via controller with proper formatting
    */
-  writeSSEEvent(controller, encoder, message, eventId) {
+  writeSSEEvent(controller, encoder, message2, eventId) {
     try {
       let eventData = `event: message
 `;
@@ -105076,7 +105076,7 @@ data:
         eventData += `id: ${eventId}
 `;
       }
-      eventData += `data: ${JSON.stringify(message)}
+      eventData += `data: ${JSON.stringify(message2)}
 
 `;
       controller.enqueue(encoder.encode(eventData));
@@ -105181,8 +105181,8 @@ data:
       }
       const hasRequests = messages.some(isJSONRPCRequest);
       if (!hasRequests) {
-        for (const message of messages) {
-          this.onmessage?.(message, { authInfo: options?.authInfo, requestInfo });
+        for (const message2 of messages) {
+          this.onmessage?.(message2, { authInfo: options?.authInfo, requestInfo });
         }
         return new Response(null, { status: 202 });
       }
@@ -105197,13 +105197,13 @@ data:
               this._streamMapping.delete(streamId);
             }
           });
-          for (const message of messages) {
-            if (isJSONRPCRequest(message)) {
-              this._requestToStreamMapping.set(message.id, streamId);
+          for (const message2 of messages) {
+            if (isJSONRPCRequest(message2)) {
+              this._requestToStreamMapping.set(message2.id, streamId);
             }
           }
-          for (const message of messages) {
-            this.onmessage?.(message, { authInfo: options?.authInfo, requestInfo });
+          for (const message2 of messages) {
+            this.onmessage?.(message2, { authInfo: options?.authInfo, requestInfo });
           }
         });
       }
@@ -105232,8 +105232,8 @@ data:
       if (this.sessionId !== void 0) {
         headers["mcp-session-id"] = this.sessionId;
       }
-      for (const message of messages) {
-        if (isJSONRPCRequest(message)) {
+      for (const message2 of messages) {
+        if (isJSONRPCRequest(message2)) {
           this._streamMapping.set(streamId, {
             controller: streamController,
             encoder,
@@ -105248,30 +105248,30 @@ data:
               }
             }
           });
-          this._requestToStreamMapping.set(message.id, streamId);
+          this._requestToStreamMapping.set(message2.id, streamId);
         }
       }
       try {
         await this.writePrimingEvent(streamController, encoder, streamId, clientProtocolVersion);
-        for (const message of messages) {
+        for (const message2 of messages) {
           let closeSSEStream;
           let closeStandaloneSSEStream;
-          if (isJSONRPCRequest(message) && this._eventStore && clientProtocolVersion >= "2025-11-25") {
+          if (isJSONRPCRequest(message2) && this._eventStore && clientProtocolVersion >= "2025-11-25") {
             closeSSEStream = () => {
-              this.closeSSEStream(message.id);
+              this.closeSSEStream(message2.id);
             };
             closeStandaloneSSEStream = () => {
               this.closeStandaloneSSEStream();
             };
           }
-          this.onmessage?.(message, { authInfo: options?.authInfo, requestInfo, closeSSEStream, closeStandaloneSSEStream });
+          this.onmessage?.(message2, { authInfo: options?.authInfo, requestInfo, closeSSEStream, closeStandaloneSSEStream });
         }
       } catch (error51) {
         this._streamMapping.get(streamId)?.cleanup();
         this._resumableStreams.delete(streamId);
-        for (const message of messages) {
-          if (isJSONRPCRequest(message)) {
-            this._requestToStreamMapping.delete(message.id);
+        for (const message2 of messages) {
+          if (isJSONRPCRequest(message2)) {
+            this._requestToStreamMapping.delete(message2.id);
           }
         }
         throw error51;
@@ -105385,25 +105385,25 @@ data:
       stream.cleanup();
     }
   }
-  async send(message, options) {
+  async send(message2, options) {
     let requestId = options?.relatedRequestId;
-    if (isJSONRPCResultResponse(message) || isJSONRPCErrorResponse(message)) {
-      requestId = message.id;
+    if (isJSONRPCResultResponse(message2) || isJSONRPCErrorResponse(message2)) {
+      requestId = message2.id;
     }
     if (requestId === void 0) {
-      if (isJSONRPCResultResponse(message) || isJSONRPCErrorResponse(message)) {
+      if (isJSONRPCResultResponse(message2) || isJSONRPCErrorResponse(message2)) {
         throw new Error("Cannot send a response on a standalone SSE stream unless resuming a previous client request");
       }
       let eventId;
       if (this._eventStore) {
-        eventId = await this._eventStore.storeEvent(this._standaloneSseStreamId, message);
+        eventId = await this._eventStore.storeEvent(this._standaloneSseStreamId, message2);
       }
       const standaloneSse = this._streamMapping.get(this._standaloneSseStreamId);
       if (standaloneSse === void 0) {
         return;
       }
       if (standaloneSse.controller && standaloneSse.encoder && (eventId === void 0 || !standaloneSse.replayedEventIds?.has(eventId))) {
-        this.writeSSEEvent(standaloneSse.controller, standaloneSse.encoder, message, eventId);
+        this.writeSSEEvent(standaloneSse.controller, standaloneSse.encoder, message2, eventId);
       }
       return;
     }
@@ -105415,18 +105415,18 @@ data:
     if (!this._enableJsonResponse) {
       let eventId;
       if (this._eventStore) {
-        eventId = await this._eventStore.storeEvent(streamId, message);
+        eventId = await this._eventStore.storeEvent(streamId, message2);
         stream = this._streamMapping.get(streamId);
       }
       if (stream?.controller && stream?.encoder && (eventId === void 0 || !stream.replayedEventIds?.has(eventId))) {
-        const written = this.writeSSEEvent(stream.controller, stream.encoder, message, eventId);
+        const written = this.writeSSEEvent(stream.controller, stream.encoder, message2, eventId);
         if (written && eventId !== void 0) {
           this._resumableStreams.add(streamId);
         }
       }
     }
-    if (isJSONRPCResultResponse(message) || isJSONRPCErrorResponse(message)) {
-      this._requestResponseMap.set(requestId, message);
+    if (isJSONRPCResultResponse(message2) || isJSONRPCErrorResponse(message2)) {
+      this._requestResponseMap.set(requestId, message2);
       const relatedIds = Array.from(this._requestToStreamMapping.entries()).filter(([_, sid]) => sid === streamId).map(([id]) => id);
       const allResponsesReady = relatedIds.every((id) => this._requestResponseMap.has(id));
       if (allResponsesReady) {
@@ -105540,8 +105540,8 @@ var StreamableHTTPServerTransport = class {
   /**
    * Sends a JSON-RPC message through the transport.
    */
-  async send(message, options) {
-    return this._webStandardTransport.send(message, options);
+  async send(message2, options) {
+    return this._webStandardTransport.send(message2, options);
   }
   /**
    * Handles an incoming HTTP request, whether GET or POST.
@@ -105598,8 +105598,8 @@ function mcpSessionActor(ctx) {
 
 // src/mcp-http.ts
 var MAX_HTTP_BODY_BYTES = 4 * 1024 * 1024;
-function jsonRpcError(code, message) {
-  return { jsonrpc: "2.0", error: { code, message }, id: null };
+function jsonRpcError(code, message2) {
+  return { jsonrpc: "2.0", error: { code, message: message2 }, id: null };
 }
 function sendJson(res, status, body, extraHeaders) {
   const payload = JSON.stringify(body);
@@ -105679,9 +105679,9 @@ async function startMcpHttpServer(opts) {
     }
     const verdict = verifyBearer(req.headers.authorization, opts.tokens);
     if (!verdict.ok) {
-      const message = verdict.reason === "missing" ? "missing Authorization: Bearer <token> header" : verdict.reason === "malformed" ? "Authorization header is not a Bearer token" : "bearer token not recognised";
+      const message2 = verdict.reason === "missing" ? "missing Authorization: Bearer <token> header" : verdict.reason === "malformed" ? "Authorization header is not a Bearer token" : "bearer token not recognised";
       opts.log(`[abapsmith] HTTP MCP request rejected (${verdict.reason}) from ${remoteAddr(req)}`);
-      sendJson(res, 401, jsonRpcError(-32001, message), { "www-authenticate": "Bearer" });
+      sendJson(res, 401, jsonRpcError(-32001, message2), { "www-authenticate": "Bearer" });
       return;
     }
     const method = req.method ?? "";
@@ -105954,12 +105954,15 @@ var SessionTransport = class _SessionTransport {
         `${obj.name ?? obj.uri} is local (package ${req.devclass ?? "$TMP"}) \u2014 no transport request is involved.`
       );
     }
+    const locks = req.locks ?? [];
+    const pinnedObject = locks.find((l) => l.request.trkorr.toUpperCase() === (req.pinnedTo ?? "").toUpperCase())?.object ?? locks[0]?.object;
     return this.#decideTransportable(
       conn,
       obj,
       wanted,
       req.pinnedTo,
       req.pinnedOwner,
+      pinnedObject,
       req.devclass,
       req.candidates,
       opts.revalidate === true
@@ -106001,6 +106004,7 @@ var SessionTransport = class _SessionTransport {
       named.wanted,
       void 0,
       void 0,
+      void 0,
       obj.devclass,
       candidates,
       opts.revalidate === true
@@ -106034,7 +106038,7 @@ var SessionTransport = class _SessionTransport {
    * `resolveForNewTransportable()`. Steps 1, 1b and 2 (the CTS pre-flight
    * that only `resolve()` can perform) live in `resolve()` itself.
    */
-  async #decideTransportable(conn, obj, wanted, pinnedTo, pinnedOwner, devclass, candidates, revalidate) {
+  async #decideTransportable(conn, obj, wanted, pinnedTo, pinnedOwner, pinnedObject, devclass, candidates, revalidate) {
     this.#lastAutoDecision = void 0;
     if (this.#policy.disabled) {
       return denied(
@@ -106045,7 +106049,7 @@ var SessionTransport = class _SessionTransport {
       );
     }
     if (pinnedTo !== void 0 && pinnedTo !== "") {
-      return this.#resolvePin(pinnedTo, pinnedOwner, obj, wanted);
+      return this.#resolvePin(pinnedTo, pinnedOwner, pinnedObject, obj, wanted);
     }
     if (wanted !== void 0) {
       if (!this.#callerMayName(wanted)) {
@@ -106152,7 +106156,7 @@ var SessionTransport = class _SessionTransport {
     if (this.#policy.wildcard) return true;
     return this.#policy.pins.includes(trkorr);
   }
-  #resolvePin(pinnedTo, pinnedOwner, obj, wanted) {
+  #resolvePin(pinnedTo, pinnedOwner, pinnedObject, obj, wanted) {
     const me = this.#whoami();
     if (pinnedOwner !== void 0 && pinnedOwner !== "" && me !== void 0 && me !== "" && pinnedOwner.toUpperCase() !== me.toUpperCase()) {
       return denied(
@@ -106164,6 +106168,13 @@ var SessionTransport = class _SessionTransport {
     }
     const overrode = wanted !== void 0 && wanted !== pinnedTo.toUpperCase() ? wanted : void 0;
     const note = overrode !== void 0 ? ` (overriding the requested ${overrode})` : "";
+    const lockText = pinnedObject !== void 0 ? `it holds the lock for ${pinnedObject.pgmid} ${pinnedObject.type} ${pinnedObject.name}` : `it already records ${obj.name ?? obj.uri}`;
+    const session = this.#state.kind === "active" && this.#state.trkorr.toUpperCase() !== pinnedTo.toUpperCase() ? this.#state.trkorr : void 0;
+    this.#lastAutoDecision = {
+      trkorr: pinnedTo,
+      source: "server-pin",
+      reason: `Server pinned ${obj.name ?? obj.uri} to ${pinnedTo} (${lockText})` + (session !== void 0 ? `, not the session's request ${session}.` : ".")
+    };
     return granted(
       pinnedTo,
       "server-pin",
@@ -106210,14 +106221,29 @@ var SessionTransport = class _SessionTransport {
         `The session transport request ${dead.trkorr} is no longer usable (${dead.reason}). Nothing was written. Retry \u2014 the next write will resolve a fresh request.`
       );
     }
+    const consultRegistry = this.#state.kind !== "active" || !this.createdThisSession(this.#state.trkorr);
+    const registryHeaders = [];
+    if (consultRegistry) {
+      const known = new Set(candidates.map((c) => c.trkorr.toUpperCase()));
+      const strangerCached = this.#state.kind === "active" ? this.#state.trkorr.toUpperCase() : void 0;
+      for (const t of this.#created) {
+        if (known.has(t) || t === strangerCached) continue;
+        try {
+          const req = await this.#cts.trShow(conn, t);
+          if (req.kind === "workbench" && req.status === "modifiable") registryHeaders.push(req);
+        } catch {
+        }
+      }
+    }
+    const registryTrkorrs = new Set(registryHeaders.map((c) => c.trkorr.toUpperCase()));
     let healedPrefix = "";
     let retired;
     let preemptedFrom;
     if (this.#state.kind === "active") {
       const cached2 = this.#state.trkorr;
-      const preempting = !this.createdThisSession(cached2) && candidates.some(
+      const preempting = !this.createdThisSession(cached2) && (candidates.some(
         (c) => c.kind === "workbench" && c.status === "modifiable" && this.createdThisSession(c.trkorr)
-      );
+      ) || registryHeaders.length > 0);
       if (preempting) {
         preemptedFrom = cached2;
       } else {
@@ -106254,6 +106280,10 @@ var SessionTransport = class _SessionTransport {
         // the attributed tier below.
         (retired === void 0 || c.trkorr.toUpperCase() !== retired.toUpperCase()) && c.kind === "workbench" && c.status === "modifiable" && this.createdThisSession(c.trkorr)
       )
+    ).concat(
+      registryHeaders.filter(
+        (c) => retired === void 0 || c.trkorr.toUpperCase() !== retired.toUpperCase()
+      )
     );
     if (sessionCreated.length > 0) {
       const chosen = pickLatest(sessionCreated);
@@ -106264,7 +106294,8 @@ var SessionTransport = class _SessionTransport {
         createdAt: this.#now().toISOString(),
         origin: "adopted"
       };
-      const reason = preemptedFrom !== void 0 ? `${healedPrefix}Switched from ${preemptedFrom}, which this session did not create, to ${chosen.trkorr}, which THIS SESSION created.` : `${healedPrefix}Adopted request ${chosen.trkorr}, which THIS SESSION created, rather than creating another.`;
+      const registrySuffix = registryTrkorrs.has(chosen.trkorr.toUpperCase()) ? ` CTS did not list it among the candidates for package ${devclass}; a direct read confirmed it is modifiable.` : "";
+      const reason = preemptedFrom !== void 0 ? `${healedPrefix}Switched from ${preemptedFrom}, which this session did not create, to ${chosen.trkorr}, which THIS SESSION created.${registrySuffix}` : `${healedPrefix}Adopted request ${chosen.trkorr}, which THIS SESSION created, rather than creating another.${registrySuffix}`;
       return this.#autoGranted(chosen.trkorr, "session-adopted", reason);
     }
     const me = this.#whoami();
@@ -106286,10 +106317,13 @@ var SessionTransport = class _SessionTransport {
         createdAt: this.#now().toISOString(),
         origin: "adopted"
       };
+      const descDate = /^abapsmith session (\d{4}-\d{2}-\d{2})$/.exec(chosen.description.trim());
+      const when = descDate ? ` on ${descDate[1]}` : chosen.lastChanged ? ` on ${chosen.lastChanged}` : "";
+      const why = retired !== void 0 ? `the session's own request ${retired} is no longer usable` : "this session has no request of its own (none created, none registered by abap_transport operation=create)";
       return this.#autoGranted(
         chosen.trkorr,
         "session-adopted",
-        `${healedPrefix}Adopted existing request ${chosen.trkorr} rather than creating another: it is a modifiable workbench request owned by ${chosen.owner} and carries abapsmith's own session description (${chosen.description}). THIS SESSION DID NOT CREATE IT \u2014 it was already open when this session started, so it may already hold objects from earlier work, and abap_transport_release will refuse to release it without an explicit override.`
+        `${healedPrefix}Resolver preferred ${chosen.trkorr} (created by this server${when}, description "${chosen.description}") over creating a new request because ${why}. THIS SESSION DID NOT CREATE IT \u2014 it was already open when this session started, so it may already hold objects from earlier work, and abap_transport_release will refuse to release it without an explicit override.`
       );
     }
     const declineReason = me === void 0 || me === "" ? `The connected SAP user could not be established, so no existing request could be attributed to abapsmith (and none was created by this session either).` : candidates.length === 0 ? `CTS offered no existing request for package ${devclass}.` : `CTS offered ${candidates.length} candidate request(s) for package ${devclass}, none of which this session created or could attribute to itself (a modifiable workbench request owned by ${me} carrying abapsmith's own session description).`;
@@ -107605,8 +107639,8 @@ function isIdentChar(c) {
 }
 var PathSyntaxError = class extends Error {
   segment;
-  constructor(message, segment) {
-    super(message);
+  constructor(message2, segment) {
+    super(message2);
     this.name = "PathSyntaxError";
     this.segment = segment;
   }
@@ -108253,10 +108287,10 @@ function xbool(n, name) {
   if (v === void 0) return void 0;
   return v === "true";
 }
-function fail(message, details = {}) {
+function fail(message2, details = {}) {
   throw new AbapError(
     "BAD_INPUT",
-    `enhancement XML: ${message}`,
+    `enhancement XML: ${message2}`,
     details,
     "The decoder refuses to guess at malformed or unsupported input \u2014 fix or re-capture the source document rather than relying on a silent fallback."
   );
@@ -109281,10 +109315,10 @@ function parseActivationResponse(body) {
     inactive = parseInactiveObjects(raw);
     messages = (0, import_utilities2.xmlArray)(raw, "chkl:messages", "msg").map((m) => {
       const rec = m;
-      const message = (0, import_utilities2.xmlNodeAttr)(rec);
+      const message2 = (0, import_utilities2.xmlNodeAttr)(rec);
       const shortTextNode = rec["shortText"];
-      message.shortText = shortTextNode?.txt || "Syntax error";
-      return message;
+      message2.shortText = shortTextNode?.txt || "Syntax error";
+      return message2;
     });
     if (inactive.length > 0) {
       success2 = false;
@@ -109394,8 +109428,8 @@ function uriAddresses(href, targetUri) {
   if (!href || !targetUri) return false;
   return href === targetUri || href.startsWith(`${targetUri}/`);
 }
-function attributeToTarget(message, targets) {
-  const href = normaliseAdtUri(message.uri);
+function attributeToTarget(message2, targets) {
+  const href = normaliseAdtUri(message2.uri);
   if (href) {
     let best;
     let bestLen = -1;
@@ -109408,7 +109442,7 @@ function attributeToTarget(message, targets) {
     }
     if (best) return best;
   }
-  const descr = String(message.objDescr ?? "").toUpperCase();
+  const descr = String(message2.objDescr ?? "").toUpperCase();
   if (descr) {
     const hits = targets.filter((t) => {
       const name = t.name.trim().toUpperCase();
@@ -110038,9 +110072,9 @@ function fluidDisabledError(reason, cfg, tool, ctx) {
     objects: tool.manifest.objects.map((o) => o.name)
   };
   const who = ctx ? `${ctx.tool}.${ctx.action}` : tool.manifest.id;
-  const message = reason.kind === "flag" ? `The fluid API is disabled (ABAP_FLUID_API=false). ${who} was not run \u2014 nothing was deployed, checked, or changed.` : `${who} needs the fluid API, and this connection is read-only (${reason.field}). There is no read-only subset of the fluid API \u2014 even a check can need to deploy or repair the ABAP side first, so nothing ran and nothing was changed.`;
+  const message2 = reason.kind === "flag" ? `The fluid API is disabled (ABAP_FLUID_API=false). ${who} was not run \u2014 nothing was deployed, checked, or changed.` : `${who} needs the fluid API, and this connection is read-only (${reason.field}). There is no read-only subset of the fluid API \u2014 even a check can need to deploy or repair the ABAP side first, so nothing ran and nothing was changed.`;
   const hint = reason.kind === "flag" ? "Set ABAP_FLUID_API=true (or leave it unset \u2014 it defaults to enabled) to use the fluid API. The ordinary write ceilings (ABAP_ALLOW_WRITE, ABAP_MODE, the productive-system lockout, ABAP_ALLOW_PACKAGES) still apply on top once it is." : 'Connect with write access (ABAP_ALLOW_WRITE=true, ABAP_MODE not "read", and off a productive system) to use any part of the fluid API.';
-  return new AbapError("FLUID_API_DISABLED", message, details, hint);
+  return new AbapError("FLUID_API_DISABLED", message2, details, hint);
 }
 function foreignConflictError(obj, foundIn, tool) {
   return new AbapError(
@@ -110290,11 +110324,11 @@ var FLUID_FRAME_PREFIX = "ZMCP-H>";
 var FRAME_NAMES = /* @__PURE__ */ new Set(["BEGIN", "OUT", "OUTC", "OUTE", "ERR", "END"]);
 var ERR_KINDS = /* @__PURE__ */ new Set(["subrc", "exception", "message"]);
 var LINE_EXCERPT_MAX = 200;
-function protocolError(message, lineNumber, lineText) {
+function protocolError(message2, lineNumber, lineText) {
   const excerpt = truncateText(lineText, LINE_EXCERPT_MAX);
   return new AbapError(
     "FLUID_PROTOCOL_ERROR",
-    `${message} (line ${lineNumber}: "${excerpt}")`,
+    `${message2} (line ${lineNumber}: "${excerpt}")`,
     { line: lineNumber, text: excerpt }
   );
 }
@@ -110763,9 +110797,9 @@ function dispatchDisabledError(reason, cfg, req) {
     tool,
     action
   };
-  const message = reason.kind === "flag" ? `The fluid API is disabled (ABAP_FLUID_API=false). ${who} was not run \u2014 nothing was deployed, checked, or changed.` : `${who} needs the fluid API, and this connection is read-only (${reason.field}). There is no read-only subset of the fluid API \u2014 even a check can need to deploy or repair the ABAP side first, so nothing ran and nothing was changed.`;
+  const message2 = reason.kind === "flag" ? `The fluid API is disabled (ABAP_FLUID_API=false). ${who} was not run \u2014 nothing was deployed, checked, or changed.` : `${who} needs the fluid API, and this connection is read-only (${reason.field}). There is no read-only subset of the fluid API \u2014 even a check can need to deploy or repair the ABAP side first, so nothing ran and nothing was changed.`;
   const hint = reason.kind === "flag" ? "Set ABAP_FLUID_API=true (or leave it unset \u2014 it defaults to enabled) to use the fluid API. The ordinary write ceilings (ABAP_ALLOW_WRITE, ABAP_MODE, the productive-system lockout, ABAP_ALLOW_PACKAGES) still apply on top once it is." : 'Connect with write access (ABAP_ALLOW_WRITE=true, ABAP_MODE not "read", and off a productive system) to use any part of the fluid API.';
-  return new AbapError("FLUID_API_DISABLED", message, details, hint);
+  return new AbapError("FLUID_API_DISABLED", message2, details, hint);
 }
 function resolvePointer(doc, pointer) {
   if (pointer === "") return { ok: true, value: doc };
@@ -111617,10 +111651,10 @@ function refuseUnwritableType(type, name, op = "write") {
   }
   if (!explicit) {
     const suggestions = suggestTypeCodes(type);
-    const message = suggestions.length ? `Unknown object type ${JSON.stringify(type)}. Did you mean ${joinOr(suggestions)}?` : `Unknown object type ${JSON.stringify(type)}.`;
+    const message2 = suggestions.length ? `Unknown object type ${JSON.stringify(type)}. Did you mean ${joinOr(suggestions)}?` : `Unknown object type ${JSON.stringify(type)}.`;
     throw new AbapError(
       "BAD_INPUT",
-      message,
+      message2,
       { type, writable: [...ABAP_WRITE_TYPES], ...suggestions.length ? { suggestions } : {} },
       writableTypesHint()
     );
@@ -113331,8 +113365,8 @@ function parseFqlQuery(text5) {
   let i = 0;
   const peek = () => tokens[i];
   let failure;
-  const fail8 = (message, token) => {
-    failure ??= token ? `${message} at offset ${token.pos}` : message;
+  const fail8 = (message2, token) => {
+    failure ??= token ? `${message2} at offset ${token.pos}` : message2;
     return void 0;
   };
   const parseNode = (depth) => {
@@ -119131,8 +119165,8 @@ function reassembleSplitT100Variables(vars) {
   return results;
 }
 var XT465_TEMPLATE = /^Parameter (.+) not in version (.+) of tp configuration$/s;
-function matchXt465ChoppedTemplate(message) {
-  const m = XT465_TEMPLATE.exec(message.trim());
+function matchXt465ChoppedTemplate(message2) {
+  const m = XT465_TEMPLATE.exec(message2.trim());
   if (!m) return void 0;
   const v1 = m[1];
   const v2 = m[2];
@@ -119144,9 +119178,9 @@ function matchXt465ChoppedTemplate(message) {
     reassembled: [{ from: ["v1", "v2"], value: v1 + v2 }]
   };
 }
-function withXt465Fallback(adt, message) {
+function withXt465Fallback(adt, message2) {
   if (adt?.t100) return adt;
-  const fallback = matchXt465ChoppedTemplate(message);
+  const fallback = matchXt465ChoppedTemplate(message2);
   if (!fallback) return adt;
   return { ...adt ?? {}, t100: fallback };
 }
@@ -119297,12 +119331,12 @@ function summarise(code, adt) {
   if (adt.subType) parts.push(`Operation ${adt.subType}.`);
   return parts.length ? parts.join(" ") : void 0;
 }
-function ensureNotFoundNamesObject(message, details) {
+function ensureNotFoundNamesObject(message2, details) {
   const name = typeof details.name === "string" ? details.name.trim() : "";
-  if (!name) return message;
-  const trimmed = message.trim();
+  if (!name) return message2;
+  const trimmed = message2.trim();
   if (trimmed && trimmed.toLowerCase().includes(name.toLowerCase())) {
-    return message;
+    return message2;
   }
   const own = `${name} was not found.`;
   if (!trimmed) return own;
@@ -119324,11 +119358,11 @@ function buildErrorPayload(e) {
   let payload;
   if (isAbapError(e)) {
     const { adt: adtRaw, rest } = adtEnvelopeFromDetails(e.details);
-    const message = e.code === "NOT_FOUND" ? ensureNotFoundNamesObject(e.message, e.details) : e.message;
-    const adt = withXt465Fallback(adtRaw, message);
+    const message2 = e.code === "NOT_FOUND" ? ensureNotFoundNamesObject(e.message, e.details) : e.message;
+    const adt = withXt465Fallback(adtRaw, message2);
     payload = {
       error: e.code,
-      message,
+      message: message2,
       ...e.hint ? { hint: e.hint } : {},
       ...e.retryable !== void 0 ? { retryable: e.retryable } : {},
       ...adt ? { adt } : {},
@@ -119340,12 +119374,12 @@ function buildErrorPayload(e) {
     const adtRaw = adtEnvelopeFromThrown(e);
     const code = classifySessionFailure(adtExceptionInfo(e)?.response) ? "SESSION_DEAD" : isLockConflict(e) ? "LOCKED" : isNotFoundError(e) ? "NOT_FOUND" : "ADT_ERROR";
     const described = describeUnknownError(e);
-    const message = typeof described === "string" && described ? described : `Unknown failure (${typeof e})`;
-    const adt = withXt465Fallback(adtRaw, message);
+    const message2 = typeof described === "string" && described ? described : `Unknown failure (${typeof e})`;
+    const adt = withXt465Fallback(adtRaw, message2);
     const hint = hintForRawThrow(code);
     payload = {
       error: code,
-      message,
+      message: message2,
       ...hint ? { hint } : {},
       ...adt ? { adt } : {}
     };
@@ -119407,15 +119441,15 @@ var PARAM_ALIASES = {
 function isPlainObject7(v) {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
-function suggestParam(unknown2, accepted, aliases) {
-  const lower = unknown2.toLowerCase();
+function suggestParam(unknown3, accepted, aliases) {
+  const lower = unknown3.toLowerCase();
   if (aliases) {
     const target = aliases[lower];
     if (target !== void 0 && accepted.includes(target)) return target;
   }
   const exact = accepted.find((a) => a.toLowerCase() === lower);
   if (exact !== void 0) return exact;
-  if (unknown2.length >= 2) {
+  if (unknown3.length >= 2) {
     const prefixCandidates = accepted.filter((a) => {
       if (a.length < 2) return false;
       const al = a.toLowerCase();
@@ -119423,7 +119457,7 @@ function suggestParam(unknown2, accepted, aliases) {
     });
     if (prefixCandidates.length === 1) return prefixCandidates[0];
   }
-  const maxDist = Math.max(1, Math.ceil(unknown2.length / 3));
+  const maxDist = Math.max(1, Math.ceil(unknown3.length / 3));
   let bestDist = Infinity;
   let bestNames = [];
   for (const a of accepted) {
@@ -119471,7 +119505,7 @@ function checkToolArgs(tool, shape, args, aliases) {
   if (unknownKeys.length > 0) {
     const key = unknownKeys[0];
     const suggestion = suggestParam(key, accepted, aliases);
-    const message = `${tool} does not accept parameter "${key}".` + (suggestion ? ` Did you mean "${suggestion}"?` : "") + ` Accepted parameters: ${accepted.join(", ")}.`;
+    const message2 = `${tool} does not accept parameter "${key}".` + (suggestion ? ` Did you mean "${suggestion}"?` : "") + ` Accepted parameters: ${accepted.join(", ")}.`;
     const details = {
       tool,
       parameter: key,
@@ -119480,7 +119514,7 @@ function checkToolArgs(tool, shape, args, aliases) {
       ...suggestion ? { suggestion } : {}
     };
     const hint = suggestion ? `Retry with ${suggestion}= instead of ${key}=.` : "Use only the listed parameters; see the tool description.";
-    return new AbapError("BAD_INPUT", message, details, hint);
+    return new AbapError("BAD_INPUT", message2, details, hint);
   }
   for (const key of accepted) {
     if (!(key in args)) continue;
@@ -119489,7 +119523,7 @@ function checkToolArgs(tool, shape, args, aliases) {
     const values = enumValuesOf(shape[key]);
     if (values === void 0 || values.includes(value)) continue;
     const suggestion = suggestEnumValue(value, values);
-    const message = `${tool}: ${key} "${value}" is not valid. Valid values: ${values.join(", ")}.` + (suggestion ? ` Did you mean "${suggestion}"?` : "");
+    const message2 = `${tool}: ${key} "${value}" is not valid. Valid values: ${values.join(", ")}.` + (suggestion ? ` Did you mean "${suggestion}"?` : "");
     const details = {
       tool,
       parameter: key,
@@ -119498,7 +119532,7 @@ function checkToolArgs(tool, shape, args, aliases) {
       ...suggestion ? { suggestion } : {}
     };
     const hint = suggestion ? `Retry with ${key}="${suggestion}".` : "Pick one of the listed values.";
-    return new AbapError("BAD_INPUT", message, details, hint);
+    return new AbapError("BAD_INPUT", message2, details, hint);
   }
   return void 0;
 }
@@ -119512,8 +119546,8 @@ function isRawShape(v) {
   if (hasZodMarker(v)) return false;
   return Object.values(v).every(hasZodMarker);
 }
-function isCallToolRequest(message) {
-  const m = message;
+function isCallToolRequest(message2) {
+  const m = message2;
   return m.method === "tools/call" && (typeof m.id === "string" || typeof m.id === "number") && isPlainObject7(m.params) && typeof m.params.name === "string";
 }
 function installParamCheck(mcp, options = {}) {
@@ -119531,21 +119565,21 @@ function installParamCheck(mcp, options = {}) {
     await rawConnect(transport);
     const original = transport.onmessage;
     if (!original) return;
-    transport.onmessage = ((message, extra) => {
-      if (isCallToolRequest(message)) {
-        const shape = shapes.get(message.params.name);
-        const args = message.params.arguments;
+    transport.onmessage = ((message2, extra) => {
+      if (isCallToolRequest(message2)) {
+        const shape = shapes.get(message2.params.name);
+        const args = message2.params.arguments;
         if (shape) {
-          const error51 = checkToolArgs(message.params.name, shape, args, aliases[message.params.name]);
+          const error51 = checkToolArgs(message2.params.name, shape, args, aliases[message2.params.name]);
           if (error51) {
-            const response = { jsonrpc: "2.0", id: message.id, result: errorResult(error51) };
+            const response = { jsonrpc: "2.0", id: message2.id, result: errorResult(error51) };
             transport.send(response).catch(() => {
             });
             return;
           }
         }
       }
-      original(message, extra);
+      original(message2, extra);
     });
   });
 }
@@ -124724,6 +124758,74 @@ function buildStructuredDdicDescriptor(type, name, description, packageName, fie
 // src/tools/write.ts
 init_errors();
 init_resolve();
+
+// src/adt/transport-readback.ts
+init_transports();
+function entryLabel(k) {
+  const name = k.name.trim().replace(/\s+/g, " ").toUpperCase();
+  return `${k.pgmid.trim().toUpperCase()} ${k.type.trim().toUpperCase()} ${name}`;
+}
+function sameEntry(a, b) {
+  const upper = (s) => s.trim().toUpperCase();
+  const stripped = (s) => s.replace(/\s+/g, "").toUpperCase();
+  return upper(a.pgmid) === upper(b.pgmid) && upper(a.type) === upper(b.type) && stripped(a.name) === stripped(b.name);
+}
+function findMatch(objects, entry, covering) {
+  if (objects.some((o) => sameEntry(o, entry))) return entry;
+  if (covering !== void 0 && objects.some((o) => sameEntry(o, covering))) return covering;
+  return void 0;
+}
+function unknown2(reason, entry) {
+  return { status: "unknown", reason, entry };
+}
+function message(err) {
+  return err instanceof Error ? err.message : String(err);
+}
+async function readBackTransportEntry(conn, target, cts = { trShow, trRequirement }) {
+  const { intended, entry, covering, lookup } = target;
+  let req;
+  try {
+    req = await cts.trShow(conn, intended);
+  } catch (err) {
+    return unknown2(`reading back request ${intended} failed: ${message(err)}`, entry);
+  }
+  const ownMatch = findMatch(req.objects, entry, covering);
+  if (ownMatch !== void 0) {
+    return { status: "confirmed-same", trkorr: intended, matched: ownMatch };
+  }
+  let holderNr;
+  if (lookup !== void 0) {
+    let chk;
+    try {
+      chk = await cts.trRequirement(conn, lookup.uri, lookup.devclass, "U");
+    } catch (err) {
+      return unknown2(`checking the current lock holder for ${lookup.uri} failed: ${message(err)}`, entry);
+    }
+    holderNr = (chk.pinnedTo?.trim() || chk.locks[0]?.request.trkorr) ?? void 0;
+  }
+  if (holderNr !== void 0 && holderNr !== "" && holderNr.toUpperCase() !== intended.toUpperCase()) {
+    let holder;
+    try {
+      holder = await cts.trShow(conn, holderNr);
+    } catch (err) {
+      return unknown2(`reading back lock holder ${holderNr} failed: ${message(err)}`, entry);
+    }
+    const holderMatch = findMatch(holder.objects, entry, covering);
+    if (holderMatch !== void 0) {
+      return { status: "confirmed-other", trkorr: holderNr, intended, holder, matched: holderMatch };
+    }
+    return unknown2(
+      `CTS reports the lock in ${holderNr} but ${holderNr} lists neither ${entryLabel(entry)}${covering !== void 0 ? ` nor ${entryLabel(covering)}` : ""}.`,
+      entry
+    );
+  }
+  return unknown2(
+    `request ${intended} does not list ${entryLabel(entry)}${covering !== void 0 ? ` or ${entryLabel(covering)}` : ""}` + (lookup === void 0 ? "" : holderNr === void 0 || holderNr === "" ? " and CTS reported no lock holder" : ` although CTS reports the lock in ${holderNr}`),
+    entry
+  );
+}
+
+// src/tools/write.ts
 init_source();
 init_types();
 init_compact();
@@ -125387,15 +125489,15 @@ function resolveDdicStructuredSource(input, target) {
   const packageName = target.packageName?.trim() || "$TMP";
   return buildStructuredDdicDescriptor(target.type, target.name, description, packageName, input.ddic);
 }
-function transportNote(t, abapMode) {
+function releaseClause(abapMode) {
+  return "abap_write never releases a transport \u2014 releasing is a separate tool, abap_transport_release, which stays off unless " + (abapMode !== void 0 ? "ABAP_MODE=admin (ABAP_ALLOW_TRANSPORT_RELEASE is not read while ABAP_MODE is set)." : "ABAP_ALLOW_TRANSPORT_RELEASE is set.");
+}
+function transportNote(t, abapMode, reRead) {
   switch (t.status) {
     case "local":
       return "Local object ($TMP-style): the lock reported no transport, so there is nothing to release.";
     case "transport":
-      return `Transport ${t.corrNr ?? "(unassigned)"}${t.corrText ? ` \u2014 ${t.corrText}` : ""}. That is the number this write sent, after the safety gate approved it; the text is as the lock response reported it. abapsmith did NOT re-read the request to confirm the object is in it. abap_write never releases a transport \u2014 releasing is a separate tool, abap_transport_release, which stays off unless ` + // Name the lever actually in force. `admin` is the REQUIRED mode for
-      // release, not the current one — do not interpolate `abapMode` here.
-      // Mirrors the identical note in src/tools/activate.ts.
-      (abapMode !== void 0 ? "ABAP_MODE=admin (ABAP_ALLOW_TRANSPORT_RELEASE is not read while ABAP_MODE is set)." : "ABAP_ALLOW_TRANSPORT_RELEASE is set.");
+      return `Transport ${t.corrNr ?? "(unassigned)"}${t.corrText ? ` \u2014 ${t.corrText}` : ""}. That is the number this write sent, after the safety gate approved it; the text is as the lock response reported it. ` + (reRead ?? "abapsmith did NOT re-read the request to confirm the object is in it.") + " " + releaseClause(abapMode);
     case "not-determined":
       return "Nothing was resolved: no transport question was asked of the ABAP system. Reason: " + t.reason;
     /* istanbul ignore next -- exhaustiveness guard, not a reachable branch */
@@ -126931,8 +127033,8 @@ async function abapCreatePackage(conn, target, input, maxChars, gate, trOpts, jo
 }
 function assertGuardFlagsApplicable(type, input) {
   const mode = input.mode ?? "write";
-  const inapplicable = (field, message) => {
-    throw new AbapError("BAD_INPUT", message, { type, mode, field });
+  const inapplicable = (field, message2) => {
+    throw new AbapError("BAD_INPUT", message2, { type, mode, field });
   };
   if (input.confirm_in_use !== void 0 && !(type === "SHLP/DH" && mode === "delete")) {
     inapplicable(
@@ -127029,14 +127131,31 @@ async function resolveBridgeCreateCorr(conn, gate, transport, t, named) {
 function bridgePreflightCorr(named) {
   return named === void 0 ? { kind: "unresolved" } : { kind: "transport", corrNr: named, source: "named" };
 }
-function bridgeTransportNotes(transportInfo, transport, gate) {
+function bridgeTransportNotes(transportInfo, transport, gate, readback) {
   if (transportInfo === void 0) return [];
-  const notes = [transportNote(transportInfo, gate.config?.abapMode)];
+  const abapMode = gate.config?.abapMode;
   const decision = transport?.lastAutoDecision;
-  if (decision !== void 0 && transportInfo.corrNr !== void 0 && decision.trkorr.toUpperCase() === transportInfo.corrNr.toUpperCase()) {
+  const notes = [];
+  if (readback === void 0 || readback.status === "confirmed-same" || readback.status === "unknown") {
+    const reRead = readback === void 0 ? void 0 : readback.status === "confirmed-same" ? `Read back after the write: request ${readback.trkorr} lists ${entryLabel(readback.matched)}.` : `Could not confirm from CTS which request holds ${entryLabel(readback.entry)} (${readback.reason}); ${transportInfo.corrNr ?? "the transport"} is the number this write sent.`;
+    notes.push(transportNote(transportInfo, abapMode, reRead));
+    if (decision !== void 0 && transportInfo.corrNr !== void 0 && decision.trkorr.toUpperCase() === transportInfo.corrNr.toUpperCase()) {
+      notes.push(decision.reason);
+    }
+    return notes;
+  }
+  const { trkorr, intended, matched } = readback;
+  notes.push(
+    `Recorded in ${trkorr} (holds the ${matched.pgmid} ${matched.type} lock for ${matched.name}), not in the session's request ${intended}. This write sent ${intended}; CTS recorded the object in the request that already holds its lock. ${releaseClause(abapMode)}`
+  );
+  if (decision !== void 0 && decision.trkorr.toUpperCase() === intended.toUpperCase()) {
     notes.push(decision.reason);
   }
   return notes;
+}
+function bridgeTransportHeaderInfo(transportInfo, readback) {
+  if (transportInfo === void 0 || readback?.status !== "confirmed-other") return transportInfo;
+  return { status: "transport", required: true, corrNr: readback.trkorr, corrText: readback.holder.description };
 }
 async function journalBridgeCreate(journal, conn, ref2, beforeCapture, corrNr, mutate) {
   const { result, entryId, settle } = await withJournalledMutation(
@@ -127092,8 +127211,8 @@ async function abapCreateViaBridge(conn, target, input, maxChars, gate, journal,
   const type = (input.type ?? "").trim().toUpperCase();
   const cap = capabilitiesFor(type);
   const label = cap?.label ?? type;
-  const bad = (message, hint) => {
-    throw new AbapError("BAD_INPUT", message, { object: target.name, type }, hint);
+  const bad = (message2, hint) => {
+    throw new AbapError("BAD_INPUT", message2, { object: target.name, type }, hint);
   };
   if (input.source !== void 0 || input.edit !== void 0 || input.method !== void 0) {
     bad(
@@ -127136,6 +127255,7 @@ async function abapCreateViaBridge(conn, target, input, maxChars, gate, journal,
   let entryId;
   let registration;
   let transportInfo;
+  let readback;
   const vitType = type === "VIEW/DV" ? "viewdv" : "trant";
   const objectUri = vitBridgeUri(vitType, target.name);
   let beforeCapture = "failed";
@@ -127216,6 +127336,13 @@ async function abapCreateViaBridge(conn, target, input, maxChars, gate, journal,
       verified = false;
       verifyNote = `NOT independently confirmed present: ${outcome.reason} abapsmith still reports created:true here, trusting the classrun transcript (the markers above) \u2014 but that is not the same confidence as a live read-back, and VIEW/DV is exactly the type this codebase was once wrong about in this way. Treat verified:false here as a reason to confirm by hand in SE11 before relying on it. See src/adt/write-verify.ts.`;
     }
+    if (transportInfo?.corrNr !== void 0) {
+      readback = await readBackTransportEntry(conn, {
+        intended: transportInfo.corrNr,
+        entry: { pgmid: "R3TR", type: "VIEW", name: target.name },
+        lookup: { uri: objectUri, devclass: packageName }
+      });
+    }
   } else {
     if (input.base_table !== void 0 || input.view_fields !== void 0) {
       bad("`base_table` and `view_fields` are VIEW/DV fields; a transaction has no base table.");
@@ -127281,13 +127408,21 @@ async function abapCreateViaBridge(conn, target, input, maxChars, gate, journal,
       verified = false;
       verifyNote = `NOT independently confirmed present: ${outcome.reason} abapsmith still reports created:true here, trusting the classrun transcript (the markers above) \u2014 but that is not the same confidence as a live read-back. See src/adt/write-verify.ts.`;
     }
+    if (transportInfo?.corrNr !== void 0) {
+      readback = await readBackTransportEntry(conn, {
+        intended: transportInfo.corrNr,
+        entry: { pgmid: "R3TR", type: "TRAN", name: target.name },
+        lookup: { uri: objectUri, devclass: packageName }
+      });
+    }
   }
+  const headerTransportInfo = bridgeTransportHeaderInfo(transportInfo, readback);
   return buildResponse({
     header: {
       system: conn.cfg.sid,
       object: `${type} ${target.name}`,
       package: packageName,
-      ...transportInfo !== void 0 ? { transport: transportHeaderText(transportInfo) } : {},
+      ...headerTransportInfo !== void 0 ? { transport: transportHeaderText(headerTransportInfo) } : {},
       mode: "create-bridge",
       created: true,
       verified,
@@ -127299,7 +127434,7 @@ async function abapCreateViaBridge(conn, target, input, maxChars, gate, journal,
     notes: [
       `Created by running the classic fluid tool's body class ${bridgeClass}, not over ADT REST: ${cap?.bridgeCreate?.via ?? "see src/adt/classic-call.ts"}`,
       cap?.bridgeCreate?.limits ?? "",
-      ...bridgeTransportNotes(transportInfo, transport, gate),
+      ...bridgeTransportNotes(transportInfo, transport, gate, readback),
       verifyNote,
       bridgeReversalNote(entryId, beforeCapture, registration, label, type, target.name)
     ].filter((n) => n !== ""),
@@ -127310,8 +127445,8 @@ async function abapDeleteViaBridge(conn, target, input, maxChars, gate) {
   const type = (input.type ?? "").trim().toUpperCase();
   const cap = capabilitiesFor(type);
   const label = cap?.label ?? type;
-  const bad = (message, hint) => {
-    throw new AbapError("BAD_INPUT", message, { object: target.name, type }, hint);
+  const bad = (message2, hint) => {
+    throw new AbapError("BAD_INPUT", message2, { object: target.name, type }, hint);
   };
   if (input.source !== void 0 || input.edit !== void 0 || input.method !== void 0 || input.include !== void 0) {
     bad(
@@ -127520,8 +127655,8 @@ async function abapCreateSearchHelpViaBridge(conn, target, input, maxChars, gate
   const type = "SHLP/DH";
   const cap = capabilitiesFor(type);
   const label = cap?.label ?? type;
-  const bad = (message, hint) => {
-    throw new AbapError("BAD_INPUT", message, { object: target.name, type }, hint);
+  const bad = (message2, hint) => {
+    throw new AbapError("BAD_INPUT", message2, { object: target.name, type }, hint);
   };
   if (input.source !== void 0 || input.edit !== void 0 || input.method !== void 0) {
     bad(
@@ -127676,8 +127811,8 @@ async function abapDeleteSearchHelpViaBridge(conn, target, input, maxChars, gate
   const type = "SHLP/DH";
   const cap = capabilitiesFor(type);
   const label = cap?.label ?? type;
-  const bad = (message, hint) => {
-    throw new AbapError("BAD_INPUT", message, { object: target.name, type }, hint);
+  const bad = (message2, hint) => {
+    throw new AbapError("BAD_INPUT", message2, { object: target.name, type }, hint);
   };
   if (input.source !== void 0 || input.edit !== void 0 || input.method !== void 0 || input.include !== void 0) {
     bad(
@@ -127795,8 +127930,8 @@ async function abapUpdateViaBridge(conn, target, input, maxChars, gate, journal)
   const type = (input.type ?? "").trim().toUpperCase();
   const cap = capabilitiesFor(type);
   const label = cap?.label ?? type;
-  const bad = (message, hint) => {
-    throw new AbapError("BAD_INPUT", message, { object: target.name, type, mode: "update" }, hint);
+  const bad = (message2, hint) => {
+    throw new AbapError("BAD_INPUT", message2, { object: target.name, type, mode: "update" }, hint);
   };
   if (!isBridgeUpdateType(type)) {
     throw bridgeUpdateNotSupported(type, target.name);
@@ -128127,8 +128262,8 @@ async function abapCreateIndexViaBridge(conn, target, input, maxChars, gate, tra
   const type = "TABL/DI";
   const cap = capabilitiesFor(type);
   const label = cap?.label ?? type;
-  const bad = (message, hint) => {
-    throw new AbapError("BAD_INPUT", message, { object: target.name, type }, hint);
+  const bad = (message2, hint) => {
+    throw new AbapError("BAD_INPUT", message2, { object: target.name, type }, hint);
   };
   if (input.source !== void 0 || input.edit !== void 0 || input.method !== void 0) {
     bad(
@@ -128209,12 +128344,22 @@ async function abapCreateIndexViaBridge(conn, target, input, maxChars, gate, tra
     unique: input.index_unique
   });
   const detail = `secondary index over ${indexFields.length} field(s) of ${baseTable}` + (input.index_unique ? ", unique" : "");
+  let readback;
+  if (transportInfo?.corrNr !== void 0) {
+    readback = await readBackTransportEntry(conn, {
+      intended: transportInfo.corrNr,
+      entry: { pgmid: "LIMU", type: "INDX", name: `${baseTable} ${target.name}` },
+      covering: { pgmid: "R3TR", type: "TABL", name: baseTable },
+      lookup: { uri: `/sap/bc/adt/ddic/tables/${baseTable.toLowerCase()}`, devclass: owner.packageName.name }
+    });
+  }
+  const headerTransportInfo = bridgeTransportHeaderInfo(transportInfo, readback);
   return buildResponse({
     header: {
       system: conn.cfg.sid,
       object: `${type} ${target.name}`,
       package: owner.packageName.name,
-      ...transportInfo !== void 0 ? { transport: transportHeaderText(transportInfo) } : {},
+      ...headerTransportInfo !== void 0 ? { transport: transportHeaderText(headerTransportInfo) } : {},
       mode: "create-bridge",
       created: true,
       verified: created.verdict.verified,
@@ -128228,7 +128373,7 @@ async function abapCreateIndexViaBridge(conn, target, input, maxChars, gate, tra
     notes: [
       `Created by running the classic fluid tool's body class ${CLASSIC_BODY_CLASS}, not over ADT REST: ${cap?.bridgeCreate?.via ?? "see src/adt/index-create.ts"}`,
       cap?.bridgeCreate?.limits ?? "",
-      ...bridgeTransportNotes(transportInfo, transport, gate),
+      ...bridgeTransportNotes(transportInfo, transport, gate, readback),
       created.verdict.verified ? `Independently verified with a fresh DD12V/DD17S catalog read after the bridge returned: ${created.verdict.statement}` : `NOT independently verified: the post-create catalog re-read did not run (${created.verdict.reason ?? "reason unknown"}). abapsmith reports created:true based only on the bridge's own transcript (the INDEX-ACTIVE and INDEX-FIELDS markers above, from its post-COMMIT WORK SELECT COUNT( * ) on DD12V and DD17S inside that same classrun execution) \u2014 that is all that is known here.`,
       `To read the index back independently at any time: abap_read {"object":"${baseTable}/${target.name}","type":"TABL/DI"}.`,
       'NOT journalled: an index create has no undo path (src/adt/undo.ts recognises no TABL/DI shape and would throw on one). To reverse this, delete the index with a fresh abap_write { mode: "delete", type: "TABL/DI" } call, not abap_journal mode=undo.'
@@ -128240,8 +128385,8 @@ async function abapDeleteIndexViaBridge(conn, target, input, maxChars, gate, tra
   const type = "TABL/DI";
   const cap = capabilitiesFor(type);
   const label = cap?.label ?? type;
-  const bad = (message, hint) => {
-    throw new AbapError("BAD_INPUT", message, { object: target.name, type }, hint);
+  const bad = (message2, hint) => {
+    throw new AbapError("BAD_INPUT", message2, { object: target.name, type }, hint);
   };
   if (input.source !== void 0 || input.edit !== void 0 || input.method !== void 0 || input.include !== void 0) {
     bad(
@@ -128342,7 +128487,7 @@ function registerWriteTools(mcp, deps) {
   mcp.registerTool(
     "abap_write",
     {
-      description: "Create, change or delete an ABAP object: save/check/activate; locking handled. TRAN/T deletable+undoable, and needs corr_nr for a transportable package, none for a $ one. VIEW/DV create resolves its own corr_nr for a transportable package (supply one to pin it), none for a $ one; the view can't be read back via abap_read. DEVC/K delete only if empty. dry_run previews the diff and expect_etag without writing anything.",
+      description: "Create, change or delete an ABAP object: save/check/activate; locking handled. TRAN/T deletable+undoable, and needs corr_nr for a transportable package, none for a $ one. VIEW/DV create resolves its own corr_nr for a transportable package (supply one to pin it), none for a $ one; the view itself can't be read back via abap_read. corr_nr resolution order: server pin > corr_nr/config pin > request this session created (abap_transport create counts) > older abapsmith-described request only when the session has none > create one; bridge creates (VIEW/DV, TRAN/T, TABL/DI) read back which request holds the object. DEVC/K delete only if empty. dry_run previews the diff and expect_etag without writing anything.",
       inputSchema: writeInputSchema,
       annotations: { readOnlyHint: false, destructiveHint: true }
     },
@@ -130834,10 +130979,10 @@ function lockedToolExplanation(tool, abapMode) {
 }
 function lockedToolRefusal(tool, abapMode) {
   const { cause, remediation } = lockedToolExplanation(tool, abapMode);
-  const message = `${tool.name} is registered but locked at this permission level. ${cause} Nothing was sent to the SAP system.`;
+  const message2 = `${tool.name} is registered but locked at this permission level. ${cause} Nothing was sent to the SAP system.`;
   return new AbapError(
     "READ_ONLY",
-    message,
+    message2,
     {
       tool: tool.name,
       locked: true,
@@ -136654,7 +136799,7 @@ function parseRunResult(xml3) {
   let total = 0;
   let passed = 0;
   let failed = 0;
-  let unknown2 = 0;
+  let unknown3 = 0;
   for (const prog of many2(root.program)) {
     const programName = attr4(prog, "name") ?? "(unnamed program)";
     for (const a of parseAlerts(prog.alerts)) {
@@ -136674,7 +136819,7 @@ function parseRunResult(xml3) {
             total++;
             if (verdict === "passed") passed++;
             else if (verdict === "failed") failed++;
-            else unknown2++;
+            else unknown3++;
             methods.push({
               name: attr4(tm, "name") ?? "(unnamed method)",
               className,
@@ -136710,7 +136855,7 @@ function parseRunResult(xml3) {
         total,
         passed,
         failed,
-        unknown: unknown2,
+        unknown: unknown3,
         reason: noTests.title ?? 'ADT reported kind="noTestClasses": the object has no ABAP Unit test classes.',
         ...coverageUri ? { coverageUri } : {}
       };
@@ -136722,7 +136867,7 @@ function parseRunResult(xml3) {
       total,
       passed,
       failed,
-      unknown: unknown2,
+      unknown: unknown3,
       reason: "The run result contained no test methods and no noTestClasses alert, so it is not known whether anything ran. This is NOT a passing run.",
       ...coverageUri ? { coverageUri } : {}
     };
@@ -136735,11 +136880,11 @@ function parseRunResult(xml3) {
       total,
       passed,
       failed,
-      unknown: unknown2,
+      unknown: unknown3,
       ...coverageUri ? { coverageUri } : {}
     };
   }
-  if (unknown2 > 0) {
+  if (unknown3 > 0) {
     return {
       outcome: "unknown",
       programs,
@@ -136747,8 +136892,8 @@ function parseRunResult(xml3) {
       total,
       passed,
       failed,
-      unknown: unknown2,
-      reason: `${unknown2} of ${total} test method(s) carried XML this server does not recognise, so their verdict is unknown. Treat the run as UNVERIFIED, not as passing.`,
+      unknown: unknown3,
+      reason: `${unknown3} of ${total} test method(s) carried XML this server does not recognise, so their verdict is unknown. Treat the run as UNVERIFIED, not as passing.`,
       ...coverageUri ? { coverageUri } : {}
     };
   }
@@ -136759,7 +136904,7 @@ function parseRunResult(xml3) {
     total,
     passed,
     failed,
-    unknown: unknown2,
+    unknown: unknown3,
     ...coverageUri ? { coverageUri } : {}
   };
 }
@@ -140520,10 +140665,10 @@ var OBJECT_ON_SYSTEM_PROBE_CAP = 5;
 async function probeObjectOnSystem(conn, rows) {
   let present = 0;
   let absent = 0;
-  let unknown2 = 0;
+  let unknown3 = 0;
   for (const [i, row2] of rows.entries()) {
     if (i >= OBJECT_ON_SYSTEM_PROBE_CAP) {
-      unknown2++;
+      unknown3++;
       continue;
     }
     try {
@@ -140531,11 +140676,11 @@ async function probeObjectOnSystem(conn, rows) {
       if (hits.length > 0) present++;
       else absent++;
     } catch {
-      unknown2++;
+      unknown3++;
     }
   }
   if (present > 0) return "present";
-  if (unknown2 > 0) return "unknown";
+  if (unknown3 > 0) return "unknown";
   return absent > 0 ? "absent" : "unknown";
 }
 var COMM_OBJECT_KEYS_HINT = `The entry and its CTS lock are still on the request \u2014 it cannot be deleted while they are. If the refusal names a lock or an owner, SE03's "Unlock Objects (Expert Tool)" is the tool for that \u2014 it does nothing for the duplicate-row guard (TR 292), which counts E071 rows, not locks. Every remaining route is outside abapsmith and not guaranteed to succeed: edit the request's object list in SE09/SE10; or release the request (irreversible). The msg= fragment in the message above is the T100 message CTS itself raised \u2014 it may be blank (a function module that raises with a bare RAISE sets no message) \u2014 but quote it when reporting this failure.`;
@@ -140610,9 +140755,9 @@ async function diagnoseLockedDelete(conn, trkorr, e) {
   );
 }
 var TRKORR_TOKEN_RE = /\b[A-Z][A-Z0-9]{2}K\d{6}\b/g;
-function lockedMessageDiscrepancy(message, trkorr, req) {
+function lockedMessageDiscrepancy(message2, trkorr, req) {
   const named = new Set(
-    (message.match(TRKORR_TOKEN_RE) ?? []).map((s) => s.toUpperCase()).filter((n) => n !== trkorr)
+    (message2.match(TRKORR_TOKEN_RE) ?? []).map((s) => s.toUpperCase()).filter((n) => n !== trkorr)
   );
   if (named.size === 0) return void 0;
   const taskNumbers = new Set(req.tasks.map((t) => t.trkorr));
@@ -141595,10 +141740,10 @@ var QUERY_CHILD_ORDER = ["dataTypeRef", "implementationClassRef", "resultTypeRef
 var ALTERNATIVE_KEY_CHILD_ORDER = ["dataTypeRef", "dataTableTypeRef", "keyElements"];
 
 // src/adt/bopf-xml.ts
-function fail6(message, details = {}) {
+function fail6(message2, details = {}) {
   throw new AbapError(
     "BAD_INPUT",
-    `BOPF XML: ${message}`,
+    `BOPF XML: ${message2}`,
     details,
     "The scanner refuses to guess at malformed or unsupported input \u2014 fix the source document rather than relying on a silent fallback."
   );
@@ -143742,7 +143887,7 @@ function validateTopLevelFields(operation, spec) {
   }
   return issues;
 }
-function validateArrayEntries(pathBase, entryLabel, entries, table) {
+function validateArrayEntries(pathBase, entryLabel2, entries, table) {
   const accepted = Object.keys(table);
   const issues = [];
   entries.forEach((entry, i) => {
@@ -143753,7 +143898,7 @@ function validateArrayEntries(pathBase, entryLabel, entries, table) {
       const shape = table[key];
       if (shape === void 0) {
         issues.push({
-          message: `${path9} is not a recognised field on a ${entryLabel} entry. Accepted field(s): ${accepted.join(", ")}.`,
+          message: `${path9} is not a recognised field on a ${entryLabel2} entry. Accepted field(s): ${accepted.join(", ")}.`,
           detail: { path: path9, key, index: i, accepted }
         });
         continue;
@@ -143776,10 +143921,10 @@ function validateSpecKeys(operation, spec) {
     issues.push(...validateArrayEntries("spec.relations", "relation", spec.relations, RELATION_FIELDS));
   }
   if (issues.length === 0) return;
-  const message = issues.length === 1 ? issues[0].message : `${issues.length} problems found in spec for operation "${operation}": ` + issues.map((iss, i) => `(${i + 1}) ${iss.message}`).join(" ");
+  const message2 = issues.length === 1 ? issues[0].message : `${issues.length} problems found in spec for operation "${operation}": ` + issues.map((iss, i) => `(${i + 1}) ${iss.message}`).join(" ");
   const suggested = issues.find((iss) => typeof iss.detail.suggestion === "string");
   const hint = suggested ? `Rename the field to "${suggested.detail.suggestion}" and retry.` : void 0;
-  throw new AbapError("BAD_INPUT", message, { operation, issues: issues.map((iss) => iss.detail) }, hint);
+  throw new AbapError("BAD_INPUT", message2, { operation, issues: issues.map((iss) => iss.detail) }, hint);
 }
 
 // src/tools/bopf-delegation.ts
@@ -145450,7 +145595,7 @@ function attributeSessionDeath(e, input) {
   if (!isAbapError(e) || e.code !== "SESSION_DEAD") return e;
   const node2 = input.node;
   const name = input.name;
-  const message = `${e.message} It died during abap_bopf_edit ${input.operation} on ${input.bo}` + (node2 !== void 0 ? ` node "${node2}"` : "") + (typeof name === "string" && name !== "" ? ` ("${name}")` : "") + ".";
+  const message2 = `${e.message} It died during abap_bopf_edit ${input.operation} on ${input.bo}` + (node2 !== void 0 ? ` node "${node2}"` : "") + (typeof name === "string" && name !== "" ? ` ("${name}")` : "") + ".";
   const details = {
     ...e.details,
     tool: "abap_bopf_edit",
@@ -145460,7 +145605,7 @@ function attributeSessionDeath(e, input) {
     ...typeof name === "string" && name !== "" ? { name } : {}
   };
   const hint = e.details.kind === "dump" ? "The session died while the server was processing this edit, so every lock it held is already released and nothing was activated. Do NOT retry the identical call \u2014 an ASSERTION_FAILED in BOPF's model mapper (/BOBF/CL_CONF_MODEL_API_MAP) is deterministic in the payload, and the same request will kill the session again. Re-read the BO first, since the PUT may or may not have landed, and check the spec fields the mapper has to map (uniqueness/dataTypeRef/dataTableTypeRef/keyElements on an alternative key, category on a determination/validation/query). This is NOT an authentication failure." : e.hint;
-  return new AbapError(e.code, message, details, hint);
+  return new AbapError(e.code, message2, details, hint);
 }
 function attributeInvalidData(e, input) {
   if (!isAbapError(e) || e.details.classifiedBy !== "invalid-data-xml-path") return e;
@@ -147007,13 +147152,13 @@ var ok11 = (text5) => ({ content: [{ type: "text", text: text5 }] });
 var SCENARIO_KEYS = ["nodes", "cleanup"];
 var SCENARIO_NODE_KEYS = ["node", "parentNode", "fields"];
 function assertKnownKeys(obj, allowed, where2) {
-  const unknown2 = Object.keys(obj).filter((k) => !allowed.includes(k));
-  if (unknown2.length === 0) return;
-  const actionsNote = unknown2.includes("actions") ? " The generated bridge only calls /BOBF/IF_TRA_SERVICE_MANAGER's modify/retrieve and /BOBF/IF_TRA_TRANSACTION_MANAGER's save (src/adt/bopf-runtime.ts) \u2014 it never invokes a BOPF action, so there is no way to run one through abap_bopf_test, under this key or any other." : "";
+  const unknown3 = Object.keys(obj).filter((k) => !allowed.includes(k));
+  if (unknown3.length === 0) return;
+  const actionsNote = unknown3.includes("actions") ? " The generated bridge only calls /BOBF/IF_TRA_SERVICE_MANAGER's modify/retrieve and /BOBF/IF_TRA_TRANSACTION_MANAGER's save (src/adt/bopf-runtime.ts) \u2014 it never invokes a BOPF action, so there is no way to run one through abap_bopf_test, under this key or any other." : "";
   throw new AbapError(
     "BAD_INPUT",
-    `${where2} has unrecognised key(s): ${unknown2.map((k) => `"${k}"`).join(", ")}. Allowed: ${allowed.map((k) => `"${k}"`).join(", ")}.${actionsNote}`,
-    { where: where2, unknown: unknown2, allowed }
+    `${where2} has unrecognised key(s): ${unknown3.map((k) => `"${k}"`).join(", ")}. Allowed: ${allowed.map((k) => `"${k}"`).join(", ")}.${actionsNote}`,
+    { where: where2, unknown: unknown3, allowed }
   );
 }
 function validateBopfTestScenario(scenario) {
@@ -156106,14 +156251,14 @@ function registerDataPreviewTools(mcp, deps) {
           const knownUpper = new Set(
             knownColumns.map((c) => c.name.toUpperCase())
           );
-          const unknown2 = maskedUpper.filter((name) => !knownUpper.has(name));
-          if (unknown2.length) {
+          const unknown3 = maskedUpper.filter((name) => !knownUpper.has(name));
+          if (unknown3.length) {
             throw new AbapError(
               "BAD_INPUT",
-              `mask names field(s) not present on ${result.table}: ${unknown2.join(", ")}.`,
+              `mask names field(s) not present on ${result.table}: ${unknown3.join(", ")}.`,
               {
                 table: result.table,
-                mask: unknown2,
+                mask: unknown3,
                 columns: knownColumns.map((c) => c.name)
               },
               `Known columns: ${knownColumns.map((c) => c.name).join(", ") || "(none)"}. A mask field must match a real column, or it would be silently ignored.`
@@ -156379,12 +156524,12 @@ var LIST_ONLY = ["query", "from", "to", "max"];
 var SHOW_ONLY = ["key", "section", "chapters", "offset", "variables"];
 var KNOWN_KEYS = new Set(Object.keys(DumpsInput.shape));
 function rejectUnknownArgs(a) {
-  const unknown2 = Object.keys(a).filter((k) => !KNOWN_KEYS.has(k));
-  if (unknown2.length === 0) return;
+  const unknown3 = Object.keys(a).filter((k) => !KNOWN_KEYS.has(k));
+  if (unknown3.length === 0) return;
   throw new AbapError(
     "BAD_INPUT",
-    `abap_dumps has no parameter ${unknown2.join(", ")}.`,
-    { ignored: unknown2 },
+    `abap_dumps has no parameter ${unknown3.join(", ")}.`,
+    { ignored: unknown3 },
     "Nothing was applied and nothing was fetched. Read the parameter list in this tool's schema and call again \u2014 a parameter this tool does not have is never silently dropped here, because a filtered-looking answer to an unfiltered request is worse than an error."
   );
 }
@@ -157665,12 +157810,12 @@ var atcInputSchema = {
 var AtcInput = external_exports.object(atcInputSchema);
 var KNOWN_KEYS2 = new Set(Object.keys(AtcInput.shape));
 function rejectUnknownArgs2(args) {
-  const unknown2 = Object.keys(args).filter((k) => !KNOWN_KEYS2.has(k));
-  if (unknown2.length === 0) return;
+  const unknown3 = Object.keys(args).filter((k) => !KNOWN_KEYS2.has(k));
+  if (unknown3.length === 0) return;
   throw new AbapError(
     "BAD_INPUT",
-    `abap_atc does not take ${unknown2.map((k) => `\`${k}\``).join(", ")}.`,
-    { unknown: unknown2, known: [...KNOWN_KEYS2] },
+    `abap_atc does not take ${unknown3.map((k) => `\`${k}\``).join(", ")}.`,
+    { unknown: unknown3, known: [...KNOWN_KEYS2] },
     `Parameters are: ${[...KNOWN_KEYS2].join(", ")}.`
   );
 }
@@ -158506,12 +158651,12 @@ var quickFixInputSchema = {
 var QuickFixInput = external_exports.object(quickFixInputSchema);
 var KNOWN_KEYS3 = new Set(Object.keys(QuickFixInput.shape));
 function rejectUnknownArgs3(args) {
-  const unknown2 = Object.keys(args).filter((k) => !KNOWN_KEYS3.has(k));
-  if (unknown2.length === 0) return;
+  const unknown3 = Object.keys(args).filter((k) => !KNOWN_KEYS3.has(k));
+  if (unknown3.length === 0) return;
   throw new AbapError(
     "BAD_INPUT",
-    `abap_quick_fix does not take ${unknown2.map((k) => `\`${k}\``).join(", ")}.`,
-    { unknown: unknown2, known: [...KNOWN_KEYS3] },
+    `abap_quick_fix does not take ${unknown3.map((k) => `\`${k}\``).join(", ")}.`,
+    { unknown: unknown3, known: [...KNOWN_KEYS3] },
     `Parameters are: ${[...KNOWN_KEYS3].join(", ")}.`
   );
 }
@@ -159717,12 +159862,12 @@ var serviceInputSchema = {
 var ServiceInput = external_exports.object(serviceInputSchema);
 var KNOWN_KEYS4 = new Set(Object.keys(ServiceInput.shape));
 function rejectUnknownArgs4(args) {
-  const unknown2 = Object.keys(args).filter((k) => !KNOWN_KEYS4.has(k));
-  if (unknown2.length === 0) return;
+  const unknown3 = Object.keys(args).filter((k) => !KNOWN_KEYS4.has(k));
+  if (unknown3.length === 0) return;
   throw new AbapError(
     "BAD_INPUT",
-    `abap_service does not take ${unknown2.map((k) => `\`${k}\``).join(", ")}.`,
-    { unknown: unknown2, known: [...KNOWN_KEYS4] },
+    `abap_service does not take ${unknown3.map((k) => `\`${k}\``).join(", ")}.`,
+    { unknown: unknown3, known: [...KNOWN_KEYS4] },
     `Parameters are: ${[...KNOWN_KEYS4].join(", ")}. There is deliberately no parameter that returns entity data \u2014 abapsmith reads OData contracts, never rows.`
   );
 }
@@ -160760,10 +160905,10 @@ function classifyTraceFailure(e, ctx) {
   if (err.code !== "ADT_ERROR" && err.code !== "NOT_FOUND") return err;
   const info = adtExceptionInfo(e);
   const status = info?.status ?? (typeof err.details.status === "number" ? err.details.status : void 0);
-  const message = info?.message ?? "";
+  const message2 = info?.message ?? "";
   const props = info?.properties ?? {};
   const extra = { ...err.details, ...status === void 0 ? {} : { status } };
-  if (ctx.traceId !== void 0 && status === 404 && (props["T100KEY-ID"] === "ATRAPI" || /trace file.*does not exist/i.test(message))) {
+  if (ctx.traceId !== void 0 && status === 404 && (props["T100KEY-ID"] === "ATRAPI" || /trace file.*does not exist/i.test(message2))) {
     return new AbapError(
       "NOT_FOUND",
       `Trace ${ctx.traceId} does not exist on this system.`,
@@ -160771,7 +160916,7 @@ function classifyTraceFailure(e, ctx) {
       'Run abap_trace with op="list" to see the trace ids that still exist. Traces expire and are deleted by the system on its own schedule, so an id from an earlier answer can already be gone.'
     );
   }
-  if (ctx.requestId !== void 0 && status === 404 && (props["T100KEY-ID"] === "SADT_RESOURCE" || /resource\s*does not exist/i.test(message))) {
+  if (ctx.requestId !== void 0 && status === 404 && (props["T100KEY-ID"] === "SADT_RESOURCE" || /resource\s*does not exist/i.test(message2))) {
     return new AbapError(
       "NOT_FOUND",
       `Trace request ${ctx.requestId} does not exist on this system.`,
@@ -160779,7 +160924,7 @@ function classifyTraceFailure(e, ctx) {
       'Run abap_trace with op="list" and kind="requests" to see the request ids that still exist.'
     );
   }
-  if (status === 400 && /invalidRequestForAggregatedTraces/i.test(message)) {
+  if (status === 400 && /invalidRequestForAggregatedTraces/i.test(message2)) {
     return new AbapError(
       "BAD_INPUT",
       `Trace ${ctx.traceId ?? "this trace"} was recorded with 'aggregate' on, so it has no call tree to read.`,
@@ -161036,12 +161181,12 @@ var traceInputSchema = {
 var TraceInput = external_exports.object(traceInputSchema);
 var KNOWN_KEYS5 = new Set(Object.keys(TraceInput.shape));
 function rejectUnknownArgs5(args) {
-  const unknown2 = Object.keys(args).filter((k) => !KNOWN_KEYS5.has(k));
-  if (unknown2.length === 0) return;
+  const unknown3 = Object.keys(args).filter((k) => !KNOWN_KEYS5.has(k));
+  if (unknown3.length === 0) return;
   throw new AbapError(
     "BAD_INPUT",
-    `abap_trace does not take ${unknown2.map((k) => `\`${k}\``).join(", ")}.`,
-    { unknown: unknown2, known: [...KNOWN_KEYS5] },
+    `abap_trace does not take ${unknown3.map((k) => `\`${k}\``).join(", ")}.`,
+    { unknown: unknown3, known: [...KNOWN_KEYS5] },
     `Parameters are: ${[...KNOWN_KEYS5].join(", ")}.`
   );
 }
@@ -162416,8 +162561,8 @@ function isBareFluidCall(a) {
   return a.op === void 0 && a.tool === void 0 && a.action === void 0;
 }
 var ok23 = (text5) => ({ content: [{ type: "text", text: text5 }] });
-function badInput(message, field, extra = {}) {
-  return new AbapError("BAD_INPUT", message, { field, ...extra });
+function badInput(message2, field, extra = {}) {
+  return new AbapError("BAD_INPUT", message2, { field, ...extra });
 }
 function mustGetTool(toolSet, id) {
   const t = toolSet.tools.get(id);
@@ -163073,16 +163218,16 @@ function stripRedundantSchemaKeys(value) {
   }
   return value;
 }
-function isListToolsResult(message) {
-  const result = message.result;
+function isListToolsResult(message2) {
+  const result = message2.result;
   return typeof result === "object" && result !== null && Array.isArray(result.tools);
 }
 function stripSchemaKeyOnConnect(mcp) {
   const rawConnect = mcp.connect.bind(mcp);
   mcp.connect = (async (transport) => {
     const rawSend = transport.send.bind(transport);
-    transport.send = ((message, options) => rawSend(
-      isListToolsResult(message) ? stripRedundantSchemaKeys(message) : message,
+    transport.send = ((message2, options) => rawSend(
+      isListToolsResult(message2) ? stripRedundantSchemaKeys(message2) : message2,
       options
     ));
     return rawConnect(transport);
@@ -163398,9 +163543,9 @@ function createServer(cfg, opts) {
               `[abapsmith] ${label}connected \u2014 authenticated to ${info.sid} @ ${info.url} as ${info.user} (client ${info.client})`
             );
           } catch (e) {
-            const { code, message, hint } = describeStartupProbeFailure(e);
+            const { code, message: message2, hint } = describeStartupProbeFailure(e);
             warn(
-              `[abapsmith] ${label}STARTUP PROBE FAILED (${code}): ${message}` + (hint ? ` \u2014 ${hint}` : "")
+              `[abapsmith] ${label}STARTUP PROBE FAILED (${code}): ${message2}` + (hint ? ` \u2014 ${hint}` : "")
             );
             notConnectedSuffix = " \u2014 NOT CONNECTED, see probe failure above";
           }
@@ -163505,8 +163650,8 @@ function isPlainObject8(v) {
 function truthy(v) {
   return ["1", "true", "yes", "on"].includes(v.trim().toLowerCase());
 }
-function entryProblem(alias, source, message) {
-  return `systems entry ${alias} (${source}): ${message}`;
+function entryProblem(alias, source, message2) {
+  return `systems entry ${alias} (${source}): ${message2}`;
 }
 function fileValueToEnvString(value, what) {
   if (Array.isArray(value)) {
@@ -163522,9 +163667,9 @@ function fileValueToEnvString(value, what) {
     error: `${what} must be a string, number, boolean, or array of strings (got ${value === null ? "null" : typeof value}).`
   };
 }
-function flattenMultilineError(message) {
-  const lines = message.split("\n").map((l) => l.trim()).filter((l) => l.length > 0);
-  if (lines.length <= 1) return message;
+function flattenMultilineError(message2) {
+  const lines = message2.split("\n").map((l) => l.trim()).filter((l) => l.length > 0);
+  if (lines.length <= 1) return message2;
   const [first, ...rest] = lines;
   const bullets = rest.map((l) => l.replace(/^-\s*/, ""));
   return `${first} ${bullets.join("; ")}`;
