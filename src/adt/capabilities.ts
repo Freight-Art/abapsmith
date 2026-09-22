@@ -1361,12 +1361,16 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
         "the only route that answers a GET at all — the generic VIT bridge — returns a " +
         "content-free stub for ANY key, including nonexistent title ids and even nonexistent " +
         "program names (it does not validate existence, only echoes the requested key), and a " +
-        "405 Method Not Allowed on every write verb, verified live with a valid CSRF token.",
+        "405 Method Not Allowed on every write verb, verified live with a valid CSRF token. Do " +
+        "not confuse this with the program's TEXT POOL (text symbols/selection texts) — a " +
+        "different, separate resource (ADT type PROG/PX) that IS writable; see the alternative.",
       alternative:
         "GUI titles can only be edited in SE41 (or SE80's Menu Painter), both SAPGUI tools " +
         "outside abapsmith's reach. There is no ABAP-code equivalent to fall back on the way " +
         "PROG/PS and PROG/PC have their flow-logic/PAI-module escape hatch — SET TITLEBAR just " +
-        "names a titlebar id, it does not carry the title text itself.",
+        "names a titlebar id, it does not carry the title text itself. For text symbols and " +
+        "selection texts, use abap_write's text_pool parameter on the PROG/P object and read " +
+        "them back with abap_read — both go through the textelements resource, not PROG/PT.",
     },
   },
   // Not in types.ts — see the module doc. A different shape of gap from

@@ -48,6 +48,7 @@ import { assertBridgeMutation } from "./bridge-mutation.js";
 import { missingEnhancementWrapperError } from "./enhancement-refusals.js";
 import { AbapError, describeUnknownError, isAbapError } from "./errors.js";
 import { deletePackageViaBridge } from "./package-delete.js";
+import { createProgram } from "./program-create.js";
 import { activationFromVersion, identifyByName, parseObjectRef, type ActivationState } from "./resolve.js";
 import { levenshtein } from "./source.js";
 import { toAbapError, type SessionTransport } from "./session-transport.js";
@@ -478,6 +479,8 @@ export type WriteOptions = TransportOptions & {
   source: string;
   /** Compare-before-write: reject if the current content hash differs. */
   expectEtag?: string;
+  /** PROG/P only — Fixed Point Arithmetic on the create body. Default true; see `createProgram`. */
+  fixedPointArithmetic?: boolean;
   /**
    * See {@link BeforeImageHook}. REQUIRED, like `deleteObject`/`createPackage`/
    * `writeEnhancementDescription` — a real hook or {@link NO_JOURNAL}, so
@@ -3011,7 +3014,7 @@ export async function writeObject(
     // the new object under a request of its own choosing and the PUT then
     // collides with it (see `createNewObject`). Same gate-judged `preflight`
     // value both times.
-    if (created) await createNewObject(conn, t, preflight, opts.source);
+    if (created) await createNewObject(conn, t, preflight, opts.source, opts.fixedPointArithmetic ?? true);
 
     // `lockUri(t)`, not `t.uri`: for an include write the enqueue and the PUT
     // address different URIs, and `lockUri` is the one place that decides
@@ -3425,6 +3428,8 @@ async function createNewObject(
    * via the following PUT.
    */
   payload: string | undefined,
+  /** PROG/P only — see `WriteOptions.fixedPointArithmetic`; ignored for every other type. */
+  fixedPointArithmetic = true,
 ): Promise<void> {
   const cap = capabilitiesFor(t.type);
   // Defence-in-depth: `writeObject`'s own `created` gate already
@@ -3446,6 +3451,13 @@ async function createNewObject(
         "been tried live, or it was tried and did not reliably work.",
       { retryable: false }, // matches UNSUPPORTED's own default; reaffirmed for readability at the throw site
     );
+  }
+  // PROG/P is diverted here regardless of `cap.create.vendor`: the vendor
+  // library's createObject has no way to set `abapsource:fixPointArithmetic`
+  // (issue #179), so it always needs the raw-XML POST in program-create.ts.
+  if (t.type === "PROG/P") {
+    await createProgram(conn, t, corr, fixedPointArithmetic);
+    return;
   }
   if (cap?.create?.vendor === false) {
     await createByXml(conn, t, corr, payload);

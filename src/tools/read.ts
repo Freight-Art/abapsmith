@@ -88,6 +88,8 @@ import {
   type ResponseParts,
 } from "../compact.js";
 import { canonicalEtag } from "../adt/write.js";
+import { parseFixPointArithmetic } from "../adt/program-create.js";
+import { readTextPool, type TextPool } from "../adt/text-pool.js";
 import { buildLineage, LINEAGE_DEFAULT_DEPTH, LINEAGE_MAX_DEPTH, renderLineage } from "../adt/cds-lineage.js";
 import { buildFootprint, FOOTPRINT_TYPES, renderFootprint } from "../adt/footprint.js";
 import type { SessionPool } from "../adt/pool.js";
@@ -606,6 +608,22 @@ const EMPTY_SOURCE_NOTE =
  * only ever stays truncated. `forceIncomplete` is for the format:"raw" path,
  * which windows by CHARACTERS before `buildResponse` ever sees the body.
  */
+/** Compact `TEXT POOL` section body (issue #182) — omits an empty group entirely. */
+function renderTextPool(pool: TextPool): string {
+  const parts: string[] = [];
+  const symbolKeys = Object.keys(pool.symbols);
+  if (symbolKeys.length > 0) {
+    parts.push("symbols:");
+    for (const key of symbolKeys) parts.push(`  ${key}  ${pool.symbols[key]}`);
+  }
+  const selectionNames = Object.keys(pool.selectionTexts);
+  if (selectionNames.length > 0) {
+    parts.push("selection_texts:");
+    for (const name of selectionNames) parts.push(`  ${name}  ${pool.selectionTexts[name]}`);
+  }
+  return parts.join("\n");
+}
+
 function buildSourceResponse(
   parts: ResponseParts,
   etag: string,
@@ -3424,9 +3442,58 @@ export async function abapRead(
   // Whole-object read: its body IS the exact text a full-source abap_write
   // replaces, so an incomplete body is data loss waiting to
   // happen — buildSourceResponse marks the etag `partial:` when it is.
+  const wholeObjectRead = include === undefined || include === "main";
+  const firstPage = (input.offset ?? 1) <= 1;
+
+  // Issue #179: Fixed Point Arithmetic isn't in the source, only the
+  // descriptor XML — one extra GET, best-effort. Any failure (older
+  // release, network) just omits the line rather than failing the read.
+  let fixPointArithmeticHeader: Record<string, string> = {};
+  if (obj.type === "PROG/P" && wholeObjectRead) {
+    try {
+      const descriptor = await conn.get(obj.uri, {
+        headers: { Accept: "application/vnd.sap.adt.programs.programs.v3+xml" },
+      });
+      const fpa = parseFixPointArithmetic(descriptor.body);
+      if (fpa !== undefined) fixPointArithmeticHeader = { fixed_point_arithmetic: String(fpa) };
+    } catch {
+      // omit
+    }
+  }
+
+  // Issue #182: the text pool (symbols/selection texts) is a separate
+  // sub-resource, not part of this source — shown only on the first page of
+  // a whole-object read, best-effort like the flag above.
+  const textPoolSections: Array<{ title: string; content: string }> = [];
+  if (obj.type === "PROG/P" && wholeObjectRead && firstPage) {
+    try {
+      const pool = await readTextPool(conn, obj.name);
+      if (pool) textPoolSections.push({ title: "TEXT POOL", content: renderTextPool(pool) });
+    } catch {
+      // omit
+    }
+  }
+
+  // Rebuilt (not just `{...header, fixed_point_arithmetic}`) so the new key
+  // lands right after `description`, not at the end — a plain spread would
+  // append it since it is new to this object.
+  const wholeHeader: Record<string, string | number | undefined> = {
+    system: header.system,
+    object: header.object,
+    uri: header.uri,
+    package: header.package,
+    description: header.description,
+    ...fixPointArithmeticHeader,
+    ...(header.mode !== undefined ? { mode: header.mode } : {}),
+    ...(header.include !== undefined ? { include: header.include } : {}),
+    ...(header.etag !== undefined ? { etag: header.etag } : {}),
+    ...(header.serverEtag !== undefined ? { serverEtag: header.serverEtag } : {}),
+  };
+
   return buildSourceResponse(
     {
-      header: { ...header, totalLines: window.total, totalChars },
+      header: { ...wholeHeader, totalLines: window.total, totalChars },
+      sections: textPoolSections,
       body: window.text,
       bodyLabel: "SOURCE",
       bodyOffset: window.offset,
