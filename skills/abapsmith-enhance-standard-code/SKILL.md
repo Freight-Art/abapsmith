@@ -24,7 +24,10 @@ enh_discover_hook_anchors → enh_create_hook
 ```
 
 `anchorFullName` must come from `discover_hook_anchors`. Never construct it.
-`create_hook` supports a **`PROG/P` host only**.
+`create_hook` supports a **`PROG/P` host only**. Its `enhoxhh` media type
+is negotiated from `/sap/bc/adt/discovery`, not hardcoded — a server whose
+discovery has no `enhoxhh` collection refuses `create_hook` as
+`UNSUPPORTED` before any request; see `doc/TOOLS/enhancements.md`.
 
 ## `spec` identifier grammar
 

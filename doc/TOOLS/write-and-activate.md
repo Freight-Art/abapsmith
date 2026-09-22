@@ -42,6 +42,8 @@ reaching SAP.
 | `affects` | object `{name, packageName, masterSystem?, spotName?}` | no (required for `ENHO/XHH`) | — | The object this write's target enhancement binds to. |
 | `objects` | array of `{object, type?, affects?}`, 1–10 entries | no | — | Batch form: delete several objects in one call, one at a time, in the order given. `mode=delete` only. Mutually exclusive with `object` — exactly one of the two, never both and never neither. |
 | `dry_run` | boolean | no | — | Resolve, read, apply the edit locally and run the safety gate, but return a diff preview instead of writing. Works with `source`, `edit`, `method`, `ddic` and `mode=delete`. Refused with `BAD_INPUT` for `objects`, for `DEVC/K`, and — for every mode, not just create — for the four bridge-only types (`SHLP/DH`, `VIEW/DV`, `TRAN/T`, `TABL/DI`): the dispatch check runs before any create/update/delete branching, so a dry-run `mode="delete"` or `mode="update"` on one of these is refused the same as a create. |
+| `fixed_point_arithmetic` | boolean | no | `true` | `PROG/P` create only — sends `abapsource:fixPointArithmetic="true"` in the ADT create payload; `false` omits the attribute. Named against any other type: `BAD_INPUT`, before any request. |
+| `text_pool` | object `{symbols?, selection_texts?}` | no | — | `PROG/P` only — writes the program's text pool (text symbols and selection texts) through the `PROG/PX` textelements resource. `symbols`: map of 1–3 alphanumeric key (uppercased) to text up to 132 chars. `selection_texts`: map of up to 8-char name (parameter/select-option name, uppercased) to text up to 30 chars. With `source`, written after the source write and activation; without `source`, allowed only on an existing program (`BAD_INPUT` on a non-existing one). Named against any other type: `BAD_INPUT`, before any request. See "Program text pool (`text_pool`)" below. |
 
 **Search help refusals and DH109**: `DDIF_SHLP_PUT` succeeds and
 `DDIF_SHLP_ACTIVATE` then returns `rc = 8` with message `DH109` ("search
@@ -380,6 +382,37 @@ in every mode they support (create, delete, and — for `SHLP/DH`, `VIEW/DV`,
 generating and running an ABAP program, leaving nothing to preview short of
 doing it; and `DEVC/K` (package create), where a transportable package create must claim
 or create its transport request before anything else can be decided.
+
+**Program text pool (`text_pool`)**: `PROG/PT` is the program's GUI title
+(`SET TITLEBAR`, Menu Painter/SE41), not the text pool, and stays
+unwritable. The text pool — text symbols and selection texts — is a
+separate ADT resource, `/sap/bc/adt/textelements/programs/{name}`, type
+`PROG/PX`, and is written through `text_pool` on a `PROG/P` write. Given
+alongside `source`, the text pool write runs after the source write and
+its activation; given alone, it targets an existing program's already-live
+source and is refused `BAD_INPUT` if the program does not exist yet.
+Naming `text_pool` against any type other than `PROG/P` is refused
+`BAD_INPUT` before any request, same as `fixed_point_arithmetic`. Texts
+are written in the session's logon language, and the textelements
+resource is then activated, unless `activate: false` is passed — the same
+flag that controls source activation. Text-pool writes ARE journalled — as
+an irreversible `update` entry on the `PROG/PX` textelements resource
+(history only, visible in `abap_journal mode=list`) — but `abap_journal
+mode=undo` refuses it: rewrite the texts with another `text_pool` call to
+revert. A successful write reports `text_pool: symbols N,
+selection_texts M (<language>)` and `text_pool_activated: yes|no` in the
+response.
+
+```json
+{
+  "object": "ZDEMO_REPORT",
+  "type": "PROG/P",
+  "text_pool": {
+    "symbols": { "001": "Hello" },
+    "selection_texts": { "P_X": "Parameter X" }
+  }
+}
+```
 
 Example:
 

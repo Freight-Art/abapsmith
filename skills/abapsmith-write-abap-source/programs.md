@@ -10,3 +10,11 @@ Read after `SKILL.md` when writing an executable program or a program include.
 - `abap_run` executes the report and captures its list output (`WRITE`). Selection-screen
   parameters go in `abap_run`'s `parameters` argument, not into the source.
 - `SELECT` and character-test traps that pass the syntax check are in `SKILL.md`.
+- A new `PROG/P` is created with Fixed Point Arithmetic **on**
+  (`abapsource:fixPointArithmetic="true"`) by default — opt out with
+  `fixed_point_arithmetic: false` if the report genuinely needs it off.
+- The text pool (text symbols, selection texts) is written with
+  `abap_write`'s `text_pool` parameter, not with `source` — see
+  `doc/TOOLS/write-and-activate.md`.
+- `PROG/PT` is the program's GUI title (`SET TITLEBAR`, Menu Painter/SE41),
+  not the text pool. It is not writable or readable here.
