@@ -12,6 +12,8 @@
  * constructs the envelope.
  */
 
+import type { AbapErrorCode } from "./errors.js";
+
 export interface AdtMessageRule {
   /** Stable identifier, surfaced in details so a run can be counted by rule. */
   readonly id: string;
@@ -30,6 +32,10 @@ export interface AdtMessageRule {
    * depends on what the server actually sent (e.g. naming the offending
    * XML_PATH element). */
   readonly hint: string | ((message: string, properties: Record<string, string>) => string);
+  /** Overrides `translateAdtError`'s default `"ADT_ERROR"` code when set. */
+  readonly code?: AbapErrorCode;
+  /** Extra details merged into the thrown `AbapError`, keyed off the match. */
+  readonly details?: (message: string, properties: Record<string, string>) => Record<string, unknown>;
 }
 
 /**
@@ -61,6 +67,21 @@ const DELETE_REFUSED_STILL_REFERENCED_HINT =
   'referrer first with abap_search (mode: "where_used", query: "<name>"), then remove the ' +
   "INCLUDE line from each one, or delete the referencing program, and retry the delete. " +
   "Retrying unchanged fails again with the same message.";
+
+function ctsObjectLockedHint(message: string, properties: Record<string, string>): string {
+  const m = /is already locked in request (\w+) of user (\w+)/i.exec(message);
+  const request = properties["T100KEY-V3"] ?? m?.[1] ?? "";
+  const user = properties["T100KEY-V4"] ?? m?.[2] ?? "";
+  const object = properties["T100KEY-V1"] ?? "";
+  return (
+    `Transport request ${request} (owner ${user}) already holds a lock on ${object}, so CTS ` +
+    `will not record this change in a different request. Pass corr_nr=${request} — or a task ` +
+    `of your own under it — so the write is recorded there, or have ${request} released first. ` +
+    "For a function module the locked object is the group's L<GROUP>UXX include, held by the " +
+    "request the group was created in: omit `package` and `corr_nr` so abapsmith derives the " +
+    "module's package from its group and records the create in that request."
+  );
+}
 
 const CONTAINER_PARENT_MISSING_HINT =
   "The message names the CONTAINER (the function group), not the include or function module " +
@@ -199,6 +220,25 @@ export const ADT_MESSAGE_RULES: readonly AdtMessageRule[] = [
       "The server cannot produce the requested representation (HTTP 406). abapsmith asks for the " +
       "highest media-type version /sap/bc/adt/discovery advertises for the collection; reconnect " +
       "to refresh the cached inventory and retry.",
+  },
+  {
+    id: "cts-object-locked-in-other-request",
+    t100Id: "CTS_WBO_API",
+    t100No: "019",
+    match: /is already locked in request (\w+) of user (\w+)/i,
+    hint: ctsObjectLockedHint,
+    code: "TRANSPORT_LOCKED",
+    details: (message, properties) => {
+      const m = /is already locked in request (\w+) of user (\w+)/i.exec(message);
+      const holdingRequest = properties["T100KEY-V3"] ?? m?.[1];
+      const holdingUser = properties["T100KEY-V4"] ?? m?.[2];
+      const lockedObject = properties["T100KEY-V1"];
+      return {
+        ...(holdingRequest !== undefined ? { holdingRequest } : {}),
+        ...(holdingUser !== undefined ? { holdingUser } : {}),
+        ...(lockedObject !== undefined ? { lockedObject } : {}),
+      };
+    },
   },
 ];
 

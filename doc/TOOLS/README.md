@@ -15,6 +15,7 @@ requiredness and defaults are taken from the schema, not from prose.
 | [read-and-search.md](read-and-search.md) | `abap_read`, `abap_search`, `abap_open_url` — reading and locating ABAP objects. |
 | [abap-service.md](abap-service.md) | `abap_service` — reading the OData contract (EDMX) behind a RAP service binding. |
 | [write-and-activate.md](write-and-activate.md) | `abap_write`, `abap_activate` — creating, changing, deleting and activating ABAP objects. |
+| [function-modules.md](function-modules.md) | `abap_write`/`abap_read` on `FUGR/F`/`FUGR/FF`/`FUGR/I` — the group's transport request and `remote_enabled`. |
 | [execute-and-test.md](execute-and-test.md) | `abap_run`, `abap_test` — headless execution and ABAP Unit. |
 | [abap-atc.md](abap-atc.md) | `abap_atc` — ABAP Test Cockpit static analysis, including the wire-protocol grounding notes. |
 | [abap-quick-fix.md](abap-quick-fix.md) | `abap_quick_fix` — applying ADT position-driven quick fixes as a gated, journalled write, including the wire-protocol grounding notes. |

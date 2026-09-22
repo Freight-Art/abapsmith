@@ -1,0 +1,22 @@
+{
+  "n": 985,
+  "label": "i171-fgroup-get-packageref",
+  "expect": "the group descriptor carries adtcore:packageRef name=ZTMA_COURSES, the authoritative package a module created inside it inherits",
+  "note": "GET of the containing function group ZAS_FG171 (package ZTMA_COURSES) - what containerPackage() reads on the FUGR/FF create path (issue 171)",
+  "requestMethod": "GET",
+  "requestUrl": "/sap/bc/adt/functions/groups/zas_fg171?sap-client=001",
+  "requestHeaders": {
+    "Accept": "application/*"
+  },
+  "responseStatus": 200,
+  "responseHeaders": {
+    "content-type": "application/xml"
+  },
+  "responseHeadersNote": "only content-type known: body captured with a direct ADT GET/PUT (scripts outside the repo); other response headers were not recorded",
+  "byteLength": 3407,
+  "zeroByteBody": false,
+  "sha256": "a90db61c73d6aea42ae93850c0b535e01449bab8529a5c4ad03ec63ff1947fdb",
+  "utcTimestamp": "2026-09-22T15:40:00Z",
+  "timestampNote": "approximate (minute precision) - taken from the capture session notes, not a recorded clock",
+  "sessionName": "LIVE-I171-I177"
+}

@@ -1,0 +1,22 @@
+{
+  "n": 991,
+  "label": "i177-fmodule-get-normal",
+  "expect": "processingType=normal is what abap_read must report as processing_type normal / remote_enabled false",
+  "note": "descriptor of a freshly created module: fmodule:processingType=normal, version active, containerRef with adtcore:packageName=ZTMA_COURSES (issue 177)",
+  "requestMethod": "GET",
+  "requestUrl": "/sap/bc/adt/functions/groups/zas_fg171/fmodules/zas_fm_one?sap-client=001",
+  "requestHeaders": {
+    "Accept": "application/*"
+  },
+  "responseStatus": 200,
+  "responseHeaders": {
+    "content-type": "application/xml"
+  },
+  "responseHeadersNote": "only content-type known: body captured with a direct ADT GET/PUT (scripts outside the repo); other response headers were not recorded",
+  "byteLength": 2325,
+  "zeroByteBody": false,
+  "sha256": "baaa38d98931b4d8a585442009316cecaa3b4fcfe91f0f81d19f287497f4c43d",
+  "utcTimestamp": "2026-09-22T15:16:00Z",
+  "timestampNote": "approximate (minute precision) - taken from the capture session notes, not a recorded clock",
+  "sessionName": "LIVE-I171-I177"
+}

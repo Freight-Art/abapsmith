@@ -1,0 +1,20 @@
+{
+  "n": 989,
+  "label": "i171-fmodule-lock-corrnr",
+  "expect": "the lock response reports the request the create was recorded in, which the write response must echo as the transport actually used",
+  "note": "LOCK of the freshly created module: CORRNR A4HK900306, CORRUSER ABAPSMITH, IS_LOCAL empty (issue 171)",
+  "requestMethod": "POST",
+  "requestUrl": "/sap/bc/adt/functions/groups/zas_fg171/fmodules/zas_fm_one?_action=LOCK&accessMode=MODIFY&sap-client=001",
+  "requestHeaders": {},
+  "responseStatus": 200,
+  "responseHeaders": {
+    "content-type": "application/xml"
+  },
+  "responseHeadersNote": "only content-type known: body captured via an HTTP trace hook on abapsmith's own guarded transport (trace-i171-fm1e); other response headers were not recorded",
+  "byteLength": 387,
+  "zeroByteBody": false,
+  "sha256": "18032dea0c415362c5d4b3e206e515209835900d7cf842c4871a767eb208c32f",
+  "utcTimestamp": "2026-09-22T15:11:00Z",
+  "timestampNote": "approximate (minute precision) - taken from the capture session notes, not a recorded clock",
+  "sessionName": "LIVE-I171-I177"
+}

@@ -229,6 +229,17 @@ describe("safety-gate contract (heuristic, see file header)", () => {
     // what the one-hop importer clause in the second test matches; it is
     // gated as a read, not a write, because none of these three endpoints can
     // return anything `abap_write` would act on.
+    // `adt/class-interfaces.ts` added 2026-09 (issue #186) — its single
+    // `conn.post(...)` is the ADT type-hierarchy lookup
+    // (`fetchImplementedInterfaces`, `POST abapsource/typehierarchy?type=
+    // superTypes`), which posts the class source so the server can resolve a
+    // position in it — the same shape as `adt/element-info.ts`'s elementinfo
+    // lookup, and like it changes no repository object. The module takes no
+    // `SafetyGate` itself. Its importers are `src/adt/bopf.ts` (whose own
+    // `conn.put`s are gated one hop up) and `src/tools/bopf.ts`, which calls
+    // `deps.safety.assert(...)` before any mutation and runs
+    // this lookup only as a preflight ahead of the gated PUT — which is what
+    // the one-hop importer clause in the second test matches.
     // `adt/odata.ts` added 2026-09 — `runPublishJob`'s single `conn.post(...)`
     // is the ADT business-services publish/unpublish job (one call site, the
     // path and query differ by op and OData version). It registers or removes
@@ -257,6 +268,7 @@ describe("safety-gate contract (heuristic, see file header)", () => {
         "adt/activate.ts",
         "adt/atc.ts",
         "adt/bopf.ts",
+        "adt/class-interfaces.ts",
         "adt/element-info.ts",
         "adt/enhancement-bridge.ts",
         "adt/enhancement-hook.ts",

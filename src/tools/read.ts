@@ -87,7 +87,7 @@ import {
   type BuiltResponse,
   type ResponseParts,
 } from "../compact.js";
-import { canonicalEtag } from "../adt/write.js";
+import { canonicalEtag, parseProcessingType } from "../adt/write.js";
 import { parseFixPointArithmetic } from "../adt/program-create.js";
 import { readTextPool, type TextPool } from "../adt/text-pool.js";
 import { buildLineage, LINEAGE_DEFAULT_DEPTH, LINEAGE_MAX_DEPTH, renderLineage } from "../adt/cds-lineage.js";
@@ -3438,6 +3438,21 @@ export async function abapRead(
     );
   }
 
+  // FUGR/FF only: one extra GET for the module descriptor's processing type.
+  // Never fails the read — errors are swallowed and the fields just omitted.
+  let fmoduleHeader: Record<string, string> = {};
+  if (obj.type === "FUGR/FF") {
+    try {
+      const descriptor = await conn.get(obj.uri, { headers: { Accept: "application/*" } });
+      const processingType = parseProcessingType(descriptor.body ?? "");
+      if (processingType !== undefined) {
+        fmoduleHeader = { processing_type: processingType, remote_enabled: processingType === "rfc" ? "yes" : "no" };
+      }
+    } catch {
+      // Omit processing_type/remote_enabled below.
+    }
+  }
+
   const window = sliceLines(source, input.offset ?? 1, input.limit);
   // Whole-object read: its body IS the exact text a full-source abap_write
   // replaces, so an incomplete body is data loss waiting to
@@ -3492,7 +3507,7 @@ export async function abapRead(
 
   return buildSourceResponse(
     {
-      header: { ...wholeHeader, totalLines: window.total, totalChars },
+      header: { ...wholeHeader, ...fmoduleHeader, totalLines: window.total, totalChars },
       sections: textPoolSections,
       body: window.text,
       bodyLabel: "SOURCE",

@@ -18,6 +18,7 @@ import { resolveObject } from "../adt/resolve.js";
 import { fetchUsageReferences, HIGH_FAN_IN_REFERENCES, SLOW_FETCH_MS } from "../adt/element-info.js";
 import { buildCallGraph } from "../adt/call-graph.js";
 import { repairSearchDescriptions } from "../adt/search-descriptions.js";
+import { searchObjectsTolerant } from "../adt/object-search.js";
 import { buildResponse, textTable, type BuiltResponse } from "../compact.js";
 import { specForKeyword, specForType, specFromUri, TYPES } from "../adt/types.js";
 import { truncateForDisplay } from "../truncate.js";
@@ -205,7 +206,7 @@ async function searchObjects(
   // size is honoured (1000 and 5000 rows). `max` itself still only bounds
   // what is DISPLAYED (see the cap below), never what is fetched.
   const fetchMax = type ? Math.min(TYPED_FETCH_CAP, max * TYPED_FETCH_MULTIPLIER) : max;
-  const rawResults = await conn.adt.searchObject(query, undefined, fetchMax);
+  const rawResults = await searchObjectsTolerant(conn, query, fetchMax);
 
   // Repaired BEFORE the type filter: the permutation is defined over the
   // whole type group as the server returned it, so filtering to one

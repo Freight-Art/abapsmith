@@ -10,6 +10,9 @@
  * must fall through unchanged, plus two new `details` keys for counting how
  * often the unclassified branch fires.
  */
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { fromException } from "abap-adt-api/build/AdtException.js";
 import {
@@ -21,6 +24,8 @@ import {
 import { translateAdtError } from "../src/adt/session.js";
 
 const OK_XML = { "content-type": "application/xml" };
+
+const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), "fixtures", "live-captured");
 
 /** Replay a captured body through the REAL abap-adt-api error path — same
  * helper shape as test/session.test.ts's `thrownByLibrary`. */
@@ -445,5 +450,72 @@ describe("translateAdtError — not-acceptable wired into the UNCLASSIFIED tail"
     expect(err.details.status).toBe(406);
     expect(err.hint).not.toMatch(/was not recognised by any specific rule here/);
     expect(err.hint).toMatch(/406/);
+  });
+});
+
+// #171: the module-create 403 CTS returns when a function group's include is
+// already locked in another request. Fixture 988 is a real A4H capture of
+// that body (POST .../fmodules without corrNr, while LZAS_FG171UXX is locked
+// in A4HK900306 of ABAPSMITH).
+const CTS_LOCK_MESSAGE =
+  "Object LIMU REPS LZAS_FG171UXX is already locked in request A4HK900306 of user ABAPSMITH";
+const CTS_LOCK_PROPERTIES = {
+  "T100KEY-ID": "CTS_WBO_API",
+  "T100KEY-NO": "019",
+  "T100KEY-V1": "LIMU REPS LZAS_FG171UXX",
+  "T100KEY-V3": "A4HK900306",
+  "T100KEY-V4": "ABAPSMITH",
+};
+const FIXTURE_988_XML = readFileSync(
+  join(FIXTURES, "988-i171-fmodule-post-403-cts-wbo-api-19.xml"),
+  "utf8",
+);
+
+describe("cts-object-locked-in-other-request (#171)", () => {
+  it("matches on T100 CTS_WBO_API/019 with the full properties", () => {
+    const rule = classifyAdtMessage(
+      CTS_LOCK_MESSAGE,
+      CTS_LOCK_PROPERTIES,
+      "ExceptionResourceNoAuthorization",
+    );
+    expect(rule?.id).toBe("cts-object-locked-in-other-request");
+  });
+
+  it("matches on prose alone when no T100 key is sent", () => {
+    const rule = classifyAdtMessage(CTS_LOCK_MESSAGE, {});
+    expect(rule?.id).toBe("cts-object-locked-in-other-request");
+  });
+
+  it("a T100 CTS_WBO_API with a different number and unrelated prose does not match", () => {
+    const rule = classifyAdtMessage("Some other CTS complaint entirely", {
+      "T100KEY-ID": "CTS_WBO_API",
+      "T100KEY-NO": "020",
+    });
+    expect(rule).toBeUndefined();
+  });
+
+  it("translateAdtError on the live 403 body gives TRANSPORT_LOCKED with the holding request, user and object", () => {
+    const e = thrownByLibrary(403, "Forbidden", OK_XML, FIXTURE_988_XML);
+    const err = translateAdtError(e, ctx);
+
+    expect(err.code).toBe("TRANSPORT_LOCKED");
+    expect(err.details.classifiedBy).toBe("cts-object-locked-in-other-request");
+    expect(err.details.holdingRequest).toBe("A4HK900306");
+    expect(err.details.holdingUser).toBe("ABAPSMITH");
+    expect(err.details.lockedObject).toBe("LIMU REPS LZAS_FG171UXX");
+    expect(err.hint).toContain("A4HK900306");
+    expect(err.hint).toMatch(/corr_nr/);
+    expect(err.hint).not.toMatch(/was not recognised by any specific rule here/);
+  });
+
+  it("this rule's own matcher does not match the TR/462 message, and TR/462's matcher does not match this one", () => {
+    expect(matchOf("cts-object-locked-in-other-request").test(TR462_MESSAGE)).toBe(false);
+    expect(matchOf("package-software-component-refused").test(CTS_LOCK_MESSAGE)).toBe(false);
+  });
+
+  it("rule ids stay unique with this rule added (re-asserting the existing invariant)", () => {
+    const ids = ADT_MESSAGE_RULES.map((r) => r.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids).toContain("cts-object-locked-in-other-request");
   });
 });

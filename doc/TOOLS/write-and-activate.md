@@ -28,7 +28,7 @@ reaching SAP.
 | `activate` | boolean | no | `true` | Activate after a successful write. |
 | `verify` | boolean | no | — | Raise this one call to `verified` mode — reads the object back after a successful write. Raise-only: cannot lower a server `ABAP_VERIFY_WRITES=verified` default. |
 | `format` | boolean | no | — | Pretty-print the source before writing. |
-| `corr_nr` | string | no | — | Transport request to write into. Omit for `$TMP`-local objects. Never required: for every transportable create — the classic-bridge types `TRAN/T`, `SHLP/DH`, `VIEW/DV`, `TABL/DI` and `DEVC/K` included (they register via `RS_CORR_INSERT`, which needs a request, so the server resolves one) — omitting it takes the same route as a class create: the safety gate judges the write first, with no wire request, then the session resolver reuses a modifiable request this session created or that is attributed to abapsmith for the package, else creates one, and the response's `transport:` field names it. Under `ABAP_ALLOW_TRANSPORTS=auto` a named value is refused (`SAFETY_DENIED`, rule `transport allowlist`, `retryable: false`) regardless of which request — omit the field. Refused for any bridge create into a `$` package. For `mode="update"` on any of the three, `corr_nr` is always optional, never required, regardless of package — the object already exists and is already recorded wherever CTS holds it; a named value is passed through as-is (`corrSource: "named"`), nothing re-derives or requires it. Also refused for a `VIEW/DV`/`TRAN/T`/`SHLP/DH` delete — none of the three delete bridges takes a transport parameter, and none is needed: the delete registers nothing in CTS, so it is judged as a local mutation regardless of `ABAP_ALLOW_TRANSPORTS`. For any other `mode=delete`, a named `corr_nr` that disagrees with the request CTS already records the object in is refused before anything is deleted, pre-lock — see "`mode=delete` and transport requests" below; left unnamed, the request that already holds the object wins the deletion, resolved automatically. A `mode=write`/`edit` naming a different `corr_nr` is never refused this way — the write proceeds under the request CTS already holds, reported rather than silently substituted. |
+| `corr_nr` | string | no | — | Transport request to write into. Omit for `$TMP`-local objects. Never required: for every transportable create — the classic-bridge types `TRAN/T`, `SHLP/DH`, `VIEW/DV`, `TABL/DI` and `DEVC/K` included (they register via `RS_CORR_INSERT`, which needs a request, so the server resolves one) — omitting it takes the same route as a class create: the safety gate judges the write first, with no wire request, then the session resolver picks a request in the order given under "How the request is chosen" below, and the response's `transport:` field names it. Under `ABAP_ALLOW_TRANSPORTS=auto` a named value is refused (`SAFETY_DENIED`, rule `transport allowlist`, `retryable: false`) regardless of which request — omit the field. Refused for any bridge create into a `$` package. For `mode="update"` on any of the three, `corr_nr` is always optional, never required, regardless of package — the object already exists and is already recorded wherever CTS holds it; a named value is passed through as-is (`corrSource: "named"`), nothing re-derives or requires it. Also refused for a `VIEW/DV`/`TRAN/T`/`SHLP/DH` delete — none of the three delete bridges takes a transport parameter, and none is needed: the delete registers nothing in CTS, so it is judged as a local mutation regardless of `ABAP_ALLOW_TRANSPORTS`. For any other `mode=delete`, a named `corr_nr` that disagrees with the request CTS already records the object in is refused before anything is deleted, pre-lock — see "`mode=delete` and transport requests" below; left unnamed, the request that already holds the object wins the deletion, resolved automatically. A `mode=write`/`edit` naming a different `corr_nr` is never refused this way — the write proceeds under the request CTS already holds, reported rather than silently substituted. |
 | `software_component` | string | no | — | `DEVC/K` (package) only: `LOCAL`, or a transportable component (e.g. `HOME`) — the latter needs `corr_nr` unless the package is `$TMP`-local. |
 | `package_type` | string | no | `development` | `DEVC/K` only. |
 | `transport_layer` | string | no | — | `DEVC/K` only. |
@@ -134,6 +134,56 @@ prior `abap_read` of the same include silently discards whatever was
 there before. `abap_journal mode=undo` can revert a sub-include write —
 see [journal.md](journal.md) for the current, still test-covered-only,
 state of that undo path.
+
+**How the request is chosen**: under `ABAP_ALLOW_TRANSPORTS=auto`, the
+session resolver picks a request for every transportable write — ADT-native
+writes and the bridge creates `VIEW/DV`, `TRAN/T`, `SHLP/DH`, `TABL/DI` and
+`DEVC/K` alike, since all five resolve through the same resolver — in this
+order:
+
+1. A **server pin** — CTS already records the object in a request.
+2. A **named request** — a `corr_nr` the caller gave, or a request listed
+   in `ABAP_ALLOW_TRANSPORTS`.
+3. A **request this session created** (`abap_transport operation=create`,
+   or an earlier auto-create this session). Taken from CTS's candidate
+   list for the package when it appears there; when the candidate list
+   omits it — the package check failed, the request was pinned, or the
+   check came back empty (the #174 case) — abapsmith confirms it with a
+   direct read of the request instead of minting a new one.
+4. An **older modifiable request owned by the connected user**, carrying
+   the `abapsmith session <date>` description — used only when the session
+   has no request of its own.
+5. **Create a new request.**
+
+A cached older request (tier 4) is switched away from the moment a
+session-created request (tier 3) exists.
+
+**NOTEs on the request used** (#175): when the request is a server pin,
+the note reads `Server pinned <OBJ> to <REQ> (it holds the lock for
+<PGMID> <TYPE> <NAME>), not the session's request <SESSION>.` When an
+older abapsmith request is adopted (tier 4), the note reads `Resolver
+preferred <REQ> (created by this server on <date>, description "…") over
+creating a new request because this session has no request of its own
+(…)` — or `because the session's own request <SESSION> is no longer
+usable` when a cached request went stale — followed by the existing "THIS
+SESSION DID NOT CREATE IT …" warning.
+
+**Read-back after bridge creates** (#173): after a `TABL/DI`, `VIEW/DV`
+or `TRAN/T` bridge create, abapsmith reads the request back — a transport
+show, then a CTS lock check on the object (or its base table for
+`TABL/DI`) if the show's entry is missing. `transport:` names the request
+that actually holds the entry (`LIMU INDX <TABLE> <ID>` or the covering
+`R3TR TABL <TABLE>` for `TABL/DI`; `R3TR VIEW`/`R3TR TRAN` for the other
+two). Same request: `Read back after the write: request <REQ> lists LIMU
+INDX <TABLE> <ID>.` (replaces the old "abapsmith did NOT re-read the
+request" sentence). Different request: `Recorded in <OTHER> (holds the
+R3TR TABL lock for <TABLE>), not in the session's request <SESSION>.`
+Read-back failed: `Could not confirm from CTS which request holds <entry>
+(<reason>); transport: is the number this write sent.` — the create
+itself is never failed by a read-back problem. `SHLP/DH` and `DEVC/K`
+creates are not read back this way, since neither inherits a parent
+object's lock; there is no append-structure (`TABL/DT` append) write path
+in abapsmith, so there is nothing to read back there either.
 
 **`mode=delete` and transport requests**: SAP records a deletion on the
 request that already holds the lock entry for the object — the request

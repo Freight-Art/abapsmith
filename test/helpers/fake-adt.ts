@@ -2328,7 +2328,7 @@ export function ddicProbeRoute(opts: { uri: string; exists: boolean; packageName
  * the caller construct "exists but declaration-only" (no `IMPLEMENTATION`
  * substring) or "exists and implements" fixtures directly.
  */
-export function classSourceRoute(opts: { name: string; body: string | undefined }): FakeRoute {
+export function classSourceRoute(opts: { name: string; body: string | undefined; status?: number }): FakeRoute {
   // CORRECTED live: namespaced class
   // names (`/BOBF/CL_LIB_A_LOCK`) need their leading/embedded slashes
   // percent-encoded — `encodeURIComponent`, matching what `evaluateClassRef`
@@ -2348,7 +2348,57 @@ export function classSourceRoute(opts: { name: string; body: string | undefined 
         "content-type": "application/xml",
       });
     }
+    // `status` lets a caller answer a non-404 failure (e.g. 403) with a
+    // defined body, for the "source GET fails with something other than
+    // 404" preflight path — distinct from the plain success case below.
+    if (opts.status !== undefined) {
+      return fakeResponse(opts.status, opts.body, { "content-type": "application/xml" });
+    }
     return fakeResponse(200, opts.body, { "content-type": "text/plain; charset=utf-8" });
+  };
+}
+
+/**
+ * A {@link FakeRoute} for `POST /sap/bc/adt/abapsource/typehierarchy`
+ * (`type=superTypes`) — the type-hierarchy lookup `fetchImplementedInterfaces`
+ * (`src/adt/class-interfaces.ts`) uses to find interfaces a class implements
+ * via inheritance, which a substring scan of the class's own source cannot
+ * see. Mirrors the live shape captured on A4H: `origin` names the queried
+ * class itself (a `CLAS/OC` entry among `entries`), followed by its
+ * superclasses (also `CLAS/OC`) and the interfaces it implements, directly
+ * or via any of those superclasses (`INTF/OI`).
+ */
+export function typeHierarchyRoute(opts: {
+  name: string;
+  interfaces: readonly string[];
+  superclasses?: readonly string[];
+  body?: string;
+}): FakeRoute {
+  return (r) => {
+    if (r.method !== "POST" || r.path !== "/sap/bc/adt/abapsource/typehierarchy") return undefined;
+    if (r.qs["type"] !== "superTypes") return undefined;
+    const uri = String(r.qs["uri"] ?? "");
+    if (!uri.startsWith(`/sap/bc/adt/oo/classes/${encodeURIComponent(opts.name.toLowerCase())}/source/main#start=`)) {
+      return undefined;
+    }
+    const contentType = "application/vnd.sap.adt.typehierachy.result.v1+xml; charset=utf-8";
+    if (opts.body !== undefined) {
+      return fakeResponse(200, opts.body, { "content-type": contentType });
+    }
+    const classEntry = (name: string) =>
+      `<entry adtcore:uri="/sap/bc/adt/oo/classes/${encodeURIComponent(name.toLowerCase())}/source/main#start=1,6" ` +
+      `adtcore:type="CLAS/OC" adtcore:name="${name}" hasDefOrImpl="true" xmlns:adtcore="http://www.sap.com/adt/core"/>`;
+    const intfEntry = (name: string) =>
+      `<entry adtcore:uri="/sap/bc/adt/oo/interfaces/${encodeURIComponent(name.toLowerCase())}/source/main#start=5,10" ` +
+      `adtcore:type="INTF/OI" adtcore:name="${name}" hasDefOrImpl="true" xmlns:adtcore="http://www.sap.com/adt/core"/>`;
+    const entries =
+      classEntry(opts.name) +
+      (opts.superclasses ?? []).map(classEntry).join("") +
+      opts.interfaces.map(intfEntry).join("");
+    const body =
+      `<?xml version="1.0" encoding="utf-8"?><hierarchy:info xmlns:hierarchy="http://www.sap.com/adt/relations/typehierarchy">` +
+      `<origin typeName="${opts.name}" methodName=""/><entries>${entries}</entries></hierarchy:info>`;
+    return fakeResponse(200, body, { "content-type": contentType });
   };
 }
 

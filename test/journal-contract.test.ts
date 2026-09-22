@@ -515,12 +515,14 @@ const PINNED_MUTATION_CENSUS: ReadonlyMap<string, { calls: number; note: string 
   [
     "adt/write.ts",
     {
-      calls: 7,
+      calls: 8,
       note:
         "writeObject/createObject/deleteObject's create/update/delete/includes calls: two " +
         "conn.adt.createObject (class + include), conn.post x2 (create-by-post path, includes), " +
-        "conn.put (content update), conn.del x2 (delete + include cleanup). All journalled via " +
-        "abapWrite's withJournalledMutation (tools/write.ts).",
+        "conn.put (content update), conn.put (FUGR/FF processing-type descriptor, #177: runs " +
+        "inside writeObject after the content PUT, under the same lock, so only once " +
+        "onBeforeImage -> journal.begin has fired), conn.del x2 (delete + include cleanup). " +
+        "All journalled via abapWrite's withJournalledMutation (tools/write.ts).",
     },
   ],
   [
@@ -742,6 +744,21 @@ const NOT_REPOSITORY_MUTATIONS: ReadonlyMap<string, string> = new Map([
       "and this entry must be re-examined.",
   ],
   [
+    "adt/class-interfaces.ts",
+    "One `conn.post` lookup: `POST /sap/bc/adt/abapsource/typehierarchy?type=superTypes` " +
+      "(`fetchImplementedInterfaces`), which asks ADT for the interfaces a class implements, " +
+      "inherited ones included, so the BOPF class-reference preflight (issue #186) can judge " +
+      "`wrong-interface` without a substring match on the source. The POST body carries the " +
+      "class source because that is how the wire protocol resolves the `#start=line,col` " +
+      "position in the `uri` query parameter — the same shape as `adt/element-info.ts`'s " +
+      "elementinfo lookup. It creates, changes and deletes no repository object, so no " +
+      "`JournalOperation` value could describe it. Both importers, `src/adt/bopf.ts` " +
+      "(`checkReferences`, read-only) and `src/tools/bopf.ts` (the edit preflight, which runs " +
+      "BEFORE the gated PUT and journals that PUT separately), reach it on read paths. If a " +
+      "future code path in this module ever POSTs something that changes a repository object, " +
+      "it must journal and this entry must be re-examined.",
+  ],
+  [
     "adt/quickfix.ts",
     "Two POSTs, `evaluateQuickFixes` (quick-fix evaluation) and " +
       "`fetchQuickFixDelta` (one proposal's own `uri`), both of which compute a fix from source " +
@@ -770,6 +787,7 @@ describe("journal contract (heuristic, see file header)", () => {
         "adt/activate.ts",
         "adt/atc.ts",
         "adt/bopf.ts",
+        "adt/class-interfaces.ts",
         "adt/element-info.ts",
         "adt/enhancement-bridge.ts",
         "adt/enhancement-hook.ts",

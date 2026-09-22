@@ -128,12 +128,13 @@ function unlinked(): string[] {
 }
 
 describe("CHARACTERISATION: which connection-write modules are journal-linked today", () => {
-  it("sees the same 16 connection-write modules the safety-gate contract pins", () => {
+  it("sees the same 17 connection-write modules the safety-gate contract pins", () => {
     expect(callers.map((f) => relative(SRC, f)).sort()).toEqual(
       [
         "adt/activate.ts",
         "adt/atc.ts",
         "adt/bopf.ts",
+        "adt/class-interfaces.ts",
         "adt/element-info.ts",
         "adt/enhancement-bridge.ts",
         "adt/enhancement-hook.ts",
@@ -199,6 +200,14 @@ describe("CHARACTERISATION: which connection-write modules are journal-linked to
     // `src/tools/read.ts`, journals nothing either — correctly, it is a read
     // tool. `test/journal-contract.test.ts` carries the same module in its
     // NOT_REPOSITORY_MUTATIONS list with the full wire-level rationale.
+    //
+    // `adt/class-interfaces.ts` (issue #186) is the same kind of module —
+    // one read-only `conn.post` to ADT's type-hierarchy resource — but it is
+    // ABSENT from this list for the `adt/bopf.ts` reason above: its importer
+    // `src/tools/bopf.ts` carries the `journal:` field that satisfies
+    // `JOURNAL_RE`. Nothing on that path journals this lookup, and nothing
+    // should; `test/journal-contract.test.ts` lists it under
+    // NOT_REPOSITORY_MUTATIONS.
     expect(unlinked()).toEqual(["adt/atc.ts", "adt/element-info.ts", "debug/transport.ts"]);
   });
 });
