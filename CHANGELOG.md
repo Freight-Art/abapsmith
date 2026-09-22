@@ -12,6 +12,8 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.15] - 2026-09-22
+
 ### Added
 
 - **`abap_read pattern=`** (#148). A case-insensitive regex over the object's source returns only the matching lines, numbered like `grep -n -C` — `NNN:` for a match, `NNN-` for the `context` lines around it (default 2), `--` between groups — so the numbers feed straight into `offset=`, `abap_quick_fix` or `view="definition"`. At most 50 matches per response (`limit=` overrides); past that a `--- TRUNCATED ---` line names the `offset=` to continue from. The etag of a pattern read is marked `partial:` (an `edit=` write accepts it, a full-source rewrite is refused). An empty or invalid regex, or `pattern` next to `outline=true`/`method`/`full`, is `BAD_INPUT` before any request; next to a `view` or on a DDIC/raw path it is `UNSUPPORTED`.
