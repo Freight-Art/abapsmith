@@ -64132,23 +64132,23 @@ function isBridgeDeletableType(type) {
   return cap?.bridgeDelete !== void 0;
 }
 function writableTypesHint() {
-  const clauses = [`Writable types are ${WRITABLE_TYPES.join(", ")}.`];
+  const clauses = [`Writable types are ${ABAP_WRITE_TYPES.join(", ")}.`];
   if (CREATE_ONLY_TYPES.length) {
-    clauses.push(`${CREATE_ONLY_TYPES.join(", ")} can only be created, never rewritten \u2014 no source to write.`);
+    clauses.push(`Of these, ${CREATE_ONLY_TYPES.join(", ")} can only be created, never rewritten \u2014 no source to write.`);
   }
   const bridgeAttempted = BRIDGE_ONLY_CREATE_TYPES.filter((c) => !BRIDGE_CREATE_REFUSED_TYPES.includes(c));
   if (bridgeAttempted.length) {
     clauses.push(
-      `${bridgeAttempted.join(", ")} are created through a generated classrun bridge, also with no \`source\`.`
+      `Of these, ${bridgeAttempted.join(", ")} are created through a generated classrun bridge, also with no \`source\`.`
     );
   }
   if (BRIDGE_CREATE_REFUSED_TYPES.length) {
     clauses.push(
-      `${BRIDGE_CREATE_REFUSED_TYPES.join(", ")} cannot be created here at all, in any package \u2014 only deleted.`
+      `Of these, ${BRIDGE_CREATE_REFUSED_TYPES.join(", ")} cannot be created here at all, in any package \u2014 only deleted.`
     );
   }
   if (ENHANCEABLE_TYPES.length) {
-    clauses.push(`${ENHANCEABLE_TYPES.join(", ")} can be edited (not created) here.`);
+    clauses.push(`Of these, ${ENHANCEABLE_TYPES.join(", ")} can be edited (not created) here.`);
   }
   if (ACTIVATION_ONLY_TYPES.length) {
     clauses.push(
@@ -111167,6 +111167,64 @@ function refuseDelete(spec) {
     // matches UNSUPPORTED's own default; reaffirmed for readability at the throw site
   );
 }
+function suggestTypeCodes(type) {
+  const needle = type.trim().toUpperCase();
+  const maxDistance = Math.max(1, Math.ceil(needle.length / 3));
+  return ABAP_WRITE_TYPES.map((code) => ({ code, distance: levenshtein(needle, code) })).filter((c) => c.distance <= maxDistance).sort((a, b) => a.distance - b.distance).slice(0, 3).map((c) => c.code);
+}
+function joinOr(items2) {
+  return items2.length <= 1 ? items2[0] ?? "" : `${items2.slice(0, -1).join(", ")} or ${items2[items2.length - 1]}`;
+}
+function refuseUnwritableType(type, name, op = "write") {
+  const explicit = specForType(type) ?? specForKeyword(type);
+  const unsupportedCap = capabilitiesFor(type);
+  if (unsupportedCap?.unsupported) {
+    throw new AbapError(
+      "UNSUPPORTED",
+      `${unsupportedCap.label} (${type.trim().toUpperCase()}) cannot be written by abapsmith. ${unsupportedCap.unsupported.reason} ${TERMINAL_REFUSAL_NOTE}`,
+      { type: type.trim().toUpperCase(), name },
+      unsupportedCap.unsupported.alternative,
+      { retryable: false }
+      // matches UNSUPPORTED's own default; reaffirmed for readability at the throw site
+    );
+  }
+  if (unsupportedCap?.bridgeCreate && isBridgeOnlyCreateType(type)) {
+    const code = type.trim().toUpperCase();
+    throw new AbapError(
+      "UNSUPPORTED",
+      `${unsupportedCap.label} (${code}) has no writable ADT collection to resolve a URI against, so it cannot be written as source. ${unsupportedCap.bridgeCreate.adtRest} ` + TERMINAL_REFUSAL_NOTE,
+      { type: code, name },
+      `abapsmith implements no update route for this type \u2014 the bridge is create and delete only. ` + (unsupportedCap.bridgeCreate.createRefused ?? `To create a NEW ${unsupportedCap.label}, call abap_write with type="${code}" and no \`source\` (there is no mode=create \u2014 abap_write's mode is write/delete, and a create is a write to a name that does not exist yet). ` + unsupportedCap.bridgeCreate.limits),
+      { retryable: false }
+      // matches UNSUPPORTED's own default; reaffirmed for readability at the throw site
+    );
+  }
+  if (!explicit) {
+    const suggestions = suggestTypeCodes(type);
+    const message = suggestions.length ? `Unknown object type ${JSON.stringify(type)}. Did you mean ${joinOr(suggestions)}?` : `Unknown object type ${JSON.stringify(type)}.`;
+    throw new AbapError(
+      "BAD_INPUT",
+      message,
+      { type, writable: [...ABAP_WRITE_TYPES], ...suggestions.length ? { suggestions } : {} },
+      writableTypesHint()
+    );
+  }
+  const activatable = op === "activate" && ACTIVATE_ONLY.has(explicit.type);
+  if (!CREATABLE.has(explicit.type) && !ENHANCEABLE.has(explicit.type) && !activatable) {
+    if (op === "delete") refuseDelete(explicit);
+    throw new AbapError(
+      "UNSUPPORTED",
+      `${explicit.label} (${explicit.type}) cannot be written by abapsmith. ${TERMINAL_REFUSAL_NOTE}`,
+      { type: explicit.type, writable: [...ABAP_WRITE_TYPES] },
+      writableTypesHint(),
+      { retryable: false }
+      // matches UNSUPPORTED's own default; reaffirmed for readability at the throw site
+    );
+  }
+  if (op === "delete" && !DELETABLE.has(explicit.type) && !isBridgeDeletableType(explicit.type)) {
+    refuseDelete(explicit);
+  }
+}
 async function resolveWriteTarget(conn, target, op = "write") {
   const explicit = target.type ? specForType(target.type) ?? specForKeyword(target.type) : void 0;
   const parsed = parseObjectRef(target.name, explicit);
@@ -111178,40 +111236,7 @@ async function resolveWriteTarget(conn, target, op = "write") {
       "Read the object, edit the text, and write the complete source back."
     );
   }
-  if (target.type) {
-    const unsupportedCap = capabilitiesFor(target.type);
-    if (unsupportedCap?.unsupported) {
-      throw new AbapError(
-        "UNSUPPORTED",
-        `${unsupportedCap.label} (${target.type.trim().toUpperCase()}) cannot be written by abapsmith. ${unsupportedCap.unsupported.reason} ${TERMINAL_REFUSAL_NOTE}`,
-        { type: target.type.trim().toUpperCase(), name: parsed.name },
-        unsupportedCap.unsupported.alternative,
-        { retryable: false }
-        // matches UNSUPPORTED's own default; reaffirmed for readability at the throw site
-      );
-    }
-    if (unsupportedCap?.bridgeCreate && isBridgeOnlyCreateType(target.type)) {
-      const code = target.type.trim().toUpperCase();
-      throw new AbapError(
-        "UNSUPPORTED",
-        `${unsupportedCap.label} (${code}) has no writable ADT collection to resolve a URI against, so it cannot be written as source. ${unsupportedCap.bridgeCreate.adtRest} ` + TERMINAL_REFUSAL_NOTE,
-        { type: code, name: parsed.name },
-        // Routing a caller to the bridge create is only honest while the
-        // bridge create is actually attempted — `createRefused` says it isn't.
-        `abapsmith implements no update route for this type \u2014 the bridge is create and delete only. ` + (unsupportedCap.bridgeCreate.createRefused ?? `To create a NEW ${unsupportedCap.label}, call abap_write with type="${code}" and no \`source\` (there is no mode=create \u2014 abap_write's mode is write/delete, and a create is a write to a name that does not exist yet). ` + unsupportedCap.bridgeCreate.limits),
-        { retryable: false }
-        // matches UNSUPPORTED's own default; reaffirmed for readability at the throw site
-      );
-    }
-  }
-  if (target.type && !explicit) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `Unknown object type ${JSON.stringify(target.type)}.`,
-      { type: target.type, writable: [...ABAP_WRITE_TYPES] },
-      writableTypesHint()
-    );
-  }
+  if (target.type) refuseUnwritableType(target.type, parsed.name, op);
   const offlineSpec = explicit ?? parsed.spec;
   const identified = offlineSpec ? [] : await identifyByName(conn, parsed.name);
   const spec = offlineSpec ?? (identified.length === 1 ? identified[0] : void 0);
@@ -124864,6 +124889,10 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
   }
   const verifyMode = verifyWrites === "verified" || input.verify === true ? "verified" : "speculative";
   const target = targetFromInput({ ...input, object: objectRef });
+  const earlyTypeSpec = input.type ? specForType(input.type) ?? specForKeyword(input.type) : void 0;
+  if (input.type !== void 0 && !isPackageType(earlyTypeSpec?.type) && !isBridgeOnlyCreateType(input.type)) {
+    refuseUnwritableType(input.type, target.name, (input.mode ?? "write") === "delete" ? "delete" : "write");
+  }
   if (input.ddic !== void 0) {
     if ((input.mode ?? "write") === "delete") {
       throw new AbapError(
