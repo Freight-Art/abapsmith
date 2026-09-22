@@ -70,9 +70,18 @@ or a `catalogRead` render (`TABL/DI`).
 `abap_read`'s schema names three types as not readable — `PROG/PS` `PROG/PC`
 `PROG/PT` (`NON_READABLE_TYPES`, `src/adt/capabilities.ts`).
 
-`PROG/PS`, `PROG/PC` and `PROG/PT` are not real ADT object types on this
-release — no discovery collection exists for them, so there is no URI to
-build. Menu Painter / Screen Painter territory.
+`PROG/PS` and `PROG/PC` are not real ADT object types on this release — no
+discovery collection exists for them, so there is no URI to build. Menu
+Painter / Screen Painter territory.
+
+`PROG/PT` is real, but it names the program's GUI title (`SET TITLEBAR`,
+Menu Painter/SE41) — not the text pool — and it stays unwritable and
+unreadable, same as `PROG/PS`/`PROG/PC`. The text pool (text symbols and
+selection texts) is a different resource entirely and is not in this
+refusal list: it is written through `abap_write`'s `text_pool` parameter
+and read as a `TEXT POOL` section of a `PROG/P` whole-object read — see
+["Program text pool and Fixed Point Arithmetic"](#program-text-pool-and-fixed-point-arithmetic)
+below and `doc/TOOLS/write-and-activate.md`.
 
 Five more types look the same at a glance — no `TypeSpec` or no ADT
 resource — but are NOT refused, through two different catalog routes.
@@ -106,3 +115,34 @@ catalog renders, so both work under `ABAP_MODE=read`.
 `source` types take ABAP/DDL text. `properties` types take a **complete XML
 descriptor**, and a write REPLACES the whole document — omit a field and you
 delete it. Never send a partial descriptor.
+
+## Program text pool and Fixed Point Arithmetic
+
+`PROG/P` create now sends `abapsource:fixPointArithmetic="true"` in the ADT
+create payload by default (before: no attribute at all, which left Fixed
+Point Arithmetic off and broke things like `SELECT … INTO TABLE @DATA(lt)`
+combined with `lines( )` arithmetic, and decimal handling generally). Opt
+out with `abap_write`'s `fixed_point_arithmetic: false`, `PROG/P` only —
+named against any other type it is `BAD_INPUT` before any request. A plain
+whole-object `abap_read` of a `PROG/P` reports `fixed_point_arithmetic:
+true|false` in the header; the line is omitted when the descriptor could
+not be read.
+
+`PROG/PT` is the GUI title, not the text pool — see above. The text pool
+(text symbols and selection texts) is written through `abap_write`'s
+`text_pool` parameter on type `PROG/P`, and read as a `TEXT POOL` section
+of a `PROG/P` whole-object read when the program has any. Full parameter
+shape, limits, the write flow and the response fields are in
+`doc/TOOLS/write-and-activate.md`; the read-side section is in
+`doc/TOOLS/read-and-search.md`.
+
+```json
+{
+  "object": "ZDEMO_REPORT",
+  "type": "PROG/P",
+  "text_pool": {
+    "symbols": { "001": "Hello" },
+    "selection_texts": { "P_X": "Parameter X" }
+  }
+}
+```

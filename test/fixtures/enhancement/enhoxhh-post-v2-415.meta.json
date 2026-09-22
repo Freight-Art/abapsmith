@@ -1,0 +1,23 @@
+{
+  "label": "issue-178 v2 POST on a v3-only server",
+  "captured": "2026-09-22 A4H (SAP_BASIS 754), user ABAPSMITH",
+  "note": "POST /sap/bc/adt/enhancements/enhoxhh with Content-Type/Accept application/vnd.sap.adt.enh.enhoxhh.v2+xml (the body buildCreateHookBody emits, host $TMP PROG/P ZAS_ENH178, anchor \\PR:ZAS_ENH178\\FO:SHOW\\SE:BEGIN\\EI). This system's discovery document lists only application/vnd.sap.adt.enh.enhoxhh.v3+xml and text/html for that collection; the same body with the v3 media type answered 201 (see enhoxhh-post-v3-201.meta.json).",
+  "requestMethod": "POST",
+  "requestPath": "/sap/bc/adt/enhancements/enhoxhh",
+  "requestHeaders": {
+    "Content-Type": "application/vnd.sap.adt.enh.enhoxhh.v2+xml",
+    "Accept": "application/vnd.sap.adt.enh.enhoxhh.v2+xml"
+  },
+  "responseStatus": 415,
+  "responseStatusText": "Unsupported Media Type",
+  "responseHeaders": {
+    "content-type": "application/xml",
+    "content-length": "433",
+    "sap-authenticated": "true",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true"
+  },
+  "byteLength": 433,
+  "sha256OfRawBody": "94716b41e8c8d0474dd597640da2b849803c391ae4ffa82d3de65797e973d22c"
+}

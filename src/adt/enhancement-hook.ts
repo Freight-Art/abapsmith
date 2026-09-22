@@ -39,7 +39,7 @@ import { AbapError } from "./errors.js";
 import { enhancementIntentFor, type EnhancedObjectRef } from "./write.js";
 import { activateObject, type ActivationOutcome } from "./activate.js";
 import { assertEnhIdentifier, assertAbapText } from "./enhancement-templates.js";
-import { ENHOXHH_COLLECTION, ENHOXHH_ACCEPT, buildEnhancementUri } from "./enhancement.js";
+import { ENHOXHH_COLLECTION, buildEnhancementUri, enhoxhhMediaType } from "./enhancement.js";
 import { ENH_CREATE_PACKAGE } from "./enhancement-bridge.js";
 import { translateAdtError } from "./session.js";
 import { isAbapError } from "./errors.js";
@@ -314,9 +314,10 @@ async function postHookImplementation(
   authorized: AuthorizedTarget<"write">,
   body: string,
 ): Promise<{ status: number; body: string; headers: Record<string, unknown> }> {
+  const mediaType = enhoxhhMediaType(conn.discovery);
   try {
     return await conn.post(ENHOXHH_COLLECTION, {
-      headers: { "Content-Type": ENHOXHH_ACCEPT, Accept: ENHOXHH_ACCEPT },
+      headers: { "Content-Type": mediaType, Accept: mediaType },
       body,
     });
   } catch (e) {

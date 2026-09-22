@@ -1,0 +1,24 @@
+{
+  "label": "issue-178 v3 POST accepted",
+  "captured": "2026-09-22 A4H (SAP_BASIS 754), user ABAPSMITH",
+  "note": "Same request body as enhoxhh-post-v2-415 with Content-Type/Accept application/vnd.sap.adt.enh.enhoxhh.v3+xml \u2014 the version the discovery document advertises. Created $TMP ENHO/XHH ZAS_ENH178_HOOK (deleted again afterwards). Empty body.",
+  "requestMethod": "POST",
+  "requestPath": "/sap/bc/adt/enhancements/enhoxhh",
+  "requestHeaders": {
+    "Content-Type": "application/vnd.sap.adt.enh.enhoxhh.v3+xml",
+    "Accept": "application/vnd.sap.adt.enh.enhoxhh.v3+xml"
+  },
+  "responseStatus": 201,
+  "responseStatusText": "Created",
+  "responseHeaders": {
+    "content-length": "0",
+    "sap-authenticated": "true",
+    "etag": "20260922162150000application/vnd.sap.adt.enh.enhoxhh.v3+xml",
+    "location": "/sap/bc/adt/enhancements/enhoxhh/zas_enh178_hook/source/main",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true"
+  },
+  "byteLength": 0,
+  "zeroByteBody": true
+}

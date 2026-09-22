@@ -128,7 +128,7 @@ function unlinked(): string[] {
 }
 
 describe("CHARACTERISATION: which connection-write modules are journal-linked today", () => {
-  it("sees the same 15 connection-write modules the safety-gate contract pins", () => {
+  it("sees the same 17 connection-write modules the safety-gate contract pins", () => {
     expect(callers.map((f) => relative(SRC, f)).sort()).toEqual(
       [
         "adt/activate.ts",
@@ -140,7 +140,9 @@ describe("CHARACTERISATION: which connection-write modules are journal-linked to
         "adt/enhancement-hook.ts",
         "adt/enhancement-write.ts",
         "adt/odata.ts",
+        "adt/program-create.ts",
         "adt/quickfix.ts",
+        "adt/text-pool.ts",
         "adt/traces.ts",
         "adt/transports.ts",
         "adt/write.ts",

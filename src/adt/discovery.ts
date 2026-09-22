@@ -7,6 +7,7 @@
  * flags do.
  */
 import type { ADTClient, AdtDiscoveryResult } from "abap-adt-api";
+import { fullParse, xmlArray, xmlNodeAttr } from "abap-adt-api/build/utilities.js";
 import { AbapError } from "./errors.js";
 
 /** Named capabilities the rest of the server gates on. */
@@ -90,6 +91,8 @@ export interface CollectionInfo {
   title?: string;
   workspace: string;
   templates: string[];
+  /** Media types from this collection's `<app:accept>` entries; `[]` when none. */
+  readonly accept: readonly string[];
 }
 
 /**
@@ -261,8 +264,23 @@ export class Discovery {
   async load(force = false): Promise<void> {
     if (this.state === "loaded" && !force) return;
     try {
-      const raw: AdtDiscoveryResult[] = await this.client.adtDiscovery();
-      this.ingest(raw);
+      // Prefer the raw document: it carries `<app:accept>`, which the
+      // vendor's own `adtDiscovery()` parsing drops. Real `ADTClient`
+      // instances always expose `httpClient`; a test stub implementing only
+      // `adtDiscovery()` does not, so it falls back to the legacy path below.
+      const http = (this.client as { httpClient?: { request?: unknown } }).httpClient;
+      if (typeof http?.request === "function") {
+        const { body } = await (
+          http as { request: (url: string, config?: unknown) => Promise<{ body: string }> }
+        ).request("/sap/bc/adt/discovery", {
+          method: "GET",
+          headers: { Accept: "application/atomsvc+xml" },
+        });
+        this.ingestDocument(body);
+      } else {
+        const raw: AdtDiscoveryResult[] = await this.client.adtDiscovery();
+        this.ingest(raw);
+      }
       this.loadError = undefined;
     } catch (e) {
       this.collections = [];
@@ -289,20 +307,52 @@ export class Discovery {
 
   /** Exposed for tests — accepts an already-parsed discovery document. */
   ingest(raw: AdtDiscoveryResult[]): void {
-    this.collections = [];
-    this.hrefIndex = new Set();
+    const collections: CollectionInfo[] = [];
     for (const workspace of raw ?? []) {
       for (const c of workspace.collection ?? []) {
-        const info: CollectionInfo = {
+        collections.push({
           href: c.href,
           title: c.title,
           workspace: workspace.title,
           templates: (c.templateLinks ?? []).map((t) => t.template).filter(Boolean),
-        };
-        this.collections.push(info);
-        this.hrefIndex.add(c.href.toLowerCase());
+          // The vendor's own `adtDiscovery()` parsing drops `<app:accept>`,
+          // so this legacy path can never populate it.
+          accept: [],
+        });
       }
     }
+    this.applyCollections(collections);
+  }
+
+  /**
+   * Parses a raw discovery Atom service document directly, mirroring the
+   * vendor's `adtDiscovery()` parsing exactly but additionally keeping each
+   * collection's `<app:accept>` media types, which the vendor drops.
+   */
+  ingestDocument(xml: string): void {
+    const tree = fullParse(xml);
+    const workspaces = xmlArray<Record<string, unknown>>(tree, "app:service", "app:workspace");
+    const collections: CollectionInfo[] = [];
+    for (const ws of workspaces) {
+      for (const c of xmlArray<Record<string, unknown>>(ws, "app:collection")) {
+        collections.push({
+          href: String(c["@_href"]),
+          title: c["atom:title"] === undefined ? undefined : String(c["atom:title"]),
+          workspace: String(ws["atom:title"]),
+          templates: xmlArray<unknown>(c, "adtcomp:templateLinks", "adtcomp:templateLink")
+            .map((t) => String(xmlNodeAttr(t).template))
+            .filter(Boolean),
+          accept: xmlArray<string>(c, "app:accept").map(String),
+        });
+      }
+    }
+    this.applyCollections(collections);
+  }
+
+  /** Shared state bookkeeping for both `ingest()` and `ingestDocument()`. */
+  private applyCollections(collections: CollectionInfo[]): void {
+    this.collections = collections;
+    this.hrefIndex = new Set(collections.map((c) => c.href.toLowerCase()));
     // A discovery document with no collections at all is not a release that
     // supports nothing — it is a document we failed to understand.
     this.state = this.collections.length > 0 ? "loaded" : "empty";
@@ -449,6 +499,18 @@ export class Discovery {
     return this.collections.filter(
       (c) => c.href.toLowerCase().includes(n) || (c.title ?? "").toLowerCase().includes(n),
     );
+  }
+
+  /**
+   * Media types the collection whose href ends with `hrefSuffix` advertises
+   * via `<app:accept>`. `undefined` when no such collection exists in the
+   * loaded inventory (as opposed to `[]`, which means it exists but
+   * advertises no accept media types at all).
+   */
+  acceptedMediaTypes(hrefSuffix: string): readonly string[] | undefined {
+    const suffix = hrefSuffix.toLowerCase();
+    const hit = this.collections.find((c) => c.href.toLowerCase().endsWith(suffix));
+    return hit?.accept;
   }
 
   /**
