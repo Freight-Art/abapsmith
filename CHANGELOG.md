@@ -12,6 +12,8 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.18] - 2026-09-22
+
 ### Changed
 
 - **`abap_write` validates `type` first** (#157). The type code is checked against the writable set before any type-specific required-field check, so `{"object":"ZFOO","type":"TRAN/P"}` with no `source` now answers `BAD_INPUT` `Unknown object type "TRAN/P". Did you mean TRAN/T?` (with `details.suggestions` and `details.writable`) instead of `source is required`, and a bridge-only or unsupported explicit type is refused the same way before any request. The suggestion is an edit-distance match over the writable codes; nothing about the accepted types changed.
