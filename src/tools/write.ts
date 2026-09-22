@@ -102,6 +102,7 @@ import {
   PACKAGE_SOFTWARE_COMPONENT_HINT,
   preflightPackageCorr,
   readCurrentSource,
+  refuseUnwritableType,
   resolveWriteTarget,
   writeObject,
 } from "../adt/write.js";
@@ -1602,6 +1603,16 @@ export async function abapWrite(
 
   const target = targetFromInput({ ...input, object: objectRef });
 
+  // Zero-network: refuse an unknown/unwritable explicit type before anything
+  // else, including the `source`-required guard below, so a caller who typo'd
+  // the type learns THAT before being told source is missing. Packages and
+  // bridge-only-create types keep their own routing further down, so they are
+  // skipped here — every other explicit type is validated first.
+  const earlyTypeSpec = input.type ? (specForType(input.type) ?? specForKeyword(input.type)) : undefined;
+  if (input.type !== undefined && !isPackageType(earlyTypeSpec?.type) && !isBridgeOnlyCreateType(input.type)) {
+    refuseUnwritableType(input.type, target.name, (input.mode ?? "write") === "delete" ? "delete" : "write");
+  }
+
   // `ddic` is another way to arrive at `source`, not a parallel
   // pipeline — resolve it to a `source` string BEFORE anything below reads
   // `input.source`, so the rest of this function (including the pre-send
@@ -1920,8 +1931,8 @@ export async function abapWrite(
   // source-shape and `format` applies normally; DTEL/DE, DOMA/DD, TTYP/DA
   // are properties-shape and are refused explicitly below (the
   // `write.shape === "properties"` check). A type absent from
-  // WRITABLE_TYPES/ENHANCEABLE_TYPES is refused UNSUPPORTED by
-  // `resolveWriteTarget` before `format:true` is ever scrutinised.
+  // WRITABLE_TYPES/ENHANCEABLE_TYPES was already refused UNSUPPORTED by
+  // `refuseUnwritableType` above, before `format:true` is ever scrutinised.
 
   // Turns whichever of source/edit/method the caller used into the one thing
   // `writeObject` needs: a complete replacement `source`, plus (for
