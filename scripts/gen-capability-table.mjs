@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * gen-capability-table.mjs — emit the writable-type table that
- * `abapsmith-orient/SKILL.md` carries.
+ * `abapsmith-create-an-object/writable-types.md` carries.
  *
  * The table is GENERATED, never hand-written. A hand-maintained copy of
  * `src/adt/capabilities.ts` is what produced three wrong skills (a promised
@@ -34,11 +34,13 @@ const END = "<!-- END generated -->";
 // This defaulted to `skills-v2/abapsmith-orient/SKILL.md`, a path
 // that has never existed in this repo — `--check` therefore exited 1 with
 // "does not exist" for anyone who ran it without `--skill=`, so the table
-// silently went stale (indexes were missing from every bucket). The shipped
-// skill is `skills/abapsmith-orient/SKILL.md`.
+// silently went stale (indexes were missing from every bucket). The table
+// now ships in `skills/abapsmith-create-an-object/writable-types.md`,
+// moved out of `abapsmith-orient/SKILL.md` (issue #158) to keep the router
+// skill small.
 const skillPath =
   process.argv.find((a) => a.startsWith("--skill="))?.slice("--skill=".length) ??
-  resolve(REPO_ROOT, "skills/abapsmith-orient/SKILL.md");
+  resolve(REPO_ROOT, "skills/abapsmith-create-an-object/writable-types.md");
 
 // Create sites for types with NO `create` field in `REGISTRY`:
 // a REGISTRY-only read misfiles them as unreachable by any write, which is

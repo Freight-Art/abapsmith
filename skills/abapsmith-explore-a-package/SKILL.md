@@ -8,6 +8,17 @@ description: Maps an unfamiliar ABAP package or object with abap_search and abap
 Read-only. Nothing here writes to the system — this is `abap_search` and
 `abap_read` only, chained in the order below.
 
+## When a task names a package, orient from it first
+
+`abap_read {"object":"<PKG>","type":"DEVC/K"}` before searching or guessing
+object names. It returns the package header plus its contents: a per-type
+object count, direct sub-packages, and the object rows themselves. Narrow a
+large package with `types` (e.g. `{"types":["CLAS","DDLS"]}`); go deeper
+with `depth` (1-3, default 1) to include sub-packages. Then read individual
+objects normally: `abap_read {"object":"<name>","type":"<type>"}` — rows
+carry no `PARENT_NAME`, so nothing needs parenting to open. See
+`doc/TOOLS/read-and-search.md`.
+
 ## The pipeline
 
 1. `abap_search mode="objects"` — find the package by name pattern.
@@ -121,4 +132,5 @@ wins.
 Creating anything is `abapsmith-create-an-object` (or `abapsmith-orient` to
 check what abapsmith can build first). Customizing structure (SPRO) is
 `abapsmith-browse-img-customizing`. Table rows need `abap_data_preview`,
-which is off by default.
+which is off by default — gating is independent of `ABAP_MODE` and, once
+on, it is allowed even under `read`.

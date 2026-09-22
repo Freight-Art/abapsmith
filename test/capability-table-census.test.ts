@@ -213,13 +213,13 @@ describe("capability table: bridge-only create types describe the real mechanism
 });
 
 describe("capability table: skill is current without a build", () => {
-  it("the generated block in skills/abapsmith-orient/SKILL.md matches buildCapabilityTable(REGISTRY)", async () => {
-    const skillPath = new URL("../skills/abapsmith-orient/SKILL.md", import.meta.url);
+  it("the generated block in skills/abapsmith-create-an-object/writable-types.md matches buildCapabilityTable(REGISTRY)", async () => {
+    const skillPath = new URL("../skills/abapsmith-create-an-object/writable-types.md", import.meta.url);
     const body = readFileSync(skillPath, "utf8");
     const start = body.indexOf(BEGIN);
     const stop = body.indexOf(END);
-    expect(start, "BEGIN marker not found in SKILL.md").not.toBe(-1);
-    expect(stop, "END marker not found in SKILL.md").not.toBe(-1);
+    expect(start, "BEGIN marker not found in writable-types.md").not.toBe(-1);
+    expect(stop, "END marker not found in writable-types.md").not.toBe(-1);
     const current = body.slice(start, stop + END.length);
 
     const { table } = await buildCapabilityTable(REGISTRY);
@@ -242,10 +242,10 @@ describe("capability table: skill is current without a build", () => {
     expect(NON_READABLE_TYPES).not.toContain("VIEW/DV");
     expect(NON_READABLE_TYPES).not.toContain("TRAN/T");
 
-    const skillPath = new URL("../skills/abapsmith-orient/SKILL.md", import.meta.url);
+    const skillPath = new URL("../skills/abapsmith-create-an-object/writable-types.md", import.meta.url);
     const body = readFileSync(skillPath, "utf8");
     const stop = body.indexOf(END);
-    expect(stop, "END marker not found in SKILL.md").not.toBe(-1);
+    expect(stop, "END marker not found in writable-types.md").not.toBe(-1);
     const handWritten = body.slice(stop + END.length);
 
     for (const code of NON_READABLE_TYPES) {
