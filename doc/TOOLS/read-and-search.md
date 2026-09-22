@@ -1326,7 +1326,13 @@ displayed row has a parent container in its ADT URI — a FUGR/FF function
 module or a FUGR/I function-group include — in which case a fifth `group`
 column is added, and the response carries a hint that `group` is the
 function group the row lives in while `package` remains the row's own
-package, not its group.
+package, not its group. A bare `"*"` query is accepted under `mode=objects`,
+with or without `type`, and returns rows within the same fetch window as
+any other query (typed: `10 × max`, capped at 1000) — the type filter is
+applied by this tool after the fetch, not by the server, so the window
+disclosure applies the same way. An object name that isn't plain text — whitespace-padded or
+numeric-looking, e.g. a WDCC/YG row named `00` — is returned verbatim as a
+string rather than coerced to a number.
 
 ### mode=source: line-wise source-text scan
 
