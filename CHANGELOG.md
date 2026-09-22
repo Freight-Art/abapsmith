@@ -12,6 +12,22 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+### Added
+
+- **`abap_bopf_edit` checks enum-valued `spec` fields client-side** (#153): `spec.multiplicity` and `spec.implementationType` on `add_association`, `spec.instanceMultiplicity` and `spec.exportingParameterCategoryType` on `add_action`, `spec.category` on `add_determination`/`add_validation`/`add_query`, `spec.relations[].relationType` on `add_determination`, and `spec.uniqueness` on `add_alternative_key` (plus the matching `set_*_fields` calls). An out-of-set value never reaches the server: it is refused `BAD_INPUT` in the shape `spec.instanceMultiplicity "1_1" is not one of "0" (…), "1" (…), "2" (…)`, with every accepted value's meaning spelled out in the message. An action's `category` is an opaque numeric code and stays unchecked; a determination `category` of `"undefined"` is refused rather than silently accepted, since BOPF defaults an omitted category to that exact string server-side and the determination then never fires.
+- **`ExceptionInvalidData` responses decode their `XML_PATH`** (#153). Instead of a raw `bo:businessObject(1)bo:nodes(10)bo:actions(18)` fragment, the error hint names the element the failing call touched and its candidate fields, and carries `error.details.classifiedBy: "invalid-data-xml-path"` and `error.details.specElement` for programmatic use.
+- **Per-family request timeouts** `ABAP_BOPF_TIMEOUT_MS`, `ABAP_ACTIVATE_TIMEOUT_MS`, `ABAP_RUN_TIMEOUT_MS` (#154), each defaulting to `180000` ms — `abap_bopf_edit`'s `create_bo` and BOPF `activate`, every activation request, and `abap_run`'s classrun no longer share the general `ABAP_TIMEOUT_MS` (60000 ms default), since all three can legitimately run past a minute on a larger model or a busy system.
+
+### Changed
+
+- **BOPF `create_bo`/`activate` re-read the object on a client timeout instead of failing blind** (#154): on a fresh session, up to 6 reads 5 seconds apart look for the object the call was building. Found and matching expectations, the call reports success with a "completed on the server after the client timeout" note (a create timeout reports success without attempting activation); found but not yet active after an activation timeout, or not found at all, it fails `TIMEOUT` with `retryable` derived from what the re-read learned — `false` once the create is confirmed to have landed and only activation remains, `true` otherwise.
+- **Activation and `abap_run` transport timeouts are classified `TIMEOUT`** (#154), reusing the error code `abap_run` already had (#149); each names the timeout variable it ran under — `abap_run`'s message now names `ABAP_RUN_TIMEOUT_MS` rather than the general `ABAP_TIMEOUT_MS`.
+- **The session lock's wait time is derived from the largest per-family timeout** (#154): `ABAP_SESSION_WAIT_MS` plus the largest of `ABAP_TIMEOUT_MS`, `ABAP_BOPF_TIMEOUT_MS`, `ABAP_ACTIVATE_TIMEOUT_MS` and `ABAP_RUN_TIMEOUT_MS`, so a caller queued for a session slot cannot time out before the slowest in-flight request could have finished.
+
+### Fixed
+
+- **`abap_bopf_edit add_action` with an out-of-set `instanceMultiplicity` (e.g. `"1_1"`) no longer reaches the server** (#153). It previously produced an opaque `ExceptionInvalidData`; it now fails `BAD_INPUT` before any request is sent, naming the accepted values.
+
 ## [0.6.14] - 2026-09-21
 
 ### Added

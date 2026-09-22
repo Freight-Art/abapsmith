@@ -66,7 +66,29 @@ Never retry a create blind.
 `bopf_create` and `bopf_delete` **refuse every transportable package.** Local /
 `$TMP` only. Do not look for a flag to override it.
 
+`bopf_create` and `bopf_activate` can each take over a minute on a larger
+model. Both run under `ABAP_BOPF_TIMEOUT_MS` (default 180000 ms), not the
+general `ABAP_TIMEOUT_MS`; on a client timeout abapsmith re-reads the
+object on a fresh session (up to 6 reads, 5 seconds apart) and reports
+success with a "completed on the server after the client timeout" note when
+the re-read finds what it expects, or `TIMEOUT` — `retryable: false` once
+the create is confirmed to have landed, `retryable: true` otherwise — when
+it doesn't.
+
 ## Adding elements
+
+Every closed enum below (`multiplicity`, `implementationType`,
+`instanceMultiplicity`, `exportingParameterCategoryType`, determination/
+validation/query `category`, `relationType`, alternative-key `uniqueness`)
+is checked before anything is sent: an out-of-set value is refused
+client-side as `BAD_INPUT`, listing every accepted value and its meaning —
+none of the operations below reach the server with an invalid enum value.
+If a spec is malformed in some other way that only the server catches,
+BOPF answers with `ExceptionInvalidData` and an `XML_PATH`; abapsmith
+decodes that path into the element this call touched and the candidate
+fields on it, and surfaces both in the error's hint text plus
+`error.details.specElement` — you don't have to read raw `bo:nodes(10)`
+XPath fragments to find what's wrong.
 
 - `bopf_add_node` needs a parent: **`spec.parent`** (the parent node's plain
   name) or **`spec.parentNodeId`**, either one — abapsmith resolves the other
@@ -85,6 +107,36 @@ Never retry a create blind.
   `bopf_remove_dependent_object` only to remove one that already exists.
   `add_node` re-reads after the write and fails if the node isn't there, so
   success means it exists.
+- `bopf_add_association`'s `spec.multiplicity` is a closed enum: `0_1`
+  (optional to-one: at most one target instance), `0_N` (optional to-many:
+  any number of target instances), `1_1` (mandatory to-one: exactly one
+  target instance), `1_N` (mandatory to-many: at least one target instance;
+  schema-only, never observed on the wire). `spec.implementationType` is
+  likewise closed: `Composition` (parent-child composition — the target
+  node is a child of the source node), `DoComposition` (composition to a
+  delegated/dependent object — refused here, see above), `Association`
+  (cross-node or cross-BO association resolved by the association class —
+  what the representative-node recipe below uses), plus the schema short
+  forms `C`/`A` for `Composition`/`Association` (not observed on the wire).
+  An out-of-set value on either is refused `BAD_INPUT` before anything is
+  sent, listing every accepted value and its meaning.
+- `bopf_add_action`'s `spec.instanceMultiplicity` is a closed enum, from
+  `/BOBF/IF_CONF_C` on the live system: `0` (static: runs without a node
+  instance), `1` (single instance: exactly one node instance per call), `2`
+  (multiple instances: any number of node instances per call — what SAP's
+  own actions use). `spec.exportingParameterCategoryType` is likewise
+  closed: `None` (the action exports nothing), `Type` (exports data of the
+  DDIC type named in `parameterStructureRef`), `Node` (exports instances of
+  a node). `spec.category` on an action is NOT an enum — it's an opaque
+  numeric code (`ActionCategoryCode`) and is never checked. Full example:
+  ```
+  add_action(node: "ROOT", name: "RECALCULATE",
+    spec: { xmlName: "RECALCULATE", category: "0", instanceMultiplicity: "2",
+            exportingParameterCategoryType: "None", exportParameterLink: false,
+            isExtensible: false, objectModelGenerated: false,
+            parameterStructureRef: { name: "ZBOPF_S_RECALC_PARAMS", type: "TABL/DS" },
+            implementationClassRef: { name: "ZCL_DEMO_ORDER_ACTION", type: "CLAS/OC" } })
+  ```
 - **Representative node — no create operation, get one from
   `bopf_add_association`.** Add a plain cross-BO association on the node
   that should carry the link: `spec.implementationType: "Association"`,
@@ -145,28 +197,51 @@ Never retry a create blind.
   `bopf_add_determination` alone also takes `spec.relations`: `{ node
   (required — the node both determinations live on), determination?,
   relationType? }`, used to order determinations relative to each other.
+  `relationType` is a closed enum: `predecessor` (the named determination
+  runs before this one) or `successor` (the named determination runs after
+  this one).
 - `bopf_add_determination.spec.category` should always be set explicitly.
   Omitted, BOPF defaults it server-side to the literal string `"undefined"` and
   the determination's triggers silently never fire — no error, no activation
-  failure, just inert. Valid determination categories: `reactAfterModification`,
-  `calculateTransientAttributes`, `calculateTransientSubNodeInstances`,
-  `calculateProperties`, `reactOnCheckAndDetermine`, `reactBeforeSave`,
-  `drawNumbersDuringCreate`, `drawNumbersDuringSave`, `reactDuringSave`,
-  `reactAfterSuccessfulSave`, `reactAfterCleanupTransaction`,
-  `reactAfterFailedSave`. `consistencyCheck`/`actionCheck` are
-  `bopf_add_validation`-only categories — not valid on a determination.
+  failure, just inert. Valid determination categories: `reactAfterModification`
+  (runs after instances of the trigger node are created/updated/deleted),
+  `calculateTransientAttributes` (fills transient attributes when instances
+  are loaded or changed), `calculateTransientSubNodeInstances` (fills
+  transient sub-node instances when the parent is loaded),
+  `calculateProperties` (computes field/action/association properties —
+  enabled, read-only, mandatory), `reactOnCheckAndDetermine` (runs when the
+  consumer calls check-and-determine), `reactBeforeSave` (runs at the start
+  of the save sequence, before validations), `drawNumbersDuringCreate`
+  (draws numbers for new instances at creation time), `drawNumbersDuringSave`
+  (draws numbers for new instances during save), `reactDuringSave` (runs
+  during the save sequence after validations), `reactAfterSuccessfulSave`
+  (runs after the database commit succeeded), `reactAfterCleanupTransaction`
+  (runs when the transaction is cleaned up, after commit or rollback), and
+  `reactAfterFailedSave` (runs after the save failed). `consistencyCheck`
+  (checks the trigger node's instances and reports messages; runs on
+  check-and-determine and during save) and `actionCheck` (decides whether
+  the trigger action may run on the given instances) are
+  `bopf_add_validation`-only categories — not valid on a determination. An
+  out-of-set `category` on either kind is refused client-side as
+  `BAD_INPUT`, listing every accepted value and its meaning; `"undefined"`
+  is in the type but refused for exactly the reason above.
 - **Class references are never checked** — not at PUT, not at activation, not at
   runtime. A dangling or wrong-interface `implementationClassRef` silently never
   fires. abapsmith preflights that the class source exists and throws
   `BOPF_DANGLING_REF`. `allow_dangling_ref: true` accepts the risk; it does not
   fix anything.
-- `bopf_add_alternative_key` needs the complete shape — `uniqueness` (`unique`
-  / `uniqueIfNotInitial` / `notUnique`), `dataTypeRef`, `dataTableTypeRef` and
-  `keyElements`, all four. A partial one **used to take down the whole ADT
-  session** with an assertion inside BOPF's model mapper; a missing field is
-  now refused before anything is sent. `i_know_this_may_not_activate: true` is
-  still required. It re-reads after the write and fails `CHECK_FAILED` if the
-  key isn't there, so success means it exists.
+- `bopf_add_alternative_key` needs the complete shape — `uniqueness`,
+  `dataTypeRef`, `dataTableTypeRef` and `keyElements`, all four. `uniqueness`
+  is a closed enum: `unique` (key values must be unique across all
+  instances), `uniqueIfNotInitial` (unique unless the key value is initial —
+  what SAP's own keys use), `notUnique` (no uniqueness enforced, a plain
+  secondary access path). An out-of-set value is refused client-side as
+  `BAD_INPUT`, listing every accepted value and its meaning. A partial shape
+  **used to take down the whole ADT session** with an assertion inside
+  BOPF's model mapper; a missing field is now refused before anything is
+  sent. `i_know_this_may_not_activate: true` is still required. It re-reads
+  after the write and fails `CHECK_FAILED` if the key isn't there, so
+  success means it exists.
   **Working order matters**: every `keyElements` name must already be a field
   on the target node, and the node needs a `persistentStructureRef`, before
   you call this — both are now preflighted and refused as `BOPF_DANGLING_REF`
@@ -226,7 +301,15 @@ implementation class (association, action, determination, validation,
 query), `spec.class`/`spec.implementationClass` (a bare class name) works as
 a shorthand for `implementationClassRef`, wrapped as `CLAS/OC` exactly as
 the matching `bopf_add_*` accepts it; an explicit `implementationClassRef`
-wins, and `implementationClassRef: null` clears it.
+wins, and `implementationClassRef: null` clears it. The same enum checks as
+the `bopf_add_*` calls apply here — `multiplicity`, `implementationType`,
+`instanceMultiplicity`, `exportingParameterCategoryType`, `category`
+(determination/validation/query, not action) and
+`uniqueness` are all still closed enums with the same accepted values and
+meanings listed above, and an out-of-set value is still refused client-side
+as `BAD_INPUT` before any request is sent, whether the call is an `add_*`
+or a `set_*_fields`. `null` is accepted on these to clear the field where
+the field itself is optional.
 `bopf_set_alternative_key_fields` has no implementation class, so neither
 applies there — and, like `bopf_add_alternative_key`, it requires
 `i_know_this_may_not_activate: true`, because a patch's attributes go
