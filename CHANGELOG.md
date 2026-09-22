@@ -12,6 +12,8 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.22] - 2026-09-22
+
 ### Added
 
 - **`abap_write` gains `remote_enabled: boolean`** (#177). `FUGR/FF` only — `BAD_INPUT` zero-network for every other type and for `mode=delete`. `true` sets the module's processing type to `rfc` (Remote-Enabled Module), `false` to `normal`, written as a minimal `fmodule:abapFunctionModule` descriptor PUT (`Content-Type: application/vnd.sap.adt.functions.fmodules.v3+xml`) to the module URI under the same lock and transport as the source PUT, before unlock and activation — no ABAP bridge involved. The write response prints `processing_type: rfc|normal` and notes when it changed; omitting the parameter leaves the processing type untouched, even for a byte-identical source. `abap_read` of a `FUGR/FF` now prints `processing_type` and `remote_enabled: yes|no` in its header (one extra GET of the module descriptor).
