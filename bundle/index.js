@@ -36871,13 +36871,28 @@ function sameT100No(a, b) {
   if (/^\d+$/.test(a) && /^\d+$/.test(b)) return Number(a) === Number(b);
   return false;
 }
-function classifyAdtMessage(message, properties) {
+function lastXmlPathSegment(xmlPath) {
+  const matches = [...xmlPath.matchAll(/([A-Za-z0-9_:]+)\(\d+\)/g)];
+  return matches.length > 0 ? matches[matches.length - 1][1] : void 0;
+}
+function describeXmlPath(xmlPath, properties) {
+  const offset = properties?.["XML_OFFSET"];
+  const offsetText = offset ? ` (offset ${offset})` : "";
+  const last = lastXmlPathSegment(xmlPath);
+  const info = last !== void 0 ? XML_PATH_ELEMENTS[last] : void 0;
+  if (last !== void 0 && info !== void 0) {
+    return `The server rejected the document at ${xmlPath}${offsetText}: the last path element is ${last}, a BOPF ${info.kind} \u2014 the one this call added or changed. The value it refused is almost certainly in one of that element's ${info.fieldsLabel}: ${info.fields.join(", ")}. Fix the value and retry; retrying unchanged fails again.`;
+  }
+  return `The server rejected the document at ${xmlPath}${offsetText}: an element or attribute value there is not one the object model accepts. Retrying unchanged fails again.`;
+}
+function classifyAdtMessage(message, properties, exceptionType) {
   const id = properties["T100KEY-ID"];
   const no = properties["T100KEY-NO"];
   for (const rule of ADT_MESSAGE_RULES) {
     const t100Hit = rule.t100Id !== void 0 && rule.t100No !== void 0 && id === rule.t100Id && no !== void 0 && sameT100No(no, rule.t100No);
     const proseHit = rule.match !== void 0 && rule.match.test(message);
-    if (t100Hit || proseHit) return rule;
+    const exceptionHit = rule.exceptionType !== void 0 && exceptionType === rule.exceptionType && (rule.property === void 0 || !!properties[rule.property]);
+    if (t100Hit || proseHit || exceptionHit) return rule;
   }
   return void 0;
 }
@@ -36886,13 +36901,50 @@ function unclassifiedMessageKey(properties) {
   const no = properties["T100KEY-NO"];
   return id && no ? `${id}/${no}` : "none";
 }
-var PACKAGE_SOFTWARE_COMPONENT_REFUSED_HINT, DELETE_REFUSED_STILL_REFERENCED_HINT, CONTAINER_PARENT_MISSING_HINT, ADT_MESSAGE_RULES;
+var PACKAGE_SOFTWARE_COMPONENT_REFUSED_HINT, DELETE_REFUSED_STILL_REFERENCED_HINT, CONTAINER_PARENT_MISSING_HINT, XML_PATH_ELEMENTS, ADT_MESSAGE_RULES;
 var init_adt_message_rules = __esm({
   "src/adt/adt-message-rules.ts"() {
     "use strict";
     PACKAGE_SOFTWARE_COMPONENT_REFUSED_HINT = 'SAP is refusing the SOFTWARE COMPONENT, not the package name. LOCAL is only accepted for a $-named local package, so a Z* or Y* name can never be assigned to it. Pass software_component: "HOME" (or another real software component configured on this system) to create the package as a transportable one \u2014 that route needs a transport request, so supply one as `corr_nr`, or create a $-prefixed package instead if you wanted a local one. Retrying this call unchanged cannot succeed: the refusal follows from the name and the component, not from anything transient.';
     DELETE_REFUSED_STILL_REFERENCED_HINT = 'The program/include named in the message was NOT deleted \u2014 another program still has an INCLUDE statement for it. This is not a lock and not an authorisation refusal. Find every referrer first with abap_search (mode: "where_used", query: "<name>"), then remove the INCLUDE line from each one, or delete the referencing program, and retry the delete. Retrying unchanged fails again with the same message.';
     CONTAINER_PARENT_MISSING_HINT = 'The message names the CONTAINER (the function group), not the include or function module you asked to create, and "without a package" is misleading \u2014 the package was supplied; the group itself does not exist yet. Create the group first: FUGR/F create with source: "FUNCTION-POOL <name>." \u2014 then retry the include/function-module create. Retrying it unchanged fails again until the group exists.';
+    XML_PATH_ELEMENTS = {
+      "bo:actions": {
+        kind: "action",
+        fieldsLabel: "enum-valued spec fields",
+        fields: ["instanceMultiplicity", "exportingParameterCategoryType", "category"]
+      },
+      "bo:associations": {
+        kind: "association",
+        fieldsLabel: "enum-valued spec fields",
+        fields: ["multiplicity", "implementationType", "targetNodeRef"]
+      },
+      "bo:determinations": {
+        kind: "determination",
+        fieldsLabel: "spec fields",
+        fields: ["category", "triggers", "relations"]
+      },
+      "bo:validations": {
+        kind: "validation",
+        fieldsLabel: "spec fields",
+        fields: ["category", "triggers"]
+      },
+      "bo:queries": {
+        kind: "query",
+        fieldsLabel: "enum-valued spec fields",
+        fields: ["category"]
+      },
+      "bo:alternativeKeys": {
+        kind: "alternative key",
+        fieldsLabel: "enum-valued spec fields",
+        fields: ["uniqueness"]
+      },
+      "bo:nodes": {
+        kind: "node",
+        fieldsLabel: "flags",
+        fields: ["rootNode", "textNode", "isDependentObjectNode", "createEnabled", "updateEnabled", "deleteEnabled"]
+      }
+    };
     ADT_MESSAGE_RULES = [
       {
         id: "package-software-component-refused",
@@ -36910,12 +36962,18 @@ var init_adt_message_rules = __esm({
         id: "container-parent-missing",
         match: /cannot be created without a package/i,
         hint: CONTAINER_PARENT_MISSING_HINT
+      },
+      {
+        id: "invalid-data-xml-path",
+        exceptionType: "ExceptionInvalidData",
+        property: "XML_PATH",
+        hint: (_message, properties) => describeXmlPath(properties["XML_PATH"] ?? "", properties)
       }
     ];
     for (const rule of ADT_MESSAGE_RULES) {
-      if (rule.t100Id === void 0 && rule.t100No === void 0 && rule.match === void 0) {
+      if (rule.t100Id === void 0 && rule.t100No === void 0 && rule.match === void 0 && rule.exceptionType === void 0) {
         throw new Error(
-          `adt-message-rules: rule "${rule.id}" declares neither a T100 key nor a prose match`
+          `adt-message-rules: rule "${rule.id}" declares neither a T100 key, a prose match, nor an exception type`
         );
       }
     }
@@ -37138,7 +37196,7 @@ function translateAdtError(e, ctx) {
   }
   const unclassifiedMessage = info?.message || describeUnknownError(e);
   const unclassifiedProperties = info?.properties ?? {};
-  const classified = classifyAdtMessage(unclassifiedMessage, unclassifiedProperties);
+  const classified = classifyAdtMessage(unclassifiedMessage, unclassifiedProperties, info?.type);
   if (classified) {
     return new AbapError(
       "ADT_ERROR",
@@ -37153,7 +37211,7 @@ function translateAdtError(e, ctx) {
         ...Object.keys(unclassifiedProperties).length ? { properties: unclassifiedProperties } : {},
         classifiedBy: classified.id
       },
-      classified.hint
+      typeof classified.hint === "function" ? classified.hint(unclassifiedMessage, unclassifiedProperties) : classified.hint
     );
   }
   return new AbapError(
@@ -60328,6 +60386,4421 @@ var init_session_lock = __esm({
   }
 });
 
+// src/adt/ddic-strategy.ts
+function ddicStrategy(kind) {
+  const k = kind.toUpperCase();
+  if (DDIC_SOURCE_BASED.includes(k)) return "source";
+  if (DDIC_XML_ONLY.includes(k)) return "xml";
+  if (DDIC_CATALOG_BASED.includes(k)) return "catalog";
+  if (k === "DEVC") return "package";
+  return "unsupported";
+}
+var DDIC_SOURCE_BASED, DDIC_XML_ONLY, DDIC_CATALOG_BASED;
+var init_ddic_strategy = __esm({
+  "src/adt/ddic-strategy.ts"() {
+    "use strict";
+    DDIC_SOURCE_BASED = ["TABL", "STRU"];
+    DDIC_XML_ONLY = ["DTEL", "DOMA", "TTYP"];
+    DDIC_CATALOG_BASED = ["SHLP", "VIEW", "TRAN"];
+  }
+});
+
+// src/adt/types.ts
+function isClassInclude(s) {
+  return CLASS_INCLUDES.includes(s);
+}
+function classBaseUri(uri) {
+  const p = uri.replace(/[?#].*$/, "").replace(/\/+$/, "");
+  const m = /^(.*\/oo\/classes\/[^/]+)(?:\/source\/main|\/includes\/[^/]+)?$/i.exec(p);
+  return m ? m[1] : p.replace(/\/source\/main$/, "");
+}
+function classIncludeUri(classUri, include) {
+  const base = classBaseUri(classUri);
+  return include === "main" ? `${base}/source/main` : `${base}/includes/${include}`;
+}
+function assertClassInclude(requested, context) {
+  const want = requested.trim().toLowerCase();
+  if (isClassInclude(want)) return want;
+  throw new AbapError(
+    "UNSUPPORTED",
+    `Unknown class include "${requested}"${context ? ` in ${context}` : ""}. ADT exposes exactly: ${CLASS_INCLUDES.join(", ")}.`,
+    { requested, supported: [...CLASS_INCLUDES], ...context ? { uri: context } : {} },
+    "Ask for one of the supported includes \u2014 the request is NOT silently answered with the main class source."
+  );
+}
+function specForType(type) {
+  if (!type) return void 0;
+  const t = type.toUpperCase().trim();
+  return BY_TYPE.get(t) ?? BY_KIND.get(t);
+}
+function specForKeyword(word) {
+  const w = word.toLowerCase().trim().replace(/\s+/g, " ");
+  if (!w) return void 0;
+  const exact = TYPES.find((t) => t.keywords.includes(w));
+  if (exact) return exact;
+  return specForType(w.toUpperCase());
+}
+function buildUri(spec, name, parent) {
+  return spec.path.replace("{name}", encodeURIComponent(name.toLowerCase())).replace("{parent}", encodeURIComponent((parent ?? "").toLowerCase()));
+}
+function specFromUri(uri) {
+  let path9 = uri.replace(/^https?:\/\/[^/]+/i, "").replace(/[?#].*$/, "").replace(/\/source\/main.*$/, "");
+  let include;
+  const ci = /^(.*\/oo\/classes\/[^/]+)\/includes\/([^/]+)$/i.exec(path9);
+  if (ci) {
+    include = assertClassInclude(decodeURIComponent(ci[2]), uri);
+    path9 = ci[1];
+  }
+  let m = /^\/sap\/bc\/adt\/functions\/groups\/([^/]+)\/fmodules\/([^/]+)$/i.exec(path9);
+  if (m) return { spec: BY_TYPE.get("FUGR/FF"), name: dec(m[2]), parent: dec(m[1]) };
+  m = /^\/sap\/bc\/adt\/functions\/groups\/([^/]+)\/includes\/([^/]+)$/i.exec(path9);
+  if (m) return { spec: BY_TYPE.get("FUGR/I"), name: dec(m[2]), parent: dec(m[1]) };
+  for (const spec of TYPES) {
+    if (spec.parentPath) continue;
+    const prefix = spec.path.replace("/{name}", "");
+    const re = new RegExp(`^${escapeRe(prefix)}/([^/]+)$`, "i");
+    const hit = re.exec(path9);
+    if (!hit) continue;
+    const name = dec(hit[1]);
+    if (include) {
+      if (spec.type !== "CLAS/OC") {
+        throw new AbapError(
+          "UNSUPPORTED",
+          `${spec.label} ${name} has no "${include}" include \u2014 class includes exist only for classes.`,
+          { uri, type: spec.type, requested: include }
+        );
+      }
+      return {
+        spec,
+        name,
+        include,
+        sourceUri: classIncludeUri(buildUri(spec, name), include)
+      };
+    }
+    return { spec, name };
+  }
+  return void 0;
+}
+function classifyUnmatchedAdtPath(uri) {
+  const path9 = uri.replace(/^https?:\/\/[^/]+/i, "").replace(/[?#].*$/, "").replace(/\/source\/main.*$/, "");
+  for (const { re, what } of NOT_AN_OBJECT) {
+    if (re.test(path9)) return { kind: "not-an-object", what };
+  }
+  for (const { type, mid } of TWO_SEGMENT_KINDS) {
+    const re = new RegExp(
+      `^\\/sap\\/bc\\/adt\\/functions\\/groups\\/([^/]+)\\/${mid}\\/([^/]+)\\/([^/]+)(?:\\/([^/]+))?$`,
+      "i"
+    );
+    const m = re.exec(path9);
+    if (m) {
+      return {
+        kind: "sub-object",
+        spec: BY_TYPE.get(type),
+        name: dec(m[2]),
+        parent: dec(m[1]),
+        segment: decodeURIComponent(m[3]).toLowerCase(),
+        subName: m[4] ? dec(m[4]) : void 0
+      };
+    }
+  }
+  for (const spec of TYPES) {
+    if (spec.parentPath) continue;
+    const prefix = spec.path.replace("/{name}", "");
+    const re = new RegExp(`^${escapeRe(prefix)}/([^/]+)/([^/]+)(?:/([^/]+))?$`, "i");
+    const m = re.exec(path9);
+    if (!m) continue;
+    return {
+      kind: "sub-object",
+      spec,
+      name: dec(m[1]),
+      segment: decodeURIComponent(m[2]).toLowerCase(),
+      subName: m[3] ? dec(m[3]) : void 0
+    };
+  }
+  return void 0;
+}
+var CLASS_INCLUDES, TYPES, BY_TYPE, BY_KIND, KEYWORDS_BY_LENGTH, dec, escapeRe, NOT_AN_OBJECT, TWO_SEGMENT_KINDS;
+var init_types = __esm({
+  "src/adt/types.ts"() {
+    "use strict";
+    init_errors();
+    CLASS_INCLUDES = [
+      "main",
+      "definitions",
+      "implementations",
+      "macros",
+      "testclasses"
+    ];
+    TYPES = [
+      {
+        type: "CLAS/OC",
+        kind: "CLAS",
+        label: "Class",
+        path: "/sap/bc/adt/oo/classes/{name}",
+        mode: "source",
+        supportsSource: true,
+        keywords: ["class", "clas", "abap class", "oo"]
+      },
+      {
+        type: "INTF/OI",
+        kind: "INTF",
+        label: "Interface",
+        path: "/sap/bc/adt/oo/interfaces/{name}",
+        mode: "source",
+        supportsSource: true,
+        keywords: ["interface", "intf"]
+      },
+      {
+        type: "PROG/P",
+        kind: "PROG",
+        label: "Program",
+        path: "/sap/bc/adt/programs/programs/{name}",
+        mode: "source",
+        supportsSource: true,
+        keywords: ["program", "prog", "report", "executable"]
+      },
+      {
+        type: "PROG/I",
+        kind: "PROG/I",
+        label: "Include",
+        path: "/sap/bc/adt/programs/includes/{name}",
+        mode: "source",
+        supportsSource: true,
+        keywords: ["include", "incl"]
+      },
+      {
+        type: "FUGR/F",
+        kind: "FUGR",
+        label: "Function group",
+        path: "/sap/bc/adt/functions/groups/{name}",
+        mode: "source",
+        supportsSource: true,
+        keywords: ["function group", "fugr", "fgroup"]
+      },
+      {
+        type: "FUGR/FF",
+        kind: "FUGR/FF",
+        label: "Function module",
+        path: "/sap/bc/adt/functions/groups/{parent}/fmodules/{name}",
+        parentPath: "/sap/bc/adt/functions/groups/{parent}",
+        mode: "source",
+        supportsSource: true,
+        keywords: ["function module", "function", "fm", "fugr/ff"]
+      },
+      {
+        type: "FUGR/I",
+        kind: "FUGR/I",
+        label: "Function group include",
+        path: "/sap/bc/adt/functions/groups/{parent}/includes/{name}",
+        parentPath: "/sap/bc/adt/functions/groups/{parent}",
+        mode: "source",
+        supportsSource: true,
+        keywords: ["function group include", "fugr include"]
+      },
+      {
+        // `keywords` is a lookup aid only — one URI/type covers both classic and
+        // modern CDS syntax generations. Target release here (7.54) needs the
+        // classic `define view` form; `define view entity` etc. don't exist on
+        // it (confirmed live — see archive and doc/LIMITATIONS/not-implemented-and-unproven.md).
+        type: "DDLS/DF",
+        kind: "DDLS",
+        label: "CDS view / DDL source",
+        path: "/sap/bc/adt/ddic/ddl/sources/{name}",
+        mode: "source",
+        supportsSource: true,
+        keywords: ["cds", "ddls", "ddl", "cds view", "view entity", "data definition"]
+      },
+      {
+        type: "DDLX/EX",
+        kind: "DDLX",
+        label: "Metadata extension",
+        path: "/sap/bc/adt/ddic/ddlx/sources/{name}",
+        mode: "source",
+        supportsSource: true,
+        keywords: ["ddlx", "metadata extension"]
+      },
+      {
+        // path confirmed live: GET .../source/main 200s with Accept: text/plain (2026-09-04).
+        type: "DCLS/DL",
+        kind: "DCLS",
+        label: "CDS access control",
+        path: "/sap/bc/adt/acm/dcl/sources/{name}",
+        mode: "source",
+        supportsSource: true,
+        keywords: ["access control", "dcls", "dcl", "cds access control", "authorization role", "define role"]
+      },
+      {
+        // path confirmed live: GET .../source/main 200s with Accept: text/plain (2026-09-04).
+        type: "DDLA/ADF",
+        kind: "DDLA",
+        label: "Annotation definition",
+        path: "/sap/bc/adt/ddic/ddla/sources/{name}",
+        mode: "source",
+        supportsSource: true,
+        keywords: ["annotation definition", "ddla", "cds annotation", "annotation"]
+      },
+      {
+        type: "SRVD/SRV",
+        kind: "SRVD",
+        label: "Service definition",
+        path: "/sap/bc/adt/ddic/srvd/sources/{name}",
+        mode: "source",
+        supportsSource: true,
+        keywords: ["srvd", "service definition"]
+      },
+      {
+        type: "BDEF/BDO",
+        kind: "BDEF",
+        label: "Behavior definition",
+        path: "/sap/bc/adt/bo/behaviordefinitions/{name}",
+        mode: "source",
+        supportsSource: true,
+        keywords: ["bdef", "behavior definition", "behaviour definition"]
+      },
+      // `/xslt/sources/{name}` 404s live; `/xslt/transformations/{name}` 200s,
+      // including `.../source/main` with real XSLT source. Confirmed against
+      // ADT discovery and objectType search too (2026-09-04).
+      {
+        type: "XSLT/VT",
+        kind: "XSLT",
+        label: "Transformation",
+        path: "/sap/bc/adt/xslt/transformations/{name}",
+        mode: "source",
+        supportsSource: true,
+        keywords: ["xslt", "transformation"]
+      },
+      // objectType search is queried as TYPE/DA, but the appliance's own
+      // adtcore:type on the result is TYPE/DG — that is the code used here.
+      // Path confirmed live: GET .../source/main 200s with Accept: text/plain
+      // (2026-09-04).
+      {
+        type: "TYPE/DG",
+        kind: "TYPE",
+        label: "Type group",
+        path: "/sap/bc/adt/ddic/typegroups/{name}",
+        mode: "source",
+        supportsSource: true,
+        keywords: ["type group", "type pool", "typegroup", "type-pool"]
+      },
+      // path confirmed live: GET .../drul/sources/demo_drul_1/source/main 200s (2026-09-04).
+      {
+        type: "DRUL/DRL",
+        kind: "DRUL",
+        label: "Dependency rule",
+        path: "/sap/bc/adt/ddic/drul/sources/{name}",
+        mode: "source",
+        supportsSource: true,
+        keywords: ["dependency rule", "drul"]
+      },
+      // ---- Enhancement framework: BAdI impls, source plug-ins, enhancement
+      // spots. URIs/behaviour verified live on A4H. ENHO/XH and ENHS/XS have no
+      // /source/main (structured XML only), so mode stays "ddic" — routes reads
+      // through readDdic's clean UNSUPPORTED instead of a 404. Only ENHO/XHH has
+      // verified real source (PUT .../source/main → 200).
+      {
+        type: "ENHO/XH",
+        kind: "ENHO/XH",
+        label: "BAdI implementation",
+        path: "/sap/bc/adt/enhancements/enhoxh/{name}",
+        mode: "ddic",
+        supportsSource: false,
+        // verified on A4H: no /source/main, structured XML only
+        keywords: ["badi implementation", "badi impl", "enhoxh", "enho"]
+      },
+      {
+        type: "ENHO/XHH",
+        kind: "ENHO/XHH",
+        label: "Enhancement source plug-in",
+        path: "/sap/bc/adt/enhancements/enhoxhh/{name}",
+        mode: "source",
+        supportsSource: true,
+        // verified on A4H: PUT {uri}/source/main → 200
+        keywords: ["source plugin", "source code plugin", "enhancement plugin", "enhoxhh"]
+      },
+      {
+        type: "ENHS/XS",
+        kind: "ENHS",
+        label: "Enhancement spot",
+        path: "/sap/bc/adt/enhancements/enhsxs/{name}",
+        mode: "ddic",
+        supportsSource: false,
+        // verified on A4H: no /source/main, structured XML only
+        keywords: ["enhancement spot", "badi spot", "enhsxs", "enhs"]
+      },
+      // ---- DDIC: rendered as pseudo-DDL, never as raw ADT XML ----
+      {
+        type: "TABL/DT",
+        kind: "TABL",
+        label: "Database table",
+        path: "/sap/bc/adt/ddic/tables/{name}",
+        mode: "ddic",
+        supportsSource: true,
+        // verified on A4H: source-based
+        keywords: ["table", "tabl", "database table", "transparent table"]
+      },
+      {
+        type: "TABL/DS",
+        kind: "STRU",
+        label: "Structure",
+        path: "/sap/bc/adt/ddic/structures/{name}",
+        mode: "ddic",
+        supportsSource: true,
+        // verified on A4H: source-based
+        keywords: ["structure", "stru", "ddic structure"]
+      },
+      {
+        type: "DTEL/DE",
+        kind: "DTEL",
+        label: "Data element",
+        path: "/sap/bc/adt/ddic/dataelements/{name}",
+        mode: "ddic",
+        supportsSource: false,
+        // verified on A4H: /source/main → 404
+        keywords: ["data element", "dtel"]
+      },
+      {
+        type: "DOMA/DD",
+        kind: "DOMA",
+        label: "Domain",
+        path: "/sap/bc/adt/ddic/domains/{name}",
+        mode: "ddic",
+        supportsSource: false,
+        // verified on A4H: /source/main → 404
+        keywords: ["domain", "doma"]
+      },
+      {
+        type: "TTYP/DA",
+        kind: "TTYP",
+        label: "Table type",
+        path: "/sap/bc/adt/ddic/tabletypes/{name}",
+        mode: "ddic",
+        supportsSource: false,
+        // verified on A4H: /source/main → 404
+        keywords: ["table type", "ttyp"]
+      },
+      // MSAG/ENQU exist here for the WRITE path (capabilities.ts REGISTRY),
+      // reached via specForType. mode "ddic" routes READ into readDdic's clean
+      // UNSUPPORTED. Neither has /source/main (verified live, 404) — must not
+      // claim supportsSource.
+      {
+        type: "MSAG/N",
+        kind: "MSAG",
+        label: "Message class",
+        // Singular "messageclass", and no `ddic/` prefix — verified live; the
+        // plural guess 404s.
+        path: "/sap/bc/adt/messageclass/{name}",
+        mode: "ddic",
+        supportsSource: false,
+        keywords: ["message class", "msag", "messages"]
+      },
+      {
+        type: "ENQU/DL",
+        kind: "ENQU",
+        label: "Lock object",
+        // `.../lockobjects/sources/{name}` — the `sources` segment is part of the
+        // collection path, not a source sub-resource.
+        path: "/sap/bc/adt/ddic/lockobjects/sources/{name}",
+        mode: "ddic",
+        supportsSource: false,
+        keywords: ["lock object", "enqu", "enqueue object"]
+      },
+      {
+        type: "DEVC/K",
+        kind: "DEVC",
+        label: "Package",
+        path: "/sap/bc/adt/packages/{name}",
+        mode: "ddic",
+        supportsSource: false,
+        keywords: ["package", "devc", "development class"]
+      },
+      // ---- catalog-based DDIC reads: no source, no XML descriptor, no
+      // discoverable ADT collection either — see capabilities.ts's SHLP/DH and
+      // VIEW/DV entries. `path` below is kept for URI identity/round-tripping
+      // (buildUri/specFromUri) only; the actual read never fetches it. It goes
+      // through plain-text catalog SELECTs on the freestyle data-preview
+      // endpoint instead (src/adt/catalog-query.ts + catalog-read.ts), the same
+      // mechanism img-query.ts/img-read.ts use for IMG customizing reads. That
+      // route was chosen over the obvious DDIF_SHLP_GET / DDIF_VIEW_GET /
+      // RPY_TRANSACTION_READ function modules because those need the
+      // generated-ABAP "fluid" bridge, and fluid is unconditionally disabled
+      // when ABAP_MODE=read (see fluidDisabledReason in src/adt/fluid/
+      // enabled.ts) — exactly the mode a read is expected to work in. Catalog
+      // SELECTs work in every ABAP_MODE, and for TRAN/T return strictly more
+      // than RPY_TRANSACTION_READ does (TSTCP call parameters, TSTCA
+      // authorisation checks, AGR_TCODES role membership).
+      //
+      // Honest caveat, updated: this used to be necessary but not sufficient —
+      // resolve.ts's `resolveObject` refused SHLP/DH (capabilities.ts marked it
+      // `unsupported`) and VIEW/DV/TRAN/T (marked `bridgeCreate` with no
+      // `create`, so `isBridgeOnlyCreateType` was true) with UNSUPPORTED
+      // whenever a caller passed an explicit `type` hint, before `readDdic` (and
+      // therefore this module's `readCatalogObject`) was ever reached, no matter
+      // what this file declared. `resolveObject`'s bridge-only-create check now
+      // asks `ddicStrategy(spec.kind)` (via `specForType`, i.e. exactly the
+      // `mode: "ddic"` entries below) whether a real read exists before refusing
+      // — so these three entries are now sufficient on their own to make
+      // SHLP/DH, VIEW/DV and TRAN/T resolvable and readable with an explicit
+      // `type` hint. SHLP/DH also no longer carries an `unsupported` marker in
+      // capabilities.ts's REGISTRY at all. `TABL/DI` has no entry in this file
+      // (so `specForType` returns `undefined` for it) and stays refused by that
+      // same check — adding one here, alone, would be enough to unblock it too.
+      {
+        type: "SHLP/DH",
+        kind: "SHLP",
+        label: "Search help",
+        // Every verb 404s on this collection (verified, see capabilities.ts) —
+        // kept only so buildUri/specFromUri have a stable shape to round-trip.
+        path: "/sap/bc/adt/ddic/searchhelps/{name}",
+        mode: "ddic",
+        supportsSource: false,
+        keywords: ["search help", "shlp", "value help", "f4 help", "elementary search help", "collective search help"]
+      },
+      {
+        type: "VIEW/DV",
+        kind: "VIEW",
+        label: "Classic view",
+        // GET-only per capabilities.ts, and there is still no writable collection
+        // and no collection to resolve a URI against — this path is kept for URI
+        // identity only, and the catalog route never fetches it. But this
+        // `TypeSpec` is exactly what makes abap_search resolve VIEW/DV at all:
+        // the read itself goes through catalog-read.ts's plain-text catalog
+        // SELECTs, not this REST collection. Confirmed live on A4H (NetWeaver
+        // 7.54, client 001) on 2026-09-15: abap_search "H_T000" returns both
+        // SHLP/DH H_T000 (STRM) and VIEW/DV H_T000 (STRM_DB); abap_search "SM30"
+        // returns TRAN/T SM30 (SVIM).
+        path: "/sap/bc/adt/ddic/views/{name}",
+        mode: "ddic",
+        supportsSource: false,
+        keywords: ["view", "database view", "classic view", "dv"]
+      },
+      {
+        type: "TRAN/T",
+        kind: "TRAN",
+        label: "Transaction",
+        // The one real ADT route for a transaction: the generic VIT bridge,
+        // read-only (405 on every mutating verb) — matches vitBridgeUri("trant",
+        // name) in write-verify.ts. Not used by the catalog route below; kept
+        // for URI identity only.
+        path: "/sap/bc/adt/vit/wb/object_type/trant/object_name/{name}",
+        mode: "ddic",
+        supportsSource: false,
+        keywords: ["transaction", "tcode", "tran"]
+      },
+      // RAP service binding: one XML doc at the object's own URI (no
+      // /source/main; GET .../content 404s) — unlike DDLS/DDLX/SRVD/BDEF above.
+      // A provenance conflict over whether SRVB exists on A4H at all was
+      // resolved by live verification on 2026-08-18 (create/activate/read-back/
+      // delete all succeeded); see the git history and the
+      // SRVB/SVB entry in src/adt/capabilities.ts for the full history and the
+      // vendor media-type override this type needs.
+      {
+        type: "SRVB/SVB",
+        kind: "SRVB",
+        label: "Service binding",
+        path: "/sap/bc/adt/businessservices/bindings/{name}",
+        mode: "ddic",
+        supportsSource: false,
+        keywords: [
+          "service binding",
+          "srvb",
+          "svb",
+          "odata service",
+          "rap service binding",
+          "binding"
+        ]
+      }
+    ];
+    BY_TYPE = new Map(TYPES.map((t) => [t.type, t]));
+    BY_KIND = new Map(TYPES.map((t) => [t.kind, t]));
+    KEYWORDS_BY_LENGTH = TYPES.flatMap(
+      (spec) => spec.keywords.map((keyword) => ({ keyword, spec }))
+    ).sort((a, b) => b.keyword.length - a.keyword.length);
+    dec = (s) => decodeURIComponent(s).toUpperCase();
+    escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    NOT_AN_OBJECT = [
+      { re: /^\/sap\/bc\/adt\/cts\/transportrequests\/[^/]+\/?$/i, what: "transport request" }
+    ];
+    TWO_SEGMENT_KINDS = [
+      { type: "FUGR/FF", mid: "fmodules" },
+      { type: "FUGR/I", mid: "includes" }
+    ];
+  }
+});
+
+// src/adt/capabilities.ts
+function capabilitiesFor(type) {
+  if (!type) return void 0;
+  const code = type.trim().toUpperCase();
+  if (Object.prototype.hasOwnProperty.call(REGISTRY, code)) return REGISTRY[code];
+  const canonical = specForType(code)?.type;
+  return canonical !== void 0 && Object.prototype.hasOwnProperty.call(REGISTRY, canonical) ? REGISTRY[canonical] : void 0;
+}
+function codesWith(pred) {
+  return CODES.filter((c) => pred(REGISTRY[c]));
+}
+function isBridgeOnlyCreateType(type) {
+  const cap = capabilitiesFor(type);
+  return cap?.bridgeCreate !== void 0 && cap.create === void 0;
+}
+function isBridgeDeletableType(type) {
+  const cap = capabilitiesFor(type);
+  return cap?.bridgeDelete !== void 0;
+}
+function writableTypesHint() {
+  const clauses = [`Writable types are ${WRITABLE_TYPES.join(", ")}.`];
+  if (CREATE_ONLY_TYPES.length) {
+    clauses.push(`${CREATE_ONLY_TYPES.join(", ")} can only be created, never rewritten \u2014 no source to write.`);
+  }
+  const bridgeAttempted = BRIDGE_ONLY_CREATE_TYPES.filter((c) => !BRIDGE_CREATE_REFUSED_TYPES.includes(c));
+  if (bridgeAttempted.length) {
+    clauses.push(
+      `${bridgeAttempted.join(", ")} are created through a generated classrun bridge, also with no \`source\`.`
+    );
+  }
+  if (BRIDGE_CREATE_REFUSED_TYPES.length) {
+    clauses.push(
+      `${BRIDGE_CREATE_REFUSED_TYPES.join(", ")} cannot be created here at all, in any package \u2014 only deleted.`
+    );
+  }
+  if (ENHANCEABLE_TYPES.length) {
+    clauses.push(`${ENHANCEABLE_TYPES.join(", ")} can be edited (not created) here.`);
+  }
+  if (ACTIVATION_ONLY_TYPES.length) {
+    clauses.push(
+      `${ACTIVATION_ONLY_TYPES.join(", ")} cannot be written here but an existing one can be activated.`
+    );
+  }
+  return clauses.join(" ");
+}
+function deleteUnsupportedMessage(label, code) {
+  return `abap_write does not implement delete for ${label} (${code}). That is a gap in this tool's coverage, not a property of the object \u2014 it may still be removable by other means. ` + TERMINAL_REFUSAL_NOTE;
+}
+function assertRegistryCoversTypes(types = TYPES) {
+  const missing = types.map((t) => t.type).filter((t) => !Object.prototype.hasOwnProperty.call(REGISTRY, t));
+  if (missing.length > 0) {
+    throw new Error(
+      `src/adt/capabilities.ts REGISTRY is missing an entry for: ${missing.join(", ")}. Every type in src/adt/types.ts's TYPES array must have a capabilities registry entry (even an empty one, { label: "\u2026" }) \u2014 see src/adt/capabilities.ts.`
+    );
+  }
+}
+function assertNoConflictingCapabilities() {
+  for (const code of CODES) {
+    const cap = REGISTRY[code];
+    if (cap.unsupported && (cap.write !== void 0 || cap.create !== void 0)) {
+      throw new Error(
+        `src/adt/capabilities.ts REGISTRY entry ${code} declares both a capability (write/create) and 'unsupported' \u2014 pick one.`
+      );
+    }
+    if (cap.bridgeCreate && cap.unsupported !== void 0) {
+      throw new Error(
+        `src/adt/capabilities.ts REGISTRY entry ${code} declares 'bridgeCreate' together with 'unsupported' \u2014 a type is created by the classrun bridge, or not at all. Pick one.`
+      );
+    }
+    if (cap.bridgeCreate && cap.create !== void 0 && cap.bridgeCreate.alongsideRestCreate === void 0) {
+      throw new Error(
+        `src/adt/capabilities.ts REGISTRY entry ${code} declares 'bridgeCreate' together with 'create' but names no bridgeCreate.alongsideRestCreate discriminator \u2014 a type is created over REST, or by the classrun bridge, or (with a named discriminator deciding which) both. Pick one, or name the discriminator.`
+      );
+    }
+    if (cap.bridgeCreate?.alongsideRestCreate !== void 0 && cap.create === void 0) {
+      throw new Error(
+        `src/adt/capabilities.ts REGISTRY entry ${code} declares bridgeCreate.alongsideRestCreate but has no 'create' \u2014 the field names a REST route to coexist with, so one must exist.`
+      );
+    }
+    if (cap.bridgeDelete && cap.unsupported !== void 0) {
+      throw new Error(
+        `src/adt/capabilities.ts REGISTRY entry ${code} declares 'bridgeDelete' together with 'unsupported' \u2014 a type is deleted by the classrun bridge, or not at all. Pick one.`
+      );
+    }
+    if (cap.bridgeDelete && cap.delete === true) {
+      throw new Error(
+        `src/adt/capabilities.ts REGISTRY entry ${code} declares 'bridgeDelete' together with 'delete: true' \u2014 a type is deleted over REST, or by the classrun bridge, never both.`
+      );
+    }
+    if (cap.create?.vendor === false) {
+      const shape = cap.write?.shape;
+      const hasSkeleton = cap.create.skeleton !== void 0;
+      const valid = shape === "properties" && !hasSkeleton || shape === "source" && hasSkeleton;
+      if (!valid) {
+        throw new Error(
+          `src/adt/capabilities.ts REGISTRY entry ${code} declares create.vendor: false with write.shape ${JSON.stringify(shape)} and create.skeleton ${hasSkeleton ? "present" : "absent"} \u2014 a hand-rolled create has no body to POST unless it is either a 'properties' shape (the write payload IS the XML document) or a 'source' shape paired with a create.skeleton (write.ts builds the XML itself).`
+        );
+      }
+    }
+    if (cap.create?.skeleton !== void 0 && cap.create.vendor !== false) {
+      throw new Error(
+        `src/adt/capabilities.ts REGISTRY entry ${code} declares create.skeleton alongside create.vendor: true \u2014 the skeleton would never be read; drop one or the other.`
+      );
+    }
+    if (cap.namePrefixes && cap.namePrefixes.filter((p) => p.trim() !== "").length === 0) {
+      throw new Error(
+        `src/adt/capabilities.ts REGISTRY entry ${code} declares an empty namePrefixes override, which would refuse every possible name for that type. Omit the field to inherit the global list instead.`
+      );
+    }
+    if (cap.blankSourceOnAbsence && cap.write?.shape !== "source") {
+      throw new Error(
+        `src/adt/capabilities.ts REGISTRY entry ${code} declares blankSourceOnAbsence but write.shape is ${JSON.stringify(cap.write?.shape)} \u2014 this only makes sense for a type whose write.shape is "source".`
+      );
+    }
+  }
+}
+function assertWritableTypesAreReadable() {
+  const unreadable = [];
+  for (const code of CODES) {
+    const cap = REGISTRY[code];
+    if (!cap.write) continue;
+    const spec = TYPES.find((t) => t.type === code);
+    if (!spec) {
+      unreadable.push(`${code} (no src/adt/types.ts entry, so no read mode to check)`);
+      continue;
+    }
+    if (spec.mode === "source") continue;
+    if (cap.write.shape === "properties") continue;
+    if (spec.mode === "ddic" && ddicStrategy(spec.kind) !== "unsupported") continue;
+    unreadable.push(code);
+  }
+  if (unreadable.length > 0) {
+    throw new Error(
+      `src/adt/capabilities.ts REGISTRY declares write capability for types abap_read cannot read in ANY mode: ${unreadable.join(", ")}. Every writable type must be readable \u2014 via mode: "source" (types.ts), format: "raw" (write.shape "properties"), or a ddic.ts pseudo-DDL renderer (ddicStrategy) \u2014 or a caller is asked to write a shape it was never shown. If this is genuinely too strong for one of these types, that must be decided explicitly here, not left to fail silently.`
+    );
+  }
+}
+var REGISTRY, CODES, WRITABLE_TYPES, CREATE_ONLY_TYPES, CREATABLE_TYPES, BRIDGE_CREATABLE_TYPES, BRIDGE_ONLY_CREATE_TYPES, BRIDGE_CREATE_REFUSED_TYPES, BRIDGE_DELETABLE_TYPES, ENHANCEABLE_TYPES, ACTIVATION_ONLY_TYPES, DELETABLE_TYPES, VERIFIED_CREATABLE_TYPES, ABAP_WRITE_TYPES, NON_READABLE_TYPES, NON_WRITABLE_TYPES, PROPERTIES_SHAPE_TYPES, TERMINAL_REFUSAL_NOTE;
+var init_capabilities = __esm({
+  "src/adt/capabilities.ts"() {
+    "use strict";
+    init_ddic_strategy();
+    init_types();
+    REGISTRY = {
+      // CLAS/INTF/PROG delete: true live-verified 2026-08-19: create →
+      // delete → independent abap_read confirming absence, all clean. Archive:
+      // the git history.
+      "CLAS/OC": {
+        label: "Class",
+        write: { shape: "source" },
+        // verified: true — create-verification sweep, 2/2 FULL_CYCLE_OK. Load-bearing
+        // beyond abap_write: abapsmith deploys its own IF_OO_ADT_CLASSRUN bridge
+        // classes through this same path. Archive has the full run record.
+        create: { vendor: true, verified: true },
+        delete: true,
+        activate: true
+      },
+      "INTF/OI": {
+        label: "Interface",
+        write: { shape: "source" },
+        // verified: true — create-verification sweep, 3/3 FULL_CYCLE_OK. Load-bearing:
+        // the enhancement bridge creates a marker INTERFACE via this path too.
+        create: { vendor: true, verified: true },
+        delete: true,
+        activate: true
+      },
+      "PROG/P": {
+        label: "Program",
+        write: { shape: "source" },
+        // verified: true — create-verification sweep, 2/2 FULL_CYCLE_OK. Load-bearing:
+        // abap_run creates a runner PROGRAM through this same path.
+        create: { vendor: true, verified: true },
+        delete: true,
+        activate: true
+      },
+      // Package-parented (unlike FUGR/I below): vendor CreatableTypes has a real
+      // PROG/I entry (creationPath programs/includes, validationPath
+      // includes/validation) using the ordinary createBodySimple/
+      // <adtcore:packageRef> body, so create.parent stays at its "package"
+      // default — an include is a standalone repository object; nothing in the
+      // create body ties it to a host program, only the host's own
+      // `INCLUDE <name>.` statement does that.
+      //
+      // Evidence, A4H 2026-09-04: POST .../includes/validation?objtype=PROG/I&
+      // objname=ZTMD_INC_01&packagename=$TMP returned CHECK_RESULT=X (name is
+      // free-form, 30 chars); GET .../programs/includes/lsabp_unit_sboxtop
+      // 200s with a generic Accept, so no mediaType override is needed.
+      // `create.verified: true` and `delete: true` — live-verified full cycle on
+      // A4H 2026-09-04: create, check clean, activate, re-write (etag changed,
+      // activate), read-back. Delete is refused by the server (403
+      // ExceptionResourceDeletionFailure, "referenced in other programs") while
+      // any program still INCLUDEs it; delete succeeded once the host's own
+      // `INCLUDE` statement was removed, and a read then 404d.
+      "PROG/I": {
+        label: "Include",
+        write: { shape: "source" },
+        create: { vendor: true, verified: true },
+        delete: true,
+        activate: true
+      },
+      // PACKAGE-parented (unlike FUGR/FF below): vendor CreatableTypes has a real
+      // FUGR/F entry using the ordinary <adtcore:packageRef> body, so
+      // create.parent stays at its "package" default. Registering this is what
+      // makes FUGR/FF reachable at all — a function module needs a group to be
+      // created inside, and until this entry existed the group could be neither
+      // written nor created.
+      //
+      // `write` is live-verified with a distinguishing marker-comment PUT into
+      // the group's /source/main (its top-include skeleton), not inferred from
+      // types.ts. Footgun: PUTting /source/main REPLACES that include list — a
+      // caller must write the INCLUDE L<GROUP>TOP./L<GROUP>UXX. lines back.
+      // Omitting the UXX line specifically is silent: the group writes, activates
+      // and reads back active while every CALL FUNCTION against its modules dumps
+      // CX_SY_DYN_CALL_ILLEGAL_FUNC / CALL_FUNCTION_NOT_ACTIVE.
+      // assertFunctionGroupImplementationInclude in write.ts refuses that shape
+      // before the PUT.
+      //
+      // `delete: true` live-verified 2026-08-19, twice. One divergence
+      // recorded: DELETE without a lock 423s here (unlike FUGR/FF) — moot today
+      // since deleteObject always locks first, but flagged against a future
+      // lock-elision fast path. Full method: the git history.
+      "FUGR/F": {
+        label: "Function group",
+        write: { shape: "source" },
+        // verified: true — create-verification sweep, 2/2 FULL_CYCLE_OK (dedicated
+        // CREATE citation; earlier evidence only covered WRITE of an existing
+        // group's top include).
+        create: { vendor: true, verified: true },
+        delete: true,
+        activate: true
+      },
+      // Container-parented — see the module doc. Vendor FUGR/FF entry emits
+      // <adtcore:containerRef> instead of <adtcore:packageRef>; vendor: true
+      // still holds, parent: "container" only changes which parent
+      // createNewObject hands it.
+      //
+      // `delete: true` live-verified 2026-08-19, twice: DELETE succeeded
+      // both times and the sibling group's own delete+verify-absent corroborated
+      // it. Direct abap_read absence-check on the function module itself is NOT
+      // reliable for this type — reading /source/main of an already-deleted FM
+      // 500s instead of 404ing (a pre-existing appliance quirk, not something
+      // this pass fixes); `true` rests on the DELETE call's own success plus the
+      // container-level corroboration, not on that read.
+      "FUGR/FF": {
+        label: "Function module",
+        write: { shape: "source" },
+        // verified: true — create-verification sweep, 2 iterations, both createOk AND
+        // verifyPresentOk (independent read-back while it existed). Both
+        // iterations' post-delete bench verdict reads CREATED_STILL_PRESENT —
+        // that is the /source/main-500s-not-404s quirk above tripping the
+        // harness's absence check, NOT a leak: the containing group was
+        // independently confirmed deleted in both runs and a function module
+        // cannot outlive its group. `verified` describes CREATE only; full
+        // record in the archive.
+        create: { vendor: true, parent: "container", verified: true },
+        delete: true,
+        activate: true
+      },
+      // Container-parented like FUGR/FF: the vendor FUGR/I row goes through
+      // createBodyFunc, emitting <adtcore:containerRef> naming the function
+      // GROUP. Name shape: the caller passes the FULL include name
+      // (L<GROUP><suffix>) together with the group as container — e.g.
+      // object: "ZTMD_FG_01/LZTMD_FG_01F01". The vendor row's maxLen: 3 is a
+      // client-side hint the server contradicts: POST .../functions/validation?
+      // objtype=FUGR/I&fugrname=SABP_UNIT_SBOX&objname=… answered SEVERITY
+      // ERROR ("Include F01 will not be created in function group
+      // SABP_UNIT_SBOX") for the bare 3-char suffix, and SEVERITY OK for
+      // LSABP_UNIT_SBOXF01 (A4H, 2026-09-04). So t.name goes to createObject
+      // unchanged, and it's the same name the read/write/delete URI carries — a
+      // live GET .../functions/groups/sabp_unit_sbox/includes/lsabp_unit_sboxtop
+      // returns adtcore:name="LSABP_UNIT_SBOXTOP".
+      //
+      // createNewObject needed no change; see the container-parent note in the
+      // module doc above.
+      //
+      // namePrefixes is server-derived, like ENQU/DL's ["EZ","EY"]: SAP derives
+      // the group name from the include name, so an include of a customer
+      // Z…/Y… group necessarily begins LZ/LY, and the global ["Z","Y"] list
+      // would refuse every valid name. `create.verified: true` and `delete: true`
+      // — live-verified full cycle on A4H 2026-09-04 (ZTMD_FG_01/LZTMD_FG_01F01
+      // and an arbitrary LZTMD_FG_01ABC suffix, both): create, activate, update
+      // (etag changed), read, delete, then a 404 read. The group must already
+      // exist — POST against a missing group 500s
+      // ExceptionResourceCreationFailure "cannot be created without a package".
+      "FUGR/I": {
+        label: "Function group include",
+        write: { shape: "source" },
+        create: { vendor: true, parent: "container", verified: true },
+        delete: true,
+        activate: true,
+        namePrefixes: ["LZ", "LY"]
+      },
+      // Source-shape, reuses createNewObject/putSource/deleteObject unchanged
+      // (vendor CreatableTypes has a DDLS/DF entry). `delete: true`
+      // live-verified 2026-08-19: create → delete → independent
+      // abap_read confirming absence, clean, twice.
+      "DDLS/DF": {
+        label: "CDS view / DDL source",
+        write: { shape: "source" },
+        // verified: true — create-verification sweep, 3/3 FULL_CYCLE_OK, including a
+        // dedicated read-back while present.
+        create: { vendor: true, verified: true },
+        delete: true,
+        activate: true
+      },
+      // Same recipe as DDLS/DF: vendor CreatableTypes has a real DDLX/EX entry,
+      // so create.vendor: true reuses createNewObject unchanged. Live-verified
+      // end to end, twice, on A4H: create 201 → PUT source 200 → activate 200
+      // clean → read back 200 (118 bytes) → delete 200. NOT re-tested by the
+      // 2026-08-19 delete pass — this citation already met that bar.
+      //
+      // Caller trap, not a code issue: a metadata extension only activates
+      // against a base CDS view carrying `@Metadata.allowExtensions: true`
+      // (default false) — "Annotation 'Metadata.allowExtensions' missing"
+      // otherwise. Property of the DDLS text abapsmith writes, not of this entry.
+      "DDLX/EX": {
+        label: "Metadata extension",
+        write: { shape: "source" },
+        // verified: true rests on the pre-existing create→read-back→delete
+        // citation in the comment above. the create-verification sweep deliberately did NOT
+        // re-create this type (bar already met; avoids a leftover-object risk).
+        create: { vendor: true, verified: true },
+        delete: true,
+        activate: true
+      },
+      // Same source-shape recipe as DDLS/DF: vendor CreatableTypes has a real
+      // DCLS/DL entry (creationPath acm/dcl/sources). Live-verified end to end
+      // on A4H, 2026-09-04, all through abapsmith's own abap_write/abap_read:
+      // create ZTMD_DCL_01 in $TMP → source PUT → read back verbatim → PUT with
+      // activate=true → activated clean, read back verbatim → delete → NOT_FOUND
+      // on a subsequent read. Object GET 406s with a generic Accept, 200 with
+      // the vendor media type — hence mediaType below.
+      "DCLS/DL": {
+        label: "CDS access control",
+        write: { shape: "source" },
+        create: { vendor: true, verified: true },
+        delete: true,
+        activate: true,
+        mediaType: "application/vnd.sap.adt.dclSource+xml"
+      },
+      // Same source-shape recipe as DCLS/DL: vendor CreatableTypes has a real
+      // DDLA/ADF entry (validationPath ddic/ddla/sources/validation), and
+      // `GET .../ddic/ddla/sources/endusertext/source/main` 200s (the object URI
+      // 406s with a generic Accept, 200 with the vendor media type — hence
+      // mediaType). But `verified: false` — settled (not "unverified"): a
+      // 2026-09-04 A4H probe DISPROVED create for both `abap_write` (creating
+      // ZTMD_ANNO_01 in $TMP) and a raw `POST .../ddic/ddla/sources` with the
+      // vendor body — both refused 403, exception `com.sap.adt.ddla
+      // .ExceptionNoAnnotationDefinitionAuthorization`, "You are not authorized
+      // to create Annotation Definitions", from an admin user that creates every
+      // other type. Annotation definitions are SAP-only on this system. `delete`
+      // stays "unverified": create never succeeded, so delete was never once
+      // reachable to test.
+      "DDLA/ADF": {
+        label: "Annotation definition",
+        write: { shape: "source" },
+        create: { vendor: true, verified: false },
+        delete: "unverified",
+        activate: true,
+        mediaType: "application/vnd.sap.adt.ddic.ddla.v1+xml"
+      },
+      // Same recipe again: vendor CreatableTypes has a real SRVD/SRV entry, so
+      // this is createNewObject/putSource/deleteObject unchanged. Live-verified
+      // end to end, twice, on A4H: create 201 → PUT source 200 → activate 200
+      // clean → delete 200.
+      //
+      // Two caveats this entry does NOT clear, recorded so nobody re-derives
+      // them: (1) a service definition may only expose DDIC-based CDS views, CDS
+      // projection views or custom entities — an ABSTRACT CDS entity activates
+      // cleanly and short-dumps at PUBLISH time instead (SAP RAP 1909 guide, pp.
+      // 11/72; a property of the DDL text, not this code). (2) delete is not
+      // unconditional: the server refuses `SDDIC_ADT_SRVD207` ("Service
+      // Definition &1 is still used and cannot be deleted") while any `R3TR
+      // SRVB`/`R3TR SRVC` still references it — correct teardown is unpublish
+      // binding → delete SRVB → delete SRVD. NOT re-tested by the 2026-08-19
+      // 2026-08-19 delete pass, same reasoning as DDLX/EX above.
+      "SRVD/SRV": {
+        label: "Service definition",
+        write: { shape: "source" },
+        // verified: true rests on the pre-existing create→delete citation above.
+        // the create-verification sweep deliberately did NOT re-create this type — the citation
+        // already meets that bar, and a fresh SRVD risks a leftover if
+        // teardown order (see SDDIC_ADT_SRVD207 note above) isn't followed exactly.
+        create: { vendor: true, verified: true },
+        delete: true,
+        activate: true
+      },
+      // Source-shape (PUT {uri}/source/main, ABAP behavior-definition text), but
+      // no vendor CreatableTypes entry AND the payload is ABAP source, not XML,
+      // so it can't double as the create body — create.skeleton is the
+      // mechanism that fills the gap; see SkeletonCreate's doc for the shape and
+      // its provenance caveat.
+      //
+      // A `managed` behavior definition over a CDS root view with a persistent
+      // table was created and activated live on this release (A4H, 2026-09-05) —
+      // `implementation unmanaged` is NOT the only usable flavour on-prem, contra
+      // the 1909 FPS00 RAP guide. On 7.56+ BDEF strict mode the bare
+      // `implementation {managed|unmanaged};` header this skeleton pairs with is
+      // obsolete and becomes a syntax error — a known forward-compat limitation,
+      // not solved here.
+      //
+      // `delete: true` — a live lock + raw DELETE answered 200, and the absence
+      // was independently confirmed two ways: the repository search row was
+      // gone, and a GET of the object URI answered the identical
+      // "Error while importing object ... from the database" a never-existing
+      // name gets (A4H, 2026-09-05). The earlier "survived two deletes" reading
+      // was a misdiagnosis — the source endpoint answers 200 with an empty body
+      // for an absent BDEF/BDO (see `blankSourceOnAbsence` below), which reads as
+      // "still there" unless the object URI is also asked; `write-verify.ts` and
+      // `source.ts` now do that. Exercised so far only via a raw lock+DELETE, not
+      // yet through abapsmith's own `abap_write mode=delete` end to end — a live
+      // run is queued to confirm that path too.
+      "BDEF/BDO": {
+        label: "Behavior definition",
+        write: { shape: "source" },
+        create: {
+          vendor: false,
+          skeleton: {
+            rootName: "blue:blueSource",
+            namespace: 'xmlns:blue="http://www.sap.com/wbobj/blue"',
+            // No `; charset=utf-8` — see SkeletonCreate.contentType's doc.
+            contentType: "application/vnd.sap.adt.blues.v1+xml"
+          },
+          // verified: true — create ran live end to end through abap_write on
+          // A4H 2026-09-05 (table → classic CDS root view → BDEF with a
+          // `managed;` header): created: true, activated: true.
+          verified: true
+        },
+        delete: true,
+        activate: true,
+        // The source endpoint answers 200/empty for an absent object — see the
+        // field's own doc comment.
+        blankSourceOnAbsence: true
+      },
+      // `create.vendor: false` — no XSLT/VT row in abap-adt-api's CreatableTypes
+      // (checked against objectcreator.js), so create needs a skeleton like
+      // BDEF/BDO. Live-probed against A4H 2026-09-04: the plural namespace
+      // `.../adt/transformations` 400s ("System expected the element
+      // '{http://www.sap.com/adt/transformation}transformation'"); the singular
+      // namespace below then 400s InvalidTransformationValue ("Transformation
+      // Type is not supported") until `trans:transformationType="XSLTProgram"`
+      // is on the root — with that attribute the raw POST returned 200 and the
+      // object read back afterwards. `contentType` carries no parameters, per
+      // SkeletonCreate.contentType's doc.
+      "XSLT/VT": {
+        label: "Transformation",
+        write: { shape: "source" },
+        create: {
+          vendor: false,
+          skeleton: {
+            rootName: "trans:transformation",
+            namespace: 'xmlns:trans="http://www.sap.com/adt/transformation"',
+            contentType: "application/vnd.sap.adt.transformations+xml",
+            rootAttributes: 'trans:transformationType="XSLTProgram"'
+          },
+          // Live 2026-09-04 through abap_write itself: create ZTMD_XSLT_01 in $TMP
+          // (created: true, check clean, activated), read back verbatim.
+          verified: true
+        },
+        // Live 2026-09-04: abap_write mode=delete → deleted: true, read → NOT_FOUND.
+        delete: true,
+        activate: true,
+        // Discovery advertises this as the transformations collection's accept
+        // type (2026-09-04); a generic Accept on the object GET was not tested.
+        mediaType: "application/vnd.sap.adt.transformations+xml"
+      },
+      // Two DDIC source types added 2026-09-04. Full create → write → activate →
+      // read-back → delete cycles ran live through abapsmith on A4H (2026-09-04,
+      // $TMP objects: ZTMDY for TYPE/DG, ZTMD_DRUL_02 for DRUL/DRL) and worked
+      // end to end. Neither has a `CreatableTypes` row in abap-adt-api, so
+      // create goes through a hand-built skeleton like `BDEF/BDO`/`XSLT/VT`.
+      // `mediaType` is the vendor Accept actually used on the object URI (the
+      // sibling DCLS/DL/DDLA/ADF URIs 406 without it) — a generic Accept was not
+      // tried.
+      //
+      // Type group: GET .../ddic/typegroups/trexc → 200, root
+      // `<atypgr:abapTypeGroup ... adtcore:type="TYPE/DG">`; GET .../source/main
+      // with Accept: text/plain → 200, real `TYPE-POOL trexc. CONSTANTS: …`.
+      // Live full cycle on ZTMDY ($TMP) through abapsmith 2026-09-04: create
+      // (skeleton POST then source PUT, check clean, activated) → update (added
+      // a CONSTANTS line, changed, activated) → read back both lines → delete →
+      // NOT_FOUND. Wire quirk: ADT rejects underscores in type-group names ("Do
+      // not use underscores in type group names", 403 — confirmed again on
+      // ZTMD_TG_01) and caps them at 5 characters (TYPE-POOL naming rule).
+      "TYPE/DG": {
+        label: "Type group",
+        write: { shape: "source" },
+        // Skeleton POST .../ddic/typegroups, Content-Type
+        // application/vnd.sap.adt.ddic.typegroups.v2+xml, then a source PUT —
+        // full cycle via abap_write on A4H 2026-09-04 (ZTMDY, $TMP):
+        // created: true, check clean, activated: true.
+        create: {
+          vendor: false,
+          skeleton: {
+            rootName: "atypgr:abapTypeGroup",
+            namespace: 'xmlns:atypgr="http://www.sap.com/adt/ddic/typegroups"',
+            contentType: "application/vnd.sap.adt.ddic.typegroups.v2+xml"
+          },
+          verified: true
+        },
+        delete: true,
+        activate: true,
+        mediaType: "application/vnd.sap.adt.ddic.typegroups.v2+xml"
+      },
+      // Dependency rule: discovery advertises drul/sources with this media type,
+      // title "Dependency Rule"; GET .../drul/sources/demo_drul_1 → 200, root
+      // `<blue:blueSource adtcore:type="DRUL/DRL">`; .../source/main → 200, real
+      // `DEFINE FILTER DEPENDENCY RULE demo_drul_1 ON demo_parts_1 …`.
+      // Live full cycle on ZTMD_DRUL_02 ($TMP) through abapsmith 2026-09-04:
+      // create with activate: false (created: true, check clean, source landed
+      // on the create PUT) → rewrite with the same source (changed: false,
+      // activated: true) → read back the 4-line rule → delete → NOT_FOUND.
+      "DRUL/DRL": {
+        label: "Dependency rule",
+        write: { shape: "source" },
+        // Skeleton POST .../ddic/drul/sources, Content-Type
+        // application/vnd.sap.adt.ddic.drul.v1+xml — the created source is
+        // empty, so the caller PUTs the DEFINE FILTER DEPENDENCY RULE text
+        // afterwards. Full cycle via abap_write on A4H 2026-09-04
+        // (ZTMD_DRUL_02, $TMP).
+        create: {
+          vendor: false,
+          skeleton: {
+            rootName: "blue:blueSource",
+            namespace: 'xmlns:blue="http://www.sap.com/wbobj/blue"',
+            contentType: "application/vnd.sap.adt.ddic.drul.v1+xml"
+          },
+          verified: true
+        },
+        delete: true,
+        activate: true,
+        mediaType: "application/vnd.sap.adt.ddic.drul.v1+xml"
+      },
+      // No write/create — an existing BAdI implementation is edited through
+      // enhancement-write.ts's specialised document PUT (ENHANCEMENT_WRITE_TYPES),
+      // not this registry's generic PUT. `activate: true` lets abap_activate
+      // resolve an EXISTING ENHO/XH via ACTIVATION_ONLY_TYPES below, without
+      // granting abap_write/abap_delete any new reach.
+      "ENHO/XH": { label: "BAdI implementation", activate: true },
+      // Enhancement-only: writable but never created here (see ENHANCEABLE_TYPES
+      // below).
+      "ENHO/XHH": { label: "Enhancement source plug-in", write: { shape: "source" } },
+      // Same reasoning as ENHO/XH above: no generic write/create, but an existing
+      // spot can be activated.
+      "ENHS/XS": { label: "Enhancement spot", activate: true },
+      // `delete: true` live-verified 2026-08-19: create → delete →
+      // independent abap_read confirming absence, clean.
+      "TABL/DT": {
+        label: "Database table",
+        write: { shape: "source" },
+        // verified: true — this create-verification sweep, 6/6 FULL_CYCLE_OK (double
+        // the usual iterations, deliberately hunting the ~1-in-3 create flake
+        // reported from an earlier 2026-08-18 benchmark). Did not find
+        // it — honest value is `true`, not a predicted downgrade. Root cause of
+        // the 2026-08-18 failures is still open (appliance state /
+        // work-process exhaustion / a different name shape). If the flake
+        // resurfaces, downgrade to `false` with a citation, not silently back to
+        // "unverified". Full record: the git history.
+        create: { vendor: true, verified: true },
+        delete: true,
+        activate: true
+      },
+      // Same source-shape recipe as TABL/DT (vendor CreatableTypes has a
+      // TABL/DS entry too, maxLen 30 not 16). `delete: true` live-verified
+      // 2026-08-19, same method as TABL/DT above.
+      "TABL/DS": {
+        label: "Structure",
+        write: { shape: "source" },
+        // verified: true — create-verification sweep, 3/3 FULL_CYCLE_OK, swept in its
+        // own right rather than inferred from TABL/DT sharing the recipe.
+        create: { vendor: true, verified: true },
+        delete: true,
+        activate: true
+      },
+      // ---- Properties shape: PUT the full XML descriptor to the object's OWN
+      // URI (/source/main 404s for all five below, verified live). Same
+      // compare-before-write/transport/journal/lock choreography as source
+      // shape; see writeObject in write.ts.
+      //
+      // `delete: true` live-verified 2026-08-19: create → delete →
+      // independent abap_read confirming absence, clean.
+      "DTEL/DE": {
+        label: "Data element",
+        write: { shape: "properties" },
+        // verified: true — this create-verification sweep, 3/3 FULL_CYCLE_OK. Issue
+        // An earlier report asserted (from a 2026-08-18 benchmark) that data elements "do not
+        // create at all" — did NOT reproduce; every attempt succeeded.
+        create: { vendor: true, verified: true },
+        delete: true,
+        activate: true
+      },
+      // `delete: true` live-verified 2026-08-19, same method as DTEL/DE
+      // above.
+      "DOMA/DD": {
+        label: "Domain",
+        write: { shape: "properties" },
+        // verified: true — create-verification sweep, 3/3 FULL_CYCLE_OK.
+        create: { vendor: true, verified: true },
+        delete: true,
+        activate: true
+      },
+      // No vendor CreatableTypes entry at all — vendor: false routes the create
+      // through write.ts's own XML POST. `delete: true` live-verified
+      // 2026-08-19: row type pinned to built-in structure SYST, create →
+      // delete → independent abap_read confirming absence, clean.
+      "TTYP/DA": {
+        label: "Table type",
+        write: { shape: "properties" },
+        // verified: true — create-verification sweep, 3/3 FULL_CYCLE_OK. Exercises
+        // createByXml's no-skeleton branch (vendor: false, no vendor
+        // CreatableTypes entry — the payload IS the create body).
+        create: { vendor: false, verified: true },
+        delete: true,
+        activate: true
+      },
+      // `activate: false` is load-bearing, not descriptive: a message class is
+      // born ACTIVE with zero messages and every property PUT lands active too —
+      // there is no inactive version for an activation to publish.
+      //
+      // `delete: true` live-verified 2026-08-19: create → delete (both
+      // ok) → independent absence check. Default abap_read cannot render MSAG/N
+      // at all, so verify-absent needed a follow-up `format: "raw"` read
+      // (the shape this type round-trips through) to get a clean NOT_FOUND.
+      "MSAG/N": {
+        label: "Message class",
+        write: { shape: "properties" },
+        // verified: true — this create-verification sweep, run M02, 3/3 FULL_CYCLE_OK.
+        // Cite M02, not the earlier M01: M01 silently made zero create attempts
+        // (a harness bug — its absence-precheck never passed format: "raw" for
+        // this type, so every precheck was misbucketed as "name taken" and
+        // skipped; fixed at source, MSAG re-run as M02, other types' logs
+        // re-checked and unaffected). An earlier report asserted message classes "do
+        // not create at all" — like DTEL/DE, that did not reproduce. Full
+        // record: the git history.
+        create: { vendor: true, verified: true },
+        delete: true,
+        activate: false
+      },
+      // Lock object. Server-enforced: SAP refuses Z…/Y… names outright (hence
+      // namePrefixes), and create is rejected unless the body already carries a
+      // non-empty <enqu:content><enqu:primaryTable> — so create can't be a
+      // vendor skeleton POST followed by a PUT.
+      //
+      // create/delete verified 2026-09-05 on A4H (EZTMD_I30 in $TMP, table
+      // T000): the root must be lowercase <enqu:lockobject> in namespace
+      // http://www.sap.com/adt/ddic/enqu, not the camelCase <enqu:lockObject> /
+      // http://www.sap.com/dictionary/lockobject the earlier failed attempts
+      // sent. Content needs primaryTable/{tableName, lockMode} in that order;
+      // omitting lockMode 400s. POST 201'd as plain application/* — no
+      // mediaType override needed — and delete (LOCK/MODIFY handle, then
+      // DELETE?lockHandle=…) 200'd, confirmed absent on read-back.
+      "ENQU/DL": {
+        label: "Lock object",
+        write: { shape: "properties" },
+        create: { vendor: false, verified: true },
+        delete: true,
+        activate: true,
+        namePrefixes: ["EZ", "EY"]
+      },
+      // DEVC/K is created by abapCreatePackage (src/tools/write.ts), a separate
+      // code path that never touches createNewObject or this gate at all
+      // (routed the same way VIEW/DV/TRAN/T bypass to the classrun bridge) — so
+      // VERIFIED_CREATABLE_TYPES never gates package creation either way.
+      // `verified: true` is live evidence: a LOCAL root package created over
+      // ADT REST landed on A4H 2026-09-04, was read back, was searchable, and
+      // was deleted through abapsmith.
+      //
+      // `create` covers only software_component=LOCAL, over ADT REST; the
+      // TRANSPORTABLE route is `bridgeCreate` below, coexisting deliberately
+      //
+      "DEVC/K": {
+        label: "Package",
+        create: { vendor: true, verified: true },
+        bridgeCreate: {
+          adtRest: "POST /sap/bc/adt/packages is NOT 405 here \u2014 it is still how a LOCAL package is created (software_component=LOCAL, the create above). What is unreachable over REST is a TRANSPORTABLE one, and the blocker is abapsmith's own pre-flight, not SAP's: preflightCorr (src/adt/write.ts) asks CTS transportchecks whether the object needs a request, and CTS answers 'local' for a package that does not exist yet because it has nothing to classify \u2014 so the 'did we get a transport?' guard can never be satisfied and the caller's corr_nr is never consulted. Verified live on A4H for a root package and for a sub-package under a real transportable parent; byte-identical refusal in both cases, with a valid modifiable request in the arguments. The guard itself is not wrong to exist: POSTing a transportable package with no request makes SAP answer 200 and silently fabricate one.",
+          via: "CL_PACKAGE_FACTORY=>CREATE_NEW_PACKAGE, then lo_package->save( i_transport_request = ... ) \u2014 SE21's own backend \u2014 called from a generated IF_OO_ADT_CLASSRUN bridge. A superpackage is attached in a SECOND step (LOAD_PACKAGE / SET_SUPER_PACKAGE_NAME / SAVE): SCOMPKDTLN carries no usable superpackage field on create, and its PDEVCLASS is the transport LAYER, not the parent. See src/adt/package-create.ts and src/adt/ddic-bridge.ts.",
+          limits: "Transportable packages (any software_component other than LOCAL) go through the bridge; LOCAL packages go through REST. Development packages only (PACKTYPE 'D'). A package created here can be deleted by abapsmith, but only while empty. The gate judges a package create by its superpackage; a root create (no `package`) needs the `*` wildcard in ABAP_ALLOW_PACKAGES.",
+          alongsideRestCreate: "software_component \u2014 LOCAL is created over ADT REST, anything else through the bridge."
+        },
+        // No alongsideRestDelete counterpart to alongsideRestCreate: create
+        // genuinely has two routes (LOCAL over REST, transportable over the
+        // bridge); delete has exactly one, for both.
+        bridgeDelete: {
+          adtRest: "There is no ADT REST delete route for a package at all \u2014 not a 405 on a verb that exists for other reasons, simply nothing to call, for either a LOCAL or a transportable package.",
+          via: "CL_PACKAGE_FACTORY=>LOAD_PACKAGE, then lo_package->set_changeable( abap_true ), lo_package->delete( ), lo_package->save( i_transport_request = ... ) \u2014 SE21's own backend \u2014 called from a generated IF_OO_ADT_CLASSRUN bridge. See src/adt/package-delete.ts and src/adt/ddic-bridge.ts.",
+          limits: "Deletes only an EMPTY package: no TADIR objects (its own R3TR DEVC row doesn't count) and no sub-packages. A non-empty package is refused, listing what's inside \u2014 abapsmith never deletes contents for you. A transportable package needs corr_nr; a LOCAL one does not. Success is proven by re-reading TDEVC after COMMIT WORK, not by a clean return alone."
+        }
+      },
+      // RAP service binding. Properties-shape like DTEL/DOMA/TTYP/MSAG/ENQU: no
+      // /source/main, the whole object is one XML document at its own URI.
+      //
+      // PROVENANCE WARNING, RESOLVED: an earlier claimed raw-probe run and a
+      // separately-reported "service bindings don't exist on this release" both
+      // sat on record and could not both be true. Resolved by a later
+      // independent live verification through abapsmith's own v1 tool surface
+      // (2026-08-18, A4H SAP_BASIS 754 SP0007): create, activate, read-back and
+      // delete all succeeded, and the create-body XML shape round-tripped on
+      // read-back (not merely accepted). NOT confirmed by that run: the
+      // 26-character name-limit boundary, and publish/OData-service-generation
+      // (deliberately out of scope). Full run evidence:
+      // the git history.
+      //
+      // `create.vendor: false`, despite abap-adt-api's CreatableTypes having an
+      // SRVB/SVB row: its createBody() dispatches to createBodyBinding(), which
+      // throws unless the caller passes service/bindingtype fields
+      // createNewObject never sends. Reuses the vendor: false route (createByXml
+      // POSTs the caller's own complete XML document) instead of teaching
+      // createNewObject a fifth options shape — see test/write.test.ts's SRVB
+      // create-body fixture.
+      //
+      // `mediaType` is the one field no other properties-shape type sets (see
+      // its doc comment above) — `/businessservices/bindings/bindingtypes`
+      // returned exactly two ODATA/V2 entries when checked (2026-08-18), so
+      // binding CREATION through this registry has only ever been exercised
+      // for V2. That is a statement about what this registry can create, not
+      // about what the system hosts: the appliance does host V4 bindings —
+      // see `test/fixtures/live-captured/970-i82-metadata-v4.xml` — the
+      // bindingtypes endpoint itself was not re-probed on 2026-09-15.
+      //
+      // Pinned to `v2` (not `v1`): A4H's ADT discovery document advertises only
+      // `servicebinding.v2+xml` for the binding resource, and a `v1`-only
+      // Accept 406s on this release — verified 2026-09-15, both by direct curl
+      // and by reproducing the failure through `abap_read` on the released
+      // server (see the doc comment on `mediaType` above for the full detail).
+      // This value also serves as the write-path `Content-Type` (`write.ts`'s
+      // `contentType`) for create/update of a service binding; only the READ
+      // side was re-verified at `v2` in this pass — a binding create/update
+      // with the `v2` Content-Type was not re-tested this session.
+      //
+      // `namePrefixes` NOT overridden: no ENQU-style foreign-namespace rule, and
+      // vendor CreatableTypes already gives it maxLen 26. NOT re-tested by the
+      // 2026-08-19 delete pass — the 2026-08-18 run above already met that
+      // bar.
+      "SRVB/SVB": {
+        label: "Service binding",
+        write: { shape: "properties" },
+        // verified: true rests on the pre-existing 2026-08-18 citation above
+        // (dedicated, independently-corroborated create verification, same bar
+        // DDLX/EX/SRVD/SRV meet). the create-verification sweep deliberately did NOT re-create
+        // this type — bar already met, and a fresh binding risks a leftover.
+        create: { vendor: false, verified: true },
+        delete: true,
+        activate: true,
+        mediaType: "application/vnd.sap.adt.businessservices.servicebinding.v2+xml"
+      },
+      // Not in types.ts — see the module doc.
+      "SHLP/DH": {
+        label: "Search help",
+        bridgeCreate: {
+          adtRest: "Search helps are not reachable over ADT's mutating REST surface on this release \u2014 every write attempt against /sap/bc/adt/ddic/searchhelps/... 404s, verified by recon. That is why abapsmith goes around ADT for this type with a generated classrun bridge, not a reason it cannot write one: SE11's own search-help editor does not use REST either. A GET of the same collection also 404s, but that no longer means abapsmith cannot read a search help at all \u2014 see src/adt/catalog-read.ts, which reads DD30L/DD30T/DD31S/DD32S/DD33S through plain-text catalog SELECTs instead of the REST collection.",
+          via: "DDIF_SHLP_PUT then DDIF_SHLP_ACTIVATE (function group SDIC \u2014 the same primitives SE11's search-help editor drives), preceded by RS_CORR_INSERT for transport/TADIR registration, called from a generated IF_OO_ADT_CLASSRUN bridge. See src/adt/shlp-create.ts and src/adt/ddic-bridge.ts.",
+          limits: "The bridge builds either an elementary search help (one interface, DD31V/DD32P/DD33V) or a collective one (DD31S includes of other search helps) \u2014 both directions are now proven live, not just elementary. Validated zero-network before dispatch: an elementary help needs at least one import AND one export interface field, a selection method of type T/V is checked against DD02L/DD25L (and its field against DD03L/DD27S), and any other selection-method type gets a `ZMCP-DDIC-NOTE>` instead of a hard check. `elementary: false` with an empty `includes` used to be refused zero-network (\"has nothing to collect\") \u2014 removed: it activates fine on a real system. `update_search_help` REPLACES the whole definition the same way `DDIF_VIEW_PUT` does for a view: any field, include, or assignment not passed in the update call is removed. Root cause of DH109 found and closed: `DDIF_SHLP_PUT` succeeds and `DDIF_SHLP_ACTIVATE` then returns rc = 8 / message DH109 (\"search help & was not activated\") whenever the definition contains a dangling reference, leaving the search help as an INACTIVE-ONLY object (a DD30L row with AS4LOCAL = 'N', no active row, plus a TADIR entry) \u2014 reproduced live for three shapes: a DD31V include naming a search help that does not exist, a DD33V assignment whose SUBFIELD is not an interface parameter of the included help, and a DD33V assignment whose FIELDNAME is not an interface parameter of the help being built. Four refusals now prevent that stranding: two zero-network, in src/adt/shlp-create.ts (every `assignments[i].field` must be one of this call's own `fields[].name`; every `assignments[i].includedHelp` must be one of this call's own `includes[].name`, both case-insensitive), and two server-side, generated into the ABAP itself (src/adt/fluid/builtin/classic/abap-shlp.ts) and run BEFORE RS_CORR_INSERT so nothing is registered when they fire: every DD31V-SUBSHLP must exist as an active DD30L row, and every DD33V-SUBFIELD must exist as an active DD32S row of its SUBSHLP (a self-referencing assignment, SUBSHLP = SHLPNAME, skips this lookup \u2014 the definition is not in DD32S yet). The server-side pair surfaces as CHECK_FAILED. rc = 4 / DH108 (\"activated with warnings\") is a SUCCESS, not a refusal \u2014 a collective help with a selection method, one with no includes, and one with no fields/assignments each activate that way \u2014 and now emits a `ZMCP-DDIC-NOTE>` line instead of passing silently. Proven live on A4H (NetWeaver 7.54, client 001), 2026-09-12 and 2026-09-15, in $TMP only: an elementary help and a collective help including it both created, read back, updated and deleted through abapsmith's own tool surface (markers SHLP-REGISTERED / SHLP-PUT / SHLP-ACTIVATED); each of the three DH109 shapes was reproduced (a temporary $TMP probe class, outside abapsmith's own bridge) and left the DD30L/TADIR footprint described above; each of the four refusals fired correctly against a payload built to trip it, before any object was registered. The transportable (non-$TMP) path runs the identical FM sequence with a real korrnum but has NOT itself been run against a live system. A LOCAL ($-prefixed) package refuses a corr_nr (BAD_INPUT) and registers with korrnum = space; a transportable package requires one (TRANSPORT_ERROR without one) \u2014 same pairing rule as VIEW/DV and TRAN/T. NOT proven: search-help exits (SELMEXIT), text tables, hot keys, AUTOSUGGEST/FUZZY_SEARCH fields \u2014 the bridge does not set them. See src/adt/shlp-create.ts.",
+          // Both elementary and collective create, full cycle, proven live on
+          // A4H 2026-09-12/2026-09-15 — see `limits` above for the run detail.
+          verified: true
+        },
+        bridgeDelete: {
+          adtRest: "Same finding as bridgeCreate: the search-help REST collection 404s on every mutating verb \u2014 there is no REST delete route either.",
+          via: "DD_OBJ_DEL (object_type='SHLP', del_state='A' then 'N') clears DD30L, then TR_TADIR_INTERFACE (wi_delete_tadir_entry='X', wi_test_modus=space) clears the TADIR row \u2014 both called from a generated IF_OO_ADT_CLASSRUN bridge. See src/adt/shlp-delete.ts and src/adt/ddic-bridge.ts.",
+          limits: "Guarded by a where-used check the other two bridge deletes do not have: a search help attached to a data element (DD04L), to an individual table/view field (DD35L), or included by a collective search help (DD31S) refuses the delete unless the caller passes confirm_in_use \u2014 all three checked live on A4H 2026-09-12. Same open-transport-request-lock caveat as VIEW/DV's bridgeDelete: TR_TADIR_INTERFACE's TADIR delete fails under a lock this path does not attempt to clear, and no corr_nr is accepted (src/tools/write.ts refuses one outright). Now also reaches an INACTIVE-ONLY leftover (the DH109 stranding bridgeCreate.limits describes above): the catalogue queries in src/adt/catalog-query.ts take a state argument ('A'/'N') instead of hard-pinning AS4LOCAL = 'A', and readSearchHelp (src/adt/catalog-read.ts) gained an `{ includeInactive }` option that falls back to the 'N' version and reports `meta.versionState`; the delete path in src/tools/write.ts probes with that option, so a failed create's leftover can be deleted instead of being refused NOT_FOUND. The create/update \"already exists\" probe deliberately stays active-only, and so does `abap_read` \u2014 an inactive-only search help still reads as NOT_FOUND; only the delete path looks at both states. Proven live on A4H 2026-09-12, in $TMP only: DD_OBJ_DEL returned sy-subrc = 0 with message DH051 clearing the active version, TR_TADIR_INTERFACE removed the TADIR row, and a post-delete re-read proved absence, emitting SHLP-DELETED / SHLP-GONE. Proven live again on A4H 2026-09-15 for the inactive-only case: a leftover forced via a temporary $TMP probe class (DDIF_SHLP_PUT + DDIF_SHLP_ACTIVATE against a collective with a dangling include, rc = 8 / DH109, DD30L showing AS4LOCAL = 'N' only plus one TADIR row) read back as NOT_FOUND through abap_read, then deleted cleanly (SHLP-DELETED / SHLP-GONE) with a note explaining it had no active version, and a follow-up DD30L check found zero rows in either state. `abap_journal mode: \"undo\"` still refuses a SHLP/DH write as irreversible, by design \u2014 not exercised by this round.",
+          // Both the confirm_in_use-guarded active-version delete and the
+          // inactive-only-leftover delete, proven live on A4H 2026-09-12/
+          // 2026-09-15 — see `limits` above for the run detail.
+          verified: true
+        }
+      },
+      "VIEW/DV": {
+        label: "Classic view",
+        bridgeCreate: {
+          adtRest: `ADT's REST surface is GET-only for classic (non-CDS) views: /sap/bc/adt/ddic/views/... returns 405 ExceptionMethodNotSupported on every mutating verb, and the discovery collection advertises an empty <app:accept>. That GET is not a route a caller can take from here: there is no REST collection to resolve a name against. That no longer strands VIEW/DV, though: src/adt/types.ts gives it a TypeSpec, so abap_search resolves it directly (confirmed live on A4H 2026-09-15: abap_search "H_T000" returns VIEW/DV H_T000 (STRM_DB) alongside its SHLP/DH match), and src/adt/catalog-read.ts reads DD25L/DD25T/DD26S/DD27S/TVDIR through plain-text catalog SELECTs instead of the REST collection, so a classic view is both searchable and readable through abapsmith despite the closed REST GET route. Four independent recons agree on the REST finding. This entry previously read 'not reachable over ADT, every read and write 404s' and concluded the type was unwritable \u2014 the REST finding is right, the conclusion was not: SE11 does not use REST either.`,
+          via: "DDIF_VIEW_PUT then DDIF_VIEW_ACTIVATE (function group SDIC \u2014 the same DD_VIEW_EXPAND/DD_VIEW_PUT/DD_VIEW_ACT primitives SE11's view editor drives), called from a generated IF_OO_ADT_CLASSRUN bridge. See src/adt/view-create.ts and src/adt/ddic-bridge.ts.",
+          limits: "The bridge builds a database view (DD25V view class 'D') projecting fields of exactly ONE base table. Multi-table joins (DD28J), selection conditions (DD28V) and search-help attachments (DD35V/DD36M) are not exposed. NO SE54 table-maintenance dialog is generated: VIEW_MAINTENANCE_GENERATE is a SET PARAMETER + CALL TRANSACTION 'SE55' wrapper around an interactive wizard with no headless equivalent, so a view created here has no maintenance view/dialog and SM30 will not open it. Changing an EXISTING view is now supported too, over src/adt/view-update.ts's updateClassicView: it dispatches the fluid classic tool's update_view action, which pre-checks the view exists, then runs the identical RS_CORR_INSERT / DDIF_VIEW_PUT / COMMIT WORK / DDIF_VIEW_ACTIVATE / COMMIT WORK sequence as create. DDIF_VIEW_PUT REPLACES the whole definition: any joined field not passed in the update call is removed \u2014 abap-view.ts's update_view method emits a ZMCP-DDIC-NOTE> line saying so. Proven live on A4H (NetWeaver 7.54, client 001) 2026-09-12, in $TMP only: DDIF_VIEW_PUT returned message D0322, activation returned sy-subrc = 0, and a read-back (through the catalog route) showed the field count going from 2 to 3. The transportable (non-$TMP) path runs the identical FM sequence with a real korrnum but has NOT itself been run against a live system. The create is proven live on A4H: 2026-09-04, into the TRANSPORTABLE a transportable package with a corr_nr, produced VIEW-REGISTERED / VIEW-PUT / VIEW-ACTIVATED, the view read back with its fields (through the catalog route now \u2014 see adtRest above), and a TADIR row; 2026-09-05, RS_CORR_INSERT called for a LOCAL (`$`-prefixed) package with korrnum = space and the 44-character DICT object key returned sy-subrc 0 and wrote a TADIR row under that package's `$` devclass, and the created view was then removed cleanly by the delete bridge (see bridgeDelete below). A TRANSPORTABLE package resolves a transport request the same way a DEVC/K create does: preflightPackageCorr (src/adt/write.ts) hands off to SessionTransport.resolveForNewTransportable, honouring the caller's corr_nr when given or else picking or creating one under the ABAP_ALLOW_TRANSPORTS policy (a pinned TRKORR from the list, or a fresh request when the policy is `*`/AUTO), gate-judged before the bridge runs. The resolver's own refusals surface as TRANSPORT_ERROR (policy disabled, or no usable request), TRANSPORT_LOCKED (a request pinned elsewhere), or BAD_INPUT (a malformed number). A LOCAL package still refuses a corr_nr (BAD_INPUT). Registering the view in TADIR either way \u2014 with the caller's corr_nr or with korrnum = space \u2014 is what makes the created view deletable afterwards. See src/adt/view-create.ts and src/adt/view-update.ts."
+        },
+        bridgeDelete: {
+          adtRest: "Same finding as bridgeCreate: ADT's REST surface is GET-only for classic views, 405 ExceptionMethodNotSupported on every mutating verb \u2014 there is no REST delete route either.",
+          via: "DD_OBJ_DEL (object_type='VIEW', del_state='A' then 'N') clears DD25L, then TR_TADIR_INTERFACE (wi_delete_tadir_entry='X', wi_test_modus=space) clears the TADIR row \u2014 both called from a generated IF_OO_ADT_CLASSRUN bridge. Success is proven by re-reading DD25L and TADIR after COMMIT WORK, not by a clean FM return alone. See src/adt/view-delete.ts and src/adt/ddic-bridge.ts.",
+          limits: "Guarded by a where-used check: a view with a generated SE54 maintenance dialog (TVDIR, keyed by TABNAME \u2014 views share the table's row) refuses the delete unless the caller passes confirm_maintenance_dialog, since deleting the view out from under that dialog leaves it broken; abap-view.ts's delete_view method emits a ZMCP-DDIC-NOTE> line when the caller overrides it. DDIF_VIEW_DELETE, the route this bridge used before, was live-disproven on A4H 2026-09-04: the function does not exist on this system (CHECK_FAILED). The DD_OBJ_DEL route is measured, not exhaustively verified \u2014 RS_DD_DELETE_OBJ, the obvious alternative, opens a CTS dialog and short-dumps headless, so it is deliberately not used. The TADIR row is removed by a SEPARATE call from the DD25L delete: under an open transport-request lock on the object, TR_TADIR_INTERFACE's TADIR delete fails sy-subrc=1 / TR022, and this delete path itself does not attempt to clear that lock. The separate route, abap_transport operation=removeObject, does call TRINT_READ_REQUEST / TR_DELETE_COMM_OBJECT_KEYS to clear it: it clears the entry when the request holds exactly one E071 row for the object, and CTS refuses when two or more rows share PGMID+OBJECT+OBJ_NAME (typically a create and a delete of the same object recorded under one request), which leaves the entry, its lock, and this view's TADIR row in place, and the holding request undeletable through abapsmith \u2014 so a locked view loses its DD25L rows but keeps its TADIR row. No corrNr is accepted (src/tools/write.ts refuses one outright), so this path cannot fully remove a view sitting on an open transport request. abapsmith's own create now registers every view in TADIR, including one in a `$` package, so the delete path acts on views abapsmith created \u2014 proven live on A4H 2026-09-05, where a bridge-created view in a LOCAL package was deleted with VIEW-DELETED / VIEW-GONE."
+        }
+      },
+      "TRAN/T": {
+        label: "Transaction",
+        bridgeCreate: {
+          adtRest: "ADT exposes a transaction read-only through the generic VIT bridge and returns 405 ExceptionMethodNotSupported on every mutating verb; there is no writable ADT collection for TRAN/T. (The ADT type code is TRAN/T, not TSTC \u2014 TSTC is the underlying database table, not an ADT object type.) src/adt/catalog-read.ts also reads TSTC/TSTCT/TSTCP/TSTCA/AGR_TCODES through plain-text catalog SELECTs, which return strictly more than the VIT bridge's read (call parameters, authorisation checks, role-menu membership) and work in every ABAP_MODE, unlike the fluid bridge the writes below depend on.",
+          via: "RPY_TRANSACTION_INSERT (function group SEUA) \u2014 SE93's own backend: it collision-checks TSTC, runs RS_ACCESS_PERMISSION, fires the SWBM_C_OP_CREATE BAdI check, calls RS_CORR_INSERT for transport/TADIR registration, then inserts TSTC/TSTCT/TSTCC. Called from a generated IF_OO_ADT_CLASSRUN bridge \u2014 see src/adt/tran-create.ts.",
+          limits: "Creates a REPORT transaction (dynpro 1000) that starts an EXISTING program the caller names; the program is not created or checked for existence here. Dialog, parameter, variant and OO transactions, and a caller-chosen dynpro number, are not exposed. Retargeting an EXISTING transaction to a different program is now supported over src/adt/tran-update.ts's updateTransaction: it dispatches the fluid classic tool's update_transaction action, which checks TSTC existence, refuses the retarget unless the caller passes confirm_in_role_menu when the tcode is already assigned to one or more roles' menus (AGR_TCODES) \u2014 an SM01 transaction lock is NOT checked either way, by explicit design choice, see abap-tran.ts's own honesty note \u2014 registers the change via RS_CORR_INSERT, calls RPY_TRANSACTION_DELETE (function group SEUA) with suppress_corr_insert/suppress_corr_check both 'X' since the registration above already covers CTS, then re-RPY_TRANSACTION_INSERTs against the new program, then re-reads TSTC to prove PGMNA actually changed. RPY_TRANSACTION_DELETE's signature was captured live on A4H (NetWeaver 7.54, client 001) 2026-09-12 \u2014 not inferred, as this entry previously read: IN TRANSACTION TSTC-TCODE (required), TRANSPORT_NUMBER RGLIF-TRKORR, SUPPRESS_AUTHORITY_CHECK CHAR1, SUPPRESS_CORR_INSERT CHAR1, SUPPRESS_CORR_CHECK CHAR1; exceptions NOT_EXCECUTED (SAP's own misspelling, not a typo introduced here) and OBJECT_NOT_FOUND. Proven live on A4H 2026-09-12, in $TMP only: the delete step returned message EU075, and the read-back showed the new program. The transportable (non-$TMP) path runs the identical FM sequence with a real korrnum but has NOT itself been run against a live system \u2014 see this type's bridgeDelete entry below for the same caveat on plain deletion. A transportable package requires corr_nr (TRANSPORT_ERROR without one); a $ package refuses one (BAD_INPUT) and registers with korrnum = space. RPY_TRANSACTION_INSERT's signature was read live on A4H 2026-09-05: transport_number is optional and is forwarded verbatim to RS_CORR_INSERT as korrnum, and suppress_corr_insert defaults to space, so the transport/TADIR registration always runs. No live create with a transport has been run yet."
+        },
+        bridgeDelete: {
+          adtRest: "Read-only through the generic VIT bridge, same as bridgeCreate: 405 ExceptionMethodNotSupported on every mutating verb, no writable ADT collection.",
+          via: "RPY_TRANSACTION_DELETE (function group SEUA \u2014 SE93's own backend), called from a generated IF_OO_ADT_CLASSRUN bridge. Success is proven by re-reading TSTC, not by a clean FM return alone. See src/adt/tran-delete.ts and src/adt/ddic-bridge.ts.",
+          limits: "RPY_TRANSACTION_DELETE's parameter set was captured live on A4H (NetWeaver 7.54, client 001) 2026-09-12 \u2014 not inferred from RPY_TRANSACTION_INSERT's `transaction` parameter name, as this entry previously read: IN TRANSACTION TSTC-TCODE (required), TRANSPORT_NUMBER RGLIF-TRKORR, SUPPRESS_AUTHORITY_CHECK CHAR1, SUPPRESS_CORR_INSERT CHAR1, SUPPRESS_CORR_CHECK CHAR1; exceptions NOT_EXCECUTED (SAP's own misspelling) and OBJECT_NOT_FOUND \u2014 see this type's bridgeCreate entry above, where the same signature backs the retarget route. Guarded by the same where-used check as retargeting: a tcode already assigned to one or more roles' menus (AGR_TCODES) refuses the delete unless the caller passes confirm_in_role_menu; an SM01 transaction lock is NOT checked either way. Live-verified once, 2026-09-05: a $ package transaction was created and then deleted with TRAN-DELETED / TRAN-GONE and a post-delete re-read proving absence. This bridgeCreate entry's own `via` already records that RPY_TRANSACTION_INSERT calls RS_CORR_INSERT for transport/TADIR registration; whether RPY_TRANSACTION_DELETE does the same is unknown, so deleting a transaction out of a TRANSPORTABLE package may plausibly hit a headless-dynpro failure the way VIEW/DV create originally did, before suppress_dialog fixed it there. No transport handling is attempted here either way."
+        }
+      },
+      // Not in types.ts — see the module doc. Program subobjects (not standalone
+      // ADT types), reachable read-only via the generic VIT bridge (content-free
+      // metadata stub, no layout/field list), 405 on every write verb. Verified live.
+      "PROG/PS": {
+        label: "Screen (dynpro)",
+        unsupported: {
+          reason: "Screens are program subobjects maintained in the classic Screen Painter (SE51) and are not reachable as ADT-writable objects on this release: no ADT discovery collection exists for them, PROG/PS is not a registered ADT object type (repository/informationsystem/objecttypes has no entry for it), and the only route that answers a GET at all \u2014 the generic VIT bridge \u2014 returns a five-field metadata stub (name/description/package/dates, no field list or layout) and a 405 Method Not Allowed on every write verb, verified live with a valid CSRF token.",
+          alternative: "Screens can only be edited in SE51 (or SE80's Screen Painter), both SAPGUI tools outside abapsmith's reach. What abapsmith CAN edit: the screen's flow logic (PBO/PAI modules) \u2014 these are ordinary ABAP code living in the program's own source and are already writable as PROG/P."
+        }
+      },
+      "PROG/PC": {
+        label: "GUI status (CUA status)",
+        unsupported: {
+          reason: "GUI statuses (function-key/menu/toolbar assignments) are program subobjects maintained in the classic Menu Painter (SE41) and are not reachable as ADT-writable objects on this release: no ADT discovery collection exists for them, PROG/PC is not a registered ADT object type, and the only route that answers a GET at all \u2014 the generic VIT bridge \u2014 returns a five-field metadata stub (no function-key list, no menu structure) and a 405 Method Not Allowed on every write verb, verified live with a valid CSRF token.",
+          alternative: "GUI statuses can only be edited in SE41 (or SE80's Menu Painter), both SAPGUI tools outside abapsmith's reach. What abapsmith CAN edit: the PAI module that reads sy-ucomm for this status's function codes \u2014 that is ordinary ABAP code already writable as PROG/P."
+        }
+      },
+      // Third member of the PROG/PS/PROG/PC family — see the module doc. A GUI
+      // title (SET TITLEBAR) is also SE41/Menu-Painter territory. Its VIT bridge
+      // is even less trustworthy as a "read": it returns 200 for ANY key,
+      // including a nonexistent title id or even a nonexistent PROGRAM name
+      // (live-verified) — it echoes the key back rather than validating
+      // existence. Write verbs 405, identical to PS/PC.
+      "PROG/PT": {
+        label: "GUI title (titlebar)",
+        unsupported: {
+          reason: "GUI titles (SET TITLEBAR text) are program subobjects maintained in the classic Menu Painter (SE41) and are not reachable as ADT-writable objects on this release: no ADT discovery collection exists for them, PROG/PT is not a registered ADT object type, and the only route that answers a GET at all \u2014 the generic VIT bridge \u2014 returns a content-free stub for ANY key, including nonexistent title ids and even nonexistent program names (it does not validate existence, only echoes the requested key), and a 405 Method Not Allowed on every write verb, verified live with a valid CSRF token.",
+          alternative: "GUI titles can only be edited in SE41 (or SE80's Menu Painter), both SAPGUI tools outside abapsmith's reach. There is no ABAP-code equivalent to fall back on the way PROG/PS and PROG/PC have their flow-logic/PAI-module escape hatch \u2014 SET TITLEBAR just names a titlebar id, it does not carry the title text itself."
+        }
+      },
+      // Not in types.ts — see the module doc. A different shape of gap from
+      // PROG/PS/PC/PT: SUSO/B IS a registered ADT object type (confirmed live)
+      // but has no discovery collection and no writable route. Established by
+      // live reconnaissance against a real system.
+      "SUSO/B": {
+        label: "Authorization object",
+        unsupported: {
+          reason: "Authorization objects have no ADT resource to WRITE through, and none to resolve a URI against, on this release: no discovery collection is advertised for them (aps/iam/suso, security/authorizationobjects and ddic/authorizationobjects all 404), and the vendor-table-derived creation path (aps/iam/suso, from abap-adt-api's CreatableTypes) 404s outright too \u2014 there is no writable ADT collection to target, live-verified, not merely undocumented. The only route that answers a GET at all is the generic VIT bridge (vit/wb/object_type/susob/object_name/{NAME}), and it returns a basic-properties stub only \u2014 name, description, language, responsible, package \u2014 with no field list and no permission values, so it is not a usable read of the object's actual content, the same class of stub that keeps PROG/PS and PROG/PC unsupported. Unlike PROG/PT's stub, it does distinguish a real object from a nonexistent one by content (a real object's stub carries a non-empty description; a name guaranteed not to exist gets a bare four-field echo with none of the enriched attributes \u2014 packageRef is a separate TADIR-registration signal, not an existence one) \u2014 but that still falls short of an actual read. OPTIONS on the same URI answers 400 'HTTP method OPTIONS not supported', so even write-feasibility-by-Allow-header could not be checked. Verified live against the real objects S_TCODE and S_DEVELOP plus a name guaranteed not to exist.",
+          alternative: 'abap_read {"object":"<NAME>","type":"SUSO/B"} renders the object read-only from the authorization catalog (TOBJ/TOBJT/TOBCT/TACTZ/TACTT/AUTHX/DD04L/DD07V) \u2014 see `catalogRead` below. SU21, a SAPGUI transaction outside abapsmith\'s reach, is the only way to EDIT one; there is no ABAP-code equivalent to fall back on for that direction.'
+        },
+        catalogRead: {
+          from: "TOBJ, TOBJT, TOBCT, TACTZ, TACTT, AUTHX, DD04L, DD07V",
+          nameForm: "the authorization object name, e.g. S_TABU_NAM"
+        }
+      },
+      // Not in types.ts — see the module doc. Type code chosen deliberately:
+      // `TABL/DI` is the code callers actually reach for, and the one consistent
+      // with this registry's own `TABL/DT`/`TABL/DS`; the transport-layer name
+      // for an index (LIMU INDX) is deliberately not used here, for the same
+      // reason TRAN/T's entry refuses to conflate the ADT type code with the
+      // underlying table name TSTC. Was `unsupported` (no probed ADT resource at
+      // all) until a live probe on A4H 2026-09-05 found the REST route
+      // conclusively absent and a working classrun-bridge route instead — see
+      // bridgeCreate/bridgeDelete below.
+      "TABL/DI": {
+        label: "Table secondary index",
+        bridgeCreate: {
+          adtRest: `Probed live on A4H 2026-09-05: GET /sap/bc/adt/ddic/tables/t000/indexes 404s, and PUT /sap/bc/adt/ddic/tables/t000/indexes/z01 404s for any body and any content type \u2014 there is no writable (or even readable) index collection under a table. The table XML itself (application/vnd.sap.adt.tables.v2+xml) carries exactly one index-related link, rel="http://www.sap.com/adt/relations/indexes" pointing at /sap/bc/adt/vit/wb/object_type/tabldt/object_name/<TABLE>#view=INDX with type="application/vnd.sap.sapgui" \u2014 a GUI handoff (SE11's Indexes tab), not a REST resource. No discovery collection mentions indexes either.`,
+          via: "DD_INDEX_INTERFACE (function group SDBT, package SDIC), ACTION='I', called from the fluid `classic` tool's `create_index` action, body class ZCL_ZMCP_FLUID_CLASSIC. Success is proven by re-reading DD12V (AS4LOCAL='A') and DD17S after COMMIT WORK, not by ACTFAILED alone \u2014 the same read-back-after-commit discipline VIEW/DV and TRAN/T use in place of an ADT read. See src/adt/index-create.ts and src/adt/ddic-bridge.ts. Proven live on A4H 2026-09-05, local $TMP package: a NON-UNIQUE single-field index created through this bridge came back INDEX-CREATED / INDEX-ACTIVE / INDEX-FIELDS from that genuine post-commit DD12V/DD17S re-read. Round 3 (same date) re-ran both creates \u2014 non-unique Z01 and unique Z02 with MANDT \u2014 and each again returned all three markers; the round-3 delete-path defect below never touched create.",
+          limits: "Changing or updating an existing index is not supported: the bridge creates and deletes only, unlike VIEW/DV and TRAN/T, which now have a working update route (src/adt/view-update.ts, src/adt/tran-update.ts) \u2014 drop the index (bridgeDelete) and recreate it instead. There is no abap_read route for TABL/DI, per adtRest above. A unique create over two non-client fields of a client-dependent table returned ACTFAILED='X' live on A4H 2026-09-05; the client-field cause, then only suspected, is now CONFIRMED live (A4H, second round, 2026-09-05): a unique create that included the base table's client field (MANDT) returned INDEX-CREATED / INDEX-ACTIVE / INDEX-FIELDS, and the identical create omitting MANDT was refused BAD_INPUT by the DD03L (DATATYPE='CLNT') guard before DD_INDEX_INTERFACE was ever called \u2014 raw line \"unique index Z02 on ZTMD_I28_T omits the client field MANDT\", hint \"Add ZTMD_I28_T's client field to index_fields, or create Z02 without index_unique.\" The package is not the caller's to choose: an index is DDIC content of its base table and belongs to the base table's package, so abap_write reads the base table's own ADT resource and gates on THAT package \u2014 a caller-supplied `package` is only ever checked for agreement, never trusted. The transport pairing itself mirrors VIEW/DV's: a `$` package sets NO_TRANSP_REQUEST='X' and refuses a caller-supplied corr_nr, a transportable package REQUIRES corr_nr, passed through as TRANSPORT_NUMBER \u2014 unexercised live in either direction. The create is not journalled \u2014 there is no ADT resource to capture a before-image from, and none existed before this create by definition \u2014 so reversal is `mode: \"delete\"`, not undo."
+        },
+        bridgeDelete: {
+          adtRest: "Same finding as bridgeCreate: no writable or readable index collection exists under a table.",
+          via: "DD_INDEX_INTERFACE (function group SDBT), ACTION='D', called from the fluid `classic` tool's `delete_index` action, body class ZCL_ZMCP_FLUID_CLASSIC. Success is proven by re-reading DD12V/DD17S after COMMIT WORK, not by a clean FM return alone. See src/adt/index-create.ts and src/adt/ddic-bridge.ts. The bridge's own DD12V pre-check is proven live, A4H 2026-09-05: a delete aimed at a nonexistent index returned NOT_FOUND correctly, before ever calling the FM. Round 1's defect \u2014 the generated ABAP omitted DD_INDEX_INTERFACE's mandatory TABLES parameter INDEX_FIELDS \u2014 is fixed and deployed: confirmed live, A4H 2026-09-05, the class body of the bridge that was then ZCL_ZMCP_DDIC_DINDX now carries the TABLES clause. Round 2 (same date) found a second defect: ACTION='D' reports ACTFAILED='X' even when the delete already took effect \u2014 the failure message's own DD12V read showed zero rows for the pair, and an immediate re-delete returned NOT_FOUND. The fragment treated ACTFAILED as fatal and returned before COMMIT WORK, so a real delete was reported CHECK_FAILED and never recorded. The fix written for round 2 \u2014 commit regardless, re-read DD12V (unfiltered and AS4LOCAL='A') and DD17S, and report success (tagging the transcript INDEX-DELETED-ACTFAILED) only when all three come back empty \u2014 never ran: round 3 found its own added ACTFAILED note line rendered as a 272-character ABAP source line (292 at the longest legal names), over the 255-character class-source limit, so every TABL/DI delete failed the class-source PUT itself (ADT_ERROR / TooLongLine, SEDI_ADT15, line 65 of the then-ZCL_ZMCP_DDIC_DINDX bridge) before DD_INDEX_INTERFACE was ever called \u2014 the bridge class was never refreshed and stayed on its round-2 body. The ACTFAILED-tolerant read-back above had therefore never executed live before round 4. Round 4 fixes the generator two ways: this fragment's two long messages are now built up in a string variable across several short source lines and written once, so no generated line can exceed 255 for any legal name; and ddicBridgeSource \u2014 the single point every bridge class body is assembled through \u2014 now throws CHECK_FAILED before returning if any line exceeds 255, naming the line and its length, so this defect class cannot reach the server again from any bridge. Round 4 then ran live on A4H 2026-09-05, $TMP: the non-unique Z01 and the unique-with-client-field Z02 were each deleted with INDEX-DELETED-ACTFAILED / INDEX-DELETED / INDEX-GONE, a re-delete of Z02 returned NOT_FOUND from the DD12V pre-check, and the deployed then-ZCL_ZMCP_DDIC_DINDX body read back with the new read-back variable and no line over 255. So the ACTFAILED-tolerant read-back is live-proven; ACTFAILED='X' was set on both deletes while all three read-backs came back empty, so what the flag itself means is still not established, only that it does not mean the rows survived.",
+          limits: "The bridge deletes any index it finds in DD12V for the given table by name \u2014 it checks only DD12V/indexname, not provenance, so this is not restricted to indexes the bridge itself created. Deleting the BASE TABLE is not itself blocked by an index still on it \u2014 live-proven on A4H 2026-09-05, the table delete succeeded with an index in place \u2014 but abapsmith cannot confirm the index went with it: no ADT resource can read an index back, per adtRest above, so a table delete's effect on its indexes is unverifiable either way. Same package rule as bridgeCreate: the base table's package, never the caller's. Unlike the VIEW/DV and TRAN/T deletes, which refuse a caller's corr_nr outright, a TABL/DI DELETE takes the same transport pair the create does \u2014 a `$` package sets NO_TRANSP_REQUEST='X' and refuses corr_nr, a transportable package REQUIRES corr_nr as TRANSPORT_NUMBER \u2014 because DD_INDEX_INTERFACE with ACTION='D' does. Round 3's cleanup deleted the base table while Z01/Z02's own DD12V/DD17S rows may still have existed; whether the base-table delete cascaded them away or orphaned them is unverified, not confirmed-absent \u2014 there is no ADT resource for TABL/DI to check with, and at the time abap_data_preview carried no WHERE filter, so a targeted DD12V check was not practical. It now takes a structured filter (issue #73), so such a check is possible, but this round's outcome was never re-checked and stays unverified."
+        },
+        catalogRead: {
+          from: "DD12V, DD17S",
+          nameForm: "<TABLE>/<INDEX>, the same parented form the create takes, e.g. ZTAB/Z01"
+        }
+      }
+    };
+    CODES = Object.keys(REGISTRY);
+    WRITABLE_TYPES = codesWith((c) => c.write !== void 0 && c.create !== void 0);
+    CREATE_ONLY_TYPES = codesWith((c) => c.create !== void 0 && c.write === void 0);
+    CREATABLE_TYPES = codesWith((c) => c.create !== void 0);
+    BRIDGE_CREATABLE_TYPES = codesWith((c) => c.bridgeCreate !== void 0);
+    BRIDGE_ONLY_CREATE_TYPES = codesWith(
+      (c) => c.bridgeCreate !== void 0 && c.create === void 0
+    );
+    BRIDGE_CREATE_REFUSED_TYPES = codesWith(
+      (c) => c.bridgeCreate?.createRefused !== void 0
+    );
+    BRIDGE_DELETABLE_TYPES = codesWith((c) => c.bridgeDelete !== void 0);
+    ENHANCEABLE_TYPES = codesWith((c) => c.write !== void 0 && c.create === void 0);
+    ACTIVATION_ONLY_TYPES = codesWith(
+      (c) => c.activate === true && c.write === void 0 && c.create === void 0
+    );
+    DELETABLE_TYPES = codesWith((c) => c.delete === true);
+    VERIFIED_CREATABLE_TYPES = codesWith((c) => c.create?.verified === true);
+    ABAP_WRITE_TYPES = codesWith(
+      (c) => c.create !== void 0 || c.bridgeCreate !== void 0 || c.write !== void 0
+    );
+    NON_READABLE_TYPES = codesWith(
+      (c) => c.catalogRead === void 0 && (c.unsupported !== void 0 || c.bridgeCreate !== void 0 && c.create === void 0)
+    ).filter((code) => {
+      const spec = TYPES.find((t) => t.type === code);
+      return !(spec?.mode === "ddic" && ddicStrategy(spec.kind) !== "unsupported");
+    });
+    NON_WRITABLE_TYPES = codesWith(
+      (c) => c.create === void 0 && c.bridgeCreate === void 0 && c.write === void 0 && c.activate !== true
+    );
+    PROPERTIES_SHAPE_TYPES = codesWith((c) => c.write?.shape === "properties");
+    TERMINAL_REFUSAL_NOTE = "Terminal for this object type \u2014 an identical retry cannot succeed.";
+    assertRegistryCoversTypes();
+    assertNoConflictingCapabilities();
+    assertWritableTypesAreReadable();
+  }
+});
+
+// src/mode.ts
+function parseAbapMode(raw) {
+  if (raw === void 0) {
+    throw new Error(
+      'ABAP_MODE is not set. Valid values are "read", "edit", or "admin" (case-insensitive). This function does not apply a default for an unset value \u2014 the caller decides what an unset ABAP_MODE means (e.g. falling back to legacy per-flag config).'
+    );
+  }
+  const trimmed = raw.trim();
+  if (trimmed === "") {
+    throw new Error(
+      'ABAP_MODE is set but empty (or whitespace-only). Valid values are "read", "edit", or "admin" (case-insensitive).'
+    );
+  }
+  const lower = trimmed.toLowerCase();
+  if (lower === "read" || lower === "edit" || lower === "admin") {
+    return lower;
+  }
+  throw new Error(
+    `ABAP_MODE=${JSON.stringify(raw)} is not a recognised mode. Valid values are "read", "edit", or "admin" (case-insensitive).`
+  );
+}
+function resolvePackages(override) {
+  return override === void 0 ? [...EDIT_PACKAGE_DEFAULT] : [...override];
+}
+function resolveNamePrefixes(override) {
+  return override === void 0 || override.length === 0 ? [...EDIT_NAME_PREFIX_DEFAULT] : [...override];
+}
+function resolveTransports(override) {
+  if (override === void 0) return [...EDIT_TRANSPORT_DEFAULT];
+  if (override === null) return null;
+  return [...override];
+}
+function resolveEnhanceTargets(override, isAdmin) {
+  return override ?? (isAdmin ? "sap" : "customer");
+}
+function resolveEnhanceTargetPackages(override) {
+  return override === void 0 ? [] : [...override];
+}
+function resolveOriginSystems(override) {
+  return override === void 0 ? [] : [...override];
+}
+function freezeCapabilities(caps) {
+  Object.freeze(caps.allowPackages);
+  Object.freeze(caps.allowNamePrefixes);
+  Object.freeze(caps.allowTransports);
+  Object.freeze(caps.enhanceTargetPackages);
+  Object.freeze(caps.originSystems);
+  return Object.freeze(caps);
+}
+function capabilitiesForMode(mode, overrides = {}, grants = {}, boolOverrides = {}) {
+  if (mode === "read") {
+    return grants.allowDataPreview === true ? READ_CAPABILITIES_WITH_PREVIEW : READ_CAPABILITIES;
+  }
+  const isAdmin = mode === "admin";
+  const allowPackages = resolvePackages(overrides.allowPackages);
+  const allowNamePrefixes = resolveNamePrefixes(overrides.allowNamePrefixes);
+  const allowTransports = resolveTransports(overrides.allowTransports);
+  const enhanceTargetPackages = resolveEnhanceTargetPackages(overrides.enhanceTargetPackages);
+  const originSystems = resolveOriginSystems(overrides.originSystems);
+  return freezeCapabilities({
+    mode,
+    allowWrite: true,
+    allowActivate: true,
+    allowPackages,
+    allowNamePrefixes,
+    allowTransports,
+    allowTransportRelease: boolOverrides.allowTransportRelease ?? isAdmin,
+    allowTransportDelete: boolOverrides.allowTransportDelete ?? isAdmin,
+    allowServicePublish: boolOverrides.allowServicePublish ?? isAdmin,
+    allowEnhancements: boolOverrides.allowEnhancements ?? true,
+    enhanceTargets: resolveEnhanceTargets(overrides.enhanceTargets, isAdmin),
+    enhanceTargetPackages,
+    allowSourcePlugins: boolOverrides.allowSourcePlugins ?? true,
+    allowEnhancementDelete: boolOverrides.allowEnhancementDelete ?? isAdmin,
+    allowCascadeDelete: boolOverrides.allowCascadeDelete ?? isAdmin,
+    allowRawAdtWrites: boolOverrides.allowRawAdtWrites ?? isAdmin,
+    originSystems,
+    // Operator's grant, identically in every mode — see AbapModeGrants.
+    allowDataPreview: grants.allowDataPreview === true
+  });
+}
+function capabilityGranted(caps, cap) {
+  if (cap === "enhanceTargets") return caps.enhanceTargets !== "none";
+  return caps[cap];
+}
+function lowestModeSatisfying(predicate) {
+  return MODE_LADDER.find((m) => predicate(capabilitiesForMode(m)));
+}
+function legacyOverriddenClause(envVar) {
+  return `Setting ${envVar} will NOT work: ABAP_MODE overrides it.`;
+}
+function enhanceTargetsGrantingValue(mode, satisfiedBy) {
+  return ENHANCE_TARGETS_OVERRIDE_VALUES.find(
+    (value) => satisfiedBy(capabilitiesForMode(mode, { enhanceTargets: value }, {}, {}))
+  );
+}
+function overrideWouldGrant(cap, mode, satisfiedBy) {
+  if (!MODE_OVERRIDABLE_CAPABILITIES.has(cap)) return false;
+  if (cap === "enhanceTargets") return enhanceTargetsGrantingValue(mode, satisfiedBy) !== void 0;
+  return satisfiedBy(
+    capabilitiesForMode(mode, {}, {}, { [cap]: true })
+  );
+}
+function legacyUnlockClause(envVar, mode, label, value = "true") {
+  const setClause = value === "true" ? "this flag" : "that";
+  return `Setting ${envVar}=${value} also works, without raising the mode: ABAP_MODE=${mode} permits ${label} once ${setClause} is set.`;
+}
+function legacyClauseFor(cap, envVar, mode, label, satisfiedBy) {
+  if (cap === "enhanceTargets") {
+    const grantingValue = enhanceTargetsGrantingValue(mode, satisfiedBy);
+    return grantingValue !== void 0 ? legacyUnlockClause(envVar, mode, label, grantingValue) : legacyOverriddenClause(envVar);
+  }
+  return overrideWouldGrant(cap, mode, satisfiedBy) ? legacyUnlockClause(envVar, mode, label) : legacyOverriddenClause(envVar);
+}
+function explainDeniedCapability(req, abapMode) {
+  const request = typeof req === "string" ? { capability: req } : req;
+  const cap = request.capability;
+  const info = MODE_GOVERNED_CAPABILITIES[cap];
+  const label = request.label ?? info.label;
+  const legacyRemediation = request.legacyRemediation ?? info.legacyRemediation;
+  const satisfiedBy = request.satisfiedBy ?? ((caps) => capabilityGranted(caps, cap));
+  const grantingMode = lowestModeSatisfying(satisfiedBy);
+  if (abapMode === void 0) {
+    const cause2 = info.legacyEnvVar !== null ? `${info.legacyEnvVar} does not enable ${label}, and ABAP_MODE is not set, so that variable is what decides it.` : `${label} has no legacy environment variable \u2014 it exists only under ABAP_MODE, and ABAP_MODE is not set, so it is off.`;
+    const remediation2 = legacyRemediation ?? (grantingMode !== void 0 ? `Switch this server to ABAP_MODE=${grantingMode}; there is no legacy environment variable that enables ${label}.` : `Nothing enables ${label} on this build.`);
+    return {
+      capability: cap,
+      decidedBy: "legacy",
+      grantingMode,
+      legacyEnvVar: info.legacyEnvVar,
+      label,
+      cause: cause2,
+      remediation: remediation2
+    };
+  }
+  const cause = `ABAP_MODE=${abapMode} does not grant ${label}.`;
+  let remediation;
+  if (grantingMode === void 0) {
+    remediation = `No ABAP_MODE value grants ${label}.`;
+  } else if (grantingMode === abapMode) {
+    remediation = `ABAP_MODE=${abapMode} already grants ${label} at the mode layer, so this refusal came from a narrower rule \u2014 changing ABAP_MODE will not lift it.`;
+  } else {
+    remediation = `Set ABAP_MODE=${grantingMode}.`;
+  }
+  if (info.legacyEnvVar !== null) {
+    remediation += ` ${legacyClauseFor(cap, info.legacyEnvVar, abapMode, label, satisfiedBy)}`;
+  }
+  return {
+    capability: cap,
+    decidedBy: "mode",
+    abapMode,
+    grantingMode,
+    legacyEnvVar: info.legacyEnvVar,
+    label,
+    cause,
+    remediation
+  };
+}
+function joinAnd(parts) {
+  if (parts.length <= 1) return parts[0] ?? "";
+  return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
+}
+function explainDeniedCapabilities(reqs, abapMode) {
+  const parts = reqs.map((r) => explainDeniedCapability(r, abapMode));
+  if (abapMode === void 0) {
+    return {
+      cause: parts.map((p) => p.cause).join(" "),
+      remediation: parts.map((p) => p.remediation).join(" ")
+    };
+  }
+  const cause = `ABAP_MODE=${abapMode} does not grant ${joinAnd(parts.map((p) => p.label))}.`;
+  const modes = parts.map((p) => p.grantingMode);
+  const highest = modes.includes(void 0) ? void 0 : MODE_LADDER.reduce(
+    (acc, m) => modes.includes(m) ? m : acc,
+    void 0
+  );
+  const step = highest === void 0 ? `No single ABAP_MODE value grants ${joinAnd(parts.map((p) => p.label))}.` : highest === abapMode ? `ABAP_MODE=${abapMode} already grants ${joinAnd(parts.map((p) => p.label))} at the mode layer, so this refusal came from a narrower rule \u2014 changing ABAP_MODE will not lift it.` : `Set ABAP_MODE=${highest} \u2014 one value covers all of them.`;
+  const clauses = parts.filter((p) => p.legacyEnvVar !== null).map(
+    (p) => legacyClauseFor(
+      p.capability,
+      p.legacyEnvVar,
+      abapMode,
+      p.label,
+      (caps) => capabilityGranted(caps, p.capability)
+    )
+  );
+  return { cause, remediation: [step, ...clauses].join(" ") };
+}
+var ENHANCE_TARGETS_VALUES, EDIT_TRANSPORT_DEFAULT, EDIT_PACKAGE_DEFAULT, EDIT_NAME_PREFIX_DEFAULT, READ_CAPABILITIES, READ_CAPABILITIES_WITH_PREVIEW, MODE_GOVERNED_CAPABILITIES, MODE_GOVERNED_LEGACY_ENV_VARS, MODE_OVERRIDE_ENV_VARS, MODE_LADDER, MODE_OVERRIDABLE_CAPABILITIES, ENHANCE_TARGETS_OVERRIDE_VALUES;
+var init_mode = __esm({
+  "src/mode.ts"() {
+    "use strict";
+    ENHANCE_TARGETS_VALUES = ["none", "customer", "sap"];
+    EDIT_TRANSPORT_DEFAULT = ["*"];
+    EDIT_PACKAGE_DEFAULT = ["*"];
+    EDIT_NAME_PREFIX_DEFAULT = ["*"];
+    READ_CAPABILITIES = freezeCapabilities({
+      mode: "read",
+      allowWrite: false,
+      allowActivate: false,
+      allowPackages: [],
+      allowNamePrefixes: [],
+      allowTransports: null,
+      allowTransportRelease: false,
+      allowTransportDelete: false,
+      allowServicePublish: false,
+      allowEnhancements: false,
+      enhanceTargets: "none",
+      enhanceTargetPackages: [],
+      allowSourcePlugins: false,
+      allowEnhancementDelete: false,
+      allowCascadeDelete: false,
+      allowRawAdtWrites: false,
+      originSystems: [],
+      allowDataPreview: false
+    });
+    READ_CAPABILITIES_WITH_PREVIEW = freezeCapabilities({
+      ...READ_CAPABILITIES,
+      allowDataPreview: true
+    });
+    MODE_GOVERNED_CAPABILITIES = Object.freeze({
+      allowWrite: {
+        legacyEnvVar: "ABAP_ALLOW_WRITE",
+        label: "writes",
+        legacyRemediation: "Set ABAP_ALLOW_WRITE=true (ABAP_ALLOW_PACKAGES is optional \u2014 it narrows the default, which is every package).",
+        modeOverridable: false
+      },
+      allowTransportRelease: {
+        legacyEnvVar: "ABAP_ALLOW_TRANSPORT_RELEASE",
+        label: "releasing a transport request",
+        legacyRemediation: "Set ABAP_ALLOW_TRANSPORT_RELEASE=true.",
+        modeOverridable: true
+      },
+      allowEnhancements: {
+        legacyEnvVar: "ABAP_ALLOW_ENHANCEMENTS",
+        label: "enhancement authoring",
+        legacyRemediation: "Set ABAP_ALLOW_ENHANCEMENTS=true.",
+        modeOverridable: true
+      },
+      enhanceTargets: {
+        legacyEnvVar: "ABAP_ENHANCE_TARGETS",
+        label: "enhancing any object",
+        legacyRemediation: "Set ABAP_ENHANCE_TARGETS=customer for your own objects, or =sap plus a matching ABAP_ENHANCE_TARGET_PACKAGES entry for SAP standard objects.",
+        modeOverridable: true
+      },
+      allowSourcePlugins: {
+        legacyEnvVar: "ABAP_ALLOW_SOURCE_PLUGINS",
+        label: "creating source-code plug-in (enhoxhh) hooks",
+        legacyRemediation: "Set ABAP_ALLOW_SOURCE_PLUGINS=true.",
+        modeOverridable: true
+      },
+      allowEnhancementDelete: {
+        legacyEnvVar: "ABAP_ALLOW_ENHANCEMENT_DELETE",
+        label: "deleting an existing enhancement object",
+        legacyRemediation: "Set ABAP_ALLOW_ENHANCEMENT_DELETE=true.",
+        modeOverridable: true
+      },
+      allowTransportDelete: {
+        legacyEnvVar: "ABAP_ALLOW_TRANSPORT_DELETE",
+        label: "deleting a transport request",
+        legacyRemediation: "Set ABAP_ALLOW_TRANSPORT_DELETE=true.",
+        modeOverridable: true
+      },
+      allowServicePublish: {
+        legacyEnvVar: "ABAP_ALLOW_SERVICE_PUBLISH",
+        label: "publishing or unpublishing a service binding",
+        legacyRemediation: "Set ABAP_ALLOW_SERVICE_PUBLISH=true.",
+        modeOverridable: true
+      },
+      allowCascadeDelete: {
+        legacyEnvVar: "ABAP_ALLOW_CASCADE_DELETE",
+        label: "the BOPF cascading DDIC delete",
+        legacyRemediation: "Set ABAP_ALLOW_CASCADE_DELETE=true.",
+        modeOverridable: true
+      },
+      allowRawAdtWrites: {
+        legacyEnvVar: "ABAP_ALLOW_RAW_ADT_WRITES",
+        label: "non-GET abap_adt passthrough",
+        legacyRemediation: "Set ABAP_ALLOW_RAW_ADT_WRITES=true.",
+        modeOverridable: true
+      }
+    });
+    MODE_GOVERNED_LEGACY_ENV_VARS = Object.freeze(
+      Object.values(MODE_GOVERNED_CAPABILITIES).filter((info) => info.legacyEnvVar !== null && !info.modeOverridable).map((info) => info.legacyEnvVar)
+    );
+    MODE_OVERRIDE_ENV_VARS = Object.freeze([
+      "ABAP_ALLOW_PACKAGES",
+      "ABAP_ALLOW_NAME_PREFIXES",
+      "ABAP_ALLOW_TRANSPORTS",
+      "ABAP_ENHANCE_TARGET_PACKAGES",
+      "ABAP_ORIGIN_SYSTEMS",
+      ...Object.values(MODE_GOVERNED_CAPABILITIES).filter((i) => i.modeOverridable && i.legacyEnvVar !== null).map((i) => i.legacyEnvVar)
+    ]);
+    MODE_LADDER = ["read", "edit", "admin"];
+    MODE_OVERRIDABLE_CAPABILITIES = new Set(
+      Object.keys(MODE_GOVERNED_CAPABILITIES).filter(
+        (c) => MODE_GOVERNED_CAPABILITIES[c].modeOverridable
+      )
+    );
+    ENHANCE_TARGETS_OVERRIDE_VALUES = ["customer", "sap"];
+  }
+});
+
+// src/safety.ts
+function isUnrestrictedPrefixList(prefixes) {
+  return prefixes.some((p) => p.trim() === NAME_PREFIX_WILDCARD);
+}
+function transportAllowlistHint(allowTransports) {
+  const normalized = allowTransports.map((t) => t.trim().toUpperCase()).filter((t) => t !== "");
+  if (normalized.length === 0) {
+    return "No transportable write can succeed in this session: ABAP_ALLOW_TRANSPORTS is explicitly empty. Only local ($-prefixed) packages such as $TMP are writable. Ask the operator to allow transports if this object must be transportable. " + TRANSPORT_HINT_TERMINAL;
+  }
+  if (normalized.includes("*")) {
+    return "Any modifiable request the connected user owns (or has a task in) can be named as corr_nr, or omit corr_nr to let the server pick one.";
+  }
+  const pins = normalized.filter((t) => t !== "AUTO");
+  if (pins.length === 0) {
+    return "The server picks the request itself under ABAP_ALLOW_TRANSPORTS=auto. Omit corr_nr: a modifiable workbench request this session created (abap_transport operation=create) or already attributed to itself is reused for the package, otherwise one is created \u2014 either way the response's transport field names it. Naming a request is refused regardless of which request. " + TRANSPORT_HINT_TERMINAL;
+  }
+  const omitClause = normalized.includes("AUTO") ? "or omit corr_nr to let the server pick or create one" : "or omit corr_nr to use the first of them that is still modifiable";
+  return `Only these requests are permitted: ${pins.join(", ")}. Pass one of them as corr_nr, ${omitClause}. No other request number passes; ask the operator to extend the list if the work must go elsewhere. ` + TRANSPORT_HINT_TERMINAL;
+}
+function normalizeCorrNr(corrNr) {
+  const trimmed = corrNr?.trim();
+  return trimmed === void 0 || trimmed === "" ? void 0 : trimmed;
+}
+function safetyTarget(fields) {
+  return {
+    name: fields.name,
+    ...fields.packageName !== void 0 ? { packageName: fields.packageName } : {},
+    ...fields.type !== void 0 ? { type: fields.type } : {},
+    ...fields.superPackage !== void 0 ? { superPackage: fields.superPackage } : {},
+    ...fields.exists !== void 0 ? { exists: fields.exists } : {}
+  };
+}
+function isValidAbapIdentifier(name, opts = {}) {
+  if (typeof name !== "string") return false;
+  const max = opts.maxLength ?? ABAP_IDENTIFIER_MAX;
+  if (name.length === 0 || name.length > max) return false;
+  let body = name;
+  if (opts.allowNamespace) {
+    const ns = /^\/[A-Za-z0-9][A-Za-z0-9_]*\//.exec(body);
+    if (ns) body = body.slice(ns[0].length);
+  }
+  if (opts.allowLocal && body.startsWith("$")) body = body.slice(1);
+  return /^[A-Za-z][A-Za-z0-9_]*$/.test(body);
+}
+function isAddressableAbapObjectName(name) {
+  return name.startsWith("$") ? isValidAbapIdentifier(name, { allowLocal: true, maxLength: Number.POSITIVE_INFINITY }) : isValidAbapIdentifier(name, { allowNamespace: true, maxLength: Number.POSITIVE_INFINITY });
+}
+function isEnhancementType(type) {
+  if (!type) return false;
+  const head = type.trim().toUpperCase().split("/")[0] ?? "";
+  return ENHANCEMENT_TYPE_HEADS.includes(head);
+}
+function isInvocationTarget(type) {
+  if (!type) return false;
+  return INVOCATION_TARGET_TYPES.has(type.trim().toUpperCase());
+}
+function join5(base, extra) {
+  return extra ? `${base} ${extra}` : base;
+}
+function packagePattern(pattern) {
+  const escaped = pattern.trim().replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*");
+  return new RegExp(`^${escaped}$`, "i");
+}
+function isSapNamespace(name) {
+  const n = name.trim().toUpperCase();
+  if (n.startsWith("/")) return true;
+  return false;
+}
+function isSapPackage(pkg) {
+  if (!pkg) return false;
+  const p = pkg.trim().toUpperCase();
+  if (p.startsWith("$")) return false;
+  if (p.startsWith("/")) return true;
+  if (p.startsWith("Z") || p.startsWith("Y")) return false;
+  return SAP_PACKAGE_PREFIXES.some((prefix) => p.startsWith(prefix));
+}
+function scanCdsText(raw) {
+  const out = [];
+  const stringSpans = [];
+  let i = 0;
+  const n = raw.length;
+  while (i < n) {
+    const c = raw[i];
+    if (c === "'") {
+      const start = i;
+      i++;
+      for (; ; ) {
+        if (i >= n) break;
+        if (raw[i] === "'") {
+          if (raw[i + 1] === "'") {
+            i += 2;
+            continue;
+          }
+          i++;
+          break;
+        }
+        i++;
+      }
+      stringSpans.push([start, i]);
+      out.push(raw.slice(start, i));
+      continue;
+    }
+    if (c === "-" && raw[i + 1] === "-") {
+      const start = i;
+      while (i < n && raw[i] !== "\n") i++;
+      out.push(" ".repeat(i - start));
+      continue;
+    }
+    if (c === "/" && raw[i + 1] === "*") {
+      const start = i;
+      i += 2;
+      while (i < n && !(raw[i] === "*" && raw[i + 1] === "/")) i++;
+      i = Math.min(i + 2, n);
+      out.push(" ".repeat(i - start));
+      continue;
+    }
+    out.push(c ?? "");
+    i++;
+  }
+  return { cleaned: out.join(""), stringSpans };
+}
+function insideAnyStringSpan(pos, spans) {
+  return spans.some(([s, e]) => pos >= s && pos < e);
+}
+function findMatchingBrace(text5, openIndex, stringSpans) {
+  let depth = 1;
+  let i = openIndex + 1;
+  while (i < text5.length) {
+    if (insideAnyStringSpan(i, stringSpans)) {
+      const span = stringSpans.find(([s, e]) => i >= s && i < e);
+      i = span ? span[1] : i + 1;
+      continue;
+    }
+    if (text5[i] === "{") depth++;
+    else if (text5[i] === "}") {
+      depth--;
+      if (depth === 0) return i;
+    }
+    i++;
+  }
+  return -1;
+}
+function extractSqlViewName(source) {
+  const { cleaned, stringSpans } = scanCdsText(source);
+  let tokenCount = 0;
+  for (const m of cleaned.matchAll(SQLVIEWNAME_TOKEN_RE)) {
+    if (!insideAnyStringSpan(m.index ?? 0, stringSpans)) tokenCount++;
+  }
+  if (tokenCount === 0) return { kind: "absent" };
+  const candidates = [];
+  for (const m of cleaned.matchAll(DOTTED_SQLVIEWNAME_RE)) {
+    candidates.push(m[1] ?? "");
+  }
+  for (const head of cleaned.matchAll(NESTED_ABAPCATALOG_HEAD_RE)) {
+    const headIndex = head.index ?? -1;
+    if (headIndex < 0) continue;
+    const openBrace = headIndex + head[0].length - 1;
+    const closeBrace = findMatchingBrace(cleaned, openBrace, stringSpans);
+    if (closeBrace < 0) {
+      return {
+        kind: "unparseable",
+        detail: "an @AbapCatalog: { ... } block was opened but never closed before the source ended."
+      };
+    }
+    const body = cleaned.slice(openBrace + 1, closeBrace);
+    for (const nested of body.matchAll(NESTED_SQLVIEWNAME_RE)) {
+      candidates.push(nested[1] ?? "");
+    }
+  }
+  if (candidates.length !== tokenCount) {
+    return {
+      kind: "unparseable",
+      detail: `found ${tokenCount} occurrence(s) of "sqlViewName" in the source but could only confidently extract ${candidates.length} value(s) from the recognised @AbapCatalog.sqlViewName (dotted) or @AbapCatalog: { sqlViewName: ... } (nested) forms \u2014 the rest use a spelling or structure this parser does not recognise.`
+    };
+  }
+  if (candidates.length > 1) {
+    return {
+      kind: "ambiguous",
+      detail: `found ${candidates.length} separate sqlViewName occurrences in one source.`
+    };
+  }
+  const raw = candidates[0] ?? "";
+  const value = raw.replace(/''/g, "'").trim();
+  if (!/^[A-Za-z0-9_/]+$/.test(value)) {
+    return {
+      kind: "unparseable",
+      detail: `the captured value ${JSON.stringify(raw)} is empty or contains characters outside A-Z, 0-9, "_" and "/".`
+    };
+  }
+  return { kind: "found", value: value.toUpperCase() };
+}
+function digitPrefixes(head, digits, reason) {
+  return [...digits].map((d) => ({ kind: "prefix", value: `${head}${d}`, reason }));
+}
+function operatorDenyRule(entry) {
+  const v = entry.trim().toUpperCase();
+  if (!v) return void 0;
+  if (v.endsWith("*")) {
+    return { kind: "prefix", value: v.slice(0, -1), reason: OPERATOR_DENY_REASON };
+  }
+  return { kind: "exact", value: v, reason: OPERATOR_DENY_REASON };
+}
+function ruleMatches(rule, candidates) {
+  return rule.kind === "exact" ? candidates.includes(rule.value) : candidates.some((c) => c.startsWith(rule.value));
+}
+function isPreviewTableDenied(name, extra) {
+  const upper = name.trim().toUpperCase();
+  if (!upper) return { denied: false };
+  const slash = upper.lastIndexOf("/");
+  const candidates = slash >= 0 && slash < upper.length - 1 ? [upper, upper.slice(slash + 1)] : [upper];
+  const rules = [...DEFAULT_PREVIEW_DENY_TABLES];
+  for (const entry of extra ?? []) {
+    const r = operatorDenyRule(entry);
+    if (r) rules.push(r);
+  }
+  for (const rule of rules) {
+    if (rule.kind === "exact" && ruleMatches(rule, candidates)) return { denied: true, rule };
+  }
+  for (const rule of rules) {
+    if (rule.kind === "prefix" && ruleMatches(rule, candidates)) return { denied: true, rule };
+  }
+  return { denied: false };
+}
+var MUTATING_OPS, SAP_PACKAGE_PREFIXES, DEFAULT_NAME_PREFIXES, NAME_PREFIX_WILDCARD, DEFAULT_ENHANCE_TARGETS, DEFAULT_TRANSPORTS, TRANSPORT_HINT_TERMINAL, ABAP_IDENTIFIER_MAX, ENHANCEMENT_TYPE_HEADS, ENHANCE_SAP_TARGET_REQUIREMENT, INVOCATION_TARGET_TYPES, DOTTED_SQLVIEWNAME_RE, NESTED_ABAPCATALOG_HEAD_RE, NESTED_SQLVIEWNAME_RE, SQLVIEWNAME_TOKEN_RE, DEFAULT_PREVIEW_DENY_TABLES, OPERATOR_DENY_REASON, PROBE_FAILURE_HINT, MINT, AuthorizedTarget, SafetyGate;
+var init_safety = __esm({
+  "src/safety.ts"() {
+    "use strict";
+    init_capabilities();
+    init_errors();
+    init_mode();
+    MUTATING_OPS = /* @__PURE__ */ new Set([
+      "write",
+      "activate",
+      "delete",
+      "execute",
+      "transport"
+    ]);
+    SAP_PACKAGE_PREFIXES = [
+      "S",
+      // SAP application packages
+      "A",
+      "B",
+      "C",
+      "D",
+      "E",
+      "F",
+      "G",
+      "H",
+      "I",
+      "J",
+      "K",
+      "L",
+      "M",
+      "N",
+      "O",
+      "P",
+      "Q",
+      "R",
+      "T",
+      "U",
+      "V",
+      "W",
+      "X"
+    ];
+    DEFAULT_NAME_PREFIXES = ["Z", "Y"];
+    NAME_PREFIX_WILDCARD = "*";
+    DEFAULT_ENHANCE_TARGETS = "none";
+    DEFAULT_TRANSPORTS = ["*"];
+    TRANSPORT_HINT_TERMINAL = "This refusal is terminal (retryable: false): no change to the arguments of this call will pass.";
+    ABAP_IDENTIFIER_MAX = 30;
+    ENHANCEMENT_TYPE_HEADS = ["ENHO", "ENHS", "ENHC", "ENHP"];
+    ENHANCE_SAP_TARGET_REQUIREMENT = {
+      capability: "enhanceTargets",
+      satisfiedBy: (caps) => caps.enhanceTargets === "sap",
+      label: "enhancing SAP or partner content",
+      legacyRemediation: "Set ABAP_ENHANCE_TARGETS=sap."
+    };
+    INVOCATION_TARGET_TYPES = /* @__PURE__ */ new Set(["TCODE"]);
+    DOTTED_SQLVIEWNAME_RE = /@AbapCatalog\s*\.\s*sqlViewName\s*:\s*'((?:[^']|'')*)'/gi;
+    NESTED_ABAPCATALOG_HEAD_RE = /@AbapCatalog\s*:\s*\{/gi;
+    NESTED_SQLVIEWNAME_RE = /sqlViewName\s*:\s*'((?:[^']|'')*)'/gi;
+    SQLVIEWNAME_TOKEN_RE = /sqlviewname/gi;
+    DEFAULT_PREVIEW_DENY_TABLES = Object.freeze(
+      [
+        // ---- 1. Credentials and security (exact) ----
+        { kind: "exact", value: "USR02", reason: "Password hashes for every user (BCODE/PASSCODE/PWDSALTEDHASH)." },
+        { kind: "exact", value: "USRPWDHISTORY", reason: "Historic password hashes \u2014 the same material as USR02, kept longer." },
+        { kind: "exact", value: "USH02", reason: "Change history of USR02, including superseded password hashes." },
+        { kind: "exact", value: "USH04", reason: "Change history of user authorisation assignments." },
+        { kind: "exact", value: "USR04", reason: "User authorisation profile assignments \u2014 a map of who can do what." },
+        { kind: "exact", value: "UST04", reason: "User-to-profile assignments; the companion index to USR04." },
+        { kind: "exact", value: "USR10", reason: "Authorisation profile definitions." },
+        { kind: "exact", value: "UST10S", reason: "Contents of single authorisation profiles." },
+        { kind: "exact", value: "UST10C", reason: "Contents of composite authorisation profiles." },
+        { kind: "exact", value: "RFCDES", reason: "RFC destination definitions, including stored logon credentials." },
+        { kind: "exact", value: "RFCATTRIB", reason: "RFC destination attributes \u2014 trust relationships and logon settings." },
+        { kind: "exact", value: "RSECTAB", reason: "Secure storage (SSFS) entries \u2014 the encrypted credential store." },
+        { kind: "exact", value: "RSECACTB", reason: "Secure storage access control entries." },
+        { kind: "exact", value: "SNCSYSACL", reason: "SNC access control list \u2014 which external identities may log on." },
+        { kind: "exact", value: "DEVACCESS", reason: "Developer access keys." },
+        {
+          kind: "exact",
+          value: "DBTABLOG",
+          // Listed for a structural reason, not a topical one: without it the whole
+          // category leaks through one generic table.
+          reason: "Table change log \u2014 holds before/after images of every logged table, USR02 included, and would otherwise be a hole through the rest of this list."
+        },
+        // ---- 2. Payroll and HR (digit-anchored prefixes; see non-entries above) ----
+        ...digitPrefixes(
+          "PA",
+          "0123456789",
+          "HR master data infotype \u2014 salary (0008), bank details (0009), tax, family and medical data."
+        ),
+        ...digitPrefixes(
+          "PB",
+          "0123456789",
+          "Applicant master data infotype \u2014 the same personal fields as PA*, for recruitment."
+        ),
+        ...digitPrefixes(
+          "PCL",
+          "12345",
+          "HR cluster table \u2014 PCL2 holds the payroll results themselves."
+        ),
+        { kind: "prefix", value: "HRP", reason: "HR planning / org-management infotypes \u2014 org units, positions and their holders." },
+        { kind: "prefix", value: "PTRV", reason: "Travel expenses \u2014 trips, receipts and reimbursement bank details." },
+        // Exact, and matched ahead of the HRP prefix by the exact-first pass in
+        // `isPreviewTableDenied`, so the refusal names payroll rather than OM.
+        { kind: "exact", value: "HRPY_RGDIR", reason: "Payroll results directory \u2014 the index into the PCL2 payroll clusters." },
+        // ---- 3. Accounting documents (exact) ----
+        { kind: "exact", value: "ACDOCA", reason: "Universal Journal line items \u2014 every posted financial document." },
+        { kind: "exact", value: "ACDOCP", reason: "Universal Journal plan line items." },
+        { kind: "exact", value: "BKPF", reason: "Accounting document headers." },
+        { kind: "exact", value: "BSEG", reason: "Accounting document line items \u2014 amounts, accounts, assignments." },
+        { kind: "exact", value: "BSET", reason: "Tax data per accounting document." },
+        { kind: "exact", value: "BSID", reason: "Open customer items (classic accounts receivable)." },
+        { kind: "exact", value: "BSAD", reason: "Cleared customer items (classic accounts receivable)." },
+        { kind: "exact", value: "BSIK", reason: "Open vendor items (classic accounts payable)." },
+        { kind: "exact", value: "BSAK", reason: "Cleared vendor items (classic accounts payable)." },
+        { kind: "exact", value: "BSIS", reason: "Open G/L account items." },
+        { kind: "exact", value: "BSAS", reason: "Cleared G/L account items." },
+        { kind: "exact", value: "FAGLFLEXA", reason: "New G/L actual line items." },
+        { kind: "exact", value: "FAGLFLEXT", reason: "New G/L totals." },
+        { kind: "exact", value: "REGUH", reason: "Payment run settlement data, including payee bank details." },
+        { kind: "exact", value: "REGUP", reason: "Payment run line items \u2014 which invoices were paid, and when." },
+        { kind: "exact", value: "PAYR", reason: "Payment and cheque register." },
+        { kind: "exact", value: "BNKA", reason: "Bank master data." },
+        // ---- 4. Personal data (prefix + exact) ----
+        { kind: "prefix", value: "ADR", reason: "Central address management \u2014 ADRC postal addresses, ADR2 telephone, ADR6 e-mail." },
+        { kind: "prefix", value: "BUT", reason: "Business partner master \u2014 BUT000 names, BUT020 addresses, BUT0BK bank details." },
+        { kind: "exact", value: "KNA1", reason: "Customer master \u2014 names and addresses." },
+        { kind: "exact", value: "KNVK", reason: "Customer contact persons \u2014 named individuals with contact details." },
+        { kind: "exact", value: "KNBK", reason: "Customer bank details." },
+        { kind: "exact", value: "KNVP", reason: "Customer partner functions \u2014 who is contacted for what." },
+        { kind: "exact", value: "LFA1", reason: "Vendor master \u2014 names and addresses." },
+        { kind: "exact", value: "LFBK", reason: "Vendor bank details." },
+        { kind: "exact", value: "LFB1", reason: "Vendor company-code data \u2014 payment terms and bank data." },
+        { kind: "exact", value: "USER_ADDR", reason: "Address data of every SAP user \u2014 name, telephone, e-mail." }
+      ].map((r) => Object.freeze(r))
+    );
+    OPERATOR_DENY_REASON = "Added by the operator via ABAP_DATA_PREVIEW_DENY_TABLES.";
+    PROBE_FAILURE_HINT = "This is not a configuration problem: no flag, allowlist or ABAP_MODE value is involved, and none would lift it. The connection to the ABAP system dropped before T000-CCCATEGORY could be read, which says nothing about whether the system is productive. The write lockout is a one-way latch held for the life of this server process, so retrying the call will not re-run the probe \u2014 restart the server to probe again, and if it keeps failing, investigate network stability between this host and the ABAP system.";
+    MINT = /* @__PURE__ */ Symbol("AuthorizedTarget.mint");
+    AuthorizedTarget = class {
+      op;
+      target;
+      constructor(token, op, target) {
+        if (token !== MINT) {
+          throw new Error(
+            "AuthorizedTarget can only be constructed by SafetyGate.authorize/authorizeIntent (src/safety.ts)."
+          );
+        }
+        this.op = op;
+        this.target = target;
+      }
+    };
+    SafetyGate = class {
+      constructor(cfg) {
+        this.cfg = cfg;
+      }
+      cfg;
+      /** Audit trail for {@link resetWriteLockout} — see {@link writeLockoutResets}. */
+      lockoutResets = [];
+      /**
+       * "Why is this capability off, and what actually turns it on?" — computed
+       * from {@link SafetyConfig.abapMode} (the mechanism that made the decision)
+       * rather than a hand-written sentence, so it can't say "set ABAP_ALLOW_X"
+       * on a server where that var is never read. Refusals about the narrowing
+       * override lists (ABAP_ALLOW_PACKAGES, ABAP_ALLOW_TRANSPORTS,
+       * ABAP_ALLOW_NAME_PREFIXES, ABAP_ENHANCE_TARGET_PACKAGES,
+       * ABAP_ORIGIN_SYSTEMS) deliberately do NOT route through here — those vars
+       * are still read under ABAP_MODE, so naming them directly is correct.
+       */
+      why(req) {
+        const e = explainDeniedCapability(req, this.cfg.abapMode);
+        return { cause: e.cause, remediation: e.remediation };
+      }
+      /** {@link why} for a refusal that needs more than one capability at once. */
+      whyAll(reqs) {
+        return explainDeniedCapabilities(reqs, this.cfg.abapMode);
+      }
+      /**
+       * Merge a patch into the live config. Every field is an ordinary overwrite
+       * except `writesLockedOut`, which is a ONE-WAY latch: once locked, no
+       * `update()` can clear it (a patch carrying `false`/`undefined` leaves it
+       * standing and drops the incoming verdict too) — only
+       * {@link resetWriteLockout} can. Asymmetric on purpose: staying locked on a
+       * real sandbox costs inconvenience; unlocking on real production costs an
+       * unauthorised write nothing undoes. Needed here rather than at the call
+       * site because `server.ts` re-transcribes the probe verdict after every
+       * primary logon, and a re-seated pool connection re-probes from scratch —
+       * a later inconclusive/productive verdict must not silently re-open writes
+       * process-wide. Detection itself already fails closed (an inconclusive
+       * re-probe LOCKS, never opens — `detectSystemRole()`,
+       * src/adt/connection.ts); this latch only stops the gate from forgetting a
+       * lockout it was already told about. Omitting `writesLockedOut` from a
+       * patch is a no-op for it; every other field updates normally.
+       */
+      update(patch) {
+        const next = { ...this.cfg, ...patch };
+        if (this.cfg.writesLockedOut && !next.writesLockedOut) {
+          next.writesLockedOut = true;
+          if (patch.productive !== true) next.productive = this.cfg.productive;
+          if (patch.systemRole !== "productive") next.systemRole = this.cfg.systemRole;
+          const keepLatched = this.cfg.lockoutReason !== void 0;
+          next.lockoutReason = keepLatched ? this.cfg.lockoutReason : patch.lockoutReason;
+          next.roleProbeFailure = keepLatched ? this.cfg.roleProbeFailure : patch.roleProbeFailure;
+        }
+        this.cfg = next;
+      }
+      /**
+       * The one deliberate way to clear a write lockout latched by {@link update}
+       * — a named, separate call so clearing a safety verdict is always explicit,
+       * never a side effect of a routine merge. `reason` must be non-empty:
+       * requiring the caller to write down why makes an accidental call hard to
+       * spell. Clears the lockout and its evidence ONLY — does not touch
+       * `productive`/`systemRole` (a system PROVEN productive is refused by a
+       * separate, un-overridable branch of `evaluate()`). A later `update()` with
+       * a fresh verdict can re-latch the lockout normally.
+       */
+      resetWriteLockout(reason) {
+        const why = reason.trim();
+        if (!why) {
+          throw new Error(
+            "resetWriteLockout(reason) requires a non-empty reason \u2014 clearing a write lockout is a deliberate act and must be attributable."
+          );
+        }
+        this.lockoutResets.push(why);
+        this.cfg = { ...this.cfg, writesLockedOut: false, lockoutReason: void 0, roleProbeFailure: void 0 };
+      }
+      /**
+       * Every reason given to {@link resetWriteLockout}, oldest first — an audit
+       * trail of the times this process talked itself out of a safety verdict.
+       */
+      get writeLockoutResets() {
+        return this.lockoutResets;
+      }
+      get config() {
+        return this.cfg;
+      }
+      /** Object-name prefixes currently in force for types that do not override them. */
+      get namePrefixes() {
+        return this.cfg.allowNamePrefixes ?? DEFAULT_NAME_PREFIXES;
+      }
+      /**
+       * The prefix list that judges THIS type's names.
+       *
+       * The global list (`ABAP_ALLOW_NAME_PREFIXES`, default `["*"]`) is
+       * wrong for exactly one type: SAP itself rejects a lock object named
+       * `ZRECON_MLK1` (`400 ExceptionResourceCreationFailure`, "Test objects
+       * cannot be created in foreign namespaces") and requires `EZRECON_MLK1` —
+       * captured live against a real system. A type may declare its own list in
+       * `src/adt/capabilities.ts`, which REPLACES the global one for that type
+       * (relaxing the global default to include `E` would loosen the gate for
+       * all types; intersecting the lists would refuse every lock-object name).
+       * The override applies even under the wildcard {@link NAME_PREFIX_WILDCARD}
+       * — a per-type list states what the SERVER accepts, not what this
+       * installation wants to permit, so `*` cannot silence it; honouring
+       * `["EZ","EY"]` under a wildcard turns a wasted round trip into an
+       * instant, explained refusal. Types without an override are unaffected —
+       * pinned by `test/safety.test.ts`.
+       */
+      namePrefixesForType(type) {
+        const override = capabilitiesFor(type)?.namePrefixes;
+        return override && override.length > 0 ? override : this.namePrefixes;
+      }
+      /**
+       * Transport allowlist in force. Unset ⇒ {@link DEFAULT_TRANSPORTS}; an
+       * explicitly empty array is preserved as empty, because that is a deliberate
+       * deny-all and not an absence of configuration.
+       */
+      get transportAllowlist() {
+        return this.cfg.allowTransports ?? DEFAULT_TRANSPORTS;
+      }
+      /** `ABAP_ENHANCE_TARGETS` in force. Unset ⇒ {@link DEFAULT_ENHANCE_TARGETS}. */
+      get enhanceTargets() {
+        return this.cfg.enhanceTargets ?? DEFAULT_ENHANCE_TARGETS;
+      }
+      /** Packages that may be ENHANCED. Unset and explicitly empty both mean deny-all. */
+      get enhanceTargetPackages() {
+        return this.cfg.enhanceTargetPackages ?? [];
+      }
+      /**
+       * SIDs treated as ADDITIONAL local origin, normalised. Empty ⇒ no
+       * additional origins beyond this system's own SID — see
+       * {@link isLocalOrigin} for the full predicate; this getter alone is no
+       * longer the whole story.
+       */
+      get originSystems() {
+        return (this.cfg.originSystems ?? []).map((s) => s.trim().toUpperCase()).filter(Boolean);
+      }
+      /**
+       * This server's own SID (`SafetyConfig.sid`, i.e. `ABAP_SID`), normalised,
+       * or `undefined` when it is not usably configured. `"UNKNOWN"` — the schema
+       * default `loadConfig()` produces when `ABAP_SID` was never set — is
+       * treated as unset rather than as a real identity: this value feeds a
+       * security predicate ({@link isLocalOrigin}), and a placeholder must never
+       * be capable of matching a real `adtcore:masterSystem` by coincidence.
+       */
+      get ownSid() {
+        const s = this.cfg.sid?.trim().toUpperCase();
+        return s && s !== "UNKNOWN" ? s : void 0;
+      }
+      /**
+       * Is `masterSystem` (from `adtcore:masterSystem`, e.g.
+       * {@link EnhancementIntent.targetMasterSystem}/`.enhancementMasterSystem`)
+       * evidence the object counts as LOCAL to this installation? Local if any of:
+       * (1) absent — unpopulated for any object that has never left this system
+       * ($TMP, untransported package), so absence is positive evidence, not a
+       * gap to fail closed on; (2) equals this system's own SID ({@link ownSid});
+       * (3) named in `ABAP_ORIGIN_SYSTEMS` (additional trusted origins, e.g. a
+       * former SID retained after a copy/refresh) — widens (1)/(2), never the
+       * sole test, so an empty list means "no extra origins", not "nothing is
+       * local". FIXED BUG: previously `ABAP_ORIGIN_SYSTEMS.includes(masterSystem)`
+       * was the sole test, defaulting to `[]` and so refusing every enhancement
+       * tool unconditionally out of the box — see
+       * the git history for the full incident writeup. A real
+       * other system (`"SAP"`, an unlisted partner SID) still fails all three and
+       * is still refused or routed through the `sap`/partner opt-in ceiling,
+       * unchanged. Test matrix: `test/safety.test.ts`.
+       */
+      isLocalOrigin(masterSystem) {
+        const ms = masterSystem?.trim().toUpperCase();
+        if (!ms) return true;
+        if (this.ownSid && ms === this.ownSid) return true;
+        return this.originSystems.includes(ms);
+      }
+      /** Non-throwing evaluation, so tools can explain rather than just fail. */
+      evaluate(op, obj, opts = {}) {
+        if (!MUTATING_OPS.has(op)) return { allowed: true, reason: "read operations are always allowed" };
+        if (this.cfg.productive || this.cfg.systemRole === "productive") {
+          return {
+            allowed: false,
+            reason: "System reports itself as productive \u2014 writes are forced off with no override.",
+            rule: "productive \u2192 read-only",
+            code: "READ_ONLY"
+          };
+        }
+        if (this.cfg.writesLockedOut) {
+          const probeFailure = this.cfg.roleProbeFailure;
+          if (probeFailure !== void 0) {
+            return {
+              allowed: false,
+              reason: `The system-role probe never got an answer, so this system is unclassified and writes are refused. The T000 probe failed below HTTP: ${probeFailure}. That is a dropped connection, not a finding about the system's role.`,
+              rule: "probe did not complete \u2192 read-only (fail closed)",
+              code: "ROLE_PROBE_FAILED",
+              hint: PROBE_FAILURE_HINT
+            };
+          }
+          return {
+            allowed: false,
+            reason: "This system could not be proven non-productive, so writes are refused. " + (this.cfg.lockoutReason ?? "The system-role probe returned no usable evidence.") + " A write flag does not override this, and no ABAP_MODE value does either.",
+            rule: "unproven \u2192 read-only (fail closed)",
+            code: "READ_ONLY"
+          };
+        }
+        if (op === "transport" && opts.release && this.cfg.readOnly) {
+          const why = this.whyAll(["allowWrite", "allowTransportRelease"]);
+          return {
+            allowed: false,
+            reason: `Server is running read-only, so releasing a transport request is refused. Release needs both of them. ${why.cause} ${why.remediation}`,
+            rule: "read-only default (release also needs the transport-allowlist ceiling)",
+            code: "READ_ONLY"
+          };
+        }
+        if (op === "transport" && opts.deleteTransport && this.cfg.readOnly) {
+          const why = this.whyAll(["allowWrite", "allowTransportDelete"]);
+          return {
+            allowed: false,
+            reason: `Server is running read-only, so deleting a transport request is refused. Delete needs both of them. ${why.cause} ${why.remediation}`,
+            rule: "read-only default (delete also needs the transport-allowlist ceiling)",
+            code: "READ_ONLY"
+          };
+        }
+        if (opts.publish && this.cfg.readOnly) {
+          const why = this.whyAll(["allowWrite", "allowServicePublish"]);
+          return {
+            allowed: false,
+            reason: `Server is running read-only, so publishing a service binding is refused. Publishing needs both of them. ${why.cause} ${why.remediation}`,
+            rule: "read-only default (publishing also needs the service-publish ceiling)",
+            code: "READ_ONLY"
+          };
+        }
+        if (this.cfg.readOnly) {
+          const why = this.why("allowWrite");
+          return {
+            allowed: false,
+            reason: `Server is running read-only. ${why.cause} ${why.remediation}`,
+            rule: "read-only default",
+            code: "READ_ONLY"
+          };
+        }
+        if (op === "transport" && opts.release && !this.cfg.allowTransportRelease) {
+          const why = this.why("allowTransportRelease");
+          return {
+            allowed: false,
+            reason: `Writes are enabled but releasing a transport request is a separate ceiling. ${why.cause} ${why.remediation}`,
+            rule: "transport release ceiling",
+            code: "READ_ONLY"
+          };
+        }
+        if (op === "transport" && opts.deleteTransport && !this.cfg.allowTransportDelete) {
+          const why = this.why("allowTransportDelete");
+          return {
+            allowed: false,
+            reason: `Writes are enabled but deleting a transport request is a separate ceiling. ${why.cause} ${why.remediation}`,
+            rule: "transport delete ceiling",
+            code: "READ_ONLY"
+          };
+        }
+        if (opts.publish && !this.cfg.allowServicePublish) {
+          const why = this.why("allowServicePublish");
+          return {
+            allowed: false,
+            reason: `Writes are enabled but publishing a service binding is a separate ceiling. ${why.cause} ${why.remediation}`,
+            rule: "service publish ceiling",
+            code: "READ_ONLY"
+          };
+        }
+        if (op === "transport" && !obj) {
+          return {
+            allowed: true,
+            reason: "Transport-level operation with no object: the object rules (SAP namespace, package, name prefix, transport allowlist) have nothing to judge."
+          };
+        }
+        if (!obj) {
+          return {
+            allowed: false,
+            reason: "No object supplied for a mutating operation.",
+            rule: "no object supplied for mutating operation",
+            code: "SAFETY_DENIED"
+          };
+        }
+        if (isSapNamespace(obj.name)) {
+          return {
+            allowed: false,
+            reason: `${obj.name} lives in a reserved SAP namespace.`,
+            rule: "SAP namespace denied",
+            code: "SAFETY_DENIED"
+          };
+        }
+        if (isInvocationTarget(obj.type)) {
+          return {
+            allowed: true,
+            reason: `${obj.name} is an invocation target (${obj.type}), not a repository object: the package allowlist, the customer-namespace name-prefix rule, and the transport allowlist all judge properties a transaction code does not have. The productive-system, write-lockout and read-only ceilings above already applied, and the SAP-namespace check above still refuses a registered namespace tcode.`
+          };
+        }
+        if (isSapPackage(obj.packageName)) {
+          return {
+            allowed: false,
+            reason: `Package ${obj.packageName} is SAP-owned. Modifying it needs an access key and a human.`,
+            rule: "SAP namespace denied",
+            code: "SAFETY_DENIED"
+          };
+        }
+        const isPackageCreate = op === "write" && (obj.type ?? "").trim().toUpperCase() === "DEVC/K" && obj.exists !== true;
+        const container = isPackageCreate ? obj.superPackage : obj.packageName;
+        const packageKnown = container !== void 0 && container !== "";
+        if (isPackageCreate || opts.phase !== "preflight" || packageKnown) {
+          if (this.cfg.allowPackages.length === 0) {
+            return {
+              allowed: false,
+              reason: "No package allowlist is configured, so no package may be written to.",
+              rule: "writes need an explicit flag AND an allowlist",
+              code: "SAFETY_DENIED"
+            };
+          }
+          const rootWildcarded = isPackageCreate && !packageKnown && this.cfg.allowPackages.some((p) => p.trim() === "*");
+          if (isPackageCreate && !packageKnown && !rootWildcarded) {
+            return {
+              allowed: false,
+              reason: `${obj.name} would be a ROOT package \u2014 it names no superpackage, so it lands in no allowlisted container, and a list of named containers cannot match "no container". The allowlist is [${this.cfg.allowPackages.join(", ")}]. To create a root package the allowlist must contain the explicit wildcard entry: ABAP_ALLOW_PACKAGES='*'.`,
+              rule: "package allowlist",
+              code: "SAFETY_DENIED"
+            };
+          }
+          const pkg = container ?? "";
+          const matched = rootWildcarded || this.cfg.allowPackages.some((p) => packagePattern(p).test(pkg));
+          if (!matched) {
+            return {
+              allowed: false,
+              reason: isPackageCreate ? `Superpackage ${pkg} is not in the allowlist [${this.cfg.allowPackages.join(", ")}] \u2014 a new package may only be created inside an allowlisted container.` : `Package ${pkg || "(unknown)"} is not in the allowlist [${this.cfg.allowPackages.join(", ")}].`,
+              rule: "package allowlist",
+              code: "SAFETY_DENIED"
+            };
+          }
+        }
+        const name = (obj.name ?? "").trim().toUpperCase();
+        const prefixes = this.namePrefixesForType(obj.type);
+        const perType = prefixes !== this.namePrefixes;
+        const unrestricted = isUnrestrictedPrefixList(prefixes);
+        if (!unrestricted && prefixes.length && !prefixes.some((p) => name.startsWith(p.trim().toUpperCase()))) {
+          return {
+            allowed: false,
+            reason: `${obj.name} is outside the customer namespace: a write must target a name starting with [${prefixes.join(", ")}]` + (perType ? `. ${obj.type} names are judged against that list and not the general one [${this.namePrefixes.join(", ")}], because the ABAP system itself refuses the general one for this type \u2014 ABAP_ALLOW_NAME_PREFIXES=${NAME_PREFIX_WILDCARD} does not lift it.` : `. Set ABAP_ALLOW_NAME_PREFIXES to a list that covers it, or to ${NAME_PREFIX_WILDCARD} to drop the name rule entirely (SAP-owned objects stay denied either way).`),
+            rule: "object-name allowlist",
+            code: "SAFETY_DENIED"
+          };
+        }
+        let enhancementReason;
+        if (isEnhancementType(obj.type)) {
+          const intent = opts.intent;
+          if (!intent) {
+            if (opts.phase === "final") {
+              return {
+                allowed: false,
+                reason: `INTERNAL: the safety gate was asked to judge ${obj.name} (${obj.type}) at phase:"final" \u2014 a declaration that resolution is complete and this target is authoritative \u2014 with no EnhancementIntent. That combination is never a legitimate user-facing refusal: every enhancement-type target reaching the FINAL phase must already have had its EnhancementIntent built from the caller's \`affects\` (see enhancementIntentFor()/enhancementPreflightIntent(), and authorizeMutation() for the reference pattern) before this call. This is a wiring defect in abapsmith's own code, not a decision about this request \u2014 the call site dropped the intent instead of building and passing it. Fix the call site; there is no flag that silences this.`,
+                rule: "gate self-defence: final-phase enhancement target with no intent",
+                code: "INTERNAL_GATE_MISUSE"
+              };
+            }
+            return {
+              allowed: false,
+              reason: `${obj.name} is an enhancement object (${obj.type}), whose effect is on an object that does not appear in its own name, package or URI. The gate cannot judge it from the artefact alone: supply \`affects\` \u2014 the object this enhancement changes the behaviour of (name, packageName, and optionally masterSystem/spotName) \u2014 so the write can be judged against what it actually touches.`,
+              rule: "enhancement write needs an intent",
+              code: "SAFETY_DENIED"
+            };
+          }
+          const declared = intent.enhancementName.trim().toUpperCase();
+          if (declared !== (obj.name ?? "").trim().toUpperCase()) {
+            return {
+              allowed: false,
+              reason: `The supplied enhancement intent describes ${intent.enhancementName}, but this operation targets ${obj.name}. An intent authorises the artefact it names and no other.`,
+              rule: "intent/artefact mismatch",
+              code: "SAFETY_DENIED"
+            };
+          }
+          const enhancement = this.enhancementRules(intent);
+          if (!enhancement.allowed) return enhancement;
+          enhancementReason = enhancement.reason;
+        }
+        const pkgUpper = (obj.packageName ?? "").trim().toUpperCase();
+        const needsTransport = packageKnown && pkgUpper !== "" && !pkgUpper.startsWith("$");
+        if (needsTransport) {
+          const allowTransports = this.transportAllowlist;
+          const namedCorrNr = normalizeCorrNr(opts.corrNr);
+          const corr = opts.corr ?? {
+            kind: "transport",
+            corrNr: namedCorrNr ?? "auto",
+            source: namedCorrNr === void 0 ? "auto" : "named"
+          };
+          if (allowTransports.length === 0) {
+            return {
+              allowed: false,
+              reason: `${obj.name} is in package ${obj.packageName}, which needs a transport request, but ABAP_ALLOW_TRANSPORTS is explicitly empty \u2014 every transportable write is refused. Local ($-prefixed) packages are unaffected.`,
+              rule: "transport allowlist (fail closed)",
+              code: "SAFETY_DENIED",
+              hint: transportAllowlistHint(allowTransports)
+            };
+          }
+          if (corr.kind === "local") {
+            return {
+              allowed: true,
+              reason: join5(
+                `${obj.name} resolved to a local (non-transportable) write; the transport allowlist does not apply.`,
+                enhancementReason
+              )
+            };
+          }
+          const normalized = allowTransports.map((t) => t.trim().toUpperCase());
+          if (!normalized.includes("*") && corr.kind === "transport") {
+            const requested = corr.corrNr.trim().toUpperCase();
+            const ok24 = normalized.includes(requested) || corr.source === "auto" && normalized.includes("AUTO");
+            if (!ok24) {
+              return {
+                allowed: false,
+                reason: `Transport ${corr.corrNr} is not permitted by ABAP_ALLOW_TRANSPORTS [${allowTransports.join(", ")}].`,
+                rule: "transport allowlist",
+                code: "SAFETY_DENIED",
+                hint: transportAllowlistHint(allowTransports)
+              };
+            }
+          }
+        }
+        return {
+          allowed: true,
+          reason: join5(
+            packageKnown ? isPackageCreate ? `Superpackage ${container} is allowlisted.` : `Package ${container} is allowlisted.` : "Package check deferred.",
+            enhancementReason
+          )
+        };
+      }
+      /**
+       * Gate a table data preview. Non-throwing; {@link assertDataPreview} throws.
+       *
+       * Not routed through `evaluate("read")`: that returns `{allowed:true}` for
+       * every non-mutating op on its first line, which would skip the deny-list
+       * and the productive ceiling and let `SELECT * FROM USR02` through on a
+       * production system. Every check is written out here instead. Order:
+       * productive/unproven ceiling first (un-overridable), then the deny-list.
+       * `readOnly` is deliberately NOT checked — a preview is a read, and
+       * `ABAP_MODE=read` must not switch it off; whether the feature is enabled
+       * at all is `ABAP_ALLOW_DATA_PREVIEW`, decided in capabilities.
+       */
+      evaluateDataPreview(table, extraDeny) {
+        const name = table.trim();
+        if (!name) {
+          return {
+            allowed: false,
+            reason: "No table name was supplied, so nothing could be judged against the preview deny-list.",
+            rule: "data preview",
+            code: "SAFETY_DENIED"
+          };
+        }
+        if (this.cfg.productive || this.cfg.systemRole === "productive") {
+          return {
+            allowed: false,
+            reason: "System reports itself as productive \u2014 reading table contents is refused with no override. No flag, including ABAP_ALLOW_DATA_PREVIEW, changes this.",
+            rule: "productive \u2192 no data preview",
+            code: "READ_ONLY"
+          };
+        }
+        if (this.cfg.writesLockedOut) {
+          const probeFailure = this.cfg.roleProbeFailure;
+          if (probeFailure !== void 0) {
+            return {
+              allowed: false,
+              reason: `The system-role probe never got an answer, so this system is unclassified and reading table contents is refused. The T000 probe failed below HTTP: ${probeFailure}. That is a dropped connection, not a finding about the system's role.`,
+              rule: "probe did not complete \u2192 no data preview (fail closed)",
+              code: "ROLE_PROBE_FAILED",
+              hint: PROBE_FAILURE_HINT
+            };
+          }
+          return {
+            allowed: false,
+            reason: "This system could not be proven non-productive, so reading table contents is refused. " + (this.cfg.lockoutReason ?? "The system-role probe returned no usable evidence.") + " ABAP_ALLOW_DATA_PREVIEW does not override this.",
+            rule: "unproven \u2192 no data preview (fail closed)",
+            code: "READ_ONLY"
+          };
+        }
+        if (this.cfg.writesLockedOut === void 0) {
+          return {
+            allowed: false,
+            reason: "The system role has not been determined on this connection yet, so reading table contents is refused. A preview must not run before the system-role probe has proven the system non-productive.",
+            rule: "unproven \u2192 no data preview (fail closed)",
+            code: "READ_ONLY"
+          };
+        }
+        const hit = isPreviewTableDenied(name, extraDeny ?? this.cfg.dataPreviewDenyTables);
+        if (hit.denied && hit.rule) {
+          const { kind, value, reason } = hit.rule;
+          return {
+            allowed: false,
+            reason: `Table ${name.toUpperCase()} is on the data-preview deny-list (${kind} rule "${value}"): ${reason} This is a policy refusal, not a transient error \u2014 retrying will not change it. The list matches the name as given, case-insensitively, plus the segment after the last slash; it does not resolve a view to what it selects from, so a differently-named view over the same rows is not caught by this rule.`,
+            rule: `preview deny-list (${kind} "${value}")`,
+            code: "SAFETY_DENIED"
+          };
+        }
+        return {
+          allowed: true,
+          reason: `Table ${name.toUpperCase()} is not on the data-preview deny-list.`
+        };
+      }
+      /**
+       * Throwing form of {@link evaluateDataPreview}, for the preview tool. The
+       * hint states the deny-list cannot be narrowed by any setting, unless the
+       * decision carries its own hint.
+       */
+      assertDataPreview(table, extraDeny) {
+        const d = this.evaluateDataPreview(table, extraDeny);
+        if (d.allowed) return;
+        throw new AbapError(
+          d.code ?? "SAFETY_DENIED",
+          d.reason,
+          {
+            operation: "read",
+            rule: d.rule,
+            table: table.trim().toUpperCase()
+          },
+          d.hint ?? "ABAP_DATA_PREVIEW_DENY_TABLES can only ADD entries to the built-in deny-list; no setting removes one. A productive or unclassified system refuses every preview regardless of flags."
+        );
+      }
+      /**
+       * Gate the variable-contents tier of a runtime-error dump read.
+       * Non-throwing; {@link assertDumpVariables} throws.
+       *
+       * Two tiers: tier 1 (error class, program, include, line, timestamp, user,
+       * source extract, call stack) is an ordinary read with NO gate anywhere —
+       * a diagnostic tool that can't report what crashed isn't safer, it's
+       * absent. Tier 2 is locals/work-areas/internal-table VALUES at the moment
+       * of termination — the PII surface (customer records, bank details, salary
+       * fields on a real system) — and the only thing this method judges.
+       *
+       * Not routed through `evaluate("read")`, same reasoning as
+       * {@link evaluateDataPreview}. Deliberately does NOT check `readOnly` in
+       * either direction: a read-only server must still be able to grant this
+       * (capability-wise `canWrite === !readOnly`, so gating on it would hand
+       * the widest access to the read-only production connection an operator
+       * chose to be careful). Also deliberately carries no productive/lockout
+       * ceiling — diagnosing production incidents is the point of this feature;
+       * the operator's explicit `ABAP_ALLOW_DUMP_VARIABLES` opt-in is the control.
+       */
+      evaluateDumpVariables() {
+        if (this.cfg.allowDumpVariables === true) {
+          return {
+            allowed: true,
+            reason: "ABAP_ALLOW_DUMP_VARIABLES is set, so variable-bearing dump chapters may be returned."
+          };
+        }
+        return {
+          allowed: false,
+          reason: "Variable contents are withheld from this dump. The Selected Variables chapter holds the live values of locals, work areas and internal tables at the moment of termination, which on a system with real users behind it routinely means customer records, bank details and salary fields \u2014 so it is returned only when an operator has explicitly opted in with ABAP_ALLOW_DUMP_VARIABLES=true. That is the configured policy of this server, not a fault and not an unfinished feature: retrying, rewording the request or asking for the chapter by another name will not change it. Everything else about the dump is unaffected \u2014 error class, program, include, line, the source extract and the call stack are all still readable, and they answer what failed and where without any field values.",
+          rule: "dump variables (tier 2) \u2014 ABAP_ALLOW_DUMP_VARIABLES",
+          code: "DUMP_VARIABLES_DISABLED"
+        };
+      }
+      /**
+       * Throwing form of {@link evaluateDumpVariables}, for the dump tool. Carries
+       * no dump key, chapter text or variable name in the error — an error
+       * payload is as much a transcript as a successful response. The hint also
+       * names the two flags that are NOT the answer (`ABAP_ALLOW_WRITE`,
+       * `ABAP_MODE=admin`), since reaching for those gets neither the data nor a
+       * clearer refusal.
+       */
+      assertDumpVariables() {
+        const d = this.evaluateDumpVariables();
+        if (d.allowed) return;
+        throw new AbapError(
+          d.code ?? "DUMP_VARIABLES_DISABLED",
+          d.reason,
+          {
+            operation: "read",
+            rule: d.rule,
+            tier: "variables"
+          },
+          "ABAP_ALLOW_DUMP_VARIABLES=true is the only setting that enables this. It is deliberately independent of ABAP_ALLOW_WRITE and of ABAP_MODE: a read-only server can grant it, and ABAP_MODE=admin does not. Tier-1 dump reading (error class, program, line, source extract, call stack) needs no flag at all."
+        );
+      }
+      /**
+       * Gate the classic-DDIC `@AbapCatalog.sqlViewName` a `DDLS/DF` source names,
+       * against the same namespace rules that judge the object's own name
+       * (`isSapNamespace`, `namePrefixesForType`, `isUnrestrictedPrefixList`).
+       * Non-throwing; {@link assertDdlsSqlViewName} throws.
+       *
+       * Not inside `evaluate()`: that judges `obj.name`, a short structured
+       * string; `sqlViewName` must first be parsed out of the write's free-form
+       * source, which `evaluate()`'s `SafetyTarget` never carries. Activation
+       * creates a real database view at whatever `sqlViewName` says, independent
+       * of the DDLS object's own name — so a `Z`-named DDLS could still point
+       * activation outside the customer namespace unless this value is checked
+       * too. Called from `abapWrite` (src/tools/write.ts), the one place a final
+       * DDLS/DF source is known before writing.
+       *
+       * `extractSqlViewName` is deliberately conservative — refuses rather than
+       * guesses on ambiguity. This method turns `"absent"` into an allow (e.g.
+       * `define view entity` on 7.55+ has no classic `sqlViewName`) and anything
+       * else that isn't `"found"` into a named refusal.
+       */
+      evaluateDdlsSqlViewName(source, obj) {
+        const extraction = extractSqlViewName(source);
+        if (extraction.kind === "absent") {
+          return {
+            allowed: true,
+            reason: "No @AbapCatalog.sqlViewName annotation was found in this source, so there is no database-view name to check against the customer namespace."
+          };
+        }
+        if (extraction.kind === "ambiguous" || extraction.kind === "unparseable") {
+          return {
+            allowed: false,
+            reason: `This DDLS source's @AbapCatalog.sqlViewName could not be judged safely: ${extraction.detail} A write is refused rather than letting an unverified database-view name through \u2014 activation would create that view under whatever name sqlViewName actually names, and this gate cannot confirm that name stays inside the customer namespace.`,
+            rule: `ddls sqlViewName \u2014 ${extraction.kind}`,
+            code: "SAFETY_DENIED"
+          };
+        }
+        const value = extraction.value;
+        if (isSapNamespace(value)) {
+          return {
+            allowed: false,
+            reason: `${obj.name}'s @AbapCatalog.sqlViewName activates a database view named ${value}, which lives in a reserved SAP namespace \u2014 the same rule that refuses a registered-namespace object name refuses this.`,
+            rule: "ddls sqlViewName \u2014 SAP namespace denied",
+            code: "SAFETY_DENIED"
+          };
+        }
+        const prefixes = this.namePrefixesForType(obj.type);
+        const unrestricted = isUnrestrictedPrefixList(prefixes);
+        if (!unrestricted && prefixes.length && !prefixes.some((p) => value.startsWith(p.trim().toUpperCase()))) {
+          return {
+            allowed: false,
+            reason: `${obj.name}'s @AbapCatalog.sqlViewName activates a database view named ${value}, which is outside the customer namespace: it must start with [${prefixes.join(", ")}] \u2014 the same list that judges ${obj.name} itself. Set ABAP_ALLOW_NAME_PREFIXES to a list that covers it, or to ${NAME_PREFIX_WILDCARD} to drop the name rule entirely (SAP-owned namespaces stay denied either way).`,
+            rule: "ddls sqlViewName \u2014 outside customer namespace",
+            code: "SAFETY_DENIED"
+          };
+        }
+        return {
+          allowed: true,
+          reason: `@AbapCatalog.sqlViewName ${value} is inside the customer namespace.`
+        };
+      }
+      /**
+       * Throwing form of {@link evaluateDdlsSqlViewName}, for the write path.
+       */
+      assertDdlsSqlViewName(source, obj) {
+        const d = this.evaluateDdlsSqlViewName(source, obj);
+        if (d.allowed) return;
+        throw new AbapError(
+          d.code ?? "SAFETY_DENIED",
+          d.reason,
+          {
+            operation: "write",
+            rule: d.rule,
+            object: obj.name,
+            type: obj.type
+          },
+          "The database view a classic DDIC-based CDS view activates is named by its own @AbapCatalog.sqlViewName annotation, not by the DDLS object's own name. This checks that annotation against the same customer-namespace rule (ABAP_ALLOW_NAME_PREFIXES) that judges the object name itself \u2014 point sqlViewName at a name inside the namespace, or make the annotation unambiguous and parseable if this was refused for that reason instead."
+        );
+      }
+      /**
+       * Gate an enhancement BEFORE any ABAP is generated.
+       *
+       * `evaluate()` is URI-shaped — it judges a resolved object's name, package,
+       * type — but ADT REST refuses to create enhancement spots/definitions
+       * directly, so this feature runs its ABAP through the fluid API: the reused
+       * `ZCL_ZMCP_FLUID_ENH` body plus a content-addressed `ZCL_ZMCP_I_<hash8>`
+       * invoker, both in `$ABAPSMITH_FLUID_API`. The only objects with a URI on
+       * that route are those two helpers, which pass every rule trivially; the
+       * real enhancement/spot/target are opaque JSON arguments no URI-shaped gate
+       * can read. So this gates the INTENT, before generation — before-execution
+       * would be too late, since by then the identifiers are already buried in an
+       * argument blob this gate cannot judge.
+       *
+       * Narrows one route, does not close the channel: `abap_run`'s classrun
+       * path (`src/adt/run.ts`, `src/adt/bopf-runtime.ts`) still generates and
+       * executes arbitrary ABAP via an ungated per-call bridge deployed to the
+       * same `$ABAPSMITH_FLUID_API` package — pre-existing, out of scope here,
+       * tracked separately.
+       *
+       * Deny by default: with no `ABAP_ALLOW_ENHANCEMENTS`, `ABAP_ENHANCE_TARGETS`,
+       * or `ABAP_ENHANCE_TARGET_PACKAGES`, every intent is refused.
+       */
+      evaluateIntent(intent, opts = {}) {
+        const op = opts.op ?? "write";
+        if (!MUTATING_OPS.has(op)) {
+          return {
+            allowed: false,
+            reason: `evaluateIntent was called with the non-mutating operation "${op}". Generating and running ABAP is never a read: pass write, activate, delete, execute or transport.`,
+            rule: "no read-only classrun exemption",
+            code: "SAFETY_DENIED"
+          };
+        }
+        const malformed = this.intentGrammar(intent);
+        if (malformed) return malformed;
+        const artefact = safetyTarget({
+          name: intent.enhancementName,
+          packageName: intent.enhancementPackage,
+          type: isEnhancementType(intent.enhancementType) ? intent.enhancementType : "ENHO/XHH"
+        });
+        return this.evaluate(op, artefact, { ...opts, intent });
+      }
+      /**
+       * ABAP name grammar for every identifier in an intent, or `undefined` if
+       * they all pass. These strings are substituted verbatim into generated
+       * ABAP (`src/adt/enhancement-templates.ts`); a quote or period is an
+       * injection, not a bad name — the gate cannot read generated source, so
+       * this is the only defence there is. Checked first, ahead of every
+       * allowlist. Empty strings are skipped: emptiness means "not resolved",
+       * which the rules below refuse with a more useful message.
+       */
+      intentGrammar(i) {
+        const identifiers = [
+          ["enhancementName", i.enhancementName, { allowNamespace: true }],
+          ["enhancementPackage", i.enhancementPackage, { allowNamespace: true, allowLocal: true }],
+          ["spotName", i.spotName, { allowNamespace: true }],
+          ["targetName", i.targetName, { allowNamespace: true }],
+          ["targetPackage", i.targetPackage, { allowNamespace: true, allowLocal: true }]
+        ];
+        for (const [field, value, rules] of identifiers) {
+          if (value === void 0 || value === "") continue;
+          if (!isValidAbapIdentifier(value, rules)) {
+            return {
+              allowed: false,
+              reason: `Enhancement intent field ${field} = ${JSON.stringify(value)} is not a valid ABAP object name (letter, then letters/digits/underscores, at most ${ABAP_IDENTIFIER_MAX} characters). It would be substituted verbatim into generated ABAP source.`,
+              rule: "ABAP identifier grammar",
+              code: "SAFETY_DENIED"
+            };
+          }
+        }
+        return void 0;
+      }
+      /**
+       * The enhancement-specific rules, applied to an intent that has already
+       * cleared the artefact's own rules in `evaluate()`. Split out so both entry
+       * points — a direct `evaluateIntent()` call and an ordinary `evaluate()` on
+       * an object whose `type` is an enhancement — reach the identical decision.
+       */
+      enhancementRules(i) {
+        const malformed = this.intentGrammar(i);
+        if (malformed) return malformed;
+        if (this.cfg.allowEnhancements !== true) {
+          const why = this.why("allowEnhancements");
+          return {
+            allowed: false,
+            reason: `Enhancement authoring is disabled. ${why.cause} ${why.remediation} ` + // Names the write flag ONLY under legacy config, where it is the thing
+            // that actually decides writes and the operator will grep for it.
+            // Under ABAP_MODE the flag decides nothing, so naming it here would be
+            // the very misattribution `why` exists to prevent (see the
+            // single-mention invariant on legacyOverriddenClause).
+            (this.cfg.abapMode === void 0 ? "ABAP_ALLOW_WRITE=true does not imply it" : `ABAP_MODE=${this.cfg.abapMode} granting ordinary writes does not imply it`) + ", because an enhancement changes the behaviour of an object it does not live in.",
+            rule: "enhancements need an explicit flag",
+            code: "ENHANCEMENT_DISABLED"
+          };
+        }
+        const artefactOrigin = i.enhancementMasterSystem?.trim().toUpperCase();
+        if (artefactOrigin && !this.isLocalOrigin(artefactOrigin)) {
+          return {
+            allowed: false,
+            reason: `${i.enhancementName} originates in system ${artefactOrigin}, which is neither this server's own system (${this.ownSid ?? "SID not configured \u2014 set ABAP_SID"}) nor named in ABAP_ORIGIN_SYSTEMS [${this.originSystems.join(", ") || "(none configured)"}]. Changing it is a repair of somebody else's original, and no allowlist opens that. If this system was copied and ${artefactOrigin} is a former SID of it, add ${artefactOrigin} to ABAP_ORIGIN_SYSTEMS.`,
+            rule: "origin ceiling (repair refused)",
+            code: "REPAIR_REFUSED"
+          };
+        }
+        const targets = this.enhanceTargets;
+        if (targets === "none") {
+          const why = this.why("enhanceTargets");
+          return {
+            allowed: false,
+            reason: `No object may be enhanced at all. ${why.cause} ${why.remediation}`,
+            rule: "enhancement target class",
+            code: "ENHANCEMENT_DISABLED"
+          };
+        }
+        const targetName = i.targetName?.trim() ?? "";
+        const targetPackage = i.targetPackage?.trim() ?? "";
+        if (!targetName || !targetPackage) {
+          return {
+            allowed: false,
+            reason: "The enhanced object could not be resolved (name and package are both required). An enhancement whose target is unknown is refused rather than assumed harmless.",
+            rule: "enhanced object unresolved",
+            code: "ENHANCEMENT_TARGET_DENIED"
+          };
+        }
+        const targetOrigin = i.targetMasterSystem?.trim().toUpperCase();
+        const local = this.isLocalOrigin(targetOrigin);
+        const sapNamed = isSapNamespace(targetName) || isSapPackage(targetPackage);
+        const ownership = local ? sapNamed ? "sap" : "customer" : targetOrigin === "SAP" ? "sap" : "partner";
+        if (ownership === "customer") {
+          return {
+            allowed: true,
+            reason: `${targetName} is locally-originated customer content in ${targetPackage}.`
+          };
+        }
+        const whose = ownership === "sap" ? "SAP standard content" : `content originating in system ${targetOrigin}, i.e. partner or third-party content`;
+        if (targets !== "sap") {
+          const sapTargets = this.why(ENHANCE_SAP_TARGET_REQUIREMENT);
+          return {
+            allowed: false,
+            reason: `${targetName} (package ${targetPackage}) is ${whose}, and the enhancement target class is 'customer'. ${sapTargets.cause} Two things are required and doing only one leaves this refused: (1) ${sapTargets.remediation} (2) add ${targetPackage} to ABAP_ENHANCE_TARGET_PACKAGES, which is an override list and is still read under ABAP_MODE.` + // The ABAP_ORIGIN_SYSTEMS remediation only makes sense when `!local`
+            // (targetOrigin is a genuine foreign SID); when `local` is true,
+            // targetOrigin may be undefined or this system's own SID, and used
+            // to render literally as "adding undefined to ABAP_ORIGIN_SYSTEMS".
+            (local ? " There is no ABAP_ORIGIN_SYSTEMS fix for this one: the object is already locally-originated, and is refused for its SAP-pattern naming or package, not for where it comes from." : ` If this system was copied and ${targetOrigin} is a former SID of it, adding ${targetOrigin} to ABAP_ORIGIN_SYSTEMS is the correct fix instead.`),
+            rule: "enhanced object outside ABAP_ENHANCE_TARGETS",
+            // Allowlist (target class) did not match.
+            code: "ENHANCEMENT_TARGET_DENIED"
+          };
+        }
+        const pkgs = this.enhanceTargetPackages;
+        if (pkgs.length === 0) {
+          return {
+            allowed: false,
+            reason: `${targetName} is ${whose}, and ABAP_ENHANCE_TARGET_PACKAGES is empty \u2014 which is a deny-all, not an absence of configuration. Add ${targetPackage} to it. A 'sap' target class alone enhances nothing.`,
+            rule: "enhanced-package allowlist (fail closed)",
+            // ABAP_ENHANCE_TARGET_PACKAGES failed to match.
+            code: "ENHANCEMENT_TARGET_DENIED"
+          };
+        }
+        if (!pkgs.some((p) => packagePattern(p).test(targetPackage))) {
+          return {
+            allowed: false,
+            reason: `Package ${targetPackage} (holding ${whose} object ${targetName}) is not in ABAP_ENHANCE_TARGET_PACKAGES [${pkgs.join(", ")}].`,
+            rule: "enhanced-package allowlist",
+            code: "ENHANCEMENT_TARGET_DENIED"
+          };
+        }
+        return {
+          allowed: true,
+          reason: ownership === "sap" ? `${targetName} is SAP standard content in allowlisted package ${targetPackage}.` : `${targetName} originates in system ${targetOrigin} (partner content) and its package ${targetPackage} is allowlisted.`
+        };
+      }
+      /**
+       * Throwing form of {@link evaluateIntent}, for the bridge call sites that
+       * cannot continue. `details` carries BOTH objects — the artefact and what it
+       * affects — because a refusal naming only the artefact sends the reader
+       * looking at the wrong one.
+       */
+      assertIntent(intent, opts = {}) {
+        const d = this.evaluateIntent(intent, opts);
+        if (d.allowed) return;
+        throw new AbapError(
+          d.code ?? "SAFETY_DENIED",
+          d.reason,
+          {
+            operation: opts.op ?? "write",
+            rule: d.rule,
+            artefact: {
+              name: intent.enhancementName,
+              type: intent.enhancementType ?? "ENHO/XHH",
+              package: intent.enhancementPackage,
+              masterSystem: intent.enhancementMasterSystem
+            },
+            affects: {
+              name: intent.targetName,
+              package: intent.targetPackage,
+              masterSystem: intent.targetMasterSystem,
+              resolvedFrom: intent.spotName ? "spot" : "enhancedObject"
+            },
+            phase: opts.phase ?? "final"
+          },
+          this.cfg.abapMode !== void 0 ? `Enhancement authoring and its target class both come from ABAP_MODE (=${this.cfg.abapMode} here); for SAP or partner content a matching ABAP_ENHANCE_TARGET_PACKAGES entry is needed on top, and that one IS still read.` : "Enhancement authoring needs ABAP_ALLOW_ENHANCEMENTS=true, ABAP_ENHANCE_TARGETS=customer|sap, and \u2014 for SAP or partner content \u2014 a matching ABAP_ENHANCE_TARGET_PACKAGES entry. Each is required; none implies another."
+        );
+      }
+      /** Throwing form for call sites that cannot continue. */
+      assert(op, obj, opts = {}) {
+        const d = this.evaluate(op, obj, opts);
+        if (d.allowed) return;
+        throw new AbapError(
+          d.code ?? (op === "read" ? "SAFETY_DENIED" : "READ_ONLY"),
+          d.reason,
+          {
+            operation: op,
+            rule: d.rule,
+            object: obj?.name,
+            // Type and package travel with the refusal because a reader asking
+            // "why was this refused" needs the blast radius, not just the name.
+            type: obj?.type,
+            package: obj?.packageName,
+            phase: opts.phase ?? "final"
+          },
+          d.hint ?? (this.cfg.abapMode !== void 0 ? `Writes come from ABAP_MODE (=${this.cfg.abapMode} here) plus a package allowlist (ABAP_ALLOW_PACKAGES, still read under ABAP_MODE) and a customer-namespace object name.` : "Writes require ABAP_ALLOW_WRITE=true plus a package allowlist (ABAP_ALLOW_PACKAGES, which allows every customer package unless set, and refuses every write if set empty) and a customer-namespace object name.")
+        );
+      }
+      /**
+       * Throwing gate check that also mints the {@link AuthorizedTarget} proof.
+       * This is what call sites use INSTEAD OF calling `assert` and then making
+       * the wire call with a bare URI/target and a `gate?: SafetyGate` parameter:
+       * they call `authorize` first and thread the returned value through to the
+       * function that actually calls `conn.post`/`put`/`del`.
+       */
+      authorize(op, target, opts = {}) {
+        this.assert(op, target, opts);
+        return new AuthorizedTarget(MINT, op, target);
+      }
+      /** {@link authorize}, for the intent-based (enhancement) route. */
+      authorizeIntent(op, intent, target, opts = {}) {
+        this.assertIntent(intent, { ...opts, op });
+        return new AuthorizedTarget(MINT, op, target);
+      }
+    };
+  }
+});
+
+// src/adt/search-descriptions.ts
+function repairSearchDescriptions(refs) {
+  const groups = /* @__PURE__ */ new Map();
+  refs.forEach((ref2, index) => {
+    const key = typeGroupOf(ref2);
+    const bucket = groups.get(key);
+    if (bucket) bucket.push({ index, ref: ref2 });
+    else groups.set(key, [{ index, ref: ref2 }]);
+  });
+  const out = refs.slice();
+  const repairedGroups = /* @__PURE__ */ new Set();
+  const suspectGroups = /* @__PURE__ */ new Set();
+  for (const [key, entries] of groups) {
+    if (KNOWN_CLEAN_GROUPS.has(key)) continue;
+    const distinctTypes = new Set(entries.map((e) => e.ref["adtcore:type"] ?? ""));
+    if (distinctTypes.size < 2) continue;
+    if (entries.some((e) => !e.ref["adtcore:description"])) continue;
+    if (!wireOrderMatchesModel(entries)) continue;
+    const wireDescriptions = entries.map((e) => e.ref["adtcore:description"]);
+    const byName = entries.slice().sort((a, b) => byNameAscending(a.ref, b.ref));
+    const permutation = byName.map((entry, i) => ({ entry, description: wireDescriptions[i] }));
+    const changed = permutation.some(({ entry, description }) => description !== entry.ref["adtcore:description"]);
+    if (!changed) continue;
+    if (!VERIFIED_GROUPS.has(key)) {
+      suspectGroups.add(key);
+      continue;
+    }
+    for (const { entry, description } of permutation) {
+      out[entry.index] = { ...entry.ref, "adtcore:description": description };
+    }
+    repairedGroups.add(key);
+  }
+  return { refs: out, repairedGroups: [...repairedGroups].sort(), suspectGroups: [...suspectGroups].sort() };
+}
+var VERIFIED_GROUPS, KNOWN_CLEAN_GROUPS, typeGroupOf, byNameAscending, wireOrderMatchesModel;
+var init_search_descriptions = __esm({
+  "src/adt/search-descriptions.ts"() {
+    "use strict";
+    VERIFIED_GROUPS = /* @__PURE__ */ new Set(["TABL", "PROG"]);
+    KNOWN_CLEAN_GROUPS = /* @__PURE__ */ new Set(["FUGR"]);
+    typeGroupOf = (r) => (r["adtcore:type"] ?? "").split("/")[0].toUpperCase();
+    byNameAscending = (a, b) => {
+      const [x, y] = [a["adtcore:name"] ?? "", b["adtcore:name"] ?? ""];
+      return x < y ? -1 : x > y ? 1 : 0;
+    };
+    wireOrderMatchesModel = (entries) => entries.every((entry, i) => {
+      if (i === 0) return true;
+      const prevType = (entries[i - 1].ref["adtcore:type"] ?? "").toUpperCase();
+      const type = (entry.ref["adtcore:type"] ?? "").toUpperCase();
+      if (prevType !== type) return prevType <= type;
+      const prevName = (entries[i - 1].ref["adtcore:name"] ?? "").toUpperCase();
+      const name = (entry.ref["adtcore:name"] ?? "").toUpperCase();
+      return prevName <= name;
+    });
+  }
+});
+
+// src/adt/resolve.ts
+function activationFromVersion(version2) {
+  if (typeof version2 !== "string") return "unknown";
+  const v = version2.trim().toLowerCase();
+  if (v === "active") return "active-is-current";
+  if (v === "inactive") return "newer-inactive-exists";
+  return "unknown";
+}
+function conventionSpec(name) {
+  const n = name.toUpperCase();
+  if (/^(Z|Y|\/\w+\/)?CL_/.test(n) || /^CL_/.test(n)) return specForType("CLAS/OC");
+  if (/^(Z|Y|\/\w+\/)?IF_/.test(n) || /^IF_/.test(n)) return specForType("INTF/OI");
+  if (/^(Z|Y)?I_/.test(n)) return specForType("DDLS/DF");
+  return void 0;
+}
+function parseObjectRef(input, hint) {
+  const raw = (input ?? "").trim();
+  if (!raw) throw new AbapError("BAD_INPUT", "Empty object reference.");
+  const res = /^abap:\/\/([^/]+)\/([^/]+)\/(.+)$/i.exec(raw);
+  if (res) {
+    const spec2 = specForType(res[2]);
+    const { name: name2, member: member2 } = splitMember(res[3]);
+    return { name: name2.toUpperCase(), spec: spec2, member: member2, via: spec2 ? "typecode" : "unknown" };
+  }
+  if (/^https?:\/\//i.test(raw) || raw.startsWith("/sap/bc/adt/")) {
+    const hit = specFromUri(raw);
+    if (!hit) {
+      const issue4 = classifyUnmatchedAdtPath(raw);
+      if (issue4?.kind === "sub-object") {
+        const noun = SUB_OBJECT_NOUNS[issue4.segment] ?? issue4.segment;
+        const article = /^[aeiou]/i.test(noun) ? "an" : "a";
+        const target = issue4.subName ? `${noun} ${issue4.subName}` : `${article} ${noun}`;
+        const parentLabel = issue4.spec.label.toLowerCase();
+        throw new AbapError(
+          "UNSUPPORTED",
+          `${noun[0].toUpperCase()}${noun.slice(1)} sub-objects are not readable: ${raw} addresses ${target} inside ${parentLabel} ${issue4.name}.`,
+          {
+            uri: raw,
+            type: issue4.spec.type,
+            object: issue4.name,
+            subObject: issue4.segment,
+            ...issue4.subName ? { subName: issue4.subName } : {}
+          },
+          `abapsmith addresses whole objects. Pass the ${parentLabel} itself: "${issue4.name}" or ${buildUri(issue4.spec, issue4.name, issue4.parent)}.`
+        );
+      }
+      if (issue4?.kind === "not-an-object") {
+        throw new AbapError(
+          "BAD_INPUT",
+          `${raw} addresses a ${issue4.what}, not an ABAP repository object.`,
+          { uri: raw },
+          issue4.what === "transport request" ? "Use abap_transport to work with transport requests." : void 0
+        );
+      }
+      throw new AbapError(
+        "BAD_INPUT",
+        `Unrecognised ADT URI: ${raw}`,
+        { uri: raw },
+        'Pass an object name instead, e.g. "class ZCL_FOO".'
+      );
+    }
+    return {
+      name: hit.name,
+      spec: hit.spec,
+      parent: hit.parent,
+      // Must propagate: dropping it silently substitutes /source/main for whatever include was asked for.
+      include: hit.include,
+      uri: buildUri(hit.spec, hit.name, hit.parent),
+      via: "uri"
+    };
+  }
+  let rest = raw;
+  let spec;
+  let via = "unknown";
+  const codeMatch = /^([A-Za-z]{4}(?:\/[A-Za-z]{1,3})?)\s+(.+)$/.exec(rest);
+  if (codeMatch) {
+    const candidate = specForType(codeMatch[1]);
+    const lower = rest.toLowerCase();
+    const stolenByLongerKeyword = KEYWORDS_BY_LENGTH.some(
+      ({ keyword }) => keyword.length > codeMatch[1].length && lower.startsWith(keyword + " ")
+    );
+    if (candidate && !stolenByLongerKeyword) {
+      spec = candidate;
+      rest = codeMatch[2].trim();
+      via = "typecode";
+    }
+  }
+  if (!spec) {
+    const lower = rest.toLowerCase();
+    for (const { keyword, spec: cand } of KEYWORDS_BY_LENGTH) {
+      if (lower.startsWith(keyword + " ")) {
+        spec = cand;
+        rest = rest.slice(keyword.length).trim();
+        via = "keyword";
+        break;
+      }
+    }
+  }
+  let parent;
+  const inMatch = /^(.*?)\s+(?:in|of|from)\s+([A-Za-z0-9_/]+)$/i.exec(rest);
+  if (inMatch) {
+    rest = inMatch[1].trim();
+    parent = inMatch[2].toUpperCase();
+    if (!isAddressableAbapObjectName(parent)) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${JSON.stringify(parent)} is not a valid container name in ${JSON.stringify(input)}.`,
+        { input, parent },
+        `The container name is embedded in the object's URI, so a malformed one would address a different object than the one you meant. Fix the spelling, e.g. "ZFM in ZFG".`
+      );
+    }
+  }
+  const { name: namePart, member } = splitMember(rest);
+  let name = namePart;
+  const parentAware = spec ?? hint;
+  if (!parent && parentAware?.parentPath && name.includes("/")) {
+    const split = splitParentName(name);
+    if (split) {
+      parent = split.parent.toUpperCase();
+      name = split.name;
+    }
+  }
+  name = name.trim().replace(/^["'`]|["'`]$/g, "");
+  if (!isAddressableAbapObjectName(name)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `Could not extract an ABAP object name from ${JSON.stringify(input)}.`,
+      { input },
+      name.includes("/") ? `Pass the object's type (e.g. type: "FUGR/FF") to address it as "PARENT/NAME", or spell it as "NAME in GROUP".` : 'Try "class ZCL_FOO", "ZCL_FOO", or a full ADT URI.'
+    );
+  }
+  name = name.toUpperCase();
+  if (!spec) {
+    const guess = conventionSpec(name);
+    if (guess) {
+      spec = guess;
+      via = "convention";
+    }
+  }
+  return { name, spec, parent, member, via };
+}
+function splitMember(s) {
+  const m = /^(.*?)(?:=>|->|~|::|\.)([A-Za-z_][A-Za-z0-9_~/]*)$/.exec(s.trim());
+  if (!m) return { name: s.trim() };
+  return { name: m[1].trim(), member: m[2].toUpperCase() };
+}
+function splitParentName(input) {
+  const candidates = [];
+  for (let i = 0; i < input.length; i++) {
+    if (input[i] !== "/") continue;
+    const parent = input.slice(0, i);
+    if (!isAddressableAbapObjectName(parent)) continue;
+    const name = input.slice(i + 1);
+    if (isAddressableAbapObjectName(name)) candidates.push({ parent, name });
+  }
+  return candidates.length === 1 ? candidates[0] : void 0;
+}
+async function resolveObject(conn, input, opts = {}) {
+  if (opts.type) {
+    const cap = capabilitiesFor(opts.type);
+    const code = opts.type.trim().toUpperCase();
+    if (cap?.unsupported) {
+      throw new AbapError(
+        "UNSUPPORTED",
+        `${cap.label} (${code}) cannot be read by abapsmith. ${cap.unsupported.reason} ${TERMINAL_REFUSAL_NOTE}`,
+        { type: code },
+        // `catalogRead` types (SUSO/B) have no ADT resource to resolve a URI
+        // against either — resolveObject genuinely cannot serve them — but
+        // abap_read dispatches on the explicit type hint before this
+        // function ever runs, so the hint points there instead of the
+        // registry's own (write-focused) alternative text.
+        cap.catalogRead ? `There is no ADT resource to resolve a URI against. abap_read {"object":"<name>","type":"${code}"} renders it read-only from the catalog (${cap.catalogRead.from}) \u2014 name it as ${cap.catalogRead.nameForm}.` : cap.unsupported.alternative,
+        { retryable: false }
+        // matches UNSUPPORTED's own default; reaffirmed for readability at the throw site
+      );
+    }
+    if (cap?.bridgeCreate && isBridgeOnlyCreateType(opts.type)) {
+      const spec2 = specForType(opts.type);
+      const readable = spec2?.mode === "ddic" && ddicStrategy(spec2.kind) !== "unsupported";
+      if (!readable) {
+        throw new AbapError(
+          "UNSUPPORTED",
+          `${cap.label} (${code}) has no ADT-readable collection to resolve a URI against. ${cap.bridgeCreate.adtRest} ${TERMINAL_REFUSAL_NOTE}`,
+          { type: code },
+          // Same catalogRead redirect as above — TABL/DI has no ADT resource
+          // either, but abap_read's explicit-type dispatch renders it from
+          // catalog tables before resolveObject is reached.
+          cap.catalogRead ? `abap_read {"object":"<name>","type":"${code}"} renders it read-only from the catalog (${cap.catalogRead.from}) \u2014 name it as ${cap.catalogRead.nameForm}.` : (
+            // Registry-sourced when the create is refused, so this hint cannot
+            // send a caller to `abap_write` for a create `abap_write` will refuse.
+            cap.bridgeCreate.createRefused ?? "abapsmith can create this type through a generated classrun bridge (see abap_write), but cannot read one back."
+          ),
+          { retryable: false }
+          // matches UNSUPPORTED's own default; reaffirmed for readability at the throw site
+        );
+      }
+    }
+  }
+  const forced = opts.type ? specForType(opts.type) : void 0;
+  const parsed = parseObjectRef(input, forced);
+  const spec = forced ?? parsed.spec;
+  const certain = forced !== void 0 || parsed.via === "uri" || parsed.via === "typecode" || parsed.via === "keyword" || opts.trustHint === true;
+  if (spec && certain && spec.parentPath && !parsed.parent) {
+    return resolveParented(conn, spec, parsed);
+  }
+  if (spec && certain && (!spec.parentPath || parsed.parent)) {
+    const packageName = await lookupPackageName(conn, parsed.name, spec.type);
+    return finish(conn, spec, parsed.name, parsed, { packageName });
+  }
+  const results = await searchExact(conn, parsed.name, spec?.type);
+  if (results.length === 0) {
+    const guessed = forced === void 0 && parsed.via === "convention";
+    if (spec && !guessed) return finish(conn, spec, parsed.name, parsed, {});
+    if (spec && guessed && await existsAt(conn, buildUri(spec, parsed.name, parsed.parent))) {
+      return finish(conn, spec, parsed.name, parsed, {});
+    }
+    throw new AbapError(
+      "NOT_FOUND",
+      `No ABAP object named ${parsed.name} was found.`,
+      {
+        name: parsed.name,
+        ...spec ? { assumedType: spec.type, assumedFrom: "naming-convention" } : {}
+      },
+      spec ? `The name looks like a ${spec.label} by convention, but the repository search found no object called ${parsed.name} and a direct read of the ${spec.label} URI did not find one either. Check the spelling, or use abap_search with a pattern (e.g. {"query": "ZCL_*"}).` : 'Use abap_search to look for a pattern, e.g. {"query": "ZCL_*"}.'
+    );
+  }
+  const usable = results.map((r) => ({ r, spec: specForType(r["adtcore:type"]) })).filter((x) => x.spec !== void 0);
+  if (usable.length === 0) {
+    throw new AbapError(
+      "UNSUPPORTED",
+      `${parsed.name} exists but its type (${results[0]["adtcore:type"]}) is not a readable source object.`,
+      { name: parsed.name, types: results.map((r) => r["adtcore:type"]) }
+    );
+  }
+  if (usable.length > 1) {
+    const preferred = spec ? usable.find((u) => u.spec.type === spec.type) : void 0;
+    if (!preferred) {
+      throw new AbapError(
+        "AMBIGUOUS",
+        `${parsed.name} matches ${usable.length} object types.`,
+        { candidates: usable.map((u) => ({ type: u.spec.type, name: u.r["adtcore:name"] })) },
+        'Disambiguate with a type prefix, e.g. "class ZCL_FOO" or {"type": "TABL/DT"}.'
+      );
+    }
+    return finishFromSearch(conn, preferred.spec, preferred.r, parsed);
+  }
+  return finishFromSearch(conn, usable[0].spec, usable[0].r, parsed);
+}
+async function searchExact(conn, name, type) {
+  const spec = type ? specForType(type) : void 0;
+  const kind = spec?.parentPath ? void 0 : type?.split("/")[0];
+  const results = await conn.adt.searchObject(name, kind, 25);
+  const { refs: repaired } = repairSearchDescriptions(results);
+  const exact = repaired.filter((r) => r["adtcore:name"]?.toUpperCase() === name.toUpperCase());
+  return exact.length ? exact : [];
+}
+async function identifyByName(conn, name) {
+  const results = await searchExact(conn, name).catch(() => []);
+  const byType = /* @__PURE__ */ new Map();
+  for (const r of results) {
+    const spec = specForType(r["adtcore:type"]);
+    if (spec) byType.set(spec.type, spec);
+  }
+  return [...byType.values()];
+}
+async function existsAt(conn, uri) {
+  try {
+    return Boolean(await conn.adt.objectStructure(uri));
+  } catch {
+    return false;
+  }
+}
+async function lookupPackageName(conn, name, type) {
+  try {
+    const results = await searchExact(conn, name, type);
+    const matching = results.find((r) => r["adtcore:type"]?.toUpperCase() === type.toUpperCase());
+    return (matching ?? results[0])?.["adtcore:packageName"];
+  } catch {
+    return void 0;
+  }
+}
+async function resolveParented(conn, spec, parsed) {
+  const rows = await searchExact(conn, parsed.name, spec.type);
+  const withParent = rows.filter((r) => r["adtcore:type"]?.toUpperCase() === spec.type.toUpperCase()).map((r) => ({ r, parent: specFromUri(cleanUri(r["adtcore:uri"]) ?? "")?.parent })).filter((x) => x.parent !== void 0);
+  const groups = [];
+  for (const { parent } of withParent) {
+    if (!groups.includes(parent)) groups.push(parent);
+  }
+  if (groups.length === 1) {
+    const match = withParent.find((x) => x.parent === groups[0]);
+    return finishFromSearch(conn, spec, match.r, parsed);
+  }
+  if (groups.length > 1) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${spec.label} ${parsed.name} exists in ${groups.length} function groups (${groups.join(", ")}).`,
+      { name: parsed.name, type: spec.type, groups },
+      `Name the group: "${parsed.name} in ${groups[0]}" or "${groups[0]}/${parsed.name}".`
+    );
+  }
+  const why = spec.type === "FUGR/FF" ? `it does not index generated function modules (ENQUEUE_*, and others), which exist and read fine once the group is named` : `the search does not index ${spec.label.toLowerCase()}s at all`;
+  throw new AbapError(
+    "BAD_INPUT",
+    `${spec.label} ${parsed.name} needs its function group.`,
+    { name: parsed.name, type: spec.type },
+    `The repository search found no ${spec.label.toLowerCase()} called ${parsed.name} to take the group from \u2014 ${why}. Say "${parsed.name} in ZFG" or "ZFG/${parsed.name}".`
+  );
+}
+function finishFromSearch(conn, spec, r, parsed) {
+  const uri = cleanUri(r["adtcore:uri"]);
+  const enriched = parsed.parent ? parsed : withParentFromUri(parsed, uri);
+  return finish(conn, spec, r["adtcore:name"].toUpperCase(), enriched, {
+    description: r["adtcore:description"],
+    packageName: r["adtcore:packageName"],
+    uri,
+    // Free if the server volunteers adtcore:version; SearchResult doesn't type it but
+    // searchObject returns every objectReference attribute. Usually "unknown", not "active".
+    activation: activationFromVersion(
+      r["adtcore:version"]
+    )
+  });
+}
+async function checkActivation(conn, obj) {
+  try {
+    const struc = await conn.adt.objectStructure(obj.uri);
+    return activationFromVersion(struc?.metaData?.["adtcore:version"]);
+  } catch {
+    return "unknown";
+  }
+}
+function withParentFromUri(parsed, uri) {
+  if (!uri) return parsed;
+  const hit = specFromUri(uri);
+  return hit?.parent ? { ...parsed, parent: hit.parent } : parsed;
+}
+function finish(conn, spec, name, parsed, extra) {
+  if (spec.parentPath && !parsed.parent) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${spec.label} ${name} needs its function group.`,
+      { name, type: spec.type },
+      'Say e.g. "function module Z_FOO in ZFG" or "ZFG/Z_FOO". abap_search {"query":"Z_FOO","type":"FUGR/FF"} lists the owning group in its `group` column.'
+    );
+  }
+  const uri = cleanUri(extra.uri) ?? parsed.uri ?? buildUri(spec, name, parsed.parent);
+  const include = spec.type === "CLAS/OC" ? parsed.include : void 0;
+  const sourceUri = spec.supportsSource ? spec.type === "CLAS/OC" ? classIncludeUri(uri, include ?? "main") : `${uri}/source/main` : void 0;
+  return {
+    system: conn.cfg.sid,
+    type: spec.type,
+    kind: spec.kind,
+    label: spec.label,
+    name,
+    uri,
+    sourceUri,
+    include,
+    parent: parsed.parent,
+    member: parsed.member,
+    description: extra.description,
+    packageName: extra.packageName,
+    mode: spec.mode,
+    // Never omitted: a consumer must name a state before claiming the active version is current.
+    activation: extra.activation ?? "unknown",
+    spec
+  };
+}
+function cleanUri(uri) {
+  if (!uri) return void 0;
+  return uri.replace(/[?#].*$/, "");
+}
+var SUB_OBJECT_NOUNS;
+var init_resolve = __esm({
+  "src/adt/resolve.ts"() {
+    "use strict";
+    init_safety();
+    init_capabilities();
+    init_ddic_strategy();
+    init_errors();
+    init_search_descriptions();
+    init_types();
+    SUB_OBJECT_NOUNS = {
+      indexes: "index",
+      values: "fixed value",
+      objectstructure: "object structure"
+    };
+  }
+});
+
+// src/adt/package-ref.ts
+function parsePackageRef(xml3) {
+  const doc = xml3.replace(XML_COMMENT_RE, "");
+  let first;
+  const seen = /* @__PURE__ */ new Set();
+  PACKAGE_REF_TAG_RE.lastIndex = 0;
+  for (let tag = PACKAGE_REF_TAG_RE.exec(doc); tag; tag = PACKAGE_REF_TAG_RE.exec(doc)) {
+    const attr11 = PACKAGE_REF_NAME_RE.exec(tag[1] ?? "");
+    const value = (attr11?.[1] ?? attr11?.[2] ?? "").trim();
+    if (!value) continue;
+    seen.add(value.toUpperCase());
+    first ??= value;
+  }
+  return seen.size === 1 ? first : void 0;
+}
+var XML_COMMENT_RE, PACKAGE_REF_TAG_RE, PACKAGE_REF_NAME_RE;
+var init_package_ref = __esm({
+  "src/adt/package-ref.ts"() {
+    "use strict";
+    XML_COMMENT_RE = /<!--[\s\S]*?-->/g;
+    PACKAGE_REF_TAG_RE = /<(?:[A-Za-z_][\w.-]*:)?packageRef\b([^>]*)>/gi;
+    PACKAGE_REF_NAME_RE = /(?:^|\s)(?:adtcore:)?name\s*=\s*(?:"([^"]*)"|'([^']*)')/i;
+  }
+});
+
+// src/adt/write-verify.ts
+function isSessionDeadFailure(e) {
+  if (isAbapError(e)) return e.code === "SESSION_DEAD";
+  const info = adtExceptionInfo(e);
+  return (classifySessionFailure(info?.response) ?? sessionDeathFromInfo(info)) !== void 0;
+}
+async function probeObjectPresence(conn, uri, accept) {
+  const get = () => conn.get(uri, { headers: { Accept: accept } });
+  try {
+    const resp = await get();
+    return { presence: "present", revived: false, body: resp.body };
+  } catch (e) {
+    if (isNotFoundError(e)) return { presence: "absent", error: e, revived: false };
+    if (!isSessionDeadFailure(e)) return { presence: "no-answer", error: e, revived: false };
+  }
+  try {
+    await conn.connect();
+  } catch (e) {
+    return { presence: "no-answer", error: e, revived: false };
+  }
+  try {
+    const resp = await get();
+    return { presence: "present", revived: true, body: resp.body };
+  } catch (e) {
+    return { presence: isNotFoundError(e) ? "absent" : "no-answer", error: e, revived: true };
+  }
+}
+function vitBridgeUri(vitType, objectName) {
+  return `/sap/bc/adt/vit/wb/object_type/${vitType}/object_name/${encodeURIComponent(objectName)}`;
+}
+function vitStubShowsRegistration(body) {
+  return /<adtcore:packageRef[\s>]/i.test(body);
+}
+function vitStubShowsExistence(body) {
+  if (vitStubShowsRegistration(body)) return true;
+  return VIT_EXISTENCE_ATTRS.some((attr11) => new RegExp(`adtcore:${attr11}\\s*=`, "i").test(body));
+}
+function echoesTarget(body, expectType, expectName) {
+  const typeRe = new RegExp(`adtcore:type\\s*=\\s*"${escapeForRegex(expectType)}"`, "i");
+  const nameRe = new RegExp(`adtcore:name\\s*=\\s*"${escapeForRegex(expectName)}"`, "i");
+  return typeRe.test(body) && nameRe.test(body);
+}
+function escapeForRegex(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function packageRefName(body) {
+  return parsePackageRef(body);
+}
+async function verifyViaVitBridge(conn, vitType, objectName, expectType) {
+  const uri = vitBridgeUri(vitType, objectName);
+  try {
+    const resp = await conn.get(uri, { headers: { Accept: VIT_STUB_ACCEPT } });
+    if (!echoesTarget(resp.body, expectType, objectName)) {
+      return {
+        status: "indeterminate",
+        uri,
+        reason: `The VIT bridge answered 200 but the stub did not echo back the ${expectType} ${objectName} it was asked for \u2014 not an answer about this object. Treated as unproven.`
+      };
+    }
+    if (vitStubShowsExistence(resp.body)) {
+      return { status: "confirmed", uri, via: "vit-bridge", packageName: packageRefName(resp.body) };
+    }
+    return { status: "confirmed-absent", uri, via: "vit-bridge" };
+  } catch (e) {
+    if (isAbapError(e) && e.code === "UNSUPPORTED") {
+      return {
+        status: "indeterminate",
+        uri,
+        reason: `The VIT bridge read was not supported for this request shape: ${e.message}`
+      };
+    }
+    if (isNotFoundError(e)) return { status: "confirmed-absent", uri, via: "vit-bridge" };
+    return {
+      status: "indeterminate",
+      uri,
+      reason: `Read-back failed before a status could be determined: ${e instanceof Error ? e.message : String(e)}`
+    };
+  }
+}
+async function verifyViaRepositorySearch(conn, objectName, expectType) {
+  const uri = `repository-search:${expectType}/${objectName}`;
+  try {
+    const hits = await searchExact(conn, objectName, expectType);
+    if (hits.length === 0) {
+      if (SEARCH_BLIND_TYPES.has(expectType.toUpperCase())) {
+        return {
+          status: "indeterminate",
+          uri,
+          reason: `The repository search returned 0 hits for ${objectName}, but it does not index every ${expectType}: a generated function module is present and readable while the search reports nothing, so a zero-hit here is not evidence of absence. Treated as unproven rather than confirmed-absent.`
+        };
+      }
+      return { status: "confirmed-absent", uri, via: "repository-search" };
+    }
+    const matching = hits.find((h) => h["adtcore:type"]?.toUpperCase() === expectType.toUpperCase());
+    if (matching) {
+      return { status: "confirmed", uri, via: "repository-search" };
+    }
+    return {
+      status: "indeterminate",
+      uri,
+      reason: `The repository search found ${hits.length} exact-name match(es) for ${objectName}, but none typed ${expectType} (types seen: ${hits.map((h) => h["adtcore:type"] ?? "?").join(", ")}) \u2014 treated as unproven rather than either confirmed or confirmed-absent.`
+    };
+  } catch (e) {
+    return {
+      status: "indeterminate",
+      uri,
+      reason: `Repository search failed before a status could be determined: ${e instanceof Error ? e.message : String(e)}`
+    };
+  }
+}
+async function verifyObjectCreated(conn, opts) {
+  const primary = await verifyViaVitBridge(conn, opts.vitType, opts.objectName, opts.expectType);
+  if (primary.status === "confirmed") return primary;
+  if (primary.status === "confirmed-absent") {
+    const search = await verifyViaRepositorySearch(conn, opts.objectName, opts.expectType);
+    if (search.status === "confirmed") {
+      return {
+        status: "indeterminate",
+        uri: primary.uri,
+        reason: `The VIT bridge concluded ${opts.expectType} ${opts.objectName} does not exist, but the repository search found an exact-name/type match \u2014 the two probes contradict each other, treated as unproven rather than resolved either way.`
+      };
+    }
+    return primary;
+  }
+  const fallback = await verifyViaRepositorySearch(conn, opts.objectName, opts.expectType);
+  if (fallback.status === "confirmed") return fallback;
+  if (fallback.status === "confirmed-absent") {
+    return {
+      status: "indeterminate",
+      uri: fallback.uri,
+      reason: `Neither probe proves absence. VIT bridge (${primary.uri}): ${primary.reason} Repository search found no exact-name hit \u2014 but ${SEARCH_MISS_NOT_ABSENCE}.`
+    };
+  }
+  return {
+    status: "indeterminate",
+    uri: fallback.uri,
+    reason: `Neither probe could settle it. VIT bridge (${primary.uri}): ${primary.reason} Repository search: ${fallback.reason}`
+  };
+}
+async function verifyObjectPresent(conn, opts) {
+  const { uri, accept, objectName, expectType } = opts;
+  let readBackReason;
+  try {
+    const resp = await conn.get(uri, { headers: { Accept: accept } });
+    if (isBlankBody(resp.body) && blankSourceIsAmbiguous(expectType)) {
+      readBackReason = "the source endpoint answered 200 with an empty body, which does not distinguish an absent object from an empty one for this type";
+    } else {
+      return { status: "confirmed", uri, via: "read-back" };
+    }
+  } catch (e) {
+    if (isNotFoundError(e)) {
+      readBackReason = "the read-back answered 404";
+    } else {
+      readBackReason = `the read-back failed before a status could be determined: ${e instanceof Error ? e.message : String(e)}`;
+    }
+  }
+  const search = await verifyViaRepositorySearch(conn, objectName, expectType);
+  if (search.status === "confirmed") return search;
+  return {
+    status: "indeterminate",
+    uri,
+    reason: search.status === "confirmed-absent" ? `Neither probe proves absence. Read-back (${uri}): ${readBackReason}. Repository search found no exact-name hit \u2014 but a miss is not proof either: the index can lag a fresh create, and some object types are invisible to it entirely.` : `Neither probe could settle it. Read-back (${uri}): ${readBackReason}. Repository search: ${search.reason}`
+  };
+}
+function answeredFiveHundredWithType(e) {
+  const info = adtExceptionInfo(e);
+  return info?.status === 500 && typeof info.type === "string" && info.type.length > 0;
+}
+function blankSourceIsAmbiguous(type) {
+  return capabilitiesFor(type)?.blankSourceOnAbsence === true;
+}
+function objectAcceptFor(type) {
+  return capabilitiesFor(type)?.mediaType ?? "application/*";
+}
+function isBlankBody(body) {
+  return typeof body === "string" && body.trim() === "";
+}
+async function verifyObjectDeleted(conn, opts) {
+  const { uri, accept, objectName, expectType } = opts;
+  const readBack = await probeObjectPresence(conn, uri, accept);
+  if (readBack.presence === "absent") return { status: "confirmed-absent", uri, via: "read-back" };
+  let sawObject = readBack.presence === "present";
+  let readBackReason = sawObject ? "the read-back answered 200 \u2014 the object is still readable" : `the read-back failed before a status could be determined: ${readBack.error instanceof Error ? readBack.error.message : String(readBack.error)}`;
+  let readBackUri = uri;
+  const objUri = objectUriOf(uri);
+  if (!sawObject && objUri !== uri && answeredFiveHundredWithType(readBack.error)) {
+    const objAccept = objectAcceptFor(expectType);
+    const direct = await probeObjectPresence(conn, objUri, objAccept);
+    if (direct.presence === "absent") return { status: "confirmed-absent", uri: objUri, via: "read-back" };
+    if (direct.presence === "present") {
+      sawObject = true;
+      readBackUri = objUri;
+      readBackReason = `the read-back answered HTTP 500 with an ADT exception type, and a confirming GET of ${objUri} answered 200 \u2014 the object is still there`;
+    } else {
+      readBackUri = objUri;
+      readBackReason = `the read-back answered HTTP 500 with an ADT exception type, and a confirming GET of ${objUri} did not answer at all, so it established nothing either way`;
+    }
+  } else if (sawObject && objUri !== uri && isBlankBody(readBack.body) && blankSourceIsAmbiguous(expectType)) {
+    const objAccept = objectAcceptFor(expectType);
+    const direct = await probeObjectPresence(conn, objUri, objAccept);
+    if (direct.presence === "absent") return { status: "confirmed-absent", uri: objUri, via: "read-back" };
+    if (direct.presence === "present") {
+      readBackUri = objUri;
+      readBackReason = `the source endpoint answered 200 with an empty body, and a confirming GET of ${objUri} answered 200 \u2014 the object is still there`;
+    } else {
+      sawObject = false;
+      readBackUri = objUri;
+      readBackReason = `the source endpoint answered 200 with an empty body, which proves nothing on its own, and a confirming GET of ${objUri} did not answer at all`;
+    }
+  }
+  const search = await verifyViaRepositorySearch(conn, objectName, expectType);
+  if (search.status === "confirmed") return search;
+  if (search.status === "confirmed-absent") {
+    if (sawObject) {
+      return {
+        status: "indeterminate",
+        uri,
+        reason: `The post-delete read-back of ${expectType} ${objectName} answered 200 at ${readBackUri}, but the repository search found no trace of it \u2014 a stale 200 read-back is not proof the delete failed; treated as unproven.`
+      };
+    }
+    return {
+      status: "indeterminate",
+      uri,
+      reason: `The post-delete read-back of ${expectType} ${objectName} never settled it (${readBackReason}), and the repository search found no trace of it either \u2014 but ${SEARCH_MISS_NOT_ABSENCE}.`
+    };
+  }
+  return {
+    status: "indeterminate",
+    uri,
+    reason: `Neither probe could settle it. Read-back (${readBackUri}): ${readBackReason}. Repository search: ${search.reason}`
+  };
+}
+var VIT_STUB_ACCEPT, VIT_EXISTENCE_ATTRS, SEARCH_BLIND_TYPES, SEARCH_MISS_NOT_ABSENCE;
+var init_write_verify = __esm({
+  "src/adt/write-verify.ts"() {
+    "use strict";
+    init_capabilities();
+    init_errors();
+    init_package_ref();
+    init_resolve();
+    init_session();
+    VIT_STUB_ACCEPT = "application/vnd.sap.adt.basic.object.properties+xml";
+    VIT_EXISTENCE_ATTRS = ["changedAt", "changedBy", "description"];
+    SEARCH_BLIND_TYPES = /* @__PURE__ */ new Set(["FUGR/FF"]);
+    SEARCH_MISS_NOT_ABSENCE = "a miss is not proof of absence \u2014 it looks the same for an object that genuinely does not exist and one that exists but is unregistered";
+  }
+});
+
+// src/adt/source.ts
+function classifySourceFailure(e, ctx) {
+  const err = translateAdtError(e, ctx);
+  if (err.code !== "ADT_ERROR") return err;
+  const status = typeof err.details.status === "number" ? err.details.status : void 0;
+  if (status === 401) {
+    return new AbapError(
+      "AUTH_FAILED",
+      `Authentication failed (HTTP 401) while reading ${ctx.type ?? "object"} ${ctx.name ?? ctx.uri}. The server rejected the credentials \u2014 the object name was never checked.`,
+      { ...err.details, status: 401 },
+      "Fix ABAP_USER / ABAP_PASSWORD. Credentials are NOT retried automatically: repeated logon attempts lock the SAP user. This is not a naming problem."
+    );
+  }
+  if (status === 403) {
+    return new AbapError(
+      "AUTH_FAILED",
+      `Not authorised (HTTP 403) to read ${ctx.type ?? "object"} ${ctx.name ?? ctx.uri}. The logon succeeded; the user lacks the authorisation for this object.`,
+      { ...err.details, status: 403 },
+      "The user is authenticated but not authorised (typically S_DEVELOP). The name is not in question \u2014 do not retry with a different name."
+    );
+  }
+  if (status === void 0 && isTimeoutError(e)) {
+    return new AbapError(
+      "ADT_ERROR",
+      `No response from the ABAP system while reading ${ctx.type ?? "object"} ${ctx.name ?? ctx.uri}: the request timed out (${err.message}).`,
+      { ...err.details, timeout: true },
+      "The system did not answer at all, so nothing is known about the object. Retry once; if it repeats the system is unreachable or overloaded."
+    );
+  }
+  return err;
+}
+function isTimeoutError(e) {
+  if (!e || typeof e !== "object") return false;
+  const any2 = e;
+  const code = typeof any2.code === "string" ? any2.code.toUpperCase() : "";
+  if (["ECONNABORTED", "ETIMEDOUT", "ESOCKETTIMEDOUT", "UND_ERR_HEADERS_TIMEOUT"].includes(code)) {
+    return true;
+  }
+  if (any2.name === "AbortError" || any2.name === "TimeoutError") return true;
+  return /\btime(d)?\s*-?\s*out\b|\btimeout\b/i.test(String(any2.message ?? ""));
+}
+async function objectUriPresence(conn, obj) {
+  return (await probeObjectPresence(conn, obj.uri, objectAcceptFor(obj.type))).presence;
+}
+function isBlankBody2(body) {
+  return typeof body === "string" && body.trim() === "";
+}
+function sourceUriFor(obj, include) {
+  const inc = include ?? obj.include;
+  if (!inc || inc === "main") return obj.sourceUri ?? `${obj.uri}/source/main`;
+  if (obj.type !== "CLAS/OC" && obj.kind !== "CLAS") {
+    throw new AbapError(
+      "UNSUPPORTED",
+      `${obj.type} ${obj.name} has no "${inc}" include \u2014 class includes (${CLASS_INCLUDES.join(", ")}) exist only for classes.`,
+      { type: obj.type, name: obj.name, requested: inc, uri: obj.uri },
+      "Read this object without an include. It was NOT silently answered with the main source."
+    );
+  }
+  return classIncludeUri(obj.uri, inc);
+}
+async function readSource(conn, obj, include, version2) {
+  const inc = include ?? obj.include;
+  const sourceUri = sourceUriFor(obj, inc);
+  const ctx = {
+    operation: inc && inc !== "main" ? `read include ${inc}` : "read source",
+    uri: sourceUri,
+    name: obj.name,
+    type: obj.type
+  };
+  try {
+    const resp = await conn.get(sourceUri, {
+      headers: { Accept: "text/plain" },
+      ...version2 ? { qs: { version: version2 } } : {}
+    });
+    if (isBlankBody2(resp.body) && blankSourceIsAmbiguous(obj.type)) {
+      const presence = await objectUriPresence(conn, obj);
+      if (presence === "absent") {
+        throw new AbapError(
+          "NOT_FOUND",
+          `${obj.type} ${obj.name} does not exist: its source endpoint answered HTTP 200 with an empty body (this type's known response for an absent object there), and a direct GET of ${obj.uri} confirmed the absence with a not-found response.`,
+          { type: obj.type, name: obj.name, uri: sourceUri, absenceConfirmedVia: obj.uri },
+          "Check the name with abap_search, or create it first with abap_write. This was established by a second, independent request against the object URI, not inferred from the empty body."
+        );
+      }
+    }
+    return {
+      source: resp.body,
+      serverEtag: typeof resp.headers.etag === "string" ? resp.headers.etag : void 0,
+      sourceUri,
+      ...inc ? { include: inc } : {}
+    };
+  } catch (e) {
+    const err = classifySourceFailure(e, ctx);
+    const answered500WithType = err.code === "ADT_ERROR" && err.details.status === 500 && typeof err.details.adtExceptionType === "string" && Boolean(err.details.adtExceptionType);
+    if (answered500WithType) {
+      const presence = await objectUriPresence(conn, obj);
+      if (presence === "absent") {
+        throw new AbapError(
+          "NOT_FOUND",
+          `${obj.type} ${obj.name} does not exist: its source endpoint answered HTTP 500 (the response some releases give for an absent object there), and a direct GET of ${obj.uri} confirmed the absence with a 404.`,
+          { ...err.details, absenceConfirmedVia: obj.uri },
+          "Check the name with abap_search, or create it first with abap_write. This was established by a second, independent request against the object URI, not inferred from the 500 alone."
+        );
+      }
+      throw new AbapError(err.code, err.message, { ...err.details, objectUriProbe: presence }, err.hint);
+    }
+    if (err.code === "NOT_FOUND" && inc && inc !== "main") {
+      throw new AbapError(
+        "NOT_FOUND",
+        `${obj.type} ${obj.name} has no "${inc}" include at ${sourceUri}.`,
+        { ...err.details, requested: inc },
+        `A class with no test class has no testclasses include. Read ${obj.name} itself to confirm the class exists before doubting the name.`
+      );
+    }
+    throw err;
+  }
+}
+function parseFragmentRange(href) {
+  if (!href) return void 0;
+  const m = /#start=(\d+)(?:,\d+)?(?:;end=(\d+)(?:,\d+)?)?/.exec(href);
+  if (!m) return void 0;
+  const startLine = Number(m[1]);
+  const endLine = m[2] ? Number(m[2]) : startLine;
+  const document2 = href.slice(0, href.indexOf("#"));
+  return { startLine, endLine, ...document2 ? { document: document2 } : {} };
+}
+function abapCodeOf(line2) {
+  if (/^\*/.test(line2)) return "";
+  let out = "";
+  let quote;
+  let i = 0;
+  while (i < line2.length) {
+    const ch = line2[i];
+    if (quote !== void 0) {
+      if (ch === quote) {
+        if (line2[i + 1] === quote) {
+          out += "  ";
+          i += 2;
+          continue;
+        }
+        quote = void 0;
+      }
+      out += " ";
+      i += 1;
+      continue;
+    }
+    if (ch === "'" || ch === "`") {
+      quote = ch;
+      out += " ";
+      i += 1;
+      continue;
+    }
+    if (ch === '"') return out;
+    out += ch;
+    i += 1;
+  }
+  return out;
+}
+function scanMethodBlocks(source) {
+  const lines = source.replace(/\r\n/g, "\n").split("\n");
+  const blocks = [];
+  let open;
+  for (let i = 0; i < lines.length; i++) {
+    const code = abapCodeOf(lines[i] ?? "");
+    const opened = METHOD_OPEN_RE.exec(code);
+    if (opened) {
+      if (open) {
+        return {
+          blocks,
+          malformed: `line ${i + 1} opens METHOD ${opened[1]} while METHOD ${open.name} (line ${open.startLine}) is still open \u2014 methods cannot nest`
+        };
+      }
+      open = { name: opened[1] ?? "", startLine: i + 1 };
+      continue;
+    }
+    if (ENDMETHOD_RE.test(code)) {
+      if (!open) {
+        return { blocks, malformed: `ENDMETHOD. at line ${i + 1} closes no METHOD` };
+      }
+      blocks.push({ name: open.name, startLine: open.startLine, endLine: i + 1 });
+      open = void 0;
+    }
+  }
+  if (open) {
+    return {
+      blocks,
+      malformed: `METHOD ${open.name} (line ${open.startLine}) is never closed by ENDMETHOD.`
+    };
+  }
+  return { blocks };
+}
+function countMethodKeywordLines(source) {
+  const lines = source.replace(/\r\n/g, "\n").split("\n");
+  let method = 0;
+  let endmethod = 0;
+  for (const line2 of lines) {
+    const code = abapCodeOf(line2);
+    if (METHOD_OPEN_RE.test(code)) method += 1;
+    else if (ENDMETHOD_RE.test(code)) endmethod += 1;
+  }
+  return { method, endmethod };
+}
+function methodNamesMatch(a, b) {
+  const A = a.toUpperCase();
+  const B = b.toUpperCase();
+  return A === B || A.split("~").pop() === B.split("~").pop();
+}
+function linkRange(c, relSuffix) {
+  const link = (c.links ?? []).find((l) => l.rel?.endsWith(relSuffix));
+  return parseFragmentRange(link?.href);
+}
+function flattenComponents(root) {
+  const out = [];
+  const walk = (c) => {
+    for (const child4 of c.components ?? []) {
+      const isExternalRef = child4.isExternalRef;
+      const externalRef = isExternalRef === true || isExternalRef === "true";
+      if (!NON_MEMBER_TYPES.has(child4["adtcore:type"]) && !externalRef) {
+        out.push({
+          name: child4["adtcore:name"],
+          type: child4["adtcore:type"],
+          visibility: child4.visibility,
+          level: child4.level,
+          redefinition: child4.redefinition,
+          definition: linkRange(child4, REL_DEF_BLOCK),
+          implementation: linkRange(child4, REL_IMPL_BLOCK)
+        });
+      }
+      walk(child4);
+    }
+  };
+  walk(root);
+  return out;
+}
+function parseStructureElement(e) {
+  const attrs = (0, import_utilities.xmlNodeAttr)(e);
+  const links = (0, import_utilities.xmlArray)(e, "atom:link").map((l) => (0, import_utilities.xmlNodeAttr)(l));
+  const components = (0, import_utilities.xmlArray)(e, "abapsource:objectStructureElement").map(parseStructureElement);
+  return { ...attrs, links, components };
+}
+async function fetchStructure(conn, obj, version2) {
+  if (version2 === "active") return conn.adt.classComponents(obj.uri);
+  const resp = await conn.get(`${obj.uri}/objectstructure`, {
+    headers: { "Content-Type": "application/*" },
+    qs: { version: "inactive", withShortDescriptions: "true" }
+  });
+  const root = (0, import_utilities.xmlNode)((0, import_utilities.fullParse)(resp.body), "abapsource:objectStructureElement");
+  if (root === void 0 || root === null) {
+    return {
+      "adtcore:name": obj.name,
+      "adtcore:type": obj.type,
+      links: [],
+      components: []
+    };
+  }
+  return parseStructureElement(root);
+}
+async function classMembersFor(conn, obj, version2) {
+  const ctx = {
+    operation: "read components",
+    uri: obj.uri,
+    name: obj.name,
+    type: obj.type
+  };
+  const load = async (v) => {
+    try {
+      return { members: flattenComponents(await fetchStructure(conn, obj, v)), version: v };
+    } catch (e) {
+      throw classifySourceFailure(e, ctx);
+    }
+  };
+  if (version2 !== void 0) return load(version2);
+  const activation = obj.activation === "unknown" ? await checkActivation(conn, obj) : obj.activation;
+  if (activation === "newer-inactive-exists") {
+    let inactive;
+    try {
+      inactive = await load("inactive");
+    } catch {
+      inactive = void 0;
+    }
+    if (inactive && inactive.members.length > 0) return inactive;
+  }
+  return load("active");
+}
+async function classMembers(conn, obj, version2) {
+  return (await classMembersFor(conn, obj, version2)).members;
+}
+function findMember(members, wanted) {
+  const w = wanted.toUpperCase();
+  return members.find((m) => m.name.toUpperCase() === w) ?? members.find((m) => m.name.toUpperCase().split("~").pop() === w);
+}
+function abapStatements(source) {
+  const lines = source.replace(/\r\n/g, "\n").split("\n");
+  const out = [];
+  let text5 = "";
+  let code = "";
+  let start = -1;
+  const flush = (endLine) => {
+    if (code.trim()) out.push({ text: text5.trim(), code: code.trim(), startLine: start, endLine });
+    text5 = "";
+    code = "";
+    start = -1;
+  };
+  for (let i = 0; i < lines.length; i++) {
+    const line2 = lines[i] ?? "";
+    let c = abapCodeOf(line2);
+    let t = line2.slice(0, c.length);
+    let idx2;
+    while ((idx2 = c.indexOf(".")) >= 0) {
+      if (start < 0 && c.slice(0, idx2).trim()) start = i + 1;
+      text5 += t.slice(0, idx2);
+      code += c.slice(0, idx2);
+      flush(i + 1);
+      c = c.slice(idx2 + 1);
+      t = t.slice(idx2 + 1);
+    }
+    if (c.trim() && start < 0) start = i + 1;
+    if (start >= 0) {
+      text5 += `${t}
+`;
+      code += `${c}
+`;
+    }
+  }
+  return out;
+}
+function findMethodDeclaration(source, name) {
+  for (const st of abapStatements(source)) {
+    const head = DECLARATION_HEAD_RE.exec(st.code);
+    if (!head) continue;
+    const keyword = (head[1] ?? "METHODS").toUpperCase();
+    const bodyAt = head[0].length;
+    const segments = [];
+    if (head[2]) {
+      let from = bodyAt;
+      for (; ; ) {
+        const comma = st.code.indexOf(",", from);
+        if (comma < 0) {
+          segments.push([from, st.code.length]);
+          break;
+        }
+        segments.push([from, comma]);
+        from = comma + 1;
+      }
+    } else {
+      segments.push([bodyAt, st.code.length]);
+    }
+    for (const [a, b] of segments) {
+      const first = st.code.slice(a, b).trim().split(/\s+/)[0] ?? "";
+      if (first && methodNamesMatch(first, name)) {
+        return head[2] ? `${keyword} ${st.text.slice(a, b).trim()}.` : `${st.text.trim()}.`;
+      }
+    }
+  }
+  return void 0;
+}
+function parseClassParents(source) {
+  const parents = { interfaces: [] };
+  let inDefinition = false;
+  for (const st of abapStatements(source)) {
+    const flat = st.code.replace(/\s+/g, " ").trim();
+    if (!inDefinition) {
+      const def = /^(?:CLASS\s+\S+\s+DEFINITION|INTERFACE\s+\S+)\b(.*)$/i.exec(flat);
+      if (!def) continue;
+      if (/\b(DEFERRED|LOAD)\b/i.test(def[1] ?? "")) continue;
+      inDefinition = true;
+      const inh = /\bINHERITING\s+FROM\s+(\S+)/i.exec(def[1] ?? "");
+      if (inh?.[1]) parents.superclass = inh[1].toUpperCase();
+      continue;
+    }
+    if (/^(ENDCLASS|ENDINTERFACE)\b/i.test(flat)) break;
+    const intf = /^INTERFACES\b\s*(:)?\s*(.*)$/i.exec(flat);
+    if (!intf) continue;
+    const body = intf[2] ?? "";
+    const segments = intf[1] ? body.split(",") : [body];
+    for (const seg of segments) {
+      const first = seg.trim().split(/\s+/)[0];
+      if (first) parents.interfaces.push(first.toUpperCase());
+    }
+  }
+  return parents;
+}
+function relatedObject(base, name, type) {
+  const spec = specForType(type);
+  const uri = buildUri(spec, name);
+  return {
+    system: base.system,
+    type,
+    kind: spec.kind,
+    label: spec.label,
+    name: name.toUpperCase(),
+    uri,
+    sourceUri: `${uri}/source/main`,
+    mode: "source",
+    activation: "unknown",
+    spec
+  };
+}
+async function walkInheritanceChain(conn, obj, source, version2, visit) {
+  const visited = [];
+  const unresolved = [];
+  const seen = /* @__PURE__ */ new Set([obj.name.toUpperCase()]);
+  const queue = [];
+  const enqueue = (from, parents, depth) => {
+    if (depth > CHAIN_MAX_DEPTH) return;
+    if (parents.superclass && !seen.has(parents.superclass)) {
+      seen.add(parents.superclass);
+      queue.push({ name: parents.superclass, type: "CLAS/OC", relation: "superclass", via: from, depth });
+    }
+    for (const i of parents.interfaces) {
+      if (seen.has(i)) continue;
+      seen.add(i);
+      queue.push({ name: i, type: "INTF/OI", relation: "interface", via: from, depth });
+    }
+  };
+  enqueue(obj.name, parseClassParents(source), 1);
+  while (queue.length > 0) {
+    const next = queue.shift();
+    const parent = relatedObject(obj, next.name, next.type);
+    let parentSource;
+    let members;
+    try {
+      parentSource = (await readSource(conn, parent, void 0, version2)).source;
+      members = await classMembersFor(conn, parent, version2);
+    } catch (e) {
+      if (e instanceof AbapError && e.code === "NOT_FOUND") {
+        unresolved.push({ name: next.name, relation: next.relation, via: next.via, reason: e.message });
+        continue;
+      }
+      throw e;
+    }
+    const node2 = {
+      obj: parent,
+      relation: next.relation,
+      via: next.via,
+      depth: next.depth,
+      source: parentSource,
+      members
+    };
+    visited.push(node2);
+    if (visit(node2) === true) break;
+    enqueue(parent.name, parseClassParents(parentSource), next.depth + 1);
+  }
+  return { visited, unresolved };
+}
+function availableMembersMax() {
+  const raw = process.env.ABAP_AVAILABLE_MEMBERS_MAX;
+  if (raw === void 0 || raw.trim() === "") return AVAILABLE_MEMBERS_MAX_DEFAULT;
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : AVAILABLE_MEMBERS_MAX_DEFAULT;
+}
+function levenshtein(a, b) {
+  const prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    let diag = prev[0] ?? 0;
+    prev[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const tmp = prev[j] ?? 0;
+      prev[j] = a[i - 1] === b[j - 1] ? diag : 1 + Math.min(diag, tmp, prev[j - 1] ?? 0);
+      diag = tmp;
+    }
+  }
+  return prev[b.length] ?? 0;
+}
+function commonPrefixLength(a, b) {
+  let n = 0;
+  while (n < a.length && n < b.length && a[n] === b[n]) n += 1;
+  return n;
+}
+function rankCandidates(names, wanted) {
+  const w = wanted.toUpperCase();
+  return [...names].sort((a, b) => {
+    const A = a.toUpperCase();
+    const B = b.toUpperCase();
+    const byPrefix = commonPrefixLength(B, w) - commonPrefixLength(A, w);
+    if (byPrefix !== 0) return byPrefix;
+    const byDistance = levenshtein(A, w) - levenshtein(B, w);
+    if (byDistance !== 0) return byDistance;
+    return A < B ? -1 : A > B ? 1 : 0;
+  });
+}
+function resolveIn(members, source, method) {
+  const methods = members.filter(isMethod);
+  const member = findMember(methods.length ? methods : members, method);
+  if (!member) return void 0;
+  const lines = source.replace(/\r\n/g, "\n").split("\n");
+  const cut = (r) => r ? lines.slice(Math.max(0, r.startLine - 1), r.endLine).join("\n") : void 0;
+  const declaration = cut(member.definition) ?? findMethodDeclaration(source, member.name);
+  const implementation = cut(member.implementation);
+  return {
+    member,
+    ...declaration !== void 0 ? { declaration } : {},
+    ...implementation !== void 0 ? { implementation } : {},
+    ...member.implementation ? { implementationRange: member.implementation } : {}
+  };
+}
+async function readMethod(conn, obj, source, method, opts = {}) {
+  const own = await classMembersFor(conn, obj, opts.version);
+  const searched = [obj.name];
+  const here = resolveIn(own.members, source, method);
+  if (here) return { ...here, version: own.version, searched };
+  const inheritedPool = [];
+  let unresolved = [];
+  if (opts.inherited) {
+    let found;
+    const walk = await walkInheritanceChain(conn, obj, source, opts.version, (node2) => {
+      searched.push(`${node2.obj.name} (${node2.relation} of ${node2.via})`);
+      const r = resolveIn(node2.members.members, node2.source, method);
+      if (r) {
+        found = {
+          ...r,
+          version: node2.members.version,
+          foundOn: {
+            name: node2.obj.name,
+            type: node2.obj.type,
+            relation: node2.relation,
+            via: node2.via,
+            depth: node2.depth
+          },
+          searched
+        };
+        return true;
+      }
+      for (const m of node2.members.members.filter(isMethod)) {
+        if (node2.relation === "superclass" && m.visibility === "private") continue;
+        inheritedPool.push({ name: m.name, on: node2.obj.name, relation: node2.relation });
+      }
+      return false;
+    });
+    if (found) return found;
+    unresolved = walk.unresolved;
+  }
+  const max = opts.availableMax ?? availableMembersMax();
+  const methods = own.members.filter(isMethod);
+  const pool = methods.length ? methods : own.members;
+  const shown = rankCandidates(
+    pool.map((m) => m.name),
+    method
+  ).slice(0, max);
+  const dropped = pool.length - shown.length;
+  const byName = new Map(inheritedPool.map((c) => [c.name.toUpperCase(), c]));
+  const inheritedShown = rankCandidates([...byName.keys()], method).slice(0, max).map((n) => {
+    const c = byName.get(n);
+    return `${c.name} (${c.on})`;
+  });
+  const inheritedDropped = byName.size - inheritedShown.length;
+  const where2 = opts.inherited ? `${obj.type} ${obj.name} has no method ${method}, and neither does anything it inherits from or implements (searched ${searched.join(", ")}).` : `${obj.type} ${obj.name} has no method ${method}.`;
+  const truncation = dropped > 0 ? ` [TRUNCATED: listing ${shown.length} of ${pool.length} components \u2014 ${dropped} not shown, retrieve with: abap_read({outline:true})]` : "";
+  const emptiness = pool.length === 0 ? ` The ${own.version} version of ${obj.name} declares no methods at all` + (own.version === "active" ? " (no inactive version was found, so the active structure was used)." : ".") : "";
+  throw new AbapError(
+    "NOT_FOUND",
+    `${where2}${emptiness}${truncation}`,
+    {
+      method,
+      version: own.version,
+      searched,
+      availableTotal: pool.length,
+      available: shown,
+      ...dropped > 0 ? { availableTruncated: dropped } : {},
+      ...opts.inherited ? {
+        availableInheritedTotal: byName.size,
+        availableInherited: inheritedShown,
+        ...inheritedDropped > 0 ? { availableInheritedTruncated: inheritedDropped } : {}
+      } : {},
+      ...unresolved.length > 0 ? { unresolved } : {}
+    },
+    (dropped > 0 ? `The list above is INCOMPLETE (${shown.length} of ${pool.length}). Read the object with outline=true for every component before concluding the method is missing. ` : pool.length === 0 ? "`available` is empty because the structure has no methods, not because the list was cut. " : "") + (opts.inherited ? "Members are resolved against the inactive version when one exists, then the active one, then up the superclass/interface chain; `availableInherited` names the origin of each inherited candidate." : "Read the object with outline=true to see its full component list, including inherited members.")
+  );
+}
+async function inheritedMembers(conn, obj, source, own, version2) {
+  const inherited = [];
+  const searched = [];
+  const taken = new Set(own.map((m) => m.name.toUpperCase()));
+  const walk = await walkInheritanceChain(conn, obj, source, version2, (node2) => {
+    searched.push(node2.obj.name);
+    for (const m of node2.members.members) {
+      if (node2.relation === "superclass" && m.visibility === "private") continue;
+      const key = m.name.toUpperCase();
+      const implemented = node2.relation === "interface" ? `${node2.obj.name}~${key}` : key;
+      if (taken.has(key) || taken.has(implemented)) continue;
+      taken.add(key);
+      inherited.push({ ...m, on: node2.obj.name, relation: node2.relation, depth: node2.depth });
+    }
+    return false;
+  });
+  return { inherited, searched, unresolved: walk.unresolved };
+}
+function outlineRow(m, indent) {
+  const loc = m.implementation ? `${m.implementation.startLine}-${m.implementation.endLine}` : m.definition ? `${m.definition.startLine}-${m.definition.endLine}` : "";
+  const flags = [m.visibility, m.level, m.redefinition ? "redefinition" : void 0].filter(Boolean).join(" ");
+  return `${indent}${m.name}  [${flags}]${loc ? `  lines ${loc}` : ""}`;
+}
+function renderOutline(members) {
+  return members.filter((m) => OUTLINE_TYPES.has(m.type)).map((m) => outlineRow(m, "  ")).join("\n");
+}
+function renderInheritedOutline(rows) {
+  const groups = /* @__PURE__ */ new Map();
+  for (const r of rows) {
+    if (!OUTLINE_TYPES.has(r.type)) continue;
+    const list3 = groups.get(r.on) ?? [];
+    list3.push(r);
+    groups.set(r.on, list3);
+  }
+  const out = [];
+  for (const [on, list3] of groups) {
+    const relation = list3[0]?.relation ?? "superclass";
+    out.push(`  from ${on} (${relation}, depth ${list3[0]?.depth ?? 1}; line numbers are ${on}'s):`);
+    for (const r of list3) out.push(outlineRow(r, "    "));
+  }
+  return out.join("\n");
+}
+var import_utilities, METHOD_OPEN_RE, ENDMETHOD_RE, REL_DEF_BLOCK, REL_IMPL_BLOCK, NON_MEMBER_TYPES, DECLARATION_HEAD_RE, CHAIN_MAX_DEPTH, AVAILABLE_MEMBERS_MAX_DEFAULT, isMethod, OUTLINE_TYPES;
+var init_source = __esm({
+  "src/adt/source.ts"() {
+    "use strict";
+    init_errors();
+    init_resolve();
+    init_session();
+    init_types();
+    import_utilities = __toESM(require_utilities(), 1);
+    init_write_verify();
+    METHOD_OPEN_RE = /^\s*method\s+([^\s.]+)/i;
+    ENDMETHOD_RE = /^\s*endmethod\s*\./i;
+    REL_DEF_BLOCK = "definitionBlock";
+    REL_IMPL_BLOCK = "implementationBlock";
+    NON_MEMBER_TYPES = /* @__PURE__ */ new Set(["CLAS/OC", "INTF/OI", "CLAS/OCX"]);
+    DECLARATION_HEAD_RE = /^(CLASS-METHODS|METHODS)\b\s*(:)?\s*/i;
+    CHAIN_MAX_DEPTH = 16;
+    AVAILABLE_MEMBERS_MAX_DEFAULT = 40;
+    isMethod = (m) => m.type === "CLAS/OM" || m.type === "INTF/OM";
+    OUTLINE_TYPES = /* @__PURE__ */ new Set(["CLAS/OM", "INTF/OM", "CLAS/OA", "INTF/OA"]);
+  }
+});
+
+// src/adt/timeouts.ts
+function longestRequestTimeoutMs(cfg) {
+  return Math.max(cfg.timeoutMs, cfg.bopfTimeoutMs, cfg.activateTimeoutMs, cfg.runTimeoutMs);
+}
+function isTransportTimeout(e) {
+  if (!e || typeof e !== "object") return false;
+  const info = adtExceptionInfo(e);
+  if (info !== void 0) {
+    if (info.status !== void 0 && info.status !== 0) return false;
+    if (info.response !== void 0) return false;
+  }
+  return isTimeoutError(e);
+}
+function transportTimeoutError(ctx) {
+  const envVar = TIMEOUT_ENV_VAR[ctx.family];
+  const err = new AbapError(
+    "TIMEOUT",
+    `${ctx.operation} of ${ctx.name} did not answer within ${ctx.timeoutMs} ms (${envVar}); the request was abandoned client-side and the server may still be working on it.`,
+    {
+      operation: ctx.operation,
+      name: ctx.name,
+      ...ctx.type !== void 0 ? { type: ctx.type } : {},
+      ...ctx.uri !== void 0 ? { uri: ctx.uri } : {},
+      timeoutMs: ctx.timeoutMs,
+      family: ctx.family,
+      envVar,
+      timeout: true
+    },
+    `Raise ${envVar} if this operation legitimately needs longer. Re-read ${ctx.name} before retrying: the server does not stop working when the client gives up.`
+  );
+  err.cause = ctx.cause;
+  return err;
+}
+var TIMEOUT_ENV_VAR;
+var init_timeouts = __esm({
+  "src/adt/timeouts.ts"() {
+    "use strict";
+    init_errors();
+    init_session();
+    init_source();
+    TIMEOUT_ENV_VAR = {
+      bopf: "ABAP_BOPF_TIMEOUT_MS",
+      activate: "ABAP_ACTIVATE_TIMEOUT_MS",
+      run: "ABAP_RUN_TIMEOUT_MS"
+    };
+  }
+});
+
 // src/shutdown-hook.ts
 function log(msg) {
   if (logOverride) {
@@ -60663,6 +65136,7 @@ var init_connection = __esm({
     init_discovery_cache();
     init_session();
     init_session_lock();
+    init_timeouts();
     init_shutdown_hook();
     init_system_role();
     init_wire_values();
@@ -60813,6 +65287,16 @@ var init_connection = __esm({
       /** F1b — the generation a single in-flight transport request is riding. Per-instance, NOT module-scope: a pooled `runOn` callback can nest connection B's dispatch inside connection A's frame. */
       dispatchContext = new AsyncLocalStorage2();
       /**
+       * The per-family timeout (issue #154) a caller of {@link withRequestTimeout}
+       * wants every request dispatched inside its callback to carry, overriding
+       * the instance default (`cfg.timeoutMs`). Per-instance, NOT module-scope —
+       * same reasoning as `dispatchContext`. Read in `observedTransport.request`,
+       * so it covers `get`/`post`/`put`/`del`, every `conn.adt.*` call, and
+       * `withFreshSession` bodies alike — everything dispatches through that one
+       * observation point.
+       */
+      requestTimeoutContext = new AsyncLocalStorage2();
+      /**
        * The budget of the logical request currently in flight, if any — set by
        * `request()`, visible to `login()`/`refreshCsrfToken()` inside `attempt()`.
        * Async-scoped rather than a field: `request()` is not serialised, so a plain
@@ -60955,8 +65439,10 @@ var init_connection = __esm({
             if (this.death) throw connectionDeadError(this.death);
           }
           const ticket = { generation: this.currentGeneration, dispatched: false };
+          const override = this.requestTimeoutContext.getStore();
+          const dispatched = override === void 0 ? o : { ...o, timeout: override };
           try {
-            const response = await this.dispatchContext.run(ticket, () => this.guard.request(o));
+            const response = await this.dispatchContext.run(ticket, () => this.guard.request(dispatched));
             this.noteWireResponse(response, ticket.generation, "resolved");
             return response;
           } catch (e) {
@@ -60987,7 +65473,7 @@ var init_connection = __esm({
         this.shutdownDeadlineMs = opts.shutdownDeadlineMs ?? DEFAULT_SHUTDOWN_DEADLINE_MS;
         this.now = opts.now ?? (() => Date.now());
         this.lock = opts.sessionLock ?? new SessionLock({
-          waitTimeoutMs: cfg.sessionWaitMs + cfg.timeoutMs,
+          waitTimeoutMs: cfg.sessionWaitMs + longestRequestTimeoutMs(cfg),
           log: this.log
         });
         this.oauth = cfg.oauth ? new OAuthTokenProvider({ settings: cfg.oauth }) : void 0;
@@ -61094,6 +65580,19 @@ var init_connection = __esm({
       /** Cached CSRF token. "fetch" until the first response supplies one. */
       csrfToken() {
         return this.client.httpClient.csrfToken;
+      }
+      /**
+       * Issue #154: run `fn`, giving every HTTP request dispatched inside it
+       * (`get`/`post`/`put`/`del`, every `conn.adt.*` call, and a
+       * `withFreshSession` body) `timeoutMs` instead of the instance default
+       * (`cfg.timeoutMs`). Read by `observedTransport.request` via
+       * `AsyncLocalStorage`, so it covers nested calls without threading the
+       * value through every signature. Not re-entrant-aware by design: a nested
+       * `withRequestTimeout` frame simply overrides the outer one for its own
+       * duration.
+       */
+      withRequestTimeout(timeoutMs, fn) {
+        return this.requestTimeoutContext.run(timeoutMs, fn);
       }
       /** Requests actually put on the wire — used by tests and the probe budget. */
       get requestCount() {
@@ -63245,3021 +67744,6 @@ var init_service_key = __esm({
   }
 });
 
-// src/mode.ts
-function parseAbapMode(raw) {
-  if (raw === void 0) {
-    throw new Error(
-      'ABAP_MODE is not set. Valid values are "read", "edit", or "admin" (case-insensitive). This function does not apply a default for an unset value \u2014 the caller decides what an unset ABAP_MODE means (e.g. falling back to legacy per-flag config).'
-    );
-  }
-  const trimmed = raw.trim();
-  if (trimmed === "") {
-    throw new Error(
-      'ABAP_MODE is set but empty (or whitespace-only). Valid values are "read", "edit", or "admin" (case-insensitive).'
-    );
-  }
-  const lower = trimmed.toLowerCase();
-  if (lower === "read" || lower === "edit" || lower === "admin") {
-    return lower;
-  }
-  throw new Error(
-    `ABAP_MODE=${JSON.stringify(raw)} is not a recognised mode. Valid values are "read", "edit", or "admin" (case-insensitive).`
-  );
-}
-function resolvePackages(override) {
-  return override === void 0 ? [...EDIT_PACKAGE_DEFAULT] : [...override];
-}
-function resolveNamePrefixes(override) {
-  return override === void 0 || override.length === 0 ? [...EDIT_NAME_PREFIX_DEFAULT] : [...override];
-}
-function resolveTransports(override) {
-  if (override === void 0) return [...EDIT_TRANSPORT_DEFAULT];
-  if (override === null) return null;
-  return [...override];
-}
-function resolveEnhanceTargets(override, isAdmin) {
-  return override ?? (isAdmin ? "sap" : "customer");
-}
-function resolveEnhanceTargetPackages(override) {
-  return override === void 0 ? [] : [...override];
-}
-function resolveOriginSystems(override) {
-  return override === void 0 ? [] : [...override];
-}
-function freezeCapabilities(caps) {
-  Object.freeze(caps.allowPackages);
-  Object.freeze(caps.allowNamePrefixes);
-  Object.freeze(caps.allowTransports);
-  Object.freeze(caps.enhanceTargetPackages);
-  Object.freeze(caps.originSystems);
-  return Object.freeze(caps);
-}
-function capabilitiesForMode(mode, overrides = {}, grants = {}, boolOverrides = {}) {
-  if (mode === "read") {
-    return grants.allowDataPreview === true ? READ_CAPABILITIES_WITH_PREVIEW : READ_CAPABILITIES;
-  }
-  const isAdmin = mode === "admin";
-  const allowPackages = resolvePackages(overrides.allowPackages);
-  const allowNamePrefixes = resolveNamePrefixes(overrides.allowNamePrefixes);
-  const allowTransports = resolveTransports(overrides.allowTransports);
-  const enhanceTargetPackages = resolveEnhanceTargetPackages(overrides.enhanceTargetPackages);
-  const originSystems = resolveOriginSystems(overrides.originSystems);
-  return freezeCapabilities({
-    mode,
-    allowWrite: true,
-    allowActivate: true,
-    allowPackages,
-    allowNamePrefixes,
-    allowTransports,
-    allowTransportRelease: boolOverrides.allowTransportRelease ?? isAdmin,
-    allowTransportDelete: boolOverrides.allowTransportDelete ?? isAdmin,
-    allowServicePublish: boolOverrides.allowServicePublish ?? isAdmin,
-    allowEnhancements: boolOverrides.allowEnhancements ?? true,
-    enhanceTargets: resolveEnhanceTargets(overrides.enhanceTargets, isAdmin),
-    enhanceTargetPackages,
-    allowSourcePlugins: boolOverrides.allowSourcePlugins ?? true,
-    allowEnhancementDelete: boolOverrides.allowEnhancementDelete ?? isAdmin,
-    allowCascadeDelete: boolOverrides.allowCascadeDelete ?? isAdmin,
-    allowRawAdtWrites: boolOverrides.allowRawAdtWrites ?? isAdmin,
-    originSystems,
-    // Operator's grant, identically in every mode — see AbapModeGrants.
-    allowDataPreview: grants.allowDataPreview === true
-  });
-}
-function capabilityGranted(caps, cap) {
-  if (cap === "enhanceTargets") return caps.enhanceTargets !== "none";
-  return caps[cap];
-}
-function lowestModeSatisfying(predicate) {
-  return MODE_LADDER.find((m) => predicate(capabilitiesForMode(m)));
-}
-function legacyOverriddenClause(envVar) {
-  return `Setting ${envVar} will NOT work: ABAP_MODE overrides it.`;
-}
-function enhanceTargetsGrantingValue(mode, satisfiedBy) {
-  return ENHANCE_TARGETS_OVERRIDE_VALUES.find(
-    (value) => satisfiedBy(capabilitiesForMode(mode, { enhanceTargets: value }, {}, {}))
-  );
-}
-function overrideWouldGrant(cap, mode, satisfiedBy) {
-  if (!MODE_OVERRIDABLE_CAPABILITIES.has(cap)) return false;
-  if (cap === "enhanceTargets") return enhanceTargetsGrantingValue(mode, satisfiedBy) !== void 0;
-  return satisfiedBy(
-    capabilitiesForMode(mode, {}, {}, { [cap]: true })
-  );
-}
-function legacyUnlockClause(envVar, mode, label, value = "true") {
-  const setClause = value === "true" ? "this flag" : "that";
-  return `Setting ${envVar}=${value} also works, without raising the mode: ABAP_MODE=${mode} permits ${label} once ${setClause} is set.`;
-}
-function legacyClauseFor(cap, envVar, mode, label, satisfiedBy) {
-  if (cap === "enhanceTargets") {
-    const grantingValue = enhanceTargetsGrantingValue(mode, satisfiedBy);
-    return grantingValue !== void 0 ? legacyUnlockClause(envVar, mode, label, grantingValue) : legacyOverriddenClause(envVar);
-  }
-  return overrideWouldGrant(cap, mode, satisfiedBy) ? legacyUnlockClause(envVar, mode, label) : legacyOverriddenClause(envVar);
-}
-function explainDeniedCapability(req, abapMode) {
-  const request = typeof req === "string" ? { capability: req } : req;
-  const cap = request.capability;
-  const info = MODE_GOVERNED_CAPABILITIES[cap];
-  const label = request.label ?? info.label;
-  const legacyRemediation = request.legacyRemediation ?? info.legacyRemediation;
-  const satisfiedBy = request.satisfiedBy ?? ((caps) => capabilityGranted(caps, cap));
-  const grantingMode = lowestModeSatisfying(satisfiedBy);
-  if (abapMode === void 0) {
-    const cause2 = info.legacyEnvVar !== null ? `${info.legacyEnvVar} does not enable ${label}, and ABAP_MODE is not set, so that variable is what decides it.` : `${label} has no legacy environment variable \u2014 it exists only under ABAP_MODE, and ABAP_MODE is not set, so it is off.`;
-    const remediation2 = legacyRemediation ?? (grantingMode !== void 0 ? `Switch this server to ABAP_MODE=${grantingMode}; there is no legacy environment variable that enables ${label}.` : `Nothing enables ${label} on this build.`);
-    return {
-      capability: cap,
-      decidedBy: "legacy",
-      grantingMode,
-      legacyEnvVar: info.legacyEnvVar,
-      label,
-      cause: cause2,
-      remediation: remediation2
-    };
-  }
-  const cause = `ABAP_MODE=${abapMode} does not grant ${label}.`;
-  let remediation;
-  if (grantingMode === void 0) {
-    remediation = `No ABAP_MODE value grants ${label}.`;
-  } else if (grantingMode === abapMode) {
-    remediation = `ABAP_MODE=${abapMode} already grants ${label} at the mode layer, so this refusal came from a narrower rule \u2014 changing ABAP_MODE will not lift it.`;
-  } else {
-    remediation = `Set ABAP_MODE=${grantingMode}.`;
-  }
-  if (info.legacyEnvVar !== null) {
-    remediation += ` ${legacyClauseFor(cap, info.legacyEnvVar, abapMode, label, satisfiedBy)}`;
-  }
-  return {
-    capability: cap,
-    decidedBy: "mode",
-    abapMode,
-    grantingMode,
-    legacyEnvVar: info.legacyEnvVar,
-    label,
-    cause,
-    remediation
-  };
-}
-function joinAnd(parts) {
-  if (parts.length <= 1) return parts[0] ?? "";
-  return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
-}
-function explainDeniedCapabilities(reqs, abapMode) {
-  const parts = reqs.map((r) => explainDeniedCapability(r, abapMode));
-  if (abapMode === void 0) {
-    return {
-      cause: parts.map((p) => p.cause).join(" "),
-      remediation: parts.map((p) => p.remediation).join(" ")
-    };
-  }
-  const cause = `ABAP_MODE=${abapMode} does not grant ${joinAnd(parts.map((p) => p.label))}.`;
-  const modes = parts.map((p) => p.grantingMode);
-  const highest = modes.includes(void 0) ? void 0 : MODE_LADDER.reduce(
-    (acc, m) => modes.includes(m) ? m : acc,
-    void 0
-  );
-  const step = highest === void 0 ? `No single ABAP_MODE value grants ${joinAnd(parts.map((p) => p.label))}.` : highest === abapMode ? `ABAP_MODE=${abapMode} already grants ${joinAnd(parts.map((p) => p.label))} at the mode layer, so this refusal came from a narrower rule \u2014 changing ABAP_MODE will not lift it.` : `Set ABAP_MODE=${highest} \u2014 one value covers all of them.`;
-  const clauses = parts.filter((p) => p.legacyEnvVar !== null).map(
-    (p) => legacyClauseFor(
-      p.capability,
-      p.legacyEnvVar,
-      abapMode,
-      p.label,
-      (caps) => capabilityGranted(caps, p.capability)
-    )
-  );
-  return { cause, remediation: [step, ...clauses].join(" ") };
-}
-var ENHANCE_TARGETS_VALUES, EDIT_TRANSPORT_DEFAULT, EDIT_PACKAGE_DEFAULT, EDIT_NAME_PREFIX_DEFAULT, READ_CAPABILITIES, READ_CAPABILITIES_WITH_PREVIEW, MODE_GOVERNED_CAPABILITIES, MODE_GOVERNED_LEGACY_ENV_VARS, MODE_OVERRIDE_ENV_VARS, MODE_LADDER, MODE_OVERRIDABLE_CAPABILITIES, ENHANCE_TARGETS_OVERRIDE_VALUES;
-var init_mode = __esm({
-  "src/mode.ts"() {
-    "use strict";
-    ENHANCE_TARGETS_VALUES = ["none", "customer", "sap"];
-    EDIT_TRANSPORT_DEFAULT = ["*"];
-    EDIT_PACKAGE_DEFAULT = ["*"];
-    EDIT_NAME_PREFIX_DEFAULT = ["*"];
-    READ_CAPABILITIES = freezeCapabilities({
-      mode: "read",
-      allowWrite: false,
-      allowActivate: false,
-      allowPackages: [],
-      allowNamePrefixes: [],
-      allowTransports: null,
-      allowTransportRelease: false,
-      allowTransportDelete: false,
-      allowServicePublish: false,
-      allowEnhancements: false,
-      enhanceTargets: "none",
-      enhanceTargetPackages: [],
-      allowSourcePlugins: false,
-      allowEnhancementDelete: false,
-      allowCascadeDelete: false,
-      allowRawAdtWrites: false,
-      originSystems: [],
-      allowDataPreview: false
-    });
-    READ_CAPABILITIES_WITH_PREVIEW = freezeCapabilities({
-      ...READ_CAPABILITIES,
-      allowDataPreview: true
-    });
-    MODE_GOVERNED_CAPABILITIES = Object.freeze({
-      allowWrite: {
-        legacyEnvVar: "ABAP_ALLOW_WRITE",
-        label: "writes",
-        legacyRemediation: "Set ABAP_ALLOW_WRITE=true (ABAP_ALLOW_PACKAGES is optional \u2014 it narrows the default, which is every package).",
-        modeOverridable: false
-      },
-      allowTransportRelease: {
-        legacyEnvVar: "ABAP_ALLOW_TRANSPORT_RELEASE",
-        label: "releasing a transport request",
-        legacyRemediation: "Set ABAP_ALLOW_TRANSPORT_RELEASE=true.",
-        modeOverridable: true
-      },
-      allowEnhancements: {
-        legacyEnvVar: "ABAP_ALLOW_ENHANCEMENTS",
-        label: "enhancement authoring",
-        legacyRemediation: "Set ABAP_ALLOW_ENHANCEMENTS=true.",
-        modeOverridable: true
-      },
-      enhanceTargets: {
-        legacyEnvVar: "ABAP_ENHANCE_TARGETS",
-        label: "enhancing any object",
-        legacyRemediation: "Set ABAP_ENHANCE_TARGETS=customer for your own objects, or =sap plus a matching ABAP_ENHANCE_TARGET_PACKAGES entry for SAP standard objects.",
-        modeOverridable: true
-      },
-      allowSourcePlugins: {
-        legacyEnvVar: "ABAP_ALLOW_SOURCE_PLUGINS",
-        label: "creating source-code plug-in (enhoxhh) hooks",
-        legacyRemediation: "Set ABAP_ALLOW_SOURCE_PLUGINS=true.",
-        modeOverridable: true
-      },
-      allowEnhancementDelete: {
-        legacyEnvVar: "ABAP_ALLOW_ENHANCEMENT_DELETE",
-        label: "deleting an existing enhancement object",
-        legacyRemediation: "Set ABAP_ALLOW_ENHANCEMENT_DELETE=true.",
-        modeOverridable: true
-      },
-      allowTransportDelete: {
-        legacyEnvVar: "ABAP_ALLOW_TRANSPORT_DELETE",
-        label: "deleting a transport request",
-        legacyRemediation: "Set ABAP_ALLOW_TRANSPORT_DELETE=true.",
-        modeOverridable: true
-      },
-      allowServicePublish: {
-        legacyEnvVar: "ABAP_ALLOW_SERVICE_PUBLISH",
-        label: "publishing or unpublishing a service binding",
-        legacyRemediation: "Set ABAP_ALLOW_SERVICE_PUBLISH=true.",
-        modeOverridable: true
-      },
-      allowCascadeDelete: {
-        legacyEnvVar: "ABAP_ALLOW_CASCADE_DELETE",
-        label: "the BOPF cascading DDIC delete",
-        legacyRemediation: "Set ABAP_ALLOW_CASCADE_DELETE=true.",
-        modeOverridable: true
-      },
-      allowRawAdtWrites: {
-        legacyEnvVar: "ABAP_ALLOW_RAW_ADT_WRITES",
-        label: "non-GET abap_adt passthrough",
-        legacyRemediation: "Set ABAP_ALLOW_RAW_ADT_WRITES=true.",
-        modeOverridable: true
-      }
-    });
-    MODE_GOVERNED_LEGACY_ENV_VARS = Object.freeze(
-      Object.values(MODE_GOVERNED_CAPABILITIES).filter((info) => info.legacyEnvVar !== null && !info.modeOverridable).map((info) => info.legacyEnvVar)
-    );
-    MODE_OVERRIDE_ENV_VARS = Object.freeze([
-      "ABAP_ALLOW_PACKAGES",
-      "ABAP_ALLOW_NAME_PREFIXES",
-      "ABAP_ALLOW_TRANSPORTS",
-      "ABAP_ENHANCE_TARGET_PACKAGES",
-      "ABAP_ORIGIN_SYSTEMS",
-      ...Object.values(MODE_GOVERNED_CAPABILITIES).filter((i) => i.modeOverridable && i.legacyEnvVar !== null).map((i) => i.legacyEnvVar)
-    ]);
-    MODE_LADDER = ["read", "edit", "admin"];
-    MODE_OVERRIDABLE_CAPABILITIES = new Set(
-      Object.keys(MODE_GOVERNED_CAPABILITIES).filter(
-        (c) => MODE_GOVERNED_CAPABILITIES[c].modeOverridable
-      )
-    );
-    ENHANCE_TARGETS_OVERRIDE_VALUES = ["customer", "sap"];
-  }
-});
-
-// src/adt/ddic-strategy.ts
-function ddicStrategy(kind) {
-  const k = kind.toUpperCase();
-  if (DDIC_SOURCE_BASED.includes(k)) return "source";
-  if (DDIC_XML_ONLY.includes(k)) return "xml";
-  if (DDIC_CATALOG_BASED.includes(k)) return "catalog";
-  if (k === "DEVC") return "package";
-  return "unsupported";
-}
-var DDIC_SOURCE_BASED, DDIC_XML_ONLY, DDIC_CATALOG_BASED;
-var init_ddic_strategy = __esm({
-  "src/adt/ddic-strategy.ts"() {
-    "use strict";
-    DDIC_SOURCE_BASED = ["TABL", "STRU"];
-    DDIC_XML_ONLY = ["DTEL", "DOMA", "TTYP"];
-    DDIC_CATALOG_BASED = ["SHLP", "VIEW", "TRAN"];
-  }
-});
-
-// src/adt/types.ts
-function isClassInclude(s) {
-  return CLASS_INCLUDES.includes(s);
-}
-function classBaseUri(uri) {
-  const p = uri.replace(/[?#].*$/, "").replace(/\/+$/, "");
-  const m = /^(.*\/oo\/classes\/[^/]+)(?:\/source\/main|\/includes\/[^/]+)?$/i.exec(p);
-  return m ? m[1] : p.replace(/\/source\/main$/, "");
-}
-function classIncludeUri(classUri, include) {
-  const base = classBaseUri(classUri);
-  return include === "main" ? `${base}/source/main` : `${base}/includes/${include}`;
-}
-function assertClassInclude(requested, context) {
-  const want = requested.trim().toLowerCase();
-  if (isClassInclude(want)) return want;
-  throw new AbapError(
-    "UNSUPPORTED",
-    `Unknown class include "${requested}"${context ? ` in ${context}` : ""}. ADT exposes exactly: ${CLASS_INCLUDES.join(", ")}.`,
-    { requested, supported: [...CLASS_INCLUDES], ...context ? { uri: context } : {} },
-    "Ask for one of the supported includes \u2014 the request is NOT silently answered with the main class source."
-  );
-}
-function specForType(type) {
-  if (!type) return void 0;
-  const t = type.toUpperCase().trim();
-  return BY_TYPE.get(t) ?? BY_KIND.get(t);
-}
-function specForKeyword(word) {
-  const w = word.toLowerCase().trim().replace(/\s+/g, " ");
-  if (!w) return void 0;
-  const exact = TYPES.find((t) => t.keywords.includes(w));
-  if (exact) return exact;
-  return specForType(w.toUpperCase());
-}
-function buildUri(spec, name, parent) {
-  return spec.path.replace("{name}", encodeURIComponent(name.toLowerCase())).replace("{parent}", encodeURIComponent((parent ?? "").toLowerCase()));
-}
-function specFromUri(uri) {
-  let path9 = uri.replace(/^https?:\/\/[^/]+/i, "").replace(/[?#].*$/, "").replace(/\/source\/main.*$/, "");
-  let include;
-  const ci = /^(.*\/oo\/classes\/[^/]+)\/includes\/([^/]+)$/i.exec(path9);
-  if (ci) {
-    include = assertClassInclude(decodeURIComponent(ci[2]), uri);
-    path9 = ci[1];
-  }
-  let m = /^\/sap\/bc\/adt\/functions\/groups\/([^/]+)\/fmodules\/([^/]+)$/i.exec(path9);
-  if (m) return { spec: BY_TYPE.get("FUGR/FF"), name: dec(m[2]), parent: dec(m[1]) };
-  m = /^\/sap\/bc\/adt\/functions\/groups\/([^/]+)\/includes\/([^/]+)$/i.exec(path9);
-  if (m) return { spec: BY_TYPE.get("FUGR/I"), name: dec(m[2]), parent: dec(m[1]) };
-  for (const spec of TYPES) {
-    if (spec.parentPath) continue;
-    const prefix = spec.path.replace("/{name}", "");
-    const re = new RegExp(`^${escapeRe(prefix)}/([^/]+)$`, "i");
-    const hit = re.exec(path9);
-    if (!hit) continue;
-    const name = dec(hit[1]);
-    if (include) {
-      if (spec.type !== "CLAS/OC") {
-        throw new AbapError(
-          "UNSUPPORTED",
-          `${spec.label} ${name} has no "${include}" include \u2014 class includes exist only for classes.`,
-          { uri, type: spec.type, requested: include }
-        );
-      }
-      return {
-        spec,
-        name,
-        include,
-        sourceUri: classIncludeUri(buildUri(spec, name), include)
-      };
-    }
-    return { spec, name };
-  }
-  return void 0;
-}
-function classifyUnmatchedAdtPath(uri) {
-  const path9 = uri.replace(/^https?:\/\/[^/]+/i, "").replace(/[?#].*$/, "").replace(/\/source\/main.*$/, "");
-  for (const { re, what } of NOT_AN_OBJECT) {
-    if (re.test(path9)) return { kind: "not-an-object", what };
-  }
-  for (const { type, mid } of TWO_SEGMENT_KINDS) {
-    const re = new RegExp(
-      `^\\/sap\\/bc\\/adt\\/functions\\/groups\\/([^/]+)\\/${mid}\\/([^/]+)\\/([^/]+)(?:\\/([^/]+))?$`,
-      "i"
-    );
-    const m = re.exec(path9);
-    if (m) {
-      return {
-        kind: "sub-object",
-        spec: BY_TYPE.get(type),
-        name: dec(m[2]),
-        parent: dec(m[1]),
-        segment: decodeURIComponent(m[3]).toLowerCase(),
-        subName: m[4] ? dec(m[4]) : void 0
-      };
-    }
-  }
-  for (const spec of TYPES) {
-    if (spec.parentPath) continue;
-    const prefix = spec.path.replace("/{name}", "");
-    const re = new RegExp(`^${escapeRe(prefix)}/([^/]+)/([^/]+)(?:/([^/]+))?$`, "i");
-    const m = re.exec(path9);
-    if (!m) continue;
-    return {
-      kind: "sub-object",
-      spec,
-      name: dec(m[1]),
-      segment: decodeURIComponent(m[2]).toLowerCase(),
-      subName: m[3] ? dec(m[3]) : void 0
-    };
-  }
-  return void 0;
-}
-var CLASS_INCLUDES, TYPES, BY_TYPE, BY_KIND, KEYWORDS_BY_LENGTH, dec, escapeRe, NOT_AN_OBJECT, TWO_SEGMENT_KINDS;
-var init_types = __esm({
-  "src/adt/types.ts"() {
-    "use strict";
-    init_errors();
-    CLASS_INCLUDES = [
-      "main",
-      "definitions",
-      "implementations",
-      "macros",
-      "testclasses"
-    ];
-    TYPES = [
-      {
-        type: "CLAS/OC",
-        kind: "CLAS",
-        label: "Class",
-        path: "/sap/bc/adt/oo/classes/{name}",
-        mode: "source",
-        supportsSource: true,
-        keywords: ["class", "clas", "abap class", "oo"]
-      },
-      {
-        type: "INTF/OI",
-        kind: "INTF",
-        label: "Interface",
-        path: "/sap/bc/adt/oo/interfaces/{name}",
-        mode: "source",
-        supportsSource: true,
-        keywords: ["interface", "intf"]
-      },
-      {
-        type: "PROG/P",
-        kind: "PROG",
-        label: "Program",
-        path: "/sap/bc/adt/programs/programs/{name}",
-        mode: "source",
-        supportsSource: true,
-        keywords: ["program", "prog", "report", "executable"]
-      },
-      {
-        type: "PROG/I",
-        kind: "PROG/I",
-        label: "Include",
-        path: "/sap/bc/adt/programs/includes/{name}",
-        mode: "source",
-        supportsSource: true,
-        keywords: ["include", "incl"]
-      },
-      {
-        type: "FUGR/F",
-        kind: "FUGR",
-        label: "Function group",
-        path: "/sap/bc/adt/functions/groups/{name}",
-        mode: "source",
-        supportsSource: true,
-        keywords: ["function group", "fugr", "fgroup"]
-      },
-      {
-        type: "FUGR/FF",
-        kind: "FUGR/FF",
-        label: "Function module",
-        path: "/sap/bc/adt/functions/groups/{parent}/fmodules/{name}",
-        parentPath: "/sap/bc/adt/functions/groups/{parent}",
-        mode: "source",
-        supportsSource: true,
-        keywords: ["function module", "function", "fm", "fugr/ff"]
-      },
-      {
-        type: "FUGR/I",
-        kind: "FUGR/I",
-        label: "Function group include",
-        path: "/sap/bc/adt/functions/groups/{parent}/includes/{name}",
-        parentPath: "/sap/bc/adt/functions/groups/{parent}",
-        mode: "source",
-        supportsSource: true,
-        keywords: ["function group include", "fugr include"]
-      },
-      {
-        // `keywords` is a lookup aid only — one URI/type covers both classic and
-        // modern CDS syntax generations. Target release here (7.54) needs the
-        // classic `define view` form; `define view entity` etc. don't exist on
-        // it (confirmed live — see archive and doc/LIMITATIONS/not-implemented-and-unproven.md).
-        type: "DDLS/DF",
-        kind: "DDLS",
-        label: "CDS view / DDL source",
-        path: "/sap/bc/adt/ddic/ddl/sources/{name}",
-        mode: "source",
-        supportsSource: true,
-        keywords: ["cds", "ddls", "ddl", "cds view", "view entity", "data definition"]
-      },
-      {
-        type: "DDLX/EX",
-        kind: "DDLX",
-        label: "Metadata extension",
-        path: "/sap/bc/adt/ddic/ddlx/sources/{name}",
-        mode: "source",
-        supportsSource: true,
-        keywords: ["ddlx", "metadata extension"]
-      },
-      {
-        // path confirmed live: GET .../source/main 200s with Accept: text/plain (2026-09-04).
-        type: "DCLS/DL",
-        kind: "DCLS",
-        label: "CDS access control",
-        path: "/sap/bc/adt/acm/dcl/sources/{name}",
-        mode: "source",
-        supportsSource: true,
-        keywords: ["access control", "dcls", "dcl", "cds access control", "authorization role", "define role"]
-      },
-      {
-        // path confirmed live: GET .../source/main 200s with Accept: text/plain (2026-09-04).
-        type: "DDLA/ADF",
-        kind: "DDLA",
-        label: "Annotation definition",
-        path: "/sap/bc/adt/ddic/ddla/sources/{name}",
-        mode: "source",
-        supportsSource: true,
-        keywords: ["annotation definition", "ddla", "cds annotation", "annotation"]
-      },
-      {
-        type: "SRVD/SRV",
-        kind: "SRVD",
-        label: "Service definition",
-        path: "/sap/bc/adt/ddic/srvd/sources/{name}",
-        mode: "source",
-        supportsSource: true,
-        keywords: ["srvd", "service definition"]
-      },
-      {
-        type: "BDEF/BDO",
-        kind: "BDEF",
-        label: "Behavior definition",
-        path: "/sap/bc/adt/bo/behaviordefinitions/{name}",
-        mode: "source",
-        supportsSource: true,
-        keywords: ["bdef", "behavior definition", "behaviour definition"]
-      },
-      // `/xslt/sources/{name}` 404s live; `/xslt/transformations/{name}` 200s,
-      // including `.../source/main` with real XSLT source. Confirmed against
-      // ADT discovery and objectType search too (2026-09-04).
-      {
-        type: "XSLT/VT",
-        kind: "XSLT",
-        label: "Transformation",
-        path: "/sap/bc/adt/xslt/transformations/{name}",
-        mode: "source",
-        supportsSource: true,
-        keywords: ["xslt", "transformation"]
-      },
-      // objectType search is queried as TYPE/DA, but the appliance's own
-      // adtcore:type on the result is TYPE/DG — that is the code used here.
-      // Path confirmed live: GET .../source/main 200s with Accept: text/plain
-      // (2026-09-04).
-      {
-        type: "TYPE/DG",
-        kind: "TYPE",
-        label: "Type group",
-        path: "/sap/bc/adt/ddic/typegroups/{name}",
-        mode: "source",
-        supportsSource: true,
-        keywords: ["type group", "type pool", "typegroup", "type-pool"]
-      },
-      // path confirmed live: GET .../drul/sources/demo_drul_1/source/main 200s (2026-09-04).
-      {
-        type: "DRUL/DRL",
-        kind: "DRUL",
-        label: "Dependency rule",
-        path: "/sap/bc/adt/ddic/drul/sources/{name}",
-        mode: "source",
-        supportsSource: true,
-        keywords: ["dependency rule", "drul"]
-      },
-      // ---- Enhancement framework: BAdI impls, source plug-ins, enhancement
-      // spots. URIs/behaviour verified live on A4H. ENHO/XH and ENHS/XS have no
-      // /source/main (structured XML only), so mode stays "ddic" — routes reads
-      // through readDdic's clean UNSUPPORTED instead of a 404. Only ENHO/XHH has
-      // verified real source (PUT .../source/main → 200).
-      {
-        type: "ENHO/XH",
-        kind: "ENHO/XH",
-        label: "BAdI implementation",
-        path: "/sap/bc/adt/enhancements/enhoxh/{name}",
-        mode: "ddic",
-        supportsSource: false,
-        // verified on A4H: no /source/main, structured XML only
-        keywords: ["badi implementation", "badi impl", "enhoxh", "enho"]
-      },
-      {
-        type: "ENHO/XHH",
-        kind: "ENHO/XHH",
-        label: "Enhancement source plug-in",
-        path: "/sap/bc/adt/enhancements/enhoxhh/{name}",
-        mode: "source",
-        supportsSource: true,
-        // verified on A4H: PUT {uri}/source/main → 200
-        keywords: ["source plugin", "source code plugin", "enhancement plugin", "enhoxhh"]
-      },
-      {
-        type: "ENHS/XS",
-        kind: "ENHS",
-        label: "Enhancement spot",
-        path: "/sap/bc/adt/enhancements/enhsxs/{name}",
-        mode: "ddic",
-        supportsSource: false,
-        // verified on A4H: no /source/main, structured XML only
-        keywords: ["enhancement spot", "badi spot", "enhsxs", "enhs"]
-      },
-      // ---- DDIC: rendered as pseudo-DDL, never as raw ADT XML ----
-      {
-        type: "TABL/DT",
-        kind: "TABL",
-        label: "Database table",
-        path: "/sap/bc/adt/ddic/tables/{name}",
-        mode: "ddic",
-        supportsSource: true,
-        // verified on A4H: source-based
-        keywords: ["table", "tabl", "database table", "transparent table"]
-      },
-      {
-        type: "TABL/DS",
-        kind: "STRU",
-        label: "Structure",
-        path: "/sap/bc/adt/ddic/structures/{name}",
-        mode: "ddic",
-        supportsSource: true,
-        // verified on A4H: source-based
-        keywords: ["structure", "stru", "ddic structure"]
-      },
-      {
-        type: "DTEL/DE",
-        kind: "DTEL",
-        label: "Data element",
-        path: "/sap/bc/adt/ddic/dataelements/{name}",
-        mode: "ddic",
-        supportsSource: false,
-        // verified on A4H: /source/main → 404
-        keywords: ["data element", "dtel"]
-      },
-      {
-        type: "DOMA/DD",
-        kind: "DOMA",
-        label: "Domain",
-        path: "/sap/bc/adt/ddic/domains/{name}",
-        mode: "ddic",
-        supportsSource: false,
-        // verified on A4H: /source/main → 404
-        keywords: ["domain", "doma"]
-      },
-      {
-        type: "TTYP/DA",
-        kind: "TTYP",
-        label: "Table type",
-        path: "/sap/bc/adt/ddic/tabletypes/{name}",
-        mode: "ddic",
-        supportsSource: false,
-        // verified on A4H: /source/main → 404
-        keywords: ["table type", "ttyp"]
-      },
-      // MSAG/ENQU exist here for the WRITE path (capabilities.ts REGISTRY),
-      // reached via specForType. mode "ddic" routes READ into readDdic's clean
-      // UNSUPPORTED. Neither has /source/main (verified live, 404) — must not
-      // claim supportsSource.
-      {
-        type: "MSAG/N",
-        kind: "MSAG",
-        label: "Message class",
-        // Singular "messageclass", and no `ddic/` prefix — verified live; the
-        // plural guess 404s.
-        path: "/sap/bc/adt/messageclass/{name}",
-        mode: "ddic",
-        supportsSource: false,
-        keywords: ["message class", "msag", "messages"]
-      },
-      {
-        type: "ENQU/DL",
-        kind: "ENQU",
-        label: "Lock object",
-        // `.../lockobjects/sources/{name}` — the `sources` segment is part of the
-        // collection path, not a source sub-resource.
-        path: "/sap/bc/adt/ddic/lockobjects/sources/{name}",
-        mode: "ddic",
-        supportsSource: false,
-        keywords: ["lock object", "enqu", "enqueue object"]
-      },
-      {
-        type: "DEVC/K",
-        kind: "DEVC",
-        label: "Package",
-        path: "/sap/bc/adt/packages/{name}",
-        mode: "ddic",
-        supportsSource: false,
-        keywords: ["package", "devc", "development class"]
-      },
-      // ---- catalog-based DDIC reads: no source, no XML descriptor, no
-      // discoverable ADT collection either — see capabilities.ts's SHLP/DH and
-      // VIEW/DV entries. `path` below is kept for URI identity/round-tripping
-      // (buildUri/specFromUri) only; the actual read never fetches it. It goes
-      // through plain-text catalog SELECTs on the freestyle data-preview
-      // endpoint instead (src/adt/catalog-query.ts + catalog-read.ts), the same
-      // mechanism img-query.ts/img-read.ts use for IMG customizing reads. That
-      // route was chosen over the obvious DDIF_SHLP_GET / DDIF_VIEW_GET /
-      // RPY_TRANSACTION_READ function modules because those need the
-      // generated-ABAP "fluid" bridge, and fluid is unconditionally disabled
-      // when ABAP_MODE=read (see fluidDisabledReason in src/adt/fluid/
-      // enabled.ts) — exactly the mode a read is expected to work in. Catalog
-      // SELECTs work in every ABAP_MODE, and for TRAN/T return strictly more
-      // than RPY_TRANSACTION_READ does (TSTCP call parameters, TSTCA
-      // authorisation checks, AGR_TCODES role membership).
-      //
-      // Honest caveat, updated: this used to be necessary but not sufficient —
-      // resolve.ts's `resolveObject` refused SHLP/DH (capabilities.ts marked it
-      // `unsupported`) and VIEW/DV/TRAN/T (marked `bridgeCreate` with no
-      // `create`, so `isBridgeOnlyCreateType` was true) with UNSUPPORTED
-      // whenever a caller passed an explicit `type` hint, before `readDdic` (and
-      // therefore this module's `readCatalogObject`) was ever reached, no matter
-      // what this file declared. `resolveObject`'s bridge-only-create check now
-      // asks `ddicStrategy(spec.kind)` (via `specForType`, i.e. exactly the
-      // `mode: "ddic"` entries below) whether a real read exists before refusing
-      // — so these three entries are now sufficient on their own to make
-      // SHLP/DH, VIEW/DV and TRAN/T resolvable and readable with an explicit
-      // `type` hint. SHLP/DH also no longer carries an `unsupported` marker in
-      // capabilities.ts's REGISTRY at all. `TABL/DI` has no entry in this file
-      // (so `specForType` returns `undefined` for it) and stays refused by that
-      // same check — adding one here, alone, would be enough to unblock it too.
-      {
-        type: "SHLP/DH",
-        kind: "SHLP",
-        label: "Search help",
-        // Every verb 404s on this collection (verified, see capabilities.ts) —
-        // kept only so buildUri/specFromUri have a stable shape to round-trip.
-        path: "/sap/bc/adt/ddic/searchhelps/{name}",
-        mode: "ddic",
-        supportsSource: false,
-        keywords: ["search help", "shlp", "value help", "f4 help", "elementary search help", "collective search help"]
-      },
-      {
-        type: "VIEW/DV",
-        kind: "VIEW",
-        label: "Classic view",
-        // GET-only per capabilities.ts, and there is still no writable collection
-        // and no collection to resolve a URI against — this path is kept for URI
-        // identity only, and the catalog route never fetches it. But this
-        // `TypeSpec` is exactly what makes abap_search resolve VIEW/DV at all:
-        // the read itself goes through catalog-read.ts's plain-text catalog
-        // SELECTs, not this REST collection. Confirmed live on A4H (NetWeaver
-        // 7.54, client 001) on 2026-09-15: abap_search "H_T000" returns both
-        // SHLP/DH H_T000 (STRM) and VIEW/DV H_T000 (STRM_DB); abap_search "SM30"
-        // returns TRAN/T SM30 (SVIM).
-        path: "/sap/bc/adt/ddic/views/{name}",
-        mode: "ddic",
-        supportsSource: false,
-        keywords: ["view", "database view", "classic view", "dv"]
-      },
-      {
-        type: "TRAN/T",
-        kind: "TRAN",
-        label: "Transaction",
-        // The one real ADT route for a transaction: the generic VIT bridge,
-        // read-only (405 on every mutating verb) — matches vitBridgeUri("trant",
-        // name) in write-verify.ts. Not used by the catalog route below; kept
-        // for URI identity only.
-        path: "/sap/bc/adt/vit/wb/object_type/trant/object_name/{name}",
-        mode: "ddic",
-        supportsSource: false,
-        keywords: ["transaction", "tcode", "tran"]
-      },
-      // RAP service binding: one XML doc at the object's own URI (no
-      // /source/main; GET .../content 404s) — unlike DDLS/DDLX/SRVD/BDEF above.
-      // A provenance conflict over whether SRVB exists on A4H at all was
-      // resolved by live verification on 2026-08-18 (create/activate/read-back/
-      // delete all succeeded); see the git history and the
-      // SRVB/SVB entry in src/adt/capabilities.ts for the full history and the
-      // vendor media-type override this type needs.
-      {
-        type: "SRVB/SVB",
-        kind: "SRVB",
-        label: "Service binding",
-        path: "/sap/bc/adt/businessservices/bindings/{name}",
-        mode: "ddic",
-        supportsSource: false,
-        keywords: [
-          "service binding",
-          "srvb",
-          "svb",
-          "odata service",
-          "rap service binding",
-          "binding"
-        ]
-      }
-    ];
-    BY_TYPE = new Map(TYPES.map((t) => [t.type, t]));
-    BY_KIND = new Map(TYPES.map((t) => [t.kind, t]));
-    KEYWORDS_BY_LENGTH = TYPES.flatMap(
-      (spec) => spec.keywords.map((keyword) => ({ keyword, spec }))
-    ).sort((a, b) => b.keyword.length - a.keyword.length);
-    dec = (s) => decodeURIComponent(s).toUpperCase();
-    escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    NOT_AN_OBJECT = [
-      { re: /^\/sap\/bc\/adt\/cts\/transportrequests\/[^/]+\/?$/i, what: "transport request" }
-    ];
-    TWO_SEGMENT_KINDS = [
-      { type: "FUGR/FF", mid: "fmodules" },
-      { type: "FUGR/I", mid: "includes" }
-    ];
-  }
-});
-
-// src/adt/capabilities.ts
-function capabilitiesFor(type) {
-  if (!type) return void 0;
-  const code = type.trim().toUpperCase();
-  if (Object.prototype.hasOwnProperty.call(REGISTRY, code)) return REGISTRY[code];
-  const canonical = specForType(code)?.type;
-  return canonical !== void 0 && Object.prototype.hasOwnProperty.call(REGISTRY, canonical) ? REGISTRY[canonical] : void 0;
-}
-function codesWith(pred) {
-  return CODES.filter((c) => pred(REGISTRY[c]));
-}
-function isBridgeOnlyCreateType(type) {
-  const cap = capabilitiesFor(type);
-  return cap?.bridgeCreate !== void 0 && cap.create === void 0;
-}
-function isBridgeDeletableType(type) {
-  const cap = capabilitiesFor(type);
-  return cap?.bridgeDelete !== void 0;
-}
-function writableTypesHint() {
-  const clauses = [`Writable types are ${WRITABLE_TYPES.join(", ")}.`];
-  if (CREATE_ONLY_TYPES.length) {
-    clauses.push(`${CREATE_ONLY_TYPES.join(", ")} can only be created, never rewritten \u2014 no source to write.`);
-  }
-  const bridgeAttempted = BRIDGE_ONLY_CREATE_TYPES.filter((c) => !BRIDGE_CREATE_REFUSED_TYPES.includes(c));
-  if (bridgeAttempted.length) {
-    clauses.push(
-      `${bridgeAttempted.join(", ")} are created through a generated classrun bridge, also with no \`source\`.`
-    );
-  }
-  if (BRIDGE_CREATE_REFUSED_TYPES.length) {
-    clauses.push(
-      `${BRIDGE_CREATE_REFUSED_TYPES.join(", ")} cannot be created here at all, in any package \u2014 only deleted.`
-    );
-  }
-  if (ENHANCEABLE_TYPES.length) {
-    clauses.push(`${ENHANCEABLE_TYPES.join(", ")} can be edited (not created) here.`);
-  }
-  if (ACTIVATION_ONLY_TYPES.length) {
-    clauses.push(
-      `${ACTIVATION_ONLY_TYPES.join(", ")} cannot be written here but an existing one can be activated.`
-    );
-  }
-  return clauses.join(" ");
-}
-function deleteUnsupportedMessage(label, code) {
-  return `abap_write does not implement delete for ${label} (${code}). That is a gap in this tool's coverage, not a property of the object \u2014 it may still be removable by other means. ` + TERMINAL_REFUSAL_NOTE;
-}
-function assertRegistryCoversTypes(types = TYPES) {
-  const missing = types.map((t) => t.type).filter((t) => !Object.prototype.hasOwnProperty.call(REGISTRY, t));
-  if (missing.length > 0) {
-    throw new Error(
-      `src/adt/capabilities.ts REGISTRY is missing an entry for: ${missing.join(", ")}. Every type in src/adt/types.ts's TYPES array must have a capabilities registry entry (even an empty one, { label: "\u2026" }) \u2014 see src/adt/capabilities.ts.`
-    );
-  }
-}
-function assertNoConflictingCapabilities() {
-  for (const code of CODES) {
-    const cap = REGISTRY[code];
-    if (cap.unsupported && (cap.write !== void 0 || cap.create !== void 0)) {
-      throw new Error(
-        `src/adt/capabilities.ts REGISTRY entry ${code} declares both a capability (write/create) and 'unsupported' \u2014 pick one.`
-      );
-    }
-    if (cap.bridgeCreate && cap.unsupported !== void 0) {
-      throw new Error(
-        `src/adt/capabilities.ts REGISTRY entry ${code} declares 'bridgeCreate' together with 'unsupported' \u2014 a type is created by the classrun bridge, or not at all. Pick one.`
-      );
-    }
-    if (cap.bridgeCreate && cap.create !== void 0 && cap.bridgeCreate.alongsideRestCreate === void 0) {
-      throw new Error(
-        `src/adt/capabilities.ts REGISTRY entry ${code} declares 'bridgeCreate' together with 'create' but names no bridgeCreate.alongsideRestCreate discriminator \u2014 a type is created over REST, or by the classrun bridge, or (with a named discriminator deciding which) both. Pick one, or name the discriminator.`
-      );
-    }
-    if (cap.bridgeCreate?.alongsideRestCreate !== void 0 && cap.create === void 0) {
-      throw new Error(
-        `src/adt/capabilities.ts REGISTRY entry ${code} declares bridgeCreate.alongsideRestCreate but has no 'create' \u2014 the field names a REST route to coexist with, so one must exist.`
-      );
-    }
-    if (cap.bridgeDelete && cap.unsupported !== void 0) {
-      throw new Error(
-        `src/adt/capabilities.ts REGISTRY entry ${code} declares 'bridgeDelete' together with 'unsupported' \u2014 a type is deleted by the classrun bridge, or not at all. Pick one.`
-      );
-    }
-    if (cap.bridgeDelete && cap.delete === true) {
-      throw new Error(
-        `src/adt/capabilities.ts REGISTRY entry ${code} declares 'bridgeDelete' together with 'delete: true' \u2014 a type is deleted over REST, or by the classrun bridge, never both.`
-      );
-    }
-    if (cap.create?.vendor === false) {
-      const shape = cap.write?.shape;
-      const hasSkeleton = cap.create.skeleton !== void 0;
-      const valid = shape === "properties" && !hasSkeleton || shape === "source" && hasSkeleton;
-      if (!valid) {
-        throw new Error(
-          `src/adt/capabilities.ts REGISTRY entry ${code} declares create.vendor: false with write.shape ${JSON.stringify(shape)} and create.skeleton ${hasSkeleton ? "present" : "absent"} \u2014 a hand-rolled create has no body to POST unless it is either a 'properties' shape (the write payload IS the XML document) or a 'source' shape paired with a create.skeleton (write.ts builds the XML itself).`
-        );
-      }
-    }
-    if (cap.create?.skeleton !== void 0 && cap.create.vendor !== false) {
-      throw new Error(
-        `src/adt/capabilities.ts REGISTRY entry ${code} declares create.skeleton alongside create.vendor: true \u2014 the skeleton would never be read; drop one or the other.`
-      );
-    }
-    if (cap.namePrefixes && cap.namePrefixes.filter((p) => p.trim() !== "").length === 0) {
-      throw new Error(
-        `src/adt/capabilities.ts REGISTRY entry ${code} declares an empty namePrefixes override, which would refuse every possible name for that type. Omit the field to inherit the global list instead.`
-      );
-    }
-    if (cap.blankSourceOnAbsence && cap.write?.shape !== "source") {
-      throw new Error(
-        `src/adt/capabilities.ts REGISTRY entry ${code} declares blankSourceOnAbsence but write.shape is ${JSON.stringify(cap.write?.shape)} \u2014 this only makes sense for a type whose write.shape is "source".`
-      );
-    }
-  }
-}
-function assertWritableTypesAreReadable() {
-  const unreadable = [];
-  for (const code of CODES) {
-    const cap = REGISTRY[code];
-    if (!cap.write) continue;
-    const spec = TYPES.find((t) => t.type === code);
-    if (!spec) {
-      unreadable.push(`${code} (no src/adt/types.ts entry, so no read mode to check)`);
-      continue;
-    }
-    if (spec.mode === "source") continue;
-    if (cap.write.shape === "properties") continue;
-    if (spec.mode === "ddic" && ddicStrategy(spec.kind) !== "unsupported") continue;
-    unreadable.push(code);
-  }
-  if (unreadable.length > 0) {
-    throw new Error(
-      `src/adt/capabilities.ts REGISTRY declares write capability for types abap_read cannot read in ANY mode: ${unreadable.join(", ")}. Every writable type must be readable \u2014 via mode: "source" (types.ts), format: "raw" (write.shape "properties"), or a ddic.ts pseudo-DDL renderer (ddicStrategy) \u2014 or a caller is asked to write a shape it was never shown. If this is genuinely too strong for one of these types, that must be decided explicitly here, not left to fail silently.`
-    );
-  }
-}
-var REGISTRY, CODES, WRITABLE_TYPES, CREATE_ONLY_TYPES, CREATABLE_TYPES, BRIDGE_CREATABLE_TYPES, BRIDGE_ONLY_CREATE_TYPES, BRIDGE_CREATE_REFUSED_TYPES, BRIDGE_DELETABLE_TYPES, ENHANCEABLE_TYPES, ACTIVATION_ONLY_TYPES, DELETABLE_TYPES, VERIFIED_CREATABLE_TYPES, ABAP_WRITE_TYPES, NON_READABLE_TYPES, NON_WRITABLE_TYPES, PROPERTIES_SHAPE_TYPES, TERMINAL_REFUSAL_NOTE;
-var init_capabilities = __esm({
-  "src/adt/capabilities.ts"() {
-    "use strict";
-    init_ddic_strategy();
-    init_types();
-    REGISTRY = {
-      // CLAS/INTF/PROG delete: true live-verified 2026-08-19: create →
-      // delete → independent abap_read confirming absence, all clean. Archive:
-      // the git history.
-      "CLAS/OC": {
-        label: "Class",
-        write: { shape: "source" },
-        // verified: true — create-verification sweep, 2/2 FULL_CYCLE_OK. Load-bearing
-        // beyond abap_write: abapsmith deploys its own IF_OO_ADT_CLASSRUN bridge
-        // classes through this same path. Archive has the full run record.
-        create: { vendor: true, verified: true },
-        delete: true,
-        activate: true
-      },
-      "INTF/OI": {
-        label: "Interface",
-        write: { shape: "source" },
-        // verified: true — create-verification sweep, 3/3 FULL_CYCLE_OK. Load-bearing:
-        // the enhancement bridge creates a marker INTERFACE via this path too.
-        create: { vendor: true, verified: true },
-        delete: true,
-        activate: true
-      },
-      "PROG/P": {
-        label: "Program",
-        write: { shape: "source" },
-        // verified: true — create-verification sweep, 2/2 FULL_CYCLE_OK. Load-bearing:
-        // abap_run creates a runner PROGRAM through this same path.
-        create: { vendor: true, verified: true },
-        delete: true,
-        activate: true
-      },
-      // Package-parented (unlike FUGR/I below): vendor CreatableTypes has a real
-      // PROG/I entry (creationPath programs/includes, validationPath
-      // includes/validation) using the ordinary createBodySimple/
-      // <adtcore:packageRef> body, so create.parent stays at its "package"
-      // default — an include is a standalone repository object; nothing in the
-      // create body ties it to a host program, only the host's own
-      // `INCLUDE <name>.` statement does that.
-      //
-      // Evidence, A4H 2026-09-04: POST .../includes/validation?objtype=PROG/I&
-      // objname=ZTMD_INC_01&packagename=$TMP returned CHECK_RESULT=X (name is
-      // free-form, 30 chars); GET .../programs/includes/lsabp_unit_sboxtop
-      // 200s with a generic Accept, so no mediaType override is needed.
-      // `create.verified: true` and `delete: true` — live-verified full cycle on
-      // A4H 2026-09-04: create, check clean, activate, re-write (etag changed,
-      // activate), read-back. Delete is refused by the server (403
-      // ExceptionResourceDeletionFailure, "referenced in other programs") while
-      // any program still INCLUDEs it; delete succeeded once the host's own
-      // `INCLUDE` statement was removed, and a read then 404d.
-      "PROG/I": {
-        label: "Include",
-        write: { shape: "source" },
-        create: { vendor: true, verified: true },
-        delete: true,
-        activate: true
-      },
-      // PACKAGE-parented (unlike FUGR/FF below): vendor CreatableTypes has a real
-      // FUGR/F entry using the ordinary <adtcore:packageRef> body, so
-      // create.parent stays at its "package" default. Registering this is what
-      // makes FUGR/FF reachable at all — a function module needs a group to be
-      // created inside, and until this entry existed the group could be neither
-      // written nor created.
-      //
-      // `write` is live-verified with a distinguishing marker-comment PUT into
-      // the group's /source/main (its top-include skeleton), not inferred from
-      // types.ts. Footgun: PUTting /source/main REPLACES that include list — a
-      // caller must write the INCLUDE L<GROUP>TOP./L<GROUP>UXX. lines back.
-      // Omitting the UXX line specifically is silent: the group writes, activates
-      // and reads back active while every CALL FUNCTION against its modules dumps
-      // CX_SY_DYN_CALL_ILLEGAL_FUNC / CALL_FUNCTION_NOT_ACTIVE.
-      // assertFunctionGroupImplementationInclude in write.ts refuses that shape
-      // before the PUT.
-      //
-      // `delete: true` live-verified 2026-08-19, twice. One divergence
-      // recorded: DELETE without a lock 423s here (unlike FUGR/FF) — moot today
-      // since deleteObject always locks first, but flagged against a future
-      // lock-elision fast path. Full method: the git history.
-      "FUGR/F": {
-        label: "Function group",
-        write: { shape: "source" },
-        // verified: true — create-verification sweep, 2/2 FULL_CYCLE_OK (dedicated
-        // CREATE citation; earlier evidence only covered WRITE of an existing
-        // group's top include).
-        create: { vendor: true, verified: true },
-        delete: true,
-        activate: true
-      },
-      // Container-parented — see the module doc. Vendor FUGR/FF entry emits
-      // <adtcore:containerRef> instead of <adtcore:packageRef>; vendor: true
-      // still holds, parent: "container" only changes which parent
-      // createNewObject hands it.
-      //
-      // `delete: true` live-verified 2026-08-19, twice: DELETE succeeded
-      // both times and the sibling group's own delete+verify-absent corroborated
-      // it. Direct abap_read absence-check on the function module itself is NOT
-      // reliable for this type — reading /source/main of an already-deleted FM
-      // 500s instead of 404ing (a pre-existing appliance quirk, not something
-      // this pass fixes); `true` rests on the DELETE call's own success plus the
-      // container-level corroboration, not on that read.
-      "FUGR/FF": {
-        label: "Function module",
-        write: { shape: "source" },
-        // verified: true — create-verification sweep, 2 iterations, both createOk AND
-        // verifyPresentOk (independent read-back while it existed). Both
-        // iterations' post-delete bench verdict reads CREATED_STILL_PRESENT —
-        // that is the /source/main-500s-not-404s quirk above tripping the
-        // harness's absence check, NOT a leak: the containing group was
-        // independently confirmed deleted in both runs and a function module
-        // cannot outlive its group. `verified` describes CREATE only; full
-        // record in the archive.
-        create: { vendor: true, parent: "container", verified: true },
-        delete: true,
-        activate: true
-      },
-      // Container-parented like FUGR/FF: the vendor FUGR/I row goes through
-      // createBodyFunc, emitting <adtcore:containerRef> naming the function
-      // GROUP. Name shape: the caller passes the FULL include name
-      // (L<GROUP><suffix>) together with the group as container — e.g.
-      // object: "ZTMD_FG_01/LZTMD_FG_01F01". The vendor row's maxLen: 3 is a
-      // client-side hint the server contradicts: POST .../functions/validation?
-      // objtype=FUGR/I&fugrname=SABP_UNIT_SBOX&objname=… answered SEVERITY
-      // ERROR ("Include F01 will not be created in function group
-      // SABP_UNIT_SBOX") for the bare 3-char suffix, and SEVERITY OK for
-      // LSABP_UNIT_SBOXF01 (A4H, 2026-09-04). So t.name goes to createObject
-      // unchanged, and it's the same name the read/write/delete URI carries — a
-      // live GET .../functions/groups/sabp_unit_sbox/includes/lsabp_unit_sboxtop
-      // returns adtcore:name="LSABP_UNIT_SBOXTOP".
-      //
-      // createNewObject needed no change; see the container-parent note in the
-      // module doc above.
-      //
-      // namePrefixes is server-derived, like ENQU/DL's ["EZ","EY"]: SAP derives
-      // the group name from the include name, so an include of a customer
-      // Z…/Y… group necessarily begins LZ/LY, and the global ["Z","Y"] list
-      // would refuse every valid name. `create.verified: true` and `delete: true`
-      // — live-verified full cycle on A4H 2026-09-04 (ZTMD_FG_01/LZTMD_FG_01F01
-      // and an arbitrary LZTMD_FG_01ABC suffix, both): create, activate, update
-      // (etag changed), read, delete, then a 404 read. The group must already
-      // exist — POST against a missing group 500s
-      // ExceptionResourceCreationFailure "cannot be created without a package".
-      "FUGR/I": {
-        label: "Function group include",
-        write: { shape: "source" },
-        create: { vendor: true, parent: "container", verified: true },
-        delete: true,
-        activate: true,
-        namePrefixes: ["LZ", "LY"]
-      },
-      // Source-shape, reuses createNewObject/putSource/deleteObject unchanged
-      // (vendor CreatableTypes has a DDLS/DF entry). `delete: true`
-      // live-verified 2026-08-19: create → delete → independent
-      // abap_read confirming absence, clean, twice.
-      "DDLS/DF": {
-        label: "CDS view / DDL source",
-        write: { shape: "source" },
-        // verified: true — create-verification sweep, 3/3 FULL_CYCLE_OK, including a
-        // dedicated read-back while present.
-        create: { vendor: true, verified: true },
-        delete: true,
-        activate: true
-      },
-      // Same recipe as DDLS/DF: vendor CreatableTypes has a real DDLX/EX entry,
-      // so create.vendor: true reuses createNewObject unchanged. Live-verified
-      // end to end, twice, on A4H: create 201 → PUT source 200 → activate 200
-      // clean → read back 200 (118 bytes) → delete 200. NOT re-tested by the
-      // 2026-08-19 delete pass — this citation already met that bar.
-      //
-      // Caller trap, not a code issue: a metadata extension only activates
-      // against a base CDS view carrying `@Metadata.allowExtensions: true`
-      // (default false) — "Annotation 'Metadata.allowExtensions' missing"
-      // otherwise. Property of the DDLS text abapsmith writes, not of this entry.
-      "DDLX/EX": {
-        label: "Metadata extension",
-        write: { shape: "source" },
-        // verified: true rests on the pre-existing create→read-back→delete
-        // citation in the comment above. the create-verification sweep deliberately did NOT
-        // re-create this type (bar already met; avoids a leftover-object risk).
-        create: { vendor: true, verified: true },
-        delete: true,
-        activate: true
-      },
-      // Same source-shape recipe as DDLS/DF: vendor CreatableTypes has a real
-      // DCLS/DL entry (creationPath acm/dcl/sources). Live-verified end to end
-      // on A4H, 2026-09-04, all through abapsmith's own abap_write/abap_read:
-      // create ZTMD_DCL_01 in $TMP → source PUT → read back verbatim → PUT with
-      // activate=true → activated clean, read back verbatim → delete → NOT_FOUND
-      // on a subsequent read. Object GET 406s with a generic Accept, 200 with
-      // the vendor media type — hence mediaType below.
-      "DCLS/DL": {
-        label: "CDS access control",
-        write: { shape: "source" },
-        create: { vendor: true, verified: true },
-        delete: true,
-        activate: true,
-        mediaType: "application/vnd.sap.adt.dclSource+xml"
-      },
-      // Same source-shape recipe as DCLS/DL: vendor CreatableTypes has a real
-      // DDLA/ADF entry (validationPath ddic/ddla/sources/validation), and
-      // `GET .../ddic/ddla/sources/endusertext/source/main` 200s (the object URI
-      // 406s with a generic Accept, 200 with the vendor media type — hence
-      // mediaType). But `verified: false` — settled (not "unverified"): a
-      // 2026-09-04 A4H probe DISPROVED create for both `abap_write` (creating
-      // ZTMD_ANNO_01 in $TMP) and a raw `POST .../ddic/ddla/sources` with the
-      // vendor body — both refused 403, exception `com.sap.adt.ddla
-      // .ExceptionNoAnnotationDefinitionAuthorization`, "You are not authorized
-      // to create Annotation Definitions", from an admin user that creates every
-      // other type. Annotation definitions are SAP-only on this system. `delete`
-      // stays "unverified": create never succeeded, so delete was never once
-      // reachable to test.
-      "DDLA/ADF": {
-        label: "Annotation definition",
-        write: { shape: "source" },
-        create: { vendor: true, verified: false },
-        delete: "unverified",
-        activate: true,
-        mediaType: "application/vnd.sap.adt.ddic.ddla.v1+xml"
-      },
-      // Same recipe again: vendor CreatableTypes has a real SRVD/SRV entry, so
-      // this is createNewObject/putSource/deleteObject unchanged. Live-verified
-      // end to end, twice, on A4H: create 201 → PUT source 200 → activate 200
-      // clean → delete 200.
-      //
-      // Two caveats this entry does NOT clear, recorded so nobody re-derives
-      // them: (1) a service definition may only expose DDIC-based CDS views, CDS
-      // projection views or custom entities — an ABSTRACT CDS entity activates
-      // cleanly and short-dumps at PUBLISH time instead (SAP RAP 1909 guide, pp.
-      // 11/72; a property of the DDL text, not this code). (2) delete is not
-      // unconditional: the server refuses `SDDIC_ADT_SRVD207` ("Service
-      // Definition &1 is still used and cannot be deleted") while any `R3TR
-      // SRVB`/`R3TR SRVC` still references it — correct teardown is unpublish
-      // binding → delete SRVB → delete SRVD. NOT re-tested by the 2026-08-19
-      // 2026-08-19 delete pass, same reasoning as DDLX/EX above.
-      "SRVD/SRV": {
-        label: "Service definition",
-        write: { shape: "source" },
-        // verified: true rests on the pre-existing create→delete citation above.
-        // the create-verification sweep deliberately did NOT re-create this type — the citation
-        // already meets that bar, and a fresh SRVD risks a leftover if
-        // teardown order (see SDDIC_ADT_SRVD207 note above) isn't followed exactly.
-        create: { vendor: true, verified: true },
-        delete: true,
-        activate: true
-      },
-      // Source-shape (PUT {uri}/source/main, ABAP behavior-definition text), but
-      // no vendor CreatableTypes entry AND the payload is ABAP source, not XML,
-      // so it can't double as the create body — create.skeleton is the
-      // mechanism that fills the gap; see SkeletonCreate's doc for the shape and
-      // its provenance caveat.
-      //
-      // A `managed` behavior definition over a CDS root view with a persistent
-      // table was created and activated live on this release (A4H, 2026-09-05) —
-      // `implementation unmanaged` is NOT the only usable flavour on-prem, contra
-      // the 1909 FPS00 RAP guide. On 7.56+ BDEF strict mode the bare
-      // `implementation {managed|unmanaged};` header this skeleton pairs with is
-      // obsolete and becomes a syntax error — a known forward-compat limitation,
-      // not solved here.
-      //
-      // `delete: true` — a live lock + raw DELETE answered 200, and the absence
-      // was independently confirmed two ways: the repository search row was
-      // gone, and a GET of the object URI answered the identical
-      // "Error while importing object ... from the database" a never-existing
-      // name gets (A4H, 2026-09-05). The earlier "survived two deletes" reading
-      // was a misdiagnosis — the source endpoint answers 200 with an empty body
-      // for an absent BDEF/BDO (see `blankSourceOnAbsence` below), which reads as
-      // "still there" unless the object URI is also asked; `write-verify.ts` and
-      // `source.ts` now do that. Exercised so far only via a raw lock+DELETE, not
-      // yet through abapsmith's own `abap_write mode=delete` end to end — a live
-      // run is queued to confirm that path too.
-      "BDEF/BDO": {
-        label: "Behavior definition",
-        write: { shape: "source" },
-        create: {
-          vendor: false,
-          skeleton: {
-            rootName: "blue:blueSource",
-            namespace: 'xmlns:blue="http://www.sap.com/wbobj/blue"',
-            // No `; charset=utf-8` — see SkeletonCreate.contentType's doc.
-            contentType: "application/vnd.sap.adt.blues.v1+xml"
-          },
-          // verified: true — create ran live end to end through abap_write on
-          // A4H 2026-09-05 (table → classic CDS root view → BDEF with a
-          // `managed;` header): created: true, activated: true.
-          verified: true
-        },
-        delete: true,
-        activate: true,
-        // The source endpoint answers 200/empty for an absent object — see the
-        // field's own doc comment.
-        blankSourceOnAbsence: true
-      },
-      // `create.vendor: false` — no XSLT/VT row in abap-adt-api's CreatableTypes
-      // (checked against objectcreator.js), so create needs a skeleton like
-      // BDEF/BDO. Live-probed against A4H 2026-09-04: the plural namespace
-      // `.../adt/transformations` 400s ("System expected the element
-      // '{http://www.sap.com/adt/transformation}transformation'"); the singular
-      // namespace below then 400s InvalidTransformationValue ("Transformation
-      // Type is not supported") until `trans:transformationType="XSLTProgram"`
-      // is on the root — with that attribute the raw POST returned 200 and the
-      // object read back afterwards. `contentType` carries no parameters, per
-      // SkeletonCreate.contentType's doc.
-      "XSLT/VT": {
-        label: "Transformation",
-        write: { shape: "source" },
-        create: {
-          vendor: false,
-          skeleton: {
-            rootName: "trans:transformation",
-            namespace: 'xmlns:trans="http://www.sap.com/adt/transformation"',
-            contentType: "application/vnd.sap.adt.transformations+xml",
-            rootAttributes: 'trans:transformationType="XSLTProgram"'
-          },
-          // Live 2026-09-04 through abap_write itself: create ZTMD_XSLT_01 in $TMP
-          // (created: true, check clean, activated), read back verbatim.
-          verified: true
-        },
-        // Live 2026-09-04: abap_write mode=delete → deleted: true, read → NOT_FOUND.
-        delete: true,
-        activate: true,
-        // Discovery advertises this as the transformations collection's accept
-        // type (2026-09-04); a generic Accept on the object GET was not tested.
-        mediaType: "application/vnd.sap.adt.transformations+xml"
-      },
-      // Two DDIC source types added 2026-09-04. Full create → write → activate →
-      // read-back → delete cycles ran live through abapsmith on A4H (2026-09-04,
-      // $TMP objects: ZTMDY for TYPE/DG, ZTMD_DRUL_02 for DRUL/DRL) and worked
-      // end to end. Neither has a `CreatableTypes` row in abap-adt-api, so
-      // create goes through a hand-built skeleton like `BDEF/BDO`/`XSLT/VT`.
-      // `mediaType` is the vendor Accept actually used on the object URI (the
-      // sibling DCLS/DL/DDLA/ADF URIs 406 without it) — a generic Accept was not
-      // tried.
-      //
-      // Type group: GET .../ddic/typegroups/trexc → 200, root
-      // `<atypgr:abapTypeGroup ... adtcore:type="TYPE/DG">`; GET .../source/main
-      // with Accept: text/plain → 200, real `TYPE-POOL trexc. CONSTANTS: …`.
-      // Live full cycle on ZTMDY ($TMP) through abapsmith 2026-09-04: create
-      // (skeleton POST then source PUT, check clean, activated) → update (added
-      // a CONSTANTS line, changed, activated) → read back both lines → delete →
-      // NOT_FOUND. Wire quirk: ADT rejects underscores in type-group names ("Do
-      // not use underscores in type group names", 403 — confirmed again on
-      // ZTMD_TG_01) and caps them at 5 characters (TYPE-POOL naming rule).
-      "TYPE/DG": {
-        label: "Type group",
-        write: { shape: "source" },
-        // Skeleton POST .../ddic/typegroups, Content-Type
-        // application/vnd.sap.adt.ddic.typegroups.v2+xml, then a source PUT —
-        // full cycle via abap_write on A4H 2026-09-04 (ZTMDY, $TMP):
-        // created: true, check clean, activated: true.
-        create: {
-          vendor: false,
-          skeleton: {
-            rootName: "atypgr:abapTypeGroup",
-            namespace: 'xmlns:atypgr="http://www.sap.com/adt/ddic/typegroups"',
-            contentType: "application/vnd.sap.adt.ddic.typegroups.v2+xml"
-          },
-          verified: true
-        },
-        delete: true,
-        activate: true,
-        mediaType: "application/vnd.sap.adt.ddic.typegroups.v2+xml"
-      },
-      // Dependency rule: discovery advertises drul/sources with this media type,
-      // title "Dependency Rule"; GET .../drul/sources/demo_drul_1 → 200, root
-      // `<blue:blueSource adtcore:type="DRUL/DRL">`; .../source/main → 200, real
-      // `DEFINE FILTER DEPENDENCY RULE demo_drul_1 ON demo_parts_1 …`.
-      // Live full cycle on ZTMD_DRUL_02 ($TMP) through abapsmith 2026-09-04:
-      // create with activate: false (created: true, check clean, source landed
-      // on the create PUT) → rewrite with the same source (changed: false,
-      // activated: true) → read back the 4-line rule → delete → NOT_FOUND.
-      "DRUL/DRL": {
-        label: "Dependency rule",
-        write: { shape: "source" },
-        // Skeleton POST .../ddic/drul/sources, Content-Type
-        // application/vnd.sap.adt.ddic.drul.v1+xml — the created source is
-        // empty, so the caller PUTs the DEFINE FILTER DEPENDENCY RULE text
-        // afterwards. Full cycle via abap_write on A4H 2026-09-04
-        // (ZTMD_DRUL_02, $TMP).
-        create: {
-          vendor: false,
-          skeleton: {
-            rootName: "blue:blueSource",
-            namespace: 'xmlns:blue="http://www.sap.com/wbobj/blue"',
-            contentType: "application/vnd.sap.adt.ddic.drul.v1+xml"
-          },
-          verified: true
-        },
-        delete: true,
-        activate: true,
-        mediaType: "application/vnd.sap.adt.ddic.drul.v1+xml"
-      },
-      // No write/create — an existing BAdI implementation is edited through
-      // enhancement-write.ts's specialised document PUT (ENHANCEMENT_WRITE_TYPES),
-      // not this registry's generic PUT. `activate: true` lets abap_activate
-      // resolve an EXISTING ENHO/XH via ACTIVATION_ONLY_TYPES below, without
-      // granting abap_write/abap_delete any new reach.
-      "ENHO/XH": { label: "BAdI implementation", activate: true },
-      // Enhancement-only: writable but never created here (see ENHANCEABLE_TYPES
-      // below).
-      "ENHO/XHH": { label: "Enhancement source plug-in", write: { shape: "source" } },
-      // Same reasoning as ENHO/XH above: no generic write/create, but an existing
-      // spot can be activated.
-      "ENHS/XS": { label: "Enhancement spot", activate: true },
-      // `delete: true` live-verified 2026-08-19: create → delete →
-      // independent abap_read confirming absence, clean.
-      "TABL/DT": {
-        label: "Database table",
-        write: { shape: "source" },
-        // verified: true — this create-verification sweep, 6/6 FULL_CYCLE_OK (double
-        // the usual iterations, deliberately hunting the ~1-in-3 create flake
-        // reported from an earlier 2026-08-18 benchmark). Did not find
-        // it — honest value is `true`, not a predicted downgrade. Root cause of
-        // the 2026-08-18 failures is still open (appliance state /
-        // work-process exhaustion / a different name shape). If the flake
-        // resurfaces, downgrade to `false` with a citation, not silently back to
-        // "unverified". Full record: the git history.
-        create: { vendor: true, verified: true },
-        delete: true,
-        activate: true
-      },
-      // Same source-shape recipe as TABL/DT (vendor CreatableTypes has a
-      // TABL/DS entry too, maxLen 30 not 16). `delete: true` live-verified
-      // 2026-08-19, same method as TABL/DT above.
-      "TABL/DS": {
-        label: "Structure",
-        write: { shape: "source" },
-        // verified: true — create-verification sweep, 3/3 FULL_CYCLE_OK, swept in its
-        // own right rather than inferred from TABL/DT sharing the recipe.
-        create: { vendor: true, verified: true },
-        delete: true,
-        activate: true
-      },
-      // ---- Properties shape: PUT the full XML descriptor to the object's OWN
-      // URI (/source/main 404s for all five below, verified live). Same
-      // compare-before-write/transport/journal/lock choreography as source
-      // shape; see writeObject in write.ts.
-      //
-      // `delete: true` live-verified 2026-08-19: create → delete →
-      // independent abap_read confirming absence, clean.
-      "DTEL/DE": {
-        label: "Data element",
-        write: { shape: "properties" },
-        // verified: true — this create-verification sweep, 3/3 FULL_CYCLE_OK. Issue
-        // An earlier report asserted (from a 2026-08-18 benchmark) that data elements "do not
-        // create at all" — did NOT reproduce; every attempt succeeded.
-        create: { vendor: true, verified: true },
-        delete: true,
-        activate: true
-      },
-      // `delete: true` live-verified 2026-08-19, same method as DTEL/DE
-      // above.
-      "DOMA/DD": {
-        label: "Domain",
-        write: { shape: "properties" },
-        // verified: true — create-verification sweep, 3/3 FULL_CYCLE_OK.
-        create: { vendor: true, verified: true },
-        delete: true,
-        activate: true
-      },
-      // No vendor CreatableTypes entry at all — vendor: false routes the create
-      // through write.ts's own XML POST. `delete: true` live-verified
-      // 2026-08-19: row type pinned to built-in structure SYST, create →
-      // delete → independent abap_read confirming absence, clean.
-      "TTYP/DA": {
-        label: "Table type",
-        write: { shape: "properties" },
-        // verified: true — create-verification sweep, 3/3 FULL_CYCLE_OK. Exercises
-        // createByXml's no-skeleton branch (vendor: false, no vendor
-        // CreatableTypes entry — the payload IS the create body).
-        create: { vendor: false, verified: true },
-        delete: true,
-        activate: true
-      },
-      // `activate: false` is load-bearing, not descriptive: a message class is
-      // born ACTIVE with zero messages and every property PUT lands active too —
-      // there is no inactive version for an activation to publish.
-      //
-      // `delete: true` live-verified 2026-08-19: create → delete (both
-      // ok) → independent absence check. Default abap_read cannot render MSAG/N
-      // at all, so verify-absent needed a follow-up `format: "raw"` read
-      // (the shape this type round-trips through) to get a clean NOT_FOUND.
-      "MSAG/N": {
-        label: "Message class",
-        write: { shape: "properties" },
-        // verified: true — this create-verification sweep, run M02, 3/3 FULL_CYCLE_OK.
-        // Cite M02, not the earlier M01: M01 silently made zero create attempts
-        // (a harness bug — its absence-precheck never passed format: "raw" for
-        // this type, so every precheck was misbucketed as "name taken" and
-        // skipped; fixed at source, MSAG re-run as M02, other types' logs
-        // re-checked and unaffected). An earlier report asserted message classes "do
-        // not create at all" — like DTEL/DE, that did not reproduce. Full
-        // record: the git history.
-        create: { vendor: true, verified: true },
-        delete: true,
-        activate: false
-      },
-      // Lock object. Server-enforced: SAP refuses Z…/Y… names outright (hence
-      // namePrefixes), and create is rejected unless the body already carries a
-      // non-empty <enqu:content><enqu:primaryTable> — so create can't be a
-      // vendor skeleton POST followed by a PUT.
-      //
-      // create/delete verified 2026-09-05 on A4H (EZTMD_I30 in $TMP, table
-      // T000): the root must be lowercase <enqu:lockobject> in namespace
-      // http://www.sap.com/adt/ddic/enqu, not the camelCase <enqu:lockObject> /
-      // http://www.sap.com/dictionary/lockobject the earlier failed attempts
-      // sent. Content needs primaryTable/{tableName, lockMode} in that order;
-      // omitting lockMode 400s. POST 201'd as plain application/* — no
-      // mediaType override needed — and delete (LOCK/MODIFY handle, then
-      // DELETE?lockHandle=…) 200'd, confirmed absent on read-back.
-      "ENQU/DL": {
-        label: "Lock object",
-        write: { shape: "properties" },
-        create: { vendor: false, verified: true },
-        delete: true,
-        activate: true,
-        namePrefixes: ["EZ", "EY"]
-      },
-      // DEVC/K is created by abapCreatePackage (src/tools/write.ts), a separate
-      // code path that never touches createNewObject or this gate at all
-      // (routed the same way VIEW/DV/TRAN/T bypass to the classrun bridge) — so
-      // VERIFIED_CREATABLE_TYPES never gates package creation either way.
-      // `verified: true` is live evidence: a LOCAL root package created over
-      // ADT REST landed on A4H 2026-09-04, was read back, was searchable, and
-      // was deleted through abapsmith.
-      //
-      // `create` covers only software_component=LOCAL, over ADT REST; the
-      // TRANSPORTABLE route is `bridgeCreate` below, coexisting deliberately
-      //
-      "DEVC/K": {
-        label: "Package",
-        create: { vendor: true, verified: true },
-        bridgeCreate: {
-          adtRest: "POST /sap/bc/adt/packages is NOT 405 here \u2014 it is still how a LOCAL package is created (software_component=LOCAL, the create above). What is unreachable over REST is a TRANSPORTABLE one, and the blocker is abapsmith's own pre-flight, not SAP's: preflightCorr (src/adt/write.ts) asks CTS transportchecks whether the object needs a request, and CTS answers 'local' for a package that does not exist yet because it has nothing to classify \u2014 so the 'did we get a transport?' guard can never be satisfied and the caller's corr_nr is never consulted. Verified live on A4H for a root package and for a sub-package under a real transportable parent; byte-identical refusal in both cases, with a valid modifiable request in the arguments. The guard itself is not wrong to exist: POSTing a transportable package with no request makes SAP answer 200 and silently fabricate one.",
-          via: "CL_PACKAGE_FACTORY=>CREATE_NEW_PACKAGE, then lo_package->save( i_transport_request = ... ) \u2014 SE21's own backend \u2014 called from a generated IF_OO_ADT_CLASSRUN bridge. A superpackage is attached in a SECOND step (LOAD_PACKAGE / SET_SUPER_PACKAGE_NAME / SAVE): SCOMPKDTLN carries no usable superpackage field on create, and its PDEVCLASS is the transport LAYER, not the parent. See src/adt/package-create.ts and src/adt/ddic-bridge.ts.",
-          limits: "Transportable packages (any software_component other than LOCAL) go through the bridge; LOCAL packages go through REST. Development packages only (PACKTYPE 'D'). A package created here can be deleted by abapsmith, but only while empty. The gate judges a package create by its superpackage; a root create (no `package`) needs the `*` wildcard in ABAP_ALLOW_PACKAGES.",
-          alongsideRestCreate: "software_component \u2014 LOCAL is created over ADT REST, anything else through the bridge."
-        },
-        // No alongsideRestDelete counterpart to alongsideRestCreate: create
-        // genuinely has two routes (LOCAL over REST, transportable over the
-        // bridge); delete has exactly one, for both.
-        bridgeDelete: {
-          adtRest: "There is no ADT REST delete route for a package at all \u2014 not a 405 on a verb that exists for other reasons, simply nothing to call, for either a LOCAL or a transportable package.",
-          via: "CL_PACKAGE_FACTORY=>LOAD_PACKAGE, then lo_package->set_changeable( abap_true ), lo_package->delete( ), lo_package->save( i_transport_request = ... ) \u2014 SE21's own backend \u2014 called from a generated IF_OO_ADT_CLASSRUN bridge. See src/adt/package-delete.ts and src/adt/ddic-bridge.ts.",
-          limits: "Deletes only an EMPTY package: no TADIR objects (its own R3TR DEVC row doesn't count) and no sub-packages. A non-empty package is refused, listing what's inside \u2014 abapsmith never deletes contents for you. A transportable package needs corr_nr; a LOCAL one does not. Success is proven by re-reading TDEVC after COMMIT WORK, not by a clean return alone."
-        }
-      },
-      // RAP service binding. Properties-shape like DTEL/DOMA/TTYP/MSAG/ENQU: no
-      // /source/main, the whole object is one XML document at its own URI.
-      //
-      // PROVENANCE WARNING, RESOLVED: an earlier claimed raw-probe run and a
-      // separately-reported "service bindings don't exist on this release" both
-      // sat on record and could not both be true. Resolved by a later
-      // independent live verification through abapsmith's own v1 tool surface
-      // (2026-08-18, A4H SAP_BASIS 754 SP0007): create, activate, read-back and
-      // delete all succeeded, and the create-body XML shape round-tripped on
-      // read-back (not merely accepted). NOT confirmed by that run: the
-      // 26-character name-limit boundary, and publish/OData-service-generation
-      // (deliberately out of scope). Full run evidence:
-      // the git history.
-      //
-      // `create.vendor: false`, despite abap-adt-api's CreatableTypes having an
-      // SRVB/SVB row: its createBody() dispatches to createBodyBinding(), which
-      // throws unless the caller passes service/bindingtype fields
-      // createNewObject never sends. Reuses the vendor: false route (createByXml
-      // POSTs the caller's own complete XML document) instead of teaching
-      // createNewObject a fifth options shape — see test/write.test.ts's SRVB
-      // create-body fixture.
-      //
-      // `mediaType` is the one field no other properties-shape type sets (see
-      // its doc comment above) — `/businessservices/bindings/bindingtypes`
-      // returned exactly two ODATA/V2 entries when checked (2026-08-18), so
-      // binding CREATION through this registry has only ever been exercised
-      // for V2. That is a statement about what this registry can create, not
-      // about what the system hosts: the appliance does host V4 bindings —
-      // see `test/fixtures/live-captured/970-i82-metadata-v4.xml` — the
-      // bindingtypes endpoint itself was not re-probed on 2026-09-15.
-      //
-      // Pinned to `v2` (not `v1`): A4H's ADT discovery document advertises only
-      // `servicebinding.v2+xml` for the binding resource, and a `v1`-only
-      // Accept 406s on this release — verified 2026-09-15, both by direct curl
-      // and by reproducing the failure through `abap_read` on the released
-      // server (see the doc comment on `mediaType` above for the full detail).
-      // This value also serves as the write-path `Content-Type` (`write.ts`'s
-      // `contentType`) for create/update of a service binding; only the READ
-      // side was re-verified at `v2` in this pass — a binding create/update
-      // with the `v2` Content-Type was not re-tested this session.
-      //
-      // `namePrefixes` NOT overridden: no ENQU-style foreign-namespace rule, and
-      // vendor CreatableTypes already gives it maxLen 26. NOT re-tested by the
-      // 2026-08-19 delete pass — the 2026-08-18 run above already met that
-      // bar.
-      "SRVB/SVB": {
-        label: "Service binding",
-        write: { shape: "properties" },
-        // verified: true rests on the pre-existing 2026-08-18 citation above
-        // (dedicated, independently-corroborated create verification, same bar
-        // DDLX/EX/SRVD/SRV meet). the create-verification sweep deliberately did NOT re-create
-        // this type — bar already met, and a fresh binding risks a leftover.
-        create: { vendor: false, verified: true },
-        delete: true,
-        activate: true,
-        mediaType: "application/vnd.sap.adt.businessservices.servicebinding.v2+xml"
-      },
-      // Not in types.ts — see the module doc.
-      "SHLP/DH": {
-        label: "Search help",
-        bridgeCreate: {
-          adtRest: "Search helps are not reachable over ADT's mutating REST surface on this release \u2014 every write attempt against /sap/bc/adt/ddic/searchhelps/... 404s, verified by recon. That is why abapsmith goes around ADT for this type with a generated classrun bridge, not a reason it cannot write one: SE11's own search-help editor does not use REST either. A GET of the same collection also 404s, but that no longer means abapsmith cannot read a search help at all \u2014 see src/adt/catalog-read.ts, which reads DD30L/DD30T/DD31S/DD32S/DD33S through plain-text catalog SELECTs instead of the REST collection.",
-          via: "DDIF_SHLP_PUT then DDIF_SHLP_ACTIVATE (function group SDIC \u2014 the same primitives SE11's search-help editor drives), preceded by RS_CORR_INSERT for transport/TADIR registration, called from a generated IF_OO_ADT_CLASSRUN bridge. See src/adt/shlp-create.ts and src/adt/ddic-bridge.ts.",
-          limits: "The bridge builds either an elementary search help (one interface, DD31V/DD32P/DD33V) or a collective one (DD31S includes of other search helps) \u2014 both directions are now proven live, not just elementary. Validated zero-network before dispatch: an elementary help needs at least one import AND one export interface field, a selection method of type T/V is checked against DD02L/DD25L (and its field against DD03L/DD27S), and any other selection-method type gets a `ZMCP-DDIC-NOTE>` instead of a hard check. `elementary: false` with an empty `includes` used to be refused zero-network (\"has nothing to collect\") \u2014 removed: it activates fine on a real system. `update_search_help` REPLACES the whole definition the same way `DDIF_VIEW_PUT` does for a view: any field, include, or assignment not passed in the update call is removed. Root cause of DH109 found and closed: `DDIF_SHLP_PUT` succeeds and `DDIF_SHLP_ACTIVATE` then returns rc = 8 / message DH109 (\"search help & was not activated\") whenever the definition contains a dangling reference, leaving the search help as an INACTIVE-ONLY object (a DD30L row with AS4LOCAL = 'N', no active row, plus a TADIR entry) \u2014 reproduced live for three shapes: a DD31V include naming a search help that does not exist, a DD33V assignment whose SUBFIELD is not an interface parameter of the included help, and a DD33V assignment whose FIELDNAME is not an interface parameter of the help being built. Four refusals now prevent that stranding: two zero-network, in src/adt/shlp-create.ts (every `assignments[i].field` must be one of this call's own `fields[].name`; every `assignments[i].includedHelp` must be one of this call's own `includes[].name`, both case-insensitive), and two server-side, generated into the ABAP itself (src/adt/fluid/builtin/classic/abap-shlp.ts) and run BEFORE RS_CORR_INSERT so nothing is registered when they fire: every DD31V-SUBSHLP must exist as an active DD30L row, and every DD33V-SUBFIELD must exist as an active DD32S row of its SUBSHLP (a self-referencing assignment, SUBSHLP = SHLPNAME, skips this lookup \u2014 the definition is not in DD32S yet). The server-side pair surfaces as CHECK_FAILED. rc = 4 / DH108 (\"activated with warnings\") is a SUCCESS, not a refusal \u2014 a collective help with a selection method, one with no includes, and one with no fields/assignments each activate that way \u2014 and now emits a `ZMCP-DDIC-NOTE>` line instead of passing silently. Proven live on A4H (NetWeaver 7.54, client 001), 2026-09-12 and 2026-09-15, in $TMP only: an elementary help and a collective help including it both created, read back, updated and deleted through abapsmith's own tool surface (markers SHLP-REGISTERED / SHLP-PUT / SHLP-ACTIVATED); each of the three DH109 shapes was reproduced (a temporary $TMP probe class, outside abapsmith's own bridge) and left the DD30L/TADIR footprint described above; each of the four refusals fired correctly against a payload built to trip it, before any object was registered. The transportable (non-$TMP) path runs the identical FM sequence with a real korrnum but has NOT itself been run against a live system. A LOCAL ($-prefixed) package refuses a corr_nr (BAD_INPUT) and registers with korrnum = space; a transportable package requires one (TRANSPORT_ERROR without one) \u2014 same pairing rule as VIEW/DV and TRAN/T. NOT proven: search-help exits (SELMEXIT), text tables, hot keys, AUTOSUGGEST/FUZZY_SEARCH fields \u2014 the bridge does not set them. See src/adt/shlp-create.ts.",
-          // Both elementary and collective create, full cycle, proven live on
-          // A4H 2026-09-12/2026-09-15 — see `limits` above for the run detail.
-          verified: true
-        },
-        bridgeDelete: {
-          adtRest: "Same finding as bridgeCreate: the search-help REST collection 404s on every mutating verb \u2014 there is no REST delete route either.",
-          via: "DD_OBJ_DEL (object_type='SHLP', del_state='A' then 'N') clears DD30L, then TR_TADIR_INTERFACE (wi_delete_tadir_entry='X', wi_test_modus=space) clears the TADIR row \u2014 both called from a generated IF_OO_ADT_CLASSRUN bridge. See src/adt/shlp-delete.ts and src/adt/ddic-bridge.ts.",
-          limits: "Guarded by a where-used check the other two bridge deletes do not have: a search help attached to a data element (DD04L), to an individual table/view field (DD35L), or included by a collective search help (DD31S) refuses the delete unless the caller passes confirm_in_use \u2014 all three checked live on A4H 2026-09-12. Same open-transport-request-lock caveat as VIEW/DV's bridgeDelete: TR_TADIR_INTERFACE's TADIR delete fails under a lock this path does not attempt to clear, and no corr_nr is accepted (src/tools/write.ts refuses one outright). Now also reaches an INACTIVE-ONLY leftover (the DH109 stranding bridgeCreate.limits describes above): the catalogue queries in src/adt/catalog-query.ts take a state argument ('A'/'N') instead of hard-pinning AS4LOCAL = 'A', and readSearchHelp (src/adt/catalog-read.ts) gained an `{ includeInactive }` option that falls back to the 'N' version and reports `meta.versionState`; the delete path in src/tools/write.ts probes with that option, so a failed create's leftover can be deleted instead of being refused NOT_FOUND. The create/update \"already exists\" probe deliberately stays active-only, and so does `abap_read` \u2014 an inactive-only search help still reads as NOT_FOUND; only the delete path looks at both states. Proven live on A4H 2026-09-12, in $TMP only: DD_OBJ_DEL returned sy-subrc = 0 with message DH051 clearing the active version, TR_TADIR_INTERFACE removed the TADIR row, and a post-delete re-read proved absence, emitting SHLP-DELETED / SHLP-GONE. Proven live again on A4H 2026-09-15 for the inactive-only case: a leftover forced via a temporary $TMP probe class (DDIF_SHLP_PUT + DDIF_SHLP_ACTIVATE against a collective with a dangling include, rc = 8 / DH109, DD30L showing AS4LOCAL = 'N' only plus one TADIR row) read back as NOT_FOUND through abap_read, then deleted cleanly (SHLP-DELETED / SHLP-GONE) with a note explaining it had no active version, and a follow-up DD30L check found zero rows in either state. `abap_journal mode: \"undo\"` still refuses a SHLP/DH write as irreversible, by design \u2014 not exercised by this round.",
-          // Both the confirm_in_use-guarded active-version delete and the
-          // inactive-only-leftover delete, proven live on A4H 2026-09-12/
-          // 2026-09-15 — see `limits` above for the run detail.
-          verified: true
-        }
-      },
-      "VIEW/DV": {
-        label: "Classic view",
-        bridgeCreate: {
-          adtRest: `ADT's REST surface is GET-only for classic (non-CDS) views: /sap/bc/adt/ddic/views/... returns 405 ExceptionMethodNotSupported on every mutating verb, and the discovery collection advertises an empty <app:accept>. That GET is not a route a caller can take from here: there is no REST collection to resolve a name against. That no longer strands VIEW/DV, though: src/adt/types.ts gives it a TypeSpec, so abap_search resolves it directly (confirmed live on A4H 2026-09-15: abap_search "H_T000" returns VIEW/DV H_T000 (STRM_DB) alongside its SHLP/DH match), and src/adt/catalog-read.ts reads DD25L/DD25T/DD26S/DD27S/TVDIR through plain-text catalog SELECTs instead of the REST collection, so a classic view is both searchable and readable through abapsmith despite the closed REST GET route. Four independent recons agree on the REST finding. This entry previously read 'not reachable over ADT, every read and write 404s' and concluded the type was unwritable \u2014 the REST finding is right, the conclusion was not: SE11 does not use REST either.`,
-          via: "DDIF_VIEW_PUT then DDIF_VIEW_ACTIVATE (function group SDIC \u2014 the same DD_VIEW_EXPAND/DD_VIEW_PUT/DD_VIEW_ACT primitives SE11's view editor drives), called from a generated IF_OO_ADT_CLASSRUN bridge. See src/adt/view-create.ts and src/adt/ddic-bridge.ts.",
-          limits: "The bridge builds a database view (DD25V view class 'D') projecting fields of exactly ONE base table. Multi-table joins (DD28J), selection conditions (DD28V) and search-help attachments (DD35V/DD36M) are not exposed. NO SE54 table-maintenance dialog is generated: VIEW_MAINTENANCE_GENERATE is a SET PARAMETER + CALL TRANSACTION 'SE55' wrapper around an interactive wizard with no headless equivalent, so a view created here has no maintenance view/dialog and SM30 will not open it. Changing an EXISTING view is now supported too, over src/adt/view-update.ts's updateClassicView: it dispatches the fluid classic tool's update_view action, which pre-checks the view exists, then runs the identical RS_CORR_INSERT / DDIF_VIEW_PUT / COMMIT WORK / DDIF_VIEW_ACTIVATE / COMMIT WORK sequence as create. DDIF_VIEW_PUT REPLACES the whole definition: any joined field not passed in the update call is removed \u2014 abap-view.ts's update_view method emits a ZMCP-DDIC-NOTE> line saying so. Proven live on A4H (NetWeaver 7.54, client 001) 2026-09-12, in $TMP only: DDIF_VIEW_PUT returned message D0322, activation returned sy-subrc = 0, and a read-back (through the catalog route) showed the field count going from 2 to 3. The transportable (non-$TMP) path runs the identical FM sequence with a real korrnum but has NOT itself been run against a live system. The create is proven live on A4H: 2026-09-04, into the TRANSPORTABLE a transportable package with a corr_nr, produced VIEW-REGISTERED / VIEW-PUT / VIEW-ACTIVATED, the view read back with its fields (through the catalog route now \u2014 see adtRest above), and a TADIR row; 2026-09-05, RS_CORR_INSERT called for a LOCAL (`$`-prefixed) package with korrnum = space and the 44-character DICT object key returned sy-subrc 0 and wrote a TADIR row under that package's `$` devclass, and the created view was then removed cleanly by the delete bridge (see bridgeDelete below). A TRANSPORTABLE package resolves a transport request the same way a DEVC/K create does: preflightPackageCorr (src/adt/write.ts) hands off to SessionTransport.resolveForNewTransportable, honouring the caller's corr_nr when given or else picking or creating one under the ABAP_ALLOW_TRANSPORTS policy (a pinned TRKORR from the list, or a fresh request when the policy is `*`/AUTO), gate-judged before the bridge runs. The resolver's own refusals surface as TRANSPORT_ERROR (policy disabled, or no usable request), TRANSPORT_LOCKED (a request pinned elsewhere), or BAD_INPUT (a malformed number). A LOCAL package still refuses a corr_nr (BAD_INPUT). Registering the view in TADIR either way \u2014 with the caller's corr_nr or with korrnum = space \u2014 is what makes the created view deletable afterwards. See src/adt/view-create.ts and src/adt/view-update.ts."
-        },
-        bridgeDelete: {
-          adtRest: "Same finding as bridgeCreate: ADT's REST surface is GET-only for classic views, 405 ExceptionMethodNotSupported on every mutating verb \u2014 there is no REST delete route either.",
-          via: "DD_OBJ_DEL (object_type='VIEW', del_state='A' then 'N') clears DD25L, then TR_TADIR_INTERFACE (wi_delete_tadir_entry='X', wi_test_modus=space) clears the TADIR row \u2014 both called from a generated IF_OO_ADT_CLASSRUN bridge. Success is proven by re-reading DD25L and TADIR after COMMIT WORK, not by a clean FM return alone. See src/adt/view-delete.ts and src/adt/ddic-bridge.ts.",
-          limits: "Guarded by a where-used check: a view with a generated SE54 maintenance dialog (TVDIR, keyed by TABNAME \u2014 views share the table's row) refuses the delete unless the caller passes confirm_maintenance_dialog, since deleting the view out from under that dialog leaves it broken; abap-view.ts's delete_view method emits a ZMCP-DDIC-NOTE> line when the caller overrides it. DDIF_VIEW_DELETE, the route this bridge used before, was live-disproven on A4H 2026-09-04: the function does not exist on this system (CHECK_FAILED). The DD_OBJ_DEL route is measured, not exhaustively verified \u2014 RS_DD_DELETE_OBJ, the obvious alternative, opens a CTS dialog and short-dumps headless, so it is deliberately not used. The TADIR row is removed by a SEPARATE call from the DD25L delete: under an open transport-request lock on the object, TR_TADIR_INTERFACE's TADIR delete fails sy-subrc=1 / TR022, and this delete path itself does not attempt to clear that lock. The separate route, abap_transport operation=removeObject, does call TRINT_READ_REQUEST / TR_DELETE_COMM_OBJECT_KEYS to clear it: it clears the entry when the request holds exactly one E071 row for the object, and CTS refuses when two or more rows share PGMID+OBJECT+OBJ_NAME (typically a create and a delete of the same object recorded under one request), which leaves the entry, its lock, and this view's TADIR row in place, and the holding request undeletable through abapsmith \u2014 so a locked view loses its DD25L rows but keeps its TADIR row. No corrNr is accepted (src/tools/write.ts refuses one outright), so this path cannot fully remove a view sitting on an open transport request. abapsmith's own create now registers every view in TADIR, including one in a `$` package, so the delete path acts on views abapsmith created \u2014 proven live on A4H 2026-09-05, where a bridge-created view in a LOCAL package was deleted with VIEW-DELETED / VIEW-GONE."
-        }
-      },
-      "TRAN/T": {
-        label: "Transaction",
-        bridgeCreate: {
-          adtRest: "ADT exposes a transaction read-only through the generic VIT bridge and returns 405 ExceptionMethodNotSupported on every mutating verb; there is no writable ADT collection for TRAN/T. (The ADT type code is TRAN/T, not TSTC \u2014 TSTC is the underlying database table, not an ADT object type.) src/adt/catalog-read.ts also reads TSTC/TSTCT/TSTCP/TSTCA/AGR_TCODES through plain-text catalog SELECTs, which return strictly more than the VIT bridge's read (call parameters, authorisation checks, role-menu membership) and work in every ABAP_MODE, unlike the fluid bridge the writes below depend on.",
-          via: "RPY_TRANSACTION_INSERT (function group SEUA) \u2014 SE93's own backend: it collision-checks TSTC, runs RS_ACCESS_PERMISSION, fires the SWBM_C_OP_CREATE BAdI check, calls RS_CORR_INSERT for transport/TADIR registration, then inserts TSTC/TSTCT/TSTCC. Called from a generated IF_OO_ADT_CLASSRUN bridge \u2014 see src/adt/tran-create.ts.",
-          limits: "Creates a REPORT transaction (dynpro 1000) that starts an EXISTING program the caller names; the program is not created or checked for existence here. Dialog, parameter, variant and OO transactions, and a caller-chosen dynpro number, are not exposed. Retargeting an EXISTING transaction to a different program is now supported over src/adt/tran-update.ts's updateTransaction: it dispatches the fluid classic tool's update_transaction action, which checks TSTC existence, refuses the retarget unless the caller passes confirm_in_role_menu when the tcode is already assigned to one or more roles' menus (AGR_TCODES) \u2014 an SM01 transaction lock is NOT checked either way, by explicit design choice, see abap-tran.ts's own honesty note \u2014 registers the change via RS_CORR_INSERT, calls RPY_TRANSACTION_DELETE (function group SEUA) with suppress_corr_insert/suppress_corr_check both 'X' since the registration above already covers CTS, then re-RPY_TRANSACTION_INSERTs against the new program, then re-reads TSTC to prove PGMNA actually changed. RPY_TRANSACTION_DELETE's signature was captured live on A4H (NetWeaver 7.54, client 001) 2026-09-12 \u2014 not inferred, as this entry previously read: IN TRANSACTION TSTC-TCODE (required), TRANSPORT_NUMBER RGLIF-TRKORR, SUPPRESS_AUTHORITY_CHECK CHAR1, SUPPRESS_CORR_INSERT CHAR1, SUPPRESS_CORR_CHECK CHAR1; exceptions NOT_EXCECUTED (SAP's own misspelling, not a typo introduced here) and OBJECT_NOT_FOUND. Proven live on A4H 2026-09-12, in $TMP only: the delete step returned message EU075, and the read-back showed the new program. The transportable (non-$TMP) path runs the identical FM sequence with a real korrnum but has NOT itself been run against a live system \u2014 see this type's bridgeDelete entry below for the same caveat on plain deletion. A transportable package requires corr_nr (TRANSPORT_ERROR without one); a $ package refuses one (BAD_INPUT) and registers with korrnum = space. RPY_TRANSACTION_INSERT's signature was read live on A4H 2026-09-05: transport_number is optional and is forwarded verbatim to RS_CORR_INSERT as korrnum, and suppress_corr_insert defaults to space, so the transport/TADIR registration always runs. No live create with a transport has been run yet."
-        },
-        bridgeDelete: {
-          adtRest: "Read-only through the generic VIT bridge, same as bridgeCreate: 405 ExceptionMethodNotSupported on every mutating verb, no writable ADT collection.",
-          via: "RPY_TRANSACTION_DELETE (function group SEUA \u2014 SE93's own backend), called from a generated IF_OO_ADT_CLASSRUN bridge. Success is proven by re-reading TSTC, not by a clean FM return alone. See src/adt/tran-delete.ts and src/adt/ddic-bridge.ts.",
-          limits: "RPY_TRANSACTION_DELETE's parameter set was captured live on A4H (NetWeaver 7.54, client 001) 2026-09-12 \u2014 not inferred from RPY_TRANSACTION_INSERT's `transaction` parameter name, as this entry previously read: IN TRANSACTION TSTC-TCODE (required), TRANSPORT_NUMBER RGLIF-TRKORR, SUPPRESS_AUTHORITY_CHECK CHAR1, SUPPRESS_CORR_INSERT CHAR1, SUPPRESS_CORR_CHECK CHAR1; exceptions NOT_EXCECUTED (SAP's own misspelling) and OBJECT_NOT_FOUND \u2014 see this type's bridgeCreate entry above, where the same signature backs the retarget route. Guarded by the same where-used check as retargeting: a tcode already assigned to one or more roles' menus (AGR_TCODES) refuses the delete unless the caller passes confirm_in_role_menu; an SM01 transaction lock is NOT checked either way. Live-verified once, 2026-09-05: a $ package transaction was created and then deleted with TRAN-DELETED / TRAN-GONE and a post-delete re-read proving absence. This bridgeCreate entry's own `via` already records that RPY_TRANSACTION_INSERT calls RS_CORR_INSERT for transport/TADIR registration; whether RPY_TRANSACTION_DELETE does the same is unknown, so deleting a transaction out of a TRANSPORTABLE package may plausibly hit a headless-dynpro failure the way VIEW/DV create originally did, before suppress_dialog fixed it there. No transport handling is attempted here either way."
-        }
-      },
-      // Not in types.ts — see the module doc. Program subobjects (not standalone
-      // ADT types), reachable read-only via the generic VIT bridge (content-free
-      // metadata stub, no layout/field list), 405 on every write verb. Verified live.
-      "PROG/PS": {
-        label: "Screen (dynpro)",
-        unsupported: {
-          reason: "Screens are program subobjects maintained in the classic Screen Painter (SE51) and are not reachable as ADT-writable objects on this release: no ADT discovery collection exists for them, PROG/PS is not a registered ADT object type (repository/informationsystem/objecttypes has no entry for it), and the only route that answers a GET at all \u2014 the generic VIT bridge \u2014 returns a five-field metadata stub (name/description/package/dates, no field list or layout) and a 405 Method Not Allowed on every write verb, verified live with a valid CSRF token.",
-          alternative: "Screens can only be edited in SE51 (or SE80's Screen Painter), both SAPGUI tools outside abapsmith's reach. What abapsmith CAN edit: the screen's flow logic (PBO/PAI modules) \u2014 these are ordinary ABAP code living in the program's own source and are already writable as PROG/P."
-        }
-      },
-      "PROG/PC": {
-        label: "GUI status (CUA status)",
-        unsupported: {
-          reason: "GUI statuses (function-key/menu/toolbar assignments) are program subobjects maintained in the classic Menu Painter (SE41) and are not reachable as ADT-writable objects on this release: no ADT discovery collection exists for them, PROG/PC is not a registered ADT object type, and the only route that answers a GET at all \u2014 the generic VIT bridge \u2014 returns a five-field metadata stub (no function-key list, no menu structure) and a 405 Method Not Allowed on every write verb, verified live with a valid CSRF token.",
-          alternative: "GUI statuses can only be edited in SE41 (or SE80's Menu Painter), both SAPGUI tools outside abapsmith's reach. What abapsmith CAN edit: the PAI module that reads sy-ucomm for this status's function codes \u2014 that is ordinary ABAP code already writable as PROG/P."
-        }
-      },
-      // Third member of the PROG/PS/PROG/PC family — see the module doc. A GUI
-      // title (SET TITLEBAR) is also SE41/Menu-Painter territory. Its VIT bridge
-      // is even less trustworthy as a "read": it returns 200 for ANY key,
-      // including a nonexistent title id or even a nonexistent PROGRAM name
-      // (live-verified) — it echoes the key back rather than validating
-      // existence. Write verbs 405, identical to PS/PC.
-      "PROG/PT": {
-        label: "GUI title (titlebar)",
-        unsupported: {
-          reason: "GUI titles (SET TITLEBAR text) are program subobjects maintained in the classic Menu Painter (SE41) and are not reachable as ADT-writable objects on this release: no ADT discovery collection exists for them, PROG/PT is not a registered ADT object type, and the only route that answers a GET at all \u2014 the generic VIT bridge \u2014 returns a content-free stub for ANY key, including nonexistent title ids and even nonexistent program names (it does not validate existence, only echoes the requested key), and a 405 Method Not Allowed on every write verb, verified live with a valid CSRF token.",
-          alternative: "GUI titles can only be edited in SE41 (or SE80's Menu Painter), both SAPGUI tools outside abapsmith's reach. There is no ABAP-code equivalent to fall back on the way PROG/PS and PROG/PC have their flow-logic/PAI-module escape hatch \u2014 SET TITLEBAR just names a titlebar id, it does not carry the title text itself."
-        }
-      },
-      // Not in types.ts — see the module doc. A different shape of gap from
-      // PROG/PS/PC/PT: SUSO/B IS a registered ADT object type (confirmed live)
-      // but has no discovery collection and no writable route. Established by
-      // live reconnaissance against a real system.
-      "SUSO/B": {
-        label: "Authorization object",
-        unsupported: {
-          reason: "Authorization objects have no ADT resource to WRITE through, and none to resolve a URI against, on this release: no discovery collection is advertised for them (aps/iam/suso, security/authorizationobjects and ddic/authorizationobjects all 404), and the vendor-table-derived creation path (aps/iam/suso, from abap-adt-api's CreatableTypes) 404s outright too \u2014 there is no writable ADT collection to target, live-verified, not merely undocumented. The only route that answers a GET at all is the generic VIT bridge (vit/wb/object_type/susob/object_name/{NAME}), and it returns a basic-properties stub only \u2014 name, description, language, responsible, package \u2014 with no field list and no permission values, so it is not a usable read of the object's actual content, the same class of stub that keeps PROG/PS and PROG/PC unsupported. Unlike PROG/PT's stub, it does distinguish a real object from a nonexistent one by content (a real object's stub carries a non-empty description; a name guaranteed not to exist gets a bare four-field echo with none of the enriched attributes \u2014 packageRef is a separate TADIR-registration signal, not an existence one) \u2014 but that still falls short of an actual read. OPTIONS on the same URI answers 400 'HTTP method OPTIONS not supported', so even write-feasibility-by-Allow-header could not be checked. Verified live against the real objects S_TCODE and S_DEVELOP plus a name guaranteed not to exist.",
-          alternative: 'abap_read {"object":"<NAME>","type":"SUSO/B"} renders the object read-only from the authorization catalog (TOBJ/TOBJT/TOBCT/TACTZ/TACTT/AUTHX/DD04L/DD07V) \u2014 see `catalogRead` below. SU21, a SAPGUI transaction outside abapsmith\'s reach, is the only way to EDIT one; there is no ABAP-code equivalent to fall back on for that direction.'
-        },
-        catalogRead: {
-          from: "TOBJ, TOBJT, TOBCT, TACTZ, TACTT, AUTHX, DD04L, DD07V",
-          nameForm: "the authorization object name, e.g. S_TABU_NAM"
-        }
-      },
-      // Not in types.ts — see the module doc. Type code chosen deliberately:
-      // `TABL/DI` is the code callers actually reach for, and the one consistent
-      // with this registry's own `TABL/DT`/`TABL/DS`; the transport-layer name
-      // for an index (LIMU INDX) is deliberately not used here, for the same
-      // reason TRAN/T's entry refuses to conflate the ADT type code with the
-      // underlying table name TSTC. Was `unsupported` (no probed ADT resource at
-      // all) until a live probe on A4H 2026-09-05 found the REST route
-      // conclusively absent and a working classrun-bridge route instead — see
-      // bridgeCreate/bridgeDelete below.
-      "TABL/DI": {
-        label: "Table secondary index",
-        bridgeCreate: {
-          adtRest: `Probed live on A4H 2026-09-05: GET /sap/bc/adt/ddic/tables/t000/indexes 404s, and PUT /sap/bc/adt/ddic/tables/t000/indexes/z01 404s for any body and any content type \u2014 there is no writable (or even readable) index collection under a table. The table XML itself (application/vnd.sap.adt.tables.v2+xml) carries exactly one index-related link, rel="http://www.sap.com/adt/relations/indexes" pointing at /sap/bc/adt/vit/wb/object_type/tabldt/object_name/<TABLE>#view=INDX with type="application/vnd.sap.sapgui" \u2014 a GUI handoff (SE11's Indexes tab), not a REST resource. No discovery collection mentions indexes either.`,
-          via: "DD_INDEX_INTERFACE (function group SDBT, package SDIC), ACTION='I', called from the fluid `classic` tool's `create_index` action, body class ZCL_ZMCP_FLUID_CLASSIC. Success is proven by re-reading DD12V (AS4LOCAL='A') and DD17S after COMMIT WORK, not by ACTFAILED alone \u2014 the same read-back-after-commit discipline VIEW/DV and TRAN/T use in place of an ADT read. See src/adt/index-create.ts and src/adt/ddic-bridge.ts. Proven live on A4H 2026-09-05, local $TMP package: a NON-UNIQUE single-field index created through this bridge came back INDEX-CREATED / INDEX-ACTIVE / INDEX-FIELDS from that genuine post-commit DD12V/DD17S re-read. Round 3 (same date) re-ran both creates \u2014 non-unique Z01 and unique Z02 with MANDT \u2014 and each again returned all three markers; the round-3 delete-path defect below never touched create.",
-          limits: "Changing or updating an existing index is not supported: the bridge creates and deletes only, unlike VIEW/DV and TRAN/T, which now have a working update route (src/adt/view-update.ts, src/adt/tran-update.ts) \u2014 drop the index (bridgeDelete) and recreate it instead. There is no abap_read route for TABL/DI, per adtRest above. A unique create over two non-client fields of a client-dependent table returned ACTFAILED='X' live on A4H 2026-09-05; the client-field cause, then only suspected, is now CONFIRMED live (A4H, second round, 2026-09-05): a unique create that included the base table's client field (MANDT) returned INDEX-CREATED / INDEX-ACTIVE / INDEX-FIELDS, and the identical create omitting MANDT was refused BAD_INPUT by the DD03L (DATATYPE='CLNT') guard before DD_INDEX_INTERFACE was ever called \u2014 raw line \"unique index Z02 on ZTMD_I28_T omits the client field MANDT\", hint \"Add ZTMD_I28_T's client field to index_fields, or create Z02 without index_unique.\" The package is not the caller's to choose: an index is DDIC content of its base table and belongs to the base table's package, so abap_write reads the base table's own ADT resource and gates on THAT package \u2014 a caller-supplied `package` is only ever checked for agreement, never trusted. The transport pairing itself mirrors VIEW/DV's: a `$` package sets NO_TRANSP_REQUEST='X' and refuses a caller-supplied corr_nr, a transportable package REQUIRES corr_nr, passed through as TRANSPORT_NUMBER \u2014 unexercised live in either direction. The create is not journalled \u2014 there is no ADT resource to capture a before-image from, and none existed before this create by definition \u2014 so reversal is `mode: \"delete\"`, not undo."
-        },
-        bridgeDelete: {
-          adtRest: "Same finding as bridgeCreate: no writable or readable index collection exists under a table.",
-          via: "DD_INDEX_INTERFACE (function group SDBT), ACTION='D', called from the fluid `classic` tool's `delete_index` action, body class ZCL_ZMCP_FLUID_CLASSIC. Success is proven by re-reading DD12V/DD17S after COMMIT WORK, not by a clean FM return alone. See src/adt/index-create.ts and src/adt/ddic-bridge.ts. The bridge's own DD12V pre-check is proven live, A4H 2026-09-05: a delete aimed at a nonexistent index returned NOT_FOUND correctly, before ever calling the FM. Round 1's defect \u2014 the generated ABAP omitted DD_INDEX_INTERFACE's mandatory TABLES parameter INDEX_FIELDS \u2014 is fixed and deployed: confirmed live, A4H 2026-09-05, the class body of the bridge that was then ZCL_ZMCP_DDIC_DINDX now carries the TABLES clause. Round 2 (same date) found a second defect: ACTION='D' reports ACTFAILED='X' even when the delete already took effect \u2014 the failure message's own DD12V read showed zero rows for the pair, and an immediate re-delete returned NOT_FOUND. The fragment treated ACTFAILED as fatal and returned before COMMIT WORK, so a real delete was reported CHECK_FAILED and never recorded. The fix written for round 2 \u2014 commit regardless, re-read DD12V (unfiltered and AS4LOCAL='A') and DD17S, and report success (tagging the transcript INDEX-DELETED-ACTFAILED) only when all three come back empty \u2014 never ran: round 3 found its own added ACTFAILED note line rendered as a 272-character ABAP source line (292 at the longest legal names), over the 255-character class-source limit, so every TABL/DI delete failed the class-source PUT itself (ADT_ERROR / TooLongLine, SEDI_ADT15, line 65 of the then-ZCL_ZMCP_DDIC_DINDX bridge) before DD_INDEX_INTERFACE was ever called \u2014 the bridge class was never refreshed and stayed on its round-2 body. The ACTFAILED-tolerant read-back above had therefore never executed live before round 4. Round 4 fixes the generator two ways: this fragment's two long messages are now built up in a string variable across several short source lines and written once, so no generated line can exceed 255 for any legal name; and ddicBridgeSource \u2014 the single point every bridge class body is assembled through \u2014 now throws CHECK_FAILED before returning if any line exceeds 255, naming the line and its length, so this defect class cannot reach the server again from any bridge. Round 4 then ran live on A4H 2026-09-05, $TMP: the non-unique Z01 and the unique-with-client-field Z02 were each deleted with INDEX-DELETED-ACTFAILED / INDEX-DELETED / INDEX-GONE, a re-delete of Z02 returned NOT_FOUND from the DD12V pre-check, and the deployed then-ZCL_ZMCP_DDIC_DINDX body read back with the new read-back variable and no line over 255. So the ACTFAILED-tolerant read-back is live-proven; ACTFAILED='X' was set on both deletes while all three read-backs came back empty, so what the flag itself means is still not established, only that it does not mean the rows survived.",
-          limits: "The bridge deletes any index it finds in DD12V for the given table by name \u2014 it checks only DD12V/indexname, not provenance, so this is not restricted to indexes the bridge itself created. Deleting the BASE TABLE is not itself blocked by an index still on it \u2014 live-proven on A4H 2026-09-05, the table delete succeeded with an index in place \u2014 but abapsmith cannot confirm the index went with it: no ADT resource can read an index back, per adtRest above, so a table delete's effect on its indexes is unverifiable either way. Same package rule as bridgeCreate: the base table's package, never the caller's. Unlike the VIEW/DV and TRAN/T deletes, which refuse a caller's corr_nr outright, a TABL/DI DELETE takes the same transport pair the create does \u2014 a `$` package sets NO_TRANSP_REQUEST='X' and refuses corr_nr, a transportable package REQUIRES corr_nr as TRANSPORT_NUMBER \u2014 because DD_INDEX_INTERFACE with ACTION='D' does. Round 3's cleanup deleted the base table while Z01/Z02's own DD12V/DD17S rows may still have existed; whether the base-table delete cascaded them away or orphaned them is unverified, not confirmed-absent \u2014 there is no ADT resource for TABL/DI to check with, and at the time abap_data_preview carried no WHERE filter, so a targeted DD12V check was not practical. It now takes a structured filter (issue #73), so such a check is possible, but this round's outcome was never re-checked and stays unverified."
-        },
-        catalogRead: {
-          from: "DD12V, DD17S",
-          nameForm: "<TABLE>/<INDEX>, the same parented form the create takes, e.g. ZTAB/Z01"
-        }
-      }
-    };
-    CODES = Object.keys(REGISTRY);
-    WRITABLE_TYPES = codesWith((c) => c.write !== void 0 && c.create !== void 0);
-    CREATE_ONLY_TYPES = codesWith((c) => c.create !== void 0 && c.write === void 0);
-    CREATABLE_TYPES = codesWith((c) => c.create !== void 0);
-    BRIDGE_CREATABLE_TYPES = codesWith((c) => c.bridgeCreate !== void 0);
-    BRIDGE_ONLY_CREATE_TYPES = codesWith(
-      (c) => c.bridgeCreate !== void 0 && c.create === void 0
-    );
-    BRIDGE_CREATE_REFUSED_TYPES = codesWith(
-      (c) => c.bridgeCreate?.createRefused !== void 0
-    );
-    BRIDGE_DELETABLE_TYPES = codesWith((c) => c.bridgeDelete !== void 0);
-    ENHANCEABLE_TYPES = codesWith((c) => c.write !== void 0 && c.create === void 0);
-    ACTIVATION_ONLY_TYPES = codesWith(
-      (c) => c.activate === true && c.write === void 0 && c.create === void 0
-    );
-    DELETABLE_TYPES = codesWith((c) => c.delete === true);
-    VERIFIED_CREATABLE_TYPES = codesWith((c) => c.create?.verified === true);
-    ABAP_WRITE_TYPES = codesWith(
-      (c) => c.create !== void 0 || c.bridgeCreate !== void 0 || c.write !== void 0
-    );
-    NON_READABLE_TYPES = codesWith(
-      (c) => c.catalogRead === void 0 && (c.unsupported !== void 0 || c.bridgeCreate !== void 0 && c.create === void 0)
-    ).filter((code) => {
-      const spec = TYPES.find((t) => t.type === code);
-      return !(spec?.mode === "ddic" && ddicStrategy(spec.kind) !== "unsupported");
-    });
-    NON_WRITABLE_TYPES = codesWith(
-      (c) => c.create === void 0 && c.bridgeCreate === void 0 && c.write === void 0 && c.activate !== true
-    );
-    PROPERTIES_SHAPE_TYPES = codesWith((c) => c.write?.shape === "properties");
-    TERMINAL_REFUSAL_NOTE = "Terminal for this object type \u2014 an identical retry cannot succeed.";
-    assertRegistryCoversTypes();
-    assertNoConflictingCapabilities();
-    assertWritableTypesAreReadable();
-  }
-});
-
-// src/safety.ts
-function isUnrestrictedPrefixList(prefixes) {
-  return prefixes.some((p) => p.trim() === NAME_PREFIX_WILDCARD);
-}
-function transportAllowlistHint(allowTransports) {
-  const normalized = allowTransports.map((t) => t.trim().toUpperCase()).filter((t) => t !== "");
-  if (normalized.length === 0) {
-    return "No transportable write can succeed in this session: ABAP_ALLOW_TRANSPORTS is explicitly empty. Only local ($-prefixed) packages such as $TMP are writable. Ask the operator to allow transports if this object must be transportable. " + TRANSPORT_HINT_TERMINAL;
-  }
-  if (normalized.includes("*")) {
-    return "Any modifiable request the connected user owns (or has a task in) can be named as corr_nr, or omit corr_nr to let the server pick one.";
-  }
-  const pins = normalized.filter((t) => t !== "AUTO");
-  if (pins.length === 0) {
-    return "The server picks the request itself under ABAP_ALLOW_TRANSPORTS=auto. Omit corr_nr: a modifiable workbench request this session created (abap_transport operation=create) or already attributed to itself is reused for the package, otherwise one is created \u2014 either way the response's transport field names it. Naming a request is refused regardless of which request. " + TRANSPORT_HINT_TERMINAL;
-  }
-  const omitClause = normalized.includes("AUTO") ? "or omit corr_nr to let the server pick or create one" : "or omit corr_nr to use the first of them that is still modifiable";
-  return `Only these requests are permitted: ${pins.join(", ")}. Pass one of them as corr_nr, ${omitClause}. No other request number passes; ask the operator to extend the list if the work must go elsewhere. ` + TRANSPORT_HINT_TERMINAL;
-}
-function normalizeCorrNr(corrNr) {
-  const trimmed = corrNr?.trim();
-  return trimmed === void 0 || trimmed === "" ? void 0 : trimmed;
-}
-function safetyTarget(fields) {
-  return {
-    name: fields.name,
-    ...fields.packageName !== void 0 ? { packageName: fields.packageName } : {},
-    ...fields.type !== void 0 ? { type: fields.type } : {},
-    ...fields.superPackage !== void 0 ? { superPackage: fields.superPackage } : {},
-    ...fields.exists !== void 0 ? { exists: fields.exists } : {}
-  };
-}
-function isValidAbapIdentifier(name, opts = {}) {
-  if (typeof name !== "string") return false;
-  const max = opts.maxLength ?? ABAP_IDENTIFIER_MAX;
-  if (name.length === 0 || name.length > max) return false;
-  let body = name;
-  if (opts.allowNamespace) {
-    const ns = /^\/[A-Za-z0-9][A-Za-z0-9_]*\//.exec(body);
-    if (ns) body = body.slice(ns[0].length);
-  }
-  if (opts.allowLocal && body.startsWith("$")) body = body.slice(1);
-  return /^[A-Za-z][A-Za-z0-9_]*$/.test(body);
-}
-function isAddressableAbapObjectName(name) {
-  return name.startsWith("$") ? isValidAbapIdentifier(name, { allowLocal: true, maxLength: Number.POSITIVE_INFINITY }) : isValidAbapIdentifier(name, { allowNamespace: true, maxLength: Number.POSITIVE_INFINITY });
-}
-function isEnhancementType(type) {
-  if (!type) return false;
-  const head = type.trim().toUpperCase().split("/")[0] ?? "";
-  return ENHANCEMENT_TYPE_HEADS.includes(head);
-}
-function isInvocationTarget(type) {
-  if (!type) return false;
-  return INVOCATION_TARGET_TYPES.has(type.trim().toUpperCase());
-}
-function join6(base, extra) {
-  return extra ? `${base} ${extra}` : base;
-}
-function packagePattern(pattern) {
-  const escaped = pattern.trim().replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*");
-  return new RegExp(`^${escaped}$`, "i");
-}
-function isSapNamespace(name) {
-  const n = name.trim().toUpperCase();
-  if (n.startsWith("/")) return true;
-  return false;
-}
-function isSapPackage(pkg) {
-  if (!pkg) return false;
-  const p = pkg.trim().toUpperCase();
-  if (p.startsWith("$")) return false;
-  if (p.startsWith("/")) return true;
-  if (p.startsWith("Z") || p.startsWith("Y")) return false;
-  return SAP_PACKAGE_PREFIXES.some((prefix) => p.startsWith(prefix));
-}
-function scanCdsText(raw) {
-  const out = [];
-  const stringSpans = [];
-  let i = 0;
-  const n = raw.length;
-  while (i < n) {
-    const c = raw[i];
-    if (c === "'") {
-      const start = i;
-      i++;
-      for (; ; ) {
-        if (i >= n) break;
-        if (raw[i] === "'") {
-          if (raw[i + 1] === "'") {
-            i += 2;
-            continue;
-          }
-          i++;
-          break;
-        }
-        i++;
-      }
-      stringSpans.push([start, i]);
-      out.push(raw.slice(start, i));
-      continue;
-    }
-    if (c === "-" && raw[i + 1] === "-") {
-      const start = i;
-      while (i < n && raw[i] !== "\n") i++;
-      out.push(" ".repeat(i - start));
-      continue;
-    }
-    if (c === "/" && raw[i + 1] === "*") {
-      const start = i;
-      i += 2;
-      while (i < n && !(raw[i] === "*" && raw[i + 1] === "/")) i++;
-      i = Math.min(i + 2, n);
-      out.push(" ".repeat(i - start));
-      continue;
-    }
-    out.push(c ?? "");
-    i++;
-  }
-  return { cleaned: out.join(""), stringSpans };
-}
-function insideAnyStringSpan(pos, spans) {
-  return spans.some(([s, e]) => pos >= s && pos < e);
-}
-function findMatchingBrace(text5, openIndex, stringSpans) {
-  let depth = 1;
-  let i = openIndex + 1;
-  while (i < text5.length) {
-    if (insideAnyStringSpan(i, stringSpans)) {
-      const span = stringSpans.find(([s, e]) => i >= s && i < e);
-      i = span ? span[1] : i + 1;
-      continue;
-    }
-    if (text5[i] === "{") depth++;
-    else if (text5[i] === "}") {
-      depth--;
-      if (depth === 0) return i;
-    }
-    i++;
-  }
-  return -1;
-}
-function extractSqlViewName(source) {
-  const { cleaned, stringSpans } = scanCdsText(source);
-  let tokenCount = 0;
-  for (const m of cleaned.matchAll(SQLVIEWNAME_TOKEN_RE)) {
-    if (!insideAnyStringSpan(m.index ?? 0, stringSpans)) tokenCount++;
-  }
-  if (tokenCount === 0) return { kind: "absent" };
-  const candidates = [];
-  for (const m of cleaned.matchAll(DOTTED_SQLVIEWNAME_RE)) {
-    candidates.push(m[1] ?? "");
-  }
-  for (const head of cleaned.matchAll(NESTED_ABAPCATALOG_HEAD_RE)) {
-    const headIndex = head.index ?? -1;
-    if (headIndex < 0) continue;
-    const openBrace = headIndex + head[0].length - 1;
-    const closeBrace = findMatchingBrace(cleaned, openBrace, stringSpans);
-    if (closeBrace < 0) {
-      return {
-        kind: "unparseable",
-        detail: "an @AbapCatalog: { ... } block was opened but never closed before the source ended."
-      };
-    }
-    const body = cleaned.slice(openBrace + 1, closeBrace);
-    for (const nested of body.matchAll(NESTED_SQLVIEWNAME_RE)) {
-      candidates.push(nested[1] ?? "");
-    }
-  }
-  if (candidates.length !== tokenCount) {
-    return {
-      kind: "unparseable",
-      detail: `found ${tokenCount} occurrence(s) of "sqlViewName" in the source but could only confidently extract ${candidates.length} value(s) from the recognised @AbapCatalog.sqlViewName (dotted) or @AbapCatalog: { sqlViewName: ... } (nested) forms \u2014 the rest use a spelling or structure this parser does not recognise.`
-    };
-  }
-  if (candidates.length > 1) {
-    return {
-      kind: "ambiguous",
-      detail: `found ${candidates.length} separate sqlViewName occurrences in one source.`
-    };
-  }
-  const raw = candidates[0] ?? "";
-  const value = raw.replace(/''/g, "'").trim();
-  if (!/^[A-Za-z0-9_/]+$/.test(value)) {
-    return {
-      kind: "unparseable",
-      detail: `the captured value ${JSON.stringify(raw)} is empty or contains characters outside A-Z, 0-9, "_" and "/".`
-    };
-  }
-  return { kind: "found", value: value.toUpperCase() };
-}
-function digitPrefixes(head, digits, reason) {
-  return [...digits].map((d) => ({ kind: "prefix", value: `${head}${d}`, reason }));
-}
-function operatorDenyRule(entry) {
-  const v = entry.trim().toUpperCase();
-  if (!v) return void 0;
-  if (v.endsWith("*")) {
-    return { kind: "prefix", value: v.slice(0, -1), reason: OPERATOR_DENY_REASON };
-  }
-  return { kind: "exact", value: v, reason: OPERATOR_DENY_REASON };
-}
-function ruleMatches(rule, candidates) {
-  return rule.kind === "exact" ? candidates.includes(rule.value) : candidates.some((c) => c.startsWith(rule.value));
-}
-function isPreviewTableDenied(name, extra) {
-  const upper = name.trim().toUpperCase();
-  if (!upper) return { denied: false };
-  const slash = upper.lastIndexOf("/");
-  const candidates = slash >= 0 && slash < upper.length - 1 ? [upper, upper.slice(slash + 1)] : [upper];
-  const rules = [...DEFAULT_PREVIEW_DENY_TABLES];
-  for (const entry of extra ?? []) {
-    const r = operatorDenyRule(entry);
-    if (r) rules.push(r);
-  }
-  for (const rule of rules) {
-    if (rule.kind === "exact" && ruleMatches(rule, candidates)) return { denied: true, rule };
-  }
-  for (const rule of rules) {
-    if (rule.kind === "prefix" && ruleMatches(rule, candidates)) return { denied: true, rule };
-  }
-  return { denied: false };
-}
-var MUTATING_OPS, SAP_PACKAGE_PREFIXES, DEFAULT_NAME_PREFIXES, NAME_PREFIX_WILDCARD, DEFAULT_ENHANCE_TARGETS, DEFAULT_TRANSPORTS, TRANSPORT_HINT_TERMINAL, ABAP_IDENTIFIER_MAX, ENHANCEMENT_TYPE_HEADS, ENHANCE_SAP_TARGET_REQUIREMENT, INVOCATION_TARGET_TYPES, DOTTED_SQLVIEWNAME_RE, NESTED_ABAPCATALOG_HEAD_RE, NESTED_SQLVIEWNAME_RE, SQLVIEWNAME_TOKEN_RE, DEFAULT_PREVIEW_DENY_TABLES, OPERATOR_DENY_REASON, PROBE_FAILURE_HINT, MINT, AuthorizedTarget, SafetyGate;
-var init_safety = __esm({
-  "src/safety.ts"() {
-    "use strict";
-    init_capabilities();
-    init_errors();
-    init_mode();
-    MUTATING_OPS = /* @__PURE__ */ new Set([
-      "write",
-      "activate",
-      "delete",
-      "execute",
-      "transport"
-    ]);
-    SAP_PACKAGE_PREFIXES = [
-      "S",
-      // SAP application packages
-      "A",
-      "B",
-      "C",
-      "D",
-      "E",
-      "F",
-      "G",
-      "H",
-      "I",
-      "J",
-      "K",
-      "L",
-      "M",
-      "N",
-      "O",
-      "P",
-      "Q",
-      "R",
-      "T",
-      "U",
-      "V",
-      "W",
-      "X"
-    ];
-    DEFAULT_NAME_PREFIXES = ["Z", "Y"];
-    NAME_PREFIX_WILDCARD = "*";
-    DEFAULT_ENHANCE_TARGETS = "none";
-    DEFAULT_TRANSPORTS = ["*"];
-    TRANSPORT_HINT_TERMINAL = "This refusal is terminal (retryable: false): no change to the arguments of this call will pass.";
-    ABAP_IDENTIFIER_MAX = 30;
-    ENHANCEMENT_TYPE_HEADS = ["ENHO", "ENHS", "ENHC", "ENHP"];
-    ENHANCE_SAP_TARGET_REQUIREMENT = {
-      capability: "enhanceTargets",
-      satisfiedBy: (caps) => caps.enhanceTargets === "sap",
-      label: "enhancing SAP or partner content",
-      legacyRemediation: "Set ABAP_ENHANCE_TARGETS=sap."
-    };
-    INVOCATION_TARGET_TYPES = /* @__PURE__ */ new Set(["TCODE"]);
-    DOTTED_SQLVIEWNAME_RE = /@AbapCatalog\s*\.\s*sqlViewName\s*:\s*'((?:[^']|'')*)'/gi;
-    NESTED_ABAPCATALOG_HEAD_RE = /@AbapCatalog\s*:\s*\{/gi;
-    NESTED_SQLVIEWNAME_RE = /sqlViewName\s*:\s*'((?:[^']|'')*)'/gi;
-    SQLVIEWNAME_TOKEN_RE = /sqlviewname/gi;
-    DEFAULT_PREVIEW_DENY_TABLES = Object.freeze(
-      [
-        // ---- 1. Credentials and security (exact) ----
-        { kind: "exact", value: "USR02", reason: "Password hashes for every user (BCODE/PASSCODE/PWDSALTEDHASH)." },
-        { kind: "exact", value: "USRPWDHISTORY", reason: "Historic password hashes \u2014 the same material as USR02, kept longer." },
-        { kind: "exact", value: "USH02", reason: "Change history of USR02, including superseded password hashes." },
-        { kind: "exact", value: "USH04", reason: "Change history of user authorisation assignments." },
-        { kind: "exact", value: "USR04", reason: "User authorisation profile assignments \u2014 a map of who can do what." },
-        { kind: "exact", value: "UST04", reason: "User-to-profile assignments; the companion index to USR04." },
-        { kind: "exact", value: "USR10", reason: "Authorisation profile definitions." },
-        { kind: "exact", value: "UST10S", reason: "Contents of single authorisation profiles." },
-        { kind: "exact", value: "UST10C", reason: "Contents of composite authorisation profiles." },
-        { kind: "exact", value: "RFCDES", reason: "RFC destination definitions, including stored logon credentials." },
-        { kind: "exact", value: "RFCATTRIB", reason: "RFC destination attributes \u2014 trust relationships and logon settings." },
-        { kind: "exact", value: "RSECTAB", reason: "Secure storage (SSFS) entries \u2014 the encrypted credential store." },
-        { kind: "exact", value: "RSECACTB", reason: "Secure storage access control entries." },
-        { kind: "exact", value: "SNCSYSACL", reason: "SNC access control list \u2014 which external identities may log on." },
-        { kind: "exact", value: "DEVACCESS", reason: "Developer access keys." },
-        {
-          kind: "exact",
-          value: "DBTABLOG",
-          // Listed for a structural reason, not a topical one: without it the whole
-          // category leaks through one generic table.
-          reason: "Table change log \u2014 holds before/after images of every logged table, USR02 included, and would otherwise be a hole through the rest of this list."
-        },
-        // ---- 2. Payroll and HR (digit-anchored prefixes; see non-entries above) ----
-        ...digitPrefixes(
-          "PA",
-          "0123456789",
-          "HR master data infotype \u2014 salary (0008), bank details (0009), tax, family and medical data."
-        ),
-        ...digitPrefixes(
-          "PB",
-          "0123456789",
-          "Applicant master data infotype \u2014 the same personal fields as PA*, for recruitment."
-        ),
-        ...digitPrefixes(
-          "PCL",
-          "12345",
-          "HR cluster table \u2014 PCL2 holds the payroll results themselves."
-        ),
-        { kind: "prefix", value: "HRP", reason: "HR planning / org-management infotypes \u2014 org units, positions and their holders." },
-        { kind: "prefix", value: "PTRV", reason: "Travel expenses \u2014 trips, receipts and reimbursement bank details." },
-        // Exact, and matched ahead of the HRP prefix by the exact-first pass in
-        // `isPreviewTableDenied`, so the refusal names payroll rather than OM.
-        { kind: "exact", value: "HRPY_RGDIR", reason: "Payroll results directory \u2014 the index into the PCL2 payroll clusters." },
-        // ---- 3. Accounting documents (exact) ----
-        { kind: "exact", value: "ACDOCA", reason: "Universal Journal line items \u2014 every posted financial document." },
-        { kind: "exact", value: "ACDOCP", reason: "Universal Journal plan line items." },
-        { kind: "exact", value: "BKPF", reason: "Accounting document headers." },
-        { kind: "exact", value: "BSEG", reason: "Accounting document line items \u2014 amounts, accounts, assignments." },
-        { kind: "exact", value: "BSET", reason: "Tax data per accounting document." },
-        { kind: "exact", value: "BSID", reason: "Open customer items (classic accounts receivable)." },
-        { kind: "exact", value: "BSAD", reason: "Cleared customer items (classic accounts receivable)." },
-        { kind: "exact", value: "BSIK", reason: "Open vendor items (classic accounts payable)." },
-        { kind: "exact", value: "BSAK", reason: "Cleared vendor items (classic accounts payable)." },
-        { kind: "exact", value: "BSIS", reason: "Open G/L account items." },
-        { kind: "exact", value: "BSAS", reason: "Cleared G/L account items." },
-        { kind: "exact", value: "FAGLFLEXA", reason: "New G/L actual line items." },
-        { kind: "exact", value: "FAGLFLEXT", reason: "New G/L totals." },
-        { kind: "exact", value: "REGUH", reason: "Payment run settlement data, including payee bank details." },
-        { kind: "exact", value: "REGUP", reason: "Payment run line items \u2014 which invoices were paid, and when." },
-        { kind: "exact", value: "PAYR", reason: "Payment and cheque register." },
-        { kind: "exact", value: "BNKA", reason: "Bank master data." },
-        // ---- 4. Personal data (prefix + exact) ----
-        { kind: "prefix", value: "ADR", reason: "Central address management \u2014 ADRC postal addresses, ADR2 telephone, ADR6 e-mail." },
-        { kind: "prefix", value: "BUT", reason: "Business partner master \u2014 BUT000 names, BUT020 addresses, BUT0BK bank details." },
-        { kind: "exact", value: "KNA1", reason: "Customer master \u2014 names and addresses." },
-        { kind: "exact", value: "KNVK", reason: "Customer contact persons \u2014 named individuals with contact details." },
-        { kind: "exact", value: "KNBK", reason: "Customer bank details." },
-        { kind: "exact", value: "KNVP", reason: "Customer partner functions \u2014 who is contacted for what." },
-        { kind: "exact", value: "LFA1", reason: "Vendor master \u2014 names and addresses." },
-        { kind: "exact", value: "LFBK", reason: "Vendor bank details." },
-        { kind: "exact", value: "LFB1", reason: "Vendor company-code data \u2014 payment terms and bank data." },
-        { kind: "exact", value: "USER_ADDR", reason: "Address data of every SAP user \u2014 name, telephone, e-mail." }
-      ].map((r) => Object.freeze(r))
-    );
-    OPERATOR_DENY_REASON = "Added by the operator via ABAP_DATA_PREVIEW_DENY_TABLES.";
-    PROBE_FAILURE_HINT = "This is not a configuration problem: no flag, allowlist or ABAP_MODE value is involved, and none would lift it. The connection to the ABAP system dropped before T000-CCCATEGORY could be read, which says nothing about whether the system is productive. The write lockout is a one-way latch held for the life of this server process, so retrying the call will not re-run the probe \u2014 restart the server to probe again, and if it keeps failing, investigate network stability between this host and the ABAP system.";
-    MINT = /* @__PURE__ */ Symbol("AuthorizedTarget.mint");
-    AuthorizedTarget = class {
-      op;
-      target;
-      constructor(token, op, target) {
-        if (token !== MINT) {
-          throw new Error(
-            "AuthorizedTarget can only be constructed by SafetyGate.authorize/authorizeIntent (src/safety.ts)."
-          );
-        }
-        this.op = op;
-        this.target = target;
-      }
-    };
-    SafetyGate = class {
-      constructor(cfg) {
-        this.cfg = cfg;
-      }
-      cfg;
-      /** Audit trail for {@link resetWriteLockout} — see {@link writeLockoutResets}. */
-      lockoutResets = [];
-      /**
-       * "Why is this capability off, and what actually turns it on?" — computed
-       * from {@link SafetyConfig.abapMode} (the mechanism that made the decision)
-       * rather than a hand-written sentence, so it can't say "set ABAP_ALLOW_X"
-       * on a server where that var is never read. Refusals about the narrowing
-       * override lists (ABAP_ALLOW_PACKAGES, ABAP_ALLOW_TRANSPORTS,
-       * ABAP_ALLOW_NAME_PREFIXES, ABAP_ENHANCE_TARGET_PACKAGES,
-       * ABAP_ORIGIN_SYSTEMS) deliberately do NOT route through here — those vars
-       * are still read under ABAP_MODE, so naming them directly is correct.
-       */
-      why(req) {
-        const e = explainDeniedCapability(req, this.cfg.abapMode);
-        return { cause: e.cause, remediation: e.remediation };
-      }
-      /** {@link why} for a refusal that needs more than one capability at once. */
-      whyAll(reqs) {
-        return explainDeniedCapabilities(reqs, this.cfg.abapMode);
-      }
-      /**
-       * Merge a patch into the live config. Every field is an ordinary overwrite
-       * except `writesLockedOut`, which is a ONE-WAY latch: once locked, no
-       * `update()` can clear it (a patch carrying `false`/`undefined` leaves it
-       * standing and drops the incoming verdict too) — only
-       * {@link resetWriteLockout} can. Asymmetric on purpose: staying locked on a
-       * real sandbox costs inconvenience; unlocking on real production costs an
-       * unauthorised write nothing undoes. Needed here rather than at the call
-       * site because `server.ts` re-transcribes the probe verdict after every
-       * primary logon, and a re-seated pool connection re-probes from scratch —
-       * a later inconclusive/productive verdict must not silently re-open writes
-       * process-wide. Detection itself already fails closed (an inconclusive
-       * re-probe LOCKS, never opens — `detectSystemRole()`,
-       * src/adt/connection.ts); this latch only stops the gate from forgetting a
-       * lockout it was already told about. Omitting `writesLockedOut` from a
-       * patch is a no-op for it; every other field updates normally.
-       */
-      update(patch) {
-        const next = { ...this.cfg, ...patch };
-        if (this.cfg.writesLockedOut && !next.writesLockedOut) {
-          next.writesLockedOut = true;
-          if (patch.productive !== true) next.productive = this.cfg.productive;
-          if (patch.systemRole !== "productive") next.systemRole = this.cfg.systemRole;
-          const keepLatched = this.cfg.lockoutReason !== void 0;
-          next.lockoutReason = keepLatched ? this.cfg.lockoutReason : patch.lockoutReason;
-          next.roleProbeFailure = keepLatched ? this.cfg.roleProbeFailure : patch.roleProbeFailure;
-        }
-        this.cfg = next;
-      }
-      /**
-       * The one deliberate way to clear a write lockout latched by {@link update}
-       * — a named, separate call so clearing a safety verdict is always explicit,
-       * never a side effect of a routine merge. `reason` must be non-empty:
-       * requiring the caller to write down why makes an accidental call hard to
-       * spell. Clears the lockout and its evidence ONLY — does not touch
-       * `productive`/`systemRole` (a system PROVEN productive is refused by a
-       * separate, un-overridable branch of `evaluate()`). A later `update()` with
-       * a fresh verdict can re-latch the lockout normally.
-       */
-      resetWriteLockout(reason) {
-        const why = reason.trim();
-        if (!why) {
-          throw new Error(
-            "resetWriteLockout(reason) requires a non-empty reason \u2014 clearing a write lockout is a deliberate act and must be attributable."
-          );
-        }
-        this.lockoutResets.push(why);
-        this.cfg = { ...this.cfg, writesLockedOut: false, lockoutReason: void 0, roleProbeFailure: void 0 };
-      }
-      /**
-       * Every reason given to {@link resetWriteLockout}, oldest first — an audit
-       * trail of the times this process talked itself out of a safety verdict.
-       */
-      get writeLockoutResets() {
-        return this.lockoutResets;
-      }
-      get config() {
-        return this.cfg;
-      }
-      /** Object-name prefixes currently in force for types that do not override them. */
-      get namePrefixes() {
-        return this.cfg.allowNamePrefixes ?? DEFAULT_NAME_PREFIXES;
-      }
-      /**
-       * The prefix list that judges THIS type's names.
-       *
-       * The global list (`ABAP_ALLOW_NAME_PREFIXES`, default `["*"]`) is
-       * wrong for exactly one type: SAP itself rejects a lock object named
-       * `ZRECON_MLK1` (`400 ExceptionResourceCreationFailure`, "Test objects
-       * cannot be created in foreign namespaces") and requires `EZRECON_MLK1` —
-       * captured live against a real system. A type may declare its own list in
-       * `src/adt/capabilities.ts`, which REPLACES the global one for that type
-       * (relaxing the global default to include `E` would loosen the gate for
-       * all types; intersecting the lists would refuse every lock-object name).
-       * The override applies even under the wildcard {@link NAME_PREFIX_WILDCARD}
-       * — a per-type list states what the SERVER accepts, not what this
-       * installation wants to permit, so `*` cannot silence it; honouring
-       * `["EZ","EY"]` under a wildcard turns a wasted round trip into an
-       * instant, explained refusal. Types without an override are unaffected —
-       * pinned by `test/safety.test.ts`.
-       */
-      namePrefixesForType(type) {
-        const override = capabilitiesFor(type)?.namePrefixes;
-        return override && override.length > 0 ? override : this.namePrefixes;
-      }
-      /**
-       * Transport allowlist in force. Unset ⇒ {@link DEFAULT_TRANSPORTS}; an
-       * explicitly empty array is preserved as empty, because that is a deliberate
-       * deny-all and not an absence of configuration.
-       */
-      get transportAllowlist() {
-        return this.cfg.allowTransports ?? DEFAULT_TRANSPORTS;
-      }
-      /** `ABAP_ENHANCE_TARGETS` in force. Unset ⇒ {@link DEFAULT_ENHANCE_TARGETS}. */
-      get enhanceTargets() {
-        return this.cfg.enhanceTargets ?? DEFAULT_ENHANCE_TARGETS;
-      }
-      /** Packages that may be ENHANCED. Unset and explicitly empty both mean deny-all. */
-      get enhanceTargetPackages() {
-        return this.cfg.enhanceTargetPackages ?? [];
-      }
-      /**
-       * SIDs treated as ADDITIONAL local origin, normalised. Empty ⇒ no
-       * additional origins beyond this system's own SID — see
-       * {@link isLocalOrigin} for the full predicate; this getter alone is no
-       * longer the whole story.
-       */
-      get originSystems() {
-        return (this.cfg.originSystems ?? []).map((s) => s.trim().toUpperCase()).filter(Boolean);
-      }
-      /**
-       * This server's own SID (`SafetyConfig.sid`, i.e. `ABAP_SID`), normalised,
-       * or `undefined` when it is not usably configured. `"UNKNOWN"` — the schema
-       * default `loadConfig()` produces when `ABAP_SID` was never set — is
-       * treated as unset rather than as a real identity: this value feeds a
-       * security predicate ({@link isLocalOrigin}), and a placeholder must never
-       * be capable of matching a real `adtcore:masterSystem` by coincidence.
-       */
-      get ownSid() {
-        const s = this.cfg.sid?.trim().toUpperCase();
-        return s && s !== "UNKNOWN" ? s : void 0;
-      }
-      /**
-       * Is `masterSystem` (from `adtcore:masterSystem`, e.g.
-       * {@link EnhancementIntent.targetMasterSystem}/`.enhancementMasterSystem`)
-       * evidence the object counts as LOCAL to this installation? Local if any of:
-       * (1) absent — unpopulated for any object that has never left this system
-       * ($TMP, untransported package), so absence is positive evidence, not a
-       * gap to fail closed on; (2) equals this system's own SID ({@link ownSid});
-       * (3) named in `ABAP_ORIGIN_SYSTEMS` (additional trusted origins, e.g. a
-       * former SID retained after a copy/refresh) — widens (1)/(2), never the
-       * sole test, so an empty list means "no extra origins", not "nothing is
-       * local". FIXED BUG: previously `ABAP_ORIGIN_SYSTEMS.includes(masterSystem)`
-       * was the sole test, defaulting to `[]` and so refusing every enhancement
-       * tool unconditionally out of the box — see
-       * the git history for the full incident writeup. A real
-       * other system (`"SAP"`, an unlisted partner SID) still fails all three and
-       * is still refused or routed through the `sap`/partner opt-in ceiling,
-       * unchanged. Test matrix: `test/safety.test.ts`.
-       */
-      isLocalOrigin(masterSystem) {
-        const ms = masterSystem?.trim().toUpperCase();
-        if (!ms) return true;
-        if (this.ownSid && ms === this.ownSid) return true;
-        return this.originSystems.includes(ms);
-      }
-      /** Non-throwing evaluation, so tools can explain rather than just fail. */
-      evaluate(op, obj, opts = {}) {
-        if (!MUTATING_OPS.has(op)) return { allowed: true, reason: "read operations are always allowed" };
-        if (this.cfg.productive || this.cfg.systemRole === "productive") {
-          return {
-            allowed: false,
-            reason: "System reports itself as productive \u2014 writes are forced off with no override.",
-            rule: "productive \u2192 read-only",
-            code: "READ_ONLY"
-          };
-        }
-        if (this.cfg.writesLockedOut) {
-          const probeFailure = this.cfg.roleProbeFailure;
-          if (probeFailure !== void 0) {
-            return {
-              allowed: false,
-              reason: `The system-role probe never got an answer, so this system is unclassified and writes are refused. The T000 probe failed below HTTP: ${probeFailure}. That is a dropped connection, not a finding about the system's role.`,
-              rule: "probe did not complete \u2192 read-only (fail closed)",
-              code: "ROLE_PROBE_FAILED",
-              hint: PROBE_FAILURE_HINT
-            };
-          }
-          return {
-            allowed: false,
-            reason: "This system could not be proven non-productive, so writes are refused. " + (this.cfg.lockoutReason ?? "The system-role probe returned no usable evidence.") + " A write flag does not override this, and no ABAP_MODE value does either.",
-            rule: "unproven \u2192 read-only (fail closed)",
-            code: "READ_ONLY"
-          };
-        }
-        if (op === "transport" && opts.release && this.cfg.readOnly) {
-          const why = this.whyAll(["allowWrite", "allowTransportRelease"]);
-          return {
-            allowed: false,
-            reason: `Server is running read-only, so releasing a transport request is refused. Release needs both of them. ${why.cause} ${why.remediation}`,
-            rule: "read-only default (release also needs the transport-allowlist ceiling)",
-            code: "READ_ONLY"
-          };
-        }
-        if (op === "transport" && opts.deleteTransport && this.cfg.readOnly) {
-          const why = this.whyAll(["allowWrite", "allowTransportDelete"]);
-          return {
-            allowed: false,
-            reason: `Server is running read-only, so deleting a transport request is refused. Delete needs both of them. ${why.cause} ${why.remediation}`,
-            rule: "read-only default (delete also needs the transport-allowlist ceiling)",
-            code: "READ_ONLY"
-          };
-        }
-        if (opts.publish && this.cfg.readOnly) {
-          const why = this.whyAll(["allowWrite", "allowServicePublish"]);
-          return {
-            allowed: false,
-            reason: `Server is running read-only, so publishing a service binding is refused. Publishing needs both of them. ${why.cause} ${why.remediation}`,
-            rule: "read-only default (publishing also needs the service-publish ceiling)",
-            code: "READ_ONLY"
-          };
-        }
-        if (this.cfg.readOnly) {
-          const why = this.why("allowWrite");
-          return {
-            allowed: false,
-            reason: `Server is running read-only. ${why.cause} ${why.remediation}`,
-            rule: "read-only default",
-            code: "READ_ONLY"
-          };
-        }
-        if (op === "transport" && opts.release && !this.cfg.allowTransportRelease) {
-          const why = this.why("allowTransportRelease");
-          return {
-            allowed: false,
-            reason: `Writes are enabled but releasing a transport request is a separate ceiling. ${why.cause} ${why.remediation}`,
-            rule: "transport release ceiling",
-            code: "READ_ONLY"
-          };
-        }
-        if (op === "transport" && opts.deleteTransport && !this.cfg.allowTransportDelete) {
-          const why = this.why("allowTransportDelete");
-          return {
-            allowed: false,
-            reason: `Writes are enabled but deleting a transport request is a separate ceiling. ${why.cause} ${why.remediation}`,
-            rule: "transport delete ceiling",
-            code: "READ_ONLY"
-          };
-        }
-        if (opts.publish && !this.cfg.allowServicePublish) {
-          const why = this.why("allowServicePublish");
-          return {
-            allowed: false,
-            reason: `Writes are enabled but publishing a service binding is a separate ceiling. ${why.cause} ${why.remediation}`,
-            rule: "service publish ceiling",
-            code: "READ_ONLY"
-          };
-        }
-        if (op === "transport" && !obj) {
-          return {
-            allowed: true,
-            reason: "Transport-level operation with no object: the object rules (SAP namespace, package, name prefix, transport allowlist) have nothing to judge."
-          };
-        }
-        if (!obj) {
-          return {
-            allowed: false,
-            reason: "No object supplied for a mutating operation.",
-            rule: "no object supplied for mutating operation",
-            code: "SAFETY_DENIED"
-          };
-        }
-        if (isSapNamespace(obj.name)) {
-          return {
-            allowed: false,
-            reason: `${obj.name} lives in a reserved SAP namespace.`,
-            rule: "SAP namespace denied",
-            code: "SAFETY_DENIED"
-          };
-        }
-        if (isInvocationTarget(obj.type)) {
-          return {
-            allowed: true,
-            reason: `${obj.name} is an invocation target (${obj.type}), not a repository object: the package allowlist, the customer-namespace name-prefix rule, and the transport allowlist all judge properties a transaction code does not have. The productive-system, write-lockout and read-only ceilings above already applied, and the SAP-namespace check above still refuses a registered namespace tcode.`
-          };
-        }
-        if (isSapPackage(obj.packageName)) {
-          return {
-            allowed: false,
-            reason: `Package ${obj.packageName} is SAP-owned. Modifying it needs an access key and a human.`,
-            rule: "SAP namespace denied",
-            code: "SAFETY_DENIED"
-          };
-        }
-        const isPackageCreate = op === "write" && (obj.type ?? "").trim().toUpperCase() === "DEVC/K" && obj.exists !== true;
-        const container = isPackageCreate ? obj.superPackage : obj.packageName;
-        const packageKnown = container !== void 0 && container !== "";
-        if (isPackageCreate || opts.phase !== "preflight" || packageKnown) {
-          if (this.cfg.allowPackages.length === 0) {
-            return {
-              allowed: false,
-              reason: "No package allowlist is configured, so no package may be written to.",
-              rule: "writes need an explicit flag AND an allowlist",
-              code: "SAFETY_DENIED"
-            };
-          }
-          const rootWildcarded = isPackageCreate && !packageKnown && this.cfg.allowPackages.some((p) => p.trim() === "*");
-          if (isPackageCreate && !packageKnown && !rootWildcarded) {
-            return {
-              allowed: false,
-              reason: `${obj.name} would be a ROOT package \u2014 it names no superpackage, so it lands in no allowlisted container, and a list of named containers cannot match "no container". The allowlist is [${this.cfg.allowPackages.join(", ")}]. To create a root package the allowlist must contain the explicit wildcard entry: ABAP_ALLOW_PACKAGES='*'.`,
-              rule: "package allowlist",
-              code: "SAFETY_DENIED"
-            };
-          }
-          const pkg = container ?? "";
-          const matched = rootWildcarded || this.cfg.allowPackages.some((p) => packagePattern(p).test(pkg));
-          if (!matched) {
-            return {
-              allowed: false,
-              reason: isPackageCreate ? `Superpackage ${pkg} is not in the allowlist [${this.cfg.allowPackages.join(", ")}] \u2014 a new package may only be created inside an allowlisted container.` : `Package ${pkg || "(unknown)"} is not in the allowlist [${this.cfg.allowPackages.join(", ")}].`,
-              rule: "package allowlist",
-              code: "SAFETY_DENIED"
-            };
-          }
-        }
-        const name = (obj.name ?? "").trim().toUpperCase();
-        const prefixes = this.namePrefixesForType(obj.type);
-        const perType = prefixes !== this.namePrefixes;
-        const unrestricted = isUnrestrictedPrefixList(prefixes);
-        if (!unrestricted && prefixes.length && !prefixes.some((p) => name.startsWith(p.trim().toUpperCase()))) {
-          return {
-            allowed: false,
-            reason: `${obj.name} is outside the customer namespace: a write must target a name starting with [${prefixes.join(", ")}]` + (perType ? `. ${obj.type} names are judged against that list and not the general one [${this.namePrefixes.join(", ")}], because the ABAP system itself refuses the general one for this type \u2014 ABAP_ALLOW_NAME_PREFIXES=${NAME_PREFIX_WILDCARD} does not lift it.` : `. Set ABAP_ALLOW_NAME_PREFIXES to a list that covers it, or to ${NAME_PREFIX_WILDCARD} to drop the name rule entirely (SAP-owned objects stay denied either way).`),
-            rule: "object-name allowlist",
-            code: "SAFETY_DENIED"
-          };
-        }
-        let enhancementReason;
-        if (isEnhancementType(obj.type)) {
-          const intent = opts.intent;
-          if (!intent) {
-            if (opts.phase === "final") {
-              return {
-                allowed: false,
-                reason: `INTERNAL: the safety gate was asked to judge ${obj.name} (${obj.type}) at phase:"final" \u2014 a declaration that resolution is complete and this target is authoritative \u2014 with no EnhancementIntent. That combination is never a legitimate user-facing refusal: every enhancement-type target reaching the FINAL phase must already have had its EnhancementIntent built from the caller's \`affects\` (see enhancementIntentFor()/enhancementPreflightIntent(), and authorizeMutation() for the reference pattern) before this call. This is a wiring defect in abapsmith's own code, not a decision about this request \u2014 the call site dropped the intent instead of building and passing it. Fix the call site; there is no flag that silences this.`,
-                rule: "gate self-defence: final-phase enhancement target with no intent",
-                code: "INTERNAL_GATE_MISUSE"
-              };
-            }
-            return {
-              allowed: false,
-              reason: `${obj.name} is an enhancement object (${obj.type}), whose effect is on an object that does not appear in its own name, package or URI. The gate cannot judge it from the artefact alone: supply \`affects\` \u2014 the object this enhancement changes the behaviour of (name, packageName, and optionally masterSystem/spotName) \u2014 so the write can be judged against what it actually touches.`,
-              rule: "enhancement write needs an intent",
-              code: "SAFETY_DENIED"
-            };
-          }
-          const declared = intent.enhancementName.trim().toUpperCase();
-          if (declared !== (obj.name ?? "").trim().toUpperCase()) {
-            return {
-              allowed: false,
-              reason: `The supplied enhancement intent describes ${intent.enhancementName}, but this operation targets ${obj.name}. An intent authorises the artefact it names and no other.`,
-              rule: "intent/artefact mismatch",
-              code: "SAFETY_DENIED"
-            };
-          }
-          const enhancement = this.enhancementRules(intent);
-          if (!enhancement.allowed) return enhancement;
-          enhancementReason = enhancement.reason;
-        }
-        const pkgUpper = (obj.packageName ?? "").trim().toUpperCase();
-        const needsTransport = packageKnown && pkgUpper !== "" && !pkgUpper.startsWith("$");
-        if (needsTransport) {
-          const allowTransports = this.transportAllowlist;
-          const namedCorrNr = normalizeCorrNr(opts.corrNr);
-          const corr = opts.corr ?? {
-            kind: "transport",
-            corrNr: namedCorrNr ?? "auto",
-            source: namedCorrNr === void 0 ? "auto" : "named"
-          };
-          if (allowTransports.length === 0) {
-            return {
-              allowed: false,
-              reason: `${obj.name} is in package ${obj.packageName}, which needs a transport request, but ABAP_ALLOW_TRANSPORTS is explicitly empty \u2014 every transportable write is refused. Local ($-prefixed) packages are unaffected.`,
-              rule: "transport allowlist (fail closed)",
-              code: "SAFETY_DENIED",
-              hint: transportAllowlistHint(allowTransports)
-            };
-          }
-          if (corr.kind === "local") {
-            return {
-              allowed: true,
-              reason: join6(
-                `${obj.name} resolved to a local (non-transportable) write; the transport allowlist does not apply.`,
-                enhancementReason
-              )
-            };
-          }
-          const normalized = allowTransports.map((t) => t.trim().toUpperCase());
-          if (!normalized.includes("*") && corr.kind === "transport") {
-            const requested = corr.corrNr.trim().toUpperCase();
-            const ok24 = normalized.includes(requested) || corr.source === "auto" && normalized.includes("AUTO");
-            if (!ok24) {
-              return {
-                allowed: false,
-                reason: `Transport ${corr.corrNr} is not permitted by ABAP_ALLOW_TRANSPORTS [${allowTransports.join(", ")}].`,
-                rule: "transport allowlist",
-                code: "SAFETY_DENIED",
-                hint: transportAllowlistHint(allowTransports)
-              };
-            }
-          }
-        }
-        return {
-          allowed: true,
-          reason: join6(
-            packageKnown ? isPackageCreate ? `Superpackage ${container} is allowlisted.` : `Package ${container} is allowlisted.` : "Package check deferred.",
-            enhancementReason
-          )
-        };
-      }
-      /**
-       * Gate a table data preview. Non-throwing; {@link assertDataPreview} throws.
-       *
-       * Not routed through `evaluate("read")`: that returns `{allowed:true}` for
-       * every non-mutating op on its first line, which would skip the deny-list
-       * and the productive ceiling and let `SELECT * FROM USR02` through on a
-       * production system. Every check is written out here instead. Order:
-       * productive/unproven ceiling first (un-overridable), then the deny-list.
-       * `readOnly` is deliberately NOT checked — a preview is a read, and
-       * `ABAP_MODE=read` must not switch it off; whether the feature is enabled
-       * at all is `ABAP_ALLOW_DATA_PREVIEW`, decided in capabilities.
-       */
-      evaluateDataPreview(table, extraDeny) {
-        const name = table.trim();
-        if (!name) {
-          return {
-            allowed: false,
-            reason: "No table name was supplied, so nothing could be judged against the preview deny-list.",
-            rule: "data preview",
-            code: "SAFETY_DENIED"
-          };
-        }
-        if (this.cfg.productive || this.cfg.systemRole === "productive") {
-          return {
-            allowed: false,
-            reason: "System reports itself as productive \u2014 reading table contents is refused with no override. No flag, including ABAP_ALLOW_DATA_PREVIEW, changes this.",
-            rule: "productive \u2192 no data preview",
-            code: "READ_ONLY"
-          };
-        }
-        if (this.cfg.writesLockedOut) {
-          const probeFailure = this.cfg.roleProbeFailure;
-          if (probeFailure !== void 0) {
-            return {
-              allowed: false,
-              reason: `The system-role probe never got an answer, so this system is unclassified and reading table contents is refused. The T000 probe failed below HTTP: ${probeFailure}. That is a dropped connection, not a finding about the system's role.`,
-              rule: "probe did not complete \u2192 no data preview (fail closed)",
-              code: "ROLE_PROBE_FAILED",
-              hint: PROBE_FAILURE_HINT
-            };
-          }
-          return {
-            allowed: false,
-            reason: "This system could not be proven non-productive, so reading table contents is refused. " + (this.cfg.lockoutReason ?? "The system-role probe returned no usable evidence.") + " ABAP_ALLOW_DATA_PREVIEW does not override this.",
-            rule: "unproven \u2192 no data preview (fail closed)",
-            code: "READ_ONLY"
-          };
-        }
-        if (this.cfg.writesLockedOut === void 0) {
-          return {
-            allowed: false,
-            reason: "The system role has not been determined on this connection yet, so reading table contents is refused. A preview must not run before the system-role probe has proven the system non-productive.",
-            rule: "unproven \u2192 no data preview (fail closed)",
-            code: "READ_ONLY"
-          };
-        }
-        const hit = isPreviewTableDenied(name, extraDeny ?? this.cfg.dataPreviewDenyTables);
-        if (hit.denied && hit.rule) {
-          const { kind, value, reason } = hit.rule;
-          return {
-            allowed: false,
-            reason: `Table ${name.toUpperCase()} is on the data-preview deny-list (${kind} rule "${value}"): ${reason} This is a policy refusal, not a transient error \u2014 retrying will not change it. The list matches the name as given, case-insensitively, plus the segment after the last slash; it does not resolve a view to what it selects from, so a differently-named view over the same rows is not caught by this rule.`,
-            rule: `preview deny-list (${kind} "${value}")`,
-            code: "SAFETY_DENIED"
-          };
-        }
-        return {
-          allowed: true,
-          reason: `Table ${name.toUpperCase()} is not on the data-preview deny-list.`
-        };
-      }
-      /**
-       * Throwing form of {@link evaluateDataPreview}, for the preview tool. The
-       * hint states the deny-list cannot be narrowed by any setting, unless the
-       * decision carries its own hint.
-       */
-      assertDataPreview(table, extraDeny) {
-        const d = this.evaluateDataPreview(table, extraDeny);
-        if (d.allowed) return;
-        throw new AbapError(
-          d.code ?? "SAFETY_DENIED",
-          d.reason,
-          {
-            operation: "read",
-            rule: d.rule,
-            table: table.trim().toUpperCase()
-          },
-          d.hint ?? "ABAP_DATA_PREVIEW_DENY_TABLES can only ADD entries to the built-in deny-list; no setting removes one. A productive or unclassified system refuses every preview regardless of flags."
-        );
-      }
-      /**
-       * Gate the variable-contents tier of a runtime-error dump read.
-       * Non-throwing; {@link assertDumpVariables} throws.
-       *
-       * Two tiers: tier 1 (error class, program, include, line, timestamp, user,
-       * source extract, call stack) is an ordinary read with NO gate anywhere —
-       * a diagnostic tool that can't report what crashed isn't safer, it's
-       * absent. Tier 2 is locals/work-areas/internal-table VALUES at the moment
-       * of termination — the PII surface (customer records, bank details, salary
-       * fields on a real system) — and the only thing this method judges.
-       *
-       * Not routed through `evaluate("read")`, same reasoning as
-       * {@link evaluateDataPreview}. Deliberately does NOT check `readOnly` in
-       * either direction: a read-only server must still be able to grant this
-       * (capability-wise `canWrite === !readOnly`, so gating on it would hand
-       * the widest access to the read-only production connection an operator
-       * chose to be careful). Also deliberately carries no productive/lockout
-       * ceiling — diagnosing production incidents is the point of this feature;
-       * the operator's explicit `ABAP_ALLOW_DUMP_VARIABLES` opt-in is the control.
-       */
-      evaluateDumpVariables() {
-        if (this.cfg.allowDumpVariables === true) {
-          return {
-            allowed: true,
-            reason: "ABAP_ALLOW_DUMP_VARIABLES is set, so variable-bearing dump chapters may be returned."
-          };
-        }
-        return {
-          allowed: false,
-          reason: "Variable contents are withheld from this dump. The Selected Variables chapter holds the live values of locals, work areas and internal tables at the moment of termination, which on a system with real users behind it routinely means customer records, bank details and salary fields \u2014 so it is returned only when an operator has explicitly opted in with ABAP_ALLOW_DUMP_VARIABLES=true. That is the configured policy of this server, not a fault and not an unfinished feature: retrying, rewording the request or asking for the chapter by another name will not change it. Everything else about the dump is unaffected \u2014 error class, program, include, line, the source extract and the call stack are all still readable, and they answer what failed and where without any field values.",
-          rule: "dump variables (tier 2) \u2014 ABAP_ALLOW_DUMP_VARIABLES",
-          code: "DUMP_VARIABLES_DISABLED"
-        };
-      }
-      /**
-       * Throwing form of {@link evaluateDumpVariables}, for the dump tool. Carries
-       * no dump key, chapter text or variable name in the error — an error
-       * payload is as much a transcript as a successful response. The hint also
-       * names the two flags that are NOT the answer (`ABAP_ALLOW_WRITE`,
-       * `ABAP_MODE=admin`), since reaching for those gets neither the data nor a
-       * clearer refusal.
-       */
-      assertDumpVariables() {
-        const d = this.evaluateDumpVariables();
-        if (d.allowed) return;
-        throw new AbapError(
-          d.code ?? "DUMP_VARIABLES_DISABLED",
-          d.reason,
-          {
-            operation: "read",
-            rule: d.rule,
-            tier: "variables"
-          },
-          "ABAP_ALLOW_DUMP_VARIABLES=true is the only setting that enables this. It is deliberately independent of ABAP_ALLOW_WRITE and of ABAP_MODE: a read-only server can grant it, and ABAP_MODE=admin does not. Tier-1 dump reading (error class, program, line, source extract, call stack) needs no flag at all."
-        );
-      }
-      /**
-       * Gate the classic-DDIC `@AbapCatalog.sqlViewName` a `DDLS/DF` source names,
-       * against the same namespace rules that judge the object's own name
-       * (`isSapNamespace`, `namePrefixesForType`, `isUnrestrictedPrefixList`).
-       * Non-throwing; {@link assertDdlsSqlViewName} throws.
-       *
-       * Not inside `evaluate()`: that judges `obj.name`, a short structured
-       * string; `sqlViewName` must first be parsed out of the write's free-form
-       * source, which `evaluate()`'s `SafetyTarget` never carries. Activation
-       * creates a real database view at whatever `sqlViewName` says, independent
-       * of the DDLS object's own name — so a `Z`-named DDLS could still point
-       * activation outside the customer namespace unless this value is checked
-       * too. Called from `abapWrite` (src/tools/write.ts), the one place a final
-       * DDLS/DF source is known before writing.
-       *
-       * `extractSqlViewName` is deliberately conservative — refuses rather than
-       * guesses on ambiguity. This method turns `"absent"` into an allow (e.g.
-       * `define view entity` on 7.55+ has no classic `sqlViewName`) and anything
-       * else that isn't `"found"` into a named refusal.
-       */
-      evaluateDdlsSqlViewName(source, obj) {
-        const extraction = extractSqlViewName(source);
-        if (extraction.kind === "absent") {
-          return {
-            allowed: true,
-            reason: "No @AbapCatalog.sqlViewName annotation was found in this source, so there is no database-view name to check against the customer namespace."
-          };
-        }
-        if (extraction.kind === "ambiguous" || extraction.kind === "unparseable") {
-          return {
-            allowed: false,
-            reason: `This DDLS source's @AbapCatalog.sqlViewName could not be judged safely: ${extraction.detail} A write is refused rather than letting an unverified database-view name through \u2014 activation would create that view under whatever name sqlViewName actually names, and this gate cannot confirm that name stays inside the customer namespace.`,
-            rule: `ddls sqlViewName \u2014 ${extraction.kind}`,
-            code: "SAFETY_DENIED"
-          };
-        }
-        const value = extraction.value;
-        if (isSapNamespace(value)) {
-          return {
-            allowed: false,
-            reason: `${obj.name}'s @AbapCatalog.sqlViewName activates a database view named ${value}, which lives in a reserved SAP namespace \u2014 the same rule that refuses a registered-namespace object name refuses this.`,
-            rule: "ddls sqlViewName \u2014 SAP namespace denied",
-            code: "SAFETY_DENIED"
-          };
-        }
-        const prefixes = this.namePrefixesForType(obj.type);
-        const unrestricted = isUnrestrictedPrefixList(prefixes);
-        if (!unrestricted && prefixes.length && !prefixes.some((p) => value.startsWith(p.trim().toUpperCase()))) {
-          return {
-            allowed: false,
-            reason: `${obj.name}'s @AbapCatalog.sqlViewName activates a database view named ${value}, which is outside the customer namespace: it must start with [${prefixes.join(", ")}] \u2014 the same list that judges ${obj.name} itself. Set ABAP_ALLOW_NAME_PREFIXES to a list that covers it, or to ${NAME_PREFIX_WILDCARD} to drop the name rule entirely (SAP-owned namespaces stay denied either way).`,
-            rule: "ddls sqlViewName \u2014 outside customer namespace",
-            code: "SAFETY_DENIED"
-          };
-        }
-        return {
-          allowed: true,
-          reason: `@AbapCatalog.sqlViewName ${value} is inside the customer namespace.`
-        };
-      }
-      /**
-       * Throwing form of {@link evaluateDdlsSqlViewName}, for the write path.
-       */
-      assertDdlsSqlViewName(source, obj) {
-        const d = this.evaluateDdlsSqlViewName(source, obj);
-        if (d.allowed) return;
-        throw new AbapError(
-          d.code ?? "SAFETY_DENIED",
-          d.reason,
-          {
-            operation: "write",
-            rule: d.rule,
-            object: obj.name,
-            type: obj.type
-          },
-          "The database view a classic DDIC-based CDS view activates is named by its own @AbapCatalog.sqlViewName annotation, not by the DDLS object's own name. This checks that annotation against the same customer-namespace rule (ABAP_ALLOW_NAME_PREFIXES) that judges the object name itself \u2014 point sqlViewName at a name inside the namespace, or make the annotation unambiguous and parseable if this was refused for that reason instead."
-        );
-      }
-      /**
-       * Gate an enhancement BEFORE any ABAP is generated.
-       *
-       * `evaluate()` is URI-shaped — it judges a resolved object's name, package,
-       * type — but ADT REST refuses to create enhancement spots/definitions
-       * directly, so this feature runs its ABAP through the fluid API: the reused
-       * `ZCL_ZMCP_FLUID_ENH` body plus a content-addressed `ZCL_ZMCP_I_<hash8>`
-       * invoker, both in `$ABAPSMITH_FLUID_API`. The only objects with a URI on
-       * that route are those two helpers, which pass every rule trivially; the
-       * real enhancement/spot/target are opaque JSON arguments no URI-shaped gate
-       * can read. So this gates the INTENT, before generation — before-execution
-       * would be too late, since by then the identifiers are already buried in an
-       * argument blob this gate cannot judge.
-       *
-       * Narrows one route, does not close the channel: `abap_run`'s classrun
-       * path (`src/adt/run.ts`, `src/adt/bopf-runtime.ts`) still generates and
-       * executes arbitrary ABAP via an ungated per-call bridge deployed to the
-       * same `$ABAPSMITH_FLUID_API` package — pre-existing, out of scope here,
-       * tracked separately.
-       *
-       * Deny by default: with no `ABAP_ALLOW_ENHANCEMENTS`, `ABAP_ENHANCE_TARGETS`,
-       * or `ABAP_ENHANCE_TARGET_PACKAGES`, every intent is refused.
-       */
-      evaluateIntent(intent, opts = {}) {
-        const op = opts.op ?? "write";
-        if (!MUTATING_OPS.has(op)) {
-          return {
-            allowed: false,
-            reason: `evaluateIntent was called with the non-mutating operation "${op}". Generating and running ABAP is never a read: pass write, activate, delete, execute or transport.`,
-            rule: "no read-only classrun exemption",
-            code: "SAFETY_DENIED"
-          };
-        }
-        const malformed = this.intentGrammar(intent);
-        if (malformed) return malformed;
-        const artefact = safetyTarget({
-          name: intent.enhancementName,
-          packageName: intent.enhancementPackage,
-          type: isEnhancementType(intent.enhancementType) ? intent.enhancementType : "ENHO/XHH"
-        });
-        return this.evaluate(op, artefact, { ...opts, intent });
-      }
-      /**
-       * ABAP name grammar for every identifier in an intent, or `undefined` if
-       * they all pass. These strings are substituted verbatim into generated
-       * ABAP (`src/adt/enhancement-templates.ts`); a quote or period is an
-       * injection, not a bad name — the gate cannot read generated source, so
-       * this is the only defence there is. Checked first, ahead of every
-       * allowlist. Empty strings are skipped: emptiness means "not resolved",
-       * which the rules below refuse with a more useful message.
-       */
-      intentGrammar(i) {
-        const identifiers = [
-          ["enhancementName", i.enhancementName, { allowNamespace: true }],
-          ["enhancementPackage", i.enhancementPackage, { allowNamespace: true, allowLocal: true }],
-          ["spotName", i.spotName, { allowNamespace: true }],
-          ["targetName", i.targetName, { allowNamespace: true }],
-          ["targetPackage", i.targetPackage, { allowNamespace: true, allowLocal: true }]
-        ];
-        for (const [field, value, rules] of identifiers) {
-          if (value === void 0 || value === "") continue;
-          if (!isValidAbapIdentifier(value, rules)) {
-            return {
-              allowed: false,
-              reason: `Enhancement intent field ${field} = ${JSON.stringify(value)} is not a valid ABAP object name (letter, then letters/digits/underscores, at most ${ABAP_IDENTIFIER_MAX} characters). It would be substituted verbatim into generated ABAP source.`,
-              rule: "ABAP identifier grammar",
-              code: "SAFETY_DENIED"
-            };
-          }
-        }
-        return void 0;
-      }
-      /**
-       * The enhancement-specific rules, applied to an intent that has already
-       * cleared the artefact's own rules in `evaluate()`. Split out so both entry
-       * points — a direct `evaluateIntent()` call and an ordinary `evaluate()` on
-       * an object whose `type` is an enhancement — reach the identical decision.
-       */
-      enhancementRules(i) {
-        const malformed = this.intentGrammar(i);
-        if (malformed) return malformed;
-        if (this.cfg.allowEnhancements !== true) {
-          const why = this.why("allowEnhancements");
-          return {
-            allowed: false,
-            reason: `Enhancement authoring is disabled. ${why.cause} ${why.remediation} ` + // Names the write flag ONLY under legacy config, where it is the thing
-            // that actually decides writes and the operator will grep for it.
-            // Under ABAP_MODE the flag decides nothing, so naming it here would be
-            // the very misattribution `why` exists to prevent (see the
-            // single-mention invariant on legacyOverriddenClause).
-            (this.cfg.abapMode === void 0 ? "ABAP_ALLOW_WRITE=true does not imply it" : `ABAP_MODE=${this.cfg.abapMode} granting ordinary writes does not imply it`) + ", because an enhancement changes the behaviour of an object it does not live in.",
-            rule: "enhancements need an explicit flag",
-            code: "ENHANCEMENT_DISABLED"
-          };
-        }
-        const artefactOrigin = i.enhancementMasterSystem?.trim().toUpperCase();
-        if (artefactOrigin && !this.isLocalOrigin(artefactOrigin)) {
-          return {
-            allowed: false,
-            reason: `${i.enhancementName} originates in system ${artefactOrigin}, which is neither this server's own system (${this.ownSid ?? "SID not configured \u2014 set ABAP_SID"}) nor named in ABAP_ORIGIN_SYSTEMS [${this.originSystems.join(", ") || "(none configured)"}]. Changing it is a repair of somebody else's original, and no allowlist opens that. If this system was copied and ${artefactOrigin} is a former SID of it, add ${artefactOrigin} to ABAP_ORIGIN_SYSTEMS.`,
-            rule: "origin ceiling (repair refused)",
-            code: "REPAIR_REFUSED"
-          };
-        }
-        const targets = this.enhanceTargets;
-        if (targets === "none") {
-          const why = this.why("enhanceTargets");
-          return {
-            allowed: false,
-            reason: `No object may be enhanced at all. ${why.cause} ${why.remediation}`,
-            rule: "enhancement target class",
-            code: "ENHANCEMENT_DISABLED"
-          };
-        }
-        const targetName = i.targetName?.trim() ?? "";
-        const targetPackage = i.targetPackage?.trim() ?? "";
-        if (!targetName || !targetPackage) {
-          return {
-            allowed: false,
-            reason: "The enhanced object could not be resolved (name and package are both required). An enhancement whose target is unknown is refused rather than assumed harmless.",
-            rule: "enhanced object unresolved",
-            code: "ENHANCEMENT_TARGET_DENIED"
-          };
-        }
-        const targetOrigin = i.targetMasterSystem?.trim().toUpperCase();
-        const local = this.isLocalOrigin(targetOrigin);
-        const sapNamed = isSapNamespace(targetName) || isSapPackage(targetPackage);
-        const ownership = local ? sapNamed ? "sap" : "customer" : targetOrigin === "SAP" ? "sap" : "partner";
-        if (ownership === "customer") {
-          return {
-            allowed: true,
-            reason: `${targetName} is locally-originated customer content in ${targetPackage}.`
-          };
-        }
-        const whose = ownership === "sap" ? "SAP standard content" : `content originating in system ${targetOrigin}, i.e. partner or third-party content`;
-        if (targets !== "sap") {
-          const sapTargets = this.why(ENHANCE_SAP_TARGET_REQUIREMENT);
-          return {
-            allowed: false,
-            reason: `${targetName} (package ${targetPackage}) is ${whose}, and the enhancement target class is 'customer'. ${sapTargets.cause} Two things are required and doing only one leaves this refused: (1) ${sapTargets.remediation} (2) add ${targetPackage} to ABAP_ENHANCE_TARGET_PACKAGES, which is an override list and is still read under ABAP_MODE.` + // The ABAP_ORIGIN_SYSTEMS remediation only makes sense when `!local`
-            // (targetOrigin is a genuine foreign SID); when `local` is true,
-            // targetOrigin may be undefined or this system's own SID, and used
-            // to render literally as "adding undefined to ABAP_ORIGIN_SYSTEMS".
-            (local ? " There is no ABAP_ORIGIN_SYSTEMS fix for this one: the object is already locally-originated, and is refused for its SAP-pattern naming or package, not for where it comes from." : ` If this system was copied and ${targetOrigin} is a former SID of it, adding ${targetOrigin} to ABAP_ORIGIN_SYSTEMS is the correct fix instead.`),
-            rule: "enhanced object outside ABAP_ENHANCE_TARGETS",
-            // Allowlist (target class) did not match.
-            code: "ENHANCEMENT_TARGET_DENIED"
-          };
-        }
-        const pkgs = this.enhanceTargetPackages;
-        if (pkgs.length === 0) {
-          return {
-            allowed: false,
-            reason: `${targetName} is ${whose}, and ABAP_ENHANCE_TARGET_PACKAGES is empty \u2014 which is a deny-all, not an absence of configuration. Add ${targetPackage} to it. A 'sap' target class alone enhances nothing.`,
-            rule: "enhanced-package allowlist (fail closed)",
-            // ABAP_ENHANCE_TARGET_PACKAGES failed to match.
-            code: "ENHANCEMENT_TARGET_DENIED"
-          };
-        }
-        if (!pkgs.some((p) => packagePattern(p).test(targetPackage))) {
-          return {
-            allowed: false,
-            reason: `Package ${targetPackage} (holding ${whose} object ${targetName}) is not in ABAP_ENHANCE_TARGET_PACKAGES [${pkgs.join(", ")}].`,
-            rule: "enhanced-package allowlist",
-            code: "ENHANCEMENT_TARGET_DENIED"
-          };
-        }
-        return {
-          allowed: true,
-          reason: ownership === "sap" ? `${targetName} is SAP standard content in allowlisted package ${targetPackage}.` : `${targetName} originates in system ${targetOrigin} (partner content) and its package ${targetPackage} is allowlisted.`
-        };
-      }
-      /**
-       * Throwing form of {@link evaluateIntent}, for the bridge call sites that
-       * cannot continue. `details` carries BOTH objects — the artefact and what it
-       * affects — because a refusal naming only the artefact sends the reader
-       * looking at the wrong one.
-       */
-      assertIntent(intent, opts = {}) {
-        const d = this.evaluateIntent(intent, opts);
-        if (d.allowed) return;
-        throw new AbapError(
-          d.code ?? "SAFETY_DENIED",
-          d.reason,
-          {
-            operation: opts.op ?? "write",
-            rule: d.rule,
-            artefact: {
-              name: intent.enhancementName,
-              type: intent.enhancementType ?? "ENHO/XHH",
-              package: intent.enhancementPackage,
-              masterSystem: intent.enhancementMasterSystem
-            },
-            affects: {
-              name: intent.targetName,
-              package: intent.targetPackage,
-              masterSystem: intent.targetMasterSystem,
-              resolvedFrom: intent.spotName ? "spot" : "enhancedObject"
-            },
-            phase: opts.phase ?? "final"
-          },
-          this.cfg.abapMode !== void 0 ? `Enhancement authoring and its target class both come from ABAP_MODE (=${this.cfg.abapMode} here); for SAP or partner content a matching ABAP_ENHANCE_TARGET_PACKAGES entry is needed on top, and that one IS still read.` : "Enhancement authoring needs ABAP_ALLOW_ENHANCEMENTS=true, ABAP_ENHANCE_TARGETS=customer|sap, and \u2014 for SAP or partner content \u2014 a matching ABAP_ENHANCE_TARGET_PACKAGES entry. Each is required; none implies another."
-        );
-      }
-      /** Throwing form for call sites that cannot continue. */
-      assert(op, obj, opts = {}) {
-        const d = this.evaluate(op, obj, opts);
-        if (d.allowed) return;
-        throw new AbapError(
-          d.code ?? (op === "read" ? "SAFETY_DENIED" : "READ_ONLY"),
-          d.reason,
-          {
-            operation: op,
-            rule: d.rule,
-            object: obj?.name,
-            // Type and package travel with the refusal because a reader asking
-            // "why was this refused" needs the blast radius, not just the name.
-            type: obj?.type,
-            package: obj?.packageName,
-            phase: opts.phase ?? "final"
-          },
-          d.hint ?? (this.cfg.abapMode !== void 0 ? `Writes come from ABAP_MODE (=${this.cfg.abapMode} here) plus a package allowlist (ABAP_ALLOW_PACKAGES, still read under ABAP_MODE) and a customer-namespace object name.` : "Writes require ABAP_ALLOW_WRITE=true plus a package allowlist (ABAP_ALLOW_PACKAGES, which allows every customer package unless set, and refuses every write if set empty) and a customer-namespace object name.")
-        );
-      }
-      /**
-       * Throwing gate check that also mints the {@link AuthorizedTarget} proof.
-       * This is what call sites use INSTEAD OF calling `assert` and then making
-       * the wire call with a bare URI/target and a `gate?: SafetyGate` parameter:
-       * they call `authorize` first and thread the returned value through to the
-       * function that actually calls `conn.post`/`put`/`del`.
-       */
-      authorize(op, target, opts = {}) {
-        this.assert(op, target, opts);
-        return new AuthorizedTarget(MINT, op, target);
-      }
-      /** {@link authorize}, for the intent-based (enhancement) route. */
-      authorizeIntent(op, intent, target, opts = {}) {
-        this.assertIntent(intent, { ...opts, op });
-        return new AuthorizedTarget(MINT, op, target);
-      }
-    };
-  }
-});
-
 // src/config.ts
 import { readFileSync as readFileSync3 } from "node:fs";
 function loadEnvFile(path9) {
@@ -66592,6 +68076,9 @@ function loadConfig(opts = {}) {
     terminalId: env.ABAP_TERMINAL_ID,
     ideId: env.ABAP_IDE_ID,
     timeoutMs: env.ABAP_TIMEOUT_MS ?? 6e4,
+    bopfTimeoutMs: env.ABAP_BOPF_TIMEOUT_MS ?? 18e4,
+    activateTimeoutMs: env.ABAP_ACTIVATE_TIMEOUT_MS ?? 18e4,
+    runTimeoutMs: env.ABAP_RUN_TIMEOUT_MS ?? 18e4,
     lockWaitMs: env.ABAP_LOCK_WAIT_MS ?? 5e3,
     stateDir: env.ABAP_STATE_DIR ?? ".abapsmith",
     maxResponseChars: env.ABAP_MAX_RESPONSE_CHARS,
@@ -67102,6 +68589,12 @@ var init_config = __esm({
         "ABAP_IDE_ID must be exactly 32 uppercase hex characters (SYSUUID_C32) \u2014 the server does not normalise case, so lowercase hex names a different session"
       ).optional(),
       timeoutMs: external_exports.coerce.number().int().positive().default(6e4),
+      /** Per-request timeout for BOPF create_bo POST and BOPF activation (`ABAP_BOPF_TIMEOUT_MS`). */
+      bopfTimeoutMs: external_exports.coerce.number().int().positive().default(18e4),
+      /** Per-request timeout for every POST /sap/bc/adt/activation (single and mass/DDIC) (`ABAP_ACTIVATE_TIMEOUT_MS`). */
+      activateTimeoutMs: external_exports.coerce.number().int().positive().default(18e4),
+      /** Per-request timeout for abap_run classrun execution (`ABAP_RUN_TIMEOUT_MS`). */
+      runTimeoutMs: external_exports.coerce.number().int().positive().default(18e4),
       /** How long to wait for the cross-process journal index lock before giving up. */
       lockWaitMs: external_exports.coerce.number().int().positive().default(5e3),
       /** Directory for cross-process state — the journal index lockfile and the durable auth latch. Default `<cwd>/.abapsmith`. */
@@ -105564,442 +107057,7 @@ init_safety();
 // src/tools/debug.ts
 init_zod();
 init_errors();
-
-// src/adt/resolve.ts
-init_safety();
-init_capabilities();
-init_ddic_strategy();
-init_errors();
-
-// src/adt/search-descriptions.ts
-var VERIFIED_GROUPS = /* @__PURE__ */ new Set(["TABL", "PROG"]);
-var KNOWN_CLEAN_GROUPS = /* @__PURE__ */ new Set(["FUGR"]);
-var typeGroupOf = (r) => (r["adtcore:type"] ?? "").split("/")[0].toUpperCase();
-var byNameAscending = (a, b) => {
-  const [x, y] = [a["adtcore:name"] ?? "", b["adtcore:name"] ?? ""];
-  return x < y ? -1 : x > y ? 1 : 0;
-};
-var wireOrderMatchesModel = (entries) => entries.every((entry, i) => {
-  if (i === 0) return true;
-  const prevType = (entries[i - 1].ref["adtcore:type"] ?? "").toUpperCase();
-  const type = (entry.ref["adtcore:type"] ?? "").toUpperCase();
-  if (prevType !== type) return prevType <= type;
-  const prevName = (entries[i - 1].ref["adtcore:name"] ?? "").toUpperCase();
-  const name = (entry.ref["adtcore:name"] ?? "").toUpperCase();
-  return prevName <= name;
-});
-function repairSearchDescriptions(refs) {
-  const groups = /* @__PURE__ */ new Map();
-  refs.forEach((ref2, index) => {
-    const key = typeGroupOf(ref2);
-    const bucket = groups.get(key);
-    if (bucket) bucket.push({ index, ref: ref2 });
-    else groups.set(key, [{ index, ref: ref2 }]);
-  });
-  const out = refs.slice();
-  const repairedGroups = /* @__PURE__ */ new Set();
-  const suspectGroups = /* @__PURE__ */ new Set();
-  for (const [key, entries] of groups) {
-    if (KNOWN_CLEAN_GROUPS.has(key)) continue;
-    const distinctTypes = new Set(entries.map((e) => e.ref["adtcore:type"] ?? ""));
-    if (distinctTypes.size < 2) continue;
-    if (entries.some((e) => !e.ref["adtcore:description"])) continue;
-    if (!wireOrderMatchesModel(entries)) continue;
-    const wireDescriptions = entries.map((e) => e.ref["adtcore:description"]);
-    const byName = entries.slice().sort((a, b) => byNameAscending(a.ref, b.ref));
-    const permutation = byName.map((entry, i) => ({ entry, description: wireDescriptions[i] }));
-    const changed = permutation.some(({ entry, description }) => description !== entry.ref["adtcore:description"]);
-    if (!changed) continue;
-    if (!VERIFIED_GROUPS.has(key)) {
-      suspectGroups.add(key);
-      continue;
-    }
-    for (const { entry, description } of permutation) {
-      out[entry.index] = { ...entry.ref, "adtcore:description": description };
-    }
-    repairedGroups.add(key);
-  }
-  return { refs: out, repairedGroups: [...repairedGroups].sort(), suspectGroups: [...suspectGroups].sort() };
-}
-
-// src/adt/resolve.ts
-init_types();
-var SUB_OBJECT_NOUNS = {
-  indexes: "index",
-  values: "fixed value",
-  objectstructure: "object structure"
-};
-function activationFromVersion(version2) {
-  if (typeof version2 !== "string") return "unknown";
-  const v = version2.trim().toLowerCase();
-  if (v === "active") return "active-is-current";
-  if (v === "inactive") return "newer-inactive-exists";
-  return "unknown";
-}
-function conventionSpec(name) {
-  const n = name.toUpperCase();
-  if (/^(Z|Y|\/\w+\/)?CL_/.test(n) || /^CL_/.test(n)) return specForType("CLAS/OC");
-  if (/^(Z|Y|\/\w+\/)?IF_/.test(n) || /^IF_/.test(n)) return specForType("INTF/OI");
-  if (/^(Z|Y)?I_/.test(n)) return specForType("DDLS/DF");
-  return void 0;
-}
-function parseObjectRef(input, hint) {
-  const raw = (input ?? "").trim();
-  if (!raw) throw new AbapError("BAD_INPUT", "Empty object reference.");
-  const res = /^abap:\/\/([^/]+)\/([^/]+)\/(.+)$/i.exec(raw);
-  if (res) {
-    const spec2 = specForType(res[2]);
-    const { name: name2, member: member2 } = splitMember(res[3]);
-    return { name: name2.toUpperCase(), spec: spec2, member: member2, via: spec2 ? "typecode" : "unknown" };
-  }
-  if (/^https?:\/\//i.test(raw) || raw.startsWith("/sap/bc/adt/")) {
-    const hit = specFromUri(raw);
-    if (!hit) {
-      const issue4 = classifyUnmatchedAdtPath(raw);
-      if (issue4?.kind === "sub-object") {
-        const noun = SUB_OBJECT_NOUNS[issue4.segment] ?? issue4.segment;
-        const article = /^[aeiou]/i.test(noun) ? "an" : "a";
-        const target = issue4.subName ? `${noun} ${issue4.subName}` : `${article} ${noun}`;
-        const parentLabel = issue4.spec.label.toLowerCase();
-        throw new AbapError(
-          "UNSUPPORTED",
-          `${noun[0].toUpperCase()}${noun.slice(1)} sub-objects are not readable: ${raw} addresses ${target} inside ${parentLabel} ${issue4.name}.`,
-          {
-            uri: raw,
-            type: issue4.spec.type,
-            object: issue4.name,
-            subObject: issue4.segment,
-            ...issue4.subName ? { subName: issue4.subName } : {}
-          },
-          `abapsmith addresses whole objects. Pass the ${parentLabel} itself: "${issue4.name}" or ${buildUri(issue4.spec, issue4.name, issue4.parent)}.`
-        );
-      }
-      if (issue4?.kind === "not-an-object") {
-        throw new AbapError(
-          "BAD_INPUT",
-          `${raw} addresses a ${issue4.what}, not an ABAP repository object.`,
-          { uri: raw },
-          issue4.what === "transport request" ? "Use abap_transport to work with transport requests." : void 0
-        );
-      }
-      throw new AbapError(
-        "BAD_INPUT",
-        `Unrecognised ADT URI: ${raw}`,
-        { uri: raw },
-        'Pass an object name instead, e.g. "class ZCL_FOO".'
-      );
-    }
-    return {
-      name: hit.name,
-      spec: hit.spec,
-      parent: hit.parent,
-      // Must propagate: dropping it silently substitutes /source/main for whatever include was asked for.
-      include: hit.include,
-      uri: buildUri(hit.spec, hit.name, hit.parent),
-      via: "uri"
-    };
-  }
-  let rest = raw;
-  let spec;
-  let via = "unknown";
-  const codeMatch = /^([A-Za-z]{4}(?:\/[A-Za-z]{1,3})?)\s+(.+)$/.exec(rest);
-  if (codeMatch) {
-    const candidate = specForType(codeMatch[1]);
-    const lower = rest.toLowerCase();
-    const stolenByLongerKeyword = KEYWORDS_BY_LENGTH.some(
-      ({ keyword }) => keyword.length > codeMatch[1].length && lower.startsWith(keyword + " ")
-    );
-    if (candidate && !stolenByLongerKeyword) {
-      spec = candidate;
-      rest = codeMatch[2].trim();
-      via = "typecode";
-    }
-  }
-  if (!spec) {
-    const lower = rest.toLowerCase();
-    for (const { keyword, spec: cand } of KEYWORDS_BY_LENGTH) {
-      if (lower.startsWith(keyword + " ")) {
-        spec = cand;
-        rest = rest.slice(keyword.length).trim();
-        via = "keyword";
-        break;
-      }
-    }
-  }
-  let parent;
-  const inMatch = /^(.*?)\s+(?:in|of|from)\s+([A-Za-z0-9_/]+)$/i.exec(rest);
-  if (inMatch) {
-    rest = inMatch[1].trim();
-    parent = inMatch[2].toUpperCase();
-    if (!isAddressableAbapObjectName(parent)) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `${JSON.stringify(parent)} is not a valid container name in ${JSON.stringify(input)}.`,
-        { input, parent },
-        `The container name is embedded in the object's URI, so a malformed one would address a different object than the one you meant. Fix the spelling, e.g. "ZFM in ZFG".`
-      );
-    }
-  }
-  const { name: namePart, member } = splitMember(rest);
-  let name = namePart;
-  const parentAware = spec ?? hint;
-  if (!parent && parentAware?.parentPath && name.includes("/")) {
-    const split = splitParentName(name);
-    if (split) {
-      parent = split.parent.toUpperCase();
-      name = split.name;
-    }
-  }
-  name = name.trim().replace(/^["'`]|["'`]$/g, "");
-  if (!isAddressableAbapObjectName(name)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `Could not extract an ABAP object name from ${JSON.stringify(input)}.`,
-      { input },
-      name.includes("/") ? `Pass the object's type (e.g. type: "FUGR/FF") to address it as "PARENT/NAME", or spell it as "NAME in GROUP".` : 'Try "class ZCL_FOO", "ZCL_FOO", or a full ADT URI.'
-    );
-  }
-  name = name.toUpperCase();
-  if (!spec) {
-    const guess = conventionSpec(name);
-    if (guess) {
-      spec = guess;
-      via = "convention";
-    }
-  }
-  return { name, spec, parent, member, via };
-}
-function splitMember(s) {
-  const m = /^(.*?)(?:=>|->|~|::|\.)([A-Za-z_][A-Za-z0-9_~/]*)$/.exec(s.trim());
-  if (!m) return { name: s.trim() };
-  return { name: m[1].trim(), member: m[2].toUpperCase() };
-}
-function splitParentName(input) {
-  const candidates = [];
-  for (let i = 0; i < input.length; i++) {
-    if (input[i] !== "/") continue;
-    const parent = input.slice(0, i);
-    if (!isAddressableAbapObjectName(parent)) continue;
-    const name = input.slice(i + 1);
-    if (isAddressableAbapObjectName(name)) candidates.push({ parent, name });
-  }
-  return candidates.length === 1 ? candidates[0] : void 0;
-}
-async function resolveObject(conn, input, opts = {}) {
-  if (opts.type) {
-    const cap = capabilitiesFor(opts.type);
-    const code = opts.type.trim().toUpperCase();
-    if (cap?.unsupported) {
-      throw new AbapError(
-        "UNSUPPORTED",
-        `${cap.label} (${code}) cannot be read by abapsmith. ${cap.unsupported.reason} ${TERMINAL_REFUSAL_NOTE}`,
-        { type: code },
-        // `catalogRead` types (SUSO/B) have no ADT resource to resolve a URI
-        // against either — resolveObject genuinely cannot serve them — but
-        // abap_read dispatches on the explicit type hint before this
-        // function ever runs, so the hint points there instead of the
-        // registry's own (write-focused) alternative text.
-        cap.catalogRead ? `There is no ADT resource to resolve a URI against. abap_read {"object":"<name>","type":"${code}"} renders it read-only from the catalog (${cap.catalogRead.from}) \u2014 name it as ${cap.catalogRead.nameForm}.` : cap.unsupported.alternative,
-        { retryable: false }
-        // matches UNSUPPORTED's own default; reaffirmed for readability at the throw site
-      );
-    }
-    if (cap?.bridgeCreate && isBridgeOnlyCreateType(opts.type)) {
-      const spec2 = specForType(opts.type);
-      const readable = spec2?.mode === "ddic" && ddicStrategy(spec2.kind) !== "unsupported";
-      if (!readable) {
-        throw new AbapError(
-          "UNSUPPORTED",
-          `${cap.label} (${code}) has no ADT-readable collection to resolve a URI against. ${cap.bridgeCreate.adtRest} ${TERMINAL_REFUSAL_NOTE}`,
-          { type: code },
-          // Same catalogRead redirect as above — TABL/DI has no ADT resource
-          // either, but abap_read's explicit-type dispatch renders it from
-          // catalog tables before resolveObject is reached.
-          cap.catalogRead ? `abap_read {"object":"<name>","type":"${code}"} renders it read-only from the catalog (${cap.catalogRead.from}) \u2014 name it as ${cap.catalogRead.nameForm}.` : (
-            // Registry-sourced when the create is refused, so this hint cannot
-            // send a caller to `abap_write` for a create `abap_write` will refuse.
-            cap.bridgeCreate.createRefused ?? "abapsmith can create this type through a generated classrun bridge (see abap_write), but cannot read one back."
-          ),
-          { retryable: false }
-          // matches UNSUPPORTED's own default; reaffirmed for readability at the throw site
-        );
-      }
-    }
-  }
-  const forced = opts.type ? specForType(opts.type) : void 0;
-  const parsed = parseObjectRef(input, forced);
-  const spec = forced ?? parsed.spec;
-  const certain = forced !== void 0 || parsed.via === "uri" || parsed.via === "typecode" || parsed.via === "keyword" || opts.trustHint === true;
-  if (spec && certain && spec.parentPath && !parsed.parent) {
-    return resolveParented(conn, spec, parsed);
-  }
-  if (spec && certain && (!spec.parentPath || parsed.parent)) {
-    const packageName = await lookupPackageName(conn, parsed.name, spec.type);
-    return finish(conn, spec, parsed.name, parsed, { packageName });
-  }
-  const results = await searchExact(conn, parsed.name, spec?.type);
-  if (results.length === 0) {
-    const guessed = forced === void 0 && parsed.via === "convention";
-    if (spec && !guessed) return finish(conn, spec, parsed.name, parsed, {});
-    if (spec && guessed && await existsAt(conn, buildUri(spec, parsed.name, parsed.parent))) {
-      return finish(conn, spec, parsed.name, parsed, {});
-    }
-    throw new AbapError(
-      "NOT_FOUND",
-      `No ABAP object named ${parsed.name} was found.`,
-      {
-        name: parsed.name,
-        ...spec ? { assumedType: spec.type, assumedFrom: "naming-convention" } : {}
-      },
-      spec ? `The name looks like a ${spec.label} by convention, but the repository search found no object called ${parsed.name} and a direct read of the ${spec.label} URI did not find one either. Check the spelling, or use abap_search with a pattern (e.g. {"query": "ZCL_*"}).` : 'Use abap_search to look for a pattern, e.g. {"query": "ZCL_*"}.'
-    );
-  }
-  const usable = results.map((r) => ({ r, spec: specForType(r["adtcore:type"]) })).filter((x) => x.spec !== void 0);
-  if (usable.length === 0) {
-    throw new AbapError(
-      "UNSUPPORTED",
-      `${parsed.name} exists but its type (${results[0]["adtcore:type"]}) is not a readable source object.`,
-      { name: parsed.name, types: results.map((r) => r["adtcore:type"]) }
-    );
-  }
-  if (usable.length > 1) {
-    const preferred = spec ? usable.find((u) => u.spec.type === spec.type) : void 0;
-    if (!preferred) {
-      throw new AbapError(
-        "AMBIGUOUS",
-        `${parsed.name} matches ${usable.length} object types.`,
-        { candidates: usable.map((u) => ({ type: u.spec.type, name: u.r["adtcore:name"] })) },
-        'Disambiguate with a type prefix, e.g. "class ZCL_FOO" or {"type": "TABL/DT"}.'
-      );
-    }
-    return finishFromSearch(conn, preferred.spec, preferred.r, parsed);
-  }
-  return finishFromSearch(conn, usable[0].spec, usable[0].r, parsed);
-}
-async function searchExact(conn, name, type) {
-  const spec = type ? specForType(type) : void 0;
-  const kind = spec?.parentPath ? void 0 : type?.split("/")[0];
-  const results = await conn.adt.searchObject(name, kind, 25);
-  const { refs: repaired } = repairSearchDescriptions(results);
-  const exact = repaired.filter((r) => r["adtcore:name"]?.toUpperCase() === name.toUpperCase());
-  return exact.length ? exact : [];
-}
-async function identifyByName(conn, name) {
-  const results = await searchExact(conn, name).catch(() => []);
-  const byType = /* @__PURE__ */ new Map();
-  for (const r of results) {
-    const spec = specForType(r["adtcore:type"]);
-    if (spec) byType.set(spec.type, spec);
-  }
-  return [...byType.values()];
-}
-async function existsAt(conn, uri) {
-  try {
-    return Boolean(await conn.adt.objectStructure(uri));
-  } catch {
-    return false;
-  }
-}
-async function lookupPackageName(conn, name, type) {
-  try {
-    const results = await searchExact(conn, name, type);
-    const matching = results.find((r) => r["adtcore:type"]?.toUpperCase() === type.toUpperCase());
-    return (matching ?? results[0])?.["adtcore:packageName"];
-  } catch {
-    return void 0;
-  }
-}
-async function resolveParented(conn, spec, parsed) {
-  const rows = await searchExact(conn, parsed.name, spec.type);
-  const withParent = rows.filter((r) => r["adtcore:type"]?.toUpperCase() === spec.type.toUpperCase()).map((r) => ({ r, parent: specFromUri(cleanUri(r["adtcore:uri"]) ?? "")?.parent })).filter((x) => x.parent !== void 0);
-  const groups = [];
-  for (const { parent } of withParent) {
-    if (!groups.includes(parent)) groups.push(parent);
-  }
-  if (groups.length === 1) {
-    const match = withParent.find((x) => x.parent === groups[0]);
-    return finishFromSearch(conn, spec, match.r, parsed);
-  }
-  if (groups.length > 1) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `${spec.label} ${parsed.name} exists in ${groups.length} function groups (${groups.join(", ")}).`,
-      { name: parsed.name, type: spec.type, groups },
-      `Name the group: "${parsed.name} in ${groups[0]}" or "${groups[0]}/${parsed.name}".`
-    );
-  }
-  const why = spec.type === "FUGR/FF" ? `it does not index generated function modules (ENQUEUE_*, and others), which exist and read fine once the group is named` : `the search does not index ${spec.label.toLowerCase()}s at all`;
-  throw new AbapError(
-    "BAD_INPUT",
-    `${spec.label} ${parsed.name} needs its function group.`,
-    { name: parsed.name, type: spec.type },
-    `The repository search found no ${spec.label.toLowerCase()} called ${parsed.name} to take the group from \u2014 ${why}. Say "${parsed.name} in ZFG" or "ZFG/${parsed.name}".`
-  );
-}
-function finishFromSearch(conn, spec, r, parsed) {
-  const uri = cleanUri(r["adtcore:uri"]);
-  const enriched = parsed.parent ? parsed : withParentFromUri(parsed, uri);
-  return finish(conn, spec, r["adtcore:name"].toUpperCase(), enriched, {
-    description: r["adtcore:description"],
-    packageName: r["adtcore:packageName"],
-    uri,
-    // Free if the server volunteers adtcore:version; SearchResult doesn't type it but
-    // searchObject returns every objectReference attribute. Usually "unknown", not "active".
-    activation: activationFromVersion(
-      r["adtcore:version"]
-    )
-  });
-}
-async function checkActivation(conn, obj) {
-  try {
-    const struc = await conn.adt.objectStructure(obj.uri);
-    return activationFromVersion(struc?.metaData?.["adtcore:version"]);
-  } catch {
-    return "unknown";
-  }
-}
-function withParentFromUri(parsed, uri) {
-  if (!uri) return parsed;
-  const hit = specFromUri(uri);
-  return hit?.parent ? { ...parsed, parent: hit.parent } : parsed;
-}
-function finish(conn, spec, name, parsed, extra) {
-  if (spec.parentPath && !parsed.parent) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `${spec.label} ${name} needs its function group.`,
-      { name, type: spec.type },
-      'Say e.g. "function module Z_FOO in ZFG" or "ZFG/Z_FOO". abap_search {"query":"Z_FOO","type":"FUGR/FF"} lists the owning group in its `group` column.'
-    );
-  }
-  const uri = cleanUri(extra.uri) ?? parsed.uri ?? buildUri(spec, name, parsed.parent);
-  const include = spec.type === "CLAS/OC" ? parsed.include : void 0;
-  const sourceUri = spec.supportsSource ? spec.type === "CLAS/OC" ? classIncludeUri(uri, include ?? "main") : `${uri}/source/main` : void 0;
-  return {
-    system: conn.cfg.sid,
-    type: spec.type,
-    kind: spec.kind,
-    label: spec.label,
-    name,
-    uri,
-    sourceUri,
-    include,
-    parent: parsed.parent,
-    member: parsed.member,
-    description: extra.description,
-    packageName: extra.packageName,
-    mode: spec.mode,
-    // Never omitted: a consumer must name a state before claiming the active version is current.
-    activation: extra.activation ?? "unknown",
-    spec
-  };
-}
-function cleanUri(uri) {
-  if (!uri) return void 0;
-  return uri.replace(/[?#].*$/, "");
-}
-
-// src/tools/debug.ts
+init_resolve();
 init_compact();
 
 // src/debug/identity.ts
@@ -107230,895 +108288,8 @@ async function readEnhancementSpot(conn, name) {
 // src/tools/run.ts
 init_zod();
 init_errors();
-
-// src/adt/source.ts
-init_errors();
-init_session();
-init_types();
-var import_utilities = __toESM(require_utilities(), 1);
-
-// src/adt/write-verify.ts
-init_capabilities();
-init_errors();
-
-// src/adt/package-ref.ts
-var XML_COMMENT_RE = /<!--[\s\S]*?-->/g;
-var PACKAGE_REF_TAG_RE = /<(?:[A-Za-z_][\w.-]*:)?packageRef\b([^>]*)>/gi;
-var PACKAGE_REF_NAME_RE = /(?:^|\s)(?:adtcore:)?name\s*=\s*(?:"([^"]*)"|'([^']*)')/i;
-function parsePackageRef(xml3) {
-  const doc = xml3.replace(XML_COMMENT_RE, "");
-  let first;
-  const seen = /* @__PURE__ */ new Set();
-  PACKAGE_REF_TAG_RE.lastIndex = 0;
-  for (let tag = PACKAGE_REF_TAG_RE.exec(doc); tag; tag = PACKAGE_REF_TAG_RE.exec(doc)) {
-    const attr11 = PACKAGE_REF_NAME_RE.exec(tag[1] ?? "");
-    const value = (attr11?.[1] ?? attr11?.[2] ?? "").trim();
-    if (!value) continue;
-    seen.add(value.toUpperCase());
-    first ??= value;
-  }
-  return seen.size === 1 ? first : void 0;
-}
-
-// src/adt/write-verify.ts
-init_session();
-var VIT_STUB_ACCEPT = "application/vnd.sap.adt.basic.object.properties+xml";
-function isSessionDeadFailure(e) {
-  if (isAbapError(e)) return e.code === "SESSION_DEAD";
-  const info = adtExceptionInfo(e);
-  return (classifySessionFailure(info?.response) ?? sessionDeathFromInfo(info)) !== void 0;
-}
-async function probeObjectPresence(conn, uri, accept) {
-  const get = () => conn.get(uri, { headers: { Accept: accept } });
-  try {
-    const resp = await get();
-    return { presence: "present", revived: false, body: resp.body };
-  } catch (e) {
-    if (isNotFoundError(e)) return { presence: "absent", error: e, revived: false };
-    if (!isSessionDeadFailure(e)) return { presence: "no-answer", error: e, revived: false };
-  }
-  try {
-    await conn.connect();
-  } catch (e) {
-    return { presence: "no-answer", error: e, revived: false };
-  }
-  try {
-    const resp = await get();
-    return { presence: "present", revived: true, body: resp.body };
-  } catch (e) {
-    return { presence: isNotFoundError(e) ? "absent" : "no-answer", error: e, revived: true };
-  }
-}
-function vitBridgeUri(vitType, objectName) {
-  return `/sap/bc/adt/vit/wb/object_type/${vitType}/object_name/${encodeURIComponent(objectName)}`;
-}
-var VIT_EXISTENCE_ATTRS = ["changedAt", "changedBy", "description"];
-function vitStubShowsRegistration(body) {
-  return /<adtcore:packageRef[\s>]/i.test(body);
-}
-function vitStubShowsExistence(body) {
-  if (vitStubShowsRegistration(body)) return true;
-  return VIT_EXISTENCE_ATTRS.some((attr11) => new RegExp(`adtcore:${attr11}\\s*=`, "i").test(body));
-}
-function echoesTarget(body, expectType, expectName) {
-  const typeRe = new RegExp(`adtcore:type\\s*=\\s*"${escapeForRegex(expectType)}"`, "i");
-  const nameRe = new RegExp(`adtcore:name\\s*=\\s*"${escapeForRegex(expectName)}"`, "i");
-  return typeRe.test(body) && nameRe.test(body);
-}
-function escapeForRegex(s) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-function packageRefName(body) {
-  return parsePackageRef(body);
-}
-async function verifyViaVitBridge(conn, vitType, objectName, expectType) {
-  const uri = vitBridgeUri(vitType, objectName);
-  try {
-    const resp = await conn.get(uri, { headers: { Accept: VIT_STUB_ACCEPT } });
-    if (!echoesTarget(resp.body, expectType, objectName)) {
-      return {
-        status: "indeterminate",
-        uri,
-        reason: `The VIT bridge answered 200 but the stub did not echo back the ${expectType} ${objectName} it was asked for \u2014 not an answer about this object. Treated as unproven.`
-      };
-    }
-    if (vitStubShowsExistence(resp.body)) {
-      return { status: "confirmed", uri, via: "vit-bridge", packageName: packageRefName(resp.body) };
-    }
-    return { status: "confirmed-absent", uri, via: "vit-bridge" };
-  } catch (e) {
-    if (isAbapError(e) && e.code === "UNSUPPORTED") {
-      return {
-        status: "indeterminate",
-        uri,
-        reason: `The VIT bridge read was not supported for this request shape: ${e.message}`
-      };
-    }
-    if (isNotFoundError(e)) return { status: "confirmed-absent", uri, via: "vit-bridge" };
-    return {
-      status: "indeterminate",
-      uri,
-      reason: `Read-back failed before a status could be determined: ${e instanceof Error ? e.message : String(e)}`
-    };
-  }
-}
-var SEARCH_BLIND_TYPES = /* @__PURE__ */ new Set(["FUGR/FF"]);
-var SEARCH_MISS_NOT_ABSENCE = "a miss is not proof of absence \u2014 it looks the same for an object that genuinely does not exist and one that exists but is unregistered";
-async function verifyViaRepositorySearch(conn, objectName, expectType) {
-  const uri = `repository-search:${expectType}/${objectName}`;
-  try {
-    const hits = await searchExact(conn, objectName, expectType);
-    if (hits.length === 0) {
-      if (SEARCH_BLIND_TYPES.has(expectType.toUpperCase())) {
-        return {
-          status: "indeterminate",
-          uri,
-          reason: `The repository search returned 0 hits for ${objectName}, but it does not index every ${expectType}: a generated function module is present and readable while the search reports nothing, so a zero-hit here is not evidence of absence. Treated as unproven rather than confirmed-absent.`
-        };
-      }
-      return { status: "confirmed-absent", uri, via: "repository-search" };
-    }
-    const matching = hits.find((h) => h["adtcore:type"]?.toUpperCase() === expectType.toUpperCase());
-    if (matching) {
-      return { status: "confirmed", uri, via: "repository-search" };
-    }
-    return {
-      status: "indeterminate",
-      uri,
-      reason: `The repository search found ${hits.length} exact-name match(es) for ${objectName}, but none typed ${expectType} (types seen: ${hits.map((h) => h["adtcore:type"] ?? "?").join(", ")}) \u2014 treated as unproven rather than either confirmed or confirmed-absent.`
-    };
-  } catch (e) {
-    return {
-      status: "indeterminate",
-      uri,
-      reason: `Repository search failed before a status could be determined: ${e instanceof Error ? e.message : String(e)}`
-    };
-  }
-}
-async function verifyObjectCreated(conn, opts) {
-  const primary = await verifyViaVitBridge(conn, opts.vitType, opts.objectName, opts.expectType);
-  if (primary.status === "confirmed") return primary;
-  if (primary.status === "confirmed-absent") {
-    const search = await verifyViaRepositorySearch(conn, opts.objectName, opts.expectType);
-    if (search.status === "confirmed") {
-      return {
-        status: "indeterminate",
-        uri: primary.uri,
-        reason: `The VIT bridge concluded ${opts.expectType} ${opts.objectName} does not exist, but the repository search found an exact-name/type match \u2014 the two probes contradict each other, treated as unproven rather than resolved either way.`
-      };
-    }
-    return primary;
-  }
-  const fallback = await verifyViaRepositorySearch(conn, opts.objectName, opts.expectType);
-  if (fallback.status === "confirmed") return fallback;
-  if (fallback.status === "confirmed-absent") {
-    return {
-      status: "indeterminate",
-      uri: fallback.uri,
-      reason: `Neither probe proves absence. VIT bridge (${primary.uri}): ${primary.reason} Repository search found no exact-name hit \u2014 but ${SEARCH_MISS_NOT_ABSENCE}.`
-    };
-  }
-  return {
-    status: "indeterminate",
-    uri: fallback.uri,
-    reason: `Neither probe could settle it. VIT bridge (${primary.uri}): ${primary.reason} Repository search: ${fallback.reason}`
-  };
-}
-async function verifyObjectPresent(conn, opts) {
-  const { uri, accept, objectName, expectType } = opts;
-  let readBackReason;
-  try {
-    const resp = await conn.get(uri, { headers: { Accept: accept } });
-    if (isBlankBody(resp.body) && blankSourceIsAmbiguous(expectType)) {
-      readBackReason = "the source endpoint answered 200 with an empty body, which does not distinguish an absent object from an empty one for this type";
-    } else {
-      return { status: "confirmed", uri, via: "read-back" };
-    }
-  } catch (e) {
-    if (isNotFoundError(e)) {
-      readBackReason = "the read-back answered 404";
-    } else {
-      readBackReason = `the read-back failed before a status could be determined: ${e instanceof Error ? e.message : String(e)}`;
-    }
-  }
-  const search = await verifyViaRepositorySearch(conn, objectName, expectType);
-  if (search.status === "confirmed") return search;
-  return {
-    status: "indeterminate",
-    uri,
-    reason: search.status === "confirmed-absent" ? `Neither probe proves absence. Read-back (${uri}): ${readBackReason}. Repository search found no exact-name hit \u2014 but a miss is not proof either: the index can lag a fresh create, and some object types are invisible to it entirely.` : `Neither probe could settle it. Read-back (${uri}): ${readBackReason}. Repository search: ${search.reason}`
-  };
-}
-function answeredFiveHundredWithType(e) {
-  const info = adtExceptionInfo(e);
-  return info?.status === 500 && typeof info.type === "string" && info.type.length > 0;
-}
-function blankSourceIsAmbiguous(type) {
-  return capabilitiesFor(type)?.blankSourceOnAbsence === true;
-}
-function objectAcceptFor(type) {
-  return capabilitiesFor(type)?.mediaType ?? "application/*";
-}
-function isBlankBody(body) {
-  return typeof body === "string" && body.trim() === "";
-}
-async function verifyObjectDeleted(conn, opts) {
-  const { uri, accept, objectName, expectType } = opts;
-  const readBack = await probeObjectPresence(conn, uri, accept);
-  if (readBack.presence === "absent") return { status: "confirmed-absent", uri, via: "read-back" };
-  let sawObject = readBack.presence === "present";
-  let readBackReason = sawObject ? "the read-back answered 200 \u2014 the object is still readable" : `the read-back failed before a status could be determined: ${readBack.error instanceof Error ? readBack.error.message : String(readBack.error)}`;
-  let readBackUri = uri;
-  const objUri = objectUriOf(uri);
-  if (!sawObject && objUri !== uri && answeredFiveHundredWithType(readBack.error)) {
-    const objAccept = objectAcceptFor(expectType);
-    const direct = await probeObjectPresence(conn, objUri, objAccept);
-    if (direct.presence === "absent") return { status: "confirmed-absent", uri: objUri, via: "read-back" };
-    if (direct.presence === "present") {
-      sawObject = true;
-      readBackUri = objUri;
-      readBackReason = `the read-back answered HTTP 500 with an ADT exception type, and a confirming GET of ${objUri} answered 200 \u2014 the object is still there`;
-    } else {
-      readBackUri = objUri;
-      readBackReason = `the read-back answered HTTP 500 with an ADT exception type, and a confirming GET of ${objUri} did not answer at all, so it established nothing either way`;
-    }
-  } else if (sawObject && objUri !== uri && isBlankBody(readBack.body) && blankSourceIsAmbiguous(expectType)) {
-    const objAccept = objectAcceptFor(expectType);
-    const direct = await probeObjectPresence(conn, objUri, objAccept);
-    if (direct.presence === "absent") return { status: "confirmed-absent", uri: objUri, via: "read-back" };
-    if (direct.presence === "present") {
-      readBackUri = objUri;
-      readBackReason = `the source endpoint answered 200 with an empty body, and a confirming GET of ${objUri} answered 200 \u2014 the object is still there`;
-    } else {
-      sawObject = false;
-      readBackUri = objUri;
-      readBackReason = `the source endpoint answered 200 with an empty body, which proves nothing on its own, and a confirming GET of ${objUri} did not answer at all`;
-    }
-  }
-  const search = await verifyViaRepositorySearch(conn, objectName, expectType);
-  if (search.status === "confirmed") return search;
-  if (search.status === "confirmed-absent") {
-    if (sawObject) {
-      return {
-        status: "indeterminate",
-        uri,
-        reason: `The post-delete read-back of ${expectType} ${objectName} answered 200 at ${readBackUri}, but the repository search found no trace of it \u2014 a stale 200 read-back is not proof the delete failed; treated as unproven.`
-      };
-    }
-    return {
-      status: "indeterminate",
-      uri,
-      reason: `The post-delete read-back of ${expectType} ${objectName} never settled it (${readBackReason}), and the repository search found no trace of it either \u2014 but ${SEARCH_MISS_NOT_ABSENCE}.`
-    };
-  }
-  return {
-    status: "indeterminate",
-    uri,
-    reason: `Neither probe could settle it. Read-back (${readBackUri}): ${readBackReason}. Repository search: ${search.reason}`
-  };
-}
-
-// src/adt/source.ts
-function classifySourceFailure(e, ctx) {
-  const err = translateAdtError(e, ctx);
-  if (err.code !== "ADT_ERROR") return err;
-  const status = typeof err.details.status === "number" ? err.details.status : void 0;
-  if (status === 401) {
-    return new AbapError(
-      "AUTH_FAILED",
-      `Authentication failed (HTTP 401) while reading ${ctx.type ?? "object"} ${ctx.name ?? ctx.uri}. The server rejected the credentials \u2014 the object name was never checked.`,
-      { ...err.details, status: 401 },
-      "Fix ABAP_USER / ABAP_PASSWORD. Credentials are NOT retried automatically: repeated logon attempts lock the SAP user. This is not a naming problem."
-    );
-  }
-  if (status === 403) {
-    return new AbapError(
-      "AUTH_FAILED",
-      `Not authorised (HTTP 403) to read ${ctx.type ?? "object"} ${ctx.name ?? ctx.uri}. The logon succeeded; the user lacks the authorisation for this object.`,
-      { ...err.details, status: 403 },
-      "The user is authenticated but not authorised (typically S_DEVELOP). The name is not in question \u2014 do not retry with a different name."
-    );
-  }
-  if (status === void 0 && isTimeoutError(e)) {
-    return new AbapError(
-      "ADT_ERROR",
-      `No response from the ABAP system while reading ${ctx.type ?? "object"} ${ctx.name ?? ctx.uri}: the request timed out (${err.message}).`,
-      { ...err.details, timeout: true },
-      "The system did not answer at all, so nothing is known about the object. Retry once; if it repeats the system is unreachable or overloaded."
-    );
-  }
-  return err;
-}
-function isTimeoutError(e) {
-  if (!e || typeof e !== "object") return false;
-  const any2 = e;
-  const code = typeof any2.code === "string" ? any2.code.toUpperCase() : "";
-  if (["ECONNABORTED", "ETIMEDOUT", "ESOCKETTIMEDOUT", "UND_ERR_HEADERS_TIMEOUT"].includes(code)) {
-    return true;
-  }
-  if (any2.name === "AbortError" || any2.name === "TimeoutError") return true;
-  return /\btime(d)?\s*-?\s*out\b|\btimeout\b/i.test(String(any2.message ?? ""));
-}
-async function objectUriPresence(conn, obj) {
-  return (await probeObjectPresence(conn, obj.uri, objectAcceptFor(obj.type))).presence;
-}
-function isBlankBody2(body) {
-  return typeof body === "string" && body.trim() === "";
-}
-function sourceUriFor(obj, include) {
-  const inc = include ?? obj.include;
-  if (!inc || inc === "main") return obj.sourceUri ?? `${obj.uri}/source/main`;
-  if (obj.type !== "CLAS/OC" && obj.kind !== "CLAS") {
-    throw new AbapError(
-      "UNSUPPORTED",
-      `${obj.type} ${obj.name} has no "${inc}" include \u2014 class includes (${CLASS_INCLUDES.join(", ")}) exist only for classes.`,
-      { type: obj.type, name: obj.name, requested: inc, uri: obj.uri },
-      "Read this object without an include. It was NOT silently answered with the main source."
-    );
-  }
-  return classIncludeUri(obj.uri, inc);
-}
-async function readSource(conn, obj, include, version2) {
-  const inc = include ?? obj.include;
-  const sourceUri = sourceUriFor(obj, inc);
-  const ctx = {
-    operation: inc && inc !== "main" ? `read include ${inc}` : "read source",
-    uri: sourceUri,
-    name: obj.name,
-    type: obj.type
-  };
-  try {
-    const resp = await conn.get(sourceUri, {
-      headers: { Accept: "text/plain" },
-      ...version2 ? { qs: { version: version2 } } : {}
-    });
-    if (isBlankBody2(resp.body) && blankSourceIsAmbiguous(obj.type)) {
-      const presence = await objectUriPresence(conn, obj);
-      if (presence === "absent") {
-        throw new AbapError(
-          "NOT_FOUND",
-          `${obj.type} ${obj.name} does not exist: its source endpoint answered HTTP 200 with an empty body (this type's known response for an absent object there), and a direct GET of ${obj.uri} confirmed the absence with a not-found response.`,
-          { type: obj.type, name: obj.name, uri: sourceUri, absenceConfirmedVia: obj.uri },
-          "Check the name with abap_search, or create it first with abap_write. This was established by a second, independent request against the object URI, not inferred from the empty body."
-        );
-      }
-    }
-    return {
-      source: resp.body,
-      serverEtag: typeof resp.headers.etag === "string" ? resp.headers.etag : void 0,
-      sourceUri,
-      ...inc ? { include: inc } : {}
-    };
-  } catch (e) {
-    const err = classifySourceFailure(e, ctx);
-    const answered500WithType = err.code === "ADT_ERROR" && err.details.status === 500 && typeof err.details.adtExceptionType === "string" && Boolean(err.details.adtExceptionType);
-    if (answered500WithType) {
-      const presence = await objectUriPresence(conn, obj);
-      if (presence === "absent") {
-        throw new AbapError(
-          "NOT_FOUND",
-          `${obj.type} ${obj.name} does not exist: its source endpoint answered HTTP 500 (the response some releases give for an absent object there), and a direct GET of ${obj.uri} confirmed the absence with a 404.`,
-          { ...err.details, absenceConfirmedVia: obj.uri },
-          "Check the name with abap_search, or create it first with abap_write. This was established by a second, independent request against the object URI, not inferred from the 500 alone."
-        );
-      }
-      throw new AbapError(err.code, err.message, { ...err.details, objectUriProbe: presence }, err.hint);
-    }
-    if (err.code === "NOT_FOUND" && inc && inc !== "main") {
-      throw new AbapError(
-        "NOT_FOUND",
-        `${obj.type} ${obj.name} has no "${inc}" include at ${sourceUri}.`,
-        { ...err.details, requested: inc },
-        `A class with no test class has no testclasses include. Read ${obj.name} itself to confirm the class exists before doubting the name.`
-      );
-    }
-    throw err;
-  }
-}
-function parseFragmentRange(href) {
-  if (!href) return void 0;
-  const m = /#start=(\d+)(?:,\d+)?(?:;end=(\d+)(?:,\d+)?)?/.exec(href);
-  if (!m) return void 0;
-  const startLine = Number(m[1]);
-  const endLine = m[2] ? Number(m[2]) : startLine;
-  const document2 = href.slice(0, href.indexOf("#"));
-  return { startLine, endLine, ...document2 ? { document: document2 } : {} };
-}
-function abapCodeOf(line2) {
-  if (/^\*/.test(line2)) return "";
-  let out = "";
-  let quote;
-  let i = 0;
-  while (i < line2.length) {
-    const ch = line2[i];
-    if (quote !== void 0) {
-      if (ch === quote) {
-        if (line2[i + 1] === quote) {
-          out += "  ";
-          i += 2;
-          continue;
-        }
-        quote = void 0;
-      }
-      out += " ";
-      i += 1;
-      continue;
-    }
-    if (ch === "'" || ch === "`") {
-      quote = ch;
-      out += " ";
-      i += 1;
-      continue;
-    }
-    if (ch === '"') return out;
-    out += ch;
-    i += 1;
-  }
-  return out;
-}
-var METHOD_OPEN_RE = /^\s*method\s+([^\s.]+)/i;
-var ENDMETHOD_RE = /^\s*endmethod\s*\./i;
-function scanMethodBlocks(source) {
-  const lines = source.replace(/\r\n/g, "\n").split("\n");
-  const blocks = [];
-  let open;
-  for (let i = 0; i < lines.length; i++) {
-    const code = abapCodeOf(lines[i] ?? "");
-    const opened = METHOD_OPEN_RE.exec(code);
-    if (opened) {
-      if (open) {
-        return {
-          blocks,
-          malformed: `line ${i + 1} opens METHOD ${opened[1]} while METHOD ${open.name} (line ${open.startLine}) is still open \u2014 methods cannot nest`
-        };
-      }
-      open = { name: opened[1] ?? "", startLine: i + 1 };
-      continue;
-    }
-    if (ENDMETHOD_RE.test(code)) {
-      if (!open) {
-        return { blocks, malformed: `ENDMETHOD. at line ${i + 1} closes no METHOD` };
-      }
-      blocks.push({ name: open.name, startLine: open.startLine, endLine: i + 1 });
-      open = void 0;
-    }
-  }
-  if (open) {
-    return {
-      blocks,
-      malformed: `METHOD ${open.name} (line ${open.startLine}) is never closed by ENDMETHOD.`
-    };
-  }
-  return { blocks };
-}
-function countMethodKeywordLines(source) {
-  const lines = source.replace(/\r\n/g, "\n").split("\n");
-  let method = 0;
-  let endmethod = 0;
-  for (const line2 of lines) {
-    const code = abapCodeOf(line2);
-    if (METHOD_OPEN_RE.test(code)) method += 1;
-    else if (ENDMETHOD_RE.test(code)) endmethod += 1;
-  }
-  return { method, endmethod };
-}
-function methodNamesMatch(a, b) {
-  const A = a.toUpperCase();
-  const B = b.toUpperCase();
-  return A === B || A.split("~").pop() === B.split("~").pop();
-}
-var REL_DEF_BLOCK = "definitionBlock";
-var REL_IMPL_BLOCK = "implementationBlock";
-function linkRange(c, relSuffix) {
-  const link = (c.links ?? []).find((l) => l.rel?.endsWith(relSuffix));
-  return parseFragmentRange(link?.href);
-}
-var NON_MEMBER_TYPES = /* @__PURE__ */ new Set(["CLAS/OC", "INTF/OI", "CLAS/OCX"]);
-function flattenComponents(root) {
-  const out = [];
-  const walk = (c) => {
-    for (const child4 of c.components ?? []) {
-      const isExternalRef = child4.isExternalRef;
-      const externalRef = isExternalRef === true || isExternalRef === "true";
-      if (!NON_MEMBER_TYPES.has(child4["adtcore:type"]) && !externalRef) {
-        out.push({
-          name: child4["adtcore:name"],
-          type: child4["adtcore:type"],
-          visibility: child4.visibility,
-          level: child4.level,
-          redefinition: child4.redefinition,
-          definition: linkRange(child4, REL_DEF_BLOCK),
-          implementation: linkRange(child4, REL_IMPL_BLOCK)
-        });
-      }
-      walk(child4);
-    }
-  };
-  walk(root);
-  return out;
-}
-function parseStructureElement(e) {
-  const attrs = (0, import_utilities.xmlNodeAttr)(e);
-  const links = (0, import_utilities.xmlArray)(e, "atom:link").map((l) => (0, import_utilities.xmlNodeAttr)(l));
-  const components = (0, import_utilities.xmlArray)(e, "abapsource:objectStructureElement").map(parseStructureElement);
-  return { ...attrs, links, components };
-}
-async function fetchStructure(conn, obj, version2) {
-  if (version2 === "active") return conn.adt.classComponents(obj.uri);
-  const resp = await conn.get(`${obj.uri}/objectstructure`, {
-    headers: { "Content-Type": "application/*" },
-    qs: { version: "inactive", withShortDescriptions: "true" }
-  });
-  const root = (0, import_utilities.xmlNode)((0, import_utilities.fullParse)(resp.body), "abapsource:objectStructureElement");
-  if (root === void 0 || root === null) {
-    return {
-      "adtcore:name": obj.name,
-      "adtcore:type": obj.type,
-      links: [],
-      components: []
-    };
-  }
-  return parseStructureElement(root);
-}
-async function classMembersFor(conn, obj, version2) {
-  const ctx = {
-    operation: "read components",
-    uri: obj.uri,
-    name: obj.name,
-    type: obj.type
-  };
-  const load = async (v) => {
-    try {
-      return { members: flattenComponents(await fetchStructure(conn, obj, v)), version: v };
-    } catch (e) {
-      throw classifySourceFailure(e, ctx);
-    }
-  };
-  if (version2 !== void 0) return load(version2);
-  const activation = obj.activation === "unknown" ? await checkActivation(conn, obj) : obj.activation;
-  if (activation === "newer-inactive-exists") {
-    let inactive;
-    try {
-      inactive = await load("inactive");
-    } catch {
-      inactive = void 0;
-    }
-    if (inactive && inactive.members.length > 0) return inactive;
-  }
-  return load("active");
-}
-async function classMembers(conn, obj, version2) {
-  return (await classMembersFor(conn, obj, version2)).members;
-}
-function findMember(members, wanted) {
-  const w = wanted.toUpperCase();
-  return members.find((m) => m.name.toUpperCase() === w) ?? members.find((m) => m.name.toUpperCase().split("~").pop() === w);
-}
-function abapStatements(source) {
-  const lines = source.replace(/\r\n/g, "\n").split("\n");
-  const out = [];
-  let text5 = "";
-  let code = "";
-  let start = -1;
-  const flush = (endLine) => {
-    if (code.trim()) out.push({ text: text5.trim(), code: code.trim(), startLine: start, endLine });
-    text5 = "";
-    code = "";
-    start = -1;
-  };
-  for (let i = 0; i < lines.length; i++) {
-    const line2 = lines[i] ?? "";
-    let c = abapCodeOf(line2);
-    let t = line2.slice(0, c.length);
-    let idx2;
-    while ((idx2 = c.indexOf(".")) >= 0) {
-      if (start < 0 && c.slice(0, idx2).trim()) start = i + 1;
-      text5 += t.slice(0, idx2);
-      code += c.slice(0, idx2);
-      flush(i + 1);
-      c = c.slice(idx2 + 1);
-      t = t.slice(idx2 + 1);
-    }
-    if (c.trim() && start < 0) start = i + 1;
-    if (start >= 0) {
-      text5 += `${t}
-`;
-      code += `${c}
-`;
-    }
-  }
-  return out;
-}
-var DECLARATION_HEAD_RE = /^(CLASS-METHODS|METHODS)\b\s*(:)?\s*/i;
-function findMethodDeclaration(source, name) {
-  for (const st of abapStatements(source)) {
-    const head = DECLARATION_HEAD_RE.exec(st.code);
-    if (!head) continue;
-    const keyword = (head[1] ?? "METHODS").toUpperCase();
-    const bodyAt = head[0].length;
-    const segments = [];
-    if (head[2]) {
-      let from = bodyAt;
-      for (; ; ) {
-        const comma = st.code.indexOf(",", from);
-        if (comma < 0) {
-          segments.push([from, st.code.length]);
-          break;
-        }
-        segments.push([from, comma]);
-        from = comma + 1;
-      }
-    } else {
-      segments.push([bodyAt, st.code.length]);
-    }
-    for (const [a, b] of segments) {
-      const first = st.code.slice(a, b).trim().split(/\s+/)[0] ?? "";
-      if (first && methodNamesMatch(first, name)) {
-        return head[2] ? `${keyword} ${st.text.slice(a, b).trim()}.` : `${st.text.trim()}.`;
-      }
-    }
-  }
-  return void 0;
-}
-function parseClassParents(source) {
-  const parents = { interfaces: [] };
-  let inDefinition = false;
-  for (const st of abapStatements(source)) {
-    const flat = st.code.replace(/\s+/g, " ").trim();
-    if (!inDefinition) {
-      const def = /^(?:CLASS\s+\S+\s+DEFINITION|INTERFACE\s+\S+)\b(.*)$/i.exec(flat);
-      if (!def) continue;
-      if (/\b(DEFERRED|LOAD)\b/i.test(def[1] ?? "")) continue;
-      inDefinition = true;
-      const inh = /\bINHERITING\s+FROM\s+(\S+)/i.exec(def[1] ?? "");
-      if (inh?.[1]) parents.superclass = inh[1].toUpperCase();
-      continue;
-    }
-    if (/^(ENDCLASS|ENDINTERFACE)\b/i.test(flat)) break;
-    const intf = /^INTERFACES\b\s*(:)?\s*(.*)$/i.exec(flat);
-    if (!intf) continue;
-    const body = intf[2] ?? "";
-    const segments = intf[1] ? body.split(",") : [body];
-    for (const seg of segments) {
-      const first = seg.trim().split(/\s+/)[0];
-      if (first) parents.interfaces.push(first.toUpperCase());
-    }
-  }
-  return parents;
-}
-var CHAIN_MAX_DEPTH = 16;
-function relatedObject(base, name, type) {
-  const spec = specForType(type);
-  const uri = buildUri(spec, name);
-  return {
-    system: base.system,
-    type,
-    kind: spec.kind,
-    label: spec.label,
-    name: name.toUpperCase(),
-    uri,
-    sourceUri: `${uri}/source/main`,
-    mode: "source",
-    activation: "unknown",
-    spec
-  };
-}
-async function walkInheritanceChain(conn, obj, source, version2, visit) {
-  const visited = [];
-  const unresolved = [];
-  const seen = /* @__PURE__ */ new Set([obj.name.toUpperCase()]);
-  const queue = [];
-  const enqueue = (from, parents, depth) => {
-    if (depth > CHAIN_MAX_DEPTH) return;
-    if (parents.superclass && !seen.has(parents.superclass)) {
-      seen.add(parents.superclass);
-      queue.push({ name: parents.superclass, type: "CLAS/OC", relation: "superclass", via: from, depth });
-    }
-    for (const i of parents.interfaces) {
-      if (seen.has(i)) continue;
-      seen.add(i);
-      queue.push({ name: i, type: "INTF/OI", relation: "interface", via: from, depth });
-    }
-  };
-  enqueue(obj.name, parseClassParents(source), 1);
-  while (queue.length > 0) {
-    const next = queue.shift();
-    const parent = relatedObject(obj, next.name, next.type);
-    let parentSource;
-    let members;
-    try {
-      parentSource = (await readSource(conn, parent, void 0, version2)).source;
-      members = await classMembersFor(conn, parent, version2);
-    } catch (e) {
-      if (e instanceof AbapError && e.code === "NOT_FOUND") {
-        unresolved.push({ name: next.name, relation: next.relation, via: next.via, reason: e.message });
-        continue;
-      }
-      throw e;
-    }
-    const node2 = {
-      obj: parent,
-      relation: next.relation,
-      via: next.via,
-      depth: next.depth,
-      source: parentSource,
-      members
-    };
-    visited.push(node2);
-    if (visit(node2) === true) break;
-    enqueue(parent.name, parseClassParents(parentSource), next.depth + 1);
-  }
-  return { visited, unresolved };
-}
-var AVAILABLE_MEMBERS_MAX_DEFAULT = 40;
-function availableMembersMax() {
-  const raw = process.env.ABAP_AVAILABLE_MEMBERS_MAX;
-  if (raw === void 0 || raw.trim() === "") return AVAILABLE_MEMBERS_MAX_DEFAULT;
-  const n = Number(raw);
-  return Number.isInteger(n) && n > 0 ? n : AVAILABLE_MEMBERS_MAX_DEFAULT;
-}
-function levenshtein(a, b) {
-  const prev = Array.from({ length: b.length + 1 }, (_, j) => j);
-  for (let i = 1; i <= a.length; i++) {
-    let diag = prev[0] ?? 0;
-    prev[0] = i;
-    for (let j = 1; j <= b.length; j++) {
-      const tmp = prev[j] ?? 0;
-      prev[j] = a[i - 1] === b[j - 1] ? diag : 1 + Math.min(diag, tmp, prev[j - 1] ?? 0);
-      diag = tmp;
-    }
-  }
-  return prev[b.length] ?? 0;
-}
-function commonPrefixLength(a, b) {
-  let n = 0;
-  while (n < a.length && n < b.length && a[n] === b[n]) n += 1;
-  return n;
-}
-function rankCandidates(names, wanted) {
-  const w = wanted.toUpperCase();
-  return [...names].sort((a, b) => {
-    const A = a.toUpperCase();
-    const B = b.toUpperCase();
-    const byPrefix = commonPrefixLength(B, w) - commonPrefixLength(A, w);
-    if (byPrefix !== 0) return byPrefix;
-    const byDistance = levenshtein(A, w) - levenshtein(B, w);
-    if (byDistance !== 0) return byDistance;
-    return A < B ? -1 : A > B ? 1 : 0;
-  });
-}
-var isMethod = (m) => m.type === "CLAS/OM" || m.type === "INTF/OM";
-function resolveIn(members, source, method) {
-  const methods = members.filter(isMethod);
-  const member = findMember(methods.length ? methods : members, method);
-  if (!member) return void 0;
-  const lines = source.replace(/\r\n/g, "\n").split("\n");
-  const cut = (r) => r ? lines.slice(Math.max(0, r.startLine - 1), r.endLine).join("\n") : void 0;
-  const declaration = cut(member.definition) ?? findMethodDeclaration(source, member.name);
-  const implementation = cut(member.implementation);
-  return {
-    member,
-    ...declaration !== void 0 ? { declaration } : {},
-    ...implementation !== void 0 ? { implementation } : {},
-    ...member.implementation ? { implementationRange: member.implementation } : {}
-  };
-}
-async function readMethod(conn, obj, source, method, opts = {}) {
-  const own = await classMembersFor(conn, obj, opts.version);
-  const searched = [obj.name];
-  const here = resolveIn(own.members, source, method);
-  if (here) return { ...here, version: own.version, searched };
-  const inheritedPool = [];
-  let unresolved = [];
-  if (opts.inherited) {
-    let found;
-    const walk = await walkInheritanceChain(conn, obj, source, opts.version, (node2) => {
-      searched.push(`${node2.obj.name} (${node2.relation} of ${node2.via})`);
-      const r = resolveIn(node2.members.members, node2.source, method);
-      if (r) {
-        found = {
-          ...r,
-          version: node2.members.version,
-          foundOn: {
-            name: node2.obj.name,
-            type: node2.obj.type,
-            relation: node2.relation,
-            via: node2.via,
-            depth: node2.depth
-          },
-          searched
-        };
-        return true;
-      }
-      for (const m of node2.members.members.filter(isMethod)) {
-        if (node2.relation === "superclass" && m.visibility === "private") continue;
-        inheritedPool.push({ name: m.name, on: node2.obj.name, relation: node2.relation });
-      }
-      return false;
-    });
-    if (found) return found;
-    unresolved = walk.unresolved;
-  }
-  const max = opts.availableMax ?? availableMembersMax();
-  const methods = own.members.filter(isMethod);
-  const pool = methods.length ? methods : own.members;
-  const shown = rankCandidates(
-    pool.map((m) => m.name),
-    method
-  ).slice(0, max);
-  const dropped = pool.length - shown.length;
-  const byName = new Map(inheritedPool.map((c) => [c.name.toUpperCase(), c]));
-  const inheritedShown = rankCandidates([...byName.keys()], method).slice(0, max).map((n) => {
-    const c = byName.get(n);
-    return `${c.name} (${c.on})`;
-  });
-  const inheritedDropped = byName.size - inheritedShown.length;
-  const where2 = opts.inherited ? `${obj.type} ${obj.name} has no method ${method}, and neither does anything it inherits from or implements (searched ${searched.join(", ")}).` : `${obj.type} ${obj.name} has no method ${method}.`;
-  const truncation = dropped > 0 ? ` [TRUNCATED: listing ${shown.length} of ${pool.length} components \u2014 ${dropped} not shown, retrieve with: abap_read({outline:true})]` : "";
-  const emptiness = pool.length === 0 ? ` The ${own.version} version of ${obj.name} declares no methods at all` + (own.version === "active" ? " (no inactive version was found, so the active structure was used)." : ".") : "";
-  throw new AbapError(
-    "NOT_FOUND",
-    `${where2}${emptiness}${truncation}`,
-    {
-      method,
-      version: own.version,
-      searched,
-      availableTotal: pool.length,
-      available: shown,
-      ...dropped > 0 ? { availableTruncated: dropped } : {},
-      ...opts.inherited ? {
-        availableInheritedTotal: byName.size,
-        availableInherited: inheritedShown,
-        ...inheritedDropped > 0 ? { availableInheritedTruncated: inheritedDropped } : {}
-      } : {},
-      ...unresolved.length > 0 ? { unresolved } : {}
-    },
-    (dropped > 0 ? `The list above is INCOMPLETE (${shown.length} of ${pool.length}). Read the object with outline=true for every component before concluding the method is missing. ` : pool.length === 0 ? "`available` is empty because the structure has no methods, not because the list was cut. " : "") + (opts.inherited ? "Members are resolved against the inactive version when one exists, then the active one, then up the superclass/interface chain; `availableInherited` names the origin of each inherited candidate." : "Read the object with outline=true to see its full component list, including inherited members.")
-  );
-}
-async function inheritedMembers(conn, obj, source, own, version2) {
-  const inherited = [];
-  const searched = [];
-  const taken = new Set(own.map((m) => m.name.toUpperCase()));
-  const walk = await walkInheritanceChain(conn, obj, source, version2, (node2) => {
-    searched.push(node2.obj.name);
-    for (const m of node2.members.members) {
-      if (node2.relation === "superclass" && m.visibility === "private") continue;
-      const key = m.name.toUpperCase();
-      const implemented = node2.relation === "interface" ? `${node2.obj.name}~${key}` : key;
-      if (taken.has(key) || taken.has(implemented)) continue;
-      taken.add(key);
-      inherited.push({ ...m, on: node2.obj.name, relation: node2.relation, depth: node2.depth });
-    }
-    return false;
-  });
-  return { inherited, searched, unresolved: walk.unresolved };
-}
-var OUTLINE_TYPES = /* @__PURE__ */ new Set(["CLAS/OM", "INTF/OM", "CLAS/OA", "INTF/OA"]);
-function outlineRow(m, indent) {
-  const loc = m.implementation ? `${m.implementation.startLine}-${m.implementation.endLine}` : m.definition ? `${m.definition.startLine}-${m.definition.endLine}` : "";
-  const flags = [m.visibility, m.level, m.redefinition ? "redefinition" : void 0].filter(Boolean).join(" ");
-  return `${indent}${m.name}  [${flags}]${loc ? `  lines ${loc}` : ""}`;
-}
-function renderOutline(members) {
-  return members.filter((m) => OUTLINE_TYPES.has(m.type)).map((m) => outlineRow(m, "  ")).join("\n");
-}
-function renderInheritedOutline(rows) {
-  const groups = /* @__PURE__ */ new Map();
-  for (const r of rows) {
-    if (!OUTLINE_TYPES.has(r.type)) continue;
-    const list3 = groups.get(r.on) ?? [];
-    list3.push(r);
-    groups.set(r.on, list3);
-  }
-  const out = [];
-  for (const [on, list3] of groups) {
-    const relation = list3[0]?.relation ?? "superclass";
-    out.push(`  from ${on} (${relation}, depth ${list3[0]?.depth ?? 1}; line numbers are ${on}'s):`);
-    for (const r of list3) out.push(outlineRow(r, "    "));
-  }
-  return out.join("\n");
-}
+init_resolve();
+init_source();
 
 // src/adt/run.ts
 var import_abap_adt_api8 = __toESM(require_build(), 1);
@@ -108415,6 +108586,7 @@ function predecessorOf(released, newer) {
 }
 
 // src/adt/activate.ts
+init_timeouts();
 function isFailureSeverity(severity) {
   return /[EAX]/.test(String(severity ?? "").toUpperCase());
 }
@@ -108708,10 +108880,13 @@ async function releaseActivationEnqueues(conn) {
 async function activateObject(conn, target) {
   let result;
   try {
-    result = await conn.adt.activate(target.name, target.uri, void 0, true);
+    result = await conn.withRequestTimeout(
+      conn.cfg.activateTimeoutMs,
+      () => conn.adt.activate(target.name, target.uri, void 0, true)
+    );
   } catch (e) {
     if (isAbapError(e)) throw e;
-    throw translateActivationError(e, target);
+    throw translateActivationError(e, target, conn.cfg.activateTimeoutMs);
   }
   let preaudit;
   try {
@@ -108722,7 +108897,7 @@ async function activateObject(conn, target) {
     }
   } catch (e) {
     if (isAbapError(e)) throw e;
-    throw translateActivationError(e, target);
+    throw translateActivationError(e, target, conn.cfg.activateTimeoutMs);
   }
   const messages = mapActivationMessages(result);
   const inactive = mapInactiveObjects(result);
@@ -108800,11 +108975,14 @@ function activationRefKey(uri) {
   return cut === -1 ? normaliseAdtUri(s) : normaliseAdtUri(s.slice(0, cut)) + s.slice(cut).toLowerCase();
 }
 async function postActivation(conn, targets, preauditRequested) {
-  const resp = await conn.post("/sap/bc/adt/activation", {
-    qs: { method: "activate", preauditRequested: preauditRequested ? "true" : "false" },
-    headers: { "Content-Type": "application/xml", Accept: "application/xml" },
-    body: buildActivationBody(targets)
-  });
+  const resp = await conn.withRequestTimeout(
+    conn.cfg.activateTimeoutMs,
+    () => conn.post("/sap/bc/adt/activation", {
+      qs: { method: "activate", preauditRequested: preauditRequested ? "true" : "false" },
+      headers: { "Content-Type": "application/xml", Accept: "application/xml" },
+      body: buildActivationBody(targets)
+    })
+  );
   return parseActivationResponse(resp.body);
 }
 function preauditActivationSet(seeds, inactive) {
@@ -109004,10 +109182,14 @@ async function activateObjects(conn, targets, opts) {
       } catch (e) {
         for (const t of chunk3) disposition.set(t, "unknown");
         if (isAbapError(e)) throw e;
-        throw translateActivationError(e, {
-          name: chunk3.map((t) => t.name).join(" + "),
-          uri: chunk3[0].uri
-        });
+        throw translateActivationError(
+          e,
+          {
+            name: chunk3.map((t) => t.name).join(" + "),
+            uri: chunk3[0].uri
+          },
+          conn.cfg.activateTimeoutMs
+        );
       }
       const messages = mapActivationMessages(result);
       const inactive = mapInactiveObjects(result);
@@ -109117,7 +109299,17 @@ function assertBatchActivated(outcome, context = { what: "Activation" }) {
     names.length > 0 ? `Fix ${names.join(", ")} and activate the set again.` + (alreadyActive.length > 0 ? ` ${alreadyActive.join(", ")} already activated in an earlier request of this batch and stayed active \u2014 ADT has no deactivate. Re-activating the whole set is still the simplest way to finish.` : " The whole set is still inactive \u2014 objects with no messages of their own were not confirmed activated either, so re-activate the complete set rather than only the objects you edited.") : "The activation failed without naming an object in the set. Re-read the objects to see which are still inactive, and check the unattributed messages above."
   );
 }
-function translateActivationError(e, target) {
+function translateActivationError(e, target, timeoutMs = 18e4) {
+  if (isTransportTimeout(e)) {
+    return transportTimeoutError({
+      family: "activate",
+      operation: "activate",
+      name: target.name,
+      uri: target.uri,
+      timeoutMs,
+      cause: e
+    });
+  }
   const err = e;
   const status = Number(err?.err ?? err?.status ?? 0);
   const type = String(err?.type ?? "");
@@ -109162,6 +109354,7 @@ function assertBridgeMutation(gate, target, opts) {
 
 // src/adt/enhancement-refusals.ts
 init_errors();
+init_source();
 var REFUSALS = [
   {
     // Family #2 — test/fixtures/enhancement/196-corrnr-task-not-request-400.xml
@@ -109321,6 +109514,7 @@ var SERVER_VERSION = readPackageVersion(packageJson);
 
 // src/adt/fluid/ensure.ts
 init_errors();
+init_write_verify();
 
 // src/adt/fluid/registry.ts
 import * as path7 from "node:path";
@@ -110770,8 +110964,11 @@ async function deletePackageViaBridge(conn, gate, params) {
 }
 
 // src/adt/write.ts
+init_resolve();
 init_session();
 init_transports();
+init_package_ref();
+init_write_verify();
 init_types();
 init_compact();
 init_capabilities();
@@ -112599,6 +112796,9 @@ async function deleteObject(conn, target, opts = { onBeforeImage: NO_JOURNAL }) 
   };
 }
 
+// src/adt/run.ts
+init_write_verify();
+
 // src/adt/dumps-query.ts
 init_errors();
 var DUMPS_FEED_PATH = "/sap/bc/adt/runtime/dumps";
@@ -113145,6 +113345,9 @@ function buildDumpsFeedUrl(request, options = {}) {
     residenceWindowStart: windowStart
   };
 }
+
+// src/adt/run.ts
+init_source();
 
 // src/adt/run-dump-lookup.ts
 init_truncate();
@@ -114346,7 +114549,7 @@ function translateRunFailure(conn, className, e) {
   }
   if (resp === void 0 && isTimeoutError(e)) {
     invalidateSession(conn);
-    return discloseMutationRisk(timeoutError(className, conn.cfg.timeoutMs, e));
+    return discloseMutationRisk(timeoutError(className, conn.cfg.runTimeoutMs, e));
   }
   const translated = translateAdtError(e, {
     operation: "run class",
@@ -114358,9 +114561,9 @@ function translateRunFailure(conn, className, e) {
 function timeoutError(className, timeoutMs, cause) {
   const err = new AbapError(
     "TIMEOUT",
-    `${className} did not answer within ${timeoutMs} ms (ABAP_TIMEOUT_MS); the request was abandoned client-side.`,
-    { class: className, timeoutMs },
-    "The ABAP session was abandoned, not stopped \u2014 the program may still be running on the server. If it legitimately needs longer, raise ABAP_TIMEOUT_MS or make it do less per run.",
+    `${className} did not answer within ${timeoutMs} ms (ABAP_RUN_TIMEOUT_MS); the request was abandoned client-side.`,
+    { class: className, timeoutMs, envVar: "ABAP_RUN_TIMEOUT_MS" },
+    "The ABAP session was abandoned, not stopped \u2014 the program may still be running on the server. If it legitimately needs longer, raise ABAP_RUN_TIMEOUT_MS or make it do less per run.",
     { retryable: true }
     // TIMEOUT is `conditional`; before the dumps feed is asked the likeliest story is "ran long", and withDumpLookup withdraws this the moment a dump says otherwise
   );
@@ -114470,13 +114673,16 @@ async function runClass(conn, className, options = {}) {
   const started = Date.now();
   let raw;
   try {
-    raw = await conn.withFreshSession(async (client) => {
-      try {
-        return await client.runClass(name);
-      } catch (e) {
-        throw translateRunFailure(conn, name, e);
-      }
-    });
+    raw = await conn.withRequestTimeout(
+      conn.cfg.runTimeoutMs,
+      () => conn.withFreshSession(async (client) => {
+        try {
+          return await client.runClass(name);
+        } catch (e) {
+          throw translateRunFailure(conn, name, e);
+        }
+      })
+    );
   } catch (e) {
     throw await attachRecentDump(conn, name, e, options);
   }
@@ -115261,6 +115467,7 @@ function assertServerPackage(value, context) {
 init_session();
 init_transports();
 init_types();
+init_write_verify();
 var INDEX_NAME_MAX = 3;
 var INDEX_TEXT_MAX = 60;
 var MAX_INDEX_FIELDS = 16;
@@ -115578,6 +115785,7 @@ async function deleteSecondaryIndexViaBridge(conn, gate, params) {
 }
 
 // src/tools/preflight.ts
+init_resolve();
 init_types();
 init_safety();
 function isIndexType(type) {
@@ -118516,6 +118724,7 @@ function installSystemRouting(mcp, registry2) {
 init_zod();
 init_capabilities();
 init_errors();
+init_resolve();
 init_session();
 
 // src/adt/locked-holders.ts
@@ -123262,6 +123471,9 @@ async function readCatalogObject(conn, obj) {
   }
 }
 
+// src/tools/write.ts
+init_write_verify();
+
 // src/adt/ddic-payload.ts
 init_errors();
 var DATAELEMENT_NS = "http://www.sap.com/adt/dictionary/dataelements";
@@ -123610,6 +123822,8 @@ function buildStructuredDdicDescriptor(type, name, description, packageName, fie
 
 // src/tools/write.ts
 init_errors();
+init_resolve();
+init_source();
 init_types();
 init_compact();
 init_safety();
@@ -128181,6 +128395,7 @@ init_compact();
 init_errors();
 init_session();
 init_types();
+init_write_verify();
 init_capabilities();
 function describeDeleteVerification(v) {
   const detail = v.status === "indeterminate" ? v.reason : `via ${v.via}`;
@@ -129698,6 +129913,7 @@ function registerLockedTools(mcp, deps) {
 // src/tools/open-url.ts
 init_zod();
 init_errors();
+init_resolve();
 var HTML_UNSUPPORTED_KINDS = /* @__PURE__ */ new Set(["DTEL", "DOMA", "TTYP"]);
 var openUrlInputSchema = {
   object: external_exports.string().optional().describe("Object to open, fuzzy like `abap_read`'s `object`."),
@@ -131068,6 +131284,9 @@ function renderAuthorizationObject(obj) {
   };
 }
 
+// src/tools/read.ts
+init_resolve();
+
 // src/adt/element-info.ts
 init_fxp();
 init_errors();
@@ -131404,10 +131623,13 @@ async function findImplementations(conn, interfaceSourceUri, pos, interfaceName,
 
 // src/tools/read.ts
 init_types();
+init_source();
 init_compact();
 
 // src/adt/cds-lineage.ts
 init_errors();
+init_resolve();
+init_source();
 var EMPTY_PARSED_DDL = {
   kind: "unknown",
   dataSources: [],
@@ -132084,6 +132306,7 @@ function renderLineage(result, opts = {}) {
 
 // src/adt/footprint.ts
 init_errors();
+init_source();
 init_types();
 init_compact();
 var FOOTPRINT_TYPES = ["PROG/P", "CLAS/OC", "FUGR/F", "FUGR/FF"];
@@ -132559,6 +132782,7 @@ function renderFootprint(result) {
 
 // src/adt/docu.ts
 init_errors();
+init_source();
 var DOCU_ID_BY_TYPE = /* @__PURE__ */ new Map([
   ["DTEL", "DE"],
   ["DOMA", "DO"],
@@ -132652,6 +132876,7 @@ function docuEmptyText(tried) {
 }
 
 // src/adt/digest.ts
+init_source();
 init_compact();
 var DIGEST_TYPES = [
   "CLAS/OC",
@@ -133174,6 +133399,8 @@ function buildDigestSections(input, opts) {
 
 // src/tools/read-systems.ts
 init_errors();
+init_resolve();
+init_source();
 init_compact();
 function describeSide(side, obj) {
   return `${side.alias} (${obj.system}/${side.cfg.client})`;
@@ -135629,6 +135856,8 @@ async function selectImpacted(changed, deps) {
 }
 
 // src/tools/test.ts
+init_resolve();
+init_source();
 init_compact();
 
 // src/adt/bal-log.ts
@@ -136627,11 +136856,15 @@ ${changes}` : res.text);
 // src/tools/search.ts
 init_zod();
 init_errors();
+init_resolve();
 
 // src/adt/call-graph.ts
 init_errors();
+init_resolve();
+init_source();
 
 // src/adt/call-sites.ts
+init_source();
 var IDENT = "[A-Za-z_][A-Za-z0-9_]*";
 var CALL_FUNCTION_RE2 = new RegExp(
   `\\bCALL\\s+FUNCTION\\s+(?:'([^']*)'|\\(\\s*(${IDENT})\\s*\\)|(${IDENT}))`,
@@ -136927,6 +137160,7 @@ async function buildCallGraph(conn, target, type, direction, depth, max, maxChar
 }
 
 // src/tools/search.ts
+init_search_descriptions();
 init_compact();
 init_types();
 init_truncate();
@@ -137515,6 +137749,7 @@ function registerSearchTools(mcp, deps) {
 init_zod();
 init_compact();
 init_errors();
+init_resolve();
 init_transports();
 
 // src/adt/transport-entry-remove.ts
@@ -139772,6 +140007,7 @@ async function withRelockRetry(o) {
 }
 
 // src/adt/bopf.ts
+init_timeouts();
 init_errors();
 
 // src/adt/bopf-xml.ts
@@ -140711,6 +140947,7 @@ function classifyNode(model, node2) {
 }
 
 // src/adt/bopf.ts
+init_package_ref();
 var BOPF_COLLECTION = "/sap/bc/adt/bopf/businessobjects";
 var BOPF_ACCEPT_V4 = "application/vnd.sap.ap.adt.bopf.businessobjects.v4+xml";
 var BOPF_LOCK_ACCEPT = "application/vnd.sap.as+xml;charset=UTF-8;dataname=com.sap.adt.lock.Result";
@@ -140789,11 +141026,25 @@ async function createBusinessObject(conn, transport, input, authorized) {
   const corr = { kind: "local" };
   const body = buildCreateBody(input);
   try {
-    await conn.post(BOPF_COLLECTION, {
-      headers: { "Content-Type": BOPF_ACCEPT_V4, Accept: BOPF_ACCEPT_V4 },
-      body
-    });
+    await conn.withRequestTimeout(
+      conn.cfg.bopfTimeoutMs,
+      () => conn.post(BOPF_COLLECTION, {
+        headers: { "Content-Type": BOPF_ACCEPT_V4, Accept: BOPF_ACCEPT_V4 },
+        body
+      })
+    );
   } catch (e) {
+    if (isTransportTimeout(e)) {
+      throw transportTimeoutError({
+        family: "bopf",
+        operation: "create_bo",
+        name: input.name,
+        type: BOPF_TYPE,
+        uri,
+        timeoutMs: conn.cfg.bopfTimeoutMs,
+        cause: e
+      });
+    }
     try {
       const recovered = await readModel(conn, input.name);
       return { ...recovered, recovered: true, rootNodeCheck: checkRootNodeName(input, recovered.model), corr };
@@ -140904,21 +141155,34 @@ async function activateBusinessObject(conn, bo) {
   let bodyVerdict;
   let preaudit;
   try {
-    let result = await conn.adt.activate(bo, uri, void 0, true);
-    const phase2 = await activateWithPreauditSet(conn, [seed], result);
-    if (phase2) {
-      result = phase2.result;
-      preaudit = phase2.preaudit;
-    }
-    const messages = mapActivationMessages(result);
-    const inactive = mapInactiveObjects(result);
-    const hasFailure = messages.some((m) => isFailureSeverity(m.severity));
-    bodyVerdict = {
-      activated: result.success !== false && !hasFailure && inactive.length === 0,
-      messages: [...messages, ...inactive.map((i) => ({ inactiveDependent: i }))]
-    };
+    bodyVerdict = await conn.withRequestTimeout(conn.cfg.bopfTimeoutMs, async () => {
+      let result = await conn.adt.activate(bo, uri, void 0, true);
+      const phase2 = await activateWithPreauditSet(conn, [seed], result);
+      if (phase2) {
+        result = phase2.result;
+        preaudit = phase2.preaudit;
+      }
+      const messages = mapActivationMessages(result);
+      const inactive = mapInactiveObjects(result);
+      const hasFailure = messages.some((m) => isFailureSeverity(m.severity));
+      return {
+        activated: result.success !== false && !hasFailure && inactive.length === 0,
+        messages: [...messages, ...inactive.map((i) => ({ inactiveDependent: i }))]
+      };
+    });
   } catch (e) {
     if (isAbapError(e)) throw e;
+    if (isTransportTimeout(e)) {
+      throw transportTimeoutError({
+        family: "bopf",
+        operation: "activate",
+        name: bo,
+        type: BOPF_TYPE,
+        uri: bopfUri(bo),
+        timeoutMs: conn.cfg.bopfTimeoutMs,
+        cause: e
+      });
+    }
     throw translateAdtError(e, { operation: "write", uri, name: bo, type: BOPF_TYPE });
   }
   let version2;
@@ -141540,6 +141804,81 @@ async function evaluateClassRef(conn, site) {
 
 // src/tools/bopf-spec-keys.ts
 init_errors();
+function baseShape(spec) {
+  if (typeof spec === "string") return spec;
+  return spec.kind === "enum" ? "string" : "stringOrNull";
+}
+function enumOf(table, opts) {
+  const exclude = new Set(opts?.exclude ?? []);
+  return Object.keys(table).filter((k) => !exclude.has(k)).map((k) => ({ value: k, meaning: table[k] }));
+}
+var MULTIPLICITY_MEANINGS = {
+  "0_1": "optional to-one: at most one target instance",
+  "0_N": "optional to-many: any number of target instances",
+  "1_1": "mandatory to-one: exactly one target instance",
+  "1_N": "mandatory to-many: at least one target instance (schema-only, never observed on the wire)"
+};
+var IMPLEMENTATION_TYPE_MEANINGS = {
+  Composition: "parent-child composition: the target node is a child of the source node",
+  DoComposition: "composition to a delegated (dependent) object",
+  Association: "cross-node or cross-BO association resolved by the association class",
+  C: "schema short form of Composition (not observed on the wire)",
+  A: "schema short form of Association (not observed on the wire)"
+};
+var INSTANCE_MULTIPLICITY_MEANINGS = {
+  "0": "static: runs without a node instance (SC_ACT_CARD_STATIC)",
+  "1": "single instance: exactly one node instance per call (SC_ACT_CARD_ONE)",
+  "2": "multiple instances: any number of node instances per call (SC_ACT_CARD_MANY; what SAP's own actions use)"
+};
+var EXPORTING_PARAMETER_CATEGORY_TYPE_MEANINGS = {
+  None: "the action exports nothing",
+  Type: "the action exports data of the DDIC type named in parameterStructureRef",
+  Node: "the action exports instances of a node"
+};
+var DETERMINATION_CATEGORY_MEANINGS = {
+  reactAfterModification: "runs after instances of the trigger node are created/updated/deleted",
+  calculateTransientAttributes: "fills transient attributes when instances are loaded or changed",
+  calculateTransientSubNodeInstances: "fills transient sub-node instances when the parent is loaded",
+  calculateProperties: "computes field/action/association properties (enabled, read-only, mandatory)",
+  reactOnCheckAndDetermine: "runs when the consumer calls check-and-determine",
+  reactBeforeSave: "runs at the start of the save sequence, before validations",
+  drawNumbersDuringCreate: "draws numbers for new instances at creation time",
+  drawNumbersDuringSave: "draws numbers for new instances during save",
+  reactDuringSave: "runs during the save sequence after validations",
+  reactAfterSuccessfulSave: "runs after the database commit succeeded",
+  reactAfterCleanupTransaction: "runs when the transaction is cleaned up (after commit or rollback)",
+  reactAfterFailedSave: "runs after the save failed",
+  undefined: "leaves the determination inert \u2014 not a usable value, schema-only"
+};
+var VALIDATION_CATEGORY_MEANINGS = {
+  consistencyCheck: "checks the trigger node's instances and reports messages; runs on check-and-determine and during save",
+  actionCheck: "decides whether the trigger action may run on the given instances"
+};
+var QUERY_CATEGORY_MEANINGS = {
+  selectAll: "returns every instance of the node",
+  selectByElements: "filters instances by node attributes passed as selection parameters (generated implementation)",
+  customQuery: "implemented by the query class"
+};
+var UNIQUENESS_MEANINGS = {
+  unique: "key values must be unique across all instances",
+  uniqueIfNotInitial: "unique unless the key value is initial (what SAP's own keys use)",
+  notUnique: "no uniqueness enforced (a plain secondary access path)"
+};
+var RELATION_TYPE_MEANINGS = {
+  predecessor: "the named determination runs before this one",
+  successor: "the named determination runs after this one"
+};
+var BOPF_ENUM_FIELDS = {
+  multiplicity: enumOf(MULTIPLICITY_MEANINGS),
+  implementationType: enumOf(IMPLEMENTATION_TYPE_MEANINGS),
+  instanceMultiplicity: enumOf(INSTANCE_MULTIPLICITY_MEANINGS),
+  exportingParameterCategoryType: enumOf(EXPORTING_PARAMETER_CATEGORY_TYPE_MEANINGS),
+  determinationCategory: enumOf(DETERMINATION_CATEGORY_MEANINGS, { exclude: ["undefined"] }),
+  validationCategory: enumOf(VALIDATION_CATEGORY_MEANINGS),
+  queryCategory: enumOf(QUERY_CATEGORY_MEANINGS),
+  uniqueness: enumOf(UNIQUENESS_MEANINGS),
+  relationType: enumOf(RELATION_TYPE_MEANINGS)
+};
 var NO_SPEC_FIELDS = {};
 var TOP_LEVEL_CREATE_BO_ARGS = /* @__PURE__ */ new Set(["package", "description", "rootNodeName"]);
 var CLASS_REF_FIELDS = {
@@ -141573,8 +141912,8 @@ var ADD_NODE_FIELDS = {
 };
 var ADD_ASSOCIATION_FIELDS = {
   xmlName: "string",
-  multiplicity: "string",
-  implementationType: "string",
+  multiplicity: { kind: "enum", values: BOPF_ENUM_FIELDS.multiplicity },
+  implementationType: { kind: "enum", values: BOPF_ENUM_FIELDS.implementationType },
   objectModelGenerated: "boolean",
   doEmbeddingName: "string",
   targetNodeRef: "ref",
@@ -141584,8 +141923,8 @@ var ADD_ASSOCIATION_FIELDS = {
 var ADD_ACTION_FIELDS = {
   xmlName: "string",
   category: "string",
-  instanceMultiplicity: "string",
-  exportingParameterCategoryType: "string",
+  instanceMultiplicity: { kind: "enum", values: BOPF_ENUM_FIELDS.instanceMultiplicity },
+  exportingParameterCategoryType: { kind: "enum", values: BOPF_ENUM_FIELDS.exportingParameterCategoryType },
   exportParameterLink: "boolean",
   isExtensible: "boolean",
   objectModelGenerated: "boolean",
@@ -141594,7 +141933,7 @@ var ADD_ACTION_FIELDS = {
 };
 var ADD_DETERMINATION_FIELDS = {
   xmlName: "string",
-  category: "string",
+  category: { kind: "enum", values: BOPF_ENUM_FIELDS.determinationCategory },
   objectModelGenerated: "boolean",
   triggers: "objectArray",
   relations: "objectArray",
@@ -141602,7 +141941,7 @@ var ADD_DETERMINATION_FIELDS = {
 };
 var ADD_VALIDATION_FIELDS = {
   xmlName: "string",
-  category: "string",
+  category: { kind: "enum", values: BOPF_ENUM_FIELDS.validationCategory },
   checkBeforeSave: "boolean",
   createNode: "boolean",
   updateNode: "boolean",
@@ -141613,14 +141952,14 @@ var ADD_VALIDATION_FIELDS = {
 };
 var ADD_QUERY_FIELDS = {
   xmlName: "string",
-  category: "string",
+  category: { kind: "enum", values: BOPF_ENUM_FIELDS.queryCategory },
   objectModelGenerated: "boolean",
   dataTypeRef: "ref",
   ...CLASS_REF_FIELDS
 };
 var ADD_ALTERNATIVE_KEY_FIELDS = {
   xmlName: "string",
-  uniqueness: "string",
+  uniqueness: { kind: "enum", values: BOPF_ENUM_FIELDS.uniqueness },
   checkAfterModify: "boolean",
   checkBeforeSave: "boolean",
   noCheck: "boolean",
@@ -141652,8 +141991,8 @@ var SET_NODE_FLAGS_FIELDS = {
 };
 var SET_ASSOCIATION_FIELDS = {
   xmlName: "stringOrNull",
-  multiplicity: "stringOrNull",
-  implementationType: "stringOrNull",
+  multiplicity: { kind: "enumOrNull", values: BOPF_ENUM_FIELDS.multiplicity },
+  implementationType: { kind: "enumOrNull", values: BOPF_ENUM_FIELDS.implementationType },
   doEmbeddingName: "stringOrNull",
   objectModelGenerated: "booleanOrNull",
   targetNodeRef: "refOrNull",
@@ -141665,8 +142004,8 @@ var SET_ASSOCIATION_FIELDS = {
 var SET_ACTION_FIELDS = {
   xmlName: "stringOrNull",
   category: "stringOrNull",
-  instanceMultiplicity: "stringOrNull",
-  exportingParameterCategoryType: "stringOrNull",
+  instanceMultiplicity: { kind: "enumOrNull", values: BOPF_ENUM_FIELDS.instanceMultiplicity },
+  exportingParameterCategoryType: { kind: "enumOrNull", values: BOPF_ENUM_FIELDS.exportingParameterCategoryType },
   exportParameterLink: "booleanOrNull",
   isExtensible: "booleanOrNull",
   objectModelGenerated: "booleanOrNull",
@@ -141677,7 +142016,7 @@ var SET_ACTION_FIELDS = {
 };
 var SET_DETERMINATION_FIELDS = {
   xmlName: "stringOrNull",
-  category: "stringOrNull",
+  category: { kind: "enumOrNull", values: BOPF_ENUM_FIELDS.determinationCategory },
   objectModelGenerated: "booleanOrNull",
   implementationClassRef: "refOrNull",
   class: "string",
@@ -141685,7 +142024,7 @@ var SET_DETERMINATION_FIELDS = {
 };
 var SET_VALIDATION_FIELDS = {
   xmlName: "stringOrNull",
-  category: "stringOrNull",
+  category: { kind: "enumOrNull", values: BOPF_ENUM_FIELDS.validationCategory },
   checkBeforeSave: "booleanOrNull",
   createNode: "booleanOrNull",
   updateNode: "booleanOrNull",
@@ -141697,7 +142036,7 @@ var SET_VALIDATION_FIELDS = {
 };
 var SET_QUERY_FIELDS = {
   xmlName: "stringOrNull",
-  category: "stringOrNull",
+  category: { kind: "enumOrNull", values: BOPF_ENUM_FIELDS.queryCategory },
   objectModelGenerated: "booleanOrNull",
   dataTypeRef: "refOrNull",
   implementationClassRef: "refOrNull",
@@ -141706,7 +142045,7 @@ var SET_QUERY_FIELDS = {
 };
 var SET_ALTERNATIVE_KEY_FIELDS = {
   xmlName: "stringOrNull",
-  uniqueness: "stringOrNull",
+  uniqueness: { kind: "enumOrNull", values: BOPF_ENUM_FIELDS.uniqueness },
   checkAfterModify: "booleanOrNull",
   checkBeforeSave: "booleanOrNull",
   noCheck: "booleanOrNull",
@@ -141767,7 +142106,7 @@ var VALIDATION_TRIGGER_FIELDS = {
 var RELATION_FIELDS = {
   node: "string",
   determination: "string",
-  relationType: "string"
+  relationType: { kind: "enum", values: BOPF_ENUM_FIELDS.relationType }
 };
 var REMOVE_ADD_FOR_SET_OP = {
   set_association_fields: ["remove_association", "add_association"],
@@ -141846,7 +142185,21 @@ function refShapeIssue(path9, value) {
     detail: { path: path9, value, missing }
   };
 }
-function shapeIssue(path9, shape, value) {
+function enumShapeIssue(path9, spec, value) {
+  if (spec.kind === "enumOrNull" && value === null) return void 0;
+  if (typeof value !== "string") {
+    const kindText = spec.kind === "enumOrNull" ? "a string or null" : "a string";
+    return { message: `${path9} must be ${kindText}, got ${describeType(value)}.`, detail: { path: path9, value } };
+  }
+  if (spec.values.some((v) => v.value === value)) return void 0;
+  return {
+    message: `${path9} "${value}" is not one of ${spec.values.map((v) => `"${v.value}" (${v.meaning})`).join(", ")}.`,
+    detail: { path: path9, value, allowed: spec.values.map((v) => v.value) }
+  };
+}
+function shapeIssue(path9, spec, value) {
+  if (typeof spec !== "string") return enumShapeIssue(path9, spec, value);
+  const shape = spec;
   switch (shape) {
     case "string":
       return typeof value === "string" ? void 0 : { message: `${path9} must be a string, got ${describeType(value)}.`, detail: { path: path9, value } };
@@ -143251,13 +143604,14 @@ function patchChildFields(freshXml, tokens, input, op) {
   }
   const attrs = /* @__PURE__ */ new Map();
   for (const [key, shape] of Object.entries(table)) {
-    if (shape !== "stringOrNull" && shape !== "booleanOrNull" || !(key in spec)) continue;
+    const base = baseShape(shape);
+    if (base !== "stringOrNull" && base !== "booleanOrNull" || !(key in spec)) continue;
     attrs.set(key, spec[key]);
   }
   let result = attrs.size > 0 ? patchOpenTagAttrs(freshXml, token, attrs) : freshXml;
   const childOrder = CHILD_ORDER_BY_KIND[kind];
   for (const [key, shape] of Object.entries(table)) {
-    if (shape !== "refOrNull") continue;
+    if (baseShape(shape) !== "refOrNull") continue;
     const isImplClassRef = key === "implementationClassRef";
     if (isImplClassRef ? !implClassRefRequested : !(key in spec)) continue;
     let value;
@@ -143603,7 +143957,8 @@ function childFieldMismatches(element, spec, table) {
     }
     if (!(key in spec)) continue;
     const sent = spec[key];
-    if (shape === "refOrNull") {
+    const base = baseShape(shape);
+    if (base === "refOrNull") {
       const readBack = element[key];
       if (sent === null) {
         if (readBack !== void 0) out.push({ field: key, sent: null, readBack });
@@ -143614,12 +143969,12 @@ function childFieldMismatches(element, spec, table) {
       if (!readBack || readBack.name.toLowerCase() !== wanted.name.toLowerCase() || readBack.type.toLowerCase() !== wanted.type.toLowerCase()) {
         out.push({ field: key, sent: wanted, readBack: readBack ?? null });
       }
-    } else if (shape === "stringOrNull") {
+    } else if (base === "stringOrNull") {
       const readBack = element[key];
       const expected = sent === null ? void 0 : sent;
       const same = expected === void 0 ? readBack === void 0 : typeof readBack === "string" && typeof expected === "string" && readBack.toLowerCase() === expected.toLowerCase();
       if (!same) out.push({ field: key, sent, readBack: readBack ?? null });
-    } else if (shape === "booleanOrNull") {
+    } else if (base === "booleanOrNull") {
       const readBack = element[key];
       const expected = sent === null ? void 0 : sent;
       if (readBack !== expected) out.push({ field: key, sent, readBack: readBack ?? null });
@@ -143643,9 +143998,44 @@ function attributeSessionDeath(e, input) {
   const hint = e.details.kind === "dump" ? "The session died while the server was processing this edit, so every lock it held is already released and nothing was activated. Do NOT retry the identical call \u2014 an ASSERTION_FAILED in BOPF's model mapper (/BOBF/CL_CONF_MODEL_API_MAP) is deterministic in the payload, and the same request will kill the session again. Re-read the BO first, since the PUT may or may not have landed, and check the spec fields the mapper has to map (uniqueness/dataTypeRef/dataTableTypeRef/keyElements on an alternative key, category on a determination/validation/query). This is NOT an authentication failure." : e.hint;
   return new AbapError(e.code, message, details, hint);
 }
+function attributeInvalidData(e, input) {
+  if (!isAbapError(e) || e.details.classifiedBy !== "invalid-data-xml-path") return e;
+  const node2 = input.node;
+  const name = input.name;
+  const details = {
+    ...e.details,
+    specElement: {
+      operation: input.operation,
+      ...node2 !== void 0 ? { node: node2 } : {},
+      ...typeof name === "string" && name !== "" ? { name } : {}
+    }
+  };
+  const hint = `${e.hint ?? ""} This call was ${input.operation}` + (typeof name === "string" && name !== "" ? ` "${name}"` : "") + (node2 !== void 0 ? ` on node "${node2}"` : "") + ".";
+  return new AbapError(e.code, e.message, details, hint);
+}
 var BOPF_EDIT_TOOL_DESCRIPTION = 'One design-time edit to a BOPF business object (or create one). node/name/spec carry the specifics \u2014 see the abapsmith-edit-a-bopf-object skill for spec shapes, add_node/remove_node rules, and dangling-ref handling. add_alternative_key and set_alternative_key_fields both need i_know_this_may_not_activate: true \u2014 no alternative key added this way has been observed to activate; add_alternative_key additionally needs spec.uniqueness/dataTypeRef/dataTableTypeRef/keyElements, all four, and its checkAfterModify/checkBeforeSave/noCheck are constrained by uniqueness. remove_dependent_object removes an existing dependent-object embedding (its DoComposition association plus the matching "<name>.ROOT" node); abapsmith cannot create one \u2014 see doc/CAPABILITIES/bopf.md.';
 function recoverCreateAfterSessionDeath(deps, createRequest) {
   return deps.pool.withRead("abap_bopf_edit", (conn) => readModel(conn, createRequest.name));
+}
+var TIMEOUT_REREAD_ATTEMPTS = 6;
+var TIMEOUT_REREAD_INTERVAL_MS = 5e3;
+function defaultSleep2(ms) {
+  return new Promise((resolve5) => setTimeout(resolve5, ms));
+}
+async function rereadAfterTimeout(deps, bo, until) {
+  const sleep3 = deps.sleep ?? defaultSleep2;
+  let last;
+  for (let attempt = 0; attempt < TIMEOUT_REREAD_ATTEMPTS; attempt++) {
+    try {
+      const read = await deps.pool.withRead("abap_bopf_edit", (conn) => readModel(conn, bo));
+      last = read;
+      if (until(read)) return { kind: "found", read };
+    } catch (e) {
+      if (!(isAbapError(e) && e.code === "NOT_FOUND")) return { kind: "failed" };
+    }
+    if (attempt < TIMEOUT_REREAD_ATTEMPTS - 1) await sleep3(TIMEOUT_REREAD_INTERVAL_MS);
+  }
+  return { kind: "not-satisfied", last };
 }
 async function runBopfEdit(deps, args) {
   const input = args;
@@ -143735,7 +144125,68 @@ async function runBopfEdit(deps, args) {
             };
           });
         } catch (e) {
-          if (!(isAbapError(e) && e.code === "SESSION_DEAD")) throw e;
+          if (isAbapError(e) && e.code === "TIMEOUT" && e.details.operation === "create_bo") {
+            const timeoutMs = e.details.timeoutMs;
+            const envVar = e.details.envVar;
+            const reread2 = await rereadAfterTimeout(deps, bo, () => true);
+            if (reread2.kind === "found") {
+              const version2 = reread2.read.model.version ?? "unknown";
+              return {
+                model: reread2.read.model,
+                xml: reread2.read.xml,
+                recovered: true,
+                activation: void 0,
+                rootNodeCheck: checkRootNodeName(createRequest, reread2.read.model),
+                timeoutNote: `create_bo did not answer within ${timeoutMs} ms (${envVar}) but completed on the server after the client timeout: a fresh session re-read confirms ${bo} exists (version ${version2}). No activation was attempted on this call` + (wantsActivate ? `; run abap_bopf_edit operation: "activate" to activate it.` : ".")
+              };
+            }
+            if (reread2.kind === "failed") throw e;
+            throw new AbapError(
+              "TIMEOUT",
+              `create_bo of ${bo} did not answer within ${timeoutMs} ms (${envVar}) and ${TIMEOUT_REREAD_ATTEMPTS} fresh-session re-reads over ${TIMEOUT_REREAD_ATTEMPTS * TIMEOUT_REREAD_INTERVAL_MS / 1e3} s found no business object of that name; the create most likely never landed.`,
+              {
+                operation: "create_bo",
+                phase: "create_bo",
+                name: bo,
+                timeoutMs,
+                envVar,
+                rereadAttempts: TIMEOUT_REREAD_ATTEMPTS
+              },
+              `Retry create_bo. If it then fails because ${bo} already exists, the server finished late \u2014 read it with abap_bopf and activate it with abap_bopf_edit operation: "activate".`,
+              { retryable: true }
+              // no re-read ever found the object: the create most likely never landed, so a retry is the right next move
+            );
+          }
+          if (isAbapError(e) && e.code === "TIMEOUT" && e.details.operation === "activate") {
+            const timeoutMs = e.details.timeoutMs;
+            const envVar = e.details.envVar;
+            const reread2 = await rereadAfterTimeout(deps, bo, (m) => m.model.version === "active");
+            if (reread2.kind === "found") {
+              return {
+                model: reread2.read.model,
+                xml: reread2.read.xml,
+                recovered: false,
+                activation: { activated: true, messages: [], version: "active" },
+                rootNodeCheck: checkRootNodeName(createRequest, reread2.read.model),
+                timeoutNote: `activation of ${bo} did not answer within ${timeoutMs} ms (${envVar}) but completed on the server after the client timeout: a fresh session re-read shows version active.`
+              };
+            }
+            if (reread2.kind === "failed") throw e;
+            if (reread2.last === void 0) throw e;
+            return {
+              model: reread2.last.model,
+              xml: reread2.last.xml,
+              recovered: false,
+              activation: void 0,
+              rootNodeCheck: checkRootNodeName(createRequest, reread2.last.model),
+              activationTimeoutFailure: {
+                version: reread2.last.model.version ?? "unknown",
+                timeoutMs,
+                envVar
+              }
+            };
+          }
+          if (!(isAbapError(e) && e.code === "SESSION_DEAD")) throw attributeInvalidData(e, input);
           let reread;
           try {
             reread = await recoverCreateAfterSessionDeath(deps, createRequest);
@@ -143754,6 +144205,26 @@ async function runBopfEdit(deps, args) {
       }
     );
     await settle({ outcome: "succeeded", afterSource: result2.xml });
+    if (result2.activationTimeoutFailure) {
+      const { version: version2, timeoutMs, envVar } = result2.activationTimeoutFailure;
+      throw new AbapError(
+        "TIMEOUT",
+        `${bo} was created, but its activation did not answer within ${timeoutMs} ms (${envVar}) and a fresh session re-read still shows version ${version2}.`,
+        {
+          operation: "create_bo",
+          phase: "activate",
+          name: bo,
+          version: version2,
+          timeoutMs,
+          envVar,
+          journalEntryId: entryId,
+          rereadAttempts: TIMEOUT_REREAD_ATTEMPTS
+        },
+        `Do not retry create_bo: ${bo} exists. Run abap_bopf_edit operation: "activate" for it (or abap_bopf_delete to remove it).`,
+        { retryable: false }
+        // the create is confirmed to have landed (settled succeeded above); retrying create_bo would only fail on "already exists" — activate or delete is the right next move, never create_bo again
+      );
+    }
     if (result2.rootNodeCheck.actual === void 0 || result2.rootNodeCheck.actual === "") {
       throw unusableRootNodeError(bo, result2.rootNodeCheck, entryId, wantsActivate);
     }
@@ -143770,6 +144241,7 @@ async function runBopfEdit(deps, args) {
           ...sessionDiedMidCreate ? [
             "The write session died (SESSION_DEAD) after the create request was sent; a fresh session re-read confirms the object exists and is usable. No activation was attempted on this call \u2014 the session that died cannot be trusted to have sent one, even if activate was requested."
           ] : [],
+          ...result2.timeoutNote ? [result2.timeoutNote] : [],
           ...createBoRootNodeNotes(bo, result2.rootNodeCheck),
           ...createBoActivatabilityNotes(result2.model)
         ],
@@ -144029,8 +144501,34 @@ async function runBopfEdit(deps, args) {
       }
       return { model: afterMutate.model, danglingVerdict, activation, entryId };
     })
-  ).catch((e) => {
-    throw attributeSessionDeath(e, input);
+  ).catch(async (e) => {
+    if (input.operation === "activate" && isAbapError(e) && e.code === "TIMEOUT" && e.details.operation === "activate") {
+      const timeoutMs = e.details.timeoutMs;
+      const envVar = e.details.envVar;
+      const reread = await rereadAfterTimeout(deps, bo, (m) => m.model.version === "active");
+      if (reread.kind === "found") {
+        return {
+          model: reread.read.model,
+          danglingVerdict: void 0,
+          activation: { activated: true, messages: [], version: "active" },
+          entryId: void 0,
+          timeoutNote: `activation of ${bo} did not answer within ${timeoutMs} ms (${envVar}) but completed on the server after the client timeout: a fresh session re-read shows version active.`
+        };
+      }
+      if (reread.kind === "not-satisfied" && reread.last !== void 0) {
+        const version2 = reread.last.model.version ?? "unknown";
+        throw new AbapError(
+          "TIMEOUT",
+          `activate of ${bo} did not answer within ${timeoutMs} ms (${envVar}) and a fresh session re-read still shows version ${version2}.`,
+          { operation: "activate", phase: "activate", name: bo, version: version2, timeoutMs, envVar, rereadAttempts: TIMEOUT_REREAD_ATTEMPTS },
+          `Run abap_bopf_edit operation: "activate" again; the server may still be activating ${bo}. Raise ${envVar} if it regularly needs longer.`,
+          { retryable: true }
+          // still not active after every re-read, but the object itself is untouched by this failed activate — retrying activate is safe and is likely to just be catching up with a slow server
+        );
+      }
+      throw attributeInvalidData(attributeSessionDeath(e, input), input);
+    }
+    throw attributeInvalidData(attributeSessionDeath(e, input), input);
   });
   const categoryNote = determinationCategoryOmittedNote(input);
   const addNodeNote = input.operation === "add_node" ? addNodeAutoAssignedRefsNote(input, result.model) : void 0;
@@ -144044,7 +144542,7 @@ async function runBopfEdit(deps, args) {
       false,
       result.entryId,
       deps.cfg.maxResponseChars,
-      [categoryNote, addNodeNote, altKeyNote, ...delegationNotes(input)].filter(
+      [categoryNote, addNodeNote, altKeyNote, result.timeoutNote, ...delegationNotes(input)].filter(
         (n) => n !== void 0
       )
     ),
@@ -154703,10 +155201,12 @@ function dedupe(names) {
 // src/tools/atc.ts
 init_zod();
 init_errors();
+init_resolve();
 
 // src/adt/atc.ts
 init_errors();
 init_session();
+init_source();
 
 // src/adt/atc-query.ts
 init_errors();
@@ -156150,6 +156650,8 @@ function registerAtcTools(mcp, deps) {
 // src/tools/quickfix.ts
 init_zod();
 init_errors();
+init_resolve();
+init_source();
 
 // src/adt/range-edit.ts
 function splitLines(source) {
@@ -158144,6 +158646,7 @@ function registerServiceTools(mcp, deps) {
 // src/tools/trace.ts
 init_zod();
 init_errors();
+init_resolve();
 init_compact();
 
 // src/adt/traces-query.ts
@@ -159956,6 +160459,7 @@ function auditChangeDocs(policy, audit) {
 }
 
 // src/adt/fluid/delete.ts
+init_write_verify();
 async function deleteOneFluidObject(conn, gate, target, reviveOnDeadSession) {
   const attempt = async () => {
     const authorized = await authorizeMutation(conn, gate, "delete", { type: target.type, name: target.name });
