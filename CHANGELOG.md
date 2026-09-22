@@ -12,6 +12,19 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`abap_search` no longer throws on a bare `*` query under a type filter** (#172). `conn.adt.searchObject` parses object-name attributes numerically, so a whitespace-padded numeric name like `"                                00"` (a real WDCC/YG row) becomes the number `0` and the library's own `result["adtcore:name"].match(...)` throws `TypeError: match is not a function` before our code ever sees a row. `abap_search` now retries that one call with a string-preserving parse of the raw ADT XML when it hits exactly this failure; any other error is rethrown unchanged. `*` stays supported, with or without `type`, within the existing fetch cap.
+- **`abap_test` on a class with no test-classes include reports `NO TESTS RAN`, not `UNKNOWN`** (#181). A class whose `testclasses` include is missing or empty now reports `NO TESTS RAN` with a reason naming which — there was nothing for ABAP Unit to run, not a run that reported nothing for no evident reason. `UNKNOWN` is now reserved for that latter case: the include exists and is non-empty but the run still came back empty, or the include could not be probed.
+
+### Added
+
+- **`abap_run` `keep_blank_lines`** (#180). `true` returns the captured list unfiltered — no page-header/rule strip, no trailing-blank pop, no right-trim (only unprefixed bridge lines are still dropped). Default `false` keeps today's filtering, and the dropped-lines `NOTE` now says why and where, e.g. "Dropped 2 blank lines at positions 4 and 5 (trailing list padding); dropped the list header and rule line at positions 1 and 2; dropped 1 non-list line of bridge output at bridge line 3." A response-cap cut leaves an in-place `… (N lines omitted) …` marker in the `OUTPUT` instead of just cutting it off silently.
+
+### Changed
+
+- **`abap_journal`'s description lists its parameters and common calls** (#183): `mode=list`, `mode=show entry=<id>` (`detail=full` for the complete images), `mode=undo entry=<id> activate=true`, `mode=reconcile entry=<id> outcome=<succeeded|failed> reason=<text>`. `operation`/`action`/`op` are now suggested as `mode` and `target` as `object` in the `BAD_INPUT` for an unknown parameter; `abapsmith-orient`'s tool-set row shows the same calls.
+
 ## [0.6.19] - 2026-09-22
 
 ### Added
