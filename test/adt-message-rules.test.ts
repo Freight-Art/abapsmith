@@ -400,3 +400,50 @@ describe("describeXmlPath — unit", () => {
     expect(hint).toContain("uniqueness");
   });
 });
+
+const ENHOXHH_V2_415_XML = `<?xml version="1.0" encoding="utf-8"?><exc:exception xmlns:exc="http://www.sap.com/abapxml/types/communicationframework"><namespace id="com.sap.adt"/><type id="ExceptionUnsupportedMediaType"/><message lang="EN">Unsupported Media Type</message><localizedMessage lang="EN">Unsupported Media Type</localizedMessage><properties><entry key="T100KEY-ID">SADT_RESOURCE</entry><entry key="T100KEY-NO">039</entry></properties></exc:exception>`;
+
+/** Hand-built: SADT_RESOURCE/037, ExceptionResourceNotAcceptable — issue #178's 406 case. */
+const NOT_ACCEPTABLE_406_XML = `<?xml version="1.0" encoding="utf-8"?>
+<exc:exception xmlns:exc="http://www.sap.com/abapxml/types/communicationframework">
+  <namespace id="com.sap.adt"/>
+  <type id="ExceptionResourceNotAcceptable"/>
+  <message lang="EN">Not Acceptable</message>
+  <localizedMessage lang="EN">Not Acceptable</localizedMessage>
+  <properties>
+    <entry key="T100KEY-ID">SADT_RESOURCE</entry>
+    <entry key="T100KEY-NO">037</entry>
+  </properties>
+</exc:exception>`;
+
+describe("translateAdtError — unsupported-media-type wired into the UNCLASSIFIED tail", () => {
+  it("a real 415 ExceptionUnsupportedMediaType SADT_RESOURCE/039 response is classified, not the generic fallback", () => {
+    const e = thrownByLibrary(415, "Unsupported Media Type", OK_XML, ENHOXHH_V2_415_XML);
+    const err = translateAdtError(e, ctx);
+
+    expect(err.code).toBe("ADT_ERROR");
+    expect(err.details.classifiedBy).toBe("unsupported-media-type");
+    expect(err.details.unclassified).toBeUndefined();
+    expect(err.details.unclassifiedKey).toBeUndefined();
+    expect(err.details.adtExceptionType).toBe("ExceptionUnsupportedMediaType");
+    expect(err.details.status).toBe(415);
+    expect(err.hint).not.toMatch(/was not recognised by any specific rule here/);
+    expect(err.hint).toMatch(/application\/vnd\.sap\.adt\.enh\.enhoxhh\.v2\+xml/);
+  });
+});
+
+describe("translateAdtError — not-acceptable wired into the UNCLASSIFIED tail", () => {
+  it("a 406 ExceptionResourceNotAcceptable SADT_RESOURCE/037 response is classified, not the generic fallback", () => {
+    const e = thrownByLibrary(406, "Not Acceptable", OK_XML, NOT_ACCEPTABLE_406_XML);
+    const err = translateAdtError(e, ctx);
+
+    expect(err.code).toBe("ADT_ERROR");
+    expect(err.details.classifiedBy).toBe("not-acceptable");
+    expect(err.details.unclassified).toBeUndefined();
+    expect(err.details.unclassifiedKey).toBeUndefined();
+    expect(err.details.adtExceptionType).toBe("ExceptionResourceNotAcceptable");
+    expect(err.details.status).toBe(406);
+    expect(err.hint).not.toMatch(/was not recognised by any specific rule here/);
+    expect(err.hint).toMatch(/406/);
+  });
+});

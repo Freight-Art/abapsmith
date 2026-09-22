@@ -446,6 +446,16 @@ const JOURNALLED_BY: ReadonlyMap<string, string> = new Map([
   // the request create) and is covered by that same journal entry, not a
   // separate one.
   ["adt/traces.ts", "tools/trace.ts"],
+  // `createProgram`'s single `conn.post` (PROG/P create, issue #179). Called
+  // from `createNewObject` (adt/write.ts), inside `writeObject`, which
+  // `abapWrite` (tools/write.ts) wraps in `withJournalledMutation` — same
+  // `operation: "create"` entry as every other abap_write create.
+  ["adt/program-create.ts", "tools/write.ts"],
+  // `writeTextPool`'s two `conn.put` (symbols, selections textelements PUT,
+  // issue #182). `writeTextPoolJournalled` (tools/write-text-pool.ts) wraps
+  // it in `withJournalledMutation`, one `operation: "update"`,
+  // `irreversible: true` entry on `PROG/PX`, begun before the lock/PUT.
+  ["adt/text-pool.ts", "tools/write-text-pool.ts"],
 ]);
 
 /**
@@ -605,6 +615,26 @@ const PINNED_MUTATION_CENSUS: ReadonlyMap<string, { calls: number; note: string 
         "JOURNALLED_BY entry above for which of these share a single journal entry.",
     },
   ],
+  [
+    "adt/program-create.ts",
+    {
+      calls: 1,
+      note:
+        "createProgram's single conn.post (PROG/P create). Journalled via abapWrite's " +
+        "withJournalledMutation (tools/write.ts) as the ordinary create entry.",
+    },
+  ],
+  [
+    "adt/text-pool.ts",
+    {
+      calls: 2,
+      note:
+        "writeTextPool's two conn.put (symbols, selections). readTextPool's two conn.get are " +
+        "reads, not counted here. Activation goes through adt/activate.ts and is counted there. " +
+        "Journalled via writeTextPoolJournalled's withJournalledMutation (tools/write-text-pool.ts), " +
+        "one irreversible operation:\"update\" entry per call.",
+    },
+  ],
 ]);
 
 interface KnownGap {
@@ -745,7 +775,9 @@ describe("journal contract (heuristic, see file header)", () => {
         "adt/enhancement-hook.ts",
         "adt/enhancement-write.ts",
         "adt/odata.ts",
+        "adt/program-create.ts",
         "adt/quickfix.ts",
+        "adt/text-pool.ts",
         "adt/traces.ts",
         "adt/transports.ts",
         "adt/write.ts",
