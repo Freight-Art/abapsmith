@@ -189,6 +189,25 @@ describe("parsePackageContents", () => {
   it("empty input gives { contents: [] }", () => {
     expect(parsePackageContents("")).toEqual({ contents: [] });
   });
+
+  it("DELFLAG=X with TRKORR and TASK present parses as deleted, with both trkorr and task", () => {
+    const raw = `${PKG_CONTENT_PREFIX} KIND=OBJECT PGMID=R3TR OBJECT=CLAS NAME=ZCL_FOO DELFLAG=X TRKORR=A4HK900346 TASK=A4HK900347`;
+    expect(parsePackageContents(raw).contents).toEqual([
+      { kind: "OBJECT", pgmid: "R3TR", object: "CLAS", name: "ZCL_FOO", deleted: true, trkorr: "A4HK900346", task: "A4HK900347" },
+    ]);
+  });
+
+  it("DELFLAG/TRKORR/TASK all empty parses as a plain live row — no deleted, trkorr or task key at all", () => {
+    const raw = `${PKG_CONTENT_PREFIX} KIND=OBJECT PGMID=R3TR OBJECT=CLAS NAME=ZCL_FOO DELFLAG= TRKORR= TASK=`;
+    expect(parsePackageContents(raw).contents).toEqual([{ kind: "OBJECT", pgmid: "R3TR", object: "CLAS", name: "ZCL_FOO" }]);
+  });
+
+  it("DELFLAG=X with empty TRKORR/TASK parses as deleted with no trkorr and no task key", () => {
+    const raw = `${PKG_CONTENT_PREFIX} KIND=OBJECT PGMID=R3TR OBJECT=CLAS NAME=ZCL_FOO DELFLAG=X TRKORR= TASK=`;
+    expect(parsePackageContents(raw).contents).toEqual([
+      { kind: "OBJECT", pgmid: "R3TR", object: "CLAS", name: "ZCL_FOO", deleted: true },
+    ]);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -457,6 +476,74 @@ describe("a non-empty package is refused, naming what it still contains — not 
     }
     expect(err.message).not.toContain("capped");
     expect((err.details as { contents?: unknown[] } | undefined)?.contents).toHaveLength(25);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 7b — beforeAssert / TRANSPORT_PENDING: contents already deleted (DELFLAG=X)
+// but still awaiting a transport release (issue #185)
+// ---------------------------------------------------------------------------
+
+function deletedObjRow(n: string, trkorr?: string, task?: string): string {
+  const trkorrPart = trkorr !== undefined ? `TRKORR=${trkorr} ` : "";
+  const taskPart = task !== undefined ? `TASK=${task} ` : "";
+  return `${PKG_CONTENT_PREFIX} KIND=OBJECT PGMID=R3TR OBJECT=CLAS NAME=${n} DELFLAG=X ${trkorrPart}${taskPart}`.trimEnd();
+}
+
+describe("a package whose contents are already deleted but pending a transport release (#185)", () => {
+  it("every remaining row is pending, on the same request: TRANSPORT_PENDING, names the request, dedupes pendingRequests", async () => {
+    const fake = classicFake({
+      action: "delete_package",
+      lines: () => [deletedObjRow("ZCL_ONE", "A4HK900346", "A4HK900347"), deletedObjRow("ZCL_TWO", "A4HK900346", "A4HK900347")],
+    });
+    const { conn } = await connected(fake.route);
+    const err = await catchErr(deletePackageViaBridge(conn, allowingGate(), TRANSPORT_PARAMS));
+    expect(err.code).toBe("TRANSPORT_PENDING");
+    expect(err.message).toContain("everything left in it is already deleted and waits for a transport release");
+    expect(err.message).toContain("ZCL_ONE");
+    expect(err.message).toContain("ZCL_TWO");
+    expect(err.message).toContain("awaiting release of request A4HK900346, task A4HK900347");
+    expect(err.message).toContain("Releasing A4HK900346 will make the package deletable");
+    expect(err.message).toContain("abap_transport_release");
+    expect((err.details as { pendingRequests?: string[] }).pendingRequests).toEqual(["A4HK900346"]);
+  });
+
+  it("a pending object whose request could not be found from E071: no trkorr, pendingRequests is empty", async () => {
+    const fake = classicFake({ action: "delete_package", lines: () => [deletedObjRow("ZCL_ORPHAN")] });
+    const { conn } = await connected(fake.route);
+    const err = await catchErr(deletePackageViaBridge(conn, allowingGate(), TRANSPORT_PARAMS));
+    expect(err.code).toBe("TRANSPORT_PENDING");
+    expect(err.message).toContain("could not be found from E071");
+    expect(err.message).toContain("no open E071 row");
+    expect(err.message).toContain("abap_transport check");
+    expect((err.details as { pendingRequests?: string[] }).pendingRequests).toEqual([]);
+  });
+
+  it("a mix of a still-live object and a pending one: CHECK_FAILED, names both the live and the pending object", async () => {
+    const fake = classicFake({
+      action: "delete_package",
+      lines: () => [objRow("ZCL_KEPT"), deletedObjRow("ZCL_GONE", "A4HK900346")],
+    });
+    const { conn } = await connected(fake.route);
+    const err = await catchErr(deletePackageViaBridge(conn, allowingGate(), TRANSPORT_PARAMS));
+    expect(err.code).toBe("CHECK_FAILED");
+    expect(err.message).toContain("It still contains: object R3TR CLAS ZCL_KEPT");
+    expect(err.message).toContain("Also pending release: object R3TR CLAS ZCL_GONE");
+    expect(err.message).toContain("awaiting release of request A4HK900346");
+    expect(err.message).not.toContain("was NOT deleted: everything left in it is already deleted");
+  });
+
+  it("no delete request is sent in any of these three refusal cases", async () => {
+    for (const lines of [
+      [deletedObjRow("ZCL_ONE", "A4HK900346")],
+      [deletedObjRow("ZCL_ORPHAN")],
+      [objRow("ZCL_KEPT"), deletedObjRow("ZCL_GONE", "A4HK900346")],
+    ]) {
+      const fake = classicFake({ action: "delete_package", lines: () => lines });
+      const { conn, adt } = await connected(fake.route);
+      await catchErr(deletePackageViaBridge(conn, allowingGate(), TRANSPORT_PARAMS));
+      expect(adt.calls.some((c) => (c.method ?? "").toUpperCase() === "DELETE")).toBe(false);
+    }
   });
 });
 

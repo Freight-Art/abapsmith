@@ -51,20 +51,20 @@ request an ATC exemption is an agent that can silence a finding instead of
 fixing it. There is still no variant create.
 
 **Removing one locked object entry from a transport request — implemented,
-guarded against CTS's own duplicate-entry refusal; unlocking one without
-removing it is not.** CTS keeps an object entry locked to its request until
-the request is released — deleting the object does not clear the entry, and
-the child task refuses the same delete for the same reason: `abap_transport
-operation=delete` returns `TRANSPORT_LOCKED` on both. `abap_transport
-operation=removeObject` (admin-only ceiling, same as `delete`, plus
-`confirm`) drops one such entry's E071 row and CTS lock when the request
-holds exactly one E071 row for the object's PGMID+OBJECT+OBJ_NAME. It does
-not use ADT's Transport Organizer `removeobject` link (see below) — instead
-it reaches CTS's own backend the way `tran-delete`/`view-delete` do, through
-the fluid API's persistent body class `ZCL_ZMCP_FLUID_CLASSIC` in
-`$ABAPSMITH_FLUID_API`, calling `TRINT_READ_REQUEST` to find the row(s)
-and `TR_DELETE_COMM_OBJECT_KEYS` (`is_e071_delete`, `iv_dialog_flag = space`)
-to remove them, then `COMMIT WORK`.
+now collapses CTS's own duplicate-entry case instead of refusing it;
+unlocking one without removing it is not.** CTS keeps an object entry
+locked to its request until the request is released — deleting the object
+does not clear the entry, and the child task refuses the same delete for
+the same reason: `abap_transport operation=delete` returns
+`TRANSPORT_LOCKED` on both. `abap_transport operation=removeObject`
+(admin-only ceiling, same as `delete`, plus `confirm`) drops one such
+entry's E071 row and CTS lock. It does not use ADT's Transport Organizer
+`removeobject` link (see below) — instead it reaches CTS's own backend the
+way `tran-delete`/`view-delete` do, through the fluid API's persistent body
+class `ZCL_ZMCP_FLUID_CLASSIC` in `$ABAPSMITH_FLUID_API`, calling
+`TRINT_READ_REQUEST` to find the row(s) and `TR_DELETE_COMM_OBJECT_KEYS`
+(`is_e071_delete`, `iv_dialog_flag = space`) to remove them, then
+`COMMIT WORK`.
 
 `TR_DELETE_COMM_OBJECT_KEYS` calls `TRINT_DELETE_COMM_OBJECT_KEYS`, which
 counts the request's E071 rows matching PGMID+OBJECT+OBJ_NAME — not
@@ -73,51 +73,66 @@ qualified by activity or AS4POS — before touching anything: zero rows raises
 `w_duplicate_entry` (`MESSAGE e292(tr)`), and only the exactly-one case
 proceeds. E071's primary key is TRKORR+AS4POS, not object identity, so two
 rows for the same object on one request are legal, and have been observed
-live — but the obvious way to try to produce them does not: on A4H
-(2026-09-12), a request holding a create and a delete of the same class held
-one E071 row, not two, and `removeObject` succeeded with `removedCount: 1`.
-abapsmith does not know what reliably produces duplicate rows. Censused
-live on A4H, 2026-09-05: two stuck fixture tasks each turned out
+live. The naive recipe does not produce them: on A4H (2026-09-12), a request
+holding a create and a delete of the same class held one E071 row, not two.
+SAP's own bookkeeping does produce them, reliably: creating, deleting,
+recreating and deleting a table again in one request leaves two rows for
+that table — one `OBJFUNC` blank, one `OBJFUNC D` — reproduced live on A4H
+on 2026-09-22, task A4HK900347. abapsmith's own writes add nothing to this;
+a DDIC delete through abapsmith appends no E071 row of its own, so there is
+never anything to dedupe on the write side — the duplicate rows are ones
+SAP's own create/delete/recreate/delete sequence already left behind.
+Censused live on A4H, 2026-09-05: two stuck fixture tasks each turned out
 to hold exactly two E071 rows for their object (same pgmid/object/obj_name,
 activity blank, lockflag X, differing only by AS4POS), no E071K rows, and
 one ordinary TLOCK row (`edtflag = X`) apiece — the row count, not the
-object's type, is what CTS refuses on. (A single-row entry removed cleanly
-in an earlier run; that row no longer exists to re-inspect, so this is
-evidence from that earlier run plus the function module's type-agnostic
-counting logic, not a fresh side-by-side reconfirmation.) The bridge now
-runs this same count itself before calling the function module, so a
-duplicate can't leave one row removed and the next refused mid-batch: the
-refusal surfaces as a terminal error code, `CTS_DUPLICATE_ENTRY`, naming the
-object, the holder, the row count and the AS4POS values; a late `TR 292`
-raised by `TR_DELETE_COMM_OBJECT_KEYS` itself maps to the same code. Any
-other refusal from the function module still surfaces its `sy-subrc` and,
-when CTS set one, the `sy-msg*` T100 message, as a `msg=` fragment on the
-`CHECK_FAILED` error — blank `sy-msg*` variables are expected there too,
-since `MESSAGE e292(tr)` carries no WITH operands.
+object's type, is what CTS refuses on.
 
-**Duplicate E071 entries for one object: no working function-module route to
-clear them.** How a request ends up holding two E071 rows for the same
-object is not established. The obvious recipe — create an object, then
-delete it under the same transport request as `corr_nr` — was tried live on
-A4H on 2026-09-12 and produced one E071 row, not two; `removeObject` removed
-it cleanly. When a request does hold two rows for one object,
-`TR_DELETE_COMM_OBJECT_KEYS` refuses to touch either while both are present
-(above). The request can then never be deleted through abapsmith:
-`abap_transport operation=delete` keeps returning
-`TRANSPORT_LOCKED`, and `operation=removeObject` now refuses up front with
-`CTS_DUPLICATE_ENTRY` instead of attempting a call CTS is going to reject.
-No supported function-module route removes just one of the two rows:
+The bridge now runs this same count itself before calling the function
+module, and, finding two or more, collapses the group first rather than
+refusing: it keeps the row with the lowest AS4POS and, in the same LUW,
+deletes the surplus E071 rows by TRKORR+AS4POS (E071K rows are keyed by
+the object, not by the E071 position, and go with the surviving row), then
+calls `TR_DELETE_COMM_OBJECT_KEYS` once against the one remaining row. The
+response names what it did (e.g. `Collapsed 2 duplicate E071 rows for R3TR
+TABL ZAS_T184 (AS4POS 000002, 000003) to one row before removing it.`) and
+the header carries `collapsedRows` with the count. This closes the gap the
+rest of this section used to describe: a duplicate no longer strands the
+request. `CTS_DUPLICATE_ENTRY` is still the terminal error code for the
+case the collapse cannot resolve — the count is still two or more after the
+collapse step, or a late `TR 292` from `TR_DELETE_COMM_OBJECT_KEYS` itself,
+or an older bridge body without the collapse step is deployed — naming the
+object, the holder, the row count and the AS4POS values. Any other refusal
+from the function module still surfaces its `sy-subrc` and, when CTS set
+one, the `sy-msg*` T100 message, as a `msg=` fragment on the `CHECK_FAILED`
+error — blank `sy-msg*` variables are expected there too, since
+`MESSAGE e292(tr)` carries no WITH operands. The collapse step was proven
+live on A4H, 2026-09-22: task A4HK900355 held `R3TR TABL ZAS_T184B` twice
+(AS4POS 000002 and 000003, from create/delete/recreate/delete in one
+request); `removeObject` reported `Collapsed 2 duplicate E071 rows ... to
+one row before removing it.` with `collapsedRows: 1`, and a subsequent
+`show` and an E071 read no longer listed the object.
+
+**Duplicate E071 entries for one object.** How a request ends up holding
+two E071 rows for the same object is now established for at least one
+recipe: create, delete, recreate, delete of a table in one request (above).
+The naive create-then-delete recipe does not produce it. `removeObject`
+collapses the duplicate itself (above) rather than refusing, so the
+"stranded forever" situation this passage used to describe no longer
+applies to the ordinary case: there is no longer a need to edit the
+request's object list in SE09/SE10 or release the request just to clear a
+duplicate. That manual route remains the only option for the residual case
+`CTS_DUPLICATE_ENTRY` still names — the collapse step itself failing, or an
+undeployed fix — since no function-module route removes just one of two
+rows short of the collapse's own direct E071 delete:
 `TR_DELETE_COMM_OBJECT_KEYS` has no parameter naming which AS4POS to drop,
-the duplicate guard inside `TRINT_DELETE_COMM_OBJECT_KEYS` has no bypass
-flag, and `TRINT_DELETE_COMM_KEYS` only touches E071K, never E071. SAP ships
-a raw Open SQL `DELETE e071` inside one of its own function modules, but it
-is unguarded — no lock,
-owner or status check, and no E071K cleanup — and abapsmith will not issue
-it. The remedy is outside abapsmith: edit the request's object list in
-SE09/SE10 so at most one row remains for the object, then retry
-`removeObject`; or release the request, which is irreversible. Neither route
-is guaranteed to work under a lock — they are outside what this tool
-controls, not a promised fix abapsmith can verify.
+and the duplicate guard inside `TRINT_DELETE_COMM_OBJECT_KEYS` has no
+bypass flag. SAP ships a raw Open SQL `DELETE e071` inside one of its own
+function modules, but it is unguarded — no lock, owner or status check, and
+no E071K cleanup — and abapsmith does not call it directly; the collapse
+step performs the same kind of direct delete itself, scoped to surplus rows
+only and inside the same LUW as the subsequent `TR_DELETE_COMM_OBJECT_KEYS`
+call.
 
 Still missing: the ADT `removeobject` link's own verb and body remain
 unverified and are not used — a guessed mutating CTS call is not something to
@@ -142,12 +157,12 @@ resolving it.
 
 The ways to clear such a request now: `abap_transport operation=removeObject`
 for one entry at a time (admin mode, irreversible, does not itself prove the
-request becomes deletable — follow up with `operation=delete` — and does not
-work when the request already holds two or more E071 rows for the object,
-see above), release the request (also irreversible), or unlock it by hand in
-SAPGUI (SE03 "Unlock Objects (Expert Tool)", then SE09/SE10 to delete — SE03
-here clears TLOCK and the lockflag, not E071 rows, so it does not by itself
-help the duplicate-row case above). This is a real cost of
+request becomes deletable — follow up with `operation=delete` — and now
+collapses a duplicate rather than refusing on one, see above), release the
+request (also irreversible), or unlock it by hand in SAPGUI (SE03 "Unlock
+Objects (Expert Tool)", then SE09/SE10 to delete — SE03 here clears TLOCK
+and the lockflag, not E071 rows, so it never helped the duplicate-row case
+and is now unnecessary for it besides). This is a real cost of
 ordinary sessions: with
 `ABAP_ALLOW_PACKAGES` defaulting to `["*"]`, an ordinary write
 auto-creates a request only when it cannot adopt an existing one — a

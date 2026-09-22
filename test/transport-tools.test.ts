@@ -25,8 +25,15 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { HttpClient, HttpClientOptions, HttpClientResponse } from "abap-adt-api/build/AdtHTTP.js";
 
+import { AbapConnection } from "../src/adt/connection.js";
+import { AuthCircuitBreaker } from "../src/adt/circuit-breaker.js";
 import { AbapError } from "../src/adt/errors.js";
+import { ConfigSchema } from "../src/config.js";
+import { authorizeCeiling } from "../src/adt/transports.js";
+import { FLUID_PACKAGE, resetFluidPackageMemo } from "../src/adt/fluid/package.js";
+import { resetFluidEnsureState } from "../src/adt/fluid/ensure.js";
 import { Journal, systemKey, type JournalConfig, type JournalEntry } from "../src/journal.js";
 import { SafetyGate } from "../src/safety.js";
 import {
@@ -45,6 +52,8 @@ import {
   trListRequest,
   trListWorkbenchBody,
 } from "./helpers/cts-fixtures.js";
+import { classicFake, useFluidState } from "./helpers/fluid-classic-fake.js";
+import { routeSystemRoleProbe } from "./helpers/system-role-fake.js";
 
 const MAX_CHARS = 60_000;
 
@@ -332,6 +341,30 @@ describe("abap_transport operation: show", () => {
       .split("\n")
       .filter((line) => line.includes("ZMCP_CTS_PROBE"));
     expect(objectRowLines).toHaveLength(1);
+  });
+
+  it("an object with duplicate E071 rows renders '(x2, duplicate E071 rows)' and a summary note; a plain object does not", async () => {
+    const body =
+      `<?xml version="1.0" encoding="utf-8"?><tm:root xmlns:tm="http://www.sap.com/cts/adt/tm" xmlns:adtcore="http://www.sap.com/adt/core">` +
+      `<tm:request tm:number="A4HK900140" tm:owner="DEVELOPER" tm:desc="dup test" tm:type="K" tm:status="D" tm:status_text="Modifiable" tm:target="">` +
+      `<tm:all_objects>` +
+      `<tm:abap_object tm:pgmid="R3TR" tm:type="TABL" tm:name="ZAS_T184" tm:wbtype="TABL/DT" tm:lock_status=""/>` +
+      `<tm:abap_object tm:pgmid="R3TR" tm:type="TABL" tm:name="ZAS_T184" tm:wbtype="TABL/DT" tm:lock_status=""/>` +
+      `<tm:abap_object tm:pgmid="R3TR" tm:type="TABL" tm:name="ZAS_OTHER" tm:wbtype="TABL/DT" tm:lock_status=""/>` +
+      `</tm:all_objects>` +
+      `</tm:request></tm:root>`;
+    const { conn } = fakeCtsConnection([{ status: 200, body }]);
+
+    const res = await abapTransport(
+      conn,
+      transportInput({ operation: "show", transport: "A4HK900140" }),
+      MAX_CHARS,
+    );
+
+    expect(res.text).toContain("ZAS_T184 (x2, duplicate E071 rows)");
+    expect(res.text).toMatch(/1 object\(s\) have duplicate E071 rows/);
+    const otherLine = res.text.split("\n").find((line) => line.includes("ZAS_OTHER"));
+    expect(otherLine).not.toContain("duplicate E071 rows");
   });
 
   it("a released request's note says it can no longer be changed", async () => {
@@ -3014,5 +3047,143 @@ describe("abap_transport — object given where transport is required (#156)", (
       message: expect.not.stringContaining("Did you mean"),
     });
     expect(calls).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// abap_transport removeObject: collapsed E071 rows surfaced in the result
+// (issue #184). This is the one removeObject scenario in this file that
+// needs the fluid classic bridge's classrun dispatch, not just the CTS REST
+// layer — fakeCtsConnection alone cannot drive that, so this block ports a
+// minimal FakeAdt/AbapConnection harness from test/transport-entry-remove.ts.
+// ---------------------------------------------------------------------------
+
+describe("abap_transport removeObject — collapsed duplicate E071 rows (#184)", () => {
+  const fluidState = useFluidState();
+
+  type Route = (o: HttpClientOptions) => HttpClientResponse | undefined;
+
+  class FakeAdt implements HttpClient {
+    readonly calls: HttpClientOptions[] = [];
+    constructor(private readonly route: Route) {}
+    async request(o: HttpClientOptions): Promise<HttpClientResponse> {
+      this.calls.push(o);
+      const res = this.route(o);
+      if (!res) throw new Error(`FakeAdt: unrouted request ${(o.method ?? "GET").toUpperCase()} ${o.url}`);
+      return res;
+    }
+  }
+
+  const resp = (status: number, body = "", headers: Record<string, unknown> = {}): HttpClientResponse =>
+    ({ status, statusText: String(status), body, headers }) as unknown as HttpClientResponse;
+
+  const OK_XML = { "content-type": "application/xml" };
+
+  function baseRoute(o: HttpClientOptions): HttpClientResponse | undefined {
+    if (o.url.includes("/compatibility/graph")) {
+      return resp(200, "<graph/>", { "content-type": "application/xml", "x-csrf-token": "TOKEN123" });
+    }
+    if (o.url.endsWith("/discovery")) return resp(200, "<service/>", OK_XML);
+    if (o.url.includes("/ato/settings")) return resp(200, "<settings/>", OK_XML);
+    return undefined;
+  }
+
+  function combine(...routes: Route[]): Route {
+    return (o) => {
+      for (const route of routes) {
+        const hit = route(o);
+        if (hit) return hit;
+      }
+      return undefined;
+    };
+  }
+
+  function cfg(overrides: Record<string, unknown> = {}) {
+    return ConfigSchema.parse({
+      url: "http://a4h.example:50000",
+      user: "TESTUSER",
+      password: "secret",
+      sid: "A4H",
+      client: "001",
+      readOnly: false,
+      fluidApi: true,
+      stateDir: fluidState.dir(),
+      ...overrides,
+    });
+  }
+
+  async function connected(route: Route) {
+    const adt = new FakeAdt((r) => baseRoute(r) ?? route(r));
+    const conn = new AbapConnection(cfg(), {
+      httpClient: routeSystemRoleProbe(adt, { answer: "nonproductive" }),
+      log: () => {},
+      breaker: new AuthCircuitBreaker(),
+    });
+    await conn.connect();
+    adt.calls.length = 0;
+    return { conn, adt };
+  }
+
+  function bridgeAdminGate(): SafetyGate {
+    return new SafetyGate({
+      readOnly: false,
+      allowPackages: [FLUID_PACKAGE],
+      allowNamePrefixes: ["*"],
+      allowTransports: ["*"],
+      allowTransportDelete: true,
+      writesLockedOut: false,
+    });
+  }
+
+  const TRANSPORT_REQUESTS = "/sap/bc/adt/cts/transportrequests";
+  const TRKORR = "A4HK900117";
+  const HOLDER = "A4HK900118";
+  // The object resolved via trFindEntryHolder must actually be on the fixture's
+  // transport (transport-details-with-objects: task A4HK900118 holds one row
+  // for ZMCP_CTS_PROBE, R3TR PROG). The DEDUP line itself names a different,
+  // unrelated key (R3TR TABL ZAS_T184) — the fake bridge returns it verbatim
+  // regardless of which object the outer call resolved, and this test only
+  // asserts on how that DEDUP line's collapse is surfaced.
+  const OBJECT = "ZMCP_CTS_PROBE";
+  const PGMID = "R3TR";
+  const OBJTYPE = "PROG";
+
+  function trShowRoute(): Route {
+    const fx = loadCtsFixture("transport-details-with-objects");
+    return (o) => {
+      if ((o.method ?? "GET").toUpperCase() !== "GET") return undefined;
+      if (o.url !== `${TRANSPORT_REQUESTS}/${TRKORR}`) return undefined;
+      return resp(fx.meta.status, fx.body, fx.meta.responseHeaders as Record<string, unknown>);
+    };
+  }
+
+  beforeEach(() => {
+    resetFluidEnsureState();
+    resetFluidPackageMemo();
+  });
+
+  it("a bridge transcript with a ZMCP-TREN-DEDUP line reports the collapse in a note and in collapsedRows", async () => {
+    const fake = classicFake({
+      action: "remove_transport_entry",
+      lines: () => [
+        `ZMCP-TREN-HOLDER ${HOLDER}`,
+        "ZMCP-TREN-DEDUP R3TR TABL ZAS_T184 3 AS4POS 000001,000002,000005",
+        `ZMCP-TREN-ROW ${PGMID} ${OBJTYPE} ${OBJECT}`,
+        "TREN-REMOVED",
+        "TREN-GONE",
+      ],
+    });
+    const combined = combine(trShowRoute(), fake.route);
+    const { conn } = await connected(combined);
+    const gate = bridgeAdminGate();
+    const input = transportInput({ operation: "removeObject", transport: TRKORR, object: OBJECT, confirm: TRKORR });
+
+    const result = await abapTransport(conn, input, MAX_CHARS, gate);
+
+    expect(result.text).toContain(
+      "Collapsed 3 duplicate E071 rows for R3TR TABL ZAS_T184 (AS4POS 000001, 000002, 000005) " +
+        "to one row before removing it.",
+    );
+    expect(result.text).toContain("collapsedRows: 2");
   });
 });

@@ -262,7 +262,7 @@ function objectRows(objects: readonly TrObject[]): Array<Record<string, string>>
   return objects.map((o) => ({
     pgmid: o.pgmid,
     type: o.type,
-    name: o.name,
+    name: o.rows !== undefined && o.rows >= 2 ? `${o.name} (x${o.rows}, duplicate E071 rows)` : o.name,
     locked: o.locked ? "yes" : "no",
     description: o.description ?? "",
   }));
@@ -282,13 +282,19 @@ function headerRows(items: readonly TrRequest[]): Array<Record<string, string>> 
  * Union a request's objects with its tasks', de-duped by pgmid::type::name — `objectsOf`
  * (src/adt/transports.ts) only de-dupes WITHIN one node, so an entry recorded under both the
  * request and a task would otherwise be double-counted. Request objects first, first
- * occurrence wins. Shared by `opShow` and `diagnoseLockedDelete` so the two can't drift.
+ * occurrence wins; `rows` is the larger of what the request and its tasks reported (undefined
+ * when neither reported one). Shared by `opShow` and `diagnoseLockedDelete` so the two can't drift.
  */
 function unionedObjects(r: TrRequest): TrObject[] {
   const byKey = new Map<string, TrObject>();
   for (const obj of [...r.objects, ...r.tasks.flatMap((t) => t.objects)]) {
     const key = `${obj.pgmid}::${obj.type}::${obj.name}`;
-    if (!byKey.has(key)) byKey.set(key, obj);
+    const existing = byKey.get(key);
+    if (!existing) {
+      byKey.set(key, obj);
+    } else if (obj.rows !== undefined && (existing.rows === undefined || obj.rows > existing.rows)) {
+      byKey.set(key, { ...existing, rows: obj.rows });
+    }
   }
   return [...byKey.values()];
 }
@@ -994,6 +1000,13 @@ async function opShow(
   // `r` is what the caller actually asked about. When substituted, the same
   // claim uses the task's own status recovered from `r.tasks`.
   const notes: string[] = subjectNotes(subject, r);
+  const duplicateRowsCount = objects.filter((o) => o.rows !== undefined && o.rows >= 2).length;
+  if (duplicateRowsCount > 0) {
+    notes.push(
+      `${duplicateRowsCount} object(s) have duplicate E071 rows (E071's key is TRKORR+AS4POS, ` +
+        "so CTS accepts them); removeObject collapses the duplicates to one row before removing the entry.",
+    );
+  }
   if (!subject.substituted && r.status === "released") {
     notes.push("Already released — it can no longer be changed.");
   } else if (subject.substituted) {
@@ -2093,6 +2106,12 @@ async function opRemoveObject(
       "Removed: " + res.removed.map((r) => `${r.pgmid} ${r.object} ${r.name}`).join(", ") + ".",
     );
   }
+  for (const c of res.collapsed) {
+    notes.push(
+      `Collapsed ${c.rows} duplicate E071 rows for ${c.pgmid} ${c.object} ${c.name} ` +
+        `(AS4POS ${c.positions.join(", ")}) to one row before removing it.`,
+    );
+  }
   notes.push(
     `This only removes the entry — it does not say ${res.holder} is now deletable. ` +
       'Follow up with operation "delete" to find out.',
@@ -2117,6 +2136,7 @@ async function opRemoveObject(
       object: objectName,
       objectOnSystem,
       removedCount: res.removed.length,
+      collapsedRows: res.collapsed.reduce((sum, c) => sum + (c.rows - 1), 0),
       gone: res.transcript.tags.includes("TREN-GONE"),
     },
     notes,

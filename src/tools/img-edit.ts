@@ -72,6 +72,7 @@ import {
   type PolicyTable,
 } from "../adt/img-write-policy.js";
 import { readImgShow, readImgObjects, type ImgObjectKind, type ImgReadConnection } from "../adt/img-read.js";
+import type { SessionTrOwner } from "../adt/session-transport.js";
 import { resolveActivity, resolveObject, type ResolvedTable } from "../adt/img-resolve.js";
 import { readImgChecks, type ImgChecksResult } from "../adt/img-checks.js";
 import type { SessionPool } from "../adt/pool.js";
@@ -137,7 +138,7 @@ export const imgEditInputSchema = {
     .describe(
       "Expert escape hatch: the base DDIC table to read/write directly, bypassing activity/object " +
         "resolution. Exactly one of activity/object/table is required. Requires key_fields; " +
-        "a genuinely client-independent table cannot be written.",
+        "a client-independent table needs allow_cross_client=true.",
     ),
   client_field: z
     .string()
@@ -164,11 +165,12 @@ export const imgEditInputSchema = {
         "Defaults to the resolved view/cluster (or table if the resolved target is a table); with table, defaults to table.",
     ),
   master_type: z
-    .enum(["VDAT", "CDAT"])
+    .enum(["VDAT", "CDAT", "TABU"])
     .optional()
     .describe(
-      'upsert/delete: the transport entry\'s object type — "VDAT" for a maintenance view (default), ' +
-        '"CDAT" for a customizing object recorded directly.',
+      'upsert/delete: the transport entry\'s object type — "VDAT" for a maintenance view (default when the ' +
+        'target is a view), "CDAT" for a customizing object recorded directly, "TABU" for a table maintained ' +
+        'directly without a maintenance view (default when view equals table).',
     ),
   language: z
     .string()
@@ -197,6 +199,15 @@ export const imgEditInputSchema = {
     ),
   description: z.string().optional().describe("create_request only: the request's description text."),
   owner: z.string().optional().describe("create_request only: the request owner. Defaults to the logged-in user."),
+  request_type: z
+    .enum(["customizing", "workbench"])
+    .optional()
+    .describe(
+      'create_request only: "customizing" (type W, the default) or "workbench" (type K) — a client-independent ' +
+        "table needs workbench, since CTS refuses to record it on a customizing request. Also: when " +
+        "ABAP_ALLOW_TRANSPORTS is auto and corr_nr is omitted on upsert/delete, this session resolves (and, if " +
+        "needed, creates) the matching kind of request itself.",
+    ),
 };
 
 export const ImgEditInput = z.object(imgEditInputSchema);
@@ -217,9 +228,24 @@ export interface ImgEditToolDeps {
   readonly journal: Journal;
   /** Where journal failures are reported; defaults to stderr. */
   readonly warn?: (msg: string) => void;
+  /** Present only when a session transport is in play; enables auto-resolving an omitted corr_nr under ABAP_ALLOW_TRANSPORTS=auto. */
+  readonly transport?: SessionTrOwner & { readonly trkorr?: string };
 }
 
 const ok = (text: string): CallToolResult => ({ content: [{ type: "text", text }] });
+
+/** Per-session cache of requests this tool itself created, keyed off the SessionTrOwner instance. */
+const sessionImgRequests = new WeakMap<SessionTrOwner, { customizing?: string; workbench?: string }>();
+
+function rememberSessionImgRequest(owner: SessionTrOwner, kind: "customizing" | "workbench", trkorr: string): void {
+  const rec = sessionImgRequests.get(owner) ?? {};
+  rec[kind] = trkorr;
+  sessionImgRequests.set(owner, rec);
+}
+
+function lookupSessionImgRequest(owner: SessionTrOwner, kind: "customizing" | "workbench"): string | undefined {
+  return sessionImgRequests.get(owner)?.[kind];
+}
 
 // ---------------------------------------------------------------------------
 // Argument parsing
@@ -260,9 +286,11 @@ interface RowEditArgs {
   keyFields: string[];
   rows: readonly { key: Record<string, string>; values?: Record<string, string> }[];
   view: string;
-  masterType: "VDAT" | "CDAT";
+  masterType: "VDAT" | "CDAT" | "TABU";
   language: string;
   corrNr?: string;
+  /** How corrNr was decided: "caller" (given), "session-cached"/"session-created" (auto-resolved). Undefined when corrNr is absent. */
+  corrNrSource?: "caller" | "session-cached" | "session-created";
   confirm?: string;
   allowCrossClient: boolean;
   resolution?: ResolutionSummary;
@@ -271,6 +299,7 @@ interface RowEditArgs {
 function parseRowEditArgs(mode: "preview" | "upsert" | "delete", input: ImgEditInput, cfg: Pick<Config, "language">): RowEditArgs {
   rejectForMode(mode, "description", input.description);
   rejectForMode(mode, "owner", input.owner);
+  rejectForMode(mode, "request_type", input.request_type);
 
   const table = requireString(mode, "table", input.table);
   const keyFields = input.key_fields ?? [];
@@ -288,9 +317,10 @@ function parseRowEditArgs(mode: "preview" | "upsert" | "delete", input: ImgEditI
     keyFields,
     rows,
     view: (input.view ?? table).trim(),
-    masterType: input.master_type ?? "VDAT",
+    masterType: input.master_type ?? defaultMasterType(table, (input.view ?? table).trim()),
     language: assertImgLanguage(input.language ?? (cfg.language || IMG_DEFAULT_LANGUAGE)),
     corrNr: input.corr_nr,
+    corrNrSource: input.corr_nr !== undefined ? "caller" : undefined,
     confirm: input.confirm,
     allowCrossClient: input.allow_cross_client ?? false,
   };
@@ -303,6 +333,11 @@ function bridgeRows(rows: RowEditArgs["rows"]): ImgWriteRow[] {
 /** `evaluateImgWrite`'s row-count rule only looks at `.length` — a flat merge of key+values satisfies its type without inventing a second row shape. */
 function policyRows(rows: RowEditArgs["rows"]): Record<string, string>[] {
   return rows.map((r) => ({ ...r.key, ...(r.values ?? {}) }));
+}
+
+/** SM30 records a table maintained without a view as R3TR TABU <table> (E071K MASTERTYPE TABU); a KO200 header of VDAT <table> is refused by CTS with TK323. */
+function defaultMasterType(table: string, view: string): "VDAT" | "TABU" {
+  return targetKind(table, view) === "table" ? "TABU" : "VDAT";
 }
 
 /** This tool only ever targets a table directly or a view distinct from it — "cluster"/"other" are not reachable through these arguments. */
@@ -393,20 +428,16 @@ function mapPolicyTargetKind(kind: ImgObjectKind): "view" | "cluster" | "table" 
  * position order — the shape `img-write-bridge.ts`'s plans require (it rejects `keyFields` that
  * still include the client field). Not "MANDT" by name: some tables (e.g. TB004) name their client
  * field something else entirely; what makes a field the client field is its DDIC data type, `CLNT`.
+ *
+ * A client-independent table (no CLNT-typed key field, DD02L says client-independent) has no client
+ * field to find — "MANDT" is returned as a placeholder the bridge apply ignores for such a table
+ * (`lv_has_client = abap_false`, proven live on BALOBJ), not an actual field name.
  */
 function splitClientField(table: ResolvedTable, objectLabel: string): { clientField: string; keyFields: string[] } {
   const clientKeyField = table.keyFields.find((f) => f.dataType.trim().toUpperCase() === "CLNT");
   if (!clientKeyField) {
     if (!table.clientDependent) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `"${objectLabel}" resolves to base table ${table.table}, which is client-independent (no CLNT-typed ` +
-          "key field) — this tool cannot write a client-independent table at all, through this path or the " +
-          "table/key_fields/client_field expert escape hatch: the shared apply class refuses outright, before " +
-          "touching any row, when the declared client field is not a component of the table — which a table " +
-          "shaped this way never has. Maintain this table by hand (SM30/SM34) instead.",
-        { table: table.table },
-      );
+      return { clientField: "MANDT", keyFields: table.keyFields.map((f) => f.field) };
     }
     throw new AbapError(
       "BAD_INPUT",
@@ -743,6 +774,7 @@ function policyTableFromProbe(args: RowEditArgs, probe: ImgProbeResult): PolicyT
 }
 
 function evaluateReal(
+  deps: ImgEditToolDeps,
   args: RowEditArgs,
   mode: "preview" | "upsert" | "delete",
   probe: ImgProbeResult,
@@ -762,6 +794,8 @@ function evaluateReal(
   };
   const verdict = evaluateImgWrite(realProbe, req, safety.config, {
     previewDenyExtra: safety.config.dataPreviewDenyTables,
+    autoResolve: deps.transport !== undefined,
+    sessionCreated: (t) => deps.transport?.createdThisSession(t) ?? false,
   });
   if (!verdict.allowed) {
     throw new AbapError("SAFETY_DENIED", verdict.reason, { operation: mode, rule: verdict.rule, table: args.table });
@@ -1271,6 +1305,7 @@ function renderArmed(
   notes: readonly string[],
   checks: ChecksOutcome,
   journalNote: string | undefined,
+  table: PolicyTable,
   maxChars: number,
 ): string {
   const t = apply.transcript;
@@ -1312,21 +1347,22 @@ function renderArmed(
     `${CTS_PGMID} ${CTS_OBJECT} ${args.table.toUpperCase()} ` +
     `(master ${args.masterType} ${args.view.toUpperCase()})`;
 
-  // The generated ABAP stores TABKEY as `sy-mandt` (client) followed by the cast key
-  // (`ls_e071k-tabkey = |{ sy-mandt }{ <key_c> }|`), but the IMGW> TRKEY line's own
-  // `value=[{ <key_c> }]` is the key WITHOUT the client prefix — so the client has to be sourced
-  // separately, from the IMGW> CLIENT line (`t.client?.mandt`), to reconstruct what was actually
-  // stored. When no CLIENT line was parsed, the client prefix is not fabricated — the key portion
-  // is shown alone and callers are told, via a note, that it is unprefixed.
+  // The generated ABAP stores TABKEY as `sy-mandt` (client) followed by the cast key ONLY for a
+  // client-dependent table (`ls_e071k-tabkey = |{ sy-mandt }{ <key_c> }|`); a client-independent
+  // table's TABKEY has no client prefix at all — so the prefix is added here only when the table
+  // itself is client-dependent, never merely because an IMGW> CLIENT line happened to parse. When
+  // client-dependent and no CLIENT line was parsed, the key portion is shown alone and callers are
+  // told, via a note, that it is unprefixed.
   const mandt = t.client?.mandt;
+  const clientDependent = table.clientDependent === true;
   const trkeyRows = t.trkeys.map((k) => ({
     row: String(k.row),
-    tabkey: mandt !== undefined ? `${mandt}${k.value}` : k.value,
+    tabkey: clientDependent && mandt !== undefined ? `${mandt}${k.value}` : k.value,
     trkorr: k.trkorr,
     recorded_order: k.recordedOrder ?? "",
     recorded_task: k.recordedTask ?? "",
   }));
-  if (trkeyRows.length && mandt === undefined) {
+  if (trkeyRows.length && clientDependent && mandt === undefined) {
     finalNotes.push(
       "The transport entry's tabkey below is the key portion only (no IMGW> CLIENT line was parsed to supply the client prefix SAP actually stored).",
     );
@@ -1353,6 +1389,7 @@ function renderArmed(
       view: args.view,
       masterType: args.masterType,
       corrNr: args.corrNr,
+      corrNrSource: args.corrNrSource,
       applied: t.applied ?? undefined,
       bridgeClass: apply.bridgeClass,
       bridgeRefreshed: apply.bridgeRefreshed,
@@ -1413,6 +1450,7 @@ function renderCreateRequest(plan: CustomizingRequestPlan, result: Awaited<Retur
       mode: "create_request",
       description: plan.description,
       owner: plan.owner,
+      requestType: plan.requestType === "K" ? "workbench" : "customizing",
       request: t.request,
       task: t.task,
       taskType: t.taskType,
@@ -1516,7 +1554,7 @@ async function recordRowMutation(
     irreversible: true,
     systemKey: systemKey({ sid: deps.cfg.sid, url: deps.cfg.url, client: deps.cfg.client }),
     ...(args.corrNr !== undefined ? { corrNr: args.corrNr } : {}),
-    trSource: "caller",
+    trSource: args.corrNrSource ?? "caller",
     tool: "abap_img_edit",
   };
 
@@ -1549,6 +1587,71 @@ async function recordRowMutation(
   }
 }
 
+/**
+ * Journal a just-created transport request, mirroring `recordRowMutation`'s post-hoc begin/settle
+ * idiom. Shared by the explicit `create_request` mode (`trSource: "caller"`) and the auto-resolve
+ * path inside `runProbeAndApply` (`trSource: "session-created"`). Never throws.
+ */
+async function journalCreatedRequest(
+  deps: ImgEditToolDeps,
+  description: string,
+  transcript: CustomizingRequestTranscript,
+  trSource: "caller" | "session-created",
+): Promise<void> {
+  const t = transcript;
+  const warn = deps.warn ?? ((m: string) => void process.stderr.write(`${m}\n`));
+  const sysKey = systemKey({ sid: deps.cfg.sid, url: deps.cfg.url, client: deps.cfg.client });
+
+  if (t.request) {
+    try {
+      const entry = await deps.journal.begin({
+        operation: "transport-create",
+        object: {
+          name: t.request,
+          type: "CTS/TR",
+          uri: `/sap/bc/adt/cts/transportrequests/${t.request}`,
+          package: "",
+          description,
+        },
+        existedBefore: false,
+        beforeCapture: "confirmed-absent",
+        systemKey: sysKey,
+        corrNr: t.request,
+        trSource,
+        tool: "abap_img_edit",
+      });
+      if (entry) {
+        const settled = await deps.journal.settle(entry.id, { outcome: "succeeded" });
+        if (!settled.settled) warn(`[abapsmith] WARNING: ${t.request} — journal entry ${entry.id} could not be settled (${settled.reason}).`);
+      }
+    } catch (e) {
+      warn(`[abapsmith] WARNING: ${t.request} — created but NOT journalled: ${(e as Error).message}.`);
+    }
+    return;
+  }
+
+  // No number parsed — the FM creates the request before this code can observe any failure, so this
+  // journals a suspected orphan on the only handle it has: the description.
+  const reason = t.errors.length ? t.errors.join("; ") : "no request number was parsed from the bridge transcript";
+  try {
+    const entry = await deps.journal.begin({
+      operation: "transport-create",
+      object: { name: "(unknown)", type: "CTS/TR", uri: "", package: "", description },
+      existedBefore: false,
+      beforeCapture: "confirmed-absent",
+      systemKey: sysKey,
+      trSource,
+      tool: "abap_img_edit",
+    });
+    if (entry) {
+      const settled = await deps.journal.settle(entry.id, { outcome: "failed", error: reason });
+      if (!settled.settled) warn(`[abapsmith] WARNING: suspected orphan customizing request — journal entry ${entry.id} could not be settled (${settled.reason}).`);
+    }
+  } catch (e) {
+    warn(`[abapsmith] WARNING: suspected orphan customizing request — NOT journalled: ${(e as Error).message}.`);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Mode handlers
 // ---------------------------------------------------------------------------
@@ -1574,6 +1677,71 @@ function buildApplyPlan(args: RowEditArgs, op: "upsert" | "delete", table: Polic
     view: args.view,
     masterType: args.masterType,
   };
+}
+
+/** Which kind of session request a table needs: workbench for client-independent, customizing otherwise. */
+function imgSessionRequestKind(table: PolicyTable): "customizing" | "workbench" {
+  return table.clientDependent === false ? "workbench" : "customizing";
+}
+
+/**
+ * Cached-only lookup for `preview` — never creates or wires a request. Returns undefined when
+ * nothing is cached yet (preview then says a request would be created).
+ */
+function previewSessionCorrNr(
+  deps: ImgEditToolDeps,
+  table: PolicyTable,
+): { corrNr: string; kind: "customizing" | "workbench" } | undefined {
+  const owner = deps.transport;
+  if (!owner) return undefined;
+  const kind = imgSessionRequestKind(table);
+  const cached =
+    kind === "workbench" ? (lookupSessionImgRequest(owner, "workbench") ?? owner.trkorr) : lookupSessionImgRequest(owner, "customizing");
+  return cached ? { corrNr: cached, kind } : undefined;
+}
+
+/**
+ * Resolves the request an armed upsert/delete records on when corr_nr was omitted under
+ * ABAP_ALLOW_TRANSPORTS=auto (`ImgWriteVerdict.corrNrResolution === "session"`). Reuses a cached
+ * request for this session when one exists (the general `SessionTransport.trkorr` for a workbench
+ * kind, or a request this tool already minted for either kind); otherwise mints one via
+ * `runCreateCustomizingRequest`, exactly as `runCreateRequestMode` does.
+ */
+async function resolveSessionCorrNr(
+  deps: ImgEditToolDeps,
+  table: PolicyTable,
+): Promise<{ corrNr: string; source: "session-cached" | "session-created"; kind: "customizing" | "workbench" }> {
+  const owner = deps.transport;
+  if (!owner) {
+    throw new AbapError("CHECK_FAILED", "No session transport is available to resolve a request.", {});
+  }
+  const kind = imgSessionRequestKind(table);
+  const cached =
+    kind === "workbench" ? (lookupSessionImgRequest(owner, "workbench") ?? owner.trkorr) : lookupSessionImgRequest(owner, "customizing");
+  if (cached) return { corrNr: cached, source: "session-cached", kind };
+
+  const today = new Date().toISOString().slice(0, 10);
+  const plan: CustomizingRequestPlan = {
+    description: `abapsmith ${kind} request ${today}`,
+    requestType: kind === "workbench" ? "K" : "W",
+  };
+  const result = await deps.pool.withWrite("abap_img_edit", imgManifest.entry, (conn) =>
+    runCreateCustomizingRequest(conn, deps.safety, plan, deps.cfg),
+  );
+  const t = result.transcript;
+  await journalCreatedRequest(deps, plan.description, t, "session-created");
+  if (!t.request) {
+    throw new AbapError("CHECK_FAILED", createRequestFailureMessage(t, plan.description), {
+      description: plan.description,
+      task: t.task,
+      taskType: t.taskType,
+      errors: t.errors,
+      warnings: t.warnings,
+    });
+  }
+  owner.noteCreated(t.request);
+  rememberSessionImgRequest(owner, kind, t.request);
+  return { corrNr: t.request, source: "session-created", kind };
 }
 
 /**
@@ -1609,9 +1777,35 @@ async function runProbeAndApply(
     runImgProbe(conn, deps.safety, probePlan, deps.cfg, mode),
   );
 
-  const verdict = evaluateReal(args, mode, probe, deps.safety);
+  const verdict = evaluateReal(deps, args, mode, probe, deps.safety);
+  const notes = [...verdict.notes];
 
   const table = policyTableFromProbe(args, probe);
+
+  // corr_nr was omitted and evaluateImgWrite accepted that only because a session transport can
+  // resolve one (ABAP_ALLOW_TRANSPORTS contains auto) — preview never wires anything, it only says
+  // what an armed call would do; upsert/delete resolve (and, if needed, create) the request now, so
+  // the apply plan below carries a real corr_nr.
+  let effectiveArgs = args;
+  if (verdict.corrNrResolution === "session") {
+    if (mode === "preview") {
+      const preview = previewSessionCorrNr(deps, table);
+      notes.push(
+        preview
+          ? `Applying this change would record on ${preview.corrNr} (${preview.kind} request known to this session).`
+          : `Applying this change would create a new ${imgSessionRequestKind(table)} request ` +
+              "(ABAP_ALLOW_TRANSPORTS contains auto and this session has none yet) and record on it.",
+      );
+    } else {
+      const resolved = await resolveSessionCorrNr(deps, table);
+      effectiveArgs = { ...args, corrNr: resolved.corrNr, corrNrSource: resolved.source };
+      notes.push(
+        `corr_nr was not supplied; this session recorded on ${resolved.corrNr} (${resolved.kind} request ` +
+          `${resolved.source === "session-created" ? "created now" : "created earlier in this session"}).`,
+      );
+    }
+  }
+
   // Preview and the armed call must never disagree about whether a plan is even well-formed: both
   // build the identical ImgApplyPlan (preview always as if it were an upsert — its own prospective
   // table already previews one) and run it through the SAME validateApplyPlan a real upsert would
@@ -1619,16 +1813,16 @@ async function runProbeAndApply(
   // key-only row as an empty "SET" while the armed upsert call refused the identical row with
   // BAD_INPUT — the two paths now share one plan and one validator instead of preview skipping it.
   const planOp = mode === "preview" ? "upsert" : mode;
-  const applyPlan = buildApplyPlan(args, planOp, table);
+  const applyPlan = buildApplyPlan(effectiveArgs, planOp, table);
   validateApplyPlan(applyPlan);
 
   // Diagnostic side-read, not part of the write path — see readChecksSafely's own doc comment. Its
   // failure (caught inside readChecksSafely, never thrown here) must never stop a preview from
   // rendering or an armed write from proceeding, so this runs unconditionally for both.
-  const checks = await readChecksSafely(deps, args, mode);
+  const checks = await readChecksSafely(deps, effectiveArgs, mode);
 
   if (mode === "preview") {
-    return ok(renderPreview(args, probe, verdict.notes, checks, deps.cfg.maxResponseChars));
+    return ok(renderPreview(effectiveArgs, probe, notes, checks, deps.cfg.maxResponseChars));
   }
 
   deps.safety.assert(
@@ -1641,12 +1835,12 @@ async function runProbeAndApply(
     runImgApply(conn, deps.safety, applyPlan, deps.cfg, mode),
   );
 
-  const failure = applyFailure(mode, args.rows, apply);
-  const journalNote = await recordRowMutation(deps, mode, args, probe, apply, failure);
+  const failure = applyFailure(mode, effectiveArgs.rows, apply);
+  const journalNote = await recordRowMutation(deps, mode, effectiveArgs, probe, apply, failure);
 
   if (failure) {
-    throw new AbapError("CHECK_FAILED", applyFailureMessage(mode, args, apply, failure, journalNote), {
-      table: args.table,
+    throw new AbapError("CHECK_FAILED", applyFailureMessage(mode, effectiveArgs, apply, failure, journalNote), {
+      table: effectiveArgs.table,
       mode,
       bridgeClass: apply.bridgeClass,
       mayHaveExecuted: failure.mayHaveExecuted,
@@ -1655,7 +1849,7 @@ async function runProbeAndApply(
     });
   }
 
-  return ok(renderArmed(mode, args, apply, verdict.notes, checks, journalNote, deps.cfg.maxResponseChars));
+  return ok(renderArmed(mode, effectiveArgs, apply, notes, checks, journalNote, table, deps.cfg.maxResponseChars));
 }
 
 interface ResolveCallbackResult {
@@ -1666,6 +1860,7 @@ interface ResolveCallbackResult {
 async function runRowEditMode(deps: ImgEditToolDeps, mode: "preview" | "upsert" | "delete", input: ImgEditInput): Promise<CallToolResult> {
   rejectForMode(mode, "description", input.description);
   rejectForMode(mode, "owner", input.owner);
+  rejectForMode(mode, "request_type", input.request_type);
 
   const selector = selectTarget(mode, input);
 
@@ -1687,7 +1882,7 @@ async function runRowEditMode(deps: ImgEditToolDeps, mode: "preview" | "upsert" 
   if (rows.length < 1) {
     throw new AbapError("BAD_INPUT", `mode "${mode}" requires at least one row.`, { mode });
   }
-  const masterType = input.master_type ?? "VDAT";
+  const masterTypeInput = input.master_type;
   const language = assertImgLanguage(input.language ?? (deps.cfg.language || IMG_DEFAULT_LANGUAGE));
   const corrNr = input.corr_nr;
   const confirm = input.confirm;
@@ -1733,6 +1928,7 @@ async function runRowEditMode(deps: ImgEditToolDeps, mode: "preview" | "upsert" 
   // Mirrors parseRowEditArgs's raw-table `view` handling: an explicitly supplied view (even "") wins
   // over the computed default — only an absent `input.view` falls back.
   const view = (input.view ?? computedView).trim();
+  const masterType = masterTypeInput ?? defaultMasterType(resolvedTable.table, view);
 
   const realTable = policyTableFromResolved(resolvedTable, clientField);
   // Full rule set, before the probe bridge is deployed — see preflightResolved's own doc comment.
@@ -1758,6 +1954,7 @@ async function runRowEditMode(deps: ImgEditToolDeps, mode: "preview" | "upsert" 
     masterType,
     language,
     corrNr,
+    corrNrSource: corrNr !== undefined ? "caller" : undefined,
     confirm,
     allowCrossClient,
     resolution,
@@ -1779,7 +1976,8 @@ async function runCreateRequestMode(deps: ImgEditToolDeps, input: ImgEditInput):
   rejectForMode("create_request", "confirm", input.confirm);
 
   const description = requireString("create_request", "description", input.description);
-  const plan: CustomizingRequestPlan = { description, owner: input.owner };
+  const requestType: "W" | "K" = input.request_type === "workbench" ? "K" : "W";
+  const plan: CustomizingRequestPlan = { description, owner: input.owner, requestType };
 
   // A cold process's write-lockout verdict must exist before the gate below is ever consulted —
   // see ensureRoleVerdict's own doc comment.
@@ -1797,77 +1995,13 @@ async function runCreateRequestMode(deps: ImgEditToolDeps, input: ImgEditInput):
     runCreateCustomizingRequest(conn, deps.safety, plan, deps.cfg),
   );
 
-  // Addition beyond the strict minimum: journal the created request the same way
-  // src/tools/transport.ts's own trCreate path does, so a customizing request minted here is not the
-  // one CTS mutation this server makes and forgets.
-  //
   // Split on whether a request NUMBER was parsed, not on whether the transcript is otherwise
   // clean: TR_INSERT_REQUEST_WITH_TASKS creates the request before this code can observe any
-  // later failure (a missing task, a scaffold error line), so a parsed number always means a
-  // real request exists and is journalled as such — the "NO_TASK" warning path (request set,
-  // task not) takes this branch too. Only the absence of a number means this server cannot even
-  // name what it may have created; that is the suspected-orphan branch below. Either way the
-  // journal write happens BEFORE the throw below, never after — a thrown error must not race an
-  // unwritten journal entry.
+  // later failure, so a parsed number always means a real request exists (journalCreatedRequest's
+  // own doc comment covers the suspected-orphan branch). The journal write happens BEFORE the
+  // throw below, never after — a thrown error must not race an unwritten journal entry.
   const t = result.transcript;
-  const warn = deps.warn ?? ((m: string) => void process.stderr.write(`${m}\n`));
-  const sysKey = systemKey({ sid: deps.cfg.sid, url: deps.cfg.url, client: deps.cfg.client });
-
-  if (t.request) {
-    try {
-      const entry = await deps.journal.begin({
-        operation: "transport-create",
-        object: {
-          name: t.request,
-          type: "CTS/TR",
-          uri: `/sap/bc/adt/cts/transportrequests/${t.request}`,
-          package: "",
-          description,
-        },
-        existedBefore: false,
-        beforeCapture: "confirmed-absent",
-        systemKey: sysKey,
-        corrNr: t.request,
-        trSource: "caller",
-        tool: "abap_img_edit",
-      });
-      if (entry) {
-        const settled = await deps.journal.settle(entry.id, { outcome: "succeeded" });
-        if (!settled.settled) warn(`[abapsmith] WARNING: ${t.request} — journal entry ${entry.id} could not be settled (${settled.reason}).`);
-      }
-    } catch (e) {
-      warn(`[abapsmith] WARNING: ${t.request} — created but NOT journalled: ${(e as Error).message}.`);
-    }
-  } else {
-    // No number parsed — this server cannot say a request was NOT created (the FM creates it
-    // before this code can observe the failure), so it journals a suspected orphan on the only
-    // handle it has: the description. Placeholder object name is deliberately non-numeric so it
-    // can never be mistaken for a real transport number by anything reading the journal back.
-    const reason = t.errors.length ? t.errors.join("; ") : "no request number was parsed from the bridge transcript";
-    try {
-      const entry = await deps.journal.begin({
-        operation: "transport-create",
-        object: {
-          name: "(unknown)",
-          type: "CTS/TR",
-          uri: "",
-          package: "",
-          description,
-        },
-        existedBefore: false,
-        beforeCapture: "confirmed-absent",
-        systemKey: sysKey,
-        trSource: "caller",
-        tool: "abap_img_edit",
-      });
-      if (entry) {
-        const settled = await deps.journal.settle(entry.id, { outcome: "failed", error: reason });
-        if (!settled.settled) warn(`[abapsmith] WARNING: suspected orphan customizing request — journal entry ${entry.id} could not be settled (${settled.reason}).`);
-      }
-    } catch (e) {
-      warn(`[abapsmith] WARNING: suspected orphan customizing request — NOT journalled: ${(e as Error).message}.`);
-    }
-  }
+  await journalCreatedRequest(deps, description, t, "caller");
 
   if (t.errors.length || !t.request) {
     throw new AbapError(
@@ -1875,6 +2009,11 @@ async function runCreateRequestMode(deps: ImgEditToolDeps, input: ImgEditInput):
       createRequestFailureMessage(t, description),
       { description, task: t.task, taskType: t.taskType, errors: t.errors, warnings: t.warnings },
     );
+  }
+
+  if (deps.transport) {
+    deps.transport.noteCreated(t.request);
+    rememberSessionImgRequest(deps.transport, requestType === "K" ? "workbench" : "customizing", t.request);
   }
 
   return ok(renderCreateRequest(plan, result, deps.cfg.maxResponseChars));
@@ -1887,9 +2026,11 @@ async function runCreateRequestMode(deps: ImgEditToolDeps, input: ImgEditInput):
 const IMG_EDIT_TOOL_DESCRIPTION =
   "Write IMG customizing rows. preview validates rows against policy and shows current vs. " +
   "prospective rows without writing; upsert/delete write rows and need confirm equal to table " +
-  "(case-insensitive) — corr_nr is usually required; create_request (description, owner) mints " +
-  "a customizing (type W) transport request. First call per mode deploys and activates a " +
-  "bridge class in $ABAPSMITH_FLUID_API. Details: doc/TOOLS/abap-img-edit.md.";
+  "(case-insensitive) — corr_nr is usually required, but when ABAP_ALLOW_TRANSPORTS contains auto " +
+  "and corr_nr is omitted, this session resolves (and, if needed, creates) a matching request " +
+  "itself; create_request (description, owner, request_type: customizing default or workbench — " +
+  "workbench is required for a client-independent table) mints a transport request. First call " +
+  "per mode deploys and activates a bridge class in $ABAPSMITH_FLUID_API. Details: doc/TOOLS/abap-img-edit.md.";
 
 export async function runImgEditTool(deps: ImgEditToolDeps, args: unknown): Promise<CallToolResult> {
   const input = args as ImgEditInput;

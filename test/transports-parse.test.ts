@@ -764,6 +764,49 @@ describe("trShow — namespace stripping, task/object extraction, status/kind no
   });
 });
 
+function abapObjXml(pgmid, type, name) {
+  return `<tm:abap_object tm:pgmid="${pgmid}" tm:type="${type}" tm:name="${name}" tm:wbtype="${type}/P" tm:lock_status=""/>`;
+}
+
+function tmRequestXml(allObjects, directObjects = []) {
+  return (
+    `<?xml version="1.0" encoding="utf-8"?><tm:root xmlns:tm="http://www.sap.com/cts/adt/tm" xmlns:adtcore="http://www.sap.com/adt/core">` +
+    `<tm:request tm:number="A4HK900140" tm:owner="DEVELOPER" tm:desc="dup test" tm:type="K" tm:status="D" tm:status_text="Modifiable" tm:target="">` +
+    `<tm:all_objects>${allObjects.map(([p, t, n]) => abapObjXml(p, t, n)).join("")}</tm:all_objects>` +
+    directObjects.map(([p, t, n]) => abapObjXml(p, t, n)).join("") +
+    `</tm:request></tm:root>`
+  );
+}
+
+describe("trShow — duplicate E071 rows surface as TrObject.rows (issue #184)", () => {
+  it("an object wrapped twice under tm:all_objects gets rows: 2; a singleton alongside it has no rows property", async () => {
+    const body = tmRequestXml([
+      ["R3TR", "TABL", "ZAS_T184"],
+      ["R3TR", "TABL", "ZAS_T184"],
+      ["R3TR", "TABL", "ZAS_OTHER"],
+    ]);
+    const { conn } = fakeCtsConnection([{ status: 200, body }]);
+
+    const request = await trShow(conn, "A4HK900140");
+
+    expect(request.objects).toHaveLength(2);
+    const dup = request.objects.find((o) => o.name === "ZAS_T184");
+    const single = request.objects.find((o) => o.name === "ZAS_OTHER");
+    expect(dup?.rows).toBe(2);
+    expect(single?.rows).toBeUndefined();
+  });
+
+  it("the same object once wrapped in tm:all_objects and once direct still has no rows — max, not sum", async () => {
+    const body = tmRequestXml([["R3TR", "TABL", "ZAS_T184"]], [["R3TR", "TABL", "ZAS_T184"]]);
+    const { conn } = fakeCtsConnection([{ status: 200, body }]);
+
+    const request = await trShow(conn, "A4HK900140");
+
+    expect(request.objects).toHaveLength(1);
+    expect(request.objects[0].rows).toBeUndefined();
+  });
+});
+
 describe("trList — tree flattening into { workbench, customizing }", () => {
   it("flattens a nested workbench/modifiable tree, request headers and their tasks intact", async () => {
     const fixture = loadCtsFixture("transports-by-config");

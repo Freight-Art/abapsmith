@@ -61,45 +61,29 @@ export const IMGW_BRIDGE_CLASS = {
 export const IMGW_MAX_ROWS = 50;
 
 /**
- * The CTS bookkeeping call this module generates. Measured 2026-09-05
- * against a live A4H appliance's `FUPARAREF` for function group `SAPLSTRD` —
- * `confidence: "high"`. Repointing after a future finding is a one-object
- * edit: this record, nothing that calls it.
- *
- * Two calls, in order: `TR_OBJECTS_CHECK` then `TR_OBJECTS_INSERT` — the
- * insert FM's own long text requires the check FM to have already run for
- * an object being edited for the first time, and both wrap
- * `TRINT_OBJECTS_CHECK_AND_INSERT` with `iv_with_dialog = 'X'`, so both are
- * dialog-capable and both need the two suppressor flags to run headless in
- * a classrun. The objects table is `wt_ko200` (`TABLES`, type `KO200` —
- * `INCLUDE E071` plus `AUTHOR`/`DEVCLASS`/`GENFLAG`/`MASTERLANG`/
- * `OPERATION`/`EDTFLAG`), not `E071` itself; the keys table is `wt_e071k`
- * (`TABLES`, type `E071K`). `wi_order` only exists on the insert FM — the
- * check FM has no order parameter to check against.
- *
- * `TR_APPEND_TO_COMM_OBJS_KEYS` also exists (was one of the three
- * candidates considered before this run) but its own long text calls it
- * obsolete, so it is deliberately not used here.
+ * The CTS bookkeeping call this module generates. Repointing after a future
+ * finding is a one-object edit: this record, nothing that calls it.
  */
 export const CTS_INSERT_FM = Object.freeze({
   checkFm: "TR_OBJECTS_CHECK",
-  insertFm: "TR_OBJECTS_INSERT",
+  insertFm: "TRINT_OBJECTS_CHECK_AND_INSERT",
   params: Object.freeze({
-    order: "wi_order",
+    order: "iv_order",
     noStandardEditor: "iv_no_standard_editor",
     noShowOption: "iv_no_show_option",
-    objects: "wt_ko200",
-    keys: "wt_e071k",
+    withDialog: "iv_with_dialog",
+    objects: "ct_ko200",
+    keys: "ct_e071k",
     /**
-     * `TR_OBJECTS_INSERT`-only exports (`TRKORR`-typed): CTS may record the
-     * object into a *task* beneath the requested order rather than the
-     * order itself, so `weOrder`/`weTask` are what was actually chosen, not
-     * necessarily what `order` (`wi_order`) above asked for. Not present on
-     * `TR_OBJECTS_CHECK` — that FM never files anything, so it has nothing
-     * to report back.
+     * `TRINT_OBJECTS_CHECK_AND_INSERT`-only exports (`TRKORR`-typed): CTS may
+     * record the object into a *task* beneath the requested order rather
+     * than the order itself, so `weOrder`/`weTask` are what was actually
+     * chosen, not necessarily what `order` (`iv_order`) above asked for. Not
+     * present on `TR_OBJECTS_CHECK` — that FM never files anything, so it
+     * has nothing to report back.
      */
-    weOrder: "we_order",
-    weTask: "we_task",
+    weOrder: "ev_order",
+    weTask: "ev_task",
   }),
   exceptions: Object.freeze({
     cancelEditOtherError: "cancel_edit_other_error",
@@ -107,26 +91,12 @@ export const CTS_INSERT_FM = Object.freeze({
   }),
   confidence: "high",
   note:
-    "PROVEN FROM HERE: TR_OBJECTS_CHECK and TR_OBJECTS_INSERT were both called from this server, " +
-    "on 2026-09-06, and both succeeded — on an upsert into TB004 and again on the delete of that " +
-    "same row. What landed: an E071 header R3TR VDAT V_TB004 with OBJFUNC K, LOCKFLAG blank, " +
-    "AS4POS 000001; and exactly one E071K row, R3TR TABU TB004 000001 VDAT V_TB004, with TABKEY " +
-    "001ZTMD (3-char client followed by the key, no padding beyond the field), SORTFLAG blank, " +
-    "LANG blank, OBJFUNC/FLAG/ACTIVITY blank. That E071K row sits on the request TRKORR, not on " +
-    "the task. The delete leg added no second E071K row — the same single row was still there " +
-    "unchanged afterwards. So the parameter names, types and the check-then-insert ordering are " +
-    "now confirmed by a successful call, not merely read from the dictionaries. STILL UNPROVEN " +
-    "FROM HERE: every failure path either FM can take — authority, lock, or request-type refusal, " +
-    "and both CANCEL_EDIT_OTHER_ERROR and SHOW_ONLY_OTHER_ERROR — none of which has been " +
-    "triggered from this server, which is exactly why the exception names and the sy-msg* " +
-    "capture still exist; and any table with more than one non-client key field — round 6 never " +
-    "got a multi-key probe past activation, so no multi-field TABKEY has ever been recorded from " +
-    "here. Measured shape: objects table is WT_KO200 (type KO200), not WT_E071/E071; " +
-    "TR_OBJECTS_CHECK must run before TR_OBJECTS_INSERT; IV_NO_STANDARD_EDITOR and " +
-    "IV_NO_SHOW_OPTION must both be 'X' on both calls to suppress the dialog; both raise " +
-    "CANCEL_EDIT_OTHER_ERROR and SHOW_ONLY_OTHER_ERROR, the latter carrying the real reason in " +
-    "sy-msg*. TR_APPEND_TO_COMM_OBJS_KEYS also exists but its own long text calls it obsolete — " +
-    "deliberately not used.",
+    "TR_OBJECTS_CHECK proven 2026-09-06; TR_OBJECTS_INSERT hard-codes iv_with_dialog='X' and " +
+    "popped SAPLSTRD dynpros 0300/0352 in a classrun on 2026-09-22 (CX_SY_SEND_DYNPRO_NO_RECEIVER); " +
+    "TRINT_OBJECTS_CHECK_AND_INSERT with 'D' proven 2026-09-22 (E071 R3TR TABU BALOBJ OBJFUNC K on " +
+    "task A4HK900351 with one E071K row per key); space is check-only and writes nothing; a " +
+    "customizing (W) request refuses a client-independent table entry with TK599. Still unproven: " +
+    "the FM's failure paths.",
 } as const);
 
 // ---------------------------------------------------------------------------
@@ -180,7 +150,7 @@ export interface ImgApplyPlan extends ImgProbePlan {
    * customizing object recorded directly (`/AIF/ACTIONS` in the measured
    * evidence).
    */
-  readonly masterType: "VDAT" | "CDAT";
+  readonly masterType: "VDAT" | "CDAT" | "TABU";
 }
 
 // ---------------------------------------------------------------------------
@@ -305,8 +275,8 @@ export function validateApplyPlan(p: ImgApplyPlan): void {
   }
 
   assertDdicIdentifier(p.view, "view");
-  if (p.masterType !== "VDAT" && p.masterType !== "CDAT") {
-    throw new AbapError("BAD_INPUT", `master_type must be "VDAT" or "CDAT".`, { masterType: p.masterType });
+  if (p.masterType !== "VDAT" && p.masterType !== "CDAT" && p.masterType !== "TABU") {
+    throw new AbapError("BAD_INPUT", `master_type must be "VDAT", "CDAT" or "TABU".`, { masterType: p.masterType });
   }
 
   const fieldNamesUpper = new Set<string>();

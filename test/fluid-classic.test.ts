@@ -52,6 +52,7 @@ import { serverPackage, type ServerPackage } from "../src/adt/resolved-package.j
 import { ddicBridgeSource } from "../src/adt/ddic-bridge.js";
 import { BRIDGE_CREATABLE_TYPES, isBridgeCreatableType, isBridgeOnlyCreateType } from "../src/adt/capabilities.js";
 import { abapWrite } from "../src/tools/write.js";
+import { packagePart } from "../src/adt/fluid/builtin/classic/abap-package.js";
 
 interface Recorded {
   label: string;
@@ -947,5 +948,53 @@ describe("classic manifest — offline validation", () => {
     for (const obj of classicManifest.objects) {
       expect(obj.description.length, `${obj.name}: "${obj.description}" (${obj.description.length} chars)`).toBeLessThanOrEqual(60);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// delete_package — structural pins for the DELFLAG=X open-request lookup
+// (issue #185): the E071/E070 SELECT that finds the request/task still
+// holding a deleted-but-not-yet-released object, and the OBJECT content
+// line's added DELFLAG/TRKORR/TASK fields.
+// ---------------------------------------------------------------------------
+
+describe("delete_package ABAP source — DELFLAG=X open-request lookup (#185)", () => {
+  const DELETE_METHOD = packagePart.source.slice(
+    packagePart.source.indexOf("METHOD delete_package."),
+    packagePart.source.indexOf("\n  ENDMETHOD.", packagePart.source.indexOf("METHOD delete_package.")),
+  );
+
+  const norm = (s: string): string => s.replace(/\s+/g, " ").trim();
+
+  it("joins e071 and e070, restricted to open/limited-release statuses, ordered by trkorr descending, exits after the first row", () => {
+    expect(norm(DELETE_METHOD)).toContain(
+      norm(`
+        SELECT e071~trkorr, e070~strkorr
+          FROM e071
+          INNER JOIN e070 ON e070~trkorr = e071~trkorr
+          WHERE e071~pgmid = @ls_tadir-pgmid
+            AND e071~object = @ls_tadir-object
+            AND e071~obj_name = @ls_tadir-obj_name
+            AND e070~trstatus IN ( 'D', 'L' )
+          ORDER BY e071~trkorr DESCENDING
+          INTO ( @lv_holder, @lv_strkorr ).
+          EXIT.
+        ENDSELECT.
+      `),
+    );
+  });
+
+  it("the OBJECT content line carries DELFLAG, TRKORR and TASK", () => {
+    expect(DELETE_METHOD).toContain(
+      "line( |ZMCP-PKG-CONTENT> KIND=OBJECT PGMID={ ls_tadir-pgmid } OBJECT={ ls_tadir-object } " +
+        "NAME={ ls_tadir-obj_name } DELFLAG={ ls_tadir-delflag } TRKORR={ lv_request } TASK={ lv_task }| ).",
+    );
+  });
+
+  it("the lookup only runs when TADIR-DELFLAG is X, guarded before the SELECT", () => {
+    const guardIdx = DELETE_METHOD.indexOf("IF ls_tadir-delflag = 'X'.");
+    const selectIdx = DELETE_METHOD.indexOf("SELECT e071~trkorr, e070~strkorr");
+    expect(guardIdx).toBeGreaterThan(-1);
+    expect(selectIdx).toBeGreaterThan(guardIdx);
   });
 });

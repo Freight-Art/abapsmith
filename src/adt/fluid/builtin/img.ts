@@ -115,6 +115,7 @@ const IMG_SOURCE = `CLASS zcl_zmcp_fluid_img DEFINITION
       IMPORTING
         iv_description TYPE string
         iv_owner       TYPE string
+        iv_type        TYPE trfunction
       RETURNING
         VALUE(rv_ok)   TYPE abap_bool.
 
@@ -167,6 +168,7 @@ CLASS zcl_zmcp_fluid_img IMPLEMENTATION.
     DATA lv_probe_ok     TYPE abap_bool.
     DATA lv_description  TYPE string.
     DATA lv_owner        TYPE string.
+    DATA lv_request_type TYPE trfunction.
     DATA lv_request_ok   TYPE abap_bool.
     DATA lv_client_field TYPE string.
     DATA lv_op           TYPE string.
@@ -228,6 +230,7 @@ CLASS zcl_zmcp_fluid_img IMPLEMENTATION.
         zcl_zmcp_fluid_rt=>scan( iv_json ).
         lv_description = zcl_zmcp_fluid_rt=>s( 'description' ).
         lv_owner       = zcl_zmcp_fluid_rt=>s( 'owner' ).
+        lv_request_type = zcl_zmcp_fluid_rt=>s( 'request_type' ).
 
         IF lv_description IS INITIAL.
           zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args'
@@ -243,7 +246,17 @@ CLASS zcl_zmcp_fluid_img IMPLEMENTATION.
           RETURN.
         ENDIF.
 
-        lv_request_ok = create_request( iv_description = lv_description iv_owner = lv_owner ).
+        IF lv_request_type IS INITIAL.
+          lv_request_type = 'W'.
+        ELSEIF lv_request_type <> 'W' AND lv_request_type <> 'K'.
+          zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args'
+            iv_text = |request_type must be W or K, got "{ lv_request_type }"| ).
+          zcl_zmcp_fluid_rt=>end( 1 ).
+          RETURN.
+        ENDIF.
+
+        lv_request_ok = create_request( iv_description = lv_description iv_owner = lv_owner
+          iv_type = lv_request_type ).
 
         IF lv_request_ok = abap_false.
           zcl_zmcp_fluid_rt=>end( 1 ).
@@ -290,9 +303,9 @@ CLASS zcl_zmcp_fluid_img IMPLEMENTATION.
           RETURN.
         ENDIF.
 
-        IF lv_master_type <> 'VDAT' AND lv_master_type <> 'CDAT'.
+        IF lv_master_type <> 'VDAT' AND lv_master_type <> 'CDAT' AND lv_master_type <> 'TABU'.
           zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args'
-            iv_text = |masterType must be "VDAT" or "CDAT", got "{ lv_master_type }"| ).
+            iv_text = |masterType must be "VDAT", "CDAT" or "TABU", got "{ lv_master_type }"| ).
           zcl_zmcp_fluid_rt=>end( 1 ).
           RETURN.
         ENDIF.
@@ -631,13 +644,17 @@ CLASS zcl_zmcp_fluid_img IMPLEMENTATION.
     lv_text = iv_description.
 
     ls_user-user = sy-uname.
-    ls_user-type = 'Q'.
+    IF iv_type = 'W'.
+      ls_user-type = 'Q'.
+    ELSE.
+      ls_user-type = 'S'.
+    ENDIF.
     INSERT ls_user INTO TABLE lt_users.
 
     IF iv_owner IS NOT INITIAL.
       CALL FUNCTION 'TR_INSERT_REQUEST_WITH_TASKS'
         EXPORTING
-          iv_type           = 'W'
+          iv_type           = iv_type
           iv_text           = lv_text
           iv_owner          = iv_owner
           it_users          = lt_users
@@ -651,7 +668,7 @@ CLASS zcl_zmcp_fluid_img IMPLEMENTATION.
     ELSE.
       CALL FUNCTION 'TR_INSERT_REQUEST_WITH_TASKS'
         EXPORTING
-          iv_type           = 'W'
+          iv_type           = iv_type
           iv_text           = lv_text
           it_users          = lt_users
         IMPORTING
@@ -690,6 +707,7 @@ CLASS zcl_zmcp_fluid_img IMPLEMENTATION.
     ENDIF.
 
     emit( |CTSW> REQUEST len=[{ strlen( ls_request_header-trkorr ) }] value=[{ ls_request_header-trkorr }]| ).
+    emit( |CTSW> REQTYPE len=[1] value=[{ iv_type }]| ).
 
     READ TABLE lt_task_headers INTO ls_task_header INDEX 1.
     IF sy-subrc <> 0.
@@ -732,6 +750,7 @@ CLASS zcl_zmcp_fluid_img IMPLEMENTATION.
     FIELD-SYMBOLS <fs_key> TYPE any.
     FIELD-SYMBOLS <key_c>  TYPE c.
     DATA lv_tabkey        TYPE string.
+    DATA lv_has_client    TYPE abap_bool.
     DATA lv_cts_ok        TYPE abap_bool.
     DATA lt_val_names     TYPE ty_strings.
     DATA lv_val_name      TYPE string.
@@ -791,7 +810,7 @@ CLASS zcl_zmcp_fluid_img IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    IF lv_delclass <> iv_exp_delclass OR boolc( lv_clidep = 'X' ) <> iv_exp_clidep.
+    IF lv_delclass <> iv_exp_delclass OR xsdbool( lv_clidep = 'X' ) <> iv_exp_clidep.
       emit( |ZMCP-DDIC-ERR> DD02L for { lv_table_lower } changed since the probe | &&
         |(delclass=[{ lv_delclass }] clidep=[{ lv_clidep }]): re-probe before applying.| ).
       rv_ok = abap_false.
@@ -826,13 +845,17 @@ CLASS zcl_zmcp_fluid_img IMPLEMENTATION.
     ENDDO.
 
     READ TABLE lt_comp INTO ls_comp WITH KEY name = to_upper( iv_client_field ).
-    IF sy-subrc <> 0.
+    IF sy-subrc = 0.
+      lv_has_client = abap_true.
+    ELSEIF iv_exp_clidep = abap_true.
       zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'apply'
-        iv_text = |client field "{ iv_client_field }" not found on { lv_table_lower } — this table has no | &&
-          |such component, so it cannot be client-stamped. A table shaped this way is client-independent | &&
-          |and cannot be written through this tool at all; maintain it by hand (SM30/SM34) instead.| ).
+        iv_text = |client field "{ iv_client_field }" not found on { lv_table_lower } — DD02L marks this | &&
+          |table client-dependent, but it has no such component, so it cannot be client-stamped. | &&
+          |Check client_field, or the table's key, before retrying.| ).
       rv_ok = abap_false.
       RETURN.
+    ELSE.
+      lv_has_client = abap_false.
     ENDIF.
 
     TRY.
@@ -867,7 +890,11 @@ CLASS zcl_zmcp_fluid_img IMPLEMENTATION.
         ENDIF.
         APPEND |{ to_lower( lv_fld_name ) } = '{ lv_fld_val }'| TO lt_where.
       ENDDO.
-      lv_tabkey = |{ sy-mandt }{ <key_c> }|.
+      IF lv_has_client = abap_true.
+        lv_tabkey = |{ sy-mandt }{ <key_c> }|.
+      ELSE.
+        lv_tabkey = |{ <key_c> }|.
+      ENDIF.
 
       lv_row_ok = abap_true.
       lv_subrc = 4.
@@ -915,9 +942,11 @@ CLASS zcl_zmcp_fluid_img IMPLEMENTATION.
         ENDIF.
       ENDIF.
 
-      ASSIGN COMPONENT to_upper( iv_client_field ) OF STRUCTURE <fs_wa> TO <fs_val>.
-      IF sy-subrc = 0.
-        <fs_val> = sy-mandt.
+      IF lv_has_client = abap_true.
+        ASSIGN COMPONENT to_upper( iv_client_field ) OF STRUCTURE <fs_wa> TO <fs_val>.
+        IF sy-subrc = 0.
+          <fs_val> = sy-mandt.
+        ENDIF.
       ENDIF.
 
       IF iv_op = 'upsert'.
@@ -1052,9 +1081,10 @@ CLASS zcl_zmcp_fluid_img IMPLEMENTATION.
 
   METHOD cts_record.
     DATA ls_ko200      TYPE ko200.
-    DATA lt_ko200      TYPE STANDARD TABLE OF ko200 WITH DEFAULT KEY.
+    DATA lt_ko200      TYPE tredt_objects.
     DATA ls_e071k      TYPE e071k.
-    DATA lt_e071k      TYPE STANDARD TABLE OF e071k WITH DEFAULT KEY.
+    DATA lt_e071k      TYPE tredt_keys.
+    DATA lv_wi_order   TYPE trkorr.
     DATA lv_we_order   TYPE trkorr.
     DATA lv_we_task    TYPE trkorr.
     DATA lx_cts        TYPE REF TO cx_root.
@@ -1066,6 +1096,7 @@ CLASS zcl_zmcp_fluid_img IMPLEMENTATION.
 
     rv_ok = abap_true.
     lv_view_upper = to_upper( iv_view ).
+    lv_wi_order = iv_corr.
 
     ls_ko200-pgmid    = 'R3TR'.
     ls_ko200-object   = iv_master_type.
@@ -1099,31 +1130,33 @@ CLASS zcl_zmcp_fluid_img IMPLEMENTATION.
           MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
             WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4 INTO lv_msg.
           emit( |ZMCP-DDIC-ERR> TR_OBJECTS_CHECK failed for row { iv_row } on { iv_table }, | &&
-            |sy-subrc={ sy-subrc }| ).
+            |sy-subrc={ sy-subrc }: { lv_msg }| ).
           rv_ok = abap_false.
           RETURN.
         ENDIF.
 
-        CALL FUNCTION 'TR_OBJECTS_INSERT'
+        " TR_OBJECTS_INSERT forces iv_with_dialog = 'X' and pops SAPLSTRD dynpros
+        " (request choice, task classification) that a classrun cannot answer;
+        " 'D' is the headless insert mode (space would only check).
+        CALL FUNCTION 'TRINT_OBJECTS_CHECK_AND_INSERT'
           EXPORTING
-            iv_no_standard_editor   = 'X'
-            iv_no_show_option       = 'X'
-            wi_order                = iv_corr
+            iv_order              = lv_wi_order
+            iv_with_dialog        = 'D'
+            iv_no_standard_editor = 'X'
+            iv_no_show_option     = 'X'
           IMPORTING
-            we_order                = lv_we_order
-            we_task                 = lv_we_task
-          TABLES
-            wt_ko200                = lt_ko200
-            wt_e071k                = lt_e071k
+            ev_order              = lv_we_order
+            ev_task               = lv_we_task
+          CHANGING
+            ct_ko200              = lt_ko200
+            ct_e071k              = lt_e071k
           EXCEPTIONS
-            cancel_edit_other_error = 1
-            show_only_other_error   = 2
-            OTHERS                  = 3.
+            OTHERS                = 1.
         IF sy-subrc <> 0.
           MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
             WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4 INTO lv_msg.
-          emit( |ZMCP-DDIC-ERR> TR_OBJECTS_INSERT failed for row { iv_row } on { iv_table }, | &&
-            |sy-subrc={ sy-subrc }| ).
+          emit( |ZMCP-DDIC-ERR> TRINT_OBJECTS_CHECK_AND_INSERT failed for row { iv_row } on { iv_table }, | &&
+            |sy-subrc={ sy-subrc } { sy-msgid }{ sy-msgno }: { lv_msg }| ).
           rv_ok = abap_false.
           RETURN.
         ENDIF.
@@ -1214,8 +1247,9 @@ export const imgManifest: FluidManifest = {
       name: "create_request",
       category: "mutate",
       description:
-        "Creates a customizing (type W) transport request via TR_INSERT_REQUEST_WITH_TASKS, with a " +
-        "type-Q task recorded for the logon user.",
+        "Creates a transport request via TR_INSERT_REQUEST_WITH_TASKS: type W (customizing, task " +
+        "type Q, the default) or type K (workbench, task type S). CTS refuses to record a " +
+        "client-independent table entry on a customizing request (TK599), so those need K.",
       input: {
         type: "object",
         required: ["description"],
@@ -1229,6 +1263,11 @@ export const imgManifest: FluidManifest = {
             type: "string",
             maxLength: 12,
             description: "Request owner; defaults to the logon user when omitted.",
+          },
+          request_type: {
+            type: "string",
+            enum: ["W", "K"],
+            description: "W (customizing, default) or K (workbench).",
           },
         },
       },
@@ -1319,8 +1358,8 @@ export const imgManifest: FluidManifest = {
           },
           masterType: {
             type: "string",
-            enum: ["VDAT", "CDAT"],
-            description: "KO200/E071K-OBJECT/MASTERTYPE: VDAT for a maintenance view, CDAT for a customizing object.",
+            enum: ["VDAT", "CDAT", "TABU"],
+            description: "KO200/E071K-OBJECT/MASTERTYPE: VDAT for a maintenance view, CDAT for a customizing object, TABU for a table maintained directly (no maintenance view).",
           },
         },
       },

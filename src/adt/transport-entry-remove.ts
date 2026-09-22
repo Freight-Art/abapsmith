@@ -7,12 +7,12 @@
  * reaches CTS's own backend the way `./tran-delete.ts` / `./view-delete.ts`
  * reach theirs: the fluid `classic` tool's `remove_transport_entry` action
  * (body class `ZCL_ZMCP_FLUID_CLASSIC`), calling `TRINT_READ_REQUEST` to find
- * the row and `TR_DELETE_COMM_OBJECT_KEYS` to remove it. This route clears an
- * entry whose request holds exactly one E071 row for it. A live run on
- * 2026-09-05 found that CTS refuses the removal when the request's object
- * list holds two or more E071 rows for the same PGMID+OBJECT+OBJ_NAME
- * (E071's key is TRKORR+AS4POS, not object identity, so duplicates are
- * legal); the bridge now detects that up front.
+ * the row and `TR_DELETE_COMM_OBJECT_KEYS` to remove it. A request can hold
+ * two or more E071 rows for the same PGMID+OBJECT+OBJ_NAME (E071's key is
+ * TRKORR+AS4POS, not object identity, so this is legal — SAP's own DDIC
+ * delete recording can append such a row). The bridge collapses these to one
+ * row (keeping the lowest AS4POS) before calling `TR_DELETE_COMM_OBJECT_KEYS`,
+ * so removal succeeds instead of hitting its `w_duplicate_entry` guard.
  */
 
 import type { AbapConnection } from "./connection.js";
@@ -26,6 +26,9 @@ import { assertTrkorr, type TransportCeilingProof } from "./transports.js";
 
 /** One E071 row the ABAP reports having ALREADY deleted — see `transportPart` (src/adt/fluid/builtin/classic/abap-transport.ts) step 5. */
 const TREN_ROW_RE = /^ZMCP-TREN-ROW (\S+) (\S+) (\S+)/;
+
+/** One group of duplicate E071 rows the ABAP collapsed to one — see `transportPart` step 4. */
+const TREN_DEDUP_RE = /^ZMCP-TREN-DEDUP (\S+) (\S+) (\S+) (\d+) AS4POS (\S+)$/;
 
 export interface TransportEntryRemoveParams {
   /** The request or task believed to hold the entry; the ABAP falls back to its tasks. */
@@ -41,6 +44,8 @@ export interface TransportEntryRemoveResult {
   holder: string;
   /** The rows the ABAP reported removing. */
   removed: { pgmid: string; object: string; name: string }[];
+  /** Duplicate-E071-row groups the ABAP collapsed to one row before removing the entry. */
+  collapsed: { pgmid: string; object: string; name: string; rows: number; positions: string[] }[];
 }
 
 /**
@@ -66,8 +71,8 @@ export async function removeTransportEntryViaBridge(
     allowNamespace: true,
   }).toUpperCase();
 
-  // Mirrors tran-delete.ts's beforeAssert: turn the known "no entry for" line into a
-  // named refusal rather than the generic missing-tag CHECK_FAILED.
+  // Mirrors tran-delete.ts's beforeAssert: turn known error lines into named refusals
+  // rather than the generic missing-tag CHECK_FAILED.
   const beforeAssert = (transcript: DdicTranscript): void => {
     if (transcript.errorLine?.startsWith("duplicate E071 entries for")) {
       const m =
@@ -94,14 +99,21 @@ export async function removeTransportEntryViaBridge(
           `${pgmid} ${object} ${objName} (AS4POS ${positions.join(", ")}) — nothing was removed. ` +
           `Raw ABAP-side detail: ${transcript.errorLine}`,
         { trkorr, objectName, holder, pgmid, object, count, positions, raw: transcript.raw },
-        "TRINT_DELETE_COMM_OBJECT_KEYS counts the request's E071 rows matching PGMID+OBJECT+OBJ_NAME " +
-          "and raises w_duplicate_entry (message TR 292) at two or more; TR_DELETE_COMM_OBJECT_KEYS has " +
-          "no parameter naming which AS4POS to drop, and the guard has no bypass. E071's key is " +
-          "TRKORR+AS4POS, so the duplicate rows are legal — abapsmith cannot say what produced " +
-          "them here. SE03's \"Unlock Objects (Expert Tool)\" does " +
-          "NOT fix this on its own — the refusal counts E071 rows, not locks. The remedy is outside " +
-          "abapsmith: edit the request's object list in SE09/SE10 so at most one row remains for the " +
-          "object, then retry removeObject; or release the request, which is irreversible.",
+        "The bridge now collapses duplicate E071 rows before removing the entry, so it should " +
+          "no longer emit this line — seeing it means an older bridge body is still deployed. " +
+          "Redeploy the fluid classic tool and retry.",
+      );
+    }
+    if (
+      transcript.errorLine?.startsWith("TR_DELETE_COMM_OBJECT_KEYS failed") &&
+      transcript.errorLine.includes(" TR 292")
+    ) {
+      throw new AbapError(
+        "CTS_DUPLICATE_ENTRY",
+        `CTS refused to remove ${objectName} from ${trkorr}: TR_DELETE_COMM_OBJECT_KEYS still raised ` +
+          `TR 292 after the bridge's collapse — nothing further was removed. ` +
+          `Raw ABAP-side detail: ${transcript.errorLine}`,
+        { trkorr, objectName, raw: transcript.raw },
       );
     }
     if (transcript.errorLine?.startsWith("no entry for")) {
@@ -124,6 +136,7 @@ export async function removeTransportEntryViaBridge(
 
   let holder = trkorr;
   const removed: { pgmid: string; object: string; name: string }[] = [];
+  const collapsed: TransportEntryRemoveResult["collapsed"] = [];
   for (const line of transcript.raw.split("\n")) {
     const trimmed = line.trim();
     const holderMatch = trimmed.match(/^ZMCP-TREN-HOLDER (\S+)/);
@@ -132,10 +145,23 @@ export async function removeTransportEntryViaBridge(
       continue;
     }
     const rowMatch = trimmed.match(TREN_ROW_RE);
-    if (rowMatch) removed.push({ pgmid: rowMatch[1]!, object: rowMatch[2]!, name: rowMatch[3]! });
+    if (rowMatch) {
+      removed.push({ pgmid: rowMatch[1]!, object: rowMatch[2]!, name: rowMatch[3]! });
+      continue;
+    }
+    const dedupMatch = trimmed.match(TREN_DEDUP_RE);
+    if (dedupMatch) {
+      collapsed.push({
+        pgmid: dedupMatch[1]!,
+        object: dedupMatch[2]!,
+        name: dedupMatch[3]!,
+        rows: Number(dedupMatch[4]),
+        positions: dedupMatch[5]!.split(","),
+      });
+    }
   }
 
-  return { run, transcript, holder, removed };
+  return { run, transcript, holder, removed, collapsed };
 }
 
 /**
@@ -152,16 +178,21 @@ export async function removeTransportEntryViaBridge(
  *    transcript to read at all. This is exactly the shape of a dropped
  *    connection — the ABAP may have run and answered into thin air. "No
  *    evidence" must never be read as "nothing happened".
- *  - `raw` names at least one removed row (`TREN_ROW_RE` matches a line):
- *    CTS WAS touched even though the operation then failed later in the
- *    loop — also unproven, not a clean refusal.
+ *  - `raw` names at least one removed row (`TREN_ROW_RE` matches a line) or
+ *    at least one collapsed duplicate-row group (`TREN_DEDUP_RE` matches a
+ *    line, meaning surplus E071 rows were already deleted): CTS WAS touched
+ *    even though the operation then failed later in the loop — also
+ *    unproven, not a clean refusal.
  *  - Otherwise — an `AbapError` with a transcript that names no removed
- *    row — is the one case that is actually proven clean: CTS refused
- *    before removing anything (e.g. `CTS_DUPLICATE_ENTRY`, `NOT_FOUND`).
+ *    row and no collapsed group — is the one case that is actually proven
+ *    clean: CTS refused before removing anything (e.g. `CTS_DUPLICATE_ENTRY`,
+ *    `NOT_FOUND`).
  */
 export function removalTouchedNothing(e: unknown): boolean {
   if (!(e instanceof AbapError)) return false;
   const raw = e.details.raw;
   if (typeof raw !== "string") return false;
-  return !raw.split("\n").some((line) => TREN_ROW_RE.test(line.trim()));
+  return !raw
+    .split("\n")
+    .some((line) => TREN_ROW_RE.test(line.trim()) || TREN_DEDUP_RE.test(line.trim()));
 }

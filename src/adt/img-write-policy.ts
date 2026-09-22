@@ -64,11 +64,21 @@ export interface ImgWriteRequest {
 }
 
 export type ImgWriteVerdict =
-  | { readonly allowed: true; readonly notes: readonly string[] }
+  | {
+      readonly allowed: true;
+      readonly notes: readonly string[];
+      readonly corrRequired: boolean;
+      /** "named": corr_nr was supplied and permitted. "session": corr_nr omitted, a request is required, and auto-resolution applies. "none": no request is needed. */
+      readonly corrNrResolution: "named" | "session" | "none";
+    }
   | { readonly allowed: false; readonly rule: string; readonly reason: string };
 
 export interface EvaluateImgWriteOptions {
   readonly previewDenyExtra?: readonly string[];
+  /** The caller (img-edit.ts) can resolve a request itself when corr_nr is omitted under ABAP_ALLOW_TRANSPORTS=auto. */
+  readonly autoResolve?: boolean;
+  /** Whether the given TRKORR was created by this session — used to accept a named corr_nr under auto. */
+  readonly sessionCreated?: (trkorr: string) => boolean;
 }
 
 function refuse(rule: string, reason: string): ImgWriteVerdict {
@@ -108,6 +118,13 @@ const CHAR_LIKE_KEY_TYPES: ReadonlySet<string> = new Set([
 function normalizedCorrNr(corrNr: string | undefined): string | undefined {
   const trimmed = corrNr?.trim();
   return trimmed === undefined || trimmed === "" ? undefined : trimmed;
+}
+
+/** `cfg.allowTransports ?? ["*"]`, trimmed+uppercased; an explicitly empty list is deny-all and never counts as containing auto. */
+function transportAllowlistHasAuto(cfg: Readonly<SafetyConfig>): boolean {
+  const allowlist = cfg.allowTransports ?? ["*"];
+  if (allowlist.length === 0) return false;
+  return allowlist.map((t) => t.trim().toUpperCase()).includes("AUTO");
 }
 
 type CccoractivState = "auto-record" | "blocked" | "off" | "unknown";
@@ -280,20 +297,29 @@ export function evaluateImgWrite(
   const recordingProvenOff = cccoractiv === "off";
   const corrRequired = !(table.clientDependent === true && recordingProvenOff);
   const namedCorrNr = normalizedCorrNr(req.corrNr);
+  const allowlistHasAuto = transportAllowlistHasAuto(cfg);
 
-  const corrNrMissingMessage =
-    corrRequired && namedCorrNr === undefined
-      ? `No corr_nr was supplied. A transport request is required here because ${
+  let corrNrResolution: "named" | "session" | "none" = "none";
+
+  if (corrRequired && namedCorrNr === undefined) {
+    if (opts?.autoResolve === true && allowlistHasAuto) {
+      notes.push(
+        "No corr_nr was supplied; this session resolves one because ABAP_ALLOW_TRANSPORTS " +
+          "contains auto (a customizing request for a client-dependent table, a workbench " +
+          "request for a client-independent one).",
+      );
+      corrNrResolution = "session";
+    } else {
+      const corrNrMissingMessage =
+        `No corr_nr was supplied. A transport request is required here because ${
           table.clientDependent === false
             ? "the table is client-independent"
             : "automatic recording is not confirmed to be switched off for this client " +
               `(T000-CCCORACTIV read as ${describeCccoractiv(probe.cccoractiv)})`
-        }.`
-      : undefined;
-
-  if (corrNrMissingMessage) {
-    if (req.mode !== "preview") return refuse("corr-nr-required", corrNrMissingMessage);
-    notes.push(`Applying this change would refuse unless a transport request is supplied: ${corrNrMissingMessage}`);
+        }.`;
+      if (req.mode !== "preview") return refuse("corr-nr-required", corrNrMissingMessage);
+      notes.push(`Applying this change would refuse unless a transport request is supplied: ${corrNrMissingMessage}`);
+    }
   }
 
   let corrNrDeniedMessage: string | undefined;
@@ -308,15 +334,30 @@ export function evaluateImgWrite(
     } else {
       const normalized = allowlist.map((t) => t.trim().toUpperCase());
       if (!normalized.includes("*") && !normalized.includes(namedCorrNr.toUpperCase())) {
-        corrNrDeniedMessage =
-          `Transport ${namedCorrNr} is not permitted by the configured transport allowlist ` +
-          `[${allowlist.join(", ")}]. Use one of the allowed requests, or ask the operator to widen it.`;
+        if (normalized.includes("AUTO") && opts?.sessionCreated?.(namedCorrNr.toUpperCase()) === true) {
+          notes.push(
+            `Transport ${namedCorrNr} was created by this session (abap_img_edit create_request or ` +
+              "abap_transport create) and is accepted under ABAP_ALLOW_TRANSPORTS=auto.",
+          );
+        } else {
+          corrNrDeniedMessage =
+            `Transport ${namedCorrNr} is not permitted by the configured transport allowlist ` +
+            `[${allowlist.join(", ")}]. Use one of the allowed requests, or ask the operator to widen it.` +
+            (normalized.includes("AUTO")
+              ? " Under auto, pass a request this session created (abap_img_edit mode=create_request or " +
+                "abap_transport create), or omit corr_nr to let this session resolve one."
+              : "");
+        }
       }
     }
   }
   if (corrNrDeniedMessage) {
     if (req.mode !== "preview") return refuse("corr-nr-not-allowed", corrNrDeniedMessage);
     notes.push(`Applying this change would refuse: ${corrNrDeniedMessage}`);
+  }
+
+  if (namedCorrNr !== undefined && corrNrDeniedMessage === undefined) {
+    corrNrResolution = "named";
   }
 
   const baseTable = table.table.trim();
@@ -339,5 +380,5 @@ export function evaluateImgWrite(
     notes.push("This was a preview: rows were validated but nothing was written.");
   }
 
-  return { allowed: true, notes };
+  return { allowed: true, notes, corrRequired, corrNrResolution };
 }

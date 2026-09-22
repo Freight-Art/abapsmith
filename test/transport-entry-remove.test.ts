@@ -247,8 +247,8 @@ describe("remove_transport_entry ABAP source — structural regression guard", (
     expect(hits.length).toBe(2);
   });
 
-  it("guards both failures with 'IF lv_subrc <> 0.' — never a bare 'IF sy-subrc <> 0.'", () => {
-    expect((TRANSPORT_METHOD.match(/IF lv_subrc <> 0\./g) ?? []).length).toBe(2);
+  it("guards all three failures with 'IF lv_subrc <> 0.' — never a bare 'IF sy-subrc <> 0.'", () => {
+    expect((TRANSPORT_METHOD.match(/IF lv_subrc <> 0\./g) ?? []).length).toBe(3);
     expect(TRANSPORT_METHOD).not.toMatch(/IF sy-subrc <> 0\./);
   });
 
@@ -282,14 +282,45 @@ describe("remove_transport_entry ABAP source — structural regression guard", (
     );
   });
 
-  it("the duplicate-E071 fail() interpolates six fields, guarded by lv_n >= 2, and returns immediately", () => {
+  it("2+ rows sharing pgmid+object+obj_name emit a ZMCP-TREN-DEDUP line instead of fail()", () => {
     expect(norm(TRANSPORT_METHOD)).toContain(
       norm(
         "IF lv_n >= 2. " +
-          "fail( |duplicate E071 entries for { ls_e071-pgmid } { ls_e071-object } { ls_e071-obj_name } " +
-          "on { lv_holder }: { lv_n } rows at AS4POS { lv_positions }| ). " +
-          "RETURN. " +
+          "line( |ZMCP-TREN-DEDUP { ls_e071-pgmid } { ls_e071-object } { ls_e071-obj_name } " +
+          "{ lv_n } AS4POS { lv_positions }| ). " +
           "ENDIF.",
+      ),
+    );
+  });
+
+  it("sorts lt_rows by pgmid object obj_name as4pos before the dedup loop", () => {
+    expect(TRANSPORT_METHOD).toContain("SORT lt_rows BY pgmid object obj_name as4pos.");
+  });
+
+  it("surplus rows are deleted from e071 by trkorr+as4pos, subrc-guarded, with a ROLLBACK before fail()", () => {
+    expect(norm(TRANSPORT_METHOD)).toContain(
+      norm(
+        "LOOP AT lt_surplus INTO ls_surplus. " +
+          "DELETE FROM e071 WHERE trkorr = @lv_holder AND as4pos = @ls_surplus-as4pos. " +
+          "lv_subrc = sy-subrc. " +
+          "IF lv_subrc <> 0. " +
+          "ROLLBACK WORK.",
+      ),
+    );
+  });
+
+  it("never deletes from e071k — the surviving E071 row still covers the object's key rows", () => {
+    expect(TRANSPORT_METHOD).not.toContain("DELETE FROM e071k");
+  });
+
+  it("step 5's failure path rolls back when lt_surplus is not initial, before its fail()", () => {
+    expect(norm(TRANSPORT_METHOD)).toContain(
+      norm(
+        "IF lt_surplus IS NOT INITIAL. " +
+          "ROLLBACK WORK. " +
+          "ENDIF. " +
+          "fail( |TR_DELETE_COMM_OBJECT_KEYS failed for { ls_e071-pgmid } { ls_e071-object } { ls_e071-obj_name }, " +
+          "sy-subrc={ lv_subrc }, msg={ lv_msgtext }| ).",
       ),
     );
   });
@@ -555,6 +586,37 @@ describe("removeTransportEntryViaBridge — happy path", () => {
     const res = await removeTransportEntryViaBridge(conn, gate, PARAMS, proofFor(gate));
     expect(res.removed).toHaveLength(2);
   });
+
+  it("parses a ZMCP-TREN-DEDUP line into collapsed, alongside the removed row", async () => {
+    const fake = classicFake({
+      action: "remove_transport_entry",
+      lines: () => [
+        `ZMCP-TREN-HOLDER ${HOLDER}`,
+        "ZMCP-TREN-DEDUP R3TR TABL ZAS_T184 2 AS4POS 000001,000003",
+        "ZMCP-TREN-ROW R3TR TABL ZAS_T184",
+        "TREN-REMOVED",
+        "TREN-GONE",
+      ],
+    });
+    const { conn } = await connected(fake.route);
+    const gate = bridgeAdminGate();
+    const res = await removeTransportEntryViaBridge(conn, gate, PARAMS, proofFor(gate));
+    expect(res.collapsed).toEqual([
+      { pgmid: "R3TR", object: "TABL", name: "ZAS_T184", rows: 2, positions: ["000001", "000003"] },
+    ]);
+    expect(res.removed).toHaveLength(1);
+  });
+
+  it("collapsed is empty when no ZMCP-TREN-DEDUP line appears", async () => {
+    const fake = classicFake({
+      action: "remove_transport_entry",
+      lines: () => [`ZMCP-TREN-HOLDER ${HOLDER}`, `ZMCP-TREN-ROW ${PGMID} ${OBJTYPE} ${OBJECT}`, "TREN-REMOVED", "TREN-GONE"],
+    });
+    const { conn } = await connected(fake.route);
+    const gate = bridgeAdminGate();
+    const res = await removeTransportEntryViaBridge(conn, gate, PARAMS, proofFor(gate));
+    expect(res.collapsed).toEqual([]);
+  });
 });
 
 describe("removeTransportEntryViaBridge — beforeAssert branches", () => {
@@ -592,9 +654,8 @@ describe("removeTransportEntryViaBridge — beforeAssert branches", () => {
     expect(err.details.holder).toBe(HOLDER);
     expect(err.details.count).toBe(2);
     expect(err.details.positions).toEqual(["0001", "0002"]);
-    expect(err.hint).toContain("TRINT_DELETE_COMM_OBJECT_KEYS counts");
-    expect(err.hint).toContain("SE03's");
-    expect(err.hint).toContain("SE09/SE10");
+    expect(err.hint).toContain("older bridge body");
+    expect(err.hint).toContain("Redeploy");
   });
 
   it("a malformed duplicate-E071 line (regex doesn't match) still throws CTS_DUPLICATE_ENTRY, generically", async () => {
@@ -718,14 +779,6 @@ const COMM_OBJECT_KEYS_HINT =
   "blank (a function module that raises with a bare RAISE sets no message) — but quote it " +
   "when reporting this failure.";
 
-const LATE_DUPLICATE_ENTRY_HINT =
-  "The request holds two or more E071 rows for this object (same PGMID+OBJECT+OBJ_NAME) — " +
-  "E071's key is TRKORR+AS4POS, not object identity, so this is legal, but abapsmith cannot " +
-  "say which action produced the extra row, and TR_DELETE_COMM_OBJECT_KEYS refuses to pick " +
-  "one to drop. The entry and its lock are still on the request. Every remaining route is " +
-  "outside abapsmith and not guaranteed to succeed: edit the request's object list in " +
-  "SE09/SE10; or release the request (irreversible).";
-
 describe("abap_transport removeObject — enrichRemovalRefusal", () => {
   async function runWith(errorLines: readonly string[]) {
     const fake = classicFake({ action: "remove_transport_entry", lines: () => errorLines });
@@ -745,12 +798,16 @@ describe("abap_transport removeObject — enrichRemovalRefusal", () => {
     expect(err.hint).toBe(COMM_OBJECT_KEYS_HINT);
   });
 
-  it("a late msg=E TR 292 CHECK_FAILED is reclassified to CTS_DUPLICATE_ENTRY, message unchanged, hint replaced", async () => {
+  it("a late msg=E TR 292 is now thrown directly as CTS_DUPLICATE_ENTRY by beforeAssert, no hint", async () => {
     const errLine = `TR_DELETE_COMM_OBJECT_KEYS failed for ${PGMID} ${OBJTYPE} ${OBJECT}, sy-subrc=1, msg=E TR 292 v1= v2= v3= v4=`;
     const err = await runWith([`ZMCP-TREN-HOLDER ${HOLDER}`, `${DDIC_ERR_PREFIX} ${errLine}`]);
     expect(err.code).toBe("CTS_DUPLICATE_ENTRY");
-    expect(err.message).toBe(`Removing ${OBJECT} from ${HOLDER} failed on the server: ${errLine}`);
-    expect(err.hint).toBe(LATE_DUPLICATE_ENTRY_HINT);
+    expect(err.message).toBe(
+      `CTS refused to remove ${OBJECT} from ${HOLDER}: TR_DELETE_COMM_OBJECT_KEYS still raised ` +
+        `TR 292 after the bridge's collapse — nothing further was removed. ` +
+        `Raw ABAP-side detail: ${errLine}`,
+    );
+    expect(err.hint).toBeUndefined();
     expect(err.details.objectOnSystem).toBe("absent");
     expect(err.details.positions).toBeUndefined();
     expect(err.details.pgmid).toBeUndefined();
@@ -765,7 +822,8 @@ describe("abap_transport removeObject — enrichRemovalRefusal", () => {
         `(AS4POS 0001, 0002) — nothing was removed. Raw ABAP-side detail: ${errLine}`,
     );
     expect(err.details.objectOnSystem).toBe("absent");
-    expect(err.hint).toContain("TRINT_DELETE_COMM_OBJECT_KEYS counts");
+    expect(err.hint).toContain("older bridge body");
+    expect(err.hint).toContain("Redeploy");
     // No LATE_DUPLICATE_ENTRY_HINT text appended — passthrough branch keeps e.hint exactly.
     expect(err.hint).not.toContain("abapsmith cannot say which action produced the extra row");
   });
@@ -946,5 +1004,12 @@ describe("removalTouchedNothing()", () => {
       raw: `${DDIC_ERR_PREFIX} no entry for ${OBJECT} on ${HOLDER} or its tasks`,
     });
     expect(removalTouchedNothing(e)).toBe(true);
+  });
+
+  it("an AbapError whose raw names a ZMCP-TREN-DEDUP line is not untouched — surplus rows were already deleted", () => {
+    const e = new AbapError("CHECK_FAILED", "boom", {
+      raw: `ZMCP-TREN-HOLDER ${HOLDER}\nZMCP-TREN-DEDUP R3TR TABL ZAS_T184 2 AS4POS 000001,000003`,
+    });
+    expect(removalTouchedNothing(e)).toBe(false);
   });
 });

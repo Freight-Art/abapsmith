@@ -211,7 +211,11 @@ export async function runCreateCustomizingRequest(
     {
       tool: "img",
       action: "create_request",
-      args: { description: plan.description, ...(plan.owner !== undefined ? { owner: plan.owner } : {}) },
+      args: {
+        description: plan.description,
+        ...(plan.owner !== undefined ? { owner: plan.owner } : {}),
+        ...(plan.requestType !== undefined ? { request_type: plan.requestType } : {}),
+      },
       caller: { tool: "abap_img_edit", action: "create_request" },
     },
   );
