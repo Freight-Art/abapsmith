@@ -288,8 +288,8 @@ export function instructionsFor(
       : "";
   return (
     "Access to an SAP ABAP system over ADT. Use abap_search to locate objects, " +
-    "abap_read to read source or DDIC definitions (outline=true first for large " +
-    "classes, then method=), abap_write to create/change/delete, abap_activate to " +
+    "abap_read to read source or DDIC definitions (a large class answers with its " +
+    "outline by default; then method= or pattern=), abap_write to create/change/delete, abap_activate to " +
     "syntax-check or activate, abap_run to execute a class or report and capture " +
     "its output, abap_test to run ABAP Unit tests (it reports NO TESTS RAN separately " +
     "from PASSED — they are not the same answer), " +

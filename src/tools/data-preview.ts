@@ -93,23 +93,18 @@ export const dataPreviewInputSchema = {
     .int()
     .optional()
     .describe(
-      "Rows to return, clamped to the server's ceiling (clamp reported in the response). " +
-        'At least 1 — 0 is refused, never read as "default".',
+      "Rows to return, clamped to the server's ceiling. At least 1 — 0 is refused.",
     ),
   where: z
     .array(
       z.object({
         field: z
           .string()
-          .describe(
-            "DDIC field name, checked against the entity's own column list before anything is sent.",
-          ),
+          .describe("DDIC field name, checked against the entity's columns."),
         op: z
           .enum(PREVIEW_OPS)
           .describe(
-            "Comparison operator: eq/ne/lt/le/gt/ge compare one typed value; like matches an SQL " +
-              "pattern (% = any run, _ = one character, # = escape character); in matches any of an " +
-              "array of values; is_null takes no value at all.",
+            "Comparison operator: eq/ne/lt/le/gt/ge/like/in/is_null.",
           ),
         value: z
           .union([
@@ -120,14 +115,14 @@ export const dataPreviewInputSchema = {
           .optional()
           .describe(
             "Required for every op except is_null (which must omit it); an array only for op=in. " +
-              "Always rendered as a typed literal for the field's DDIC type — never concatenated as text.",
+              "Rendered as a typed literal for the field's DDIC type.",
           ),
       }),
     )
     .optional()
     .describe(
-      "Structured filter conditions, ANDed together (no OR, no free text). This does not widen what " +
-        "the technical user may read — the same S_TABU_* authorisations still apply to every row.",
+      "Structured filter conditions, ANDed together (no OR, no free text). The same S_TABU_* " +
+        "authorisations still apply to every row.",
     ),
   columns: z
     .array(z.string())
@@ -147,23 +142,21 @@ export const dataPreviewInputSchema = {
     )
     .optional()
     .describe(
-      "Sort order, applied in array order (first field is the primary sort key). Required for " +
-        "keyset paging: order on a key and add a `gt`/`lt` where-condition on the last value seen.",
+      "Sort order, applied in array order (first field is the primary sort key). Keyset paging: " +
+        "order on a key, add a gt/lt where on the last value seen.",
     ),
   distinct: z
     .boolean()
     .optional()
     .describe(
-      "Suppress duplicate rows. Requires every order_by field to also appear in columns — " +
-        "otherwise the sort key would not be part of what distinctness is computed over.",
+      "Suppress duplicate rows. Requires every order_by field to also appear in columns.",
     ),
   mode: z
     .enum(["preview", "snapshot", "diff"])
     .optional()
     .describe(
-      'Defaults to "preview": read and show rows. "snapshot" reads the same selection and stores ' +
-        'the rows locally for a later comparison. "diff" re-reads a stored snapshot\'s own selection ' +
-        "and reports what changed since it was taken.",
+      'Defaults to "preview": read and show rows. "snapshot" stores the read rows for later ' +
+        'comparison. "diff" re-reads a stored snapshot\'s own selection and reports what changed.',
     ),
   snapshot_id: z
     .string()
@@ -177,25 +170,22 @@ export const dataPreviewInputSchema = {
     .int()
     .optional()
     .describe(
-      'mode: "snapshot" only. How long the snapshot survives before it is pruned, clamped DOWN to ' +
-        "the operator ceiling ABAP_DATA_SNAPSHOT_TTL_HOURS (the clamp, if any, is reported in the response).",
+      'mode: "snapshot" only. How long the snapshot survives before it is pruned, clamped down to ' +
+        "the operator ceiling ABAP_DATA_SNAPSHOT_TTL_HOURS.",
     ),
   format: z
     .enum(["table", "abap_value", "test_double"])
     .optional()
     .describe(
-      "How to render the rows. table (default): the usual text table. abap_value: the rows as one " +
-        "typed VALUE #( ... ) literal for the entity's line type. test_double: that literal wrapped " +
-        "in a ready-to-paste cl_osql_test_environment fixture. Same deny-list, same flag, same row " +
-        "ceiling in every case — the format is applied after the read, never around the check.",
+      "table (default): text table. abap_value: the rows as one typed VALUE #( ... ) literal. " +
+        "test_double: that literal in a cl_osql_test_environment fixture. Same deny-list, flag " +
+        "and row ceiling in every case.",
     ),
   mask: z
     .array(z.string())
     .optional()
     .describe(
-      "Field names to blank in the OUTPUT only, applied at render time after the read. " +
-        "Character-like fields become 'MASKED'; other types become their initial value. The " +
-        "response lists which fields were masked.",
+      "Field names to blank in the output only, applied at render time after the read.",
     ),
 };
 
@@ -540,15 +530,11 @@ export function registerDataPreviewTools(
     {
       title: "Preview DDIC table data",
       description:
-        "Read rows from ONE DDIC entity: a table, database/projection view, or parameterless " +
-        "CDS view — not every DDIC entity kind qualifies. A name plus an optional structured " +
-        "filter (where/columns/order_by/distinct) — still no JOIN, no aggregate, and no SQL " +
-        `text. Rows clamped to the ceiling (currently ${ceiling}). Deny-listed tables ` +
-        'and non-provably-nonproductive systems are refused. Three modes: "preview" (default) ' +
-        'reads and shows rows; "snapshot" reads the same selection and stores the rows locally ' +
-        'under a returned snapshot_id; "diff" re-reads a stored snapshot\'s own recorded ' +
-        "selection and reports what changed since it was taken. format: abap_value / test_double " +
-        "turn the rows into a paste-ready ABAP fixture under the same policy.",
+        "Read rows from ONE DDIC entity (table, database/projection view, or parameterless " +
+        "CDS view) with an optional structured filter (where/columns/order_by/distinct) — no " +
+        `JOIN, aggregate or SQL text. Rows clamped to the ceiling (currently ${ceiling}). ` +
+        "Deny-listed tables and non-provably-nonproductive systems are refused. " +
+        "mode=preview|snapshot|diff and format=table|abap_value|test_double: see those parameters.",
       inputSchema: dataPreviewInputSchema,
       annotations: {
         readOnlyHint: true,

@@ -126,9 +126,8 @@ export const uiInputSchema = {
     .string()
     .optional()
     .describe(
-      "Transaction code. screen/fcode: alternative to program+dynpro. press: required — press " +
-        "needs tcode; program/dynpro is only supported by mode=screen. A tcode with no TSTC row is " +
-        "refused with NOT_FOUND before any bridge class is deployed.",
+      "Transaction code. screen/fcode: alternative to program+dynpro. press: required. A tcode " +
+        "with no TSTC row is refused with NOT_FOUND before any bridge class is deployed.",
     ),
   program: z
     .string()
@@ -149,27 +148,24 @@ export const uiInputSchema = {
     .array(uiPressScreenSchema)
     .optional()
     .describe(
-      "press only, required: ordered batch-input script, one entry per dynpro the transaction " +
-        "will show in sequence. Build it incrementally using the screen call's own field/status " +
-        "output and the 00/344 stall this tool reports when a script runs out.",
+      "press only, required: ordered batch-input script, one entry per dynpro in sequence. Build " +
+        "it from the screen call's output and the 00/344 stall this tool reports when a script " +
+        "runs out.",
     ),
   layout: z
     .boolean()
     .optional()
     .describe(
-      "screen only, default false: also render a monospace picture of the screen from the field " +
-        "rows already read. No extra ABAP and no extra round trip. Design-time layout, not a " +
-        "runtime screenshot. Ignored by press.",
+      "screen only, default false: also render a monospace picture of the screen. Design-time " +
+        "layout, not a runtime screenshot. Ignored by press.",
     ),
   detail: z
     .enum(["compact", "full"])
     .optional()
     .describe(
-      'screen only, default "compact": FIELDS is one line per element (name  type  len  pos  attrs, ' +
-        "only non-default attrs) and runs of generated %_ flow-logic lines collapse into one counted " +
-        'line; user-written modules are always listed. "full" is the raw key=[value] dump of every ' +
-        "D021S column and every flow line. Render-side only — same ABAP, same single bridge call. " +
-        "The LAYOUT section (layout:true) is the same in both. Ignored by fcode and press.",
+      'screen only, default "compact": "compact" is one line per field, generated %_ flow lines ' +
+        'collapsed; "full" is the raw dump of every D021S column and flow line. Render-side only — ' +
+        "same single bridge call. Ignored by fcode and press.",
     ),
   confirm: z
     .boolean()
@@ -182,11 +178,10 @@ export const uiInputSchema = {
     .array(z.string())
     .optional()
     .describe(
-      'mode: "press" only — press is the mode that can change data. Snapshot ids from prior ' +
-        'abap_data_preview mode="snapshot" calls. After the press script finishes, each one is ' +
-        "re-read and diffed, and the result is appended as a DATA CHANGES section. The diff obeys " +
-        "the same data-preview policy as the snapshot did — if it is refused, this call's own " +
-        "result still returns and the section says why.",
+      'mode: "press" only (the mode that can change data). Snapshot ids from prior ' +
+        'abap_data_preview mode="snapshot" calls; each is re-read and diffed after the script ' +
+        "and appended as a DATA CHANGES section, under the same data-preview policy (a refused " +
+        "diff does not fail this call).",
     ),
 };
 
