@@ -81,6 +81,44 @@ ENDFUNCTION.
 A new module starts **inactive** and needs its own activation. The group never
 needs re-activating because a module changed.
 
+## Transport: a module goes into its group's request
+
+A function module has no package of its own — it inherits the group's. Before
+this was handled, omitting `package` on a create resolved to `$TMP` and sent
+the POST with no `corrNr`; CTS refused it with 403 `CTS_WBO_API/019`,
+*"Object LIMU REPS L<GROUP>UXX is already locked in request <req> of user
+<user>"* — the group's generated `L<GROUP>UXX` include, which every module
+create touches, was already locked by whatever request created the group.
+
+The create path now reads the group's own package with one GET before
+writing, and uses that: transportchecks answers `KORRFLAG X` naming the
+request that holds the lock, and the POST carries that request as `corrNr`.
+**Omit `package`, or pass the group's own package** — passing a different one
+is refused `BAD_INPUT`, not moved. The write response's `transport:` line
+reports the request actually used, and `package_source: container` confirms
+it came from the group, not from the caller or a resolver guess.
+
+If a create still comes back `CTS_WBO_API/019` — most likely because the
+caller forced a `corr_nr` other than the one already holding the lock — it is
+classified `TRANSPORT_LOCKED`, with `details.holdingRequest` naming the
+request to retry with as `corr_nr`, plus `details.holdingUser` and
+`details.lockedObject`.
+
+## Remote-enabled modules
+
+`abap_write { ..., "remote_enabled": true }` (`FUGR/FF` only) sets the
+module's processing type to `rfc` (Remote-Enabled Module); `false` sets it
+back to `normal`. It is a separate descriptor PUT under the same lock and
+transport as the source write, so a `remote_enabled` change alone — with a
+byte-identical source — still takes the lock and writes something.
+**Omitting the parameter leaves the processing type untouched.**
+
+Verify it with `abap_read` on the module: the header prints `processing_type`
+and `remote_enabled: yes|no`. A module called with `CALL FUNCTION ...
+DESTINATION` or `STARTING NEW TASK` must be remote-enabled first — calling a
+`normal` module that way dumps `CALL_FUNCTION_NOT_REMOTE` at run time, not at
+activation.
+
 ## Calling a module from your code
 
 `CALL FUNCTION` actuals are not checked against the module's parameter types at

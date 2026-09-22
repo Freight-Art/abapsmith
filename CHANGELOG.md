@@ -12,6 +12,14 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+### Added
+
+- **`abap_write` gains `remote_enabled: boolean`** (#177). `FUGR/FF` only — `BAD_INPUT` zero-network for every other type and for `mode=delete`. `true` sets the module's processing type to `rfc` (Remote-Enabled Module), `false` to `normal`, written as a minimal `fmodule:abapFunctionModule` descriptor PUT (`Content-Type: application/vnd.sap.adt.functions.fmodules.v3+xml`) to the module URI under the same lock and transport as the source PUT, before unlock and activation — no ABAP bridge involved. The write response prints `processing_type: rfc|normal` and notes when it changed; omitting the parameter leaves the processing type untouched, even for a byte-identical source. `abap_read` of a `FUGR/FF` now prints `processing_type` and `remote_enabled: yes|no` in its header (one extra GET of the module descriptor).
+
+### Fixed
+
+- **Function module create no longer collides with its own group's transport lock** (#171). A module create with no `package` used to resolve to `$TMP` and send the create POST with no `corrNr`; CTS refused it with 403 `CTS_WBO_API/019` — the group's generated `L<GROUP>UXX` include was already locked by the request the group itself was created in. The create path now reads the group's own `adtcore:packageRef` and uses that package: transportchecks answers `KORRFLAG X` with the locking request, the POST carries `corrNr=<that request>`, and the response's `transport:` line reports the request actually used, with `package_source: container` saying the package came from the group. A `package` that disagrees with the group's is refused `BAD_INPUT` — no move. A create that still hits `CTS_WBO_API/019` (e.g. a forced `corr_nr`) is now classified `TRANSPORT_LOCKED`, `details.classifiedBy: "cts-object-locked-in-other-request"`, with `details.holdingRequest`, `details.holdingUser`, `details.lockedObject`, and a hint naming the request to pass as `corr_nr`.
+
 ## [0.6.19] - 2026-09-22
 
 ### Added
