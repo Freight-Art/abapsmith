@@ -39,6 +39,7 @@ import type { AbapMode } from "./mode.js";
 import { createSystemContext, type SystemContext } from "./systems/context.js";
 import { SystemRegistry } from "./systems/registry.js";
 import { installSystemRouting } from "./systems/route.js";
+import { installParamCheck } from "./param-check.js";
 import type { SystemSpec } from "./systems/spec.js";
 // One import per tool-feature module; each is a `registerXTools(mcp, deps)`
 // registrar (see REGISTRATION in `createMcpServer`). `shutdownDebugTools` is
@@ -499,6 +500,11 @@ export function createServer(cfg: Config, opts: ServerOptions): AbapsmithServer 
    */
   const createMcpServer = (ctx?: McpSessionContext): McpServer => {
     const mcp = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION }, { instructions });
+
+    // Must run before `installSystemRouting` — it is the innermost
+    // `registerTool` wrapper, so it records each tool's FINAL shape,
+    // including the `system` key the routing wrapper adds below.
+    installParamCheck(mcp);
 
     // Must run before any `registerXTools(mcp, ...)` call below — it rebinds
     // `mcp.registerTool` in place, so only tools registered AFTER this point

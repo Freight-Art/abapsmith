@@ -29,6 +29,7 @@ import { specFromUri } from "../adt/types.js";
 import type { SessionPool } from "../adt/pool.js";
 import type { Config } from "../config.js";
 import { buildResponse, sliceLines, type BuiltResponse } from "../compact.js";
+import { diffSources, renderHunks } from "../diff.js";
 import { STALE_PENDING_MS, type Journal, type JournalEntry, type JournalImagePart } from "../journal.js";
 import { textTable } from "../compact.js";
 import type { SafetyGate } from "../safety.js";
@@ -46,6 +47,14 @@ export const journalInputSchema = {
     .string()
     .optional()
     .describe("Journal entry id from mode=list. Required for show and undo unless `object` is given."),
+  detail: z
+    .enum(["summary", "full"])
+    .optional()
+    .describe(
+      'show only. "summary" (default): header plus a unified diff of before-image → after-image, ' +
+        'capped at about 2,000 characters. "full": the complete before-image (and after-image ' +
+        "when one was recorded), as before.",
+    ),
   object: z
     .string()
     .optional()
@@ -84,6 +93,9 @@ export const journalInputSchema = {
 
 export const JournalInput = z.object(journalInputSchema);
 export type JournalInput = z.infer<typeof JournalInput>;
+
+/** mode=show, detail="summary": cap on the rendered diff text, in characters. */
+export const SHOW_DIFF_MAX_CHARS = 2_000;
 
 const shortId = (id: string) => id;
 
@@ -303,6 +315,18 @@ async function pickEntry(journal: Journal, input: JournalInput, mode: "show" | "
     );
   }
   return usable;
+}
+
+/** mode=show, detail="summary": cut rendered diff text to {@link SHOW_DIFF_MAX_CHARS}, at a line break. */
+function truncateDiffText(text: string): string {
+  if (text.length <= SHOW_DIFF_MAX_CHARS) return text;
+  const window = text.slice(0, SHOW_DIFF_MAX_CHARS);
+  const lastBreak = window.lastIndexOf("\n");
+  const cut = lastBreak >= 0 ? window.slice(0, lastBreak) : window;
+  return (
+    `${cut}\n[diff truncated: ${cut.length} of ${text.length} characters shown; ` +
+    'detail="full" returns the complete images]'
+  );
 }
 
 export async function abapJournal(
@@ -533,31 +557,69 @@ export async function abapJournal(
 
   // ------------------------------------------------------------- show ----
   if (mode === "show") {
+    const detail = input.detail ?? "summary";
     const before = await j.beforeImage(entry);
+    const after = await j.afterImage(entry);
     const sections: Array<{ title: string; content: string }> = [];
-    if (before !== undefined) {
-      const win = sliceLines(before, 1);
-      const label = entry.beforeKind === "package-metadata" ? "package metadata, " : "";
-      sections.push({ title: `BEFORE-IMAGE (${label}${entry.before?.bytes ?? 0} bytes)`, content: win.text });
-    } else {
-      sections.push({
-        title: "BEFORE-IMAGE",
-        content: entry.existedBefore
-          ? entry.beforeCapture === "failed"
-            ? "(none was ever captured — the entry says the object existed but its source " +
-              "read never resolved, whether it didn't complete or came back inconclusive. " +
-              "Not a retention problem; there is nothing to restore.)"
-            : "(recorded, but the blob is gone — pruned or the journal dir was cleaned)"
-          : "(none — the entry records that the object did not exist before this operation, " +
-            `so undo would mean DELETE; provenance: beforeCapture="${entry.beforeCapture}")`,
-      });
+
+    const beforeImagePlaceholder = entry.existedBefore
+      ? entry.beforeCapture === "failed"
+        ? "(none was ever captured — the entry says the object existed but its source " +
+          "read never resolved, whether it didn't complete or came back inconclusive. " +
+          "Not a retention problem; there is nothing to restore.)"
+        : "(recorded, but the blob is gone — pruned or the journal dir was cleaned)"
+      : "(none — the entry records that the object did not exist before this operation, " +
+        `so undo would mean DELETE; provenance: beforeCapture="${entry.beforeCapture}")`;
+
+    let diff: ReturnType<typeof diffSources> | undefined;
+    let diffFullText: string | undefined;
+    if (before !== undefined && after !== undefined) {
+      diff = diffSources(before, after);
+      diffFullText = diff.identical ? "(before-image and after-image are identical)" : renderHunks(diff.hunks);
     }
+
+    if (detail === "full") {
+      if (before !== undefined) {
+        const win = sliceLines(before, 1);
+        const label = entry.beforeKind === "package-metadata" ? "package metadata, " : "";
+        sections.push({ title: `BEFORE-IMAGE (${label}${entry.before?.bytes ?? 0} bytes)`, content: win.text });
+      } else {
+        sections.push({ title: "BEFORE-IMAGE", content: beforeImagePlaceholder });
+      }
+      if (after !== undefined) {
+        const win = sliceLines(after, 1);
+        sections.push({ title: `AFTER-IMAGE (${entry.after?.bytes ?? 0} bytes)`, content: win.text });
+      }
+    } else if (before !== undefined && after !== undefined && diff && diffFullText !== undefined) {
+      let text = truncateDiffText(diffFullText);
+      if (diff.droppedHunks > 0) text += `\n[${diff.droppedHunks} more hunk(s) omitted]`;
+      sections.push({ title: `DIFF (before → after, +${diff.added} −${diff.removed} lines)`, content: text });
+    } else if (before !== undefined && after === undefined) {
+      sections.push({
+        title: "DIFF",
+        content:
+          `(no after-image was recorded for this entry — before-image is ${entry.before?.bytes ?? 0} ` +
+          'bytes; detail="full" shows it)',
+      });
+    } else if (before === undefined && after !== undefined) {
+      const d = diffSources("", after);
+      const rendered = d.identical ? "(before-image and after-image are identical)" : renderHunks(d.hunks);
+      let text = truncateDiffText(rendered);
+      if (d.droppedHunks > 0) text += `\n[${d.droppedHunks} more hunk(s) omitted]`;
+      sections.push({ title: `DIFF (object created, +${d.added} lines)`, content: text });
+    } else {
+      sections.push({ title: "DIFF", content: beforeImagePlaceholder });
+    }
+
     if (entry.parts?.length) {
       const columns = entry.parts.some((p) => p.object.package) ? PART_COLUMNS_WITH_PACKAGE : PART_COLUMNS;
       sections.push({ title: `ALSO TOUCHED (${entry.parts.length})`, content: textTable(entry.parts.map(partRow), columns) });
     }
 
     const notes: string[] = [];
+    if (detail === "summary") {
+      notes.push('Summary view: detail="full" returns the complete before-image and after-image.');
+    }
     if (entry.outcome === "pending") {
       notes.push(
         "THIS IS NOT A USABLE UNDO. The entry is still `pending`: abapsmith wrote the " +
@@ -619,6 +681,17 @@ export async function abapJournal(
         outcome: entry.outcome,
         reconciled: entry.reconciled?.at,
         error: entry.error,
+        detail,
+        beforeBytes: entry.before?.bytes,
+        afterBytes: entry.after?.bytes,
+        ...(diff && diffFullText !== undefined
+          ? {
+              diffAdded: diff.added,
+              diffRemoved: diff.removed,
+              diffHunks: diff.totalHunks,
+              diffChars: diffFullText.length,
+            }
+          : {}),
         beforeEtag: entry.before?.etag,
         beforeServerEtag: entry.before?.serverEtag,
         afterEtag: entry.after?.etag,
@@ -634,7 +707,7 @@ export async function abapJournal(
       },
       sections,
       notes,
-      hints: [`abap_journal mode=undo entry=${entry.id}`],
+      hints: [`abap_journal mode=undo entry=${entry.id}`, `abap_journal mode=show entry=${entry.id} detail=full`],
       maxChars,
     });
   }

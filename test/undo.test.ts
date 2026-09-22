@@ -971,8 +971,15 @@ describe("abap_journal tool", () => {
     const e = (await journal.list({ object: REPORT }))[0]!;
     const show = await abapJournal(conn, { mode: "show", entry: e.id }, 60_000, journal);
     expect(adt.calls).toHaveLength(0);
-    expect(show.text).toContain("BEFORE-IMAGE");
-    expect(show.text).toContain("WRITE: / 'one'.");
+    // Default show is the summary: a unified diff, not the images (#156).
+    expect(show.text).toContain("DIFF");
+    expect(show.text).toContain("-WRITE: / 'one'.");
+    expect(show.text).not.toContain("BEFORE-IMAGE");
+    const full = await abapJournal(conn, { mode: "show", entry: e.id, detail: "full" }, 60_000, journal);
+    expect(adt.calls).toHaveLength(0);
+    expect(full.text).toContain("BEFORE-IMAGE");
+    expect(full.text).toContain("AFTER-IMAGE");
+    expect(full.text).toContain("WRITE: / 'one'.");
   });
 
   it("says plainly that an object it never wrote cannot be undone", async () => {

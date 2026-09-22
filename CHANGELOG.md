@@ -12,6 +12,18 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.16] - 2026-09-22
+
+### Added
+
+- `abap_fpm_read mode=find` rows gain `loadable`, `app_config_id`, `component_config_id` and `reason` (#155): for a type-02 row the bridge reads the configuration XML and reports the component and component configuration it references, checking that the component configuration exists; for a type-00 row it checks whether an application configuration with the same id exists. `mode=app` now accepts either a component or an application configuration id — when the given id fails to load as an application config, the bridge's `resolve` action looks it up in both tables and, when exactly one application configuration references it, loads that one instead and reports `config_id` (loaded) and `resolvedFrom` (given) in the header.
+- A shared parameter-name check runs before the handler for every tool registered with a plain parameter shape (#156): an unknown parameter is refused as `BAD_INPUT` listing the accepted parameters and suggesting the closest one (known confusions such as `id`→`entry` for `abap_journal`, `object`→`bo` for `abap_bopf`/`abap_bopf_edit`, `action`→`operation` and `request`→`transport` for `abap_transport`, plus prefix/edit-distance matches; `abap_transport` also says `Did you mean transport="A4HK900001"?` when `object` carries a request number where `transport` is required), and an invalid enum value (e.g. `mode=history`) is refused listing the valid values — both before any SAP request. Advertised tool schemas are unchanged. `abap_journal mode=show` gains `detail` (`summary` | `full`, default `summary`).
+
+### Changed
+
+- `abap_journal mode=show`'s default output is now a summary, not the full before/after images (#156): header fields (object, type, operation, request, timestamp, before/after sizes, `diffAdded`/`diffRemoved`/`diffHunks`/`diffChars`) plus a unified diff of before-image → after-image, capped at about 2,000 characters and marked when truncated (`[diff truncated: N of M characters shown; detail="full" returns the complete images]`). `detail="full"` returns the complete before-image as before, plus the after-image when one was recorded; when no after-image exists (a pending entry) the summary says so and points to `detail="full"`.
+- `abap_fpm_read mode=app`'s load failure is now `NOT_FOUND` with `tried` (id, config_type `"02"`, table), `existsAsApp`, `existsAsComponent`, `component`, `applicationConfigs` (capped at 20, with `applicationConfigsTruncated`), the original error frames, and a hint naming the candidate ids or pointing to `mode=find config_type="02"` (#155).
+
 ## [0.6.15] - 2026-09-22
 
 ### Added
