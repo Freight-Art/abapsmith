@@ -12,6 +12,8 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.25] - 2026-09-22
+
 ### Fixed
 
 - **`abap_img_edit` no longer treats `auto` as a blanket refusal on `corr_nr`** (#176). A request this session created — via `mode=create_request` or `abap_transport create` — is now accepted as `corr_nr` under `ABAP_ALLOW_TRANSPORTS=auto`, the same session registry (`SessionTransport`) `abap_write` already consults; any other caller-named request is still refused, and the refusal now adds "Under auto, pass a request this session created (abap_img_edit mode=create_request or abap_transport create), or omit corr_nr to let this session resolve one." With `corr_nr` omitted, the session resolves one itself instead of refusing: a client-dependent table gets the customizing request this session created earlier, or a new one (description `abapsmith customizing request <date>`); a client-independent table gets a workbench request — the session's active one, one created earlier, or a new one — because CTS refuses to record a client-independent table entry on a customizing request (TK599 "No task for editing objects can be determined", verified live 2026-09-22). The response header's `corrNrSource` (`caller` \| `session-cached` \| `session-created`) and the journal entry's `trSource` agree on which happened.
