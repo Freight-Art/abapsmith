@@ -309,6 +309,14 @@ export async function deletePackageViaBridge(
     action: "delete_package",
     args: { package_name: packageName, corr_nr: corrNr },
     what: `Deleting package ${packageName}`,
+    // The classic bridge's own targets gate (assertTargetsAgainstGate in
+    // src/adt/fluid/dispatch.ts) judges `args.corr_nr` as caller-NAMED unless
+    // told otherwise — so a server-pinned or session-resolved request that
+    // `preflightCorr` admitted as `source: "auto"` was refused right here under
+    // a bare `ABAP_ALLOW_TRANSPORTS=auto` (issue #195: "Transport A4HK900346 is
+    // not permitted", named by nobody). Hand it the same provenance the domain
+    // gate above just judged, exactly as `createPackageViaBridge` does.
+    ...(corr !== undefined ? { corrSource: corr.source } : {}),
     expectTags: ["PKG-EMPTY", "PKG-DELETED", "PKG-GONE"],
     beforeAssert,
   });
