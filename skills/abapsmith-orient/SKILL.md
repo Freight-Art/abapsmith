@@ -62,7 +62,7 @@ One tool per job:
 | List/apply position-driven quick fixes | `abap_quick_fix` |
 | Short dumps | `abap_dumps` |
 | Debugger | `abap_debug`, `abap_debug_vars`, `abap_debug_value` |
-| History and undo | `abap_journal` |
+| History and undo | `abap_journal` — `mode=list`, `mode=show entry=<id>`, `mode=undo entry=<id> activate=true` |
 | Transports | `abap_transport`, `abap_transport_release` |
 | BOPF | `abap_bopf`, `abap_bopf_edit`, `abap_bopf_test`, `abap_bopf_delete` |
 | Enhancements | `abap_enh` |

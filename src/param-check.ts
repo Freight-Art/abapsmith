@@ -28,7 +28,15 @@ import { errorResult } from "./tool-errors.js";
  * — `installParamCheck` never checks that at runtime.
  */
 export const PARAM_ALIASES: Readonly<Record<string, Readonly<Record<string, string>>>> = {
-  abap_journal: { id: "entry", entry_id: "entry", name: "object" },
+  abap_journal: {
+    id: "entry",
+    entry_id: "entry",
+    name: "object",
+    operation: "mode",
+    action: "mode",
+    op: "mode",
+    target: "object",
+  },
   abap_bopf: { object: "bo", name: "bo", business_object: "bo" },
   abap_bopf_edit: { object: "bo", business_object: "bo" },
   abap_bopf_delete: { object: "bo", business_object: "bo" },
