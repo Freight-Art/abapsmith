@@ -120,6 +120,22 @@ XPath fragments to find what's wrong.
   forms `C`/`A` for `Composition`/`Association` (not observed on the wire).
   An out-of-set value on either is refused `BAD_INPUT` before anything is
   sent, listing every accepted value and its meaning.
+- `bopf_add_association`'s `spec.targetNodeRef.name` must always be
+  `<BO>~<NODE>` — same-BO included. A bare node name (e.g. `"ITEM"`)
+  activates with *"Association has no Target Node defined"*. abapsmith
+  qualifies a bare name with the current BO's name before the PUT and
+  reports the substitution in a NOTE. If the node — bare, or qualified
+  with the same BO — isn't in the model, the edit is refused `BAD_INPUT`
+  before any lock or PUT, listing the nodes that do exist.
+  `spec.targetNodeRef.type` defaults to `BOBF` when omitted.
+  ```
+  add_association(node: "ROOT", name: "TO_ITEM",
+    spec: { implementationType: "Association", multiplicity: "0_N",
+            targetNodeRef: { name: "ZBOPF_X~ITEM", type: "BOBF" },
+            implementationClassRef: { name: "ZCL_TO_ITEM_ASSOC", type: "CLAS/OC" } })
+  ```
+  A cross-BO target (`/BOBF/DEMO_CUSTOMER~ROOT`) passes through unchanged
+  and is not validated locally — see the representative-node recipe below.
 - `bopf_add_action`'s `spec.instanceMultiplicity` is a closed enum, from
   `/BOBF/IF_CONF_C` on the live system: `0` (static: runs without a node
   instance), `1` (single instance: exactly one node instance per call), `2`
@@ -227,9 +243,40 @@ XPath fragments to find what's wrong.
   is in the type but refused for exactly the reason above.
 - **Class references are never checked** — not at PUT, not at activation, not at
   runtime. A dangling or wrong-interface `implementationClassRef` silently never
-  fires. abapsmith preflights that the class source exists and throws
-  `BOPF_DANGLING_REF`. `allow_dangling_ref: true` accepts the risk; it does not
-  fix anything.
+  fires. abapsmith preflights that the class source exists and, on an
+  add/set for an action/determination/validation/query, that it implements
+  the required interface — reading ADT's type hierarchy (own and inherited
+  interfaces) and falling back to scanning the class's definition part
+  when that's unavailable. When it can't decide (the source is unreadable,
+  or an inheriting class whose hierarchy is unavailable), it reports
+  `unchecked`, not `wrong-interface`, and the edit proceeds.
+  `allow_dangling_ref: true` accepts the risk; it does not fix anything.
+- **A query class bound with `bopf_add_query` needs
+  `/BOBF/IF_FRW_QUERY~RETRIEVE_DEFAULT_PARAM` implemented**, even though
+  the interface marks that method `DEFAULT IGNORE` — the ABAP syntax check
+  accepts a class without it, but BOPF activation of the business object
+  then fails on the missing method. `bopf_add_query`/`bopf_set_query_fields`
+  check for it, when the class source is readable, and add a NOTE naming
+  the missing method if it's absent. Minimal skeleton:
+  ```abap
+  CLASS zcl_as_qry DEFINITION PUBLIC FINAL CREATE PUBLIC.
+    PUBLIC SECTION.
+      INTERFACES /bobf/if_frw_query.
+  ENDCLASS.
+
+  CLASS zcl_as_qry IMPLEMENTATION.
+    METHOD /bobf/if_frw_query~query.
+      " select the keys, fill et_key / et_data
+    ENDMETHOD.
+
+    METHOD /bobf/if_frw_query~retrieve_default_param.
+      " required by BOPF activation even though the interface marks it DEFAULT IGNORE
+    ENDMETHOD.
+  ENDCLASS.
+  ```
+  See `doc/TOOLS/bopf.md` for the note text and which other interface
+  methods are `DEFAULT IGNORE` but not checked here (an action class with
+  only `execute` activates fine).
 - `bopf_add_alternative_key` needs the complete shape — `uniqueness`,
   `dataTypeRef`, `dataTableTypeRef` and `keyElements`, all four. `uniqueness`
   is a closed enum: `unique` (key values must be unique across all

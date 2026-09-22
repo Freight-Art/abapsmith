@@ -1,0 +1,22 @@
+{
+  "n": 990,
+  "label": "i177-fmodule-get-rfc-ping",
+  "expect": "a remote-enabled module carries processingType=rfc plus rfcScope/rfcVersion; a normal one carries processingType=normal and neither",
+  "note": "descriptor of SAP-delivered RFC_PING: fmodule:processingType=rfc with fmodule:rfcScope=notClassified and fmodule:rfcVersion=any (issue 177 attribute names)",
+  "requestMethod": "GET",
+  "requestUrl": "/sap/bc/adt/functions/groups/srfc/fmodules/rfc_ping?sap-client=001",
+  "requestHeaders": {
+    "Accept": "application/*"
+  },
+  "responseStatus": 200,
+  "responseHeaders": {
+    "content-type": "application/xml"
+  },
+  "responseHeadersNote": "only content-type known: body captured with a direct ADT GET/PUT (scripts outside the repo); other response headers were not recorded",
+  "byteLength": 2583,
+  "zeroByteBody": false,
+  "sha256": "1a9fbbd49f483933db6d0dab03b85a43ecc80e4dd1396959213da63bbd6d3896",
+  "utcTimestamp": "2026-09-22T15:16:00Z",
+  "timestampNote": "approximate (minute precision) - taken from the capture session notes, not a recorded clock",
+  "sessionName": "LIVE-I171-I177"
+}

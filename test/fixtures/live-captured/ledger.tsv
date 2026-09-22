@@ -280,3 +280,4 @@ n	label	method	path	status	byteLength	durationMs
 981	i106-graphdata-ars-v-flp-swc-vh	GET	/sap/bc/adt/ddic/ddl/dependencies/graphdata?ddlsourceName=ARS_V_FLP_SWC_VH&sap-client=001	200	6577	811
 982	i106-graphdata-customer-view-refused	GET	/sap/bc/adt/ddic/ddl/dependencies/graphdata?ddlsourceName=ZDEMO_C_SALESORDER_TP_D&sap-client=001	400	632	206
 983	i107-source-z-i107-footprint	GET	/sap/bc/adt/programs/programs/z_i107_footprint/source/main?sap-client=001	200	1180	144
+984	i172-search-star-100	GET	/sap/bc/adt/repository/informationsystem/search?operation=quickSearch&query=*&maxResults=100&sap-client=001	200	19650	0

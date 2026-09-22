@@ -361,6 +361,13 @@ export const writeInputSchema = {
         "mode=write proceeds under it and reports corr_nr_honoured: false; mode=delete is refused " +
         "outright with TRANSPORT_ERROR (CORR_NR_NOT_HONOURED) and deletes nothing.",
     ),
+  remote_enabled: z
+    .boolean()
+    .optional()
+    .describe(
+      "FUGR/FF only: true makes the module remote-enabled (processing type rfc), false makes " +
+        "it a normal module. Refused for every other type and for mode=delete.",
+    ),
   software_component: z.string().optional().describe("DEVC/K required: LOCAL or transportable."),
   package_type: z.string().optional().describe("DEVC/K only. Default development."),
   transport_layer: z.string().optional().describe("DEVC/K only. Default empty."),
@@ -1625,6 +1632,28 @@ export async function abapWrite(
     refuseUnwritableType(input.type, target.name, (input.mode ?? "write") === "delete" ? "delete" : "write");
   }
 
+  // Zero-network: remote_enabled applies to FUGR/FF only, and not to a delete.
+  if (input.remote_enabled !== undefined) {
+    if (target.type !== "FUGR/FF") {
+      throw new AbapError(
+        "BAD_INPUT",
+        target.type
+          ? `remote_enabled applies to function modules (FUGR/FF) only; ${input.object} was given as ${target.type}.`
+          : "remote_enabled applies to function modules (FUGR/FF) only; pass type \"FUGR/FF\" explicitly.",
+        { type: target.type, object: input.object },
+        'Drop `remote_enabled`, or pass type "FUGR/FF" and name the module as "<GROUP>/<MODULE>".',
+      );
+    }
+    if ((input.mode ?? "write") === "delete") {
+      throw new AbapError(
+        "BAD_INPUT",
+        "remote_enabled applies to function modules (FUGR/FF) only, and not to mode=delete.",
+        { type: target.type, object: input.object },
+        "Drop `remote_enabled` for a delete.",
+      );
+    }
+  }
+
   // `ddic` is another way to arrive at `source`, not a parallel
   // pipeline — resolve it to a `source` string BEFORE anything below reads
   // `input.source`, so the rest of this function (including the pre-send
@@ -2050,6 +2079,7 @@ export async function abapWrite(
           source,
           ...trOpts,
           ...(resolvedExpectEtag ? { expectEtag: resolvedExpectEtag } : {}),
+          ...(input.remote_enabled !== undefined ? { remoteEnabled: input.remote_enabled } : {}),
           onBeforeImage,
         }),
     ));
@@ -2459,6 +2489,13 @@ export async function abapWrite(
       ? corrNrOverriddenWriteNote(written.corrNrOverrode, written.corrNrSent, written.target.type, written.target.name)
       : transportNote(written.transport, gate.config?.abapMode),
   ];
+  if (written.processingTypeChanged) {
+    notes.push(
+      `Processing type set to ${written.processingType} via the ADT function-module descriptor ` +
+        "(PUT under the same lock as the source). The descriptor PUT leaves an inactive version, " +
+        "which activation picks up.",
+    );
+  }
   if (input.method !== undefined && resolvedMethodVersion !== undefined) {
     notes.push(
       `method="${input.method}" was resolved against the ${resolvedMethodVersion.toUpperCase()} ` +
@@ -2730,6 +2767,7 @@ export async function abapWrite(
       etag: finalEtag,
       previousEtag: written.previousEtag,
       transport: transportHeaderText(written.transport),
+      ...(written.processingType !== undefined ? { processing_type: written.processingType } : {}),
       ...(written.corrNrOverrode !== undefined ? { corr_nr_honoured: false } : {}),
       check: propertiesShape
         ? "n/a (XML descriptor — validated by the server on write)"

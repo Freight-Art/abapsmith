@@ -5194,9 +5194,9 @@ var require_utilities = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.orUndefined = exports2.toXmlAttributes = exports2.hasMessage = exports2.boolFromAbap = exports2.followUrl = exports2.parseJsonDate = exports2.toSapDate = exports2.parseSapDate = exports2.parse = exports2.fullParse = exports2.numberParseOptions = exports2.bar = exports2.typedNodeAttr = exports2.xmlNodeAttr = exports2.stripNs = exports2.xmlRoot = exports2.extractXmlArray = exports2.xmlArrayType = exports2.isUndefined = exports2.isNativeError = exports2.isNumber = exports2.isString = exports2.isArray = exports2.isObject = exports2.encodeEntity = void 0;
     exports2.JSON2AbapXML = JSON2AbapXML;
-    exports2.xmlNode = xmlNode3;
+    exports2.xmlNode = xmlNode4;
     exports2.xmlFlatArray = xmlFlatArray;
-    exports2.xmlArray = xmlArray3;
+    exports2.xmlArray = xmlArray4;
     exports2.toInt = toInt;
     exports2.btoa = btoa2;
     exports2.parts = parts;
@@ -5242,8 +5242,8 @@ var require_utilities = __commonJS({
     exports2.xmlArrayType = xmlArrayType;
     var extractXmlArray = (x) => x ? (0, exports2.isArray)(x) ? x : [x] : [];
     exports2.extractXmlArray = extractXmlArray;
-    function xmlNode3(xml3, ...path9) {
-      let current = xml3;
+    function xmlNode4(xml4, ...path9) {
+      let current = xml4;
       path9.some((key) => {
         if ((0, exports2.isObject)(current))
           current = current[key];
@@ -5251,25 +5251,25 @@ var require_utilities = __commonJS({
       });
       return current;
     }
-    function xmlFlatArray(xml3, ...path9) {
-      if (!xml3)
+    function xmlFlatArray(xml4, ...path9) {
+      if (!xml4)
         return [];
       if (path9.length === 0) {
-        if ((0, exports2.isArray)(xml3))
-          return xml3;
+        if ((0, exports2.isArray)(xml4))
+          return xml4;
         else
-          return [xml3];
+          return [xml4];
       }
-      if ((0, exports2.isArray)(xml3))
-        return xml3.reduce((arr, x) => [...arr, ...xmlFlatArray(x, ...path9)], []);
-      if ((0, exports2.isObject)(xml3)) {
+      if ((0, exports2.isArray)(xml4))
+        return xml4.reduce((arr, x) => [...arr, ...xmlFlatArray(x, ...path9)], []);
+      if ((0, exports2.isObject)(xml4)) {
         const [idx2, ...rest] = path9;
-        return xmlFlatArray(xml3[idx2], ...rest);
+        return xmlFlatArray(xml4[idx2], ...rest);
       }
       return [];
     }
-    function xmlArray3(xml3, ...path9) {
-      const node2 = xmlNode3(xml3, ...path9);
+    function xmlArray4(xml4, ...path9) {
+      const node2 = xmlNode4(xml4, ...path9);
       if (node2) {
         if ((0, exports2.isArray)(node2))
           return node2;
@@ -5291,11 +5291,11 @@ var require_utilities = __commonJS({
     }, {});
     exports2.stripNs = stripNs;
     var stripAttrPrefix = (x) => x.replace(/^@_/, "");
-    var xmlNodeAttr3 = (n) => n && ok24(n).filter((k) => k.match(/^(?!@_xmlns)@_/)).reduce((part, cur) => {
+    var xmlNodeAttr4 = (n) => n && ok24(n).filter((k) => k.match(/^(?!@_xmlns)@_/)).reduce((part, cur) => {
       part[cur.replace(/^@_/, "")] = n[cur];
       return part;
     }, {});
-    exports2.xmlNodeAttr = xmlNodeAttr3;
+    exports2.xmlNodeAttr = xmlNodeAttr4;
     var typedNodeAttr = (n) => n && ok24(n).filter((k) => k.match(/^(?!@_xmlns)@_/)).reduce((part, cur) => {
       part[cur.replace(/^@_/, "")] = n[cur];
       return part;
@@ -5307,14 +5307,14 @@ var require_utilities = __commonJS({
       hex: true,
       skipLike: new RegExp("")
     };
-    var fullParse3 = (xml3, options = {}) => new fast_xml_parser_1.XMLParser({
+    var fullParse4 = (xml4, options = {}) => new fast_xml_parser_1.XMLParser({
       ignoreAttributes: false,
       trimValues: false,
       parseAttributeValue: true,
       ...options
-    }).parse(xml3);
-    exports2.fullParse = fullParse3;
-    var parse4 = (xml3, options = {}) => new fast_xml_parser_1.XMLParser(options).parse(xml3);
+    }).parse(xml4);
+    exports2.fullParse = fullParse4;
+    var parse4 = (xml4, options = {}) => new fast_xml_parser_1.XMLParser(options).parse(xml4);
     exports2.parse = parse4;
     function toInt(x) {
       if (!x)
@@ -31475,8 +31475,8 @@ var require_nodeContents = __commonJS({
       let categories = [];
       let objectTypes = [];
       if (data) {
-        const xml3 = (0, utilities_1.parse)(data);
-        const root = xml3["asx:abap"]["asx:values"].DATA;
+        const xml4 = (0, utilities_1.parse)(data);
+        const root = xml4["asx:abap"]["asx:values"].DATA;
         nodes = (0, utilities_1.xmlArray)(root, "TREE_CONTENT", "SEU_ADT_REPOSITORY_OBJ_NODE");
         for (const node2 of nodes) {
           if (!(0, utilities_1.isString)(node2.OBJECT_NAME)) {
@@ -34150,8 +34150,8 @@ var require_tablecontents = __commonJS({
       TypeKinds2["XSTRING"] = "y";
       TypeKinds2["BREF"] = "j";
     })(TypeKinds || (exports2.TypeKinds = TypeKinds = {}));
-    var parseServiceBinding = (xml3) => {
-      const s = (0, utilities_1.fullParse)(xml3, { removeNSPrefix: true, parseAttributeValue: false });
+    var parseServiceBinding = (xml4) => {
+      const s = (0, utilities_1.fullParse)(xml4, { removeNSPrefix: true, parseAttributeValue: false });
       const attrs = (0, utilities_1.xmlNodeAttr)(s.serviceBinding);
       for (const key of ["releaseSupported", "published", "repair", "bindingCreated"])
         attrs[key] = !`${attrs[key]}`.match(/false/i);
@@ -34238,9 +34238,9 @@ var require_tablecontents = __commonJS({
       const values = longest.map(row2);
       return { columns, values };
     }
-    var parseBindingDetails = (xml3) => {
+    var parseBindingDetails = (xml4) => {
       var _a3;
-      const s = (0, utilities_1.fullParse)(xml3, { removeNSPrefix: true, parseAttributeValue: false });
+      const s = (0, utilities_1.fullParse)(xml4, { removeNSPrefix: true, parseAttributeValue: false });
       const link = (0, utilities_1.xmlNodeAttr)((_a3 = s === null || s === void 0 ? void 0 : s.serviceList) === null || _a3 === void 0 ? void 0 : _a3.link);
       const parseCollection = (c) => {
         const name = c["@_name"];
@@ -35036,8 +35036,8 @@ var require_tracetypes = __commonJS({
       SHARED_OBJECTS_AREA: ["SHARED_OBJECTS_AREA"]
     };
     var parseRawTrace = (x) => (0, AdtException_1.validateParseResult)(traceResults.decode(x)).feed;
-    var parseTraceResults = (xml3) => {
-      const raw = parseRawTrace((0, utilities_1.fullParse)(xml3, { removeNSPrefix: true }));
+    var parseTraceResults = (xml4) => {
+      const raw = parseRawTrace((0, utilities_1.fullParse)(xml4, { removeNSPrefix: true }));
       const runs = (0, utilities_1.extractXmlArray)(raw.entry).map((l) => {
         const links = (0, utilities_1.extractXmlArray)(l.link).map(utilities_1.typedNodeAttr);
         const { id, author: { name: author3, uri: authorUri }, content: { "@_type": type, "@_src": src }, "@_lang": lang, title: title2 } = l;
@@ -35068,8 +35068,8 @@ var require_tracetypes = __commonJS({
       return { author: author2, contributor, title, updated, runs };
     };
     exports2.parseTraceResults = parseTraceResults;
-    var parseTraceHitList2 = (xml3) => {
-      const raw = (0, AdtException_1.validateParseResult)(HitListResponse.decode((0, utilities_1.fullParse)(xml3, { removeNSPrefix: true }))).hitlist;
+    var parseTraceHitList2 = (xml4) => {
+      const raw = (0, AdtException_1.validateParseResult)(HitListResponse.decode((0, utilities_1.fullParse)(xml4, { removeNSPrefix: true }))).hitlist;
       const parentLink = raw.link["@_href"];
       const entries = (0, utilities_1.extractXmlArray)(raw.entry).map((e) => {
         var _a3;
@@ -35090,8 +35090,8 @@ var require_tracetypes = __commonJS({
       return { parentLink, entries };
     };
     exports2.parseTraceHitList = parseTraceHitList2;
-    var parseTraceDbAccess = (xml3) => {
-      const toParse = (0, utilities_1.fullParse)(xml3, { removeNSPrefix: true });
+    var parseTraceDbAccess = (xml4) => {
+      const toParse = (0, utilities_1.fullParse)(xml4, { removeNSPrefix: true });
       const parsed = traceDBAccesResponse.decode(toParse);
       const raw = (0, AdtException_1.validateParseResult)(parsed).dbAccesses;
       const parentLink = raw.link["@_href"];
@@ -35112,8 +35112,8 @@ var require_tracetypes = __commonJS({
         return base * 10 ** exp;
       return base;
     };
-    var parseTraceStatements2 = (xml3) => {
-      const raw = (0, AdtException_1.validateParseResult)(traceStatementResponse.decode((0, utilities_1.fullParse)(xml3, { removeNSPrefix: true }))).statements;
+    var parseTraceStatements2 = (xml4) => {
+      const raw = (0, AdtException_1.validateParseResult)(traceStatementResponse.decode((0, utilities_1.fullParse)(xml4, { removeNSPrefix: true }))).statements;
       const parentLink = raw.link["@_href"];
       const statements = (0, utilities_1.extractXmlArray)(raw.statement).map((s) => {
         const callingProgram2 = (0, utilities_1.typedNodeAttr)(s.callingProgram);
@@ -35132,8 +35132,8 @@ var require_tracetypes = __commonJS({
       return { ...(0, utilities_1.typedNodeAttr)(raw), count, parentLink, statements };
     };
     exports2.parseTraceStatements = parseTraceStatements2;
-    var parseTraceRequestList = (xml3) => {
-      const raw = tracesListRequest.decode((0, utilities_1.fullParse)(xml3, { removeNSPrefix: true }));
+    var parseTraceRequestList = (xml4) => {
+      const raw = tracesListRequest.decode((0, utilities_1.fullParse)(xml4, { removeNSPrefix: true }));
       const parsed = (0, AdtException_1.validateParseResult)(raw).feed;
       const { contributor: { name: contributorName, "@_role": contributorRole }, title } = parsed;
       const requests = (0, utilities_1.extractXmlArray)(parsed.entry).map((e) => {
@@ -36871,6 +36871,13 @@ function sameT100No(a, b) {
   if (/^\d+$/.test(a) && /^\d+$/.test(b)) return Number(a) === Number(b);
   return false;
 }
+function ctsObjectLockedHint(message2, properties) {
+  const m = /is already locked in request (\w+) of user (\w+)/i.exec(message2);
+  const request = properties["T100KEY-V3"] ?? m?.[1] ?? "";
+  const user = properties["T100KEY-V4"] ?? m?.[2] ?? "";
+  const object3 = properties["T100KEY-V1"] ?? "";
+  return `Transport request ${request} (owner ${user}) already holds a lock on ${object3}, so CTS will not record this change in a different request. Pass corr_nr=${request} \u2014 or a task of your own under it \u2014 so the write is recorded there, or have ${request} released first. For a function module the locked object is the group's L<GROUP>UXX include, held by the request the group was created in: omit \`package\` and \`corr_nr\` so abapsmith derives the module's package from its group and records the create in that request.`;
+}
 function lastXmlPathSegment(xmlPath) {
   const matches = [...xmlPath.matchAll(/([A-Za-z0-9_:]+)\(\d+\)/g)];
   return matches.length > 0 ? matches[matches.length - 1][1] : void 0;
@@ -36968,6 +36975,25 @@ var init_adt_message_rules = __esm({
         exceptionType: "ExceptionInvalidData",
         property: "XML_PATH",
         hint: (_message, properties) => describeXmlPath(properties["XML_PATH"] ?? "", properties)
+      },
+      {
+        id: "cts-object-locked-in-other-request",
+        t100Id: "CTS_WBO_API",
+        t100No: "019",
+        match: /is already locked in request (\w+) of user (\w+)/i,
+        hint: ctsObjectLockedHint,
+        code: "TRANSPORT_LOCKED",
+        details: (message2, properties) => {
+          const m = /is already locked in request (\w+) of user (\w+)/i.exec(message2);
+          const holdingRequest = properties["T100KEY-V3"] ?? m?.[1];
+          const holdingUser = properties["T100KEY-V4"] ?? m?.[2];
+          const lockedObject = properties["T100KEY-V1"];
+          return {
+            ...holdingRequest !== void 0 ? { holdingRequest } : {},
+            ...holdingUser !== void 0 ? { holdingUser } : {},
+            ...lockedObject !== void 0 ? { lockedObject } : {}
+          };
+        }
       }
     ];
     for (const rule of ADT_MESSAGE_RULES) {
@@ -37199,7 +37225,7 @@ function translateAdtError(e, ctx) {
   const classified = classifyAdtMessage(unclassifiedMessage, unclassifiedProperties, info?.type);
   if (classified) {
     return new AbapError(
-      "ADT_ERROR",
+      classified.code ?? "ADT_ERROR",
       unclassifiedMessage,
       {
         operation: ctx.operation,
@@ -37209,7 +37235,8 @@ function translateAdtError(e, ctx) {
         status: info?.status,
         adtExceptionType: info?.type,
         ...Object.keys(unclassifiedProperties).length ? { properties: unclassifiedProperties } : {},
-        classifiedBy: classified.id
+        classifiedBy: classified.id,
+        ...classified.details?.(unclassifiedMessage, unclassifiedProperties)
       },
       typeof classified.hint === "function" ? classified.hint(unclassifiedMessage, unclassifiedProperties) : classified.hint
     );
@@ -53512,13 +53539,17 @@ ${bodyRaw.trimEnd()}` : "",
 `,
     worstNoticeFor(sectionsCut)
   ).length;
-  const bodyFit = keepLines(bodyRaw.replace(/\r\n/g, "\n").trimEnd(), maxChars - bodyOverhead);
+  const worstMarkerLen = parts.omissionMarker ? Math.max(parts.omissionMarker(0).length, parts.omissionMarker(bodyLines.length).length) + 1 : 0;
+  const bodyFit = keepLines(bodyRaw.replace(/\r\n/g, "\n").trimEnd(), maxChars - bodyOverhead - worstMarkerLen);
   const keptLines = bodyFit.kept ? bodyFit.kept.split("\n") : [];
+  const omittedLines = bodyLines.length - keptLines.length;
+  const markerLine = parts.omissionMarker && keptLines.length > 0 && omittedLines > 0 ? parts.omissionMarker(omittedLines) : void 0;
   const text5 = hardClamp(
     assemble(
       sectionsFit.kept,
       keptLines.length ? `--- ${label} ---
-${bodyFit.kept}` : "",
+${bodyFit.kept}${markerLine ? `
+${markerLine}` : ""}` : "",
       notice("TRUNCATED", keptLines.length, sectionsCut)
     ),
     maxChars
@@ -63870,8 +63901,8 @@ var init_resolve = __esm({
 });
 
 // src/adt/package-ref.ts
-function parsePackageRef(xml3) {
-  const doc = xml3.replace(XML_COMMENT_RE, "");
+function parsePackageRef(xml4) {
+  const doc = xml4.replace(XML_COMMENT_RE, "");
   let first;
   const seen = /* @__PURE__ */ new Set();
   PACKAGE_REF_TAG_RE.lastIndex = 0;
@@ -111419,8 +111450,8 @@ function contentType3(t) {
 }
 var XML_NAME_ATTR_RE = /(?:^|\s)adtcore:name\s*=\s*(?:"([^"]*)"|'([^']*)')/i;
 var XML_ROOT_ELEMENT_RE = /<[A-Za-z_][\w.-]*(?::[A-Za-z_][\w.-]*)?[^>]*>/;
-function assertPayloadMatchesTarget(t, xml3) {
-  const stripped = xml3.replace(XML_COMMENT_RE, "");
+function assertPayloadMatchesTarget(t, xml4) {
+  const stripped = xml4.replace(XML_COMMENT_RE, "");
   const root = XML_ROOT_ELEMENT_RE.exec(stripped)?.[0] ?? "";
   const declared = XML_NAME_ATTR_RE.exec(root)?.slice(1).find((v) => v !== void 0);
   if (declared === void 0) {
@@ -111457,9 +111488,9 @@ function assertPayloadMatchesTarget(t, xml3) {
 }
 var DOMA_TEXT_RE = /<doma:text\b[^>]*>([\s\S]*?)<\/doma:text>/gi;
 var MASTER_LANGUAGE_ATTR_RE = /(?:^|\s)adtcore:masterLanguage\s*=\s*(?:"[^"]*"|'[^']*')/i;
-function assertDomaMasterLanguage(t, xml3) {
+function assertDomaMasterLanguage(t, xml4) {
   if (t.type !== "DOMA/DD") return;
-  const stripped = xml3.replace(XML_COMMENT_RE, "");
+  const stripped = xml4.replace(XML_COMMENT_RE, "");
   DOMA_TEXT_RE.lastIndex = 0;
   let hasText = false;
   let m;
@@ -111480,9 +111511,9 @@ function assertDomaMasterLanguage(t, xml3) {
   );
 }
 var ROOT_TAG_NAME_RE = /^<(?:([A-Za-z_][\w.-]*):)?([A-Za-z_][\w.-]*)/;
-function assertLockObjectRoot(t, xml3) {
+function assertLockObjectRoot(t, xml4) {
   if (t.type !== "ENQU/DL") return;
-  const stripped = xml3.replace(XML_COMMENT_RE, "");
+  const stripped = xml4.replace(XML_COMMENT_RE, "");
   const root = XML_ROOT_ELEMENT_RE.exec(stripped)?.[0] ?? "";
   const nameMatch = ROOT_TAG_NAME_RE.exec(root);
   const prefix = nameMatch?.[1];
@@ -111500,16 +111531,16 @@ function assertLockObjectRoot(t, xml3) {
 var VALUE_INFORMATION_OPEN_RE = /<((?:[A-Za-z_][\w.-]*:)?)valueInformation\b([^>]*)>/gi;
 var VALUE_INFORMATION_CLOSE_RE = /<\/(?:[A-Za-z_][\w.-]*:)?valueInformation\s*>/gi;
 var FIX_VALUES_OPEN_RE = /<(?:[A-Za-z_][\w.-]*:)?fixValues\b/gi;
-function injectEmptyFixValues(t, xml3) {
-  if (t.type !== "DOMA/DD") return xml3;
-  const masked = xml3.replace(XML_COMMENT_RE, (m) => " ".repeat(m.length));
+function injectEmptyFixValues(t, xml4) {
+  if (t.type !== "DOMA/DD") return xml4;
+  const masked = xml4.replace(XML_COMMENT_RE, (m) => " ".repeat(m.length));
   VALUE_INFORMATION_OPEN_RE.lastIndex = 0;
   const opens = [];
   for (let m = VALUE_INFORMATION_OPEN_RE.exec(masked); m; m = VALUE_INFORMATION_OPEN_RE.exec(masked)) {
     opens.push(m);
   }
   const open = opens[0];
-  if (opens.length !== 1 || !open) return xml3;
+  if (opens.length !== 1 || !open) return xml4;
   const [full, prefix, attrs] = open;
   const openStart = open.index;
   const openEnd = openStart + full.length;
@@ -111517,15 +111548,15 @@ function injectEmptyFixValues(t, xml3) {
   if (selfClose) {
     const openAttrs = (attrs ?? "").slice(0, selfClose.index) + selfClose[1];
     const replacement = `<${prefix}valueInformation${openAttrs}><${prefix}fixValues/></${prefix}valueInformation>`;
-    return xml3.slice(0, openStart) + replacement + xml3.slice(openEnd);
+    return xml4.slice(0, openStart) + replacement + xml4.slice(openEnd);
   }
   VALUE_INFORMATION_CLOSE_RE.lastIndex = openEnd;
   const close = VALUE_INFORMATION_CLOSE_RE.exec(masked);
-  if (!close) return xml3;
+  if (!close) return xml4;
   const closeStart = close.index;
   FIX_VALUES_OPEN_RE.lastIndex = 0;
-  if (FIX_VALUES_OPEN_RE.test(masked.slice(openEnd, closeStart))) return xml3;
-  return xml3.slice(0, closeStart) + `<${prefix}fixValues/>` + xml3.slice(closeStart);
+  if (FIX_VALUES_OPEN_RE.test(masked.slice(openEnd, closeStart))) return xml4;
+  return xml4.slice(0, closeStart) + `<${prefix}fixValues/>` + xml4.slice(closeStart);
 }
 var FUGR_INCLUDE_STATEMENT_RE = /\bINCLUDE\s+([A-Za-z0-9_/]+)/gi;
 var FUGR_IMPLEMENTATION_INCLUDE_RE = /(?:UXX|U\d+)$/;
@@ -111562,8 +111593,8 @@ function assertFunctionGroupImplementationInclude(t, source) {
   );
 }
 var MASTER_SYSTEM_ATTR_RE = /(?:^|\s)(?:[A-Za-z_][\w.-]*:)?masterSystem\s*=\s*(?:"([^"]*)"|'([^']*)')/gi;
-function parseMasterSystem(xml3) {
-  const doc = xml3.replace(XML_COMMENT_RE, "");
+function parseMasterSystem(xml4) {
+  const doc = xml4.replace(XML_COMMENT_RE, "");
   let first;
   const seen = /* @__PURE__ */ new Set();
   MASTER_SYSTEM_ATTR_RE.lastIndex = 0;
@@ -111576,8 +111607,8 @@ function parseMasterSystem(xml3) {
   return seen.size === 1 ? first?.toUpperCase() : void 0;
 }
 var ADTCORE_VERSION_ATTR_RE = /(?:^|\s)adtcore:version\s*=\s*(?:"([^"]*)"|'([^']*)')/gi;
-function activationFromBody(xml3) {
-  const doc = xml3.replace(XML_COMMENT_RE, "");
+function activationFromBody(xml4) {
+  const doc = xml4.replace(XML_COMMENT_RE, "");
   ADTCORE_VERSION_ATTR_RE.lastIndex = 0;
   let found = false;
   for (let m = ADTCORE_VERSION_ATTR_RE.exec(doc); m; m = ADTCORE_VERSION_ATTR_RE.exec(doc)) {
@@ -111605,6 +111636,24 @@ async function containerPackage(conn, spec, containerName) {
   } catch {
     return void 0;
   }
+}
+var FMODULE_PROCESSING_TYPE_ATTR_RE = /(?:^|\s)(?:[A-Za-z_][\w.-]*:)?processingType\s*=\s*(?:"([^"]*)"|'([^']*)')/i;
+function parseProcessingType(body) {
+  const m = FMODULE_PROCESSING_TYPE_ATTR_RE.exec(body.replace(XML_COMMENT_RE, ""));
+  const value = (m?.[1] ?? m?.[2] ?? "").trim();
+  return value || void 0;
+}
+var FMODULE_DESCRIPTION_ATTR_RE = /(?:^|\s)adtcore:description\s*=\s*(?:"([^"]*)"|'([^']*)')/i;
+function unescapeXmlAttr(value) {
+  return value.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&");
+}
+function parseFmoduleDescription(body) {
+  const m = FMODULE_DESCRIPTION_ATTR_RE.exec(body.replace(XML_COMMENT_RE, ""));
+  const value = (m?.[1] ?? m?.[2] ?? "").trim();
+  return value ? unescapeXmlAttr(value) : void 0;
+}
+function processingTypeXml(name, containerName, containerUri, processingType, description) {
+  return `<?xml version="1.0" encoding="UTF-8"?><fmodule:abapFunctionModule xmlns:fmodule="http://www.sap.com/adt/functions/fmodules" xmlns:adtcore="http://www.sap.com/adt/core" fmodule:processingType="${processingType}" adtcore:name="${escapeXmlAttr3(name.toUpperCase())}" adtcore:type="FUGR/FF" adtcore:description="${escapeXmlAttr3(description)}"><adtcore:containerRef adtcore:uri="${escapeXmlAttr3(containerUri)}" adtcore:type="FUGR/F" adtcore:name="${escapeXmlAttr3(containerName.toUpperCase())}"/></fmodule:abapFunctionModule>`;
 }
 function refuseDelete(spec) {
   const enhancementRoute = isEnhancementType(spec.type) ? ` \`abap_enh operation=delete\` removes ENHO/XH, ENHO/XHH and ENHS/XS today (needs \`ABAP_ALLOW_ENHANCEMENT_DELETE=true\`).` : "";
@@ -111807,6 +111856,19 @@ async function resolveWriteTarget(conn, target, op = "write") {
           ...requestedPackage ? { superPackage: requestedPackage } : {}
         };
       }
+      const inherited = await containerPackage(conn, spec, containerName);
+      if (inherited !== void 0) {
+        const inheritedPackage = inherited.toUpperCase();
+        if (requestedPackage && requestedPackage !== inheritedPackage) {
+          throw new AbapError(
+            "BAD_INPUT",
+            `${spec.label} ${name} would be created inside ${containerName}, which is in package ${inheritedPackage}, but the request asked for ${requestedPackage}. A function module has no package of its own; it lives in its group's package.`,
+            { name, type: spec.type, uri, containerName, containerPackage: inheritedPackage, requestedPackage },
+            `Drop the \`package\` argument, or pass the group's package ${inheritedPackage}.`
+          );
+        }
+        return { ...base, exists: false, packageName: inheritedPackage, packageSource: "container" };
+      }
       return {
         ...base,
         exists: false,
@@ -111838,13 +111900,17 @@ async function resolveWriteTarget(conn, target, op = "write") {
       "Drop the `package` argument to edit the object where it already is. Moving an object between packages is a transport-organiser operation and needs a human."
     );
   }
+  const processingType = spec.type === "FUGR/FF" ? parseProcessingType(body) : void 0;
+  const descriptionOverride = spec.type === "FUGR/FF" && !target.description?.trim() ? parseFmoduleDescription(body) : void 0;
   return {
     ...base,
+    ...descriptionOverride !== void 0 ? { description: descriptionOverride } : {},
     exists: true,
     packageName,
     packageSource: "server",
     masterSystem: parseMasterSystem(body),
-    activation: activationFromBody(body)
+    activation: activationFromBody(body),
+    ...processingType !== void 0 ? { processingType } : {}
   };
 }
 async function readCurrentSource(conn, t) {
@@ -112362,6 +112428,16 @@ async function writeObject(conn, target, opts) {
       "Packages are create-only."
     );
   }
+  if (opts.remoteEnabled !== void 0 && t.type !== "FUGR/FF") {
+    throw new AbapError(
+      "BAD_INPUT",
+      `remote_enabled applies to function modules (FUGR/FF) only; ${targetLabel(t)} is a ${t.type}.`,
+      { name: t.name, type: t.type },
+      "Drop `remote_enabled`."
+    );
+  }
+  const desiredProcessingType = opts.remoteEnabled === void 0 ? void 0 : opts.remoteEnabled ? "rfc" : "normal";
+  const processingTypeChangeWanted = desiredProcessingType !== void 0 && desiredProcessingType !== (t.processingType ?? "normal");
   assertFunctionGroupImplementationInclude(t, opts.source);
   if (subInclude(t) && !t.exists) {
     throw new AbapError(
@@ -112391,11 +112467,12 @@ async function writeObject(conn, target, opts) {
     assertNotPartialReadSource(t, opts.expectEtag, current);
     assertEtagMatches(t, current, opts.expectEtag, "write");
   }
-  if (current !== void 0 && sourceEquals(current, opts.source)) {
+  if (current !== void 0 && sourceEquals(current, opts.source) && !processingTypeChangeWanted) {
     return {
       target: t,
       created: false,
       changed: false,
+      ...t.processingType !== void 0 ? { processingType: t.processingType } : {},
       // The etag of what is ACTUALLY on the server, not of the caller's buffer.
       // Those differ by whatever trailing newlines the server strips, and
       // handing back the caller's hash would produce an etag that fails its own
@@ -112519,6 +112596,9 @@ async function writeObject(conn, target, opts) {
       noteTransportDead(opts.transport, corr, e);
       throw created && e instanceof AbapError ? await reportCreatePutRejection(conn, session, t, preflight2, e) : e;
     }
+    if (desiredProcessingType !== void 0 && processingTypeChangeWanted) {
+      await setFunctionModuleProcessingType(conn, t, desiredProcessingType, lock.handle, corr);
+    }
     if (!created && writeShapeOf(t.type) === "properties") {
       postWriteSource = await readCurrentSource(conn, t);
     }
@@ -112550,7 +112630,9 @@ async function writeObject(conn, target, opts) {
     // create — where they are `undefined` either way.
     previousSource,
     ...preflight2?.kind === "transport" ? { corrNrSent: preflight2.corrNr } : {},
-    ...preflight2?.kind === "transport" && preflight2.overrodeCorrNr !== void 0 ? { corrNrOverrode: preflight2.overrodeCorrNr } : {}
+    ...preflight2?.kind === "transport" && preflight2.overrodeCorrNr !== void 0 ? { corrNrOverrode: preflight2.overrodeCorrNr } : {},
+    ...(desiredProcessingType ?? t.processingType) !== void 0 ? { processingType: desiredProcessingType ?? t.processingType } : {},
+    ...processingTypeChangeWanted ? { processingTypeChanged: true } : {}
   };
 }
 var PACKAGE_SOFTWARE_COMPONENT_HINT = "Use HOME (or another real software component) for a transportable package. LOCAL only works for a $-named local package \u2014 abapsmith's default Z*/Y* names are not eligible, and SAP refuses the assignment with TR/462.";
@@ -112769,6 +112851,23 @@ async function createClassInclude(conn, t, lockHandle, corr) {
       },
       `Nothing was written and the lock was released. The CLASS is fine \u2014 it is the ${inc} include that could not be brought into existence. Create it once in Eclipse ADT or SE24 (for test classes: the class editor's Test Classes tab) and write it again.`
     );
+  }
+}
+async function setFunctionModuleProcessingType(conn, t, processingType, lockHandle, corr) {
+  const containerName = t.containerName ?? "";
+  const containerUri = t.spec.parentPath ? t.spec.parentPath.replace("{parent}", encodeURIComponent(containerName.toLowerCase())) : "";
+  const body = processingTypeXml(t.name, containerName, containerUri, processingType, t.description);
+  try {
+    await conn.put(t.uri, {
+      body,
+      headers: {
+        "Content-Type": "application/vnd.sap.adt.functions.fmodules.v3+xml",
+        Accept: "application/vnd.sap.adt.functions.fmodules.v3+xml"
+      },
+      qs: corr.kind === "transport" ? { lockHandle, corrNr: corr.corrNr } : { lockHandle }
+    });
+  } catch (e) {
+    throw translateAdtError(e, { operation: "write", uri: t.uri, name: t.name, type: t.type });
   }
 }
 async function putContent(conn, t, source, lockHandle, corr) {
@@ -114839,19 +114938,32 @@ var isRuleLine = (line2) => /^-{20,}$/.test(line2.trim());
 var LIST_HEADER_DATE_AT_START = /^\s*\d{2}\.\d{2}\.\d{4}\b/;
 var LIST_HEADER_PAGE_NO = /\s\d+$/;
 var looksLikeListPageHeader = (line2) => LIST_HEADER_DATE_AT_START.test(line2) && LIST_HEADER_PAGE_NO.test(line2);
-function stripListHeader(lines) {
+function stripListHeaderDetailed(lines) {
+  const dropped = [];
   const out = lines.map((l) => l.replace(/[ \t\r ]+$/, ""));
-  while (out.length > 0 && out[out.length - 1] === "") out.pop();
-  if (out.length >= 2 && out[0] !== "" && looksLikeListPageHeader(out[0]) && isRuleLine(out[1])) {
-    return out.slice(2);
+  while (out.length > 0 && out[out.length - 1] === "") {
+    dropped.push({ reason: "blank", position: out.length });
+    out.pop();
   }
-  return out;
+  if (out.length >= 2 && out[0] !== "" && looksLikeListPageHeader(out[0]) && isRuleLine(out[1])) {
+    out.splice(0, 2);
+    dropped.push({ reason: "header", position: 1 }, { reason: "header", position: 2 });
+  }
+  dropped.sort((a, b) => a.position - b.position);
+  return { lines: out, dropped };
+}
+function filterCapturedList(list3, keepBlankLines) {
+  if (!keepBlankLines) return stripListHeaderDetailed(list3);
+  return { lines: list3.map((l) => l.replace(/[ \t\r ]+$/, "")), dropped: [] };
 }
 function splitBridgeOutput(raw) {
   const list3 = [];
   const diagnostics = [];
+  const dropped = [];
   let droppedLines = 0;
-  for (const line2 of raw.replace(/\r\n/g, "\n").split("\n")) {
+  const rawLines = raw.replace(/\r\n/g, "\n").split("\n");
+  for (let i = 0; i < rawLines.length; i++) {
+    const line2 = rawLines[i];
     if (line2.startsWith(LIST_LINE_PREFIX)) {
       list3.push(line2.slice(LIST_LINE_PREFIX.length));
     } else if (line2.replace(/\s+$/, "") === LIST_LINE_PREFIX.trimEnd()) {
@@ -114860,9 +114972,10 @@ function splitBridgeOutput(raw) {
       diagnostics.push(line2.trim());
     } else {
       droppedLines++;
+      dropped.push({ reason: "unprefixed", position: i + 1 });
     }
   }
-  return { list: list3, diagnostics, droppedLines };
+  return { list: list3, diagnostics, droppedLines, dropped };
 }
 function parseBracketFields(text5) {
   const out = {};
@@ -115263,7 +115376,7 @@ async function executeBridge(conn, gate, deployed, options = {}) {
   });
   return runClass(conn, executeAuthorization.target.name, options);
 }
-async function runReport(conn, reportName, gate, parameters = []) {
+async function runReport(conn, reportName, gate, parameters = [], options) {
   const started = Date.now();
   const report = assertPlainName(reportName, "Report name").toUpperCase();
   const rows = marshalSelectionTable(parameters);
@@ -115280,10 +115393,10 @@ async function runReport(conn, reportName, gate, parameters = []) {
   });
   const { bridgeRefreshed, activationVerified: bridgeActivationVerified } = deployed;
   const run = await executeBridge(conn, gate, deployed, { dumpPrograms: [report] });
-  const { list: list3, diagnostics, droppedLines: bridgeDroppedLines } = splitBridgeOutput(run.output);
-  const beforeHeaderStrip = list3.length;
-  const stripped = stripListHeader(list3);
-  const headerDroppedLines = beforeHeaderStrip - stripped.length;
+  const { list: list3, diagnostics, droppedLines: bridgeDroppedLines, dropped: bridgeDropped } = splitBridgeOutput(
+    run.output
+  );
+  const { lines: stripped, dropped: headerDropped } = filterCapturedList(list3, options?.keepBlankLines === true);
   const output = stripped.join("\n");
   const outputComplete = !diagnostics.some((d) => d.includes(WIDTH_TRUNCATION_MARKER));
   return {
@@ -115293,7 +115406,8 @@ async function runReport(conn, reportName, gate, parameters = []) {
     lines: stripped.length,
     // F4: the full write → activate → run round trip, not just the classrun leg.
     durationMs: Date.now() - started,
-    droppedLines: bridgeDroppedLines + headerDroppedLines,
+    droppedLines: bridgeDroppedLines + headerDropped.length,
+    dropped: [...headerDropped, ...bridgeDropped],
     bodyBytes: run.bodyBytes,
     outputComplete,
     bridgeClass: className,
@@ -116711,6 +116825,9 @@ var runInputSchema = {
   mode: external_exports.enum(["class", "report", "auto"]).optional().describe("Default auto."),
   // Report mode only: fills PARAMETERS/SELECT-OPTIONS — see ../adt/run-parameters.ts.
   parameters: external_exports.array(runParameterSchema).optional(),
+  keep_blank_lines: external_exports.boolean().optional().describe(
+    "Return the captured list unfiltered: keep the list page header and rule line, trailing blank lines and blank padding exactly as captured (only trailing spaces per line are still trimmed). Default false."
+  ),
   auth_trace: external_exports.boolean().optional().describe(
     "Switch on the SAP authorization trace for the connected user, run, then read back and switch it back off. Refused on a read-only server. Default false."
   ),
@@ -116728,6 +116845,46 @@ function authTraceSection(outcome) {
   const rendered = renderFailedAuthChecks(outcome.checks);
   const [, ...rest] = rendered.split("\n");
   return { title: "FAILED AUTH CHECKS", content: rest.join("\n") };
+}
+function formatPositions(positions) {
+  const sorted = [...positions].sort((a, b) => a - b);
+  const tokens = [];
+  let i = 0;
+  while (i < sorted.length) {
+    let j = i;
+    while (j + 1 < sorted.length && sorted[j + 1] === sorted[j] + 1) j++;
+    if (j - i + 1 >= 3) {
+      tokens.push(`${sorted[i]}-${sorted[j]}`);
+    } else {
+      for (let k = i; k <= j; k++) tokens.push(String(sorted[k]));
+    }
+    i = j + 1;
+  }
+  if (tokens.length === 1) return tokens[0];
+  if (tokens.length === 2) return `${tokens[0]} and ${tokens[1]}`;
+  return `${tokens.slice(0, -1).join(", ")} and ${tokens[tokens.length - 1]}`;
+}
+function describeDroppedLines(dropped) {
+  const blanks = dropped.filter((d) => d.reason === "blank").map((d) => d.position);
+  const headers = dropped.filter((d) => d.reason === "header").map((d) => d.position);
+  const unprefixed = dropped.filter((d) => d.reason === "unprefixed").map((d) => d.position);
+  const clauses = [];
+  if (blanks.length > 0) {
+    clauses.push(
+      `dropped ${blanks.length} blank line${blanks.length === 1 ? "" : "s"} at position${blanks.length === 1 ? "" : "s"} ${formatPositions(blanks)} (trailing list padding)`
+    );
+  }
+  if (headers.length > 0) {
+    clauses.push("dropped the list header and rule line at positions 1 and 2");
+  }
+  if (unprefixed.length > 0) {
+    clauses.push(
+      `dropped ${unprefixed.length} non-list line${unprefixed.length === 1 ? "" : "s"} of bridge output at bridge line${unprefixed.length === 1 ? "" : "s"} ${formatPositions(unprefixed)}`
+    );
+  }
+  const sentence = clauses.join("; ");
+  const capitalized = sentence.charAt(0).toUpperCase() + sentence.slice(1);
+  return `${capitalized}. Positions are 1-based line numbers of the captured list before dropping. Pass keep_blank_lines=true to receive the capture unfiltered.`;
 }
 function attachAuthTraceToError(e) {
   const outcome = authTraceOf(e);
@@ -116803,7 +116960,7 @@ async function abapRun(conn, input, maxChars, gate) {
       packageName: FLUID_PACKAGE,
       type: "CLAS/OC"
     });
-    return runReport(conn, obj.name, gate, parameters);
+    return runReport(conn, obj.name, gate, parameters, { keepBlankLines: input.keep_blank_lines === true });
   };
   let res;
   let authTraceOutcome;
@@ -116877,7 +117034,9 @@ async function abapRun(conn, input, maxChars, gate) {
     );
   }
   const droppedLines = res.droppedLines ?? 0;
-  if (droppedLines > 0) {
+  if (res.dropped && res.dropped.length > 0) {
+    notes.push(describeDroppedLines(res.dropped));
+  } else if (droppedLines > 0) {
     notes.push(
       `${droppedLines} line(s) of captured output were dropped and are not shown below.`
     );
@@ -116914,7 +117073,8 @@ async function abapRun(conn, input, maxChars, gate) {
     bodyLabel: "OUTPUT",
     notes,
     hints: ["Have the code print less, or filter inside ABAP, if the output is truncated."],
-    maxChars
+    maxChars,
+    omissionMarker: (n) => `\u2026 (${n} lines omitted) \u2026`
   });
 }
 var ok = (text5) => ({ content: [{ type: "text", text: text5 }] });
@@ -119426,7 +119586,15 @@ function fitEnvelope(payload) {
 
 // src/param-check.ts
 var PARAM_ALIASES = {
-  abap_journal: { id: "entry", entry_id: "entry", name: "object" },
+  abap_journal: {
+    id: "entry",
+    entry_id: "entry",
+    name: "object",
+    operation: "mode",
+    action: "mode",
+    op: "mode",
+    target: "object"
+  },
   abap_bopf: { object: "bo", name: "bo", business_object: "bo" },
   abap_bopf_edit: { object: "bo", business_object: "bo" },
   abap_bopf_delete: { object: "bo", business_object: "bo" },
@@ -119708,10 +119876,10 @@ function findAllNodesByName(el, name, acc = []) {
   }
   return acc;
 }
-function parseConfigXml(xml3) {
-  if (!xml3.trim()) return void 0;
+function parseConfigXml(xml4) {
+  if (!xml4.trim()) return void 0;
   try {
-    const doc = xmlParser2.parse(xml3);
+    const doc = xmlParser2.parse(xml4);
     if (!isRecord(doc)) return void 0;
     const root = doc["Component"];
     return isRecord(root) ? root : void 0;
@@ -121923,8 +122091,8 @@ init_capabilities();
 var XML_NOISE = /<\?xml[^?]*\?>|<!--[\s\S]*?-->/g;
 var START_TAG = /<([A-Za-z_][\w.-]*(?::[\w.-]+)?)((?:"[^"]*"|'[^']*'|[^>"'])*?)(\/?)>/g;
 var END_TAG = /<\/([A-Za-z_][\w.-]*(?::[\w.-]+)?)\s*>/g;
-function leafTexts(xml3) {
-  const clean = xml3.replace(XML_NOISE, "");
+function leafTexts(xml4) {
+  const clean = xml4.replace(XML_NOISE, "");
   const out = /* @__PURE__ */ new Map();
   const push = (name, text5) => {
     const trimmed = text5.trim();
@@ -124494,10 +124662,10 @@ function throwDataElementNamespaceMismatch(expected, name, foundNamespace) {
 ${skeleton}`
   );
 }
-function assertDdicDescriptorShape(type, name, xml3) {
+function assertDdicDescriptorShape(type, name, xml4) {
   const expected = DDIC_SHAPES[type];
   if (!expected) return;
-  const stripped = xml3.replace(XML_COMMENT_RE2, "");
+  const stripped = xml4.replace(XML_COMMENT_RE2, "");
   const rootMatch = ROOT_TAG_RE2.exec(stripped);
   if (!rootMatch) return;
   const rootTag = rootMatch[0];
@@ -125370,6 +125538,9 @@ var writeInputSchema = {
   corr_nr: external_exports.string().optional().describe(
     "Transport request. $TMP needs none. Optional for every transportable create, including the bridge types TRAN/T, VIEW/DV, SHLP/DH and TABL/DI: omitted, one is resolved under ABAP_ALLOW_TRANSPORTS (auto reuses a modifiable request this session created for the package, else creates one; under auto a NAMED request is refused, so omit it). Refused for a $ package, and on VIEW/DV or TRAN/T delete. TABL/DI delete: same package-derived resolution as its create, not refused. If the object is already recorded in a DIFFERENT request, CTS imposes that one instead: mode=write proceeds under it and reports corr_nr_honoured: false; mode=delete is refused outright with TRANSPORT_ERROR (CORR_NR_NOT_HONOURED) and deletes nothing."
   ),
+  remote_enabled: external_exports.boolean().optional().describe(
+    "FUGR/FF only: true makes the module remote-enabled (processing type rfc), false makes it a normal module. Refused for every other type and for mode=delete."
+  ),
   software_component: external_exports.string().optional().describe("DEVC/K required: LOCAL or transportable."),
   package_type: external_exports.string().optional().describe("DEVC/K only. Default development."),
   transport_layer: external_exports.string().optional().describe("DEVC/K only. Default empty."),
@@ -125968,6 +126139,24 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
   if (input.type !== void 0 && !isPackageType(earlyTypeSpec?.type) && !isBridgeOnlyCreateType(input.type)) {
     refuseUnwritableType(input.type, target.name, (input.mode ?? "write") === "delete" ? "delete" : "write");
   }
+  if (input.remote_enabled !== void 0) {
+    if (target.type !== "FUGR/FF") {
+      throw new AbapError(
+        "BAD_INPUT",
+        target.type ? `remote_enabled applies to function modules (FUGR/FF) only; ${input.object} was given as ${target.type}.` : 'remote_enabled applies to function modules (FUGR/FF) only; pass type "FUGR/FF" explicitly.',
+        { type: target.type, object: input.object },
+        'Drop `remote_enabled`, or pass type "FUGR/FF" and name the module as "<GROUP>/<MODULE>".'
+      );
+    }
+    if ((input.mode ?? "write") === "delete") {
+      throw new AbapError(
+        "BAD_INPUT",
+        "remote_enabled applies to function modules (FUGR/FF) only, and not to mode=delete.",
+        { type: target.type, object: input.object },
+        "Drop `remote_enabled` for a delete."
+      );
+    }
+  }
   if (input.ddic !== void 0) {
     if ((input.mode ?? "write") === "delete") {
       throw new AbapError(
@@ -126231,6 +126420,7 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
         source,
         ...trOpts,
         ...resolvedExpectEtag ? { expectEtag: resolvedExpectEtag } : {},
+        ...input.remote_enabled !== void 0 ? { remoteEnabled: input.remote_enabled } : {},
         onBeforeImage
       })
     ));
@@ -126451,6 +126641,11 @@ ${renderInactive(activation.inactive)}`);
   const notes = [
     written.corrNrOverrode !== void 0 && written.corrNrSent !== void 0 ? corrNrOverriddenWriteNote(written.corrNrOverrode, written.corrNrSent, written.target.type, written.target.name) : transportNote(written.transport, gate.config?.abapMode)
   ];
+  if (written.processingTypeChanged) {
+    notes.push(
+      `Processing type set to ${written.processingType} via the ADT function-module descriptor (PUT under the same lock as the source). The descriptor PUT leaves an inactive version, which activation picks up.`
+    );
+  }
   if (input.method !== void 0 && resolvedMethodVersion !== void 0) {
     notes.push(
       `method="${input.method}" was resolved against the ${resolvedMethodVersion.toUpperCase()} version's component structure` + (resolvedMethodVersion === "inactive" ? " \u2014 a newer inactive version existed (e.g. after a CHECK_FAILED write) and its line ranges were used." : ".")
@@ -126574,6 +126769,7 @@ ${renderInactive(activation.inactive)}`);
       etag: finalEtag,
       previousEtag: written.previousEtag,
       transport: transportHeaderText(written.transport),
+      ...written.processingType !== void 0 ? { processing_type: written.processingType } : {},
       ...written.corrNrOverrode !== void 0 ? { corr_nr_honoured: false } : {},
       check: propertiesShape ? "n/a (XML descriptor \u2014 validated by the server on write)" : check2.ok ? "clean" : `${check2.errors} error(s), ${check2.warnings} warning(s)`,
       activated: activation ? activation.activated : activationSuppressed ? "n/a (always active)" : "skipped",
@@ -130842,7 +131038,7 @@ function registerJournalTools(mcp, deps) {
   mcp.registerTool(
     "abap_journal",
     {
-      description: "History and undo for writes abapsmith made. mode=list: recent writes with entry ids. mode=show: one entry with its before-image. mode=undo: revert it \u2014 refuses on drift, delete-gate, or an enhancement object; see abapsmith-recover-a-bad-write for details. mode=reconcile: close a stranded `pending` entry with a stated outcome and reason \u2014 journal bookkeeping only, nothing is sent to SAP.",
+      description: "History and undo for writes abapsmith made. Parameters: mode (list|show|undo|reconcile, default list), entry, object, detail, limit, session, force, activate, outcome, reason. Common calls: mode=list (recent writes with entry ids); mode=show entry=<id> (one entry with its before-image; detail=full for the complete images); mode=undo entry=<id> activate=true (revert it \u2014 refuses on drift, delete-gate, or an enhancement object; see abapsmith-recover-a-bad-write); mode=reconcile entry=<id> outcome=<succeeded|failed> reason=<text> (close a stranded `pending` entry \u2014 journal bookkeeping only, nothing is sent to SAP).",
       inputSchema: journalInputSchema,
       annotations: { readOnlyHint: false, destructiveHint: true }
     },
@@ -132510,15 +132706,15 @@ function hasNoElementAtAll(body, doc) {
     return false;
   });
 }
-function parseElementInfo(xml3, ctx) {
-  const doc = parseXmlDocument(xml3, "element info", ctx);
+function parseElementInfo(xml4, ctx) {
+  const doc = parseXmlDocument(xml4, "element info", ctx);
   const rootValue = doc["elementInfo"];
   if (rootValue === void 0) {
-    if (hasNoElementAtAll(xml3, doc)) return UNRESOLVED_ELEMENT_INFO;
+    if (hasNoElementAtAll(xml4, doc)) return UNRESOLVED_ELEMENT_INFO;
     throw new AbapError(
       "ADT_ERROR",
       `The element info response has no <abapsource:elementInfo> element.`,
-      { operation: ctx.operation, uri: ctx.uri, preview: truncateText(xml3, PARSE_EXCERPT_MAX) },
+      { operation: ctx.operation, uri: ctx.uri, preview: truncateText(xml4, PARSE_EXCERPT_MAX) },
       "This ADT release may answer element info differently from what this client expects."
     );
   }
@@ -132547,14 +132743,14 @@ function splitFragmentUri(uri) {
   if (!m) return { uri };
   return { uri: m[1], line: Number(m[2]), column: Number(m[3]) };
 }
-function parseNavigationTarget(xml3, ctx) {
-  const doc = parseXmlDocument(xml3, "navigation target", ctx);
+function parseNavigationTarget(xml4, ctx) {
+  const doc = parseXmlDocument(xml4, "navigation target", ctx);
   const rootValue = doc["objectReference"];
   if (rootValue === void 0) {
     throw new AbapError(
       "ADT_ERROR",
       `The navigation target response has no <adtcore:objectReference> element.`,
-      { operation: ctx.operation, uri: ctx.uri, preview: truncateText(xml3, PARSE_EXCERPT_MAX) },
+      { operation: ctx.operation, uri: ctx.uri, preview: truncateText(xml4, PARSE_EXCERPT_MAX) },
       "This ADT release may answer navigation targets differently from what this client expects."
     );
   }
@@ -132627,14 +132823,14 @@ var USAGE_REFERENCES_REQUEST_BODY = `<?xml version="1.0" encoding="ASCII"?>
   <usagereferences:usageReferenceRequest xmlns:usagereferences="http://www.sap.com/adt/ris/usageReferences">
     <usagereferences:affectedObjects/>
   </usagereferences:usageReferenceRequest>`;
-function parseUsageReferences(xml3, ctx) {
-  const doc = parseXmlDocument(xml3, "usage references", ctx, usageReferencesXml);
+function parseUsageReferences(xml4, ctx) {
+  const doc = parseXmlDocument(xml4, "usage references", ctx, usageReferencesXml);
   const rootValue = doc["usageReferenceResult"];
   if (rootValue === void 0) {
     throw new AbapError(
       "ADT_ERROR",
       `The usage references response has no <usagereferences:usageReferenceResult> element.`,
-      { operation: ctx.operation, uri: ctx.uri, preview: truncateText(xml3, PARSE_EXCERPT_MAX) },
+      { operation: ctx.operation, uri: ctx.uri, preview: truncateText(xml4, PARSE_EXCERPT_MAX) },
       "This ADT release may answer where-used differently from what this client expects."
     );
   }
@@ -136477,10 +136673,21 @@ async function abapRead(conn, input, maxChars, gate) {
       etag
     );
   }
+  let fmoduleHeader = {};
+  if (obj.type === "FUGR/FF") {
+    try {
+      const descriptor = await conn.get(obj.uri, { headers: { Accept: "application/*" } });
+      const processingType = parseProcessingType(descriptor.body ?? "");
+      if (processingType !== void 0) {
+        fmoduleHeader = { processing_type: processingType, remote_enabled: processingType === "rfc" ? "yes" : "no" };
+      }
+    } catch {
+    }
+  }
   const window2 = sliceLines(source, input.offset ?? 1, input.limit);
   return buildSourceResponse(
     {
-      header: { ...header, totalLines: window2.total, totalChars },
+      header: { ...header, ...fmoduleHeader, totalLines: window2.total, totalChars },
       body: window2.text,
       bodyLabel: "SOURCE",
       bodyOffset: window2.offset,
@@ -136767,15 +136974,15 @@ function parseAlerts(container) {
   });
 }
 var NO_TEST_CLASSES_KIND = "noTestClasses";
-function parseRunResult(xml3) {
+function parseRunResult(xml4) {
   let doc;
   try {
-    doc = parser2.parse(xml3);
+    doc = parser2.parse(xml4);
   } catch (e) {
     throw new AbapError(
       "ADT_ERROR",
       `ABAP Unit run result is not parseable XML: ${e.message}`,
-      { excerpt: truncateText(xml3, MESSAGE_EXCERPT_MAX) }
+      { excerpt: truncateText(xml4, MESSAGE_EXCERPT_MAX) }
     );
   }
   const docNode = isNode(doc) ? doc : void 0;
@@ -136785,7 +136992,7 @@ function parseRunResult(xml3) {
     throw new AbapError(
       "ADT_ERROR",
       "ABAP Unit answered 200 but the body carries no <aunit:runResult> element.",
-      { excerpt: truncateText(xml3, MESSAGE_EXCERPT_MAX) },
+      { excerpt: truncateText(xml4, MESSAGE_EXCERPT_MAX) },
       "This is a wire-shape change, not a test failure. Do not read it as a passing run."
     );
   }
@@ -136914,15 +137121,15 @@ function coveredObjectsUrl(measurementUri) {
 function buildCoveredObjectsScope() {
   return '<?xml version="1.0" encoding="UTF-8"?>\n<cov:scope xmlns:cov="http://www.sap.com/adt/cov">\n  <adtcore:objectSets xmlns:adtcore="http://www.sap.com/adt/core"/>\n  <cov:objectSelection/>\n</cov:scope>';
 }
-function parseCoveredObjects(xml3) {
+function parseCoveredObjects(xml4) {
   let doc;
   try {
-    doc = parser2.parse(xml3);
+    doc = parser2.parse(xml4);
   } catch (e) {
     throw new AbapError(
       "ADT_ERROR",
       `Coverage scope is not parseable XML: ${e.message}`,
-      { excerpt: truncateText(xml3, MESSAGE_EXCERPT_MAX) }
+      { excerpt: truncateText(xml4, MESSAGE_EXCERPT_MAX) }
     );
   }
   const docNode = isNode(doc) ? doc : void 0;
@@ -136931,7 +137138,7 @@ function parseCoveredObjects(xml3) {
     throw new AbapError(
       "ADT_ERROR",
       "ADT answered 200 but the body carries no <cov:scope> element.",
-      { excerpt: truncateText(xml3, MESSAGE_EXCERPT_MAX) }
+      { excerpt: truncateText(xml4, MESSAGE_EXCERPT_MAX) }
     );
   }
   const root = isNode(docNode.scope) ? docNode.scope : {};
@@ -137012,15 +137219,15 @@ function parseCoverageNode(node2) {
     children
   };
 }
-function parseCoverageResult(xml3) {
+function parseCoverageResult(xml4) {
   let doc;
   try {
-    doc = parser2.parse(xml3);
+    doc = parser2.parse(xml4);
   } catch (e) {
     throw new AbapError(
       "ADT_ERROR",
       `Coverage result is not parseable XML: ${e.message}`,
-      { excerpt: truncateText(xml3, MESSAGE_EXCERPT_MAX) }
+      { excerpt: truncateText(xml4, MESSAGE_EXCERPT_MAX) }
     );
   }
   const docNode = isNode(doc) ? doc : void 0;
@@ -137029,7 +137236,7 @@ function parseCoverageResult(xml3) {
     throw new AbapError(
       "ADT_ERROR",
       "ADT answered 200 but the body carries no <cov:result> element.",
-      { excerpt: truncateText(xml3, MESSAGE_EXCERPT_MAX) }
+      { excerpt: truncateText(xml4, MESSAGE_EXCERPT_MAX) }
     );
   }
   const root = isNode(docNode.result) ? docNode.result : {};
@@ -137054,6 +137261,7 @@ function findCoverageNode(result, name) {
 
 // src/tools/test.ts
 init_errors();
+init_session();
 
 // src/adt/impacted.ts
 var IMPACTED_CONSUMER_KINDS = ["CLAS", "PROG", "FUGR"];
@@ -137691,6 +137899,39 @@ async function abapTestObject(conn, input, maxChars, gate) {
     }
   } else {
     res = await executeTestRun();
+  }
+  if (res.outcome === "unknown" && res.programs.length === 0 && res.otherAlerts.length === 0 && obj.type === "CLAS/OC") {
+    try {
+      const probe3 = await conn.get(`${obj.uri}/includes/testclasses`, {
+        headers: { Accept: "text/plain" }
+      });
+      if (probe3.body.trim() === "") {
+        res = {
+          ...res,
+          outcome: "no-tests",
+          reason: "The run reported no test methods and the class has no test-classes include content (\u2026/includes/testclasses is empty), so there was nothing for ABAP Unit to run."
+        };
+      } else {
+        res = {
+          ...res,
+          reason: `${res.reason ? `${res.reason} ` : ""}The class does have a non-empty test-classes include, so the empty run result is unexplained; check that the include activates and declares FOR TESTING methods at or below this risk level.`
+        };
+      }
+    } catch (e) {
+      if (isNotFoundError(e) || isAbapError(e) && e.code === "NOT_FOUND") {
+        res = {
+          ...res,
+          outcome: "no-tests",
+          reason: "The run reported no test methods and the class has no test-classes include (\u2026/includes/testclasses is absent), so there was nothing for ABAP Unit to run."
+        };
+      } else {
+        const message2 = e instanceof Error ? e.message : String(e);
+        res = {
+          ...res,
+          reason: `${res.reason ? `${res.reason} ` : ""}(probe of the test-classes include failed: ${message2})`
+        };
+      }
+    }
   }
   const notes = [];
   if (res.outcome === "no-tests") {
@@ -138447,6 +138688,53 @@ async function buildCallGraph(conn, target, type, direction, depth, max, maxChar
 
 // src/tools/search.ts
 init_search_descriptions();
+
+// src/adt/object-search.ts
+init_fxp();
+var xml3 = new XMLParser({
+  ignoreAttributes: false,
+  attributeNamePrefix: "",
+  parseAttributeValue: false,
+  trimValues: false
+});
+function asArray5(node2) {
+  if (node2 === void 0 || node2 === null) return [];
+  return Array.isArray(node2) ? node2 : [node2];
+}
+function parseObjectSearchXml(body) {
+  const doc = xml3.parse(body);
+  const root = doc?.["adtcore:objectReferences"] ?? {};
+  const rows = asArray5(root["adtcore:objectReference"]);
+  return rows.map((row2) => {
+    const result = {
+      "adtcore:uri": String(row2["adtcore:uri"] ?? ""),
+      "adtcore:type": String(row2["adtcore:type"] ?? ""),
+      "adtcore:name": String(row2["adtcore:name"] ?? "")
+    };
+    if (row2["adtcore:packageName"] !== void 0) result["adtcore:packageName"] = String(row2["adtcore:packageName"]);
+    if (row2["adtcore:description"] !== void 0) result["adtcore:description"] = String(row2["adtcore:description"]);
+    const m = result["adtcore:name"].match(/([^\s]*)\s*\((.*)\)/);
+    if (m) {
+      result["adtcore:name"] = m[1] ?? "";
+      if (!result["adtcore:description"]) result["adtcore:description"] = m[2] ?? "";
+    }
+    return result;
+  });
+}
+async function searchObjectsTolerant(conn, query, maxResults) {
+  try {
+    return await conn.adt.searchObject(query, void 0, maxResults);
+  } catch (e) {
+    if (!(e instanceof TypeError)) throw e;
+    const { body } = await conn.get("/sap/bc/adt/repository/informationsystem/search", {
+      headers: { Accept: "application/xml" },
+      qs: { operation: "quickSearch", query, maxResults: String(maxResults) }
+    });
+    return parseObjectSearchXml(body);
+  }
+}
+
+// src/tools/search.ts
 init_compact();
 init_types();
 init_truncate();
@@ -138644,7 +138932,7 @@ async function searchObjects(conn, query, type, max, maxChars) {
   const spec = type ? specForType(type) ?? specForKeyword(type) : void 0;
   const wanted = type ? spec?.type ?? type.toUpperCase().trim() : void 0;
   const fetchMax = type ? Math.min(TYPED_FETCH_CAP, max * TYPED_FETCH_MULTIPLIER) : max;
-  const rawResults = await conn.adt.searchObject(query, void 0, fetchMax);
+  const rawResults = await searchObjectsTolerant(conn, query, fetchMax);
   const { refs: results, repairedGroups, suspectGroups } = repairSearchDescriptions(rawResults);
   const filtered = wanted ? results.filter((r) => {
     const rowType = (r["adtcore:type"] ?? "").toUpperCase();
@@ -141767,9 +142055,9 @@ var PREDEFINED_ENTITIES = [
   ["&apos;", "'"],
   ["&quot;", '"']
 ];
-function decodeEntityAt(xml3, ampIndex) {
+function decodeEntityAt(xml4, ampIndex) {
   for (const [entity, char] of PREDEFINED_ENTITIES) {
-    if (xml3.startsWith(entity, ampIndex)) return { char, next: ampIndex + entity.length };
+    if (xml4.startsWith(entity, ampIndex)) return { char, next: ampIndex + entity.length };
   }
   fail6(
     "unsupported entity reference \u2014 only the five predefined XML entities (&amp; &lt; &gt; &apos; &quot;) are accepted",
@@ -141963,25 +142251,25 @@ function insertionPoint(tokens, nodeTok, kind) {
   }
   return insertAt;
 }
-function splice(xml3, at, text5) {
-  if (at < 0 || at > xml3.length) fail6("splice offset out of range", { at, length: xml3.length });
-  return xml3.slice(0, at) + text5 + xml3.slice(at);
+function splice(xml4, at, text5) {
+  if (at < 0 || at > xml4.length) fail6("splice offset out of range", { at, length: xml4.length });
+  return xml4.slice(0, at) + text5 + xml4.slice(at);
 }
-function spliceOut(xml3, range) {
-  if (range.start < 0 || range.end > xml3.length || range.start > range.end) {
-    fail6("splice-out range out of bounds", { range, length: xml3.length });
+function spliceOut(xml4, range) {
+  if (range.start < 0 || range.end > xml4.length || range.start > range.end) {
+    fail6("splice-out range out of bounds", { range, length: xml4.length });
   }
-  return xml3.slice(0, range.start) + xml3.slice(range.end);
+  return xml4.slice(0, range.start) + xml4.slice(range.end);
 }
-function promoteToContainer(xml3, token) {
-  if (token.kind === "container") return xml3;
-  const tagText = xml3.slice(token.openStart, token.openEnd);
+function promoteToContainer(xml4, token) {
+  if (token.kind === "container") return xml4;
+  const tagText = xml4.slice(token.openStart, token.openEnd);
   if (!tagText.endsWith("/>")) fail6("expected a self-closing tag ending in '/>'", { at: token.openStart });
   const opened = tagText.slice(0, -2) + ">";
-  return xml3.slice(0, token.openStart) + opened + `</${token.name}>` + xml3.slice(token.openEnd);
+  return xml4.slice(0, token.openStart) + opened + `</${token.name}>` + xml4.slice(token.openEnd);
 }
-function patchOpenTagAttrs(xml3, token, attrs) {
-  let openTag = xml3.slice(token.openStart, token.openEnd);
+function patchOpenTagAttrs(xml4, token, attrs) {
+  let openTag = xml4.slice(token.openStart, token.openEnd);
   for (const [name, value] of attrs) {
     const attrRe = new RegExp(`\\s+bo:${name}="[^"]*"`);
     if (value === null) {
@@ -141997,18 +142285,18 @@ function patchOpenTagAttrs(xml3, token, attrs) {
       openTag = openTag.slice(0, insertAt) + rendered + openTag.slice(insertAt);
     }
   }
-  return xml3.slice(0, token.openStart) + openTag + xml3.slice(token.openEnd);
+  return xml4.slice(0, token.openStart) + openTag + xml4.slice(token.openEnd);
 }
-function spliceInsertChild(xml3, tokens, nodeName, kind, fragment, opts) {
+function spliceInsertChild(xml4, tokens, nodeName, kind, fragment, opts) {
   const nodeTok = findNodeToken(tokens, nodeName, opts?.nodeId);
   if (!nodeTok) fail6(`node "${nodeName}" not found`, { node: nodeName });
   if (nodeTok.kind === "empty") {
-    const opened = promoteToContainer(xml3, nodeTok);
+    const opened = promoteToContainer(xml4, nodeTok);
     const insertAt = nodeTok.openEnd - 1;
     return splice(opened, insertAt, fragment);
   }
   const at = insertionPoint(tokens, nodeTok, kind);
-  return splice(xml3, at, fragment);
+  return splice(xml4, at, fragment);
 }
 var NODE_REF_KINDS = [
   "persistentStructureRef",
@@ -142020,19 +142308,19 @@ var NODE_REF_KINDS = [
   "dataAccessClassRef",
   "authorizationClassRef"
 ];
-function spliceSetElementRef(xml3, tokens, ownerToken, refTag, ref2, childOrder) {
+function spliceSetElementRef(xml4, tokens, ownerToken, refTag, ref2, childOrder) {
   const existing = tokens.find(
     (t) => t.name === refTag && t.depth === ownerToken.depth + 1 && t.openStart > ownerToken.openStart && t.openStart < ownerToken.closeEnd
   );
   if (ref2 === null) {
-    return existing ? xml3.slice(0, existing.openStart) + xml3.slice(existing.closeEnd) : xml3;
+    return existing ? xml4.slice(0, existing.openStart) + xml4.slice(existing.closeEnd) : xml4;
   }
   const fragment = renderRef2(refTag, ref2);
   if (existing) {
-    return xml3.slice(0, existing.openStart) + fragment + xml3.slice(existing.closeEnd);
+    return xml4.slice(0, existing.openStart) + fragment + xml4.slice(existing.closeEnd);
   }
   if (ownerToken.kind === "empty") {
-    const opened = promoteToContainer(xml3, ownerToken);
+    const opened = promoteToContainer(xml4, ownerToken);
     const insertAt2 = ownerToken.openEnd - 1;
     return splice(opened, insertAt2, fragment);
   }
@@ -142046,12 +142334,12 @@ function spliceSetElementRef(xml3, tokens, ownerToken, refTag, ref2, childOrder)
     if (idx2 <= targetIdx) insertAt = t.closeEnd;
     else break;
   }
-  return splice(xml3, insertAt, fragment);
+  return splice(xml4, insertAt, fragment);
 }
-function spliceSetNodeRef(xml3, tokens, nodeName, refKind, ref2, opts) {
+function spliceSetNodeRef(xml4, tokens, nodeName, refKind, ref2, opts) {
   const nodeTok = findNodeToken(tokens, nodeName, opts?.nodeId);
   if (!nodeTok) fail6(`node "${nodeName}" not found`, { node: nodeName });
-  return spliceSetElementRef(xml3, tokens, nodeTok, `bo:${refKind}`, ref2, NODE_CHILD_ORDER);
+  return spliceSetElementRef(xml4, tokens, nodeTok, `bo:${refKind}`, ref2, NODE_CHILD_ORDER);
 }
 function escapeAttrValue(v, context) {
   if (v === "undefined" || v === "null") {
@@ -142555,6 +142843,122 @@ function classifyNode(model, node2) {
   return classifyNodes(model).get(node2.name.toLowerCase()) ?? { kind: "standard" };
 }
 
+// src/adt/class-interfaces.ts
+var import_utilities3 = __toESM(require_utilities(), 1);
+var TYPE_HIERARCHY_URL = "/sap/bc/adt/abapsource/typehierarchy";
+var CLASS_DEFINITION_LINE = /^\s*class\s+(\S+)\s+definition\b/i;
+var CLASS_IMPLEMENTATION_LINE = /^\s*class\s+\S+\s+implementation\b/im;
+function escapeRegExp6(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function definitionNamePosition(source, className) {
+  const lines = source.split(/\r?\n/);
+  const want = className.toLowerCase();
+  for (let i = 0; i < lines.length; i++) {
+    const line2 = lines[i];
+    const m = CLASS_DEFINITION_LINE.exec(line2);
+    if (m && m[1].toLowerCase() === want) {
+      return { line: i + 1, column: line2.indexOf(m[1]) };
+    }
+  }
+  return void 0;
+}
+function stripComments(text5) {
+  return text5.split(/\r?\n/).map((line2) => line2.startsWith("*") ? "" : line2.replace(/".*$/, "")).join("\n");
+}
+function interfacesFromDefinition(source) {
+  const implMatch = CLASS_IMPLEMENTATION_LINE.exec(source);
+  const definitionPart = stripComments(implMatch ? source.slice(0, implMatch.index) : source);
+  const interfaces = [];
+  const seen = /* @__PURE__ */ new Set();
+  const stmtRe = /\binterfaces\b\s*:?\s*([^.]*)\./gi;
+  let m;
+  while ((m = stmtRe.exec(definitionPart)) !== null) {
+    for (const part of m[1].split(",")) {
+      const token = part.trim().split(/\s+/)[0];
+      if (!token) continue;
+      const upper = token.toUpperCase();
+      if (!seen.has(upper)) {
+        seen.add(upper);
+        interfaces.push(upper);
+      }
+    }
+  }
+  return {
+    interfaces,
+    inheriting: /\binheriting\s+from\b/i.test(definitionPart)
+  };
+}
+async function fetchImplementedInterfaces(conn, className, source) {
+  const pos = definitionNamePosition(source, className);
+  if (!pos) return void 0;
+  let body;
+  try {
+    ({ body } = await conn.post(TYPE_HIERARCHY_URL, {
+      headers: { "Content-Type": "text/plain", Accept: "application/*" },
+      qs: {
+        uri: `/sap/bc/adt/oo/classes/${encodeURIComponent(className.toLowerCase())}/source/main#start=${pos.line},${pos.column}`,
+        type: "superTypes"
+      },
+      body: source
+    }));
+  } catch {
+    return void 0;
+  }
+  if (!body.trim()) return void 0;
+  const parsed = (0, import_utilities3.fullParse)(body);
+  const info = (0, import_utilities3.xmlNode)(parsed, "hierarchy:info");
+  if (!info) return void 0;
+  const entries = (0, import_utilities3.xmlArray)(parsed, "hierarchy:info", "entries", "entry");
+  const interfaces = [];
+  for (const e of entries) {
+    const attrs = (0, import_utilities3.xmlNodeAttr)(e);
+    if (attrs["adtcore:type"] === "INTF/OI" && typeof attrs["adtcore:name"] === "string") {
+      interfaces.push(attrs["adtcore:name"].toUpperCase());
+    }
+  }
+  return interfaces;
+}
+async function checkClassImplements(conn, className, source, iface) {
+  const want = iface.toUpperCase();
+  const hierarchy = await fetchImplementedInterfaces(conn, className, source);
+  if (hierarchy !== void 0) {
+    const implemented = hierarchy.includes(want);
+    return {
+      implemented,
+      via: "hierarchy",
+      detail: implemented ? `${iface} listed in the ADT type hierarchy` : `${iface} not in the ADT type hierarchy (own and inherited interfaces)`
+    };
+  }
+  const { interfaces, inheriting } = interfacesFromDefinition(source);
+  if (interfaces.includes(want)) {
+    return {
+      implemented: true,
+      via: "source",
+      detail: `${iface} declared in the definition part`
+    };
+  }
+  if (inheriting) {
+    return {
+      implemented: void 0,
+      via: "source",
+      detail: `${iface} not declared in the definition part, the class inherits from a superclass, and the ADT type hierarchy was unavailable`
+    };
+  }
+  return {
+    implemented: false,
+    via: "source",
+    detail: `${iface} not declared in the definition part (ADT type hierarchy unavailable)`
+  };
+}
+function hasMethodImplementation(source, method) {
+  const re = new RegExp("\\bmethod\\s+(?:[\\w/]+~)?" + escapeRegExp6(method) + "\\b", "i");
+  return re.test(stripComments(source));
+}
+function hasImplementationPart(source) {
+  return CLASS_IMPLEMENTATION_LINE.test(stripComments(source));
+}
+
 // src/adt/bopf.ts
 init_package_ref();
 var BOPF_COLLECTION = "/sap/bc/adt/bopf/businessobjects";
@@ -142716,7 +143120,7 @@ async function discloseFailedPut(conn, bo, base) {
 async function putModel(conn, session, bo, mutate, authorized) {
   assertAuthorizedMatches(authorized, { name: bo }, "putModel");
   const uri = bopfUri(bo);
-  const xml3 = await withRelockRetry({
+  const xml4 = await withRelockRetry({
     session,
     uri,
     lockAccept: BOPF_LOCK_ACCEPT,
@@ -142754,7 +143158,7 @@ async function putModel(conn, session, bo, mutate, authorized) {
       return payload;
     }
   });
-  void xml3;
+  void xml4;
   const corr = { kind: "local" };
   return { ...await readModel(conn, bo), corr };
 }
@@ -143218,11 +143622,11 @@ async function searchBusinessObjects(conn, input) {
   }
   return parseSearchResults(body);
 }
-function parseSearchResults(xml3) {
+function parseSearchResults(xml4) {
   const out = [];
   const re = /<[\w:]*[Oo]bjectReference\b[^>]*\/?>/g;
   let m;
-  while (m = re.exec(xml3)) {
+  while (m = re.exec(xml4)) {
     const tag = m[0];
     const uri = attr5(tag, "uri");
     const type = attr5(tag, "type");
@@ -143397,18 +143801,17 @@ async function evaluateClassRef(conn, site) {
   if (source === void 0) {
     return { site, verdict: "unchecked", detail: "readCurrentSource returned no source for a target marked exists" };
   }
-  const verdict = source.includes("IMPLEMENTATION") ? "present" : "declaration-only";
+  const verdict = hasImplementationPart(source) ? "present" : "declaration-only";
   if (verdict === "declaration-only") {
     return { site, verdict, detail: "class exists but has no IMPLEMENTATION section" };
   }
-  if (site.requiredInterface && !source.includes(site.requiredInterface)) {
-    return {
-      site,
-      verdict: "wrong-interface",
-      detail: `source does not mention ${site.requiredInterface} (substring match only \u2014 cannot see inherited interfaces)`
-    };
+  if (site.requiredInterface) {
+    const check2 = await checkClassImplements(conn, className, source, site.requiredInterface);
+    if (check2.implemented === true) return { site, verdict: "present" };
+    if (check2.implemented === false) return { site, verdict: "wrong-interface", detail: check2.detail };
+    return { site, verdict: "unchecked", detail: check2.detail };
   }
-  return { site, verdict };
+  return { site, verdict: "present" };
 }
 
 // src/tools/bopf-spec-keys.ts
@@ -144107,8 +144510,8 @@ function mutateRemoveDependentObject(freshXml, tokens, input) {
       { node: parentName, name: emb }
     );
   }
-  let xml3 = spliceOut(freshXml, assocRange);
-  const tokens2 = scanModel(xml3);
+  let xml4 = spliceOut(freshXml, assocRange);
+  const tokens2 = scanModel(xml4);
   const nodeRange = locate(tokens2, { node: embNodeName });
   if (!nodeRange) {
     throw new AbapError(
@@ -144117,8 +144520,8 @@ function mutateRemoveDependentObject(freshXml, tokens, input) {
       { node: embNodeName, association: emb }
     );
   }
-  xml3 = spliceOut(xml3, nodeRange);
-  return xml3;
+  xml4 = spliceOut(xml4, nodeRange);
+  return xml4;
 }
 function mutateDelegation(freshXml, input) {
   const tokens = scanModel(freshXml);
@@ -144320,10 +144723,10 @@ function buildShowResponse(model, maxChars) {
   });
   return buildResponse({ header, sections, notes: SHOW_NOTES, maxChars }).text;
 }
-function buildRawResponse(bo, xml3, maxChars) {
+function buildRawResponse(bo, xml4, maxChars) {
   return buildResponse({
-    header: { bo, chars: xml3.length },
-    body: xml3,
+    header: { bo, chars: xml4.length },
+    body: xml4,
     bodyLabel: "XML",
     maxChars
   }).text;
@@ -144388,8 +144791,8 @@ async function runBopfRead(deps, args) {
   }
   const bo = input.bo;
   if (mode === "raw") {
-    const { xml: xml3 } = await deps.pool.withRead("abap_bopf", (conn) => readModel(conn, bo));
-    return ok10(buildRawResponse(bo, xml3, deps.cfg.maxResponseChars));
+    const { xml: xml4 } = await deps.pool.withRead("abap_bopf", (conn) => readModel(conn, bo));
+    return ok10(buildRawResponse(bo, xml4, deps.cfg.maxResponseChars));
   }
   if (mode === "check_refs") {
     const maxSites = input.max_sites ?? DEFAULT_CHECK_REFS_MAX_SITES;
@@ -144523,16 +144926,22 @@ async function danglingRefPreflight(conn, operation, spec, allowDangling) {
         "Create the class first, or pass allow_dangling_ref: true to proceed anyway."
       );
     }
-    throw e;
+    return { className, verdict: "unchecked", detail: describeUnknownError(e) };
   }
-  if (source === void 0 || !source.includes("IMPLEMENTATION")) {
+  if (source === void 0 || !hasImplementationPart(source)) {
     return { className, verdict: "declaration-only" };
   }
   const requiredInterface = IMPL_INTERFACE_BY_OP[operation];
-  if (requiredInterface && !source.includes(requiredInterface)) {
-    return { className, verdict: "wrong-interface" };
+  let verdict = { className, verdict: "present" };
+  if (requiredInterface) {
+    const check2 = await checkClassImplements(conn, className, source, requiredInterface);
+    if (check2.implemented === false) verdict = { className, verdict: "wrong-interface", detail: check2.detail };
+    else if (check2.implemented === void 0) verdict = { className, verdict: "unchecked", detail: check2.detail };
   }
-  return { className, verdict: "present" };
+  if ((operation === "add_query" || operation === "set_query_fields") && !hasMethodImplementation(source, "retrieve_default_param")) {
+    verdict = { ...verdict, missingMethods: ["/BOBF/IF_FRW_QUERY~RETRIEVE_DEFAULT_PARAM"] };
+  }
+  return verdict;
 }
 function actionRefPreflight(model, ownerNode, spec, allowDangling) {
   if (!spec || !Array.isArray(spec.triggers)) return;
@@ -145029,7 +145438,7 @@ function buildAlternativeKeyFields(name, nodeId, spec) {
     keyElements: strArray(spec.keyElements)
   };
 }
-function insertNodeAtRoot(xml3, tokens, fragment) {
+function insertNodeAtRoot(xml4, tokens, fragment) {
   const root = tokens.find((t) => t.depth === 0);
   if (!root) {
     throw new AbapError("UNSUPPORTED", "BOPF XML: no root element found while inserting a new node.", {});
@@ -145044,7 +145453,7 @@ function insertNodeAtRoot(xml3, tokens, fragment) {
   }
   const depth1 = tokens.filter((t) => t.depth === 1);
   const insertAt = depth1.length ? Math.max(...depth1.map((t) => t.closeEnd)) : root.openEnd;
-  return splice(xml3, insertAt, fragment);
+  return splice(xml4, insertAt, fragment);
 }
 var NODE_FLAG_NAMES = [
   "rootNode",
@@ -145058,7 +145467,7 @@ var NODE_FLAG_NAMES = [
   "objectModelGenerated",
   "objectModelObsolete"
 ];
-function patchNodeFlags(xml3, tokens, sel, spec) {
+function patchNodeFlags(xml4, tokens, sel, spec) {
   const nodeName = sel.node;
   let currentName = nodeName;
   const nodeTok = tokens.find(
@@ -145070,7 +145479,7 @@ function patchNodeFlags(xml3, tokens, sel, spec) {
       nodeId: sel.nodeId
     });
   }
-  let openTag = xml3.slice(nodeTok.openStart, nodeTok.openEnd);
+  let openTag = xml4.slice(nodeTok.openStart, nodeTok.openEnd);
   if (typeof spec.name === "string") {
     if (!spec.name.trim()) {
       throw new AbapError("BAD_INPUT", `set_node_flags: "name" must be a non-empty string.`, { name: spec.name });
@@ -145105,7 +145514,7 @@ function patchNodeFlags(xml3, tokens, sel, spec) {
       openTag = openTag.slice(0, insertAt) + rendered + openTag.slice(insertAt);
     }
   }
-  let result = xml3.slice(0, nodeTok.openStart) + openTag + xml3.slice(nodeTok.openEnd);
+  let result = xml4.slice(0, nodeTok.openStart) + openTag + xml4.slice(nodeTok.openEnd);
   const refKeys = NODE_REF_KINDS.filter((k) => k in spec);
   for (const key of refKeys) {
     const refKind = key;
@@ -145440,8 +145849,15 @@ function buildEditResponse(bo, model, danglingVerdict, activation, recovered, jo
   }
   if (danglingVerdict && danglingVerdict.verdict !== "present") {
     notes.push(
-      `Dangling-ref check on class ${danglingVerdict.className}: ${danglingVerdict.verdict}` + (danglingVerdict.verdict === "allowed" ? " \u2014 allow_dangling_ref: true was passed, so this proceeded despite the class not existing as a source artifact. A determination/validation/action/query bound to it activates cleanly and silently never fires." : danglingVerdict.verdict === "declaration-only" ? " \u2014 the class exists but has no IMPLEMENTATION section yet." : " \u2014 the class exists but does not (yet) implement the interface this element's role requires (substring match only; inherited interfaces are not visible here).")
+      `Dangling-ref check on class ${danglingVerdict.className}: ${danglingVerdict.verdict}` + (danglingVerdict.verdict === "allowed" ? " \u2014 allow_dangling_ref: true was passed, so this proceeded despite the class not existing as a source artifact. A determination/validation/action/query bound to it activates cleanly and silently never fires." : danglingVerdict.verdict === "declaration-only" ? " \u2014 the class exists but has no IMPLEMENTATION section yet." : danglingVerdict.verdict === "wrong-interface" ? ` \u2014 the class exists but does not implement the interface this element's role requires (${danglingVerdict.detail ?? "see check_refs"}).` : ` \u2014 could not determine whether the class implements the required interface (${danglingVerdict.detail ?? "source or type hierarchy unreadable"}); proceeding.`)
     );
+  }
+  if (danglingVerdict?.missingMethods?.length) {
+    for (const m of danglingVerdict.missingMethods) {
+      notes.push(
+        `Class ${danglingVerdict.className} has no METHOD ${m.toLowerCase()} implementation \u2014 the interface marks it DEFAULT IGNORE so the syntax check passes, but BOPF activation fails on the missing method. Add an empty implementation before activating.`
+      );
+    }
   }
   if (activation) {
     notes.push(
@@ -145490,6 +145906,35 @@ function resolveTargetNodeName2(ref2) {
   }
   const tilde = ref2.name.lastIndexOf("~");
   return tilde >= 0 ? ref2.name.slice(tilde + 1) : ref2.name;
+}
+function qualifyTargetNodeRef(model, operation, spec) {
+  const targetNodeRef = spec?.targetNodeRef;
+  if (!targetNodeRef || typeof targetNodeRef !== "object") return { spec };
+  const targetNodeRefObj = targetNodeRef;
+  const raw = targetNodeRefObj.name;
+  if (typeof raw !== "string") return { spec };
+  const { bo, node: node2 } = splitTargetNodeRef(raw);
+  if (bo !== void 0 && bo.toLowerCase() !== model.name.toLowerCase()) {
+    return { spec };
+  }
+  const wantNode = (node2 ?? "").toLowerCase();
+  const found = model.nodes.find((n) => n.name.toLowerCase() === wantNode);
+  if (!found) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${operation} on ${model.name}: targetNodeRef "${raw}" names node "${node2}", which does not exist on ${model.name}. Available nodes: ${model.nodes.map((n) => n.name).join(", ")}.`,
+      { bo: model.name, targetNodeRef: raw, availableNodes: model.nodes.map((n) => n.name) },
+      `Use "<BO>~<NODE>" \u2014 for a same-BO target that is "${model.name}~<NODE>".`
+    );
+  }
+  const qualified = `${model.name}~${found.name}`;
+  const newRef = {
+    ...targetNodeRefObj,
+    name: bo === void 0 ? qualified : raw,
+    type: typeof targetNodeRefObj.type === "string" ? targetNodeRefObj.type : "BOBF"
+  };
+  const note = bo === void 0 ? `targetNodeRef "${raw}" had no "~" and was qualified to "${qualified}" \u2014 the target node is always <BO>~<NODE>, same-BO included.` : void 0;
+  return { spec: { ...spec, targetNodeRef: newRef }, note };
 }
 function findEquivalentAssociation(node2, implementationType, targetNode) {
   const wantType = implementationType.toLowerCase();
@@ -145864,6 +146309,12 @@ async function runBopfEdit(deps, args) {
     gateKey,
     (conn) => conn.withStatefulSession(async (session) => {
       const initial = await readModel(conn, bo);
+      let targetNodeNote;
+      if (input.operation === "add_association" || input.operation === "set_association_fields") {
+        const q = qualifyTargetNodeRef(initial.model, input.operation, input.spec);
+        input.spec = q.spec;
+        targetNodeNote = q.note;
+      }
       if (input.operation === "remove_node") {
         const target = requireNode(input).node.toLowerCase();
         const isRoot = initial.model.nodes.some((n) => n.name.toLowerCase() === target && n.rootNode);
@@ -145923,7 +146374,7 @@ async function runBopfEdit(deps, args) {
         const { result: putResult, entryId: id, settle } = await withJournalledMutation(
           deps.journal,
           {
-            begin: (xml3) => ({
+            begin: (xml4) => ({
               operation: "update",
               object: journalRef({
                 name: bo,
@@ -145933,7 +146384,7 @@ async function runBopfEdit(deps, args) {
               }),
               existedBefore: true,
               beforeCapture: "captured",
-              beforeSource: xml3,
+              beforeSource: xml4,
               irreversible: true,
               systemKey: systemKey(conn.cfg),
               tool: "abap_bopf_edit"
@@ -145943,12 +146394,12 @@ async function runBopfEdit(deps, args) {
             conn,
             session,
             bo,
-            async (xml3) => {
+            async (xml4) => {
               if (!fired) {
                 fired = true;
-                await onBeforeImage(xml3);
+                await onBeforeImage(xml4);
               }
-              return mutateModel(xml3, input);
+              return mutateModel(xml4, input);
             },
             authorized
           )
@@ -146108,7 +146559,13 @@ async function runBopfEdit(deps, args) {
         );
         activation = await activateBusinessObject(conn, bo);
       }
-      return { model: afterMutate.model, danglingVerdict, activation, entryId };
+      return {
+        model: afterMutate.model,
+        danglingVerdict,
+        activation,
+        entryId,
+        notes: targetNodeNote ? [targetNodeNote] : []
+      };
     })
   ).catch(async (e) => {
     if (input.operation === "activate" && isAbapError(e) && e.code === "TIMEOUT" && e.details.operation === "activate") {
@@ -146121,6 +146578,7 @@ async function runBopfEdit(deps, args) {
           danglingVerdict: void 0,
           activation: { activated: true, messages: [], version: "active" },
           entryId: void 0,
+          notes: [],
           timeoutNote: `activation of ${bo} did not answer within ${timeoutMs} ms (${envVar}) but completed on the server after the client timeout: a fresh session re-read shows version active.`
         };
       }
@@ -146151,9 +146609,14 @@ async function runBopfEdit(deps, args) {
       false,
       result.entryId,
       deps.cfg.maxResponseChars,
-      [categoryNote, addNodeNote, altKeyNote, result.timeoutNote, ...delegationNotes(input)].filter(
-        (n) => n !== void 0
-      )
+      [
+        categoryNote,
+        addNodeNote,
+        altKeyNote,
+        result.timeoutNote,
+        ...delegationNotes(input),
+        ...result.notes ?? []
+      ].filter((n) => n !== void 0)
     ),
     result.entryId
   );
@@ -147451,14 +147914,14 @@ function buildOutlineResponse(query, result, detailPassed, xmlWindow, maxChars) 
       'Application-scope configs (config_type "02") are read via a direct SELECT against WDY_CONFIG_APPL rather than a confirmed SAP API \u2014 its exact field names (xcontent/content) are inferred, not independently verified against a field dump. If this activation succeeded, the fields exist as assumed; delta tracking (CONFIG_IDPAR) is not implemented for this branch.'
     );
   }
-  const xml3 = t.outlineXml ?? "";
-  const hasXml = xml3.trim() !== "";
+  const xml4 = t.outlineXml ?? "";
+  const hasXml = xml4.trim() !== "";
   if (!hasXml) {
     notes.push("No XML content was returned \u2014 the configuration may not exist, or its XCONTENT is empty.");
   }
-  const fullLen = xml3.length;
+  const fullLen = xml4.length;
   const windowRequested = xmlWindow.offset !== void 0 || xmlWindow.limit !== void 0;
-  let bodyXml = xml3;
+  let bodyXml = xml4;
   let xmlWindowChars;
   let xmlWindowRange;
   let xmlNextOffset;
@@ -147466,7 +147929,7 @@ function buildOutlineResponse(query, result, detailPassed, xmlWindow, maxChars) 
     const rawOffset = xmlWindow.offset ?? 0;
     const offset = Math.min(Math.max(0, rawOffset), fullLen);
     const end = xmlWindow.limit === void 0 ? fullLen : Math.min(fullLen, offset + Math.max(0, xmlWindow.limit));
-    bodyXml = xml3.slice(offset, end);
+    bodyXml = xml4.slice(offset, end);
     const remaining = fullLen - end;
     xmlWindowChars = bodyXml.length;
     xmlWindowRange = `${offset}-${end}`;
@@ -147487,9 +147950,9 @@ function buildOutlineResponse(query, result, detailPassed, xmlWindow, maxChars) 
     notes.push("xml_offset/xml_limit ignored \u2014 no XML content to window.");
   } else {
     notes.push('mode "outline" always returns the raw XML verbatim.');
-    if (hasXml && xml3.length > XML_DISCOVERY_THRESHOLD_CHARS) {
+    if (hasXml && xml4.length > XML_DISCOVERY_THRESHOLD_CHARS) {
       notes.push(
-        `XML is ${xml3.length} chars (~${Math.round(xml3.length / CHARS_PER_TOKEN)} tokens) \u2014 xml_limit/xml_offset can fetch less.`
+        `XML is ${xml4.length} chars (~${Math.round(xml4.length / CHARS_PER_TOKEN)} tokens) \u2014 xml_limit/xml_offset can fetch less.`
       );
     }
   }
@@ -147510,7 +147973,7 @@ function buildOutlineResponse(query, result, detailPassed, xmlWindow, maxChars) 
       component: t.outlineMeta?.component || void 0,
       devclass: t.outlineMeta?.devclass || void 0,
       config_idpar: isRealDelta ? idpar : void 0,
-      xmlChars: xml3.length,
+      xmlChars: xml4.length,
       xmlWindowChars,
       xmlWindowRange,
       xmlNextOffset,
@@ -157101,7 +157564,7 @@ var REPEATABLE_JPATHS2 = /* @__PURE__ */ new Set([
 function asRecord3(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value) ? value : void 0;
 }
-function asArray5(value) {
+function asArray6(value) {
   if (Array.isArray(value)) return value;
   return value === void 0 || value === null ? [] : [value];
 }
@@ -157158,7 +157621,7 @@ function parseAtcCustomizing(body) {
   const root = asRecord3(doc["customizing"]);
   if (root === void 0) throw missingRoot("customizing", "customizing", body);
   const properties = [];
-  for (const raw of asArray5(asRecord3(root["properties"])?.["property"])) {
+  for (const raw of asArray6(asRecord3(root["properties"])?.["property"])) {
     const node2 = asRecord3(raw);
     const name = attr6(node2, "name");
     if (name === void 0 || name === "") continue;
@@ -157166,7 +157629,7 @@ function parseAtcCustomizing(body) {
   }
   const exemptionReasons = [];
   const reasons = asRecord3(asRecord3(root["exemption"])?.["reasons"])?.["reason"];
-  for (const raw of asArray5(reasons)) {
+  for (const raw of asArray6(reasons)) {
     const node2 = asRecord3(raw);
     const id = attr6(node2, "id");
     if (id === void 0 || id === "") continue;
@@ -157190,7 +157653,7 @@ function parseAtcRunAck(body) {
   const worklistId = elementText3(root["worklistId"])?.trim() ?? "";
   const timestamp = elementText3(root["worklistTimestamp"])?.trim();
   const infos = [];
-  for (const raw of asArray5(asRecord3(root["infos"])?.["info"])) {
+  for (const raw of asArray6(asRecord3(root["infos"])?.["info"])) {
     const node2 = asRecord3(raw);
     const type = elementText3(node2?.["type"]) ?? attr6(node2, "type") ?? "";
     const description = elementText3(node2?.["description"]) ?? attr6(node2, "description") ?? elementText3(raw) ?? "";
@@ -157209,7 +157672,7 @@ function parseAtcWorklist(body) {
   const root = asRecord3(doc["worklist"]);
   if (root === void 0) throw missingRoot("worklist", "worklist", body);
   const objectSets = [];
-  for (const raw of asArray5(asRecord3(root["objectSets"])?.["objectSet"])) {
+  for (const raw of asArray6(asRecord3(root["objectSets"])?.["objectSet"])) {
     const node2 = asRecord3(raw);
     const name = attr6(node2, "name");
     if (name === void 0) continue;
@@ -157221,7 +157684,7 @@ function parseAtcWorklist(body) {
     });
   }
   const objects = [];
-  for (const raw of asArray5(asRecord3(root["objects"])?.["object"])) {
+  for (const raw of asArray6(asRecord3(root["objects"])?.["object"])) {
     const node2 = asRecord3(raw);
     if (node2 === void 0) continue;
     objects.push(parseObject(node2));
@@ -157240,7 +157703,7 @@ function parseAtcWorklist(body) {
 }
 function parseObject(node2) {
   const findings = [];
-  for (const raw of asArray5(asRecord3(node2["findings"])?.["finding"])) {
+  for (const raw of asArray6(asRecord3(node2["findings"])?.["finding"])) {
     const f = asRecord3(raw);
     if (f === void 0) continue;
     findings.push(parseFinding(f));
@@ -157279,7 +157742,7 @@ function parseFinding(node2) {
   };
 }
 function findDocumentationUri(node2) {
-  for (const raw of asArray5(node2["link"])) {
+  for (const raw of asArray6(node2["link"])) {
     const link = asRecord3(raw);
     if (attr6(link, "rel") !== DOCUMENTATION_LINK_REL) continue;
     const href = attr6(link, "href");
@@ -157359,7 +157822,7 @@ function parseCheckVariantList(body) {
   }
   const root = asRecord3(rawRoot);
   const variants = [];
-  for (const raw of asArray5(root?.["objectReference"])) {
+  for (const raw of asArray6(root?.["objectReference"])) {
     const node2 = asRecord3(raw);
     const type = attrOrEmpty2(node2, "type");
     if (!type.startsWith("CHKV")) continue;
@@ -158464,7 +158927,7 @@ var quickfixXml = new XMLParser({
 function asRecord4(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value) ? value : void 0;
 }
-function asArray6(value) {
+function asArray7(value) {
   if (Array.isArray(value)) return value;
   return value === void 0 || value === null ? [] : [value];
 }
@@ -158529,13 +158992,13 @@ function deriveParameter(type, userContent) {
   }
   return INTERACTIVE_QUICKFIX_PARAMETER_LABELS[type];
 }
-function parseEvaluationResults(xml3) {
-  const doc = parseXmlDocument2(xml3, "quick-fix evaluation");
+function parseEvaluationResults(xml4) {
+  const doc = parseXmlDocument2(xml4, "quick-fix evaluation");
   const rootValue = doc["evaluationResults"];
-  if (rootValue === void 0) throw missingRoot2("quick-fix evaluation", "qf:evaluationResults", xml3);
+  if (rootValue === void 0) throw missingRoot2("quick-fix evaluation", "qf:evaluationResults", xml4);
   const root = asRecord4(rootValue) ?? {};
   const results = [];
-  for (const raw of asArray6(root["evaluationResult"])) {
+  for (const raw of asArray7(root["evaluationResult"])) {
     const node2 = asRecord4(raw);
     if (node2 === void 0) continue;
     const ref2 = asRecord4(node2["objectReference"]);
@@ -158580,12 +159043,12 @@ function uriPath(uri) {
   const i = uri.indexOf("#");
   return i === -1 ? uri : uri.slice(0, i);
 }
-function parseProposalDeltas(xml3, expectedSourceUri) {
-  const doc = parseXmlDocument2(xml3, "quick-fix proposal");
+function parseProposalDeltas(xml4, expectedSourceUri) {
+  const doc = parseXmlDocument2(xml4, "quick-fix proposal");
   const root = asRecord4(doc["proposalResult"]);
-  if (root === void 0) throw missingRoot2("quick-fix proposal", "qf:proposalResult", xml3);
+  if (root === void 0) throw missingRoot2("quick-fix proposal", "qf:proposalResult", xml4);
   const edits = [];
-  for (const raw of asArray6(asRecord4(root["deltas"])?.["unit"])) {
+  for (const raw of asArray7(asRecord4(root["deltas"])?.["unit"])) {
     const node2 = asRecord4(raw);
     if (node2 === void 0) continue;
     const ref2 = asRecord4(node2["objectReference"]);
@@ -160596,7 +161059,7 @@ var REPEATABLE_JPATHS3 = /* @__PURE__ */ new Set([
 function asRecord5(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value) ? value : void 0;
 }
-function asArray7(value) {
+function asArray8(value) {
   if (Array.isArray(value)) return value;
   return value === void 0 || value === null ? [] : [value];
 }
@@ -160665,7 +161128,7 @@ function missingRoot3(what, root, body) {
   );
 }
 function linkHref2(links, rel) {
-  for (const raw of asArray7(links)) {
+  for (const raw of asArray8(links)) {
     const link = asRecord5(raw);
     if (attr10(link, "rel") === rel) return attr10(link, "href");
   }
@@ -160725,18 +161188,18 @@ function parseRunEntry(entry) {
     ...client === void 0 || client === "" ? {} : { client }
   };
 }
-function parseTraceRuns(xml3) {
-  const doc = parseDocument2(xml3, "run list");
+function parseTraceRuns(xml4) {
+  const doc = parseDocument2(xml4, "run list");
   if ("atom:entry" in doc) {
     const entry = asRecord5(doc["atom:entry"]);
     return entry === void 0 ? [] : [parseRunEntry(entry)];
   }
   if (!("atom:feed" in doc)) {
-    throw missingRoot3("run list", "atom:feed", xml3);
+    throw missingRoot3("run list", "atom:feed", xml4);
   }
   const feed = asRecord5(doc["atom:feed"]) ?? {};
   const runs = [];
-  for (const raw of asArray7(feed["atom:entry"])) {
+  for (const raw of asArray8(feed["atom:entry"])) {
     const entry = asRecord5(raw);
     if (entry === void 0) continue;
     runs.push(parseRunEntry(entry));
@@ -160744,7 +161207,7 @@ function parseTraceRuns(xml3) {
   return runs;
 }
 function authorByRole(authors, role) {
-  for (const raw of asArray7(authors)) {
+  for (const raw of asArray8(authors)) {
     const author = asRecord5(raw);
     if (attr10(author, "trc:role") !== role) continue;
     return elementText5(author?.["atom:name"]) ?? "";
@@ -160772,14 +161235,14 @@ function parseRequestEntry(entry) {
     completedExecutions: numAttr2(executions, "trc:completed")
   };
 }
-function parseTraceRequests(xml3) {
-  const doc = parseDocument2(xml3, "request list");
+function parseTraceRequests(xml4) {
+  const doc = parseDocument2(xml4, "request list");
   if (!("atom:feed" in doc)) {
-    throw missingRoot3("request list", "atom:feed", xml3);
+    throw missingRoot3("request list", "atom:feed", xml4);
   }
   const feed = asRecord5(doc["atom:feed"]) ?? {};
   const requests = [];
-  for (const raw of asArray7(feed["atom:entry"])) {
+  for (const raw of asArray8(feed["atom:entry"])) {
     const entry = asRecord5(raw);
     if (entry === void 0) continue;
     requests.push(parseRequestEntry(entry));
@@ -160801,12 +161264,12 @@ function parseHitEntry(node2) {
     ...dbAccessAnchor === void 0 || dbAccessAnchor === "" ? {} : { dbAccessAnchor: toNumber2(dbAccessAnchor) }
   };
 }
-function parseTraceHitList(xml3) {
-  const doc = parseDocument2(xml3, "hit list");
+function parseTraceHitList(xml4) {
+  const doc = parseDocument2(xml4, "hit list");
   const root = asRecord5(doc["trc:hitlist"]);
-  if (root === void 0) throw missingRoot3("hit list", "trc:hitlist", xml3);
+  if (root === void 0) throw missingRoot3("hit list", "trc:hitlist", xml4);
   const entries = [];
-  for (const raw of asArray7(root["trc:entry"])) {
+  for (const raw of asArray8(root["trc:entry"])) {
     const node2 = asRecord5(raw);
     if (node2 === void 0) continue;
     entries.push(parseHitEntry(node2));
@@ -160840,18 +161303,18 @@ function parseTableInfo(node2) {
     package: attrOrEmpty4(node2, "adtcore:package")
   };
 }
-function parseTraceDbAccesses(xml3) {
-  const doc = parseDocument2(xml3, "DB accesses");
+function parseTraceDbAccesses(xml4) {
+  const doc = parseDocument2(xml4, "DB accesses");
   const root = asRecord5(doc["trc:dbAccesses"]);
-  if (root === void 0) throw missingRoot3("DB accesses", "trc:dbAccesses", xml3);
+  if (root === void 0) throw missingRoot3("DB accesses", "trc:dbAccesses", xml4);
   const accesses = [];
-  for (const raw of asArray7(root["trc:dbAccess"])) {
+  for (const raw of asArray8(root["trc:dbAccess"])) {
     const node2 = asRecord5(raw);
     if (node2 === void 0) continue;
     accesses.push(parseDbAccess(node2));
   }
   const tables = [];
-  for (const raw of asArray7(asRecord5(root["trc:tables"])?.["trc:table"])) {
+  for (const raw of asArray8(asRecord5(root["trc:tables"])?.["trc:table"])) {
     const node2 = asRecord5(raw);
     if (node2 === void 0) continue;
     tables.push(parseTableInfo(node2));
@@ -160878,12 +161341,12 @@ function parseStatement(node2) {
     netTime: timeValue(node2["trc:traceEventNetTime"])
   };
 }
-function parseTraceStatements(xml3) {
-  const doc = parseDocument2(xml3, "call tree");
+function parseTraceStatements(xml4) {
+  const doc = parseDocument2(xml4, "call tree");
   const root = asRecord5(doc["trc:statements"]);
-  if (root === void 0) throw missingRoot3("call tree", "trc:statements", xml3);
+  if (root === void 0) throw missingRoot3("call tree", "trc:statements", xml4);
   const statements = [];
-  for (const raw of asArray7(root["trc:statement"])) {
+  for (const raw of asArray8(root["trc:statement"])) {
     const node2 = asRecord5(raw);
     if (node2 === void 0) continue;
     statements.push(parseStatement(node2));

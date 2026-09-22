@@ -304,3 +304,52 @@ describe("every part of the response is inside the budget", () => {
     expect(Math.max(...seen)).toBe(TOTAL);
   });
 });
+
+describe("omissionMarker", () => {
+  const marker = (n: number) => `… (${n} lines omitted) …`;
+
+  it("appears once, as the last line of the body block, immediately after the last kept body line", () => {
+    const r = buildResponse({
+      header: { object: "ZCL_X" },
+      body: lines(300),
+      bodyLabel: "OUTPUT",
+      maxChars: 1500,
+      omissionMarker: marker,
+    });
+    expect(r.text.length).toBeLessThanOrEqual(1500);
+    expect(r.truncated).toBe(true);
+
+    const matches = [...r.text.matchAll(/… \((\d+) lines omitted\) …/g)];
+    expect(matches).toHaveLength(1);
+    expect(Number(matches[0]![1])).toBe(300 - (r.returnedLines ?? 0));
+
+    const cutIdx = r.text.indexOf("\n\n--- TRUNCATED ---");
+    expect(cutIdx).toBeGreaterThan(-1);
+    const bodyBlockLines = r.text.slice(0, cutIdx).split("\n");
+    expect(bodyBlockLines[bodyBlockLines.length - 1]).toBe(marker(Number(matches[0]![1])));
+    expect(bodyBlockLines[bodyBlockLines.length - 2]).toMatch(/^line \d{5} x+$/);
+  });
+
+  it("never appears when no omissionMarker callback is supplied", () => {
+    const r = buildResponse({
+      header: { object: "ZCL_X" },
+      body: lines(300),
+      bodyLabel: "OUTPUT",
+      maxChars: 1500,
+    });
+    expect(r.truncated).toBe(true);
+    expect(r.text).not.toContain("omitted");
+  });
+
+  it("is never invoked on the fast path (nothing cut, so nothing to mark)", () => {
+    const r = buildResponse({
+      header: { object: "ZCL_X" },
+      body: lines(10),
+      bodyLabel: "OUTPUT",
+      maxChars: 10_000,
+      omissionMarker: marker,
+    });
+    expect(r.truncated).toBe(false);
+    expect(r.text).not.toContain("omitted");
+  });
+});

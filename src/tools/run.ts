@@ -25,7 +25,7 @@ import type { AbapConnection } from "../adt/connection.js";
 import { AbapError, isAbapError } from "../adt/errors.js";
 import { checkActivation, resolveObject, type ActivationState } from "../adt/resolve.js";
 import { readSource } from "../adt/source.js";
-import { BRIDGE_PACKAGE, bridgeClassName, runClass, runReport, type RunResult } from "../adt/run.js";
+import { BRIDGE_PACKAGE, bridgeClassName, runClass, runReport, type RunResult, type DroppedLine } from "../adt/run.js";
 import {
   authTraceOf,
   renderFailedAuthChecks,
@@ -64,6 +64,14 @@ export const runInputSchema = {
   mode: z.enum(["class", "report", "auto"]).optional().describe("Default auto."),
   // Report mode only: fills PARAMETERS/SELECT-OPTIONS — see ../adt/run-parameters.ts.
   parameters: z.array(runParameterSchema).optional(),
+  keep_blank_lines: z
+    .boolean()
+    .optional()
+    .describe(
+      "Return the captured list unfiltered: keep the list page header and rule line, trailing " +
+        "blank lines and blank padding exactly as captured (only trailing spaces per line are " +
+        "still trimmed). Default false.",
+    ),
   auth_trace: z
     .boolean()
     .optional()
@@ -104,6 +112,65 @@ function authTraceSection(outcome: AuthTraceOutcome): { title: string; content: 
   const rendered = renderFailedAuthChecks(outcome.checks);
   const [, ...rest] = rendered.split("\n");
   return { title: "FAILED AUTH CHECKS", content: rest.join("\n") };
+}
+
+/**
+ * Render 1-based positions the way a reader would say them: "9", "1 and 9",
+ * "1, 4 and 9" — with runs of 3+ consecutive numbers collapsed to "3-7"
+ * (so [1,3,4,5,9] -> "1, 3-5 and 9"). Assumes no duplicates.
+ */
+export function formatPositions(positions: number[]): string {
+  const sorted = [...positions].sort((a, b) => a - b);
+  const tokens: string[] = [];
+  let i = 0;
+  while (i < sorted.length) {
+    let j = i;
+    while (j + 1 < sorted.length && sorted[j + 1] === sorted[j]! + 1) j++;
+    if (j - i + 1 >= 3) {
+      tokens.push(`${sorted[i]}-${sorted[j]}`);
+    } else {
+      for (let k = i; k <= j; k++) tokens.push(String(sorted[k]));
+    }
+    i = j + 1;
+  }
+  if (tokens.length === 1) return tokens[0]!;
+  if (tokens.length === 2) return `${tokens[0]} and ${tokens[1]}`;
+  return `${tokens.slice(0, -1).join(", ")} and ${tokens[tokens.length - 1]}`;
+}
+
+/**
+ * #180: turns `RunResult.dropped` into one sentence, replacing the old
+ * "N line(s) ... dropped" note when present. Only the groups that actually
+ * occurred are mentioned, in order blank/header/unprefixed.
+ */
+export function describeDroppedLines(dropped: DroppedLine[]): string {
+  const blanks = dropped.filter((d) => d.reason === "blank").map((d) => d.position);
+  const headers = dropped.filter((d) => d.reason === "header").map((d) => d.position);
+  const unprefixed = dropped.filter((d) => d.reason === "unprefixed").map((d) => d.position);
+
+  const clauses: string[] = [];
+  if (blanks.length > 0) {
+    clauses.push(
+      `dropped ${blanks.length} blank line${blanks.length === 1 ? "" : "s"} at ` +
+        `position${blanks.length === 1 ? "" : "s"} ${formatPositions(blanks)} (trailing list padding)`,
+    );
+  }
+  if (headers.length > 0) {
+    clauses.push("dropped the list header and rule line at positions 1 and 2");
+  }
+  if (unprefixed.length > 0) {
+    clauses.push(
+      `dropped ${unprefixed.length} non-list line${unprefixed.length === 1 ? "" : "s"} of bridge output at ` +
+        `bridge line${unprefixed.length === 1 ? "" : "s"} ${formatPositions(unprefixed)}`,
+    );
+  }
+
+  const sentence = clauses.join("; ");
+  const capitalized = sentence.charAt(0).toUpperCase() + sentence.slice(1);
+  return (
+    `${capitalized}. Positions are 1-based line numbers of the captured list before dropping. ` +
+    "Pass keep_blank_lines=true to receive the capture unfiltered."
+  );
 }
 
 /** Attaches what `withAuthTrace` learned to a propagating error's `details`, without ever converting the throw into a normal response. Only mutates `e` when `authTraceOf(e)` actually found something to attach. */
@@ -215,7 +282,7 @@ export async function abapRun(
       packageName: BRIDGE_PACKAGE,
       type: "CLAS/OC",
     });
-    return runReport(conn, obj.name, gate, parameters);
+    return runReport(conn, obj.name, gate, parameters, { keepBlankLines: input.keep_blank_lines === true });
   };
 
   let res: RunResult;
@@ -332,7 +399,9 @@ export async function abapRun(
   }
 
   const droppedLines = res.droppedLines ?? 0;
-  if (droppedLines > 0) {
+  if (res.dropped && res.dropped.length > 0) {
+    notes.push(describeDroppedLines(res.dropped));
+  } else if (droppedLines > 0) {
     notes.push(
       `${droppedLines} line(s) of captured output were dropped and are not shown below.`,
     );
@@ -396,6 +465,7 @@ export async function abapRun(
     notes,
     hints: ["Have the code print less, or filter inside ABAP, if the output is truncated."],
     maxChars,
+    omissionMarker: (n) => `… (${n} lines omitted) …`,
   });
 }
 

@@ -1,0 +1,22 @@
+{
+  "n": 986,
+  "label": "i171-transportchecks-tmp-locked",
+  "expect": "KORRFLAG is empty so the pre-fix resolve() said local and dropped corrNr from the module POST even though LOCKS already named the holding request",
+  "note": "transportchecks asked with DEVCLASS $TMP for a module whose group lives in ZTMA_COURSES: KORRFLAG empty, DLVUNIT LOCAL, yet LOCKS names LIMU REPS LZAS_FG171UXX held by A4HK900306 (issue 171, the broken pre-fix sequence)",
+  "requestMethod": "POST",
+  "requestUrl": "/sap/bc/adt/cts/transportchecks?sap-client=001",
+  "requestHeaders": {
+    "Content-Type": "application/*"
+  },
+  "responseStatus": 200,
+  "responseHeaders": {
+    "content-type": "application/xml"
+  },
+  "responseHeadersNote": "only content-type known: body captured via an HTTP trace hook on abapsmith's own guarded transport (trace-i171-fm1d); other response headers were not recorded",
+  "byteLength": 1380,
+  "zeroByteBody": false,
+  "sha256": "f6fc80637163465f27fd53ebd4d72a45de3f3d72e4ff93feb36c4055ffcca91c",
+  "utcTimestamp": "2026-09-22T15:10:00Z",
+  "timestampNote": "approximate (minute precision) - taken from the capture session notes, not a recorded clock",
+  "sessionName": "LIVE-I171-I177"
+}
