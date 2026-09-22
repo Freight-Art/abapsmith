@@ -159,8 +159,11 @@ export interface ResolvedTarget {
    * Where `packageName` came from. `"server"` ⇒ read off the object's own
    * `adtcore:packageRef`. `"requested"` ⇒ the object does not exist yet, so the
    * caller's package (defaulted to `$TMP`) is the only truth there can be.
+   * `"container"` ⇒ read off the containing object's own packageRef because
+   * the object does not exist yet (e.g. a function module inherits its
+   * group's package).
    */
-  packageSource: "server" | "requested";
+  packageSource: "server" | "requested" | "container";
   /** For a `DEVC/K` create only: the parent package in the package hierarchy. Empty/undefined means a root package. */
   superPackage?: string;
   /**
@@ -198,6 +201,11 @@ export interface ResolvedTarget {
    * redundant activation POST without a second round trip — see its F6 comment.
    */
   activation?: ActivationState;
+  /**
+   * `fmodule:processingType` off the same GET `packageName` came from —
+   * FUGR/FF only. `"normal"` or `"rfc"`; absent on a create or when unparsed.
+   */
+  processingType?: string;
 }
 
 /**
@@ -382,6 +390,10 @@ export interface WriteResult {
    * "the number this write sent".
    */
   corrNrOverrode?: string;
+  /** FUGR/FF only: the processing type in force after this call, when known. */
+  processingType?: string;
+  /** True only when a descriptor PUT actually changed the processing type. */
+  processingTypeChanged?: boolean;
 }
 
 /**
@@ -487,6 +499,8 @@ export type WriteOptions = TransportOptions & {
    * since they write generated `$TMP` helpers, not user source.
    */
   onBeforeImage: BeforeImageHook;
+  /** FUGR/FF only: true sets processing type "rfc", false sets "normal". Refused for every other type. */
+  remoteEnabled?: boolean;
 };
 
 /**
@@ -1158,6 +1172,63 @@ async function containerPackage(
   }
 }
 
+/** `"normal"` (default) or `"rfc"` (remote-enabled) — FUGR/FF only. */
+export type FunctionModuleProcessingType = "normal" | "rfc";
+
+const FMODULE_PROCESSING_TYPE_ATTR_RE = /(?:^|\s)(?:[A-Za-z_][\w.-]*:)?processingType\s*=\s*(?:"([^"]*)"|'([^']*)')/i;
+
+/** `fmodule:processingType="normal"|"rfc"` off a function module descriptor GET. */
+export function parseProcessingType(body: string): string | undefined {
+  const m = FMODULE_PROCESSING_TYPE_ATTR_RE.exec(body.replace(XML_COMMENT_RE, ""));
+  const value = (m?.[1] ?? m?.[2] ?? "").trim();
+  return value || undefined;
+}
+
+const FMODULE_DESCRIPTION_ATTR_RE = /(?:^|\s)adtcore:description\s*=\s*(?:"([^"]*)"|'([^']*)')/i;
+
+/** Local to this module — same house idiom as `escapeXmlAttr`'s unescape counterpart. */
+function unescapeXmlAttr(value: string): string {
+  return value
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, "&");
+}
+
+/** `adtcore:description="..."` off a function module descriptor GET, entity-unescaped. */
+function parseFmoduleDescription(body: string): string | undefined {
+  const m = FMODULE_DESCRIPTION_ATTR_RE.exec(body.replace(XML_COMMENT_RE, ""));
+  const value = (m?.[1] ?? m?.[2] ?? "").trim();
+  return value ? unescapeXmlAttr(value) : undefined;
+}
+
+/**
+ * The minimal function-module descriptor PUT body that changes
+ * `processingType` — live-verified on A4H: a 200 with a read-back showing
+ * the new value, version left inactive (activation still runs after).
+ */
+export function processingTypeXml(
+  name: string,
+  containerName: string,
+  containerUri: string,
+  processingType: FunctionModuleProcessingType,
+  description: string,
+): string {
+  return (
+    `<?xml version="1.0" encoding="UTF-8"?>` +
+    `<fmodule:abapFunctionModule xmlns:fmodule="http://www.sap.com/adt/functions/fmodules" ` +
+    `xmlns:adtcore="http://www.sap.com/adt/core" ` +
+    `fmodule:processingType="${processingType}" ` +
+    `adtcore:name="${escapeXmlAttr(name.toUpperCase())}" ` +
+    `adtcore:type="FUGR/FF" ` +
+    `adtcore:description="${escapeXmlAttr(description)}">` +
+    `<adtcore:containerRef adtcore:uri="${escapeXmlAttr(containerUri)}" adtcore:type="FUGR/F" ` +
+    `adtcore:name="${escapeXmlAttr(containerName.toUpperCase())}"/>` +
+    `</fmodule:abapFunctionModule>`
+  );
+}
+
 /**
  * The one throw site for "abap_write has no delete route for this type" —
  * shared by the delete gate below and the writability gate, which also asks
@@ -1497,6 +1568,24 @@ export async function resolveWriteTarget(
           ...(requestedPackage ? { superPackage: requestedPackage } : {}),
         };
       }
+      // A function module (and anything else with a parentPath) has no
+      // package of its own — it inherits its container's. Same GET
+      // `containerPackage` does on the exists path below, run here too.
+      const inherited = await containerPackage(conn, spec, containerName);
+      if (inherited !== undefined) {
+        const inheritedPackage = inherited.toUpperCase();
+        if (requestedPackage && requestedPackage !== inheritedPackage) {
+          throw new AbapError(
+            "BAD_INPUT",
+            `${spec.label} ${name} would be created inside ${containerName}, which is in package ` +
+              `${inheritedPackage}, but the request asked for ${requestedPackage}. A function ` +
+              "module has no package of its own; it lives in its group's package.",
+            { name, type: spec.type, uri, containerName, containerPackage: inheritedPackage, requestedPackage },
+            `Drop the \`package\` argument, or pass the group's package ${inheritedPackage}.`,
+          );
+        }
+        return { ...base, exists: false, packageName: inheritedPackage, packageSource: "container" };
+      }
       // A create: no server-side package to read, so $TMP stays the default
       // only here, where the object genuinely has none yet.
       return {
@@ -1555,13 +1644,22 @@ export async function resolveWriteTarget(
     );
   }
 
+  // FUGR/FF only: same GET, no extra round trip. A module's real description
+  // is read off the descriptor when the caller passed none, so a later
+  // processing-type PUT never overwrites it with the "Function module X" default.
+  const processingType = spec.type === "FUGR/FF" ? parseProcessingType(body) : undefined;
+  const descriptionOverride =
+    spec.type === "FUGR/FF" && !target.description?.trim() ? parseFmoduleDescription(body) : undefined;
+
   return {
     ...base,
+    ...(descriptionOverride !== undefined ? { description: descriptionOverride } : {}),
     exists: true,
     packageName,
     packageSource: "server",
     masterSystem: parseMasterSystem(body),
     activation: activationFromBody(body),
+    ...(processingType !== undefined ? { processingType } : {}),
   };
 }
 
@@ -2793,6 +2891,22 @@ export async function writeObject(
     );
   }
 
+  // Refusable without doing anything else, so it must not cost a request.
+  if (opts.remoteEnabled !== undefined && t.type !== "FUGR/FF") {
+    throw new AbapError(
+      "BAD_INPUT",
+      `remote_enabled applies to function modules (FUGR/FF) only; ${targetLabel(t)} is a ${t.type}.`,
+      { name: t.name, type: t.type },
+      "Drop `remote_enabled`.",
+    );
+  }
+  const desiredProcessingType: FunctionModuleProcessingType | undefined =
+    opts.remoteEnabled === undefined ? undefined : opts.remoteEnabled ? "rfc" : "normal";
+  // A freshly created module is "normal" (live-verified) — there is no
+  // server document yet to read that off, so it is the implicit baseline.
+  const processingTypeChangeWanted =
+    desiredProcessingType !== undefined && desiredProcessingType !== (t.processingType ?? "normal");
+
   // A FUGR/F main source naming its TOP include but no UXX/Uxx implementation include.
   assertFunctionGroupImplementationInclude(t, opts.source);
 
@@ -2870,11 +2984,12 @@ export async function writeObject(
   // never fired. The etag handed back is over this SAME canonical form so a
   // later read can reproduce it; `abap_read`'s raw contentHash is still
   // accepted by assertEtagMatches, so the two spellings never collide.
-  if (current !== undefined && sourceEquals(current, opts.source)) {
+  if (current !== undefined && sourceEquals(current, opts.source) && !processingTypeChangeWanted) {
     return {
       target: t,
       created: false,
       changed: false,
+      ...(t.processingType !== undefined ? { processingType: t.processingType } : {}),
       // The etag of what is ACTUALLY on the server, not of the caller's buffer.
       // Those differ by whatever trailing newlines the server strips, and
       // handing back the caller's hash would produce an etag that fails its own
@@ -3170,6 +3285,12 @@ export async function writeObject(
         : e;
     }
 
+    // The source PUT stays first — a failing source write must never change
+    // the descriptor. Done before unlock, same lock/corr as the source.
+    if (desiredProcessingType !== undefined && processingTypeChangeWanted) {
+      await setFunctionModuleProcessingType(conn, t, desiredProcessingType, lock.handle, corr);
+    }
+
     // ---- 4b. Post-write confirmation ----------------------------------------
     // For the properties shape, `putContent`'s response is the server's
     // ACCEPTANCE of the request, not proof of what it now holds — a live
@@ -3241,6 +3362,10 @@ export async function writeObject(
     ...(preflight?.kind === "transport" && preflight.overrodeCorrNr !== undefined
       ? { corrNrOverrode: preflight.overrodeCorrNr }
       : {}),
+    ...((desiredProcessingType ?? t.processingType) !== undefined
+      ? { processingType: desiredProcessingType ?? t.processingType }
+      : {}),
+    ...(processingTypeChangeWanted ? { processingTypeChanged: true } : {}),
   };
 }
 
@@ -3742,6 +3867,37 @@ async function createClassInclude(
         "include that could not be brought into existence. Create it once in Eclipse ADT or " +
         "SE24 (for test classes: the class editor's Test Classes tab) and write it again.",
     );
+  }
+}
+
+/**
+ * Sets a function module's processing type via a minimal descriptor PUT
+ * under the same lock as the source. Called after the source PUT succeeds
+ * and before unlock; a failing source write never reaches this.
+ */
+async function setFunctionModuleProcessingType(
+  conn: AbapConnection,
+  t: ResolvedTarget,
+  processingType: FunctionModuleProcessingType,
+  lockHandle: string,
+  corr: GatedCorr,
+): Promise<void> {
+  const containerName = t.containerName ?? "";
+  const containerUri = t.spec.parentPath
+    ? t.spec.parentPath.replace("{parent}", encodeURIComponent(containerName.toLowerCase()))
+    : "";
+  const body = processingTypeXml(t.name, containerName, containerUri, processingType, t.description);
+  try {
+    await conn.put(t.uri, {
+      body,
+      headers: {
+        "Content-Type": "application/vnd.sap.adt.functions.fmodules.v3+xml",
+        Accept: "application/vnd.sap.adt.functions.fmodules.v3+xml",
+      },
+      qs: corr.kind === "transport" ? { lockHandle, corrNr: corr.corrNr } : { lockHandle },
+    });
+  } catch (e) {
+    throw translateAdtError(e, { operation: "write", uri: t.uri, name: t.name, type: t.type });
   }
 }
 
