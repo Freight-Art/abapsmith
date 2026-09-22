@@ -12,6 +12,17 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.23] - 2026-09-22
+
+### Fixed
+
+- **Bridge creates honour the request this session created** (#174). `VIEW/DV`, `TRAN/T`, `SHLP/DH`, `TABL/DI` and `DEVC/K` creates under `ABAP_ALLOW_TRANSPORTS=auto` now consult the session's created-request registry directly — a request from `abap_transport operation=create` that CTS's package candidate list omits (pinned, failed or empty check) is confirmed with a transport read and reused, instead of a new request being minted with the note "CTS offered no existing request for package …".
+- **`TABL/DI` reports the request that actually holds the index** (#173). After a `TABL/DI`, `VIEW/DV` or `TRAN/T` bridge create, abapsmith reads the request back and `transport:` and the response NOTE name whichever request actually holds the entry, not just the number the create sent: the same request reads `Read back after the write: request <REQ> lists LIMU INDX <TABLE> <ID>.` (replacing the old "did NOT re-read" sentence); a different one reads `Recorded in <OTHER> (holds the <PGMID> <TYPE> lock for <NAME>), not in the session's request <SESSION>.`, naming the entry the holder actually lists — the `LIMU INDX` entry itself or the covering `R3TR TABL`. A read-back that cannot be confirmed is reported as such and never masks the create's own success.
+
+### Changed
+
+- **Session-created requests win over older abapsmith leftovers, and every non-session request carries its reason** (#175). The resolver now prefers, in order, a server pin, a named request, a request this session created, then an older modifiable request carrying the `abapsmith session <date>` description, before creating a new one — and switches away from a cached older request the moment a session-created one exists. A server-pinned request's NOTE names the object and the lock it holds instead of the session's request; an adopted older request's NOTE says why the session used it instead of creating a new one. The tool description and `doc/TOOLS/write-and-activate.md` document the order.
+
 ## [0.6.22] - 2026-09-22
 
 ### Added

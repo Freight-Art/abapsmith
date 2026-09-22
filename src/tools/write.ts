@@ -78,6 +78,7 @@ import type { SessionPool } from "../adt/pool.js";
 import { parseObjectRef } from "../adt/resolve.js";
 import type { ResolvedObject } from "../adt/resolve.js";
 import type { SessionTransport } from "../adt/session-transport.js";
+import { entryLabel, readBackTransportEntry, type TrReadback } from "../adt/transport-readback.js";
 import {
   countMethodKeywordLines,
   methodNamesMatch,
@@ -581,7 +582,23 @@ export { enhancementPreflightIntent };
  * object is in that request" is an ASSUMPTION — no write path re-reads the
  * request's object list, and membership was only ever observed once by hand.
  */
-function transportNote(t: TransportInfo, abapMode?: string): string {
+/**
+ * The "abap_write never releases a transport" clause `transportNote` and
+ * `bridgeTransportNotes`' confirmed-other note both end on. `admin` is the
+ * REQUIRED mode for release, not the current one — do not interpolate
+ * `abapMode` into it. Mirrors the identical note in src/tools/activate.ts.
+ */
+function releaseClause(abapMode?: string): string {
+  return (
+    "abap_write never releases a transport — releasing is a separate tool, " +
+    "abap_transport_release, which stays off unless " +
+    (abapMode !== undefined
+      ? "ABAP_MODE=admin (ABAP_ALLOW_TRANSPORT_RELEASE is not read while ABAP_MODE is set)."
+      : "ABAP_ALLOW_TRANSPORT_RELEASE is set.")
+  );
+}
+
+function transportNote(t: TransportInfo, abapMode?: string, reRead?: string): string {
   switch (t.status) {
     case "local":
       return "Local object ($TMP-style): the lock reported no transport, so there is nothing to release.";
@@ -589,15 +606,10 @@ function transportNote(t: TransportInfo, abapMode?: string): string {
       return (
         `Transport ${t.corrNr ?? "(unassigned)"}${t.corrText ? ` — ${t.corrText}` : ""}. ` +
         "That is the number this write sent, after the safety gate approved it; the text is as " +
-        "the lock response reported it. abapsmith did NOT re-read the request to confirm the " +
-        "object is in it. abap_write never releases a transport — releasing is a separate tool, " +
-        "abap_transport_release, which stays off unless " +
-        // Name the lever actually in force. `admin` is the REQUIRED mode for
-        // release, not the current one — do not interpolate `abapMode` here.
-        // Mirrors the identical note in src/tools/activate.ts.
-        (abapMode !== undefined
-          ? "ABAP_MODE=admin (ABAP_ALLOW_TRANSPORT_RELEASE is not read while ABAP_MODE is set)."
-          : "ABAP_ALLOW_TRANSPORT_RELEASE is set.")
+        "the lock response reported it. " +
+        (reRead ?? "abapsmith did NOT re-read the request to confirm the object is in it.") +
+        " " +
+        releaseClause(abapMode)
       );
     case "not-determined":
       return (
@@ -3757,23 +3769,74 @@ function bridgePreflightCorr(named: string | undefined): SafetyCorr {
  * adopted, cached) when that decision is the one this write used — the same
  * attribution guard the ADT write path applies, so an unrelated
  * `lastAutoDecision` is never pinned on this write.
+ *
+ * `readback`, when given, is what `readBackTransportEntry` found after the
+ * write — none of these types have an ADT lock response naming the request
+ * CTS actually recorded the object in:
+ *  - `confirmed-same`: the sent request lists the entry; `transportNote`'s
+ *    "did NOT re-read" sentence is replaced with what the re-read found.
+ *  - `confirmed-other`: a DIFFERENT request already held the object's lock
+ *    and CTS recorded it there instead — `transportNote`'s "that is the
+ *    number this write sent" framing would be false, so this note is built
+ *    separately, naming both requests.
+ *  - `unknown`: the re-read itself failed or was inconclusive — reported,
+ *    not silently dropped.
  */
 function bridgeTransportNotes(
   transportInfo: TransportInfo | undefined,
   transport: SessionTransport | undefined,
   gate: SafetyGate,
+  readback?: TrReadback,
 ): string[] {
   if (transportInfo === undefined) return [];
-  const notes = [transportNote(transportInfo, gate.config?.abapMode)];
+  const abapMode = gate.config?.abapMode;
   const decision = transport?.lastAutoDecision;
-  if (
-    decision !== undefined &&
-    transportInfo.corrNr !== undefined &&
-    decision.trkorr.toUpperCase() === transportInfo.corrNr.toUpperCase()
-  ) {
+  const notes: string[] = [];
+
+  if (readback === undefined || readback.status === "confirmed-same" || readback.status === "unknown") {
+    const reRead =
+      readback === undefined
+        ? undefined
+        : readback.status === "confirmed-same"
+          ? `Read back after the write: request ${readback.trkorr} lists ${entryLabel(readback.matched)}.`
+          : `Could not confirm from CTS which request holds ${entryLabel(readback.entry)} (${readback.reason}); ` +
+            `${transportInfo.corrNr ?? "the transport"} is the number this write sent.`;
+    notes.push(transportNote(transportInfo, abapMode, reRead));
+    if (
+      decision !== undefined &&
+      transportInfo.corrNr !== undefined &&
+      decision.trkorr.toUpperCase() === transportInfo.corrNr.toUpperCase()
+    ) {
+      notes.push(decision.reason);
+    }
+    return notes;
+  }
+
+  // confirmed-other
+  const { trkorr, intended, matched } = readback;
+  notes.push(
+    `Recorded in ${trkorr} (holds the ${matched.pgmid} ${matched.type} lock for ${matched.name}), not in ` +
+      `the session's request ${intended}. This write sent ${intended}; CTS recorded the object in the ` +
+      `request that already holds its lock. ${releaseClause(abapMode)}`,
+  );
+  if (decision !== undefined && decision.trkorr.toUpperCase() === intended.toUpperCase()) {
     notes.push(decision.reason);
   }
   return notes;
+}
+
+/**
+ * The `TransportInfo` a bridge create's response header quotes. A
+ * `confirmed-other` read-back means the sent request is NOT what CTS
+ * recorded the object under, so the header names the holder instead —
+ * otherwise the header is `transportInfo` unchanged.
+ */
+function bridgeTransportHeaderInfo(
+  transportInfo: TransportInfo | undefined,
+  readback: TrReadback | undefined,
+): TransportInfo | undefined {
+  if (transportInfo === undefined || readback?.status !== "confirmed-other") return transportInfo;
+  return { status: "transport", required: true, corrNr: readback.trkorr, corrText: readback.holder.description };
 }
 
 /**
@@ -4009,6 +4072,9 @@ async function abapCreateViaBridge(
   // Set for a transportable create of either type once `resolveBridgeCreateCorr` resolves
   // a request; stays undefined for a local package (no transport).
   let transportInfo: TransportInfo | undefined;
+  // Set below, once transportInfo.corrNr is known, by reading back which request CTS
+  // actually recorded the object in — neither bridge type's lock response says.
+  let readback: TrReadback | undefined;
 
   const vitType = type === "VIEW/DV" ? "viewdv" : "trant";
   const objectUri = vitBridgeUri(vitType, target.name);
@@ -4133,6 +4199,13 @@ async function abapCreateViaBridge(
         "about in this way. Treat verified:false here as a reason to confirm by hand in SE11 before " +
         "relying on it. See src/adt/write-verify.ts.";
     }
+    if (transportInfo?.corrNr !== undefined) {
+      readback = await readBackTransportEntry(conn, {
+        intended: transportInfo.corrNr,
+        entry: { pgmid: "R3TR", type: "VIEW", name: target.name },
+        lookup: { uri: objectUri, devclass: packageName },
+      });
+    }
   } else {
     if (input.base_table !== undefined || input.view_fields !== undefined) {
       bad("`base_table` and `view_fields` are VIEW/DV fields; a transaction has no base table.");
@@ -4231,14 +4304,22 @@ async function abapCreateViaBridge(
         "here, trusting the classrun transcript (the markers above) — but that is not the same " +
         "confidence as a live read-back. See src/adt/write-verify.ts.";
     }
+    if (transportInfo?.corrNr !== undefined) {
+      readback = await readBackTransportEntry(conn, {
+        intended: transportInfo.corrNr,
+        entry: { pgmid: "R3TR", type: "TRAN", name: target.name },
+        lookup: { uri: objectUri, devclass: packageName },
+      });
+    }
   }
 
+  const headerTransportInfo = bridgeTransportHeaderInfo(transportInfo, readback);
   return buildResponse({
     header: {
       system: conn.cfg.sid,
       object: `${type} ${target.name}`,
       package: packageName,
-      ...(transportInfo !== undefined ? { transport: transportHeaderText(transportInfo) } : {}),
+      ...(headerTransportInfo !== undefined ? { transport: transportHeaderText(headerTransportInfo) } : {}),
       mode: "create-bridge",
       created: true,
       verified,
@@ -4251,7 +4332,7 @@ async function abapCreateViaBridge(
       `Created by running the classic fluid tool's body class ${bridgeClass}, not over ADT REST: ` +
         `${cap?.bridgeCreate?.via ?? "see src/adt/classic-call.ts"}`,
       cap?.bridgeCreate?.limits ?? "",
-      ...bridgeTransportNotes(transportInfo, transport, gate),
+      ...bridgeTransportNotes(transportInfo, transport, gate, readback),
       verifyNote,
       bridgeReversalNote(entryId, beforeCapture, registration, label, type, target.name),
     ].filter((n) => n !== ""),
@@ -5726,12 +5807,26 @@ async function abapCreateIndexViaBridge(
     `secondary index over ${indexFields.length} field(s) of ${baseTable}` +
     (input.index_unique ? ", unique" : "");
 
+  // Neither DD_INDEX_INTERFACE's transcript nor its verified-present check names which
+  // request CTS actually recorded the index under — read it back the same way the
+  // VIEW/DV and TRAN/T bridge creates do (see abapCreateViaBridge).
+  let readback: TrReadback | undefined;
+  if (transportInfo?.corrNr !== undefined) {
+    readback = await readBackTransportEntry(conn, {
+      intended: transportInfo.corrNr,
+      entry: { pgmid: "LIMU", type: "INDX", name: `${baseTable} ${target.name}` },
+      covering: { pgmid: "R3TR", type: "TABL", name: baseTable },
+      lookup: { uri: `/sap/bc/adt/ddic/tables/${baseTable.toLowerCase()}`, devclass: owner.packageName.name },
+    });
+  }
+  const headerTransportInfo = bridgeTransportHeaderInfo(transportInfo, readback);
+
   return buildResponse({
     header: {
       system: conn.cfg.sid,
       object: `${type} ${target.name}`,
       package: owner.packageName.name,
-      ...(transportInfo !== undefined ? { transport: transportHeaderText(transportInfo) } : {}),
+      ...(headerTransportInfo !== undefined ? { transport: transportHeaderText(headerTransportInfo) } : {}),
       mode: "create-bridge",
       created: true,
       verified: created.verdict.verified,
@@ -5746,7 +5841,7 @@ async function abapCreateIndexViaBridge(
       `Created by running the classic fluid tool's body class ${CLASSIC_BODY_CLASS}, not over ` +
         `ADT REST: ${cap?.bridgeCreate?.via ?? "see src/adt/index-create.ts"}`,
       cap?.bridgeCreate?.limits ?? "",
-      ...bridgeTransportNotes(transportInfo, transport, gate),
+      ...bridgeTransportNotes(transportInfo, transport, gate, readback),
       created.verdict.verified
         ? `Independently verified with a fresh DD12V/DD17S catalog read after the bridge returned: ` +
           `${created.verdict.statement}`
@@ -5977,7 +6072,10 @@ export function registerWriteTools(mcp: McpServer, deps: WriteToolDeps): void {
         "Create, change or delete an ABAP object: save/check/activate; locking handled. " +
         "TRAN/T deletable+undoable, and needs corr_nr for a transportable package, none for a $ one. " +
         "VIEW/DV create resolves its own corr_nr for a transportable package (supply one to pin it), " +
-        "none for a $ one; the view can't be read back via abap_read. " +
+        "none for a $ one; the view itself can't be read back via abap_read. " +
+        "corr_nr resolution order: server pin > corr_nr/config pin > request this session created " +
+        "(abap_transport create counts) > older abapsmith-described request only when the session has " +
+        "none > create one; bridge creates (VIEW/DV, TRAN/T, TABL/DI) read back which request holds the object. " +
         "DEVC/K delete only if empty. " +
         "dry_run previews the diff and expect_etag without writing anything.",
       inputSchema: writeInputSchema,
