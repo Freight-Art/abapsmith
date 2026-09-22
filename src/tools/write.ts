@@ -116,6 +116,9 @@ import type {
   TransportOptions,
   WriteTarget,
 } from "../adt/write.js";
+import { assertProgramOnlyOption } from "../adt/program-create.js";
+import type { TextPoolWriteResult } from "../adt/text-pool.js";
+import { TEXT_POOL_JOURNAL_NOTE, writeTextPoolJournalled } from "./write-text-pool.js";
 import { buildResponse, stripPartialEtag, type BuiltResponse } from "../compact.js";
 import type { Config, VerifyWritesMode } from "../config.js";
 import type { BeforeImageCapture, Journal } from "../journal.js";
@@ -151,6 +154,23 @@ export const writeInputSchema = {
     .string()
     .optional()
     .describe("Full source, required unless deleting."),
+  fixed_point_arithmetic: z
+    .boolean()
+    .optional()
+    .describe(
+      "PROG/P only. Set false to create the report with Fixed Point Arithmetic off. Default true.",
+    ),
+  text_pool: z
+    .object({
+      symbols: z.record(z.string(), z.string()).optional(),
+      selection_texts: z.record(z.string(), z.string()).optional(),
+    })
+    .strict()
+    .optional()
+    .describe(
+      "PROG/P only. Text symbols and selection texts to write to the program's text pool after " +
+        "the source; allowed without `source` on an existing program.",
+    ),
   // `edit`/`method` must be declared here: zod strips undeclared keys before
   // the callback sees them, so an undeclared `method` silently fell through
   // to the whole-object-rewrite branch instead of erroring — see
@@ -1562,6 +1582,8 @@ export async function abapWrite(
         "program",
         "affects",
         "ddic",
+        "fixed_point_arithmetic",
+        "text_pool",
       ] as const
     ).filter((k) => input[k] !== undefined);
     if (stray.length) {
@@ -1951,11 +1973,32 @@ export async function abapWrite(
     return await abapCreatePackage(conn, target, input, maxChars, gate, trOpts, journal);
   }
 
+  // `fixed_point_arithmetic`/`text_pool` apply to PROG/P only. Checked here,
+  // zero-network, when `type` was given; checked again below against the
+  // resolved target for the (usual) case where an existing object's real
+  // type is only known once resolved.
+  if (input.fixed_point_arithmetic !== undefined && input.type !== undefined) {
+    assertProgramOnlyOption("fixed_point_arithmetic", requestedSpec?.type, {
+      type: requestedSpec?.type ?? input.type,
+    });
+  }
+  if (input.text_pool !== undefined && input.type !== undefined) {
+    assertProgramOnlyOption("text_pool", requestedSpec?.type, {
+      type: requestedSpec?.type ?? input.type,
+    });
+  }
+
   // Zero-network refusal for a genuinely empty call (none of source/edit/
-  // method given), ahead of `authorizeMutation` so it costs nothing on the
-  // wire. Everything else wrong with edit/method needs the resolved target
-  // to explain precisely, so it's diagnosed in `resolveWriteSource` instead.
-  if (input.source === undefined && input.edit === undefined && input.method === undefined) {
+  // method/text_pool given), ahead of `authorizeMutation` so it costs nothing
+  // on the wire. Everything else wrong with edit/method needs the resolved
+  // target to explain precisely, so it's diagnosed in `resolveWriteSource`
+  // instead.
+  if (
+    input.source === undefined &&
+    input.edit === undefined &&
+    input.method === undefined &&
+    input.text_pool === undefined
+  ) {
     throw new AbapError(
       "BAD_INPUT",
       "`source` is required for mode=write.",
@@ -1967,6 +2010,55 @@ export async function abapWrite(
 
   // As on the delete branch: resolve and gate in one step.
   const authorized = await authorizeMutation(conn, gate, "write", target);
+
+  // Post-resolution version of the two zero-network checks above, for when
+  // `type` was not given.
+  if (input.fixed_point_arithmetic !== undefined) {
+    assertProgramOnlyOption("fixed_point_arithmetic", authorized.target.type, {
+      type: authorized.target.type,
+      name: authorized.target.name,
+    });
+  }
+  if (input.text_pool !== undefined) {
+    assertProgramOnlyOption("text_pool", authorized.target.type, {
+      type: authorized.target.type,
+      name: authorized.target.name,
+    });
+  }
+
+  // `text_pool` with no source/edit/method: write only the text pool of an
+  // existing PROG/P, leaving its ABAP source untouched (issue #182). Reached
+  // only when `text_pool` is set — the empty-call refusal above already
+  // covers the case where nothing at all was given.
+  if (input.source === undefined && input.edit === undefined && input.method === undefined) {
+    if (!authorized.target.exists) {
+      throw new AbapError(
+        "BAD_INPUT",
+        "text_pool without source needs an existing program; pass source to create it.",
+        { name: authorized.target.name },
+      );
+    }
+    const textPool = input.text_pool as NonNullable<WriteInputV2["text_pool"]>;
+    const activateTextPool =
+      (input.activate ?? true) && capabilitiesFor(authorized.target.type)?.activate !== false;
+    const poolResult = await writeTextPoolJournalled(
+      conn,
+      journal,
+      authorized,
+      { symbols: textPool.symbols, selectionTexts: textPool.selection_texts },
+      { activate: activateTextPool, corrNr },
+    );
+    return buildResponse({
+      header: {
+        system: conn.cfg.sid,
+        object: `${authorized.target.type} ${authorized.target.name}`,
+        text_pool: `symbols ${poolResult.symbols}, selection_texts ${poolResult.selectionTexts} (${poolResult.language})`,
+        text_pool_activated: poolResult.activation?.activated ? "yes" : "no",
+      },
+      notes: [TEXT_POOL_JOURNAL_NOTE],
+      maxChars,
+    });
+  }
 
   // No CDS-specific `format` refusal needed: DDLS/DF, DDLX/EX, SRVD/SRV are
   // source-shape and `format` applies normally; DTEL/DE, DOMA/DD, TTYP/DA
@@ -2079,6 +2171,9 @@ export async function abapWrite(
           source,
           ...trOpts,
           ...(resolvedExpectEtag ? { expectEtag: resolvedExpectEtag } : {}),
+          ...(input.fixed_point_arithmetic !== undefined
+            ? { fixedPointArithmetic: input.fixed_point_arithmetic }
+            : {}),
           ...(input.remote_enabled !== undefined ? { remoteEnabled: input.remote_enabled } : {}),
           onBeforeImage,
         }),
@@ -2748,6 +2843,28 @@ export async function abapWrite(
     );
   }
 
+  // `text_pool` alongside `source`: write it after the source write/
+  // activation above completes. An AbapError here must not discard the
+  // source write's result — it becomes a FAILED note/header instead of a throw.
+  let textPoolResult: TextPoolWriteResult | undefined;
+  let textPoolFailure: string | undefined;
+  if (input.text_pool !== undefined) {
+    try {
+      textPoolResult = await writeTextPoolJournalled(
+        conn,
+        journal,
+        authorized,
+        { symbols: input.text_pool.symbols, selectionTexts: input.text_pool.selection_texts },
+        { activate: wantActivate, corrNr },
+      );
+      notes.push(TEXT_POOL_JOURNAL_NOTE);
+    } catch (e) {
+      if (!isAbapError(e)) throw e;
+      textPoolFailure = e.message;
+      notes.push(`text_pool write failed: ${textPoolFailure}`);
+    }
+  }
+
   return buildResponse({
     header: {
       system: conn.cfg.sid,
@@ -2775,6 +2892,16 @@ export async function abapWrite(
           ? "clean"
           : `${check.errors} error(s), ${check.warnings} warning(s)`,
       activated: activation ? activation.activated : activationSuppressed ? "n/a (always active)" : "skipped",
+      ...(input.text_pool !== undefined
+        ? {
+            text_pool: textPoolResult
+              ? `symbols ${textPoolResult.symbols}, selection_texts ${textPoolResult.selectionTexts} (${textPoolResult.language})`
+              : `FAILED — ${textPoolFailure}`,
+            ...(textPoolResult
+              ? { text_pool_activated: textPoolResult.activation?.activated ? "yes" : "no" }
+              : {}),
+          }
+        : {}),
       verify:
         verifyMode === "speculative"
           ? readBackActive

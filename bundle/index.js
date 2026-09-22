@@ -5196,7 +5196,7 @@ var require_utilities = __commonJS({
     exports2.JSON2AbapXML = JSON2AbapXML;
     exports2.xmlNode = xmlNode4;
     exports2.xmlFlatArray = xmlFlatArray;
-    exports2.xmlArray = xmlArray4;
+    exports2.xmlArray = xmlArray5;
     exports2.toInt = toInt;
     exports2.btoa = btoa2;
     exports2.parts = parts;
@@ -5268,7 +5268,7 @@ var require_utilities = __commonJS({
       }
       return [];
     }
-    function xmlArray4(xml4, ...path9) {
+    function xmlArray5(xml4, ...path9) {
       const node2 = xmlNode4(xml4, ...path9);
       if (node2) {
         if ((0, exports2.isArray)(node2))
@@ -5291,11 +5291,11 @@ var require_utilities = __commonJS({
     }, {});
     exports2.stripNs = stripNs;
     var stripAttrPrefix = (x) => x.replace(/^@_/, "");
-    var xmlNodeAttr4 = (n) => n && ok24(n).filter((k) => k.match(/^(?!@_xmlns)@_/)).reduce((part, cur) => {
+    var xmlNodeAttr5 = (n) => n && ok24(n).filter((k) => k.match(/^(?!@_xmlns)@_/)).reduce((part, cur) => {
       part[cur.replace(/^@_/, "")] = n[cur];
       return part;
     }, {});
-    exports2.xmlNodeAttr = xmlNodeAttr4;
+    exports2.xmlNodeAttr = xmlNodeAttr5;
     var typedNodeAttr = (n) => n && ok24(n).filter((k) => k.match(/^(?!@_xmlns)@_/)).reduce((part, cur) => {
       part[cur.replace(/^@_/, "")] = n[cur];
       return part;
@@ -5307,13 +5307,13 @@ var require_utilities = __commonJS({
       hex: true,
       skipLike: new RegExp("")
     };
-    var fullParse4 = (xml4, options = {}) => new fast_xml_parser_1.XMLParser({
+    var fullParse5 = (xml4, options = {}) => new fast_xml_parser_1.XMLParser({
       ignoreAttributes: false,
       trimValues: false,
       parseAttributeValue: true,
       ...options
     }).parse(xml4);
-    exports2.fullParse = fullParse4;
+    exports2.fullParse = fullParse5;
     var parse4 = (xml4, options = {}) => new fast_xml_parser_1.XMLParser(options).parse(xml4);
     exports2.parse = parse4;
     function toInt(x) {
@@ -36979,6 +36979,20 @@ var init_adt_message_rules = __esm({
         hint: (_message, properties) => describeXmlPath(properties["XML_PATH"] ?? "", properties)
       },
       {
+        id: "unsupported-media-type",
+        t100Id: "SADT_RESOURCE",
+        t100No: "039",
+        exceptionType: "ExceptionUnsupportedMediaType",
+        hint: "The server rejected the request's media type (HTTP 415). For enhancement implementations this means it does not accept the v2 enhancement-implementation payload application/vnd.sap.adt.enh.enhoxhh.v2+xml; abapsmith sends the highest enhoxhh version /sap/bc/adt/discovery advertises, so reconnect to refresh the cached inventory and retry. A server advertising no enhoxhh media type cannot create hooks over ADT."
+      },
+      {
+        id: "not-acceptable",
+        t100Id: "SADT_RESOURCE",
+        t100No: "037",
+        exceptionType: "ExceptionResourceNotAcceptable",
+        hint: "The server cannot produce the requested representation (HTTP 406). abapsmith asks for the highest media-type version /sap/bc/adt/discovery advertises for the collection; reconnect to refresh the cached inventory and retry."
+      },
+      {
         id: "cts-object-locked-in-other-request",
         t100Id: "CTS_WBO_API",
         t100No: "019",
@@ -59764,10 +59778,11 @@ var init_oauth = __esm({
 });
 
 // src/adt/discovery.ts
-var FEATURE_HREFS, ENH_SUPPORTED, ENHANCEMENT_VERB_CAPABILITIES, Discovery;
+var import_utilities, FEATURE_HREFS, ENH_SUPPORTED, ENHANCEMENT_VERB_CAPABILITIES, Discovery;
 var init_discovery = __esm({
   "src/adt/discovery.ts"() {
     "use strict";
+    import_utilities = __toESM(require_utilities(), 1);
     init_errors();
     FEATURE_HREFS = {
       "ddic.tables.source": ["/ddic/tables"],
@@ -59888,8 +59903,17 @@ var init_discovery = __esm({
       async load(force = false) {
         if (this.state === "loaded" && !force) return;
         try {
-          const raw = await this.client.adtDiscovery();
-          this.ingest(raw);
+          const http3 = this.client.httpClient;
+          if (typeof http3?.request === "function") {
+            const { body } = await http3.request("/sap/bc/adt/discovery", {
+              method: "GET",
+              headers: { Accept: "application/atomsvc+xml" }
+            });
+            this.ingestDocument(body);
+          } else {
+            const raw = await this.client.adtDiscovery();
+            this.ingest(raw);
+          }
           this.loadError = void 0;
         } catch (e) {
           this.collections = [];
@@ -59914,20 +59938,48 @@ var init_discovery = __esm({
       }
       /** Exposed for tests — accepts an already-parsed discovery document. */
       ingest(raw) {
-        this.collections = [];
-        this.hrefIndex = /* @__PURE__ */ new Set();
+        const collections = [];
         for (const workspace of raw ?? []) {
           for (const c of workspace.collection ?? []) {
-            const info = {
+            collections.push({
               href: c.href,
               title: c.title,
               workspace: workspace.title,
-              templates: (c.templateLinks ?? []).map((t) => t.template).filter(Boolean)
-            };
-            this.collections.push(info);
-            this.hrefIndex.add(c.href.toLowerCase());
+              templates: (c.templateLinks ?? []).map((t) => t.template).filter(Boolean),
+              // The vendor's own `adtDiscovery()` parsing drops `<app:accept>`,
+              // so this legacy path can never populate it.
+              accept: []
+            });
           }
         }
+        this.applyCollections(collections);
+      }
+      /**
+       * Parses a raw discovery Atom service document directly, mirroring the
+       * vendor's `adtDiscovery()` parsing exactly but additionally keeping each
+       * collection's `<app:accept>` media types, which the vendor drops.
+       */
+      ingestDocument(xml4) {
+        const tree = (0, import_utilities.fullParse)(xml4);
+        const workspaces = (0, import_utilities.xmlArray)(tree, "app:service", "app:workspace");
+        const collections = [];
+        for (const ws of workspaces) {
+          for (const c of (0, import_utilities.xmlArray)(ws, "app:collection")) {
+            collections.push({
+              href: String(c["@_href"]),
+              title: c["atom:title"] === void 0 ? void 0 : String(c["atom:title"]),
+              workspace: String(ws["atom:title"]),
+              templates: (0, import_utilities.xmlArray)(c, "adtcomp:templateLinks", "adtcomp:templateLink").map((t) => String((0, import_utilities.xmlNodeAttr)(t).template)).filter(Boolean),
+              accept: (0, import_utilities.xmlArray)(c, "app:accept").map(String)
+            });
+          }
+        }
+        this.applyCollections(collections);
+      }
+      /** Shared state bookkeeping for both `ingest()` and `ingestDocument()`. */
+      applyCollections(collections) {
+        this.collections = collections;
+        this.hrefIndex = new Set(collections.map((c) => c.href.toLowerCase()));
         this.state = this.collections.length > 0 ? "loaded" : "empty";
       }
       /**
@@ -60059,6 +60111,17 @@ var init_discovery = __esm({
         return this.collections.filter(
           (c) => c.href.toLowerCase().includes(n) || (c.title ?? "").toLowerCase().includes(n)
         );
+      }
+      /**
+       * Media types the collection whose href ends with `hrefSuffix` advertises
+       * via `<app:accept>`. `undefined` when no such collection exists in the
+       * loaded inventory (as opposed to `[]`, which means it exists but
+       * advertises no accept media types at all).
+       */
+      acceptedMediaTypes(hrefSuffix) {
+        const suffix = hrefSuffix.toLowerCase();
+        const hit = this.collections.find((c) => c.href.toLowerCase().endsWith(suffix));
+        return hit?.accept;
       }
       /**
        * Compact summary, safe to hand to the model. `state` (and `error`) are part
@@ -61811,8 +61874,8 @@ var init_capabilities = __esm({
       "PROG/PT": {
         label: "GUI title (titlebar)",
         unsupported: {
-          reason: "GUI titles (SET TITLEBAR text) are program subobjects maintained in the classic Menu Painter (SE41) and are not reachable as ADT-writable objects on this release: no ADT discovery collection exists for them, PROG/PT is not a registered ADT object type, and the only route that answers a GET at all \u2014 the generic VIT bridge \u2014 returns a content-free stub for ANY key, including nonexistent title ids and even nonexistent program names (it does not validate existence, only echoes the requested key), and a 405 Method Not Allowed on every write verb, verified live with a valid CSRF token.",
-          alternative: "GUI titles can only be edited in SE41 (or SE80's Menu Painter), both SAPGUI tools outside abapsmith's reach. There is no ABAP-code equivalent to fall back on the way PROG/PS and PROG/PC have their flow-logic/PAI-module escape hatch \u2014 SET TITLEBAR just names a titlebar id, it does not carry the title text itself."
+          reason: "GUI titles (SET TITLEBAR text) are program subobjects maintained in the classic Menu Painter (SE41) and are not reachable as ADT-writable objects on this release: no ADT discovery collection exists for them, PROG/PT is not a registered ADT object type, and the only route that answers a GET at all \u2014 the generic VIT bridge \u2014 returns a content-free stub for ANY key, including nonexistent title ids and even nonexistent program names (it does not validate existence, only echoes the requested key), and a 405 Method Not Allowed on every write verb, verified live with a valid CSRF token. Do not confuse this with the program's TEXT POOL (text symbols/selection texts) \u2014 a different, separate resource (ADT type PROG/PX) that IS writable; see the alternative.",
+          alternative: "GUI titles can only be edited in SE41 (or SE80's Menu Painter), both SAPGUI tools outside abapsmith's reach. There is no ABAP-code equivalent to fall back on the way PROG/PS and PROG/PC have their flow-logic/PAI-module escape hatch \u2014 SET TITLEBAR just names a titlebar id, it does not carry the title text itself. For text symbols and selection texts, use abap_write's text_pool parameter on the PROG/P object and read them back with abap_read \u2014 both go through the textelements resource, not PROG/PT."
         }
       },
       // Not in types.ts — see the module doc. A different shape of gap from
@@ -64420,9 +64483,9 @@ function flattenComponents(root) {
   return out;
 }
 function parseStructureElement(e) {
-  const attrs = (0, import_utilities.xmlNodeAttr)(e);
-  const links = (0, import_utilities.xmlArray)(e, "atom:link").map((l) => (0, import_utilities.xmlNodeAttr)(l));
-  const components = (0, import_utilities.xmlArray)(e, "abapsource:objectStructureElement").map(parseStructureElement);
+  const attrs = (0, import_utilities2.xmlNodeAttr)(e);
+  const links = (0, import_utilities2.xmlArray)(e, "atom:link").map((l) => (0, import_utilities2.xmlNodeAttr)(l));
+  const components = (0, import_utilities2.xmlArray)(e, "abapsource:objectStructureElement").map(parseStructureElement);
   return { ...attrs, links, components };
 }
 async function fetchStructure(conn, obj, version2) {
@@ -64431,7 +64494,7 @@ async function fetchStructure(conn, obj, version2) {
     headers: { "Content-Type": "application/*" },
     qs: { version: "inactive", withShortDescriptions: "true" }
   });
-  const root = (0, import_utilities.xmlNode)((0, import_utilities.fullParse)(resp.body), "abapsource:objectStructureElement");
+  const root = (0, import_utilities2.xmlNode)((0, import_utilities2.fullParse)(resp.body), "abapsource:objectStructureElement");
   if (root === void 0 || root === null) {
     return {
       "adtcore:name": obj.name,
@@ -64871,7 +64934,7 @@ function renderSourceStructure(rows) {
     return `  ${"  ".repeat(r.depth)}${label}  ${loc}`;
   }).join("\n");
 }
-var import_utilities, METHOD_OPEN_RE, ENDMETHOD_RE, REL_DEF_BLOCK, REL_IMPL_BLOCK, NON_MEMBER_TYPES, DECLARATION_HEAD_RE, CHAIN_MAX_DEPTH, AVAILABLE_MEMBERS_MAX_DEFAULT, isMethod, OUTLINE_TYPES, STRUCTURE_OPENERS;
+var import_utilities2, METHOD_OPEN_RE, ENDMETHOD_RE, REL_DEF_BLOCK, REL_IMPL_BLOCK, NON_MEMBER_TYPES, DECLARATION_HEAD_RE, CHAIN_MAX_DEPTH, AVAILABLE_MEMBERS_MAX_DEFAULT, isMethod, OUTLINE_TYPES, STRUCTURE_OPENERS;
 var init_source = __esm({
   "src/adt/source.ts"() {
     "use strict";
@@ -64879,7 +64942,7 @@ var init_source = __esm({
     init_resolve();
     init_session();
     init_types();
-    import_utilities = __toESM(require_utilities(), 1);
+    import_utilities2 = __toESM(require_utilities(), 1);
     init_write_verify();
     METHOD_OPEN_RE = /^\s*method\s+([^\s.]+)/i;
     ENDMETHOD_RE = /^\s*endmethod\s*\./i;
@@ -108727,6 +108790,30 @@ var ENHSXS_COLLECTION = "/sap/bc/adt/enhancements/enhsxs";
 var ENHOXH_ACCEPT = "application/vnd.sap.adt.enh.enho.v1+xml";
 var ENHOXHH_ACCEPT = "application/vnd.sap.adt.enh.enhoxhh.v2+xml";
 var ENHSXS_ACCEPT = "application/vnd.sap.adt.enh.enhs.v1+xml";
+var ENHOXHH_MEDIA_TYPE_PATTERN = /^application\/vnd\.sap\.adt\.enh\.enhoxhh\.v(\d+)\+xml$/i;
+function enhoxhhMediaType(discovery) {
+  if (discovery.loadState !== "loaded") return ENHOXHH_ACCEPT;
+  const accept = discovery.acceptedMediaTypes("/enhancements/enhoxhh");
+  if (accept === void 0) {
+    throw new AbapError(
+      "UNSUPPORTED",
+      `This server's /sap/bc/adt/discovery offers no /sap/bc/adt/enhancements/enhoxhh collection, so enhancement implementations (source code plug-ins) cannot be read or created over ADT; media type ${ENHOXHH_ACCEPT} is not served.`,
+      { feature: "enhancements", collection: "enhoxhh" },
+      "create_hook is unavailable on this release."
+    );
+  }
+  const versioned = accept.map((mt) => ({ mt, m: ENHOXHH_MEDIA_TYPE_PATTERN.exec(mt) })).filter((x) => x.m !== null);
+  if (versioned.length === 0) {
+    throw new AbapError(
+      "UNSUPPORTED",
+      `This server's /sap/bc/adt/discovery enhoxhh collection does not advertise ${ENHOXHH_ACCEPT} or any other versioned enhoxhh media type; it advertises ${accept.length ? accept.join(", ") : "nothing"}.`,
+      { feature: "enhancements", collection: "enhoxhh", accept },
+      "create_hook is unavailable on this release."
+    );
+  }
+  versioned.sort((a, b) => Number(b.m[1]) - Number(a.m[1]));
+  return versioned[0].mt;
+}
 var ENHOXH_TYPE = "ENHO/XH";
 var ENHOXHH_TYPE = "ENHO/XHH";
 var ENHSXS_TYPE = "ENHS/XS";
@@ -108777,8 +108864,9 @@ async function readBadiImplementation(conn, name) {
 async function readSourceCodePlugin(conn, name) {
   conn.discovery.assertSupported("enhancements", "source-code plug-ins (ENHO/XHH)");
   const uri = buildEnhancementUri(ENHOXHH_COLLECTION, name);
+  const accept = enhoxhhMediaType(conn.discovery);
   try {
-    const resp = await conn.get(uri, { headers: { Accept: ENHOXHH_ACCEPT } });
+    const resp = await conn.get(uri, { headers: { Accept: accept } });
     const etag = firstHeader(resp.headers, "etag");
     return { xml: resp.body, data: parseSourceCodePlugin(resp.body), ...etag ? { etag } : {} };
   } catch (e) {
@@ -108838,7 +108926,7 @@ init_compact();
 init_safety();
 
 // src/adt/activate.ts
-var import_utilities2 = __toESM(require_utilities(), 1);
+var import_utilities3 = __toESM(require_utilities(), 1);
 init_errors();
 init_truncate();
 init_types();
@@ -109442,13 +109530,13 @@ function toActivationElement(source) {
   return {
     deleted: s["@_ioc:deleted"],
     user: s["@_ioc:user"],
-    ...(0, import_utilities2.xmlNodeAttr)(s["ioc:ref"])
+    ...(0, import_utilities3.xmlNodeAttr)(s["ioc:ref"])
   };
 }
 function parseInactiveObjects(raw) {
-  return (0, import_utilities2.xmlArray)(raw, "ioc:inactiveObjects", "ioc:entry").map((obj) => ({
-    object: toActivationElement((0, import_utilities2.xmlNode)(obj, "ioc:object")),
-    transport: toActivationElement((0, import_utilities2.xmlNode)(obj, "ioc:transport"))
+  return (0, import_utilities3.xmlArray)(raw, "ioc:inactiveObjects", "ioc:entry").map((obj) => ({
+    object: toActivationElement((0, import_utilities3.xmlNode)(obj, "ioc:object")),
+    transport: toActivationElement((0, import_utilities3.xmlNode)(obj, "ioc:transport"))
   }));
 }
 function parseActivationResponse(body) {
@@ -109456,11 +109544,11 @@ function parseActivationResponse(body) {
   let success2 = true;
   let inactive = [];
   if (body) {
-    const raw = (0, import_utilities2.fullParse)(body);
+    const raw = (0, import_utilities3.fullParse)(body);
     inactive = parseInactiveObjects(raw);
-    messages = (0, import_utilities2.xmlArray)(raw, "chkl:messages", "msg").map((m) => {
+    messages = (0, import_utilities3.xmlArray)(raw, "chkl:messages", "msg").map((m) => {
       const rec = m;
-      const message2 = (0, import_utilities2.xmlNodeAttr)(rec);
+      const message2 = (0, import_utilities3.xmlNodeAttr)(rec);
       const shortTextNode = rec["shortText"];
       message2.shortText = shortTextNode?.txt || "Syntax error";
       return message2;
@@ -111511,6 +111599,48 @@ async function deletePackageViaBridge(conn, gate, params) {
   return { run, transcript, contents };
 }
 
+// src/adt/program-create.ts
+init_errors();
+init_session();
+var PROGRAM_CREATE_COLLECTION = "/sap/bc/adt/programs/programs";
+function assertProgramOnlyOption(option, type, details) {
+  if (type === "PROG/P") return;
+  throw new AbapError("BAD_INPUT", `\`${option}\` applies to PROG/P only.`, details);
+}
+function escapeXmlAttr3(value) {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+function buildProgramCreateBody(input) {
+  return `<?xml version="1.0" encoding="UTF-8"?><program:abapProgram xmlns:program="http://www.sap.com/adt/programs/programs" xmlns:adtcore="http://www.sap.com/adt/core" xmlns:abapsource="http://www.sap.com/adt/abapsource" adtcore:description="${escapeXmlAttr3(input.description)}" adtcore:name="${escapeXmlAttr3(input.name.toUpperCase())}" adtcore:type="PROG/P" adtcore:language="EN" adtcore:masterLanguage="EN" adtcore:responsible="${escapeXmlAttr3(input.responsible)}"` + (input.fixPointArithmetic ? ` abapsource:fixPointArithmetic="true"` : ``) + `><adtcore:packageRef adtcore:name="${escapeXmlAttr3(input.packageName)}"/></program:abapProgram>`;
+}
+function parseFixPointArithmetic(descriptorXml) {
+  const m = descriptorXml.match(/abapsource:fixPointArithmetic="(true|false)"/);
+  return m ? m[1] === "true" : void 0;
+}
+async function createProgram(conn, target, corr, fixPointArithmetic) {
+  const body = buildProgramCreateBody({
+    name: target.name,
+    description: target.description,
+    packageName: target.packageName,
+    responsible: conn.cfg.user,
+    fixPointArithmetic
+  });
+  try {
+    await conn.post(PROGRAM_CREATE_COLLECTION, {
+      body,
+      headers: { "Content-Type": "application/*" },
+      ...corr?.kind === "transport" ? { qs: { corrNr: corr.corrNr } } : {}
+    });
+  } catch (e) {
+    throw translateAdtError(e, {
+      operation: "create",
+      uri: target.uri,
+      name: target.name,
+      type: target.type
+    });
+  }
+}
+
 // src/adt/write.ts
 init_resolve();
 init_source();
@@ -111801,7 +111931,7 @@ function parseFmoduleDescription(body) {
   return value ? unescapeXmlAttr(value) : void 0;
 }
 function processingTypeXml(name, containerName, containerUri, processingType, description) {
-  return `<?xml version="1.0" encoding="UTF-8"?><fmodule:abapFunctionModule xmlns:fmodule="http://www.sap.com/adt/functions/fmodules" xmlns:adtcore="http://www.sap.com/adt/core" fmodule:processingType="${processingType}" adtcore:name="${escapeXmlAttr3(name.toUpperCase())}" adtcore:type="FUGR/FF" adtcore:description="${escapeXmlAttr3(description)}"><adtcore:containerRef adtcore:uri="${escapeXmlAttr3(containerUri)}" adtcore:type="FUGR/F" adtcore:name="${escapeXmlAttr3(containerName.toUpperCase())}"/></fmodule:abapFunctionModule>`;
+  return `<?xml version="1.0" encoding="UTF-8"?><fmodule:abapFunctionModule xmlns:fmodule="http://www.sap.com/adt/functions/fmodules" xmlns:adtcore="http://www.sap.com/adt/core" fmodule:processingType="${processingType}" adtcore:name="${escapeXmlAttr4(name.toUpperCase())}" adtcore:type="FUGR/FF" adtcore:description="${escapeXmlAttr4(description)}"><adtcore:containerRef adtcore:uri="${escapeXmlAttr4(containerUri)}" adtcore:type="FUGR/F" adtcore:name="${escapeXmlAttr4(containerName.toUpperCase())}"/></fmodule:abapFunctionModule>`;
 }
 function refuseDelete(spec) {
   const enhancementRoute = isEnhancementType(spec.type) ? ` \`abap_enh operation=delete\` removes ENHO/XH, ENHO/XHH and ENHS/XS today (needs \`ABAP_ALLOW_ENHANCEMENT_DELETE=true\`).` : "";
@@ -112675,7 +112805,7 @@ async function writeObject(conn, target, opts) {
   };
   if (created) await emitBeforeImage(void 0);
   await conn.withStatefulSession(async (session) => {
-    if (created) await createNewObject(conn, t, preflight2, opts.source);
+    if (created) await createNewObject(conn, t, preflight2, opts.source, opts.fixedPointArithmetic ?? true);
     let lock;
     try {
       lock = await session.lock(lockUri(t));
@@ -112841,7 +112971,7 @@ async function createPackage(conn, target, opts) {
     transport
   };
 }
-async function createNewObject(conn, t, corr, payload) {
+async function createNewObject(conn, t, corr, payload, fixedPointArithmetic = true) {
   const cap = capabilitiesFor(t.type);
   if (cap?.create?.verified !== true) {
     throw new AbapError(
@@ -112852,6 +112982,10 @@ async function createNewObject(conn, t, corr, payload) {
       { retryable: false }
       // matches UNSUPPORTED's own default; reaffirmed for readability at the throw site
     );
+  }
+  if (t.type === "PROG/P") {
+    await createProgram(conn, t, corr, fixedPointArithmetic);
+    return;
   }
   if (cap?.create?.vendor === false) {
     await createByXml(conn, t, corr, payload);
@@ -112895,13 +113029,13 @@ function containerParent(t) {
     parentPath: `/sap/bc/adt/functions/groups/${encodeURIComponent(group.toLowerCase())}`
   };
 }
-function escapeXmlAttr3(value) {
+function escapeXmlAttr4(value) {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 function buildSkeletonXml(conn, t, skeleton) {
   const root = skeleton.rootName;
   const rootAttrs = skeleton.rootAttributes ? `${skeleton.rootAttributes} ` : "";
-  return `<${root} ${skeleton.namespace} xmlns:adtcore="http://www.sap.com/adt/core" ` + rootAttrs + `adtcore:description="${escapeXmlAttr3(t.description)}" adtcore:name="${escapeXmlAttr3(t.name)}" adtcore:type="${escapeXmlAttr3(t.type)}" adtcore:language="EN" adtcore:masterLanguage="EN" adtcore:responsible="${escapeXmlAttr3(conn.cfg.user)}"><adtcore:packageRef adtcore:name="${escapeXmlAttr3(t.packageName)}"/></${root}>`;
+  return `<${root} ${skeleton.namespace} xmlns:adtcore="http://www.sap.com/adt/core" ` + rootAttrs + `adtcore:description="${escapeXmlAttr4(t.description)}" adtcore:name="${escapeXmlAttr4(t.name)}" adtcore:type="${escapeXmlAttr4(t.type)}" adtcore:language="EN" adtcore:masterLanguage="EN" adtcore:responsible="${escapeXmlAttr4(conn.cfg.user)}"><adtcore:packageRef adtcore:name="${escapeXmlAttr4(t.packageName)}"/></${root}>`;
 }
 async function createByXml(conn, t, corr, payload) {
   const skeleton = capabilitiesFor(t.type)?.create?.skeleton;
@@ -124748,11 +124882,11 @@ var DDIC_SHAPES = {
     skeleton: TTYP_SKELETON
   }
 };
-function escapeXmlAttr4(s) {
+function escapeXmlAttr5(s) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
 }
 function renderSkeleton(shape, name) {
-  return shape.skeleton.replace('adtcore:name="NAME"', () => `adtcore:name="${escapeXmlAttr4(name)}"`);
+  return shape.skeleton.replace('adtcore:name="NAME"', () => `adtcore:name="${escapeXmlAttr5(name)}"`);
 }
 function ddicDescriptorSkeleton(type, name) {
   const shape = DDIC_SHAPES[type];
@@ -124968,7 +125102,7 @@ function renderValueTableRef(valueTable, name) {
       "Give the name of an existing transparent table, or drop ddic.valueTable."
     );
   }
-  return `<doma:valueTableRef adtcore:uri="/sap/bc/adt/ddic/tables/${escapeXmlAttr4(table.toLowerCase())}" adtcore:type="TABL/DT" adtcore:name="${escapeXmlAttr4(table)}"/>`;
+  return `<doma:valueTableRef adtcore:uri="/sap/bc/adt/ddic/tables/${escapeXmlAttr5(table.toLowerCase())}" adtcore:type="TABL/DT" adtcore:name="${escapeXmlAttr5(table)}"/>`;
 }
 var SHLP_NAME_MAX_LEN = 30;
 function normalizeShlpIdentifier(value, field, type, name) {
@@ -125007,7 +125141,7 @@ function buildDoma(name, description, packageName, f) {
   const fixRows = (f.fixedValues ?? []).map((v, i) => renderFixValue(v, i, length, name)).join("");
   const valueInformation = f.fixedValues === void 0 && f.valueTable === void 0 ? "" : `<doma:valueInformation>${renderValueTableRef(f.valueTable, name)}${elem("doma:appendExists", "false")}` + // No rows: the skeleton's self-closing `<doma:fixValues/>`, byte for byte.
   (fixRows === "" ? "<doma:fixValues/>" : `<doma:fixValues>${fixRows}</doma:fixValues>`) + `</doma:valueInformation>`;
-  return `${XML_DECL}<doma:domain xmlns:doma="http://www.sap.com/dictionary/domain" xmlns:adtcore="${ADTCORE_NS2}" adtcore:name="${escapeXmlAttr4(name)}" adtcore:type="DOMA/DD" adtcore:description="${escapeXmlAttr4(description)}" ${ROOT_LANGUAGE_ATTRS}><adtcore:packageRef adtcore:name="${escapeXmlAttr4(packageName)}"/><doma:content><doma:typeInformation>${elem("doma:datatype", dataType)}${elem("doma:length", num2(length))}${elem("doma:decimals", num2(decimals))}</doma:typeInformation><doma:outputInformation>${elem("doma:length", num2(outputLength))}${elem("doma:signExists", String(signExists))}${elem("doma:lowercase", String(lowercase2))}</doma:outputInformation>` + valueInformation + `</doma:content></doma:domain>`;
+  return `${XML_DECL}<doma:domain xmlns:doma="http://www.sap.com/dictionary/domain" xmlns:adtcore="${ADTCORE_NS2}" adtcore:name="${escapeXmlAttr5(name)}" adtcore:type="DOMA/DD" adtcore:description="${escapeXmlAttr5(description)}" ${ROOT_LANGUAGE_ATTRS}><adtcore:packageRef adtcore:name="${escapeXmlAttr5(packageName)}"/><doma:content><doma:typeInformation>${elem("doma:datatype", dataType)}${elem("doma:length", num2(length))}${elem("doma:decimals", num2(decimals))}</doma:typeInformation><doma:outputInformation>${elem("doma:length", num2(outputLength))}${elem("doma:signExists", String(signExists))}${elem("doma:lowercase", String(lowercase2))}</doma:outputInformation>` + valueInformation + `</doma:content></doma:domain>`;
 }
 function buildDtel(name, description, packageName, f) {
   const typeKind = f.typeKind ?? "predefinedAbapType";
@@ -125037,7 +125171,7 @@ function buildDtel(name, description, packageName, f) {
   }
   const searchHelp = f.searchHelp !== void 0 ? normalizeShlpIdentifier(f.searchHelp, "searchHelp", "DTEL/DE", name) : "";
   const searchHelpParameter = f.searchHelpParameter !== void 0 ? normalizeShlpIdentifier(f.searchHelpParameter, "searchHelpParameter", "DTEL/DE", name) : "";
-  return `${XML_DECL}<blue:wbobj xmlns:blue="http://www.sap.com/wbobj/dictionary/dtel" xmlns:adtcore="${ADTCORE_NS2}" adtcore:name="${escapeXmlAttr4(name)}" adtcore:type="DTEL/DE" adtcore:description="${escapeXmlAttr4(description)}" ${ROOT_LANGUAGE_ATTRS}><adtcore:packageRef adtcore:name="${escapeXmlAttr4(packageName)}"/><dtel:dataElement xmlns:dtel="${DATAELEMENT_NS}">${elem("dtel:typeKind", typeKind)}${elem("dtel:typeName", typeName)}${elem("dtel:dataType", dataType)}${elem("dtel:dataTypeLength", numPadded(length, 6))}${elem("dtel:dataTypeDecimals", numPadded(decimals, 6))}${elem("dtel:shortFieldLabel", short.label)}${elem("dtel:shortFieldLength", numPadded(short.length, 2))}${elem("dtel:shortFieldMaxLength", num2(DTEL_MAX_LENGTH.short))}${elem("dtel:mediumFieldLabel", medium.label)}${elem("dtel:mediumFieldLength", numPadded(medium.length, 2))}${elem("dtel:mediumFieldMaxLength", num2(DTEL_MAX_LENGTH.medium))}${elem("dtel:longFieldLabel", long.label)}${elem("dtel:longFieldLength", numPadded(long.length, 2))}${elem("dtel:longFieldMaxLength", num2(DTEL_MAX_LENGTH.long))}${elem("dtel:headingFieldLabel", heading.label)}${elem("dtel:headingFieldLength", numPadded(heading.length, 2))}${elem("dtel:headingFieldMaxLength", num2(DTEL_MAX_LENGTH.heading))}${elem("dtel:searchHelp", searchHelp)}${elem("dtel:searchHelpParameter", searchHelpParameter)}${elem("dtel:setGetParameter", "")}${elem("dtel:defaultComponentName", "")}${elem("dtel:deactivateInputHistory", "false")}${elem("dtel:changeDocument", "false")}${elem("dtel:leftToRightDirection", "false")}${elem("dtel:deactivateBIDIFiltering", "false")}</dtel:dataElement></blue:wbobj>`;
+  return `${XML_DECL}<blue:wbobj xmlns:blue="http://www.sap.com/wbobj/dictionary/dtel" xmlns:adtcore="${ADTCORE_NS2}" adtcore:name="${escapeXmlAttr5(name)}" adtcore:type="DTEL/DE" adtcore:description="${escapeXmlAttr5(description)}" ${ROOT_LANGUAGE_ATTRS}><adtcore:packageRef adtcore:name="${escapeXmlAttr5(packageName)}"/><dtel:dataElement xmlns:dtel="${DATAELEMENT_NS}">${elem("dtel:typeKind", typeKind)}${elem("dtel:typeName", typeName)}${elem("dtel:dataType", dataType)}${elem("dtel:dataTypeLength", numPadded(length, 6))}${elem("dtel:dataTypeDecimals", numPadded(decimals, 6))}${elem("dtel:shortFieldLabel", short.label)}${elem("dtel:shortFieldLength", numPadded(short.length, 2))}${elem("dtel:shortFieldMaxLength", num2(DTEL_MAX_LENGTH.short))}${elem("dtel:mediumFieldLabel", medium.label)}${elem("dtel:mediumFieldLength", numPadded(medium.length, 2))}${elem("dtel:mediumFieldMaxLength", num2(DTEL_MAX_LENGTH.medium))}${elem("dtel:longFieldLabel", long.label)}${elem("dtel:longFieldLength", numPadded(long.length, 2))}${elem("dtel:longFieldMaxLength", num2(DTEL_MAX_LENGTH.long))}${elem("dtel:headingFieldLabel", heading.label)}${elem("dtel:headingFieldLength", numPadded(heading.length, 2))}${elem("dtel:headingFieldMaxLength", num2(DTEL_MAX_LENGTH.heading))}${elem("dtel:searchHelp", searchHelp)}${elem("dtel:searchHelpParameter", searchHelpParameter)}${elem("dtel:setGetParameter", "")}${elem("dtel:defaultComponentName", "")}${elem("dtel:deactivateInputHistory", "false")}${elem("dtel:changeDocument", "false")}${elem("dtel:leftToRightDirection", "false")}${elem("dtel:deactivateBIDIFiltering", "false")}</dtel:dataElement></blue:wbobj>`;
 }
 function buildTtyp(name, description, packageName, f) {
   const typeKind = f.typeKind ?? "dictionaryType";
@@ -125053,7 +125187,7 @@ function buildTtyp(name, description, packageName, f) {
   const dataType = f.dataType ?? "STRU";
   const length = f.length ?? 0;
   const decimals = f.decimals ?? 0;
-  return `${XML_DECL}<ttyp:tableType xmlns:ttyp="http://www.sap.com/dictionary/tabletype" xmlns:adtcore="${ADTCORE_NS2}" adtcore:name="${escapeXmlAttr4(name)}" adtcore:type="TTYP/DA" adtcore:description="${escapeXmlAttr4(description)}" ${ROOT_LANGUAGE_ATTRS}><adtcore:packageRef adtcore:name="${escapeXmlAttr4(packageName)}"/><ttyp:rowType>${elem("ttyp:typeKind", typeKind)}${elem("ttyp:typeName", typeName)}<ttyp:builtInType>${elem("ttyp:dataType", dataType)}${elem("ttyp:length", numPadded(length, 6))}${elem("ttyp:decimals", numPadded(decimals, 6))}</ttyp:builtInType><ttyp:rangeType/></ttyp:rowType></ttyp:tableType>`;
+  return `${XML_DECL}<ttyp:tableType xmlns:ttyp="http://www.sap.com/dictionary/tabletype" xmlns:adtcore="${ADTCORE_NS2}" adtcore:name="${escapeXmlAttr5(name)}" adtcore:type="TTYP/DA" adtcore:description="${escapeXmlAttr5(description)}" ${ROOT_LANGUAGE_ATTRS}><adtcore:packageRef adtcore:name="${escapeXmlAttr5(packageName)}"/><ttyp:rowType>${elem("ttyp:typeKind", typeKind)}${elem("ttyp:typeName", typeName)}<ttyp:builtInType>${elem("ttyp:dataType", dataType)}${elem("ttyp:length", numPadded(length, 6))}${elem("ttyp:decimals", numPadded(decimals, 6))}</ttyp:builtInType><ttyp:rangeType/></ttyp:rowType></ttyp:tableType>`;
 }
 function buildStructuredDdicDescriptor(type, name, description, packageName, fields) {
   const allowed = STRUCTURED_FIELDS_BY_TYPE[type];
@@ -125144,6 +125278,184 @@ async function readBackTransportEntry(conn, target, cts = { trShow, trRequiremen
 // src/tools/write.ts
 init_source();
 init_types();
+
+// src/adt/text-pool.ts
+init_errors();
+init_session();
+var TEXTELEMENTS_COLLECTION = "/sap/bc/adt/textelements/programs";
+var TEXTELEMENTS_ACCEPT = "application/vnd.sap.adt.textelements.v1+xml";
+var SYMBOLS_MEDIA_TYPE = "application/vnd.sap.adt.textelements.symbols.v1";
+var SELECTIONS_MEDIA_TYPE = "application/vnd.sap.adt.textelements.selections.v1";
+var SYMBOL_KEY_RE = /^[A-Z0-9]{1,3}$/;
+var SELECTION_NAME_RE = /^[A-Z0-9_]{1,8}$/;
+function textPoolUri(programName) {
+  return `${TEXTELEMENTS_COLLECTION}/${programName.toLowerCase()}`;
+}
+function buildSymbolsBody(symbols) {
+  const entries = Object.entries(symbols).map(([rawKey, text5]) => {
+    const key = rawKey.toUpperCase();
+    if (!SYMBOL_KEY_RE.test(key)) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `Text symbol key "${rawKey}" must be 1-3 letters/digits.`,
+        { key: rawKey }
+      );
+    }
+    if (text5.length === 0 || text5.length > 132) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `Text symbol ${key}: text must be 1-132 characters, got ${text5.length}.`,
+        { key, length: text5.length }
+      );
+    }
+    const maxLength = Math.min(Math.max(text5.length, 1), 132);
+    return `@MaxLength:${maxLength}
+${key}=${text5}`;
+  });
+  return entries.join("\n\n") + "\n";
+}
+function buildSelectionsBody(selectionTexts) {
+  return Object.entries(selectionTexts).map(([rawName, text5]) => {
+    const name = rawName.toUpperCase();
+    if (!SELECTION_NAME_RE.test(name)) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `Selection text name "${rawName}" must be 1-8 letters/digits/underscore.`,
+        { name: rawName }
+      );
+    }
+    if (text5.length === 0 || text5.length > 30) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `Selection text ${name}: text must be 1-30 characters, got ${text5.length}.`,
+        { name, length: text5.length }
+      );
+    }
+    return `${name}=${text5}
+`;
+  }).join("");
+}
+function parseSymbols(body) {
+  const out = {};
+  for (const line2 of body.split(/\r\n|\r|\n/)) {
+    if (line2.trim() === "" || line2.startsWith("@MaxLength:")) continue;
+    const idx2 = line2.indexOf("=");
+    if (idx2 < 0) continue;
+    out[line2.slice(0, idx2)] = line2.slice(idx2 + 1);
+  }
+  return out;
+}
+function parseSelections(body) {
+  const out = {};
+  for (const line2 of body.split(/\r\n|\r|\n/)) {
+    if (line2.trim() === "") continue;
+    const idx2 = line2.indexOf("=");
+    if (idx2 < 0) continue;
+    const name = line2.slice(0, idx2).trimEnd();
+    const text5 = line2.slice(idx2 + 1);
+    if (text5 === "?...") continue;
+    out[name] = text5;
+  }
+  return out;
+}
+async function writeTextPool(conn, authorized, pool, opts) {
+  if (authorized.op !== "write") {
+    throw new AbapError("BAD_INPUT", `Text pool write needs a write authorization, got "${authorized.op}".`);
+  }
+  const name = authorized.target.name;
+  const uri = textPoolUri(name);
+  let masterLanguage = "EN";
+  try {
+    const descriptor = await conn.get(uri, { headers: { Accept: TEXTELEMENTS_ACCEPT } });
+    const m = /adtcore:masterLanguage="([^"]*)"/.exec(descriptor.body);
+    if (m && m[1] !== void 0) masterLanguage = m[1];
+  } catch (e) {
+    throw translateAdtError(e, { operation: "write", uri, name, type: "PROG/P" });
+  }
+  const language = conn.cfg.language || masterLanguage || "EN";
+  const symbolsBody = pool.symbols ? buildSymbolsBody(pool.symbols) : void 0;
+  const selectionsBody = pool.selectionTexts ? buildSelectionsBody(pool.selectionTexts) : void 0;
+  await conn.withStatefulSession(async (session) => {
+    const lock = await session.lock(uri);
+    const corrNr = opts.corrNr ?? lock.corrNr;
+    try {
+      if (symbolsBody !== void 0) {
+        await conn.put(`${uri}/source/symbols`, {
+          headers: { "Content-Type": SYMBOLS_MEDIA_TYPE, Accept: SYMBOLS_MEDIA_TYPE },
+          qs: { lockHandle: lock.handle, ...corrNr ? { corrNr } : {} },
+          body: symbolsBody
+        });
+      }
+      if (selectionsBody !== void 0) {
+        await conn.put(`${uri}/source/selections`, {
+          headers: { "Content-Type": SELECTIONS_MEDIA_TYPE, Accept: SELECTIONS_MEDIA_TYPE },
+          qs: { lockHandle: lock.handle, ...corrNr ? { corrNr } : {} },
+          body: selectionsBody
+        });
+      }
+    } catch (e) {
+      throw translateAdtError(e, { operation: "write", uri, name, type: "PROG/P" });
+    } finally {
+      await session.unlock(uri);
+    }
+  });
+  let activation;
+  if (opts.activate) {
+    activation = await activateObject(conn, { name, uri, type: "PROG/PX" });
+  }
+  return {
+    symbols: pool.symbols ? Object.keys(pool.symbols).length : 0,
+    selectionTexts: pool.selectionTexts ? Object.keys(pool.selectionTexts).length : 0,
+    language,
+    activation
+  };
+}
+async function readTextPool(conn, programName) {
+  const uri = textPoolUri(programName);
+  const symbolsRes = await conn.get(`${uri}/source/symbols`, { headers: { Accept: SYMBOLS_MEDIA_TYPE } });
+  const selectionsRes = await conn.get(`${uri}/source/selections`, { headers: { Accept: SELECTIONS_MEDIA_TYPE } });
+  const symbols = parseSymbols(symbolsRes.body);
+  const selectionTexts = parseSelections(selectionsRes.body);
+  if (Object.keys(symbols).length === 0 && Object.keys(selectionTexts).length === 0) return void 0;
+  return { symbols, selectionTexts };
+}
+
+// src/tools/write-text-pool.ts
+var TEXT_POOL_JOURNAL_NOTE = "The text pool write is journalled as an irreversible update entry on the PROG/PX textelements resource (history only): abap_journal mode=undo cannot restore the previous texts.";
+async function writeTextPoolJournalled(conn, journal, authorized, pool, opts) {
+  const { result, settle } = await withJournalledMutation(
+    journal,
+    {
+      begin: () => ({
+        operation: "update",
+        object: journalRef({
+          name: authorized.target.name,
+          type: "PROG/PX",
+          uri: textPoolUri(authorized.target.name),
+          packageName: authorized.target.packageName,
+          description: `text pool of ${authorized.target.name}`
+        }),
+        existedBefore: true,
+        beforeCapture: "unknown",
+        systemKey: systemKey(conn.cfg),
+        tool: "abap_write",
+        irreversible: true,
+        ...opts.corrNr ? { corrNr: opts.corrNr } : {}
+      })
+    },
+    async (onBeforeImage) => {
+      await onBeforeImage(void 0);
+      return await writeTextPool(conn, authorized, pool, opts);
+    }
+  );
+  await settle({
+    outcome: "succeeded",
+    activation: result.activation ? { attempted: true, activated: result.activation.activated } : { attempted: false }
+  });
+  return result;
+}
+
+// src/tools/write.ts
 init_compact();
 init_safety();
 
@@ -125570,6 +125882,15 @@ var writeInputSchema = {
   object: external_exports.string().optional().describe("Object reference."),
   type: external_exports.string().optional().describe(`ADT type of a NEW object, e.g. CLAS/OC. Not writable: ${NON_WRITABLE_TYPES.join(" ")}.`),
   source: external_exports.string().optional().describe("Full source, required unless deleting."),
+  fixed_point_arithmetic: external_exports.boolean().optional().describe(
+    "PROG/P only. Set false to create the report with Fixed Point Arithmetic off. Default true."
+  ),
+  text_pool: external_exports.object({
+    symbols: external_exports.record(external_exports.string(), external_exports.string()).optional(),
+    selection_texts: external_exports.record(external_exports.string(), external_exports.string()).optional()
+  }).strict().optional().describe(
+    "PROG/P only. Text symbols and selection texts to write to the program's text pool after the source; allowed without `source` on an existing program."
+  ),
   // `edit`/`method` must be declared here: zod strips undeclared keys before
   // the callback sees them, so an undeclared `method` silently fell through
   // to the whole-object-rewrite branch instead of erroring — see
@@ -126247,7 +126568,9 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
       "index_unique",
       "program",
       "affects",
-      "ddic"
+      "ddic",
+      "fixed_point_arithmetic",
+      "text_pool"
     ].filter((k) => input[k] !== void 0);
     if (stray.length) {
       throw new AbapError(
@@ -126490,7 +126813,17 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
     if (input.dry_run) throw dryRunNotSupported("package");
     return await abapCreatePackage(conn, target, input, maxChars, gate, trOpts, journal);
   }
-  if (input.source === void 0 && input.edit === void 0 && input.method === void 0) {
+  if (input.fixed_point_arithmetic !== void 0 && input.type !== void 0) {
+    assertProgramOnlyOption("fixed_point_arithmetic", requestedSpec?.type, {
+      type: requestedSpec?.type ?? input.type
+    });
+  }
+  if (input.text_pool !== void 0 && input.type !== void 0) {
+    assertProgramOnlyOption("text_pool", requestedSpec?.type, {
+      type: requestedSpec?.type ?? input.type
+    });
+  }
+  if (input.source === void 0 && input.edit === void 0 && input.method === void 0 && input.text_pool === void 0) {
     throw new AbapError(
       "BAD_INPUT",
       "`source` is required for mode=write.",
@@ -126499,6 +126832,46 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
     );
   }
   const authorized = await authorizeMutation(conn, gate, "write", target);
+  if (input.fixed_point_arithmetic !== void 0) {
+    assertProgramOnlyOption("fixed_point_arithmetic", authorized.target.type, {
+      type: authorized.target.type,
+      name: authorized.target.name
+    });
+  }
+  if (input.text_pool !== void 0) {
+    assertProgramOnlyOption("text_pool", authorized.target.type, {
+      type: authorized.target.type,
+      name: authorized.target.name
+    });
+  }
+  if (input.source === void 0 && input.edit === void 0 && input.method === void 0) {
+    if (!authorized.target.exists) {
+      throw new AbapError(
+        "BAD_INPUT",
+        "text_pool without source needs an existing program; pass source to create it.",
+        { name: authorized.target.name }
+      );
+    }
+    const textPool = input.text_pool;
+    const activateTextPool = (input.activate ?? true) && capabilitiesFor(authorized.target.type)?.activate !== false;
+    const poolResult = await writeTextPoolJournalled(
+      conn,
+      journal,
+      authorized,
+      { symbols: textPool.symbols, selectionTexts: textPool.selection_texts },
+      { activate: activateTextPool, corrNr }
+    );
+    return buildResponse({
+      header: {
+        system: conn.cfg.sid,
+        object: `${authorized.target.type} ${authorized.target.name}`,
+        text_pool: `symbols ${poolResult.symbols}, selection_texts ${poolResult.selectionTexts} (${poolResult.language})`,
+        text_pool_activated: poolResult.activation?.activated ? "yes" : "no"
+      },
+      notes: [TEXT_POOL_JOURNAL_NOTE],
+      maxChars
+    });
+  }
   const {
     source: resolvedSource,
     expectEtag: resolvedExpectEtag,
@@ -126568,6 +126941,7 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
         source,
         ...trOpts,
         ...resolvedExpectEtag ? { expectEtag: resolvedExpectEtag } : {},
+        ...input.fixed_point_arithmetic !== void 0 ? { fixedPointArithmetic: input.fixed_point_arithmetic } : {},
         ...input.remote_enabled !== void 0 ? { remoteEnabled: input.remote_enabled } : {},
         onBeforeImage
       })
@@ -126900,6 +127274,24 @@ ${renderInactive(activation.inactive)}`);
       `verify: verified \u2014 the write reported success, but the read-back did NOT confirm ${objectName} is there: ${reason} This is NOT proof the write failed (an index can lag a fresh create), and abapsmith is not retracting the success above \u2014 but do not build on this object until you have confirmed it yourself with abap_read {object, type, version:"active"}.`
     );
   }
+  let textPoolResult;
+  let textPoolFailure;
+  if (input.text_pool !== void 0) {
+    try {
+      textPoolResult = await writeTextPoolJournalled(
+        conn,
+        journal,
+        authorized,
+        { symbols: input.text_pool.symbols, selectionTexts: input.text_pool.selection_texts },
+        { activate: wantActivate, corrNr }
+      );
+      notes.push(TEXT_POOL_JOURNAL_NOTE);
+    } catch (e) {
+      if (!isAbapError(e)) throw e;
+      textPoolFailure = e.message;
+      notes.push(`text_pool write failed: ${textPoolFailure}`);
+    }
+  }
   return buildResponse({
     header: {
       system: conn.cfg.sid,
@@ -126921,6 +127313,10 @@ ${renderInactive(activation.inactive)}`);
       ...written.corrNrOverrode !== void 0 ? { corr_nr_honoured: false } : {},
       check: propertiesShape ? "n/a (XML descriptor \u2014 validated by the server on write)" : check2.ok ? "clean" : `${check2.errors} error(s), ${check2.warnings} warning(s)`,
       activated: activation ? activation.activated : activationSuppressed ? "n/a (always active)" : "skipped",
+      ...input.text_pool !== void 0 ? {
+        text_pool: textPoolResult ? `symbols ${textPoolResult.symbols}, selection_texts ${textPoolResult.selectionTexts} (${textPoolResult.language})` : `FAILED \u2014 ${textPoolFailure}`,
+        ...textPoolResult ? { text_pool_activated: textPoolResult.activation?.activated ? "yes" : "no" } : {}
+      } : {},
       verify: verifyMode === "speculative" ? readBackActive ? "confirmed \u2014 read back after activation" : readBackPresent ? "read back after activation \u2014 NOT reported active" : (
         // "not read back" beside the CONCLUSIVE note is the strongest available
         // signal to re-read an object that note just settled. Names the read that
@@ -135172,6 +135568,20 @@ function buildDdicLikeResponse(rendered, header, offset, limit, hints, maxChars)
 }
 var TRUNCATED_SOURCE_NOTE = "INCOMPLETE \u2014 NOT the whole text (counts in TRUNCATED, below). The etag is marked `partial:`: abap_write REFUSES a full-source rewrite presenting it, since that would delete everything past the cut. Splice with edit={old_string,new_string}, or page it all in with offset/limit.";
 var EMPTY_SOURCE_NOTE = "Source is empty (0 bytes) \u2014 that is the whole body, not a truncated read; there is no SOURCE section below because there is nothing to show.";
+function renderTextPool(pool) {
+  const parts = [];
+  const symbolKeys = Object.keys(pool.symbols);
+  if (symbolKeys.length > 0) {
+    parts.push("symbols:");
+    for (const key of symbolKeys) parts.push(`  ${key}  ${pool.symbols[key]}`);
+  }
+  const selectionNames = Object.keys(pool.selectionTexts);
+  if (selectionNames.length > 0) {
+    parts.push("selection_texts:");
+    for (const name of selectionNames) parts.push(`  ${name}  ${pool.selectionTexts[name]}`);
+  }
+  return parts.join("\n");
+}
 function buildSourceResponse(parts, etag, forceIncomplete = false) {
   const first = buildReadResponse(parts);
   if (!first.truncated && !forceIncomplete) return { ...first, etag };
@@ -136833,9 +137243,43 @@ async function abapRead(conn, input, maxChars, gate) {
     }
   }
   const window2 = sliceLines(source, input.offset ?? 1, input.limit);
+  const wholeObjectRead = include === void 0 || include === "main";
+  const firstPage = (input.offset ?? 1) <= 1;
+  let fixPointArithmeticHeader = {};
+  if (obj.type === "PROG/P" && wholeObjectRead) {
+    try {
+      const descriptor = await conn.get(obj.uri, {
+        headers: { Accept: "application/vnd.sap.adt.programs.programs.v3+xml" }
+      });
+      const fpa = parseFixPointArithmetic(descriptor.body);
+      if (fpa !== void 0) fixPointArithmeticHeader = { fixed_point_arithmetic: String(fpa) };
+    } catch {
+    }
+  }
+  const textPoolSections = [];
+  if (obj.type === "PROG/P" && wholeObjectRead && firstPage) {
+    try {
+      const pool = await readTextPool(conn, obj.name);
+      if (pool) textPoolSections.push({ title: "TEXT POOL", content: renderTextPool(pool) });
+    } catch {
+    }
+  }
+  const wholeHeader = {
+    system: header.system,
+    object: header.object,
+    uri: header.uri,
+    package: header.package,
+    description: header.description,
+    ...fixPointArithmeticHeader,
+    ...header.mode !== void 0 ? { mode: header.mode } : {},
+    ...header.include !== void 0 ? { include: header.include } : {},
+    ...header.etag !== void 0 ? { etag: header.etag } : {},
+    ...header.serverEtag !== void 0 ? { serverEtag: header.serverEtag } : {}
+  };
   return buildSourceResponse(
     {
-      header: { ...header, ...fmoduleHeader, totalLines: window2.total, totalChars },
+      header: { ...wholeHeader, ...fmoduleHeader, totalLines: window2.total, totalChars },
+      sections: textPoolSections,
       body: window2.text,
       bodyLabel: "SOURCE",
       bodyOffset: window2.offset,
@@ -143031,7 +143475,7 @@ function classifyNode(model, node2) {
 }
 
 // src/adt/class-interfaces.ts
-var import_utilities3 = __toESM(require_utilities(), 1);
+var import_utilities4 = __toESM(require_utilities(), 1);
 var TYPE_HIERARCHY_URL = "/sap/bc/adt/abapsource/typehierarchy";
 var CLASS_DEFINITION_LINE = /^\s*class\s+(\S+)\s+definition\b/i;
 var CLASS_IMPLEMENTATION_LINE = /^\s*class\s+\S+\s+implementation\b/im;
@@ -143093,13 +143537,13 @@ async function fetchImplementedInterfaces(conn, className, source) {
     return void 0;
   }
   if (!body.trim()) return void 0;
-  const parsed = (0, import_utilities3.fullParse)(body);
-  const info = (0, import_utilities3.xmlNode)(parsed, "hierarchy:info");
+  const parsed = (0, import_utilities4.fullParse)(body);
+  const info = (0, import_utilities4.xmlNode)(parsed, "hierarchy:info");
   if (!info) return void 0;
-  const entries = (0, import_utilities3.xmlArray)(parsed, "hierarchy:info", "entries", "entry");
+  const entries = (0, import_utilities4.xmlArray)(parsed, "hierarchy:info", "entries", "entry");
   const interfaces = [];
   for (const e of entries) {
-    const attrs = (0, import_utilities3.xmlNodeAttr)(e);
+    const attrs = (0, import_utilities4.xmlNodeAttr)(e);
     if (attrs["adtcore:type"] === "INTF/OI" && typeof attrs["adtcore:name"] === "string") {
       interfaces.push(attrs["adtcore:name"].toUpperCase());
     }
@@ -154157,7 +154601,7 @@ var ENHANCEMENT_SPECS = {
     type: "ENHO/XH",
     collection: ENHOXH_COLLECTION,
     bareCollection: "enhoxh",
-    accept: ENHOXH_ACCEPT,
+    accept: () => ENHOXH_ACCEPT,
     // Undefined deliberately — one live success, no citation file yet. See
     // module header's "PUT verification matrix".
     putVerifiedBy: void 0,
@@ -154167,7 +154611,7 @@ var ENHANCEMENT_SPECS = {
     type: "ENHO/XHH",
     collection: ENHOXHH_COLLECTION,
     bareCollection: "enhoxhh",
-    accept: ENHOXHH_ACCEPT,
+    accept: (conn) => enhoxhhMediaType(conn.discovery),
     // Backed by the fixture below plus a live end-to-end
     // writeAndActivateEnhancementDescription run after the LOCK Accept-header
     // fix (see withRelockRetry below) — before that fix every attempt died
@@ -154179,7 +154623,7 @@ var ENHANCEMENT_SPECS = {
     type: "ENHS/XS",
     collection: ENHSXS_COLLECTION,
     bareCollection: "enhsxs",
-    accept: ENHSXS_ACCEPT,
+    accept: () => ENHSXS_ACCEPT,
     // Undefined deliberately — one live success, no citation file yet. See
     // module header's "PUT verification matrix".
     putVerifiedBy: void 0,
@@ -154353,7 +154797,7 @@ async function writeEnhancementDescription(conn, gate, target, opts) {
         void lock;
         let body;
         try {
-          const resp = await conn.get(uri, { headers: { Accept: spec.accept } });
+          const resp = await conn.get(uri, { headers: { Accept: spec.accept(conn) } });
           body = resp.body;
         } catch (e) {
           if (isAbapError(e)) throw e;
@@ -154394,7 +154838,7 @@ async function writeEnhancementDescription(conn, gate, target, opts) {
             authorized,
             uri,
             {
-              headers: { "Content-Type": spec.accept, Accept: spec.accept },
+              headers: { "Content-Type": spec.accept(conn), Accept: spec.accept(conn) },
               qs: corr.kind === "transport" ? { lockHandle: lock.handle, corrNr: corr.corrNr } : { lockHandle: lock.handle },
               body: payload
             },
@@ -154574,7 +155018,7 @@ async function setBadiImplementationActive(conn, gate, target, opts) {
           void lock;
           let body;
           try {
-            const resp = await conn.get(uri, { headers: { Accept: spec.accept } });
+            const resp = await conn.get(uri, { headers: { Accept: spec.accept(conn) } });
             body = resp.body;
           } catch (e) {
             if (isAbapError(e)) throw e;
@@ -154618,7 +155062,7 @@ async function setBadiImplementationActive(conn, gate, target, opts) {
               authorized,
               uri,
               {
-                headers: { "Content-Type": spec.accept, Accept: spec.accept },
+                headers: { "Content-Type": spec.accept(conn), Accept: spec.accept(conn) },
                 qs: corr.kind === "transport" ? { lockHandle: lock.handle, corrNr: corr.corrNr } : { lockHandle: lock.handle },
                 body: payload
               },
@@ -154756,7 +155200,7 @@ async function deleteEnhancementObject(conn, gate, target, opts) {
         void lock;
         let body;
         try {
-          const resp = await conn.get(uri, { headers: { Accept: spec.accept } });
+          const resp = await conn.get(uri, { headers: { Accept: spec.accept(conn) } });
           body = resp.body;
         } catch (e) {
           if (isAbapError(e)) throw e;
@@ -155308,7 +155752,7 @@ async function discoverHookAnchors(conn, host) {
     return { fullName: parseAnchorFullName(fullName), fullDescription, mode };
   });
 }
-function escapeXmlAttr5(value) {
+function escapeXmlAttr6(value) {
   return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 function firstHeader4(headers, name) {
@@ -155340,13 +155784,14 @@ function buildCreateHookBody(params) {
   const responsible = assertEnhIdentifier(params.responsible, "responsible", { maxLength: ABAP_USERNAME_MAX });
   const anchorFullName = parseAnchorFullName(params.anchor.fullName);
   const anchorFullDescription = assertAbapText(params.anchor.fullDescription, "anchor.fullDescription", 200);
-  const hostRef = `adtcore:uri="${escapeXmlAttr5(hostUri)}" adtcore:type="${escapeXmlAttr5(params.host.type)}" adtcore:name="${escapeXmlAttr5(hostName)}"`;
-  return `<?xml version="1.0" encoding="UTF-8"?><enho:enhancement xmlns:enho="http://www.sap.com/adt/enhancements/enho" xmlns:adtcore="http://www.sap.com/adt/core" xmlns:abapsource="http://www.sap.com/adt/abapsource" xmlns:atom="http://www.w3.org/2005/Atom" adtcore:name="${escapeXmlAttr5(name)}" adtcore:type="ENHO/XHH" adtcore:description="${escapeXmlAttr5(description)}" adtcore:masterLanguage="EN" adtcore:language="EN" adtcore:responsible="${escapeXmlAttr5(responsible)}"><adtcore:packageRef adtcore:name="${ENH_CREATE_PACKAGE}"/><enho:contentCommon enho:toolType="HOOK_IMPL" enho:adjustmentStatus="manual-adjustment"><enho:usages><enho:referencedObject enho:program_id="R3TR" enho:element_usage="REDO" enho:upgrade="false" enho:automatic_transport="false"><enho:objectReference ${hostRef}/><enho:mainObjectReference ${hostRef}/></enho:referencedObject></enho:usages></enho:contentCommon><enho:contentSpecific><enho:hookTechnology enho:nextId="2"><enho:enhancedObject ${hostRef}/><enho:hookImplementation enho:id="1" enho:spotname="" enho:programname="${escapeXmlAttr5(hostName)}" enho:overwrite="" enho:method="" enho:enhmode="D" enho:full_name="${escapeXmlAttr5(anchorFullName)}" enho:full_description="${escapeXmlAttr5(anchorFullDescription)}"/></enho:hookTechnology></enho:contentSpecific></enho:enhancement>`;
+  const hostRef = `adtcore:uri="${escapeXmlAttr6(hostUri)}" adtcore:type="${escapeXmlAttr6(params.host.type)}" adtcore:name="${escapeXmlAttr6(hostName)}"`;
+  return `<?xml version="1.0" encoding="UTF-8"?><enho:enhancement xmlns:enho="http://www.sap.com/adt/enhancements/enho" xmlns:adtcore="http://www.sap.com/adt/core" xmlns:abapsource="http://www.sap.com/adt/abapsource" xmlns:atom="http://www.w3.org/2005/Atom" adtcore:name="${escapeXmlAttr6(name)}" adtcore:type="ENHO/XHH" adtcore:description="${escapeXmlAttr6(description)}" adtcore:masterLanguage="EN" adtcore:language="EN" adtcore:responsible="${escapeXmlAttr6(responsible)}"><adtcore:packageRef adtcore:name="${ENH_CREATE_PACKAGE}"/><enho:contentCommon enho:toolType="HOOK_IMPL" enho:adjustmentStatus="manual-adjustment"><enho:usages><enho:referencedObject enho:program_id="R3TR" enho:element_usage="REDO" enho:upgrade="false" enho:automatic_transport="false"><enho:objectReference ${hostRef}/><enho:mainObjectReference ${hostRef}/></enho:referencedObject></enho:usages></enho:contentCommon><enho:contentSpecific><enho:hookTechnology enho:nextId="2"><enho:enhancedObject ${hostRef}/><enho:hookImplementation enho:id="1" enho:spotname="" enho:programname="${escapeXmlAttr6(hostName)}" enho:overwrite="" enho:method="" enho:enhmode="D" enho:full_name="${escapeXmlAttr6(anchorFullName)}" enho:full_description="${escapeXmlAttr6(anchorFullDescription)}"/></enho:hookTechnology></enho:contentSpecific></enho:enhancement>`;
 }
 async function postHookImplementation(conn, authorized, body) {
+  const mediaType = enhoxhhMediaType(conn.discovery);
   try {
     return await conn.post(ENHOXHH_COLLECTION, {
-      headers: { "Content-Type": ENHOXHH_ACCEPT, Accept: ENHOXHH_ACCEPT },
+      headers: { "Content-Type": mediaType, Accept: mediaType },
       body
     });
   } catch (e) {

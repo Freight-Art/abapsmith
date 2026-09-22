@@ -27,6 +27,17 @@ version was set to `0.3.0`, which is intended.
 ### Changed
 
 - **`abap_img_edit preview` now prints which request would be used** (#176): "Applying this change would record on <REQ> (<kind> request known to this session)" or "would create a new <kind> request ..." — and, as before, `preview` never creates one.
+## [0.6.24] - 2026-09-22
+
+### Added
+
+- **`abap_write fixed_point_arithmetic`** (#179). A new `PROG/P` opt-out for the default below — `false` omits `abapsource:fixPointArithmetic` from the create payload instead of sending it `"true"`. Named against any other type it is `BAD_INPUT`, before any request. A whole-object `abap_read` of a `PROG/P` reports `fixed_point_arithmetic: true|false` in the header, read off the program's descriptor; the line is omitted when that descriptor could not be read.
+- **`abap_write text_pool`** (#182). Writes a program's text pool — text symbols and selection texts — through the `PROG/PX` textelements resource, `PROG/P` only: `{"symbols":{"001":"Hello"},"selection_texts":{"P_X":"Parameter X"}}`. Symbol keys are 1–3 alphanumerics (uppercased), texts up to 132 chars; selection-text names up to 8 chars (uppercased), texts up to 30 chars. Given with `source`, it writes after the source write and activation; given alone it targets an existing program (`BAD_INPUT` on one that does not exist yet, and `BAD_INPUT` before any request on any type other than `PROG/P`). Texts are written in the logon language and the textelements resource is activated unless `activate: false`; the write is journalled as an irreversible `update` entry on the `PROG/PX` textelements resource, so it appears in `abap_journal mode=list` but `mode=undo` refuses it. The response gains `text_pool: symbols N, selection_texts M (<language>)` and `text_pool_activated: yes|no`. A `PROG/P` whole-object `abap_read` gains a `TEXT POOL` section listing symbols and selection texts when the program has any. `PROG/PT` is the program's GUI title (`SET TITLEBAR`, Menu Painter/SE41), not the text pool, and stays unwritable and unreadable.
+
+### Fixed
+
+- **`create_hook` negotiates its `enhoxhh` media type instead of hardcoding v2** (#178). abapsmith now reads the `<app:accept>` list of the `/sap/bc/adt/enhancements/enhoxhh` collection from `/sap/bc/adt/discovery` (cached per connection with the rest of the discovery inventory) and sends the highest `application/vnd.sap.adt.enh.enhoxhh.vN+xml` version advertised — A4H 754 offers only v3 and `text/html`; older releases v2 or v1. Discovery unreachable falls back to v2. No `enhoxhh` collection, or one with no `enhoxhh` media type, refuses `create_hook` `UNSUPPORTED` naming `application/vnd.sap.adt.enh.enhoxhh.v2+xml`, before any request. HTTP 415 (`SADT_RESOURCE/039`, `ExceptionUnsupportedMediaType`) and HTTP 406 (`SADT_RESOURCE/037`, `ExceptionResourceNotAcceptable`) are now classified with a hint that the server does not accept the v2 enhancement-implementation payload / cannot produce the requested representation, and that reconnecting refreshes the cached inventory.
+- **New `PROG/P` reports are created with Fixed Point Arithmetic on** (#179). Before, `abap_write` sent no `abapsource:fixPointArithmetic` attribute at all, which left it off and broke things like `SELECT … INTO TABLE @DATA(lt)` combined with `lines( )` arithmetic, and decimal handling generally.
 
 ## [0.6.23] - 2026-09-22
 

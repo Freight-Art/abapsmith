@@ -1,0 +1,9 @@
+{
+  "captured": "2026-09-22 A4H (SAP_BASIS 754)",
+  "request": "GET /sap/bc/adt/programs/programs/rsparam (no Accept)",
+  "responseHeaders": {
+    "content-type": "application/vnd.sap.adt.programs.programs.v3+xml; charset=utf-8",
+    "etag": "202508011238180018"
+  },
+  "note": "Standard report RSPARAM; abapsource:fixPointArithmetic=\"true\" on the root element (issue #179)."
+}

@@ -108,6 +108,26 @@ the classic `CALL BADI ref->method [EXPORTING ...] [IMPORTING ...] [CHANGING
 ...] [RECEIVING ...].` form, never the parenthesized `method( ... )` short
 form.
 
+`create_hook` (and every read/write of an `enhoxhh` source-code plug-in)
+negotiates its media type instead of hardcoding
+`application/vnd.sap.adt.enh.enhoxhh.v2+xml`: abapsmith reads the
+`<app:accept>` list of the `/sap/bc/adt/enhancements/enhoxhh` collection
+from `/sap/bc/adt/discovery` (cached per connection with the rest of the
+discovery inventory) and sends the highest
+`application/vnd.sap.adt.enh.enhoxhh.vN+xml` version the server advertises
+— A4H 754 offers only v3 and
+`text/html`; older releases v2 or v1. When discovery could not be loaded,
+it falls back to v2. When the server's discovery offers no `enhoxhh`
+collection at all, or one with no `enhoxhh` media type in its accept list,
+`create_hook` is refused `UNSUPPORTED` naming
+`application/vnd.sap.adt.enh.enhoxhh.v2+xml`, before any request. An HTTP
+415 (`SADT_RESOURCE/039`, `ExceptionUnsupportedMediaType`) or HTTP 406
+(`SADT_RESOURCE/037`, `ExceptionResourceNotAcceptable`) from the server is
+now classified with a hint saying the server does not accept the
+enhancement-implementation payload sent / cannot produce the requested
+representation, and that reconnecting refreshes the cached discovery
+inventory the negotiated version was read from.
+
 `exercise` reports `ENHANCEMENT_NOT_DISPATCHING` — not a false success —
 when `GET BADI` returns an unbound handle, meaning `CALL BADI` was never
 attempted. This can happen even when the implementation is workbench-active,

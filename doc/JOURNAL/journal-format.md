@@ -77,6 +77,7 @@ subset named above.
 | Journalled | Not journalled |
 |---|---|
 | `abap_write` (create/update/delete) | FPM tools |
+| `abap_write text_pool` (irreversible `update` entry on the `PROG/PX` textelements resource, history only) | — |
 | `abap_transport` (create / add-user / set-owner / release) | `abap_bopf_edit operation:"activate"` (no mutation of the BO's own model — see below) |
 | `abap_enh`: 9 of its 11 operations (see below) | `abap_enh`'s `discover_hook_anchors` (read-only) and `exercise` (mutates no ADT object of its own) |
 | `abap_activate` — single and batch | — |
@@ -86,6 +87,10 @@ The accidental gaps are not listed here: `KNOWN_GAPS` in
 `test/journal-contract.test.ts` is the shrink-only, machine-checked list of
 mutation sites that journal nothing and should, and it is the authority when
 this prose and that list disagree.
+
+A PROG/P create with `fixed_point_arithmetic` set is not a special case: it
+goes through the ordinary `abap_write` create entry, the same as any other
+create.
 
 `abap_write`'s inline activation (the default, unless called with
 `activate:false`) is folded into that same create/update entry — it is not a

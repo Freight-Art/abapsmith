@@ -24,6 +24,7 @@
 import type { AbapConnection } from "./connection.js";
 import { translateAdtError } from "./session.js";
 import { AbapError, isAbapError } from "./errors.js";
+import type { Discovery } from "./discovery.js";
 import {
   parseBadiImplementation,
   parseSourceCodePlugin,
@@ -52,6 +53,53 @@ export const ENHSXS_COLLECTION = "/sap/bc/adt/enhancements/enhsxs";
 export const ENHOXH_ACCEPT = "application/vnd.sap.adt.enh.enho.v1+xml";
 export const ENHOXHH_ACCEPT = "application/vnd.sap.adt.enh.enhoxhh.v2+xml";
 export const ENHSXS_ACCEPT = "application/vnd.sap.adt.enh.enhs.v1+xml";
+
+/** Matches any versioned enhoxhh media type, capturing the version number. */
+export const ENHOXHH_MEDIA_TYPE_PATTERN = /^application\/vnd\.sap\.adt\.enh\.enhoxhh\.v(\d+)\+xml$/i;
+
+/**
+ * The enhoxhh media type to send/accept, negotiated from this connection's
+ * `/sap/bc/adt/discovery` inventory instead of a hardcoded version — some
+ * releases (e.g. A4H) only advertise v3, others only v2 or v1, and sending
+ * the wrong version 415s (POST) or 406s (GET).
+ *
+ * Fail-open, matching `assertSupported`'s policy: when discovery hasn't
+ * loaded a credible inventory, this returns the historical hardcoded
+ * `ENHOXHH_ACCEPT` rather than blocking on an unknown state. Once discovery
+ * HAS loaded, an enhoxhh collection with no matching media type is a real,
+ * actionable refusal — thrown as `UNSUPPORTED` rather than guessed at.
+ *
+ * Pure — performs no I/O.
+ */
+export function enhoxhhMediaType(discovery: Discovery): string {
+  if (discovery.loadState !== "loaded") return ENHOXHH_ACCEPT;
+  const accept = discovery.acceptedMediaTypes("/enhancements/enhoxhh");
+  if (accept === undefined) {
+    throw new AbapError(
+      "UNSUPPORTED",
+      "This server's /sap/bc/adt/discovery offers no /sap/bc/adt/enhancements/enhoxhh " +
+        "collection, so enhancement implementations (source code plug-ins) cannot be read " +
+        `or created over ADT; media type ${ENHOXHH_ACCEPT} is not served.`,
+      { feature: "enhancements", collection: "enhoxhh" },
+      "create_hook is unavailable on this release.",
+    );
+  }
+  const versioned = accept
+    .map((mt) => ({ mt, m: ENHOXHH_MEDIA_TYPE_PATTERN.exec(mt) }))
+    .filter((x): x is { mt: string; m: RegExpExecArray } => x.m !== null);
+  if (versioned.length === 0) {
+    throw new AbapError(
+      "UNSUPPORTED",
+      `This server's /sap/bc/adt/discovery enhoxhh collection does not advertise ` +
+        `${ENHOXHH_ACCEPT} or any other versioned enhoxhh media type; it advertises ` +
+        `${accept.length ? accept.join(", ") : "nothing"}.`,
+      { feature: "enhancements", collection: "enhoxhh", accept },
+      "create_hook is unavailable on this release.",
+    );
+  }
+  versioned.sort((a, b) => Number(b.m[1]) - Number(a.m[1]));
+  return versioned[0]!.mt;
+}
 
 /** Error-context type codes, mirrors `bopf.ts`'s `BOPF_TYPE`. Not exported. */
 const ENHOXH_TYPE = "ENHO/XH";
@@ -172,8 +220,9 @@ export async function readSourceCodePlugin(
   // Discovery gate — see readBadiImplementation.
   conn.discovery.assertSupported("enhancements", "source-code plug-ins (ENHO/XHH)");
   const uri = buildEnhancementUri(ENHOXHH_COLLECTION, name);
+  const accept = enhoxhhMediaType(conn.discovery);
   try {
-    const resp = await conn.get(uri, { headers: { Accept: ENHOXHH_ACCEPT } });
+    const resp = await conn.get(uri, { headers: { Accept: accept } });
     const etag = firstHeader(resp.headers, "etag");
     return { xml: resp.body, data: parseSourceCodePlugin(resp.body), ...(etag ? { etag } : {}) };
   } catch (e) {

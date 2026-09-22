@@ -250,6 +250,19 @@ describe("safety-gate contract (heuristic, see file header)", () => {
     // binding's package before the POST, which is what the one-hop importer
     // clause in the second test matches. `op="read"`'s three GETs are not
     // `CONN_CALL_RE` matches and stay ungated.
+    // `adt/program-create.ts` (issue #179) — `createProgram`'s single
+    // `conn.post` for the PROG/P create. Takes no gate itself; its only
+    // importer `adt/write.ts` (`createNewObject`) is reached from
+    // `writeObject`, after `authorizeMutation`, which the one-hop importer
+    // clause matches.
+    // `adt/text-pool.ts` (issue #182) — `writeTextPool`'s two `conn.put`
+    // against the textelements resource. Takes an already-authorized
+    // `AuthorizedTarget<MutatingOperation, ResolvedTarget>` and refuses
+    // `op !== "write"` at runtime. The gate is `tools/write.ts`
+    // (`authorizeMutation(conn, gate, "write", target)` before
+    // `writeTextPoolJournalled`); it imports `TextPoolWriteResult` from
+    // `adt/text-pool.js`, which is the one-hop importer edge this test sees.
+    // `tools/write-text-pool.ts` only wraps the call in the journal.
     expect(rel).toEqual(
       [
         "adt/activate.ts",
@@ -261,7 +274,9 @@ describe("safety-gate contract (heuristic, see file header)", () => {
         "adt/enhancement-hook.ts",
         "adt/enhancement-write.ts",
         "adt/odata.ts",
+        "adt/program-create.ts",
         "adt/quickfix.ts",
+        "adt/text-pool.ts",
         "adt/traces.ts",
         "adt/transports.ts",
         "adt/write.ts",

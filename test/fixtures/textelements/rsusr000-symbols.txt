@@ -1,0 +1,32 @@
+@MaxLength:30
+001=Aktive Instanzen
+
+@MaxLength:20
+002=Destinationen mit
+
+@MaxLength:20
+003=Anwendern.
+
+@MaxLength:20
+004=System
+
+@MaxLength:30
+005=Übersicht über alle
+
+@MaxLength:20
+006=Datum, Uhrzeit
+
+@MaxLength:30
+007=angemeldeten Anwender.
+
+@MaxLength:30
+008=Anzahl aktive Anwender
+
+@MaxLength:30
+009=Interaktive Anwender
+
+@MaxLength:30
+010=Anzahl der RFC Anwender
+
+@MaxLength:34
+011=Anzahl der Plugin Anwender

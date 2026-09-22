@@ -53,6 +53,17 @@ nothing at all, which happens for generated function modules (e.g.
 `ENQUEUE_E_TABLE`) that the repository search does not index: say
 `"ENQUEUE_E_TABLE in ETABLE"` or `"ETABLE/ENQUEUE_E_TABLE"`.
 
+A whole-object source read of a `PROG/P` reports `fixed_point_arithmetic:
+true|false` in the header, read off the program's own descriptor — the
+line is omitted when that descriptor could not be read. When the program
+has any text symbols or selection texts, the same read also appends a
+`TEXT POOL` section listing them, read from the `PROG/PX` textelements
+resource — see `doc/TOOLS/write-and-activate.md` for how `abap_write`'s
+`text_pool` parameter writes them. A program with no text symbols and no
+selection texts gets no such section. List headings (`SELECTION-SCREEN
+BEGIN OF SCREEN`/`TAB` frame titles) are not part of the text pool and are
+not shown here.
+
 ### Large sources: outline by default, `pattern`, and `full`
 
 Issue #148 measured what a plain `abap_read` of a standard class costs: a
