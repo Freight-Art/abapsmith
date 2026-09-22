@@ -19,6 +19,22 @@ connection pool slot is leased, nothing is sent to SAP). `undo` needs
 | `outcome` | enum `succeeded` \| `failed` | required for `reconcile` | — | The outcome you assert for a `pending` entry. `pending` is the state being left, so it is not offered. |
 | `reason` | string | required for `reconcile` | — | How you established that outcome. Recorded verbatim — the only evidence the entry will ever carry for it. |
 
+Common calls:
+
+- `mode=list` — recent writes with entry ids.
+- `mode=show entry=<id>` — one entry with its before-image (`detail=full`
+  for the complete images).
+- `mode=undo entry=<id> activate=true` — revert it (refuses on drift, the
+  delete-gate, or an enhancement object; see `abapsmith-recover-a-bad-write`).
+- `mode=reconcile entry=<id> outcome=<succeeded|failed> reason=<text>` —
+  close a stranded `pending` entry; journal bookkeeping only, nothing is
+  sent to SAP.
+
+An unknown parameter is refused `BAD_INPUT` before any request, naming the
+accepted parameters (`mode`, `entry`, `detail`, `object`, `limit`,
+`session`, `force`, `activate`, `outcome`, `reason`) and the nearest match —
+`operation`/`action` → `mode`, `id` → `entry`, `target`/`name` → `object`.
+
 `list` columns: `id`, `when`, `op`, `object`, `existed`, `capture`,
 `outcome`, `flags`. `flags` includes `reconciled` for an entry closed by hand.
 

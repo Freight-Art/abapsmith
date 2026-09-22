@@ -37,6 +37,7 @@ import {
 } from "../adt/aunit.js";
 import type { AbapConnection } from "../adt/connection.js";
 import { AbapError, isAbapError } from "../adt/errors.js";
+import { isNotFoundError } from "../adt/session.js";
 import {
   authTraceOf,
   renderFailedAuthChecks,
@@ -585,6 +586,55 @@ async function abapTestObject(
     }
   } else {
     res = await executeTestRun();
+  }
+
+  // #181: an "unknown" outcome with nothing to show almost always means the
+  // class has no test-classes include, not that grading silently failed —
+  // probe once (GET, no side effects) to tell those apart before reporting.
+  if (
+    res.outcome === "unknown" &&
+    res.programs.length === 0 &&
+    res.otherAlerts.length === 0 &&
+    obj.type === "CLAS/OC"
+  ) {
+    try {
+      const probe = await conn.get(`${obj.uri}/includes/testclasses`, {
+        headers: { Accept: "text/plain" },
+      });
+      if (probe.body.trim() === "") {
+        res = {
+          ...res,
+          outcome: "no-tests",
+          reason:
+            "The run reported no test methods and the class has no test-classes include content " +
+            "(…/includes/testclasses is empty), so there was nothing for ABAP Unit to run.",
+        };
+      } else {
+        res = {
+          ...res,
+          reason:
+            `${res.reason ? `${res.reason} ` : ""}The class does have a non-empty test-classes include, so the ` +
+            "empty run result is unexplained; check that the include activates and declares FOR " +
+            "TESTING methods at or below this risk level.",
+        };
+      }
+    } catch (e) {
+      if (isNotFoundError(e) || (isAbapError(e) && e.code === "NOT_FOUND")) {
+        res = {
+          ...res,
+          outcome: "no-tests",
+          reason:
+            "The run reported no test methods and the class has no test-classes include " +
+            "(…/includes/testclasses is absent), so there was nothing for ABAP Unit to run.",
+        };
+      } else {
+        const message = e instanceof Error ? e.message : String(e);
+        res = {
+          ...res,
+          reason: `${res.reason ? `${res.reason} ` : ""}(probe of the test-classes include failed: ${message})`,
+        };
+      }
+    }
   }
 
   const notes: string[] = [];

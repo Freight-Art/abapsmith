@@ -22,11 +22,29 @@ reaching SAP.
 | `parameters` | array\<object\> | no | — | Report mode only — selection-screen parameters. |
 | `auth_trace` | boolean | no | `false` | Switch on the SAP authorization trace for the executing user around this run and read back failed authority checks afterward. See "Authorization trace" below. Never runs in read mode. |
 | `snapshot_ids` | array\<string\> | no | — | Ids from prior `abap_data_preview mode="snapshot"` calls. Diffed against the live system after the run finishes; a `DATA CHANGES` section is appended. See [Diffing what a call changed](#diffing-what-a-call-changed-snapshot_ids) below. |
+| `keep_blank_lines` | boolean | no | `false` | Report mode only. Return the captured list unfiltered: keep the list page header and rule line, trailing blank lines and blank padding exactly as captured (only trailing spaces per line are still trimmed). Class mode ignores this. |
 
 Each `parameters[]` entry: `name` (string, required), `type` (enum `char` \|
 `int` \| `packed` \| `date`, optional), `value` (string, optional),
 `ranges` (array of `{sign?, option?, low, high?}`, optional; `sign` is `I`/
 `E`, `option` is one of `EQ NE GT LT GE LE CP NP BT NB`).
+
+### Dropped list lines and `keep_blank_lines`
+
+By default, report mode strips the two-line list page header and rule
+line, pops trailing blank lines, and drops any bridge-output line that
+doesn't carry the list-row prefix. When any of that happened, a `NOTE`
+says exactly what and where, e.g. "Dropped 2 blank lines at positions 4
+and 5 (trailing list padding); dropped the list header and rule line at
+positions 1 and 2; dropped 1 non-list line of bridge output at bridge
+line 3." Only the groups that actually occurred are mentioned, singular
+or plural as appropriate; positions are 1-based line numbers of the
+captured list before dropping (the bridge-output line number for a
+dropped non-list line). Pass `keep_blank_lines: true` to receive the
+capture unfiltered instead — non-list bridge lines are still dropped, but
+nothing else is. Separately, if the response itself has to be cut to fit
+the size cap, the cut leaves an in-place `… (N lines omitted) …` marker
+in the `OUTPUT` rather than silently truncating it.
 
 Notes: uses a real write session but leases a **read** slot from the
 connection pool — deliberate, since it doesn't hold an ABAP enqueue lock.
@@ -190,9 +208,12 @@ reaching SAP.
 
 Notes: four outcomes, only one of which is a pass. `PASSED` — tests ran and
 all succeeded. `FAILED` — at least one assertion failed. `NO TESTS RAN` —
-the object has no test methods at this risk level; **this is not a pass**,
-it is the absence of evidence. `UNKNOWN` — the run could not be graded; also
-not a pass. Coverage never changes this outcome: a coverage-retrieval
+the object has no test methods at this risk level, or, for a class, its
+`testclasses` include is absent or empty — the response states which
+reason applies; **this is not a pass**, it is the absence of evidence.
+`UNKNOWN` — the run reported nothing although a non-empty `testclasses`
+include exists, or the include could not be probed; still not a pass.
+Coverage never changes this outcome: a coverage-retrieval
 failure is reported as a `NOTE` and the PASSED/FAILED/NO TESTS RAN/UNKNOWN
 verdict above it is unaffected. `scope: "impacted"` adds two further
 not-a-pass outcomes of its own — see "Impacted scope" below.
