@@ -1,0 +1,22 @@
+{
+  "n": 988,
+  "label": "i171-fmodule-post-403-cts-wbo-api-19",
+  "expect": "the refusal names the holding request in T100KEY-V3 and the user in T100KEY-V4; the message class/number is CTS_WBO_API/019",
+  "note": "module create POST without corrNr while LZAS_FG171UXX is locked in A4HK900306: 403 ExceptionResourceNoAuthorization CTS_WBO_API/019 with T100KEY-V1 object, V3 request, V4 user (issue 171)",
+  "requestMethod": "POST",
+  "requestUrl": "/sap/bc/adt/functions/groups/zas_fg171/fmodules?sap-client=001",
+  "requestHeaders": {
+    "Content-Type": "application/*"
+  },
+  "responseStatus": 403,
+  "responseHeaders": {
+    "content-type": "application/xml"
+  },
+  "responseHeadersNote": "only content-type known: body captured via an HTTP trace hook on abapsmith's own guarded transport (trace-i171-fm1d); other response headers were not recorded",
+  "byteLength": 1981,
+  "zeroByteBody": false,
+  "sha256": "55ac45a07075df36c54478393383231fab54686f80dc349f4d516e4362aad760",
+  "utcTimestamp": "2026-09-22T15:10:00Z",
+  "timestampNote": "approximate (minute precision) - taken from the capture session notes, not a recorded clock",
+  "sessionName": "LIVE-I171-I177"
+}

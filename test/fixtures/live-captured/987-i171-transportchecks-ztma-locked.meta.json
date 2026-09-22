@@ -1,0 +1,22 @@
+{
+  "n": 987,
+  "label": "i171-transportchecks-ztma-locked",
+  "expect": "KORRFLAG X plus a LOCKS entry means transportable and pinned to A4HK900306 - the REQUEST number, not the task, is what the module POST must send as corrNr",
+  "note": "transportchecks asked with DEVCLASS ZTMA_COURSES (the group package): KORRFLAG X, DLVUNIT HOME, LOCKS pins LIMU REPS LZAS_FG171UXX to request A4HK900306 task A4HK900307 (issue 171, post-fix sequence)",
+  "requestMethod": "POST",
+  "requestUrl": "/sap/bc/adt/cts/transportchecks?sap-client=001",
+  "requestHeaders": {
+    "Content-Type": "application/*"
+  },
+  "responseStatus": 200,
+  "responseHeaders": {
+    "content-type": "application/xml"
+  },
+  "responseHeadersNote": "only content-type known: body captured via an HTTP trace hook on abapsmith's own guarded transport (trace-i171-fm1e); other response headers were not recorded",
+  "byteLength": 1411,
+  "zeroByteBody": false,
+  "sha256": "b3fbdd5933f3504fbf1bc4dba077b917e35401001e4ead0f807efc5eddd79137",
+  "utcTimestamp": "2026-09-22T15:11:00Z",
+  "timestampNote": "approximate (minute precision) - taken from the capture session notes, not a recorded clock",
+  "sessionName": "LIVE-I171-I177"
+}

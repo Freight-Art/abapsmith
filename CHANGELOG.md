@@ -28,6 +28,37 @@ version was set to `0.3.0`, which is intended.
 
 - **`abap_img_edit preview` now prints which request would be used** (#176): "Applying this change would record on <REQ> (<kind> request known to this session)" or "would create a new <kind> request ..." — and, as before, `preview` never creates one.
 
+## [0.6.23] - 2026-09-22
+
+### Fixed
+
+- **Bridge creates honour the request this session created** (#174). `VIEW/DV`, `TRAN/T`, `SHLP/DH`, `TABL/DI` and `DEVC/K` creates under `ABAP_ALLOW_TRANSPORTS=auto` now consult the session's created-request registry directly — a request from `abap_transport operation=create` that CTS's package candidate list omits (pinned, failed or empty check) is confirmed with a transport read and reused, instead of a new request being minted with the note "CTS offered no existing request for package …".
+- **`TABL/DI` reports the request that actually holds the index** (#173). After a `TABL/DI`, `VIEW/DV` or `TRAN/T` bridge create, abapsmith reads the request back and `transport:` and the response NOTE name whichever request actually holds the entry, not just the number the create sent: the same request reads `Read back after the write: request <REQ> lists LIMU INDX <TABLE> <ID>.` (replacing the old "did NOT re-read" sentence); a different one reads `Recorded in <OTHER> (holds the <PGMID> <TYPE> lock for <NAME>), not in the session's request <SESSION>.`, naming the entry the holder actually lists — the `LIMU INDX` entry itself or the covering `R3TR TABL`. A read-back that cannot be confirmed is reported as such and never masks the create's own success.
+
+### Changed
+
+- **Session-created requests win over older abapsmith leftovers, and every non-session request carries its reason** (#175). The resolver now prefers, in order, a server pin, a named request, a request this session created, then an older modifiable request carrying the `abapsmith session <date>` description, before creating a new one — and switches away from a cached older request the moment a session-created one exists. A server-pinned request's NOTE names the object and the lock it holds instead of the session's request; an adopted older request's NOTE says why the session used it instead of creating a new one. The tool description and `doc/TOOLS/write-and-activate.md` document the order.
+
+## [0.6.22] - 2026-09-22
+
+### Added
+
+- **`abap_write` gains `remote_enabled: boolean`** (#177). `FUGR/FF` only — `BAD_INPUT` zero-network for every other type and for `mode=delete`. `true` sets the module's processing type to `rfc` (Remote-Enabled Module), `false` to `normal`, written as a minimal `fmodule:abapFunctionModule` descriptor PUT (`Content-Type: application/vnd.sap.adt.functions.fmodules.v3+xml`) to the module URI under the same lock and transport as the source PUT, before unlock and activation — no ABAP bridge involved. The write response prints `processing_type: rfc|normal` and notes when it changed; omitting the parameter leaves the processing type untouched, even for a byte-identical source. `abap_read` of a `FUGR/FF` now prints `processing_type` and `remote_enabled: yes|no` in its header (one extra GET of the module descriptor).
+
+### Fixed
+
+- **Function module create no longer collides with its own group's transport lock** (#171). A module create with no `package` used to resolve to `$TMP` and send the create POST with no `corrNr`; CTS refused it with 403 `CTS_WBO_API/019` — the group's generated `L<GROUP>UXX` include was already locked by the request the group itself was created in. The create path now reads the group's own `adtcore:packageRef` and uses that package: transportchecks answers `KORRFLAG X` with the locking request, the POST carries `corrNr=<that request>`, and the response's `transport:` line reports the request actually used, with `package_source: container` saying the package came from the group. A `package` that disagrees with the group's is refused `BAD_INPUT` — no move. A create that still hits `CTS_WBO_API/019` (e.g. a forced `corr_nr`) is now classified `TRANSPORT_LOCKED`, `details.classifiedBy: "cts-object-locked-in-other-request"`, with `details.holdingRequest`, `details.holdingUser`, `details.lockedObject`, and a hint naming the request to pass as `corr_nr`.
+## [0.6.21] - 2026-09-22
+
+### Added
+
+- **`add_query`/`set_query_fields` flag a missing `RETRIEVE_DEFAULT_PARAM` implementation** (#188). A query class must implement `/BOBF/IF_FRW_QUERY~RETRIEVE_DEFAULT_PARAM` even though the interface marks it `DEFAULT IGNORE` — the ABAP syntax check accepts a class without it, but BOPF activation of the business object then fails on the missing method. When the class source is readable, the preflight now checks case-insensitively for the method's implementation and adds a NOTE naming it if absent.
+
+### Fixed
+
+- **BOPF dangling-class-ref interface check is no longer case-sensitive** (#186). It used to test for `/BOBF/IF_FRW_ACTION` etc. as an exact-case substring, so a lower-case `INTERFACES /bobf/if_frw_action` was flagged `wrong-interface`. It now asks ADT's type hierarchy (own and inherited interfaces), falls back to a case-insensitive scan of the definition part, and reports `unchecked` — not `wrong-interface` — when it can't decide (an inheriting class whose hierarchy is unavailable, or a class whose source can't be read at all, e.g. a 403 on a delivered SAP class). The edit no longer throws on an unreadable source.
+- **`add_association`/`set_association_fields` qualify a bare `targetNodeRef.name`** (#187). BOPF requires `<BO>~<NODE>`, same-BO included — a bare name like `"ITEM"` activated with "Association has no Target Node defined". A bare name is now qualified with the current business object's name before the PUT and reported in a NOTE; `spec.targetNodeRef.type` defaults to `BOBF`. An unknown node (bare, or qualified with the same BO) is refused `BAD_INPUT` before any lock or PUT, listing the nodes that exist.
+
 ## [0.6.20] - 2026-09-22
 
 ### Fixed

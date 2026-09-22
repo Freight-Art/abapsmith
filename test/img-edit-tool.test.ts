@@ -1859,7 +1859,7 @@ describe("abap_img_edit — ABAP_ALLOW_TRANSPORTS=auto (issue #176)", () => {
       const args = JSON.parse(invokerArgsJson(String(put!.body))) as { request_type?: string };
       expect(args.request_type).toBe("K");
 
-      expect(transport.createdThisSession("A4HK900050")).toBe(true);
+      expect(transport!.createdThisSession("A4HK900050")).toBe(true);
     });
 
     it("default (no request_type) sends requestType W, and still notes the session created the request", async () => {
@@ -1886,7 +1886,7 @@ describe("abap_img_edit — ABAP_ALLOW_TRANSPORTS=auto (issue #176)", () => {
       const args = JSON.parse(invokerArgsJson(String(put!.body))) as { request_type?: string };
       expect(args.request_type).toBe("W");
 
-      expect(transport.createdThisSession("A4HK900002")).toBe(true);
+      expect(transport!.createdThisSession("A4HK900002")).toBe(true);
     });
 
     it("rejects request_type on a row-edit mode (upsert) with BAD_INPUT before any network call", async () => {
@@ -1938,7 +1938,7 @@ describe("abap_img_edit — ABAP_ALLOW_TRANSPORTS=auto (issue #176)", () => {
           "corr_nr was not supplied; this session recorded on A4HK900050 (customizing request created now).",
         );
         expect(text).toContain("corrNrSource: session-created");
-        expect(transport.createdThisSession("A4HK900050")).toBe(true);
+        expect(transport!.createdThisSession("A4HK900050")).toBe(true);
 
         const createPut = inner.calls.find(
           (c) =>
@@ -1988,7 +1988,7 @@ describe("abap_img_edit — ABAP_ALLOW_TRANSPORTS=auto (issue #176)", () => {
         "corr_nr was not supplied; this session recorded on A4HK900050 (workbench request created now).",
       );
       expect(text).toContain("corrNrSource: session-created");
-      expect(transport.createdThisSession("A4HK900050")).toBe(true);
+      expect(transport!.createdThisSession("A4HK900050")).toBe(true);
 
       const createPut = inner.calls.find(
         (c) =>
@@ -2056,7 +2056,7 @@ describe("abap_img_edit — ABAP_ALLOW_TRANSPORTS=auto (issue #176)", () => {
         }),
       );
       const transport = fakeTransport();
-      transport.noteCreated("A4HK900077");
+      transport!.noteCreated("A4HK900077");
       const { tools } = await registered(conn, { safety: autoGate(), transport });
 
       const result = await invoke(tools, "abap_img_edit", {

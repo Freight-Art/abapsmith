@@ -85,12 +85,15 @@ describe("SessionTransport adopts an attributed candidate instead of creating", 
     expect(res.corrNr).toBe(cand.trkorr);
     expect(res.created).toBe(false);
     expect(res.pinned).toBe(false);
+    // Reworded by #175: names WHY the resolver preferred this request over creating a
+    // new one, not just that it did. See session-transport.ts's #resolveAuto.
     expect(res.reason).toBe(
-      `Adopted existing request ${cand.trkorr} rather than creating another: it is a modifiable ` +
-        `workbench request owned by DEVELOPER and carries abapsmith's own session description ` +
-        `(${cand.description}). THIS SESSION DID NOT CREATE IT — it was already open when this ` +
-        `session started, so it may already hold objects from earlier work, and ` +
-        `abap_transport_release will refuse to release it without an explicit override.`,
+      `Resolver preferred ${cand.trkorr} (created by this server on 2026-08-20, description ` +
+        `"${cand.description}") over creating a new request because this session has no ` +
+        `request of its own (none created, none registered by abap_transport operation=create). ` +
+        `THIS SESSION DID NOT CREATE IT — it was already open when this session started, so it ` +
+        `may already hold objects from earlier work, and abap_transport_release will refuse to ` +
+        `release it without an explicit override.`,
     );
     expect(trCreate).not.toHaveBeenCalled();
   });
