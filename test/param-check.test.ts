@@ -253,6 +253,25 @@ describe("installed in the server (end to end, zero wire requests)", () => {
     expect(h.http.calls).toHaveLength(0);
   });
 
+  it('abap_transport_release: an unknown key ("include_tasks") is refused with a Did-you-mean toward "scope"', async () => {
+    const h = await harness(openCfg());
+    const res = await call(h, "abap_transport_release", { transport: "A4HK900001", include_tasks: true });
+    const err = errorOf(res);
+    expect(err.error).toBe("BAD_INPUT");
+    expect(err.message as string).toContain('Did you mean "scope"?');
+    expect(h.http.calls).toHaveLength(0);
+  });
+
+  it('abap_transport_release: an invalid scope value ("all") names "single" and "request"', async () => {
+    const h = await harness(openCfg());
+    const res = await call(h, "abap_transport_release", { transport: "A4HK900001", scope: "all" });
+    const err = errorOf(res);
+    expect(err.error).toBe("BAD_INPUT");
+    expect(err.message as string).toContain("single");
+    expect(err.message as string).toContain("request");
+    expect(h.http.calls).toHaveLength(0);
+  });
+
   it("the advertised schema is unchanged", async () => {
     const h = await harness(openCfg());
     const { tools } = await h.client.listTools();
